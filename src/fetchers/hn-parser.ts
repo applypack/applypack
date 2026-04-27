@@ -13,14 +13,31 @@
  */
 
 const URL_RE = /\bhttps?:\/\/[^\s<>"')]+/i;
-const SEPARATOR_RE = /\s+[—|–]\s+/g;
+// Pipes / em-dashes / en-dashes — accept zero or more whitespace on either
+// side. HN comments routinely use "Foo|Bar" without surrounding spaces.
+// These three characters effectively never appear inside URLs or normal
+// English prose, so over-splitting risk is low.
+const SEPARATOR_RE = /\s*[—|–]\s*/g;
 // Case-sensitive on the company match (capital first letter) but the verbs
 // are written lowercase in essentially every HN comment. No /i flag here —
 // adding it would make [A-Z] match lowercase too and break "we are hiring".
-// The optional "We at" / "We @" prefix lets us peel pronoun framing off
-// the front so we capture the actual company name.
+// The optional "We at" / "We @" prefix peels pronoun framing off the front.
+// Period is allowed (for "Acme Inc.") but the length cap is tight (30) so
+// runaway matches across sentence boundaries are rejected on length alone.
 const HIRING_RE =
-  /(?:^|\s)(?:[Ww]e\s+(?:at|@|here\s+at)\s+)?([A-Z][\w&. ]{1,50}?)\s+(?:is|are)\s+hiring\b/;
+  /(?:^|\s)(?:[Ww]e\s+(?:at|@|here\s+at)\s+)?([A-Z][\w&. ]{1,30}?)\s+(?:is|are)\s+hiring\b/;
+// If the regex still picks up a bare pronoun via a later anchor, we drop it.
+const PRONOUN_BLOCKLIST = new Set([
+  'We',
+  'I',
+  'Our',
+  'They',
+  'Us',
+  'My',
+  'The',
+  'This',
+  'That',
+]);
 
 export interface HnParsedComment {
   title: string;
@@ -57,13 +74,17 @@ export function parseHnComment(text: string): HnParsedComment | null {
   // 2. Try "Company is hiring" pattern.
   const m = HIRING_RE.exec(cleaned);
   if (m && m[1]) {
-    return {
-      title: extractRoleAfterHiring(cleaned) ?? firstLine.slice(0, 120),
-      companyName: m[1].trim(),
-      location: null,
-      url,
-      rawText: cleaned.slice(0, 1000),
-    };
+    const company = m[1].trim();
+    const spansSentence = /\.\s/.test(company); // "Kaggle. We" → reject
+    if (!PRONOUN_BLOCKLIST.has(company) && !spansSentence) {
+      return {
+        title: extractRoleAfterHiring(cleaned) ?? firstLine.slice(0, 120),
+        companyName: company,
+        location: null,
+        url,
+        rawText: cleaned.slice(0, 1000),
+      };
+    }
   }
 
   // 3. No recognisable structure → bail. Caller can choose to skip.
@@ -102,14 +123,29 @@ function labelFields(fields: string[]): {
     return {
       companyName: null,
       title: fields[0]!.trim(),
-      location: fields.length >= 2 ? (fields[1] ?? null) : null,
+      location: pickLocation(fields, 1),
     };
   }
   return {
     companyName: fields[0]!.trim(),
     title: (fields[1] ?? '').trim(),
-    location: fields.length >= 3 ? (fields[2] ?? null) : null,
+    location: pickLocation(fields, 2),
   };
+}
+
+/**
+ * Walk the field list from `start` looking for the first plausible location
+ * value — i.e. not a URL and not empty. HN comments often interleave a
+ * URL field between role and location ("Company | Role | URL | Location").
+ */
+function pickLocation(fields: string[], start: number): string | null {
+  for (let i = start; i < fields.length && i < start + 3; i++) {
+    const f = (fields[i] ?? '').trim();
+    if (f.length === 0) continue;
+    if (URL_RE.test(f)) continue;
+    return f;
+  }
+  return null;
 }
 
 function extractUrl(text: string): string | null {

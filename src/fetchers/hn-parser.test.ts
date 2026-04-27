@@ -99,4 +99,52 @@ describe('parseHnComment — robustness', () => {
     assert.ok(out !== null);
     assert.equal(out!.title, 'Senior PHP Engineer');
   });
+
+  // Regression: real HN comments sometimes omit the leading whitespace
+  // around the first pipe, e.g. "SPADE Agriculture| Full Stack Engineer".
+  // Splitter must still split on those pipes.
+  it('splits "Foo| Bar | Baz" without leading whitespace before the first pipe', () => {
+    const out = parseHnComment(
+      'SPADE Agriculture| Full Stack Engineer | https://spade.ag | Remote (US Timezones)',
+    );
+    assert.ok(out !== null);
+    assert.equal(out!.companyName, 'SPADE Agriculture');
+    assert.equal(out!.title, 'Full Stack Engineer');
+    assert.equal(out!.url, 'https://spade.ag');
+  });
+
+  // Regression: prose with "Sumble is the newco from … We are hiring …"
+  // should NOT capture half-a-paragraph as the company, and the bare
+  // pronoun "We" picked up at a later anchor must also be rejected.
+  it('refuses to span a sentence boundary or capture a bare pronoun', () => {
+    const out = parseHnComment(
+      'Sumble is the newco from the founders of Kaggle. We are hiring full stack engineers.',
+    );
+    // Either null, or company is just "Sumble" — what we MUST NOT see is
+    // "Sumble is the newco …" eaten as the company name, nor the bare
+    // pronoun "We".
+    if (out !== null && out.companyName !== null) {
+      assert.ok(
+        !out.companyName.includes('newco'),
+        `company should not span sentence: got "${out.companyName}"`,
+      );
+      assert.notEqual(out.companyName, 'We');
+    }
+  });
+
+  it('still matches "Acme Inc. is hiring …" (period in company name)', () => {
+    const out = parseHnComment('Acme Inc. is hiring Senior PHP Engineers.');
+    assert.ok(out !== null);
+    assert.equal(out!.companyName, 'Acme Inc.');
+    assert.match(out!.title, /Senior PHP Engineers/);
+  });
+
+  it('skips URL-shaped fields when picking the location', () => {
+    const out = parseHnComment(
+      'Foo Corp | Senior PHP | https://foo.example | Remote, US',
+    );
+    assert.ok(out !== null);
+    assert.equal(out!.location, 'Remote, US');
+    assert.equal(out!.url, 'https://foo.example');
+  });
 });

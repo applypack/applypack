@@ -103,7 +103,14 @@ export function stripHtml(html: string): string {
     .replace(/&lt;/gi, '<')
     .replace(/&gt;/gi, '>')
     .replace(/&quot;/gi, '"')
-    .replace(/&#39;/gi, "'")
+    .replace(/&apos;/gi, "'")
+    // Generic numeric entities: &#x2F; → '/', &#39; → "'", &#x27; → "'"
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, hex) =>
+      String.fromCodePoint(parseInt(hex, 16)),
+    )
+    .replace(/&#(\d+);/g, (_, dec) =>
+      String.fromCodePoint(parseInt(dec, 10)),
+    )
     .replace(/\s+/g, ' ')
     .trim();
 }
