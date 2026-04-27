@@ -108,6 +108,33 @@ const SEED_COMPANIES: SeedCompany[] = [
     careerUrl: 'https://www.arbeitnow.com',
     active: false,
   },
+
+  // WeWorkRemotely — paid posting → low-spam. Two relevant categories
+  // for the default profile; user can add more (`design-jobs`, etc) via UI.
+  {
+    name: 'WeWorkRemotely · Back-End',
+    atsType: AtsType.WEWORKREMOTELY,
+    atsToken: 'back-end-programming',
+    careerUrl:
+      'https://weworkremotely.com/categories/remote-back-end-programming-jobs',
+  },
+  {
+    name: 'WeWorkRemotely · Full-Stack',
+    atsType: AtsType.WEWORKREMOTELY,
+    atsToken: 'full-stack-programming',
+    careerUrl:
+      'https://weworkremotely.com/categories/remote-full-stack-programming-jobs',
+  },
+
+  // Curated Go-only board (~12 years old). Useful only when the active
+  // profile actually targets Go — disabled by default.
+  {
+    name: 'Golangprojects',
+    atsType: AtsType.GOLANGPROJECTS,
+    atsToken: 'golangprojects',
+    careerUrl: 'https://www.golangprojects.com',
+    active: false,
+  },
 ];
 
 export async function runSeed(): Promise<{
