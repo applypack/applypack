@@ -6,6 +6,9 @@ import { fetchGreenhouse } from './greenhouse';
 import { fetchLever } from './lever';
 import { fetchAshby } from './ashby';
 import { fetchLarajobs } from './larajobs';
+import { fetchRemoteOk } from './remoteok';
+import { fetchRemotive } from './remotive';
+import { fetchArbeitnow } from './arbeitnow';
 import type { NormalizedJob } from '../types';
 
 const POLITE_DELAY_MS = 1_000;
@@ -59,5 +62,11 @@ async function fetchOne(company: {
       return fetchAshby({ id: company.id, atsToken: company.atsToken });
     case AtsType.LARAJOBS_RSS:
       return fetchLarajobs(company.id);
+    case AtsType.REMOTEOK:
+      return fetchRemoteOk(company.id);
+    case AtsType.REMOTIVE:
+      return fetchRemotive(company.id);
+    case AtsType.ARBEITNOW:
+      return fetchArbeitnow(company.id);
   }
 }

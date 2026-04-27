@@ -12,6 +12,9 @@ enum AtsType {
   LEVER
   ASHBY
   LARAJOBS_RSS
+  REMOTEOK
+  REMOTIVE
+  ARBEITNOW
 }
 
 enum JobStatus {

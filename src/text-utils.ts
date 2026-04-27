@@ -3,6 +3,16 @@
  * side-effectful imports (no db, no config) so it's testable in isolation.
  */
 
+import { createHash } from 'node:crypto';
+
+/**
+ * Stable 16-char hex id derived from any string. Used by fetchers to
+ * synthesize an externalId when the upstream source does not expose one.
+ */
+export function hashShortId(input: string): string {
+  return createHash('sha1').update(input).digest('hex').slice(0, 16);
+}
+
 /**
  * Parses a textarea value into a list of trimmed tags. Accepts both newline
  * and comma separators. Empty entries are dropped.
