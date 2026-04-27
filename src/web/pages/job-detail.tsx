@@ -23,12 +23,27 @@ interface JobDetail {
   alertedAt: Date | null;
   externalId: string;
   company: { id: number; name: string; atsType: string };
+  appliedAt: Date | null;
+  pipelineStage: string | null;
+  recruiterContact: string | null;
+  applicationNotes: string | null;
 }
 
 export interface JobDetailProps {
   job: JobDetail;
+  applicationTrackingEnabled: boolean;
   flash?: { kind: 'ok' | 'err'; text: string } | null;
 }
+
+const PIPELINE_STAGES = [
+  'applied',
+  'screen',
+  'tech',
+  'onsite',
+  'offer',
+  'rejected',
+  'ghosted',
+] as const;
 
 const STATUS_ACTIONS: { status: JobStatus; label: string; tone: string }[] = [
   { status: 'APPLIED', label: 'Mark applied', tone: 'bg-emerald-600 hover:bg-emerald-500' },
@@ -37,7 +52,11 @@ const STATUS_ACTIONS: { status: JobStatus; label: string; tone: string }[] = [
   { status: 'NEW', label: 'Reopen', tone: 'bg-sky-600 hover:bg-sky-500' },
 ];
 
-export const JobDetailPage: FC<JobDetailProps> = ({ job, flash }) => (
+export const JobDetailPage: FC<JobDetailProps> = ({
+  job,
+  applicationTrackingEnabled,
+  flash,
+}) => (
   <Layout title={job.title} active="jobs">
     <div class="mb-4">
       <a href="/jobs" class="text-xs text-zinc-500 hover:text-zinc-300">
@@ -157,6 +176,77 @@ export const JobDetailPage: FC<JobDetailProps> = ({ job, flash }) => (
       </div>
     </Card>
 
+    {applicationTrackingEnabled && (
+      <Card class="mb-6">
+        <SectionTitle>Application tracking</SectionTitle>
+        <form
+          method="post"
+          action={`/jobs/${job.id}/application`}
+          class="grid gap-3 sm:grid-cols-2"
+        >
+          <div>
+            <label class="block text-xs uppercase tracking-wider text-zinc-500">
+              Pipeline stage
+            </label>
+            <select
+              name="pipelineStage"
+              class="mt-1 w-full rounded-md border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-sm text-zinc-100"
+            >
+              <option value="" selected={!job.pipelineStage}>
+                — not in funnel —
+              </option>
+              {PIPELINE_STAGES.map((s) => (
+                <option value={s} selected={job.pipelineStage === s}>
+                  {s}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs uppercase tracking-wider text-zinc-500">
+              Applied at (date)
+            </label>
+            <input
+              type="date"
+              name="appliedAt"
+              value={job.appliedAt ? toIsoDate(job.appliedAt) : ''}
+              class="mt-1 w-full rounded-md border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-sm text-zinc-100"
+            />
+          </div>
+          <div class="sm:col-span-2">
+            <label class="block text-xs uppercase tracking-wider text-zinc-500">
+              Recruiter contact
+            </label>
+            <input
+              type="text"
+              name="recruiterContact"
+              value={job.recruiterContact ?? ''}
+              placeholder="e.g. jane@acme.com or Jane Doe (LinkedIn)"
+              class="mt-1 w-full rounded-md border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-sm text-zinc-100"
+            />
+          </div>
+          <div class="sm:col-span-2">
+            <label class="block text-xs uppercase tracking-wider text-zinc-500">
+              Notes
+            </label>
+            <textarea
+              name="applicationNotes"
+              rows={3}
+              class="mt-1 w-full rounded-md border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-sm text-zinc-100"
+            >{job.applicationNotes ?? ''}</textarea>
+          </div>
+          <div class="sm:col-span-2">
+            <button
+              type="submit"
+              class="rounded-md bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-500"
+            >
+              Save application
+            </button>
+          </div>
+        </form>
+      </Card>
+    )}
+
     <Card>
       <SectionTitle>Description</SectionTitle>
       <pre class="whitespace-pre-wrap break-words font-sans text-sm leading-6 text-zinc-300">
@@ -165,3 +255,7 @@ export const JobDetailPage: FC<JobDetailProps> = ({ job, flash }) => (
     </Card>
   </Layout>
 );
+
+function toIsoDate(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}

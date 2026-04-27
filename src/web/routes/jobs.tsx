@@ -100,16 +100,25 @@ jobsRoute.get('/jobs/:id', async (c) => {
   const id = Number(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text('Bad id', 400);
 
-  const job = await prisma.job.findUnique({
-    where: { id },
-    include: { company: { select: { id: true, name: true, atsType: true } } },
-  });
+  const [job, settings] = await Promise.all([
+    prisma.job.findUnique({
+      where: { id },
+      include: { company: { select: { id: true, name: true, atsType: true } } },
+    }),
+    getSettings(),
+  ]);
   if (!job) return c.text('Not found', 404);
 
   const flashCookie = parseFlashCookie(c.req.header('cookie'));
-  return c.html(<JobDetailPage job={job} flash={flashCookie} />, 200, {
-    'Set-Cookie': clearFlashCookie(),
-  });
+  return c.html(
+    <JobDetailPage
+      job={job}
+      applicationTrackingEnabled={settings.applicationTrackingEnabled}
+      flash={flashCookie}
+    />,
+    200,
+    { 'Set-Cookie': clearFlashCookie() },
+  );
 });
 
 jobsRoute.post('/jobs/:id/status', async (c) => {
@@ -123,6 +132,21 @@ jobsRoute.post('/jobs/:id/status', async (c) => {
   const data: Prisma.JobUpdateInput = { status: parsed.data.status };
   if (parsed.data.status === 'ALERTED' || parsed.data.status === 'APPLIED') {
     data.alertedAt = data.alertedAt ?? new Date();
+  }
+
+  // When the user marks a job APPLIED and tracking is on, seed the funnel
+  // so it shows up on /applications immediately. Don't overwrite existing
+  // pipelineStage / appliedAt — user may have backdated them.
+  if (parsed.data.status === 'APPLIED') {
+    const settings = await getSettings();
+    if (settings.applicationTrackingEnabled) {
+      const current = await prisma.job.findUnique({
+        where: { id },
+        select: { pipelineStage: true, appliedAt: true },
+      });
+      if (!current?.pipelineStage) data.pipelineStage = 'applied';
+      if (!current?.appliedAt) data.appliedAt = new Date();
+    }
   }
 
   await prisma.job.update({ where: { id }, data });

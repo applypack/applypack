@@ -69,3 +69,12 @@ export function decideStageStrategy(
 ): 'skip-stage1' | 'run-stage1' {
   return mode === 'two_stage' ? 'run-stage1' : 'skip-stage1';
 }
+
+/**
+ * Whole days between `then` and `now`. Used by the stale-applications cron
+ * to decide which APPLIED jobs deserve a follow-up reminder.
+ */
+export function daysSince(then: Date, now: Date = new Date()): number {
+  const ms = now.getTime() - then.getTime();
+  return Math.floor(ms / (24 * 60 * 60 * 1000));
+}

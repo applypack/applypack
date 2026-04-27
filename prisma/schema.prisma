@@ -64,8 +64,18 @@ model Job {
   status      JobStatus @default(NEW)
   alertedAt   DateTime?
 
+  // Application tracking (Phase 3.4). pipelineStage is orthogonal to status:
+  //   status        = inbox state (NEW / ALERTED / SAVED / DISMISSED / APPLIED)
+  //   pipelineStage = funnel state once you have actually applied
+  // E.g. status=APPLIED + pipelineStage='ghosted' is a valid combo.
+  appliedAt        DateTime?
+  recruiterContact String?
+  pipelineStage    String?
+  applicationNotes String?   @db.Text
+
   @@unique([companyId, externalId])
   @@index([status, fetchedAt])
+  @@index([pipelineStage, appliedAt])
 }
 
 model CronRun {
@@ -90,6 +100,9 @@ model AppSettings {
   // Classifier mode: 'single' = current Haiku 4.5 only;
   // 'two_stage' = cheap Haiku 3.5 prefilter then Haiku 4.5 only on yes.
   classifierMode  String   @default("single")
+  // Phase 3.4 toggles
+  applicationTrackingEnabled        Boolean @default(true)
+  staleApplicationsDigestEnabled    Boolean @default(true)
   updatedAt       DateTime @updatedAt
 }
 

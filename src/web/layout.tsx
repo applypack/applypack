@@ -3,7 +3,13 @@ import type { FC, PropsWithChildren } from 'hono/jsx';
 
 interface LayoutProps {
   title: string;
-  active?: 'overview' | 'jobs' | 'companies' | 'runs' | 'settings';
+  active?:
+    | 'overview'
+    | 'jobs'
+    | 'applications'
+    | 'companies'
+    | 'runs'
+    | 'settings';
 }
 
 export const Layout: FC<PropsWithChildren<LayoutProps>> = ({
@@ -57,6 +63,11 @@ const Nav: FC<{ active?: LayoutProps['active'] }> = ({ active }) => (
       <nav class="flex items-center gap-1 text-sm">
         <NavLink href="/" label="Overview" active={active === 'overview'} />
         <NavLink href="/jobs" label="Jobs" active={active === 'jobs'} />
+        <NavLink
+          href="/applications"
+          label="Applications"
+          active={active === 'applications'}
+        />
         <NavLink href="/companies" label="Companies" active={active === 'companies'} />
         <NavLink href="/runs" label="Runs" active={active === 'runs'} />
         <NavLink href="/settings" label="Settings" active={active === 'settings'} />

@@ -6,6 +6,7 @@ import { init } from './init';
 import { runFetchJob } from './jobs/fetch-job';
 import { runDigestJob } from './jobs/digest-job';
 import { runCleanupJob } from './jobs/cleanup-job';
+import { runStaleApplicationsJob } from './jobs/stale-applications-job';
 import { recordCronRun } from './jobs/cron-run';
 
 const SHUTDOWN_POLL_MS = 250;
@@ -20,6 +21,9 @@ async function main(): Promise<void> {
   registerCron('5 * * * *', 'fetch', () => recordCronRun('fetch', runFetchJob));
   registerCron('0 9 * * *', 'digest', () => recordCronRun('digest', runDigestJob));
   registerCron('0 3 * * 0', 'cleanup', () => recordCronRun('cleanup', runCleanupJob));
+  registerCron('0 8 * * *', 'stale-applications', () =>
+    recordCronRun('stale-applications', runStaleApplicationsJob),
+  );
 
   process.on('SIGTERM', () => {
     void shutdown('SIGTERM');

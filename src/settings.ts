@@ -11,6 +11,8 @@ export type ClassifierMode = 'single' | 'two_stage';
 export interface AppSettingsView {
   telegramEnabled: boolean;
   classifierMode: ClassifierMode;
+  applicationTrackingEnabled: boolean;
+  staleApplicationsDigestEnabled: boolean;
   updatedAt: Date;
 }
 
@@ -26,6 +28,8 @@ export async function getSettings(): Promise<AppSettingsView> {
   return {
     telegramEnabled: row.telegramEnabled,
     classifierMode: normaliseClassifierMode(row.classifierMode),
+    applicationTrackingEnabled: row.applicationTrackingEnabled,
+    staleApplicationsDigestEnabled: row.staleApplicationsDigestEnabled,
     updatedAt: row.updatedAt,
   };
 }
@@ -45,6 +49,24 @@ export async function setClassifierMode(mode: ClassifierMode): Promise<void> {
     create: { id: SETTINGS_ID, classifierMode: mode },
   });
   logger.info({ mode }, 'settings: classifier mode set');
+}
+
+export async function setApplicationTrackingEnabled(enabled: boolean): Promise<void> {
+  await prisma.appSettings.upsert({
+    where: { id: SETTINGS_ID },
+    update: { applicationTrackingEnabled: enabled },
+    create: { id: SETTINGS_ID, applicationTrackingEnabled: enabled },
+  });
+}
+
+export async function setStaleApplicationsDigestEnabled(
+  enabled: boolean,
+): Promise<void> {
+  await prisma.appSettings.upsert({
+    where: { id: SETTINGS_ID },
+    update: { staleApplicationsDigestEnabled: enabled },
+    create: { id: SETTINGS_ID, staleApplicationsDigestEnabled: enabled },
+  });
 }
 
 function normaliseClassifierMode(raw: string): ClassifierMode {

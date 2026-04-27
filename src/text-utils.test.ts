@@ -1,6 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  daysSince,
   decideStageStrategy,
   extractJson,
   maskToken,
@@ -158,5 +159,25 @@ describe('decideStageStrategy', () => {
 
   it('returns skip-stage1 for single mode', () => {
     assert.equal(decideStageStrategy('single'), 'skip-stage1');
+  });
+});
+
+describe('daysSince', () => {
+  const NOW = new Date('2026-04-27T12:00:00Z');
+
+  it('returns 0 for "right now"', () => {
+    assert.equal(daysSince(new Date('2026-04-27T11:30:00Z'), NOW), 0);
+  });
+
+  it('returns 13 for 13 days, 12h ago', () => {
+    assert.equal(daysSince(new Date('2026-04-13T23:59:00Z'), NOW), 13);
+  });
+
+  it('returns 14 for 14 days exactly', () => {
+    assert.equal(daysSince(new Date('2026-04-13T12:00:00Z'), NOW), 14);
+  });
+
+  it('returns 15 for 15 days', () => {
+    assert.equal(daysSince(new Date('2026-04-12T12:00:00Z'), NOW), 15);
   });
 });

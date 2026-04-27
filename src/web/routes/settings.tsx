@@ -8,7 +8,9 @@ import {
   getSettings,
   listTelegramTargets,
   maskToken,
+  setApplicationTrackingEnabled,
   setClassifierMode,
+  setStaleApplicationsDigestEnabled,
   setTelegramEnabled,
   testTelegramTarget,
   toggleTelegramTarget,
@@ -69,6 +71,8 @@ settingsRoute.get('/settings', async (c) => {
     <SettingsPage
       telegramEnabled={settings.telegramEnabled}
       classifierMode={settings.classifierMode}
+      applicationTrackingEnabled={settings.applicationTrackingEnabled}
+      staleApplicationsDigestEnabled={settings.staleApplicationsDigestEnabled}
       targets={targets.map((t) => ({
         id: t.id,
         name: t.name,
@@ -118,9 +122,35 @@ settingsRoute.post('/settings/classifier-mode', async (c) => {
   await setClassifierMode(mode);
   const label =
     mode === 'two_stage'
-      ? 'Two-stage (Haiku 3.5 prefilter + Haiku 4.5)'
+      ? 'Two-stage prefilter + Haiku 4.5'
       : 'Single (Haiku 4.5 only)';
   return redirectWithFlash(c, 'ok', `Classifier mode → ${label}.`);
+});
+
+settingsRoute.post('/settings/application-tracking-toggle', async (c) => {
+  const settings = await getSettings();
+  await setApplicationTrackingEnabled(!settings.applicationTrackingEnabled);
+  return redirectWithFlash(
+    c,
+    'ok',
+    `Application tracking ${
+      !settings.applicationTrackingEnabled ? 'enabled' : 'disabled'
+    }.`,
+  );
+});
+
+settingsRoute.post('/settings/stale-digest-toggle', async (c) => {
+  const settings = await getSettings();
+  await setStaleApplicationsDigestEnabled(
+    !settings.staleApplicationsDigestEnabled,
+  );
+  return redirectWithFlash(
+    c,
+    'ok',
+    `Stale-applications digest ${
+      !settings.staleApplicationsDigestEnabled ? 'enabled' : 'disabled'
+    }.`,
+  );
 });
 
 settingsRoute.post('/settings/targets', async (c) => {

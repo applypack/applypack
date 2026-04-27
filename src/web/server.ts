@@ -10,6 +10,7 @@ import { jobsRoute } from './routes/jobs';
 import { companiesRoute } from './routes/companies';
 import { runsRoute } from './routes/runs';
 import { settingsRoute } from './routes/settings';
+import { applicationsRoute } from './routes/applications';
 import { healthRoute } from './routes/health';
 
 const app = new Hono();
@@ -66,6 +67,7 @@ app.use('*', async (c, next) => {
 
 app.route('/', overviewRoute);
 app.route('/', jobsRoute);
+app.route('/', applicationsRoute);
 app.route('/', companiesRoute);
 app.route('/', runsRoute);
 app.route('/', settingsRoute);

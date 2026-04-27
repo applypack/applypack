@@ -34,6 +34,8 @@ const SENIORITY_OPTIONS = ['junior', 'mid', 'senior', 'staff', 'lead', 'principa
 export interface SettingsProps {
   telegramEnabled: boolean;
   classifierMode: 'single' | 'two_stage';
+  applicationTrackingEnabled: boolean;
+  staleApplicationsDigestEnabled: boolean;
   targets: MaskedTarget[];
   profiles: ProfileListItem[];
   activeProfile: Profile | null;
@@ -44,6 +46,8 @@ export interface SettingsProps {
 export const SettingsPage: FC<SettingsProps> = ({
   telegramEnabled,
   classifierMode,
+  applicationTrackingEnabled,
+  staleApplicationsDigestEnabled,
   targets,
   profiles,
   activeProfile,
@@ -217,6 +221,68 @@ export const SettingsPage: FC<SettingsProps> = ({
           </button>
         </div>
       </form>
+    </Card>
+
+    <Card class="mb-6">
+      <SectionTitle>Application tracking</SectionTitle>
+      <div class="space-y-3">
+        <div class="flex items-center justify-between gap-4">
+          <div>
+            <div class="text-sm text-zinc-300">
+              Status:{' '}
+              {applicationTrackingEnabled ? (
+                <Tag tone="green">Enabled</Tag>
+              ) : (
+                <Tag tone="zinc">Disabled</Tag>
+              )}
+            </div>
+            <p class="mt-1 text-xs text-zinc-500">
+              Surfaces a per-job tracking card on /jobs/:id and the Applications kanban.
+              Stored fields persist whether enabled or not.
+            </p>
+          </div>
+          <form method="post" action="/settings/application-tracking-toggle">
+            <button
+              type="submit"
+              class={`rounded-md px-4 py-2 text-sm font-medium text-white ${
+                applicationTrackingEnabled
+                  ? 'bg-zinc-700 hover:bg-zinc-600'
+                  : 'bg-emerald-600 hover:bg-emerald-500'
+              }`}
+            >
+              {applicationTrackingEnabled ? 'Disable' : 'Enable'}
+            </button>
+          </form>
+        </div>
+        <div class="flex items-center justify-between gap-4 border-t border-zinc-800 pt-3">
+          <div>
+            <div class="text-sm text-zinc-300">
+              Stale-applications digest:{' '}
+              {staleApplicationsDigestEnabled ? (
+                <Tag tone="green">Enabled</Tag>
+              ) : (
+                <Tag tone="zinc">Disabled</Tag>
+              )}
+            </div>
+            <p class="mt-1 text-xs text-zinc-500">
+              Daily Telegram nudge for jobs in pipelineStage=applied with no recruiter
+              contact for 14+ days. Honours Telegram's master switch above.
+            </p>
+          </div>
+          <form method="post" action="/settings/stale-digest-toggle">
+            <button
+              type="submit"
+              class={`rounded-md px-4 py-2 text-sm font-medium text-white ${
+                staleApplicationsDigestEnabled
+                  ? 'bg-zinc-700 hover:bg-zinc-600'
+                  : 'bg-emerald-600 hover:bg-emerald-500'
+              }`}
+            >
+              {staleApplicationsDigestEnabled ? 'Disable' : 'Enable'}
+            </button>
+          </form>
+        </div>
+      </div>
     </Card>
 
     <Card class="mb-6">
