@@ -23,6 +23,7 @@
     "prisma:migrate:dev": "prisma migrate dev",
     "prisma:db:push": "prisma db push",
     "lint:types": "tsc --noEmit",
+    "test": "tsx --test 'src/**/*.test.ts'",
     "postinstall": "prisma generate"
   },
   "dependencies": {

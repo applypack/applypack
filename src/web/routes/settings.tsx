@@ -23,6 +23,7 @@ import {
 } from '../../profiles';
 import { runReclassifyAll } from '../../jobs/reclassify-job';
 import { recordCronRun } from '../../jobs/cron-run';
+import { parseTagList, toStringArray } from '../../text-utils';
 import { prisma } from '../../db';
 import { SettingsPage } from '../pages/settings';
 
@@ -232,7 +233,9 @@ settingsRoute.post('/settings/profiles/:id/save', async (c) => {
     return redirectWithFlash(c, 'err', 'Profile not found.');
   }
 
-  const form = await c.req.parseBody();
+  // `all: true` is required so multi-value checkboxes (seniority,
+  // remoteRegions) come back as arrays instead of just the last value.
+  const form = await c.req.parseBody({ all: true });
   const parsed = ProfileFormSchema.safeParse(form);
   if (!parsed.success) {
     logger.warn(
@@ -254,9 +257,9 @@ settingsRoute.post('/settings/profiles/:id/save', async (c) => {
     stackNiceToHave: parseTagList(f.stackNiceToHave),
     stackExclude: parseTagList(f.stackExclude),
     notes: f.notes && f.notes.trim().length > 0 ? f.notes.trim() : null,
-    seniority: toArray(f.seniority),
+    seniority: toStringArray(f.seniority),
     remoteOk: f.remoteOk === '1',
-    remoteRegions: toArray(f.remoteRegions),
+    remoteRegions: toStringArray(f.remoteRegions),
     onsiteCities: parseTagList(f.onsiteCities),
     hybridOk: f.hybridOk === '1',
     minSalaryUsd: f.minSalaryUsd,
@@ -311,19 +314,6 @@ function triggerReclassifyAsync(): void {
 }
 
 // --- helpers ----------------------------------------------------------------
-
-function parseTagList(s: string): string[] {
-  return s
-    .split(/[\n,]+/)
-    .map((x) => x.trim())
-    .filter((x) => x.length > 0);
-}
-
-function toArray(v: string | string[] | undefined): string[] {
-  if (!v) return [];
-  if (Array.isArray(v)) return v;
-  return [v];
-}
 
 import type { Context } from 'hono';
 

@@ -4,6 +4,7 @@ import type { Profile } from '@prisma/client';
 import { config } from './config';
 import { logger } from './logger';
 import { sleep } from './http';
+import { extractJson } from './text-utils';
 import type { ClassifyInput, ClaudeClassification } from './types';
 
 const MODEL = 'claude-haiku-4-5-20251001';
@@ -193,13 +194,3 @@ function describeLocation(profile: Profile): string {
   return parts.join('; ');
 }
 
-function extractJson(text: string): unknown | null {
-  const start = text.indexOf('{');
-  const end = text.lastIndexOf('}');
-  if (start === -1 || end === -1 || end < start) return null;
-  try {
-    return JSON.parse(text.slice(start, end + 1));
-  } catch {
-    return null;
-  }
-}

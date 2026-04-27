@@ -143,11 +143,4 @@ export async function testTelegramTarget(
   }
 }
 
-/**
- * Returns a token like "abc12345***xyz67" — first 8 chars + last 4.
- * Total length is preserved-ish so the user can recognise it.
- */
-export function maskToken(token: string): string {
-  if (token.length <= 12) return '***';
-  return `${token.slice(0, 8)}***${token.slice(-4)}`;
-}
+export { maskToken } from './text-utils';

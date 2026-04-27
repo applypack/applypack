@@ -167,7 +167,7 @@ function formatJobMessage(job: AlertJob): string {
   return lines.join('\n');
 }
 
-function formatSalary(min: number | null, max: number | null): string {
+export function formatSalary(min: number | null, max: number | null): string {
   if (min === null && max === null) return '—';
   const fmt = (n: number) => `$${Math.round(n / 1000)}k`;
   if (min !== null && max !== null) return `${fmt(min)}-${fmt(max)}`;
@@ -176,10 +176,10 @@ function formatSalary(min: number | null, max: number | null): string {
   return '—';
 }
 
-function escapeMarkdownV2(text: string): string {
+export function escapeMarkdownV2(text: string): string {
   return text.replace(/([_*\[\]()~`>#+\-=|{}.!\\])/g, '\\$1');
 }
 
-function escapeMarkdownV2Url(url: string): string {
+export function escapeMarkdownV2Url(url: string): string {
   return url.replace(/([\\)])/g, '\\$1');
 }
