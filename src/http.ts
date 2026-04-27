@@ -1,5 +1,6 @@
 const DEFAULT_TIMEOUT_MS = 10_000;
 const RETRY_DELAYS_MS = [1_000, 3_000];
+const DEFAULT_USER_AGENT = 'job-hunter/0.1 (+https://github.com/nazboyko/job-hunter)';
 
 export interface FetchOptions {
   timeoutMs?: number;
@@ -29,8 +30,13 @@ export async function fetchWithRetry(
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
+      const headers = new Headers(options.init?.headers);
+      if (!headers.has('User-Agent') && !headers.has('user-agent')) {
+        headers.set('User-Agent', DEFAULT_USER_AGENT);
+      }
       const resp = await fetch(url, {
         ...options.init,
+        headers,
         signal: controller.signal,
       });
       clearTimeout(timer);
@@ -97,7 +103,14 @@ export function stripHtml(html: string): string {
     .replace(/&lt;/gi, '<')
     .replace(/&gt;/gi, '>')
     .replace(/&quot;/gi, '"')
-    .replace(/&#39;/gi, "'")
+    .replace(/&apos;/gi, "'")
+    // Generic numeric entities: &#x2F; → '/', &#39; → "'", &#x27; → "'"
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, hex) =>
+      String.fromCodePoint(parseInt(hex, 16)),
+    )
+    .replace(/&#(\d+);/g, (_, dec) =>
+      String.fromCodePoint(parseInt(dec, 10)),
+    )
     .replace(/\s+/g, ' ')
     .trim();
 }

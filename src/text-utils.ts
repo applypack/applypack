@@ -3,6 +3,16 @@
  * side-effectful imports (no db, no config) so it's testable in isolation.
  */
 
+import { createHash } from 'node:crypto';
+
+/**
+ * Stable 16-char hex id derived from any string. Used by fetchers to
+ * synthesize an externalId when the upstream source does not expose one.
+ */
+export function hashShortId(input: string): string {
+  return createHash('sha1').update(input).digest('hex').slice(0, 16);
+}
+
 /**
  * Parses a textarea value into a list of trimmed tags. Accepts both newline
  * and comma separators. Empty entries are dropped.
@@ -48,4 +58,88 @@ export function extractJson(text: string): unknown | null {
   } catch {
     return null;
   }
+}
+
+/**
+ * Maps a classifier mode to the stage-1 decision. Trivial but explicit so
+ * we can unit-test the toggle semantics in isolation from the API client.
+ */
+export function decideStageStrategy(
+  mode: 'single' | 'two_stage',
+): 'skip-stage1' | 'run-stage1' {
+  return mode === 'two_stage' ? 'run-stage1' : 'skip-stage1';
+}
+
+/**
+ * Whole days between `then` and `now`. Used by the stale-applications cron
+ * to decide which APPLIED jobs deserve a follow-up reminder.
+ */
+export function daysSince(then: Date, now: Date = new Date()): number {
+  const ms = now.getTime() - then.getTime();
+  return Math.floor(ms / (24 * 60 * 60 * 1000));
+}
+
+/**
+ * Recognise an ATS company URL and return the (atsType, atsToken) pair.
+ * Used by the discovery pipeline to harvest CompanyCandidate rows from
+ * URLs found in HN comments / blog posts / etc.
+ *
+ * Returns null when the URL is not a known ATS pattern (so the caller
+ * can simply skip it rather than guess).
+ */
+export type DiscoverableAtsType =
+  | 'GREENHOUSE'
+  | 'LEVER'
+  | 'ASHBY'
+  | 'WORKABLE'
+  | 'SMARTRECRUITERS';
+
+export function extractAtsToken(
+  url: string,
+): { atsType: DiscoverableAtsType; atsToken: string } | null {
+  if (!url || typeof url !== 'string') return null;
+  // Greenhouse: boards.greenhouse.io/{token} OR
+  //             boards.greenhouse.io/embed/job_board?for={token}
+  let m =
+    /https?:\/\/(?:boards|job-boards)\.greenhouse\.io\/(?:embed\/job_board\?for=)?([\w-]{2,60})/i.exec(
+      url,
+    );
+  if (m && m[1]) {
+    return { atsType: 'GREENHOUSE', atsToken: m[1].toLowerCase() };
+  }
+  // Lever: jobs.lever.co/{slug}/...
+  m = /https?:\/\/jobs\.lever\.co\/([\w-]{2,60})/i.exec(url);
+  if (m && m[1]) {
+    return { atsType: 'LEVER', atsToken: m[1].toLowerCase() };
+  }
+  // Ashby: jobs.ashbyhq.com/{org} OR api.ashbyhq.com/posting-api/job-board/{org}
+  m =
+    /https?:\/\/(?:jobs\.ashbyhq\.com|api\.ashbyhq\.com\/posting-api\/job-board)\/([\w-]{2,60})/i.exec(
+      url,
+    );
+  if (m && m[1]) {
+    return { atsType: 'ASHBY', atsToken: m[1].toLowerCase() };
+  }
+  // Workable: apply.workable.com/{slug}/  OR  apply.workable.com/{slug}/j/...
+  m = /https?:\/\/apply\.workable\.com\/([\w-]{2,60})(?:\/|$|\?)/i.exec(url);
+  if (m && m[1]) {
+    return { atsType: 'WORKABLE', atsToken: m[1].toLowerCase() };
+  }
+  // SmartRecruiters: jobs.smartrecruiters.com/{Slug}  OR
+  //                  careers.smartrecruiters.com/{Slug}  OR
+  //                  api.smartrecruiters.com/v1/companies/{Slug}/...
+  m =
+    /https?:\/\/(?:jobs|careers)\.smartrecruiters\.com\/([\w-]{2,60})/i.exec(url);
+  if (m && m[1]) {
+    // SmartRecruiters slugs are case-sensitive per their API — preserve case.
+    return { atsType: 'SMARTRECRUITERS', atsToken: m[1] };
+  }
+  m =
+    /https?:\/\/api\.smartrecruiters\.com\/v1\/companies\/([\w-]{2,60})/i.exec(
+      url,
+    );
+  if (m && m[1]) {
+    return { atsType: 'SMARTRECRUITERS', atsToken: m[1] };
+  }
+  return null;
 }

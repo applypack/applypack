@@ -1,6 +1,9 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  daysSince,
+  decideStageStrategy,
+  extractAtsToken,
   extractJson,
   maskToken,
   parseTagList,
@@ -147,5 +150,123 @@ describe('extractJson', () => {
       extractJson('text {"a":{"b":{"c":[1,2]}}} more'),
       { a: { b: { c: [1, 2] } } },
     );
+  });
+});
+
+describe('decideStageStrategy', () => {
+  it('returns run-stage1 for two_stage mode', () => {
+    assert.equal(decideStageStrategy('two_stage'), 'run-stage1');
+  });
+
+  it('returns skip-stage1 for single mode', () => {
+    assert.equal(decideStageStrategy('single'), 'skip-stage1');
+  });
+});
+
+describe('extractAtsToken', () => {
+  it('parses a greenhouse boards URL', () => {
+    assert.deepEqual(
+      extractAtsToken('https://boards.greenhouse.io/vimeo'),
+      { atsType: 'GREENHOUSE', atsToken: 'vimeo' },
+    );
+  });
+
+  it('parses a greenhouse embed URL', () => {
+    assert.deepEqual(
+      extractAtsToken('https://boards.greenhouse.io/embed/job_board?for=stripe'),
+      { atsType: 'GREENHOUSE', atsToken: 'stripe' },
+    );
+  });
+
+  it('parses a lever slug URL', () => {
+    assert.deepEqual(extractAtsToken('https://jobs.lever.co/pleo/abc-def'), {
+      atsType: 'LEVER',
+      atsToken: 'pleo',
+    });
+  });
+
+  it('parses an ashby org URL', () => {
+    assert.deepEqual(extractAtsToken('https://jobs.ashbyhq.com/buffer/123-abc'), {
+      atsType: 'ASHBY',
+      atsToken: 'buffer',
+    });
+  });
+
+  it('parses an ashby API URL too', () => {
+    assert.deepEqual(
+      extractAtsToken('https://api.ashbyhq.com/posting-api/job-board/scribdinc'),
+      { atsType: 'ASHBY', atsToken: 'scribdinc' },
+    );
+  });
+
+  it('lowercases the token', () => {
+    assert.deepEqual(
+      extractAtsToken('https://boards.greenhouse.io/Pantheon'),
+      { atsType: 'GREENHOUSE', atsToken: 'pantheon' },
+    );
+  });
+
+  it('returns null for non-ATS URLs', () => {
+    assert.equal(
+      extractAtsToken('https://example.com/jobs/senior-php'),
+      null,
+    );
+    assert.equal(extractAtsToken(''), null);
+    assert.equal(extractAtsToken('not a url'), null);
+  });
+
+  it('parses a Workable apply URL', () => {
+    assert.deepEqual(
+      extractAtsToken('https://apply.workable.com/thorlabs/'),
+      { atsType: 'WORKABLE', atsToken: 'thorlabs' },
+    );
+  });
+
+  it('parses a Workable job link', () => {
+    assert.deepEqual(
+      extractAtsToken('https://apply.workable.com/mlabs/j/8B6EA6A472/'),
+      { atsType: 'WORKABLE', atsToken: 'mlabs' },
+    );
+  });
+
+  it('parses a SmartRecruiters jobs URL (preserves case)', () => {
+    assert.deepEqual(
+      extractAtsToken('https://jobs.smartrecruiters.com/Visa/744000122509268'),
+      { atsType: 'SMARTRECRUITERS', atsToken: 'Visa' },
+    );
+  });
+
+  it('parses a SmartRecruiters careers URL', () => {
+    assert.deepEqual(
+      extractAtsToken('https://careers.smartrecruiters.com/SAP/'),
+      { atsType: 'SMARTRECRUITERS', atsToken: 'SAP' },
+    );
+  });
+
+  it('parses a SmartRecruiters API URL', () => {
+    assert.deepEqual(
+      extractAtsToken('https://api.smartrecruiters.com/v1/companies/Bosch/postings'),
+      { atsType: 'SMARTRECRUITERS', atsToken: 'Bosch' },
+    );
+  });
+});
+
+describe('daysSince', () => {
+  const NOW = new Date('2026-04-27T12:00:00Z');
+
+  it('returns 0 for "right now"', () => {
+    assert.equal(daysSince(new Date('2026-04-27T11:30:00Z'), NOW), 0);
+  });
+
+  it('returns 13 for 13 days, 12h ago', () => {
+    assert.equal(daysSince(new Date('2026-04-13T23:59:00Z'), NOW), 13);
+  });
+
+  it('returns 14 for 14 days exactly', () => {
+    assert.equal(daysSince(new Date('2026-04-13T12:00:00Z'), NOW), 14);
+  });
+
+  it('returns 15 for 15 days', () => {
+    assert.equal(daysSince(new Date('2026-04-12T12:00:00Z'), NOW), 15);
   });
 });

@@ -1,8 +1,8 @@
 /** @jsxImportSource hono/jsx */
 import type { FC } from 'hono/jsx';
-import type { AtsType } from '@prisma/client';
+import { AtsType } from '@prisma/client';
 import { Layout } from '../layout';
-import { Card, Empty, Tag } from '../ui';
+import { Card, Empty, SectionTitle, Tag } from '../ui';
 import { formatRelative } from '../format';
 
 interface CompanyRow {
@@ -19,9 +19,18 @@ interface CompanyRow {
 
 export interface CompaniesProps {
   companies: CompanyRow[];
+  flash?: { kind: 'ok' | 'err'; text: string } | null;
 }
 
-export const CompaniesPage: FC<CompaniesProps> = ({ companies }) => (
+const PROBEABLE_ATS: AtsType[] = [
+  AtsType.GREENHOUSE,
+  AtsType.LEVER,
+  AtsType.ASHBY,
+  AtsType.WORKABLE,
+  AtsType.SMARTRECRUITERS,
+];
+
+export const CompaniesPage: FC<CompaniesProps> = ({ companies, flash }) => (
   <Layout title="Companies" active="companies">
     <div class="mb-6 flex items-baseline justify-between">
       <h1 class="text-2xl font-semibold tracking-tight">Companies</h1>
@@ -30,13 +39,88 @@ export const CompaniesPage: FC<CompaniesProps> = ({ companies }) => (
       </span>
     </div>
 
-    <p class="mb-4 text-xs text-zinc-500">
-      Add new companies in <code class="rounded bg-zinc-900 px-1">src/seed.ts</code>{' '}
-      and rerun <code class="rounded bg-zinc-900 px-1">npm run seed</code>.
-    </p>
+    {flash && (
+      <div
+        class={`mb-4 rounded-md px-4 py-2 text-sm ring-1 ring-inset ${
+          flash.kind === 'ok'
+            ? 'bg-emerald-500/10 text-emerald-300 ring-emerald-500/30'
+            : 'bg-rose-500/10 text-rose-300 ring-rose-500/30'
+        }`}
+      >
+        {flash.text}
+      </div>
+    )}
+
+    <Card class="mb-6">
+      <SectionTitle>Add company</SectionTitle>
+      <p class="mb-3 text-xs text-zinc-500">
+        We'll probe the public ATS endpoint for the chosen type and refuse to
+        save if the token is invalid. Aggregator feeds (RemoteOK, Remotive,
+        Arbeitnow, LaraJobs, HN) don't have per-company tokens — those are
+        seeded once via <code class="rounded bg-zinc-900 px-1">src/seed.ts</code>.
+      </p>
+      <form method="post" action="/companies/new" class="grid gap-3 sm:grid-cols-12">
+        <div class="sm:col-span-3">
+          <label class="block text-xs uppercase tracking-wider text-zinc-500">
+            Name
+          </label>
+          <input
+            type="text"
+            name="name"
+            required
+            placeholder="Honeycomb.io"
+            class="mt-1 w-full rounded-md border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-sm text-zinc-100 placeholder-zinc-600 focus:border-emerald-500 focus:outline-none"
+          />
+        </div>
+        <div class="sm:col-span-2">
+          <label class="block text-xs uppercase tracking-wider text-zinc-500">
+            ATS
+          </label>
+          <select
+            name="atsType"
+            class="mt-1 w-full rounded-md border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-sm text-zinc-100 focus:border-emerald-500 focus:outline-none"
+          >
+            {PROBEABLE_ATS.map((t) => (
+              <option value={t}>{t}</option>
+            ))}
+          </select>
+        </div>
+        <div class="sm:col-span-3">
+          <label class="block text-xs uppercase tracking-wider text-zinc-500">
+            ATS token / slug
+          </label>
+          <input
+            type="text"
+            name="atsToken"
+            required
+            placeholder="honeycombio"
+            class="mt-1 w-full rounded-md border border-zinc-800 bg-zinc-900 px-3 py-1.5 font-mono text-xs text-zinc-100 placeholder-zinc-600 focus:border-emerald-500 focus:outline-none"
+          />
+        </div>
+        <div class="sm:col-span-3">
+          <label class="block text-xs uppercase tracking-wider text-zinc-500">
+            Career URL (optional)
+          </label>
+          <input
+            type="url"
+            name="careerUrl"
+            placeholder="https://acme.com/careers"
+            class="mt-1 w-full rounded-md border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-sm text-zinc-100 placeholder-zinc-600 focus:border-emerald-500 focus:outline-none"
+          />
+        </div>
+        <div class="flex items-end sm:col-span-1">
+          <button
+            type="submit"
+            class="w-full rounded-md bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-500"
+          >
+            Add
+          </button>
+        </div>
+      </form>
+    </Card>
 
     {companies.length === 0 ? (
-      <Empty>No companies seeded yet.</Empty>
+      <Empty>No companies yet. Add one above.</Empty>
     ) : (
       <Card class="!p-0 overflow-hidden">
         <table class="w-full text-sm">
@@ -49,6 +133,7 @@ export const CompaniesPage: FC<CompaniesProps> = ({ companies }) => (
               <th class="px-4 py-2.5 font-medium">Alerted</th>
               <th class="px-4 py-2.5 font-medium">Last fetch</th>
               <th class="px-4 py-2.5 font-medium">Active</th>
+              <th class="px-4 py-2.5 font-medium text-right">Actions</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-zinc-900">
@@ -94,6 +179,21 @@ export const CompaniesPage: FC<CompaniesProps> = ({ companies }) => (
                       }`}
                     >
                       {c.active ? 'Active' : 'Disabled'}
+                    </button>
+                  </form>
+                </td>
+                <td class="px-4 py-2.5">
+                  <form
+                    method="post"
+                    action={`/companies/${c.id}/delete`}
+                    onsubmit={`return confirm('Delete \"${c.name}\" and all its ${c.jobsTotal} jobs?');`}
+                    class="flex justify-end"
+                  >
+                    <button
+                      type="submit"
+                      class="rounded-md border border-rose-900 bg-rose-950/50 px-2.5 py-1 text-xs text-rose-300 hover:bg-rose-900/50"
+                    >
+                      Delete
                     </button>
                   </form>
                 </td>

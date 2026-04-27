@@ -6,8 +6,16 @@ const SETTINGS_ID = 1;
 const TELEGRAM_API = 'https://api.telegram.org';
 const TELEGRAM_TIMEOUT_MS = 10_000;
 
+export type ClassifierMode = 'single' | 'two_stage';
+
 export interface AppSettingsView {
   telegramEnabled: boolean;
+  classifierMode: ClassifierMode;
+  applicationTrackingEnabled: boolean;
+  staleApplicationsDigestEnabled: boolean;
+  hnParserEnabled: boolean;
+  disabledSources: string[];
+  discoveryEnabled: boolean;
   updatedAt: Date;
 }
 
@@ -22,6 +30,12 @@ export async function getSettings(): Promise<AppSettingsView> {
   });
   return {
     telegramEnabled: row.telegramEnabled,
+    classifierMode: normaliseClassifierMode(row.classifierMode),
+    applicationTrackingEnabled: row.applicationTrackingEnabled,
+    staleApplicationsDigestEnabled: row.staleApplicationsDigestEnabled,
+    hnParserEnabled: row.hnParserEnabled,
+    disabledSources: row.disabledSources,
+    discoveryEnabled: row.discoveryEnabled,
     updatedAt: row.updatedAt,
   };
 }
@@ -32,6 +46,62 @@ export async function setTelegramEnabled(enabled: boolean): Promise<void> {
     update: { telegramEnabled: enabled },
     create: { id: SETTINGS_ID, telegramEnabled: enabled },
   });
+}
+
+export async function setClassifierMode(mode: ClassifierMode): Promise<void> {
+  await prisma.appSettings.upsert({
+    where: { id: SETTINGS_ID },
+    update: { classifierMode: mode },
+    create: { id: SETTINGS_ID, classifierMode: mode },
+  });
+  logger.info({ mode }, 'settings: classifier mode set');
+}
+
+export async function setApplicationTrackingEnabled(enabled: boolean): Promise<void> {
+  await prisma.appSettings.upsert({
+    where: { id: SETTINGS_ID },
+    update: { applicationTrackingEnabled: enabled },
+    create: { id: SETTINGS_ID, applicationTrackingEnabled: enabled },
+  });
+}
+
+export async function setStaleApplicationsDigestEnabled(
+  enabled: boolean,
+): Promise<void> {
+  await prisma.appSettings.upsert({
+    where: { id: SETTINGS_ID },
+    update: { staleApplicationsDigestEnabled: enabled },
+    create: { id: SETTINGS_ID, staleApplicationsDigestEnabled: enabled },
+  });
+}
+
+export async function setHnParserEnabled(enabled: boolean): Promise<void> {
+  await prisma.appSettings.upsert({
+    where: { id: SETTINGS_ID },
+    update: { hnParserEnabled: enabled },
+    create: { id: SETTINGS_ID, hnParserEnabled: enabled },
+  });
+}
+
+export async function setDisabledSources(sources: string[]): Promise<void> {
+  await prisma.appSettings.upsert({
+    where: { id: SETTINGS_ID },
+    update: { disabledSources: sources },
+    create: { id: SETTINGS_ID, disabledSources: sources },
+  });
+  logger.info({ disabled: sources }, 'settings: disabled sources updated');
+}
+
+export async function setDiscoveryEnabled(enabled: boolean): Promise<void> {
+  await prisma.appSettings.upsert({
+    where: { id: SETTINGS_ID },
+    update: { discoveryEnabled: enabled },
+    create: { id: SETTINGS_ID, discoveryEnabled: enabled },
+  });
+}
+
+function normaliseClassifierMode(raw: string): ClassifierMode {
+  return raw === 'two_stage' ? 'two_stage' : 'single';
 }
 
 export async function listTelegramTargets(): Promise<TelegramTarget[]> {

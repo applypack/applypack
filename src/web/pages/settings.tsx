@@ -33,6 +33,13 @@ const SENIORITY_OPTIONS = ['junior', 'mid', 'senior', 'staff', 'lead', 'principa
 
 export interface SettingsProps {
   telegramEnabled: boolean;
+  classifierMode: 'single' | 'two_stage';
+  applicationTrackingEnabled: boolean;
+  staleApplicationsDigestEnabled: boolean;
+  hnParserEnabled: boolean;
+  disabledSources: string[];
+  allSources: string[];
+  discoveryEnabled: boolean;
   targets: MaskedTarget[];
   profiles: ProfileListItem[];
   activeProfile: Profile | null;
@@ -42,6 +49,13 @@ export interface SettingsProps {
 
 export const SettingsPage: FC<SettingsProps> = ({
   telegramEnabled,
+  classifierMode,
+  applicationTrackingEnabled,
+  staleApplicationsDigestEnabled,
+  hnParserEnabled,
+  disabledSources,
+  allSources,
+  discoveryEnabled,
   targets,
   profiles,
   activeProfile,
@@ -170,6 +184,229 @@ export const SettingsPage: FC<SettingsProps> = ({
         </table>
       </Card>
     )}
+
+    <Card class="mb-6">
+      <SectionTitle>Classifier mode</SectionTitle>
+      <form method="post" action="/settings/classifier-mode" class="space-y-2">
+        <label class="flex items-start gap-3 text-sm text-zinc-200">
+          <input
+            type="radio"
+            name="mode"
+            value="single"
+            checked={classifierMode === 'single'}
+            class="mt-1"
+          />
+          <span>
+            <span class="font-medium">Single stage</span>
+            <span class="block text-xs text-zinc-500">
+              Every job goes straight to Claude Haiku 4.5. Highest precision, full cost.
+            </span>
+          </span>
+        </label>
+        <label class="flex items-start gap-3 text-sm text-zinc-200">
+          <input
+            type="radio"
+            name="mode"
+            value="two_stage"
+            checked={classifierMode === 'two_stage'}
+            class="mt-1"
+          />
+          <span>
+            <span class="font-medium">Two stage (cheaper)</span>
+            <span class="block text-xs text-zinc-500">
+              Quick yes/no prefilter (short prompt, ~100-token output) gates the full
+              classifier. When most fetched jobs are off-target, total Anthropic spend
+              drops ~30-40% with marginal precision loss.
+            </span>
+          </span>
+        </label>
+        <div class="pt-2">
+          <button
+            type="submit"
+            class="rounded-md bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-500"
+          >
+            Save mode
+          </button>
+        </div>
+      </form>
+    </Card>
+
+    <Card class="mb-6">
+      <SectionTitle>Job sources</SectionTitle>
+      <p class="mb-3 text-xs text-zinc-500">
+        Disable a whole source family with one click — useful when an
+        aggregator is producing too much noise, or when you only want to
+        hear about jobs from specific ATSes for a while. Per-company
+        toggles still work too (see /companies).
+      </p>
+      <form method="post" action="/settings/sources" class="space-y-2">
+        <div class="grid gap-x-6 gap-y-1 sm:grid-cols-2 lg:grid-cols-3">
+          {allSources.map((s) => (
+            <label class="inline-flex items-center gap-2 text-sm text-zinc-200">
+              <input
+                type="checkbox"
+                name="enabled"
+                value={s}
+                checked={!disabledSources.includes(s)}
+                class="h-4 w-4 rounded border-zinc-700 bg-zinc-900"
+              />
+              <span class="font-mono text-xs">{s}</span>
+            </label>
+          ))}
+        </div>
+        <button
+          type="submit"
+          class="rounded-md bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-500"
+        >
+          Save sources
+        </button>
+      </form>
+    </Card>
+
+    <Card class="mb-6">
+      <SectionTitle>Auto-discovery</SectionTitle>
+      <div class="flex items-center justify-between gap-4">
+        <div>
+          <div class="text-sm text-zinc-300">
+            Status:{' '}
+            {discoveryEnabled ? (
+              <Tag tone="green">Enabled</Tag>
+            ) : (
+              <Tag tone="zinc">Disabled</Tag>
+            )}
+          </div>
+          <p class="mt-1 text-xs text-zinc-500">
+            When the HN parser sees a Greenhouse / Lever / Ashby URL in a
+            comment, record the company as a candidate on /discovery for
+            review. A weekly cron re-probes pending candidates so the
+            jobsSeen count stays fresh.
+          </p>
+        </div>
+        <form method="post" action="/settings/discovery-toggle">
+          <button
+            type="submit"
+            class={`rounded-md px-4 py-2 text-sm font-medium text-white ${
+              discoveryEnabled
+                ? 'bg-zinc-700 hover:bg-zinc-600'
+                : 'bg-emerald-600 hover:bg-emerald-500'
+            }`}
+          >
+            {discoveryEnabled ? 'Disable' : 'Enable'}
+          </button>
+        </form>
+      </div>
+    </Card>
+
+    <Card class="mb-6">
+      <SectionTitle>HN "Who is Hiring" parser</SectionTitle>
+      <div class="flex items-center justify-between gap-4">
+        <div>
+          <div class="text-sm text-zinc-300">
+            Status:{' '}
+            {hnParserEnabled ? (
+              <Tag tone="green">Enabled</Tag>
+            ) : (
+              <Tag tone="zinc">Disabled</Tag>
+            )}
+          </div>
+          <p class="mt-1 text-xs text-zinc-500">
+            Monthly cron parses the latest "Ask HN: Who is hiring?" thread
+            (~300-500 comments) and runs the structured ones through the
+            same filter + classify + alert pipeline. Many small startups
+            post here that don't show up on ATS feeds.
+          </p>
+        </div>
+        <div class="flex flex-col gap-2">
+          <form method="post" action="/settings/hn-parser-toggle">
+            <button
+              type="submit"
+              class={`rounded-md px-4 py-2 text-sm font-medium text-white ${
+                hnParserEnabled
+                  ? 'bg-zinc-700 hover:bg-zinc-600'
+                  : 'bg-emerald-600 hover:bg-emerald-500'
+              }`}
+            >
+              {hnParserEnabled ? 'Disable' : 'Enable'}
+            </button>
+          </form>
+          <form
+            method="post"
+            action="/settings/hn-run"
+            onsubmit="return confirm('Pull the latest HN Who-is-hiring thread now? This may take 1-2 minutes and consumes Anthropic credit.');"
+          >
+            <button
+              type="submit"
+              disabled={!hnParserEnabled}
+              class="rounded-md border border-violet-700 bg-violet-950/40 px-3 py-1.5 text-xs text-violet-200 hover:bg-violet-900/50 disabled:opacity-40 disabled:hover:bg-violet-950/40"
+            >
+              Run now
+            </button>
+          </form>
+        </div>
+      </div>
+    </Card>
+
+    <Card class="mb-6">
+      <SectionTitle>Application tracking</SectionTitle>
+      <div class="space-y-3">
+        <div class="flex items-center justify-between gap-4">
+          <div>
+            <div class="text-sm text-zinc-300">
+              Status:{' '}
+              {applicationTrackingEnabled ? (
+                <Tag tone="green">Enabled</Tag>
+              ) : (
+                <Tag tone="zinc">Disabled</Tag>
+              )}
+            </div>
+            <p class="mt-1 text-xs text-zinc-500">
+              Surfaces a per-job tracking card on /jobs/:id and the Applications kanban.
+              Stored fields persist whether enabled or not.
+            </p>
+          </div>
+          <form method="post" action="/settings/application-tracking-toggle">
+            <button
+              type="submit"
+              class={`rounded-md px-4 py-2 text-sm font-medium text-white ${
+                applicationTrackingEnabled
+                  ? 'bg-zinc-700 hover:bg-zinc-600'
+                  : 'bg-emerald-600 hover:bg-emerald-500'
+              }`}
+            >
+              {applicationTrackingEnabled ? 'Disable' : 'Enable'}
+            </button>
+          </form>
+        </div>
+        <div class="flex items-center justify-between gap-4 border-t border-zinc-800 pt-3">
+          <div>
+            <div class="text-sm text-zinc-300">
+              Stale-applications digest:{' '}
+              {staleApplicationsDigestEnabled ? (
+                <Tag tone="green">Enabled</Tag>
+              ) : (
+                <Tag tone="zinc">Disabled</Tag>
+              )}
+            </div>
+            <p class="mt-1 text-xs text-zinc-500">
+              Daily Telegram nudge for jobs in pipelineStage=applied with no recruiter
+              contact for 14+ days. Honours Telegram's master switch above.
+            </p>
+          </div>
+          <form method="post" action="/settings/stale-digest-toggle">
+            <button
+              type="submit"
+              class={`rounded-md px-4 py-2 text-sm font-medium text-white ${
+                staleApplicationsDigestEnabled
+                  ? 'bg-zinc-700 hover:bg-zinc-600'
+                  : 'bg-emerald-600 hover:bg-emerald-500'
+              }`}
+            >
+              {staleApplicationsDigestEnabled ? 'Disable' : 'Enable'}
+            </button>
+          </form>
+        </div>
+      </div>
+    </Card>
 
     <Card class="mb-6">
       <SectionTitle>Telegram alerts</SectionTitle>
@@ -339,10 +576,16 @@ const ProfileEditor: FC<{
     </div>
 
     <TagListInput
-      label="Stack — required (must appear in title)"
-      hint="One per line, or comma-separated. Case-insensitive substring match."
+      label="Tech stack — required (real technologies)"
+      hint="Programming languages / frameworks the role must ACTUALLY use. e.g. php, laravel, javascript, typescript, react, go. NOT role types."
       name="stackRequired"
       values={profile.stackRequired}
+    />
+    <TagListInput
+      label="Role types (job category hints)"
+      hint='Title shapes you accept: "full-stack", "backend", "frontend", "platform", "infrastructure". Used to admit jobs to Claude — but Claude is told a role-type alone is NOT a tech match.'
+      name="roleTypes"
+      values={profile.roleTypes}
     />
     <TagListInput
       label="Stack — nice to have (boosts fit_score)"
