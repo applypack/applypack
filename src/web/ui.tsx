@@ -17,7 +17,7 @@ export const FitBadge: FC<{ score: number | null }> = ({ score }) => (
   </span>
 );
 
-export const Tag: FC<PropsWithChildren<{ tone?: 'green' | 'red' | 'zinc' }>> = ({
+export const Tag: FC<PropsWithChildren<{ tone?: 'green' | 'red' | 'zinc' | 'violet' }>> = ({
   children,
   tone = 'zinc',
 }) => {
@@ -25,6 +25,7 @@ export const Tag: FC<PropsWithChildren<{ tone?: 'green' | 'red' | 'zinc' }>> = (
     green: 'bg-emerald-500/10 text-emerald-300 ring-emerald-500/20',
     red: 'bg-rose-500/10 text-rose-300 ring-rose-500/20',
     zinc: 'bg-zinc-500/10 text-zinc-300 ring-zinc-500/20',
+    violet: 'bg-violet-500/10 text-violet-300 ring-violet-500/20',
   };
   return (
     <span
