@@ -4,11 +4,9 @@ import { logger } from '../logger';
 import { passesBaseFilter } from '../filter';
 import { classifyJob } from '../classifier';
 import { sendTelegramAlert } from '../notifier';
-import {
-  evaluatePriorityRules,
-  parsePriorityRules,
-  type PriorityRule,
-} from '../priority-rules';
+import { applyPriorityFloor, parsePriorityRules } from '../priority-rules';
+
+export { applyPriorityFloor };
 import type {
   ClaudeClassification,
   ClassifyInput,
@@ -214,28 +212,3 @@ function buildJobData(
   };
 }
 
-/**
- * If any priority rule matches, returns a clone of `c` with fit_score
- * clamped up to the rule's floor and location_match forced true (because
- * the user has explicitly told us this combination is desirable, so we
- * trust their judgment over Claude's location read). When no rule
- * matches, returns the input untouched and applied=[].
- */
-export function applyPriorityFloor(
-  c: ClaudeClassification,
-  rules: PriorityRule[],
-  job: { title: string; description: string; location: string },
-): { classification: ClaudeClassification; applied: PriorityRule[] } {
-  const { applied, fitScoreFloor } = evaluatePriorityRules(rules, job);
-  if (applied.length === 0) {
-    return { classification: c, applied: [] };
-  }
-  return {
-    classification: {
-      ...c,
-      fit_score: Math.max(c.fit_score, fitScoreFloor),
-      location_match: true,
-    },
-    applied,
-  };
-}
