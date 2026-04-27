@@ -32,6 +32,11 @@ import { runReclassifyAll } from '../../jobs/reclassify-job';
 import { runHnHiringJob } from '../../jobs/hn-hiring-job';
 import { recordCronRun } from '../../jobs/cron-run';
 import { parseTagList, toStringArray } from '../../text-utils';
+import {
+  formatPriorityRulesText,
+  parsePriorityRules,
+  parsePriorityRulesText,
+} from '../../priority-rules';
 import { prisma } from '../../db';
 import { SettingsPage } from '../pages/settings';
 
@@ -58,6 +63,7 @@ const ProfileFormSchema = z.object({
   minSalaryUsd: z.coerce.number().int().min(0).default(0),
   minFitScore: z.coerce.number().int().min(0).max(100).default(70),
   telegramTargetId: z.string().optional().default(''),
+  priorityRules: z.string().optional().default(''),
   action: z.string().optional(),
 });
 
@@ -305,6 +311,7 @@ settingsRoute.post('/settings/profiles/new', async (c) => {
     minSalaryUsd: 0,
     minFitScore: 70,
     telegramTargetId: null,
+    priorityRules: [],
   });
   await setActiveProfile(profile.id);
   return redirectWithFlash(
@@ -374,6 +381,17 @@ settingsRoute.post('/settings/profiles/:id/save', async (c) => {
       ? Number(f.telegramTargetId)
       : null;
 
+  const { rules: priorityRules, errors: priorityErrors } =
+    parsePriorityRulesText(f.priorityRules);
+  if (priorityErrors.length > 0) {
+    const first = priorityErrors[0]!;
+    return redirectWithFlash(
+      c,
+      'err',
+      `Priority rules — line ${first.line}: ${first.reason}. Profile not saved.`,
+    );
+  }
+
   await updateProfile(id, {
     name: f.name,
     stackRequired: parseTagList(f.stackRequired),
@@ -392,6 +410,7 @@ settingsRoute.post('/settings/profiles/:id/save', async (c) => {
       telegramTargetId !== null && Number.isFinite(telegramTargetId)
         ? telegramTargetId
         : null,
+    priorityRules,
   });
 
   if (f.action === 'save-and-reclassify') {

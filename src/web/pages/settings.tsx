@@ -4,6 +4,10 @@ import type { Profile } from '@prisma/client';
 import { Layout } from '../layout';
 import { Card, Empty, SectionTitle, Tag } from '../ui';
 import { formatRelative } from '../format';
+import {
+  formatPriorityRulesText,
+  parsePriorityRules,
+} from '../../priority-rules';
 
 interface MaskedTarget {
   id: number;
@@ -686,6 +690,8 @@ const ProfileEditor: FC<{
       </div>
     </div>
 
+    <PriorityRulesEditor profile={profile} />
+
     <div class="grid gap-4 sm:grid-cols-3">
       <div>
         <label class="block text-xs uppercase tracking-wider text-zinc-500">
@@ -771,3 +777,45 @@ const TagListInput: FC<{
     >{values.join('\n')}</textarea>
   </div>
 );
+
+const PriorityRulesEditor: FC<{ profile: Profile }> = ({ profile }) => {
+  const rules = parsePriorityRules(profile.priorityRules);
+  const text = formatPriorityRulesText(rules);
+  return (
+    <div>
+      <label class="block text-xs uppercase tracking-wider text-zinc-500">
+        Priority rules (post-classifier overrides)
+      </label>
+      <p class="mt-1 text-xs text-zinc-500">
+        One rule per line. Format:{' '}
+        <code class="rounded bg-zinc-900 px-1 py-0.5 text-zinc-300">
+          LABEL | techs,csv | regions,csv | MIN_FIT
+        </code>
+        . If a job's title or description contains any tech AND its location
+        contains any region, the fit score is clamped up to MIN_FIT and the
+        location check is forced to pass — useful for "PHP remote-US must
+        score ≥90 even if the JD is bare-bones". Leave the regions field
+        empty to match any location. Lines starting with{' '}
+        <code class="rounded bg-zinc-900 px-1 py-0.5 text-zinc-300">#</code>{' '}
+        are ignored. Errors stop the save with the bad line called out.
+      </p>
+      <textarea
+        name="priorityRules"
+        rows={Math.max(3, rules.length + 1)}
+        placeholder="PHP remote-US | php | US,Remote,United States,Worldwide | 90"
+        class="mt-1 w-full rounded-md border border-zinc-800 bg-zinc-900 px-3 py-1.5 font-mono text-xs text-zinc-100 focus:border-emerald-500 focus:outline-none"
+      >
+        {text}
+      </textarea>
+      {rules.length > 0 && (
+        <div class="mt-2 flex flex-wrap gap-1.5">
+          {rules.map((r) => (
+            <Tag tone="violet">
+              {r.label} → ≥{r.minFitFloor}
+            </Tag>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
