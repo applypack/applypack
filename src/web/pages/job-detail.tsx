@@ -27,6 +27,7 @@ interface JobDetail {
   pipelineStage: string | null;
   recruiterContact: string | null;
   applicationNotes: string | null;
+  priorityRulesApplied: string[];
 }
 
 export interface JobDetailProps {
@@ -122,9 +123,23 @@ export const JobDetailPage: FC<JobDetailProps> = ({
 
     {(job.techMatch.length > 0 ||
       job.redFlags.length > 0 ||
-      job.summary) && (
+      job.summary ||
+      job.priorityRulesApplied.length > 0) && (
       <Card class="mb-6">
         <SectionTitle>Classifier</SectionTitle>
+        {job.priorityRulesApplied.length > 0 && (
+          <div class="mb-3 flex flex-wrap items-center gap-1.5">
+            <span class="text-xs uppercase tracking-wider text-zinc-500">
+              Priority rules:
+            </span>
+            {job.priorityRulesApplied.map((label) => (
+              <Tag tone="violet">{label}</Tag>
+            ))}
+            <span class="text-xs text-zinc-500">
+              (fit boosted by your profile rules)
+            </span>
+          </div>
+        )}
         {job.summary && (
           <p class="mb-3 text-sm italic text-zinc-300">{job.summary}</p>
         )}

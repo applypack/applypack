@@ -85,6 +85,11 @@ model Job {
   pipelineStage    String?
   applicationNotes String?   @db.Text
 
+  // Phase 7.1: labels of Profile.priorityRules that matched this job at
+  // classify-time and bumped fitScore to the rule's floor. Empty when no
+  // rule applied. Surfaced as a badge on /jobs/:id.
+  priorityRulesApplied String[] @default([])
+
   @@unique([companyId, externalId])
   @@index([status, fetchedAt])
   @@index([pipelineStage, appliedAt])
@@ -187,6 +192,14 @@ model Profile {
   // Thresholds
   minSalaryUsd     Int             @default(0) // 0 = don't filter on salary
   minFitScore      Int             @default(70)
+  // Phase 7.1: opinionated post-Claude overrides — array of
+  // { label, techsAny[], regionsAny[], minFitFloor } objects validated
+  // by `parsePriorityRules` in src/priority-rules.ts. When a job matches
+  // a rule (≥1 tech in title/description AND ≥1 region in location),
+  // fitScore is clamped up to the rule's floor and location_match is
+  // forced true. Lets you say "PHP roles posted as remote-US must score
+  // ≥90 even if the JD is bare-bones" without trying to convince Claude.
+  priorityRules    Json            @default("[]")
   // Where alerts for this profile go. null → broadcast to all active targets.
   telegramTargetId Int?
   telegramTarget   TelegramTarget? @relation(fields: [telegramTargetId], references: [id], onDelete: SetNull)

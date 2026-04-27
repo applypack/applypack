@@ -4,6 +4,11 @@ import { logger } from '../logger';
 import { passesBaseFilter } from '../filter';
 import { classifyJob } from '../classifier';
 import { sendTelegramAlert } from '../notifier';
+import {
+  evaluatePriorityRules,
+  parsePriorityRules,
+  type PriorityRule,
+} from '../priority-rules';
 import type {
   ClaudeClassification,
   ClassifyInput,
@@ -25,6 +30,7 @@ export interface ProcessStats {
   dismissed: number;
   alerted: number;
   alertFailed: number;
+  priorityBoosted: number;
 }
 
 /**
@@ -38,6 +44,8 @@ export async function processNormalizedJobs(
   classifierMode: 'single' | 'two_stage',
   stats: ProcessStats,
 ): Promise<void> {
+  const priorityRules = parsePriorityRules(profile.priorityRules);
+
   for (const { job, companyName } of items) {
     if (!passesBaseFilter(job, profile)) {
       stats.filterRejected++;
@@ -74,10 +82,32 @@ export async function processNormalizedJobs(
     }
     stats.classified++;
 
-    const dismissReason = decideDismissReason(classification, profile);
+    const priority = applyPriorityFloor(classification, priorityRules, job);
+    if (priority.applied.length > 0) {
+      stats.priorityBoosted++;
+      logger.info(
+        {
+          title: job.title,
+          companyName,
+          fitBefore: classification.fit_score,
+          fitAfter: priority.classification.fit_score,
+          rules: priority.applied.map((r) => r.label),
+        },
+        'process-jobs: priority rule applied',
+      );
+    }
+    const finalClassification = priority.classification;
+    const appliedLabels = priority.applied.map((r) => r.label);
+
+    const dismissReason = decideDismissReason(finalClassification, profile);
     if (dismissReason) {
       await prisma.job.create({
-        data: buildJobData(job, classification, JobStatus.DISMISSED),
+        data: buildJobData(
+          job,
+          finalClassification,
+          JobStatus.DISMISSED,
+          appliedLabels,
+        ),
       });
       stats.persisted++;
       stats.dismissed++;
@@ -85,7 +115,7 @@ export async function processNormalizedJobs(
         {
           title: job.title,
           companyName,
-          fitScore: classification.fit_score,
+          fitScore: finalClassification.fit_score,
           reason: dismissReason,
         },
         'process-jobs: dismissed',
@@ -94,7 +124,7 @@ export async function processNormalizedJobs(
     }
 
     const created = await prisma.job.create({
-      data: buildJobData(job, classification, JobStatus.NEW),
+      data: buildJobData(job, finalClassification, JobStatus.NEW, appliedLabels),
     });
     stats.persisted++;
 
@@ -105,7 +135,7 @@ export async function processNormalizedJobs(
           companyName,
           location: created.location,
           url: created.url,
-          fitScore: created.fitScore ?? classification.fit_score,
+          fitScore: created.fitScore ?? finalClassification.fit_score,
           salaryMin: created.salaryMin,
           salaryMax: created.salaryMax,
           techMatch: created.techMatch,
@@ -163,6 +193,7 @@ function buildJobData(
   job: NormalizedJob,
   c: ClaudeClassification,
   status: JobStatus,
+  priorityRulesApplied: string[],
 ): Prisma.JobCreateInput {
   return {
     company: { connect: { id: job.companyId } },
@@ -179,5 +210,32 @@ function buildJobData(
     redFlags: c.red_flags,
     summary: c.summary,
     status,
+    priorityRulesApplied,
+  };
+}
+
+/**
+ * If any priority rule matches, returns a clone of `c` with fit_score
+ * clamped up to the rule's floor and location_match forced true (because
+ * the user has explicitly told us this combination is desirable, so we
+ * trust their judgment over Claude's location read). When no rule
+ * matches, returns the input untouched and applied=[].
+ */
+export function applyPriorityFloor(
+  c: ClaudeClassification,
+  rules: PriorityRule[],
+  job: { title: string; description: string; location: string },
+): { classification: ClaudeClassification; applied: PriorityRule[] } {
+  const { applied, fitScoreFloor } = evaluatePriorityRules(rules, job);
+  if (applied.length === 0) {
+    return { classification: c, applied: [] };
+  }
+  return {
+    classification: {
+      ...c,
+      fit_score: Math.max(c.fit_score, fitScoreFloor),
+      location_match: true,
+    },
+    applied,
   };
 }

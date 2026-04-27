@@ -1,6 +1,7 @@
 import type { Profile } from '@prisma/client';
 import { prisma } from './db';
 import { logger } from './logger';
+import type { PriorityRule } from './priority-rules';
 
 const SETTINGS_ID = 1;
 
@@ -19,6 +20,7 @@ export interface ProfileInput {
   minSalaryUsd: number;
   minFitScore: number;
   telegramTargetId: number | null;
+  priorityRules: PriorityRule[];
 }
 
 export async function listProfiles(): Promise<Profile[]> {

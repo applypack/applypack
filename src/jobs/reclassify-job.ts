@@ -5,6 +5,8 @@ import { classifyJob } from '../classifier';
 import { passesBaseFilter } from '../filter';
 import { getActiveProfile } from '../profiles';
 import { getSettings } from '../settings';
+import { parsePriorityRules } from '../priority-rules';
+import { applyPriorityFloor } from './process-jobs';
 import type { CronStats } from './cron-run';
 
 const RECLASSIFY_BATCH_SIZE = 50;
@@ -23,8 +25,9 @@ export async function runReclassifyAll(): Promise<{ stats: CronStats }> {
   }
 
   const { classifierMode } = await getSettings();
+  const priorityRules = parsePriorityRules(profile.priorityRules);
   logger.info(
-    { profile: profile.name, classifierMode },
+    { profile: profile.name, classifierMode, priorityRules: priorityRules.length },
     'reclassify-all: start',
   );
 
@@ -36,6 +39,7 @@ export async function runReclassifyAll(): Promise<{ stats: CronStats }> {
   let unchanged = 0;
   let failed = 0;
   let filterRejected = 0;
+  let priorityBoosted = 0;
 
   let lastId = 0;
   while (true) {
@@ -92,12 +96,17 @@ export async function runReclassifyAll(): Promise<{ stats: CronStats }> {
         }
         continue;
       }
-      const c = outcome.result;
-      if (!c) {
+      const c0 = outcome.result;
+      if (!c0) {
         failed++;
         continue;
       }
       reclassified++;
+
+      const priority = applyPriorityFloor(c0, priorityRules, j);
+      if (priority.applied.length > 0) priorityBoosted++;
+      const c = priority.classification;
+      const appliedLabels = priority.applied.map((r) => r.label);
 
       const previousStatus = j.status;
       const dismissReason = decide(c, profile);
@@ -117,6 +126,7 @@ export async function runReclassifyAll(): Promise<{ stats: CronStats }> {
           redFlags: c.red_flags,
           summary: c.summary,
           status: targetStatus,
+          priorityRulesApplied: appliedLabels,
         },
       });
 
@@ -147,6 +157,7 @@ export async function runReclassifyAll(): Promise<{ stats: CronStats }> {
     demoted,
     unchanged,
     filterRejected,
+    priorityBoosted,
     failed,
     durationMs,
   };

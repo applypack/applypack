@@ -7,6 +7,8 @@ import { logger } from '../../logger';
 import { classifyJob } from '../../classifier';
 import { getActiveProfile } from '../../profiles';
 import { getSettings } from '../../settings';
+import { parsePriorityRules } from '../../priority-rules';
+import { applyPriorityFloor } from '../../jobs/process-jobs';
 import { JobsListPage } from '../pages/jobs-list';
 import { JobDetailPage } from '../pages/job-detail';
 
@@ -181,10 +183,14 @@ jobsRoute.post('/jobs/:id/reclassify', async (c) => {
       profile,
       classifierMode,
     );
-    const classification = outcome.result;
-    if (!classification) {
+    const c0 = outcome.result;
+    if (!c0) {
       return c.redirect(`/jobs/${id}`, 303);
     }
+    const priorityRules = parsePriorityRules(profile.priorityRules);
+    const priority = applyPriorityFloor(c0, priorityRules, job);
+    const classification = priority.classification;
+    const appliedLabels = priority.applied.map((r) => r.label);
     // Auto-demote/promote based on fresh classification — same rules as
     // fetch-job's decideDismissReason(). Doesn't touch APPLIED jobs since
     // those are sealed in the funnel.
@@ -214,6 +220,7 @@ jobsRoute.post('/jobs/:id/reclassify', async (c) => {
         redFlags: classification.red_flags,
         summary: classification.summary,
         status: newStatus,
+        priorityRulesApplied: appliedLabels,
       },
     });
     return c.redirect(`/jobs/${id}`, 303);
