@@ -37,6 +37,8 @@ export interface SettingsProps {
   applicationTrackingEnabled: boolean;
   staleApplicationsDigestEnabled: boolean;
   hnParserEnabled: boolean;
+  disabledSources: string[];
+  allSources: string[];
   targets: MaskedTarget[];
   profiles: ProfileListItem[];
   activeProfile: Profile | null;
@@ -50,6 +52,8 @@ export const SettingsPage: FC<SettingsProps> = ({
   applicationTrackingEnabled,
   staleApplicationsDigestEnabled,
   hnParserEnabled,
+  disabledSources,
+  allSources,
   targets,
   profiles,
   activeProfile,
@@ -222,6 +226,38 @@ export const SettingsPage: FC<SettingsProps> = ({
             Save mode
           </button>
         </div>
+      </form>
+    </Card>
+
+    <Card class="mb-6">
+      <SectionTitle>Job sources</SectionTitle>
+      <p class="mb-3 text-xs text-zinc-500">
+        Disable a whole source family with one click — useful when an
+        aggregator is producing too much noise, or when you only want to
+        hear about jobs from specific ATSes for a while. Per-company
+        toggles still work too (see /companies).
+      </p>
+      <form method="post" action="/settings/sources" class="space-y-2">
+        <div class="grid gap-x-6 gap-y-1 sm:grid-cols-2 lg:grid-cols-3">
+          {allSources.map((s) => (
+            <label class="inline-flex items-center gap-2 text-sm text-zinc-200">
+              <input
+                type="checkbox"
+                name="enabled"
+                value={s}
+                checked={!disabledSources.includes(s)}
+                class="h-4 w-4 rounded border-zinc-700 bg-zinc-900"
+              />
+              <span class="font-mono text-xs">{s}</span>
+            </label>
+          ))}
+        </div>
+        <button
+          type="submit"
+          class="rounded-md bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-500"
+        >
+          Save sources
+        </button>
       </form>
     </Card>
 

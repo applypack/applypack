@@ -2,6 +2,7 @@ import { AtsType } from '@prisma/client';
 import { prisma } from '../db';
 import { logger } from '../logger';
 import { sleep } from '../http';
+import { getSettings } from '../settings';
 import { fetchGreenhouse } from './greenhouse';
 import { fetchLever } from './lever';
 import { fetchAshby } from './ashby';
@@ -20,8 +21,19 @@ export interface FetcherResult {
 }
 
 export async function runAllFetchers(): Promise<FetcherResult[]> {
+  const settings = await getSettings();
+  const disabled = settings.disabledSources.filter(
+    (s): s is AtsType => (Object.values(AtsType) as string[]).includes(s),
+  );
+  if (disabled.length > 0) {
+    logger.info({ disabled }, 'fetchers: skipping disabled source families');
+  }
+
   const companies = await prisma.company.findMany({
-    where: { active: true },
+    where: {
+      active: true,
+      ...(disabled.length > 0 ? { atsType: { notIn: disabled } } : {}),
+    },
     orderBy: { id: 'asc' },
   });
 

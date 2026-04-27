@@ -1,5 +1,6 @@
 /** @jsxImportSource hono/jsx */
 import { Hono } from 'hono';
+import { AtsType } from '@prisma/client';
 import { z } from 'zod';
 import { logger } from '../../logger';
 import {
@@ -10,6 +11,7 @@ import {
   maskToken,
   setApplicationTrackingEnabled,
   setClassifierMode,
+  setDisabledSources,
   setHnParserEnabled,
   setStaleApplicationsDigestEnabled,
   setTelegramEnabled,
@@ -76,6 +78,8 @@ settingsRoute.get('/settings', async (c) => {
       applicationTrackingEnabled={settings.applicationTrackingEnabled}
       staleApplicationsDigestEnabled={settings.staleApplicationsDigestEnabled}
       hnParserEnabled={settings.hnParserEnabled}
+      disabledSources={settings.disabledSources}
+      allSources={Object.values(AtsType)}
       targets={targets.map((t) => ({
         id: t.id,
         name: t.name,
@@ -153,6 +157,28 @@ settingsRoute.post('/settings/stale-digest-toggle', async (c) => {
     `Stale-applications digest ${
       !settings.staleApplicationsDigestEnabled ? 'enabled' : 'disabled'
     }.`,
+  );
+});
+
+settingsRoute.post('/settings/sources', async (c) => {
+  const form = await c.req.parseBody({ all: true });
+  const enabled = (
+    Array.isArray(form.enabled)
+      ? form.enabled
+      : form.enabled
+        ? [form.enabled]
+        : []
+  ).filter((v): v is string => typeof v === 'string');
+  const allSources = Object.values(AtsType) as string[];
+  // disabledSources = everything NOT in the submitted "enabled" set.
+  const disabled = allSources.filter((s) => !enabled.includes(s));
+  await setDisabledSources(disabled);
+  return redirectWithFlash(
+    c,
+    'ok',
+    disabled.length === 0
+      ? 'All sources enabled.'
+      : `Disabled: ${disabled.join(', ')}.`,
   );
 });
 

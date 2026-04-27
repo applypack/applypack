@@ -14,6 +14,7 @@ export interface AppSettingsView {
   applicationTrackingEnabled: boolean;
   staleApplicationsDigestEnabled: boolean;
   hnParserEnabled: boolean;
+  disabledSources: string[];
   updatedAt: Date;
 }
 
@@ -32,6 +33,7 @@ export async function getSettings(): Promise<AppSettingsView> {
     applicationTrackingEnabled: row.applicationTrackingEnabled,
     staleApplicationsDigestEnabled: row.staleApplicationsDigestEnabled,
     hnParserEnabled: row.hnParserEnabled,
+    disabledSources: row.disabledSources,
     updatedAt: row.updatedAt,
   };
 }
@@ -77,6 +79,15 @@ export async function setHnParserEnabled(enabled: boolean): Promise<void> {
     update: { hnParserEnabled: enabled },
     create: { id: SETTINGS_ID, hnParserEnabled: enabled },
   });
+}
+
+export async function setDisabledSources(sources: string[]): Promise<void> {
+  await prisma.appSettings.upsert({
+    where: { id: SETTINGS_ID },
+    update: { disabledSources: sources },
+    create: { id: SETTINGS_ID, disabledSources: sources },
+  });
+  logger.info({ disabled: sources }, 'settings: disabled sources updated');
 }
 
 function normaliseClassifierMode(raw: string): ClassifierMode {
