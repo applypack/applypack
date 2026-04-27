@@ -792,17 +792,30 @@ const PriorityRulesEditor: FC<{ profile: Profile }> = ({ profile }) => {
           LABEL | techs,csv | regions,csv | MIN_FIT
         </code>
         . If a job's title or description contains any tech AND its location
-        contains any region, the fit score is clamped up to MIN_FIT and the
-        location check is forced to pass — useful for "PHP remote-US must
-        score ≥90 even if the JD is bare-bones". Leave the regions field
-        empty to match any location. Lines starting with{' '}
+        matches any region phrase, the fit score is clamped up to MIN_FIT
+        and the location check is forced to pass. Leave regions empty to
+        match any location. Lines starting with{' '}
         <code class="rounded bg-zinc-900 px-1 py-0.5 text-zinc-300">#</code>{' '}
         are ignored. Errors stop the save with the bad line called out.
+      </p>
+      <p class="mt-1 text-xs text-amber-400/80">
+        ⚠ Region matching: each entry is a <em>phrase</em> — every word
+        must appear in the location (any order). So{' '}
+        <code class="rounded bg-zinc-900 px-1 py-0.5">Remote US</code>{' '}
+        matches "Remote US" / "Dallas (Remote US)" / "REMOTE (US)" but{' '}
+        NOT "Remote · Germany". Avoid bare{' '}
+        <code class="rounded bg-zinc-900 px-1 py-0.5">Remote</code> alone
+        — it would also match Canada/Spain/Poland-remote postings. Use
+        specific phrases:{' '}
+        <code class="rounded bg-zinc-900 px-1 py-0.5">
+          Remote US,United States,USA,Worldwide
+        </code>
+        .
       </p>
       <textarea
         name="priorityRules"
         rows={Math.max(3, rules.length + 1)}
-        placeholder="PHP remote-US | php | US,Remote,United States,Worldwide | 90"
+        placeholder="PHP remote-US | php | Remote US,United States,USA,Worldwide | 90"
         class="mt-1 w-full rounded-md border border-zinc-800 bg-zinc-900 px-3 py-1.5 font-mono text-xs text-zinc-100 focus:border-emerald-500 focus:outline-none"
       >
         {text}
