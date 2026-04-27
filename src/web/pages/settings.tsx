@@ -33,6 +33,7 @@ const SENIORITY_OPTIONS = ['junior', 'mid', 'senior', 'staff', 'lead', 'principa
 
 export interface SettingsProps {
   telegramEnabled: boolean;
+  classifierMode: 'single' | 'two_stage';
   targets: MaskedTarget[];
   profiles: ProfileListItem[];
   activeProfile: Profile | null;
@@ -42,6 +43,7 @@ export interface SettingsProps {
 
 export const SettingsPage: FC<SettingsProps> = ({
   telegramEnabled,
+  classifierMode,
   targets,
   profiles,
   activeProfile,
@@ -170,6 +172,52 @@ export const SettingsPage: FC<SettingsProps> = ({
         </table>
       </Card>
     )}
+
+    <Card class="mb-6">
+      <SectionTitle>Classifier mode</SectionTitle>
+      <form method="post" action="/settings/classifier-mode" class="space-y-2">
+        <label class="flex items-start gap-3 text-sm text-zinc-200">
+          <input
+            type="radio"
+            name="mode"
+            value="single"
+            checked={classifierMode === 'single'}
+            class="mt-1"
+          />
+          <span>
+            <span class="font-medium">Single stage</span>
+            <span class="block text-xs text-zinc-500">
+              Every job goes straight to Claude Haiku 4.5. Highest precision, full cost.
+            </span>
+          </span>
+        </label>
+        <label class="flex items-start gap-3 text-sm text-zinc-200">
+          <input
+            type="radio"
+            name="mode"
+            value="two_stage"
+            checked={classifierMode === 'two_stage'}
+            class="mt-1"
+          />
+          <span>
+            <span class="font-medium">Two stage (cheaper)</span>
+            <span class="block text-xs text-zinc-500">
+              Quick yes/no prefilter (short prompt, ~100-token output) gates the full
+              classifier. When most fetched jobs are off-target, total Anthropic spend
+              drops ~30-40% with marginal precision loss.
+            </span>
+          </span>
+        </label>
+        <div class="pt-2">
+          <button
+            type="submit"
+            class="rounded-md bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-500"
+          >
+            Save mode
+          </button>
+        </div>
+      </form>
+    </Card>
 
     <Card class="mb-6">
       <SectionTitle>Telegram alerts</SectionTitle>

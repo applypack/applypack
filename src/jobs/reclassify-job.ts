@@ -1,9 +1,10 @@
 import { JobStatus } from '@prisma/client';
 import { prisma } from '../db';
 import { logger } from '../logger';
-import { classifyWithClaude } from '../classifier';
+import { classifyJob } from '../classifier';
 import { passesBaseFilter } from '../filter';
 import { getActiveProfile } from '../profiles';
+import { getSettings } from '../settings';
 import type { CronStats } from './cron-run';
 
 const RECLASSIFY_BATCH_SIZE = 50;
@@ -21,13 +22,15 @@ export async function runReclassifyAll(): Promise<{ stats: CronStats }> {
     return { stats: { aborted: 1, reason: 'no-active-profile' } };
   }
 
+  const { classifierMode } = await getSettings();
   logger.info(
-    { profile: profile.name },
+    { profile: profile.name, classifierMode },
     'reclassify-all: start',
   );
 
   let scanned = 0;
   let reclassified = 0;
+  let preFiltered = 0;
   let promoted = 0; // moved DISMISSED → NEW
   let demoted = 0; // moved NEW/SAVED/ALERTED → DISMISSED
   let unchanged = 0;
@@ -65,7 +68,7 @@ export async function runReclassifyAll(): Promise<{ stats: CronStats }> {
         continue;
       }
 
-      const c = await classifyWithClaude(
+      const outcome = await classifyJob(
         {
           title: j.title,
           companyName: j.company.name,
@@ -74,7 +77,22 @@ export async function runReclassifyAll(): Promise<{ stats: CronStats }> {
           postedAt: j.postedAt,
         },
         profile,
+        classifierMode,
       );
+      if (outcome.preFiltered) {
+        preFiltered++;
+        // Reclassify treats pre-filtered jobs the same as base-filter rejects:
+        // demote to DISMISSED so they leave the inbox.
+        if (j.status !== JobStatus.DISMISSED) {
+          await prisma.job.update({
+            where: { id: j.id },
+            data: { status: JobStatus.DISMISSED },
+          });
+          demoted++;
+        }
+        continue;
+      }
+      const c = outcome.result;
       if (!c) {
         failed++;
         continue;
@@ -121,8 +139,10 @@ export async function runReclassifyAll(): Promise<{ stats: CronStats }> {
   const durationMs = Date.now() - started;
   const stats: CronStats = {
     profile: profile.name,
+    classifierMode,
     scanned,
     reclassified,
+    preFiltered,
     promoted,
     demoted,
     unchanged,

@@ -5,7 +5,10 @@ import { config } from './config';
 import { logger } from './logger';
 import { sleep } from './http';
 import { extractJson } from './text-utils';
+import { preClassify } from './classifier-prefilter';
 import type { ClassifyInput, ClaudeClassification } from './types';
+
+export type ClassifierMode = 'single' | 'two_stage';
 
 const MODEL = 'claude-haiku-4-5-20251001';
 const MAX_TOKENS = 600;
@@ -23,6 +26,49 @@ const ClassificationSchema = z.object({
   red_flags: z.array(z.string()),
   summary: z.string(),
 });
+
+export interface ClassifyOutcome {
+  /** Final classification, or null on classifier failure / pre-filtered out. */
+  result: ClaudeClassification | null;
+  /** True when stage-1 prefilter rejected — counted separately in stats. */
+  preFiltered: boolean;
+}
+
+/**
+ * Classify a job according to the requested classifier mode.
+ *
+ * - 'single': go straight to the full Haiku 4.5 classifier (current behaviour).
+ * - 'two_stage': cheap Haiku 3.5 prefilter first; only proceed to Haiku 4.5
+ *   when the prefilter says the role is plausibly relevant. On a prefilter
+ *   error, fail-open (run stage 2) so transient API failures don't drop
+ *   real candidates.
+ */
+export async function classifyJob(
+  input: ClassifyInput,
+  profile: Profile,
+  mode: ClassifierMode,
+): Promise<ClassifyOutcome> {
+  if (mode === 'two_stage') {
+    const pre = await preClassify(input, profile);
+    if (pre && pre.relevant === false) {
+      logger.debug(
+        { title: input.title, reason: pre.reason },
+        'classifier: stage1 not-relevant, skipping stage2',
+      );
+      return { result: null, preFiltered: true };
+    }
+    if (pre === null) {
+      logger.warn(
+        { title: input.title },
+        'classifier: stage1 failed; falling open to stage2',
+      );
+    }
+  }
+  const result = await classifyWithClaude(input, profile);
+  return { result, preFiltered: false };
+}
+
+export { decideStageStrategy } from './text-utils';
 
 export async function classifyWithClaude(
   input: ClassifyInput,

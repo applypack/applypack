@@ -6,8 +6,11 @@ const SETTINGS_ID = 1;
 const TELEGRAM_API = 'https://api.telegram.org';
 const TELEGRAM_TIMEOUT_MS = 10_000;
 
+export type ClassifierMode = 'single' | 'two_stage';
+
 export interface AppSettingsView {
   telegramEnabled: boolean;
+  classifierMode: ClassifierMode;
   updatedAt: Date;
 }
 
@@ -22,6 +25,7 @@ export async function getSettings(): Promise<AppSettingsView> {
   });
   return {
     telegramEnabled: row.telegramEnabled,
+    classifierMode: normaliseClassifierMode(row.classifierMode),
     updatedAt: row.updatedAt,
   };
 }
@@ -32,6 +36,19 @@ export async function setTelegramEnabled(enabled: boolean): Promise<void> {
     update: { telegramEnabled: enabled },
     create: { id: SETTINGS_ID, telegramEnabled: enabled },
   });
+}
+
+export async function setClassifierMode(mode: ClassifierMode): Promise<void> {
+  await prisma.appSettings.upsert({
+    where: { id: SETTINGS_ID },
+    update: { classifierMode: mode },
+    create: { id: SETTINGS_ID, classifierMode: mode },
+  });
+  logger.info({ mode }, 'settings: classifier mode set');
+}
+
+function normaliseClassifierMode(raw: string): ClassifierMode {
+  return raw === 'two_stage' ? 'two_stage' : 'single';
 }
 
 export async function listTelegramTargets(): Promise<TelegramTarget[]> {

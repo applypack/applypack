@@ -59,3 +59,13 @@ export function extractJson(text: string): unknown | null {
     return null;
   }
 }
+
+/**
+ * Maps a classifier mode to the stage-1 decision. Trivial but explicit so
+ * we can unit-test the toggle semantics in isolation from the API client.
+ */
+export function decideStageStrategy(
+  mode: 'single' | 'two_stage',
+): 'skip-stage1' | 'run-stage1' {
+  return mode === 'two_stage' ? 'run-stage1' : 'skip-stage1';
+}

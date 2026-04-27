@@ -4,8 +4,9 @@ import { JobStatus, type Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { prisma } from '../../db';
 import { logger } from '../../logger';
-import { classifyWithClaude } from '../../classifier';
+import { classifyJob } from '../../classifier';
 import { getActiveProfile } from '../../profiles';
+import { getSettings } from '../../settings';
 import { JobsListPage } from '../pages/jobs-list';
 import { JobDetailPage } from '../pages/job-detail';
 
@@ -144,7 +145,8 @@ jobsRoute.post('/jobs/:id/reclassify', async (c) => {
       logger.warn({ jobId: id }, 'web: reclassify skipped — no active profile');
       return c.redirect(`/jobs/${id}`, 303);
     }
-    const classification = await classifyWithClaude(
+    const { classifierMode } = await getSettings();
+    const outcome = await classifyJob(
       {
         title: job.title,
         companyName: job.company.name,
@@ -153,7 +155,9 @@ jobsRoute.post('/jobs/:id/reclassify', async (c) => {
         postedAt: job.postedAt,
       },
       profile,
+      classifierMode,
     );
+    const classification = outcome.result;
     if (!classification) {
       return c.redirect(`/jobs/${id}`, 303);
     }

@@ -8,6 +8,7 @@ import {
   getSettings,
   listTelegramTargets,
   maskToken,
+  setClassifierMode,
   setTelegramEnabled,
   testTelegramTarget,
   toggleTelegramTarget,
@@ -67,6 +68,7 @@ settingsRoute.get('/settings', async (c) => {
   return c.html(
     <SettingsPage
       telegramEnabled={settings.telegramEnabled}
+      classifierMode={settings.classifierMode}
       targets={targets.map((t) => ({
         id: t.id,
         name: t.name,
@@ -107,6 +109,18 @@ settingsRoute.post('/settings/telegram-toggle', async (c) => {
     'ok',
     `Telegram alerts ${!settings.telegramEnabled ? 'enabled' : 'disabled'}.`,
   );
+});
+
+settingsRoute.post('/settings/classifier-mode', async (c) => {
+  const form = await c.req.parseBody();
+  const raw = form.mode;
+  const mode = raw === 'two_stage' ? 'two_stage' : 'single';
+  await setClassifierMode(mode);
+  const label =
+    mode === 'two_stage'
+      ? 'Two-stage (Haiku 3.5 prefilter + Haiku 4.5)'
+      : 'Single (Haiku 4.5 only)';
+  return redirectWithFlash(c, 'ok', `Classifier mode → ${label}.`);
 });
 
 settingsRoute.post('/settings/targets', async (c) => {

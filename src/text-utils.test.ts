@@ -1,6 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  decideStageStrategy,
   extractJson,
   maskToken,
   parseTagList,
@@ -147,5 +148,15 @@ describe('extractJson', () => {
       extractJson('text {"a":{"b":{"c":[1,2]}}} more'),
       { a: { b: { c: [1, 2] } } },
     );
+  });
+});
+
+describe('decideStageStrategy', () => {
+  it('returns run-stage1 for two_stage mode', () => {
+    assert.equal(decideStageStrategy('two_stage'), 'run-stage1');
+  });
+
+  it('returns skip-stage1 for single mode', () => {
+    assert.equal(decideStageStrategy('single'), 'skip-stage1');
   });
 });

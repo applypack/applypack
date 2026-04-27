@@ -3,9 +3,10 @@ import { prisma } from '../db';
 import { logger } from '../logger';
 import { runAllFetchers } from '../fetchers';
 import { passesBaseFilter } from '../filter';
-import { classifyWithClaude } from '../classifier';
+import { classifyJob } from '../classifier';
 import { sendTelegramAlert } from '../notifier';
 import { getActiveProfile } from '../profiles';
+import { getSettings } from '../settings';
 import type { CronStats } from './cron-run';
 import type { ClaudeClassification, NormalizedJob } from '../types';
 
@@ -20,8 +21,9 @@ export async function runFetchJob(): Promise<{ stats: CronStats }> {
     );
     return { stats: { aborted: 1, reason: 'no-active-profile' } };
   }
+  const { classifierMode } = await getSettings();
   logger.info(
-    { profile: profile.name, minFitScore: profile.minFitScore },
+    { profile: profile.name, minFitScore: profile.minFitScore, classifierMode },
     'fetch-job: using active profile',
   );
 
@@ -30,9 +32,11 @@ export async function runFetchJob(): Promise<{ stats: CronStats }> {
 
   const stats = {
     profile: profile.name,
+    classifierMode,
     fetched: fetched.length,
     filterRejected: 0,
     duplicate: 0,
+    preFiltered: 0,
     classified: 0,
     classifyFailed: 0,
     persisted: 0,
@@ -61,7 +65,7 @@ export async function runFetchJob(): Promise<{ stats: CronStats }> {
       continue;
     }
 
-    const classification = await classifyWithClaude(
+    const outcome = await classifyJob(
       {
         title: job.title,
         companyName,
@@ -70,7 +74,13 @@ export async function runFetchJob(): Promise<{ stats: CronStats }> {
         postedAt: job.postedAt,
       },
       profile,
+      classifierMode,
     );
+    if (outcome.preFiltered) {
+      stats.preFiltered++;
+      continue;
+    }
+    const classification = outcome.result;
     if (!classification) {
       stats.classifyFailed++;
       continue;
