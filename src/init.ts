@@ -68,6 +68,7 @@ async function bootstrapDefaultProfile(): Promise<void> {
     minSalaryUsd: config.MIN_SALARY_USD,
     minFitScore: config.MIN_FIT_SCORE,
     telegramTargetId: null,
+    priorityRules: [],
   });
   await setActiveProfile(profile.id);
   logger.info(
