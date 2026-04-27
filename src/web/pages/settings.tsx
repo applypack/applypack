@@ -36,6 +36,7 @@ export interface SettingsProps {
   classifierMode: 'single' | 'two_stage';
   applicationTrackingEnabled: boolean;
   staleApplicationsDigestEnabled: boolean;
+  hnParserEnabled: boolean;
   targets: MaskedTarget[];
   profiles: ProfileListItem[];
   activeProfile: Profile | null;
@@ -48,6 +49,7 @@ export const SettingsPage: FC<SettingsProps> = ({
   classifierMode,
   applicationTrackingEnabled,
   staleApplicationsDigestEnabled,
+  hnParserEnabled,
   targets,
   profiles,
   activeProfile,
@@ -221,6 +223,55 @@ export const SettingsPage: FC<SettingsProps> = ({
           </button>
         </div>
       </form>
+    </Card>
+
+    <Card class="mb-6">
+      <SectionTitle>HN "Who is Hiring" parser</SectionTitle>
+      <div class="flex items-center justify-between gap-4">
+        <div>
+          <div class="text-sm text-zinc-300">
+            Status:{' '}
+            {hnParserEnabled ? (
+              <Tag tone="green">Enabled</Tag>
+            ) : (
+              <Tag tone="zinc">Disabled</Tag>
+            )}
+          </div>
+          <p class="mt-1 text-xs text-zinc-500">
+            Monthly cron parses the latest "Ask HN: Who is hiring?" thread
+            (~300-500 comments) and runs the structured ones through the
+            same filter + classify + alert pipeline. Many small startups
+            post here that don't show up on ATS feeds.
+          </p>
+        </div>
+        <div class="flex flex-col gap-2">
+          <form method="post" action="/settings/hn-parser-toggle">
+            <button
+              type="submit"
+              class={`rounded-md px-4 py-2 text-sm font-medium text-white ${
+                hnParserEnabled
+                  ? 'bg-zinc-700 hover:bg-zinc-600'
+                  : 'bg-emerald-600 hover:bg-emerald-500'
+              }`}
+            >
+              {hnParserEnabled ? 'Disable' : 'Enable'}
+            </button>
+          </form>
+          <form
+            method="post"
+            action="/settings/hn-run"
+            onsubmit="return confirm('Pull the latest HN Who-is-hiring thread now? This may take 1-2 minutes and consumes Anthropic credit.');"
+          >
+            <button
+              type="submit"
+              disabled={!hnParserEnabled}
+              class="rounded-md border border-violet-700 bg-violet-950/40 px-3 py-1.5 text-xs text-violet-200 hover:bg-violet-900/50 disabled:opacity-40 disabled:hover:bg-violet-950/40"
+            >
+              Run now
+            </button>
+          </form>
+        </div>
+      </div>
     </Card>
 
     <Card class="mb-6">

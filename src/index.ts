@@ -7,6 +7,7 @@ import { runFetchJob } from './jobs/fetch-job';
 import { runDigestJob } from './jobs/digest-job';
 import { runCleanupJob } from './jobs/cleanup-job';
 import { runStaleApplicationsJob } from './jobs/stale-applications-job';
+import { runHnHiringJob } from './jobs/hn-hiring-job';
 import { recordCronRun } from './jobs/cron-run';
 
 const SHUTDOWN_POLL_MS = 250;
@@ -23,6 +24,11 @@ async function main(): Promise<void> {
   registerCron('0 3 * * 0', 'cleanup', () => recordCronRun('cleanup', runCleanupJob));
   registerCron('0 8 * * *', 'stale-applications', () =>
     recordCronRun('stale-applications', runStaleApplicationsJob),
+  );
+  // 06:00 Chicago on the 1st of each month (Who-is-hiring threads land
+  // around the 1st-2nd of the month).
+  registerCron('0 6 1 * *', 'hn-hiring', () =>
+    recordCronRun('hn-hiring', runHnHiringJob),
   );
 
   process.on('SIGTERM', () => {

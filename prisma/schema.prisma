@@ -15,6 +15,7 @@ enum AtsType {
   REMOTEOK
   REMOTIVE
   ARBEITNOW
+  HN_HIRING
 }
 
 enum JobStatus {
@@ -103,6 +104,8 @@ model AppSettings {
   // Phase 3.4 toggles
   applicationTrackingEnabled        Boolean @default(true)
   staleApplicationsDigestEnabled    Boolean @default(true)
+  // Phase 3.2 toggle
+  hnParserEnabled                   Boolean @default(false)
   updatedAt       DateTime @updatedAt
 }
 

@@ -10,6 +10,7 @@ import {
   maskToken,
   setApplicationTrackingEnabled,
   setClassifierMode,
+  setHnParserEnabled,
   setStaleApplicationsDigestEnabled,
   setTelegramEnabled,
   testTelegramTarget,
@@ -25,6 +26,7 @@ import {
   updateProfile,
 } from '../../profiles';
 import { runReclassifyAll } from '../../jobs/reclassify-job';
+import { runHnHiringJob } from '../../jobs/hn-hiring-job';
 import { recordCronRun } from '../../jobs/cron-run';
 import { parseTagList, toStringArray } from '../../text-utils';
 import { prisma } from '../../db';
@@ -73,6 +75,7 @@ settingsRoute.get('/settings', async (c) => {
       classifierMode={settings.classifierMode}
       applicationTrackingEnabled={settings.applicationTrackingEnabled}
       staleApplicationsDigestEnabled={settings.staleApplicationsDigestEnabled}
+      hnParserEnabled={settings.hnParserEnabled}
       targets={targets.map((t) => ({
         id: t.id,
         name: t.name,
@@ -150,6 +153,42 @@ settingsRoute.post('/settings/stale-digest-toggle', async (c) => {
     `Stale-applications digest ${
       !settings.staleApplicationsDigestEnabled ? 'enabled' : 'disabled'
     }.`,
+  );
+});
+
+settingsRoute.post('/settings/hn-parser-toggle', async (c) => {
+  const settings = await getSettings();
+  await setHnParserEnabled(!settings.hnParserEnabled);
+  return redirectWithFlash(
+    c,
+    'ok',
+    `HN parser ${!settings.hnParserEnabled ? 'enabled' : 'disabled'}.`,
+  );
+});
+
+let hnRunInFlight = false;
+settingsRoute.post('/settings/hn-run', (c) => {
+  if (hnRunInFlight) {
+    return redirectWithFlash(
+      c,
+      'err',
+      'An HN parse run is already in progress. Watch /runs.',
+    );
+  }
+  hnRunInFlight = true;
+  void (async () => {
+    try {
+      await recordCronRun('hn-hiring', runHnHiringJob);
+    } catch (err) {
+      logger.error({ err }, 'hn-hiring (manual trigger): failed');
+    } finally {
+      hnRunInFlight = false;
+    }
+  })();
+  return redirectWithFlash(
+    c,
+    'ok',
+    'HN parse started in the background. Track progress at /runs.',
   );
 });
 

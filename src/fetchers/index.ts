@@ -9,6 +9,7 @@ import { fetchLarajobs } from './larajobs';
 import { fetchRemoteOk } from './remoteok';
 import { fetchRemotive } from './remotive';
 import { fetchArbeitnow } from './arbeitnow';
+import { fetchHnHiring } from './hn-hiring';
 import type { NormalizedJob } from '../types';
 
 const POLITE_DELAY_MS = 1_000;
@@ -68,5 +69,7 @@ async function fetchOne(company: {
       return fetchRemotive(company.id);
     case AtsType.ARBEITNOW:
       return fetchArbeitnow(company.id);
+    case AtsType.HN_HIRING:
+      return fetchHnHiring(company.id);
   }
 }

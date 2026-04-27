@@ -13,6 +13,7 @@ export interface AppSettingsView {
   classifierMode: ClassifierMode;
   applicationTrackingEnabled: boolean;
   staleApplicationsDigestEnabled: boolean;
+  hnParserEnabled: boolean;
   updatedAt: Date;
 }
 
@@ -30,6 +31,7 @@ export async function getSettings(): Promise<AppSettingsView> {
     classifierMode: normaliseClassifierMode(row.classifierMode),
     applicationTrackingEnabled: row.applicationTrackingEnabled,
     staleApplicationsDigestEnabled: row.staleApplicationsDigestEnabled,
+    hnParserEnabled: row.hnParserEnabled,
     updatedAt: row.updatedAt,
   };
 }
@@ -66,6 +68,14 @@ export async function setStaleApplicationsDigestEnabled(
     where: { id: SETTINGS_ID },
     update: { staleApplicationsDigestEnabled: enabled },
     create: { id: SETTINGS_ID, staleApplicationsDigestEnabled: enabled },
+  });
+}
+
+export async function setHnParserEnabled(enabled: boolean): Promise<void> {
+  await prisma.appSettings.upsert({
+    where: { id: SETTINGS_ID },
+    update: { hnParserEnabled: enabled },
+    create: { id: SETTINGS_ID, hnParserEnabled: enabled },
   });
 }
 
