@@ -46,6 +46,7 @@ const NewTargetSchema = z.object({
 const ProfileFormSchema = z.object({
   name: z.string().min(1).max(100),
   stackRequired: z.string().optional().default(''),
+  roleTypes: z.string().optional().default(''),
   stackNiceToHave: z.string().optional().default(''),
   stackExclude: z.string().optional().default(''),
   notes: z.string().optional().default(''),
@@ -292,12 +293,13 @@ settingsRoute.post('/settings/profiles/new', async (c) => {
   const profile = await createProfile({
     name: 'New profile',
     stackRequired: [],
+    roleTypes: [],
     stackNiceToHave: [],
     stackExclude: ['junior', 'intern'],
     notes: null,
     seniority: ['senior'],
     remoteOk: true,
-    remoteRegions: ['US', 'Worldwide'],
+    remoteRegions: ['US'],
     onsiteCities: [],
     hybridOk: false,
     minSalaryUsd: 0,
@@ -375,6 +377,7 @@ settingsRoute.post('/settings/profiles/:id/save', async (c) => {
   await updateProfile(id, {
     name: f.name,
     stackRequired: parseTagList(f.stackRequired),
+    roleTypes: parseTagList(f.roleTypes),
     stackNiceToHave: parseTagList(f.stackNiceToHave),
     stackExclude: parseTagList(f.stackExclude),
     notes: f.notes && f.notes.trim().length > 0 ? f.notes.trim() : null,

@@ -39,22 +39,14 @@ async function bootstrapDefaultProfile(): Promise<void> {
 
   const profile = await createProfile({
     name: 'PHP/Laravel + JS Full-Stack',
-    stackRequired: [
-      'php',
-      'laravel',
-      'symfony',
-      'full-stack',
-      'fullstack',
-      'full stack',
-      'backend',
-    ],
+    stackRequired: ['php', 'laravel', 'symfony', 'javascript', 'typescript'],
+    roleTypes: ['full-stack', 'fullstack', 'full stack', 'backend'],
     stackNiceToHave: [
       'mysql',
       'postgres',
       'redis',
       'react',
       'vue',
-      'typescript',
       'docker',
     ],
     stackExclude: [
@@ -68,7 +60,9 @@ async function bootstrapDefaultProfile(): Promise<void> {
     notes: null,
     seniority: ['senior', 'staff', 'lead', 'principal'],
     remoteOk: true,
-    remoteRegions: ['US', 'Americas', 'Worldwide'],
+    // US / Americas only — single-country remote (Germany, UK) is NOT
+    // hireable from a US-based candidate.
+    remoteRegions: ['US', 'Americas'],
     onsiteCities: [],
     hybridOk: false,
     minSalaryUsd: config.MIN_SALARY_USD,

@@ -576,10 +576,16 @@ const ProfileEditor: FC<{
     </div>
 
     <TagListInput
-      label="Stack — required (must appear in title)"
-      hint="One per line, or comma-separated. Case-insensitive substring match."
+      label="Tech stack — required (real technologies)"
+      hint="Programming languages / frameworks the role must ACTUALLY use. e.g. php, laravel, javascript, typescript, react, go. NOT role types."
       name="stackRequired"
       values={profile.stackRequired}
+    />
+    <TagListInput
+      label="Role types (job category hints)"
+      hint='Title shapes you accept: "full-stack", "backend", "frontend", "platform", "infrastructure". Used to admit jobs to Claude — but Claude is told a role-type alone is NOT a tech match.'
+      name="roleTypes"
+      values={profile.roleTypes}
     />
     <TagListInput
       label="Stack — nice to have (boosts fit_score)"

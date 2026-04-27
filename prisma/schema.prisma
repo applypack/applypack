@@ -160,8 +160,15 @@ model TelegramTarget {
 model Profile {
   id               Int      @id @default(autoincrement())
   name             String
-  // Stack tags — case-insensitive substring match on title/description
+  // Stack tags — case-insensitive substring match on title/description.
+  // stackRequired = REAL TECH (programming languages, frameworks, runtimes).
+  //   The role MUST actually use one of these.
+  // roleTypes     = job category hints (full-stack, backend, frontend).
+  //   Used for the base filter so we don't drop "Senior Full-Stack" jobs
+  //   on title alone — but Claude is told explicitly that a role-type
+  //   keyword by itself is NOT a tech match.
   stackRequired    String[]
+  roleTypes        String[]  @default([])
   stackNiceToHave  String[]
   stackExclude     String[]
   // Free-form context appended to Claude prompt

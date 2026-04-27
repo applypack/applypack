@@ -185,6 +185,25 @@ jobsRoute.post('/jobs/:id/reclassify', async (c) => {
     if (!classification) {
       return c.redirect(`/jobs/${id}`, 303);
     }
+    // Auto-demote/promote based on fresh classification — same rules as
+    // fetch-job's decideDismissReason(). Doesn't touch APPLIED jobs since
+    // those are sealed in the funnel.
+    const previousStatus = job.status;
+    let newStatus = previousStatus;
+    if (previousStatus !== 'APPLIED') {
+      const failsFit = classification.fit_score < profile.minFitScore;
+      const failsLocation = !classification.location_match;
+      const failsSalary =
+        profile.minSalaryUsd > 0 &&
+        classification.salary_min_usd !== null &&
+        classification.salary_min_usd > 0 &&
+        classification.salary_min_usd < profile.minSalaryUsd;
+      if (failsFit || failsLocation || failsSalary) {
+        newStatus = 'DISMISSED';
+      } else if (previousStatus === 'DISMISSED') {
+        newStatus = 'NEW';
+      }
+    }
     await prisma.job.update({
       where: { id },
       data: {
@@ -194,6 +213,7 @@ jobsRoute.post('/jobs/:id/reclassify', async (c) => {
         techMatch: classification.tech_match,
         redFlags: classification.red_flags,
         summary: classification.summary,
+        status: newStatus,
       },
     });
     return c.redirect(`/jobs/${id}`, 303);

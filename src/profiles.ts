@@ -7,6 +7,7 @@ const SETTINGS_ID = 1;
 export interface ProfileInput {
   name: string;
   stackRequired: string[];
+  roleTypes: string[];
   stackNiceToHave: string[];
   stackExclude: string[];
   notes: string | null;
