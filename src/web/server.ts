@@ -11,6 +11,7 @@ import { companiesRoute } from './routes/companies';
 import { runsRoute } from './routes/runs';
 import { settingsRoute } from './routes/settings';
 import { applicationsRoute } from './routes/applications';
+import { discoveryRoute } from './routes/discovery';
 import { healthRoute } from './routes/health';
 
 const app = new Hono();
@@ -69,6 +70,7 @@ app.route('/', overviewRoute);
 app.route('/', jobsRoute);
 app.route('/', applicationsRoute);
 app.route('/', companiesRoute);
+app.route('/', discoveryRoute);
 app.route('/', runsRoute);
 app.route('/', settingsRoute);
 app.route('/', healthRoute);

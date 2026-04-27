@@ -8,6 +8,7 @@ import { runDigestJob } from './jobs/digest-job';
 import { runCleanupJob } from './jobs/cleanup-job';
 import { runStaleApplicationsJob } from './jobs/stale-applications-job';
 import { runHnHiringJob } from './jobs/hn-hiring-job';
+import { runDiscoveryJob } from './jobs/discovery-job';
 import { recordCronRun } from './jobs/cron-run';
 
 const SHUTDOWN_POLL_MS = 250;
@@ -29,6 +30,11 @@ async function main(): Promise<void> {
   // around the 1st-2nd of the month).
   registerCron('0 6 1 * *', 'hn-hiring', () =>
     recordCronRun('hn-hiring', runHnHiringJob),
+  );
+  // Sunday 04:00 Chicago: re-probe pending candidates so /discovery shows
+  // accurate jobsSeen and dead candidates fall off the review list.
+  registerCron('0 4 * * 0', 'discovery', () =>
+    recordCronRun('discovery', runDiscoveryJob),
   );
 
   process.on('SIGTERM', () => {

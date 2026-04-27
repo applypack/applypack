@@ -19,6 +19,7 @@
     "cleanup:once": "tsx src/scripts/cleanup-once.ts",
     "stale:once": "tsx src/scripts/stale-once.ts",
     "hn:once": "tsx src/scripts/hn-once.ts",
+    "discovery:once": "tsx src/scripts/discovery-once.ts",
     "test:telegram": "tsx src/scripts/test-telegram.ts",
     "prisma:generate": "prisma generate",
     "prisma:migrate:deploy": "prisma migrate deploy",

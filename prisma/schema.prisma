@@ -32,6 +32,13 @@ enum CronRunStatus {
   FAILED
 }
 
+enum CandidateStatus {
+  PENDING
+  PROMOTED
+  IGNORED
+  DEAD
+}
+
 model Company {
   id        Int      @id @default(autoincrement())
   name      String
@@ -111,7 +118,32 @@ model AppSettings {
   // per-Company.active so users can disable a whole source family with
   // one click without flipping each company toggle.
   disabledSources                   String[] @default([])
+  // Phase 4.2: discovery toggle (gates auto-creation of CompanyCandidate
+  // rows from HN comments and the weekly probe job).
+  discoveryEnabled                  Boolean  @default(false)
   updatedAt       DateTime @updatedAt
+}
+
+model CompanyCandidate {
+  id           Int             @id @default(autoincrement())
+  // Best-guess company name (may be null for slug-only finds).
+  name         String?
+  atsType      AtsType
+  atsToken     String
+  // Where we discovered it: "hn-2026-04", "manual", "greenhouse-list", ...
+  source       String
+  sourceUrl    String?
+  // Free-form one-liner explaining why we flagged it.
+  signal       String?
+  // Last probe result: how many jobs the ATS endpoint returned.
+  jobsSeen     Int             @default(0)
+  status       CandidateStatus @default(PENDING)
+  notes        String?
+  discoveredAt DateTime        @default(now())
+  promotedAt   DateTime?
+
+  @@unique([atsType, atsToken])
+  @@index([status, discoveredAt])
 }
 
 model TelegramTarget {

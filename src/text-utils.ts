@@ -78,3 +78,40 @@ export function daysSince(then: Date, now: Date = new Date()): number {
   const ms = now.getTime() - then.getTime();
   return Math.floor(ms / (24 * 60 * 60 * 1000));
 }
+
+/**
+ * Recognise an ATS company URL and return the (atsType, atsToken) pair.
+ * Used by the discovery pipeline to harvest CompanyCandidate rows from
+ * URLs found in HN comments / blog posts / etc.
+ *
+ * Returns null when the URL is not a known ATS pattern (so the caller
+ * can simply skip it rather than guess).
+ */
+export function extractAtsToken(
+  url: string,
+): { atsType: 'GREENHOUSE' | 'LEVER' | 'ASHBY'; atsToken: string } | null {
+  if (!url || typeof url !== 'string') return null;
+  // Greenhouse: boards.greenhouse.io/{token} OR
+  //             boards.greenhouse.io/embed/job_board?for={token}
+  let m =
+    /https?:\/\/(?:boards|job-boards)\.greenhouse\.io\/(?:embed\/job_board\?for=)?([\w-]{2,60})/i.exec(
+      url,
+    );
+  if (m && m[1]) {
+    return { atsType: 'GREENHOUSE', atsToken: m[1].toLowerCase() };
+  }
+  // Lever: jobs.lever.co/{slug}/...
+  m = /https?:\/\/jobs\.lever\.co\/([\w-]{2,60})/i.exec(url);
+  if (m && m[1]) {
+    return { atsType: 'LEVER', atsToken: m[1].toLowerCase() };
+  }
+  // Ashby: jobs.ashbyhq.com/{org} OR api.ashbyhq.com/posting-api/job-board/{org}
+  m =
+    /https?:\/\/(?:jobs\.ashbyhq\.com|api\.ashbyhq\.com\/posting-api\/job-board)\/([\w-]{2,60})/i.exec(
+      url,
+    );
+  if (m && m[1]) {
+    return { atsType: 'ASHBY', atsToken: m[1].toLowerCase() };
+  }
+  return null;
+}

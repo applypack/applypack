@@ -15,6 +15,7 @@ export interface AppSettingsView {
   staleApplicationsDigestEnabled: boolean;
   hnParserEnabled: boolean;
   disabledSources: string[];
+  discoveryEnabled: boolean;
   updatedAt: Date;
 }
 
@@ -34,6 +35,7 @@ export async function getSettings(): Promise<AppSettingsView> {
     staleApplicationsDigestEnabled: row.staleApplicationsDigestEnabled,
     hnParserEnabled: row.hnParserEnabled,
     disabledSources: row.disabledSources,
+    discoveryEnabled: row.discoveryEnabled,
     updatedAt: row.updatedAt,
   };
 }
@@ -88,6 +90,14 @@ export async function setDisabledSources(sources: string[]): Promise<void> {
     create: { id: SETTINGS_ID, disabledSources: sources },
   });
   logger.info({ disabled: sources }, 'settings: disabled sources updated');
+}
+
+export async function setDiscoveryEnabled(enabled: boolean): Promise<void> {
+  await prisma.appSettings.upsert({
+    where: { id: SETTINGS_ID },
+    update: { discoveryEnabled: enabled },
+    create: { id: SETTINGS_ID, discoveryEnabled: enabled },
+  });
 }
 
 function normaliseClassifierMode(raw: string): ClassifierMode {

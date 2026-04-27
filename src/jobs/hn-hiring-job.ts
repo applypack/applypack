@@ -1,9 +1,10 @@
 import { AtsType } from '@prisma/client';
 import { prisma } from '../db';
 import { logger } from '../logger';
-import { fetchHnHiring } from '../fetchers/hn-hiring';
+import { fetchHnHiring, findLatestHiringThread } from '../fetchers/hn-hiring';
 import { getActiveProfile } from '../profiles';
 import { getSettings } from '../settings';
+import { recordCandidatesFromText } from '../discovery';
 import { processNormalizedJobs, type ProcessStats } from './process-jobs';
 import type { CronStats } from './cron-run';
 
@@ -52,6 +53,28 @@ export async function runHnHiringJob(): Promise<{ stats: CronStats }> {
   const fetched = await fetchHnHiring(company.id);
   const items = fetched.map((job) => ({ job, companyName: HN_COMPANY_NAME }));
 
+  // Phase 4.2 — harvest ATS company candidates from comment URLs.
+  // Each fetched job already carries the cleaned comment text in
+  // `description`, so we re-scan it for greenhouse / lever / ashby URLs.
+  let candidates = 0;
+  if (settings.discoveryEnabled) {
+    const sourceTag = `hn-${new Date().toISOString().slice(0, 7)}`; // hn-2026-04
+    const thread = await findLatestHiringThread().catch(() => null);
+    for (const j of fetched) {
+      const recorded = await recordCandidatesFromText(j.description, sourceTag, {
+        name: null,
+        sourceUrl: thread
+          ? `https://news.ycombinator.com/item?id=${thread.objectID}`
+          : null,
+        signal: `Found in HN comment ${j.externalId}`,
+      });
+      candidates += recorded;
+    }
+    if (candidates > 0) {
+      logger.info({ candidates }, 'hn-hiring: discovery harvested candidates');
+    }
+  }
+
   const inner: ProcessStats = {
     filterRejected: 0,
     duplicate: 0,
@@ -70,6 +93,7 @@ export async function runHnHiringJob(): Promise<{ stats: CronStats }> {
     profile: profile.name,
     classifierMode: settings.classifierMode,
     fetched: fetched.length,
+    candidatesRecorded: candidates,
     ...inner,
     durationMs,
   };

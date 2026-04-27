@@ -39,6 +39,7 @@ export interface SettingsProps {
   hnParserEnabled: boolean;
   disabledSources: string[];
   allSources: string[];
+  discoveryEnabled: boolean;
   targets: MaskedTarget[];
   profiles: ProfileListItem[];
   activeProfile: Profile | null;
@@ -54,6 +55,7 @@ export const SettingsPage: FC<SettingsProps> = ({
   hnParserEnabled,
   disabledSources,
   allSources,
+  discoveryEnabled,
   targets,
   profiles,
   activeProfile,
@@ -259,6 +261,40 @@ export const SettingsPage: FC<SettingsProps> = ({
           Save sources
         </button>
       </form>
+    </Card>
+
+    <Card class="mb-6">
+      <SectionTitle>Auto-discovery</SectionTitle>
+      <div class="flex items-center justify-between gap-4">
+        <div>
+          <div class="text-sm text-zinc-300">
+            Status:{' '}
+            {discoveryEnabled ? (
+              <Tag tone="green">Enabled</Tag>
+            ) : (
+              <Tag tone="zinc">Disabled</Tag>
+            )}
+          </div>
+          <p class="mt-1 text-xs text-zinc-500">
+            When the HN parser sees a Greenhouse / Lever / Ashby URL in a
+            comment, record the company as a candidate on /discovery for
+            review. A weekly cron re-probes pending candidates so the
+            jobsSeen count stays fresh.
+          </p>
+        </div>
+        <form method="post" action="/settings/discovery-toggle">
+          <button
+            type="submit"
+            class={`rounded-md px-4 py-2 text-sm font-medium text-white ${
+              discoveryEnabled
+                ? 'bg-zinc-700 hover:bg-zinc-600'
+                : 'bg-emerald-600 hover:bg-emerald-500'
+            }`}
+          >
+            {discoveryEnabled ? 'Disable' : 'Enable'}
+          </button>
+        </form>
+      </div>
     </Card>
 
     <Card class="mb-6">

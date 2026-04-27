@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   daysSince,
   decideStageStrategy,
+  extractAtsToken,
   extractJson,
   maskToken,
   parseTagList,
@@ -159,6 +160,59 @@ describe('decideStageStrategy', () => {
 
   it('returns skip-stage1 for single mode', () => {
     assert.equal(decideStageStrategy('single'), 'skip-stage1');
+  });
+});
+
+describe('extractAtsToken', () => {
+  it('parses a greenhouse boards URL', () => {
+    assert.deepEqual(
+      extractAtsToken('https://boards.greenhouse.io/vimeo'),
+      { atsType: 'GREENHOUSE', atsToken: 'vimeo' },
+    );
+  });
+
+  it('parses a greenhouse embed URL', () => {
+    assert.deepEqual(
+      extractAtsToken('https://boards.greenhouse.io/embed/job_board?for=stripe'),
+      { atsType: 'GREENHOUSE', atsToken: 'stripe' },
+    );
+  });
+
+  it('parses a lever slug URL', () => {
+    assert.deepEqual(extractAtsToken('https://jobs.lever.co/pleo/abc-def'), {
+      atsType: 'LEVER',
+      atsToken: 'pleo',
+    });
+  });
+
+  it('parses an ashby org URL', () => {
+    assert.deepEqual(extractAtsToken('https://jobs.ashbyhq.com/buffer/123-abc'), {
+      atsType: 'ASHBY',
+      atsToken: 'buffer',
+    });
+  });
+
+  it('parses an ashby API URL too', () => {
+    assert.deepEqual(
+      extractAtsToken('https://api.ashbyhq.com/posting-api/job-board/scribdinc'),
+      { atsType: 'ASHBY', atsToken: 'scribdinc' },
+    );
+  });
+
+  it('lowercases the token', () => {
+    assert.deepEqual(
+      extractAtsToken('https://boards.greenhouse.io/Pantheon'),
+      { atsType: 'GREENHOUSE', atsToken: 'pantheon' },
+    );
+  });
+
+  it('returns null for non-ATS URLs', () => {
+    assert.equal(
+      extractAtsToken('https://example.com/jobs/senior-php'),
+      null,
+    );
+    assert.equal(extractAtsToken(''), null);
+    assert.equal(extractAtsToken('not a url'), null);
   });
 });
 

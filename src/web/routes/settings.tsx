@@ -12,6 +12,7 @@ import {
   setApplicationTrackingEnabled,
   setClassifierMode,
   setDisabledSources,
+  setDiscoveryEnabled,
   setHnParserEnabled,
   setStaleApplicationsDigestEnabled,
   setTelegramEnabled,
@@ -80,6 +81,7 @@ settingsRoute.get('/settings', async (c) => {
       hnParserEnabled={settings.hnParserEnabled}
       disabledSources={settings.disabledSources}
       allSources={Object.values(AtsType)}
+      discoveryEnabled={settings.discoveryEnabled}
       targets={targets.map((t) => ({
         id: t.id,
         name: t.name,
@@ -179,6 +181,16 @@ settingsRoute.post('/settings/sources', async (c) => {
     disabled.length === 0
       ? 'All sources enabled.'
       : `Disabled: ${disabled.join(', ')}.`,
+  );
+});
+
+settingsRoute.post('/settings/discovery-toggle', async (c) => {
+  const settings = await getSettings();
+  await setDiscoveryEnabled(!settings.discoveryEnabled);
+  return redirectWithFlash(
+    c,
+    'ok',
+    `Auto-discovery ${!settings.discoveryEnabled ? 'enabled' : 'disabled'}.`,
   );
 });
 

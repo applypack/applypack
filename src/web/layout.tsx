@@ -8,6 +8,7 @@ interface LayoutProps {
     | 'jobs'
     | 'applications'
     | 'companies'
+    | 'discovery'
     | 'runs'
     | 'settings';
 }
@@ -69,6 +70,11 @@ const Nav: FC<{ active?: LayoutProps['active'] }> = ({ active }) => (
           active={active === 'applications'}
         />
         <NavLink href="/companies" label="Companies" active={active === 'companies'} />
+        <NavLink
+          href="/discovery"
+          label="Discovery"
+          active={active === 'discovery'}
+        />
         <NavLink href="/runs" label="Runs" active={active === 'runs'} />
         <NavLink href="/settings" label="Settings" active={active === 'settings'} />
       </nav>
