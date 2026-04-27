@@ -7,6 +7,9 @@ interface SeedCompany {
   atsType: AtsType;
   atsToken: string;
   careerUrl?: string;
+  // Some seed companies are added in disabled state — user enables via UI
+  // when they're ready (e.g. EU-skewed feeds while user focuses on US).
+  active?: boolean;
 }
 
 /**
@@ -82,6 +85,56 @@ const SEED_COMPANIES: SeedCompany[] = [
     atsToken: 'larajobs',
     careerUrl: 'https://larajobs.com',
   },
+
+  // Public aggregator feeds (Phase 3.1). Each is one synthetic Company row;
+  // each source publishes hundreds of jobs across many real companies.
+  {
+    name: 'RemoteOK Feed',
+    atsType: AtsType.REMOTEOK,
+    atsToken: 'remoteok',
+    careerUrl: 'https://remoteok.com',
+  },
+  {
+    name: 'Remotive Feed',
+    atsType: AtsType.REMOTIVE,
+    atsToken: 'remotive',
+    careerUrl: 'https://remotive.com',
+  },
+  {
+    // EU-skewed; user enables when relocation/EU-search is relevant.
+    name: 'Arbeitnow Feed',
+    atsType: AtsType.ARBEITNOW,
+    atsToken: 'arbeitnow',
+    careerUrl: 'https://www.arbeitnow.com',
+    active: false,
+  },
+
+  // WeWorkRemotely — paid posting → low-spam. Two relevant categories
+  // for the default profile; user can add more (`design-jobs`, etc) via UI.
+  {
+    name: 'WeWorkRemotely · Back-End',
+    atsType: AtsType.WEWORKREMOTELY,
+    atsToken: 'back-end-programming',
+    careerUrl:
+      'https://weworkremotely.com/categories/remote-back-end-programming-jobs',
+  },
+  {
+    name: 'WeWorkRemotely · Full-Stack',
+    atsType: AtsType.WEWORKREMOTELY,
+    atsToken: 'full-stack-programming',
+    careerUrl:
+      'https://weworkremotely.com/categories/remote-full-stack-programming-jobs',
+  },
+
+  // Curated Go-only board (~12 years old). Useful only when the active
+  // profile actually targets Go — disabled by default.
+  {
+    name: 'Golangprojects',
+    atsType: AtsType.GOLANGPROJECTS,
+    atsToken: 'golangprojects',
+    careerUrl: 'https://www.golangprojects.com',
+    active: false,
+  },
 ];
 
 export async function runSeed(): Promise<{
@@ -110,16 +163,14 @@ export async function runSeed(): Promise<{
       update: {
         name: c.name,
         careerUrl: c.careerUrl ?? null,
-        // Always re-enable seeded companies on seed; manual disables made via
-        // the dashboard will be reset by an explicit re-seed.
-        active: true,
+        // Don't touch `active` on update — it's user-controlled via /companies.
       },
       create: {
         name: c.name,
         atsType: c.atsType,
         atsToken: c.atsToken,
         careerUrl: c.careerUrl ?? null,
-        active: true,
+        active: c.active ?? true,
       },
     });
     upserts++;

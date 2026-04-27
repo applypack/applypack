@@ -4,8 +4,9 @@ import { JobStatus, type Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { prisma } from '../../db';
 import { logger } from '../../logger';
-import { classifyWithClaude } from '../../classifier';
+import { classifyJob } from '../../classifier';
 import { getActiveProfile } from '../../profiles';
+import { getSettings } from '../../settings';
 import { JobsListPage } from '../pages/jobs-list';
 import { JobDetailPage } from '../pages/job-detail';
 
@@ -99,16 +100,25 @@ jobsRoute.get('/jobs/:id', async (c) => {
   const id = Number(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text('Bad id', 400);
 
-  const job = await prisma.job.findUnique({
-    where: { id },
-    include: { company: { select: { id: true, name: true, atsType: true } } },
-  });
+  const [job, settings] = await Promise.all([
+    prisma.job.findUnique({
+      where: { id },
+      include: { company: { select: { id: true, name: true, atsType: true } } },
+    }),
+    getSettings(),
+  ]);
   if (!job) return c.text('Not found', 404);
 
   const flashCookie = parseFlashCookie(c.req.header('cookie'));
-  return c.html(<JobDetailPage job={job} flash={flashCookie} />, 200, {
-    'Set-Cookie': clearFlashCookie(),
-  });
+  return c.html(
+    <JobDetailPage
+      job={job}
+      applicationTrackingEnabled={settings.applicationTrackingEnabled}
+      flash={flashCookie}
+    />,
+    200,
+    { 'Set-Cookie': clearFlashCookie() },
+  );
 });
 
 jobsRoute.post('/jobs/:id/status', async (c) => {
@@ -122,6 +132,21 @@ jobsRoute.post('/jobs/:id/status', async (c) => {
   const data: Prisma.JobUpdateInput = { status: parsed.data.status };
   if (parsed.data.status === 'ALERTED' || parsed.data.status === 'APPLIED') {
     data.alertedAt = data.alertedAt ?? new Date();
+  }
+
+  // When the user marks a job APPLIED and tracking is on, seed the funnel
+  // so it shows up on /applications immediately. Don't overwrite existing
+  // pipelineStage / appliedAt — user may have backdated them.
+  if (parsed.data.status === 'APPLIED') {
+    const settings = await getSettings();
+    if (settings.applicationTrackingEnabled) {
+      const current = await prisma.job.findUnique({
+        where: { id },
+        select: { pipelineStage: true, appliedAt: true },
+      });
+      if (!current?.pipelineStage) data.pipelineStage = 'applied';
+      if (!current?.appliedAt) data.appliedAt = new Date();
+    }
   }
 
   await prisma.job.update({ where: { id }, data });
@@ -144,7 +169,8 @@ jobsRoute.post('/jobs/:id/reclassify', async (c) => {
       logger.warn({ jobId: id }, 'web: reclassify skipped — no active profile');
       return c.redirect(`/jobs/${id}`, 303);
     }
-    const classification = await classifyWithClaude(
+    const { classifierMode } = await getSettings();
+    const outcome = await classifyJob(
       {
         title: job.title,
         companyName: job.company.name,
@@ -153,9 +179,30 @@ jobsRoute.post('/jobs/:id/reclassify', async (c) => {
         postedAt: job.postedAt,
       },
       profile,
+      classifierMode,
     );
+    const classification = outcome.result;
     if (!classification) {
       return c.redirect(`/jobs/${id}`, 303);
+    }
+    // Auto-demote/promote based on fresh classification — same rules as
+    // fetch-job's decideDismissReason(). Doesn't touch APPLIED jobs since
+    // those are sealed in the funnel.
+    const previousStatus = job.status;
+    let newStatus = previousStatus;
+    if (previousStatus !== 'APPLIED') {
+      const failsFit = classification.fit_score < profile.minFitScore;
+      const failsLocation = !classification.location_match;
+      const failsSalary =
+        profile.minSalaryUsd > 0 &&
+        classification.salary_min_usd !== null &&
+        classification.salary_min_usd > 0 &&
+        classification.salary_min_usd < profile.minSalaryUsd;
+      if (failsFit || failsLocation || failsSalary) {
+        newStatus = 'DISMISSED';
+      } else if (previousStatus === 'DISMISSED') {
+        newStatus = 'NEW';
+      }
     }
     await prisma.job.update({
       where: { id },
@@ -166,6 +213,7 @@ jobsRoute.post('/jobs/:id/reclassify', async (c) => {
         techMatch: classification.tech_match,
         redFlags: classification.red_flags,
         summary: classification.summary,
+        status: newStatus,
       },
     });
     return c.redirect(`/jobs/${id}`, 303);

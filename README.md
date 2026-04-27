@@ -1,10 +1,17 @@
 # job-hunter
 
-Local Docker worker that monitors Greenhouse, Lever, and LaraJobs for senior
-remote-US PHP/Laravel + JS full-stack roles. Filters with keyword rules, scores
-fit with Claude Haiku, and alerts via Telegram.
+Local Docker stack that monitors **12 ATS / aggregator sources** for
+roles matching a configurable **profile** (stack, role types, regions,
+salary, fit threshold), classifies each through Claude Haiku, and
+fires Telegram alerts. Includes a dashboard at `localhost:4747` for
+review, settings, application tracking, and discovery of new
+companies from HN.
 
-See `SPEC.md` for the full Phase 1 specification.
+> **Docs map:** [SPEC.md](./SPEC.md) — current state.
+> [ARCHITECTURE.md](./ARCHITECTURE.md) — diagrams + file map.
+> [CLAUDE.md](./CLAUDE.md) — conventions + gotchas + where-to-look.
+> [docs/adr/](./docs/adr/) — non-trivial decisions.
+> [SPEC-phase1.md](./SPEC-phase1.md) — historical Phase 1 spec.
 
 ## Quick start
 
@@ -13,113 +20,148 @@ git clone <this-repo> job-hunter
 cd job-hunter
 
 cp .env.example .env
-# Fill in:
+# Required:
 #   ANTHROPIC_API_KEY=sk-ant-...
-#   TELEGRAM_BOT_TOKEN=...   (optional — if empty, notifier just logs)
-#   TELEGRAM_CHAT_ID=...     (optional — same)
+# Optional (bootstrap-only — managed in /settings after first boot):
+#   TELEGRAM_BOT_TOKEN=...
+#   TELEGRAM_CHAT_ID=...
 
 docker compose up -d
-docker compose logs -f app
+docker compose logs -f app    # worker
+docker compose logs -f web    # dashboard
 ```
 
-On first run the stack brings up:
+Three containers come up:
 
 1. **postgres** — Postgres 16 with persistent volume.
-2. **app** — the cron worker. Applies the Prisma schema (`db push` in Phase 1
-   or `migrate deploy` if you generate migration files), seeds companies,
-   registers cron jobs and idles.
-3. **web** — the dashboard at <http://localhost:4747> (bound to `127.0.0.1`).
+2. **app** — cron worker. Runs `prisma migrate deploy`, seeds companies
+   + default profile, registers 6 cron jobs, idles.
+3. **web** — Hono dashboard at <http://localhost:4747> (bound to
+   `127.0.0.1`, never exposed publicly by default).
 
-The dashboard is read-mostly with limited writes (status changes, re-classify).
-It's bound to localhost only by default — see the *Dashboard auth* section if
-you need to expose it.
+The dashboard is read-mostly with limited writes (status changes,
+profile / settings edits, candidate promote, company add).
 
-## Cron schedule
+## Cron schedule (TZ = `America/Chicago` by default)
 
-| Cron        | Job          | What it does                                                |
-| ----------- | ------------ | ----------------------------------------------------------- |
-| `5 * * * *` | fetch-job    | Pull new postings, filter, classify with Claude, alert.     |
-| `0 9 * * *` | digest-job   | Send a digest of all NEW/ALERTED jobs from the last 24h.    |
-| `0 3 * * 0` | cleanup-job  | Delete DISMISSED jobs older than 30 days.                   |
-
-Timezone is set by `TZ` (default `America/Chicago`).
+| Cron expr   | Job                | What it does                                        |
+| ----------- | ------------------ | --------------------------------------------------- |
+| `5 * * * *` | fetch              | Pull all sources, filter, classify, alert.          |
+| `0 9 * * *` | digest             | Telegram digest of NEW/ALERTED jobs from last 24h.  |
+| `0 8 * * *` | stale-applications | Nudge for `applied >14d ago, no recruiter contact`. |
+| `0 3 * * 0` | cleanup            | Delete DISMISSED jobs older than 30 days.           |
+| `0 4 * * 0` | discovery          | Re-probe pending CompanyCandidates.                 |
+| `0 6 1 * *` | hn-hiring          | Pull latest HN Who-is-hiring + harvest candidates.  |
 
 ## Manual one-shot runs
 
 ```bash
-# Locally (requires Postgres running and DATABASE_URL pointing at it):
-npm install
-npm run fetch:once
-npm run digest:once
-npm run cleanup:once
-
-# Inside Docker:
+# Inside Docker (recommended):
 docker compose exec app node dist/scripts/fetch-once.js
 docker compose exec app node dist/scripts/digest-once.js
 docker compose exec app node dist/scripts/cleanup-once.js
+docker compose exec app node dist/scripts/stale-once.js
+docker compose exec app node dist/scripts/hn-once.js
+docker compose exec app node dist/scripts/discovery-once.js
+
+# Locally (requires Postgres running, DATABASE_URL pointing at it):
+npm install
+npm run fetch:once
+npm run digest:once
+# … etc
 ```
+
+## Sources
+
+12 source types, all on official public APIs / RSS — no scraping.
+
+| Type            | Shape         | Notes                                              |
+| --------------- | ------------- | -------------------------------------------------- |
+| GREENHOUSE      | per-company   | Add via /companies                                 |
+| LEVER           | per-company   | Add via /companies                                 |
+| ASHBY           | per-company   | Add via /companies                                 |
+| WORKABLE        | per-company   | Add via /companies. Title-only classification.     |
+| SMARTRECRUITERS | per-company   | Add via /companies. List + per-job detail.         |
+| LARAJOBS_RSS    | aggregator    | Single seeded feed.                                |
+| REMOTEOK        | aggregator    | Single seeded feed.                                |
+| REMOTIVE        | aggregator    | Single seeded feed (?category=software-dev).       |
+| ARBEITNOW       | aggregator    | EU-skewed; **disabled** by default.                |
+| HN_HIRING       | aggregator    | Monthly HN Who-is-hiring thread (Algolia API).     |
+| WEWORKREMOTELY  | per-category  | atsToken = category slug. Two seeded.              |
+| GOLANGPROJECTS  | aggregator    | Go-only feed; **disabled** by default.             |
+
+**Hard exclusions** (never adding): LinkedIn, Indeed, Glassdoor,
+Workday, Wellfound, JobSpy. See
+[ADR 0005](./docs/adr/0005-no-linkedin-indeed-workday.md).
 
 ## Adding companies
 
-Edit `src/seed.ts` (the `SEED_COMPANIES` list) and rerun:
+**Easiest:** the manual form on `/companies` runs a live probe of the
+ATS endpoint and refuses to save if the slug doesn't resolve.
 
-```bash
-docker compose exec app node dist/seed.js
-# or locally
-npm run seed
-```
+**Discovery:** if you turn on Auto-discovery + HN parser in `/settings`,
+the system auto-finds candidate companies from URLs in HN comments.
+Review on `/discovery` and click **Promote** to start tracking.
 
-The seed is idempotent (`upsert` on `(atsType, atsToken)`).
+**Seed (rare):** edit `src/seed.ts` and run `docker compose exec app
+node dist/seed.js`. Idempotent on `(atsType, atsToken)`. Disabling a
+company through the UI persists across reseeds.
 
-## Project layout
+## Dashboard
 
-```
-src/
-  index.ts              # worker entrypoint: init + cron + graceful shutdown
-  init.ts               # schema apply + db ping + seed
-  config.ts             # zod-validated env (worker + web settings)
-  logger.ts             # pino + pino-pretty
-  db.ts                 # PrismaClient singleton
-  http.ts               # fetchWithRetry + stripHtml
-  types.ts              # NormalizedJob, ClaudeClassification, AlertJob
-  filter.ts             # passesBaseFilter (pure)
-  classifier.ts         # classifyWithClaude (Anthropic SDK + prompt caching)
-  notifier.ts           # Telegram MarkdownV2 sender (logs if not configured)
-  seed.ts               # SEED_COMPANIES list
-  fetchers/
-    index.ts            # runAllFetchers
-    greenhouse.ts
-    lever.ts
-    larajobs.ts
-  jobs/
-    fetch-job.ts        # fetch + filter + classify + persist + alert
-    digest-job.ts       # 24h digest
-    cleanup-job.ts      # 30-day DISMISSED cleanup
-    cron-run.ts         # recordCronRun() — writes runs to CronRun table
-  scripts/
-    fetch-once.ts
-    digest-once.ts
-    cleanup-once.ts
-  web/                  # dashboard service (Hono + JSX + htmx + Tailwind CDN)
-    server.ts           # entrypoint
-    layout.tsx          # HTML shell
-    ui.tsx              # shared UI components
-    format.ts           # date/salary/colour helpers
-    pages/              # JSX page components
-    routes/             # Hono route handlers
-prisma/
-  schema.prisma         # Company, Job, CronRun models
-docker-compose.yml
-Dockerfile
-```
+Bound to `127.0.0.1:4747`. Optional `WEB_BASIC_AUTH=user:password` in
+`.env` to enable HTTP Basic Auth.
 
-## Local dev (no Docker for the app)
+| Page         | URL              | What it shows                                                        |
+| ------------ | ---------------- | -------------------------------------------------------------------- |
+| Overview     | `/`              | Counters by status, recent alerts, cron health                       |
+| Jobs         | `/jobs`          | Filterable + sortable + paginated list                               |
+| Job detail   | `/jobs/:id`      | Full description, Claude output, status actions, application tracking, re-classify |
+| Applications | `/applications`  | Kanban (applied → screen → tech → onsite → offer / rejected / ghosted) |
+| Companies    | `/companies`     | Sources list, manual add (with probe), per-row toggle / delete       |
+| Discovery    | `/discovery`     | Pending / Promoted / Ignored / Dead candidates harvested by HN parser |
+| Runs         | `/runs`          | Last 100 cron runs with stats / errors                               |
+| Settings     | `/settings`      | Active profile editor, 7 toggles, telegram targets, source family on/off |
+| Health       | `/health`        | JSON liveness for external monitoring                                |
+
+### Profiles
+
+`/settings` → "Active profile" lets you edit:
+
+- **Tech stack required** — actual technologies (e.g. `php`, `laravel`, `javascript`, `go`)
+- **Role types** — title hints (`full-stack`, `backend`, `frontend`)
+- **Nice-to-have** — boost only
+- **Exclude** — auto-reject in title (`junior`, `intern`, `wordpress`)
+- **Notes** — free-form context appended to the Claude prompt
+- **Seniority, location, regions, on-site cities, hybrid OK**
+- **Min salary**, **min fit score**
+- **Telegram target** — route alerts to a specific bot (or broadcast)
+
+Multiple profiles can coexist; one is active. Switch via dropdown,
+then click **Re-classify all jobs** to rescore existing rows under
+the new profile.
+
+### Toggles
+
+Every feature can be disabled in `/settings`:
+
+| Toggle                        | Effect when off                                |
+| ----------------------------- | ---------------------------------------------- |
+| Telegram alerts               | Notifier no-ops with log preview               |
+| Classifier mode               | `single` (full Haiku 4.5) vs `two_stage` (cheap prefilter + full) |
+| Application tracking          | Hides per-job tracking card, no auto-set on APPLIED |
+| Stale-applications digest     | Daily nudge cron exits early                   |
+| HN parser                     | Monthly HN cron + manual run skip              |
+| Auto-discovery                | HN parser doesn't write CompanyCandidates      |
+| Disabled sources (multi)      | Skip whole AtsType families in fetch tick      |
+
+## Local dev
 
 ```bash
 docker compose up -d postgres        # just the database
 cp .env.example .env                  # set DATABASE_URL=postgresql://jobhunter:jobhunter@localhost:5432/jobhunter
 npm install
-npx prisma db push                    # or: npx prisma migrate dev --name init
+npx prisma migrate deploy             # apply real migrations
 npm run seed
 npm run fetch:once
 
@@ -128,51 +170,59 @@ npm run dev:web                       # tsc + node --watch
 # then open http://localhost:4747
 ```
 
-Note: the dashboard's dev script compiles via `tsc` and reloads via Node's
-built-in `--watch`. We don't use `tsx` for the web service because it has
-a known issue propagating `jsxImportSource` across `.ts → .tsx` imports.
+Note: the dashboard's dev script compiles via `tsc` and reloads via
+Node's `--watch`. We don't use `tsx` for the web service because of
+[a known issue with jsxImportSource](./CLAUDE.md#gotchas) — see
+gotcha #2 in CLAUDE.md.
 
-## Dashboard
-
-The dashboard is a small Hono service served on port **4747** and bound to
-`127.0.0.1` by default (never publicly exposed).
-
-| Page          | URL          | What it shows                              |
-| ------------- | ------------ | ------------------------------------------ |
-| Overview      | `/`          | counters by status, recent alerts, cron health |
-| Jobs          | `/jobs`      | filterable + sortable + paginated list     |
-| Job detail    | `/jobs/:id`  | full description, classifier output, status actions, re-classify |
-| Companies     | `/companies` | seeded sources, jobs/alerted counts, toggle active |
-| Cron runs     | `/runs`      | last 100 cron runs with stats / errors     |
-| Health        | `/health`    | JSON, useful for external uptime checks    |
-
-Status actions on the detail page (`Mark applied`, `Save`, `Dismiss`, `Reopen`)
-just write to `Job.status`. `Re-classify` calls Claude synchronously from the
-web process and updates `fitScore`/`techMatch`/`redFlags`/`summary`.
-
-### Auth
-
-Add `WEB_BASIC_AUTH=user:password` to `.env` to enable HTTP Basic Auth. Leave
-empty for no auth (safe because compose binds to `127.0.0.1` only). If you
-ever expose the port, set this immediately.
-
-### Why no manual "Run fetch now" button?
-
-The worker (`app`) and dashboard (`web`) are separate processes — they share
-Postgres but no in-process IPC. Triggering a worker cron from the web process
-would need a shared queue or a polling flag, which is overkill for v1.
-Workaround: from your shell run
+## Tests + CI
 
 ```bash
-docker compose exec app node dist/scripts/fetch-once.js
+npm run lint:types     # tsc --noEmit
+npm test               # node --test via tsx, ~135 tests
 ```
 
-## Telegram setup (when ready)
+GitHub Actions runs both on every push and PR — see
+`.github/workflows/test.yml`. Tests cover **pure modules only**:
+filter, text-utils, http, hn-parser, notifier helpers, fetcher
+mappers, prefilter parser, stale-applications formatter. Modules that
+touch Prisma or the Anthropic SDK are verified via smoke runs and
+dashboard integration testing instead.
 
-1. Create a bot via [@BotFather](https://t.me/BotFather) — copy the token.
-2. Start a chat with your bot, then call
-   `https://api.telegram.org/bot<TOKEN>/getUpdates` and grab `chat.id`.
-3. Put both into `.env` and `docker compose restart app`.
+## Telegram
 
-Until both are set, `notifier.ts` logs a preview of each would-be message and
-skips the HTTP call — no failures.
+Two paths:
+
+**Bootstrap from .env:** set `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID`,
+boot the stack, `init.ts` imports them as a `TelegramTarget` row and
+turns alerts on. After this, `.env` is no longer consulted at runtime.
+
+**Manage in dashboard:** `/settings` → "Add target". The form runs
+`getMe` + `sendMessage` against your bot and refuses to save if either
+fails. Add multiple targets if you want parallel delivery; route a
+profile to one specific target via `Profile.telegramTargetId`.
+
+To create a bot: [@BotFather](https://t.me/BotFather) → copy token.
+To find your chat id: send any message to your bot, then visit
+`https://api.telegram.org/bot<TOKEN>/getUpdates` and grab `chat.id`.
+
+## Project layout
+
+See [ARCHITECTURE.md](./ARCHITECTURE.md) — full file map with
+descriptions, plus Mermaid diagrams of the data flow.
+
+## Costs
+
+Roughly **$2-10/month** of Anthropic API spend depending on classifier
+mode and how many sources are active:
+
+- Single-stage classifier mode (default): ~$0.001 per classified job, ~5-10 jobs/day = ~$5/month.
+- Two-stage classifier mode: ~30-40% reduction in token spend on a
+  typical day where most fetched jobs are off-target.
+- Discovery harvest doesn't call Claude (only HN parsing → ATS-URL
+  detection).
+- Anthropic prompt caching gives ~90% read discount on the system
+  prompt within the 5-minute window.
+
+Postgres + Telegram + GitHub Actions are all free. The whole stack
+runs on a $5/month VPS or your laptop.

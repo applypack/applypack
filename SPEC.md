@@ -1,188 +1,153 @@
-# Job Hunter — Spec
+# Job Hunter — Spec (current state)
+
+> Compact spec for the **current** system. Phase 1 spec is preserved as
+> [SPEC-phase1.md](./SPEC-phase1.md) for historical context.
 
 ## Goal
-Local Docker-based worker that monitors Greenhouse, Lever, and LaraJobs for
-PHP/Laravel + full-stack (PHP/JS) **senior remote US** roles. Filters with
-keyword rules, scores fit with Claude API, alerts via Telegram.
 
-## Filter criteria
-- **Include keywords (title):** php, laravel, symfony, full-stack, fullstack, full stack, backend
-- **Exclude keywords (title):** junior, intern, entry-level, apprentice, wordpress (unless paired with laravel/php)
-- **Seniority:** senior, staff, lead, principal, sr.
-- **Location must match:** remote AND (united states|usa|us|americas|north america|worldwide|global)
-- **Location must NOT match:** EU only, UK only, EMEA only, APAC, Canada only, India only
-- **Salary (if present):** min ≥ $120k USD/year; if not specified, don't filter out
-- **Min fit_score from Claude:** 70
+Single-user, locally hosted job-search assistant. Pulls listings from a
+dozen public ATS / aggregator sources, classifies each through Claude
+against a **profile** that the user edits in a small dashboard, and
+fires Telegram alerts for matches. Designed to run continuously on a
+laptop or VPS without babysitting, with all configuration editable
+from the web UI (no SSH-and-restart).
 
-## Architecture
-Single Docker Compose stack:
-- `postgres` — Postgres 16, persistent volume
-- `app` — Node.js 20 worker with embedded `node-cron`
+## Architecture (one-line)
 
-No web server, no dashboard. Output: stdout logs (pino-pretty) + Telegram alerts.
+```
+postgres ←─ worker (cron, fetchers, classifier, notifier)
+postgres ←─ web    (Hono dashboard, read-mostly + settings writes)
+```
 
-## Cron schedule
-- Every hour at :05 — fetch + filter + classify + alert new jobs
-- Every day at 09:00 local — digest of all unread jobs from last 24h
-- Every Sunday at 03:00 — cleanup jobs older than 30 days marked dismissed
+Two separate Node 20 processes inside the same docker-compose stack.
+Both share the database and the Prisma client. The dashboard never
+runs an HTTP server inside the worker; the worker never opens a web
+port.
 
-## Tech stack
-- TypeScript, Node.js 20
-- Prisma + Postgres 16
-- node-cron for scheduling
-- @anthropic-ai/sdk (Claude Haiku 4.5 for classification — cheap)
-- rss-parser for LaraJobs
-- pino + pino-pretty for logs
-- Native fetch for HTTP (no axios)
-- zod for validation of API responses
+See [ARCHITECTURE.md](./ARCHITECTURE.md) for diagrams.
 
-## Data sources
+## Sources (12 ATS / aggregator types)
 
-### Greenhouse Job Board API
-GET https://boards-api.greenhouse.io/v1/boards/{token}/jobs?content=true
-Response: { jobs: [{ id, title, location: { name }, content (HTML), absolute_url, updated_at, departments: [{ name }], offices: [{ name, location }], metadata: [...] }] }
-No auth. Rate limit polite ~1 req/sec.
+| AtsType            | Shape         | Auth      | Notes                                           |
+| ------------------ | ------------- | --------- | ----------------------------------------------- |
+| GREENHOUSE         | per-company   | none      | `boards-api.greenhouse.io/v1/boards/<token>`    |
+| LEVER              | per-company   | none      | `api.lever.co/v0/postings/<slug>`               |
+| ASHBY              | per-company   | none      | `api.ashbyhq.com/posting-api/job-board/<org>`   |
+| WORKABLE           | per-company   | none      | POST `apply.workable.com/api/v3/accounts/<slug>/jobs`. List has **no description body** — Claude classifies on title alone. |
+| SMARTRECRUITERS    | per-company   | none      | List + per-posting detail. 60 details/cycle.    |
+| LARAJOBS_RSS       | aggregator    | none      | Single RSS, all jobs under one synthetic Company |
+| REMOTEOK           | aggregator    | none      | First array element is meta (`legal:`) — dropped via `slice(1)` |
+| REMOTIVE           | aggregator    | none      | `?category=software-dev`                        |
+| ARBEITNOW          | aggregator    | none      | EU-skewed; **disabled by default**              |
+| HN_HIRING          | aggregator    | none      | Algolia API → monthly "Ask HN: Who is hiring?" |
+| WEWORKREMOTELY     | aggregator    | none      | Per-category RSS, atsToken = category slug      |
+| GOLANGPROJECTS     | aggregator    | none      | Single RSS; **disabled by default** (Go-only)   |
 
-### Lever Postings API
-GET https://api.lever.co/v0/postings/{company}?mode=json
-Response: [{ id, text (title), categories: { commitment, department, location, team, allLocations: [] }, descriptionPlain, hostedUrl, createdAt }]
-No auth.
+**Hard exclusions** — never added regardless of demand:
+- LinkedIn / Indeed / Glassdoor (TOS, anti-bot, account ban risk)
+- Workday (`*.myworkdayjobs.com`) — POST with dynamic facetCriteria, fragile per-company
+- JobSpy / similar grey-zone scrapers
+- Headless-browser scrapers of any kind
 
-### LaraJobs RSS
-https://larajobs.com/feed
-Standard RSS 2.0. Item fields: title, link, pubDate, contentSnippet, content.
+## Pipeline
 
-## Database schema (Prisma)
+Per-tick flow inside `runFetchJob`:
 
-model Company {
-  id          Int      @id @default(autoincrement())
-  name        String
-  atsType     AtsType
-  atsToken    String   // greenhouse board token, lever company slug, or 'larajobs'
-  active      Boolean  @default(true)
-  careerUrl   String?
-  createdAt   DateTime @default(now())
-  jobs        Job[]
-  @@unique([atsType, atsToken])
-}
+```
+runAllFetchers()         filter by Company.active and AppSettings.disabledSources
+   ↓
+NormalizedJob[]          unified shape (companyId, externalId, title, location, …)
+   ↓
+passesBaseFilter()       admit if title contains stackRequired OR roleTypes; reject stackExclude
+   ↓
+findUnique (companyId, externalId)
+   ↓ (skip if seen before)
+classifyJob(input, profile, mode)
+   ├─ mode='single':   Haiku 4.5 only
+   └─ mode='two_stage': Haiku 4.5 prefilter → Haiku 4.5 full only on yes
+   ↓
+ClaudeClassification     {fit_score, location_match, salary, tech_match, red_flags, summary}
+   ↓
+decideDismissReason()    fit < minFitScore | !location_match | salary < minSalaryUsd → DISMISSED
+   ↓ otherwise
+Job(status=NEW) → sendTelegramAlert(profile-routed) → Job.status=ALERTED
+```
 
-enum AtsType {
-  GREENHOUSE
-  LEVER
-  LARAJOBS_RSS
-}
+The same inner loop is reused by `runHnHiringJob` (extracted into
+`src/jobs/process-jobs.ts`).
 
-model Job {
-  id           Int       @id @default(autoincrement())
-  companyId    Int
-  company      Company   @relation(fields: [companyId], references: [id])
-  externalId   String    // ATS-specific id, or hash for RSS
-  title        String
-  url          String
-  location     String
-  description  String    @db.Text
-  postedAt     DateTime
-  fetchedAt    DateTime  @default(now())
-  fitScore     Int?
-  salaryMin    Int?
-  salaryMax    Int?
-  techMatch    String[]
-  redFlags     String[]
-  summary      String?   @db.Text
-  status       JobStatus @default(NEW)
-  alertedAt    DateTime?
-  @@unique([companyId, externalId])
-  @@index([status, fetchedAt])
-}
+## Cron schedule (all `America/Chicago`)
 
-enum JobStatus {
-  NEW
-  ALERTED
-  APPLIED
-  DISMISSED
-  SAVED
-}
+| Cron expr   | Job                | What it does                                   |
+| ----------- | ------------------ | ---------------------------------------------- |
+| `5 * * * *` | fetch              | full fetch + filter + classify + alert         |
+| `0 9 * * *` | digest             | Telegram digest of last 24h NEW/ALERTED        |
+| `0 8 * * *` | stale-applications | Telegram nudge for `applied >14d ago, no contact` |
+| `0 3 * * 0` | cleanup            | Delete DISMISSED older than 30 days            |
+| `0 4 * * 0` | discovery          | Re-probe pending CompanyCandidates             |
+| `0 6 1 * *` | hn-hiring          | Pull latest HN Who-is-hiring + extract candidates |
 
-## Project structure
-src/
-  index.ts                  # entry: registers cron, runs init
-  init.ts                   # migrate + seed on startup
-  config.ts                 # env vars via zod
-  logger.ts                 # pino instance
-  db.ts                     # prisma client singleton
-  types.ts                  # NormalizedJob etc.
-  fetchers/
-    index.ts                # runAllFetchers()
-    greenhouse.ts           # fetchGreenhouse(company): NormalizedJob[]
-    lever.ts                # fetchLever(company): NormalizedJob[]
-    larajobs.ts             # fetchLarajobs(): NormalizedJob[]
-  filter.ts                 # passesBaseFilter(job): boolean — keyword/location rules BEFORE Claude
-  classifier.ts             # classifyWithClaude(job): { fit_score, salary_*, tech_match, red_flags, summary }
-  notifier.ts               # sendTelegramAlert(job), sendDigest(jobs[])
-  seed.ts                   # seed initial companies
-  jobs/
-    fetch-job.ts            # fetch + filter + classify + persist + alert
-    digest-job.ts           # daily digest
+## Profiles
 
-## Env vars (zod-validated)
-DATABASE_URL          required
-ANTHROPIC_API_KEY     required
-TELEGRAM_BOT_TOKEN    required
-TELEGRAM_CHAT_ID      required
-LOG_LEVEL             default 'info'
-TZ                    default 'America/Chicago' (Minnesota/Texas range)
-MIN_FIT_SCORE         default 70
-MIN_SALARY_USD        default 120000
+A `Profile` row encodes "what kind of role am I looking for". One profile
+is **active** at a time (`AppSettings.activeProfileId`). Switching profiles
+is instant; a "Re-classify all" button reruns Claude across existing jobs
+under the new profile.
 
-## Claude classifier prompt outline
-- Model: claude-haiku-4-5-20251001
-- Max tokens: 600
-- Force JSON output via system prompt + json_object response (or ask for raw JSON, parse, retry once if invalid)
-- Truncate description to 4000 chars
-- Schema:
-  {
-    "fit_score": 0-100,
-    "is_remote_us_eligible": boolean,
-    "salary_min_usd": number | null,
-    "salary_max_usd": number | null,
-    "tech_match": ["php","laravel",...],
-    "red_flags": ["wordpress-only","onsite-required",...],
-    "summary": "1-sentence why this fits or doesn't"
-  }
+Profile fields that drive matching:
+- `stackRequired` — actual technologies (e.g. `php`, `laravel`, `javascript`, `go`)
+- `roleTypes` — job categories (e.g. `full-stack`, `backend`). Title hint only — Claude is told a role-type alone is **not** a tech match.
+- `stackNiceToHave` — boost
+- `stackExclude` — drop on title hit (`junior`, `intern`, `wordpress`)
+- `seniority`, `remoteOk`, `remoteRegions`, `onsiteCities`, `hybridOk`
+- `minFitScore`, `minSalaryUsd`
+- `notes` — free-form prose appended to the Claude prompt
+- `telegramTargetId` — optional: route alerts to a specific bot (else broadcast)
 
-## Telegram message format
-*New role match — fit X/100*
-*Title* @ Company
-📍 Location | 💰 $X-$Yk
-✅ Tech: php, laravel, react
-⚠️ Flags: ...
-_Summary_
-[Apply →](url)
+## Toggles in `/settings`
 
-Use parse_mode=MarkdownV2, escape special chars properly.
+All gating is in `AppSettings` (singleton row). Each toggle has a guard
+clause at the start of the affected job/handler.
 
-## Seed companies (Phase 1)
-Greenhouse:
-- vimeo, etsy, pantheon, acquia, wpengine, taskrabbit, wikimediafoundation,
-  buffer, doximity, niantic, getlattice, gusto, square (block), affirm,
-  procore, betterment, reddit, mongodb
+| Field                            | Default  | Effect when off                              |
+| -------------------------------- | -------- | -------------------------------------------- |
+| `telegramEnabled`                | false (+true after .env bootstrap) | Notifier no-ops with log line       |
+| `classifierMode`                 | `single` | `two_stage` adds Haiku-4.5 prefilter        |
+| `applicationTrackingEnabled`     | true     | Hides the per-job tracking card + auto-set on APPLIED |
+| `staleApplicationsDigestEnabled` | true     | Daily nudge job exits early                  |
+| `hnParserEnabled`                | false    | Monthly HN cron + manual run skip            |
+| `discoveryEnabled`               | false    | HN parser does not record CompanyCandidates  |
+| `disabledSources` (String[])     | `[]`     | Skip whole AtsType families in runAllFetchers |
 
-Lever:
-- pleo, toggl, scribd, attentivemobile
+## Discovery
 
-LaraJobs RSS: single feed, no token
+When `discoveryEnabled=true`, the HN parser scans each comment for ATS
+URLs (`extractAtsToken` in `src/text-utils.ts` covers
+greenhouse/lever/ashby/workable/smartrecruiters) and writes
+`CompanyCandidate` rows. The user reviews on `/discovery` and clicks
+**Promote** → adds to `Company` with `active=true`. A weekly probe job
+re-validates each pending candidate's slug and updates `jobsSeen`,
+marking 4xx-returning slugs as DEAD.
 
-User can add more in src/seed.ts and re-run `npm run seed`.
+## Hard out-of-scope (Phase 7+)
 
-## Resilience
-- Each fetcher in try/catch — one failing source doesn't stop the run
-- HTTP retries: 2 retries with exponential backoff (1s, 3s) on 5xx and network errors
-- Claude API: 1 retry on rate limit, then skip job (will retry next cycle)
-- Idempotency: dedup via @@unique([companyId, externalId])
-- Graceful shutdown: SIGTERM closes Prisma, finishes in-flight cron job
+- Multi-user / per-user views (auth, sessions). Single-deployment-per-friend stays the answer.
+- Adzuna / Jooble / The Muse paid aggregators (have free tiers, just not added)
+- Built In, Wellfound, YC WAAS — fragile or behind anti-bot
+- Workday — see exclusions above
+- Embedding-based duplicate detection across sources
+- Web push / native mobile notifications
 
-## Out of scope (Phase 1)
-- Web dashboard
-- Auto-apply
-- Discovery service (auto-finding new companies)
-- Workable/Ashby/Workday fetchers (Phase 2)
+## Tech stack (locked)
+
+- TypeScript strict, Node 20, pino, zod, native fetch with `fetchWithRetry` + `AbortController`
+- Prisma 6 + Postgres 16 (real migrations from `phase-3.0` baseline onward)
+- node-cron for scheduling, no Redis / BullMQ
+- Hono 4 for the dashboard, JSX SSR with `hono/jsx`, htmx + Tailwind via CDN (no build pipeline)
+- Anthropic SDK; Claude Haiku 4.5 for both classifier stages (3.5 retired in 2026)
+- node:test runner (`npm test`), no jest
+
+## Project layout
+
+See [README.md](./README.md) for the full source tree.
+See [docs/adr/](./docs/adr/) for the "why" behind non-trivial choices.

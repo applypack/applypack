@@ -5,7 +5,10 @@ import { config } from './config';
 import { logger } from './logger';
 import { sleep } from './http';
 import { extractJson } from './text-utils';
+import { preClassify } from './classifier-prefilter';
 import type { ClassifyInput, ClaudeClassification } from './types';
+
+export type ClassifierMode = 'single' | 'two_stage';
 
 const MODEL = 'claude-haiku-4-5-20251001';
 const MAX_TOKENS = 600;
@@ -23,6 +26,49 @@ const ClassificationSchema = z.object({
   red_flags: z.array(z.string()),
   summary: z.string(),
 });
+
+export interface ClassifyOutcome {
+  /** Final classification, or null on classifier failure / pre-filtered out. */
+  result: ClaudeClassification | null;
+  /** True when stage-1 prefilter rejected — counted separately in stats. */
+  preFiltered: boolean;
+}
+
+/**
+ * Classify a job according to the requested classifier mode.
+ *
+ * - 'single': go straight to the full Haiku 4.5 classifier (current behaviour).
+ * - 'two_stage': cheap Haiku 3.5 prefilter first; only proceed to Haiku 4.5
+ *   when the prefilter says the role is plausibly relevant. On a prefilter
+ *   error, fail-open (run stage 2) so transient API failures don't drop
+ *   real candidates.
+ */
+export async function classifyJob(
+  input: ClassifyInput,
+  profile: Profile,
+  mode: ClassifierMode,
+): Promise<ClassifyOutcome> {
+  if (mode === 'two_stage') {
+    const pre = await preClassify(input, profile);
+    if (pre && pre.relevant === false) {
+      logger.debug(
+        { title: input.title, reason: pre.reason },
+        'classifier: stage1 not-relevant, skipping stage2',
+      );
+      return { result: null, preFiltered: true };
+    }
+    if (pre === null) {
+      logger.warn(
+        { title: input.title },
+        'classifier: stage1 failed; falling open to stage2',
+      );
+    }
+  }
+  const result = await classifyWithClaude(input, profile);
+  return { result, preFiltered: false };
+}
+
+export { decideStageStrategy } from './text-utils';
 
 export async function classifyWithClaude(
   input: ClassifyInput,
@@ -116,6 +162,10 @@ function buildSystemPrompt(profile: Profile): string {
     profile.stackRequired.length > 0
       ? profile.stackRequired.join(', ')
       : '(no specific tech stack required)';
+  const roleTypes =
+    profile.roleTypes.length > 0
+      ? profile.roleTypes.join(', ')
+      : '(any role type)';
   const niceToHave =
     profile.stackNiceToHave.length > 0
       ? profile.stackNiceToHave.join(', ')
@@ -140,11 +190,25 @@ function buildSystemPrompt(profile: Profile): string {
   return `You evaluate job postings for a ${seniorityLine} software engineer with a specific candidate profile.
 
 CANDIDATE PROFILE:
-- Required tech stack (must appear in title or be strongly hinted in the description; otherwise score low): ${required}
+- Required TECH stack (programming languages, frameworks, runtimes — the role must ACTUALLY USE one of these): ${required}
+- Acceptable role types (job category, NOT a tech match by themselves): ${roleTypes}
 - Nice-to-have stack (boost fit_score when present): ${niceToHave}
 - Auto-reject signals (drastically lower fit_score if these match the role): ${exclude}
 - Location preferences: ${locationLine}
 - ${salaryLine}${notesLine}
+
+CRITICAL — TECH STACK MATCHING:
+- A job title containing only a role-type keyword (e.g. "Full-Stack Engineer" or "Backend Engineer") is NOT a tech match if the actual stack named in the description is something different (e.g. Ruby/Rails when candidate wants PHP/Laravel).
+- Read the description carefully for actual languages/frameworks. If none of the candidate's required tech is in the description, fit_score must be ≤ 35 regardless of role-type alignment.
+- The title can mislead — a "Senior Full-Stack Rails Engineer" is a Rails job, not a generic full-stack match. Score it low for a PHP/JS-focused candidate.
+
+CRITICAL — LOCATION MATCHING (SET location_match):
+- "Remote, US" / "Remote, USA" / "Remote (US-based)" / "Remote · United States" / "Remote · North America" / "Remote · Americas" → location_match = true if profile includes US or Americas.
+- "Remote · {Single Country}" patterns (e.g. "Remote · Germany", "Remote · UK", "Remote · India") indicate a country-locked role with local payroll/work-permit constraints. UNLESS the description explicitly opens it to other regions (e.g. "we hire globally"), location_match = FALSE for a US-based candidate. National flag emojis (🇩🇪 🇬🇧 🇮🇳) in the title are a strong country-lock signal — treat as country-locked.
+- "Worldwide" or "Anywhere" or "Fully remote" with no further restriction → location_match = true if profile includes Worldwide, otherwise check if "US" is implicitly included.
+- "Remote · EU only" / "EMEA only" / "APAC only" → location_match = false unless profile explicitly lists those regions.
+- Hybrid / on-site roles → location_match only if the city is in profile's onsiteCities.
+- When in doubt, default to location_match = false.
 
 OUTPUT STRICT JSON ONLY (no prose, no code fences, no commentary), matching this schema exactly:
 

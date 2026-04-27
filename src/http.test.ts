@@ -44,6 +44,25 @@ describe('stripHtml', () => {
   it('handles input with no HTML at all', () => {
     assert.equal(stripHtml('plain text'), 'plain text');
   });
+
+  it('decodes hex numeric entities like &#x2F; → /', () => {
+    assert.equal(stripHtml('https:&#x2F;&#x2F;example.com'), 'https://example.com');
+  });
+
+  it('decodes decimal numeric entities like &#39; → \'', () => {
+    assert.equal(stripHtml('it&#39;s great'), "it's great");
+  });
+
+  it('decodes mix of named + numeric entities', () => {
+    assert.equal(
+      stripHtml('Salt &amp; Pepper, &#x27;tasty&#x27; &lt;3'),
+      "Salt & Pepper, 'tasty' <3",
+    );
+  });
+
+  it('decodes &apos; (XML-style apostrophe)', () => {
+    assert.equal(stripHtml('it&apos;s ok'), "it's ok");
+  });
 });
 
 describe('sleep', () => {

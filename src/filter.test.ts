@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import { passesBaseFilter } from './filter';
 
 const phpProfile = {
-  stackRequired: ['php', 'laravel', 'symfony', 'backend', 'full-stack'],
+  stackRequired: ['php', 'laravel', 'symfony'],
+  roleTypes: ['full-stack', 'backend'],
   stackExclude: ['junior', 'intern', 'wordpress'],
   remoteOk: true,
   remoteRegions: ['US', 'Worldwide'],
@@ -13,6 +14,7 @@ const phpProfile = {
 
 const austinHybridProfile = {
   stackRequired: ['java', 'spring'],
+  roleTypes: [],
   stackExclude: ['junior'],
   remoteOk: true,
   remoteRegions: ['US'],
@@ -51,7 +53,7 @@ describe('passesBaseFilter — required stack', () => {
     );
   });
 
-  it('matches "full-stack" with various spellings', () => {
+  it('matches "full-stack" via roleTypes (Claude decides actual tech)', () => {
     assert.equal(
       passesBaseFilter(
         { title: 'Senior Full-Stack Engineer', location: 'Remote' },
@@ -61,8 +63,8 @@ describe('passesBaseFilter — required stack', () => {
     );
   });
 
-  it('accepts everything when stackRequired is empty', () => {
-    const open = { ...phpProfile, stackRequired: [] };
+  it('accepts everything when both stackRequired and roleTypes are empty', () => {
+    const open = { ...phpProfile, stackRequired: [], roleTypes: [] };
     assert.equal(
       passesBaseFilter(
         { title: 'Senior Rust Engineer', location: 'Remote' },
@@ -205,6 +207,7 @@ describe('passesBaseFilter — location: on-site cities + hybrid', () => {
 describe('passesBaseFilter — strict (remote off, hybrid off)', () => {
   const officeOnly = {
     stackRequired: ['java'],
+    roleTypes: [],
     stackExclude: [],
     remoteOk: false,
     remoteRegions: [],

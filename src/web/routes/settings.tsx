@@ -1,5 +1,6 @@
 /** @jsxImportSource hono/jsx */
 import { Hono } from 'hono';
+import { AtsType } from '@prisma/client';
 import { z } from 'zod';
 import { logger } from '../../logger';
 import {
@@ -8,6 +9,12 @@ import {
   getSettings,
   listTelegramTargets,
   maskToken,
+  setApplicationTrackingEnabled,
+  setClassifierMode,
+  setDisabledSources,
+  setDiscoveryEnabled,
+  setHnParserEnabled,
+  setStaleApplicationsDigestEnabled,
   setTelegramEnabled,
   testTelegramTarget,
   toggleTelegramTarget,
@@ -22,6 +29,7 @@ import {
   updateProfile,
 } from '../../profiles';
 import { runReclassifyAll } from '../../jobs/reclassify-job';
+import { runHnHiringJob } from '../../jobs/hn-hiring-job';
 import { recordCronRun } from '../../jobs/cron-run';
 import { parseTagList, toStringArray } from '../../text-utils';
 import { prisma } from '../../db';
@@ -38,6 +46,7 @@ const NewTargetSchema = z.object({
 const ProfileFormSchema = z.object({
   name: z.string().min(1).max(100),
   stackRequired: z.string().optional().default(''),
+  roleTypes: z.string().optional().default(''),
   stackNiceToHave: z.string().optional().default(''),
   stackExclude: z.string().optional().default(''),
   notes: z.string().optional().default(''),
@@ -67,6 +76,13 @@ settingsRoute.get('/settings', async (c) => {
   return c.html(
     <SettingsPage
       telegramEnabled={settings.telegramEnabled}
+      classifierMode={settings.classifierMode}
+      applicationTrackingEnabled={settings.applicationTrackingEnabled}
+      staleApplicationsDigestEnabled={settings.staleApplicationsDigestEnabled}
+      hnParserEnabled={settings.hnParserEnabled}
+      disabledSources={settings.disabledSources}
+      allSources={Object.values(AtsType)}
+      discoveryEnabled={settings.discoveryEnabled}
       targets={targets.map((t) => ({
         id: t.id,
         name: t.name,
@@ -106,6 +122,112 @@ settingsRoute.post('/settings/telegram-toggle', async (c) => {
     c,
     'ok',
     `Telegram alerts ${!settings.telegramEnabled ? 'enabled' : 'disabled'}.`,
+  );
+});
+
+settingsRoute.post('/settings/classifier-mode', async (c) => {
+  const form = await c.req.parseBody();
+  const raw = form.mode;
+  const mode = raw === 'two_stage' ? 'two_stage' : 'single';
+  await setClassifierMode(mode);
+  const label =
+    mode === 'two_stage'
+      ? 'Two-stage prefilter + Haiku 4.5'
+      : 'Single (Haiku 4.5 only)';
+  return redirectWithFlash(c, 'ok', `Classifier mode → ${label}.`);
+});
+
+settingsRoute.post('/settings/application-tracking-toggle', async (c) => {
+  const settings = await getSettings();
+  await setApplicationTrackingEnabled(!settings.applicationTrackingEnabled);
+  return redirectWithFlash(
+    c,
+    'ok',
+    `Application tracking ${
+      !settings.applicationTrackingEnabled ? 'enabled' : 'disabled'
+    }.`,
+  );
+});
+
+settingsRoute.post('/settings/stale-digest-toggle', async (c) => {
+  const settings = await getSettings();
+  await setStaleApplicationsDigestEnabled(
+    !settings.staleApplicationsDigestEnabled,
+  );
+  return redirectWithFlash(
+    c,
+    'ok',
+    `Stale-applications digest ${
+      !settings.staleApplicationsDigestEnabled ? 'enabled' : 'disabled'
+    }.`,
+  );
+});
+
+settingsRoute.post('/settings/sources', async (c) => {
+  const form = await c.req.parseBody({ all: true });
+  const enabled = (
+    Array.isArray(form.enabled)
+      ? form.enabled
+      : form.enabled
+        ? [form.enabled]
+        : []
+  ).filter((v): v is string => typeof v === 'string');
+  const allSources = Object.values(AtsType) as string[];
+  // disabledSources = everything NOT in the submitted "enabled" set.
+  const disabled = allSources.filter((s) => !enabled.includes(s));
+  await setDisabledSources(disabled);
+  return redirectWithFlash(
+    c,
+    'ok',
+    disabled.length === 0
+      ? 'All sources enabled.'
+      : `Disabled: ${disabled.join(', ')}.`,
+  );
+});
+
+settingsRoute.post('/settings/discovery-toggle', async (c) => {
+  const settings = await getSettings();
+  await setDiscoveryEnabled(!settings.discoveryEnabled);
+  return redirectWithFlash(
+    c,
+    'ok',
+    `Auto-discovery ${!settings.discoveryEnabled ? 'enabled' : 'disabled'}.`,
+  );
+});
+
+settingsRoute.post('/settings/hn-parser-toggle', async (c) => {
+  const settings = await getSettings();
+  await setHnParserEnabled(!settings.hnParserEnabled);
+  return redirectWithFlash(
+    c,
+    'ok',
+    `HN parser ${!settings.hnParserEnabled ? 'enabled' : 'disabled'}.`,
+  );
+});
+
+let hnRunInFlight = false;
+settingsRoute.post('/settings/hn-run', (c) => {
+  if (hnRunInFlight) {
+    return redirectWithFlash(
+      c,
+      'err',
+      'An HN parse run is already in progress. Watch /runs.',
+    );
+  }
+  hnRunInFlight = true;
+  void (async () => {
+    try {
+      await recordCronRun('hn-hiring', runHnHiringJob);
+    } catch (err) {
+      logger.error({ err }, 'hn-hiring (manual trigger): failed');
+    } finally {
+      hnRunInFlight = false;
+    }
+  })();
+  return redirectWithFlash(
+    c,
+    'ok',
+    'HN parse started in the background. Track progress at /runs.',
   );
 });
 
@@ -171,12 +293,13 @@ settingsRoute.post('/settings/profiles/new', async (c) => {
   const profile = await createProfile({
     name: 'New profile',
     stackRequired: [],
+    roleTypes: [],
     stackNiceToHave: [],
     stackExclude: ['junior', 'intern'],
     notes: null,
     seniority: ['senior'],
     remoteOk: true,
-    remoteRegions: ['US', 'Worldwide'],
+    remoteRegions: ['US'],
     onsiteCities: [],
     hybridOk: false,
     minSalaryUsd: 0,
@@ -254,6 +377,7 @@ settingsRoute.post('/settings/profiles/:id/save', async (c) => {
   await updateProfile(id, {
     name: f.name,
     stackRequired: parseTagList(f.stackRequired),
+    roleTypes: parseTagList(f.roleTypes),
     stackNiceToHave: parseTagList(f.stackNiceToHave),
     stackExclude: parseTagList(f.stackExclude),
     notes: f.notes && f.notes.trim().length > 0 ? f.notes.trim() : null,

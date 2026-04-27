@@ -1,6 +1,6 @@
-import { createHash } from 'node:crypto';
 import Parser from 'rss-parser';
 import { stripHtml } from '../http';
+import { hashShortId } from '../text-utils';
 import type { NormalizedJob } from '../types';
 
 const FEED_URL = 'https://larajobs.com/feed';
@@ -25,7 +25,7 @@ export async function fetchLarajobs(
   const feed = await parser.parseURL(FEED_URL);
   return feed.items.map((item) => {
     const link = item.link ?? '';
-    const externalId = item.guid ?? hashId(link || (item.title ?? ''));
+    const externalId = item.guid ?? hashShortId(link || (item.title ?? ''));
     const description =
       item.contentSnippet ??
       (item.content ? stripHtml(item.content) : '') ??
@@ -45,6 +45,3 @@ export async function fetchLarajobs(
   });
 }
 
-function hashId(input: string): string {
-  return createHash('sha1').update(input).digest('hex').slice(0, 16);
-}

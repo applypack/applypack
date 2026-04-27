@@ -12,6 +12,14 @@ enum AtsType {
   LEVER
   ASHBY
   LARAJOBS_RSS
+  REMOTEOK
+  REMOTIVE
+  ARBEITNOW
+  HN_HIRING
+  WORKABLE
+  SMARTRECRUITERS
+  WEWORKREMOTELY
+  GOLANGPROJECTS
 }
 
 enum JobStatus {
@@ -26,6 +34,13 @@ enum CronRunStatus {
   RUNNING
   OK
   FAILED
+}
+
+enum CandidateStatus {
+  PENDING
+  PROMOTED
+  IGNORED
+  DEAD
 }
 
 model Company {
@@ -61,8 +76,18 @@ model Job {
   status      JobStatus @default(NEW)
   alertedAt   DateTime?
 
+  // Application tracking (Phase 3.4). pipelineStage is orthogonal to status:
+  //   status        = inbox state (NEW / ALERTED / SAVED / DISMISSED / APPLIED)
+  //   pipelineStage = funnel state once you have actually applied
+  // E.g. status=APPLIED + pipelineStage='ghosted' is a valid combo.
+  appliedAt        DateTime?
+  recruiterContact String?
+  pipelineStage    String?
+  applicationNotes String?   @db.Text
+
   @@unique([companyId, externalId])
   @@index([status, fetchedAt])
+  @@index([pipelineStage, appliedAt])
 }
 
 model CronRun {
@@ -80,49 +105,94 @@ model CronRun {
 
 // Singleton table — always one row with id=1.
 model AppSettings {
-  id              Int      @id @default(1)
-  telegramEnabled Boolean  @default(false)
-  activeProfileId Int?
-  activeProfile   Profile? @relation(fields: [activeProfileId], references: [id], onDelete: SetNull)
-  updatedAt       DateTime @updatedAt
+  id                             Int      @id @default(1)
+  telegramEnabled                Boolean  @default(false)
+  activeProfileId                Int?
+  activeProfile                  Profile? @relation(fields: [activeProfileId], references: [id], onDelete: SetNull)
+  // Classifier mode: 'single' = current Haiku 4.5 only;
+  // 'two_stage' = cheap Haiku 3.5 prefilter then Haiku 4.5 only on yes.
+  classifierMode                 String   @default("single")
+  // Phase 3.4 toggles
+  applicationTrackingEnabled     Boolean  @default(true)
+  staleApplicationsDigestEnabled Boolean  @default(true)
+  // Phase 3.2 toggle
+  hnParserEnabled                Boolean  @default(false)
+  // Phase 4.1: list of AtsType values to skip in runAllFetchers, e.g.
+  // ["LEVER","ARBEITNOW"]. Empty array = all enabled. Coexists with
+  // per-Company.active so users can disable a whole source family with
+  // one click without flipping each company toggle.
+  disabledSources                String[] @default([])
+  // Phase 4.2: discovery toggle (gates auto-creation of CompanyCandidate
+  // rows from HN comments and the weekly probe job).
+  discoveryEnabled               Boolean  @default(false)
+  updatedAt                      DateTime @updatedAt
+}
+
+model CompanyCandidate {
+  id           Int             @id @default(autoincrement())
+  // Best-guess company name (may be null for slug-only finds).
+  name         String?
+  atsType      AtsType
+  atsToken     String
+  // Where we discovered it: "hn-2026-04", "manual", "greenhouse-list", ...
+  source       String
+  sourceUrl    String?
+  // Free-form one-liner explaining why we flagged it.
+  signal       String?
+  // Last probe result: how many jobs the ATS endpoint returned.
+  jobsSeen     Int             @default(0)
+  status       CandidateStatus @default(PENDING)
+  notes        String?
+  discoveredAt DateTime        @default(now())
+  promotedAt   DateTime?
+
+  @@unique([atsType, atsToken])
+  @@index([status, discoveredAt])
 }
 
 model TelegramTarget {
-  id        Int      @id @default(autoincrement())
+  id        Int       @id @default(autoincrement())
   name      String
   botToken  String
   chatId    String
-  active    Boolean  @default(true)
-  createdAt DateTime @default(now())
+  active    Boolean   @default(true)
+  createdAt DateTime  @default(now())
   lastUsed  DateTime?
   profiles  Profile[]
 }
 
 model Profile {
-  id               Int      @id @default(autoincrement())
+  id               Int             @id @default(autoincrement())
   name             String
-  // Stack tags — case-insensitive substring match on title/description
+  // Stack tags — case-insensitive substring match on title/description.
+  // stackRequired = REAL TECH (programming languages, frameworks, runtimes).
+  //   The role MUST actually use one of these.
+  // roleTypes     = job category hints (full-stack, backend, frontend).
+  //   Used for the base filter so we don't drop "Senior Full-Stack" jobs
+  //   on title alone — but Claude is told explicitly that a role-type
+  //   keyword by itself is NOT a tech match.
   stackRequired    String[]
+  roleTypes        String[]        @default([])
   stackNiceToHave  String[]
   stackExclude     String[]
   // Free-form context appended to Claude prompt
-  notes            String?  @db.Text
+  notes            String?         @db.Text
   // Seniority tags: senior, staff, lead, principal, mid, junior, etc.
   seniority        String[]
   // Location preferences
-  remoteOk         Boolean  @default(true)
+  remoteOk         Boolean         @default(true)
   remoteRegions    String[] // e.g. ["US","Americas","Worldwide"]
   onsiteCities     String[] // e.g. ["Austin, TX","Berlin"]
-  hybridOk         Boolean  @default(false)
+  hybridOk         Boolean         @default(false)
   // Thresholds
-  minSalaryUsd     Int      @default(0)     // 0 = don't filter on salary
-  minFitScore      Int      @default(70)
+  minSalaryUsd     Int             @default(0) // 0 = don't filter on salary
+  minFitScore      Int             @default(70)
   // Where alerts for this profile go. null → broadcast to all active targets.
   telegramTargetId Int?
   telegramTarget   TelegramTarget? @relation(fields: [telegramTargetId], references: [id], onDelete: SetNull)
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
 
   // Back-relation for AppSettings.activeProfileId
-  activeFor        AppSettings[]
+  activeFor AppSettings[]
 }

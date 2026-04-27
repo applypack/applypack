@@ -18,6 +18,7 @@ export interface FilterableJob {
 
 export interface FilterProfile {
   stackRequired: string[];
+  roleTypes: string[];
   stackExclude: string[];
   remoteOk: boolean;
   remoteRegions: string[];
@@ -32,12 +33,17 @@ export function passesBaseFilter(
   const title = job.title.toLowerCase();
   const location = job.location.toLowerCase();
 
-  // 1. Required stack — at least one keyword in title.
-  if (profile.stackRequired.length > 0) {
-    const required = profile.stackRequired.map((s) => s.toLowerCase());
-    if (!required.some((k) => k.length > 0 && title.includes(k))) {
-      return false;
-    }
+  // 1. Title must contain at least one stackRequired keyword OR one
+  //    roleType keyword. Either is enough to admit the job to Claude;
+  //    the classifier itself decides whether the actual tech matches.
+  const required = profile.stackRequired.map((s) => s.toLowerCase());
+  const roles = profile.roleTypes.map((s) => s.toLowerCase());
+  const hasGate = required.length > 0 || roles.length > 0;
+  if (hasGate) {
+    const hits =
+      required.some((k) => k.length > 0 && title.includes(k)) ||
+      roles.some((k) => k.length > 0 && title.includes(k));
+    if (!hits) return false;
   }
 
   // 2. Exclude — any match in title rejects.
