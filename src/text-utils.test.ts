@@ -214,6 +214,41 @@ describe('extractAtsToken', () => {
     assert.equal(extractAtsToken(''), null);
     assert.equal(extractAtsToken('not a url'), null);
   });
+
+  it('parses a Workable apply URL', () => {
+    assert.deepEqual(
+      extractAtsToken('https://apply.workable.com/thorlabs/'),
+      { atsType: 'WORKABLE', atsToken: 'thorlabs' },
+    );
+  });
+
+  it('parses a Workable job link', () => {
+    assert.deepEqual(
+      extractAtsToken('https://apply.workable.com/mlabs/j/8B6EA6A472/'),
+      { atsType: 'WORKABLE', atsToken: 'mlabs' },
+    );
+  });
+
+  it('parses a SmartRecruiters jobs URL (preserves case)', () => {
+    assert.deepEqual(
+      extractAtsToken('https://jobs.smartrecruiters.com/Visa/744000122509268'),
+      { atsType: 'SMARTRECRUITERS', atsToken: 'Visa' },
+    );
+  });
+
+  it('parses a SmartRecruiters careers URL', () => {
+    assert.deepEqual(
+      extractAtsToken('https://careers.smartrecruiters.com/SAP/'),
+      { atsType: 'SMARTRECRUITERS', atsToken: 'SAP' },
+    );
+  });
+
+  it('parses a SmartRecruiters API URL', () => {
+    assert.deepEqual(
+      extractAtsToken('https://api.smartrecruiters.com/v1/companies/Bosch/postings'),
+      { atsType: 'SMARTRECRUITERS', atsToken: 'Bosch' },
+    );
+  });
 });
 
 describe('daysSince', () => {

@@ -16,6 +16,8 @@ enum AtsType {
   REMOTIVE
   ARBEITNOW
   HN_HIRING
+  WORKABLE
+  SMARTRECRUITERS
 }
 
 enum JobStatus {

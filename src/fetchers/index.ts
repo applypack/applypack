@@ -11,6 +11,8 @@ import { fetchRemoteOk } from './remoteok';
 import { fetchRemotive } from './remotive';
 import { fetchArbeitnow } from './arbeitnow';
 import { fetchHnHiring } from './hn-hiring';
+import { fetchWorkable } from './workable';
+import { fetchSmartRecruiters } from './smartrecruiters';
 import type { NormalizedJob } from '../types';
 
 const POLITE_DELAY_MS = 1_000;
@@ -83,5 +85,12 @@ async function fetchOne(company: {
       return fetchArbeitnow(company.id);
     case AtsType.HN_HIRING:
       return fetchHnHiring(company.id);
+    case AtsType.WORKABLE:
+      return fetchWorkable({ id: company.id, atsToken: company.atsToken });
+    case AtsType.SMARTRECRUITERS:
+      return fetchSmartRecruiters({
+        id: company.id,
+        atsToken: company.atsToken,
+      });
   }
 }

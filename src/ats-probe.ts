@@ -26,26 +26,56 @@ export async function probeAts(
     return { ok: false, error: 'Empty atsToken.' };
   }
 
-  let url: string;
-  switch (atsType) {
-    case AtsType.GREENHOUSE:
-      url = `https://boards-api.greenhouse.io/v1/boards/${encodeURIComponent(trimmed)}/jobs`;
-      break;
-    case AtsType.LEVER:
-      url = `https://api.lever.co/v0/postings/${encodeURIComponent(trimmed)}?mode=json&limit=1`;
-      break;
-    case AtsType.ASHBY:
-      url = `https://api.ashbyhq.com/posting-api/job-board/${encodeURIComponent(trimmed)}`;
-      break;
-    default:
-      return {
-        ok: false,
-        error: `No per-company probe available for ${atsType} (it's an aggregator feed).`,
-      };
-  }
-
   try {
-    const resp = await fetchWithRetry(url, { timeoutMs: 8_000 });
+    let resp;
+    switch (atsType) {
+      case AtsType.GREENHOUSE:
+        resp = await fetchWithRetry(
+          `https://boards-api.greenhouse.io/v1/boards/${encodeURIComponent(trimmed)}/jobs`,
+          { timeoutMs: 8_000 },
+        );
+        break;
+      case AtsType.LEVER:
+        resp = await fetchWithRetry(
+          `https://api.lever.co/v0/postings/${encodeURIComponent(trimmed)}?mode=json&limit=1`,
+          { timeoutMs: 8_000 },
+        );
+        break;
+      case AtsType.ASHBY:
+        resp = await fetchWithRetry(
+          `https://api.ashbyhq.com/posting-api/job-board/${encodeURIComponent(trimmed)}`,
+          { timeoutMs: 8_000 },
+        );
+        break;
+      case AtsType.WORKABLE:
+        resp = await fetchWithRetry(
+          `https://apply.workable.com/api/v3/accounts/${encodeURIComponent(trimmed)}/jobs`,
+          {
+            timeoutMs: 8_000,
+            init: {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                query: '',
+                workplace: [],
+                department: [],
+              }),
+            },
+          },
+        );
+        break;
+      case AtsType.SMARTRECRUITERS:
+        resp = await fetchWithRetry(
+          `https://api.smartrecruiters.com/v1/companies/${encodeURIComponent(trimmed)}/postings?limit=1`,
+          { timeoutMs: 8_000 },
+        );
+        break;
+      default:
+        return {
+          ok: false,
+          error: `No per-company probe available for ${atsType} (it's an aggregator feed).`,
+        };
+    }
     const data: unknown = await resp.json();
     const jobsCount = countJobs(data);
     return { ok: true, jobsCount };
@@ -67,8 +97,13 @@ function countJobs(payload: unknown): number {
   if (Array.isArray(payload)) return payload.length;
   if (payload && typeof payload === 'object') {
     const obj = payload as Record<string, unknown>;
-    const jobs = obj.jobs;
-    if (Array.isArray(jobs)) return jobs.length;
+    if (Array.isArray(obj.jobs)) return obj.jobs.length;
+    // Workable
+    if (Array.isArray(obj.results)) return obj.results.length;
+    if (typeof obj.total === 'number') return obj.total as number;
+    // SmartRecruiters
+    if (Array.isArray(obj.content)) return obj.content.length;
+    if (typeof obj.totalFound === 'number') return obj.totalFound as number;
   }
   return 0;
 }

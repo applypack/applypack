@@ -26,6 +26,8 @@ const PROBEABLE_ATS: AtsType[] = [
   AtsType.GREENHOUSE,
   AtsType.LEVER,
   AtsType.ASHBY,
+  AtsType.WORKABLE,
+  AtsType.SMARTRECRUITERS,
 ];
 
 export const CompaniesPage: FC<CompaniesProps> = ({ companies, flash }) => (

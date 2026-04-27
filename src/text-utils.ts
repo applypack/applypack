@@ -87,9 +87,16 @@ export function daysSince(then: Date, now: Date = new Date()): number {
  * Returns null when the URL is not a known ATS pattern (so the caller
  * can simply skip it rather than guess).
  */
+export type DiscoverableAtsType =
+  | 'GREENHOUSE'
+  | 'LEVER'
+  | 'ASHBY'
+  | 'WORKABLE'
+  | 'SMARTRECRUITERS';
+
 export function extractAtsToken(
   url: string,
-): { atsType: 'GREENHOUSE' | 'LEVER' | 'ASHBY'; atsToken: string } | null {
+): { atsType: DiscoverableAtsType; atsToken: string } | null {
   if (!url || typeof url !== 'string') return null;
   // Greenhouse: boards.greenhouse.io/{token} OR
   //             boards.greenhouse.io/embed/job_board?for={token}
@@ -112,6 +119,27 @@ export function extractAtsToken(
     );
   if (m && m[1]) {
     return { atsType: 'ASHBY', atsToken: m[1].toLowerCase() };
+  }
+  // Workable: apply.workable.com/{slug}/  OR  apply.workable.com/{slug}/j/...
+  m = /https?:\/\/apply\.workable\.com\/([\w-]{2,60})(?:\/|$|\?)/i.exec(url);
+  if (m && m[1]) {
+    return { atsType: 'WORKABLE', atsToken: m[1].toLowerCase() };
+  }
+  // SmartRecruiters: jobs.smartrecruiters.com/{Slug}  OR
+  //                  careers.smartrecruiters.com/{Slug}  OR
+  //                  api.smartrecruiters.com/v1/companies/{Slug}/...
+  m =
+    /https?:\/\/(?:jobs|careers)\.smartrecruiters\.com\/([\w-]{2,60})/i.exec(url);
+  if (m && m[1]) {
+    // SmartRecruiters slugs are case-sensitive per their API — preserve case.
+    return { atsType: 'SMARTRECRUITERS', atsToken: m[1] };
+  }
+  m =
+    /https?:\/\/api\.smartrecruiters\.com\/v1\/companies\/([\w-]{2,60})/i.exec(
+      url,
+    );
+  if (m && m[1]) {
+    return { atsType: 'SMARTRECRUITERS', atsToken: m[1] };
   }
   return null;
 }
