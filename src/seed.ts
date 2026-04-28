@@ -58,6 +58,29 @@ const SEED_COMPANIES: SeedCompany[] = [
   { name: 'Pleo', atsType: AtsType.GREENHOUSE, atsToken: 'pleo' },
   { name: 'Attentive', atsType: AtsType.GREENHOUSE, atsToken: 'attentive' },
 
+  // Lever — verified live as of phase-7.2 re-seed:
+  //   plaid: ~95 postings; lots of fintech engineering, broad role-type
+  //     coverage (Data Engineer / Eng Manager / Sales Engineer / Backend
+  //     in mix). Always-on hiring.
+  //   spotify: ~180 postings; many "Backend Engineer - X" titles that
+  //     match the default profile's roleTypes filter directly.
+  // Both endpoints respond 200 with non-trivial payloads. Other Lever
+  // tokens we tried (figma/discord/box/retool/grammarly/etc.) are now
+  // 404 — those companies migrated off Lever to Greenhouse / Workable
+  // / private ATSes between 2024 and 2026.
+  {
+    name: 'Plaid',
+    atsType: AtsType.LEVER,
+    atsToken: 'plaid',
+    careerUrl: 'https://plaid.com/careers/openings',
+  },
+  {
+    name: 'Spotify',
+    atsType: AtsType.LEVER,
+    atsToken: 'spotify',
+    careerUrl: 'https://www.lifeatspotify.com/jobs',
+  },
+
   // Ashby
   {
     name: 'Buffer',
