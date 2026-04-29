@@ -15,6 +15,7 @@ import { fetchWorkable } from './workable';
 import { fetchSmartRecruiters } from './smartrecruiters';
 import { fetchWeWorkRemotely } from './weworkremotely';
 import { fetchGolangProjects } from './golangprojects';
+import { fetchJobicy } from './jobicy';
 import type { NormalizedJob } from '../types';
 
 const POLITE_DELAY_MS = 1_000;
@@ -101,5 +102,7 @@ async function fetchOne(company: {
       });
     case AtsType.GOLANGPROJECTS:
       return fetchGolangProjects(company.id);
+    case AtsType.JOBICY:
+      return fetchJobicy(company.id);
   }
 }
