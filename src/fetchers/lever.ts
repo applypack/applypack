@@ -20,6 +20,8 @@ const LeverPostingSchema = z.object({
   workplaceType: z.string().nullable().optional(),
 });
 
+export type LeverPosting = z.infer<typeof LeverPostingSchema>;
+
 const LeverResponseSchema = z.array(LeverPostingSchema);
 
 export interface LeverCompany {
@@ -39,19 +41,30 @@ export async function fetchLever(
       `Lever schema invalid for "${company.atsToken}": ${parsed.error.message}`,
     );
   }
+  return parsed.data.map((p) => mapLeverPosting(p, company.id));
+}
 
-  return parsed.data.map((p) => {
-    const allLocations = p.categories?.allLocations ?? [];
-    const primary = p.categories?.location ?? allLocations[0] ?? '';
-    const workplace = p.workplaceType ? ` (${p.workplaceType})` : '';
-    return {
-      companyId: company.id,
-      externalId: p.id,
-      title: p.text,
-      url: p.hostedUrl,
-      location: `${primary}${workplace}`.trim(),
-      description: p.descriptionPlain ?? '',
-      postedAt: new Date(p.createdAt),
-    } satisfies NormalizedJob;
-  });
+/**
+ * Pure mapper extracted for unit tests. Lever puts location in
+ * `categories.location` (most reliable) or as the first item of
+ * `categories.allLocations`. `workplaceType` is a separate enum
+ * ("remote"/"on-site"/"hybrid") which we append in parens so the
+ * downstream filter can read it as part of the location string.
+ */
+export function mapLeverPosting(
+  p: LeverPosting,
+  companyId: number,
+): NormalizedJob {
+  const allLocations = p.categories?.allLocations ?? [];
+  const primary = p.categories?.location ?? allLocations[0] ?? '';
+  const workplace = p.workplaceType ? ` (${p.workplaceType})` : '';
+  return {
+    companyId,
+    externalId: p.id,
+    title: p.text,
+    url: p.hostedUrl,
+    location: `${primary}${workplace}`.trim(),
+    description: p.descriptionPlain ?? '',
+    postedAt: new Date(p.createdAt),
+  } satisfies NormalizedJob;
 }
