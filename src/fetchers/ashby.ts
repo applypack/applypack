@@ -26,6 +26,8 @@ const AshbyJobSchema = z.object({
   descriptionHtml: z.string().nullable().optional(),
 });
 
+export type AshbyJob = z.infer<typeof AshbyJobSchema>;
+
 const AshbyResponseSchema = z.object({
   jobs: z.array(AshbyJobSchema),
 });
@@ -47,27 +49,36 @@ export async function fetchAshby(
       `Ashby schema invalid for "${company.atsToken}": ${parsed.error.message}`,
     );
   }
-
   return parsed.data.jobs
     .filter((j) => j.isListed !== false)
-    .map((j) => {
-      const secondary = j.secondaryLocations
-        .map((s) => s.location ?? '')
-        .filter((s) => s.length > 0);
-      const locationParts = [j.location ?? '', ...secondary].filter(
-        (s) => s.length > 0,
-      );
-      const workplace = j.workplaceType ? ` (${j.workplaceType})` : '';
-      return {
-        companyId: company.id,
-        externalId: j.id,
-        title: j.title,
-        url: j.jobUrl,
-        location: `${locationParts.join(' / ')}${workplace}`.trim(),
-        description: stripHtml(j.descriptionHtml ?? ''),
-        postedAt: parseDate(j.publishedAt),
-      } satisfies NormalizedJob;
-    });
+    .map((j) => mapAshbyJob(j, company.id));
+}
+
+/**
+ * Pure mapper extracted for unit tests. Ashby puts the canonical
+ * location in `location` and any extras in `secondaryLocations[].location`.
+ * We join them with " / " (Ashby's own separator on /careers pages) and
+ * append `workplaceType` in parens so the downstream filter can read
+ * it as part of the location string. Listings with isListed=false are
+ * filtered out earlier in `fetchAshby`.
+ */
+export function mapAshbyJob(j: AshbyJob, companyId: number): NormalizedJob {
+  const secondary = j.secondaryLocations
+    .map((s) => s.location ?? '')
+    .filter((s) => s.length > 0);
+  const locationParts = [j.location ?? '', ...secondary].filter(
+    (s) => s.length > 0,
+  );
+  const workplace = j.workplaceType ? ` (${j.workplaceType})` : '';
+  return {
+    companyId,
+    externalId: j.id,
+    title: j.title,
+    url: j.jobUrl,
+    location: `${locationParts.join(' / ')}${workplace}`.trim(),
+    description: stripHtml(j.descriptionHtml ?? ''),
+    postedAt: parseDate(j.publishedAt),
+  } satisfies NormalizedJob;
 }
 
 function parseDate(s: string): Date {
