@@ -26,6 +26,8 @@ const GreenhouseJobSchema = z.object({
   offices: z.array(GreenhouseOfficeSchema).optional().default([]),
 });
 
+export type GreenhouseJob = z.infer<typeof GreenhouseJobSchema>;
+
 const GreenhouseResponseSchema = z.object({
   jobs: z.array(GreenhouseJobSchema),
 });
@@ -47,23 +49,33 @@ export async function fetchGreenhouse(
       `Greenhouse schema invalid for "${company.atsToken}": ${parsed.error.message}`,
     );
   }
+  return parsed.data.jobs.map((j) => mapGreenhouseJob(j, company.id));
+}
 
-  return parsed.data.jobs.map((j) => {
-    const officeLocations = j.offices
-      .map((o) => o.location ?? o.name ?? '')
-      .filter((s) => s.length > 0);
-    const primaryLocation =
-      j.location?.name ?? officeLocations[0] ?? '';
-    return {
-      companyId: company.id,
-      externalId: String(j.id),
-      title: j.title,
-      url: j.absolute_url,
-      location: primaryLocation,
-      description: stripHtml(j.content ?? ''),
-      postedAt: parseDate(j.updated_at),
-    } satisfies NormalizedJob;
-  });
+/**
+ * Pure mapper extracted for unit tests. Greenhouse returns location
+ * either as a top-level `location.name` (most common) or — when the
+ * recruiter didn't fill that — as one of `offices[i].{location,name}`.
+ * We prefer the structured top-level value, then fall back to the
+ * first non-empty office. Description is HTML and is always stripped.
+ */
+export function mapGreenhouseJob(
+  j: GreenhouseJob,
+  companyId: number,
+): NormalizedJob {
+  const officeLocations = j.offices
+    .map((o) => o.location ?? o.name ?? '')
+    .filter((s) => s.length > 0);
+  const primaryLocation = j.location?.name ?? officeLocations[0] ?? '';
+  return {
+    companyId,
+    externalId: String(j.id),
+    title: j.title,
+    url: j.absolute_url,
+    location: primaryLocation,
+    description: stripHtml(j.content ?? ''),
+    postedAt: parseDate(j.updated_at),
+  } satisfies NormalizedJob;
 }
 
 function parseDate(s: string): Date {
