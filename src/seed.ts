@@ -57,6 +57,18 @@ const SEED_COMPANIES: SeedCompany[] = [
   { name: 'MongoDB', atsType: AtsType.GREENHOUSE, atsToken: 'mongodb' },
   { name: 'Pleo', atsType: AtsType.GREENHOUSE, atsToken: 'pleo' },
   { name: 'Attentive', atsType: AtsType.GREENHOUSE, atsToken: 'attentive' },
+  // HigherLogic — added phase-7.3 after the user found a "Sr. Software
+  // Engineer (PHP)" posting on LinkedIn that wasn't in our DB. This is
+  // exactly the long-tail case the system needs to scale to: companies
+  // that post small numbers of senior PHP roles without crowding the
+  // PHP-aggregator boards. The /companies UI is the proper way to grow
+  // this list; the seed is just a starter set.
+  {
+    name: 'HigherLogic',
+    atsType: AtsType.GREENHOUSE,
+    atsToken: 'higherlogic',
+    careerUrl: 'https://www.higherlogic.com/about/careers/',
+  },
 
   // Lever — verified live as of phase-7.2 re-seed:
   //   plaid: ~95 postings; lots of fintech engineering, broad role-type
