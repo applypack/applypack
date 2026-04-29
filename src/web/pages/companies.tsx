@@ -51,6 +51,39 @@ export const CompaniesPage: FC<CompaniesProps> = ({ companies, flash }) => (
       </div>
     )}
 
+    <Card class="mb-6 border-amber-500/30 bg-amber-500/5">
+      <SectionTitle>How job discovery actually works</SectionTitle>
+      <p class="text-xs text-zinc-300">
+        Greenhouse / Lever / Ashby / Workable / SmartRecruiters are{' '}
+        <strong>HR vendors, not job boards</strong> — their public APIs only
+        let you query <code class="rounded bg-zinc-900 px-1">/boards/&lt;slug&gt;/jobs</code>,
+        so we only see jobs at companies in this table. There is{' '}
+        <em>no global "all Greenhouse postings" endpoint</em>, and we never
+        scrape LinkedIn / Indeed / Workday (
+        <a
+          href="https://github.com/nazboyko/job-hunter/blob/main/docs/adr/0005-no-linkedin-indeed-workday.md"
+          class="underline hover:text-zinc-100"
+        >
+          ADR 0005
+        </a>
+        ).
+      </p>
+      <p class="mt-2 text-xs text-zinc-300">
+        Coverage is <strong>two-tier</strong>: per-company boards (this page,
+        narrow + precise) plus cross-company aggregators (
+        <code class="rounded bg-zinc-900 px-1">LARAJOBS</code>{' '}
+        <code class="rounded bg-zinc-900 px-1">REMOTEOK</code>{' '}
+        <code class="rounded bg-zinc-900 px-1">REMOTIVE</code>{' '}
+        <code class="rounded bg-zinc-900 px-1">JOBICY</code>{' '}
+        <code class="rounded bg-zinc-900 px-1">WEWORKREMOTELY</code>{' '}
+        <code class="rounded bg-zinc-900 px-1">HN_HIRING</code> — broad, noisy,
+        let the profile filter cull). <strong>If you disable all aggregators</strong>{' '}
+        in /settings → Job sources, you'll only see jobs at companies you've
+        added here. The aggregators are how the long tail (HigherLogic, …)
+        gets surfaced.
+      </p>
+    </Card>
+
     <Card class="mb-6">
       <SectionTitle>Add company</SectionTitle>
       <p class="mb-3 text-xs text-zinc-500">

@@ -144,6 +144,19 @@ const SEED_COMPANIES: SeedCompany[] = [
     active: false,
   },
 
+  // Jobicy — cross-company remote-job aggregator (~50 items/feed).
+  // Indexes employers we'd never seed individually (PSI CRO, ManTech,
+  // Mindrift, etc.). This is the answer to "monitor PHP roles at
+  // companies I haven't added yet" — without scraping LinkedIn /
+  // Indeed (excluded by ADR 0005, which we hold to). Active by
+  // default so users get cross-company coverage out of the box.
+  {
+    name: 'Jobicy Feed',
+    atsType: AtsType.JOBICY,
+    atsToken: 'jobicy',
+    careerUrl: 'https://jobicy.com',
+  },
+
   // WeWorkRemotely — paid posting → low-spam. Two relevant categories
   // for the default profile; user can add more (`design-jobs`, etc) via UI.
   {
