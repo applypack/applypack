@@ -22,6 +22,8 @@ enum AtsType {
   GOLANGPROJECTS
   JOBICY
   HN_JOBS
+  WORKINGNOMADS
+  HIMALAYAS
 }
 
 enum JobStatus {
