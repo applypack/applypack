@@ -15,6 +15,7 @@ consequences (what we accept). Aim for 15–30 lines each.
 - [0004 — One active profile, not multi-tenant](./0004-single-active-profile.md)
 - [0005 — No LinkedIn / Indeed / Workday](./0005-no-linkedin-indeed-workday.md)
 - [0006 — Discovery via HN parser, not ATS-vendor lists](./0006-discovery-via-hn-parser.md)
+- [0007 — One AI provider seam: Messages API or Claude Code CLI](./0007-ai-provider-seam.md)
 
 ## When to write a new one
 

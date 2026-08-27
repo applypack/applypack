@@ -2,7 +2,21 @@
 import type { FC } from 'hono/jsx';
 import type { JobStatus } from '@prisma/client';
 import { Layout } from '../layout';
-import { Card, FitBadge, SectionTitle, StatusBadge, Tag } from '../ui';
+import {
+  ActionForm,
+  Button,
+  type ButtonVariant,
+  Card,
+  Field,
+  FitBadge,
+  Flash,
+  Input,
+  SectionTitle,
+  Select,
+  StatusBadge,
+  Tag,
+  Textarea,
+} from '../ui';
 import { formatDate, formatSalary } from '../format';
 
 interface JobDetail {
@@ -36,21 +50,13 @@ export interface JobDetailProps {
   flash?: { kind: 'ok' | 'err'; text: string } | null;
 }
 
-const PIPELINE_STAGES = [
-  'applied',
-  'screen',
-  'tech',
-  'onsite',
-  'offer',
-  'rejected',
-  'ghosted',
-] as const;
+const PIPELINE_STAGES = ['applied', 'screen', 'tech', 'onsite', 'offer', 'rejected', 'ghosted'];
 
-const STATUS_ACTIONS: { status: JobStatus; label: string; tone: string }[] = [
-  { status: 'APPLIED', label: 'Mark applied', tone: 'bg-emerald-600 hover:bg-emerald-500' },
-  { status: 'SAVED', label: 'Save', tone: 'bg-violet-600 hover:bg-violet-500' },
-  { status: 'DISMISSED', label: 'Dismiss', tone: 'bg-zinc-700 hover:bg-zinc-600' },
-  { status: 'NEW', label: 'Reopen', tone: 'bg-sky-600 hover:bg-sky-500' },
+const STATUS_ACTIONS: { status: JobStatus; label: string; variant: ButtonVariant }[] = [
+  { status: 'APPLIED', label: 'Mark applied', variant: 'primary' },
+  { status: 'SAVED', label: 'Save', variant: 'violet' },
+  { status: 'DISMISSED', label: 'Dismiss', variant: 'secondary' },
+  { status: 'NEW', label: 'Reopen', variant: 'secondary' },
 ];
 
 export const JobDetailPage: FC<JobDetailProps> = ({
@@ -59,65 +65,45 @@ export const JobDetailPage: FC<JobDetailProps> = ({
   flash,
 }) => (
   <Layout title={job.title} active="jobs">
-    <div class="mb-4">
-      <a href="/jobs" class="text-xs text-zinc-500 hover:text-zinc-300">
-        ← All jobs
-      </a>
-    </div>
+    <a href="/jobs" class="mb-4 inline-block text-xs text-ink-faint hover:text-ink">
+      ← All jobs
+    </a>
+    <Flash flash={flash} />
 
-    {flash && (
-      <div
-        class={`mb-4 rounded-md px-4 py-2 text-sm ring-1 ring-inset ${
-          flash.kind === 'ok'
-            ? 'bg-emerald-500/10 text-emerald-300 ring-emerald-500/30'
-            : 'bg-rose-500/10 text-rose-300 ring-rose-500/30'
-        }`}
-      >
-        {flash.text}
-      </div>
-    )}
-
-    <div class="mb-6 flex flex-wrap items-start justify-between gap-4">
-      <div class="min-w-0 flex-1">
+    <div class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+      <div class="min-w-0 sm:flex-1">
         <h1 class="text-2xl font-semibold tracking-tight">{job.title}</h1>
-        <div class="mt-1 text-sm text-zinc-400">
+        <div class="mt-1 text-sm text-ink-muted">
           {job.company.name} · {job.location || 'Remote'}
         </div>
       </div>
-      <div class="flex items-center gap-3">
+      <div class="flex shrink-0 flex-wrap items-center gap-3">
         <FitBadge score={job.fitScore} />
         <StatusBadge status={job.status} />
-        <a
-          href={job.url}
-          target="_blank"
-          rel="noopener"
-          class="rounded-md bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-500"
-        >
-          Apply →
-        </a>
+        <Button href={job.url} target="_blank" rel="noopener">
+          Open posting ↗
+        </Button>
       </div>
     </div>
 
-    <div class="mb-6 grid gap-4 lg:grid-cols-3">
+    <div class="mb-6 grid gap-4 sm:grid-cols-3">
       <Card>
         <SectionTitle>Salary</SectionTitle>
-        <div class="text-lg tabular-nums">
+        <div class="font-mono text-lg tabular-nums">
           {formatSalary(job.salaryMin, job.salaryMax)}
         </div>
       </Card>
       <Card>
         <SectionTitle>Posted</SectionTitle>
-        <div class="text-sm text-zinc-300">{formatDate(job.postedAt)}</div>
-        <div class="mt-1 text-xs text-zinc-500">
-          Fetched {formatDate(job.fetchedAt)}
-        </div>
+        <div class="text-sm text-ink">{formatDate(job.postedAt)}</div>
+        <div class="mt-1 text-xs text-ink-faint">Fetched {formatDate(job.fetchedAt)}</div>
       </Card>
       <Card>
         <SectionTitle>Source</SectionTitle>
-        <div class="text-sm text-zinc-300">
-          {job.company.atsType.replace('_', ' ')}
+        <div class="text-sm text-ink">{job.company.atsType.replace('_', ' ')}</div>
+        <div class="mt-1 truncate font-mono text-xs text-ink-faint" title={job.externalId}>
+          {job.externalId}
         </div>
-        <div class="mt-1 text-xs text-zinc-500">External id: {job.externalId}</div>
       </Card>
     </div>
 
@@ -127,42 +113,12 @@ export const JobDetailPage: FC<JobDetailProps> = ({
       job.priorityRulesApplied.length > 0) && (
       <Card class="mb-6">
         <SectionTitle>Classifier</SectionTitle>
-        {job.priorityRulesApplied.length > 0 && (
-          <div class="mb-3 flex flex-wrap items-center gap-1.5">
-            <span class="text-xs uppercase tracking-wider text-zinc-500">
-              Priority rules:
-            </span>
-            {job.priorityRulesApplied.map((label) => (
-              <Tag tone="violet">{label}</Tag>
-            ))}
-            <span class="text-xs text-zinc-500">
-              (fit boosted by your profile rules)
-            </span>
-          </div>
-        )}
-        {job.summary && (
-          <p class="mb-3 text-sm italic text-zinc-300">{job.summary}</p>
-        )}
-        {job.techMatch.length > 0 && (
-          <div class="mb-2 flex flex-wrap items-center gap-1.5">
-            <span class="text-xs uppercase tracking-wider text-zinc-500">
-              Tech:
-            </span>
-            {job.techMatch.map((t) => (
-              <Tag tone="green">{t}</Tag>
-            ))}
-          </div>
-        )}
-        {job.redFlags.length > 0 && (
-          <div class="flex flex-wrap items-center gap-1.5">
-            <span class="text-xs uppercase tracking-wider text-zinc-500">
-              Flags:
-            </span>
-            {job.redFlags.map((t) => (
-              <Tag tone="red">{t}</Tag>
-            ))}
-          </div>
-        )}
+        {job.summary && <p class="mb-3 max-w-prose text-sm leading-6 text-ink">{job.summary}</p>}
+        <dl class="space-y-2">
+          <TagRow label="Tech" items={job.techMatch} tone="ok" />
+          <TagRow label="Flags" items={job.redFlags} tone="danger" />
+          <TagRow label="Priority rules" items={job.priorityRulesApplied} tone="violet" />
+        </dl>
       </Card>
     )}
 
@@ -170,24 +126,13 @@ export const JobDetailPage: FC<JobDetailProps> = ({
       <SectionTitle>Actions</SectionTitle>
       <div class="flex flex-wrap items-center gap-2">
         {STATUS_ACTIONS.filter((a) => a.status !== job.status).map((a) => (
-          <form method="post" action={`/jobs/${job.id}/status`}>
-            <input type="hidden" name="status" value={a.status} />
-            <button
-              type="submit"
-              class={`rounded-md px-3 py-1.5 text-sm font-medium text-white ${a.tone}`}
-            >
-              {a.label}
-            </button>
-          </form>
+          <ActionForm action={`/jobs/${job.id}/status`} hidden={{ status: a.status }}>
+            <Button variant={a.variant}>{a.label}</Button>
+          </ActionForm>
         ))}
-        <form method="post" action={`/jobs/${job.id}/reclassify`}>
-          <button
-            type="submit"
-            class="rounded-md border border-zinc-700 px-3 py-1.5 text-sm font-medium text-zinc-200 hover:bg-zinc-800"
-          >
-            Re-classify
-          </button>
-        </form>
+        <ActionForm action={`/jobs/${job.id}/reclassify`}>
+          <Button variant="ghost">Re-classify</Button>
+        </ActionForm>
       </div>
     </Card>
 
@@ -199,14 +144,8 @@ export const JobDetailPage: FC<JobDetailProps> = ({
           action={`/jobs/${job.id}/application`}
           class="grid gap-3 sm:grid-cols-2"
         >
-          <div>
-            <label class="block text-xs uppercase tracking-wider text-zinc-500">
-              Pipeline stage
-            </label>
-            <select
-              name="pipelineStage"
-              class="mt-1 w-full rounded-md border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-sm text-zinc-100"
-            >
+          <Field label="Pipeline stage">
+            <Select name="pipelineStage">
               <option value="" selected={!job.pipelineStage}>
                 — not in funnel —
               </option>
@@ -215,48 +154,30 @@ export const JobDetailPage: FC<JobDetailProps> = ({
                   {s}
                 </option>
               ))}
-            </select>
-          </div>
-          <div>
-            <label class="block text-xs uppercase tracking-wider text-zinc-500">
-              Applied at (date)
-            </label>
-            <input
+            </Select>
+          </Field>
+          <Field label="Applied on">
+            <Input
               type="date"
               name="appliedAt"
-              value={job.appliedAt ? toIsoDate(job.appliedAt) : ''}
-              class="mt-1 w-full rounded-md border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-sm text-zinc-100"
+              value={job.appliedAt ? job.appliedAt.toISOString().slice(0, 10) : ''}
             />
-          </div>
-          <div class="sm:col-span-2">
-            <label class="block text-xs uppercase tracking-wider text-zinc-500">
-              Recruiter contact
-            </label>
-            <input
+          </Field>
+          <Field label="Recruiter contact" class="sm:col-span-2">
+            <Input
               type="text"
               name="recruiterContact"
               value={job.recruiterContact ?? ''}
-              placeholder="e.g. jane@acme.com or Jane Doe (LinkedIn)"
-              class="mt-1 w-full rounded-md border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-sm text-zinc-100"
+              placeholder="jane@acme.com or Jane Doe (LinkedIn)"
             />
-          </div>
+          </Field>
+          <Field label="Notes" class="sm:col-span-2">
+            <Textarea name="applicationNotes" rows={3}>
+              {job.applicationNotes ?? ''}
+            </Textarea>
+          </Field>
           <div class="sm:col-span-2">
-            <label class="block text-xs uppercase tracking-wider text-zinc-500">
-              Notes
-            </label>
-            <textarea
-              name="applicationNotes"
-              rows={3}
-              class="mt-1 w-full rounded-md border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-sm text-zinc-100"
-            >{job.applicationNotes ?? ''}</textarea>
-          </div>
-          <div class="sm:col-span-2">
-            <button
-              type="submit"
-              class="rounded-md bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-500"
-            >
-              Save application
-            </button>
+            <Button>Save application</Button>
           </div>
         </form>
       </Card>
@@ -264,13 +185,25 @@ export const JobDetailPage: FC<JobDetailProps> = ({
 
     <Card>
       <SectionTitle>Description</SectionTitle>
-      <pre class="whitespace-pre-wrap break-words font-sans text-sm leading-6 text-zinc-300">
+      <pre class="whitespace-pre-wrap break-words font-sans text-sm leading-6 text-ink-muted">
         {job.description || '(empty)'}
       </pre>
     </Card>
   </Layout>
 );
 
-function toIsoDate(d: Date): string {
-  return d.toISOString().slice(0, 10);
-}
+const TagRow: FC<{ label: string; items: string[]; tone: 'ok' | 'danger' | 'violet' }> = ({
+  label,
+  items,
+  tone,
+}) =>
+  items.length === 0 ? null : (
+    <div class="flex flex-wrap items-center gap-1.5">
+      <dt class="mr-1 text-xs uppercase tracking-wider text-ink-faint">{label}</dt>
+      {items.map((t) => (
+        <dd>
+          <Tag tone={tone}>{t}</Tag>
+        </dd>
+      ))}
+    </div>
+  );

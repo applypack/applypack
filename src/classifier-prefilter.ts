@@ -1,23 +1,15 @@
-import Anthropic from '@anthropic-ai/sdk';
 import { z } from 'zod';
 import type { Profile } from '@prisma/client';
-import { config } from './config';
 import { logger } from './logger';
-import { sleep } from './http';
 import { extractJson } from './text-utils';
+import { getAiProvider } from './ai-provider';
 import type { ClassifyInput } from './types';
 
-// As of 2026, only Haiku 4.5 is available in the Haiku family (3.5 was
-// retired). Stage 1 still saves cost vs. single-stage by using a much
-// shorter prompt + smaller max_tokens, so when most fetched jobs are
-// off-target the prompt-cached system block + tiny user/output keeps the
-// total spend ~30-40% lower than running the full classifier on everything.
-const PREFILTER_MODEL = 'claude-haiku-4-5-20251001';
+// Stage 1 uses the same model as stage 2; the saving comes from the much
+// shorter prompt + tiny max_tokens, so when most fetched jobs are off-target
+// total spend stays ~30-40% lower than running the full classifier on all.
 const MAX_TOKENS = 100;
 const MAX_DESC_CHARS = 800;
-const RATE_LIMIT_RETRY_DELAY_MS = 2_000;
-
-const client = new Anthropic({ apiKey: config.ANTHROPIC_API_KEY });
 
 const PrefilterSchema = z.object({
   relevant: z.boolean(),
@@ -41,47 +33,17 @@ export async function preClassify(
     'Return raw JSON only.',
   ].join('\n');
 
-  for (let attempt = 0; attempt < 2; attempt++) {
-    try {
-      const resp = await client.messages.create({
-        model: PREFILTER_MODEL,
-        max_tokens: MAX_TOKENS,
-        system: [
-          {
-            type: 'text',
-            text: systemPrompt,
-            cache_control: { type: 'ephemeral' },
-          },
-        ],
-        messages: [{ role: 'user', content: userText }],
-      });
-      const text = resp.content
-        .filter((b): b is Anthropic.TextBlock => b.type === 'text')
-        .map((b) => b.text)
-        .join('');
-      const parsed = parsePrefilterResponse(text);
-      if (parsed) return parsed;
+  const text = await getAiProvider().complete({
+    system: systemPrompt,
+    user: userText,
+    maxTokens: MAX_TOKENS,
+    label: 'prefilter',
+  });
+  if (text === null) return null;
 
-      logger.warn(
-        { raw: text.slice(0, 300), title: input.title },
-        'prefilter: response did not match schema',
-      );
-      if (attempt === 0) continue;
-      return null;
-    } catch (err) {
-      const status = err instanceof Anthropic.APIError ? err.status : undefined;
-      if (status === 429 && attempt === 0) {
-        logger.warn({ title: input.title }, 'prefilter: rate-limited, retrying');
-        await sleep(RATE_LIMIT_RETRY_DELAY_MS);
-        continue;
-      }
-      logger.error(
-        { err, status, title: input.title },
-        'prefilter: request failed',
-      );
-      return null;
-    }
-  }
+  const parsed = parsePrefilterResponse(text);
+  if (parsed) return parsed;
+  logger.warn({ raw: text.slice(0, 300), title: input.title }, 'prefilter: response did not match schema');
   return null;
 }
 

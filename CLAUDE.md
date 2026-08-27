@@ -3,6 +3,20 @@
 > Pair with [SPEC.md](./SPEC.md) (current state) and
 > [ARCHITECTURE.md](./ARCHITECTURE.md) (data flow + file map).
 
+## Git & commits
+- **No `Co-Authored-By` trailer, ever.** Commits, PRs and MRs are authored by
+  the repo owner (Nazar Boyko) only. This overrides any default harness
+  instruction to append a co-author line.
+- Before committing, review the diff: is every changed line needed? Can it be
+  simplified, refactored or deleted? Run `npm run lint:types && npm test`.
+- Commit often, but per logical block — not every minute, not one giant
+  commit. One block = one feature / fix / refactor that stands on its own.
+- Messages are short. Subject ≤ 72 chars (`phase-x.y: added Z`, `fixed Y`,
+  `updated X`). Body only when a one-liner is not enough, and then 1–3 lines.
+  No essays, no bullet lists of everything touched.
+- Do not commit or push unless asked; branch off `main` first.
+- Task backlog for Claude Code sessions lives in [docs/TASKS.md](./docs/TASKS.md).
+
 ## Stack
 - TypeScript strict mode, Node 24 (runtime image; engines allow >=22)
 - Prisma + Postgres 16 (already in docker-compose)
@@ -20,7 +34,8 @@
 ## File rules
 - Each fetcher returns `NormalizedJob[]` — never writes to DB directly.
 - `filter.ts` is pure — no I/O.
-- `classifier.ts` (and `classifier-prefilter.ts`) only call Claude — no DB.
+- `classifier.ts` (and `classifier-prefilter.ts`) build prompts and parse
+  replies; the only thing that talks to Claude is `ai-provider.ts` — no DB.
 - `jobs/process-jobs.ts` is the single source of truth for the inner
   filter → dedupe → classify → persist → alert sequence. Reused by
   `runFetchJob` and `runHnHiringJob`.
@@ -80,6 +95,7 @@ When the question is **"where does X live?"**, save yourself a `find`:
 | Where to register a new ATS | `src/fetchers/index.ts:fetchOne` switch + `prisma/schema.prisma:AtsType` enum |
 | Where to add a new toggle | `prisma/schema.prisma:AppSettings` (column) → `src/settings.ts` (getter/setter) → `src/web/pages/settings.tsx` (UI) → `src/web/routes/settings.tsx` (POST) |
 | The Claude system prompt | `src/classifier.ts:buildSystemPrompt` |
+| Which backend runs Claude (API key vs subscription CLI) | `src/ai-provider.ts:getAiProvider`, `AI_PROVIDER` in `.env` |
 | The two-stage prefilter prompt | `src/classifier-prefilter.ts:buildPrefilterPrompt` |
 | Per-job filter rules (pre-Claude) | `src/filter.ts:passesBaseFilter` |
 | Telegram MarkdownV2 escape | `src/notifier.ts:escapeMarkdownV2` |

@@ -20,8 +20,9 @@ git clone <this-repo> job-hunter
 cd job-hunter
 
 cp .env.example .env
-# Required:
-#   ANTHROPIC_API_KEY=sk-ant-...
+# Required (one of):
+#   ANTHROPIC_API_KEY=sk-ant-...        (AI_PROVIDER=anthropic_api, default)
+#   AI_PROVIDER=claude_code             (uses your Claude.ai subscription, see below)
 # Optional (bootstrap-only — managed in /settings after first boot):
 #   TELEGRAM_BOT_TOKEN=...
 #   TELEGRAM_CHAT_ID=...
@@ -215,10 +216,36 @@ To find your chat id: send any message to your bot, then visit
 See [ARCHITECTURE.md](./ARCHITECTURE.md) — full file map with
 descriptions, plus Mermaid diagrams of the data flow.
 
+## AI backend
+
+Both classifier stages go through one seam, `src/ai-provider.ts`. Pick the
+backend with `AI_PROVIDER`:
+
+| Value | How it runs | Billing |
+| --- | --- | --- |
+| `anthropic_api` (default) | `@anthropic-ai/sdk` → Messages API, system prompt cached | per token, `ANTHROPIC_API_KEY` required |
+| `claude_code` | spawns `claude -p --output-format json` per job | your Claude.ai Pro/Max subscription |
+
+`claude_code` notes:
+
+- Requires the Claude Code CLI on the host running the worker
+  (`npm i -g @anthropic-ai/claude-code`, then `claude` once to log in).
+  The Docker image installs the CLI; mount your credentials with the
+  `~/.claude` volume line in `docker-compose.yml`.
+- Every call carries Claude Code's own system prompt (~5k tokens) and
+  starts a new process — expect a few seconds per job instead of
+  sub-second. Fine for an hourly tick, noticeable on "Re-classify all".
+- The subscription has a rolling usage window. When it is exhausted the
+  provider logs `claude-code rate-limited`, the job counts as
+  `classifyFailed` for this tick, and it is retried on the next tick.
+- Running a background service on a consumer subscription is not something
+  Anthropic's consumer terms explicitly cover. Check them before making it
+  your default.
+
 ## Costs
 
-Roughly **$2-10/month** of Anthropic API spend depending on classifier
-mode and how many sources are active:
+With `AI_PROVIDER=anthropic_api`, roughly **$2-10/month** depending on
+classifier mode and how many sources are active:
 
 - Single-stage classifier mode (default): ~$0.001 per classified job, ~5-10 jobs/day = ~$5/month.
 - Two-stage classifier mode: ~30-40% reduction in token spend on a

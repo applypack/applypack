@@ -118,8 +118,8 @@ model AppSettings {
   telegramEnabled                Boolean  @default(false)
   activeProfileId                Int?
   activeProfile                  Profile? @relation(fields: [activeProfileId], references: [id], onDelete: SetNull)
-  // Classifier mode: 'single' = current Haiku 4.5 only;
-  // 'two_stage' = cheap Haiku 3.5 prefilter then Haiku 4.5 only on yes.
+  // Classifier mode: 'single' = full classifier only;
+  // 'two_stage' = short prefilter prompt, full classifier only on yes.
   classifierMode                 String   @default("single")
   // Phase 3.4 toggles
   applicationTrackingEnabled     Boolean  @default(true)

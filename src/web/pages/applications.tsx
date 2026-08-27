@@ -1,20 +1,13 @@
 /** @jsxImportSource hono/jsx */
 import type { FC } from 'hono/jsx';
 import { Layout } from '../layout';
-import { Card, Empty, FitBadge, SectionTitle } from '../ui';
+import { Empty, FitBadge, PageHeader } from '../ui';
 import { formatRelative } from '../format';
 
-const STAGES = [
-  'applied',
-  'screen',
-  'tech',
-  'onsite',
-  'offer',
-  'rejected',
-  'ghosted',
-] as const;
+const STAGES = ['applied', 'screen', 'tech', 'onsite', 'offer', 'rejected', 'ghosted'] as const;
+type Stage = (typeof STAGES)[number];
 
-const STAGE_LABEL: Record<(typeof STAGES)[number], string> = {
+const STAGE_LABEL: Record<Stage, string> = {
   applied: 'Applied',
   screen: 'Screen',
   tech: 'Tech',
@@ -24,17 +17,18 @@ const STAGE_LABEL: Record<(typeof STAGES)[number], string> = {
   ghosted: 'Ghosted',
 };
 
-const STAGE_TONE: Record<(typeof STAGES)[number], string> = {
-  applied: 'border-sky-700 bg-sky-950/30',
-  screen: 'border-violet-700 bg-violet-950/30',
-  tech: 'border-amber-700 bg-amber-950/30',
-  onsite: 'border-orange-700 bg-orange-950/30',
-  offer: 'border-emerald-700 bg-emerald-950/30',
-  rejected: 'border-zinc-700 bg-zinc-900/50',
-  ghosted: 'border-zinc-800 bg-zinc-950/40',
+/** Column accent: a dot next to the stage name, so columns stay untinted. */
+const STAGE_DOT: Record<Stage, string> = {
+  applied: 'bg-info',
+  screen: 'bg-violet',
+  tech: 'bg-warn',
+  onsite: 'bg-warn',
+  offer: 'bg-ok',
+  rejected: 'bg-line-strong',
+  ghosted: 'bg-line-strong',
 };
 
-interface Card {
+interface ApplicationCard {
   id: number;
   title: string;
   companyName: string;
@@ -44,7 +38,7 @@ interface Card {
 }
 
 export interface ApplicationsProps {
-  byStage: Record<(typeof STAGES)[number], Card[]>;
+  byStage: Record<Stage, ApplicationCard[]>;
   applicationTrackingEnabled: boolean;
 }
 
@@ -53,57 +47,59 @@ export const ApplicationsPage: FC<ApplicationsProps> = ({
   applicationTrackingEnabled,
 }) => (
   <Layout title="Applications" active="applications">
-    <div class="mb-6 flex items-baseline justify-between">
-      <h1 class="text-2xl font-semibold tracking-tight">Applications</h1>
-      <span class="text-xs text-zinc-500">
-        {applicationTrackingEnabled
-          ? 'Manage your funnel from /jobs/:id detail page'
-          : 'Tracking disabled — enable in /settings'}
-      </span>
-    </div>
+    <PageHeader
+      title="Applications"
+      meta={
+        applicationTrackingEnabled
+          ? 'Move jobs between stages from their detail page'
+          : 'Tracking disabled — enable in Settings'
+      }
+    />
 
-    {!applicationTrackingEnabled && (
+    {!applicationTrackingEnabled ? (
       <Empty>
-        Application tracking is currently disabled. Enable it in /settings to start
-        funneling jobs through stages.
+        Application tracking is off. Enable it in{' '}
+        <a href="/settings" class="text-accent hover:underline">
+          Settings
+        </a>{' '}
+        to see your funnel here.
       </Empty>
-    )}
-
-    {applicationTrackingEnabled && (
-      <div class="grid gap-3 lg:grid-cols-7">
+    ) : (
+      <div class="grid gap-3 md:grid-cols-4 xl:grid-cols-7">
         {STAGES.map((stage) => {
           const items = byStage[stage] ?? [];
           return (
-            <div class={`rounded-lg border p-3 ${STAGE_TONE[stage]}`}>
+            <section
+              class="rounded-lg border border-line bg-surface-raised p-3"
+              aria-labelledby={`stage-${stage}`}
+            >
               <div class="mb-2 flex items-baseline justify-between">
-                <h3 class="text-sm font-medium uppercase tracking-wider text-zinc-200">
+                <h2
+                  id={`stage-${stage}`}
+                  class="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-ink-muted"
+                >
+                  <span class={`h-1.5 w-1.5 rounded-full ${STAGE_DOT[stage]}`} aria-hidden="true" />
                   {STAGE_LABEL[stage]}
-                </h3>
-                <span class="text-xs text-zinc-500 tabular-nums">{items.length}</span>
+                </h2>
+                <span class="font-mono text-xs text-ink-faint tabular-nums">{items.length}</span>
               </div>
               <ul class="space-y-2">
                 {items.length === 0 ? (
-                  <li class="text-xs text-zinc-600">—</li>
+                  <li class="py-2 text-center text-xs text-ink-faint">—</li>
                 ) : (
                   items.map((c) => (
                     <li>
                       <a
                         href={`/jobs/${c.id}`}
-                        class="block rounded border border-zinc-800 bg-zinc-950/50 p-2 hover:border-emerald-600/40 hover:bg-zinc-900"
+                        class="block rounded-md border border-line bg-surface p-2.5 transition-colors duration-150 hover:border-accent/50"
                       >
                         <div class="flex items-start justify-between gap-2">
-                          <span class="line-clamp-2 text-sm font-medium text-zinc-100">
-                            {c.title}
-                          </span>
+                          <span class="line-clamp-2 text-sm font-medium text-ink">{c.title}</span>
                           <FitBadge score={c.fitScore} />
                         </div>
-                        <div class="mt-1 truncate text-xs text-zinc-500">
-                          {c.companyName}
-                        </div>
-                        <div class="mt-0.5 text-xs text-zinc-600">
-                          {c.appliedAt
-                            ? `applied ${formatRelative(c.appliedAt)}`
-                            : '(no apply date)'}
+                        <div class="mt-1 truncate text-xs text-ink-muted">{c.companyName}</div>
+                        <div class="mt-0.5 text-xs text-ink-faint">
+                          {c.appliedAt ? `applied ${formatRelative(c.appliedAt)}` : 'no apply date'}
                           {c.recruiterContact ? ` · ${c.recruiterContact}` : ''}
                         </div>
                       </a>
@@ -111,7 +107,7 @@ export const ApplicationsPage: FC<ApplicationsProps> = ({
                   ))
                 )}
               </ul>
-            </div>
+            </section>
           );
         })}
       </div>
