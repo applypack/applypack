@@ -91,7 +91,12 @@ Two things to remember while reading this:
 
 1. **`processNormalizedJobs` is the single source of truth for the
    filter → dedupe → classify → persist → alert sequence.** It's
-   shared by `runFetchJob` and `runHnHiringJob`.
+   shared by `runFetchJob` and `runHnHiringJob`. Filter and dedupe run
+   first; classification then runs `AI_CONCURRENCY` jobs at a time
+   (`src/concurrency.ts`), while persist + alert consume the results in
+   the original order — so the DB and Telegram see the same sequence a
+   serial loop would produce. `runReclassifyAll` does the same per batch
+   of 50.
 2. **All toggles read from the DB at the start of the tick.** Flipping
    a toggle in the UI takes effect on the next cron tick — no restart.
 
@@ -164,6 +169,7 @@ src/
   filter.ts                    ← passesBaseFilter (pure, profile-aware)
   ai-provider.ts               ← AiProvider seam: AnthropicApiProvider | ClaudeCodeProvider
   ai-provider-parse.ts         ← pure parser for `claude -p` JSON output (tested)
+  concurrency.ts               ← createLimiter(max), pure
   classifier.ts                ← classifyJob wrapper + classifyWithClaude (full prompt)
   classifier-prefilter.ts      ← preClassify (short prompt)
   notifier.ts                  ← Telegram MarkdownV2 send, multi-target broadcast

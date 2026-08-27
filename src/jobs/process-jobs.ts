@@ -1,6 +1,8 @@
 import { JobStatus, type Prisma, type Profile } from '@prisma/client';
 import { prisma } from '../db';
+import { config } from '../config';
 import { logger } from '../logger';
+import { createLimiter } from '../concurrency';
 import { passesBaseFilter } from '../filter';
 import { classifyJob } from '../classifier';
 import { sendTelegramAlert } from '../notifier';
@@ -44,36 +46,46 @@ export async function processNormalizedJobs(
 ): Promise<void> {
   const priorityRules = parsePriorityRules(profile.priorityRules);
 
-  for (const { job, companyName } of items) {
-    if (!passesBaseFilter(job, profile)) {
+  // `seen` catches the same posting twice in one fetch: the sequential loop
+  // used to see it in the DB, now both copies would be classified together.
+  const candidates: FetchResult[] = [];
+  const seen = new Set<string>();
+  for (const item of items) {
+    if (!passesBaseFilter(item.job, profile)) {
       stats.filterRejected++;
       continue;
     }
-
-    const existing = await prisma.job.findUnique({
-      where: {
-        companyId_externalId: {
-          companyId: job.companyId,
-          externalId: job.externalId,
-        },
-      },
-      select: { id: true },
-    });
-    if (existing) {
+    const key = `${item.job.companyId}:${item.job.externalId}`;
+    if (seen.has(key) || (await isPersisted(item.job))) {
       stats.duplicate++;
       continue;
     }
+    seen.add(key);
+    candidates.push(item);
+  }
 
-    const outcome = await classifyJob(
-      buildClassifyInput(job, companyName),
-      profile,
-      classifierMode,
+  // Classify up to AI_CONCURRENCY jobs at once; results are consumed in the
+  // original order, so persisting and alerting stay sequential and ordered.
+  const limit = createLimiter(config.AI_CONCURRENCY);
+  const pending = candidates.map((item) => ({
+    ...item,
+    outcome: limit(() =>
+      classifyJob(buildClassifyInput(item.job, item.companyName), profile, classifierMode),
+    ),
+  }));
+  if (pending.length > 0) {
+    logger.info(
+      { jobs: pending.length, concurrency: config.AI_CONCURRENCY },
+      'process-jobs: classifying',
     );
-    if (outcome.preFiltered) {
+  }
+
+  for (const { job, companyName, outcome } of pending) {
+    const { result: classification, preFiltered } = await outcome;
+    if (preFiltered) {
       stats.preFiltered++;
       continue;
     }
-    const classification = outcome.result;
     if (!classification) {
       stats.classifyFailed++;
       continue;
@@ -155,6 +167,19 @@ export async function processNormalizedJobs(
       );
     }
   }
+}
+
+async function isPersisted(job: NormalizedJob): Promise<boolean> {
+  const existing = await prisma.job.findUnique({
+    where: {
+      companyId_externalId: {
+        companyId: job.companyId,
+        externalId: job.externalId,
+      },
+    },
+    select: { id: true },
+  });
+  return existing !== null;
 }
 
 function buildClassifyInput(

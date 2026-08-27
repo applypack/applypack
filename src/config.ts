@@ -9,6 +9,8 @@ const ConfigSchema = z.object({
   CLAUDE_MODEL: z.string().default('claude-haiku-4-5-20251001'),
   // Path to the Claude Code CLI when AI_PROVIDER=claude_code.
   CLAUDE_CODE_BIN: z.string().default('claude'),
+  // How many jobs are classified at the same time (both providers).
+  AI_CONCURRENCY: z.coerce.number().int().min(1).max(8).default(3),
   TELEGRAM_BOT_TOKEN: z.string().optional(),
   TELEGRAM_CHAT_ID: z.string().optional(),
   LOG_LEVEL: z

@@ -1,6 +1,8 @@
 import { JobStatus } from '@prisma/client';
 import { prisma } from '../db';
+import { config } from '../config';
 import { logger } from '../logger';
+import { createLimiter } from '../concurrency';
 import { classifyJob } from '../classifier';
 import { passesBaseFilter } from '../filter';
 import { getActiveProfile } from '../profiles';
@@ -27,7 +29,12 @@ export async function runReclassifyAll(): Promise<{ stats: CronStats }> {
   const { classifierMode } = await getSettings();
   const priorityRules = parsePriorityRules(profile.priorityRules);
   logger.info(
-    { profile: profile.name, classifierMode, priorityRules: priorityRules.length },
+    {
+      profile: profile.name,
+      classifierMode,
+      priorityRules: priorityRules.length,
+      concurrency: config.AI_CONCURRENCY,
+    },
     'reclassify-all: start',
   );
 
@@ -41,6 +48,7 @@ export async function runReclassifyAll(): Promise<{ stats: CronStats }> {
   let filterRejected = 0;
   let priorityBoosted = 0;
 
+  const limit = createLimiter(config.AI_CONCURRENCY);
   let lastId = 0;
   while (true) {
     const batch = await prisma.job.findMany({
@@ -55,12 +63,32 @@ export async function runReclassifyAll(): Promise<{ stats: CronStats }> {
     if (batch.length === 0) break;
     lastId = batch[batch.length - 1]?.id ?? lastId;
 
-    for (const j of batch) {
+    // Jobs that fail the current profile's base filter skip Claude entirely;
+    // the rest are classified AI_CONCURRENCY at a time and persisted in
+    // id order as their results come in.
+    const pending = batch.map((j) => ({
+      job: j,
+      outcome: passesBaseFilter(j, profile)
+        ? limit(() =>
+            classifyJob(
+              {
+                title: j.title,
+                companyName: j.company.name,
+                location: j.location,
+                description: j.description,
+                postedAt: j.postedAt,
+              },
+              profile,
+              classifierMode,
+            ),
+          )
+        : null,
+    }));
+
+    for (const { job: j, outcome } of pending) {
       scanned++;
 
-      // Apply current profile's base filter — if the job no longer passes it,
-      // mark DISMISSED and skip Claude (saves API cost).
-      if (!passesBaseFilter(j, profile)) {
+      if (outcome === null) {
         if (j.status !== JobStatus.DISMISSED) {
           await prisma.job.update({
             where: { id: j.id },
@@ -72,18 +100,8 @@ export async function runReclassifyAll(): Promise<{ stats: CronStats }> {
         continue;
       }
 
-      const outcome = await classifyJob(
-        {
-          title: j.title,
-          companyName: j.company.name,
-          location: j.location,
-          description: j.description,
-          postedAt: j.postedAt,
-        },
-        profile,
-        classifierMode,
-      );
-      if (outcome.preFiltered) {
+      const { result: c0, preFiltered: wasPreFiltered } = await outcome;
+      if (wasPreFiltered) {
         preFiltered++;
         // Reclassify treats pre-filtered jobs the same as base-filter rejects:
         // demote to DISMISSED so they leave the inbox.
@@ -96,7 +114,6 @@ export async function runReclassifyAll(): Promise<{ stats: CronStats }> {
         }
         continue;
       }
-      const c0 = outcome.result;
       if (!c0) {
         failed++;
         continue;
@@ -150,6 +167,7 @@ export async function runReclassifyAll(): Promise<{ stats: CronStats }> {
   const stats: CronStats = {
     profile: profile.name,
     classifierMode,
+    concurrency: config.AI_CONCURRENCY,
     scanned,
     reclassified,
     preFiltered,
