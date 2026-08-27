@@ -54,8 +54,13 @@ one is active.
 ✅ Docker runtime image ships the Claude Code CLI; mount `~/.claude` to use
 the subscription inside the container.
 
-❌ `claude_code` is slow: "Re-classify all jobs" on ~700 jobs takes over an
-hour. Acceptable for the hourly tick.
+❌ `claude_code` is slow: ~7 s per job on the host, 15–30 s in Docker. Since
+2026-08-27 `process-jobs` and `reclassify-job` classify `AI_CONCURRENCY`
+jobs at once (default 3, `src/concurrency.ts`) and persist in the original
+order. Measured in Docker: per-call latency is unchanged with three
+concurrent `claude` processes (16 s serial vs 11–14 s each in parallel),
+~460 MB for the web container, throughput ×3. "Re-classify all" on ~750
+jobs still takes over an hour.
 ❌ Subscription usage window can leave a tick partially classified. Jobs are
 retried next tick, but alerts for them arrive late.
 ❌ No prompt cache on the CLI path — the ~5k-token CLI system prompt is
