@@ -82,9 +82,7 @@ reviewed:
 | [marketingskills](https://github.com/coreyhaines31/marketingskills) (MIT) | 60+ marketing skills (CRO, SEO, ads, email…). | **Partial.** Product is a single-user internal tool — SEO/ads/CRO are irrelevant. Only `copywriting` (UI microcopy, empty states, Telegram message wording) and `cold-email` (outreach templates for tracked companies — future feature) are useful. Install the whole pack (it is only prompts) but ignore the rest. |
 
 ### 2.1 Install skills (project-scoped, committed)
-- [ ] `/plugin marketplace add nextlevelbuilder/ui-ux-pro-max-skill` →
-  `/plugin install ui-ux-pro-max@ui-ux-pro-max-skill`
-  (or `npx ui-ux-pro-max-cli init --ai claude`). Confirm Python 3 is on PATH.
+- [x] ui-ux-pro-max copied from portfolio-ui (§4.1). Python 3 confirmed on PATH.
 - [ ] `npx impeccable install` → then `/impeccable init` and review the
   generated `PRODUCT.md` / `DESIGN.md` (audience: one developer hunting jobs;
   dense data tables; dark-mode friendly; no marketing tone).
@@ -138,7 +136,7 @@ pipeline) and useless here. What transfers:
 | `still-warm` / `good-dog` | `.claude/settings.json` → `"includeCoAuthoredBy": false` | The real switch that stops the trailer. **Added now.** |
 | `good-dog` | `.claude/hooks/commit-guard.sh` + `PreToolUse` hook | Blocks a `git commit` < 120 s after the previous one — enforces "not every minute". Copy verbatim. |
 | `commercebase.io` | `code-review-expert/` (+ `references/solid-checklist.md`) | P0–P3 review of the current diff. Fits the "review before commit" rule. Trim Go-specific bits. |
-| `commercebase.io` | `requesting-code-review/` | Checklist before merging a phase branch. |
+| `commercebase.io` | `requesting-code-review/` | ~~Checklist before merging~~ — skipped: hard dependency on the `superpowers` plugin; `code-review-expert` covers it. |
 | `portfolio-ui` | `ui-ux-pro-max/` (703 lines, already installed there) | Same skill as §2.1 — copy the directory instead of re-installing via marketplace. Needs Python 3. |
 | `portfolio-ui` | `design-system/` | Three-layer tokens (primitive→semantic→component) as CSS variables — exactly what §2.2 needs for `layout.tsx`. |
 | `portfolio-ui` | `stop-slop/` | Strip AI-tells from UI copy, README, Telegram messages. Small (68 lines). |
@@ -175,9 +173,8 @@ Global plugins already on: `frontend-design`, `playwright`,
 
 ### 4.5 Steps
 - [x] `.claude/settings.json` with `includeCoAuthoredBy: false`
-- [ ] Copy `commit-discipline`, `commit-guard.sh` + hook, `code-review-expert`,
-  `requesting-code-review`, `stop-slop`, `design-system`, `ui-ux-pro-max`
-  into `.claude/`. One commit: `add project skills`.
+- [x] Copy `commit-discipline`, `commit-guard.sh` + hook, `code-review-expert`,
+  `stop-slop`, `design-system`, `ui-ux-pro-max` into `.claude/`.
 - [ ] Adapt `testing-gate`, `ui-review`, `accessible-interactions`,
   `adr-writer` (one commit each, short).
 - [ ] Write ADR 0006 "AI provider abstraction" with the adapted template.
