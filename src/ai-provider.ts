@@ -33,7 +33,9 @@ export interface AiProvider {
 
 const RATE_LIMIT_RETRY_DELAY_MS = 2_000;
 const MAX_ATTEMPTS = 2;
-const CLAUDE_CODE_TIMEOUT_MS = 90_000;
+// Calls normally finish in 15-30 s inside Docker, but with AI_CONCURRENCY
+// in flight a few strayed past 90 s and lost their work to the timeout.
+const CLAUDE_CODE_TIMEOUT_MS = 180_000;
 const CLAUDE_CODE_MAX_BUFFER = 1024 * 1024;
 
 const execFileAsync = promisify(execFile);
