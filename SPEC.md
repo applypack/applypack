@@ -19,7 +19,7 @@ postgres ←─ worker (cron, fetchers, classifier, notifier)
 postgres ←─ web    (Hono dashboard, read-mostly + settings writes)
 ```
 
-Two separate Node 20 processes inside the same docker-compose stack.
+Two separate Node 24 processes inside the same docker-compose stack.
 Both share the database and the Prisma client. The dashboard never
 runs an HTTP server inside the worker; the worker never opens a web
 port.
@@ -121,6 +121,7 @@ clause at the start of the affected job/handler.
 | `staleApplicationsDigestEnabled` | true     | Daily nudge job exits early                  |
 | `hnParserEnabled`                | false    | Monthly HN cron + manual run skip            |
 | `discoveryEnabled`               | false    | HN parser does not record CompanyCandidates  |
+| `fetchingEnabled`                | false    | Master pause: hourly fetch + monthly HN pull exit early (`fetching-paused`); digest/cleanup/discovery/dashboard unaffected. Deployments start PAUSED — enable via `/settings` → "Job fetching" |
 | `disabledSources` (String[])     | `[]`     | Skip whole AtsType families in runAllFetchers |
 
 ## Discovery
@@ -144,7 +145,7 @@ marking 4xx-returning slugs as DEAD.
 
 ## Tech stack (locked)
 
-- TypeScript strict, Node 20, pino, zod, native fetch with `fetchWithRetry` + `AbortController`
+- TypeScript strict, Node 24 (runtime image; >=22 locally), pino, zod, native fetch with `fetchWithRetry` + `AbortController`
 - Prisma 6 + Postgres 16 (real migrations from `phase-3.0` baseline onward)
 - node-cron for scheduling, no Redis / BullMQ
 - Hono 4 for the dashboard, JSX SSR with `hono/jsx`, htmx + Tailwind via CDN (no build pipeline)

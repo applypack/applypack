@@ -13,6 +13,7 @@ import {
   setClassifierMode,
   setDisabledSources,
   setDiscoveryEnabled,
+  setFetchingEnabled,
   setHnParserEnabled,
   setStaleApplicationsDigestEnabled,
   setTelegramEnabled,
@@ -89,6 +90,7 @@ settingsRoute.get('/settings', async (c) => {
       disabledSources={settings.disabledSources}
       allSources={Object.values(AtsType)}
       discoveryEnabled={settings.discoveryEnabled}
+      fetchingEnabled={settings.fetchingEnabled}
       targets={targets.map((t) => ({
         id: t.id,
         name: t.name,
@@ -116,6 +118,20 @@ settingsRoute.get('/settings', async (c) => {
     />,
     200,
     { 'Set-Cookie': clearFlashCookie() },
+  );
+});
+
+// --- Fetching pause / resume -----------------------------------------------
+
+settingsRoute.post('/settings/fetching-toggle', async (c) => {
+  const settings = await getSettings();
+  await setFetchingEnabled(!settings.fetchingEnabled);
+  return redirectWithFlash(
+    c,
+    'ok',
+    settings.fetchingEnabled
+      ? 'Job fetching paused — no new jobs or alerts until you resume.'
+      : 'Job fetching resumed — next hourly tick will pull new jobs.',
   );
 });
 

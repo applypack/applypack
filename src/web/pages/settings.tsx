@@ -44,6 +44,7 @@ export interface SettingsProps {
   disabledSources: string[];
   allSources: string[];
   discoveryEnabled: boolean;
+  fetchingEnabled: boolean;
   targets: MaskedTarget[];
   profiles: ProfileListItem[];
   activeProfile: Profile | null;
@@ -60,6 +61,7 @@ export const SettingsPage: FC<SettingsProps> = ({
   disabledSources,
   allSources,
   discoveryEnabled,
+  fetchingEnabled,
   targets,
   profiles,
   activeProfile,
@@ -86,6 +88,42 @@ export const SettingsPage: FC<SettingsProps> = ({
         {flash.text}
       </div>
     )}
+
+    <Card class="mb-6">
+      <SectionTitle>Job fetching</SectionTitle>
+      <div class="flex items-center justify-between gap-4">
+        <div>
+          <div class="text-sm text-zinc-300">
+            Status:{' '}
+            {fetchingEnabled ? (
+              <Tag tone="green">Running</Tag>
+            ) : (
+              <Tag tone="red">Paused</Tag>
+            )}
+          </div>
+          <p class="mt-1 text-xs text-zinc-500">
+            Master switch for new-job ingestion — the hourly fetch tick and
+            the monthly HN pull. Off by default: nothing is fetched until
+            you press Resume. Pausing stops new jobs and alerts without
+            touching Docker; the dashboard, digest, cleanup, and discovery
+            probe keep working. Takes effect on the next cron tick (within
+            the hour).
+          </p>
+        </div>
+        <form method="post" action="/settings/fetching-toggle">
+          <button
+            type="submit"
+            class={`rounded-md px-4 py-2 text-sm font-medium text-white ${
+              fetchingEnabled
+                ? 'bg-amber-600 hover:bg-amber-500'
+                : 'bg-emerald-600 hover:bg-emerald-500'
+            }`}
+          >
+            {fetchingEnabled ? 'Pause' : 'Resume'}
+          </button>
+        </form>
+      </div>
+    </Card>
 
     <Card class="mb-6">
       <SectionTitle>Active profile</SectionTitle>

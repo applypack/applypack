@@ -4,7 +4,7 @@
   "private": true,
   "description": "Local Docker worker that monitors Greenhouse / Lever / LaraJobs for senior remote-US PHP/Laravel roles and alerts via Telegram.",
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
   "scripts": {
     "build": "tsc",
