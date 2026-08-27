@@ -1,10 +1,37 @@
+# Dependencies & build
 node_modules/
 dist/
+*.tsbuildinfo
+
+# Environment / secrets — only .env.example is tracked
 .env
-.env.local
+.env.*
+!.env.example
+
+# Logs & test output
 *.log
+npm-debug.log*
+coverage/
+test-results/
+playwright-report/
+
+# Prisma local artefacts (real schema lives in prisma/migrations)
+prisma/*.db
+prisma/*.db-journal
+
+# Claude Code — track settings.json, skills, hooks, agents; ignore per-user
+# and generated state
+.claude/settings.local.json
+.claude/**/__pycache__/
+.claude/**/*.pyc
+.claude/**/.cache/
+.claude/**/*.tmp
+
+# OS / editors
 .DS_Store
+Thumbs.db
 .idea/
 .vscode/
-coverage/
-.claude/settings.local.json
+*.swp
+*.swo
+*~
