@@ -84,13 +84,15 @@ reviewed:
 
 ### 2.1 Install skills (project-scoped, committed)
 - [x] ui-ux-pro-max copied from portfolio-ui (§4.1). Python 3 confirmed on PATH.
-- [ ] `npx impeccable install` → then `/impeccable init` (not yet run — install
-  in a dedicated session; it writes PRODUCT.md / DESIGN.md interactively) and review the
+- [x] `npx impeccable install` (project scope; Copilot artefacts under
+  `.github/` removed). `impeccable detect src/web` → 0 anti-patterns after
+  fixing the funnel column accent. `/impeccable init` still to run in chat
+  (writes PRODUCT.md / DESIGN.md). and review the
   generated `PRODUCT.md` / `DESIGN.md` (audience: one developer hunting jobs;
   dense data tables; dark-mode friendly; no marketing tone).
-- [ ] `npx skills add coreyhaines31/marketingskills` (or the plugin route).
-- [ ] Commit `.claude/skills/**`, `PRODUCT.md`, `DESIGN.md`. Add generated
-  caches / `design-system/*.tmp` to `.gitignore` if the tools create them.
+- [x] marketingskills: copied `copywriting`, `copy-editing`, `cold-email` only
+  (evals stripped); the other 57 are marketing-site skills we don't need.
+- [x] `.claude/skills/**` committed; `.gitignore` covers `__pycache__`, caches.
 
 ### 2.2 Design system
 - [x] ui-ux-pro-max recommendation (dark OLED, Fira Sans / Fira Code, status
@@ -118,8 +120,7 @@ reviewed:
 ---
 
 ## 3. Housekeeping candidates (pick up when convenient)
-- [ ] `@anthropic-ai/sdk` is pinned to `^0.39.0` — bump to current 0.x after
-  §1.1 lands (provider file is the only import site).
+- [x] `@anthropic-ai/sdk` bumped `^0.39.0` → `^0.121.0`; tests + live smoke OK.
 - [x] Model id → `CLAUDE_MODEL` env in `config.ts`.
 
 ---
