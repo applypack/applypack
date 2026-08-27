@@ -17,15 +17,15 @@ const STAGE_LABEL: Record<Stage, string> = {
   ghosted: 'Ghosted',
 };
 
-/** Column accent: a 2px top border keeps the funnel readable without tinting whole columns. */
-const STAGE_ACCENT: Record<Stage, string> = {
-  applied: 'border-t-info',
-  screen: 'border-t-violet',
-  tech: 'border-t-warn',
-  onsite: 'border-t-warn',
-  offer: 'border-t-ok',
-  rejected: 'border-t-line-strong',
-  ghosted: 'border-t-line',
+/** Column accent: a dot next to the stage name, so columns stay untinted. */
+const STAGE_DOT: Record<Stage, string> = {
+  applied: 'bg-info',
+  screen: 'bg-violet',
+  tech: 'bg-warn',
+  onsite: 'bg-warn',
+  offer: 'bg-ok',
+  rejected: 'bg-line-strong',
+  ghosted: 'bg-line-strong',
 };
 
 interface ApplicationCard {
@@ -70,14 +70,15 @@ export const ApplicationsPage: FC<ApplicationsProps> = ({
           const items = byStage[stage] ?? [];
           return (
             <section
-              class={`rounded-lg border border-line border-t-2 bg-surface-raised p-3 ${STAGE_ACCENT[stage]}`}
+              class="rounded-lg border border-line bg-surface-raised p-3"
               aria-labelledby={`stage-${stage}`}
             >
               <div class="mb-2 flex items-baseline justify-between">
                 <h2
                   id={`stage-${stage}`}
-                  class="text-xs font-semibold uppercase tracking-wider text-ink-muted"
+                  class="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-ink-muted"
                 >
+                  <span class={`h-1.5 w-1.5 rounded-full ${STAGE_DOT[stage]}`} aria-hidden="true" />
                   {STAGE_LABEL[stage]}
                 </h2>
                 <span class="font-mono text-xs text-ink-faint tabular-nums">{items.length}</span>
