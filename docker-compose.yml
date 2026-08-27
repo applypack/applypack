@@ -27,6 +27,9 @@ services:
     environment:
       DATABASE_URL: postgresql://jobhunter:jobhunter@postgres:5432/jobhunter
       NODE_ENV: production
+    # For AI_PROVIDER=claude_code: share the host's Claude Code login.
+    # volumes:
+    #   - ~/.claude:/home/node/.claude
     restart: unless-stopped
 
   web:

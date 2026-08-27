@@ -3,7 +3,12 @@ import { z } from 'zod';
 
 const ConfigSchema = z.object({
   DATABASE_URL: z.string().min(1, 'DATABASE_URL is required'),
-  ANTHROPIC_API_KEY: z.string().min(1, 'ANTHROPIC_API_KEY is required'),
+  // Which backend runs the classifier. See src/ai-provider.ts.
+  AI_PROVIDER: z.enum(['anthropic_api', 'claude_code']).default('anthropic_api'),
+  ANTHROPIC_API_KEY: z.string().optional(),
+  CLAUDE_MODEL: z.string().default('claude-haiku-4-5-20251001'),
+  // Path to the Claude Code CLI when AI_PROVIDER=claude_code.
+  CLAUDE_CODE_BIN: z.string().default('claude'),
   TELEGRAM_BOT_TOKEN: z.string().optional(),
   TELEGRAM_CHAT_ID: z.string().optional(),
   LOG_LEVEL: z
@@ -18,7 +23,10 @@ const ConfigSchema = z.object({
     .string()
     .optional()
     .transform((v) => (v && v.length > 0 ? v : undefined)),
-});
+}).refine(
+  (c) => c.AI_PROVIDER !== 'anthropic_api' || (c.ANTHROPIC_API_KEY ?? '').length > 0,
+  { path: ['ANTHROPIC_API_KEY'], message: 'required when AI_PROVIDER=anthropic_api' },
+);
 
 export type Config = z.infer<typeof ConfigSchema>;
 

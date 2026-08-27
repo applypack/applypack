@@ -149,7 +149,7 @@ marking 4xx-returning slugs as DEAD.
 - Prisma 6 + Postgres 16 (real migrations from `phase-3.0` baseline onward)
 - node-cron for scheduling, no Redis / BullMQ
 - Hono 4 for the dashboard, JSX SSR with `hono/jsx`, htmx + Tailwind via CDN (no build pipeline)
-- Anthropic SDK; Claude Haiku 4.5 for both classifier stages (3.5 retired in 2026)
+- `src/ai-provider.ts` seam: `anthropic_api` (SDK, per-token) or `claude_code` (headless CLI, subscription); Claude Haiku 4.5 for both classifier stages
 - node:test runner (`npm test`), no jest
 
 ## Project layout

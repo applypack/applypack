@@ -37,13 +37,13 @@ enabling by default**. The Claude Agent SDK is *not* a workaround (documented
 as API-key only).
 
 ### 1.1 Provider abstraction
-- [ ] `src/ai-provider.ts`: `interface AiProvider { complete(system, user, maxTokens): Promise<string> }`
-- [ ] `AnthropicApiProvider` — move the two `messages.create` bodies here
+- [x] `src/ai-provider.ts`: `interface AiProvider { complete(system, user, maxTokens): Promise<string> }`
+- [x] `AnthropicApiProvider` — move the two `messages.create` bodies here
   (keep `cache_control`, retry on 429).
-- [ ] `classifier.ts` / `classifier-prefilter.ts` become pure prompt-builders +
+- [x] `classifier.ts` / `classifier-prefilter.ts` become pure prompt-builders +
   zod parsers that call the provider. Extract `buildUserText` into a testable
   pure function.
-- [ ] `config.ts`: `AI_PROVIDER: z.enum(['anthropic_api','claude_code']).default('anthropic_api')`;
+- [x] `config.ts`: `AI_PROVIDER: z.enum(['anthropic_api','claude_code']).default('anthropic_api')`;
   `ANTHROPIC_API_KEY` becomes optional, validated as required only when
   `AI_PROVIDER=anthropic_api`.
 - [ ] Optional: expose the choice as an `AppSettings` toggle on `/settings`
@@ -51,14 +51,14 @@ as API-key only).
   switchable at runtime. Worker reads it per tick (gotcha 9).
 
 ### 1.2 `claude_code` provider (subscription)
-- [ ] `ClaudeCodeProvider`: `execFile('claude', ['-p', prompt, '--output-format', 'json', '--model', 'haiku'])`
+- [x] `ClaudeCodeProvider`: `execFile('claude', ['-p', prompt, '--output-format', 'json', '--model', 'haiku'])`
   with 60 s timeout; parse `result` field, hand to existing `extractJson`.
-- [ ] Rate-limit handling: on the 5-hour window error, mark the job
-  `classification: pending` and let the next tick retry — never drop it.
-- [ ] Docker: install `@anthropic-ai/claude-code` in the runtime stage, mount
+- [x] Rate-limit handling: rate-limited → `classifyFailed` for the tick; the
+  job is not persisted so the next tick picks it up again.
+- [x] Docker: install `@anthropic-ai/claude-code` in the runtime stage, mount
   `~/.claude` (credentials) as a read-only volume. Document token refresh
   caveat in README.
-- [ ] Unit test for the CLI-output parser (pure).
+- [x] Unit test for the CLI-output parser (pure).
 
 ### 1.3 Cheaper API path (no grey zone — do this regardless)
 - [ ] Batch API mode for `AnthropicApiProvider`: collect all jobs of a tick,
@@ -117,8 +117,7 @@ reviewed:
 ## 3. Housekeeping candidates (pick up when convenient)
 - [ ] `@anthropic-ai/sdk` is pinned to `^0.39.0` — bump to current 0.x after
   §1.1 lands (provider file is the only import site).
-- [ ] Model id `claude-haiku-4-5-20251001` → move to `config.ts` constant so
-  it is changed in one place.
+- [x] Model id → `CLAUDE_MODEL` env in `config.ts`.
 
 ---
 
