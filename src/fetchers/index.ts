@@ -17,6 +17,8 @@ import { fetchWeWorkRemotely } from './weworkremotely';
 import { fetchGolangProjects } from './golangprojects';
 import { fetchJobicy } from './jobicy';
 import { fetchHnJobs } from './hn-jobs';
+import { fetchWorkingNomads } from './workingnomads';
+import { fetchHimalayas } from './himalayas';
 import type { NormalizedJob } from '../types';
 
 const POLITE_DELAY_MS = 1_000;
@@ -107,5 +109,9 @@ async function fetchOne(company: {
       return fetchJobicy(company.id);
     case AtsType.HN_JOBS:
       return fetchHnJobs(company.id);
+    case AtsType.WORKINGNOMADS:
+      return fetchWorkingNomads(company.id);
+    case AtsType.HIMALAYAS:
+      return fetchHimalayas(company.id);
   }
 }

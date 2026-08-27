@@ -172,6 +172,26 @@ const SEED_COMPANIES: SeedCompany[] = [
     careerUrl: 'https://jobicy.com',
   },
 
+  // Working Nomads — free no-auth JSON API, ~30 most recent cross-company
+  // postings (Development-heavy, mixed categories; base filter culls).
+  {
+    name: 'Working Nomads',
+    atsType: AtsType.WORKINGNOMADS,
+    atsToken: 'workingnomads',
+    careerUrl: 'https://www.workingnomads.com/jobs',
+  },
+
+  // Himalayas — free no-auth JSON API, 20 newest cross-company postings
+  // per call across ALL categories (tech + Legal/Sales/…; base filter
+  // culls). Carries structured salary + seniority that we fold into the
+  // description for Claude.
+  {
+    name: 'Himalayas',
+    atsType: AtsType.HIMALAYAS,
+    atsToken: 'himalayas',
+    careerUrl: 'https://himalayas.app/jobs',
+  },
+
   // WeWorkRemotely — paid posting → low-spam. Two relevant categories
   // for the default profile; user can add more (`design-jobs`, etc) via UI.
   {
