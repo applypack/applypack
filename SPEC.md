@@ -26,7 +26,7 @@ port.
 
 See [ARCHITECTURE.md](./ARCHITECTURE.md) for diagrams.
 
-## Sources (12 ATS / aggregator types)
+## Sources (16 ATS / aggregator types)
 
 | AtsType            | Shape         | Auth      | Notes                                           |
 | ------------------ | ------------- | --------- | ----------------------------------------------- |
@@ -42,6 +42,10 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for diagrams.
 | HN_HIRING          | aggregator    | none      | Algolia API → monthly "Ask HN: Who is hiring?" |
 | WEWORKREMOTELY     | aggregator    | none      | Per-category RSS, atsToken = category slug      |
 | GOLANGPROJECTS     | aggregator    | none      | Single RSS; **disabled by default** (Go-only)   |
+| JOBICY             | aggregator    | none      | RSS `?job_categories=dev`, custom `job_listing:` namespace |
+| HN_JOBS            | aggregator    | none      | Algolia `tags=job` → individual YC posts, 14-day window; URLs feed discovery harvest |
+| WORKINGNOMADS      | aggregator    | none      | `/api/exposed_jobs/` JSON, ~30 most recent, mixed categories |
+| HIMALAYAS          | aggregator    | none      | `/jobs/api?limit=20` JSON (limit cap 20), all categories, salary folded into description |
 
 **Hard exclusions** — never added regardless of demand:
 - LinkedIn / Indeed / Glassdoor (TOS, anti-bot, account ban risk)

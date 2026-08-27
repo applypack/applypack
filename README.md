@@ -1,6 +1,6 @@
 # job-hunter
 
-Local Docker stack that monitors **12 ATS / aggregator sources** for
+Local Docker stack that monitors **16 ATS / aggregator sources** for
 roles matching a configurable **profile** (stack, role types, regions,
 salary, fit threshold), classifies each through Claude Haiku, and
 fires Telegram alerts. Includes a dashboard at `localhost:4747` for
@@ -89,6 +89,10 @@ npm run digest:once
 | HN_HIRING       | aggregator    | Monthly HN Who-is-hiring thread (Algolia API).     |
 | WEWORKREMOTELY  | per-category  | atsToken = category slug. Two seeded.              |
 | GOLANGPROJECTS  | aggregator    | Go-only feed; **disabled** by default.             |
+| JOBICY          | aggregator    | Single seeded feed (?job_categories=dev).          |
+| HN_JOBS         | aggregator    | HN /jobs firehose (Algolia tags=job, 14-day window). |
+| WORKINGNOMADS   | aggregator    | Free JSON API, ~30 most recent cross-company jobs. |
+| HIMALAYAS       | aggregator    | Free JSON API, 20 newest jobs/call, all categories. |
 
 **Hard exclusions** (never adding): LinkedIn, Indeed, Glassdoor,
 Workday, Wellfound, JobSpy. See
