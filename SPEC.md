@@ -121,6 +121,7 @@ clause at the start of the affected job/handler.
 | `staleApplicationsDigestEnabled` | true     | Daily nudge job exits early                  |
 | `hnParserEnabled`                | false    | Monthly HN cron + manual run skip            |
 | `discoveryEnabled`               | false    | HN parser does not record CompanyCandidates  |
+| `fetchingEnabled`                | true     | Master pause: hourly fetch + monthly HN pull exit early (`fetching-paused`); digest/cleanup/discovery/dashboard unaffected |
 | `disabledSources` (String[])     | `[]`     | Skip whole AtsType families in runAllFetchers |
 
 ## Discovery

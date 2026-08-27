@@ -22,6 +22,10 @@ export async function runHnHiringJob(): Promise<{ stats: CronStats }> {
   logger.info('hn-hiring: start');
 
   const settings = await getSettings();
+  if (!settings.fetchingEnabled) {
+    logger.info('hn-hiring: skipped (fetching paused in settings)');
+    return { stats: { skipped: 1, reason: 'fetching-paused' } };
+  }
   if (!settings.hnParserEnabled) {
     logger.info('hn-hiring: skipped (parser disabled in settings)');
     return { stats: { skipped: 1, reason: 'parser-disabled' } };

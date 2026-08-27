@@ -134,6 +134,12 @@ model AppSettings {
   // Phase 4.2: discovery toggle (gates auto-creation of CompanyCandidate
   // rows from HN comments and the weekly probe job).
   discoveryEnabled               Boolean  @default(false)
+  // Phase 7.7: master pause for new-job ingestion. When false, the hourly
+  // fetch tick and the monthly HN pull exit early ("fetching-paused" in
+  // /runs). Digest, stale nudge, cleanup, discovery probe, and the
+  // dashboard keep running — this is the "stop the pipeline without
+  // touching docker" switch.
+  fetchingEnabled                Boolean  @default(true)
   updatedAt                      DateTime @updatedAt
 }
 

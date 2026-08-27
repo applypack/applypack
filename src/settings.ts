@@ -16,6 +16,7 @@ export interface AppSettingsView {
   hnParserEnabled: boolean;
   disabledSources: string[];
   discoveryEnabled: boolean;
+  fetchingEnabled: boolean;
   updatedAt: Date;
 }
 
@@ -36,6 +37,7 @@ export async function getSettings(): Promise<AppSettingsView> {
     hnParserEnabled: row.hnParserEnabled,
     disabledSources: row.disabledSources,
     discoveryEnabled: row.discoveryEnabled,
+    fetchingEnabled: row.fetchingEnabled,
     updatedAt: row.updatedAt,
   };
 }
@@ -98,6 +100,15 @@ export async function setDiscoveryEnabled(enabled: boolean): Promise<void> {
     update: { discoveryEnabled: enabled },
     create: { id: SETTINGS_ID, discoveryEnabled: enabled },
   });
+}
+
+export async function setFetchingEnabled(enabled: boolean): Promise<void> {
+  await prisma.appSettings.upsert({
+    where: { id: SETTINGS_ID },
+    update: { fetchingEnabled: enabled },
+    create: { id: SETTINGS_ID, fetchingEnabled: enabled },
+  });
+  logger.info({ enabled }, enabled ? 'settings: job fetching resumed' : 'settings: job fetching paused');
 }
 
 function normaliseClassifierMode(raw: string): ClassifierMode {
