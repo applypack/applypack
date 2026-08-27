@@ -35,3 +35,6 @@ Thumbs.db
 *.swp
 *.swo
 *~
+
+# Playwright MCP output
+.playwright-mcp/

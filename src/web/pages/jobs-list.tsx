@@ -2,12 +2,21 @@
 import type { FC } from 'hono/jsx';
 import type { JobStatus } from '@prisma/client';
 import { Layout } from '../layout';
-import { Card, Empty, FitBadge, StatusBadge } from '../ui';
 import {
-  formatDateShort,
-  formatRelative,
-  formatSalary,
-} from '../format';
+  Button,
+  Card,
+  Empty,
+  Field,
+  FitBadge,
+  Input,
+  PageHeader,
+  Select,
+  StatusBadge,
+  Table,
+  Td,
+  Tr,
+} from '../ui';
+import { formatDateShort, formatRelative, formatSalary } from '../format';
 
 interface JobRow {
   id: number;
@@ -61,172 +70,118 @@ export const JobsListPage: FC<JobsListProps> = ({
   filters,
 }) => {
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
-  const buildHref = (overrides: Record<string, string | number>) =>
-    buildQuery({ ...filters, page, ...overrides });
+  const pageHref = (p: number) => buildQuery({ ...filters, page: p });
 
   return (
     <Layout title="Jobs" active="jobs">
-      <div class="mb-6 flex items-baseline justify-between">
-        <h1 class="text-2xl font-semibold tracking-tight">Jobs</h1>
-        <span class="text-sm text-zinc-500 tabular-nums">
-          {total.toLocaleString()} total · page {page}/{totalPages}
-        </span>
-      </div>
+      <PageHeader
+        title="Jobs"
+        meta={`${total.toLocaleString()} total · page ${page}/${totalPages}`}
+      />
 
       <form method="get" action="/jobs" class="mb-5 grid gap-3 sm:grid-cols-12">
-        <div class="sm:col-span-4">
-          <label class="block text-xs uppercase tracking-wider text-zinc-500">
-            Search
-          </label>
-          <input
-            type="text"
-            name="q"
-            value={filters.q}
-            placeholder="title or description..."
-            class="mt-1 w-full rounded-md border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-sm text-zinc-100 placeholder-zinc-600 focus:border-emerald-500 focus:outline-none"
-          />
-        </div>
-        <div class="sm:col-span-3">
-          <label class="block text-xs uppercase tracking-wider text-zinc-500">
-            Status
-          </label>
-          <select
-            name="status"
-            class="mt-1 w-full rounded-md border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-sm text-zinc-100 focus:border-emerald-500 focus:outline-none"
-          >
+        <Field label="Search" class="sm:col-span-4">
+          <Input type="search" name="q" value={filters.q} placeholder="title or description…" />
+        </Field>
+        <Field label="Status" class="sm:col-span-3">
+          <Select name="status">
             {STATUS_OPTIONS.map((o) => (
               <option value={o.value} selected={filters.status === o.value}>
                 {o.label}
               </option>
             ))}
-          </select>
-        </div>
-        <div class="sm:col-span-2">
-          <label class="block text-xs uppercase tracking-wider text-zinc-500">
-            Min fit
-          </label>
-          <input
-            type="number"
-            name="minFit"
-            min="0"
-            max="100"
-            value={filters.minFit}
-            class="mt-1 w-full rounded-md border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-sm text-zinc-100 focus:border-emerald-500 focus:outline-none"
-          />
-        </div>
-        <div class="sm:col-span-2">
-          <label class="block text-xs uppercase tracking-wider text-zinc-500">
-            Sort
-          </label>
-          <select
-            name="sort"
-            class="mt-1 w-full rounded-md border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-sm text-zinc-100 focus:border-emerald-500 focus:outline-none"
-          >
+          </Select>
+        </Field>
+        <Field label="Min fit" class="sm:col-span-2">
+          <Input type="number" name="minFit" min="0" max="100" value={filters.minFit} />
+        </Field>
+        <Field label="Sort" class="sm:col-span-2">
+          <Select name="sort">
             {SORT_OPTIONS.map((o) => (
               <option value={o.value} selected={filters.sort === o.value}>
                 {o.label}
               </option>
             ))}
-          </select>
-        </div>
+          </Select>
+        </Field>
         <div class="flex items-end sm:col-span-1">
-          <button
-            type="submit"
-            class="w-full rounded-md bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-500"
-          >
-            Apply
-          </button>
+          <Button class="w-full">Apply</Button>
         </div>
       </form>
 
       {jobs.length === 0 ? (
         <Empty>No jobs match these filters.</Empty>
       ) : (
-        <Card class="!p-0 overflow-hidden">
-          <table class="w-full text-sm">
-            <thead>
-              <tr class="border-b border-zinc-800 text-left text-xs uppercase tracking-wider text-zinc-500">
-                <th class="px-4 py-2.5 font-medium">Title</th>
-                <th class="px-4 py-2.5 font-medium">Company</th>
-                <th class="px-4 py-2.5 font-medium">Location</th>
-                <th class="px-4 py-2.5 font-medium">Fit</th>
-                <th class="px-4 py-2.5 font-medium">Salary</th>
-                <th class="px-4 py-2.5 font-medium">Status</th>
-                <th class="px-4 py-2.5 font-medium">Fetched</th>
-              </tr>
-            </thead>
-            <tbody class="divide-y divide-zinc-900">
-              {jobs.map((j) => (
-                <tr class="hover:bg-zinc-900/50">
-                  <td class="px-4 py-2.5">
-                    <a
-                      href={`/jobs/${j.id}`}
-                      class="font-medium text-zinc-100 hover:text-emerald-400"
-                    >
-                      {j.title}
-                    </a>
-                    {j.techMatch.length > 0 && (
-                      <div class="mt-0.5 truncate text-xs text-zinc-500">
-                        {j.techMatch.join(', ')}
-                      </div>
-                    )}
-                  </td>
-                  <td class="px-4 py-2.5 text-zinc-300">{j.company.name}</td>
-                  <td class="px-4 py-2.5 text-zinc-400">
+        <Card flush>
+          <Table columns={['Title', 'Company', 'Location', 'Fit', 'Salary', 'Status', 'Fetched']}>
+            {jobs.map((j) => (
+              <Tr>
+                <Td class="min-w-[16rem]">
+                  <a href={`/jobs/${j.id}`} class="font-medium text-ink hover:text-accent">
+                    {j.title}
+                  </a>
+                  {j.techMatch.length > 0 && (
+                    <div class="mt-0.5 truncate font-mono text-xs text-ink-faint">
+                      {j.techMatch.join(', ')}
+                    </div>
+                  )}
+                </Td>
+                <Td class="text-ink-muted">{j.company.name}</Td>
+                <Td class="text-ink-muted">
+                  <div class="max-w-[12rem] truncate" title={j.location}>
                     {j.location || 'Remote'}
-                  </td>
-                  <td class="px-4 py-2.5">
-                    <FitBadge score={j.fitScore} />
-                  </td>
-                  <td class="px-4 py-2.5 text-zinc-300 tabular-nums">
-                    {formatSalary(j.salaryMin, j.salaryMax)}
-                  </td>
-                  <td class="px-4 py-2.5">
-                    <StatusBadge status={j.status} />
-                  </td>
-                  <td
-                    class="px-4 py-2.5 text-xs text-zinc-500"
-                    title={formatDateShort(j.fetchedAt)}
-                  >
-                    {formatRelative(j.fetchedAt)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                  </div>
+                </Td>
+                <Td>
+                  <FitBadge score={j.fitScore} />
+                </Td>
+                <Td class="whitespace-nowrap font-mono tabular-nums text-ink-muted">
+                  {formatSalary(j.salaryMin, j.salaryMax)}
+                </Td>
+                <Td>
+                  <StatusBadge status={j.status} />
+                </Td>
+                <Td class="whitespace-nowrap text-xs text-ink-faint" title={formatDateShort(j.fetchedAt)}>
+                  {formatRelative(j.fetchedAt)}
+                </Td>
+              </Tr>
+            ))}
+          </Table>
         </Card>
       )}
 
-      <div class="mt-5 flex items-center justify-between text-sm">
-        <a
-          href={buildHref({ page: Math.max(1, page - 1) })}
-          class={`rounded-md border border-zinc-800 px-3 py-1.5 ${
-            page <= 1
-              ? 'pointer-events-none text-zinc-600'
-              : 'text-zinc-200 hover:bg-zinc-900'
-          }`}
-          aria-disabled={page <= 1}
-        >
+      <nav aria-label="Pagination" class="mt-5 flex items-center justify-between text-sm">
+        <PageLink href={pageHref(page - 1)} disabled={page <= 1}>
           ← Prev
-        </a>
-        <span class="text-zinc-500">
-          Page {page} of {totalPages}
+        </PageLink>
+        <span class="font-mono text-xs text-ink-faint tabular-nums">
+          {page} / {totalPages}
         </span>
-        <a
-          href={buildHref({ page: Math.min(totalPages, page + 1) })}
-          class={`rounded-md border border-zinc-800 px-3 py-1.5 ${
-            page >= totalPages
-              ? 'pointer-events-none text-zinc-600'
-              : 'text-zinc-200 hover:bg-zinc-900'
-          }`}
-          aria-disabled={page >= totalPages}
-        >
+        <PageLink href={pageHref(page + 1)} disabled={page >= totalPages}>
           Next →
-        </a>
-      </div>
+        </PageLink>
+      </nav>
     </Layout>
   );
 };
+
+const PageLink: FC<{ href: string; disabled: boolean; children: string }> = ({
+  href,
+  disabled,
+  children,
+}) =>
+  disabled ? (
+    <span class="rounded-md border border-line px-3 py-1.5 text-ink-faint" aria-disabled="true">
+      {children}
+    </span>
+  ) : (
+    <a
+      href={href}
+      class="rounded-md border border-line-strong px-3 py-1.5 text-ink transition-colors duration-150 hover:bg-surface-overlay"
+    >
+      {children}
+    </a>
+  );
 
 function buildQuery(params: Record<string, string | number>): string {
   const usp = new URLSearchParams();
