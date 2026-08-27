@@ -61,9 +61,10 @@ as API-key only).
 - [x] Unit test for the CLI-output parser (pure).
 
 ### 1.3 Cheaper API path (no grey zone — do this regardless)
-- [ ] Batch API mode for `AnthropicApiProvider`: collect all jobs of a tick,
-  submit one batch, poll until `ended`, persist. −50 % on tokens. The tick is
-  hourly, so minutes of latency are fine.
+- [ ] Batch API mode for `AnthropicApiProvider` (−50 % on tokens). Deferred:
+  `process-jobs.ts` classifies one job at a time inside the persist loop, so
+  batching needs a collect → submit → poll → persist restructure. Do it as its
+  own phase once the provider seam has settled.
 - [ ] Default `classifierMode` to `two_stage` in seed (−30–40 %).
 - [ ] Tighten `passesBaseFilter` so fewer jobs reach Claude at all.
 
@@ -83,7 +84,8 @@ reviewed:
 
 ### 2.1 Install skills (project-scoped, committed)
 - [x] ui-ux-pro-max copied from portfolio-ui (§4.1). Python 3 confirmed on PATH.
-- [ ] `npx impeccable install` → then `/impeccable init` and review the
+- [ ] `npx impeccable install` → then `/impeccable init` (not yet run — install
+  in a dedicated session; it writes PRODUCT.md / DESIGN.md interactively) and review the
   generated `PRODUCT.md` / `DESIGN.md` (audience: one developer hunting jobs;
   dense data tables; dark-mode friendly; no marketing tone).
 - [ ] `npx skills add coreyhaines31/marketingskills` (or the plugin route).
@@ -91,26 +93,27 @@ reviewed:
   caches / `design-system/*.tmp` to `.gitignore` if the tools create them.
 
 ### 2.2 Design system
-- [ ] Run ui-ux-pro-max for "internal analytics dashboard / job tracker,
-  HTML + plain CSS, server-rendered". Persist to `design-system/`.
-- [ ] Extract tokens (colors, spacing, type scale) into one CSS block in
-  `src/web/layout.tsx` (`:root` vars + `prefers-color-scheme: dark`).
-- [ ] `src/web/ui.tsx`: refactor shared primitives (Card, Badge, Table,
-  Button, Form field) to use tokens only — no ad-hoc hex values in pages.
+- [x] ui-ux-pro-max recommendation (dark OLED, Fira Sans / Fira Code, status
+  colours) — applied directly; no `design-system/` folder needed.
+- [x] Tokens as CSS vars in `src/web/layout.tsx`, exposed to Tailwind via
+  inline `tailwind.config` (dark-only by design).
+- [x] `src/web/ui.tsx`: PageHeader, Flash, Card, Table/Tr/Td, Field/Input/
+  Select/Textarea/Checkbox/Radio, Button, ActionForm, ToggleRow, Badge,
+  FitBadge (number + 4-step meter). Pages contain no palette classes.
 
 ### 2.3 Page-by-page pass (one commit per page)
-- [ ] `overview.tsx` — stat tiles + recent jobs
-- [ ] `jobs-list.tsx` — table density, filters, fit-score badge scale
-- [ ] `job-detail.tsx` — application tracking card, red flags
-- [ ] `applications.tsx`, `companies.tsx`, `discovery.tsx`, `runs.tsx`,
+- [x] `overview.tsx` — stat tiles + recent jobs
+- [x] `jobs-list.tsx` — table density, filters, fit-score badge scale
+- [x] `job-detail.tsx` — application tracking card, red flags
+- [x] `applications.tsx`, `companies.tsx`, `discovery.tsx`, `runs.tsx`,
   `settings.tsx`
 - [ ] After each page: `/impeccable audit` → fix → `/impeccable polish`.
-- [ ] Microcopy pass with `copywriting`: empty states, button labels, settings
+- [~] Microcopy pass (done inline: settings hints, empty states) — `copywriting`: empty states, button labels, settings
   help text, Telegram alert wording in `notifier.ts` (keep MarkdownV2 escape).
 
 ### 2.4 Verify
-- [ ] `npm run lint:types && npm test`; smoke `npm run dev:web` and screenshot
-  every page (light + dark) via the playwright plugin before/after.
+- [x] `lint:types` + `npm test` green; web container rebuilt; all 7 pages 200;
+  screenshots at 1200px + 375px, no console errors (CSP now allows Google Fonts).
 
 ---
 
