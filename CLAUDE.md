@@ -93,6 +93,7 @@ When the question is **"how does the user toggle / configure X?"**:
 
 | What | Page |
 | --- | --- |
+| Pause / resume all new-job fetching | `/settings` → "Job fetching" card (top) |
 | Add / remove tracked company | `/companies` (with manual probe before save) |
 | Disable whole ATS family (e.g. all Workable) | `/settings` → "Job sources" card |
 | Enable two-stage classifier (cheaper, less precise) | `/settings` → "Classifier mode" |
@@ -210,3 +211,4 @@ Always:
 | Migrate after a schema change | `DATABASE_URL=… npx prisma migrate dev --name <name>` |
 | Re-classify everything against the active profile | UI: `/settings` → "Re-classify all jobs" |
 | Pause all alerts temporarily | UI: `/settings` → "Telegram alerts" → Disable |
+| Pause new-job fetching entirely (no docker) | UI: `/settings` → "Job fetching" → Pause |

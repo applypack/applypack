@@ -10,6 +10,12 @@ export async function runFetchJob(): Promise<{ stats: CronStats }> {
   const started = Date.now();
   logger.info('fetch-job: start');
 
+  const settings = await getSettings();
+  if (!settings.fetchingEnabled) {
+    logger.info('fetch-job: skipped (fetching paused in settings)');
+    return { stats: { skipped: 1, reason: 'fetching-paused' } };
+  }
+
   const profile = await getActiveProfile();
   if (!profile) {
     logger.warn(
@@ -17,7 +23,6 @@ export async function runFetchJob(): Promise<{ stats: CronStats }> {
     );
     return { stats: { aborted: 1, reason: 'no-active-profile' } };
   }
-  const settings = await getSettings();
   const { classifierMode } = settings;
   logger.info(
     { profile: profile.name, minFitScore: profile.minFitScore, classifierMode },
