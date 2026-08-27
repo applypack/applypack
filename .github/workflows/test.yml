@@ -17,12 +17,12 @@ jobs:
       DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
       ANTHROPIC_API_KEY: sk-ci-dummy
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
-          node-version: 20
+          node-version: 24
           cache: npm
 
       - name: Install dependencies

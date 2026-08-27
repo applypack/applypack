@@ -6,7 +6,7 @@
 
 ## Two-process layout
 
-The whole system is two Node 20 processes plus a Postgres container,
+The whole system is two Node 24 processes plus a Postgres container,
 all in the same `docker-compose.yml`:
 
 ```mermaid

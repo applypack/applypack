@@ -4,7 +4,7 @@
 > [ARCHITECTURE.md](./ARCHITECTURE.md) (data flow + file map).
 
 ## Stack
-- TypeScript strict mode, Node 20
+- TypeScript strict mode, Node 24 (runtime image; engines allow >=22)
 - Prisma + Postgres 16 (already in docker-compose)
 - Native fetch (no axios). Use AbortController for timeouts (10s default via `fetchWithRetry`).
 - pino for logs (never console.log in production code)
@@ -55,7 +55,7 @@
 
 ## Docker
 - Multi-stage Dockerfile: `deps → build → runtime`.
-- Runtime image: `node:20-alpine`.
+- Runtime image: `node:24-alpine`.
 - `init.ts` runs `prisma migrate deploy` if `prisma/migrations/` exists,
   else falls back to `prisma db push`. Real migrations exist from
   `phase-3.0` onward.
