@@ -36,7 +36,7 @@ Two implementations, selected by `AI_PROVIDER` in `.env`:
 | `AI_PROVIDER` | Implementation | Billing |
 | --- | --- | --- |
 | `anthropic_api` (default) | SDK `messages.create`, cached system prompt, one 429 retry | per token |
-| `claude_code` | `execFile(claude, ['--print', '--output-format', 'json', '--model', …, '--system-prompt', …, '--tools', '', '--no-session-persistence', user])`, 90 s timeout, one retry on rate limit | subscription |
+| `claude_code` | `execFile(claude, ['--print', '--output-format', 'json', '--model', …, '--system-prompt', …, '--tools', '', '--no-session-persistence', user])`, 180 s timeout, one retry on rate limit | subscription |
 
 `classifier.ts` and `classifier-prefilter.ts` keep building prompts and
 validating JSON with zod; they no longer import the SDK. `ANTHROPIC_API_KEY`
