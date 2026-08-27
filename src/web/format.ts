@@ -54,27 +54,27 @@ export function formatDuration(ms: number | null | undefined): string {
   return `${m.toFixed(1)}m`;
 }
 
-export function statusColor(status: JobStatus): string {
+export type Tone = 'ok' | 'warn' | 'danger' | 'info' | 'violet' | 'neutral';
+
+export function statusTone(status: JobStatus): Tone {
   switch (status) {
     case 'NEW':
-      return 'bg-sky-500/15 text-sky-300 ring-sky-500/30';
+      return 'info';
     case 'ALERTED':
-      return 'bg-amber-500/15 text-amber-300 ring-amber-500/30';
+      return 'warn';
     case 'APPLIED':
-      return 'bg-emerald-500/15 text-emerald-300 ring-emerald-500/30';
+      return 'ok';
     case 'SAVED':
-      return 'bg-violet-500/15 text-violet-300 ring-violet-500/30';
-    case 'DISMISSED':
-      return 'bg-zinc-500/10 text-zinc-400 ring-zinc-500/20';
+      return 'violet';
     default:
-      return 'bg-zinc-500/10 text-zinc-400 ring-zinc-500/20';
+      return 'neutral';
   }
 }
 
-export function fitColor(score: number | null | undefined): string {
-  if (score == null) return 'text-zinc-400';
-  if (score >= 85) return 'text-emerald-400';
-  if (score >= 70) return 'text-sky-400';
-  if (score >= 50) return 'text-amber-400';
-  return 'text-zinc-500';
+export function fitTone(score: number | null | undefined): Tone {
+  if (score == null) return 'neutral';
+  if (score >= 85) return 'ok';
+  if (score >= 70) return 'info';
+  if (score >= 50) return 'warn';
+  return 'neutral';
 }
