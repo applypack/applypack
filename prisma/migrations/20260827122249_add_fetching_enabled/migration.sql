@@ -1,2 +1,2 @@
 -- AlterTable
-ALTER TABLE "AppSettings" ADD COLUMN     "fetchingEnabled" BOOLEAN NOT NULL DEFAULT true;
+ALTER TABLE "AppSettings" ADD COLUMN     "fetchingEnabled" BOOLEAN NOT NULL DEFAULT false;

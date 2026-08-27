@@ -138,8 +138,10 @@ model AppSettings {
   // fetch tick and the monthly HN pull exit early ("fetching-paused" in
   // /runs). Digest, stale nudge, cleanup, discovery probe, and the
   // dashboard keep running — this is the "stop the pipeline without
-  // touching docker" switch.
-  fetchingEnabled                Boolean  @default(true)
+  // touching docker" switch. Default FALSE by user choice: deployments
+  // (and the existing row, backfilled by the migration) start paused;
+  // enable from /settings → "Job fetching" when ready.
+  fetchingEnabled                Boolean  @default(false)
   updatedAt                      DateTime @updatedAt
 }
 

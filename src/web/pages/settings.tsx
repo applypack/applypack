@@ -103,10 +103,11 @@ export const SettingsPage: FC<SettingsProps> = ({
           </div>
           <p class="mt-1 text-xs text-zinc-500">
             Master switch for new-job ingestion — the hourly fetch tick and
-            the monthly HN pull. Pause it to stop new jobs and alerts
-            without touching Docker; the dashboard, digest, cleanup, and
-            discovery probe keep working. Takes effect on the next cron
-            tick (within the hour).
+            the monthly HN pull. Off by default: nothing is fetched until
+            you press Resume. Pausing stops new jobs and alerts without
+            touching Docker; the dashboard, digest, cleanup, and discovery
+            probe keep working. Takes effect on the next cron tick (within
+            the hour).
           </p>
         </div>
         <form method="post" action="/settings/fetching-toggle">
