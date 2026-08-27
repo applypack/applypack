@@ -21,7 +21,7 @@ flowchart LR
   user((user)) -->|browser| web
   app -->|fetch| ats[("ATS APIs<br/>greenhouse, lever, ashby,<br/>workable, smartrecruiters,<br/>WWR, RemoteOK, …")]
   app -->|sendMessage| tg([Telegram Bot API])
-  app -->|messages.create| anthropic([Anthropic API])
+  app -->|ai-provider| anthropic([Anthropic API<br/>or claude -p])
   web -.->|reclassify, probe| anthropic
   web -.->|target test| tg
 ```
@@ -162,8 +162,10 @@ src/
   text-utils.ts                ← pure helpers: parseTagList, extractJson, extractAtsToken,
                                  daysSince, hashShortId, maskToken, decideStageStrategy
   filter.ts                    ← passesBaseFilter (pure, profile-aware)
-  classifier.ts                ← classifyJob wrapper + classifyWithClaude (full Haiku 4.5)
-  classifier-prefilter.ts      ← preClassify (short Haiku 4.5 prompt)
+  ai-provider.ts               ← AiProvider seam: AnthropicApiProvider | ClaudeCodeProvider
+  ai-provider-parse.ts         ← pure parser for `claude -p` JSON output (tested)
+  classifier.ts                ← classifyJob wrapper + classifyWithClaude (full prompt)
+  classifier-prefilter.ts      ← preClassify (short prompt)
   notifier.ts                  ← Telegram MarkdownV2 send, multi-target broadcast
   ats-probe.ts                 ← liveness probe for manual /companies add
   profiles.ts                  ← Profile CRUD + getActiveProfile + setActiveProfile

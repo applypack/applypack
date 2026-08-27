@@ -2,12 +2,31 @@
 import type { FC } from 'hono/jsx';
 import type { Profile } from '@prisma/client';
 import { Layout } from '../layout';
-import { Card, Empty, SectionTitle, Tag } from '../ui';
-import { formatRelative } from '../format';
 import {
-  formatPriorityRulesText,
-  parsePriorityRules,
-} from '../../priority-rules';
+  ActionForm,
+  Badge,
+  Button,
+  Card,
+  Checkbox,
+  Code,
+  Empty,
+  Field,
+  Flash,
+  Hint,
+  Input,
+  PageHeader,
+  Radio,
+  SectionTitle,
+  Select,
+  Table,
+  Tag,
+  Td,
+  Textarea,
+  ToggleRow,
+  Tr,
+} from '../ui';
+import { formatRelative } from '../format';
+import { formatPriorityRulesText, parsePriorityRules } from '../../priority-rules';
 
 interface MaskedTarget {
   id: number;
@@ -69,106 +88,54 @@ export const SettingsPage: FC<SettingsProps> = ({
   flash,
 }) => (
   <Layout title="Settings" active="settings">
-    <div class="mb-6">
-      <h1 class="text-2xl font-semibold tracking-tight">Settings</h1>
-      <p class="mt-1 text-sm text-zinc-500">
-        Profiles, alerts, and Telegram targets — all live in the database, so
-        you can edit them from this page without touching .env.
+    <PageHeader title="Settings">
+      <p class="mt-1 text-sm text-ink-faint">
+        Everything here lives in Postgres — no .env edits, no restarts. Toggles take
+        effect on the next cron tick.
       </p>
-    </div>
-
-    {flash && (
-      <div
-        class={`mb-4 rounded-md px-4 py-2 text-sm ring-1 ring-inset ${
-          flash.kind === 'ok'
-            ? 'bg-emerald-500/10 text-emerald-300 ring-emerald-500/30'
-            : 'bg-rose-500/10 text-rose-300 ring-rose-500/30'
-        }`}
-      >
-        {flash.text}
-      </div>
-    )}
+    </PageHeader>
+    <Flash flash={flash} />
 
     <Card class="mb-6">
       <SectionTitle>Job fetching</SectionTitle>
-      <div class="flex items-center justify-between gap-4">
-        <div>
-          <div class="text-sm text-zinc-300">
-            Status:{' '}
-            {fetchingEnabled ? (
-              <Tag tone="green">Running</Tag>
-            ) : (
-              <Tag tone="red">Paused</Tag>
-            )}
-          </div>
-          <p class="mt-1 text-xs text-zinc-500">
-            Master switch for new-job ingestion — the hourly fetch tick and
-            the monthly HN pull. Off by default: nothing is fetched until
-            you press Resume. Pausing stops new jobs and alerts without
-            touching Docker; the dashboard, digest, cleanup, and discovery
-            probe keep working. Takes effect on the next cron tick (within
-            the hour).
-          </p>
-        </div>
-        <form method="post" action="/settings/fetching-toggle">
-          <button
-            type="submit"
-            class={`rounded-md px-4 py-2 text-sm font-medium text-white ${
-              fetchingEnabled
-                ? 'bg-amber-600 hover:bg-amber-500'
-                : 'bg-emerald-600 hover:bg-emerald-500'
-            }`}
-          >
-            {fetchingEnabled ? 'Pause' : 'Resume'}
-          </button>
-        </form>
-      </div>
+      <ToggleRow
+        label="Pipeline"
+        enabled={fetchingEnabled}
+        action="/settings/fetching-toggle"
+        onLabel="Running"
+        offLabel="Paused"
+        enableText="Resume"
+        disableText="Pause"
+      >
+        Master switch for new-job ingestion (hourly fetch + monthly HN pull). Off by
+        default. Pausing stops new jobs and alerts without touching Docker; the
+        dashboard, digest, cleanup and discovery probe keep running.
+      </ToggleRow>
     </Card>
 
     <Card class="mb-6">
       <SectionTitle>Active profile</SectionTitle>
-      <div class="mb-4 flex flex-wrap items-center gap-3">
+      <div class="mb-5 flex flex-wrap items-center gap-2">
         <form method="post" action="/settings/profiles/activate" class="flex items-center gap-2">
-          <select
-            name="id"
-            class="rounded-md border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-sm text-zinc-100"
-          >
+          <Select name="id" class="!w-auto">
             {profiles.map((p) => (
               <option value={p.id} selected={p.active}>
                 {p.name}
-                {p.active ? '  (active)' : ''}
+                {p.active ? ' (active)' : ''}
               </option>
             ))}
-          </select>
-          <button
-            type="submit"
-            class="rounded-md bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-500"
-          >
-            Activate
-          </button>
+          </Select>
+          <Button>Activate</Button>
         </form>
-
-        <form method="post" action="/settings/profiles/new">
-          <button
-            type="submit"
-            class="rounded-md border border-zinc-700 px-3 py-1.5 text-sm text-zinc-200 hover:bg-zinc-800"
-          >
-            + New profile
-          </button>
-        </form>
-
-        <form
-          method="post"
+        <ActionForm action="/settings/profiles/new">
+          <Button variant="secondary">+ New profile</Button>
+        </ActionForm>
+        <ActionForm
           action="/settings/reclassify"
-          onsubmit="return confirm('Re-classify all jobs (except APPLIED) against the active profile? This may take 2-5 minutes and consumes Anthropic API credit.');"
+          confirm="Re-classify all jobs (except APPLIED) against the active profile? Takes 2-5 minutes and spends AI credit."
         >
-          <button
-            type="submit"
-            class="rounded-md border border-violet-700 bg-violet-950/40 px-3 py-1.5 text-sm text-violet-200 hover:bg-violet-900/50"
-          >
-            Re-classify all jobs
-          </button>
-        </form>
+          <Button variant="violet">Re-classify all jobs</Button>
+        </ActionForm>
       </div>
       {activeProfile ? (
         <ProfileEditor profile={activeProfile} availableTargets={availableTargets} />
@@ -178,425 +145,226 @@ export const SettingsPage: FC<SettingsProps> = ({
     </Card>
 
     {profiles.length > 1 && (
-      <Card class="mb-6">
-        <SectionTitle>Other profiles</SectionTitle>
-        <table class="w-full text-sm">
-          <thead>
-            <tr class="border-b border-zinc-800 text-left text-xs uppercase tracking-wider text-zinc-500">
-              <th class="py-2 pr-4 font-medium">Name</th>
-              <th class="py-2 pr-4 font-medium">Stack</th>
-              <th class="py-2 pr-2 font-medium text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-zinc-900">
-            {profiles
-              .filter((p) => !p.active)
-              .map((p) => (
-                <tr>
-                  <td class="py-2.5 pr-4 font-medium text-zinc-100">{p.name}</td>
-                  <td class="py-2.5 pr-4 text-xs text-zinc-400">{p.stackPreview}</td>
-                  <td class="py-2.5 pr-2">
-                    <div class="flex justify-end gap-2">
-                      <form method="post" action="/settings/profiles/activate">
-                        <input type="hidden" name="id" value={p.id} />
-                        <button
-                          type="submit"
-                          class="rounded-md border border-zinc-700 px-2.5 py-1 text-xs text-zinc-200 hover:bg-zinc-800"
-                        >
-                          Activate
-                        </button>
-                      </form>
-                      <form
-                        method="post"
-                        action={`/settings/profiles/${p.id}/delete`}
-                        onsubmit="return confirm('Delete this profile?');"
-                      >
-                        <button
-                          type="submit"
-                          class="rounded-md border border-rose-900 bg-rose-950/50 px-2.5 py-1 text-xs text-rose-300 hover:bg-rose-900/50"
-                        >
-                          Delete
-                        </button>
-                      </form>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-          </tbody>
-        </table>
+      <Card class="mb-6" flush>
+        <div class="px-5 pt-5">
+          <SectionTitle>Other profiles</SectionTitle>
+        </div>
+        <Table columns={['Name', 'Stack', <span class="block text-right">Actions</span>]}>
+          {profiles
+            .filter((p) => !p.active)
+            .map((p) => (
+              <Tr>
+                <Td class="font-medium text-ink">{p.name}</Td>
+                <Td class="font-mono text-xs text-ink-muted">{p.stackPreview}</Td>
+                <Td>
+                  <div class="flex justify-end gap-2">
+                    <ActionForm action="/settings/profiles/activate" hidden={{ id: p.id }}>
+                      <Button size="sm" variant="secondary">
+                        Activate
+                      </Button>
+                    </ActionForm>
+                    <ActionForm
+                      action={`/settings/profiles/${p.id}/delete`}
+                      confirm="Delete this profile?"
+                    >
+                      <Button size="sm" variant="danger">
+                        Delete
+                      </Button>
+                    </ActionForm>
+                  </div>
+                </Td>
+              </Tr>
+            ))}
+        </Table>
       </Card>
     )}
 
     <Card class="mb-6">
       <SectionTitle>Classifier mode</SectionTitle>
       <form method="post" action="/settings/classifier-mode" class="space-y-2">
-        <label class="flex items-start gap-3 text-sm text-zinc-200">
-          <input
-            type="radio"
-            name="mode"
-            value="single"
-            checked={classifierMode === 'single'}
-            class="mt-1"
-          />
-          <span>
-            <span class="font-medium">Single stage</span>
-            <span class="block text-xs text-zinc-500">
-              Every job goes straight to Claude Haiku 4.5. Highest precision, full cost.
-            </span>
-          </span>
-        </label>
-        <label class="flex items-start gap-3 text-sm text-zinc-200">
-          <input
-            type="radio"
-            name="mode"
-            value="two_stage"
-            checked={classifierMode === 'two_stage'}
-            class="mt-1"
-          />
-          <span>
-            <span class="font-medium">Two stage (cheaper)</span>
-            <span class="block text-xs text-zinc-500">
-              Quick yes/no prefilter (short prompt, ~100-token output) gates the full
-              classifier. When most fetched jobs are off-target, total Anthropic spend
-              drops ~30-40% with marginal precision loss.
-            </span>
-          </span>
-        </label>
+        <Radio name="mode" value="single" checked={classifierMode === 'single'} title="Single stage">
+          Every job goes straight to the full classifier. Highest precision, full cost.
+        </Radio>
+        <Radio
+          name="mode"
+          value="two_stage"
+          checked={classifierMode === 'two_stage'}
+          title="Two stage (cheaper)"
+        >
+          A short yes/no prefilter gates the full classifier. When most fetched jobs are
+          off-target, spend drops ~30-40% with marginal precision loss.
+        </Radio>
         <div class="pt-2">
-          <button
-            type="submit"
-            class="rounded-md bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-500"
-          >
-            Save mode
-          </button>
+          <Button>Save mode</Button>
         </div>
       </form>
     </Card>
 
     <Card class="mb-6">
       <SectionTitle>Job sources</SectionTitle>
-      <p class="mb-3 text-xs text-zinc-500">
-        Disable a whole source family with one click — useful when an
-        aggregator is producing too much noise, or when you only want to
-        hear about jobs from specific ATSes for a while. Per-company
-        toggles still work too (see /companies).
-      </p>
-      <form method="post" action="/settings/sources" class="space-y-2">
+      <Hint class="mb-3 max-w-prose">
+        Disable a whole source family with one click — handy when an aggregator gets
+        noisy. Per-company toggles on the Companies page still apply.
+      </Hint>
+      <form method="post" action="/settings/sources" class="space-y-3">
         <div class="grid gap-x-6 gap-y-1 sm:grid-cols-2 lg:grid-cols-3">
           {allSources.map((s) => (
-            <label class="inline-flex items-center gap-2 text-sm text-zinc-200">
-              <input
-                type="checkbox"
-                name="enabled"
-                value={s}
-                checked={!disabledSources.includes(s)}
-                class="h-4 w-4 rounded border-zinc-700 bg-zinc-900"
-              />
+            <Checkbox name="enabled" value={s} checked={!disabledSources.includes(s)}>
               <span class="font-mono text-xs">{s}</span>
-            </label>
+            </Checkbox>
           ))}
         </div>
-        <button
-          type="submit"
-          class="rounded-md bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-500"
-        >
-          Save sources
-        </button>
+        <Button>Save sources</Button>
       </form>
     </Card>
 
     <Card class="mb-6">
       <SectionTitle>Auto-discovery</SectionTitle>
-      <div class="flex items-center justify-between gap-4">
-        <div>
-          <div class="text-sm text-zinc-300">
-            Status:{' '}
-            {discoveryEnabled ? (
-              <Tag tone="green">Enabled</Tag>
-            ) : (
-              <Tag tone="zinc">Disabled</Tag>
-            )}
-          </div>
-          <p class="mt-1 text-xs text-zinc-500">
-            When the HN parser sees a Greenhouse / Lever / Ashby URL in a
-            comment, record the company as a candidate on /discovery for
-            review. A weekly cron re-probes pending candidates so the
-            jobsSeen count stays fresh.
-          </p>
-        </div>
-        <form method="post" action="/settings/discovery-toggle">
-          <button
-            type="submit"
-            class={`rounded-md px-4 py-2 text-sm font-medium text-white ${
-              discoveryEnabled
-                ? 'bg-zinc-700 hover:bg-zinc-600'
-                : 'bg-emerald-600 hover:bg-emerald-500'
-            }`}
-          >
-            {discoveryEnabled ? 'Disable' : 'Enable'}
-          </button>
-        </form>
-      </div>
+      <ToggleRow label="Status" enabled={discoveryEnabled} action="/settings/discovery-toggle">
+        When the HN parser sees a Greenhouse / Lever / Ashby URL in a comment, the
+        company is recorded as a candidate on the Discovery page. A weekly cron
+        re-probes pending candidates so the job count stays fresh.
+      </ToggleRow>
     </Card>
 
     <Card class="mb-6">
-      <SectionTitle>HN "Who is Hiring" parser</SectionTitle>
-      <div class="flex items-center justify-between gap-4">
-        <div>
-          <div class="text-sm text-zinc-300">
-            Status:{' '}
-            {hnParserEnabled ? (
-              <Tag tone="green">Enabled</Tag>
-            ) : (
-              <Tag tone="zinc">Disabled</Tag>
-            )}
-          </div>
-          <p class="mt-1 text-xs text-zinc-500">
-            Monthly cron parses the latest "Ask HN: Who is hiring?" thread
-            (~300-500 comments) and runs the structured ones through the
-            same filter + classify + alert pipeline. Many small startups
-            post here that don't show up on ATS feeds.
-          </p>
-        </div>
-        <div class="flex flex-col gap-2">
-          <form method="post" action="/settings/hn-parser-toggle">
-            <button
-              type="submit"
-              class={`rounded-md px-4 py-2 text-sm font-medium text-white ${
-                hnParserEnabled
-                  ? 'bg-zinc-700 hover:bg-zinc-600'
-                  : 'bg-emerald-600 hover:bg-emerald-500'
-              }`}
-            >
-              {hnParserEnabled ? 'Disable' : 'Enable'}
-            </button>
-          </form>
-          <form
-            method="post"
+      <SectionTitle>HN "Who is hiring" parser</SectionTitle>
+      <ToggleRow
+        label="Status"
+        enabled={hnParserEnabled}
+        action="/settings/hn-parser-toggle"
+        extra={
+          <ActionForm
             action="/settings/hn-run"
-            onsubmit="return confirm('Pull the latest HN Who-is-hiring thread now? This may take 1-2 minutes and consumes Anthropic credit.');"
+            confirm="Pull the latest HN Who-is-hiring thread now? Takes 1-2 minutes and spends AI credit."
           >
-            <button
-              type="submit"
-              disabled={!hnParserEnabled}
-              class="rounded-md border border-violet-700 bg-violet-950/40 px-3 py-1.5 text-xs text-violet-200 hover:bg-violet-900/50 disabled:opacity-40 disabled:hover:bg-violet-950/40"
-            >
+            <Button size="sm" variant="violet" disabled={!hnParserEnabled}>
               Run now
-            </button>
-          </form>
-        </div>
-      </div>
+            </Button>
+          </ActionForm>
+        }
+      >
+        Monthly cron parses the latest "Ask HN: Who is hiring?" thread (300-500
+        comments) and runs the structured ones through the same filter → classify →
+        alert pipeline. Many small startups only post there.
+      </ToggleRow>
     </Card>
 
     <Card class="mb-6">
       <SectionTitle>Application tracking</SectionTitle>
-      <div class="space-y-3">
-        <div class="flex items-center justify-between gap-4">
-          <div>
-            <div class="text-sm text-zinc-300">
-              Status:{' '}
-              {applicationTrackingEnabled ? (
-                <Tag tone="green">Enabled</Tag>
-              ) : (
-                <Tag tone="zinc">Disabled</Tag>
-              )}
-            </div>
-            <p class="mt-1 text-xs text-zinc-500">
-              Surfaces a per-job tracking card on /jobs/:id and the Applications kanban.
-              Stored fields persist whether enabled or not.
-            </p>
-          </div>
-          <form method="post" action="/settings/application-tracking-toggle">
-            <button
-              type="submit"
-              class={`rounded-md px-4 py-2 text-sm font-medium text-white ${
-                applicationTrackingEnabled
-                  ? 'bg-zinc-700 hover:bg-zinc-600'
-                  : 'bg-emerald-600 hover:bg-emerald-500'
-              }`}
-            >
-              {applicationTrackingEnabled ? 'Disable' : 'Enable'}
-            </button>
-          </form>
-        </div>
-        <div class="flex items-center justify-between gap-4 border-t border-zinc-800 pt-3">
-          <div>
-            <div class="text-sm text-zinc-300">
-              Stale-applications digest:{' '}
-              {staleApplicationsDigestEnabled ? (
-                <Tag tone="green">Enabled</Tag>
-              ) : (
-                <Tag tone="zinc">Disabled</Tag>
-              )}
-            </div>
-            <p class="mt-1 text-xs text-zinc-500">
-              Daily Telegram nudge for jobs in pipelineStage=applied with no recruiter
-              contact for 14+ days. Honours Telegram's master switch above.
-            </p>
-          </div>
-          <form method="post" action="/settings/stale-digest-toggle">
-            <button
-              type="submit"
-              class={`rounded-md px-4 py-2 text-sm font-medium text-white ${
-                staleApplicationsDigestEnabled
-                  ? 'bg-zinc-700 hover:bg-zinc-600'
-                  : 'bg-emerald-600 hover:bg-emerald-500'
-              }`}
-            >
-              {staleApplicationsDigestEnabled ? 'Disable' : 'Enable'}
-            </button>
-          </form>
+      <div class="space-y-4">
+        <ToggleRow
+          label="Tracking"
+          enabled={applicationTrackingEnabled}
+          action="/settings/application-tracking-toggle"
+        >
+          Shows the tracking card on each job and the Applications funnel. Stored
+          fields persist either way.
+        </ToggleRow>
+        <div class="border-t border-line pt-4">
+          <ToggleRow
+            label="Stale digest"
+            enabled={staleApplicationsDigestEnabled}
+            action="/settings/stale-digest-toggle"
+          >
+            Daily Telegram nudge for jobs stuck in "applied" with no recruiter contact
+            for 14+ days. Honours the Telegram master switch.
+          </ToggleRow>
         </div>
       </div>
     </Card>
 
     <Card class="mb-6">
       <SectionTitle>Telegram alerts</SectionTitle>
-      <div class="flex items-center justify-between gap-4">
-        <div>
-          <div class="text-sm text-zinc-300">
-            Status:{' '}
-            {telegramEnabled ? (
-              <Tag tone="green">Enabled</Tag>
-            ) : (
-              <Tag tone="zinc">Disabled</Tag>
-            )}
-          </div>
-          <p class="mt-1 text-xs text-zinc-500">
-            When disabled, no Telegram messages are sent regardless of
-            configured targets. Cron jobs still classify and store as usual.
-          </p>
-        </div>
-        <form method="post" action="/settings/telegram-toggle">
-          <button
-            type="submit"
-            class={`rounded-md px-4 py-2 text-sm font-medium text-white ${
-              telegramEnabled
-                ? 'bg-zinc-700 hover:bg-zinc-600'
-                : 'bg-emerald-600 hover:bg-emerald-500'
-            }`}
-          >
-            {telegramEnabled ? 'Disable' : 'Enable'}
-          </button>
-        </form>
-      </div>
+      <ToggleRow label="Status" enabled={telegramEnabled} action="/settings/telegram-toggle">
+        When off, nothing is sent regardless of targets. Jobs are still classified and
+        stored.
+      </ToggleRow>
     </Card>
 
-    <Card class="mb-6">
-      <SectionTitle>Targets</SectionTitle>
+    <Card class="mb-6" flush>
+      <div class="px-5 pt-5">
+        <SectionTitle>Targets</SectionTitle>
+      </div>
       {targets.length === 0 ? (
-        <Empty>No targets configured. Add one below to start receiving alerts.</Empty>
+        <div class="px-5 pb-5">
+          <Empty>No targets yet. Add one below to start receiving alerts.</Empty>
+        </div>
       ) : (
-        <table class="w-full text-sm">
-          <thead>
-            <tr class="border-b border-zinc-800 text-left text-xs uppercase tracking-wider text-zinc-500">
-              <th class="py-2 pr-4 font-medium">Name</th>
-              <th class="py-2 pr-4 font-medium">Bot token</th>
-              <th class="py-2 pr-4 font-medium">Chat id</th>
-              <th class="py-2 pr-4 font-medium">Last used</th>
-              <th class="py-2 pr-4 font-medium">Active</th>
-              <th class="py-2 pr-2 font-medium text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-zinc-900">
-            {targets.map((t) => (
-              <tr class="align-middle">
-                <td class="py-2.5 pr-4 font-medium text-zinc-100">{t.name}</td>
-                <td class="py-2.5 pr-4 font-mono text-xs text-zinc-400">{t.maskedToken}</td>
-                <td class="py-2.5 pr-4 font-mono text-xs text-zinc-400">{t.chatId}</td>
-                <td class="py-2.5 pr-4 text-xs text-zinc-500">{formatRelative(t.lastUsed)}</td>
-                <td class="py-2.5 pr-4">
-                  <form method="post" action={`/settings/targets/${t.id}/toggle`}>
-                    <button
-                      type="submit"
-                      class={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${
-                        t.active
-                          ? 'bg-emerald-500/15 text-emerald-300 ring-emerald-500/30 hover:bg-emerald-500/25'
-                          : 'bg-zinc-700/30 text-zinc-400 ring-zinc-700/50 hover:bg-zinc-700/50'
-                      }`}
-                    >
+        <Table
+          columns={[
+            'Name',
+            'Bot token',
+            'Chat id',
+            'Last used',
+            'Active',
+            <span class="block text-right">Actions</span>,
+          ]}
+        >
+          {targets.map((t) => (
+            <Tr>
+              <Td class="font-medium text-ink">{t.name}</Td>
+              <Td class="font-mono text-xs text-ink-muted">{t.maskedToken}</Td>
+              <Td class="font-mono text-xs text-ink-muted">{t.chatId}</Td>
+              <Td class="whitespace-nowrap text-xs text-ink-faint">{formatRelative(t.lastUsed)}</Td>
+              <Td>
+                <ActionForm action={`/settings/targets/${t.id}/toggle`}>
+                  <button type="submit" class="cursor-pointer rounded-full" title="Toggle">
+                    <Badge tone={t.active ? 'ok' : 'neutral'}>
                       {t.active ? 'Active' : 'Disabled'}
-                    </button>
-                  </form>
-                </td>
-                <td class="py-2.5 pr-2">
-                  <div class="flex justify-end gap-2">
-                    <form method="post" action={`/settings/targets/${t.id}/test`}>
-                      <button
-                        type="submit"
-                        class="rounded-md border border-zinc-700 px-2.5 py-1 text-xs text-zinc-200 hover:bg-zinc-800"
-                      >
-                        Test
-                      </button>
-                    </form>
-                    <form
-                      method="post"
-                      action={`/settings/targets/${t.id}/delete`}
-                      onsubmit="return confirm('Delete this target?');"
-                    >
-                      <button
-                        type="submit"
-                        class="rounded-md border border-rose-900 bg-rose-950/50 px-2.5 py-1 text-xs text-rose-300 hover:bg-rose-900/50"
-                      >
-                        Delete
-                      </button>
-                    </form>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                    </Badge>
+                  </button>
+                </ActionForm>
+              </Td>
+              <Td>
+                <div class="flex justify-end gap-2">
+                  <ActionForm action={`/settings/targets/${t.id}/test`}>
+                    <Button size="sm" variant="secondary">
+                      Test
+                    </Button>
+                  </ActionForm>
+                  <ActionForm
+                    action={`/settings/targets/${t.id}/delete`}
+                    confirm="Delete this target?"
+                  >
+                    <Button size="sm" variant="danger">
+                      Delete
+                    </Button>
+                  </ActionForm>
+                </div>
+              </Td>
+            </Tr>
+          ))}
+        </Table>
       )}
     </Card>
 
     <Card>
       <SectionTitle>Add target</SectionTitle>
       <form method="post" action="/settings/targets" class="grid gap-3 sm:grid-cols-12">
-        <div class="sm:col-span-3">
-          <label class="block text-xs uppercase tracking-wider text-zinc-500">Name</label>
-          <input
-            type="text"
-            name="name"
-            required
-            placeholder="My phone"
-            class="mt-1 w-full rounded-md border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-sm text-zinc-100 placeholder-zinc-600 focus:border-emerald-500 focus:outline-none"
-          />
-        </div>
-        <div class="sm:col-span-5">
-          <label class="block text-xs uppercase tracking-wider text-zinc-500">Bot token</label>
-          <input
+        <Field label="Name" class="sm:col-span-3">
+          <Input type="text" name="name" required placeholder="My phone" />
+        </Field>
+        <Field label="Bot token" class="sm:col-span-5">
+          <Input
             type="password"
             name="botToken"
             required
             autocomplete="off"
-            placeholder="123456789:ABC..."
-            class="mt-1 w-full rounded-md border border-zinc-800 bg-zinc-900 px-3 py-1.5 font-mono text-xs text-zinc-100 placeholder-zinc-600 focus:border-emerald-500 focus:outline-none"
+            placeholder="123456789:ABC…"
+            mono
           />
-        </div>
-        <div class="sm:col-span-3">
-          <label class="block text-xs uppercase tracking-wider text-zinc-500">Chat id</label>
-          <input
-            type="text"
-            name="chatId"
-            required
-            placeholder="-100..."
-            class="mt-1 w-full rounded-md border border-zinc-800 bg-zinc-900 px-3 py-1.5 font-mono text-xs text-zinc-100 placeholder-zinc-600 focus:border-emerald-500 focus:outline-none"
-          />
-        </div>
+        </Field>
+        <Field label="Chat id" class="sm:col-span-3">
+          <Input type="text" name="chatId" required placeholder="-100…" mono />
+        </Field>
         <div class="flex items-end sm:col-span-1">
-          <button
-            type="submit"
-            class="w-full rounded-md bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-500"
-          >
-            Add
-          </button>
+          <Button class="w-full">Add</Button>
         </div>
       </form>
-      <p class="mt-3 text-xs text-zinc-500">
-        Adding a target validates the bot token (getMe + sendMessage). On
-        failure the target is not saved.
-      </p>
+      <Hint class="mt-3">
+        The bot token is validated (getMe + sendMessage) before saving.
+      </Hint>
     </Card>
   </Layout>
 );
@@ -605,167 +373,96 @@ const ProfileEditor: FC<{
   profile: Profile;
   availableTargets: AvailableTarget[];
 }> = ({ profile, availableTargets }) => (
-  <form method="post" action={`/settings/profiles/${profile.id}/save`} class="space-y-4">
-    <div>
-      <label class="block text-xs uppercase tracking-wider text-zinc-500">Name</label>
-      <input
-        type="text"
-        name="name"
-        required
-        value={profile.name}
-        class="mt-1 w-full max-w-md rounded-md border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-sm text-zinc-100 focus:border-emerald-500 focus:outline-none"
-      />
-    </div>
+  <form method="post" action={`/settings/profiles/${profile.id}/save`} class="space-y-5">
+    <Field label="Name" class="max-w-md">
+      <Input type="text" name="name" required value={profile.name} />
+    </Field>
 
     <TagListInput
       label="Tech stack — required (real technologies)"
-      hint="Programming languages / frameworks the role must ACTUALLY use. e.g. php, laravel, javascript, typescript, react, go. NOT role types."
+      hint="Languages / frameworks the role must actually use: php, laravel, typescript, react, go. Not role types."
       name="stackRequired"
       values={profile.stackRequired}
     />
     <TagListInput
       label="Role types (job category hints)"
-      hint='Title shapes you accept: "full-stack", "backend", "frontend", "platform", "infrastructure". Used to admit jobs to Claude — but Claude is told a role-type alone is NOT a tech match.'
+      hint='Title shapes you accept: "full-stack", "backend", "platform". Admits jobs to the classifier, but a role type alone is never a tech match.'
       name="roleTypes"
       values={profile.roleTypes}
     />
     <TagListInput
-      label="Stack — nice to have (boosts fit_score)"
-      hint="Tags Claude rewards if they show up in the description."
+      label="Stack — nice to have (boosts fit score)"
+      hint="Tags the classifier rewards when they show up in the description."
       name="stackNiceToHave"
       values={profile.stackNiceToHave}
     />
     <TagListInput
       label="Stack — exclude (auto-reject in title)"
-      hint="If the title contains any of these, the role is dropped before Claude is even called."
+      hint="If the title contains any of these, the job is dropped before the classifier runs."
       name="stackExclude"
       values={profile.stackExclude}
     />
 
-    <div>
-      <label class="block text-xs uppercase tracking-wider text-zinc-500">
-        Notes for Claude (free-form context)
-      </label>
-      <p class="mt-1 text-xs text-zinc-500">
-        Anything that helps Claude judge fit — e.g. "AI-adjacent roles preferred",
-        "open to first-time-manager positions", "prefer EU-friendly time zones".
-      </p>
-      <textarea
-        name="notes"
-        rows={3}
-        class="mt-1 w-full rounded-md border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-sm text-zinc-100 focus:border-emerald-500 focus:outline-none"
-      >{profile.notes ?? ''}</textarea>
-    </div>
+    <Field
+      label="Notes for the classifier"
+      hint='Free-form context: "AI-adjacent roles preferred", "open to first-time-manager positions", "EU-friendly time zones".'
+    >
+      <Textarea name="notes" rows={3}>
+        {profile.notes ?? ''}
+      </Textarea>
+    </Field>
 
-    <div>
-      <label class="block text-xs uppercase tracking-wider text-zinc-500">Seniority</label>
+    <fieldset>
+      <legend class="text-xs uppercase tracking-wider text-ink-faint">Seniority</legend>
       <div class="mt-1 flex flex-wrap gap-x-4 gap-y-1">
         {SENIORITY_OPTIONS.map((s) => (
-          <label class="inline-flex items-center gap-2 text-sm text-zinc-300">
-            <input
-              type="checkbox"
-              name="seniority"
-              value={s}
-              checked={profile.seniority.includes(s)}
-              class="h-4 w-4 rounded border-zinc-700 bg-zinc-900"
-            />
+          <Checkbox name="seniority" value={s} checked={profile.seniority.includes(s)}>
             {s}
-          </label>
+          </Checkbox>
         ))}
       </div>
-    </div>
+    </fieldset>
 
-    <div>
-      <label class="block text-xs uppercase tracking-wider text-zinc-500">Location</label>
-      <div class="mt-2 space-y-2">
-        <label class="inline-flex items-center gap-2 text-sm text-zinc-300">
-          <input
-            type="checkbox"
-            name="remoteOk"
-            value="1"
-            checked={profile.remoteOk}
-            class="h-4 w-4 rounded border-zinc-700 bg-zinc-900"
-          />
+    <fieldset class="space-y-3">
+      <legend class="text-xs uppercase tracking-wider text-ink-faint">Location</legend>
+      <div class="flex flex-wrap gap-x-6 gap-y-1">
+        <Checkbox name="remoteOk" value="1" checked={profile.remoteOk}>
           Accept remote roles
-        </label>
-
-        <div>
-          <span class="text-xs text-zinc-500">Acceptable remote regions:</span>
-          <div class="mt-1 flex flex-wrap gap-x-4 gap-y-1">
-            {REGION_OPTIONS.map((r) => (
-              <label class="inline-flex items-center gap-2 text-sm text-zinc-300">
-                <input
-                  type="checkbox"
-                  name="remoteRegions"
-                  value={r}
-                  checked={profile.remoteRegions.includes(r)}
-                  class="h-4 w-4 rounded border-zinc-700 bg-zinc-900"
-                />
-                {r}
-              </label>
-            ))}
-          </div>
-        </div>
-
-        <label class="inline-flex items-center gap-2 text-sm text-zinc-300">
-          <input
-            type="checkbox"
-            name="hybridOk"
-            value="1"
-            checked={profile.hybridOk}
-            class="h-4 w-4 rounded border-zinc-700 bg-zinc-900"
-          />
+        </Checkbox>
+        <Checkbox name="hybridOk" value="1" checked={profile.hybridOk}>
           Hybrid OK
-        </label>
-
-        <TagListInput
-          label="On-site cities (OK to commute)"
-          hint='One per line. Free-form, e.g. "Austin, TX" or "Berlin".'
-          name="onsiteCities"
-          values={profile.onsiteCities}
-          rows={2}
-        />
+        </Checkbox>
       </div>
-    </div>
+      <div>
+        <Hint>Acceptable remote regions</Hint>
+        <div class="mt-1 flex flex-wrap gap-x-4 gap-y-1">
+          {REGION_OPTIONS.map((r) => (
+            <Checkbox name="remoteRegions" value={r} checked={profile.remoteRegions.includes(r)}>
+              {r}
+            </Checkbox>
+          ))}
+        </div>
+      </div>
+      <TagListInput
+        label="On-site cities (OK to commute)"
+        hint='One per line: "Austin, TX", "Berlin".'
+        name="onsiteCities"
+        values={profile.onsiteCities}
+        rows={2}
+      />
+    </fieldset>
 
     <PriorityRulesEditor profile={profile} />
 
     <div class="grid gap-4 sm:grid-cols-3">
-      <div>
-        <label class="block text-xs uppercase tracking-wider text-zinc-500">
-          Min salary (USD/year)
-        </label>
-        <input
-          type="number"
-          name="minSalaryUsd"
-          min="0"
-          step="1000"
-          value={profile.minSalaryUsd}
-          class="mt-1 w-full rounded-md border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-sm text-zinc-100 focus:border-emerald-500 focus:outline-none"
-        />
-        <p class="mt-1 text-xs text-zinc-500">0 = no salary filter.</p>
-      </div>
-      <div>
-        <label class="block text-xs uppercase tracking-wider text-zinc-500">
-          Min fit score (0-100)
-        </label>
-        <input
-          type="number"
-          name="minFitScore"
-          min="0"
-          max="100"
-          value={profile.minFitScore}
-          class="mt-1 w-full rounded-md border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-sm text-zinc-100 focus:border-emerald-500 focus:outline-none"
-        />
-      </div>
-      <div>
-        <label class="block text-xs uppercase tracking-wider text-zinc-500">
-          Telegram target
-        </label>
-        <select
-          name="telegramTargetId"
-          class="mt-1 w-full rounded-md border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-sm text-zinc-100 focus:border-emerald-500 focus:outline-none"
-        >
+      <Field label="Min salary (USD/year)" hint="0 = no salary filter.">
+        <Input type="number" name="minSalaryUsd" min="0" step="1000" value={profile.minSalaryUsd} />
+      </Field>
+      <Field label="Min fit score (0-100)">
+        <Input type="number" name="minFitScore" min="0" max="100" value={profile.minFitScore} />
+      </Field>
+      <Field label="Telegram target">
+        <Select name="telegramTargetId">
           <option value="" selected={profile.telegramTargetId === null}>
             (broadcast to all active)
           </option>
@@ -775,25 +472,15 @@ const ProfileEditor: FC<{
               {t.active ? '' : ' (inactive)'}
             </option>
           ))}
-        </select>
-      </div>
+        </Select>
+      </Field>
     </div>
 
-    <div class="flex flex-wrap gap-2 pt-2">
-      <button
-        type="submit"
-        class="rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-500"
-      >
-        Save
-      </button>
-      <button
-        type="submit"
-        name="action"
-        value="save-and-reclassify"
-        class="rounded-md border border-violet-700 bg-violet-950/40 px-4 py-2 text-sm text-violet-200 hover:bg-violet-900/50"
-      >
+    <div class="flex flex-wrap gap-2 border-t border-line pt-4">
+      <Button size="lg">Save</Button>
+      <Button size="lg" variant="violet" name="action" value="save-and-reclassify">
         Save &amp; re-classify
-      </button>
+      </Button>
     </div>
   </form>
 );
@@ -805,15 +492,11 @@ const TagListInput: FC<{
   values: string[];
   rows?: number;
 }> = ({ label, hint, name, values, rows = 3 }) => (
-  <div>
-    <label class="block text-xs uppercase tracking-wider text-zinc-500">{label}</label>
-    <p class="mt-1 text-xs text-zinc-500">{hint}</p>
-    <textarea
-      name={name}
-      rows={rows}
-      class="mt-1 w-full rounded-md border border-zinc-800 bg-zinc-900 px-3 py-1.5 font-mono text-xs text-zinc-100 focus:border-emerald-500 focus:outline-none"
-    >{values.join('\n')}</textarea>
-  </div>
+  <Field label={label} hint={hint}>
+    <Textarea name={name} rows={rows} mono>
+      {values.join('\n')}
+    </Textarea>
+  </Field>
 );
 
 const PriorityRulesEditor: FC<{ profile: Profile }> = ({ profile }) => {
@@ -821,43 +504,32 @@ const PriorityRulesEditor: FC<{ profile: Profile }> = ({ profile }) => {
   const text = formatPriorityRulesText(rules);
   return (
     <div>
-      <label class="block text-xs uppercase tracking-wider text-zinc-500">
+      <label class="block text-xs uppercase tracking-wider text-ink-faint" for="priorityRules">
         Priority rules (post-classifier overrides)
       </label>
-      <p class="mt-1 text-xs text-zinc-500">
-        One rule per line. Format:{' '}
-        <code class="rounded bg-zinc-900 px-1 py-0.5 text-zinc-300">
-          LABEL | techs,csv | regions,csv | MIN_FIT
-        </code>
-        . If a job's title or description contains any tech AND its location
-        matches any region phrase, the fit score is clamped up to MIN_FIT
-        and the location check is forced to pass. Leave regions empty to
-        match any location. Lines starting with{' '}
-        <code class="rounded bg-zinc-900 px-1 py-0.5 text-zinc-300">#</code>{' '}
-        are ignored. Errors stop the save with the bad line called out.
-      </p>
-      <p class="mt-1 text-xs text-amber-400/80">
-        ⚠ Region matching: each entry is a <em>phrase</em> — every word
-        must appear in the location (any order). So{' '}
-        <code class="rounded bg-zinc-900 px-1 py-0.5">Remote US</code>{' '}
-        matches "Remote US" / "Dallas (Remote US)" / "REMOTE (US)" but{' '}
-        NOT "Remote · Germany". Avoid bare{' '}
-        <code class="rounded bg-zinc-900 px-1 py-0.5">Remote</code> alone
-        — it would also match Canada/Spain/Poland-remote postings. Use
-        specific phrases:{' '}
-        <code class="rounded bg-zinc-900 px-1 py-0.5">
-          Remote US,United States,USA,Worldwide
-        </code>
-        .
-      </p>
-      <textarea
+      <Hint class="mt-1 max-w-prose">
+        One rule per line: <Code>LABEL | techs,csv | regions,csv | MIN_FIT</Code>. If the
+        title or description contains any tech and the location matches any region
+        phrase, fit is clamped up to MIN_FIT and the location check passes. Empty
+        regions match anywhere. <Code>#</Code> starts a comment. A bad line stops the
+        save.
+      </Hint>
+      <Hint class="mt-1 max-w-prose text-warn/90">
+        Region entries are phrases — every word must appear in the location.{' '}
+        <Code>Remote US</Code> matches "Dallas (Remote US)" but not "Remote · Germany".
+        Avoid a bare <Code>Remote</Code>; prefer{' '}
+        <Code>Remote US,United States,USA,Worldwide</Code>.
+      </Hint>
+      <Textarea
+        id="priorityRules"
         name="priorityRules"
         rows={Math.max(3, rules.length + 1)}
         placeholder="PHP remote-US | php | Remote US,United States,USA,Worldwide | 90"
-        class="mt-1 w-full rounded-md border border-zinc-800 bg-zinc-900 px-3 py-1.5 font-mono text-xs text-zinc-100 focus:border-emerald-500 focus:outline-none"
+        class="mt-1"
+        mono
       >
         {text}
-      </textarea>
+      </Textarea>
       {rules.length > 0 && (
         <div class="mt-2 flex flex-wrap gap-1.5">
           {rules.map((r) => (
