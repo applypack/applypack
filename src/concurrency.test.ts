@@ -37,10 +37,13 @@ test('createLimiter starts tasks in call order and keeps results in order', asyn
   assert.deepEqual(results, [0, 10, 20, 30, 40]);
 });
 
-test('createLimiter frees the slot when a task rejects', async () => {
+test('createLimiter frees the slot when a task rejects or throws', async () => {
   const limit = createLimiter(1);
   await assert.rejects(limit(async () => { throw new Error('boom'); }), /boom/);
-  assert.equal(await limit(async () => 'ok'), 'ok');
+  const queued = limit(async () => 'ok');
+  await assert.rejects(limit(() => { throw new Error('sync'); }), /sync/);
+  assert.equal(await queued, 'ok');
+  assert.equal(await limit(async () => 'still ok'), 'still ok');
 });
 
 test('createLimiter rejects a non-positive max', () => {

@@ -20,7 +20,8 @@ export function createLimiter(max: number): Limiter {
     new Promise<T>((resolve, reject) => {
       const run = (): void => {
         active++;
-        fn().then(resolve, reject).finally(next);
+        // `new Promise` turns a synchronous throw in fn into a rejection.
+        new Promise<T>((r) => r(fn())).then(resolve, reject).finally(next);
       };
       if (active < max) run();
       else queue.push(run);
