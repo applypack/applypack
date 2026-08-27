@@ -70,14 +70,14 @@ export const JobDetailPage: FC<JobDetailProps> = ({
     </a>
     <Flash flash={flash} />
 
-    <div class="mb-6 flex flex-wrap items-start justify-between gap-4">
-      <div class="min-w-0 flex-1">
+    <div class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+      <div class="min-w-0 sm:flex-1">
         <h1 class="text-2xl font-semibold tracking-tight">{job.title}</h1>
         <div class="mt-1 text-sm text-ink-muted">
           {job.company.name} · {job.location || 'Remote'}
         </div>
       </div>
-      <div class="flex items-center gap-3">
+      <div class="flex shrink-0 flex-wrap items-center gap-3">
         <FitBadge score={job.fitScore} />
         <StatusBadge status={job.status} />
         <Button href={job.url} target="_blank" rel="noopener">
