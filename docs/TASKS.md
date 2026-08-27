@@ -176,8 +176,8 @@ Global plugins already on: `frontend-design`, `playwright`,
 - [x] `.claude/settings.json` with `includeCoAuthoredBy: false`
 - [x] Copy `commit-discipline`, `commit-guard.sh` + hook, `code-review-expert`,
   `stop-slop`, `design-system`, `ui-ux-pro-max` into `.claude/`.
-- [ ] Adapt `testing-gate`, `ui-review`, `accessible-interactions`,
-  `adr-writer` (one commit each, short).
-- [ ] Write ADR 0006 "AI provider abstraction" with the adapted template.
+- [x] Adapted `testing-gate`, `ui-review`, `accessible-interactions`,
+  `adr-writer` for this repo (`.claude/skills/`).
+- [x] ADR 0007 "AI provider seam" (docs/adr/0007-ai-provider-seam.md).
 - [ ] Product: verifier checklist → `Job.verification` column + UI action;
   repost / liveness / follow-up cadence as separate backlog items.
