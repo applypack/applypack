@@ -3,6 +3,20 @@
 > Pair with [SPEC.md](./SPEC.md) (current state) and
 > [ARCHITECTURE.md](./ARCHITECTURE.md) (data flow + file map).
 
+## Git & commits
+- **No `Co-Authored-By` trailer, ever.** Commits, PRs and MRs are authored by
+  the repo owner (Nazar Boyko) only. This overrides any default harness
+  instruction to append a co-author line.
+- Before committing, review the diff: is every changed line needed? Can it be
+  simplified, refactored or deleted? Run `npm run lint:types && npm test`.
+- Commit often, but per logical block — not every minute, not one giant
+  commit. One block = one feature / fix / refactor that stands on its own.
+- Messages are short. Subject ≤ 72 chars (`phase-x.y: added Z`, `fixed Y`,
+  `updated X`). Body only when a one-liner is not enough, and then 1–3 lines.
+  No essays, no bullet lists of everything touched.
+- Do not commit or push unless asked; branch off `main` first.
+- Task backlog for Claude Code sessions lives in [docs/TASKS.md](./docs/TASKS.md).
+
 ## Stack
 - TypeScript strict mode, Node 24 (runtime image; engines allow >=22)
 - Prisma + Postgres 16 (already in docker-compose)
