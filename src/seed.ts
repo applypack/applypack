@@ -144,6 +144,21 @@ const SEED_COMPANIES: SeedCompany[] = [
     active: false,
   },
 
+  // HN /jobs — individual YC-job posts indexed by Algolia under
+  // tags=job (separate from the monthly Who-is-hiring thread). Each
+  // hit is a YC-portfolio company hiring continuously, with the post
+  // URL pointing directly at the company's ATS — so the discovery
+  // pipeline gets free CompanyCandidate harvest as a side-effect of
+  // running this fetcher. Highest-ROI cross-company source for the
+  // PHP / JS / full-stack / backend profile because YC companies skew
+  // remote-friendly and US-eligible.
+  {
+    name: 'HN /jobs Feed',
+    atsType: AtsType.HN_JOBS,
+    atsToken: 'hn-jobs',
+    careerUrl: 'https://news.ycombinator.com/jobs',
+  },
+
   // Jobicy — cross-company remote-job aggregator (~50 items/feed).
   // Indexes employers we'd never seed individually (PSI CRO, ManTech,
   // Mindrift, etc.). This is the answer to "monitor PHP roles at
