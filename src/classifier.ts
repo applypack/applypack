@@ -1,21 +1,15 @@
-import Anthropic from '@anthropic-ai/sdk';
 import { z } from 'zod';
 import type { Profile } from '@prisma/client';
-import { config } from './config';
 import { logger } from './logger';
-import { sleep } from './http';
 import { extractJson } from './text-utils';
+import { getAiProvider } from './ai-provider';
 import { preClassify } from './classifier-prefilter';
 import type { ClassifyInput, ClaudeClassification } from './types';
 
 export type ClassifierMode = 'single' | 'two_stage';
 
-const MODEL = 'claude-haiku-4-5-20251001';
 const MAX_TOKENS = 600;
 const MAX_DESC_CHARS = 4000;
-const RATE_LIMIT_RETRY_DELAY_MS = 2_000;
-
-const client = new Anthropic({ apiKey: config.ANTHROPIC_API_KEY });
 
 const ClassificationSchema = z.object({
   fit_score: z.number().int().min(0).max(100),
@@ -38,7 +32,7 @@ export interface ClassifyOutcome {
  * Classify a job according to the requested classifier mode.
  *
  * - 'single': go straight to the full Haiku 4.5 classifier (current behaviour).
- * - 'two_stage': cheap Haiku 3.5 prefilter first; only proceed to Haiku 4.5
+ * - 'two_stage': short prefilter prompt first; only proceed to the full classifier
  *   when the prefilter says the role is plausibly relevant. On a prefilter
  *   error, fail-open (run stage 2) so transient API failures don't drop
  *   real candidates.
@@ -89,65 +83,29 @@ export async function classifyWithClaude(
     'Return raw JSON only.',
   ].join('\n');
 
+  const provider = getAiProvider();
+  // One retry on a malformed reply: Haiku occasionally wraps or truncates JSON.
   for (let attempt = 0; attempt < 2; attempt++) {
-    try {
-      const resp = await client.messages.create({
-        model: MODEL,
-        max_tokens: MAX_TOKENS,
-        system: [
-          {
-            type: 'text',
-            text: systemPrompt,
-            cache_control: { type: 'ephemeral' },
-          },
-        ],
-        messages: [{ role: 'user', content: userText }],
-      });
+    const text = await provider.complete({
+      system: systemPrompt,
+      user: userText,
+      maxTokens: MAX_TOKENS,
+      label: 'classifier',
+    });
+    if (text === null) return null;
 
-      const text = resp.content
-        .filter((b): b is Anthropic.TextBlock => b.type === 'text')
-        .map((b) => b.text)
-        .join('');
-
-      const json = extractJson(text);
-      if (json !== null) {
-        const parsed = ClassificationSchema.safeParse(json);
-        if (parsed.success) {
-          return parsed.data;
-        }
-        logger.warn(
-          {
-            raw: text.slice(0, 500),
-            errors: parsed.error.flatten().fieldErrors,
-            title: input.title,
-          },
-          'classifier: response did not match schema',
-        );
-      } else {
-        logger.warn(
-          { raw: text.slice(0, 500), title: input.title },
-          'classifier: no JSON found in response',
-        );
-      }
-
-      if (attempt === 0) {
-        continue;
-      }
-      return null;
-    } catch (err) {
-      const status =
-        err instanceof Anthropic.APIError ? err.status : undefined;
-      if (status === 429 && attempt === 0) {
-        logger.warn({ title: input.title }, 'classifier: rate-limited, retrying');
-        await sleep(RATE_LIMIT_RETRY_DELAY_MS);
-        continue;
-      }
-      logger.error(
-        { err, status, title: input.title },
-        'classifier: request failed',
-      );
-      return null;
-    }
+    const json = extractJson(text);
+    const parsed = json === null ? null : ClassificationSchema.safeParse(json);
+    if (parsed?.success) return parsed.data;
+    logger.warn(
+      {
+        raw: text.slice(0, 500),
+        errors: parsed && !parsed.success ? parsed.error.flatten().fieldErrors : undefined,
+        title: input.title,
+        attempt,
+      },
+      'classifier: response did not match schema',
+    );
   }
   return null;
 }

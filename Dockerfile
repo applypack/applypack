@@ -16,7 +16,8 @@ RUN npx prisma generate && npx tsc
 FROM node:24-alpine AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
-RUN apk add --no-cache tini
+RUN apk add --no-cache tini \
+ && npm install -g @anthropic-ai/claude-code
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/prisma ./prisma

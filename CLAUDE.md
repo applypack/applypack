@@ -34,7 +34,8 @@
 ## File rules
 - Each fetcher returns `NormalizedJob[]` — never writes to DB directly.
 - `filter.ts` is pure — no I/O.
-- `classifier.ts` (and `classifier-prefilter.ts`) only call Claude — no DB.
+- `classifier.ts` (and `classifier-prefilter.ts`) build prompts and parse
+  replies; the only thing that talks to Claude is `ai-provider.ts` — no DB.
 - `jobs/process-jobs.ts` is the single source of truth for the inner
   filter → dedupe → classify → persist → alert sequence. Reused by
   `runFetchJob` and `runHnHiringJob`.
@@ -94,6 +95,7 @@ When the question is **"where does X live?"**, save yourself a `find`:
 | Where to register a new ATS | `src/fetchers/index.ts:fetchOne` switch + `prisma/schema.prisma:AtsType` enum |
 | Where to add a new toggle | `prisma/schema.prisma:AppSettings` (column) → `src/settings.ts` (getter/setter) → `src/web/pages/settings.tsx` (UI) → `src/web/routes/settings.tsx` (POST) |
 | The Claude system prompt | `src/classifier.ts:buildSystemPrompt` |
+| Which backend runs Claude (API key vs subscription CLI) | `src/ai-provider.ts:getAiProvider`, `AI_PROVIDER` in `.env` |
 | The two-stage prefilter prompt | `src/classifier-prefilter.ts:buildPrefilterPrompt` |
 | Per-job filter rules (pre-Claude) | `src/filter.ts:passesBaseFilter` |
 | Telegram MarkdownV2 escape | `src/notifier.ts:escapeMarkdownV2` |
