@@ -42,6 +42,21 @@ export async function classifyJob(
   profile: Profile,
   mode: ClassifierMode,
 ): Promise<ClassifyOutcome> {
+  try {
+    return await runStages(input, profile, mode);
+  } catch (err) {
+    // Callers queue several classifications and await them in order, so a
+    // rejection here would become an unhandled rejection in the meantime.
+    logger.error({ err, title: input.title }, 'classifier: unexpected failure');
+    return { result: null, preFiltered: false };
+  }
+}
+
+async function runStages(
+  input: ClassifyInput,
+  profile: Profile,
+  mode: ClassifierMode,
+): Promise<ClassifyOutcome> {
   if (mode === 'two_stage') {
     const pre = await preClassify(input, profile);
     if (pre && pre.relevant === false) {

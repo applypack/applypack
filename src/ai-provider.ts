@@ -47,7 +47,7 @@ const MAX_ATTEMPTS = 2;
 const MAX_PAUSE_TURN_RESUMES = 5;
 const WEB_SEARCH_MAX_USES = 10;
 const WEB_FETCH_MAX_USES = 6;
-const CLAUDE_CODE_TIMEOUT_MS = 90_000;
+const CLAUDE_CODE_TIMEOUT_MS = 180_000;
 const CLAUDE_CODE_MAX_BUFFER = 1024 * 1024;
 
 const execFileAsync = promisify(execFile);
