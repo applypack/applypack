@@ -15,14 +15,17 @@ const PRIORITY_WEIGHT = { 1: 3, 2: 2, 3: 1, 4: 1 };
 const NOT_BEFORE = '(?<![\\w+#.])';
 const NOT_AFTER = '(?![\\w+#])(?!\\.\\w)';
 
-/** Lowercase, straight quotes, single spaces — the comparison form of any text. */
+/**
+ * Lowercase, straight quotes, tabs/NBSP as spaces. Every replacement is one
+ * character for one, so an index into the normalised text is the same index
+ * in the original — spans found here are applied to the original verbatim.
+ */
 export function normalise(s) {
   return s
     .toLowerCase()
     .replace(/[\u2018\u2019]/g, "'")
     .replace(/[\u201c\u201d]/g, '"')
-    .replace(/\u00a0/g, ' ')
-    .replace(/[ \t]+/g, ' ');
+    .replace(/[\u00a0\t]/g, ' ');
 }
 
 function escapeRegex(s) {
@@ -31,7 +34,8 @@ function escapeRegex(s) {
 
 /** Regex matching `term` as a whole token (no letters/digits/./+/# glued to it). */
 export function termPattern(term) {
-  const t = escapeRegex(normalise(term).trim());
+  // Runs of whitespace inside a term ("continuous  delivery") match any run in the text.
+  const t = escapeRegex(normalise(term).trim()).replace(/ +/g, '\\s+');
   if (t.length === 0) return null;
   // Terms that start/end with a symbol (".net", "c++") cannot use \b; use lookarounds on token chars.
   return new RegExp(`${NOT_BEFORE}${t}${NOT_AFTER}`, 'g');

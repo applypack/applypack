@@ -34,6 +34,17 @@ test('findTerm matches whole tokens, aliases and symbol-heavy tech names', async
   assert.equal(findTerm(RESUME, 'C').length, 0, 'C is not C++');
 });
 
+test('findTerm spans index the original text even with tabs, double spaces and curly quotes', async () => {
+  const { findTerm } = await matcher;
+  const text = 'Headquarters:  New York\t\tAre you a talented Senior Developer? We’re hiring “Go” devs.';
+  for (const term of ['Senior Developer', "we're", 'go']) {
+    const [span] = findTerm(text, term);
+    assert.ok(span, `no span for ${term}`);
+    assert.equal(text.slice(span.start, span.end).toLowerCase().replace(/[’“”]/g, (c) => (c === '’' ? "'" : '"')), term.toLowerCase());
+  }
+  assert.equal(findTerm('continuous   delivery pipeline', 'continuous delivery').length, 1);
+});
+
 test('scoreKeywords weights priorities and excludes cannot_claim by default', async () => {
   const { scoreKeywords } = await matcher;
   const keywords = [
