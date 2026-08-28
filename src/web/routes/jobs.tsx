@@ -11,8 +11,11 @@ import { listVerificationsForJob, verifyJob } from '../../verification/verify';
 import { JobsListPage } from '../pages/jobs-list';
 import { JobDetailPage } from '../pages/job-detail';
 import { JobNewPage } from '../pages/job-new';
+import { TargetPage } from '../pages/target';
+import { readResumeUpload, resumeUploadLimit } from '../upload';
+import { scanResume } from '../../resume/scan';
 import { clearFlashCookie, flashRedirect, parseFlashCookie } from '../flash';
-import { getResume, listMatchesForJob, listResumes } from '../../resume/store';
+import { getResume, listMatchesForJob, listResumes, replaceResumeFile } from '../../resume/store';
 import { pickResumeForJob } from '../../resume/pick';
 import { matchResumeToJob } from '../../resume/match';
 
@@ -295,6 +298,70 @@ jobsRoute.post('/jobs/:id/match', async (c) => {
   ]);
   if (!job || !resume) return c.text('Not found', 404);
 
+  // The targeted view posts its edited text; a non-empty draft is judged instead of the stored version.
+  const draftText = typeof form.draftText === 'string' ? form.draftText.replace(/\r\n/g, '\n').trim() : '';
+  const draft = draftText.length > 0 && draftText !== resume.text;
+  const toTarget = form.next === 'target';
+  const back = toTarget ? `/jobs/${id}/target` : `/jobs/${id}#resume-match`;
+
+  const row = await matchResumeToJob(
+    { id: resume.id, version: resume.version, text: draft ? draftText : resume.text },
+    { id: job.id, title: job.title, companyName: job.company.name, location: job.location, description: job.description },
+    { draft },
+  );
+  if (!row) return flashRedirect(back, 'err', 'Comparison failed — see the web logs.');
+  return flashRedirect(
+    toTarget ? `/jobs/${id}/target?match=${row.id}` : `/jobs/${id}?match=${row.id}#resume-match`,
+    'ok',
+    `${draft ? 'Draft' : `"${resume.name}"`} compared — AI match ${row.matchScore}/100.`,
+  );
+});
+
+jobsRoute.get('/jobs/:id/target', async (c) => {
+  const id = Number(c.req.param('id'));
+  if (!Number.isFinite(id)) return c.text('Bad id', 400);
+  const [job, matches] = await Promise.all([
+    prisma.job.findUnique({ where: { id }, include: { company: { select: { name: true } } } }),
+    listMatchesForJob(id),
+  ]);
+  if (!job) return c.text('Not found', 404);
+  const requested = Number(c.req.query('match'));
+  const match = matches.find((m) => m.id === requested) ?? matches[0];
+  if (!match) {
+    return flashRedirect(`/jobs/${id}#resume-match`, 'err', 'Run Compare once — the targeted view needs an AI match to work from.');
+  }
+  const resume = await getResume(match.resumeId);
+  if (!resume) return c.text('Not found', 404);
+  return c.html(
+    <TargetPage
+      job={{ id: job.id, title: job.title, companyName: job.company.name, location: job.location, description: job.description }}
+      resume={{ id: resume.id, name: resume.name, version: resume.version }}
+      match={match}
+      matches={matches}
+      resumeText={match.resumeText || resume.text}
+      flash={parseFlashCookie(c.req.header('cookie'))}
+    />,
+    200,
+    { 'Set-Cookie': clearFlashCookie() },
+  );
+});
+
+jobsRoute.post('/jobs/:id/target/reupload', async (c, next) => resumeUploadLimit(`/jobs/${c.req.param('id')}/target`)(c, next), async (c) => {
+  const id = Number(c.req.param('id'));
+  if (!Number.isFinite(id)) return c.text('Bad id', 400);
+  const form = await c.req.parseBody();
+  const resumeId = Number(form.resumeId);
+  if (!Number.isFinite(resumeId)) return c.text('Bad resume id', 400);
+  const [job, existing] = await Promise.all([
+    prisma.job.findUnique({ where: { id }, include: { company: { select: { name: true } } } }),
+    getResume(resumeId),
+  ]);
+  if (!job || !existing) return c.text('Not found', 404);
+  const upload = await readResumeUpload(form);
+  if ('error' in upload) return flashRedirect(`/jobs/${id}/target`, 'err', upload.error);
+
+  const resume = await replaceResumeFile(resumeId, upload);
+  await scanResume(resume);
   const row = await matchResumeToJob(resume, {
     id: job.id,
     title: job.title,
@@ -303,12 +370,8 @@ jobsRoute.post('/jobs/:id/match', async (c) => {
     description: job.description,
   });
   return row
-    ? flashRedirect(
-        `/jobs/${id}?match=${row.id}#resume-match`,
-        'ok',
-        `Compared against "${resume.name}" — match ${row.matchScore}/100.`,
-      )
-    : flashRedirect(`/jobs/${id}#resume-match`, 'err', 'Comparison failed — see the web logs.');
+    ? flashRedirect(`/jobs/${id}/target?match=${row.id}`, 'ok', `v${resume.version} uploaded and compared — AI match ${row.matchScore}/100.`)
+    : flashRedirect(`/jobs/${id}/target`, 'err', `v${resume.version} uploaded, but the comparison failed — see the web logs.`);
 });
 
 /** "Acme Corp." → "acme-corp" — the MANUAL company's atsToken. */

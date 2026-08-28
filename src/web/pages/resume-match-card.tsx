@@ -93,7 +93,7 @@ export const ResumeMatchCard: FC<ResumeMatchCardProps> = ({
                 >
                   <FitBadge score={m.matchScore} label="match" />
                   {m.resume.name}
-                  <span class="font-mono text-ink-faint">v{m.resumeVersion}</span>
+                  <span class="font-mono text-ink-faint">v{m.resumeVersion}{m.draft ? ' draft' : ''}</span>
                   <span class="text-ink-faint">{formatRelative(m.createdAt)}</span>
                 </a>
               </li>
@@ -112,10 +112,12 @@ function previousFor(selected: MatchWithResume, matches: MatchWithResume[]): Mat
   );
 }
 
-const MatchReport: FC<{ match: MatchWithResume; previous: MatchWithResume | null }> = ({
-  match,
-  previous,
-}) => {
+export const MatchReport: FC<{
+  match: MatchWithResume;
+  previous: MatchWithResume | null;
+  /** On the targeted view: items carry their quote so a click can select it in the editor. */
+  jumpable?: boolean;
+}> = ({ match, previous, jumpable = false }) => {
   const actions = readActions(match.actions);
   const removals = readRemovals(match.removals);
   const keywords = readKeywords(match.keywords);
@@ -136,7 +138,16 @@ const MatchReport: FC<{ match: MatchWithResume; previous: MatchWithResume | null
         </span>
         <span class="text-xs text-ink-faint">
           {formatRelative(match.createdAt)} · <span class="font-mono">{match.model}</span>
+          {match.draft ? ' · draft' : ''}
         </span>
+        {!jumpable && (
+          <a
+            href={`/jobs/${match.jobId}/target?match=${match.id}`}
+            class="ml-auto text-sm text-accent hover:underline"
+          >
+            Open targeted view →
+          </a>
+        )}
       </div>
       <p class="max-w-prose text-sm leading-6 text-ink">{match.summary}</p>
 
@@ -160,7 +171,11 @@ const MatchReport: FC<{ match: MatchWithResume; previous: MatchWithResume | null
                   {actions
                     .filter((a) => a.section === section)
                     .map((a) => (
-                      <li class="flex flex-col gap-1 p-3 sm:flex-row sm:gap-3">
+                      <li
+                        class={`flex flex-col gap-1 p-3 sm:flex-row sm:gap-3 ${jumpable && a.quote ? 'cursor-pointer hover:bg-surface-overlay/60' : ''}`}
+                        data-quote={jumpable && a.quote ? a.quote : undefined}
+                        title={jumpable && a.quote ? 'Click to select this text in the editor' : undefined}
+                      >
                         <div class="w-16 shrink-0">
                           <Badge tone={PRIORITY_TONE[a.priority]}>{a.priority}</Badge>
                         </div>
@@ -185,7 +200,11 @@ const MatchReport: FC<{ match: MatchWithResume; previous: MatchWithResume | null
           </div>
           <ul class="divide-y divide-line rounded-md border border-line">
             {removals.map((r) => (
-              <li class="flex flex-col gap-1 p-3 sm:flex-row sm:gap-3">
+              <li
+                class={`flex flex-col gap-1 p-3 sm:flex-row sm:gap-3 ${jumpable && r.quote ? 'cursor-pointer hover:bg-surface-overlay/60' : ''}`}
+                data-quote={jumpable && r.quote ? r.quote : undefined}
+                title={jumpable && r.quote ? 'Click to select this text in the editor' : undefined}
+              >
                 <div class="w-24 shrink-0">
                   <Badge tone="neutral">{r.section}</Badge>
                 </div>

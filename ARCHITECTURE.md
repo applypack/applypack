@@ -221,6 +221,8 @@ src/
     ui.tsx                      ← shared <Card>, <StatusBadge>, <FitBadge>, <Tag>, <Stat>
     format.ts                   ← formatSalary, formatRelative, statusColor, fitColor
     flash.ts                  ← POST → redirect → GET flash cookie
+    upload.ts                 ← multipart resume upload helper + 2 MB limit
+    public/target.mjs         ← browser keyword matcher (pure ES module, node-tested)
 
     pages/
       overview.tsx              ← /
@@ -236,6 +238,7 @@ src/
       resume-match-card.tsx     ← "Resume match" card on /jobs/:id
       verification-card.tsx     ← "Is this job real?" card on /jobs/:id
       job-new.tsx               ← /jobs/new (paste a posting)
+      target.tsx                ← /jobs/:id/target (side-by-side editor, live score)
 
     routes/
       overview.tsx
@@ -275,6 +278,9 @@ prisma/
 | `POST /jobs/:id/verify`          | web     | sync `verifyJob` with web tools (2-4 min) → `JobVerification` |
 | `POST /jobs/new`                 | web     | MANUAL company upsert + Job + `classifyExistingJob` |
 | `POST /resumes/:id/replace`      | web     | new file → `version`+1 → `scanResume`    |
+| `POST /jobs/:id/target/reupload` | web     | replace + scan + match in one request    |
+| `POST /resumes/:id/draft`        | web     | edited text → `.md` version → scan (+ match when `jobId`) |
+| `GET /static/*`                  | web     | `src/web/public` (keyword matcher)       |
 | `POST /discovery/:id/promote`    | web     | transactional Company upsert             |
 | `POST /discovery/probe-now`      | web     | spawns `runDiscoveryJob` async (lock)    |
 
@@ -395,6 +401,8 @@ erDiagram
     int jobId FK
     int resumeId FK
     int resumeVersion
+    text resumeText
+    bool draft
     string model
     int matchScore
     text summary

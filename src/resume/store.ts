@@ -115,10 +115,24 @@ export async function listMatchesForResume(resumeId: number): Promise<MatchWithJ
   });
 }
 
+/** A resume version made from edited text (the targeted view's "Save as vN") — a .md file, no docx. */
+export async function saveResumeTextVersion(id: number, text: string): Promise<ResumeSummary> {
+  const current = await prisma.resume.findUniqueOrThrow({ where: { id }, select: { name: true, version: true } });
+  const slug = current.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'resume';
+  return replaceResumeFile(id, {
+    sourceFilename: `${slug}-v${current.version + 1}.md`,
+    mimeType: 'text/markdown',
+    original: Buffer.from(text, 'utf8'),
+    text,
+  });
+}
+
 export async function createMatch(input: {
   jobId: number;
   resumeId: number;
   resumeVersion: number;
+  resumeText: string;
+  draft: boolean;
   model: string;
   result: ResumeMatchResult;
 }): Promise<ResumeMatch> {
@@ -128,6 +142,8 @@ export async function createMatch(input: {
       jobId: input.jobId,
       resumeId: input.resumeId,
       resumeVersion: input.resumeVersion,
+      resumeText: input.resumeText,
+      draft: input.draft,
       model: input.model,
       matchScore: r.match_score,
       summary: r.summary,

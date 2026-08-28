@@ -123,6 +123,7 @@ Bound to `127.0.0.1:4747`. Optional `WEB_BASIC_AUTH=user:password` in
 | Jobs         | `/jobs`          | Filterable + sortable + paginated list                               |
 | Paste a job  | `/jobs/new`      | Save a posting by hand (LinkedIn, email, referral) — classified like any other |
 | Job detail   | `/jobs/:id`      | Full description, Claude output, status actions, **is this job real?**, **resume match**, application tracking, re-classify |
+| Targeted     | `/jobs/:id/target` | Posting ↔ resume side by side, keyword highlights, in-place editing with live coverage score, AI re-analysis of the draft |
 | Applications | `/applications`  | Kanban (applied → screen → tech → onsite → offer / rejected / ghosted) |
 | Resumes      | `/resumes`       | Upload `.docx` / `.md` / `.txt`, AI scan (headline, skills, issues), comparison history |
 | Resume       | `/resumes/:id`   | Scan result, job-agnostic issues, comparisons, extracted text, download |
@@ -165,6 +166,18 @@ most recent role get the edits; older roles get trims.
 Then iterate: edit the resume, **Upload a new version** on its page, hit
 Compare again — the score uses a fixed rubric, so the card shows
 "▲ +16 vs v1". Files and reports stay in your Postgres.
+
+### Targeted view
+
+"Open targeted view →" on any comparison (`/jobs/:id/target`) puts the
+posting and your resume side by side, Resume Worded style: every keyword
+highlighted in the posting (found / missing / can't claim), keywords and
+suggested removals highlighted in the resume, and the resume **editable in
+place**. A live **keyword coverage** score recomputes as you type (in the
+browser, no AI call — see ADR 0010); "Re-analyze with AI" sends the draft to
+the resume model for the full rubric score; "Save as vN" stores the draft as
+a text version; "Re-upload resume" does version + scan + compare in one go.
+Drafts live in the browser tab until you save.
 
 ### Is this job real?
 

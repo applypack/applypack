@@ -8,10 +8,15 @@ import { createMatch } from './store';
 const MATCH_TIMEOUT_MS = 5 * 60_000;
 const PARSE_ATTEMPTS = 2;
 
-/** One resume-vs-posting comparison, persisted as a ResumeMatch row. Null on AI failure. */
+/**
+ * One resume-vs-posting comparison, persisted as a ResumeMatch row. `resume.text`
+ * is what gets judged — a stored version, or an unsaved draft from the editor
+ * (`draft: true`). Null on AI failure.
+ */
 export async function matchResumeToJob(
   resume: { id: number; text: string; version: number },
   job: MatchJobInput & { id: number },
+  opts: { draft?: boolean } = {},
 ): Promise<ResumeMatch | null> {
   const prompt = buildMatchPrompt(resume.text, job);
   const provider = getAiProvider();
@@ -31,11 +36,13 @@ export async function matchResumeToJob(
         jobId: job.id,
         resumeId: resume.id,
         resumeVersion: resume.version,
+        resumeText: resume.text,
+        draft: opts.draft ?? false,
         model,
         result: parsed.data,
       });
       logger.info(
-        { matchId: row.id, jobId: job.id, resumeId: resume.id, version: resume.version, score: row.matchScore },
+        { matchId: row.id, jobId: job.id, resumeId: resume.id, version: resume.version, draft: row.draft, score: row.matchScore },
         'resume: matched',
       );
       return row;

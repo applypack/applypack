@@ -1,4 +1,5 @@
 import { serve } from '@hono/node-server';
+import { serveStatic } from '@hono/node-server/serve-static';
 import { Hono } from 'hono';
 import { basicAuth } from 'hono/basic-auth';
 import { secureHeaders } from 'hono/secure-headers';
@@ -66,6 +67,9 @@ app.use('*', async (c, next) => {
     'web: request',
   );
 });
+
+// Browser-side keyword matcher for /jobs/:id/target (ADR 0010).
+app.use('/static/*', serveStatic({ root: './src/web/public', rewriteRequestPath: (p) => p.replace(/^\/static/, '') }));
 
 app.route('/', overviewRoute);
 app.route('/', jobsRoute);

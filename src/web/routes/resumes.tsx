@@ -1,11 +1,10 @@
 /** @jsxImportSource hono/jsx */
 import { Hono } from 'hono';
-import { bodyLimit } from 'hono/body-limit';
 import { extname } from 'node:path';
 import { logger } from '../../logger';
-import { ResumeTextError } from '../../resume/docx-text';
-import { extractResumeText } from '../../resume/resume-text';
 import { scanResume } from '../../resume/scan';
+import { matchResumeToJob } from '../../resume/match';
+import { prisma } from '../../db';
 import {
   createResume,
   deleteResume,
@@ -14,19 +13,16 @@ import {
   listMatchesForResume,
   listResumes,
   replaceResumeFile,
+  saveResumeTextVersion,
   setDefaultResume,
 } from '../../resume/store';
 import { ResumeDetailPage } from '../pages/resume-detail';
 import { ResumesPage } from '../pages/resumes';
 import { clearFlashCookie, flashRedirect, parseFlashCookie } from '../flash';
+import { readResumeUpload, resumeUploadLimit } from '../upload';
 
-const MAX_UPLOAD_BYTES = 2 * 1024 * 1024;
 const MAX_NAME_CHARS = 100;
-const MIME_BY_EXT: Record<string, string> = {
-  '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  '.md': 'text/markdown',
-  '.txt': 'text/plain',
-};
+const MIN_DRAFT_CHARS = 200;
 
 export const resumesRoute = new Hono();
 
@@ -39,42 +35,9 @@ resumesRoute.get('/resumes', async (c) => {
   );
 });
 
-interface UploadedFile {
-  sourceFilename: string;
-  mimeType: string;
-  original: Buffer;
-  text: string;
-}
-
-/** Reads the multipart `file` field into bytes + extracted text, or a user-facing error. */
-async function readUpload(form: Record<string, unknown>): Promise<UploadedFile | { error: string }> {
-  const file = form.file;
-  if (!(file instanceof File) || file.size === 0) {
-    return { error: 'Pick a .docx, .md or .txt file first.' };
-  }
-  const original = Buffer.from(await file.arrayBuffer());
-  try {
-    return {
-      sourceFilename: file.name,
-      mimeType: file.type || MIME_BY_EXT[extname(file.name).toLowerCase()] || 'application/octet-stream',
-      original,
-      text: extractResumeText(file.name, original),
-    };
-  } catch (err) {
-    if (err instanceof ResumeTextError) return { error: err.message };
-    throw err;
-  }
-}
-
-const uploadLimit = (redirectTo: string) =>
-  bodyLimit({
-    maxSize: MAX_UPLOAD_BYTES,
-    onError: () => flashRedirect(redirectTo, 'err', 'File too large — the limit is 2 MB.'),
-  });
-
-resumesRoute.post('/resumes', uploadLimit('/resumes'), async (c) => {
+resumesRoute.post('/resumes', resumeUploadLimit('/resumes'), async (c) => {
   const form = await c.req.parseBody();
-  const upload = await readUpload(form);
+  const upload = await readResumeUpload(form);
   if ('error' in upload) return flashRedirect('/resumes', 'err', upload.error);
   const name =
     typeof form.name === 'string' && form.name.trim().length > 0
@@ -91,11 +54,11 @@ resumesRoute.post('/resumes', uploadLimit('/resumes'), async (c) => {
       );
 });
 
-resumesRoute.post('/resumes/:id/replace', uploadLimit('/resumes'), async (c) => {
+resumesRoute.post('/resumes/:id/replace', resumeUploadLimit('/resumes'), async (c) => {
   const id = Number(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text('Bad id', 400);
   if (!(await getResume(id))) return c.text('Not found', 404);
-  const upload = await readUpload(await c.req.parseBody());
+  const upload = await readResumeUpload(await c.req.parseBody());
   if ('error' in upload) return flashRedirect(`/resumes/${id}`, 'err', upload.error);
   const resume = await replaceResumeFile(id, upload);
   const scan = await scanResume(resume);
@@ -128,6 +91,44 @@ resumesRoute.get('/resumes/:id/download', async (c) => {
       'Content-Disposition': `attachment; filename="${filename}"`,
     },
   });
+});
+
+resumesRoute.post('/resumes/:id/draft', async (c) => {
+  const id = Number(c.req.param('id'));
+  if (!Number.isFinite(id)) return c.text('Bad id', 400);
+  if (!(await getResume(id))) return c.text('Not found', 404);
+  const form = await c.req.parseBody();
+  const text = typeof form.text === 'string' ? form.text.replace(/\r\n/g, '\n').trim() : '';
+  if (text.length < MIN_DRAFT_CHARS) {
+    return flashRedirect(`/resumes/${id}`, 'err', 'The draft is too short to be a resume.');
+  }
+  const resume = await saveResumeTextVersion(id, text);
+  const scan = await scanResume(resume);
+  const jobId = Number(form.jobId);
+  const job = Number.isFinite(jobId)
+    ? await prisma.job.findUnique({ where: { id: jobId }, include: { company: { select: { name: true } } } })
+    : null;
+  if (job) {
+    const match = await matchResumeToJob(resume, {
+      id: job.id,
+      title: job.title,
+      companyName: job.company.name,
+      location: job.location,
+      description: job.description,
+    });
+    if (match) {
+      return flashRedirect(
+        `/jobs/${job.id}/target?match=${match.id}`,
+        'ok',
+        `Saved as v${resume.version} (text) and re-analyzed: AI match ${match.matchScore}/100.`,
+      );
+    }
+  }
+  return flashRedirect(
+    `/resumes/${id}`,
+    scan ? 'ok' : 'err',
+    scan ? `Saved as v${resume.version} (text version).` : `Saved as v${resume.version}, but the scan failed — try "Scan".`,
+  );
 });
 
 resumesRoute.post('/resumes/:id/rescan', async (c) => {

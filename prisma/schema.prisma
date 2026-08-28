@@ -267,6 +267,11 @@ model ResumeMatch {
   resumeId      Int
   resume        Resume   @relation(fields: [resumeId], references: [id], onDelete: Cascade)
   resumeVersion Int      @default(1)
+  // Snapshot of the text that was judged, so highlights stay true after the
+  // resume moves on. `draft` = text came from the in-browser editor, not a
+  // stored version.
+  resumeText    String   @db.Text @default("")
+  draft         Boolean  @default(false)
   model         String
   matchScore    Int
   summary    String   @db.Text
