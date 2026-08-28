@@ -2,17 +2,14 @@
 import type { FC } from 'hono/jsx';
 import type { CronRunStatus } from '@prisma/client';
 import { Layout } from '../layout';
+import { Badge, Card, Empty, FitBadge, PageHeader, SectionTitle, Stat, StatusBadge } from '../ui';
 import {
-  Badge,
-  Card,
-  Empty,
-  FitBadge,
-  PageHeader,
-  SectionTitle,
-  Stat,
-  StatusBadge,
-} from '../ui';
-import { formatDateShort, formatDuration, formatRelative, statusTone } from '../format';
+  formatDateShort,
+  formatDuration,
+  formatRelative,
+  statusLabel,
+  statusTone,
+} from '../format';
 import type { Tone } from '../format';
 
 interface JobRow {
@@ -44,7 +41,17 @@ export interface OverviewProps {
   latestRuns: { name: string; run: RunRow | null }[];
 }
 
-const STATUS_ORDER = ['NEW', 'ALERTED', 'APPLIED', 'SAVED', 'DISMISSED'] as const;
+/** The four statuses worth acting on; Total and Dismissed stay quiet. */
+const PRIMARY_STATUSES = ['NEW', 'ALERTED', 'APPLIED', 'SAVED'] as const;
+
+const TONE_DOT: Record<Tone, string> = {
+  ok: 'bg-ok',
+  warn: 'bg-warn',
+  danger: 'bg-danger',
+  info: 'bg-info',
+  violet: 'bg-violet',
+  neutral: 'bg-ink-faint',
+};
 
 export const OverviewPage: FC<OverviewProps> = ({
   counts,
@@ -54,40 +61,71 @@ export const OverviewPage: FC<OverviewProps> = ({
 }) => {
   const byStatus = mapCounts(counts);
   const byStatus24h = mapCounts(last24h);
+  const total = Object.values(byStatus).reduce((a, b) => a + b, 0);
+  const total24h = Object.values(byStatus24h).reduce((a, b) => a + b, 0);
 
   return (
-    <Layout title="Overview" active="overview">
-      <PageHeader title="Overview" meta="auto-refresh: 30s" />
+    <Layout title="Overview" active="overview" refresh={30}>
+      <PageHeader title="Overview" meta="Refreshes every 30s" />
 
-      <StatRow title="All time" counts={byStatus} />
-      <StatRow title="Last 24h" counts={byStatus24h} />
+      <div class="mb-3 grid grid-cols-2 gap-3 xl:grid-cols-4">
+        {PRIMARY_STATUSES.map((s) => {
+          const delta = byStatus24h[s] ?? 0;
+          return (
+            <Stat
+              label={
+                <span class="inline-flex items-center gap-1.5">
+                  <span
+                    class={`h-1.5 w-1.5 rounded-full ${TONE_DOT[statusTone(s)]}`}
+                    aria-hidden="true"
+                  />
+                  {statusLabel(s)}
+                </span>
+              }
+              value={byStatus[s] ?? 0}
+              sub={
+                delta > 0 ? (
+                  <span class="font-medium text-ok">+{delta} in the last 24h</span>
+                ) : (
+                  <span>0 in the last 24h</span>
+                )
+              }
+            />
+          );
+        })}
+      </div>
 
-      <div class="grid gap-6 lg:grid-cols-2">
-        <div>
+      <p class="mb-6 text-[13px] text-ink-faint tabular-nums">
+        {total.toLocaleString()} jobs tracked all-time · {total24h.toLocaleString()} seen in the
+        last 24h · {(byStatus.DISMISSED ?? 0).toLocaleString()} dismissed
+      </p>
+
+      <div class="grid items-start gap-6 lg:grid-cols-3">
+        <div class="min-w-0 lg:col-span-2">
           <SectionTitle>Recent alerts</SectionTitle>
           {recentAlerts.length === 0 ? (
             <Empty>No alerted jobs yet.</Empty>
           ) : (
-            <Card>
+            <Card flush>
               <ul class="divide-y divide-line">
                 {recentAlerts.map((j) => (
-                  <li class="flex items-start justify-between gap-3 py-3 first:pt-0 last:pb-0">
-                    <div class="min-w-0 flex-1">
-                      <a
-                        href={`/jobs/${j.id}`}
-                        class="block truncate text-sm font-medium text-ink hover:text-accent"
-                      >
-                        {j.title}
-                      </a>
-                      <div class="mt-0.5 truncate text-xs text-ink-faint">
-                        {j.company.name} · {j.location || 'Remote'} ·{' '}
-                        {formatRelative(j.alertedAt ?? j.fetchedAt)}
+                  <li>
+                    <a
+                      href={`/jobs/${j.id}`}
+                      class="flex items-center justify-between gap-4 px-5 py-3 transition-colors duration-150 hover:bg-surface-overlay/50"
+                    >
+                      <div class="min-w-0 flex-1">
+                        <div class="truncate text-sm font-medium text-ink">{j.title}</div>
+                        <div class="mt-0.5 truncate text-[13px] text-ink-faint">
+                          {j.company.name} · {j.location || 'Remote'} ·{' '}
+                          {formatRelative(j.alertedAt ?? j.fetchedAt)}
+                        </div>
                       </div>
-                    </div>
-                    <div class="flex shrink-0 items-center gap-2">
-                      <FitBadge score={j.fitScore} />
-                      <StatusBadge status={j.status} />
-                    </div>
+                      <div class="flex shrink-0 items-center gap-3">
+                        <FitBadge score={j.fitScore} />
+                        <StatusBadge status={j.status} />
+                      </div>
+                    </a>
                   </li>
                 ))}
               </ul>
@@ -95,34 +133,45 @@ export const OverviewPage: FC<OverviewProps> = ({
           )}
         </div>
 
-        <div>
+        <div class="min-w-0">
           <SectionTitle>Cron health</SectionTitle>
-          <Card>
+          <Card flush>
             <ul class="divide-y divide-line">
               {latestRuns.map(({ name, run }) => (
-                <li class="flex items-center justify-between gap-3 py-2.5 first:pt-0 last:pb-0">
-                  <div class="min-w-0">
-                    <div class="font-mono text-sm text-ink">{name}</div>
-                    <div class="text-xs text-ink-faint">
-                      {run
-                        ? `${formatDateShort(run.startedAt)} · ${formatDuration(
-                            run.finishedAt
-                              ? run.finishedAt.getTime() - run.startedAt.getTime()
-                              : null,
-                          )}`
-                        : 'never'}
+                <li class="flex items-center justify-between gap-3 px-5 py-2.5">
+                  <div class="flex min-w-0 items-center gap-2.5">
+                    <span
+                      class={`h-1.5 w-1.5 shrink-0 rounded-full ${
+                        run ? TONE_DOT[runTone(run.status)] : 'bg-line-strong'
+                      }`}
+                      aria-hidden="true"
+                    />
+                    <div class="min-w-0">
+                      <div class="truncate font-mono text-[13px] text-ink">{name}</div>
+                      <div class="text-xs text-ink-faint">
+                        {run
+                          ? `${formatDateShort(run.startedAt)} · ${formatDuration(
+                              run.finishedAt
+                                ? run.finishedAt.getTime() - run.startedAt.getTime()
+                                : null,
+                            )}`
+                          : 'never ran'}
+                      </div>
                     </div>
                   </div>
                   {run ? (
-                    <Badge tone={runTone(run.status)}>{run.status}</Badge>
+                    <Badge tone={runTone(run.status)}>{runLabel(run.status)}</Badge>
                   ) : (
                     <span class="text-xs text-ink-faint">—</span>
                   )}
                 </li>
               ))}
             </ul>
-            <div class="mt-4 border-t border-line pt-3 text-right">
-              <a href="/runs" class="text-xs text-ink-muted hover:text-ink">
+            <div class="border-t border-line px-5 py-2.5 text-right">
+              <a
+                href="/runs"
+                class="text-[13px] font-medium text-accent-strong transition-colors duration-150 hover:text-accent-deep"
+              >
                 Full history →
               </a>
             </div>
@@ -130,24 +179,6 @@ export const OverviewPage: FC<OverviewProps> = ({
         </div>
       </div>
     </Layout>
-  );
-};
-
-const StatRow: FC<{ title: string; counts: Record<string, number> }> = ({
-  title,
-  counts,
-}) => {
-  const total = Object.values(counts).reduce((a, b) => a + b, 0);
-  return (
-    <>
-      <SectionTitle>{title}</SectionTitle>
-      <div class="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-        <Stat label="Total" value={total} />
-        {STATUS_ORDER.map((s) => (
-          <Stat label={s} value={counts[s] ?? 0} tone={counts[s] ? statusTone(s) : undefined} />
-        ))}
-      </div>
-    </>
   );
 };
 
@@ -161,4 +192,10 @@ export function runTone(status: CronRunStatus): Tone {
   if (status === 'OK') return 'ok';
   if (status === 'FAILED') return 'danger';
   return 'info';
+}
+
+export function runLabel(status: CronRunStatus): string {
+  if (status === 'OK') return 'OK';
+  if (status === 'FAILED') return 'Failed';
+  return 'Running';
 }
