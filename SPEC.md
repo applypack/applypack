@@ -26,7 +26,7 @@ port.
 
 See [ARCHITECTURE.md](./ARCHITECTURE.md) for diagrams.
 
-## Sources (16 ATS / aggregator types)
+## Sources (16 ATS / aggregator types + MANUAL)
 
 | AtsType            | Shape         | Auth      | Notes                                           |
 | ------------------ | ------------- | --------- | ----------------------------------------------- |
@@ -134,6 +134,40 @@ greenhouse/lever/ashby/workable/smartrecruiters) and writes
 re-validates each pending candidate's slug and updates `jobsSeen`,
 marking 4xx-returning slugs as DEAD.
 
+## Resumes (Phase 8.1)
+
+`Resume` rows hold an uploaded file (`original` bytes, `.docx` / `.md` /
+`.txt`) and its plain-text extraction (`text`). On upload the web process
+runs one AI call (`CLAUDE_MODEL_RESUME`) that fills headline, seniority,
+years, skill tags, role types and job-agnostic `issues`. The first upload
+becomes the default.
+
+`ResumeMatch` is one comparison of a resume against a job, triggered from
+`/jobs/:id` → "Resume match" → Compare (the dropdown preselects the resume
+with the most skill-tag overlap). Stored per run: `matchScore`, `summary`,
+`strengths`, `redFlags`, `keywords` (`present | add | cannot_claim`, where,
+note) and `actions` (section, where, what, why, priority). Nothing edits
+the resume — the report is the to-do list. See ADR 0008.
+
+The loop: edit the resume → "Upload a new version" on `/resumes/:id`
+(`Resume.version` +1, re-scan) → Compare again. `ResumeMatch.resumeVersion`
+records which version scored; the card shows the delta vs the previous run.
+The prompt uses a fixed rubric (60 keyword coverage / 20 title+summary /
+20 most-recent role, −10 per hard red flag) so scores are comparable, and
+returns `removals` — what to cut so the resume reads cleaner.
+
+## Manual jobs + verification (Phase 8.2)
+
+`/jobs/new` pastes a posting the fetchers never see. It is stored as a
+normal `Job` under a per-employer `Company` with `atsType = MANUAL`
+(`active = false`, so `runAllFetchers` skips it) and `status = SAVED`,
+then classified against the active profile without touching the status.
+
+"Is this job real?" on `/jobs/:id` runs the ghost-job checklist with web
+search (`AiRequest.webTools`, ADR 0009) and stores a `JobVerification`:
+`verdict` legit | suspicious | fake, `recommendation` apply | caution |
+skip, confidence, evidence rows with URLs, red flags, company snapshot.
+
 ## Hard out-of-scope (Phase 7+)
 
 - Multi-user / per-user views (auth, sessions). Single-deployment-per-friend stays the answer.
@@ -149,7 +183,7 @@ marking 4xx-returning slugs as DEAD.
 - Prisma 6 + Postgres 16 (real migrations from `phase-3.0` baseline onward)
 - node-cron for scheduling, no Redis / BullMQ
 - Hono 4 for the dashboard, JSX SSR with `hono/jsx`, htmx + Tailwind via CDN (no build pipeline)
-- `src/ai-provider.ts` seam: `anthropic_api` (SDK, per-token) or `claude_code` (headless CLI, subscription); Claude Haiku 4.5 for both classifier stages
+- `src/ai-provider.ts` seam: `anthropic_api` (SDK, per-token) or `claude_code` (headless CLI, subscription); Claude Haiku 4.5 for both classifier stages, `CLAUDE_MODEL_RESUME` (Opus 5) for resume scan / match
 - node:test runner (`npm test`), no jest
 
 ## Project layout

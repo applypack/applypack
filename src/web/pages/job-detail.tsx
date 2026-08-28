@@ -18,6 +18,8 @@ import {
   Textarea,
 } from '../ui';
 import { formatDate, formatSalary } from '../format';
+import { ResumeMatchCard, type ResumeMatchCardProps } from './resume-match-card';
+import { VerificationCard, type VerificationCardProps } from './verification-card';
 
 interface JobDetail {
   id: number;
@@ -47,6 +49,9 @@ interface JobDetail {
 export interface JobDetailProps {
   job: JobDetail;
   applicationTrackingEnabled: boolean;
+  verification: VerificationCardProps['verification'];
+  verificationCount: number;
+  resumeMatch: ResumeMatchCardProps;
   flash?: { kind: 'ok' | 'err'; text: string } | null;
 }
 
@@ -62,6 +67,9 @@ const STATUS_ACTIONS: { status: JobStatus; label: string; variant: ButtonVariant
 export const JobDetailPage: FC<JobDetailProps> = ({
   job,
   applicationTrackingEnabled,
+  verification,
+  verificationCount,
+  resumeMatch,
   flash,
 }) => (
   <Layout title={job.title} active="jobs">
@@ -80,9 +88,11 @@ export const JobDetailPage: FC<JobDetailProps> = ({
       <div class="flex shrink-0 flex-wrap items-center gap-3">
         <FitBadge score={job.fitScore} />
         <StatusBadge status={job.status} />
-        <Button href={job.url} target="_blank" rel="noopener">
-          Open posting ↗
-        </Button>
+        {job.url && (
+          <Button href={job.url} target="_blank" rel="noopener">
+            Open posting ↗
+          </Button>
+        )}
       </div>
     </div>
 
@@ -135,6 +145,10 @@ export const JobDetailPage: FC<JobDetailProps> = ({
         </ActionForm>
       </div>
     </Card>
+
+    <VerificationCard jobId={job.id} verification={verification} verificationCount={verificationCount} />
+
+    <ResumeMatchCard {...resumeMatch} />
 
     {applicationTrackingEnabled && (
       <Card class="mb-6">

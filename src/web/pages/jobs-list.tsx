@@ -76,7 +76,14 @@ export const JobsListPage: FC<JobsListProps> = ({
     <Layout title="Jobs" active="jobs">
       <PageHeader
         title="Jobs"
-        meta={`${total.toLocaleString()} total · page ${page}/${totalPages}`}
+        meta={
+          <span class="flex items-center gap-3">
+            {`${total.toLocaleString()} total · page ${page}/${totalPages}`}
+            <Button href="/jobs/new" variant="secondary" size="sm">
+              + Paste a job
+            </Button>
+          </span>
+        }
       />
 
       <form method="get" action="/jobs" class="mb-5 grid gap-3 sm:grid-cols-12">

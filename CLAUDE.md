@@ -39,11 +39,19 @@
 - `jobs/process-jobs.ts` is the single source of truth for the inner
   filter → dedupe → classify → persist → alert sequence. Reused by
   `runFetchJob` and `runHnHiringJob`.
+- `AiProvider` calls are tool-free unless the request sets `webTools`; only
+  `src/verification/verify.ts` does (ADR 0009). Never turn it on for the classifier.
+- `AtsType.MANUAL` companies are inactive rows for pasted jobs — `fetchOne`
+  returns `[]`, `/companies` and the source toggles hide them.
+- `src/resume/` is the resume module: `zip.ts`, `docx-text.ts`, `resume-text.ts`,
+  `prompts.ts`, `pick.ts` are pure (tested); `scan.ts` / `match.ts` call the
+  AI provider; `store.ts` is the only file that touches Prisma. Web-only —
+  the worker never imports it (ADR 0008).
 - The cron worker (`src/index.ts` + `src/jobs/*`) MUST NOT run an HTTP server.
 - The dashboard lives in `src/web/` as a SEPARATE service (Hono). It shares
   Postgres with the worker but runs in its own container/process. It is
   read-mostly with limited writes (status changes, profile/settings edits,
-  re-classify, candidate promote).
+  re-classify, candidate promote, resume upload / scan / match).
 
 ## DO NOT
 - Do not add Express, Next.js, or any HTTP server to the worker process.
@@ -103,6 +111,13 @@ When the question is **"where does X live?"**, save yourself a `find`:
 | Discovery candidate extraction | `src/discovery.ts:recordCandidatesFromText` (calls `extractAtsToken`) |
 | URL → ATS recognition (greenhouse/lever/ashby/workable/SR) | `src/text-utils.ts:extractAtsToken` |
 | Manual company probe before save | `src/ats-probe.ts:probeAts` |
+| Resume upload → text (.docx/.md/.txt) | `src/resume/resume-text.ts:extractResumeText` (docx via `zip.ts` + `docx-text.ts`) |
+| Resume scan + resume-vs-job prompts and their zod schemas | `src/resume/prompts.ts` |
+| Which resume a job page preselects | `src/resume/pick.ts:pickResumeForJob` (skill-tag overlap) |
+| Model for resume calls | `CLAUDE_MODEL_RESUME` in `.env` (default `claude-opus-5`), passed via `AiRequest.model` |
+| Ghost-job checklist prompt + verdict schema | `src/verification/prompts.ts` |
+| Letting a call use web search (API server tools / CLI WebSearch) | `AiRequest.webTools` in `src/ai-provider.ts`, args in `ai-provider-parse.ts:buildClaudeCodeArgs` |
+| Classify one stored job (Re-classify button, pasted jobs) | `src/jobs/classify-existing.ts` |
 | Each cron's once-script (manual trigger) | `src/scripts/{fetch,digest,cleanup,stale,hn,discovery}-once.ts` |
 
 When the question is **"how does the user toggle / configure X?"**:
@@ -120,6 +135,11 @@ When the question is **"how does the user toggle / configure X?"**:
 | Add Telegram bot or chat | `/settings` → "Add target" (validates with getMe + sendMessage) |
 | Pipeline stage on a job | `/jobs/:id` → "Application tracking" card |
 | Review newly discovered companies | `/discovery` (sorted by jobsSeen DESC) |
+| Upload / scan a resume | `/settings` → "Resumes" card, or `/resumes` |
+| Compare a resume with a posting | `/jobs/:id` → "Resume match" card (Compare) |
+| Paste a posting the fetchers don't see | `/jobs` → "+ Paste a job" (`/jobs/new`) |
+| Check whether a posting is real | `/jobs/:id` → "Is this job real?" → Verify (web search, 2-4 min) |
+| Re-check an edited resume | `/resumes/:id` → "Upload a new version", then Compare again |
 
 ---
 
