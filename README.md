@@ -1,22 +1,57 @@
 # job-hunter
 
-Local Docker stack that monitors **16 ATS / aggregator sources** for
-roles matching a configurable **profile** (stack, role types, regions,
-salary, fit threshold), classifies each through Claude Haiku, and
-fires Telegram alerts. Includes a dashboard at `localhost:4747` for
-review, settings, application tracking, and discovery of new
-companies from HN.
+[![CI](https://github.com/nazboyko/job-hunter/actions/workflows/test.yml/badge.svg)](https://github.com/nazboyko/job-hunter/actions/workflows/test.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
+[![Node 24](https://img.shields.io/badge/node-%3E%3D22-339933?logo=node.js&logoColor=white)](./package.json)
+[![TypeScript strict](https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white)](./tsconfig.json)
+[![Release](https://img.shields.io/github/v/release/nazboyko/job-hunter?display_name=tag)](./CHANGELOG.md)
+
+**Self-hosted AI job hunter.** Watches 16 ATS / aggregator sources, scores
+every posting with Claude against *your* profile, tells you whether a
+posting is a ghost job, compares your resume with it, and pings Telegram
+when something is worth applying to. Runs on your laptop or a $5 VPS with
+`docker compose up`.
+
+Built for people who are tired of scrolling job boards and want a filter
+that understands the difference between "Senior Rails engineer" and
+"Senior PHP engineer".
+
+![Job Hunter — Overview: status counters with 24h deltas, recent alerts, cron health](docs/screenshots/overview.png)
+
+## Highlights
+
+- **Profile, not keywords** — stack, role types, seniority, regions, salary
+  floor, fit threshold. Claude reads each posting against the profile with
+  explicit tech-stack and country-lock rules.
+- **Two-stage classifier** — a short, cached prefilter prompt drops obvious
+  misses; the full prompt only runs on survivors. Same model, 30–40 % fewer
+  tokens.
+- **Is this job real?** — ghost-job checklist run with web search: careers
+  page, company footprint, posting age, named humans, scam flags. Verdict +
+  evidence URLs.
+- **Resume match** — upload your resume, compare it with any posting: match
+  score, red flags, prioritised edits, keyword coverage. Then edit it in a
+  side-by-side **targeted view** with a live score.
+- **Application tracking** — kanban from *applied* to *offer*, plus a daily
+  nudge for applications that went quiet.
+- **Discovery** — harvests ATS URLs from HN "Who is hiring" threads and
+  proposes new companies to track.
+- **Clean sourcing** — official public APIs and RSS only. No LinkedIn /
+  Indeed / Workday scraping ([ADR 0005](./docs/adr/0005-no-linkedin-indeed-workday.md)).
+- **Two AI backends** — Anthropic API (pay per token, ~$2–10/month) or the
+  Claude Code CLI on an existing subscription.
 
 > **Docs map:** [SPEC.md](./SPEC.md) — current state.
 > [ARCHITECTURE.md](./ARCHITECTURE.md) — diagrams + file map.
 > [CLAUDE.md](./CLAUDE.md) — conventions + gotchas + where-to-look.
 > [docs/adr/](./docs/adr/) — non-trivial decisions.
+> [CHANGELOG.md](./CHANGELOG.md) — releases.
 > [SPEC-phase1.md](./SPEC-phase1.md) — historical Phase 1 spec.
 
 ## Quick start
 
 ```bash
-git clone <this-repo> job-hunter
+git clone https://github.com/nazboyko/job-hunter.git
 cd job-hunter
 
 cp .env.example .env
@@ -74,7 +109,7 @@ npm run digest:once
 
 ## Sources
 
-12 source types, all on official public APIs / RSS — no scraping.
+16 source types, all on official public APIs / RSS — no scraping.
 
 | Type            | Shape         | Notes                                              |
 | --------------- | ------------- | -------------------------------------------------- |
@@ -117,6 +152,8 @@ company through the UI persists across reseeds.
 Bound to `127.0.0.1:4747`. Optional `WEB_BASIC_AUTH=user:password` in
 `.env` to enable HTTP Basic Auth.
 
+![Job Hunter — Jobs: full-width table with fit scores, status filters and sticky header](docs/screenshots/jobs.png)
+
 | Page         | URL              | What it shows                                                        |
 | ------------ | ---------------- | -------------------------------------------------------------------- |
 | Overview     | `/`              | Counters by status, recent alerts, cron health                       |
@@ -130,7 +167,7 @@ Bound to `127.0.0.1:4747`. Optional `WEB_BASIC_AUTH=user:password` in
 | Companies    | `/companies`     | Sources list, manual add (with probe), per-row toggle / delete       |
 | Discovery    | `/discovery`     | Pending / Promoted / Ignored / Dead candidates harvested by HN parser |
 | Runs         | `/runs`          | Last 100 cron runs with stats / errors                               |
-| Settings     | `/settings`      | Active profile editor, resumes, 7 toggles, telegram targets, source family on/off |
+| Settings     | `/settings`      | Active profile editor, resumes, 8 toggles, telegram targets, source family on/off |
 | Health       | `/health`        | JSON liveness for external monitoring                                |
 
 ### Profiles
@@ -196,6 +233,7 @@ Every feature can be disabled in `/settings`:
 
 | Toggle                        | Effect when off                                |
 | ----------------------------- | ---------------------------------------------- |
+| Job fetching (master switch)  | No new jobs or alerts; dashboard, digest, cleanup and discovery keep running |
 | Telegram alerts               | Notifier no-ops with log preview               |
 | Classifier mode               | `single` (full Haiku 4.5) vs `two_stage` (cheap prefilter + full) |
 | Application tracking          | Hides per-job tracking card, no auto-set on APPLIED |
@@ -228,7 +266,7 @@ gotcha #2 in CLAUDE.md.
 
 ```bash
 npm run lint:types     # tsc --noEmit
-npm test               # node --test via tsx, ~135 tests
+npm test               # node --test via tsx, ~300 tests
 ```
 
 GitHub Actions runs both on every push and PR — see
@@ -278,8 +316,9 @@ a few calls a day where judgment matters more than cost.
 
 - Requires the Claude Code CLI on the host running the worker
   (`npm i -g @anthropic-ai/claude-code`, then `claude` once to log in).
-  The Docker image installs the CLI; mount your credentials with the
-  `~/.claude` volume line in `docker-compose.yml`.
+  The Docker image installs the CLI; uncomment the `~/.claude` volume
+  lines in `docker-compose.yml` (both `app` and `web`) to mount your
+  credentials into the containers.
 - Every call carries Claude Code's own system prompt (~5k tokens) and
   starts a new process — ~7 s per job on a laptop, 15–30 s inside Docker.
   `AI_CONCURRENCY` (default 3) runs that many CLI processes at once, so
@@ -308,3 +347,19 @@ classifier mode and how many sources are active:
 
 Postgres + Telegram + GitHub Actions are all free. The whole stack
 runs on a $5/month VPS or your laptop.
+
+## Contributing
+
+See [CONTRIBUTING.md](./CONTRIBUTING.md). Bug reports and new-source PRs
+are welcome; the ATS templates in CLAUDE.md make a new fetcher a
+one-file change.
+
+## License
+
+MIT — see [LICENSE](./LICENSE).
+
+## Author
+
+[Nazar Boyko](https://github.com/nazboyko). Designed, built and maintained
+solo; every decision that was not obvious is written down in
+[docs/adr/](./docs/adr/).

@@ -34,10 +34,11 @@ jobs:
       - name: Validate Prisma schema
         run: npx prisma validate
 
-      # Confirms migrations format / naming / SQL parse. Doesn't apply
-      # them to a DB (no DB in CI).
+      # Fails if schema.prisma is not formatted (run `npx prisma format`
+      # locally). No fallback — a soft check that reformats and passes
+      # would never gate anything.
       - name: Format-check Prisma schema
-        run: npx prisma format --check || npx prisma format
+        run: npx prisma format --check
 
       - name: Type check (tsc --noEmit)
         run: npm run lint:types
