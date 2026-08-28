@@ -192,7 +192,7 @@ skip, confidence, evidence rows with URLs, red flags, company snapshot.
 - TypeScript strict, Node 24 (runtime image; >=22 locally), pino, zod, native fetch with `fetchWithRetry` + `AbortController`
 - Prisma 6 + Postgres 16 (real migrations from `phase-3.0` baseline onward)
 - node-cron for scheduling, no Redis / BullMQ
-- Hono 4 for the dashboard, JSX SSR with `hono/jsx`, htmx + Tailwind via CDN (no build pipeline)
+- Hono 4 for the dashboard, JSX SSR with `hono/jsx`, Tailwind via CDN over semantic CSS-variable tokens (no build pipeline; light SaaS theme, see DESIGN.md)
 - `src/ai-provider.ts` seam: `anthropic_api` (SDK, per-token) or `claude_code` (headless CLI, subscription); Claude Haiku 4.5 for both classifier stages;  `CLAUDE_MODEL_RESUME` (Opus 5) for resume scan / match; `AI_CONCURRENCY` jobs classified at once (default 3)
 - node:test runner (`npm test`), no jest
 

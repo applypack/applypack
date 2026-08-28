@@ -5,8 +5,6 @@ import { Layout } from '../layout';
 import {
   Button,
   Card,
-  Empty,
-  Field,
   FitBadge,
   Input,
   PageHeader,
@@ -70,104 +68,195 @@ export const JobsListPage: FC<JobsListProps> = ({
   filters,
 }) => {
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const from = total === 0 ? 0 : (page - 1) * pageSize + 1;
+  const to = Math.min(total, page * pageSize);
   const pageHref = (p: number) => buildQuery({ ...filters, page: p });
+  const hasFilters =
+    filters.q.length > 0 || filters.status.length > 0 || filters.minFit.length > 0;
 
   return (
-    <Layout title="Jobs" active="jobs">
+    <Layout title="Jobs" active="jobs" fill>
       <PageHeader
         title="Jobs"
-        meta={
-          <span class="flex items-center gap-3">
-            {`${total.toLocaleString()} total · page ${page}/${totalPages}`}
-            <Button href="/jobs/new" variant="secondary" size="sm">
-              + Paste a job
-            </Button>
-          </span>
+        meta={`${total.toLocaleString()} jobs`}
+        actions={
+          <Button href="/jobs/new" variant="secondary" size="sm">
+            + Paste a job
+          </Button>
         }
       />
 
-      <form method="get" action="/jobs" class="mb-5 grid gap-3 sm:grid-cols-12">
-        <Field label="Search" class="sm:col-span-4">
-          <Input type="search" name="q" value={filters.q} placeholder="title or description…" />
-        </Field>
-        <Field label="Status" class="sm:col-span-3">
-          <Select name="status">
-            {STATUS_OPTIONS.map((o) => (
-              <option value={o.value} selected={filters.status === o.value}>
+      <div class="mb-4 flex shrink-0 flex-wrap items-center gap-x-4 gap-y-2">
+        <nav aria-label="Status filter" class="flex flex-wrap items-center gap-1">
+          {STATUS_OPTIONS.map((o) => {
+            const active = filters.status === o.value;
+            return (
+              <a
+                href={buildQuery({ ...filters, status: o.value })}
+                aria-current={active ? 'true' : undefined}
+                class={`rounded-md border px-2.5 py-1 text-[13px] transition-colors duration-150 ${
+                  active
+                    ? 'border-line-strong bg-surface-overlay font-medium text-ink'
+                    : 'border-transparent text-ink-muted hover:bg-surface-overlay/70 hover:text-ink'
+                }`}
+              >
                 {o.label}
-              </option>
-            ))}
-          </Select>
-        </Field>
-        <Field label="Min fit" class="sm:col-span-2">
-          <Input type="number" name="minFit" min="0" max="100" value={filters.minFit} />
-        </Field>
-        <Field label="Sort" class="sm:col-span-2">
-          <Select name="sort">
+              </a>
+            );
+          })}
+        </nav>
+
+        <form method="get" action="/jobs" class="ml-auto flex flex-wrap items-center gap-2">
+          <input type="hidden" name="status" value={filters.status} />
+          <Input
+            type="search"
+            name="q"
+            value={filters.q}
+            placeholder="Search title or description…"
+            aria-label="Search jobs"
+            class="!w-56"
+          />
+          <Input
+            type="number"
+            name="minFit"
+            min="0"
+            max="100"
+            value={filters.minFit}
+            placeholder="Fit ≥"
+            aria-label="Minimum fit score"
+            class="!w-24"
+          />
+          <Select name="sort" aria-label="Sort by" class="!w-44">
             {SORT_OPTIONS.map((o) => (
               <option value={o.value} selected={filters.sort === o.value}>
                 {o.label}
               </option>
             ))}
           </Select>
-        </Field>
-        <div class="flex items-end sm:col-span-1">
-          <Button class="w-full">Apply</Button>
-        </div>
-      </form>
+          <Button variant="secondary">Apply</Button>
+        </form>
+      </div>
 
-      {jobs.length === 0 ? (
-        <Empty>No jobs match these filters.</Empty>
-      ) : (
-        <Card flush>
-          <Table columns={['Title', 'Company', 'Location', 'Fit', 'Salary', 'Status', 'Fetched']}>
-            {jobs.map((j) => (
-              <Tr>
-                <Td class="min-w-[16rem]">
-                  <a href={`/jobs/${j.id}`} class="font-medium text-ink hover:text-accent">
-                    {j.title}
-                  </a>
-                  {j.techMatch.length > 0 && (
-                    <div class="mt-0.5 truncate font-mono text-xs text-ink-faint">
-                      {j.techMatch.join(', ')}
-                    </div>
-                  )}
-                </Td>
-                <Td class="text-ink-muted">{j.company.name}</Td>
-                <Td class="text-ink-muted">
-                  <div class="max-w-[12rem] truncate" title={j.location}>
-                    {j.location || 'Remote'}
-                  </div>
-                </Td>
-                <Td>
-                  <FitBadge score={j.fitScore} />
-                </Td>
-                <Td class="whitespace-nowrap font-mono tabular-nums text-ink-muted">
-                  {formatSalary(j.salaryMin, j.salaryMax)}
-                </Td>
-                <Td>
-                  <StatusBadge status={j.status} />
-                </Td>
-                <Td class="whitespace-nowrap text-xs text-ink-faint" title={formatDateShort(j.fetchedAt)}>
-                  {formatRelative(j.fetchedAt)}
-                </Td>
-              </Tr>
-            ))}
-          </Table>
+      <div class="flex min-h-[320px] min-w-0 flex-1 flex-col">
+        <Card flush class="flex min-h-0 flex-1 flex-col">
+          {jobs.length === 0 ? (
+            <div class="flex flex-1 flex-col items-center justify-center gap-2 px-6 py-16 text-center">
+              <div class="text-sm font-medium text-ink">No jobs match these filters</div>
+              <p class="text-[13px] text-ink-faint">
+                {hasFilters ? (
+                  <>
+                    Try widening the search, or{' '}
+                    <a
+                      href="/jobs"
+                      class="font-medium text-accent-strong hover:text-accent-deep"
+                    >
+                      clear all filters
+                    </a>
+                    .
+                  </>
+                ) : (
+                  'Nothing fetched yet — check Job sources in Settings.'
+                )}
+              </p>
+            </div>
+          ) : (
+            <>
+              <div class="min-h-0 flex-1 overflow-auto">
+                <div class="min-w-[64rem]">
+                  <Table
+                    stickyHeader
+                    widths={[
+                      'w-[31%]',
+                      'w-[15%]',
+                      'w-[15%]',
+                      'w-[8%]',
+                      'w-[12%]',
+                      'w-[11%]',
+                      'w-[8%]',
+                    ]}
+                    columns={[
+                      'Title',
+                      'Company',
+                      'Location',
+                      'Fit',
+                      <span class="block text-right">Salary</span>,
+                      'Status',
+                      <span class="block text-right">Fetched</span>,
+                    ]}
+                  >
+                    {jobs.map((j) => (
+                      <Tr>
+                        <Td>
+                          <a
+                            href={`/jobs/${j.id}`}
+                            class="block truncate font-medium text-ink transition-colors duration-150 hover:text-accent-strong"
+                            title={j.title}
+                          >
+                            {j.title}
+                          </a>
+                          {j.techMatch.length > 0 && (
+                            <div class="mt-0.5 truncate text-xs text-ink-faint">
+                              {j.techMatch.join(' · ')}
+                            </div>
+                          )}
+                        </Td>
+                        <Td class="text-ink-muted">
+                          <div class="truncate" title={j.company.name}>
+                            {j.company.name}
+                          </div>
+                        </Td>
+                        <Td class="text-ink-muted">
+                          <div class="truncate" title={j.location || 'Remote'}>
+                            {j.location || 'Remote'}
+                          </div>
+                        </Td>
+                        <Td class="whitespace-nowrap">
+                          <FitBadge score={j.fitScore} />
+                        </Td>
+                        <Td
+                          class="overflow-hidden whitespace-nowrap text-right text-[13px] tabular-nums text-ink-muted"
+                          title={formatSalary(j.salaryMin, j.salaryMax)}
+                        >
+                          {formatSalary(j.salaryMin, j.salaryMax)}
+                        </Td>
+                        <Td class="whitespace-nowrap">
+                          <StatusBadge status={j.status} />
+                        </Td>
+                        <Td
+                          class="whitespace-nowrap text-right text-[13px] text-ink-faint"
+                          title={formatDateShort(j.fetchedAt)}
+                        >
+                          {formatRelative(j.fetchedAt)}
+                        </Td>
+                      </Tr>
+                    ))}
+                  </Table>
+                </div>
+              </div>
+              <nav
+                aria-label="Pagination"
+                class="flex shrink-0 items-center justify-between gap-3 border-t border-line px-5 py-2.5"
+              >
+                <span class="text-[13px] text-ink-faint tabular-nums">
+                  <span class="hidden sm:inline">Showing </span>
+                  {from.toLocaleString()}–{to.toLocaleString()} of {total.toLocaleString()}
+                </span>
+                <div class="flex items-center gap-2">
+                  <span class="hidden text-[13px] text-ink-faint tabular-nums md:inline">
+                    Page {page} of {totalPages}
+                  </span>
+                  <PageLink href={pageHref(page - 1)} disabled={page <= 1}>
+                    ← Prev
+                  </PageLink>
+                  <PageLink href={pageHref(page + 1)} disabled={page >= totalPages}>
+                    Next →
+                  </PageLink>
+                </div>
+              </nav>
+            </>
+          )}
         </Card>
-      )}
-
-      <nav aria-label="Pagination" class="mt-5 flex items-center justify-between text-sm">
-        <PageLink href={pageHref(page - 1)} disabled={page <= 1}>
-          ← Prev
-        </PageLink>
-        <span class="font-mono text-xs text-ink-faint tabular-nums">
-          {page} / {totalPages}
-        </span>
-        <PageLink href={pageHref(page + 1)} disabled={page >= totalPages}>
-          Next →
-        </PageLink>
-      </nav>
+      </div>
     </Layout>
   );
 };
@@ -178,13 +267,16 @@ const PageLink: FC<{ href: string; disabled: boolean; children: string }> = ({
   children,
 }) =>
   disabled ? (
-    <span class="rounded-md border border-line px-3 py-1.5 text-ink-faint" aria-disabled="true">
+    <span
+      class="inline-flex min-h-[28px] items-center rounded-md border border-line px-2.5 py-1 text-[13px] text-ink-faint opacity-60"
+      aria-disabled="true"
+    >
       {children}
     </span>
   ) : (
     <a
       href={href}
-      class="rounded-md border border-line-strong px-3 py-1.5 text-ink transition-colors duration-150 hover:bg-surface-overlay"
+      class="inline-flex min-h-[28px] items-center rounded-md border border-line-strong bg-surface-raised px-2.5 py-1 text-[13px] font-medium text-ink shadow-sm transition-colors duration-150 hover:bg-surface-overlay"
     >
       {children}
     </a>
@@ -194,7 +286,9 @@ function buildQuery(params: Record<string, string | number>): string {
   const usp = new URLSearchParams();
   for (const [k, v] of Object.entries(params)) {
     const s = String(v);
-    if (s.length > 0) usp.set(k, s);
+    if (s.length === 0) continue;
+    if (k === 'page' && s === '1') continue;
+    usp.set(k, s);
   }
   const qs = usp.toString();
   return qs ? `/jobs?${qs}` : '/jobs';

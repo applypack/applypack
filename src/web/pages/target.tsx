@@ -47,14 +47,29 @@ export const TargetPage: FC<TargetPageProps> = ({ job, resume, match, matches, r
   };
   return (
     <Layout title={`Target · ${job.title}`} active="jobs">
-      <a href={`/jobs/${job.id}#resume-match`} class="mb-4 inline-block text-xs text-ink-faint hover:text-ink">
-        ← {job.title}
+      <a
+        href={`/jobs/${job.id}#resume-match`}
+        class="mb-1.5 inline-flex items-center gap-1 text-[13px] text-ink-faint transition-colors duration-150 hover:text-ink"
+      >
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          class="h-3.5 w-3.5"
+          aria-hidden="true"
+        >
+          <path d="m15 18-6-6 6-6" />
+        </svg>
+        {job.title}
       </a>
       <Flash flash={flash} />
 
       <div class="mb-4 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div class="min-w-0">
-          <h1 class="text-2xl font-semibold tracking-tight">Targeted resume</h1>
+          <h1 class="text-xl font-semibold tracking-tight">Targeted resume</h1>
           <div class="mt-1 text-sm text-ink-muted">
             {job.companyName} · {job.title}
             {job.location ? ` · ${job.location}` : ''}
@@ -66,10 +81,10 @@ export const TargetPage: FC<TargetPageProps> = ({ job, resume, match, matches, r
               <a
                 href={`/jobs/${job.id}/target?match=${m.id}`}
                 aria-current={m.id === match.id ? 'true' : undefined}
-                class={`inline-flex items-center gap-2 rounded-md border px-2.5 py-1 text-xs transition-colors ${
+                class={`inline-flex items-center gap-2 rounded-md border px-2.5 py-1 text-xs transition-colors duration-150 ${
                   m.id === match.id
-                    ? 'border-accent/60 bg-accent/5 text-ink'
-                    : 'border-line text-ink-muted hover:border-line-strong hover:text-ink'
+                    ? 'border-accent/50 bg-accent/5 text-ink'
+                    : 'border-line bg-surface-raised text-ink-muted hover:border-line-strong hover:text-ink'
                 }`}
               >
                 <FitBadge score={m.matchScore} label="AI match" />
@@ -87,7 +102,7 @@ export const TargetPage: FC<TargetPageProps> = ({ job, resume, match, matches, r
         <div class="flex flex-wrap items-center gap-x-8 gap-y-4">
           <div class="flex items-center gap-4">
             <svg viewBox="0 0 96 96" class="h-20 w-20 -rotate-90" aria-hidden="true">
-              <circle cx="48" cy="48" r="40" fill="none" stroke="rgb(var(--line-strong))" stroke-width="8" />
+              <circle cx="48" cy="48" r="40" fill="none" stroke="rgb(var(--line))" stroke-width="8" />
               <circle
                 id="score-ring"
                 cx="48"
@@ -103,12 +118,12 @@ export const TargetPage: FC<TargetPageProps> = ({ job, resume, match, matches, r
               />
             </svg>
             <div>
-              <div class="font-mono text-3xl font-medium tabular-nums text-ink">
+              <div class="text-3xl font-semibold tabular-nums tracking-tight text-ink">
                 <span id="score-value">—</span>
-                <span class="text-base text-ink-faint">/100</span>
+                <span class="text-base font-normal text-ink-faint">/100</span>
               </div>
-              <div class="text-xs uppercase tracking-wider text-ink-faint">Keyword coverage · live</div>
-              <div id="score-detail" class="mt-0.5 text-xs text-ink-muted">
+              <div class="text-[13px] font-medium text-ink-muted">Keyword coverage · live</div>
+              <div id="score-detail" class="mt-0.5 text-xs text-ink-faint">
                 {keywords.length} keywords from the AI match
               </div>
             </div>
@@ -131,7 +146,7 @@ export const TargetPage: FC<TargetPageProps> = ({ job, resume, match, matches, r
 
           <div class="ml-auto flex flex-wrap items-center gap-2">
             <label class="inline-flex cursor-pointer items-center gap-2 text-xs text-ink-muted">
-              <input id="include-cannot" type="checkbox" class="h-4 w-4 rounded border-line-strong bg-surface text-accent" />
+              <input id="include-cannot" type="checkbox" class="h-4 w-4 accent-accent" />
               count "can't claim" keywords
             </label>
             <form method="post" action={`/jobs/${job.id}/match`} id="reanalyze-form">
@@ -150,14 +165,14 @@ export const TargetPage: FC<TargetPageProps> = ({ job, resume, match, matches, r
               </Button>
             </form>
             <details class="relative">
-              <summary class="inline-flex min-h-[32px] cursor-pointer list-none items-center rounded-md border border-line-strong px-3 py-1.5 text-sm text-ink hover:bg-surface-overlay">
+              <summary class="inline-flex min-h-[32px] cursor-pointer list-none items-center rounded-md border border-line-strong bg-surface-raised px-3 py-1.5 text-sm font-medium text-ink shadow-sm transition-colors duration-150 hover:bg-surface-overlay">
                 Re-upload resume
               </summary>
               <form
                 method="post"
                 action={`/jobs/${job.id}/target/reupload`}
                 enctype="multipart/form-data"
-                class="absolute right-0 z-10 mt-2 w-80 space-y-2 rounded-md border border-line bg-surface-overlay p-3 shadow-lg"
+                class="absolute right-0 z-10 mt-2 w-80 space-y-2 rounded-lg border border-line bg-surface-raised p-3 shadow-lg"
               >
                 <input type="hidden" name="resumeId" value={resume.id} />
                 <input
@@ -165,7 +180,7 @@ export const TargetPage: FC<TargetPageProps> = ({ job, resume, match, matches, r
                   name="file"
                   required
                   accept={ACCEPTED_EXTENSIONS.join(',')}
-                  class="block w-full text-xs text-ink file:mr-2 file:rounded file:border-0 file:bg-surface file:px-2 file:py-1 file:text-xs file:text-ink"
+                  class="block w-full text-xs text-ink file:mr-2 file:cursor-pointer file:rounded-md file:border-0 file:bg-surface-overlay file:px-2.5 file:py-1 file:text-xs file:font-medium file:text-ink"
                 />
                 <Button size="sm" class="w-full">
                   Upload v{resume.version + 1} &amp; re-analyze
@@ -177,66 +192,84 @@ export const TargetPage: FC<TargetPageProps> = ({ job, resume, match, matches, r
         </div>
       </Card>
 
-      <div class="mb-3 flex flex-wrap items-center gap-2" role="tablist" aria-label="View">
-        {TABS.map((t) => (
-          <button
-            type="button"
-            role="tab"
-            data-tab={t.key}
-            aria-selected={t.key === 'both'}
-            class="tab rounded-md border border-line px-3 py-1.5 text-sm text-ink-muted transition-colors hover:text-ink aria-selected:border-accent/60 aria-selected:bg-accent/5 aria-selected:text-ink"
-          >
-            {t.label}
-          </button>
-        ))}
+      <div class="mb-3 flex flex-wrap items-center gap-3">
+        <div
+          class="inline-flex rounded-md border border-line bg-surface-overlay p-0.5"
+          role="tablist"
+          aria-label="View"
+        >
+          {TABS.map((t) => (
+            <button
+              type="button"
+              role="tab"
+              data-tab={t.key}
+              aria-selected={t.key === 'both'}
+              class="tab cursor-pointer rounded-[5px] px-3 py-1 text-[13px] text-ink-muted transition-colors duration-150 hover:text-ink aria-selected:bg-surface-raised aria-selected:font-medium aria-selected:text-ink aria-selected:shadow-sm"
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
         <span id="edit-state" class="ml-auto text-xs text-ink-faint" aria-live="polite"></span>
       </div>
 
       <div id="panes" class="grid gap-4 lg:grid-cols-2" data-view="both">
         <Card class="pane-job">
           <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
-            <div class="text-xs font-semibold uppercase tracking-wider text-ink-muted">Job description</div>
+            <div class="text-[13px] font-medium text-ink">Job description</div>
             <div class="flex flex-wrap items-center gap-3 text-xs text-ink-faint">
               <span><mark class="kw-found rounded px-1">found</mark></span>
               <span><mark class="kw-missing rounded px-1">missing</mark></span>
               <span><mark class="kw-cannot rounded px-1">can't claim</mark></span>
               <label class="inline-flex cursor-pointer items-center gap-1.5">
-                <input id="hide-found" type="checkbox" class="h-3.5 w-3.5 rounded border-line-strong bg-surface text-accent" />
+                <input id="hide-found" type="checkbox" class="h-3.5 w-3.5 accent-accent" />
                 hide found
               </label>
             </div>
           </div>
-          <div id="jd" class="max-h-[70vh] overflow-auto whitespace-pre-wrap break-words font-sans text-sm leading-7 text-ink-muted"></div>
+          <div
+            id="jd"
+            class="max-h-[70vh] overflow-auto whitespace-pre-wrap break-words font-sans text-sm leading-7 text-ink-muted"
+          ></div>
         </Card>
 
         <Card class="pane-resume">
           <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
-            <div class="text-xs font-semibold uppercase tracking-wider text-ink-muted">
+            <div class="text-[13px] font-medium text-ink">
               Your resume · {resume.name} v{match.resumeVersion}
             </div>
             <div class="flex flex-wrap items-center gap-3 text-xs text-ink-faint">
               <span><mark class="kw-present rounded px-1">keyword</mark></span>
               <span><mark class="edit-change rounded px-1">change</mark></span>
               <span><mark class="edit-remove rounded px-1">remove</mark></span>
-              <button type="button" id="reset-edits" class="text-ink-muted underline-offset-2 hover:text-ink hover:underline">
+              <button
+                type="button"
+                id="reset-edits"
+                class="cursor-pointer text-ink-muted underline-offset-2 transition-colors duration-150 hover:text-ink hover:underline"
+              >
                 reset edits
               </button>
             </div>
           </div>
           <div id="missing-chips" class="mb-3 flex flex-wrap gap-1.5"></div>
-          <div class="editor relative h-[70vh] overflow-hidden rounded-md border border-line-strong bg-surface">
+          <div class="editor relative h-[70vh] overflow-hidden rounded-md border border-line-strong bg-surface-raised">
             <div id="backdrop" class="editor-layer" aria-hidden="true"></div>
-            <textarea id="editor" class="editor-layer" spellcheck={false} aria-label="Resume text (editable, not saved)"></textarea>
+            <textarea
+              id="editor"
+              class="editor-layer"
+              spellcheck={false}
+              aria-label="Resume text (editable, not saved)"
+            ></textarea>
           </div>
           <Hint class="mt-2">
-            Plain text — what an ATS parser sees. Edits stay in this browser tab until you Re-analyze or
-            Save. Click an item in Changes to jump to it.
+            Plain text — what an ATS parser sees. Edits stay in this browser tab until you
+            Re-analyze or Save. Click an item in Changes to jump to it.
           </Hint>
         </Card>
 
         <div class="pane-changes lg:col-span-2">
           <Card>
-            <div class="mb-1 text-xs font-semibold uppercase tracking-wider text-ink-muted">Changes</div>
+            <div class="mb-1 text-[13px] font-medium text-ink">Changes</div>
             <MatchReport match={match} previous={null} jumpable />
           </Card>
         </div>
@@ -255,21 +288,21 @@ function safeJson(value: unknown): string {
 }
 
 const TARGET_CSS = `
-  mark { color: inherit; border-radius: 3px; }
-  .kw-found, .kw-present { background: rgb(var(--ok) / 0.22); }
-  .kw-missing { background: rgb(var(--warn) / 0.3); }
-  .kw-cannot { background: rgb(var(--ink-faint) / 0.3); text-decoration: line-through; }
-  .edit-remove { background: rgb(var(--danger) / 0.25); text-decoration: line-through; }
-  .edit-change { background: rgb(var(--warn) / 0.12); box-shadow: inset 0 0 0 1px rgb(var(--warn) / 0.8); }
+  mark { color: inherit; border-radius: 4px; }
+  .kw-found, .kw-present { background: rgb(var(--ok) / 0.18); }
+  .kw-missing { background: rgb(var(--warn) / 0.22); }
+  .kw-cannot { background: rgb(var(--ink-faint) / 0.2); text-decoration: line-through; }
+  .edit-remove { background: rgb(var(--danger) / 0.15); text-decoration: line-through; }
+  .edit-change { background: rgb(var(--warn) / 0.1); box-shadow: inset 0 0 0 1px rgb(var(--warn) / 0.55); }
   .hide-found .kw-found { background: transparent; }
   .editor-layer {
     position: absolute; inset: 0; margin: 0; padding: 16px; overflow: auto;
-    font-family: "Fira Sans", ui-sans-serif, system-ui, sans-serif; font-size: 14px; line-height: 1.6;
+    font-family: Inter, ui-sans-serif, system-ui, sans-serif; font-size: 14px; line-height: 1.6;
     white-space: pre-wrap; overflow-wrap: break-word; word-break: normal; tab-size: 4;
   }
   #backdrop { color: rgb(var(--ink)); pointer-events: none; overflow: hidden; }
   #editor { background: transparent; color: transparent; caret-color: rgb(var(--ink)); border: 0; outline: none; resize: none; }
-  #editor::selection { background: rgb(var(--accent) / 0.35); }
+  #editor::selection { background: rgb(var(--accent) / 0.25); }
   #panes[data-view="job"] .pane-resume, #panes[data-view="job"] .pane-changes,
   #panes[data-view="resume"] .pane-job, #panes[data-view="resume"] .pane-changes,
   #panes[data-view="both"] .pane-changes,
@@ -277,7 +310,7 @@ const TARGET_CSS = `
   #panes[data-view="job"] .pane-job, #panes[data-view="resume"] .pane-resume { grid-column: 1 / -1; }
   .chip { cursor: pointer; }
   .flash-target { animation: flash-target 1.2s ease-out; }
-  @keyframes flash-target { from { background: rgb(var(--accent) / 0.35); } to { background: transparent; } }
+  @keyframes flash-target { from { background: rgb(var(--accent) / 0.25); } to { background: transparent; } }
 `;
 
 const TARGET_JS = `
@@ -328,7 +361,7 @@ function render() {
   for (const r of scored.rows.filter((r) => !r.found && !r.excluded).sort((a, b) => a.priority - b.priority)) {
     const b = document.createElement('button');
     b.type = 'button';
-    b.className = 'chip inline-flex items-center gap-1 rounded px-1.5 py-0.5 font-mono text-xs ring-1 ring-inset bg-warn/10 text-warn ring-warn/25';
+    b.className = 'chip inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-medium ring-1 ring-inset bg-warn/10 text-warn ring-warn/25';
     b.textContent = r.term + ' · P' + r.priority;
     b.title = (r.where ? 'Add in: ' + r.where + '. ' : '') + (r.note || '');
     b.addEventListener('click', () => jumpToSection(r.where));

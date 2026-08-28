@@ -1,6 +1,18 @@
 /** @jsxImportSource hono/jsx */
 import type { FC } from 'hono/jsx';
-import { Badge, Button, Card, FitBadge, Hint, SectionTitle, Select, Table, Td, Tr } from '../ui';
+import {
+  Badge,
+  Button,
+  Card,
+  FitBadge,
+  Hint,
+  MarkIcon,
+  SectionTitle,
+  Select,
+  Table,
+  Td,
+  Tr,
+} from '../ui';
 import type { Tone } from '../format';
 import { formatRelative } from '../format';
 import type { MatchWithResume } from '../../resume/store';
@@ -34,6 +46,8 @@ const STATUS_VIEW: Record<MatchKeyword['status'], { label: string; tone: Tone }>
   cannot_claim: { label: "can't claim", tone: 'danger' },
 };
 
+const SUBHEAD = 'mb-2 text-[13px] font-medium text-ink-muted';
+
 export const ResumeMatchCard: FC<ResumeMatchCardProps> = ({
   jobId,
   resumes,
@@ -42,21 +56,21 @@ export const ResumeMatchCard: FC<ResumeMatchCardProps> = ({
   selected,
 }) => (
   <div id="resume-match">
-    <Card class="mb-6">
+    <Card>
       <SectionTitle>Resume match</SectionTitle>
       {resumes.length === 0 ? (
         <Hint>
           No resumes uploaded.{' '}
-          <a href="/resumes" class="text-accent hover:underline">
+          <a href="/resumes" class="font-medium text-accent-strong hover:text-accent-deep">
             Upload one
           </a>{' '}
           to see what to change before applying here.
         </Hint>
       ) : (
         <form method="post" action={`/jobs/${jobId}/match`} class="flex flex-wrap items-end gap-3">
-          <label class="block">
-            <span class="block text-xs uppercase tracking-wider text-ink-faint">Resume</span>
-            <Select name="resumeId" class="mt-1 !w-auto">
+          <label class="block min-w-0 max-w-full">
+            <span class="block text-[13px] font-medium text-ink">Resume</span>
+            <Select name="resumeId" class="mt-1.5 !w-auto max-w-full">
               {resumes.map((r) => (
                 <option value={r.id} selected={r.id === (suggestedResumeId ?? resumes[0]?.id)}>
                   {r.name}
@@ -78,22 +92,25 @@ export const ResumeMatchCard: FC<ResumeMatchCardProps> = ({
 
       {matches.length > 1 && (
         <div class="mt-5 border-t border-line pt-4">
-          <div class="mb-2 text-xs uppercase tracking-wider text-ink-faint">All comparisons</div>
+          <div class={SUBHEAD}>All comparisons</div>
           <ul class="flex flex-wrap gap-2">
             {matches.map((m) => (
               <li>
                 <a
                   href={`/jobs/${jobId}?match=${m.id}#resume-match`}
                   aria-current={selected?.id === m.id ? 'true' : undefined}
-                  class={`inline-flex items-center gap-2 rounded-md border px-2.5 py-1 text-xs transition-colors ${
+                  class={`inline-flex items-center gap-2 rounded-md border px-2.5 py-1 text-xs transition-colors duration-150 ${
                     selected?.id === m.id
-                      ? 'border-accent/60 bg-accent/5 text-ink'
-                      : 'border-line text-ink-muted hover:border-line-strong hover:text-ink'
+                      ? 'border-accent/50 bg-accent/5 text-ink'
+                      : 'border-line bg-surface-raised text-ink-muted hover:border-line-strong hover:text-ink'
                   }`}
                 >
                   <FitBadge score={m.matchScore} label="match" />
                   {m.resume.name}
-                  <span class="font-mono text-ink-faint">v{m.resumeVersion}{m.draft ? ' draft' : ''}</span>
+                  <span class="font-mono text-ink-faint">
+                    v{m.resumeVersion}
+                    {m.draft ? ' draft' : ''}
+                  </span>
                   <span class="text-ink-faint">{formatRelative(m.createdAt)}</span>
                 </a>
               </li>
@@ -134,7 +151,8 @@ export const MatchReport: FC<{
           </Badge>
         )}
         <span class="text-sm text-ink">
-          {match.resume.name} <span class="font-mono text-xs text-ink-faint">v{match.resumeVersion}</span>
+          {match.resume.name}{' '}
+          <span class="font-mono text-xs text-ink-faint">v{match.resumeVersion}</span>
         </span>
         <span class="text-xs text-ink-faint">
           {formatRelative(match.createdAt)} · <span class="font-mono">{match.model}</span>
@@ -143,7 +161,7 @@ export const MatchReport: FC<{
         {!jumpable && (
           <a
             href={`/jobs/${match.jobId}/target?match=${match.id}`}
-            class="ml-auto text-sm text-accent hover:underline"
+            class="ml-auto text-sm font-medium text-accent-strong transition-colors duration-150 hover:text-accent-deep"
           >
             Open targeted view →
           </a>
@@ -151,30 +169,32 @@ export const MatchReport: FC<{
       </div>
       <p class="max-w-prose text-sm leading-6 text-ink">{match.summary}</p>
 
-      <MarkedList label="Red flags" items={match.redFlags} mark="✗" tone="text-danger" />
-      <MarkedList label="Already working for you" items={match.strengths} mark="✓" tone="text-ok" />
+      <MarkedList label="Red flags" items={match.redFlags} kind="x" tone="text-danger" />
+      <MarkedList label="Already working for you" items={match.strengths} kind="check" tone="text-ok" />
 
       <div>
-        <div class="mb-2 text-xs uppercase tracking-wider text-ink-faint">
-          What to change — {actions.length} edits
-        </div>
+        <div class={SUBHEAD}>What to change — {actions.length} edits</div>
         {actions.length === 0 ? (
           <Hint>No edits suggested.</Hint>
         ) : (
           <div class="space-y-4">
             {sections.map((section) => (
               <div>
-                <div class="mb-1 text-xs font-semibold uppercase tracking-wider text-ink-muted">
-                  {section}
-                </div>
+                <div class="mb-1.5 text-xs font-semibold text-ink">{section}</div>
                 <ol class="divide-y divide-line rounded-md border border-line">
                   {actions
                     .filter((a) => a.section === section)
                     .map((a) => (
                       <li
-                        class={`flex flex-col gap-1 p-3 sm:flex-row sm:gap-3 ${jumpable && a.quote ? 'cursor-pointer hover:bg-surface-overlay/60' : ''}`}
+                        class={`flex flex-col gap-1 p-3 sm:flex-row sm:gap-3 ${
+                          jumpable && a.quote
+                            ? 'cursor-pointer transition-colors duration-150 hover:bg-surface-overlay/50'
+                            : ''
+                        }`}
                         data-quote={jumpable && a.quote ? a.quote : undefined}
-                        title={jumpable && a.quote ? 'Click to select this text in the editor' : undefined}
+                        title={
+                          jumpable && a.quote ? 'Click to select this text in the editor' : undefined
+                        }
                       >
                         <div class="w-16 shrink-0">
                           <Badge tone={PRIORITY_TONE[a.priority]}>{a.priority}</Badge>
@@ -195,13 +215,15 @@ export const MatchReport: FC<{
 
       {removals.length > 0 && (
         <div>
-          <div class="mb-2 text-xs uppercase tracking-wider text-ink-faint">
-            What to remove — {removals.length} items
-          </div>
+          <div class={SUBHEAD}>What to remove — {removals.length} items</div>
           <ul class="divide-y divide-line rounded-md border border-line">
             {removals.map((r) => (
               <li
-                class={`flex flex-col gap-1 p-3 sm:flex-row sm:gap-3 ${jumpable && r.quote ? 'cursor-pointer hover:bg-surface-overlay/60' : ''}`}
+                class={`flex flex-col gap-1 p-3 sm:flex-row sm:gap-3 ${
+                  jumpable && r.quote
+                    ? 'cursor-pointer transition-colors duration-150 hover:bg-surface-overlay/50'
+                    : ''
+                }`}
                 data-quote={jumpable && r.quote ? r.quote : undefined}
                 title={jumpable && r.quote ? 'Click to select this text in the editor' : undefined}
               >
@@ -221,15 +243,15 @@ export const MatchReport: FC<{
 
       {keywords.length > 0 && (
         <div class="-mx-5 -mb-5 border-t border-line">
-          <div class="px-5 pt-4 text-xs uppercase tracking-wider text-ink-faint">
+          <div class="px-5 py-3 text-[13px] font-medium text-ink-muted">
             Keyword coverage — {keywords.filter((k) => k.status === 'present').length} of{' '}
             {keywords.length} present
           </div>
-          <Table columns={['Keyword', 'P', 'Status', 'Where', 'Note']}>
+          <Table columns={['Keyword', 'Priority', 'Status', 'Where', 'Note']}>
             {keywords.map((k) => (
               <Tr>
-                <Td class="font-mono text-xs text-ink">{k.term}</Td>
-                <Td class="font-mono text-xs text-ink-faint">{k.priority}</Td>
+                <Td class="text-xs font-medium text-ink">{k.term}</Td>
+                <Td class="text-xs tabular-nums text-ink-faint">{k.priority}</Td>
                 <Td>
                   <Badge tone={STATUS_VIEW[k.status].tone}>{STATUS_VIEW[k.status].label}</Badge>
                 </Td>
@@ -244,21 +266,19 @@ export const MatchReport: FC<{
   );
 };
 
-const MarkedList: FC<{ label: string; items: string[]; mark: string; tone: string }> = ({
+const MarkedList: FC<{ label: string; items: string[]; kind: 'check' | 'x'; tone: string }> = ({
   label,
   items,
-  mark,
+  kind,
   tone,
 }) =>
   items.length === 0 ? null : (
     <div>
-      <div class="mb-1 text-xs uppercase tracking-wider text-ink-faint">{label}</div>
+      <div class={SUBHEAD}>{label}</div>
       <ul class="space-y-1 text-sm text-ink-muted">
         {items.map((s) => (
           <li class="flex gap-2">
-            <span class={tone} aria-hidden="true">
-              {mark}
-            </span>
+            <MarkIcon kind={kind} class={`mt-[3px] ${tone}`} />
             <span>{s}</span>
           </li>
         ))}
