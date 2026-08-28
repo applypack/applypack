@@ -121,12 +121,15 @@ Bound to `127.0.0.1:4747`. Optional `WEB_BASIC_AUTH=user:password` in
 | ------------ | ---------------- | -------------------------------------------------------------------- |
 | Overview     | `/`              | Counters by status, recent alerts, cron health                       |
 | Jobs         | `/jobs`          | Filterable + sortable + paginated list                               |
-| Job detail   | `/jobs/:id`      | Full description, Claude output, status actions, application tracking, re-classify |
+| Paste a job  | `/jobs/new`      | Save a posting by hand (LinkedIn, email, referral) — classified like any other |
+| Job detail   | `/jobs/:id`      | Full description, Claude output, status actions, **is this job real?**, **resume match**, application tracking, re-classify |
 | Applications | `/applications`  | Kanban (applied → screen → tech → onsite → offer / rejected / ghosted) |
+| Resumes      | `/resumes`       | Upload `.docx` / `.md` / `.txt`, AI scan (headline, skills, issues), comparison history |
+| Resume       | `/resumes/:id`   | Scan result, job-agnostic issues, comparisons, extracted text, download |
 | Companies    | `/companies`     | Sources list, manual add (with probe), per-row toggle / delete       |
 | Discovery    | `/discovery`     | Pending / Promoted / Ignored / Dead candidates harvested by HN parser |
 | Runs         | `/runs`          | Last 100 cron runs with stats / errors                               |
-| Settings     | `/settings`      | Active profile editor, 7 toggles, telegram targets, source family on/off |
+| Settings     | `/settings`      | Active profile editor, resumes, 7 toggles, telegram targets, source family on/off |
 | Health       | `/health`        | JSON liveness for external monitoring                                |
 
 ### Profiles
@@ -145,6 +148,34 @@ Bound to `127.0.0.1:4747`. Optional `WEB_BASIC_AUTH=user:password` in
 Multiple profiles can coexist; one is active. Switch via dropdown,
 then click **Re-classify all jobs** to rescore existing rows under
 the new profile.
+
+### Resumes
+
+Upload the resumes you actually send (`/settings` → "Resumes" or
+`/resumes`). Each upload is scanned once by `CLAUDE_MODEL_RESUME`
+(headline, seniority, skill tags, job-agnostic ATS issues). On any job
+page, "Resume match" → **Compare** runs one comparison and stores a report:
+match score, what already sells you, red flags, a to-do list (section →
+where → what → why, with priority) and keyword coverage
+(`present` / `add` / `can't claim` — the last one is what the resume
+cannot honestly claim), and **what to remove** so the resume reads
+cleaner. Recruiter reality is baked into the prompt: the title, summary and
+most recent role get the edits; older roles get trims.
+
+Then iterate: edit the resume, **Upload a new version** on its page, hit
+Compare again — the score uses a fixed rubric, so the card shows
+"▲ +16 vs v1". Files and reports stay in your Postgres.
+
+### Is this job real?
+
+Any job page → **Verify**. The model gets web search (server tools on the
+API, `WebSearch`/`WebFetch` on the Claude Code CLI) and runs the ghost-job
+checklist: company careers page, LinkedIn footprint, reputation, posting
+age, salary, named humans, hard scam flags. Result: `legit` / `suspicious`
+/ `fake`, a recommendation (apply / caution / skip), confidence, and
+evidence rows with the URLs it used. Takes 2-4 minutes. Pasted jobs
+(`/jobs/new`) are the main use — LinkedIn postings you'd otherwise have to
+judge by eye.
 
 ### Toggles
 
@@ -225,6 +256,10 @@ backend with `AI_PROVIDER`:
 | --- | --- | --- |
 | `anthropic_api` (default) | `@anthropic-ai/sdk` → Messages API, system prompt cached | per token, `ANTHROPIC_API_KEY` required |
 | `claude_code` | spawns `claude -p --output-format json` per job | your Claude.ai Pro/Max subscription |
+
+`CLAUDE_MODEL` (Haiku 4.5) runs the classifier; `CLAUDE_MODEL_RESUME`
+(Opus 5 by default) runs the resume scan and resume-vs-job comparison —
+a few calls a day where judgment matters more than cost.
 
 `claude_code` notes:
 

@@ -26,6 +26,7 @@ export const companiesRoute = new Hono();
 
 companiesRoute.get('/companies', async (c) => {
   const companies = await prisma.company.findMany({
+    where: { atsType: { not: AtsType.MANUAL } },
     orderBy: [{ active: 'desc' }, { name: 'asc' }],
     include: {
       _count: { select: { jobs: true } },

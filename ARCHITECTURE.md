@@ -173,6 +173,20 @@ src/
   discovery.ts                 ← CompanyCandidate CRUD + recordCandidatesFromText + promote
   seed.ts                      ← SEED_COMPANIES list + OBSOLETE_TOKENS cleanup
 
+  resume/                      ← web-only resume module (ADR 0008)
+    zip.ts                     ← read one entry from a zip (node:zlib), pure
+    docx-text.ts               ← word/document.xml → plain text, pure
+    resume-text.ts             ← upload dispatch by extension, pure
+    prompts.ts                 ← scan + match prompts, zod schemas, Json readers, pure
+    pick.ts                    ← preselect resume by skill-tag overlap, pure
+    store.ts                   ← Resume / ResumeMatch CRUD (Prisma)
+    scan.ts                    ← one AI call → Resume scan fields
+    match.ts                   ← one AI call → ResumeMatch row
+
+  verification/                ← ghost-job check (ADR 0009)
+    prompts.ts                 ← checklist prompt, zod schema, evidence reader, pure
+    verify.ts                  ← AI call with webTools → JobVerification row (Prisma)
+
   fetchers/
     index.ts                   ← runAllFetchers + fetchOne switch
     {greenhouse,lever,ashby}.ts          per-company JSON fetchers
@@ -194,6 +208,7 @@ src/
     discovery-job.ts            ← runDiscoveryJob (Sunday 04:00, validation probe)
     process-jobs.ts             ← shared inner loop used by fetch + HN
     reclassify-job.ts           ← runReclassifyAll (web-triggered, async)
+    classify-existing.ts        ← classify one stored job (Re-classify button, manual entry)
     cron-run.ts                 ← recordCronRun(name, fn) wrapper
 
   scripts/
@@ -205,6 +220,7 @@ src/
     layout.tsx                  ← HTML shell, nav, Tailwind CDN, htmx CDN
     ui.tsx                      ← shared <Card>, <StatusBadge>, <FitBadge>, <Tag>, <Stat>
     format.ts                   ← formatSalary, formatRelative, statusColor, fitColor
+    flash.ts                  ← POST → redirect → GET flash cookie
 
     pages/
       overview.tsx              ← /
@@ -214,11 +230,17 @@ src/
       companies.tsx             ← /companies
       discovery.tsx             ← /discovery
       runs.tsx                  ← /runs
-      settings.tsx              ← /settings (8 cards)
+      settings.tsx              ← /settings (9 cards)
+      resumes.tsx               ← /resumes (list + upload form component)
+      resume-detail.tsx         ← /resumes/:id
+      resume-match-card.tsx     ← "Resume match" card on /jobs/:id
+      verification-card.tsx     ← "Is this job real?" card on /jobs/:id
+      job-new.tsx               ← /jobs/new (paste a posting)
 
     routes/
       overview.tsx
-      jobs.tsx                  ← list + detail + status + reclassify (auto-demote)
+      jobs.tsx                  ← list + new (manual) + detail + status + reclassify + verify + resume match
+      resumes.tsx               ← upload (2 MB limit) + scan + default + delete + download
       applications.tsx          ← kanban + per-job application form
       companies.tsx              ← list + new (probe-validated) + delete + toggle
       discovery.tsx             ← list + promote + ignore + delete + manual probe
@@ -228,7 +250,8 @@ src/
 
 prisma/
   schema.prisma                 ← Company, Job, CronRun, AppSettings, Profile,
-                                  TelegramTarget, CompanyCandidate, 4 enums
+                                  TelegramTarget, CompanyCandidate, Resume,
+                                  ResumeMatch, JobVerification, 4 enums
   migrations/                   ← real Prisma migrations from phase-3.0 baseline
 ```
 
@@ -247,6 +270,11 @@ prisma/
 | `POST /settings/hn-run`          | web     | spawns `runHnHiringJob` async (lock)     |
 | `POST /jobs/:id/reclassify`      | web     | sync `classifyJob` → auto-demote on fail |
 | `POST /companies/new`            | web     | sync `probeAts` → upsert                 |
+| `POST /resumes`                  | web     | extract text → `scanResume` (sync, ~1 min) |
+| `POST /jobs/:id/match`           | web     | sync `matchResumeToJob` → `ResumeMatch`  |
+| `POST /jobs/:id/verify`          | web     | sync `verifyJob` with web tools (2-4 min) → `JobVerification` |
+| `POST /jobs/new`                 | web     | MANUAL company upsert + Job + `classifyExistingJob` |
+| `POST /resumes/:id/replace`      | web     | new file → `version`+1 → `scanResume`    |
 | `POST /discovery/:id/promote`    | web     | transactional Company upsert             |
 | `POST /discovery/probe-now`      | web     | spawns `runDiscoveryJob` async (lock)    |
 
@@ -259,6 +287,9 @@ erDiagram
   Profile ||--o{ AppSettings : "back-relation"
   Company ||--o{ Job : "1..N onDelete:Cascade"
   CompanyCandidate }o--|| AtsType : "PROMOTED → Company"
+  Resume ||--o{ ResumeMatch : "1..N onDelete:Cascade"
+  Job ||--o{ ResumeMatch : "1..N onDelete:Cascade"
+  Job ||--o{ JobVerification : "1..N onDelete:Cascade"
 
   AppSettings {
     int id PK
@@ -339,6 +370,52 @@ erDiagram
     string sourceUrl
     int jobsSeen
     enum status "PENDING|PROMOTED|IGNORED|DEAD"
+  }
+
+  Resume {
+    int id PK
+    string name
+    string sourceFilename
+    bytes original
+    text text
+    int version
+    bool isDefault
+    datetime scannedAt
+    string title
+    string seniority
+    int yearsExperience
+    string_array skills
+    string_array roleTypes
+    text summary
+    json issues
+  }
+
+  ResumeMatch {
+    int id PK
+    int jobId FK
+    int resumeId FK
+    int resumeVersion
+    string model
+    int matchScore
+    text summary
+    string_array strengths
+    string_array redFlags
+    json keywords
+    json actions
+    json removals
+  }
+
+  JobVerification {
+    int id PK
+    int jobId FK
+    string model
+    string verdict
+    string recommendation
+    int confidence
+    text summary
+    json evidence
+    string_array redFlags
+    text companySnapshot
   }
 
   CronRun {

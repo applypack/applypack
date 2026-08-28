@@ -139,14 +139,14 @@ export const StatusBadge: FC<{ status: JobStatus }> = ({ status }) => (
 );
 
 /** Fit score as number + 4-step meter, so the value reads without colour. */
-export const FitBadge: FC<{ score: number | null }> = ({ score }) => {
+export const FitBadge: FC<{ score: number | null; label?: string }> = ({ score, label = 'fit' }) => {
   if (score == null) return <span class="text-ink-faint">—</span>;
   const tone = fitTone(score);
   const filled = score >= 85 ? 4 : score >= 70 ? 3 : score >= 50 ? 2 : 1;
   return (
     <span
       class={`inline-flex items-center gap-1.5 font-mono text-sm font-medium tabular-nums ${TONE_TEXT[tone]}`}
-      title={`fit ${score}/100`}
+      title={`${label} ${score}/100`}
     >
       {score}
       <span class="flex gap-px" aria-hidden="true">
