@@ -1,4 +1,5 @@
 import { serve } from '@hono/node-server';
+import { serveStatic } from '@hono/node-server/serve-static';
 import { Hono } from 'hono';
 import { basicAuth } from 'hono/basic-auth';
 import { secureHeaders } from 'hono/secure-headers';
@@ -12,6 +13,7 @@ import { runsRoute } from './routes/runs';
 import { settingsRoute } from './routes/settings';
 import { applicationsRoute } from './routes/applications';
 import { discoveryRoute } from './routes/discovery';
+import { resumesRoute } from './routes/resumes';
 import { healthRoute } from './routes/health';
 
 const app = new Hono();
@@ -66,9 +68,13 @@ app.use('*', async (c, next) => {
   );
 });
 
+// Browser-side keyword matcher for /jobs/:id/target (ADR 0010).
+app.use('/static/*', serveStatic({ root: './src/web/public', rewriteRequestPath: (p) => p.replace(/^\/static/, '') }));
+
 app.route('/', overviewRoute);
 app.route('/', jobsRoute);
 app.route('/', applicationsRoute);
+app.route('/', resumesRoute);
 app.route('/', companiesRoute);
 app.route('/', discoveryRoute);
 app.route('/', runsRoute);

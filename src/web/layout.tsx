@@ -5,6 +5,7 @@ export type NavKey =
   | 'overview'
   | 'jobs'
   | 'applications'
+  | 'resumes'
   | 'companies'
   | 'discovery'
   | 'runs'
@@ -19,6 +20,7 @@ const NAV: { key: NavKey; href: string; label: string }[] = [
   { key: 'overview', href: '/', label: 'Overview' },
   { key: 'jobs', href: '/jobs', label: 'Jobs' },
   { key: 'applications', href: '/applications', label: 'Applications' },
+  { key: 'resumes', href: '/resumes', label: 'Resumes' },
   { key: 'companies', href: '/companies', label: 'Companies' },
   { key: 'discovery', href: '/discovery', label: 'Discovery' },
   { key: 'runs', href: '/runs', label: 'Runs' },

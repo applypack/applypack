@@ -40,8 +40,8 @@ import {
 } from '../../priority-rules';
 import { prisma } from '../../db';
 import { SettingsPage } from '../pages/settings';
-
-const FLASH_TTL_SECONDS = 5;
+import { clearFlashCookie, flashRedirect, parseFlashCookie } from '../flash';
+import { listResumes } from '../../resume/store';
 
 const NewTargetSchema = z.object({
   name: z.string().min(1).max(100),
@@ -73,11 +73,12 @@ let reclassifyInFlight = false;
 export const settingsRoute = new Hono();
 
 settingsRoute.get('/settings', async (c) => {
-  const [settings, targets, profiles, active] = await Promise.all([
+  const [settings, targets, profiles, active, resumes] = await Promise.all([
     getSettings(),
     listTelegramTargets(),
     listProfiles(),
     getActiveProfile(),
+    listResumes(),
   ]);
   const flash = parseFlashCookie(c.req.header('cookie'));
   return c.html(
@@ -88,7 +89,7 @@ settingsRoute.get('/settings', async (c) => {
       staleApplicationsDigestEnabled={settings.staleApplicationsDigestEnabled}
       hnParserEnabled={settings.hnParserEnabled}
       disabledSources={settings.disabledSources}
-      allSources={Object.values(AtsType)}
+      allSources={Object.values(AtsType).filter((t) => t !== AtsType.MANUAL)}
       discoveryEnabled={settings.discoveryEnabled}
       fetchingEnabled={settings.fetchingEnabled}
       targets={targets.map((t) => ({
@@ -114,6 +115,12 @@ settingsRoute.get('/settings', async (c) => {
         name: t.name,
         active: t.active,
       }))}
+      resumes={resumes.map((r) => ({
+        id: r.id,
+        name: r.name,
+        isDefault: r.isDefault,
+        scannedAt: r.scannedAt,
+      }))}
       flash={flash}
     />,
     200,
@@ -126,8 +133,8 @@ settingsRoute.get('/settings', async (c) => {
 settingsRoute.post('/settings/fetching-toggle', async (c) => {
   const settings = await getSettings();
   await setFetchingEnabled(!settings.fetchingEnabled);
-  return redirectWithFlash(
-    c,
+  return flashRedirect(
+    '/settings',
     'ok',
     settings.fetchingEnabled
       ? 'Job fetching paused — no new jobs or alerts until you resume.'
@@ -140,8 +147,8 @@ settingsRoute.post('/settings/fetching-toggle', async (c) => {
 settingsRoute.post('/settings/telegram-toggle', async (c) => {
   const settings = await getSettings();
   await setTelegramEnabled(!settings.telegramEnabled);
-  return redirectWithFlash(
-    c,
+  return flashRedirect(
+    '/settings',
     'ok',
     `Telegram alerts ${!settings.telegramEnabled ? 'enabled' : 'disabled'}.`,
   );
@@ -156,14 +163,14 @@ settingsRoute.post('/settings/classifier-mode', async (c) => {
     mode === 'two_stage'
       ? 'Two-stage prefilter + Haiku 4.5'
       : 'Single (Haiku 4.5 only)';
-  return redirectWithFlash(c, 'ok', `Classifier mode → ${label}.`);
+  return flashRedirect('/settings', 'ok', `Classifier mode → ${label}.`);
 });
 
 settingsRoute.post('/settings/application-tracking-toggle', async (c) => {
   const settings = await getSettings();
   await setApplicationTrackingEnabled(!settings.applicationTrackingEnabled);
-  return redirectWithFlash(
-    c,
+  return flashRedirect(
+    '/settings',
     'ok',
     `Application tracking ${
       !settings.applicationTrackingEnabled ? 'enabled' : 'disabled'
@@ -176,8 +183,8 @@ settingsRoute.post('/settings/stale-digest-toggle', async (c) => {
   await setStaleApplicationsDigestEnabled(
     !settings.staleApplicationsDigestEnabled,
   );
-  return redirectWithFlash(
-    c,
+  return flashRedirect(
+    '/settings',
     'ok',
     `Stale-applications digest ${
       !settings.staleApplicationsDigestEnabled ? 'enabled' : 'disabled'
@@ -198,8 +205,8 @@ settingsRoute.post('/settings/sources', async (c) => {
   // disabledSources = everything NOT in the submitted "enabled" set.
   const disabled = allSources.filter((s) => !enabled.includes(s));
   await setDisabledSources(disabled);
-  return redirectWithFlash(
-    c,
+  return flashRedirect(
+    '/settings',
     'ok',
     disabled.length === 0
       ? 'All sources enabled.'
@@ -210,8 +217,8 @@ settingsRoute.post('/settings/sources', async (c) => {
 settingsRoute.post('/settings/discovery-toggle', async (c) => {
   const settings = await getSettings();
   await setDiscoveryEnabled(!settings.discoveryEnabled);
-  return redirectWithFlash(
-    c,
+  return flashRedirect(
+    '/settings',
     'ok',
     `Auto-discovery ${!settings.discoveryEnabled ? 'enabled' : 'disabled'}.`,
   );
@@ -220,8 +227,8 @@ settingsRoute.post('/settings/discovery-toggle', async (c) => {
 settingsRoute.post('/settings/hn-parser-toggle', async (c) => {
   const settings = await getSettings();
   await setHnParserEnabled(!settings.hnParserEnabled);
-  return redirectWithFlash(
-    c,
+  return flashRedirect(
+    '/settings',
     'ok',
     `HN parser ${!settings.hnParserEnabled ? 'enabled' : 'disabled'}.`,
   );
@@ -230,8 +237,8 @@ settingsRoute.post('/settings/hn-parser-toggle', async (c) => {
 let hnRunInFlight = false;
 settingsRoute.post('/settings/hn-run', (c) => {
   if (hnRunInFlight) {
-    return redirectWithFlash(
-      c,
+    return flashRedirect(
+      '/settings',
       'err',
       'An HN parse run is already in progress. Watch /runs.',
     );
@@ -246,8 +253,8 @@ settingsRoute.post('/settings/hn-run', (c) => {
       hnRunInFlight = false;
     }
   })();
-  return redirectWithFlash(
-    c,
+  return flashRedirect(
+    '/settings',
     'ok',
     'HN parse started in the background. Track progress at /runs.',
   );
@@ -261,19 +268,19 @@ settingsRoute.post('/settings/targets', async (c) => {
     chatId: form.chatId,
   });
   if (!parsed.success) {
-    return redirectWithFlash(c, 'err', 'Invalid input — name, token, chat id required.');
+    return flashRedirect('/settings', 'err', 'Invalid input — name, token, chat id required.');
   }
   const test = await testTelegramTarget(parsed.data.botToken, parsed.data.chatId);
   if (!test.ok) {
-    return redirectWithFlash(
-      c,
+    return flashRedirect(
+      '/settings',
       'err',
       `Validation failed: ${test.error ?? 'unknown'}`,
     );
   }
   await addTelegramTarget(parsed.data);
-  return redirectWithFlash(
-    c,
+  return flashRedirect(
+    '/settings',
     'ok',
     `Added target "${parsed.data.name}" (bot @${test.botUsername ?? '?'}). Test message sent.`,
   );
@@ -283,30 +290,30 @@ settingsRoute.post('/settings/targets/:id/toggle', async (c) => {
   const id = Number(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text('Bad id', 400);
   await toggleTelegramTarget(id);
-  return redirectWithFlash(c, 'ok', 'Target toggled.');
+  return flashRedirect('/settings', 'ok', 'Target toggled.');
 });
 
 settingsRoute.post('/settings/targets/:id/delete', async (c) => {
   const id = Number(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text('Bad id', 400);
   await deleteTelegramTarget(id);
-  return redirectWithFlash(c, 'ok', 'Target deleted.');
+  return flashRedirect('/settings', 'ok', 'Target deleted.');
 });
 
 settingsRoute.post('/settings/targets/:id/test', async (c) => {
   const id = Number(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text('Bad id', 400);
   const t = await prisma.telegramTarget.findUnique({ where: { id } });
-  if (!t) return redirectWithFlash(c, 'err', 'Target not found.');
+  if (!t) return flashRedirect('/settings', 'err', 'Target not found.');
   const result = await testTelegramTarget(t.botToken, t.chatId);
   if (result.ok) {
-    return redirectWithFlash(
-      c,
+    return flashRedirect(
+      '/settings',
       'ok',
       `Test sent to "${t.name}" (bot @${result.botUsername ?? '?'}).`,
     );
   }
-  return redirectWithFlash(c, 'err', `Test failed: ${result.error ?? 'unknown'}`);
+  return flashRedirect('/settings', 'err', `Test failed: ${result.error ?? 'unknown'}`);
 });
 
 // --- Profiles ---------------------------------------------------------------
@@ -330,8 +337,8 @@ settingsRoute.post('/settings/profiles/new', async (c) => {
     priorityRules: [],
   });
   await setActiveProfile(profile.id);
-  return redirectWithFlash(
-    c,
+  return flashRedirect(
+    '/settings',
     'ok',
     'New profile created and activated. Edit the fields below and save.',
   );
@@ -340,18 +347,18 @@ settingsRoute.post('/settings/profiles/new', async (c) => {
 settingsRoute.post('/settings/profiles/activate', async (c) => {
   const form = await c.req.parseBody();
   const id = Number(form.id);
-  if (!Number.isFinite(id)) return redirectWithFlash(c, 'err', 'Invalid id.');
+  if (!Number.isFinite(id)) return flashRedirect('/settings', 'err', 'Invalid id.');
   try {
     await setActiveProfile(id);
   } catch (err) {
-    return redirectWithFlash(
-      c,
+    return flashRedirect(
+      '/settings',
       'err',
       err instanceof Error ? err.message : 'Failed to activate.',
     );
   }
-  return redirectWithFlash(
-    c,
+  return flashRedirect(
+    '/settings',
     'ok',
     'Profile activated. Click "Re-classify all jobs" to score them with this profile.',
   );
@@ -363,20 +370,20 @@ settingsRoute.post('/settings/profiles/:id/delete', async (c) => {
   try {
     await deleteProfile(id);
   } catch (err) {
-    return redirectWithFlash(
-      c,
+    return flashRedirect(
+      '/settings',
       'err',
       err instanceof Error ? err.message : 'Delete failed.',
     );
   }
-  return redirectWithFlash(c, 'ok', 'Profile deleted.');
+  return flashRedirect('/settings', 'ok', 'Profile deleted.');
 });
 
 settingsRoute.post('/settings/profiles/:id/save', async (c) => {
   const id = Number(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text('Bad id', 400);
   if (!(await getProfile(id))) {
-    return redirectWithFlash(c, 'err', 'Profile not found.');
+    return flashRedirect('/settings', 'err', 'Profile not found.');
   }
 
   // `all: true` is required so multi-value checkboxes (seniority,
@@ -388,7 +395,7 @@ settingsRoute.post('/settings/profiles/:id/save', async (c) => {
       { errors: parsed.error.flatten().fieldErrors, form },
       'profile form: validation failed',
     );
-    return redirectWithFlash(c, 'err', 'Invalid form values.');
+    return flashRedirect('/settings', 'err', 'Invalid form values.');
   }
   const f = parsed.data;
 
@@ -401,8 +408,8 @@ settingsRoute.post('/settings/profiles/:id/save', async (c) => {
     parsePriorityRulesText(f.priorityRules);
   if (priorityErrors.length > 0) {
     const first = priorityErrors[0]!;
-    return redirectWithFlash(
-      c,
+    return flashRedirect(
+      '/settings',
       'err',
       `Priority rules — line ${first.line}: ${first.reason}. Profile not saved.`,
     );
@@ -431,28 +438,28 @@ settingsRoute.post('/settings/profiles/:id/save', async (c) => {
 
   if (f.action === 'save-and-reclassify') {
     triggerReclassifyAsync();
-    return redirectWithFlash(
-      c,
+    return flashRedirect(
+      '/settings',
       'ok',
       'Profile saved. Re-classify started in the background — track progress at /runs.',
     );
   }
-  return redirectWithFlash(c, 'ok', 'Profile saved.');
+  return flashRedirect('/settings', 'ok', 'Profile saved.');
 });
 
 // --- Re-classify ------------------------------------------------------------
 
 settingsRoute.post('/settings/reclassify', (c) => {
   if (reclassifyInFlight) {
-    return redirectWithFlash(
-      c,
+    return flashRedirect(
+      '/settings',
       'err',
       'A re-classify is already running. Watch /runs for progress.',
     );
   }
   triggerReclassifyAsync();
-  return redirectWithFlash(
-    c,
+  return flashRedirect(
+    '/settings',
     'ok',
     'Re-classify started in the background. Track progress at /runs.',
   );
@@ -470,51 +477,4 @@ function triggerReclassifyAsync(): void {
       reclassifyInFlight = false;
     }
   })();
-}
-
-// --- helpers ----------------------------------------------------------------
-
-import type { Context } from 'hono';
-
-function redirectWithFlash(
-  c: Context,
-  kind: 'ok' | 'err',
-  text: string,
-): Response {
-  const value = encodeURIComponent(JSON.stringify({ kind, text }));
-  const cookie = `flash=${value}; Path=/; Max-Age=${FLASH_TTL_SECONDS}; HttpOnly; SameSite=Lax`;
-  return new Response(null, {
-    status: 303,
-    headers: {
-      Location: '/settings',
-      'Set-Cookie': cookie,
-    },
-  });
-}
-
-function parseFlashCookie(
-  cookieHeader: string | undefined,
-): { kind: 'ok' | 'err'; text: string } | null {
-  if (!cookieHeader) return null;
-  const match = /(?:^|;\s*)flash=([^;]+)/.exec(cookieHeader);
-  if (!match || !match[1]) return null;
-  try {
-    const decoded = decodeURIComponent(match[1]);
-    const parsed = JSON.parse(decoded);
-    if (
-      parsed &&
-      typeof parsed === 'object' &&
-      (parsed.kind === 'ok' || parsed.kind === 'err') &&
-      typeof parsed.text === 'string'
-    ) {
-      return parsed;
-    }
-  } catch {
-    return null;
-  }
-  return null;
-}
-
-function clearFlashCookie(): string {
-  return 'flash=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax';
 }

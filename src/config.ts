@@ -7,6 +7,9 @@ const ConfigSchema = z.object({
   AI_PROVIDER: z.enum(['anthropic_api', 'claude_code']).default('anthropic_api'),
   ANTHROPIC_API_KEY: z.string().optional(),
   CLAUDE_MODEL: z.string().default('claude-haiku-4-5-20251001'),
+  // Resume scan + resume-vs-job comparison: a few calls a day where judgment
+  // matters more than cost, so a stronger model than the classifier's.
+  CLAUDE_MODEL_RESUME: z.string().default('claude-opus-5'),
   // Path to the Claude Code CLI when AI_PROVIDER=claude_code.
   CLAUDE_CODE_BIN: z.string().default('claude'),
   // How many jobs are classified at the same time (both providers).

@@ -24,6 +24,9 @@ enum AtsType {
   HN_JOBS
   WORKINGNOMADS
   HIMALAYAS
+  // Phase 8.2: pasted by hand on /jobs/new. One inactive Company row per
+  // employer; runAllFetchers never touches it.
+  MANUAL
 }
 
 enum JobStatus {
@@ -93,6 +96,9 @@ model Job {
   // classify-time and bumped fitScore to the rule's floor. Empty when no
   // rule applied. Surfaced as a badge on /jobs/:id.
   priorityRulesApplied String[] @default([])
+
+  resumeMatches ResumeMatch[]
+  verifications JobVerification[]
 
   @@unique([companyId, externalId])
   @@index([status, fetchedAt])
@@ -220,4 +226,81 @@ model Profile {
 
   // Back-relation for AppSettings.activeProfileId
   activeFor AppSettings[]
+}
+
+// Phase 8.1: uploaded resumes. `text` is the plain-text extraction
+// (docx/md/txt) every AI call reads; `original` keeps the uploaded bytes
+// for download. The scan fields are filled by scanResume() and stay null
+// until the first successful scan.
+model Resume {
+  id              Int       @id @default(autoincrement())
+  name            String
+  sourceFilename  String
+  mimeType        String
+  original        Bytes
+  text            String    @db.Text
+  // Bumped on "Upload new version"; matches record the version they scored.
+  version         Int       @default(1)
+  isDefault       Boolean   @default(false)
+  scannedAt       DateTime?
+  title           String?
+  seniority       String?
+  yearsExperience Int?
+  skills          String[]  @default([])
+  roleTypes       String[]  @default([])
+  summary         String?   @db.Text
+  // [{ section, issue, fix }] — job-agnostic ATS / recruiter problems.
+  issues          Json      @default("[]")
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  matches         ResumeMatch[]
+}
+
+// Phase 8.1: one AI comparison of a resume against a job posting.
+// keywords = [{ term, priority 1-4, status present|add|cannot_claim, where, note }]
+// actions  = [{ section, where, what, why, priority high|medium|low }]
+// removals = [{ section, where, what, why }] — what to delete or shorten
+model ResumeMatch {
+  id            Int      @id @default(autoincrement())
+  jobId         Int
+  job           Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  resumeId      Int
+  resume        Resume   @relation(fields: [resumeId], references: [id], onDelete: Cascade)
+  resumeVersion Int      @default(1)
+  // Snapshot of the text that was judged, so highlights stay true after the
+  // resume moves on. `draft` = text came from the in-browser editor, not a
+  // stored version.
+  resumeText    String   @db.Text @default("")
+  draft         Boolean  @default(false)
+  model         String
+  matchScore    Int
+  summary    String   @db.Text
+  strengths  String[] @default([])
+  redFlags   String[] @default([])
+  keywords   Json
+  actions    Json
+  removals   Json     @default("[]")
+  createdAt  DateTime @default(now())
+
+  @@index([jobId, createdAt])
+  @@index([resumeId, createdAt])
+}
+
+// Phase 8.2: ghost-job / scam check of one posting, done with web search.
+// evidence = [{ check, finding, url, signal legit|ghost|scam|neutral|unverified }]
+model JobVerification {
+  id             Int      @id @default(autoincrement())
+  jobId          Int
+  job            Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  model          String
+  verdict        String   // legit | suspicious | fake
+  recommendation String   // apply | caution | skip
+  confidence     Int
+  summary        String   @db.Text
+  evidence       Json
+  redFlags       String[] @default([])
+  companySnapshot String? @db.Text
+  createdAt      DateTime @default(now())
+
+  @@index([jobId, createdAt])
 }

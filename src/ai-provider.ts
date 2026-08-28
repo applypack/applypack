@@ -4,7 +4,7 @@ import { promisify } from 'node:util';
 import { config } from './config';
 import { logger } from './logger';
 import { sleep } from './http';
-import { parseClaudeCodeOutput } from './ai-provider-parse';
+import { buildClaudeCodeArgs, parseClaudeCodeOutput } from './ai-provider-parse';
 
 /**
  * The single seam between the classifiers and whatever runs Claude.
@@ -23,6 +23,15 @@ export interface AiRequest {
   maxTokens: number;
   /** Short tag for log lines, e.g. 'classifier' / 'prefilter'. */
   label: string;
+  /** Model id; defaults to CLAUDE_MODEL. */
+  model?: string;
+  /** Per-call ceiling for the claude_code process (default CLAUDE_CODE_TIMEOUT_MS). */
+  timeoutMs?: number;
+  /**
+   * Let the model search and fetch the web before answering (server tools on
+   * the API, WebSearch/WebFetch on the CLI). Only the final text comes back.
+   */
+  webTools?: boolean;
 }
 
 export interface AiProvider {
@@ -33,8 +42,11 @@ export interface AiProvider {
 
 const RATE_LIMIT_RETRY_DELAY_MS = 2_000;
 const MAX_ATTEMPTS = 2;
-// Calls normally finish in 15-30 s inside Docker, but with AI_CONCURRENCY
-// in flight a few strayed past 90 s and lost their work to the timeout.
+// Server-side web tools pause after ~10 tool calls (stop_reason pause_turn);
+// re-sending the turn resumes them. Cap the resumes so a search spiral ends.
+const MAX_PAUSE_TURN_RESUMES = 5;
+const WEB_SEARCH_MAX_USES = 10;
+const WEB_FETCH_MAX_USES = 6;
 const CLAUDE_CODE_TIMEOUT_MS = 180_000;
 const CLAUDE_CODE_MAX_BUFFER = 1024 * 1024;
 
@@ -51,18 +63,7 @@ class AnthropicApiProvider implements AiProvider {
   async complete(req: AiRequest): Promise<string | null> {
     for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
       try {
-        const resp = await this.client.messages.create({
-          model: config.CLAUDE_MODEL,
-          max_tokens: req.maxTokens,
-          system: [
-            { type: 'text', text: req.system, cache_control: { type: 'ephemeral' } },
-          ],
-          messages: [{ role: 'user', content: req.user }],
-        });
-        return resp.content
-          .filter((b): b is Anthropic.TextBlock => b.type === 'text')
-          .map((b) => b.text)
-          .join('');
+        return await this.run(req);
       } catch (err) {
         const status = err instanceof Anthropic.APIError ? err.status : undefined;
         if (status === 429 && attempt < MAX_ATTEMPTS - 1) {
@@ -76,6 +77,33 @@ class AnthropicApiProvider implements AiProvider {
     }
     return null;
   }
+
+  private async run(req: AiRequest): Promise<string> {
+    const messages: Anthropic.MessageParam[] = [{ role: 'user', content: req.user }];
+    const tools = req.webTools
+      ? [
+          { type: 'web_search_20260209' as const, name: 'web_search' as const, max_uses: WEB_SEARCH_MAX_USES },
+          { type: 'web_fetch_20260209' as const, name: 'web_fetch' as const, max_uses: WEB_FETCH_MAX_USES },
+        ]
+      : undefined;
+    for (let resumes = 0; ; resumes++) {
+      const resp = await this.client.messages.create({
+        model: req.model ?? config.CLAUDE_MODEL,
+        max_tokens: req.maxTokens,
+        system: [{ type: 'text', text: req.system, cache_control: { type: 'ephemeral' } }],
+        messages,
+        tools,
+      });
+      if (resp.stop_reason === 'pause_turn' && resumes < MAX_PAUSE_TURN_RESUMES) {
+        messages.push({ role: 'assistant', content: resp.content });
+        continue;
+      }
+      return resp.content
+        .filter((b): b is Anthropic.TextBlock => b.type === 'text')
+        .map((b) => b.text)
+        .join('');
+    }
+  }
 }
 
 class ClaudeCodeProvider implements AiProvider {
@@ -84,20 +112,17 @@ class ClaudeCodeProvider implements AiProvider {
   constructor(private readonly bin: string) {}
 
   async complete(req: AiRequest): Promise<string | null> {
-    const args = [
-      '--print',
-      '--output-format', 'json',
-      '--model', config.CLAUDE_MODEL,
-      '--system-prompt', req.system,
-      '--tools', '',
-      '--no-session-persistence',
-      req.user,
-    ];
+    const args = buildClaudeCodeArgs({
+      system: req.system,
+      user: req.user,
+      model: req.model ?? config.CLAUDE_MODEL,
+      webTools: req.webTools,
+    });
     for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
       let stdout: string;
       try {
         ({ stdout } = await execFileAsync(this.bin, args, {
-          timeout: CLAUDE_CODE_TIMEOUT_MS,
+          timeout: req.timeoutMs ?? CLAUDE_CODE_TIMEOUT_MS,
           maxBuffer: CLAUDE_CODE_MAX_BUFFER,
         }));
       } catch (err) {
