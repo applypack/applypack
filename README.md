@@ -281,8 +281,10 @@ a few calls a day where judgment matters more than cost.
   The Docker image installs the CLI; mount your credentials with the
   `~/.claude` volume line in `docker-compose.yml`.
 - Every call carries Claude Code's own system prompt (~5k tokens) and
-  starts a new process — expect a few seconds per job instead of
-  sub-second. Fine for an hourly tick, noticeable on "Re-classify all".
+  starts a new process — ~7 s per job on a laptop, 15–30 s inside Docker.
+  `AI_CONCURRENCY` (default 3) runs that many CLI processes at once, so
+  wall-clock for a tick or "Re-classify all" divides by roughly that
+  number; budget ~130 MB RAM per process.
 - The subscription has a rolling usage window. When it is exhausted the
   provider logs `claude-code rate-limited`, the job counts as
   `classifyFailed` for this tick, and it is retried on the next tick.
@@ -301,7 +303,8 @@ classifier mode and how many sources are active:
 - Discovery harvest doesn't call Claude (only HN parsing → ATS-URL
   detection).
 - Anthropic prompt caching gives ~90% read discount on the system
-  prompt within the 5-minute window.
+  prompt within the 5-minute window. `AI_CONCURRENCY` requests run at
+  once, so the first few of a tick may each pay the cache write.
 
 Postgres + Telegram + GitHub Actions are all free. The whole stack
 runs on a $5/month VPS or your laptop.

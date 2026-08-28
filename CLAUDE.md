@@ -107,6 +107,7 @@ When the question is **"where does X live?"**, save yourself a `find`:
 | Where to add a new toggle | `prisma/schema.prisma:AppSettings` (column) → `src/settings.ts` (getter/setter) → `src/web/pages/settings.tsx` (UI) → `src/web/routes/settings.tsx` (POST) |
 | The Claude system prompt | `src/classifier.ts:buildSystemPrompt` |
 | Which backend runs Claude (API key vs subscription CLI) | `src/ai-provider.ts:getAiProvider`, `AI_PROVIDER` in `.env` |
+| How many jobs are classified at once | `AI_CONCURRENCY` in `.env` (default 3); limiter in `src/concurrency.ts`, used by `jobs/process-jobs.ts` and `jobs/reclassify-job.ts` |
 | The two-stage prefilter prompt | `src/classifier-prefilter.ts:buildPrefilterPrompt` |
 | Per-job filter rules (pre-Claude) | `src/filter.ts:passesBaseFilter` |
 | Telegram MarkdownV2 escape | `src/notifier.ts:escapeMarkdownV2` |

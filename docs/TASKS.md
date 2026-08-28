@@ -60,7 +60,18 @@ as API-key only).
   caveat in README.
 - [x] Unit test for the CLI-output parser (pure).
 
-### 1.3 Cheaper API path (no grey zone — do this regardless)
+### 1.3 Concurrency (done 2026-08-27, PR "parallel-classifier")
+- [x] `AI_CONCURRENCY` (default 3, 1–8) in `config.ts`; pure
+  `src/concurrency.ts:createLimiter` + unit test.
+- [x] `process-jobs.ts`: filter + dedupe first (with in-batch dedupe),
+  classify through the limiter, persist + alert in original order.
+- [x] `reclassify-job.ts`: same per batch of 50. `classifyJob` never
+  rejects (queued promises would otherwise crash on unhandled rejection).
+- [x] Verified in Docker with `claude_code`: 3 CLI processes in `ps`,
+  web container ~460 MB, per-call latency unchanged (bench: 16 s serial,
+  11–14 s each with 3 in flight) → throughput ×3.
+
+### 1.4 Cheaper API path (no grey zone — do this regardless)
 - [ ] Batch API mode for `AnthropicApiProvider` (−50 % on tokens). Deferred:
   `process-jobs.ts` classifies one job at a time inside the persist loop, so
   batching needs a collect → submit → poll → persist restructure. Do it as its
@@ -122,6 +133,10 @@ reviewed:
 ## 3. Housekeeping candidates (pick up when convenient)
 - [x] `@anthropic-ai/sdk` bumped `^0.39.0` → `^0.121.0`; tests + live smoke OK.
 - [x] Model id → `CLAUDE_MODEL` env in `config.ts`.
+- [ ] `CronRun` rows stay `RUNNING` forever when a container restarts
+  mid-run (seen for `fetch` and `reclassify-all`). On boot, mark stale
+  `RUNNING` rows as `FAILED` with `errorMessage='interrupted'`; the web
+  `reclassifyInFlight` flag resets anyway.
 
 ---
 
