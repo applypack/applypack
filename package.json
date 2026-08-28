@@ -2,7 +2,13 @@
   "name": "job-hunter",
   "version": "0.1.0",
   "private": true,
-  "description": "Local Docker worker that monitors Greenhouse / Lever / LaraJobs for senior remote-US PHP/Laravel roles and alerts via Telegram.",
+  "description": "Self-hosted AI job hunter: monitors 16 ATS / aggregator sources, classifies postings with Claude against your profile, verifies ghost jobs, matches your resume, alerts via Telegram.",
+  "license": "MIT",
+  "author": "Nazar Boyko (https://github.com/nazboyko)",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nazboyko/job-hunter.git"
+  },
   "engines": {
     "node": ">=22"
   },

@@ -38,3 +38,9 @@ Thumbs.db
 
 # Playwright MCP output
 .playwright-mcp/
+
+# impeccable design-skill: ignore working artifacts (screenshots, mocks),
+# keep the committed detector config and design sidecar
+.impeccable/*
+!.impeccable/config.json
+!.impeccable/design.json

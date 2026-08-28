@@ -4,7 +4,7 @@ import type { CronRunStatus } from '@prisma/client';
 import { Layout } from '../layout';
 import { Badge, Card, Empty, PageHeader, Table, Td, Tr } from '../ui';
 import { formatDate, formatDuration } from '../format';
-import { runTone } from './overview';
+import { runLabel, runTone } from './overview';
 
 interface RunRow {
   id: number;
@@ -28,35 +28,47 @@ export const RunsPage: FC<RunsProps> = ({ runs }) => (
       <Empty>No runs recorded yet. Worker has not ticked.</Empty>
     ) : (
       <Card flush>
-        <Table columns={['Job', 'Started', 'Duration', 'Status', 'Stats / error']}>
-          {runs.map((r) => (
-            <Tr class="align-top">
-              <Td class="font-mono text-ink">{r.name}</Td>
-              <Td class="whitespace-nowrap text-ink-muted">{formatDate(r.startedAt)}</Td>
-              <Td class="font-mono tabular-nums text-ink-muted">
-                {r.finishedAt
-                  ? formatDuration(r.finishedAt.getTime() - r.startedAt.getTime())
-                  : '—'}
-              </Td>
-              <Td>
-                <Badge tone={runTone(r.status)}>{r.status}</Badge>
-              </Td>
-              <Td>
-                {r.errorMessage ? (
-                  <pre class="whitespace-pre-wrap break-words font-mono text-xs text-danger">
-                    {r.errorMessage}
-                  </pre>
-                ) : r.stats ? (
-                  <code class="block whitespace-pre-wrap break-words font-mono text-xs text-ink-faint">
-                    {JSON.stringify(r.stats)}
-                  </code>
-                ) : (
-                  <span class="text-xs text-ink-faint">—</span>
-                )}
-              </Td>
-            </Tr>
-          ))}
-        </Table>
+        <div class="overflow-x-auto">
+          <div class="min-w-[56rem]">
+            <Table
+              columns={[
+                'Job',
+                'Started',
+                <span class="block text-right">Duration</span>,
+                'Status',
+                'Stats / error',
+              ]}
+            >
+              {runs.map((r) => (
+                <Tr class="align-top">
+                  <Td class="whitespace-nowrap font-mono text-[13px] text-ink">{r.name}</Td>
+                  <Td class="whitespace-nowrap text-ink-muted">{formatDate(r.startedAt)}</Td>
+                  <Td class="whitespace-nowrap text-right font-mono text-[13px] tabular-nums text-ink-muted">
+                    {r.finishedAt
+                      ? formatDuration(r.finishedAt.getTime() - r.startedAt.getTime())
+                      : '—'}
+                  </Td>
+                  <Td>
+                    <Badge tone={runTone(r.status)}>{runLabel(r.status)}</Badge>
+                  </Td>
+                  <Td class="w-full">
+                    {r.errorMessage ? (
+                      <pre class="whitespace-pre-wrap break-words font-mono text-xs leading-5 text-danger">
+                        {r.errorMessage}
+                      </pre>
+                    ) : r.stats ? (
+                      <code class="block whitespace-pre-wrap break-words font-mono text-xs leading-5 text-ink-faint">
+                        {JSON.stringify(r.stats)}
+                      </code>
+                    ) : (
+                      <span class="text-xs text-ink-faint">—</span>
+                    )}
+                  </Td>
+                </Tr>
+              ))}
+            </Table>
+          </div>
+        </div>
       </Card>
     )}
   </Layout>

@@ -23,8 +23,8 @@ app.use(
   secureHeaders({
     contentSecurityPolicy: {
       defaultSrc: ["'self'"],
-      // Tailwind + htmx from CDN, Fira fonts from Google Fonts (layout.tsx).
-      scriptSrc: ["'self'", "'unsafe-inline'", 'https://cdn.tailwindcss.com', 'https://unpkg.com'],
+      // Tailwind from CDN, Inter from Google Fonts (layout.tsx).
+      scriptSrc: ["'self'", "'unsafe-inline'", 'https://cdn.tailwindcss.com'],
       styleSrc: ["'self'", "'unsafe-inline'", 'https://cdn.tailwindcss.com', 'https://fonts.googleapis.com'],
       imgSrc: ["'self'", 'data:'],
       connectSrc: ["'self'"],

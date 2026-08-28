@@ -56,6 +56,19 @@ export function formatDuration(ms: number | null | undefined): string {
 
 export type Tone = 'ok' | 'warn' | 'danger' | 'info' | 'violet' | 'neutral';
 
+const STATUS_LABEL: Record<JobStatus, string> = {
+  NEW: 'New',
+  ALERTED: 'Alerted',
+  APPLIED: 'Applied',
+  SAVED: 'Saved',
+  DISMISSED: 'Dismissed',
+};
+
+/** Display label for a job status — the enum stays SCREAMING_CASE in data. */
+export function statusLabel(status: JobStatus): string {
+  return STATUS_LABEL[status] ?? status;
+}
+
 export function statusTone(status: JobStatus): Tone {
   switch (status) {
     case 'NEW':

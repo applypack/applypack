@@ -1,0 +1,14 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "overused-font",
+        "value": "inter",
+        "createdAt": "2026-08-28T16:29:38.844Z",
+        "reason": "owner's redesign brief explicitly pinned Inter for UI (operate-mode workhorse face)"
+      }
+    ]
+  }
+}
