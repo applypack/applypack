@@ -27,6 +27,7 @@ import {
 } from '../ui';
 import { formatRelative } from '../format';
 import { formatPriorityRulesText, parsePriorityRules } from '../../priority-rules';
+import { ResumeUploadForm } from './resumes';
 
 interface MaskedTarget {
   id: number;
@@ -51,6 +52,13 @@ interface AvailableTarget {
   active: boolean;
 }
 
+interface ResumeListItem {
+  id: number;
+  name: string;
+  isDefault: boolean;
+  scannedAt: Date | null;
+}
+
 const REGION_OPTIONS = ['US', 'Americas', 'EU', 'UK', 'APAC', 'Worldwide'];
 const SENIORITY_OPTIONS = ['junior', 'mid', 'senior', 'staff', 'lead', 'principal'];
 
@@ -68,6 +76,7 @@ export interface SettingsProps {
   profiles: ProfileListItem[];
   activeProfile: Profile | null;
   availableTargets: AvailableTarget[];
+  resumes: ResumeListItem[];
   flash?: { kind: 'ok' | 'err'; text: string } | null;
 }
 
@@ -85,6 +94,7 @@ export const SettingsPage: FC<SettingsProps> = ({
   profiles,
   activeProfile,
   availableTargets,
+  resumes,
   flash,
 }) => (
   <Layout title="Settings" active="settings">
@@ -178,6 +188,31 @@ export const SettingsPage: FC<SettingsProps> = ({
         </Table>
       </Card>
     )}
+
+    <Card class="mb-6">
+      <SectionTitle>Resumes</SectionTitle>
+      <Hint class="mb-4 max-w-prose">
+        Upload the resumes you send out. Every job page can then compare one against the
+        posting and list what to add and where.{' '}
+        <a href="/resumes" class="text-accent hover:underline">
+          Manage resumes →
+        </a>
+      </Hint>
+      {resumes.length > 0 && (
+        <ul class="mb-4 divide-y divide-line rounded-md border border-line">
+          {resumes.map((r) => (
+            <li class="flex flex-wrap items-center gap-2 px-3 py-2 text-sm">
+              <a href={`/resumes/${r.id}`} class="font-medium text-ink hover:text-accent">
+                {r.name}
+              </a>
+              {r.isDefault && <Badge tone="ok">default</Badge>}
+              {!r.scannedAt && <Badge tone="warn">not scanned</Badge>}
+            </li>
+          ))}
+        </ul>
+      )}
+      <ResumeUploadForm />
+    </Card>
 
     <Card class="mb-6">
       <SectionTitle>Classifier mode</SectionTitle>

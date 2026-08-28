@@ -16,6 +16,9 @@ consequences (what we accept). Aim for 15–30 lines each.
 - [0005 — No LinkedIn / Indeed / Workday](./0005-no-linkedin-indeed-workday.md)
 - [0006 — Discovery via HN parser, not ATS-vendor lists](./0006-discovery-via-hn-parser.md)
 - [0007 — One AI provider seam: Messages API or Claude Code CLI](./0007-ai-provider-seam.md)
+- [0008 — Resume module lives in the web process, files in Postgres](./0008-resume-module-in-web.md)
+- [0009 — Web tools through the AI seam, for job verification only](./0009-web-tools-for-job-verification.md)
+- [0010 — Two scores: live keyword coverage in the browser, AI match on demand](./0010-two-scores-live-keywords-vs-ai-match.md)
 
 ## When to write a new one
 

@@ -113,5 +113,8 @@ async function fetchOne(company: {
       return fetchWorkingNomads(company.id);
     case AtsType.HIMALAYAS:
       return fetchHimalayas(company.id);
+    case AtsType.MANUAL:
+      // Pasted by hand on /jobs/new — nothing to fetch (and the row is inactive).
+      return [];
   }
 }
