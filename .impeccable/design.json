@@ -1,0 +1,163 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-08-28T12:00:00Z",
+  "title": "Design System: Job Hunter",
+  "extensions": {
+    "colorMeta": {
+      "surface": { "role": "neutral", "displayName": "Paper Gray", "canonical": "rgb(247 248 250)", "tonalRamp": ["#101828", "#344054", "#475467", "#667085", "#98A2B3", "#D0D5DD", "#E5E7EB", "#F7F8FA"] },
+      "surface-raised": { "role": "neutral", "displayName": "Surface White", "canonical": "rgb(255 255 255)", "tonalRamp": ["#101828", "#344054", "#475467", "#667085", "#98A2B3", "#D0D5DD", "#E5E7EB", "#FFFFFF"] },
+      "surface-overlay": { "role": "neutral", "displayName": "Overlay Gray", "canonical": "rgb(243 244 246)", "tonalRamp": ["#101828", "#344054", "#475467", "#667085", "#98A2B3", "#D0D5DD", "#E5E7EB", "#F3F4F6"] },
+      "line": { "role": "neutral", "displayName": "Hairline", "canonical": "rgb(229 231 235)", "tonalRamp": ["#101828", "#344054", "#475467", "#667085", "#98A2B3", "#D0D5DD", "#E5E7EB", "#F7F8FA"] },
+      "line-strong": { "role": "neutral", "displayName": "Strong Hairline", "canonical": "rgb(208 213 221)", "tonalRamp": ["#101828", "#344054", "#475467", "#667085", "#98A2B3", "#D0D5DD", "#E5E7EB", "#F7F8FA"] },
+      "ink": { "role": "neutral", "displayName": "Ink", "canonical": "rgb(16 24 40)", "tonalRamp": ["#101828", "#344054", "#475467", "#667085", "#98A2B3", "#D0D5DD", "#E5E7EB", "#F7F8FA"] },
+      "ink-muted": { "role": "neutral", "displayName": "Muted Ink", "canonical": "rgb(71 84 103)", "tonalRamp": ["#101828", "#344054", "#475467", "#667085", "#98A2B3", "#D0D5DD", "#E5E7EB", "#F7F8FA"] },
+      "ink-faint": { "role": "neutral", "displayName": "Faint Ink", "canonical": "rgb(102 112 133)", "tonalRamp": ["#101828", "#344054", "#475467", "#667085", "#98A2B3", "#D0D5DD", "#E5E7EB", "#F7F8FA"] },
+      "accent": { "role": "primary", "displayName": "Emerald", "canonical": "rgb(5 150 105)", "tonalRamp": ["#022C22", "#064E3B", "#065F46", "#047857", "#059669", "#10B981", "#6EE7B7", "#D1FAE5"] },
+      "accent-strong": { "role": "primary", "displayName": "Emerald Strong", "canonical": "rgb(4 120 87)", "tonalRamp": ["#022C22", "#064E3B", "#065F46", "#047857", "#059669", "#10B981", "#6EE7B7", "#D1FAE5"] },
+      "accent-deep": { "role": "primary", "displayName": "Emerald Deep", "canonical": "rgb(6 95 70)", "tonalRamp": ["#022C22", "#064E3B", "#065F46", "#047857", "#059669", "#10B981", "#6EE7B7", "#D1FAE5"] },
+      "ok": { "role": "status", "displayName": "OK Green", "canonical": "rgb(4 120 87)", "tonalRamp": ["#022C22", "#064E3B", "#065F46", "#047857", "#059669", "#10B981", "#6EE7B7", "#D1FAE5"] },
+      "warn": { "role": "status", "displayName": "Warn Amber", "canonical": "rgb(180 83 9)", "tonalRamp": ["#451A03", "#78350F", "#92400E", "#B45309", "#D97706", "#F59E0B", "#FCD34D", "#FEF3C7"] },
+      "danger": { "role": "status", "displayName": "Danger Red", "canonical": "rgb(217 45 32)", "tonalRamp": ["#55160C", "#7A271A", "#912018", "#B42318", "#D92D20", "#F04438", "#FDA29B", "#FEE4E2"] },
+      "info": { "role": "status", "displayName": "Info Blue", "canonical": "rgb(29 78 216)", "tonalRamp": ["#172554", "#1E3A8A", "#1E40AF", "#1D4ED8", "#2563EB", "#3B82F6", "#93C5FD", "#DBEAFE"] },
+      "violet": { "role": "status", "displayName": "AI Violet", "canonical": "rgb(109 40 217)", "tonalRamp": ["#2E1065", "#4C1D95", "#5B21B6", "#6D28D9", "#7C3AED", "#8B5CF6", "#C4B5FD", "#EDE9FE"] }
+    },
+    "typographyMeta": {
+      "page-title": { "displayName": "Page Title", "purpose": "One per page, in the header row; truncates rather than wraps." },
+      "stat-value": { "displayName": "Stat Value", "purpose": "The four Overview numbers and stat cards; always tabular-nums." },
+      "section-title": { "displayName": "Section Title", "purpose": "Card headings and settings-section titles." },
+      "body": { "displayName": "Body", "purpose": "Default UI text: tables, forms, buttons, nav. Weight 500 marks emphasis." },
+      "secondary": { "displayName": "Secondary", "purpose": "Hints, meta counts, back-links; field labels at weight 500." },
+      "micro": { "displayName": "Micro", "purpose": "Table headers, badges, kanban counts; weight 400 for sub-values and timestamps." },
+      "mono-value": { "displayName": "Mono Value", "purpose": "Machine values only: ids, tokens, cron names, durations, code." }
+    },
+    "shadows": [
+      { "name": "whisper", "value": "0 1px 2px 0 rgb(0 0 0 / 0.05)", "purpose": "The only ambient shadow; white surfaces (cards, controls, filled buttons) only." },
+      { "name": "drawer", "value": "0 8px 30px rgb(16 24 40 / 0.12)", "purpose": "Mobile nav drawer — the app's single true elevation, paired with a rgb(16 24 40 / 0.4) backdrop." },
+      { "name": "header-hairline", "value": "inset 0 -1px 0 rgb(var(--line))", "purpose": "Bottom edge of sticky table headers, replacing the border so the line survives scroll." }
+    ],
+    "motion": [
+      { "name": "transition-quick", "value": "150ms", "purpose": "Color-only transitions on every interactive element (hover of buttons, rows, links, borders)." },
+      { "name": "drawer-slide", "value": "transform 200ms ease", "purpose": "Mobile sidebar off-canvas slide; the only movement in the app." },
+      { "name": "reduced-motion", "value": "transition-duration: 0.01ms; animation-duration: 0.01ms", "purpose": "Global prefers-reduced-motion kill switch on all elements." }
+    ],
+    "breakpoints": [
+      { "name": "sm", "value": "640px" },
+      { "name": "md", "value": "768px" },
+      { "name": "lg", "value": "1024px" },
+      { "name": "xl", "value": "1280px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The one affirmative act per view region — solid emerald, white text.",
+      "html": "<button class=\"ds-btn-primary\">Mark applied</button>",
+      "css": ".ds-btn-primary { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 32px; padding: 6px 12px; font-family: Inter, ui-sans-serif, system-ui, sans-serif; font-size: 14px; font-weight: 500; line-height: 20px; white-space: nowrap; color: #FFFFFF; background-color: rgb(var(--accent-strong)); border: none; border-radius: 6px; box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05); cursor: pointer; transition: background-color 150ms; } .ds-btn-primary:hover { background-color: rgb(var(--accent-deep)); } .ds-btn-primary:focus-visible { outline: 2px solid rgb(var(--accent)); outline-offset: 2px; } .ds-btn-primary:disabled { cursor: not-allowed; opacity: 0.4; }"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "The default non-primary action — white with a strong hairline border.",
+      "html": "<button class=\"ds-btn-secondary\">Dismiss</button>",
+      "css": ".ds-btn-secondary { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 32px; padding: 6px 12px; font-family: Inter, ui-sans-serif, system-ui, sans-serif; font-size: 14px; font-weight: 500; line-height: 20px; white-space: nowrap; color: rgb(var(--ink)); background-color: rgb(var(--surface-raised)); border: 1px solid rgb(var(--line-strong)); border-radius: 6px; box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05); cursor: pointer; transition: background-color 150ms; } .ds-btn-secondary:hover { background-color: rgb(var(--surface-overlay)); } .ds-btn-secondary:focus-visible { outline: 2px solid rgb(var(--accent)); outline-offset: 2px; } .ds-btn-secondary:disabled { cursor: not-allowed; opacity: 0.4; }"
+    },
+    {
+      "name": "AI Button",
+      "kind": "button",
+      "refersTo": "button-violet",
+      "description": "Violet-tinted button reserved for AI/model-spend actions and Save (the Violet-Means-AI Rule).",
+      "html": "<button class=\"ds-btn-ai\">Re-analyze with AI</button>",
+      "css": ".ds-btn-ai { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 32px; padding: 6px 12px; font-family: Inter, ui-sans-serif, system-ui, sans-serif; font-size: 14px; font-weight: 500; line-height: 20px; white-space: nowrap; color: rgb(var(--violet)); background-color: rgb(var(--violet) / 0.05); border: 1px solid rgb(var(--violet) / 0.3); border-radius: 6px; cursor: pointer; transition: background-color 150ms; } .ds-btn-ai:hover { background-color: rgb(var(--violet) / 0.1); } .ds-btn-ai:focus-visible { outline: 2px solid rgb(var(--accent)); outline-offset: 2px; } .ds-btn-ai:disabled { cursor: not-allowed; opacity: 0.4; }"
+    },
+    {
+      "name": "Text Input",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "The standard control: white, strong hairline, calm emerald focus ring.",
+      "html": "<input class=\"ds-input\" type=\"text\" placeholder=\"Search title or description…\" />",
+      "css": ".ds-input { width: 100%; max-width: 280px; padding: 6px 12px; font-family: Inter, ui-sans-serif, system-ui, sans-serif; font-size: 14px; line-height: 20px; color: rgb(var(--ink)); background-color: rgb(var(--surface-raised)); border: 1px solid rgb(var(--line-strong)); border-radius: 6px; box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05); transition: border-color 150ms; } .ds-input::placeholder { color: rgb(var(--ink-faint)); } .ds-input:hover { border-color: rgb(var(--ink-faint)); } .ds-input:focus { border-color: rgb(var(--accent)); outline: none; box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05), 0 0 0 2px rgb(var(--accent) / 0.15); }"
+    },
+    {
+      "name": "Select",
+      "kind": "input",
+      "description": "Input styling with a drawn 14px chevron replacing browser chrome.",
+      "html": "<select class=\"ds-select\"><option>Recently fetched</option><option>Highest fit</option><option>Title A-Z</option></select>",
+      "css": ".ds-select { width: 100%; max-width: 200px; appearance: none; padding: 6px 32px 6px 12px; font-family: Inter, ui-sans-serif, system-ui, sans-serif; font-size: 14px; line-height: 20px; color: rgb(var(--ink)); background-color: rgb(var(--surface-raised)); border: 1px solid rgb(var(--line-strong)); border-radius: 6px; box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05); background-image: url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23667085' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E\"); background-position: right 0.6rem center; background-size: 14px 14px; background-repeat: no-repeat; transition: border-color 150ms; cursor: pointer; } .ds-select:hover { border-color: rgb(var(--ink-faint)); } .ds-select:focus { border-color: rgb(var(--accent)); outline: none; box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05), 0 0 0 2px rgb(var(--accent) / 0.15); }"
+    },
+    {
+      "name": "Status Pills",
+      "kind": "chip",
+      "refersTo": "badge-neutral",
+      "description": "The quiet status vocabulary: 10% tint, tone text, 20% inset ring, currentColor dot.",
+      "html": "<span class=\"ds-pill ds-pill-info\"><span class=\"ds-pill-dot\"></span>New</span> <span class=\"ds-pill ds-pill-warn\"><span class=\"ds-pill-dot\"></span>Alerted</span> <span class=\"ds-pill ds-pill-ok\"><span class=\"ds-pill-dot\"></span>Applied</span> <span class=\"ds-pill ds-pill-violet\"><span class=\"ds-pill-dot\"></span>Saved</span> <span class=\"ds-pill ds-pill-neutral\"><span class=\"ds-pill-dot\"></span>Dismissed</span>",
+      "css": ".ds-pill { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; padding: 2px 8px; border-radius: 9999px; font-family: Inter, ui-sans-serif, system-ui, sans-serif; font-size: 12px; font-weight: 500; line-height: 16px; } .ds-pill-dot { width: 6px; height: 6px; border-radius: 9999px; background-color: currentColor; } .ds-pill-info { color: rgb(var(--info)); background-color: rgb(var(--info) / 0.1); box-shadow: inset 0 0 0 1px rgb(var(--info) / 0.2); } .ds-pill-warn { color: rgb(var(--warn)); background-color: rgb(var(--warn) / 0.1); box-shadow: inset 0 0 0 1px rgb(var(--warn) / 0.2); } .ds-pill-ok { color: rgb(var(--ok)); background-color: rgb(var(--ok) / 0.1); box-shadow: inset 0 0 0 1px rgb(var(--ok) / 0.2); } .ds-pill-violet { color: rgb(var(--violet)); background-color: rgb(var(--violet) / 0.1); box-shadow: inset 0 0 0 1px rgb(var(--violet) / 0.2); } .ds-pill-neutral { color: rgb(var(--ink-muted)); background-color: rgb(var(--surface-overlay)); box-shadow: inset 0 0 0 1px rgb(var(--line)); }"
+    },
+    {
+      "name": "Fit Badge",
+      "kind": "custom",
+      "description": "Signature score readout: toned tabular number plus a 36x6px meter, legible without color.",
+      "html": "<span class=\"ds-fit\" title=\"fit 88/100\"><span class=\"ds-fit-num\">88</span><span class=\"ds-fit-meter\"><span class=\"ds-fit-fill\" style=\"width: 88%\"></span></span></span>",
+      "css": ".ds-fit { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; } .ds-fit-num { font-family: Inter, ui-sans-serif, system-ui, sans-serif; font-size: 14px; font-weight: 500; font-variant-numeric: tabular-nums; color: rgb(var(--ok)); } .ds-fit-meter { display: block; width: 36px; height: 6px; overflow: hidden; border-radius: 9999px; background-color: rgb(var(--line)); } .ds-fit-fill { display: block; height: 100%; border-radius: 9999px; background-color: rgb(var(--ok)); }"
+    },
+    {
+      "name": "Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "The white work surface: hairline border, 8px radius, whisper shadow, 20px padding.",
+      "html": "<section class=\"ds-card\"><h2 class=\"ds-card-title\">Details</h2><p class=\"ds-card-body\">Salary, dates and source facts sit in a quiet white panel on the paper-gray ground.</p></section>",
+      "css": ".ds-card { background-color: rgb(var(--surface-raised)); border: 1px solid rgb(var(--line)); border-radius: 8px; box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05); padding: 20px; font-family: Inter, ui-sans-serif, system-ui, sans-serif; } .ds-card-title { margin: 0 0 12px; font-size: 14px; font-weight: 600; line-height: 20px; color: rgb(var(--ink)); } .ds-card-body { margin: 0; font-size: 14px; line-height: 20px; color: rgb(var(--ink-muted)); }"
+    },
+    {
+      "name": "Sidebar Nav",
+      "kind": "nav",
+      "description": "Paper-gray rail links: overlay fill and 500 weight mark the active page.",
+      "html": "<nav class=\"ds-nav\"><a class=\"ds-nav-link ds-nav-active\" href=\"#\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M16 20V4a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16\"/><rect width=\"20\" height=\"14\" x=\"2\" y=\"6\" rx=\"2\"/></svg>Jobs</a><a class=\"ds-nav-link\" href=\"#\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2\"/></svg>Runs</a></nav>",
+      "css": ".ds-nav { display: flex; flex-direction: column; gap: 2px; width: 216px; padding: 8px 12px; background-color: rgb(var(--surface)); border-right: 1px solid rgb(var(--line)); font-family: Inter, ui-sans-serif, system-ui, sans-serif; } .ds-nav-link { display: flex; align-items: center; gap: 10px; padding: 6px 10px; border-radius: 6px; font-size: 14px; line-height: 20px; color: rgb(var(--ink-muted)); text-decoration: none; transition: background-color 150ms, color 150ms; } .ds-nav-link svg { width: 18px; height: 18px; flex-shrink: 0; } .ds-nav-link:hover { background-color: rgb(var(--surface-overlay) / 0.7); color: rgb(var(--ink)); } .ds-nav-link:focus-visible { outline: 2px solid rgb(var(--accent)); outline-offset: 2px; border-radius: 4px; } .ds-nav-active { background-color: rgb(var(--surface-overlay)); font-weight: 500; color: rgb(var(--ink)); }"
+    },
+    {
+      "name": "Data Table",
+      "kind": "custom",
+      "description": "GitHub-style table: overlay header, hairline row dividers, 50% overlay row hover.",
+      "html": "<table class=\"ds-table\"><thead><tr><th>Title</th><th>Company</th><th>Location</th></tr></thead><tbody><tr><td>Senior TypeScript Engineer</td><td>Acme</td><td>Remote (US)</td></tr><tr><td>Staff Platform Engineer</td><td>Sumble</td><td>Remote</td></tr></tbody></table>",
+      "css": ".ds-table { width: 100%; border-collapse: collapse; font-family: Inter, ui-sans-serif, system-ui, sans-serif; font-size: 14px; line-height: 20px; color: rgb(var(--ink)); } .ds-table th { background-color: rgb(var(--surface-overlay)); padding: 10px 16px; text-align: left; font-size: 12px; font-weight: 500; line-height: 16px; color: rgb(var(--ink-muted)); border-bottom: 1px solid rgb(var(--line)); } .ds-table td { padding: 12px 16px; border-bottom: 1px solid rgb(var(--line)); } .ds-table th:first-child, .ds-table td:first-child { padding-left: 20px; } .ds-table th:last-child, .ds-table td:last-child { padding-right: 20px; } .ds-table tbody tr { transition: background-color 150ms; } .ds-table tbody tr:hover { background-color: rgb(var(--surface-overlay) / 0.5); }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Hunting Console",
+    "overview": "A calm, light operations desk for a daily job hunt. The dashboard is read twice a day, briefly, in indoor daylight: it must be dense, quiet, and instantly legible. The composition is a Linear-density work surface — a fixed 240px sidebar on paper-gray ground, white cards and tables carrying the data, hairline borders doing all the structural work. Nothing on screen persuades or decorates; every pixel serves reading four numbers, scanning new jobs, and acting on one.\n\nThe personality is professional, calm, modern, information-first — compact but not cramped. Brand lives in details rather than surfaces: an emerald focus ring, emerald text selection, the emerald \"JH\" mark, an emerald primary button. Status speaks in a quiet five-color vocabulary of tinted pills (blue / amber / emerald / violet / gray) that never rises to a saturated fill. Controls follow a \"quiet precision\" philosophy: they disappear into the task, borrowing their forms from Stripe's settings forms and GitHub's data tables.\n\nTwo worlds are explicitly refused, per the owner's brief: the dark hacker dashboard (glowing terminals, neon-on-black) and the AI-slop marketing admin (gradients, glassmorphism, giant cards, 20–30px radii, decorative noise, heavy shadows). Only a light theme is implemented today; every color flows through semantic CSS-variable tokens so a dark theme later is a second set of values, not a component rewrite.",
+    "keyCharacteristics": [
+      "Paper-gray ground (#F7F8FA), white work surfaces, hairline structure",
+      "One brand accent (emerald); status as quiet tinted pills, never fills",
+      "Inter for all UI text; monospace strictly for machine values",
+      "Flat by default; shadow is a whisper on white surfaces only",
+      "Dense 4px-grid spacing; 14px body type; tables and forms carry the work",
+      "Drawn stroke icons (Lucide-style), never emoji or Unicode glyphs"
+    ],
+    "rules": [
+      { "name": "The One-Accent Rule", "body": "Emerald is the only brand color. The status tones are vocabulary, not decoration: they appear exclusively where they carry state (pills, dots, meters, toned numbers) and never as ambient color.", "section": "colors" },
+      { "name": "The Quiet-Pill Rule", "body": "Status renders as a tinted pill — 10% tone background, full-strength tone text, 20% tone inset ring — never as a saturated fill. A status color at 100% opacity may only paint dots, meter fills, and text.", "section": "colors" },
+      { "name": "The Violet-Means-AI Rule", "body": "Violet (#6D28D9) is reserved for AI/model-spend actions — Compare, Re-analyze with AI, Re-scan, Re-classify, HN Run now — and for the Saved status. It signals \"this button costs AI credit or marks a save.\" It must never become a general secondary accent.", "section": "colors" },
+      { "name": "The Machine-Mono Rule", "body": "Monospace is strictly for machine values — ids, tokens, cron names, durations, code. Prose, labels, titles, and numbers-in-prose stay in Inter; numeric columns align with tabular-nums, not with mono.", "section": "typography" },
+      { "name": "The Whisper-Shadow Rule", "body": "Surfaces are flat at rest; hairlines do the structural work. shadow-sm appears only on white surfaces, and nothing except the mobile drawer ever casts a real shadow. No glows, no heavy ambient shadows, no hover-lift.", "section": "elevation" },
+      { "name": "The Drawn-Icon Rule", "body": "Every icon is a drawn SVG stroke on the 24px Lucide grid — including the select chevron and check/x marks. Emoji, Unicode glyphs, and icon fonts never stand in for icons.", "section": "components" },
+      { "name": "The Composed-Primitive Rule", "body": "Pages compose ui.tsx primitives and never hand-roll Tailwind for shared patterns; new visual decisions land in the primitive or the token layer first.", "section": "components" }
+    ],
+    "dos": [
+      "Do route every color through the semantic tokens (surface / line / ink / accent / status tones) as rgb(var(--token) / alpha); a future dark theme must be a token swap, not a component edit.",
+      "Do keep the 4px spacing grid and the observed density: 20px card padding, 12×16px table cells, 6px control padding, 16px card gaps.",
+      "Do set tabular-nums on every numeric readout (stats, counts, scores, dates in columns) and render absent values as an em dash (—), never blank.",
+      "Do give every interactive element the global focus ring (2px emerald, 2px offset) and a 150ms color-only transition.",
+      "Do pair color with a redundant channel — dot + label on status, number + meter on fit — so state reads without color."
+    ],
+    "donts": [
+      "Don't introduce gradients, glassmorphism, decorative noise, heavy or colored shadows, hover-lift, or radii above 8px — the confirmed anti-world.",
+      "Don't use violet for anything but AI-spend actions and the Saved status, and don't promote any status tone into a second brand accent.",
+      "Don't fill a status with saturated color; status stays a quiet tinted pill (10% background, 20% ring).",
+      "Don't set prose, labels, or headings in monospace — mono is machine values only.",
+      "Don't go dark ad hoc: no dark-styled components or pages until the token layer itself grows a dark value set."
+    ]
+  }
+}
