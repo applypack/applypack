@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseClaudeCodeOutput } from './ai-provider-parse';
+import { buildClaudeCodeArgs, parseClaudeCodeOutput } from './ai-provider-parse';
 
 const ok = (result: string) =>
   JSON.stringify({ type: 'result', subtype: 'success', is_error: false, result });
@@ -52,4 +52,18 @@ test('other errors are not rate-limited', () => {
   const out = parseClaudeCodeOutput(raw);
   assert.equal(out.rateLimited, false);
   assert.match(out.error ?? '', /max turns/);
+});
+
+test('buildClaudeCodeArgs disables tools by default and allow-lists web tools on request', () => {
+  const base = { system: 'S', user: 'U', model: 'claude-x' };
+  const plain = buildClaudeCodeArgs(base);
+  assert.deepEqual(plain.slice(-4), ['--tools', '', '--no-session-persistence', 'U']);
+  assert.ok(plain.includes('--print') && plain.includes('claude-x') && plain.includes('S'));
+
+  const web = buildClaudeCodeArgs({ ...base, webTools: true });
+  assert.deepEqual(web.slice(-6), [
+    '--tools', 'WebSearch,WebFetch',
+    '--allowedTools', 'WebSearch,WebFetch',
+    '--no-session-persistence', 'U',
+  ]);
 });
