@@ -43,3 +43,30 @@ export function parseClaudeCodeOutput(raw: string): ClaudeCodeOutcome {
   }
   return { text: r.result ?? '', rateLimited: false, error: null };
 }
+
+const CLAUDE_CODE_WEB_TOOLS = 'WebSearch,WebFetch';
+
+/**
+ * Argument list for `claude -p`. With `webTools` the CLI may search and fetch
+ * the web inside its own loop (pre-approved via --allowedTools, since headless
+ * mode cannot prompt); otherwise every built-in tool is disabled.
+ */
+export function buildClaudeCodeArgs(req: {
+  system: string;
+  user: string;
+  model: string;
+  webTools?: boolean;
+}): string[] {
+  const tools = req.webTools
+    ? ['--tools', CLAUDE_CODE_WEB_TOOLS, '--allowedTools', CLAUDE_CODE_WEB_TOOLS]
+    : ['--tools', ''];
+  return [
+    '--print',
+    '--output-format', 'json',
+    '--model', req.model,
+    '--system-prompt', req.system,
+    ...tools,
+    '--no-session-persistence',
+    req.user,
+  ];
+}
