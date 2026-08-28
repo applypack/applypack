@@ -27,6 +27,10 @@ services:
     environment:
       DATABASE_URL: postgresql://jobhunter:jobhunter@postgres:5432/jobhunter
       NODE_ENV: production
+    # For AI_PROVIDER=claude_code: mount your Claude CLI credentials
+    # (the image runs as user "node").
+    # volumes:
+    #   - ~/.claude:/home/node/.claude
     restart: unless-stopped
 
   web:
@@ -46,6 +50,10 @@ services:
     ports:
       # Bind to localhost only — never expose dashboard publicly.
       - "127.0.0.1:4747:4747"
+    # For AI_PROVIDER=claude_code (resume scan / match / verify run in this
+    # service too): mount your Claude CLI credentials.
+    # volumes:
+    #   - ~/.claude:/home/node/.claude
     restart: unless-stopped
 
 volumes:

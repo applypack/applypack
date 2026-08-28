@@ -97,7 +97,7 @@ When the question is **"where does X live?"**, save yourself a `find`:
 | --- | --- |
 | HTTP retry, timeout, default User-Agent | `src/http.ts` |
 | Pure helpers (parsing, hashing, masking) | `src/text-utils.ts` |
-| The cron list (5 schedules) | `src/index.ts:registerCron` |
+| The cron list (6 schedules) | `src/index.ts:registerCron` |
 | What runs on container boot | `src/init.ts` |
 | Adding a new ATS source — single-feed template | `src/fetchers/larajobs.ts` (LARAJOBS_RSS) or `src/fetchers/golangprojects.ts` (single RSS) |
 | Adding a new ATS source — per-company JSON | `src/fetchers/ashby.ts` (cleanest), `src/fetchers/greenhouse.ts` |
