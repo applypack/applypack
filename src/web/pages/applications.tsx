@@ -45,72 +45,89 @@ export interface ApplicationsProps {
 export const ApplicationsPage: FC<ApplicationsProps> = ({
   byStage,
   applicationTrackingEnabled,
-}) => (
-  <Layout title="Applications" active="applications">
-    <PageHeader
-      title="Applications"
-      meta={
-        applicationTrackingEnabled
-          ? 'Move jobs between stages from their detail page'
-          : 'Tracking disabled — enable in Settings'
-      }
-    />
+}) => {
+  const totalCount = STAGES.reduce((sum, s) => sum + (byStage[s]?.length ?? 0), 0);
 
-    {!applicationTrackingEnabled ? (
-      <Empty>
-        Application tracking is off. Enable it in{' '}
-        <a href="/settings" class="text-accent hover:underline">
-          Settings
-        </a>{' '}
-        to see your funnel here.
-      </Empty>
-    ) : (
-      <div class="grid gap-3 md:grid-cols-4 xl:grid-cols-7">
-        {STAGES.map((stage) => {
-          const items = byStage[stage] ?? [];
-          return (
-            <section
-              class="rounded-lg border border-line bg-surface-raised p-3"
-              aria-labelledby={`stage-${stage}`}
-            >
-              <div class="mb-2 flex items-baseline justify-between">
-                <h2
-                  id={`stage-${stage}`}
-                  class="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-ink-muted"
-                >
-                  <span class={`h-1.5 w-1.5 rounded-full ${STAGE_DOT[stage]}`} aria-hidden="true" />
-                  {STAGE_LABEL[stage]}
-                </h2>
-                <span class="font-mono text-xs text-ink-faint tabular-nums">{items.length}</span>
-              </div>
-              <ul class="space-y-2">
-                {items.length === 0 ? (
-                  <li class="py-2 text-center text-xs text-ink-faint">—</li>
-                ) : (
-                  items.map((c) => (
-                    <li>
-                      <a
-                        href={`/jobs/${c.id}`}
-                        class="block rounded-md border border-line bg-surface p-2.5 transition-colors duration-150 hover:border-accent/50"
-                      >
-                        <div class="flex items-start justify-between gap-2">
-                          <span class="line-clamp-2 text-sm font-medium text-ink">{c.title}</span>
-                          <FitBadge score={c.fitScore} />
-                        </div>
-                        <div class="mt-1 truncate text-xs text-ink-muted">{c.companyName}</div>
-                        <div class="mt-0.5 text-xs text-ink-faint">
-                          {c.appliedAt ? `applied ${formatRelative(c.appliedAt)}` : 'no apply date'}
-                          {c.recruiterContact ? ` · ${c.recruiterContact}` : ''}
-                        </div>
-                      </a>
-                    </li>
-                  ))
-                )}
-              </ul>
-            </section>
-          );
-        })}
-      </div>
-    )}
-  </Layout>
-);
+  return (
+    <Layout title="Applications" active="applications" fill={applicationTrackingEnabled}>
+      <PageHeader
+        title="Applications"
+        meta={applicationTrackingEnabled ? `${totalCount} in the funnel` : undefined}
+      >
+        {applicationTrackingEnabled
+          ? 'Move jobs between stages from their detail page.'
+          : undefined}
+      </PageHeader>
+
+      {!applicationTrackingEnabled ? (
+        <Empty>
+          Application tracking is off. Enable it in{' '}
+          <a
+            href="/settings"
+            class="font-medium text-accent-strong hover:text-accent-deep"
+          >
+            Settings
+          </a>{' '}
+          to see your funnel here.
+        </Empty>
+      ) : (
+        <div class="flex min-h-0 min-w-0 flex-1 items-stretch gap-3 overflow-x-auto pb-1">
+          {STAGES.map((stage) => {
+            const items = byStage[stage] ?? [];
+            return (
+              <section
+                class="flex min-h-[320px] w-72 shrink-0 flex-col rounded-lg border border-line/70 bg-surface-overlay/60"
+                aria-labelledby={`stage-${stage}`}
+              >
+                  <div class="flex shrink-0 items-center gap-2 px-3 pb-2 pt-3">
+                    <span
+                      class={`h-2 w-2 rounded-full ${STAGE_DOT[stage]}`}
+                      aria-hidden="true"
+                    />
+                    <h2 id={`stage-${stage}`} class="text-[13px] font-medium text-ink">
+                      {STAGE_LABEL[stage]}
+                    </h2>
+                    <span class="ml-auto text-xs text-ink-faint tabular-nums">
+                      {items.length}
+                    </span>
+                  </div>
+                  <ul class="min-h-0 flex-1 space-y-2 overflow-y-auto px-3 pb-3">
+                    {items.length === 0 ? (
+                      <li class="rounded-md border border-dashed border-line-strong/70 px-3 py-6 text-center text-xs text-ink-faint">
+                        No applications
+                      </li>
+                    ) : (
+                      items.map((c) => (
+                        <li>
+                          <a
+                            href={`/jobs/${c.id}`}
+                            class="block rounded-md border border-line bg-surface-raised p-3 shadow-sm transition-colors duration-150 hover:border-accent/50"
+                          >
+                            <div class="line-clamp-2 text-sm font-medium leading-snug text-ink">
+                              {c.title}
+                            </div>
+                            <div class="mt-1 truncate text-[13px] text-ink-muted">
+                              {c.companyName}
+                            </div>
+                            <div class="mt-2 flex items-center justify-between gap-2">
+                              <span class="min-w-0 truncate text-xs text-ink-faint">
+                                {c.appliedAt
+                                  ? `applied ${formatRelative(c.appliedAt)}`
+                                  : 'no apply date'}
+                                {c.recruiterContact ? ` · ${c.recruiterContact}` : ''}
+                              </span>
+                              <FitBadge score={c.fitScore} />
+                            </div>
+                          </a>
+                        </li>
+                      ))
+                    )}
+                  </ul>
+              </section>
+            );
+          })}
+        </div>
+      )}
+    </Layout>
+  );
+};

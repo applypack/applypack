@@ -1,7 +1,7 @@
 /** @jsxImportSource hono/jsx */
 import type { Child, FC, PropsWithChildren } from 'hono/jsx';
 import type { JobStatus } from '@prisma/client';
-import { fitTone, statusTone, type Tone } from './format';
+import { fitTone, statusLabel, statusTone, type Tone } from './format';
 
 /*
  * Shared primitives. Every page composes these instead of writing raw
@@ -10,12 +10,12 @@ import { fitTone, statusTone, type Tone } from './format';
  */
 
 const TONE_SOFT: Record<Tone, string> = {
-  ok: 'bg-ok/10 text-ok ring-ok/25',
-  warn: 'bg-warn/10 text-warn ring-warn/25',
-  danger: 'bg-danger/10 text-danger ring-danger/25',
-  info: 'bg-info/10 text-info ring-info/25',
-  violet: 'bg-violet/10 text-violet ring-violet/25',
-  neutral: 'bg-ink/5 text-ink-muted ring-line-strong',
+  ok: 'bg-ok/10 text-ok ring-ok/20',
+  warn: 'bg-warn/10 text-warn ring-warn/20',
+  danger: 'bg-danger/10 text-danger ring-danger/20',
+  info: 'bg-info/10 text-info ring-info/20',
+  violet: 'bg-violet/10 text-violet ring-violet/20',
+  neutral: 'bg-surface-overlay text-ink-muted ring-line',
 };
 
 const TONE_TEXT: Record<Tone, string> = {
@@ -27,18 +27,61 @@ const TONE_TEXT: Record<Tone, string> = {
   neutral: 'text-ink-faint',
 };
 
+const TONE_FILL: Record<Tone, string> = {
+  ok: 'bg-ok',
+  warn: 'bg-warn',
+  danger: 'bg-danger',
+  info: 'bg-info',
+  violet: 'bg-violet',
+  neutral: 'bg-ink-faint',
+};
+
 /* ---------- page scaffolding ---------- */
 
 export const PageHeader: FC<
-  PropsWithChildren<{ title: string; meta?: string | Child }>
-> = ({ title, meta, children }) => (
-  <div class="mb-6 flex flex-wrap items-end justify-between gap-3">
-    <div class="min-w-0">
-      <h1 class="text-2xl font-semibold tracking-tight">{title}</h1>
-      {children}
+  PropsWithChildren<{
+    title: string;
+    meta?: string | Child;
+    actions?: Child;
+    back?: { href: string; label: string };
+  }>
+> = ({ title, meta, actions, back, children }) => (
+  <header class="mb-6 shrink-0">
+    {back && (
+      <a
+        href={back.href}
+        class="mb-1.5 inline-flex items-center gap-1 text-[13px] text-ink-faint transition-colors duration-150 hover:text-ink"
+      >
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          class="h-3.5 w-3.5"
+          aria-hidden="true"
+        >
+          <path d="m15 18-6-6 6-6" />
+        </svg>
+        {back.label}
+      </a>
+    )}
+    <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
+      <h1 class="min-w-0 truncate text-xl font-semibold tracking-tight" title={title}>
+        {title}
+      </h1>
+      {(meta || actions) && (
+        <div class="flex min-w-0 flex-wrap items-center gap-3">
+          {meta && <div class="text-[13px] text-ink-faint tabular-nums">{meta}</div>}
+          {actions}
+        </div>
+      )}
     </div>
-    {meta && <div class="text-sm text-ink-faint tabular-nums">{meta}</div>}
-  </div>
+    {children && (
+      <div class="mt-1.5 max-w-3xl text-[13px] leading-5 text-ink-faint">{children}</div>
+    )}
+  </header>
 );
 
 export const Flash: FC<{
@@ -47,11 +90,36 @@ export const Flash: FC<{
   flash ? (
     <div
       role="status"
-      class={`mb-4 rounded-md px-4 py-2 text-sm ring-1 ring-inset ${
-        flash.kind === 'ok' ? TONE_SOFT.ok : TONE_SOFT.danger
+      class={`mb-4 flex items-start gap-2.5 rounded-md border px-3.5 py-2.5 text-sm ${
+        flash.kind === 'ok'
+          ? 'border-ok/25 bg-ok/5 text-ok'
+          : 'border-danger/25 bg-danger/5 text-danger'
       }`}
     >
-      {flash.text}
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        class="mt-0.5 h-4 w-4 shrink-0"
+        aria-hidden="true"
+      >
+        {flash.kind === 'ok' ? (
+          <>
+            <circle cx="12" cy="12" r="10" />
+            <path d="m9 12 2 2 4-4" />
+          </>
+        ) : (
+          <>
+            <circle cx="12" cy="12" r="10" />
+            <path d="M12 8v4" />
+            <path d="M12 16h.01" />
+          </>
+        )}
+      </svg>
+      <span class="min-w-0">{flash.text}</span>
     </div>
   ) : null;
 
@@ -61,7 +129,7 @@ export const Card: FC<PropsWithChildren<{ class?: string; flush?: boolean }>> = 
   flush = false,
 }) => (
   <section
-    class={`rounded-lg border border-line bg-surface-raised ${
+    class={`rounded-lg border border-line bg-surface-raised shadow-sm ${
       flush ? 'overflow-hidden' : 'p-5'
     } ${className}`}
   >
@@ -70,19 +138,30 @@ export const Card: FC<PropsWithChildren<{ class?: string; flush?: boolean }>> = 
 );
 
 export const SectionTitle: FC<PropsWithChildren> = ({ children }) => (
-  <h2 class="mb-3 text-xs font-semibold uppercase tracking-wider text-ink-muted">
-    {children}
-  </h2>
+  <h2 class="mb-3 text-sm font-semibold text-ink">{children}</h2>
 );
 
 export const Hint: FC<PropsWithChildren<{ class?: string }>> = ({
   children,
   class: className = '',
-}) => <p class={`text-xs leading-5 text-ink-faint ${className}`}>{children}</p>;
+}) => <p class={`text-[13px] leading-5 text-ink-faint ${className}`}>{children}</p>;
 
 export const Empty: FC<PropsWithChildren> = ({ children }) => (
-  <div class="rounded-lg border border-dashed border-line-strong p-8 text-center text-sm text-ink-faint">
-    {children}
+  <div class="flex flex-col items-center justify-center gap-2.5 rounded-lg border border-line bg-surface-raised px-6 py-12 text-center">
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="1.5"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      class="h-7 w-7 text-line-strong"
+      aria-hidden="true"
+    >
+      <path d="M22 12h-6l-2 3h-4l-2-3H2" />
+      <path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" />
+    </svg>
+    <div class="max-w-md text-sm text-ink-faint">{children}</div>
   </div>
 );
 
@@ -92,22 +171,57 @@ export const Code: FC<PropsWithChildren> = ({ children }) => (
   </code>
 );
 
+/** Drawn check / x for verdict lists — never a Unicode glyph standing in for an icon. */
+export const MarkIcon: FC<{ kind: 'check' | 'x'; class?: string }> = ({
+  kind,
+  class: className = '',
+}) => (
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="2.5"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    class={`h-3.5 w-3.5 shrink-0 ${className}`}
+    aria-hidden="true"
+  >
+    {kind === 'check' ? (
+      <path d="M20 6 9 17l-5-5" />
+    ) : (
+      <>
+        <path d="M18 6 6 18" />
+        <path d="m6 6 12 12" />
+      </>
+    )}
+  </svg>
+);
+
 /* ---------- data display ---------- */
 
-export const Stat: FC<{ label: string; value: string | number; tone?: Tone }> = ({
-  label,
-  value,
-  tone,
-}) => (
-  <div class="rounded-lg border border-line bg-surface-raised p-4">
-    <div class="text-xs uppercase tracking-wider text-ink-faint">{label}</div>
+export const Stat: FC<{
+  label: string | Child;
+  value: string | number;
+  tone?: Tone;
+  sub?: Child;
+  muted?: boolean;
+}> = ({ label, value, tone, sub, muted = false }) => (
+  <div
+    class={`rounded-lg border bg-surface-raised p-4 ${
+      muted ? 'border-line/70' : 'border-line shadow-sm'
+    }`}
+  >
+    <div class={`text-[13px] font-medium ${muted ? 'text-ink-faint' : 'text-ink-muted'}`}>
+      {label}
+    </div>
     <div
-      class={`mt-1 font-mono text-2xl font-medium tabular-nums ${
-        tone ? TONE_TEXT[tone] : 'text-ink'
+      class={`mt-1 text-2xl font-semibold tracking-tight tabular-nums ${
+        tone ? TONE_TEXT[tone] : muted ? 'text-ink-muted' : 'text-ink'
       }`}
     >
       {value}
     </div>
+    {sub && <div class="mt-1 text-xs text-ink-faint">{sub}</div>}
   </div>
 );
 
@@ -117,7 +231,7 @@ export const Badge: FC<PropsWithChildren<{ tone?: Tone; class?: string }>> = ({
   class: className = '',
 }) => (
   <span
-    class={`inline-flex items-center whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${TONE_SOFT[tone]} ${className}`}
+    class={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${TONE_SOFT[tone]} ${className}`}
   >
     {children}
   </span>
@@ -128,33 +242,34 @@ export const Tag: FC<PropsWithChildren<{ tone?: Tone }>> = ({
   tone = 'neutral',
 }) => (
   <span
-    class={`inline-flex items-center rounded px-1.5 py-0.5 font-mono text-xs ring-1 ring-inset ${TONE_SOFT[tone]}`}
+    class={`inline-flex items-center rounded-md px-1.5 py-0.5 text-xs ring-1 ring-inset ${TONE_SOFT[tone]}`}
   >
     {children}
   </span>
 );
 
 export const StatusBadge: FC<{ status: JobStatus }> = ({ status }) => (
-  <Badge tone={statusTone(status)}>{status}</Badge>
+  <Badge tone={statusTone(status)}>
+    <span class="h-1.5 w-1.5 rounded-full bg-current" aria-hidden="true" />
+    {statusLabel(status)}
+  </Badge>
 );
 
-/** Fit score as number + 4-step meter, so the value reads without colour. */
+/** Fit score as number + meter, so the value reads without colour. */
 export const FitBadge: FC<{ score: number | null; label?: string }> = ({ score, label = 'fit' }) => {
   if (score == null) return <span class="text-ink-faint">—</span>;
   const tone = fitTone(score);
-  const filled = score >= 85 ? 4 : score >= 70 ? 3 : score >= 50 ? 2 : 1;
   return (
     <span
-      class={`inline-flex items-center gap-1.5 font-mono text-sm font-medium tabular-nums ${TONE_TEXT[tone]}`}
+      class="inline-flex items-center gap-1.5 whitespace-nowrap"
       title={`${label} ${score}/100`}
     >
-      {score}
-      <span class="flex gap-px" aria-hidden="true">
-        {[1, 2, 3, 4].map((i) => (
-          <span
-            class={`h-3 w-1 rounded-sm ${i <= filled ? 'bg-current' : 'bg-line-strong'}`}
-          />
-        ))}
+      <span class={`text-sm font-medium tabular-nums ${TONE_TEXT[tone]}`}>{score}</span>
+      <span class="h-1.5 w-9 shrink-0 overflow-hidden rounded-full bg-line" aria-hidden="true">
+        <span
+          class={`block h-full rounded-full ${TONE_FILL[tone]}`}
+          style={`width:${Math.max(4, Math.min(100, score))}%`}
+        />
       </span>
     </span>
   );
@@ -162,16 +277,29 @@ export const FitBadge: FC<{ score: number | null; label?: string }> = ({ score, 
 
 /* ---------- tables ---------- */
 
-export const Table: FC<PropsWithChildren<{ columns: (string | Child)[] }>> = ({
-  columns,
-  children,
-}) => (
-  <div class="overflow-x-auto">
-    <table class="w-full text-sm">
+export const Table: FC<
+  PropsWithChildren<{
+    columns: (string | Child)[];
+    stickyHeader?: boolean;
+    /** Proportional column widths (`w-[34%]`, …) with table-fixed layout. */
+    widths?: string[];
+  }>
+> = ({ columns, stickyHeader = false, widths, children }) => {
+  const table = (
+    <table class={`w-full text-sm ${widths ? 'table-fixed' : ''}`}>
       <thead>
-        <tr class="border-b border-line text-left text-xs uppercase tracking-wider text-ink-faint">
-          {columns.map((c) => (
-            <th scope="col" class="px-4 py-2.5 font-medium first:pl-5 last:pr-5">
+        <tr class="text-left text-xs font-medium text-ink-muted">
+          {columns.map((c, i) => (
+            <th
+              scope="col"
+              class={`bg-surface-overlay px-4 py-2.5 font-medium first:rounded-tl-none first:pl-5 last:pr-5 ${
+                widths?.[i] ?? ''
+              } ${
+                stickyHeader
+                  ? 'sticky top-0 z-10 shadow-[inset_0_-1px_0_rgb(var(--line))]'
+                  : 'border-b border-line'
+              }`}
+            >
               {c}
             </th>
           ))}
@@ -179,14 +307,15 @@ export const Table: FC<PropsWithChildren<{ columns: (string | Child)[] }>> = ({
       </thead>
       <tbody class="divide-y divide-line">{children}</tbody>
     </table>
-  </div>
-);
+  );
+  return stickyHeader ? table : <div class="overflow-x-auto">{table}</div>;
+};
 
 export const Tr: FC<PropsWithChildren<{ class?: string }>> = ({
   children,
   class: className = '',
 }) => (
-  <tr class={`transition-colors duration-150 hover:bg-surface-overlay/60 ${className}`}>
+  <tr class={`transition-colors duration-150 hover:bg-surface-overlay/50 ${className}`}>
     {children}
   </tr>
 );
@@ -196,7 +325,7 @@ export const Td: FC<PropsWithChildren<{ class?: string; title?: string }>> = ({
   class: className = '',
   title,
 }) => (
-  <td class={`px-4 py-2.5 first:pl-5 last:pr-5 ${className}`} title={title}>
+  <td class={`px-4 py-3 first:pl-5 last:pr-5 ${className}`} title={title}>
     {children}
   </td>
 );
@@ -210,14 +339,14 @@ export const Field: FC<PropsWithChildren<{ label: string; hint?: string; class?:
   class: className = '',
 }) => (
   <label class={`block ${className}`}>
-    <span class="block text-xs uppercase tracking-wider text-ink-faint">{label}</span>
-    {hint && <Hint class="mt-1">{hint}</Hint>}
-    <div class="mt-1">{children}</div>
+    <span class="block text-[13px] font-medium text-ink">{label}</span>
+    {hint && <Hint class="mt-0.5">{hint}</Hint>}
+    <div class="mt-1.5">{children}</div>
   </label>
 );
 
 const CONTROL =
-  'w-full rounded-md border border-line-strong bg-surface px-3 py-1.5 text-sm text-ink placeholder-ink-faint transition-colors duration-150 hover:border-ink-faint focus:border-accent focus:outline-none';
+  'w-full rounded-md border border-line-strong bg-surface-raised px-3 py-1.5 text-sm text-ink placeholder:text-ink-faint shadow-sm transition-colors duration-150 hover:border-ink-faint focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/15';
 
 export const Input: FC<Record<string, unknown> & { mono?: boolean }> = ({
   mono,
@@ -225,12 +354,19 @@ export const Input: FC<Record<string, unknown> & { mono?: boolean }> = ({
   ...rest
 }) => <input class={`${CONTROL} ${mono ? 'font-mono text-xs' : ''} ${className}`} {...rest} />;
 
+/* Drawn chevron so selects match the themed controls instead of browser chrome. */
+const SELECT_CHEVRON = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23667085' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`;
+
 export const Select: FC<PropsWithChildren<Record<string, unknown>>> = ({
   children,
   class: className = '',
   ...rest
 }) => (
-  <select class={`${CONTROL} ${className}`} {...rest}>
+  <select
+    class={`${CONTROL} appearance-none bg-[length:14px_14px] bg-[position:right_0.6rem_center] bg-no-repeat pr-8 ${className}`}
+    style={`background-image:${SELECT_CHEVRON}`}
+    {...rest}
+  >
     {children}
   </select>
 );
@@ -251,11 +387,18 @@ export const Checkbox: FC<PropsWithChildren<Record<string, unknown>>> = ({
   ...rest
 }) => (
   <label class="inline-flex min-h-[28px] cursor-pointer items-center gap-2 text-sm text-ink">
-    <input
-      type="checkbox"
-      class="h-4 w-4 rounded border-line-strong bg-surface text-accent focus:ring-accent"
-      {...rest}
-    />
+    <input type="checkbox" class="h-4 w-4 accent-accent" {...rest} />
+    {children}
+  </label>
+);
+
+/** Checkbox styled as a selectable pill — for option sets (seniority, regions, sources). */
+export const PillCheckbox: FC<PropsWithChildren<Record<string, unknown>>> = ({
+  children,
+  ...rest
+}) => (
+  <label class="inline-flex min-h-[28px] cursor-pointer items-center gap-2 rounded-md border border-line bg-surface-raised px-2.5 py-1 text-sm text-ink-muted transition-colors duration-150 hover:border-line-strong has-[:checked]:border-accent/40 has-[:checked]:bg-accent/5 has-[:checked]:text-ink">
+    <input type="checkbox" class="h-3.5 w-3.5 accent-accent" {...rest} />
     {children}
   </label>
 );
@@ -265,11 +408,11 @@ export const Radio: FC<PropsWithChildren<Record<string, unknown> & { title: stri
   title,
   ...rest
 }) => (
-  <label class="flex cursor-pointer items-start gap-3 rounded-md border border-line p-3 text-sm text-ink transition-colors duration-150 hover:border-line-strong has-[:checked]:border-accent/60 has-[:checked]:bg-accent/5">
-    <input type="radio" class="mt-1 text-accent focus:ring-accent" {...rest} />
+  <label class="flex cursor-pointer items-start gap-3 rounded-md border border-line bg-surface-raised p-3 text-sm text-ink transition-colors duration-150 hover:border-line-strong has-[:checked]:border-accent/50 has-[:checked]:bg-accent/5">
+    <input type="radio" class="mt-1 h-4 w-4 accent-accent" {...rest} />
     <span>
       <span class="font-medium">{title}</span>
-      <span class="block text-xs leading-5 text-ink-faint">{children}</span>
+      <span class="block text-[13px] leading-5 text-ink-faint">{children}</span>
     </span>
   </label>
 );
@@ -279,11 +422,11 @@ export const Radio: FC<PropsWithChildren<Record<string, unknown> & { title: stri
 export type ButtonVariant = 'primary' | 'secondary' | 'danger' | 'warn' | 'violet' | 'ghost';
 
 const BUTTON_VARIANT: Record<ButtonVariant, string> = {
-  primary: 'bg-accent-strong text-surface hover:bg-accent',
-  secondary: 'border border-line-strong text-ink hover:bg-surface-overlay',
-  danger: 'border border-danger/40 bg-danger/10 text-danger hover:bg-danger/20',
-  warn: 'bg-warn text-surface hover:bg-warn/90',
-  violet: 'border border-violet/40 bg-violet/10 text-violet hover:bg-violet/20',
+  primary: 'bg-accent-strong text-white shadow-sm hover:bg-accent-deep',
+  secondary: 'border border-line-strong bg-surface-raised text-ink shadow-sm hover:bg-surface-overlay',
+  danger: 'border border-danger/30 bg-surface-raised text-danger shadow-sm hover:bg-danger/5',
+  warn: 'bg-warn text-white shadow-sm hover:bg-warn/90',
+  violet: 'border border-violet/30 bg-violet/5 text-violet hover:bg-violet/10',
   ghost: 'text-ink-muted hover:bg-surface-overlay hover:text-ink',
 };
 
@@ -364,14 +507,17 @@ export const ToggleRow: FC<
   <div class="flex flex-wrap items-start justify-between gap-4">
     <div class="min-w-0 flex-1">
       <div class="flex items-center gap-2 text-sm">
-        <span class="text-ink-muted">{label}</span>
-        <Badge tone={enabled ? 'ok' : 'neutral'}>{enabled ? onLabel : offLabel}</Badge>
+        <span class="font-medium text-ink">{label}</span>
+        <Badge tone={enabled ? 'ok' : 'neutral'}>
+          <span class="h-1.5 w-1.5 rounded-full bg-current" aria-hidden="true" />
+          {enabled ? onLabel : offLabel}
+        </Badge>
       </div>
       <Hint class="mt-1 max-w-prose">{children}</Hint>
     </div>
     <div class="flex shrink-0 flex-col items-end gap-2">
       <ActionForm action={action}>
-        <Button variant={enabled ? 'secondary' : 'primary'} size="lg">
+        <Button variant={enabled ? 'secondary' : 'primary'}>
           {enabled ? disableText : enableText}
         </Button>
       </ActionForm>

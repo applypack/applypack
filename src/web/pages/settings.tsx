@@ -1,5 +1,5 @@
 /** @jsxImportSource hono/jsx */
-import type { FC } from 'hono/jsx';
+import type { Child, FC, PropsWithChildren } from 'hono/jsx';
 import type { Profile } from '@prisma/client';
 import { Layout } from '../layout';
 import {
@@ -7,7 +7,6 @@ import {
   Badge,
   Button,
   Card,
-  Checkbox,
   Code,
   Empty,
   Field,
@@ -15,8 +14,8 @@ import {
   Hint,
   Input,
   PageHeader,
+  PillCheckbox,
   Radio,
-  SectionTitle,
   Select,
   Table,
   Tag,
@@ -80,6 +79,21 @@ export interface SettingsProps {
   flash?: { kind: 'ok' | 'err'; text: string } | null;
 }
 
+/** Stripe-style settings section: title + description left, controls right. */
+const Section: FC<PropsWithChildren<{ title: string; desc?: string | Child }>> = ({
+  title,
+  desc,
+  children,
+}) => (
+  <section class="grid gap-3 border-t border-line py-7 first:border-t-0 first:pt-0 lg:grid-cols-[220px_1fr] lg:gap-8">
+    <div>
+      <h2 class="text-sm font-semibold text-ink">{title}</h2>
+      {desc && <p class="mt-1 text-[13px] leading-5 text-ink-faint">{desc}</p>}
+    </div>
+    <div class="min-w-0 space-y-4">{children}</div>
+  </section>
+);
+
 export const SettingsPage: FC<SettingsProps> = ({
   telegramEnabled,
   classifierMode,
@@ -98,309 +112,354 @@ export const SettingsPage: FC<SettingsProps> = ({
   flash,
 }) => (
   <Layout title="Settings" active="settings">
-    <PageHeader title="Settings">
-      <p class="mt-1 text-sm text-ink-faint">
-        Everything here lives in Postgres — no .env edits, no restarts. Toggles take
-        effect on the next cron tick.
-      </p>
-    </PageHeader>
-    <Flash flash={flash} />
+    <div class="w-full max-w-5xl">
+      <PageHeader title="Settings">
+        Everything here lives in Postgres — no .env edits, no restarts. Toggles take effect on
+        the next cron tick.
+      </PageHeader>
+      <Flash flash={flash} />
 
-    <Card class="mb-6">
-      <SectionTitle>Job fetching</SectionTitle>
-      <ToggleRow
-        label="Pipeline"
-        enabled={fetchingEnabled}
-        action="/settings/fetching-toggle"
-        onLabel="Running"
-        offLabel="Paused"
-        enableText="Resume"
-        disableText="Pause"
+      <Section
+        title="Job fetching"
+        desc="The master switch for new-job ingestion. Everything else keeps running while paused."
       >
-        Master switch for new-job ingestion (hourly fetch + monthly HN pull). Off by
-        default. Pausing stops new jobs and alerts without touching Docker; the
-        dashboard, digest, cleanup and discovery probe keep running.
-      </ToggleRow>
-    </Card>
-
-    <Card class="mb-6">
-      <SectionTitle>Active profile</SectionTitle>
-      <div class="mb-5 flex flex-wrap items-center gap-2">
-        <form method="post" action="/settings/profiles/activate" class="flex items-center gap-2">
-          <Select name="id" class="!w-auto">
-            {profiles.map((p) => (
-              <option value={p.id} selected={p.active}>
-                {p.name}
-                {p.active ? ' (active)' : ''}
-              </option>
-            ))}
-          </Select>
-          <Button>Activate</Button>
-        </form>
-        <ActionForm action="/settings/profiles/new">
-          <Button variant="secondary">+ New profile</Button>
-        </ActionForm>
-        <ActionForm
-          action="/settings/reclassify"
-          confirm="Re-classify all jobs (except APPLIED) against the active profile? Takes 2-5 minutes and spends AI credit."
-        >
-          <Button variant="violet">Re-classify all jobs</Button>
-        </ActionForm>
-      </div>
-      {activeProfile ? (
-        <ProfileEditor profile={activeProfile} availableTargets={availableTargets} />
-      ) : (
-        <Empty>No active profile. Pick one above or create a new one.</Empty>
-      )}
-    </Card>
-
-    {profiles.length > 1 && (
-      <Card class="mb-6" flush>
-        <div class="px-5 pt-5">
-          <SectionTitle>Other profiles</SectionTitle>
-        </div>
-        <Table columns={['Name', 'Stack', <span class="block text-right">Actions</span>]}>
-          {profiles
-            .filter((p) => !p.active)
-            .map((p) => (
-              <Tr>
-                <Td class="font-medium text-ink">{p.name}</Td>
-                <Td class="font-mono text-xs text-ink-muted">{p.stackPreview}</Td>
-                <Td>
-                  <div class="flex justify-end gap-2">
-                    <ActionForm action="/settings/profiles/activate" hidden={{ id: p.id }}>
-                      <Button size="sm" variant="secondary">
-                        Activate
-                      </Button>
-                    </ActionForm>
-                    <ActionForm
-                      action={`/settings/profiles/${p.id}/delete`}
-                      confirm="Delete this profile?"
-                    >
-                      <Button size="sm" variant="danger">
-                        Delete
-                      </Button>
-                    </ActionForm>
-                  </div>
-                </Td>
-              </Tr>
-            ))}
-        </Table>
-      </Card>
-    )}
-
-    <Card class="mb-6">
-      <SectionTitle>Resumes</SectionTitle>
-      <Hint class="mb-4 max-w-prose">
-        Upload the resumes you send out. Every job page can then compare one against the
-        posting and list what to add and where.{' '}
-        <a href="/resumes" class="text-accent hover:underline">
-          Manage resumes →
-        </a>
-      </Hint>
-      {resumes.length > 0 && (
-        <ul class="mb-4 divide-y divide-line rounded-md border border-line">
-          {resumes.map((r) => (
-            <li class="flex flex-wrap items-center gap-2 px-3 py-2 text-sm">
-              <a href={`/resumes/${r.id}`} class="font-medium text-ink hover:text-accent">
-                {r.name}
-              </a>
-              {r.isDefault && <Badge tone="ok">default</Badge>}
-              {!r.scannedAt && <Badge tone="warn">not scanned</Badge>}
-            </li>
-          ))}
-        </ul>
-      )}
-      <ResumeUploadForm />
-    </Card>
-
-    <Card class="mb-6">
-      <SectionTitle>Classifier mode</SectionTitle>
-      <form method="post" action="/settings/classifier-mode" class="space-y-2">
-        <Radio name="mode" value="single" checked={classifierMode === 'single'} title="Single stage">
-          Every job goes straight to the full classifier. Highest precision, full cost.
-        </Radio>
-        <Radio
-          name="mode"
-          value="two_stage"
-          checked={classifierMode === 'two_stage'}
-          title="Two stage (cheaper)"
-        >
-          A short yes/no prefilter gates the full classifier. When most fetched jobs are
-          off-target, spend drops ~30-40% with marginal precision loss.
-        </Radio>
-        <div class="pt-2">
-          <Button>Save mode</Button>
-        </div>
-      </form>
-    </Card>
-
-    <Card class="mb-6">
-      <SectionTitle>Job sources</SectionTitle>
-      <Hint class="mb-3 max-w-prose">
-        Disable a whole source family with one click — handy when an aggregator gets
-        noisy. Per-company toggles on the Companies page still apply.
-      </Hint>
-      <form method="post" action="/settings/sources" class="space-y-3">
-        <div class="grid gap-x-6 gap-y-1 sm:grid-cols-2 lg:grid-cols-3">
-          {allSources.map((s) => (
-            <Checkbox name="enabled" value={s} checked={!disabledSources.includes(s)}>
-              <span class="font-mono text-xs">{s}</span>
-            </Checkbox>
-          ))}
-        </div>
-        <Button>Save sources</Button>
-      </form>
-    </Card>
-
-    <Card class="mb-6">
-      <SectionTitle>Auto-discovery</SectionTitle>
-      <ToggleRow label="Status" enabled={discoveryEnabled} action="/settings/discovery-toggle">
-        When the HN parser sees a Greenhouse / Lever / Ashby URL in a comment, the
-        company is recorded as a candidate on the Discovery page. A weekly cron
-        re-probes pending candidates so the job count stays fresh.
-      </ToggleRow>
-    </Card>
-
-    <Card class="mb-6">
-      <SectionTitle>HN "Who is hiring" parser</SectionTitle>
-      <ToggleRow
-        label="Status"
-        enabled={hnParserEnabled}
-        action="/settings/hn-parser-toggle"
-        extra={
-          <ActionForm
-            action="/settings/hn-run"
-            confirm="Pull the latest HN Who-is-hiring thread now? Takes 1-2 minutes and spends AI credit."
-          >
-            <Button size="sm" variant="violet" disabled={!hnParserEnabled}>
-              Run now
-            </Button>
-          </ActionForm>
-        }
-      >
-        Monthly cron parses the latest "Ask HN: Who is hiring?" thread (300-500
-        comments) and runs the structured ones through the same filter → classify →
-        alert pipeline. Many small startups only post there.
-      </ToggleRow>
-    </Card>
-
-    <Card class="mb-6">
-      <SectionTitle>Application tracking</SectionTitle>
-      <div class="space-y-4">
-        <ToggleRow
-          label="Tracking"
-          enabled={applicationTrackingEnabled}
-          action="/settings/application-tracking-toggle"
-        >
-          Shows the tracking card on each job and the Applications funnel. Stored
-          fields persist either way.
-        </ToggleRow>
-        <div class="border-t border-line pt-4">
+        <Card>
           <ToggleRow
-            label="Stale digest"
-            enabled={staleApplicationsDigestEnabled}
-            action="/settings/stale-digest-toggle"
+            label="Pipeline"
+            enabled={fetchingEnabled}
+            action="/settings/fetching-toggle"
+            onLabel="Running"
+            offLabel="Paused"
+            enableText="Resume"
+            disableText="Pause"
           >
-            Daily Telegram nudge for jobs stuck in "applied" with no recruiter contact
-            for 14+ days. Honours the Telegram master switch.
+            Hourly fetch + monthly HN pull. Pausing stops new jobs and alerts without touching
+            Docker; the dashboard, digest, cleanup and discovery probe keep running.
           </ToggleRow>
-        </div>
-      </div>
-    </Card>
+        </Card>
+      </Section>
 
-    <Card class="mb-6">
-      <SectionTitle>Telegram alerts</SectionTitle>
-      <ToggleRow label="Status" enabled={telegramEnabled} action="/settings/telegram-toggle">
-        When off, nothing is sent regardless of targets. Jobs are still classified and
-        stored.
-      </ToggleRow>
-    </Card>
-
-    <Card class="mb-6" flush>
-      <div class="px-5 pt-5">
-        <SectionTitle>Targets</SectionTitle>
-      </div>
-      {targets.length === 0 ? (
-        <div class="px-5 pb-5">
-          <Empty>No targets yet. Add one below to start receiving alerts.</Empty>
+      <Section
+        title="Active profile"
+        desc="What a matching job looks like: stack, role types, regions, salary floor. The classifier scores every job against this."
+      >
+        <div class="flex flex-wrap items-center gap-2">
+          <form
+            method="post"
+            action="/settings/profiles/activate"
+            class="flex min-w-0 max-w-full flex-wrap items-center gap-2"
+          >
+            <Select name="id" class="!w-auto min-w-0 max-w-full" aria-label="Profile to activate">
+              {profiles.map((p) => (
+                <option value={p.id} selected={p.active}>
+                  {p.name}
+                  {p.active ? ' (active)' : ''}
+                </option>
+              ))}
+            </Select>
+            <Button variant="secondary">Activate</Button>
+          </form>
+          <ActionForm action="/settings/profiles/new">
+            <Button variant="secondary">+ New profile</Button>
+          </ActionForm>
+          <ActionForm
+            action="/settings/reclassify"
+            confirm="Re-classify all jobs (except APPLIED) against the active profile? Takes 2-5 minutes and spends AI credit."
+          >
+            <Button variant="violet">Re-classify all jobs</Button>
+          </ActionForm>
         </div>
-      ) : (
-        <Table
-          columns={[
-            'Name',
-            'Bot token',
-            'Chat id',
-            'Last used',
-            'Active',
-            <span class="block text-right">Actions</span>,
-          ]}
-        >
-          {targets.map((t) => (
-            <Tr>
-              <Td class="font-medium text-ink">{t.name}</Td>
-              <Td class="font-mono text-xs text-ink-muted">{t.maskedToken}</Td>
-              <Td class="font-mono text-xs text-ink-muted">{t.chatId}</Td>
-              <Td class="whitespace-nowrap text-xs text-ink-faint">{formatRelative(t.lastUsed)}</Td>
-              <Td>
-                <ActionForm action={`/settings/targets/${t.id}/toggle`}>
-                  <button type="submit" class="cursor-pointer rounded-full" title="Toggle">
-                    <Badge tone={t.active ? 'ok' : 'neutral'}>
-                      {t.active ? 'Active' : 'Disabled'}
-                    </Badge>
-                  </button>
-                </ActionForm>
-              </Td>
-              <Td>
-                <div class="flex justify-end gap-2">
-                  <ActionForm action={`/settings/targets/${t.id}/test`}>
-                    <Button size="sm" variant="secondary">
-                      Test
-                    </Button>
-                  </ActionForm>
-                  <ActionForm
-                    action={`/settings/targets/${t.id}/delete`}
-                    confirm="Delete this target?"
+        {activeProfile ? (
+          <Card>
+            <ProfileEditor profile={activeProfile} availableTargets={availableTargets} />
+          </Card>
+        ) : (
+          <Empty>No active profile. Pick one above or create a new one.</Empty>
+        )}
+        {profiles.length > 1 && (
+          <Card flush>
+            <div class="border-b border-line px-5 py-3 text-[13px] font-medium text-ink">
+              Other profiles
+            </div>
+            <Table columns={['Name', 'Stack', <span class="block text-right">Actions</span>]}>
+              {profiles
+                .filter((p) => !p.active)
+                .map((p) => (
+                  <Tr>
+                    <Td class="font-medium text-ink">{p.name}</Td>
+                    <Td class="text-[13px] text-ink-muted">{p.stackPreview}</Td>
+                    <Td>
+                      <div class="flex justify-end gap-2">
+                        <ActionForm action="/settings/profiles/activate" hidden={{ id: p.id }}>
+                          <Button size="sm" variant="secondary">
+                            Activate
+                          </Button>
+                        </ActionForm>
+                        <ActionForm
+                          action={`/settings/profiles/${p.id}/delete`}
+                          confirm="Delete this profile?"
+                        >
+                          <Button size="sm" variant="danger">
+                            Delete
+                          </Button>
+                        </ActionForm>
+                      </div>
+                    </Td>
+                  </Tr>
+                ))}
+            </Table>
+          </Card>
+        )}
+      </Section>
+
+      <Section
+        title="Classifier"
+        desc="How much AI spend each fetched job gets before it reaches you."
+      >
+        <Card>
+          <form method="post" action="/settings/classifier-mode" class="space-y-2">
+            <Radio
+              name="mode"
+              value="single"
+              checked={classifierMode === 'single'}
+              title="Single stage"
+            >
+              Every job goes straight to the full classifier. Highest precision, full cost.
+            </Radio>
+            <Radio
+              name="mode"
+              value="two_stage"
+              checked={classifierMode === 'two_stage'}
+              title="Two stage (cheaper)"
+            >
+              A short yes/no prefilter gates the full classifier. When most fetched jobs are
+              off-target, spend drops ~30-40% with marginal precision loss.
+            </Radio>
+            <div class="pt-2">
+              <Button variant="secondary">Save mode</Button>
+            </div>
+          </form>
+        </Card>
+      </Section>
+
+      <Section
+        title="Job sources"
+        desc="Disable a whole source family with one click — handy when an aggregator gets noisy. Per-company toggles on the Companies page still apply."
+      >
+        <Card>
+          <form method="post" action="/settings/sources" class="space-y-4">
+            <div class="flex flex-wrap gap-1.5">
+              {allSources.map((s) => (
+                <PillCheckbox name="enabled" value={s} checked={!disabledSources.includes(s)}>
+                  {s}
+                </PillCheckbox>
+              ))}
+            </div>
+            <Button variant="secondary">Save sources</Button>
+          </form>
+        </Card>
+      </Section>
+
+      <Section
+        title="Resumes"
+        desc="Upload the resumes you send out. Every job page can then compare one against the posting."
+      >
+        <Card>
+          {resumes.length > 0 && (
+            <ul class="mb-4 divide-y divide-line rounded-md border border-line">
+              {resumes.map((r) => (
+                <li class="flex flex-wrap items-center gap-2 px-3.5 py-2.5 text-sm">
+                  <a
+                    href={`/resumes/${r.id}`}
+                    class="font-medium text-ink transition-colors duration-150 hover:text-accent-strong"
                   >
-                    <Button size="sm" variant="danger">
-                      Delete
+                    {r.name}
+                  </a>
+                  {r.isDefault && <Badge tone="ok">default</Badge>}
+                  {!r.scannedAt && <Badge tone="warn">not scanned</Badge>}
+                </li>
+              ))}
+            </ul>
+          )}
+          <ResumeUploadForm />
+          <Hint class="mt-3">
+            <a
+              href="/resumes"
+              class="font-medium text-accent-strong hover:text-accent-deep"
+            >
+              Manage resumes →
+            </a>
+          </Hint>
+        </Card>
+      </Section>
+
+      <Section
+        title="Discovery"
+        desc="Finding new company boards automatically from HN threads."
+      >
+        <Card>
+          <div class="space-y-5">
+            <ToggleRow
+              label="Auto-discovery"
+              enabled={discoveryEnabled}
+              action="/settings/discovery-toggle"
+            >
+              When the HN parser sees a Greenhouse / Lever / Ashby URL in a comment, the company
+              lands on the Discovery page as a candidate. A weekly cron re-probes pending
+              candidates so the job count stays fresh.
+            </ToggleRow>
+            <div class="border-t border-line pt-5">
+              <ToggleRow
+                label={'HN "Who is hiring" parser'}
+                enabled={hnParserEnabled}
+                action="/settings/hn-parser-toggle"
+                extra={
+                  <ActionForm
+                    action="/settings/hn-run"
+                    confirm="Pull the latest HN Who-is-hiring thread now? Takes 1-2 minutes and spends AI credit."
+                  >
+                    <Button size="sm" variant="violet" disabled={!hnParserEnabled}>
+                      Run now
                     </Button>
                   </ActionForm>
-                </div>
-              </Td>
-            </Tr>
-          ))}
-        </Table>
-      )}
-    </Card>
+                }
+              >
+                Monthly cron parses the latest "Ask HN: Who is hiring?" thread (300-500 comments)
+                and runs the structured ones through the same filter → classify → alert pipeline.
+                Many small startups only post there.
+              </ToggleRow>
+            </div>
+          </div>
+        </Card>
+      </Section>
 
-    <Card>
-      <SectionTitle>Add target</SectionTitle>
-      <form method="post" action="/settings/targets" class="grid gap-3 sm:grid-cols-12">
-        <Field label="Name" class="sm:col-span-3">
-          <Input type="text" name="name" required placeholder="My phone" />
-        </Field>
-        <Field label="Bot token" class="sm:col-span-5">
-          <Input
-            type="password"
-            name="botToken"
-            required
-            autocomplete="off"
-            placeholder="123456789:ABC…"
-            mono
-          />
-        </Field>
-        <Field label="Chat id" class="sm:col-span-3">
-          <Input type="text" name="chatId" required placeholder="-100…" mono />
-        </Field>
-        <div class="flex items-end sm:col-span-1">
-          <Button class="w-full">Add</Button>
-        </div>
-      </form>
-      <Hint class="mt-3">
-        The bot token is validated (getMe + sendMessage) before saving.
-      </Hint>
-    </Card>
+      <Section
+        title="Application tracking"
+        desc="The funnel board and the nudge that keeps it honest."
+      >
+        <Card>
+          <div class="space-y-5">
+            <ToggleRow
+              label="Tracking"
+              enabled={applicationTrackingEnabled}
+              action="/settings/application-tracking-toggle"
+            >
+              Shows the tracking card on each job and the Applications funnel. Stored fields
+              persist either way.
+            </ToggleRow>
+            <div class="border-t border-line pt-5">
+              <ToggleRow
+                label="Stale digest"
+                enabled={staleApplicationsDigestEnabled}
+                action="/settings/stale-digest-toggle"
+              >
+                Daily Telegram nudge for jobs stuck in "applied" with no recruiter contact for
+                14+ days. Honours the Telegram master switch.
+              </ToggleRow>
+            </div>
+          </div>
+        </Card>
+      </Section>
+
+      <Section
+        title="Notifications"
+        desc="Telegram bots and chats that receive job alerts."
+      >
+        <Card>
+          <ToggleRow
+            label="Telegram alerts"
+            enabled={telegramEnabled}
+            action="/settings/telegram-toggle"
+          >
+            When off, nothing is sent regardless of targets. Jobs are still classified and
+            stored.
+          </ToggleRow>
+        </Card>
+
+        {targets.length === 0 ? (
+          <Empty>No targets yet. Add one below to start receiving alerts.</Empty>
+        ) : (
+          <Card flush>
+            <Table
+              columns={[
+                'Name',
+                'Bot token',
+                'Chat id',
+                'Last used',
+                'Active',
+                <span class="block text-right">Actions</span>,
+              ]}
+            >
+              {targets.map((t) => (
+                <Tr>
+                  <Td class="font-medium text-ink">{t.name}</Td>
+                  <Td class="font-mono text-xs text-ink-muted">{t.maskedToken}</Td>
+                  <Td class="font-mono text-xs text-ink-muted">{t.chatId}</Td>
+                  <Td class="whitespace-nowrap text-[13px] text-ink-faint">
+                    {formatRelative(t.lastUsed)}
+                  </Td>
+                  <Td>
+                    <ActionForm action={`/settings/targets/${t.id}/toggle`}>
+                      <button type="submit" class="cursor-pointer rounded-full" title="Toggle">
+                        <Badge tone={t.active ? 'ok' : 'neutral'}>
+                          {t.active ? 'Active' : 'Disabled'}
+                        </Badge>
+                      </button>
+                    </ActionForm>
+                  </Td>
+                  <Td>
+                    <div class="flex justify-end gap-2">
+                      <ActionForm action={`/settings/targets/${t.id}/test`}>
+                        <Button size="sm" variant="secondary">
+                          Test
+                        </Button>
+                      </ActionForm>
+                      <ActionForm
+                        action={`/settings/targets/${t.id}/delete`}
+                        confirm="Delete this target?"
+                      >
+                        <Button size="sm" variant="danger">
+                          Delete
+                        </Button>
+                      </ActionForm>
+                    </div>
+                  </Td>
+                </Tr>
+              ))}
+            </Table>
+          </Card>
+        )}
+
+        <Card>
+          <div class="mb-3 text-[13px] font-medium text-ink">Add target</div>
+          <form method="post" action="/settings/targets" class="grid gap-3 sm:grid-cols-2">
+            <Field label="Name">
+              <Input type="text" name="name" required placeholder="My phone" />
+            </Field>
+            <Field label="Chat id">
+              <Input type="text" name="chatId" required placeholder="-100…" mono />
+            </Field>
+            <Field label="Bot token" class="sm:col-span-2">
+              <Input
+                type="password"
+                name="botToken"
+                required
+                autocomplete="off"
+                placeholder="123456789:ABC…"
+                mono
+              />
+            </Field>
+            <div class="sm:col-span-2">
+              <Button>Add target</Button>
+            </div>
+          </form>
+          <Hint class="mt-3">
+            The bot token is validated (getMe + sendMessage) before saving.
+          </Hint>
+        </Card>
+      </Section>
+    </div>
+    <script dangerouslySetInnerHTML={{ __html: SETTINGS_JS }} />
   </Layout>
 );
 
@@ -408,7 +467,12 @@ const ProfileEditor: FC<{
   profile: Profile;
   availableTargets: AvailableTarget[];
 }> = ({ profile, availableTargets }) => (
-  <form method="post" action={`/settings/profiles/${profile.id}/save`} class="space-y-5">
+  <form
+    method="post"
+    action={`/settings/profiles/${profile.id}/save`}
+    class="space-y-5"
+    data-dirty-watch
+  >
     <Field label="Name" class="max-w-md">
       <Input type="text" name="name" required value={profile.name} />
     </Field>
@@ -448,33 +512,33 @@ const ProfileEditor: FC<{
     </Field>
 
     <fieldset>
-      <legend class="text-xs uppercase tracking-wider text-ink-faint">Seniority</legend>
-      <div class="mt-1 flex flex-wrap gap-x-4 gap-y-1">
+      <legend class="text-[13px] font-medium text-ink">Seniority</legend>
+      <div class="mt-2 flex flex-wrap gap-1.5">
         {SENIORITY_OPTIONS.map((s) => (
-          <Checkbox name="seniority" value={s} checked={profile.seniority.includes(s)}>
+          <PillCheckbox name="seniority" value={s} checked={profile.seniority.includes(s)}>
             {s}
-          </Checkbox>
+          </PillCheckbox>
         ))}
       </div>
     </fieldset>
 
     <fieldset class="space-y-3">
-      <legend class="text-xs uppercase tracking-wider text-ink-faint">Location</legend>
-      <div class="flex flex-wrap gap-x-6 gap-y-1">
-        <Checkbox name="remoteOk" value="1" checked={profile.remoteOk}>
+      <legend class="text-[13px] font-medium text-ink">Location</legend>
+      <div class="mt-2 flex flex-wrap gap-x-6 gap-y-1.5">
+        <PillCheckbox name="remoteOk" value="1" checked={profile.remoteOk}>
           Accept remote roles
-        </Checkbox>
-        <Checkbox name="hybridOk" value="1" checked={profile.hybridOk}>
+        </PillCheckbox>
+        <PillCheckbox name="hybridOk" value="1" checked={profile.hybridOk}>
           Hybrid OK
-        </Checkbox>
+        </PillCheckbox>
       </div>
       <div>
         <Hint>Acceptable remote regions</Hint>
-        <div class="mt-1 flex flex-wrap gap-x-4 gap-y-1">
+        <div class="mt-1.5 flex flex-wrap gap-1.5">
           {REGION_OPTIONS.map((r) => (
-            <Checkbox name="remoteRegions" value={r} checked={profile.remoteRegions.includes(r)}>
+            <PillCheckbox name="remoteRegions" value={r} checked={profile.remoteRegions.includes(r)}>
               {r}
-            </Checkbox>
+            </PillCheckbox>
           ))}
         </div>
       </div>
@@ -511,15 +575,23 @@ const ProfileEditor: FC<{
       </Field>
     </div>
 
-    <div class="flex flex-wrap gap-2 border-t border-line pt-4">
-      <Button size="lg">Save</Button>
+    <div class="flex flex-wrap items-center gap-3 border-t border-line pt-4">
+      <Button size="lg">Save profile</Button>
       <Button size="lg" variant="violet" name="action" value="save-and-reclassify">
         Save &amp; re-classify
       </Button>
+      <span data-dirty-indicator hidden class="text-[13px] font-medium text-warn">
+        Unsaved changes
+      </span>
     </div>
   </form>
 );
 
+/**
+ * Newline-joined list in a textarea — the transport the backend already
+ * parses. SETTINGS_JS upgrades it into a chip editor; without JS the plain
+ * textarea still works.
+ */
 const TagListInput: FC<{
   label: string;
   hint: string;
@@ -528,9 +600,11 @@ const TagListInput: FC<{
   rows?: number;
 }> = ({ label, hint, name, values, rows = 3 }) => (
   <Field label={label} hint={hint}>
-    <Textarea name={name} rows={rows} mono>
-      {values.join('\n')}
-    </Textarea>
+    <div data-chips data-label={label}>
+      <Textarea name={name} rows={rows} mono>
+        {values.join('\n')}
+      </Textarea>
+    </div>
   </Field>
 );
 
@@ -539,28 +613,26 @@ const PriorityRulesEditor: FC<{ profile: Profile }> = ({ profile }) => {
   const text = formatPriorityRulesText(rules);
   return (
     <div>
-      <label class="block text-xs uppercase tracking-wider text-ink-faint" for="priorityRules">
+      <label class="block text-[13px] font-medium text-ink" for="priorityRules">
         Priority rules (post-classifier overrides)
       </label>
-      <Hint class="mt-1 max-w-prose">
-        One rule per line: <Code>LABEL | techs,csv | regions,csv | MIN_FIT</Code>. If the
-        title or description contains any tech and the location matches any region
-        phrase, fit is clamped up to MIN_FIT and the location check passes. Empty
-        regions match anywhere. <Code>#</Code> starts a comment. A bad line stops the
-        save.
+      <Hint class="mt-0.5 max-w-prose">
+        One rule per line: <Code>LABEL | techs,csv | regions,csv | MIN_FIT</Code>. If the title
+        or description contains any tech and the location matches any region phrase, fit is
+        clamped up to MIN_FIT and the location check passes. Empty regions match anywhere.{' '}
+        <Code>#</Code> starts a comment. A bad line stops the save.
       </Hint>
-      <Hint class="mt-1 max-w-prose text-warn/90">
+      <Hint class="mt-1 max-w-prose text-warn">
         Region entries are phrases — every word must appear in the location.{' '}
-        <Code>Remote US</Code> matches "Dallas (Remote US)" but not "Remote · Germany".
-        Avoid a bare <Code>Remote</Code>; prefer{' '}
-        <Code>Remote US,United States,USA,Worldwide</Code>.
+        <Code>Remote US</Code> matches "Dallas (Remote US)" but not "Remote · Germany". Avoid a
+        bare <Code>Remote</Code>; prefer <Code>Remote US,United States,USA,Worldwide</Code>.
       </Hint>
       <Textarea
         id="priorityRules"
         name="priorityRules"
         rows={Math.max(3, rules.length + 1)}
         placeholder="PHP remote-US | php | Remote US,United States,USA,Worldwide | 90"
-        class="mt-1"
+        class="mt-1.5"
         mono
       >
         {text}
@@ -577,3 +649,99 @@ const PriorityRulesEditor: FC<{ profile: Profile }> = ({ profile }) => {
     </div>
   );
 };
+
+/**
+ * Progressive enhancement only: chip editors write back into their hidden
+ * textarea (newline-joined), so the POST body the routes parse is unchanged.
+ */
+const SETTINGS_JS = `
+  (function () {
+    function enhance(host) {
+      var ta = host.querySelector('textarea');
+      if (!ta) return;
+      var box = document.createElement('div');
+      box.className = 'flex min-h-[38px] w-full cursor-text flex-wrap items-center gap-1.5 rounded-md border border-line-strong bg-surface-raised px-2 py-1.5 shadow-sm transition-colors duration-150 focus-within:border-accent focus-within:ring-2 focus-within:ring-accent/15';
+      var input = document.createElement('input');
+      input.type = 'text';
+      input.className = 'min-w-[8rem] flex-1 border-0 bg-transparent p-0.5 text-sm text-ink placeholder:text-ink-faint focus:outline-none focus:ring-0';
+      input.placeholder = 'Add and press Enter…';
+      input.setAttribute('aria-label', (host.dataset.label || 'Tags') + ' — add item');
+
+      function items() {
+        return ta.value.split('\\n').map(function (s) { return s.trim(); }).filter(Boolean);
+      }
+      function sync(list) {
+        ta.value = list.join('\\n');
+        ta.dispatchEvent(new Event('change', { bubbles: true }));
+        renderChips(list);
+      }
+      function renderChips(list) {
+        box.querySelectorAll('[data-chip]').forEach(function (c) { c.remove(); });
+        list.forEach(function (value, i) {
+          var chip = document.createElement('span');
+          chip.setAttribute('data-chip', '');
+          chip.className = 'inline-flex items-center gap-1 rounded-md bg-surface-overlay px-2 py-0.5 text-[13px] text-ink ring-1 ring-inset ring-line';
+          var text = document.createElement('span');
+          text.textContent = value;
+          var del = document.createElement('button');
+          del.type = 'button';
+          del.setAttribute('aria-label', 'Remove ' + value);
+          del.className = 'grid h-4 w-4 cursor-pointer place-items-center rounded text-ink-faint hover:bg-line hover:text-ink';
+          del.textContent = '\\u00d7';
+          del.addEventListener('click', function () {
+            var list = items(); list.splice(i, 1); sync(list); input.focus();
+          });
+          chip.appendChild(text);
+          chip.appendChild(del);
+          box.insertBefore(chip, input);
+        });
+      }
+      function commit() {
+        var v = input.value.trim();
+        if (!v) return;
+        var list = items();
+        if (list.indexOf(v) === -1) list.push(v);
+        input.value = '';
+        sync(list);
+      }
+      input.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') { e.preventDefault(); commit(); }
+        else if (e.key === 'Backspace' && input.value === '') {
+          var list = items();
+          if (list.length) { list.pop(); sync(list); }
+        }
+      });
+      input.addEventListener('blur', commit);
+      input.addEventListener('paste', function (e) {
+        var data = (e.clipboardData || window.clipboardData).getData('text');
+        if (data && data.indexOf('\\n') !== -1) {
+          e.preventDefault();
+          var list = items();
+          data.split('\\n').forEach(function (s) {
+            var v = s.trim();
+            if (v && list.indexOf(v) === -1) list.push(v);
+          });
+          sync(list);
+        }
+      });
+      box.addEventListener('mousedown', function (e) {
+        if (e.target === box) { e.preventDefault(); input.focus(); }
+      });
+      box.appendChild(input);
+      ta.hidden = true;
+      ta.setAttribute('aria-hidden', 'true');
+      ta.tabIndex = -1;
+      host.appendChild(box);
+      renderChips(items());
+    }
+    document.querySelectorAll('[data-chips]').forEach(enhance);
+
+    document.querySelectorAll('[data-dirty-watch]').forEach(function (form) {
+      var indicator = form.querySelector('[data-dirty-indicator]');
+      if (!indicator) return;
+      function markDirty() { indicator.hidden = false; }
+      form.addEventListener('input', markDirty);
+      form.addEventListener('change', markDirty);
+    });
+  })();
+`;
