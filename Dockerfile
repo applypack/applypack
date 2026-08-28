@@ -20,6 +20,8 @@ RUN apk add --no-cache tini \
  && npm install -g @anthropic-ai/claude-code
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
+# Static assets served by the dashboard (keyword matcher for /jobs/:id/target).
+COPY --from=build /app/src/web/public ./src/web/public
 COPY --from=build /app/prisma ./prisma
 COPY --from=build /app/package.json ./package.json
 USER node

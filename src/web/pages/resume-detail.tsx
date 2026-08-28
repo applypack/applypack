@@ -149,14 +149,17 @@ export const ResumeDetailPage: FC<ResumeDetailProps> = ({ resume, matches, flash
               <Tr>
                 <Td>
                   <a
-                    href={`/jobs/${m.job.id}?match=${m.id}#resume-match`}
+                    href={`/jobs/${m.job.id}/target?match=${m.id}`}
                     class="font-medium text-ink hover:text-accent"
                   >
                     {m.job.title}
                   </a>
                 </Td>
                 <Td class="text-ink-muted">{m.job.company.name}</Td>
-                <Td class="font-mono text-xs text-ink-faint">v{m.resumeVersion}</Td>
+                <Td class="font-mono text-xs text-ink-faint">
+                  v{m.resumeVersion}
+                  {m.draft ? ' draft' : ''}
+                </Td>
                 <Td>
                   <FitBadge score={m.matchScore} label="match" />
                 </Td>

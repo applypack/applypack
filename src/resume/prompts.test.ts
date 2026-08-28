@@ -32,7 +32,9 @@ test('parseMatchResponse accepts the documented shape and rejects bad enums', ()
   assert.ok(good.ok);
   assert.equal(good.data.match_score, 72);
   assert.equal(good.data.keywords[0]?.status, 'cannot_claim');
+  assert.deepEqual(good.data.keywords[0]?.aliases, []);
   assert.equal(good.data.actions[0]?.section, 'title');
+  assert.equal(good.data.actions[0]?.quote, null);
   assert.deepEqual(good.data.removals, []);
 
   const bad = parseMatchResponse(
@@ -41,12 +43,14 @@ test('parseMatchResponse accepts the documented shape and rejects bad enums', ()
   assert.equal(bad.ok, false);
 });
 
-test('parseMatchResponse keeps removals', () => {
+test('parseMatchResponse keeps removals with quotes and keyword aliases', () => {
   const r = parseMatchResponse(
-    '{"match_score": 50, "summary": "x", "removals": [{"section": "skills", "where": "Key Skills row 8", "what": "Drop Kafka, Chef", "why": "never used in a role"}]}',
+    '{"match_score": 50, "summary": "x", "keywords": [{"term": "Golang", "priority": 1, "status": "present", "aliases": ["Go", "go "]}], "removals": [{"section": "skills", "where": "Key Skills row 8", "what": "Drop Kafka, Chef", "why": "never used in a role", "quote": "Kafka, Chef"}]}',
   );
   assert.ok(r.ok);
   assert.equal(r.data.removals[0]?.what, 'Drop Kafka, Chef');
+  assert.equal(r.data.removals[0]?.quote, 'Kafka, Chef');
+  assert.deepEqual(r.data.keywords[0]?.aliases, ['go']);
 });
 
 test('prompts carry the resume and posting, and clip oversized input', () => {
@@ -66,4 +70,6 @@ test('prompts carry the resume and posting, and clip oversized input', () => {
   assert.ok(match.user.length < 40_000);
   assert.match(match.system, /"removals"/);
   assert.match(match.system, /SAME rubric/);
+  assert.match(match.system, /"aliases"/);
+  assert.match(match.system, /VERBATIM/);
 });

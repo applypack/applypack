@@ -149,6 +149,16 @@ with the most skill-tag overlap). Stored per run: `matchScore`, `summary`,
 note) and `actions` (section, where, what, why, priority). Nothing edits
 the resume — the report is the to-do list. See ADR 0008.
 
+The targeted view (`/jobs/:id/target`, ADR 0010) shows one match as two
+panes: the posting with every keyword highlighted, and the resume text in an
+editor. `src/web/public/target.mjs` scores keyword coverage in the browser
+on every edit (P1 = 3, P2 = 2, P3/P4 = 1, `cannot_claim` excluded by
+default) and renders both panes' highlights from the match's `keywords`
+(with `aliases`), `actions` and `removals` (with verbatim `quote`s).
+"Re-analyze with AI" posts the draft (`draftText`) → a `ResumeMatch` with
+`draft = true`; `resumeText` snapshots the judged text on every match.
+"Save as vN" turns the draft into a `.md` resume version.
+
 The loop: edit the resume → "Upload a new version" on `/resumes/:id`
 (`Resume.version` +1, re-scan) → Compare again. `ResumeMatch.resumeVersion`
 records which version scored; the card shows the delta vs the previous run.

@@ -57,6 +57,9 @@ export const MatchSchema = z.object({
         term: z.string(),
         priority: z.number().int().min(1).max(4),
         status: z.enum(KEYWORD_STATUSES),
+        // Other spellings the resume may use for the same thing — the live
+        // keyword matcher in the browser searches all of them.
+        aliases: tagList,
         where: nullableText,
         note: nullableText,
       }),
@@ -71,6 +74,8 @@ export const MatchSchema = z.object({
         what: z.string(),
         why: z.string(),
         priority: z.enum(ACTION_PRIORITIES),
+        // Verbatim excerpt of the resume the edit points at (highlighted in the editor).
+        quote: nullableText,
       }),
     )
     .max(40)
@@ -82,6 +87,7 @@ export const MatchSchema = z.object({
         where: z.string(),
         what: z.string(),
         why: z.string(),
+        quote: nullableText,
       }),
     )
     .max(30)
@@ -114,9 +120,10 @@ METHOD
    - "present": it is already in the resume. Say where.
    - "add": it is missing but the resume's own facts genuinely support it (same technology under another name, an obvious part of work already described). Say exactly where to put it and suggest the wording.
    - "cannot_claim": the posting wants it and nothing in the resume supports it. Never invent experience — when unsure, choose cannot_claim.
+   Also list "aliases": other spellings a resume may use for the same keyword ("Golang" → ["go"], "PostgreSQL" → ["postgres"], "CI/CD" → ["continuous integration", "continuous delivery"], "Node.js" → ["node", "nodejs"]). A text matcher will search the term and every alias; leave the array empty when there is no common alternative.
 3. Where recruiters look: in their 6-10 seconds they read the title line, the summary and the MOST RECENT role (roughly the last two years) — almost nothing else. So the title and the top required skills must be visible in the top third of page one (title line, summary, skills section), and the current/most recent role must carry the strongest, most relevant accomplishment as its first bullet. Bullets of the two most recent roles may be reworded or reordered; older roles get trims only. Max 4 bullets per role. Every bullet should carry a number (%, $, users, uptime, time saved).
-4. "actions" is the to-do list of ADDITIONS and CHANGES: concrete edits, each pointing at one place ("where") with the exact change ("what") and the posting requirement it serves ("why"). Concentrate them on the title, summary, skills and the most recent role. Priority "high" = a priority-1 keyword, the title, or the first bullet of the current role; "medium" = priority 2-3 or another recent-role bullet; "low" = polish. Suggested wording must read like a human wrote it — plain, specific, no filler. Never use: results-driven, passionate, synergy, dynamic, go-getter, team player, detail-oriented, proven track record, responsible for, seasoned, leverage, utilize.
-5. "removals" is the list of what to DELETE or SHORTEN so the resume reads cleaner for this posting: skills listed but never evidenced in a role; bullets with no number or no relevance to this posting (especially in roles older than two years); roles older than ~10 years condensed to one line; duplicated tech lists; filler sentences; anything a US recruiter does not want (photo, age, marital status, full street address); sections that add nothing (objective, references available on request). Each item: section, where, what to remove, why.
+4. "actions" is the to-do list of ADDITIONS and CHANGES: concrete edits, each pointing at one place ("where") with the exact change ("what") and the posting requirement it serves ("why"). When the edit changes existing text, put that text in "quote" — copied VERBATIM from the resume, at most ~200 characters, so it can be highlighted; "quote" is null for additions. Concentrate them on the title, summary, skills and the most recent role. Priority "high" = a priority-1 keyword, the title, or the first bullet of the current role; "medium" = priority 2-3 or another recent-role bullet; "low" = polish. Suggested wording must read like a human wrote it — plain, specific, no filler. Never use: results-driven, passionate, synergy, dynamic, go-getter, team player, detail-oriented, proven track record, responsible for, seasoned, leverage, utilize.
+5. "removals" is the list of what to DELETE or SHORTEN so the resume reads cleaner for this posting: skills listed but never evidenced in a role; bullets with no number or no relevance to this posting (especially in roles older than two years); roles older than ~10 years condensed to one line; duplicated tech lists; filler sentences; anything a US recruiter does not want (photo, age, marital status, full street address); sections that add nothing (objective, references available on request). Each item: section, where, what to remove, why, and "quote" — the exact text to delete, copied verbatim (at most ~200 characters).
 6. "red_flags": hard mismatches the candidate should know before applying — seniority, location or work authorization, on-site requirement, a core stack the resume does not have.
 7. "match_score" 0-100 with the SAME rubric every time, so re-uploads of an edited resume are comparable: 60 points for priority-1 keyword coverage (present counts fully, addable counts half), 20 for title + summary alignment with the posting, 20 for how well the most recent role speaks to this posting; then subtract 10 per hard red flag. Round to an integer.
 
@@ -126,9 +133,9 @@ OUTPUT (exactly this shape):
   "summary": "one-sentence verdict",
   "strengths": ["what already sells this candidate for this role"],
   "red_flags": ["hard mismatch"],
-  "keywords": [{"term": string, "priority": 1|2|3|4, "status": "present"|"add"|"cannot_claim", "where": string|null, "note": string|null}],
-  "actions": [{"section": "title"|"summary"|"skills"|"experience"|"education"|"format", "where": string, "what": string, "why": string, "priority": "high"|"medium"|"low"}],
-  "removals": [{"section": "title"|"summary"|"skills"|"experience"|"education"|"format", "where": string, "what": string, "why": string}]
+  "keywords": [{"term": string, "priority": 1|2|3|4, "status": "present"|"add"|"cannot_claim", "aliases": string[], "where": string|null, "note": string|null}],
+  "actions": [{"section": "title"|"summary"|"skills"|"experience"|"education"|"format", "where": string, "what": string, "why": string, "priority": "high"|"medium"|"low", "quote": string|null}],
+  "removals": [{"section": "title"|"summary"|"skills"|"experience"|"education"|"format", "where": string, "what": string, "why": string, "quote": string|null}]
 }`;
 
 export function buildScanPrompt(resumeText: string): Prompt {
