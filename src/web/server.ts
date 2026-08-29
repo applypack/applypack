@@ -14,6 +14,8 @@ import { settingsRoute } from './routes/settings';
 import { applicationsRoute } from './routes/applications';
 import { discoveryRoute } from './routes/discovery';
 import { resumesRoute } from './routes/resumes';
+import { targetRoute } from './routes/target';
+import { factsRoute } from './routes/facts';
 import { healthRoute } from './routes/health';
 
 const app = new Hono();
@@ -75,6 +77,8 @@ app.route('/', overviewRoute);
 app.route('/', jobsRoute);
 app.route('/', applicationsRoute);
 app.route('/', resumesRoute);
+app.route('/', targetRoute);
+app.route('/', factsRoute);
 app.route('/', companiesRoute);
 app.route('/', discoveryRoute);
 app.route('/', runsRoute);
