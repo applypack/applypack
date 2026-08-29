@@ -1,6 +1,6 @@
 {
   "name": "job-hunter",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "Self-hosted AI job hunter: monitors 16 ATS / aggregator sources, classifies postings with Claude against your profile, verifies ghost jobs, matches your resume, alerts via Telegram.",
   "license": "MIT",
