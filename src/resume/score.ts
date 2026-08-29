@@ -110,6 +110,8 @@ export function computeScore(
   entries: ScoreEntry[],
   alignment: MatchAlignment | null,
   redFlagCount: number,
+  /** Live estimates pass the analysis-time penalty — see the comment below. */
+  fixedPenalty: number | null = null,
 ): ScoreBreakdown {
   let earned = 0;
   let ceilEarned = 0;
@@ -139,10 +141,14 @@ export function computeScore(
       )
     : 0;
   // Flags that merely restate a missing primary item are already punished by
-  // the cap; count only the excess, and bound the total (v3).
+  // the cap; count only the excess, and bound the total (v3). Live estimates
+  // pass the analysis-time penalty instead: the flag texts were judged against
+  // the analysed snapshot, so typing a missing primary into the editor must
+  // not re-inflate them (42 → 29 on the cover-letter fixture was this bug).
   const missingPrimary = primaryTotal - primaryPresent;
   const flagsCounted = Math.max(0, redFlagCount - missingPrimary);
-  const penalty = Math.min(flagsCounted * SCORING.redFlagPenalty, SCORING.penaltyMax);
+  const penalty =
+    fixedPenalty ?? Math.min(flagsCounted * SCORING.redFlagPenalty, SCORING.penaltyMax);
   const cap = primaryCap(primaryPresent, primaryTotal);
   const raw = Math.round(Math.max(0, keywordPts + alignmentPts - penalty));
   const score = Math.max(0, Math.min(100, cap === null ? raw : Math.min(raw, cap)));

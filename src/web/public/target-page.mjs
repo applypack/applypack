@@ -55,7 +55,7 @@ export function init(data) {
     let capNote = '';
     let maxNote = '';
     if (data.scoring) {
-      const est = computeScore(entriesFromLive(scored.rows), data.scoring.alignment, data.scoring.redFlagCount);
+      const est = computeScore(entriesFromLive(scored.rows), data.scoring.alignment, data.scoring.redFlagCount, data.scoring.penalty ?? null);
       display = est.score;
       if (est.cap !== null) capNote = ' · capped ' + est.cap + ' — primary ' + est.primaryPresent + '/' + est.primaryTotal;
       if (est.ceiling !== undefined) maxNote = ' · max ' + est.ceiling;

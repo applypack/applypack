@@ -59,9 +59,34 @@ test('score.mjs computeScore agrees with score.ts on every fixture', async () =>
           computeScoreTs(entries, alignment, flags),
           `entries=${JSON.stringify(entries)} alignment=${JSON.stringify(alignment)} flags=${flags}`,
         );
+        assert.deepEqual(
+          computeScore(entries, alignment, flags, 10),
+          computeScoreTs(entries, alignment, flags, 10),
+          `fixedPenalty parity, flags=${flags}`,
+        );
       }
     }
   }
+});
+
+test('a fixed penalty keeps the live estimate monotonic as primaries get typed in', async () => {
+  const { computeScore, entriesFromLive } = await browser;
+  const rows = (found: boolean) => [
+    { requirement: 'must', primary: true, status: 'add', found },
+    { requirement: 'must', primary: true, status: 'add', found },
+    { requirement: 'must', primary: true, status: 'present', found: true },
+  ];
+  const alignment: MatchAlignment = { title: 'partial', summary: 'partial', recent_role: 'partial' };
+  // Analysis-time: 2 primaries missing, 3 flags → offset left 1 counted → penalty 10.
+  const before = computeScore(entriesFromLive(rows(false)), alignment, 3, 10);
+  const after = computeScore(entriesFromLive(rows(true)), alignment, 3, 10);
+  assert.equal(before.penalty, 10);
+  assert.equal(after.penalty, 10);
+  assert.ok(after.score > before.score, `typing primaries must raise the score (${before.score} → ${after.score})`);
+  // The drift was the bug: re-deriving the offset live lifted counted flags
+  // from 1 to 3 once both primaries were typed, and could LOWER the score.
+  const drifted = computeScore(entriesFromLive(rows(true)), alignment, 3);
+  assert.ok(drifted.penalty > after.penalty);
 });
 
 test('live entries equal server entries when the text matches the analysed snapshot', async () => {

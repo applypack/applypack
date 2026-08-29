@@ -35,8 +35,11 @@ export function primaryCap(present, total) {
  * ceilPrimaryHit }] — see score.ts. Flags duplicating missing primaries are
  * not counted and the penalty is bounded (v3); `ceiling` is the honest
  * maximum this resume can reach on this posting by editing alone.
+ * Live estimates pass `fixedPenalty` (the analysis-time penalty): flag texts
+ * were judged against the analysed snapshot, so typing a missing primary
+ * into the editor must not re-inflate them.
  */
-export function computeScore(entries, alignment, redFlagCount) {
+export function computeScore(entries, alignment, redFlagCount, fixedPenalty = null) {
   let earned = 0;
   let ceilEarned = 0;
   let total = 0;
@@ -66,7 +69,8 @@ export function computeScore(entries, alignment, redFlagCount) {
     : 0;
   const missingPrimary = primaryTotal - primaryPresent;
   const flagsCounted = Math.max(0, redFlagCount - missingPrimary);
-  const penalty = Math.min(flagsCounted * SCORING.redFlagPenalty, SCORING.penaltyMax);
+  const penalty =
+    fixedPenalty ?? Math.min(flagsCounted * SCORING.redFlagPenalty, SCORING.penaltyMax);
   const cap = primaryCap(primaryPresent, primaryTotal);
   const raw = Math.round(Math.max(0, keywordPts + alignmentPts - penalty));
   const score = Math.max(0, Math.min(100, cap === null ? raw : Math.min(raw, cap)));
