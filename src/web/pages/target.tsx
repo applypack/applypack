@@ -44,7 +44,16 @@ const TABS = [
 ] as const;
 
 /** How many analysis runs stay visible in the header; the rest fold away. */
-const RECENT_RUNS = 5;
+const RECENT_RUNS = 2;
+
+const SUMMARY_BUTTON =
+  'inline-flex min-h-[32px] cursor-pointer list-none items-center rounded-md py-1.5 text-sm font-medium transition-colors duration-150';
+
+/* Dropdown panels are in-flow on phones (an absolute panel overflows the 375px
+ * viewport) and anchored from sm: up. Width clamp uses vw, not %: for an
+ * absolute panel "100%" is the tiny summary button. */
+const MENU_PANEL =
+  'z-10 mt-2 w-80 max-w-[calc(100vw-4rem)] rounded-lg border border-line bg-surface-raised p-3 shadow-lg sm:absolute sm:right-0';
 
 /** Stroke colour for the static AI-match ring. */
 const AI_TONE: Record<Tone, string> = {
@@ -230,27 +239,45 @@ export const TargetPage: FC<TargetPageProps> = ({
           </div>
 
           <div class="ml-auto flex flex-wrap items-center gap-2">
-            <form method="post" action={`/jobs/${job.id}/match`} id="reanalyze-form">
-              <input type="hidden" name="resumeId" value={resume.id} />
-              <input type="hidden" name="draftText" id="reanalyze-text" value="" />
-              <input type="hidden" name="next" value="target" />
-              <Button variant="violet" title="Sends the text in the editor to the resume model (~1 min)">
-                Re-analyze with AI
-              </Button>
-            </form>
-            {!resume.ephemeral && (
-              <form method="post" action={`/resumes/${resume.id}/draft`} id="save-form">
-                <input type="hidden" name="text" id="save-text" value="" />
-                <input type="hidden" name="jobId" value={job.id} />
-                <Button variant="secondary" id="save-button" disabled title="Enabled once you edit the text">
-                  Save as v{resume.version + 1}
-                </Button>
-              </form>
-            )}
+            {/* One visible action — a fresh file is how a better match usually happens.
+                Re-analyze and Save live in the ⋯ menu; the sticky bar resurfaces them while editing. */}
+            <details class="relative">
+              <summary class={`${SUMMARY_BUTTON} bg-accent-strong px-3 text-white shadow-sm hover:bg-accent-deep`}>
+                Re-upload resume
+              </summary>
+              <div class={MENU_PANEL}>
+                <div class="text-[13px] font-medium text-ink">
+                  {resume.ephemeral ? 'Upload another resume' : 'Upload new resume version'}
+                </div>
+                <form
+                  method="post"
+                  action={`/jobs/${job.id}/target/reupload`}
+                  enctype="multipart/form-data"
+                  class="mt-2 space-y-2"
+                >
+                  <input type="hidden" name="resumeId" value={resume.id} />
+                  <input
+                    type="file"
+                    name="file"
+                    required
+                    accept={ACCEPTED_EXTENSIONS.join(',')}
+                    class="block w-full text-xs text-ink file:mr-2 file:cursor-pointer file:rounded-md file:border-0 file:bg-surface-overlay file:px-2.5 file:py-1 file:text-xs file:font-medium file:text-ink"
+                  />
+                  <Button size="sm" class="w-full">
+                    {resume.ephemeral ? 'Upload & re-analyze' : `Upload v${resume.version + 1} & re-analyze`}
+                  </Button>
+                  <Hint>
+                    {resume.ephemeral
+                      ? 'Replaces this comparison with a fresh analysis — nothing lands in your Resumes (~1 min).'
+                      : 'New version, scan and AI match in one go — about 2 minutes.'}
+                  </Hint>
+                </form>
+              </div>
+            </details>
             <details class="relative">
               <summary
                 aria-label="More actions"
-                class="inline-flex min-h-[32px] cursor-pointer list-none items-center rounded-md border border-line-strong bg-surface-raised px-2.5 py-1.5 shadow-sm transition-colors duration-150 hover:bg-surface-overlay"
+                class={`${SUMMARY_BUTTON} border border-line-strong bg-surface-raised px-2.5 shadow-sm hover:bg-surface-overlay`}
               >
                 <svg viewBox="0 0 24 24" fill="currentColor" class="h-4 w-4 text-ink" aria-hidden="true">
                   <circle cx="5" cy="12" r="1.8" />
@@ -258,44 +285,29 @@ export const TargetPage: FC<TargetPageProps> = ({
                   <circle cx="19" cy="12" r="1.8" />
                 </svg>
               </summary>
-              {/* In-flow on phones (an absolute panel overflows the 375px viewport), anchored from sm: up.
-                  Width clamp uses vw, not %: for the absolute panel "100%" is the tiny summary button. */}
-              <div class="z-10 mt-2 w-80 max-w-[calc(100vw-4rem)] space-y-3 rounded-lg border border-line bg-surface-raised p-3 shadow-lg sm:absolute sm:right-0">
-                <div>
-                  <div class="text-[13px] font-medium text-ink">
-                    {resume.ephemeral ? 'Upload another resume' : 'Upload new resume version'}
-                  </div>
-                  <form
-                    method="post"
-                    action={`/jobs/${job.id}/target/reupload`}
-                    enctype="multipart/form-data"
-                    class="mt-2 space-y-2"
-                  >
-                    <input type="hidden" name="resumeId" value={resume.id} />
-                    <input
-                      type="file"
-                      name="file"
-                      required
-                      accept={ACCEPTED_EXTENSIONS.join(',')}
-                      class="block w-full text-xs text-ink file:mr-2 file:cursor-pointer file:rounded-md file:border-0 file:bg-surface-overlay file:px-2.5 file:py-1 file:text-xs file:font-medium file:text-ink"
-                    />
-                    <Button size="sm" class="w-full">
-                      {resume.ephemeral ? 'Upload & re-analyze' : `Upload v${resume.version + 1} & re-analyze`}
-                    </Button>
-                    <Hint>
-                      {resume.ephemeral
-                        ? 'Replaces this comparison with a fresh analysis — nothing lands in your Resumes (~1 min).'
-                        : 'New version, scan and AI match in one go — about 2 minutes.'}
-                    </Hint>
-                  </form>
-                </div>
+              <div class={`${MENU_PANEL} space-y-2`}>
+                <form method="post" action={`/jobs/${job.id}/match`} id="reanalyze-form">
+                  <input type="hidden" name="resumeId" value={resume.id} />
+                  <input type="hidden" name="draftText" id="reanalyze-text" value="" />
+                  <input type="hidden" name="next" value="target" />
+                  <Button variant="violet" class="w-full" title="Sends the text in the editor to the resume model (~1 min)">
+                    Re-analyze with AI
+                  </Button>
+                </form>
                 {!resume.ephemeral && (
-                  <a
-                    href={`/resumes/${resume.id}`}
-                    class="block text-[13px] font-medium text-accent-strong transition-colors duration-150 hover:text-accent-deep"
-                  >
-                    Version history →
-                  </a>
+                  <form method="post" action={`/resumes/${resume.id}/draft`} id="save-form">
+                    <input type="hidden" name="text" id="save-text" value="" />
+                    <input type="hidden" name="jobId" value={job.id} />
+                    <Button
+                      variant="secondary"
+                      class="w-full"
+                      id="save-button"
+                      disabled
+                      title="Enabled once you edit the text"
+                    >
+                      Save as v{resume.version + 1}
+                    </Button>
+                  </form>
                 )}
               </div>
             </details>
