@@ -1,21 +1,31 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { execFile } from 'node:child_process';
+import { tmpdir } from 'node:os';
 import { promisify } from 'node:util';
 import { config } from './config';
 import { logger } from './logger';
 import { sleep } from './http';
-import { buildClaudeCodeArgs, parseClaudeCodeOutput } from './ai-provider-parse';
+import {
+  buildClaudeCodeArgs,
+  buildGeminiCliArgs,
+  parseClaudeCodeOutput,
+  parseGeminiCliOutput,
+  type CliOutcome,
+} from './ai-provider-parse';
+import { GEMINI_DEFAULT_CLASSIFIER_MODEL, type AiProviderId } from './ai-engine';
 
 /**
- * The single seam between the classifiers and whatever runs Claude.
+ * The single seam between the callers and whatever runs the AI (ADR 0013).
  *
  * - `anthropic_api`: Messages API via the SDK (pay per token, prompt cache).
  * - `claude_code`:   headless `claude -p` — uses the Claude.ai subscription
  *                    that the CLI is logged into. Slower (one process per
  *                    call, ~5k tokens of CLI system prompt per call) and
  *                    subject to the subscription's rolling usage window.
+ * - `gemini_cli`:    headless `gemini -p` — Google account subscription or
+ *                    GEMINI_API_KEY. Same process-per-call trade-offs.
  *
- * Both return the raw text; callers own JSON extraction + zod validation.
+ * All return the raw text; callers own JSON extraction + zod validation.
  */
 export interface AiRequest {
   system: string;
@@ -23,9 +33,9 @@ export interface AiRequest {
   maxTokens: number;
   /** Short tag for log lines, e.g. 'classifier' / 'prefilter'. */
   label: string;
-  /** Model id; defaults to CLAUDE_MODEL. */
+  /** Model id; callers pass the resolved engine model (src/ai-runtime.ts). */
   model?: string;
-  /** Per-call ceiling for the claude_code process (default CLAUDE_CODE_TIMEOUT_MS). */
+  /** Per-call ceiling for a CLI process (default CLI_TIMEOUT_MS). */
   timeoutMs?: number;
   /**
    * Let the model search and fetch the web before answering (server tools on
@@ -47,8 +57,8 @@ const MAX_ATTEMPTS = 2;
 const MAX_PAUSE_TURN_RESUMES = 5;
 const WEB_SEARCH_MAX_USES = 10;
 const WEB_FETCH_MAX_USES = 6;
-const CLAUDE_CODE_TIMEOUT_MS = 180_000;
-const CLAUDE_CODE_MAX_BUFFER = 1024 * 1024;
+const CLI_TIMEOUT_MS = 180_000;
+const CLI_MAX_BUFFER = 1024 * 1024;
 
 const execFileAsync = promisify(execFile);
 
@@ -106,39 +116,51 @@ class AnthropicApiProvider implements AiProvider {
   }
 }
 
-class ClaudeCodeProvider implements AiProvider {
-  readonly name = 'claude_code';
+interface CliSpec {
+  buildArgs(req: { system: string; user: string; model: string; webTools?: boolean }): string[];
+  parse(raw: string): CliOutcome;
+  defaultModel: string;
+  /** Working directory — set to keep the CLI away from workspace context. */
+  cwd?: string;
+}
 
-  constructor(private readonly bin: string) {}
+/** Headless-CLI backend: spawn, parse JSON stdout, one retry on rate limit. */
+class CliProvider implements AiProvider {
+  constructor(
+    readonly name: string,
+    private readonly bin: string,
+    private readonly spec: CliSpec,
+  ) {}
 
   async complete(req: AiRequest): Promise<string | null> {
-    const args = buildClaudeCodeArgs({
+    const args = this.spec.buildArgs({
       system: req.system,
       user: req.user,
-      model: req.model ?? config.CLAUDE_MODEL,
+      model: req.model ?? this.spec.defaultModel,
       webTools: req.webTools,
     });
     for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
       let stdout: string;
       try {
         ({ stdout } = await execFileAsync(this.bin, args, {
-          timeout: req.timeoutMs ?? CLAUDE_CODE_TIMEOUT_MS,
-          maxBuffer: CLAUDE_CODE_MAX_BUFFER,
+          timeout: req.timeoutMs ?? CLI_TIMEOUT_MS,
+          maxBuffer: CLI_MAX_BUFFER,
+          cwd: this.spec.cwd,
         }));
       } catch (err) {
-        logger.error({ err, label: req.label }, 'ai: claude-code process failed');
+        logger.error({ err, label: req.label, provider: this.name }, 'ai: cli process failed');
         return null;
       }
-      const out = parseClaudeCodeOutput(stdout);
+      const out = this.spec.parse(stdout);
       if (out.text !== null) return out.text;
       if (out.rateLimited && attempt < MAX_ATTEMPTS - 1) {
-        logger.warn({ label: req.label }, 'ai: claude-code rate-limited, retrying');
+        logger.warn({ label: req.label, provider: this.name }, 'ai: cli rate-limited, retrying');
         await sleep(RATE_LIMIT_RETRY_DELAY_MS);
         continue;
       }
       logger.error(
-        { label: req.label, error: out.error, rateLimited: out.rateLimited },
-        'ai: claude-code returned an error',
+        { label: req.label, provider: this.name, error: out.error, rateLimited: out.rateLimited },
+        'ai: cli returned an error',
       );
       return null;
     }
@@ -146,16 +168,48 @@ class ClaudeCodeProvider implements AiProvider {
   }
 }
 
-let provider: AiProvider | null = null;
+const providers = new Map<AiProviderId, AiProvider>();
 
-export function getAiProvider(): AiProvider {
-  if (provider) return provider;
-  if (config.AI_PROVIDER === 'claude_code') {
-    provider = new ClaudeCodeProvider(config.CLAUDE_CODE_BIN);
-  } else {
-    // config.ts guarantees the key is present in this branch.
-    provider = new AnthropicApiProvider(config.ANTHROPIC_API_KEY as string);
+/**
+ * Lazily constructs and caches the backend. Throws for anthropic_api without
+ * an API key — ai-runtime's resolution never selects it in that case.
+ */
+export function getAiProviderById(id: AiProviderId): AiProvider {
+  const cached = providers.get(id);
+  if (cached) return cached;
+  let provider: AiProvider;
+  switch (id) {
+    case 'anthropic_api': {
+      if (!config.ANTHROPIC_API_KEY) {
+        throw new Error('ANTHROPIC_API_KEY is required for the anthropic_api provider');
+      }
+      provider = new AnthropicApiProvider(config.ANTHROPIC_API_KEY);
+      break;
+    }
+    case 'claude_code':
+      provider = new CliProvider('claude_code', config.CLAUDE_CODE_BIN, {
+        buildArgs: buildClaudeCodeArgs,
+        parse: parseClaudeCodeOutput,
+        defaultModel: config.CLAUDE_MODEL,
+      });
+      break;
+    case 'gemini_cli':
+      provider = new CliProvider('gemini_cli', config.GEMINI_CLI_BIN, {
+        buildArgs: buildGeminiCliArgs,
+        parse: parseGeminiCliOutput,
+        defaultModel: GEMINI_DEFAULT_CLASSIFIER_MODEL,
+        // gemini has no --tools '' switch; an empty cwd keeps it from
+        // ingesting workspace files (GEMINI.md, sources) as context.
+        cwd: tmpdir(),
+      });
+      break;
   }
-  logger.info({ provider: provider.name, model: config.CLAUDE_MODEL }, 'ai: provider ready');
+  providers.set(id, provider);
+  logger.info({ provider: id }, 'ai: provider ready');
   return provider;
+}
+
+/** The .env-configured backend (scripts; runtime code uses getAiRuntime). */
+export function getAiProvider(): AiProvider {
+  return getAiProviderById(config.AI_PROVIDER);
 }

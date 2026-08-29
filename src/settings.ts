@@ -2,7 +2,7 @@ import type { TelegramTarget } from '@prisma/client';
 import { prisma } from './db';
 import { logger } from './logger';
 
-const SETTINGS_ID = 1;
+export const SETTINGS_ID = 1;
 const TELEGRAM_API = 'https://api.telegram.org';
 const TELEGRAM_TIMEOUT_MS = 10_000;
 

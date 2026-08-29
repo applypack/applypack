@@ -1,10 +1,11 @@
 import 'dotenv/config';
 import { z } from 'zod';
+import { AI_PROVIDER_IDS } from './ai-engine';
 
 const ConfigSchema = z.object({
   DATABASE_URL: z.string().min(1, 'DATABASE_URL is required'),
-  // Which backend runs the classifier. See src/ai-provider.ts.
-  AI_PROVIDER: z.enum(['anthropic_api', 'claude_code']).default('anthropic_api'),
+  // Default AI backend; /settings → "AI engine" can override it at runtime.
+  AI_PROVIDER: z.enum(AI_PROVIDER_IDS).default('anthropic_api'),
   ANTHROPIC_API_KEY: z.string().optional(),
   CLAUDE_MODEL: z.string().default('claude-haiku-4-5-20251001'),
   // Resume scan + resume-vs-job comparison: a few calls a day where judgment
@@ -12,6 +13,8 @@ const ConfigSchema = z.object({
   CLAUDE_MODEL_RESUME: z.string().default('claude-opus-5'),
   // Path to the Claude Code CLI when AI_PROVIDER=claude_code.
   CLAUDE_CODE_BIN: z.string().default('claude'),
+  // Path to the Gemini CLI when the gemini_cli engine is selected.
+  GEMINI_CLI_BIN: z.string().default('gemini'),
   // How many jobs are classified at the same time (both providers).
   AI_CONCURRENCY: z.coerce.number().int().min(1).max(8).default(3),
   TELEGRAM_BOT_TOKEN: z.string().optional(),

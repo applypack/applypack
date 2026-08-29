@@ -148,6 +148,12 @@ model AppSettings {
   // (and the existing row, backfilled by the migration) start paused;
   // enable from /settings → "Job fetching" when ready.
   fetchingEnabled                Boolean  @default(false)
+  // AI engine override (ADR 0013). NULL = follow .env (AI_PROVIDER /
+  // CLAUDE_MODEL / CLAUDE_MODEL_RESUME). Provider: anthropic_api |
+  // claude_code | gemini_cli. Models fall back per provider family.
+  aiProvider                     String?
+  aiModelClassifier              String?
+  aiModelResume                  String?
   updatedAt                      DateTime @updatedAt
 }
 

@@ -13,17 +13,17 @@ const ClaudeCodeResultSchema = z.object({
   api_error_status: z.number().nullable().optional(),
 });
 
-export interface ClaudeCodeOutcome {
+export interface CliOutcome {
   text: string | null;
-  /** True for 429 / overloaded — the caller may retry later. */
+  /** True for 429 / overloaded / quota — the caller may retry later. */
   rateLimited: boolean;
   error: string | null;
 }
 
 const RATE_LIMIT_STATUS = 429;
-const RATE_LIMIT_PATTERN = /rate.?limit|usage limit|overloaded/i;
+const RATE_LIMIT_PATTERN = /rate.?limit|usage limit|overloaded|resource.?exhausted|quota/i;
 
-export function parseClaudeCodeOutput(raw: string): ClaudeCodeOutcome {
+export function parseClaudeCodeOutput(raw: string): CliOutcome {
   let json: unknown;
   try {
     json = JSON.parse(raw);
@@ -68,5 +68,65 @@ export function buildClaudeCodeArgs(req: {
     ...tools,
     '--no-session-persistence',
     req.user,
+  ];
+}
+
+/**
+ * Shape of `gemini -p --output-format json`: success carries `response`,
+ * failures an `error` object. Stats pass through untouched.
+ */
+const GeminiCliResultSchema = z.object({
+  response: z.string().optional(),
+  error: z
+    .object({
+      type: z.string().optional(),
+      message: z.string(),
+      code: z.union([z.number(), z.string()]).nullable().optional(),
+    })
+    .optional(),
+});
+
+export function parseGeminiCliOutput(raw: string): CliOutcome {
+  let json: unknown;
+  try {
+    json = JSON.parse(raw);
+  } catch {
+    return { text: null, rateLimited: false, error: 'gemini-cli: output is not JSON' };
+  }
+  const parsed = GeminiCliResultSchema.safeParse(json);
+  if (!parsed.success) {
+    return { text: null, rateLimited: false, error: 'gemini-cli: unexpected result shape' };
+  }
+  const r = parsed.data;
+  if (r.error) {
+    const rateLimited =
+      r.error.code === RATE_LIMIT_STATUS || RATE_LIMIT_PATTERN.test(r.error.message);
+    return { text: null, rateLimited, error: `gemini-cli: ${r.error.message}` };
+  }
+  if (typeof r.response === 'string') {
+    return { text: r.response, rateLimited: false, error: null };
+  }
+  return { text: null, rateLimited: false, error: 'gemini-cli: no response field' };
+}
+
+/**
+ * Argument list for `gemini -p`. The CLI has no system-prompt flag, so the
+ * system text is prepended to the prompt. Headless default approval mode
+ * denies every tool; webTools pre-approves only the two web tools.
+ */
+export function buildGeminiCliArgs(req: {
+  system: string;
+  user: string;
+  model: string;
+  webTools?: boolean;
+}): string[] {
+  const tools = req.webTools
+    ? ['--allowed-tools', 'google_web_search', '--allowed-tools', 'web_fetch']
+    : [];
+  return [
+    '--output-format', 'json',
+    '--model', req.model,
+    ...tools,
+    '--prompt', `${req.system}\n\n${req.user}`,
   ];
 }

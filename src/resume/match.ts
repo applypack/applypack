@@ -1,7 +1,6 @@
 import type { ResumeMatch } from '@prisma/client';
-import { config } from '../config';
 import { logger } from '../logger';
-import { getAiProvider } from '../ai-provider';
+import { getAiRuntime } from '../ai-runtime';
 import {
   buildMatchPrompt,
   MATCH_MAX_TOKENS,
@@ -52,11 +51,11 @@ export async function matchResumeToJob(
       : undefined,
   };
   const prompt = buildMatchPrompt(resume.text, job, context);
-  const provider = getAiProvider();
-  const model = config.CLAUDE_MODEL_RESUME;
+  const ai = await getAiRuntime();
+  const model = ai.resumeModel;
   for (let attempt = 0; attempt < PARSE_ATTEMPTS; attempt++) {
     const started = Date.now();
-    const text = await provider.complete({
+    const text = await ai.provider.complete({
       ...prompt,
       maxTokens: MATCH_MAX_TOKENS,
       label: 'resume-match',

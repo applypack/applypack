@@ -1,6 +1,5 @@
-import { config } from '../config';
 import { logger } from '../logger';
-import { getAiProvider } from '../ai-provider';
+import { getAiRuntime } from '../ai-runtime';
 import { buildScanPrompt, parseScanResponse, SCAN_MAX_TOKENS, type ResumeScan } from './prompts';
 import { saveResumeScan } from './store';
 
@@ -10,13 +9,13 @@ const PARSE_ATTEMPTS = 2;
 /** Extracts the structured profile of a resume and stores it. Null on AI failure. */
 export async function scanResume(resume: { id: number; text: string }): Promise<ResumeScan | null> {
   const prompt = buildScanPrompt(resume.text);
-  const provider = getAiProvider();
+  const ai = await getAiRuntime();
   for (let attempt = 0; attempt < PARSE_ATTEMPTS; attempt++) {
-    const text = await provider.complete({
+    const text = await ai.provider.complete({
       ...prompt,
       maxTokens: SCAN_MAX_TOKENS,
       label: 'resume-scan',
-      model: config.CLAUDE_MODEL_RESUME,
+      model: ai.resumeModel,
       timeoutMs: SCAN_TIMEOUT_MS,
     });
     if (text === null) return null;

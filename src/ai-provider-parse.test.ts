@@ -1,6 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildClaudeCodeArgs, parseClaudeCodeOutput } from './ai-provider-parse';
+import {
+  buildClaudeCodeArgs,
+  buildGeminiCliArgs,
+  parseClaudeCodeOutput,
+  parseGeminiCliOutput,
+} from './ai-provider-parse';
 
 const ok = (result: string) =>
   JSON.stringify({ type: 'result', subtype: 'success', is_error: false, result });
@@ -52,6 +57,51 @@ test('other errors are not rate-limited', () => {
   const out = parseClaudeCodeOutput(raw);
   assert.equal(out.rateLimited, false);
   assert.match(out.error ?? '', /max turns/);
+});
+
+test('gemini success returns the response text', () => {
+  const out = parseGeminiCliOutput(
+    JSON.stringify({ response: '{"relevant": true}', stats: { models: {} } }),
+  );
+  assert.equal(out.error, null);
+  assert.equal(out.rateLimited, false);
+  assert.match(out.text ?? '', /"relevant": true/);
+});
+
+test('gemini error object is surfaced, quota flagged rateLimited', () => {
+  const quota = parseGeminiCliOutput(
+    JSON.stringify({ error: { type: 'ApiError', message: 'RESOURCE_EXHAUSTED: quota', code: 429 } }),
+  );
+  assert.equal(quota.text, null);
+  assert.equal(quota.rateLimited, true);
+  assert.match(quota.error ?? '', /RESOURCE_EXHAUSTED/);
+
+  const other = parseGeminiCliOutput(
+    JSON.stringify({ error: { message: 'model not found' } }),
+  );
+  assert.equal(other.rateLimited, false);
+  assert.match(other.error ?? '', /model not found/);
+});
+
+test('gemini non-JSON and shape misses are errors, not rate-limited', () => {
+  assert.match(parseGeminiCliOutput('boom').error ?? '', /not JSON/);
+  const empty = parseGeminiCliOutput(JSON.stringify({ stats: {} }));
+  assert.equal(empty.text, null);
+  assert.equal(empty.rateLimited, false);
+});
+
+test('buildGeminiCliArgs prepends system text and gates web tools', () => {
+  const base = { system: 'S', user: 'U', model: 'gemini-2.5-flash' };
+  const plain = buildGeminiCliArgs(base);
+  assert.deepEqual(plain, [
+    '--output-format', 'json',
+    '--model', 'gemini-2.5-flash',
+    '--prompt', 'S\n\nU',
+  ]);
+
+  const web = buildGeminiCliArgs({ ...base, webTools: true });
+  assert.ok(web.includes('google_web_search') && web.includes('web_fetch'));
+  assert.equal(web[web.length - 1], 'S\n\nU');
 });
 
 test('buildClaudeCodeArgs disables tools by default and allow-lists web tools on request', () => {

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { getAiProvider } from '../ai-provider';
+import { getAiRuntime } from '../ai-runtime';
 import { extractJson } from '../text-utils';
 import { logger } from '../logger';
 import { MAX_FIELD_CHARS } from './manual-job';
@@ -105,11 +105,13 @@ export function fallbackTitle(description: string): string {
 
 export async function extractPostingFacts(description: string): Promise<PostingFacts | null> {
   const { system, user } = buildExtractPrompt(description);
-  const text = await getAiProvider().complete({
+  const ai = await getAiRuntime();
+  const text = await ai.provider.complete({
     system,
     user,
     maxTokens: MAX_TOKENS,
     label: 'posting-extract',
+    model: ai.classifierModel,
   });
   if (!text) return null;
   const facts = parseExtractReply(text);

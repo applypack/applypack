@@ -2,7 +2,7 @@ import { z } from 'zod';
 import type { Profile } from '@prisma/client';
 import { logger } from './logger';
 import { extractJson } from './text-utils';
-import { getAiProvider } from './ai-provider';
+import { getAiRuntime } from './ai-runtime';
 import type { ClassifyInput } from './types';
 
 // Stage 1 uses the same model as stage 2; the saving comes from the much
@@ -33,11 +33,13 @@ export async function preClassify(
     'Return raw JSON only.',
   ].join('\n');
 
-  const text = await getAiProvider().complete({
+  const ai = await getAiRuntime();
+  const text = await ai.provider.complete({
     system: systemPrompt,
     user: userText,
     maxTokens: MAX_TOKENS,
     label: 'prefilter',
+    model: ai.classifierModel,
   });
   if (text === null) return null;
 

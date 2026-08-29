@@ -2,7 +2,7 @@ import { z } from 'zod';
 import type { Profile } from '@prisma/client';
 import { logger } from './logger';
 import { extractJson } from './text-utils';
-import { getAiProvider } from './ai-provider';
+import { getAiRuntime } from './ai-runtime';
 import { preClassify } from './classifier-prefilter';
 import type { ClassifyInput, ClaudeClassification } from './types';
 
@@ -98,14 +98,15 @@ export async function classifyWithClaude(
     'Return raw JSON only.',
   ].join('\n');
 
-  const provider = getAiProvider();
+  const ai = await getAiRuntime();
   // One retry on a malformed reply: Haiku occasionally wraps or truncates JSON.
   for (let attempt = 0; attempt < 2; attempt++) {
-    const text = await provider.complete({
+    const text = await ai.provider.complete({
       system: systemPrompt,
       user: userText,
       maxTokens: MAX_TOKENS,
       label: 'classifier',
+      model: ai.classifierModel,
     });
     if (text === null) return null;
 
