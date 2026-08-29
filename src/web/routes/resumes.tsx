@@ -1,6 +1,5 @@
 /** @jsxImportSource hono/jsx */
 import { Hono } from 'hono';
-import { extname } from 'node:path';
 import { logger } from '../../logger';
 import { scanResume } from '../../resume/scan';
 import { matchResumeToJob } from '../../resume/match';
@@ -10,26 +9,32 @@ import {
   deleteResume,
   getResume,
   getResumeOriginal,
+  listFacts,
   listMatchesForResume,
   listResumes,
   replaceResumeFile,
   saveResumeTextVersion,
   setDefaultResume,
 } from '../../resume/store';
+import { parseWarnings } from '../../resume/parse-warnings';
 import { ResumeDetailPage } from '../pages/resume-detail';
 import { ResumesPage } from '../pages/resumes';
 import { clearFlashCookie, flashRedirect, parseFlashCookie } from '../flash';
-import { readResumeUpload, resumeUploadLimit } from '../upload';
+import {
+  MAX_RESUME_NAME_CHARS,
+  nameFromFilename,
+  readResumeUpload,
+  resumeUploadLimit,
+} from '../upload';
 
-const MAX_NAME_CHARS = 100;
 const MIN_DRAFT_CHARS = 200;
 
 export const resumesRoute = new Hono();
 
 resumesRoute.get('/resumes', async (c) => {
-  const resumes = await listResumes();
+  const [resumes, facts] = await Promise.all([listResumes(), listFacts()]);
   return c.html(
-    <ResumesPage resumes={resumes} flash={parseFlashCookie(c.req.header('cookie'))} />,
+    <ResumesPage resumes={resumes} facts={facts} flash={parseFlashCookie(c.req.header('cookie'))} />,
     200,
     { 'Set-Cookie': clearFlashCookie() },
   );
@@ -41,7 +46,7 @@ resumesRoute.post('/resumes', resumeUploadLimit('/resumes'), async (c) => {
   if ('error' in upload) return flashRedirect('/resumes', 'err', upload.error);
   const name =
     typeof form.name === 'string' && form.name.trim().length > 0
-      ? form.name.trim().slice(0, MAX_NAME_CHARS)
+      ? form.name.trim().slice(0, MAX_RESUME_NAME_CHARS)
       : nameFromFilename(upload.sourceFilename);
   const resume = await createResume({ name, ...upload });
   const scan = await scanResume(resume);
@@ -73,7 +78,12 @@ resumesRoute.get('/resumes/:id', async (c) => {
   const [resume, matches] = await Promise.all([getResume(id), listMatchesForResume(id)]);
   if (!resume) return c.text('Not found', 404);
   return c.html(
-    <ResumeDetailPage resume={resume} matches={matches} flash={parseFlashCookie(c.req.header('cookie'))} />,
+    <ResumeDetailPage
+      resume={resume}
+      matches={matches}
+      warnings={parseWarnings(resume.text)}
+      flash={parseFlashCookie(c.req.header('cookie'))}
+    />,
     200,
     { 'Set-Cookie': clearFlashCookie() },
   );
@@ -159,7 +169,3 @@ resumesRoute.post('/resumes/:id/delete', async (c) => {
 });
 
 /** "Nazar_Boyko_Senior_Backend_Resume.docx" → "Nazar Boyko Senior Backend Resume". */
-function nameFromFilename(filename: string): string {
-  const base = filename.slice(0, filename.length - extname(filename).length);
-  return base.replace(/[_\-\s]+/g, ' ').trim().slice(0, MAX_NAME_CHARS) || 'Resume';
-}
