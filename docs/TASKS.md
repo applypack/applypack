@@ -244,3 +244,71 @@ Python docx scripts). Decision record: [ADR 0008](./adr/0008-resume-module-in-we
 - [ ] 5.12 Async comparison / verification with a `CronRun` row when the sync
   request gets annoying (see ADR 0008 / 0009 consequences).
 - [ ] 5.13 Verdict badge on `/jobs` list rows; "verified" filter.
+
+---
+
+## 6. UI/UX refactor — adopted from the two external audits (2026-08-29)
+
+Sources: [job-hunter-resume-match-ux-refactor.md](./job-hunter-resume-match-ux-refactor.md)
+and [job-hunter-ui-ux-refactor-plan.md](./job-hunter-ui-ux-refactor-plan.md); every
+claim was verified against the code on `pdf-and-target` before adoption.
+
+Already in place, no action needed: `ui.tsx` primitives, `layout.tsx` tokens (the
+palette the docs propose IS the current one), violet = AI-cost semantic (DESIGN.md),
+a11y base (skip link, focus-visible, tablist), deterministic score + ceiling +
+CandidateFact instant re-score (ADR 0012), per-version history on `/resumes/:id`.
+
+Rejected: semantic resume rendering (breaks "what the ATS sees", ADR 0011), new
+`/jobs/:id/resume-match` routes, full `/settings/*` route split, priority-rules
+visual builder (the DSL stays, power-user tool), Playwright/axe CI (testing
+philosophy: units + smoke + screenshots), dark mode (deferred by DESIGN.md),
+removing the violet accent.
+
+### 6.1 Targeted page P0 (this branch — done 2026-08-29)
+- [x] Summary first: hard-requirement digest inside the score card + ask_user
+      confirms hoisted above the tabs (both were invisible behind the 4th tab)
+- [x] History chips capped at 5 + "older runs" disclosure
+- [x] One primary score: live estimate hidden until the text is edited, labelled
+      "Estimate after your edits", with a ±N delta vs the AI score
+- [x] Sticky unsaved-changes bar (Discard / Re-analyze / Save as vN)
+- [x] `active="jobs"` + Jobs / {job} / Resume match breadcrumb; h1 "Resume match"
+- [x] Tab "Changes" → "Suggestions"
+- [x] Version delta on the targeted page (previous was hard-coded `null`)
+
+### 6.2 Targeted page P1 (done 2026-08-29)
+- [x] One status vocabulary everywhere: matched / missing / confirm / no evidence
+      (was three different sets across table, legend and tooltips)
+- [x] Keyword table: needs-attention rows first (must → context), matched rows
+      behind a disclosure
+- [x] Matched-highlight toggle for both panes, default off (issues stay visible;
+      legend samples keep their colour)
+- [x] Re-upload demoted into a "more actions" menu (in-flow on phones — the old
+      absolute panel overflowed the 375px viewport)
+- [x] Meta reads "analyzed Nh ago"
+
+### 6.3 Settings + shell (SEPARATE BRANCH — pairs with multi-AI-provider settings)
+- [ ] AtsType display-name map (LARAJOBS_RSS → Laravel Jobs) on /settings + /discovery
+- [ ] Flash `warn` variant; the paused state stops using success green
+- [ ] `confirm()` on "Save & re-classify" (the sibling button already has one)
+- [ ] Copy pass: getMe+sendMessage / cron / Docker out of primary UI (keep the
+      gotcha-10 aggregator explanation)
+- [ ] De-duplicate: Settings resumes card → list + link (drop the second upload
+      form); discovery toggles move to /discovery
+- [ ] Section order General → Notifications → Advanced; flash texts match option labels
+- [ ] /settings/sources: stop re-adding MANUAL to disabledSources on every save
+- [ ] `maskToken` → last-4 only
+- [ ] AI provider selection UI (§1.1 leftover) extended to other AI subscriptions —
+      the reason this block is its own branch
+
+### 6.4 Later (P2)
+- [ ] Apply-suggestion buttons on action cards — do together with 5.15
+- [ ] Linked compare: requirement ↔ evidence scrolling (`locateQuote` is half of it)
+- [ ] "Ready to apply" state at ≥85 instead of endless optimization
+- [ ] Section-heading emphasis inside the plain-text editor (keep the ATS honesty)
+- [ ] Rename the Target nav item (both audits misread it — Compare / Match?)
+
+### 6.5 Code health (found while verifying the audits)
+- [x] TARGET_JS (~140 inline untestable lines in target.tsx) → served ES module
+      (`src/web/public/target-page.mjs`, import-smoke-tested)
+- [ ] `take` cap on listMatchesForJob / listMatchesForResume
+- [ ] Screenshot checklist gains 768 × 1024 between the existing 375 / 1200
