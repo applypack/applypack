@@ -1,7 +1,8 @@
 /** @jsxImportSource hono/jsx */
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { createManualJob, ManualJobSchema, MIN_DESCRIPTION_CHARS } from '../../jobs/manual-job';
+import { createManualJob, ManualJobSchema, MAX_FIELD_CHARS, MIN_DESCRIPTION_CHARS } from '../../jobs/manual-job';
+import { extractPostingFacts } from '../../jobs/posting-extract';
 import { matchResumeToJob } from '../../resume/match';
 import {
   deleteMatchesForResume,
@@ -22,8 +23,13 @@ import {
 
 const MIN_RESUME_CHARS = 200;
 
-/* zod strips unknown keys, so the multipart `file` field is read from the raw form. */
+/* zod strips unknown keys, so the multipart `file` field is read from the raw form.
+ * Company and title are optional here (unlike /jobs/new): when left empty they
+ * are auto-detected from the description — client-side via /target/extract,
+ * and again server-side below as the no-JS fallback. */
 const TargetFormSchema = ManualJobSchema.extend({
+  companyName: z.string().trim().max(MAX_FIELD_CHARS).default(''),
+  title: z.string().trim().max(MAX_FIELD_CHARS).default(''),
   resumeMode: z.enum(['existing', 'upload', 'paste']),
   resumeId: z.coerce.number().int().optional(),
   resumeText: z.string().optional().default(''),
@@ -62,6 +68,17 @@ targetRoute.get('/target/runs/:id', (c) => {
   return c.html(<TargetRunPage run={run} />);
 });
 
+const ExtractBodySchema = z.object({ description: z.string().min(MIN_DESCRIPTION_CHARS) });
+
+/** JSON endpoint for the form's auto-fill: description in, detected facts out. */
+targetRoute.post('/target/extract', async (c) => {
+  const body = await c.req.json().catch(() => null);
+  const parsed = ExtractBodySchema.safeParse(body);
+  if (!parsed.success) return c.json({ company: null, title: null, location: null }, 400);
+  const facts = await extractPostingFacts(parsed.data.description);
+  return c.json(facts ?? { company: null, title: null, location: null });
+});
+
 targetRoute.post('/target', resumeUploadLimit('/target'), async (c) => {
   const form = await c.req.parseBody();
   const parsed = TargetFormSchema.safeParse(form);
@@ -69,10 +86,27 @@ targetRoute.post('/target', resumeUploadLimit('/target'), async (c) => {
     return flashRedirect(
       '/target',
       'err',
-      `Company, title and a description of at least ${MIN_DESCRIPTION_CHARS} characters are required.`,
+      `A description of at least ${MIN_DESCRIPTION_CHARS} characters is required.`,
     );
   }
   const f = parsed.data;
+
+  // Fields the user left empty are detected from the description (the page
+  // normally pre-fills them via /target/extract; this is the no-JS fallback).
+  let { companyName, title, location } = f;
+  if (!companyName || !title) {
+    const facts = await extractPostingFacts(f.description);
+    companyName = companyName || facts?.company || '';
+    title = title || facts?.title || '';
+    location = location || facts?.location || '';
+  }
+  if (!companyName || !title) {
+    return flashRedirect(
+      '/target',
+      'err',
+      "Couldn't detect the company or job title from the description — fill those two fields in.",
+    );
+  }
 
   // Resolve the resume inline (fast, and bad files fail before anything runs).
   // Upload / paste land on the hidden scratch row — /target is a pure
@@ -114,17 +148,17 @@ targetRoute.post('/target', resumeUploadLimit('/target'), async (c) => {
 
   const run = createRun({
     steps: ['classify', 'match'],
-    jobTitle: f.title,
+    jobTitle: title,
     resumeName: resume.name,
   });
 
   startRun(run.id, async () => {
     // 1. The posting becomes a normal MANUAL job (deduped, classified when new).
     const result = await createManualJob({
-      companyName: f.companyName,
-      title: f.title,
+      companyName,
+      title,
       url: f.url,
-      location: f.location,
+      location,
       description: f.description,
     });
     const job = result.job;
@@ -139,7 +173,7 @@ targetRoute.post('/target', resumeUploadLimit('/target'), async (c) => {
       {
         id: job.id,
         title: job.title,
-        companyName: f.companyName,
+        companyName,
         location: job.location,
         description: job.description,
       },

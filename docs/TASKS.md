@@ -288,6 +288,9 @@ removing the violet accent.
       as Side by side (default) → Suggestions → Job description (user pref)
 - [x] Score card as a proportional grid (score | why | actions rail + live
       estimate), resume name deduped out of it, page capped at 1536px
+- [x] /target: description-only input — empty company / title / location are
+      auto-detected on paste (POST /target/extract, classifier model; filled
+      fields never overwritten; same extraction as the no-JS submit fallback)
 - [x] Action row: Re-upload is the one visible button (user pref); Re-analyze
       and Save live in the ⋯ menu, resurfaced by the sticky bar while editing.
       Dropdown panels are in-flow on phones (an absolute panel overflowed 375px)
