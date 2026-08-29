@@ -112,7 +112,8 @@ export function init() {
     busy = false;
   }
 
-  // paste fires before the textarea value updates; change covers manual typing.
+  // Detection runs ONLY after a paste — never on load, never while typing.
+  // (paste fires before the textarea value updates, hence the timeout.)
   desc.addEventListener('paste', () =>
     setTimeout(() => {
       const raw = desc.value;
@@ -125,5 +126,8 @@ export function init() {
       void autofill(raw, note);
     }, 50),
   );
-  desc.addEventListener('change', () => void autofill(desc.value, ''));
+  // Clearing the description clears the status with it.
+  desc.addEventListener('input', () => {
+    if (!busy && desc.value.trim().length < MIN_DESCRIPTION_CHARS) status.hidden = true;
+  });
 }
