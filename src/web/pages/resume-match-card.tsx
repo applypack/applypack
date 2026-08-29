@@ -203,7 +203,7 @@ export const HardRequirementsDigest: FC<{ hard: MatchHardRequirement[] }> = ({ h
         {pass}/{hard.length} pass
       </Badge>
       {issues.map((h) => (
-        <span class="inline-flex items-center gap-1.5 text-[13px] text-ink">
+        <span class="inline-flex items-center gap-1.5 text-[13px] text-ink" title={h.note ?? undefined}>
           <Badge tone={HARD_VIEW[h.status].tone}>{HARD_VIEW[h.status].label}</Badge>
           {h.requirement}
         </span>
@@ -274,31 +274,9 @@ export const MatchReport: FC<{
   previous: MatchWithResume | null;
   /** Where the ask_user confirm/deny forms return to. */
   factsBack: string;
-  /** On the targeted view: items carry their quote so a click can select it in the editor. */
-  jumpable?: boolean;
-  /** The targeted view hoists the confirm forms above the tabs — skip them here. */
-  hideConfirms?: boolean;
-}> = ({ match, previous, factsBack, jumpable = false, hideConfirms = false }) => {
-  const actions = readActions(match.actions);
-  const removals = readRemovals(match.removals);
+}> = ({ match, previous, factsBack }) => {
   const keywords = readKeywords(match.keywords);
-  const hard = readHardRequirements(match.hardRequirements);
   const bd = readBreakdown(match.breakdown);
-  const asks = keywords.filter((k) => k.status === 'ask_user');
-  // Problems first: unmatched keywords sorted hardest-requirement-first; matched
-  // rows fold behind a disclosure so success noise never buries the gaps.
-  const attention = keywords
-    .filter((k) => k.status !== 'present')
-    .sort((a, b) => (REQ_RANK[a.requirement ?? ''] ?? 4) - (REQ_RANK[b.requirement ?? ''] ?? 4));
-  const matchedKeywords = keywords.filter((k) => k.status === 'present');
-  const sections = ACTION_SECTIONS.filter((s) => actions.some((a) => a.section === s));
-  const delta =
-    previous !== null
-      ? diffMatches(
-          { keywords: readKeywords(previous.keywords), breakdown: readBreakdown(previous.breakdown) },
-          { keywords, breakdown: bd },
-        )
-      : null;
   const scoreDelta = previous ? match.matchScore - previous.matchScore : null;
   return (
     <div class="mt-5 space-y-5 border-t border-line pt-4">
@@ -318,178 +296,230 @@ export const MatchReport: FC<{
           {formatRelative(match.createdAt)} · <span class="font-mono">{match.model}</span>
           {match.draft ? ' · draft' : ''}
         </span>
-        {!jumpable && (
-          <a
-            href={`/jobs/${match.jobId}/target?match=${match.id}`}
-            class="ml-auto text-sm font-medium text-accent-strong transition-colors duration-150 hover:text-accent-deep"
-          >
-            Open targeted view →
-          </a>
-        )}
+        <a
+          href={`/jobs/${match.jobId}/target?match=${match.id}`}
+          class="ml-auto text-sm font-medium text-accent-strong transition-colors duration-150 hover:text-accent-deep"
+        >
+          Open targeted view →
+        </a>
       </div>
       <p class="max-w-prose text-sm leading-6 text-ink">{match.summary}</p>
       {bd && <ScoreBreakdownChips bd={bd} />}
 
-      {delta && (delta.gained.length > 0 || delta.lost.length > 0 || delta.components) && (
-        <div class="rounded-md border border-line bg-surface-overlay/50 px-3 py-2 text-xs leading-5 text-ink-muted">
-          <span class="font-medium text-ink">vs v{previous?.resumeVersion}: </span>
-          {delta.gained.length > 0 && (
-            <span>
-              gained <span class="text-ok">{delta.gained.join(', ')}</span>
-              {' · '}
-            </span>
-          )}
-          {delta.lost.length > 0 && (
-            <span>
-              lost <span class="text-danger">{delta.lost.join(', ')}</span>
-              {' · '}
-            </span>
-          )}
-          {delta.components ? (
-            <span>
-              keywords {fmtDelta(delta.components.keywordPts)} · alignment{' '}
-              {fmtDelta(delta.components.alignmentPts)}
-              {delta.components.penalty !== 0 && ` · flags ${fmtDelta(-delta.components.penalty)}`}
-              {delta.components.capBefore !== delta.components.capAfter &&
-                ` · cap ${delta.components.capBefore ?? 'none'} → ${delta.components.capAfter ?? 'none'}`}
-            </span>
-          ) : (
-            <span>score {fmtDelta(scoreDelta ?? 0)}</span>
-          )}
-        </div>
+      <DeltaBox match={match} previous={previous} />
+      <HardRequirementsBlock hard={readHardRequirements(match.hardRequirements)} />
+      <MatchSignals match={match} />
+      <ConfirmFacts
+        asks={keywords.filter((k) => k.status === 'ask_user')}
+        matchId={match.id}
+        back={factsBack}
+      />
+
+      <ActionsBlock actions={readActions(match.actions)} />
+      <RemovalsBlock removals={readRemovals(match.removals)} />
+      <KeywordTable keywords={keywords} />
+    </div>
+  );
+};
+
+/** Version-over-version diff: gained/lost keywords + component deltas. */
+export const DeltaBox: FC<{ match: MatchWithResume; previous: MatchWithResume | null }> = ({
+  match,
+  previous,
+}) => {
+  if (!previous) return null;
+  const delta = diffMatches(
+    { keywords: readKeywords(previous.keywords), breakdown: readBreakdown(previous.breakdown) },
+    { keywords: readKeywords(match.keywords), breakdown: readBreakdown(match.breakdown) },
+  );
+  if (delta.gained.length === 0 && delta.lost.length === 0 && !delta.components) return null;
+  return (
+    <div class="rounded-md border border-line bg-surface-overlay/50 px-3 py-2 text-xs leading-5 text-ink-muted">
+      <span class="font-medium text-ink">vs v{previous.resumeVersion}: </span>
+      {delta.gained.length > 0 && (
+        <span>
+          gained <span class="text-ok">{delta.gained.join(', ')}</span>
+          {' · '}
+        </span>
       )}
-
-      {hard.length > 0 && (
-        <div>
-          <div class={SUBHEAD}>Hard requirements — gates outside the score</div>
-          <ul class="space-y-1.5 text-sm">
-            {hard.map((h) => (
-              <li class="flex flex-wrap items-center gap-2">
-                <Badge tone={HARD_VIEW[h.status].tone}>{HARD_VIEW[h.status].label}</Badge>
-                <span class="text-ink">{h.requirement}</span>
-                {h.note && <span class="text-xs text-ink-faint">— {h.note}</span>}
-              </li>
-            ))}
-          </ul>
-        </div>
+      {delta.lost.length > 0 && (
+        <span>
+          lost <span class="text-danger">{delta.lost.join(', ')}</span>
+          {' · '}
+        </span>
       )}
-
-      <MarkedList label="Red flags" items={match.redFlags} kind="x" tone="text-danger" />
-      {match.cautions.length > 0 && (
-        <div>
-          <div class={SUBHEAD}>Worth knowing — not scored</div>
-          <ul class="space-y-1 text-sm text-ink-muted">
-            {match.cautions.map((s) => (
-              <li class="flex gap-2">
-                <span class="mt-[3px] h-3.5 w-3.5 shrink-0 text-center text-xs leading-none text-ink-faint" aria-hidden="true">
-                  ·
-                </span>
-                <span>{s}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
+      {delta.components ? (
+        <span>
+          keywords {fmtDelta(delta.components.keywordPts)} · alignment{' '}
+          {fmtDelta(delta.components.alignmentPts)}
+          {delta.components.penalty !== 0 && ` · flags ${fmtDelta(-delta.components.penalty)}`}
+          {delta.components.capBefore !== delta.components.capAfter &&
+            ` · cap ${delta.components.capBefore ?? 'none'} → ${delta.components.capAfter ?? 'none'}`}
+        </span>
+      ) : (
+        <span>score {fmtDelta(match.matchScore - previous.matchScore)}</span>
       )}
-      <MarkedList label="Already working for you" items={match.strengths} kind="check" tone="text-ok" />
+    </div>
+  );
+};
 
-      {!hideConfirms && <ConfirmFacts asks={asks} matchId={match.id} back={factsBack} />}
+/** Full hard-requirement list with notes — the score card shows only the digest. */
+export const HardRequirementsBlock: FC<{ hard: MatchHardRequirement[] }> = ({ hard }) =>
+  hard.length === 0 ? null : (
+    <div>
+      <div class={SUBHEAD}>Hard requirements — gates outside the score</div>
+      <ul class="space-y-1.5 text-sm">
+        {hard.map((h) => (
+          <li class="flex flex-wrap items-center gap-2">
+            <Badge tone={HARD_VIEW[h.status].tone}>{HARD_VIEW[h.status].label}</Badge>
+            <span class="text-ink">{h.requirement}</span>
+            {h.note && <span class="text-xs text-ink-faint">— {h.note}</span>}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
 
+/** Red flags, unscored cautions and strengths — the qualitative read on a match. */
+export const MatchSignals: FC<{ match: MatchWithResume }> = ({ match }) => (
+  <>
+    <MarkedList label="Red flags" items={match.redFlags} kind="x" tone="text-danger" />
+    {match.cautions.length > 0 && (
       <div>
-        <div class={SUBHEAD}>What to change — {actions.length} edits</div>
-        {actions.length === 0 ? (
-          <Hint>No edits suggested.</Hint>
-        ) : (
-          <div class="space-y-4">
-            {sections.map((section) => (
-              <div>
-                <div class="mb-1.5 text-xs font-semibold text-ink">{section}</div>
-                <ol class="divide-y divide-line rounded-md border border-line">
-                  {actions
-                    .filter((a) => a.section === section)
-                    .map((a) => (
-                      <li
-                        class={`flex flex-col gap-1 p-3 sm:flex-row sm:gap-3 ${
-                          jumpable && a.quote
-                            ? 'cursor-pointer transition-colors duration-150 hover:bg-surface-overlay/50'
-                            : ''
-                        }`}
-                        data-quote={jumpable && a.quote ? a.quote : undefined}
-                        title={
-                          jumpable && a.quote ? 'Click to select this text in the editor' : undefined
-                        }
-                      >
-                        <div class="w-16 shrink-0">
-                          <Badge tone={PRIORITY_TONE[a.priority]}>{a.priority}</Badge>
-                        </div>
-                        <div class="min-w-0 text-sm">
-                          <div class="font-medium text-ink">{a.where}</div>
-                          <div class="mt-0.5 leading-6 text-ink">{a.what}</div>
-                          <div class="mt-0.5 text-xs leading-5 text-ink-faint">why: {a.why}</div>
-                        </div>
-                      </li>
-                    ))}
-                </ol>
-              </div>
-            ))}
-          </div>
-        )}
+        <div class={SUBHEAD}>Worth knowing — not scored</div>
+        <ul class="space-y-1 text-sm text-ink-muted">
+          {match.cautions.map((s) => (
+            <li class="flex gap-2">
+              <span class="mt-[3px] h-3.5 w-3.5 shrink-0 text-center text-xs leading-none text-ink-faint" aria-hidden="true">
+                ·
+              </span>
+              <span>{s}</span>
+            </li>
+          ))}
+        </ul>
       </div>
+    )}
+    <MarkedList label="Already working for you" items={match.strengths} kind="check" tone="text-ok" />
+  </>
+);
 
-      {removals.length > 0 && (
-        <div>
-          <div class={SUBHEAD}>What to remove — {removals.length} items</div>
-          <ul class="divide-y divide-line rounded-md border border-line">
-            {removals.map((r) => (
-              <li
-                class={`flex flex-col gap-1 p-3 sm:flex-row sm:gap-3 ${
-                  jumpable && r.quote
-                    ? 'cursor-pointer transition-colors duration-150 hover:bg-surface-overlay/50'
-                    : ''
-                }`}
-                data-quote={jumpable && r.quote ? r.quote : undefined}
-                title={jumpable && r.quote ? 'Click to select this text in the editor' : undefined}
-              >
-                <div class="w-24 shrink-0">
-                  <Badge tone="neutral">{r.section}</Badge>
-                </div>
-                <div class="min-w-0 text-sm">
-                  <div class="font-medium text-ink">{r.where}</div>
-                  <div class="mt-0.5 leading-6 text-ink">{r.what}</div>
-                  <div class="mt-0.5 text-xs leading-5 text-ink-faint">why: {r.why}</div>
-                </div>
-              </li>
-            ))}
-          </ul>
+/** "What to change" — jumpable on the targeted view (click selects the quote). */
+export const ActionsBlock: FC<{ actions: MatchAction[]; jumpable?: boolean }> = ({
+  actions,
+  jumpable = false,
+}) => {
+  const sections = ACTION_SECTIONS.filter((s) => actions.some((a) => a.section === s));
+  return (
+    <div>
+      <div class={SUBHEAD}>What to change — {actions.length} edits</div>
+      {actions.length === 0 ? (
+        <Hint>No edits suggested.</Hint>
+      ) : (
+        <div class="space-y-4">
+          {sections.map((section) => (
+            <div>
+              <div class="mb-1.5 text-xs font-semibold text-ink">{section}</div>
+              <ol class="divide-y divide-line rounded-md border border-line">
+                {actions
+                  .filter((a) => a.section === section)
+                  .map((a) => (
+                    <li
+                      class={`flex flex-col gap-1 p-3 sm:flex-row sm:gap-3 ${
+                        jumpable && a.quote
+                          ? 'cursor-pointer transition-colors duration-150 hover:bg-surface-overlay/50'
+                          : ''
+                      }`}
+                      data-quote={jumpable && a.quote ? a.quote : undefined}
+                      title={
+                        jumpable && a.quote ? 'Click to select this text in the editor' : undefined
+                      }
+                    >
+                      <div class="w-16 shrink-0">
+                        <Badge tone={PRIORITY_TONE[a.priority]}>{a.priority}</Badge>
+                      </div>
+                      <div class="min-w-0 text-sm">
+                        <div class="font-medium text-ink">{a.where}</div>
+                        <div class="mt-0.5 leading-6 text-ink">{a.what}</div>
+                        <div class="mt-0.5 text-xs leading-5 text-ink-faint">why: {a.why}</div>
+                      </div>
+                    </li>
+                  ))}
+              </ol>
+            </div>
+          ))}
         </div>
       )}
+    </div>
+  );
+};
 
-      {keywords.length > 0 && (
-        <div class="-mx-5 -mb-5 border-t border-line">
-          <div class="px-5 py-3 text-[13px] font-medium text-ink-muted">
-            Keyword coverage — {matchedKeywords.length} of {keywords.length} matched
-          </div>
-          {attention.length > 0 ? (
-            <Table columns={KEYWORD_COLUMNS}>
-              {attention.map((k) => (
-                <KeywordRow k={k} />
-              ))}
-            </Table>
-          ) : (
-            <Hint class="px-5 pb-3">Every keyword the posting wants is matched.</Hint>
-          )}
-          {matchedKeywords.length > 0 && (
-            <details>
-              <summary class="cursor-pointer border-t border-line px-5 py-2.5 text-[13px] font-medium text-ink-muted transition-colors duration-150 hover:text-ink">
-                Matched — {matchedKeywords.length} keywords
-              </summary>
-              <Table columns={KEYWORD_COLUMNS}>
-                {matchedKeywords.map((k) => (
-                  <KeywordRow k={k} />
-                ))}
-              </Table>
-            </details>
-          )}
-        </div>
+/** "What to remove" — same jumpable behavior as ActionsBlock. */
+export const RemovalsBlock: FC<{ removals: ReturnType<typeof readRemovals>; jumpable?: boolean }> = ({
+  removals,
+  jumpable = false,
+}) =>
+  removals.length === 0 ? null : (
+    <div>
+      <div class={SUBHEAD}>What to remove — {removals.length} items</div>
+      <ul class="divide-y divide-line rounded-md border border-line">
+        {removals.map((r) => (
+          <li
+            class={`flex flex-col gap-1 p-3 sm:flex-row sm:gap-3 ${
+              jumpable && r.quote
+                ? 'cursor-pointer transition-colors duration-150 hover:bg-surface-overlay/50'
+                : ''
+            }`}
+            data-quote={jumpable && r.quote ? r.quote : undefined}
+            title={jumpable && r.quote ? 'Click to select this text in the editor' : undefined}
+          >
+            <div class="w-24 shrink-0">
+              <Badge tone="neutral">{r.section}</Badge>
+            </div>
+            <div class="min-w-0 text-sm">
+              <div class="font-medium text-ink">{r.where}</div>
+              <div class="mt-0.5 leading-6 text-ink">{r.what}</div>
+              <div class="mt-0.5 text-xs leading-5 text-ink-faint">why: {r.why}</div>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+
+/** Keyword coverage: needs-attention rows first, matched rows behind a disclosure. */
+export const KeywordTable: FC<{ keywords: MatchKeyword[] }> = ({ keywords }) => {
+  if (keywords.length === 0) return null;
+  // Problems first: unmatched keywords sorted hardest-requirement-first; matched
+  // rows fold behind a disclosure so success noise never buries the gaps.
+  const attention = keywords
+    .filter((k) => k.status !== 'present')
+    .sort((a, b) => (REQ_RANK[a.requirement ?? ''] ?? 4) - (REQ_RANK[b.requirement ?? ''] ?? 4));
+  const matchedKeywords = keywords.filter((k) => k.status === 'present');
+  return (
+    <div class="-mx-5 -mb-5 border-t border-line">
+      <div class="px-5 py-3 text-[13px] font-medium text-ink-muted">
+        Keyword coverage — {matchedKeywords.length} of {keywords.length} matched
+      </div>
+      {attention.length > 0 ? (
+        <Table columns={KEYWORD_COLUMNS}>
+          {attention.map((k) => (
+            <KeywordRow k={k} />
+          ))}
+        </Table>
+      ) : (
+        <Hint class="px-5 pb-3">Every keyword the posting wants is matched.</Hint>
+      )}
+      {matchedKeywords.length > 0 && (
+        <details>
+          <summary class="cursor-pointer border-t border-line px-5 py-2.5 text-[13px] font-medium text-ink-muted transition-colors duration-150 hover:text-ink">
+            Matched — {matchedKeywords.length} keywords
+          </summary>
+          <Table columns={KEYWORD_COLUMNS}>
+            {matchedKeywords.map((k) => (
+              <KeywordRow k={k} />
+            ))}
+          </Table>
+        </details>
       )}
     </div>
   );

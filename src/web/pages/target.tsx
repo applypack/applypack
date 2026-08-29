@@ -7,7 +7,16 @@ import { fitTone, formatRelative, type Tone } from '../format';
 import type { MatchWithResume } from '../../resume/store';
 import { readActions, readHardRequirements, readKeywords, readRemovals } from '../../resume/prompts';
 import { readBreakdown } from '../../resume/score';
-import { ConfirmFacts, HardRequirementsDigest, MatchReport, ScoreBreakdownChips } from './resume-match-card';
+import {
+  ActionsBlock,
+  ConfirmFacts,
+  DeltaBox,
+  HardRequirementsDigest,
+  KeywordTable,
+  MatchSignals,
+  RemovalsBlock,
+  ScoreBreakdownChips,
+} from './resume-match-card';
 import { ACCEPTED_EXTENSIONS } from '../../resume/resume-text';
 
 /*
@@ -20,7 +29,9 @@ import { ACCEPTED_EXTENSIONS } from '../../resume/resume-text';
  *
  * Layout rule (external UX audit, docs/job-hunter-resume-match-ux-refactor.md):
  * everything needed for a decision — score, hard-requirement gates, confirm
- * questions — sits above the tabs; the Suggestions tab holds the full report.
+ * questions — sits above the tabs. The default Suggestions tab pairs the
+ * advice column with the editor, so clicking a suggestion selects its text
+ * in place and the live estimate reacts without leaving the view.
  */
 
 export interface TargetPageProps {
@@ -36,11 +47,13 @@ export interface TargetPageProps {
   flash?: FlashMessage | null;
 }
 
+/* Suggestions is first and default: advice beside the editor is the working
+ * view. "Your resume" as a separate tab is gone — the editor already shows in
+ * the first two tabs, a third copy was tab noise. */
 const TABS = [
+  { key: 'changes', label: 'Suggestions' },
   { key: 'both', label: 'Side by side' },
   { key: 'job', label: 'Job description' },
-  { key: 'resume', label: 'Your resume' },
-  { key: 'changes', label: 'Suggestions' },
 ] as const;
 
 /** How many analysis runs stay visible in the header; the rest fold away. */
@@ -338,7 +351,7 @@ export const TargetPage: FC<TargetPageProps> = ({
               type="button"
               role="tab"
               data-tab={t.key}
-              aria-selected={t.key === 'both'}
+              aria-selected={t.key === 'changes'}
               class="tab cursor-pointer rounded-[5px] px-3 py-1 text-[13px] text-ink-muted transition-colors duration-150 hover:text-ink aria-selected:bg-surface-raised aria-selected:font-medium aria-selected:text-ink aria-selected:shadow-sm"
             >
               {t.label}
@@ -346,12 +359,12 @@ export const TargetPage: FC<TargetPageProps> = ({
           ))}
         </div>
         <label class="ml-auto inline-flex min-h-[28px] cursor-pointer items-center gap-1.5 text-xs text-ink-faint">
-          <input id="show-matched" type="checkbox" class="h-3.5 w-3.5 accent-accent" />
+          <input id="show-matched" type="checkbox" checked class="h-3.5 w-3.5 accent-accent" />
           show matched highlights
         </label>
       </div>
 
-      <div id="panes" class="grid gap-4 lg:grid-cols-2" data-view="both">
+      <div id="panes" class="show-matched grid gap-4 lg:grid-cols-2" data-view="changes">
         <Card class="pane-job">
           <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
             <div class="text-[13px] font-medium text-ink">Job description</div>
@@ -399,21 +412,20 @@ export const TargetPage: FC<TargetPageProps> = ({
           </div>
           <Hint class="mt-2">
             {resume.ephemeral
-              ? 'Plain text — what an ATS parser sees. Edits stay in this browser tab until you Re-analyze. Click an item in Suggestions to jump to it.'
-              : 'Plain text — what an ATS parser sees. Edits stay in this browser tab until you Re-analyze or Save. Click an item in Suggestions to jump to it.'}
+              ? 'Plain text — what an ATS parser sees. Edits stay in this browser tab until you Re-analyze. Click a suggestion to select the text it targets.'
+              : 'Plain text — what an ATS parser sees. Edits stay in this browser tab until you Re-analyze or Save. Click a suggestion to select the text it targets.'}
           </Hint>
         </Card>
 
-        <div class="pane-changes lg:col-span-2">
+        <div class="pane-changes">
           <Card>
-            <div class="mb-1 text-[13px] font-medium text-ink">Suggestions</div>
-            <MatchReport
-              match={match}
-              previous={previous}
-              factsBack={`/jobs/${job.id}/target?match=${match.id}`}
-              jumpable
-              hideConfirms
-            />
+            <div class="space-y-5">
+              <DeltaBox match={match} previous={previous} />
+              <ActionsBlock actions={actions} jumpable />
+              <RemovalsBlock removals={removals} jumpable />
+              <MatchSignals match={match} />
+              <KeywordTable keywords={keywords} />
+            </div>
           </Card>
         </div>
       </div>
@@ -428,6 +440,10 @@ export const TargetPage: FC<TargetPageProps> = ({
               kept in this browser tab{resume.ephemeral ? '' : ' until you save'}
             </span>
           </div>
+          <span class="text-sm font-medium tabular-nums text-ink">
+            Estimate <span id="bar-score">—</span>
+            <span id="bar-delta" class="ml-1 text-xs font-medium"></span>
+          </span>
           <div class="ml-auto flex flex-wrap items-center gap-2">
             <Button type="button" variant="ghost" size="sm" id="bar-discard">
               Discard
@@ -506,10 +522,15 @@ const TARGET_CSS = `
   #editor { background: transparent; color: transparent; caret-color: rgb(var(--ink)); border: 0; outline: none; resize: none; }
   #editor::selection { background: rgb(var(--accent) / 0.25); }
   #panes[data-view="job"] .pane-resume, #panes[data-view="job"] .pane-changes,
-  #panes[data-view="resume"] .pane-job, #panes[data-view="resume"] .pane-changes,
   #panes[data-view="both"] .pane-changes,
-  #panes[data-view="changes"] .pane-job, #panes[data-view="changes"] .pane-resume { display: none; }
-  #panes[data-view="job"] .pane-job, #panes[data-view="resume"] .pane-resume { grid-column: 1 / -1; }
+  #panes[data-view="changes"] .pane-job { display: none; }
+  #panes[data-view="job"] .pane-job { grid-column: 1 / -1; }
+  /* Suggestions view: advice column left, editor right; the editor card stays
+     in sight while the (longer) advice column scrolls. */
+  #panes[data-view="changes"] .pane-changes { order: -1; }
+  @media (min-width: 1024px) {
+    #panes[data-view="changes"] .pane-resume { position: sticky; top: 0.75rem; align-self: start; }
+  }
   .chip { cursor: pointer; }
   .flash-target { animation: flash-target 1.2s ease-out; }
   @keyframes flash-target { from { background: rgb(var(--accent) / 0.25); } to { background: transparent; } }
