@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.1.1] — 2026-08-29
+
 ### Added
 - **Deterministic match score (ADR 0012).** The model now returns facts only
   — per-keyword status, `must/preferred/nice/context` requirement levels,
@@ -36,13 +38,45 @@ All notable changes to this project are documented here. The format follows
   and posting text as untrusted data, and `npm run bench:resume` smoke-tests
   the prompt against gold fixtures (stack mismatch, stack match, injection)
   through the real provider.
+- **PDF resume uploads.** `.pdf` joins `.docx` / `.md` / `.txt`, extracted via
+  unpdf (ADR 0011) with clear errors for password-protected and scanned /
+  outlined files; upload limit raised from 2 to 5 MB.
+- **Target page (`/target`).** Paste a posting and pick, upload or paste a
+  resume — one run detects, classifies and scores, then opens the side-by-side
+  targeted view. The description alone is enough: empty company / title /
+  location / salary are extracted inside the run as a visible "Detect posting
+  facts" step that never blocks (unfound facts fall back to visible defaults,
+  the run header renames live), detected salary lands on the job, and a
+  Ctrl+A paste gets its page chrome trimmed in the textarea while the
+  job-header block (title · company · salary) survives. Uploaded / pasted
+  resumes land on one hidden scratch row (`Resume.hidden`, migration) —
+  /target is a pure comparison, nothing accumulates in Resumes.
+- **Live progress pages.** Long runs (/target, Compare, Re-analyze,
+  Re-upload) show polled step-by-step progress — no meta-refresh — with a
+  violet activity line that walks the real analysis checklist, a ticking
+  elapsed counter and auto-redirect into the result.
 
 ### Changed
+- **Resume-match workspace decluttered** (two external UX audits, verified
+  against the code; adopted plan in docs/TASKS.md §6). Everything needed for
+  a decision sits above the tabs: one primary score with a quality word, the
+  hard-requirement digest, confirm-your-experience questions, suggestion
+  counts. The live estimate appears only while the text is edited (with a
+  ±N-vs-AI delta, mirrored in a sticky unsaved-changes bar), the Suggestions
+  tab pairs the advice column with a sticky editor — clicking a suggestion
+  selects its exact text in place — keyword tables list needs-attention rows
+  first with matched behind a disclosure, one status vocabulary everywhere
+  (matched / missing / confirm / no evidence), run chips cap at two plus an
+  "older runs" disclosure, Re-upload is the one visible action (the rest in
+  a light-dismiss ⋯ menu), and the page belongs to Jobs (breadcrumb, active
+  nav, 1536px content cap).
 - Match replies are capped tighter for speed (~25 keywords, ~10 actions, ~8
-  removals, 12-word notes) — less output ≈ faster analysis; suggested
-  experience bullets must state the business outcome ("did X, which improved
-  Y") and may never invent metrics — missing numbers become an explicit
-  "[add your real number]" placeholder.
+  removals, 12-word notes) — less output ≈ faster analysis. Suggested
+  experience bullets follow explicit **bullet rules** (prompt v4): verb-first,
+  ≤28 words, the posting's own vocabulary, each bullet aimed at a named
+  requirement, business outcome stated; metrics may never be invented and
+  placeholders like "[add your real number]" are banned from the wording —
+  a missing figure becomes "ask the candidate for the real number" in "why".
 
 ### Fixed
 - **The 65-point treadmill (scoring v3).** A fully tailored resume (keywords
@@ -77,24 +111,6 @@ All notable changes to this project are documented here. The format follows
   counts (Vue ≠ React, PHP ≠ Node.js), and the summary must open with the
   stack verdict. Before: Laravel/Vue vs a Node/React posting scored 82/100;
   after: 10/100 (and 92/100 against a Laravel posting).
-- Long compare runs are async with a live progress page
-  (`/target/runs/:id`): classify → (scan) → AI match steps, elapsed time,
-  auto-redirect into the result. Applies to /target, Compare, Re-analyze and
-  Re-upload — no more opaque minute-long spinner.
-- /target is now a **pure comparison**: uploaded / pasted resumes land on one
-  hidden scratch row (`Resume.hidden`, migration) replaced in place, old
-  scratch analyses are deleted on every new run, and the workspace hides
-  versioning ("Save as vN") for them. Nothing accumulates in Resumes.
-
-### Added
-- PDF resume uploads: `.pdf` joins `.docx` / `.md` / `.txt`, extracted via
-  unpdf (ADR 0011) with clear errors for password-protected and scanned /
-  outlined files; upload limit raised from 2 to 5 MB.
-- Target page (`/target`) in the menu: paste a posting and pick, upload or
-  paste a resume — one run classifies the posting, scores the resume against
-  it and opens the side-by-side targeted view. New resumes are saved to
-  Resumes (unscanned) so they can be iterated on later.
-
 ## [0.1.0] — 2026-08-28
 
 First tagged release. Everything below was designed and built between
@@ -176,6 +192,8 @@ commit history.
 | 2026-04-29 | Pure fetcher mappers + tests, Jobicy, HN /jobs, universal ATS discovery |
 | 2026-08-27 | Node 24, pause toggle, AI provider seam, first dashboard redesign, parallel classifier |
 | 2026-08-28 | Resume module, targeted view, ghost-job verification, light-theme redesign — **v0.1.0** |
+| 2026-08-29 | PDF uploads, /target auto-detect flow, deterministic score, match-workspace UX refactor — **v0.1.1** |
 
-[Unreleased]: https://github.com/nazboyko/job-hunter/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/nazboyko/job-hunter/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/nazboyko/job-hunter/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/nazboyko/job-hunter/releases/tag/v0.1.0
