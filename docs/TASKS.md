@@ -266,7 +266,7 @@ removing the violet accent.
 ### 6.1 Targeted page P0 (this branch — done 2026-08-29)
 - [x] Summary first: hard-requirement digest inside the score card + ask_user
       confirms hoisted above the tabs (both were invisible behind the 4th tab)
-- [x] History chips capped at 5 + "older runs" disclosure
+- [x] History chips capped at 2 (user pref, was 5) + "older runs" disclosure
 - [x] One primary score: live estimate hidden until the text is edited, labelled
       "Estimate after your edits", with a ±N delta vs the AI score
 - [x] Sticky unsaved-changes bar (Discard / Re-analyze / Save as vN)
@@ -281,8 +281,9 @@ removing the violet accent.
       behind a disclosure
 - [x] Matched-highlight toggle for both panes, default off (issues stay visible;
       legend samples keep their colour)
-- [x] Re-upload demoted into a "more actions" menu (in-flow on phones — the old
-      absolute panel overflowed the 375px viewport)
+- [x] Action row: Re-upload is the one visible button (user pref); Re-analyze
+      and Save live in the ⋯ menu, resurfaced by the sticky bar while editing.
+      Dropdown panels are in-flow on phones (an absolute panel overflowed 375px)
 - [x] Meta reads "analyzed Nh ago"
 
 ### 6.3 Settings + shell (SEPARATE BRANCH — pairs with multi-AI-provider settings)
