@@ -29,9 +29,9 @@ import { ACCEPTED_EXTENSIONS } from '../../resume/resume-text';
  *
  * Layout rule (external UX audit, docs/job-hunter-resume-match-ux-refactor.md):
  * everything needed for a decision — score, hard-requirement gates, confirm
- * questions — sits above the tabs. The default Suggestions tab pairs the
- * advice column with the editor, so clicking a suggestion selects its text
- * in place and the live estimate reacts without leaving the view.
+ * questions — sits above the tabs. The Suggestions tab pairs the advice
+ * column with the editor, so clicking a suggestion selects its text in place
+ * and the live estimate reacts without leaving the view.
  */
 
 export interface TargetPageProps {
@@ -47,12 +47,12 @@ export interface TargetPageProps {
   flash?: FlashMessage | null;
 }
 
-/* Suggestions is first and default: advice beside the editor is the working
- * view. "Your resume" as a separate tab is gone — the editor already shows in
- * the first two tabs, a third copy was tab noise. */
+/* Side by side is first and default (user pref); Suggestions keeps its
+ * advice-beside-the-editor layout as the second tab. "Your resume" as a
+ * separate tab is gone — the editor already shows in the first two tabs. */
 const TABS = [
-  { key: 'changes', label: 'Suggestions' },
   { key: 'both', label: 'Side by side' },
+  { key: 'changes', label: 'Suggestions' },
   { key: 'job', label: 'Job description' },
 ] as const;
 
@@ -124,6 +124,9 @@ export const TargetPage: FC<TargetPageProps> = ({
   };
   return (
     <Layout title={`Resume match · ${job.title}`} active="jobs">
+      {/* The layout main is unbounded; without a cap this workspace scatters on
+          ultra-wide monitors. 2xl (1536px) keeps two panes comfortable. */}
+      <div class="mx-auto w-full max-w-screen-2xl">
       <nav aria-label="Breadcrumb" class="mb-1.5 flex items-center gap-1.5 text-[13px] text-ink-faint">
         <a href="/jobs" class="transition-colors duration-150 hover:text-ink">
           Jobs
@@ -175,7 +178,9 @@ export const TargetPage: FC<TargetPageProps> = ({
       </div>
 
       <Card class="mb-4">
-        <div class="flex flex-wrap items-center gap-x-8 gap-y-4">
+        {/* Proportional columns instead of a scattered flex row: score | why (owns
+            the middle) | actions rail. The gates line spans the full width below. */}
+        <div class="grid grid-cols-1 items-start gap-x-8 gap-y-4 lg:grid-cols-[auto_minmax(0,1fr)_auto]">
           {/* Primary: the honest score — the AI rubric verdict. Static until Re-analyze. */}
           <div class="flex items-center gap-4">
             <svg viewBox="0 0 96 96" class="h-20 w-20 -rotate-90" aria-hidden="true">
@@ -205,16 +210,16 @@ export const TargetPage: FC<TargetPageProps> = ({
                   edited — Re-analyze to refresh
                 </span>
               </div>
+              {/* Which resume/version is named by the pane header and the run chips —
+                  repeating it here was pure duplication. */}
               <div class="mt-0.5 text-xs text-ink-faint">
-                {resume.name}
-                {resume.ephemeral ? '' : ` v${match.resumeVersion}`}
-                {match.draft ? ' (draft)' : ''} · analyzed {formatRelative(match.createdAt)}
+                {match.draft ? 'draft · ' : ''}analyzed {formatRelative(match.createdAt)}
               </div>
             </div>
           </div>
 
           {/* Why this score: the stack verdict + the deterministic components. */}
-          <div class="min-w-0 max-w-md space-y-1.5">
+          <div class="min-w-0 max-w-prose space-y-1.5">
             <p class="text-sm leading-6 text-ink">{match.summary}</p>
             {breakdown && <ScoreBreakdownChips bd={breakdown} />}
             {(actions.length > 0 || removals.length > 0) && (
@@ -231,31 +236,9 @@ export const TargetPage: FC<TargetPageProps> = ({
             )}
           </div>
 
-          {/* Appears only while the text differs from the analyzed version. */}
-          <div id="live-est" hidden class="min-w-[230px]">
-            <div class="flex items-center gap-2 text-[13px] font-medium text-ink-muted">
-              {breakdown ? 'Estimate after your edits' : 'Keyword coverage after edits'}
-              <span id="live-delta" class="text-xs font-medium"></span>
-            </div>
-            <div class="mt-1 flex items-center gap-2.5">
-              <span id="score-value" class="text-lg font-semibold tabular-nums text-warn">
-                —
-              </span>
-              <span class="h-1.5 w-24 overflow-hidden rounded-full bg-line" aria-hidden="true">
-                <span id="score-bar" class="block h-full rounded-full bg-warn" style="width:0%"></span>
-              </span>
-            </div>
-            <div id="score-detail" class="mt-0.5 text-xs text-ink-faint">
-              {keywords.length} keywords from the AI match
-            </div>
-            <Hint class="mt-1">
-              {breakdown
-                ? 'Same formula as the AI score, live as you type — "can\'t claim" terms never count. Re-analyze to make it official.'
-                : 'Keywords only, live as you type. Re-analyze to get the full score.'}
-            </Hint>
-          </div>
-
-          <div class="ml-auto flex flex-wrap items-center gap-2">
+          {/* Right rail: actions on top, the live estimate below while editing. */}
+          <div class="flex flex-col gap-3 lg:items-end">
+            <div class="flex flex-wrap items-center gap-2">
             {/* One visible action — a fresh file is how a better match usually happens.
                 Re-analyze and Save live in the ⋯ menu; the sticky bar resurfaces them while editing.
                 data-menu opts into light dismiss (outside click / Escape) in target-page.mjs. */}
@@ -329,10 +312,35 @@ export const TargetPage: FC<TargetPageProps> = ({
                 )}
               </div>
             </details>
+            </div>
+
+            {/* Appears only while the text differs from the analyzed version. */}
+            <div id="live-est" hidden class="lg:max-w-[280px] lg:text-right">
+              <div class="flex items-center gap-2 text-[13px] font-medium text-ink-muted lg:justify-end">
+                {breakdown ? 'Estimate after your edits' : 'Keyword coverage after edits'}
+                <span id="live-delta" class="text-xs font-medium"></span>
+              </div>
+              <div class="mt-1 flex items-center gap-2.5 lg:justify-end">
+                <span id="score-value" class="text-lg font-semibold tabular-nums text-warn">
+                  —
+                </span>
+                <span class="h-1.5 w-24 overflow-hidden rounded-full bg-line" aria-hidden="true">
+                  <span id="score-bar" class="block h-full rounded-full bg-warn" style="width:0%"></span>
+                </span>
+              </div>
+              <div id="score-detail" class="mt-0.5 text-xs text-ink-faint">
+                {keywords.length} keywords from the AI match
+              </div>
+              <Hint class="mt-1">
+                {breakdown
+                  ? 'Same formula as the AI score, live as you type — "can\'t claim" terms never count. Re-analyze to make it official.'
+                  : 'Keywords only, live as you type. Re-analyze to get the full score.'}
+              </Hint>
+            </div>
           </div>
 
           {hard.length > 0 && (
-            <div class="w-full border-t border-line pt-3">
+            <div class="border-t border-line pt-3 lg:col-span-3">
               <HardRequirementsDigest hard={hard} />
             </div>
           )}
@@ -356,7 +364,7 @@ export const TargetPage: FC<TargetPageProps> = ({
               type="button"
               role="tab"
               data-tab={t.key}
-              aria-selected={t.key === 'changes'}
+              aria-selected={t.key === 'both'}
               class="tab cursor-pointer rounded-[5px] px-3 py-1 text-[13px] text-ink-muted transition-colors duration-150 hover:text-ink aria-selected:bg-surface-raised aria-selected:font-medium aria-selected:text-ink aria-selected:shadow-sm"
             >
               {t.label}
@@ -369,7 +377,7 @@ export const TargetPage: FC<TargetPageProps> = ({
         </label>
       </div>
 
-      <div id="panes" class="show-matched grid gap-4 lg:grid-cols-2" data-view="changes">
+      <div id="panes" class="show-matched grid gap-4 lg:grid-cols-2" data-view="both">
         <Card class="pane-job">
           <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
             <div class="text-[13px] font-medium text-ink">Job description</div>
@@ -468,6 +476,7 @@ export const TargetPage: FC<TargetPageProps> = ({
             )}
           </div>
         </div>
+      </div>
       </div>
 
       <style dangerouslySetInnerHTML={{ __html: TARGET_CSS }} />
