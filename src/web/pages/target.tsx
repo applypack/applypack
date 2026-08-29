@@ -159,7 +159,9 @@ export const TargetPage: FC<TargetPageProps> = ({
           </ul>
           {olderRuns.length > 0 && (
             <details>
-              <summary class="cursor-pointer text-xs text-ink-faint transition-colors duration-150 hover:text-ink">
+              {/* list-none + own caret so the label can right-align and stay put when
+                  the open box grows to the chips' width. */}
+              <summary class="runs-toggle cursor-pointer list-none text-xs text-ink-faint transition-colors duration-150 hover:text-ink lg:text-right">
                 {olderRuns.length} older runs
               </summary>
               <ul class="mt-2 flex flex-wrap gap-2 lg:justify-end">
@@ -255,8 +257,9 @@ export const TargetPage: FC<TargetPageProps> = ({
 
           <div class="ml-auto flex flex-wrap items-center gap-2">
             {/* One visible action — a fresh file is how a better match usually happens.
-                Re-analyze and Save live in the ⋯ menu; the sticky bar resurfaces them while editing. */}
-            <details class="relative">
+                Re-analyze and Save live in the ⋯ menu; the sticky bar resurfaces them while editing.
+                data-menu opts into light dismiss (outside click / Escape) in target-page.mjs. */}
+            <details class="relative" data-menu>
               <summary class={`${SUMMARY_BUTTON} bg-accent-strong px-3 text-white shadow-sm hover:bg-accent-deep`}>
                 Re-upload resume
               </summary>
@@ -289,7 +292,7 @@ export const TargetPage: FC<TargetPageProps> = ({
                 </form>
               </div>
             </details>
-            <details class="relative">
+            <details class="relative" data-menu>
               <summary
                 aria-label="More actions"
                 class={`${SUMMARY_BUTTON} border border-line-strong bg-surface-raised px-2.5 shadow-sm hover:bg-surface-overlay`}
@@ -534,6 +537,9 @@ const TARGET_CSS = `
     #panes[data-view="changes"] .pane-resume { position: sticky; top: 0.75rem; align-self: start; }
   }
   .chip { cursor: pointer; }
+  .runs-toggle::-webkit-details-marker { display: none; }
+  .runs-toggle::before { content: '▸ '; }
+  details[open] > .runs-toggle::before { content: '▾ '; }
   .flash-target { animation: flash-target 1.2s ease-out; }
   @keyframes flash-target { from { background: rgb(var(--accent) / 0.25); } to { background: transparent; } }
 `;

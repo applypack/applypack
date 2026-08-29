@@ -163,6 +163,23 @@ export function init(data) {
     });
   }
 
+  // Light dismiss for the action menus: a click outside or Escape closes them.
+  // Scoped to data-menu so content disclosures (older runs, matched keywords)
+  // keep their sticky open state.
+  document.addEventListener('click', (e) => {
+    for (const d of document.querySelectorAll('details[data-menu][open]')) {
+      if (!d.contains(e.target)) d.open = false;
+    }
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    for (const d of document.querySelectorAll('details[data-menu][open]')) {
+      d.open = false;
+      const s = d.querySelector('summary');
+      if (s) s.focus();
+    }
+  });
+
   // The editor sits beside the suggestions, so a click selects in place — no tab switch.
   for (const item of document.querySelectorAll('[data-quote]')) {
     item.addEventListener('click', () => {
