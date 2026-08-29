@@ -258,8 +258,9 @@ export const TargetPage: FC<TargetPageProps> = ({
                   <circle cx="19" cy="12" r="1.8" />
                 </svg>
               </summary>
-              {/* In-flow on phones (an absolute panel overflows the 375px viewport), anchored from sm: up. */}
-              <div class="z-10 mt-2 w-80 max-w-full space-y-3 rounded-lg border border-line bg-surface-raised p-3 shadow-lg sm:absolute sm:right-0">
+              {/* In-flow on phones (an absolute panel overflows the 375px viewport), anchored from sm: up.
+                  Width clamp uses vw, not %: for the absolute panel "100%" is the tiny summary button. */}
+              <div class="z-10 mt-2 w-80 max-w-[calc(100vw-4rem)] space-y-3 rounded-lg border border-line bg-surface-raised p-3 shadow-lg sm:absolute sm:right-0">
                 <div>
                   <div class="text-[13px] font-medium text-ink">
                     {resume.ephemeral ? 'Upload another resume' : 'Upload new resume version'}
