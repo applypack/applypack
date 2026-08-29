@@ -1,14 +1,24 @@
 /*
  * Keyword matcher for the targeted-resume page. Runs in the browser (served
- * as a static ES module) and under node:test. No DOM, no imports — pure
- * functions over strings and the keyword list the AI match produced.
+ * as a static ES module) and under node:test. No DOM — pure functions over
+ * strings and the keyword list the AI match produced.
  *
  * Live score = weighted keyword coverage. The AI decides WHAT the keywords
- * are (with priorities, aliases and cannot_claim); this module only checks
- * whether each one is present in the text the user is editing.
+ * are (with requirement levels, aliases and cannot_claim); this module only
+ * checks whether each one is present in the text the user is editing. The
+ * full live score estimate (coverage + alignment − flags, capped) lives in
+ * ./score.mjs.
  */
 
+import { SCORING } from './score.mjs';
+
+// Fallback for keyword rows that predate requirement levels (ADR 0012).
 const PRIORITY_WEIGHT = { 1: 3, 2: 2, 3: 1, 4: 1 };
+
+function keywordWeight(k) {
+  if (k.requirement) return SCORING.requirementWeight[k.requirement] ?? 0;
+  return PRIORITY_WEIGHT[k.priority] ?? 1;
+}
 // A hit must not be glued to token characters: "C" is not "C++", "Java" is
 // not "JavaScript", "x.php" is a file. A trailing "." before a space or the
 // end of text ("PostgreSQL.") is punctuation, not part of the token.
@@ -59,17 +69,20 @@ export function findTerm(text, term, aliases = []) {
 
 /**
  * Weighted coverage of the keyword list in `text`.
- * keywords: [{ term, priority, status, aliases? }]. cannot_claim keywords are
- * excluded unless includeCannotClaim is set — you cannot honestly add them.
+ * keywords: [{ term, priority, requirement?, status, aliases? }]. Excluded
+ * from the coverage percentage: cannot_claim keywords (you cannot honestly
+ * add them — unless includeCannotClaim is set) and zero-weight "context"
+ * keywords. Every row still carries found/count for highlighting, and the
+ * full rows feed entriesFromLive() in score.mjs for the live score estimate.
  */
 export function scoreKeywords(keywords, text, { includeCannotClaim = false } = {}) {
   const rows = [];
   let earned = 0;
   let total = 0;
   for (const k of keywords) {
-    const excluded = k.status === 'cannot_claim' && !includeCannotClaim;
+    const weight = keywordWeight(k);
+    const excluded = (k.status === 'cannot_claim' && !includeCannotClaim) || weight === 0;
     const spans = findTerm(text, k.term, k.aliases ?? []);
-    const weight = PRIORITY_WEIGHT[k.priority] ?? 1;
     const found = spans.length > 0;
     if (!excluded) {
       total += weight;
@@ -124,12 +137,19 @@ export function highlightHtml(text, spans) {
 /** Spans for the job-description pane: every keyword occurrence, classed by whether the resume has it. */
 export function jobSpans(keywords, jobText, scored) {
   const byTerm = new Map(scored.rows.map((r) => [r.term, r]));
+  // Same vocabulary as the keyword table and pane legends: matched / missing / confirm / no evidence.
+  const LABEL = { 'kw-found': 'matched — in your resume', 'kw-cannot': "no evidence — can't claim", 'kw-ask': 'confirm — do you have it?', 'kw-missing': 'missing' };
   const spans = [];
   for (const k of keywords) {
     const row = byTerm.get(k.term);
-    const cls = k.status === 'cannot_claim' ? 'kw-cannot' : row && row.found ? 'kw-found' : 'kw-missing';
+    const found = row && row.found;
+    const cls =
+      k.status === 'cannot_claim' ? 'kw-cannot'
+      : found ? 'kw-found'
+      : k.status === 'ask_user' ? 'kw-ask'
+      : 'kw-missing';
     for (const s of findTerm(jobText, k.term, k.aliases ?? [])) {
-      spans.push({ ...s, cls, title: `${k.term} · P${k.priority} · ${cls === 'kw-found' ? 'in resume' : cls === 'kw-cannot' ? "can't claim" : 'missing'}` });
+      spans.push({ ...s, cls, title: `${k.term} · P${k.priority} · ${LABEL[cls]}` });
     }
   }
   return spans;
