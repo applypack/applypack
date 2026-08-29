@@ -287,9 +287,12 @@ removing the violet accent.
       as Side by side (default) → Suggestions → Job description (user pref)
 - [x] Score card as a proportional grid (score | why | actions rail + live
       estimate), resume name deduped out of it, page capped at 1536px
-- [x] /target: description-only input — empty company / title / location are
-      auto-detected on paste (POST /target/extract, classifier model; filled
-      fields never overwritten; same extraction as the no-JS submit fallback)
+- [x] /target: description-only input — empty company / title / location /
+      salary are detected INSIDE the run as a visible "Detect posting facts"
+      step (classifier model), so Compare never waits and never errors:
+      unfound facts fall back to "Unknown company" / the first line; the run
+      header renames live. Paste chrome is trimmed in the textarea
+      (posting-clean.mjs keeps the job-header block)
 - [x] Progress page: meta-refresh (and its "refreshes every 2 s" note) replaced
       by polled /target/runs/:id/state + target-run.mjs — step icons advance in
       place and a violet activity line rotates through the real prompt

@@ -17,6 +17,7 @@ test('activityFor advances with stage time and holds on the last line', async ()
   assert.notEqual(first, second);
   const last = activityFor('match', 10 * 60_000);
   assert.equal(activityFor('match', 20 * 60_000), last, 'holds on the final line');
+  assert.notEqual(activityFor('extract', 0), '', 'the detect step narrates too');
   assert.equal(activityFor('nope', 0), '', 'unknown step yields nothing');
 });
 

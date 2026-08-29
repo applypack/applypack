@@ -1,10 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildExtractPrompt, parseExtractReply } from './posting-extract';
+import { buildExtractPrompt, fallbackTitle, parseExtractReply } from './posting-extract';
 
 test('buildExtractPrompt truncates the description to the posting head', () => {
   const { system, user } = buildExtractPrompt('x'.repeat(10_000));
-  assert.equal(user.length, 3500);
+  assert.equal(user.length, 6000);
   assert.match(system, /ONLY JSON/);
   assert.match(system, /salary_min/);
   assert.match(system, /"remote"\|"hybrid"\|"onsite"/);
@@ -46,6 +46,13 @@ test('parseExtractReply sanitises salary and workplace', () => {
     '{"company":"A","title":"B","location":null,"salary_min":-5,"salary_max":99999999,"workplace":"hybrid"}',
   );
   assert.deepEqual([junk?.salaryMin, junk?.salaryMax, junk?.workplace], [null, null, 'hybrid']);
+});
+
+test('fallbackTitle uses a short first line, else a neutral default', () => {
+  assert.equal(fallbackTitle('Senior PHP Developer\nWe build things.'), 'Senior PHP Developer');
+  assert.equal(fallbackTitle('\n\n  Backend Engineer  \nrest'), 'Backend Engineer');
+  assert.equal(fallbackTitle('x'.repeat(200) + '\nrest'), 'Untitled role');
+  assert.equal(fallbackTitle(''), 'Untitled role');
 });
 
 test('parseExtractReply caps runaway field lengths', () => {

@@ -15,7 +15,7 @@ import { MAX_FIELD_CHARS } from './manual-job';
  */
 
 /** Postings put their identity at the top; the head keeps the call fast and cheap. */
-const HEAD_CHARS = 3500;
+const HEAD_CHARS = 6000;
 const MAX_TOKENS = 250;
 const MAX_SALARY = 5_000_000;
 
@@ -91,6 +91,16 @@ export function parseExtractReply(raw: string): PostingFacts | null {
     salaryMax,
     workplace: r.workplace,
   };
+}
+
+/** Deterministic last resort when neither the user nor the model named the role. */
+export function fallbackTitle(description: string): string {
+  const first =
+    description
+      .split('\n')
+      .map((l) => l.trim())
+      .find((l) => l.length > 0) ?? '';
+  return first.length >= 4 && first.length <= 90 ? first : 'Untitled role';
 }
 
 export async function extractPostingFacts(description: string): Promise<PostingFacts | null> {
