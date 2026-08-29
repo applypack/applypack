@@ -95,18 +95,16 @@ describe('maskToken', () => {
     assert.equal(maskToken('123456789012'), '***');
   });
 
-  it('shows first 8 + last 4 for long tokens', () => {
+  it('shows only the last 4 for long tokens', () => {
     const t = '123456789012345abcdefghij6789';
-    assert.equal(maskToken(t), '12345678***6789');
+    assert.equal(maskToken(t), '***6789');
   });
 
-  it('handles a typical Telegram bot token (46 chars)', () => {
+  it('never leaks the bot-id prefix of a Telegram token', () => {
     const t = '8557299558:AAGuiFakeTokenForTestingPurposesOnly1234XX';
     const masked = maskToken(t);
-    assert.ok(masked.startsWith('8557'));
-    assert.ok(masked.endsWith('XX') || masked.endsWith('34XX'));
-    assert.ok(masked.length < t.length);
-    assert.ok(masked.includes('***'));
+    assert.equal(masked, '***34XX');
+    assert.ok(!masked.includes('8557299558'));
   });
 });
 

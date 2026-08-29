@@ -13,9 +13,7 @@ import {
   setApplicationTrackingEnabled,
   setClassifierMode,
   setDisabledSources,
-  setDiscoveryEnabled,
   setFetchingEnabled,
-  setHnParserEnabled,
   setStaleApplicationsDigestEnabled,
   setTelegramEnabled,
   testTelegramTarget,
@@ -40,7 +38,6 @@ import {
   updateProfile,
 } from '../../profiles';
 import { runReclassifyAll } from '../../jobs/reclassify-job';
-import { runHnHiringJob } from '../../jobs/hn-hiring-job';
 import { recordCronRun } from '../../jobs/cron-run';
 import { parseTagList, toStringArray } from '../../text-utils';
 import {
@@ -50,6 +47,7 @@ import {
 } from '../../priority-rules';
 import { prisma } from '../../db';
 import { SettingsPage } from '../pages/settings';
+import { sourceLabel } from '../source-names';
 import { clearFlashCookie, flashRedirect, parseFlashCookie } from '../flash';
 import { listResumes } from '../../resume/store';
 
@@ -110,10 +108,8 @@ settingsRoute.get('/settings', async (c) => {
       classifierMode={settings.classifierMode}
       applicationTrackingEnabled={settings.applicationTrackingEnabled}
       staleApplicationsDigestEnabled={settings.staleApplicationsDigestEnabled}
-      hnParserEnabled={settings.hnParserEnabled}
       disabledSources={settings.disabledSources}
       allSources={Object.values(AtsType).filter((t) => t !== AtsType.MANUAL)}
-      discoveryEnabled={settings.discoveryEnabled}
       fetchingEnabled={settings.fetchingEnabled}
       aiProviders={AI_PROVIDER_IDS.map((id) => ({
         id,
@@ -170,13 +166,9 @@ settingsRoute.get('/settings', async (c) => {
 settingsRoute.post('/settings/fetching-toggle', async (c) => {
   const settings = await getSettings();
   await setFetchingEnabled(!settings.fetchingEnabled);
-  return flashRedirect(
-    '/settings',
-    'ok',
-    settings.fetchingEnabled
-      ? 'Job fetching paused — no new jobs or alerts until you resume.'
-      : 'Job fetching resumed — next hourly tick will pull new jobs.',
-  );
+  return settings.fetchingEnabled
+    ? flashRedirect('/settings', 'warn', 'Job fetching paused — no new jobs or alerts until you resume.')
+    : flashRedirect('/settings', 'ok', 'Job fetching resumed — next hourly tick will pull new jobs.');
 });
 
 // --- Telegram toggle / targets ---------------------------------------------
@@ -274,7 +266,8 @@ settingsRoute.post('/settings/sources', async (c) => {
         ? [form.enabled]
         : []
   ).filter((v): v is string => typeof v === 'string');
-  const allSources = Object.values(AtsType) as string[];
+  // MANUAL is not a fetchable source — keep it out of disabledSources.
+  const allSources = Object.values(AtsType).filter((s) => s !== AtsType.MANUAL) as string[];
   // disabledSources = everything NOT in the submitted "enabled" set.
   const disabled = allSources.filter((s) => !enabled.includes(s));
   await setDisabledSources(disabled);
@@ -283,53 +276,7 @@ settingsRoute.post('/settings/sources', async (c) => {
     'ok',
     disabled.length === 0
       ? 'All sources enabled.'
-      : `Disabled: ${disabled.join(', ')}.`,
-  );
-});
-
-settingsRoute.post('/settings/discovery-toggle', async (c) => {
-  const settings = await getSettings();
-  await setDiscoveryEnabled(!settings.discoveryEnabled);
-  return flashRedirect(
-    '/settings',
-    'ok',
-    `Auto-discovery ${!settings.discoveryEnabled ? 'enabled' : 'disabled'}.`,
-  );
-});
-
-settingsRoute.post('/settings/hn-parser-toggle', async (c) => {
-  const settings = await getSettings();
-  await setHnParserEnabled(!settings.hnParserEnabled);
-  return flashRedirect(
-    '/settings',
-    'ok',
-    `HN parser ${!settings.hnParserEnabled ? 'enabled' : 'disabled'}.`,
-  );
-});
-
-let hnRunInFlight = false;
-settingsRoute.post('/settings/hn-run', (c) => {
-  if (hnRunInFlight) {
-    return flashRedirect(
-      '/settings',
-      'err',
-      'An HN parse run is already in progress. Watch /runs.',
-    );
-  }
-  hnRunInFlight = true;
-  void (async () => {
-    try {
-      await recordCronRun('hn-hiring', runHnHiringJob);
-    } catch (err) {
-      logger.error({ err }, 'hn-hiring (manual trigger): failed');
-    } finally {
-      hnRunInFlight = false;
-    }
-  })();
-  return flashRedirect(
-    '/settings',
-    'ok',
-    'HN parse started in the background. Track progress at /runs.',
+      : `Disabled: ${disabled.map(sourceLabel).join(', ')}.`,
   );
 });
 

@@ -22,6 +22,7 @@ import {
   Tr,
 } from '../ui';
 import { formatRelative } from '../format';
+import type { FlashMessage } from '../flash';
 
 interface CompanyRow {
   id: number;
@@ -37,7 +38,7 @@ interface CompanyRow {
 
 export interface CompaniesProps {
   companies: CompanyRow[];
-  flash?: { kind: 'ok' | 'err'; text: string } | null;
+  flash?: FlashMessage | null;
 }
 
 const PROBEABLE_ATS: AtsType[] = [

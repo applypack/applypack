@@ -14,21 +14,26 @@ import {
   Table,
   Tag,
   Td,
+  ToggleRow,
   Tr,
 } from '../ui';
 import { formatRelative } from '../format';
+import type { FlashMessage } from '../flash';
+import { sourceLabel } from '../source-names';
 
 export interface DiscoveryProps {
   discoveryEnabled: boolean;
+  hnParserEnabled: boolean;
   pending: CompanyCandidate[];
   promoted: CompanyCandidate[];
   ignored: CompanyCandidate[];
   dead: CompanyCandidate[];
-  flash?: { kind: 'ok' | 'err'; text: string } | null;
+  flash?: FlashMessage | null;
 }
 
 export const DiscoveryPage: FC<DiscoveryProps> = ({
   discoveryEnabled,
+  hnParserEnabled,
   pending,
   promoted,
   ignored,
@@ -36,22 +41,50 @@ export const DiscoveryPage: FC<DiscoveryProps> = ({
   flash,
 }) => (
   <Layout title="Discovery" active="discovery">
-    <PageHeader
-      title="Discovery"
-      meta={discoveryEnabled ? 'Auto-discovery on' : 'Auto-discovery off — toggle in Settings'}
-    >
+    <PageHeader title="Discovery">
       Company boards the HN parser spotted in comments. Promote one to start fetching it on the
       next tick.
     </PageHeader>
     <Flash flash={flash} />
 
     <div class="space-y-6">
+      <Card>
+        <div class="space-y-5">
+          <ToggleRow label="Auto-discovery" enabled={discoveryEnabled} action="/discovery/toggle">
+            When the HN parser sees a Greenhouse / Lever / Ashby URL in a comment, the company
+            lands here as a candidate. Pending candidates are re-probed weekly so the job count
+            stays fresh.
+          </ToggleRow>
+          <div class="border-t border-line pt-5">
+            <ToggleRow
+              label={'HN "Who is hiring" parser'}
+              enabled={hnParserEnabled}
+              action="/discovery/hn-parser-toggle"
+              extra={
+                <ActionForm
+                  action="/discovery/hn-run"
+                  confirm="Pull the latest HN Who-is-hiring thread now? Takes 1-2 minutes and spends AI credit."
+                >
+                  <Button size="sm" variant="violet" disabled={!hnParserEnabled}>
+                    Run now
+                  </Button>
+                </ActionForm>
+              }
+            >
+              Parses the latest "Ask HN: Who is hiring?" thread (300-500 comments) monthly and
+              runs the structured ones through the same filter → classify → alert pipeline. Many
+              small startups only post there.
+            </ToggleRow>
+          </div>
+        </div>
+      </Card>
+
       <div>
         <SectionTitle>Pending review ({pending.length})</SectionTitle>
         {pending.length === 0 ? (
           <Empty>
-            No candidates yet. Enable the HN parser and discovery in Settings, then run the HN
-            once-job to seed candidates from the latest thread.
+            No candidates yet. Enable the HN parser and auto-discovery above, then "Run now" to
+            seed candidates from the latest thread.
           </Empty>
         ) : (
           <>
@@ -114,7 +147,7 @@ const CandidateTable: FC<{ rows: CompanyCandidate[]; actions?: boolean }> = ({
                 )}
               </Td>
               <Td>
-                <Tag>{c.atsType}</Tag>
+                <Tag>{sourceLabel(c.atsType)}</Tag>
               </Td>
               <Td class="text-[13px] text-ink-muted">
                 {c.sourceUrl ? (

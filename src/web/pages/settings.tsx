@@ -25,8 +25,9 @@ import {
   Tr,
 } from '../ui';
 import { formatRelative } from '../format';
+import type { FlashMessage } from '../flash';
+import { sourceLabel } from '../source-names';
 import { formatPriorityRulesText, parsePriorityRules } from '../../priority-rules';
-import { ResumeUploadForm } from './resumes';
 
 interface MaskedTarget {
   id: number;
@@ -83,10 +84,8 @@ export interface SettingsProps {
   classifierMode: 'single' | 'two_stage';
   applicationTrackingEnabled: boolean;
   staleApplicationsDigestEnabled: boolean;
-  hnParserEnabled: boolean;
   disabledSources: string[];
   allSources: string[];
-  discoveryEnabled: boolean;
   fetchingEnabled: boolean;
   aiProviders: AiProviderOption[];
   aiModelClassifier: string | null;
@@ -97,7 +96,7 @@ export interface SettingsProps {
   activeProfile: Profile | null;
   availableTargets: AvailableTarget[];
   resumes: ResumeListItem[];
-  flash?: { kind: 'ok' | 'err'; text: string } | null;
+  flash?: FlashMessage | null;
 }
 
 /** Stripe-style settings section: title + description left, controls right. */
@@ -120,10 +119,8 @@ export const SettingsPage: FC<SettingsProps> = ({
   classifierMode,
   applicationTrackingEnabled,
   staleApplicationsDigestEnabled,
-  hnParserEnabled,
   disabledSources,
   allSources,
-  discoveryEnabled,
   fetchingEnabled,
   aiProviders,
   aiModelClassifier,
@@ -139,8 +136,8 @@ export const SettingsPage: FC<SettingsProps> = ({
   <Layout title="Settings" active="settings">
     <div class="w-full max-w-5xl">
       <PageHeader title="Settings">
-        Everything here lives in Postgres — no .env edits, no restarts. Toggles take effect on
-        the next cron tick.
+        Changes save the moment you click — no restarts needed. Dashboard actions use them
+        immediately; the background worker picks them up within the hour.
       </PageHeader>
       <Flash flash={flash} />
 
@@ -158,8 +155,8 @@ export const SettingsPage: FC<SettingsProps> = ({
             enableText="Resume"
             disableText="Pause"
           >
-            Hourly fetch + monthly HN pull. Pausing stops new jobs and alerts without touching
-            Docker; the dashboard, digest, cleanup and discovery probe keep running.
+            Hourly fetch + monthly HN pull. Pausing stops new jobs and alerts; the dashboard,
+            digests and cleanup keep running.
           </ToggleRow>
         </Card>
       </Section>
@@ -332,97 +329,6 @@ export const SettingsPage: FC<SettingsProps> = ({
       </Section>
 
       <Section
-        title="Job sources"
-        desc="Disable a whole source family with one click — handy when an aggregator gets noisy. Per-company toggles on the Companies page still apply."
-      >
-        <Card>
-          <form method="post" action="/settings/sources" class="space-y-4">
-            <div class="flex flex-wrap gap-1.5">
-              {allSources.map((s) => (
-                <PillCheckbox name="enabled" value={s} checked={!disabledSources.includes(s)}>
-                  {s}
-                </PillCheckbox>
-              ))}
-            </div>
-            <Button variant="secondary">Save sources</Button>
-          </form>
-        </Card>
-      </Section>
-
-      <Section
-        title="Resumes"
-        desc="Upload the resumes you send out. Every job page can then compare one against the posting."
-      >
-        <Card>
-          {resumes.length > 0 && (
-            <ul class="mb-4 divide-y divide-line rounded-md border border-line">
-              {resumes.map((r) => (
-                <li class="flex flex-wrap items-center gap-2 px-3.5 py-2.5 text-sm">
-                  <a
-                    href={`/resumes/${r.id}`}
-                    class="font-medium text-ink transition-colors duration-150 hover:text-accent-strong"
-                  >
-                    {r.name}
-                  </a>
-                  {r.isDefault && <Badge tone="ok">default</Badge>}
-                  {!r.scannedAt && <Badge tone="warn">not scanned</Badge>}
-                </li>
-              ))}
-            </ul>
-          )}
-          <ResumeUploadForm />
-          <Hint class="mt-3">
-            <a
-              href="/resumes"
-              class="font-medium text-accent-strong hover:text-accent-deep"
-            >
-              Manage resumes →
-            </a>
-          </Hint>
-        </Card>
-      </Section>
-
-      <Section
-        title="Discovery"
-        desc="Finding new company boards automatically from HN threads."
-      >
-        <Card>
-          <div class="space-y-5">
-            <ToggleRow
-              label="Auto-discovery"
-              enabled={discoveryEnabled}
-              action="/settings/discovery-toggle"
-            >
-              When the HN parser sees a Greenhouse / Lever / Ashby URL in a comment, the company
-              lands on the Discovery page as a candidate. A weekly cron re-probes pending
-              candidates so the job count stays fresh.
-            </ToggleRow>
-            <div class="border-t border-line pt-5">
-              <ToggleRow
-                label={'HN "Who is hiring" parser'}
-                enabled={hnParserEnabled}
-                action="/settings/hn-parser-toggle"
-                extra={
-                  <ActionForm
-                    action="/settings/hn-run"
-                    confirm="Pull the latest HN Who-is-hiring thread now? Takes 1-2 minutes and spends AI credit."
-                  >
-                    <Button size="sm" variant="violet" disabled={!hnParserEnabled}>
-                      Run now
-                    </Button>
-                  </ActionForm>
-                }
-              >
-                Monthly cron parses the latest "Ask HN: Who is hiring?" thread (300-500 comments)
-                and runs the structured ones through the same filter → classify → alert pipeline.
-                Many small startups only post there.
-              </ToggleRow>
-            </div>
-          </div>
-        </Card>
-      </Section>
-
-      <Section
         title="Application tracking"
         desc="The funnel board and the nudge that keeps it honest."
       >
@@ -543,7 +449,61 @@ export const SettingsPage: FC<SettingsProps> = ({
             </div>
           </form>
           <Hint class="mt-3">
-            The bot token is validated (getMe + sendMessage) before saving.
+            The token is checked and a test message is sent before saving.
+          </Hint>
+        </Card>
+      </Section>
+
+      <Section
+        title="Job sources"
+        desc="Disable a whole source family with one click — handy when an aggregator gets noisy. Per-company toggles on the Companies page still apply."
+      >
+        <Card>
+          <form method="post" action="/settings/sources" class="space-y-4">
+            <div class="flex flex-wrap gap-1.5">
+              {allSources.map((s) => (
+                <PillCheckbox name="enabled" value={s} checked={!disabledSources.includes(s)}>
+                  {sourceLabel(s)}
+                </PillCheckbox>
+              ))}
+            </div>
+            <Hint>
+              Keep the aggregators on — they carry the long tail of companies not tracked on the
+              Companies page. The profile filter and classifier do the narrowing; turning
+              aggregators off usually means near-zero new jobs.
+            </Hint>
+            <Button variant="secondary">Save sources</Button>
+          </form>
+        </Card>
+      </Section>
+
+      <Section
+        title="Resumes"
+        desc="The resumes you send out. Every job page can compare one against the posting."
+      >
+        <Card>
+          {resumes.length > 0 ? (
+            <ul class="divide-y divide-line rounded-md border border-line">
+              {resumes.map((r) => (
+                <li class="flex flex-wrap items-center gap-2 px-3.5 py-2.5 text-sm">
+                  <a
+                    href={`/resumes/${r.id}`}
+                    class="font-medium text-ink transition-colors duration-150 hover:text-accent-strong"
+                  >
+                    {r.name}
+                  </a>
+                  {r.isDefault && <Badge tone="ok">default</Badge>}
+                  {!r.scannedAt && <Badge tone="warn">not scanned</Badge>}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <Empty>No resumes yet.</Empty>
+          )}
+          <Hint class="mt-3">
+            <a href="/resumes" class="font-medium text-accent-strong hover:text-accent-deep">
+              Upload &amp; manage resumes →
+            </a>
           </Hint>
         </Card>
       </Section>
@@ -666,7 +626,13 @@ const ProfileEditor: FC<{
 
     <div class="flex flex-wrap items-center gap-3 border-t border-line pt-4">
       <Button size="lg">Save profile</Button>
-      <Button size="lg" variant="violet" name="action" value="save-and-reclassify">
+      <Button
+        size="lg"
+        variant="violet"
+        name="action"
+        value="save-and-reclassify"
+        onclick="return confirm('Save the profile and re-classify all jobs (except APPLIED)? Takes 2-5 minutes and spends AI credit.')"
+      >
         Save &amp; re-classify
       </Button>
       <span data-dirty-indicator hidden class="text-[13px] font-medium text-warn">

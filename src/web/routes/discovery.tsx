@@ -1,5 +1,5 @@
 /** @jsxImportSource hono/jsx */
-import { Hono, type Context } from 'hono';
+import { Hono } from 'hono';
 import { CandidateStatus } from '@prisma/client';
 import { logger } from '../../logger';
 import {
@@ -8,14 +8,15 @@ import {
   listCandidates,
   promoteCandidate,
 } from '../../discovery';
-import { getSettings } from '../../settings';
+import { getSettings, setDiscoveryEnabled, setHnParserEnabled } from '../../settings';
 import { recordCronRun } from '../../jobs/cron-run';
 import { runDiscoveryJob } from '../../jobs/discovery-job';
+import { runHnHiringJob } from '../../jobs/hn-hiring-job';
 import { DiscoveryPage } from '../pages/discovery';
-
-const FLASH_TTL_SECONDS = 5;
+import { clearFlashCookie, flashRedirect, parseFlashCookie } from '../flash';
 
 let probeInFlight = false;
+let hnRunInFlight = false;
 
 export const discoveryRoute = new Hono();
 
@@ -31,6 +32,7 @@ discoveryRoute.get('/discovery', async (c) => {
   return c.html(
     <DiscoveryPage
       discoveryEnabled={settings.discoveryEnabled}
+      hnParserEnabled={settings.hnParserEnabled}
       pending={pending}
       promoted={promoted}
       ignored={ignored}
@@ -42,21 +44,52 @@ discoveryRoute.get('/discovery', async (c) => {
   );
 });
 
+discoveryRoute.post('/discovery/toggle', async (c) => {
+  const settings = await getSettings();
+  await setDiscoveryEnabled(!settings.discoveryEnabled);
+  return flashRedirect('/discovery', 'ok',
+    `Auto-discovery ${!settings.discoveryEnabled ? 'enabled' : 'disabled'}.`,
+  );
+});
+
+discoveryRoute.post('/discovery/hn-parser-toggle', async (c) => {
+  const settings = await getSettings();
+  await setHnParserEnabled(!settings.hnParserEnabled);
+  return flashRedirect('/discovery', 'ok',
+    `HN "Who is hiring" parser ${!settings.hnParserEnabled ? 'enabled' : 'disabled'}.`,
+  );
+});
+
+discoveryRoute.post('/discovery/hn-run', (c) => {
+  if (hnRunInFlight) {
+    return flashRedirect('/discovery', 'err', 'An HN parse run is already in progress. Watch /runs.');
+  }
+  hnRunInFlight = true;
+  void (async () => {
+    try {
+      await recordCronRun('hn-hiring', runHnHiringJob);
+    } catch (err) {
+      logger.error({ err }, 'hn-hiring (manual trigger): failed');
+    } finally {
+      hnRunInFlight = false;
+    }
+  })();
+  return flashRedirect('/discovery', 'ok',
+    'HN parse started in the background. Track progress at /runs.',
+  );
+});
+
 discoveryRoute.post('/discovery/:id/promote', async (c) => {
   const id = Number(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text('Bad id', 400);
   try {
     await promoteCandidate(id);
   } catch (err) {
-    return redirectWithFlash(
-      c,
-      'err',
+    return flashRedirect('/discovery', 'err',
       err instanceof Error ? err.message : 'Promote failed.',
     );
   }
-  return redirectWithFlash(
-    c,
-    'ok',
+  return flashRedirect('/discovery', 'ok',
     'Promoted to active company. Next fetch tick will pull its jobs.',
   );
 });
@@ -65,21 +98,19 @@ discoveryRoute.post('/discovery/:id/ignore', async (c) => {
   const id = Number(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text('Bad id', 400);
   await ignoreCandidate(id);
-  return redirectWithFlash(c, 'ok', 'Marked as ignored.');
+  return flashRedirect('/discovery', 'ok', 'Marked as ignored.');
 });
 
 discoveryRoute.post('/discovery/:id/delete', async (c) => {
   const id = Number(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text('Bad id', 400);
   await deleteCandidate(id);
-  return redirectWithFlash(c, 'ok', 'Candidate deleted.');
+  return flashRedirect('/discovery', 'ok', 'Candidate deleted.');
 });
 
 discoveryRoute.post('/discovery/probe-now', (c) => {
   if (probeInFlight) {
-    return redirectWithFlash(
-      c,
-      'err',
+    return flashRedirect('/discovery', 'err',
       'A discovery probe is already running. Watch /runs.',
     );
   }
@@ -93,50 +124,7 @@ discoveryRoute.post('/discovery/probe-now', (c) => {
       probeInFlight = false;
     }
   })();
-  return redirectWithFlash(
-    c,
-    'ok',
+  return flashRedirect('/discovery', 'ok',
     'Discovery probe started. Track progress at /runs.',
   );
 });
-
-// --- helpers ----------------------------------------------------------------
-
-function redirectWithFlash(
-  c: Context,
-  kind: 'ok' | 'err',
-  text: string,
-): Response {
-  const value = encodeURIComponent(JSON.stringify({ kind, text }));
-  const cookie = `flash=${value}; Path=/; Max-Age=${FLASH_TTL_SECONDS}; HttpOnly; SameSite=Lax`;
-  return new Response(null, {
-    status: 303,
-    headers: { Location: '/discovery', 'Set-Cookie': cookie },
-  });
-}
-
-function parseFlashCookie(
-  cookieHeader: string | undefined,
-): { kind: 'ok' | 'err'; text: string } | null {
-  if (!cookieHeader) return null;
-  const match = /(?:^|;\s*)flash=([^;]+)/.exec(cookieHeader);
-  if (!match || !match[1]) return null;
-  try {
-    const parsed = JSON.parse(decodeURIComponent(match[1]));
-    if (
-      parsed &&
-      typeof parsed === 'object' &&
-      (parsed.kind === 'ok' || parsed.kind === 'err') &&
-      typeof parsed.text === 'string'
-    ) {
-      return parsed;
-    }
-  } catch {
-    return null;
-  }
-  return null;
-}
-
-function clearFlashCookie(): string {
-  return 'flash=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax';
-}
