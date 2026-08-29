@@ -268,33 +268,33 @@ model Resume {
 // Since phase 9 (ADR 0012) matchScore is computed by src/resume/score.ts from
 // the keyword statuses + alignment — the model never sets the number.
 model ResumeMatch {
-  id            Int      @id @default(autoincrement())
-  jobId         Int
-  job           Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
-  resumeId      Int
-  resume        Resume   @relation(fields: [resumeId], references: [id], onDelete: Cascade)
-  resumeVersion Int      @default(1)
+  id               Int      @id @default(autoincrement())
+  jobId            Int
+  job              Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  resumeId         Int
+  resume           Resume   @relation(fields: [resumeId], references: [id], onDelete: Cascade)
+  resumeVersion    Int      @default(1)
   // Snapshot of the text that was judged, so highlights stay true after the
   // resume moves on. `draft` = text came from the in-browser editor, not a
   // stored version.
-  resumeText    String   @default("") @db.Text
-  draft         Boolean  @default(false)
-  model         String
-  matchScore    Int
-  summary       String   @db.Text
-  strengths     String[] @default([])
-  redFlags      String[] @default([])
+  resumeText       String   @default("") @db.Text
+  draft            Boolean  @default(false)
+  model            String
+  matchScore       Int
+  summary          String   @db.Text
+  strengths        String[] @default([])
+  redFlags         String[] @default([])
   // Soft concerns — displayed, never scored (scoring v3). Red flags cost points;
   // cautions exist so the model has somewhere to put style/domain observations.
-  cautions      String[] @default([])
-  keywords      Json
-  actions       Json
-  removals      Json     @default("[]")
+  cautions         String[] @default([])
+  keywords         Json
+  actions          Json
+  removals         Json     @default("[]")
   // Deterministic score breakdown (ScoreBreakdown in score.ts); {} on pre-9 rows.
-  breakdown     Json     @default("{}")
+  breakdown        Json     @default("{}")
   // [{ requirement, status pass|unknown|fail, note }] — gates shown outside the score.
-  hardRequirements Json  @default("[]")
-  createdAt     DateTime @default(now())
+  hardRequirements Json     @default("[]")
+  createdAt        DateTime @default(now())
 
   @@index([jobId, createdAt])
   @@index([resumeId, createdAt])
