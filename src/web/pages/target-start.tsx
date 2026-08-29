@@ -38,36 +38,26 @@ export const TargetStartPage: FC<TargetStartProps> = ({ resumes, flash }) => {
   return (
     <Layout title="Target" active="target">
       <PageHeader title="Target" meta="~1–2 min per run">
-        Paste a posting and pick a resume — one run classifies the posting, scores the resume
-        against it and opens the side-by-side targeted view: match score, prioritised edits,
-        keyword coverage, live editor.
+        Paste a posting — the description alone is enough, company / title / location are
+        detected from it — and pick a resume. One run classifies the posting, scores the
+        resume against it and opens the side-by-side targeted view.
       </PageHeader>
       <Flash flash={flash} />
 
-      <form method="post" action="/target" enctype="multipart/form-data" class="w-full max-w-6xl">
+      <form
+        id="target-form"
+        method="post"
+        action="/target"
+        enctype="multipart/form-data"
+        class="w-full max-w-6xl"
+      >
         <div class="grid items-start gap-4 lg:grid-cols-2">
           <Card>
             <SectionTitle>Job posting</SectionTitle>
             <div class="space-y-4">
-              <div class="grid gap-4 sm:grid-cols-2">
-                <Field label="Company">
-                  <Input type="text" name="companyName" required maxlength="200" placeholder="Acme Corp" />
-                </Field>
-                <Field label="Job title">
-                  <Input type="text" name="title" required maxlength="200" placeholder="Senior PHP Developer" />
-                </Field>
-              </div>
-              <div class="grid gap-4 sm:grid-cols-2">
-                <Field label="Posting URL" hint="Optional — lets Verify find the original later.">
-                  <Input type="url" name="url" placeholder="https://…" />
-                </Field>
-                <Field label="Location" hint='Optional: "Remote (US)", "Austin, TX (hybrid)".'>
-                  <Input type="text" name="location" maxlength="200" placeholder="Remote (US)" />
-                </Field>
-              </div>
               <Field
                 label="Job description"
-                hint="Paste the posting verbatim — it is the keyword source for the analysis."
+                hint="Paste the posting verbatim — it is the keyword source, and empty fields below are detected from it."
               >
                 <Textarea
                   name="description"
@@ -77,6 +67,23 @@ export const TargetStartPage: FC<TargetStartProps> = ({ resumes, flash }) => {
                   placeholder="About the role…"
                 />
               </Field>
+              <p id="extract-status" hidden aria-live="polite" class="text-[13px] leading-5 text-violet"></p>
+              <div class="grid gap-4 sm:grid-cols-2">
+                <Field label="Company" hint="Optional — detected from the description.">
+                  <Input type="text" name="companyName" maxlength="200" placeholder="Acme Corp" />
+                </Field>
+                <Field label="Job title" hint="Optional — detected from the description.">
+                  <Input type="text" name="title" maxlength="200" placeholder="Senior PHP Developer" />
+                </Field>
+              </div>
+              <div class="grid gap-4 sm:grid-cols-2">
+                <Field label="Posting URL" hint="Optional — lets Verify find the original later.">
+                  <Input type="url" name="url" placeholder="https://…" />
+                </Field>
+                <Field label="Location" hint="Optional — detected from the description when stated.">
+                  <Input type="text" name="location" maxlength="200" placeholder="Remote (US)" />
+                </Field>
+              </div>
             </div>
           </Card>
 
@@ -158,10 +165,16 @@ export const TargetStartPage: FC<TargetStartProps> = ({ resumes, flash }) => {
           </Hint>
         </div>
       </form>
-      <script dangerouslySetInnerHTML={{ __html: MODE_JS }} />
+      <script type="module" dangerouslySetInnerHTML={{ __html: BOOT_JS }} />
     </Layout>
   );
 };
+
+/* Mode selection + description auto-fill live in the served module. */
+const BOOT_JS = `
+import { init } from '/static/target-start.mjs';
+init();
+`;
 
 const ModeCard: FC<
   PropsWithChildren<{ value: string; label: string; checked?: boolean; disabled?: boolean }>
@@ -187,15 +200,3 @@ const ModeCard: FC<
   </fieldset>
 );
 
-/** Enhancement only: focusing a field inside a mode selects that mode. */
-const MODE_JS = `
-  (function () {
-    document.querySelectorAll('[data-mode]').forEach(function (box) {
-      var radio = box.querySelector('input[type=radio][name=resumeMode]');
-      if (!radio || radio.disabled) return;
-      box.addEventListener('focusin', function (e) {
-        if (e.target !== radio) radio.checked = true;
-      });
-    });
-  })();
-`;
