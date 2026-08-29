@@ -24,17 +24,38 @@ import { MAX_UPLOAD_MB } from '../upload';
  * the manual-job and resume-match flows.
  */
 
+/** Everything re-renderable after a failed submit — a chosen FILE cannot come back. */
+export interface TargetStartValues {
+  companyName: string;
+  title: string;
+  url: string;
+  location: string;
+  description: string;
+  resumeMode: 'existing' | 'upload' | 'paste';
+  resumeId?: number;
+  uploadName: string;
+  pasteName: string;
+  resumeText: string;
+  salaryMin?: number;
+  salaryMax?: number;
+  workplace?: string;
+}
+
 export interface TargetStartProps {
   resumes: { id: number; name: string; isDefault: boolean; version: number }[];
   flash?: FlashMessage | null;
+  /** Present only when a submit bounced: the form re-renders with what the user typed. */
+  values?: TargetStartValues;
 }
 
 const FILE_INPUT_CLASS =
   'file:mr-3 file:cursor-pointer file:rounded-md file:border-0 file:bg-surface-overlay file:px-2.5 file:py-1 file:text-xs file:font-medium file:text-ink';
 
-export const TargetStartPage: FC<TargetStartProps> = ({ resumes, flash }) => {
+export const TargetStartPage: FC<TargetStartProps> = ({ resumes, flash, values: v }) => {
   const hasResumes = resumes.length > 0;
   const defaultResumeId = (resumes.find((r) => r.isDefault) ?? resumes[0])?.id;
+  const mode = v?.resumeMode ?? (hasResumes ? 'existing' : 'upload');
+  const selectedResumeId = v?.resumeId ?? defaultResumeId;
   return (
     <Layout title="Target" active="target">
       <PageHeader title="Target" meta="~1–2 min per run">
@@ -65,12 +86,14 @@ export const TargetStartPage: FC<TargetStartProps> = ({ resumes, flash }) => {
                   required
                   minlength="200"
                   placeholder="About the role…"
-                />
+                >
+                  {v?.description ?? ''}
+                </Textarea>
               </Field>
               {/* Auto-detected extras ride along invisibly (the user already knows them). */}
-              <input type="hidden" name="salaryMin" />
-              <input type="hidden" name="salaryMax" />
-              <input type="hidden" name="workplace" />
+              <input type="hidden" name="salaryMin" value={v?.salaryMin != null ? String(v.salaryMin) : ''} />
+              <input type="hidden" name="salaryMax" value={v?.salaryMax != null ? String(v.salaryMax) : ''} />
+              <input type="hidden" name="workplace" value={v?.workplace ?? ''} />
               {/* The [hidden] attribute loses to a display class on the same element
                   (.flex beats [hidden]) — so the toggled wrapper carries no classes. */}
               <div id="extract-status" hidden aria-live="polite">
@@ -85,18 +108,18 @@ export const TargetStartPage: FC<TargetStartProps> = ({ resumes, flash }) => {
               </div>
               <div class="grid gap-4 sm:grid-cols-2">
                 <Field label="Company" hint="Optional — detected from the description.">
-                  <Input type="text" name="companyName" maxlength="200" placeholder="Acme Corp" />
+                  <Input type="text" name="companyName" maxlength="200" placeholder="Acme Corp" value={v?.companyName ?? ''} />
                 </Field>
                 <Field label="Job title" hint="Optional — detected from the description.">
-                  <Input type="text" name="title" maxlength="200" placeholder="Senior PHP Developer" />
+                  <Input type="text" name="title" maxlength="200" placeholder="Senior PHP Developer" value={v?.title ?? ''} />
                 </Field>
               </div>
               <div class="grid gap-4 sm:grid-cols-2">
                 <Field label="Posting URL" hint="Optional — lets Verify find the original later.">
-                  <Input type="url" name="url" placeholder="https://…" />
+                  <Input type="url" name="url" placeholder="https://…" value={v?.url ?? ''} />
                 </Field>
                 <Field label="Location" hint="Optional — detected from the description when stated.">
-                  <Input type="text" name="location" maxlength="200" placeholder="Remote (US)" />
+                  <Input type="text" name="location" maxlength="200" placeholder="Remote (US)" value={v?.location ?? ''} />
                 </Field>
               </div>
             </div>
@@ -108,13 +131,13 @@ export const TargetStartPage: FC<TargetStartProps> = ({ resumes, flash }) => {
               <ModeCard
                 value="existing"
                 label="Use an uploaded resume"
-                checked={hasResumes}
+                checked={mode === 'existing' && hasResumes}
                 disabled={!hasResumes}
               >
                 {hasResumes ? (
                   <Select name="resumeId" aria-label="Resume">
                     {resumes.map((r) => (
-                      <option value={r.id} selected={r.id === defaultResumeId}>
+                      <option value={r.id} selected={r.id === selectedResumeId}>
                         {r.name} · v{r.version}
                         {r.isDefault ? ' · default' : ''}
                       </option>
@@ -125,7 +148,7 @@ export const TargetStartPage: FC<TargetStartProps> = ({ resumes, flash }) => {
                 )}
               </ModeCard>
 
-              <ModeCard value="upload" label="Upload a file" checked={!hasResumes}>
+              <ModeCard value="upload" label="Upload a file" checked={mode === 'upload'}>
                 <div class="space-y-3">
                   <Input
                     type="file"
@@ -140,6 +163,7 @@ export const TargetStartPage: FC<TargetStartProps> = ({ resumes, flash }) => {
                     maxlength="100"
                     placeholder="Name (optional — taken from the file name)"
                     aria-label="Resume name"
+                    value={v?.uploadName ?? ''}
                   />
                   <Hint>
                     {ACCEPTED_EXTENSIONS.join(', ')} · up to {MAX_UPLOAD_MB} MB. Lands in
@@ -148,7 +172,7 @@ export const TargetStartPage: FC<TargetStartProps> = ({ resumes, flash }) => {
                 </div>
               </ModeCard>
 
-              <ModeCard value="paste" label="Paste resume text">
+              <ModeCard value="paste" label="Paste resume text" checked={mode === 'paste'}>
                 <div class="space-y-3">
                   <Input
                     type="text"
@@ -156,13 +180,16 @@ export const TargetStartPage: FC<TargetStartProps> = ({ resumes, flash }) => {
                     maxlength="100"
                     placeholder="Name (optional)"
                     aria-label="Resume name"
+                    value={v?.pasteName ?? ''}
                   />
                   <Textarea
                     name="resumeText"
                     rows={8}
                     placeholder="Plain resume text, at least 200 characters…"
                     aria-label="Resume text"
-                  />
+                  >
+                    {v?.resumeText ?? ''}
+                  </Textarea>
                   <Hint>Saved to Resumes as a text file, so you can iterate on it later.</Hint>
                 </div>
               </ModeCard>

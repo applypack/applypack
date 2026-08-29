@@ -20,11 +20,16 @@ const TAIL_MARKERS = [
   /^explore collaborative articles$/i,
 ];
 
-/** Lines that are chrome wherever they appear. */
-const NOISE_LINES = [
+/** Site navigation — chrome that also BOUNDS the job-header block above the body. */
+const NAV_LINES = [
   /^skip to main content$/i,
   /^sign in$/i,
   /^join now$/i,
+  /^(home|my network|jobs|messaging|notifications|me|for business)$/i,
+];
+
+/** Buttons and counters that appear INSIDE the header block — filtered, never bounding. */
+const SOFT_NOISE = [
   /^(easy )?apply( now)?$/i,
   /^save$/i,
   /^saved?$/i,
@@ -32,20 +37,40 @@ const NOISE_LINES = [
   /^report this job$/i,
   /^show (more|less)$/i,
   /^see (more|less)$/i,
-  /^(home|my network|jobs|messaging|notifications|me|for business)$/i,
   /^\d[\d,.]* (applicants?|followers|employees|connections)$/i,
   /^promoted$/i,
   /^actively (hiring|reviewing applicants)$/i,
 ];
 
+const isNav = (t) => NAV_LINES.some((re) => re.test(t));
+const isSoftNoise = (t) => SOFT_NOISE.some((re) => re.test(t));
+
 const MIN_KEEP_CHARS = 200;
+
+/** How far above "About the job" the job-header block may reach. */
+const HEADER_LOOKBACK_LINES = 12;
+const HEADER_KEEP = 6;
 
 export function cleanPostingText(raw) {
   const original = String(raw ?? '');
   let lines = original.replace(/\r\n/g, '\n').split('\n');
 
   const headIdx = lines.findIndex((l) => HEAD_MARKERS.some((re) => re.test(l.trim())));
-  if (headIdx > 0) lines = lines.slice(headIdx);
+  if (headIdx > 0) {
+    // Cut the page chrome above the body, but KEEP the job-header block that
+    // sits right over the marker — title, company · location · salary live
+    // there. Soft noise inside it is filtered below; the first NAV line (or
+    // the window edge) bounds the block.
+    let start = headIdx;
+    let kept = 0;
+    for (let i = headIdx - 1; i >= 0 && headIdx - i <= HEADER_LOOKBACK_LINES && kept < HEADER_KEEP; i--) {
+      const t = lines[i].trim();
+      if (isNav(t)) break;
+      start = i;
+      if (t !== '' && !isSoftNoise(t)) kept++;
+    }
+    lines = lines.slice(start);
+  }
 
   const tailIdx = lines.findIndex((l) => TAIL_MARKERS.some((re) => re.test(l.trim())));
   if (tailIdx > 0) lines = lines.slice(0, tailIdx);
@@ -53,7 +78,7 @@ export function cleanPostingText(raw) {
   const kept = [];
   for (const line of lines) {
     const t = line.trim();
-    if (NOISE_LINES.some((re) => re.test(t))) continue;
+    if (isNav(t) || isSoftNoise(t)) continue;
     if (t !== '' && kept.length > 0 && kept[kept.length - 1].trim() === t) continue; // consecutive duplicate
     kept.push(line);
   }

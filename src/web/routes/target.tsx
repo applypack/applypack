@@ -44,16 +44,19 @@ const TargetFormSchema = ManualJobSchema.extend({
 
 export const targetRoute = new Hono();
 
+async function resumeRows() {
+  return (await listResumes()).map((r) => ({
+    id: r.id,
+    name: r.name,
+    isDefault: r.isDefault,
+    version: r.version,
+  }));
+}
+
 targetRoute.get('/target', async (c) => {
-  const resumes = await listResumes();
   return c.html(
     <TargetStartPage
-      resumes={resumes.map((r) => ({
-        id: r.id,
-        name: r.name,
-        isDefault: r.isDefault,
-        version: r.version,
-      }))}
+      resumes={await resumeRows()}
       flash={parseFlashCookie(c.req.header('cookie'))}
     />,
     200,
@@ -121,10 +124,33 @@ targetRoute.post('/target', resumeUploadLimit('/target'), async (c) => {
     workplace = workplace ?? facts?.workplace ?? undefined;
   }
   if (!companyName || !title) {
-    return flashRedirect(
-      '/target',
-      'err',
-      "Couldn't detect the company or job title from the description — fill those two fields in.",
+    // Render the form BACK with everything the user typed — a redirect here
+    // would throw their paste away. A chosen file cannot be re-rendered.
+    return c.html(
+      <TargetStartPage
+        resumes={await resumeRows()}
+        flash={{
+          kind: 'err',
+          text:
+            "Couldn't detect the company or job title from the description — fill those two fields in." +
+            (f.resumeMode === 'upload' ? ' Please re-pick the resume file too.' : ''),
+        }}
+        values={{
+          companyName,
+          title,
+          url: f.url,
+          location,
+          description: f.description,
+          resumeMode: f.resumeMode,
+          resumeId: f.resumeId,
+          uploadName: f.uploadName,
+          pasteName: f.pasteName,
+          resumeText: f.resumeText,
+          salaryMin,
+          salaryMax,
+          workplace,
+        }}
+      />,
     );
   }
   // The Job schema has no workplace column; the location string is where the
