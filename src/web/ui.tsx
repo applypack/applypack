@@ -403,7 +403,7 @@ export const PillCheckbox: FC<PropsWithChildren<Record<string, unknown>>> = ({
   </label>
 );
 
-export const Radio: FC<PropsWithChildren<Record<string, unknown> & { title: string }>> = ({
+export const Radio: FC<PropsWithChildren<Record<string, unknown> & { title: Child }>> = ({
   children,
   title,
   ...rest

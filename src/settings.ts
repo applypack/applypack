@@ -17,7 +17,17 @@ export interface AppSettingsView {
   disabledSources: string[];
   discoveryEnabled: boolean;
   fetchingEnabled: boolean;
+  aiProvider: string | null;
+  aiModelClassifier: string | null;
+  aiModelResume: string | null;
   updatedAt: Date;
+}
+
+/** The AI-engine override columns (all NULL = follow .env). */
+export interface AiEngineSettings {
+  aiProvider: string | null;
+  aiModelClassifier: string | null;
+  aiModelResume: string | null;
 }
 
 /**
@@ -38,8 +48,20 @@ export async function getSettings(): Promise<AppSettingsView> {
     disabledSources: row.disabledSources,
     discoveryEnabled: row.discoveryEnabled,
     fetchingEnabled: row.fetchingEnabled,
+    aiProvider: row.aiProvider,
+    aiModelClassifier: row.aiModelClassifier,
+    aiModelResume: row.aiModelResume,
     updatedAt: row.updatedAt,
   };
+}
+
+export async function setAiEngine(engine: AiEngineSettings): Promise<void> {
+  await prisma.appSettings.upsert({
+    where: { id: SETTINGS_ID },
+    update: engine,
+    create: { id: SETTINGS_ID, ...engine },
+  });
+  logger.info(engine, 'settings: ai engine updated');
 }
 
 export async function setTelegramEnabled(enabled: boolean): Promise<void> {

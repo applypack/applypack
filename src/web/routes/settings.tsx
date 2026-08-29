@@ -9,6 +9,7 @@ import {
   getSettings,
   listTelegramTargets,
   maskToken,
+  setAiEngine,
   setApplicationTrackingEnabled,
   setClassifierMode,
   setDisabledSources,
@@ -20,6 +21,15 @@ import {
   testTelegramTarget,
   toggleTelegramTarget,
 } from '../../settings';
+import {
+  AI_PROVIDER_IDS,
+  AI_PROVIDER_LABELS,
+  isAiProviderId,
+  modelFitsProvider,
+  resolveAiEngine,
+  type AiProviderId,
+} from '../../ai-engine';
+import { AI_ENGINE_ENV, probeAiProviders } from '../../ai-runtime';
 import {
   createProfile,
   deleteProfile,
@@ -68,18 +78,31 @@ const ProfileFormSchema = z.object({
   action: z.string().optional(),
 });
 
+// UI copy per backend; availability comes from probeAiProviders().
+const AI_PROVIDER_DESCS: Record<AiProviderId, string> = {
+  anthropic_api: 'Messages API with prompt caching — fastest, pays per token.',
+  claude_code: 'Headless claude -p on your Claude.ai subscription. Slower, no per-token bill.',
+  gemini_cli: 'Headless gemini -p on your Google account or GEMINI_API_KEY.',
+};
+
 let reclassifyInFlight = false;
 
 export const settingsRoute = new Hono();
 
 settingsRoute.get('/settings', async (c) => {
-  const [settings, targets, profiles, active, resumes] = await Promise.all([
+  const [settings, targets, profiles, active, resumes, aiStatuses] = await Promise.all([
     getSettings(),
     listTelegramTargets(),
     listProfiles(),
     getActiveProfile(),
     listResumes(),
+    probeAiProviders(),
   ]);
+  const aiEffective = resolveAiEngine(settings, AI_ENGINE_ENV);
+  const aiFamilyDefaults = resolveAiEngine(
+    { aiProvider: settings.aiProvider, aiModelClassifier: null, aiModelResume: null },
+    AI_ENGINE_ENV,
+  );
   const flash = parseFlashCookie(c.req.header('cookie'));
   return c.html(
     <SettingsPage
@@ -92,6 +115,20 @@ settingsRoute.get('/settings', async (c) => {
       allSources={Object.values(AtsType).filter((t) => t !== AtsType.MANUAL)}
       discoveryEnabled={settings.discoveryEnabled}
       fetchingEnabled={settings.fetchingEnabled}
+      aiProviders={AI_PROVIDER_IDS.map((id) => ({
+        id,
+        label: AI_PROVIDER_LABELS[id],
+        desc: AI_PROVIDER_DESCS[id],
+        ok: aiStatuses[id].ok,
+        detail: aiStatuses[id].detail,
+        selected: aiEffective.providerId === id,
+      }))}
+      aiModelClassifier={settings.aiModelClassifier}
+      aiModelResume={settings.aiModelResume}
+      aiDefaults={{
+        classifier: aiFamilyDefaults.classifierModel,
+        resume: aiFamilyDefaults.resumeModel,
+      }}
       targets={targets.map((t) => ({
         id: t.id,
         name: t.name,
@@ -154,15 +191,51 @@ settingsRoute.post('/settings/telegram-toggle', async (c) => {
   );
 });
 
+settingsRoute.post('/settings/ai', async (c) => {
+  const form = await c.req.parseBody();
+  const provider = typeof form.provider === 'string' ? form.provider : '';
+  if (!isAiProviderId(provider)) {
+    return flashRedirect('/settings', 'err', 'Pick an AI provider.');
+  }
+  const statuses = await probeAiProviders();
+  if (!statuses[provider].ok) {
+    return flashRedirect(
+      '/settings',
+      'err',
+      `${AI_PROVIDER_LABELS[provider]} is not usable here: ${statuses[provider].detail}.`,
+    );
+  }
+  const classifierModel = cleanModelId(form.classifierModel);
+  const resumeModel = cleanModelId(form.resumeModel);
+  for (const model of [classifierModel, resumeModel]) {
+    if (model && !modelFitsProvider(model, provider)) {
+      return flashRedirect(
+        '/settings',
+        'err',
+        `"${model}" does not look like a ${AI_PROVIDER_LABELS[provider]} model id. Not saved.`,
+      );
+    }
+  }
+  await setAiEngine({ aiProvider: provider, aiModelClassifier: classifierModel, aiModelResume: resumeModel });
+  return flashRedirect(
+    '/settings',
+    'ok',
+    `AI engine → ${AI_PROVIDER_LABELS[provider]}. Dashboard actions use it now; the worker follows on its next tick.`,
+  );
+});
+
+function cleanModelId(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed.slice(0, 100) : null;
+}
+
 settingsRoute.post('/settings/classifier-mode', async (c) => {
   const form = await c.req.parseBody();
   const raw = form.mode;
   const mode = raw === 'two_stage' ? 'two_stage' : 'single';
   await setClassifierMode(mode);
-  const label =
-    mode === 'two_stage'
-      ? 'Two-stage prefilter + Haiku 4.5'
-      : 'Single (Haiku 4.5 only)';
+  const label = mode === 'two_stage' ? 'Two stage' : 'Single stage';
   return flashRedirect('/settings', 'ok', `Classifier mode → ${label}.`);
 });
 

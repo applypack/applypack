@@ -58,6 +58,23 @@ interface ResumeListItem {
   scannedAt: Date | null;
 }
 
+export interface AiProviderOption {
+  id: string;
+  label: string;
+  desc: string;
+  ok: boolean;
+  detail: string;
+  selected: boolean;
+}
+
+const AI_MODEL_SUGGESTIONS = [
+  'claude-haiku-4-5-20251001',
+  'claude-sonnet-5',
+  'claude-opus-5',
+  'gemini-2.5-flash',
+  'gemini-2.5-pro',
+];
+
 const REGION_OPTIONS = ['US', 'Americas', 'EU', 'UK', 'APAC', 'Worldwide'];
 const SENIORITY_OPTIONS = ['junior', 'mid', 'senior', 'staff', 'lead', 'principal'];
 
@@ -71,6 +88,10 @@ export interface SettingsProps {
   allSources: string[];
   discoveryEnabled: boolean;
   fetchingEnabled: boolean;
+  aiProviders: AiProviderOption[];
+  aiModelClassifier: string | null;
+  aiModelResume: string | null;
+  aiDefaults: { classifier: string; resume: string };
   targets: MaskedTarget[];
   profiles: ProfileListItem[];
   activeProfile: Profile | null;
@@ -104,6 +125,10 @@ export const SettingsPage: FC<SettingsProps> = ({
   allSources,
   discoveryEnabled,
   fetchingEnabled,
+  aiProviders,
+  aiModelClassifier,
+  aiModelResume,
+  aiDefaults,
   targets,
   profiles,
   activeProfile,
@@ -210,6 +235,70 @@ export const SettingsPage: FC<SettingsProps> = ({
             </Table>
           </Card>
         )}
+      </Section>
+
+      <Section
+        title="AI engine"
+        desc="Which AI backend runs the pipeline and which models it uses. Dashboard actions switch immediately; the worker follows on its next tick."
+      >
+        <Card>
+          <form method="post" action="/settings/ai" class="space-y-4">
+            <div class="space-y-2">
+              {aiProviders.map((p) => (
+                <Radio
+                  name="provider"
+                  value={p.id}
+                  checked={p.selected}
+                  disabled={!p.ok}
+                  title={
+                    <>
+                      {p.label}{' '}
+                      <Badge tone={p.ok ? 'ok' : 'neutral'} class="ml-1 align-middle">
+                        {p.ok ? 'available' : 'not detected'}
+                      </Badge>
+                    </>
+                  }
+                >
+                  {p.desc} <span class="text-ink-faint">({p.detail})</span>
+                </Radio>
+              ))}
+            </div>
+            <div class="grid gap-4 sm:grid-cols-2">
+              <Field
+                label="Classifier model"
+                hint={`Scores every fetched job — cheap and frequent. Empty = ${aiDefaults.classifier}.`}
+              >
+                <Input
+                  type="text"
+                  name="classifierModel"
+                  value={aiModelClassifier ?? ''}
+                  placeholder={aiDefaults.classifier}
+                  list="ai-model-ids"
+                  mono
+                />
+              </Field>
+              <Field
+                label="Resume model"
+                hint={`Resume scan, match and job verification — a few calls a day where judgment matters. Empty = ${aiDefaults.resume}.`}
+              >
+                <Input
+                  type="text"
+                  name="resumeModel"
+                  value={aiModelResume ?? ''}
+                  placeholder={aiDefaults.resume}
+                  list="ai-model-ids"
+                  mono
+                />
+              </Field>
+            </div>
+            <datalist id="ai-model-ids">
+              {AI_MODEL_SUGGESTIONS.map((m) => (
+                <option value={m} />
+              ))}
+            </datalist>
+            <Button variant="secondary">Save AI engine</Button>
+          </form>
+        </Card>
       </Section>
 
       <Section

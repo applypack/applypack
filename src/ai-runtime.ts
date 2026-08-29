@@ -17,7 +17,8 @@ import {
 
 const execFileAsync = promisify(execFile);
 
-const ENGINE_ENV: AiEngineEnv = {
+/** The .env side of the engine merge — exported for the settings page. */
+export const AI_ENGINE_ENV: AiEngineEnv = {
   provider: config.AI_PROVIDER,
   hasAnthropicKey: Boolean(config.ANTHROPIC_API_KEY),
   classifierModel: config.CLAUDE_MODEL,
@@ -43,7 +44,7 @@ export async function getAiRuntime(): Promise<AiRuntime> {
   } catch (err) {
     logger.warn({ err }, 'ai: settings read failed, using .env engine');
   }
-  const choice = resolveAiEngine(row, ENGINE_ENV);
+  const choice = resolveAiEngine(row, AI_ENGINE_ENV);
   return { ...choice, provider: getAiProviderById(choice.providerId) };
 }
 
