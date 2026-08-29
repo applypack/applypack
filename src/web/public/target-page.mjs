@@ -30,6 +30,8 @@ export function init(data) {
   const liveEst = document.getElementById('live-est');
   const liveDelta = document.getElementById('live-delta');
   const dirtyBar = document.getElementById('dirty-bar');
+  const barScore = document.getElementById('bar-score');
+  const barDelta = document.getElementById('bar-delta');
   const panes = document.getElementById('panes');
   const storageKey = 'target-draft:' + data.matchId;
 
@@ -62,10 +64,15 @@ export function init(data) {
     scoreValue.className = 'text-lg font-semibold tabular-nums ' + TONE_TEXT[tone(display)];
     scoreBar.style.width = display + '%';
     scoreBar.className = 'block h-full rounded-full transition-[width] duration-300 ' + TONE_BG[tone(display)];
+    barScore.textContent = String(display);
     if (data.scoring) {
       const d = display - data.aiScore;
-      liveDelta.textContent = d === 0 ? 'same as AI' : (d > 0 ? '+' : '') + d + ' vs AI';
-      liveDelta.className = 'text-xs font-medium ' + (d > 0 ? 'text-ok' : d < 0 ? 'text-danger' : 'text-ink-faint');
+      const deltaText = d === 0 ? 'same as AI' : (d > 0 ? '+' : '') + d + ' vs AI';
+      const deltaTone = d > 0 ? 'text-ok' : d < 0 ? 'text-danger' : 'text-ink-faint';
+      liveDelta.textContent = deltaText;
+      liveDelta.className = 'text-xs font-medium ' + deltaTone;
+      barDelta.textContent = deltaText;
+      barDelta.className = 'ml-1 text-xs font-medium ' + deltaTone;
     }
     const counted = scored.rows.filter((r) => !r.excluded);
     const missing = counted.filter((r) => !r.found);
@@ -145,7 +152,7 @@ export function init(data) {
     tab.addEventListener('click', () => {
       for (const t of document.querySelectorAll('[role=tab]')) t.setAttribute('aria-selected', t === tab ? 'true' : 'false');
       panes.dataset.view = tab.dataset.tab;
-      if (tab.dataset.tab !== 'changes') render();
+      render();
     });
   }
 
@@ -156,11 +163,11 @@ export function init(data) {
     });
   }
 
+  // The editor sits beside the suggestions, so a click selects in place — no tab switch.
   for (const item of document.querySelectorAll('[data-quote]')) {
     item.addEventListener('click', () => {
       const loc = locateQuote(editor.value, item.dataset.quote);
       if (!loc) { item.classList.add('flash-target'); setTimeout(() => item.classList.remove('flash-target'), 1200); return; }
-      document.querySelector('[role=tab][data-tab=both]').click();
       select(loc.start, loc.end);
     });
   }

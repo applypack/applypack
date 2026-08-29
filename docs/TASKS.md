@@ -279,8 +279,12 @@ removing the violet accent.
       (was three different sets across table, legend and tooltips)
 - [x] Keyword table: needs-attention rows first (must → context), matched rows
       behind a disclosure
-- [x] Matched-highlight toggle for both panes, default off (issues stay visible;
-      legend samples keep their colour)
+- [x] Matched-highlight toggle for both panes — default ON (user pref; audits
+      suggested off, user overrode). Legend samples keep their colour
+- [x] Suggestions is the first + default tab, advice column beside the sticky
+      editor; clicking a suggestion selects its text in place (no tab throw);
+      live estimate mirrored in the sticky bar; "Your resume" tab dropped
+      (the editor already shows in the first two tabs)
 - [x] Action row: Re-upload is the one visible button (user pref); Re-analyze
       and Save live in the ⋯ menu, resurfaced by the sticky bar while editing.
       Dropdown panels are in-flow on phones (an absolute panel overflowed 375px)
