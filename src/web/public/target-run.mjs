@@ -8,6 +8,10 @@
  */
 
 const ACTIVITIES = {
+  extract: [
+    'Reading the pasted posting…',
+    'Picking out company, title, location and salary…',
+  ],
   classify: [
     'Reading the posting…',
     'Scoring fit against the active profile — stack, role type, region, salary…',
@@ -77,6 +81,11 @@ export function init(data) {
       if (!res.ok) return;
       state = await res.json();
       if (state.stage === 'done' || state.stage === 'error') return location.reload();
+      // The extract step can rename the run ("Detecting the role…" → real title).
+      const titleEl = document.getElementById('run-job-title');
+      if (titleEl && state.jobTitle && titleEl.textContent !== state.jobTitle) {
+        titleEl.textContent = state.jobTitle;
+      }
       apply();
     } catch {
       /* transient network hiccup — the next poll retries */

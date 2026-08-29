@@ -5,6 +5,10 @@ import { Button, Card, Hint, MarkIcon } from '../ui';
 import type { RunStep, TargetRun } from '../target-runs';
 
 const STEP_VIEW: Record<RunStep, { label: string; detail: string }> = {
+  extract: {
+    label: 'Detect posting facts',
+    detail: 'company, title, location, salary from the description — seconds',
+  },
   classify: {
     label: 'Classify the posting',
     detail: 'fit score against the active profile — seconds',
@@ -36,7 +40,7 @@ export const TargetRunPage: FC<{ run: TargetRun }> = ({ run }) => {
             {failed ? 'Comparison failed' : 'Comparing'}
           </div>
           <div class="text-sm text-ink-muted">
-            "{run.resumeName}" ↔ "{run.jobTitle}"
+            "{run.resumeName}" ↔ "<span id="run-job-title">{run.jobTitle}</span>"
           </div>
 
           {failed ? (

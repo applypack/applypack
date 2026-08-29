@@ -19,48 +19,29 @@ import { MAX_UPLOAD_MB } from '../upload';
 
 /*
  * The /target launcher: paste a posting, pick / upload / paste a resume,
- * one submit → classify + AI match → the existing targeted workspace at
- * /jobs/:id/target. No new analysis machinery — this page only composes
- * the manual-job and resume-match flows.
+ * one submit → detect posting facts (when fields are empty) + classify +
+ * AI match → the targeted workspace at /jobs/:id/target. Detection happens
+ * INSIDE the run as a visible step and never blocks: unfound facts fall
+ * back to defaults. The paste itself gets page chrome trimmed in place
+ * (posting-clean.mjs).
  */
-
-/** Everything re-renderable after a failed submit — a chosen FILE cannot come back. */
-export interface TargetStartValues {
-  companyName: string;
-  title: string;
-  url: string;
-  location: string;
-  description: string;
-  resumeMode: 'existing' | 'upload' | 'paste';
-  resumeId?: number;
-  uploadName: string;
-  pasteName: string;
-  resumeText: string;
-  salaryMin?: number;
-  salaryMax?: number;
-  workplace?: string;
-}
 
 export interface TargetStartProps {
   resumes: { id: number; name: string; isDefault: boolean; version: number }[];
   flash?: FlashMessage | null;
-  /** Present only when a submit bounced: the form re-renders with what the user typed. */
-  values?: TargetStartValues;
 }
 
 const FILE_INPUT_CLASS =
   'file:mr-3 file:cursor-pointer file:rounded-md file:border-0 file:bg-surface-overlay file:px-2.5 file:py-1 file:text-xs file:font-medium file:text-ink';
 
-export const TargetStartPage: FC<TargetStartProps> = ({ resumes, flash, values: v }) => {
+export const TargetStartPage: FC<TargetStartProps> = ({ resumes, flash }) => {
   const hasResumes = resumes.length > 0;
   const defaultResumeId = (resumes.find((r) => r.isDefault) ?? resumes[0])?.id;
-  const mode = v?.resumeMode ?? (hasResumes ? 'existing' : 'upload');
-  const selectedResumeId = v?.resumeId ?? defaultResumeId;
   return (
     <Layout title="Target" active="target">
       <PageHeader title="Target" meta="~1–2 min per run">
         Paste a posting — the description alone is enough, company / title / location are
-        detected from it — and pick a resume. One run classifies the posting, scores the
+        detected during the run — and pick a resume. One run classifies the posting, scores the
         resume against it and opens the side-by-side targeted view.
       </PageHeader>
       <Flash flash={flash} />
@@ -78,7 +59,7 @@ export const TargetStartPage: FC<TargetStartProps> = ({ resumes, flash, values: 
             <div class="space-y-4">
               <Field
                 label="Job description"
-                hint="Paste the posting verbatim — it is the keyword source, and empty fields below are detected from it."
+                hint="Paste the posting verbatim — page chrome is trimmed automatically, and empty fields below are detected from it during the run."
               >
                 <Textarea
                   name="description"
@@ -86,40 +67,22 @@ export const TargetStartPage: FC<TargetStartProps> = ({ resumes, flash, values: 
                   required
                   minlength="200"
                   placeholder="About the role…"
-                >
-                  {v?.description ?? ''}
-                </Textarea>
+                />
               </Field>
-              {/* Auto-detected extras ride along invisibly (the user already knows them). */}
-              <input type="hidden" name="salaryMin" value={v?.salaryMin != null ? String(v.salaryMin) : ''} />
-              <input type="hidden" name="salaryMax" value={v?.salaryMax != null ? String(v.salaryMax) : ''} />
-              <input type="hidden" name="workplace" value={v?.workplace ?? ''} />
-              {/* The [hidden] attribute loses to a display class on the same element
-                  (.flex beats [hidden]) — so the toggled wrapper carries no classes. */}
-              <div id="extract-status" hidden aria-live="polite">
-                <div class="flex items-center gap-2 rounded-md border border-violet/30 bg-violet/5 px-3 py-2 text-[13px] leading-5 text-violet">
-                  <span
-                    id="extract-spin"
-                    class="h-3.5 w-3.5 shrink-0 animate-spin rounded-full border-2 border-violet/30 border-t-violet"
-                    aria-hidden="true"
-                  ></span>
-                  <span id="extract-text"></span>
-                </div>
-              </div>
               <div class="grid gap-4 sm:grid-cols-2">
-                <Field label="Company" hint="Optional — detected from the description.">
-                  <Input type="text" name="companyName" maxlength="200" placeholder="Acme Corp" value={v?.companyName ?? ''} />
+                <Field label="Company" hint="Optional — detected during the run.">
+                  <Input type="text" name="companyName" maxlength="200" placeholder="Acme Corp" />
                 </Field>
-                <Field label="Job title" hint="Optional — detected from the description.">
-                  <Input type="text" name="title" maxlength="200" placeholder="Senior PHP Developer" value={v?.title ?? ''} />
+                <Field label="Job title" hint="Optional — detected during the run.">
+                  <Input type="text" name="title" maxlength="200" placeholder="Senior PHP Developer" />
                 </Field>
               </div>
               <div class="grid gap-4 sm:grid-cols-2">
                 <Field label="Posting URL" hint="Optional — lets Verify find the original later.">
-                  <Input type="url" name="url" placeholder="https://…" value={v?.url ?? ''} />
+                  <Input type="url" name="url" placeholder="https://…" />
                 </Field>
-                <Field label="Location" hint="Optional — detected from the description when stated.">
-                  <Input type="text" name="location" maxlength="200" placeholder="Remote (US)" value={v?.location ?? ''} />
+                <Field label="Location" hint="Optional — detected during the run when stated.">
+                  <Input type="text" name="location" maxlength="200" placeholder="Remote (US)" />
                 </Field>
               </div>
             </div>
@@ -131,13 +94,13 @@ export const TargetStartPage: FC<TargetStartProps> = ({ resumes, flash, values: 
               <ModeCard
                 value="existing"
                 label="Use an uploaded resume"
-                checked={mode === 'existing' && hasResumes}
+                checked={hasResumes}
                 disabled={!hasResumes}
               >
                 {hasResumes ? (
                   <Select name="resumeId" aria-label="Resume">
                     {resumes.map((r) => (
-                      <option value={r.id} selected={r.id === selectedResumeId}>
+                      <option value={r.id} selected={r.id === defaultResumeId}>
                         {r.name} · v{r.version}
                         {r.isDefault ? ' · default' : ''}
                       </option>
@@ -148,7 +111,7 @@ export const TargetStartPage: FC<TargetStartProps> = ({ resumes, flash, values: 
                 )}
               </ModeCard>
 
-              <ModeCard value="upload" label="Upload a file" checked={mode === 'upload'}>
+              <ModeCard value="upload" label="Upload a file" checked={!hasResumes}>
                 <div class="space-y-3">
                   <Input
                     type="file"
@@ -163,7 +126,6 @@ export const TargetStartPage: FC<TargetStartProps> = ({ resumes, flash, values: 
                     maxlength="100"
                     placeholder="Name (optional — taken from the file name)"
                     aria-label="Resume name"
-                    value={v?.uploadName ?? ''}
                   />
                   <Hint>
                     {ACCEPTED_EXTENSIONS.join(', ')} · up to {MAX_UPLOAD_MB} MB. Lands in
@@ -172,7 +134,7 @@ export const TargetStartPage: FC<TargetStartProps> = ({ resumes, flash, values: 
                 </div>
               </ModeCard>
 
-              <ModeCard value="paste" label="Paste resume text" checked={mode === 'paste'}>
+              <ModeCard value="paste" label="Paste resume text">
                 <div class="space-y-3">
                   <Input
                     type="text"
@@ -180,16 +142,13 @@ export const TargetStartPage: FC<TargetStartProps> = ({ resumes, flash, values: 
                     maxlength="100"
                     placeholder="Name (optional)"
                     aria-label="Resume name"
-                    value={v?.pasteName ?? ''}
                   />
                   <Textarea
                     name="resumeText"
                     rows={8}
                     placeholder="Plain resume text, at least 200 characters…"
                     aria-label="Resume text"
-                  >
-                    {v?.resumeText ?? ''}
-                  </Textarea>
+                  />
                   <Hint>Saved to Resumes as a text file, so you can iterate on it later.</Hint>
                 </div>
               </ModeCard>
@@ -202,8 +161,8 @@ export const TargetStartPage: FC<TargetStartProps> = ({ resumes, flash, values: 
             Compare
           </Button>
           <Hint>
-            Classifies the posting (seconds), then one resume-model call (~1 min), then opens
-            the targeted view. Re-pasting the same posting reuses its job.
+            Detects missing fields (seconds), classifies the posting, then one resume-model
+            call (~1 min) and the targeted view opens. Re-pasting the same posting reuses its job.
           </Hint>
         </div>
       </form>
@@ -211,12 +170,6 @@ export const TargetStartPage: FC<TargetStartProps> = ({ resumes, flash, values: 
     </Layout>
   );
 };
-
-/* Mode selection + description auto-fill live in the served module. */
-const BOOT_JS = `
-import { init } from '/static/target-start.mjs';
-init();
-`;
 
 const ModeCard: FC<
   PropsWithChildren<{ value: string; label: string; checked?: boolean; disabled?: boolean }>
@@ -242,3 +195,8 @@ const ModeCard: FC<
   </fieldset>
 );
 
+/* Mode selection + paste cleaning live in the served module. */
+const BOOT_JS = `
+import { init } from '/static/target-start.mjs';
+init();
+`;
