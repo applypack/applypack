@@ -19,14 +19,18 @@ const STEP_VIEW: Record<RunStep, { label: string; detail: string }> = {
   },
 };
 
-/** Server-rendered progress: meta-refreshes every 2 s until the run resolves. */
+/**
+ * Live progress: /static/target-run.mjs polls the state route, advances the
+ * step icons and fades a "what the analysis is doing right now" line under
+ * the active step. Terminal states reload into the server-side redirect.
+ */
 export const TargetRunPage: FC<{ run: TargetRun }> = ({ run }) => {
   const failed = run.stage === 'error';
   const currentIdx = run.steps.indexOf(run.stage as RunStep);
   const elapsed = Math.max(0, Math.round((Date.now() - run.startedAt) / 1000));
   return (
-    <Layout title={failed ? 'Comparison failed' : 'Comparing…'} active="target" refresh={failed ? undefined : 2}>
-      <div class="mx-auto w-full max-w-xl pt-6 lg:pt-16">
+    <Layout title={failed ? 'Comparison failed' : 'Comparing…'} active="target">
+      <div class="mx-auto w-full max-w-2xl pt-6 lg:pt-16">
         <Card>
           <div class="mb-1 text-sm font-semibold text-ink">
             {failed ? 'Comparison failed' : 'Comparing'}
@@ -53,48 +57,48 @@ export const TargetRunPage: FC<{ run: TargetRun }> = ({ run }) => {
             </div>
           ) : (
             <>
-              <ol class="mt-5 space-y-4">
-                {run.steps.map((s, i) => {
-                  const state = i < currentIdx ? 'done' : i === currentIdx ? 'active' : 'pending';
-                  return (
-                    <li class="flex items-start gap-3">
-                      <span class="mt-0.5 grid h-5 w-5 shrink-0 place-items-center" aria-hidden="true">
-                        {state === 'done' ? (
-                          <MarkIcon kind="check" class="text-ok" />
-                        ) : state === 'active' ? (
-                          <span class="h-4 w-4 animate-spin rounded-full border-2 border-line-strong border-t-accent" />
-                        ) : (
-                          <span class="h-2 w-2 rounded-full bg-line-strong" />
-                        )}
+              <ol class="mt-5 space-y-5" aria-label="Progress">
+                {run.steps.map((s, i) => (
+                  <li
+                    class="step flex items-start gap-3"
+                    data-step={s}
+                    data-state={i < currentIdx ? 'done' : i === currentIdx ? 'active' : 'pending'}
+                  >
+                    <span class="mt-0.5 grid h-5 w-5 shrink-0 place-items-center" aria-hidden="true">
+                      <span class="i i-done">
+                        <MarkIcon kind="check" class="text-ok" />
                       </span>
-                      <span class="min-w-0">
-                        <span
-                          class={`block text-sm ${
-                            state === 'pending' ? 'text-ink-faint' : 'font-medium text-ink'
-                          }`}
-                        >
-                          {STEP_VIEW[s].label}
-                          {state === 'done' && <span class="sr-only"> — done</span>}
-                          {state === 'active' && <span class="sr-only"> — in progress</span>}
-                        </span>
-                        <span
-                          class={`block text-xs ${
-                            state === 'active' ? 'text-ink-muted' : 'text-ink-faint'
-                          }`}
-                        >
-                          {STEP_VIEW[s].detail}
-                        </span>
-                      </span>
-                    </li>
-                  );
-                })}
+                      <span class="i i-active h-4 w-4 animate-spin rounded-full border-2 border-line-strong border-t-accent"></span>
+                      <span class="i i-pending h-2 w-2 rounded-full bg-line-strong"></span>
+                    </span>
+                    <span class="min-w-0 flex-1">
+                      <span class="t-label block text-sm">{STEP_VIEW[s].label}</span>
+                      <span class="t-detail block text-xs">{STEP_VIEW[s].detail}</span>
+                      <span
+                        class="t-activity mt-1.5 block text-[13px] leading-5 text-violet transition-opacity duration-300"
+                        data-activity
+                        aria-live="polite"
+                      ></span>
+                    </span>
+                  </li>
+                ))}
               </ol>
               <div class="mt-5 flex items-center justify-between gap-3 border-t border-line pt-3">
-                <Hint>Refreshes every 2 s and opens the result automatically.</Hint>
-                <span class="shrink-0 text-xs tabular-nums text-ink-faint" aria-live="polite">
+                <Hint>
+                  You can close this page — the run keeps going and the result lands on the job
+                  page.
+                </Hint>
+                <span id="run-elapsed" class="shrink-0 text-xs tabular-nums text-ink-faint">
                   {elapsed}s
                 </span>
               </div>
+              <style dangerouslySetInnerHTML={{ __html: RUN_CSS }} />
+              <script
+                id="run-data"
+                type="application/json"
+                dangerouslySetInnerHTML={{ __html: JSON.stringify({ id: run.id }) }}
+              />
+              <script type="module" dangerouslySetInnerHTML={{ __html: RUN_BOOT }} />
             </>
           )}
         </Card>
@@ -102,3 +106,22 @@ export const TargetRunPage: FC<{ run: TargetRun }> = ({ run }) => {
     </Layout>
   );
 };
+
+/* Step visuals are CSS-driven off data-state so the poller only flips attributes. */
+const RUN_CSS = `
+  .step .i { display: none; }
+  .step[data-state="done"] .i-done,
+  .step[data-state="active"] .i-active,
+  .step[data-state="pending"] .i-pending { display: block; }
+  .step .t-label { color: rgb(var(--ink)); font-weight: 500; }
+  .step[data-state="pending"] .t-label { color: rgb(var(--ink-faint)); font-weight: 400; }
+  .step .t-detail { color: rgb(var(--ink-faint)); }
+  .step[data-state="active"] .t-detail { color: rgb(var(--ink-muted)); }
+  .step .t-activity { display: none; }
+  .step[data-state="active"] .t-activity { display: block; }
+`;
+
+const RUN_BOOT = `
+import { init } from '/static/target-run.mjs';
+init(JSON.parse(document.getElementById('run-data').textContent));
+`;

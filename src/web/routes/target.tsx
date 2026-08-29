@@ -56,7 +56,19 @@ targetRoute.get('/target', async (c) => {
   );
 });
 
-/** The progress page: meta-refreshes until the async chain resolves. */
+/** Polled by the progress page; terminal states reload into the redirect below. */
+targetRoute.get('/target/runs/:id/state', (c) => {
+  const run = getRun(c.req.param('id'));
+  if (!run) return c.json({ gone: true }, 404);
+  return c.json({
+    stage: run.stage,
+    steps: run.steps,
+    stageElapsedMs: Date.now() - run.stageAt,
+    elapsedMs: Date.now() - run.startedAt,
+  });
+});
+
+/** The progress page: target-run.mjs polls the state route until the chain resolves. */
 targetRoute.get('/target/runs/:id', (c) => {
   const run = getRun(c.req.param('id'));
   if (!run) {

@@ -290,6 +290,10 @@ removing the violet accent.
 - [x] /target: description-only input — empty company / title / location are
       auto-detected on paste (POST /target/extract, classifier model; filled
       fields never overwritten; same extraction as the no-JS submit fallback)
+- [x] Progress page: meta-refresh (and its "refreshes every 2 s" note) replaced
+      by polled /target/runs/:id/state + target-run.mjs — step icons advance in
+      place and a violet activity line rotates through the real prompt
+      checklist every 9 s with a fade; terminal states reload into the redirect
 - [x] Action row: Re-upload is the one visible button (user pref); Re-analyze
       and Save live in the ⋯ menu, resurfaced by the sticky bar while editing.
       Dropdown panels are in-flow on phones (an absolute panel overflowed 375px)

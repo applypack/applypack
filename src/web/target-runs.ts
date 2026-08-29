@@ -3,10 +3,10 @@ import { logger } from '../logger';
 
 /*
  * In-memory registry for long compare runs (classify → scan → match). The
- * POST returns immediately with a redirect to /target/runs/:id, which
- * meta-refreshes until the async chain flips the run to done or error.
- * Web-process-only state; a restart simply forgets unfinished runs
- * (node-cron philosophy: no queue, ADR 0003).
+ * POST returns immediately with a redirect to /target/runs/:id; the page
+ * polls /target/runs/:id/state until the async chain flips the run to done
+ * or error. Web-process-only state; a restart simply forgets unfinished
+ * runs (node-cron philosophy: no queue, ADR 0003).
  */
 
 export type RunStep = 'classify' | 'scan' | 'match';
@@ -17,6 +17,8 @@ export interface TargetRun {
   steps: RunStep[];
   stage: RunStage;
   startedAt: number;
+  /** When the current stage began — paces the progress page's activity line. */
+  stageAt: number;
   jobTitle: string;
   resumeName: string;
   /** Set once the job row exists — the error state can link to it. */
@@ -38,6 +40,7 @@ export function createRun(
     id: randomUUID(),
     stage: fields.steps[0] ?? 'match',
     startedAt: Date.now(),
+    stageAt: Date.now(),
     ...fields,
   };
   runs.set(run.id, run);
@@ -46,7 +49,9 @@ export function createRun(
 
 export function updateRun(id: string, patch: Partial<Omit<TargetRun, 'id'>>): void {
   const run = runs.get(id);
-  if (run) Object.assign(run, patch);
+  if (!run) return;
+  if (patch.stage && patch.stage !== run.stage) run.stageAt = Date.now();
+  Object.assign(run, patch);
 }
 
 export function getRun(id: string): TargetRun | null {
