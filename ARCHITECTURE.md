@@ -157,7 +157,7 @@ input tokens, then it stabilises).
 
 ```
 src/
-  index.ts                     ← cron registration (5 jobs) + graceful shutdown
+  index.ts                     ← cron registration (6 jobs) + graceful shutdown
   init.ts                      ← prisma migrate deploy + seed + bootstrap profile/Telegram
   config.ts                    ← zod-validated env (worker + web)
   logger.ts                    ← pino instance
@@ -182,12 +182,17 @@ src/
   resume/                      ← web-only resume module (ADR 0008)
     zip.ts                     ← read one entry from a zip (node:zlib), pure
     docx-text.ts               ← word/document.xml → plain text, pure
+    pdf-text.ts                ← PDF → plain text via unpdf (ADR 0011), tested
     resume-text.ts             ← upload dispatch by extension, pure
     prompts.ts                 ← scan + match prompts, zod schemas, Json readers, pure
+    score.ts                   ← deterministic match score + breakdown (ADR 0012), pure
+    facts.ts                   ← apply CandidateFacts / cross-resume hints to keywords, pure
+    diff.ts                    ← version delta from two matches (gained/lost, components), pure
+    parse-warnings.ts          ← ATS parseability checks over extracted text, pure
     pick.ts                    ← preselect resume by skill-tag overlap, pure
-    store.ts                   ← Resume / ResumeMatch CRUD (Prisma)
+    store.ts                   ← Resume / ResumeMatch / CandidateFact CRUD (Prisma)
     scan.ts                    ← one AI call → Resume scan fields
-    match.ts                   ← one AI call → ResumeMatch row
+    match.ts                   ← one AI call → facts context in, statuses out, score.ts computes → ResumeMatch row
 
   verification/                ← ghost-job check (ADR 0009)
     prompts.ts                 ← checklist prompt, zod schema, evidence reader, pure
@@ -215,6 +220,7 @@ src/
     process-jobs.ts             ← shared inner loop used by fetch + HN
     reclassify-job.ts           ← runReclassifyAll (web-triggered, async)
     classify-existing.ts        ← classify one stored job (Re-classify button, manual entry)
+    manual-job.ts               ← pasted posting → MANUAL company + Job + classify (used by /jobs/new and /target)
     cron-run.ts                 ← recordCronRun(name, fn) wrapper
 
   scripts/
@@ -223,12 +229,14 @@ src/
 
   web/
     server.ts                   ← Hono app, middleware, basicAuth, listen
-    layout.tsx                  ← HTML shell, nav, Tailwind CDN, htmx CDN
+    layout.tsx                  ← HTML shell, light design tokens, sidebar nav, Tailwind CDN
     ui.tsx                      ← shared <Card>, <StatusBadge>, <FitBadge>, <Tag>, <Stat>
-    format.ts                   ← formatSalary, formatRelative, statusColor, fitColor
+    format.ts                   ← formatSalary, formatRelative, statusTone, fitTone
     flash.ts                  ← POST → redirect → GET flash cookie
-    upload.ts                 ← multipart resume upload helper + 2 MB limit
+    upload.ts                 ← multipart resume upload helper + 5 MB limit
+    target-runs.ts            ← in-memory compare-run registry (async classify/scan/match)
     public/target.mjs         ← browser keyword matcher (pure ES module, node-tested)
+    public/score.mjs          ← browser mirror of resume/score.ts (parity-tested, ADR 0012)
 
     pages/
       overview.tsx              ← /
@@ -244,17 +252,20 @@ src/
       resume-match-card.tsx     ← "Resume match" card on /jobs/:id
       verification-card.tsx     ← "Is this job real?" card on /jobs/:id
       job-new.tsx               ← /jobs/new (paste a posting)
+      target-start.tsx          ← /target (paste posting + pick/upload/paste resume → one run)
+      target-run.tsx            ← /target/runs/:id (progress steps, meta-refresh 2s)
       target.tsx                ← /jobs/:id/target (side-by-side editor, live score)
 
     routes/
       overview.tsx
       jobs.tsx                  ← list + new (manual) + detail + status + reclassify + verify + resume match
-      resumes.tsx               ← upload (2 MB limit) + scan + default + delete + download
+      target.tsx                ← /target launcher: resume resolve + manual job + match in one POST
+      resumes.tsx               ← upload (5 MB limit) + scan + default + delete + download
       applications.tsx          ← kanban + per-job application form
       companies.tsx              ← list + new (probe-validated) + delete + toggle
       discovery.tsx             ← list + promote + ignore + delete + manual probe
       runs.tsx
-      settings.tsx              ← profile editor + 7 toggles + telegram targets
+      settings.tsx              ← profile editor + 8 toggles + telegram targets
       health.ts                 ← JSON liveness for external monitoring
 
 prisma/
@@ -280,11 +291,13 @@ prisma/
 | `POST /jobs/:id/reclassify`      | web     | sync `classifyJob` → auto-demote on fail |
 | `POST /companies/new`            | web     | sync `probeAts` → upsert                 |
 | `POST /resumes`                  | web     | extract text → `scanResume` (sync, ~1 min) |
-| `POST /jobs/:id/match`           | web     | sync `matchResumeToJob` → `ResumeMatch`  |
+| `POST /jobs/:id/match`           | web     | async run: (scratch cleanup) → `matchResumeToJob`; redirects to `/target/runs/:id` |
 | `POST /jobs/:id/verify`          | web     | sync `verifyJob` with web tools (2-4 min) → `JobVerification` |
 | `POST /jobs/new`                 | web     | MANUAL company upsert + Job + `classifyExistingJob` |
+| `POST /target`                   | web     | resolve resume inline (upload/paste → hidden scratch row), then async: `createManualJob` → scratch-match cleanup → `matchResumeToJob`; redirects to `/target/runs/:id` |
+| `GET /target/runs/:id`           | web     | progress page (meta-refresh 2s); done → flash + redirect into the targeted view |
 | `POST /resumes/:id/replace`      | web     | new file → `version`+1 → `scanResume`    |
-| `POST /jobs/:id/target/reupload` | web     | replace + scan + match in one request    |
+| `POST /jobs/:id/target/reupload` | web     | async run: replace (+scan for real resumes; scratch skips it) → match |
 | `POST /resumes/:id/draft`        | web     | edited text → `.md` version → scan (+ match when `jobId`) |
 | `GET /static/*`                  | web     | `src/web/public` (keyword matcher)       |
 | `POST /discovery/:id/promote`    | web     | transactional Company upsert             |
