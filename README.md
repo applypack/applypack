@@ -161,8 +161,9 @@ Bound to `127.0.0.1:4747`. Optional `WEB_BASIC_AUTH=user:password` in
 | Paste a job  | `/jobs/new`      | Save a posting by hand (LinkedIn, email, referral) — classified like any other |
 | Job detail   | `/jobs/:id`      | Full description, Claude output, status actions, **is this job real?**, **resume match**, application tracking, re-classify |
 | Targeted     | `/jobs/:id/target` | Posting ↔ resume side by side, keyword highlights, in-place editing with live coverage score, AI re-analysis of the draft |
+| Target       | `/target`        | Pure comparison: paste a posting, pick / upload / paste a resume — a live progress page runs classify → AI match and opens the targeted view. Uploads here never land in your Resumes |
 | Applications | `/applications`  | Kanban (applied → screen → tech → onsite → offer / rejected / ghosted) |
-| Resumes      | `/resumes`       | Upload `.docx` / `.md` / `.txt`, AI scan (headline, skills, issues), comparison history |
+| Resumes      | `/resumes`       | Upload `.pdf` / `.docx` / `.md` / `.txt`, AI scan (headline, skills, issues), comparison history |
 | Resume       | `/resumes/:id`   | Scan result, job-agnostic issues, comparisons, extracted text, download |
 | Companies    | `/companies`     | Sources list, manual add (with probe), per-row toggle / delete       |
 | Discovery    | `/discovery`     | Pending / Promoted / Ignored / Dead candidates harvested by HN parser |
@@ -206,7 +207,15 @@ Compare again — the score uses a fixed rubric, so the card shows
 
 ### Targeted view
 
-"Open targeted view →" on any comparison (`/jobs/:id/target`) puts the
+The **Target** page in the menu (`/target`) starts this flow from scratch:
+paste a posting, then pick an uploaded resume, upload a file or paste plain
+text — a progress page shows each step (classify → AI match, ~1-2 min) and
+opens the result. Target is a *pure comparison*: an uploaded or pasted
+resume lives on one hidden scratch slot, every new upload replaces the
+previous analysis, and nothing is added to your Resumes. The match score uses a
+primary-stack gate — a posting's core language/framework missing from the
+resume caps the score hard, so a Laravel resume cannot score 80+ against a
+Node.js posting. Otherwise, "Open targeted view →" on any comparison (`/jobs/:id/target`) puts the
 posting and your resume side by side, Resume Worded style: every keyword
 highlighted in the posting (found / missing / can't claim), keywords and
 suggested removals highlighted in the resume, and the resume **editable in

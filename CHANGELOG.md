@@ -6,6 +6,95 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+- **Deterministic match score (ADR 0012).** The model now returns facts only
+  — per-keyword status, `must/preferred/nice/context` requirement levels,
+  primary-stack flags, three alignment grades — and `src/resume/score.ts`
+  computes the number (60 keywords + 40 alignment − 10/red-flag, primary cap
+  last). The stored breakdown renders as "why this score" chips, and the live
+  editor re-runs the *same formula* on every keystroke (`score.mjs`, parity-
+  tested), so the two numbers finally share one scale.
+- **"Confirm your experience" (ask_user).** A fourth keyword status for
+  plausible-but-unevidenced skills: the comparison asks, your yes/no (plus
+  optional where/when context) is stored as a `CandidateFact`, the score
+  recomputes instantly with no AI call, and every future comparison reuses
+  the answer. Denied terms are never asked again. Facts are managed on
+  `/resumes`.
+- **Cross-resume evidence.** A term this resume can't claim but another
+  stored resume evidences gets an `in "<resume>"` badge — "you have it, but
+  this resume hides it" — and the model may mark it addable, naming the source.
+- **Hard-requirements panel.** Work authorization, on-site, minimum years and
+  other gates now render as pass / unknown / fail outside the score; silence
+  is "unknown — confirm", never a fail.
+- **What the ATS sees.** `/resumes/:id` runs deterministic parse checks over
+  the extracted text (unreadable characters, missing email/phone, glued
+  words, scanned-file suspicion, length) above the raw-text view.
+- **Explained version deltas.** "vs v4" now lists which keywords were gained
+  or lost and how each score component moved, computed from stored
+  breakdowns (`src/resume/diff.ts`) — not narrated by the model.
+- **Prompt-injection guard + live bench.** Both resume prompts treat resume
+  and posting text as untrusted data, and `npm run bench:resume` smoke-tests
+  the prompt against gold fixtures (stack mismatch, stack match, injection)
+  through the real provider.
+
+### Changed
+- Match replies are capped tighter for speed (~25 keywords, ~10 actions, ~8
+  removals, 12-word notes) — less output ≈ faster analysis; suggested
+  experience bullets must state the business outcome ("did X, which improved
+  Y") and may never invent metrics — missing numbers become an explicit
+  "[add your real number]" placeholder.
+
+### Fixed
+- **The 65-point treadmill (scoring v3).** A fully tailored resume (keywords
+  57.9/60, alignment 40/40, primary 3/3) was stuck at 65-68 because the model
+  kept inventing three soft "red flags" (−30) — style and domain nitpicks that
+  rotated every run — and the keyword set itself drifted between analyses.
+  Now: red flags are application-blockers only (each −10, bounded at −20,
+  flags restating missing primaries are free — the cap already owns those);
+  soft concerns land in a new unscored **cautions** list; a "primary" mark on
+  a merely-preferred technology no longer caps the score; re-analyses of the
+  same posting receive the previous keyword frame so terms stay comparable
+  across resume versions; and every breakdown now carries a **ceiling** — the
+  honest maximum this resume can reach on this posting — shown in the UI
+  ("max reachable 92" / "at its ceiling"). The same tailored resume now
+  scores its actual work (78+ on the recorded real case, 90+ once the ask is
+  confirmed and flags are clean).
+- Keywords are now verifiable end-to-end: every extracted term must be a
+  verbatim 1-4-word phrase from the posting (so it always highlights in the
+  description pane), aliases must cover the resume's own spellings, and the
+  live counter names the missing terms ("… · missing: Azure, troubleshoot,
+  health") instead of a bare count.
+- The targeted view leads with the honest number: the big ring is now the
+  **AI match** with the rubric's stack verdict beside it; live keyword
+  coverage is secondary, counts "can't claim" keywords by default, and the
+  AI score is marked "edited — Re-analyze to refresh" once you type.
+- Removal suggestions got two hard rules: the contact line (email, phone,
+  links) is untouchable — only a street-level address may be trimmed — and a
+  removal may never quote text containing a keyword the posting wants; mixed
+  skills lines get itemised "drop X, keep Y" advice instead.
+- Resume-match scoring got a **primary-stack gate**: the posting's core
+  languages/frameworks cap the score (none present → ≤30), sibling tech never
+  counts (Vue ≠ React, PHP ≠ Node.js), and the summary must open with the
+  stack verdict. Before: Laravel/Vue vs a Node/React posting scored 82/100;
+  after: 10/100 (and 92/100 against a Laravel posting).
+- Long compare runs are async with a live progress page
+  (`/target/runs/:id`): classify → (scan) → AI match steps, elapsed time,
+  auto-redirect into the result. Applies to /target, Compare, Re-analyze and
+  Re-upload — no more opaque minute-long spinner.
+- /target is now a **pure comparison**: uploaded / pasted resumes land on one
+  hidden scratch row (`Resume.hidden`, migration) replaced in place, old
+  scratch analyses are deleted on every new run, and the workspace hides
+  versioning ("Save as vN") for them. Nothing accumulates in Resumes.
+
+### Added
+- PDF resume uploads: `.pdf` joins `.docx` / `.md` / `.txt`, extracted via
+  unpdf (ADR 0011) with clear errors for password-protected and scanned /
+  outlined files; upload limit raised from 2 to 5 MB.
+- Target page (`/target`) in the menu: paste a posting and pick, upload or
+  paste a resume — one run classifies the posting, scores the resume against
+  it and opens the side-by-side targeted view. New resumes are saved to
+  Resumes (unscanned) so they can be iterated on later.
+
 ## [0.1.0] — 2026-08-28
 
 First tagged release. Everything below was designed and built between

@@ -11,10 +11,15 @@
   simplified, refactored or deleted? Run `npm run lint:types && npm test`.
 - Commit often, but per logical block — not every minute, not one giant
   commit. One block = one feature / fix / refactor that stands on its own.
+- **Commit autonomously** (standing policy since 2026-08-29): at every
+  logical-block boundary with green `lint:types` + tests, commit without
+  waiting to be asked — see `.claude/skills/commit-discipline`. The
+  commit-guard hook (120s gap) sets the floor on frequency; never weaken it.
+  Ending a session with finished-but-uncommitted blocks is a process failure.
 - Messages are short. Subject ≤ 72 chars (`phase-x.y: added Z`, `fixed Y`,
   `updated X`). Body only when a one-liner is not enough, and then 1–3 lines.
   No essays, no bullet lists of everything touched.
-- Do not commit or push unless asked; branch off `main` first.
+- Do not push, merge to `main`, or open PRs unless asked; branch off `main` first.
 - Task backlog for Claude Code sessions lives in [docs/TASKS.md](./docs/TASKS.md).
 
 ## Stack
@@ -46,10 +51,13 @@
   from `src/web/*.test.ts`. The Dockerfile copies the directory into the image.
 - `AtsType.MANUAL` companies are inactive rows for pasted jobs — `fetchOne`
   returns `[]`, `/companies` and the source toggles hide them.
-- `src/resume/` is the resume module: `zip.ts`, `docx-text.ts`, `resume-text.ts`,
-  `prompts.ts`, `pick.ts` are pure (tested); `scan.ts` / `match.ts` call the
-  AI provider; `store.ts` is the only file that touches Prisma. Web-only —
-  the worker never imports it (ADR 0008).
+- `src/resume/` is the resume module: `zip.ts`, `docx-text.ts`, `pdf-text.ts`
+  (unpdf, ADR 0011), `resume-text.ts`, `prompts.ts`, `pick.ts`, `score.ts`
+  (ADR 0012), `facts.ts`, `diff.ts`, `parse-warnings.ts` are pure (tested);
+  `scan.ts` / `match.ts` call the AI provider; `store.ts` is the only file
+  that touches Prisma. Web-only — the worker never imports it (ADR 0008).
+- `src/web/public/score.mjs` mirrors `src/resume/score.ts` line for line —
+  change one, change the other; `src/web/score.test.ts` enforces parity.
 - The cron worker (`src/index.ts` + `src/jobs/*`) MUST NOT run an HTTP server.
 - The dashboard lives in `src/web/` as a SEPARATE service (Hono). It shares
   Postgres with the worker but runs in its own container/process. It is
@@ -115,8 +123,17 @@ When the question is **"where does X live?"**, save yourself a `find`:
 | Discovery candidate extraction | `src/discovery.ts:recordCandidatesFromText` (calls `extractAtsToken`) |
 | URL → ATS recognition (greenhouse/lever/ashby/workable/SR) | `src/text-utils.ts:extractAtsToken` |
 | Manual company probe before save | `src/ats-probe.ts:probeAts` |
-| Resume upload → text (.docx/.md/.txt) | `src/resume/resume-text.ts:extractResumeText` (docx via `zip.ts` + `docx-text.ts`) |
-| Resume scan + resume-vs-job prompts and their zod schemas | `src/resume/prompts.ts` |
+| Resume upload → text (.pdf/.docx/.md/.txt) | `src/resume/resume-text.ts:extractResumeText` (docx via `zip.ts` + `docx-text.ts`, pdf via `pdf-text.ts` / unpdf — ADR 0011) |
+| Paste posting + resume → one-shot targeted analysis | `/target` — `src/web/routes/target.tsx` (composes `jobs/manual-job.ts` + `resume/match.ts`; upload/paste land on the hidden scratch resume, old scratch matches auto-deleted) |
+| Resume scan + resume-vs-job prompts and their zod schemas | `src/resume/prompts.ts` (`PROMPT_VERSION` bump on material change) |
+| The match-score formula (weights, alignment points, primary-stack cap) | `src/resume/score.ts` (ADR 0012) — mirrored in `src/web/public/score.mjs`, parity test `src/web/score.test.ts` |
+| What counts as primary stack / sibling-tech rules (prompt side) | `src/resume/prompts.ts:MATCH_SYSTEM` steps 3-4 — guard-tested in `prompts.test.ts` |
+| ask_user confirmations (CandidateFact rows, instant re-score) | `src/resume/facts.ts` (pure) + `src/web/routes/facts.ts` (POST /facts), managed on `/resumes` |
+| "In another resume" evidence hints | `src/resume/store.ts:listOtherResumeSkills` → `facts.ts:annotateElsewhere` |
+| ATS parse warnings ("What the ATS sees") | `src/resume/parse-warnings.ts`, rendered on `/resumes/:id` |
+| Version delta (gained/lost keywords, component moves) | `src/resume/diff.ts:diffMatches`, rendered in `resume-match-card.tsx` |
+| Live smoke bench of the match prompt (3 gold fixtures) | `npm run bench:resume` — `src/scripts/resume-bench-once.ts` |
+| Compare-run progress pages (async classify/scan/match) | `src/web/target-runs.ts` (in-memory registry) + `src/web/pages/target-run.tsx`; started by `/target`, `/jobs/:id/match`, `/jobs/:id/target/reupload` |
 | Which resume a job page preselects | `src/resume/pick.ts:pickResumeForJob` (skill-tag overlap) |
 | Model for resume calls | `CLAUDE_MODEL_RESUME` in `.env` (default `claude-opus-5`), passed via `AiRequest.model` |
 | Ghost-job checklist prompt + verdict schema | `src/verification/prompts.ts` |
@@ -144,6 +161,7 @@ When the question is **"how does the user toggle / configure X?"**:
 | Upload / scan a resume | `/settings` → "Resumes" card, or `/resumes` |
 | Compare a resume with a posting | `/jobs/:id` → "Resume match" card (Compare) |
 | Paste a posting the fetchers don't see | `/jobs` → "+ Paste a job" (`/jobs/new`) |
+| Compare a pasted posting with any resume in one step | menu → Target (`/target`): paste posting, pick / upload / paste resume, Compare |
 | Check whether a posting is real | `/jobs/:id` → "Is this job real?" → Verify (web search, 2-4 min) |
 | Re-check an edited resume | `/resumes/:id` → "Upload a new version", then Compare again |
 | Edit in place with a live score | comparison → "Open targeted view →" (`/jobs/:id/target`); "Re-analyze with AI" for the rubric score, "Save as vN" to keep the draft |
@@ -212,6 +230,30 @@ Common user trap: disabling all aggregators in `/settings → Job sources` becau
 When a user finds a job at a company we don't track (e.g. via LinkedIn), the right path is:
 - Paste the board URL into `/companies → Add company` — the form runs `extractAtsToken` + `probeAts` and refuses to save if the slug doesn't resolve. One-click promote into the rotation.
 - Or, the HN parser harvests ATS URLs from comments automatically (when `discoveryEnabled` is on) — they show up on `/discovery` as PENDING candidates.
+
+### 11. Claude scores stack mismatches generously unless the rubric caps them — in EVERY prompt
+
+The same failure as gotcha 8, but in the resume-match rubric: a Laravel/Vue
+resume scored **82/100** against a Node.js/React posting, because "add"
+credit leaked to sibling tech and the only penalty was −10 per red flag.
+The fix mirrors the classifier's: `MATCH_SYSTEM` step 3 is a **primary-stack
+gate** (share of the posting's core languages/frameworks "present" caps the
+score — none → ≤30), "add" is forbidden for sibling technologies
+(Vue ≠ React, PHP ≠ Node.js), and the summary must open with the stack
+verdict ("Primary stack 0/5 …"). Verified: same resume, 10/100 vs a Node
+posting and 92/100 vs a Laravel posting. Rule of thumb: any new scoring
+prompt needs an explicit hard-cap rule, or Claude will average its way to a
+flattering number. Guard test: `prompts.test.ts` "primary-stack gate".
+Since ADR 0012 the model does no arithmetic at all: it marks `primary` /
+`requirement` / `status` facts and `src/resume/score.ts` applies the caps —
+the gate is now a unit-tested code path (`score.test.ts`), not a prompt rule.
+
+Same prompt, second lesson: removal "quote" spans leaked into protected
+text — one highlighted the contact line (with the email) to advise dropping
+a ZIP code, another highlighted a whole skills line containing Docker and
+GitLab CI/CD the posting wanted. Removals now carry two hard rules
+(PROTECTED contact line; KEEP WANTED KEYWORDS with itemised drop/keep
+lists) — guard test "removals rules protect the contact line".
 
 ---
 
