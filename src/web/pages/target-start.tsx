@@ -67,7 +67,23 @@ export const TargetStartPage: FC<TargetStartProps> = ({ resumes, flash }) => {
                   placeholder="About the role…"
                 />
               </Field>
-              <p id="extract-status" hidden aria-live="polite" class="text-[13px] leading-5 text-violet"></p>
+              {/* Auto-detected extras ride along invisibly (the user already knows them). */}
+              <input type="hidden" name="salaryMin" />
+              <input type="hidden" name="salaryMax" />
+              <input type="hidden" name="workplace" />
+              <div
+                id="extract-status"
+                hidden
+                aria-live="polite"
+                class="flex items-center gap-2 rounded-md border border-violet/30 bg-violet/5 px-3 py-2 text-[13px] leading-5 text-violet"
+              >
+                <span
+                  id="extract-spin"
+                  class="h-3.5 w-3.5 shrink-0 animate-spin rounded-full border-2 border-violet/30 border-t-violet"
+                  aria-hidden="true"
+                ></span>
+                <span id="extract-text"></span>
+              </div>
               <div class="grid gap-4 sm:grid-cols-2">
                 <Field label="Company" hint="Optional — detected from the description.">
                   <Input type="text" name="companyName" maxlength="200" placeholder="Acme Corp" />

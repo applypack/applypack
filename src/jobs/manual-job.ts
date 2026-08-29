@@ -15,12 +15,20 @@ import { classifyExistingJob } from './classify-existing';
 export const MIN_DESCRIPTION_CHARS = 200;
 export const MAX_FIELD_CHARS = 200;
 
+/** '' and absent both mean "no salary" — hidden form fields post empty strings. */
+const SalaryField = z.preprocess(
+  (v) => (v === '' || v == null ? undefined : Number(v)),
+  z.number().int().positive().max(5_000_000).optional(),
+);
+
 export const ManualJobSchema = z.object({
   companyName: z.string().trim().min(1).max(MAX_FIELD_CHARS),
   title: z.string().trim().min(1).max(MAX_FIELD_CHARS),
   url: z.string().trim().max(2000).default(''),
   location: z.string().trim().max(MAX_FIELD_CHARS).default(''),
   description: z.string().trim().min(MIN_DESCRIPTION_CHARS),
+  salaryMin: SalaryField,
+  salaryMax: SalaryField,
 });
 
 export type ManualJobInput = z.infer<typeof ManualJobSchema>;
@@ -50,6 +58,8 @@ export async function createManualJob(f: ManualJobInput): Promise<ManualJobResul
       url: f.url,
       location: f.location,
       description: f.description,
+      salaryMin: f.salaryMin ?? null,
+      salaryMax: f.salaryMax ?? null,
       postedAt: new Date(),
       status: JobStatus.SAVED,
     },

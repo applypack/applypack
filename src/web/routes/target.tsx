@@ -30,6 +30,11 @@ const MIN_RESUME_CHARS = 200;
 const TargetFormSchema = ManualJobSchema.extend({
   companyName: z.string().trim().max(MAX_FIELD_CHARS).default(''),
   title: z.string().trim().max(MAX_FIELD_CHARS).default(''),
+  /** Hidden field the auto-fill sets; folded into location below, not stored. */
+  workplace: z.preprocess(
+    (v) => (v === '' || v == null ? undefined : v),
+    z.enum(['remote', 'hybrid', 'onsite']).optional(),
+  ),
   resumeMode: z.enum(['existing', 'upload', 'paste']),
   resumeId: z.coerce.number().int().optional(),
   resumeText: z.string().optional().default(''),
@@ -105,12 +110,15 @@ targetRoute.post('/target', resumeUploadLimit('/target'), async (c) => {
 
   // Fields the user left empty are detected from the description (the page
   // normally pre-fills them via /target/extract; this is the no-JS fallback).
-  let { companyName, title, location } = f;
+  let { companyName, title, location, salaryMin, salaryMax, workplace } = f;
   if (!companyName || !title) {
     const facts = await extractPostingFacts(f.description);
     companyName = companyName || facts?.company || '';
     title = title || facts?.title || '';
     location = location || facts?.location || '';
+    salaryMin = salaryMin ?? facts?.salaryMin ?? undefined;
+    salaryMax = salaryMax ?? facts?.salaryMax ?? undefined;
+    workplace = workplace ?? facts?.workplace ?? undefined;
   }
   if (!companyName || !title) {
     return flashRedirect(
@@ -118,6 +126,12 @@ targetRoute.post('/target', resumeUploadLimit('/target'), async (c) => {
       'err',
       "Couldn't detect the company or job title from the description — fill those two fields in.",
     );
+  }
+  // The Job schema has no workplace column; the location string is where the
+  // classifier reads the arrangement anyway (CLAUDE.md gotcha 8).
+  if (workplace && !/(remote|hybrid|on-?site)/i.test(location)) {
+    const label = workplace === 'onsite' ? 'on-site' : workplace;
+    location = location ? `${location} (${label})` : label;
   }
 
   // Resolve the resume inline (fast, and bad files fail before anything runs).
@@ -172,6 +186,8 @@ targetRoute.post('/target', resumeUploadLimit('/target'), async (c) => {
       url: f.url,
       location,
       description: f.description,
+      salaryMin,
+      salaryMax,
     });
     const job = result.job;
     updateRun(run.id, { stage: 'match', jobId: job.id });

@@ -1,13 +1,20 @@
 /*
  * Enhancements for the /target launcher. Served as a static ES module; the
- * page boots init(). Two behaviors: focusing a field inside a resume-mode box
- * selects that mode, and pasting a description auto-fills EMPTY company /
- * title / location fields via POST /target/extract. A field the user filled
- * is never overwritten. mergeExtracted is pure — tested from
+ * page boots init(). Behaviors: focusing a field inside a resume-mode box
+ * selects that mode; pasting a description trims page chrome from it
+ * (posting-clean.mjs) and auto-fills EMPTY company / title / location via
+ * POST /target/extract — the RAW paste goes to the extractor (salary and
+ * workplace often live in the chrome), the cleaned text stays in the box.
+ * Salary and workplace land in hidden fields; a field the user filled is
+ * never overwritten. mergeExtracted is pure — tested from
  * src/web/target-start.test.ts; importing this module touches no DOM.
  */
 
+import { cleanPostingText } from './posting-clean.mjs';
+
 export const MIN_DESCRIPTION_CHARS = 200;
+const PULSE = ['animate-pulse', 'ring-2', 'ring-violet/30'];
+const FILLED_FLASH = ['ring-2', 'ring-violet/40'];
 
 /** Which extracted values may land in the form: only where the user left it empty. */
 export function mergeExtracted(current, extracted) {
@@ -39,21 +46,37 @@ export function init() {
     title: form.elements.title,
     location: form.elements.location,
   };
+  const hidden = {
+    salaryMin: form.elements.salaryMin,
+    salaryMax: form.elements.salaryMax,
+    workplace: form.elements.workplace,
+  };
   const status = document.getElementById('extract-status');
+  const spin = document.getElementById('extract-spin');
+  const text = document.getElementById('extract-text');
   let busy = false;
 
-  async function autofill() {
-    const text = desc.value.trim();
-    if (busy || text.length < MIN_DESCRIPTION_CHARS) return;
-    if (!Object.values(fields).some((el) => !el.value.trim())) return;
-    busy = true;
+  function say(message, spinning) {
     status.hidden = false;
-    status.textContent = 'Detecting company, title and location from the description…';
+    spin.hidden = !spinning;
+    text.textContent = message;
+  }
+
+  async function autofill(raw, trimmedNote) {
+    if (busy || raw.trim().length < MIN_DESCRIPTION_CHARS) return;
+    const emptyFields = Object.values(fields).filter((el) => !el.value.trim());
+    if (emptyFields.length === 0) {
+      if (trimmedNote) say(trimmedNote, false);
+      return;
+    }
+    busy = true;
+    for (const el of emptyFields) el.classList.add(...PULSE);
+    say('Analyzing the pasted posting — detecting company, title and location…', true);
     try {
       const res = await fetch('/target/extract', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ description: text }),
+        body: JSON.stringify({ description: raw }),
       });
       const extracted = res.ok ? await res.json() : null;
       const current = {
@@ -62,19 +85,45 @@ export function init() {
         location: fields.location.value,
       };
       const patch = mergeExtracted(current, extracted);
-      for (const [key, value] of Object.entries(patch)) fields[key].value = value;
+      for (const [key, value] of Object.entries(patch)) {
+        fields[key].value = value;
+        fields[key].classList.add(...FILLED_FLASH);
+        setTimeout(() => fields[key].classList.remove(...FILLED_FLASH), 1500);
+      }
+      if (extracted) {
+        if (extracted.salaryMin) hidden.salaryMin.value = String(extracted.salaryMin);
+        if (extracted.salaryMax) hidden.salaryMax.value = String(extracted.salaryMax);
+        if (extracted.workplace) hidden.workplace.value = extracted.workplace;
+      }
       const found = Object.keys(patch);
-      status.textContent = found.length
-        ? 'Auto-filled from the description: ' + found.join(', ') + ' — check before comparing.'
-        : 'Could not detect the empty fields — fill them in manually.';
+      const parts = [];
+      if (trimmedNote) parts.push(trimmedNote);
+      parts.push(
+        found.length
+          ? 'Auto-filled: ' + found.join(', ') + ' — check before comparing.'
+          : 'Could not detect the empty fields — fill them in manually.',
+      );
+      if (extracted && (extracted.salaryMin || extracted.salaryMax)) parts.push('Salary saved to the job.');
+      say(parts.join(' '), false);
     } catch {
-      status.textContent = '';
       status.hidden = true;
     }
+    for (const el of Object.values(fields)) el.classList.remove(...PULSE);
     busy = false;
   }
 
   // paste fires before the textarea value updates; change covers manual typing.
-  desc.addEventListener('paste', () => setTimeout(autofill, 50));
-  desc.addEventListener('change', autofill);
+  desc.addEventListener('paste', () =>
+    setTimeout(() => {
+      const raw = desc.value;
+      const cleaned = cleanPostingText(raw);
+      let note = '';
+      if (cleaned !== raw) {
+        desc.value = cleaned;
+        note = 'Trimmed page chrome from the paste.';
+      }
+      void autofill(raw, note);
+    }, 50),
+  );
+  desc.addEventListener('change', () => void autofill(desc.value, ''));
 }
