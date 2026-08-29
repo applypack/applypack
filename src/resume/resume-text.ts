@@ -1,15 +1,19 @@
 import { extname } from 'node:path';
 import { docxToText, ResumeTextError } from './docx-text';
+import { pdfToText } from './pdf-text';
 import { ZipError } from './zip';
 
-export const ACCEPTED_EXTENSIONS = ['.docx', '.md', '.txt'] as const;
+export const ACCEPTED_EXTENSIONS = ['.pdf', '.docx', '.md', '.txt'] as const;
 const MIN_TEXT_CHARS = 200;
 
 /** Uploaded file → the plain text stored on Resume.text. Throws ResumeTextError with a user-facing message. */
-export function extractResumeText(filename: string, bytes: Buffer): string {
+export async function extractResumeText(filename: string, bytes: Buffer): Promise<string> {
   const ext = extname(filename).toLowerCase();
   let text: string;
-  if (ext === '.docx') {
+  if (ext === '.pdf') {
+    // pdfToText enforces its own minimum with a scanned-image hint.
+    return pdfToText(bytes);
+  } else if (ext === '.docx') {
     try {
       text = docxToText(bytes);
     } catch (err) {
@@ -18,10 +22,10 @@ export function extractResumeText(filename: string, bytes: Buffer): string {
     }
   } else if (ext === '.md' || ext === '.txt') {
     text = bytes.toString('utf8').replace(/\r\n/g, '\n').trim();
-  } else if (ext === '.pdf') {
-    throw new ResumeTextError('PDF is not supported yet — upload the .docx the PDF was exported from.');
   } else {
-    throw new ResumeTextError(`Unsupported file type "${ext || 'none'}". Upload .docx, .md or .txt.`);
+    throw new ResumeTextError(
+      `Unsupported file type "${ext || 'none'}". Upload ${ACCEPTED_EXTENSIONS.join(', ')}.`,
+    );
   }
   if (text.length < MIN_TEXT_CHARS) {
     throw new ResumeTextError(
