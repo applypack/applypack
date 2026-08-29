@@ -50,13 +50,12 @@ const BODY = [
   'strong SQL, CI/CD and Docker. We offer equity and a fully remote culture.',
 ].join('\n');
 
-test('cleanPostingText strips LinkedIn-style chrome around the posting body', async () => {
+test('cleanPostingText strips chrome but keeps the job-header block above the marker', async () => {
   const { cleanPostingText } = await cleaner;
+  const navSpam = Array.from({ length: 30 }, (_, i) => `Nav item ${i} from the page shell`);
   const paste = [
     'Skip to main content',
-    'Home',
-    'My Network',
-    'Jobs',
+    ...navSpam,
     'Sign in',
     'Senior Backend Engineer',
     'Acme Robotics · Remote (US) · $120K/yr - $160K/yr',
@@ -72,11 +71,15 @@ test('cleanPostingText strips LinkedIn-style chrome around the posting body', as
     'Backend Engineer at Other Corp',
   ].join('\n');
   const out = cleanPostingText(paste);
-  assert.ok(out.startsWith('About the job'), 'cuts everything before the body marker');
+  assert.ok(out.includes('Senior Backend Engineer'), 'the title line survives');
+  assert.ok(out.includes('$120K/yr - $160K/yr'), 'the salary line survives');
+  assert.ok(out.includes('About the job'));
   assert.ok(out.includes('mentor a team of four engineers'));
   assert.ok(!out.includes('Skip to main content'));
+  assert.ok(!out.includes('Nav item'), 'the Sign in line bounds the header — no nav spam leaks');
   assert.ok(!out.includes('Similar jobs'));
   assert.ok(!out.includes('243 applicants'));
+  assert.ok(out.indexOf('Senior Backend Engineer') < out.indexOf('About the job'));
 });
 
 test('cleanPostingText drops noise lines and duplicates without a head marker', async () => {

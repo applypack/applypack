@@ -2,9 +2,8 @@
  * Enhancements for the /target launcher. Served as a static ES module; the
  * page boots init(). Behaviors: focusing a field inside a resume-mode box
  * selects that mode; pasting a description trims page chrome from it
- * (posting-clean.mjs) and auto-fills EMPTY company / title / location via
- * POST /target/extract — the RAW paste goes to the extractor (salary and
- * workplace often live in the chrome), the cleaned text stays in the box.
+ * (posting-clean.mjs — the job-header block with salary survives) and
+ * auto-fills EMPTY company / title / location via POST /target/extract.
  * Salary and workplace land in hidden fields; a field the user filled is
  * never overwritten. mergeExtracted is pure — tested from
  * src/web/target-start.test.ts; importing this module touches no DOM.
@@ -55,6 +54,7 @@ export function init() {
   const spin = document.getElementById('extract-spin');
   const text = document.getElementById('extract-text');
   let busy = false;
+  let pendingSubmit = false;
 
   function say(message, spinning) {
     status.hidden = false;
@@ -62,8 +62,8 @@ export function init() {
     text.textContent = message;
   }
 
-  async function autofill(raw, trimmedNote) {
-    if (busy || raw.trim().length < MIN_DESCRIPTION_CHARS) return;
+  async function autofill(postingText, trimmedNote) {
+    if (busy || postingText.trim().length < MIN_DESCRIPTION_CHARS) return;
     const emptyFields = Object.values(fields).filter((el) => !el.value.trim());
     if (emptyFields.length === 0) {
       if (trimmedNote) say(trimmedNote, false);
@@ -76,7 +76,7 @@ export function init() {
       const res = await fetch('/target/extract', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ description: raw }),
+        body: JSON.stringify({ description: postingText }),
       });
       const extracted = res.ok ? await res.json() : null;
       const current = {
@@ -110,10 +110,26 @@ export function init() {
     }
     for (const el of Object.values(fields)) el.classList.remove(...PULSE);
     busy = false;
+    if (pendingSubmit) {
+      pendingSubmit = false;
+      form.submit(); // bypasses the submit listener — no recursion
+    }
   }
+
+  // Compare pressed while detection is in flight: wait for it, then submit —
+  // otherwise the POST would race the auto-fill and land with empty fields.
+  form.addEventListener('submit', (e) => {
+    if (!busy) return;
+    e.preventDefault();
+    pendingSubmit = true;
+    say('Finishing detection, then comparing…', true);
+  });
 
   // Detection runs ONLY after a paste — never on load, never while typing.
   // (paste fires before the textarea value updates, hence the timeout.)
+  // The extractor gets the CLEANED text: the cleaner keeps the job-header
+  // block, so company / title / salary survive while the nav chrome —
+  // which would otherwise eat the extractor's 3500-char head — is gone.
   desc.addEventListener('paste', () =>
     setTimeout(() => {
       const raw = desc.value;
@@ -123,7 +139,7 @@ export function init() {
         desc.value = cleaned;
         note = 'Trimmed page chrome from the paste.';
       }
-      void autofill(raw, note);
+      void autofill(cleaned, note);
     }, 50),
   );
   // Clearing the description clears the status with it.
