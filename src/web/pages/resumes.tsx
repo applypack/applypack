@@ -20,6 +20,7 @@ import {
 import type { FlashMessage } from '../flash';
 import { formatRelative } from '../format';
 import { ACCEPTED_EXTENSIONS } from '../../resume/resume-text';
+import { MAX_UPLOAD_MB } from '../upload';
 
 export interface ResumeRow {
   id: number;
@@ -32,13 +33,24 @@ export interface ResumeRow {
   createdAt: Date;
 }
 
+export interface FactRow {
+  term: string;
+  status: string; // confirmed | denied
+  note: string | null;
+}
+
 const SKILLS_PREVIEW = 6;
 
 const FILE_INPUT_CLASS =
   'file:mr-3 file:cursor-pointer file:rounded-md file:border-0 file:bg-surface-overlay file:px-2.5 file:py-1 file:text-xs file:font-medium file:text-ink';
 
-export const ResumesPage: FC<{ resumes: ResumeRow[]; flash?: FlashMessage | null }> = ({
+export const ResumesPage: FC<{
+  resumes: ResumeRow[];
+  facts: FactRow[];
+  flash?: FlashMessage | null;
+}> = ({
   resumes,
+  facts,
   flash,
 }) => (
   <Layout title="Resumes" active="resumes">
@@ -134,6 +146,32 @@ export const ResumesPage: FC<{ resumes: ResumeRow[]; flash?: FlashMessage | null
       <SectionTitle>Upload a resume</SectionTitle>
       <ResumeUploadForm />
     </Card>
+
+    {facts.length > 0 && (
+      <Card class="mt-4 max-w-3xl">
+        <SectionTitle>Confirmed facts</SectionTitle>
+        <Hint class="mb-3">
+          Your answers to "do you have this?" questions from comparisons. They feed every future
+          match — delete one if it's wrong.
+        </Hint>
+        <ul class="divide-y divide-line">
+          {facts.map((f) => (
+            <li class="flex flex-wrap items-center gap-2 py-2 first:pt-0 last:pb-0">
+              <Badge tone={f.status === 'confirmed' ? 'ok' : 'neutral'}>
+                {f.status === 'confirmed' ? 'have it' : "don't"}
+              </Badge>
+              <span class="text-sm font-medium text-ink">{f.term}</span>
+              {f.note && <span class="min-w-0 text-xs text-ink-faint">— {f.note}</span>}
+              <ActionForm action="/facts/delete" hidden={{ term: f.term, back: '/resumes' }} class="ml-auto">
+                <Button size="sm" variant="ghost">
+                  Forget
+                </Button>
+              </ActionForm>
+            </li>
+          ))}
+        </ul>
+      </Card>
+    )}
   </Layout>
 );
 
@@ -148,7 +186,7 @@ export const ResumeUploadForm: FC = () => (
     <Field label="Name" hint="Blank = taken from the file name.">
       <Input type="text" name="name" placeholder="Backend PHP" maxlength="100" />
     </Field>
-    <Field label="File" hint={`${ACCEPTED_EXTENSIONS.join(', ')} · up to 2 MB`}>
+    <Field label="File" hint={`${ACCEPTED_EXTENSIONS.join(', ')} · up to ${MAX_UPLOAD_MB} MB`}>
       <Input
         type="file"
         name="file"

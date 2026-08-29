@@ -20,18 +20,22 @@ import {
   Tr,
 } from '../ui';
 import { ACCEPTED_EXTENSIONS } from '../../resume/resume-text';
+import { MAX_UPLOAD_MB } from '../upload';
 import type { FlashMessage } from '../flash';
 import { formatDate, formatRelative } from '../format';
 import type { MatchWithJob, ResumeSummary } from '../../resume/store';
 import { readIssues } from '../../resume/prompts';
+import type { ParseWarning } from '../../resume/parse-warnings';
 
 export interface ResumeDetailProps {
   resume: ResumeSummary;
   matches: MatchWithJob[];
+  /** Deterministic ATS-parseability checks over the extracted text. */
+  warnings: ParseWarning[];
   flash?: FlashMessage | null;
 }
 
-export const ResumeDetailPage: FC<ResumeDetailProps> = ({ resume, matches, flash }) => {
+export const ResumeDetailPage: FC<ResumeDetailProps> = ({ resume, matches, warnings, flash }) => {
   const issues = readIssues(resume.issues);
   return (
     <Layout title={resume.name} active="resumes">
@@ -133,7 +137,7 @@ export const ResumeDetailPage: FC<ResumeDetailProps> = ({ resume, matches, flash
           enctype="multipart/form-data"
           class="grid gap-3 sm:grid-cols-[1.6fr_auto]"
         >
-          <Field label="File" hint={`${ACCEPTED_EXTENSIONS.join(', ')} · up to 2 MB`}>
+          <Field label="File" hint={`${ACCEPTED_EXTENSIONS.join(', ')} · up to ${MAX_UPLOAD_MB} MB`}>
             <Input
               type="file"
               name="file"
@@ -195,10 +199,26 @@ export const ResumeDetailPage: FC<ResumeDetailProps> = ({ resume, matches, flash
       </Card>
 
       <Card class="mt-4">
-        <details>
+        <SectionTitle>What the ATS sees</SectionTitle>
+        {warnings.length === 0 ? (
+          <Hint>
+            Extraction looks clean — selectable text, contact details found, normal length. Parsers
+            should read this file the way you do.
+          </Hint>
+        ) : (
+          <ul class="mb-3 space-y-1.5">
+            {warnings.map((w) => (
+              <li class="flex items-start gap-2 text-sm">
+                <Badge tone="warn">{w.code.replace(/_/g, ' ')}</Badge>
+                <span class="min-w-0 text-ink-muted">{w.message}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+        <details class="mt-2">
           <summary class="cursor-pointer select-none text-sm font-semibold text-ink">
-            Extracted text ({resume.text.length.toLocaleString()} chars) — what the AI and an ATS
-            see
+            Extracted text ({resume.text.length.toLocaleString()} chars) — exactly what the AI and
+            an ATS parser get
           </summary>
           <pre class="mt-3 whitespace-pre-wrap break-words font-sans text-sm leading-6 text-ink-muted">
             {resume.text}
