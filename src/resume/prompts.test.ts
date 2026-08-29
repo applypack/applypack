@@ -184,15 +184,28 @@ test('ask_user is sparing, hard-requirement silence is never a fail', () => {
 
 test('actions demand business impact and forbid invented metrics', () => {
   const { system } = buildMatchPrompt('resume', JOB);
-  assert.match(system, /IMPACT: every suggested experience bullet states the business outcome/);
+  assert.match(system, /State the business result \(revenue, cost, latency/);
   assert.match(system, /NEVER invent a metric/);
-  assert.match(system, /\[add your real number\]/);
+  // The placeholder now appears only inside the ban, never as an instruction to append it.
+  assert.match(system, /NEVER embed placeholders such as "\[add your real number\]"/);
+  assert.doesNotMatch(system, /append "\[add your real number\]"/);
 });
 
 test('the prompt asks for a small, fast reply', () => {
   const { system } = buildMatchPrompt('resume', JOB);
   assert.match(system, /~25 keywords/);
   assert.match(system, /12 words or fewer/);
+});
+
+test('bullet rules: verb-first, posting vocabulary, no invented metrics or placeholders', () => {
+  const { system } = buildMatchPrompt('resume', JOB);
+  assert.match(system, /BULLET RULES/);
+  assert.match(system, /Verb first, past tense/);
+  assert.match(system, /POSTING'S OWN vocabulary/);
+  assert.match(system, /NAMED requirement of this posting/);
+  assert.match(system, /NEVER invent a metric/);
+  assert.match(system, /NEVER embed placeholders/);
+  assert.match(system, /ask the candidate for the real number/);
 });
 
 test('removals rules protect the contact line and wanted keywords', () => {
