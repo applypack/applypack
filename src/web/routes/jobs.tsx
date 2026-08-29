@@ -1,21 +1,30 @@
 /** @jsxImportSource hono/jsx */
 import { Hono } from 'hono';
-import { AtsType, JobStatus, type Prisma } from '@prisma/client';
+import { JobStatus, type Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { prisma } from '../../db';
 import { logger } from '../../logger';
 import { getSettings } from '../../settings';
 import { classifyExistingJob } from '../../jobs/classify-existing';
-import { hashShortId } from '../../text-utils';
+import { createManualJob, ManualJobSchema, MIN_DESCRIPTION_CHARS } from '../../jobs/manual-job';
 import { listVerificationsForJob, verifyJob } from '../../verification/verify';
 import { JobsListPage } from '../pages/jobs-list';
 import { JobDetailPage } from '../pages/job-detail';
 import { JobNewPage } from '../pages/job-new';
 import { TargetPage } from '../pages/target';
-import { readResumeUpload, resumeUploadLimit } from '../upload';
+import { previousFor } from '../pages/resume-match-card';
+import { nameFromFilename, readResumeUpload, resumeUploadLimit } from '../upload';
 import { scanResume } from '../../resume/scan';
 import { clearFlashCookie, flashRedirect, parseFlashCookie } from '../flash';
-import { getResume, listMatchesForJob, listResumes, replaceResumeFile } from '../../resume/store';
+import { createRun, startRun, updateRun } from '../target-runs';
+import {
+  deleteMatchesForResume,
+  getResume,
+  listMatchesForJob,
+  listResumes,
+  replaceResumeFile,
+  upsertScratchResume,
+} from '../../resume/store';
 import { pickResumeForJob } from '../../resume/pick';
 import { matchResumeToJob } from '../../resume/match';
 
@@ -40,17 +49,6 @@ const ListQuerySchema = z.object({
   sort: z
     .enum(['fetchedAt_desc', 'fitScore_desc', 'postedAt_desc', 'title_asc'])
     .default('fetchedAt_desc'),
-});
-
-const MIN_DESCRIPTION_CHARS = 200;
-const MAX_FIELD_CHARS = 200;
-
-const ManualJobSchema = z.object({
-  companyName: z.string().trim().min(1).max(MAX_FIELD_CHARS),
-  title: z.string().trim().min(1).max(MAX_FIELD_CHARS),
-  url: z.string().trim().max(2000).default(''),
-  location: z.string().trim().max(MAX_FIELD_CHARS).default(''),
-  description: z.string().trim().min(MIN_DESCRIPTION_CHARS),
 });
 
 const StatusBodySchema = z.object({
@@ -131,39 +129,14 @@ jobsRoute.post('/jobs/new', async (c) => {
       `Company, title and a description of at least ${MIN_DESCRIPTION_CHARS} characters are required.`,
     );
   }
-  const f = parsed.data;
-  const atsToken = slugify(f.companyName);
-  const company = await prisma.company.upsert({
-    where: { atsType_atsToken: { atsType: AtsType.MANUAL, atsToken } },
-    update: {},
-    create: { name: f.companyName, atsType: AtsType.MANUAL, atsToken, active: false },
-  });
-  const externalId = `manual-${hashShortId(`${f.title}\n${f.description}`)}`;
-  const existing = await prisma.job.findUnique({
-    where: { companyId_externalId: { companyId: company.id, externalId } },
-  });
-  if (existing) {
-    return flashRedirect(`/jobs/${existing.id}`, 'ok', 'This posting was already saved.');
+  const result = await createManualJob(parsed.data);
+  if (result.kind === 'existing') {
+    return flashRedirect(`/jobs/${result.job.id}`, 'ok', 'This posting was already saved.');
   }
-  const job = await prisma.job.create({
-    data: {
-      companyId: company.id,
-      externalId,
-      title: f.title,
-      url: f.url,
-      location: f.location,
-      description: f.description,
-      postedAt: new Date(),
-      status: JobStatus.SAVED,
-    },
-    include: { company: { select: { name: true } } },
-  });
-  const classified = await classifyExistingJob(job, { keepStatus: true });
-  logger.info({ jobId: job.id, company: company.name, classified }, 'web: manual job saved');
   return flashRedirect(
-    `/jobs/${job.id}`,
+    `/jobs/${result.job.id}`,
     'ok',
-    classified
+    result.classified
       ? 'Saved and scored against the active profile. Next: Verify, then Compare with a resume.'
       : 'Saved. Classifier skipped (no active profile or AI failure) — Verify and Compare still work.',
   );
@@ -302,19 +275,27 @@ jobsRoute.post('/jobs/:id/match', async (c) => {
   const draftText = typeof form.draftText === 'string' ? form.draftText.replace(/\r\n/g, '\n').trim() : '';
   const draft = draftText.length > 0 && draftText !== resume.text;
   const toTarget = form.next === 'target';
-  const back = toTarget ? `/jobs/${id}/target` : `/jobs/${id}#resume-match`;
 
-  const row = await matchResumeToJob(
-    { id: resume.id, version: resume.version, text: draft ? draftText : resume.text },
-    { id: job.id, title: job.title, companyName: job.company.name, location: job.location, description: job.description },
-    { draft },
-  );
-  if (!row) return flashRedirect(back, 'err', 'Comparison failed — see the web logs.');
-  return flashRedirect(
-    toTarget ? `/jobs/${id}/target?match=${row.id}` : `/jobs/${id}?match=${row.id}#resume-match`,
-    'ok',
-    `${draft ? 'Draft' : `"${resume.name}"`} compared — AI match ${row.matchScore}/100.`,
-  );
+  const run = createRun({ steps: ['match'], jobTitle: job.title, resumeName: resume.name, jobId: id });
+  startRun(run.id, async () => {
+    // Ephemeral (scratch) compares keep only the current analysis.
+    if (resume.hidden) await deleteMatchesForResume(resume.id);
+    const row = await matchResumeToJob(
+      { id: resume.id, version: resume.version, text: draft ? draftText : resume.text },
+      { id: job.id, title: job.title, companyName: job.company.name, location: job.location, description: job.description },
+      { draft },
+    );
+    if (!row) {
+      updateRun(run.id, { stage: 'error', error: 'Comparison failed — see the web logs.' });
+      return;
+    }
+    updateRun(run.id, {
+      stage: 'done',
+      resultUrl: toTarget ? `/jobs/${id}/target?match=${row.id}` : `/jobs/${id}?match=${row.id}#resume-match`,
+      flash: `${draft ? 'Draft' : `"${resume.name}"`} compared — AI match ${row.matchScore}/100.`,
+    });
+  });
+  return c.redirect(`/target/runs/${run.id}`, 303);
 });
 
 jobsRoute.get('/jobs/:id/target', async (c) => {
@@ -335,9 +316,10 @@ jobsRoute.get('/jobs/:id/target', async (c) => {
   return c.html(
     <TargetPage
       job={{ id: job.id, title: job.title, companyName: job.company.name, location: job.location, description: job.description }}
-      resume={{ id: resume.id, name: resume.name, version: resume.version }}
+      resume={{ id: resume.id, name: resume.name, version: resume.version, ephemeral: resume.hidden }}
       match={match}
       matches={matches}
+      previous={previousFor(match, matches)}
       resumeText={match.resumeText || resume.text}
       flash={parseFlashCookie(c.req.header('cookie'))}
     />,
@@ -360,28 +342,52 @@ jobsRoute.post('/jobs/:id/target/reupload', async (c, next) => resumeUploadLimit
   const upload = await readResumeUpload(form);
   if ('error' in upload) return flashRedirect(`/jobs/${id}/target`, 'err', upload.error);
 
-  const resume = await replaceResumeFile(resumeId, upload);
-  await scanResume(resume);
-  const row = await matchResumeToJob(resume, {
-    id: job.id,
-    title: job.title,
-    companyName: job.company.name,
-    location: job.location,
-    description: job.description,
+  // Scratch (ephemeral) resumes are replaced in place with no scan and no
+  // history — a fresh upload means a fresh analysis, nothing saved.
+  const ephemeral = existing.hidden;
+  const newName = ephemeral ? nameFromFilename(upload.sourceFilename) : existing.name;
+  const run = createRun({
+    steps: ephemeral ? ['match'] : ['scan', 'match'],
+    jobTitle: job.title,
+    resumeName: newName,
+    jobId: id,
   });
-  return row
-    ? flashRedirect(`/jobs/${id}/target?match=${row.id}`, 'ok', `v${resume.version} uploaded and compared — AI match ${row.matchScore}/100.`)
-    : flashRedirect(`/jobs/${id}/target`, 'err', `v${resume.version} uploaded, but the comparison failed — see the web logs.`);
+  startRun(run.id, async () => {
+    let resume;
+    if (ephemeral) {
+      resume = await upsertScratchResume({ name: newName, ...upload });
+      await deleteMatchesForResume(resume.id);
+    } else {
+      resume = await replaceResumeFile(resumeId, upload);
+      await scanResume(resume);
+      updateRun(run.id, { stage: 'match' });
+    }
+    const row = await matchResumeToJob(resume, {
+      id: job.id,
+      title: job.title,
+      companyName: job.company.name,
+      location: job.location,
+      description: job.description,
+    });
+    if (!row) {
+      updateRun(run.id, {
+        stage: 'error',
+        error: ephemeral
+          ? 'Upload worked, but the comparison failed — see the web logs.'
+          : `v${resume.version} uploaded, but the comparison failed — see the web logs.`,
+      });
+      return;
+    }
+    updateRun(run.id, {
+      stage: 'done',
+      resultUrl: `/jobs/${id}/target?match=${row.id}`,
+      flash: ephemeral
+        ? `"${newName}" compared — AI match ${row.matchScore}/100.`
+        : `v${resume.version} uploaded and compared — AI match ${row.matchScore}/100.`,
+    });
+  });
+  return c.redirect(`/target/runs/${run.id}`, 303);
 });
-
-/** "Acme Corp." → "acme-corp" — the MANUAL company's atsToken. */
-function slugify(name: string): string {
-  return name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 80) || 'company';
-}
 
 function sortToOrderBy(sort: string): Prisma.JobOrderByWithRelationInput[] {
   switch (sort) {

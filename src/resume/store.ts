@@ -1,7 +1,8 @@
-import type { Prisma, Resume, ResumeMatch } from '@prisma/client';
+import type { CandidateFact, Prisma, Resume, ResumeMatch } from '@prisma/client';
 import { prisma } from '../db';
 import { logger } from '../logger';
-import type { ResumeMatchResult, ResumeScan } from './prompts';
+import type { MatchKeyword, ResumeMatchResult, ResumeScan } from './prompts';
+import type { ScoreBreakdown } from './score';
 
 /** Resume without the uploaded bytes — what every page and prompt works with. */
 export type ResumeSummary = Omit<Resume, 'original'>;
@@ -10,6 +11,7 @@ const WITHOUT_ORIGINAL = { original: true } as const;
 
 export async function listResumes(): Promise<ResumeSummary[]> {
   return prisma.resume.findMany({
+    where: { hidden: false },
     omit: WITHOUT_ORIGINAL,
     orderBy: [{ isDefault: 'desc' }, { id: 'asc' }],
   });
@@ -44,6 +46,43 @@ export async function createResume(input: {
   });
   logger.info({ id: row.id, name: row.name, chars: input.text.length }, 'resume: created');
   return row;
+}
+
+/**
+ * The /target scratch resume: one hidden row, replaced in place on every
+ * ephemeral compare — nothing accumulates in the user's Resumes.
+ */
+export async function upsertScratchResume(input: {
+  name: string;
+  sourceFilename: string;
+  mimeType: string;
+  original: Buffer;
+  text: string;
+}): Promise<ResumeSummary> {
+  const existing = await prisma.resume.findFirst({ where: { hidden: true }, select: { id: true } });
+  const data = { ...input, original: new Uint8Array(input.original) };
+  if (existing) {
+    const row = await prisma.resume.update({
+      where: { id: existing.id },
+      data: { ...data, version: { increment: 1 }, scannedAt: null },
+      omit: WITHOUT_ORIGINAL,
+    });
+    logger.info({ id: row.id, chars: input.text.length }, 'resume: scratch replaced');
+    return row;
+  }
+  const row = await prisma.resume.create({
+    data: { ...data, hidden: true, isDefault: false },
+    omit: WITHOUT_ORIGINAL,
+  });
+  logger.info({ id: row.id, chars: input.text.length }, 'resume: scratch created');
+  return row;
+}
+
+/** Ephemeral compares keep only the latest analysis — old scratch matches go. */
+export async function deleteMatchesForResume(resumeId: number): Promise<number> {
+  const r = await prisma.resumeMatch.deleteMany({ where: { resumeId } });
+  if (r.count > 0) logger.info({ resumeId, deleted: r.count }, 'resume: old matches cleared');
+  return r.count;
 }
 
 /** "Upload new version": swap the file + text, bump version, clear the scan. */
@@ -135,6 +174,8 @@ export async function createMatch(input: {
   draft: boolean;
   model: string;
   result: ResumeMatchResult;
+  /** Computed by score.ts — the model never sets the number (ADR 0012). */
+  breakdown: ScoreBreakdown;
 }): Promise<ResumeMatch> {
   const r = input.result;
   return prisma.resumeMatch.create({
@@ -145,13 +186,88 @@ export async function createMatch(input: {
       resumeText: input.resumeText,
       draft: input.draft,
       model: input.model,
-      matchScore: r.match_score,
+      matchScore: input.breakdown.score,
       summary: r.summary,
       strengths: r.strengths,
       redFlags: r.red_flags,
+      cautions: r.cautions,
       keywords: r.keywords as Prisma.InputJsonValue,
       actions: r.actions as Prisma.InputJsonValue,
       removals: r.removals as Prisma.InputJsonValue,
+      breakdown: input.breakdown as unknown as Prisma.InputJsonValue,
+      hardRequirements: r.hard_requirements as Prisma.InputJsonValue,
     },
   });
+}
+
+export async function getMatch(id: number): Promise<ResumeMatch | null> {
+  return prisma.resumeMatch.findUnique({ where: { id } });
+}
+
+/** Latest analysis of a posting, any resume — its keyword frame keeps re-runs comparable. */
+export async function getLatestMatchForJob(jobId: number): Promise<ResumeMatch | null> {
+  return prisma.resumeMatch.findFirst({ where: { jobId }, orderBy: { createdAt: 'desc' } });
+}
+
+/** A fact flip recomputes the stored score deterministically — no AI call. */
+export async function updateMatchScoring(
+  id: number,
+  input: { keywords: MatchKeyword[]; breakdown: ScoreBreakdown },
+): Promise<ResumeMatch> {
+  return prisma.resumeMatch.update({
+    where: { id },
+    data: {
+      keywords: input.keywords as Prisma.InputJsonValue,
+      breakdown: input.breakdown as unknown as Prisma.InputJsonValue,
+      matchScore: input.breakdown.score,
+    },
+  });
+}
+
+/* ---------- candidate facts (ask_user answers) ---------- */
+
+export async function listFacts(): Promise<CandidateFact[]> {
+  return prisma.candidateFact.findMany({ orderBy: { term: 'asc' } });
+}
+
+export async function upsertFact(
+  term: string,
+  status: 'confirmed' | 'denied',
+  note: string | null,
+): Promise<CandidateFact> {
+  const key = term.trim().toLowerCase();
+  const row = await prisma.candidateFact.upsert({
+    where: { term: key },
+    create: { term: key, status, note },
+    update: { status, note },
+  });
+  logger.info({ term: key, status }, 'resume: candidate fact saved');
+  return row;
+}
+
+export async function deleteFact(term: string): Promise<void> {
+  await prisma.candidateFact
+    .delete({ where: { term: term.trim().toLowerCase() } })
+    .catch(() => undefined);
+}
+
+/**
+ * Skill tags scanned from the user's OTHER visible resumes — the lightweight
+ * evidence vault behind "you have it, but this resume hides it".
+ */
+export async function listOtherResumeSkills(
+  excludeResumeId: number,
+): Promise<{ skill: string; resumeName: string }[]> {
+  const rows = await prisma.resume.findMany({
+    where: { hidden: false, id: { not: excludeResumeId } },
+    select: { name: true, skills: true },
+    orderBy: [{ isDefault: 'desc' }, { id: 'asc' }],
+  });
+  const seen = new Map<string, string>();
+  for (const r of rows) {
+    for (const skill of r.skills) {
+      if (!seen.has(skill)) seen.set(skill, r.name);
+    }
+  }
+  return [...seen].map(([skill, resumeName]) => ({ skill, resumeName }));
 }

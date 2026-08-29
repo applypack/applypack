@@ -242,6 +242,9 @@ model Resume {
   // Bumped on "Upload new version"; matches record the version they scored.
   version         Int           @default(1)
   isDefault       Boolean       @default(false)
+  // The /target scratch row: replaced in place on every ephemeral compare,
+  // excluded from every list and picker.
+  hidden          Boolean       @default(false)
   scannedAt       DateTime?
   title           String?
   seniority       String?
@@ -257,33 +260,57 @@ model Resume {
 }
 
 // Phase 8.1: one AI comparison of a resume against a job posting.
-// keywords = [{ term, priority 1-4, status present|add|cannot_claim, where, note }]
+// keywords = [{ term, priority 1-4, requirement must|preferred|nice|context,
+//               primary, status present|add|ask_user|cannot_claim, aliases,
+//               where, note, elsewhere }]
 // actions  = [{ section, where, what, why, priority high|medium|low }]
 // removals = [{ section, where, what, why }] — what to delete or shorten
+// Since phase 9 (ADR 0012) matchScore is computed by src/resume/score.ts from
+// the keyword statuses + alignment — the model never sets the number.
 model ResumeMatch {
-  id            Int      @id @default(autoincrement())
-  jobId         Int
-  job           Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
-  resumeId      Int
-  resume        Resume   @relation(fields: [resumeId], references: [id], onDelete: Cascade)
-  resumeVersion Int      @default(1)
+  id               Int      @id @default(autoincrement())
+  jobId            Int
+  job              Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  resumeId         Int
+  resume           Resume   @relation(fields: [resumeId], references: [id], onDelete: Cascade)
+  resumeVersion    Int      @default(1)
   // Snapshot of the text that was judged, so highlights stay true after the
   // resume moves on. `draft` = text came from the in-browser editor, not a
   // stored version.
-  resumeText    String   @default("") @db.Text
-  draft         Boolean  @default(false)
-  model         String
-  matchScore    Int
-  summary       String   @db.Text
-  strengths     String[] @default([])
-  redFlags      String[] @default([])
-  keywords      Json
-  actions       Json
-  removals      Json     @default("[]")
-  createdAt     DateTime @default(now())
+  resumeText       String   @default("") @db.Text
+  draft            Boolean  @default(false)
+  model            String
+  matchScore       Int
+  summary          String   @db.Text
+  strengths        String[] @default([])
+  redFlags         String[] @default([])
+  // Soft concerns — displayed, never scored (scoring v3). Red flags cost points;
+  // cautions exist so the model has somewhere to put style/domain observations.
+  cautions         String[] @default([])
+  keywords         Json
+  actions          Json
+  removals         Json     @default("[]")
+  // Deterministic score breakdown (ScoreBreakdown in score.ts); {} on pre-9 rows.
+  breakdown        Json     @default("{}")
+  // [{ requirement, status pass|unknown|fail, note }] — gates shown outside the score.
+  hardRequirements Json     @default("[]")
+  createdAt        DateTime @default(now())
 
   @@index([jobId, createdAt])
   @@index([resumeId, createdAt])
+}
+
+// Phase 9: candidate facts confirmed or denied by the user in response to
+// "ask_user" keywords. Global (single-user app), keyed by lowercase term.
+// Confirmed facts count as evidence in later matches; denied terms are
+// always cannot_claim and never asked again.
+model CandidateFact {
+  id        Int      @id @default(autoincrement())
+  term      String   @unique // lowercase canonical, e.g. "azure"
+  status    String // confirmed | denied
+  note      String? // user's context: where / when / what
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 // Phase 8.2: ghost-job / scam check of one posting, done with web search.

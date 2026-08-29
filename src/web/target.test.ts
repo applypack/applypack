@@ -6,12 +6,17 @@ import assert from 'node:assert/strict';
 const matcher = import('./public/target.mjs') as Promise<{
   findTerm: (text: string, term: string, aliases?: string[]) => { start: number; end: number }[];
   scoreKeywords: (
-    keywords: { term: string; priority: number; status: string; aliases?: string[] }[],
+    keywords: { term: string; priority: number; requirement?: string; status: string; aliases?: string[] }[],
     text: string,
     opts?: { includeCannotClaim?: boolean },
-  ) => { score: number; rows: { term: string; found: boolean; count: number; excluded: boolean }[] };
+  ) => { score: number; rows: { term: string; found: boolean; count: number; weight: number; excluded: boolean }[] };
   locateQuote: (text: string, quote: string | null) => { start: number; end: number } | null;
   highlightHtml: (text: string, spans: { start: number; end: number; cls: string; title?: string }[]) => string;
+  jobSpans: (
+    keywords: { term: string; priority: number; requirement?: string; status: string; aliases?: string[] }[],
+    jobText: string,
+    scored: { rows: { term: string; found: boolean }[] },
+  ) => { start: number; end: number; cls: string }[];
   resumeSpans: (
     keywords: { term: string; priority: number; status: string; aliases?: string[] }[],
     actions: { quote: string | null; what: string }[],
@@ -45,13 +50,13 @@ test('findTerm spans index the original text even with tabs, double spaces and c
   assert.equal(findTerm('continuous   delivery pipeline', 'continuous delivery').length, 1);
 });
 
-test('scoreKeywords weights priorities and excludes cannot_claim by default', async () => {
+test('scoreKeywords weights requirement levels and excludes cannot_claim and context', async () => {
   const { scoreKeywords } = await matcher;
   const keywords = [
-    { term: 'PHP', priority: 1, status: 'present' },
-    { term: 'Angular', priority: 1, status: 'cannot_claim' },
-    { term: 'Docker', priority: 3, status: 'add' },
-    { term: 'Laravel', priority: 2, status: 'present' },
+    { term: 'PHP', priority: 1, requirement: 'must', status: 'present' },
+    { term: 'Angular', priority: 1, requirement: 'must', status: 'cannot_claim' },
+    { term: 'Docker', priority: 3, requirement: 'nice', status: 'add' },
+    { term: 'Laravel', priority: 2, requirement: 'preferred', status: 'present' },
   ];
   const r = scoreKeywords(keywords, RESUME);
   // PHP 3 + Laravel 2 earned of 3 + 1 + 2 = 6 → 83
@@ -59,6 +64,28 @@ test('scoreKeywords weights priorities and excludes cannot_claim by default', as
   assert.equal(r.rows.find((x) => x.term === 'Angular')?.excluded, true);
   assert.equal(scoreKeywords(keywords, RESUME, { includeCannotClaim: true }).score, 56);
   assert.equal(scoreKeywords([], RESUME).score, 0);
+
+  // "context" keywords carry no weight and never count either way.
+  const withContext = [...keywords, { term: 'PostgreSQL', priority: 4, requirement: 'context', status: 'present' }];
+  assert.equal(scoreKeywords(withContext, RESUME).score, 83);
+  assert.equal(scoreKeywords(withContext, RESUME).rows.find((x) => x.term === 'PostgreSQL')?.excluded, true);
+
+  // Rows without a requirement level (pre-ADR-0012 matches) fall back to priority weights.
+  assert.equal(scoreKeywords([{ term: 'PHP', priority: 1, status: 'present' }], RESUME).rows[0]?.weight, 3);
+});
+
+test('jobSpans classes: found, missing, ask_user and cannot_claim', async () => {
+  const { jobSpans, scoreKeywords } = await matcher;
+  const jobText = 'We need PHP, Angular, Docker and Terraform.';
+  const keywords = [
+    { term: 'PHP', priority: 1, requirement: 'must', status: 'present' },
+    { term: 'Angular', priority: 1, requirement: 'must', status: 'cannot_claim' },
+    { term: 'Docker', priority: 2, requirement: 'preferred', status: 'add' },
+    { term: 'Terraform', priority: 2, requirement: 'preferred', status: 'ask_user' },
+  ];
+  const scored = scoreKeywords(keywords, RESUME);
+  const byCls = jobSpans(keywords, jobText, scored).map((s) => s.cls);
+  assert.deepEqual(byCls, ['kw-found', 'kw-cannot', 'kw-missing', 'kw-ask']);
 });
 
 test('locateQuote finds exact text, then tolerates punctuation and spacing drift', async () => {
@@ -79,6 +106,14 @@ test('highlightHtml wraps spans, escapes html and drops overlaps', async () => {
     { start: 6, end: 7, cls: 'z', title: 'q"t' },
   ]);
   assert.equal(html, 'a <mark class="x">&lt;b&gt;</mark> <mark class="z" title="q&quot;t">c</mark> d'.replace('&quot;', '"'));
+});
+
+test('target-page module imports without a DOM and exposes init', async () => {
+  // The page wiring must keep every document/localStorage touch inside init(),
+  // or serving it to node:test (and to the browser before DOMContentLoaded) breaks.
+  // @ts-expect-error — plain JS with no declaration file.
+  const page = (await import('./public/target-page.mjs')) as { init: unknown };
+  assert.equal(typeof page.init, 'function');
 });
 
 test('resumeSpans marks keywords and quoted edits, edits first on ties', async () => {
