@@ -116,8 +116,10 @@ export const TargetPage: FC<TargetPageProps> = ({
     actions,
     removals,
     // Fixed score parts for the live estimate; null on pre-ADR-0012 matches.
+    // penalty rides along frozen: the flag texts were judged against the
+    // analysed snapshot, so live typing must not re-derive the offset.
     scoring: breakdown
-      ? { alignment: breakdown.alignment, redFlagCount: match.redFlags.length }
+      ? { alignment: breakdown.alignment, redFlagCount: match.redFlags.length, penalty: breakdown.penalty }
       : null,
   };
   return (
