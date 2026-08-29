@@ -27,6 +27,7 @@
     "hn:once": "tsx src/scripts/hn-once.ts",
     "discovery:once": "tsx src/scripts/discovery-once.ts",
     "priority:dryrun": "tsx src/scripts/priority-rules-dryrun.ts",
+    "bench:resume": "tsx src/scripts/resume-bench-once.ts",
     "test:telegram": "tsx src/scripts/test-telegram.ts",
     "prisma:generate": "prisma generate",
     "prisma:migrate:deploy": "prisma migrate deploy",
@@ -47,6 +48,7 @@
     "pino-pretty": "^11.3.0",
     "prisma": "^6.1.0",
     "rss-parser": "^3.13.0",
+    "unpdf": "^1.8.1",
     "zod": "^3.23.8"
   },
   "devDependencies": {
