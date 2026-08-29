@@ -282,10 +282,12 @@ removing the violet accent.
       behind a disclosure
 - [x] Matched-highlight toggle for both panes — default ON (user pref; audits
       suggested off, user overrode). Legend samples keep their colour
-- [x] Suggestions is the first + default tab, advice column beside the sticky
-      editor; clicking a suggestion selects its text in place (no tab throw);
-      live estimate mirrored in the sticky bar; "Your resume" tab dropped
-      (the editor already shows in the first two tabs)
+- [x] Suggestions pairs the advice column with the sticky editor; clicking a
+      suggestion selects its text in place (no tab throw); live estimate
+      mirrored in the sticky bar; "Your resume" tab dropped. Tab order ended
+      as Side by side (default) → Suggestions → Job description (user pref)
+- [x] Score card as a proportional grid (score | why | actions rail + live
+      estimate), resume name deduped out of it, page capped at 1536px
 - [x] Action row: Re-upload is the one visible button (user pref); Re-analyze
       and Save live in the ⋯ menu, resurfaced by the sticky bar while editing.
       Dropdown panels are in-flow on phones (an absolute panel overflowed 375px)
