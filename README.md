@@ -309,17 +309,27 @@ descriptions, plus Mermaid diagrams of the data flow.
 
 ## AI backend
 
-Both classifier stages go through one seam, `src/ai-provider.ts`. Pick the
-backend with `AI_PROVIDER`:
+Every AI call goes through one seam, `src/ai-provider.ts`. The default
+backend comes from `AI_PROVIDER` in `.env`; **`/settings` → "AI engine"
+overrides the backend and both models at runtime** (stored in Postgres — the
+dashboard switches immediately, the worker on its next tick; ADR 0013).
 
 | Value | How it runs | Billing |
 | --- | --- | --- |
 | `anthropic_api` (default) | `@anthropic-ai/sdk` → Messages API, system prompt cached | per token, `ANTHROPIC_API_KEY` required |
 | `claude_code` | spawns `claude -p --output-format json` per job | your Claude.ai Pro/Max subscription |
+| `gemini_cli` | spawns `gemini -p --output-format json` per job | your Google account (Gemini CLI login) or `GEMINI_API_KEY` |
 
-`CLAUDE_MODEL` (Haiku 4.5) runs the classifier; `CLAUDE_MODEL_RESUME`
-(Opus 5 by default) runs the resume scan and resume-vs-job comparison —
-a few calls a day where judgment matters more than cost.
+Two model slots, both overridable on `/settings`: the **classifier model**
+(`CLAUDE_MODEL`, Haiku 4.5 — cheap, runs on every fetched job) and the
+**resume model** (`CLAUDE_MODEL_RESUME`, Opus 5 — resume scan, match and job
+verification, a few calls a day where judgment matters more than cost). With
+the Gemini engine the slots default to `gemini-2.5-flash` / `gemini-2.5-pro`.
+
+`gemini_cli` notes: install with `npm i -g @google/gemini-cli` (the Docker
+image ships it), then either run `gemini` once to log in or set
+`GEMINI_API_KEY` in `.env`. The prompts are tuned against Claude — expect
+somewhat different scoring behaviour.
 
 `claude_code` notes:
 

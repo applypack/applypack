@@ -40,7 +40,9 @@
 - Each fetcher returns `NormalizedJob[]` — never writes to DB directly.
 - `filter.ts` is pure — no I/O.
 - `classifier.ts` (and `classifier-prefilter.ts`) build prompts and parse
-  replies; the only thing that talks to Claude is `ai-provider.ts` — no DB.
+  replies; the only thing that talks to the AI is `ai-provider.ts` — no DB.
+  Engine choice (provider + models) resolves per call via `ai-runtime.ts`
+  (DB row → `.env` fallback, pure merge in `ai-engine.ts` — ADR 0013).
 - `jobs/process-jobs.ts` is the single source of truth for the inner
   filter → dedupe → classify → persist → alert sequence. Reused by
   `runFetchJob` and `runHnHiringJob`.
@@ -114,7 +116,8 @@ When the question is **"where does X live?"**, save yourself a `find`:
 | Where to register a new ATS | `src/fetchers/index.ts:fetchOne` switch + `prisma/schema.prisma:AtsType` enum |
 | Where to add a new toggle | `prisma/schema.prisma:AppSettings` (column) → `src/settings.ts` (getter/setter) → `src/web/pages/settings.tsx` (UI) → `src/web/routes/settings.tsx` (POST) |
 | The Claude system prompt | `src/classifier.ts:buildSystemPrompt` |
-| Which backend runs Claude (API key vs subscription CLI) | `src/ai-provider.ts:getAiProvider`, `AI_PROVIDER` in `.env` |
+| Which AI engine runs (provider + models, DB override → .env fallback) | `src/ai-runtime.ts:getAiRuntime` + pure merge in `src/ai-engine.ts` (ADR 0013); UI on `/settings` → "AI engine" |
+| Adding a new AI backend | `src/ai-provider.ts` (`CliProvider` spec) + `AI_PROVIDER_IDS` in `src/ai-engine.ts` + probe in `src/ai-runtime.ts` |
 | How many jobs are classified at once | `AI_CONCURRENCY` in `.env` (default 3); limiter in `src/concurrency.ts`, used by `jobs/process-jobs.ts` and `jobs/reclassify-job.ts` |
 | The two-stage prefilter prompt | `src/classifier-prefilter.ts:buildPrefilterPrompt` |
 | Per-job filter rules (pre-Claude) | `src/filter.ts:passesBaseFilter` |
@@ -135,7 +138,7 @@ When the question is **"where does X live?"**, save yourself a `find`:
 | Live smoke bench of the match prompt (3 gold fixtures) | `npm run bench:resume` — `src/scripts/resume-bench-once.ts` |
 | Compare-run progress pages (async classify/scan/match) | `src/web/target-runs.ts` (in-memory registry) + `src/web/pages/target-run.tsx`; started by `/target`, `/jobs/:id/match`, `/jobs/:id/target/reupload` |
 | Which resume a job page preselects | `src/resume/pick.ts:pickResumeForJob` (skill-tag overlap) |
-| Model for resume calls | `CLAUDE_MODEL_RESUME` in `.env` (default `claude-opus-5`), passed via `AiRequest.model` |
+| Model for resume calls | `/settings` → "AI engine" resume model; falls back to `CLAUDE_MODEL_RESUME` in `.env` (default `claude-opus-5`) |
 | Ghost-job checklist prompt + verdict schema | `src/verification/prompts.ts` |
 | Letting a call use web search (API server tools / CLI WebSearch) | `AiRequest.webTools` in `src/ai-provider.ts`, args in `ai-provider-parse.ts:buildClaudeCodeArgs` |
 | Classify one stored job (Re-classify button, pasted jobs) | `src/jobs/classify-existing.ts` |
@@ -148,6 +151,7 @@ When the question is **"how does the user toggle / configure X?"**:
 | What | Page |
 | --- | --- |
 | Pause / resume all new-job fetching | `/settings` → "Job fetching" card (top) |
+| Pick the AI provider / models | `/settings` → "AI engine" (availability-probed radios + two model slots) |
 | Add / remove tracked company | `/companies` (with manual probe before save) |
 | Disable whole ATS family (e.g. all Workable) | `/settings` → "Job sources" card |
 | Enable two-stage classifier (cheaper, less precise) | `/settings` → "Classifier mode" |
@@ -158,7 +162,8 @@ When the question is **"how does the user toggle / configure X?"**:
 | Add Telegram bot or chat | `/settings` → "Add target" (validates with getMe + sendMessage) |
 | Pipeline stage on a job | `/jobs/:id` → "Application tracking" card |
 | Review newly discovered companies | `/discovery` (sorted by jobsSeen DESC) |
-| Upload / scan a resume | `/settings` → "Resumes" card, or `/resumes` |
+| Toggle auto-discovery / HN parser | `/discovery` (card at the top; moved off `/settings` 2026-08-29) |
+| Upload / scan a resume | `/resumes` (the Settings card only lists + links) |
 | Compare a resume with a posting | `/jobs/:id` → "Resume match" card (Compare) |
 | Paste a posting the fetchers don't see | `/jobs` → "+ Paste a job" (`/jobs/new`) |
 | Compare a pasted posting with any resume in one step | menu → Target (`/target`): paste posting, pick / upload / paste resume, Compare |

@@ -21,6 +21,7 @@ consequences (what we accept). Aim for 15–30 lines each.
 - [0010 — Two scores: live keyword coverage in the browser, AI match on demand](./0010-two-scores-live-keywords-vs-ai-match.md)
 - [0011 — PDF resume text comes from unpdf, not a hand-rolled parser](./0011-pdf-extraction-via-unpdf.md)
 - [0012 — The resume-match score is computed by application code, not by the model](./0012-deterministic-match-score.md)
+- [0013 — AI engine is chosen at runtime from AppSettings, with a Gemini CLI backend](./0013-runtime-ai-engine.md)
 
 ## When to write a new one
 

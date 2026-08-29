@@ -138,7 +138,7 @@ marking 4xx-returning slugs as DEAD.
 
 `Resume` rows hold an uploaded file (`original` bytes, `.docx` / `.md` /
 `.txt`) and its plain-text extraction (`text`). On upload the web process
-runs one AI call (`CLAUDE_MODEL_RESUME`) that fills headline, seniority,
+runs one AI call (the resume model, `CLAUDE_MODEL_RESUME` by default) that fills headline, seniority,
 years, skill tags, role types and job-agnostic `issues`. The first upload
 becomes the default.
 
@@ -193,7 +193,7 @@ skip, confidence, evidence rows with URLs, red flags, company snapshot.
 - Prisma 6 + Postgres 16 (real migrations from `phase-3.0` baseline onward)
 - node-cron for scheduling, no Redis / BullMQ
 - Hono 4 for the dashboard, JSX SSR with `hono/jsx`, Tailwind via CDN over semantic CSS-variable tokens (no build pipeline; light SaaS theme, see DESIGN.md)
-- `src/ai-provider.ts` seam: `anthropic_api` (SDK, per-token) or `claude_code` (headless CLI, subscription); Claude Haiku 4.5 for both classifier stages;  `CLAUDE_MODEL_RESUME` (Opus 5) for resume scan / match; `AI_CONCURRENCY` jobs classified at once (default 3)
+- `src/ai-provider.ts` seam: `anthropic_api` (SDK, per-token), `claude_code` (headless CLI, subscription) or `gemini_cli` (headless CLI, Google account); provider + classifier/resume models overridable at runtime from `/settings` → "AI engine" (AppSettings, ADR 0013), `.env` as fallback (Haiku 4.5 classifier, Opus 5 resume); `AI_CONCURRENCY` jobs classified at once (default 3)
 - node:test runner (`npm test`), no jest
 
 ## Project layout
