@@ -14,7 +14,10 @@
 [How it works](#how-it-works) · [Bring your own AI](#bring-your-own-ai) ·
 [What it costs](#what-it-costs) · [Contributing](#contributing)
 
-<img src="docs/screenshots/overview.png" alt="Overview: status counters with 24h deltas, recent alerts, cron health" width="900">
+<img src="docs/screenshots/target.png" alt="Resume match: deterministic 81/100 score with primary-stack verdict, experience confirmations, and the side-by-side editor with keyword highlights" width="900">
+
+<sub>The targeted editor: an honest, deterministic resume-vs-posting score,
+one-click experience confirmations, live keyword highlights.</sub>
 
 </div>
 
@@ -211,7 +214,7 @@ on the AI tab shows exactly which engine your calls went to.
 ## Day to day
 
 <div align="center">
-<img src="docs/screenshots/jobs.png" alt="Jobs: full-width table with fit scores, status filters and sticky header" width="900">
+<img src="docs/screenshots/overview.png" alt="Overview: status counters with 24h deltas, recent alerts, cron health" width="900">
 </div>
 
 | Page | URL | What it's for |
@@ -228,6 +231,10 @@ on the AI tab shows exactly which engine your calls went to.
 | Discovery | `/discovery` | Board candidates harvested from HN, with the discovery toggles |
 | Runs | `/runs` | The last 100 cron runs with stats and errors |
 | Settings | `/settings` | Five tabs: General · Profile · AI engine · Notifications · Sources |
+
+<div align="center">
+<img src="docs/screenshots/jobs.png" alt="Jobs: full-width table with fit scores, status filters and sticky header" width="900">
+</div>
 
 **The resume toolkit, in practice.** Upload the resumes you actually send
 on `/resumes`; each gets one AI scan (headline, seniority, skill tags,
