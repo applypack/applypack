@@ -76,6 +76,24 @@ const AI_MODEL_SUGGESTIONS = [
   'gemini-2.5-pro',
 ];
 
+/**
+ * Link-based sub-navigation (?tab=…): one route, server picks the sections.
+ * POST routes redirect back to the tab their setting lives on.
+ */
+export const SETTINGS_TABS = [
+  { id: 'general', label: 'General' },
+  { id: 'profile', label: 'Profile' },
+  { id: 'ai', label: 'AI engine' },
+  { id: 'notifications', label: 'Notifications' },
+  { id: 'sources', label: 'Sources' },
+] as const;
+
+export type SettingsTab = (typeof SETTINGS_TABS)[number]['id'];
+
+export function isSettingsTab(value: unknown): value is SettingsTab {
+  return SETTINGS_TABS.some((t) => t.id === value);
+}
+
 const REGION_OPTIONS = ['US', 'Americas', 'EU', 'UK', 'APAC', 'Worldwide'];
 const SENIORITY_OPTIONS = ['junior', 'mid', 'senior', 'staff', 'lead', 'principal'];
 
@@ -96,6 +114,7 @@ export interface SettingsProps {
   activeProfile: Profile | null;
   availableTargets: AvailableTarget[];
   resumes: ResumeListItem[];
+  activeTab: SettingsTab;
   flash?: FlashMessage | null;
 }
 
@@ -131,6 +150,7 @@ export const SettingsPage: FC<SettingsProps> = ({
   activeProfile,
   availableTargets,
   resumes,
+  activeTab,
   flash,
 }) => (
   <Layout title="Settings" active="settings">
@@ -141,6 +161,27 @@ export const SettingsPage: FC<SettingsProps> = ({
       </PageHeader>
       <Flash flash={flash} />
 
+      <nav
+        aria-label="Settings sections"
+        class="mb-6 inline-flex flex-wrap gap-0.5 rounded-lg border border-line bg-surface-overlay p-0.5"
+      >
+        {SETTINGS_TABS.map((t) => (
+          <a
+            href={`/settings?tab=${t.id}`}
+            aria-current={t.id === activeTab ? 'page' : undefined}
+            class={`rounded-[6px] px-3 py-1.5 text-[13px] transition-colors duration-150 ${
+              t.id === activeTab
+                ? 'bg-surface-raised font-medium text-ink shadow-sm'
+                : 'text-ink-muted hover:text-ink'
+            }`}
+          >
+            {t.label}
+          </a>
+        ))}
+      </nav>
+
+      {/* Sections are declared in one flow; activeTab picks which render. */}
+      {activeTab === 'general' && (
       <Section
         title="Job fetching"
         desc="The master switch for new-job ingestion. Everything else keeps running while paused."
@@ -160,7 +201,9 @@ export const SettingsPage: FC<SettingsProps> = ({
           </ToggleRow>
         </Card>
       </Section>
+      )}
 
+      {activeTab === 'profile' && (
       <Section
         title="Active profile"
         desc="What a matching job looks like: stack, role types, regions, salary floor. The classifier scores every job against this."
@@ -233,7 +276,10 @@ export const SettingsPage: FC<SettingsProps> = ({
           </Card>
         )}
       </Section>
+      )}
 
+      {activeTab === 'ai' && (
+      <>
       <Section
         title="AI engine"
         desc="Which AI backend runs the pipeline and which models it uses. Dashboard actions switch immediately; the worker follows on its next tick."
@@ -327,7 +373,10 @@ export const SettingsPage: FC<SettingsProps> = ({
           </form>
         </Card>
       </Section>
+      </>
+      )}
 
+      {activeTab === 'general' && (
       <Section
         title="Application tracking"
         desc="The funnel board and the nudge that keeps it honest."
@@ -355,7 +404,9 @@ export const SettingsPage: FC<SettingsProps> = ({
           </div>
         </Card>
       </Section>
+      )}
 
+      {activeTab === 'notifications' && (
       <Section
         title="Notifications"
         desc="Telegram bots and chats that receive job alerts."
@@ -453,7 +504,9 @@ export const SettingsPage: FC<SettingsProps> = ({
           </Hint>
         </Card>
       </Section>
+      )}
 
+      {activeTab === 'sources' && (
       <Section
         title="Job sources"
         desc="Disable a whole source family with one click — handy when an aggregator gets noisy. Per-company toggles on the Companies page still apply."
@@ -476,7 +529,9 @@ export const SettingsPage: FC<SettingsProps> = ({
           </form>
         </Card>
       </Section>
+      )}
 
+      {activeTab === 'general' && (
       <Section
         title="Resumes"
         desc="The resumes you send out. Every job page can compare one against the posting."
@@ -507,6 +562,7 @@ export const SettingsPage: FC<SettingsProps> = ({
           </Hint>
         </Card>
       </Section>
+      )}
     </div>
     <script dangerouslySetInnerHTML={{ __html: SETTINGS_JS }} />
   </Layout>

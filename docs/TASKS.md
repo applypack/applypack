@@ -320,6 +320,11 @@ removing the violet accent.
 - [x] AI provider selection UI (§1.1 leftover) extended to other AI subscriptions —
       "AI engine" card: anthropic_api / claude_code / gemini_cli radios with
       availability probe, classifier + resume model slots (ADR 0013)
+- [x] Tabs on /settings (user request, later same day): link-based `?tab=`
+      sub-nav — General (fetching, tracking, resumes) / Profile / AI engine
+      (+classifier mode) / Notifications / Sources. Single route kept, every
+      POST redirects back to its tab; the audit's full route split stays
+      rejected
 
 ### 6.4 Later (P2)
 - [ ] Apply-suggestion buttons on action cards — do together with 5.15

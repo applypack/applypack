@@ -46,7 +46,7 @@ import {
   parsePriorityRulesText,
 } from '../../priority-rules';
 import { prisma } from '../../db';
-import { SettingsPage } from '../pages/settings';
+import { isSettingsTab, SettingsPage } from '../pages/settings';
 import { sourceLabel } from '../source-names';
 import { clearFlashCookie, flashRedirect, parseFlashCookie } from '../flash';
 import { listResumes } from '../../resume/store';
@@ -101,9 +101,12 @@ settingsRoute.get('/settings', async (c) => {
     { aiProvider: settings.aiProvider, aiModelClassifier: null, aiModelResume: null },
     AI_ENGINE_ENV,
   );
+  const tabParam = c.req.query('tab');
+  const activeTab = isSettingsTab(tabParam) ? tabParam : 'general';
   const flash = parseFlashCookie(c.req.header('cookie'));
   return c.html(
     <SettingsPage
+      activeTab={activeTab}
       telegramEnabled={settings.telegramEnabled}
       classifierMode={settings.classifierMode}
       applicationTrackingEnabled={settings.applicationTrackingEnabled}
@@ -167,8 +170,8 @@ settingsRoute.post('/settings/fetching-toggle', async (c) => {
   const settings = await getSettings();
   await setFetchingEnabled(!settings.fetchingEnabled);
   return settings.fetchingEnabled
-    ? flashRedirect('/settings', 'warn', 'Job fetching paused — no new jobs or alerts until you resume.')
-    : flashRedirect('/settings', 'ok', 'Job fetching resumed — next hourly tick will pull new jobs.');
+    ? flashRedirect('/settings?tab=general', 'warn', 'Job fetching paused — no new jobs or alerts until you resume.')
+    : flashRedirect('/settings?tab=general', 'ok', 'Job fetching resumed — next hourly tick will pull new jobs.');
 });
 
 // --- Telegram toggle / targets ---------------------------------------------
@@ -177,7 +180,7 @@ settingsRoute.post('/settings/telegram-toggle', async (c) => {
   const settings = await getSettings();
   await setTelegramEnabled(!settings.telegramEnabled);
   return flashRedirect(
-    '/settings',
+    '/settings?tab=notifications',
     'ok',
     `Telegram alerts ${!settings.telegramEnabled ? 'enabled' : 'disabled'}.`,
   );
@@ -187,12 +190,12 @@ settingsRoute.post('/settings/ai', async (c) => {
   const form = await c.req.parseBody();
   const provider = typeof form.provider === 'string' ? form.provider : '';
   if (!isAiProviderId(provider)) {
-    return flashRedirect('/settings', 'err', 'Pick an AI provider.');
+    return flashRedirect('/settings?tab=ai', 'err', 'Pick an AI provider.');
   }
   const statuses = await probeAiProviders();
   if (!statuses[provider].ok) {
     return flashRedirect(
-      '/settings',
+      '/settings?tab=ai',
       'err',
       `${AI_PROVIDER_LABELS[provider]} is not usable here: ${statuses[provider].detail}.`,
     );
@@ -202,7 +205,7 @@ settingsRoute.post('/settings/ai', async (c) => {
   for (const model of [classifierModel, resumeModel]) {
     if (model && !modelFitsProvider(model, provider)) {
       return flashRedirect(
-        '/settings',
+        '/settings?tab=ai',
         'err',
         `"${model}" does not look like a ${AI_PROVIDER_LABELS[provider]} model id. Not saved.`,
       );
@@ -210,7 +213,7 @@ settingsRoute.post('/settings/ai', async (c) => {
   }
   await setAiEngine({ aiProvider: provider, aiModelClassifier: classifierModel, aiModelResume: resumeModel });
   return flashRedirect(
-    '/settings',
+    '/settings?tab=ai',
     'ok',
     `AI engine → ${AI_PROVIDER_LABELS[provider]}. Dashboard actions use it now; the worker follows on its next tick.`,
   );
@@ -228,14 +231,14 @@ settingsRoute.post('/settings/classifier-mode', async (c) => {
   const mode = raw === 'two_stage' ? 'two_stage' : 'single';
   await setClassifierMode(mode);
   const label = mode === 'two_stage' ? 'Two stage' : 'Single stage';
-  return flashRedirect('/settings', 'ok', `Classifier mode → ${label}.`);
+  return flashRedirect('/settings?tab=ai', 'ok', `Classifier mode → ${label}.`);
 });
 
 settingsRoute.post('/settings/application-tracking-toggle', async (c) => {
   const settings = await getSettings();
   await setApplicationTrackingEnabled(!settings.applicationTrackingEnabled);
   return flashRedirect(
-    '/settings',
+    '/settings?tab=general',
     'ok',
     `Application tracking ${
       !settings.applicationTrackingEnabled ? 'enabled' : 'disabled'
@@ -249,7 +252,7 @@ settingsRoute.post('/settings/stale-digest-toggle', async (c) => {
     !settings.staleApplicationsDigestEnabled,
   );
   return flashRedirect(
-    '/settings',
+    '/settings?tab=general',
     'ok',
     `Stale-applications digest ${
       !settings.staleApplicationsDigestEnabled ? 'enabled' : 'disabled'
@@ -272,7 +275,7 @@ settingsRoute.post('/settings/sources', async (c) => {
   const disabled = allSources.filter((s) => !enabled.includes(s));
   await setDisabledSources(disabled);
   return flashRedirect(
-    '/settings',
+    '/settings?tab=sources',
     'ok',
     disabled.length === 0
       ? 'All sources enabled.'
@@ -288,19 +291,19 @@ settingsRoute.post('/settings/targets', async (c) => {
     chatId: form.chatId,
   });
   if (!parsed.success) {
-    return flashRedirect('/settings', 'err', 'Invalid input — name, token, chat id required.');
+    return flashRedirect('/settings?tab=notifications', 'err', 'Invalid input — name, token, chat id required.');
   }
   const test = await testTelegramTarget(parsed.data.botToken, parsed.data.chatId);
   if (!test.ok) {
     return flashRedirect(
-      '/settings',
+      '/settings?tab=notifications',
       'err',
       `Validation failed: ${test.error ?? 'unknown'}`,
     );
   }
   await addTelegramTarget(parsed.data);
   return flashRedirect(
-    '/settings',
+    '/settings?tab=notifications',
     'ok',
     `Added target "${parsed.data.name}" (bot @${test.botUsername ?? '?'}). Test message sent.`,
   );
@@ -310,30 +313,30 @@ settingsRoute.post('/settings/targets/:id/toggle', async (c) => {
   const id = Number(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text('Bad id', 400);
   await toggleTelegramTarget(id);
-  return flashRedirect('/settings', 'ok', 'Target toggled.');
+  return flashRedirect('/settings?tab=notifications', 'ok', 'Target toggled.');
 });
 
 settingsRoute.post('/settings/targets/:id/delete', async (c) => {
   const id = Number(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text('Bad id', 400);
   await deleteTelegramTarget(id);
-  return flashRedirect('/settings', 'ok', 'Target deleted.');
+  return flashRedirect('/settings?tab=notifications', 'ok', 'Target deleted.');
 });
 
 settingsRoute.post('/settings/targets/:id/test', async (c) => {
   const id = Number(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text('Bad id', 400);
   const t = await prisma.telegramTarget.findUnique({ where: { id } });
-  if (!t) return flashRedirect('/settings', 'err', 'Target not found.');
+  if (!t) return flashRedirect('/settings?tab=notifications', 'err', 'Target not found.');
   const result = await testTelegramTarget(t.botToken, t.chatId);
   if (result.ok) {
     return flashRedirect(
-      '/settings',
+      '/settings?tab=notifications',
       'ok',
       `Test sent to "${t.name}" (bot @${result.botUsername ?? '?'}).`,
     );
   }
-  return flashRedirect('/settings', 'err', `Test failed: ${result.error ?? 'unknown'}`);
+  return flashRedirect('/settings?tab=notifications', 'err', `Test failed: ${result.error ?? 'unknown'}`);
 });
 
 // --- Profiles ---------------------------------------------------------------
@@ -358,7 +361,7 @@ settingsRoute.post('/settings/profiles/new', async (c) => {
   });
   await setActiveProfile(profile.id);
   return flashRedirect(
-    '/settings',
+    '/settings?tab=profile',
     'ok',
     'New profile created and activated. Edit the fields below and save.',
   );
@@ -367,18 +370,18 @@ settingsRoute.post('/settings/profiles/new', async (c) => {
 settingsRoute.post('/settings/profiles/activate', async (c) => {
   const form = await c.req.parseBody();
   const id = Number(form.id);
-  if (!Number.isFinite(id)) return flashRedirect('/settings', 'err', 'Invalid id.');
+  if (!Number.isFinite(id)) return flashRedirect('/settings?tab=profile', 'err', 'Invalid id.');
   try {
     await setActiveProfile(id);
   } catch (err) {
     return flashRedirect(
-      '/settings',
+      '/settings?tab=profile',
       'err',
       err instanceof Error ? err.message : 'Failed to activate.',
     );
   }
   return flashRedirect(
-    '/settings',
+    '/settings?tab=profile',
     'ok',
     'Profile activated. Click "Re-classify all jobs" to score them with this profile.',
   );
@@ -391,19 +394,19 @@ settingsRoute.post('/settings/profiles/:id/delete', async (c) => {
     await deleteProfile(id);
   } catch (err) {
     return flashRedirect(
-      '/settings',
+      '/settings?tab=profile',
       'err',
       err instanceof Error ? err.message : 'Delete failed.',
     );
   }
-  return flashRedirect('/settings', 'ok', 'Profile deleted.');
+  return flashRedirect('/settings?tab=profile', 'ok', 'Profile deleted.');
 });
 
 settingsRoute.post('/settings/profiles/:id/save', async (c) => {
   const id = Number(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text('Bad id', 400);
   if (!(await getProfile(id))) {
-    return flashRedirect('/settings', 'err', 'Profile not found.');
+    return flashRedirect('/settings?tab=profile', 'err', 'Profile not found.');
   }
 
   // `all: true` is required so multi-value checkboxes (seniority,
@@ -415,7 +418,7 @@ settingsRoute.post('/settings/profiles/:id/save', async (c) => {
       { errors: parsed.error.flatten().fieldErrors, form },
       'profile form: validation failed',
     );
-    return flashRedirect('/settings', 'err', 'Invalid form values.');
+    return flashRedirect('/settings?tab=profile', 'err', 'Invalid form values.');
   }
   const f = parsed.data;
 
@@ -429,7 +432,7 @@ settingsRoute.post('/settings/profiles/:id/save', async (c) => {
   if (priorityErrors.length > 0) {
     const first = priorityErrors[0]!;
     return flashRedirect(
-      '/settings',
+      '/settings?tab=profile',
       'err',
       `Priority rules — line ${first.line}: ${first.reason}. Profile not saved.`,
     );
@@ -459,12 +462,12 @@ settingsRoute.post('/settings/profiles/:id/save', async (c) => {
   if (f.action === 'save-and-reclassify') {
     triggerReclassifyAsync();
     return flashRedirect(
-      '/settings',
+      '/settings?tab=profile',
       'ok',
       'Profile saved. Re-classify started in the background — track progress at /runs.',
     );
   }
-  return flashRedirect('/settings', 'ok', 'Profile saved.');
+  return flashRedirect('/settings?tab=profile', 'ok', 'Profile saved.');
 });
 
 // --- Re-classify ------------------------------------------------------------
@@ -472,14 +475,14 @@ settingsRoute.post('/settings/profiles/:id/save', async (c) => {
 settingsRoute.post('/settings/reclassify', (c) => {
   if (reclassifyInFlight) {
     return flashRedirect(
-      '/settings',
+      '/settings?tab=profile',
       'err',
       'A re-classify is already running. Watch /runs for progress.',
     );
   }
   triggerReclassifyAsync();
   return flashRedirect(
-    '/settings',
+    '/settings?tab=profile',
     'ok',
     'Re-classify started in the background. Track progress at /runs.',
   );

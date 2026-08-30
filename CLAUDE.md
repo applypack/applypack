@@ -150,16 +150,16 @@ When the question is **"how does the user toggle / configure X?"**:
 
 | What | Page |
 | --- | --- |
-| Pause / resume all new-job fetching | `/settings` → "Job fetching" card (top) |
-| Pick the AI provider / models | `/settings` → "AI engine" (availability-probed radios + two model slots) |
+| Pause / resume all new-job fetching | `/settings` General tab → "Job fetching" |
+| Pick the AI provider / models | `/settings` AI engine tab (availability-probed radios + two model slots) |
 | Add / remove tracked company | `/companies` (with manual probe before save) |
-| Disable whole ATS family (e.g. all Workable) | `/settings` → "Job sources" card |
-| Enable two-stage classifier (cheaper, less precise) | `/settings` → "Classifier mode" |
-| Edit profile (stack, role types, regions, fit threshold) | `/settings` → "Active profile" |
-| Switch between profiles | `/settings` → dropdown + Activate |
-| Re-classify all jobs against new profile | `/settings` → "Re-classify all jobs" (async, watch /runs) |
-| Telegram on/off | `/settings` → "Telegram alerts" |
-| Add Telegram bot or chat | `/settings` → "Add target" (validates with getMe + sendMessage) |
+| Disable whole ATS family (e.g. all Workable) | `/settings` Sources tab |
+| Enable two-stage classifier (cheaper, less precise) | `/settings` AI engine tab → "Classifier" |
+| Edit profile (stack, role types, regions, fit threshold) | `/settings` Profile tab |
+| Switch between profiles | `/settings` Profile tab → dropdown + Activate |
+| Re-classify all jobs against new profile | `/settings` Profile tab → "Re-classify all jobs" (async, watch /runs) |
+| Telegram on/off | `/settings` Notifications tab |
+| Add Telegram bot or chat | `/settings` Notifications tab → "Add target" (validates with getMe + sendMessage) |
 | Pipeline stage on a job | `/jobs/:id` → "Application tracking" card |
 | Review newly discovered companies | `/discovery` (sorted by jobsSeen DESC) |
 | Toggle auto-discovery / HN parser | `/discovery` (card at the top; moved off `/settings` 2026-08-29) |
