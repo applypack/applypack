@@ -6,378 +6,309 @@
 [![TypeScript strict](https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white)](./tsconfig.json)
 [![Release](https://img.shields.io/github/v/release/nazboyko/job-hunter?display_name=tag)](./CHANGELOG.md)
 
-**Self-hosted AI job hunter.** Watches 16 ATS / aggregator sources, scores
-every posting with Claude against *your* profile, tells you whether a
-posting is a ghost job, compares your resume with it, and pings Telegram
-when something is worth applying to. Runs on your laptop or a $5 VPS with
-`docker compose up`.
+**A self-hosted AI job hunter.** It watches 16 job sources around the clock,
+reads every posting the way you would, and only interrupts you when
+something is actually worth applying to. Then it helps you apply well:
+it checks whether the job is real, scores your resume against the posting,
+and tells you exactly what to change.
 
-Built for people who are tired of scrolling job boards and want a filter
-that understands the difference between "Senior Rails engineer" and
-"Senior PHP engineer".
+Built for one specific kind of tired: you know what you're looking for,
+the boards keep showing you everything else, and every "Senior Engineer"
+listing needs three minutes of reading to discover it's the wrong stack,
+the wrong country, or a ghost. This tool does that reading for you.
+
+Everything runs on your machine — your resume, your profile, and every AI
+report stay in your own Postgres. `docker compose up` on a laptop or a $5
+VPS is all it takes.
 
 ![Job Hunter — Overview: status counters with 24h deltas, recent alerts, cron health](docs/screenshots/overview.png)
 
-## Highlights
+## How it works
 
-- **Profile, not keywords** — stack, role types, seniority, regions, salary
-  floor, fit threshold. Claude reads each posting against the profile with
-  explicit tech-stack and country-lock rules.
-- **Two-stage classifier** — a short, cached prefilter prompt drops obvious
-  misses; the full prompt only runs on survivors. Same model, 30–40 % fewer
-  tokens.
-- **Is this job real?** — ghost-job checklist run with web search: careers
-  page, company footprint, posting age, named humans, scam flags. Verdict +
-  evidence URLs.
-- **Resume match** — upload your resume, compare it with any posting: match
-  score, red flags, prioritised edits, keyword coverage. Then edit it in a
-  side-by-side **targeted view** with a live score.
-- **Application tracking** — kanban from *applied* to *offer*, plus a daily
-  nudge for applications that went quiet.
-- **Discovery** — harvests ATS URLs from HN "Who is hiring" threads and
-  proposes new companies to track.
-- **Clean sourcing** — official public APIs and RSS only. No LinkedIn /
-  Indeed / Workday scraping ([ADR 0005](./docs/adr/0005-no-linkedin-indeed-workday.md)).
-- **Five AI engines, one chain** — Anthropic API, Claude Code CLI, Gemini
-  CLI, any OpenAI-compatible API (OpenAI / OpenRouter / Groq / local), Codex
-  CLI. Enable what you own, set the priority, and calls fail over
-  automatically when an engine errors or rate-limits
-  ([setup guide](./docs/ai-engines.md)).
+Once an hour, the worker pulls fresh postings from every enabled source.
+Cheap deterministic filters drop the obvious misses first (excluded words in
+the title, dead locations). Everything that survives goes to an AI
+classifier that reads the full description against **your profile** — the
+stack you actually use, the role types you accept, seniority, regions,
+salary floor — with strict rules about what counts as a match: `full-stack`
+in a title is not a tech match, and "Remote · Germany" is not a US-remote
+job. Postings that clear your fit threshold land in the dashboard and, if
+you want, in your Telegram.
 
-> **Docs map:** [SPEC.md](./SPEC.md) — current state.
-> [ARCHITECTURE.md](./ARCHITECTURE.md) — diagrams + file map.
-> [CLAUDE.md](./CLAUDE.md) — conventions + gotchas + where-to-look.
-> [docs/adr/](./docs/adr/) — non-trivial decisions.
-> [CHANGELOG.md](./CHANGELOG.md) — releases.
-> [SPEC-phase1.md](./SPEC-phase1.md) — historical Phase 1 spec.
+From there the toolkit takes over:
 
-## Quick start
+- **"Is this job real?"** runs a ghost-job checklist with live web search —
+  careers page, company footprint, posting age, named humans, scam flags —
+  and returns a verdict (`legit` / `suspicious` / `fake`) with the evidence
+  URLs it used. Built for postings you paste in from LinkedIn or email.
+- **Resume match** compares any resume against any posting: a score with a
+  fixed rubric, keyword coverage (present / missing / can't honestly claim),
+  red flags, prioritised edits — and what to *remove*. The score itself is
+  computed by application code from facts the model marks, not invented by
+  the model, so a Laravel resume cannot sweet-talk its way to 85 against a
+  Node.js posting, and v2 is genuinely comparable to v1.
+- **The targeted editor** puts the posting and your resume side by side with
+  every keyword highlighted, lets you edit the resume in place, and recomputes
+  keyword coverage live in the browser as you type. One click sends the
+  draft back to the AI for the full rubric score; another saves it as a new
+  version.
+- **Application tracking** keeps a small kanban from *applied* to *offer*
+  and nudges you about applications that went quiet for two weeks.
+- **Discovery** harvests company ATS boards from Hacker News "Who is
+  hiring" threads and proposes them as new sources to track.
+
+Sourcing is deliberately clean: official public APIs and RSS feeds only,
+never scraping. LinkedIn, Indeed, Glassdoor, Workday and Wellfound are
+permanently out of scope ([ADR 0005](./docs/adr/0005-no-linkedin-indeed-workday.md)).
+
+## Bring your own AI — all of it
+
+This is the part that makes the tool practical to run all day. Instead of
+one hard-coded API key, job-hunter speaks to **five AI backends**, and you
+can attach every subscription and key you own:
+
+| Engine | What it is | Billing |
+| --- | --- | --- |
+| Claude Code CLI | headless `claude -p` | your Claude.ai Pro/Max subscription |
+| Gemini CLI | headless `gemini -p` | your Google account (free tier is generous) or an AI Studio key |
+| Codex CLI | headless `codex exec` | your ChatGPT Plus/Pro subscription |
+| Anthropic API | Messages API, prompt-cached | per token |
+| OpenAI-compatible API | `POST /chat/completions` to any base URL | OpenAI, OpenRouter, Groq, DeepSeek — or a free local model via LM Studio / Ollama |
+
+On **Settings → AI engine** each backend is a card: enable the ones you
+have, arrange them with ↑ Priority, and pick models per engine from
+dropdowns that only offer that family's models (a wrong id is impossible to
+save). Engine **#1 serves every call. If it errors, hits a rate limit, or
+runs out of quota, the next engine takes over automatically for that call —
+and #1 is back in charge the moment it recovers.** An engine that fails
+repeatedly is put on a short cooldown instead of slowing every job down.
+
+The dashboard never guesses about your setup. Every card shows whether the
+engine is actually usable on this machine ("available" vs "not detected",
+with the exact missing step), metered engines carry a "pay per token" badge
+and a warning when you place one behind subscriptions as a paid fallback,
+and a **Test** button runs one real end-to-end call and reports the response
+time. A "Last 7 days" line counts who actually served your calls, and any
+report produced by a fallback engine is marked as such.
+
+Two model slots per engine keep costs sane: a cheap **classifier model**
+that reads every fetched job (Haiku 4.5 on the Claude engines) and a strong
+**resume model** for the handful of judgment calls a day — resume scans,
+matches, verification (Opus 5 on the Claude engines).
+
+Setup for every engine, both with and without Docker, lives in
+**[docs/ai-engines.md](./docs/ai-engines.md)** — including details like
+using a Gemini API key with zero extra code through the OpenAI-compatible
+engine, and why a Claude subscription needs `claude setup-token` inside
+Docker on macOS.
+
+One honest note: running a background service on a consumer AI subscription
+is not something the vendors' terms explicitly cover — read yours before
+making a subscription your primary engine. The prompts are tuned against
+Claude, so expect somewhat different scoring from Gemini or GPT engines
+(there's a bench for exactly that: `npm run bench:resume -- --engine all`).
+
+## Quick start (Docker)
 
 ```bash
 git clone https://github.com/nazboyko/job-hunter.git
 cd job-hunter
 
 cp .env.example .env
-# Pick at least one AI engine (all five in docs/ai-engines.md), e.g.:
-#   ANTHROPIC_API_KEY=sk-ant-...        (Anthropic API, pay per token)
-#   AI_PROVIDER=claude_code + CLAUDE_CODE_OAUTH_TOKEN=...  (Claude.ai subscription)
-#   GEMINI_API_KEY=... / OPENAI_API_KEY=...
-# The rest is configured later on /settings → AI engine (priority + models).
-# Optional (bootstrap-only — managed in /settings after first boot):
-#   TELEGRAM_BOT_TOKEN=...
-#   TELEGRAM_CHAT_ID=...
+# Give it at least one AI engine — any of these works:
+#   ANTHROPIC_API_KEY=sk-ant-...                          (Anthropic API)
+#   AI_PROVIDER=claude_code + CLAUDE_CODE_OAUTH_TOKEN=... (Claude.ai subscription)
+#   GEMINI_API_KEY=...                                    (Gemini, free tier)
+#   OPENAI_API_KEY=... (+ OPENAI_BASE_URL for OpenRouter/Groq/local)
+# Everything else is configured later in the dashboard.
 
 docker compose up -d
-docker compose logs -f app    # worker
-docker compose logs -f web    # dashboard
 ```
 
-Three containers come up:
+Three containers come up: **postgres** (16, persistent volume), **app**
+(the cron worker — applies migrations, seeds sources and a blank starter
+profile, registers six cron jobs) and **web** (the dashboard at
+<http://localhost:4747>, bound to `127.0.0.1` so it is never exposed to the
+network by default; add `WEB_BASIC_AUTH=user:password` to `.env` if you
+want a login prompt anyway).
 
-1. **postgres** — Postgres 16 with persistent volume.
-2. **app** — cron worker. Runs `prisma migrate deploy`, seeds companies
-   + a blank starter profile, registers 6 cron jobs, idles. Fetching
-   starts **paused**: fill the profile (fastest: upload a resume and use
-   "Fill from a resume" on `/settings` → Profile), then hit Resume on
-   the Overview page or `/settings` → General.
-3. **web** — Hono dashboard at <http://localhost:4747> (bound to
-   `127.0.0.1`, never exposed publicly by default).
+### Your first fifteen minutes
 
-The dashboard is read-mostly with limited writes (status changes,
-profile / settings edits, candidate promote, company add).
+Fetching starts **paused** on a fresh install — on purpose. A blank profile
+would classify everything as a miss and waste your AI quota. The path:
 
-## Cron schedule (TZ = `America/Chicago` by default)
+1. Open <http://localhost:4747/settings?tab=ai>. Your engines from `.env`
+   are already detected — press **Test** on each and watch it reply.
+   Enable more engines, order them, adjust models if you care.
+2. Go to the **Profile** tab. Fill in your stack and preferences by hand —
+   or upload your resume on `/resumes` first and press **"Fill from a
+   resume"**: the AI maps your scanned resume onto the profile fields and
+   shows you a draft to review before anything is saved.
+3. (Optional) **Notifications** tab: add a Telegram bot so alerts reach
+   your phone. The form validates the token by actually sending you a
+   message before it saves. To create a bot: [@BotFather](https://t.me/BotFather);
+   your chat id comes from `https://api.telegram.org/bot<TOKEN>/getUpdates`
+   after you message the bot once.
+4. Back to **General** → press **Resume** on the "Job fetching" switch.
+   The next hourly tick pulls, classifies and (if warranted) alerts. Too
+   impatient to wait for the tick:
 
-| Cron expr   | Job                | What it does                                        |
-| ----------- | ------------------ | --------------------------------------------------- |
-| `5 * * * *` | fetch              | Pull all sources, filter, classify, alert.          |
-| `0 9 * * *` | digest             | Telegram digest of NEW/ALERTED jobs from last 24h.  |
-| `0 8 * * *` | stale-applications | Nudge for `applied >14d ago, no recruiter contact`. |
-| `0 3 * * 0` | cleanup            | Delete DISMISSED jobs older than 30 days.           |
-| `0 4 * * 0` | discovery          | Re-probe pending CompanyCandidates.                 |
-| `0 6 1 * *` | hn-hiring          | Pull latest HN Who-is-hiring + harvest candidates.  |
+   ```bash
+   docker compose exec app node dist/scripts/fetch-once.js
+   ```
 
-## Manual one-shot runs
+From then on it runs itself. Every settings change saves to Postgres the
+moment you click — no restarts, no `.env` edits; the worker picks changes
+up within the hour, dashboard actions use them immediately.
+
+## Running without Docker
+
+The stack is plain Node + Postgres, so a local setup is first-class — you
+only need a database:
 
 ```bash
-# Inside Docker (recommended):
-docker compose exec app node dist/scripts/fetch-once.js
-docker compose exec app node dist/scripts/digest-once.js
-docker compose exec app node dist/scripts/cleanup-once.js
-docker compose exec app node dist/scripts/stale-once.js
-docker compose exec app node dist/scripts/hn-once.js
-docker compose exec app node dist/scripts/discovery-once.js
-
-# Locally (requires Postgres running, DATABASE_URL pointing at it):
+docker compose up -d postgres   # or any Postgres 16 you already have
+cp .env.example .env            # DATABASE_URL=postgresql://jobhunter:jobhunter@localhost:5432/jobhunter
 npm install
-npm run fetch:once
-npm run digest:once
-# … etc
+npx prisma migrate deploy
+npm run seed
+
+npm run dev                     # the cron worker
+npm run dev:web                 # the dashboard → http://localhost:4747
 ```
 
-## Sources
+CLI engines (claude / gemini / codex) are even simpler locally: install
+them globally, log in once in your terminal, and the probe on the AI tab
+turns green — no tokens or mounts needed. Details per engine in
+[docs/ai-engines.md](./docs/ai-engines.md).
 
-16 source types, all on official public APIs / RSS — no scraping.
+> `dev:web` compiles with `tsc` and reloads with Node's `--watch` rather
+> than `tsx` — a deliberate workaround, see gotcha #2 in
+> [CLAUDE.md](./CLAUDE.md#gotchas).
 
-| Type            | Shape         | Notes                                              |
-| --------------- | ------------- | -------------------------------------------------- |
-| GREENHOUSE      | per-company   | Add via /companies                                 |
-| LEVER           | per-company   | Add via /companies                                 |
-| ASHBY           | per-company   | Add via /companies                                 |
-| WORKABLE        | per-company   | Add via /companies. Title-only classification.     |
-| SMARTRECRUITERS | per-company   | Add via /companies. List + per-job detail.         |
-| LARAJOBS_RSS    | aggregator    | Single seeded feed.                                |
-| REMOTEOK        | aggregator    | Single seeded feed.                                |
-| REMOTIVE        | aggregator    | Single seeded feed (?category=software-dev).       |
-| ARBEITNOW       | aggregator    | EU-skewed; **disabled** by default.                |
-| HN_HIRING       | aggregator    | Monthly HN Who-is-hiring thread (Algolia API).     |
-| WEWORKREMOTELY  | per-category  | atsToken = category slug. Two seeded.              |
-| GOLANGPROJECTS  | aggregator    | Go-only feed; **disabled** by default.             |
-| JOBICY          | aggregator    | Single seeded feed (?job_categories=dev).          |
-| HN_JOBS         | aggregator    | HN /jobs firehose (Algolia tags=job, 14-day window). |
-| WORKINGNOMADS   | aggregator    | Free JSON API, ~30 most recent cross-company jobs. |
-| HIMALAYAS       | aggregator    | Free JSON API, 20 newest jobs/call, all categories. |
+## Day to day
 
-**Hard exclusions** (never adding): LinkedIn, Indeed, Glassdoor,
-Workday, Wellfound, JobSpy. See
-[ADR 0005](./docs/adr/0005-no-linkedin-indeed-workday.md).
-
-## Adding companies
-
-**Easiest:** the manual form on `/companies` runs a live probe of the
-ATS endpoint and refuses to save if the slug doesn't resolve.
-
-**Discovery:** if you turn on Auto-discovery + HN parser on `/discovery`,
-the system auto-finds candidate companies from URLs in HN comments.
-Review on `/discovery` and click **Promote** to start tracking.
-
-**Seed (rare):** edit `src/seed.ts` and run `docker compose exec app
-node dist/seed.js`. Idempotent on `(atsType, atsToken)`. Disabling a
-company through the UI persists across reseeds.
-
-## Dashboard
-
-Bound to `127.0.0.1:4747`. Optional `WEB_BASIC_AUTH=user:password` in
-`.env` to enable HTTP Basic Auth.
+| Page | URL | What it's for |
+| --- | --- | --- |
+| Overview | `/` | Counters by status, recent alerts, cron health, pause/resume |
+| Jobs | `/jobs` | Filterable, sortable list of everything fetched |
+| Paste a job | `/jobs/new` | Save a posting by hand (LinkedIn, email, referral) — it gets classified like any other |
+| Job detail | `/jobs/:id` | Full description, AI verdict, status actions, verification, resume match, tracking |
+| Targeted editor | `/jobs/:id/target` | Posting ↔ resume side by side, live keyword score, edit in place |
+| Target | `/target` | One-shot comparison: paste any posting, pick/upload/paste any resume — without touching your saved resumes |
+| Applications | `/applications` | Kanban: applied → screen → tech → onsite → offer / rejected / ghosted |
+| Resumes | `/resumes` | Upload `.pdf` / `.docx` / `.md` / `.txt`, AI scan, version history |
+| Companies | `/companies` | Tracked boards; add new ones with a live probe that refuses bad slugs |
+| Discovery | `/discovery` | Board candidates harvested from HN, with the discovery toggles |
+| Runs | `/runs` | The last 100 cron runs with stats and errors |
+| Settings | `/settings` | Five tabs: General · Profile · AI engine · Notifications · Sources |
 
 ![Job Hunter — Jobs: full-width table with fit scores, status filters and sticky header](docs/screenshots/jobs.png)
 
-| Page         | URL              | What it shows                                                        |
-| ------------ | ---------------- | -------------------------------------------------------------------- |
-| Overview     | `/`              | Counters by status, recent alerts, cron health                       |
-| Jobs         | `/jobs`          | Filterable + sortable + paginated list                               |
-| Paste a job  | `/jobs/new`      | Save a posting by hand (LinkedIn, email, referral) — classified like any other |
-| Job detail   | `/jobs/:id`      | Full description, Claude output, status actions, **is this job real?**, **resume match**, application tracking, re-classify |
-| Targeted     | `/jobs/:id/target` | Posting ↔ resume side by side, keyword highlights, in-place editing with live coverage score, AI re-analysis of the draft |
-| Target       | `/target`        | Pure comparison: paste a posting, pick / upload / paste a resume — a live progress page runs classify → AI match and opens the targeted view. Uploads here never land in your Resumes |
-| Applications | `/applications`  | Kanban (applied → screen → tech → onsite → offer / rejected / ghosted) |
-| Resumes      | `/resumes`       | Upload `.pdf` / `.docx` / `.md` / `.txt`, AI scan (headline, skills, issues), comparison history |
-| Resume       | `/resumes/:id`   | Scan result, job-agnostic issues, comparisons, extracted text, download |
-| Companies    | `/companies`     | Sources list, manual add (with probe), per-row toggle / delete       |
-| Discovery    | `/discovery`     | Pending / Promoted / Ignored / Dead candidates harvested by HN parser |
-| Runs         | `/runs`          | Last 100 cron runs with stats / errors                               |
-| Settings     | `/settings`      | Active profile editor, resumes, 8 toggles, telegram targets, source family on/off |
-| Health       | `/health`        | JSON liveness for external monitoring                                |
+The worker's schedule (`TZ` from `.env`, UTC by default):
 
-### Profiles
-
-`/settings` → "Active profile" lets you edit (or prefill in one click with
-**"Fill from a resume"** — AI maps your scanned resume onto the fields and
-shows a draft to review before saving):
-
-- **Tech stack required** — actual technologies (e.g. `php`, `laravel`, `javascript`, `go`)
-- **Role types** — title hints (`full-stack`, `backend`, `frontend`)
-- **Nice-to-have** — boost only
-- **Exclude** — auto-reject in title (`junior`, `intern`, `wordpress`)
-- **Notes** — free-form context appended to the Claude prompt
-- **Seniority, location, regions, on-site cities, hybrid OK**
-- **Min salary**, **min fit score**
-- **Telegram target** — route alerts to a specific bot (or broadcast)
-
-Multiple profiles can coexist; one is active. Switch via dropdown,
-then click **Re-classify all jobs** to rescore existing rows under
-the new profile.
-
-### Resumes
-
-Upload the resumes you actually send (`/settings` → "Resumes" or
-`/resumes`). Each upload is scanned once by `CLAUDE_MODEL_RESUME`
-(headline, seniority, skill tags, job-agnostic ATS issues). On any job
-page, "Resume match" → **Compare** runs one comparison and stores a report:
-match score, what already sells you, red flags, a to-do list (section →
-where → what → why, with priority) and keyword coverage
-(`present` / `add` / `can't claim` — the last one is what the resume
-cannot honestly claim), and **what to remove** so the resume reads
-cleaner. Recruiter reality is baked into the prompt: the title, summary and
-most recent role get the edits; older roles get trims.
-
-Then iterate: edit the resume, **Upload a new version** on its page, hit
-Compare again — the score uses a fixed rubric, so the card shows
-"▲ +16 vs v1". Files and reports stay in your Postgres.
-
-### Targeted view
-
-The **Target** page in the menu (`/target`) starts this flow from scratch:
-paste a posting, then pick an uploaded resume, upload a file or paste plain
-text — a progress page shows each step (classify → AI match, ~1-2 min) and
-opens the result. Target is a *pure comparison*: an uploaded or pasted
-resume lives on one hidden scratch slot, every new upload replaces the
-previous analysis, and nothing is added to your Resumes. The match score uses a
-primary-stack gate — a posting's core language/framework missing from the
-resume caps the score hard, so a Laravel resume cannot score 80+ against a
-Node.js posting. Otherwise, "Open targeted view →" on any comparison (`/jobs/:id/target`) puts the
-posting and your resume side by side, Resume Worded style: every keyword
-highlighted in the posting (found / missing / can't claim), keywords and
-suggested removals highlighted in the resume, and the resume **editable in
-place**. A live **keyword coverage** score recomputes as you type (in the
-browser, no AI call — see ADR 0010); "Re-analyze with AI" sends the draft to
-the resume model for the full rubric score; "Save as vN" stores the draft as
-a text version; "Re-upload resume" does version + scan + compare in one go.
-Drafts live in the browser tab until you save.
-
-### Is this job real?
-
-Any job page → **Verify**. The model gets web search (server tools on the
-API, `WebSearch`/`WebFetch` on the Claude Code CLI) and runs the ghost-job
-checklist: company careers page, LinkedIn footprint, reputation, posting
-age, salary, named humans, hard scam flags. Result: `legit` / `suspicious`
-/ `fake`, a recommendation (apply / caution / skip), confidence, and
-evidence rows with the URLs it used. Takes 2-4 minutes. Pasted jobs
-(`/jobs/new`) are the main use — LinkedIn postings you'd otherwise have to
-judge by eye.
-
-### Toggles
-
-Every feature can be disabled in `/settings`:
-
-| Toggle                        | Effect when off                                |
-| ----------------------------- | ---------------------------------------------- |
-| Job fetching (master switch)  | No new jobs or alerts; dashboard, digest, cleanup and discovery keep running |
-| Telegram alerts               | Notifier no-ops with log preview               |
-| Classifier mode               | `single` (full Haiku 4.5) vs `two_stage` (cheap prefilter + full) |
-| Application tracking          | Hides per-job tracking card, no auto-set on APPLIED |
-| Stale-applications digest     | Daily nudge cron exits early                   |
-| HN parser                     | Monthly HN cron + manual run skip              |
-| Auto-discovery                | HN parser doesn't write CompanyCandidates      |
-| Disabled sources (multi)      | Skip whole AtsType families in fetch tick      |
-
-## Local dev
-
-```bash
-docker compose up -d postgres        # just the database
-cp .env.example .env                  # set DATABASE_URL=postgresql://jobhunter:jobhunter@localhost:5432/jobhunter
-npm install
-npx prisma migrate deploy             # apply real migrations
-npm run seed
-npm run fetch:once
-
-# Dashboard locally:
-npm run dev:web                       # tsc + node --watch
-# then open http://localhost:4747
-```
-
-Note: the dashboard's dev script compiles via `tsc` and reloads via
-Node's `--watch`. We don't use `tsx` for the web service because of
-[a known issue with jsxImportSource](./CLAUDE.md#gotchas) — see
-gotcha #2 in CLAUDE.md.
-
-## Tests + CI
-
-```bash
-npm run lint:types     # tsc --noEmit
-npm test               # node --test via tsx, ~300 tests
-```
-
-GitHub Actions runs both on every push and PR — see
-`.github/workflows/test.yml`. Tests cover **pure modules only**:
-filter, text-utils, http, hn-parser, notifier helpers, fetcher
-mappers, prefilter parser, stale-applications formatter. Modules that
-touch Prisma or the Anthropic SDK are verified via smoke runs and
-dashboard integration testing instead.
-
-## Telegram
-
-Two paths:
-
-**Bootstrap from .env:** set `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID`,
-boot the stack, `init.ts` imports them as a `TelegramTarget` row and
-turns alerts on. After this, `.env` is no longer consulted at runtime.
-
-**Manage in dashboard:** `/settings` → "Add target". The form runs
-`getMe` + `sendMessage` against your bot and refuses to save if either
-fails. Add multiple targets if you want parallel delivery; route a
-profile to one specific target via `Profile.telegramTargetId`.
-
-To create a bot: [@BotFather](https://t.me/BotFather) → copy token.
-To find your chat id: send any message to your bot, then visit
-`https://api.telegram.org/bot<TOKEN>/getUpdates` and grab `chat.id`.
-
-## Project layout
-
-See [ARCHITECTURE.md](./ARCHITECTURE.md) — full file map with
-descriptions, plus Mermaid diagrams of the data flow.
-
-## AI backend
-
-Every AI call goes through one seam, `src/ai-provider.ts`. On
-**`/settings` → "AI engine"** you enable the engines you own, put them in
-priority order, and pick per-engine models. **Engine #1 serves every call;
-on an error or rate limit the next enabled engine takes over automatically**
-and control returns as soon as #1 recovers (ADR 0013/0014). `AI_PROVIDER`
-in `.env` only seeds the default before you configure anything.
-
-| Engine | How it runs | Billing |
+| Cron | Job | What it does |
 | --- | --- | --- |
-| `anthropic_api` | `@anthropic-ai/sdk` → Messages API, system prompt cached | per token, `ANTHROPIC_API_KEY` |
-| `claude_code` | spawns `claude -p` per job | Claude.ai Pro/Max subscription |
-| `gemini_cli` | spawns `gemini -p` per job | Google account or `GEMINI_API_KEY` |
-| `openai_api` | `POST /chat/completions` via fetch | OpenAI / OpenRouter / Groq key, or a free local server (`OPENAI_BASE_URL`) |
-| `codex_cli` | spawns `codex exec` per job | ChatGPT Plus/Pro subscription |
+| `5 * * * *` | fetch | Pull all sources → filter → classify → alert |
+| `0 9 * * *` | digest | Telegram digest of the last 24h of new/alerted jobs |
+| `0 8 * * *` | stale-applications | Nudge for applications quiet for 14+ days |
+| `0 3 * * 0` | cleanup | Drop dismissed jobs older than 30 days, trim usage counters |
+| `0 4 * * 0` | discovery | Re-probe pending company candidates |
+| `0 6 1 * *` | hn-hiring | Pull the monthly HN "Who is hiring" thread |
 
-Each engine has two model slots — the **classifier model** (cheap, runs on
-every fetched job; Haiku 4.5 for the Claude engines) and the **resume
-model** (resume scan / match / verification; Opus 5 for the Claude
-engines). Closed families are dropdowns, so a wrong-family id cannot be
-saved; every card has a **Test** button that runs one live call end-to-end.
+Every cron has a matching one-shot script for manual runs
+(`docker compose exec app node dist/scripts/<name>-once.js`, or
+`npm run <name>:once` locally).
 
-**Setup for every engine — local (no Docker) and Docker, step by step:
-[docs/ai-engines.md](./docs/ai-engines.md).**
+## Where the jobs come from
 
-CLI engine notes (claude_code / gemini_cli / codex_cli):
+Coverage is two-tier by design, because the big HR vendors have no "all
+jobs" API — only per-company endpoints:
 
-- Every call starts a process and carries the CLI's own system prompt —
-  ~7 s per job on a laptop, 15–30 s inside Docker. `AI_CONCURRENCY`
-  (default 3) runs that many processes at once; budget ~130 MB RAM each.
-- A subscription has a rolling usage window. When it is exhausted the call
-  fails over to the next engine (or, with a one-engine chain, the job is
-  retried next tick).
-- Running a background service on a consumer subscription is not something
-  the vendors' consumer terms explicitly cover. Check them before making
-  one your primary.
-- The prompts are tuned against Claude (see CLAUDE.md gotchas 8 and 11) —
-  expect somewhat different scoring from Gemini / GPT engines.
+- **Direct boards** — Greenhouse, Lever, Ashby, Workable, SmartRecruiters
+  boards for companies *you* choose to track. Precise, but only as broad as
+  your list. Add one by pasting its board URL on `/companies`; the form
+  probes the API live and refuses slugs that don't resolve.
+- **Aggregators** — RemoteOK, Remotive, We Work Remotely, Jobicy, Working
+  Nomads, Himalayas, Laravel Jobs, Golang Projects, Arbeitnow, the HN jobs
+  feed and the monthly HN "Who is hiring" thread. Broad and noisy — which
+  is fine, because the filters and the classifier do the narrowing.
 
-## Costs
+Leave the aggregators on. Turning them off to "only watch real boards"
+sounds tidy and reliably produces near-zero new jobs — a dozen tracked
+companies simply don't post matching roles every week. The long tail comes
+from the aggregators; your profile keeps it quiet.
 
-With `AI_PROVIDER=anthropic_api`, roughly **$2-10/month** depending on
-classifier mode and how many sources are active:
+When you spot a company elsewhere, paste its board URL on `/companies` —
+or let **Discovery** do it: the HN parser spots Greenhouse/Lever/Ashby URLs
+in comments and queues them on `/discovery` for a one-click promote.
 
-- Single-stage classifier mode (default): ~$0.001 per classified job, ~5-10 jobs/day = ~$5/month.
-- Two-stage classifier mode: ~30-40% reduction in token spend on a
-  typical day where most fetched jobs are off-target.
-- Discovery harvest doesn't call Claude (only HN parsing → ATS-URL
-  detection).
-- Anthropic prompt caching gives ~90% read discount on the system
-  prompt within the 5-minute window. `AI_CONCURRENCY` requests run at
-  once, so the first few of a tick may each pay the cache write.
+## The resume toolkit, in practice
 
-Postgres + Telegram + GitHub Actions are all free. The whole stack
-runs on a $5/month VPS or your laptop.
+Upload the resumes you actually send on `/resumes`. Each gets one AI scan
+(headline, seniority, skill tags, job-agnostic ATS issues — including a
+"what the ATS sees" text check). Then, on any job page, **Compare** runs
+the match and stores the report; on the targeted editor you fix the resume
+right there, watching keyword coverage update on every keystroke without
+spending a single AI call. When the draft feels right, "Re-analyze with
+AI" gives the honest rubric score, and "Save as vN" keeps the version —
+the next report shows "▲ +16 vs v1", and the delta is real because the
+scoring is deterministic.
+
+The **Target** page runs the same flow for things outside your pipeline: a
+posting from anywhere, a resume from anywhere (even pasted plain text — say,
+a friend's), one progress page, full report. Nothing from it lands in your
+saved resumes.
+
+## What it costs
+
+The realistic setups:
+
+- **Subscriptions you already pay for** (Claude.ai, ChatGPT, Google) —
+  $0 extra. The CLI engines ride the subscription's usage window; when it
+  runs dry mid-day, the chain fails over to your next engine and comes
+  back on its own.
+- **Anthropic API only** — roughly **$2–10/month**: about $0.001 per
+  classified job at 5–10 matching jobs a day, with prompt caching covering
+  ~90% of the system-prompt tokens. The two-stage classifier mode (Settings
+  → AI engine) cuts another 30–40% by letting a short prefilter drop
+  obvious misses before the full prompt runs.
+- **Free tier** — Gemini CLI's free quota comfortably covers the
+  classifier for a typical day; a local model via LM Studio/Ollama through
+  the OpenAI-compatible engine costs nothing at all.
+
+Postgres, Telegram and GitHub Actions are free. The "Last 7 days" counter
+on the AI tab shows exactly which engine your calls went to.
+
+## Under the hood
+
+TypeScript strict, Node 24, Prisma + Postgres 16, Hono for the dashboard
+(server-side JSX, no build step), node-cron for scheduling — deliberately
+no Redis, no queues, no framework sprawl. Every external byte (env vars,
+API responses, AI output) passes through zod before it's trusted. The
+worker and the dashboard are separate processes sharing one database, so a
+toggle flipped in the UI reaches the worker on its next tick.
+
+```bash
+npm run lint:types   # tsc --noEmit
+npm test             # node --test, 400+ unit tests on the pure modules
+```
+
+CI runs both on every push. AI- and DB-touching modules are verified by
+smoke runs and the dashboard instead of mocks — the philosophy is written
+down in [CLAUDE.md](./CLAUDE.md).
+
+> **Docs map:** [SPEC.md](./SPEC.md) — current behaviour, phase by phase ·
+> [ARCHITECTURE.md](./ARCHITECTURE.md) — data-flow diagrams + file map ·
+> [CLAUDE.md](./CLAUDE.md) — conventions, gotchas, where-to-look tables ·
+> [docs/ai-engines.md](./docs/ai-engines.md) — AI setup, local + Docker ·
+> [docs/adr/](./docs/adr/) — every non-obvious decision, with reasons ·
+> [CHANGELOG.md](./CHANGELOG.md) — releases.
 
 ## Contributing
 
 See [CONTRIBUTING.md](./CONTRIBUTING.md). Bug reports and new-source PRs
-are welcome; the ATS templates in CLAUDE.md make a new fetcher a
+are welcome — the ATS templates in CLAUDE.md make a new fetcher close to a
 one-file change.
 
 ## License
