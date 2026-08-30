@@ -229,6 +229,10 @@ on the AI tab shows exactly which engine your calls went to.
 | Runs | `/runs` | The last 100 cron runs with stats and errors |
 | Settings | `/settings` | Five tabs: General · Profile · AI engine · Notifications · Sources |
 
+<div align="center">
+<img src="docs/screenshots/target.png" alt="Resume match: deterministic 81/100 score with primary-stack verdict, experience confirmations, and the side-by-side editor with keyword highlights" width="900">
+</div>
+
 **The resume toolkit, in practice.** Upload the resumes you actually send
 on `/resumes`; each gets one AI scan (headline, seniority, skill tags,
 job-agnostic ATS issues). On any job page, **Compare** runs the match and
