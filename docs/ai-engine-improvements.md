@@ -5,8 +5,9 @@
 > § numbers below refer to it) reviewed against what ADR 0013/0014 already
 > shipped. ~70% of that doc is implemented; this file keeps only the delta
 > worth doing — and the explicitly rejected parts, so future sessions don't
-> re-adopt them. **Nothing here is scheduled** — pick items into
-> [TASKS.md](./TASKS.md) when their trigger fires.
+> re-adopt them. **Status 2026-08-30:** items 1–6 plus two P3 notes are
+> integrated (commits `add cli env allowlist` … `update docs for integrated
+> improvements`); what remains open is marked below.
 
 ## Already covered — do not rebuild
 
@@ -24,7 +25,9 @@ per-engine live Test buttons (§76).
 
 ## P1 — real gaps, cheap fixes
 
-### 1. Env allowlist for CLI child processes (§16, §91)
+### 1. Env allowlist for CLI child processes (§16, §91) — ✅ done 2026-08-30
+
+> `buildCliEnv` + `CLI_PROVIDER_ENV_KEYS` in `ai-provider-parse.ts` (unit-tested), wired into `CliProvider`.
 
 Claude Code documents that `ANTHROPIC_API_KEY` **takes precedence over
 subscription login**. The moment that key lands in `.env` (for the
@@ -40,7 +43,9 @@ also inherit the whole process env today — a gemini process does not need
 OpenAI vars only for `codex_cli`. One spec field + unit test.
 **Trigger:** before the Anthropic API key is ever added to `.env`.
 
-### 2. Cooldown / circuit breaker per engine (§41–43)
+### 2. Cooldown / circuit breaker per engine (§41–43) — ✅ done 2026-08-30
+
+> `src/ai-cooldown.ts` (3 fails → 60 s skip, unit-tested) + `MAX_ENGINE_SWITCHES`/deadline in the chain runner.
 
 Failover is resolved per call with no memory: during a 750-job
 re-classify, a dead engine #1 burns its retries + timeout on **every job**
@@ -51,7 +56,9 @@ chain is a potential 30-minute wait today (`maxSwitches` /
 `overallDeadlineMs` in the chain runner).
 **Trigger:** first bulk run on a chain with a flaky primary.
 
-### 3. Honest "paid" marking in the chain UI (§31–32)
+### 3. Honest "paid" marking in the chain UI (§31–32) — ✅ done 2026-08-30 (badge + enable-warn; budget caps still open)
+
+> `PROVIDER_PAID`, "pay per token" badge, warn flash when a paid engine is enabled behind subscriptions.
 
 API engines (`anthropic_api`, `openai_api`) look identical to subscription
 engines in the chain. Minimum: a "pay per token" badge on their cards and a
@@ -64,7 +71,9 @@ keys exist — start with the badge, not the accounting.
 
 ## P2 — useful, moderate effort
 
-### 4. Cross-engine bench (§116, §164)
+### 4. Cross-engine bench (§116, §164) — ✅ done 2026-08-30
+
+> `npm run bench:resume -- --engine <id>|all` and `--list-engines`.
 
 `npm run bench:resume` already has gold fixtures — loop it over every
 enabled engine and print accuracy / schema-validity / latency per task.
@@ -72,13 +81,17 @@ This turns "can the Gemini classifier be trusted?" (ADR 0014 warns about
 drift but doesn't measure it) into a table instead of an impression.
 **Trigger:** the first non-Claude engine goes live.
 
-### 5. Fallback visible to the user, not only in logs (§122–123)
+### 5. Fallback visible to the user, not only in logs (§122–123) — ✅ done 2026-08-30
+
+> `viaFallback` on every call; match/verification store and show `model · fallback`.
 
 Every call already returns `providerId` — surface it: a line on the
 match/verify card like "completed by Gemini — Claude was unavailable", and
 a clearer all-engines-failed flash (§157). Builds trust, speeds diagnosis.
 
-### 6. Lightweight usage counters (§98–100, light)
+### 6. Lightweight usage counters (§98–100, light) — ✅ done 2026-08-30
+
+> `AppSettings.aiUsage` (atomic jsonb increment per call), 60-day trim in cleanup, 7-day summary on the AI tab.
 
 Runs per engine × role per day — no prices, no new tables (`CronRun.stats`
 or a tiny JSON on AppSettings). Full cost tracking with versioned pricing
@@ -89,11 +102,9 @@ and if built later: integer micro-USD, never floats (§150).
 
 ## P3 — later / conditional
 
-- **Gemini API key without the CLI — zero code** (§22): Gemini API exposes
-  an OpenAI-compatible endpoint
-  (`https://generativelanguage.googleapis.com/v1beta/openai/`), so the
-  existing `openai_api` engine already covers it via `OPENAI_BASE_URL`.
-  Document in [ai-engines.md](./ai-engines.md) when someone needs it.
+- **Gemini API key without the CLI — zero code** (§22): ✅ documented in
+  [ai-engines.md](./ai-engines.md) (2026-08-30) — the `openai_api` engine
+  covers it via `OPENAI_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai`.
 - **Model discovery** (§45): populate the `openai_api` free-text slot from
   the endpoint's `/models`; cached, manual refresh.
 - **Per-provider prompt overrides** (§48): only if the bench (item 4)
@@ -103,9 +114,8 @@ and if built later: integer micro-USD, never floats (§150).
   `raw.slice(0, 500)` of model output, which can carry resume content.
   Acceptable for a local single-user install; mask if the deployment story
   ever changes.
-- **Classifier prompt version stamp** (§119): resume module has
-  `PROMPT_VERSION`, the classifier doesn't — add one before any
-  cross-engine quality comparison of classification.
+- **Classifier prompt version stamp** (§119): ✅ done 2026-08-30 —
+  `CLASSIFIER_PROMPT_VERSION` in `classifier.ts`, logged on schema misses.
 
 ---
 

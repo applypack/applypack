@@ -325,6 +325,12 @@ removing the violet accent.
       (+classifier mode) / Notifications / Sources. Single route kept, every
       POST redirects back to its tab; the audit's full route split stays
       rejected
+- [x] AI engine improvements P1–P2 integrated (2026-08-30): CLI child-process
+      env allowlist (ANTHROPIC_API_KEY precedence trap), per-engine cooldown +
+      chain deadline, "pay per token" badges + paid-fallback warn, cross-engine
+      bench flags, `model · fallback` marker on match/verify, aiUsage counters
+      (7-day summary on the AI tab, 60-day trim in cleanup), classifier prompt
+      version stamp. Status ticks in docs/ai-engine-improvements.md
 - [x] AI engine CHAIN (2026-08-30, ADR 0014):
       ordered multi-engine config in `AppSettings.aiEngine` (JSON), automatic
       per-call failover, + `openai_api` (base-URL compatible: OpenAI /

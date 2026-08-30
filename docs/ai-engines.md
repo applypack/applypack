@@ -98,6 +98,7 @@ One engine covers every server that speaks `POST /chat/completions`:
 | OpenAI | `OPENAI_API_KEY=sk-...` (base URL default is `https://api.openai.com/v1`) |
 | OpenRouter | `OPENAI_API_KEY=sk-or-...`, `OPENAI_BASE_URL=https://openrouter.ai/api/v1` |
 | Groq | `OPENAI_API_KEY=gsk_...`, `OPENAI_BASE_URL=https://api.groq.com/openai/v1` |
+| Gemini API key, no CLI | `OPENAI_API_KEY=<AI Studio key>`, `OPENAI_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai` |
 | Local (LM Studio / Ollama) | `OPENAI_API_KEY=local`, `OPENAI_BASE_URL=http://localhost:1234/v1` |
 
 The model slots here are free text — type whatever id your endpoint serves
