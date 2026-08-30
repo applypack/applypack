@@ -186,9 +186,9 @@ export const JobDetailPage: FC<JobDetailProps> = ({
 
         <Card>
           <SectionTitle>Description</SectionTitle>
-          <pre class="max-w-[75ch] whitespace-pre-wrap break-words font-sans text-sm leading-6 text-ink-muted">
+          <div class="max-w-[75ch] whitespace-pre-line break-words text-sm leading-6 text-ink-muted">
             {job.description || '(empty)'}
-          </pre>
+          </div>
         </Card>
       </div>
     </div>

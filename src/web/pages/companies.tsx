@@ -60,8 +60,9 @@ export const CompaniesPage: FC<CompaniesProps> = ({ companies, flash }) => (
       <summary class="cursor-pointer select-none px-5 py-3 text-sm font-medium text-ink transition-colors duration-150 hover:bg-surface-overlay/50">
         How coverage works
       </summary>
-      <div class="space-y-2 border-t border-line px-5 py-4 text-sm leading-6 text-ink-muted">
-        <p class="max-w-prose">
+      {/* Two columns keep a readable measure while filling the panel. */}
+      <div class="grid gap-x-8 gap-y-2 border-t border-line px-5 py-4 text-sm leading-6 text-ink-muted sm:grid-cols-2">
+        <p>
           Greenhouse, Lever, Ashby, Workable and SmartRecruiters are{' '}
           <strong class="font-medium text-ink">HR vendors, not job boards</strong>. Their public
           APIs only answer <Code>/boards/&lt;slug&gt;/jobs</Code>, so this table is the full
@@ -75,7 +76,7 @@ export const CompaniesPage: FC<CompaniesProps> = ({ companies, flash }) => (
           </a>
           ).
         </p>
-        <p class="max-w-prose">
+        <p>
           The long tail comes from cross-company aggregators —{' '}
           {AGGREGATORS.map((a) => (
             <>

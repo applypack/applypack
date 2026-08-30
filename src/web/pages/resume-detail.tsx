@@ -201,7 +201,7 @@ export const ResumeDetailPage: FC<ResumeDetailProps> = ({ resume, matches, warni
       <Card class="mt-4">
         <SectionTitle>What the ATS sees</SectionTitle>
         {warnings.length === 0 ? (
-          <Hint>
+          <Hint class="max-w-prose">
             Extraction looks clean — selectable text, contact details found, normal length. Parsers
             should read this file the way you do.
           </Hint>
@@ -220,7 +220,7 @@ export const ResumeDetailPage: FC<ResumeDetailProps> = ({ resume, matches, warni
             Extracted text ({resume.text.length.toLocaleString()} chars) — exactly what the AI and
             an ATS parser get
           </summary>
-          <pre class="mt-3 whitespace-pre-wrap break-words font-sans text-sm leading-6 text-ink-muted">
+          <pre class="mt-3 max-w-[75ch] whitespace-pre-wrap break-words font-sans text-sm leading-6 text-ink-muted">
             {resume.text}
           </pre>
         </details>

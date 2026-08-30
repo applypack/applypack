@@ -21,8 +21,14 @@ interface LayoutProps {
   /**
    * App-frame mode: cap the content column at the viewport so a flex-1 region
    * inside the page can own its scrolling (Jobs table, Applications board).
+   * Implies full width.
    */
   fill?: boolean;
+  /**
+   * Skip the default centred max-w-screen-xl content column — for pages that
+   * manage their own width (the Target editor).
+   */
+  wide?: boolean;
 }
 
 const NAV: { key: NavKey; href: string; label: string }[] = [
@@ -161,6 +167,7 @@ export const Layout: FC<PropsWithChildren<LayoutProps>> = ({
   active,
   refresh,
   fill = false,
+  wide = false,
   children,
 }) => (
   <html lang="en">
@@ -199,7 +206,7 @@ export const Layout: FC<PropsWithChildren<LayoutProps>> = ({
             <div
               class={`flex w-full flex-col px-4 py-5 sm:px-6 lg:px-8 ${
                 fill ? 'h-full' : 'min-h-full'
-              }`}
+              } ${fill || wide ? '' : 'mx-auto max-w-screen-xl'}`}
             >
               {children}
             </div>

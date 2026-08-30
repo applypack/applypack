@@ -123,9 +123,9 @@ export const TargetPage: FC<TargetPageProps> = ({
       : null,
   };
   return (
-    <Layout title={`Resume match · ${job.title}`} active="jobs">
-      {/* The layout main is unbounded; without a cap this workspace scatters on
-          ultra-wide monitors. 2xl (1536px) keeps two panes comfortable. */}
+    <Layout title={`Resume match · ${job.title}`} active="jobs" wide>
+      {/* wide opts out of the layout's screen-xl column; 2xl (1536px) keeps
+          the two editor panes comfortable on ultra-wide monitors. */}
       <div class="mx-auto w-full max-w-screen-2xl">
       <nav aria-label="Breadcrumb" class="mb-1.5 flex items-center gap-1.5 text-[13px] text-ink-faint">
         <a href="/jobs" class="transition-colors duration-150 hover:text-ink">

@@ -170,7 +170,7 @@ export const SettingsPage: FC<SettingsProps> = ({
   profileDraft,
 }) => (
   <Layout title="Settings" active="settings">
-    <div class="w-full max-w-5xl">
+    <div class="mx-auto w-full max-w-5xl">
       <PageHeader title="Settings">
         Changes save the moment you click — no restarts needed. Dashboard actions use them
         immediately; the background worker picks them up within the hour.
