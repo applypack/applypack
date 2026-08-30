@@ -76,7 +76,10 @@ Three containers come up:
 
 1. **postgres** — Postgres 16 with persistent volume.
 2. **app** — cron worker. Runs `prisma migrate deploy`, seeds companies
-   + default profile, registers 6 cron jobs, idles.
+   + a blank starter profile, registers 6 cron jobs, idles. Fetching
+   starts **paused**: fill the profile (fastest: upload a resume and use
+   "Fill from a resume" on `/settings` → Profile), then hit Resume on
+   the Overview page or `/settings` → General.
 3. **web** — Hono dashboard at <http://localhost:4747> (bound to
    `127.0.0.1`, never exposed publicly by default).
 
@@ -178,7 +181,9 @@ Bound to `127.0.0.1:4747`. Optional `WEB_BASIC_AUTH=user:password` in
 
 ### Profiles
 
-`/settings` → "Active profile" lets you edit:
+`/settings` → "Active profile" lets you edit (or prefill in one click with
+**"Fill from a resume"** — AI maps your scanned resume onto the fields and
+shows a draft to review before saving):
 
 - **Tech stack required** — actual technologies (e.g. `php`, `laravel`, `javascript`, `go`)
 - **Role types** — title hints (`full-stack`, `backend`, `frontend`)

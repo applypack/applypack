@@ -14,7 +14,7 @@ tune the profile, manage sources, compare resumes against postings.
 
 ## Audience and scene
 
-- One user: Nazar, a senior full-stack engineer running his own job search.
+- One user: the self-hosting engineer running their own job search.
 - Checked briefly a few times a day, mostly on a desktop browser at 1440–1920px,
   occasionally on a phone. Daylight, indoor work light — a light theme suits the scene.
 - The user is technical; density and precision beat hand-holding.

@@ -1964,7 +1964,7 @@ This should become the center of the page.
 
 | Requirement | Priority | Status | Evidence | Confidence |
 |---|---|---|---|---:|
-| TypeScript | Must | Strong | V Shred bullet 2 | 0.98 |
+| TypeScript | Must | Strong | Acme Corp bullet 2 | 0.98 |
 | Node.js | Must | Strong | Projects 1, 3 | 0.96 |
 | Azure | Must | Related only | AWS evidence | 0.91 |
 | Developer utilities | Preferred | Partial | Internal tooling | 0.86 |

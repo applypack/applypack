@@ -694,7 +694,7 @@ Example:
 HIGH IMPACT
 
 Add troubleshooting evidence
-V Shred · Experience
+Acme Corp · Experience
 
 WHY
 The job explicitly requires troubleshooting existing applications.
@@ -1047,7 +1047,7 @@ Instead, create a semantic preview.
 Example:
 
 ```text
-Nazar Boyko
+Alex Doe
 Senior Full Stack Software Engineer
 
 Professional Summary
@@ -1064,7 +1064,7 @@ AI / LLM
 Professional Experience
 ────────────────────────────────
 
-V Shred
+Acme Corp
 Senior Full Stack Software Engineer
 Dec 2024 – Present
 
@@ -1357,7 +1357,7 @@ Needs attention
 
 HIGH IMPACT
 Troubleshooting evidence
-Evidence already exists in your V Shred experience.
+Evidence already exists in your Acme Corp experience.
 [Review suggestion]
 
 MEDIUM IMPACT
@@ -1385,7 +1385,7 @@ Suggestions
 HIGH IMPACT
 ──────────────────────────────────────────────────────────
 Add troubleshooting evidence
-V Shred · Experience
+Acme Corp · Experience
 
 Why
 The job explicitly requires troubleshooting existing apps.
@@ -1403,7 +1403,7 @@ Suggested edit
 MEDIUM IMPACT
 ──────────────────────────────────────────────────────────
 Make Azure explicit
-V Shred · Experience
+Acme Corp · Experience
 
 Evidence found
 Azure appears in your skills and recent stack.
