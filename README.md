@@ -38,8 +38,11 @@ that understands the difference between "Senior Rails engineer" and
   proposes new companies to track.
 - **Clean sourcing** — official public APIs and RSS only. No LinkedIn /
   Indeed / Workday scraping ([ADR 0005](./docs/adr/0005-no-linkedin-indeed-workday.md)).
-- **Two AI backends** — Anthropic API (pay per token, ~$2–10/month) or the
-  Claude Code CLI on an existing subscription.
+- **Five AI engines, one chain** — Anthropic API, Claude Code CLI, Gemini
+  CLI, any OpenAI-compatible API (OpenAI / OpenRouter / Groq / local), Codex
+  CLI. Enable what you own, set the priority, and calls fail over
+  automatically when an engine errors or rate-limits
+  ([setup guide](./docs/ai-engines.md)).
 
 > **Docs map:** [SPEC.md](./SPEC.md) — current state.
 > [ARCHITECTURE.md](./ARCHITECTURE.md) — diagrams + file map.
@@ -55,9 +58,11 @@ git clone https://github.com/nazboyko/job-hunter.git
 cd job-hunter
 
 cp .env.example .env
-# Required (one of):
-#   ANTHROPIC_API_KEY=sk-ant-...        (AI_PROVIDER=anthropic_api, default)
-#   AI_PROVIDER=claude_code             (uses your Claude.ai subscription, see below)
+# Pick at least one AI engine (all five in docs/ai-engines.md), e.g.:
+#   ANTHROPIC_API_KEY=sk-ant-...        (Anthropic API, pay per token)
+#   AI_PROVIDER=claude_code + CLAUDE_CODE_OAUTH_TOKEN=...  (Claude.ai subscription)
+#   GEMINI_API_KEY=... / OPENAI_API_KEY=...
+# The rest is configured later on /settings → AI engine (priority + models).
 # Optional (bootstrap-only — managed in /settings after first boot):
 #   TELEGRAM_BOT_TOKEN=...
 #   TELEGRAM_CHAT_ID=...
@@ -139,7 +144,7 @@ Workday, Wellfound, JobSpy. See
 **Easiest:** the manual form on `/companies` runs a live probe of the
 ATS endpoint and refuses to save if the slug doesn't resolve.
 
-**Discovery:** if you turn on Auto-discovery + HN parser in `/settings`,
+**Discovery:** if you turn on Auto-discovery + HN parser on `/discovery`,
 the system auto-finds candidate companies from URLs in HN comments.
 Review on `/discovery` and click **Promote** to start tracking.
 
@@ -309,46 +314,43 @@ descriptions, plus Mermaid diagrams of the data flow.
 
 ## AI backend
 
-Every AI call goes through one seam, `src/ai-provider.ts`. The default
-backend comes from `AI_PROVIDER` in `.env`; **`/settings` → "AI engine"
-overrides the backend and both models at runtime** (stored in Postgres — the
-dashboard switches immediately, the worker on its next tick; ADR 0013).
+Every AI call goes through one seam, `src/ai-provider.ts`. On
+**`/settings` → "AI engine"** you enable the engines you own, put them in
+priority order, and pick per-engine models. **Engine #1 serves every call;
+on an error or rate limit the next enabled engine takes over automatically**
+and control returns as soon as #1 recovers (ADR 0013/0014). `AI_PROVIDER`
+in `.env` only seeds the default before you configure anything.
 
-| Value | How it runs | Billing |
+| Engine | How it runs | Billing |
 | --- | --- | --- |
-| `anthropic_api` (default) | `@anthropic-ai/sdk` → Messages API, system prompt cached | per token, `ANTHROPIC_API_KEY` required |
-| `claude_code` | spawns `claude -p --output-format json` per job | your Claude.ai Pro/Max subscription |
-| `gemini_cli` | spawns `gemini -p --output-format json` per job | your Google account (Gemini CLI login) or `GEMINI_API_KEY` |
+| `anthropic_api` | `@anthropic-ai/sdk` → Messages API, system prompt cached | per token, `ANTHROPIC_API_KEY` |
+| `claude_code` | spawns `claude -p` per job | Claude.ai Pro/Max subscription |
+| `gemini_cli` | spawns `gemini -p` per job | Google account or `GEMINI_API_KEY` |
+| `openai_api` | `POST /chat/completions` via fetch | OpenAI / OpenRouter / Groq key, or a free local server (`OPENAI_BASE_URL`) |
+| `codex_cli` | spawns `codex exec` per job | ChatGPT Plus/Pro subscription |
 
-Two model slots, both overridable on `/settings`: the **classifier model**
-(`CLAUDE_MODEL`, Haiku 4.5 — cheap, runs on every fetched job) and the
-**resume model** (`CLAUDE_MODEL_RESUME`, Opus 5 — resume scan, match and job
-verification, a few calls a day where judgment matters more than cost). With
-the Gemini engine the slots default to `gemini-2.5-flash` / `gemini-2.5-pro`.
+Each engine has two model slots — the **classifier model** (cheap, runs on
+every fetched job; Haiku 4.5 for the Claude engines) and the **resume
+model** (resume scan / match / verification; Opus 5 for the Claude
+engines). Closed families are dropdowns, so a wrong-family id cannot be
+saved; every card has a **Test** button that runs one live call end-to-end.
 
-`gemini_cli` notes: install with `npm i -g @google/gemini-cli` (the Docker
-image ships it), then either run `gemini` once to log in or set
-`GEMINI_API_KEY` in `.env`. The prompts are tuned against Claude — expect
-somewhat different scoring behaviour.
+**Setup for every engine — local (no Docker) and Docker, step by step:
+[docs/ai-engines.md](./docs/ai-engines.md).**
 
-`claude_code` notes:
+CLI engine notes (claude_code / gemini_cli / codex_cli):
 
-- Requires the Claude Code CLI on the host running the worker
-  (`npm i -g @anthropic-ai/claude-code`, then `claude` once to log in).
-  The Docker image installs the CLI; uncomment the `~/.claude` volume
-  lines in `docker-compose.yml` (both `app` and `web`) to mount your
-  credentials into the containers.
-- Every call carries Claude Code's own system prompt (~5k tokens) and
-  starts a new process — ~7 s per job on a laptop, 15–30 s inside Docker.
-  `AI_CONCURRENCY` (default 3) runs that many CLI processes at once, so
-  wall-clock for a tick or "Re-classify all" divides by roughly that
-  number; budget ~130 MB RAM per process.
-- The subscription has a rolling usage window. When it is exhausted the
-  provider logs `claude-code rate-limited`, the job counts as
-  `classifyFailed` for this tick, and it is retried on the next tick.
+- Every call starts a process and carries the CLI's own system prompt —
+  ~7 s per job on a laptop, 15–30 s inside Docker. `AI_CONCURRENCY`
+  (default 3) runs that many processes at once; budget ~130 MB RAM each.
+- A subscription has a rolling usage window. When it is exhausted the call
+  fails over to the next engine (or, with a one-engine chain, the job is
+  retried next tick).
 - Running a background service on a consumer subscription is not something
-  Anthropic's consumer terms explicitly cover. Check them before making it
-  your default.
+  the vendors' consumer terms explicitly cover. Check them before making
+  one your primary.
+- The prompts are tuned against Claude (see CLAUDE.md gotchas 8 and 11) —
+  expect somewhat different scoring from Gemini / GPT engines.
 
 ## Costs
 

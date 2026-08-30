@@ -325,6 +325,12 @@ removing the violet accent.
       (+classifier mode) / Notifications / Sources. Single route kept, every
       POST redirects back to its tab; the audit's full route split stays
       rejected
+- [x] AI engine CHAIN (2026-08-30, ADR 0014):
+      ordered multi-engine config in `AppSettings.aiEngine` (JSON), automatic
+      per-call failover, + `openai_api` (base-URL compatible: OpenAI /
+      OpenRouter / Groq / local) and `codex_cli` (ChatGPT subscription)
+      backends, per-engine model dropdowns (no wrong-family saves), per-engine
+      live Test buttons, setup guide docs/ai-engines.md (local + Docker)
 
 ### 6.4 Later (P2)
 - [ ] Apply-suggestion buttons on action cards — do together with 5.15

@@ -116,8 +116,9 @@ When the question is **"where does X live?"**, save yourself a `find`:
 | Where to register a new ATS | `src/fetchers/index.ts:fetchOne` switch + `prisma/schema.prisma:AtsType` enum |
 | Where to add a new toggle | `prisma/schema.prisma:AppSettings` (column) → `src/settings.ts` (getter/setter) → `src/web/pages/settings.tsx` (UI) → `src/web/routes/settings.tsx` (POST) |
 | The Claude system prompt | `src/classifier.ts:buildSystemPrompt` |
-| Which AI engine runs (provider + models, DB override → .env fallback) | `src/ai-runtime.ts:getAiRuntime` + pure merge in `src/ai-engine.ts` (ADR 0013); UI on `/settings` → "AI engine" |
-| Adding a new AI backend | `src/ai-provider.ts` (`CliProvider` spec) + `AI_PROVIDER_IDS` in `src/ai-engine.ts` + probe in `src/ai-runtime.ts` |
+| Which AI engines run (priority chain + per-engine models, auto-failover) | `src/ai-runtime.ts:getAiRuntime().complete({role})` + pure chain merge in `src/ai-engine.ts` (ADR 0013/0014); UI on `/settings` → "AI engine" tab |
+| Adding a new AI backend | `src/ai-provider.ts` (`CliProvider` spec or fetch class) + `AI_PROVIDER_IDS`/labels/options in `src/ai-engine.ts` + probe in `src/ai-runtime.ts` |
+| How users set up each engine (local + Docker) | `docs/ai-engines.md` |
 | How many jobs are classified at once | `AI_CONCURRENCY` in `.env` (default 3); limiter in `src/concurrency.ts`, used by `jobs/process-jobs.ts` and `jobs/reclassify-job.ts` |
 | The two-stage prefilter prompt | `src/classifier-prefilter.ts:buildPrefilterPrompt` |
 | Per-job filter rules (pre-Claude) | `src/filter.ts:passesBaseFilter` |
@@ -138,7 +139,7 @@ When the question is **"where does X live?"**, save yourself a `find`:
 | Live smoke bench of the match prompt (3 gold fixtures) | `npm run bench:resume` — `src/scripts/resume-bench-once.ts` |
 | Compare-run progress pages (async classify/scan/match) | `src/web/target-runs.ts` (in-memory registry) + `src/web/pages/target-run.tsx`; started by `/target`, `/jobs/:id/match`, `/jobs/:id/target/reupload` |
 | Which resume a job page preselects | `src/resume/pick.ts:pickResumeForJob` (skill-tag overlap) |
-| Model for resume calls | `/settings` → "AI engine" resume model; falls back to `CLAUDE_MODEL_RESUME` in `.env` (default `claude-opus-5`) |
+| Model for resume calls | per-engine "Resume model" on `/settings` → AI engine; Claude engines fall back to `CLAUDE_MODEL_RESUME` in `.env` (default `claude-opus-5`) |
 | Ghost-job checklist prompt + verdict schema | `src/verification/prompts.ts` |
 | Letting a call use web search (API server tools / CLI WebSearch) | `AiRequest.webTools` in `src/ai-provider.ts`, args in `ai-provider-parse.ts:buildClaudeCodeArgs` |
 | Classify one stored job (Re-classify button, pasted jobs) | `src/jobs/classify-existing.ts` |
@@ -151,7 +152,7 @@ When the question is **"how does the user toggle / configure X?"**:
 | What | Page |
 | --- | --- |
 | Pause / resume all new-job fetching | `/settings` General tab → "Job fetching" |
-| Pick the AI provider / models | `/settings` AI engine tab (availability-probed radios + two model slots) |
+| Pick / order AI engines + models, test them | `/settings` AI engine tab (per-engine cards: Enable, ↑ priority, model selects, Test) |
 | Add / remove tracked company | `/companies` (with manual probe before save) |
 | Disable whole ATS family (e.g. all Workable) | `/settings` Sources tab |
 | Enable two-stage classifier (cheaper, less precise) | `/settings` AI engine tab → "Classifier" |

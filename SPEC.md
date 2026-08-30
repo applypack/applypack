@@ -193,7 +193,7 @@ skip, confidence, evidence rows with URLs, red flags, company snapshot.
 - Prisma 6 + Postgres 16 (real migrations from `phase-3.0` baseline onward)
 - node-cron for scheduling, no Redis / BullMQ
 - Hono 4 for the dashboard, JSX SSR with `hono/jsx`, Tailwind via CDN over semantic CSS-variable tokens (no build pipeline; light SaaS theme, see DESIGN.md)
-- `src/ai-provider.ts` seam: `anthropic_api` (SDK, per-token), `claude_code` (headless CLI, subscription) or `gemini_cli` (headless CLI, Google account); provider + classifier/resume models overridable at runtime from `/settings` → "AI engine" (AppSettings, ADR 0013), `.env` as fallback (Haiku 4.5 classifier, Opus 5 resume); `AI_CONCURRENCY` jobs classified at once (default 3)
+- `src/ai-provider.ts` seam, five engines: `anthropic_api` (SDK, per-token), `claude_code` (headless CLI, subscription), `gemini_cli` (headless CLI, Google account), `openai_api` (fetch → any /chat/completions endpoint via OPENAI_BASE_URL), `codex_cli` (headless CLI, ChatGPT subscription). `/settings` → "AI engine" stores an ordered chain + per-engine classifier/resume models (AppSettings.aiEngine JSON, ADR 0013/0014); calls fail over down the chain automatically; `.env` seeds the default (Haiku 4.5 classifier, Opus 5 resume); `AI_CONCURRENCY` jobs classified at once (default 3)
 - node:test runner (`npm test`), no jest
 
 ## Project layout
