@@ -6,6 +6,63 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-08-30
+
+### Added
+- **AI engine chain (ADR 0013/0014).** Five interchangeable backends behind
+  one seam — Anthropic API, Claude Code CLI, Gemini CLI, Codex CLI, and any
+  OpenAI-compatible `/chat/completions` endpoint (OpenAI, OpenRouter, Groq,
+  local LM Studio/Ollama via `OPENAI_BASE_URL`). Enable the ones you own on
+  `/settings` → AI engine, order them with ↑ Priority, and every call is
+  served by engine #1 with automatic per-call failover to the next on
+  errors, rate limits or exhausted quota — control returns as soon as the
+  primary recovers. Per-engine classifier/resume model slots use
+  family-locked dropdowns (a wrong-family id cannot be saved); each card has
+  an availability probe (binary + auth detection) and a live **Test** button
+  that runs one real call and reports the response time.
+- **Engine-chain hardening.** CLI child processes get an env allowlist —
+  only their own auth variables, so a stray `ANTHROPIC_API_KEY` can no
+  longer silently switch the Claude subscription engine to API billing, and
+  no AI process ever sees the database URL or Telegram token. Failing
+  engines go into a short cooldown (3 consecutive misses → 60 s skip)
+  instead of stalling bulk runs, and one logical call is capped at three
+  engines inside a hard deadline.
+- **Honest cost surface.** Metered engines carry a "pay per token" badge and
+  a warning when enabled behind subscription engines; reports produced by a
+  fallback engine are marked `· fallback`; a "Last 7 days" line counts runs
+  per engine (stored in `AppSettings.aiUsage`, trimmed to 60 days by the
+  cleanup cron).
+- **Settings tabs.** `/settings` is now five link-based tabs — General ·
+  Profile · AI engine · Notifications · Sources — and every save returns to
+  the tab it came from.
+- **Fill profile from a resume (ADR 0015).** One click maps a scanned
+  resume onto the profile fields (stack, role types, seniority) and shows a
+  reviewable draft — nothing is saved until you confirm. Resume scans now
+  extract primary skills to power it.
+- **Cross-engine bench.** `npm run bench:resume -- --engine <id>|all` runs
+  the gold fixtures through any usable engine; `--list-engines` shows who is
+  ready without spending a call.
+- **Setup guide.** `docs/ai-engines.md` — step-by-step setup for every
+  engine, local and Docker, plus a pipeline pause/resume control on the
+  Overview page.
+
+### Changed
+- Settings & discovery refactor: human source names (LARAJOBS_RSS → "Laravel
+  Jobs"), a `warn` flash variant for pausing states, confirm on
+  "Save & re-classify", discovery/HN toggles moved to `/discovery`, the
+  resumes card deduplicated to a list + link, bot tokens masked to the last
+  4 characters, and a jargon-free copy pass.
+- First boot is stack-neutral: a blank starter profile, `TZ` defaults to
+  UTC, no salary floor, and fetching starts paused until the profile is
+  filled.
+- README rewritten around the actual first-run path (engines → profile →
+  resume → alerts).
+
+### Fixed
+- Saving job sources no longer re-adds the internal MANUAL type to the
+  disabled list on every save.
+- Personal data removed from test fixtures and UI copy.
+
 ## [0.1.1] — 2026-08-29
 
 ### Added
