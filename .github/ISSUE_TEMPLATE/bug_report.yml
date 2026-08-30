@@ -1,0 +1,39 @@
+name: Bug report
+description: Something broke
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, what you got instead.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: >
+        `docker compose logs app` / `docker compose logs web` around the
+        failure, or the browser console. Strip tokens and personal data
+        before pasting.
+      render: shell
+  - type: dropdown
+    id: setup
+    attributes:
+      label: Setup
+      options:
+        - Docker (compose)
+        - Local (npm run dev)
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit
+      placeholder: v0.2.1
+  - type: input
+    id: engines
+    attributes:
+      label: AI engines involved (if relevant)
+      placeholder: claude_code, fallback to gemini_cli

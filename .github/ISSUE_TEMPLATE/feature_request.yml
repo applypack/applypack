@@ -1,0 +1,16 @@
+name: Feature request
+description: An idea that would make the hunt better
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What are you trying to do that the tool doesn't help with today?
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: Optional. How you imagine it working; a rough sketch is fine.
