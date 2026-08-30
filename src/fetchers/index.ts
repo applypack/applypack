@@ -69,7 +69,7 @@ export async function runAllFetchers(): Promise<FetcherResult[]> {
   return out;
 }
 
-async function fetchOne(company: {
+export async function fetchOne(company: {
   id: number;
   atsType: AtsType;
   atsToken: string;
