@@ -32,7 +32,7 @@ export interface ProfileDraft {
 }
 
 /** Only a freshly created profile gets renamed from the resume headline. */
-const DEFAULT_PROFILE_NAME = 'New profile';
+const DEFAULT_PROFILE_NAMES = ['New profile', 'My profile'];
 
 export function buildProfileDraft(current: ProfileForDraft, scan: ScanForDraft): ProfileDraft {
   const changes: Partial<ProfileForDraft> = {};
@@ -71,7 +71,7 @@ export function buildProfileDraft(current: ProfileForDraft, scan: ScanForDraft):
     changed.push('seniority');
   }
 
-  if (current.name === DEFAULT_PROFILE_NAME && scan.title !== null && scan.title !== current.name) {
+  if (DEFAULT_PROFILE_NAMES.includes(current.name) && scan.title !== null && scan.title !== current.name) {
     changes.name = scan.title;
     changed.push('name');
   }

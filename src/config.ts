@@ -30,9 +30,9 @@ const ConfigSchema = z.object({
   LOG_LEVEL: z
     .enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'])
     .default('info'),
-  TZ: z.string().default('America/Chicago'),
+  TZ: z.string().default('UTC'),
   MIN_FIT_SCORE: z.coerce.number().int().min(0).max(100).default(70),
-  MIN_SALARY_USD: z.coerce.number().int().min(0).default(120000),
+  MIN_SALARY_USD: z.coerce.number().int().min(0).default(0),
   WEB_PORT: z.coerce.number().int().min(1).max(65535).default(4747),
   WEB_HOST: z.string().default('0.0.0.0'),
   WEB_BASIC_AUTH: z

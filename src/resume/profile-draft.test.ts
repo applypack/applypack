@@ -33,6 +33,8 @@ test('renames only the freshly created profile', () => {
   assert.equal(kept.changes.name, undefined);
   const fresh = buildProfileDraft({ ...PROFILE, name: 'New profile' }, SCAN);
   assert.equal(fresh.changes.name, 'Senior Full-Stack Engineer');
+  const boot = buildProfileDraft({ ...PROFILE, name: 'My profile' }, SCAN);
+  assert.equal(boot.changes.name, 'Senior Full-Stack Engineer');
 });
 
 test('empty primary stack keeps the required stack and warns', () => {

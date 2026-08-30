@@ -28,27 +28,20 @@ export async function init(): Promise<void> {
 }
 
 /**
- * On first boot, if no Profile exists, seed a default one matching the
- * historical hardcoded behaviour (PHP/Laravel + JS, senior, remote-US),
- * pulling MIN_FIT_SCORE / MIN_SALARY_USD from .env. After this, the
- * /settings page is the source of truth.
+ * On first boot, if no Profile exists, seed a blank starter profile with
+ * only stack-neutral defaults, pulling MIN_FIT_SCORE / MIN_SALARY_USD from
+ * .env. The user shapes it on /settings → Profile — fastest via
+ * "Fill from a resume". After this, the /settings page is the source of truth.
  */
 async function bootstrapDefaultProfile(): Promise<void> {
   const existing = await listProfiles();
   if (existing.length > 0) return;
 
   const profile = await createProfile({
-    name: 'PHP/Laravel + JS Full-Stack',
-    stackRequired: ['php', 'laravel', 'symfony', 'javascript', 'typescript'],
-    roleTypes: ['full-stack', 'fullstack', 'full stack', 'backend'],
-    stackNiceToHave: [
-      'mysql',
-      'postgres',
-      'redis',
-      'react',
-      'vue',
-      'docker',
-    ],
+    name: 'My profile',
+    stackRequired: [],
+    roleTypes: [],
+    stackNiceToHave: [],
     stackExclude: [
       'junior',
       'intern',
@@ -58,11 +51,9 @@ async function bootstrapDefaultProfile(): Promise<void> {
       'apprentice',
     ],
     notes: null,
-    seniority: ['senior', 'staff', 'lead', 'principal'],
+    seniority: [],
     remoteOk: true,
-    // US / Americas only — single-country remote (Germany, UK) is NOT
-    // hireable from a US-based candidate.
-    remoteRegions: ['US', 'Americas'],
+    remoteRegions: [],
     onsiteCities: [],
     hybridOk: false,
     minSalaryUsd: config.MIN_SALARY_USD,
