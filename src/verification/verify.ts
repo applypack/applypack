@@ -28,7 +28,7 @@ export async function verifyJob(job: VerifyJobInput & { id: number }): Promise<J
       const row = await prisma.jobVerification.create({
         data: {
           jobId: job.id,
-          model: out.model || out.providerId,
+          model: (out.model || out.providerId) + (out.viaFallback ? ' · fallback' : ''),
           verdict: r.verdict,
           recommendation: r.recommendation,
           confidence: r.confidence,

@@ -23,11 +23,13 @@ import {
   AI_PROVIDER_IDS,
   AI_PROVIDER_LABELS,
   PROVIDER_MODEL_OPTIONS,
+  PROVIDER_PAID,
   defaultModelFor,
   isAiProviderId,
   modelFitsProvider,
   parseAiEngineConfig,
   resolveAiEngine,
+  summarizeAiUsage,
   type AiEngineConfig,
   type AiProviderId,
 } from '../../ai-engine';
@@ -133,6 +135,7 @@ async function loadSettingsProps() {
       resumeDefault,
       options: PROVIDER_MODEL_OPTIONS[id],
       freeTextModels: id === 'openai_api',
+      paid: PROVIDER_PAID[id],
     };
   }).sort((a, b) => {
     if (a.enabled !== b.enabled) return a.enabled ? -1 : 1;
@@ -143,6 +146,11 @@ async function loadSettingsProps() {
     active: AI_PROVIDER_LABELS[primary],
     chain: engine.chain.map((id) => AI_PROVIDER_LABELS[id]),
     skipped: engine.skipped.map((id) => AI_PROVIDER_LABELS[id]),
+    usage7d: summarizeAiUsage(settings.aiUsage, 7, new Date()).map((r) => ({
+      label: AI_PROVIDER_LABELS[r.id],
+      classifier: r.classifier,
+      resume: r.resume,
+    })),
   };
   return {
     telegramEnabled: settings.telegramEnabled,
@@ -267,6 +275,15 @@ settingsRoute.post('/settings/ai/enable', async (c) => {
       '/settings?tab=ai',
       'warn',
       `${label} enabled as priority #${next.length}, but it is not usable here yet (${statuses[provider].detail}). It is skipped until that is fixed.`,
+    );
+  }
+  // A metered engine standing behind subscription engines = money spent
+  // exactly when the free capacity runs out — say so up front.
+  if (PROVIDER_PAID[provider] && next.slice(0, -1).some((id) => !PROVIDER_PAID[id])) {
+    return flashRedirect(
+      '/settings?tab=ai',
+      'warn',
+      `${label} enabled as priority #${next.length}. It pays per token — it will spend money whenever the engines above it fail or run out of quota.`,
     );
   }
   return flashRedirect('/settings?tab=ai', 'ok', `${label} enabled as priority #${next.length}.`);

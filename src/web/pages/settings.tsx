@@ -76,12 +76,15 @@ export interface AiEngineRow {
   /** Family model ids for the selects; empty = free-text input. */
   options: string[];
   freeTextModels: boolean;
+  /** Metered billing — every call costs money (vs a flat subscription). */
+  paid: boolean;
 }
 
 export interface AiStatusSummary {
   active: string;
   chain: string[];
   skipped: string[];
+  usage7d: { label: string; classifier: number; resume: number }[];
 }
 
 /**
@@ -356,6 +359,14 @@ export const SettingsPage: FC<SettingsProps> = ({
               <span> → fallback: {aiStatus.chain.slice(1).join(' → ')}</span>
             )}
           </div>
+          <div class="text-[13px] text-ink-faint">
+            Last 7 days:{' '}
+            {aiStatus.usage7d.length === 0
+              ? 'no AI calls recorded yet'
+              : aiStatus.usage7d
+                  .map((u) => `${u.label} ${u.classifier + u.resume} (${u.classifier} classify · ${u.resume} resume)`)
+                  .join(' — ')}
+          </div>
           {aiStatus.skipped.length > 0 && (
             <div class="rounded-md border border-warn/25 bg-warn/5 px-3.5 py-2.5 text-[13px] leading-5 text-warn">
               Enabled but skipped for now: {aiStatus.skipped.join(', ')} — not usable on this
@@ -598,6 +609,7 @@ const AiEngineCard: FC<{ engine: AiEngineRow }> = ({ engine: e }) => (
       {e.enabled && <Badge tone="violet">#{e.position + 1}</Badge>}
       <span class="text-sm font-medium text-ink">{e.label}</span>
       <Badge tone={e.ok ? 'ok' : 'neutral'}>{e.ok ? 'available' : 'not detected'}</Badge>
+      {e.paid && <Badge tone="warn">pay per token</Badge>}
       <div class="ml-auto flex flex-wrap justify-end gap-2">
         {e.enabled && e.position > 0 && (
           <ActionForm action="/settings/ai/move" hidden={{ provider: e.id }}>

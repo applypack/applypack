@@ -62,7 +62,9 @@ export async function matchResumeToJob(
       timeoutMs: MATCH_TIMEOUT_MS,
     });
     if (out === null) return null;
-    const model = out.model || out.providerId;
+    // The marker surfaces on the match card's meta line — the user can see
+    // that a fallback engine (not chain #1) produced this analysis.
+    const model = (out.model || out.providerId) + (out.viaFallback ? ' · fallback' : '');
     const parsed = parseMatchResponse(out.text);
     if (parsed.ok) {
       // Deterministic guarantees on top of the model's judgment: stored facts
