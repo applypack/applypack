@@ -17,13 +17,20 @@ import {
 
 const execFileAsync = promisify(execFile);
 
-/** The .env side of the engine merge — exported for the settings page. */
-export const AI_ENGINE_ENV: AiEngineEnv = {
-  provider: config.AI_PROVIDER,
-  hasAnthropicKey: Boolean(config.ANTHROPIC_API_KEY),
-  classifierModel: config.CLAUDE_MODEL,
-  resumeModel: config.CLAUDE_MODEL_RESUME,
-};
+/**
+ * The .env side of the engine merge — exported for the settings page.
+ * Computed per call: gemini auth can appear while the process runs
+ * (login / mounted creds), and the resolver should see it immediately.
+ */
+export function getAiEngineEnv(): AiEngineEnv {
+  return {
+    provider: config.AI_PROVIDER,
+    hasAnthropicKey: Boolean(config.ANTHROPIC_API_KEY),
+    geminiUsable: geminiAuthConfigured(),
+    classifierModel: config.CLAUDE_MODEL,
+    resumeModel: config.CLAUDE_MODEL_RESUME,
+  };
+}
 
 export interface AiRuntime extends AiEngineChoice {
   provider: AiProvider;
@@ -34,6 +41,8 @@ export interface AiRuntime extends AiEngineChoice {
  * .env defaults. Read per call so a dashboard change applies on the next
  * cron tick (CLAUDE.md gotcha 9) without restarting either process.
  */
+let warnedFallback = false;
+
 export async function getAiRuntime(): Promise<AiRuntime> {
   let row = null;
   try {
@@ -44,7 +53,14 @@ export async function getAiRuntime(): Promise<AiRuntime> {
   } catch (err) {
     logger.warn({ err }, 'ai: settings read failed, using .env engine');
   }
-  const choice = resolveAiEngine(row, AI_ENGINE_ENV);
+  const choice = resolveAiEngine(row, getAiEngineEnv());
+  if (row?.aiProvider && row.aiProvider !== choice.providerId && !warnedFallback) {
+    warnedFallback = true;
+    logger.warn(
+      { saved: row.aiProvider, running: choice.providerId },
+      'ai: saved engine not usable yet, falling back',
+    );
+  }
   return { ...choice, provider: getAiProviderById(choice.providerId) };
 }
 
@@ -98,7 +114,7 @@ function withGeminiAuth(bin: AiProviderStatus): AiProviderStatus {
   if (!bin.ok || geminiAuthConfigured()) return bin;
   return {
     ok: false,
-    detail: `${bin.detail} installed — run \`gemini\` once to log in, or set GEMINI_API_KEY in .env`,
+    detail: `${bin.detail} installed — set GEMINI_API_KEY in .env, or log in once with \`gemini\` (mount ~/.gemini in Docker)`,
   };
 }
 

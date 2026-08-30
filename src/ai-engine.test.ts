@@ -12,6 +12,7 @@ import {
 const ENV: AiEngineEnv = {
   provider: 'claude_code',
   hasAnthropicKey: false,
+  geminiUsable: true,
   classifierModel: 'claude-haiku-4-5-20251001',
   resumeModel: 'claude-opus-5',
 };
@@ -67,6 +68,26 @@ describe('resolveAiEngine', () => {
     const out = resolveAiEngine(
       { aiProvider: 'anthropic_api', aiModelClassifier: null, aiModelResume: null },
       ENV,
+    );
+    assert.equal(out.providerId, 'claude_code');
+  });
+
+  it('gemini_cli without auth falls back and keeps claude models', () => {
+    const out = resolveAiEngine(
+      { aiProvider: 'gemini_cli', aiModelClassifier: null, aiModelResume: null },
+      { ...ENV, geminiUsable: false },
+    );
+    assert.deepEqual(out, {
+      providerId: 'claude_code',
+      classifierModel: ENV.classifierModel,
+      resumeModel: ENV.resumeModel,
+    });
+  });
+
+  it('falls back to claude_code when the .env provider is unusable too', () => {
+    const out = resolveAiEngine(
+      { aiProvider: 'anthropic_api', aiModelClassifier: null, aiModelResume: null },
+      { ...ENV, provider: 'gemini_cli', geminiUsable: false },
     );
     assert.equal(out.providerId, 'claude_code');
   });

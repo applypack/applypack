@@ -40,6 +40,8 @@ export interface AiEngineRow {
 export interface AiEngineEnv {
   provider: AiProviderId;
   hasAnthropicKey: boolean;
+  /** Gemini auth is file/env detectable — false means calls cannot work yet. */
+  geminiUsable: boolean;
   classifierModel: string;
   resumeModel: string;
 }
@@ -52,9 +54,10 @@ export interface AiEngineChoice {
 
 /**
  * Merges the stored override with the .env defaults. Unknown provider values,
- * blank models and models from the wrong family fall back, and anthropic_api
- * without an API key falls back to the .env provider — a stale DB row can
- * never leave the pipeline without a runnable engine.
+ * blank models and models from the wrong family fall back; anthropic_api
+ * without an API key and gemini_cli without auth fall back to the .env
+ * provider (claude_code as the last resort) — a saved-but-not-yet-usable
+ * preference never leaves the pipeline without a runnable engine.
  */
 export function resolveAiEngine(
   row: AiEngineRow | null | undefined,
@@ -62,8 +65,11 @@ export function resolveAiEngine(
 ): AiEngineChoice {
   let providerId =
     row?.aiProvider && isAiProviderId(row.aiProvider) ? row.aiProvider : env.provider;
-  if (providerId === 'anthropic_api' && !env.hasAnthropicKey) {
-    providerId = env.provider === 'anthropic_api' ? 'claude_code' : env.provider;
+  const unusable = (id: AiProviderId): boolean =>
+    (id === 'anthropic_api' && !env.hasAnthropicKey) ||
+    (id === 'gemini_cli' && !env.geminiUsable);
+  if (unusable(providerId)) {
+    providerId = unusable(env.provider) ? 'claude_code' : env.provider;
   }
   return {
     providerId,

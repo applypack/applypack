@@ -106,6 +106,8 @@ export interface SettingsProps {
   allSources: string[];
   fetchingEnabled: boolean;
   aiProviders: AiProviderOption[];
+  /** Set when the saved engine is not usable yet and a fallback runs. */
+  aiFallback: { saved: string; running: string; detail: string } | null;
   aiModelClassifier: string | null;
   aiModelResume: string | null;
   aiDefaults: { classifier: string; resume: string };
@@ -142,6 +144,7 @@ export const SettingsPage: FC<SettingsProps> = ({
   allSources,
   fetchingEnabled,
   aiProviders,
+  aiFallback,
   aiModelClassifier,
   aiModelResume,
   aiDefaults,
@@ -286,13 +289,19 @@ export const SettingsPage: FC<SettingsProps> = ({
       >
         <Card>
           <form method="post" action="/settings/ai" class="space-y-4">
+            {aiFallback && (
+              <div class="rounded-md border border-warn/25 bg-warn/5 px-3.5 py-2.5 text-[13px] leading-5 text-warn">
+                {aiFallback.saved} is saved as your engine but is not usable here yet
+                ({aiFallback.detail}). The pipeline is running on {aiFallback.running} and
+                switches over automatically once it works.
+              </div>
+            )}
             <div class="space-y-2">
               {aiProviders.map((p) => (
                 <Radio
                   name="provider"
                   value={p.id}
                   checked={p.selected}
-                  disabled={!p.ok}
                   title={
                     <>
                       {p.label}{' '}

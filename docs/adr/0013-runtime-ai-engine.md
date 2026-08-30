@@ -29,10 +29,12 @@ frequent classifier calls vs a few judgment-heavy resume calls.
   `gemini --output-format json -m <model> -p "<system>\n\n<user>"`, cwd set
   to tmpdir so it cannot ingest workspace context, tools denied by default,
   `--allowed-tools google_web_search web_fetch` only when `webTools`.
-- `/settings → AI engine`: provider radios gated by
+- `/settings → AI engine`: provider radios with availability badges from
   `probeAiProviders()` (API key present / CLI on PATH / gemini auth
-  configured), two model inputs with suggestions; the POST re-validates
-  availability and model family before saving.
+  configured), two model inputs with suggestions. The POST validates the
+  model family; a not-yet-usable engine still saves (warn flash + card
+  banner) — `resolveAiEngine` keeps the pipeline on a usable fallback and
+  switches over the moment auth appears.
 
 ## Consequences
 

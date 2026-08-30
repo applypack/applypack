@@ -27,7 +27,7 @@ import {
   resolveAiEngine,
   type AiProviderId,
 } from '../../ai-engine';
-import { AI_ENGINE_ENV, probeAiProviders } from '../../ai-runtime';
+import { getAiEngineEnv, probeAiProviders } from '../../ai-runtime';
 import {
   createProfile,
   deleteProfile,
@@ -96,11 +96,26 @@ settingsRoute.get('/settings', async (c) => {
     listResumes(),
     probeAiProviders(),
   ]);
-  const aiEffective = resolveAiEngine(settings, AI_ENGINE_ENV);
+  const aiEnv = getAiEngineEnv();
+  const aiEffective = resolveAiEngine(settings, aiEnv);
   const aiFamilyDefaults = resolveAiEngine(
     { aiProvider: settings.aiProvider, aiModelClassifier: null, aiModelResume: null },
-    AI_ENGINE_ENV,
+    aiEnv,
   );
+  // The form shows the SAVED preference; the pipeline may be running on a
+  // fallback until that engine becomes usable (key / login appears).
+  const aiChecked =
+    settings.aiProvider && isAiProviderId(settings.aiProvider)
+      ? settings.aiProvider
+      : aiEffective.providerId;
+  const aiFallback =
+    aiChecked !== aiEffective.providerId
+      ? {
+          saved: AI_PROVIDER_LABELS[aiChecked],
+          running: AI_PROVIDER_LABELS[aiEffective.providerId],
+          detail: aiStatuses[aiChecked].detail,
+        }
+      : null;
   const tabParam = c.req.query('tab');
   const activeTab = isSettingsTab(tabParam) ? tabParam : 'general';
   const flash = parseFlashCookie(c.req.header('cookie'));
@@ -120,8 +135,9 @@ settingsRoute.get('/settings', async (c) => {
         desc: AI_PROVIDER_DESCS[id],
         ok: aiStatuses[id].ok,
         detail: aiStatuses[id].detail,
-        selected: aiEffective.providerId === id,
+        selected: aiChecked === id,
       }))}
+      aiFallback={aiFallback}
       aiModelClassifier={settings.aiModelClassifier}
       aiModelResume={settings.aiModelResume}
       aiDefaults={{
@@ -192,30 +208,37 @@ settingsRoute.post('/settings/ai', async (c) => {
   if (!isAiProviderId(provider)) {
     return flashRedirect('/settings?tab=ai', 'err', 'Pick an AI provider.');
   }
-  const statuses = await probeAiProviders();
-  if (!statuses[provider].ok) {
-    return flashRedirect(
-      '/settings?tab=ai',
-      'err',
-      `${AI_PROVIDER_LABELS[provider]} is not usable here: ${statuses[provider].detail}.`,
-    );
-  }
+  const label = AI_PROVIDER_LABELS[provider];
   const classifierModel = cleanModelId(form.classifierModel);
   const resumeModel = cleanModelId(form.resumeModel);
   for (const model of [classifierModel, resumeModel]) {
     if (model && !modelFitsProvider(model, provider)) {
+      const geminiHint =
+        model.startsWith('gemini') && provider !== 'gemini_cli'
+          ? ' It is a Gemini model — select Gemini CLI above to use it.'
+          : '';
       return flashRedirect(
         '/settings?tab=ai',
         'err',
-        `"${model}" does not look like a ${AI_PROVIDER_LABELS[provider]} model id. Not saved.`,
+        `"${model}" does not fit ${label}.${geminiHint} Nothing saved.`,
       );
     }
   }
   await setAiEngine({ aiProvider: provider, aiModelClassifier: classifierModel, aiModelResume: resumeModel });
+  // An engine that is not usable yet still saves — the pipeline runs on the
+  // fallback (resolveAiEngine) and switches over the moment auth appears.
+  const statuses = await probeAiProviders();
+  if (!statuses[provider].ok) {
+    return flashRedirect(
+      '/settings?tab=ai',
+      'warn',
+      `${label} saved as your engine, but it is not usable here yet (${statuses[provider].detail}). The pipeline keeps running on the fallback until it is.`,
+    );
+  }
   return flashRedirect(
     '/settings?tab=ai',
     'ok',
-    `AI engine → ${AI_PROVIDER_LABELS[provider]}. Dashboard actions use it now; the worker follows on its next tick.`,
+    `AI engine → ${label}. Dashboard actions use it now; the worker follows on its next tick.`,
   );
 });
 
