@@ -15,6 +15,14 @@ const ConfigSchema = z.object({
   CLAUDE_CODE_BIN: z.string().default('claude'),
   // Path to the Gemini CLI when the gemini_cli engine is selected.
   GEMINI_CLI_BIN: z.string().default('gemini'),
+  // Path to the Codex CLI when the codex_cli engine is selected.
+  CODEX_CLI_BIN: z.string().default('codex'),
+  // OpenAI-compatible API engine: any server that speaks /chat/completions
+  // (OpenAI, OpenRouter, Groq, local LM Studio / Ollama).
+  OPENAI_API_KEY: z.string().optional(),
+  OPENAI_BASE_URL: z.string().default('https://api.openai.com/v1'),
+  // Default model for the openai_api engine when the dashboard slot is empty.
+  OPENAI_MODEL: z.string().default(''),
   // How many jobs are classified at the same time (both providers).
   AI_CONCURRENCY: z.coerce.number().int().min(1).max(8).default(3),
   TELEGRAM_BOT_TOKEN: z.string().optional(),

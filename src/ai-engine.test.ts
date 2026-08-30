@@ -1,10 +1,10 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  GEMINI_DEFAULT_CLASSIFIER_MODEL,
-  GEMINI_DEFAULT_RESUME_MODEL,
   isAiProviderId,
   modelFitsProvider,
+  parseAiEngineConfig,
+  providerUnusable,
   resolveAiEngine,
   type AiEngineEnv,
 } from './ai-engine';
@@ -12,126 +12,125 @@ import {
 const ENV: AiEngineEnv = {
   provider: 'claude_code',
   hasAnthropicKey: false,
+  hasOpenAiKey: false,
   geminiUsable: true,
+  codexUsable: false,
   classifierModel: 'claude-haiku-4-5-20251001',
   resumeModel: 'claude-opus-5',
+  openAiModel: '',
 };
 
 describe('resolveAiEngine', () => {
-  it('follows .env when there is no stored row', () => {
-    assert.deepEqual(resolveAiEngine(null, ENV), {
-      providerId: 'claude_code',
-      classifierModel: ENV.classifierModel,
-      resumeModel: ENV.resumeModel,
-    });
+  it('seeds a one-engine chain from .env when nothing is stored', () => {
+    const out = resolveAiEngine(null, ENV);
+    assert.deepEqual(out.chain, ['claude_code']);
+    assert.deepEqual(out.skipped, []);
+    assert.equal(out.modelFor('claude_code', 'classifier'), ENV.classifierModel);
+    assert.equal(out.modelFor('claude_code', 'resume'), ENV.resumeModel);
   });
 
-  it('stored provider overrides .env and switches model family defaults', () => {
-    const out = resolveAiEngine(
-      { aiProvider: 'gemini_cli', aiModelClassifier: null, aiModelResume: null },
-      ENV,
-    );
-    assert.deepEqual(out, {
-      providerId: 'gemini_cli',
-      classifierModel: GEMINI_DEFAULT_CLASSIFIER_MODEL,
-      resumeModel: GEMINI_DEFAULT_RESUME_MODEL,
-    });
+  it('keeps the stored priority order', () => {
+    const out = resolveAiEngine({ order: ['gemini_cli', 'claude_code'], models: {} }, ENV);
+    assert.deepEqual(out.chain, ['gemini_cli', 'claude_code']);
+    assert.equal(out.modelFor('gemini_cli', 'classifier'), 'gemini-2.5-flash');
+    assert.equal(out.modelFor('gemini_cli', 'resume'), 'gemini-2.5-pro');
   });
 
-  it('keeps stored models that fit the provider', () => {
+  it('honours stored per-engine models and drops wrong-family ones', () => {
     const out = resolveAiEngine(
       {
-        aiProvider: 'claude_code',
-        aiModelClassifier: 'claude-sonnet-5',
-        aiModelResume: 'opus',
+        order: ['gemini_cli'],
+        models: {
+          gemini_cli: { classifier: 'gemini-2.5-pro', resume: 'claude-opus-5' },
+        },
       },
       ENV,
     );
-    assert.equal(out.classifierModel, 'claude-sonnet-5');
-    assert.equal(out.resumeModel, 'opus');
+    assert.equal(out.modelFor('gemini_cli', 'classifier'), 'gemini-2.5-pro');
+    assert.equal(out.modelFor('gemini_cli', 'resume'), 'gemini-2.5-pro');
   });
 
-  it('drops a stored model from the wrong family', () => {
+  it('skips engines the host cannot run and reports them', () => {
     const out = resolveAiEngine(
-      {
-        aiProvider: 'gemini_cli',
-        aiModelClassifier: 'claude-haiku-4-5-20251001',
-        aiModelResume: 'gemini-2.5-pro',
-      },
+      { order: ['anthropic_api', 'openai_api', 'claude_code'], models: {} },
       ENV,
     );
-    assert.equal(out.classifierModel, GEMINI_DEFAULT_CLASSIFIER_MODEL);
-    assert.equal(out.resumeModel, 'gemini-2.5-pro');
+    assert.deepEqual(out.chain, ['claude_code']);
+    assert.deepEqual(out.skipped, ['anthropic_api', 'openai_api']);
   });
 
-  it('anthropic_api without a key falls back to the .env provider', () => {
+  it('falls back to claude_code when everything is unusable', () => {
     const out = resolveAiEngine(
-      { aiProvider: 'anthropic_api', aiModelClassifier: null, aiModelResume: null },
-      ENV,
-    );
-    assert.equal(out.providerId, 'claude_code');
-  });
-
-  it('gemini_cli without auth falls back and keeps claude models', () => {
-    const out = resolveAiEngine(
-      { aiProvider: 'gemini_cli', aiModelClassifier: null, aiModelResume: null },
-      { ...ENV, geminiUsable: false },
-    );
-    assert.deepEqual(out, {
-      providerId: 'claude_code',
-      classifierModel: ENV.classifierModel,
-      resumeModel: ENV.resumeModel,
-    });
-  });
-
-  it('falls back to claude_code when the .env provider is unusable too', () => {
-    const out = resolveAiEngine(
-      { aiProvider: 'anthropic_api', aiModelClassifier: null, aiModelResume: null },
+      { order: ['openai_api'], models: {} },
       { ...ENV, provider: 'gemini_cli', geminiUsable: false },
     );
-    assert.equal(out.providerId, 'claude_code');
+    assert.deepEqual(out.chain, ['claude_code']);
   });
 
-  it('anthropic_api with a key is honoured', () => {
+  it('codex defaults to the CLI-configured model (empty id)', () => {
     const out = resolveAiEngine(
-      { aiProvider: 'anthropic_api', aiModelClassifier: null, aiModelResume: null },
-      { ...ENV, hasAnthropicKey: true },
+      { order: ['codex_cli'], models: {} },
+      { ...ENV, codexUsable: true },
     );
-    assert.equal(out.providerId, 'anthropic_api');
+    assert.equal(out.modelFor('codex_cli', 'classifier'), '');
   });
 
-  it('ignores unknown provider strings and blank models', () => {
+  it('openai model comes from OPENAI_MODEL when the slot is empty', () => {
     const out = resolveAiEngine(
-      { aiProvider: 'openai', aiModelClassifier: '  ', aiModelResume: '' },
-      ENV,
+      { order: ['openai_api'], models: {} },
+      { ...ENV, hasOpenAiKey: true, openAiModel: 'llama-3.3-70b' },
     );
-    assert.deepEqual(out, {
-      providerId: 'claude_code',
-      classifierModel: ENV.classifierModel,
-      resumeModel: ENV.resumeModel,
+    assert.deepEqual(out.chain, ['openai_api']);
+    assert.equal(out.modelFor('openai_api', 'resume'), 'llama-3.3-70b');
+  });
+});
+
+describe('parseAiEngineConfig', () => {
+  it('drops unknown ids and de-duplicates the order', () => {
+    const out = parseAiEngineConfig({
+      order: ['claude_code', 'openai', 'claude_code', 'gemini_cli'],
+      models: { openai: { classifier: 'x' }, gemini_cli: { classifier: 'gemini-2.5-pro' } },
     });
+    assert.deepEqual(out.order, ['claude_code', 'gemini_cli']);
+    assert.deepEqual(Object.keys(out.models), ['gemini_cli']);
+  });
+
+  it('never throws on garbage', () => {
+    assert.deepEqual(parseAiEngineConfig('nope'), { order: [], models: {} });
+    assert.deepEqual(parseAiEngineConfig(null), { order: [], models: {} });
+    assert.deepEqual(parseAiEngineConfig({ order: 42 }), { order: [], models: {} });
   });
 });
 
 describe('modelFitsProvider', () => {
-  it('gemini models only fit gemini_cli', () => {
+  it('checks family prefixes per provider', () => {
     assert.equal(modelFitsProvider('gemini-2.5-flash', 'gemini_cli'), true);
-    assert.equal(modelFitsProvider('gemini-2.5-flash', 'claude_code'), false);
     assert.equal(modelFitsProvider('claude-opus-5', 'gemini_cli'), false);
-  });
-
-  it('claude aliases fit claude_code but not the Messages API', () => {
     assert.equal(modelFitsProvider('haiku', 'claude_code'), true);
     assert.equal(modelFitsProvider('haiku', 'anthropic_api'), false);
-    assert.equal(modelFitsProvider('claude-opus-5', 'anthropic_api'), true);
+    assert.equal(modelFitsProvider('gpt-5.1', 'codex_cli'), true);
+    assert.equal(modelFitsProvider('o3', 'codex_cli'), true);
+    assert.equal(modelFitsProvider('claude-opus-5', 'codex_cli'), false);
+  });
+
+  it('openai_api accepts any non-empty id (base-URL providers)', () => {
+    assert.equal(modelFitsProvider('meta-llama/llama-3.3-70b-instruct', 'openai_api'), true);
+    assert.equal(modelFitsProvider('', 'openai_api'), false);
   });
 });
 
-describe('isAiProviderId', () => {
-  it('accepts the three known ids and nothing else', () => {
-    assert.equal(isAiProviderId('gemini_cli'), true);
-    assert.equal(isAiProviderId('anthropic_api'), true);
-    assert.equal(isAiProviderId('claude_code'), true);
+describe('providerUnusable / isAiProviderId', () => {
+  it('flags key-less APIs and unauthenticated CLIs', () => {
+    assert.equal(providerUnusable('anthropic_api', ENV), true);
+    assert.equal(providerUnusable('openai_api', ENV), true);
+    assert.equal(providerUnusable('gemini_cli', ENV), false);
+    assert.equal(providerUnusable('codex_cli', ENV), true);
+    assert.equal(providerUnusable('claude_code', ENV), false);
+  });
+
+  it('accepts the five known ids and nothing else', () => {
+    assert.equal(isAiProviderId('codex_cli'), true);
+    assert.equal(isAiProviderId('openai_api'), true);
     assert.equal(isAiProviderId('openai'), false);
     assert.equal(isAiProviderId(null), false);
   });

@@ -112,7 +112,8 @@ export function parseGeminiCliOutput(raw: string): CliOutcome {
 /**
  * Argument list for `gemini -p`. The CLI has no system-prompt flag, so the
  * system text is prepended to the prompt. Headless default approval mode
- * denies every tool; webTools pre-approves only the two web tools.
+ * denies every tool; webTools pre-approves only the two web tools. An empty
+ * model means "use the CLI's configured default".
  */
 export function buildGeminiCliArgs(req: {
   system: string;
@@ -125,8 +126,104 @@ export function buildGeminiCliArgs(req: {
     : [];
   return [
     '--output-format', 'json',
-    '--model', req.model,
+    ...(req.model ? ['--model', req.model] : []),
     ...tools,
     '--prompt', `${req.system}\n\n${req.user}`,
   ];
+}
+
+/**
+ * Argument list for `codex exec` (headless, ChatGPT subscription or
+ * OPENAI_API_KEY). No system-prompt flag — the system text is prepended.
+ * read-only sandbox keeps the agent away from the filesystem; --search
+ * enables its web tools only when the request asks. Empty model = the CLI's
+ * configured default.
+ */
+export function buildCodexCliArgs(req: {
+  system: string;
+  user: string;
+  model: string;
+  webTools?: boolean;
+}): string[] {
+  return [
+    'exec',
+    '--json',
+    '--skip-git-repo-check',
+    '--sandbox', 'read-only',
+    ...(req.model ? ['--model', req.model] : []),
+    ...(req.webTools ? ['--search'] : []),
+    `${req.system}\n\n${req.user}`,
+  ];
+}
+
+/**
+ * `codex exec --json` emits JSONL events. The reply is the last
+ * agent-message event; error events carry a message. Two event shapes are
+ * covered — `{item:{type:'agent_message',text}}` (current) and
+ * `{msg:{type:'agent_message',message}}` (older builds) — parsed
+ * defensively line by line.
+ */
+export function parseCodexCliOutput(raw: string): CliOutcome {
+  let text: string | null = null;
+  let error: string | null = null;
+  for (const line of raw.split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed.startsWith('{')) continue;
+    let event: unknown;
+    try {
+      event = JSON.parse(trimmed);
+    } catch {
+      continue;
+    }
+    const e = event as {
+      type?: string;
+      message?: string;
+      error?: { message?: string };
+      item?: { type?: string; text?: string };
+      msg?: { type?: string; message?: string };
+    };
+    if (e.item?.type === 'agent_message' && typeof e.item.text === 'string') {
+      text = e.item.text;
+    } else if (e.msg?.type === 'agent_message' && typeof e.msg.message === 'string') {
+      text = e.msg.message;
+    } else if (e.type === 'error' || e.type === 'turn.failed') {
+      error = e.message ?? e.error?.message ?? 'unknown error';
+    }
+  }
+  if (text !== null) return { text, rateLimited: false, error: null };
+  if (error !== null) {
+    return { text: null, rateLimited: RATE_LIMIT_PATTERN.test(error), error: `codex: ${error}` };
+  }
+  return { text: null, rateLimited: false, error: 'codex: no agent message in output' };
+}
+
+/**
+ * Response of an OpenAI-compatible POST /chat/completions (OpenAI,
+ * OpenRouter, Groq, local servers). Error shape is the OpenAI envelope.
+ */
+const OpenAiChatResponseSchema = z.object({
+  choices: z
+    .array(z.object({ message: z.object({ content: z.string().nullable() }) }))
+    .optional(),
+  error: z.object({ message: z.string() }).optional(),
+});
+
+export function parseOpenAiChatResponse(raw: string): CliOutcome {
+  let json: unknown;
+  try {
+    json = JSON.parse(raw);
+  } catch {
+    return { text: null, rateLimited: false, error: 'openai: response is not JSON' };
+  }
+  const parsed = OpenAiChatResponseSchema.safeParse(json);
+  if (!parsed.success) {
+    return { text: null, rateLimited: false, error: 'openai: unexpected response shape' };
+  }
+  if (parsed.data.error) {
+    const message = parsed.data.error.message;
+    return { text: null, rateLimited: RATE_LIMIT_PATTERN.test(message), error: `openai: ${message}` };
+  }
+  const content = parsed.data.choices?.[0]?.message.content;
+  if (typeof content === 'string') return { text: content, rateLimited: false, error: null };
+  return { text: null, rateLimited: false, error: 'openai: empty completion' };
 }

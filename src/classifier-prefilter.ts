@@ -34,18 +34,18 @@ export async function preClassify(
   ].join('\n');
 
   const ai = await getAiRuntime();
-  const text = await ai.provider.complete({
+  const out = await ai.complete({
     system: systemPrompt,
     user: userText,
     maxTokens: MAX_TOKENS,
     label: 'prefilter',
-    model: ai.classifierModel,
+    role: 'classifier',
   });
-  if (text === null) return null;
+  if (out === null) return null;
 
-  const parsed = parsePrefilterResponse(text);
+  const parsed = parsePrefilterResponse(out.text);
   if (parsed) return parsed;
-  logger.warn({ raw: text.slice(0, 300), title: input.title }, 'prefilter: response did not match schema');
+  logger.warn({ raw: out.text.slice(0, 300), title: input.title }, 'prefilter: response did not match schema');
   return null;
 }
 

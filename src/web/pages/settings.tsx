@@ -59,22 +59,29 @@ interface ResumeListItem {
   scannedAt: Date | null;
 }
 
-export interface AiProviderOption {
+export interface AiEngineRow {
   id: string;
   label: string;
   desc: string;
   ok: boolean;
   detail: string;
-  selected: boolean;
+  enabled: boolean;
+  /** Index in the priority chain; -1 when disabled. */
+  position: number;
+  classifierModel: string;
+  resumeModel: string;
+  classifierDefault: string;
+  resumeDefault: string;
+  /** Family model ids for the selects; empty = free-text input. */
+  options: string[];
+  freeTextModels: boolean;
 }
 
-const AI_MODEL_SUGGESTIONS = [
-  'claude-haiku-4-5-20251001',
-  'claude-sonnet-5',
-  'claude-opus-5',
-  'gemini-2.5-flash',
-  'gemini-2.5-pro',
-];
+export interface AiStatusSummary {
+  active: string;
+  chain: string[];
+  skipped: string[];
+}
 
 /**
  * Link-based sub-navigation (?tab=…): one route, server picks the sections.
@@ -105,12 +112,8 @@ export interface SettingsProps {
   disabledSources: string[];
   allSources: string[];
   fetchingEnabled: boolean;
-  aiProviders: AiProviderOption[];
-  /** Set when the saved engine is not usable yet and a fallback runs. */
-  aiFallback: { saved: string; running: string; detail: string } | null;
-  aiModelClassifier: string | null;
-  aiModelResume: string | null;
-  aiDefaults: { classifier: string; resume: string };
+  aiEngines: AiEngineRow[];
+  aiStatus: AiStatusSummary;
   targets: MaskedTarget[];
   profiles: ProfileListItem[];
   activeProfile: Profile | null;
@@ -143,11 +146,8 @@ export const SettingsPage: FC<SettingsProps> = ({
   disabledSources,
   allSources,
   fetchingEnabled,
-  aiProviders,
-  aiFallback,
-  aiModelClassifier,
-  aiModelResume,
-  aiDefaults,
+  aiEngines,
+  aiStatus,
   targets,
   profiles,
   activeProfile,
@@ -284,73 +284,26 @@ export const SettingsPage: FC<SettingsProps> = ({
       {activeTab === 'ai' && (
       <>
       <Section
-        title="AI engine"
-        desc="Which AI backend runs the pipeline and which models it uses. Dashboard actions switch immediately; the worker follows on its next tick."
+        title="AI engines"
+        desc="Your AI subscriptions and API keys, in priority order. #1 serves every call; when it errors or hits a rate limit, the next enabled engine takes over automatically. Setup guide: docs/ai-engines.md in the repo."
       >
-        <Card>
-          <form method="post" action="/settings/ai" class="space-y-4">
-            {aiFallback && (
-              <div class="rounded-md border border-warn/25 bg-warn/5 px-3.5 py-2.5 text-[13px] leading-5 text-warn">
-                {aiFallback.saved} is saved as your engine but is not usable here yet
-                ({aiFallback.detail}). The pipeline is running on {aiFallback.running} and
-                switches over automatically once it works.
-              </div>
+        <div class="space-y-3">
+          <div class="text-[13px] text-ink-muted">
+            Active now: <span class="font-medium text-ink">{aiStatus.active}</span>
+            {aiStatus.chain.length > 1 && (
+              <span> → fallback: {aiStatus.chain.slice(1).join(' → ')}</span>
             )}
-            <div class="space-y-2">
-              {aiProviders.map((p) => (
-                <Radio
-                  name="provider"
-                  value={p.id}
-                  checked={p.selected}
-                  title={
-                    <>
-                      {p.label}{' '}
-                      <Badge tone={p.ok ? 'ok' : 'neutral'} class="ml-1 align-middle">
-                        {p.ok ? 'available' : 'not detected'}
-                      </Badge>
-                    </>
-                  }
-                >
-                  {p.desc} <span class="text-ink-faint">({p.detail})</span>
-                </Radio>
-              ))}
+          </div>
+          {aiStatus.skipped.length > 0 && (
+            <div class="rounded-md border border-warn/25 bg-warn/5 px-3.5 py-2.5 text-[13px] leading-5 text-warn">
+              Enabled but skipped for now: {aiStatus.skipped.join(', ')} — not usable on this
+              host yet. Each joins the chain automatically once its key or login appears.
             </div>
-            <div class="grid gap-4 sm:grid-cols-2">
-              <Field
-                label="Classifier model"
-                hint={`Scores every fetched job — cheap and frequent. Empty = ${aiDefaults.classifier}.`}
-              >
-                <Input
-                  type="text"
-                  name="classifierModel"
-                  value={aiModelClassifier ?? ''}
-                  placeholder={aiDefaults.classifier}
-                  list="ai-model-ids"
-                  mono
-                />
-              </Field>
-              <Field
-                label="Resume model"
-                hint={`Resume scan, match and job verification — a few calls a day where judgment matters. Empty = ${aiDefaults.resume}.`}
-              >
-                <Input
-                  type="text"
-                  name="resumeModel"
-                  value={aiModelResume ?? ''}
-                  placeholder={aiDefaults.resume}
-                  list="ai-model-ids"
-                  mono
-                />
-              </Field>
-            </div>
-            <datalist id="ai-model-ids">
-              {AI_MODEL_SUGGESTIONS.map((m) => (
-                <option value={m} />
-              ))}
-            </datalist>
-            <Button variant="secondary">Save AI engine</Button>
-          </form>
-        </Card>
+          )}
+          {aiEngines.map((e) => (
+            <AiEngineCard engine={e} />
+          ))}
+        </div>
       </Section>
 
       <Section
@@ -576,6 +529,92 @@ export const SettingsPage: FC<SettingsProps> = ({
     <script dangerouslySetInnerHTML={{ __html: SETTINGS_JS }} />
   </Layout>
 );
+
+const AiEngineCard: FC<{ engine: AiEngineRow }> = ({ engine: e }) => (
+  <Card class={e.enabled ? '' : 'opacity-75'}>
+    <div class="flex flex-wrap items-center gap-2">
+      {e.enabled && <Badge tone="violet">#{e.position + 1}</Badge>}
+      <span class="text-sm font-medium text-ink">{e.label}</span>
+      <Badge tone={e.ok ? 'ok' : 'neutral'}>{e.ok ? 'available' : 'not detected'}</Badge>
+      <div class="ml-auto flex flex-wrap justify-end gap-2">
+        {e.enabled && e.position > 0 && (
+          <ActionForm action="/settings/ai/move" hidden={{ provider: e.id }}>
+            <Button size="sm" variant="secondary" title="Move one step up the priority order">
+              ↑ Priority
+            </Button>
+          </ActionForm>
+        )}
+        <ActionForm action="/settings/ai/test" hidden={{ provider: e.id }}>
+          <Button size="sm" variant="violet" title="Run a tiny live call through this engine">
+            Test
+          </Button>
+        </ActionForm>
+        <ActionForm action="/settings/ai/enable" hidden={{ provider: e.id }}>
+          <Button size="sm" variant={e.enabled ? 'secondary' : 'primary'}>
+            {e.enabled ? 'Disable' : 'Enable'}
+          </Button>
+        </ActionForm>
+      </div>
+    </div>
+    <p class="mt-1.5 text-[13px] leading-5 text-ink-faint">
+      {e.desc} ({e.detail})
+    </p>
+    {e.enabled && (
+      <form
+        method="post"
+        action="/settings/ai/models"
+        class="mt-4 grid gap-3 border-t border-line pt-4 sm:grid-cols-[1fr_1fr_auto] sm:items-end"
+      >
+        <input type="hidden" name="provider" value={e.id} />
+        <Field label="Classifier model" hint="Scores every fetched job — cheap and frequent.">
+          <ModelPicker
+            name="classifier"
+            value={e.classifierModel}
+            fallback={e.classifierDefault}
+            options={e.options}
+            freeText={e.freeTextModels}
+          />
+        </Field>
+        <Field label="Resume model" hint="Resume scan, match, verification — judgment calls.">
+          <ModelPicker
+            name="resume"
+            value={e.resumeModel}
+            fallback={e.resumeDefault}
+            options={e.options}
+            freeText={e.freeTextModels}
+          />
+        </Field>
+        <Button size="sm" variant="secondary">
+          Save models
+        </Button>
+      </form>
+    )}
+  </Card>
+);
+
+/** Closed families get a select (no wrong-family ids possible); base-URL
+ *  engines (openai_api) get free text — any model id may be legal there. */
+const ModelPicker: FC<{
+  name: string;
+  value: string;
+  fallback: string;
+  options: string[];
+  freeText: boolean;
+}> = ({ name, value, fallback, options, freeText }) =>
+  freeText ? (
+    <Input type="text" name={name} value={value} placeholder={fallback || 'model id'} mono />
+  ) : (
+    <Select name={name}>
+      <option value="" selected={value === ''}>
+        Default — {fallback}
+      </option>
+      {options.map((m) => (
+        <option value={m} selected={value === m}>
+          {m}
+        </option>
+      ))}
+    </Select>
+  );
 
 const ProfileEditor: FC<{
   profile: Profile;

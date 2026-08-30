@@ -2,9 +2,12 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   buildClaudeCodeArgs,
+  buildCodexCliArgs,
   buildGeminiCliArgs,
   parseClaudeCodeOutput,
+  parseCodexCliOutput,
   parseGeminiCliOutput,
+  parseOpenAiChatResponse,
 } from './ai-provider-parse';
 
 const ok = (result: string) =>
@@ -102,6 +105,67 @@ test('buildGeminiCliArgs prepends system text and gates web tools', () => {
   const web = buildGeminiCliArgs({ ...base, webTools: true });
   assert.ok(web.includes('google_web_search') && web.includes('web_fetch'));
   assert.equal(web[web.length - 1], 'S\n\nU');
+});
+
+test('codex JSONL: last agent message wins, both event shapes covered', () => {
+  const modern = [
+    '{"type":"thread.started","thread_id":"t1"}',
+    'non-json noise',
+    '{"type":"item.completed","item":{"id":"i1","type":"reasoning","text":"thinking"}}',
+    '{"type":"item.completed","item":{"id":"i2","type":"agent_message","text":"draft"}}',
+    '{"type":"item.completed","item":{"id":"i3","type":"agent_message","text":"{\\"ok\\":true}"}}',
+    '{"type":"turn.completed","usage":{"input_tokens":10}}',
+  ].join('\n');
+  const out = parseCodexCliOutput(modern);
+  assert.equal(out.error, null);
+  assert.match(out.text ?? '', /"ok":true/);
+
+  const legacy = '{"id":"0","msg":{"type":"agent_message","message":"hi"}}';
+  assert.equal(parseCodexCliOutput(legacy).text, 'hi');
+});
+
+test('codex errors surface and rate limits are flagged', () => {
+  const limited = parseCodexCliOutput('{"type":"error","message":"You have hit your usage limit."}');
+  assert.equal(limited.text, null);
+  assert.equal(limited.rateLimited, true);
+
+  const plain = parseCodexCliOutput('{"type":"turn.failed","message":"model not found"}');
+  assert.equal(plain.rateLimited, false);
+  assert.match(plain.error ?? '', /model not found/);
+
+  assert.match(parseCodexCliOutput('garbage only').error ?? '', /no agent message/);
+});
+
+test('buildCodexCliArgs: read-only sandbox, optional model and search', () => {
+  const base = { system: 'S', user: 'U', model: '' };
+  const plain = buildCodexCliArgs(base);
+  assert.deepEqual(plain, [
+    'exec', '--json', '--skip-git-repo-check', '--sandbox', 'read-only', 'S\n\nU',
+  ]);
+  const full = buildCodexCliArgs({ ...base, model: 'gpt-5.1', webTools: true });
+  assert.ok(full.includes('--model') && full.includes('gpt-5.1') && full.includes('--search'));
+});
+
+test('openai chat response: content, error envelope, rate limit', () => {
+  const ok = parseOpenAiChatResponse(
+    JSON.stringify({ choices: [{ message: { content: '{"relevant":true}' } }] }),
+  );
+  assert.match(ok.text ?? '', /"relevant":true/);
+
+  const quota = parseOpenAiChatResponse(
+    JSON.stringify({ error: { message: 'Rate limit reached for gpt-5-mini' } }),
+  );
+  assert.equal(quota.text, null);
+  assert.equal(quota.rateLimited, true);
+
+  const empty = parseOpenAiChatResponse(JSON.stringify({ choices: [{ message: { content: null } }] }));
+  assert.match(empty.error ?? '', /empty completion/);
+  assert.match(parseOpenAiChatResponse('<html>').error ?? '', /not JSON/);
+});
+
+test('gemini args omit --model when empty (CLI default)', () => {
+  const args = buildGeminiCliArgs({ system: 'S', user: 'U', model: '' });
+  assert.ok(!args.includes('--model'));
 });
 
 test('buildClaudeCodeArgs disables tools by default and allow-lists web tools on request', () => {

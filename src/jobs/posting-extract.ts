@@ -106,15 +106,15 @@ export function fallbackTitle(description: string): string {
 export async function extractPostingFacts(description: string): Promise<PostingFacts | null> {
   const { system, user } = buildExtractPrompt(description);
   const ai = await getAiRuntime();
-  const text = await ai.provider.complete({
+  const out = await ai.complete({
     system,
     user,
     maxTokens: MAX_TOKENS,
     label: 'posting-extract',
-    model: ai.classifierModel,
+    role: 'classifier',
   });
-  if (!text) return null;
-  const facts = parseExtractReply(text);
-  if (!facts) logger.warn({ head: text.slice(0, 120) }, 'posting-extract: unparseable reply');
+  if (!out) return null;
+  const facts = parseExtractReply(out.text);
+  if (!facts) logger.warn({ head: out.text.slice(0, 120) }, 'posting-extract: unparseable reply');
   return facts;
 }

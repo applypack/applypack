@@ -7,15 +7,18 @@ import { logger } from './logger';
 import { sleep } from './http';
 import {
   buildClaudeCodeArgs,
+  buildCodexCliArgs,
   buildGeminiCliArgs,
   parseClaudeCodeOutput,
+  parseCodexCliOutput,
   parseGeminiCliOutput,
+  parseOpenAiChatResponse,
   type CliOutcome,
 } from './ai-provider-parse';
-import { GEMINI_DEFAULT_CLASSIFIER_MODEL, type AiProviderId } from './ai-engine';
+import type { AiProviderId } from './ai-engine';
 
 /**
- * The single seam between the callers and whatever runs the AI (ADR 0013).
+ * The single seam between the callers and whatever runs the AI (ADR 0013/0014).
  *
  * - `anthropic_api`: Messages API via the SDK (pay per token, prompt cache).
  * - `claude_code`:   headless `claude -p` — uses the Claude.ai subscription
@@ -24,6 +27,11 @@ import { GEMINI_DEFAULT_CLASSIFIER_MODEL, type AiProviderId } from './ai-engine'
  *                    subject to the subscription's rolling usage window.
  * - `gemini_cli`:    headless `gemini -p` — Google account subscription or
  *                    GEMINI_API_KEY. Same process-per-call trade-offs.
+ * - `openai_api`:    OpenAI-compatible POST /chat/completions via fetch —
+ *                    covers OpenAI, OpenRouter, Groq, DeepSeek and local
+ *                    servers through OPENAI_BASE_URL.
+ * - `codex_cli`:     headless `codex exec` — ChatGPT subscription login or
+ *                    OPENAI_API_KEY.
  *
  * All return the raw text; callers own JSON extraction + zod validation.
  */
@@ -59,6 +67,11 @@ const WEB_SEARCH_MAX_USES = 10;
 const WEB_FETCH_MAX_USES = 6;
 const CLI_TIMEOUT_MS = 180_000;
 const CLI_MAX_BUFFER = 1024 * 1024;
+// gpt-5 / o-series burn completion tokens on reasoning before any output;
+// low effort + headroom keeps small-maxTokens JSON calls from truncating.
+const OPENAI_REASONING_MODEL = /^(gpt-5|o\d)/;
+const OPENAI_REASONING_HEADROOM_TOKENS = 2_048;
+const OPENAI_FALLBACK_MODEL = 'gpt-5-mini';
 
 const execFileAsync = promisify(execFile);
 
@@ -113,6 +126,73 @@ class AnthropicApiProvider implements AiProvider {
         .map((b) => b.text)
         .join('');
     }
+  }
+}
+
+/** OpenAI-compatible chat completions over fetch — no SDK dependency. */
+class OpenAiApiProvider implements AiProvider {
+  readonly name = 'openai_api';
+
+  constructor(
+    private readonly apiKey: string,
+    private readonly baseUrl: string,
+  ) {}
+
+  async complete(req: AiRequest): Promise<string | null> {
+    const model = req.model || config.OPENAI_MODEL || OPENAI_FALLBACK_MODEL;
+    // api.openai.com rejects max_tokens for reasoning models; most
+    // compatible servers (OpenRouter, Groq, local) only know max_tokens.
+    const isOpenAi = this.baseUrl.includes('api.openai.com');
+    const reasoning = isOpenAi && OPENAI_REASONING_MODEL.test(model);
+    const body = JSON.stringify({
+      model,
+      messages: [
+        { role: 'system', content: req.system },
+        { role: 'user', content: req.user },
+      ],
+      ...(isOpenAi
+        ? {
+            max_completion_tokens:
+              req.maxTokens + (reasoning ? OPENAI_REASONING_HEADROOM_TOKENS : 0),
+          }
+        : { max_tokens: req.maxTokens }),
+      ...(reasoning ? { reasoning_effort: 'low' } : {}),
+    });
+    for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), req.timeoutMs ?? CLI_TIMEOUT_MS);
+      try {
+        const resp = await fetch(`${this.baseUrl}/chat/completions`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${this.apiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body,
+          signal: ctrl.signal,
+        });
+        const raw = await resp.text();
+        const out = parseOpenAiChatResponse(raw);
+        if (out.text !== null) return out.text;
+        const rateLimited = out.rateLimited || resp.status === 429;
+        if (rateLimited && attempt < MAX_ATTEMPTS - 1) {
+          logger.warn({ label: req.label }, 'ai: openai rate-limited, retrying');
+          await sleep(RATE_LIMIT_RETRY_DELAY_MS);
+          continue;
+        }
+        logger.error(
+          { label: req.label, status: resp.status, error: out.error, model },
+          'ai: openai request failed',
+        );
+        return null;
+      } catch (err) {
+        logger.error({ err, label: req.label, model }, 'ai: openai request failed');
+        return null;
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+    return null;
   }
 }
 
@@ -197,9 +277,25 @@ export function getAiProviderById(id: AiProviderId): AiProvider {
       provider = new CliProvider('gemini_cli', config.GEMINI_CLI_BIN, {
         buildArgs: buildGeminiCliArgs,
         parse: parseGeminiCliOutput,
-        defaultModel: GEMINI_DEFAULT_CLASSIFIER_MODEL,
+        defaultModel: 'gemini-2.5-flash',
         // gemini has no --tools '' switch; an empty cwd keeps it from
         // ingesting workspace files (GEMINI.md, sources) as context.
+        cwd: tmpdir(),
+      });
+      break;
+    case 'openai_api': {
+      if (!config.OPENAI_API_KEY) {
+        throw new Error('OPENAI_API_KEY is required for the openai_api provider');
+      }
+      provider = new OpenAiApiProvider(config.OPENAI_API_KEY, config.OPENAI_BASE_URL);
+      break;
+    }
+    case 'codex_cli':
+      provider = new CliProvider('codex_cli', config.CODEX_CLI_BIN, {
+        buildArgs: buildCodexCliArgs,
+        parse: parseCodexCliOutput,
+        // '' = let the CLI use its configured default model.
+        defaultModel: '',
         cwd: tmpdir(),
       });
       break;

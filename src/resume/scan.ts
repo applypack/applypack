@@ -11,15 +11,15 @@ export async function scanResume(resume: { id: number; text: string }): Promise<
   const prompt = buildScanPrompt(resume.text);
   const ai = await getAiRuntime();
   for (let attempt = 0; attempt < PARSE_ATTEMPTS; attempt++) {
-    const text = await ai.provider.complete({
+    const out = await ai.complete({
       ...prompt,
       maxTokens: SCAN_MAX_TOKENS,
       label: 'resume-scan',
-      model: ai.resumeModel,
+      role: 'resume',
       timeoutMs: SCAN_TIMEOUT_MS,
     });
-    if (text === null) return null;
-    const parsed = parseScanResponse(text);
+    if (out === null) return null;
+    const parsed = parseScanResponse(out.text);
     if (parsed.ok) {
       await saveResumeScan(resume.id, parsed.data);
       logger.info(
@@ -28,7 +28,7 @@ export async function scanResume(resume: { id: number; text: string }): Promise<
       );
       return parsed.data;
     }
-    logger.warn({ id: resume.id, attempt, error: parsed.error, raw: text.slice(0, 500) }, 'resume: scan reply did not match schema');
+    logger.warn({ id: resume.id, attempt, error: parsed.error, raw: out.text.slice(0, 500) }, 'resume: scan reply did not match schema');
   }
   return null;
 }

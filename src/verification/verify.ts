@@ -12,24 +12,23 @@ const PARSE_ATTEMPTS = 2;
 export async function verifyJob(job: VerifyJobInput & { id: number }): Promise<JobVerification | null> {
   const prompt = buildVerifyPrompt(job);
   const ai = await getAiRuntime();
-  const model = ai.resumeModel;
   for (let attempt = 0; attempt < PARSE_ATTEMPTS; attempt++) {
-    const text = await ai.provider.complete({
+    const out = await ai.complete({
       ...prompt,
       maxTokens: VERIFY_MAX_TOKENS,
       label: 'job-verify',
-      model,
+      role: 'resume',
       timeoutMs: VERIFY_TIMEOUT_MS,
       webTools: true,
     });
-    if (text === null) return null;
-    const parsed = parseVerifyResponse(text);
+    if (out === null) return null;
+    const parsed = parseVerifyResponse(out.text);
     if (parsed.ok) {
       const r = parsed.data;
       const row = await prisma.jobVerification.create({
         data: {
           jobId: job.id,
-          model,
+          model: out.model || out.providerId,
           verdict: r.verdict,
           recommendation: r.recommendation,
           confidence: r.confidence,
@@ -42,7 +41,7 @@ export async function verifyJob(job: VerifyJobInput & { id: number }): Promise<J
       logger.info({ jobId: job.id, verdict: r.verdict, recommendation: r.recommendation }, 'verify: done');
       return row;
     }
-    logger.warn({ jobId: job.id, attempt, error: parsed.error, raw: text.slice(0, 500) }, 'verify: reply did not match schema');
+    logger.warn({ jobId: job.id, attempt, error: parsed.error, raw: out.text.slice(0, 500) }, 'verify: reply did not match schema');
   }
   return null;
 }

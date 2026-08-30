@@ -9,7 +9,7 @@ import {
   getSettings,
   listTelegramTargets,
   maskToken,
-  setAiEngine,
+  setAiEngineConfig,
   setApplicationTrackingEnabled,
   setClassifierMode,
   setDisabledSources,
@@ -22,12 +22,17 @@ import {
 import {
   AI_PROVIDER_IDS,
   AI_PROVIDER_LABELS,
+  PROVIDER_MODEL_OPTIONS,
+  defaultModelFor,
   isAiProviderId,
   modelFitsProvider,
+  parseAiEngineConfig,
   resolveAiEngine,
+  type AiEngineConfig,
   type AiProviderId,
 } from '../../ai-engine';
 import { getAiEngineEnv, probeAiProviders } from '../../ai-runtime';
+import { getAiProviderById } from '../../ai-provider';
 import {
   createProfile,
   deleteProfile,
@@ -81,7 +86,12 @@ const AI_PROVIDER_DESCS: Record<AiProviderId, string> = {
   anthropic_api: 'Messages API with prompt caching — fastest, pays per token.',
   claude_code: 'Headless claude -p on your Claude.ai subscription. Slower, no per-token bill.',
   gemini_cli: 'Headless gemini -p on your Google account or GEMINI_API_KEY.',
+  openai_api:
+    'Any server speaking /chat/completions: OpenAI, OpenRouter, Groq, local LM Studio / Ollama. Pays per token (or free locally).',
+  codex_cli: 'Headless codex exec on your ChatGPT subscription.',
 };
+
+const ENGINE_TEST_TIMEOUT_MS = 90_000;
 
 let reclassifyInFlight = false;
 
@@ -97,25 +107,39 @@ settingsRoute.get('/settings', async (c) => {
     probeAiProviders(),
   ]);
   const aiEnv = getAiEngineEnv();
-  const aiEffective = resolveAiEngine(settings, aiEnv);
-  const aiFamilyDefaults = resolveAiEngine(
-    { aiProvider: settings.aiProvider, aiModelClassifier: null, aiModelResume: null },
-    aiEnv,
-  );
-  // The form shows the SAVED preference; the pipeline may be running on a
-  // fallback until that engine becomes usable (key / login appears).
-  const aiChecked =
-    settings.aiProvider && isAiProviderId(settings.aiProvider)
-      ? settings.aiProvider
-      : aiEffective.providerId;
-  const aiFallback =
-    aiChecked !== aiEffective.providerId
-      ? {
-          saved: AI_PROVIDER_LABELS[aiChecked],
-          running: AI_PROVIDER_LABELS[aiEffective.providerId],
-          detail: aiStatuses[aiChecked].detail,
-        }
-      : null;
+  const engine = resolveAiEngine(settings.aiEngine, aiEnv);
+  const aiConfig = parseAiEngineConfig(settings.aiEngine);
+  // With no stored config the .env-seeded chain is shown as enabled.
+  const enabledOrder = aiConfig.order.length > 0 ? aiConfig.order : engine.chain;
+  const aiEngines = AI_PROVIDER_IDS.map((id) => {
+    const position = enabledOrder.indexOf(id);
+    const classifierDefault = defaultModelFor(id, 'classifier', aiEnv) || 'CLI default';
+    const resumeDefault = defaultModelFor(id, 'resume', aiEnv) || 'CLI default';
+    return {
+      id,
+      label: AI_PROVIDER_LABELS[id],
+      desc: AI_PROVIDER_DESCS[id],
+      ok: aiStatuses[id].ok,
+      detail: aiStatuses[id].detail,
+      enabled: position !== -1,
+      position,
+      classifierModel: aiConfig.models[id]?.classifier ?? '',
+      resumeModel: aiConfig.models[id]?.resume ?? '',
+      classifierDefault,
+      resumeDefault,
+      options: PROVIDER_MODEL_OPTIONS[id],
+      freeTextModels: id === 'openai_api',
+    };
+  }).sort((a, b) => {
+    if (a.enabled !== b.enabled) return a.enabled ? -1 : 1;
+    return a.enabled ? a.position - b.position : 0;
+  });
+  const primary = engine.chain[0]!;
+  const aiStatus = {
+    active: AI_PROVIDER_LABELS[primary],
+    chain: engine.chain.map((id) => AI_PROVIDER_LABELS[id]),
+    skipped: engine.skipped.map((id) => AI_PROVIDER_LABELS[id]),
+  };
   const tabParam = c.req.query('tab');
   const activeTab = isSettingsTab(tabParam) ? tabParam : 'general';
   const flash = parseFlashCookie(c.req.header('cookie'));
@@ -129,21 +153,8 @@ settingsRoute.get('/settings', async (c) => {
       disabledSources={settings.disabledSources}
       allSources={Object.values(AtsType).filter((t) => t !== AtsType.MANUAL)}
       fetchingEnabled={settings.fetchingEnabled}
-      aiProviders={AI_PROVIDER_IDS.map((id) => ({
-        id,
-        label: AI_PROVIDER_LABELS[id],
-        desc: AI_PROVIDER_DESCS[id],
-        ok: aiStatuses[id].ok,
-        detail: aiStatuses[id].detail,
-        selected: aiChecked === id,
-      }))}
-      aiFallback={aiFallback}
-      aiModelClassifier={settings.aiModelClassifier}
-      aiModelResume={settings.aiModelResume}
-      aiDefaults={{
-        classifier: aiFamilyDefaults.classifierModel,
-        resume: aiFamilyDefaults.resumeModel,
-      }}
+      aiEngines={aiEngines}
+      aiStatus={aiStatus}
       targets={targets.map((t) => ({
         id: t.id,
         name: t.name,
@@ -202,43 +213,125 @@ settingsRoute.post('/settings/telegram-toggle', async (c) => {
   );
 });
 
-settingsRoute.post('/settings/ai', async (c) => {
+/** Reads the stored chain, seeding it from .env when nothing is saved yet. */
+async function readAiOrder(): Promise<{ order: AiProviderId[]; config: AiEngineConfig }> {
+  const settings = await getSettings();
+  const config = parseAiEngineConfig(settings.aiEngine);
+  const order = config.order.length > 0 ? [...config.order] : [getAiEngineEnv().provider];
+  return { order, config };
+}
+
+settingsRoute.post('/settings/ai/enable', async (c) => {
   const form = await c.req.parseBody();
   const provider = typeof form.provider === 'string' ? form.provider : '';
-  if (!isAiProviderId(provider)) {
-    return flashRedirect('/settings?tab=ai', 'err', 'Pick an AI provider.');
-  }
+  if (!isAiProviderId(provider)) return flashRedirect('/settings?tab=ai', 'err', 'Unknown engine.');
+  const { order, config } = await readAiOrder();
   const label = AI_PROVIDER_LABELS[provider];
-  const classifierModel = cleanModelId(form.classifierModel);
-  const resumeModel = cleanModelId(form.resumeModel);
-  for (const model of [classifierModel, resumeModel]) {
-    if (model && !modelFitsProvider(model, provider)) {
-      const geminiHint =
-        model.startsWith('gemini') && provider !== 'gemini_cli'
-          ? ' It is a Gemini model — select Gemini CLI above to use it.'
-          : '';
+  if (order.includes(provider)) {
+    const next = order.filter((id) => id !== provider);
+    await setAiEngineConfig({ ...config, order: next });
+    if (next.length === 0) {
       return flashRedirect(
         '/settings?tab=ai',
-        'err',
-        `"${model}" does not fit ${label}.${geminiHint} Nothing saved.`,
+        'warn',
+        `${label} disabled. No engines left — the pipeline falls back to the .env default.`,
       );
     }
+    return flashRedirect('/settings?tab=ai', 'ok', `${label} disabled.`);
   }
-  await setAiEngine({ aiProvider: provider, aiModelClassifier: classifierModel, aiModelResume: resumeModel });
-  // An engine that is not usable yet still saves — the pipeline runs on the
-  // fallback (resolveAiEngine) and switches over the moment auth appears.
+  const next = [...order, provider];
+  await setAiEngineConfig({ ...config, order: next });
   const statuses = await probeAiProviders();
   if (!statuses[provider].ok) {
     return flashRedirect(
       '/settings?tab=ai',
       'warn',
-      `${label} saved as your engine, but it is not usable here yet (${statuses[provider].detail}). The pipeline keeps running on the fallback until it is.`,
+      `${label} enabled as priority #${next.length}, but it is not usable here yet (${statuses[provider].detail}). It is skipped until that is fixed.`,
+    );
+  }
+  return flashRedirect('/settings?tab=ai', 'ok', `${label} enabled as priority #${next.length}.`);
+});
+
+settingsRoute.post('/settings/ai/move', async (c) => {
+  const form = await c.req.parseBody();
+  const provider = typeof form.provider === 'string' ? form.provider : '';
+  if (!isAiProviderId(provider)) return flashRedirect('/settings?tab=ai', 'err', 'Unknown engine.');
+  const { order, config } = await readAiOrder();
+  const idx = order.indexOf(provider);
+  if (idx <= 0) return flashRedirect('/settings?tab=ai', 'ok', 'Already at the top.');
+  const next = [...order];
+  [next[idx - 1], next[idx]] = [next[idx]!, next[idx - 1]!];
+  await setAiEngineConfig({ ...config, order: next });
+  return flashRedirect(
+    '/settings?tab=ai',
+    'ok',
+    `${AI_PROVIDER_LABELS[provider]} moved to priority #${idx}.`,
+  );
+});
+
+settingsRoute.post('/settings/ai/models', async (c) => {
+  const form = await c.req.parseBody();
+  const provider = typeof form.provider === 'string' ? form.provider : '';
+  if (!isAiProviderId(provider)) return flashRedirect('/settings?tab=ai', 'err', 'Unknown engine.');
+  const label = AI_PROVIDER_LABELS[provider];
+  const classifier = cleanModelId(form.classifier);
+  const resume = cleanModelId(form.resume);
+  for (const model of [classifier, resume]) {
+    if (model && !modelFitsProvider(model, provider)) {
+      return flashRedirect(
+        '/settings?tab=ai',
+        'err',
+        `"${model}" is not a ${label} model id. Nothing saved.`,
+      );
+    }
+  }
+  const { config } = await readAiOrder();
+  await setAiEngineConfig({
+    ...config,
+    models: { ...config.models, [provider]: { classifier, resume } },
+  });
+  return flashRedirect('/settings?tab=ai', 'ok', `${label} models saved.`);
+});
+
+settingsRoute.post('/settings/ai/test', async (c) => {
+  const form = await c.req.parseBody();
+  const provider = typeof form.provider === 'string' ? form.provider : '';
+  if (!isAiProviderId(provider)) return flashRedirect('/settings?tab=ai', 'err', 'Unknown engine.');
+  const label = AI_PROVIDER_LABELS[provider];
+  let backend;
+  try {
+    backend = getAiProviderById(provider);
+  } catch (err) {
+    return flashRedirect(
+      '/settings?tab=ai',
+      'err',
+      `${label} test failed: ${err instanceof Error ? err.message : 'not configured'}.`,
+    );
+  }
+  const settings = await getSettings();
+  const engine = resolveAiEngine(settings.aiEngine, getAiEngineEnv());
+  const model = engine.modelFor(provider, 'classifier');
+  const started = Date.now();
+  const text = await backend.complete({
+    system: 'You are a connectivity test. Reply with exactly: OK',
+    user: 'Reply with exactly: OK',
+    maxTokens: 20,
+    label: 'engine-test',
+    model,
+    timeoutMs: ENGINE_TEST_TIMEOUT_MS,
+  });
+  const seconds = ((Date.now() - started) / 1000).toFixed(1);
+  if (text !== null) {
+    return flashRedirect(
+      '/settings?tab=ai',
+      'ok',
+      `${label} works — replied in ${seconds}s (model ${model || 'CLI default'}).`,
     );
   }
   return flashRedirect(
     '/settings?tab=ai',
-    'ok',
-    `AI engine → ${label}. Dashboard actions use it now; the worker follows on its next tick.`,
+    'err',
+    `${label} test failed after ${seconds}s — see the web container logs for the reason.`,
   );
 });
 

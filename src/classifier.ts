@@ -99,23 +99,23 @@ export async function classifyWithClaude(
   ].join('\n');
 
   const ai = await getAiRuntime();
-  // One retry on a malformed reply: Haiku occasionally wraps or truncates JSON.
+  // One retry on a malformed reply: small models occasionally wrap or truncate JSON.
   for (let attempt = 0; attempt < 2; attempt++) {
-    const text = await ai.provider.complete({
+    const out = await ai.complete({
       system: systemPrompt,
       user: userText,
       maxTokens: MAX_TOKENS,
       label: 'classifier',
-      model: ai.classifierModel,
+      role: 'classifier',
     });
-    if (text === null) return null;
+    if (out === null) return null;
 
-    const json = extractJson(text);
+    const json = extractJson(out.text);
     const parsed = json === null ? null : ClassificationSchema.safeParse(json);
     if (parsed?.success) return parsed.data;
     logger.warn(
       {
-        raw: text.slice(0, 500),
+        raw: out.text.slice(0, 500),
         errors: parsed && !parsed.success ? parsed.error.flatten().fieldErrors : undefined,
         title: input.title,
         attempt,
