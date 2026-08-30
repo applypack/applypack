@@ -91,7 +91,7 @@ export const CompaniesPage: FC<CompaniesProps> = ({ companies, flash }) => (
 
     <Card class="mb-4">
       <SectionTitle>Add company</SectionTitle>
-      <Hint class="mb-4 max-w-prose">
+      <Hint class="mb-4">
         We probe the public ATS endpoint before saving and refuse invalid tokens. Aggregator
         feeds have no per-company token — those are seeded once via <Code>src/seed.ts</Code>.
       </Hint>

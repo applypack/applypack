@@ -123,10 +123,8 @@ export const TargetPage: FC<TargetPageProps> = ({
       : null,
   };
   return (
-    <Layout title={`Resume match · ${job.title}`} active="jobs" wide>
-      {/* wide opts out of the layout's screen-xl column; 2xl (1536px) keeps
-          the two editor panes comfortable on ultra-wide monitors. */}
-      <div class="mx-auto w-full max-w-screen-2xl">
+    <Layout title={`Resume match · ${job.title}`} active="jobs">
+      <div class="w-full">
       <nav aria-label="Breadcrumb" class="mb-1.5 flex items-center gap-1.5 text-[13px] text-ink-faint">
         <a href="/jobs" class="transition-colors duration-150 hover:text-ink">
           Jobs
@@ -219,7 +217,7 @@ export const TargetPage: FC<TargetPageProps> = ({
           </div>
 
           {/* Why this score: the stack verdict + the deterministic components. */}
-          <div class="min-w-0 max-w-prose space-y-1.5">
+          <div class="min-w-0 space-y-1.5">
             <p class="text-sm leading-6 text-ink">{match.summary}</p>
             {breakdown && <ScoreBreakdownChips bd={breakdown} />}
             {(actions.length > 0 || removals.length > 0) && (

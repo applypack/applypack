@@ -80,7 +80,7 @@ export const PageHeader: FC<
       )}
     </div>
     {children && (
-      <div class="mt-1.5 max-w-3xl text-[13px] leading-5 text-ink-faint">{children}</div>
+      <div class="mt-1.5 text-[13px] leading-5 text-ink-faint">{children}</div>
     )}
   </header>
 );
@@ -522,7 +522,7 @@ export const ToggleRow: FC<
           {enabled ? onLabel : offLabel}
         </Badge>
       </div>
-      <Hint class="mt-1 max-w-prose">{children}</Hint>
+      <Hint class="mt-1">{children}</Hint>
     </div>
     <div class="flex shrink-0 flex-col items-end gap-2">
       <ActionForm action={action}>

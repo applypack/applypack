@@ -79,7 +79,7 @@ export const VerificationCard: FC<VerificationCardProps> = ({
 
       {verification && (
         <div class="mt-4 space-y-4">
-          <p class="max-w-prose text-sm leading-6 text-ink">{verification.summary}</p>
+          <p class="text-sm leading-6 text-ink">{verification.summary}</p>
 
           {verification.redFlags.length > 0 && (
             <ul class="space-y-1 text-sm text-ink-muted">
@@ -97,7 +97,7 @@ export const VerificationCard: FC<VerificationCardProps> = ({
           {verification.companySnapshot && (
             <div>
               <div class="mb-1.5 text-[13px] font-medium text-ink-muted">Company snapshot</div>
-              <p class="max-w-prose text-sm leading-6 text-ink-muted">
+              <p class="text-sm leading-6 text-ink-muted">
                 {verification.companySnapshot}
               </p>
             </div>

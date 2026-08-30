@@ -51,7 +51,7 @@ export const TargetStartPage: FC<TargetStartProps> = ({ resumes, flash }) => {
         method="post"
         action="/target"
         enctype="multipart/form-data"
-        class="w-full max-w-6xl"
+        class="w-full"
       >
         <div class="grid items-start gap-4 lg:grid-cols-2">
           <Card>

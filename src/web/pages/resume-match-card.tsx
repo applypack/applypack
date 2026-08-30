@@ -303,7 +303,7 @@ export const MatchReport: FC<{
           Open targeted view →
         </a>
       </div>
-      <p class="max-w-prose text-sm leading-6 text-ink">{match.summary}</p>
+      <p class="text-sm leading-6 text-ink">{match.summary}</p>
       {bd && <ScoreBreakdownChips bd={bd} />}
 
       <DeltaBox match={match} previous={previous} />

@@ -88,7 +88,7 @@ export const DiscoveryPage: FC<DiscoveryProps> = ({
           </Empty>
         ) : (
           <>
-            <Hint class="mb-3 max-w-prose">
+            <Hint class="mb-3">
               Sorted by jobs currently visible on the board.
             </Hint>
             <CandidateTable rows={pending} actions />

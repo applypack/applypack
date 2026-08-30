@@ -95,7 +95,7 @@ export const ResumeDetailPage: FC<ResumeDetailProps> = ({ resume, matches, warni
                 </span>
               </div>
               {resume.summary && (
-                <p class="max-w-prose text-sm leading-6 text-ink">{resume.summary}</p>
+                <p class="text-sm leading-6 text-ink">{resume.summary}</p>
               )}
               <TagRow label="Roles" items={resume.roleTypes} tone="info" />
               <TagRow label="Skills" items={resume.skills} tone="ok" />
@@ -129,7 +129,7 @@ export const ResumeDetailPage: FC<ResumeDetailProps> = ({ resume, matches, warni
         </Card>
       </div>
 
-      <Card class="mt-4 max-w-3xl">
+      <Card class="mt-4">
         <SectionTitle>Upload a new version</SectionTitle>
         <form
           method="post"
@@ -201,7 +201,7 @@ export const ResumeDetailPage: FC<ResumeDetailProps> = ({ resume, matches, warni
       <Card class="mt-4">
         <SectionTitle>What the ATS sees</SectionTitle>
         {warnings.length === 0 ? (
-          <Hint class="max-w-prose">
+          <Hint>
             Extraction looks clean — selectable text, contact details found, normal length. Parsers
             should read this file the way you do.
           </Hint>
@@ -220,7 +220,7 @@ export const ResumeDetailPage: FC<ResumeDetailProps> = ({ resume, matches, warni
             Extracted text ({resume.text.length.toLocaleString()} chars) — exactly what the AI and
             an ATS parser get
           </summary>
-          <pre class="mt-3 max-w-[75ch] whitespace-pre-wrap break-words font-sans text-sm leading-6 text-ink-muted">
+          <pre class="mt-3 whitespace-pre-wrap break-words font-sans text-sm leading-6 text-ink-muted">
             {resume.text}
           </pre>
         </details>

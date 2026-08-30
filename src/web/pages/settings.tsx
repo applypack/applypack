@@ -170,7 +170,7 @@ export const SettingsPage: FC<SettingsProps> = ({
   profileDraft,
 }) => (
   <Layout title="Settings" active="settings">
-    <div class="mx-auto w-full max-w-5xl">
+    <div class="w-full">
       <PageHeader title="Settings">
         Changes save the moment you click — no restarts needed. Dashboard actions use them
         immediately; the background worker picks them up within the hour.
@@ -270,7 +270,7 @@ export const SettingsPage: FC<SettingsProps> = ({
         {activeProfile && resumes.length > 0 && (
           <Card>
             <div class="mb-1 text-[13px] font-medium text-ink">Fill from a resume</div>
-            <Hint class="mb-3 max-w-prose">
+            <Hint class="mb-3">
               AI maps the resume's scanned stack onto the profile — primary stack → required,
               other skills → nice-to-have, plus role types and seniority. Re-scans the resume
               when needed. The result appears below as a draft; nothing is saved until you
@@ -892,13 +892,13 @@ const PriorityRulesEditor: FC<{ profile: Profile }> = ({ profile }) => {
       <label class="block text-[13px] font-medium text-ink" for="priorityRules">
         Priority rules (post-classifier overrides)
       </label>
-      <Hint class="mt-0.5 max-w-prose">
+      <Hint class="mt-0.5">
         One rule per line: <Code>LABEL | techs,csv | regions,csv | MIN_FIT</Code>. If the title
         or description contains any tech and the location matches any region phrase, fit is
         clamped up to MIN_FIT and the location check passes. Empty regions match anywhere.{' '}
         <Code>#</Code> starts a comment. A bad line stops the save.
       </Hint>
-      <Hint class="mt-1 max-w-prose text-warn">
+      <Hint class="mt-1 text-warn">
         Region entries are phrases — every word must appear in the location.{' '}
         <Code>Remote US</Code> matches "Dallas (Remote US)" but not "Remote · Germany". Avoid a
         bare <Code>Remote</Code>; prefer <Code>Remote US,United States,USA,Worldwide</Code>.
