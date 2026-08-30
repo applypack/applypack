@@ -51,7 +51,11 @@ resumesRoute.post('/resumes', resumeUploadLimit('/resumes'), async (c) => {
   const resume = await createResume({ name, ...upload });
   const scan = await scanResume(resume);
   return scan
-    ? flashRedirect(`/resumes/${resume.id}`, 'ok', `Uploaded and scanned "${name}".`)
+    ? flashRedirect(
+        `/resumes/${resume.id}`,
+        'ok',
+        `Uploaded and scanned "${name}". Tip: Settings → Profile → "Fill from a resume" updates your search profile from it.`,
+      )
     : flashRedirect(
         `/resumes/${resume.id}`,
         'err',

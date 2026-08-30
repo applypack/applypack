@@ -28,6 +28,7 @@ import { formatRelative } from '../format';
 import type { FlashMessage } from '../flash';
 import { sourceLabel } from '../source-names';
 import { formatPriorityRulesText, parsePriorityRules } from '../../priority-rules';
+import { SENIORITY_LEVELS } from '../../resume/profile-draft';
 
 interface MaskedTarget {
   id: number;
@@ -102,7 +103,13 @@ export function isSettingsTab(value: unknown): value is SettingsTab {
 }
 
 const REGION_OPTIONS = ['US', 'Americas', 'EU', 'UK', 'APAC', 'Worldwide'];
-const SENIORITY_OPTIONS = ['junior', 'mid', 'senior', 'staff', 'lead', 'principal'];
+
+/** What "Fill from resume" replaced — rendered as an unsaved-draft notice. */
+export interface ProfileDraftNotice {
+  resumeName: string;
+  changed: string[];
+  warnings: string[];
+}
 
 export interface SettingsProps {
   telegramEnabled: boolean;
@@ -121,6 +128,8 @@ export interface SettingsProps {
   resumes: ResumeListItem[];
   activeTab: SettingsTab;
   flash?: FlashMessage | null;
+  /** Set by the fill-from-resume POST: the editor shows draft values. */
+  profileDraft?: ProfileDraftNotice | null;
 }
 
 /** Stripe-style settings section: title + description left, controls right. */
@@ -155,6 +164,7 @@ export const SettingsPage: FC<SettingsProps> = ({
   resumes,
   activeTab,
   flash,
+  profileDraft,
 }) => (
   <Layout title="Settings" active="settings">
     <div class="w-full max-w-5xl">
@@ -237,9 +247,61 @@ export const SettingsPage: FC<SettingsProps> = ({
             <Button variant="violet">Re-classify all jobs</Button>
           </ActionForm>
         </div>
+        {activeProfile && activeProfile.stackRequired.length === 0 && activeProfile.roleTypes.length === 0 && (
+          <div class="rounded-md border border-warn/25 bg-warn/5 px-3.5 py-2.5 text-[13px] leading-5 text-warn">
+            This profile lists no required stack and no role types yet, so every fetched job
+            goes to the AI classifier.{' '}
+            {resumes.length > 0 ? (
+              'Fastest fix: fill the fields from a resume below.'
+            ) : (
+              <>
+                Fastest fix:{' '}
+                <a href="/resumes" class="font-medium underline">
+                  upload a resume
+                </a>{' '}
+                and fill the fields from it here.
+              </>
+            )}
+          </div>
+        )}
+        {activeProfile && resumes.length > 0 && (
+          <Card>
+            <div class="mb-1 text-[13px] font-medium text-ink">Fill from a resume</div>
+            <Hint class="mb-3 max-w-prose">
+              AI maps the resume's scanned stack onto the profile — primary stack → required,
+              other skills → nice-to-have, plus role types and seniority. Re-scans the resume
+              when needed. The result appears below as a draft; nothing is saved until you
+              press "Save profile".
+            </Hint>
+            <form
+              method="post"
+              action={`/settings/profiles/${activeProfile.id}/fill-from-resume`}
+              class="flex flex-wrap items-center gap-2"
+            >
+              <Select
+                name="resumeId"
+                class="!w-auto min-w-0 max-w-full"
+                aria-label="Resume to fill the profile from"
+              >
+                {resumes.map((r) => (
+                  <option value={r.id} selected={r.isDefault}>
+                    {r.name}
+                    {r.isDefault ? ' (default)' : ''}
+                    {r.scannedAt ? '' : ' (not scanned yet)'}
+                  </option>
+                ))}
+              </Select>
+              <Button variant="violet">Fill from resume</Button>
+            </form>
+          </Card>
+        )}
         {activeProfile ? (
           <Card>
-            <ProfileEditor profile={activeProfile} availableTargets={availableTargets} />
+            <ProfileEditor
+              profile={activeProfile}
+              availableTargets={availableTargets}
+              draft={profileDraft}
+            />
           </Card>
         ) : (
           <Empty>No active profile. Pick one above or create a new one.</Empty>
@@ -619,13 +681,37 @@ const ModelPicker: FC<{
 const ProfileEditor: FC<{
   profile: Profile;
   availableTargets: AvailableTarget[];
-}> = ({ profile, availableTargets }) => (
+  draft?: ProfileDraftNotice | null;
+}> = ({ profile, availableTargets, draft }) => {
+  const rulesCount = parsePriorityRules(profile.priorityRules).length;
+  // Open the advanced block only when something in it is already customised.
+  const advancedOpen =
+    Boolean(profile.notes && profile.notes.trim().length > 0) ||
+    profile.onsiteCities.length > 0 ||
+    rulesCount > 0 ||
+    profile.minSalaryUsd > 0 ||
+    profile.telegramTargetId !== null;
+  return (
   <form
     method="post"
     action={`/settings/profiles/${profile.id}/save`}
     class="space-y-5"
     data-dirty-watch
   >
+    {draft && (
+      <div
+        role="status"
+        class="rounded-md border border-violet/25 bg-violet/5 px-3.5 py-2.5 text-[13px] leading-5 text-violet"
+      >
+        <span class="font-medium">
+          AI prefilled this profile from resume "{draft.resumeName}"
+        </span>{' '}
+        — replaced: {draft.changed.join(', ')}.
+        {draft.warnings.length > 0 && <> Note: {draft.warnings.join('; ')}.</>}{' '}
+        Nothing is saved yet — review the fields and press "Save profile" or "Save &amp;
+        re-classify".
+      </div>
+    )}
     <Field label="Name" class="max-w-md">
       <Input type="text" name="name" required value={profile.name} />
     </Field>
@@ -648,26 +734,11 @@ const ProfileEditor: FC<{
       name="stackNiceToHave"
       values={profile.stackNiceToHave}
     />
-    <TagListInput
-      label="Stack — exclude (auto-reject in title)"
-      hint="If the title contains any of these, the job is dropped before the classifier runs."
-      name="stackExclude"
-      values={profile.stackExclude}
-    />
-
-    <Field
-      label="Notes for the classifier"
-      hint='Free-form context: "AI-adjacent roles preferred", "open to first-time-manager positions", "EU-friendly time zones".'
-    >
-      <Textarea name="notes" rows={3}>
-        {profile.notes ?? ''}
-      </Textarea>
-    </Field>
 
     <fieldset>
       <legend class="text-[13px] font-medium text-ink">Seniority</legend>
       <div class="mt-2 flex flex-wrap gap-1.5">
-        {SENIORITY_OPTIONS.map((s) => (
+        {SENIORITY_LEVELS.map((s) => (
           <PillCheckbox name="seniority" value={s} checked={profile.seniority.includes(s)}>
             {s}
           </PillCheckbox>
@@ -695,38 +766,71 @@ const ProfileEditor: FC<{
           ))}
         </div>
       </div>
-      <TagListInput
-        label="On-site cities (OK to commute)"
-        hint='One per line: "Austin, TX", "Berlin".'
-        name="onsiteCities"
-        values={profile.onsiteCities}
-        rows={2}
-      />
     </fieldset>
 
-    <PriorityRulesEditor profile={profile} />
+    <details class="rounded-md border border-line" open={advancedOpen}>
+      <summary class="cursor-pointer select-none rounded-md px-4 py-3 text-[13px] font-medium text-ink transition-colors duration-150 hover:text-accent-strong">
+        Advanced — excludes, notes, priority rules, thresholds
+        <span class="ml-2 font-normal text-ink-faint">
+          Defaults work for most people; open this to fine-tune.
+        </span>
+      </summary>
+      <div class="space-y-5 border-t border-line px-4 py-4">
+        <TagListInput
+          label="Stack — exclude (auto-reject in title)"
+          hint="If the title contains any of these, the job is dropped before the classifier runs."
+          name="stackExclude"
+          values={profile.stackExclude}
+        />
 
-    <div class="grid gap-4 sm:grid-cols-3">
-      <Field label="Min salary (USD/year)" hint="0 = no salary filter.">
-        <Input type="number" name="minSalaryUsd" min="0" step="1000" value={profile.minSalaryUsd} />
-      </Field>
-      <Field label="Min fit score (0-100)">
-        <Input type="number" name="minFitScore" min="0" max="100" value={profile.minFitScore} />
-      </Field>
-      <Field label="Telegram target">
-        <Select name="telegramTargetId">
-          <option value="" selected={profile.telegramTargetId === null}>
-            (broadcast to all active)
-          </option>
-          {availableTargets.map((t) => (
-            <option value={t.id} selected={profile.telegramTargetId === t.id}>
-              {t.name}
-              {t.active ? '' : ' (inactive)'}
-            </option>
-          ))}
-        </Select>
-      </Field>
-    </div>
+        <Field
+          label="Notes for the classifier"
+          hint='Free-form context: "AI-adjacent roles preferred", "open to first-time-manager positions", "EU-friendly time zones".'
+        >
+          <Textarea name="notes" rows={3}>
+            {profile.notes ?? ''}
+          </Textarea>
+        </Field>
+
+        <TagListInput
+          label="On-site cities (OK to commute)"
+          hint='One per line: "Austin, TX", "Berlin".'
+          name="onsiteCities"
+          values={profile.onsiteCities}
+          rows={2}
+        />
+
+        <PriorityRulesEditor profile={profile} />
+
+        <div class="grid gap-4 sm:grid-cols-3">
+          <Field label="Min salary (USD/year)" hint="0 = no salary filter.">
+            <Input
+              type="number"
+              name="minSalaryUsd"
+              min="0"
+              step="1000"
+              value={profile.minSalaryUsd}
+            />
+          </Field>
+          <Field label="Min fit score (0-100)" hint="Jobs below it are stored, not alerted.">
+            <Input type="number" name="minFitScore" min="0" max="100" value={profile.minFitScore} />
+          </Field>
+          <Field label="Telegram target">
+            <Select name="telegramTargetId">
+              <option value="" selected={profile.telegramTargetId === null}>
+                (broadcast to all active)
+              </option>
+              {availableTargets.map((t) => (
+                <option value={t.id} selected={profile.telegramTargetId === t.id}>
+                  {t.name}
+                  {t.active ? '' : ' (inactive)'}
+                </option>
+              ))}
+            </Select>
+          </Field>
+        </div>
+      </div>
+    </details>
 
     <div class="flex flex-wrap items-center gap-3 border-t border-line pt-4">
       <Button size="lg">Save profile</Button>
@@ -739,12 +843,13 @@ const ProfileEditor: FC<{
       >
         Save &amp; re-classify
       </Button>
-      <span data-dirty-indicator hidden class="text-[13px] font-medium text-warn">
+      <span data-dirty-indicator hidden={!draft} class="text-[13px] font-medium text-warn">
         Unsaved changes
       </span>
     </div>
   </form>
-);
+  );
+};
 
 /**
  * Newline-joined list in a textarea — the transport the backend already

@@ -54,7 +54,9 @@ import { prisma } from '../../db';
 import { isSettingsTab, SettingsPage } from '../pages/settings';
 import { sourceLabel } from '../source-names';
 import { clearFlashCookie, flashRedirect, parseFlashCookie } from '../flash';
-import { listResumes } from '../../resume/store';
+import { getResume, listResumes } from '../../resume/store';
+import { scanResume } from '../../resume/scan';
+import { buildProfileDraft } from '../../resume/profile-draft';
 
 const NewTargetSchema = z.object({
   name: z.string().min(1).max(100),
@@ -97,7 +99,9 @@ let reclassifyInFlight = false;
 
 export const settingsRoute = new Hono();
 
-settingsRoute.get('/settings', async (c) => {
+/** Everything the settings page needs except activeTab/flash/profileDraft —
+ *  shared by the GET and by POSTs that render a draft instead of redirecting. */
+async function loadSettingsProps() {
   const [settings, targets, profiles, active, resumes, aiStatuses] = await Promise.all([
     getSettings(),
     listTelegramTargets(),
@@ -140,55 +144,56 @@ settingsRoute.get('/settings', async (c) => {
     chain: engine.chain.map((id) => AI_PROVIDER_LABELS[id]),
     skipped: engine.skipped.map((id) => AI_PROVIDER_LABELS[id]),
   };
+  return {
+    telegramEnabled: settings.telegramEnabled,
+    classifierMode: settings.classifierMode,
+    applicationTrackingEnabled: settings.applicationTrackingEnabled,
+    staleApplicationsDigestEnabled: settings.staleApplicationsDigestEnabled,
+    disabledSources: settings.disabledSources,
+    allSources: Object.values(AtsType).filter((t) => t !== AtsType.MANUAL),
+    fetchingEnabled: settings.fetchingEnabled,
+    aiEngines,
+    aiStatus,
+    targets: targets.map((t) => ({
+      id: t.id,
+      name: t.name,
+      maskedToken: maskToken(t.botToken),
+      chatId: t.chatId,
+      active: t.active,
+      createdAt: t.createdAt,
+      lastUsed: t.lastUsed,
+    })),
+    profiles: profiles.map((p) => ({
+      id: p.id,
+      name: p.name,
+      stackPreview:
+        p.stackRequired.slice(0, 4).join(', ') +
+        (p.stackRequired.length > 4 ? '...' : ''),
+      active: active?.id === p.id,
+    })),
+    activeProfile: active,
+    availableTargets: targets.map((t) => ({
+      id: t.id,
+      name: t.name,
+      active: t.active,
+    })),
+    resumes: resumes.map((r) => ({
+      id: r.id,
+      name: r.name,
+      isDefault: r.isDefault,
+      scannedAt: r.scannedAt,
+    })),
+  };
+}
+
+settingsRoute.get('/settings', async (c) => {
+  const props = await loadSettingsProps();
   const tabParam = c.req.query('tab');
   const activeTab = isSettingsTab(tabParam) ? tabParam : 'general';
   const flash = parseFlashCookie(c.req.header('cookie'));
-  return c.html(
-    <SettingsPage
-      activeTab={activeTab}
-      telegramEnabled={settings.telegramEnabled}
-      classifierMode={settings.classifierMode}
-      applicationTrackingEnabled={settings.applicationTrackingEnabled}
-      staleApplicationsDigestEnabled={settings.staleApplicationsDigestEnabled}
-      disabledSources={settings.disabledSources}
-      allSources={Object.values(AtsType).filter((t) => t !== AtsType.MANUAL)}
-      fetchingEnabled={settings.fetchingEnabled}
-      aiEngines={aiEngines}
-      aiStatus={aiStatus}
-      targets={targets.map((t) => ({
-        id: t.id,
-        name: t.name,
-        maskedToken: maskToken(t.botToken),
-        chatId: t.chatId,
-        active: t.active,
-        createdAt: t.createdAt,
-        lastUsed: t.lastUsed,
-      }))}
-      profiles={profiles.map((p) => ({
-        id: p.id,
-        name: p.name,
-        stackPreview:
-          p.stackRequired.slice(0, 4).join(', ') +
-          (p.stackRequired.length > 4 ? '...' : ''),
-        active: active?.id === p.id,
-      }))}
-      activeProfile={active}
-      availableTargets={targets.map((t) => ({
-        id: t.id,
-        name: t.name,
-        active: t.active,
-      }))}
-      resumes={resumes.map((r) => ({
-        id: r.id,
-        name: r.name,
-        isDefault: r.isDefault,
-        scannedAt: r.scannedAt,
-      }))}
-      flash={flash}
-    />,
-    200,
-    { 'Set-Cookie': clearFlashCookie() },
-  );
+  return c.html(<SettingsPage {...props} activeTab={activeTab} flash={flash} />, 200, {
+    'Set-Cookie': clearFlashCookie(),
+  });
 });
 
 // --- Fetching pause / resume -----------------------------------------------
@@ -584,6 +589,68 @@ settingsRoute.post('/settings/profiles/:id/save', async (c) => {
     );
   }
   return flashRedirect('/settings?tab=profile', 'ok', 'Profile saved.');
+});
+
+// Prefill the editor from a resume's AI scan. Renders the draft directly —
+// nothing is saved until the user submits the profile form.
+settingsRoute.post('/settings/profiles/:id/fill-from-resume', async (c) => {
+  const id = Number(c.req.param('id'));
+  if (!Number.isFinite(id)) return c.text('Bad id', 400);
+  const profile = await getProfile(id);
+  if (!profile) return flashRedirect('/settings?tab=profile', 'err', 'Profile not found.');
+  const form = await c.req.parseBody();
+  const resumeId = Number(form.resumeId);
+  if (!Number.isFinite(resumeId)) {
+    return flashRedirect('/settings?tab=profile', 'err', 'Pick a resume first.');
+  }
+  let resume = await getResume(resumeId);
+  if (!resume || resume.hidden) {
+    return flashRedirect('/settings?tab=profile', 'err', 'Resume not found.');
+  }
+
+  // Scans from before the primary-stack field (or failed ones) re-scan here.
+  if (!resume.scannedAt || resume.primarySkills.length === 0) {
+    const scan = await scanResume({ id: resume.id, text: resume.text });
+    if (!scan) {
+      return flashRedirect(
+        '/settings?tab=profile',
+        'err',
+        `The AI scan of "${resume.name}" failed — check the web logs and try again.`,
+      );
+    }
+    resume = (await getResume(resumeId)) ?? resume;
+  }
+
+  const draft = buildProfileDraft(profile, {
+    title: resume.title,
+    seniority: resume.seniority,
+    skills: resume.skills,
+    primarySkills: resume.primarySkills,
+    roleTypes: resume.roleTypes,
+  });
+  if (draft.changed.length === 0) {
+    const note = draft.warnings[0] ? ` — ${draft.warnings[0]}` : '';
+    return flashRedirect(
+      '/settings?tab=profile',
+      'ok',
+      `"${profile.name}" already matches resume "${resume.name}"${note}.`,
+    );
+  }
+
+  const props = await loadSettingsProps();
+  return c.html(
+    <SettingsPage
+      {...props}
+      activeTab="profile"
+      flash={null}
+      activeProfile={{ ...profile, ...draft.changes }}
+      profileDraft={{
+        resumeName: resume.name,
+        changed: draft.changed,
+        warnings: draft.warnings,
+      }}
+    />,
+  );
 });
 
 // --- Re-classify ------------------------------------------------------------
