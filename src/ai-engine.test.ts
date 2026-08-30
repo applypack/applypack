@@ -6,6 +6,7 @@ import {
   parseAiEngineConfig,
   providerUnusable,
   resolveAiEngine,
+  summarizeAiUsage,
   type AiEngineEnv,
 } from './ai-engine';
 
@@ -116,6 +117,30 @@ describe('modelFitsProvider', () => {
   it('openai_api accepts any non-empty id (base-URL providers)', () => {
     assert.equal(modelFitsProvider('meta-llama/llama-3.3-70b-instruct', 'openai_api'), true);
     assert.equal(modelFitsProvider('', 'openai_api'), false);
+  });
+});
+
+describe('summarizeAiUsage', () => {
+  const today = new Date('2026-08-30T12:00:00Z');
+
+  it('sums the window, drops old days and unknown providers', () => {
+    const raw = {
+      '2026-08-30': { claude_code: { classifier: 5, resume: 1 } },
+      '2026-08-28': { claude_code: { classifier: 2 }, gemini_cli: { resume: 3 } },
+      '2026-08-01': { claude_code: { classifier: 99 } },
+      '2026-08-29': { openai: { classifier: 7 } },
+    };
+    const rows = summarizeAiUsage(raw, 7, today);
+    assert.deepEqual(rows, [
+      { id: 'claude_code', classifier: 7, resume: 1 },
+      { id: 'gemini_cli', classifier: 0, resume: 3 },
+    ]);
+  });
+
+  it('is tolerant of garbage and empty input', () => {
+    assert.deepEqual(summarizeAiUsage(null, 7, today), []);
+    assert.deepEqual(summarizeAiUsage('nope', 7, today), []);
+    assert.deepEqual(summarizeAiUsage({ '2026-08-30': { claude_code: {} } }, 7, today), []);
   });
 });
 

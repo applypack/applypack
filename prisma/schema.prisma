@@ -153,6 +153,11 @@ model AppSettings {
   // serves each call; the rest are automatic fallbacks. NULL = follow .env
   // (AI_PROVIDER seeds a one-engine chain).
   aiEngine                       Json?
+  // Lightweight AI usage counters: { "YYYY-MM-DD": { <provider>: {
+  // classifier: n, resume: n } } }. Incremented atomically per successful
+  // call (ai-runtime.ts:recordUsage), trimmed to 60 days by the cleanup
+  // cron, summarized on /settings → AI engine.
+  aiUsage                        Json?
   updatedAt                      DateTime @updatedAt
 }
 

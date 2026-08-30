@@ -8,6 +8,7 @@ import { logger } from './logger';
 import { prisma } from './db';
 import { getAiProviderById, type AiProvider } from './ai-provider';
 import { SETTINGS_ID } from './settings';
+import { createCooldownTracker } from './ai-cooldown';
 import {
   PROVIDER_WEB_TOOLS,
   resolveAiEngine,
@@ -18,6 +19,17 @@ import {
 } from './ai-engine';
 
 const execFileAsync = promisify(execFile);
+
+// Chain guards (docs/ai-engine-improvements.md item 2): at most this many
+// engines per logical call, inside a deadline of FACTOR × the per-attempt
+// timeout — a 3-CLI verify chain must not become a 30-minute wait.
+const MAX_ENGINE_SWITCHES = 3;
+const CHAIN_DEADLINE_FACTOR = 2;
+const MIN_REMAINING_MS = 5_000;
+// Mirrors the provider-internal CLI default timeout.
+const DEFAULT_ATTEMPT_TIMEOUT_MS = 180_000;
+
+const cooldowns = createCooldownTracker();
 
 /**
  * The .env side of the engine merge — computed per call: CLI auth can appear
@@ -54,6 +66,8 @@ export interface AiCallResult {
   providerId: AiProviderId;
   /** Model actually used; '' means the CLI's own default. */
   model: string;
+  /** True when an engine other than the configured #1 served the call. */
+  viaFallback: boolean;
 }
 
 export interface AiRuntime {
@@ -101,8 +115,24 @@ async function completeWithFailover(
     ? engine.chain.filter((id) => PROVIDER_WEB_TOOLS[id])
     : engine.chain;
   const chain = capable.length > 0 ? capable : engine.chain;
-  for (let i = 0; i < chain.length; i++) {
-    const id = chain[i]!;
+  // Engines in cooldown are skipped — unless that would leave nothing to try.
+  const hot = chain.filter((id) => cooldowns.blockedUntil(id) === null);
+  if (hot.length > 0 && hot.length < chain.length) {
+    logger.debug(
+      { cooling: chain.filter((id) => !hot.includes(id)), label: req.label },
+      'ai: engines in cooldown, skipped',
+    );
+  }
+  const tryList = (hot.length > 0 ? hot : chain).slice(0, MAX_ENGINE_SWITCHES);
+  const perAttemptMs = req.timeoutMs ?? DEFAULT_ATTEMPT_TIMEOUT_MS;
+  const deadline = Date.now() + perAttemptMs * CHAIN_DEADLINE_FACTOR;
+  for (let i = 0; i < tryList.length; i++) {
+    const id = tryList[i]!;
+    const remainingMs = deadline - Date.now();
+    if (i > 0 && remainingMs < MIN_REMAINING_MS) {
+      logger.warn({ tried: tryList.slice(0, i), label: req.label }, 'ai: chain deadline reached');
+      break;
+    }
     let provider: AiProvider;
     try {
       provider = getAiProviderById(id);
@@ -117,24 +147,53 @@ async function completeWithFailover(
       maxTokens: req.maxTokens,
       label: req.label,
       model,
-      timeoutMs: req.timeoutMs,
+      timeoutMs: Math.min(perAttemptMs, remainingMs),
       webTools: req.webTools,
     });
     if (text !== null) {
-      if (i > 0) {
+      cooldowns.success(id);
+      void recordUsage(id, req.role);
+      const viaFallback = id !== engine.chain[0];
+      if (viaFallback) {
         logger.warn(
-          { served: id, tried: chain.slice(0, i), label: req.label },
+          { served: id, primary: engine.chain[0], label: req.label },
           'ai: served by fallback engine',
         );
       }
-      return { text, providerId: id, model };
+      return { text, providerId: id, model, viaFallback };
     }
-    if (i < chain.length - 1) {
-      logger.warn({ failed: id, next: chain[i + 1], label: req.label }, 'ai: engine failed, trying next');
+    cooldowns.failure(id);
+    if (i < tryList.length - 1) {
+      logger.warn({ failed: id, next: tryList[i + 1], label: req.label }, 'ai: engine failed, trying next');
     }
   }
-  logger.error({ chain, label: req.label }, 'ai: every engine in the chain failed');
+  logger.error({ chain: tryList, label: req.label }, 'ai: every engine in the chain failed');
   return null;
+}
+
+/**
+ * Lightweight usage counters (docs/ai-engine-improvements.md item 6):
+ * runs per day × engine × role in AppSettings.aiUsage. One atomic jsonb
+ * update, fire-and-forget — a counter must never fail an AI call. All the
+ * COALESCE reads see the pre-update value, so nested paths self-create.
+ */
+async function recordUsage(id: AiProviderId, role: AiRole): Promise<void> {
+  const day = new Date().toISOString().slice(0, 10);
+  try {
+    await prisma.$executeRaw`
+      UPDATE "AppSettings" SET "aiUsage" =
+        jsonb_set(
+          jsonb_set(
+            jsonb_set(
+              COALESCE("aiUsage", '{}'::jsonb),
+              ARRAY[${day}], COALESCE("aiUsage"->${day}, '{}'::jsonb), true),
+            ARRAY[${day}, ${id}], COALESCE("aiUsage"->${day}->${id}, '{}'::jsonb), true),
+          ARRAY[${day}, ${id}, ${role}],
+          to_jsonb(COALESCE(("aiUsage"->${day}->${id}->>${role})::int, 0) + 1), true)
+      WHERE id = ${SETTINGS_ID}`;
+  } catch (err) {
+    logger.debug({ err }, 'ai: usage counter update failed');
+  }
 }
 
 export interface AiProviderStatus {

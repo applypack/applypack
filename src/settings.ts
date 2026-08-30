@@ -20,6 +20,8 @@ export interface AppSettingsView {
   fetchingEnabled: boolean;
   /** Raw AppSettings.aiEngine JSON — parse with parseAiEngineConfig. */
   aiEngine: unknown;
+  /** Raw AppSettings.aiUsage JSON — summarize with summarizeAiUsage. */
+  aiUsage: unknown;
   updatedAt: Date;
 }
 
@@ -42,6 +44,7 @@ export async function getSettings(): Promise<AppSettingsView> {
     discoveryEnabled: row.discoveryEnabled,
     fetchingEnabled: row.fetchingEnabled,
     aiEngine: row.aiEngine,
+    aiUsage: row.aiUsage,
     updatedAt: row.updatedAt,
   };
 }

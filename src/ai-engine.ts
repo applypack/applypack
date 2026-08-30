@@ -33,6 +33,15 @@ export const PROVIDER_WEB_TOOLS: Record<AiProviderId, boolean> = {
   codex_cli: true,
 };
 
+/** Metered billing — every call spends money (vs a flat subscription). */
+export const PROVIDER_PAID: Record<AiProviderId, boolean> = {
+  anthropic_api: true,
+  claude_code: false,
+  gemini_cli: false,
+  openai_api: true,
+  codex_cli: false,
+};
+
 export type AiRole = 'classifier' | 'resume';
 
 /**
@@ -165,6 +174,43 @@ export interface ResolvedAiEngine {
  * the .env provider and finally claude_code — the pipeline always has a
  * chain to try. Models outside the backend's family fall back per role.
  */
+/** Shape of AppSettings.aiUsage: { "YYYY-MM-DD": { provider: { role: n } } }. */
+const StoredUsageSchema = z.record(
+  z.string(),
+  z.record(z.string(), z.record(z.string(), z.number())),
+);
+
+export interface AiUsageRow {
+  id: AiProviderId;
+  classifier: number;
+  resume: number;
+}
+
+/** Sums the per-day counters over the last `days` days; busiest first. */
+export function summarizeAiUsage(raw: unknown, days: number, today: Date): AiUsageRow[] {
+  const parsed = StoredUsageSchema.safeParse(raw ?? {});
+  if (!parsed.success) return [];
+  const window = new Set<string>();
+  for (let i = 0; i < days; i++) {
+    window.add(new Date(today.getTime() - i * 86_400_000).toISOString().slice(0, 10));
+  }
+  const totals = new Map<AiProviderId, { classifier: number; resume: number }>();
+  for (const [day, providers] of Object.entries(parsed.data)) {
+    if (!window.has(day)) continue;
+    for (const [id, roles] of Object.entries(providers)) {
+      if (!isAiProviderId(id)) continue;
+      const row = totals.get(id) ?? { classifier: 0, resume: 0 };
+      row.classifier += roles.classifier ?? 0;
+      row.resume += roles.resume ?? 0;
+      totals.set(id, row);
+    }
+  }
+  return [...totals.entries()]
+    .map(([id, r]) => ({ id, ...r }))
+    .filter((r) => r.classifier + r.resume > 0)
+    .sort((a, b) => b.classifier + b.resume - (a.classifier + a.resume));
+}
+
 export function resolveAiEngine(raw: unknown, env: AiEngineEnv): ResolvedAiEngine {
   const config = parseAiEngineConfig(raw);
   const wanted = config.order.length > 0 ? config.order : [env.provider];
