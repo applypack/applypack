@@ -132,7 +132,7 @@ const TAILWIND_CONFIG = `
 const DIRECTION_CONTRACT = `<!--
 THESIS: A hunting console read twice a day: dense, calm, light. Refuses both the dark hacker-dashboard and the roomy marketing-admin.
 OWN-WORLD: Paper-gray ground (#F7F8FA), white work surfaces, hairline #E5E7EB borders, Inter for UI, mono reserved for machine values; emerald is the one brand accent; status speaks in quiet tinted pills (blue/amber/emerald/violet/gray).
-STORY: Nazar opens Overview, reads four numbers and the newest alerts, drills into a job, acts - apply, save, verify, compare - without ceremony.
+STORY: The user opens Overview, reads four numbers and the newest alerts, drills into a job, acts - apply, save, verify, compare - without ceremony.
 FIRST VIEWPORT: 240px sidebar left; content fills the rest: title row, four stat cards with 24h deltas, alerts list beside cron health.
 FORM: Brief-pinned light ops console (Linear density, Stripe forms, GitHub tables); the brief pins the world, no seed roll.
 FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, DESIGN.md, and every shipping raster carrying its provenance.

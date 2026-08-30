@@ -172,4 +172,4 @@ resumesRoute.post('/resumes/:id/delete', async (c) => {
   return flashRedirect('/resumes', 'ok', 'Resume deleted.');
 });
 
-/** "Nazar_Boyko_Senior_Backend_Resume.docx" → "Nazar Boyko Senior Backend Resume". */
+/** "Alex_Doe_Senior_Backend_Resume.docx" → "Alex Doe Senior Backend Resume". */

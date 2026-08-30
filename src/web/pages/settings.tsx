@@ -718,7 +718,7 @@ const ProfileEditor: FC<{
 
     <TagListInput
       label="Tech stack — required (real technologies)"
-      hint="Languages / frameworks the role must actually use: php, laravel, typescript, react, go. Not role types."
+      hint="Languages / frameworks the role must actually use: typescript, react, python, go, php. Not role types."
       name="stackRequired"
       values={profile.stackRequired}
     />
@@ -895,7 +895,7 @@ const PriorityRulesEditor: FC<{ profile: Profile }> = ({ profile }) => {
         id="priorityRules"
         name="priorityRules"
         rows={Math.max(3, rules.length + 1)}
-        placeholder="PHP remote-US | php | Remote US,United States,USA,Worldwide | 90"
+        placeholder="Python remote-US | python | Remote US,United States,USA,Worldwide | 90"
         class="mt-1.5"
         mono
       >

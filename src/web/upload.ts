@@ -24,7 +24,7 @@ export interface UploadedResumeFile {
 
 export const MAX_RESUME_NAME_CHARS = 100;
 
-/** "Nazar_Boyko-Senior_2026.docx" → "Nazar Boyko Senior 2026" — default resume name. */
+/** "Alex_Doe-Senior_2026.docx" → "Alex Doe Senior 2026" — default resume name. */
 export function nameFromFilename(filename: string): string {
   const base = filename.slice(0, filename.length - extname(filename).length);
   return base.replace(/[_\-\s]+/g, ' ').trim().slice(0, MAX_RESUME_NAME_CHARS) || 'Resume';
