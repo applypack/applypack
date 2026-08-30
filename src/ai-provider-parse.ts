@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { AiProviderId } from './ai-engine';
 
 /**
  * Shape of `claude -p --output-format json`. Only the fields we act on are
@@ -42,6 +43,43 @@ export function parseClaudeCodeOutput(raw: string): CliOutcome {
     return { text: null, rateLimited, error: `claude-code: ${message}` };
   }
   return { text: r.result ?? '', rateLimited: false, error: null };
+}
+
+/**
+ * Env allowlist for CLI child processes. A provider child gets the base
+ * process keys plus ONLY its own auth variables — never the database URL,
+ * Telegram token, or another provider's key. Load-bearing case: Claude Code
+ * documents that ANTHROPIC_API_KEY takes precedence over subscription
+ * login, so leaking it into the claude_code child would silently bill the
+ * API while the user believes the subscription is working.
+ */
+const CLI_BASE_ENV_KEYS = [
+  'PATH', 'HOME', 'SHELL', 'TERM', 'USER', 'LOGNAME', 'TMPDIR', 'LANG', 'LC_ALL', 'TZ',
+] as const;
+
+export const CLI_PROVIDER_ENV_KEYS: Partial<Record<AiProviderId, readonly string[]>> = {
+  claude_code: ['CLAUDE_CODE_OAUTH_TOKEN', 'CLAUDE_CONFIG_DIR'],
+  gemini_cli: [
+    'GEMINI_API_KEY',
+    'GOOGLE_GENAI_USE_VERTEXAI',
+    'GOOGLE_GENAI_USE_GCA',
+    'GOOGLE_APPLICATION_CREDENTIALS',
+    'GOOGLE_CLOUD_PROJECT',
+    'GOOGLE_CLOUD_LOCATION',
+  ],
+  codex_cli: ['OPENAI_API_KEY', 'CODEX_HOME'],
+};
+
+export function buildCliEnv(
+  providerKeys: readonly string[],
+  source: NodeJS.ProcessEnv = process.env,
+): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = {};
+  for (const key of [...CLI_BASE_ENV_KEYS, ...providerKeys]) {
+    const value = source[key];
+    if (value !== undefined) env[key] = value;
+  }
+  return env;
 }
 
 const CLAUDE_CODE_WEB_TOOLS = 'WebSearch,WebFetch';

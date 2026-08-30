@@ -2,8 +2,10 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   buildClaudeCodeArgs,
+  buildCliEnv,
   buildCodexCliArgs,
   buildGeminiCliArgs,
+  CLI_PROVIDER_ENV_KEYS,
   parseClaudeCodeOutput,
   parseCodexCliOutput,
   parseGeminiCliOutput,
@@ -161,6 +163,42 @@ test('openai chat response: content, error envelope, rate limit', () => {
   const empty = parseOpenAiChatResponse(JSON.stringify({ choices: [{ message: { content: null } }] }));
   assert.match(empty.error ?? '', /empty completion/);
   assert.match(parseOpenAiChatResponse('<html>').error ?? '', /not JSON/);
+});
+
+test('buildCliEnv: base keys + own provider vars only', () => {
+  const source = {
+    PATH: '/usr/bin',
+    HOME: '/Users/x',
+    DATABASE_URL: 'postgres://secret',
+    TELEGRAM_BOT_TOKEN: 'tg-secret',
+    ANTHROPIC_API_KEY: 'sk-ant-secret',
+    CLAUDE_CODE_OAUTH_TOKEN: 'oauth-token',
+    GEMINI_API_KEY: 'gm-key',
+    OPENAI_API_KEY: 'sk-openai',
+  };
+  const claude = buildCliEnv(CLI_PROVIDER_ENV_KEYS.claude_code ?? [], source);
+  assert.equal(claude.PATH, '/usr/bin');
+  assert.equal(claude.CLAUDE_CODE_OAUTH_TOKEN, 'oauth-token');
+  // Precedence trap: the key must NEVER reach the claude_code child, or the
+  // CLI silently bills the API instead of the subscription.
+  assert.equal(claude.ANTHROPIC_API_KEY, undefined);
+  assert.equal(claude.DATABASE_URL, undefined);
+  assert.equal(claude.TELEGRAM_BOT_TOKEN, undefined);
+  assert.equal(claude.GEMINI_API_KEY, undefined);
+
+  const gemini = buildCliEnv(CLI_PROVIDER_ENV_KEYS.gemini_cli ?? [], source);
+  assert.equal(gemini.GEMINI_API_KEY, 'gm-key');
+  assert.equal(gemini.OPENAI_API_KEY, undefined);
+  assert.equal(gemini.CLAUDE_CODE_OAUTH_TOKEN, undefined);
+
+  const codex = buildCliEnv(CLI_PROVIDER_ENV_KEYS.codex_cli ?? [], source);
+  assert.equal(codex.OPENAI_API_KEY, 'sk-openai');
+  assert.equal(codex.GEMINI_API_KEY, undefined);
+});
+
+test('buildCliEnv skips unset keys instead of writing undefined', () => {
+  const env = buildCliEnv(['GEMINI_API_KEY'], { PATH: '/bin' });
+  assert.deepEqual(Object.keys(env), ['PATH']);
 });
 
 test('gemini args omit --model when empty (CLI default)', () => {

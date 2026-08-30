@@ -7,8 +7,10 @@ import { logger } from './logger';
 import { sleep } from './http';
 import {
   buildClaudeCodeArgs,
+  buildCliEnv,
   buildCodexCliArgs,
   buildGeminiCliArgs,
+  CLI_PROVIDER_ENV_KEYS,
   parseClaudeCodeOutput,
   parseCodexCliOutput,
   parseGeminiCliOutput,
@@ -200,6 +202,8 @@ interface CliSpec {
   buildArgs(req: { system: string; user: string; model: string; webTools?: boolean }): string[];
   parse(raw: string): CliOutcome;
   defaultModel: string;
+  /** Auth variables this provider's child may see (buildCliEnv allowlist). */
+  envKeys: readonly string[];
   /** Working directory — set to keep the CLI away from workspace context. */
   cwd?: string;
 }
@@ -226,6 +230,7 @@ class CliProvider implements AiProvider {
           timeout: req.timeoutMs ?? CLI_TIMEOUT_MS,
           maxBuffer: CLI_MAX_BUFFER,
           cwd: this.spec.cwd,
+          env: buildCliEnv(this.spec.envKeys),
         }));
       } catch (err) {
         logger.error({ err, label: req.label, provider: this.name }, 'ai: cli process failed');
@@ -271,6 +276,7 @@ export function getAiProviderById(id: AiProviderId): AiProvider {
         buildArgs: buildClaudeCodeArgs,
         parse: parseClaudeCodeOutput,
         defaultModel: config.CLAUDE_MODEL,
+        envKeys: CLI_PROVIDER_ENV_KEYS.claude_code ?? [],
       });
       break;
     case 'gemini_cli':
@@ -278,6 +284,7 @@ export function getAiProviderById(id: AiProviderId): AiProvider {
         buildArgs: buildGeminiCliArgs,
         parse: parseGeminiCliOutput,
         defaultModel: 'gemini-2.5-flash',
+        envKeys: CLI_PROVIDER_ENV_KEYS.gemini_cli ?? [],
         // gemini has no --tools '' switch; an empty cwd keeps it from
         // ingesting workspace files (GEMINI.md, sources) as context.
         cwd: tmpdir(),
@@ -296,6 +303,7 @@ export function getAiProviderById(id: AiProviderId): AiProvider {
         parse: parseCodexCliOutput,
         // '' = let the CLI use its configured default model.
         defaultModel: '',
+        envKeys: CLI_PROVIDER_ENV_KEYS.codex_cli ?? [],
         cwd: tmpdir(),
       });
       break;
