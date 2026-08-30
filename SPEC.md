@@ -108,6 +108,17 @@ Profile fields that drive matching:
 - `notes` — free-form prose appended to the Claude prompt
 - `telegramTargetId` — optional: route alerts to a specific bot (else broadcast)
 
+The editor shows the essentials (stack, role types, seniority, location);
+excludes, notes, on-site cities, priority rules, thresholds and Telegram
+routing sit in a collapsed "Advanced" block that opens itself when any of
+them is customised.
+
+**Fill from a resume** (ADR 0015): the Profile tab can prefill
+`stackRequired` (from `Resume.primarySkills`), `stackNiceToHave` (remaining
+scanned skills), `roleTypes` and `seniority` from any scanned resume —
+rendered as an unsaved draft in the editor; nothing persists until Save.
+Resumes scanned before `primarySkills` existed are re-scanned on demand.
+
 ## Toggles in `/settings`
 
 All gating is in `AppSettings` (singleton row). Each toggle has a guard

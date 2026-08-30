@@ -185,6 +185,7 @@ src/
     pdf-text.ts                ← PDF → plain text via unpdf (ADR 0011), tested
     resume-text.ts             ← upload dispatch by extension, pure
     prompts.ts                 ← scan + match prompts, zod schemas, Json readers, pure
+    profile-draft.ts           ← resume scan → profile-editor draft (ADR 0015), pure
     score.ts                   ← deterministic match score + breakdown (ADR 0012), pure
     facts.ts                   ← apply CandidateFacts / cross-resume hints to keywords, pure
     diff.ts                    ← version delta from two matches (gained/lost, components), pure

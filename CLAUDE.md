@@ -55,7 +55,8 @@
   returns `[]`, `/companies` and the source toggles hide them.
 - `src/resume/` is the resume module: `zip.ts`, `docx-text.ts`, `pdf-text.ts`
   (unpdf, ADR 0011), `resume-text.ts`, `prompts.ts`, `pick.ts`, `score.ts`
-  (ADR 0012), `facts.ts`, `diff.ts`, `parse-warnings.ts` are pure (tested);
+  (ADR 0012), `facts.ts`, `diff.ts`, `parse-warnings.ts`,
+  `profile-draft.ts` (ADR 0015) are pure (tested);
   `scan.ts` / `match.ts` call the AI provider; `store.ts` is the only file
   that touches Prisma. Web-only — the worker never imports it (ADR 0008).
 - `src/web/public/score.mjs` mirrors `src/resume/score.ts` line for line —
@@ -139,6 +140,7 @@ When the question is **"where does X live?"**, save yourself a `find`:
 | Live smoke bench of the match prompt (3 gold fixtures) | `npm run bench:resume` — `src/scripts/resume-bench-once.ts` |
 | Compare-run progress pages (async classify/scan/match) | `src/web/target-runs.ts` (in-memory registry) + `src/web/pages/target-run.tsx`; started by `/target`, `/jobs/:id/match`, `/jobs/:id/target/reupload` |
 | Which resume a job page preselects | `src/resume/pick.ts:pickResumeForJob` (skill-tag overlap) |
+| Prefill the profile from a resume scan | `src/resume/profile-draft.ts:buildProfileDraft` (pure) + `POST /settings/profiles/:id/fill-from-resume` (renders a draft, saves nothing — ADR 0015) |
 | Model for resume calls | per-engine "Resume model" on `/settings` → AI engine; Claude engines fall back to `CLAUDE_MODEL_RESUME` in `.env` (default `claude-opus-5`) |
 | Ghost-job checklist prompt + verdict schema | `src/verification/prompts.ts` |
 | Letting a call use web search (API server tools / CLI WebSearch) | `AiRequest.webTools` in `src/ai-provider.ts`, args in `ai-provider-parse.ts:buildClaudeCodeArgs` |
@@ -156,7 +158,8 @@ When the question is **"how does the user toggle / configure X?"**:
 | Add / remove tracked company | `/companies` (with manual probe before save) |
 | Disable whole ATS family (e.g. all Workable) | `/settings` Sources tab |
 | Enable two-stage classifier (cheaper, less precise) | `/settings` AI engine tab → "Classifier" |
-| Edit profile (stack, role types, regions, fit threshold) | `/settings` Profile tab |
+| Edit profile (stack, role types, regions, fit threshold) | `/settings` Profile tab (excludes, notes, priority rules, thresholds live in its "Advanced" block) |
+| Fill the profile from a resume (AI draft, review before save) | `/settings` Profile tab → "Fill from a resume" |
 | Switch between profiles | `/settings` Profile tab → dropdown + Activate |
 | Re-classify all jobs against new profile | `/settings` Profile tab → "Re-classify all jobs" (async, watch /runs) |
 | Telegram on/off | `/settings` Notifications tab |
