@@ -759,8 +759,8 @@ Recommended Settings/Target summary at most:
 ```text
 Default resume
 
-Senior Backend PHP
-Nazar Boyko Senior Software Engineer Resume
+Senior Backend
+Alex Doe Senior Software Engineer Resume
 
 [Manage resumes]
 ```

@@ -51,7 +51,11 @@ resumesRoute.post('/resumes', resumeUploadLimit('/resumes'), async (c) => {
   const resume = await createResume({ name, ...upload });
   const scan = await scanResume(resume);
   return scan
-    ? flashRedirect(`/resumes/${resume.id}`, 'ok', `Uploaded and scanned "${name}".`)
+    ? flashRedirect(
+        `/resumes/${resume.id}`,
+        'ok',
+        `Uploaded and scanned "${name}". Tip: Settings → Profile → "Fill from a resume" updates your search profile from it.`,
+      )
     : flashRedirect(
         `/resumes/${resume.id}`,
         'err',
@@ -168,4 +172,4 @@ resumesRoute.post('/resumes/:id/delete', async (c) => {
   return flashRedirect('/resumes', 'ok', 'Resume deleted.');
 });
 
-/** "Nazar_Boyko_Senior_Backend_Resume.docx" → "Nazar Boyko Senior Backend Resume". */
+/** "Alex_Doe_Senior_Backend_Resume.docx" → "Alex Doe Senior Backend Resume". */

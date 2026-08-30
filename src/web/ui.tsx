@@ -2,6 +2,7 @@
 import type { Child, FC, PropsWithChildren } from 'hono/jsx';
 import type { JobStatus } from '@prisma/client';
 import { fitTone, statusLabel, statusTone, type Tone } from './format';
+import type { FlashKind, FlashMessage } from './flash';
 
 /*
  * Shared primitives. Every page composes these instead of writing raw
@@ -84,17 +85,19 @@ export const PageHeader: FC<
   </header>
 );
 
+const FLASH_TONE: Record<FlashKind, string> = {
+  ok: 'border-ok/25 bg-ok/5 text-ok',
+  warn: 'border-warn/25 bg-warn/5 text-warn',
+  err: 'border-danger/25 bg-danger/5 text-danger',
+};
+
 export const Flash: FC<{
-  flash?: { kind: 'ok' | 'err'; text: string } | null;
+  flash?: FlashMessage | null;
 }> = ({ flash }) =>
   flash ? (
     <div
       role="status"
-      class={`mb-4 flex items-start gap-2.5 rounded-md border px-3.5 py-2.5 text-sm ${
-        flash.kind === 'ok'
-          ? 'border-ok/25 bg-ok/5 text-ok'
-          : 'border-danger/25 bg-danger/5 text-danger'
-      }`}
+      class={`mb-4 flex items-start gap-2.5 rounded-md border px-3.5 py-2.5 text-sm ${FLASH_TONE[flash.kind]}`}
     >
       <svg
         viewBox="0 0 24 24"
@@ -110,6 +113,12 @@ export const Flash: FC<{
           <>
             <circle cx="12" cy="12" r="10" />
             <path d="m9 12 2 2 4-4" />
+          </>
+        ) : flash.kind === 'warn' ? (
+          <>
+            <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3" />
+            <path d="M12 9v4" />
+            <path d="M12 17h.01" />
           </>
         ) : (
           <>
@@ -403,7 +412,7 @@ export const PillCheckbox: FC<PropsWithChildren<Record<string, unknown>>> = ({
   </label>
 );
 
-export const Radio: FC<PropsWithChildren<Record<string, unknown> & { title: string }>> = ({
+export const Radio: FC<PropsWithChildren<Record<string, unknown> & { title: Child }>> = ({
   children,
   title,
   ...rest

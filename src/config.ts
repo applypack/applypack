@@ -1,10 +1,11 @@
 import 'dotenv/config';
 import { z } from 'zod';
+import { AI_PROVIDER_IDS } from './ai-engine';
 
 const ConfigSchema = z.object({
   DATABASE_URL: z.string().min(1, 'DATABASE_URL is required'),
-  // Which backend runs the classifier. See src/ai-provider.ts.
-  AI_PROVIDER: z.enum(['anthropic_api', 'claude_code']).default('anthropic_api'),
+  // Default AI backend; /settings → "AI engine" can override it at runtime.
+  AI_PROVIDER: z.enum(AI_PROVIDER_IDS).default('anthropic_api'),
   ANTHROPIC_API_KEY: z.string().optional(),
   CLAUDE_MODEL: z.string().default('claude-haiku-4-5-20251001'),
   // Resume scan + resume-vs-job comparison: a few calls a day where judgment
@@ -12,6 +13,16 @@ const ConfigSchema = z.object({
   CLAUDE_MODEL_RESUME: z.string().default('claude-opus-5'),
   // Path to the Claude Code CLI when AI_PROVIDER=claude_code.
   CLAUDE_CODE_BIN: z.string().default('claude'),
+  // Path to the Gemini CLI when the gemini_cli engine is selected.
+  GEMINI_CLI_BIN: z.string().default('gemini'),
+  // Path to the Codex CLI when the codex_cli engine is selected.
+  CODEX_CLI_BIN: z.string().default('codex'),
+  // OpenAI-compatible API engine: any server that speaks /chat/completions
+  // (OpenAI, OpenRouter, Groq, local LM Studio / Ollama).
+  OPENAI_API_KEY: z.string().optional(),
+  OPENAI_BASE_URL: z.string().default('https://api.openai.com/v1'),
+  // Default model for the openai_api engine when the dashboard slot is empty.
+  OPENAI_MODEL: z.string().default(''),
   // How many jobs are classified at the same time (both providers).
   AI_CONCURRENCY: z.coerce.number().int().min(1).max(8).default(3),
   TELEGRAM_BOT_TOKEN: z.string().optional(),
@@ -19,9 +30,9 @@ const ConfigSchema = z.object({
   LOG_LEVEL: z
     .enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'])
     .default('info'),
-  TZ: z.string().default('America/Chicago'),
+  TZ: z.string().default('UTC'),
   MIN_FIT_SCORE: z.coerce.number().int().min(0).max(100).default(70),
-  MIN_SALARY_USD: z.coerce.number().int().min(0).default(120000),
+  MIN_SALARY_USD: z.coerce.number().int().min(0).default(0),
   WEB_PORT: z.coerce.number().int().min(1).max(65535).default(4747),
   WEB_HOST: z.string().default('0.0.0.0'),
   WEB_BASIC_AUTH: z

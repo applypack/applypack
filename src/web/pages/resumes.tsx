@@ -184,7 +184,7 @@ export const ResumeUploadForm: FC = () => (
     class="grid gap-3 sm:grid-cols-[1fr_1.4fr_auto]"
   >
     <Field label="Name" hint="Blank = taken from the file name.">
-      <Input type="text" name="name" placeholder="Backend PHP" maxlength="100" />
+      <Input type="text" name="name" placeholder="Senior Backend" maxlength="100" />
     </Field>
     <Field label="File" hint={`${ACCEPTED_EXTENSIONS.join(', ')} · up to ${MAX_UPLOAD_MB} MB`}>
       <Input

@@ -41,7 +41,8 @@ export function toStringArray(v: unknown): string[] {
  */
 export function maskToken(token: string): string {
   if (token.length <= 12) return '***';
-  return `${token.slice(0, 8)}***${token.slice(-4)}`;
+  // Last 4 only — a Telegram token's prefix is the bot id, itself identifying.
+  return `***${token.slice(-4)}`;
 }
 
 /**

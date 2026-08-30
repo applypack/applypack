@@ -1,8 +1,7 @@
 import type { JobVerification, Prisma } from '@prisma/client';
 import { prisma } from '../db';
-import { config } from '../config';
 import { logger } from '../logger';
-import { getAiProvider } from '../ai-provider';
+import { getAiRuntime } from '../ai-runtime';
 import { buildVerifyPrompt, parseVerifyResponse, VERIFY_MAX_TOKENS, type VerifyJobInput } from './prompts';
 
 // Web research through the CLI can take several minutes.
@@ -12,25 +11,24 @@ const PARSE_ATTEMPTS = 2;
 /** Runs the ghost-job check with web tools and stores the verdict. Null on AI failure. */
 export async function verifyJob(job: VerifyJobInput & { id: number }): Promise<JobVerification | null> {
   const prompt = buildVerifyPrompt(job);
-  const provider = getAiProvider();
-  const model = config.CLAUDE_MODEL_RESUME;
+  const ai = await getAiRuntime();
   for (let attempt = 0; attempt < PARSE_ATTEMPTS; attempt++) {
-    const text = await provider.complete({
+    const out = await ai.complete({
       ...prompt,
       maxTokens: VERIFY_MAX_TOKENS,
       label: 'job-verify',
-      model,
+      role: 'resume',
       timeoutMs: VERIFY_TIMEOUT_MS,
       webTools: true,
     });
-    if (text === null) return null;
-    const parsed = parseVerifyResponse(text);
+    if (out === null) return null;
+    const parsed = parseVerifyResponse(out.text);
     if (parsed.ok) {
       const r = parsed.data;
       const row = await prisma.jobVerification.create({
         data: {
           jobId: job.id,
-          model,
+          model: (out.model || out.providerId) + (out.viaFallback ? ' · fallback' : ''),
           verdict: r.verdict,
           recommendation: r.recommendation,
           confidence: r.confidence,
@@ -43,7 +41,7 @@ export async function verifyJob(job: VerifyJobInput & { id: number }): Promise<J
       logger.info({ jobId: job.id, verdict: r.verdict, recommendation: r.recommendation }, 'verify: done');
       return row;
     }
-    logger.warn({ jobId: job.id, attempt, error: parsed.error, raw: text.slice(0, 500) }, 'verify: reply did not match schema');
+    logger.warn({ jobId: job.id, attempt, error: parsed.error, raw: out.text.slice(0, 500) }, 'verify: reply did not match schema');
   }
   return null;
 }

@@ -17,7 +17,18 @@ test('parseScanResponse normalises tags and tolerates missing optionals', () => 
   assert.equal(r.data.seniority, null);
   assert.equal(r.data.years_experience, null);
   assert.deepEqual(r.data.skills, ['php', 'laravel']);
+  assert.deepEqual(r.data.primary_skills, []);
   assert.deepEqual(r.data.issues, []);
+});
+
+test('scan prompt asks for a primary stack and keeps it framework-level', () => {
+  const { system } = buildScanPrompt('resume');
+  assert.match(system, /"primary_skills"/);
+  assert.match(system, /PRIMARY STACK/);
+  assert.match(system, /Databases, clouds, containers and tooling are NEVER primary/);
+  const r = parseScanResponse('{"skills":["PHP"],"primary_skills":["PHP "," php"],"summary":"x"}');
+  assert.ok(r.ok);
+  assert.deepEqual(r.data.primary_skills, ['php']);
 });
 
 test('parseScanResponse rejects prose and wrong shapes', () => {

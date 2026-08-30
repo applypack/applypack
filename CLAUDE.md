@@ -40,7 +40,9 @@
 - Each fetcher returns `NormalizedJob[]` — never writes to DB directly.
 - `filter.ts` is pure — no I/O.
 - `classifier.ts` (and `classifier-prefilter.ts`) build prompts and parse
-  replies; the only thing that talks to Claude is `ai-provider.ts` — no DB.
+  replies; the only thing that talks to the AI is `ai-provider.ts` — no DB.
+  Engine choice (provider + models) resolves per call via `ai-runtime.ts`
+  (DB row → `.env` fallback, pure merge in `ai-engine.ts` — ADR 0013).
 - `jobs/process-jobs.ts` is the single source of truth for the inner
   filter → dedupe → classify → persist → alert sequence. Reused by
   `runFetchJob` and `runHnHiringJob`.
@@ -53,7 +55,8 @@
   returns `[]`, `/companies` and the source toggles hide them.
 - `src/resume/` is the resume module: `zip.ts`, `docx-text.ts`, `pdf-text.ts`
   (unpdf, ADR 0011), `resume-text.ts`, `prompts.ts`, `pick.ts`, `score.ts`
-  (ADR 0012), `facts.ts`, `diff.ts`, `parse-warnings.ts` are pure (tested);
+  (ADR 0012), `facts.ts`, `diff.ts`, `parse-warnings.ts`,
+  `profile-draft.ts` (ADR 0015) are pure (tested);
   `scan.ts` / `match.ts` call the AI provider; `store.ts` is the only file
   that touches Prisma. Web-only — the worker never imports it (ADR 0008).
 - `src/web/public/score.mjs` mirrors `src/resume/score.ts` line for line —
@@ -114,7 +117,11 @@ When the question is **"where does X live?"**, save yourself a `find`:
 | Where to register a new ATS | `src/fetchers/index.ts:fetchOne` switch + `prisma/schema.prisma:AtsType` enum |
 | Where to add a new toggle | `prisma/schema.prisma:AppSettings` (column) → `src/settings.ts` (getter/setter) → `src/web/pages/settings.tsx` (UI) → `src/web/routes/settings.tsx` (POST) |
 | The Claude system prompt | `src/classifier.ts:buildSystemPrompt` |
-| Which backend runs Claude (API key vs subscription CLI) | `src/ai-provider.ts:getAiProvider`, `AI_PROVIDER` in `.env` |
+| Which AI engines run (priority chain + per-engine models, auto-failover) | `src/ai-runtime.ts:getAiRuntime().complete({role})` + pure chain merge in `src/ai-engine.ts` (ADR 0013/0014); UI on `/settings` → "AI engine" tab |
+| Adding a new AI backend | `src/ai-provider.ts` (`CliProvider` spec or fetch class) + `AI_PROVIDER_IDS`/labels/options in `src/ai-engine.ts` + probe in `src/ai-runtime.ts` |
+| How users set up each engine (local + Docker) | `docs/ai-engines.md` |
+| AI usage counters (runs per engine × role) | `AppSettings.aiUsage` — incremented in `ai-runtime.ts:recordUsage`, 7-day summary on `/settings` AI tab, 60-day trim in `cleanup-job.ts` |
+| What a CLI child process may see in env | `ai-provider-parse.ts:CLI_PROVIDER_ENV_KEYS` (allowlist; ANTHROPIC_API_KEY never reaches claude_code) |
 | How many jobs are classified at once | `AI_CONCURRENCY` in `.env` (default 3); limiter in `src/concurrency.ts`, used by `jobs/process-jobs.ts` and `jobs/reclassify-job.ts` |
 | The two-stage prefilter prompt | `src/classifier-prefilter.ts:buildPrefilterPrompt` |
 | Per-job filter rules (pre-Claude) | `src/filter.ts:passesBaseFilter` |
@@ -135,7 +142,8 @@ When the question is **"where does X live?"**, save yourself a `find`:
 | Live smoke bench of the match prompt (3 gold fixtures) | `npm run bench:resume` — `src/scripts/resume-bench-once.ts` |
 | Compare-run progress pages (async classify/scan/match) | `src/web/target-runs.ts` (in-memory registry) + `src/web/pages/target-run.tsx`; started by `/target`, `/jobs/:id/match`, `/jobs/:id/target/reupload` |
 | Which resume a job page preselects | `src/resume/pick.ts:pickResumeForJob` (skill-tag overlap) |
-| Model for resume calls | `CLAUDE_MODEL_RESUME` in `.env` (default `claude-opus-5`), passed via `AiRequest.model` |
+| Prefill the profile from a resume scan | `src/resume/profile-draft.ts:buildProfileDraft` (pure) + `POST /settings/profiles/:id/fill-from-resume` (renders a draft, saves nothing — ADR 0015) |
+| Model for resume calls | per-engine "Resume model" on `/settings` → AI engine; Claude engines fall back to `CLAUDE_MODEL_RESUME` in `.env` (default `claude-opus-5`) |
 | Ghost-job checklist prompt + verdict schema | `src/verification/prompts.ts` |
 | Letting a call use web search (API server tools / CLI WebSearch) | `AiRequest.webTools` in `src/ai-provider.ts`, args in `ai-provider-parse.ts:buildClaudeCodeArgs` |
 | Classify one stored job (Re-classify button, pasted jobs) | `src/jobs/classify-existing.ts` |
@@ -147,18 +155,21 @@ When the question is **"how does the user toggle / configure X?"**:
 
 | What | Page |
 | --- | --- |
-| Pause / resume all new-job fetching | `/settings` → "Job fetching" card (top) |
+| Pause / resume all new-job fetching | `/settings` General tab → "Job fetching" |
+| Pick / order AI engines + models, test them | `/settings` AI engine tab (per-engine cards: Enable, ↑ priority, model selects, Test) |
 | Add / remove tracked company | `/companies` (with manual probe before save) |
-| Disable whole ATS family (e.g. all Workable) | `/settings` → "Job sources" card |
-| Enable two-stage classifier (cheaper, less precise) | `/settings` → "Classifier mode" |
-| Edit profile (stack, role types, regions, fit threshold) | `/settings` → "Active profile" |
-| Switch between profiles | `/settings` → dropdown + Activate |
-| Re-classify all jobs against new profile | `/settings` → "Re-classify all jobs" (async, watch /runs) |
-| Telegram on/off | `/settings` → "Telegram alerts" |
-| Add Telegram bot or chat | `/settings` → "Add target" (validates with getMe + sendMessage) |
+| Disable whole ATS family (e.g. all Workable) | `/settings` Sources tab |
+| Enable two-stage classifier (cheaper, less precise) | `/settings` AI engine tab → "Classifier" |
+| Edit profile (stack, role types, regions, fit threshold) | `/settings` Profile tab (excludes, notes, priority rules, thresholds live in its "Advanced" block) |
+| Fill the profile from a resume (AI draft, review before save) | `/settings` Profile tab → "Fill from a resume" |
+| Switch between profiles | `/settings` Profile tab → dropdown + Activate |
+| Re-classify all jobs against new profile | `/settings` Profile tab → "Re-classify all jobs" (async, watch /runs) |
+| Telegram on/off | `/settings` Notifications tab |
+| Add Telegram bot or chat | `/settings` Notifications tab → "Add target" (validates with getMe + sendMessage) |
 | Pipeline stage on a job | `/jobs/:id` → "Application tracking" card |
 | Review newly discovered companies | `/discovery` (sorted by jobsSeen DESC) |
-| Upload / scan a resume | `/settings` → "Resumes" card, or `/resumes` |
+| Toggle auto-discovery / HN parser | `/discovery` (card at the top; moved off `/settings` 2026-08-29) |
+| Upload / scan a resume | `/resumes` (the Settings card only lists + links) |
 | Compare a resume with a posting | `/jobs/:id` → "Resume match" card (Compare) |
 | Paste a posting the fetchers don't see | `/jobs` → "+ Paste a job" (`/jobs/new`) |
 | Compare a pasted posting with any resume in one step | menu → Target (`/target`): paste posting, pick / upload / paste resume, Compare |

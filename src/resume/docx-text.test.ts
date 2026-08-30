@@ -14,7 +14,7 @@ test('joins fragmented runs and decodes entities', () => {
 
 test('marks list items, styled headings and ALL-CAPS section titles', () => {
   const xml = doc(
-    p(t('Nazar Boyko'), '<w:pStyle w:val="Title"/>') +
+    p(t('Alex Doe'), '<w:pStyle w:val="Title"/>') +
       p(t('PROFESSIONAL EXPERIENCE')) +
       p(t('Skills'), '<w:pStyle w:val="Heading1"/>') +
       p(t('Cut infra cost 30%'), '<w:numPr><w:ilvl w:val="0"/></w:numPr>') +
@@ -23,7 +23,7 @@ test('marks list items, styled headings and ALL-CAPS section titles', () => {
   assert.equal(
     documentXmlToText(xml),
     [
-      '# Nazar Boyko',
+      '# Alex Doe',
       '## PROFESSIONAL EXPERIENCE',
       '## Skills',
       '- Cut infra cost 30%',
@@ -34,9 +34,9 @@ test('marks list items, styled headings and ALL-CAPS section titles', () => {
 
 test('renders tabs as separators and breaks as lines', () => {
   const xml = doc(
-    p(t('V Shred') + '<w:r><w:tab/><w:tab/></w:r>' + t('Austin, TX') + '<w:r><w:br/></w:r>' + t('Senior Engineer') + '<w:r><w:tab/></w:r>' + t('Dec 2024 - Present')),
+    p(t('Acme Corp') + '<w:r><w:tab/><w:tab/></w:r>' + t('Austin, TX') + '<w:r><w:br/></w:r>' + t('Senior Engineer') + '<w:r><w:tab/></w:r>' + t('Dec 2024 - Present')),
   );
-  assert.equal(documentXmlToText(xml), 'V Shred | Austin, TX\nSenior Engineer | Dec 2024 - Present');
+  assert.equal(documentXmlToText(xml), 'Acme Corp | Austin, TX\nSenior Engineer | Dec 2024 - Present');
 });
 
 test('flattens tables row by row and keeps nested paragraphs', () => {

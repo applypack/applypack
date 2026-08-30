@@ -7,8 +7,8 @@ interface SeedCompany {
   atsType: AtsType;
   atsToken: string;
   careerUrl?: string;
-  // Some seed companies are added in disabled state — user enables via UI
-  // when they're ready (e.g. EU-skewed feeds while user focuses on US).
+  // Region- or stack-specific feeds start disabled — the user enables them
+  // via the UI when they match the active profile.
   active?: boolean;
 }
 
@@ -57,12 +57,10 @@ const SEED_COMPANIES: SeedCompany[] = [
   { name: 'MongoDB', atsType: AtsType.GREENHOUSE, atsToken: 'mongodb' },
   { name: 'Pleo', atsType: AtsType.GREENHOUSE, atsToken: 'pleo' },
   { name: 'Attentive', atsType: AtsType.GREENHOUSE, atsToken: 'attentive' },
-  // HigherLogic — added phase-7.3 after the user found a "Sr. Software
-  // Engineer (PHP)" posting on LinkedIn that wasn't in our DB. This is
-  // exactly the long-tail case the system needs to scale to: companies
-  // that post small numbers of senior PHP roles without crowding the
-  // PHP-aggregator boards. The /companies UI is the proper way to grow
-  // this list; the seed is just a starter set.
+  // HigherLogic — added phase-7.3 as the long-tail case the system needs
+  // to scale to: companies that post a handful of matching roles without
+  // ever crowding the aggregator boards. The /companies UI is the proper
+  // way to grow this list; the seed is just a starter set.
   {
     name: 'HigherLogic',
     atsType: AtsType.GREENHOUSE,
@@ -113,12 +111,14 @@ const SEED_COMPANIES: SeedCompany[] = [
     careerUrl: 'https://www.scribd.com/about',
   },
 
-  // LaraJobs RSS — single feed under one synthetic company.
+  // LaraJobs RSS — Laravel-only board, single feed under one synthetic
+  // company. Enable when the active profile targets PHP/Laravel.
   {
     name: 'LaraJobs Feed',
     atsType: AtsType.LARAJOBS_RSS,
     atsToken: 'larajobs',
     careerUrl: 'https://larajobs.com',
+    active: false,
   },
 
   // Public aggregator feeds (Phase 3.1). Each is one synthetic Company row;
@@ -136,7 +136,7 @@ const SEED_COMPANIES: SeedCompany[] = [
     careerUrl: 'https://remotive.com',
   },
   {
-    // EU-skewed; user enables when relocation/EU-search is relevant.
+    // EU-skewed; enable when an EU search is relevant.
     name: 'Arbeitnow Feed',
     atsType: AtsType.ARBEITNOW,
     atsToken: 'arbeitnow',
@@ -149,9 +149,8 @@ const SEED_COMPANIES: SeedCompany[] = [
   // hit is a YC-portfolio company hiring continuously, with the post
   // URL pointing directly at the company's ATS — so the discovery
   // pipeline gets free CompanyCandidate harvest as a side-effect of
-  // running this fetcher. Highest-ROI cross-company source for the
-  // PHP / JS / full-stack / backend profile because YC companies skew
-  // remote-friendly and US-eligible.
+  // running this fetcher. High-ROI cross-company source because YC
+  // companies skew remote-friendly.
   {
     name: 'HN /jobs Feed',
     atsType: AtsType.HN_JOBS,
@@ -161,7 +160,7 @@ const SEED_COMPANIES: SeedCompany[] = [
 
   // Jobicy — cross-company remote-job aggregator (~50 items/feed).
   // Indexes employers we'd never seed individually (PSI CRO, ManTech,
-  // Mindrift, etc.). This is the answer to "monitor PHP roles at
+  // Mindrift, etc.). This is the answer to "monitor matching roles at
   // companies I haven't added yet" — without scraping LinkedIn /
   // Indeed (excluded by ADR 0005, which we hold to). Active by
   // default so users get cross-company coverage out of the box.
@@ -192,8 +191,8 @@ const SEED_COMPANIES: SeedCompany[] = [
     careerUrl: 'https://himalayas.app/jobs',
   },
 
-  // WeWorkRemotely — paid posting → low-spam. Two relevant categories
-  // for the default profile; user can add more (`design-jobs`, etc) via UI.
+  // WeWorkRemotely — paid posting → low-spam. Two developer categories
+  // to start; the user can add more (`design-jobs`, etc) via UI.
   {
     name: 'WeWorkRemotely · Back-End',
     atsType: AtsType.WEWORKREMOTELY,

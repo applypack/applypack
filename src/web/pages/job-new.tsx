@@ -25,7 +25,7 @@ export const JobNewPage: FC<{ flash?: FlashMessage | null }> = ({ flash }) => (
               name="title"
               required
               maxlength="200"
-              placeholder="Senior PHP Developer"
+              placeholder="Senior Software Engineer"
             />
           </Field>
           <Field label="Posting URL" hint="Optional — helps verification find the original.">

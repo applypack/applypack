@@ -2,7 +2,7 @@ import { z } from 'zod';
 import type { Profile } from '@prisma/client';
 import { logger } from './logger';
 import { extractJson } from './text-utils';
-import { getAiProvider } from './ai-provider';
+import { getAiRuntime } from './ai-runtime';
 import { preClassify } from './classifier-prefilter';
 import type { ClassifyInput, ClaudeClassification } from './types';
 
@@ -10,6 +10,9 @@ export type ClassifierMode = 'single' | 'two_stage';
 
 const MAX_TOKENS = 600;
 const MAX_DESC_CHARS = 4000;
+// Bump on any material change to buildSystemPrompt (rules, rubric, format) —
+// cross-engine quality comparisons are meaningless across prompt versions.
+export const CLASSIFIER_PROMPT_VERSION = 1;
 
 const ClassificationSchema = z.object({
   fit_score: z.number().int().min(0).max(100),
@@ -98,26 +101,29 @@ export async function classifyWithClaude(
     'Return raw JSON only.',
   ].join('\n');
 
-  const provider = getAiProvider();
-  // One retry on a malformed reply: Haiku occasionally wraps or truncates JSON.
+  const ai = await getAiRuntime();
+  // One retry on a malformed reply: small models occasionally wrap or truncate JSON.
   for (let attempt = 0; attempt < 2; attempt++) {
-    const text = await provider.complete({
+    const out = await ai.complete({
       system: systemPrompt,
       user: userText,
       maxTokens: MAX_TOKENS,
       label: 'classifier',
+      role: 'classifier',
     });
-    if (text === null) return null;
+    if (out === null) return null;
 
-    const json = extractJson(text);
+    const json = extractJson(out.text);
     const parsed = json === null ? null : ClassificationSchema.safeParse(json);
     if (parsed?.success) return parsed.data;
     logger.warn(
       {
-        raw: text.slice(0, 500),
+        raw: out.text.slice(0, 500),
         errors: parsed && !parsed.success ? parsed.error.flatten().fieldErrors : undefined,
         title: input.title,
         attempt,
+        engine: out.providerId,
+        promptVersion: CLASSIFIER_PROMPT_VERSION,
       },
       'classifier: response did not match schema',
     );

@@ -74,7 +74,7 @@ export const TargetStartPage: FC<TargetStartProps> = ({ resumes, flash }) => {
                   <Input type="text" name="companyName" maxlength="200" placeholder="Acme Corp" />
                 </Field>
                 <Field label="Job title" hint="Optional — detected during the run.">
-                  <Input type="text" name="title" maxlength="200" placeholder="Senior PHP Developer" />
+                  <Input type="text" name="title" maxlength="200" placeholder="Senior Software Engineer" />
                 </Field>
               </div>
               <div class="grid gap-4 sm:grid-cols-2">

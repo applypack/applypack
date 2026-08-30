@@ -17,7 +17,7 @@ FROM node:24-alpine AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
 RUN apk add --no-cache tini \
- && npm install -g @anthropic-ai/claude-code
+ && npm install -g @anthropic-ai/claude-code @google/gemini-cli @openai/codex
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 # Static assets served by the dashboard (keyword matcher for /jobs/:id/target).

@@ -18,6 +18,7 @@ import {
   Textarea,
 } from '../ui';
 import { formatDate, formatSalary } from '../format';
+import type { FlashMessage } from '../flash';
 import { ResumeMatchCard, type ResumeMatchCardProps } from './resume-match-card';
 import { VerificationCard, type VerificationCardProps } from './verification-card';
 
@@ -52,7 +53,7 @@ export interface JobDetailProps {
   verification: VerificationCardProps['verification'];
   verificationCount: number;
   resumeMatch: ResumeMatchCardProps;
-  flash?: { kind: 'ok' | 'err'; text: string } | null;
+  flash?: FlashMessage | null;
 }
 
 const PIPELINE_STAGES = ['applied', 'screen', 'tech', 'onsite', 'offer', 'rejected', 'ghosted'];

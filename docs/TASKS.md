@@ -46,9 +46,11 @@ as API-key only).
 - [x] `config.ts`: `AI_PROVIDER: z.enum(['anthropic_api','claude_code']).default('anthropic_api')`;
   `ANTHROPIC_API_KEY` becomes optional, validated as required only when
   `AI_PROVIDER=anthropic_api`.
-- [ ] Optional: expose the choice as an `AppSettings` toggle on `/settings`
+- [x] Optional: expose the choice as an `AppSettings` toggle on `/settings`
   (schema → settings.ts → settings.tsx → routes/settings.tsx) so it is
-  switchable at runtime. Worker reads it per tick (gotcha 9).
+  switchable at runtime. Worker reads it per tick (gotcha 9). Done
+  2026-08-29 as the "AI engine" card — provider + both models, with a
+  `gemini_cli` backend (ADR 0013), branch `ai-engine-settings`.
 
 ### 1.2 `claude_code` provider (subscription)
 - [x] `ClaudeCodeProvider`: `execFile('claude', ['-p', prompt, '--output-format', 'json', '--model', 'haiku'])`
@@ -302,19 +304,39 @@ removing the violet accent.
       Dropdown panels are in-flow on phones (an absolute panel overflowed 375px)
 - [x] Meta reads "analyzed Nh ago"
 
-### 6.3 Settings + shell (SEPARATE BRANCH — pairs with multi-AI-provider settings)
-- [ ] AtsType display-name map (LARAJOBS_RSS → Laravel Jobs) on /settings + /discovery
-- [ ] Flash `warn` variant; the paused state stops using success green
-- [ ] `confirm()` on "Save & re-classify" (the sibling button already has one)
-- [ ] Copy pass: getMe+sendMessage / cron / Docker out of primary UI (keep the
-      gotcha-10 aggregator explanation)
-- [ ] De-duplicate: Settings resumes card → list + link (drop the second upload
-      form); discovery toggles move to /discovery
-- [ ] Section order General → Notifications → Advanced; flash texts match option labels
-- [ ] /settings/sources: stop re-adding MANUAL to disabledSources on every save
-- [ ] `maskToken` → last-4 only
-- [ ] AI provider selection UI (§1.1 leftover) extended to other AI subscriptions —
-      the reason this block is its own branch
+### 6.3 Settings + shell (branch `ai-engine-settings`, done 2026-08-29)
+- [x] AtsType display-name map (LARAJOBS_RSS → Laravel Jobs) on /settings + /discovery
+      (`src/web/source-names.ts`, unit-tested)
+- [x] Flash `warn` variant; the paused state stops using success green
+- [x] `confirm()` on "Save & re-classify" (the sibling button already has one)
+- [x] Copy pass: getMe+sendMessage / cron / Docker out of primary UI (keep the
+      gotcha-10 aggregator explanation — now a hint under the sources pills)
+- [x] De-duplicate: Settings resumes card → list + link (drop the second upload
+      form); discovery toggles move to /discovery (routes moved too:
+      POST /discovery/toggle, /discovery/hn-parser-toggle, /discovery/hn-run)
+- [x] Section order General → Notifications → Advanced; flash texts match option labels
+- [x] /settings/sources: stop re-adding MANUAL to disabledSources on every save
+- [x] `maskToken` → last-4 only
+- [x] AI provider selection UI (§1.1 leftover) extended to other AI subscriptions —
+      "AI engine" card: anthropic_api / claude_code / gemini_cli radios with
+      availability probe, classifier + resume model slots (ADR 0013)
+- [x] Tabs on /settings (user request, later same day): link-based `?tab=`
+      sub-nav — General (fetching, tracking, resumes) / Profile / AI engine
+      (+classifier mode) / Notifications / Sources. Single route kept, every
+      POST redirects back to its tab; the audit's full route split stays
+      rejected
+- [x] AI engine improvements P1–P2 integrated (2026-08-30): CLI child-process
+      env allowlist (ANTHROPIC_API_KEY precedence trap), per-engine cooldown +
+      chain deadline, "pay per token" badges + paid-fallback warn, cross-engine
+      bench flags, `model · fallback` marker on match/verify, aiUsage counters
+      (7-day summary on the AI tab, 60-day trim in cleanup), classifier prompt
+      version stamp. Status ticks in docs/ai-engine-improvements.md
+- [x] AI engine CHAIN (2026-08-30, ADR 0014):
+      ordered multi-engine config in `AppSettings.aiEngine` (JSON), automatic
+      per-call failover, + `openai_api` (base-URL compatible: OpenAI /
+      OpenRouter / Groq / local) and `codex_cli` (ChatGPT subscription)
+      backends, per-engine model dropdowns (no wrong-family saves), per-engine
+      live Test buttons, setup guide docs/ai-engines.md (local + Docker)
 
 ### 6.4 Later (P2)
 - [ ] Apply-suggestion buttons on action cards — do together with 5.15

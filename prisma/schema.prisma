@@ -148,6 +148,16 @@ model AppSettings {
   // (and the existing row, backfilled by the migration) start paused;
   // enable from /settings → "Job fetching" when ready.
   fetchingEnabled                Boolean  @default(false)
+  // AI engine chain (ADR 0013/0014): { order: [provider ids by priority],
+  // models: { <id>: { classifier, resume } } }. The first usable engine
+  // serves each call; the rest are automatic fallbacks. NULL = follow .env
+  // (AI_PROVIDER seeds a one-engine chain).
+  aiEngine                       Json?
+  // Lightweight AI usage counters: { "YYYY-MM-DD": { <provider>: {
+  // classifier: n, resume: n } } }. Incremented atomically per successful
+  // call (ai-runtime.ts:recordUsage), trimmed to 60 days by the cleanup
+  // cron, summarized on /settings → AI engine.
+  aiUsage                        Json?
   updatedAt                      DateTime @updatedAt
 }
 
@@ -250,6 +260,9 @@ model Resume {
   seniority       String?
   yearsExperience Int?
   skills          String[]      @default([])
+  // Subset of skills: the 2-5 core languages/frameworks of the candidate's
+  // day-to-day work. Feeds Profile.stackRequired via "Fill from resume".
+  primarySkills   String[]      @default([])
   roleTypes       String[]      @default([])
   summary         String?       @db.Text
   // [{ section, issue, fix }] — job-agnostic ATS / recruiter problems.

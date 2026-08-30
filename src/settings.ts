@@ -1,8 +1,9 @@
-import type { TelegramTarget } from '@prisma/client';
+import type { Prisma, TelegramTarget } from '@prisma/client';
 import { prisma } from './db';
 import { logger } from './logger';
+import type { AiEngineConfig } from './ai-engine';
 
-const SETTINGS_ID = 1;
+export const SETTINGS_ID = 1;
 const TELEGRAM_API = 'https://api.telegram.org';
 const TELEGRAM_TIMEOUT_MS = 10_000;
 
@@ -17,6 +18,10 @@ export interface AppSettingsView {
   disabledSources: string[];
   discoveryEnabled: boolean;
   fetchingEnabled: boolean;
+  /** Raw AppSettings.aiEngine JSON — parse with parseAiEngineConfig. */
+  aiEngine: unknown;
+  /** Raw AppSettings.aiUsage JSON — summarize with summarizeAiUsage. */
+  aiUsage: unknown;
   updatedAt: Date;
 }
 
@@ -38,8 +43,20 @@ export async function getSettings(): Promise<AppSettingsView> {
     disabledSources: row.disabledSources,
     discoveryEnabled: row.discoveryEnabled,
     fetchingEnabled: row.fetchingEnabled,
+    aiEngine: row.aiEngine,
+    aiUsage: row.aiUsage,
     updatedAt: row.updatedAt,
   };
+}
+
+export async function setAiEngineConfig(engine: AiEngineConfig): Promise<void> {
+  const value = engine as unknown as Prisma.InputJsonValue;
+  await prisma.appSettings.upsert({
+    where: { id: SETTINGS_ID },
+    update: { aiEngine: value },
+    create: { id: SETTINGS_ID, aiEngine: value },
+  });
+  logger.info({ engine }, 'settings: ai engine updated');
 }
 
 export async function setTelegramEnabled(enabled: boolean): Promise<void> {

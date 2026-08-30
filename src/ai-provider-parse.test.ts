@@ -1,6 +1,16 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildClaudeCodeArgs, parseClaudeCodeOutput } from './ai-provider-parse';
+import {
+  buildClaudeCodeArgs,
+  buildCliEnv,
+  buildCodexCliArgs,
+  buildGeminiCliArgs,
+  CLI_PROVIDER_ENV_KEYS,
+  parseClaudeCodeOutput,
+  parseCodexCliOutput,
+  parseGeminiCliOutput,
+  parseOpenAiChatResponse,
+} from './ai-provider-parse';
 
 const ok = (result: string) =>
   JSON.stringify({ type: 'result', subtype: 'success', is_error: false, result });
@@ -52,6 +62,148 @@ test('other errors are not rate-limited', () => {
   const out = parseClaudeCodeOutput(raw);
   assert.equal(out.rateLimited, false);
   assert.match(out.error ?? '', /max turns/);
+});
+
+test('gemini success returns the response text', () => {
+  const out = parseGeminiCliOutput(
+    JSON.stringify({ response: '{"relevant": true}', stats: { models: {} } }),
+  );
+  assert.equal(out.error, null);
+  assert.equal(out.rateLimited, false);
+  assert.match(out.text ?? '', /"relevant": true/);
+});
+
+test('gemini error object is surfaced, quota flagged rateLimited', () => {
+  const quota = parseGeminiCliOutput(
+    JSON.stringify({ error: { type: 'ApiError', message: 'RESOURCE_EXHAUSTED: quota', code: 429 } }),
+  );
+  assert.equal(quota.text, null);
+  assert.equal(quota.rateLimited, true);
+  assert.match(quota.error ?? '', /RESOURCE_EXHAUSTED/);
+
+  const other = parseGeminiCliOutput(
+    JSON.stringify({ error: { message: 'model not found' } }),
+  );
+  assert.equal(other.rateLimited, false);
+  assert.match(other.error ?? '', /model not found/);
+});
+
+test('gemini non-JSON and shape misses are errors, not rate-limited', () => {
+  assert.match(parseGeminiCliOutput('boom').error ?? '', /not JSON/);
+  const empty = parseGeminiCliOutput(JSON.stringify({ stats: {} }));
+  assert.equal(empty.text, null);
+  assert.equal(empty.rateLimited, false);
+});
+
+test('buildGeminiCliArgs prepends system text and gates web tools', () => {
+  const base = { system: 'S', user: 'U', model: 'gemini-2.5-flash' };
+  const plain = buildGeminiCliArgs(base);
+  assert.deepEqual(plain, [
+    '--output-format', 'json',
+    '--model', 'gemini-2.5-flash',
+    '--prompt', 'S\n\nU',
+  ]);
+
+  const web = buildGeminiCliArgs({ ...base, webTools: true });
+  assert.ok(web.includes('google_web_search') && web.includes('web_fetch'));
+  assert.equal(web[web.length - 1], 'S\n\nU');
+});
+
+test('codex JSONL: last agent message wins, both event shapes covered', () => {
+  const modern = [
+    '{"type":"thread.started","thread_id":"t1"}',
+    'non-json noise',
+    '{"type":"item.completed","item":{"id":"i1","type":"reasoning","text":"thinking"}}',
+    '{"type":"item.completed","item":{"id":"i2","type":"agent_message","text":"draft"}}',
+    '{"type":"item.completed","item":{"id":"i3","type":"agent_message","text":"{\\"ok\\":true}"}}',
+    '{"type":"turn.completed","usage":{"input_tokens":10}}',
+  ].join('\n');
+  const out = parseCodexCliOutput(modern);
+  assert.equal(out.error, null);
+  assert.match(out.text ?? '', /"ok":true/);
+
+  const legacy = '{"id":"0","msg":{"type":"agent_message","message":"hi"}}';
+  assert.equal(parseCodexCliOutput(legacy).text, 'hi');
+});
+
+test('codex errors surface and rate limits are flagged', () => {
+  const limited = parseCodexCliOutput('{"type":"error","message":"You have hit your usage limit."}');
+  assert.equal(limited.text, null);
+  assert.equal(limited.rateLimited, true);
+
+  const plain = parseCodexCliOutput('{"type":"turn.failed","message":"model not found"}');
+  assert.equal(plain.rateLimited, false);
+  assert.match(plain.error ?? '', /model not found/);
+
+  assert.match(parseCodexCliOutput('garbage only').error ?? '', /no agent message/);
+});
+
+test('buildCodexCliArgs: read-only sandbox, optional model and search', () => {
+  const base = { system: 'S', user: 'U', model: '' };
+  const plain = buildCodexCliArgs(base);
+  assert.deepEqual(plain, [
+    'exec', '--json', '--skip-git-repo-check', '--sandbox', 'read-only', 'S\n\nU',
+  ]);
+  const full = buildCodexCliArgs({ ...base, model: 'gpt-5.1', webTools: true });
+  assert.ok(full.includes('--model') && full.includes('gpt-5.1') && full.includes('--search'));
+});
+
+test('openai chat response: content, error envelope, rate limit', () => {
+  const ok = parseOpenAiChatResponse(
+    JSON.stringify({ choices: [{ message: { content: '{"relevant":true}' } }] }),
+  );
+  assert.match(ok.text ?? '', /"relevant":true/);
+
+  const quota = parseOpenAiChatResponse(
+    JSON.stringify({ error: { message: 'Rate limit reached for gpt-5-mini' } }),
+  );
+  assert.equal(quota.text, null);
+  assert.equal(quota.rateLimited, true);
+
+  const empty = parseOpenAiChatResponse(JSON.stringify({ choices: [{ message: { content: null } }] }));
+  assert.match(empty.error ?? '', /empty completion/);
+  assert.match(parseOpenAiChatResponse('<html>').error ?? '', /not JSON/);
+});
+
+test('buildCliEnv: base keys + own provider vars only', () => {
+  const source = {
+    PATH: '/usr/bin',
+    HOME: '/Users/x',
+    DATABASE_URL: 'postgres://secret',
+    TELEGRAM_BOT_TOKEN: 'tg-secret',
+    ANTHROPIC_API_KEY: 'sk-ant-secret',
+    CLAUDE_CODE_OAUTH_TOKEN: 'oauth-token',
+    GEMINI_API_KEY: 'gm-key',
+    OPENAI_API_KEY: 'sk-openai',
+  };
+  const claude = buildCliEnv(CLI_PROVIDER_ENV_KEYS.claude_code ?? [], source);
+  assert.equal(claude.PATH, '/usr/bin');
+  assert.equal(claude.CLAUDE_CODE_OAUTH_TOKEN, 'oauth-token');
+  // Precedence trap: the key must NEVER reach the claude_code child, or the
+  // CLI silently bills the API instead of the subscription.
+  assert.equal(claude.ANTHROPIC_API_KEY, undefined);
+  assert.equal(claude.DATABASE_URL, undefined);
+  assert.equal(claude.TELEGRAM_BOT_TOKEN, undefined);
+  assert.equal(claude.GEMINI_API_KEY, undefined);
+
+  const gemini = buildCliEnv(CLI_PROVIDER_ENV_KEYS.gemini_cli ?? [], source);
+  assert.equal(gemini.GEMINI_API_KEY, 'gm-key');
+  assert.equal(gemini.OPENAI_API_KEY, undefined);
+  assert.equal(gemini.CLAUDE_CODE_OAUTH_TOKEN, undefined);
+
+  const codex = buildCliEnv(CLI_PROVIDER_ENV_KEYS.codex_cli ?? [], source);
+  assert.equal(codex.OPENAI_API_KEY, 'sk-openai');
+  assert.equal(codex.GEMINI_API_KEY, undefined);
+});
+
+test('buildCliEnv skips unset keys instead of writing undefined', () => {
+  const env = buildCliEnv(['GEMINI_API_KEY'], { PATH: '/bin' });
+  assert.deepEqual(Object.keys(env), ['PATH']);
+});
+
+test('gemini args omit --model when empty (CLI default)', () => {
+  const args = buildGeminiCliArgs({ system: 'S', user: 'U', model: '' });
+  assert.ok(!args.includes('--model'));
 });
 
 test('buildClaudeCodeArgs disables tools by default and allow-lists web tools on request', () => {

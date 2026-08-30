@@ -1,7 +1,6 @@
 import type { ResumeMatch } from '@prisma/client';
-import { config } from '../config';
 import { logger } from '../logger';
-import { getAiProvider } from '../ai-provider';
+import { getAiRuntime } from '../ai-runtime';
 import {
   buildMatchPrompt,
   MATCH_MAX_TOKENS,
@@ -52,19 +51,21 @@ export async function matchResumeToJob(
       : undefined,
   };
   const prompt = buildMatchPrompt(resume.text, job, context);
-  const provider = getAiProvider();
-  const model = config.CLAUDE_MODEL_RESUME;
+  const ai = await getAiRuntime();
   for (let attempt = 0; attempt < PARSE_ATTEMPTS; attempt++) {
     const started = Date.now();
-    const text = await provider.complete({
+    const out = await ai.complete({
       ...prompt,
       maxTokens: MATCH_MAX_TOKENS,
       label: 'resume-match',
-      model,
+      role: 'resume',
       timeoutMs: MATCH_TIMEOUT_MS,
     });
-    if (text === null) return null;
-    const parsed = parseMatchResponse(text);
+    if (out === null) return null;
+    // The marker surfaces on the match card's meta line — the user can see
+    // that a fallback engine (not chain #1) produced this analysis.
+    const model = (out.model || out.providerId) + (out.viaFallback ? ' · fallback' : '');
+    const parsed = parseMatchResponse(out.text);
     if (parsed.ok) {
       // Deterministic guarantees on top of the model's judgment: stored facts
       // always win, and unclaimable terms point at the resume that has them.
@@ -98,7 +99,7 @@ export async function matchResumeToJob(
       return row;
     }
     logger.warn(
-      { jobId: job.id, resumeId: resume.id, attempt, error: parsed.error, raw: text.slice(0, 500) },
+      { jobId: job.id, resumeId: resume.id, attempt, error: parsed.error, raw: out.text.slice(0, 500) },
       'resume: match reply did not match schema',
     );
   }

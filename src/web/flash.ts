@@ -3,8 +3,10 @@
  * short-lived cookie. Shared by every route that redirects after a write.
  */
 
+export type FlashKind = 'ok' | 'warn' | 'err';
+
 export interface FlashMessage {
-  kind: 'ok' | 'err';
+  kind: FlashKind;
   text: string;
 }
 
@@ -30,7 +32,7 @@ export function parseFlashCookie(cookieHeader: string | undefined): FlashMessage
     if (
       parsed &&
       typeof parsed === 'object' &&
-      (parsed.kind === 'ok' || parsed.kind === 'err') &&
+      (parsed.kind === 'ok' || parsed.kind === 'warn' || parsed.kind === 'err') &&
       typeof parsed.text === 'string'
     ) {
       return parsed;

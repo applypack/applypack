@@ -38,7 +38,7 @@ function buildPdf(lines: string[], opts: { compress?: boolean } = {}): Buffer {
 }
 
 const RESUME_LINES = [
-  'Nazar Boyko - Senior Software Engineer',
+  'Alex Doe - Senior Software Engineer',
   'Ten years of PHP, Laravel and TypeScript in production.',
   'Built payment, CRM and e-commerce platforms end to end.',
   'PostgreSQL, Redis, Docker, AWS; CI/CD and observability.',

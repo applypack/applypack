@@ -25,8 +25,10 @@ import {
   Tr,
 } from '../ui';
 import { formatRelative } from '../format';
+import type { FlashMessage } from '../flash';
+import { sourceLabel } from '../source-names';
 import { formatPriorityRulesText, parsePriorityRules } from '../../priority-rules';
-import { ResumeUploadForm } from './resumes';
+import { SENIORITY_LEVELS } from '../../resume/profile-draft';
 
 interface MaskedTarget {
   id: number;
@@ -58,25 +60,79 @@ interface ResumeListItem {
   scannedAt: Date | null;
 }
 
+export interface AiEngineRow {
+  id: string;
+  label: string;
+  desc: string;
+  ok: boolean;
+  detail: string;
+  enabled: boolean;
+  /** Index in the priority chain; -1 when disabled. */
+  position: number;
+  classifierModel: string;
+  resumeModel: string;
+  classifierDefault: string;
+  resumeDefault: string;
+  /** Family model ids for the selects; empty = free-text input. */
+  options: string[];
+  freeTextModels: boolean;
+  /** Metered billing — every call costs money (vs a flat subscription). */
+  paid: boolean;
+}
+
+export interface AiStatusSummary {
+  active: string;
+  chain: string[];
+  skipped: string[];
+  usage7d: { label: string; classifier: number; resume: number }[];
+}
+
+/**
+ * Link-based sub-navigation (?tab=…): one route, server picks the sections.
+ * POST routes redirect back to the tab their setting lives on.
+ */
+export const SETTINGS_TABS = [
+  { id: 'general', label: 'General' },
+  { id: 'profile', label: 'Profile' },
+  { id: 'ai', label: 'AI engine' },
+  { id: 'notifications', label: 'Notifications' },
+  { id: 'sources', label: 'Sources' },
+] as const;
+
+export type SettingsTab = (typeof SETTINGS_TABS)[number]['id'];
+
+export function isSettingsTab(value: unknown): value is SettingsTab {
+  return SETTINGS_TABS.some((t) => t.id === value);
+}
+
 const REGION_OPTIONS = ['US', 'Americas', 'EU', 'UK', 'APAC', 'Worldwide'];
-const SENIORITY_OPTIONS = ['junior', 'mid', 'senior', 'staff', 'lead', 'principal'];
+
+/** What "Fill from resume" replaced — rendered as an unsaved-draft notice. */
+export interface ProfileDraftNotice {
+  resumeName: string;
+  changed: string[];
+  warnings: string[];
+}
 
 export interface SettingsProps {
   telegramEnabled: boolean;
   classifierMode: 'single' | 'two_stage';
   applicationTrackingEnabled: boolean;
   staleApplicationsDigestEnabled: boolean;
-  hnParserEnabled: boolean;
   disabledSources: string[];
   allSources: string[];
-  discoveryEnabled: boolean;
   fetchingEnabled: boolean;
+  aiEngines: AiEngineRow[];
+  aiStatus: AiStatusSummary;
   targets: MaskedTarget[];
   profiles: ProfileListItem[];
   activeProfile: Profile | null;
   availableTargets: AvailableTarget[];
   resumes: ResumeListItem[];
-  flash?: { kind: 'ok' | 'err'; text: string } | null;
+  activeTab: SettingsTab;
+  flash?: FlashMessage | null;
+  /** Set by the fill-from-resume POST: the editor shows draft values. */
+  profileDraft?: ProfileDraftNotice | null;
 }
 
 /** Stripe-style settings section: title + description left, controls right. */
@@ -99,26 +155,49 @@ export const SettingsPage: FC<SettingsProps> = ({
   classifierMode,
   applicationTrackingEnabled,
   staleApplicationsDigestEnabled,
-  hnParserEnabled,
   disabledSources,
   allSources,
-  discoveryEnabled,
   fetchingEnabled,
+  aiEngines,
+  aiStatus,
   targets,
   profiles,
   activeProfile,
   availableTargets,
   resumes,
+  activeTab,
   flash,
+  profileDraft,
 }) => (
   <Layout title="Settings" active="settings">
     <div class="w-full max-w-5xl">
       <PageHeader title="Settings">
-        Everything here lives in Postgres — no .env edits, no restarts. Toggles take effect on
-        the next cron tick.
+        Changes save the moment you click — no restarts needed. Dashboard actions use them
+        immediately; the background worker picks them up within the hour.
       </PageHeader>
       <Flash flash={flash} />
 
+      <nav
+        aria-label="Settings sections"
+        class="mb-6 inline-flex flex-wrap gap-0.5 rounded-lg border border-line bg-surface-overlay p-0.5"
+      >
+        {SETTINGS_TABS.map((t) => (
+          <a
+            href={`/settings?tab=${t.id}`}
+            aria-current={t.id === activeTab ? 'page' : undefined}
+            class={`rounded-[6px] px-3 py-1.5 text-[13px] transition-colors duration-150 ${
+              t.id === activeTab
+                ? 'bg-surface-raised font-medium text-ink shadow-sm'
+                : 'text-ink-muted hover:text-ink'
+            }`}
+          >
+            {t.label}
+          </a>
+        ))}
+      </nav>
+
+      {/* Sections are declared in one flow; activeTab picks which render. */}
+      {activeTab === 'general' && (
       <Section
         title="Job fetching"
         desc="The master switch for new-job ingestion. Everything else keeps running while paused."
@@ -133,12 +212,14 @@ export const SettingsPage: FC<SettingsProps> = ({
             enableText="Resume"
             disableText="Pause"
           >
-            Hourly fetch + monthly HN pull. Pausing stops new jobs and alerts without touching
-            Docker; the dashboard, digest, cleanup and discovery probe keep running.
+            Hourly fetch + monthly HN pull. Pausing stops new jobs and alerts; the dashboard,
+            digests and cleanup keep running.
           </ToggleRow>
         </Card>
       </Section>
+      )}
 
+      {activeTab === 'profile' && (
       <Section
         title="Active profile"
         desc="What a matching job looks like: stack, role types, regions, salary floor. The classifier scores every job against this."
@@ -169,9 +250,61 @@ export const SettingsPage: FC<SettingsProps> = ({
             <Button variant="violet">Re-classify all jobs</Button>
           </ActionForm>
         </div>
+        {activeProfile && activeProfile.stackRequired.length === 0 && activeProfile.roleTypes.length === 0 && (
+          <div class="rounded-md border border-warn/25 bg-warn/5 px-3.5 py-2.5 text-[13px] leading-5 text-warn">
+            This profile lists no required stack and no role types yet, so every fetched job
+            goes to the AI classifier.{' '}
+            {resumes.length > 0 ? (
+              'Fastest fix: fill the fields from a resume below.'
+            ) : (
+              <>
+                Fastest fix:{' '}
+                <a href="/resumes" class="font-medium underline">
+                  upload a resume
+                </a>{' '}
+                and fill the fields from it here.
+              </>
+            )}
+          </div>
+        )}
+        {activeProfile && resumes.length > 0 && (
+          <Card>
+            <div class="mb-1 text-[13px] font-medium text-ink">Fill from a resume</div>
+            <Hint class="mb-3 max-w-prose">
+              AI maps the resume's scanned stack onto the profile — primary stack → required,
+              other skills → nice-to-have, plus role types and seniority. Re-scans the resume
+              when needed. The result appears below as a draft; nothing is saved until you
+              press "Save profile".
+            </Hint>
+            <form
+              method="post"
+              action={`/settings/profiles/${activeProfile.id}/fill-from-resume`}
+              class="flex flex-wrap items-center gap-2"
+            >
+              <Select
+                name="resumeId"
+                class="!w-auto min-w-0 max-w-full"
+                aria-label="Resume to fill the profile from"
+              >
+                {resumes.map((r) => (
+                  <option value={r.id} selected={r.isDefault}>
+                    {r.name}
+                    {r.isDefault ? ' (default)' : ''}
+                    {r.scannedAt ? '' : ' (not scanned yet)'}
+                  </option>
+                ))}
+              </Select>
+              <Button variant="violet">Fill from resume</Button>
+            </form>
+          </Card>
+        )}
         {activeProfile ? (
           <Card>
-            <ProfileEditor profile={activeProfile} availableTargets={availableTargets} />
+            <ProfileEditor
+              profile={activeProfile}
+              availableTargets={availableTargets}
+              draft={profileDraft}
+            />
           </Card>
         ) : (
           <Empty>No active profile. Pick one above or create a new one.</Empty>
@@ -211,6 +344,40 @@ export const SettingsPage: FC<SettingsProps> = ({
           </Card>
         )}
       </Section>
+      )}
+
+      {activeTab === 'ai' && (
+      <>
+      <Section
+        title="AI engines"
+        desc="Your AI subscriptions and API keys, in priority order. #1 serves every call; when it errors or hits a rate limit, the next enabled engine takes over automatically. Setup guide: docs/ai-engines.md in the repo."
+      >
+        <div class="space-y-3">
+          <div class="text-[13px] text-ink-muted">
+            Active now: <span class="font-medium text-ink">{aiStatus.active}</span>
+            {aiStatus.chain.length > 1 && (
+              <span> → fallback: {aiStatus.chain.slice(1).join(' → ')}</span>
+            )}
+          </div>
+          <div class="text-[13px] text-ink-faint">
+            Last 7 days:{' '}
+            {aiStatus.usage7d.length === 0
+              ? 'no AI calls recorded yet'
+              : aiStatus.usage7d
+                  .map((u) => `${u.label} ${u.classifier + u.resume} (${u.classifier} classify · ${u.resume} resume)`)
+                  .join(' — ')}
+          </div>
+          {aiStatus.skipped.length > 0 && (
+            <div class="rounded-md border border-warn/25 bg-warn/5 px-3.5 py-2.5 text-[13px] leading-5 text-warn">
+              Enabled but skipped for now: {aiStatus.skipped.join(', ')} — not usable on this
+              host yet. Each joins the chain automatically once its key or login appears.
+            </div>
+          )}
+          {aiEngines.map((e) => (
+            <AiEngineCard engine={e} />
+          ))}
+        </div>
+      </Section>
 
       <Section
         title="Classifier"
@@ -241,98 +408,10 @@ export const SettingsPage: FC<SettingsProps> = ({
           </form>
         </Card>
       </Section>
+      </>
+      )}
 
-      <Section
-        title="Job sources"
-        desc="Disable a whole source family with one click — handy when an aggregator gets noisy. Per-company toggles on the Companies page still apply."
-      >
-        <Card>
-          <form method="post" action="/settings/sources" class="space-y-4">
-            <div class="flex flex-wrap gap-1.5">
-              {allSources.map((s) => (
-                <PillCheckbox name="enabled" value={s} checked={!disabledSources.includes(s)}>
-                  {s}
-                </PillCheckbox>
-              ))}
-            </div>
-            <Button variant="secondary">Save sources</Button>
-          </form>
-        </Card>
-      </Section>
-
-      <Section
-        title="Resumes"
-        desc="Upload the resumes you send out. Every job page can then compare one against the posting."
-      >
-        <Card>
-          {resumes.length > 0 && (
-            <ul class="mb-4 divide-y divide-line rounded-md border border-line">
-              {resumes.map((r) => (
-                <li class="flex flex-wrap items-center gap-2 px-3.5 py-2.5 text-sm">
-                  <a
-                    href={`/resumes/${r.id}`}
-                    class="font-medium text-ink transition-colors duration-150 hover:text-accent-strong"
-                  >
-                    {r.name}
-                  </a>
-                  {r.isDefault && <Badge tone="ok">default</Badge>}
-                  {!r.scannedAt && <Badge tone="warn">not scanned</Badge>}
-                </li>
-              ))}
-            </ul>
-          )}
-          <ResumeUploadForm />
-          <Hint class="mt-3">
-            <a
-              href="/resumes"
-              class="font-medium text-accent-strong hover:text-accent-deep"
-            >
-              Manage resumes →
-            </a>
-          </Hint>
-        </Card>
-      </Section>
-
-      <Section
-        title="Discovery"
-        desc="Finding new company boards automatically from HN threads."
-      >
-        <Card>
-          <div class="space-y-5">
-            <ToggleRow
-              label="Auto-discovery"
-              enabled={discoveryEnabled}
-              action="/settings/discovery-toggle"
-            >
-              When the HN parser sees a Greenhouse / Lever / Ashby URL in a comment, the company
-              lands on the Discovery page as a candidate. A weekly cron re-probes pending
-              candidates so the job count stays fresh.
-            </ToggleRow>
-            <div class="border-t border-line pt-5">
-              <ToggleRow
-                label={'HN "Who is hiring" parser'}
-                enabled={hnParserEnabled}
-                action="/settings/hn-parser-toggle"
-                extra={
-                  <ActionForm
-                    action="/settings/hn-run"
-                    confirm="Pull the latest HN Who-is-hiring thread now? Takes 1-2 minutes and spends AI credit."
-                  >
-                    <Button size="sm" variant="violet" disabled={!hnParserEnabled}>
-                      Run now
-                    </Button>
-                  </ActionForm>
-                }
-              >
-                Monthly cron parses the latest "Ask HN: Who is hiring?" thread (300-500 comments)
-                and runs the structured ones through the same filter → classify → alert pipeline.
-                Many small startups only post there.
-              </ToggleRow>
-            </div>
-          </div>
-        </Card>
-      </Section>
-
+      {activeTab === 'general' && (
       <Section
         title="Application tracking"
         desc="The funnel board and the nudge that keeps it honest."
@@ -360,7 +439,9 @@ export const SettingsPage: FC<SettingsProps> = ({
           </div>
         </Card>
       </Section>
+      )}
 
+      {activeTab === 'notifications' && (
       <Section
         title="Notifications"
         desc="Telegram bots and chats that receive job alerts."
@@ -454,32 +535,202 @@ export const SettingsPage: FC<SettingsProps> = ({
             </div>
           </form>
           <Hint class="mt-3">
-            The bot token is validated (getMe + sendMessage) before saving.
+            The token is checked and a test message is sent before saving.
           </Hint>
         </Card>
       </Section>
+      )}
+
+      {activeTab === 'sources' && (
+      <Section
+        title="Job sources"
+        desc="Disable a whole source family with one click — handy when an aggregator gets noisy. Per-company toggles on the Companies page still apply."
+      >
+        <Card>
+          <form method="post" action="/settings/sources" class="space-y-4">
+            <div class="flex flex-wrap gap-1.5">
+              {allSources.map((s) => (
+                <PillCheckbox name="enabled" value={s} checked={!disabledSources.includes(s)}>
+                  {sourceLabel(s)}
+                </PillCheckbox>
+              ))}
+            </div>
+            <Hint>
+              Keep the aggregators on — they carry the long tail of companies not tracked on the
+              Companies page. The profile filter and classifier do the narrowing; turning
+              aggregators off usually means near-zero new jobs.
+            </Hint>
+            <Button variant="secondary">Save sources</Button>
+          </form>
+        </Card>
+      </Section>
+      )}
+
+      {activeTab === 'general' && (
+      <Section
+        title="Resumes"
+        desc="The resumes you send out. Every job page can compare one against the posting."
+      >
+        <Card>
+          {resumes.length > 0 ? (
+            <ul class="divide-y divide-line rounded-md border border-line">
+              {resumes.map((r) => (
+                <li class="flex flex-wrap items-center gap-2 px-3.5 py-2.5 text-sm">
+                  <a
+                    href={`/resumes/${r.id}`}
+                    class="font-medium text-ink transition-colors duration-150 hover:text-accent-strong"
+                  >
+                    {r.name}
+                  </a>
+                  {r.isDefault && <Badge tone="ok">default</Badge>}
+                  {!r.scannedAt && <Badge tone="warn">not scanned</Badge>}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <Empty>No resumes yet.</Empty>
+          )}
+          <Hint class="mt-3">
+            <a href="/resumes" class="font-medium text-accent-strong hover:text-accent-deep">
+              Upload &amp; manage resumes →
+            </a>
+          </Hint>
+        </Card>
+      </Section>
+      )}
     </div>
     <script dangerouslySetInnerHTML={{ __html: SETTINGS_JS }} />
   </Layout>
 );
 
+const AiEngineCard: FC<{ engine: AiEngineRow }> = ({ engine: e }) => (
+  <Card class={e.enabled ? '' : 'opacity-75'}>
+    <div class="flex flex-wrap items-center gap-2">
+      {e.enabled && <Badge tone="violet">#{e.position + 1}</Badge>}
+      <span class="text-sm font-medium text-ink">{e.label}</span>
+      <Badge tone={e.ok ? 'ok' : 'neutral'}>{e.ok ? 'available' : 'not detected'}</Badge>
+      {e.paid && <Badge tone="warn">pay per token</Badge>}
+      <div class="ml-auto flex flex-wrap justify-end gap-2">
+        {e.enabled && e.position > 0 && (
+          <ActionForm action="/settings/ai/move" hidden={{ provider: e.id }}>
+            <Button size="sm" variant="secondary" title="Move one step up the priority order">
+              ↑ Priority
+            </Button>
+          </ActionForm>
+        )}
+        <ActionForm action="/settings/ai/test" hidden={{ provider: e.id }}>
+          <Button size="sm" variant="violet" title="Run a tiny live call through this engine">
+            Test
+          </Button>
+        </ActionForm>
+        <ActionForm action="/settings/ai/enable" hidden={{ provider: e.id }}>
+          <Button size="sm" variant={e.enabled ? 'secondary' : 'primary'}>
+            {e.enabled ? 'Disable' : 'Enable'}
+          </Button>
+        </ActionForm>
+      </div>
+    </div>
+    <p class="mt-1.5 text-[13px] leading-5 text-ink-faint">
+      {e.desc} ({e.detail})
+    </p>
+    {e.enabled && (
+      <form
+        method="post"
+        action="/settings/ai/models"
+        class="mt-4 grid gap-3 border-t border-line pt-4 sm:grid-cols-[1fr_1fr_auto] sm:items-end"
+      >
+        <input type="hidden" name="provider" value={e.id} />
+        <Field label="Classifier model" hint="Scores every fetched job — cheap and frequent.">
+          <ModelPicker
+            name="classifier"
+            value={e.classifierModel}
+            fallback={e.classifierDefault}
+            options={e.options}
+            freeText={e.freeTextModels}
+          />
+        </Field>
+        <Field label="Resume model" hint="Resume scan, match, verification — judgment calls.">
+          <ModelPicker
+            name="resume"
+            value={e.resumeModel}
+            fallback={e.resumeDefault}
+            options={e.options}
+            freeText={e.freeTextModels}
+          />
+        </Field>
+        <Button size="sm" variant="secondary">
+          Save models
+        </Button>
+      </form>
+    )}
+  </Card>
+);
+
+/** Closed families get a select (no wrong-family ids possible); base-URL
+ *  engines (openai_api) get free text — any model id may be legal there. */
+const ModelPicker: FC<{
+  name: string;
+  value: string;
+  fallback: string;
+  options: string[];
+  freeText: boolean;
+}> = ({ name, value, fallback, options, freeText }) =>
+  freeText ? (
+    <Input type="text" name={name} value={value} placeholder={fallback || 'model id'} mono />
+  ) : (
+    <Select name={name}>
+      <option value="" selected={value === ''}>
+        Default — {fallback}
+      </option>
+      {options.map((m) => (
+        <option value={m} selected={value === m}>
+          {m}
+        </option>
+      ))}
+    </Select>
+  );
+
 const ProfileEditor: FC<{
   profile: Profile;
   availableTargets: AvailableTarget[];
-}> = ({ profile, availableTargets }) => (
+  draft?: ProfileDraftNotice | null;
+}> = ({ profile, availableTargets, draft }) => {
+  const rulesCount = parsePriorityRules(profile.priorityRules).length;
+  // Open the advanced block only when something in it is already customised.
+  const advancedOpen =
+    Boolean(profile.notes && profile.notes.trim().length > 0) ||
+    profile.onsiteCities.length > 0 ||
+    rulesCount > 0 ||
+    profile.minSalaryUsd > 0 ||
+    profile.telegramTargetId !== null;
+  return (
   <form
     method="post"
     action={`/settings/profiles/${profile.id}/save`}
     class="space-y-5"
     data-dirty-watch
   >
+    {draft && (
+      <div
+        role="status"
+        class="rounded-md border border-violet/25 bg-violet/5 px-3.5 py-2.5 text-[13px] leading-5 text-violet"
+      >
+        <span class="font-medium">
+          AI prefilled this profile from resume "{draft.resumeName}"
+        </span>{' '}
+        — replaced: {draft.changed.join(', ')}.
+        {draft.warnings.length > 0 && <> Note: {draft.warnings.join('; ')}.</>}{' '}
+        Nothing is saved yet — review the fields and press "Save profile" or "Save &amp;
+        re-classify".
+      </div>
+    )}
     <Field label="Name" class="max-w-md">
       <Input type="text" name="name" required value={profile.name} />
     </Field>
 
     <TagListInput
       label="Tech stack — required (real technologies)"
-      hint="Languages / frameworks the role must actually use: php, laravel, typescript, react, go. Not role types."
+      hint="Languages / frameworks the role must actually use: typescript, react, python, go, php. Not role types."
       name="stackRequired"
       values={profile.stackRequired}
     />
@@ -495,26 +746,11 @@ const ProfileEditor: FC<{
       name="stackNiceToHave"
       values={profile.stackNiceToHave}
     />
-    <TagListInput
-      label="Stack — exclude (auto-reject in title)"
-      hint="If the title contains any of these, the job is dropped before the classifier runs."
-      name="stackExclude"
-      values={profile.stackExclude}
-    />
-
-    <Field
-      label="Notes for the classifier"
-      hint='Free-form context: "AI-adjacent roles preferred", "open to first-time-manager positions", "EU-friendly time zones".'
-    >
-      <Textarea name="notes" rows={3}>
-        {profile.notes ?? ''}
-      </Textarea>
-    </Field>
 
     <fieldset>
       <legend class="text-[13px] font-medium text-ink">Seniority</legend>
       <div class="mt-2 flex flex-wrap gap-1.5">
-        {SENIORITY_OPTIONS.map((s) => (
+        {SENIORITY_LEVELS.map((s) => (
           <PillCheckbox name="seniority" value={s} checked={profile.seniority.includes(s)}>
             {s}
           </PillCheckbox>
@@ -542,50 +778,90 @@ const ProfileEditor: FC<{
           ))}
         </div>
       </div>
-      <TagListInput
-        label="On-site cities (OK to commute)"
-        hint='One per line: "Austin, TX", "Berlin".'
-        name="onsiteCities"
-        values={profile.onsiteCities}
-        rows={2}
-      />
     </fieldset>
 
-    <PriorityRulesEditor profile={profile} />
+    <details class="rounded-md border border-line" open={advancedOpen}>
+      <summary class="cursor-pointer select-none rounded-md px-4 py-3 text-[13px] font-medium text-ink transition-colors duration-150 hover:text-accent-strong">
+        Advanced — excludes, notes, priority rules, thresholds
+        <span class="ml-2 font-normal text-ink-faint">
+          Defaults work for most people; open this to fine-tune.
+        </span>
+      </summary>
+      <div class="space-y-5 border-t border-line px-4 py-4">
+        <TagListInput
+          label="Stack — exclude (auto-reject in title)"
+          hint="If the title contains any of these, the job is dropped before the classifier runs."
+          name="stackExclude"
+          values={profile.stackExclude}
+        />
 
-    <div class="grid gap-4 sm:grid-cols-3">
-      <Field label="Min salary (USD/year)" hint="0 = no salary filter.">
-        <Input type="number" name="minSalaryUsd" min="0" step="1000" value={profile.minSalaryUsd} />
-      </Field>
-      <Field label="Min fit score (0-100)">
-        <Input type="number" name="minFitScore" min="0" max="100" value={profile.minFitScore} />
-      </Field>
-      <Field label="Telegram target">
-        <Select name="telegramTargetId">
-          <option value="" selected={profile.telegramTargetId === null}>
-            (broadcast to all active)
-          </option>
-          {availableTargets.map((t) => (
-            <option value={t.id} selected={profile.telegramTargetId === t.id}>
-              {t.name}
-              {t.active ? '' : ' (inactive)'}
-            </option>
-          ))}
-        </Select>
-      </Field>
-    </div>
+        <Field
+          label="Notes for the classifier"
+          hint='Free-form context: "AI-adjacent roles preferred", "open to first-time-manager positions", "EU-friendly time zones".'
+        >
+          <Textarea name="notes" rows={3}>
+            {profile.notes ?? ''}
+          </Textarea>
+        </Field>
+
+        <TagListInput
+          label="On-site cities (OK to commute)"
+          hint='One per line: "Austin, TX", "Berlin".'
+          name="onsiteCities"
+          values={profile.onsiteCities}
+          rows={2}
+        />
+
+        <PriorityRulesEditor profile={profile} />
+
+        <div class="grid gap-4 sm:grid-cols-3">
+          <Field label="Min salary (USD/year)" hint="0 = no salary filter.">
+            <Input
+              type="number"
+              name="minSalaryUsd"
+              min="0"
+              step="1000"
+              value={profile.minSalaryUsd}
+            />
+          </Field>
+          <Field label="Min fit score (0-100)" hint="Jobs below it are stored, not alerted.">
+            <Input type="number" name="minFitScore" min="0" max="100" value={profile.minFitScore} />
+          </Field>
+          <Field label="Telegram target">
+            <Select name="telegramTargetId">
+              <option value="" selected={profile.telegramTargetId === null}>
+                (broadcast to all active)
+              </option>
+              {availableTargets.map((t) => (
+                <option value={t.id} selected={profile.telegramTargetId === t.id}>
+                  {t.name}
+                  {t.active ? '' : ' (inactive)'}
+                </option>
+              ))}
+            </Select>
+          </Field>
+        </div>
+      </div>
+    </details>
 
     <div class="flex flex-wrap items-center gap-3 border-t border-line pt-4">
       <Button size="lg">Save profile</Button>
-      <Button size="lg" variant="violet" name="action" value="save-and-reclassify">
+      <Button
+        size="lg"
+        variant="violet"
+        name="action"
+        value="save-and-reclassify"
+        onclick="return confirm('Save the profile and re-classify all jobs (except APPLIED)? Takes 2-5 minutes and spends AI credit.')"
+      >
         Save &amp; re-classify
       </Button>
-      <span data-dirty-indicator hidden class="text-[13px] font-medium text-warn">
+      <span data-dirty-indicator hidden={!draft} class="text-[13px] font-medium text-warn">
         Unsaved changes
       </span>
     </div>
   </form>
-);
+  );
+};
 
 /**
  * Newline-joined list in a textarea — the transport the backend already
@@ -631,7 +907,7 @@ const PriorityRulesEditor: FC<{ profile: Profile }> = ({ profile }) => {
         id="priorityRules"
         name="priorityRules"
         rows={Math.max(3, rules.length + 1)}
-        placeholder="PHP remote-US | php | Remote US,United States,USA,Worldwide | 90"
+        placeholder="Python remote-US | python | Remote US,United States,USA,Worldwide | 90"
         class="mt-1.5"
         mono
       >

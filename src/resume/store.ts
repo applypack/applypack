@@ -126,6 +126,7 @@ export async function saveResumeScan(id: number, scan: ResumeScan): Promise<void
       seniority: scan.seniority,
       yearsExperience: scan.years_experience,
       skills: scan.skills,
+      primarySkills: scan.primary_skills,
       roleTypes: scan.role_types,
       summary: scan.summary,
       issues: scan.issues as Prisma.InputJsonValue,

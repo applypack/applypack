@@ -34,7 +34,7 @@ Constraints that shaped the decision:
   (`src/resume/prompts.ts:MATCH_SYSTEM`) that returns JSON: keywords with
   `present | add | cannot_claim`, an `actions` list (section, where, what,
   why, priority), strengths, red flags, score. `cannot_claim` replaces the
-  skill's "ask Nazar mid-run" — the truthfulness rule is enforced by the
+  skill's "ask the user mid-run" — the truthfulness rule is enforced by the
   schema, and the user sees what was not claimed.
 - **Model:** `CLAUDE_MODEL_RESUME` (default `claude-opus-5`), passed per
   request through a new optional `AiRequest.model`. The classifier keeps

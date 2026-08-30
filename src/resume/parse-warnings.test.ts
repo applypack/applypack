@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import { parseWarnings } from './parse-warnings';
 
 const CLEAN = [
-  'Nazar Boyko — Senior Backend Engineer',
-  'boyko@example.com · +1 415 555 0100 · github.com/nazboyko',
+  'Alex Doe — Senior Backend Engineer',
+  'alex@example.com · +1 415 555 0100 · github.com/alexdoe',
   '',
   'Summary',
   'Backend engineer with ten years of PHP and Laravel, shipping payment systems.',
@@ -32,7 +32,7 @@ test('replacement and control characters are counted', () => {
 });
 
 test('missing contact details are flagged individually', () => {
-  const noContact = CLEAN.replace('boyko@example.com · +1 415 555 0100 · github.com/nazboyko', 'contact on request');
+  const noContact = CLEAN.replace('alex@example.com · +1 415 555 0100 · github.com/alexdoe', 'contact on request');
   const w = codes(noContact);
   assert.ok(w.includes('no_email'));
   assert.ok(w.includes('no_phone'));
