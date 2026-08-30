@@ -1,5 +1,12 @@
-import { getAiProvider } from '../ai-provider';
+import { getAiProvider, getAiProviderById, type AiProvider } from '../ai-provider';
 import { config } from '../config';
+import {
+  AI_PROVIDER_IDS,
+  AI_PROVIDER_LABELS,
+  defaultModelFor,
+  isAiProviderId,
+} from '../ai-engine';
+import { getAiEngineEnv, probeAiProviders } from '../ai-runtime';
 import { buildMatchPrompt, MATCH_MAX_TOKENS, parseMatchResponse, type MatchContext } from '../resume/prompts';
 import { scoreMatch } from '../resume/score';
 import { logger } from '../logger';
@@ -10,6 +17,12 @@ import { logger } from '../logger';
  * injection — each run once through the real provider, parsed, scored
  * deterministically and checked against expectations. Run after any
  * MATCH_SYSTEM / scoring change:  npm run bench:resume
+ *
+ * Cross-engine mode (docs/ai-engine-improvements.md item 4):
+ *   npm run bench:resume -- --list-engines      # who could run it (no AI spend)
+ *   npm run bench:resume -- --engine gemini_cli # one engine
+ *   npm run bench:resume -- --engine all        # every probe-ok engine
+ * Default (no flags) stays on the .env provider + CLAUDE_MODEL_RESUME.
  */
 
 const LARAVEL_RESUME = `Alex Example — Senior Backend Engineer
@@ -96,13 +109,12 @@ async function runFixture(
   expect: (r: ReturnType<typeof parseMatchResponse>, checks: Check[]) => void,
   context: MatchContext = {},
 ): Promise<Check[]> {
-  const provider = getAiProvider();
   const started = Date.now();
-  const text = await provider.complete({
+  const text = await benchProvider.complete({
     ...buildMatchPrompt(resume, job, context),
     maxTokens: MATCH_MAX_TOKENS,
     label: `bench:${name}`,
-    model: config.CLAUDE_MODEL_RESUME,
+    model: benchModel,
     timeoutMs: 5 * 60_000,
   });
   const checks: Check[] = [];
@@ -124,7 +136,11 @@ function scoreOf(r: Extract<ReturnType<typeof parseMatchResponse>, { ok: true }>
   return scoreMatch(r.data.keywords, r.data.alignment, r.data.red_flags.length);
 }
 
-async function main(): Promise<void> {
+// Which backend/model the fixtures run on; main() sets these per engine.
+let benchProvider: AiProvider = getAiProvider();
+let benchModel: string = config.CLAUDE_MODEL_RESUME;
+
+async function runSuite(): Promise<Check[]> {
   const all: Check[] = [];
 
   all.push(
@@ -205,13 +221,70 @@ async function main(): Promise<void> {
     )),
   );
 
+  return all;
+}
+
+function reportSuite(tag: string, all: Check[]): number {
   let failed = 0;
   for (const c of all) {
     if (!c.ok) failed++;
     // eslint-style single line per check; the bench is a human-run smoke tool.
-    logger.info({ ok: c.ok, detail: c.detail }, `bench: ${c.ok ? 'PASS' : 'FAIL'} — ${c.name}`);
+    logger.info({ ok: c.ok, detail: c.detail }, `bench[${tag}]: ${c.ok ? 'PASS' : 'FAIL'} — ${c.name}`);
   }
-  logger.info({ total: all.length, failed }, failed === 0 ? 'bench: all green' : 'bench: FAILURES');
+  logger.info(
+    { engine: tag, total: all.length, failed },
+    failed === 0 ? `bench[${tag}]: all green` : `bench[${tag}]: FAILURES`,
+  );
+  return failed;
+}
+
+async function main(): Promise<void> {
+  const argv = process.argv.slice(2);
+  if (argv.includes('--list-engines')) {
+    const statuses = await probeAiProviders();
+    for (const id of AI_PROVIDER_IDS) {
+      logger.info(
+        { engine: id, ok: statuses[id].ok, detail: statuses[id].detail },
+        `bench: ${AI_PROVIDER_LABELS[id]} — ${statuses[id].ok ? 'ready' : 'not usable'}`,
+      );
+    }
+    return;
+  }
+
+  const engineIdx = argv.indexOf('--engine');
+  const engineArg = engineIdx !== -1 ? argv[engineIdx + 1] : undefined;
+  let targets: { tag: string; provider: AiProvider; model: string }[];
+  if (engineArg === 'all') {
+    const statuses = await probeAiProviders();
+    const env = getAiEngineEnv();
+    targets = AI_PROVIDER_IDS.filter((id) => statuses[id].ok).map((id) => ({
+      tag: id,
+      provider: getAiProviderById(id),
+      model: defaultModelFor(id, 'resume', env),
+    }));
+    const skipped = AI_PROVIDER_IDS.filter((id) => !statuses[id].ok);
+    if (skipped.length > 0) logger.warn({ skipped }, 'bench: engines not usable, skipped');
+  } else if (engineArg !== undefined) {
+    if (!isAiProviderId(engineArg)) {
+      logger.error({ engine: engineArg, known: AI_PROVIDER_IDS }, 'bench: unknown engine id');
+      process.exit(2);
+    }
+    targets = [{
+      tag: engineArg,
+      provider: getAiProviderById(engineArg),
+      model: defaultModelFor(engineArg, 'resume', getAiEngineEnv()),
+    }];
+  } else {
+    targets = [{ tag: config.AI_PROVIDER, provider: getAiProvider(), model: config.CLAUDE_MODEL_RESUME }];
+  }
+
+  let failed = 0;
+  for (const t of targets) {
+    benchProvider = t.provider;
+    benchModel = t.model;
+    logger.info({ engine: t.tag, model: t.model || '(engine default)' }, 'bench: engine start');
+    failed += reportSuite(t.tag, await runSuite());
+  }
   process.exit(failed === 0 ? 0 : 1);
 }
 
