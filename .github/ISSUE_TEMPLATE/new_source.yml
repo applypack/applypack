@@ -1,0 +1,35 @@
+name: New job source proposal
+description: Propose a job board or ATS for the fetch rotation
+labels: [enhancement, source]
+body:
+  - type: input
+    id: name
+    attributes:
+      label: Source name and site
+      placeholder: Golang Cafe — golang.cafe
+    validations:
+      required: true
+  - type: input
+    id: endpoint
+    attributes:
+      label: Official API or RSS endpoint
+      description: Public, documented, no auth wall.
+      placeholder: https://example.com/api/jobs.rss
+    validations:
+      required: true
+  - type: textarea
+    id: sample
+    attributes:
+      label: Sample response
+      description: A trimmed JSON/XML sample of one job entry, if you have it.
+      render: text
+  - type: checkboxes
+    id: policy
+    attributes:
+      label: Sourcing policy
+      options:
+        - label: >
+            This is an official public API or RSS feed, not scraping
+            (ADR 0005). LinkedIn / Indeed / Glassdoor / Workday /
+            Wellfound proposals are closed on sight.
+          required: true
