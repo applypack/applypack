@@ -6,7 +6,7 @@ import type { FlashMessage } from '../flash';
 
 export const JobNewPage: FC<{ flash?: FlashMessage | null }> = ({ flash }) => (
   <Layout title="Paste a job" active="jobs">
-    <div class="w-full max-w-3xl">
+    <div class="w-full">
       <PageHeader title="Paste a job" back={{ href: '/jobs', label: 'All jobs' }}>
         For postings the fetchers don't see (LinkedIn, a recruiter's email, a friend's
         referral). It becomes a normal job: scored against your profile, then Verify checks the

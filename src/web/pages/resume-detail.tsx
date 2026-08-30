@@ -95,7 +95,7 @@ export const ResumeDetailPage: FC<ResumeDetailProps> = ({ resume, matches, warni
                 </span>
               </div>
               {resume.summary && (
-                <p class="max-w-prose text-sm leading-6 text-ink">{resume.summary}</p>
+                <p class="text-sm leading-6 text-ink">{resume.summary}</p>
               )}
               <TagRow label="Roles" items={resume.roleTypes} tone="info" />
               <TagRow label="Skills" items={resume.skills} tone="ok" />
@@ -129,7 +129,7 @@ export const ResumeDetailPage: FC<ResumeDetailProps> = ({ resume, matches, warni
         </Card>
       </div>
 
-      <Card class="mt-4 max-w-3xl">
+      <Card class="mt-4">
         <SectionTitle>Upload a new version</SectionTitle>
         <form
           method="post"

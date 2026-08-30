@@ -166,7 +166,7 @@ export const JobDetailPage: FC<JobDetailProps> = ({
           <Card>
             <SectionTitle>Classifier</SectionTitle>
             {job.summary && (
-              <p class="mb-3 max-w-prose text-sm leading-6 text-ink">{job.summary}</p>
+              <p class="mb-3 text-sm leading-6 text-ink">{job.summary}</p>
             )}
             <dl class="space-y-2">
               <TagRow label="Tech" items={job.techMatch} tone="ok" />
@@ -186,9 +186,9 @@ export const JobDetailPage: FC<JobDetailProps> = ({
 
         <Card>
           <SectionTitle>Description</SectionTitle>
-          <pre class="max-w-[75ch] whitespace-pre-wrap break-words font-sans text-sm leading-6 text-ink-muted">
+          <div class="whitespace-pre-line break-words text-sm leading-6 text-ink-muted">
             {job.description || '(empty)'}
-          </pre>
+          </div>
         </Card>
       </div>
     </div>

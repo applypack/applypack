@@ -142,13 +142,13 @@ export const ResumesPage: FC<{
       </Card>
     )}
 
-    <Card class="max-w-3xl">
+    <Card>
       <SectionTitle>Upload a resume</SectionTitle>
       <ResumeUploadForm />
     </Card>
 
     {facts.length > 0 && (
-      <Card class="mt-4 max-w-3xl">
+      <Card class="mt-4">
         <SectionTitle>Confirmed facts</SectionTitle>
         <Hint class="mb-3">
           Your answers to "do you have this?" questions from comparisons. They feed every future

@@ -124,9 +124,7 @@ export const TargetPage: FC<TargetPageProps> = ({
   };
   return (
     <Layout title={`Resume match · ${job.title}`} active="jobs">
-      {/* The layout main is unbounded; without a cap this workspace scatters on
-          ultra-wide monitors. 2xl (1536px) keeps two panes comfortable. */}
-      <div class="mx-auto w-full max-w-screen-2xl">
+      <div class="w-full">
       <nav aria-label="Breadcrumb" class="mb-1.5 flex items-center gap-1.5 text-[13px] text-ink-faint">
         <a href="/jobs" class="transition-colors duration-150 hover:text-ink">
           Jobs
@@ -219,7 +217,7 @@ export const TargetPage: FC<TargetPageProps> = ({
           </div>
 
           {/* Why this score: the stack verdict + the deterministic components. */}
-          <div class="min-w-0 max-w-prose space-y-1.5">
+          <div class="min-w-0 space-y-1.5">
             <p class="text-sm leading-6 text-ink">{match.summary}</p>
             {breakdown && <ScoreBreakdownChips bd={breakdown} />}
             {(actions.length > 0 || removals.length > 0) && (

@@ -107,6 +107,7 @@ When the question is **"where does X live?"**, save yourself a `find`:
 | What | File |
 | --- | --- |
 | HTTP retry, timeout, default User-Agent | `src/http.ts` |
+| HTML → plaintext (entities, paragraphs, bullets) | `src/http.ts:stripHtml` + `decodeHtmlEntities` (gotcha 12) |
 | Pure helpers (parsing, hashing, masking) | `src/text-utils.ts` |
 | The cron list (6 schedules) | `src/index.ts:registerCron` |
 | What runs on container boot | `src/init.ts` |
@@ -266,6 +267,28 @@ GitLab CI/CD the posting wanted. Removals now carry two hard rules
 (PROTECTED contact line; KEEP WANTED KEYWORDS with itemised drop/keep
 lists) — guard test "removals rules protect the contact line".
 
+### 12. stripHtml: decode entities FIRST, and never re-run it on its own output
+
+Three lessons paid for with one broken evening (2026-08-30):
+
+- **Greenhouse ships job bodies HTML-escaped** (`&lt;p&gt;…`). The old
+  strip-tags-then-decode order found no tags to strip, then the decode step
+  rematerialised them — all 535 stored Greenhouse descriptions carried raw
+  `<div class="content-intro">…` markup as visible text. Decode first,
+  and decode `&amp;` LAST so `&amp;lt;` stays a literal `&lt;` instead of
+  double-decoding into a phantom tag.
+- **Line structure comes from block tags, not source newlines.** Raw `\n`
+  in HTML is whitespace; stripHtml collapses it, then rebuilds paragraphs
+  from `<p>/<div>/<h*>` boundaries, `<br>` and `<li>` (→ `• `). That is what
+  makes descriptions readable — see the tests in `src/http.test.ts`.
+- **stripHtml is NOT idempotent on its own plaintext output** — a second
+  pass reads the newlines it just created as whitespace and flattens them.
+  `backfill-descriptions.ts` therefore only strips rows that still match a
+  markup regex; everything else gets entity decoding only. When structure
+  is already lost, `refetch-descriptions.ts` re-pulls the boards and updates
+  descriptions in place (no inserts). Never point either script at MANUAL
+  rows with tag stripping — pasted prose like "salary < 100k" is not markup.
+
 ---
 
 ## ATS templates (when adding a new source)
@@ -304,6 +327,8 @@ Always:
 | Tail the worker | `docker compose logs -f app` |
 | Tail the dashboard | `docker compose logs -f web` |
 | psql into the DB | `docker compose exec postgres psql -U jobhunter -d jobhunter` |
+| Re-clean stored descriptions (rows with leftover markup) | `docker compose exec app node dist/scripts/backfill-descriptions.js --dry-run`, then without the flag |
+| Re-pull descriptions from the boards (structure lost) | `docker compose exec app node dist/scripts/refetch-descriptions.js --dry-run`, then without the flag |
 | Migrate after a schema change | `DATABASE_URL=… npx prisma migrate dev --name <name>` |
 | Re-classify everything against the active profile | UI: `/settings` → "Re-classify all jobs" |
 | Pause all alerts temporarily | UI: `/settings` → "Telegram alerts" → Disable |

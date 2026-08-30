@@ -2,6 +2,7 @@ import { AtsType, JobStatus } from '@prisma/client';
 import type { Job } from '@prisma/client';
 import { z } from 'zod';
 import { prisma } from '../db';
+import { decodeHtmlEntities } from '../http';
 import { logger } from '../logger';
 import { hashShortId } from '../text-utils';
 import { classifyExistingJob } from './classify-existing';
@@ -38,13 +39,16 @@ export type ManualJobResult =
   | { kind: 'created'; job: Job; classified: boolean };
 
 export async function createManualJob(f: ManualJobInput): Promise<ManualJobResult> {
+  // Pastes copied from rendered pages occasionally carry literal entities
+  // ("&nbsp;", "&amp;") — decode them so the stored text reads clean.
+  const description = decodeHtmlEntities(f.description).trim();
   const atsToken = slugify(f.companyName);
   const company = await prisma.company.upsert({
     where: { atsType_atsToken: { atsType: AtsType.MANUAL, atsToken } },
     update: {},
     create: { name: f.companyName, atsType: AtsType.MANUAL, atsToken, active: false },
   });
-  const externalId = `manual-${hashShortId(`${f.title}\n${f.description}`)}`;
+  const externalId = `manual-${hashShortId(`${f.title}\n${description}`)}`;
   const existing = await prisma.job.findUnique({
     where: { companyId_externalId: { companyId: company.id, externalId } },
   });
@@ -57,7 +61,7 @@ export async function createManualJob(f: ManualJobInput): Promise<ManualJobResul
       title: f.title,
       url: f.url,
       location: f.location,
-      description: f.description,
+      description,
       salaryMin: f.salaryMin ?? null,
       salaryMax: f.salaryMax ?? null,
       postedAt: new Date(),
