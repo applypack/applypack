@@ -47,6 +47,7 @@ export const ScanSchema = z.object({
   seniority: nullableText,
   years_experience: z.number().int().min(0).max(60).nullish().transform((v) => v ?? null),
   skills: tagList,
+  primary_skills: tagList,
   role_types: tagList,
   summary: z.string(),
   issues: z
@@ -148,12 +149,13 @@ Fields:
 - "seniority": one of junior | mid | senior | staff | lead | principal (best guess, or null)
 - "years_experience": integer, total years of professional experience estimated from the dates (or null)
 - "skills": lowercase canonical tags for technologies the resume actually names — languages, frameworks, databases, cloud, infra, tools, methodologies. Use the common short form ("php", "laravel", "postgresql", "aws", "ci/cd", "docker"). No duplicates, no soft skills.
+- "primary_skills": the subset of "skills" that is the candidate's PRIMARY STACK — the 2-5 languages, runtimes and core frameworks their day-to-day code is written in, judged from the most recent roles and the headline. Databases, clouds, containers and tooling are NEVER primary. Same spelling as in "skills".
 - "role_types": job categories the resume supports, e.g. "backend", "full-stack", "platform", "ai-engineer"
 - "summary": two plain sentences describing the candidate the way a recruiter would after a 10-second scan
 - "issues": job-agnostic problems an ATS parser or recruiter would flag, each {"section", "issue", "fix"}. Check: non-standard section headings or order (expected Summary → Skills → Experience → Education); mixed date formats; bullets that state an activity but no outcome for the company (what improved: revenue, cost, speed, reliability, users, time saved); more than 4 bullets in one role; skills listed but never evidenced in experience; buzzwords and filler; missing contact line; photo / age / marital status (US market); likely length over 2 pages; tables, columns or text boxes that break parsers. Include what can simply be REMOVED to make the resume cleaner (unevidenced skills, empty sections, decorative lines, roles too old to matter). Concrete and short. Empty array if clean.
 
 Output exactly:
-{"title": string|null, "seniority": string|null, "years_experience": integer|null, "skills": string[], "role_types": string[], "summary": string, "issues": [{"section": string, "issue": string, "fix": string}]}`;
+{"title": string|null, "seniority": string|null, "years_experience": integer|null, "skills": string[], "primary_skills": string[], "role_types": string[], "summary": string, "issues": [{"section": string, "issue": string, "fix": string}]}`;
 
 const MATCH_SYSTEM = `You compare ONE resume against ONE job posting and tell the candidate exactly what to change before applying. Optimise for the ATS parser first and for the recruiter's 6-10 second scan second. Return JSON only — no prose, no code fences.
 

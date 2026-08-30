@@ -255,6 +255,9 @@ model Resume {
   seniority       String?
   yearsExperience Int?
   skills          String[]      @default([])
+  // Subset of skills: the 2-5 core languages/frameworks of the candidate's
+  // day-to-day work. Feeds Profile.stackRequired via "Fill from resume".
+  primarySkills   String[]      @default([])
   roleTypes       String[]      @default([])
   summary         String?       @db.Text
   // [{ section, issue, fix }] — job-agnostic ATS / recruiter problems.
