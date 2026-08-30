@@ -6,6 +6,32 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.1] — 2026-08-30
+
+### Fixed
+- **Job descriptions are readable again.** `stripHtml` used to strip tags
+  before decoding entities, so feeds that ship the body HTML-escaped
+  (Greenhouse — 82 % of stored jobs) kept raw `<div>…` markup as visible
+  text, and the final `\s+` collapse flattened every description into a
+  single-line wall. Entities now decode first (`&amp;` last, so
+  double-escaped input stays literal), line structure is rebuilt from block
+  tags, `<br>` and `<li>` (→ `• ` bullets), and prose like `salary > 100k`
+  or `<3` survives stripping. Covered by new unit tests.
+- **Stored rows repaired.** Two one-shot scripts (both support `--dry-run`):
+  `backfill-descriptions` re-cleans rows that still carry markup and decodes
+  entities in pasted jobs; `refetch-descriptions` re-pulls the boards and
+  updated 601 stored descriptions in place. stripHtml is deliberately NOT
+  re-run on clean plaintext — it is not idempotent (CLAUDE.md gotcha 12).
+- Manual pastes decode literal entities (`&nbsp;`, `&amp;`) before saving.
+
+### Changed
+- **Full-width dashboard.** Every page now stretches to the screen like the
+  Jobs table: the prose-width caps (`max-w-prose`, `75ch`) and per-page
+  column limits are gone, so the job description, classifier summary, hints,
+  Settings, the paste form and the Target editor all fill their containers.
+  The /companies explainer reflows into two columns; the description card
+  renders decoded paragraphs via `whitespace-pre-line`.
+
 ## [0.2.0] — 2026-08-30
 
 ### Added
@@ -250,7 +276,10 @@ commit history.
 | 2026-08-27 | Node 24, pause toggle, AI provider seam, first dashboard redesign, parallel classifier |
 | 2026-08-28 | Resume module, targeted view, ghost-job verification, light-theme redesign — **v0.1.0** |
 | 2026-08-29 | PDF uploads, /target auto-detect flow, deterministic score, match-workspace UX refactor — **v0.1.1** |
+| 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 
-[Unreleased]: https://github.com/nazboyko/job-hunter/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/nazboyko/job-hunter/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/nazboyko/job-hunter/compare/v0.2.0...v0.2.1
+[0.2.0]: https://github.com/nazboyko/job-hunter/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/nazboyko/job-hunter/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/nazboyko/job-hunter/releases/tag/v0.1.0
