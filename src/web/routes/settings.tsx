@@ -199,11 +199,26 @@ settingsRoute.get('/settings', async (c) => {
 // --- Fetching pause / resume -----------------------------------------------
 
 settingsRoute.post('/settings/fetching-toggle', async (c) => {
+  // The Overview quick control posts back="/" to land where it came from.
+  const form = await c.req.parseBody();
+  const back = form.back === '/' ? '/' : '/settings?tab=general';
   const settings = await getSettings();
-  await setFetchingEnabled(!settings.fetchingEnabled);
-  return settings.fetchingEnabled
-    ? flashRedirect('/settings?tab=general', 'warn', 'Job fetching paused — no new jobs or alerts until you resume.')
-    : flashRedirect('/settings?tab=general', 'ok', 'Job fetching resumed — next hourly tick will pull new jobs.');
+  const enabling = !settings.fetchingEnabled;
+  await setFetchingEnabled(enabling);
+  if (!enabling) {
+    return flashRedirect(back, 'warn', 'Job fetching paused — no new jobs or alerts until you resume.');
+  }
+  const profile = await getActiveProfile();
+  const gateEmpty =
+    !profile || (profile.stackRequired.length === 0 && profile.roleTypes.length === 0);
+  if (gateEmpty) {
+    return flashRedirect(
+      back,
+      'warn',
+      'Job fetching resumed, but the active profile has no required stack or role types — every fetched job goes to the AI classifier. Fill the profile first (Settings → Profile).',
+    );
+  }
+  return flashRedirect(back, 'ok', 'Job fetching resumed — next hourly tick will pull new jobs.');
 });
 
 // --- Telegram toggle / targets ---------------------------------------------
@@ -470,9 +485,9 @@ settingsRoute.post('/settings/profiles/new', async (c) => {
     stackNiceToHave: [],
     stackExclude: ['junior', 'intern'],
     notes: null,
-    seniority: ['senior'],
+    seniority: [],
     remoteOk: true,
-    remoteRegions: ['US'],
+    remoteRegions: [],
     onsiteCities: [],
     hybridOk: false,
     minSalaryUsd: 0,

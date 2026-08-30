@@ -2,7 +2,8 @@
 import type { FC } from 'hono/jsx';
 import type { CronRunStatus } from '@prisma/client';
 import { Layout } from '../layout';
-import { Badge, Card, Empty, FitBadge, PageHeader, SectionTitle, Stat, StatusBadge } from '../ui';
+import { Badge, Button, Card, Empty, FitBadge, Flash, PageHeader, SectionTitle, Stat, StatusBadge } from '../ui';
+import type { FlashMessage } from '../flash';
 import {
   formatDateShort,
   formatDuration,
@@ -39,6 +40,8 @@ export interface OverviewProps {
   last24h: { status: string; count: number }[];
   recentAlerts: JobRow[];
   latestRuns: { name: string; run: RunRow | null }[];
+  fetchingEnabled: boolean;
+  flash?: FlashMessage | null;
 }
 
 /** The four statuses worth acting on; Total and Dismissed stay quiet. */
@@ -58,6 +61,8 @@ export const OverviewPage: FC<OverviewProps> = ({
   last24h,
   recentAlerts,
   latestRuns,
+  fetchingEnabled,
+  flash,
 }) => {
   const byStatus = mapCounts(counts);
   const byStatus24h = mapCounts(last24h);
@@ -66,7 +71,27 @@ export const OverviewPage: FC<OverviewProps> = ({
 
   return (
     <Layout title="Overview" active="overview" refresh={30}>
-      <PageHeader title="Overview" meta="Refreshes every 30s" />
+      <PageHeader
+        title="Overview"
+        meta="Refreshes every 30s"
+        actions={
+          /* Quick master switch — same toggle as Settings → General. */
+          <form
+            method="post"
+            action="/settings/fetching-toggle"
+            class="flex items-center gap-2"
+          >
+            <input type="hidden" name="back" value="/" />
+            <Badge tone={fetchingEnabled ? 'ok' : 'neutral'}>
+              {fetchingEnabled ? 'Pipeline running' : 'Pipeline paused'}
+            </Badge>
+            <Button size="sm" variant="secondary">
+              {fetchingEnabled ? 'Pause' : 'Resume'}
+            </Button>
+          </form>
+        }
+      />
+      <Flash flash={flash} />
 
       <div class="mb-3 grid grid-cols-2 gap-3 xl:grid-cols-4">
         {PRIMARY_STATUSES.map((s) => {

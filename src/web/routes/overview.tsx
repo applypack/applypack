@@ -2,6 +2,8 @@
 import { Hono } from 'hono';
 import { JobStatus } from '@prisma/client';
 import { prisma } from '../../db';
+import { getSettings } from '../../settings';
+import { clearFlashCookie, parseFlashCookie } from '../flash';
 import { OverviewPage } from '../pages/overview';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -13,7 +15,8 @@ export const overviewRoute = new Hono();
 overviewRoute.get('/', async (c) => {
   const since24h = new Date(Date.now() - DAY_MS);
 
-  const [countsRows, last24hRows, recentAlerts, latestRunRows] = await Promise.all([
+  const [settings, countsRows, last24hRows, recentAlerts, latestRunRows] = await Promise.all([
+    getSettings(),
     prisma.job.groupBy({
       by: ['status'],
       _count: { _all: true },
@@ -58,6 +61,10 @@ overviewRoute.get('/', async (c) => {
       last24h={last24h}
       recentAlerts={recentAlerts}
       latestRuns={latestRuns}
+      fetchingEnabled={settings.fetchingEnabled}
+      flash={parseFlashCookie(c.req.header('cookie'))}
     />,
+    200,
+    { 'Set-Cookie': clearFlashCookie() },
   );
 });
