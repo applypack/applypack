@@ -161,6 +161,8 @@ When the question is **"where does X live?"**, save yourself a `find`:
 | ask_user confirmations (CandidateFact rows, instant re-score) | `src/resume/facts.ts` (pure) + `src/web/routes/facts.ts` (POST /facts), managed on `/resumes` |
 | Anti-hallucination gate for generated prose (pass/warn/block) | `src/resume/fact-check.ts:factCheck` (pure, ADR 0020) — sources arrive as arguments, `store.ts` loads them |
 | Cover letter generation (gated, stored-inputs-only) | `src/resume/cover-letter.ts` + `COVER_SYSTEM` in `prompts.ts` (ADR 0021); card `src/web/pages/cover-letter-card.tsx` |
+| Letter → .pdf / .docx bytes | `src/resume/pdf-write.ts`, `docx-write.ts` (over `zip-write.ts`) — all pure, no dependencies |
+| Fetch one posting page by URL (user-requested, not a crawler) | `src/jobs/posting-url.ts` — ADR 0005 blocklist + private-host SSRF guard; bot checks fail honestly |
 | "In another resume" evidence hints | `src/resume/store.ts:listOtherResumeSkills` → `facts.ts:annotateElsewhere` |
 | ATS parse warnings ("What the ATS sees") | `src/resume/parse-warnings.ts`, rendered on `/resumes/:id` |
 | Version delta (gained/lost keywords, component moves) | `src/resume/diff.ts:diffMatches`, rendered in `resume-match-card.tsx` |
@@ -203,8 +205,10 @@ When the question is **"how does the user toggle / configure X?"**:
 | Paste a posting the fetchers don't see | `/jobs` → "+ Paste a job" (`/jobs/new`) |
 | Compare a pasted posting with any resume in one step | menu → Target (`/target`): paste posting, pick / upload / paste resume, Compare |
 | Check whether a posting is real | `/jobs/:id` → "Is this job real?" → Verify (web search, 2-4 min) |
-| Draft / edit / copy a cover letter | `/jobs/:id` → "Cover letter" card (Generate; Save edit re-checks facts) |
+| Draft / edit / copy a cover letter | `/jobs/:id` → "Cover letter" card (Generate / Regenerate; Save edit re-checks facts) |
 | Standing angle inputs for letters (typed once, remembered) | `/jobs/:id` → Cover letter card → "Angle" — saved to `AppSettings.coverAngles` on every Generate |
+| Write a letter for a NEW posting (picker / URL / paste, + optional match & company research) | menu → Cover letter (`/letter`) |
+| Download a letter as .pdf / .docx | `/jobs/:id` → Cover letter card → PDF / DOCX buttons |
 | Re-check an edited resume | `/resumes/:id` → "Upload a new version", then Compare again |
 | Edit in place with a live score | comparison → "Open targeted view →" (`/jobs/:id/target`); "Re-analyze with AI" for the rubric score, "Save as vN" to keep the draft |
 

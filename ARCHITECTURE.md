@@ -200,6 +200,9 @@ src/
     parse-warnings.ts          ← ATS parseability checks over extracted text, pure
     pick.ts                    ← preselect resume by skill-tag overlap, pure
     store.ts                   ← Resume / ResumeMatch / CandidateFact / CoverLetter CRUD (Prisma)
+    zip-write.ts               ← minimal STORED zip writer (docx container), pure
+    docx-write.ts              ← letter → .docx, round-trip-tested against zip.ts + docx-text.ts, pure
+    pdf-write.ts               ← letter → minimal Helvetica PDF, pure
     scan.ts                    ← one AI call → Resume scan fields
     match.ts                   ← one AI call → facts context in, statuses out, score.ts computes → ResumeMatch row
     cover-letter.ts            ← one gated AI call → CoverLetter row; gate block → regen once → refuse (ADR 0021)
@@ -234,6 +237,7 @@ src/
     process-jobs.ts             ← shared inner loop used by fetch + HN
     reclassify-job.ts           ← runReclassifyAll (web-triggered, async)
     classify-existing.ts        ← classify one stored job (Re-classify button, manual entry)
+    posting-url.ts              ← one user-requested posting-page GET → plain text (ADR 0005 blocklist, honest bot-check failure)
     manual-job.ts               ← pasted posting → MANUAL company + Job + classify (used by /jobs/new and /target)
     cron-run.ts                 ← recordCronRun(name, fn) wrapper
 
@@ -270,6 +274,7 @@ src/
       verification-card.tsx     ← "Is this job real?" card on /jobs/:id
       job-new.tsx               ← /jobs/new (paste a posting)
       target-start.tsx          ← /target (paste posting + pick/upload/paste resume → one run)
+      letter-start.tsx          ← /letter (job by pick/URL/paste + resume + optional match/verify → letter)
       target-run.tsx            ← /target/runs/:id (progress steps, meta-refresh 2s)
       target.tsx                ← /jobs/:id/target (side-by-side editor, live score)
 
@@ -277,6 +282,7 @@ src/
       overview.tsx
       jobs.tsx                  ← list + new (manual) + detail + status + reclassify + verify + resume match + cover letters
       target.tsx                ← /target launcher: resume resolve + manual job + match in one POST
+      letter.tsx                ← /letter launcher: job + resume resolve → [extract→classify→match→verify]→letter run
       resumes.tsx               ← upload (5 MB limit) + scan + default + delete + download
       applications.tsx          ← kanban + per-job application form
       companies.tsx              ← list + new (probe-validated) + delete + toggle + starter packs
@@ -316,8 +322,10 @@ prisma/
 | `GET /target/runs/:id`           | web     | progress page (meta-refresh 2s); done → flash + redirect into the targeted view |
 | `POST /resumes/:id/replace`      | web     | new file → `version`+1 → `scanResume`    |
 | `POST /jobs/:id/target/reupload` | web     | async run: replace (+scan for real resumes; scratch skips it) → match |
-| `POST /jobs/:id/cover`           | web     | async run: `generateCoverLetter` (fact-gated; blocked twice → error, no row); redirects to `/target/runs/:id` |
+| `POST /jobs/:id/cover`           | web     | async run: `generateCoverLetter` (fact-gated; blocked twice → error, no row); redirects to `/target/runs/:id`. The card form also saves the angle prefills; a Regenerate POST reuses them |
 | `POST /jobs/:id/cover/:letterId` | web     | save a manual edit; re-runs the gate warn-only, updates `gateVerdict`/`gateNotes` |
+| `GET /jobs/:id/cover/:letterId/file/:fmt` | web | letter (edited text wins) → .docx or .pdf attachment, built in-process |
+| `POST /letter`                   | web     | job by picker / URL / paste + resume resolve → async run [fetch? → extract? → classify? → match? → verify?] → gated letter. Everything slow is a run step; the POST only shape-checks (§6.2) |
 | `POST /resumes/:id/draft`        | web     | edited text → `.md` version → scan (+ match when `jobId`) |
 | `GET /static/*`                  | web     | `src/web/public` (keyword matcher)       |
 | `POST /discovery/:id/promote`    | web     | transactional Company upsert             |
