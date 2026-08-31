@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.11.1] — 2026-08-31
+
 ### Changed
 - **Renamed to ApplyPack.** The project outgrew "job hunter": it scores and
   tailors resumes, drafts cover letters and tracks applications, not just
@@ -15,6 +17,17 @@ All notable changes to this project are documented here. The format follows
   your local checkout directory, copy the Docker volume first: Compose
   derives the project name from the folder.
 - Corrected a stale count in the README: 22 source types, not 16.
+- README screenshots regenerated under the new brand; the hero shows a
+  synthetic Fernway / Dana Ruiz comparison (82/100), no real personal data.
+- The default `User-Agent` now derives its version from `package.json`
+  (guard-tested) — it had sat on `0.1` for ten releases.
+- The "What you get" table gained the cover-letter row (F8 shipped in 0.10.0
+  but never made the README).
+
+### Added
+- `SECURITY.md` (private vulnerability reporting, scope, supported versions)
+  and `CODE_OF_CONDUCT.md` (Contributor Covenant 2.1); CONTRIBUTING now
+  states the MIT in-bound license.
 
 ## [0.11.0] — 2026-08-31
 
@@ -420,7 +433,8 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
-[Unreleased]: https://github.com/nazboyko/applypack/compare/v0.11.0...HEAD
+[Unreleased]: https://github.com/nazboyko/applypack/compare/v0.11.1...HEAD
+[0.11.1]: https://github.com/nazboyko/applypack/compare/v0.11.0...v0.11.1
 [0.11.0]: https://github.com/nazboyko/applypack/compare/v0.10.0...v0.11.0
 [0.10.0]: https://github.com/nazboyko/applypack/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/nazboyko/applypack/compare/v0.8.0...v0.9.0
