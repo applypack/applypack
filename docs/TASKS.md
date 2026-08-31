@@ -436,3 +436,73 @@ external project, copy-check before merge.
 - [ ] F19 salary observations + gap analytics — v0.21.0
 - [x] ADR 0005 addendum: "Evaluated, not supported" sources table
       (done with F2, 2026-08-31)
+
+---
+
+## 8. In-app feedback capture — notes → issues (analysis 2026-08-31, not built)
+
+**Problem.** Bugs and ideas are noticed mid-triage, inside the dashboard,
+late. The only channel today is the GitHub issue form
+(`.github/ISSUE_TEMPLATE/`), which costs a context switch — so most of them
+are never written down at all.
+
+**Decision — local-first, human-confirmed.** The dashboard is single-user and
+bound to 127.0.0.1, so an in-app capture form adds no abuse surface. The
+flooding risk lives entirely in *automatic* writes to GitHub from every
+self-hosted instance: a retry loop posting one issue per failed fetch tick is
+a likelier flood than a hostile script, and it would need a token in every
+user's `.env`. So notes live in the instance's own Postgres, and a GitHub
+issue is only ever created by a human clicking a prefilled
+`issues/new?template=…&title=…&body=…` link in their own browser — no token,
+no API write, no unattended path from app to public tracker. It also keeps
+the "everything runs on your machine" promise: a note can quote resume text.
+
+### 8.1 Notes (P0)
+- [ ] `Note` model + hand-written migration: kind (BUG|IDEA|QUESTION), status
+      (OPEN|PLANNED|DONE|DROPPED), title, body, path, jobId?, context Json,
+      fingerprint BigInt?, issueUrl?, createdAt
+- [ ] `src/web/note-format.ts` (pure, tested): `buildNoteTitle`,
+      `buildIssueUrl` (template + title + body), `redactNote` (emails,
+      phones, tokens — same shape as `maskToken`)
+- [ ] `src/web/public/note.mjs` — dependency-free ES module, import-tested
+      like `target.mjs`: capture modal, `n` opens it, `Esc` closes, never
+      fires inside input/textarea/contenteditable; a small `window.onerror`
+      ring buffer rides along in the payload
+- [ ] Context collected automatically instead of a screenshot (html2canvas is
+      a dependency and the CSP in `server.ts` blocks it): path, jobId /
+      resumeId from the URL, app version, viewport, UA, last 3 `CronRun` rows
+- [ ] `/notes` page + route in the `/discovery` style: list, status changes,
+      delete, "Create issue" (opens the prefilled link), "Search similar"
+      (GitHub search URL with the same title)
+- [ ] Visible entry point beside the shortcut — sidebar footer link. A
+      shortcut nobody remembers is a dead feature
+- [ ] Web-only module: the worker never imports it (ADR 0008's rule)
+- [ ] ADR 0022 (or next free): feedback capture is local-first; GitHub issues
+      only via a human-confirmed prefilled link
+
+### 8.2 Hints, not tips (P0, small)
+- [ ] Overview shows state-derived lines, and only when there is something to
+      say: fetching paused, N quiet sources, no resume uploaded, empty
+      profile. No rotating "did you know" carousel — PRODUCT.md pins density
+      over hand-holding, and a tips widget is the first thing a technical
+      user switches off
+- [ ] `?` opens a help drawer: keyboard shortcuts + 5-7 "how do I X" lines.
+      It also carries the "report something" button — one surface, two jobs
+- [ ] Everything else stays a contextual `Hint` next to the decision it
+      explains; the existing pattern needs nothing new
+
+### 8.3 Later (P1/P2)
+- [ ] Near-duplicate warning at capture time via `simhash64` + `hamming64`
+      (`fingerprint.ts`, ADR 0018) over the note text
+- [ ] Redaction preview before the issue link opens ("this is what goes
+      public") — notes captured on `/resumes` or `/target` can quote a resume
+- [ ] `npm run notes:export` → a markdown block to paste into this file. For
+      the maintainer the destination is the backlog; GitHub issues are for
+      other people's instances
+- [ ] P2: auto-note on a web 500 (local only, rate-limited per day);
+      a generated `gh issue create` command for the maintainer
+
+**Not doing:** auto-posting to GitHub from any process; Sentry / Linear / any
+external tracker (breaks the offline promise); a Telegram capture inbox (it
+needs `getUpdates` polling in the worker — a new moving part for the rare
+"saw it outside the app" case).
