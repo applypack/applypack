@@ -250,8 +250,8 @@ Python docx scripts). Decision record: [ADR 0008](./adr/0008-resume-module-in-we
 
 ## 6. UI/UX refactor — adopted from the two external audits (2026-08-29)
 
-Sources: [job-hunter-resume-match-ux-refactor.md](./job-hunter-resume-match-ux-refactor.md)
-and [job-hunter-ui-ux-refactor-plan.md](./job-hunter-ui-ux-refactor-plan.md); every
+Sources: [archive/job-hunter-resume-match-ux-refactor.md](./archive/job-hunter-resume-match-ux-refactor.md)
+and [archive/job-hunter-ui-ux-refactor-plan.md](./archive/job-hunter-ui-ux-refactor-plan.md); every
 claim was verified against the code on `pdf-and-target` before adoption.
 
 Already in place, no action needed: `ui.tsx` primitives, `layout.tsx` tokens (the
