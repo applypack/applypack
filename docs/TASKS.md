@@ -362,7 +362,9 @@ re-analysis + improvement pass before implementing; testing-gate before
 every commit; independent implementation only — no code copied from any
 external project, copy-check before merge.
 
-- [ ] F1 liveness ladder (free ATS-API checks before AI verify) — v0.3.0
+- [x] F1 liveness ladder (free ATS-API checks before AI verify) — v0.3.0
+      (branch `liveness-ladder`, ADR 0016; board-feed-vanish cleanup signal
+      deferred to F4)
 - [ ] F2 fetchers wave 1: Recruitee, Breezy, BambooHR, Pinpoint, Rippling +
       4dayweek, NoDesk, JustJoin, NoFluffJobs — v0.4.0
 - [ ] F3 SimHash cross-source dedup + URL-key discipline — v0.5.0

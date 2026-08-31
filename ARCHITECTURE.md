@@ -195,9 +195,10 @@ src/
     scan.ts                    ← one AI call → Resume scan fields
     match.ts                   ← one AI call → facts context in, statuses out, score.ts computes → ResumeMatch row
 
-  verification/                ← ghost-job check (ADR 0009)
+  verification/                ← ghost-job check (ADR 0009) + liveness ladder (ADR 0016)
     prompts.ts                 ← checklist prompt, zod schema, evidence reader, pure
-    verify.ts                  ← AI call with webTools → JobVerification row (Prisma)
+    liveness.ts                ← free rungs 1-2: ATS-API probe + page classifier (pure + fetch, no AI)
+    verify.ts                  ← checkLiveness → Job.liveness*; AI call with webTools → JobVerification row (Prisma)
 
   fetchers/
     index.ts                   ← runAllFetchers + fetchOne switch
@@ -293,7 +294,7 @@ prisma/
 | `POST /companies/new`            | web     | sync `probeAts` → upsert                 |
 | `POST /resumes`                  | web     | extract text → `scanResume` (sync, ~1 min) |
 | `POST /jobs/:id/match`           | web     | async run: (scratch cleanup) → `matchResumeToJob`; redirects to `/target/runs/:id` |
-| `POST /jobs/:id/verify`          | web     | sync `verifyJob` with web tools (2-4 min) → `JobVerification` |
+| `POST /jobs/:id/verify`          | web     | `checkLiveness` (free rungs, seconds) → stop on a verdict; else / `deep=1` sync `verifyJob` with web tools (2-4 min) → `JobVerification` |
 | `POST /jobs/new`                 | web     | MANUAL company upsert + Job + `classifyExistingJob` |
 | `POST /target`                   | web     | resolve resume inline (upload/paste → hidden scratch row), then async: `createManualJob` → scratch-match cleanup → `matchResumeToJob`; redirects to `/target/runs/:id` |
 | `GET /target/runs/:id`           | web     | progress page (meta-refresh 2s); done → flash + redirect into the targeted view |
