@@ -85,6 +85,13 @@ export async function deleteMatchesForResume(resumeId: number): Promise<number> 
   return r.count;
 }
 
+/** Same rule for letters: replacing the scratch resume retires its letters. */
+export async function deleteCoverLettersForResume(resumeId: number): Promise<number> {
+  const r = await prisma.coverLetter.deleteMany({ where: { resumeId } });
+  if (r.count > 0) logger.info({ resumeId, deleted: r.count }, 'resume: old letters cleared');
+  return r.count;
+}
+
 /** "Upload new version": swap the file + text, bump version, clear the scan. */
 export async function replaceResumeFile(
   id: number,

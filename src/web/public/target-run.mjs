@@ -29,6 +29,12 @@ const ACTIVITIES = {
     'Drafting edit suggestions and removals with exact quotes…',
     'Composing the deterministic score — almost there…',
   ],
+  verify: [
+    'Searching for the company and this posting…',
+    'Cross-checking the careers page and the ATS…',
+    'Weighing ghost-job signals…',
+    'Writing the company snapshot…',
+  ],
   letter: [
     'Reading the posting and the resume…',
     'Choosing which true facts serve this role…',

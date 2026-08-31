@@ -5,6 +5,7 @@ import { createManualJob, ManualJobSchema, MAX_FIELD_CHARS, MIN_DESCRIPTION_CHAR
 import { extractPostingFacts, fallbackTitle } from '../../jobs/posting-extract';
 import { matchResumeToJob } from '../../resume/match';
 import {
+  deleteCoverLettersForResume,
   deleteMatchesForResume,
   getResume,
   listResumes,
@@ -180,7 +181,10 @@ targetRoute.post('/target', resumeUploadLimit('/target'), async (c) => {
     updateRun(run.id, { stage: 'match', jobId: job.id });
 
     // 2. Ephemeral compares keep only the current analysis.
-    if (resume.ephemeral) await deleteMatchesForResume(resume.id);
+    if (resume.ephemeral) {
+      await deleteMatchesForResume(resume.id);
+      await deleteCoverLettersForResume(resume.id);
+    }
 
     // 3. One resume-model call, then straight into the targeted workspace.
     const row = await matchResumeToJob(

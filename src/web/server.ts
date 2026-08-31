@@ -15,6 +15,7 @@ import { applicationsRoute } from './routes/applications';
 import { discoveryRoute } from './routes/discovery';
 import { resumesRoute } from './routes/resumes';
 import { targetRoute } from './routes/target';
+import { letterRoute } from './routes/letter';
 import { factsRoute } from './routes/facts';
 import { healthRoute } from './routes/health';
 
@@ -78,6 +79,7 @@ app.route('/', jobsRoute);
 app.route('/', applicationsRoute);
 app.route('/', resumesRoute);
 app.route('/', targetRoute);
+app.route('/', letterRoute);
 app.route('/', factsRoute);
 app.route('/', companiesRoute);
 app.route('/', discoveryRoute);

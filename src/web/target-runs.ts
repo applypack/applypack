@@ -9,7 +9,7 @@ import { logger } from '../logger';
  * runs (node-cron philosophy: no queue, ADR 0003).
  */
 
-export type RunStep = 'extract' | 'classify' | 'scan' | 'match' | 'letter';
+export type RunStep = 'extract' | 'classify' | 'scan' | 'match' | 'verify' | 'letter';
 export type RunStage = RunStep | 'done' | 'error';
 
 export interface TargetRun {

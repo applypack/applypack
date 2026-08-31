@@ -8,6 +8,7 @@ export type NavKey =
   | 'applications'
   | 'resumes'
   | 'target'
+  | 'letter'
   | 'companies'
   | 'discovery'
   | 'runs'
@@ -31,6 +32,7 @@ const NAV: { key: NavKey; href: string; label: string }[] = [
   { key: 'applications', href: '/applications', label: 'Applications' },
   { key: 'resumes', href: '/resumes', label: 'Resumes' },
   { key: 'target', href: '/target', label: 'Target' },
+  { key: 'letter', href: '/letter', label: 'Cover letter' },
   { key: 'companies', href: '/companies', label: 'Companies' },
   { key: 'discovery', href: '/discovery', label: 'Discovery' },
   { key: 'runs', href: '/runs', label: 'Runs' },
@@ -223,6 +225,8 @@ const ICON_PATHS: Record<NavKey, string> = {
     '<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/>',
   target:
     '<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>',
+  letter:
+    '<rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>',
   companies:
     '<path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"/><path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"/><path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"/><path d="M10 6h4"/><path d="M10 10h4"/><path d="M10 14h4"/><path d="M10 18h4"/>',
   discovery:

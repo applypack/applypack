@@ -21,6 +21,10 @@ const STEP_VIEW: Record<RunStep, { label: string; detail: string }> = {
     label: 'AI match',
     detail: 'the resume model reads both texts — about a minute',
   },
+  verify: {
+    label: 'Research the company',
+    detail: 'ghost-check with web search — 2 to 4 minutes',
+  },
   letter: {
     label: 'Write the cover letter',
     detail: 'grounded in the resume, fact-checked before it is shown — about a minute',
