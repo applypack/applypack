@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for helping. applypack is a small, sharp codebase: TypeScript
+Thanks for helping. ApplyPack is a small, sharp codebase: TypeScript
 strict, pure functions where possible, every non-obvious decision written
 down in an ADR. You can be productive here in one evening.
 

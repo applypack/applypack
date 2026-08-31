@@ -1,4 +1,4 @@
-# PRODUCT.md — applypack
+# PRODUCT.md — ApplyPack
 
 Durable product truth for design work. Pair with [SPEC.md](./SPEC.md) (state) and
 [ARCHITECTURE.md](./ARCHITECTURE.md) (structure); this file only holds what design

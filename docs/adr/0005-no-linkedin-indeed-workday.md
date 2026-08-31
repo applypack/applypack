@@ -38,7 +38,7 @@ golangprojects, HN's Algolia).
 ✅ Zero risk of LinkedIn account bans, Indeed IP blocks, or
 "this person scrapes our jobs" flags in HR systems.
 ✅ Sources don't break weekly when their anti-bot rules update.
-✅ The project's `User-Agent` is honest — `applypack/0.1
+✅ The project's `User-Agent` is honest — `applypack/0.11
 (+https://github.com/nazboyko/applypack)` — and we explicitly probe
 endpoints that ATSes intend us to call.
 

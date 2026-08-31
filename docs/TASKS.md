@@ -172,7 +172,7 @@ pipeline) and useless here. What transfers:
 | `commercebase.io` | `project-manager/` | Works on `docs/tasks/`; point it at this `docs/TASKS.md` (pick next task, mark done). |
 
 ### 4.3 Product ideas (not tooling) — from job-search projects
-| Source | What | Fit for applypack |
+| Source | What | Fit for ApplyPack |
 | --- | --- | --- |
 | `linkedin-radar` | `job-apply/` skill + `agents/job-verifier.md` (ghost-job / scam checklist, LEGIT / SUSPICIOUS / FAKE verdict) | Strong. Wire the verifier checklist into `/jobs/:id`: a "Verify" action that runs the careers-page cross-check and stores a verdict column. The tailoring half (master resumes → .docx/.pdf) can stay a CLI skill but read jobs from this DB. |
 

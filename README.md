@@ -25,7 +25,7 @@ You know what you're looking for. The boards keep showing you everything
 else, and every "Senior Engineer" listing takes three minutes of reading
 to reveal the wrong stack, the wrong country, or a ghost posting.
 
-applypack does that reading for you. It watches 22 job sources around
+ApplyPack does that reading for you. It watches 22 job sources around
 the clock, scores each posting against your real profile, and pings your
 Telegram only when something deserves an application. Then it helps you
 apply well: it checks whether the job is real, scores your resume against
@@ -170,7 +170,7 @@ the aggregators; your profile keeps it quiet.
 
 ## Bring your own AI
 
-Instead of one hard-coded API key, applypack speaks to **five AI
+Instead of one hard-coded API key, ApplyPack speaks to **five AI
 backends**, and you can attach every subscription and key you own:
 
 | Engine | What it is | Billing |

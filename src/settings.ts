@@ -260,7 +260,7 @@ export async function testTelegramTarget(
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         chat_id: chatId,
-        text: '✅ applypack test — this target is configured correctly.',
+        text: '✅ ApplyPack test — this target is configured correctly.',
         disable_web_page_preview: true,
       }),
       signal: ctrl.signal,

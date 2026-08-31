@@ -1,6 +1,6 @@
 ---
 name: testing-gate
-description: Required verification per change type for applypack (pure module → unit test, fetcher → smoke run, schema → hand-written migration, dashboard → rebuild + screenshot). Read before implementing any feature and before every commit.
+description: Required verification per change type for ApplyPack (pure module → unit test, fetcher → smoke run, schema → hand-written migration, dashboard → rebuild + screenshot). Read before implementing any feature and before every commit.
 ---
 
 # Testing Gate
