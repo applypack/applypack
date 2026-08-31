@@ -18,6 +18,7 @@ import {
   upsertScratchResume,
 } from '../../resume/store';
 import { verifyJob } from '../../verification/verify';
+import { getActiveProfile } from '../../profiles';
 import { getSettings, setCoverAngles } from '../../settings';
 import { LetterStartPage } from '../pages/letter-start';
 import { clearFlashCookie, flashRedirect, parseFlashCookie } from '../flash';
@@ -30,20 +31,23 @@ import {
 } from '../upload';
 
 /*
- * The /letter launcher (F8.2): job by picker / URL fetch / paste + resume by
- * pick / upload / paste → one run: [fetch] → [extract] → [classify] →
- * [match] → [verify] → letter. Everything slow is a visible run step, so the
- * form never hangs (TASKS §6.2). Match and verify are optional analyses the
- * user opts into; their failure never kills the letter, only annotates the
- * flash.
+ * The /letter launcher (F8.3): a searchable picker over tracked jobs, or one
+ * "new posting" box taking a URL and/or pasted text → one run:
+ * [fetch] → [extract] → [match] → [verify] → letter. Everything slow is a
+ * visible run step, so the form never hangs (TASKS §6.2).
+ *
+ * The default is the FAST path: a pasted posting is stored without a
+ * fit-score call, and match / verify are opt-in. A letter the user is
+ * waiting on must not queue three analyses it never reads.
  */
 
 const MIN_RESUME_CHARS = 200;
-const JOB_PICK_LIMIT = 60;
+const JOB_PICK_LIMIT = 150;
 const PICKABLE: JobStatus[] = ['NEW', 'ALERTED', 'SAVED', 'APPLIED'];
+const DAY_MS = 86_400_000;
 
 const LetterFormSchema = z.object({
-  jobMode: z.enum(['existing', 'url', 'paste']),
+  jobMode: z.enum(['existing', 'new']),
   jobId: z.coerce.number().int().optional(),
   jobUrl: z.string().trim().max(2000).default(''),
   description: z.string().default(''),
@@ -59,23 +63,46 @@ const LetterFormSchema = z.object({
 export const letterRoute = new Hono();
 
 letterRoute.get('/letter', async (c) => {
-  const [jobs, resumes, settings] = await Promise.all([
+  const settings = await getSettings();
+  // Newest first among the jobs that clear the active profile's threshold —
+  // a letter is written for something you would actually apply to, and the
+  // freshest of those is the likeliest target. The picker is searchable, so
+  // a long list costs nothing.
+  const profile = await getActiveProfile();
+  const where = {
+    status: { in: PICKABLE },
+    ...(profile ? { fitScore: { gte: profile.minFitScore } } : {}),
+  };
+  const [fitting, resumes] = await Promise.all([
     prisma.job.findMany({
-      where: { status: { in: PICKABLE } },
-      orderBy: [{ fitScore: { sort: 'desc', nulls: 'last' } }, { fetchedAt: 'desc' }],
+      where,
+      orderBy: [{ fetchedAt: 'desc' }],
       take: JOB_PICK_LIMIT,
       include: { company: { select: { name: true } } },
     }),
     listResumes(),
-    getSettings(),
   ]);
+  // A brand-new install (or a strict threshold) can filter everything out;
+  // an empty picker would read as "you have no jobs", which is a lie.
+  const jobs =
+    fitting.length > 0
+      ? fitting
+      : await prisma.job.findMany({
+          where: { status: { in: PICKABLE } },
+          orderBy: [{ fetchedAt: 'desc' }],
+          take: JOB_PICK_LIMIT,
+          include: { company: { select: { name: true } } },
+        });
+  const now = Date.now();
   return c.html(
     <LetterStartPage
+      presetUrl={(c.req.query('url') ?? '').slice(0, 2000)}
       jobs={jobs.map((j) => ({
         id: j.id,
         title: j.title,
         companyName: j.company.name,
         fitScore: j.fitScore,
+        ageDays: Math.max(0, Math.floor((now - j.fetchedAt.getTime()) / DAY_MS)),
       }))}
       resumes={resumes.map((r) => ({
         id: r.id,
@@ -159,20 +186,26 @@ letterRoute.post('/letter', resumeUploadLimit('/letter'), async (c) => {
     const row = await prisma.job.findUnique({ where: { id: f.jobId }, select: { id: true, title: true } });
     if (!row) return flashRedirect('/letter', 'err', 'That job no longer exists.');
     existingJob = row;
-  } else if (f.jobMode === 'url') {
-    // Only the cheap shape check runs here. The request itself is a visible
-    // run step: a slow page must never look like a hung form (TASKS §6.2).
-    const checked = checkPostingUrl(f.jobUrl);
-    if (!checked.ok) return flashRedirect('/letter', 'err', checked.error);
-    jobUrl = f.jobUrl;
   } else {
+    // One box for both: pasted text wins, a bare URL gets fetched. Only the
+    // cheap shape check runs here — the request itself is a visible run step,
+    // so a slow page never looks like a hung form (TASKS §6.2).
     description = f.description.replace(/\r\n/g, '\n').trim();
-    if (description.length < MIN_DESCRIPTION_CHARS) {
+    jobUrl = f.jobUrl;
+    if (description.length === 0) {
+      if (!jobUrl) {
+        return flashRedirect('/letter', 'err', 'Give a posting URL or paste the posting text.');
+      }
+      const checked = checkPostingUrl(jobUrl);
+      if (!checked.ok) return flashRedirect(`/letter?url=${encodeURIComponent(jobUrl)}`, 'err', checked.error);
+    } else if (description.length < MIN_DESCRIPTION_CHARS) {
       return flashRedirect('/letter', 'err', `The pasted posting is too short — at least ${MIN_DESCRIPTION_CHARS} characters.`);
     }
   }
 
-  const fetchUrl = f.jobMode === 'url';
+  // Fetch only when there is nothing pasted; a description the user supplied
+  // is always the better source than a scraped page.
+  const fetchUrl = f.jobMode === 'new' && description.length === 0;
   // A fetched page always needs detection: its company / title are unknown
   // until the description exists.
   const needExtract = !existingJob && (fetchUrl || !companyName || !title);
@@ -180,7 +213,6 @@ letterRoute.post('/letter', resumeUploadLimit('/letter'), async (c) => {
   const steps: RunStep[] = [
     ...(fetchUrl ? (['fetch'] as const) : []),
     ...(needExtract ? (['extract'] as const) : []),
-    ...(existingJob ? [] : (['classify'] as const)),
     ...(runMatch ? (['match'] as const) : []),
     ...(runVerify && !hasSnapshot ? (['verify'] as const) : []),
     'letter',
@@ -211,7 +243,12 @@ letterRoute.post('/letter', resumeUploadLimit('/letter'), async (c) => {
       if (fetchUrl) {
         const fetched = await fetchPostingText(jobUrl);
         if (!fetched.ok) {
-          updateRun(run.id, { stage: 'error', error: fetched.error });
+          // Back-link keeps the URL, so pasting the text is the next click.
+          updateRun(run.id, {
+            stage: 'error',
+            error: fetched.error,
+            backUrl: `/letter?url=${encodeURIComponent(jobUrl)}`,
+          });
           return;
         }
         description = fetched.text;
@@ -224,17 +261,22 @@ letterRoute.post('/letter', resumeUploadLimit('/letter'), async (c) => {
         location = facts?.location || '';
         salaryMin = facts?.salaryMin ?? undefined;
         salaryMax = facts?.salaryMax ?? undefined;
-        updateRun(run.id, { stage: 'classify', jobTitle: title });
+        updateRun(run.id, { jobTitle: title });
       }
-      const result = await createManualJob({
-        companyName: companyName || 'Unknown company',
-        title: title || fallbackTitle(description),
-        url: jobUrl,
-        location,
-        description,
-        salaryMin,
-        salaryMax,
-      });
+      // No fit-score call: the letter never reads it and the user is waiting.
+      // "Re-classify" on the job page fills it in later, for free time.
+      const result = await createManualJob(
+        {
+          companyName: companyName || 'Unknown company',
+          title: title || fallbackTitle(description),
+          url: jobUrl,
+          location,
+          description,
+          salaryMin,
+          salaryMax,
+        },
+        { classify: false },
+      );
       job = {
         id: result.job.id,
         title: result.job.title,

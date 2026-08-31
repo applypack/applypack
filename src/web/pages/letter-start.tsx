@@ -5,7 +5,6 @@ import {
   Button,
   Card,
   Checkbox,
-  Field,
   Flash,
   Hint,
   Input,
@@ -21,37 +20,53 @@ import { MAX_UPLOAD_MB } from '../upload';
 import { COVER_TONES, type CoverAngles } from '../../resume/prompts';
 
 /*
- * The /letter launcher (F8.2): everything the job-page card does, but as an
- * entry point — pick a tracked job, fetch a posting URL, or paste the text;
- * pick / upload / paste a resume; optionally run the resume match and the
- * company research first; one run ends in a fact-checked letter on the
- * job's page.
+ * The /letter launcher (F8.3): two job modes — a searchable picker over
+ * tracked jobs, or one "new posting" box that takes a URL, pasted text, or
+ * both. The default path is deliberately the fast one: no classification, no
+ * match, no research — one model call and the letter.
  */
 
+export interface LetterJobOption {
+  id: number;
+  title: string;
+  companyName: string;
+  fitScore: number | null;
+  ageDays: number;
+}
+
 export interface LetterStartProps {
-  jobs: { id: number; title: string; companyName: string; fitScore: number | null }[];
+  jobs: LetterJobOption[];
   resumes: { id: number; name: string; isDefault: boolean; version: number }[];
   angles: CoverAngles;
+  /** Prefilled after a failed fetch, so the URL survives the round trip. */
+  presetUrl?: string;
   flash?: FlashMessage | null;
 }
 
 const FILE_INPUT_CLASS =
   'file:mr-3 file:cursor-pointer file:rounded-md file:border-0 file:bg-surface-overlay file:px-2.5 file:py-1 file:text-xs file:font-medium file:text-ink';
 
-export const LetterStartPage: FC<LetterStartProps> = ({ jobs, resumes, angles, flash }) => {
+export const LetterStartPage: FC<LetterStartProps> = ({
+  jobs,
+  resumes,
+  angles,
+  presetUrl = '',
+  flash,
+}) => {
   const hasResumes = resumes.length > 0;
   const hasJobs = jobs.length > 0;
+  const newPostingFirst = !hasJobs || presetUrl.length > 0;
   const defaultResumeId = (resumes.find((r) => r.isDefault) ?? resumes[0])?.id;
   return (
     <Layout title="Cover letter" active="letter">
-      <PageHeader title="Cover letter" meta="~1–4 min per run">
-        Pick a tracked job — or bring a new posting by URL or pasted text — choose a resume, and
-        one run analyzes everything and writes a short, fact-checked letter. Every claim must
-        trace to the resume or your confirmed facts; an invented number is rejected, not shown.
+      <PageHeader title="Cover letter" meta="~30–60 s">
+        Pick a job, pick a resume, get a short letter grounded in what your resume actually says.
+        One model call by default — the deeper analyses below are opt-in, and cost minutes.
       </PageHeader>
       <Flash flash={flash} />
 
-      <form method="post" action="/letter" enctype="multipart/form-data" class="w-full">
+      <form id="letter-form" method="post" action="/letter" enctype="multipart/form-data" class="w-full">
+        <input type="hidden" name="saveAngles" value="1" />
         <div class="grid items-start gap-4 lg:grid-cols-2">
           <Card>
             <SectionTitle>Job posting</SectionTitle>
@@ -59,48 +74,64 @@ export const LetterStartPage: FC<LetterStartProps> = ({ jobs, resumes, angles, f
               <ModeCard
                 name="jobMode"
                 value="existing"
-                label="Pick a tracked job"
-                checked={hasJobs}
+                label="One of your jobs"
+                checked={!newPostingFirst}
                 disabled={!hasJobs}
               >
                 {hasJobs ? (
-                  <Select name="jobId" aria-label="Job">
-                    {jobs.map((j) => (
-                      <option value={j.id}>
-                        {j.fitScore !== null ? `${j.fitScore} · ` : ''}
-                        {j.companyName} — {j.title}
-                      </option>
-                    ))}
-                  </Select>
+                  <div class="space-y-2">
+                    <Input
+                      type="search"
+                      id="job-search"
+                      placeholder="Filter by title or company…"
+                      aria-label="Filter jobs"
+                      autocomplete="off"
+                    />
+                    <Select name="jobId" id="job-select" size={8} aria-label="Job" class="!h-auto">
+                      {jobs.map((j) => (
+                        <option value={j.id}>
+                          {j.companyName} — {j.title}
+                          {j.fitScore !== null ? ` · fit ${j.fitScore}` : ''} ·{' '}
+                          {j.ageDays === 0 ? 'today' : `${j.ageDays}d old`}
+                        </option>
+                      ))}
+                    </Select>
+                    <Hint>
+                      <span id="job-count">{jobs.length}</span> newest jobs that clear your fit
+                      threshold, freshest first.
+                    </Hint>
+                  </div>
                 ) : (
-                  <Hint>No tracked jobs yet — use one of the options below.</Hint>
+                  <Hint>No tracked jobs yet — use the box below.</Hint>
                 )}
               </ModeCard>
 
-              <ModeCard name="jobMode" value="url" label="Fetch a posting URL">
-                <div class="space-y-2">
-                  <Input type="url" name="jobUrl" placeholder="https://boards.greenhouse.io/…" aria-label="Posting URL" />
-                  <Hint>
-                    One page fetch at your request. Pages that need JavaScript or answer with a
-                    bot check fail honestly — paste the text instead. LinkedIn / Indeed /
-                    Glassdoor / Workday / Wellfound are never fetched (ADR 0005).
-                  </Hint>
-                </div>
-              </ModeCard>
-
-              <ModeCard name="jobMode" value="paste" label="Paste the posting" checked={!hasJobs}>
+              <ModeCard name="jobMode" value="new" label="A new posting" checked={newPostingFirst}>
                 <div class="space-y-3">
+                  <Input
+                    type="url"
+                    name="jobUrl"
+                    value={presetUrl}
+                    placeholder="Posting URL — we read the page for you"
+                    aria-label="Posting URL"
+                  />
                   <Textarea
                     name="description"
-                    rows={8}
-                    minlength="200"
-                    placeholder="About the role… (at least 200 characters)"
+                    rows={7}
+                    placeholder="…or paste the posting text here (also use this if the URL cannot be read)"
                     aria-label="Job description"
                   />
                   <div class="grid gap-3 sm:grid-cols-2">
-                    <Input type="text" name="companyName" maxlength="200" placeholder="Company (optional — detected)" aria-label="Company" />
-                    <Input type="text" name="title" maxlength="200" placeholder="Job title (optional — detected)" aria-label="Job title" />
+                    <Input type="text" name="companyName" maxlength="200" placeholder="Company (optional)" aria-label="Company" />
+                    <Input type="text" name="title" maxlength="200" placeholder="Job title (optional)" aria-label="Job title" />
                   </div>
+                  <Hint>
+                    A URL alone is enough — we fetch the page and read the company and title out
+                    of it. Sites that need JavaScript or answer with a bot check cannot be read;
+                    paste the text instead. LinkedIn, Indeed, Glassdoor, Workday and Wellfound are
+                    never fetched. Filling company and title yourself skips a detection call and
+                    makes the run faster.
+                  </Hint>
                 </div>
               </ModeCard>
             </div>
@@ -109,7 +140,7 @@ export const LetterStartPage: FC<LetterStartProps> = ({ jobs, resumes, angles, f
           <Card>
             <SectionTitle>Resume</SectionTitle>
             <div class="space-y-2">
-              <ModeCard value="existing" label="Use an uploaded resume" checked={hasResumes} disabled={!hasResumes}>
+              <ModeCard value="existing" label="One of your resumes" checked={hasResumes} disabled={!hasResumes}>
                 {hasResumes ? (
                   <Select name="resumeId" aria-label="Resume">
                     {resumes.map((r) => (
@@ -153,9 +184,8 @@ export const LetterStartPage: FC<LetterStartProps> = ({ jobs, resumes, angles, f
 
         <Card class="mt-4">
           <SectionTitle>The letter</SectionTitle>
-          <input type="hidden" name="saveAngles" value="1" />
           <div class="space-y-3">
-            <div class="flex flex-wrap items-end gap-3">
+            <div class="flex flex-wrap items-end gap-4">
               <label class="block">
                 <span class="block text-[13px] font-medium text-ink">Tone</span>
                 <Select name="tone" class="mt-1.5 !w-auto">
@@ -166,14 +196,11 @@ export const LetterStartPage: FC<LetterStartProps> = ({ jobs, resumes, angles, f
                   ))}
                 </Select>
               </label>
-              <Checkbox name="runMatch" value="1" checked>
-                Run the resume match first — a sharper letter, about a minute more
-              </Checkbox>
-              <Checkbox name="runVerify" value="1">
-                Research the company first — web search, 2–4 minutes (stored research is reused
-                automatically)
-              </Checkbox>
+              <Button size="lg" variant="violet">
+                Write the letter
+              </Button>
             </div>
+
             <div class="grid gap-2.5 sm:grid-cols-3">
               <label class="block">
                 <span class="block text-xs text-ink-muted">Why this company</span>
@@ -194,18 +221,39 @@ export const LetterStartPage: FC<LetterStartProps> = ({ jobs, resumes, angles, f
                 {angles.notes ?? ''}
               </Textarea>
             </label>
-            <div class="flex flex-wrap items-center gap-3">
-              <Button size="lg" variant="violet">
-                Write the letter
-              </Button>
-              <Hint>
-                Angle values are saved for your next letters. Facts and numbers still come only
-                from the resume and confirmed facts.
-              </Hint>
-            </div>
+            <Hint>
+              Angle values are saved for your next letters. Facts and numbers still come only from
+              your resume and confirmed facts.
+            </Hint>
+
+            <details class="rounded-md border border-line px-3 py-2">
+              <summary class="cursor-pointer text-[13px] font-medium text-ink-muted transition-colors duration-150 hover:text-ink">
+                Analyze first — slower, sharper
+              </summary>
+              <div class="mt-2.5 space-y-2">
+                <Checkbox name="runMatch" value="1">
+                  Score this resume against the posting first (+1 min) — the letter then leads with
+                  the strengths that actually match and concedes the real gaps
+                </Checkbox>
+                <Checkbox name="runVerify" value="1">
+                  Research the company first (+2–4 min, web search) — lets the letter use verified
+                  company facts instead of only the posting
+                </Checkbox>
+                <Hint>
+                  Both are stored on the job, so a later letter reuses them for free. Skipping them
+                  costs the letter nothing it can prove.
+                </Hint>
+              </div>
+            </details>
           </div>
         </Card>
       </form>
+      <script type="module" dangerouslySetInnerHTML={{ __html: BOOT_JS }} />
     </Layout>
   );
 };
+
+const BOOT_JS = `
+import { init } from '/static/letter-start.mjs';
+init();
+`;
