@@ -38,7 +38,15 @@ export type ManualJobResult =
   | { kind: 'existing'; job: Job }
   | { kind: 'created'; job: Job; classified: boolean };
 
-export async function createManualJob(f: ManualJobInput): Promise<ManualJobResult> {
+/**
+ * `classify: false` skips the fit-score call — the cover-letter path never
+ * reads the score and the user is waiting on the letter (F8.3). Re-classify
+ * from the job page whenever the number is actually wanted.
+ */
+export async function createManualJob(
+  f: ManualJobInput,
+  opts: { classify?: boolean } = {},
+): Promise<ManualJobResult> {
   // Pastes copied from rendered pages occasionally carry literal entities
   // ("&nbsp;", "&amp;") — decode them so the stored text reads clean.
   const description = decodeHtmlEntities(f.description).trim();
@@ -69,7 +77,8 @@ export async function createManualJob(f: ManualJobInput): Promise<ManualJobResul
     },
     include: { company: { select: { name: true } } },
   });
-  const classified = await classifyExistingJob(job, { keepStatus: true });
+  const classified =
+    opts.classify === false ? false : await classifyExistingJob(job, { keepStatus: true });
   logger.info({ jobId: job.id, company: company.name, classified }, 'web: manual job saved');
   return { kind: 'created', job, classified };
 }

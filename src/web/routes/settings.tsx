@@ -132,8 +132,11 @@ async function loadSettingsProps() {
       position,
       classifierModel: aiConfig.models[id]?.classifier ?? '',
       resumeModel: aiConfig.models[id]?.resume ?? '',
+      coverModel: aiConfig.models[id]?.cover ?? '',
       classifierDefault,
       resumeDefault,
+      // An empty cover slot follows the resume model, so that is the default shown.
+      coverDefault: aiConfig.models[id]?.resume?.trim() || resumeDefault,
       options: PROVIDER_MODEL_OPTIONS[id],
       freeTextModels: id === 'openai_api',
       paid: PROVIDER_PAID[id],
@@ -151,6 +154,7 @@ async function loadSettingsProps() {
       label: AI_PROVIDER_LABELS[r.id],
       classifier: r.classifier,
       resume: r.resume,
+      cover: r.cover,
     })),
   };
   return {
@@ -310,26 +314,30 @@ settingsRoute.post('/settings/ai/move', async (c) => {
 
 settingsRoute.post('/settings/ai/models', async (c) => {
   const form = await c.req.parseBody();
+  // The cards save on change over fetch and want JSON back; the no-JS form
+  // post wants the usual redirect + flash.
+  const wantsJson = (c.req.header('accept') ?? '').includes('application/json');
+  const fail = (message: string) =>
+    wantsJson ? c.json({ error: message }, 400) : flashRedirect('/settings?tab=ai', 'err', message);
   const provider = typeof form.provider === 'string' ? form.provider : '';
-  if (!isAiProviderId(provider)) return flashRedirect('/settings?tab=ai', 'err', 'Unknown engine.');
+  if (!isAiProviderId(provider)) return fail('Unknown engine.');
   const label = AI_PROVIDER_LABELS[provider];
   const classifier = cleanModelId(form.classifier);
   const resume = cleanModelId(form.resume);
-  for (const model of [classifier, resume]) {
+  const cover = cleanModelId(form.cover);
+  for (const model of [classifier, resume, cover]) {
     if (model && !modelFitsProvider(model, provider)) {
-      return flashRedirect(
-        '/settings?tab=ai',
-        'err',
-        `"${model}" is not a ${label} model id. Nothing saved.`,
-      );
+      return fail(`"${model}" is not a ${label} model id. Nothing saved.`);
     }
   }
   const { config } = await readAiOrder();
   await setAiEngineConfig({
     ...config,
-    models: { ...config.models, [provider]: { classifier, resume } },
+    models: { ...config.models, [provider]: { classifier, resume, cover } },
   });
-  return flashRedirect('/settings?tab=ai', 'ok', `${label} models saved.`);
+  return wantsJson
+    ? c.json({ ok: true })
+    : flashRedirect('/settings?tab=ai', 'ok', `${label} models saved.`);
 });
 
 settingsRoute.post('/settings/ai/test', async (c) => {

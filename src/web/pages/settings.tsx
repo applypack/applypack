@@ -71,8 +71,10 @@ export interface AiEngineRow {
   position: number;
   classifierModel: string;
   resumeModel: string;
+  coverModel: string;
   classifierDefault: string;
   resumeDefault: string;
+  coverDefault: string;
   /** Family model ids for the selects; empty = free-text input. */
   options: string[];
   freeTextModels: boolean;
@@ -84,7 +86,7 @@ export interface AiStatusSummary {
   active: string;
   chain: string[];
   skipped: string[];
-  usage7d: { label: string; classifier: number; resume: number }[];
+  usage7d: { label: string; classifier: number; resume: number; cover: number }[];
 }
 
 /**
@@ -366,7 +368,10 @@ export const SettingsPage: FC<SettingsProps> = ({
             {aiStatus.usage7d.length === 0
               ? 'no AI calls recorded yet'
               : aiStatus.usage7d
-                  .map((u) => `${u.label} ${u.classifier + u.resume} (${u.classifier} classify · ${u.resume} resume)`)
+                  .map(
+                    (u) =>
+                      `${u.label} ${u.classifier + u.resume + u.cover} (${u.classifier} classify · ${u.resume} resume · ${u.cover} letter)`,
+                  )
                   .join(' — ')}
           </div>
           {aiStatus.skipped.length > 0 && (
@@ -610,6 +615,7 @@ export const SettingsPage: FC<SettingsProps> = ({
       )}
     </div>
     <script dangerouslySetInnerHTML={{ __html: SETTINGS_JS }} />
+    <script type="module" dangerouslySetInnerHTML={{ __html: MODELS_BOOT }} />
   </Layout>
 );
 
@@ -647,9 +653,11 @@ const AiEngineCard: FC<{ engine: AiEngineRow }> = ({ engine: e }) => (
       <form
         method="post"
         action="/settings/ai/models"
-        class="mt-4 grid gap-3 border-t border-line pt-4 sm:grid-cols-[1fr_1fr_auto] sm:items-end"
+        data-model-form
+        class="mt-4 border-t border-line pt-4"
       >
         <input type="hidden" name="provider" value={e.id} />
+        <div class="grid gap-3 sm:grid-cols-3">
         <Field label="Classifier model" hint="Scores every fetched job — cheap and frequent.">
           <ModelPicker
             name="classifier"
@@ -668,9 +676,28 @@ const AiEngineCard: FC<{ engine: AiEngineRow }> = ({ engine: e }) => (
             freeText={e.freeTextModels}
           />
         </Field>
-        <Button size="sm" variant="secondary">
-          Save models
-        </Button>
+        <Field label="Cover letter model" hint="Writing quality, not analysis. Empty follows the resume model.">
+          <ModelPicker
+            name="cover"
+            value={e.coverModel}
+            fallback={e.coverDefault}
+            options={e.options}
+            freeText={e.freeTextModels}
+          />
+        </Field>
+        </div>
+        <div class="mt-3 flex items-center gap-3">
+          {/* The no-JS path: settings-models.mjs hides this and saves on change. */}
+          <Button size="sm" variant="secondary" data-save-button>
+            Save models
+          </Button>
+          <span
+            class="text-xs text-ink-faint"
+            data-save-status
+            role="status"
+            aria-live="polite"
+          ></span>
+        </div>
       </form>
     )}
   </Card>
@@ -940,6 +967,11 @@ const PriorityRulesEditor: FC<{ profile: Profile }> = ({ profile }) => {
  * Progressive enhancement only: chip editors write back into their hidden
  * textarea (newline-joined), so the POST body the routes parse is unchanged.
  */
+const MODELS_BOOT = `
+import { init } from '/static/settings-models.mjs';
+init();
+`;
+
 const SETTINGS_JS = `
   (function () {
     function enhance(host) {

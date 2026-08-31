@@ -245,6 +245,59 @@ search (`AiRequest.webTools`, ADR 0009) and stores a `JobVerification`:
 `verdict` legit | suspicious | fake, `recommendation` apply | caution |
 skip, confidence, evidence rows with URLs, red flags, company snapshot.
 
+## Cover letters (F8, ADR 0021)
+
+"Cover letter" on `/jobs/:id` writes a short letter (120–180 words, capped
+at 200 — the band of the user's real sent letter) from stored inputs only:
+resume text, `CandidateFact` rows, the posting, plus — when they exist —
+the latest `ResumeMatch` of the selected resume and the stored
+verification's `companySnapshot`. Match and verification are optional
+enrichers, not prerequisites (they cover ~1% of jobs). Tone select
+(neutral | warm | direct) and four optional angle fields steer emphasis —
+three per-story inputs plus standing "anything every letter should
+mention" notes; all four are saved to `AppSettings.coverAngles` on every
+generation and prefilled on every job page, so they are typed once. Angle
+text is never treated as evidence. Letters are written for a non-technical
+first reader (no acronym soup, at least as much about the company's need
+as the candidate's past) and normalized to plain keyboard punctuation by
+`toPlainPunctuation` before the gate — no em dashes, curly quotes, bullets
+or emoji ever reach a stored letter. English only until a non-English
+posting or resume exists.
+
+The menu's **Cover letter** page (`/letter`) is the standalone entry point.
+Two job sources: a searchable picker over the newest jobs that clear the
+active profile's fit threshold, or one "new posting" box taking a URL
+and/or pasted text (pasted text wins; a bare URL is fetched — ADR 0005
+hosts and the private address space refused, bot checks fail honestly, and
+an unreadable page returns the user to the form with the URL kept). Resume
+by pick / upload / paste (scratch row, like /target).
+
+**The default run is one model call.** The letter path never asks for a fit
+score (a letter does not read one; "Re-classify" fills it in later), and the
+resume match (+1 min) and company research (+2–4 min) are opt-in behind a
+disclosure — measured end to end at ~26 s from submit to letter. Both
+analyses are stored on the job, so a later letter reuses them for free.
+Every slow stage — the page fetch included — is a visible run step, so the
+form never hangs.
+
+Letter writing has its own per-engine model slot on `/settings` → AI engine;
+an empty slot follows the resume model. Each letter row offers Regenerate (same resume + tone,
+current saved angles and prompt) and "Save as PDF" / "Save as DOCX"
+downloads built in-process (`zip-write` / `docx-write` / `pdf-write`, no new
+dependencies); the edited text wins in exports. Edits autosave (debounced,
+flushed on blur and on unload) and re-run the gate warn-only; the Save
+button remains as the no-JS path.
+
+Every draft passes the fact gate (`fact-check.ts`, ADR 0020) before it is
+shown: `block` → one regeneration with the violations quoted → still
+`block` → the run errors and nothing is persisted. Stored rows
+(`CoverLetter`) carry the text, `keywordsUsed` / `gapsAcknowledged`, the
+engine `model` (with the `· fallback` marker), `gateVerdict` and
+`gateNotes`; the card lists all letters newest-first with copy and in-place
+editing. Manual edits are re-checked warn-only — the gate polices the
+model, not the user. The generation call is tool-free (`webTools` stays
+exclusive to verification, ADR 0009).
+
 ## Hard out-of-scope (Phase 7+)
 
 - Multi-user / per-user views (auth, sessions). Single-deployment-per-friend stays the answer.

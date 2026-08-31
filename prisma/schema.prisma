@@ -132,6 +132,7 @@ model Job {
 
   resumeMatches ResumeMatch[]
   verifications JobVerification[]
+  coverLetters  CoverLetter[]
 
   @@unique([companyId, externalId])
   @@index([status, fetchedAt])
@@ -196,6 +197,10 @@ model AppSettings {
   // F4 (ADR 0019): one digest line when a source crosses the failure
   // streak. Default TRUE — the alert adds a signal, never suppresses a job.
   sourceHealthAlerts             Boolean  @default(true)
+  // F8.1: standing angle inputs for the cover-letter card ({ whyCompany,
+  // problem, approach, notes }), saved on every generation so the user
+  // never retypes them. Parse with readCoverAngles (resume/prompts.ts).
+  coverAngles                    Json?
   updatedAt                      DateTime @updatedAt
 }
 
@@ -308,6 +313,7 @@ model Resume {
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
   matches         ResumeMatch[]
+  coverLetters    CoverLetter[]
 }
 
 // Phase 8.1: one AI comparison of a resume against a job posting.
@@ -362,6 +368,37 @@ model CandidateFact {
   note      String? // user's context: where / when / what
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+// F8 (ADR 0021): one generated cover letter, gated by fact-check.ts before it
+// is ever stored (only pass|warn rows exist; a blocked letter is never
+// persisted). `kind` is reserved for F16 email drafts. `editedText` holds the
+// user's manual edit of `text`; gateVerdict/gateNotes track the LAST gate run
+// (generation, or warn-only re-check on a manual save).
+model CoverLetter {
+  id               Int      @id @default(autoincrement())
+  jobId            Int
+  job              Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  resumeId         Int
+  resume           Resume   @relation(fields: [resumeId], references: [id], onDelete: Cascade)
+  resumeVersion    Int      @default(1)
+  kind             String   @default("letter")
+  tone             String   @default("warm")
+  text             String   @db.Text
+  editedText       String?  @db.Text
+  model            String
+  promptVersion    Int
+  keywordsUsed     String[] @default([])
+  gapsAcknowledged String[] @default([])
+  // Whether a stored verification's companySnapshot fed the prompt.
+  usedVerification Boolean  @default(false)
+  // pass | warn from generation; block is reachable only through a manual
+  // edit (generation never persists a blocked letter).
+  gateVerdict      String
+  gateNotes        String[] @default([])
+  createdAt        DateTime @default(now())
+
+  @@index([jobId, createdAt])
 }
 
 // Phase 8.2: ghost-job / scam check of one posting, done with web search.

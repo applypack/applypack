@@ -8,6 +8,10 @@
  */
 
 const ACTIVITIES = {
+  fetch: [
+    'Requesting the posting page…',
+    'Reading the description out of the page…',
+  ],
   extract: [
     'Reading the pasted posting…',
     'Picking out company, title, location and salary…',
@@ -28,6 +32,18 @@ const ACTIVITIES = {
     'Checking hard requirements, red flags and facts to confirm…',
     'Drafting edit suggestions and removals with exact quotes…',
     'Composing the deterministic score — almost there…',
+  ],
+  verify: [
+    'Searching for the company and this posting…',
+    'Cross-checking the careers page and the ATS…',
+    'Weighing ghost-job signals…',
+    'Writing the company snapshot…',
+  ],
+  letter: [
+    'Reading the posting and the resume…',
+    'Choosing which true facts serve this role…',
+    'Drafting the letter — role, evidence, why this company…',
+    'Fact-checking every claim against the resume…',
   ],
 };
 const ROTATE_MS = 9000;

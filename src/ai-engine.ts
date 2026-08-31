@@ -42,7 +42,7 @@ export const PROVIDER_PAID: Record<AiProviderId, boolean> = {
   codex_cli: false,
 };
 
-export type AiRole = 'classifier' | 'resume';
+export type AiRole = 'classifier' | 'resume' | 'cover';
 
 /**
  * Curated per-family model ids for the dashboard selects. The empty string
@@ -91,6 +91,7 @@ const StoredEngineSchema = z.object({
       z.object({
         classifier: z.string().nullable().optional(),
         resume: z.string().nullable().optional(),
+        cover: z.string().nullable().optional(),
       }),
     )
     .default({}),
@@ -98,7 +99,9 @@ const StoredEngineSchema = z.object({
 
 export interface AiEngineConfig {
   order: AiProviderId[];
-  models: Partial<Record<AiProviderId, { classifier?: string | null; resume?: string | null }>>;
+  models: Partial<
+    Record<AiProviderId, { classifier?: string | null; resume?: string | null; cover?: string | null }>
+  >;
 }
 
 /** Parses the raw JSON column; never throws, unknown ids are dropped. */
@@ -184,6 +187,7 @@ export interface AiUsageRow {
   id: AiProviderId;
   classifier: number;
   resume: number;
+  cover: number;
 }
 
 /** Sums the per-day counters over the last `days` days; busiest first. */
@@ -194,21 +198,22 @@ export function summarizeAiUsage(raw: unknown, days: number, today: Date): AiUsa
   for (let i = 0; i < days; i++) {
     window.add(new Date(today.getTime() - i * 86_400_000).toISOString().slice(0, 10));
   }
-  const totals = new Map<AiProviderId, { classifier: number; resume: number }>();
+  const totals = new Map<AiProviderId, { classifier: number; resume: number; cover: number }>();
   for (const [day, providers] of Object.entries(parsed.data)) {
     if (!window.has(day)) continue;
     for (const [id, roles] of Object.entries(providers)) {
       if (!isAiProviderId(id)) continue;
-      const row = totals.get(id) ?? { classifier: 0, resume: 0 };
+      const row = totals.get(id) ?? { classifier: 0, resume: 0, cover: 0 };
       row.classifier += roles.classifier ?? 0;
       row.resume += roles.resume ?? 0;
+      row.cover += roles.cover ?? 0;
       totals.set(id, row);
     }
   }
   return [...totals.entries()]
     .map(([id, r]) => ({ id, ...r }))
-    .filter((r) => r.classifier + r.resume > 0)
-    .sort((a, b) => b.classifier + b.resume - (a.classifier + a.resume));
+    .filter((r) => r.classifier + r.resume + r.cover > 0)
+    .sort((a, b) => b.classifier + b.resume + b.cover - (a.classifier + a.resume + a.cover));
 }
 
 export function resolveAiEngine(raw: unknown, env: AiEngineEnv): ResolvedAiEngine {
@@ -223,9 +228,14 @@ export function resolveAiEngine(raw: unknown, env: AiEngineEnv): ResolvedAiEngin
     chain,
     skipped,
     modelFor(id, role) {
-      const stored = config.models[id]?.[role]?.trim();
-      if (stored && modelFitsProvider(stored, id)) return stored;
-      return defaultModelFor(id, role, env);
+      // An empty "cover" slot inherits the resume one: the extra role costs
+      // nothing until someone deliberately points it at another model.
+      const slots: AiRole[] = role === 'cover' ? ['cover', 'resume'] : [role];
+      for (const slot of slots) {
+        const stored = config.models[id]?.[slot]?.trim();
+        if (stored && modelFitsProvider(stored, id)) return stored;
+      }
+      return defaultModelFor(id, role === 'cover' ? 'resume' : role, env);
     },
   };
 }

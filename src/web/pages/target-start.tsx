@@ -171,9 +171,16 @@ export const TargetStartPage: FC<TargetStartProps> = ({ resumes, flash }) => {
   );
 };
 
-const ModeCard: FC<
-  PropsWithChildren<{ value: string; label: string; checked?: boolean; disabled?: boolean }>
-> = ({ value, label, checked = false, disabled = false, children }) => (
+/** Radio-headed option card — shared with the /letter launcher. */
+export const ModeCard: FC<
+  PropsWithChildren<{
+    value: string;
+    label: string;
+    checked?: boolean;
+    disabled?: boolean;
+    name?: string;
+  }>
+> = ({ value, label, checked = false, disabled = false, name = 'resumeMode', children }) => (
   <fieldset
     data-mode={value}
     class={`rounded-md border border-line bg-surface-raised p-3 transition-colors duration-150 has-[:checked]:border-accent/50 has-[:checked]:bg-accent/5 ${
@@ -183,7 +190,7 @@ const ModeCard: FC<
     <label class="flex cursor-pointer items-center gap-2 text-sm font-medium text-ink">
       <input
         type="radio"
-        name="resumeMode"
+        name={name}
         value={value}
         checked={checked}
         disabled={disabled}

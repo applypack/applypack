@@ -29,6 +29,7 @@ consequences (what we accept). Aim for 15–30 lines each.
 - [0018 — Cross-listing is annotated, never merged](./0018-simhash-annotates-never-merges.md)
 - [0019 — Source health is a per-company streak; `empty` resets it but does not prove health](./0019-source-health-streaks.md)
 - [0020 — The fact gate blocks fabrication, not imprecision](./0020-fact-gate-blocks-fabrication-not-imprecision.md)
+- [0021 — Cover letters generate from stored inputs only](./0021-cover-letters-stored-inputs-only.md)
 
 ## When to write a new one
 

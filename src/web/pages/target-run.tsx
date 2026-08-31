@@ -5,6 +5,10 @@ import { Button, Card, Hint, MarkIcon } from '../ui';
 import type { RunStep, TargetRun } from '../target-runs';
 
 const STEP_VIEW: Record<RunStep, { label: string; detail: string }> = {
+  fetch: {
+    label: 'Read the posting page',
+    detail: 'one request to the URL you gave — seconds',
+  },
   extract: {
     label: 'Detect posting facts',
     detail: 'company, title, location, salary from the description — seconds',
@@ -21,6 +25,14 @@ const STEP_VIEW: Record<RunStep, { label: string; detail: string }> = {
     label: 'AI match',
     detail: 'the resume model reads both texts — about a minute',
   },
+  verify: {
+    label: 'Research the company',
+    detail: 'ghost-check with web search — 2 to 4 minutes',
+  },
+  letter: {
+    label: 'Write the cover letter',
+    detail: 'grounded in the resume, fact-checked before it is shown — about a minute',
+  },
 };
 
 /**
@@ -32,13 +44,20 @@ export const TargetRunPage: FC<{ run: TargetRun }> = ({ run }) => {
   const failed = run.stage === 'error';
   const currentIdx = run.steps.indexOf(run.stage as RunStep);
   const elapsed = Math.max(0, Math.round((Date.now() - run.startedAt) / 1000));
+  // A letter run reads oddly as "Comparing" — the verb follows the steps.
+  const letter = run.steps.includes('letter');
+  const heading = failed
+    ? letter
+      ? 'Generation failed'
+      : 'Comparison failed'
+    : letter
+      ? 'Writing a cover letter'
+      : 'Comparing';
   return (
-    <Layout title={failed ? 'Comparison failed' : 'Comparing…'} active="target">
+    <Layout title={failed ? heading : `${heading}…`} active="target">
       <div class="mx-auto w-full max-w-2xl pt-6 lg:pt-16">
         <Card>
-          <div class="mb-1 text-sm font-semibold text-ink">
-            {failed ? 'Comparison failed' : 'Comparing'}
-          </div>
+          <div class="mb-1 text-sm font-semibold text-ink">{heading}</div>
           <div class="text-sm text-ink-muted">
             "{run.resumeName}" ↔ "<span id="run-job-title">{run.jobTitle}</span>"
           </div>
@@ -49,8 +68,8 @@ export const TargetRunPage: FC<{ run: TargetRun }> = ({ run }) => {
                 {run.error ?? 'Unexpected failure — see the web logs.'}
               </div>
               <div class="flex flex-wrap gap-2">
-                <Button href="/target" variant="secondary">
-                  ← Back to Target
+                <Button href={run.backUrl} variant="secondary">
+                  ← {run.backLabel}
                 </Button>
                 {run.jobId && (
                   <Button href={`/jobs/${run.jobId}`} variant="secondary">

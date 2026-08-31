@@ -281,6 +281,22 @@ function trimRun(raw: string | undefined): string {
 }
 
 /**
+ * Pronoun contractions ride into the capture because they start uppercase:
+ * "At V Shred I've built …" is a claim about V Shred, not "V Shred I've".
+ * Caught live by the first F8 letter — the fix tightens the extractor, never
+ * the verdict (ADR 0020).
+ */
+function dropTrailingNonNames(name: string): string {
+  const words = name.split(/\s+/);
+  while (words.length > 0) {
+    const last = words[words.length - 1]!.toLowerCase().replace(/'\w+$/, '');
+    if (!NOT_AN_EMPLOYER.has(last)) break;
+    words.pop();
+  }
+  return words.join(' ');
+}
+
+/**
  * Only claims about the writer's own history. Naming the company being
  * written to is not one — measured on a real letter of ours, the addressee
  * appears in the second person ("your mission"), never under these triggers.
@@ -292,7 +308,10 @@ function extractAssertions(normalized: string, addressee: string | null): RawAss
   const addresseeKey = addressee ? canonicalTerm(addressee) : null;
 
   for (const m of normalized.matchAll(EMPLOYER_TRIGGER)) {
-    const name = trimRun(m[1]);
+    // The name class allows '.' (Node.js Inc.), so a run can glue across a
+    // sentence boundary: "at OGD Solutions. AI-first…" → "OGD Solutions. AI".
+    // Cut at dot-space — the same fix gotcha 6 needed in the HN parser.
+    const name = dropTrailingNonNames(trimRun(m[1]!.split(/\.\s/)[0]));
     const key = canonicalTerm(name);
     if (!key || key === addresseeKey) continue;
     if (key.split(/\s+/).every((w) => skip.has(w))) continue;

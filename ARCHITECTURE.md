@@ -191,16 +191,21 @@ src/
     docx-text.ts               ← word/document.xml → plain text, pure
     pdf-text.ts                ← PDF → plain text via unpdf (ADR 0011), tested
     resume-text.ts             ← upload dispatch by extension, pure
-    prompts.ts                 ← scan + match prompts, zod schemas, Json readers, pure
+    prompts.ts                 ← scan + match + cover prompts, zod schemas, Json readers, pure
     profile-draft.ts           ← resume scan → profile-editor draft (ADR 0015), pure
     score.ts                   ← deterministic match score + breakdown (ADR 0012), pure
     facts.ts                   ← apply CandidateFacts / cross-resume hints to keywords, pure
+    fact-check.ts              ← deterministic fabrication gate for generated prose (ADR 0020), pure
     diff.ts                    ← version delta from two matches (gained/lost, components), pure
     parse-warnings.ts          ← ATS parseability checks over extracted text, pure
     pick.ts                    ← preselect resume by skill-tag overlap, pure
-    store.ts                   ← Resume / ResumeMatch / CandidateFact CRUD (Prisma)
+    store.ts                   ← Resume / ResumeMatch / CandidateFact / CoverLetter CRUD (Prisma)
+    zip-write.ts               ← minimal STORED zip writer (docx container), pure
+    docx-write.ts              ← letter → .docx, round-trip-tested against zip.ts + docx-text.ts, pure
+    pdf-write.ts               ← letter → minimal Helvetica PDF, pure
     scan.ts                    ← one AI call → Resume scan fields
     match.ts                   ← one AI call → facts context in, statuses out, score.ts computes → ResumeMatch row
+    cover-letter.ts            ← one gated AI call → CoverLetter row; gate block → regen once → refuse (ADR 0021)
 
   verification/                ← ghost-job check (ADR 0009) + liveness ladder (ADR 0016)
     prompts.ts                 ← checklist prompt, zod schema, evidence reader, pure
@@ -232,6 +237,7 @@ src/
     process-jobs.ts             ← shared inner loop used by fetch + HN
     reclassify-job.ts           ← runReclassifyAll (web-triggered, async)
     classify-existing.ts        ← classify one stored job (Re-classify button, manual entry)
+    posting-url.ts              ← one user-requested posting-page GET → plain text (ADR 0005 blocklist, honest bot-check failure)
     manual-job.ts               ← pasted posting → MANUAL company + Job + classify (used by /jobs/new and /target)
     cron-run.ts                 ← recordCronRun(name, fn) wrapper
 
@@ -249,6 +255,7 @@ src/
     target-runs.ts            ← in-memory compare-run registry (async classify/scan/match)
     public/target.mjs         ← browser keyword matcher (pure ES module, node-tested)
     public/score.mjs          ← browser mirror of resume/score.ts (parity-tested, ADR 0012)
+    public/cover-letter.mjs   ← copy-to-clipboard for the letter card (import-smoke-tested)
 
     pages/
       overview.tsx              ← /
@@ -263,16 +270,19 @@ src/
       resumes.tsx               ← /resumes (list + upload form component)
       resume-detail.tsx         ← /resumes/:id
       resume-match-card.tsx     ← "Resume match" card on /jobs/:id
+      cover-letter-card.tsx     ← "Cover letter" card on /jobs/:id (F8, ADR 0021)
       verification-card.tsx     ← "Is this job real?" card on /jobs/:id
       job-new.tsx               ← /jobs/new (paste a posting)
       target-start.tsx          ← /target (paste posting + pick/upload/paste resume → one run)
+      letter-start.tsx          ← /letter (job by pick/URL/paste + resume + optional match/verify → letter)
       target-run.tsx            ← /target/runs/:id (progress steps, meta-refresh 2s)
       target.tsx                ← /jobs/:id/target (side-by-side editor, live score)
 
     routes/
       overview.tsx
-      jobs.tsx                  ← list + new (manual) + detail + status + reclassify + verify + resume match
+      jobs.tsx                  ← list + new (manual) + detail + status + reclassify + verify + resume match + cover letters
       target.tsx                ← /target launcher: resume resolve + manual job + match in one POST
+      letter.tsx                ← /letter launcher: job + resume resolve → [extract→classify→match→verify]→letter run
       resumes.tsx               ← upload (5 MB limit) + scan + default + delete + download
       applications.tsx          ← kanban + per-job application form
       companies.tsx              ← list + new (probe-validated) + delete + toggle + starter packs
@@ -284,7 +294,7 @@ src/
 prisma/
   schema.prisma                 ← Company, Job, CronRun, AppSettings, Profile,
                                   TelegramTarget, CompanyCandidate, Resume,
-                                  ResumeMatch, JobVerification, 4 enums
+                                  ResumeMatch, JobVerification, CoverLetter, 4 enums
   migrations/                   ← real Prisma migrations from phase-3.0 baseline
 ```
 
@@ -312,6 +322,10 @@ prisma/
 | `GET /target/runs/:id`           | web     | progress page (meta-refresh 2s); done → flash + redirect into the targeted view |
 | `POST /resumes/:id/replace`      | web     | new file → `version`+1 → `scanResume`    |
 | `POST /jobs/:id/target/reupload` | web     | async run: replace (+scan for real resumes; scratch skips it) → match |
+| `POST /jobs/:id/cover`           | web     | async run: `generateCoverLetter` (fact-gated; blocked twice → error, no row); redirects to `/target/runs/:id`. The card form also saves the angle prefills; a Regenerate POST reuses them |
+| `POST /jobs/:id/cover/:letterId` | web     | save a manual edit; re-runs the gate warn-only, updates `gateVerdict`/`gateNotes` |
+| `GET /jobs/:id/cover/:letterId/file/:fmt` | web | letter (edited text wins) → .docx or .pdf attachment, built in-process |
+| `POST /letter`                   | web     | job by picker / URL / paste + resume resolve → async run [fetch? → extract? → classify? → match? → verify?] → gated letter. Everything slow is a run step; the POST only shape-checks (§6.2) |
 | `POST /resumes/:id/draft`        | web     | edited text → `.md` version → scan (+ match when `jobId`) |
 | `GET /static/*`                  | web     | `src/web/public` (keyword matcher)       |
 | `POST /discovery/:id/promote`    | web     | transactional Company upsert             |
@@ -329,6 +343,8 @@ erDiagram
   Resume ||--o{ ResumeMatch : "1..N onDelete:Cascade"
   Job ||--o{ ResumeMatch : "1..N onDelete:Cascade"
   Job ||--o{ JobVerification : "1..N onDelete:Cascade"
+  Resume ||--o{ CoverLetter : "1..N onDelete:Cascade"
+  Job ||--o{ CoverLetter : "1..N onDelete:Cascade"
 
   AppSettings {
     int id PK

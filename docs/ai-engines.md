@@ -155,3 +155,28 @@ works on macOS too.)
 - **Every engine failed** — the log line `ai: every engine in the chain
   failed` lists the chain that was tried. Jobs are retried on the next
   cron tick; nothing is lost.
+
+## Measured: Haiku through the Claude Code CLI cannot hold the cover-letter prompt
+
+Benchmarked 2026-08-31 on one job + one resume, cover-letter role only:
+
+| Engine | Model | Time | Result |
+|---|---|---|---|
+| anthropic_api | haiku-4.5 | **6 s** | ok |
+| anthropic_api | opus-5 | 16 s | ok |
+| claude_code | opus-5 | 22 s | ok |
+| claude_code | sonnet-5 | 25 s | ok |
+| claude_code | haiku-4.5 | 146 s / timeout | unreliable |
+| claude_code | `haiku` alias | 2 x 180 s timeout | **failed, no letter** |
+
+The CLI is killed by our own 180 s per-attempt timeout (`code: 143,
+killed: true`), and the alias behaves the same as the dated id, so this is
+not a model-id problem. The classifier runs haiku through the same CLI all
+day without trouble — the difference is prompt size: the letter sends ~10 KB
+of system prompt plus the whole resume, the classifier sends a fraction of
+that.
+
+**Practical rule:** for the cover-letter role pick opus or sonnet on
+`claude_code`, or use `anthropic_api` (fastest of all). Leaving the Cover
+letter slot empty is safe — it inherits the resume model, which is opus by
+default.
