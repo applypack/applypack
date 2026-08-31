@@ -1,4 +1,4 @@
-# Job Hunter — Multi-Provider AI Architecture
+# ApplyPack — Multi-Provider AI Architecture
 ## Claude + OpenAI / GPT + Gemini subscriptions, API keys, routing, fallback, usage and cost tracking
 
 **Research date:** 2026-08-29
@@ -49,7 +49,7 @@ The application should allow these connections to coexist without one credential
 The recommended end state is:
 
 ```text
-Job Hunter
+ApplyPack
     |
     v
 AI Orchestrator
@@ -104,9 +104,9 @@ Claude subscription
 Anthropic API credits
 ```
 
-If Job Hunter uses a Claude subscription, it should do so through the **official Claude Code execution path**, not by extracting a Claude OAuth token and pretending that it is a normal API key.
+If ApplyPack uses a Claude subscription, it should do so through the **official Claude Code execution path**, not by extracting a Claude OAuth token and pretending that it is a normal API key.
 
-Do not copy Claude subscription tokens into the Job Hunter database.
+Do not copy Claude subscription tokens into the ApplyPack database.
 
 ---
 
@@ -288,7 +288,7 @@ Connection 2
 Provider: OpenAI
 Transport: OpenAI API
 Auth: API key
-Label: Job Hunter OpenAI API
+Label: ApplyPack OpenAI API
 Enabled: yes
 Priority: 30
 
@@ -427,7 +427,7 @@ Gemini CLI
 prefer:
 
 ```text
-Job Hunter
+ApplyPack
     |
     v
 official CLI / harness
@@ -439,7 +439,7 @@ provider-owned credential cache
 instead of:
 
 ```text
-Job Hunter
+ApplyPack
     |
     v
 copy OAuth token from provider CLI
@@ -448,7 +448,7 @@ copy OAuth token from provider CLI
 store token in Postgres
 ```
 
-Do not make Job Hunter responsible for refreshing consumer-subscription OAuth tokens unless the provider explicitly exposes and supports that integration model.
+Do not make ApplyPack responsible for refreshing consumer-subscription OAuth tokens unless the provider explicitly exposes and supports that integration model.
 
 ---
 
@@ -733,7 +733,7 @@ It can return JSON containing:
 - latency;
 - errors.
 
-That is useful for the Job Hunter adapter.
+That is useful for the ApplyPack adapter.
 
 Use structured output rather than parsing human CLI text whenever possible.
 
@@ -1376,7 +1376,7 @@ Keep differences small and tested.
 
 # 49. Structured output is essential for this project
 
-Job Hunter uses AI for data processing, not only free-form chat.
+ApplyPack uses AI for data processing, not only free-form chat.
 
 Responses should be validated against explicit schemas.
 
@@ -1627,7 +1627,7 @@ Provider billing may include:
 
 OpenAI currently exposes organization usage/cost APIs for appropriate admin credentials.
 
-Do not require an organization admin key merely to use Job Hunter.
+Do not require an organization admin key merely to use ApplyPack.
 
 A normal project API connection should work without billing-admin permissions.
 
@@ -1668,7 +1668,7 @@ Gemini API usage can be monitored through AI Studio and Google Cloud billing.
 
 Billing data may be delayed.
 
-Job Hunter should still maintain real-time local estimates from request usage.
+ApplyPack should still maintain real-time local estimates from request usage.
 
 Optional reconciliation can happen later.
 
@@ -1737,7 +1737,7 @@ Do not hard-code a global value as authoritative.
 
 # 64. Optional allocated project cost
 
-For personal analysis, Job Hunter could display:
+For personal analysis, ApplyPack could display:
 
 ```text
 Subscriptions
@@ -1829,14 +1829,14 @@ Do not claim a hard cap is mathematically exact if provider usage can exceed it 
 
 Best practice:
 
-Create provider credentials specifically for Job Hunter where possible.
+Create provider credentials specifically for ApplyPack where possible.
 
 Examples:
 
 ```text
-OpenAI project: Job Hunter
-Anthropic workspace/key: Job Hunter
-Google project: Job Hunter
+OpenAI project: ApplyPack
+Anthropic workspace/key: ApplyPack
+Google project: ApplyPack
 ```
 
 Benefits:
@@ -1875,7 +1875,7 @@ Do not hide it inside `.env` documentation.
 AI Providers
 
 Connect one or more AI services.
-Job Hunter can use a single provider, fall back in order,
+ApplyPack can use a single provider, fall back in order,
 or compare providers for selected tasks.
 
 
@@ -2295,7 +2295,7 @@ This is very useful for debugging.
 
 Subscription CLI authentication is naturally local.
 
-If Job Hunter remains local:
+If ApplyPack remains local:
 
 ```text
 browser
@@ -2306,7 +2306,7 @@ provider CLIs
 
 is practical.
 
-If Job Hunter becomes a hosted SaaS:
+If ApplyPack becomes a hosted SaaS:
 
 ```text
 server
@@ -2322,7 +2322,7 @@ Design for this distinction now.
 
 # 86. Recommended Local AI Runner
 
-Because Job Hunter appears to run locally and may use containers, a small host-side runner is a strong design.
+Because ApplyPack appears to run locally and may use containers, a small host-side runner is a strong design.
 
 Architecture:
 
@@ -2330,7 +2330,7 @@ Architecture:
 Browser
    |
    v
-Job Hunter backend / Docker
+ApplyPack backend / Docker
    |
    v
 Local AI Runner
@@ -2397,7 +2397,7 @@ localhost
 
 or use a Unix-domain socket.
 
-Authenticate requests from the Job Hunter backend.
+Authenticate requests from the ApplyPack backend.
 
 Do not expose it to the LAN by default.
 
@@ -2666,7 +2666,7 @@ Only expose token/cost values the provider actually returns or that can be relia
 
 # 102. Usage metadata and privacy
 
-Job Hunter handles resumes and job descriptions.
+ApplyPack handles resumes and job descriptions.
 
 These can contain:
 
@@ -2872,7 +2872,7 @@ Keep the first implementation small.
 
 ---
 
-# 112. Recommended default policy for Job Hunter
+# 112. Recommended default policy for ApplyPack
 
 For a local personal deployment with several paid subscriptions:
 
@@ -3226,7 +3226,7 @@ Run the most restricted configuration possible.
 If a CLI requires a working directory:
 
 - create an isolated temporary directory;
-- do not point it at the full Job Hunter repository;
+- do not point it at the full ApplyPack repository;
 - pass only the required content;
 - delete temporary data after completion according to retention policy.
 
@@ -3321,7 +3321,7 @@ Therefore do not redesign the whole project around a library solely because it s
 A good architecture is:
 
 ```text
-Job Hunter's own provider interface
+ApplyPack's own provider interface
      |
      +--> optional common API library
      +--> official CLI adapters
@@ -3465,7 +3465,7 @@ Advanced configuration is hidden by default.
 Settings / AI Providers
 
 AI providers
-Connect the AI services you want Job Hunter to use.
+Connect the AI services you want ApplyPack to use.
 
 
 Connections
@@ -3531,7 +3531,7 @@ Estimated API spend           $6.03
 Add OpenAI API connection
 
 Name
-[Job Hunter OpenAI]
+[ApplyPack OpenAI]
 
 API key
 [••••••••••••••••••••••]
@@ -3567,7 +3567,7 @@ Gemini CLI subscription quota.
 [Sign in]
 
 Your credentials stay managed by Gemini CLI.
-Job Hunter does not store your Google password.
+ApplyPack does not store your Google password.
 ```
 
 Only claim credential behavior that the implementation actually follows.
@@ -4470,7 +4470,7 @@ Copy this prompt into the orchestrating coding agent.
 
 ## Prompt
 
-You are the lead architect implementing multi-provider AI support in the Job Hunter repository.
+You are the lead architect implementing multi-provider AI support in the ApplyPack repository.
 
 The project currently has a Claude-centric integration and configuration in `.env`. The target architecture must support multiple simultaneous AI connections, including subscription-backed official CLI/harness access where supported and normal pay-as-you-go APIs.
 
@@ -4617,7 +4617,7 @@ If the application/backend runs in Docker while subscription CLIs authenticate o
 The local runner must:
 
 - bind only locally or use a Unix socket;
-- authenticate Job Hunter requests;
+- authenticate ApplyPack requests;
 - execute only known provider binaries;
 - use process argument arrays, never shell string concatenation;
 - use an allowlisted child-process environment;

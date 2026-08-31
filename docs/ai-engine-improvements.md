@@ -1,7 +1,7 @@
 # AI engine — future improvements (backlog, not scheduled)
 
 > Distilled 2026-08-30 from the multi-provider research doc
-> ([archive/job-hunter-multi-provider-ai-architecture.md](./archive/job-hunter-multi-provider-ai-architecture.md),
+> ([archive/applypack-multi-provider-ai-architecture.md](./archive/applypack-multi-provider-ai-architecture.md),
 > § numbers below refer to it) reviewed against what ADR 0013/0014 already
 > shipped. ~70% of that doc is implemented; this file keeps only the delta
 > worth doing — and the explicitly rejected parts, so future sessions don't

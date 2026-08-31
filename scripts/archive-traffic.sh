@@ -7,8 +7,8 @@
 # Requires: gh (authenticated), jq.
 set -eu
 
-REPO="${REPO:-nazboyko/job-hunter}"
-OUT="${1:-$HOME/job-hunter-evidence/traffic}"
+REPO="${REPO:-nazboyko/applypack}"
+OUT="${1:-$HOME/applypack-evidence/traffic}"
 DATE="$(date +%Y-%m-%d)"
 
 mkdir -p "$OUT"

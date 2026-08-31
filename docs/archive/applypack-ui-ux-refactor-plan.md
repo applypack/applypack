@@ -1,8 +1,8 @@
-# Job Hunter UI/UX Refactor — Settings + Project-wide Design Audit
+# ApplyPack UI/UX Refactor — Settings + Project-wide Design Audit
 
 ## 1. Goal
 
-Refactor the Job Hunter interface so it feels like a focused, production-quality internal SaaS tool:
+Refactor the ApplyPack interface so it feels like a focused, production-quality internal SaaS tool:
 
 - easy to scan;
 - obvious where each setting belongs;
@@ -1859,7 +1859,7 @@ Run matching again using the active Target profile.
 
 ```text
 Target
-Define the jobs you want Job Hunter to prioritize.
+Define the jobs you want ApplyPack to prioritize.
 
 Profile
 [ PHP/Laravel + JS Full-Stack ▾ ]  Active
@@ -2305,7 +2305,7 @@ Copy the prompt below into the orchestrating agent.
 
 You are the lead frontend/UI refactoring engineer for this repository.
 
-Your goal is to make the entire Job Hunter application significantly more readable, consistent, compact, accessible and pleasant to use **without changing business behavior unnecessarily**.
+Your goal is to make the entire ApplyPack application significantly more readable, consistent, compact, accessible and pleasant to use **without changing business behavior unnecessarily**.
 
 This is not a cosmetic “make it prettier” task.
 
@@ -2694,7 +2694,7 @@ Rules for orchestration:
 
 If a smaller prompt is needed:
 
-> Audit the full Job Hunter frontend and refactor it into a consistent, restrained, high-readability SaaS UI. The first priority is information architecture, not decoration. The current Settings page is overloaded: move matching to Target, sources/discovery to Discovery, resumes to Resumes, and application-specific configuration to Applications where appropriate. Keep Settings focused on General, Notifications and Advanced. Establish shared design tokens and reusable buttons/forms/cards/statuses before page-level styling. Normalize typography, spacing, content widths, form behavior, toggles, saving, errors, responsive layouts and accessibility across every route. Replace raw/internal labels and excessive helper copy with concise user-facing language. Build a human-friendly priority-rule editor and move bulk re-classification into Advanced actions. Preserve business logic. Capture before/after screenshots, run lint/typecheck/tests/Playwright/accessibility checks, and perform a final cross-page consistency audit.
+> Audit the full ApplyPack frontend and refactor it into a consistent, restrained, high-readability SaaS UI. The first priority is information architecture, not decoration. The current Settings page is overloaded: move matching to Target, sources/discovery to Discovery, resumes to Resumes, and application-specific configuration to Applications where appropriate. Keep Settings focused on General, Notifications and Advanced. Establish shared design tokens and reusable buttons/forms/cards/statuses before page-level styling. Normalize typography, spacing, content widths, form behavior, toggles, saving, errors, responsive layouts and accessibility across every route. Replace raw/internal labels and excessive helper copy with concise user-facing language. Build a human-friendly priority-rule editor and move bulk re-classification into Advanced actions. Preserve business logic. Capture before/after screenshots, run lint/typecheck/tests/Playwright/accessibility checks, and perform a final cross-page consistency audit.
 
 ---
 

@@ -44,7 +44,7 @@ async function main(): Promise<void> {
     void shutdown('SIGINT');
   });
 
-  logger.info({ tz: config.TZ }, 'job-hunter: cron registered, idle');
+  logger.info({ tz: config.TZ }, 'applypack: cron registered, idle');
 }
 
 function registerCron(

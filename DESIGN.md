@@ -1,5 +1,5 @@
 ---
-name: Job Hunter
+name: ApplyPack
 description: A calm, light operations console for a one-person job hunt — dense tables, quiet status pills, one emerald accent.
 colors:
   surface: "#F7F8FA"
@@ -109,7 +109,7 @@ components:
     padding: "6px 12px"
 ---
 
-# Design System: Job Hunter
+# Design System: ApplyPack
 
 ## Overview
 
@@ -124,7 +124,7 @@ pixel serves reading four numbers, scanning new jobs, and acting on one.
 
 The personality is professional, calm, modern, information-first — compact but
 not cramped. Brand lives in details rather than surfaces: an emerald focus ring,
-emerald text selection, the emerald "JH" mark, an emerald primary button. Status
+emerald text selection, the emerald "AP" mark, an emerald primary button. Status
 speaks in a quiet five-color vocabulary of tinted pills (blue / amber / emerald /
 violet / gray) that never rises to a saturated fill. Controls follow a "quiet
 precision" philosophy: they disappear into the task, borrowing their forms from
@@ -154,7 +154,7 @@ the Tailwind config in `src/web/layout.tsx` — components never hard-code hex.
 
 ### Primary
 - **Emerald** (#059669): the one brand accent. Focus rings (2px outline, 2px
-  offset), text selection (18% tint), the "JH" mark, checked states of pill
+  offset), text selection (18% tint), the "AP" mark, checked states of pill
   checkboxes and radios (`accent/5` fill, `accent/40–50` border), hover border
   on kanban cards.
 - **Emerald Strong** (#047857): links and primary buttons — the AA-on-white
@@ -358,7 +358,7 @@ null renders an em dash.
 
 ### Navigation
 - **Sidebar:** paper-gray, hairline right edge; 56px brand row (emerald 28px
-  "JH" mark + 15px/600 wordmark); links are 14px, 6px radius, 6×10px padding,
+  "AP" mark + 15px/600 wordmark); links are 14px, 6px radius, 6×10px padding,
   18px icon + label; active = overlay fill, 500 weight, ink; inactive =
   muted ink, hover 70% overlay. Settings and a privacy footnote pin to the
   bottom. Tablet collapses to a 64px icon rail (icons only), mobile to a

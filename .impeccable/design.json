@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
   "generatedAt": "2026-08-28T12:00:00Z",
-  "title": "Design System: Job Hunter",
+  "title": "Design System: ApplyPack",
   "extensions": {
     "colorMeta": {
       "surface": { "role": "neutral", "displayName": "Paper Gray", "canonical": "rgb(247 248 250)", "tonalRamp": ["#101828", "#344054", "#475467", "#667085", "#98A2B3", "#D0D5DD", "#E5E7EB", "#F7F8FA"] },
@@ -127,7 +127,7 @@
   ],
   "narrative": {
     "northStar": "The Hunting Console",
-    "overview": "A calm, light operations desk for a daily job hunt. The dashboard is read twice a day, briefly, in indoor daylight: it must be dense, quiet, and instantly legible. The composition is a Linear-density work surface — a fixed 240px sidebar on paper-gray ground, white cards and tables carrying the data, hairline borders doing all the structural work. Nothing on screen persuades or decorates; every pixel serves reading four numbers, scanning new jobs, and acting on one.\n\nThe personality is professional, calm, modern, information-first — compact but not cramped. Brand lives in details rather than surfaces: an emerald focus ring, emerald text selection, the emerald \"JH\" mark, an emerald primary button. Status speaks in a quiet five-color vocabulary of tinted pills (blue / amber / emerald / violet / gray) that never rises to a saturated fill. Controls follow a \"quiet precision\" philosophy: they disappear into the task, borrowing their forms from Stripe's settings forms and GitHub's data tables.\n\nTwo worlds are explicitly refused, per the owner's brief: the dark hacker dashboard (glowing terminals, neon-on-black) and the AI-slop marketing admin (gradients, glassmorphism, giant cards, 20–30px radii, decorative noise, heavy shadows). Only a light theme is implemented today; every color flows through semantic CSS-variable tokens so a dark theme later is a second set of values, not a component rewrite.",
+    "overview": "A calm, light operations desk for a daily job hunt. The dashboard is read twice a day, briefly, in indoor daylight: it must be dense, quiet, and instantly legible. The composition is a Linear-density work surface — a fixed 240px sidebar on paper-gray ground, white cards and tables carrying the data, hairline borders doing all the structural work. Nothing on screen persuades or decorates; every pixel serves reading four numbers, scanning new jobs, and acting on one.\n\nThe personality is professional, calm, modern, information-first — compact but not cramped. Brand lives in details rather than surfaces: an emerald focus ring, emerald text selection, the emerald \"AP\" mark, an emerald primary button. Status speaks in a quiet five-color vocabulary of tinted pills (blue / amber / emerald / violet / gray) that never rises to a saturated fill. Controls follow a \"quiet precision\" philosophy: they disappear into the task, borrowing their forms from Stripe's settings forms and GitHub's data tables.\n\nTwo worlds are explicitly refused, per the owner's brief: the dark hacker dashboard (glowing terminals, neon-on-black) and the AI-slop marketing admin (gradients, glassmorphism, giant cards, 20–30px radii, decorative noise, heavy shadows). Only a light theme is implemented today; every color flows through semantic CSS-variable tokens so a dark theme later is a second set of values, not a component rewrite.",
     "keyCharacteristics": [
       "Paper-gray ground (#F7F8FA), white work surfaces, hairline structure",
       "One brand accent (emerald); status as quiet tinted pills, never fills",
