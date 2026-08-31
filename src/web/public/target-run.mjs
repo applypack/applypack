@@ -29,6 +29,12 @@ const ACTIVITIES = {
     'Drafting edit suggestions and removals with exact quotes…',
     'Composing the deterministic score — almost there…',
   ],
+  letter: [
+    'Reading the posting and the resume…',
+    'Choosing which true facts serve this role…',
+    'Drafting the letter — role, evidence, why this company…',
+    'Fact-checking every claim against the resume…',
+  ],
 };
 const ROTATE_MS = 9000;
 const POLL_MS = 2000;

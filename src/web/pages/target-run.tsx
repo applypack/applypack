@@ -21,6 +21,10 @@ const STEP_VIEW: Record<RunStep, { label: string; detail: string }> = {
     label: 'AI match',
     detail: 'the resume model reads both texts — about a minute',
   },
+  letter: {
+    label: 'Write the cover letter',
+    detail: 'grounded in the resume, fact-checked before it is shown — about a minute',
+  },
 };
 
 /**
@@ -32,13 +36,20 @@ export const TargetRunPage: FC<{ run: TargetRun }> = ({ run }) => {
   const failed = run.stage === 'error';
   const currentIdx = run.steps.indexOf(run.stage as RunStep);
   const elapsed = Math.max(0, Math.round((Date.now() - run.startedAt) / 1000));
+  // A letter run reads oddly as "Comparing" — the verb follows the steps.
+  const letter = run.steps.includes('letter');
+  const heading = failed
+    ? letter
+      ? 'Generation failed'
+      : 'Comparison failed'
+    : letter
+      ? 'Writing a cover letter'
+      : 'Comparing';
   return (
-    <Layout title={failed ? 'Comparison failed' : 'Comparing…'} active="target">
+    <Layout title={failed ? heading : `${heading}…`} active="target">
       <div class="mx-auto w-full max-w-2xl pt-6 lg:pt-16">
         <Card>
-          <div class="mb-1 text-sm font-semibold text-ink">
-            {failed ? 'Comparison failed' : 'Comparing'}
-          </div>
+          <div class="mb-1 text-sm font-semibold text-ink">{heading}</div>
           <div class="text-sm text-ink-muted">
             "{run.resumeName}" ↔ "<span id="run-job-title">{run.jobTitle}</span>"
           </div>

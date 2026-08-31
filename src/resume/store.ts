@@ -1,4 +1,4 @@
-import type { CandidateFact, Prisma, Resume, ResumeMatch } from '@prisma/client';
+import type { CandidateFact, CoverLetter, Prisma, Resume, ResumeMatch } from '@prisma/client';
 import { prisma } from '../db';
 import { logger } from '../logger';
 import type { MatchKeyword, ResumeMatchResult, ResumeScan } from './prompts';
@@ -223,6 +223,78 @@ export async function updateMatchScoring(
       matchScore: input.breakdown.score,
     },
   });
+}
+
+/* ---------- cover letters (F8, ADR 0021) ---------- */
+
+export type CoverLetterWithResume = CoverLetter & { resume: { id: number; name: string } };
+
+export async function listCoverLettersForJob(jobId: number): Promise<CoverLetterWithResume[]> {
+  return prisma.coverLetter.findMany({
+    where: { jobId },
+    include: { resume: { select: { id: true, name: true } } },
+    orderBy: { createdAt: 'desc' },
+  });
+}
+
+export async function getCoverLetter(id: number): Promise<CoverLetterWithResume | null> {
+  return prisma.coverLetter.findUnique({
+    where: { id },
+    include: { resume: { select: { id: true, name: true } } },
+  });
+}
+
+/** Latest analysis of this posting BY THIS RESUME — the letter's shortlist. */
+export async function getLatestMatchForResumeAndJob(
+  jobId: number,
+  resumeId: number,
+): Promise<ResumeMatch | null> {
+  return prisma.resumeMatch.findFirst({
+    where: { jobId, resumeId },
+    orderBy: { createdAt: 'desc' },
+  });
+}
+
+/** Company facts researched by "Is this job real?" — the letter's only company source beyond the posting. */
+export async function getLatestCompanySnapshot(jobId: number): Promise<string | null> {
+  const row = await prisma.jobVerification.findFirst({
+    where: { jobId },
+    orderBy: { createdAt: 'desc' },
+    select: { companySnapshot: true },
+  });
+  const snapshot = row?.companySnapshot?.trim();
+  return snapshot && snapshot.length > 0 ? snapshot : null;
+}
+
+/** Only pass|warn letters reach this — a blocked generation persists nothing. */
+export async function createCoverLetter(input: {
+  jobId: number;
+  resumeId: number;
+  resumeVersion: number;
+  tone: string;
+  text: string;
+  model: string;
+  promptVersion: number;
+  keywordsUsed: string[];
+  gapsAcknowledged: string[];
+  usedVerification: boolean;
+  gateVerdict: string;
+  gateNotes: string[];
+}): Promise<CoverLetter> {
+  const row = await prisma.coverLetter.create({ data: input });
+  logger.info(
+    { id: row.id, jobId: input.jobId, resumeId: input.resumeId, verdict: input.gateVerdict },
+    'resume: cover letter saved',
+  );
+  return row;
+}
+
+/** A manual edit; null editedText restores the generated original. */
+export async function updateCoverLetterEdit(
+  id: number,
+  input: { editedText: string | null; gateVerdict: string; gateNotes: string[] },
+): Promise<CoverLetter> {
+  return prisma.coverLetter.update({ where: { id }, data: input });
 }
 
 /* ---------- candidate facts (ask_user answers) ---------- */
