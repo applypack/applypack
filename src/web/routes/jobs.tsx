@@ -20,14 +20,22 @@ import { clearFlashCookie, flashRedirect, parseFlashCookie } from '../flash';
 import { createRun, startRun, updateRun } from '../target-runs';
 import {
   deleteMatchesForResume,
+  getCoverLetter,
+  getLatestCompanySnapshot,
   getResume,
+  listCoverLettersForJob,
+  listFacts,
   listMatchesForJob,
   listResumes,
   replaceResumeFile,
+  updateCoverLetterEdit,
   upsertScratchResume,
 } from '../../resume/store';
 import { pickResumeForJob } from '../../resume/pick';
 import { matchResumeToJob } from '../../resume/match';
+import { generateCoverLetter } from '../../resume/cover-letter';
+import { countWords, COVER_TONES, coverGateSources, type CoverTone } from '../../resume/prompts';
+import { factCheck } from '../../resume/fact-check';
 
 const PAGE_SIZE = 50;
 
@@ -147,7 +155,7 @@ jobsRoute.get('/jobs/:id', async (c) => {
   const id = Number(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text('Bad id', 400);
 
-  const [job, settings, resumes, matches, verifications] = await Promise.all([
+  const [job, settings, resumes, matches, verifications, letters] = await Promise.all([
     prisma.job.findUnique({
       where: { id },
       include: {
@@ -166,12 +174,15 @@ jobsRoute.get('/jobs/:id', async (c) => {
     listResumes(),
     listMatchesForJob(id),
     listVerificationsForJob(id),
+    listCoverLettersForJob(id),
   ]);
   if (!job) return c.text('Not found', 404);
 
-  // ?match=<id> shows an older comparison; default is the latest.
+  // ?match=<id> shows an older comparison; default is the latest. Same for ?letter.
   const requestedMatch = Number(c.req.query('match'));
   const selected = matches.find((m) => m.id === requestedMatch) ?? matches[0] ?? null;
+  const requestedLetter = Number(c.req.query('letter'));
+  const selectedLetter = letters.find((l) => l.id === requestedLetter) ?? letters[0] ?? null;
   const suggested = pickResumeForJob(resumes, `${job.title} ${job.description}`);
 
   const flashCookie = parseFlashCookie(c.req.header('cookie'));
@@ -187,6 +198,14 @@ jobsRoute.get('/jobs/:id', async (c) => {
         suggestedResumeId: suggested?.id ?? null,
         matches,
         selected,
+      }}
+      coverLetters={{
+        jobId: id,
+        resumes: resumes.map((r) => ({ id: r.id, name: r.name, isDefault: r.isDefault })),
+        suggestedResumeId: suggested?.id ?? null,
+        letters,
+        selected: selectedLetter,
+        hasCompanyFacts: Boolean(verifications[0]?.companySnapshot?.trim()),
       }}
       flash={flashCookie}
     />,
@@ -330,6 +349,103 @@ jobsRoute.post('/jobs/:id/match', async (c) => {
     });
   });
   return c.redirect(`/target/runs/${run.id}`, 303);
+});
+
+jobsRoute.post('/jobs/:id/cover', async (c) => {
+  const id = Number(c.req.param('id'));
+  if (!Number.isFinite(id)) return c.text('Bad id', 400);
+  const form = await c.req.parseBody();
+  const resumeId = Number(form.resumeId);
+  if (!Number.isFinite(resumeId)) return c.text('Bad resume id', 400);
+  const tone: CoverTone = COVER_TONES.includes(form.tone as CoverTone)
+    ? (form.tone as CoverTone)
+    : 'warm';
+  const angle = (v: unknown) =>
+    typeof v === 'string' && v.trim().length > 0 ? v.trim().slice(0, 300) : undefined;
+
+  const [job, resume] = await Promise.all([
+    prisma.job.findUnique({ where: { id }, include: { company: { select: { name: true } } } }),
+    getResume(resumeId),
+  ]);
+  if (!job || !resume) return c.text('Not found', 404);
+
+  const run = createRun({ steps: ['letter'], jobTitle: job.title, resumeName: resume.name, jobId: id });
+  startRun(run.id, async () => {
+    const outcome = await generateCoverLetter(
+      { id: resume.id, text: resume.text, version: resume.version },
+      { id: job.id, title: job.title, companyName: job.company.name, location: job.location, description: job.description },
+      {
+        tone,
+        angles: {
+          whyCompany: angle(form.whyCompany),
+          problem: angle(form.problem),
+          approach: angle(form.approach),
+        },
+      },
+    );
+    if (outcome.kind === 'ok') {
+      updateRun(run.id, {
+        stage: 'done',
+        resultUrl: `/jobs/${id}?letter=${outcome.row.id}#cover-letter`,
+        flash: `Letter drafted — ${countWords(outcome.row.text)} words, fact-check ${outcome.row.gateVerdict}.`,
+      });
+    } else if (outcome.kind === 'blocked') {
+      // ADR 0021: a letter blocked twice is never shown and never saved.
+      updateRun(run.id, {
+        stage: 'error',
+        error: `The fact checker rejected the letter twice, so nothing was saved. Violations: ${outcome.reasons.join('; ')}.`,
+      });
+    } else {
+      updateRun(run.id, { stage: 'error', error: 'Generation failed — see the web logs.' });
+    }
+  });
+  return c.redirect(`/target/runs/${run.id}`, 303);
+});
+
+jobsRoute.post('/jobs/:id/cover/:letterId', async (c) => {
+  const id = Number(c.req.param('id'));
+  const letterId = Number(c.req.param('letterId'));
+  if (!Number.isFinite(id) || !Number.isFinite(letterId)) return c.text('Bad id', 400);
+  const form = await c.req.parseBody();
+  const text = typeof form.text === 'string' ? form.text.replace(/\r\n/g, '\n').trim() : '';
+  if (text.length === 0) {
+    return flashRedirect(`/jobs/${id}?letter=${letterId}#cover-letter`, 'err', 'The letter cannot be empty.');
+  }
+
+  const letter = await getCoverLetter(letterId);
+  if (!letter || letter.jobId !== id) return c.text('Not found', 404);
+  const [job, resume, facts, snapshot] = await Promise.all([
+    prisma.job.findUnique({ where: { id }, include: { company: { select: { name: true } } } }),
+    getResume(letter.resumeId),
+    listFacts(),
+    getLatestCompanySnapshot(id),
+  ]);
+  if (!job || !resume) return c.text('Not found', 404);
+
+  // Manual edits are re-checked but never blocked — the gate polices the
+  // model, not the user (ADR 0021). A `block` verdict is stored and shown.
+  const gate = factCheck({
+    text,
+    sources: coverGateSources(resume.text, {
+      title: job.title,
+      companyName: job.company.name,
+      location: job.location,
+      description: job.description,
+    }, snapshot),
+    facts,
+    addressee: job.company.name,
+  });
+  const reverted = text === letter.text;
+  await updateCoverLetterEdit(letter.id, {
+    editedText: reverted ? null : text,
+    gateVerdict: gate.verdict,
+    gateNotes: gate.reasons,
+  });
+  const back = `/jobs/${id}?letter=${letter.id}#cover-letter`;
+  if (reverted) return flashRedirect(back, 'ok', 'Restored the generated letter.');
+  return gate.verdict === 'block'
+    ? flashRedirect(back, 'warn', `Edit saved — but the fact check flags it: ${gate.reasons.join('; ')}.`)
+    : flashRedirect(back, 'ok', `Edit saved — fact-check ${gate.verdict}.`);
 });
 
 jobsRoute.get('/jobs/:id/target', async (c) => {

@@ -19,6 +19,7 @@ import {
 } from '../ui';
 import { formatDate, formatSalary } from '../format';
 import type { FlashMessage } from '../flash';
+import { CoverLetterCard, type CoverLetterCardProps } from './cover-letter-card';
 import { ResumeMatchCard, type ResumeMatchCardProps } from './resume-match-card';
 import { VerificationCard, type VerificationCardProps } from './verification-card';
 
@@ -65,6 +66,7 @@ export interface JobDetailProps {
   verification: VerificationCardProps['verification'];
   verificationCount: number;
   resumeMatch: ResumeMatchCardProps;
+  coverLetters: CoverLetterCardProps;
   flash?: FlashMessage | null;
 }
 
@@ -83,6 +85,7 @@ export const JobDetailPage: FC<JobDetailProps> = ({
   verification,
   verificationCount,
   resumeMatch,
+  coverLetters,
   flash,
 }) => (
   <Layout title={job.title} active="jobs">
@@ -201,6 +204,8 @@ export const JobDetailPage: FC<JobDetailProps> = ({
         />
 
         <ResumeMatchCard {...resumeMatch} />
+
+        <CoverLetterCard {...coverLetters} />
 
         <Card>
           <SectionTitle>Description</SectionTitle>
