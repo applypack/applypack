@@ -393,7 +393,21 @@ external project, copy-check before merge.
       again, gate written down (list-completeness assertion)
 - [ ] F5 status-transition ledger + funnel/calibration stats — v0.7.0
 - [ ] F6 follow-up cadence with pin/retire/auto-seed in the stale digest — v0.8.0
-- [ ] F7 fact gate (anti-hallucination pure module) — v0.9.0
+- [x] F7 fact gate (anti-hallucination pure module) — no tag of its own
+      (branch `fact-gate`, ADR 0020). Ships untagged with F8 per
+      release-discipline's pure-module rule: no route, no column, no toggle,
+      nothing a user can observe. Re-analysis on live data changed the
+      design: all 4 confirmed `CandidateFact` rows are bare tool terms, so
+      the metric side is sourced entirely from resume text and facts can only
+      support a *tool* claim — while the 4 `denied` rows became a hard block
+      the plan never proposed. The plan's headline `16,181` separator case has
+      zero occurrences in our corpus; the 7 spelled-out numerals it never
+      mentions do, so priority inverted. NFKC measured insufficient (it leaves
+      `–`, `—`, `’` — the only non-ASCII we have). Zero Cyrillic in 3 resumes
+      and 771 job descriptions, so "EN + UA" narrowed to: percent/currency
+      script-agnostic, count nouns and history triggers EN-only, non-Latin
+      sentences degrade `pass → warn`. Measured 0.75ms median on a 285-word
+      letter vs the real 6004-char resume — the 50ms budget is 66x over
 - [ ] F8 cover letter generation (job + company analysis, gated by F7) — v0.10.0
 - [ ] F9 golden-eval harness for the AI engine chain — v0.11.0
 - [ ] F10 fetchers wave 2: Getro/Consider/a16z, Arbeitsagentur, Teamtailor,

@@ -72,7 +72,7 @@
 - `src/resume/` is the resume module: `zip.ts`, `docx-text.ts`, `pdf-text.ts`
   (unpdf, ADR 0011), `resume-text.ts`, `prompts.ts`, `pick.ts`, `score.ts`
   (ADR 0012), `facts.ts`, `diff.ts`, `parse-warnings.ts`,
-  `profile-draft.ts` (ADR 0015) are pure (tested);
+  `profile-draft.ts` (ADR 0015), `fact-check.ts` (ADR 0020) are pure (tested);
   `scan.ts` / `match.ts` call the AI provider; `store.ts` is the only file
   that touches Prisma. Web-only — the worker never imports it (ADR 0008).
 - `src/web/public/score.mjs` mirrors `src/resume/score.ts` line for line —
@@ -157,6 +157,7 @@ When the question is **"where does X live?"**, save yourself a `find`:
 | The match-score formula (weights, alignment points, primary-stack cap) | `src/resume/score.ts` (ADR 0012) — mirrored in `src/web/public/score.mjs`, parity test `src/web/score.test.ts` |
 | What counts as primary stack / sibling-tech rules (prompt side) | `src/resume/prompts.ts:MATCH_SYSTEM` steps 3-4 — guard-tested in `prompts.test.ts` |
 | ask_user confirmations (CandidateFact rows, instant re-score) | `src/resume/facts.ts` (pure) + `src/web/routes/facts.ts` (POST /facts), managed on `/resumes` |
+| Anti-hallucination gate for generated prose (pass/warn/block) | `src/resume/fact-check.ts:factCheck` (pure, ADR 0020) — sources arrive as arguments, `store.ts` loads them |
 | "In another resume" evidence hints | `src/resume/store.ts:listOtherResumeSkills` → `facts.ts:annotateElsewhere` |
 | ATS parse warnings ("What the ATS sees") | `src/resume/parse-warnings.ts`, rendered on `/resumes/:id` |
 | Version delta (gained/lost keywords, component moves) | `src/resume/diff.ts:diffMatches`, rendered in `resume-match-card.tsx` |
