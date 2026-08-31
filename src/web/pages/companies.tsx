@@ -109,10 +109,15 @@ const QuietSources: FC<{ companies: CompanyRow[]; fetchingEnabled: boolean }> = 
               <div class="mt-0.5 flex flex-wrap items-center gap-2 text-[13px] text-ink-muted">
                 <Tag>{c.atsType.replace('_', ' ')}</Tag>
                 <Code>{c.atsToken}</Code>
+                <Badge tone={c.quiet === 'failing' ? 'danger' : 'warn'}>
+                  {c.quiet === 'failing' ? 'Failing' : 'Silent'}
+                </Badge>
                 <span>
                   {c.quiet === 'failing'
                     ? `${describeStatus(c.lastFetchStatus).label.toLowerCase()} — ${c.consecutiveFailures} ticks in a row`
-                    : `last posting ${formatRelative(c.lastOkAt) || 'never seen'}`}
+                    : c.lastOkAt
+                      ? `last posting ${formatRelative(c.lastOkAt)}`
+                      : 'no posting since we started tracking it'}
                 </span>
               </div>
             </div>
