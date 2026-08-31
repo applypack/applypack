@@ -197,6 +197,10 @@ model AppSettings {
   // F4 (ADR 0019): one digest line when a source crosses the failure
   // streak. Default TRUE — the alert adds a signal, never suppresses a job.
   sourceHealthAlerts             Boolean  @default(true)
+  // F8.1: standing angle inputs for the cover-letter card ({ whyCompany,
+  // problem, approach, notes }), saved on every generation so the user
+  // never retypes them. Parse with readCoverAngles (resume/prompts.ts).
+  coverAngles                    Json?
   updatedAt                      DateTime @updatedAt
 }
 

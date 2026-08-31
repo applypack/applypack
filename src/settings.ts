@@ -25,6 +25,8 @@ export interface AppSettingsView {
   aiEngine: unknown;
   /** Raw AppSettings.aiUsage JSON — summarize with summarizeAiUsage. */
   aiUsage: unknown;
+  /** Raw AppSettings.coverAngles JSON — parse with readCoverAngles. */
+  coverAngles: unknown;
   updatedAt: Date;
 }
 
@@ -49,8 +51,22 @@ export async function getSettings(): Promise<AppSettingsView> {
     sourceHealthAlerts: row.sourceHealthAlerts,
     aiEngine: row.aiEngine,
     aiUsage: row.aiUsage,
+    coverAngles: row.coverAngles,
     updatedAt: row.updatedAt,
   };
+}
+
+/**
+ * Standing cover-letter angle inputs (F8.1) — written on every generation,
+ * prefilled into the card on every job page, so the user types them once.
+ */
+export async function setCoverAngles(angles: Record<string, string | undefined>): Promise<void> {
+  const value = JSON.parse(JSON.stringify(angles)) as Prisma.InputJsonValue;
+  await prisma.appSettings.upsert({
+    where: { id: SETTINGS_ID },
+    update: { coverAngles: value },
+    create: { id: SETTINGS_ID, coverAngles: value },
+  });
 }
 
 export async function setAiEngineConfig(engine: AiEngineConfig): Promise<void> {
