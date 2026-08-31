@@ -9,7 +9,7 @@ import { logger } from '../logger';
  * runs (node-cron philosophy: no queue, ADR 0003).
  */
 
-export type RunStep = 'extract' | 'classify' | 'scan' | 'match' | 'verify' | 'letter';
+export type RunStep = 'fetch' | 'extract' | 'classify' | 'scan' | 'match' | 'verify' | 'letter';
 export type RunStage = RunStep | 'done' | 'error';
 
 export interface TargetRun {
@@ -21,6 +21,9 @@ export interface TargetRun {
   stageAt: number;
   jobTitle: string;
   resumeName: string;
+  /** Where the error state sends the user back to — the launcher that started it. */
+  backUrl: string;
+  backLabel: string;
   /** Set once the job row exists — the error state can link to it. */
   jobId?: number;
   /** Set on done: where to send the user, with the flash to show there. */
@@ -33,7 +36,8 @@ const RUN_TTL_MS = 30 * 60_000;
 const runs = new Map<string, TargetRun>();
 
 export function createRun(
-  fields: Pick<TargetRun, 'steps' | 'jobTitle' | 'resumeName'> & Partial<Pick<TargetRun, 'jobId'>>,
+  fields: Pick<TargetRun, 'steps' | 'jobTitle' | 'resumeName'> &
+    Partial<Pick<TargetRun, 'jobId' | 'backUrl' | 'backLabel'>>,
 ): TargetRun {
   prune();
   const run: TargetRun = {
@@ -41,6 +45,8 @@ export function createRun(
     stage: fields.steps[0] ?? 'match',
     startedAt: Date.now(),
     stageAt: Date.now(),
+    backUrl: '/target',
+    backLabel: 'Back to Target',
     ...fields,
   };
   runs.set(run.id, run);

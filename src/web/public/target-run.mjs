@@ -8,6 +8,10 @@
  */
 
 const ACTIVITIES = {
+  fetch: [
+    'Requesting the posting page…',
+    'Reading the description out of the page…',
+  ],
   extract: [
     'Reading the pasted posting…',
     'Picking out company, title, location and salary…',

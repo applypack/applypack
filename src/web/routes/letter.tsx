@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { prisma } from '../../db';
 import { createManualJob, MAX_FIELD_CHARS, MIN_DESCRIPTION_CHARS } from '../../jobs/manual-job';
 import { extractPostingFacts, fallbackTitle } from '../../jobs/posting-extract';
-import { fetchPostingText } from '../../jobs/posting-url';
+import { checkPostingUrl, fetchPostingText } from '../../jobs/posting-url';
 import { generateCoverLetter } from '../../resume/cover-letter';
 import { matchResumeToJob } from '../../resume/match';
 import { countWords, COVER_TONES, readCoverAngles, type CoverTone } from '../../resume/prompts';
@@ -31,9 +31,11 @@ import {
 
 /*
  * The /letter launcher (F8.2): job by picker / URL fetch / paste + resume by
- * pick / upload / paste → one run: [extract] → [classify] → [match] →
- * [verify] → letter. Match and verify are optional analyses the user opts
- * into; their failure never kills the letter, only annotates the flash.
+ * pick / upload / paste → one run: [fetch] → [extract] → [classify] →
+ * [match] → [verify] → letter. Everything slow is a visible run step, so the
+ * form never hangs (TASKS §6.2). Match and verify are optional analyses the
+ * user opts into; their failure never kills the letter, only annotates the
+ * flash.
  */
 
 const MIN_RESUME_CHARS = 200;
@@ -158,10 +160,10 @@ letterRoute.post('/letter', resumeUploadLimit('/letter'), async (c) => {
     if (!row) return flashRedirect('/letter', 'err', 'That job no longer exists.');
     existingJob = row;
   } else if (f.jobMode === 'url') {
-    if (!f.jobUrl) return flashRedirect('/letter', 'err', 'Paste the posting URL.');
-    const fetched = await fetchPostingText(f.jobUrl);
-    if (!fetched.ok) return flashRedirect('/letter', 'err', fetched.error);
-    description = fetched.text;
+    // Only the cheap shape check runs here. The request itself is a visible
+    // run step: a slow page must never look like a hung form (TASKS §6.2).
+    const checked = checkPostingUrl(f.jobUrl);
+    if (!checked.ok) return flashRedirect('/letter', 'err', checked.error);
     jobUrl = f.jobUrl;
   } else {
     description = f.description.replace(/\r\n/g, '\n').trim();
@@ -170,9 +172,13 @@ letterRoute.post('/letter', resumeUploadLimit('/letter'), async (c) => {
     }
   }
 
-  const needExtract = !existingJob && (!companyName || !title);
+  const fetchUrl = f.jobMode === 'url';
+  // A fetched page always needs detection: its company / title are unknown
+  // until the description exists.
+  const needExtract = !existingJob && (fetchUrl || !companyName || !title);
   const hasSnapshot = existingJob ? (await getLatestCompanySnapshot(existingJob.id)) !== null : false;
   const steps: RunStep[] = [
+    ...(fetchUrl ? (['fetch'] as const) : []),
     ...(needExtract ? (['extract'] as const) : []),
     ...(existingJob ? [] : (['classify'] as const)),
     ...(runMatch ? (['match'] as const) : []),
@@ -184,6 +190,8 @@ letterRoute.post('/letter', resumeUploadLimit('/letter'), async (c) => {
     jobTitle: existingJob?.title ?? title ?? 'Detecting the role…',
     resumeName: resume.name,
     jobId: existingJob?.id,
+    backUrl: '/letter',
+    backLabel: 'Back to Cover letter',
   });
 
   startRun(run.id, async () => {
@@ -200,6 +208,15 @@ letterRoute.post('/letter', resumeUploadLimit('/letter'), async (c) => {
       let location = '';
       let salaryMin: number | undefined;
       let salaryMax: number | undefined;
+      if (fetchUrl) {
+        const fetched = await fetchPostingText(jobUrl);
+        if (!fetched.ok) {
+          updateRun(run.id, { stage: 'error', error: fetched.error });
+          return;
+        }
+        description = fetched.text;
+        updateRun(run.id, { stage: 'extract' });
+      }
       if (needExtract) {
         const facts = await extractPostingFacts(description);
         companyName = companyName || facts?.company || 'Unknown company';

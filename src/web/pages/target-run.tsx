@@ -5,6 +5,10 @@ import { Button, Card, Hint, MarkIcon } from '../ui';
 import type { RunStep, TargetRun } from '../target-runs';
 
 const STEP_VIEW: Record<RunStep, { label: string; detail: string }> = {
+  fetch: {
+    label: 'Read the posting page',
+    detail: 'one request to the URL you gave — seconds',
+  },
   extract: {
     label: 'Detect posting facts',
     detail: 'company, title, location, salary from the description — seconds',
@@ -64,8 +68,8 @@ export const TargetRunPage: FC<{ run: TargetRun }> = ({ run }) => {
                 {run.error ?? 'Unexpected failure — see the web logs.'}
               </div>
               <div class="flex flex-wrap gap-2">
-                <Button href="/target" variant="secondary">
-                  ← Back to Target
+                <Button href={run.backUrl} variant="secondary">
+                  ← {run.backLabel}
                 </Button>
                 {run.jobId && (
                   <Button href={`/jobs/${run.jobId}`} variant="secondary">
