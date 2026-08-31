@@ -67,8 +67,12 @@ function wireAutosave() {
   const counter = form.querySelector('[data-word-count]');
   if (!area || !status) return;
 
-  // The button is the no-JS path; autosave replaces it.
-  if (button) button.hidden = true;
+  // The button is the no-JS path; autosave replaces it. `hidden` alone loses
+  // to the button's own `display: inline-flex`, so hide it by style.
+  const showButton = (on) => {
+    if (button) button.style.display = on ? '' : 'none';
+  };
+  showButton(false);
   let saved = area.value;
   let timer = null;
   let attempt = 0;
@@ -99,7 +103,7 @@ function wireAutosave() {
     } catch {
       attempt += 1;
       show('failed');
-      if (button) button.hidden = false;
+      showButton(true);
       timer = setTimeout(save, nextDelay(attempt));
     } finally {
       inFlight = false;

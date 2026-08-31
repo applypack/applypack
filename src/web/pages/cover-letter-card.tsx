@@ -115,8 +115,8 @@ export const CoverLetterCard: FC<CoverLetterCardProps> = ({
             </Hint>
           </details>
           <Hint>
-            One call to the resume model, about a minute. Every claim is fact-checked against the
-            resume before you see the letter — an invented number or tool is rejected, not shown.
+            One model call, about half a minute. Every claim is fact-checked against the resume
+            before you see the letter — an invented number or tool is rejected, not shown.
             {!hasCompanyFacts && (
               <>
                 {' '}
