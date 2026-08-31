@@ -4,7 +4,13 @@ import { Badge, Button, Card, Hint, Input, SectionTitle, Select, Tag, Textarea }
 import type { Tone } from '../format';
 import { formatRelative } from '../format';
 import type { CoverLetterWithResume } from '../../resume/store';
-import { countWords, COVER_TONES, COVER_WORDS_MAX, COVER_WORDS_MIN } from '../../resume/prompts';
+import {
+  countWords,
+  COVER_TONES,
+  COVER_WORDS_MAX,
+  COVER_WORDS_MIN,
+  type CoverAngles,
+} from '../../resume/prompts';
 
 export interface CoverLetterCardProps {
   jobId: number;
@@ -15,6 +21,8 @@ export interface CoverLetterCardProps {
   selected: CoverLetterWithResume | null;
   /** A stored verification snapshot exists — company facts beyond the posting. */
   hasCompanyFacts: boolean;
+  /** Saved on every generation, prefilled here — typed once, remembered (F8.1). */
+  angles: CoverAngles;
 }
 
 /** `block` is reachable only through a manual edit — generation never persists one. */
@@ -33,6 +41,7 @@ export const CoverLetterCard: FC<CoverLetterCardProps> = ({
   letters,
   selected,
   hasCompanyFacts,
+  angles,
 }) => (
   <div id="cover-letter">
     <Card>
@@ -72,24 +81,37 @@ export const CoverLetterCard: FC<CoverLetterCardProps> = ({
             </label>
             <Button variant="violet">Generate letter</Button>
           </div>
-          <details class="rounded-md border border-line px-3 py-2">
+          <details class="rounded-md border border-line px-3 py-2" open={hasAngles(angles)}>
             <summary class="cursor-pointer text-[13px] font-medium text-ink-muted transition-colors duration-150 hover:text-ink">
-              Angle — optional, steers the story, never adds facts
+              Angle — optional, saved for your next letters
             </summary>
             <div class="mt-2.5 grid gap-2.5 sm:grid-cols-3">
               <label class="block">
                 <span class="block text-xs text-ink-muted">Why this company</span>
-                <Input name="whyCompany" maxlength="300" class="mt-1 !text-xs" />
+                <Input name="whyCompany" maxlength="300" class="mt-1 !text-xs" value={angles.whyCompany ?? ''} />
               </label>
               <label class="block">
                 <span class="block text-xs text-ink-muted">What problem you'd solve</span>
-                <Input name="problem" maxlength="300" class="mt-1 !text-xs" />
+                <Input name="problem" maxlength="300" class="mt-1 !text-xs" value={angles.problem ?? ''} />
               </label>
               <label class="block">
                 <span class="block text-xs text-ink-muted">Your approach</span>
-                <Input name="approach" maxlength="300" class="mt-1 !text-xs" />
+                <Input name="approach" maxlength="300" class="mt-1 !text-xs" value={angles.approach ?? ''} />
               </label>
             </div>
+            <label class="mt-2.5 block">
+              <span class="block text-xs text-ink-muted">
+                Anything every letter should mention
+              </span>
+              <Textarea name="notes" rows={2} maxlength="500" class="mt-1 !text-xs" placeholder="e.g. my open-source work matters to me; I can start immediately; I want to mention my blog">
+                {angles.notes ?? ''}
+              </Textarea>
+            </label>
+            <Hint class="mt-2">
+              These steer what the letter emphasises and are remembered after you generate —
+              edit or clear them any time. Facts and numbers still come only from your resume
+              and confirmed facts; a number typed here is not enough for the fact check.
+            </Hint>
           </details>
           <Hint>
             One call to the resume model, about a minute. Every claim is fact-checked against the
@@ -140,6 +162,11 @@ export const CoverLetterCard: FC<CoverLetterCardProps> = ({
     </Card>
   </div>
 );
+
+/** Open the details when saved values exist — hidden prefills would be invisible state. */
+function hasAngles(a: CoverAngles): boolean {
+  return Boolean(a.whyCompany || a.problem || a.approach || a.notes);
+}
 
 const LetterReport: FC<{ jobId: number; letter: CoverLetterWithResume }> = ({ jobId, letter }) => {
   const gate = GATE_VIEW[letter.gateVerdict] ?? GATE_VIEW.pass!;

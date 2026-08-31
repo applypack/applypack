@@ -34,8 +34,15 @@ import {
 import { pickResumeForJob } from '../../resume/pick';
 import { matchResumeToJob } from '../../resume/match';
 import { generateCoverLetter } from '../../resume/cover-letter';
-import { countWords, COVER_TONES, coverGateSources, type CoverTone } from '../../resume/prompts';
+import {
+  countWords,
+  COVER_TONES,
+  coverGateSources,
+  readCoverAngles,
+  type CoverTone,
+} from '../../resume/prompts';
 import { factCheck } from '../../resume/fact-check';
+import { setCoverAngles } from '../../settings';
 
 const PAGE_SIZE = 50;
 
@@ -206,6 +213,7 @@ jobsRoute.get('/jobs/:id', async (c) => {
         letters,
         selected: selectedLetter,
         hasCompanyFacts: Boolean(verifications[0]?.companySnapshot?.trim()),
+        angles: readCoverAngles(settings.coverAngles),
       }}
       flash={flashCookie}
     />,
@@ -360,8 +368,14 @@ jobsRoute.post('/jobs/:id/cover', async (c) => {
   const tone: CoverTone = COVER_TONES.includes(form.tone as CoverTone)
     ? (form.tone as CoverTone)
     : 'warm';
-  const angle = (v: unknown) =>
-    typeof v === 'string' && v.trim().length > 0 ? v.trim().slice(0, 300) : undefined;
+  const angle = (v: unknown, max = 300) =>
+    typeof v === 'string' && v.trim().length > 0 ? v.trim().slice(0, max) : undefined;
+  const angles = {
+    whyCompany: angle(form.whyCompany),
+    problem: angle(form.problem),
+    approach: angle(form.approach),
+    notes: angle(form.notes, 500),
+  };
 
   const [job, resume] = await Promise.all([
     prisma.job.findUnique({ where: { id }, include: { company: { select: { name: true } } } }),
@@ -369,19 +383,16 @@ jobsRoute.post('/jobs/:id/cover', async (c) => {
   ]);
   if (!job || !resume) return c.text('Not found', 404);
 
+  // The submitted values become the prefill for every future letter (F8.1) —
+  // typed once, remembered; clearing a field clears the saved value too.
+  await setCoverAngles(angles);
+
   const run = createRun({ steps: ['letter'], jobTitle: job.title, resumeName: resume.name, jobId: id });
   startRun(run.id, async () => {
     const outcome = await generateCoverLetter(
       { id: resume.id, text: resume.text, version: resume.version },
       { id: job.id, title: job.title, companyName: job.company.name, location: job.location, description: job.description },
-      {
-        tone,
-        angles: {
-          whyCompany: angle(form.whyCompany),
-          problem: angle(form.problem),
-          approach: angle(form.approach),
-        },
-      },
+      { tone, angles },
     );
     if (outcome.kind === 'ok') {
       updateRun(run.id, {
