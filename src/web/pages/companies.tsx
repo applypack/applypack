@@ -22,6 +22,13 @@ import {
   Tr,
 } from '../ui';
 import { formatRelative } from '../format';
+import {
+  QUIET_STREAK,
+  SILENT_DAYS,
+  describeStatus,
+  type HealthTone,
+  type QuietReason,
+} from '../../fetchers/source-health';
 import type { FlashMessage } from '../flash';
 import { StarterPackPicker, type PackSegmentChoice } from './starter-pack';
 
@@ -35,13 +42,91 @@ interface CompanyRow {
   jobsTotal: number;
   alertedTotal: number;
   lastFetchedAt: Date | null;
+  lastFetchStatus: string | null;
+  consecutiveFailures: number;
+  lastOkAt: Date | null;
+  quiet: QuietReason | null;
 }
 
 export interface CompaniesProps {
   companies: CompanyRow[];
   packs: PackSegmentChoice[];
   flash?: FlashMessage | null;
+  fetchingEnabled: boolean;
 }
+
+const DOT_TONE: Record<HealthTone, string> = {
+  good: 'bg-ok',
+  idle: 'bg-ink-faint',
+  bad: 'bg-danger',
+  warn: 'bg-warn',
+  none: 'bg-line',
+};
+
+/** Status dot + label, the per-row half of ADR 0019. */
+const HealthDot: FC<{ status: string | null; streak: number }> = ({ status, streak }) => {
+  const { label, tone } = describeStatus(status);
+  const title = streak > 0 ? `${label} — ${streak} tick${streak === 1 ? '' : 's'} in a row` : label;
+  return (
+    <span class="inline-flex items-center gap-2 whitespace-nowrap" title={title}>
+      <span class={`h-2 w-2 shrink-0 rounded-full ${DOT_TONE[tone]}`} aria-hidden="true" />
+      <span class="text-[13px] text-ink-muted">{label}</span>
+      <span class="sr-only">{title}</span>
+    </span>
+  );
+};
+
+const QuietSources: FC<{ companies: CompanyRow[]; fetchingEnabled: boolean }> = ({
+  companies,
+  fetchingEnabled,
+}) => {
+  const quiet = companies.filter((c) => c.quiet !== null);
+  if (quiet.length === 0) return null;
+  return (
+    <Card class="mb-4">
+      <SectionTitle>
+        Quiet sources <Badge tone="warn">{quiet.length}</Badge>
+      </SectionTitle>
+      <Hint class="mb-4">
+        A board that stopped answering is usually a rotated slug. <em>Failing</em> means{' '}
+        {QUIET_STREAK} consecutive ticks ended in an error; <em>silent</em> means the board is
+        reachable but has returned no posting for {SILENT_DAYS} days — the only signal that
+        catches a vendor answering 200 with an empty list. Re-probe runs the same public check
+        the add-company form uses.
+        {!fetchingEnabled && (
+          <>
+            {' '}
+            <strong class="font-medium text-ink">Fetching is paused</strong>, so these numbers
+            are frozen where the last tick left them.
+          </>
+        )}
+      </Hint>
+      <div class="flex flex-col gap-2">
+        {quiet.map((c) => (
+          <div class="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-line bg-surface-raised px-4 py-3">
+            <div class="min-w-0">
+              <div class="truncate font-medium text-ink">{c.name}</div>
+              <div class="mt-0.5 flex flex-wrap items-center gap-2 text-[13px] text-ink-muted">
+                <Tag>{c.atsType.replace('_', ' ')}</Tag>
+                <Code>{c.atsToken}</Code>
+                <span>
+                  {c.quiet === 'failing'
+                    ? `${describeStatus(c.lastFetchStatus).label.toLowerCase()} — ${c.consecutiveFailures} ticks in a row`
+                    : `last posting ${formatRelative(c.lastOkAt) || 'never seen'}`}
+                </span>
+              </div>
+            </div>
+            <ActionForm action={`/companies/${c.id}/reprobe`}>
+              <Button size="sm" variant="secondary">
+                Re-probe
+              </Button>
+            </ActionForm>
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+};
 
 const PROBEABLE_ATS: AtsType[] = [
   AtsType.GREENHOUSE,
@@ -58,10 +143,17 @@ const PROBEABLE_ATS: AtsType[] = [
 
 const AGGREGATORS = ['LARAJOBS', 'REMOTEOK', 'REMOTIVE', 'JOBICY', 'WEWORKREMOTELY', 'HN_HIRING'];
 
-export const CompaniesPage: FC<CompaniesProps> = ({ companies, packs, flash }) => (
+export const CompaniesPage: FC<CompaniesProps> = ({
+  companies,
+  packs,
+  flash,
+  fetchingEnabled,
+}) => (
   <Layout title="Companies" active="companies">
     <PageHeader title="Companies" meta={`${companies.length} sources`} />
     <Flash flash={flash} />
+
+    <QuietSources companies={companies} fetchingEnabled={fetchingEnabled} />
 
     <details class="mb-4 rounded-lg border border-line bg-surface-raised shadow-sm">
       <summary class="cursor-pointer select-none px-5 py-3 text-sm font-medium text-ink transition-colors duration-150 hover:bg-surface-overlay/50">
@@ -142,6 +234,7 @@ export const CompaniesPage: FC<CompaniesProps> = ({ companies, packs, flash }) =
                 'Name',
                 'Source',
                 'Token',
+                'Health',
                 <span class="block text-right">Jobs</span>,
                 <span class="block text-right">Alerted</span>,
                 <span class="block text-right">Last fetch</span>,
@@ -171,6 +264,9 @@ export const CompaniesPage: FC<CompaniesProps> = ({ companies, packs, flash }) =
                     <Tag>{c.atsType.replace('_', ' ')}</Tag>
                   </Td>
                   <Td class="font-mono text-xs text-ink-muted">{c.atsToken}</Td>
+                  <Td>
+                    <HealthDot status={c.lastFetchStatus} streak={c.consecutiveFailures} />
+                  </Td>
                   <Td class="text-right tabular-nums text-ink-muted">{c.jobsTotal}</Td>
                   <Td
                     class={`text-right tabular-nums ${

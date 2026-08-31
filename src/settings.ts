@@ -18,6 +18,8 @@ export interface AppSettingsView {
   disabledSources: string[];
   discoveryEnabled: boolean;
   fetchingEnabled: boolean;
+  /** One digest line when a source crosses the failure streak (ADR 0019). */
+  sourceHealthAlerts: boolean;
   /** Raw AppSettings.aiEngine JSON — parse with parseAiEngineConfig. */
   aiEngine: unknown;
   /** Raw AppSettings.aiUsage JSON — summarize with summarizeAiUsage. */
@@ -43,6 +45,7 @@ export async function getSettings(): Promise<AppSettingsView> {
     disabledSources: row.disabledSources,
     discoveryEnabled: row.discoveryEnabled,
     fetchingEnabled: row.fetchingEnabled,
+    sourceHealthAlerts: row.sourceHealthAlerts,
     aiEngine: row.aiEngine,
     aiUsage: row.aiUsage,
     updatedAt: row.updatedAt,
@@ -126,6 +129,14 @@ export async function setFetchingEnabled(enabled: boolean): Promise<void> {
     create: { id: SETTINGS_ID, fetchingEnabled: enabled },
   });
   logger.info({ enabled }, enabled ? 'settings: job fetching resumed' : 'settings: job fetching paused');
+}
+
+export async function setSourceHealthAlerts(enabled: boolean): Promise<void> {
+  await prisma.appSettings.upsert({
+    where: { id: SETTINGS_ID },
+    update: { sourceHealthAlerts: enabled },
+    create: { id: SETTINGS_ID, sourceHealthAlerts: enabled },
+  });
 }
 
 function normaliseClassifierMode(raw: string): ClassifierMode {

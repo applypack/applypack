@@ -5,6 +5,8 @@ import { z } from 'zod';
 import { prisma } from '../../db';
 import { logger } from '../../logger';
 import { probeAts } from '../../ats-probe';
+import { quietReason } from '../../fetchers/source-health';
+import { getSettings } from '../../settings';
 import { toStringArray } from '../../text-utils';
 import {
   companiesInSegments,
@@ -71,6 +73,8 @@ companiesRoute.get('/companies', async (c) => {
     alertedMap.set(row.companyId, row._count._all);
   }
 
+  const settings = await getSettings();
+  const now = new Date();
   const rows = companies.map((c) => ({
     id: c.id,
     name: c.name,
@@ -81,6 +85,15 @@ companiesRoute.get('/companies', async (c) => {
     jobsTotal: c._count.jobs,
     alertedTotal: alertedMap.get(c.id) ?? 0,
     lastFetchedAt: c.jobs[0]?.fetchedAt ?? null,
+    lastFetchStatus: c.lastFetchStatus,
+    consecutiveFailures: c.consecutiveFailures,
+    lastOkAt: c.lastOkAt,
+    // Only sources we actually poll can be judged: a disabled row, or one in
+    // a source family the user switched off, is silent by instruction.
+    quiet:
+      c.active && !settings.disabledSources.includes(c.atsType)
+        ? quietReason(c, now)
+        : null,
   }));
 
   const counts = countsBySegment();
@@ -91,7 +104,12 @@ companiesRoute.get('/companies', async (c) => {
 
   const flash = parseFlashCookie(c.req.header('cookie'));
   return c.html(
-    <CompaniesPage companies={rows} packs={packs} flash={flash} />,
+    <CompaniesPage
+      companies={rows}
+      packs={packs}
+      flash={flash}
+      fetchingEnabled={settings.fetchingEnabled}
+    />,
     200,
     { 'Set-Cookie': clearFlashCookie() },
   );
@@ -226,6 +244,45 @@ companiesRoute.post('/companies/:id/toggle-active', async (c) => {
     c,
     'ok',
     `${current.name} ${current.active ? 'disabled' : 'enabled'}.`,
+  );
+});
+
+/**
+ * Repair path for a quiet source: re-run the same public probe the add form
+ * uses. A probe that comes back clean clears the streak, so a source that
+ * recovered stops nagging without waiting for the next tick.
+ */
+companiesRoute.post('/companies/:id/reprobe', async (c) => {
+  const id = Number(c.req.param('id'));
+  if (!Number.isFinite(id)) return c.text('Bad id', 400);
+  const company = await prisma.company.findUnique({
+    where: { id },
+    select: { name: true, atsType: true, atsToken: true },
+  });
+  if (!company) return c.text('Not found', 404);
+
+  const probe = await probeAts(company.atsType, company.atsToken);
+  if (!probe.ok) {
+    return redirectWithFlash(
+      c,
+      'err',
+      `${company.name}: ${probe.error ?? 'probe failed'}`,
+    );
+  }
+
+  const jobsCount = probe.jobsCount ?? 0;
+  await prisma.company.update({
+    where: { id },
+    data: {
+      lastFetchStatus: jobsCount > 0 ? 'ok' : 'empty',
+      consecutiveFailures: 0,
+      ...(jobsCount > 0 ? { lastOkAt: new Date() } : {}),
+    },
+  });
+  return redirectWithFlash(
+    c,
+    'ok',
+    `${company.name}: board answered with ${jobsCount} posting${jobsCount === 1 ? '' : 's'}.`,
   );
 });
 
