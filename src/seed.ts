@@ -111,6 +111,23 @@ const SEED_COMPANIES: SeedCompany[] = [
     careerUrl: 'https://www.scribd.com/about',
   },
 
+  // Recruitee (F2) — verified live 2026-08-31. Channable: Utrecht SaaS
+  // with recurring backend/support roles. Tylko: Warsaw furniture-tech,
+  // specialised — starts disabled.
+  {
+    name: 'Channable',
+    atsType: AtsType.RECRUITEE,
+    atsToken: 'channable',
+    careerUrl: 'https://jobs.channable.com',
+  },
+  {
+    name: 'Tylko',
+    atsType: AtsType.RECRUITEE,
+    atsToken: 'tylko',
+    careerUrl: 'https://tylko.recruitee.com',
+    active: false,
+  },
+
   // LaraJobs RSS — Laravel-only board, single feed under one synthetic
   // company. Enable when the active profile targets PHP/Laravel.
   {

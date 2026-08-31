@@ -64,6 +64,12 @@ export async function probeAts(
           },
         );
         break;
+      case AtsType.RECRUITEE:
+        resp = await fetchWithRetry(
+          `https://${encodeURIComponent(trimmed)}.recruitee.com/api/offers/`,
+          { timeoutMs: 8_000 },
+        );
+        break;
       case AtsType.SMARTRECRUITERS:
         resp = await fetchWithRetry(
           `https://api.smartrecruiters.com/v1/companies/${encodeURIComponent(trimmed)}/postings?limit=1`,
@@ -98,6 +104,8 @@ function countJobs(payload: unknown): number {
   if (payload && typeof payload === 'object') {
     const obj = payload as Record<string, unknown>;
     if (Array.isArray(obj.jobs)) return obj.jobs.length;
+    // Recruitee
+    if (Array.isArray(obj.offers)) return obj.offers.length;
     // Workable
     if (Array.isArray(obj.results)) return obj.results.length;
     if (typeof obj.total === 'number') return obj.total as number;

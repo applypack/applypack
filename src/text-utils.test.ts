@@ -247,6 +247,25 @@ describe('extractAtsToken', () => {
       { atsType: 'SMARTRECRUITERS', atsToken: 'Bosch' },
     );
   });
+
+  it('parses a Recruitee board subdomain', () => {
+    assert.deepEqual(
+      extractAtsToken('https://channable.recruitee.com/o/backend-engineer'),
+      { atsType: 'RECRUITEE', atsToken: 'channable' },
+    );
+    assert.deepEqual(
+      extractAtsToken('https://Tylko.recruitee.com/api/offers/'),
+      { atsType: 'RECRUITEE', atsToken: 'tylko' },
+    );
+  });
+
+  it('ignores Recruitee marketing subdomains', () => {
+    assert.equal(extractAtsToken('https://www.recruitee.com/pricing'), null);
+    assert.equal(
+      extractAtsToken('https://careers.recruitee.com/anything'),
+      null,
+    );
+  });
 });
 
 describe('daysSince', () => {

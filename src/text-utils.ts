@@ -93,7 +93,22 @@ export type DiscoverableAtsType =
   | 'LEVER'
   | 'ASHBY'
   | 'WORKABLE'
-  | 'SMARTRECRUITERS';
+  | 'SMARTRECRUITERS'
+  | 'RECRUITEE';
+
+// Vendor marketing/support subdomains that look like board slugs in
+// subdomain-style ATS URLs ({slug}.recruitee.com) but never are.
+const GENERIC_SUBDOMAINS = new Set([
+  'www',
+  'careers',
+  'api',
+  'app',
+  'docs',
+  'support',
+  'help',
+  'blog',
+  'status',
+]);
 
 export function extractAtsToken(
   url: string,
@@ -141,6 +156,11 @@ export function extractAtsToken(
     );
   if (m && m[1]) {
     return { atsType: 'SMARTRECRUITERS', atsToken: m[1] };
+  }
+  // Recruitee: {slug}.recruitee.com (careers site or /api/offers/)
+  m = /https?:\/\/([\w-]{2,60})\.recruitee\.com/i.exec(url);
+  if (m && m[1] && !GENERIC_SUBDOMAINS.has(m[1].toLowerCase())) {
+    return { atsType: 'RECRUITEE', atsToken: m[1].toLowerCase() };
   }
   return null;
 }

@@ -21,6 +21,7 @@ const SOURCE_NAMES: Record<string, string> = {
   GOLANGPROJECTS: 'Golang Projects',
   WORKINGNOMADS: 'Working Nomads',
   HIMALAYAS: 'Himalayas',
+  RECRUITEE: 'Recruitee',
   MANUAL: 'Manual',
 };
 
