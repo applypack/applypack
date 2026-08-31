@@ -239,9 +239,72 @@ capturing them structurally needs `NormalizedJob.salary{min,max,currency}`
 + schema + ADR. Decision point at re-analysis: v1 folds salary into the
 description text (zero schema risk); structured salary arrives with F19.
 
-**Test plan.** Mapper unit tests per source; `npm run fetch:once` smoke per
-source; `/companies` add + probe round-trip for one recruitee and one
-breezy slug; dashboard Sources tab shows the new families; screenshots.
+### Pre-integration re-analysis — RESULTS (2026-08-31, live curl)
+
+Wave 1 ships **6 of 9** candidates. Three rejected on robots grounds —
+recorded in the ADR 0005 "Evaluated, not supported" addendum:
+
+- **JUSTJOIN — rejected.** `robots.txt` `Disallow: /api/`; its only
+  structured feed lives under `/api/candidate-api/offers`.
+- **NOFLUFFJOBS — rejected.** Same: `Disallow: /api/` over
+  `/api/search/posting`.
+- **NODESK — rejected.** robots bans AI bots site-wide (ClaudeBot,
+  GPTBot, CCBot, Google-Extended → `Disallow: /`) + `ai-train=no`
+  content signal; this pipeline feeds descriptions into Claude, so the
+  RSS feed is off limits under our own ground rule.
+
+Endpoint corrections vs the table above:
+
+- **FOURDAYWEEK:** `/api/jobs` is robots-disallowed, but `/api/v1` +
+  `/api/v2` are explicitly allowed → use `/api/v2/jobs?page=N`
+  (`{data,page,limit,total,has_more}`, 25/page newest-first, cap 3
+  pages; `x-ratelimit-limit: 60`/min). `posted_at` ISO; salary comes in
+  **minor units** (`4200000 GBP year` = £42k) — divide by 100 when
+  folding into text; `description` is markdown-ish plaintext — do NOT
+  run tag-stripping on it (gotcha 12), entity-decode only.
+- **BREEZY:** `/json` omits descriptions; `/json?verbose=true` includes
+  them. Invalid slug → 404 HTML.
+- **RECRUITEE:** `{offers:[…]}`, rich rows (description+requirements
+  HTML, `published_at` `"YYYY-MM-DD HH:MM:SS UTC"`, salary object,
+  remote/hybrid flags). Invalid slug → 404 JSON.
+- **BAMBOOHR:** `{meta:{totalCount},result:[…]}` — list-only: **no
+  description, no date** (postedAt = first-seen; limitation documented).
+  Invalid slug → 302 to www.bamboohr.com — treat a redirect as
+  slug-not-found, never parse the marketing page.
+- **PINPOINT:** `{data:[…]}`, rich rows (description/benefits/
+  responsibilities HTML, structured compensation) but **no posted
+  date** (postedAt = first-seen; limitation documented). Empty board =
+  `{"data":[]}`; invalid slug → 404 HTML.
+- **RIPPLING:** list rows carry only `{uuid,name,department,url,
+  workLocation}` — no date/description; detail
+  `/board/{slug}/jobs/{uuid}` has `description{company,role}` (HTML),
+  `createdOn`, `workLocations[]`. SmartRecruiters pattern: capped
+  detail fetches + 250 ms pacing.
+
+**Decisions recorded:** (1) structured salary → v1 folds salary into
+description text (Himalayas pattern), no schema change — `NormalizedJob`
+untouched; F19 revisits (open decision №1 resolved for F2). (2) BambooHR
+and Pinpoint are dateless → `postedAt` = first-seen time, deduped by
+externalId so rows never re-alert; documented per §0.3. (3) Seed adds
+verified-live direct boards (Channable/Tylko RECRUITEE, Digital
+Science/YouLend PINPOINT, Rippling RIPPLING) + FOURDAYWEEK aggregator
+row; JustJoin/NoFluff seed entries dropped with the sources.
+
+**Test plan (written before code, testing-gate).** Per source: pure
+mapper unit test on a recorded fixture — always including an
+empty-board fixture and one malformed row (zod-rejected, others
+survive); date-parse cases (Recruitee `" UTC"` format, Rippling
+ISO-with-offset, dateless BambooHR/Pinpoint → clamped now); salary
+folding (4dayweek minor units ÷100, Recruitee object, Breezy/Pinpoint
+strings); gotcha-12 case for FOURDAYWEEK (plaintext newlines survive,
+no tag-strip). `extractAtsToken`: new patterns for
+recruitee/breezy/bamboohr/pinpoint/rippling board URLs + negative cases
+(`www.`, vendor marketing hosts). Smoke: `fetch:once` against live
+boards per source; `/companies` add + probe round-trip for one
+recruitee and one breezy slug. Dashboard: Sources tab lists the new
+families (display names in `source-names.ts`); screenshots 1200/375;
+0 console errors. Migrations: one hand-written `ALTER TYPE … ADD VALUE`
+per source (gotcha 7), applied by the app container.
 
 **Acceptance.** Each source lands as its own commit; a full fetch tick with
 all new sources enabled stays under the existing tick budget and produces
@@ -920,6 +983,9 @@ ADR 0005 so the same investigation never gets redone. Current verdicts
 
 | Source | Verdict | Reason |
 |---|---|---|
+| JustJoin.it | rejected (F2 re-analysis 2026-08-31) | robots.txt disallows `/api/` — the only structured feed |
+| NoFluffJobs | rejected (F2 re-analysis 2026-08-31) | robots.txt disallows `/api/` — the only structured feed |
+| NoDesk | rejected (F2 re-analysis 2026-08-31) | robots bans AI bots site-wide + `ai-train=no`; we feed content to Claude |
 | Workday | never | ADR 0005 |
 | LinkedIn / Indeed / Glassdoor / Wellfound | never | ADR 0005; Glassdoor and Dice additionally sit behind anti-bot protection that we will not bypass |
 | The Muse | deferred | volume/noise — re-decide at F10 |
