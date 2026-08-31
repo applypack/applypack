@@ -132,6 +132,7 @@ model Job {
 
   resumeMatches ResumeMatch[]
   verifications JobVerification[]
+  coverLetters  CoverLetter[]
 
   @@unique([companyId, externalId])
   @@index([status, fetchedAt])
@@ -308,6 +309,7 @@ model Resume {
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
   matches         ResumeMatch[]
+  coverLetters    CoverLetter[]
 }
 
 // Phase 8.1: one AI comparison of a resume against a job posting.
@@ -362,6 +364,35 @@ model CandidateFact {
   note      String? // user's context: where / when / what
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+// F8 (ADR 0021): one generated cover letter, gated by fact-check.ts before it
+// is ever stored (only pass|warn rows exist; a blocked letter is never
+// persisted). `kind` is reserved for F16 email drafts. `editedText` holds the
+// user's manual edit of `text`; gateVerdict/gateNotes track the LAST gate run
+// (generation, or warn-only re-check on a manual save).
+model CoverLetter {
+  id               Int      @id @default(autoincrement())
+  jobId            Int
+  job              Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  resumeId         Int
+  resume           Resume   @relation(fields: [resumeId], references: [id], onDelete: Cascade)
+  resumeVersion    Int      @default(1)
+  kind             String   @default("letter")
+  tone             String   @default("warm")
+  text             String   @db.Text
+  editedText       String?  @db.Text
+  model            String
+  promptVersion    Int
+  keywordsUsed     String[] @default([])
+  gapsAcknowledged String[] @default([])
+  // Whether a stored verification's companySnapshot fed the prompt.
+  usedVerification Boolean  @default(false)
+  gateVerdict      String // pass | warn
+  gateNotes        String[] @default([])
+  createdAt        DateTime @default(now())
+
+  @@index([jobId, createdAt])
 }
 
 // Phase 8.2: ghost-job / scam check of one posting, done with web search.
