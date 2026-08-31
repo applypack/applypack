@@ -1,3 +1,4 @@
+import { AtsType } from '@prisma/client';
 import type { Prisma, TelegramTarget } from '@prisma/client';
 import { prisma } from './db';
 import { logger } from './logger';
@@ -129,6 +130,16 @@ export async function setFetchingEnabled(enabled: boolean): Promise<void> {
     create: { id: SETTINGS_ID, fetchingEnabled: enabled },
   });
   logger.info({ enabled }, enabled ? 'settings: job fetching resumed' : 'settings: job fetching paused');
+}
+
+/**
+ * `disabledSources` is a free-form String[] column. Anything that is not a
+ * live AtsType has to be dropped before it reaches a Prisma enum filter —
+ * one stale value there throws and takes the whole job down with it.
+ */
+export function toAtsTypes(values: string[]): AtsType[] {
+  const known = Object.values(AtsType) as string[];
+  return values.filter((v): v is AtsType => known.includes(v));
 }
 
 export async function setSourceHealthAlerts(enabled: boolean): Promise<void> {

@@ -2,7 +2,7 @@ import { AtsType } from '@prisma/client';
 import { prisma } from '../db';
 import { logger } from '../logger';
 import { sleep } from '../http';
-import { getSettings } from '../settings';
+import { getSettings, toAtsTypes } from '../settings';
 import {
   QUIET_STREAK,
   classifyFetchCount,
@@ -43,9 +43,7 @@ export interface FetcherResult {
 
 export async function runAllFetchers(): Promise<FetcherResult[]> {
   const settings = await getSettings();
-  const disabled = settings.disabledSources.filter(
-    (s): s is AtsType => (Object.values(AtsType) as string[]).includes(s),
-  );
+  const disabled = toAtsTypes(settings.disabledSources);
   if (disabled.length > 0) {
     logger.info({ disabled }, 'fetchers: skipping disabled source families');
   }

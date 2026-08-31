@@ -12,6 +12,13 @@ import type { AlertJob } from './types';
 const TELEGRAM_API = 'https://api.telegram.org';
 const TELEGRAM_TIMEOUT_MS = 10_000;
 const MAX_MESSAGE_LENGTH = 4096;
+/**
+ * Quiet sources named in full before the line collapses to a count. A total
+ * outage marks every source at once, and an uncapped list would push the
+ * digest header past MAX_MESSAGE_LENGTH — Telegram then rejects the whole
+ * message, losing the alert exactly when it matters most.
+ */
+const MAX_QUIET_NAMED = 8;
 
 export async function sendTelegramAlert(
   job: AlertJob,
@@ -205,12 +212,16 @@ export interface QuietSourceAlert {
  */
 export function formatSourceHealthLine(sources: QuietSourceAlert[]): string {
   if (sources.length === 0) return '';
-  const items = sources.map(
-    (s) =>
-      `${escapeMarkdownV2(s.name)} ${escapeMarkdownV2(
-        `(${s.atsType}, ${describeStatus(s.status).label.toLowerCase()} ×${s.streak})`,
-      )}`,
-  );
+  const items = sources
+    .slice(0, MAX_QUIET_NAMED)
+    .map(
+      (s) =>
+        `${escapeMarkdownV2(s.name)} ${escapeMarkdownV2(
+          `(${s.atsType}, ${describeStatus(s.status).label.toLowerCase()} ×${s.streak})`,
+        )}`,
+    );
+  const hidden = sources.length - items.length;
+  if (hidden > 0) items.push(escapeMarkdownV2(`and ${hidden} more`));
   const header = `⚠️ *${sources.length} quiet source${sources.length === 1 ? '' : 's'}*`;
   return `${header} — ${items.join(', ')}`;
 }

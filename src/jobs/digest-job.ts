@@ -1,9 +1,9 @@
-import { AtsType, JobStatus } from '@prisma/client';
+import { JobStatus } from '@prisma/client';
 import { prisma } from '../db';
 import { logger } from '../logger';
 import { sendDigest, type QuietSourceAlert } from '../notifier';
 import { QUIET_STREAK } from '../fetchers/source-health';
-import { getSettings } from '../settings';
+import { getSettings, toAtsTypes } from '../settings';
 import type { CronStats } from './cron-run';
 import type { AlertJob } from '../types';
 
@@ -50,13 +50,12 @@ export async function runDigestJob(): Promise<{ stats: CronStats }> {
 async function quietSources(): Promise<QuietSourceAlert[]> {
   const settings = await getSettings();
   if (!settings.sourceHealthAlerts) return [];
+  const disabled = toAtsTypes(settings.disabledSources);
   const rows = await prisma.company.findMany({
     where: {
       active: true,
       consecutiveFailures: { gte: QUIET_STREAK },
-      ...(settings.disabledSources.length > 0
-        ? { atsType: { notIn: settings.disabledSources as AtsType[] } }
-        : {}),
+      ...(disabled.length > 0 ? { atsType: { notIn: disabled } } : {}),
     },
     select: { name: true, atsType: true, lastFetchStatus: true, consecutiveFailures: true },
     orderBy: [{ consecutiveFailures: 'desc' }, { name: 'asc' }],

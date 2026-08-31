@@ -153,6 +153,29 @@ describe('formatSourceHealthLine', () => {
     assert.doesNotMatch(line, /slug not found/);
   });
 
+  it('caps the list so a total outage cannot overflow the message limit', () => {
+    const many = Array.from({ length: 71 }, (_, i) => ({
+      name: `Company number ${i}`,
+      atsType: 'GREENHOUSE',
+      status: 'network',
+      streak: 3,
+    }));
+    const line = formatSourceHealthLine(many);
+    assert.match(line, /71 quiet sources\*/);
+    assert.match(line, /and 63 more/);
+    assert.ok(line.length < 1000, `line was ${line.length} chars`);
+  });
+
+  it('names every source when there are few enough', () => {
+    const few = Array.from({ length: 8 }, (_, i) => ({
+      name: `C${i}`,
+      atsType: 'LEVER',
+      status: 'slug_gone',
+      streak: 3,
+    }));
+    assert.doesNotMatch(formatSourceHealthLine(few), /more/);
+  });
+
   it('renders a status it has never seen without crashing', () => {
     const line = formatSourceHealthLine([
       { name: 'X', atsType: 'ASHBY', status: null, streak: 3 },
