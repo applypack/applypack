@@ -82,24 +82,32 @@ async function runStages(
 
 export { decideStageStrategy } from './text-utils';
 
+/** System + user for one classification. Pure — the only untested seam left is the call. */
+export function buildClassifyPrompt(
+  input: ClassifyInput,
+  profile: Profile,
+): { system: string; user: string } {
+  return {
+    system: buildSystemPrompt(profile),
+    user: [
+      `Title: ${input.title}`,
+      `Company: ${input.companyName}`,
+      `Location: ${input.location || '(not specified)'}`,
+      `Posted: ${input.postedAt.toISOString()}`,
+      '',
+      'Description:',
+      input.description.slice(0, MAX_DESC_CHARS) || '(no description)',
+      '',
+      'Return raw JSON only.',
+    ].join('\n'),
+  };
+}
+
 export async function classifyWithClaude(
   input: ClassifyInput,
   profile: Profile,
 ): Promise<ClaudeClassification | null> {
-  const description = input.description.slice(0, MAX_DESC_CHARS);
-  const systemPrompt = buildSystemPrompt(profile);
-
-  const userText = [
-    `Title: ${input.title}`,
-    `Company: ${input.companyName}`,
-    `Location: ${input.location || '(not specified)'}`,
-    `Posted: ${input.postedAt.toISOString()}`,
-    '',
-    'Description:',
-    description || '(no description)',
-    '',
-    'Return raw JSON only.',
-  ].join('\n');
+  const { system: systemPrompt, user: userText } = buildClassifyPrompt(input, profile);
 
   const ai = await getAiRuntime();
   // One retry on a malformed reply: small models occasionally wrap or truncate JSON.
