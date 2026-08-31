@@ -7,6 +7,13 @@ import { passesBaseFilter } from '../filter';
 import { classifyJob } from '../classifier';
 import { sendTelegramAlert } from '../notifier';
 import { applyPriorityFloor, parsePriorityRules } from '../priority-rules';
+import {
+  findCrossListing,
+  fromDbBigInt,
+  simhash64,
+  toDbBigInt,
+  type FingerprintedJob,
+} from '../fingerprint';
 
 export { applyPriorityFloor };
 import type {
@@ -31,7 +38,11 @@ export interface ProcessStats {
   alerted: number;
   alertFailed: number;
   priorityBoosted: number;
+  crossListed: number;
 }
+
+/** How far back the cross-listing scan looks. */
+const DEDUP_WINDOW_DAYS = 90;
 
 /**
  * Shared inner loop used by runFetchJob and runHnHiringJob: filter, dedupe,
@@ -63,6 +74,12 @@ export async function processNormalizedJobs(
     seen.add(key);
     candidates.push(item);
   }
+
+  // Fingerprints of everything ingested in the dedup window, read once for
+  // the whole batch. Cross-listing is an annotation, so this never changes
+  // which jobs get classified (ADR 0018).
+  const recentFingerprints =
+    candidates.length > 0 ? await loadRecentFingerprints() : [];
 
   // Classify up to AI_CONCURRENCY jobs at once; results are consumed in the
   // original order, so persisting and alerting stay sequential and ordered.
@@ -109,15 +126,44 @@ export async function processNormalizedJobs(
     const finalClassification = priority.classification;
     const appliedLabels = priority.applied.map((r) => r.label);
 
+    const fingerprint = simhash64(job.description);
+    const crossListing = findCrossListing(
+      fingerprint,
+      job.companyId,
+      recentFingerprints,
+    );
+    if (crossListing) {
+      stats.crossListed++;
+      logger.info(
+        {
+          title: job.title,
+          companyName,
+          originalJobId: crossListing.job.id,
+          distance: crossListing.distance,
+        },
+        'process-jobs: cross-listed posting',
+      );
+    }
+    const dedup = {
+      descriptionSimhash: fingerprint,
+      crossListedOfJobId: crossListing?.job.id ?? null,
+    };
+
     const dismissReason = decideDismissReason(finalClassification, profile);
     if (dismissReason) {
-      await prisma.job.create({
+      const dismissed = await prisma.job.create({
         data: buildJobData(
           job,
           finalClassification,
           JobStatus.DISMISSED,
           appliedLabels,
+          dedup,
         ),
+      });
+      recentFingerprints.push({
+        id: dismissed.id,
+        companyId: job.companyId,
+        descriptionSimhash: fingerprint,
       });
       stats.persisted++;
       stats.dismissed++;
@@ -134,7 +180,18 @@ export async function processNormalizedJobs(
     }
 
     const created = await prisma.job.create({
-      data: buildJobData(job, finalClassification, JobStatus.NEW, appliedLabels),
+      data: buildJobData(
+        job,
+        finalClassification,
+        JobStatus.NEW,
+        appliedLabels,
+        dedup,
+      ),
+    });
+    recentFingerprints.push({
+      id: created.id,
+      companyId: job.companyId,
+      descriptionSimhash: fingerprint,
     });
     stats.persisted++;
 
@@ -151,6 +208,9 @@ export async function processNormalizedJobs(
           techMatch: created.techMatch,
           redFlags: created.redFlags,
           summary: created.summary ?? '',
+          crossListedAt: crossListing
+            ? await companyNameOfJob(crossListing.job.id)
+            : null,
         },
         profile,
       );
@@ -212,14 +272,45 @@ function decideDismissReason(
   return null;
 }
 
+/** Fingerprints from the dedup window, oldest first. */
+async function loadRecentFingerprints(): Promise<FingerprintedJob[]> {
+  const since = new Date(Date.now() - DEDUP_WINDOW_DAYS * 24 * 60 * 60 * 1000);
+  const rows = await prisma.job.findMany({
+    where: { fetchedAt: { gte: since }, descriptionSimhash: { not: null } },
+    select: { id: true, companyId: true, descriptionSimhash: true },
+    orderBy: { fetchedAt: 'asc' },
+  });
+  return rows.map((r) => ({ ...r, descriptionSimhash: fromDbBigInt(r.descriptionSimhash) }));
+}
+
+/** Company of an already-stored job — only read when a cross-listing hits, so
+ *  the window scan itself stays a two-column read. */
+async function companyNameOfJob(jobId: number): Promise<string | null> {
+  const row = await prisma.job.findUnique({
+    where: { id: jobId },
+    select: { company: { select: { name: true } } },
+  });
+  return row?.company.name ?? null;
+}
+
+interface DedupData {
+  descriptionSimhash: bigint | null;
+  crossListedOfJobId: number | null;
+}
+
 function buildJobData(
   job: NormalizedJob,
   c: ClaudeClassification,
   status: JobStatus,
   priorityRulesApplied: string[],
+  dedup: DedupData,
 ): Prisma.JobCreateInput {
   return {
     company: { connect: { id: job.companyId } },
+    descriptionSimhash: toDbBigInt(dedup.descriptionSimhash),
+    ...(dedup.crossListedOfJobId !== null && {
+      crossListedOf: { connect: { id: dedup.crossListedOfJobId } },
+    }),
     externalId: job.externalId,
     title: job.title,
     url: job.url,

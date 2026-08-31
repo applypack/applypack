@@ -1,6 +1,6 @@
 import Parser from 'rss-parser';
 import { stripHtml } from '../http';
-import { hashShortId } from '../text-utils';
+import { feedItemKey } from '../text-utils';
 import type { NormalizedJob } from '../types';
 
 const FEED_URL_TEMPLATE = (category: string) =>
@@ -52,7 +52,7 @@ export async function fetchJobicy(
   category: string = DEFAULT_CATEGORY,
 ): Promise<NormalizedJob[]> {
   const feed = await parser.parseURL(FEED_URL_TEMPLATE(category));
-  return feed.items.map((item) => mapJobicyItem(item, companyId));
+  return feed.items.flatMap((item) => mapJobicyItem(item, companyId) ?? []);
 }
 
 /**
@@ -64,9 +64,12 @@ export async function fetchJobicy(
 export function mapJobicyItem(
   item: JobicyItem,
   companyId: number,
-): NormalizedJob {
+): NormalizedJob | null {
   const link = item.link ?? '';
-  const externalId = item.guid ?? hashShortId(link || (item.title ?? ''));
+  const externalId = item.guid ?? feedItemKey(link, item.title);
+  // Nothing identifies this row — skip it rather than hash '' and merge
+  // every such row onto one shared id.
+  if (!externalId) return null;
   const baseDescription =
     item.contentSnippet ??
     (item.content ? stripHtml(item.content) : '') ??

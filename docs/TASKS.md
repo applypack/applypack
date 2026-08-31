@@ -370,7 +370,14 @@ external project, copy-check before merge.
       robots-allowed `/api/v2`). NoDesk, JustJoin, NoFluffJobs rejected
       at re-analysis on robots grounds → ADR 0005 addendum. Salary
       decision: v1 folds salary into description text (F19 revisits)
-- [ ] F3 SimHash cross-source dedup + URL-key discipline — v0.5.0
+- [x] F3 SimHash cross-source dedup + URL-key discipline — v0.6.0
+      (branch `simhash-dedup`, ADR 0018): measuring the plan's constants on
+      our 731 jobs moved the guard from 200 to 400 normalized chars (Jobicy
+      teasers are byte-identical across different roles) and the threshold
+      from Hamming 5 to 7 (9/9 cross-company matches genuine; first false
+      positive at 10). The plan's "skip same-company matches" was dropped —
+      27% of them are genuinely different roles. Annotation only; skipping
+      the duplicate's paid classification stays deferred
 - [ ] F4 source health monitoring (quiet-source card) — v0.6.0
 - [ ] F5 status-transition ledger + funnel/calibration stats — v0.7.0
 - [ ] F6 follow-up cadence with pin/retire/auto-seed in the stale digest — v0.8.0

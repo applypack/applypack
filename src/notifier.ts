@@ -144,7 +144,9 @@ async function deliverToTarget(
   }
 }
 
-function formatJobMessage(job: AlertJob): string {
+/** Pure — exported so the MarkdownV2 escaping can be unit-tested; Telegram
+ *  rejects a whole message on a single unescaped special character. */
+export function formatJobMessage(job: AlertJob): string {
   const lines: string[] = [];
   lines.push(`*New role match — fit ${job.fitScore}/100*`);
   lines.push(
@@ -159,6 +161,11 @@ function formatJobMessage(job: AlertJob): string {
   }
   if (job.redFlags.length > 0) {
     lines.push(`⚠️ Flags: ${escapeMarkdownV2(job.redFlags.join(', '))}`);
+  }
+  if (job.crossListedAt) {
+    lines.push(
+      `🔁 Also listed at ${escapeMarkdownV2(job.crossListedAt)} — apply through one channel only`,
+    );
   }
   if (job.summary) {
     lines.push(`_${escapeMarkdownV2(job.summary)}_`);

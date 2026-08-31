@@ -38,4 +38,6 @@ export interface AlertJob {
   techMatch: string[];
   redFlags: string[];
   summary: string;
+  /** Company this posting is also listed at (F3 cross-listing annotation). */
+  crossListedAt?: string | null;
 }

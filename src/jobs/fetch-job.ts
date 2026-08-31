@@ -68,6 +68,7 @@ export async function runFetchJob(): Promise<{ stats: CronStats }> {
     alerted: 0,
     alertFailed: 0,
     priorityBoosted: 0,
+    crossListed: 0,
   };
   await processNormalizedJobs(fetched, profile, classifierMode, inner);
 

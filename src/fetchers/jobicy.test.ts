@@ -6,7 +6,7 @@ const COMPANY_ID = 99;
 
 describe('mapJobicyItem', () => {
   it('extracts <job_listing:location> instead of defaulting to Remote', () => {
-    const job = mapJobicyItem(
+    const job = mustmapJobicyItem(
       {
         title: 'Senior PHP Developer',
         link: 'https://jobicy.com/jobs/142345-senior-php',
@@ -19,7 +19,7 @@ describe('mapJobicyItem', () => {
   });
 
   it('falls back to "Remote" when location field is missing or empty', () => {
-    const a = mapJobicyItem(
+    const a = mustmapJobicyItem(
       {
         title: 'X',
         link: 'https://jobicy.com/jobs/1',
@@ -28,7 +28,7 @@ describe('mapJobicyItem', () => {
       COMPANY_ID,
     );
     assert.equal(a.location, 'Remote');
-    const b = mapJobicyItem(
+    const b = mustmapJobicyItem(
       {
         title: 'X',
         link: 'https://jobicy.com/jobs/1',
@@ -41,7 +41,7 @@ describe('mapJobicyItem', () => {
   });
 
   it('embeds hiring company + job type into description', () => {
-    const job = mapJobicyItem(
+    const job = mustmapJobicyItem(
       {
         title: 'Senior SAP Integration Developer',
         link: 'https://jobicy.com/jobs/142515',
@@ -59,7 +59,7 @@ describe('mapJobicyItem', () => {
   });
 
   it('preserves description when no custom fields are set', () => {
-    const job = mapJobicyItem(
+    const job = mustmapJobicyItem(
       {
         title: 'X',
         link: 'https://jobicy.com/jobs/1',
@@ -72,7 +72,7 @@ describe('mapJobicyItem', () => {
   });
 
   it('uses guid for externalId when present', () => {
-    const job = mapJobicyItem(
+    const job = mustmapJobicyItem(
       {
         title: 'X',
         link: 'https://jobicy.com/jobs/142345',
@@ -85,7 +85,7 @@ describe('mapJobicyItem', () => {
   });
 
   it('synthesises a stable externalId from link when guid is missing', () => {
-    const job = mapJobicyItem(
+    const job = mustmapJobicyItem(
       {
         title: 'X',
         link: 'https://jobicy.com/jobs/142345',
@@ -98,7 +98,7 @@ describe('mapJobicyItem', () => {
   });
 
   it('handles empty contentSnippet without crashing', () => {
-    const job = mapJobicyItem(
+    const job = mustmapJobicyItem(
       {
         title: 'X',
         link: 'https://jobicy.com/jobs/1',
@@ -111,3 +111,11 @@ describe('mapJobicyItem', () => {
     assert.equal(job.description, 'Hiring company: Acme Inc.');
   });
 });
+
+/** The mapper returns null only for rows nothing identifies; every fixture
+ *  here is keyable, so assert that before the per-field checks. */
+function mustmapJobicyItem(...args: Parameters<typeof mapJobicyItem>): NonNullable<ReturnType<typeof mapJobicyItem>> {
+  const job = mapJobicyItem(...args);
+  assert.ok(job, 'expected the fixture to map to a job');
+  return job;
+}

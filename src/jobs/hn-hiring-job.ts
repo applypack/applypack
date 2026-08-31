@@ -90,6 +90,7 @@ export async function runHnHiringJob(): Promise<{ stats: CronStats }> {
     alerted: 0,
     alertFailed: 0,
     priorityBoosted: 0,
+    crossListed: 0,
   };
   await processNormalizedJobs(items, profile, settings.classifierMode, inner);
 

@@ -1,6 +1,6 @@
 import Parser from 'rss-parser';
 import { stripHtml } from '../http';
-import { hashShortId } from '../text-utils';
+import { feedItemKey } from '../text-utils';
 import type { NormalizedJob } from '../types';
 
 const FEED_URL = 'https://larajobs.com/feed';
@@ -52,7 +52,7 @@ export async function fetchLarajobs(
   companyId: number,
 ): Promise<NormalizedJob[]> {
   const feed = await parser.parseURL(FEED_URL);
-  return feed.items.map((item) => mapLarajobsItem(item, companyId));
+  return feed.items.flatMap((item) => mapLarajobsItem(item, companyId) ?? []);
 }
 
 /**
@@ -64,9 +64,12 @@ export async function fetchLarajobs(
 export function mapLarajobsItem(
   item: LarajobsItem,
   companyId: number,
-): NormalizedJob {
+): NormalizedJob | null {
   const link = item.link ?? '';
-  const externalId = item.guid ?? hashShortId(link || (item.title ?? ''));
+  const externalId = item.guid ?? feedItemKey(link, item.title);
+  // Nothing identifies this row — skip it rather than hash '' and merge
+  // every such row onto one shared id.
+  if (!externalId) return null;
   const baseDescription =
     item.contentSnippet ??
     (item.content ? stripHtml(item.content) : '') ??

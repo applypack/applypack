@@ -1,6 +1,6 @@
 import Parser from 'rss-parser';
 import { stripHtml } from '../http';
-import { hashShortId } from '../text-utils';
+import { feedItemKey } from '../text-utils';
 import type { NormalizedJob } from '../types';
 
 const PARSER_TIMEOUT_MS = 10_000;
@@ -37,9 +37,12 @@ export async function fetchWeWorkRemotely(
   const slug = (company.atsToken || 'back-end-programming').trim();
   const url = `https://weworkremotely.com/categories/remote-${slug}-jobs.rss`;
   const feed = await parser.parseURL(url);
-  return feed.items.map((item) => {
+  return feed.items.flatMap((item) => {
     const link = item.link ?? '';
-    const externalId = item.guid ?? hashShortId(link || (item.title ?? ''));
+    const externalId = item.guid ?? feedItemKey(link, item.title);
+    // Nothing identifies this row — skip it rather than hash '' and merge
+    // every such row onto one shared id.
+    if (!externalId) return [];
     const description =
       item.contentSnippet ?? (item.content ? stripHtml(item.content) : '') ?? '';
     return {

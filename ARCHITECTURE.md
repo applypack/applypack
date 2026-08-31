@@ -170,6 +170,7 @@ src/
   ai-provider.ts               ← AiProvider seam: AnthropicApiProvider | ClaudeCodeProvider
   ai-provider-parse.ts         ← pure parser for `claude -p` JSON output (tested)
   concurrency.ts               ← createLimiter(max), pure
+  fingerprint.ts               ← SimHash of a JD body + cross-listing search, pure (ADR 0018)
   classifier.ts                ← classifyJob wrapper + classifyWithClaude (full prompt)
   classifier-prefilter.ts      ← preClassify (short prompt)
   notifier.ts                  ← Telegram MarkdownV2 send, multi-target broadcast
