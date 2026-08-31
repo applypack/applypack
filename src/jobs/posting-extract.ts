@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { getAiRuntime } from '../ai-runtime';
 import { extractJson } from '../text-utils';
 import { logger } from '../logger';
+import { fence, untrustedDirective } from '../prompt-fence';
 import { MAX_FIELD_CHARS } from './manual-job';
 
 /*
@@ -29,6 +30,9 @@ export interface PostingFacts {
 }
 
 const EXTRACT_SYSTEM = `You read one pasted job posting (possibly with page chrome around it) and extract facts.
+
+${untrustedDirective()}
+
 Reply with ONLY JSON: {"company": string|null, "title": string|null, "location": string|null, "salary_min": number|null, "salary_max": number|null, "workplace": "remote"|"hybrid"|"onsite"|null}.
 Rules:
 - company: the hiring company's name — not a recruiting agency, a job board, or a client mentioned in passing. null when never named.
@@ -39,7 +43,7 @@ Rules:
 - Never invent or guess a fact the text does not contain.`;
 
 export function buildExtractPrompt(description: string): { system: string; user: string } {
-  return { system: EXTRACT_SYSTEM, user: description.slice(0, HEAD_CHARS) };
+  return { system: EXTRACT_SYSTEM, user: fence('JOB POSTING', description.slice(0, HEAD_CHARS)) };
 }
 
 const FieldSchema = z
