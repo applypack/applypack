@@ -9,8 +9,14 @@
  * Pure: no I/O, no provider, no DB.
  */
 
-/** Marker shape. No angle brackets — `<LABEL>` reads as a tag to stripHtml (gotcha 12). */
-const MARKER_RE = /^[^\S\n]*-{3,}[^\S\n]*(?:BEGIN|END)[^\S\n]+UNTRUSTED\b.*$/gim;
+/*
+ * Marker shape, chosen by elimination:
+ *   "<UNTRUSTED X>" reads as a tag to stripHtml (gotcha 12);
+ *   "--- … ---" reads as a flag to a CLI that takes the prompt as a
+ *   positional argument (claude_code does) — measured, not guessed.
+ * "===" is inert to both.
+ */
+const MARKER_RE = /^[^\S\n]*={3,}[^\S\n]*(?:BEGIN|END)[^\S\n]+UNTRUSTED\b.*$/gim;
 
 /** What a forged marker inside the payload is replaced with — visible to the model. */
 export const FORGED_MARKER_PLACEHOLDER = '[fence-marker removed]';
@@ -19,11 +25,11 @@ export const FORGED_MARKER_PLACEHOLDER = '[fence-marker removed]';
 export const EMPTY_PAYLOAD = '(empty)';
 
 export function fenceOpen(label: string): string {
-  return `--- BEGIN UNTRUSTED ${label} ---`;
+  return `=== BEGIN UNTRUSTED ${label} ===`;
 }
 
 export function fenceClose(label: string): string {
-  return `--- END UNTRUSTED ${label} ---`;
+  return `=== END UNTRUSTED ${label} ===`;
 }
 
 /**

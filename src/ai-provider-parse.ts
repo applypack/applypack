@@ -105,6 +105,10 @@ export function buildClaudeCodeArgs(req: {
     '--system-prompt', req.system,
     ...tools,
     '--no-session-persistence',
+    // The prompt is the positional argument and it carries untrusted text, so
+    // end option parsing first: without this, a user prompt starting with "-"
+    // is read as a flag and the CLI exits with "unknown option".
+    '--',
     req.user,
   ];
 }
