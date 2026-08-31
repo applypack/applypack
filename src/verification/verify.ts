@@ -3,10 +3,22 @@ import { prisma } from '../db';
 import { logger } from '../logger';
 import { getAiRuntime } from '../ai-runtime';
 import { buildVerifyPrompt, parseVerifyResponse, VERIFY_MAX_TOKENS, type VerifyJobInput } from './prompts';
+import { runLivenessLadder, type LivenessJobInput, type LivenessResult } from './liveness';
 
 // Web research through the CLI can take several minutes.
 const VERIFY_TIMEOUT_MS = 10 * 60_000;
 const PARSE_ATTEMPTS = 2;
+
+/** Rungs 1-2 of the ladder (ADR 0016): free checks, verdict stored on the Job row. */
+export async function checkLiveness(job: LivenessJobInput & { id: number }): Promise<LivenessResult> {
+  const result = await runLivenessLadder(job);
+  await prisma.job.update({
+    where: { id: job.id },
+    data: { liveness: result.liveness, livenessCode: result.code, livenessCheckedAt: new Date() },
+  });
+  logger.info({ jobId: job.id, ...result }, 'liveness: checked');
+  return result;
+}
 
 /** Runs the ghost-job check with web tools and stores the verdict. Null on AI failure. */
 export async function verifyJob(job: VerifyJobInput & { id: number }): Promise<JobVerification | null> {
