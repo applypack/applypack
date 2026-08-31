@@ -6,6 +6,12 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+- Landing site for applypack.dev in `site/public` — static, zero-build,
+  zero-dependency (Cloudflare Pages: root `site`, empty build command,
+  output `public`). Reuses the README copy, the regenerated screenshots
+  and the social card as `og:image`.
+
 ## [0.11.1] — 2026-08-31
 
 ### Changed
