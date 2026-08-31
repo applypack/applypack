@@ -504,3 +504,27 @@ external project, copy-check before merge.
 - [ ] F19 salary observations + gap analytics — v0.21.0
 - [x] ADR 0005 addendum: "Evaluated, not supported" sources table
       (done with F2, 2026-08-31)
+
+## 8. Design-library analysis (2026-08-31 — owner asked about MUI / Radix / shadcn)
+
+Verdict: **no component library.** The dashboard stays server-rendered Hono
+JSX with no client framework (PRODUCT.md constraint) — MUI, Radix Primitives
+and shadcn/ui are all React-runtime. What we lift instead:
+
+- **Radix Colors** [P2] — framework-agnostic CSS scales (12 steps, paired
+  dark scales, contrast-tested). The ready path for the deferred dark theme:
+  swap the token values in `src/web/layout.tsx`, zero component changes.
+- **Radix Icons** [P3] — 15×15 SVGs, inline-able in Hono JSX by copying the
+  path data (no React). Candidate when we next touch dashboard glyphs.
+- **shadcn/ui as a taste reference** [P3] — the 2026-08 redesign already
+  lives in the same visual world (slate neutrals, hairline borders, quiet
+  focus states). Do a token audit against ui.shadcn.com defaults (radius
+  scale, ring styles) instead of adopting the library.
+- **MUI / Material** — rejected: React runtime, and the Material design
+  language conflicts with the pinned "quiet precision" brand (DESIGN.md).
+- Caution: **shadcn.io is a third-party registry**, not the official site
+  (that is ui.shadcn.com — the .io site says so itself); its paid React
+  blocks don't fit this stack.
+- Landing patterns already applied on applypack.dev: terminal install block
+  (shadcn), real product screenshots instead of mock UI (Radix). A stats
+  strip (MUI-style social proof) is deferred until the numbers earn it.
