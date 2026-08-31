@@ -38,7 +38,7 @@ export const StarterPackPicker: FC<{ segments: PackSegmentChoice[] }> = ({ segme
     <form method="post" action="/companies/starter-pack">
       <div class="mb-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
         {segments.map((s) => (
-          <PillCheckbox name="segment" value={s.id} class="items-start">
+          <PillCheckbox name="segment" value={s.id}>
             <span class="min-w-0">
               <span class="block font-medium text-ink">
                 {s.label}{' '}
