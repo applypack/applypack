@@ -24,6 +24,7 @@ consequences (what we accept). Aim for 15–30 lines each.
 - [0013 — AI engine is chosen at runtime from AppSettings, with a Gemini CLI backend](./0013-runtime-ai-engine.md)
 - [0014 — AI engines form a priority chain with automatic failover](./0014-ai-engine-chain.md)
 - [0015 — The profile is drafted from the resume scan, never written by AI](./0015-profile-draft-from-resume-scan.md)
+- [0016 — Job liveness via a free three-rung ladder before AI verify](./0016-liveness-ladder.md)
 
 ## When to write a new one
 
