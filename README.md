@@ -25,7 +25,7 @@ You know what you're looking for. The boards keep showing you everything
 else, and every "Senior Engineer" listing takes three minutes of reading
 to reveal the wrong stack, the wrong country, or a ghost posting.
 
-applypack does that reading for you. It watches 16 job sources around
+applypack does that reading for you. It watches 22 job sources around
 the clock, scores each posting against your real profile, and pings your
 Telegram only when something deserves an application. Then it helps you
 apply well: it checks whether the job is real, scores your resume against
@@ -39,7 +39,7 @@ $5 VPS is the whole deployment story.
 
 | | |
 | --- | --- |
-| 🔭 **16 sources, checked hourly** | Greenhouse / Lever / Ashby / Workable / SmartRecruiters boards you pick, plus 11 aggregators and the monthly HN "Who is hiring" thread |
+| 🔭 **22 sources, checked hourly** | Ten ATS vendors — Greenhouse, Lever, Ashby, Workable, SmartRecruiters, Recruitee, Breezy, BambooHR, Pinpoint, Rippling — on the boards you pick, plus 11 aggregators and the monthly HN "Who is hiring" thread |
 | 🧠 **A classifier with strict rules** | AI reads the full description against your stack, role types, seniority, regions and salary floor. "Full-stack" in a title is not a tech match, and "Remote · Germany" is not a US-remote job |
 | 📲 **Telegram instead of tab-refreshing** | alerts above your fit threshold, a daily digest, and a nudge when an application goes quiet for two weeks |
 | 🕵️ **Ghost-job verification** | a live web-search checklist (careers page, company footprint, posting age, named humans) returns `legit` / `suspicious` / `fake` with evidence URLs |
@@ -132,7 +132,7 @@ green. Details per engine in [docs/ai-engines.md](./docs/ai-engines.md).
 ## How it works
 
 ```
- 16 sources ──▶ normalize ──▶ base filter ──▶ AI classifier ──▶ Postgres ──▶ Telegram
+ 22 sources ──▶ normalize ──▶ base filter ──▶ AI classifier ──▶ Postgres ──▶ Telegram
    hourly        + dedupe      pure code,      your profile,     dashboard    only when
    fetch                       zero cost       strict rules                   fit ≥ threshold
 ```
