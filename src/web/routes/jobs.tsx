@@ -432,7 +432,7 @@ jobsRoute.get('/jobs/:id/cover/:letterId/file/:fmt', async (c) => {
   if (!letter || letter.jobId !== id) return c.text('Not found', 404);
   const job = await prisma.job.findUnique({
     where: { id },
-    include: { company: { select: { name: true, atsType: true } } },
+    include: { company: { select: { name: true } } },
   });
   if (!job) return c.text('Not found', 404);
 

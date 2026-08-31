@@ -102,6 +102,16 @@ describe('formatJobMessage', () => {
     );
   });
 
+  it('escapes the hyphens in apply-link flags', () => {
+    // Every red flag is kebab-case and MarkdownV2 treats "-" as reserved, so
+    // one unescaped hyphen makes Telegram reject the whole alert.
+    const msg = formatJobMessage({
+      ...base,
+      redFlags: ['stack-mismatch', 'apply-url-not-an-application'],
+    });
+    assert.match(msg, /Flags: stack\\-mismatch, apply\\-url\\-not\\-an\\-application/);
+  });
+
   it('escapes the cross-listed company name', () => {
     // Parentheses, dots and hyphens all need escaping in MarkdownV2 — an
     // unescaped one makes Telegram reject the entire message.
