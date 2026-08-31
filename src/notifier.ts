@@ -6,6 +6,7 @@ import {
 } from './settings';
 import { prisma } from './db';
 import type { Profile, TelegramTarget } from '@prisma/client';
+import { describeStatus } from './fetchers/source-health';
 import type { AlertJob } from './types';
 
 const TELEGRAM_API = 'https://api.telegram.org';
@@ -23,12 +24,17 @@ export async function sendTelegramAlert(
 export async function sendDigest(
   jobs: AlertJob[],
   profile?: Profile,
+  quiet: QuietSourceAlert[] = [],
 ): Promise<void> {
+  const healthLine = formatSourceHealthLine(quiet);
   if (jobs.length === 0) {
-    await broadcast(escapeMarkdownV2('No new matches in the last 24h.'), profile);
+    const empty = escapeMarkdownV2('No new matches in the last 24h.');
+    await broadcast(healthLine ? `${empty}\n\n${healthLine}` : empty, profile);
     return;
   }
-  const header = `*Daily digest — ${jobs.length} match${jobs.length === 1 ? '' : 'es'}*`;
+  const header = `*Daily digest — ${jobs.length} match${jobs.length === 1 ? '' : 'es'}*${
+    healthLine ? `\n${healthLine}` : ''
+  }`;
   const blocks = jobs.map(formatJobMessage);
   const separator = '\n\n———\n\n';
 
@@ -181,6 +187,32 @@ export function formatSalary(min: number | null, max: number | null): string {
   if (min !== null) return `${fmt(min)}+`;
   if (max !== null) return `up to ${fmt(max)}`;
   return '—';
+}
+
+export interface QuietSourceAlert {
+  name: string;
+  atsType: string;
+  /** Raw FetchStatus — rendered through describeStatus for the label. */
+  status: string | null;
+  streak: number;
+}
+
+/**
+ * One digest line for sources that crossed the failure streak (ADR 0019).
+ * Failing sources only: a silent board is a judgement call that belongs on
+ * the dashboard, and nagging about it daily is how a digest trains its
+ * reader to stop looking.
+ */
+export function formatSourceHealthLine(sources: QuietSourceAlert[]): string {
+  if (sources.length === 0) return '';
+  const items = sources.map(
+    (s) =>
+      `${escapeMarkdownV2(s.name)} ${escapeMarkdownV2(
+        `(${s.atsType}, ${describeStatus(s.status).label.toLowerCase()} ×${s.streak})`,
+      )}`,
+  );
+  const header = `⚠️ *${sources.length} quiet source${sources.length === 1 ? '' : 's'}*`;
+  return `${header} — ${items.join(', ')}`;
 }
 
 export function escapeMarkdownV2(text: string): string {

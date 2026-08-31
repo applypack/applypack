@@ -5,6 +5,7 @@ import {
   escapeMarkdownV2Url,
   formatJobMessage,
   formatSalary,
+  formatSourceHealthLine,
 } from './notifier';
 
 describe('formatSalary', () => {
@@ -107,5 +108,55 @@ describe('formatJobMessage', () => {
     const msg = formatJobMessage({ ...base, crossListedAt: 'Acme (US) Inc. - Jobs' });
     assert.match(msg, /Also listed at Acme \\\(US\\\) Inc\\\. \\- Jobs/);
     assert.match(msg, /apply through one channel only/);
+  });
+});
+
+describe('formatSourceHealthLine', () => {
+  it('is empty when nothing is quiet, so the digest gains no line', () => {
+    assert.equal(formatSourceHealthLine([]), '');
+  });
+
+  it('names the source, its vendor and the streak', () => {
+    const line = formatSourceHealthLine([
+      { name: 'Pleo', atsType: 'GREENHOUSE', status: 'slug_gone', streak: 4 },
+    ]);
+    assert.match(line, /1 quiet source\*/);
+    assert.match(line, /Pleo/);
+    assert.match(line, /GREENHOUSE/);
+    assert.match(line, /slug not found/);
+    assert.match(line, /4/);
+  });
+
+  it('pluralises and joins several sources', () => {
+    const line = formatSourceHealthLine([
+      { name: 'Pleo', atsType: 'GREENHOUSE', status: 'slug_gone', streak: 4 },
+      { name: 'Plaid', atsType: 'LEVER', status: 'slug_gone', streak: 3 },
+    ]);
+    assert.match(line, /2 quiet sources\*/);
+    assert.match(line, /Pleo.*Plaid/);
+  });
+
+  it('escapes MarkdownV2 in the company name and the parenthesised detail', () => {
+    const line = formatSourceHealthLine([
+      { name: 'Acme (EU) - Ltd.', atsType: 'LEVER', status: 'rate_limit', streak: 3 },
+    ]);
+    assert.match(line, /Acme \\\(EU\\\) \\- Ltd\\\./);
+    // The literal parens we add around the detail are escaped too.
+    assert.ok(!/[^\\]\(GREENHOUSE|[^\\]\(LEVER/.test(line));
+  });
+
+  it('never calls a rate limit a dead slug', () => {
+    const line = formatSourceHealthLine([
+      { name: 'X', atsType: 'WORKABLE', status: 'rate_limit', streak: 3 },
+    ]);
+    assert.match(line, /rate\\-limited/);
+    assert.doesNotMatch(line, /slug not found/);
+  });
+
+  it('renders a status it has never seen without crashing', () => {
+    const line = formatSourceHealthLine([
+      { name: 'X', atsType: 'ASHBY', status: null, streak: 3 },
+    ]);
+    assert.match(line, /not fetched yet/);
   });
 });
