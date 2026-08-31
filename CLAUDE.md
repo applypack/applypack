@@ -126,6 +126,7 @@ When the question is **"where does X live?"**, save yourself a `find`:
 | HTML → plaintext (entities, paragraphs, bullets) | `src/http.ts:stripHtml` + `decodeHtmlEntities` (gotcha 12) |
 | Pure helpers (parsing, hashing, masking) | `src/text-utils.ts` |
 | Near-duplicate detection across sources (SimHash, Hamming) | `src/fingerprint.ts` (ADR 0018); wired in `jobs/process-jobs.ts` |
+| Per-source health (error→status, failure streak, quiet/silent) | `src/fetchers/source-health.ts` (pure, ADR 0019); recorded by the wrapper in `fetchers/index.ts:runAllFetchers` |
 | Stable id for a feed row with no id of its own | `src/text-utils.ts:feedItemKey` (URL key → text key → null, never `''`) |
 | The cron list (6 schedules) | `src/index.ts:registerCron` |
 | What runs on container boot | `src/init.ts` |
@@ -177,6 +178,8 @@ When the question is **"how does the user toggle / configure X?"**:
 | What | Page |
 | --- | --- |
 | Pause / resume all new-job fetching | `/settings` General tab → "Job fetching" |
+| See which boards stopped answering | `/companies` → "Quiet sources" card (Re-probe to repair) |
+| Telegram line when a source goes quiet | `/settings` Notifications tab → "Source health alerts" |
 | Pick / order AI engines + models, test them | `/settings` AI engine tab (per-engine cards: Enable, ↑ priority, model selects, Test) |
 | Add / remove tracked company | `/companies` (with manual probe before save) |
 | Bulk-add a curated segment of companies | `/companies` → "Add a starter pack" (preview → confirm → added disabled → "Enable all") |
@@ -287,6 +290,35 @@ a ZIP code, another highlighted a whole skills line containing Docker and
 GitLab CI/CD the posting wanted. Removals now carry two hard rules
 (PROTECTED contact line; KEEP WANTED KEYWORDS with itemised drop/keep
 lists) — guard test "removals rules protect the contact line".
+
+### 13. `empty` from a fetcher is not proof the board is alive
+
+Measured 2026-08-30 across all 71 active sources. Two failure modes hide
+behind a zero count, and a naive "no jobs = healthy" rule marks both green
+forever:
+
+- **7 of 10 per-company vendors `return []` on a malformed top-level
+  payload** (Workable, Recruitee, BambooHR, Pinpoint, Breezy, Rippling,
+  SmartRecruiters). Only Greenhouse / Lever / Ashby throw on shape drift.
+- **SmartRecruiters answers HTTP 200 with `totalFound: 0` for every
+  identifier** — `Visa`, `Bosch`, `IKEA`, and a random non-existent string
+  alike, under our UA and a browser UA. A dead slug there is byte-identical
+  to a live board.
+
+Hence ADR 0019 keeps two signals, not one: the failure streak (`ok` and
+`empty` reset it, everything else increments) *and* `lastOkAt`, which
+advances only on `ok`. A source stuck on `empty` ages into "silent" without
+ever touching the streak.
+
+Two related traps in the same area:
+
+- **Status must come from the RAW pre-filter count.** 46 of 65 active
+  companies hold zero `Job` rows — that is `passesBaseFilter` doing its job,
+  not a broken board. Reading health off stored jobs makes the feature noise.
+- **A timeout does not arrive as an `AbortError`.** `fetchWithRetry` rewrites
+  it into a plain `Error` whose only marker is the message
+  `… timed out after Nms`. And a dead BambooHR slug arrives as a *refused
+  redirect* (302 → `redirect: 'error'`), not a 404.
 
 ### 12. stripHtml: decode entities FIRST, and never re-run it on its own output
 

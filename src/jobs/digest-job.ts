@@ -1,7 +1,9 @@
 import { JobStatus } from '@prisma/client';
 import { prisma } from '../db';
 import { logger } from '../logger';
-import { sendDigest } from '../notifier';
+import { sendDigest, type QuietSourceAlert } from '../notifier';
+import { QUIET_STREAK } from '../fetchers/source-health';
+import { getSettings, toAtsTypes } from '../settings';
 import type { CronStats } from './cron-run';
 import type { AlertJob } from '../types';
 
@@ -34,8 +36,34 @@ export async function runDigestJob(): Promise<{ stats: CronStats }> {
     summary: j.summary ?? '',
   }));
 
-  await sendDigest(alerts);
+  await sendDigest(alerts, undefined, await quietSources());
   const durationMs = Date.now() - started;
   logger.info({ count: alerts.length, durationMs }, 'digest-job: done');
   return { stats: { count: alerts.length, durationMs } };
+}
+
+/**
+ * Sources that crossed the failure streak (ADR 0019), behind its toggle.
+ * Only actively polled rows qualify — a disabled company, or one in a source
+ * family the user switched off, is quiet by instruction.
+ */
+async function quietSources(): Promise<QuietSourceAlert[]> {
+  const settings = await getSettings();
+  if (!settings.sourceHealthAlerts) return [];
+  const disabled = toAtsTypes(settings.disabledSources);
+  const rows = await prisma.company.findMany({
+    where: {
+      active: true,
+      consecutiveFailures: { gte: QUIET_STREAK },
+      ...(disabled.length > 0 ? { atsType: { notIn: disabled } } : {}),
+    },
+    select: { name: true, atsType: true, lastFetchStatus: true, consecutiveFailures: true },
+    orderBy: [{ consecutiveFailures: 'desc' }, { name: 'asc' }],
+  });
+  return rows.map((r) => ({
+    name: r.name,
+    atsType: r.atsType,
+    status: r.lastFetchStatus,
+    streak: r.consecutiveFailures,
+  }));
 }

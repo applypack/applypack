@@ -119,6 +119,7 @@ export interface SettingsProps {
   classifierMode: 'single' | 'two_stage';
   applicationTrackingEnabled: boolean;
   staleApplicationsDigestEnabled: boolean;
+  sourceHealthAlerts: boolean;
   disabledSources: string[];
   allSources: string[];
   fetchingEnabled: boolean;
@@ -155,6 +156,7 @@ export const SettingsPage: FC<SettingsProps> = ({
   classifierMode,
   applicationTrackingEnabled,
   staleApplicationsDigestEnabled,
+  sourceHealthAlerts,
   disabledSources,
   allSources,
   fetchingEnabled,
@@ -454,6 +456,14 @@ export const SettingsPage: FC<SettingsProps> = ({
           >
             When off, nothing is sent regardless of targets. Jobs are still classified and
             stored.
+          </ToggleRow>
+          <ToggleRow
+            label="Source health alerts"
+            enabled={sourceHealthAlerts}
+            action="/settings/source-health-toggle"
+          >
+            Adds one line to the daily digest when a tracked board stops answering —
+            usually a rotated slug. The quiet-sources card on Companies is always on.
           </ToggleRow>
         </Card>
 

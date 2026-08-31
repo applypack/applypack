@@ -2,7 +2,14 @@ import { AtsType } from '@prisma/client';
 import { prisma } from '../db';
 import { logger } from '../logger';
 import { sleep } from '../http';
-import { getSettings } from '../settings';
+import { getSettings, toAtsTypes } from '../settings';
+import {
+  QUIET_STREAK,
+  classifyFetchCount,
+  classifyFetchError,
+  nextStreak,
+  type FetchStatus,
+} from './source-health';
 import { fetchGreenhouse } from './greenhouse';
 import { fetchLever } from './lever';
 import { fetchAshby } from './ashby';
@@ -36,9 +43,7 @@ export interface FetcherResult {
 
 export async function runAllFetchers(): Promise<FetcherResult[]> {
   const settings = await getSettings();
-  const disabled = settings.disabledSources.filter(
-    (s): s is AtsType => (Object.values(AtsType) as string[]).includes(s),
-  );
+  const disabled = toAtsTypes(settings.disabledSources);
   if (disabled.length > 0) {
     logger.info({ disabled }, 'fetchers: skipping disabled source families');
   }
@@ -54,25 +59,61 @@ export async function runAllFetchers(): Promise<FetcherResult[]> {
   const out: FetcherResult[] = [];
 
   for (const company of companies) {
+    let status: FetchStatus;
     try {
       const jobs = await fetchOne(company);
+      // Status comes from the RAW count, before passesBaseFilter — a profile
+      // that matches nothing is not a broken board (ADR 0019).
+      status = classifyFetchCount(jobs.length);
       logger.info(
-        { company: company.name, count: jobs.length, ats: company.atsType },
+        { company: company.name, count: jobs.length, ats: company.atsType, status },
         'fetcher: ok',
       );
       for (const job of jobs) {
         out.push({ job, companyName: company.name });
       }
     } catch (err) {
+      status = classifyFetchError(err);
       logger.error(
-        { err, company: company.name, ats: company.atsType },
+        { err, company: company.name, ats: company.atsType, status },
         'fetcher: failed',
       );
     }
+    await recordFetchHealth(company, status);
     await sleep(POLITE_DELAY_MS);
   }
 
   return out;
+}
+
+/**
+ * Persist one source's health (ADR 0019). Never allowed to break the tick:
+ * a health write that fails must not cost us the jobs we just fetched.
+ */
+async function recordFetchHealth(
+  company: { id: number; name: string; consecutiveFailures: number },
+  status: FetchStatus,
+): Promise<void> {
+  const streak = nextStreak(status, company.consecutiveFailures);
+  try {
+    await prisma.company.update({
+      where: { id: company.id },
+      data: {
+        lastFetchStatus: status,
+        consecutiveFailures: streak,
+        ...(status === 'ok' ? { lastOkAt: new Date() } : {}),
+      },
+    });
+  } catch (err) {
+    logger.error({ err, company: company.name }, 'fetcher: health write failed');
+    return;
+  }
+  if (streak === QUIET_STREAK) {
+    logger.warn(
+      { company: company.name, status, streak },
+      'fetcher: source crossed the quiet threshold',
+    );
+  }
 }
 
 export async function fetchOne(company: {

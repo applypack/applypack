@@ -14,6 +14,7 @@ import {
   setClassifierMode,
   setDisabledSources,
   setFetchingEnabled,
+  setSourceHealthAlerts,
   setStaleApplicationsDigestEnabled,
   setTelegramEnabled,
   testTelegramTarget,
@@ -157,6 +158,7 @@ async function loadSettingsProps() {
     classifierMode: settings.classifierMode,
     applicationTrackingEnabled: settings.applicationTrackingEnabled,
     staleApplicationsDigestEnabled: settings.staleApplicationsDigestEnabled,
+    sourceHealthAlerts: settings.sourceHealthAlerts,
     disabledSources: settings.disabledSources,
     allSources: Object.values(AtsType).filter((t) => t !== AtsType.MANUAL),
     fetchingEnabled: settings.fetchingEnabled,
@@ -410,6 +412,16 @@ settingsRoute.post('/settings/stale-digest-toggle', async (c) => {
     `Stale-applications digest ${
       !settings.staleApplicationsDigestEnabled ? 'enabled' : 'disabled'
     }.`,
+  );
+});
+
+settingsRoute.post('/settings/source-health-toggle', async (c) => {
+  const settings = await getSettings();
+  await setSourceHealthAlerts(!settings.sourceHealthAlerts);
+  return flashRedirect(
+    '/settings?tab=notifications',
+    'ok',
+    `Source health alerts ${!settings.sourceHealthAlerts ? 'enabled' : 'disabled'}.`,
   );
 });
 

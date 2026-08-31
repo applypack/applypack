@@ -378,7 +378,19 @@ external project, copy-check before merge.
       positive at 10). The plan's "skip same-company matches" was dropped —
       27% of them are genuinely different roles. Annotation only; skipping
       the duplicate's paid classification stays deferred
-- [ ] F4 source health monitoring (quiet-source card) — v0.6.0
+- [x] F4 source health monitoring (quiet-source card) — v0.7.0
+      (branch `source-health`, ADR 0019). Tag is v0.7.0, not the plan's
+      v0.6.0: numbers follow actual integration order and F3 took v0.6.0.
+      Re-analysis on live data found two dead slugs already failing
+      silently (`GREENHOUSE:pleo`, `LEVER:plaid`) and killed the plan's
+      "empty is healthy" as a sufficient rule — SmartRecruiters returns
+      200 + `totalFound:0` for every id including Bosch and IKEA, and 7 of
+      10 vendors swallow a malformed payload into `[]`. So health carries
+      two signals (failure streak + `lastOkAt` silence) and the vocabulary
+      gained `rate_limit` and `bad_payload` (both observed live). Streak
+      >= 3 kept: fetch is hourly and the transient-failure base rate across
+      71 sources measured zero. ADR 0016's feed-vanish item: deferred
+      again, gate written down (list-completeness assertion)
 - [ ] F5 status-transition ledger + funnel/calibration stats — v0.7.0
 - [ ] F6 follow-up cadence with pin/retire/auto-seed in the stale digest — v0.8.0
 - [ ] F7 fact gate (anti-hallucination pure module) — v0.9.0
