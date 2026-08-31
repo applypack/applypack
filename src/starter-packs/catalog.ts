@@ -6,7 +6,6 @@
  */
 
 import { z } from 'zod';
-import type { DiscoverableAtsType } from '../text-utils';
 import catalogJson from './catalog.json';
 import { RESOLVE_ORDER } from './resolve';
 
@@ -19,7 +18,7 @@ const SegmentSchema = z.object({
 const CompanySchema = z.object({
   name: z.string().min(1).max(100),
   segment: z.string().min(1),
-  atsType: z.enum(RESOLVE_ORDER as unknown as [DiscoverableAtsType, ...DiscoverableAtsType[]]),
+  atsType: z.enum(RESOLVE_ORDER),
   atsToken: z.string().min(2).max(120),
 });
 

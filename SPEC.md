@@ -155,6 +155,24 @@ greenhouse/lever/ashby/workable/smartrecruiters) and writes
 re-validates each pending candidate's slug and updates `jobsSeen`,
 marking 4xx-returning slugs as DEAD.
 
+## Company starter packs (F14)
+
+`/companies` → **Add a starter pack**: curated segments (PHP/Laravel & CMS,
+JS infra & dev tools, JS/TS product & headless CMS, remote-first,
+UA-friendly remote) held in `src/starter-packs/catalog.json`. Each entry
+pins an `(atsType, atsToken)` that was resolved *and* identity-checked
+against the live vendor API — a probe hit alone proves a board exists, not
+whose it is (ADR 0017).
+
+Picking segments re-probes every board now and shows a preview split into
+new / already tracked / **unresolved** (listed with a reason, never dropped).
+Confirming inserts the boards **inactive**, then an "Enable all" button
+activates them. A board only counts as resolved at ≥ 1 open job, and the
+resolve chain falls back through all ten per-company vendors
+(greenhouse → ashby → lever → workable → smartrecruiters → recruitee →
+breezy → bamboohr → pinpoint → rippling) if the pinned board has moved.
+Re-importing a pack adds nothing.
+
 ## Resumes (Phase 8.1)
 
 `Resume` rows hold an uploaded file (`original` bytes, `.docx` / `.md` /

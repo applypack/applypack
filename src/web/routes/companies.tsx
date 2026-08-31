@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { prisma } from '../../db';
 import { logger } from '../../logger';
 import { probeAts } from '../../ats-probe';
-import { toStringArray, type DiscoverableAtsType } from '../../text-utils';
+import { toStringArray } from '../../text-utils';
 import {
   companiesInSegments,
   countsBySegment,
@@ -16,7 +16,7 @@ import { resolvePack } from '../../starter-packs/probe';
 import {
   boardUrl,
   buildPreview,
-  isAllowedAttempt,
+  allowedAttempt,
   keyOf,
 } from '../../starter-packs/resolve';
 import { CompaniesPage } from '../pages/companies';
@@ -158,9 +158,11 @@ companiesRoute.post('/companies/starter-pack/import', async (c) => {
       continue;
     }
     // Only pairs the catalog's own resolve plan allows may be written — the
-    // browser round-trips this value, so it is not trusted input.
+    // browser round-trips this value, so it is not trusted input. The match
+    // also narrows `atsType` from a form string to a vendor we can probe.
     const entry = findCompany(segment, name);
-    if (!entry || !isAllowedAttempt(entry, atsType, atsToken)) {
+    const attempt = entry && allowedAttempt(entry, atsType, atsToken);
+    if (!attempt) {
       logger.warn({ pick }, 'starter-pack: rejected a pick outside the catalog');
       skipped++;
       continue;
@@ -170,9 +172,9 @@ companiesRoute.post('/companies/starter-pack/import', async (c) => {
       const created = await prisma.company.create({
         data: {
           name,
-          atsType: atsType as AtsType,
-          atsToken,
-          careerUrl: boardUrl(atsType as DiscoverableAtsType, atsToken),
+          atsType: attempt.atsType,
+          atsToken: attempt.atsToken,
+          careerUrl: boardUrl(attempt.atsType, attempt.atsToken),
           // Inactive on purpose: a whole pack going live inside the next tick
           // would swamp the classifier (ADR 0017).
           active: false,

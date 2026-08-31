@@ -6,27 +6,26 @@
 
 import type { DiscoverableAtsType } from '../text-utils';
 
-/**
- * Vendor order for the fallback probe. Declared as a Record so that adding a
- * vendor to `DiscoverableAtsType` fails the build here rather than silently
- * dropping out of the chain.
- */
-const RESOLVE_RANK: Record<DiscoverableAtsType, number> = {
-  GREENHOUSE: 0,
-  ASHBY: 1,
-  LEVER: 2,
-  WORKABLE: 3,
-  SMARTRECRUITERS: 4,
-  RECRUITEE: 5,
-  BREEZY: 6,
-  BAMBOOHR: 7,
-  PINPOINT: 8,
-  RIPPLING: 9,
-};
+/** Vendor order for the fallback probe. */
+export const RESOLVE_ORDER = [
+  'GREENHOUSE',
+  'ASHBY',
+  'LEVER',
+  'WORKABLE',
+  'SMARTRECRUITERS',
+  'RECRUITEE',
+  'BREEZY',
+  'BAMBOOHR',
+  'PINPOINT',
+  'RIPPLING',
+] as const satisfies readonly DiscoverableAtsType[];
 
-export const RESOLVE_ORDER: readonly DiscoverableAtsType[] = (
-  Object.keys(RESOLVE_RANK) as DiscoverableAtsType[]
-).sort((a, b) => RESOLVE_RANK[a] - RESOLVE_RANK[b]);
+/** Adding a vendor to `DiscoverableAtsType` without adding it to the chain
+ *  makes this alias non-`never` and fails the build. */
+type AssertNever<T extends never> = T;
+export type UncoveredVendor = AssertNever<
+  Exclude<DiscoverableAtsType, (typeof RESOLVE_ORDER)[number]>
+>;
 
 /** A board is only accepted as this company's when it holds at least one job —
  *  SmartRecruiters answers 200 with an empty list for any slug (ADR 0017). */
@@ -82,15 +81,18 @@ export function buildResolvePlan(target: ResolveTarget): ResolveAttempt[] {
 /**
  * Guard for the confirm step: the browser round-trips the pair it saw in the
  * preview, and we only insert one the plan actually allows. Keeps a
- * hand-crafted POST from writing arbitrary rows.
+ * hand-crafted POST from writing arbitrary rows, and hands back the matching
+ * attempt so the caller gets the vendor narrowed instead of casting.
  */
-export function isAllowedAttempt(
+export function allowedAttempt(
   target: ResolveTarget,
   atsType: string,
   atsToken: string,
-): boolean {
-  return buildResolvePlan(target).some(
-    (a) => a.atsType === atsType && a.atsToken === atsToken,
+): ResolveAttempt | null {
+  return (
+    buildResolvePlan(target).find(
+      (a) => a.atsType === atsType && a.atsToken === atsToken,
+    ) ?? null
   );
 }
 

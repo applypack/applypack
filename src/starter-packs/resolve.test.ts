@@ -6,8 +6,8 @@ import {
   boardUrl,
   buildPreview,
   buildResolvePlan,
+  allowedAttempt,
   deriveSlug,
-  isAllowedAttempt,
   keyOf,
   type ResolvedEntry,
 } from './resolve';
@@ -94,11 +94,15 @@ test('buildResolvePlan skips the fallback when a name has no usable slug', () =>
   assert.equal(plan[0]?.pinned, true);
 });
 
-test('isAllowedAttempt accepts planned pairs and rejects invented ones', () => {
-  assert.ok(isAllowedAttempt(target, 'GREENHOUSE', 'rocketchat'));
-  assert.ok(isAllowedAttempt(target, 'LEVER', 'rocketchat'));
-  assert.equal(isAllowedAttempt(target, 'GREENHOUSE', 'someone-else'), false);
-  assert.equal(isAllowedAttempt(target, 'MANUAL', 'rocketchat'), false);
+test('allowedAttempt returns planned pairs and rejects invented ones', () => {
+  assert.deepEqual(allowedAttempt(target, 'GREENHOUSE', 'rocketchat'), {
+    atsType: 'GREENHOUSE',
+    atsToken: 'rocketchat',
+    pinned: true,
+  });
+  assert.equal(allowedAttempt(target, 'LEVER', 'rocketchat')?.pinned, false);
+  assert.equal(allowedAttempt(target, 'GREENHOUSE', 'someone-else'), null);
+  assert.equal(allowedAttempt(target, 'MANUAL', 'rocketchat'), null);
 });
 
 test('boardUrl round-trips through extractAtsToken for every vendor', () => {

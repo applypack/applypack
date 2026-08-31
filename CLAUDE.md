@@ -60,6 +60,10 @@
   `runFetchJob` and `runHnHiringJob`.
 - `AiProvider` calls are tool-free unless the request sets `webTools`; only
   `src/verification/verify.ts` does (ADR 0009). Never turn it on for the classifier.
+- `src/starter-packs/` is the curated-pack module: `catalog.json` (data),
+  `catalog.ts` and `resolve.ts` are pure (tested), `probe.ts` calls
+  `probeAts`. Web-only — the worker never imports it. Every catalog entry
+  pins a hand-verified board; a probe hit is not proof of identity (ADR 0017).
 - `src/web/public/` holds browser code served as-is (no build step). Keep it
   dependency-free ES modules with pure functions, tested through `import()`
   from `src/web/*.test.ts`. The Dockerfile copies the directory into the image.
@@ -143,6 +147,7 @@ When the question is **"where does X live?"**, save yourself a `find`:
 | Discovery candidate extraction | `src/discovery.ts:recordCandidatesFromText` (calls `extractAtsToken`) |
 | URL → ATS recognition (greenhouse/lever/ashby/workable/SR) | `src/text-utils.ts:extractAtsToken` |
 | Manual company probe before save | `src/ats-probe.ts:probeAts` |
+| Curated company packs (catalog, resolve order, preview) | `src/starter-packs/` — `catalog.json` + `resolve.ts` (pure) + `probe.ts`; ADR 0017 |
 | Resume upload → text (.pdf/.docx/.md/.txt) | `src/resume/resume-text.ts:extractResumeText` (docx via `zip.ts` + `docx-text.ts`, pdf via `pdf-text.ts` / unpdf — ADR 0011) |
 | Paste posting + resume → one-shot targeted analysis | `/target` — `src/web/routes/target.tsx` (composes `jobs/manual-job.ts` + `resume/match.ts`; upload/paste land on the hidden scratch resume, old scratch matches auto-deleted) |
 | Resume scan + resume-vs-job prompts and their zod schemas | `src/resume/prompts.ts` (`PROMPT_VERSION` bump on material change) |
@@ -172,6 +177,7 @@ When the question is **"how does the user toggle / configure X?"**:
 | Pause / resume all new-job fetching | `/settings` General tab → "Job fetching" |
 | Pick / order AI engines + models, test them | `/settings` AI engine tab (per-engine cards: Enable, ↑ priority, model selects, Test) |
 | Add / remove tracked company | `/companies` (with manual probe before save) |
+| Bulk-add a curated segment of companies | `/companies` → "Add a starter pack" (preview → confirm → added disabled → "Enable all") |
 | Disable whole ATS family (e.g. all Workable) | `/settings` Sources tab |
 | Enable two-stage classifier (cheaper, less precise) | `/settings` AI engine tab → "Classifier" |
 | Edit profile (stack, role types, regions, fit threshold) | `/settings` Profile tab (excludes, notes, priority rules, thresholds live in its "Advanced" block) |
