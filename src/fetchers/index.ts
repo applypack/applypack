@@ -23,6 +23,7 @@ import { fetchRecruitee } from './recruitee';
 import { fetchBreezy } from './breezy';
 import { fetchBamboo } from './bamboohr';
 import { fetchPinpoint } from './pinpoint';
+import { fetchRippling } from './rippling';
 import type { NormalizedJob } from '../types';
 
 const POLITE_DELAY_MS = 1_000;
@@ -125,6 +126,8 @@ export async function fetchOne(company: {
       return fetchBamboo({ id: company.id, atsToken: company.atsToken });
     case AtsType.PINPOINT:
       return fetchPinpoint({ id: company.id, atsToken: company.atsToken });
+    case AtsType.RIPPLING:
+      return fetchRippling({ id: company.id, atsToken: company.atsToken });
     case AtsType.MANUAL:
       // Pasted by hand on /jobs/new — nothing to fetch (and the row is inactive).
       return [];

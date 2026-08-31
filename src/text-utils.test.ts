@@ -292,6 +292,20 @@ describe('extractAtsToken', () => {
     );
     assert.equal(extractAtsToken('https://www.pinpointhq.com/'), null);
   });
+
+  it('parses a Rippling ATS URL (board page and API)', () => {
+    assert.deepEqual(
+      extractAtsToken('https://ats.rippling.com/rippling/jobs/2f0674e6'),
+      { atsType: 'RIPPLING', atsToken: 'rippling' },
+    );
+    assert.deepEqual(
+      extractAtsToken(
+        'https://api.rippling.com/platform/api/ats/v1/board/acme/jobs',
+      ),
+      { atsType: 'RIPPLING', atsToken: 'acme' },
+    );
+    assert.equal(extractAtsToken('https://www.rippling.com/careers'), null);
+  });
 });
 
 describe('daysSince', () => {

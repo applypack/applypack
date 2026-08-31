@@ -168,6 +168,16 @@ const SEED_COMPANIES: SeedCompany[] = [
     active: false,
   },
 
+  // Rippling ATS (F2) — verified live 2026-08-31. Rippling itself:
+  // ~750 open roles incl. lots of engineering; the fetcher caps
+  // per-tick detail fetches at 60, the rest ship title-only.
+  {
+    name: 'Rippling',
+    atsType: AtsType.RIPPLING,
+    atsToken: 'rippling',
+    careerUrl: 'https://ats.rippling.com/rippling/jobs',
+  },
+
   // LaraJobs RSS — Laravel-only board, single feed under one synthetic
   // company. Enable when the active profile targets PHP/Laravel.
   {

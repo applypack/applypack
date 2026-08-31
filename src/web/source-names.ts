@@ -25,6 +25,7 @@ const SOURCE_NAMES: Record<string, string> = {
   BREEZY: 'Breezy HR',
   BAMBOOHR: 'BambooHR',
   PINPOINT: 'Pinpoint',
+  RIPPLING: 'Rippling',
   MANUAL: 'Manual',
 };
 

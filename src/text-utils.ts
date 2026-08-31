@@ -97,7 +97,8 @@ export type DiscoverableAtsType =
   | 'RECRUITEE'
   | 'BREEZY'
   | 'BAMBOOHR'
-  | 'PINPOINT';
+  | 'PINPOINT'
+  | 'RIPPLING';
 
 // Vendor marketing/support subdomains that look like board slugs in
 // subdomain-style ATS URLs ({slug}.recruitee.com) but never are.
@@ -179,6 +180,14 @@ export function extractAtsToken(
   m = /https?:\/\/([\w-]{2,60})\.pinpointhq\.com/i.exec(url);
   if (m && m[1] && !GENERIC_SUBDOMAINS.has(m[1].toLowerCase())) {
     return { atsType: 'PINPOINT', atsToken: m[1].toLowerCase() };
+  }
+  // Rippling: ats.rippling.com/{slug}/jobs OR the board API URL
+  m =
+    /https?:\/\/(?:ats\.rippling\.com|api\.rippling\.com\/platform\/api\/ats\/v1\/board)\/([\w-]{2,60})/i.exec(
+      url,
+    );
+  if (m && m[1]) {
+    return { atsType: 'RIPPLING', atsToken: m[1].toLowerCase() };
   }
   return null;
 }

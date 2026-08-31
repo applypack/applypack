@@ -76,6 +76,12 @@ export async function probeAts(
           { timeoutMs: 8_000 },
         );
         break;
+      case AtsType.RIPPLING:
+        resp = await fetchWithRetry(
+          `https://api.rippling.com/platform/api/ats/v1/board/${encodeURIComponent(trimmed)}/jobs`,
+          { timeoutMs: 8_000 },
+        );
+        break;
       case AtsType.PINPOINT:
         resp = await fetchWithRetry(
           `https://${encodeURIComponent(trimmed)}.pinpointhq.com/postings.json`,
