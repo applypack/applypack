@@ -2,10 +2,16 @@ import 'dotenv/config';
 import { z } from 'zod';
 import { AI_PROVIDER_IDS } from './ai-engine';
 
-const ConfigSchema = z.object({
+export const ConfigSchema = z.object({
   DATABASE_URL: z.string().min(1, 'DATABASE_URL is required'),
   // Default AI backend; /settings → "AI engine" can override it at runtime.
   AI_PROVIDER: z.enum(AI_PROVIDER_IDS).default('anthropic_api'),
+  // Optional on purpose, even when AI_PROVIDER selects it. The engine chain
+  // resolves at runtime from the database with .env as fallback (ADR 0013/0014):
+  // /settings → "AI engine" reports `set ANTHROPIC_API_KEY in .env` and the
+  // provider factory throws the same message if this engine is ever used.
+  // Failing the process here took down the dashboard — the one place the
+  // credential can be set — so `cp .env.example .env` could not reach the UI.
   ANTHROPIC_API_KEY: z.string().optional(),
   CLAUDE_MODEL: z.string().default('claude-haiku-4-5-20251001'),
   // Resume scan + resume-vs-job comparison: a few calls a day where judgment
@@ -34,15 +40,16 @@ const ConfigSchema = z.object({
   MIN_FIT_SCORE: z.coerce.number().int().min(0).max(100).default(70),
   MIN_SALARY_USD: z.coerce.number().int().min(0).default(0),
   WEB_PORT: z.coerce.number().int().min(1).max(65535).default(4747),
-  WEB_HOST: z.string().default('0.0.0.0'),
+  // Loopback by default: an unauthenticated dashboard must never land on a
+  // network because a .env was missing. docker-compose sets 0.0.0.0 for the
+  // container, whose published port is loopback-only; a bare `docker run`
+  // needs `-e WEB_HOST=0.0.0.0` for the same reason.
+  WEB_HOST: z.string().default('127.0.0.1'),
   WEB_BASIC_AUTH: z
     .string()
     .optional()
     .transform((v) => (v && v.length > 0 ? v : undefined)),
-}).refine(
-  (c) => c.AI_PROVIDER !== 'anthropic_api' || (c.ANTHROPIC_API_KEY ?? '').length > 0,
-  { path: ['ANTHROPIC_API_KEY'], message: 'required when AI_PROVIDER=anthropic_api' },
-);
+});
 
 export type Config = z.infer<typeof ConfigSchema>;
 

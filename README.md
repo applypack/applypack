@@ -96,7 +96,7 @@ The stack is plain Node + Postgres, so a local setup is first-class:
 
 ```bash
 docker compose up -d postgres   # or any Postgres 16 you already have
-cp .env.example .env            # DATABASE_URL=postgresql://jobhunter:jobhunter@localhost:5432/jobhunter
+cp .env.example .env            # then point DATABASE_URL at that Postgres
 npm install
 npx prisma migrate deploy
 npm run seed
@@ -104,6 +104,20 @@ npm run seed
 npm run dev                     # the cron worker
 npm run dev:web                 # the dashboard → http://localhost:4747
 ```
+
+`DATABASE_URL` is the only line you must set — with an existing Postgres,
+use a role and database you already have. Everything else in `.env.example`
+works as shipped, engines included: the dashboard starts without any AI
+credential and the AI tab shows you which engines are usable, so you can
+pick one there instead of guessing up front.
+
+Run both commands from the repository root — the dashboard serves its
+browser modules from `src/web/public/` relative to the working directory.
+
+`WEB_HOST` defaults to `127.0.0.1` here on purpose. The dashboard has no
+authentication unless you set `WEB_BASIC_AUTH`, so bind it wider only
+together with that. (Under Docker, compose sets `0.0.0.0` for the
+container and publishes the port on loopback only.)
 
 CLI engines (claude / gemini / codex) are simpler locally: install them
 globally, log in once in your terminal, and the probe on the AI tab turns
