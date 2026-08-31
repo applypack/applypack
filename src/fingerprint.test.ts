@@ -4,11 +4,13 @@ import {
   MAX_HAMMING_DISTANCE,
   MIN_NORMALIZED_CHARS,
   findCrossListing,
+  fromDbBigInt,
   hamming64,
   isNearDuplicate,
   normalizeJdText,
   normalizedLength,
   simhash64,
+  toDbBigInt,
 } from './fingerprint';
 
 /** A body comfortably over the guard, built from varied prose. */
@@ -122,6 +124,35 @@ test('hamming64 counts differing bits', () => {
   assert.equal(hamming64(0n, 0n), 0);
   assert.equal(hamming64(0b1011n, 0b1001n), 1);
   assert.equal(hamming64(0n, 0xffffffffffffffffn), 64);
+});
+
+test('a top-bit fingerprint survives the signed BIGINT round trip', () => {
+  // Postgres BIGINT is signed: this value is what Prisma refused outright
+  // before the conversion existed.
+  const hash = 13153543119183686648n;
+  const stored = toDbBigInt(hash)!;
+  assert.ok(stored < 0n, 'expected the signed form to be negative');
+  assert.ok(stored >= -(2n ** 63n) && stored < 2n ** 63n, 'must fit in BIGINT');
+  assert.equal(fromDbBigInt(stored), hash);
+  assert.equal(toDbBigInt(null), null);
+  assert.equal(fromDbBigInt(null), null);
+});
+
+test('hamming64 is correct across the signed/unsigned boundary', () => {
+  const a = 13153543119183686648n;
+  const b = a ^ 0b1011n; // three bits apart
+  assert.equal(hamming64(a, b), 3);
+  // Same answer when either side arrives in its stored signed form.
+  assert.equal(hamming64(toDbBigInt(a)!, b), 3);
+  assert.equal(hamming64(toDbBigInt(a)!, toDbBigInt(b)!), 3);
+});
+
+test('findCrossListing matches candidates stored in signed form', () => {
+  const hash = 13153543119183686648n;
+  const candidates = [
+    { id: 5, companyId: 2, descriptionSimhash: toDbBigInt(hash) },
+  ];
+  assert.equal(findCrossListing(hash, 1, candidates)?.job.id, 5);
 });
 
 test('findCrossListing ignores the same company and picks the closest', () => {

@@ -7,7 +7,13 @@ import { passesBaseFilter } from '../filter';
 import { classifyJob } from '../classifier';
 import { sendTelegramAlert } from '../notifier';
 import { applyPriorityFloor, parsePriorityRules } from '../priority-rules';
-import { findCrossListing, simhash64, type FingerprintedJob } from '../fingerprint';
+import {
+  findCrossListing,
+  fromDbBigInt,
+  simhash64,
+  toDbBigInt,
+  type FingerprintedJob,
+} from '../fingerprint';
 
 export { applyPriorityFloor };
 import type {
@@ -269,11 +275,12 @@ function decideDismissReason(
 /** Fingerprints from the dedup window, oldest first. */
 async function loadRecentFingerprints(): Promise<FingerprintedJob[]> {
   const since = new Date(Date.now() - DEDUP_WINDOW_DAYS * 24 * 60 * 60 * 1000);
-  return prisma.job.findMany({
+  const rows = await prisma.job.findMany({
     where: { fetchedAt: { gte: since }, descriptionSimhash: { not: null } },
     select: { id: true, companyId: true, descriptionSimhash: true },
     orderBy: { fetchedAt: 'asc' },
   });
+  return rows.map((r) => ({ ...r, descriptionSimhash: fromDbBigInt(r.descriptionSimhash) }));
 }
 
 /** Company of an already-stored job — only read when a cross-listing hits, so
@@ -300,7 +307,7 @@ function buildJobData(
 ): Prisma.JobCreateInput {
   return {
     company: { connect: { id: job.companyId } },
-    descriptionSimhash: dedup.descriptionSimhash,
+    descriptionSimhash: toDbBigInt(dedup.descriptionSimhash),
     ...(dedup.crossListedOfJobId !== null && {
       crossListedOf: { connect: { id: dedup.crossListedOfJobId } },
     }),

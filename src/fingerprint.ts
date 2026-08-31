@@ -85,9 +85,26 @@ export function simhash64(text: string | null | undefined): bigint | null {
   return hash;
 }
 
-/** Number of differing bits between two fingerprints. */
+/**
+ * Postgres `BIGINT` is **signed**, so a fingerprint with the top bit set does
+ * not fit as-is — Prisma rejects it outright. These two reinterpret the same
+ * 64 bits across that boundary; they are not a lossy conversion.
+ */
+export function toDbBigInt(hash: bigint | null): bigint | null {
+  return hash === null ? null : BigInt.asIntN(64, hash);
+}
+
+export function fromDbBigInt(value: bigint | null): bigint | null {
+  return value === null ? null : BigInt.asUintN(64, value);
+}
+
+/**
+ * Number of differing bits between two fingerprints. Masked to 64 bits so it
+ * is correct whether the caller passes the signed form read back from the
+ * database or the unsigned form `simhash64` returns.
+ */
 export function hamming64(a: bigint, b: bigint): number {
-  let diff = a ^ b;
+  let diff = BigInt.asUintN(64, a ^ b);
   let bits = 0;
   while (diff !== 0n) {
     diff &= diff - 1n;
@@ -121,15 +138,15 @@ export interface FingerprintedJob {
  * genuinely different roles sharing a company's boilerplate, and reposts are
  * F11's problem (ADR 0018).
  */
-export function findCrossListing(
+export function findCrossListing<T extends FingerprintedJob>(
   fingerprint: bigint | null,
   companyId: number,
-  candidates: readonly FingerprintedJob[],
+  candidates: readonly T[],
   maxDistance: number = MAX_HAMMING_DISTANCE,
-): { job: FingerprintedJob; distance: number } | null {
+): { job: T; distance: number } | null {
   if (fingerprint === null) return null;
 
-  let best: { job: FingerprintedJob; distance: number } | null = null;
+  let best: { job: T; distance: number } | null = null;
   for (const candidate of candidates) {
     if (candidate.companyId === companyId) continue;
     if (candidate.descriptionSimhash === null) continue;
