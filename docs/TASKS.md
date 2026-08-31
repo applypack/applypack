@@ -506,3 +506,102 @@ the "everything runs on your machine" promise: a note can quote resume text.
 external tracker (breaks the offline promise); a Telegram capture inbox (it
 needs `getUpdates` polling in the worker — a new moving part for the rare
 "saw it outside the app" case).
+
+---
+
+## 9. Outcome-first bullets and letters (analysis 2026-08-31, not built)
+
+**Goal.** Every suggested resume bullet and every cover-letter sentence is
+framed as value to *this* employer — what improved for the business, not what
+the candidate touched in the code — and carries numbers a non-engineer reads
+without translation. Short bullets, plain figures, their goals first.
+
+**Where we stand.** The rubric already asks for this: BULLET RULES
+(`prompts.ts` step 7) demand "outcome → how → with what" with a business
+result, SCAN flags "activity but no outcome", and COVER_SYSTEM's ABOUT THEM
+rule budgets at least as many sentences to their need as to the candidate's
+past. Three things break it in practice.
+
+**Finding 1 — the employer's goals are never modelled.** Keyword extraction
+deliberately discards "company marketing, benefits, culture statements" as
+noise, which is right for ATS terms and wrong here: that section and "What
+you'll do" are where the business goals live. `MatchSchema` has no field for
+why the role exists, so "the outcome THIS employer cares about" has no source
+and the model guesses generic metrics.
+
+**Finding 2 — the promised number is impossible.** BULLET RULES allow a figure
+"that exists in the resume or in a candidate-confirmed fact", but the gate
+supports metric claims only from `sources` / `allowMetrics`; a `CandidateFact`
+can support a *tool* claim and nothing else (`fact-check.ts`), and
+`coverGateSources` deliberately excludes angles and match content. So a
+user-confirmed number is still blocked. The prompt's fallback ("ask the
+candidate for the real number" in `why`) leads nowhere — no UI collects it.
+
+**Finding 3 — legible ≠ present.** "p95 800ms → 120ms" means nothing to a
+recruiter, but "6x faster" is arithmetic, and the gate forbids rounding,
+estimating, summing and converting. A naive "make the numbers business-facing"
+instruction drives straight into a block, and a twice-blocked letter is
+discarded entirely (ADR 0021). The rule has to be REFRAME, NEVER RECOMPUTE.
+
+### 9.1 Role outcomes in the match (P0 — prompt + tests only)
+- [ ] `MatchSchema` gains `role_outcomes` (max 3):
+      `{goal, metric|null, source: "requirement"|"responsibility"|"mission"|"inferred"}`,
+      read from "About the role" / "What you'll do" / "About us" — the
+      sections keyword extraction throws away
+- [ ] Every `experience` action's `why` must name a keyword requirement OR one
+      `role_outcomes` entry; `source: "inferred"` may steer a bullet but is
+      never quotable as a company fact in a letter
+- [ ] Bullet shape tightened: outcome in the first half of the line, ~24 words
+      instead of 28, business noun before the technology
+- [ ] REFRAME, NEVER RECOMPUTE: the figure stays verbatim as the resume states
+      it; a business noun (users, orders, hours, releases, customers) may be
+      attached only when that noun is itself in the resume, a confirmed fact
+      or the posting. No ratios, no unit conversions, no sums
+- [ ] Guard tests beside "actions demand business impact" and "bullet rules";
+      `PROMPT_VERSION` 4 → 5 (stored per score, so old rows stay readable)
+- [ ] Zero extra AI calls — same reply, a few more tokens
+
+### 9.2 Metric facts (P1 — schema + gate + UI, needs an ADR)
+- [ ] MATCH returns `metric_questions` (3-5, specific: "how many orders a day
+      went through the checkout you rebuilt?"), asked only where the answer
+      would strengthen a bullet for THIS posting
+- [ ] `CandidateFact` gains `kind` (TOOL | METRIC) and `value` + hand-written
+      migration; `/facts` collects the answer in one line and re-scores
+      instantly, as it already does for tool confirmations
+- [ ] Confirmed metrics reach the gate as `allowMetrics` — the parameter
+      exists in `fact-check.ts` and currently has no caller; this is the seam
+      it was built for. `applyFacts` stays untouched: a metric fact never
+      flips a keyword status
+- [ ] ADR (amends 0020): a user-confirmed metric is a source for numbers. The
+      number still comes from the human, never from the model — the gate is
+      not weakened, its evidence set is
+- [ ] Closes the dead end: the "ask the candidate for the real number"
+      fallback finally has a place to ask
+
+### 9.3 Letter: their goal, then the proof (P1)
+- [ ] Middle paragraph becomes an explicit sequence: their goal (from the
+      posting) → one evidenced proof from the resume → what the candidate
+      would do here first. The last sentence stays qualitative — a promise
+      with a number is a metric with no source, i.e. a block
+- [ ] The standing `problem` angle gets per-posting chips: a PURE function
+      extracts "What you'll do" / "About the role" lines from the description
+      and offers them as one-click fills. No AI call — F8.3's one-call letter
+      path stays intact
+- [ ] Reply gains `outcomes_used` beside `keywords_used`, shown on the card so
+      the addressed goal is visible and testable
+- [ ] `COVER_PROMPT_VERSION` 2 → 3; length band unchanged at 120-180 words —
+      the new structure displaces weaker sentences, it does not add a paragraph
+
+### 9.4 Deliberately out of scope
+- [ ] Impact does NOT enter the score. ADR 0012 keeps the number deterministic
+      and comparable across resume versions; outcome-orientation is a judgment
+      call and would make it drift. Surface it as a caution + actions
+      ("3 of 4 bullets in the current role state activity, not outcome")
+- [ ] No `webTools` for researching company goals in the letter path
+      (ADR 0009 / 0021) — company facts stay posting + stored
+      `companySnapshot` from verification, which already does the web work
+- [ ] No second AI call in the default letter path (F8.3 deliberately cut it
+      to one, ~26s measured)
+- [ ] Verification: guard tests in `prompts.test.ts` + `npm run bench:resume`
+      over the 3 gold fixtures, extended with "every suggested bullet carries
+      an outcome and no invented figure"
