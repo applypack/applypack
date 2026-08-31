@@ -66,12 +66,17 @@ const DOT_TONE: Record<HealthTone, string> = {
 /** Status dot + label, the per-row half of ADR 0019. */
 const HealthDot: FC<{ status: string | null; streak: number }> = ({ status, streak }) => {
   const { label, tone } = describeStatus(status);
-  const title = streak > 0 ? `${label} — ${streak} tick${streak === 1 ? '' : 's'} in a row` : label;
+  // The label is already text, so the dot is decorative and the streak is the
+  // only part a screen reader would otherwise miss.
+  const streakText = streak > 0 ? `${streak} tick${streak === 1 ? '' : 's'} in a row` : '';
   return (
-    <span class="inline-flex items-center gap-2 whitespace-nowrap" title={title}>
+    <span
+      class="inline-flex items-center gap-2 whitespace-nowrap"
+      title={streakText ? `${label} — ${streakText}` : label}
+    >
       <span class={`h-2 w-2 shrink-0 rounded-full ${DOT_TONE[tone]}`} aria-hidden="true" />
       <span class="text-[13px] text-ink-muted">{label}</span>
-      <span class="sr-only">{title}</span>
+      {streakText && <span class="sr-only">, {streakText}</span>}
     </span>
   );
 };
