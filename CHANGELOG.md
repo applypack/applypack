@@ -6,6 +6,16 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+- **Renamed to ApplyPack.** The project outgrew "job hunter": it scores and
+  tailors resumes, drafts cover letters and tracks applications, not just
+  finds postings. The repository moved to `nazboyko/applypack` and old URLs
+  redirect. The Postgres role, database and volume keep their `jobhunter`
+  names, so an existing deployment needs no migration — but if you rename
+  your local checkout directory, copy the Docker volume first: Compose
+  derives the project name from the folder.
+- Corrected a stale count in the README: 22 source types, not 16.
+
 ## [0.11.0] — 2026-08-31
 
 ### Added
@@ -410,7 +420,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
-[Unreleased]: https://github.com/nazboyko/applypack/compare/v0.10.0...HEAD
+[Unreleased]: https://github.com/nazboyko/applypack/compare/v0.11.0...HEAD
 [0.11.0]: https://github.com/nazboyko/applypack/compare/v0.10.0...v0.11.0
 [0.10.0]: https://github.com/nazboyko/applypack/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/nazboyko/applypack/compare/v0.8.0...v0.9.0
