@@ -21,6 +21,12 @@ const SOURCE_NAMES: Record<string, string> = {
   GOLANGPROJECTS: 'Golang Projects',
   WORKINGNOMADS: 'Working Nomads',
   HIMALAYAS: 'Himalayas',
+  RECRUITEE: 'Recruitee',
+  BREEZY: 'Breezy HR',
+  BAMBOOHR: 'BambooHR',
+  PINPOINT: 'Pinpoint',
+  RIPPLING: 'Rippling',
+  FOURDAYWEEK: '4 Day Week',
   MANUAL: 'Manual',
 };
 

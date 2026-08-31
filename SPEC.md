@@ -26,7 +26,7 @@ port.
 
 See [ARCHITECTURE.md](./ARCHITECTURE.md) for diagrams.
 
-## Sources (16 ATS / aggregator types + MANUAL)
+## Sources (22 ATS / aggregator types + MANUAL)
 
 | AtsType            | Shape         | Auth      | Notes                                           |
 | ------------------ | ------------- | --------- | ----------------------------------------------- |
@@ -35,6 +35,11 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for diagrams.
 | ASHBY              | per-company   | none      | `api.ashbyhq.com/posting-api/job-board/<org>`   |
 | WORKABLE           | per-company   | none      | POST `apply.workable.com/api/v3/accounts/<slug>/jobs`. List has **no description body** — Claude classifies on title alone. |
 | SMARTRECRUITERS    | per-company   | none      | List + per-posting detail. 60 details/cycle.    |
+| RECRUITEE          | per-company   | none      | `<slug>.recruitee.com/api/offers/` — rich rows incl. description + salary |
+| BREEZY             | per-company   | none      | `<slug>.breezy.hr/json?verbose=true` (`verbose` adds the description) |
+| BAMBOOHR           | per-company   | none      | `<slug>.bamboohr.com/careers/list`. List-only: **no description, no date** (postedAt = first-seen). Unknown slug 302s to marketing site → `redirect: 'error'`. |
+| PINPOINT           | per-company   | none      | `<slug>.pinpointhq.com/postings.json` — rich rows, **no date** (postedAt = first-seen) |
+| RIPPLING           | per-company   | none      | List + per-job detail (`api.rippling.com/platform/api/ats/v1/board/<slug>/jobs`). 60 details/cycle. |
 | LARAJOBS_RSS       | aggregator    | none      | Single RSS, all jobs under one synthetic Company |
 | REMOTEOK           | aggregator    | none      | First array element is meta (`legal:`) — dropped via `slice(1)` |
 | REMOTIVE           | aggregator    | none      | `?category=software-dev`                        |
@@ -46,12 +51,17 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for diagrams.
 | HN_JOBS            | aggregator    | none      | Algolia `tags=job` → individual YC posts, 14-day window; URLs feed discovery harvest |
 | WORKINGNOMADS      | aggregator    | none      | `/api/exposed_jobs/` JSON, ~30 most recent, mixed categories |
 | HIMALAYAS          | aggregator    | none      | `/jobs/api?limit=20` JSON (limit cap 20), all categories, salary folded into description |
+| FOURDAYWEEK        | aggregator    | none      | `4dayweek.io/api/v2/jobs?page=N` (the robots-allowed versioned API), 25/page, cap 3 pages; salary arrives in minor units (÷100) |
 
 **Hard exclusions** — never added regardless of demand:
 - LinkedIn / Indeed / Glassdoor (TOS, anti-bot, account ban risk)
 - Workday (`*.myworkdayjobs.com`) — POST with dynamic facetCriteria, fragile per-company
 - JobSpy / similar grey-zone scrapers
 - Headless-browser scrapers of any kind
+- Anything whose robots.txt refuses the path we'd call or bans AI agents —
+  see the "Evaluated, not supported" table in
+  [ADR 0005](./docs/adr/0005-no-linkedin-indeed-workday.md)
+  (JustJoin.it, NoFluffJobs, NoDesk rejected there at F2)
 
 ## Pipeline
 

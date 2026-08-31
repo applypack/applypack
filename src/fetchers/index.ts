@@ -19,6 +19,12 @@ import { fetchJobicy } from './jobicy';
 import { fetchHnJobs } from './hn-jobs';
 import { fetchWorkingNomads } from './workingnomads';
 import { fetchHimalayas } from './himalayas';
+import { fetchRecruitee } from './recruitee';
+import { fetchBreezy } from './breezy';
+import { fetchBamboo } from './bamboohr';
+import { fetchPinpoint } from './pinpoint';
+import { fetchRippling } from './rippling';
+import { fetchFourDayWeek } from './fourdayweek';
 import type { NormalizedJob } from '../types';
 
 const POLITE_DELAY_MS = 1_000;
@@ -113,6 +119,18 @@ export async function fetchOne(company: {
       return fetchWorkingNomads(company.id);
     case AtsType.HIMALAYAS:
       return fetchHimalayas(company.id);
+    case AtsType.RECRUITEE:
+      return fetchRecruitee({ id: company.id, atsToken: company.atsToken });
+    case AtsType.BREEZY:
+      return fetchBreezy({ id: company.id, atsToken: company.atsToken });
+    case AtsType.BAMBOOHR:
+      return fetchBamboo({ id: company.id, atsToken: company.atsToken });
+    case AtsType.PINPOINT:
+      return fetchPinpoint({ id: company.id, atsToken: company.atsToken });
+    case AtsType.RIPPLING:
+      return fetchRippling({ id: company.id, atsToken: company.atsToken });
+    case AtsType.FOURDAYWEEK:
+      return fetchFourDayWeek(company.id);
     case AtsType.MANUAL:
       // Pasted by hand on /jobs/new — nothing to fetch (and the row is inactive).
       return [];

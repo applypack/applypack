@@ -247,6 +247,65 @@ describe('extractAtsToken', () => {
       { atsType: 'SMARTRECRUITERS', atsToken: 'Bosch' },
     );
   });
+
+  it('parses a Recruitee board subdomain', () => {
+    assert.deepEqual(
+      extractAtsToken('https://channable.recruitee.com/o/backend-engineer'),
+      { atsType: 'RECRUITEE', atsToken: 'channable' },
+    );
+    assert.deepEqual(
+      extractAtsToken('https://Tylko.recruitee.com/api/offers/'),
+      { atsType: 'RECRUITEE', atsToken: 'tylko' },
+    );
+  });
+
+  it('ignores Recruitee marketing subdomains', () => {
+    assert.equal(extractAtsToken('https://www.recruitee.com/pricing'), null);
+    assert.equal(
+      extractAtsToken('https://careers.recruitee.com/anything'),
+      null,
+    );
+  });
+
+  it('parses a Breezy board URL', () => {
+    assert.deepEqual(
+      extractAtsToken('https://softwaremill.breezy.hr/p/abc-backend-engineer'),
+      { atsType: 'BREEZY', atsToken: 'softwaremill' },
+    );
+    assert.equal(extractAtsToken('https://www.breezy.hr/hire'), null);
+  });
+
+  it('parses a BambooHR careers URL', () => {
+    assert.deepEqual(
+      extractAtsToken('https://canopy.bamboohr.com/careers/42'),
+      { atsType: 'BAMBOOHR', atsToken: 'canopy' },
+    );
+    // Marketing pages don't have the /careers path.
+    assert.equal(extractAtsToken('https://www.bamboohr.com/careers/'), null);
+    assert.equal(extractAtsToken('https://canopy.bamboohr.com/jobs'), null);
+  });
+
+  it('parses a Pinpoint board URL', () => {
+    assert.deepEqual(
+      extractAtsToken('https://youlend.pinpointhq.com/en/postings/b03f1c2a'),
+      { atsType: 'PINPOINT', atsToken: 'youlend' },
+    );
+    assert.equal(extractAtsToken('https://www.pinpointhq.com/'), null);
+  });
+
+  it('parses a Rippling ATS URL (board page and API)', () => {
+    assert.deepEqual(
+      extractAtsToken('https://ats.rippling.com/rippling/jobs/2f0674e6'),
+      { atsType: 'RIPPLING', atsToken: 'rippling' },
+    );
+    assert.deepEqual(
+      extractAtsToken(
+        'https://api.rippling.com/platform/api/ats/v1/board/acme/jobs',
+      ),
+      { atsType: 'RIPPLING', atsToken: 'acme' },
+    );
+    assert.equal(extractAtsToken('https://www.rippling.com/careers'), null);
+  });
 });
 
 describe('daysSince', () => {

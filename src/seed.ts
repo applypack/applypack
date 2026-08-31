@@ -111,6 +111,73 @@ const SEED_COMPANIES: SeedCompany[] = [
     careerUrl: 'https://www.scribd.com/about',
   },
 
+  // Recruitee (F2) — verified live 2026-08-31. Channable: Utrecht SaaS
+  // with recurring backend/support roles. Tylko: Warsaw furniture-tech,
+  // specialised — starts disabled.
+  {
+    name: 'Channable',
+    atsType: AtsType.RECRUITEE,
+    atsToken: 'channable',
+    careerUrl: 'https://jobs.channable.com',
+  },
+  {
+    name: 'Tylko',
+    atsType: AtsType.RECRUITEE,
+    atsToken: 'tylko',
+    careerUrl: 'https://tylko.recruitee.com',
+    active: false,
+  },
+
+  // Breezy (F2) — verified live 2026-08-31. SoftwareMill: Polish
+  // Scala/backend consultancy; board valid but empty at seed time
+  // (empty is healthy) — starts disabled, EU-skewed.
+  {
+    name: 'SoftwareMill',
+    atsType: AtsType.BREEZY,
+    atsToken: 'softwaremill',
+    careerUrl: 'https://softwaremill.breezy.hr',
+    active: false,
+  },
+
+  // BambooHR (F2) — verified live 2026-08-31. FreshBooks: Canadian
+  // accounting SaaS; board valid but empty at seed time. List-only
+  // source (no descriptions/dates) — starts disabled.
+  {
+    name: 'FreshBooks',
+    atsType: AtsType.BAMBOOHR,
+    atsToken: 'freshbooks',
+    careerUrl: 'https://freshbooks.bamboohr.com/careers',
+    active: false,
+  },
+
+  // Pinpoint (F2) — verified live 2026-08-31. Digital Science: research
+  // software (Altmetric, Dimensions), recurring engineering roles.
+  // YouLend: London/EU fintech. Dateless source — postedAt is
+  // first-seen time.
+  {
+    name: 'Digital Science',
+    atsType: AtsType.PINPOINT,
+    atsToken: 'digitalscience',
+    careerUrl: 'https://digitalscience.pinpointhq.com',
+  },
+  {
+    name: 'YouLend',
+    atsType: AtsType.PINPOINT,
+    atsToken: 'youlend',
+    careerUrl: 'https://youlend.pinpointhq.com',
+    active: false,
+  },
+
+  // Rippling ATS (F2) — verified live 2026-08-31. Rippling itself:
+  // ~750 open roles incl. lots of engineering; the fetcher caps
+  // per-tick detail fetches at 60, the rest ship title-only.
+  {
+    name: 'Rippling',
+    atsType: AtsType.RIPPLING,
+    atsToken: 'rippling',
+    careerUrl: 'https://ats.rippling.com/rippling/jobs',
+  },
+
   // LaraJobs RSS — Laravel-only board, single feed under one synthetic
   // company. Enable when the active profile targets PHP/Laravel.
   {
@@ -178,6 +245,16 @@ const SEED_COMPANIES: SeedCompany[] = [
     atsType: AtsType.WORKINGNOMADS,
     atsToken: 'workingnomads',
     careerUrl: 'https://www.workingnomads.com/jobs',
+  },
+
+  // 4 Day Week (F2) — global aggregator of 4-day-week jobs via the
+  // robots-allowed /api/v2 endpoint; 25/page newest-first, fetcher caps
+  // at 3 pages. Salary folded into the description (minor units ÷100).
+  {
+    name: '4 Day Week',
+    atsType: AtsType.FOURDAYWEEK,
+    atsToken: 'fourdayweek',
+    careerUrl: 'https://4dayweek.io',
   },
 
   // Himalayas — free no-auth JSON API, 20 newest cross-company postings

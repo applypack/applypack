@@ -93,7 +93,26 @@ export type DiscoverableAtsType =
   | 'LEVER'
   | 'ASHBY'
   | 'WORKABLE'
-  | 'SMARTRECRUITERS';
+  | 'SMARTRECRUITERS'
+  | 'RECRUITEE'
+  | 'BREEZY'
+  | 'BAMBOOHR'
+  | 'PINPOINT'
+  | 'RIPPLING';
+
+// Vendor marketing/support subdomains that look like board slugs in
+// subdomain-style ATS URLs ({slug}.recruitee.com) but never are.
+const GENERIC_SUBDOMAINS = new Set([
+  'www',
+  'careers',
+  'api',
+  'app',
+  'docs',
+  'support',
+  'help',
+  'blog',
+  'status',
+]);
 
 export function extractAtsToken(
   url: string,
@@ -141,6 +160,34 @@ export function extractAtsToken(
     );
   if (m && m[1]) {
     return { atsType: 'SMARTRECRUITERS', atsToken: m[1] };
+  }
+  // Recruitee: {slug}.recruitee.com (careers site or /api/offers/)
+  m = /https?:\/\/([\w-]{2,60})\.recruitee\.com/i.exec(url);
+  if (m && m[1] && !GENERIC_SUBDOMAINS.has(m[1].toLowerCase())) {
+    return { atsType: 'RECRUITEE', atsToken: m[1].toLowerCase() };
+  }
+  // Breezy: {slug}.breezy.hr board or /p/{position} link
+  m = /https?:\/\/([\w-]{2,60})\.breezy\.hr/i.exec(url);
+  if (m && m[1] && !GENERIC_SUBDOMAINS.has(m[1].toLowerCase())) {
+    return { atsType: 'BREEZY', atsToken: m[1].toLowerCase() };
+  }
+  // BambooHR: {slug}.bamboohr.com/careers or /careers/{id}
+  m = /https?:\/\/([\w-]{2,60})\.bamboohr\.com\/careers/i.exec(url);
+  if (m && m[1] && !GENERIC_SUBDOMAINS.has(m[1].toLowerCase())) {
+    return { atsType: 'BAMBOOHR', atsToken: m[1].toLowerCase() };
+  }
+  // Pinpoint: {slug}.pinpointhq.com board or /postings/{uuid} link
+  m = /https?:\/\/([\w-]{2,60})\.pinpointhq\.com/i.exec(url);
+  if (m && m[1] && !GENERIC_SUBDOMAINS.has(m[1].toLowerCase())) {
+    return { atsType: 'PINPOINT', atsToken: m[1].toLowerCase() };
+  }
+  // Rippling: ats.rippling.com/{slug}/jobs OR the board API URL
+  m =
+    /https?:\/\/(?:ats\.rippling\.com|api\.rippling\.com\/platform\/api\/ats\/v1\/board)\/([\w-]{2,60})/i.exec(
+      url,
+    );
+  if (m && m[1]) {
+    return { atsType: 'RIPPLING', atsToken: m[1].toLowerCase() };
   }
   return null;
 }

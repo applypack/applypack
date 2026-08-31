@@ -57,3 +57,35 @@ mitigation is twofold:
 Never, for the listed sources, while their TOS forbids automated
 access. If LinkedIn ever offers a free public API for individual users
 (unlikely), this ADR gets updated with a new "Status: Superseded" note.
+
+## Addendum (2026-08-31) — Evaluated, not supported
+
+Register of every source we investigated and decided NOT to fetch, so the
+same investigation never gets redone. Two standing rules extend the
+original decision (from the feature-expansion-plan ground rules):
+
+1. A `robots.txt` that disallows the API path we would call is a stated
+   refusal — binding, not a technicality to route around.
+2. A robots.txt that bans AI agents (ClaudeBot-class rules or
+   `ai-train=no` content signals with AI bots disallowed) is equally
+   binding for this project: every fetched description is fed into a
+   Claude/AI classifier, so fetching under a different User-Agent would
+   do exactly what the ban refuses.
+
+| Source | Verdict | Reason (verified date) |
+|---|---|---|
+| Workday | never | this ADR |
+| LinkedIn / Indeed / Glassdoor / Wellfound | never | this ADR; Glassdoor and Dice additionally sit behind anti-bot protection |
+| JustJoin.it | rejected | `robots.txt` `Disallow: /api/`; the only structured feed is `/api/candidate-api/offers` (2026-08-31) |
+| NoFluffJobs | rejected | `robots.txt` `Disallow: /api/`; the only structured feed is `/api/search/posting` (2026-08-31) |
+| NoDesk | rejected | `robots.txt` bans AI bots site-wide (ClaudeBot, GPTBot, CCBot, Google-Extended `Disallow: /`) + `ai-train=no` content signal; our pipeline feeds every description into Claude (2026-08-31) |
+| echojobs.io | rejected | API behind a bot-protection checkpoint; `robots.txt` disallows `/api` |
+| Torre | rejected | public API caps responses at ~20 rows with no working pagination |
+| Comeet | rejected | requires a per-tenant token not derivable from a public board page |
+| The Muse | deferred | very high volume, low match density — re-decide at F10 |
+| WelcomeToTheJungle | deferred | search backend keys rotate per-run and are referer-locked — fragile |
+| Jooble / TrueUp / Remote Rocketship / DevRelX / Tecnoempleo / JobFluent | rejected for now | no structured public feed found |
+
+Counter-example that shapes the rule: 4dayweek.io disallows `/api/` but
+explicitly allows `/api/v1` and `/api/v2` — so the F2 fetcher uses the
+allowed `/api/v2/jobs`, not the unversioned path.

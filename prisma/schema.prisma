@@ -24,6 +24,12 @@ enum AtsType {
   HN_JOBS
   WORKINGNOMADS
   HIMALAYAS
+  RECRUITEE
+  BREEZY
+  BAMBOOHR
+  PINPOINT
+  RIPPLING
+  FOURDAYWEEK
   // Phase 8.2: pasted by hand on /jobs/new. One inactive Company row per
   // employer; runAllFetchers never touches it.
   MANUAL

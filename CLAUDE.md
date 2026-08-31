@@ -19,7 +19,11 @@
 - Messages are short. Subject ≤ 72 chars (`phase-x.y: added Z`, `fixed Y`,
   `updated X`). Body only when a one-liner is not enough, and then 1–3 lines.
   No essays, no bullet lists of everything touched.
-- Do not push, merge to `main`, or open PRs unless asked; branch off `main` first.
+- Branch off `main` first. **Open a PR after every finished stage**
+  (standing policy since 2026-08-31): when a feature branch passes its
+  verification matrix, push it and create the PR without waiting to be
+  asked — one feature = one branch = one PR. Never merge to `main`
+  yourself; Nazar reviews, merges and tags.
 - Task backlog for Claude Code sessions lives in [docs/TASKS.md](./docs/TASKS.md).
 
 ## Stack
@@ -235,8 +239,8 @@ Greenhouse / Lever / Ashby / Workable / SmartRecruiters are **HR vendors, not jo
 
 Coverage is therefore **two-tier**:
 
-1. **Direct boards** (per-company, narrow but precise) — `Company` rows with `atsType ∈ {GREENHOUSE, LEVER, ASHBY, WORKABLE, SMARTRECRUITERS}`. Curated by the user via `/companies` (paste a board URL → manual probe → save) or seeded in `src/seed.ts`. Catches every job at the companies you've added; misses everything else.
-2. **Cross-company aggregators** (broad but noisy) — `LARAJOBS_RSS`, `REMOTEOK`, `REMOTIVE`, `JOBICY`, `WEWORKREMOTELY`, `HN_HIRING`, `HN_JOBS`, `ARBEITNOW`, `GOLANGPROJECTS`, `WORKINGNOMADS`, `HIMALAYAS`. Each is a single synthetic Company row that ingests jobs from many employers we'd never seed individually (PSI CRO, ManTech, DoorDash, Lemon.io, …). Catches the long tail; lets `passesBaseFilter` + Claude cull the noise.
+1. **Direct boards** (per-company, narrow but precise) — `Company` rows with `atsType ∈ {GREENHOUSE, LEVER, ASHBY, WORKABLE, SMARTRECRUITERS, RECRUITEE, BREEZY, BAMBOOHR, PINPOINT, RIPPLING}`. Curated by the user via `/companies` (paste a board URL → manual probe → save) or seeded in `src/seed.ts`. Catches every job at the companies you've added; misses everything else.
+2. **Cross-company aggregators** (broad but noisy) — `LARAJOBS_RSS`, `REMOTEOK`, `REMOTIVE`, `JOBICY`, `WEWORKREMOTELY`, `HN_HIRING`, `HN_JOBS`, `ARBEITNOW`, `GOLANGPROJECTS`, `WORKINGNOMADS`, `HIMALAYAS`, `FOURDAYWEEK`. Each is a single synthetic Company row that ingests jobs from many employers we'd never seed individually (PSI CRO, ManTech, DoorDash, Lemon.io, …). Catches the long tail; lets `passesBaseFilter` + Claude cull the noise.
 
 Common user trap: disabling all aggregators in `/settings → Job sources` because "I want only Greenhouse" produces near-zero new jobs (we have ~15 seeded Greenhouse boards, most don't post matching roles weekly). The cure is to **leave aggregators enabled** and let the profile filter narrow scope. Document this in any user-facing copy that talks about "monitoring".
 
