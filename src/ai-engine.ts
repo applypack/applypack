@@ -43,7 +43,6 @@ export const PROVIDER_PAID: Record<AiProviderId, boolean> = {
 };
 
 export type AiRole = 'classifier' | 'resume' | 'cover';
-export const AI_ROLES: AiRole[] = ['classifier', 'resume', 'cover'];
 
 /**
  * Curated per-family model ids for the dashboard selects. The empty string

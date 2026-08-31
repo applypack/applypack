@@ -452,8 +452,13 @@ jobsRoute.post('/jobs/:id/cover/:letterId', async (c) => {
   if (!Number.isFinite(id) || !Number.isFinite(letterId)) return c.text('Bad id', 400);
   const form = await c.req.parseBody();
   const text = typeof form.text === 'string' ? form.text.replace(/\r\n/g, '\n').trim() : '';
+  // The card autosaves over fetch and wants JSON back; the no-JS form post
+  // wants the usual redirect + flash.
+  const wantsJson = (c.req.header('accept') ?? '').includes('application/json');
   if (text.length === 0) {
-    return flashRedirect(`/jobs/${id}?letter=${letterId}#cover-letter`, 'err', 'The letter cannot be empty.');
+    return wantsJson
+      ? c.json({ error: 'empty' }, 400)
+      : flashRedirect(`/jobs/${id}?letter=${letterId}#cover-letter`, 'err', 'The letter cannot be empty.');
   }
 
   const letter = await getCoverLetter(letterId);
@@ -485,6 +490,9 @@ jobsRoute.post('/jobs/:id/cover/:letterId', async (c) => {
     gateVerdict: gate.verdict,
     gateNotes: gate.reasons,
   });
+  if (wantsJson) {
+    return c.json({ gateVerdict: gate.verdict, reasons: gate.reasons, reverted });
+  }
   const back = `/jobs/${id}?letter=${letter.id}#cover-letter`;
   if (reverted) return flashRedirect(back, 'ok', 'Restored the generated letter.');
   return gate.verdict === 'block'

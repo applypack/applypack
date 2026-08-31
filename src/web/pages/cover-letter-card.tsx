@@ -201,7 +201,12 @@ const LetterReport: FC<{ jobId: number; letter: CoverLetterWithResume }> = ({ jo
         </ActionForm>
       </div>
 
-      <form method="post" action={`/jobs/${jobId}/cover/${letter.id}`} class="space-y-2">
+      <form
+        method="post"
+        action={`/jobs/${jobId}/cover/${letter.id}`}
+        data-letter-form
+        class="space-y-2"
+      >
         <label class="block">
           <span class="sr-only">Letter text</span>
           <Textarea id={`cover-text-${letter.id}`} name="text" rows={13} class="font-normal">
@@ -217,22 +222,29 @@ const LetterReport: FC<{ jobId: number; letter: CoverLetterWithResume }> = ({ jo
           >
             Copy letter
           </Button>
-          <Button variant="secondary" size="sm">
+          <Button href={`/jobs/${jobId}/cover/${letter.id}/file/pdf`} variant="secondary" size="sm">
+            Save as PDF
+          </Button>
+          <Button href={`/jobs/${jobId}/cover/${letter.id}/file/docx`} variant="secondary" size="sm">
+            Save as DOCX
+          </Button>
+          {/* The no-JS path: cover-letter.mjs hides this and autosaves instead. */}
+          <Button variant="ghost" size="sm" data-save-button>
             Save edit
           </Button>
-          <Button href={`/jobs/${jobId}/cover/${letter.id}/file/pdf`} variant="ghost" size="sm">
-            PDF
-          </Button>
-          <Button href={`/jobs/${jobId}/cover/${letter.id}/file/docx`} variant="ghost" size="sm">
-            DOCX
-          </Button>
-          <span class="text-xs tabular-nums text-ink-faint">
-            {words} words · target {COVER_WORDS_MIN}–{COVER_WORDS_MAX}
+          <span
+            class="text-xs text-ink-faint transition-colors duration-150"
+            data-save-status
+            role="status"
+            aria-live="polite"
+          ></span>
+          <span class="ml-auto text-xs tabular-nums text-ink-faint">
+            <span data-word-count>{words}</span> words · target {COVER_WORDS_MIN}–{COVER_WORDS_MAX}
           </span>
         </div>
         <Hint>
-          Edits are saved on this letter and re-checked against the resume — your own words are
-          flagged, never blocked. Saving the unchanged generated text restores the original.
+          Your edits save themselves and are re-checked against the resume — your own words are
+          flagged, never blocked. Restoring the generated text clears the edit.
         </Hint>
       </form>
 
