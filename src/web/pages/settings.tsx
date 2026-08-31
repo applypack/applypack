@@ -615,6 +615,7 @@ export const SettingsPage: FC<SettingsProps> = ({
       )}
     </div>
     <script dangerouslySetInnerHTML={{ __html: SETTINGS_JS }} />
+    <script type="module" dangerouslySetInnerHTML={{ __html: MODELS_BOOT }} />
   </Layout>
 );
 
@@ -652,9 +653,11 @@ const AiEngineCard: FC<{ engine: AiEngineRow }> = ({ engine: e }) => (
       <form
         method="post"
         action="/settings/ai/models"
-        class="mt-4 grid gap-3 border-t border-line pt-4 sm:grid-cols-[1fr_1fr_auto] sm:items-end"
+        data-model-form
+        class="mt-4 border-t border-line pt-4"
       >
         <input type="hidden" name="provider" value={e.id} />
+        <div class="grid gap-3 sm:grid-cols-3">
         <Field label="Classifier model" hint="Scores every fetched job — cheap and frequent.">
           <ModelPicker
             name="classifier"
@@ -682,9 +685,19 @@ const AiEngineCard: FC<{ engine: AiEngineRow }> = ({ engine: e }) => (
             freeText={e.freeTextModels}
           />
         </Field>
-        <Button size="sm" variant="secondary">
-          Save models
-        </Button>
+        </div>
+        <div class="mt-3 flex items-center gap-3">
+          {/* The no-JS path: settings-models.mjs hides this and saves on change. */}
+          <Button size="sm" variant="secondary" data-save-button>
+            Save models
+          </Button>
+          <span
+            class="text-xs text-ink-faint"
+            data-save-status
+            role="status"
+            aria-live="polite"
+          ></span>
+        </div>
       </form>
     )}
   </Card>
@@ -954,6 +967,11 @@ const PriorityRulesEditor: FC<{ profile: Profile }> = ({ profile }) => {
  * Progressive enhancement only: chip editors write back into their hidden
  * textarea (newline-joined), so the POST body the routes parse is unchanged.
  */
+const MODELS_BOOT = `
+import { init } from '/static/settings-models.mjs';
+init();
+`;
+
 const SETTINGS_JS = `
   (function () {
     function enhance(host) {
