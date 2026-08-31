@@ -331,3 +331,23 @@ test('a full letter checks well inside the 50ms budget', () => {
   const median = times[Math.floor(runs / 2)] as number;
   assert.ok(median < 50, `median ${median.toFixed(2)}ms exceeds the 50ms budget`);
 });
+
+test('an employer followed by a pronoun contraction is still that employer', () => {
+  const r = factCheck({
+    text: "At V Shred I've built the billing pipeline, and at OGD Solutions We've processed payments.",
+    sources: ['V Shred — Senior Engineer. OGD Solutions — Engineer.'],
+  });
+  assert.equal(r.verdict, 'pass');
+  const canonicals = r.claims.filter((c) => c.kind === 'employer').map((c) => c.canonical);
+  assert.deepEqual(canonicals.sort(), ['ogd solutions', 'v shred']);
+  assert.ok(r.claims.every((c) => c.status === 'supported'));
+});
+
+test('a fabricated employer still blocks after the contraction trim', () => {
+  const r = factCheck({
+    text: "At Globex I've led the platform team.",
+    sources: ['V Shred — Senior Engineer.'],
+  });
+  assert.equal(r.verdict, 'block');
+  assert.equal(r.claims.find((c) => c.kind === 'employer')?.canonical, 'globex');
+});
