@@ -73,8 +73,11 @@ const NOT_AN_EMPLOYER = new Set([
   'scale', 'least', 'most', 'work', 'home', 'first', 'all',
 ]);
 
-const EMPLOYER_TRIGGER = /\b(?:at|for|joined|left)\s+((?:[A-Z][\w&'.-]*)(?:\s+(?:[A-Z][\w&'.-]*|of|and|&)){0,3})/g;
-const TITLE_TRIGGER = /\bas\s+an?\s+((?:[A-Za-z][\w-]*)(?:[\s/]+[A-Za-z][\w-]*){0,4})/g;
+// The trigger's own case is spelled out rather than set with the /i flag: /i
+// would also relax `[A-Z]`, and then every lowercase word after "at" reads as
+// a company. A letter opening "At Vodwork I led …" still has to be caught.
+const EMPLOYER_TRIGGER = /\b(?:[Aa]t|[Ff]or|[Jj]oined|[Ll]eft)\s+((?:[A-Z][\w&'.-]*)(?:\s+(?:[A-Z][\w&'.-]*|of|and|&)){0,3})/g;
+const TITLE_TRIGGER = /\b[Aa]s\s+an?\s+((?:[A-Za-z][\w-]*)(?:[\s/]+[A-Za-z][\w-]*){0,4})/g;
 
 const SMALL_NUMBERS: Record<string, number> = {
   zero: 0, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7,
@@ -158,9 +161,8 @@ function nonLatinDominant(seg: string): boolean {
  * of a phone number (ADR 0020).
  */
 function parseNumber(token: string): number | null {
-  const t = token.replace(/\+$/, '');
-  if (/^\d{1,3}(?:[,\s]\d{3})+(?:\.\d+)?$/.test(t)) return Number(t.replace(/[,\s]/g, ''));
-  if (/^\d+(?:\.\d+)?$/.test(t)) return Number(t);
+  if (/^\d{1,3}(?:[,\s]\d{3})+(?:\.\d+)?$/.test(token)) return Number(token.replace(/[,\s]/g, ''));
+  if (/^\d+(?:\.\d+)?$/.test(token)) return Number(token);
   return null;
 }
 
@@ -233,11 +235,7 @@ function isValue<T>(v: T | null): v is T {
 function scale(token: string | undefined, magnitude?: string): number | null {
   if (!token) return null;
   const t = token.replace(/\+$/, '');
-  const base = /^[\d,.\s]+$/.test(t)
-    ? (/^\d{1,3}(?:[,\s]\d{3})+(?:\.\d+)?$/.test(t)
-      ? Number(t.replace(/[,\s]/g, ''))
-      : (/^\d+(?:\.\d+)?$/.test(t) ? Number(t) : null))
-    : (SMALL_NUMBERS[t.toLowerCase()] ?? null);
+  const base = parseNumber(t) ?? SMALL_NUMBERS[t.toLowerCase()] ?? null;
   if (base === null) return null;
   const mag = magnitude ? MAGNITUDES[magnitude.toLowerCase()] : undefined;
   return mag ? base * mag : base;
@@ -274,15 +272,19 @@ interface RawAssertion {
 }
 
 /**
+ * A captured run keeps no trailing punctuation, connector, or one-letter word:
+ * "At OGD Solutions I processed …" is a claim about OGD Solutions, not about
+ * "OGD Solutions I".
+ */
+function trimRun(raw: string | undefined): string {
+  return (raw ?? '').trim().replace(/(?:[.,;:'-]+|\s+(?:of|and|&|[A-Za-z]))+$/i, '');
+}
+
+/**
  * Only claims about the writer's own history. Naming the company being
  * written to is not one — measured on a real letter of ours, the addressee
  * appears in the second person ("your mission"), never under these triggers.
  */
-/** A captured run keeps neither trailing punctuation nor a dangling connector. */
-function trimRun(raw: string | undefined): string {
-  return (raw ?? '').trim().replace(/(?:[.,;:'-]+|\s+(?:of|and|&))+$/i, '');
-}
-
 function extractAssertions(normalized: string, addressee: string | null): RawAssertion[] {
   const out: RawAssertion[] = [];
   const skip = new Set(NOT_AN_EMPLOYER);
@@ -366,8 +368,10 @@ export function factCheck(input: FactCheckInput): FactCheckResult {
   const allowedFacts = new Set(
     (input.allowFacts ?? []).map(canonicalizeAllowEntry).filter((k): k is string => k !== null),
   );
-  const inertAllowlist = [...(input.allowMetrics ?? []), ...(input.allowFacts ?? [])]
-    .filter((e) => canonicalizeAllowEntry(e) === null);
+  const inertAllowlist = [
+    ...(input.allowMetrics ?? []).filter((e) => extractMetrics(normalizeText(e)).claims.length === 0),
+    ...(input.allowFacts ?? []).filter((e) => canonicalizeAllowEntry(e) === null),
+  ];
   const sourceText = canonicalTerm(normalizeText(input.sources.join('\n')));
 
   const claims: FactClaim[] = [];
@@ -395,7 +399,13 @@ export function factCheck(input: FactCheckInput): FactCheckResult {
   }
 
   for (const a of extractAssertions(normalized, input.addressee ?? null)) {
-    if (mentions(sourceText, a.canonical)) add({ ...a, status: 'supported', from: 'source' });
+    // A title is a description, so every word of it need only appear somewhere
+    // ("senior backend engineer" against "Senior Backend PHP Engineer"). A
+    // company name is an identity and must match as one unit.
+    const supported = a.kind === 'title'
+      ? a.canonical.split(/[\s/]+/).every((w) => mentions(sourceText, w))
+      : mentions(sourceText, a.canonical);
+    if (supported) add({ ...a, status: 'supported', from: 'source' });
     else if (allowedFacts.has(a.canonical)) add({ ...a, status: 'allowed', from: 'allowlist' });
     else add({ ...a, status: 'unsupported' });
   }

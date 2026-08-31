@@ -143,6 +143,9 @@ test('a captured employer run keeps no dangling connector', () => {
   const r = check('I mentored four engineers at Northwind Freight and drove the rewrite.', [FIXTURE_RESUME]);
   assert.equal(r.verdict, 'pass', r.reasons.join(' | '));
   assert.ok(r.claims.some((c) => c.kind === 'employer' && c.text === 'Northwind Freight'));
+  // "At OGD Solutions I processed …" captured "OGD Solutions I" and blocked.
+  const pronoun = check('At Northwind Freight I rebuilt the pricing cache.', [FIXTURE_RESUME]);
+  assert.equal(pronoun.verdict, 'pass', pronoun.reasons.join(' | '));
 });
 
 test('magnitude suffixes and words resolve to the same value', () => {
@@ -185,6 +188,21 @@ test('TITLE_NOUNS is what makes an "as a …" span a claim', () => {
   assert.equal(check('As a result, deploys got faster.', [FIXTURE_RESUME]).verdict, 'pass');
 });
 
+test('a sentence-initial trigger is still a history claim', () => {
+  // /i on the whole regex would have relaxed [A-Z] too, making every lowercase
+  // word after "at" read as a company.
+  assert.equal(check('At Stripe Financial I led delivery.', [FIXTURE_RESUME]).verdict, 'block');
+  assert.equal(check('As a Principal Architect I owned the rewrite.', [FIXTURE_RESUME]).verdict, 'block');
+  assert.equal(check('I tuned the cache for the edge tier.', [FIXTURE_RESUME]).verdict, 'pass');
+});
+
+test('a paraphrased title is supported word by word', () => {
+  const sources = ['Senior Backend PHP Engineer at Northwind Freight.'];
+  assert.equal(check('I worked as a senior backend engineer.', sources).verdict, 'pass');
+  // A company name is an identity, so it still has to match as one unit.
+  assert.equal(check('I worked at Northwind Airlines.', sources).verdict, 'block');
+});
+
 test('REAL letter against REAL resume does not block', () => {
   const r = factCheck({ text: REAL_LETTER, sources: [REAL_RESUME], addressee: 'HS GovTech', facts: FACTS });
   assert.equal(r.verdict, 'pass', r.reasons.join(' | '));
@@ -214,6 +232,12 @@ test('a confirmed fact supports a tool the resume never spells out', () => {
   const r = factCheck({ text: 'I wired up Stripe billing.', sources: [FIXTURE_RESUME], facts: FACTS });
   assert.equal(r.verdict, 'pass');
   assert.ok(r.claims.some((c) => c.kind === 'tool' && c.from === 'fact'));
+});
+
+test('a fact term with regex metacharacters is matched literally', () => {
+  const facts: FactLike[] = [{ term: 'c++', status: 'denied', note: null }];
+  assert.equal(factCheck({ text: 'I write C++ daily.', sources: [FIXTURE_RESUME], facts }).verdict, 'block');
+  assert.equal(factCheck({ text: 'I write Go daily.', sources: [FIXTURE_RESUME], facts }).verdict, 'pass');
 });
 
 // ------------------------------------------------- deliberate non-strictness
@@ -255,6 +279,10 @@ test('an inert allowlist entry is reported, not silently ignored', () => {
   const r = factCheck({ text: LETTER_WITHOUT_NUMBER, sources: [FIXTURE_RESUME], allowMetrics: ['  '] });
   assert.deepEqual(r.inertAllowlist, ['  ']);
   assert.ok(r.reasons.some((x) => x.includes('can never match')));
+  // An allowMetrics entry with no number canonicalizes to a term and looks
+  // valid, but nothing in the metric path will ever consult it.
+  const noNumber = factCheck({ text: LETTER_WITHOUT_NUMBER, sources: [FIXTURE_RESUME], allowMetrics: ['Acme Corp'] });
+  assert.deepEqual(noNumber.inertAllowlist, ['Acme Corp']);
 });
 
 test('an allowlisted employer passes', () => {
