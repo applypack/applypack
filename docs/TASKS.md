@@ -413,7 +413,19 @@ external project, copy-check before merge.
       script-agnostic, count nouns and history triggers EN-only, non-Latin
       sentences degrade `pass → warn`. Measured 0.75ms median on a 285-word
       letter vs the real 6004-char resume — the 50ms budget is 66x over
-- [ ] F8 cover letter generation (job + company analysis, gated by F7) — v0.10.0
+- [x] F8 cover letter generation (gated by F7) — v0.8.0 (branch
+      `cover-letters`, ADR 0021). Tag is v0.8.0, not the plan's v0.10.0
+      (actual integration order), and it also covers the still-untagged F7
+      gate. Re-analysis inverted the plan's design: ResumeMatch covers 10
+      of 807 jobs (1.2%) and JobVerification 4 (0.5%), so match and
+      verification became optional enrichers instead of prerequisites —
+      the plain resume+posting path is the primary scenario. Length
+      120-180/cap 200 words per the real sent letter (~120), not the
+      plan's 250-350; en-only (0 Cyrillic in the corpus) instead of the
+      untestable auto|en|uk switch; angle inputs steer but are not gate
+      sources, so a metric typed into them is dropped by the quoted-reasons
+      regeneration, never laundered. Blocked-twice letters are never
+      persisted; manual edits re-gate warn-only
 - [ ] F9 golden-eval harness for the AI engine chain — v0.11.0
 - [ ] F10 fetchers wave 2: Getro/Consider/a16z, Arbeitsagentur, Teamtailor,
       Personio, Jobvite, Gem, join.com — v0.12.0

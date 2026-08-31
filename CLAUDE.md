@@ -73,8 +73,10 @@
   (unpdf, ADR 0011), `resume-text.ts`, `prompts.ts`, `pick.ts`, `score.ts`
   (ADR 0012), `facts.ts`, `diff.ts`, `parse-warnings.ts`,
   `profile-draft.ts` (ADR 0015), `fact-check.ts` (ADR 0020) are pure (tested);
-  `scan.ts` / `match.ts` call the AI provider; `store.ts` is the only file
-  that touches Prisma. Web-only — the worker never imports it (ADR 0008).
+  `scan.ts` / `match.ts` / `cover-letter.ts` call the AI provider (the letter
+  is gated by `fact-check.ts` and generates from stored inputs only —
+  ADR 0021); `store.ts` is the only file that touches Prisma. Web-only — the
+  worker never imports it (ADR 0008).
 - `src/web/public/score.mjs` mirrors `src/resume/score.ts` line for line —
   change one, change the other; `src/web/score.test.ts` enforces parity.
 - The cron worker (`src/index.ts` + `src/jobs/*`) MUST NOT run an HTTP server.
@@ -158,6 +160,7 @@ When the question is **"where does X live?"**, save yourself a `find`:
 | What counts as primary stack / sibling-tech rules (prompt side) | `src/resume/prompts.ts:MATCH_SYSTEM` steps 3-4 — guard-tested in `prompts.test.ts` |
 | ask_user confirmations (CandidateFact rows, instant re-score) | `src/resume/facts.ts` (pure) + `src/web/routes/facts.ts` (POST /facts), managed on `/resumes` |
 | Anti-hallucination gate for generated prose (pass/warn/block) | `src/resume/fact-check.ts:factCheck` (pure, ADR 0020) — sources arrive as arguments, `store.ts` loads them |
+| Cover letter generation (gated, stored-inputs-only) | `src/resume/cover-letter.ts` + `COVER_SYSTEM` in `prompts.ts` (ADR 0021); card `src/web/pages/cover-letter-card.tsx` |
 | "In another resume" evidence hints | `src/resume/store.ts:listOtherResumeSkills` → `facts.ts:annotateElsewhere` |
 | ATS parse warnings ("What the ATS sees") | `src/resume/parse-warnings.ts`, rendered on `/resumes/:id` |
 | Version delta (gained/lost keywords, component moves) | `src/resume/diff.ts:diffMatches`, rendered in `resume-match-card.tsx` |
@@ -200,6 +203,7 @@ When the question is **"how does the user toggle / configure X?"**:
 | Paste a posting the fetchers don't see | `/jobs` → "+ Paste a job" (`/jobs/new`) |
 | Compare a pasted posting with any resume in one step | menu → Target (`/target`): paste posting, pick / upload / paste resume, Compare |
 | Check whether a posting is real | `/jobs/:id` → "Is this job real?" → Verify (web search, 2-4 min) |
+| Draft / edit / copy a cover letter | `/jobs/:id` → "Cover letter" card (Generate; Save edit re-checks facts) |
 | Re-check an edited resume | `/resumes/:id` → "Upload a new version", then Compare again |
 | Edit in place with a live score | comparison → "Open targeted view →" (`/jobs/:id/target`); "Re-analyze with AI" for the rubric score, "Save as vN" to keep the draft |
 

@@ -245,6 +245,28 @@ search (`AiRequest.webTools`, ADR 0009) and stores a `JobVerification`:
 `verdict` legit | suspicious | fake, `recommendation` apply | caution |
 skip, confidence, evidence rows with URLs, red flags, company snapshot.
 
+## Cover letters (F8, ADR 0021)
+
+"Cover letter" on `/jobs/:id` writes a short letter (120–180 words, capped
+at 200 — the band of the user's real sent letter) from stored inputs only:
+resume text, `CandidateFact` rows, the posting, plus — when they exist —
+the latest `ResumeMatch` of the selected resume and the stored
+verification's `companySnapshot`. Match and verification are optional
+enrichers, not prerequisites (they cover ~1% of jobs). Tone select
+(neutral | warm | direct) and three optional angle fields steer emphasis;
+angle text is never treated as evidence. English only until a non-English
+posting or resume exists.
+
+Every draft passes the fact gate (`fact-check.ts`, ADR 0020) before it is
+shown: `block` → one regeneration with the violations quoted → still
+`block` → the run errors and nothing is persisted. Stored rows
+(`CoverLetter`) carry the text, `keywordsUsed` / `gapsAcknowledged`, the
+engine `model` (with the `· fallback` marker), `gateVerdict` and
+`gateNotes`; the card lists all letters newest-first with copy and in-place
+editing. Manual edits are re-checked warn-only — the gate polices the
+model, not the user. The generation call is tool-free (`webTools` stays
+exclusive to verification, ADR 0009).
+
 ## Hard out-of-scope (Phase 7+)
 
 - Multi-user / per-user views (auth, sessions). Single-deployment-per-friend stays the answer.
