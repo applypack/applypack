@@ -50,6 +50,14 @@ test('every pinned board uses a per-company vendor we can probe', () => {
   }
 });
 
+test('no field contains the "|" the confirm form splits on', () => {
+  for (const c of CATALOG.companies) {
+    for (const field of [c.name, c.segment, c.atsType, c.atsToken]) {
+      assert.ok(!field.includes('|'), `"${field}" would break the pick value`);
+    }
+  }
+});
+
 test('companiesInSegments filters by segment and ignores unknown ids', () => {
   const first = segments()[0];
   assert.ok(first);
