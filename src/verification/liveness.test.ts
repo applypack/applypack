@@ -358,4 +358,20 @@ describe('isFetchableJobUrl', () => {
       assert.equal(isFetchableJobUrl(bad), false, bad);
     }
   });
+
+  it('guards the post-redirect URL, not just the requested one', () => {
+    // checkPostingPage follows redirects and re-runs this predicate on the URL
+    // that answered, so a public host cannot bounce the fetch into the private
+    // range and have the body read.
+    assert.equal(isFetchableJobUrl('https://careers.example.com/jobs/1'), true);
+    assert.equal(isFetchableJobUrl('http://169.254.169.254/latest/meta-data/'), false);
+  });
+
+  it('a cross-host redirect is uncertain even when the page reads fine', () => {
+    const body = '<p>'.concat('Real job copy. '.repeat(40), '</p>');
+    assert.deepEqual(
+      classifyLiveness(200, 'https://careers.example.com/jobs/1', 'https://elsewhere.example/x', body),
+      { liveness: 'uncertain', code: 'redirected_off_posting' },
+    );
+  });
 });

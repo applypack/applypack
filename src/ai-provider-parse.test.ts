@@ -209,13 +209,20 @@ test('gemini args omit --model when empty (CLI default)', () => {
 test('buildClaudeCodeArgs disables tools by default and allow-lists web tools on request', () => {
   const base = { system: 'S', user: 'U', model: 'claude-x' };
   const plain = buildClaudeCodeArgs(base);
-  assert.deepEqual(plain.slice(-4), ['--tools', '', '--no-session-persistence', 'U']);
+  assert.deepEqual(plain.slice(-5), ['--tools', '', '--no-session-persistence', '--', 'U']);
   assert.ok(plain.includes('--print') && plain.includes('claude-x') && plain.includes('S'));
 
   const web = buildClaudeCodeArgs({ ...base, webTools: true });
-  assert.deepEqual(web.slice(-6), [
+  assert.deepEqual(web.slice(-7), [
     '--tools', 'WebSearch,WebFetch',
     '--allowedTools', 'WebSearch,WebFetch',
-    '--no-session-persistence', 'U',
+    '--no-session-persistence', '--', 'U',
   ]);
+});
+
+test('option parsing ends before the prompt, which carries untrusted text', () => {
+  // Measured: without "--" the CLI answers `error: unknown option '--- …'`.
+  const args = buildClaudeCodeArgs({ system: 'S', user: '--anything-at-all', model: 'm' });
+  assert.equal(args.at(-1), '--anything-at-all');
+  assert.equal(args.at(-2), '--');
 });

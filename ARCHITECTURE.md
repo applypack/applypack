@@ -169,6 +169,7 @@ src/
   filter.ts                    ← passesBaseFilter (pure, profile-aware)
   ai-provider.ts               ← AiProvider seam: AnthropicApiProvider | ClaudeCodeProvider
   ai-provider-parse.ts         ← pure parser for `claude -p` JSON output (tested)
+  prompt-fence.ts              ← untrusted-text markers + directive (pure, tested, ADR 0022)
   concurrency.ts               ← createLimiter(max), pure
   fingerprint.ts               ← SimHash of a JD body + cross-listing search, pure (ADR 0018)
   classifier.ts                ← classifyJob wrapper + classifyWithClaude (full prompt)

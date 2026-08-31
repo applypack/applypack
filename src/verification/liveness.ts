@@ -396,6 +396,11 @@ async function checkPostingPage(url: string): Promise<LivenessVerdict> {
   if (!isFetchableJobUrl(url)) return v('uncertain', 'unfetchable_url');
   const got = await fetchRaw(url, 'follow');
   if (!got) return v('uncertain', 'network_error');
+  // A public host can redirect into the private range. classifyLiveness would
+  // reject the result anyway ('redirected_off_posting' fires on a host change),
+  // but that check exists to spot a bounce off the posting, not to hold a
+  // security boundary — re-run the guard so the refusal is deliberate.
+  if (!isFetchableJobUrl(got.finalUrl)) return v('uncertain', 'unfetchable_url');
   return classifyLiveness(got.status, url, got.finalUrl, got.body);
 }
 

@@ -451,7 +451,20 @@ external project, copy-check before merge.
 - [ ] F10 fetchers wave 2: Getro/Consider/a16z, Arbeitsagentur, Teamtailor,
       Personio, Jobvite, Gem, join.com — v0.12.0
 - [ ] F11 repost / ghost-job signal for classifier + verify — v0.13.0
-- [ ] F12 untrusted-content fences in every prompt builder — v0.14.0
+- [x] F12 untrusted-content fences in every prompt builder — v0.9.0
+      (branch `prompt-fences`, ADR 0022): one shared `src/prompt-fence.ts`
+      (marker pair + directive + forged-marker sanitiser) across all 7
+      builders, with `buildClassifyPrompt` / `buildPrefilterPrompt`
+      extracted so the derived registry guard can reach them. An attempt
+      lands as a `prompt-injection-attempt` red flag — no schema change.
+      Re-analysis findings: zero real injection attempts in 814 jobs and 4
+      resumes (every fixture is synthetic); the prefilter gets a fence but
+      no evidence channel (it has run 0 times, and can only drop a job, so
+      it fails open to stage 2 instead); the `---` marker shape broke the
+      claude_code CLI and exposed a pre-existing flag-injection hole in
+      `buildClaudeCodeArgs` (gotcha 14). Follow-ups: unify
+      `isPrivateHost` / `isFetchableJobUrl`; blind SSRF still open (the
+      request is made before the post-redirect guard refuses the body)
 - [ ] F13 job trust score (flags, never drops) — v0.15.0
 - [x] F14 company starter packs — v0.5.0 (branch `starter-packs`, ADR 0017):
       86 companies in 5 segments, each board identity-checked live.
