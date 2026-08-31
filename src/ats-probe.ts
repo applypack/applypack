@@ -76,6 +76,12 @@ export async function probeAts(
           { timeoutMs: 8_000 },
         );
         break;
+      case AtsType.PINPOINT:
+        resp = await fetchWithRetry(
+          `https://${encodeURIComponent(trimmed)}.pinpointhq.com/postings.json`,
+          { timeoutMs: 8_000 },
+        );
+        break;
       case AtsType.BAMBOOHR:
         // An unknown slug 302s to the marketing site — fail instead.
         resp = await fetchWithRetry(

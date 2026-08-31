@@ -150,6 +150,24 @@ const SEED_COMPANIES: SeedCompany[] = [
     active: false,
   },
 
+  // Pinpoint (F2) — verified live 2026-08-31. Digital Science: research
+  // software (Altmetric, Dimensions), recurring engineering roles.
+  // YouLend: London/EU fintech. Dateless source — postedAt is
+  // first-seen time.
+  {
+    name: 'Digital Science',
+    atsType: AtsType.PINPOINT,
+    atsToken: 'digitalscience',
+    careerUrl: 'https://digitalscience.pinpointhq.com',
+  },
+  {
+    name: 'YouLend',
+    atsType: AtsType.PINPOINT,
+    atsToken: 'youlend',
+    careerUrl: 'https://youlend.pinpointhq.com',
+    active: false,
+  },
+
   // LaraJobs RSS — Laravel-only board, single feed under one synthetic
   // company. Enable when the active profile targets PHP/Laravel.
   {

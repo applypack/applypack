@@ -285,6 +285,13 @@ describe('extractAtsToken', () => {
     assert.equal(extractAtsToken('https://canopy.bamboohr.com/jobs'), null);
   });
 
+  it('parses a Pinpoint board URL', () => {
+    assert.deepEqual(
+      extractAtsToken('https://youlend.pinpointhq.com/en/postings/b03f1c2a'),
+      { atsType: 'PINPOINT', atsToken: 'youlend' },
+    );
+    assert.equal(extractAtsToken('https://www.pinpointhq.com/'), null);
+  });
 });
 
 describe('daysSince', () => {
