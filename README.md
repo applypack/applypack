@@ -14,7 +14,7 @@
 [How it works](#how-it-works) · [Bring your own AI](#bring-your-own-ai) ·
 [What it costs](#what-it-costs) · [Contributing](#contributing)
 
-<img src="docs/screenshots/target.png" alt="Resume match: deterministic 81/100 score with primary-stack verdict, experience confirmations, and the side-by-side editor with keyword highlights" width="900">
+<img src="docs/screenshots/target.png" alt="Resume match: deterministic 82/100 score with primary-stack verdict, experience confirmations, and the side-by-side editor with keyword highlights" width="900">
 
 <sub>The targeted editor: an honest, deterministic resume-vs-posting score,
 one-click experience confirmations, live keyword highlights.</sub>
