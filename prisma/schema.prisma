@@ -388,7 +388,9 @@ model CoverLetter {
   gapsAcknowledged String[] @default([])
   // Whether a stored verification's companySnapshot fed the prompt.
   usedVerification Boolean  @default(false)
-  gateVerdict      String // pass | warn
+  // pass | warn from generation; block is reachable only through a manual
+  // edit (generation never persists a blocked letter).
+  gateVerdict      String
   gateNotes        String[] @default([])
   createdAt        DateTime @default(now())
 
