@@ -22,6 +22,7 @@ const SOURCE_NAMES: Record<string, string> = {
   WORKINGNOMADS: 'Working Nomads',
   HIMALAYAS: 'Himalayas',
   RECRUITEE: 'Recruitee',
+  BREEZY: 'Breezy HR',
   MANUAL: 'Manual',
 };
 

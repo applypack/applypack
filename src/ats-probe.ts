@@ -70,6 +70,12 @@ export async function probeAts(
           { timeoutMs: 8_000 },
         );
         break;
+      case AtsType.BREEZY:
+        resp = await fetchWithRetry(
+          `https://${encodeURIComponent(trimmed)}.breezy.hr/json`,
+          { timeoutMs: 8_000 },
+        );
+        break;
       case AtsType.SMARTRECRUITERS:
         resp = await fetchWithRetry(
           `https://api.smartrecruiters.com/v1/companies/${encodeURIComponent(trimmed)}/postings?limit=1`,

@@ -266,6 +266,14 @@ describe('extractAtsToken', () => {
       null,
     );
   });
+
+  it('parses a Breezy board URL', () => {
+    assert.deepEqual(
+      extractAtsToken('https://softwaremill.breezy.hr/p/abc-backend-engineer'),
+      { atsType: 'BREEZY', atsToken: 'softwaremill' },
+    );
+    assert.equal(extractAtsToken('https://www.breezy.hr/hire'), null);
+  });
 });
 
 describe('daysSince', () => {

@@ -128,6 +128,17 @@ const SEED_COMPANIES: SeedCompany[] = [
     active: false,
   },
 
+  // Breezy (F2) — verified live 2026-08-31. SoftwareMill: Polish
+  // Scala/backend consultancy; board valid but empty at seed time
+  // (empty is healthy) — starts disabled, EU-skewed.
+  {
+    name: 'SoftwareMill',
+    atsType: AtsType.BREEZY,
+    atsToken: 'softwaremill',
+    careerUrl: 'https://softwaremill.breezy.hr',
+    active: false,
+  },
+
   // LaraJobs RSS — Laravel-only board, single feed under one synthetic
   // company. Enable when the active profile targets PHP/Laravel.
   {
