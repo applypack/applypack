@@ -50,6 +50,10 @@ services:
     environment:
       DATABASE_URL: postgresql://jobhunter:jobhunter@postgres:5432/jobhunter
       NODE_ENV: production
+      # Inside the container this must be 0.0.0.0 or the published port cannot
+      # reach it. Safe here, and only here: the port below is loopback-only.
+      # .env keeps 127.0.0.1 so a no-Docker run is not exposed by default.
+      WEB_HOST: 0.0.0.0
     ports:
       # Bind to localhost only — never expose dashboard publicly.
       - "127.0.0.1:4747:4747"

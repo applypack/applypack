@@ -34,17 +34,31 @@ const ConfigSchema = z.object({
   MIN_FIT_SCORE: z.coerce.number().int().min(0).max(100).default(70),
   MIN_SALARY_USD: z.coerce.number().int().min(0).default(0),
   WEB_PORT: z.coerce.number().int().min(1).max(65535).default(4747),
-  WEB_HOST: z.string().default('0.0.0.0'),
+  // Loopback by default: an unauthenticated dashboard must never land on a
+  // network because a .env was missing. docker-compose sets 0.0.0.0 for the
+  // container, whose published port is loopback-only; a bare `docker run`
+  // needs `-e WEB_HOST=0.0.0.0` for the same reason.
+  WEB_HOST: z.string().default('127.0.0.1'),
   WEB_BASIC_AUTH: z
     .string()
     .optional()
     .transform((v) => (v && v.length > 0 ? v : undefined)),
-}).refine(
-  (c) => c.AI_PROVIDER !== 'anthropic_api' || (c.ANTHROPIC_API_KEY ?? '').length > 0,
-  { path: ['ANTHROPIC_API_KEY'], message: 'required when AI_PROVIDER=anthropic_api' },
-);
+});
+
+/*
+ * A missing engine credential is NOT a config error. The engine chain resolves
+ * at runtime from the database with .env as fallback (ADR 0013/0014), so an
+ * unusable engine belongs on /settings → "AI engine", where the probe already
+ * reports `set ANTHROPIC_API_KEY in .env` and the provider factory throws with
+ * the same message if it is ever selected. Failing the whole process here used
+ * to take down the dashboard — the one place the credential can be fixed —
+ * which is why `cp .env.example .env` could not even reach the UI.
+ */
 
 export type Config = z.infer<typeof ConfigSchema>;
+
+/** Exported for config.test.ts; loadConfig runs it against process.env at import. */
+export { ConfigSchema };
 
 function loadConfig(): Config {
   const parsed = ConfigSchema.safeParse(process.env);
