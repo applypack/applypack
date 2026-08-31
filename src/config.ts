@@ -2,10 +2,16 @@ import 'dotenv/config';
 import { z } from 'zod';
 import { AI_PROVIDER_IDS } from './ai-engine';
 
-const ConfigSchema = z.object({
+export const ConfigSchema = z.object({
   DATABASE_URL: z.string().min(1, 'DATABASE_URL is required'),
   // Default AI backend; /settings → "AI engine" can override it at runtime.
   AI_PROVIDER: z.enum(AI_PROVIDER_IDS).default('anthropic_api'),
+  // Optional on purpose, even when AI_PROVIDER selects it. The engine chain
+  // resolves at runtime from the database with .env as fallback (ADR 0013/0014):
+  // /settings → "AI engine" reports `set ANTHROPIC_API_KEY in .env` and the
+  // provider factory throws the same message if this engine is ever used.
+  // Failing the process here took down the dashboard — the one place the
+  // credential can be set — so `cp .env.example .env` could not reach the UI.
   ANTHROPIC_API_KEY: z.string().optional(),
   CLAUDE_MODEL: z.string().default('claude-haiku-4-5-20251001'),
   // Resume scan + resume-vs-job comparison: a few calls a day where judgment
@@ -45,20 +51,7 @@ const ConfigSchema = z.object({
     .transform((v) => (v && v.length > 0 ? v : undefined)),
 });
 
-/*
- * A missing engine credential is NOT a config error. The engine chain resolves
- * at runtime from the database with .env as fallback (ADR 0013/0014), so an
- * unusable engine belongs on /settings → "AI engine", where the probe already
- * reports `set ANTHROPIC_API_KEY in .env` and the provider factory throws with
- * the same message if it is ever selected. Failing the whole process here used
- * to take down the dashboard — the one place the credential can be fixed —
- * which is why `cp .env.example .env` could not even reach the UI.
- */
-
 export type Config = z.infer<typeof ConfigSchema>;
-
-/** Exported for config.test.ts; loadConfig runs it against process.env at import. */
-export { ConfigSchema };
 
 function loadConfig(): Config {
   const parsed = ConfigSchema.safeParse(process.env);
