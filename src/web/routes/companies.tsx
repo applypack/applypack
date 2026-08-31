@@ -5,7 +5,25 @@ import { z } from 'zod';
 import { prisma } from '../../db';
 import { logger } from '../../logger';
 import { probeAts } from '../../ats-probe';
+import { toStringArray } from '../../text-utils';
+import {
+  companiesInSegments,
+  countsBySegment,
+  findCompany,
+  segments as packSegments,
+} from '../../starter-packs/catalog';
+import { resolvePack } from '../../starter-packs/probe';
+import {
+  boardUrl,
+  buildPreview,
+  allowedAttempt,
+  keyOf,
+} from '../../starter-packs/resolve';
 import { CompaniesPage } from '../pages/companies';
+import {
+  StarterPackPreviewPage,
+  StarterPackResultPage,
+} from '../pages/starter-pack';
 
 const FLASH_TTL_SECONDS = 5;
 
@@ -65,10 +83,129 @@ companiesRoute.get('/companies', async (c) => {
     lastFetchedAt: c.jobs[0]?.fetchedAt ?? null,
   }));
 
+  const counts = countsBySegment();
+  const packs = packSegments().map((s) => ({
+    ...s,
+    count: counts.get(s.id) ?? 0,
+  }));
+
   const flash = parseFlashCookie(c.req.header('cookie'));
-  return c.html(<CompaniesPage companies={rows} flash={flash} />, 200, {
-    'Set-Cookie': clearFlashCookie(),
+  return c.html(
+    <CompaniesPage companies={rows} packs={packs} flash={flash} />,
+    200,
+    { 'Set-Cookie': clearFlashCookie() },
+  );
+});
+
+// --- starter packs ----------------------------------------------------------
+
+/** Boards already tracked, as the `ATS:token` keys buildPreview dedupes on. */
+async function trackedBoardKeys(): Promise<Set<string>> {
+  const rows = await prisma.company.findMany({
+    select: { atsType: true, atsToken: true },
   });
+  return new Set(rows.map((r) => keyOf(r.atsType, r.atsToken)));
+}
+
+companiesRoute.post('/companies/starter-pack', async (c) => {
+  // Repeated checkboxes collapse to the last value without `all` (gotcha 1).
+  const form = await c.req.parseBody({ all: true });
+  const chosen = toStringArray(form.segment);
+  const targets = companiesInSegments(chosen);
+  if (targets.length === 0) {
+    return redirectWithFlash(c, 'err', 'Pick at least one segment.');
+  }
+
+  const { resolved, unresolved } = await resolvePack(targets);
+  const preview = buildPreview(resolved, unresolved, await trackedBoardKeys());
+  logger.info(
+    {
+      segments: chosen,
+      toAdd: preview.toAdd.length,
+      alreadyAdded: preview.alreadyAdded.length,
+      unresolved: preview.unresolved.length,
+    },
+    'starter-pack: previewed',
+  );
+
+  const labels = packSegments()
+    .filter((s) => chosen.includes(s.id))
+    .map((s) => s.label);
+  return c.html(
+    <StarterPackPreviewPage preview={preview} segmentLabels={labels} />,
+  );
+});
+
+companiesRoute.post('/companies/starter-pack/import', async (c) => {
+  const form = await c.req.parseBody({ all: true });
+  const picks = toStringArray(form.pick);
+  if (picks.length === 0) {
+    return redirectWithFlash(c, 'err', 'Nothing selected.');
+  }
+
+  const added: Array<{
+    id: number;
+    name: string;
+    atsType: string;
+    atsToken: string;
+  }> = [];
+  let skipped = 0;
+
+  for (const pick of picks) {
+    const [segment, name, atsType, atsToken] = pick.split('|');
+    if (!segment || !name || !atsType || !atsToken) {
+      skipped++;
+      continue;
+    }
+    // Only pairs the catalog's own resolve plan allows may be written — the
+    // browser round-trips this value, so it is not trusted input. The match
+    // also narrows `atsType` from a form string to a vendor we can probe.
+    const entry = findCompany(segment, name);
+    const attempt = entry && allowedAttempt(entry, atsType, atsToken);
+    if (!attempt) {
+      logger.warn({ pick }, 'starter-pack: rejected a pick outside the catalog');
+      skipped++;
+      continue;
+    }
+
+    try {
+      const created = await prisma.company.create({
+        data: {
+          name,
+          atsType: attempt.atsType,
+          atsToken: attempt.atsToken,
+          careerUrl: boardUrl(attempt.atsType, attempt.atsToken),
+          // Inactive on purpose: a whole pack going live inside the next tick
+          // would swamp the classifier (ADR 0017).
+          active: false,
+        },
+        select: { id: true, name: true, atsType: true, atsToken: true },
+      });
+      added.push(created);
+    } catch {
+      // Unique (atsType, atsToken) — someone added it between preview and now.
+      skipped++;
+    }
+  }
+
+  logger.info({ added: added.length, skipped }, 'starter-pack: imported');
+  return c.html(<StarterPackResultPage added={added} skipped={skipped} />);
+});
+
+companiesRoute.post('/companies/starter-pack/enable', async (c) => {
+  const form = await c.req.parseBody({ all: true });
+  const ids = toStringArray(form.id)
+    .map(Number)
+    .filter((n) => Number.isInteger(n));
+  if (ids.length === 0) {
+    return redirectWithFlash(c, 'err', 'No companies to enable.');
+  }
+
+  const { count } = await prisma.company.updateMany({
+    where: { id: { in: ids }, active: false },
+    data: { active: true },
+  });
+  return redirectWithFlash(c, 'ok', `Enabled ${count} companies.`);
 });
 
 companiesRoute.post('/companies/:id/toggle-active', async (c) => {

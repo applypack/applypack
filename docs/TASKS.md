@@ -382,7 +382,15 @@ external project, copy-check before merge.
 - [ ] F11 repost / ghost-job signal for classifier + verify — v0.13.0
 - [ ] F12 untrusted-content fences in every prompt builder — v0.14.0
 - [ ] F13 job trust score (flags, never drops) — v0.15.0
-- [ ] F14 company starter packs (curated seed catalog + bulk probe-add) — v0.16.0
+- [x] F14 company starter packs — v0.5.0 (branch `starter-packs`, ADR 0017):
+      86 companies in 5 segments, each board identity-checked live.
+      Re-analysis killed the name-guessing design: `GREENHOUSE:aha` is a
+      vet practice, `GREENHOUSE:wise` is a field-sales firm, and Pinpoint
+      serves one shared demo board to unconfigured tenants — so entries pin
+      a verified (atsType, atsToken) and resolve needs >= 1 open job.
+      Follow-ups: `probeAts` still accepts any SmartRecruiters token and
+      cannot spot a Pinpoint demo board (both pre-existing, on /companies
+      and /discovery)
 - [ ] F15 fetch-run observability + filter reason codes — v0.17.0
 - [ ] F16 application email drafts (rides on F8) — v0.18.0
 - [ ] F17 reply classification: paste → classify → stage suggestion — v0.19.0

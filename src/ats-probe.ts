@@ -112,16 +112,32 @@ export async function probeAts(
     return { ok: true, jobsCount };
   } catch (err) {
     if (err instanceof HttpError) {
-      return {
-        ok: false,
-        error: `HTTP ${err.status} from ${atsType} — token "${trimmed}" likely invalid.`,
-      };
+      return { ok: false, error: describeHttpFailure(err.status, atsType, trimmed) };
     }
     return {
       ok: false,
       error: err instanceof Error ? err.message : 'Unknown probe error.',
     };
   }
+}
+
+/**
+ * A failed probe is only evidence about the token when the vendor actually
+ * looked it up. Rate limiting and outages say nothing about the slug, and
+ * reporting them as "invalid token" sends the user chasing the wrong thing.
+ */
+function describeHttpFailure(
+  status: number,
+  atsType: AtsType,
+  atsToken: string,
+): string {
+  if (status === 429) {
+    return `${atsType} is rate-limiting us (HTTP 429) — try again in a minute.`;
+  }
+  if (status >= 500) {
+    return `${atsType} returned HTTP ${status} — the vendor is having trouble.`;
+  }
+  return `HTTP ${status} from ${atsType} — token "${atsToken}" likely invalid.`;
 }
 
 function countJobs(payload: unknown): number {

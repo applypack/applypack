@@ -179,6 +179,12 @@ src/
   discovery.ts                 ← CompanyCandidate CRUD + recordCandidatesFromText + promote
   seed.ts                      ← SEED_COMPANIES list + OBSOLETE_TOKENS cleanup
 
+  starter-packs/               ← web-only curated company packs (ADR 0017)
+    catalog.json               ← segments + hand-verified (atsType, atsToken) per company
+    catalog.ts                 ← zod-validated load + segment lookups (pure)
+    resolve.ts                 ← RESOLVE_ORDER, buildResolvePlan, buildPreview, boardUrl (pure)
+    probe.ts                   ← runs the plans through probeAts, bounded concurrency + budget
+
   resume/                      ← web-only resume module (ADR 0008)
     zip.ts                     ← read one entry from a zip (node:zlib), pure
     docx-text.ts               ← word/document.xml → plain text, pure
@@ -249,6 +255,7 @@ src/
       job-detail.tsx            ← /jobs/:id
       applications.tsx          ← /applications (kanban)
       companies.tsx             ← /companies
+      starter-pack.tsx          ← pack picker card + preview + import result
       discovery.tsx             ← /discovery
       runs.tsx                  ← /runs
       settings.tsx              ← /settings (9 cards)
@@ -267,7 +274,7 @@ src/
       target.tsx                ← /target launcher: resume resolve + manual job + match in one POST
       resumes.tsx               ← upload (5 MB limit) + scan + default + delete + download
       applications.tsx          ← kanban + per-job application form
-      companies.tsx              ← list + new (probe-validated) + delete + toggle
+      companies.tsx              ← list + new (probe-validated) + delete + toggle + starter packs
       discovery.tsx             ← list + promote + ignore + delete + manual probe
       runs.tsx
       settings.tsx              ← profile editor + 8 toggles + telegram targets
@@ -295,6 +302,7 @@ prisma/
 | `POST /settings/hn-run`          | web     | spawns `runHnHiringJob` async (lock)     |
 | `POST /jobs/:id/reclassify`      | web     | sync `classifyJob` → auto-demote on fail |
 | `POST /companies/new`            | web     | sync `probeAts` → upsert                 |
+| `POST /companies/starter-pack`   | web     | resolve a pack live (`probeAts`, ≥1 job wins) → preview; `/import` inserts inactive, `/enable` activates |
 | `POST /resumes`                  | web     | extract text → `scanResume` (sync, ~1 min) |
 | `POST /jobs/:id/match`           | web     | async run: (scratch cleanup) → `matchResumeToJob`; redirects to `/target/runs/:id` |
 | `POST /jobs/:id/verify`          | web     | `checkLiveness` (free rungs, seconds) → stop on a verdict; else / `deep=1` sync `verifyJob` with web tools (2-4 min) → `JobVerification` |

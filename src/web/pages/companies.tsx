@@ -23,6 +23,7 @@ import {
 } from '../ui';
 import { formatRelative } from '../format';
 import type { FlashMessage } from '../flash';
+import { StarterPackPicker, type PackSegmentChoice } from './starter-pack';
 
 interface CompanyRow {
   id: number;
@@ -38,6 +39,7 @@ interface CompanyRow {
 
 export interface CompaniesProps {
   companies: CompanyRow[];
+  packs: PackSegmentChoice[];
   flash?: FlashMessage | null;
 }
 
@@ -56,7 +58,7 @@ const PROBEABLE_ATS: AtsType[] = [
 
 const AGGREGATORS = ['LARAJOBS', 'REMOTEOK', 'REMOTIVE', 'JOBICY', 'WEWORKREMOTELY', 'HN_HIRING'];
 
-export const CompaniesPage: FC<CompaniesProps> = ({ companies, flash }) => (
+export const CompaniesPage: FC<CompaniesProps> = ({ companies, packs, flash }) => (
   <Layout title="Companies" active="companies">
     <PageHeader title="Companies" meta={`${companies.length} sources`} />
     <Flash flash={flash} />
@@ -93,6 +95,8 @@ export const CompaniesPage: FC<CompaniesProps> = ({ companies, flash }) => (
         </p>
       </div>
     </details>
+
+    <StarterPackPicker segments={packs} />
 
     <Card class="mb-4">
       <SectionTitle>Add company</SectionTitle>
