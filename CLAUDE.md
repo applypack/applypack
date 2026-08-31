@@ -170,7 +170,7 @@ When the question is **"where does X live?"**, save yourself a `find`:
 | Compare-run progress pages (async classify/scan/match) | `src/web/target-runs.ts` (in-memory registry) + `src/web/pages/target-run.tsx`; started by `/target`, `/jobs/:id/match`, `/jobs/:id/target/reupload` |
 | Which resume a job page preselects | `src/resume/pick.ts:pickResumeForJob` (skill-tag overlap) |
 | Prefill the profile from a resume scan | `src/resume/profile-draft.ts:buildProfileDraft` (pure) + `POST /settings/profiles/:id/fill-from-resume` (renders a draft, saves nothing — ADR 0015) |
-| Model for cover letters (empty = follows the resume model) | `/settings` → AI engine → "Cover letter model" (role `cover` in `ai-engine.ts`) |
+| Model for cover letters (empty = follows the resume model) | `/settings` → AI engine → "Cover letter model" (role `cover` in `ai-engine.ts`; pickers save on change) |
 | Model for resume calls | per-engine "Resume model" on `/settings` → AI engine; Claude engines fall back to `CLAUDE_MODEL_RESUME` in `.env` (default `claude-opus-5`) |
 | Ghost-job checklist prompt + verdict schema | `src/verification/prompts.ts` |
 | Liveness ladder (free ATS-API + page checks before AI verify) | `src/verification/liveness.ts` (ADR 0016), run by `verify.ts:checkLiveness` |
