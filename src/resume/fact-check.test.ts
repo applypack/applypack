@@ -351,3 +351,12 @@ test('a fabricated employer still blocks after the contraction trim', () => {
   assert.equal(r.verdict, 'block');
   assert.equal(r.claims.find((c) => c.kind === 'employer')?.canonical, 'globex');
 });
+
+test('an employer run never crosses a sentence boundary', () => {
+  const r = factCheck({
+    text: 'I shipped platforms at OGD Solutions. AI tooling is my daily driver.',
+    sources: ['OGD Solutions — Engineer.'],
+  });
+  assert.equal(r.verdict, 'pass');
+  assert.equal(r.claims.find((c) => c.kind === 'employer')?.canonical, 'ogd solutions');
+});

@@ -308,7 +308,10 @@ function extractAssertions(normalized: string, addressee: string | null): RawAss
   const addresseeKey = addressee ? canonicalTerm(addressee) : null;
 
   for (const m of normalized.matchAll(EMPLOYER_TRIGGER)) {
-    const name = dropTrailingNonNames(trimRun(m[1]));
+    // The name class allows '.' (Node.js Inc.), so a run can glue across a
+    // sentence boundary: "at OGD Solutions. AI-first…" → "OGD Solutions. AI".
+    // Cut at dot-space — the same fix gotcha 6 needed in the HN parser.
+    const name = dropTrailingNonNames(trimRun(m[1]!.split(/\.\s/)[0]));
     const key = canonicalTerm(name);
     if (!key || key === addresseeKey) continue;
     if (key.split(/\s+/).every((w) => skip.has(w))) continue;
