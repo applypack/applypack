@@ -264,16 +264,29 @@ as the candidate's past) and normalized to plain keyboard punctuation by
 or emoji ever reach a stored letter. English only until a non-English
 posting or resume exists.
 
-The menu's **Cover letter** page (`/letter`) is the standalone entry point:
-job by tracked-job picker, one user-requested URL fetch (ADR 0005 hosts and
-the private address space refused, bot checks fail honestly), or pasted
-text; resume by pick / upload / paste (scratch row, like /target); optional
-"resume match first" and "company research first" steps run in the same
-progress pipeline before the letter. Every slow stage — the page fetch
-included — is a visible run step, so the form never hangs. Each letter row offers Regenerate (same resume + tone,
-current saved angles and prompt) and .pdf / .docx downloads built
-in-process (`zip-write` / `docx-write` / `pdf-write`, no new
-dependencies); the edited text wins in exports.
+The menu's **Cover letter** page (`/letter`) is the standalone entry point.
+Two job sources: a searchable picker over the newest jobs that clear the
+active profile's fit threshold, or one "new posting" box taking a URL
+and/or pasted text (pasted text wins; a bare URL is fetched — ADR 0005
+hosts and the private address space refused, bot checks fail honestly, and
+an unreadable page returns the user to the form with the URL kept). Resume
+by pick / upload / paste (scratch row, like /target).
+
+**The default run is one model call.** The letter path never asks for a fit
+score (a letter does not read one; "Re-classify" fills it in later), and the
+resume match (+1 min) and company research (+2–4 min) are opt-in behind a
+disclosure — measured end to end at ~26 s from submit to letter. Both
+analyses are stored on the job, so a later letter reuses them for free.
+Every slow stage — the page fetch included — is a visible run step, so the
+form never hangs.
+
+Letter writing has its own per-engine model slot on `/settings` → AI engine;
+an empty slot follows the resume model. Each letter row offers Regenerate (same resume + tone,
+current saved angles and prompt) and "Save as PDF" / "Save as DOCX"
+downloads built in-process (`zip-write` / `docx-write` / `pdf-write`, no new
+dependencies); the edited text wins in exports. Edits autosave (debounced,
+flushed on blur and on unload) and re-run the gate warn-only; the Save
+button remains as the no-JS path.
 
 Every draft passes the fact gate (`fact-check.ts`, ADR 0020) before it is
 shown: `block` → one regeneration with the violations quoted → still

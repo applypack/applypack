@@ -206,9 +206,9 @@ letterRoute.post('/letter', resumeUploadLimit('/letter'), async (c) => {
   // Fetch only when there is nothing pasted; a description the user supplied
   // is always the better source than a scraped page.
   const fetchUrl = f.jobMode === 'new' && description.length === 0;
-  // A fetched page always needs detection: its company / title are unknown
-  // until the description exists.
-  const needExtract = !existingJob && (fetchUrl || !companyName || !title);
+  // Detection is about the company and the title, not about where the text
+  // came from: filling both in skips the call even for a fetched page.
+  const needExtract = !existingJob && (!companyName || !title);
   const hasSnapshot = existingJob ? (await getLatestCompanySnapshot(existingJob.id)) !== null : false;
   const steps: RunStep[] = [
     ...(fetchUrl ? (['fetch'] as const) : []),
@@ -252,7 +252,7 @@ letterRoute.post('/letter', resumeUploadLimit('/letter'), async (c) => {
           return;
         }
         description = fetched.text;
-        updateRun(run.id, { stage: 'extract' });
+        if (needExtract) updateRun(run.id, { stage: 'extract' });
       }
       if (needExtract) {
         const facts = await extractPostingFacts(description);

@@ -431,7 +431,22 @@ external project, copy-check before merge.
       once, prefilled everywhere); recruiter-readability rules (max 3
       tech names per sentence, about-them balance, sharper hook) and a
       deterministic plain-punctuation pass (toPlainPunctuation) so no em
-      dash / curly quote / bullet / emoji ever reaches a stored letter
+      dash / curly quote / bullet / emoji ever reaches a stored letter.
+      F8.2 (same branch): Regenerate per letter; .pdf/.docx export via
+      in-house zip/docx/pdf writers (seeds 5.10's zip-writer need);
+      /letter menu page — job by picker / one-page URL fetch (ADR 0005
+      blocklist, honest bot-check failures) / paste + resume resolve +
+      optional match and verify steps in one run.
+      F8.3 (same branch, user feedback round 2): the default run is ONE
+      model call — no fit-score call on the letter path, match/verify
+      moved behind a disclosure and off by default (~26s submit→letter,
+      measured, vs ~100s before); URL and paste merged into one box (a
+      failed fetch returns to the form with the URL kept); searchable
+      job picker over the newest jobs clearing the fit threshold;
+      clicking any field selects its mode; per-engine "Cover letter
+      model" slot (role `cover`, empty inherits resume); edits autosave
+      (Save button becomes the no-JS fallback); PDF/DOCX became labelled
+      "Save as" buttons
 - [ ] F9 golden-eval harness for the AI engine chain — v0.11.0
 - [ ] F10 fetchers wave 2: Getro/Consider/a16z, Arbeitsagentur, Teamtailor,
       Personio, Jobvite, Gem, join.com — v0.12.0

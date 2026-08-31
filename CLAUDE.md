@@ -170,6 +170,7 @@ When the question is **"where does X live?"**, save yourself a `find`:
 | Compare-run progress pages (async classify/scan/match) | `src/web/target-runs.ts` (in-memory registry) + `src/web/pages/target-run.tsx`; started by `/target`, `/jobs/:id/match`, `/jobs/:id/target/reupload` |
 | Which resume a job page preselects | `src/resume/pick.ts:pickResumeForJob` (skill-tag overlap) |
 | Prefill the profile from a resume scan | `src/resume/profile-draft.ts:buildProfileDraft` (pure) + `POST /settings/profiles/:id/fill-from-resume` (renders a draft, saves nothing — ADR 0015) |
+| Model for cover letters (empty = follows the resume model) | `/settings` → AI engine → "Cover letter model" (role `cover` in `ai-engine.ts`) |
 | Model for resume calls | per-engine "Resume model" on `/settings` → AI engine; Claude engines fall back to `CLAUDE_MODEL_RESUME` in `.env` (default `claude-opus-5`) |
 | Ghost-job checklist prompt + verdict schema | `src/verification/prompts.ts` |
 | Liveness ladder (free ATS-API + page checks before AI verify) | `src/verification/liveness.ts` (ADR 0016), run by `verify.ts:checkLiveness` |
@@ -205,9 +206,9 @@ When the question is **"how does the user toggle / configure X?"**:
 | Paste a posting the fetchers don't see | `/jobs` → "+ Paste a job" (`/jobs/new`) |
 | Compare a pasted posting with any resume in one step | menu → Target (`/target`): paste posting, pick / upload / paste resume, Compare |
 | Check whether a posting is real | `/jobs/:id` → "Is this job real?" → Verify (web search, 2-4 min) |
-| Draft / edit / copy a cover letter | `/jobs/:id` → "Cover letter" card (Generate / Regenerate; Save edit re-checks facts) |
+| Draft / edit / copy a cover letter | `/jobs/:id` → "Cover letter" card (Generate / Regenerate; edits autosave and re-check facts) |
 | Standing angle inputs for letters (typed once, remembered) | `/jobs/:id` → Cover letter card → "Angle" — saved to `AppSettings.coverAngles` on every Generate |
-| Write a letter for a NEW posting (picker / URL / paste, + optional match & company research) | menu → Cover letter (`/letter`) |
+| Write a letter for a NEW posting (searchable picker / URL / paste; match & research opt-in) | menu → Cover letter (`/letter`) |
 | Download a letter as .pdf / .docx | `/jobs/:id` → Cover letter card → PDF / DOCX buttons |
 | Re-check an edited resume | `/resumes/:id` → "Upload a new version", then Compare again |
 | Edit in place with a live score | comparison → "Open targeted view →" (`/jobs/:id/target`); "Re-analyze with AI" for the rubric score, "Save as vN" to keep the draft |
