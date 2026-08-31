@@ -101,13 +101,19 @@ letterRoute.post('/letter', resumeUploadLimit('/letter'), async (c) => {
   const runVerify = form.runVerify === '1';
   const angle = (v: unknown, max = 300) =>
     typeof v === 'string' && v.trim().length > 0 ? v.trim().slice(0, max) : undefined;
-  const angles = {
-    whyCompany: angle(form.whyCompany),
-    problem: angle(form.problem),
-    approach: angle(form.approach),
-    notes: angle(form.notes, 500),
-  };
-  await setCoverAngles(angles);
+  // Same contract as the job-page card: only a submit that carries the angle
+  // fields rewrites the saved values. Without the marker they are reused, so
+  // a POST that omits them can never wipe what the user typed.
+  const fromForm = form.saveAngles === '1';
+  const angles = fromForm
+    ? {
+        whyCompany: angle(form.whyCompany),
+        problem: angle(form.problem),
+        approach: angle(form.approach),
+        notes: angle(form.notes, 500),
+      }
+    : readCoverAngles((await getSettings()).coverAngles);
+  if (fromForm) await setCoverAngles(angles);
 
   // Resolve the resume inline — bad input fails before anything runs.
   let resume: { id: number; name: string; version: number; text: string; ephemeral: boolean };
