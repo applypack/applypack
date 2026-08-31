@@ -66,6 +66,19 @@ model Company {
   createdAt DateTime @default(now())
   jobs      Job[]
 
+  // F4 source health (ADR 0019). Written by the fetchOne wrapper from the
+  // RAW pre-filter result, so the profile filter can never look like a
+  // broken board. Status vocabulary: ok | empty | slug_gone | auth |
+  // rate_limit | server | network | bad_payload | unknown.
+  lastFetchStatus     String?
+  // Streak is inverted on purpose: ok and empty reset it, EVERYTHING else
+  // increments — an error kind added later cannot fall out of it silently.
+  consecutiveFailures Int       @default(0)
+  // Advances only on `ok` (>= 1 posting). An ageing lastOkAt on a reachable
+  // source is the second signal: SmartRecruiters answers 200 + totalFound:0
+  // for every id, so `empty` alone never proves a board is alive.
+  lastOkAt            DateTime?
+
   @@unique([atsType, atsToken])
 }
 
@@ -180,6 +193,9 @@ model AppSettings {
   // call (ai-runtime.ts:recordUsage), trimmed to 60 days by the cleanup
   // cron, summarized on /settings → AI engine.
   aiUsage                        Json?
+  // F4 (ADR 0019): one digest line when a source crosses the failure
+  // streak. Default TRUE — the alert adds a signal, never suppresses a job.
+  sourceHealthAlerts             Boolean  @default(true)
   updatedAt                      DateTime @updatedAt
 }
 
