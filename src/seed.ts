@@ -139,6 +139,17 @@ const SEED_COMPANIES: SeedCompany[] = [
     active: false,
   },
 
+  // BambooHR (F2) — verified live 2026-08-31. FreshBooks: Canadian
+  // accounting SaaS; board valid but empty at seed time. List-only
+  // source (no descriptions/dates) — starts disabled.
+  {
+    name: 'FreshBooks',
+    atsType: AtsType.BAMBOOHR,
+    atsToken: 'freshbooks',
+    careerUrl: 'https://freshbooks.bamboohr.com/careers',
+    active: false,
+  },
+
   // LaraJobs RSS — Laravel-only board, single feed under one synthetic
   // company. Enable when the active profile targets PHP/Laravel.
   {

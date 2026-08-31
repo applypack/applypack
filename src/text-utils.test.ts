@@ -274,6 +274,17 @@ describe('extractAtsToken', () => {
     );
     assert.equal(extractAtsToken('https://www.breezy.hr/hire'), null);
   });
+
+  it('parses a BambooHR careers URL', () => {
+    assert.deepEqual(
+      extractAtsToken('https://canopy.bamboohr.com/careers/42'),
+      { atsType: 'BAMBOOHR', atsToken: 'canopy' },
+    );
+    // Marketing pages don't have the /careers path.
+    assert.equal(extractAtsToken('https://www.bamboohr.com/careers/'), null);
+    assert.equal(extractAtsToken('https://canopy.bamboohr.com/jobs'), null);
+  });
+
 });
 
 describe('daysSince', () => {

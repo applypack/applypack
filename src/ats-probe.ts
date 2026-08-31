@@ -76,6 +76,13 @@ export async function probeAts(
           { timeoutMs: 8_000 },
         );
         break;
+      case AtsType.BAMBOOHR:
+        // An unknown slug 302s to the marketing site — fail instead.
+        resp = await fetchWithRetry(
+          `https://${encodeURIComponent(trimmed)}.bamboohr.com/careers/list`,
+          { timeoutMs: 8_000, init: { redirect: 'error' } },
+        );
+        break;
       case AtsType.SMARTRECRUITERS:
         resp = await fetchWithRetry(
           `https://api.smartrecruiters.com/v1/companies/${encodeURIComponent(trimmed)}/postings?limit=1`,
@@ -112,6 +119,9 @@ function countJobs(payload: unknown): number {
     if (Array.isArray(obj.jobs)) return obj.jobs.length;
     // Recruitee
     if (Array.isArray(obj.offers)) return obj.offers.length;
+    // BambooHR / Pinpoint
+    if (Array.isArray(obj.result)) return obj.result.length;
+    if (Array.isArray(obj.data)) return obj.data.length;
     // Workable
     if (Array.isArray(obj.results)) return obj.results.length;
     if (typeof obj.total === 'number') return obj.total as number;
