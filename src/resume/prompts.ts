@@ -142,7 +142,7 @@ export type { MatchAlignment };
 
 export const COVER_MAX_TOKENS = 2_000;
 /** Bumped whenever COVER_SYSTEM changes materially; stored on every letter. */
-export const COVER_PROMPT_VERSION = 1;
+export const COVER_PROMPT_VERSION = 2;
 
 export const COVER_TONES = ['neutral', 'warm', 'direct'] as const;
 export type CoverTone = (typeof COVER_TONES)[number];
@@ -257,20 +257,23 @@ NOTHING INVENTED — the one rule everything else serves. A deterministic fact c
 - CANDIDATE-DENIED terms: never mention them at all — "familiar with" and "exposure to" are still claims.
 - Company: claims about the company come ONLY from the job posting text, or from the VERIFIED COMPANY FACTS block when the user prompt carries one. No invented funding, products, awards, values, or mission. When neither source gives a concrete reason the company is interesting, write about the ROLE instead.
 - Gaps: a posting requirement the resume does not meet is either acknowledged in one confident clause (e.g. ramping from an adjacent stack) or left out — never papered over with a false claim.
-- ANGLE input from the candidate steers which TRUE story to emphasise; it is NOT evidence. A number or achievement that appears only in the angle text stays out of the letter.
+- ANGLE input from the candidate steers which TRUE story to emphasise; it is NOT evidence. A number or achievement that appears only in the angle text stays out of the letter. When the angle asks for specific points to be mentioned, work them in where they fit naturally — but numbers, employers, titles and tools still need the resume or confirmed facts behind them.
 
 SHAPE — modeled on the candidate's real letters. 120-180 words of body text; NEVER exceed 200.
 1. Greeting: "Hi {company} team," using the company's real name.
-2. Opening paragraph: name the exact role, then who the candidate is in one or two sentences — seniority, core stack, the kind of systems they build — anchored by one concrete matching fact from the resume.
+2. Opening paragraph: name the exact role, then who the candidate is in one or two sentences — seniority, core stack, the kind of systems they build — anchored by the single sharpest matching fact from the resume. The first two sentences must hand the reader one concrete reason to keep reading.
 3. Middle paragraph: why this company or this role — one specific thing from the posting or the verified facts — and what the candidate would bring, using the posting's own vocabulary for technologies the resume genuinely evidences.
 4. Closing: one sentence — thanks plus availability to talk.
 5. Sign-off: "Best," then the candidate's name on its own line, and NOTHING after it — no email, no phone, no links, no address anywhere in the letter.
 
 STYLE
 - Plain, specific, human. Short sentences. Contractions are fine. First person.
+- READABLE BY ANYONE: the first reader is usually a recruiter, not an engineer. Never chain more than three technology names in one sentence — no acronym soup. Name the two or three technologies this posting cares about most and put them inside outcome sentences a non-technical reader can follow.
+- ABOUT THEM: spend at least as many sentences on the company's need and what the candidate would do for it as on the candidate's past. A chain of "I did X" sentences is a resume rerun, not a letter.
+- PLAIN TEXT ONLY: standard keyboard punctuation — straight quotes, hyphens, commas, periods. No em dashes, no curly quotes, no bullets, no arrows, no emoji, no markdown of any kind.
 - Warm, genuine interest is fine; hollow enthusiasm is not. Banned openers: "I am writing to express", "I am excited about the opportunity", "To whom it may concern".
 - Banned words and phrases: passionate, proven track record, leverage, utilize, synergy, seasoned, results-driven, delve, spearheaded, perfect fit.
-- No negative parallelisms ("not just X, but Y"), no rhetorical questions, no bullet lists, no headings, no em-dash chains.
+- No negative parallelisms ("not just X, but Y"), no rhetorical questions, no bullet lists, no headings.
 - Address the company in the second person ("your platform"); never recite their marketing copy back at them.
 - Write in English.
 
@@ -394,6 +397,31 @@ export interface CoverAngles {
   whyCompany?: string;
   problem?: string;
   approach?: string;
+  /** Standing notes worked into every letter where they fit (F8.1). */
+  notes?: string;
+}
+
+const ANGLE_FIELD_MAX = 500;
+
+const angleField = z
+  .string()
+  .optional()
+  .transform((v) => {
+    const t = v?.trim().slice(0, ANGLE_FIELD_MAX);
+    return t && t.length > 0 ? t : undefined;
+  });
+
+const CoverAnglesSchema = z.object({
+  whyCompany: angleField,
+  problem: angleField,
+  approach: angleField,
+  notes: angleField,
+});
+
+/** Stored AppSettings.coverAngles JSON → the prefill values; junk → {}. */
+export function readCoverAngles(v: unknown): CoverAngles {
+  const r = CoverAnglesSchema.safeParse(v);
+  return r.success ? r.data : {};
 }
 
 export interface CoverContext {
@@ -418,6 +446,7 @@ const ANGLE_LABELS: Record<keyof CoverAngles, string> = {
   whyCompany: 'Why this company',
   problem: 'What problem they would solve',
   approach: 'Their approach',
+  notes: 'Asked to mention',
 };
 
 export function buildCoverPrompt(
@@ -503,6 +532,30 @@ export function parseCoverResponse(text: string): ParseResult<CoverResult> {
 
 export function countWords(s: string): number {
   return s.trim().match(/\S+/g)?.length ?? 0;
+}
+
+/**
+ * Deterministic plain-punctuation pass over a generated letter (F8.1) — the
+ * prompt asks for standard keyboard characters, this guarantees them (gotcha
+ * 11: never trust the model with a rule code can enforce). Targeted
+ * replacements only: accented letters in names survive untouched.
+ */
+const PLAIN_REPLACEMENTS: Array<[RegExp, string]> = [
+  [/[\u2018\u2019\u201A\u02BC]/g, "'"], // curly/modifier apostrophes
+  [/[\u201C\u201D\u201E]/g, '"'], // curly double quotes
+  [/[\u2013\u2014\u2015\u2212]/g, '-'], // en/em/horizontal-bar dash, minus sign
+  [/\u2026/g, '...'], // ellipsis
+  [/[\u2022\u2219\u00B7\u25AA\u25CF]/g, '-'], // bullets
+  [/[\u00A0\u2007\u2009\u202F]/g, ' '], // non-breaking / thin spaces
+  [/[\u2192\u21D2\u2794]/g, '-'], // arrows
+  [/[\u200B-\u200D\uFEFF]/g, ''], // zero-width characters
+  [/\p{Extended_Pictographic}/gu, ''],
+];
+
+export function toPlainPunctuation(s: string): string {
+  let out = s.normalize('NFKC');
+  for (const [re, sub] of PLAIN_REPLACEMENTS) out = out.replace(re, sub);
+  return out.replace(/[^\S\n]+/g, ' ').replace(/ +\n/g, '\n').trim();
 }
 
 /**

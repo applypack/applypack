@@ -10,6 +10,7 @@ import {
   coverGateSources,
   parseCoverResponse,
   readKeywords,
+  toPlainPunctuation,
   type CoverAngles,
   type CoverContext,
   type CoverResult,
@@ -73,13 +74,16 @@ export async function generateCoverLetter(
   for (;;) {
     const answer = await askOnce(ai, prompt, job.id);
     if (!answer) return { kind: 'failed' };
+    // Deterministic plain-punctuation pass BEFORE the gate, so what is
+    // checked is exactly what gets stored and copied (F8.1).
+    const letter = toPlainPunctuation(answer.parsed.letter);
     const gate = factCheck({
-      text: answer.parsed.letter,
+      text: letter,
       sources,
       facts,
       addressee: job.companyName,
     });
-    const words = countWords(answer.parsed.letter);
+    const words = countWords(letter);
     const violations = [
       ...(gate.verdict === 'block' ? gate.reasons : []),
       ...(words > COVER_WORDS_MAX
@@ -108,7 +112,7 @@ export async function generateCoverLetter(
       resumeId: resume.id,
       resumeVersion: resume.version,
       tone: opts.tone,
-      text: answer.parsed.letter,
+      text: letter,
       model: answer.model,
       promptVersion: COVER_PROMPT_VERSION,
       keywordsUsed: answer.parsed.keywords_used,

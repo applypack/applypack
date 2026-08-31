@@ -9,7 +9,9 @@ import {
   parseCoverResponse,
   parseMatchResponse,
   parseScanResponse,
+  readCoverAngles,
   readHardRequirements,
+  toPlainPunctuation,
 } from './prompts';
 import { factCheck } from './fact-check';
 
@@ -414,4 +416,66 @@ test('gate integration fixture: an invented metric blocks and its reason feeds t
     addressee: COVER_JOB.companyName,
   });
   assert.equal(clean.verdict, 'pass');
+});
+
+/* ---------- F8.1: standing angles, plain punctuation, readable-letter rules ---------- */
+
+test('cover rubric: plain keyboard punctuation only', () => {
+  const { system } = cover();
+  assert.match(system, /PLAIN TEXT ONLY/);
+  assert.match(system, /No em dashes, no curly quotes, no bullets, no arrows, no emoji, no markdown/);
+});
+
+test('cover rubric: readable by a non-technical recruiter, no acronym soup', () => {
+  const { system } = cover();
+  assert.match(system, /READABLE BY ANYONE/);
+  assert.match(system, /Never chain more than three technology names in one sentence/);
+  assert.match(system, /a non-technical reader can follow/);
+});
+
+test('cover rubric: at least as much about the company as about the candidate', () => {
+  const { system } = cover();
+  assert.match(system, /ABOUT THEM/);
+  assert.match(system, /resume rerun, not a letter/);
+});
+
+test('cover rubric: the opening must earn the read', () => {
+  const { system } = cover();
+  assert.match(system, /single sharpest matching fact/);
+  assert.match(system, /first two sentences must hand the reader one concrete reason to keep reading/);
+});
+
+test('cover rubric: standing notes are worked in but still not evidence', () => {
+  const { system } = cover();
+  assert.match(system, /work them in where they fit naturally/);
+  assert.match(system, /numbers, employers, titles and tools still need the resume or confirmed facts/);
+});
+
+test('cover builder: standing notes render under the angle block only when present', () => {
+  assert.doesNotMatch(cover().user, /Asked to mention/);
+  const { user } = cover({ angles: { notes: 'mention my open-source work' } });
+  assert.match(user, /ANGLE from the candidate \(direction only, never evidence\):/);
+  assert.match(user, /- Asked to mention: mention my open-source work/);
+});
+
+test('readCoverAngles: stored JSON round-trips, junk degrades to empty', () => {
+  const stored = { whyCompany: ' their SDK ', problem: '', approach: undefined, notes: 'x'.repeat(600), extra: 'dropped' };
+  const angles = readCoverAngles(stored);
+  assert.equal(angles.whyCompany, 'their SDK');
+  assert.equal(angles.problem, undefined);
+  assert.equal(angles.notes?.length, 500);
+  assert.equal('extra' in angles, false);
+  assert.deepEqual(readCoverAngles(null), {});
+  assert.deepEqual(readCoverAngles('nope'), {});
+  assert.deepEqual(readCoverAngles([1, 2]), {});
+});
+
+test('toPlainPunctuation: AI-tell characters fold to keyboard ones, names survive', () => {
+  assert.equal(toPlainPunctuation('cut 15–20% — fast'), 'cut 15-20% - fast');
+  assert.equal(toPlainPunctuation('“I’m in”…'), '"I\'m in"...');
+  assert.equal(toPlainPunctuation('a • b → c'), 'a - b - c');
+  assert.equal(toPlainPunctuation('non breaking space'), 'non breaking space');
+  assert.equal(toPlainPunctuation('Zoë at Café 🚀!'), 'Zoë at Café !');
+  assert.equal(toPlainPunctuation('para one\n\npara two  end '), 'para one\n\npara two end');
+  assert.equal(toPlainPunctuation('zero​width'), 'zerowidth');
 });
