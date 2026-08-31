@@ -113,19 +113,6 @@ export function hamming64(a: bigint, b: bigint): number {
   return bits;
 }
 
-/**
- * Do two fingerprints describe the same posting? A missing fingerprint is not
- * a match — "we could not tell" must never read as "duplicate".
- */
-export function isNearDuplicate(
-  a: bigint | null | undefined,
-  b: bigint | null | undefined,
-  maxDistance: number = MAX_HAMMING_DISTANCE,
-): boolean {
-  if (a === null || a === undefined || b === null || b === undefined) return false;
-  return hamming64(a, b) <= maxDistance;
-}
-
 export interface FingerprintedJob {
   id: number;
   companyId: number;

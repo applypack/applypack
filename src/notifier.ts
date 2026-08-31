@@ -144,7 +144,9 @@ async function deliverToTarget(
   }
 }
 
-function formatJobMessage(job: AlertJob): string {
+/** Pure — exported so the MarkdownV2 escaping can be unit-tested; Telegram
+ *  rejects a whole message on a single unescaped special character. */
+export function formatJobMessage(job: AlertJob): string {
   const lines: string[] = [];
   lines.push(`*New role match — fit ${job.fitScore}/100*`);
   lines.push(

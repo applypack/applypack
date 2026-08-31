@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   escapeMarkdownV2,
   escapeMarkdownV2Url,
+  formatJobMessage,
   formatSalary,
 } from './notifier';
 
@@ -75,5 +76,36 @@ describe('escapeMarkdownV2Url', () => {
       escapeMarkdownV2Url('https://example.com/a\\b'),
       'https://example.com/a\\\\b',
     );
+  });
+});
+
+describe('formatJobMessage', () => {
+  const base = {
+    title: 'Senior Engineer',
+    companyName: 'Acme',
+    location: 'Remote',
+    url: 'https://example.com/jobs/1',
+    fitScore: 88,
+    salaryMin: null,
+    salaryMax: null,
+    techMatch: [],
+    redFlags: [],
+    summary: '',
+  };
+
+  it('omits the cross-listing line when there is none', () => {
+    assert.equal(formatJobMessage(base).includes('Also listed at'), false);
+    assert.equal(
+      formatJobMessage({ ...base, crossListedAt: null }).includes('Also listed at'),
+      false,
+    );
+  });
+
+  it('escapes the cross-listed company name', () => {
+    // Parentheses, dots and hyphens all need escaping in MarkdownV2 — an
+    // unescaped one makes Telegram reject the entire message.
+    const msg = formatJobMessage({ ...base, crossListedAt: 'Acme (US) Inc. - Jobs' });
+    assert.match(msg, /Also listed at Acme \\\(US\\\) Inc\\\. \\- Jobs/);
+    assert.match(msg, /apply through one channel only/);
   });
 });

@@ -6,7 +6,6 @@ import {
   findCrossListing,
   fromDbBigInt,
   hamming64,
-  isNearDuplicate,
   normalizeJdText,
   normalizedLength,
   simhash64,
@@ -110,14 +109,6 @@ test('a body under three tokens gets no fingerprint', () => {
   // An unspaced CJK body normalizes to one giant token; an all-zero hash
   // would otherwise match every other degenerate body.
   assert.equal(simhash64('シニアエンジニアを募集しています'.repeat(40)), null);
-});
-
-test('a missing fingerprint never counts as a duplicate', () => {
-  const h = simhash64(longBody('backend'));
-  assert.equal(isNearDuplicate(null, h), false);
-  assert.equal(isNearDuplicate(h, null), false);
-  assert.equal(isNearDuplicate(null, null), false);
-  assert.equal(isNearDuplicate(undefined, h), false);
 });
 
 test('hamming64 counts differing bits', () => {

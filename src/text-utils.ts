@@ -29,8 +29,6 @@ const TRACKING_PARAMS = new Set([
   '_hsmi',
   'trk',
   'trkCampaign',
-  'ref',
-  'source',
 ]);
 
 /**
