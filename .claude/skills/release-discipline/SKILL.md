@@ -29,6 +29,19 @@ git tag -a v0.5.0 -m "<feature name>" <merge-sha>
 git push origin v0.5.0
 ```
 
+## What the tag has to agree with
+
+A tag is not just a git ref: `package.json` `version` and the top entry of
+`CHANGELOG.md` must name the same number, in the commit being tagged. Both
+drifted to `0.2.1` while tags ran to `v0.9.0` — seven releases missing from
+the changelog — because nothing said they were part of tagging. They are:
+
+- bump `package.json` `version` in the feature branch, before the PR
+- add the `CHANGELOG.md` section in the same commit (Keep a Changelog
+  headings, plus the compare link at the bottom of the file)
+- the release notes on GitHub and the changelog entry say the same thing;
+  draft once in the PR body and reuse it
+
 ## Release parity (the rule this skill enforces)
 
 **Every pushed `vX.Y.*` tag gets a GitHub release immediately — the
