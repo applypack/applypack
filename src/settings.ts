@@ -60,7 +60,12 @@ export async function getSettings(): Promise<AppSettingsView> {
  * Standing cover-letter angle inputs (F8.1) — written on every generation,
  * prefilled into the card on every job page, so the user types them once.
  */
-export async function setCoverAngles(angles: Record<string, string | undefined>): Promise<void> {
+export async function setCoverAngles(angles: {
+  whyCompany?: string;
+  problem?: string;
+  approach?: string;
+  notes?: string;
+}): Promise<void> {
   const value = JSON.parse(JSON.stringify(angles)) as Prisma.InputJsonValue;
   await prisma.appSettings.upsert({
     where: { id: SETTINGS_ID },

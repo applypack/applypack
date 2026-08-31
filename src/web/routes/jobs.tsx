@@ -370,12 +370,19 @@ jobsRoute.post('/jobs/:id/cover', async (c) => {
     : 'warm';
   const angle = (v: unknown, max = 300) =>
     typeof v === 'string' && v.trim().length > 0 ? v.trim().slice(0, max) : undefined;
-  const angles = {
-    whyCompany: angle(form.whyCompany),
-    problem: angle(form.problem),
-    approach: angle(form.approach),
-    notes: angle(form.notes, 500),
-  };
+  // The card form carries saveAngles=1: its values become the saved prefill
+  // (clearing a field clears the saved value). The per-letter Regenerate
+  // form omits it and REUSES the saved values, so a bare regenerate never
+  // wipes them.
+  const fromForm = form.saveAngles === '1';
+  const angles = fromForm
+    ? {
+        whyCompany: angle(form.whyCompany),
+        problem: angle(form.problem),
+        approach: angle(form.approach),
+        notes: angle(form.notes, 500),
+      }
+    : readCoverAngles((await getSettings()).coverAngles);
 
   const [job, resume] = await Promise.all([
     prisma.job.findUnique({ where: { id }, include: { company: { select: { name: true } } } }),
@@ -383,9 +390,7 @@ jobsRoute.post('/jobs/:id/cover', async (c) => {
   ]);
   if (!job || !resume) return c.text('Not found', 404);
 
-  // The submitted values become the prefill for every future letter (F8.1) —
-  // typed once, remembered; clearing a field clears the saved value too.
-  await setCoverAngles(angles);
+  if (fromForm) await setCoverAngles(angles);
 
   const run = createRun({ steps: ['letter'], jobTitle: job.title, resumeName: resume.name, jobId: id });
   startRun(run.id, async () => {

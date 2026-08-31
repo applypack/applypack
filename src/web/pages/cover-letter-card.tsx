@@ -56,6 +56,7 @@ export const CoverLetterCard: FC<CoverLetterCardProps> = ({
         </Hint>
       ) : (
         <form method="post" action={`/jobs/${jobId}/cover`} class="space-y-3">
+          <input type="hidden" name="saveAngles" value="1" />
           <div class="flex flex-wrap items-end gap-3">
             <label class="block min-w-0 max-w-full">
               <span class="block text-[13px] font-medium text-ink">Resume</span>
