@@ -204,6 +204,7 @@ When the question is **"how does the user toggle / configure X?"**:
 | Compare a pasted posting with any resume in one step | menu → Target (`/target`): paste posting, pick / upload / paste resume, Compare |
 | Check whether a posting is real | `/jobs/:id` → "Is this job real?" → Verify (web search, 2-4 min) |
 | Draft / edit / copy a cover letter | `/jobs/:id` → "Cover letter" card (Generate; Save edit re-checks facts) |
+| Standing angle inputs for letters (typed once, remembered) | `/jobs/:id` → Cover letter card → "Angle" — saved to `AppSettings.coverAngles` on every Generate |
 | Re-check an edited resume | `/resumes/:id` → "Upload a new version", then Compare again |
 | Edit in place with a live score | comparison → "Open targeted view →" (`/jobs/:id/target`); "Re-analyze with AI" for the rubric score, "Save as vN" to keep the draft |
 

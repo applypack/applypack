@@ -253,8 +253,15 @@ resume text, `CandidateFact` rows, the posting, plus — when they exist —
 the latest `ResumeMatch` of the selected resume and the stored
 verification's `companySnapshot`. Match and verification are optional
 enrichers, not prerequisites (they cover ~1% of jobs). Tone select
-(neutral | warm | direct) and three optional angle fields steer emphasis;
-angle text is never treated as evidence. English only until a non-English
+(neutral | warm | direct) and four optional angle fields steer emphasis —
+three per-story inputs plus standing "anything every letter should
+mention" notes; all four are saved to `AppSettings.coverAngles` on every
+generation and prefilled on every job page, so they are typed once. Angle
+text is never treated as evidence. Letters are written for a non-technical
+first reader (no acronym soup, at least as much about the company's need
+as the candidate's past) and normalized to plain keyboard punctuation by
+`toPlainPunctuation` before the gate — no em dashes, curly quotes, bullets
+or emoji ever reach a stored letter. English only until a non-English
 posting or resume exists.
 
 Every draft passes the fact gate (`fact-check.ts`, ADR 0020) before it is

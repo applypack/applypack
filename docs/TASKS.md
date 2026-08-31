@@ -425,7 +425,13 @@ external project, copy-check before merge.
       untestable auto|en|uk switch; angle inputs steer but are not gate
       sources, so a metric typed into them is dropped by the quoted-reasons
       regeneration, never laundered. Blocked-twice letters are never
-      persisted; manual edits re-gate warn-only
+      persisted; manual edits re-gate warn-only. F8.1 (same branch, user
+      feedback on the first build): a fourth standing-notes angle field;
+      all four angle values persist in AppSettings.coverAngles (typed
+      once, prefilled everywhere); recruiter-readability rules (max 3
+      tech names per sentence, about-them balance, sharper hook) and a
+      deterministic plain-punctuation pass (toPlainPunctuation) so no em
+      dash / curly quote / bullet / emoji ever reaches a stored letter
 - [ ] F9 golden-eval harness for the AI engine chain — v0.11.0
 - [ ] F10 fetchers wave 2: Getro/Consider/a16z, Arbeitsagentur, Teamtailor,
       Personio, Jobvite, Gem, join.com — v0.12.0
