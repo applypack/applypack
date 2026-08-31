@@ -52,18 +52,28 @@ features under one tag.
 4. **Verify** per the feature's test matrix (below). Never weaken a failing
    test; report skipped smoke runs as skipped. Run the copy-check from the
    ground rules.
-5. **PR**: as soon as the verification matrix passes, push the branch
-   and open a PR (standing policy since 2026-08-31 — one per feature,
-   no waiting to be asked). Merging to `main` stays with Nazar.
-6. **Tag**: after merge, an annotated tag `vX.Y.0` on the merge commit —
-   one minor bump per feature, patch bumps (`vX.Y.1`) for follow-up
-   fixes to that feature. Docs-only / process-only merges get NO tag.
-   Tag numbers are assigned in *actual* integration order; the registry
-   below is the recommended order, not a reservation.
+5. **Pre-merge review (mandatory since 2026-08-31):** run the
+   `code-review-expert` skill over the whole branch diff
+   (`git diff main...HEAD`) — is every added line needed, can it be
+   simpler or more readable? Fix P0/P1 before the PR exists; list P2/P3
+   in the PR body as named follow-ups.
+6. **PR**: as soon as the verification matrix passes and the review is
+   applied, push the branch and open a PR (standing policy since
+   2026-08-31 — one per feature, no waiting to be asked). Include a
+   "Release notes" draft in the PR body. Merging to `main` stays with
+   Nazar.
+7. **Tag + release** (release-discipline skill): after merge, an
+   annotated tag `vX.Y.0` on the merge commit — one minor bump per
+   feature, patch bumps (`vX.Y.1`) for follow-up fixes to that feature.
+   Docs-only / process-only merges get NO tag. Every pushed tag gets a
+   GitHub release immediately (latest release == latest tag; backfill on
+   parity-check misses). Tag numbers are assigned in *actual*
+   integration order; the registry below is the recommended order, not a
+   reservation.
    ```
    git tag -a v0.3.0 -m "liveness ladder"
    ```
-7. **Rollback path**: every feature that changes runtime behaviour ships
+8. **Rollback path**: every feature that changes runtime behaviour ships
    behind a settings toggle where feasible (AppSettings column →
    settings.ts → /settings UI, per the CLAUDE.md toggle recipe). Migrations
    are additive-only (new columns/tables, no destructive rewrites), so

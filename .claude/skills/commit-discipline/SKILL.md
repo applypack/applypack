@@ -59,6 +59,23 @@ in SPEC.md; the outcome part is mandatory. Bad: phase-8, wip, nazar-dev.
 
 Branches are short-lived: merged within a day or two, deleted after merge. Never rewrite shared history, never force-push shared branches. When a feature branch passes its verification, push it and open a PR right away (standing policy 2026-08-31, one per feature); merging to main stays with Nazar.
 
+## Pre-merge gate (before opening the PR)
+
+Per-commit hygiene is not enough — before the PR, review the **whole
+branch diff** with fresh eyes:
+
+- Run the `code-review-expert` skill over `git diff main...HEAD`
+  (mandatory since 2026-08-31).
+- Ask of every added line: is it needed at all, can it be simpler, can
+  it be more readable? Delete speculative code now, not "later".
+- P0/P1 findings are fixed before the PR exists; P2/P3 go into the PR
+  body as named follow-ups — never silently dropped.
+- The PR description includes a "Release notes" draft (see the
+  `release-discipline` skill) so the post-merge release is one command.
+
+Tags and GitHub releases after the merge follow the `release-discipline`
+skill (annotated minor per feature, release parity with tags).
+
 ## Split large refactors
 
 Not "refactor classifier" but a sequence: extract ai provider, move prompt builders, remove duplicated retry loop. Small commits make history reviewable.

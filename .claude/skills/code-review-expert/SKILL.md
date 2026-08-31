@@ -9,6 +9,11 @@ description: "Expert code review of current git changes with a senior engineer l
 
 Perform a structured review of the current git changes with focus on SOLID, architecture, removal candidates, and security risks. Default to review-only output unless the user asks to implement changes.
 
+**Mandatory pre-merge pass (since 2026-08-31):** every feature branch
+runs this skill over `git diff main...HEAD` BEFORE its PR is opened
+(commit-discipline "Pre-merge gate"). In that mode, apply the P0/P1
+fixes directly, and list P2/P3 findings in the PR body as follow-ups.
+
 ## Severity Levels
 
 | Level | Name | Description | Action |
