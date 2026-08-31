@@ -6,6 +6,30 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.11.0] — 2026-08-31
+
+### Added
+- **Apply-link flags (ADR 0023).** Postings whose apply link cannot be applied
+  through are tagged at ingest: `apply-url-missing` (a fetched row with no
+  URL), `apply-url-unusable` (unparseable, or a scheme a browser cannot open a
+  posting with), `apply-url-shortened` (a destination-hiding redirector) and
+  `apply-url-not-an-application` (a host that cannot serve one — a YouTube
+  video, a LinkedIn company page, a Telegram handle). The tags join the
+  classifier's own in `Job.redFlags`, so they appear on `/jobs/:id` and in the
+  Telegram alert with no new UI and no schema change.
+- `backfill-apply-link-flags` annotates already-stored rows without spending
+  an AI call. Additive and idempotent; `--dry-run` reads only.
+
+### Changed
+- The plan's trust *score* was dropped after measuring its four penalties on
+  all 814 stored jobs. Three would have been wrong: the `http://` penalty
+  marks 22.7% of the corpus and every one of those rows is Block's own
+  Greenhouse-served careers domain, which redirects to https; the missing-URL
+  penalty only ever hits jobs pasted by hand; and the company↔apply-domain
+  mismatch produces either nothing, 26 rows that are false by construction, or
+  302 (37%) depending on a string-matching detail — with a non-Latin-name
+  exemption that protects zero rows. ADR 0023 records the measurements.
+
 ## [0.10.0] — 2026-08-31
 
 ### Security
@@ -387,6 +411,7 @@ commit history.
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
 [Unreleased]: https://github.com/nazboyko/job-hunter/compare/v0.10.0...HEAD
+[0.11.0]: https://github.com/nazboyko/job-hunter/compare/v0.10.0...v0.11.0
 [0.10.0]: https://github.com/nazboyko/job-hunter/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/nazboyko/job-hunter/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/nazboyko/job-hunter/compare/v0.7.0...v0.8.0

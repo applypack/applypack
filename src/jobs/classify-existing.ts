@@ -1,4 +1,4 @@
-import { JobStatus, type Job } from '@prisma/client';
+import { AtsType, JobStatus, type Job } from '@prisma/client';
 import { prisma } from '../db';
 import { logger } from '../logger';
 import { classifyJob } from '../classifier';
@@ -6,6 +6,7 @@ import { getActiveProfile } from '../profiles';
 import { getSettings } from '../settings';
 import { parsePriorityRules } from '../priority-rules';
 import { applyPriorityFloor } from './process-jobs';
+import { withApplyLinkFlags } from '../apply-link';
 
 /**
  * Classifies one stored job against the active profile and writes the
@@ -16,7 +17,7 @@ import { applyPriorityFloor } from './process-jobs';
  * Returns false when there is no active profile or the classifier failed.
  */
 export async function classifyExistingJob(
-  job: Job & { company: { name: string } },
+  job: Job & { company: { name: string; atsType: AtsType } },
   opts: { keepStatus: boolean },
 ): Promise<boolean> {
   const profile = await getActiveProfile();
@@ -61,7 +62,10 @@ export async function classifyExistingJob(
       salaryMin: c.salary_min_usd,
       salaryMax: c.salary_max_usd,
       techMatch: c.tech_match,
-      redFlags: c.red_flags,
+      redFlags: withApplyLinkFlags(c.red_flags, {
+        url: job.url,
+        pasted: job.company.atsType === AtsType.MANUAL,
+      }),
       summary: c.summary,
       status,
       priorityRulesApplied: priority.applied.map((r) => r.label),
