@@ -107,7 +107,7 @@ export function normalizeText(raw: string): string {
     .replace(/[‘’‛ʼ´`]/g, "'")
     .replace(/[“”„]/g, '"')
     .replace(/[•∙·●▪]/g, ' ; ')
-    .replace(/[   ]/g, ' ');
+    .replace(/[^\S\n]+/g, ' ');
 }
 
 /** Contact data is not evidence — strip it before any number is parsed. */
@@ -119,13 +119,20 @@ function maskContacts(s: string): string {
     .replace(/\+?\d{0,3}[\s.-]?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}\b/g, ' ');
 }
 
-/** Tokens whose digits identify a thing, not a quantity. */
+/**
+ * Tokens whose digits identify a thing, not a quantity: big-O, `v1.5`,
+ * letter-glued forms (`EC2`, `HTML5`, `p95`) and anything year-shaped.
+ * Masking every year costs us the rare four-digit count ("2000 users");
+ * leaving them in costs a false block on every letter saying "since 2021".
+ * A spaced version (`PHP 7`) is not masked — it survives as a bare number
+ * and bare numbers do not block.
+ */
 function maskNonQuantities(s: string): string {
   return s
     .replace(/\bO\([^)]*\)/g, ' ')
     .replace(/\bv\d+(?:\.\d+)*\b/gi, ' ')
     .replace(/\b[A-Za-z]+\d[\w.*]*/g, ' ')
-    .replace(/\b(?:19|20)\d{2}\b(?!\s+[a-z])/g, ' ');
+    .replace(/\b(?:19|20)\d{2}\b/g, ' ');
 }
 
 /** Block boundaries, so two bullets never glue into one phantom claim. */
@@ -168,8 +175,12 @@ interface RawClaim {
 }
 
 const NUM = String.raw`\d{1,3}(?:[,\s]\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?`;
-const WORD_NUM = Object.keys(SMALL_NUMBERS).join('|');
+// "one" is an article's cousin far more often than a quantity ("split one
+// database", "one of the teams"), and claiming it asserts nothing anyway.
+const WORD_NUM = Object.keys(SMALL_NUMBERS).filter((w) => w !== 'one').join('|');
 const MAG = `hundred|thousand|million|billion|k|m|b`;
+/** Function words after a number do not make it a count of anything. */
+const NOT_A_NOUN = `and|or|to|of|the|an|in|on|at|for|with|by|from|as|is|are|was|were|but|that|this|it|its|per|than|into|out|up|down|over|under`;
 
 /**
  * Ordered most-specific first; each match is blanked out of the segment so a
@@ -201,7 +212,7 @@ const PATTERNS: Array<{ unit: UnitClass; re: RegExp; values: (m: RegExpExecArray
   },
   {
     unit: 'count',
-    re: new RegExp(String.raw`\b(${NUM}|${WORD_NUM})\+?\s?(${MAG})?\s+[a-z][a-z-]+`, 'gi'),
+    re: new RegExp(String.raw`\b(${NUM}|${WORD_NUM})\+?\s?(${MAG})?\s+(?!(?:${NOT_A_NOUN})\b)[a-z][a-z-]+`, 'gi'),
     values: (m) => [scale(m[1], m[2])].filter(isValue),
   },
   {
@@ -267,6 +278,11 @@ interface RawAssertion {
  * written to is not one — measured on a real letter of ours, the addressee
  * appears in the second person ("your mission"), never under these triggers.
  */
+/** A captured run keeps neither trailing punctuation nor a dangling connector. */
+function trimRun(raw: string | undefined): string {
+  return (raw ?? '').trim().replace(/(?:[.,;:'-]+|\s+(?:of|and|&))+$/i, '');
+}
+
 function extractAssertions(normalized: string, addressee: string | null): RawAssertion[] {
   const out: RawAssertion[] = [];
   const skip = new Set(NOT_AN_EMPLOYER);
@@ -274,14 +290,14 @@ function extractAssertions(normalized: string, addressee: string | null): RawAss
   const addresseeKey = addressee ? canonicalTerm(addressee) : null;
 
   for (const m of normalized.matchAll(EMPLOYER_TRIGGER)) {
-    const name = (m[1] ?? '').trim();
+    const name = trimRun(m[1]);
     const key = canonicalTerm(name);
     if (!key || key === addresseeKey) continue;
     if (key.split(/\s+/).every((w) => skip.has(w))) continue;
     out.push({ kind: 'employer', text: name, canonical: key });
   }
   for (const m of normalized.matchAll(TITLE_TRIGGER)) {
-    const role = (m[1] ?? '').trim();
+    const role = trimRun(m[1]);
     const key = canonicalTerm(role);
     if (!TITLE_NOUNS.some((n) => key.split(/[\s/]+/).includes(n))) continue;
     out.push({ kind: 'title', text: role, canonical: key });
@@ -367,8 +383,11 @@ export function factCheck(input: FactCheckInput): FactCheckResult {
     }
   };
 
+  // A unitless number asserts almost nothing ("PHP 7", "one of 3 teams") but
+  // would false-block constantly, so on the generated side it is not a claim.
+  // Sources still index theirs, where they widen support (ADR 0020).
   const { claims: metrics, unchecked } = extractMetrics(normalized);
-  for (const m of metrics) {
+  for (const m of metrics.filter((c) => c.unit !== 'bare')) {
     const canonical = keyOf(m.unit, m.value);
     if (metricSupported(m, src)) add({ kind: 'metric', text: m.text, canonical, status: 'supported', from: 'source' });
     else if (metricSupported(m, allowedMetrics)) add({ kind: 'metric', text: m.text, canonical, status: 'allowed', from: 'allowlist' });
