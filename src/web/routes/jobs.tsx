@@ -150,7 +150,17 @@ jobsRoute.get('/jobs/:id', async (c) => {
   const [job, settings, resumes, matches, verifications] = await Promise.all([
     prisma.job.findUnique({
       where: { id },
-      include: { company: { select: { id: true, name: true, atsType: true } } },
+      include: {
+        company: { select: { id: true, name: true, atsType: true } },
+        // F3: the posting this one near-duplicates, and any that
+        // near-duplicate it — the link is annotation only (ADR 0018).
+        crossListedOf: {
+          select: { id: true, title: true, company: { select: { name: true } } },
+        },
+        crossListings: {
+          select: { id: true, title: true, company: { select: { name: true } } },
+        },
+      },
     }),
     getSettings(),
     listResumes(),

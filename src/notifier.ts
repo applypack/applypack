@@ -160,6 +160,11 @@ function formatJobMessage(job: AlertJob): string {
   if (job.redFlags.length > 0) {
     lines.push(`⚠️ Flags: ${escapeMarkdownV2(job.redFlags.join(', '))}`);
   }
+  if (job.crossListedAt) {
+    lines.push(
+      `🔁 Also listed at ${escapeMarkdownV2(job.crossListedAt)} — apply through one channel only`,
+    );
+  }
   if (job.summary) {
     lines.push(`_${escapeMarkdownV2(job.summary)}_`);
   }

@@ -48,6 +48,15 @@ interface JobDetail {
   liveness: string | null;
   livenessCode: string | null;
   livenessCheckedAt: Date | null;
+  // F3 (ADR 0018): the same posting seen at another company's source.
+  crossListedOf: CrossListedJob | null;
+  crossListings: CrossListedJob[];
+}
+
+export interface CrossListedJob {
+  id: number;
+  title: string;
+  company: { name: string };
 }
 
 export interface JobDetailProps {
@@ -79,6 +88,7 @@ export const JobDetailPage: FC<JobDetailProps> = ({
   <Layout title={job.title} active="jobs">
     <PageHeaderBlock job={job} />
     <Flash flash={flash} />
+    <CrossListingNotice job={job} />
 
     <div class="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
       {/* Right rail first in DOM so facts and actions lead on small screens. */}
@@ -202,6 +212,39 @@ export const JobDetailPage: FC<JobDetailProps> = ({
     </div>
   </Layout>
 );
+
+/**
+ * "The same posting is also over there." Both directions are shown: the job
+ * this one duplicates, and later arrivals that duplicate it. Nothing is
+ * merged or hidden — the point is to stop you applying twice (ADR 0018).
+ */
+const CrossListingNotice: FC<{ job: JobDetail }> = ({ job }) => {
+  const others = [
+    ...(job.crossListedOf ? [job.crossListedOf] : []),
+    ...job.crossListings,
+  ];
+  if (others.length === 0) return null;
+  return (
+    <div class="mb-4 rounded-lg border border-warn/25 bg-warn/5 px-4 py-3 text-sm text-ink">
+      <p class="font-medium">
+        Also listed elsewhere — apply through one channel only
+      </p>
+      <ul class="mt-1.5 space-y-1 text-[13px] text-ink-muted">
+        {others.map((o) => (
+          <li>
+            <a
+              href={`/jobs/${o.id}`}
+              class="font-medium text-accent-strong transition-colors duration-150 hover:text-accent-deep"
+            >
+              {o.title}
+            </a>{' '}
+            at {o.company.name}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+};
 
 const PageHeaderBlock: FC<{ job: JobDetail }> = ({ job }) => (
   <header class="mb-5 shrink-0">

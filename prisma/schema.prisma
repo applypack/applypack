@@ -109,12 +109,22 @@ model Job {
   livenessCode      String?
   livenessCheckedAt DateTime?
 
+  // F3 (ADR 0018): SimHash of the description, and the earlier job at ANOTHER
+  // company this one near-duplicates. Annotation only — nothing is merged or
+  // hidden, so a wrong link costs a confusing note and nothing else.
+  descriptionSimhash BigInt?
+  crossListedOfJobId Int?
+  crossListedOf      Job?    @relation("CrossListing", fields: [crossListedOfJobId], references: [id], onDelete: SetNull)
+  crossListings      Job[]   @relation("CrossListing")
+
   resumeMatches ResumeMatch[]
   verifications JobVerification[]
 
   @@unique([companyId, externalId])
   @@index([status, fetchedAt])
   @@index([pipelineStage, appliedAt])
+  // The dedup scan reads fingerprints from the last 90 days.
+  @@index([fetchedAt, descriptionSimhash])
 }
 
 model CronRun {
