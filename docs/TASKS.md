@@ -390,7 +390,12 @@ external project, copy-check before merge.
       gained `rate_limit` and `bad_payload` (both observed live). Streak
       >= 3 kept: fetch is hourly and the transient-failure base rate across
       71 sources measured zero. ADR 0016's feed-vanish item: deferred
-      again, gate written down (list-completeness assertion)
+      again, gate written down (list-completeness assertion).
+      Correction 2026-08-31: the two dead slugs are migrations, not
+      shutdowns — Plaid now lives at `ASHBY:plaid` (101 open jobs,
+      `<title>Plaid Jobs</title>`, offices SF/NYC/London/Seattle/Raleigh)
+      and Pleo at `ASHBY:pleo` (37 jobs), both identity-verified live;
+      company rows re-pointed by hand via /companies
 - [ ] F5 status-transition ledger + funnel/calibration stats — v0.7.0
 - [ ] F6 follow-up cadence with pin/retire/auto-seed in the stale digest — v0.8.0
 - [x] F7 fact gate (anti-hallucination pure module) — no tag of its own
