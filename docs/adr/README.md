@@ -26,6 +26,7 @@ consequences (what we accept). Aim for 15–30 lines each.
 - [0015 — The profile is drafted from the resume scan, never written by AI](./0015-profile-draft-from-resume-scan.md)
 - [0016 — Job liveness via a free three-rung ladder before AI verify](./0016-liveness-ladder.md)
 - [0017 — Starter-pack entries pin a hand-verified board](./0017-starter-packs-pin-verified-boards.md)
+- [0018 — Cross-listing is annotated, never merged](./0018-simhash-annotates-never-merges.md)
 
 ## When to write a new one
 
