@@ -111,7 +111,7 @@ function onDomain(host: string, domains: readonly string[]): boolean {
  * company↔domain mismatch rule; measured on our corpus it produced either
  * nothing or 37% false positives, and its non-Latin-name exemption would
  * have protected zero rows. Leaving the name out makes the exemption
- * structural — a company called "Ромашка" or "株式会社テスト" is scored
+ * structural — a company called "Ромашка" or "株式会社テスト" is treated
  * exactly like any other, because its name never reaches this code.
  */
 export function checkApplyLink(link: ApplyLink): string[] {
