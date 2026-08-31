@@ -543,7 +543,10 @@ export function countWords(s: string): number {
 const PLAIN_REPLACEMENTS: Array<[RegExp, string]> = [
   [/[\u2018\u2019\u201A\u02BC]/g, "'"], // curly/modifier apostrophes
   [/[\u201C\u201D\u201E]/g, '"'], // curly double quotes
-  [/[\u2013\u2014\u2015\u2212]/g, '-'], // en/em/horizontal-bar dash, minus sign
+  // A dash between digits is a range (15-20%); anywhere else it separates
+  // clauses and must keep its spaces, or words glue together ("tier-from").
+  [/(?<=\d)\s*[\u2013\u2014\u2015\u2212]\s*(?=\d)/g, '-'],
+  [/\s*[\u2013\u2014\u2015\u2212]\s*/g, ' - '],
   [/\u2026/g, '...'], // ellipsis
   [/[\u2022\u2219\u00B7\u25AA\u25CF]/g, '-'], // bullets
   [/[\u00A0\u2007\u2009\u202F]/g, ' '], // non-breaking / thin spaces

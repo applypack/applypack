@@ -472,6 +472,12 @@ test('readCoverAngles: stored JSON round-trips, junk degrades to empty', () => {
 
 test('toPlainPunctuation: AI-tell characters fold to keyboard ones, names survive', () => {
   assert.equal(toPlainPunctuation('cut 15–20% — fast'), 'cut 15-20% - fast');
+  // Seen live in a Haiku letter: an unspaced clause dash glued words together.
+  assert.equal(
+    toPlainPunctuation('every tier\u2014from payments\u2014using Laravel'),
+    'every tier - from payments - using Laravel',
+  );
+  assert.equal(toPlainPunctuation('2019\u20132021 and 30\u201340%'), '2019-2021 and 30-40%');
   assert.equal(toPlainPunctuation('“I’m in”…'), '"I\'m in"...');
   assert.equal(toPlainPunctuation('a • b → c'), 'a - b - c');
   assert.equal(toPlainPunctuation('non breaking space'), 'non breaking space');
