@@ -149,7 +149,7 @@ async function askOnce(
       ...prompt,
       maxTokens: COVER_MAX_TOKENS,
       label: 'cover-letter',
-      role: 'resume',
+      role: 'cover',
       timeoutMs: COVER_TIMEOUT_MS,
     });
     if (out === null) return null;

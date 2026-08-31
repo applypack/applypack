@@ -125,15 +125,15 @@ describe('summarizeAiUsage', () => {
 
   it('sums the window, drops old days and unknown providers', () => {
     const raw = {
-      '2026-08-30': { claude_code: { classifier: 5, resume: 1 } },
+      '2026-08-30': { claude_code: { classifier: 5, resume: 1, cover: 2 } },
       '2026-08-28': { claude_code: { classifier: 2 }, gemini_cli: { resume: 3 } },
       '2026-08-01': { claude_code: { classifier: 99 } },
       '2026-08-29': { openai: { classifier: 7 } },
     };
     const rows = summarizeAiUsage(raw, 7, today);
     assert.deepEqual(rows, [
-      { id: 'claude_code', classifier: 7, resume: 1 },
-      { id: 'gemini_cli', classifier: 0, resume: 3 },
+      { id: 'claude_code', classifier: 7, resume: 1, cover: 2 },
+      { id: 'gemini_cli', classifier: 0, resume: 3, cover: 0 },
     ]);
   });
 
@@ -158,5 +158,44 @@ describe('providerUnusable / isAiProviderId', () => {
     assert.equal(isAiProviderId('openai_api'), true);
     assert.equal(isAiProviderId('openai'), false);
     assert.equal(isAiProviderId(null), false);
+  });
+});
+
+describe('cover role', () => {
+  const env = {
+    provider: 'claude_code' as const,
+    hasAnthropicKey: true,
+    hasOpenAiKey: false,
+    geminiUsable: true,
+    codexUsable: false,
+    classifierModel: 'claude-haiku-4-5-20251001',
+    resumeModel: 'claude-opus-5',
+    openAiModel: '',
+  };
+
+  it('follows the resume slot until it is set explicitly', () => {
+    const bare = resolveAiEngine({ order: ['claude_code'], models: {} }, env);
+    assert.equal(bare.modelFor('claude_code', 'cover'), 'claude-opus-5');
+
+    const viaResume = resolveAiEngine(
+      { order: ['claude_code'], models: { claude_code: { resume: 'claude-sonnet-5' } } },
+      env,
+    );
+    assert.equal(viaResume.modelFor('claude_code', 'cover'), 'claude-sonnet-5');
+
+    const explicit = resolveAiEngine(
+      { order: ['claude_code'], models: { claude_code: { resume: 'claude-sonnet-5', cover: 'claude-opus-5' } } },
+      env,
+    );
+    assert.equal(explicit.modelFor('claude_code', 'cover'), 'claude-opus-5');
+    assert.equal(explicit.modelFor('claude_code', 'resume'), 'claude-sonnet-5');
+  });
+
+  it('ignores a wrong-family cover id the same way as the other roles', () => {
+    const wrong = resolveAiEngine(
+      { order: ['gemini_cli'], models: { gemini_cli: { cover: 'claude-opus-5' } } },
+      env,
+    );
+    assert.equal(wrong.modelFor('gemini_cli', 'cover'), 'gemini-2.5-pro');
   });
 });

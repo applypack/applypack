@@ -132,8 +132,11 @@ async function loadSettingsProps() {
       position,
       classifierModel: aiConfig.models[id]?.classifier ?? '',
       resumeModel: aiConfig.models[id]?.resume ?? '',
+      coverModel: aiConfig.models[id]?.cover ?? '',
       classifierDefault,
       resumeDefault,
+      // An empty cover slot follows the resume model, so that is the default shown.
+      coverDefault: aiConfig.models[id]?.resume?.trim() || resumeDefault,
       options: PROVIDER_MODEL_OPTIONS[id],
       freeTextModels: id === 'openai_api',
       paid: PROVIDER_PAID[id],
@@ -151,6 +154,7 @@ async function loadSettingsProps() {
       label: AI_PROVIDER_LABELS[r.id],
       classifier: r.classifier,
       resume: r.resume,
+      cover: r.cover,
     })),
   };
   return {
@@ -315,7 +319,8 @@ settingsRoute.post('/settings/ai/models', async (c) => {
   const label = AI_PROVIDER_LABELS[provider];
   const classifier = cleanModelId(form.classifier);
   const resume = cleanModelId(form.resume);
-  for (const model of [classifier, resume]) {
+  const cover = cleanModelId(form.cover);
+  for (const model of [classifier, resume, cover]) {
     if (model && !modelFitsProvider(model, provider)) {
       return flashRedirect(
         '/settings?tab=ai',
@@ -327,7 +332,7 @@ settingsRoute.post('/settings/ai/models', async (c) => {
   const { config } = await readAiOrder();
   await setAiEngineConfig({
     ...config,
-    models: { ...config.models, [provider]: { classifier, resume } },
+    models: { ...config.models, [provider]: { classifier, resume, cover } },
   });
   return flashRedirect('/settings?tab=ai', 'ok', `${label} models saved.`);
 });

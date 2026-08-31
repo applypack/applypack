@@ -71,8 +71,10 @@ export interface AiEngineRow {
   position: number;
   classifierModel: string;
   resumeModel: string;
+  coverModel: string;
   classifierDefault: string;
   resumeDefault: string;
+  coverDefault: string;
   /** Family model ids for the selects; empty = free-text input. */
   options: string[];
   freeTextModels: boolean;
@@ -84,7 +86,7 @@ export interface AiStatusSummary {
   active: string;
   chain: string[];
   skipped: string[];
-  usage7d: { label: string; classifier: number; resume: number }[];
+  usage7d: { label: string; classifier: number; resume: number; cover: number }[];
 }
 
 /**
@@ -366,7 +368,10 @@ export const SettingsPage: FC<SettingsProps> = ({
             {aiStatus.usage7d.length === 0
               ? 'no AI calls recorded yet'
               : aiStatus.usage7d
-                  .map((u) => `${u.label} ${u.classifier + u.resume} (${u.classifier} classify · ${u.resume} resume)`)
+                  .map(
+                    (u) =>
+                      `${u.label} ${u.classifier + u.resume + u.cover} (${u.classifier} classify · ${u.resume} resume · ${u.cover} letter)`,
+                  )
                   .join(' — ')}
           </div>
           {aiStatus.skipped.length > 0 && (
@@ -664,6 +669,15 @@ const AiEngineCard: FC<{ engine: AiEngineRow }> = ({ engine: e }) => (
             name="resume"
             value={e.resumeModel}
             fallback={e.resumeDefault}
+            options={e.options}
+            freeText={e.freeTextModels}
+          />
+        </Field>
+        <Field label="Cover letter model" hint="Writing quality, not analysis. Empty follows the resume model.">
+          <ModelPicker
+            name="cover"
+            value={e.coverModel}
+            fallback={e.coverDefault}
             options={e.options}
             freeText={e.freeTextModels}
           />
