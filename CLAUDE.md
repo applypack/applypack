@@ -125,6 +125,8 @@ When the question is **"where does X live?"**, save yourself a `find`:
 | HTTP retry, timeout, default User-Agent | `src/http.ts` |
 | HTML → plaintext (entities, paragraphs, bullets) | `src/http.ts:stripHtml` + `decodeHtmlEntities` (gotcha 12) |
 | Pure helpers (parsing, hashing, masking) | `src/text-utils.ts` |
+| Near-duplicate detection across sources (SimHash, Hamming) | `src/fingerprint.ts` (ADR 0018); wired in `jobs/process-jobs.ts` |
+| Stable id for a feed row with no id of its own | `src/text-utils.ts:feedItemKey` (URL key → text key → null, never `''`) |
 | The cron list (6 schedules) | `src/index.ts:registerCron` |
 | What runs on container boot | `src/init.ts` |
 | Adding a new ATS source — single-feed template | `src/fetchers/larajobs.ts` (LARAJOBS_RSS) or `src/fetchers/golangprojects.ts` (single RSS) |
@@ -347,6 +349,7 @@ Always:
 | Tail the dashboard | `docker compose logs -f web` |
 | psql into the DB | `docker compose exec postgres psql -U jobhunter -d jobhunter` |
 | Re-clean stored descriptions (rows with leftover markup) | `docker compose exec app node dist/scripts/backfill-descriptions.js --dry-run`, then without the flag |
+| Fingerprint existing jobs + link cross-listings | `docker compose exec app node dist/scripts/backfill-fingerprints.js --dry-run`, then without the flag |
 | Re-pull descriptions from the boards (structure lost) | `docker compose exec app node dist/scripts/refetch-descriptions.js --dry-run`, then without the flag |
 | Migrate after a schema change | `DATABASE_URL=… npx prisma migrate dev --name <name>` |
 | Re-classify everything against the active profile | UI: `/settings` → "Re-classify all jobs" |

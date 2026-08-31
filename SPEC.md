@@ -155,6 +155,28 @@ greenhouse/lever/ashby/workable/smartrecruiters) and writes
 re-validates each pending candidate's slug and updates `jobsSeen`,
 marking 4xx-returning slugs as DEAD.
 
+## Cross-source dedup (F3)
+
+Dedup is per `(companyId, externalId)`, which cannot see the same posting
+arriving through two sources. `src/fingerprint.ts` adds a 64-bit SimHash over
+the description (3-token shingles, markup/entities/URLs stripped first).
+
+A new job is compared against the last 90 days **at other companies only**, at
+Hamming ≤ 7; a hit sets `Job.crossListedOfJobId` and shows as "Also listed
+elsewhere — apply through one channel only" on `/jobs/:id` (both directions)
+and as a line in the Telegram alert. **Annotation only** — nothing is merged,
+hidden or skipped, so a wrong link costs a confusing note and nothing else.
+
+Bodies under 400 normalized characters get no fingerprint and never match:
+truncated aggregator teasers (Jobicy, LaraJobs, Rippling) carry only a company
+blurb, so two different roles at one company would otherwise look identical.
+Same-company matches are deliberately left alone — a quarter of them are
+genuinely different roles sharing boilerplate (ADR 0018); reposts are F11.
+
+Existing rows are fingerprinted by
+`node dist/scripts/backfill-fingerprints.js` (`--dry-run` first); re-running
+it links nothing new.
+
 ## Company starter packs (F14)
 
 `/companies` → **Add a starter pack**: curated segments (PHP/Laravel & CMS,
