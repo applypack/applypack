@@ -62,6 +62,7 @@ test('the directive names the marker pair and the red-flag channel', () => {
   assert.ok(d.includes(INJECTION_FLAG));
   assert.ok(d.includes('"red_flags"'));
   assert.ok(d.includes(FORGED_MARKER_PLACEHOLDER));
+  assert.match(d, /do not follow it/);
 });
 
 test('without a red-flag field the directive only says to ignore the attempt', () => {

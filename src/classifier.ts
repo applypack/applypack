@@ -4,6 +4,7 @@ import { logger } from './logger';
 import { extractJson } from './text-utils';
 import { getAiRuntime } from './ai-runtime';
 import { preClassify } from './classifier-prefilter';
+import { INJECTION_FLAG, fence, untrustedDirective } from './prompt-fence';
 import type { ClassifyInput, ClaudeClassification } from './types';
 
 export type ClassifierMode = 'single' | 'two_stage';
@@ -12,7 +13,7 @@ const MAX_TOKENS = 600;
 const MAX_DESC_CHARS = 4000;
 // Bump on any material change to buildSystemPrompt (rules, rubric, format) —
 // cross-engine quality comparisons are meaningless across prompt versions.
-export const CLASSIFIER_PROMPT_VERSION = 1;
+export const CLASSIFIER_PROMPT_VERSION = 2;
 
 const ClassificationSchema = z.object({
   fit_score: z.number().int().min(0).max(100),
@@ -90,13 +91,19 @@ export function buildClassifyPrompt(
   return {
     system: buildSystemPrompt(profile),
     user: [
-      `Title: ${input.title}`,
-      `Company: ${input.companyName}`,
-      `Location: ${input.location || '(not specified)'}`,
       `Posted: ${input.postedAt.toISOString()}`,
       '',
-      'Description:',
-      input.description.slice(0, MAX_DESC_CHARS) || '(no description)',
+      fence(
+        'JOB POSTING',
+        [
+          `Title: ${input.title}`,
+          `Company: ${input.companyName}`,
+          `Location: ${input.location || '(not specified)'}`,
+          '',
+          'Description:',
+          input.description.slice(0, MAX_DESC_CHARS) || '(no description)',
+        ].join('\n'),
+      ),
       '',
       'Return raw JSON only.',
     ].join('\n'),
@@ -176,6 +183,8 @@ function buildSystemPrompt(profile: Profile): string {
 
   return `You evaluate job postings for a ${seniorityLine} software engineer with a specific candidate profile.
 
+${untrustedDirective('red_flags')}
+
 CANDIDATE PROFILE:
 - Required TECH stack (programming languages, frameworks, runtimes — the role must ACTUALLY USE one of these): ${required}
 - Acceptable role types (job category, NOT a tech match by themselves): ${roleTypes}
@@ -219,7 +228,7 @@ location_match = true ONLY when the role is open to the candidate per their loca
 
 tech_match: lowercase tags that intersect what the role uses with the candidate's stack (required + nice-to-have). Empty array if none match.
 
-red_flags: short kebab-case tags such as "wordpress-only", "onsite-required-wrong-city", "junior-level", "eu-only", "uk-only", "contract-only", "low-pay", "no-salary-listed", "stack-mismatch". Empty array if none.
+red_flags: short kebab-case tags such as "wordpress-only", "onsite-required-wrong-city", "junior-level", "eu-only", "uk-only", "contract-only", "low-pay", "no-salary-listed", "stack-mismatch", "${INJECTION_FLAG}". Empty array if none.
 
 summary: ONE sentence (max ~25 words) explaining why it fits or does not.`;
 }
