@@ -250,8 +250,8 @@ Python docx scripts). Decision record: [ADR 0008](./adr/0008-resume-module-in-we
 
 ## 6. UI/UX refactor — adopted from the two external audits (2026-08-29)
 
-Sources: [job-hunter-resume-match-ux-refactor.md](./job-hunter-resume-match-ux-refactor.md)
-and [job-hunter-ui-ux-refactor-plan.md](./job-hunter-ui-ux-refactor-plan.md); every
+Sources: [archive/job-hunter-resume-match-ux-refactor.md](./archive/job-hunter-resume-match-ux-refactor.md)
+and [archive/job-hunter-ui-ux-refactor-plan.md](./archive/job-hunter-ui-ux-refactor-plan.md); every
 claim was verified against the code on `pdf-and-target` before adoption.
 
 Already in place, no action needed: `ui.tsx` primitives, `layout.tsx` tokens (the
@@ -350,3 +350,39 @@ removing the violet accent.
       (`src/web/public/target-page.mjs`, import-smoke-tested)
 - [ ] `take` cap on listMatchesForJob / listMatchesForResume
 - [ ] Screenshot checklist gains 768 × 1024 between the existing 375 / 1200
+
+---
+
+## 7. Feature expansion plan (2026-08-30)
+
+Full plan with per-feature design, re-analysis checklists, test matrices and
+release tags: [docs/feature-expansion-plan.md](./feature-expansion-plan.md).
+Process: one feature = one branch = one annotated tag; mandatory
+re-analysis + improvement pass before implementing; testing-gate before
+every commit; independent implementation only — no code copied from any
+external project, copy-check before merge.
+
+- [x] F1 liveness ladder (free ATS-API checks before AI verify) — v0.3.0
+      (branch `liveness-ladder`, ADR 0016; board-feed-vanish cleanup signal
+      deferred to F4)
+- [ ] F2 fetchers wave 1: Recruitee, Breezy, BambooHR, Pinpoint, Rippling +
+      4dayweek, NoDesk, JustJoin, NoFluffJobs — v0.4.0
+- [ ] F3 SimHash cross-source dedup + URL-key discipline — v0.5.0
+- [ ] F4 source health monitoring (quiet-source card) — v0.6.0
+- [ ] F5 status-transition ledger + funnel/calibration stats — v0.7.0
+- [ ] F6 follow-up cadence with pin/retire/auto-seed in the stale digest — v0.8.0
+- [ ] F7 fact gate (anti-hallucination pure module) — v0.9.0
+- [ ] F8 cover letter generation (job + company analysis, gated by F7) — v0.10.0
+- [ ] F9 golden-eval harness for the AI engine chain — v0.11.0
+- [ ] F10 fetchers wave 2: Getro/Consider/a16z, Arbeitsagentur, Teamtailor,
+      Personio, Jobvite, Gem, join.com — v0.12.0
+- [ ] F11 repost / ghost-job signal for classifier + verify — v0.13.0
+- [ ] F12 untrusted-content fences in every prompt builder — v0.14.0
+- [ ] F13 job trust score (flags, never drops) — v0.15.0
+- [ ] F14 company starter packs (curated seed catalog + bulk probe-add) — v0.16.0
+- [ ] F15 fetch-run observability + filter reason codes — v0.17.0
+- [ ] F16 application email drafts (rides on F8) — v0.18.0
+- [ ] F17 reply classification: paste → classify → stage suggestion — v0.19.0
+- [ ] F18 interview story bank + deterministic question matcher — v0.20.0
+- [ ] F19 salary observations + gap analytics — v0.21.0
+- [ ] ADR 0005 addendum: "Evaluated, not supported" sources table

@@ -184,7 +184,13 @@ normal `Job` under a per-employer `Company` with `atsType = MANUAL`
 (`active = false`, so `runAllFetchers` skips it) and `status = SAVED`,
 then classified against the active profile without touching the status.
 
-"Is this job real?" on `/jobs/:id` runs the ghost-job checklist with web
+"Is this job real?" on `/jobs/:id` first runs the free liveness ladder
+(ADR 0016): rung 1 asks the ATS vendor's public posting API (the five
+tracked vendors), rung 2 fetches the posting page and classifies it with
+strict rule order — every ambiguity resolves to `uncertain`, never
+`expired`. A resolved verdict stops there ($0, seconds) and lands in
+`Job.liveness` / `livenessCode` / `livenessCheckedAt`; the "Deep check"
+button (or an `uncertain` ladder) runs the ghost-job checklist with web
 search (`AiRequest.webTools`, ADR 0009) and stores a `JobVerification`:
 `verdict` legit | suspicious | fake, `recommendation` apply | caution |
 skip, confidence, evidence rows with URLs, red flags, company snapshot.

@@ -7,7 +7,8 @@ import { logger } from '../../logger';
 import { getSettings } from '../../settings';
 import { classifyExistingJob } from '../../jobs/classify-existing';
 import { createManualJob, ManualJobSchema, MIN_DESCRIPTION_CHARS } from '../../jobs/manual-job';
-import { listVerificationsForJob, verifyJob } from '../../verification/verify';
+import { checkLiveness, listVerificationsForJob, verifyJob } from '../../verification/verify';
+import { LIVENESS_CODE_LABEL } from '../../verification/liveness';
 import { JobsListPage } from '../pages/jobs-list';
 import { JobDetailPage } from '../pages/job-detail';
 import { JobNewPage } from '../pages/job-new';
@@ -237,9 +238,32 @@ jobsRoute.post('/jobs/:id/verify', async (c) => {
   if (!Number.isFinite(id)) return c.text('Bad id', 400);
   const job = await prisma.job.findUnique({
     where: { id },
-    include: { company: { select: { name: true } } },
+    include: { company: { select: { name: true, atsType: true, atsToken: true } } },
   });
   if (!job) return c.text('Not found', 404);
+
+  // Rungs 1-2 (ADR 0016): free ATS-API / page checks. A resolved verdict
+  // stops here at $0; `deep=1` (the "Deep check" button) always goes to AI.
+  const form = await c.req.parseBody().catch(() => ({}) as Record<string, unknown>);
+  const deep = form['deep'] === '1';
+  const live = await checkLiveness({
+    id: job.id,
+    url: job.url,
+    externalId: job.externalId,
+    atsType: job.company.atsType,
+    atsToken: job.company.atsToken,
+  });
+  if (!deep && live.liveness !== 'uncertain') {
+    const how = `${LIVENESS_CODE_LABEL[live.code]} (rung ${live.rung}, no AI spent)`;
+    return live.liveness === 'expired'
+      ? flashRedirect(`/jobs/${id}#verification`, 'warn', `Posting looks closed — ${how}.`)
+      : flashRedirect(
+          `/jobs/${id}#verification`,
+          'ok',
+          `Posting is live — ${how}. Deep check runs the full ghost-job analysis.`,
+        );
+  }
+
   const row = await verifyJob({
     id: job.id,
     title: job.title,

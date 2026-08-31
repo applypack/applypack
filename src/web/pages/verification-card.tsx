@@ -5,12 +5,29 @@ import { ActionForm, Badge, Button, Card, Hint, MarkIcon, SectionTitle } from '.
 import type { Tone } from '../format';
 import { formatRelative } from '../format';
 import { readEvidence, type VerificationEvidence } from '../../verification/prompts';
+import { LIVENESS_CODE_LABEL, type LivenessCode } from '../../verification/liveness';
+
+export interface JobLivenessView {
+  liveness: string;
+  code: string;
+  checkedAt: Date;
+}
 
 export interface VerificationCardProps {
   jobId: number;
+  liveness: JobLivenessView | null;
   verification: JobVerification | null;
   verificationCount: number;
 }
+
+const LIVENESS_VIEW: Record<string, { label: string; tone: Tone }> = {
+  active: { label: 'posting live', tone: 'ok' },
+  expired: { label: 'posting closed', tone: 'danger' },
+  uncertain: { label: 'liveness unknown', tone: 'neutral' },
+};
+
+const codeLabel = (code: string): string =>
+  LIVENESS_CODE_LABEL[code as LivenessCode] ?? code;
 
 const VERDICT_TONE: Record<string, Tone> = { legit: 'ok', suspicious: 'warn', fake: 'danger' };
 const RECOMMENDATION_VIEW: Record<string, { label: string; tone: Tone }> = {
@@ -38,6 +55,7 @@ const CHECK_LABEL: Record<VerificationEvidence['check'], string> = {
 
 export const VerificationCard: FC<VerificationCardProps> = ({
   jobId,
+  liveness,
   verification,
   verificationCount,
 }) => (
@@ -46,36 +64,62 @@ export const VerificationCard: FC<VerificationCardProps> = ({
       <div class="flex flex-wrap items-start justify-between gap-3">
         <div class="min-w-0">
           <SectionTitle>Is this job real?</SectionTitle>
-          {verification ? (
+          {liveness || verification ? (
             <div class="flex flex-wrap items-center gap-2">
-              <Badge tone={VERDICT_TONE[verification.verdict] ?? 'neutral'}>
-                {verification.verdict}
-              </Badge>
-              <Badge tone={RECOMMENDATION_VIEW[verification.recommendation]?.tone ?? 'neutral'}>
-                {RECOMMENDATION_VIEW[verification.recommendation]?.label ??
-                  verification.recommendation}
-              </Badge>
-              <span class="text-xs tabular-nums text-ink-faint">
-                {verification.confidence}% confidence
-              </span>
-              <span class="text-xs text-ink-faint">
-                · {formatRelative(verification.createdAt)}
-                {verificationCount > 1 ? ` · ${verificationCount} runs` : ''}
-              </span>
+              {liveness && (
+                <span title={`${codeLabel(liveness.code)} · checked ${formatRelative(liveness.checkedAt)}`}>
+                  <Badge tone={LIVENESS_VIEW[liveness.liveness]?.tone ?? 'neutral'}>
+                    {LIVENESS_VIEW[liveness.liveness]?.label ?? liveness.liveness}
+                  </Badge>
+                </span>
+              )}
+              {verification && (
+                <>
+                  <Badge tone={VERDICT_TONE[verification.verdict] ?? 'neutral'}>
+                    {verification.verdict}
+                  </Badge>
+                  <Badge tone={RECOMMENDATION_VIEW[verification.recommendation]?.tone ?? 'neutral'}>
+                    {RECOMMENDATION_VIEW[verification.recommendation]?.label ??
+                      verification.recommendation}
+                  </Badge>
+                  <span class="text-xs tabular-nums text-ink-faint">
+                    {verification.confidence}% confidence
+                  </span>
+                  <span class="text-xs text-ink-faint">
+                    · {formatRelative(verification.createdAt)}
+                    {verificationCount > 1 ? ` · ${verificationCount} runs` : ''}
+                  </span>
+                </>
+              )}
             </div>
           ) : (
             <Hint>
-              Not checked yet. Verify searches the web for the company's careers page, LinkedIn
-              footprint, reputation and scam signals, then says whether to apply.
+              Not checked yet. Verify first asks the company's job board and the posting page for
+              free; when that is inconclusive, the AI searches the web for careers-page, reputation
+              and scam signals and says whether to apply.
             </Hint>
           )}
         </div>
-        <ActionForm action={`/jobs/${jobId}/verify`}>
-          <Button variant={verification ? 'secondary' : 'violet'} size="sm">
-            {verification ? 'Re-verify' : 'Verify'}
-          </Button>
-        </ActionForm>
+        <div class="flex shrink-0 flex-wrap items-center gap-2">
+          <ActionForm action={`/jobs/${jobId}/verify`}>
+            <Button variant={liveness || verification ? 'secondary' : 'violet'} size="sm">
+              {liveness || verification ? 'Re-check' : 'Verify'}
+            </Button>
+          </ActionForm>
+          {liveness && liveness.liveness !== 'uncertain' && (
+            <ActionForm action={`/jobs/${jobId}/verify`} hidden={{ deep: 1 }}>
+              <Button variant="violet" size="sm">
+                Deep check (AI)
+              </Button>
+            </ActionForm>
+          )}
+        </div>
       </div>
+      {liveness && !verification && (
+        <p class="mt-3 text-sm text-ink-muted">
+          {codeLabel(liveness.code)} · checked {formatRelative(liveness.checkedAt)}.
+        </p>
+      )}
 
       {verification && (
         <div class="mt-4 space-y-4">
@@ -106,7 +150,8 @@ export const VerificationCard: FC<VerificationCardProps> = ({
       )}
       {!verification && (
         <Hint class="mt-3">
-          Takes 2-4 minutes — the model searches and reads pages before answering.
+          The free checks answer in seconds; the AI deep check searches and reads pages for 2-4
+          minutes before answering.
         </Hint>
       )}
     </Card>

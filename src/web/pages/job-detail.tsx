@@ -45,6 +45,9 @@ interface JobDetail {
   recruiterContact: string | null;
   applicationNotes: string | null;
   priorityRulesApplied: string[];
+  liveness: string | null;
+  livenessCode: string | null;
+  livenessCheckedAt: Date | null;
 }
 
 export interface JobDetailProps {
@@ -178,6 +181,11 @@ export const JobDetailPage: FC<JobDetailProps> = ({
 
         <VerificationCard
           jobId={job.id}
+          liveness={
+            job.liveness && job.livenessCode && job.livenessCheckedAt
+              ? { liveness: job.liveness, code: job.livenessCode, checkedAt: job.livenessCheckedAt }
+              : null
+          }
           verification={verification}
           verificationCount={verificationCount}
         />

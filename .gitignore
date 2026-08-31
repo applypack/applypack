@@ -27,6 +27,16 @@ prisma/*.db-journal
 .claude/**/.cache/
 .claude/**/*.tmp
 
+# Third-party material pulled in for analysis — never ours, never committed
+docs/external/
+
+# Local-only compose overrides
+docker-compose.override.yml
+
+# Keys beyond .env
+*.pem
+*.key
+
 # OS / editors
 .DS_Store
 Thumbs.db
