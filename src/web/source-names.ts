@@ -26,6 +26,7 @@ const SOURCE_NAMES: Record<string, string> = {
   BAMBOOHR: 'BambooHR',
   PINPOINT: 'Pinpoint',
   RIPPLING: 'Rippling',
+  FOURDAYWEEK: '4 Day Week',
   MANUAL: 'Manual',
 };
 

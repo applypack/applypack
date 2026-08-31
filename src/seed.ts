@@ -247,6 +247,16 @@ const SEED_COMPANIES: SeedCompany[] = [
     careerUrl: 'https://www.workingnomads.com/jobs',
   },
 
+  // 4 Day Week (F2) — global aggregator of 4-day-week jobs via the
+  // robots-allowed /api/v2 endpoint; 25/page newest-first, fetcher caps
+  // at 3 pages. Salary folded into the description (minor units ÷100).
+  {
+    name: '4 Day Week',
+    atsType: AtsType.FOURDAYWEEK,
+    atsToken: 'fourdayweek',
+    careerUrl: 'https://4dayweek.io',
+  },
+
   // Himalayas — free no-auth JSON API, 20 newest cross-company postings
   // per call across ALL categories (tech + Legal/Sales/…; base filter
   // culls). Carries structured salary + seniority that we fold into the
