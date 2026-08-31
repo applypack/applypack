@@ -48,7 +48,9 @@ one extra GET per user click does not change that posture.
 `state`, SR `active`) — a vendor changing payload shape degrades to
 `uncertain`, never to a wrong `expired`
 ❌ deferred: marking jobs `expired` when they vanish from a polled board
-feed (worker-side; design together with F4 source health)
+feed (worker-side; design together with F4 source health) — designed in
+[ADR 0019](./0019-source-health-streaks.md) and deferred again, with the
+gate written down there (list-completeness assertion)
 
 ## When to revisit
 
