@@ -204,8 +204,11 @@ src/
     index.ts                   ← runAllFetchers + fetchOne switch
     {greenhouse,lever,ashby}.ts          per-company JSON fetchers
     {workable,smartrecruiters}.ts        per-company JSON fetchers
+    {recruitee,breezy,bamboohr,pinpoint}.ts  per-company JSON fetchers (F2)
+    rippling.ts                          per-company list + detail (F2)
     larajobs.ts                          single RSS feed
     {remoteok,remotive,arbeitnow}.ts     aggregator JSON
+    fourdayweek.ts                       aggregator JSON, paginated v2 API (F2)
     weworkremotely.ts                    per-category RSS (atsToken = category slug)
     golangprojects.ts                    single RSS feed
     hn-hiring.ts                         Algolia API + comment fetch

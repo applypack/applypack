@@ -365,8 +365,11 @@ external project, copy-check before merge.
 - [x] F1 liveness ladder (free ATS-API checks before AI verify) — v0.3.0
       (branch `liveness-ladder`, ADR 0016; board-feed-vanish cleanup signal
       deferred to F4)
-- [ ] F2 fetchers wave 1: Recruitee, Breezy, BambooHR, Pinpoint, Rippling +
-      4dayweek, NoDesk, JustJoin, NoFluffJobs — v0.4.0
+- [x] F2 fetchers wave 1 — v0.4.0 (branch `fetchers-wave-1`): Recruitee,
+      Breezy, BambooHR, Pinpoint, Rippling + 4dayweek (via the
+      robots-allowed `/api/v2`). NoDesk, JustJoin, NoFluffJobs rejected
+      at re-analysis on robots grounds → ADR 0005 addendum. Salary
+      decision: v1 folds salary into description text (F19 revisits)
 - [ ] F3 SimHash cross-source dedup + URL-key discipline — v0.5.0
 - [ ] F4 source health monitoring (quiet-source card) — v0.6.0
 - [ ] F5 status-transition ledger + funnel/calibration stats — v0.7.0
@@ -385,4 +388,5 @@ external project, copy-check before merge.
 - [ ] F17 reply classification: paste → classify → stage suggestion — v0.19.0
 - [ ] F18 interview story bank + deterministic question matcher — v0.20.0
 - [ ] F19 salary observations + gap analytics — v0.21.0
-- [ ] ADR 0005 addendum: "Evaluated, not supported" sources table
+- [x] ADR 0005 addendum: "Evaluated, not supported" sources table
+      (done with F2, 2026-08-31)
