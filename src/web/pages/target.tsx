@@ -27,7 +27,7 @@ import { ACCEPTED_EXTENSIONS } from '../../resume/resume-text';
  * match (keywords, actions, removals) is the fixed frame the live score works
  * within — "Re-analyze with AI" sends the edited text back to Claude.
  *
- * Layout rule (external UX audit, docs/archive/job-hunter-resume-match-ux-refactor.md):
+ * Layout rule (external UX audit, docs/archive/applypack-resume-match-ux-refactor.md):
  * everything needed for a decision — score, hard-requirement gates, confirm
  * questions — sits above the tabs. The Suggestions tab pairs the advice
  * column with the editor, so clicking a suggestion selects its text in place

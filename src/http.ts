@@ -1,6 +1,6 @@
 const DEFAULT_TIMEOUT_MS = 10_000;
 const RETRY_DELAYS_MS = [1_000, 3_000];
-export const DEFAULT_USER_AGENT = 'job-hunter/0.1 (+https://github.com/nazboyko/job-hunter)';
+export const DEFAULT_USER_AGENT = 'applypack/0.11 (+https://github.com/nazboyko/applypack)';
 
 export interface FetchOptions {
   timeoutMs?: number;

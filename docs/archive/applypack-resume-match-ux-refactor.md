@@ -1,4 +1,4 @@
-# Job Hunter — Resume Match / Targeted Resume UX Refactor Plan
+# ApplyPack — Resume Match / Targeted Resume UX Refactor Plan
 
 ## Purpose
 
@@ -13,7 +13,7 @@ The goal is to make the page:
 - less visually noisy;
 - clearer about what is current, what is historical, what is editable, and what still needs AI analysis;
 - safer around unsupported resume claims;
-- more consistent with the rest of the Job Hunter product;
+- more consistent with the rest of the ApplyPack product;
 - easier to maintain with reusable UI patterns.
 
 This is not primarily a visual-polish task.
@@ -1835,7 +1835,7 @@ Use this as the main prompt for the coding agents.
 
 ## Prompt
 
-You are refactoring the Resume Match / targeted-resume experience in the Job Hunter project.
+You are refactoring the Resume Match / targeted-resume experience in the ApplyPack project.
 
 Your task is to make the page significantly more understandable, readable, trustworthy and easy to use without unnecessarily changing business logic.
 
@@ -2253,7 +2253,7 @@ Before completion:
 4. verify there is one obvious next action;
 5. verify history/debug details no longer dominate;
 6. verify unsupported claims cannot be accidentally applied;
-7. verify visual and interaction consistency with the rest of Job Hunter.
+7. verify visual and interaction consistency with the rest of ApplyPack.
 
 ### Final deliverable
 

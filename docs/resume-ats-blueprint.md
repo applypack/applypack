@@ -1,4 +1,4 @@
-# Job Hunter — Advanced Resume ↔ Job Matching & ATS Analysis Blueprint
+# ApplyPack — Advanced Resume ↔ Job Matching & ATS Analysis Blueprint
 
 **Version:** 1.0  
 **Date:** 2026-08-28  
@@ -3480,7 +3480,7 @@ The upgraded analyzer should not be considered complete until:
 Use this only after Claude Code has inspected the repository.
 
 ```text
-Upgrade the existing Job Hunter resume-vs-job analysis engine using the
+Upgrade the existing ApplyPack resume-vs-job analysis engine using the
 architecture described in this blueprint.
 
 Do not replace working application architecture unnecessarily.
@@ -3594,7 +3594,7 @@ At the end, document:
 After implementation, use a separate session:
 
 ```text
-Act as an adversarial QA engineer for the Job Hunter resume-job matcher.
+Act as an adversarial QA engineer for the ApplyPack resume-job matcher.
 
 Do NOT assume the new analyzer is correct.
 

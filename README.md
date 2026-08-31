@@ -1,20 +1,20 @@
 <div align="center">
 
-# job-hunter
+# ApplyPack
 
-**A self-hosted AI job hunter: it reads the boards so you don't have to.**
+**A self-hosted AI console for the whole job search: it reads the boards so you don't have to, then helps you apply well.**
 
-[![CI](https://github.com/nazboyko/job-hunter/actions/workflows/test.yml/badge.svg)](https://github.com/nazboyko/job-hunter/actions/workflows/test.yml)
+[![CI](https://github.com/nazboyko/applypack/actions/workflows/test.yml/badge.svg)](https://github.com/nazboyko/applypack/actions/workflows/test.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 [![Node 24](https://img.shields.io/badge/node-%3E%3D22-339933?logo=node.js&logoColor=white)](./package.json)
 [![TypeScript strict](https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white)](./tsconfig.json)
-[![Release](https://img.shields.io/github/v/release/nazboyko/job-hunter?display_name=tag)](./CHANGELOG.md)
+[![Release](https://img.shields.io/github/v/release/nazboyko/applypack?display_name=tag)](./CHANGELOG.md)
 
 [Quick start](#quick-start) · [What you get](#what-you-get) ·
 [How it works](#how-it-works) · [Bring your own AI](#bring-your-own-ai) ·
 [What it costs](#what-it-costs) · [Contributing](#contributing)
 
-<img src="docs/screenshots/target.png" alt="Resume match: deterministic 81/100 score with primary-stack verdict, experience confirmations, and the side-by-side editor with keyword highlights" width="900">
+<img src="docs/screenshots/target.png" alt="Resume match: deterministic 82/100 score with primary-stack verdict, experience confirmations, and the side-by-side editor with keyword highlights" width="900">
 
 <sub>The targeted editor: an honest, deterministic resume-vs-posting score,
 one-click experience confirmations, live keyword highlights.</sub>
@@ -25,7 +25,7 @@ You know what you're looking for. The boards keep showing you everything
 else, and every "Senior Engineer" listing takes three minutes of reading
 to reveal the wrong stack, the wrong country, or a ghost posting.
 
-job-hunter does that reading for you. It watches 16 job sources around
+ApplyPack does that reading for you. It watches 22 job sources around
 the clock, scores each posting against your real profile, and pings your
 Telegram only when something deserves an application. Then it helps you
 apply well: it checks whether the job is real, scores your resume against
@@ -39,7 +39,7 @@ $5 VPS is the whole deployment story.
 
 | | |
 | --- | --- |
-| 🔭 **16 sources, checked hourly** | Greenhouse / Lever / Ashby / Workable / SmartRecruiters boards you pick, plus 11 aggregators and the monthly HN "Who is hiring" thread |
+| 🔭 **22 sources, checked hourly** | Ten ATS vendors — Greenhouse, Lever, Ashby, Workable, SmartRecruiters, Recruitee, Breezy, BambooHR, Pinpoint, Rippling — on the boards you pick, plus 11 aggregators and the monthly HN "Who is hiring" thread |
 | 🧠 **A classifier with strict rules** | AI reads the full description against your stack, role types, seniority, regions and salary floor. "Full-stack" in a title is not a tech match, and "Remote · Germany" is not a US-remote job |
 | 📲 **Telegram instead of tab-refreshing** | alerts above your fit threshold, a daily digest, and a nudge when an application goes quiet for two weeks |
 | 🕵️ **Ghost-job verification** | a live web-search checklist (careers page, company footprint, posting age, named humans) returns `legit` / `suspicious` / `fake` with evidence URLs |
@@ -53,8 +53,8 @@ $5 VPS is the whole deployment story.
 ## Quick start
 
 ```bash
-git clone https://github.com/nazboyko/job-hunter.git
-cd job-hunter
+git clone https://github.com/nazboyko/applypack.git
+cd applypack
 cp .env.example .env    # add one AI engine, see below
 docker compose up -d    # postgres + worker + dashboard → http://localhost:4747
 ```
@@ -132,7 +132,7 @@ green. Details per engine in [docs/ai-engines.md](./docs/ai-engines.md).
 ## How it works
 
 ```
- 16 sources ──▶ normalize ──▶ base filter ──▶ AI classifier ──▶ Postgres ──▶ Telegram
+ 22 sources ──▶ normalize ──▶ base filter ──▶ AI classifier ──▶ Postgres ──▶ Telegram
    hourly        + dedupe      pure code,      your profile,     dashboard    only when
    fetch                       zero cost       strict rules                   fit ≥ threshold
 ```
@@ -170,7 +170,7 @@ the aggregators; your profile keeps it quiet.
 
 ## Bring your own AI
 
-Instead of one hard-coded API key, job-hunter speaks to **five AI
+Instead of one hard-coded API key, ApplyPack speaks to **five AI
 backends**, and you can attach every subscription and key you own:
 
 | Engine | What it is | Billing |
@@ -310,7 +310,7 @@ Three good entry points:
   one-file change: CLAUDE.md ships three copy-paste fetcher templates
   (single RSS, per-company JSON, list + detail). Propose the source in an
   issue first if you're unsure it fits the sourcing policy.
-- **Grab a [good first issue](https://github.com/nazboyko/job-hunter/labels/good%20first%20issue).**
+- **Grab a [good first issue](https://github.com/nazboyko/applypack/labels/good%20first%20issue).**
   Scoped tasks with file pointers.
 - **Break it and report.** A fresh-machine setup that stumbled, an ATS
   edge case, a resume that parses badly: issues with logs are gold.
@@ -320,8 +320,8 @@ setup, tests and conventions. The sourcing policy is non-negotiable:
 official public APIs and RSS only, never scraping
 ([ADR 0005](./docs/adr/0005-no-linkedin-indeed-workday.md)).
 
-<a href="https://github.com/nazboyko/job-hunter/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=nazboyko/job-hunter" alt="Contributors" />
+<a href="https://github.com/nazboyko/applypack/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=nazboyko/applypack" alt="Contributors" />
 </a>
 
 ## License

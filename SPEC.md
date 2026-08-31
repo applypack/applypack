@@ -1,4 +1,4 @@
-# Job Hunter — Spec (current state)
+# ApplyPack — Spec (current state)
 
 > Compact spec for the **current** system. Phase 1 spec is preserved as
 > [SPEC-phase1.md](./SPEC-phase1.md) for historical context.

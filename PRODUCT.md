@@ -1,4 +1,4 @@
-# PRODUCT.md — job-hunter
+# PRODUCT.md — ApplyPack
 
 Durable product truth for design work. Pair with [SPEC.md](./SPEC.md) (state) and
 [ARCHITECTURE.md](./ARCHITECTURE.md) (structure); this file only holds what design
@@ -27,7 +27,7 @@ persuades or markets; every screen serves a task.
 
 ## Brand commitments (standing)
 
-- Name: **Job Hunter**; mark: emerald square with "JH".
+- Name: **ApplyPack**; mark: emerald square with "AP".
 - **Emerald is the single brand accent** (#059669 family). Status vocabulary:
   New=blue, Alerted=amber, Applied=emerald, Saved=violet, Dismissed=gray — quiet
   tinted pills, never saturated fills.

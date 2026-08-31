@@ -47,7 +47,7 @@ if (config.WEB_BASIC_AUTH) {
       basicAuth({
         username,
         password,
-        realm: 'job-hunter',
+        realm: 'applypack',
       }),
     );
     logger.info({ user: username }, 'web: basic auth enabled');

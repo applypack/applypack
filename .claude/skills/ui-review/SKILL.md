@@ -1,6 +1,6 @@
 ---
 name: ui-review
-description: Senior UI/UX review of a job-hunter dashboard page, screenshot, or primitive. Use when asked to critique, audit, or find improvements in the dashboard. Produces prioritized findings, never code.
+description: Senior UI/UX review of an ApplyPack dashboard page, screenshot, or primitive. Use when asked to critique, audit, or find improvements in the dashboard. Produces prioritized findings, never code.
 ---
 
 # UI Review

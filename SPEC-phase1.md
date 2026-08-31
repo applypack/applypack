@@ -1,4 +1,4 @@
-# Job Hunter — Spec
+# ApplyPack — Spec
 
 ## Goal
 Local Docker-based worker that monitors Greenhouse, Lever, and LaraJobs for

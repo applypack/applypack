@@ -1,13 +1,13 @@
 {
-  "name": "job-hunter",
+  "name": "applypack",
   "version": "0.11.0",
   "private": true,
-  "description": "Self-hosted AI job hunter: monitors 16 ATS / aggregator sources, classifies postings with Claude against your profile, verifies ghost jobs, matches your resume, alerts via Telegram.",
+  "description": "Self-hosted AI console for the whole job search: finds the postings, checks they're real, scores your resume without flattering it, drafts the cover letter, tracks the application. 22 sources, 5 swappable AI backends, your data in your own Postgres.",
   "license": "MIT",
   "author": "Nazar Boyko (https://github.com/nazboyko)",
   "repository": {
     "type": "git",
-    "url": "https://github.com/nazboyko/job-hunter.git"
+    "url": "https://github.com/nazboyko/applypack.git"
   },
   "engines": {
     "node": ">=22"

@@ -3,6 +3,8 @@ services:
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
+      # Legacy credentials kept on purpose: renaming the role and database
+      # would force a dump/restore on every existing deployment.
       POSTGRES_USER: jobhunter
       POSTGRES_PASSWORD: jobhunter
       POSTGRES_DB: jobhunter

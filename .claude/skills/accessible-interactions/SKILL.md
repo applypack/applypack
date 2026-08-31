@@ -1,6 +1,6 @@
 ---
 name: accessible-interactions
-description: Keyboard, focus, ARIA and reduced-motion rules for every interactive element in the job-hunter dashboard (forms, tables, toggles, action buttons). Read before building or modifying any button, form, table or navigation.
+description: Keyboard, focus, ARIA and reduced-motion rules for every interactive element in the ApplyPack dashboard (forms, tables, toggles, action buttons). Read before building or modifying any button, form, table or navigation.
 ---
 
 # Accessible Interactions

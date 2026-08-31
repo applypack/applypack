@@ -170,10 +170,10 @@ export const Layout: FC<PropsWithChildren<LayoutProps>> = ({
       <meta charset="utf-8" />
       <meta name="viewport" content="width=device-width, initial-scale=1" />
       {refresh && <meta http-equiv="refresh" content={String(refresh)} />}
-      <title>{title} · Job Hunter</title>
+      <title>{title} · ApplyPack</title>
       <link
         rel="icon"
-        href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23059669'/%3E%3Ctext x='16' y='21.5' font-family='system-ui,sans-serif' font-size='13' font-weight='600' fill='white' text-anchor='middle'%3EJH%3C/text%3E%3C/svg%3E"
+        href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23059669'/%3E%3Ctext x='16' y='21.5' font-family='system-ui,sans-serif' font-size='13' font-weight='600' fill='white' text-anchor='middle'%3EAP%3C/text%3E%3C/svg%3E"
       />
       <link rel="preconnect" href="https://fonts.googleapis.com" />
       <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
@@ -278,11 +278,11 @@ const NavLink: FC<{ item: { key: NavKey; href: string; label: string }; active?:
 const Sidebar: FC<{ active?: NavKey }> = ({ active }) => (
   <aside class="app-sidebar flex h-full shrink-0 flex-col border-r border-line bg-surface md:w-16 lg:w-60">
     <div class="flex h-14 shrink-0 items-center gap-2.5 px-4 md:justify-center md:px-0 lg:justify-start lg:px-4">
-      <a href="/" class="flex items-center gap-2.5" title="Job Hunter">
+      <a href="/" class="flex items-center gap-2.5" title="ApplyPack">
         <span class="grid h-7 w-7 shrink-0 place-items-center rounded-md bg-accent text-xs font-semibold text-white">
-          JH
+          AP
         </span>
-        <span class="text-sm font-semibold tracking-tight md:hidden lg:block">Job Hunter</span>
+        <span class="text-sm font-semibold tracking-tight md:hidden lg:block">ApplyPack</span>
       </a>
     </div>
     <nav aria-label="Primary" class="flex-1 space-y-0.5 overflow-y-auto px-3 py-2 md:px-2.5 lg:px-3">
@@ -323,8 +323,8 @@ const MobileBar: FC = () => (
       </svg>
     </button>
     <span class="grid h-7 w-7 place-items-center rounded-md bg-accent text-xs font-semibold text-white">
-      JH
+      AP
     </span>
-    <span class="text-sm font-semibold tracking-tight">Job Hunter</span>
+    <span class="text-sm font-semibold tracking-tight">ApplyPack</span>
   </header>
 );
