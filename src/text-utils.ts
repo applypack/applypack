@@ -14,6 +14,85 @@ export function hashShortId(input: string): string {
 }
 
 /**
+ * Query parameters that identify a *campaign*, not a posting. Two links that
+ * differ only here are the same job, so they must hash to the same id.
+ * Literal names (plus the `utm_` family) — never a broad pattern, which would
+ * eventually eat a functional parameter like Greenhouse's `gh_jid`.
+ */
+const TRACKING_PARAMS = new Set([
+  'gh_src',
+  'fbclid',
+  'gclid',
+  'mc_cid',
+  'mc_eid',
+  '_hsenc',
+  '_hsmi',
+  'trk',
+  'trkCampaign',
+  'ref',
+  'source',
+]);
+
+/**
+ * A URL reduced to what identifies the posting: no tracking parameters, no
+ * fragment, lower-cased host, sorted query. Returns **null** — never `''` —
+ * for junk, so callers cannot collapse unrelated rows onto one shared key.
+ */
+export function normalizeUrlKey(input: string | null | undefined): string | null {
+  if (typeof input !== 'string') return null;
+  const trimmed = input.trim();
+  if (trimmed.length === 0) return null;
+
+  let url: URL;
+  try {
+    url = new URL(trimmed);
+  } catch {
+    return null;
+  }
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') return null;
+
+  const kept = [...url.searchParams.entries()]
+    .filter(([k]) => !TRACKING_PARAMS.has(k) && !k.toLowerCase().startsWith('utm_'))
+    // Sorted so two orderings of the same parameters agree.
+    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+
+  const query = kept.map(([k, v]) => `${k}=${v}`).join('&');
+  const path = url.pathname.replace(/\/+$/, '');
+  return `${url.host.toLowerCase()}${path}${query ? `?${query}` : ''}`;
+}
+
+/**
+ * Free text reduced to a comparable key. NFKC then letters/marks/digits in
+ * **any** script — an ASCII-only strip would map every Cyrillic or CJK
+ * company name to the empty string and collide them all. Null for junk.
+ */
+export function normalizeTextKey(input: string | null | undefined): string | null {
+  if (typeof input !== 'string') return null;
+  const tokens = input.normalize('NFKC').toLowerCase().match(/[\p{L}\p{M}\p{N}]+/gu);
+  if (!tokens || tokens.length === 0) return null;
+  return tokens.join(' ');
+}
+
+/**
+ * Stable externalId for a feed row that carries no id of its own: the
+ * normalized URL if there is one, else title + company. Null when neither
+ * yields anything — the caller must skip the row rather than hash `''`,
+ * which would merge every junk row into one.
+ */
+export function feedItemKey(
+  url: string | null | undefined,
+  ...textParts: Array<string | null | undefined>
+): string | null {
+  const urlKey = normalizeUrlKey(url);
+  if (urlKey !== null) return hashShortId(urlKey);
+  const text = textParts
+    .map((p) => normalizeTextKey(p))
+    .filter((p): p is string => p !== null)
+    .join('|');
+  return text.length > 0 ? hashShortId(text) : null;
+}
+
+/**
  * Parses a textarea value into a list of trimmed tags. Accepts both newline
  * and comma separators. Empty entries are dropped.
  */

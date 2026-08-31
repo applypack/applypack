@@ -2,6 +2,9 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   daysSince,
+  feedItemKey,
+  normalizeTextKey,
+  normalizeUrlKey,
   decideStageStrategy,
   extractAtsToken,
   extractJson,
@@ -326,4 +329,57 @@ describe('daysSince', () => {
   it('returns 15 for 15 days', () => {
     assert.equal(daysSince(new Date('2026-04-12T12:00:00Z'), NOW), 15);
   });
+});
+
+describe('url and text keys', () => {
+  it('normalizeUrlKey strips tracking params but keeps functional ones', () => {
+  assert.equal(
+    normalizeUrlKey('https://job-boards.greenhouse.io/acme/jobs/42?gh_jid=42&utm_source=x&gh_src=abc'),
+    'job-boards.greenhouse.io/acme/jobs/42?gh_jid=42',
+  );
+  assert.equal(
+    normalizeUrlKey('http://block.xyz/careers/jobs/5367290008?gh_jid=5367290008'),
+    'block.xyz/careers/jobs/5367290008?gh_jid=5367290008',
+  );
+  });
+
+  it('normalizeUrlKey folds away differences that do not identify a posting', () => {
+  const canonical = normalizeUrlKey('https://Example.com/jobs/7/?b=2&a=1');
+  assert.equal(canonical, 'example.com/jobs/7?a=1&b=2');
+  // Same posting, different ordering, trailing slash, fragment and campaign.
+  assert.equal(normalizeUrlKey('https://example.com/jobs/7?a=1&b=2#apply'), canonical);
+  assert.equal(normalizeUrlKey('https://example.com/jobs/7?utm_medium=cpc&b=2&a=1'), canonical);
+  });
+
+  it('normalizeUrlKey returns null for junk, never an empty string', () => {
+  for (const junk of ['', '   ', 'n/a', 'N/A', 'javascript:alert(1)', null, undefined]) {
+    assert.equal(normalizeUrlKey(junk), null, `expected null for ${JSON.stringify(junk)}`);
+  }
+  });
+
+  it('normalizeTextKey keeps non-Latin names distinct', () => {
+  assert.equal(normalizeTextKey('  Acme,  Inc. '), 'acme inc');
+  assert.notEqual(normalizeTextKey('Розробник'), normalizeTextKey('Дизайнер'));
+  assert.equal(normalizeTextKey('Розробник'), 'розробник');
+  assert.equal(normalizeTextKey('株式会社テスト'), '株式会社テスト');
+  // Precomposed letters survive: NFKC must not decompose-then-strip.
+  assert.equal(normalizeTextKey('Żółć ėė'), 'żółć ėė');
+  assert.equal(normalizeTextKey('!!!'), null);
+  assert.equal(normalizeTextKey(''), null);
+  });
+
+  it('feedItemKey prefers the URL and falls back to text', () => {
+  const withUrl = feedItemKey('https://example.com/jobs/7?utm_source=x', 'Title', 'Acme');
+  assert.equal(withUrl, feedItemKey('https://example.com/jobs/7', 'Different', 'Names'));
+  const fromText = feedItemKey('', 'Backend Engineer', 'Acme');
+  assert.equal(fromText, feedItemKey(null, 'backend  engineer!', 'ACME'));
+  assert.notEqual(fromText, withUrl);
+  });
+
+  it('feedItemKey returns null when nothing identifies the row', () => {
+  assert.equal(feedItemKey('', '', ''), null);
+  assert.equal(feedItemKey(null, null), null);
+  assert.equal(feedItemKey('n/a', '!!!'), null);
+  });
+
 });

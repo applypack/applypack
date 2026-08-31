@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { fetchWithRetry, stripHtml } from '../http';
-import { hashShortId } from '../text-utils';
+import { feedItemKey } from '../text-utils';
 import type { NormalizedJob } from '../types';
 
 const ENDPOINT = 'https://www.workingnomads.com/api/exposed_jobs/';
@@ -51,17 +51,21 @@ export function mapWorkingNomadsFeed(
   for (const item of top.data) {
     const parsed = WorkingNomadsJobSchema.safeParse(item);
     if (!parsed.success) continue;
-    out.push(toNormalized(parsed.data, companyId));
+    const job = toNormalized(parsed.data, companyId);
+    // Nothing identifies this row — skip it rather than hash '' and merge
+    // every such row onto one shared id.
+    if (job) out.push(job);
   }
   return out;
 }
 
-function toNormalized(j: WorkingNomadsJob, companyId: number): NormalizedJob {
+function toNormalized(j: WorkingNomadsJob, companyId: number): NormalizedJob | null {
   // Job URLs look like https://www.workingnomads.com/job/go/1818986/ —
   // the numeric segment is the stable posting id.
   const externalId =
     /\/job\/go\/(\d+)/.exec(j.url)?.[1] ??
-    hashShortId(`${j.url}|${j.title}|${j.company_name ?? ''}`);
+    feedItemKey(j.url, j.title, j.company_name);
+  if (!externalId) return null;
   const postedAt = j.pub_date ? new Date(j.pub_date) : new Date();
   return {
     companyId,

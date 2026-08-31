@@ -12,12 +12,12 @@ describe('mapLarajobsItem', () => {
       pubDate: 'Thu, 16 Apr 2026 15:01:42 +0000',
       jobLocation: 'United States/Remote (USA Only)',
     };
-    const job = mapLarajobsItem(item, COMPANY_ID);
+    const job = mustmapLarajobsItem(item, COMPANY_ID);
     assert.equal(job.location, 'United States/Remote (USA Only)');
   });
 
   it('falls back to "Remote" when <job:location> is missing or empty', () => {
-    const a = mapLarajobsItem(
+    const a = mustmapLarajobsItem(
       {
         title: 'X',
         link: 'https://larajobs.com/job/1',
@@ -27,7 +27,7 @@ describe('mapLarajobsItem', () => {
     );
     assert.equal(a.location, 'Remote');
 
-    const b = mapLarajobsItem(
+    const b = mustmapLarajobsItem(
       {
         title: 'X',
         link: 'https://larajobs.com/job/1',
@@ -40,7 +40,7 @@ describe('mapLarajobsItem', () => {
   });
 
   it('embeds salary / company / tags / type into description', () => {
-    const job = mapLarajobsItem(
+    const job = mustmapLarajobsItem(
       {
         title: 'Senior Laravel/Vue Engineer',
         link: 'https://larajobs.com/job/3869',
@@ -62,7 +62,7 @@ describe('mapLarajobsItem', () => {
   });
 
   it('preserves original description when no custom fields present', () => {
-    const job = mapLarajobsItem(
+    const job = mustmapLarajobsItem(
       {
         title: 'Senior Laravel Developer',
         link: 'https://larajobs.com/job/1',
@@ -75,7 +75,7 @@ describe('mapLarajobsItem', () => {
   });
 
   it('handles empty contentSnippet without crashing', () => {
-    const job = mapLarajobsItem(
+    const job = mustmapLarajobsItem(
       {
         title: 'X',
         link: 'https://larajobs.com/job/1',
@@ -89,7 +89,7 @@ describe('mapLarajobsItem', () => {
   });
 
   it('uses guid for externalId when present', () => {
-    const job = mapLarajobsItem(
+    const job = mustmapLarajobsItem(
       {
         title: 'X',
         link: 'https://larajobs.com/job/3869',
@@ -102,7 +102,7 @@ describe('mapLarajobsItem', () => {
   });
 
   it('synthesises a stable externalId from link when guid is absent', () => {
-    const job = mapLarajobsItem(
+    const job = mustmapLarajobsItem(
       {
         title: 'X',
         link: 'https://larajobs.com/job/3869',
@@ -114,3 +114,22 @@ describe('mapLarajobsItem', () => {
     assert.match(job.externalId, /^[0-9a-f]{16}$/);
   });
 });
+
+describe('mapLarajobsItem keying', () => {
+  it('drops a row that nothing identifies', () => {
+  // No guid, no link, no title: hashing '' would give every such row the
+  // same externalId and merge them into one job.
+    assert.equal(mapLarajobsItem({ link: '', title: '' }, COMPANY_ID), null);
+    assert.equal(mapLarajobsItem({}, COMPANY_ID), null);
+  // A link alone is enough to key it.
+    assert.ok(mapLarajobsItem({ link: 'https://larajobs.com/job/7' }, COMPANY_ID));
+  });
+});
+
+/** The mapper returns null only for rows nothing identifies; every fixture
+ *  here is keyable, so assert that before the per-field checks. */
+function mustmapLarajobsItem(...args: Parameters<typeof mapLarajobsItem>): NonNullable<ReturnType<typeof mapLarajobsItem>> {
+  const job = mapLarajobsItem(...args);
+  assert.ok(job, 'expected the fixture to map to a job');
+  return job;
+}
