@@ -51,6 +51,9 @@
 ## File rules
 - Each fetcher returns `NormalizedJob[]` — never writes to DB directly.
 - `filter.ts` is pure — no I/O.
+- `apply-link.ts` is pure — no I/O. It flags apply links, never rejects a
+  row, and the company name is deliberately not an input (ADR 0023).
+  `withApplyLinkFlags` is called at every site that persists `redFlags`.
 - `classifier.ts` (and `classifier-prefilter.ts`) build prompts and parse
   replies; the only thing that talks to the AI is `ai-provider.ts` — no DB.
   Engine choice (provider + models) resolves per call via `ai-runtime.ts`
@@ -135,6 +138,7 @@ When the question is **"where does X live?"**, save yourself a `find`:
 | Pure helpers (parsing, hashing, masking) | `src/text-utils.ts` |
 | Near-duplicate detection across sources (SimHash, Hamming) | `src/fingerprint.ts` (ADR 0018); wired in `jobs/process-jobs.ts` |
 | Per-source health (error→status, failure streak, quiet/silent) | `src/fetchers/source-health.ts` (pure, ADR 0019); recorded by the wrapper in `fetchers/index.ts:runAllFetchers` |
+| Apply-link flags (missing / unusable / shortened / not-an-application) | `src/apply-link.ts` (pure, ADR 0023); merged into `Job.redFlags` at all three persist paths |
 | Stable id for a feed row with no id of its own | `src/text-utils.ts:feedItemKey` (URL key → text key → null, never `''`) |
 | The cron list (6 schedules) | `src/index.ts:registerCron` |
 | What runs on container boot | `src/init.ts` |
@@ -422,6 +426,7 @@ Always:
 | psql into the DB | `docker compose exec postgres psql -U jobhunter -d jobhunter` |
 | Re-clean stored descriptions (rows with leftover markup) | `docker compose exec app node dist/scripts/backfill-descriptions.js --dry-run`, then without the flag |
 | Fingerprint existing jobs + link cross-listings | `docker compose exec app node dist/scripts/backfill-fingerprints.js --dry-run`, then without the flag |
+| Flag apply links on already-stored jobs | `docker compose exec app node dist/scripts/backfill-apply-link-flags.js --dry-run`, then without the flag |
 | Re-pull descriptions from the boards (structure lost) | `docker compose exec app node dist/scripts/refetch-descriptions.js --dry-run`, then without the flag |
 | Migrate after a schema change | `DATABASE_URL=… npx prisma migrate dev --name <name>` |
 | Re-classify everything against the active profile | UI: `/settings` → "Re-classify all jobs" |

@@ -447,6 +447,28 @@ external project, copy-check before merge.
       model" slot (role `cover`, empty inherits resume); edits autosave
       (Save button becomes the no-JS fallback); PDF/DOCX became labelled
       "Save as" buttons
+- [x] F13 job trust score — v0.11.0 (branch `trust-score`, ADR 0023).
+      Re-analysis killed the score: measured on all 814 stored jobs, three of
+      the plan's four penalties are wrong for our data. `http://` marks 22.7%
+      of the corpus and all 185 rows are one host, `block.xyz`, whose
+      `absolute_url` Greenhouse itself serves and which 301s to https; the
+      missing-URL penalty hits only `MANUAL` rows (all 13, pasted by hand, 0
+      fetched); the company↔apply-domain mismatch yields 0 / 26 / 302 (37%)
+      depending on a string-matching detail, the 26 being 100% `HN_HIRING`
+      and false by construction — an HN posting's company row IS the
+      aggregator, the same trap ADR 0018 named. The non-Latin exemption
+      protects 0 rows: the only non-ASCII company names are our own
+      `WeWorkRemotely ·` rows and the character is a middle dot. Underneath,
+      the premise fails too — every classic scam marker (Telegram/WhatsApp
+      apply, application fee, crypto, "no experience needed", free-email
+      contact) returns 0/814, because ADR 0005 keeps us out of the venues
+      where those postings live. So F13 ships as four apply-link flags in
+      `Job.redFlags` (no score, no schema, no badge, no migration), each true
+      by definition rather than tuned — which is what makes a 0 firing rate
+      acceptable here. Fires on 2/814: a YouTube video and a LinkedIn company
+      page, both from HN comments, both true positives for what the flag
+      claims. `forms.gle` deliberately excluded — it announces its
+      destination, and our single occurrence is a legitimate HN posting
 - [ ] F9 golden-eval harness for the AI engine chain — v0.11.0
 - [ ] F10 fetchers wave 2: Getro/Consider/a16z, Arbeitsagentur, Teamtailor,
       Personio, Jobvite, Gem, join.com — v0.12.0
