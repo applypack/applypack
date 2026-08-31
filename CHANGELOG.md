@@ -6,6 +6,113 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.10.0] — 2026-08-31
+
+### Security
+- **The dashboard no longer binds to every network by default.** `WEB_HOST`
+  defaulted to `0.0.0.0` in both the config schema and `.env.example`, whose
+  comment justified it with a Docker-only argument. Following the README's
+  "Running without Docker" steps put an unauthenticated dashboard — jobs,
+  resume text, cover letters, settings, the Telegram token form — on every
+  network the machine joined. It listens on loopback now; `docker-compose`
+  sets `0.0.0.0` for the container, whose published port was already
+  loopback-only, so Docker installs are unchanged.
+
+### Fixed
+- **A fresh install starts without an AI credential.** `cp .env.example .env`
+  followed by any command died on `ANTHROPIC_API_KEY: required`, including
+  the dashboard — the one place that key is configured. The engine chain
+  already resolves at runtime (ADR 0013/0014) and Settings → AI engine
+  already reports the missing key, so the boot-time check only got in the way.
+- README's local section now says what it actually takes: `DATABASE_URL` is
+  the only value you must set, and both commands run from the repository root.
+
+## [0.9.0] — 2026-08-31
+
+### Added
+- **Untrusted-content fences (ADR 0022).** Job descriptions, resumes and
+  pasted pages are wrapped in an explicit fence before any model sees them,
+  with one shared directive stating the text inside is data, never
+  instructions. Covers the classifier — which every fetched job passes
+  through and which had no protection at all — plus the resume, match,
+  cover-letter, verification and paste-extraction prompts.
+- An injection attempt is recorded as a `prompt-injection-attempt` red flag
+  on the job instead of being silently ignored.
+- Verification, the only path with web search, refuses to fetch a URL the
+  posting nominates or to treat such a page as corroboration.
+- A CI guard derives its roster from the code itself, so a prompt builder or
+  an AI call site added later cannot skip the fence.
+
+### Fixed
+- Posting text starting with a dash could be read as a command-line flag by
+  the local Claude CLI; the liveness checker now re-verifies a URL after
+  redirects.
+
+## [0.8.0] — 2026-08-31
+
+### Added
+- **Cover letters (ADR 0021).** A card on every job page drafts a short
+  letter from your resume, confirmed facts and the posting, with tone,
+  remembered angle fields, in-place editing that autosaves, Regenerate and
+  PDF / DOCX export.
+- **A Cover letter page** (`/letter`): pick a job from a searchable list, or
+  bring a new posting by URL or pasted text.
+- **Fact gate (F7, ADR 0020).** Every generated letter is checked
+  deterministically against your resume and confirmed facts; an invented
+  number, employer, title or denied tool triggers one regeneration and a
+  second failure discards the letter. Your own edits are flagged, never
+  blocked.
+- Per-engine "Cover letter model" on Settings → AI engine; all model pickers
+  save on change.
+
+## [0.7.0] — 2026-08-31
+
+### Added
+- **Source health monitoring (ADR 0019).** Every fetch records a per-source
+  status; a "Quiet sources" card on `/companies` lists boards failing three
+  ticks in a row or silent for 14 days, each with one-click Re-probe.
+- Health read from each board's raw output rather than from stored jobs, so
+  a strict profile filter never looks like a broken board.
+- Optional Telegram digest line naming sources that went quiet.
+
+## [0.6.0] — 2026-08-31
+
+### Added
+- **Cross-source dedup (ADR 0018).** The same job arriving from two sources
+  is spotted by a SimHash fingerprint and flagged in both directions, on the
+  job page and in the Telegram alert. Nothing is merged or hidden.
+- `backfill-fingerprints.js` for existing jobs.
+
+### Fixed
+- Feed rows that nothing identifies are skipped instead of sharing one
+  synthesised id; tracking parameters (`utm_*`, `gh_src`, `fbclid`) no longer
+  change a job's id, while functional ones like `gh_jid` are kept.
+
+## [0.5.0] — 2026-08-31
+
+### Added
+- **Company starter packs (ADR 0017).** 86 companies across 5 curated
+  segments, every board re-probed live before anything is written. Preview
+  before insert; companies land disabled with an "Enable all" button.
+
+### Fixed
+- ATS probe failures say what actually happened — rate limiting and vendor
+  outages no longer report "token likely invalid".
+
+## [0.4.0] — 2026-08-31
+
+### Added
+- Six new sources: Recruitee, Breezy, BambooHR, Pinpoint, Rippling and
+  4 Day Week. JustJoin, NoFluffJobs and NoDesk were rejected on robots
+  grounds (ADR 0005 addendum).
+
+## [0.3.0] — 2026-08-31
+
+### Added
+- **Liveness ladder (ADR 0016).** Free ATS-API and page checks run before
+  the AI verification, so dead Greenhouse / Lever / Ashby postings resolve
+  as expired at no cost. Liveness chip on the job page.
+
 ## [0.2.1] — 2026-08-30
 
 ### Fixed
@@ -277,8 +384,17 @@ commit history.
 | 2026-08-28 | Resume module, targeted view, ghost-job verification, light-theme redesign — **v0.1.0** |
 | 2026-08-29 | PDF uploads, /target auto-detect flow, deterministic score, match-workspace UX refactor — **v0.1.1** |
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
+| 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
-[Unreleased]: https://github.com/nazboyko/job-hunter/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/nazboyko/job-hunter/compare/v0.10.0...HEAD
+[0.10.0]: https://github.com/nazboyko/job-hunter/compare/v0.9.0...v0.10.0
+[0.9.0]: https://github.com/nazboyko/job-hunter/compare/v0.8.0...v0.9.0
+[0.8.0]: https://github.com/nazboyko/job-hunter/compare/v0.7.0...v0.8.0
+[0.7.0]: https://github.com/nazboyko/job-hunter/compare/v0.6.0...v0.7.0
+[0.6.0]: https://github.com/nazboyko/job-hunter/compare/v0.5.0...v0.6.0
+[0.5.0]: https://github.com/nazboyko/job-hunter/compare/v0.4.0...v0.5.0
+[0.4.0]: https://github.com/nazboyko/job-hunter/compare/v0.3.0...v0.4.0
+[0.3.0]: https://github.com/nazboyko/job-hunter/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/nazboyko/job-hunter/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/nazboyko/job-hunter/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/nazboyko/job-hunter/compare/v0.1.0...v0.1.1
