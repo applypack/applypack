@@ -52,9 +52,12 @@ features under one tag.
 4. **Verify** per the feature's test matrix (below). Never weaken a failing
    test; report skipped smoke runs as skipped. Run the copy-check from the
    ground rules.
-5. **Merge** to `main` only when asked (CLAUDE.md rule).
-6. **Tag**: after merge, an annotated tag `vX.Y.0` — one minor bump per
-   feature, patch bumps (`vX.Y.1`) for follow-up fixes to that feature.
+5. **PR**: as soon as the verification matrix passes, push the branch
+   and open a PR (standing policy since 2026-08-31 — one per feature,
+   no waiting to be asked). Merging to `main` stays with Nazar.
+6. **Tag**: after merge, an annotated tag `vX.Y.0` on the merge commit —
+   one minor bump per feature, patch bumps (`vX.Y.1`) for follow-up
+   fixes to that feature. Docs-only / process-only merges get NO tag.
    Tag numbers are assigned in *actual* integration order; the registry
    below is the recommended order, not a reservation.
    ```

@@ -57,7 +57,7 @@ job-verifier              fix-remoteok-meta
 Existing `phase-x.y-<outcome>` names are acceptable while phases are tracked
 in SPEC.md; the outcome part is mandatory. Bad: phase-8, wip, nazar-dev.
 
-Branches are short-lived: merged within a day or two, deleted after merge. Never rewrite shared history, never force-push shared branches. Merge to main only when asked.
+Branches are short-lived: merged within a day or two, deleted after merge. Never rewrite shared history, never force-push shared branches. When a feature branch passes its verification, push it and open a PR right away (standing policy 2026-08-31, one per feature); merging to main stays with Nazar.
 
 ## Split large refactors
 

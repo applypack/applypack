@@ -19,7 +19,11 @@
 - Messages are short. Subject ≤ 72 chars (`phase-x.y: added Z`, `fixed Y`,
   `updated X`). Body only when a one-liner is not enough, and then 1–3 lines.
   No essays, no bullet lists of everything touched.
-- Do not push, merge to `main`, or open PRs unless asked; branch off `main` first.
+- Branch off `main` first. **Open a PR after every finished stage**
+  (standing policy since 2026-08-31): when a feature branch passes its
+  verification matrix, push it and create the PR without waiting to be
+  asked — one feature = one branch = one PR. Never merge to `main`
+  yourself; Nazar reviews, merges and tags.
 - Task backlog for Claude Code sessions lives in [docs/TASKS.md](./docs/TASKS.md).
 
 ## Stack
