@@ -30,6 +30,8 @@ consequences (what we accept). Aim for 15–30 lines each.
 - [0019 — Source health is a per-company streak; `empty` resets it but does not prove health](./0019-source-health-streaks.md)
 - [0020 — The fact gate blocks fabrication, not imprecision](./0020-fact-gate-blocks-fabrication-not-imprecision.md)
 - [0021 — Cover letters generate from stored inputs only](./0021-cover-letters-stored-inputs-only.md)
+- [0022 — Fences make untrusted text data, and an attempt evidence](./0022-prompt-fences-for-untrusted-text.md)
+- [0023 — Trust is apply-link flags, not a score](./0023-apply-link-flags-not-a-trust-score.md)
 
 ## When to write a new one
 

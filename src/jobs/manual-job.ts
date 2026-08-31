@@ -75,7 +75,7 @@ export async function createManualJob(
       postedAt: new Date(),
       status: JobStatus.SAVED,
     },
-    include: { company: { select: { name: true } } },
+    include: { company: { select: { name: true, atsType: true } } },
   });
   const classified =
     opts.classify === false ? false : await classifyExistingJob(job, { keepStatus: true });

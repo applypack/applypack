@@ -262,7 +262,7 @@ jobsRoute.post('/jobs/:id/reclassify', async (c) => {
   if (!Number.isFinite(id)) return c.text('Bad id', 400);
   const job = await prisma.job.findUnique({
     where: { id },
-    include: { company: { select: { name: true } } },
+    include: { company: { select: { name: true, atsType: true } } },
   });
   if (!job) return c.text('Not found', 404);
   try {
@@ -432,7 +432,7 @@ jobsRoute.get('/jobs/:id/cover/:letterId/file/:fmt', async (c) => {
   if (!letter || letter.jobId !== id) return c.text('Not found', 404);
   const job = await prisma.job.findUnique({
     where: { id },
-    include: { company: { select: { name: true } } },
+    include: { company: { select: { name: true, atsType: true } } },
   });
   if (!job) return c.text('Not found', 404);
 

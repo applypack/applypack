@@ -4,6 +4,7 @@ import { config } from '../config';
 import { logger } from '../logger';
 import { createLimiter } from '../concurrency';
 import { passesBaseFilter } from '../filter';
+import { withApplyLinkFlags } from '../apply-link';
 import { classifyJob } from '../classifier';
 import { sendTelegramAlert } from '../notifier';
 import { applyPriorityFloor, parsePriorityRules } from '../priority-rules';
@@ -321,7 +322,10 @@ function buildJobData(
     salaryMin: c.salary_min_usd,
     salaryMax: c.salary_max_usd,
     techMatch: c.tech_match,
-    redFlags: c.red_flags,
+    // `pasted: false` is an invariant, not an assumption: a MANUAL company's
+    // fetchOne returns [], so a pasted row never reaches this loop. Pasted
+    // jobs get their flags from classify-existing.ts instead.
+    redFlags: withApplyLinkFlags(c.red_flags, { url: job.url, pasted: false }),
     summary: c.summary,
     status,
     priorityRulesApplied,

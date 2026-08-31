@@ -1,4 +1,4 @@
-import { JobStatus } from '@prisma/client';
+import { AtsType, JobStatus } from '@prisma/client';
 import { prisma } from '../db';
 import { config } from '../config';
 import { logger } from '../logger';
@@ -9,6 +9,7 @@ import { getActiveProfile } from '../profiles';
 import { getSettings } from '../settings';
 import { parsePriorityRules } from '../priority-rules';
 import { applyPriorityFloor } from './process-jobs';
+import { withApplyLinkFlags } from '../apply-link';
 import type { CronStats } from './cron-run';
 
 const RECLASSIFY_BATCH_SIZE = 50;
@@ -56,7 +57,7 @@ export async function runReclassifyAll(): Promise<{ stats: CronStats }> {
         status: { not: JobStatus.APPLIED },
         id: { gt: lastId },
       },
-      include: { company: { select: { name: true } } },
+      include: { company: { select: { name: true, atsType: true } } },
       orderBy: { id: 'asc' },
       take: RECLASSIFY_BATCH_SIZE,
     });
@@ -140,7 +141,10 @@ export async function runReclassifyAll(): Promise<{ stats: CronStats }> {
           salaryMin: c.salary_min_usd,
           salaryMax: c.salary_max_usd,
           techMatch: c.tech_match,
-          redFlags: c.red_flags,
+          redFlags: withApplyLinkFlags(c.red_flags, {
+            url: j.url,
+            pasted: j.company.atsType === AtsType.MANUAL,
+          }),
           summary: c.summary,
           status: targetStatus,
           priorityRulesApplied: appliedLabels,
