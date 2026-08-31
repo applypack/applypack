@@ -97,6 +97,12 @@ model Job {
   // rule applied. Surfaced as a badge on /jobs/:id.
   priorityRulesApplied String[] @default([])
 
+  // F1 (ADR 0016): last liveness-ladder verdict. liveness is
+  // active | expired | uncertain; livenessCode is the machine reason.
+  liveness          String?
+  livenessCode      String?
+  livenessCheckedAt DateTime?
+
   resumeMatches ResumeMatch[]
   verifications JobVerification[]
 
