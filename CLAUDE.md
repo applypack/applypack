@@ -60,6 +60,12 @@
   `runFetchJob` and `runHnHiringJob`.
 - `AiProvider` calls are tool-free unless the request sets `webTools`; only
   `src/verification/verify.ts` does (ADR 0009). Never turn it on for the classifier.
+- Every AI call site takes its prompt from an exported `build*Prompt`, and
+  every builder wraps outside text with `fence()` from `src/prompt-fence.ts`
+  (ADR 0022). `src/prompt-fence-registry.test.ts` derives both rosters, so a
+  new builder or call site fails CI until it is covered. Operator input
+  (`Profile.notes`, cover angles, confirmed facts) stays OUTSIDE the fence —
+  that is the user's own instruction channel.
 - `src/starter-packs/` is the curated-pack module: `catalog.json` (data),
   `catalog.ts` and `resolve.ts` are pure (tested), `probe.ts` calls
   `probeAts`. Web-only — the worker never imports it. Every catalog entry
@@ -139,6 +145,7 @@ When the question is **"where does X live?"**, save yourself a `find`:
 | Where to register a new ATS | `src/fetchers/index.ts:fetchOne` switch + `prisma/schema.prisma:AtsType` enum |
 | Where to add a new toggle | `prisma/schema.prisma:AppSettings` (column) → `src/settings.ts` (getter/setter) → `src/web/pages/settings.tsx` (UI) → `src/web/routes/settings.tsx` (POST) |
 | The Claude system prompt | `src/classifier.ts:buildSystemPrompt` |
+| Fence markers, the untrusted directive, the forged-marker sanitiser | `src/prompt-fence.ts` (pure, ADR 0022); guard `src/prompt-fence-registry.test.ts` |
 | Which AI engines run (priority chain + per-engine models, auto-failover) | `src/ai-runtime.ts:getAiRuntime().complete({role})` + pure chain merge in `src/ai-engine.ts` (ADR 0013/0014); UI on `/settings` → "AI engine" tab |
 | Adding a new AI backend | `src/ai-provider.ts` (`CliProvider` spec or fetch class) + `AI_PROVIDER_IDS`/labels/options in `src/ai-engine.ts` + probe in `src/ai-runtime.ts` |
 | How users set up each engine (local + Docker) | `docs/ai-engines.md` |
@@ -330,6 +337,28 @@ Two related traps in the same area:
   it into a plain `Error` whose only marker is the message
   `… timed out after Nms`. And a dead BambooHR slug arrives as a *refused
   redirect* (302 → `redirect: 'error'`), not a 404.
+
+### 14. The prompt is a CLI argument — untrusted text can become a flag
+
+`buildClaudeCodeArgs` passes the user prompt as the **last positional
+argument** of `claude --print`. When F12 fenced the prompts, the markers were
+`--- BEGIN UNTRUSTED X ---`, so every prompt now *started* with `---` and the
+CLI answered `error: unknown option '--- BEGIN…'`. All five `bench:resume`
+fixtures failed at once.
+
+Two fixes, both kept:
+
+- `'--'` before `req.user` ends option parsing. This was a **pre-existing**
+  hole: the prompt carries attacker-controlled text, so any description
+  starting with `-` could already have become a flag — the classifier only
+  escaped it by accident, because its user prompt opened with `Title: `.
+- Markers moved to `=== BEGIN UNTRUSTED X ===`. Marker shape is constrained
+  from two directions: `<UNTRUSTED X>` has a tag shape and `stripHtml` eats it
+  (gotcha 12), `--- … ---` has a flag shape. `===` is inert to both.
+
+`gemini_cli` passes the prompt as a flag *value* and `codex_cli` as a
+positional that begins with our system text, so neither is exposed — and
+neither was changed, because neither could be tested from here.
 
 ### 12. stripHtml: decode entities FIRST, and never re-run it on its own output
 

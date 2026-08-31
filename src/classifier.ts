@@ -11,8 +11,8 @@ export type ClassifierMode = 'single' | 'two_stage';
 
 const MAX_TOKENS = 600;
 const MAX_DESC_CHARS = 4000;
-// Bump on any material change to buildSystemPrompt (rules, rubric, format) —
-// cross-engine quality comparisons are meaningless across prompt versions.
+// Bump on any material change to buildClassifyPrompt (rules, rubric, format,
+// fencing) — cross-engine quality comparisons are meaningless across versions.
 export const CLASSIFIER_PROMPT_VERSION = 2;
 
 const ClassificationSchema = z.object({

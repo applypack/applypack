@@ -350,7 +350,7 @@ export function buildMatchPrompt(
   if (elsewhere.length > 0) {
     contextLines.push(
       'OTHER RESUMES of this candidate mention (evidence from the same person; "add" is allowed, name the resume in the note):',
-      ...elsewhere.map((s) => `- ${s.skill} (in "${s.resumeName}")`),
+      fence('OTHER RESUME SKILLS', elsewhere.map((s) => `- ${s.skill} (in "${s.resumeName}")`).join('\n')),
       '',
     );
   }
@@ -358,8 +358,13 @@ export function buildMatchPrompt(
   if (previous.length > 0) {
     contextLines.push(
       'PREVIOUS KEYWORDS for this same posting (reuse these exact terms, requirement and primary levels; re-judge only status/aliases/where — see CONSISTENCY ACROSS RUNS):',
-      ...previous.map(
-        (k) => `- ${k.term} | P${k.priority} | ${k.requirement}${k.primary ? ' | primary' : ''}`,
+      // Terms are verbatim spans of the posting and carry no length cap, so
+      // they are laundered untrusted text on the second run, not our own words.
+      fence(
+        'PREVIOUS KEYWORDS',
+        previous
+          .map((k) => `- ${k.term} | P${k.priority} | ${k.requirement}${k.primary ? ' | primary' : ''}`)
+          .join('\n'),
       ),
       '',
     );

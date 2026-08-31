@@ -103,12 +103,19 @@ const CASES: Record<string, Case> = {
     fenced: [['RESUME', RESUME]],
   },
   buildMatchPrompt: {
-    build: () => resumeMod.buildMatchPrompt(RESUME, JOB),
+    build: () =>
+      resumeMod.buildMatchPrompt(RESUME, JOB, {
+        otherResumeSkills: [{ skill: 'ELSEWHERE-NEEDLE', resumeName: 'Old CV' }],
+        previousKeywords: [{ term: 'PREVKW-NEEDLE', priority: 1, requirement: 'must', primary: true }],
+      }),
     fenced: [
       ['RESUME', RESUME],
       ['JOB POSTING', DESC],
       ['JOB POSTING', 'TITLE-NEEDLE'],
       ['JOB POSTING', 'COMPANY-NEEDLE'],
+      // Tier 2: text of ours that was derived from an untrusted posting.
+      ['OTHER RESUME SKILLS', 'ELSEWHERE-NEEDLE'],
+      ['PREVIOUS KEYWORDS', 'PREVKW-NEEDLE'],
     ],
   },
   buildCoverPrompt: {
