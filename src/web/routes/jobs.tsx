@@ -19,6 +19,7 @@ import { scanResume } from '../../resume/scan';
 import { clearFlashCookie, flashRedirect, parseFlashCookie } from '../flash';
 import { createRun, startRun, updateRun } from '../target-runs';
 import {
+  deleteCoverLettersForResume,
   deleteMatchesForResume,
   getCoverLetter,
   getLatestCompanySnapshot,
@@ -42,6 +43,8 @@ import {
   type CoverTone,
 } from '../../resume/prompts';
 import { factCheck } from '../../resume/fact-check';
+import { buildLetterDocx, DOCX_MIME } from '../../resume/docx-write';
+import { buildLetterPdf } from '../../resume/pdf-write';
 import { setCoverAngles } from '../../settings';
 
 const PAGE_SIZE = 50;
@@ -418,6 +421,31 @@ jobsRoute.post('/jobs/:id/cover', async (c) => {
   return c.redirect(`/target/runs/${run.id}`, 303);
 });
 
+/** Download a letter as a file; the edited text wins when one exists. */
+jobsRoute.get('/jobs/:id/cover/:letterId/file/:fmt', async (c) => {
+  const id = Number(c.req.param('id'));
+  const letterId = Number(c.req.param('letterId'));
+  const fmt = c.req.param('fmt');
+  if (!Number.isFinite(id) || !Number.isFinite(letterId)) return c.text('Bad id', 400);
+  if (fmt !== 'pdf' && fmt !== 'docx') return c.text('Bad format', 400);
+  const letter = await getCoverLetter(letterId);
+  if (!letter || letter.jobId !== id) return c.text('Not found', 404);
+  const job = await prisma.job.findUnique({
+    where: { id },
+    include: { company: { select: { name: true } } },
+  });
+  if (!job) return c.text('Not found', 404);
+
+  const text = letter.editedText ?? letter.text;
+  const slug =
+    job.company.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') ||
+    'company';
+  const body = fmt === 'docx' ? buildLetterDocx(text) : buildLetterPdf(text);
+  c.header('Content-Type', fmt === 'docx' ? DOCX_MIME : 'application/pdf');
+  c.header('Content-Disposition', `attachment; filename="cover-letter-${slug}.${fmt}"`);
+  return c.body(new Uint8Array(body));
+});
+
 jobsRoute.post('/jobs/:id/cover/:letterId', async (c) => {
   const id = Number(c.req.param('id'));
   const letterId = Number(c.req.param('letterId'));
@@ -523,6 +551,7 @@ jobsRoute.post('/jobs/:id/target/reupload', async (c, next) => resumeUploadLimit
     if (ephemeral) {
       resume = await upsertScratchResume({ name: newName, ...upload });
       await deleteMatchesForResume(resume.id);
+      await deleteCoverLettersForResume(resume.id);
     } else {
       resume = await replaceResumeFile(resumeId, upload);
       await scanResume(resume);

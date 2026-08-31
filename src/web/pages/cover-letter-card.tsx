@@ -1,6 +1,6 @@
 /** @jsxImportSource hono/jsx */
 import type { FC } from 'hono/jsx';
-import { Badge, Button, Card, Hint, Input, SectionTitle, Select, Tag, Textarea } from '../ui';
+import { ActionForm, Badge, Button, Card, Hint, Input, SectionTitle, Select, Tag, Textarea } from '../ui';
 import type { Tone } from '../format';
 import { formatRelative } from '../format';
 import type { CoverLetterWithResume } from '../../resume/store';
@@ -186,6 +186,19 @@ const LetterReport: FC<{ jobId: number; letter: CoverLetterWithResume }> = ({ jo
         <span class="text-xs text-ink-faint">
           {formatRelative(letter.createdAt)} · <span class="font-mono">{letter.model}</span>
         </span>
+        <ActionForm
+          action={`/jobs/${jobId}/cover`}
+          hidden={{ resumeId: letter.resumeId, tone: letter.tone }}
+          class="ml-auto"
+        >
+          <Button
+            variant="ghost"
+            size="sm"
+            title="Fresh draft — same resume and tone, current saved angle and prompt"
+          >
+            Regenerate
+          </Button>
+        </ActionForm>
       </div>
 
       <form method="post" action={`/jobs/${jobId}/cover/${letter.id}`} class="space-y-2">
@@ -206,6 +219,12 @@ const LetterReport: FC<{ jobId: number; letter: CoverLetterWithResume }> = ({ jo
           </Button>
           <Button variant="secondary" size="sm">
             Save edit
+          </Button>
+          <Button href={`/jobs/${jobId}/cover/${letter.id}/file/pdf`} variant="ghost" size="sm">
+            PDF
+          </Button>
+          <Button href={`/jobs/${jobId}/cover/${letter.id}/file/docx`} variant="ghost" size="sm">
+            DOCX
           </Button>
           <span class="text-xs tabular-nums text-ink-faint">
             {words} words · target {COVER_WORDS_MIN}–{COVER_WORDS_MAX}
