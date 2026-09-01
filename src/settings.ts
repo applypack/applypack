@@ -29,6 +29,8 @@ export interface AppSettingsView {
   coverAngles: unknown;
   /** Raw AppSettings.pipelineStages JSON — parse with parseStageConfig (ADR 0025). */
   pipelineStages: unknown;
+  /** NULL until the first-run wizard finishes or is skipped — `/` redirects to /welcome meanwhile. */
+  setupCompletedAt: Date | null;
   updatedAt: Date;
 }
 
@@ -55,8 +57,19 @@ export async function getSettings(): Promise<AppSettingsView> {
     aiUsage: row.aiUsage,
     coverAngles: row.coverAngles,
     pipelineStages: row.pipelineStages,
+    setupCompletedAt: row.setupCompletedAt,
     updatedAt: row.updatedAt,
   };
+}
+
+/** Marks the first-run wizard as finished (or skipped); `/` stops redirecting. */
+export async function setSetupCompleted(): Promise<void> {
+  await prisma.appSettings.upsert({
+    where: { id: SETTINGS_ID },
+    update: { setupCompletedAt: new Date() },
+    create: { id: SETTINGS_ID, setupCompletedAt: new Date() },
+  });
+  logger.info('settings: setup marked complete');
 }
 
 /**
