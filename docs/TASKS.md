@@ -756,8 +756,9 @@ Telegram explicitly optional.
       `AppSettings.setupCompletedAt` null, skip link, Overview chip;
       ~4 clicks + one file pick end-to-end — done 2026-09-01, branch
       `welcome-wizard`; step 4 scores the best 10 per press ("Score 10 more")
-- [ ] `ai-key-in-db` — paste API key in UI, DB-stored, masked
-      (**ADR**: extends 0013 + secrets policy; TelegramTarget precedent)
+- [x] `ai-key-in-db` — paste API key in UI, DB-stored, masked — done
+      2026-09-02, branch `ai-key-in-db` (ADR 0027: `AppSettings.aiKeys`,
+      four key-bearing engines, `.env` stays the fallback)
 - [ ] `profile-resume-link` — `Profile.resumeId` + one-click "Create
       profile from this resume"
 - [ ] `multi-profile-search` — multiple active profiles, union base

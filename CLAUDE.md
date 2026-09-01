@@ -57,7 +57,8 @@
 - `classifier.ts` (and `classifier-prefilter.ts`) build prompts and parse
   replies; the only thing that talks to the AI is `ai-provider.ts` — no DB.
   Engine choice (provider + models) resolves per call via `ai-runtime.ts`
-  (DB row → `.env` fallback, pure merge in `ai-engine.ts` — ADR 0013).
+  (DB row → `.env` fallback, pure merge in `ai-engine.ts` — ADR 0013), and
+  so does the credential (`ai-keys.ts`, pure — ADR 0027).
 - `jobs/process-jobs.ts` is the single source of truth for the inner
   filter → dedupe → classify → persist → alert sequence. Reused by
   `runFetchJob` and `runHnHiringJob`. `{ classify: false }` stores what
@@ -99,7 +100,7 @@
 - Do not add Express, Next.js, or any HTTP server to the worker process.
 - Do not add Redis, BullMQ, or other queues — node-cron is sufficient.
 - Do not expose the dashboard on a public interface by default — bind to `127.0.0.1` in compose.
-- Do not store secrets anywhere except `.env` (gitignored). Telegram tokens belong in `TelegramTarget` rows once `init.ts` has bootstrapped them; `.env` becomes optional after first boot.
+- Do not store secrets anywhere except `.env` (gitignored). Two carve-outs, both deliberate: Telegram tokens belong in `TelegramTarget` rows once `init.ts` has bootstrapped them, and per-engine AI keys belong in `AppSettings.aiKeys` (ADR 0027) — in both cases `.env` becomes optional after first boot. A secret in the DB is read only through its own accessor, never rendered in full, never logged.
 - Do not commit `node_modules`, `dist`, or `.env`.
 - Do not use any `--save-dev` that isn't necessary.
 - Do not scrape LinkedIn / Indeed / Glassdoor / Workday / Wellfound — see [ADR 0005](./docs/adr/0005-no-linkedin-indeed-workday.md).
@@ -154,7 +155,8 @@ When the question is **"where does X live?"**, save yourself a `find`:
 | The Claude system prompt | `src/classifier.ts:buildSystemPrompt` |
 | Fence markers, the untrusted directive, the forged-marker sanitiser | `src/prompt-fence.ts` (pure, ADR 0022); guard `src/prompt-fence-registry.test.ts` |
 | Which AI engines run (priority chain + per-engine models, auto-failover) | `src/ai-runtime.ts:getAiRuntime().complete({role})` + pure chain merge in `src/ai-engine.ts` (ADR 0013/0014); UI on `/settings` → "AI engine" tab |
-| Adding a new AI backend | `src/ai-provider.ts` (`CliProvider` spec or fetch class) + `AI_PROVIDER_IDS`/labels/options in `src/ai-engine.ts` + probe in `src/ai-runtime.ts` |
+| Adding a new AI backend | `src/ai-provider.ts` (`CliProvider` spec or fetch class) + `AI_PROVIDER_IDS`/labels/options in `src/ai-engine.ts` + probe in `src/ai-runtime.ts` + `AI_KEY_ENV_VARS` in `src/ai-keys.ts` if it takes a key |
+| Per-engine API keys (DB-first, `.env` fallback, masking) | `src/ai-keys.ts` (pure, ADR 0027) + `settings.ts:getAiKeys/setAiKey`; resolved in `ai-runtime.ts`, spent as `AiRequest.apiKey` |
 | How users set up each engine (local + Docker) | `docs/ai-engines.md` |
 | AI usage counters (runs per engine × role) | `AppSettings.aiUsage` — incremented in `ai-runtime.ts:recordUsage`, 7-day summary on `/settings` AI tab, 60-day trim in `cleanup-job.ts` |
 | What a CLI child process may see in env | `ai-provider-parse.ts:CLI_PROVIDER_ENV_KEYS` (allowlist; ANTHROPIC_API_KEY never reaches claude_code) |
@@ -205,6 +207,7 @@ When the question is **"how does the user toggle / configure X?"**:
 | See which boards stopped answering | `/companies` → "Quiet sources" card (Re-probe to repair) |
 | Telegram line when a source goes quiet | `/settings` Notifications tab → "Source health alerts" |
 | Pick / order AI engines + models, test them | `/settings` AI engine tab (per-engine cards: Enable, ↑ priority, model selects, Test) |
+| Paste an AI key without touching `.env` | `/settings` AI engine tab → the key row on each engine card, or step 1 of `/welcome` (ADR 0027) |
 | Add / remove tracked company | `/companies` (with manual probe before save) |
 | Bulk-add a curated segment of companies | `/companies` → "Add a starter pack" (preview → confirm → added disabled → "Enable all") |
 | Disable whole ATS family (e.g. all Workable) | `/settings` Sources tab |

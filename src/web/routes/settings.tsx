@@ -48,12 +48,7 @@ import {
   type AiProviderId,
 } from '../../ai-engine';
 import { forgetAiProbe, getAiEngineEnv, probeAiProviders } from '../../ai-runtime';
-import {
-  AI_KEY_ENV_VARS,
-  aiKeySource,
-  providerTakesKey,
-  type AiKeyProviderId,
-} from '../../ai-keys';
+import { AI_KEY_ENV_VARS, aiKeySource, providerTakesKey } from '../../ai-keys';
 import { testAiEngine } from '../ai-test';
 import {
   createProfile,
@@ -151,6 +146,7 @@ async function loadSettingsProps() {
     const position = enabledOrder.indexOf(id);
     const classifierDefault = defaultModelFor(id, 'classifier', aiEnv) || 'CLI default';
     const resumeDefault = defaultModelFor(id, 'resume', aiEnv) || 'CLI default';
+    const storedKey = providerTakesKey(id) ? aiKeys[id] : undefined;
     return {
       id,
       label: AI_PROVIDER_LABELS[id],
@@ -173,7 +169,7 @@ async function loadSettingsProps() {
       // last four characters of what is stored, and where it came from.
       keyEnvVar: providerTakesKey(id) ? AI_KEY_ENV_VARS[id] : null,
       keySource: aiKeySource(id, aiKeys),
-      maskedKey: aiKeys[id as AiKeyProviderId] ? maskToken(aiKeys[id as AiKeyProviderId]!) : '',
+      maskedKey: storedKey ? maskToken(storedKey) : '',
     };
   }).sort((a, b) => {
     if (a.enabled !== b.enabled) return a.enabled ? -1 : 1;

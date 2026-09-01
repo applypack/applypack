@@ -17,6 +17,30 @@ Every engine card has a **Test** button — it sends one tiny live request
 through that engine and reports success or the exact failure. Use it after
 every setup step below.
 
+## Two ways to hand over a key
+
+Every setup below shows the `.env` line, because that always works. Since
+ADR 0027 there is a shorter path for the four engines that take a key:
+**paste it into the engine's card on `/settings` → AI engine** (or into
+step 1 of `/welcome`) and press Save. No file to edit, no restart — the
+dashboard applies it at once and the worker on its next tick.
+
+| Engine | Key | `.env` equivalent |
+| --- | --- | --- |
+| Anthropic API | API key | `ANTHROPIC_API_KEY` |
+| Claude Code CLI | `claude setup-token` token | `CLAUDE_CODE_OAUTH_TOKEN` |
+| Gemini CLI | AI Studio API key | `GEMINI_API_KEY` |
+| OpenAI-compatible API | API key | `OPENAI_API_KEY` |
+| Codex CLI | — (`codex login` only) | — |
+
+A pasted key **wins over** the `.env` variable and is stored in your own
+Postgres, in plaintext, exactly like the Telegram bot tokens. The dashboard
+binds to `127.0.0.1` by default, so it never leaves the machine — but a
+database dump contains it. If you would rather keep secrets out of the
+database, use `.env`: that path is unchanged and not going away. The card
+only ever shows the last four characters, and **Remove** deletes the stored
+copy (rotate the key itself in the provider's console).
+
 | Engine | What it is | Billing | Needs |
 | --- | --- | --- | --- |
 | Anthropic API | Messages API via SDK | per token | `ANTHROPIC_API_KEY` |
@@ -39,12 +63,9 @@ Pay-per-token Messages API. Fastest option (no process spawn, prompt cache).
 
 **Local:**
 1. Get a key at <https://console.anthropic.com/settings/keys>.
-2. Add to `.env`:
-   ```
-   ANTHROPIC_API_KEY=sk-ant-...
-   ```
-3. Restart the app (`npm run dev` / your process manager). Enable the engine
-   on `/settings` → AI engine and press **Test**.
+2. Paste it into the engine card on `/settings` → AI engine, or add
+   `ANTHROPIC_API_KEY=sk-ant-...` to `.env` and restart.
+3. Enable the engine and press **Test**.
 
 **Docker:** same `.env` line — both containers read `.env` via `env_file`.
 Recreate them so the new variable lands:
@@ -66,8 +87,11 @@ Runs `claude -p` per call on the subscription the CLI is logged into. Slower
 login in the Keychain, so mounting `~/.claude` does **not** carry auth into
 the container. Instead:
 1. On the host: `claude setup-token` (opens a browser login, prints a token).
-2. Add to `.env`: `CLAUDE_CODE_OAUTH_TOKEN=...`
-3. `docker compose up -d`
+2. Paste the token into the engine card on `/settings`, or add
+   `CLAUDE_CODE_OAUTH_TOKEN=...` to `.env` and `docker compose up -d`.
+
+The card's badge tells the two apart: an installed-but-logged-out CLI reads
+"not detected", because `claude --version` answers either way.
 
 ## Gemini CLI (Google account or API key)
 
