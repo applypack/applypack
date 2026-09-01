@@ -160,26 +160,26 @@ model CronRun {
 
 // Singleton table — always one row with id=1.
 model AppSettings {
-  id                             Int      @id @default(1)
-  telegramEnabled                Boolean  @default(false)
+  id                             Int       @id @default(1)
+  telegramEnabled                Boolean   @default(false)
   activeProfileId                Int?
-  activeProfile                  Profile? @relation(fields: [activeProfileId], references: [id], onDelete: SetNull)
+  activeProfile                  Profile?  @relation(fields: [activeProfileId], references: [id], onDelete: SetNull)
   // Classifier mode: 'single' = full classifier only;
   // 'two_stage' = short prefilter prompt, full classifier only on yes.
-  classifierMode                 String   @default("single")
+  classifierMode                 String    @default("single")
   // Phase 3.4 toggles
-  applicationTrackingEnabled     Boolean  @default(true)
-  staleApplicationsDigestEnabled Boolean  @default(true)
+  applicationTrackingEnabled     Boolean   @default(true)
+  staleApplicationsDigestEnabled Boolean   @default(true)
   // Phase 3.2 toggle
-  hnParserEnabled                Boolean  @default(false)
+  hnParserEnabled                Boolean   @default(false)
   // Phase 4.1: list of AtsType values to skip in runAllFetchers, e.g.
   // ["LEVER","ARBEITNOW"]. Empty array = all enabled. Coexists with
   // per-Company.active so users can disable a whole source family with
   // one click without flipping each company toggle.
-  disabledSources                String[] @default([])
+  disabledSources                String[]  @default([])
   // Phase 4.2: discovery toggle (gates auto-creation of CompanyCandidate
   // rows from HN comments and the weekly probe job).
-  discoveryEnabled               Boolean  @default(false)
+  discoveryEnabled               Boolean   @default(false)
   // Phase 7.7: master pause for new-job ingestion. When false, the hourly
   // fetch tick and the monthly HN pull exit early ("fetching-paused" in
   // /runs). Digest, stale nudge, cleanup, discovery probe, and the
@@ -187,7 +187,7 @@ model AppSettings {
   // touching docker" switch. Default FALSE by user choice: deployments
   // (and the existing row, backfilled by the migration) start paused;
   // enable from /settings → "Job fetching" when ready.
-  fetchingEnabled                Boolean  @default(false)
+  fetchingEnabled                Boolean   @default(false)
   // AI engine chain (ADR 0013/0014): { order: [provider ids by priority],
   // models: { <id>: { classifier, resume } } }. The first usable engine
   // serves each call; the rest are automatic fallbacks. NULL = follow .env
@@ -200,7 +200,7 @@ model AppSettings {
   aiUsage                        Json?
   // F4 (ADR 0019): one digest line when a source crosses the failure
   // streak. Default TRUE — the alert adds a signal, never suppresses a job.
-  sourceHealthAlerts             Boolean  @default(true)
+  sourceHealthAlerts             Boolean   @default(true)
   // F8.1: standing angle inputs for the cover-letter card ({ whyCompany,
   // problem, approach, notes }), saved on every generation so the user
   // never retypes them. Parse with readCoverAngles (resume/prompts.ts).
@@ -212,7 +212,7 @@ model AppSettings {
   // /welcome. Set by the wizard's last step or "Skip setup"; the migration
   // backfills existing deployments so nobody is walked through setup twice.
   setupCompletedAt               DateTime?
-  updatedAt                      DateTime @updatedAt
+  updatedAt                      DateTime  @updatedAt
 
   @@map("app_settings")
 }
