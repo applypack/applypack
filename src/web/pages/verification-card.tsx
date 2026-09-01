@@ -29,7 +29,7 @@ const LIVENESS_VIEW: Record<string, { label: string; tone: Tone }> = {
 const codeLabel = (code: string): string =>
   LIVENESS_CODE_LABEL[code as LivenessCode] ?? code;
 
-const VERDICT_TONE: Record<string, Tone> = { legit: 'ok', suspicious: 'warn', fake: 'danger' };
+export const VERDICT_TONE: Record<string, Tone> = { legit: 'ok', suspicious: 'warn', fake: 'danger' };
 const RECOMMENDATION_VIEW: Record<string, { label: string; tone: Tone }> = {
   apply: { label: 'worth applying', tone: 'ok' },
   caution: { label: 'apply with caution', tone: 'warn' },

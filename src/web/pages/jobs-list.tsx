@@ -3,6 +3,7 @@ import type { FC } from 'hono/jsx';
 import type { JobStatus } from '@prisma/client';
 import { Layout } from '../layout';
 import {
+  Badge,
   Button,
   Card,
   FitBadge,
@@ -15,6 +16,7 @@ import {
   Tr,
 } from '../ui';
 import { formatDateShort, formatRelative, formatSalary } from '../format';
+import { VERDICT_TONE } from './verification-card';
 
 interface JobRow {
   id: number;
@@ -29,6 +31,7 @@ interface JobRow {
   postedAt: Date;
   techMatch: string[];
   company: { name: string };
+  verifications: { verdict: string }[];
 }
 
 export interface JobsListProps {
@@ -41,6 +44,7 @@ export interface JobsListProps {
     minFit: string;
     q: string;
     sort: string;
+    verified: string;
   };
 }
 
@@ -72,7 +76,10 @@ export const JobsListPage: FC<JobsListProps> = ({
   const to = Math.min(total, page * pageSize);
   const pageHref = (p: number) => buildQuery({ ...filters, page: p });
   const hasFilters =
-    filters.q.length > 0 || filters.status.length > 0 || filters.minFit.length > 0;
+    filters.q.length > 0 ||
+    filters.status.length > 0 ||
+    filters.minFit.length > 0 ||
+    filters.verified.length > 0;
 
   return (
     <Layout title="Jobs" active="jobs" fill>
@@ -87,7 +94,7 @@ export const JobsListPage: FC<JobsListProps> = ({
       />
 
       <div class="mb-4 flex shrink-0 flex-wrap items-center gap-x-4 gap-y-2">
-        <nav aria-label="Status filter" class="flex flex-wrap items-center gap-1">
+        <nav aria-label="Job filters" class="flex flex-wrap items-center gap-1">
           {STATUS_OPTIONS.map((o) => {
             const active = filters.status === o.value;
             return (
@@ -104,10 +111,24 @@ export const JobsListPage: FC<JobsListProps> = ({
               </a>
             );
           })}
+          <span class="mx-1 h-4 w-px bg-line" aria-hidden="true" />
+          <a
+            href={buildQuery({ ...filters, verified: filters.verified ? '' : '1' })}
+            aria-current={filters.verified ? 'true' : undefined}
+            title="Only jobs with an “Is this job real?” verdict"
+            class={`rounded-md border px-2.5 py-1 text-[13px] transition-colors duration-150 ${
+              filters.verified
+                ? 'border-line-strong bg-surface-overlay font-medium text-ink'
+                : 'border-transparent text-ink-muted hover:bg-surface-overlay/70 hover:text-ink'
+            }`}
+          >
+            Verified
+          </a>
         </nav>
 
         <form method="get" action="/jobs" class="ml-auto flex flex-wrap items-center gap-2">
           <input type="hidden" name="status" value={filters.status} />
+          <input type="hidden" name="verified" value={filters.verified} />
           <Input
             type="search"
             name="q"
@@ -221,6 +242,15 @@ export const JobsListPage: FC<JobsListProps> = ({
                         </Td>
                         <Td class="whitespace-nowrap">
                           <StatusBadge status={j.status} />
+                          {j.verifications[0] && (
+                            <div class="mt-1">
+                              <Badge
+                                tone={VERDICT_TONE[j.verifications[0].verdict] ?? 'neutral'}
+                              >
+                                {j.verifications[0].verdict}
+                              </Badge>
+                            </div>
+                          )}
                         </Td>
                         <Td
                           class="whitespace-nowrap text-right text-[13px] text-ink-faint"

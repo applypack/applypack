@@ -1,6 +1,7 @@
 import { execSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { CronRunStatus } from '@prisma/client';
 import { config } from './config';
 import { prisma } from './db';
 import { logger } from './logger';
@@ -19,12 +20,35 @@ export async function init(): Promise<void> {
   logger.info('init: pinging database');
   await prisma.$queryRaw`SELECT 1`;
 
+  await failInterruptedCronRuns();
+
   logger.info('init: seeding companies');
   const seeded = await runSeed();
   logger.info(seeded, 'init: seed complete');
 
   await bootstrapDefaultProfile();
   await bootstrapTelegramFromEnv();
+}
+
+/**
+ * A RUNNING CronRun at worker boot is a run the previous process died
+ * under (issue #18) — only this process starts cron jobs, so nothing can
+ * legitimately be RUNNING before registerCron. The one near-miss is a
+ * web-owned reclassify-all in flight during a worker restart; its final
+ * update still lands and overwrites this verdict.
+ */
+async function failInterruptedCronRuns(): Promise<void> {
+  const stale = await prisma.cronRun.updateMany({
+    where: { status: CronRunStatus.RUNNING },
+    data: {
+      status: CronRunStatus.FAILED,
+      finishedAt: new Date(),
+      errorMessage: 'interrupted',
+    },
+  });
+  if (stale.count > 0) {
+    logger.warn({ count: stale.count }, 'init: marked interrupted cron runs FAILED');
+  }
 }
 
 /**

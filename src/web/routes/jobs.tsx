@@ -68,6 +68,10 @@ const ListQuerySchema = z.object({
   sort: z
     .enum(['fetchedAt_desc', 'fitScore_desc', 'postedAt_desc', 'title_asc'])
     .default('fetchedAt_desc'),
+  verified: z
+    .string()
+    .optional()
+    .transform((v) => (v === '1' ? '1' : '')),
 });
 
 const StatusBodySchema = z.object({
@@ -83,11 +87,12 @@ jobsRoute.get('/jobs', async (c) => {
     minFit: c.req.query('minFit'),
     q: c.req.query('q'),
     sort: c.req.query('sort'),
+    verified: c.req.query('verified'),
   });
   if (!parsed.success) {
     return c.text('Invalid query', 400);
   }
-  const { page, status, minFit, q, sort } = parsed.data;
+  const { page, status, minFit, q, sort, verified } = parsed.data;
 
   const where: Prisma.JobWhereInput = {};
   if (status) {
@@ -103,6 +108,9 @@ jobsRoute.get('/jobs', async (c) => {
       { description: { contains: q, mode: 'insensitive' } },
     ];
   }
+  if (verified) {
+    where.verifications = { some: {} };
+  }
 
   const orderBy = sortToOrderBy(sort);
 
@@ -112,7 +120,14 @@ jobsRoute.get('/jobs', async (c) => {
       orderBy,
       skip: (page - 1) * PAGE_SIZE,
       take: PAGE_SIZE,
-      include: { company: { select: { name: true } } },
+      include: {
+        company: { select: { name: true } },
+        verifications: {
+          select: { verdict: true },
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+        },
+      },
     }),
     prisma.job.count({ where }),
   ]);
@@ -128,6 +143,7 @@ jobsRoute.get('/jobs', async (c) => {
         minFit,
         q,
         sort,
+        verified,
       }}
     />,
   );
