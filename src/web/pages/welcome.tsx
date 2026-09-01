@@ -22,6 +22,7 @@ import { formatDuration } from '../format';
 import { ACCEPTED_EXTENSIONS } from '../../resume/resume-text';
 import { SENIORITY_LEVELS } from '../../resume/profile-draft';
 import type { AiProviderId } from '../../ai-engine';
+import { SCORE_BATCH } from '../../jobs/score-pick';
 import { WELCOME_STEPS, type WelcomeStep } from '../welcome-steps';
 
 /*
@@ -529,8 +530,9 @@ const MatchesStep: FC<WelcomeProps> = (p) => {
           )}
           {matches.waiting > 0 && (
             <p class="mt-3 text-[13px] leading-5 text-ink-faint">
-              {matches.waiting.toLocaleString()} more stored jobs fit your words and are still
-              unscored.
+              {matches.waiting.toLocaleString()} more stored jobs mention your words and are still
+              unscored — score the next {SCORE_BATCH} whenever you like, or let the hourly watch
+              score new ones as they arrive.
             </p>
           )}
           <div class="mt-4 flex flex-wrap items-center gap-2">
@@ -541,8 +543,9 @@ const MatchesStep: FC<WelcomeProps> = (p) => {
         <>
           <p class="text-sm text-ink-muted">
             The AI reads the jobs we found against your profile and gives each a match score. This
-            pass takes up to 100 of the most recent jobs that mention your tools or role words —
-            jobs that don't are set aside without spending anything. A few minutes.
+            pass takes the {SCORE_BATCH} that match you best — jobs that mention none of your tools
+            or role words are set aside without spending anything. Seconds per job on an API engine,
+            up to half a minute each on a CLI one; press it again for the next {SCORE_BATCH}.
           </p>
           {matches.waiting === 0 && (
             <p class="mt-2 text-[13px] leading-5 text-warn">
@@ -570,7 +573,9 @@ const ScoreOrWatch: FC<WelcomeProps> = ({ matches, fetchingEnabled, telegramEnab
         </Button>
       ) : matches.waiting > 0 ? (
         <ActionForm action="/welcome/score">
-          <Button variant="violet">{done ? 'Score 100 more' : 'Score the jobs we found'}</Button>
+          <Button variant="violet">
+            {done ? `Score ${SCORE_BATCH} more` : 'Score the best matches'}
+          </Button>
         </ActionForm>
       ) : null}
       <ActionForm action="/welcome/finish">
@@ -612,7 +617,7 @@ const AllDone: FC<WelcomeProps> = ({ setupCompleted, fetchingEnabled, matches })
       )}
       {matches.waiting > 0 && (
         <ActionForm action="/welcome/score">
-          <Button variant="violet">Score 100 more</Button>
+          <Button variant="violet">Score {SCORE_BATCH} more</Button>
         </ActionForm>
       )}
     </div>

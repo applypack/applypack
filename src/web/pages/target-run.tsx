@@ -35,8 +35,8 @@ const STEP_VIEW: Record<RunStep, StepView> = {
     detail: 'grounded in the resume, fact-checked before it is shown — about a minute',
   },
   score: {
-    label: 'Score the jobs we found',
-    detail: 'the AI reads each one against your profile — a few seconds per job',
+    label: 'Score the best matches',
+    detail: 'the AI reads each one against your profile — seconds on an API engine, up to half a minute on a CLI one',
   },
 };
 

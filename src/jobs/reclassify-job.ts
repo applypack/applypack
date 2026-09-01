@@ -11,16 +11,12 @@ import { isBlankProfile } from '../profile-guards';
 import { parsePriorityRules } from '../priority-rules';
 import { applyPriorityFloor } from './process-jobs';
 import { withApplyLinkFlags } from '../apply-link';
+import { rankByProfileFit, SCORE_BATCH, type ScorableJob } from './score-pick';
+
+export { SCORE_BATCH };
 import type { CronStats } from './cron-run';
 
 const RECLASSIFY_BATCH_SIZE = 50;
-
-/**
- * How many stored-unscored jobs one wizard "Score" pass sends to the AI
- * (docs/onboarding-plan.md §2 step 4 — a starting hypothesis; pressing the
- * button again scores the next batch).
- */
-export const SCORE_UNSCORED_CAP = 100;
 
 export interface ReclassifyOptions {
   /** Restrict the pass to these ids; default: every job except APPLIED. */
@@ -40,12 +36,13 @@ export async function runReclassifyAll(): Promise<{ stats: CronStats }> {
 /**
  * The wizard's step 4: jobs a paused "Fetch now" stored unscored get their
  * score against the profile that now exists. Rows failing the base filter
- * are dismissed in one update — no AI spent on them; of the rest, the most
- * recent SCORE_UNSCORED_CAP are classified, and `remaining` says how many
- * a second press would take.
+ * are dismissed in one update — no AI spent on them; of the rest, the
+ * `limit` best matches by rankByProfileFit are classified (the wizard reads
+ * the most promising ten, not the ten most recent), and `remaining` says
+ * how many a second press would take.
  */
 export async function runScoreUnscored(
-  opts: Pick<ReclassifyOptions, 'onProgress'> = {},
+  opts: Pick<ReclassifyOptions, 'onProgress'> & { limit?: number } = {},
 ): Promise<{ stats: CronStats }> {
   const profile = await getActiveProfile();
   if (!profile) return { stats: { aborted: 1, reason: 'no-active-profile' } };
@@ -53,13 +50,13 @@ export async function runScoreUnscored(
 
   const unscored = await prisma.job.findMany({
     where: { fitScore: null, status: JobStatus.NEW },
-    orderBy: { fetchedAt: 'desc' },
-    select: { id: true, title: true, location: true },
+    select: { id: true, title: true, location: true, description: true, fetchedAt: true },
   });
   const rejectedIds: number[] = [];
-  const passingIds: number[] = [];
+  const passing: ScorableJob[] = [];
   for (const j of unscored) {
-    (passesBaseFilter(j, profile) ? passingIds : rejectedIds).push(j.id);
+    if (passesBaseFilter(j, profile)) passing.push(j);
+    else rejectedIds.push(j.id);
   }
   if (rejectedIds.length > 0) {
     await prisma.job.updateMany({
@@ -67,14 +64,15 @@ export async function runScoreUnscored(
       data: { status: JobStatus.DISMISSED },
     });
   }
-  const ids = passingIds.slice(0, SCORE_UNSCORED_CAP);
+  const ranked = rankByProfileFit(passing, profile);
+  const ids = ranked.slice(0, opts.limit ?? SCORE_BATCH).map((r) => r.id);
   const { stats } = await reclassify({ ids, onProgress: opts.onProgress });
   return {
     stats: {
       ...stats,
       unscored: unscored.length,
       filterDismissed: rejectedIds.length,
-      remaining: passingIds.length - ids.length,
+      remaining: ranked.length - ids.length,
     },
   };
 }

@@ -13,7 +13,7 @@ import { createResume, getResume, listResumes, type ResumeSummary } from '../../
 import { scanResume } from '../../resume/scan';
 import { buildProfileDraft, SENIORITY_LEVELS } from '../../resume/profile-draft';
 import { recordCronRun, type CronStats } from '../../jobs/cron-run';
-import { runScoreUnscored } from '../../jobs/reclassify-job';
+import { runScoreUnscored, SCORE_BATCH } from '../../jobs/reclassify-job';
 import { activeFetchRun } from '../fetch-runs';
 import { createRun, getRun, startRun, updateRun } from '../target-runs';
 import { testAiEngine } from '../ai-test';
@@ -227,7 +227,7 @@ welcomeRoute.post('/welcome/score', async (c) => {
     jobTitle: '',
     resumeName: '',
     heading: { running: 'Scoring the jobs we found', failed: 'Scoring failed' },
-    subtitle: 'Up to 100 recent jobs that mention your tools or role words — a few seconds each.',
+    subtitle: `The ${SCORE_BATCH} stored jobs that match your profile best — seconds each on an API engine, up to half a minute on a CLI one.`,
     backUrl: MATCHES_STEP,
     backLabel: 'Back to setup',
   });
@@ -236,6 +236,7 @@ welcomeRoute.post('/welcome/score', async (c) => {
     let stats: CronStats = {};
     await recordCronRun('score-unscored', async () => {
       const out = await runScoreUnscored({
+        limit: SCORE_BATCH,
         onProgress: (done, total) => updateRun(run.id, { progress: { done, total } }),
       });
       stats = out.stats;
