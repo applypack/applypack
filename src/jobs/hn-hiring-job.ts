@@ -5,6 +5,7 @@ import { fetchHnHiring, findLatestHiringThread } from '../fetchers/hn-hiring';
 import { getActiveProfile } from '../profiles';
 import { getSettings } from '../settings';
 import { recordCandidatesFromText } from '../discovery';
+import { makeFetchPauseProbe } from './fetch-pause';
 import { processNormalizedJobs, type ProcessStats } from './process-jobs';
 import type { CronStats } from './cron-run';
 
@@ -57,6 +58,10 @@ export async function runHnHiringJob(): Promise<{ stats: CronStats }> {
   const fetched = await fetchHnHiring(company.id);
   const items = fetched.map((job) => ({ job, companyName: HN_COMPANY_NAME }));
 
+  // Same mid-run pause handling as runFetchJob: the classify loop below can
+  // run for many minutes, and a pause on /settings must stop it.
+  const paused = makeFetchPauseProbe();
+
   // Phase 4.2 — harvest ATS company candidates from comment URLs.
   // Each fetched job already carries the cleaned comment text in
   // `description`, so we re-scan it for greenhouse / lever / ashby URLs.
@@ -65,6 +70,7 @@ export async function runHnHiringJob(): Promise<{ stats: CronStats }> {
     const sourceTag = `hn-${new Date().toISOString().slice(0, 7)}`; // hn-2026-04
     const thread = await findLatestHiringThread().catch(() => null);
     for (const j of fetched) {
+      if (await paused()) break;
       const recorded = await recordCandidatesFromText(j.description, sourceTag, {
         name: null,
         sourceUrl: thread
@@ -91,8 +97,10 @@ export async function runHnHiringJob(): Promise<{ stats: CronStats }> {
     alertFailed: 0,
     priorityBoosted: 0,
     crossListed: 0,
+    abortedMidRun: 0,
+    skippedByPause: 0,
   };
-  await processNormalizedJobs(items, profile, settings.classifierMode, inner);
+  await processNormalizedJobs(items, profile, settings.classifierMode, inner, paused);
 
   const durationMs = Date.now() - started;
   const stats: CronStats = {

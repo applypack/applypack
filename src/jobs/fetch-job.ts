@@ -3,6 +3,7 @@ import { runAllFetchers } from '../fetchers';
 import { getActiveProfile } from '../profiles';
 import { getSettings } from '../settings';
 import { recordCandidatesFromText } from '../discovery';
+import { makeFetchPauseProbe } from './fetch-pause';
 import { processNormalizedJobs, type ProcessStats } from './process-jobs';
 import type { CronStats } from './cron-run';
 
@@ -29,7 +30,11 @@ export async function runFetchJob(): Promise<{ stats: CronStats }> {
     'fetch-job: using active profile',
   );
 
-  const fetched = await runAllFetchers();
+  // Pausing on /settings must also stop a tick that is already running —
+  // every long phase below polls this probe and aborts within seconds.
+  const paused = makeFetchPauseProbe();
+
+  const fetched = await runAllFetchers(paused);
   logger.info({ count: fetched.length }, 'fetch-job: total fetched');
 
   // Phase 7.5 — universal ATS-URL discovery from any fetched job's URL
@@ -44,6 +49,7 @@ export async function runFetchJob(): Promise<{ stats: CronStats }> {
   if (settings.discoveryEnabled) {
     const sourceTag = `fetch-${new Date().toISOString().slice(0, 7)}`;
     for (const { job, companyName } of fetched) {
+      if (await paused()) break;
       const text = `${job.url}\n${job.description}`;
       const recorded = await recordCandidatesFromText(text, sourceTag, {
         name: null,
@@ -55,6 +61,24 @@ export async function runFetchJob(): Promise<{ stats: CronStats }> {
     if (candidates > 0) {
       logger.info({ candidates }, 'fetch-job: discovery harvested candidates');
     }
+  }
+
+  if (await paused()) {
+    const durationMs = Date.now() - started;
+    logger.warn(
+      { fetched: fetched.length, durationMs },
+      'fetch-job: aborted before classify (fetching paused mid-run)',
+    );
+    return {
+      stats: {
+        profile: profile.name,
+        aborted: 1,
+        reason: 'paused-mid-run',
+        fetched: fetched.length,
+        candidatesRecorded: candidates,
+        durationMs,
+      },
+    };
   }
 
   const inner: ProcessStats = {
@@ -69,8 +93,10 @@ export async function runFetchJob(): Promise<{ stats: CronStats }> {
     alertFailed: 0,
     priorityBoosted: 0,
     crossListed: 0,
+    abortedMidRun: 0,
+    skippedByPause: 0,
   };
-  await processNormalizedJobs(fetched, profile, classifierMode, inner);
+  await processNormalizedJobs(fetched, profile, classifierMode, inner, paused);
 
   const durationMs = Date.now() - started;
   const stats: CronStats = {

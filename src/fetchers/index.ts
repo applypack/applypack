@@ -41,7 +41,9 @@ export interface FetcherResult {
   companyName: string;
 }
 
-export async function runAllFetchers(): Promise<FetcherResult[]> {
+export async function runAllFetchers(
+  isCancelled?: () => Promise<boolean>,
+): Promise<FetcherResult[]> {
   const settings = await getSettings();
   const disabled = toAtsTypes(settings.disabledSources);
   if (disabled.length > 0) {
@@ -57,8 +59,17 @@ export async function runAllFetchers(): Promise<FetcherResult[]> {
   });
 
   const out: FetcherResult[] = [];
+  let done = 0;
 
   for (const company of companies) {
+    if (isCancelled && (await isCancelled())) {
+      logger.warn(
+        { done, remaining: companies.length - done },
+        'fetchers: aborted (fetching paused mid-run)',
+      );
+      break;
+    }
+    done++;
     let status: FetchStatus;
     try {
       const jobs = await fetchOne(company);
