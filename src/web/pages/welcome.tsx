@@ -495,7 +495,8 @@ const ProfileStep: FC<WelcomeProps> = ({ profile, steps }) => {
 
 const MatchesStep: FC<WelcomeProps> = (p) => {
   const { matches, steps } = p;
-  const done = steps.find((s) => s.key === 'matches')?.done ?? false;
+  // A pass in flight already scored a few rows — show the running copy, not "0 of 3".
+  const done = (steps.find((s) => s.key === 'matches')?.done ?? false) && !matches.runningRunId;
   return (
     <StepCard n={4} step="matches" done={done}>
       {done ? (
