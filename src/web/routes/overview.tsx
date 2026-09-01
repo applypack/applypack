@@ -4,6 +4,7 @@ import { JobStatus } from '@prisma/client';
 import { prisma } from '../../db';
 import { getSettings } from '../../settings';
 import { clearFlashCookie, parseFlashCookie } from '../flash';
+import { activeFetchRun } from '../fetch-runs';
 import { OverviewPage } from '../pages/overview';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -62,6 +63,7 @@ overviewRoute.get('/', async (c) => {
       recentAlerts={recentAlerts}
       latestRuns={latestRuns}
       fetchingEnabled={settings.fetchingEnabled}
+      fetchRun={activeFetchRun()}
       flash={parseFlashCookie(c.req.header('cookie'))}
     />,
     200,

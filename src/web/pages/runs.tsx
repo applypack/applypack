@@ -2,8 +2,11 @@
 import type { FC } from 'hono/jsx';
 import type { CronRunStatus } from '@prisma/client';
 import { Layout } from '../layout';
-import { Badge, Card, Empty, PageHeader, Table, Td, Tr } from '../ui';
+import { Badge, Card, Empty, Flash, PageHeader, Table, Td, Tr } from '../ui';
+import type { FlashMessage } from '../flash';
 import { formatDate, formatDuration } from '../format';
+import type { FetchRun } from '../fetch-runs';
+import { FetchNowButton } from './fetch-run';
 import { runLabel, runTone } from './overview';
 
 interface RunRow {
@@ -18,14 +21,22 @@ interface RunRow {
 
 export interface RunsProps {
   runs: RunRow[];
+  /** The manual fetch in flight, if any — the button turns into a link to it. */
+  fetchRun: FetchRun | null;
+  flash?: FlashMessage | null;
 }
 
-export const RunsPage: FC<RunsProps> = ({ runs }) => (
+export const RunsPage: FC<RunsProps> = ({ runs, fetchRun, flash }) => (
   <Layout title="Cron runs" active="runs">
-    <PageHeader title="Cron runs" meta={`last ${runs.length}`} />
+    <PageHeader
+      title="Cron runs"
+      meta={`last ${runs.length}`}
+      actions={<FetchNowButton run={fetchRun} />}
+    />
+    <Flash flash={flash} />
 
     {runs.length === 0 ? (
-      <Empty>No runs recorded yet. Worker has not ticked.</Empty>
+      <Empty>No runs recorded yet. The worker has not ticked — press Fetch now to run the first one.</Empty>
     ) : (
       <Card flush>
         <div class="overflow-x-auto">

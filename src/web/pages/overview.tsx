@@ -4,6 +4,8 @@ import type { CronRunStatus } from '@prisma/client';
 import { Layout } from '../layout';
 import { Badge, Button, Card, Empty, FitBadge, Flash, PageHeader, SectionTitle, Stat, StatusBadge } from '../ui';
 import type { FlashMessage } from '../flash';
+import type { FetchRun } from '../fetch-runs';
+import { FetchNowButton } from './fetch-run';
 import {
   formatDateShort,
   formatDuration,
@@ -41,6 +43,8 @@ export interface OverviewProps {
   recentAlerts: JobRow[];
   latestRuns: { name: string; run: RunRow | null }[];
   fetchingEnabled: boolean;
+  /** The manual fetch in flight, if any — the button turns into a link to it. */
+  fetchRun: FetchRun | null;
   flash?: FlashMessage | null;
 }
 
@@ -62,6 +66,7 @@ export const OverviewPage: FC<OverviewProps> = ({
   recentAlerts,
   latestRuns,
   fetchingEnabled,
+  fetchRun,
   flash,
 }) => {
   const byStatus = mapCounts(counts);
@@ -75,20 +80,23 @@ export const OverviewPage: FC<OverviewProps> = ({
         title="Overview"
         meta="Refreshes every 30s"
         actions={
-          /* Quick master switch — same toggle as Settings → General. */
-          <form
-            method="post"
-            action="/settings/fetching-toggle"
-            class="flex items-center gap-2"
-          >
-            <input type="hidden" name="back" value="/" />
-            <Badge tone={fetchingEnabled ? 'ok' : 'neutral'}>
-              {fetchingEnabled ? 'Pipeline running' : 'Pipeline paused'}
-            </Badge>
-            <Button size="sm" variant="secondary">
-              {fetchingEnabled ? 'Pause' : 'Resume'}
-            </Button>
-          </form>
+          <>
+            <FetchNowButton run={fetchRun} />
+            {/* Quick master switch — same toggle as Settings → General. */}
+            <form
+              method="post"
+              action="/settings/fetching-toggle"
+              class="flex items-center gap-2"
+            >
+              <input type="hidden" name="back" value="/" />
+              <Badge tone={fetchingEnabled ? 'ok' : 'neutral'}>
+                {fetchingEnabled ? 'Pipeline running' : 'Pipeline paused'}
+              </Badge>
+              <Button size="sm" variant="secondary">
+                {fetchingEnabled ? 'Pause' : 'Resume'}
+              </Button>
+            </form>
+          </>
         }
       />
       <Flash flash={flash} />
@@ -103,7 +111,7 @@ export const OverviewPage: FC<OverviewProps> = ({
           >
             fill the profile
           </a>
-          , then press Resume.
+          , then press Resume. Fetch now still works while paused — it stores new jobs unscored.
         </p>
       )}
 

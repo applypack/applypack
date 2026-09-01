@@ -1,10 +1,12 @@
 /*
- * Progress-page driver: polls /target/runs/:id/state every 2 s, advances the
+ * Progress-page driver: polls the run's state route every 2 s, advances the
  * step list and rotates a "what the analysis is doing right now" line with a
  * fade. On a terminal state it reloads — the server route then redirects with
  * the flash. The activity lines mirror the checklist the prompts actually walk
  * through (profile scoring; the MATCH_SYSTEM steps), paced by stage-elapsed
- * time. activityFor is pure — tested from src/web/target-run.test.ts.
+ * time. The "Fetch now" page reuses init with its own state URL and activity
+ * function (fetch-run.mjs). activityFor / paced are pure — tested from
+ * src/web/target-run.test.ts.
  */
 
 const ACTIVITIES = {
@@ -50,11 +52,15 @@ const ROTATE_MS = 9000;
 const POLL_MS = 2000;
 const FADE_MS = 250;
 
-/** Which activity line a step shows after `stageElapsedMs`; holds on the last one. */
-export function activityFor(step, stageElapsedMs) {
-  const list = ACTIVITIES[step] ?? [];
+/** Which line of `list` shows after `elapsedMs`; holds on the last one. */
+export function paced(list, elapsedMs) {
   if (list.length === 0) return '';
-  return list[Math.min(Math.floor(stageElapsedMs / ROTATE_MS), list.length - 1)];
+  return list[Math.min(Math.floor(elapsedMs / ROTATE_MS), list.length - 1)];
+}
+
+/** Which activity line a step shows after `stageElapsedMs`. */
+export function activityFor(step, stageElapsedMs) {
+  return paced(ACTIVITIES[step] ?? [], stageElapsedMs);
 }
 
 export function formatElapsed(ms) {
@@ -62,7 +68,7 @@ export function formatElapsed(ms) {
   return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${s % 60}s`;
 }
 
-export function init(data) {
+export function init(data, activity = (step, state) => activityFor(step, state.stageElapsedMs)) {
   const steps = [...document.querySelectorAll('[data-step]')];
   const elapsedEl = document.getElementById('run-elapsed');
   let state = null;
@@ -79,7 +85,7 @@ export function init(data) {
     const active = steps.find((li) => li.dataset.state === 'active');
     if (!active) return;
     const el = active.querySelector('[data-activity]');
-    const text = activityFor(active.dataset.step, state.stageElapsedMs);
+    const text = activity(active.dataset.step, state);
     if (el && text !== shownText) {
       shownText = text;
       el.style.opacity = '0';
@@ -92,7 +98,7 @@ export function init(data) {
 
   async function poll() {
     try {
-      const res = await fetch(`/target/runs/${data.id}/state`);
+      const res = await fetch(data.stateUrl ?? `/target/runs/${data.id}/state`);
       if (res.status === 404) return location.reload();
       if (!res.ok) return;
       state = await res.json();
