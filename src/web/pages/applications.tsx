@@ -3,6 +3,7 @@ import type { FC } from 'hono/jsx';
 import { Layout } from '../layout';
 import { Empty, FitBadge, PageHeader } from '../ui';
 import { formatRelative } from '../format';
+import { FunnelStatsSection, type FunnelStatsProps } from './funnel-stats';
 
 const STAGES = ['applied', 'screen', 'tech', 'onsite', 'offer', 'rejected', 'ghosted'] as const;
 type Stage = (typeof STAGES)[number];
@@ -40,16 +41,18 @@ interface ApplicationCard {
 export interface ApplicationsProps {
   byStage: Record<Stage, ApplicationCard[]>;
   applicationTrackingEnabled: boolean;
+  stats: FunnelStatsProps | null;
 }
 
 export const ApplicationsPage: FC<ApplicationsProps> = ({
   byStage,
   applicationTrackingEnabled,
+  stats,
 }) => {
   const totalCount = STAGES.reduce((sum, s) => sum + (byStage[s]?.length ?? 0), 0);
 
   return (
-    <Layout title="Applications" active="applications" fill={applicationTrackingEnabled}>
+    <Layout title="Applications" active="applications">
       <PageHeader
         title="Applications"
         meta={applicationTrackingEnabled ? `${totalCount} in the funnel` : undefined}
@@ -71,6 +74,7 @@ export const ApplicationsPage: FC<ApplicationsProps> = ({
           to see your funnel here.
         </Empty>
       ) : (
+        <>
         <div class="flex min-h-0 min-w-0 flex-1 items-stretch gap-3 overflow-x-auto pb-1">
           {STAGES.map((stage) => {
             const items = byStage[stage] ?? [];
@@ -127,6 +131,8 @@ export const ApplicationsPage: FC<ApplicationsProps> = ({
             );
           })}
         </div>
+        {stats && <FunnelStatsSection {...stats} />}
+        </>
       )}
     </Layout>
   );
