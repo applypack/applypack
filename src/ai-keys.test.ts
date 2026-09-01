@@ -1,0 +1,92 @@
+import { describe, it } from 'node:test';
+import assert from 'node:assert/strict';
+import {
+  AI_KEY_PROVIDER_IDS,
+  MAX_AI_KEY_LENGTH,
+  aiKeySource,
+  parseAiKeys,
+  providerTakesKey,
+  resolveAiKey,
+  withAiKey,
+} from './ai-keys';
+
+describe('providerTakesKey', () => {
+  it('covers the four key-bearing engines and not codex', () => {
+    assert.deepEqual(AI_KEY_PROVIDER_IDS, [
+      'anthropic_api',
+      'claude_code',
+      'gemini_cli',
+      'openai_api',
+    ]);
+    assert.equal(providerTakesKey('codex_cli'), false);
+  });
+});
+
+describe('parseAiKeys', () => {
+  it('returns an empty map for null, junk and wrong shapes', () => {
+    assert.deepEqual(parseAiKeys(null), {});
+    assert.deepEqual(parseAiKeys('nope'), {});
+    assert.deepEqual(parseAiKeys({ openai_api: 42 }), {});
+  });
+
+  it('keeps known engines, drops unknown ids and blanks', () => {
+    const keys = parseAiKeys({
+      anthropic_api: ' sk-ant-live ',
+      codex_cli: 'not-a-key-engine',
+      gemini_cli: '   ',
+      made_up: 'x',
+    });
+    assert.deepEqual(keys, { anthropic_api: 'sk-ant-live' });
+  });
+
+  it('truncates an oversized paste instead of storing it whole', () => {
+    const keys = parseAiKeys({ openai_api: 'k'.repeat(MAX_AI_KEY_LENGTH + 50) });
+    assert.equal(keys.openai_api?.length, MAX_AI_KEY_LENGTH);
+  });
+});
+
+describe('withAiKey', () => {
+  it('adds, replaces and clears without touching the other engines', () => {
+    const one = withAiKey({}, 'openai_api', ' sk-openai ');
+    assert.deepEqual(one, { openai_api: 'sk-openai' });
+    const two = withAiKey(one, 'gemini_cli', 'gm');
+    assert.deepEqual(two, { openai_api: 'sk-openai', gemini_cli: 'gm' });
+    assert.deepEqual(withAiKey(two, 'openai_api', '   '), { gemini_cli: 'gm' });
+  });
+
+  it('does not mutate the input', () => {
+    const before = { openai_api: 'a' };
+    withAiKey(before, 'openai_api', '');
+    assert.deepEqual(before, { openai_api: 'a' });
+  });
+});
+
+describe('resolveAiKey', () => {
+  const env = { ANTHROPIC_API_KEY: 'from-env', OPENAI_API_KEY: '  ' };
+
+  it('prefers the stored key over .env', () => {
+    assert.equal(resolveAiKey('anthropic_api', { anthropic_api: 'from-db' }, env), 'from-db');
+  });
+
+  it('falls back to .env when nothing is stored', () => {
+    assert.equal(resolveAiKey('anthropic_api', {}, env), 'from-env');
+  });
+
+  it('treats a blank .env value as absent', () => {
+    assert.equal(resolveAiKey('openai_api', {}, env), undefined);
+  });
+
+  it('has nothing to resolve for a login-only engine', () => {
+    assert.equal(resolveAiKey('codex_cli', {}, { OPENAI_API_KEY: 'x' }), undefined);
+  });
+});
+
+describe('aiKeySource', () => {
+  it('names where the credential comes from', () => {
+    const env = { GEMINI_API_KEY: 'g' };
+    assert.equal(aiKeySource('gemini_cli', { gemini_cli: 'db' }, env), 'db');
+    assert.equal(aiKeySource('gemini_cli', {}, env), 'env');
+    assert.equal(aiKeySource('openai_api', {}, env), 'none');
+    assert.equal(aiKeySource('codex_cli', {}, env), 'none');
+  });
+});

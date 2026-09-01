@@ -193,6 +193,12 @@ model AppSettings {
   // serves each call; the rest are automatic fallbacks. NULL = follow .env
   // (AI_PROVIDER seeds a one-engine chain).
   aiEngine                       Json?
+  // Per-engine credentials (ADR 0027): { <provider id>: "<secret>" }, stored
+  // in plaintext so the dashboard can take a pasted key instead of a .env
+  // edit. NULL / a missing entry = fall back to the .env variable. Read only
+  // through settings.ts:getAiKeys — never joined into AppSettingsView, so a
+  // secret cannot ride along with an ordinary settings read.
+  aiKeys                         Json?
   // Lightweight AI usage counters: { "YYYY-MM-DD": { <provider>: {
   // classifier: n, resume: n } } }. Incremented atomically per successful
   // call (ai-runtime.ts:recordUsage), trimmed to 60 days by the cleanup

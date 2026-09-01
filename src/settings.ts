@@ -3,6 +3,7 @@ import type { Prisma, TelegramTarget } from '@prisma/client';
 import { prisma } from './db';
 import { logger } from './logger';
 import type { AiEngineConfig } from './ai-engine';
+import { parseAiKeys, withAiKey, type AiKeyProviderId, type AiKeys } from './ai-keys';
 
 export const SETTINGS_ID = 1;
 const TELEGRAM_API = 'https://api.telegram.org';
@@ -110,6 +111,32 @@ export async function setAiEngineConfig(engine: AiEngineConfig): Promise<void> {
     create: { id: SETTINGS_ID, aiEngine: value },
   });
   logger.info({ engine }, 'settings: ai engine updated');
+}
+
+/**
+ * The pasted per-engine credentials (ADR 0027). Deliberately NOT part of
+ * AppSettingsView: a secret is only ever read by the code that is about to
+ * use it, so an ordinary settings read can never carry one into a log line
+ * or a rendered page.
+ */
+export async function getAiKeys(): Promise<AiKeys> {
+  const row = await prisma.appSettings.findUnique({
+    where: { id: SETTINGS_ID },
+    select: { aiKeys: true },
+  });
+  return parseAiKeys(row?.aiKeys ?? null);
+}
+
+/** Stores a pasted key, or removes it when `key` is blank. Logs the engine only. */
+export async function setAiKey(id: AiKeyProviderId, key: string): Promise<void> {
+  const next = withAiKey(await getAiKeys(), id, key);
+  const value = next as unknown as Prisma.InputJsonValue;
+  await prisma.appSettings.upsert({
+    where: { id: SETTINGS_ID },
+    update: { aiKeys: value },
+    create: { id: SETTINGS_ID, aiKeys: value },
+  });
+  logger.info({ provider: id, stored: id in next }, 'settings: ai key updated');
 }
 
 export async function setTelegramEnabled(enabled: boolean): Promise<void> {

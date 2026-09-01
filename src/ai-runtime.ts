@@ -8,6 +8,7 @@ import { logger } from './logger';
 import { prisma } from './db';
 import { getAiProviderById, type AiProvider } from './ai-provider';
 import { SETTINGS_ID } from './settings';
+import { aiKeySource, parseAiKeys, resolveAiKey, type AiKeys, type AiKeySource } from './ai-keys';
 import { createCooldownTracker } from './ai-cooldown';
 import {
   PROVIDER_WEB_TOOLS,
@@ -32,16 +33,18 @@ const DEFAULT_ATTEMPT_TIMEOUT_MS = 180_000;
 const cooldowns = createCooldownTracker();
 
 /**
- * The .env side of the engine merge — computed per call: CLI auth can appear
+ * The host side of the engine merge — computed per call: CLI auth can appear
  * while the process runs (login / mounted creds), and the resolver should
- * see it immediately.
+ * see it immediately. `keys` are the credentials pasted in the dashboard
+ * (ADR 0027); they win over the matching .env variable, so the usability
+ * rules in ai-engine.ts stay the single place that decides.
  */
-export function getAiEngineEnv(): AiEngineEnv {
+export function getAiEngineEnv(keys: AiKeys = {}): AiEngineEnv {
   return {
     provider: config.AI_PROVIDER,
-    hasAnthropicKey: Boolean(config.ANTHROPIC_API_KEY),
-    hasOpenAiKey: Boolean(config.OPENAI_API_KEY),
-    geminiUsable: geminiAuthConfigured(),
+    hasAnthropicKey: Boolean(resolveAiKey('anthropic_api', keys)),
+    hasOpenAiKey: Boolean(resolveAiKey('openai_api', keys)),
+    geminiUsable: Boolean(keys.gemini_cli) || geminiAuthConfigured(),
     codexUsable: codexAuthConfigured(),
     classifierModel: config.CLAUDE_MODEL,
     resumeModel: config.CLAUDE_MODEL_RESUME,
@@ -87,26 +90,29 @@ export interface AiRuntime {
  */
 export async function getAiRuntime(): Promise<AiRuntime> {
   let raw: unknown = null;
+  let keys: AiKeys = {};
   try {
     const row = await prisma.appSettings.findUnique({
       where: { id: SETTINGS_ID },
-      select: { aiEngine: true },
+      select: { aiEngine: true, aiKeys: true },
     });
     raw = row?.aiEngine ?? null;
+    keys = parseAiKeys(row?.aiKeys ?? null);
   } catch (err) {
     logger.warn({ err }, 'ai: settings read failed, using .env engine');
   }
-  const resolved = resolveAiEngine(raw, getAiEngineEnv());
+  const resolved = resolveAiEngine(raw, getAiEngineEnv(keys));
   return {
     chain: resolved.chain,
     skipped: resolved.skipped,
     modelFor: resolved.modelFor,
-    complete: (req) => completeWithFailover(resolved, req),
+    complete: (req) => completeWithFailover(resolved, keys, req),
   };
 }
 
 async function completeWithFailover(
   engine: ResolvedAiEngine,
+  keys: AiKeys,
   req: AiCallRequest,
 ): Promise<AiCallResult | null> {
   // Verification asks for web tools — prefer engines that have them, but a
@@ -149,6 +155,7 @@ async function completeWithFailover(
       model,
       timeoutMs: Math.min(perAttemptMs, remainingMs),
       webTools: req.webTools,
+      apiKey: resolveAiKey(id, keys),
     });
     if (text !== null) {
       cooldowns.success(id);
@@ -213,24 +220,54 @@ let probeCache: { at: number; statuses: Record<AiProviderId, AiProviderStatus> }
  */
 export async function probeAiProviders(): Promise<Record<AiProviderId, AiProviderStatus>> {
   if (probeCache && Date.now() - probeCache.at < PROBE_TTL_MS) return probeCache.statuses;
-  const [claude, gemini, codex] = await Promise.all([
+  const [claude, gemini, codex, keys] = await Promise.all([
     probeCliBin(config.CLAUDE_CODE_BIN),
     probeCliBin(config.GEMINI_CLI_BIN),
     probeCliBin(config.CODEX_CLI_BIN),
+    readAiKeys(),
   ]);
+  const from = (id: AiProviderId): AiKeySource => aiKeySource(id, keys);
   const statuses: Record<AiProviderId, AiProviderStatus> = {
-    anthropic_api: config.ANTHROPIC_API_KEY
-      ? { ok: true, detail: 'API key set' }
-      : { ok: false, detail: 'set ANTHROPIC_API_KEY in .env' },
-    claude_code: withClaudeAuth(claude),
-    gemini_cli: withGeminiAuth(gemini),
-    openai_api: config.OPENAI_API_KEY
-      ? { ok: true, detail: `API key set · ${baseUrlHost()}` }
-      : { ok: false, detail: `set OPENAI_API_KEY in .env (endpoint: ${baseUrlHost()})` },
+    anthropic_api:
+      from('anthropic_api') === 'none'
+        ? { ok: false, detail: 'paste an API key below, or set ANTHROPIC_API_KEY in .env' }
+        : { ok: true, detail: `API key ${keyOrigin(from('anthropic_api'))}` },
+    claude_code: withClaudeAuth(claude, from('claude_code')),
+    gemini_cli: withGeminiAuth(gemini, from('gemini_cli')),
+    openai_api:
+      from('openai_api') === 'none'
+        ? {
+            ok: false,
+            detail: `paste an API key below, or set OPENAI_API_KEY in .env (endpoint: ${baseUrlHost()})`,
+          }
+        : { ok: true, detail: `API key ${keyOrigin(from('openai_api'))} · ${baseUrlHost()}` },
     codex_cli: withCodexAuth(codex),
   };
   probeCache = { at: Date.now(), statuses };
   return statuses;
+}
+
+/** Invalidates the probe cache so a just-saved key shows up immediately. */
+export function forgetAiProbe(): void {
+  probeCache = null;
+}
+
+/** Never the key itself — only where it came from. */
+function keyOrigin(source: AiKeySource): string {
+  return source === 'db' ? 'saved here' : 'from .env';
+}
+
+async function readAiKeys(): Promise<AiKeys> {
+  try {
+    const row = await prisma.appSettings.findUnique({
+      where: { id: SETTINGS_ID },
+      select: { aiKeys: true },
+    });
+    return parseAiKeys(row?.aiKeys ?? null);
+  } catch (err) {
+    logger.warn({ err }, 'ai: key read failed, probing .env only');
+    return {};
+  }
 }
 
 function baseUrlHost(): string {
@@ -255,11 +292,13 @@ async function probeCliBin(bin: string): Promise<AiProviderStatus> {
  * mode, so an installed binary alone is not usable. Auth is file/env
  * detectable (unlike Claude Code's keychain), so surface it here.
  */
-function withGeminiAuth(bin: AiProviderStatus): AiProviderStatus {
-  if (!bin.ok || geminiAuthConfigured()) return bin;
+function withGeminiAuth(bin: AiProviderStatus, keySource: AiKeySource): AiProviderStatus {
+  if (!bin.ok) return bin;
+  if (keySource === 'db') return { ok: true, detail: `${bin.detail} · API key saved here` };
+  if (geminiAuthConfigured()) return bin;
   return {
     ok: false,
-    detail: `${bin.detail} installed — set GEMINI_API_KEY in .env, or log in once with \`gemini\` (mount ~/.gemini in Docker)`,
+    detail: `${bin.detail} installed — paste an API key below, or log in once with \`gemini\` (mount ~/.gemini in Docker)`,
   };
 }
 
@@ -303,11 +342,13 @@ function codexAuthConfigured(): boolean {
  * this reads the signals the CLI leaves on disk instead of spending a live
  * call on every settings render — the Test button stays the ground truth.
  */
-function withClaudeAuth(bin: AiProviderStatus): AiProviderStatus {
-  if (!bin.ok || claudeAuthConfigured()) return bin;
+function withClaudeAuth(bin: AiProviderStatus, keySource: AiKeySource): AiProviderStatus {
+  if (!bin.ok) return bin;
+  if (keySource === 'db') return { ok: true, detail: `${bin.detail} · token saved here` };
+  if (claudeAuthConfigured()) return bin;
   return {
     ok: false,
-    detail: `${bin.detail} installed, but not logged in — run \`claude\` once, or paste a token from \`claude setup-token\` (mount ~/.claude in Docker)`,
+    detail: `${bin.detail} installed, but not logged in — run \`claude\` once, or paste a \`claude setup-token\` token below`,
   };
 }
 
