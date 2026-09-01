@@ -101,7 +101,10 @@ export async function runHnHiringJob(): Promise<{ stats: CronStats }> {
     skippedByPause: 0,
     skippedBlankProfile: 0,
   };
-  await processNormalizedJobs(items, profile, settings.classifierMode, inner, paused);
+  await processNormalizedJobs(items, profile, inner, {
+    classifierMode: settings.classifierMode,
+    isCancelled: paused,
+  });
 
   const durationMs = Date.now() - started;
   const stats: CronStats = {

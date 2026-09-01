@@ -41,8 +41,18 @@ export interface FetcherResult {
   companyName: string;
 }
 
+/** One source answered — live progress for the dashboard's "Fetch now" page. */
+export interface SourceProgress {
+  company: string;
+  status: FetchStatus;
+  count: number;
+  done: number;
+  total: number;
+}
+
 export async function runAllFetchers(
   isCancelled?: () => Promise<boolean>,
+  onSource?: (progress: SourceProgress) => void,
 ): Promise<FetcherResult[]> {
   const settings = await getSettings();
   const disabled = toAtsTypes(settings.disabledSources);
@@ -71,13 +81,15 @@ export async function runAllFetchers(
     }
     done++;
     let status: FetchStatus;
+    let count = 0;
     try {
       const jobs = await fetchOne(company);
+      count = jobs.length;
       // Status comes from the RAW count, before passesBaseFilter — a profile
       // that matches nothing is not a broken board (ADR 0019).
-      status = classifyFetchCount(jobs.length);
+      status = classifyFetchCount(count);
       logger.info(
-        { company: company.name, count: jobs.length, ats: company.atsType, status },
+        { company: company.name, count, ats: company.atsType, status },
         'fetcher: ok',
       );
       for (const job of jobs) {
@@ -91,6 +103,7 @@ export async function runAllFetchers(
       );
     }
     await recordFetchHealth(company, status);
+    onSource?.({ company: company.name, status, count, done, total: companies.length });
     await sleep(POLITE_DELAY_MS);
   }
 
