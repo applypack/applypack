@@ -261,10 +261,10 @@ export const SettingsPage: FC<SettingsProps> = ({
             <Button variant="violet">Re-classify all jobs</Button>
           </ActionForm>
         </div>
-        {activeProfile && activeProfile.stackRequired.length === 0 && activeProfile.roleTypes.length === 0 && (
+        {profiles.some((p) => p.active && p.blank) && (
           <div class="rounded-md border border-warn/25 bg-warn/5 px-3.5 py-2.5 text-[13px] leading-5 text-warn">
-            This profile lists no required stack and no role types yet, so every fetched job
-            goes to the AI classifier.{' '}
+            Active profile is empty — classification idle. New jobs are fetched but not
+            scored or alerted until it lists a required stack or role types.{' '}
             {resumes.length > 0 ? (
               'Fastest fix: fill the fields from a resume below.'
             ) : (
