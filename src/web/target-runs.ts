@@ -9,7 +9,7 @@ import { logger } from '../logger';
  * runs (node-cron philosophy: no queue, ADR 0003).
  */
 
-export type RunStep = 'fetch' | 'extract' | 'classify' | 'scan' | 'match' | 'verify' | 'letter';
+export type RunStep = 'fetch' | 'extract' | 'classify' | 'scan' | 'match' | 'verify' | 'letter' | 'score';
 export type RunStage = RunStep | 'done' | 'error';
 
 export interface TargetRun {
@@ -26,6 +26,11 @@ export interface TargetRun {
   backLabel: string;
   /** Set once the job row exists — the error state can link to it. */
   jobId?: number;
+  /** Page copy for runs that are not a comparison (the wizard's scan / score). */
+  heading?: { running: string; failed: string };
+  subtitle?: string;
+  /** Data-driven progress of the active step, when the job reports it. */
+  progress?: { done: number; total: number };
   /** Set on done: where to send the user, with the flash to show there. */
   resultUrl?: string;
   flash?: string;
@@ -37,7 +42,7 @@ const runs = new Map<string, TargetRun>();
 
 export function createRun(
   fields: Pick<TargetRun, 'steps' | 'jobTitle' | 'resumeName'> &
-    Partial<Pick<TargetRun, 'jobId' | 'backUrl' | 'backLabel'>>,
+    Partial<Pick<TargetRun, 'jobId' | 'backUrl' | 'backLabel' | 'heading' | 'subtitle'>>,
 ): TargetRun {
   prune();
   const run: TargetRun = {

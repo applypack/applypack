@@ -46,7 +46,7 @@ import {
   type AiProviderId,
 } from '../../ai-engine';
 import { getAiEngineEnv, probeAiProviders } from '../../ai-runtime';
-import { getAiProviderById } from '../../ai-provider';
+import { testAiEngine } from '../ai-test';
 import {
   createProfile,
   deleteProfile,
@@ -108,8 +108,6 @@ const AI_PROVIDER_DESCS: Record<AiProviderId, string> = {
     'Any server speaking /chat/completions: OpenAI, OpenRouter, Groq, local LM Studio / Ollama. Pays per token (or free locally).',
   codex_cli: 'Headless codex exec on your ChatGPT subscription.',
 };
-
-const ENGINE_TEST_TIMEOUT_MS = 90_000;
 
 let reclassifyInFlight = false;
 
@@ -377,42 +375,8 @@ settingsRoute.post('/settings/ai/test', async (c) => {
   const form = await c.req.parseBody();
   const provider = typeof form.provider === 'string' ? form.provider : '';
   if (!isAiProviderId(provider)) return flashRedirect('/settings?tab=ai', 'err', 'Unknown engine.');
-  const label = AI_PROVIDER_LABELS[provider];
-  let backend;
-  try {
-    backend = getAiProviderById(provider);
-  } catch (err) {
-    return flashRedirect(
-      '/settings?tab=ai',
-      'err',
-      `${label} test failed: ${err instanceof Error ? err.message : 'not configured'}.`,
-    );
-  }
-  const settings = await getSettings();
-  const engine = resolveAiEngine(settings.aiEngine, getAiEngineEnv());
-  const model = engine.modelFor(provider, 'classifier');
-  const started = Date.now();
-  const text = await backend.complete({
-    system: 'You are a connectivity test. Reply with exactly: OK',
-    user: 'Reply with exactly: OK',
-    maxTokens: 20,
-    label: 'engine-test',
-    model,
-    timeoutMs: ENGINE_TEST_TIMEOUT_MS,
-  });
-  const seconds = ((Date.now() - started) / 1000).toFixed(1);
-  if (text !== null) {
-    return flashRedirect(
-      '/settings?tab=ai',
-      'ok',
-      `${label} works — replied in ${seconds}s (model ${model || 'CLI default'}).`,
-    );
-  }
-  return flashRedirect(
-    '/settings?tab=ai',
-    'err',
-    `${label} test failed after ${seconds}s — see the web container logs for the reason.`,
-  );
+  const result = await testAiEngine(provider);
+  return flashRedirect('/settings?tab=ai', result.ok ? 'ok' : 'err', result.text);
 });
 
 function cleanModelId(value: unknown): string | null {

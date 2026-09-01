@@ -6,6 +6,7 @@ import assert from 'node:assert/strict';
 const page = import('./public/target-run.mjs') as Promise<{
   activityFor: (step: string, stageElapsedMs: number) => string;
   formatElapsed: (ms: number) => string;
+  progressLine: (step: string, progress: { done: number; total: number }) => string;
   init: unknown;
 }>;
 
@@ -30,4 +31,11 @@ test('formatElapsed switches to minutes past 60 s', async () => {
 
 test('target-run module imports without a DOM and exposes init', async () => {
   assert.equal(typeof (await page).init, 'function');
+});
+
+test('progressLine names the unit per step', async () => {
+  const { progressLine, activityFor } = await page;
+  assert.equal(progressLine('score', { done: 12, total: 100 }), '12 of 100 jobs scored');
+  assert.equal(progressLine('nope', { done: 1, total: 2 }), '1 of 2 done');
+  assert.notEqual(activityFor('score', 0), '', 'the score step narrates before counts arrive');
 });

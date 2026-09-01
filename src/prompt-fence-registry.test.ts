@@ -48,7 +48,7 @@ const KNOWN_CALL_SITES: Record<string, string> = {
   'resume/cover-letter.ts': 'buildCoverPrompt',
   'verification/verify.ts': 'buildVerifyPrompt',
   'scripts/resume-bench-once.ts': 'bench harness, reuses buildMatchPrompt',
-  'web/routes/settings.tsx': 'engine connectivity test — a fixed literal, no outside text',
+  'web/ai-test.ts': 'engine connectivity test — a fixed literal, no outside text',
 };
 
 const PROFILE = {

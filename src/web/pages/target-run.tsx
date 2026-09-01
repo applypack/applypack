@@ -34,6 +34,10 @@ const STEP_VIEW: Record<RunStep, StepView> = {
     label: 'Write the cover letter',
     detail: 'grounded in the resume, fact-checked before it is shown — about a minute',
   },
+  score: {
+    label: 'Score the jobs we found',
+    detail: 'the AI reads each one against your profile — a few seconds per job',
+  },
 };
 
 /**
@@ -45,22 +49,25 @@ export const TargetRunPage: FC<{ run: TargetRun }> = ({ run }) => {
   const failed = run.stage === 'error';
   const currentIdx = run.steps.indexOf(run.stage as RunStep);
   const elapsed = Math.max(0, Math.round((Date.now() - run.startedAt) / 1000));
-  // A letter run reads oddly as "Comparing" — the verb follows the steps.
+  // A letter run reads oddly as "Comparing" — the verb follows the steps;
+  // wizard runs (scan / score) bring their own copy.
   const letter = run.steps.includes('letter');
-  const heading = failed
-    ? letter
-      ? 'Generation failed'
-      : 'Comparison failed'
-    : letter
-      ? 'Writing a cover letter'
-      : 'Comparing';
+  const copy = run.heading ?? {
+    running: letter ? 'Writing a cover letter' : 'Comparing',
+    failed: letter ? 'Generation failed' : 'Comparison failed',
+  };
+  const heading = failed ? copy.failed : copy.running;
   return (
-    <Layout title={failed ? heading : `${heading}…`} active="target">
+    <Layout title={failed ? heading : `${heading}…`} active={run.heading ? undefined : 'target'}>
       <div class="mx-auto w-full max-w-2xl pt-6 lg:pt-16">
         <Card>
           <div class="mb-1 text-sm font-semibold text-ink">{heading}</div>
           <div class="text-sm text-ink-muted">
-            "{run.resumeName}" ↔ "<span id="run-job-title">{run.jobTitle}</span>"
+            {run.subtitle ?? (
+              <>
+                "{run.resumeName}" ↔ "<span id="run-job-title">{run.jobTitle}</span>"
+              </>
+            )}
           </div>
 
           {failed ? (
@@ -84,8 +91,8 @@ export const TargetRunPage: FC<{ run: TargetRun }> = ({ run }) => {
               <RunSteps steps={run.steps} currentIdx={currentIdx} view={STEP_VIEW} />
               <div class="mt-5 flex items-center justify-between gap-3 border-t border-line pt-3">
                 <Hint>
-                  You can close this page — the run keeps going and the result lands on the job
-                  page.
+                  You can close this page — the run keeps going and the result lands{' '}
+                  {run.heading ? 'back in setup' : 'on the job page'}.
                 </Hint>
                 <span id="run-elapsed" class="shrink-0 text-xs tabular-nums text-ink-faint">
                   {elapsed}s

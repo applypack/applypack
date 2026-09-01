@@ -341,6 +341,10 @@ export const Td: FC<PropsWithChildren<{ class?: string; title?: string }>> = ({
 
 /* ---------- forms ---------- */
 
+/** Native file input styled to match the controls (shared by every upload form). */
+export const FILE_INPUT_CLASS =
+  'file:mr-3 file:cursor-pointer file:rounded-md file:border-0 file:bg-surface-overlay file:px-2.5 file:py-1 file:text-xs file:font-medium file:text-ink';
+
 export const Field: FC<PropsWithChildren<{ label: string; hint?: string; class?: string }>> = ({
   label,
   hint,

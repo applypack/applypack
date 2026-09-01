@@ -41,11 +41,14 @@ runsRoute.get('/runs', async (c) => {
  * new jobs unscored: paused means no AI spend.
  */
 runsRoute.post('/runs/fetch-now', async (c) => {
+  const form = await c.req.parseBody();
+  // The wizard's "Run a test search" wants the verdict back in setup.
+  const backUrl = form.back === '/welcome' ? '/welcome' : '/runs';
   const { fetchingEnabled } = await getSettings();
   // No await between the guard and the create — a double submit lands on the same run.
   const active = activeFetchRun();
   if (active) return c.redirect(`/runs/fetch-now/${active.id}`, 303);
-  const run = createFetchRun({ classify: fetchingEnabled });
+  const run = createFetchRun({ classify: fetchingEnabled, backUrl });
   startFetchRun(run.id, async () => {
     let stats: CronStats | undefined;
     await recordCronRun('fetch-now', async () => {
@@ -91,7 +94,7 @@ runsRoute.get('/runs/fetch-now/:id', (c) => {
   }
   if (run.stage === 'done') {
     const { kind, text } = summarizeFetchRun(run.stats ?? {});
-    return flashRedirect('/runs', kind, text);
+    return flashRedirect(run.backUrl, kind, text);
   }
   return c.html(<FetchRunPage run={run} />);
 });

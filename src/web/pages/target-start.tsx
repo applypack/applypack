@@ -1,18 +1,7 @@
 /** @jsxImportSource hono/jsx */
 import type { FC, PropsWithChildren } from 'hono/jsx';
 import { Layout } from '../layout';
-import {
-  Button,
-  Card,
-  Field,
-  Flash,
-  Hint,
-  Input,
-  PageHeader,
-  SectionTitle,
-  Select,
-  Textarea,
-} from '../ui';
+import { Button, Card, Field, FILE_INPUT_CLASS, Flash, Hint, Input, PageHeader, SectionTitle, Select, Textarea } from '../ui';
 import type { FlashMessage } from '../flash';
 import { ACCEPTED_EXTENSIONS } from '../../resume/resume-text';
 import { MAX_UPLOAD_MB } from '../upload';
@@ -30,9 +19,6 @@ export interface TargetStartProps {
   resumes: { id: number; name: string; isDefault: boolean; version: number }[];
   flash?: FlashMessage | null;
 }
-
-const FILE_INPUT_CLASS =
-  'file:mr-3 file:cursor-pointer file:rounded-md file:border-0 file:bg-surface-overlay file:px-2.5 file:py-1 file:text-xs file:font-medium file:text-ink';
 
 export const TargetStartPage: FC<TargetStartProps> = ({ resumes, flash }) => {
   const hasResumes = resumes.length > 0;
