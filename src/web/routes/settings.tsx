@@ -65,6 +65,7 @@ import {
   parsePriorityRulesText,
 } from '../../priority-rules';
 import { prisma } from '../../db';
+import { isBlankProfile } from '../../profile-guards';
 import { isSettingsTab, SettingsPage } from '../pages/settings';
 import { sourceLabel } from '../source-names';
 import { clearFlashCookie, flashRedirect, parseFlashCookie } from '../flash';
@@ -209,6 +210,7 @@ async function loadSettingsProps() {
         p.stackRequired.slice(0, 4).join(', ') +
         (p.stackRequired.length > 4 ? '...' : ''),
       active: active?.id === p.id,
+      blank: isBlankProfile(p),
     })),
     activeProfile: active,
     availableTargets: targets.map((t) => ({
@@ -229,6 +231,14 @@ settingsRoute.get('/settings', async (c) => {
   const props = await loadSettingsProps();
   const tabParam = c.req.query('tab');
   const activeTab = isSettingsTab(tabParam) ? tabParam : 'general';
+  // ?profile= points the editor at a specific (possibly inactive) profile.
+  // "+ New profile" lands here: new profiles are born inactive (issue #50)
+  // and must be editable before activation.
+  const profileParam = Number(c.req.query('profile'));
+  if (Number.isFinite(profileParam)) {
+    const editorProfile = await getProfile(profileParam);
+    if (editorProfile) props.activeProfile = editorProfile;
+  }
   const flash = parseFlashCookie(c.req.header('cookie'));
   return c.html(<SettingsPage {...props} activeTab={activeTab} flash={flash} />, 200, {
     'Set-Cookie': clearFlashCookie(),
@@ -624,11 +634,12 @@ settingsRoute.post('/settings/profiles/new', async (c) => {
     telegramTargetId: null,
     priorityRules: [],
   });
-  await setActiveProfile(profile.id);
+  // Born inactive (issue #50): a blank profile must never become the
+  // scoring profile. The first save with real content activates it.
   return flashRedirect(
-    '/settings?tab=profile',
+    `/settings?tab=profile&profile=${profile.id}`,
     'ok',
-    'New profile created and activated. Edit the fields below and save.',
+    'New profile created. Add a required stack or role types and save — it activates on the first save with content.',
   );
 });
 
@@ -636,6 +647,16 @@ settingsRoute.post('/settings/profiles/activate', async (c) => {
   const form = await c.req.parseBody();
   const id = Number(form.id);
   if (!Number.isFinite(id)) return flashRedirect('/settings?tab=profile', 'err', 'Invalid id.');
+  // Server-side half of the activation gate (issue #50) — the disabled
+  // Activate button is advisory only.
+  const target = await getProfile(id);
+  if (target && isBlankProfile(target)) {
+    return flashRedirect(
+      `/settings?tab=profile&profile=${id}`,
+      'err',
+      'This profile has no required stack and no role types — fill it in and save before activating.',
+    );
+  }
   try {
     await setActiveProfile(id);
   } catch (err) {
@@ -670,7 +691,8 @@ settingsRoute.post('/settings/profiles/:id/delete', async (c) => {
 settingsRoute.post('/settings/profiles/:id/save', async (c) => {
   const id = Number(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text('Bad id', 400);
-  if (!(await getProfile(id))) {
+  const before = await getProfile(id);
+  if (!before) {
     return flashRedirect('/settings?tab=profile', 'err', 'Profile not found.');
   }
 
@@ -703,7 +725,7 @@ settingsRoute.post('/settings/profiles/:id/save', async (c) => {
     );
   }
 
-  await updateProfile(id, {
+  const input = {
     name: f.name,
     stackRequired: parseTagList(f.stackRequired),
     roleTypes: parseTagList(f.roleTypes),
@@ -722,17 +744,50 @@ settingsRoute.post('/settings/profiles/:id/save', async (c) => {
         ? telegramTargetId
         : null,
     priorityRules,
-  });
+  };
+  await updateProfile(id, input);
+
+  // The second half of "born inactive" (issue #50): the first save that
+  // gives a blank profile real content makes it the active profile. Edits
+  // to profiles that already had content never steal activation.
+  const active = await getActiveProfile();
+  let isActive = active?.id === id;
+  let activated = false;
+  if (!isActive && isBlankProfile(before) && !isBlankProfile(input)) {
+    await setActiveProfile(id);
+    isActive = true;
+    activated = true;
+  }
+  const editorUrl = isActive
+    ? '/settings?tab=profile'
+    : `/settings?tab=profile&profile=${id}`;
 
   if (f.action === 'save-and-reclassify') {
+    if (!isActive) {
+      return flashRedirect(
+        editorUrl,
+        'warn',
+        'Profile saved, but re-classify skipped — it runs against the active profile only.',
+      );
+    }
     triggerReclassifyAsync();
     return flashRedirect(
-      '/settings?tab=profile',
+      editorUrl,
       'ok',
-      'Profile saved. Re-classify started in the background — track progress at /runs.',
+      `Profile saved${activated ? ' and activated' : ''}. Re-classify started in the background — track progress at /runs.`,
     );
   }
-  return flashRedirect('/settings?tab=profile', 'ok', 'Profile saved.');
+  if (activated) {
+    return flashRedirect(editorUrl, 'ok', 'Profile saved and activated.');
+  }
+  if (!isActive && isBlankProfile(input)) {
+    return flashRedirect(
+      editorUrl,
+      'ok',
+      'Profile saved. It stays inactive until it lists a required stack or role types.',
+    );
+  }
+  return flashRedirect(editorUrl, 'ok', 'Profile saved.');
 });
 
 // Prefill the editor from a resume's AI scan. Renders the draft directly —

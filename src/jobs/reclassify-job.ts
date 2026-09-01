@@ -7,6 +7,7 @@ import { classifyJob } from '../classifier';
 import { passesBaseFilter } from '../filter';
 import { getActiveProfile } from '../profiles';
 import { getSettings } from '../settings';
+import { isBlankProfile } from '../profile-guards';
 import { parsePriorityRules } from '../priority-rules';
 import { applyPriorityFloor } from './process-jobs';
 import { withApplyLinkFlags } from '../apply-link';
@@ -25,6 +26,15 @@ export async function runReclassifyAll(): Promise<{ stats: CronStats }> {
   if (!profile) {
     logger.warn('reclassify-all: no active profile');
     return { stats: { aborted: 1, reason: 'no-active-profile' } };
+  }
+  // Issue #50: re-scoring every job against a blank profile would overwrite
+  // real scores with vibes-based ones and demote most of the inbox.
+  if (isBlankProfile(profile)) {
+    logger.warn(
+      { profile: profile.name },
+      'reclassify-all: active profile has no required stack and no role types; aborting',
+    );
+    return { stats: { aborted: 1, reason: 'blank-profile' } };
   }
 
   const { classifierMode } = await getSettings();

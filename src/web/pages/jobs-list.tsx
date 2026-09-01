@@ -46,6 +46,8 @@ export interface JobsListProps {
     sort: string;
     verified: string;
   };
+  /** True when the active profile is blank — classification is idling (issue #50). */
+  blankProfileBanner?: boolean;
 }
 
 const STATUS_OPTIONS: { value: string; label: string }[] = [
@@ -70,6 +72,7 @@ export const JobsListPage: FC<JobsListProps> = ({
   page,
   pageSize,
   filters,
+  blankProfileBanner,
 }) => {
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const from = total === 0 ? 0 : (page - 1) * pageSize + 1;
@@ -92,6 +95,17 @@ export const JobsListPage: FC<JobsListProps> = ({
           </Button>
         }
       />
+
+      {blankProfileBanner && (
+        <div class="mb-4 shrink-0 rounded-md border border-warn/25 bg-warn/5 px-3.5 py-2.5 text-[13px] leading-5 text-warn">
+          Active profile is empty — classification idle. New jobs are fetched but not scored
+          or alerted until the profile lists a required stack or role types.{' '}
+          <a href="/settings?tab=profile" class="font-medium underline">
+            Fix the profile
+          </a>
+          .
+        </div>
+      )}
 
       <div class="mb-4 flex shrink-0 flex-wrap items-center gap-x-4 gap-y-2">
         <nav aria-label="Job filters" class="flex flex-wrap items-center gap-1">

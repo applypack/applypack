@@ -6,6 +6,7 @@ import { createLimiter } from '../concurrency';
 import { passesBaseFilter } from '../filter';
 import { withApplyLinkFlags } from '../apply-link';
 import { classifyJob, type ClassifyOutcome } from '../classifier';
+import { isBlankProfile, NO_PROFILE_STACK_FLAG } from '../profile-guards';
 import { sendTelegramAlert } from '../notifier';
 import { applyPriorityFloor, parsePriorityRules } from '../priority-rules';
 import {
@@ -44,6 +45,8 @@ export interface ProcessStats {
   abortedMidRun: number;
   /** Classifications scheduled but discarded by the mid-run abort. */
   skippedByPause: number;
+  /** 1 when the tick skipped classify+alerts because the profile is blank. */
+  skippedBlankProfile: number;
 }
 
 /** How far back the cross-listing scan looks. */
@@ -61,6 +64,18 @@ export async function processNormalizedJobs(
   stats: ProcessStats,
   isCancelled?: () => Promise<boolean>,
 ): Promise<void> {
+  // Issue #50: a profile with no required stack and no role types has nothing
+  // to gate on — the filter admits everything and the classifier scores on
+  // vibes. Fetching already happened (source health stays alive); stop here.
+  if (isBlankProfile(profile)) {
+    stats.skippedBlankProfile = 1;
+    logger.warn(
+      { profile: profile.name },
+      'process-jobs: active profile has no required stack and no role types; skipping classification and alerts',
+    );
+    return;
+  }
+
   const priorityRules = parsePriorityRules(profile.priorityRules);
 
   // Once true, queued classify thunks below become no-ops, so an abort
@@ -233,6 +248,12 @@ export async function processNormalizedJobs(
       descriptionSimhash: fingerprint,
     });
     stats.persisted++;
+
+    // A score produced without a required stack never alerts, whatever the
+    // threshold or priority boosts say (issue #50). The row stays NEW.
+    if (finalClassification.red_flags.includes(NO_PROFILE_STACK_FLAG)) {
+      continue;
+    }
 
     try {
       await sendTelegramAlert(

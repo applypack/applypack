@@ -7,6 +7,8 @@ import { logger } from '../../logger';
 import { getSettings } from '../../settings';
 import { allStages, parseStageConfig } from '../stage-config';
 import { classifyExistingJob } from '../../jobs/classify-existing';
+import { getActiveProfile } from '../../profiles';
+import { isBlankProfile } from '../../profile-guards';
 import { createManualJob, ManualJobSchema, MIN_DESCRIPTION_CHARS } from '../../jobs/manual-job';
 import { checkLiveness, listVerificationsForJob, verifyJob } from '../../verification/verify';
 import { LIVENESS_CODE_LABEL } from '../../verification/liveness';
@@ -116,7 +118,7 @@ jobsRoute.get('/jobs', async (c) => {
 
   const orderBy = sortToOrderBy(sort);
 
-  const [jobs, total] = await Promise.all([
+  const [jobs, total, activeProfile] = await Promise.all([
     prisma.job.findMany({
       where,
       orderBy,
@@ -132,6 +134,7 @@ jobsRoute.get('/jobs', async (c) => {
       },
     }),
     prisma.job.count({ where }),
+    getActiveProfile(),
   ]);
 
   return c.html(
@@ -147,6 +150,7 @@ jobsRoute.get('/jobs', async (c) => {
         sort,
         verified,
       }}
+      blankProfileBanner={activeProfile !== null && isBlankProfile(activeProfile)}
     />,
   );
 });

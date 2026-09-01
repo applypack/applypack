@@ -29,6 +29,7 @@ import type { FlashMessage } from '../flash';
 import { sourceLabel } from '../source-names';
 import { dotClassFor, MAX_WORK_STAGES } from '../stage-config';
 import { formatPriorityRulesText, parsePriorityRules } from '../../priority-rules';
+import { isBlankProfile } from '../../profile-guards';
 import { SENIORITY_LEVELS } from '../../resume/profile-draft';
 
 interface MaskedTarget {
@@ -46,6 +47,8 @@ interface ProfileListItem {
   name: string;
   stackPreview: string; // first 3 required tags
   active: boolean;
+  /** No required stack and no role types — activation is gated (issue #50). */
+  blank: boolean;
 }
 
 interface AvailableTarget {
@@ -229,8 +232,8 @@ export const SettingsPage: FC<SettingsProps> = ({
 
       {activeTab === 'profile' && (
       <Section
-        title="Active profile"
-        desc="What a matching job looks like: stack, role types, regions, salary floor. The classifier scores every job against this."
+        title="Profile"
+        desc="What a matching job looks like: stack, role types, regions, salary floor. The classifier scores every job against the active profile."
       >
         <div class="flex flex-wrap items-center gap-2">
           <form
@@ -240,9 +243,9 @@ export const SettingsPage: FC<SettingsProps> = ({
           >
             <Select name="id" class="!w-auto min-w-0 max-w-full" aria-label="Profile to activate">
               {profiles.map((p) => (
-                <option value={p.id} selected={p.active}>
+                <option value={p.id} selected={p.active} disabled={p.blank && !p.active}>
                   {p.name}
-                  {p.active ? ' (active)' : ''}
+                  {p.active ? ' (active)' : p.blank ? ' (empty — fill in first)' : ''}
                 </option>
               ))}
             </Select>
@@ -258,10 +261,10 @@ export const SettingsPage: FC<SettingsProps> = ({
             <Button variant="violet">Re-classify all jobs</Button>
           </ActionForm>
         </div>
-        {activeProfile && activeProfile.stackRequired.length === 0 && activeProfile.roleTypes.length === 0 && (
+        {profiles.some((p) => p.active && p.blank) && (
           <div class="rounded-md border border-warn/25 bg-warn/5 px-3.5 py-2.5 text-[13px] leading-5 text-warn">
-            This profile lists no required stack and no role types yet, so every fetched job
-            goes to the AI classifier.{' '}
+            Active profile is empty — classification idle. New jobs are fetched but not
+            scored or alerted until it lists a required stack or role types.{' '}
             {resumes.length > 0 ? (
               'Fastest fix: fill the fields from a resume below.'
             ) : (
@@ -306,6 +309,14 @@ export const SettingsPage: FC<SettingsProps> = ({
             </form>
           </Card>
         )}
+        {activeProfile && !profiles.some((p) => p.id === activeProfile.id && p.active) && (
+          <div class="rounded-md border border-line bg-surface-overlay px-3.5 py-2.5 text-[13px] leading-5 text-ink-muted">
+            Editing an inactive profile — the worker keeps scoring with the active one.
+            {isBlankProfile(activeProfile)
+              ? ' It activates automatically on the first save with a required stack or role types.'
+              : ' Use Activate above to make it the scoring profile.'}
+          </div>
+        )}
         {activeProfile ? (
           <Card>
             <ProfileEditor
@@ -327,12 +338,22 @@ export const SettingsPage: FC<SettingsProps> = ({
                 .filter((p) => !p.active)
                 .map((p) => (
                   <Tr>
-                    <Td class="font-medium text-ink">{p.name}</Td>
-                    <Td class="text-[13px] text-ink-muted">{p.stackPreview}</Td>
+                    <Td class="font-medium text-ink">
+                      <a href={`/settings?tab=profile&profile=${p.id}`} class="hover:underline">
+                        {p.name}
+                      </a>
+                    </Td>
+                    <Td class="text-[13px] text-ink-muted">
+                      {p.blank ? (
+                        <span class="text-warn">empty — add a stack or role types to activate</span>
+                      ) : (
+                        p.stackPreview
+                      )}
+                    </Td>
                     <Td>
                       <div class="flex justify-end gap-2">
                         <ActionForm action="/settings/profiles/activate" hidden={{ id: p.id }}>
-                          <Button size="sm" variant="secondary">
+                          <Button size="sm" variant="secondary" disabled={p.blank}>
                             Activate
                           </Button>
                         </ActionForm>
