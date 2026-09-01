@@ -4,7 +4,7 @@
 
 Use GitHub's private vulnerability reporting: **Security → Report a
 vulnerability** on this repository
-([direct link](https://github.com/nazboyko/applypack/security/advisories/new)).
+([direct link](https://github.com/applypack/applypack/security/advisories/new)).
 Please don't open a public issue for anything you believe is exploitable.
 
 Expect an acknowledgement within a few days. There is no bug bounty — this

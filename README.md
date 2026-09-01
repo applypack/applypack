@@ -4,11 +4,11 @@
 
 **A self-hosted AI console for the whole job search: it reads the boards so you don't have to, then helps you apply well.**
 
-[![CI](https://github.com/nazboyko/applypack/actions/workflows/test.yml/badge.svg)](https://github.com/nazboyko/applypack/actions/workflows/test.yml)
+[![CI](https://github.com/applypack/applypack/actions/workflows/test.yml/badge.svg)](https://github.com/applypack/applypack/actions/workflows/test.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 [![Node 24](https://img.shields.io/badge/node-%3E%3D22-339933?logo=node.js&logoColor=white)](./package.json)
 [![TypeScript strict](https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white)](./tsconfig.json)
-[![Release](https://img.shields.io/github/v/release/nazboyko/applypack?display_name=tag)](./CHANGELOG.md)
+[![Release](https://img.shields.io/github/v/release/applypack/applypack?display_name=tag)](./CHANGELOG.md)
 
 [Quick start](#quick-start) · [What you get](#what-you-get) ·
 [How it works](#how-it-works) · [Bring your own AI](#bring-your-own-ai) ·
@@ -54,7 +54,7 @@ $5 VPS is the whole deployment story.
 ## Quick start
 
 ```bash
-git clone https://github.com/nazboyko/applypack.git
+git clone https://github.com/applypack/applypack.git
 cd applypack
 cp .env.example .env    # add one AI engine, see below
 docker compose up -d    # postgres + worker + dashboard → http://localhost:4747
@@ -311,7 +311,7 @@ Three good entry points:
   one-file change: CLAUDE.md ships three copy-paste fetcher templates
   (single RSS, per-company JSON, list + detail). Propose the source in an
   issue first if you're unsure it fits the sourcing policy.
-- **Grab a [good first issue](https://github.com/nazboyko/applypack/labels/good%20first%20issue).**
+- **Grab a [good first issue](https://github.com/applypack/applypack/labels/good%20first%20issue).**
   Scoped tasks with file pointers.
 - **Break it and report.** A fresh-machine setup that stumbled, an ATS
   edge case, a resume that parses badly: issues with logs are gold.
@@ -321,8 +321,8 @@ setup, tests and conventions. The sourcing policy is non-negotiable:
 official public APIs and RSS only, never scraping
 ([ADR 0005](./docs/adr/0005-no-linkedin-indeed-workday.md)).
 
-<a href="https://github.com/nazboyko/applypack/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=nazboyko/applypack" alt="Contributors" />
+<a href="https://github.com/applypack/applypack/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=applypack/applypack" alt="Contributors" />
 </a>
 
 ## License

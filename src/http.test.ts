@@ -12,7 +12,7 @@ describe('DEFAULT_USER_AGENT', () => {
     const majorMinor = pkg.version.split('.').slice(0, 2).join('.');
     assert.equal(
       DEFAULT_USER_AGENT,
-      `applypack/${majorMinor} (+https://github.com/nazboyko/applypack)`,
+      `applypack/${majorMinor} (+https://github.com/applypack/applypack)`,
     );
   });
 });

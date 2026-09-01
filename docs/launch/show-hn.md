@@ -64,6 +64,6 @@ making a subscription the primary engine. Sources are official public
 APIs and RSS only; no LinkedIn, Indeed or Workday scraping, and
 docs/adr/0005 says why. MIT.
 
-Repo: https://github.com/nazboyko/applypack. If you want to argue with
+Repo: https://github.com/applypack/applypack. If you want to argue with
 the scoring weights, the decision record is docs/adr/0012 and it is a
 two-minute read.

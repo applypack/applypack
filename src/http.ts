@@ -17,7 +17,7 @@ function packageMajorMinor(): string {
   }
 }
 
-export const DEFAULT_USER_AGENT = `applypack/${packageMajorMinor()} (+https://github.com/nazboyko/applypack)`;
+export const DEFAULT_USER_AGENT = `applypack/${packageMajorMinor()} (+https://github.com/applypack/applypack)`;
 
 export interface FetchOptions {
   timeoutMs?: number;
