@@ -7,7 +7,6 @@ import { flashRedirect, parseFlashCookie } from '../flash';
 import { ApplicationsPage, STAGE_LABEL } from '../pages/applications';
 import { appliedDateCorrection, stageChangeEvent } from '../stage-events';
 import { stageTimeLine, type StageTimeLine } from '../stage-time';
-import { calibration, funnel, groupByJob, velocity, type StageEventRow } from '../stats';
 
 const STAGE_VALUES = [
   'applied',
@@ -40,7 +39,8 @@ applicationsRoute.get('/applications', async (c) => {
     orderBy: [{ appliedAt: 'desc' }, { id: 'desc' }],
   });
 
-  // One fetch feeds both the funnel stats and the per-card time-in-stage.
+  // The ledger dates each card's time-in-stage (ADR 0024 keeps recording
+  // even though the funnel cards are gone — ADR 0025).
   const events = settings.applicationTrackingEnabled
     ? await prisma.jobStageEvent.findMany({ orderBy: { recordedAt: 'asc' } })
     : [];
@@ -89,7 +89,6 @@ applicationsRoute.get('/applications', async (c) => {
     <ApplicationsPage
       byStage={byStage}
       applicationTrackingEnabled={settings.applicationTrackingEnabled}
-      stats={settings.applicationTrackingEnabled ? await loadFunnelStats(events) : null}
       flash={parseFlashCookie(c.req.header('cookie'))}
     />,
   );
@@ -134,29 +133,6 @@ applicationsRoute.post('/jobs/:id/stage', async (c) => {
   }
   return flashRedirect('/applications', 'ok', `Moved to ${STAGE_LABEL[toStage]}`);
 });
-
-// F5 (ADR 0024): fold the ledger into funnel / velocity / calibration.
-async function loadFunnelStats(events: StageEventRow[]) {
-  const eventJobIds = [...new Set(events.map((e) => e.jobId))];
-  const fitRows = eventJobIds.length
-    ? await prisma.job.findMany({
-        where: { id: { in: eventJobIds } },
-        select: { id: true, fitScore: true },
-      })
-    : [];
-  const fitById = new Map(fitRows.map((j) => [j.id, j.fitScore]));
-  const histories = groupByJob(events);
-  return {
-    funnel: funnel(histories.values()),
-    hops: velocity(histories.values()),
-    calibration: calibration(
-      [...histories].map(([jobId, history]) => ({
-        fitScore: fitById.get(jobId) ?? null,
-        history,
-      })),
-    ),
-  };
-}
 
 applicationsRoute.post('/jobs/:id/application', async (c) => {
   const id = Number(c.req.param('id'));

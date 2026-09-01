@@ -99,6 +99,11 @@ test('same-day entry says today', () => {
   assert.equal(stageTimeLine('ghosted', null, [ev('ghosted', 0)], NOW)?.text, 'ghosted today');
 });
 
+test('a custom label replaces the key in the text', () => {
+  const line = stageTimeLine('hr-call', null, [ev('hr-call', 5)], NOW, 'HR Call');
+  assert.equal(line?.text, 'in hr call 5d');
+});
+
 test('a future since-day clamps to zero days', () => {
   const line = stageTimeLine('applied', daysAgo(-3), [], NOW);
   assert.equal(line?.text, 'applied today');

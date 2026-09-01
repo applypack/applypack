@@ -4,7 +4,6 @@ import { Layout } from '../layout';
 import { Button, Empty, FitBadge, Flash, PageHeader } from '../ui';
 import type { FlashMessage } from '../flash';
 import type { StageTimeLine } from '../stage-time';
-import { FunnelStatsSection, type FunnelStatsProps } from './funnel-stats';
 
 const STAGES = ['applied', 'screen', 'tech', 'onsite', 'offer', 'rejected', 'ghosted'] as const;
 type Stage = (typeof STAGES)[number];
@@ -61,7 +60,6 @@ interface ApplicationCard {
 export interface ApplicationsProps {
   byStage: Record<Stage, ApplicationCard[]>;
   applicationTrackingEnabled: boolean;
-  stats: FunnelStatsProps | null;
   flash?: FlashMessage | null;
 }
 
@@ -153,7 +151,6 @@ const BOARD_BOOT = `
 export const ApplicationsPage: FC<ApplicationsProps> = ({
   byStage,
   applicationTrackingEnabled,
-  stats,
   flash,
 }) => {
   const activeCount = BOARD_STAGES.reduce((sum, s) => sum + (byStage[s]?.length ?? 0), 0);
@@ -278,7 +275,6 @@ export const ApplicationsPage: FC<ApplicationsProps> = ({
             </div>
           </details>
         )}
-        {stats && <FunnelStatsSection {...stats} />}
         <style dangerouslySetInnerHTML={{ __html: BOARD_CSS }} />
         <script type="module" dangerouslySetInnerHTML={{ __html: BOARD_BOOT }} />
         </>
