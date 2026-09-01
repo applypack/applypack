@@ -322,9 +322,10 @@ resumes in one sitting.
   jobs that don't mention the profile's words are dismissed without AI and
   only the rest count against the cap; "Score 100 more" takes the next
   batch. Measured 2026-09-01 in Docker on the `claude_code` CLI engine at
-  `AI_CONCURRENCY=3`: ~2.7 jobs/min, i.e. 35–40 min per 100 — slow enough
-  that the wizard copy says "a few minutes" only for API engines; the cap
-  is the right size for the API and generous for a CLI.
+  `AI_CONCURRENCY=3`: 100 jobs in 24 min (~4 jobs/min; 2,124 off-topic rows
+  dismissed without AI first) — slow enough that "a few minutes" only holds
+  for the API engines; the cap is the right size for the API and generous
+  for a CLI.
 - ~~Whether "Fetch now" lives on `/runs`, Overview, or both.~~ Decided in
   stage 2: **both**, one shared `FetchNowButton` — Overview because it is
   the page a fresh install lands on ("does the search work?" is answered
