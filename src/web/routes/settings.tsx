@@ -69,9 +69,10 @@ import { isBlankProfile } from '../../profile-guards';
 import { isSettingsTab, SettingsPage } from '../pages/settings';
 import { sourceLabel } from '../source-names';
 import { clearFlashCookie, flashRedirect, parseFlashCookie } from '../flash';
-import { getResume, listResumes } from '../../resume/store';
+import { createResume, getResume, listResumes } from '../../resume/store';
 import { scanResume } from '../../resume/scan';
 import { buildProfileDraft } from '../../resume/profile-draft';
+import { nameFromFilename, readResumeUpload, resumeUploadLimit } from '../upload';
 
 const NewTargetSchema = z.object({
   name: z.string().min(1).max(100),
@@ -669,13 +670,15 @@ settingsRoute.post('/settings/profiles/activate', async (c) => {
   return flashRedirect(
     '/settings?tab=profile',
     'ok',
-    'Profile activated. Click "Re-classify all jobs" to score them with this profile.',
+    'Profile activated. "Save & re-classify" in the editor re-scores existing jobs against it.',
   );
 });
 
-settingsRoute.post('/settings/profiles/:id/delete', async (c) => {
-  const id = Number(c.req.param('id'));
-  if (!Number.isFinite(id)) return c.text('Bad id', 400);
+// The management row's Delete posts the select's value — id in the body.
+settingsRoute.post('/settings/profiles/delete', async (c) => {
+  const form = await c.req.parseBody();
+  const id = Number(form.id);
+  if (!Number.isFinite(id)) return flashRedirect('/settings?tab=profile', 'err', 'Invalid id.');
   try {
     await deleteProfile(id);
   } catch (err) {
@@ -791,18 +794,30 @@ settingsRoute.post('/settings/profiles/:id/save', async (c) => {
 });
 
 // Prefill the editor from a resume's AI scan. Renders the draft directly —
-// nothing is saved until the user submits the profile form.
-settingsRoute.post('/settings/profiles/:id/fill-from-resume', async (c) => {
+// nothing is saved until the user submits the profile form. With no resumes
+// yet the card sends a file instead of a resumeId: the upload becomes a real
+// Resume row (first one turns default in createResume), then the same flow.
+settingsRoute.post(
+  '/settings/profiles/:id/fill-from-resume',
+  resumeUploadLimit('/settings?tab=profile'),
+  async (c) => {
   const id = Number(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text('Bad id', 400);
   const profile = await getProfile(id);
   if (!profile) return flashRedirect('/settings?tab=profile', 'err', 'Profile not found.');
   const form = await c.req.parseBody();
-  const resumeId = Number(form.resumeId);
-  if (!Number.isFinite(resumeId)) {
-    return flashRedirect('/settings?tab=profile', 'err', 'Pick a resume first.');
+  let resume;
+  if (form.file instanceof File && form.file.size > 0) {
+    const upload = await readResumeUpload(form);
+    if ('error' in upload) return flashRedirect('/settings?tab=profile', 'err', upload.error);
+    resume = await createResume({ name: nameFromFilename(upload.sourceFilename), ...upload });
+  } else {
+    const resumeId = Number(form.resumeId);
+    if (!Number.isFinite(resumeId)) {
+      return flashRedirect('/settings?tab=profile', 'err', 'Pick a resume first.');
+    }
+    resume = await getResume(resumeId);
   }
-  let resume = await getResume(resumeId);
   if (!resume || resume.hidden) {
     return flashRedirect('/settings?tab=profile', 'err', 'Resume not found.');
   }
@@ -817,7 +832,7 @@ settingsRoute.post('/settings/profiles/:id/fill-from-resume', async (c) => {
         `The AI scan of "${resume.name}" failed — check the web logs and try again.`,
       );
     }
-    resume = (await getResume(resumeId)) ?? resume;
+    resume = (await getResume(resume.id)) ?? resume;
   }
 
   const draft = buildProfileDraft(profile, {
@@ -853,22 +868,8 @@ settingsRoute.post('/settings/profiles/:id/fill-from-resume', async (c) => {
 });
 
 // --- Re-classify ------------------------------------------------------------
-
-settingsRoute.post('/settings/reclassify', (c) => {
-  if (reclassifyInFlight) {
-    return flashRedirect(
-      '/settings?tab=profile',
-      'err',
-      'A re-classify is already running. Watch /runs for progress.',
-    );
-  }
-  triggerReclassifyAsync();
-  return flashRedirect(
-    '/settings?tab=profile',
-    'ok',
-    'Re-classify started in the background. Track progress at /runs.',
-  );
-});
+// Reached only through "Save & re-classify" in the profile editor — the
+// standalone top-row button was removed (docs/onboarding-plan.md §3).
 
 function triggerReclassifyAsync(): void {
   if (reclassifyInFlight) return;

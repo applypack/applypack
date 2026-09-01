@@ -207,7 +207,7 @@ When the question is **"how does the user toggle / configure X?"**:
 | Edit profile (stack, role types, regions, fit threshold) | `/settings` Profile tab (excludes, notes, priority rules, thresholds live in its "Advanced" block) |
 | Fill the profile from a resume (AI draft, review before save) | `/settings` Profile tab → "Fill from a resume" |
 | Switch between profiles | `/settings` Profile tab → dropdown + Activate |
-| Re-classify all jobs against new profile | `/settings` Profile tab → "Re-classify all jobs" (async, watch /runs) |
+| Re-classify all jobs against new profile | `/settings` Profile tab → "Save & re-classify" in the editor (async, watch /runs) |
 | Telegram on/off | `/settings` Notifications tab |
 | Add Telegram bot or chat | `/settings` Notifications tab → "Add target" (validates with getMe + sendMessage) |
 | Pipeline stage on a job | `/jobs/:id` → "Application tracking" card; on `/applications` drag the card between columns (`public/board.mjs`) or use its quick-move select — both hit the stage-only endpoint that never touches appliedAt/notes |
@@ -431,6 +431,6 @@ Always:
 | Flag apply links on already-stored jobs | `docker compose exec app node dist/scripts/backfill-apply-link-flags.js --dry-run`, then without the flag |
 | Re-pull descriptions from the boards (structure lost) | `docker compose exec app node dist/scripts/refetch-descriptions.js --dry-run`, then without the flag |
 | Migrate after a schema change | `DATABASE_URL=… npx prisma migrate dev --name <name>` |
-| Re-classify everything against the active profile | UI: `/settings` → "Re-classify all jobs" |
+| Re-classify everything against the active profile | UI: `/settings` → Profile → "Save & re-classify" |
 | Pause all alerts temporarily | UI: `/settings` → "Telegram alerts" → Disable |
 | Pause new-job fetching entirely (no docker) | UI: `/settings` → "Job fetching" → Pause |

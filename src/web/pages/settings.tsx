@@ -31,6 +31,11 @@ import { dotClassFor, MAX_WORK_STAGES } from '../stage-config';
 import { formatPriorityRulesText, parsePriorityRules } from '../../priority-rules';
 import { isBlankProfile } from '../../profile-guards';
 import { SENIORITY_LEVELS } from '../../resume/profile-draft';
+import { ACCEPTED_EXTENSIONS } from '../../resume/resume-text';
+import { MAX_UPLOAD_MB } from '../upload';
+
+const FILE_INPUT_CLASS =
+  'file:mr-3 file:cursor-pointer file:rounded-md file:border-0 file:bg-surface-overlay file:px-2.5 file:py-1 file:text-xs file:font-medium file:text-ink';
 
 interface MaskedTarget {
   id: number;
@@ -183,8 +188,9 @@ export const SettingsPage: FC<SettingsProps> = ({
   <Layout title="Settings" active="settings">
     <div class="w-full">
       <PageHeader title="Settings">
-        Changes save the moment you click — no restarts needed. Dashboard actions use them
-        immediately; the background worker picks them up within the hour.
+        Toggles apply the moment you click; forms like the profile editor save on submit. No
+        restarts needed — dashboard actions use changes immediately; the background worker
+        picks them up within the hour.
       </PageHeader>
       <Flash flash={flash} />
 
@@ -235,87 +241,85 @@ export const SettingsPage: FC<SettingsProps> = ({
         title="Profile"
         desc="What a matching job looks like: stack, role types, regions, salary floor. The classifier scores every job against the active profile."
       >
-        <div class="flex flex-wrap items-center gap-2">
-          <form
-            method="post"
-            action="/settings/profiles/activate"
-            class="flex min-w-0 max-w-full flex-wrap items-center gap-2"
-          >
-            <Select name="id" class="!w-auto min-w-0 max-w-full" aria-label="Profile to activate">
-              {profiles.map((p) => (
-                <option value={p.id} selected={p.active} disabled={p.blank && !p.active}>
-                  {p.name}
-                  {p.active ? ' (active)' : p.blank ? ' (empty — fill in first)' : ''}
-                </option>
-              ))}
-            </Select>
-            <Button variant="secondary">Activate</Button>
-          </form>
-          <ActionForm action="/settings/profiles/new">
-            <Button variant="secondary">+ New profile</Button>
-          </ActionForm>
-          <ActionForm
-            action="/settings/reclassify"
-            confirm="Re-classify all jobs (except APPLIED) against the active profile? Takes 2-5 minutes and spends AI credit."
-          >
-            <Button variant="violet">Re-classify all jobs</Button>
-          </ActionForm>
-        </div>
+        {/* Order follows the user's journey: contextual warnings → fill from a
+            resume → the editor → profile management last (docs/onboarding-plan.md §3). */}
         {profiles.some((p) => p.active && p.blank) && (
           <div class="rounded-md border border-warn/25 bg-warn/5 px-3.5 py-2.5 text-[13px] leading-5 text-warn">
             Active profile is empty — classification idle. New jobs are fetched but not
-            scored or alerted until it lists a required stack or role types.{' '}
-            {resumes.length > 0 ? (
-              'Fastest fix: fill the fields from a resume below.'
-            ) : (
-              <>
-                Fastest fix:{' '}
-                <a href="/resumes" class="font-medium underline">
-                  upload a resume
-                </a>{' '}
-                and fill the fields from it here.
-              </>
-            )}
+            scored or alerted until it lists a required stack or role types.
+            {resumes.length > 0
+              ? ' Fastest fix: fill the fields from a resume below.'
+              : ' Fastest fix: upload a resume below and fill the fields from it.'}
           </div>
-        )}
-        {activeProfile && resumes.length > 0 && (
-          <Card>
-            <div class="mb-1 text-[13px] font-medium text-ink">Fill from a resume</div>
-            <Hint class="mb-3">
-              AI maps the resume's scanned stack onto the profile — primary stack → required,
-              other skills → nice-to-have, plus role types and seniority. Re-scans the resume
-              when needed. The result appears below as a draft; nothing is saved until you
-              press "Save profile".
-            </Hint>
-            <form
-              method="post"
-              action={`/settings/profiles/${activeProfile.id}/fill-from-resume`}
-              class="flex flex-wrap items-center gap-2"
-            >
-              <Select
-                name="resumeId"
-                class="!w-auto min-w-0 max-w-full"
-                aria-label="Resume to fill the profile from"
-              >
-                {resumes.map((r) => (
-                  <option value={r.id} selected={r.isDefault}>
-                    {r.name}
-                    {r.isDefault ? ' (default)' : ''}
-                    {r.scannedAt ? '' : ' (not scanned yet)'}
-                  </option>
-                ))}
-              </Select>
-              <Button variant="violet">Fill from resume</Button>
-            </form>
-          </Card>
         )}
         {activeProfile && !profiles.some((p) => p.id === activeProfile.id && p.active) && (
           <div class="rounded-md border border-line bg-surface-overlay px-3.5 py-2.5 text-[13px] leading-5 text-ink-muted">
             Editing an inactive profile — the worker keeps scoring with the active one.
             {isBlankProfile(activeProfile)
               ? ' It activates automatically on the first save with a required stack or role types.'
-              : ' Use Activate above to make it the scoring profile.'}
+              : ' Use Activate below to make it the scoring profile.'}
           </div>
+        )}
+        {activeProfile && (
+          <Card>
+            <div class="mb-1 text-[13px] font-medium text-ink">Fill from a resume</div>
+            {resumes.length > 0 ? (
+              <>
+                <Hint class="mb-3">
+                  AI maps the resume's scanned stack onto the profile — primary stack →
+                  required, other skills → nice-to-have, plus role types and seniority.
+                  Re-scans the resume when needed. The result appears below as a draft;
+                  nothing is saved until you press "Save profile".
+                </Hint>
+                <form
+                  method="post"
+                  action={`/settings/profiles/${activeProfile.id}/fill-from-resume`}
+                  class="flex flex-wrap items-center gap-2"
+                >
+                  <Select
+                    name="resumeId"
+                    class="!w-auto min-w-0 max-w-full"
+                    aria-label="Resume to fill the profile from"
+                  >
+                    {resumes.map((r) => (
+                      <option value={r.id} selected={r.isDefault}>
+                        {r.name}
+                        {r.isDefault ? ' (default)' : ''}
+                        {r.scannedAt ? '' : ' (not scanned yet)'}
+                      </option>
+                    ))}
+                  </Select>
+                  <Button variant="violet">Fill from resume</Button>
+                </form>
+              </>
+            ) : (
+              <>
+                <Hint class="mb-3">
+                  No resumes yet — pick a file ({ACCEPTED_EXTENSIONS.join(', ')} · up to{' '}
+                  {MAX_UPLOAD_MB} MB) and AI maps its stack onto the profile: primary stack →
+                  required, other skills → nice-to-have, plus role types and seniority. Takes
+                  about a minute; the file also lands in Resumes. The result appears below as
+                  a draft; nothing is saved until you press "Save profile".
+                </Hint>
+                <form
+                  method="post"
+                  action={`/settings/profiles/${activeProfile.id}/fill-from-resume`}
+                  enctype="multipart/form-data"
+                  class="flex flex-wrap items-center gap-2"
+                >
+                  <Input
+                    type="file"
+                    name="file"
+                    required
+                    accept={ACCEPTED_EXTENSIONS.join(',')}
+                    aria-label="Resume file"
+                    class={`!w-auto min-w-0 max-w-full ${FILE_INPUT_CLASS}`}
+                  />
+                  <Button variant="violet">Upload &amp; fill</Button>
+                </form>
+              </>
+            )}
+          </Card>
         )}
         {activeProfile ? (
           <Card>
@@ -326,52 +330,39 @@ export const SettingsPage: FC<SettingsProps> = ({
             />
           </Card>
         ) : (
-          <Empty>No active profile. Pick one above or create a new one.</Empty>
+          <Empty>No active profile. Pick one below or create a new one.</Empty>
         )}
-        {profiles.length > 1 && (
-          <Card flush>
-            <div class="border-b border-line px-5 py-3 text-[13px] font-medium text-ink">
-              Other profiles
-            </div>
-            <Table columns={['Name', 'Stack', <span class="block text-right">Actions</span>]}>
-              {profiles
-                .filter((p) => !p.active)
-                .map((p) => (
-                  <Tr>
-                    <Td class="font-medium text-ink">
-                      <a href={`/settings?tab=profile&profile=${p.id}`} class="hover:underline">
-                        {p.name}
-                      </a>
-                    </Td>
-                    <Td class="text-[13px] text-ink-muted">
-                      {p.blank ? (
-                        <span class="text-warn">empty — add a stack or role types to activate</span>
-                      ) : (
-                        p.stackPreview
-                      )}
-                    </Td>
-                    <Td>
-                      <div class="flex justify-end gap-2">
-                        <ActionForm action="/settings/profiles/activate" hidden={{ id: p.id }}>
-                          <Button size="sm" variant="secondary" disabled={p.blank}>
-                            Activate
-                          </Button>
-                        </ActionForm>
-                        <ActionForm
-                          action={`/settings/profiles/${p.id}/delete`}
-                          confirm="Delete this profile?"
-                        >
-                          <Button size="sm" variant="danger">
-                            Delete
-                          </Button>
-                        </ActionForm>
-                      </div>
-                    </Td>
-                  </Tr>
-                ))}
-            </Table>
-          </Card>
-        )}
+        <div class="flex flex-wrap items-center gap-2">
+          <form
+            method="post"
+            action="/settings/profiles/activate"
+            class="flex min-w-0 max-w-full flex-wrap items-center gap-2"
+          >
+            <Select
+              name="id"
+              class="!w-auto min-w-0 max-w-full"
+              aria-label="Profile to activate or delete"
+            >
+              {profiles.map((p) => (
+                <option value={p.id} selected={p.active}>
+                  {p.name}
+                  {p.active ? ' (active)' : p.blank ? ' (empty — fill in first)' : ''}
+                </option>
+              ))}
+            </Select>
+            <Button variant="secondary">Activate</Button>
+            <Button
+              variant="danger"
+              formaction="/settings/profiles/delete"
+              onclick="return confirm('Delete the selected profile? This cannot be undone.')"
+            >
+              Delete
+            </Button>
+          </form>
+          <ActionForm action="/settings/profiles/new">
+            <Button variant="secondary">+ New profile</Button>
+          </ActionForm>
+        </div>
       </Section>
       )}
 
@@ -874,13 +865,13 @@ const ProfileEditor: FC<{
   draft?: ProfileDraftNotice | null;
 }> = ({ profile, availableTargets, draft }) => {
   const rulesCount = parsePriorityRules(profile.priorityRules).length;
-  // Open the advanced block only when something in it is already customised.
+  // Open the advanced block only when free-form content lives in it. Salary
+  // and the Telegram target deliberately don't count — init.ts seeds a salary
+  // from .env, which used to keep the block permanently open for everyone.
   const advancedOpen =
     Boolean(profile.notes && profile.notes.trim().length > 0) ||
     profile.onsiteCities.length > 0 ||
-    rulesCount > 0 ||
-    profile.minSalaryUsd > 0 ||
-    profile.telegramTargetId !== null;
+    rulesCount > 0;
   return (
   <form
     method="post"
@@ -906,24 +897,36 @@ const ProfileEditor: FC<{
       <Input type="text" name="name" required value={profile.name} />
     </Field>
 
-    <TagListInput
-      label="Tech stack — required (real technologies)"
-      hint="Languages / frameworks the role must actually use: typescript, react, python, go, php. Not role types."
-      name="stackRequired"
-      values={profile.stackRequired}
-    />
-    <TagListInput
-      label="Role types (job category hints)"
-      hint='Title shapes you accept: "full-stack", "backend", "platform". Admits jobs to the classifier, but a role type alone is never a tech match.'
-      name="roleTypes"
-      values={profile.roleTypes}
-    />
-    <TagListInput
-      label="Stack — nice to have (boosts fit score)"
-      hint="Tags the classifier rewards when they show up in the description."
-      name="stackNiceToHave"
-      values={profile.stackNiceToHave}
-    />
+    <fieldset class="space-y-4">
+      <legend class="text-[13px] font-medium text-ink">What are we hunting for?</legend>
+      <Hint class="!mt-0.5">
+        Languages and frameworks the job must use go into the required stack.
+        <br />
+        Words from job titles ("backend", "full-stack") go into role types — a title match
+        alone is never a tech match.
+      </Hint>
+      <TagListInput
+        label="Tech stack — required"
+        hint="Real technologies the role must use."
+        name="stackRequired"
+        values={profile.stackRequired}
+        placeholder="php, laravel, mysql…"
+      />
+      <TagListInput
+        label="Role types"
+        hint="Title shapes you accept — they admit jobs to the classifier."
+        name="roleTypes"
+        values={profile.roleTypes}
+        placeholder="backend, full-stack…"
+      />
+      <TagListInput
+        label="Stack — nice to have"
+        hint="Boosts the fit score when they show up in the description."
+        name="stackNiceToHave"
+        values={profile.stackNiceToHave}
+        placeholder="docker, aws…"
+      />
+    </fieldset>
 
     <fieldset>
       <legend class="text-[13px] font-medium text-ink">Seniority</legend>
@@ -1052,10 +1055,12 @@ const TagListInput: FC<{
   name: string;
   values: string[];
   rows?: number;
-}> = ({ label, hint, name, values, rows = 3 }) => (
+  /** Real example values — shown in the textarea and the chip input alike. */
+  placeholder?: string;
+}> = ({ label, hint, name, values, rows = 3, placeholder }) => (
   <Field label={label} hint={hint}>
-    <div data-chips data-label={label}>
-      <Textarea name={name} rows={rows} mono>
+    <div data-chips data-label={label} data-placeholder={placeholder}>
+      <Textarea name={name} rows={rows} mono placeholder={placeholder}>
         {values.join('\n')}
       </Textarea>
     </div>
@@ -1066,41 +1071,51 @@ const PriorityRulesEditor: FC<{ profile: Profile }> = ({ profile }) => {
   const rules = parsePriorityRules(profile.priorityRules);
   const text = formatPriorityRulesText(rules);
   return (
-    <div>
-      <label class="block text-[13px] font-medium text-ink" for="priorityRules">
+    <details class="rounded-md border border-line" open={rules.length > 0}>
+      <summary class="cursor-pointer select-none rounded-md px-4 py-3 text-[13px] font-medium text-ink transition-colors duration-150 hover:text-accent-strong">
         Priority rules (post-classifier overrides)
-      </label>
-      <Hint class="mt-0.5">
-        One rule per line: <Code>LABEL | techs,csv | regions,csv | MIN_FIT</Code>. If the title
-        or description contains any tech and the location matches any region phrase, fit is
-        clamped up to MIN_FIT and the location check passes. Empty regions match anywhere.{' '}
-        <Code>#</Code> starts a comment. A bad line stops the save.
-      </Hint>
-      <Hint class="mt-1 text-warn">
-        Region entries are phrases — every word must appear in the location.{' '}
-        <Code>Remote US</Code> matches "Dallas (Remote US)" but not "Remote · Germany". Avoid a
-        bare <Code>Remote</Code>; prefer <Code>Remote US,United States,USA,Worldwide</Code>.
-      </Hint>
-      <Textarea
-        id="priorityRules"
-        name="priorityRules"
-        rows={Math.max(3, rules.length + 1)}
-        placeholder="Python remote-US | python | Remote US,United States,USA,Worldwide | 90"
-        class="mt-1.5"
-        mono
-      >
-        {text}
-      </Textarea>
-      {rules.length > 0 && (
-        <div class="mt-2 flex flex-wrap gap-1.5">
-          {rules.map((r) => (
-            <Tag tone="violet">
-              {r.label} → ≥{r.minFitFloor}
-            </Tag>
-          ))}
-        </div>
-      )}
-    </div>
+        <span class="ml-2 font-normal text-ink-faint">
+          {rules.length > 0
+            ? `${rules.length} rule${rules.length === 1 ? '' : 's'} set`
+            : 'None set — most people never need these.'}
+        </span>
+      </summary>
+      <div class="border-t border-line px-4 py-4">
+        <Hint>
+          One rule per line: <Code>LABEL | techs,csv | regions,csv | MIN_FIT</Code>. If the
+          title or description contains any tech and the location matches any region phrase,
+          fit is clamped up to MIN_FIT and the location check passes. Empty regions match
+          anywhere. <Code>#</Code> starts a comment. A bad line stops the save.
+        </Hint>
+        {rules.length > 0 && (
+          <Hint class="mt-1 text-warn">
+            Region entries are phrases — every word must appear in the location.{' '}
+            <Code>Remote US</Code> matches "Dallas (Remote US)" but not "Remote · Germany".
+            Avoid a bare <Code>Remote</Code>; prefer{' '}
+            <Code>Remote US,United States,USA,Worldwide</Code>.
+          </Hint>
+        )}
+        <Textarea
+          name="priorityRules"
+          aria-label="Priority rules"
+          rows={Math.max(3, rules.length + 1)}
+          placeholder="Python remote-US | python | Remote US,United States,USA,Worldwide | 90"
+          class="mt-1.5"
+          mono
+        >
+          {text}
+        </Textarea>
+        {rules.length > 0 && (
+          <div class="mt-2 flex flex-wrap gap-1.5">
+            {rules.map((r) => (
+              <Tag tone="violet">
+                {r.label} → ≥{r.minFitFloor}
+              </Tag>
+            ))}
+          </div>
+        )}
+      </div>
+    </details>
   );
 };
 
@@ -1123,7 +1138,7 @@ const SETTINGS_JS = `
       var input = document.createElement('input');
       input.type = 'text';
       input.className = 'min-w-[8rem] flex-1 border-0 bg-transparent p-0.5 text-sm text-ink placeholder:text-ink-faint focus:outline-none focus:ring-0';
-      input.placeholder = 'Add and press Enter…';
+      input.placeholder = host.dataset.placeholder || 'Add and press Enter…';
       input.setAttribute('aria-label', (host.dataset.label || 'Tags') + ' — add item');
 
       function items() {
