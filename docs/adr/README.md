@@ -32,6 +32,7 @@ consequences (what we accept). Aim for 15–30 lines each.
 - [0021 — Cover letters generate from stored inputs only](./0021-cover-letters-stored-inputs-only.md)
 - [0022 — Fences make untrusted text data, and an attempt evidence](./0022-prompt-fences-for-untrusted-text.md)
 - [0023 — Trust is apply-link flags, not a score](./0023-apply-link-flags-not-a-trust-score.md)
+- [0024 — Funnel history is an append-only stage ledger](./0024-append-only-stage-ledger.md)
 
 ## When to write a new one
 
