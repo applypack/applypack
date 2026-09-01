@@ -1,0 +1,144 @@
+/* ApplyPack landing — same brand world as the dashboard (PRODUCT.md):
+   light, calm, emerald accent, Inter, hairline borders. No build step. */
+:root {
+  --ink: #0f172a;
+  --ink-2: #475569;
+  --ink-3: #64748b;
+  --surface: #ffffff;
+  --ground: #f8fafc;
+  --line: #e2e8f0;
+  --accent: #059669;
+  --accent-ink: #047857;
+  --accent-soft: #ecfdf5;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  font-family: Inter, -apple-system, "Segoe UI", Roboto, sans-serif;
+  color: var(--ink);
+  background: var(--ground);
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+a { color: var(--accent-ink); text-decoration: none; }
+a:hover { text-decoration: underline; }
+code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.92em; }
+.wrap { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
+
+/* header */
+header { background: var(--surface); border-bottom: 1px solid var(--line); }
+.nav { display: flex; align-items: center; gap: 12px; height: 64px; }
+.mark {
+  width: 32px; height: 32px; border-radius: 7px; background: var(--accent);
+  color: #fff; display: grid; place-items: center;
+  font-size: 13px; font-weight: 600; flex: none;
+}
+.word { font-weight: 650; font-size: 17px; letter-spacing: -0.2px; }
+.nav .spacer { flex: 1; }
+.nav a.plain { color: var(--ink-2); font-size: 14px; }
+.btn {
+  display: inline-block; padding: 9px 18px; border-radius: 8px;
+  font-size: 14.5px; font-weight: 550; border: 1px solid var(--line);
+  background: var(--surface); color: var(--ink); white-space: nowrap;
+}
+.btn:hover { text-decoration: none; border-color: #cbd5e1; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn.primary:hover { background: var(--accent-ink); }
+
+/* hero */
+.hero { padding: 72px 0 28px; text-align: center; }
+.hero h1 { font-size: clamp(32px, 5vw, 52px); font-weight: 650; letter-spacing: -1.2px; line-height: 1.12; }
+.hero h1 em { font-style: normal; color: var(--accent); }
+.hero p.sub {
+  margin: 20px auto 0; max-width: 640px;
+  font-size: clamp(16px, 2vw, 19px); color: var(--ink-2);
+}
+.hero .cta { margin-top: 30px; display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+.shot {
+  margin: 52px auto 0; max-width: 980px;
+  border: 1px solid var(--line); border-radius: 12px; overflow: hidden;
+  box-shadow: 0 12px 48px rgba(15, 23, 42, 0.10); background: var(--surface);
+}
+.shot img { width: 100%; display: block; }
+.hero .under { margin-top: 14px; font-size: 13.5px; color: var(--ink-3); }
+
+/* sections */
+section { padding: 72px 0; }
+section.alt { background: var(--surface); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+h2 { font-size: clamp(24px, 3.4vw, 34px); font-weight: 640; letter-spacing: -0.7px; text-align: center; }
+.lead { margin: 14px auto 0; max-width: 620px; text-align: center; color: var(--ink-2); font-size: 16.5px; }
+
+/* feature grid */
+.grid { margin-top: 44px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+.card {
+  background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+  padding: 22px;
+}
+section.alt .card { background: var(--ground); }
+.card .emo { font-size: 22px; }
+.card h3 { margin-top: 10px; font-size: 15.5px; font-weight: 600; letter-spacing: -0.2px; }
+.card p { margin-top: 6px; font-size: 14px; color: var(--ink-2); }
+
+/* pipeline */
+.pipe {
+  margin: 44px auto 0; display: flex; align-items: stretch; justify-content: center;
+  gap: 10px; flex-wrap: wrap;
+}
+.pipe .step {
+  background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+  padding: 14px 18px; text-align: center; min-width: 128px;
+}
+.pipe .step b { display: block; font-size: 14.5px; font-weight: 600; }
+.pipe .step span { font-size: 12.5px; color: var(--ink-3); }
+.pipe .arrow { align-self: center; color: var(--ink-3); font-size: 18px; }
+
+/* honest score split */
+.split { margin-top: 44px; display: grid; grid-template-columns: 1fr 1fr; gap: 40px; align-items: center; }
+.split .shot { margin: 0; }
+.split h3 { font-size: 21px; font-weight: 620; letter-spacing: -0.4px; }
+.split p { margin-top: 12px; color: var(--ink-2); font-size: 15.5px; }
+.split ul { margin: 14px 0 0 18px; color: var(--ink-2); font-size: 15px; }
+.split li { margin-top: 7px; }
+.split li b { color: var(--ink); font-weight: 600; }
+
+/* quick start */
+.term {
+  margin: 36px auto 0; max-width: 720px; border-radius: 10px; overflow: hidden;
+  border: 1px solid #1e293b; background: #0f172a; color: #e2e8f0;
+  text-align: left;
+}
+.term .bar { display: flex; gap: 6px; padding: 10px 14px; background: #1e293b; }
+.term .dot { width: 10px; height: 10px; border-radius: 50%; background: #475569; }
+.term pre { padding: 18px 20px 22px; overflow-x: auto; font-size: 14px; line-height: 1.7; }
+.term .c { color: #64748b; }
+.term .g { color: #34d399; }
+.qs-note { margin: 18px auto 0; max-width: 640px; text-align: center; font-size: 14px; color: var(--ink-3); }
+
+/* engines */
+.engines { margin: 36px auto 0; display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+.chip {
+  background: var(--surface); border: 1px solid var(--line); border-radius: 999px;
+  padding: 8px 16px; font-size: 13.5px; color: var(--ink-2);
+}
+.chip b { color: var(--ink); font-weight: 600; }
+
+/* footer */
+footer { border-top: 1px solid var(--line); background: var(--surface); padding: 36px 0 44px; }
+.foot { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
+.foot .mark { width: 26px; height: 26px; font-size: 11px; border-radius: 6px; }
+.foot .links { display: flex; gap: 18px; flex-wrap: wrap; font-size: 14px; }
+.foot .links a { color: var(--ink-2); }
+.foot .tail { flex-basis: 100%; margin-top: 10px; font-size: 13px; color: var(--ink-3); }
+
+@media (max-width: 860px) {
+  .grid { grid-template-columns: 1fr 1fr; }
+  .split { grid-template-columns: 1fr; }
+}
+@media (max-width: 560px) {
+  .grid { grid-template-columns: 1fr; }
+  .hero h1 { font-size: 30px; }
+  .nav a.plain { display: none; }
+  section { padding: 52px 0; }
+  .hero { padding: 52px 0 16px; }
+}
