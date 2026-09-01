@@ -178,7 +178,7 @@ export const CompaniesPage: FC<CompaniesProps> = ({
           list of boards we can see. There is no "all Greenhouse postings" endpoint, and we
           never scrape LinkedIn / Indeed / Workday (
           <a
-            href="https://github.com/nazboyko/applypack/blob/main/docs/adr/0005-no-linkedin-indeed-workday.md"
+            href="https://github.com/applypack/applypack/blob/main/docs/adr/0005-no-linkedin-indeed-workday.md"
             class="font-medium text-accent-strong hover:text-accent-deep"
           >
             ADR 0005

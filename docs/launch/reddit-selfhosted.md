@@ -57,5 +57,5 @@ Self-hosting details, since that's why we're here:
   company boards into a review queue
 
 Single-user by design, MIT. Repo:
-https://github.com/nazboyko/applypack. Setup for every AI engine, local
+https://github.com/applypack/applypack. Setup for every AI engine, local
 and Docker, is in docs/ai-engines.md.

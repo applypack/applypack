@@ -7,7 +7,7 @@
   "author": "Nazar Boyko (https://github.com/nazboyko)",
   "repository": {
     "type": "git",
-    "url": "https://github.com/nazboyko/applypack.git"
+    "url": "https://github.com/applypack/applypack.git"
   },
   "engines": {
     "node": ">=22"
