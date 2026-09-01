@@ -202,6 +202,9 @@ model AppSettings {
   // problem, approach, notes }), saved on every generation so the user
   // never retypes them. Parse with readCoverAngles (resume/prompts.ts).
   coverAngles                    Json?
+  // ADR 0025: ordered work columns [{key,label}] between the fixed
+  // 'applied' entry and the fixed rejected/ghosted exits. null = defaults.
+  pipelineStages                 Json?
   updatedAt                      DateTime @updatedAt
 }
 
