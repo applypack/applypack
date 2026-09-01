@@ -72,24 +72,29 @@ ANTHROPIC_API_KEY=sk-ant-...                              # Anthropic API
 
 ### Your first fifteen minutes
 
-Fetching starts **paused** on a fresh install, on purpose: a blank
-profile would classify everything as a miss and waste your AI quota.
+The dashboard opens on a four-step setup (`/welcome`) and walks you
+through it — about four clicks and one file pick:
 
-1. **Settings → AI engine**: engines from `.env` are already detected.
-   Press **Test** on each and watch it reply.
-2. **Profile tab**: fill in your stack and preferences by hand, or upload
-   your resume on `/resumes` and press **"Fill from a resume"** to review
-   an AI-drafted profile before anything is saved.
-3. **Notifications tab** (optional): add a Telegram bot. The form
-   validates the token by sending you a real message before it saves.
-4. **General tab**: press **Resume** on the "Job fetching" switch. Too
-   impatient for the hourly tick: press **Fetch now** on the Overview and
-   watch the sources answer (it works while paused too — the jobs are then
-   stored unscored).
+1. **Connect an AI** — the engine from `.env` is detected automatically;
+   with none, the page shows which line to add.
+2. **Test the search** — one button asks every job board and stores what
+   it finds, no AI spent. You watch the sources answer.
+3. **Tell us about you** — upload your resume; the summary it comes back
+   with ("looks like you're a senior backend engineer — PHP, Laravel…")
+   becomes your search profile with one click. No resume handy: three
+   questions instead.
+4. **See your first matches** — score the jobs found, read the top five,
+   then **Start the hourly watch**.
+
+Fetching starts **paused** until that last click, on purpose: a blank
+profile would classify everything as a miss and waste your AI quota.
+Telegram alerts are optional — **Settings → Notifications** whenever you
+like. Skipped the wizard? The Overview keeps a "Finish setup" link.
 
 From then on it runs itself. Every settings change saves to Postgres on
 click: no restarts, no `.env` edits. The worker picks changes up within
-the hour; dashboard actions use them immediately.
+the hour; dashboard actions use them immediately. Too impatient for the
+hourly tick: **Fetch now** on the Overview.
 
 <details>
 <summary><b>Running without Docker</b></summary>

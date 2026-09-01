@@ -2,28 +2,7 @@
 import type { Child, FC, PropsWithChildren } from 'hono/jsx';
 import type { Profile } from '@prisma/client';
 import { Layout } from '../layout';
-import {
-  ActionForm,
-  Badge,
-  Button,
-  Card,
-  Code,
-  Empty,
-  Field,
-  Flash,
-  Hint,
-  Input,
-  PageHeader,
-  PillCheckbox,
-  Radio,
-  Select,
-  Table,
-  Tag,
-  Td,
-  Textarea,
-  ToggleRow,
-  Tr,
-} from '../ui';
+import { ActionForm, Badge, Button, Card, Code, Empty, Field, FILE_INPUT_CLASS, Flash, Hint, Input, PageHeader, PillCheckbox, Radio, Select, Table, Tag, Td, Textarea, ToggleRow, Tr } from '../ui';
 import { formatRelative } from '../format';
 import type { FlashMessage } from '../flash';
 import { sourceLabel } from '../source-names';
@@ -33,9 +12,6 @@ import { isBlankProfile } from '../../profile-guards';
 import { SENIORITY_LEVELS } from '../../resume/profile-draft';
 import { ACCEPTED_EXTENSIONS } from '../../resume/resume-text';
 import { MAX_UPLOAD_MB } from '../upload';
-
-const FILE_INPUT_CLASS =
-  'file:mr-3 file:cursor-pointer file:rounded-md file:border-0 file:bg-surface-overlay file:px-2.5 file:py-1 file:text-xs file:font-medium file:text-ink';
 
 interface MaskedTarget {
   id: number;

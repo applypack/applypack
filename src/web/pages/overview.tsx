@@ -45,6 +45,8 @@ export interface OverviewProps {
   fetchingEnabled: boolean;
   /** The manual fetch in flight, if any — the button turns into a link to it. */
   fetchRun: FetchRun | null;
+  /** A wizard step is still undone (skipped or not) — show the way back to /welcome. */
+  finishSetup: boolean;
   flash?: FlashMessage | null;
 }
 
@@ -67,6 +69,7 @@ export const OverviewPage: FC<OverviewProps> = ({
   latestRuns,
   fetchingEnabled,
   fetchRun,
+  finishSetup,
   flash,
 }) => {
   const byStatus = mapCounts(counts);
@@ -81,6 +84,11 @@ export const OverviewPage: FC<OverviewProps> = ({
         meta="Refreshes every 30s"
         actions={
           <>
+            {finishSetup && (
+              <a href="/welcome" class="inline-flex" title="Some setup steps are still open">
+                <Badge tone="warn">Finish setup →</Badge>
+              </a>
+            )}
             <FetchNowButton run={fetchRun} />
             {/* Quick master switch — same toggle as Settings → General. */}
             <form

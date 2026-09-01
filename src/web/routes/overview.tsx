@@ -2,9 +2,10 @@
 import { Hono } from 'hono';
 import { JobStatus } from '@prisma/client';
 import { prisma } from '../../db';
-import { getSettings } from '../../settings';
 import { clearFlashCookie, parseFlashCookie } from '../flash';
 import { activeFetchRun } from '../fetch-runs';
+import { loadWelcomeContext } from '../welcome-facts';
+import { currentStep, needsWelcome } from '../welcome-steps';
 import { OverviewPage } from '../pages/overview';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -14,10 +15,13 @@ const CRON_NAMES = ['fetch', 'digest', 'cleanup'] as const;
 export const overviewRoute = new Hono();
 
 overviewRoute.get('/', async (c) => {
-  const since24h = new Date(Date.now() - DAY_MS);
+  // A fresh install is walked through setup first (docs/onboarding-plan.md §2);
+  // every other page keeps working meanwhile.
+  const { facts, settings } = await loadWelcomeContext();
+  if (needsWelcome(settings)) return c.redirect('/welcome', 303);
 
-  const [settings, countsRows, last24hRows, recentAlerts, latestRunRows] = await Promise.all([
-    getSettings(),
+  const since24h = new Date(Date.now() - DAY_MS);
+  const [countsRows, last24hRows, recentAlerts, latestRunRows] = await Promise.all([
     prisma.job.groupBy({
       by: ['status'],
       _count: { _all: true },
@@ -64,6 +68,7 @@ overviewRoute.get('/', async (c) => {
       latestRuns={latestRuns}
       fetchingEnabled={settings.fetchingEnabled}
       fetchRun={activeFetchRun()}
+      finishSetup={currentStep(facts) !== null}
       flash={parseFlashCookie(c.req.header('cookie'))}
     />,
     200,

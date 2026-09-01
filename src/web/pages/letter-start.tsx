@@ -1,18 +1,7 @@
 /** @jsxImportSource hono/jsx */
 import type { FC } from 'hono/jsx';
 import { Layout } from '../layout';
-import {
-  Button,
-  Card,
-  Checkbox,
-  Flash,
-  Hint,
-  Input,
-  PageHeader,
-  SectionTitle,
-  Select,
-  Textarea,
-} from '../ui';
+import { Button, Card, Checkbox, FILE_INPUT_CLASS, Flash, Hint, Input, PageHeader, SectionTitle, Select, Textarea } from '../ui';
 import type { FlashMessage } from '../flash';
 import { ModeCard } from './target-start';
 import { ACCEPTED_EXTENSIONS } from '../../resume/resume-text';
@@ -42,9 +31,6 @@ export interface LetterStartProps {
   presetUrl?: string;
   flash?: FlashMessage | null;
 }
-
-const FILE_INPUT_CLASS =
-  'file:mr-3 file:cursor-pointer file:rounded-md file:border-0 file:bg-surface-overlay file:px-2.5 file:py-1 file:text-xs file:font-medium file:text-ink';
 
 export const LetterStartPage: FC<LetterStartProps> = ({
   jobs,

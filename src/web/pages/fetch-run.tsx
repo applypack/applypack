@@ -69,8 +69,8 @@ export const FetchRunPage: FC<{ run: FetchRun }> = ({ run }) => {
                 {run.error ?? 'The run failed — see the web logs.'}
               </div>
               <div class="flex flex-wrap gap-2">
-                <Button href="/runs" variant="secondary">
-                  ← Back to runs
+                <Button href={run.backUrl} variant="secondary">
+                  ← {run.backUrl === '/welcome' ? 'Back to setup' : 'Back to runs'}
                 </Button>
               </div>
             </div>

@@ -8,8 +8,9 @@
 > [CLAUDE.md](../CLAUDE.md), the testing-gate / commit-discipline skills and
 > the ADR register in [docs/adr](./adr/).
 >
-> **Status:** stages 1–2 of §5 shipped (`profile-tab-quickwins` v1.5.0,
-> `fetch-now` v1.6.0); stages 3–7 are analysis only. Constants
+> **Status:** stages 1–3 of §5 shipped (`profile-tab-quickwins` v1.5.0,
+> `fetch-now` v1.6.0, `welcome-wizard` v1.7.0); stages 4–7 are analysis
+> only. Constants
 > (batch caps, source subsets, timings) are starting hypotheses to
 > re-measure at implementation time.
 
@@ -313,11 +314,21 @@ resumes in one sitting.
 
 ## 6. Open decisions
 
-- Step-2 source subset: all enabled sources vs a fast-aggregator subset
-  (RemoteOK/Remotive answer in seconds; per-company boards add minutes).
-  Hypothesis: all enabled, with the progress page making the wait fun.
-- Step-4 classification cap (hypothesis 100 — measure cost/latency on
-  Haiku 4.5 two-stage vs single).
+- ~~Step-2 source subset~~ — stage 3 kept **all enabled sources** (the
+  same Fetch now run, verdict routed back into setup); the live progress
+  line carries the wait.
+- ~~Step-4 classification cap~~ — the hypothesis of 100 was **measured and
+  rejected**. On the `claude_code` CLI engine (a `claude -p` process per
+  job, `AI_CONCURRENCY=3`) 100 jobs took 24 min — the wow moment turns
+  into an afternoon. Stage 3 ships **`SCORE_BATCH = 10` per press**, and
+  the ten are the *best* matches, not the newest: `jobs/score-pick.ts`
+  (pure) ranks the filter-passing rows by how much of the profile the
+  posting actually mentions (title hit worth double a description hit;
+  required stack > role words > nice-to-have). Measured on the same
+  engine: 10 jobs in 5.4 min, scores 89 / 88 / 85 / 80 / 79 / 75 at the
+  top — the first screen is a real shortlist. "Score 10 more" walks the
+  rest, and the hourly watch scores new arrivals anyway. On an API engine
+  the same ten take well under a minute.
 - ~~Whether "Fetch now" lives on `/runs`, Overview, or both.~~ Decided in
   stage 2: **both**, one shared `FetchNowButton` — Overview because it is
   the page a fresh install lands on ("does the search work?" is answered

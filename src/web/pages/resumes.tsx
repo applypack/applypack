@@ -1,22 +1,7 @@
 /** @jsxImportSource hono/jsx */
 import type { FC } from 'hono/jsx';
 import { Layout } from '../layout';
-import {
-  ActionForm,
-  Badge,
-  Button,
-  Card,
-  Empty,
-  Field,
-  Flash,
-  Hint,
-  Input,
-  PageHeader,
-  SectionTitle,
-  Table,
-  Td,
-  Tr,
-} from '../ui';
+import { ActionForm, Badge, Button, Card, Empty, Field, FILE_INPUT_CLASS, Flash, Hint, Input, PageHeader, SectionTitle, Table, Td, Tr } from '../ui';
 import type { FlashMessage } from '../flash';
 import { formatRelative } from '../format';
 import { ACCEPTED_EXTENSIONS } from '../../resume/resume-text';
@@ -40,9 +25,6 @@ export interface FactRow {
 }
 
 const SKILLS_PREVIEW = 6;
-
-const FILE_INPUT_CLASS =
-  'file:mr-3 file:cursor-pointer file:rounded-md file:border-0 file:bg-surface-overlay file:px-2.5 file:py-1 file:text-xs file:font-medium file:text-ink';
 
 export const ResumesPage: FC<{
   resumes: ResumeRow[];

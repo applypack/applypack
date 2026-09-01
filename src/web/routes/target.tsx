@@ -68,6 +68,7 @@ targetRoute.get('/target/runs/:id/state', (c) => {
     stage: run.stage,
     steps: run.steps,
     jobTitle: run.jobTitle,
+    progress: run.progress ?? null,
     stageElapsedMs: Date.now() - run.stageAt,
     elapsedMs: Date.now() - run.startedAt,
   });

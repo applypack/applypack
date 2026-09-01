@@ -18,6 +18,7 @@ import { targetRoute } from './routes/target';
 import { letterRoute } from './routes/letter';
 import { factsRoute } from './routes/facts';
 import { healthRoute } from './routes/health';
+import { welcomeRoute } from './routes/welcome';
 
 const app = new Hono();
 
@@ -75,6 +76,7 @@ app.use('*', async (c, next) => {
 app.use('/static/*', serveStatic({ root: './src/web/public', rewriteRequestPath: (p) => p.replace(/^\/static/, '') }));
 
 app.route('/', overviewRoute);
+app.route('/', welcomeRoute);
 app.route('/', jobsRoute);
 app.route('/', applicationsRoute);
 app.route('/', resumesRoute);

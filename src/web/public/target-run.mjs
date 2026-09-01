@@ -47,7 +47,13 @@ const ACTIVITIES = {
     'Drafting the letter — role, evidence, why this company…',
     'Fact-checking every claim against the resume…',
   ],
+  score: [
+    'Filtering the stored jobs against your profile…',
+    'Scoring what passed — a few seconds per job…',
+  ],
 };
+/** What one unit of a step's progress is called. */
+const PROGRESS_UNIT = { score: 'jobs scored' };
 const ROTATE_MS = 9000;
 const POLL_MS = 2000;
 const FADE_MS = 250;
@@ -63,12 +69,21 @@ export function activityFor(step, stageElapsedMs) {
   return paced(ACTIVITIES[step] ?? [], stageElapsedMs);
 }
 
+/** "12 of 100 jobs scored" — the line once the run reports real counts. */
+export function progressLine(step, progress) {
+  return `${progress.done} of ${progress.total} ${PROGRESS_UNIT[step] ?? 'done'}`;
+}
+
+function defaultActivity(step, state) {
+  return state.progress ? progressLine(step, state.progress) : activityFor(step, state.stageElapsedMs);
+}
+
 export function formatElapsed(ms) {
   const s = Math.max(0, Math.round(ms / 1000));
   return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${s % 60}s`;
 }
 
-export function init(data, activity = (step, state) => activityFor(step, state.stageElapsedMs)) {
+export function init(data, activity = defaultActivity) {
   const steps = [...document.querySelectorAll('[data-step]')];
   const elapsedEl = document.getElementById('run-elapsed');
   let state = null;
