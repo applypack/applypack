@@ -18,7 +18,7 @@ kinds of code and they are verified differently — see CLAUDE.md "Testing".
 | AI provider | `ai-provider-parse.test.ts` for output parsing; one live `complete()` smoke per provider before commit |
 | Prisma schema | Hand-written migration under `prisma/migrations/` (CLAUDE.md gotcha 7 — host `migrate dev` P1010s); verify with `docker compose build app && up -d app` and read init logs |
 | Settings toggle | Column → `settings.ts` getter/setter → page → route, all in one commit; click it in the dashboard |
-| Dashboard page / primitive | `npm run lint:types`; `docker compose build web && up -d web`; curl every route for 200; screenshot at 1200px and 375px with the playwright plugin; browser console has 0 errors |
+| Dashboard page / primitive | `npm run lint:types`; `docker compose build web && up -d web`; curl every route for 200; screenshot at 1200px, 768px and 375px with the playwright plugin; browser console has 0 errors |
 | Telegram formatting | `notifier.test.ts` for escaping; `npm run test:telegram` for a real send |
 
 ## Commands
