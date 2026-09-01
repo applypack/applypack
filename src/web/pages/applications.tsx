@@ -198,7 +198,9 @@ export const ApplicationsPage: FC<ApplicationsProps> = ({
             </a>
           )}
         </nav>
-        <div class="flex min-h-0 min-w-0 flex-1 flex-col gap-3 md:flex-row md:items-stretch md:overflow-x-auto md:pb-1">
+        {/* No flex-1: the row hugs its (capped) columns, so the h-scrollbar
+            sits right under them instead of at the viewport bottom. */}
+        <div class="flex min-w-0 flex-col gap-3 md:flex-row md:items-stretch md:overflow-x-auto md:pb-1">
           {columns.map((s) => {
             const items = byStage[s.key] ?? [];
             return (
