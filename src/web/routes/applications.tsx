@@ -6,7 +6,8 @@ import { getSettings } from '../../settings';
 import { flashRedirect, parseFlashCookie } from '../flash';
 import { ApplicationsPage, STAGE_LABEL } from '../pages/applications';
 import { appliedDateCorrection, stageChangeEvent } from '../stage-events';
-import { calibration, funnel, groupByJob, velocity } from '../stats';
+import { stageTimeLine, type StageTimeLine } from '../stage-time';
+import { calibration, funnel, groupByJob, velocity, type StageEventRow } from '../stats';
 
 const STAGE_VALUES = [
   'applied',
@@ -39,6 +40,18 @@ applicationsRoute.get('/applications', async (c) => {
     orderBy: [{ appliedAt: 'desc' }, { id: 'desc' }],
   });
 
+  // One fetch feeds both the funnel stats and the per-card time-in-stage.
+  const events = settings.applicationTrackingEnabled
+    ? await prisma.jobStageEvent.findMany({ orderBy: { recordedAt: 'asc' } })
+    : [];
+  const eventsByJob = new Map<number, typeof events>();
+  for (const e of events) {
+    const list = eventsByJob.get(e.jobId);
+    if (list) list.push(e);
+    else eventsByJob.set(e.jobId, [e]);
+  }
+
+  const now = new Date();
   const empty: Record<Stage, []> = {
     applied: [],
     screen: [],
@@ -55,8 +68,8 @@ applicationsRoute.get('/applications', async (c) => {
       title: string;
       companyName: string;
       fitScore: number | null;
-      appliedAt: Date | null;
       recruiterContact: string | null;
+      stageLine: StageTimeLine | null;
     }>
   >;
   for (const j of rows) {
@@ -67,8 +80,8 @@ applicationsRoute.get('/applications', async (c) => {
       title: j.title,
       companyName: j.company.name,
       fitScore: j.fitScore,
-      appliedAt: j.appliedAt,
       recruiterContact: j.recruiterContact,
+      stageLine: stageTimeLine(stage, j.appliedAt, eventsByJob.get(j.id) ?? [], now),
     });
   }
 
@@ -76,7 +89,7 @@ applicationsRoute.get('/applications', async (c) => {
     <ApplicationsPage
       byStage={byStage}
       applicationTrackingEnabled={settings.applicationTrackingEnabled}
-      stats={settings.applicationTrackingEnabled ? await loadFunnelStats() : null}
+      stats={settings.applicationTrackingEnabled ? await loadFunnelStats(events) : null}
       flash={parseFlashCookie(c.req.header('cookie'))}
     />,
   );
@@ -123,10 +136,7 @@ applicationsRoute.post('/jobs/:id/stage', async (c) => {
 });
 
 // F5 (ADR 0024): fold the ledger into funnel / velocity / calibration.
-async function loadFunnelStats() {
-  const events = await prisma.jobStageEvent.findMany({
-    orderBy: { recordedAt: 'asc' },
-  });
+async function loadFunnelStats(events: StageEventRow[]) {
   const eventJobIds = [...new Set(events.map((e) => e.jobId))];
   const fitRows = eventJobIds.length
     ? await prisma.job.findMany({

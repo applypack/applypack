@@ -2,8 +2,8 @@
 import type { FC } from 'hono/jsx';
 import { Layout } from '../layout';
 import { Button, Empty, FitBadge, Flash, PageHeader } from '../ui';
-import { formatRelative } from '../format';
 import type { FlashMessage } from '../flash';
+import type { StageTimeLine } from '../stage-time';
 import { FunnelStatsSection, type FunnelStatsProps } from './funnel-stats';
 
 const STAGES = ['applied', 'screen', 'tech', 'onsite', 'offer', 'rejected', 'ghosted'] as const;
@@ -50,8 +50,8 @@ interface ApplicationCard {
   title: string;
   companyName: string;
   fitScore: number | null;
-  appliedAt: Date | null;
   recruiterContact: string | null;
+  stageLine: StageTimeLine | null;
 }
 
 export interface ApplicationsProps {
@@ -75,10 +75,13 @@ const StageCard: FC<{ card: ApplicationCard; stage: Stage }> = ({ card, stage })
         {card.companyName}
       </div>
       <div class="mt-2 flex items-center justify-between gap-2">
-        <span class="min-w-0 truncate text-xs text-ink-faint">
-          {card.appliedAt
-            ? `applied ${formatRelative(card.appliedAt)}`
-            : 'no apply date'}
+        <span
+          class={`min-w-0 truncate text-xs ${
+            card.stageLine?.stale ? 'font-medium text-warn' : 'text-ink-faint'
+          }`}
+          title={card.stageLine?.since.toISOString().slice(0, 10)}
+        >
+          {card.stageLine?.text ?? 'no apply date'}
           {card.recruiterContact ? ` · ${card.recruiterContact}` : ''}
         </span>
         <FitBadge score={card.fitScore} />
