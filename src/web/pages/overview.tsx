@@ -93,6 +93,20 @@ export const OverviewPage: FC<OverviewProps> = ({
       />
       <Flash flash={flash} />
 
+      {!fetchingEnabled && (
+        <p class="-mt-2 mb-4 text-[13px] leading-5 text-ink-faint">
+          Paused means no new jobs or alerts. Fresh installs start paused so a blank profile
+          doesn't spend AI credit —{' '}
+          <a
+            href="/settings?tab=profile"
+            class="font-medium text-accent-strong transition-colors duration-150 hover:text-accent-deep"
+          >
+            fill the profile
+          </a>
+          , then press Resume.
+        </p>
+      )}
+
       <div class="mb-3 grid grid-cols-2 gap-3 xl:grid-cols-4">
         {PRIMARY_STATUSES.map((s) => {
           const delta = byStatus24h[s] ?? 0;
