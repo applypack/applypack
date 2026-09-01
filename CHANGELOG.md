@@ -6,6 +6,33 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.3.0] — 2026-09-01
+
+### Added
+- **Quick-move on the `/applications` board** (TASKS §10): every card
+  carries a stage select + Move button (plain form, works without JS).
+  The new stage-only endpoint writes the `JobStageEvent` ledger row in
+  the same transaction and never touches appliedAt / recruiter / notes —
+  those still belong to the tracking card on the job page.
+- **Time-in-stage on cards**: "in screen 12d" from the ledger (falls back
+  to "applied Nd ago" where no real event dates the stage), absolute date
+  in the tooltip, and a warn-tone "· stalled" once a non-terminal stage
+  sits still past 14 days. Backfilled history never dates a stage — same
+  honesty rule as the funnel math.
+
+### Changed
+- Board columns cap at 70% of the viewport and scroll internally — with
+  a hundred cards in one stage the page stays one screen tall instead of
+  ~13,000&nbsp;px, and the funnel stats are visible without a journey.
+- Rejected and Ghosted moved off the board into a collapsed **Closed**
+  panel below it (with the same cards and quick-move for revivals), so
+  the five work columns fit a laptop width.
+- On phones the board stacks into one stage-grouped list with count
+  chips that jump to each stage.
+- Board detail pass: header meta reads "N active · M closed", the Onsite
+  column dot no longer shares its colour with Tech, calibration cells
+  shorten "— (n=0, need 5)" to "— (0/5)".
+
 ## [1.2.0] — 2026-09-01
 
 ### Fixed
@@ -498,7 +525,8 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
-[Unreleased]: https://github.com/nazboyko/applypack/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/nazboyko/applypack/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/nazboyko/applypack/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/nazboyko/applypack/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/nazboyko/applypack/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/nazboyko/applypack/compare/v0.11.1...v1.0.0
