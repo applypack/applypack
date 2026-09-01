@@ -83,8 +83,9 @@ profile would classify everything as a miss and waste your AI quota.
 3. **Notifications tab** (optional): add a Telegram bot. The form
    validates the token by sending you a real message before it saves.
 4. **General tab**: press **Resume** on the "Job fetching" switch. Too
-   impatient for the hourly tick:
-   `docker compose exec app node dist/scripts/fetch-once.js`
+   impatient for the hourly tick: press **Fetch now** on the Overview and
+   watch the sources answer (it works while paused too — the jobs are then
+   stored unscored).
 
 From then on it runs itself. Every settings change saves to Postgres on
 click: no restarts, no `.env` edits. The worker picks changes up within

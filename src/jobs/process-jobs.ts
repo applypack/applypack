@@ -1,4 +1,4 @@
-import { JobStatus, type Prisma, type Profile } from '@prisma/client';
+import { JobStatus, Prisma, type Job, type Profile } from '@prisma/client';
 import { prisma } from '../db';
 import { config } from '../config';
 import { logger } from '../logger';
@@ -9,6 +9,7 @@ import { classifyJob, type ClassifyOutcome } from '../classifier';
 import { isBlankProfile, NO_PROFILE_STACK_FLAG } from '../profile-guards';
 import { sendTelegramAlert } from '../notifier';
 import { applyPriorityFloor, parsePriorityRules } from '../priority-rules';
+import type { ClassifierMode } from '../settings';
 import {
   findCrossListing,
   fromDbBigInt,
@@ -49,6 +50,18 @@ export interface ProcessStats {
   skippedBlankProfile: number;
 }
 
+export interface ProcessOptions {
+  classifierMode: ClassifierMode;
+  /**
+   * false = store what passes the filter unscored (fitScore null, no AI, no
+   * alerts): the dashboard's "Fetch now" while the pipeline is paused. The
+   * cron dedupes on (companyId, externalId), so it never revisits those rows;
+   * scoring is left to Re-classify. Default true.
+   */
+  classify?: boolean;
+  isCancelled?: () => Promise<boolean>;
+}
+
 /** How far back the cross-listing scan looks. */
 const DEDUP_WINDOW_DAYS = 90;
 
@@ -60,14 +73,15 @@ const DEDUP_WINDOW_DAYS = 90;
 export async function processNormalizedJobs(
   items: FetchResult[],
   profile: Profile,
-  classifierMode: 'single' | 'two_stage',
   stats: ProcessStats,
-  isCancelled?: () => Promise<boolean>,
+  opts: ProcessOptions,
 ): Promise<void> {
+  const { classifierMode, classify = true, isCancelled } = opts;
+
   // Issue #50: a profile with no required stack and no role types has nothing
   // to gate on — the filter admits everything and the classifier scores on
   // vibes. Fetching already happened (source health stays alive); stop here.
-  if (isBlankProfile(profile)) {
+  if (classify && isBlankProfile(profile)) {
     stats.skippedBlankProfile = 1;
     logger.warn(
       { profile: profile.name },
@@ -112,8 +126,17 @@ export async function processNormalizedJobs(
   // Fingerprints of everything ingested in the dedup window, read once for
   // the whole batch. Cross-listing is an annotation, so this never changes
   // which jobs get classified (ADR 0018).
-  const recentFingerprints =
-    candidates.length > 0 ? await loadRecentFingerprints() : [];
+  const batch: Batch = {
+    stats,
+    recentFingerprints: candidates.length > 0 ? await loadRecentFingerprints() : [],
+  };
+
+  if (!classify) {
+    for (const item of candidates) {
+      await persistJob(item, null, JobStatus.NEW, [], batch);
+    }
+    return;
+  }
 
   // Classify up to AI_CONCURRENCY jobs at once; results are consumed in the
   // original order, so persisting and alerting stay sequential and ordered.
@@ -137,7 +160,8 @@ export async function processNormalizedJobs(
   }
 
   let consumed = 0;
-  for (const { job, companyName, outcome } of pending) {
+  for (const item of pending) {
+    const { job, companyName, outcome } = item;
     if (isCancelled && (await isCancelled())) {
       cancelled = true;
       stats.abortedMidRun = 1;
@@ -180,74 +204,27 @@ export async function processNormalizedJobs(
     const finalClassification = priority.classification;
     const appliedLabels = priority.applied.map((r) => r.label);
 
-    const fingerprint = simhash64(job.description);
-    const crossListing = findCrossListing(
-      fingerprint,
-      job.companyId,
-      recentFingerprints,
-    );
-    if (crossListing) {
-      stats.crossListed++;
-      logger.info(
-        {
-          title: job.title,
-          companyName,
-          originalJobId: crossListing.job.id,
-          distance: crossListing.distance,
-        },
-        'process-jobs: cross-listed posting',
-      );
-    }
-    const dedup = {
-      descriptionSimhash: fingerprint,
-      crossListedOfJobId: crossListing?.job.id ?? null,
-    };
-
     const dismissReason = decideDismissReason(finalClassification, profile);
     if (dismissReason) {
-      const dismissed = await prisma.job.create({
-        data: buildJobData(
-          job,
-          finalClassification,
-          JobStatus.DISMISSED,
-          appliedLabels,
-          dedup,
-        ),
-      });
-      recentFingerprints.push({
-        id: dismissed.id,
-        companyId: job.companyId,
-        descriptionSimhash: fingerprint,
-      });
-      stats.persisted++;
-      stats.dismissed++;
-      logger.debug(
-        {
-          title: job.title,
-          companyName,
-          fitScore: finalClassification.fit_score,
-          reason: dismissReason,
-        },
-        'process-jobs: dismissed',
-      );
+      const stored = await persistJob(item, finalClassification, JobStatus.DISMISSED, appliedLabels, batch);
+      if (stored) {
+        stats.dismissed++;
+        logger.debug(
+          {
+            title: job.title,
+            companyName,
+            fitScore: finalClassification.fit_score,
+            reason: dismissReason,
+          },
+          'process-jobs: dismissed',
+        );
+      }
       continue;
     }
 
-    const created = await prisma.job.create({
-      data: buildJobData(
-        job,
-        finalClassification,
-        JobStatus.NEW,
-        appliedLabels,
-        dedup,
-      ),
-    });
-    recentFingerprints.push({
-      id: created.id,
-      companyId: job.companyId,
-      descriptionSimhash: fingerprint,
-    });
-    stats.persisted++;
+    const stored = await persistJob(item, finalClassification, JobStatus.NEW, appliedLabels, batch);
+    if (!stored) continue;
+    const { created, crossListing } = stored;
 
     // A score produced without a required stack never alerts, whatever the
     // threshold or priority boosts say (issue #50). The row stays NEW.
@@ -353,14 +330,79 @@ async function companyNameOfJob(jobId: number): Promise<string | null> {
   return row?.company.name ?? null;
 }
 
+/** State shared by every persist of one call: the batch stats and the
+ *  fingerprint window, which grows as rows are stored. */
+interface Batch {
+  stats: ProcessStats;
+  recentFingerprints: FingerprintedJob[];
+}
+
+type CrossListing = ReturnType<typeof findCrossListing<FingerprintedJob>>;
+
+/**
+ * Fingerprint, annotate a cross-listing (ADR 0018) and store the row. Returns
+ * null when the unique key clashed: the hourly tick and a dashboard "Fetch
+ * now" can overlap, and the loser of that race holds a duplicate, not an error.
+ */
+async function persistJob(
+  { job, companyName }: FetchResult,
+  c: ClaudeClassification | null,
+  status: JobStatus,
+  priorityRulesApplied: string[],
+  { stats, recentFingerprints }: Batch,
+): Promise<{ created: Job; crossListing: CrossListing } | null> {
+  const fingerprint = simhash64(job.description);
+  const crossListing = findCrossListing(fingerprint, job.companyId, recentFingerprints);
+
+  let created: Job;
+  try {
+    created = await prisma.job.create({
+      data: buildJobData(job, c, status, priorityRulesApplied, {
+        descriptionSimhash: fingerprint,
+        crossListedOfJobId: crossListing?.job.id ?? null,
+      }),
+    });
+  } catch (err) {
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+      stats.duplicate++;
+      logger.warn(
+        { title: job.title, companyName },
+        'process-jobs: stored by another run meanwhile; counted as duplicate',
+      );
+      return null;
+    }
+    throw err;
+  }
+  recentFingerprints.push({
+    id: created.id,
+    companyId: job.companyId,
+    descriptionSimhash: fingerprint,
+  });
+  stats.persisted++;
+  if (crossListing) {
+    stats.crossListed++;
+    logger.info(
+      {
+        title: job.title,
+        companyName,
+        originalJobId: crossListing.job.id,
+        distance: crossListing.distance,
+      },
+      'process-jobs: cross-listed posting',
+    );
+  }
+  return { created, crossListing };
+}
+
 interface DedupData {
   descriptionSimhash: bigint | null;
   crossListedOfJobId: number | null;
 }
 
+/** `c === null` stores the posting unscored — every classifier field stays empty. */
 function buildJobData(
   job: NormalizedJob,
-  c: ClaudeClassification,
+  c: ClaudeClassification | null,
   status: JobStatus,
   priorityRulesApplied: string[],
   dedup: DedupData,
@@ -377,17 +419,16 @@ function buildJobData(
     location: job.location,
     description: job.description,
     postedAt: job.postedAt,
-    fitScore: c.fit_score,
-    salaryMin: c.salary_min_usd,
-    salaryMax: c.salary_max_usd,
-    techMatch: c.tech_match,
+    fitScore: c?.fit_score ?? null,
+    salaryMin: c?.salary_min_usd ?? null,
+    salaryMax: c?.salary_max_usd ?? null,
+    techMatch: c?.tech_match ?? [],
     // `pasted: false` is an invariant, not an assumption: a MANUAL company's
     // fetchOne returns [], so a pasted row never reaches this loop. Pasted
     // jobs get their flags from classify-existing.ts instead.
-    redFlags: withApplyLinkFlags(c.red_flags, { url: job.url, pasted: false }),
-    summary: c.summary,
+    redFlags: withApplyLinkFlags(c?.red_flags ?? [], { url: job.url, pasted: false }),
+    summary: c?.summary ?? null,
     status,
     priorityRulesApplied,
   };
 }
-

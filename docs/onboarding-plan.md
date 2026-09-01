@@ -8,7 +8,8 @@
 > [CLAUDE.md](../CLAUDE.md), the testing-gate / commit-discipline skills and
 > the ADR register in [docs/adr](./adr/).
 >
-> **Status: analysis only.** Nothing here is implemented. Constants
+> **Status:** stages 1–2 of §5 shipped (`profile-tab-quickwins` v1.5.0,
+> `fetch-now` v1.6.0); stages 3–7 are analysis only. Constants
 > (batch caps, source subsets, timings) are starting hypotheses to
 > re-measure at implementation time.
 
@@ -317,7 +318,13 @@ resumes in one sitting.
   Hypothesis: all enabled, with the progress page making the wait fun.
 - Step-4 classification cap (hypothesis 100 — measure cost/latency on
   Haiku 4.5 two-stage vs single).
-- Whether "Fetch now" lives on `/runs`, Overview, or both.
+- ~~Whether "Fetch now" lives on `/runs`, Overview, or both.~~ Decided in
+  stage 2: **both**, one shared `FetchNowButton` — Overview because it is
+  the page a fresh install lands on ("does the search work?" is answered
+  next to the pipeline switch), `/runs` because that is where the verdict
+  lands and where a re-run is wanted. The CronRun row is named `fetch-now`
+  (not `fetch-test`), and classification follows the pause flag: paused →
+  stored unscored, running → the hourly tick, just now.
 - Wizard copy voice pass (stop-slop skill) once screens exist.
 - Whether step 3 should offer multi-upload immediately or defer extra
   resumes to `/resumes` until stage 5 lands.

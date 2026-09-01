@@ -60,7 +60,8 @@
   (DB row → `.env` fallback, pure merge in `ai-engine.ts` — ADR 0013).
 - `jobs/process-jobs.ts` is the single source of truth for the inner
   filter → dedupe → classify → persist → alert sequence. Reused by
-  `runFetchJob` and `runHnHiringJob`.
+  `runFetchJob` and `runHnHiringJob`. `{ classify: false }` stores what
+  passes the filter unscored (no AI, no alert) — "Fetch now" while paused.
 - `AiProvider` calls are tool-free unless the request sets `webTools`; only
   `src/verification/verify.ts` does (ADR 0009). Never turn it on for the classifier.
 - Every AI call site takes its prompt from an exported `build*Prompt`, and
@@ -141,6 +142,7 @@ When the question is **"where does X live?"**, save yourself a `find`:
 | Apply-link flags (missing / unusable / shortened / not-an-application) | `src/apply-link.ts` (pure, ADR 0023); merged into `Job.redFlags` at all three persist paths |
 | Stable id for a feed row with no id of its own | `src/text-utils.ts:feedItemKey` (URL key → text key → null, never `''`) |
 | The cron list (6 schedules) | `src/index.ts:registerCron` |
+| "Fetch now" (the tick from the dashboard: live progress, unscored while paused) | `POST /runs/fetch-now` in `src/web/routes/runs.tsx` → `runFetchJob({ manual: true })` in `src/jobs/fetch-job.ts`; registry `src/web/fetch-runs.ts`; verdict line `src/web/fetch-summary.ts` (pure) |
 | What runs on container boot | `src/init.ts` |
 | Adding a new ATS source — single-feed template | `src/fetchers/larajobs.ts` (LARAJOBS_RSS) or `src/fetchers/golangprojects.ts` (single RSS) |
 | Adding a new ATS source — per-company JSON | `src/fetchers/ashby.ts` (cleanest), `src/fetchers/greenhouse.ts` |
@@ -197,6 +199,7 @@ When the question is **"how does the user toggle / configure X?"**:
 | What | Page |
 | --- | --- |
 | Pause / resume all new-job fetching | `/settings` General tab → "Job fetching" |
+| Pull jobs right now instead of waiting for the hourly tick | Overview header or `/runs` → "Fetch now" (progress page; while paused the jobs land unscored — score them later with Save & re-classify) |
 | See which boards stopped answering | `/companies` → "Quiet sources" card (Re-probe to repair) |
 | Telegram line when a source goes quiet | `/settings` Notifications tab → "Source health alerts" |
 | Pick / order AI engines + models, test them | `/settings` AI engine tab (per-engine cards: Enable, ↑ priority, model selects, Test) |
@@ -418,7 +421,7 @@ Always:
 
 | Task | Command |
 | --- | --- |
-| Run one fetch tick now | `docker compose exec app node dist/scripts/fetch-once.js` |
+| Run one fetch tick now | UI: Overview → "Fetch now" (live progress, row on `/runs`); or `docker compose exec app node dist/scripts/fetch-once.js` |
 | Run discovery probe now | `docker compose exec app node dist/scripts/discovery-once.js` |
 | Pull HN Who-is-hiring now | `docker compose exec app node dist/scripts/hn-once.js` |
 | Send the stale-applications digest now | `docker compose exec app node dist/scripts/stale-once.js` |

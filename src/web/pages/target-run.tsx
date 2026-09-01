@@ -1,10 +1,11 @@
 /** @jsxImportSource hono/jsx */
 import type { FC } from 'hono/jsx';
 import { Layout } from '../layout';
-import { Button, Card, Hint, MarkIcon } from '../ui';
+import { Button, Card, Hint } from '../ui';
+import { RunSteps, type StepView } from './run-steps';
 import type { RunStep, TargetRun } from '../target-runs';
 
-const STEP_VIEW: Record<RunStep, { label: string; detail: string }> = {
+const STEP_VIEW: Record<RunStep, StepView> = {
   fetch: {
     label: 'Read the posting page',
     detail: 'one request to the URL you gave — seconds',
@@ -80,32 +81,7 @@ export const TargetRunPage: FC<{ run: TargetRun }> = ({ run }) => {
             </div>
           ) : (
             <>
-              <ol class="mt-5 space-y-5" aria-label="Progress">
-                {run.steps.map((s, i) => (
-                  <li
-                    class="step flex items-start gap-3"
-                    data-step={s}
-                    data-state={i < currentIdx ? 'done' : i === currentIdx ? 'active' : 'pending'}
-                  >
-                    <span class="mt-0.5 grid h-5 w-5 shrink-0 place-items-center" aria-hidden="true">
-                      <span class="i i-done">
-                        <MarkIcon kind="check" class="text-ok" />
-                      </span>
-                      <span class="i i-active h-4 w-4 animate-spin rounded-full border-2 border-line-strong border-t-accent"></span>
-                      <span class="i i-pending h-2 w-2 rounded-full bg-line-strong"></span>
-                    </span>
-                    <span class="min-w-0 flex-1">
-                      <span class="t-label block text-sm">{STEP_VIEW[s].label}</span>
-                      <span class="t-detail block text-xs">{STEP_VIEW[s].detail}</span>
-                      <span
-                        class="t-activity mt-1.5 block text-[13px] leading-5 text-violet transition-opacity duration-300"
-                        data-activity
-                        aria-live="polite"
-                      ></span>
-                    </span>
-                  </li>
-                ))}
-              </ol>
+              <RunSteps steps={run.steps} currentIdx={currentIdx} view={STEP_VIEW} />
               <div class="mt-5 flex items-center justify-between gap-3 border-t border-line pt-3">
                 <Hint>
                   You can close this page — the run keeps going and the result lands on the job
@@ -115,7 +91,6 @@ export const TargetRunPage: FC<{ run: TargetRun }> = ({ run }) => {
                   {elapsed}s
                 </span>
               </div>
-              <style dangerouslySetInnerHTML={{ __html: RUN_CSS }} />
               <script
                 id="run-data"
                 type="application/json"
@@ -129,20 +104,6 @@ export const TargetRunPage: FC<{ run: TargetRun }> = ({ run }) => {
     </Layout>
   );
 };
-
-/* Step visuals are CSS-driven off data-state so the poller only flips attributes. */
-const RUN_CSS = `
-  .step .i { display: none; }
-  .step[data-state="done"] .i-done,
-  .step[data-state="active"] .i-active,
-  .step[data-state="pending"] .i-pending { display: block; }
-  .step .t-label { color: rgb(var(--ink)); font-weight: 500; }
-  .step[data-state="pending"] .t-label { color: rgb(var(--ink-faint)); font-weight: 400; }
-  .step .t-detail { color: rgb(var(--ink-faint)); }
-  .step[data-state="active"] .t-detail { color: rgb(var(--ink-muted)); }
-  .step .t-activity { display: none; }
-  .step[data-state="active"] .t-activity { display: block; }
-`;
 
 const RUN_BOOT = `
 import { init } from '/static/target-run.mjs';

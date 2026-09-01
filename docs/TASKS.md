@@ -748,8 +748,9 @@ Telegram explicitly optional.
       kill top "Re-classify all", placeholders, conditional rules hint,
       `advancedOpen` fix, inline upload in the Fill card — done 2026-09-01,
       branch `profile-tab-quickwins`
-- [ ] `fetch-now` — "Fetch now" button + `{classify: false}` seam +
-      background run (reclassify pattern) + progress page
+- [x] `fetch-now` — "Fetch now" button + `{classify: false}` seam +
+      background run (reclassify pattern) + progress page — done 2026-09-01,
+      branch `fetch-now`; lives on Overview AND `/runs` (one shared button)
 - [ ] `welcome-wizard` — `/welcome` 4-step first-run flow
       (AI → test search → resume → first matches), redirect while
       `AppSettings.setupCompletedAt` null, skip link, Overview chip;
