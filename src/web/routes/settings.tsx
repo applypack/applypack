@@ -14,12 +14,23 @@ import {
   setClassifierMode,
   setDisabledSources,
   setFetchingEnabled,
+  setPipelineStages,
   setSourceHealthAlerts,
   setStaleApplicationsDigestEnabled,
   setTelegramEnabled,
   testTelegramTarget,
   toggleTelegramTarget,
 } from '../../settings';
+import {
+  addStage,
+  allStages,
+  moveStage,
+  parseStageConfig,
+  removeStage,
+  renameStage,
+  TERMINAL_KEYS,
+  type StageEditError,
+} from '../stage-config';
 import {
   AI_PROVIDER_IDS,
   AI_PROVIDER_LABELS,
@@ -105,14 +116,23 @@ export const settingsRoute = new Hono();
 /** Everything the settings page needs except activeTab/flash/profileDraft —
  *  shared by the GET and by POSTs that render a draft instead of redirecting. */
 async function loadSettingsProps() {
-  const [settings, targets, profiles, active, resumes, aiStatuses] = await Promise.all([
-    getSettings(),
-    listTelegramTargets(),
-    listProfiles(),
-    getActiveProfile(),
-    listResumes(),
-    probeAiProviders(),
-  ]);
+  const [settings, targets, profiles, active, resumes, aiStatuses, stageCounts] =
+    await Promise.all([
+      getSettings(),
+      listTelegramTargets(),
+      listProfiles(),
+      getActiveProfile(),
+      listResumes(),
+      probeAiProviders(),
+      prisma.job.groupBy({
+        by: ['pipelineStage'],
+        _count: { _all: true },
+        where: { pipelineStage: { not: null } },
+      }),
+    ]);
+  const countByStage = new Map(
+    stageCounts.map((row) => [row.pipelineStage, row._count._all]),
+  );
   const aiEnv = getAiEngineEnv();
   const engine = resolveAiEngine(settings.aiEngine, aiEnv);
   const aiConfig = parseAiEngineConfig(settings.aiEngine);
@@ -161,6 +181,11 @@ async function loadSettingsProps() {
     telegramEnabled: settings.telegramEnabled,
     classifierMode: settings.classifierMode,
     applicationTrackingEnabled: settings.applicationTrackingEnabled,
+    pipelineStages: allStages(parseStageConfig(settings.pipelineStages)).map((s) => ({
+      ...s,
+      count: countByStage.get(s.key) ?? 0,
+      fixed: s.key === 'applied' || TERMINAL_KEYS.includes(s.key),
+    })),
     staleApplicationsDigestEnabled: settings.staleApplicationsDigestEnabled,
     sourceHealthAlerts: settings.sourceHealthAlerts,
     disabledSources: settings.disabledSources,
@@ -406,6 +431,72 @@ settingsRoute.post('/settings/application-tracking-toggle', async (c) => {
     `Application tracking ${
       !settings.applicationTrackingEnabled ? 'enabled' : 'disabled'
     }.`,
+  );
+});
+
+// ---- Board columns (ADR 0025) ------------------------------------------
+
+const STAGES_BACK = '/settings?tab=general#stages';
+
+const STAGE_ERROR_TEXT: Record<StageEditError, string> = {
+  'empty-label': 'Column name is required.',
+  'duplicate-label': 'A column with that name already exists.',
+  limit: 'Column limit reached — remove one first.',
+  'unknown-key': 'That column no longer exists.',
+};
+
+async function applyStageEdit(
+  edit: (work: { key: string; label: string }[]) =>
+    | { key: string; label: string }[]
+    | StageEditError,
+  okText: string,
+): Promise<Response> {
+  const settings = await getSettings();
+  const work = parseStageConfig(settings.pipelineStages);
+  const next = edit(work);
+  if (typeof next === 'string') {
+    return flashRedirect(STAGES_BACK, 'err', STAGE_ERROR_TEXT[next]);
+  }
+  await setPipelineStages(next);
+  return flashRedirect(STAGES_BACK, 'ok', okText);
+}
+
+settingsRoute.post('/settings/stages/add', async (c) => {
+  const form = await c.req.parseBody();
+  const label = typeof form.label === 'string' ? form.label : '';
+  return applyStageEdit(
+    (work) => addStage(work, label),
+    `Added "${label.trim()}".`,
+  );
+});
+
+settingsRoute.post('/settings/stages/:key/remove', async (c) => {
+  const key = c.req.param('key');
+  const inUse = await prisma.job.count({ where: { pipelineStage: key } });
+  if (inUse > 0) {
+    return flashRedirect(
+      STAGES_BACK,
+      'err',
+      `Move ${inUse} job${inUse === 1 ? '' : 's'} out of that column first.`,
+    );
+  }
+  return applyStageEdit((work) => removeStage(work, key), 'Column removed.');
+});
+
+settingsRoute.post('/settings/stages/:key/move', async (c) => {
+  const key = c.req.param('key');
+  const form = await c.req.parseBody();
+  const dir = form.dir === 'up' ? 'up' : 'down';
+  return applyStageEdit((work) => moveStage(work, key, dir), 'Order updated.');
+});
+
+settingsRoute.post('/settings/stages/:key/rename', async (c) => {
+  const key = c.req.param('key');
+  const form = await c.req.parseBody();
+  const label = typeof form.label === 'string' ? form.label : '';
+  return applyStageEdit(
+    (work) => renameStage(work, key, label),
+    'Column renamed.',
   );
 });
 

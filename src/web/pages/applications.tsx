@@ -158,7 +158,7 @@ export const ApplicationsPage: FC<ApplicationsProps> = ({
         }
         actions={
           applicationTrackingEnabled ? (
-            <Button href="/settings#stages" variant="ghost" size="sm">
+            <Button href="/settings?tab=general#stages" variant="ghost" size="sm">
               Edit columns
             </Button>
           ) : undefined
