@@ -17,17 +17,22 @@ exported from a real match run.
 python3 -m http.server 8901 --bind 127.0.0.1 --directory site/public
 ```
 
-## Deploy (Cloudflare Pages, one-time hookup)
+## Deploy (Cloudflare Worker with static assets)
 
-1. Cloudflare dashboard → Workers & Pages → Create → Pages →
-   Connect to Git → pick `nazboyko/applypack`.
-2. Build settings:
-   - **Root directory**: `site`
-   - **Build command**: *(leave empty)*
-   - **Build output directory**: `public`
-3. After the first deploy: Custom domains → add `applypack.dev`
-   (the domain is already on Cloudflare, so this is one click).
-4. Optional: Settings → Builds → **Build watch paths** → include
-   `site/*` so app-only commits don't trigger site deploys.
+The site is NOT a Cloudflare Pages project. It runs as a Cloudflare
+**Worker** that serves `site/public` as static assets:
 
-Every push to `main` that touches `site/` then redeploys automatically.
+- Worker URL: https://applypack.boyko-nazar.workers.dev
+- Custom domains on the Worker: `applypack.dev` and `www.applypack.dev`
+
+The Worker's configuration lives in the Cloudflare dashboard
+(Workers & Pages → the applypack worker) — there is deliberately no
+`wrangler.toml` in this repo. Build settings there:
+
+- **Root directory**: `site`
+- **Build command**: *(empty — nothing to build)*
+- **Assets directory**: `public`
+
+Deploys ship from the Worker's git connection (Workers Builds) on
+pushes to `main`; check Deployments in the dashboard if a push doesn't
+show up on the domain within a couple of minutes.
