@@ -4,9 +4,35 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [1.5.0] — 2026-09-01
 
 ### Changed
+- **Settings → Profile now follows the user's journey**
+  ([docs/onboarding-plan.md §3](docs/onboarding-plan.md)): contextual
+  warnings first, then "Fill from a resume", then the editor; the profile
+  management row (switch / Activate / Delete / + New) moved to the bottom
+  and the "Other profiles" table is gone — the select is the one
+  mechanism. The standalone "Re-classify all jobs" button was removed:
+  "Save & re-classify" in the editor footer covers it, and a paid AI
+  action no longer greets a fresh install at the top of the page.
+- **"Fill from a resume" accepts a direct file upload** when no resumes
+  exist yet — no more round trip to `/resumes` and back. The upload
+  becomes a normal Resume row (first one becomes the default), is
+  scanned, and the profile draft renders as before; nothing is saved
+  until "Save profile".
+- The three chip fields sit under one "What are we hunting for?" heading
+  with a two-line legend (languages/frameworks → required; job-title
+  words → role types), each with real example placeholders
+  ("php, laravel, mysql…") instead of three identical "Add and press
+  Enter…" prompts.
+- Priority rules live in their own collapsed sub-section; the
+  region-phrase warning shows only when rules exist. The Advanced block
+  no longer auto-opens because of a seeded salary or a Telegram target —
+  only notes, on-site cities or rules open it.
+- The Settings header no longer claims everything saves on click — the
+  profile editor saves on submit, and the copy now says so.
+- Overview explains a paused pipeline: fresh installs start paused so a
+  blank profile doesn't spend AI credit, with a link to fill the profile.
 - **Moved to the `applypack` organization** — the repository now lives at
   `applypack/applypack`. Old URLs redirect, so existing clones and forks
   keep working, but the outbound `User-Agent` job boards see, the README
@@ -590,7 +616,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
-[Unreleased]: https://github.com/applypack/applypack/compare/v1.4.1...HEAD
+[1.5.0]: https://github.com/applypack/applypack/compare/v1.4.1...v1.5.0
 [1.4.1]: https://github.com/applypack/applypack/compare/v1.4.0...v1.4.1
 [1.4.0]: https://github.com/applypack/applypack/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/applypack/applypack/compare/v1.2.0...v1.3.0

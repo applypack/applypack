@@ -744,9 +744,10 @@ first-run is a non-technical user. Critical path decided by owner:
 connect AI → prove search works → build profile from a resume;
 Telegram explicitly optional.
 
-- [ ] `profile-tab-quickwins` — reorder Profile tab around the journey,
+- [x] `profile-tab-quickwins` — reorder Profile tab around the journey,
       kill top "Re-classify all", placeholders, conditional rules hint,
-      `advancedOpen` fix, inline upload in the Fill card
+      `advancedOpen` fix, inline upload in the Fill card — done 2026-09-01,
+      branch `profile-tab-quickwins`
 - [ ] `fetch-now` — "Fetch now" button + `{classify: false}` seam +
       background run (reclassify pattern) + progress page
 - [ ] `welcome-wizard` — `/welcome` 4-step first-run flow
