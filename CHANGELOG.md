@@ -6,10 +6,18 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+- **Moved to the `applypack` organization** — the repository now lives at
+  `applypack/applypack`. Old URLs redirect, so existing clones and forks
+  keep working, but the outbound `User-Agent` job boards see, the README
+  badges, the `CHANGELOG` compare links and the launch drafts all point at
+  the new address. `scripts/archive-traffic.sh` follows via its `REPO`
+  default.
+
 ## [1.4.1] — 2026-09-01
 
 ### Fixed
-- **Blank-profile guardrails** ([#50](https://github.com/nazboyko/applypack/issues/50)).
+- **Blank-profile guardrails** ([#50](https://github.com/applypack/applypack/issues/50)).
   A freshly created "New profile" used to activate immediately; with no
   required stack and no role types the base filter's title gate turns off
   and the classifier scores generic job quality — one tick classified 118
@@ -582,23 +590,24 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
-[Unreleased]: https://github.com/nazboyko/applypack/compare/v1.4.0...HEAD
-[1.4.0]: https://github.com/nazboyko/applypack/compare/v1.3.0...v1.4.0
-[1.3.0]: https://github.com/nazboyko/applypack/compare/v1.2.0...v1.3.0
-[1.2.0]: https://github.com/nazboyko/applypack/compare/v1.1.0...v1.2.0
-[1.1.0]: https://github.com/nazboyko/applypack/compare/v1.0.0...v1.1.0
-[1.0.0]: https://github.com/nazboyko/applypack/compare/v0.11.1...v1.0.0
-[0.11.1]: https://github.com/nazboyko/applypack/compare/v0.11.0...v0.11.1
-[0.11.0]: https://github.com/nazboyko/applypack/compare/v0.10.0...v0.11.0
-[0.10.0]: https://github.com/nazboyko/applypack/compare/v0.9.0...v0.10.0
-[0.9.0]: https://github.com/nazboyko/applypack/compare/v0.8.0...v0.9.0
-[0.8.0]: https://github.com/nazboyko/applypack/compare/v0.7.0...v0.8.0
-[0.7.0]: https://github.com/nazboyko/applypack/compare/v0.6.0...v0.7.0
-[0.6.0]: https://github.com/nazboyko/applypack/compare/v0.5.0...v0.6.0
-[0.5.0]: https://github.com/nazboyko/applypack/compare/v0.4.0...v0.5.0
-[0.4.0]: https://github.com/nazboyko/applypack/compare/v0.3.0...v0.4.0
-[0.3.0]: https://github.com/nazboyko/applypack/compare/v0.2.1...v0.3.0
-[0.2.1]: https://github.com/nazboyko/applypack/compare/v0.2.0...v0.2.1
-[0.2.0]: https://github.com/nazboyko/applypack/compare/v0.1.1...v0.2.0
-[0.1.1]: https://github.com/nazboyko/applypack/compare/v0.1.0...v0.1.1
-[0.1.0]: https://github.com/nazboyko/applypack/releases/tag/v0.1.0
+[Unreleased]: https://github.com/applypack/applypack/compare/v1.4.1...HEAD
+[1.4.1]: https://github.com/applypack/applypack/compare/v1.4.0...v1.4.1
+[1.4.0]: https://github.com/applypack/applypack/compare/v1.3.0...v1.4.0
+[1.3.0]: https://github.com/applypack/applypack/compare/v1.2.0...v1.3.0
+[1.2.0]: https://github.com/applypack/applypack/compare/v1.1.0...v1.2.0
+[1.1.0]: https://github.com/applypack/applypack/compare/v1.0.0...v1.1.0
+[1.0.0]: https://github.com/applypack/applypack/compare/v0.11.1...v1.0.0
+[0.11.1]: https://github.com/applypack/applypack/compare/v0.11.0...v0.11.1
+[0.11.0]: https://github.com/applypack/applypack/compare/v0.10.0...v0.11.0
+[0.10.0]: https://github.com/applypack/applypack/compare/v0.9.0...v0.10.0
+[0.9.0]: https://github.com/applypack/applypack/compare/v0.8.0...v0.9.0
+[0.8.0]: https://github.com/applypack/applypack/compare/v0.7.0...v0.8.0
+[0.7.0]: https://github.com/applypack/applypack/compare/v0.6.0...v0.7.0
+[0.6.0]: https://github.com/applypack/applypack/compare/v0.5.0...v0.6.0
+[0.5.0]: https://github.com/applypack/applypack/compare/v0.4.0...v0.5.0
+[0.4.0]: https://github.com/applypack/applypack/compare/v0.3.0...v0.4.0
+[0.3.0]: https://github.com/applypack/applypack/compare/v0.2.1...v0.3.0
+[0.2.1]: https://github.com/applypack/applypack/compare/v0.2.0...v0.2.1
+[0.2.0]: https://github.com/applypack/applypack/compare/v0.1.1...v0.2.0
+[0.1.1]: https://github.com/applypack/applypack/compare/v0.1.0...v0.1.1
+[0.1.0]: https://github.com/applypack/applypack/releases/tag/v0.1.0

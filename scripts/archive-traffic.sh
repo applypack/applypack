@@ -7,7 +7,7 @@
 # Requires: gh (authenticated), jq.
 set -eu
 
-REPO="${REPO:-nazboyko/applypack}"
+REPO="${REPO:-applypack/applypack}"
 OUT="${1:-$HOME/applypack-evidence/traffic}"
 DATE="$(date +%Y-%m-%d)"
 
