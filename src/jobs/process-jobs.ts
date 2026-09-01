@@ -6,7 +6,7 @@ import { createLimiter } from '../concurrency';
 import { passesBaseFilter } from '../filter';
 import { withApplyLinkFlags } from '../apply-link';
 import { classifyJob, type ClassifyOutcome } from '../classifier';
-import { isBlankProfile } from '../profile-guards';
+import { isBlankProfile, NO_PROFILE_STACK_FLAG } from '../profile-guards';
 import { sendTelegramAlert } from '../notifier';
 import { applyPriorityFloor, parsePriorityRules } from '../priority-rules';
 import {
@@ -248,6 +248,12 @@ export async function processNormalizedJobs(
       descriptionSimhash: fingerprint,
     });
     stats.persisted++;
+
+    // A score produced without a required stack never alerts, whatever the
+    // threshold or priority boosts say (issue #50). The row stays NEW.
+    if (finalClassification.red_flags.includes(NO_PROFILE_STACK_FLAG)) {
+      continue;
+    }
 
     try {
       await sendTelegramAlert(

@@ -4,6 +4,7 @@ import { logger } from './logger';
 import { extractJson } from './text-utils';
 import { getAiRuntime } from './ai-runtime';
 import { preClassify } from './classifier-prefilter';
+import { capFitForMissingStack } from './profile-guards';
 import { INJECTION_FLAG, fence, untrustedDirective } from './prompt-fence';
 import type { ClassifyInput, ClaudeClassification } from './types';
 
@@ -130,7 +131,9 @@ export async function classifyWithClaude(
 
     const json = extractJson(out.text);
     const parsed = json === null ? null : ClassificationSchema.safeParse(json);
-    if (parsed?.success) return parsed.data;
+    // The prompt's stack-mismatch cap is vacuous without a required stack
+    // (issue #50), so the cap is enforced in code — gotcha 11.
+    if (parsed?.success) return capFitForMissingStack(parsed.data, profile);
     logger.warn(
       {
         raw: out.text.slice(0, 500),
