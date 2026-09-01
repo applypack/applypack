@@ -48,7 +48,7 @@ const VERDICT_VIEW: Record<Calibration['verdict'], { label: string; tone: Tone; 
 };
 
 const rate = (value: number | null, resolved: number): string =>
-  value === null ? `— (n=${resolved}, need ${MIN_RATE_N})` : `${Math.round(value * 100)}%`;
+  value === null ? `— (${resolved}/${MIN_RATE_N})` : `${Math.round(value * 100)}%`;
 
 export const FunnelStatsSection: FC<FunnelStatsProps> = ({
   funnel,

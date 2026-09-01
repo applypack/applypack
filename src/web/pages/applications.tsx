@@ -34,12 +34,16 @@ const NEXT_STAGE: Record<Stage, Stage> = {
   ghosted: 'screen',
 };
 
-/** Column accent: a dot next to the stage name, so columns stay untinted. */
+/**
+ * Column accent: a dot next to the stage name, so columns stay untinted.
+ * Onsite is a hollow warn ring — same interview-loop hue as tech, but a
+ * different shape, so the two stages never read identical.
+ */
 const STAGE_DOT: Record<Stage, string> = {
   applied: 'bg-info',
   screen: 'bg-violet',
   tech: 'bg-warn',
-  onsite: 'bg-warn',
+  onsite: 'border-2 border-warn bg-transparent',
   offer: 'bg-ok',
   rejected: 'bg-line-strong',
   ghosted: 'bg-line-strong',
