@@ -50,7 +50,6 @@ interface MaskedTarget {
 interface ProfileListItem {
   id: number;
   name: string;
-  stackPreview: string; // first 3 required tags
   active: boolean;
   /** No required stack and no role types — activation is gated (issue #50). */
   blank: boolean;

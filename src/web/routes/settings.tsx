@@ -207,9 +207,6 @@ async function loadSettingsProps() {
     profiles: profiles.map((p) => ({
       id: p.id,
       name: p.name,
-      stackPreview:
-        p.stackRequired.slice(0, 4).join(', ') +
-        (p.stackRequired.length > 4 ? '...' : ''),
       active: active?.id === p.id,
       blank: isBlankProfile(p),
     })),
