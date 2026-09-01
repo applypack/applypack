@@ -1,0 +1,13 @@
+// Cloudflare Worker config for the applypack.dev site — assets-only, no
+// Worker script. Workers Builds runs wrangler from the repo root on git
+// pushes (`versions upload` for branches, deploy for main), and this file
+// is what wrangler reads; without it every build fails with "Missing
+// entry-point". Custom domains (applypack.dev, www) and the git
+// connection live in the Cloudflare dashboard.
+{
+  "name": "applypack",
+  "compatibility_date": "2026-08-28",
+  "assets": {
+    "directory": "./site/public"
+  }
+}

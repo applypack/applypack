@@ -25,14 +25,13 @@ The site is NOT a Cloudflare Pages project. It runs as a Cloudflare
 - Worker URL: https://applypack.boyko-nazar.workers.dev
 - Custom domains on the Worker: `applypack.dev` and `www.applypack.dev`
 
-The Worker's configuration lives in the Cloudflare dashboard
-(Workers & Pages → the applypack worker) — there is deliberately no
-`wrangler.toml` in this repo. Build settings there:
+The Worker itself is configured by [`wrangler.jsonc`](../wrangler.jsonc)
+at the repo root (assets-only: `site/public`, no script). The Cloudflare
+dashboard (Workers & Pages → applypack) keeps the rest: the git
+connection (Workers Builds) and the custom domains.
 
-- **Root directory**: `site`
-- **Build command**: *(empty — nothing to build)*
-- **Assets directory**: `public`
-
-Deploys ship from the Worker's git connection (Workers Builds) on
-pushes to `main`; check Deployments in the dashboard if a push doesn't
-show up on the domain within a couple of minutes.
+Deploys ship from that git connection: a push to `main` deploys; a push
+to any other branch only uploads a preview version (`npx wrangler
+versions upload`, visible as a "Workers Builds" check on PRs). Check
+Deployments in the dashboard if a push doesn't show up on the domain
+within a couple of minutes.
