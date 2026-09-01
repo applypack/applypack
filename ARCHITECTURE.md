@@ -257,6 +257,7 @@ src/
     public/target.mjs         ← browser keyword matcher (pure ES module, node-tested)
     public/score.mjs          ← browser mirror of resume/score.ts (parity-tested, ADR 0012)
     public/cover-letter.mjs   ← copy-to-clipboard for the letter card (import-smoke-tested)
+    public/board.mjs          ← /applications drag-and-drop over POST /jobs/:id/stage (planMove tested)
 
     pages/
       overview.tsx              ← /

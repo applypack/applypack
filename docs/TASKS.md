@@ -661,9 +661,11 @@ transaction, board fields untouched), 70dvh column cap (verified again by
 the 100-card DOM simulation: ~1,100 px page vs ~13,000 before), Closed
 disclosure, time-in-stage (`src/web/stage-time.ts`, pure + tested) with
 "· stalled" past 14d, mobile stage-grouped stack with jump chips, polish.
-Item 7 (drag-and-drop over the same endpoint) is NOT built — ask Nazar
-after the merge whether he wants it. The stale ui-review "dark-only" note
-below is fixed too.
+Item 7 (drag-and-drop) shipped in the same branch after Nazar asked for
+it (2026-09-01): `src/web/public/board.mjs` over the same stage-only
+endpoint, fine-pointer devices only, quick-move form kept as the
+keyboard / no-JS / touch fallback (collapsed until hover or focus on
+desktop). The stale ui-review "dark-only" note below is fixed too.
 
 Original analysis kept for reference — one branch, one PR, ordered:
 

@@ -9,10 +9,18 @@ All notable changes to this project are documented here. The format follows
 ## [1.3.0] — 2026-09-01
 
 ### Added
-- **Quick-move on the `/applications` board** (TASKS §10): every card
-  carries a stage select + Move button (plain form, works without JS).
-  The new stage-only endpoint writes the `JobStageEvent` ledger row in
-  the same transaction and never touches appliedAt / recruiter / notes —
+- **Drag-and-drop on the `/applications` board** (TASKS §10): drag a card
+  into a column and the stage changes on drop — optimistic move, then the
+  page re-renders from the server with a confirmation flash; on failure
+  the card snaps back with an error notice. Dragging over the collapsed
+  Closed panel opens it, so a card can be dropped straight onto Rejected
+  or Ghosted. Dependency-free ES module (`src/web/public/board.mjs`),
+  desktop pointers only — phones and no-JS keep the form path below.
+- **Quick-move on every card** (the keyboard / no-JS path): a stage
+  select + Move button as a plain form. With drag active it stays out of
+  the way — collapsed until the card is hovered or keyboard-focused. The
+  new stage-only endpoint writes the `JobStageEvent` ledger row in the
+  same transaction and never touches appliedAt / recruiter / notes —
   those still belong to the tracking card on the job page.
 - **Time-in-stage on cards**: "in screen 12d" from the ledger (falls back
   to "applied Nd ago" where no real event dates the stage), absolute date
