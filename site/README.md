@@ -5,6 +5,12 @@ Static landing for the project. Zero build step, zero dependencies —
 `docs/screenshots/` (kept in sync by hand when those regenerate), and
 `img/og.png` is a copy of `docs/brand/social-card.png`.
 
+`demo/` is the live-scoring demo: `demo/score.mjs` and `demo/target.mjs`
+are byte copies of `src/web/public/` (enforced by
+`src/web/site-vendor.test.ts` — re-copy when they change), and
+`demo/fixture.json` is the synthetic Fernway / Dana Ruiz comparison
+exported from a real match run.
+
 ## Local preview
 
 ```bash

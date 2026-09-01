@@ -7,6 +7,13 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- Live scoring demo at applypack.dev/demo/ — the vendored `score.mjs` /
+  `target.mjs` (byte-parity enforced by `site-vendor.test.ts`) running on the
+  synthetic Fernway / Dana Ruiz fixture; edit the resume, watch the
+  deterministic score, highlights and missing-keyword chips recompute with
+  zero AI calls.
+
+### Added
 - Landing site for applypack.dev in `site/public` — static, zero-build,
   zero-dependency (Cloudflare Pages: root `site`, empty build command,
   output `public`). Reuses the README copy, the regenerated screenshots

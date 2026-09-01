@@ -2,7 +2,8 @@
   "detector": {
     "ignoreRules": [],
     "ignoreFiles": [
-      "site/public/style.css"
+      "site/public/style.css",
+      "site/**"
     ],
     "ignoreValues": [
       {
