@@ -1,14 +1,15 @@
 /** @jsxImportSource hono/jsx */
 import type { FC } from 'hono/jsx';
 import { Layout } from '../layout';
-import { Empty, FitBadge, PageHeader } from '../ui';
+import { Button, Empty, FitBadge, Flash, PageHeader } from '../ui';
 import { formatRelative } from '../format';
+import type { FlashMessage } from '../flash';
 import { FunnelStatsSection, type FunnelStatsProps } from './funnel-stats';
 
 const STAGES = ['applied', 'screen', 'tech', 'onsite', 'offer', 'rejected', 'ghosted'] as const;
 type Stage = (typeof STAGES)[number];
 
-const STAGE_LABEL: Record<Stage, string> = {
+export const STAGE_LABEL: Record<Stage, string> = {
   applied: 'Applied',
   screen: 'Screen',
   tech: 'Tech',
@@ -16,6 +17,17 @@ const STAGE_LABEL: Record<Stage, string> = {
   offer: 'Offer',
   rejected: 'Rejected',
   ghosted: 'Ghosted',
+};
+
+/** Quick-move preselect: the likely next hop, not just the next list entry. */
+const NEXT_STAGE: Record<Stage, Stage> = {
+  applied: 'screen',
+  screen: 'tech',
+  tech: 'onsite',
+  onsite: 'offer',
+  offer: 'rejected',
+  rejected: 'screen',
+  ghosted: 'screen',
 };
 
 /** Column accent: a dot next to the stage name, so columns stay untinted. */
@@ -42,12 +54,63 @@ export interface ApplicationsProps {
   byStage: Record<Stage, ApplicationCard[]>;
   applicationTrackingEnabled: boolean;
   stats: FunnelStatsProps | null;
+  flash?: FlashMessage | null;
 }
+
+/** One board card: the link navigates, the form below it quick-moves. */
+const StageCard: FC<{ card: ApplicationCard; stage: Stage }> = ({ card, stage }) => (
+  <li class="rounded-md border border-line bg-surface-raised shadow-sm">
+    <a
+      href={`/jobs/${card.id}`}
+      class="block rounded-t-md p-3 transition-colors duration-150 hover:bg-surface-overlay/60"
+    >
+      <div class="line-clamp-2 text-sm font-medium leading-snug text-ink">
+        {card.title}
+      </div>
+      <div class="mt-1 truncate text-[13px] text-ink-muted">
+        {card.companyName}
+      </div>
+      <div class="mt-2 flex items-center justify-between gap-2">
+        <span class="min-w-0 truncate text-xs text-ink-faint">
+          {card.appliedAt
+            ? `applied ${formatRelative(card.appliedAt)}`
+            : 'no apply date'}
+          {card.recruiterContact ? ` · ${card.recruiterContact}` : ''}
+        </span>
+        <FitBadge score={card.fitScore} />
+      </div>
+    </a>
+    <form
+      method="post"
+      action={`/jobs/${card.id}/stage`}
+      class="flex items-center gap-1.5 border-t border-line px-2 py-1.5"
+    >
+      <label class="sr-only" for={`move-${card.id}`}>
+        Move {card.title} to stage
+      </label>
+      <select
+        id={`move-${card.id}`}
+        name="toStage"
+        class="h-8 w-full min-w-0 flex-1 rounded-md border border-line-strong bg-surface-raised px-1.5 text-xs text-ink shadow-sm transition-colors duration-150 hover:border-ink-faint focus:border-accent focus:outline-none"
+      >
+        {STAGES.filter((s) => s !== stage).map((s) => (
+          <option value={s} selected={s === NEXT_STAGE[stage]}>
+            {STAGE_LABEL[s]}
+          </option>
+        ))}
+      </select>
+      <Button size="sm" variant="secondary" aria-label={`Move ${card.title}`}>
+        Move
+      </Button>
+    </form>
+  </li>
+);
 
 export const ApplicationsPage: FC<ApplicationsProps> = ({
   byStage,
   applicationTrackingEnabled,
   stats,
+  flash,
 }) => {
   const totalCount = STAGES.reduce((sum, s) => sum + (byStage[s]?.length ?? 0), 0);
 
@@ -56,11 +119,8 @@ export const ApplicationsPage: FC<ApplicationsProps> = ({
       <PageHeader
         title="Applications"
         meta={applicationTrackingEnabled ? `${totalCount} in the funnel` : undefined}
-      >
-        {applicationTrackingEnabled
-          ? 'Move jobs between stages from their detail page.'
-          : undefined}
-      </PageHeader>
+      />
+      <Flash flash={flash} />
 
       {!applicationTrackingEnabled ? (
         <Empty>
@@ -101,30 +161,7 @@ export const ApplicationsPage: FC<ApplicationsProps> = ({
                         No applications
                       </li>
                     ) : (
-                      items.map((c) => (
-                        <li>
-                          <a
-                            href={`/jobs/${c.id}`}
-                            class="block rounded-md border border-line bg-surface-raised p-3 shadow-sm transition-colors duration-150 hover:border-accent/50"
-                          >
-                            <div class="line-clamp-2 text-sm font-medium leading-snug text-ink">
-                              {c.title}
-                            </div>
-                            <div class="mt-1 truncate text-[13px] text-ink-muted">
-                              {c.companyName}
-                            </div>
-                            <div class="mt-2 flex items-center justify-between gap-2">
-                              <span class="min-w-0 truncate text-xs text-ink-faint">
-                                {c.appliedAt
-                                  ? `applied ${formatRelative(c.appliedAt)}`
-                                  : 'no apply date'}
-                                {c.recruiterContact ? ` · ${c.recruiterContact}` : ''}
-                              </span>
-                              <FitBadge score={c.fitScore} />
-                            </div>
-                          </a>
-                        </li>
-                      ))
+                      items.map((c) => <StageCard card={c} stage={stage} />)
                     )}
                   </ul>
               </section>

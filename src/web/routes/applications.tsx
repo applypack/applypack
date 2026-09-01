@@ -3,7 +3,8 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import { prisma } from '../../db';
 import { getSettings } from '../../settings';
-import { ApplicationsPage } from '../pages/applications';
+import { flashRedirect, parseFlashCookie } from '../flash';
+import { ApplicationsPage, STAGE_LABEL } from '../pages/applications';
 import { appliedDateCorrection, stageChangeEvent } from '../stage-events';
 import { calibration, funnel, groupByJob, velocity } from '../stats';
 
@@ -76,8 +77,49 @@ applicationsRoute.get('/applications', async (c) => {
       byStage={byStage}
       applicationTrackingEnabled={settings.applicationTrackingEnabled}
       stats={settings.applicationTrackingEnabled ? await loadFunnelStats() : null}
+      flash={parseFlashCookie(c.req.header('cookie'))}
     />,
   );
+});
+
+export const StageMoveSchema = z.object({ toStage: z.enum(STAGE_VALUES) });
+
+// Board quick-move: writes pipelineStage and its ledger row, nothing else.
+// The full form on /jobs/:id stays the only place that edits appliedAt /
+// recruiterContact / applicationNotes — reusing it here would null them out.
+applicationsRoute.post('/jobs/:id/stage', async (c) => {
+  const id = Number(c.req.param('id'));
+  if (!Number.isFinite(id)) return c.text('Bad id', 400);
+  const settings = await getSettings();
+  if (!settings.applicationTrackingEnabled) {
+    return c.redirect('/applications', 303);
+  }
+
+  const form = await c.req.parseBody();
+  const parsed = StageMoveSchema.safeParse({ toStage: form.toStage });
+  if (!parsed.success) return c.text('Invalid stage', 400);
+  const { toStage } = parsed.data;
+
+  const current = await prisma.job.findUnique({
+    where: { id },
+    select: { pipelineStage: true, appliedAt: true },
+  });
+  if (!current) return c.text('Not found', 404);
+
+  const event = stageChangeEvent(
+    id,
+    current.pipelineStage,
+    toStage,
+    current.appliedAt,
+    new Date(),
+  );
+  if (event) {
+    await prisma.$transaction([
+      prisma.job.update({ where: { id }, data: { pipelineStage: toStage } }),
+      prisma.jobStageEvent.create({ data: event }),
+    ]);
+  }
+  return flashRedirect('/applications', 'ok', `Moved to ${STAGE_LABEL[toStage]}`);
 });
 
 // F5 (ADR 0024): fold the ledger into funnel / velocity / calibration.
