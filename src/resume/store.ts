@@ -146,11 +146,15 @@ export type MatchWithJob = ResumeMatch & {
   job: { id: number; title: string; company: { name: string } };
 };
 
+/** Newest matches win; re-runs accumulate forever, so the lists are capped. */
+const MATCH_LIST_LIMIT = 50;
+
 export async function listMatchesForJob(jobId: number): Promise<MatchWithResume[]> {
   return prisma.resumeMatch.findMany({
     where: { jobId },
     include: { resume: { select: { id: true, name: true } } },
     orderBy: { createdAt: 'desc' },
+    take: MATCH_LIST_LIMIT,
   });
 }
 
@@ -159,6 +163,7 @@ export async function listMatchesForResume(resumeId: number): Promise<MatchWithJ
     where: { resumeId },
     include: { job: { select: { id: true, title: true, company: { select: { name: true } } } } },
     orderBy: { createdAt: 'desc' },
+    take: MATCH_LIST_LIMIT,
   });
 }
 
