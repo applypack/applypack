@@ -6,14 +6,18 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.0.0] — 2026-09-01
+
+First stable release: the whole arc — find → verify → tailor → apply →
+track — is deployed, documented and demonstrated at
+[applypack.dev](https://applypack.dev).
+
 ### Added
 - Live scoring demo at applypack.dev/demo/ — the vendored `score.mjs` /
   `target.mjs` (byte-parity enforced by `site-vendor.test.ts`) running on the
   synthetic Fernway / Dana Ruiz fixture; edit the resume, watch the
   deterministic score, highlights and missing-keyword chips recompute with
   zero AI calls.
-
-### Added
 - Landing site for applypack.dev in `site/public` — static, zero-build,
   zero-dependency (Cloudflare Pages: root `site`, empty build command,
   output `public`). Reuses the README copy, the regenerated screenshots
@@ -446,7 +450,8 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
-[Unreleased]: https://github.com/nazboyko/applypack/compare/v0.11.1...HEAD
+[Unreleased]: https://github.com/nazboyko/applypack/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/nazboyko/applypack/compare/v0.11.1...v1.0.0
 [0.11.1]: https://github.com/nazboyko/applypack/compare/v0.11.0...v0.11.1
 [0.11.0]: https://github.com/nazboyko/applypack/compare/v0.10.0...v0.11.0
 [0.10.0]: https://github.com/nazboyko/applypack/compare/v0.9.0...v0.10.0
