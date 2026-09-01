@@ -6,6 +6,27 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.2.0] — 2026-09-01
+
+### Fixed
+- **Pausing "Job fetching" now stops an in-flight tick within seconds**
+  (#51, #52). The flag used to be read once at tick start, so a running
+  tick kept fetching, classifying (AI spend) and sending Telegram alerts
+  until it finished. Every long phase — fetchers, discovery harvest, the
+  classify/alert loop — now polls the flag through a throttled latching
+  probe (`makeLatchingProbe`, one read per 5s) and aborts gracefully,
+  recording `paused-mid-run` in the run stats on `/runs`.
+
+### Added
+- "Ready to apply" cue on the targeted-resume view: at a match score of
+  85+ the card says so explicitly — stop polishing, send it (#48).
+
+### Changed
+- The paste-posting-vs-resume flow is named **Compare** in the nav and on
+  its start page (was "Target") (#48).
+- Match history lists (per job and per resume) are capped to the 50
+  newest entries; re-runs no longer grow them without bound (#48).
+
 ## [1.1.0] — 2026-09-01
 
 ### Added
@@ -477,7 +498,8 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
-[Unreleased]: https://github.com/nazboyko/applypack/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/nazboyko/applypack/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/nazboyko/applypack/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/nazboyko/applypack/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/nazboyko/applypack/compare/v0.11.1...v1.0.0
 [0.11.1]: https://github.com/nazboyko/applypack/compare/v0.11.0...v0.11.1
