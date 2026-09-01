@@ -6,6 +6,31 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.4.1] — 2026-09-01
+
+### Fixed
+- **Blank-profile guardrails** ([#50](https://github.com/nazboyko/applypack/issues/50)).
+  A freshly created "New profile" used to activate immediately; with no
+  required stack and no role types the base filter's title gate turns off
+  and the classifier scores generic job quality — one tick classified 118
+  off-stack jobs and alerted 17 of them at scores up to 93. Four
+  independent guards now close this, all deciding through the pure
+  `src/profile-guards.ts` module:
+  - "+ New profile" creates the profile **inactive** and opens it in the
+    editor (`/settings?tab=profile&profile=<id>`); the first save that
+    gives it a required stack or role types activates it. "Fill from a
+    resume" flows into the same rule.
+  - The worker skips classification and alerts for the whole tick when
+    the active profile is blank (fetching and source health stay alive);
+    `/runs` shows `skippedBlankProfile`, and "Re-classify all jobs"
+    refuses to run. Banners on `/jobs` and Settings → Profile say
+    "classification idle" until the profile is fixed.
+  - Code-side floor: a classification made while `stackRequired` is empty
+    is clamped to fit ≤ 50, tagged with a `no-profile-stack` red flag,
+    and never alerts — whatever the threshold or priority boosts say.
+  - Activating a blank profile is refused server-side, and its Activate
+    controls are disabled with a hint.
+
 ## [1.4.0] — 2026-09-01
 
 ### Added
