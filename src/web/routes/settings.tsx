@@ -443,6 +443,7 @@ const STAGE_ERROR_TEXT: Record<StageEditError, string> = {
   'duplicate-label': 'A column with that name already exists.',
   limit: 'Column limit reached — remove one first.',
   'unknown-key': 'That column no longer exists.',
+  'last-column': 'Keep at least one column between Applied and Closed.',
 };
 
 async function applyStageEdit(

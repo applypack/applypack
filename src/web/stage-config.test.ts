@@ -81,6 +81,22 @@ test('removeStage drops the key or reports it unknown', () => {
   assert.equal(removeStage(W('a'), 'zzz'), 'unknown-key');
 });
 
+test('the last work column cannot be removed', () => {
+  assert.equal(removeStage(W('a'), 'a'), 'last-column');
+});
+
+test('a 40-char label still mints a schema-legal key on collision', () => {
+  const label = 'x'.repeat(40);
+  const first = addStage([], label) as { key: string }[];
+  const second = addStage(
+    [{ key: first[0]!.key, label: 'other name' }],
+    label,
+  ) as { key: string }[];
+  assert.equal(first[0]!.key.length <= 40, true);
+  assert.equal(second[1]!.key, `${'x'.repeat(36)}-2`);
+  assert.equal(second[1]!.key.length <= 40, true);
+});
+
 test('moveStage swaps neighbours and no-ops at the edges', () => {
   assert.deepEqual(moveStage(W('a', 'b', 'c'), 'c', 'up'), W('a', 'c', 'b'));
   assert.deepEqual(moveStage(W('a', 'b'), 'a', 'up'), W('a', 'b'));

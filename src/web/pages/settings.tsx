@@ -522,7 +522,7 @@ export const SettingsPage: FC<SettingsProps> = ({
                           ↓
                         </Button>
                       </ActionForm>
-                      {s.count === 0 ? (
+                      {s.count === 0 && work.length > 1 ? (
                         <ActionForm
                           action={`/settings/stages/${s.key}/remove`}
                           confirm={`Delete the "${s.label}" column?`}
@@ -532,7 +532,9 @@ export const SettingsPage: FC<SettingsProps> = ({
                           </Button>
                         </ActionForm>
                       ) : (
-                        <span class="text-xs text-ink-faint">move jobs out to delete</span>
+                        <span class="text-xs text-ink-faint">
+                          {s.count > 0 ? 'move jobs out to delete' : 'last column'}
+                        </span>
                       )}
                     </>
                   )}

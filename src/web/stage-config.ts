@@ -52,15 +52,23 @@ export function parseStageConfig(value: unknown): StageDef[] {
 }
 
 export function slugifyLabel(label: string): string {
-  return label
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 40);
+  return (
+    label
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      // Room for a collision suffix without breaking the 40-char key schema.
+      .slice(0, 36)
+  );
 }
 
-export type StageEditError = 'empty-label' | 'duplicate-label' | 'limit' | 'unknown-key';
+export type StageEditError =
+  | 'empty-label'
+  | 'duplicate-label'
+  | 'limit'
+  | 'unknown-key'
+  | 'last-column';
 
 /** Append a new column; the key is a slug, unique against reserved + used. */
 export function addStage(list: StageDef[], label: string): StageDef[] | StageEditError {
@@ -77,10 +85,15 @@ export function addStage(list: StageDef[], label: string): StageDef[] | StageEdi
   return [...list, { key, label: trimmed.slice(0, 40) }];
 }
 
-/** The job-count guard lives at the route — this only knows the list. */
+/**
+ * The job-count guard lives at the route — this only knows the list. The
+ * last work column stays: an empty stored list would read as "use the
+ * defaults" and silently resurrect all four.
+ */
 export function removeStage(list: StageDef[], key: string): StageDef[] | StageEditError {
   const next = list.filter((s) => s.key !== key);
-  return next.length === list.length ? 'unknown-key' : next;
+  if (next.length === list.length) return 'unknown-key';
+  return next.length === 0 ? 'last-column' : next;
 }
 
 /** Swap one step; already at the edge is a no-op, not an error. */
