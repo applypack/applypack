@@ -210,6 +210,7 @@ When the question is **"how does the user toggle / configure X?"**:
 | Telegram on/off | `/settings` Notifications tab |
 | Add Telegram bot or chat | `/settings` Notifications tab → "Add target" (validates with getMe + sendMessage) |
 | Pipeline stage on a job | `/jobs/:id` → "Application tracking" card; on `/applications` drag the card between columns (`public/board.mjs`) or use its quick-move select — both hit the stage-only endpoint that never touches appliedAt/notes |
+| Add / rename / reorder board columns | `/settings` General tab → "Board columns" (ADR 0025: Applied + Rejected/Ghosted fixed, delete needs an empty column; keys never change, labels do) |
 | Review newly discovered companies | `/discovery` (sorted by jobsSeen DESC) |
 | Toggle auto-discovery / HN parser | `/discovery` (card at the top; moved off `/settings` 2026-08-29) |
 | Upload / scan a resume | `/resumes` (the Settings card only lists + links) |

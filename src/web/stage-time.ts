@@ -1,8 +1,8 @@
-// Pure time-in-stage math for the /applications board cards. The honesty
-// rule from stats.ts applies here too: backfill rows carry no real event
-// day, so they never date a stage — such cards fall back to appliedAt.
+// Pure time-in-stage math for the /applications board cards. The ledger's
+// honesty rule applies here too: backfill rows carry no real event day,
+// so they never date a stage — such cards fall back to appliedAt.
 
-import { TERMINAL_STAGES } from './stats';
+import { TERMINAL_KEYS } from './stage-config';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -35,6 +35,7 @@ export function stageTimeLine(
   appliedAt: Date | null,
   events: StageTimeEvent[],
   now: Date,
+  label = stage,
 ): StageTimeLine | null {
   const entered = events
     .filter((e) => e.toStage === stage && e.source !== 'backfill')
@@ -44,16 +45,17 @@ export function stageTimeLine(
   if (!since) return null;
 
   const days = Math.max(0, Math.floor((now.getTime() - since.getTime()) / DAY_MS));
-  const terminal = (TERMINAL_STAGES as readonly string[]).includes(stage);
+  const terminal = TERMINAL_KEYS.includes(stage);
   const entryKnown = entered !== undefined || stage === 'applied';
 
+  const name = label.toLowerCase();
   let text: string;
   if (!entered && stage !== 'applied') {
     text = days === 0 ? 'applied today' : `applied ${days}d ago`;
   } else if (stage === 'applied' || terminal) {
-    text = days === 0 ? `${stage} today` : `${stage} ${days}d ago`;
+    text = days === 0 ? `${name} today` : `${name} ${days}d ago`;
   } else {
-    text = days === 0 ? `in ${stage} today` : `in ${stage} ${days}d`;
+    text = days === 0 ? `in ${name} today` : `in ${name} ${days}d`;
   }
 
   // The word, not just a warn colour — colour alone carries no meaning.

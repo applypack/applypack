@@ -27,6 +27,7 @@ import {
 import { formatRelative } from '../format';
 import type { FlashMessage } from '../flash';
 import { sourceLabel } from '../source-names';
+import { dotClassFor, MAX_WORK_STAGES } from '../stage-config';
 import { formatPriorityRulesText, parsePriorityRules } from '../../priority-rules';
 import { SENIORITY_LEVELS } from '../../resume/profile-draft';
 
@@ -120,6 +121,8 @@ export interface SettingsProps {
   telegramEnabled: boolean;
   classifierMode: 'single' | 'two_stage';
   applicationTrackingEnabled: boolean;
+  /** Full funnel order with job counts; fixed rows carry no edit controls. */
+  pipelineStages: { key: string; label: string; count: number; fixed: boolean }[];
   staleApplicationsDigestEnabled: boolean;
   sourceHealthAlerts: boolean;
   disabledSources: string[];
@@ -157,6 +160,7 @@ export const SettingsPage: FC<SettingsProps> = ({
   telegramEnabled,
   classifierMode,
   applicationTrackingEnabled,
+  pipelineStages,
   staleApplicationsDigestEnabled,
   sourceHealthAlerts,
   disabledSources,
@@ -446,6 +450,122 @@ export const SettingsPage: FC<SettingsProps> = ({
           </div>
         </Card>
       </Section>
+      )}
+
+      {activeTab === 'general' && (
+      <div id="stages" class="scroll-mt-4">
+      <Section
+        title="Board columns"
+        desc="Applied and the Closed pair are fixed; every column between them is yours — rename, reorder, add, remove. A column with jobs in it can't be removed."
+      >
+        <Card>
+          <ul class="divide-y divide-line">
+            {pipelineStages.map((s, i) => {
+              const work = pipelineStages.filter((x) => !x.fixed);
+              const prevFixed = pipelineStages[i - 1]?.fixed ?? true;
+              const nextFixed = pipelineStages[i + 1]?.fixed ?? true;
+              return (
+                <li class="flex flex-wrap items-center gap-2 py-2.5 first:pt-0 last:pb-0">
+                  <span
+                    class={`h-2 w-2 shrink-0 rounded-full ${dotClassFor(work, s.key)}`}
+                    aria-hidden="true"
+                  />
+                  {s.fixed ? (
+                    <>
+                      <span class="min-w-0 flex-1 text-sm text-ink">{s.label}</span>
+                      <span class="text-xs tabular-nums text-ink-faint">
+                        {s.count} job{s.count === 1 ? '' : 's'}
+                      </span>
+                      <span class="rounded-full border border-line px-2 py-0.5 text-xs text-ink-faint">
+                        fixed
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <form
+                        method="post"
+                        action={`/settings/stages/${s.key}/rename`}
+                        class="flex min-w-0 flex-1 items-center gap-1.5"
+                      >
+                        <Input
+                          name="label"
+                          value={s.label}
+                          required
+                          maxlength={40}
+                          aria-label={`Rename ${s.label}`}
+                          class="max-w-[14rem]"
+                        />
+                        <Button size="sm" variant="ghost" aria-label={`Save name for ${s.label}`}>
+                          Save
+                        </Button>
+                      </form>
+                      <span class="text-xs tabular-nums text-ink-faint">
+                        {s.count} job{s.count === 1 ? '' : 's'}
+                      </span>
+                      <ActionForm action={`/settings/stages/${s.key}/move`} hidden={{ dir: 'up' }}>
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          disabled={prevFixed || undefined}
+                          aria-label={`Move ${s.label} up`}
+                        >
+                          ↑
+                        </Button>
+                      </ActionForm>
+                      <ActionForm action={`/settings/stages/${s.key}/move`} hidden={{ dir: 'down' }}>
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          disabled={nextFixed || undefined}
+                          aria-label={`Move ${s.label} down`}
+                        >
+                          ↓
+                        </Button>
+                      </ActionForm>
+                      {s.count === 0 && work.length > 1 ? (
+                        <ActionForm
+                          action={`/settings/stages/${s.key}/remove`}
+                          confirm={`Delete the "${s.label}" column?`}
+                        >
+                          <Button size="sm" variant="danger" aria-label={`Delete ${s.label}`}>
+                            Delete
+                          </Button>
+                        </ActionForm>
+                      ) : (
+                        <span class="text-xs text-ink-faint">
+                          {s.count > 0 ? 'move jobs out to delete' : 'last column'}
+                        </span>
+                      )}
+                    </>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+          {pipelineStages.filter((s) => !s.fixed).length < MAX_WORK_STAGES ? (
+            <form
+              method="post"
+              action="/settings/stages/add"
+              class="mt-4 flex flex-wrap items-center gap-2 border-t border-line pt-4"
+            >
+              <Input
+                name="label"
+                placeholder="e.g. Take-home"
+                required
+                maxlength={40}
+                aria-label="New column name"
+                class="max-w-[14rem]"
+              />
+              <Button size="sm">Add column</Button>
+            </form>
+          ) : (
+            <Hint class="mt-4 border-t border-line pt-4">
+              Column limit ({MAX_WORK_STAGES}) reached — remove one to add another.
+            </Hint>
+          )}
+        </Card>
+      </Section>
+      </div>
       )}
 
       {activeTab === 'notifications' && (

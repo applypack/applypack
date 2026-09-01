@@ -667,6 +667,16 @@ endpoint, fine-pointer devices only, quick-move form kept as the
 keyboard / no-JS / touch fallback (collapsed until hover or focus on
 desktop). The stale ui-review "dark-only" note below is fixed too.
 
+Follow-up the same day (branch `custom-stages` → v1.4.0, ADR 0025):
+Nazar reversed the §10.1 stage freeze from the owner seat — work columns
+are now user-defined (`AppSettings.pipelineStages`, editor on /settings
+General → "Board columns"; Applied + Rejected/Ghosted stay fixed, a
+column with jobs can't be deleted, keys are immutable slugs). The funnel
+/ velocity / calibration cards he called noise were removed with their
+math (`stats.ts`, `funnel-stats.tsx`) — the ledger keeps recording;
+resurrect the cards from tag v1.3.0 if ~50 real applications ever
+accumulate. The §10.1 text below predates this and stays for history.
+
 Original analysis kept for reference — one branch, one PR, ordered:
 
 ### 10.1 Facts established (don't re-derive)

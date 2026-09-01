@@ -67,6 +67,10 @@ const TOKENS_CSS = `
   }
   html { color-scheme: light; }
   html, body { background-color: rgb(var(--surface)); }
+  /* App shell: every scroll lives inside a pane (main, board columns).
+     The window itself never scrolls — content browser extensions append
+     below the frame can't drag the whole app around. */
+  html, body { height: 100%; overflow: hidden; }
   ::selection { background: rgb(var(--accent) / 0.18); }
   * { scrollbar-width: thin; scrollbar-color: rgb(var(--line-strong)) transparent; }
   ::-webkit-scrollbar { width: 8px; height: 8px; }

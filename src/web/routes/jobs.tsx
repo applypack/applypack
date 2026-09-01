@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { prisma } from '../../db';
 import { logger } from '../../logger';
 import { getSettings } from '../../settings';
+import { allStages, parseStageConfig } from '../stage-config';
 import { classifyExistingJob } from '../../jobs/classify-existing';
 import { createManualJob, ManualJobSchema, MIN_DESCRIPTION_CHARS } from '../../jobs/manual-job';
 import { checkLiveness, listVerificationsForJob, verifyJob } from '../../verification/verify';
@@ -217,6 +218,7 @@ jobsRoute.get('/jobs/:id', async (c) => {
     <JobDetailPage
       job={job}
       applicationTrackingEnabled={settings.applicationTrackingEnabled}
+      pipelineStages={allStages(parseStageConfig(settings.pipelineStages))}
       verification={verifications[0] ?? null}
       verificationCount={verifications.length}
       resumeMatch={{
