@@ -37,7 +37,7 @@ export function summarizeFetchRun(stats: CronStats): { kind: FlashKind; text: st
   if (stats.classify === false) {
     return {
       kind: 'ok',
-      text: `${head} unscored, no AI spent while the pipeline is paused. Score them with Re-classify when you resume.`,
+      text: `${head} unscored, no AI spent while the pipeline is paused. Score them later with Save & re-classify on Settings → Profile.`,
     };
   }
   if (stats.skippedBlankProfile === 1) {

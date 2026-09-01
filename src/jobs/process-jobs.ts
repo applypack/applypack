@@ -353,18 +353,6 @@ async function persistJob(
 ): Promise<{ created: Job; crossListing: CrossListing } | null> {
   const fingerprint = simhash64(job.description);
   const crossListing = findCrossListing(fingerprint, job.companyId, recentFingerprints);
-  if (crossListing) {
-    stats.crossListed++;
-    logger.info(
-      {
-        title: job.title,
-        companyName,
-        originalJobId: crossListing.job.id,
-        distance: crossListing.distance,
-      },
-      'process-jobs: cross-listed posting',
-    );
-  }
 
   let created: Job;
   try {
@@ -391,6 +379,18 @@ async function persistJob(
     descriptionSimhash: fingerprint,
   });
   stats.persisted++;
+  if (crossListing) {
+    stats.crossListed++;
+    logger.info(
+      {
+        title: job.title,
+        companyName,
+        originalJobId: crossListing.job.id,
+        distance: crossListing.distance,
+      },
+      'process-jobs: cross-listed posting',
+    );
+  }
   return { created, crossListing };
 }
 
