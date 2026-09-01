@@ -6,6 +6,25 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.4.0] — 2026-09-01
+
+### Added
+- **Board columns are yours now** ([ADR 0025](docs/adr/0025-custom-work-stages.md)):
+  add, rename, reorder and remove the `/applications` work columns from
+  Settings → General → "Board columns" (the board's "Edit columns" link
+  lands there). Applied and the Closed pair stay fixed — they anchor
+  appliedAt, the stale digest and the archive fold. A column holding jobs
+  can't be removed (server-enforced), and renames never touch the stored
+  key, so stage history stays intact.
+
+### Removed
+- The three funnel stat cards ("Ever reached", "Days per hop", "Does fit
+  predict interviews?") and their math. At a handful of applications every
+  cell read `— n=0` / `— (0/5)` — noise below the board. The stage ledger
+  keeps recording every move (time-in-stage on cards still uses it), so
+  the analytics can return from git history once there is enough data to
+  mean something.
+
 ## [1.3.0] — 2026-09-01
 
 ### Added
@@ -533,7 +552,8 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
-[Unreleased]: https://github.com/nazboyko/applypack/compare/v1.3.0...HEAD
+[Unreleased]: https://github.com/nazboyko/applypack/compare/v1.4.0...HEAD
+[1.4.0]: https://github.com/nazboyko/applypack/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/nazboyko/applypack/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/nazboyko/applypack/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/nazboyko/applypack/compare/v1.0.0...v1.1.0
