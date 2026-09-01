@@ -711,3 +711,103 @@ triage lands** — one branch (`applications-board`), one PR, ordered:
 Also: `.claude/skills/ui-review/SKILL.md` still says "dark-only" — stale
 since the 2026-08-28 light redesign (PR #12); fix the skill context line
 when next touching it.
+
+## 11. Onboarding wizard + profile simplification + multi-resume search (analysis 2026-08-31)
+
+Full plan: [docs/onboarding-plan.md](./onboarding-plan.md). **Analysis
+only — nothing implemented yet** (written from a parallel session; do not
+start without checking §10's status first).
+
+Driver: users don't find where to create a profile or upload a resume;
+no way to verify the pipeline works from the UI; target persona for
+first-run is a non-technical user. Critical path decided by owner:
+connect AI → prove search works → build profile from a resume;
+Telegram explicitly optional.
+
+- [ ] `profile-tab-quickwins` — reorder Profile tab around the journey,
+      kill top "Re-classify all", placeholders, conditional rules hint,
+      `advancedOpen` fix, inline upload in the Fill card
+- [ ] `fetch-now` — "Fetch now" button + `{classify: false}` seam +
+      background run (reclassify pattern) + progress page
+- [ ] `welcome-wizard` — `/welcome` 4-step first-run flow
+      (AI → test search → resume → first matches), redirect while
+      `AppSettings.setupCompletedAt` null, skip link, Overview chip;
+      ~4 clicks + one file pick end-to-end
+- [ ] `ai-key-in-db` — paste API key in UI, DB-stored, masked
+      (**ADR**: extends 0013 + secrets policy; TelegramTarget precedent)
+- [ ] `profile-resume-link` — `Profile.resumeId` + one-click "Create
+      profile from this resume"
+- [ ] `multi-profile-search` — multiple active profiles, union base
+      filter, **one** classifier call returning per-profile scores,
+      `JobScore` table, per-profile alert routing (**ADR**)
+- [ ] `applied-resume` — record which resume (+ text snapshot) a job was
+      applied with; surface in stale digest
+
+## 12. /resumes overhaul + on-demand resume strength review (analysis 2026-08-31)
+
+Full plan: [docs/resumes-plan.md](./resumes-plan.md). **Analysis only —
+nothing implemented** (written from a parallel session: browser audit of
+the live page at desktop + 375px, plus code verification; do not start
+without checking §10/§11 status first).
+
+Driver: `/resumes` shows inventory, not effectiveness — no per-resume
+match signal, upload & scan freezes the browser ~60 s (double-submit
+creates duplicates), and at 375px the action buttons sit behind
+horizontal scroll. New feature (owner request): an **on-demand** "is this
+resume strong?" review — per-dimension grades with evidence, prioritized
+make-it-stronger advice so the candidate reads like a top professional,
+metric *asks* instead of invented numbers (ADR 0020 stance). Never
+auto-run on upload; discoverable as a real card with an explainer, not an
+icon; progress visible step-by-step via the target-run registry pattern.
+
+- [ ] `resumes-page-p0` — async upload/replace/rescan via the run
+      registry, mobile row fix (Delete off hub rows, responsive columns —
+      needs a small `Table` th-class extension), delete-confirm mentions
+      cover letters, `primarySkills` column, Matches/`FitBadge` column
+- [ ] `resume-strength` — fenced `REVIEW_SYSTEM` (grades only — the model
+      never outputs the score; pure `review-score.ts` applies hard caps,
+      gotcha-11 guard test) + `ResumeReview` table + detail card + hub
+      column + run-page `review` step (**ADR**: new AI call site + table)
+- [ ] `resume-strength-loop` — metric asks → user answers → re-run
+      deltas; version-over-version strength trend
+- [ ] quick wins ride along where touched: facts add/flip on `/resumes`
+      (existing `POST /facts` covers it), rename route, version badge in
+      hub, grouped per-job score history (`diff.ts`)
+
+## 13. /target compare speed (30-40 s) + keyword-matcher accuracy (analysis 2026-08-31)
+
+Full plan: [docs/target-plan.md](./target-plan.md). **Analysis only —
+nothing implemented** (written from a parallel session; do not start
+without checking §10–§12 status first — §12's async-upload item overlaps
+the `/resumes` sync-scan finding, planned there, referenced here).
+
+Driver: a fresh-resume compare takes ~3 min (owner target: 30-40 s), and
+the JD pane skips important posting words. Verified causes: one
+2.5-4 k-token Opus match call dominates; classify and scan sit on the
+critical path although match reads neither (`{classify:false}` seam
+already exists); parse-retry silently doubles a step; highlights show
+ONLY AI-listed keywords through a literal matcher (soft cap ~25,
+non-verbatim terms render nowhere, aliases model-dependent, no
+plural/separator tolerance, `previousKeywords` makes a missed term
+sticky). Speed strategy: instant no-AI check against the stored frame
+(the live-editor machinery already does it), keywords-only fast AI mode,
+Sonnet bench for the resume role — not "make Opus stream faster".
+
+- [ ] `target-speed-p0` — classify off the critical path (parallel,
+      `{classify:false}`), scan → background on reupload, memoize
+      identical (job, resumeText) re-runs, honest `STEP_VIEW` copy +
+      per-step ms logging
+- [ ] `keyword-matcher-v2` — persist-time verbatim guard, deterministic
+      alias table (`keyword-aliases.ts`, pure), plural + separator
+      tolerance in `termPattern`, tiered keyword budget (all must/
+      preferred always listed); table-driven tests
+- [ ] `target-instant-check` — reupload → parse-only dirty draft in the
+      target editor (~2-5 s, zero AI), "Re-analyze" upgrades on demand
+- [ ] `match-fast-mode` — keywords-only prompt variant (score-complete
+      subset, ~¼ output tokens) + `bench:resume` Sonnet-vs-Opus decision
+      (**PROMPT_VERSION bump**; possibly ADR)
+- [ ] `keyword-priority-ui` — per-keyword user overrides (re-level /
+      exclude / add own term) via existing `updateMatchScoring`, visual
+      weight for must+primary misses, posting-frequency tiebreaker
+- [ ] (only if still short of target) `match-split-frame` — per-job cached
+      keyword frame + statuses-only judge call (**ADR**)
