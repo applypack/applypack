@@ -400,7 +400,26 @@ external project, copy-check before merge.
       `<title>Plaid Jobs</title>`, offices SF/NYC/London/Seattle/Raleigh)
       and Pleo at `ASHBY:pleo` (37 jobs), both identity-verified live;
       company rows re-pointed by hand via /companies
-- [ ] F5 status-transition ledger + funnel/calibration stats — v0.7.0
+- [x] F5 status-transition ledger + funnel/calibration stats — v1.1.0
+      (branch `stage-ledger`, ADR 0024). Tag is v1.1.0, not the plan's
+      v0.7.0 (post-1.0 numbering). Re-analysis corrected the plan: the
+      "single write path" is really TWO web routes (the tracking-card
+      POST and the pipelineStage='applied' seeding inside the status
+      route) and the worker never writes stages — inbox status churn
+      (762 of 834 rows are DISMISSED) stays out of the ledger;
+      `JobStatusEvent` renamed `JobStageEvent` (collides with the
+      orthogonal JobStatus enum); backfill measured tiny and clean —
+      exactly 3 funnel rows, all 'applied', with real user-entered
+      appliedAt dates, done as SQL inside the migration; with 3
+      applications every rate sits under the n=5 floor, so the honest
+      empty state ("— (n=0, need 5)") is the whole launch experience,
+      not an edge case; cleanup-job could cascade-delete the funnel
+      history of an applied-then-DISMISSED job — it now skips jobs with
+      a pipelineStage. Fit bands kept as planned (live inbox:
+      12/15/13/29 per band). Deferred: assessment event type (0 data),
+      per-source channel yield (today Greenhouse×2 + Jobicy×1, floor
+      n≥8), per-hop occurredOn date picker (stage hops date to the
+      write day; appliedAt edits write correction events)
 - [ ] F6 follow-up cadence with pin/retire/auto-seed in the stale digest — v0.8.0
 - [x] F7 fact gate (anti-hallucination pure module) — no tag of its own
       (branch `fact-gate`, ADR 0020). Ships untagged with F8 per
