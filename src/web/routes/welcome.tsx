@@ -14,7 +14,7 @@ import {
   isAiProviderId,
   resolveAiEngine,
 } from '../../ai-engine';
-import { AI_KEY_ENV_VARS, providerTakesKey } from '../../ai-keys';
+import { AI_KEY_ENV_VARS, MAX_AI_KEY_LENGTH, providerTakesKey } from '../../ai-keys';
 import { createResume, getResume, listResumes, type ResumeSummary } from '../../resume/store';
 import { scanResume } from '../../resume/scan';
 import { buildProfileDraft, SENIORITY_LEVELS } from '../../resume/profile-draft';
@@ -145,6 +145,13 @@ welcomeRoute.post('/welcome/ai/key', async (c) => {
   const key = typeof form.key === 'string' ? form.key.trim() : '';
   if (key.length === 0) {
     return flashRedirect('/welcome?step=ai', 'err', 'Paste the key first.');
+  }
+  if (key.length > MAX_AI_KEY_LENGTH) {
+    return flashRedirect(
+      '/welcome?step=ai',
+      'err',
+      `That is ${key.length} characters — longer than any API key. Nothing saved.`,
+    );
   }
   await setAiKey(provider, key);
   forgetAiProbe();

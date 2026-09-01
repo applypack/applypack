@@ -27,7 +27,9 @@ export type AiKeyProviderId = keyof typeof AI_KEY_ENV_VARS;
 export type AiKeys = Partial<Record<AiKeyProviderId, string>>;
 
 // A pasted credential is a single line; anything longer is a paste accident
-// (a whole .env file, a PEM block) that would bloat the settings row.
+// (a whole .env file, a PEM block) that would bloat the settings row. The
+// routes reject an over-long paste outright — silently storing a truncated
+// key would fail authentication with no hint as to why.
 export const MAX_AI_KEY_LENGTH = 500;
 
 export function providerTakesKey(id: AiProviderId): id is AiKeyProviderId {
@@ -49,8 +51,11 @@ export function parseAiKeys(raw: unknown): AiKeys {
   if (!parsed.success) return {};
   const keys: AiKeys = {};
   for (const [id, value] of Object.entries(parsed.data)) {
-    const key = value.trim().slice(0, MAX_AI_KEY_LENGTH);
-    if (key.length > 0 && providerTakesKey(id as AiProviderId)) keys[id as AiKeyProviderId] = key;
+    const key = value.trim();
+    // An over-long entry can only come from a hand-edited row: drop it whole
+    // rather than hand a truncated credential to a provider.
+    if (key.length === 0 || key.length > MAX_AI_KEY_LENGTH) continue;
+    if (providerTakesKey(id as AiProviderId)) keys[id as AiKeyProviderId] = key;
   }
   return keys;
 }
@@ -58,7 +63,7 @@ export function parseAiKeys(raw: unknown): AiKeys {
 /** Stores a pasted key, or removes it when the value is blank. */
 export function withAiKey(keys: AiKeys, id: AiKeyProviderId, value: string): AiKeys {
   const next = { ...keys };
-  const key = value.trim().slice(0, MAX_AI_KEY_LENGTH);
+  const key = value.trim();
   if (key.length === 0) delete next[id];
   else next[id] = key;
   return next;

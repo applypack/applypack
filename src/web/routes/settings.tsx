@@ -48,7 +48,12 @@ import {
   type AiProviderId,
 } from '../../ai-engine';
 import { forgetAiProbe, getAiEngineEnv, probeAiProviders } from '../../ai-runtime';
-import { AI_KEY_ENV_VARS, aiKeySource, providerTakesKey } from '../../ai-keys';
+import {
+  AI_KEY_ENV_VARS,
+  aiKeySource,
+  MAX_AI_KEY_LENGTH,
+  providerTakesKey,
+} from '../../ai-keys';
 import { testAiEngine } from '../ai-test';
 import {
   createProfile,
@@ -397,6 +402,13 @@ settingsRoute.post('/settings/ai/key', async (c) => {
   const key = typeof form.key === 'string' ? form.key.trim() : '';
   if (!clearing && key.length === 0) {
     return flashRedirect('/settings?tab=ai', 'err', `Paste a ${label} key first.`);
+  }
+  if (key.length > MAX_AI_KEY_LENGTH) {
+    return flashRedirect(
+      '/settings?tab=ai',
+      'err',
+      `That is ${key.length} characters — longer than any API key. Nothing saved.`,
+    );
   }
   await setAiKey(provider, clearing ? '' : key);
   forgetAiProbe();

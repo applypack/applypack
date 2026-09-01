@@ -39,9 +39,11 @@ describe('parseAiKeys', () => {
     assert.deepEqual(keys, { anthropic_api: 'sk-ant-live' });
   });
 
-  it('truncates an oversized paste instead of storing it whole', () => {
-    const keys = parseAiKeys({ openai_api: 'k'.repeat(MAX_AI_KEY_LENGTH + 50) });
-    assert.equal(keys.openai_api?.length, MAX_AI_KEY_LENGTH);
+  it('drops an oversized entry whole rather than truncating a credential', () => {
+    const keys = parseAiKeys({ openai_api: 'k'.repeat(MAX_AI_KEY_LENGTH + 1) });
+    assert.deepEqual(keys, {});
+    const atLimit = parseAiKeys({ openai_api: 'k'.repeat(MAX_AI_KEY_LENGTH) });
+    assert.equal(atLimit.openai_api?.length, MAX_AI_KEY_LENGTH);
   });
 });
 
@@ -52,6 +54,11 @@ describe('withAiKey', () => {
     const two = withAiKey(one, 'gemini_cli', 'gm');
     assert.deepEqual(two, { openai_api: 'sk-openai', gemini_cli: 'gm' });
     assert.deepEqual(withAiKey(two, 'openai_api', '   '), { gemini_cli: 'gm' });
+  });
+
+  it('keeps a long key intact — the routes reject one before it gets here', () => {
+    const long = 'k'.repeat(MAX_AI_KEY_LENGTH + 10);
+    assert.equal(withAiKey({}, 'openai_api', long).openai_api, long);
   });
 
   it('does not mutate the input', () => {

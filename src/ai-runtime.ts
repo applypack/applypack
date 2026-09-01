@@ -362,8 +362,10 @@ function claudeConfigDir(): string {
 const CLAUDE_CONFIG_MAX_BYTES = 8 * 1024 * 1024;
 
 function claudeAuthConfigured(): boolean {
-  // Both are read by the CLI itself and are how Docker deployments log in.
-  if (process.env.CLAUDE_CODE_OAUTH_TOKEN || process.env.ANTHROPIC_API_KEY) return true;
+  // Only the OAuth token: ANTHROPIC_API_KEY is deliberately kept out of this
+  // child's environment (ai-provider-parse.ts:CLI_PROVIDER_ENV_KEYS), so
+  // counting it here would call a logged-out CLI "available" again.
+  if (process.env.CLAUDE_CODE_OAUTH_TOKEN) return true;
   // Linux (and Docker) write the OAuth credentials next to the config.
   if (existsSync(join(claudeConfigDir(), '.credentials.json'))) return true;
   // macOS keeps the tokens in the Keychain but records the logged-in account
