@@ -17,6 +17,11 @@ All notable changes to this project are documented here. The format follows
   can't be removed (server-enforced), and renames never touch the stored
   key, so stage history stays intact.
 
+### Changed
+- The board now fills the window height exactly (the app-frame `fill`
+  layout) — columns end at the viewport bottom and scroll inside, instead
+  of stopping at a 70% cap with dead space below.
+
 ### Removed
 - The three funnel stat cards ("Ever reached", "Days per hop", "Does fit
   predict interviews?") and their math. At a handful of applications every

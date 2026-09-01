@@ -148,7 +148,7 @@ export const ApplicationsPage: FC<ApplicationsProps> = ({
   const closedCount = TERMINAL_STAGES.reduce((sum, s) => sum + count(s.key), 0);
 
   return (
-    <Layout title="Applications" active="applications">
+    <Layout title="Applications" active="applications" fill>
       <PageHeader
         title="Applications"
         meta={
@@ -198,16 +198,18 @@ export const ApplicationsPage: FC<ApplicationsProps> = ({
             </a>
           )}
         </nav>
-        {/* No flex-1: the row hugs its (capped) columns, so the h-scrollbar
-            sits right under them instead of at the viewport bottom. */}
-        <div class="flex min-w-0 flex-col gap-3 md:flex-row md:items-stretch md:overflow-x-auto md:pb-1">
+        {/* Layout fill gives the wrapper the viewport height; flex-1 hands
+            the leftover to the board, so columns end at the window bottom
+            and scroll inside. min-h keeps the board usable when the open
+            Closed panel would otherwise squash it. */}
+        <div class="flex min-h-[320px] min-w-0 flex-1 flex-col gap-3 md:flex-row md:items-stretch md:overflow-x-auto md:pb-1">
           {columns.map((s) => {
             const items = byStage[s.key] ?? [];
             return (
               <section
                 id={`stage-col-${s.key}`}
                 data-drop-stage={s.key}
-                class="flex w-full scroll-mt-4 flex-col rounded-lg border border-line/70 bg-surface-overlay/60 md:max-h-[70dvh] md:min-h-[320px] md:w-72 md:shrink-0"
+                class="flex w-full scroll-mt-4 flex-col rounded-lg border border-line/70 bg-surface-overlay/60 md:min-h-[320px] md:w-72 md:shrink-0"
                 aria-labelledby={`stage-${s.key}`}
               >
                   <ColumnHeader
