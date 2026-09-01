@@ -152,7 +152,7 @@ export const ApplicationsPage: FC<ApplicationsProps> = ({
             const items = byStage[stage] ?? [];
             return (
               <section
-                class="flex min-h-[320px] w-72 shrink-0 flex-col rounded-lg border border-line/70 bg-surface-overlay/60"
+                class="flex max-h-[70dvh] min-h-[320px] w-72 shrink-0 flex-col rounded-lg border border-line/70 bg-surface-overlay/60"
                 aria-labelledby={`stage-${stage}`}
               >
                   <div class="flex shrink-0 items-center gap-2 px-3 pb-2 pt-3">
