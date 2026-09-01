@@ -63,14 +63,14 @@ export interface CrossListedJob {
 export interface JobDetailProps {
   job: JobDetail;
   applicationTrackingEnabled: boolean;
+  /** Configured funnel stages in order (ADR 0025). */
+  pipelineStages: { key: string; label: string }[];
   verification: VerificationCardProps['verification'];
   verificationCount: number;
   resumeMatch: ResumeMatchCardProps;
   coverLetters: CoverLetterCardProps;
   flash?: FlashMessage | null;
 }
-
-const PIPELINE_STAGES = ['applied', 'screen', 'tech', 'onsite', 'offer', 'rejected', 'ghosted'];
 
 const STATUS_ACTIONS: { status: JobStatus; label: string; variant: ButtonVariant }[] = [
   { status: 'APPLIED', label: 'Mark applied', variant: 'primary' },
@@ -82,6 +82,7 @@ const STATUS_ACTIONS: { status: JobStatus; label: string; variant: ButtonVariant
 export const JobDetailPage: FC<JobDetailProps> = ({
   job,
   applicationTrackingEnabled,
+  pipelineStages,
   verification,
   verificationCount,
   resumeMatch,
@@ -141,11 +142,17 @@ export const JobDetailPage: FC<JobDetailProps> = ({
                   <option value="" selected={!job.pipelineStage}>
                     — not in funnel —
                   </option>
-                  {PIPELINE_STAGES.map((s) => (
-                    <option value={s} selected={job.pipelineStage === s}>
-                      {s}
+                  {pipelineStages.map((s) => (
+                    <option value={s.key} selected={job.pipelineStage === s.key}>
+                      {s.label}
                     </option>
                   ))}
+                  {job.pipelineStage &&
+                    !pipelineStages.some((s) => s.key === job.pipelineStage) && (
+                      <option value={job.pipelineStage} selected>
+                        {job.pipelineStage} (removed column)
+                      </option>
+                    )}
                 </Select>
               </Field>
               <Field label="Applied on">

@@ -4,25 +4,15 @@ import { z } from 'zod';
 import { prisma } from '../../db';
 import { getSettings } from '../../settings';
 import { flashRedirect, parseFlashCookie } from '../flash';
-import { ApplicationsPage, STAGE_LABEL } from '../pages/applications';
+import { ApplicationsPage } from '../pages/applications';
+import { allStages, labelFor, parseStageConfig } from '../stage-config';
 import { appliedDateCorrection, stageChangeEvent } from '../stage-events';
 import { stageTimeLine, type StageTimeLine } from '../stage-time';
 
-const STAGE_VALUES = [
-  'applied',
-  'screen',
-  'tech',
-  'onsite',
-  'offer',
-  'rejected',
-  'ghosted',
-] as const;
-type Stage = (typeof STAGE_VALUES)[number];
-
+// Stage keys are validated at runtime against the configured list
+// (ADR 0025) — an enum would freeze what is now user data.
 export const ApplicationFormSchema = z.object({
-  pipelineStage: z
-    .union([z.enum(STAGE_VALUES), z.literal('')])
-    .optional(),
+  pipelineStage: z.string().max(40).optional(),
   appliedAt: z.string().optional(),
   recruiterContact: z.string().optional(),
   applicationNotes: z.string().optional(),
@@ -32,9 +22,11 @@ export const applicationsRoute = new Hono();
 
 applicationsRoute.get('/applications', async (c) => {
   const settings = await getSettings();
+  const work = parseStageConfig(settings.pipelineStages);
+  const stageKeys = allStages(work).map((s) => s.key);
 
   const rows = await prisma.job.findMany({
-    where: { pipelineStage: { in: [...STAGE_VALUES] } },
+    where: { pipelineStage: { in: stageKeys } },
     include: { company: { select: { name: true } } },
     orderBy: [{ appliedAt: 'desc' }, { id: 'desc' }],
   });
@@ -52,17 +44,8 @@ applicationsRoute.get('/applications', async (c) => {
   }
 
   const now = new Date();
-  const empty: Record<Stage, []> = {
-    applied: [],
-    screen: [],
-    tech: [],
-    onsite: [],
-    offer: [],
-    rejected: [],
-    ghosted: [],
-  };
-  const byStage = { ...empty } as Record<
-    Stage,
+  const byStage = Object.fromEntries(stageKeys.map((k) => [k, []])) as Record<
+    string,
     Array<{
       id: number;
       title: string;
@@ -73,28 +56,35 @@ applicationsRoute.get('/applications', async (c) => {
     }>
   >;
   for (const j of rows) {
-    const stage = j.pipelineStage as Stage | null;
-    if (!stage || !STAGE_VALUES.includes(stage)) continue;
+    const stage = j.pipelineStage;
+    if (!stage || !byStage[stage]) continue;
     byStage[stage].push({
       id: j.id,
       title: j.title,
       companyName: j.company.name,
       fitScore: j.fitScore,
       recruiterContact: j.recruiterContact,
-      stageLine: stageTimeLine(stage, j.appliedAt, eventsByJob.get(j.id) ?? [], now),
+      stageLine: stageTimeLine(
+        stage,
+        j.appliedAt,
+        eventsByJob.get(j.id) ?? [],
+        now,
+        labelFor(work, stage),
+      ),
     });
   }
 
   return c.html(
     <ApplicationsPage
       byStage={byStage}
+      work={work}
       applicationTrackingEnabled={settings.applicationTrackingEnabled}
       flash={parseFlashCookie(c.req.header('cookie'))}
     />,
   );
 });
 
-const StageMoveSchema = z.object({ toStage: z.enum(STAGE_VALUES) });
+const StageMoveSchema = z.object({ toStage: z.string().min(1).max(40) });
 
 // Board quick-move: writes pipelineStage and its ledger row, nothing else.
 // The full form on /jobs/:id stays the only place that edits appliedAt /
@@ -111,6 +101,10 @@ applicationsRoute.post('/jobs/:id/stage', async (c) => {
   const parsed = StageMoveSchema.safeParse({ toStage: form.toStage });
   if (!parsed.success) return c.text('Invalid stage', 400);
   const { toStage } = parsed.data;
+  const work = parseStageConfig(settings.pipelineStages);
+  if (!allStages(work).some((s) => s.key === toStage)) {
+    return c.text('Unknown stage', 400);
+  }
 
   const current = await prisma.job.findUnique({
     where: { id },
@@ -131,7 +125,7 @@ applicationsRoute.post('/jobs/:id/stage', async (c) => {
       prisma.jobStageEvent.create({ data: event }),
     ]);
   }
-  return flashRedirect('/applications', 'ok', `Moved to ${STAGE_LABEL[toStage]}`);
+  return flashRedirect('/applications', 'ok', `Moved to ${labelFor(work, toStage)}`);
 });
 
 applicationsRoute.post('/jobs/:id/application', async (c) => {
@@ -167,6 +161,16 @@ applicationsRoute.post('/jobs/:id/application', async (c) => {
     select: { pipelineStage: true, appliedAt: true },
   });
   if (!current) return c.text('Not found', 404);
+
+  // Keeping the job's current stage is always allowed — even one whose
+  // column was removed by hand — but a CHANGE must land on a configured key.
+  if (
+    stageValue !== null &&
+    stageValue !== current.pipelineStage &&
+    !allStages(parseStageConfig(settings.pipelineStages)).some((s) => s.key === stageValue)
+  ) {
+    return c.text('Unknown stage', 400);
+  }
 
   // F5 (ADR 0024): ledger row in the same transaction as the stage write.
   // A stage change wins; otherwise an appliedAt edit corrects the apply day.
