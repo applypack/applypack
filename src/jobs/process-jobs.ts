@@ -5,7 +5,7 @@ import { logger } from '../logger';
 import { createLimiter } from '../concurrency';
 import { passesBaseFilter } from '../filter';
 import { withApplyLinkFlags } from '../apply-link';
-import { classifyJob } from '../classifier';
+import { classifyJob, type ClassifyOutcome } from '../classifier';
 import { sendTelegramAlert } from '../notifier';
 import { applyPriorityFloor, parsePriorityRules } from '../priority-rules';
 import {
@@ -40,6 +40,10 @@ export interface ProcessStats {
   alertFailed: number;
   priorityBoosted: number;
   crossListed: number;
+  /** 1 when the run stopped early because fetching was paused mid-run. */
+  abortedMidRun: number;
+  /** Classifications scheduled but discarded by the mid-run abort. */
+  skippedByPause: number;
 }
 
 /** How far back the cross-listing scan looks. */
@@ -55,14 +59,23 @@ export async function processNormalizedJobs(
   profile: Profile,
   classifierMode: 'single' | 'two_stage',
   stats: ProcessStats,
+  isCancelled?: () => Promise<boolean>,
 ): Promise<void> {
   const priorityRules = parsePriorityRules(profile.priorityRules);
+
+  // Once true, queued classify thunks below become no-ops, so an abort
+  // stops the AI spend, not just the persist/alert loop.
+  let cancelled = false;
 
   // `seen` catches the same posting twice in one fetch: the sequential loop
   // used to see it in the DB, now both copies would be classified together.
   const candidates: FetchResult[] = [];
   const seen = new Set<string>();
   for (const item of items) {
+    if (isCancelled && (await isCancelled())) {
+      cancelled = true;
+      break;
+    }
     if (!passesBaseFilter(item.job, profile)) {
       stats.filterRejected++;
       continue;
@@ -74,6 +87,11 @@ export async function processNormalizedJobs(
     }
     seen.add(key);
     candidates.push(item);
+  }
+  if (cancelled) {
+    stats.abortedMidRun = 1;
+    logger.warn('process-jobs: aborted before classify (fetching paused mid-run)');
+    return;
   }
 
   // Fingerprints of everything ingested in the dedup window, read once for
@@ -87,9 +105,14 @@ export async function processNormalizedJobs(
   const limit = createLimiter(config.AI_CONCURRENCY);
   const pending = candidates.map((item) => ({
     ...item,
-    outcome: limit(() =>
-      classifyJob(buildClassifyInput(item.job, item.companyName), profile, classifierMode),
-    ),
+    outcome: limit(async (): Promise<ClassifyOutcome> => {
+      if (cancelled) return { result: null, preFiltered: false };
+      return classifyJob(
+        buildClassifyInput(item.job, item.companyName),
+        profile,
+        classifierMode,
+      );
+    }),
   }));
   if (pending.length > 0) {
     logger.info(
@@ -98,7 +121,22 @@ export async function processNormalizedJobs(
     );
   }
 
+  let consumed = 0;
   for (const { job, companyName, outcome } of pending) {
+    if (isCancelled && (await isCancelled())) {
+      cancelled = true;
+      stats.abortedMidRun = 1;
+      stats.skippedByPause = pending.length - consumed;
+      logger.warn(
+        { consumed, skipped: pending.length - consumed },
+        'process-jobs: aborted mid-run (fetching paused); discarding unconsumed classifications',
+      );
+      // In-flight classifications (≤ AI_CONCURRENCY) finish in the
+      // background and are discarded; swallow their rejections.
+      void Promise.allSettled(pending.map((p) => p.outcome));
+      break;
+    }
+    consumed++;
     const { result: classification, preFiltered } = await outcome;
     if (preFiltered) {
       stats.preFiltered++;
