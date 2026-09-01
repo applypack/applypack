@@ -147,12 +147,32 @@ export const ApplicationsPage: FC<ApplicationsProps> = ({
         </Empty>
       ) : (
         <>
-        <div class="flex min-h-0 min-w-0 flex-1 items-stretch gap-3 overflow-x-auto pb-1">
+        <nav aria-label="Stages" class="mb-3 flex flex-wrap gap-1.5 md:hidden">
+          {BOARD_STAGES.map((stage) => (
+            <a
+              href={`#stage-col-${stage}`}
+              class="rounded-full border border-line bg-surface-raised px-2.5 py-1 text-xs text-ink-muted"
+            >
+              {STAGE_LABEL[stage]}{' '}
+              <span class="tabular-nums text-ink-faint">{byStage[stage].length}</span>
+            </a>
+          ))}
+          {closedCount > 0 && (
+            <a
+              href="#closed"
+              class="rounded-full border border-line bg-surface-raised px-2.5 py-1 text-xs text-ink-muted"
+            >
+              Closed <span class="tabular-nums text-ink-faint">{closedCount}</span>
+            </a>
+          )}
+        </nav>
+        <div class="flex min-h-0 min-w-0 flex-1 flex-col gap-3 md:flex-row md:items-stretch md:overflow-x-auto md:pb-1">
           {BOARD_STAGES.map((stage) => {
             const items = byStage[stage] ?? [];
             return (
               <section
-                class="flex max-h-[70dvh] min-h-[320px] w-72 shrink-0 flex-col rounded-lg border border-line/70 bg-surface-overlay/60"
+                id={`stage-col-${stage}`}
+                class="flex w-full scroll-mt-4 flex-col rounded-lg border border-line/70 bg-surface-overlay/60 md:max-h-[70dvh] md:min-h-[320px] md:w-72 md:shrink-0"
                 aria-labelledby={`stage-${stage}`}
               >
                   <div class="flex shrink-0 items-center gap-2 px-3 pb-2 pt-3">
@@ -169,7 +189,7 @@ export const ApplicationsPage: FC<ApplicationsProps> = ({
                   </div>
                   <ul class="min-h-0 flex-1 space-y-2 overflow-y-auto px-3 pb-3">
                     {items.length === 0 ? (
-                      <li class="rounded-md border border-dashed border-line-strong/70 px-3 py-6 text-center text-xs text-ink-faint">
+                      <li class="hidden rounded-md border border-dashed border-line-strong/70 px-3 py-6 text-center text-xs text-ink-faint md:block">
                         No applications
                       </li>
                     ) : (
@@ -181,7 +201,7 @@ export const ApplicationsPage: FC<ApplicationsProps> = ({
           })}
         </div>
         {closedCount > 0 && (
-          <details class="mt-4 rounded-lg border border-line/70 bg-surface-overlay/40">
+          <details id="closed" class="mt-4 scroll-mt-4 rounded-lg border border-line/70 bg-surface-overlay/40">
             <summary class="cursor-pointer select-none rounded-lg px-4 py-2.5 text-sm font-medium text-ink-muted transition-colors duration-150 hover:text-ink">
               Closed
               <span class="ml-2 text-xs font-normal text-ink-faint">
