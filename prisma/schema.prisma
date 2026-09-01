@@ -133,6 +133,7 @@ model Job {
   resumeMatches ResumeMatch[]
   verifications JobVerification[]
   coverLetters  CoverLetter[]
+  stageEvents   JobStageEvent[]
 
   @@unique([companyId, externalId])
   @@index([status, fetchedAt])
@@ -399,6 +400,24 @@ model CoverLetter {
   createdAt        DateTime @default(now())
 
   @@index([jobId, createdAt])
+}
+
+// F5 (ADR 0024): append-only funnel history — one row per pipelineStage
+// transition, written in the same $transaction as the stage update (the
+// two web write sites only; the worker never writes stages). Never
+// updated; rows leave only via the job's cascade, and cleanup-job skips
+// jobs that have a pipelineStage.
+model JobStageEvent {
+  id         Int      @id @default(autoincrement())
+  jobId      Int
+  job        Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  fromStage  String?
+  toStage    String? // null = stage cleared from the tracking card
+  occurredOn DateTime @db.Date // real-world event day; recordedAt is the write time
+  recordedAt DateTime @default(now())
+  source     String // ui | backfill | correction (F17 adds reply)
+
+  @@index([jobId, recordedAt])
 }
 
 // Phase 8.2: ghost-job / scam check of one posting, done with web search.

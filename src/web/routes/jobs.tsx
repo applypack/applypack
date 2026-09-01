@@ -46,6 +46,7 @@ import { factCheck } from '../../resume/fact-check';
 import { buildLetterDocx, DOCX_MIME } from '../../resume/docx-write';
 import { buildLetterPdf } from '../../resume/pdf-write';
 import { setCoverAngles } from '../../settings';
+import { stageChangeEvent, type StageEventData } from '../stage-events';
 
 const PAGE_SIZE = 50;
 
@@ -257,6 +258,7 @@ jobsRoute.post('/jobs/:id/status', async (c) => {
   // When the user marks a job APPLIED and tracking is on, seed the funnel
   // so it shows up on /applications immediately. Don't overwrite existing
   // pipelineStage / appliedAt — user may have backdated them.
+  let seedEvent: StageEventData | null = null;
   if (parsed.data.status === 'APPLIED') {
     const settings = await getSettings();
     if (settings.applicationTrackingEnabled) {
@@ -264,12 +266,21 @@ jobsRoute.post('/jobs/:id/status', async (c) => {
         where: { id },
         select: { pipelineStage: true, appliedAt: true },
       });
-      if (!current?.pipelineStage) data.pipelineStage = 'applied';
+      if (current && !current.pipelineStage) {
+        data.pipelineStage = 'applied';
+        // F5 (ADR 0024): the seeding is a funnel entry — ledger it.
+        seedEvent = stageChangeEvent(id, null, 'applied', current.appliedAt, new Date());
+      }
       if (!current?.appliedAt) data.appliedAt = new Date();
     }
   }
 
-  await prisma.job.update({ where: { id }, data });
+  const update = prisma.job.update({ where: { id }, data });
+  if (seedEvent) {
+    await prisma.$transaction([update, prisma.jobStageEvent.create({ data: seedEvent })]);
+  } else {
+    await update;
+  }
   return c.redirect(`/jobs/${id}`, 303);
 });
 

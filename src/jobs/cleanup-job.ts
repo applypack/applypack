@@ -12,9 +12,12 @@ export async function runCleanupJob(): Promise<{ stats: CronStats }> {
   const cutoff = new Date(Date.now() - RETENTION_DAYS * DAY_MS);
   logger.info({ cutoff: cutoff.toISOString() }, 'cleanup-job: start');
 
+  // pipelineStage: null — an application's funnel history (and its F5
+  // ledger, which cascades with the job) is never garbage-collected.
   const result = await prisma.job.deleteMany({
     where: {
       status: JobStatus.DISMISSED,
+      pipelineStage: null,
       fetchedAt: { lt: cutoff },
     },
   });
