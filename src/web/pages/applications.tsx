@@ -65,9 +65,18 @@ export interface ApplicationsProps {
   flash?: FlashMessage | null;
 }
 
-/** One board card: the link navigates, the form below it quick-moves. */
+/**
+ * One board card: the link navigates, the form below it quick-moves, and
+ * board.mjs makes the whole card draggable. With drag active (body[data-dnd],
+ * fine pointer, md+) the form collapses until the card has hover or focus —
+ * it stays the keyboard and no-JS path.
+ */
 const StageCard: FC<{ card: ApplicationCard; stage: Stage }> = ({ card, stage }) => (
-  <li class="rounded-md border border-line bg-surface-raised shadow-sm">
+  <li
+    class="rounded-md border border-line bg-surface-raised shadow-sm"
+    data-job-id={card.id}
+    data-stage={stage}
+  >
     <a
       href={`/jobs/${card.id}`}
       class="block rounded-t-md p-3 transition-colors duration-150 hover:bg-surface-overlay/60"
@@ -94,7 +103,7 @@ const StageCard: FC<{ card: ApplicationCard; stage: Stage }> = ({ card, stage })
     <form
       method="post"
       action={`/jobs/${card.id}/stage`}
-      class="flex items-center gap-1.5 border-t border-line px-2 py-1.5"
+      class="quick-move flex items-center gap-1.5 border-t border-line px-2 py-1.5"
     >
       <label class="sr-only" for={`move-${card.id}`}>
         Move {card.title} to stage
@@ -116,6 +125,30 @@ const StageCard: FC<{ card: ApplicationCard; stage: Stage }> = ({ card, stage })
     </form>
   </li>
 );
+
+/*
+ * Drag styling: with board.mjs active the quick-move form collapses until
+ * its card has hover or keyboard focus (focus-within keeps the tab path —
+ * the controls stay tabbable, unlike display:none). md+ and body[data-dnd]
+ * only, so mobile and no-JS keep the always-visible form.
+ */
+const BOARD_CSS = `
+  @media (min-width: 768px) {
+    body[data-dnd] .quick-move { height: 0; padding-top: 0; padding-bottom: 0; border-top-width: 0; opacity: 0; overflow: hidden; }
+    body[data-dnd] li[data-job-id]:hover .quick-move,
+    body[data-dnd] li[data-job-id]:focus-within .quick-move { height: auto; padding-top: 0.375rem; padding-bottom: 0.375rem; border-top-width: 1px; opacity: 1; }
+    body[data-dnd] li[data-job-id] { cursor: grab; }
+    body[data-dnd] li[data-job-id]:active { cursor: grabbing; }
+  }
+`;
+
+/* Coarse-pointer devices can't HTML5-drag reliably — keep their forms visible. */
+const BOARD_BOOT = `
+  if (window.matchMedia('(pointer: fine)').matches) {
+    const { initBoard } = await import('/static/board.mjs');
+    initBoard(document);
+  }
+`;
 
 export const ApplicationsPage: FC<ApplicationsProps> = ({
   byStage,
@@ -176,6 +209,7 @@ export const ApplicationsPage: FC<ApplicationsProps> = ({
             return (
               <section
                 id={`stage-col-${stage}`}
+                data-drop-stage={stage}
                 class="flex w-full scroll-mt-4 flex-col rounded-lg border border-line/70 bg-surface-overlay/60 md:max-h-[70dvh] md:min-h-[320px] md:w-72 md:shrink-0"
                 aria-labelledby={`stage-${stage}`}
               >
@@ -216,7 +250,7 @@ export const ApplicationsPage: FC<ApplicationsProps> = ({
               {CLOSED_STAGES.map((stage) => {
                 const items = byStage[stage] ?? [];
                 return (
-                  <section aria-labelledby={`stage-${stage}`}>
+                  <section data-drop-stage={stage} aria-labelledby={`stage-${stage}`}>
                     <div class="flex items-center gap-2 pb-2">
                       <span
                         class={`h-2 w-2 rounded-full ${STAGE_DOT[stage]}`}
@@ -245,6 +279,8 @@ export const ApplicationsPage: FC<ApplicationsProps> = ({
           </details>
         )}
         {stats && <FunnelStatsSection {...stats} />}
+        <style dangerouslySetInnerHTML={{ __html: BOARD_CSS }} />
+        <script type="module" dangerouslySetInnerHTML={{ __html: BOARD_BOOT }} />
         </>
       )}
     </Layout>
