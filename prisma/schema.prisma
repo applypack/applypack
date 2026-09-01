@@ -80,6 +80,7 @@ model Company {
   lastOkAt            DateTime?
 
   @@unique([atsType, atsToken])
+  @@map("company")
 }
 
 model Job {
@@ -140,6 +141,7 @@ model Job {
   @@index([pipelineStage, appliedAt])
   // The dedup scan reads fingerprints from the last 90 days.
   @@index([fetchedAt, descriptionSimhash])
+  @@map("job")
 }
 
 model CronRun {
@@ -153,6 +155,7 @@ model CronRun {
 
   @@index([name, startedAt])
   @@index([startedAt])
+  @@map("cron_run")
 }
 
 // Singleton table — always one row with id=1.
@@ -206,6 +209,8 @@ model AppSettings {
   // 'applied' entry and the fixed rejected/ghosted exits. null = defaults.
   pipelineStages                 Json?
   updatedAt                      DateTime @updatedAt
+
+  @@map("app_settings")
 }
 
 model CompanyCandidate {
@@ -228,6 +233,7 @@ model CompanyCandidate {
 
   @@unique([atsType, atsToken])
   @@index([status, discoveredAt])
+  @@map("company_candidate")
 }
 
 model TelegramTarget {
@@ -239,6 +245,8 @@ model TelegramTarget {
   createdAt DateTime  @default(now())
   lastUsed  DateTime?
   profiles  Profile[]
+
+  @@map("telegram_target")
 }
 
 model Profile {
@@ -283,6 +291,8 @@ model Profile {
 
   // Back-relation for AppSettings.activeProfileId
   activeFor AppSettings[]
+
+  @@map("profile")
 }
 
 // Phase 8.1: uploaded resumes. `text` is the plain-text extraction
@@ -318,6 +328,8 @@ model Resume {
   updatedAt       DateTime      @updatedAt
   matches         ResumeMatch[]
   coverLetters    CoverLetter[]
+
+  @@map("resume")
 }
 
 // Phase 8.1: one AI comparison of a resume against a job posting.
@@ -359,6 +371,7 @@ model ResumeMatch {
 
   @@index([jobId, createdAt])
   @@index([resumeId, createdAt])
+  @@map("resume_match")
 }
 
 // Phase 9: candidate facts confirmed or denied by the user in response to
@@ -372,6 +385,8 @@ model CandidateFact {
   note      String? // user's context: where / when / what
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@map("candidate_fact")
 }
 
 // F8 (ADR 0021): one generated cover letter, gated by fact-check.ts before it
@@ -403,6 +418,7 @@ model CoverLetter {
   createdAt        DateTime @default(now())
 
   @@index([jobId, createdAt])
+  @@map("cover_letter")
 }
 
 // F5 (ADR 0024): append-only funnel history — one row per pipelineStage
@@ -421,6 +437,7 @@ model JobStageEvent {
   source     String // ui | backfill | correction (F17 adds reply)
 
   @@index([jobId, recordedAt])
+  @@map("job_stage_event")
 }
 
 // Phase 8.2: ghost-job / scam check of one posting, done with web search.
@@ -440,4 +457,5 @@ model JobVerification {
   createdAt       DateTime @default(now())
 
   @@index([jobId, createdAt])
+  @@map("job_verification")
 }
