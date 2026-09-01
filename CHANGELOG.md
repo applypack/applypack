@@ -4,6 +4,31 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.6.0] — 2026-09-01
+
+### Added
+- **"Fetch now"** ([docs/onboarding-plan.md §2 step 2](docs/onboarding-plan.md),
+  TASKS §11 block 2): a button in the Overview header and on `/runs` runs
+  the hourly fetch tick immediately, in the web process, with a live
+  progress page (`/runs/fetch-now/:id`) that narrates the sources as they
+  answer and lands back on `/runs` with a one-line verdict ("312 jobs from
+  71 sources in 40s — 118 new stored…"). One run at a time; recorded as a
+  `fetch-now` row on `/runs`.
+- **Unscored ingestion seam**: `processNormalizedJobs` accepts
+  `{ classify: false }` and stores what passes the base filter with no fit
+  score, no AI call and no alert. "Fetch now" uses it while the pipeline is
+  paused — paused still means no AI spend — so a fresh install can prove the
+  search works before any profile exists (the wizard's step 2 builds on it).
+  Score those rows later with Re-classify; the hourly tick dedupes them and
+  never revisits them.
+
+### Changed
+- Fetch stats on `/runs` carry `sources` / `sourcesFailed` per tick, and a
+  run started while paused shows `classify: false`.
+- A posting stored by another run meanwhile (the hourly tick and a manual
+  fetch can overlap) now counts as a duplicate instead of failing the whole
+  tick.
+
 ## [1.5.0] — 2026-09-01
 
 ### Changed
@@ -624,6 +649,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[1.6.0]: https://github.com/applypack/applypack/compare/v1.5.0...v1.6.0
 [1.5.0]: https://github.com/applypack/applypack/compare/v1.4.1...v1.5.0
 [1.4.1]: https://github.com/applypack/applypack/compare/v1.4.0...v1.4.1
 [1.4.0]: https://github.com/applypack/applypack/compare/v1.3.0...v1.4.0

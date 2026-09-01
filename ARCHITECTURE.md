@@ -32,7 +32,9 @@ cron job. The two processes share state only through Postgres
 
 ## Per-tick fetch pipeline
 
-This is what runs every hour at `:05`:
+This is what runs every hour at `:05` — and, since v1.6.0, whenever
+"Fetch now" is pressed on the dashboard (same `runFetchJob`, in the web
+process; while the pipeline is paused it stores the new jobs unscored):
 
 ```mermaid
 sequenceDiagram
@@ -228,7 +230,7 @@ src/
     hn-parser.ts                         pure heuristic parser
 
   jobs/
-    fetch-job.ts                ← runFetchJob (cron entry)
+    fetch-job.ts                ← runFetchJob (cron entry; {manual:true} from "Fetch now")
     digest-job.ts               ← runDigestJob (daily 09:00)
     cleanup-job.ts              ← runCleanupJob (Sunday 03:00)
     stale-applications-job.ts   ← runStaleApplicationsJob (daily 08:00)
@@ -254,10 +256,13 @@ src/
     flash.ts                  ← POST → redirect → GET flash cookie
     upload.ts                 ← multipart resume upload helper + 5 MB limit
     target-runs.ts            ← in-memory compare-run registry (async classify/scan/match)
+    fetch-runs.ts             ← in-memory "Fetch now" registry (live source progress; the 'fetch-now' CronRun is the record)
+    fetch-summary.ts          ← pure one-line verdict of a finished fetch-now run
     public/target.mjs         ← browser keyword matcher (pure ES module, node-tested)
     public/score.mjs          ← browser mirror of resume/score.ts (parity-tested, ADR 0012)
     public/cover-letter.mjs   ← copy-to-clipboard for the letter card (import-smoke-tested)
     public/board.mjs          ← /applications drag-and-drop over POST /jobs/:id/stage (planMove tested)
+    public/fetch-run.mjs      ← activity lines for the fetch-now progress page (pure; target-run.mjs polls)
 
     pages/
       overview.tsx              ← /
@@ -267,7 +272,9 @@ src/
       companies.tsx             ← /companies
       starter-pack.tsx          ← pack picker card + preview + import result
       discovery.tsx             ← /discovery
-      runs.tsx                  ← /runs
+      runs.tsx                  ← /runs (+ Fetch now button)
+      fetch-run.tsx             ← /runs/fetch-now/:id progress page + FetchNowButton
+      run-steps.tsx             ← step list shared by the two progress pages
       settings.tsx              ← /settings (9 cards)
       resumes.tsx               ← /resumes (list + upload form component)
       resume-detail.tsx         ← /resumes/:id
@@ -277,7 +284,7 @@ src/
       job-new.tsx               ← /jobs/new (paste a posting)
       target-start.tsx          ← /target (paste posting + pick/upload/paste resume → one run)
       letter-start.tsx          ← /letter (job by pick/URL/paste + resume + optional match/verify → letter)
-      target-run.tsx            ← /target/runs/:id (progress steps, meta-refresh 2s)
+      target-run.tsx            ← /target/runs/:id (progress steps, polled by target-run.mjs)
       target.tsx                ← /jobs/:id/target (side-by-side editor, live score)
 
     routes/
@@ -289,7 +296,7 @@ src/
       applications.tsx          ← board + stage-only quick-move + per-job application form
       companies.tsx              ← list + new (probe-validated) + delete + toggle + starter packs
       discovery.tsx             ← list + promote + ignore + delete + manual probe
-      runs.tsx
+      runs.tsx                  ← /runs + POST /runs/fetch-now (the tick in the web process) + progress/state
       settings.tsx              ← profile editor + 8 toggles + telegram targets
       health.ts                 ← JSON liveness for external monitoring
 
