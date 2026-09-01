@@ -95,7 +95,7 @@ applicationsRoute.get('/applications', async (c) => {
   );
 });
 
-export const StageMoveSchema = z.object({ toStage: z.enum(STAGE_VALUES) });
+const StageMoveSchema = z.object({ toStage: z.enum(STAGE_VALUES) });
 
 // Board quick-move: writes pipelineStage and its ledger row, nothing else.
 // The full form on /jobs/:id stays the only place that edits appliedAt /

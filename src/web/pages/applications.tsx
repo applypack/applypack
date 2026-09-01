@@ -102,7 +102,7 @@ const StageCard: FC<{ card: ApplicationCard; stage: Stage }> = ({ card, stage })
       <select
         id={`move-${card.id}`}
         name="toStage"
-        class="h-8 w-full min-w-0 flex-1 rounded-md border border-line-strong bg-surface-raised px-1.5 text-xs text-ink shadow-sm transition-colors duration-150 hover:border-ink-faint focus:border-accent focus:outline-none"
+        class="h-8 w-full min-w-0 flex-1 rounded-md border border-line-strong bg-surface-raised px-1.5 text-xs text-ink shadow-sm transition-colors duration-150 hover:border-ink-faint focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/15"
       >
         {STAGES.filter((s) => s !== stage).map((s) => (
           <option value={s} selected={s === NEXT_STAGE[stage]}>
@@ -155,16 +155,16 @@ export const ApplicationsPage: FC<ApplicationsProps> = ({
           {BOARD_STAGES.map((stage) => (
             <a
               href={`#stage-col-${stage}`}
-              class="rounded-full border border-line bg-surface-raised px-2.5 py-1 text-xs text-ink-muted"
+              class="inline-flex min-h-[32px] items-center gap-1 rounded-full border border-line bg-surface-raised px-3 text-xs text-ink-muted"
             >
-              {STAGE_LABEL[stage]}{' '}
+              {STAGE_LABEL[stage]}
               <span class="tabular-nums text-ink-faint">{byStage[stage].length}</span>
             </a>
           ))}
           {closedCount > 0 && (
             <a
               href="#closed"
-              class="rounded-full border border-line bg-surface-raised px-2.5 py-1 text-xs text-ink-muted"
+              class="inline-flex min-h-[32px] items-center gap-1 rounded-full border border-line bg-surface-raised px-3 text-xs text-ink-muted"
             >
               Closed <span class="tabular-nums text-ink-faint">{closedCount}</span>
             </a>
