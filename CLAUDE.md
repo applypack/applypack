@@ -142,7 +142,7 @@ When the question is **"where does X live?"**, save yourself a `find`:
 | Apply-link flags (missing / unusable / shortened / not-an-application) | `src/apply-link.ts` (pure, ADR 0023); merged into `Job.redFlags` at all three persist paths |
 | Stable id for a feed row with no id of its own | `src/text-utils.ts:feedItemKey` (URL key → text key → null, never `''`) |
 | The cron list (6 schedules) | `src/index.ts:registerCron` |
-| First-run wizard (`/welcome`: steps derived from data, `/` redirect, skip/finish) | `src/web/welcome-steps.ts` (pure: step rules + score summary) · `src/web/welcome-facts.ts` (loads the facts) · `src/web/routes/welcome.tsx` + `pages/welcome.tsx`; step 4 = `runScoreUnscored` in `src/jobs/reclassify-job.ts` |
+| First-run wizard (`/welcome`: steps derived from data, `/` redirect, skip/finish) | `src/web/welcome-steps.ts` (pure: step rules + score summary) · `src/web/welcome-facts.ts` (loads the facts) · `src/web/routes/welcome.tsx` + `pages/welcome.tsx`; step 4 = `runScoreUnscored` in `src/jobs/reclassify-job.ts`, which picks its batch with `src/jobs/score-pick.ts` (pure ranking, `SCORE_BATCH`) |
 | "Fetch now" (the tick from the dashboard: live progress, unscored while paused) | `POST /runs/fetch-now` in `src/web/routes/runs.tsx` → `runFetchJob({ manual: true })` in `src/jobs/fetch-job.ts`; registry `src/web/fetch-runs.ts`; verdict line `src/web/fetch-summary.ts` (pure) |
 | What runs on container boot | `src/init.ts` |
 | Adding a new ATS source — single-feed template | `src/fetchers/larajobs.ts` (LARAJOBS_RSS) or `src/fetchers/golangprojects.ts` (single RSS) |

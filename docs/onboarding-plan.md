@@ -317,15 +317,18 @@ resumes in one sitting.
 - ~~Step-2 source subset~~ — stage 3 kept **all enabled sources** (the
   same Fetch now run, verdict routed back into setup); the live progress
   line carries the wait.
-- ~~Step-4 classification cap~~ — stage 3 shipped **100 filter-passing
-  jobs per press** (`SCORE_UNSCORED_CAP`): the base filter runs first, so
-  jobs that don't mention the profile's words are dismissed without AI and
-  only the rest count against the cap; "Score 100 more" takes the next
-  batch. Measured 2026-09-01 in Docker on the `claude_code` CLI engine at
-  `AI_CONCURRENCY=3`: 100 jobs in 24 min (~4 jobs/min; 2,124 off-topic rows
-  dismissed without AI first) — slow enough that "a few minutes" only holds
-  for the API engines; the cap is the right size for the API and generous
-  for a CLI.
+- ~~Step-4 classification cap~~ — the hypothesis of 100 was **measured and
+  rejected**. On the `claude_code` CLI engine (a `claude -p` process per
+  job, `AI_CONCURRENCY=3`) 100 jobs took 24 min — the wow moment turns
+  into an afternoon. Stage 3 ships **`SCORE_BATCH = 10` per press**, and
+  the ten are the *best* matches, not the newest: `jobs/score-pick.ts`
+  (pure) ranks the filter-passing rows by how much of the profile the
+  posting actually mentions (title hit worth double a description hit;
+  required stack > role words > nice-to-have). Measured on the same
+  engine: 10 jobs in 5.4 min, scores 89 / 88 / 85 / 80 / 79 / 75 at the
+  top — the first screen is a real shortlist. "Score 10 more" walks the
+  rest, and the hourly watch scores new arrivals anyway. On an API engine
+  the same ten take well under a minute.
 - ~~Whether "Fetch now" lives on `/runs`, Overview, or both.~~ Decided in
   stage 2: **both**, one shared `FetchNowButton` — Overview because it is
   the page a fresh install lands on ("does the search work?" is answered

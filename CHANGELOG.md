@@ -24,12 +24,16 @@ All notable changes to this project are documented here. The format follows
      "Yes, that's me" applies the draft to the active profile, "Let me
      adjust" opens it in the profile editor. No file handy: three
      questions (technologies, role words, seniority) write the same fields.
-  4. **See your first matches** — "Score the jobs we found" scores up to
-     100 of the most recent stored jobs that mention the profile's words
-     (`runScoreUnscored`); the rest that don't fit are set aside without
-     AI. Result: "18 of 100 look like a match" with the top five, "Score
-     100 more" while jobs are waiting, then "Start the hourly watch"
-     (turns fetching on, marks setup done). Telegram is a quiet link.
+  4. **See your first matches** — "Score the best matches" scores the ten
+     stored jobs that mention the most of your profile (`runScoreUnscored`
+     over the pure ranking in `jobs/score-pick.ts`: a title hit counts
+     double a description hit, required stack outranks role words);
+     everything that mentions none of your words is set aside without
+     spending anything. Result: "8 of 10 look like a match" with the top
+     five, "Score 10 more" while jobs are waiting, then "Start the hourly
+     watch" (turns fetching on, marks setup done). Ten because a CLI
+     engine needs 15-30 s per job — 100 would have meant a 24-minute wait
+     on the first screen. Telegram is a quiet link.
 - "Skip setup" marks setup done; the Overview shows a "Finish setup →"
   chip while any step is still open, flag or no flag.
 - Progress pages carry their own heading and subtitle and can show

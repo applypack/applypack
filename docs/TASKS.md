@@ -755,7 +755,7 @@ Telegram explicitly optional.
       (AI → test search → resume → first matches), redirect while
       `AppSettings.setupCompletedAt` null, skip link, Overview chip;
       ~4 clicks + one file pick end-to-end — done 2026-09-01, branch
-      `welcome-wizard`; step 4 caps at 100 with "Score 100 more"
+      `welcome-wizard`; step 4 scores the best 10 per press ("Score 10 more")
 - [ ] `ai-key-in-db` — paste API key in UI, DB-stored, masked
       (**ADR**: extends 0013 + secrets policy; TelegramTarget precedent)
 - [ ] `profile-resume-link` — `Profile.resumeId` + one-click "Create

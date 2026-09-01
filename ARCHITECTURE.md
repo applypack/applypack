@@ -238,7 +238,8 @@ src/
     hn-hiring-job.ts            ← runHnHiringJob (monthly 1st 06:00)
     discovery-job.ts            ← runDiscoveryJob (Sunday 04:00, validation probe)
     process-jobs.ts             ← shared inner loop used by fetch + HN
-    reclassify-job.ts           ← runReclassifyAll (web-triggered, async)
+    reclassify-job.ts           ← runReclassifyAll + runScoreUnscored (web-triggered, async)
+    score-pick.ts               ← pure ranking of unscored jobs by profile mentions (wizard step 4)
     classify-existing.ts        ← classify one stored job (Re-classify button, manual entry)
     posting-url.ts              ← one user-requested posting-page GET → plain text (ADR 0005 blocklist, honest bot-check failure)
     manual-job.ts               ← pasted posting → MANUAL company + Job + classify (used by /jobs/new and /target)
