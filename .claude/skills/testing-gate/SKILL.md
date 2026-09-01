@@ -16,7 +16,7 @@ kinds of code and they are verified differently — see CLAUDE.md "Testing".
 | New fetcher / ATS source | Pure `mapXFeed` mapper + unit test; then `npm run fetch:once` smoke against the real endpoint (or `docker compose exec app node dist/scripts/fetch-once.js`) |
 | Classifier prompt or parser | Parser test (`parsePrefilterResponse`, `parseClaudeCodeOutput` pattern); smoke one real classification via the once-script |
 | AI provider | `ai-provider-parse.test.ts` for output parsing; one live `complete()` smoke per provider before commit |
-| Prisma schema | Hand-written migration under `prisma/migrations/` (CLAUDE.md gotcha 7 — host `migrate dev` P1010s); verify with `docker compose build app && up -d app` and read init logs |
+| Prisma schema | Hand-written migration under `prisma/migrations/` (CLAUDE.md gotcha 7 — host `migrate dev` P1010s); `npx prisma format` after the edit — CI runs `prisma format --check` and a new field that widens a column realigns the whole block; verify with `docker compose build app && up -d app` and read init logs |
 | Settings toggle | Column → `settings.ts` getter/setter → page → route, all in one commit; click it in the dashboard |
 | Dashboard page / primitive | `npm run lint:types`; `docker compose build web && up -d web`; curl every route for 200; screenshot at 1200px, 768px and 375px with the playwright plugin; browser console has 0 errors |
 | Telegram formatting | `notifier.test.ts` for escaping; `npm run test:telegram` for a real send |
@@ -26,6 +26,7 @@ kinds of code and they are verified differently — see CLAUDE.md "Testing".
 ```
 npm run lint:types                 # every commit
 npm test                           # every commit (pure modules only)
+npx prisma format --check          # after any schema edit (CI gates on it)
 npm run build                      # before a web/app container rebuild
 docker compose build web && docker compose up -d web   # dashboard changes
 docker compose build app && docker compose up -d app   # worker changes
