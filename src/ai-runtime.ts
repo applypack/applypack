@@ -181,7 +181,7 @@ async function recordUsage(id: AiProviderId, role: AiRole): Promise<void> {
   const day = new Date().toISOString().slice(0, 10);
   try {
     await prisma.$executeRaw`
-      UPDATE "AppSettings" SET "aiUsage" =
+      UPDATE app_settings SET "aiUsage" =
         jsonb_set(
           jsonb_set(
             jsonb_set(

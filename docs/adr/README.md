@@ -34,6 +34,7 @@ consequences (what we accept). Aim for 15–30 lines each.
 - [0023 — Trust is apply-link flags, not a score](./0023-apply-link-flags-not-a-trust-score.md)
 - [0024 — Funnel history is an append-only stage ledger](./0024-append-only-stage-ledger.md)
 - [0025 — Work columns are user-defined; fixed entry and exits](./0025-custom-work-stages.md)
+- [0026 — Database tables are snake_case, mapped with `@@map()`](./0026-snake-case-table-names.md)
 
 ## When to write a new one
 

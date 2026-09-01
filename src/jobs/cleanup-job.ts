@@ -28,7 +28,7 @@ export async function runCleanupJob(): Promise<{ stats: CronStats }> {
     .toISOString()
     .slice(0, 10);
   await prisma.$executeRaw`
-    UPDATE "AppSettings" SET "aiUsage" = (
+    UPDATE app_settings SET "aiUsage" = (
       SELECT COALESCE(jsonb_object_agg(key, value), '{}'::jsonb)
       FROM jsonb_each(COALESCE("aiUsage", '{}'::jsonb))
       WHERE key >= ${usageCutoff}
