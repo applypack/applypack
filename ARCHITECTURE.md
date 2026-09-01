@@ -257,12 +257,13 @@ src/
     public/target.mjs         ← browser keyword matcher (pure ES module, node-tested)
     public/score.mjs          ← browser mirror of resume/score.ts (parity-tested, ADR 0012)
     public/cover-letter.mjs   ← copy-to-clipboard for the letter card (import-smoke-tested)
+    public/board.mjs          ← /applications drag-and-drop over POST /jobs/:id/stage (planMove tested)
 
     pages/
       overview.tsx              ← /
       jobs-list.tsx             ← /jobs
       job-detail.tsx            ← /jobs/:id
-      applications.tsx          ← /applications (kanban)
+      applications.tsx          ← /applications (board + quick-move + closed panel)
       companies.tsx             ← /companies
       starter-pack.tsx          ← pack picker card + preview + import result
       discovery.tsx             ← /discovery
@@ -285,7 +286,7 @@ src/
       target.tsx                ← /target launcher: resume resolve + manual job + match in one POST
       letter.tsx                ← /letter launcher: job + resume resolve → [extract→classify→match→verify]→letter run
       resumes.tsx               ← upload (5 MB limit) + scan + default + delete + download
-      applications.tsx          ← kanban + per-job application form
+      applications.tsx          ← board + stage-only quick-move + per-job application form
       companies.tsx              ← list + new (probe-validated) + delete + toggle + starter packs
       discovery.tsx             ← list + promote + ignore + delete + manual probe
       runs.tsx

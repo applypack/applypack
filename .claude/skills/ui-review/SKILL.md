@@ -13,7 +13,8 @@ consistency, accessibility and perceived quality.
 
 - Single user, uses it daily, often on a phone between other things.
   Speed of reading beats decoration. Dense tables are the product.
-- Dark-only, token-driven: colours come from `src/web/layout.tsx`
+- Light theme (paper-gray ground, white surfaces — PR #12), token-driven:
+  colours come from `src/web/layout.tsx`
   (`surface / line / ink / accent / ok / warn / danger / info / violet`) and
   every page composes primitives from `src/web/ui.tsx`. A finding that
   needs a new raw hex or a page-local component is a finding against the

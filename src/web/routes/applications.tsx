@@ -3,9 +3,11 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import { prisma } from '../../db';
 import { getSettings } from '../../settings';
-import { ApplicationsPage } from '../pages/applications';
+import { flashRedirect, parseFlashCookie } from '../flash';
+import { ApplicationsPage, STAGE_LABEL } from '../pages/applications';
 import { appliedDateCorrection, stageChangeEvent } from '../stage-events';
-import { calibration, funnel, groupByJob, velocity } from '../stats';
+import { stageTimeLine, type StageTimeLine } from '../stage-time';
+import { calibration, funnel, groupByJob, velocity, type StageEventRow } from '../stats';
 
 const STAGE_VALUES = [
   'applied',
@@ -38,6 +40,18 @@ applicationsRoute.get('/applications', async (c) => {
     orderBy: [{ appliedAt: 'desc' }, { id: 'desc' }],
   });
 
+  // One fetch feeds both the funnel stats and the per-card time-in-stage.
+  const events = settings.applicationTrackingEnabled
+    ? await prisma.jobStageEvent.findMany({ orderBy: { recordedAt: 'asc' } })
+    : [];
+  const eventsByJob = new Map<number, typeof events>();
+  for (const e of events) {
+    const list = eventsByJob.get(e.jobId);
+    if (list) list.push(e);
+    else eventsByJob.set(e.jobId, [e]);
+  }
+
+  const now = new Date();
   const empty: Record<Stage, []> = {
     applied: [],
     screen: [],
@@ -54,8 +68,8 @@ applicationsRoute.get('/applications', async (c) => {
       title: string;
       companyName: string;
       fitScore: number | null;
-      appliedAt: Date | null;
       recruiterContact: string | null;
+      stageLine: StageTimeLine | null;
     }>
   >;
   for (const j of rows) {
@@ -66,8 +80,8 @@ applicationsRoute.get('/applications', async (c) => {
       title: j.title,
       companyName: j.company.name,
       fitScore: j.fitScore,
-      appliedAt: j.appliedAt,
       recruiterContact: j.recruiterContact,
+      stageLine: stageTimeLine(stage, j.appliedAt, eventsByJob.get(j.id) ?? [], now),
     });
   }
 
@@ -75,16 +89,54 @@ applicationsRoute.get('/applications', async (c) => {
     <ApplicationsPage
       byStage={byStage}
       applicationTrackingEnabled={settings.applicationTrackingEnabled}
-      stats={settings.applicationTrackingEnabled ? await loadFunnelStats() : null}
+      stats={settings.applicationTrackingEnabled ? await loadFunnelStats(events) : null}
+      flash={parseFlashCookie(c.req.header('cookie'))}
     />,
   );
 });
 
-// F5 (ADR 0024): fold the ledger into funnel / velocity / calibration.
-async function loadFunnelStats() {
-  const events = await prisma.jobStageEvent.findMany({
-    orderBy: { recordedAt: 'asc' },
+const StageMoveSchema = z.object({ toStage: z.enum(STAGE_VALUES) });
+
+// Board quick-move: writes pipelineStage and its ledger row, nothing else.
+// The full form on /jobs/:id stays the only place that edits appliedAt /
+// recruiterContact / applicationNotes — reusing it here would null them out.
+applicationsRoute.post('/jobs/:id/stage', async (c) => {
+  const id = Number(c.req.param('id'));
+  if (!Number.isFinite(id)) return c.text('Bad id', 400);
+  const settings = await getSettings();
+  if (!settings.applicationTrackingEnabled) {
+    return c.redirect('/applications', 303);
+  }
+
+  const form = await c.req.parseBody();
+  const parsed = StageMoveSchema.safeParse({ toStage: form.toStage });
+  if (!parsed.success) return c.text('Invalid stage', 400);
+  const { toStage } = parsed.data;
+
+  const current = await prisma.job.findUnique({
+    where: { id },
+    select: { pipelineStage: true, appliedAt: true },
   });
+  if (!current) return c.text('Not found', 404);
+
+  const event = stageChangeEvent(
+    id,
+    current.pipelineStage,
+    toStage,
+    current.appliedAt,
+    new Date(),
+  );
+  if (event) {
+    await prisma.$transaction([
+      prisma.job.update({ where: { id }, data: { pipelineStage: toStage } }),
+      prisma.jobStageEvent.create({ data: event }),
+    ]);
+  }
+  return flashRedirect('/applications', 'ok', `Moved to ${STAGE_LABEL[toStage]}`);
+});
+
+// F5 (ADR 0024): fold the ledger into funnel / velocity / calibration.
+async function loadFunnelStats(events: StageEventRow[]) {
   const eventJobIds = [...new Set(events.map((e) => e.jobId))];
   const fitRows = eventJobIds.length
     ? await prisma.job.findMany({
