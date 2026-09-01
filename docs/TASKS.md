@@ -534,8 +534,10 @@ and shadcn/ui are all React-runtime. What we lift instead:
 
 ## 9. Launch & distribution (v1.0.0 shipped 2026-09-01 — this is what's left)
 
-- [ ] Draft the launch pack: Show HN title + first comment, r/selfhosted post,
-  awesome-selfhosted PR. Demo link (applypack.dev/demo/) leads every text.
+- [x] Draft the launch pack — [docs/launch/](./launch/) (2026-08-31): Show HN
+  title + first comment, r/selfhosted post, awesome-selfhosted YAML entry.
+  Demo link (applypack.dev/demo/) leads every text. awesome-selfhosted's
+  4-month rule sets the earliest submission at 2026-12-28.
 - [ ] Pick the day (Tue–Thu, US-morning), submit, stay in the comments ~6h.
 - [ ] `www.applypack.dev` custom domain in Cloudflare Pages (one click, Nazar).
 - [ ] Measurement posts on the site, one every ~2 weeks, each from a paid-for
