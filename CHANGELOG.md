@@ -39,6 +39,14 @@ All notable changes to this project are documented here. The format follows
   badges, the `CHANGELOG` compare links and the launch drafts all point at
   the new address. `scripts/archive-traffic.sh` follows via its `REPO`
   default.
+- **Database tables are snake_case now** ([ADR 0026](docs/adr/0026-snake-case-table-names.md),
+  [#59](https://github.com/applypack/applypack/pull/59),
+  [#61](https://github.com/applypack/applypack/pull/61)): all 13 models map
+  to snake_case tables (`"Job"` → `job`, `"AppSettings"` → `app_settings`)
+  and the autoincrement sequences follow in a second migration; columns and
+  enum types keep their names. Both migrations run on the next boot — back
+  up an existing deployment first. #61 also fixed the two raw-SQL sites (AI
+  usage counters, nightly cleanup) that still named `"AppSettings"`.
 
 ## [1.4.1] — 2026-09-01
 
