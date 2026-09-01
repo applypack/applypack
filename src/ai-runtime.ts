@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
@@ -222,7 +222,7 @@ export async function probeAiProviders(): Promise<Record<AiProviderId, AiProvide
     anthropic_api: config.ANTHROPIC_API_KEY
       ? { ok: true, detail: 'API key set' }
       : { ok: false, detail: 'set ANTHROPIC_API_KEY in .env' },
-    claude_code: claude,
+    claude_code: withClaudeAuth(claude),
     gemini_cli: withGeminiAuth(gemini),
     openai_api: config.OPENAI_API_KEY
       ? { ok: true, detail: `API key set · ${baseUrlHost()}` }
@@ -294,4 +294,47 @@ function withCodexAuth(bin: AiProviderStatus): AiProviderStatus {
 
 function codexAuthConfigured(): boolean {
   return existsSync(join(homedir(), '.codex', 'auth.json'));
+}
+
+/**
+ * `claude --version` answers from a logged-out CLI too, so the binary alone
+ * said "available" for an engine that fails on its first call. Auth is not
+ * fully detectable (macOS keeps the interactive login in the Keychain), so
+ * this reads the signals the CLI leaves on disk instead of spending a live
+ * call on every settings render — the Test button stays the ground truth.
+ */
+function withClaudeAuth(bin: AiProviderStatus): AiProviderStatus {
+  if (!bin.ok || claudeAuthConfigured()) return bin;
+  return {
+    ok: false,
+    detail: `${bin.detail} installed, but not logged in — run \`claude\` once, or paste a token from \`claude setup-token\` (mount ~/.claude in Docker)`,
+  };
+}
+
+/** Where the CLI keeps its config: CLAUDE_CONFIG_DIR wins, else ~/.claude. */
+function claudeConfigDir(): string {
+  return process.env.CLAUDE_CONFIG_DIR || join(homedir(), '.claude');
+}
+
+// ~/.claude.json also holds per-project history, so it can grow large. Above
+// this size the probe stops rather than parse megabytes once a minute.
+const CLAUDE_CONFIG_MAX_BYTES = 8 * 1024 * 1024;
+
+function claudeAuthConfigured(): boolean {
+  // Both are read by the CLI itself and are how Docker deployments log in.
+  if (process.env.CLAUDE_CODE_OAUTH_TOKEN || process.env.ANTHROPIC_API_KEY) return true;
+  // Linux (and Docker) write the OAuth credentials next to the config.
+  if (existsSync(join(claudeConfigDir(), '.credentials.json'))) return true;
+  // macOS keeps the tokens in the Keychain but records the logged-in account
+  // in the config file — enough to tell "logged in" from "never logged in".
+  for (const file of [join(claudeConfigDir(), '.claude.json'), join(homedir(), '.claude.json')]) {
+    try {
+      if (statSync(file).size > CLAUDE_CONFIG_MAX_BYTES) continue;
+      const parsed = JSON.parse(readFileSync(file, 'utf8')) as { oauthAccount?: unknown };
+      if (parsed.oauthAccount) return true;
+    } catch {
+      // Missing or unreadable: try the next candidate.
+    }
+  }
+  return false;
 }
