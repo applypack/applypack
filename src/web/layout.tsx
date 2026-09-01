@@ -31,7 +31,7 @@ const NAV: { key: NavKey; href: string; label: string }[] = [
   { key: 'jobs', href: '/jobs', label: 'Jobs' },
   { key: 'applications', href: '/applications', label: 'Applications' },
   { key: 'resumes', href: '/resumes', label: 'Resumes' },
-  { key: 'target', href: '/target', label: 'Target' },
+  { key: 'target', href: '/target', label: 'Compare' },
   { key: 'letter', href: '/letter', label: 'Cover letter' },
   { key: 'companies', href: '/companies', label: 'Companies' },
   { key: 'discovery', href: '/discovery', label: 'Discovery' },

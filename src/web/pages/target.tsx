@@ -78,9 +78,12 @@ const AI_TONE: Record<Tone, string> = {
   neutral: 'text-ink-faint',
 };
 
+/** Score at which the card tells the user to stop polishing and apply. */
+const READY_TO_APPLY = 85;
+
 /** Same cutoffs as fitTone — the word next to the number, so colour never stands alone. */
 function matchQuality(score: number): string {
-  if (score >= 85) return 'excellent';
+  if (score >= READY_TO_APPLY) return 'excellent';
   if (score >= 70) return 'strong';
   if (score >= 50) return 'moderate';
   return 'weak';
@@ -213,6 +216,11 @@ export const TargetPage: FC<TargetPageProps> = ({
               <div class="mt-0.5 text-xs text-ink-faint">
                 {match.draft ? 'draft · ' : ''}analyzed {formatRelative(match.createdAt)}
               </div>
+              {match.matchScore >= READY_TO_APPLY && (
+                <div class="mt-1 text-[13px] font-medium text-ok">
+                  Ready to apply — stop polishing, send it.
+                </div>
+              )}
             </div>
           </div>
 
