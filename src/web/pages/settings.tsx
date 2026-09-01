@@ -29,6 +29,7 @@ import type { FlashMessage } from '../flash';
 import { sourceLabel } from '../source-names';
 import { dotClassFor, MAX_WORK_STAGES } from '../stage-config';
 import { formatPriorityRulesText, parsePriorityRules } from '../../priority-rules';
+import { isBlankProfile } from '../../profile-guards';
 import { SENIORITY_LEVELS } from '../../resume/profile-draft';
 
 interface MaskedTarget {
@@ -229,8 +230,8 @@ export const SettingsPage: FC<SettingsProps> = ({
 
       {activeTab === 'profile' && (
       <Section
-        title="Active profile"
-        desc="What a matching job looks like: stack, role types, regions, salary floor. The classifier scores every job against this."
+        title="Profile"
+        desc="What a matching job looks like: stack, role types, regions, salary floor. The classifier scores every job against the active profile."
       >
         <div class="flex flex-wrap items-center gap-2">
           <form
@@ -305,6 +306,14 @@ export const SettingsPage: FC<SettingsProps> = ({
               <Button variant="violet">Fill from resume</Button>
             </form>
           </Card>
+        )}
+        {activeProfile && !profiles.some((p) => p.id === activeProfile.id && p.active) && (
+          <div class="rounded-md border border-line bg-surface-overlay px-3.5 py-2.5 text-[13px] leading-5 text-ink-muted">
+            Editing an inactive profile — the worker keeps scoring with the active one.
+            {isBlankProfile(activeProfile)
+              ? ' It activates automatically on the first save with a required stack or role types.'
+              : ' Use Activate above to make it the scoring profile.'}
+          </div>
         )}
         {activeProfile ? (
           <Card>
