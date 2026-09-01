@@ -6,6 +6,33 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.1.0] — 2026-09-01
+
+### Added
+- **Status-transition ledger** (F5, [ADR 0024](docs/adr/0024-append-only-stage-ledger.md)):
+  an append-only `JobStageEvent` row per pipeline-stage change, written in
+  the same transaction at both web write sites; the current funnel is
+  backfilled (3 rows, real apply dates). Notes-only resubmits write
+  nothing; clearing a stage and editing the apply date land as
+  `correction` events.
+- Funnel, days-per-hop and fit-calibration cards on `/applications`, with
+  the honesty rules as code: backfilled dates never enter medians,
+  in-flight applications never enter rates, and a rate below n=5 renders
+  as "need 5", never a number.
+- Verification verdict badge (`legit` / `suspicious` / `fake`) on `/jobs`
+  rows and a "Verified" filter pill (#21).
+- Launch drafts in `docs/launch/` — Show HN, r/selfhosted and an
+  awesome-selfhosted entry, all for manual posting (#44).
+
+### Fixed
+- Worker boot marks stale `RUNNING` cron runs as `FAILED — interrupted`,
+  so `/runs` stops showing phantom in-flight jobs after a restart (#18).
+- `cleanup-job` no longer garbage-collects jobs that have funnel history.
+- Site deploys: Workers Builds ran `wrangler` with no config anywhere and
+  every build failed with "Missing entry-point" — the repo root now
+  carries an assets-only `wrangler.jsonc`, and `site/README.md` documents
+  the real setup (a Cloudflare Worker with static assets, not Pages).
+
 ## [1.0.0] — 2026-09-01
 
 First stable release: the whole arc — find → verify → tailor → apply →
@@ -450,7 +477,8 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
-[Unreleased]: https://github.com/nazboyko/applypack/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/nazboyko/applypack/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/nazboyko/applypack/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/nazboyko/applypack/compare/v0.11.1...v1.0.0
 [0.11.1]: https://github.com/nazboyko/applypack/compare/v0.11.0...v0.11.1
 [0.11.0]: https://github.com/nazboyko/applypack/compare/v0.10.0...v0.11.0
