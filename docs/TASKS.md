@@ -653,11 +653,19 @@ contributors — currently #24 (Discord notification channel behind a
 
 ---
 
-## 10. /applications board redesign (analysis 2026-09-01 — NEXT UP)
+## 10. /applications board redesign (analysis 2026-09-01 — SHIPPED 2026-09-01)
 
-Full session analysis: the board is a kanban in looks only. Verified in
-code and by DOM simulation at 100 cards. **This is the next work once this
-triage lands** — one branch (`applications-board`), one PR, ordered:
+Items 1–6 shipped on branch `applications-board` → v1.3.0: stage-only
+quick-move endpoint (`POST /jobs/:id/stage`, ledger row in the same
+transaction, board fields untouched), 70dvh column cap (verified again by
+the 100-card DOM simulation: ~1,100 px page vs ~13,000 before), Closed
+disclosure, time-in-stage (`src/web/stage-time.ts`, pure + tested) with
+"· stalled" past 14d, mobile stage-grouped stack with jump chips, polish.
+Item 7 (drag-and-drop over the same endpoint) is NOT built — ask Nazar
+after the merge whether he wants it. The stale ui-review "dark-only" note
+below is fixed too.
+
+Original analysis kept for reference — one branch, one PR, ordered:
 
 ### 10.1 Facts established (don't re-derive)
 
