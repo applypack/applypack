@@ -1,0 +1,428 @@
+{
+ "aiScore": 82,
+ "resumeText": "Dana Ruiz\nSenior Full-Stack Developer | dana.ruiz@example.com | github.com/danaruiz-dev\n\nSummary\nFull-stack engineer, six years building TypeScript products end to end. Happiest owning a slice from the Postgres schema up to the React screen, with a preference for boring, observable infrastructure.\n\nExperience\n\nSenior Full-Stack Developer - Harborline (remote), 2022-present\n- Built the dispatch API in Node.js (Fastify) and TypeScript; 1.8M requests/day at p95 under 140 ms\n- Moved billing off a legacy Rails monolith into Node.js services without downtime; retired 32k lines\n- Designed the PostgreSQL schema and Prisma migrations for invoicing; the monthly run dropped from 35 minutes to 5\n- Added GitHub Actions CI with Docker layer caching; build time halved\n\nFull-Stack Developer - Lantern Rail (Lisbon), 2019-2022\n- Shipped the React front end of a crew-scheduling tool used daily by 1,200 staff\n- Built REST and GraphQL APIs in Node.js/Express over PostgreSQL\n- Set up structured logging and alerting; median incident resolution fell from 90 to 35 minutes\n\nSkills\nTypeScript, Node.js (Fastify, Express), React, Next.js, PostgreSQL, Prisma, Docker, GitHub Actions, REST, GraphQL, Jest, AWS basics (ECS, RDS, S3)",
+ "jobText": "Fernway builds scheduling software for independent veterinary clinics. About 900 practices run their day on it. We are hiring a Senior Full-Stack Engineer to own product areas end to end — from the Postgres schema to the screens clinic staff touch every hour.\r\n\r\nDay to day\r\n- Ship features across our TypeScript stack: Node.js services, React front-end, PostgreSQL\r\n- Take an area from schema sketch to production on AWS (ECS, RDS)\r\n- Keep the CI pipeline fast (GitHub Actions, Docker)\r\n- Review pull requests and mentor two mid-level engineers\r\n\r\nWhat we are looking for\r\n- 5+ years shipping production web applications\r\n- Strong TypeScript and Node.js (Express, Fastify or NestJS)\r\n- React in depth: hooks, state management, performance profiling\r\n- PostgreSQL beyond CRUD: schema design, query optimization, migrations\r\n- Comfortable with Docker and CI/CD\r\n- Writes clearly — the team is async and remote-first\r\n\r\nNice to have\r\n- Prisma or another type-safe ORM\r\n- Redis and a queue (SQS or RabbitMQ)\r\n- Terraform or another infrastructure-as-code tool\r\n- Observability: Grafana, Prometheus\r\n\r\nRemote worldwide · EUR 70-90k · 30 days paid leave · hardware budget",
+ "keywords": [
+  {
+   "term": "Senior Full-Stack Engineer",
+   "priority": 2,
+   "requirement": "must",
+   "primary": false,
+   "status": "add",
+   "aliases": [
+    "senior full-stack developer",
+    "senior fullstack engineer"
+   ],
+   "where": "Title line says 'Senior Full-Stack Developer'",
+   "note": "Same role, different noun; match the posting exactly.",
+   "elsewhere": null
+  },
+  {
+   "term": "TypeScript",
+   "priority": 1,
+   "requirement": "must",
+   "primary": true,
+   "status": "present",
+   "aliases": [
+    "ts"
+   ],
+   "where": "Summary, skills, Harborline bullet 1",
+   "note": null,
+   "elsewhere": null
+  },
+  {
+   "term": "Node.js",
+   "priority": 1,
+   "requirement": "must",
+   "primary": true,
+   "status": "present",
+   "aliases": [
+    "node",
+    "nodejs"
+   ],
+   "where": "Skills and both roles",
+   "note": null,
+   "elsewhere": null
+  },
+  {
+   "term": "React",
+   "priority": 1,
+   "requirement": "must",
+   "primary": true,
+   "status": "present",
+   "aliases": [
+    "react.js",
+    "reactjs"
+   ],
+   "where": "Summary, skills, Lantern Rail bullet 1",
+   "note": null,
+   "elsewhere": null
+  },
+  {
+   "term": "PostgreSQL",
+   "priority": 1,
+   "requirement": "must",
+   "primary": false,
+   "status": "present",
+   "aliases": [
+    "postgres"
+   ],
+   "where": "Summary, skills, both roles",
+   "note": null,
+   "elsewhere": null
+  },
+  {
+   "term": "Fastify",
+   "priority": 1,
+   "requirement": "must",
+   "primary": false,
+   "status": "present",
+   "aliases": [],
+   "where": "Skills and Harborline bullet 1",
+   "note": null,
+   "elsewhere": null
+  },
+  {
+   "term": "Express",
+   "priority": 1,
+   "requirement": "must",
+   "primary": false,
+   "status": "present",
+   "aliases": [
+    "express.js"
+   ],
+   "where": "Skills and Lantern Rail bullet 2",
+   "note": null,
+   "elsewhere": null
+  },
+  {
+   "term": "schema design",
+   "priority": 1,
+   "requirement": "must",
+   "primary": false,
+   "status": "present",
+   "aliases": [
+    "designed the postgresql schema"
+   ],
+   "where": "Harborline bullet 3",
+   "note": null,
+   "elsewhere": null
+  },
+  {
+   "term": "migrations",
+   "priority": 1,
+   "requirement": "must",
+   "primary": false,
+   "status": "present",
+   "aliases": [
+    "prisma migrations"
+   ],
+   "where": "Harborline bullet 3",
+   "note": null,
+   "elsewhere": null
+  },
+  {
+   "term": "query optimization",
+   "priority": 1,
+   "requirement": "must",
+   "primary": false,
+   "status": "ask_user",
+   "aliases": [
+    "query tuning",
+    "sql optimization"
+   ],
+   "where": null,
+   "note": "Billing run sped up 7x — confirm if query tuning drove it.",
+   "elsewhere": null
+  },
+  {
+   "term": "hooks",
+   "priority": 1,
+   "requirement": "must",
+   "primary": false,
+   "status": "ask_user",
+   "aliases": [
+    "react hooks"
+   ],
+   "where": null,
+   "note": "React shipped but hooks not named; confirm.",
+   "elsewhere": null
+  },
+  {
+   "term": "state management",
+   "priority": 1,
+   "requirement": "must",
+   "primary": false,
+   "status": "ask_user",
+   "aliases": [
+    "redux",
+    "zustand",
+    "context api"
+   ],
+   "where": null,
+   "note": "Confirm which state library was used on the React app.",
+   "elsewhere": null
+  },
+  {
+   "term": "performance profiling",
+   "priority": 1,
+   "requirement": "must",
+   "primary": false,
+   "status": "ask_user",
+   "aliases": [
+    "profiling",
+    "react profiler"
+   ],
+   "where": null,
+   "note": "Confirm front-end profiling work.",
+   "elsewhere": null
+  },
+  {
+   "term": "Docker",
+   "priority": 1,
+   "requirement": "must",
+   "primary": false,
+   "status": "present",
+   "aliases": [],
+   "where": "Skills and Harborline bullet 4",
+   "note": null,
+   "elsewhere": null
+  },
+  {
+   "term": "CI/CD",
+   "priority": 3,
+   "requirement": "must",
+   "primary": false,
+   "status": "add",
+   "aliases": [
+    "continuous integration",
+    "continuous delivery",
+    "ci"
+   ],
+   "where": "Harborline bullet 4 says 'GitHub Actions CI'",
+   "note": "Pipeline work already described; use the posting's term.",
+   "elsewhere": null
+  },
+  {
+   "term": "GitHub Actions",
+   "priority": 1,
+   "requirement": "must",
+   "primary": false,
+   "status": "present",
+   "aliases": [],
+   "where": "Skills and Harborline bullet 4",
+   "note": null,
+   "elsewhere": null
+  },
+  {
+   "term": "AWS",
+   "priority": 1,
+   "requirement": "must",
+   "primary": false,
+   "status": "present",
+   "aliases": [
+    "amazon web services"
+   ],
+   "where": "Skills line",
+   "note": null,
+   "elsewhere": null
+  },
+  {
+   "term": "ECS",
+   "priority": 1,
+   "requirement": "must",
+   "primary": false,
+   "status": "present",
+   "aliases": [],
+   "where": "Skills line",
+   "note": null,
+   "elsewhere": null
+  },
+  {
+   "term": "RDS",
+   "priority": 1,
+   "requirement": "must",
+   "primary": false,
+   "status": "present",
+   "aliases": [],
+   "where": "Skills line",
+   "note": null,
+   "elsewhere": null
+  },
+  {
+   "term": "Review pull requests",
+   "priority": 3,
+   "requirement": "context",
+   "primary": false,
+   "status": "ask_user",
+   "aliases": [
+    "code review",
+    "pull request"
+   ],
+   "where": null,
+   "note": "Confirm regular code review ownership.",
+   "elsewhere": null
+  },
+  {
+   "term": "mentor",
+   "priority": 3,
+   "requirement": "context",
+   "primary": false,
+   "status": "ask_user",
+   "aliases": [
+    "mentoring",
+    "mentorship"
+   ],
+   "where": null,
+   "note": "Confirm mentoring of mid-level engineers.",
+   "elsewhere": null
+  },
+  {
+   "term": "Prisma",
+   "priority": 1,
+   "requirement": "nice",
+   "primary": false,
+   "status": "present",
+   "aliases": [],
+   "where": "Skills and Harborline bullet 3",
+   "note": null,
+   "elsewhere": null
+  },
+  {
+   "term": "Redis",
+   "priority": 1,
+   "requirement": "nice",
+   "primary": false,
+   "status": "add",
+   "aliases": [],
+   "where": null,
+   "note": "Listed in the 'Senior Backend PHP' resume.",
+   "elsewhere": null
+  },
+  {
+   "term": "SQS",
+   "priority": 1,
+   "requirement": "nice",
+   "primary": false,
+   "status": "add",
+   "aliases": [
+    "amazon sqs"
+   ],
+   "where": null,
+   "note": "Listed in the 'Senior Backend PHP' resume.",
+   "elsewhere": null
+  },
+  {
+   "term": "Grafana",
+   "priority": 1,
+   "requirement": "nice",
+   "primary": false,
+   "status": "add",
+   "aliases": [],
+   "where": null,
+   "note": "Listed in the 'Senior Backend PHP' resume.",
+   "elsewhere": null
+  },
+  {
+   "term": "Terraform",
+   "priority": 1,
+   "requirement": "nice",
+   "primary": false,
+   "status": "cannot_claim",
+   "aliases": [
+    "infrastructure-as-code",
+    "iac"
+   ],
+   "where": null,
+   "note": "No evidence in any resume.",
+   "elsewhere": null
+  },
+  {
+   "term": "Prometheus",
+   "priority": 1,
+   "requirement": "nice",
+   "primary": false,
+   "status": "cannot_claim",
+   "aliases": [],
+   "where": null,
+   "note": "No evidence in any resume.",
+   "elsewhere": null
+  }
+ ],
+ "actions": [
+  {
+   "section": "title",
+   "where": "Header title line",
+   "what": "Change the title to 'Senior Full-Stack Engineer'.",
+   "why": "Exact posted title match for ATS and recruiter scan.",
+   "priority": "high",
+   "quote": "Senior Full-Stack Developer"
+  },
+  {
+   "section": "skills",
+   "where": "Skills line",
+   "what": "Add 'CI/CD' next to GitHub Actions and drop the word 'basics' from AWS so it reads 'AWS (ECS, RDS, S3)'.",
+   "why": "CI/CD and AWS ECS/RDS are must requirements.",
+   "priority": "high",
+   "quote": "Docker, GitHub Actions, REST, GraphQL, Jest, AWS basics (ECS, RDS, S3)"
+  },
+  {
+   "section": "experience",
+   "where": "Harborline, bullet 4",
+   "what": "Reword to: 'Halved build time by adding a GitHub Actions CI/CD pipeline with Docker layer caching, keeping deploys fast for an async remote team.'",
+   "why": "Uses posting's CI/CD wording for a must requirement.",
+   "priority": "high",
+   "quote": "Added GitHub Actions CI with Docker layer caching; build time halved"
+  },
+  {
+   "section": "experience",
+   "where": "Lantern Rail, bullet 1",
+   "what": "Move this bullet's React detail forward and name hooks and state management if accurate: 'Shipped React front end of a crew-scheduling tool used daily by 1,200 staff, building hooks-based components and shared state management.'",
+   "why": "React depth is a must; confirm hooks and state library with the candidate.",
+   "priority": "high",
+   "quote": "Shipped the React front end of a crew-scheduling tool used daily by 1,200 staff"
+  },
+  {
+   "section": "summary",
+   "where": "Summary paragraph",
+   "what": "Name Node.js and PostgreSQL explicitly: 'Full-stack engineer, six years shipping TypeScript products across Node.js services, React front ends and PostgreSQL — from schema design to the screen.'",
+   "why": "Puts three must requirements in the top-third scan.",
+   "priority": "medium",
+   "quote": "Full-stack engineer, six years building TypeScript products end to end."
+  },
+  {
+   "section": "skills",
+   "where": "Skills line, end",
+   "what": "Add 'Redis, SQS, Grafana' to the skills list.",
+   "why": "Covers three nice-to-haves evidenced in the 'Senior Backend PHP' resume.",
+   "priority": "medium",
+   "quote": null
+  },
+  {
+   "section": "experience",
+   "where": "Harborline, new bullet (max 4 — replace bullet 2 if needed)",
+   "what": "If confirmed, add: 'Reviewed pull requests and mentored two mid-level engineers, shortening feature review cycles on a fully async team.'",
+   "why": "Posting names PR review and mentoring; ask the candidate to confirm.",
+   "priority": "medium",
+   "quote": null
+  },
+  {
+   "section": "experience",
+   "where": "Harborline, bullet 3",
+   "what": "If query tuning drove the speed-up, state it: 'Cut the monthly invoicing run from 35 to 5 minutes through PostgreSQL schema design, query optimization and Prisma migrations.'",
+   "why": "Query optimization is a must requirement; confirm the tuning claim.",
+   "priority": "medium",
+   "quote": "Designed the PostgreSQL schema and Prisma migrations for invoicing; the monthly run dropped from 35 minutes to 5"
+  }
+ ],
+ "removals": [],
+ "scoring": {
+  "alignment": {
+   "title": "strong",
+   "summary": "strong",
+   "recent_role": "strong"
+  },
+  "redFlagCount": 0,
+  "penalty": 0
+ }
+}
