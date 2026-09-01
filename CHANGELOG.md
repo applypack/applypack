@@ -4,6 +4,47 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.7.0] — 2026-09-01
+
+### Added
+- **First-run wizard at `/welcome`** ([docs/onboarding-plan.md §2](docs/onboarding-plan.md),
+  TASKS §11 block 3). A fresh install lands there from `/` until setup is
+  finished or skipped; every other page keeps working. Four steps, each
+  derived from data and auto-completing when its result already exists:
+  1. **Connect an AI** — detected engines are listed (zero clicks for a
+     `.env` key); with nothing detected, plain-language cards say which
+     line to add per engine. "Send a test message" runs the same tiny live
+     call as the Settings Test button.
+  2. **Test the search** — "Run a test search" is Fetch now with the
+     verdict routed back into setup: no AI, no profile needed, jobs stored
+     unscored.
+  3. **Tell us about you** — upload a resume (or pick one), the scan runs
+     on a progress page and comes back as a one-paragraph summary ("Looks
+     like you're a Senior Backend Engineer — main tools PHP, Laravel…");
+     "Yes, that's me" applies the draft to the active profile, "Let me
+     adjust" opens it in the profile editor. No file handy: three
+     questions (technologies, role words, seniority) write the same fields.
+  4. **See your first matches** — "Score the jobs we found" scores up to
+     100 of the most recent stored jobs that mention the profile's words
+     (`runScoreUnscored`); the rest that don't fit are set aside without
+     AI. Result: "18 of 100 look like a match" with the top five, "Score
+     100 more" while jobs are waiting, then "Start the hourly watch"
+     (turns fetching on, marks setup done). Telegram is a quiet link.
+- "Skip setup" marks setup done; the Overview shows a "Finish setup →"
+  chip while any step is still open, flag or no flag.
+- Progress pages carry their own heading and subtitle and can show
+  data-driven progress ("12 of 100 jobs scored").
+
+### Changed
+- The engine connectivity test moved into `src/web/ai-test.ts`, shared by
+  Settings and the wizard; the file-input style is one constant in `ui.tsx`.
+
+### Schema
+- `AppSettings.setupCompletedAt` (nullable) — migration
+  `20260901220000_add_setup_completed_at` backfills existing deployments
+  with `now()`, so nobody who already set up by hand is walked through the
+  wizard.
+
 ## [1.6.0] — 2026-09-01
 
 ### Added
@@ -649,6 +690,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[1.7.0]: https://github.com/applypack/applypack/compare/v1.6.0...v1.7.0
 [1.6.0]: https://github.com/applypack/applypack/compare/v1.5.0...v1.6.0
 [1.5.0]: https://github.com/applypack/applypack/compare/v1.4.1...v1.5.0
 [1.4.1]: https://github.com/applypack/applypack/compare/v1.4.0...v1.4.1

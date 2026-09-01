@@ -258,6 +258,9 @@ src/
     target-runs.ts            ← in-memory compare-run registry (async classify/scan/match)
     fetch-runs.ts             ← in-memory "Fetch now" registry (live source progress; the 'fetch-now' CronRun is the record)
     fetch-summary.ts          ← pure one-line verdict of a finished fetch-now run
+    welcome-steps.ts          ← pure first-run wizard rules (steps from data, score-run summary)
+    welcome-facts.ts          ← loads what the wizard and the Overview chip derive from
+    ai-test.ts                ← one live engine call — Settings Test button + wizard step 1
     public/target.mjs         ← browser keyword matcher (pure ES module, node-tested)
     public/score.mjs          ← browser mirror of resume/score.ts (parity-tested, ADR 0012)
     public/cover-letter.mjs   ← copy-to-clipboard for the letter card (import-smoke-tested)
@@ -273,6 +276,7 @@ src/
       starter-pack.tsx          ← pack picker card + preview + import result
       discovery.tsx             ← /discovery
       runs.tsx                  ← /runs (+ Fetch now button)
+      welcome.tsx               ← /welcome first-run wizard (4 steps, one card at a time)
       fetch-run.tsx             ← /runs/fetch-now/:id progress page + FetchNowButton
       run-steps.tsx             ← step list shared by the two progress pages
       settings.tsx              ← /settings (9 cards)
@@ -297,6 +301,7 @@ src/
       companies.tsx              ← list + new (probe-validated) + delete + toggle + starter packs
       discovery.tsx             ← list + promote + ignore + delete + manual probe
       runs.tsx                  ← /runs + POST /runs/fetch-now (the tick in the web process) + progress/state
+      welcome.tsx               ← /welcome + skip / finish / ai test / resume → scan run / profile apply / score run
       settings.tsx              ← profile editor + 8 toggles + telegram targets
       health.ts                 ← JSON liveness for external monitoring
 

@@ -8,8 +8,9 @@
 > [CLAUDE.md](../CLAUDE.md), the testing-gate / commit-discipline skills and
 > the ADR register in [docs/adr](./adr/).
 >
-> **Status:** stages 1–2 of §5 shipped (`profile-tab-quickwins` v1.5.0,
-> `fetch-now` v1.6.0); stages 3–7 are analysis only. Constants
+> **Status:** stages 1–3 of §5 shipped (`profile-tab-quickwins` v1.5.0,
+> `fetch-now` v1.6.0, `welcome-wizard` v1.7.0); stages 4–7 are analysis
+> only. Constants
 > (batch caps, source subsets, timings) are starting hypotheses to
 > re-measure at implementation time.
 
@@ -313,11 +314,14 @@ resumes in one sitting.
 
 ## 6. Open decisions
 
-- Step-2 source subset: all enabled sources vs a fast-aggregator subset
-  (RemoteOK/Remotive answer in seconds; per-company boards add minutes).
-  Hypothesis: all enabled, with the progress page making the wait fun.
-- Step-4 classification cap (hypothesis 100 — measure cost/latency on
-  Haiku 4.5 two-stage vs single).
+- ~~Step-2 source subset~~ — stage 3 kept **all enabled sources** (the
+  same Fetch now run, verdict routed back into setup); the live progress
+  line carries the wait.
+- ~~Step-4 classification cap~~ — stage 3 shipped **100 filter-passing
+  jobs per press** (`SCORE_UNSCORED_CAP`): the base filter runs first, so
+  jobs that don't mention the profile's words are dismissed without AI and
+  only the rest count against the cap; "Score 100 more" takes the next
+  batch. Still to measure: minutes per 100 on a CLI engine vs the API.
 - ~~Whether "Fetch now" lives on `/runs`, Overview, or both.~~ Decided in
   stage 2: **both**, one shared `FetchNowButton` — Overview because it is
   the page a fresh install lands on ("does the search work?" is answered

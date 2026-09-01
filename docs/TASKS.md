@@ -751,10 +751,11 @@ Telegram explicitly optional.
 - [x] `fetch-now` — "Fetch now" button + `{classify: false}` seam +
       background run (reclassify pattern) + progress page — done 2026-09-01,
       branch `fetch-now`; lives on Overview AND `/runs` (one shared button)
-- [ ] `welcome-wizard` — `/welcome` 4-step first-run flow
+- [x] `welcome-wizard` — `/welcome` 4-step first-run flow
       (AI → test search → resume → first matches), redirect while
       `AppSettings.setupCompletedAt` null, skip link, Overview chip;
-      ~4 clicks + one file pick end-to-end
+      ~4 clicks + one file pick end-to-end — done 2026-09-01, branch
+      `welcome-wizard`; step 4 caps at 100 with "Score 100 more"
 - [ ] `ai-key-in-db` — paste API key in UI, DB-stored, masked
       (**ADR**: extends 0013 + secrets policy; TelegramTarget precedent)
 - [ ] `profile-resume-link` — `Profile.resumeId` + one-click "Create
