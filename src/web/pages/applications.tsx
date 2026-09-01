@@ -9,6 +9,10 @@ import { FunnelStatsSection, type FunnelStatsProps } from './funnel-stats';
 const STAGES = ['applied', 'screen', 'tech', 'onsite', 'offer', 'rejected', 'ghosted'] as const;
 type Stage = (typeof STAGES)[number];
 
+/** Work columns on the board; rejected/ghosted are archives, shown below. */
+const BOARD_STAGES = ['applied', 'screen', 'tech', 'onsite', 'offer'] as const;
+const CLOSED_STAGES = ['rejected', 'ghosted'] as const;
+
 export const STAGE_LABEL: Record<Stage, string> = {
   applied: 'Applied',
   screen: 'Screen',
@@ -112,13 +116,18 @@ export const ApplicationsPage: FC<ApplicationsProps> = ({
   stats,
   flash,
 }) => {
-  const totalCount = STAGES.reduce((sum, s) => sum + (byStage[s]?.length ?? 0), 0);
+  const activeCount = BOARD_STAGES.reduce((sum, s) => sum + (byStage[s]?.length ?? 0), 0);
+  const closedCount = CLOSED_STAGES.reduce((sum, s) => sum + (byStage[s]?.length ?? 0), 0);
 
   return (
     <Layout title="Applications" active="applications">
       <PageHeader
         title="Applications"
-        meta={applicationTrackingEnabled ? `${totalCount} in the funnel` : undefined}
+        meta={
+          applicationTrackingEnabled
+            ? `${activeCount} active${closedCount > 0 ? ` · ${closedCount} closed` : ''}`
+            : undefined
+        }
       />
       <Flash flash={flash} />
 
@@ -136,7 +145,7 @@ export const ApplicationsPage: FC<ApplicationsProps> = ({
       ) : (
         <>
         <div class="flex min-h-0 min-w-0 flex-1 items-stretch gap-3 overflow-x-auto pb-1">
-          {STAGES.map((stage) => {
+          {BOARD_STAGES.map((stage) => {
             const items = byStage[stage] ?? [];
             return (
               <section
@@ -168,6 +177,46 @@ export const ApplicationsPage: FC<ApplicationsProps> = ({
             );
           })}
         </div>
+        {closedCount > 0 && (
+          <details class="mt-4 rounded-lg border border-line/70 bg-surface-overlay/40">
+            <summary class="cursor-pointer select-none rounded-lg px-4 py-2.5 text-sm font-medium text-ink-muted transition-colors duration-150 hover:text-ink">
+              Closed
+              <span class="ml-2 text-xs font-normal text-ink-faint">
+                {byStage.rejected.length} rejected · {byStage.ghosted.length} ghosted
+              </span>
+            </summary>
+            <div class="grid gap-4 border-t border-line/70 p-4 md:grid-cols-2">
+              {CLOSED_STAGES.map((stage) => {
+                const items = byStage[stage] ?? [];
+                return (
+                  <section aria-labelledby={`stage-${stage}`}>
+                    <div class="flex items-center gap-2 pb-2">
+                      <span
+                        class={`h-2 w-2 rounded-full ${STAGE_DOT[stage]}`}
+                        aria-hidden="true"
+                      />
+                      <h2 id={`stage-${stage}`} class="text-[13px] font-medium text-ink">
+                        {STAGE_LABEL[stage]}
+                      </h2>
+                      <span class="ml-auto text-xs text-ink-faint tabular-nums">
+                        {items.length}
+                      </span>
+                    </div>
+                    <ul class="space-y-2">
+                      {items.length === 0 ? (
+                        <li class="rounded-md border border-dashed border-line-strong/70 px-3 py-3 text-center text-xs text-ink-faint">
+                          None
+                        </li>
+                      ) : (
+                        items.map((c) => <StageCard card={c} stage={stage} />)
+                      )}
+                    </ul>
+                  </section>
+                );
+              })}
+            </div>
+          </details>
+        )}
         {stats && <FunnelStatsSection {...stats} />}
         </>
       )}
