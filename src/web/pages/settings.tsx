@@ -47,6 +47,8 @@ interface ProfileListItem {
   name: string;
   stackPreview: string; // first 3 required tags
   active: boolean;
+  /** No required stack and no role types — activation is gated (issue #50). */
+  blank: boolean;
 }
 
 interface AvailableTarget {
@@ -241,9 +243,9 @@ export const SettingsPage: FC<SettingsProps> = ({
           >
             <Select name="id" class="!w-auto min-w-0 max-w-full" aria-label="Profile to activate">
               {profiles.map((p) => (
-                <option value={p.id} selected={p.active}>
+                <option value={p.id} selected={p.active} disabled={p.blank && !p.active}>
                   {p.name}
-                  {p.active ? ' (active)' : ''}
+                  {p.active ? ' (active)' : p.blank ? ' (empty — fill in first)' : ''}
                 </option>
               ))}
             </Select>
@@ -336,12 +338,22 @@ export const SettingsPage: FC<SettingsProps> = ({
                 .filter((p) => !p.active)
                 .map((p) => (
                   <Tr>
-                    <Td class="font-medium text-ink">{p.name}</Td>
-                    <Td class="text-[13px] text-ink-muted">{p.stackPreview}</Td>
+                    <Td class="font-medium text-ink">
+                      <a href={`/settings?tab=profile&profile=${p.id}`} class="hover:underline">
+                        {p.name}
+                      </a>
+                    </Td>
+                    <Td class="text-[13px] text-ink-muted">
+                      {p.blank ? (
+                        <span class="text-warn">empty — add a stack or role types to activate</span>
+                      ) : (
+                        p.stackPreview
+                      )}
+                    </Td>
                     <Td>
                       <div class="flex justify-end gap-2">
                         <ActionForm action="/settings/profiles/activate" hidden={{ id: p.id }}>
-                          <Button size="sm" variant="secondary">
+                          <Button size="sm" variant="secondary" disabled={p.blank}>
                             Activate
                           </Button>
                         </ActionForm>

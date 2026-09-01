@@ -210,6 +210,7 @@ async function loadSettingsProps() {
         p.stackRequired.slice(0, 4).join(', ') +
         (p.stackRequired.length > 4 ? '...' : ''),
       active: active?.id === p.id,
+      blank: isBlankProfile(p),
     })),
     activeProfile: active,
     availableTargets: targets.map((t) => ({
@@ -646,6 +647,16 @@ settingsRoute.post('/settings/profiles/activate', async (c) => {
   const form = await c.req.parseBody();
   const id = Number(form.id);
   if (!Number.isFinite(id)) return flashRedirect('/settings?tab=profile', 'err', 'Invalid id.');
+  // Server-side half of the activation gate (issue #50) — the disabled
+  // Activate button is advisory only.
+  const target = await getProfile(id);
+  if (target && isBlankProfile(target)) {
+    return flashRedirect(
+      `/settings?tab=profile&profile=${id}`,
+      'err',
+      'This profile has no required stack and no role types — fill it in and save before activating.',
+    );
+  }
   try {
     await setActiveProfile(id);
   } catch (err) {
