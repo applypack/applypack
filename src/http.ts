@@ -1,6 +1,23 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
 const DEFAULT_TIMEOUT_MS = 10_000;
 const RETRY_DELAYS_MS = [1_000, 3_000];
-export const DEFAULT_USER_AGENT = 'applypack/0.11 (+https://github.com/nazboyko/applypack)';
+// major.minor from package.json so the UA stops rotting on version bumps
+// (it sat on 0.1 for ten releases). Sync read once at module load; the
+// runtime image ships package.json next to dist/.
+function packageMajorMinor(): string {
+  try {
+    const pkg = JSON.parse(readFileSync(join(__dirname, '..', 'package.json'), 'utf8')) as {
+      version?: string;
+    };
+    return (pkg.version ?? '0.0').split('.').slice(0, 2).join('.');
+  } catch {
+    return '0.0';
+  }
+}
+
+export const DEFAULT_USER_AGENT = `applypack/${packageMajorMinor()} (+https://github.com/nazboyko/applypack)`;
 
 export interface FetchOptions {
   timeoutMs?: number;

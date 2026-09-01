@@ -57,6 +57,10 @@ npm run lint:types && npm test   # must be green before every PR; CI runs the sa
   [docs/adr/](./docs/adr/).
 - Dashboard changes: check light and dark themes, keep it keyboard
   reachable, no build step in `src/web/public/`.
+- Be decent to each other — [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md)
+  applies in issues, PRs and discussions.
+- By contributing you agree your work is licensed under the
+  [MIT license](./LICENSE), the same as the project.
 
 ## PR checklist
 

@@ -1,6 +1,21 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { stripHtml, sleep } from './http';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { stripHtml, sleep, DEFAULT_USER_AGENT } from './http';
+
+describe('DEFAULT_USER_AGENT', () => {
+  it('carries the package.json major.minor, never a stale hardcode', () => {
+    const pkg = JSON.parse(
+      readFileSync(join(__dirname, '..', 'package.json'), 'utf8'),
+    ) as { version: string };
+    const majorMinor = pkg.version.split('.').slice(0, 2).join('.');
+    assert.equal(
+      DEFAULT_USER_AGENT,
+      `applypack/${majorMinor} (+https://github.com/nazboyko/applypack)`,
+    );
+  });
+});
 
 describe('stripHtml', () => {
   it('removes simple tags', () => {
