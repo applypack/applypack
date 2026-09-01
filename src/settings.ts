@@ -27,6 +27,8 @@ export interface AppSettingsView {
   aiUsage: unknown;
   /** Raw AppSettings.coverAngles JSON — parse with readCoverAngles. */
   coverAngles: unknown;
+  /** Raw AppSettings.pipelineStages JSON — parse with parseStageConfig (ADR 0025). */
+  pipelineStages: unknown;
   updatedAt: Date;
 }
 
@@ -52,6 +54,7 @@ export async function getSettings(): Promise<AppSettingsView> {
     aiEngine: row.aiEngine,
     aiUsage: row.aiUsage,
     coverAngles: row.coverAngles,
+    pipelineStages: row.pipelineStages,
     updatedAt: row.updatedAt,
   };
 }
@@ -71,6 +74,18 @@ export async function setCoverAngles(angles: {
     where: { id: SETTINGS_ID },
     update: { coverAngles: value },
     create: { id: SETTINGS_ID, coverAngles: value },
+  });
+}
+
+/** The board's work columns (ADR 0025) — always a full, validated list. */
+export async function setPipelineStages(
+  stages: { key: string; label: string }[],
+): Promise<void> {
+  const value = JSON.parse(JSON.stringify(stages)) as Prisma.InputJsonValue;
+  await prisma.appSettings.upsert({
+    where: { id: SETTINGS_ID },
+    update: { pipelineStages: value },
+    create: { id: SETTINGS_ID, pipelineStages: value },
   });
 }
 
