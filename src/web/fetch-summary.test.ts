@@ -32,7 +32,7 @@ test('aborted runs and a blank profile are named honestly', () => {
   assert.match(paused.text, /paused mid-run after 9 sources/);
   const blank = summarizeFetchRun({ ...base, persisted: 0, skippedBlankProfile: 1 });
   assert.equal(blank.kind, 'warn');
-  assert.match(blank.text, /profile is blank/);
+  assert.match(blank.text, /every running search is empty/);
   const midRun = summarizeFetchRun({ ...base, abortedMidRun: 1, skippedByPause: 20 });
   assert.equal(midRun.kind, 'warn');
   assert.match(midRun.text, /paused mid-run/);

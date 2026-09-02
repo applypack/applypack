@@ -1,6 +1,7 @@
 import type { Profile } from '@prisma/client';
 import { prisma } from './db';
 import { logger } from './logger';
+import { MAX_ACTIVE_PROFILES } from './profile-guards';
 import type { PriorityRule } from './priority-rules';
 
 const SETTINGS_ID = 1;
@@ -79,9 +80,6 @@ export async function listProfilesForResume(
 export async function listActiveProfiles(): Promise<Profile[]> {
   return prisma.profile.findMany({ where: { active: true }, orderBy: { id: 'asc' } });
 }
-
-/** How many searches may run at once — the ceiling from ADR 0028. */
-export const MAX_ACTIVE_PROFILES = 8;
 
 /**
  * Flip one search on or off. The primary cannot be switched off: it supplies
