@@ -1027,6 +1027,55 @@ before anyone else installs this.
       - **#73** verified live: a `resumeId` that no longer exists flashes
         *"That resume no longer exists — reload the page and pick another
         one. Nothing was saved."* and `profile.updatedAt` does not move.
-- [ ] `pre-public-check` — the six-point audit before strangers arrive:
-      clean install from an empty database, migrations, secrets, exposure,
-      README against the live UI, delete blast radius + a backup recipe.
+- [x] `pre-public-check` — the six-point audit, done 2026-09-02, branch
+      `pre-public-check`. Six checks, each with its evidence; **two P1s found
+      and fixed here**, two findings filed as issues.
+
+      1. **Clean install from nothing** — the check nobody had ever run. The
+         real stack down, `cp .env.example .env` (no keys of any kind), a
+         separate compose project on a fresh volume. `/` redirected to
+         `/welcome`, step 1 reported each engine honestly ("2.1.251 installed,
+         but not logged in"), step 2 fetched **2 633 jobs from 32/32 sources in
+         93 s with no AI**, step 3's no-resume fallback saved a profile, and
+         "Start the hourly watch" set `setupCompletedAt` and stopped the
+         redirect. **P1 found:** step 4 ran a full scoring pass with no engine
+         connected — ten failing calls and a minute of progress bar to be told
+         nothing could be scored. It now checks `facts.aiReady` (which the
+         wizard already computed) and sends the user back to step 1. The
+         missing *reason* on every other failure path is issue #97.
+      2. **Migrations** — all **47** applied to the empty database in order,
+         16 tables, `0` rows left unfinished in `_prisma_migrations`.
+      3. **Secrets** — `.env` is gitignored and untracked (only `.env.example`
+         is in the tree), a regex sweep for key shapes over the tracked files
+         found nothing, and `.env` has never been committed. Every variable
+         `config.ts` reads is present in `.env.example`; the two extras there
+         (`CLAUDE_CODE_OAUTH_TOKEN`, `GEMINI_API_KEY`) are the CLI credentials
+         `ai-keys.ts` reads, and both key paths (`.env` and
+         `AppSettings.aiKeys`) are documented.
+      4. **Exposure — P1, the worst finding.** The dashboard was carefully
+         bound to loopback while compose published **Postgres on
+         `0.0.0.0:5432` with the password in the compose file**. Demonstrated,
+         not theorised: `psql -h <LAN ip> -U jobhunter` from another address
+         connected and read the database — every job, resume, letter and
+         application, plus `app_settings.aiKeys`, where a pasted AI key lives
+         in plaintext (ADR 0027). Now `127.0.0.1:5433:5432`: loopback only, and
+         5433 because a host Postgres on 5432 would otherwise shadow it — the
+         gotcha this repo had been working around by hand. Re-checked after the
+         change: both LAN ports refused, host tools work on 5433, the app
+         (which uses the compose network, never this port) unaffected.
+      5. **README against the live UI** — text accurate: "22 sources" is
+         exactly the `AtsType` count minus `MANUAL`, "five AI backends" is
+         exactly `AI_PROVIDER_IDS`, and the page table already calls `/target`
+         "Compare". `overview.png` and `jobs.png` are current;
+         `target.png` is four releases stale (its nav still says "Target") →
+         issue #96, because re-shooting it needs the demo fixture that is not
+         in the repo.
+      6. **Data — P1.** There were **no backup instructions anywhere**, in a
+         project whose pitch is "your data in your own Postgres". The README
+         now carries a verified recipe: the documented `pg_dump` produced an
+         **8.7 MB dump of all 16 tables**, and the documented restore loaded it
+         into an empty database with **0 errors** (1 016 jobs, 4 resumes, 17
+         letters). Delete confirmations were re-checked against the schema's
+         cascades: the resume one was fixed in v1.19.0, but "Delete "Reddit"
+         and all its 73 jobs?" was hiding **6 tracked applications and a cover
+         letter**. Company deletes now name them.

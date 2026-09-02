@@ -4,6 +4,39 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.23.0] — 2026-09-02
+
+The pre-public audit: six checks nobody had run against this project as an
+outsider would (TASKS §14). Two of them found something.
+
+### Security
+- **The database is no longer published to your whole network.** `docker
+  compose up` published Postgres on **every interface** with the password that
+  sits in the compose file, so anyone on the same Wi-Fi could read the entire
+  database — jobs, resumes, cover letters, applications, and any AI key pasted
+  into the dashboard (`AppSettings.aiKeys`, stored in plaintext by design).
+  Demonstrated from another address before the fix. It is now published on
+  **`127.0.0.1:5433`**: loopback only, and on 5433 so it cannot be shadowed by
+  a Postgres already running on 5432. The app never used this port — it reaches
+  Postgres over the compose network — so only host tools are affected: use
+  `localhost:5433`.
+
+### Added
+- **Backup and restore, documented and verified.** A project whose whole pitch
+  is "your data in your own Postgres" had no instructions for keeping it. The
+  README now carries both commands; the dump they produce was checked (8.7 MB,
+  all 16 tables) and reloaded into an empty database with no errors.
+
+### Fixed
+- **The setup wizard no longer runs a scoring pass with no AI connected.** Step
+  1 can be skipped, and step 4 would then spend a minute failing ten calls one
+  by one before admitting nothing could be scored. It now says so before
+  starting and sends you back to step 1 — the jobs already found stay put.
+- **Deleting a company says what goes with it.** The confirm counted the jobs
+  only; on real data "Delete "Reddit" and all its 73 jobs?" was hiding six
+  tracked applications and a cover letter. It names them now, the way the
+  resume delete has since v1.19.0.
+
 ## [1.22.0] — 2026-09-02
 
 ### Added
@@ -1285,6 +1318,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[1.23.0]: https://github.com/applypack/applypack/compare/v1.22.0...v1.23.0
 [1.22.0]: https://github.com/applypack/applypack/compare/v1.21.0...v1.22.0
 [1.21.0]: https://github.com/applypack/applypack/compare/v1.20.0...v1.21.0
 [1.20.0]: https://github.com/applypack/applypack/compare/v1.19.0...v1.20.0

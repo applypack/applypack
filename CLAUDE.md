@@ -477,6 +477,8 @@ Always:
 | Tail the worker | `docker compose logs -f app` |
 | Tail the dashboard | `docker compose logs -f web` |
 | psql into the DB | `docker compose exec postgres psql -U jobhunter -d jobhunter` |
+| psql / Prisma from the HOST | port **5433** (`postgresql://jobhunter:jobhunter@localhost:5433/jobhunter`) — compose publishes the DB on loopback only, on 5433 so a host Postgres on 5432 cannot shadow it |
+| Back up the database | `docker compose exec -T postgres pg_dump -U jobhunter jobhunter > applypack-$(date +%F).sql` (verified: 8.7 MB, 16 tables; restore into an empty DB with `psql < dump`) |
 | Re-clean stored descriptions (rows with leftover markup) | `docker compose exec app node dist/scripts/backfill-descriptions.js --dry-run`, then without the flag |
 | Fingerprint existing jobs + link cross-listings | `docker compose exec app node dist/scripts/backfill-fingerprints.js --dry-run`, then without the flag |
 | Flag apply links on already-stored jobs | `docker compose exec app node dist/scripts/backfill-apply-link-flags.js --dry-run`, then without the flag |

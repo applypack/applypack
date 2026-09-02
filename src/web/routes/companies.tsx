@@ -49,6 +49,12 @@ const NewCompanySchema = z.object({
 
 export const companiesRoute = new Hono();
 
+/** One "how many rows point at this company" row, from a grouped count. */
+interface CompanyTally {
+  companyId: number;
+  n: number;
+}
+
 companiesRoute.get('/companies', async (c) => {
   const companies = await prisma.company.findMany({
     where: { atsType: { not: AtsType.MANUAL } },
@@ -73,6 +79,30 @@ companiesRoute.get('/companies', async (c) => {
     alertedMap.set(row.companyId, row._count._all);
   }
 
+  // What "Delete" would take beyond the jobs. A job cascades to the
+  // application tracked against it, its comparisons and its letters, and the
+  // confirm used to count the jobs only — on real data that hid six
+  // applications behind "and all its 73 jobs?" (audit, TASKS §14).
+  const applicationCounts = await prisma.job.groupBy({
+    by: ['companyId'],
+    where: { OR: [{ pipelineStage: { not: null } }, { status: JobStatus.APPLIED }] },
+    _count: { _all: true },
+  });
+  const applicationMap = new Map(applicationCounts.map((r) => [r.companyId, r._count._all]));
+  // Counted in SQL, one row per company: `groupBy` cannot group across a
+  // relation, and loading every match and every letter to tally them in
+  // memory would grow with the user's whole history for a confirm string.
+  const [matchCounts, letterCounts] = await Promise.all([
+    prisma.$queryRaw<CompanyTally[]>`
+      SELECT j."companyId" AS "companyId", count(*)::int AS n
+      FROM resume_match m JOIN job j ON j.id = m."jobId" GROUP BY j."companyId"`,
+    prisma.$queryRaw<CompanyTally[]>`
+      SELECT j."companyId" AS "companyId", count(*)::int AS n
+      FROM cover_letter l JOIN job j ON j.id = l."jobId" GROUP BY j."companyId"`,
+  ]);
+  const matchMap = new Map(matchCounts.map((r) => [r.companyId, r.n]));
+  const letterMap = new Map(letterCounts.map((r) => [r.companyId, r.n]));
+
   const settings = await getSettings();
   const now = new Date();
   const rows = companies.map((c) => ({
@@ -84,6 +114,12 @@ companiesRoute.get('/companies', async (c) => {
     careerUrl: c.careerUrl,
     jobsTotal: c._count.jobs,
     alertedTotal: alertedMap.get(c.id) ?? 0,
+    deleteImpact: {
+      jobs: c._count.jobs,
+      applications: applicationMap.get(c.id) ?? 0,
+      comparisons: matchMap.get(c.id) ?? 0,
+      letters: letterMap.get(c.id) ?? 0,
+    },
     lastFetchedAt: c.jobs[0]?.fetchedAt ?? null,
     lastFetchStatus: c.lastFetchStatus,
     consecutiveFailures: c.consecutiveFailures,
