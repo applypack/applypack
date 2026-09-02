@@ -26,6 +26,25 @@ export interface FilterProfile {
   hybridOk: boolean;
 }
 
+/**
+ * ADR 0028: with several searches running, a posting is admitted when ANY of
+ * them admits it — a plain union, and free, because the gate is pure string
+ * work. `passesBaseFilter` stays single-profile on purpose: the per-search
+ * answer is what the classifier prompt and the alert routing need, and a
+ * function that took an array would have to invent a meaning for "the"
+ * profile's excludes.
+ *
+ * No active searches means nothing is admitted. That is not a degenerate
+ * case to paper over — a deployment with every search switched off has asked
+ * for silence, and the tick says so in its stats.
+ */
+export function passesAnyBaseFilter(
+  job: FilterableJob,
+  profiles: readonly FilterProfile[],
+): boolean {
+  return profiles.some((p) => passesBaseFilter(job, p));
+}
+
 export function passesBaseFilter(
   job: FilterableJob,
   profile: FilterProfile,

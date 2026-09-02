@@ -70,6 +70,44 @@ export async function listProfilesForResume(
   });
 }
 
+/**
+ * Every search that is running (ADR 0028). Ordered by id so the classifier
+ * prompt is byte-stable across a tick and the score line reads the same way
+ * twice. The primary is guaranteed to be in here — `setActiveProfile` marks it
+ * active — so a caller that only wants defaults can still use getActiveProfile.
+ */
+export async function listActiveProfiles(): Promise<Profile[]> {
+  return prisma.profile.findMany({ where: { active: true }, orderBy: { id: 'asc' } });
+}
+
+/** How many searches may run at once — the ceiling from ADR 0028. */
+export const MAX_ACTIVE_PROFILES = 8;
+
+/**
+ * Flip one search on or off. The primary cannot be switched off: it supplies
+ * the defaults every page falls back to, and a primary that scores nothing is
+ * a dashboard that quietly stops working.
+ */
+export async function setProfileActive(id: number, active: boolean): Promise<void> {
+  const profile = await prisma.profile.findUnique({ where: { id } });
+  if (!profile) throw new Error(`Profile ${id} not found`);
+  if (active) {
+    const running = await prisma.profile.count({ where: { active: true, id: { not: id } } });
+    if (running >= MAX_ACTIVE_PROFILES) {
+      throw new Error(
+        `At most ${MAX_ACTIVE_PROFILES} searches can run at once. Switch one off first.`,
+      );
+    }
+  } else {
+    const settings = await prisma.appSettings.findUnique({ where: { id: SETTINGS_ID } });
+    if (settings?.activeProfileId === id) {
+      throw new Error('The primary search cannot be switched off. Make another one primary first.');
+    }
+  }
+  await prisma.profile.update({ where: { id }, data: { active } });
+  logger.info({ profileId: id, name: profile.name, active }, 'profiles: active toggled');
+}
+
 export async function getActiveProfile(): Promise<Profile | null> {
   const settings = await prisma.appSettings.findUnique({
     where: { id: SETTINGS_ID },
@@ -90,12 +128,12 @@ export async function updateProfile(
 }
 
 export async function deleteProfile(id: number): Promise<void> {
-  // Cannot delete the active profile — UI must switch first.
+  // Cannot delete the primary profile — UI must switch first.
   const settings = await prisma.appSettings.findUnique({
     where: { id: SETTINGS_ID },
   });
   if (settings?.activeProfileId === id) {
-    throw new Error('Cannot delete the active profile. Switch to another first.');
+    throw new Error('Cannot delete the primary profile. Make another one primary first.');
   }
   await prisma.profile.delete({ where: { id } });
 }
@@ -110,5 +148,8 @@ export async function setActiveProfile(id: number): Promise<void> {
     update: { activeProfileId: id },
     create: { id: SETTINGS_ID, activeProfileId: id },
   });
-  logger.info({ profileId: id, name: profile.name }, 'profiles: active set');
+  // The primary always runs: it is the fallback every page reads, so leaving
+  // it switched off would show defaults from a search that scores nothing.
+  await prisma.profile.update({ where: { id }, data: { active: true } });
+  logger.info({ profileId: id, name: profile.name }, 'profiles: primary set');
 }

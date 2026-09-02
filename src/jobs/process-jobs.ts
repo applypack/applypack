@@ -3,12 +3,13 @@ import { prisma } from '../db';
 import { config } from '../config';
 import { logger } from '../logger';
 import { createLimiter } from '../concurrency';
-import { passesBaseFilter } from '../filter';
+import { passesAnyBaseFilter } from '../filter';
 import { withApplyLinkFlags } from '../apply-link';
 import { classifyJob, type ClassifyOutcome } from '../classifier';
+import { buildVerdicts, mergeVerdicts, type ProfileVerdict } from './verdict-merge';
+import { toScoreData } from './score-store';
 import { isBlankProfile, NO_PROFILE_STACK_FLAG } from '../profile-guards';
 import { sendTelegramAlert } from '../notifier';
-import { applyPriorityFloor, parsePriorityRules } from '../priority-rules';
 import type { ClassifierMode } from '../settings';
 import {
   findCrossListing,
@@ -18,7 +19,6 @@ import {
   type FingerprintedJob,
 } from '../fingerprint';
 
-export { applyPriorityFloor };
 import type {
   ClaudeClassification,
   ClassifyInput,
@@ -46,7 +46,7 @@ export interface ProcessStats {
   abortedMidRun: number;
   /** Classifications scheduled but discarded by the mid-run abort. */
   skippedByPause: number;
-  /** 1 when the tick skipped classify+alerts because the profile is blank. */
+  /** 1 when the tick skipped classify+alerts because no usable search is active. */
   skippedBlankProfile: number;
 }
 
@@ -72,25 +72,30 @@ const DEDUP_WINDOW_DAYS = 90;
  */
 export async function processNormalizedJobs(
   items: FetchResult[],
-  profile: Profile,
+  activeProfiles: Profile[],
   stats: ProcessStats,
   opts: ProcessOptions,
 ): Promise<void> {
   const { classifierMode, classify = true, isCancelled } = opts;
 
-  // Issue #50: a profile with no required stack and no role types has nothing
+  // Issue #50: a search with no required stack and no role types has nothing
   // to gate on — the filter admits everything and the classifier scores on
-  // vibes. Fetching already happened (source health stays alive); stop here.
-  if (classify && isBlankProfile(profile)) {
-    stats.skippedBlankProfile = 1;
+  // vibes. With several searches running one blank row must not silence the
+  // others, so it is dropped from the roster rather than aborting the tick.
+  const profiles = activeProfiles.filter((p) => !isBlankProfile(p));
+  const blank = activeProfiles.filter((p) => isBlankProfile(p));
+  if (blank.length > 0) {
     logger.warn(
-      { profile: profile.name },
-      'process-jobs: active profile has no required stack and no role types; skipping classification and alerts',
+      { blank: blank.map((p) => p.name) },
+      'process-jobs: search has no required stack and no role types; excluded from this tick',
     );
+  }
+  // Fetching already happened (source health stays alive); stop here.
+  if (classify && profiles.length === 0) {
+    stats.skippedBlankProfile = 1;
+    logger.warn('process-jobs: no usable active search; skipping classification and alerts');
     return;
   }
-
-  const priorityRules = parsePriorityRules(profile.priorityRules);
 
   // Once true, queued classify thunks below become no-ops, so an abort
   // stops the AI spend, not just the persist/alert loop.
@@ -105,7 +110,10 @@ export async function processNormalizedJobs(
       cancelled = true;
       break;
     }
-    if (!passesBaseFilter(item.job, profile)) {
+    // A posting is admitted when ANY active search admits it (ADR 0028).
+    // The unfiltered roster is used while storing unscored, so "Fetch now"
+    // with every search paused still keeps what the searches would want.
+    if (!passesAnyBaseFilter(item.job, classify ? profiles : activeProfiles)) {
       stats.filterRejected++;
       continue;
     }
@@ -144,10 +152,10 @@ export async function processNormalizedJobs(
   const pending = candidates.map((item) => ({
     ...item,
     outcome: limit(async (): Promise<ClassifyOutcome> => {
-      if (cancelled) return { result: null, preFiltered: false };
+      if (cancelled) return { results: new Map(), preFiltered: false };
       return classifyJob(
         buildClassifyInput(item.job, item.companyName),
-        profile,
+        profiles,
         classifierMode,
       );
     }),
@@ -176,37 +184,38 @@ export async function processNormalizedJobs(
       break;
     }
     consumed++;
-    const { result: classification, preFiltered } = await outcome;
+    const { results, preFiltered } = await outcome;
     if (preFiltered) {
       stats.preFiltered++;
       continue;
     }
-    if (!classification) {
+    if (results.size === 0) {
       stats.classifyFailed++;
       continue;
     }
     stats.classified++;
 
-    const priority = applyPriorityFloor(classification, priorityRules, job);
-    if (priority.applied.length > 0) {
-      stats.priorityBoosted++;
-      logger.info(
-        {
-          title: job.title,
-          companyName,
-          fitBefore: classification.fit_score,
-          fitAfter: priority.classification.fit_score,
-          rules: priority.applied.map((r) => r.label),
-        },
-        'process-jobs: priority rule applied',
-      );
+    // Every search judges the posting with its own rules and its own
+    // thresholds — the reply is shared, the verdict is not.
+    const { verdicts, boosted } = buildVerdicts(results, profiles, job);
+    stats.priorityBoosted += boosted;
+    const merged = mergeVerdicts(verdicts);
+    if (!merged) {
+      stats.classifyFailed++;
+      continue;
     }
-    const finalClassification = priority.classification;
-    const appliedLabels = priority.applied.map((r) => r.label);
+    const { winner, kept, scoreLine } = merged;
+    const finalClassification = winner.classification;
 
-    const dismissReason = decideDismissReason(finalClassification, profile);
-    if (dismissReason) {
-      const stored = await persistJob(item, finalClassification, JobStatus.DISMISSED, appliedLabels, batch);
+    if (!kept) {
+      const stored = await persistJob(
+        item,
+        finalClassification,
+        JobStatus.DISMISSED,
+        winner.priorityRulesApplied,
+        batch,
+        verdicts,
+      );
       if (stored) {
         stats.dismissed++;
         logger.debug(
@@ -214,15 +223,23 @@ export async function processNormalizedJobs(
             title: job.title,
             companyName,
             fitScore: finalClassification.fit_score,
-            reason: dismissReason,
+            reason: winner.dismissReason,
+            searches: scoreLine,
           },
-          'process-jobs: dismissed',
+          'process-jobs: dismissed by every search',
         );
       }
       continue;
     }
 
-    const stored = await persistJob(item, finalClassification, JobStatus.NEW, appliedLabels, batch);
+    const stored = await persistJob(
+      item,
+      finalClassification,
+      JobStatus.NEW,
+      winner.priorityRulesApplied,
+      batch,
+      verdicts,
+    );
     if (!stored) continue;
     const { created, crossListing } = stored;
 
@@ -248,8 +265,13 @@ export async function processNormalizedJobs(
           crossListedAt: crossListing
             ? await companyNameOfJob(crossListing.job.id)
             : null,
+          // One alert per posting, naming the search that wanted it and what
+          // the others made of it (ADR 0028).
+          matchedProfile: winner.profileName,
+          profileScores: verdicts.length > 1 ? scoreLine : null,
         },
-        profile,
+        // Routed to the winning search's chat; null still broadcasts.
+        winner.telegramTargetId,
       );
       await prisma.job.update({
         where: { id: created.id },
@@ -290,23 +312,6 @@ function buildClassifyInput(
     description: job.description,
     postedAt: job.postedAt,
   };
-}
-
-function decideDismissReason(
-  c: ClaudeClassification,
-  profile: Profile,
-): 'low-fit' | 'location-mismatch' | 'low-salary' | null {
-  if (c.fit_score < profile.minFitScore) return 'low-fit';
-  if (!c.location_match) return 'location-mismatch';
-  if (
-    profile.minSalaryUsd > 0 &&
-    c.salary_min_usd !== null &&
-    c.salary_min_usd > 0 &&
-    c.salary_min_usd < profile.minSalaryUsd
-  ) {
-    return 'low-salary';
-  }
-  return null;
 }
 
 /** Fingerprints from the dedup window, oldest first. */
@@ -350,6 +355,7 @@ async function persistJob(
   status: JobStatus,
   priorityRulesApplied: string[],
   { stats, recentFingerprints }: Batch,
+  verdicts: ProfileVerdict[] = [],
 ): Promise<{ created: Job; crossListing: CrossListing } | null> {
   const fingerprint = simhash64(job.description);
   const crossListing = findCrossListing(fingerprint, job.companyId, recentFingerprints);
@@ -357,10 +363,15 @@ async function persistJob(
   let created: Job;
   try {
     created = await prisma.job.create({
-      data: buildJobData(job, c, status, priorityRulesApplied, {
-        descriptionSimhash: fingerprint,
-        crossListedOfJobId: crossListing?.job.id ?? null,
-      }),
+      data: {
+        ...buildJobData(job, c, status, priorityRulesApplied, {
+          descriptionSimhash: fingerprint,
+          crossListedOfJobId: crossListing?.job.id ?? null,
+        }),
+        // Every search's verdict, written with the row it belongs to — a
+        // second statement could leave a scored Job with no JobScore.
+        scores: { create: verdicts.map(toScoreData) },
+      },
     });
   } catch (err) {
     if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
