@@ -11,6 +11,9 @@ import {
   type MatchJobInput,
 } from './prompts';
 import { annotateElsewhere, applyFacts } from './facts';
+import { withTableAliases } from './keyword-aliases';
+import { anchorKeywords } from './keyword-anchor';
+import { loadKeywordMatcher } from './keyword-matcher';
 import { canReuseMatch, readPromptVersion } from './match-reuse';
 import { scoreMatch } from './score';
 import {
@@ -40,10 +43,11 @@ export async function matchResumeToJob(
   job: MatchJobInput & { id: number },
   opts: { draft?: boolean } = {},
 ): Promise<ResumeMatch | null> {
-  const [facts, otherSkills, previousMatch] = await Promise.all([
+  const [facts, otherSkills, previousMatch, matcher] = await Promise.all([
     listFacts(),
     listOtherResumeSkills(resume.id),
     getLatestMatchForJob(job.id),
+    loadKeywordMatcher(),
   ]);
   const context: MatchContext = {
     confirmedFacts: facts.filter((f) => f.status === 'confirmed').map((f) => ({ term: f.term, note: f.note })),
@@ -74,9 +78,16 @@ export async function matchResumeToJob(
     const model = (out.model || out.providerId) + (out.viaFallback ? ' · fallback' : '');
     const parsed = parseMatchResponse(out.text);
     if (parsed.ok) {
-      // Deterministic guarantees on top of the model's judgment: stored facts
-      // always win, and unclaimable terms point at the resume that has them.
-      const withFacts = applyFacts(parsed.data.keywords, facts).keywords;
+      // Deterministic guarantees on top of the model's judgment: the alias
+      // table joins the model's spellings, every term is anchored to the
+      // posting (or flagged), stored facts always win, and unclaimable terms
+      // point at the resume that has them.
+      const anchor = anchorKeywords(
+        parsed.data.keywords.map(withTableAliases),
+        `${job.title}\n${job.description}`,
+        matcher,
+      );
+      const withFacts = applyFacts(anchor.keywords, facts).keywords;
       const keywords = annotateElsewhere(withFacts, otherSkills);
       const breakdown = scoreMatch(keywords, parsed.data.alignment, parsed.data.red_flags.length);
       const row = await createMatch({
@@ -99,6 +110,9 @@ export async function matchResumeToJob(
           draft: row.draft,
           score: row.matchScore,
           cap: breakdown.cap,
+          keywords: keywords.length,
+          anchored: anchor.anchored,
+          unanchored: anchor.unanchored,
           promptVersion: PROMPT_VERSION,
           ms: Date.now() - started,
         },

@@ -31,8 +31,11 @@ const NOT_AFTER = '(?![\\w+#])(?!\\.\\w)';
  * in the original — spans found here are applied to the original verbatim.
  */
 export function normalise(s) {
+  return foldChars(s).toLowerCase();
+}
+
+function foldChars(s) {
   return s
-    .toLowerCase()
     .replace(/[\u2018\u2019]/g, "'")
     .replace(/[\u201c\u201d]/g, '"')
     .replace(/[\u00a0\t]/g, ' ');
@@ -42,26 +45,69 @@ function escapeRegex(s) {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+// Separators between the tokens of a multi-token term are interchangeable and
+// optional: "CI/CD" = "CI / CD" = "CI-CD", "Node.js" = "NodeJS", "front-end" =
+// "front end" = "frontend". Leading and trailing ones stay literal (".NET").
+const SEPARATOR = '[\\s/.\\-]*';
+const SEPARATOR_RUN = /[\s/.\-]+/;
+const EDGES = /^([\s/.\-]*)(.*?)([\s/.\-]*)$/s;
+
+/**
+ * Regex fragment for the last token of a term: the token plus its regular
+ * plural ("pipeline" → pipelines, "query" → queries, "class" → classes) and,
+ * for a plural token, its singular ("microservices" → microservice, "APIs" →
+ * API, "patches" → patch). A plural is a lowercase word or an acronym ending
+ * in a lowercase s — Capitalised names that end in s (Rails, Windows,
+ * Kubernetes) stay exact, and so do the two names whose lowercase alias
+ * would otherwise light unrelated text ("light rail", "window functions").
+ * No other stemming: irregular pairs belong in the alias table
+ * (src/resume/keyword-aliases.ts).
+ */
+const NOT_PLURAL = new Set(['rails', 'windows']);
+
+function pluralTolerant(token) {
+  const t = token.toLowerCase();
+  const literal = escapeRegex(t);
+  if (t.length < 3 || !/[a-z]$/.test(t) || NOT_PLURAL.has(t)) return literal;
+  if (t.endsWith('ss')) return `${literal}(?:es)?`;
+  if (/^[a-z]{3,}s$/.test(token) || /^[A-Z0-9]{2,}s$/.test(token)) {
+    if (t.endsWith('ies') && t.length >= 6) return `${escapeRegex(t.slice(0, -3))}(?:y|ie|ies)`;
+    const stem = t.slice(0, -2);
+    if (t.endsWith('es') && stem.length >= 4 && /(?:[sxz]|[cs]h)$/.test(stem)) return `${escapeRegex(stem)}(?:e|es)?`;
+    return `${escapeRegex(t.slice(0, -1))}(?:e?s)?`;
+  }
+  if (t.length >= 4 && /[^aeiou]y$/.test(t)) return `${escapeRegex(t.slice(0, -1))}(?:y|ies)`;
+  return `${literal}(?:e?s)?`;
+}
+
 /** Regex matching `term` as a whole token (no letters/digits/./+/# glued to it). */
 export function termPattern(term) {
-  // Runs of whitespace inside a term ("continuous  delivery") match any run in the text.
-  const t = escapeRegex(normalise(term).trim()).replace(/ +/g, '\\s+');
-  if (t.length === 0) return null;
+  const [, lead, core, trail] = EDGES.exec(foldChars(term).trim());
+  const tokens = core.split(SEPARATOR_RUN).filter((t) => t.length > 0);
+  if (tokens.length === 0) return null;
+  const parts = tokens.map((t) => escapeRegex(t.toLowerCase()));
+  if (trail === '') parts[parts.length - 1] = pluralTolerant(tokens[tokens.length - 1]);
+  const body = escapeRegex(lead) + parts.join(SEPARATOR) + escapeRegex(trail);
   // Terms that start/end with a symbol (".net", "c++") cannot use \b; use lookarounds on token chars.
-  return new RegExp(`${NOT_BEFORE}${t}${NOT_AFTER}`, 'g');
+  return new RegExp(`${NOT_BEFORE}${body}${NOT_AFTER}`, 'g');
 }
 
 /** All occurrences of term + aliases in text → [{start, end}] on the ORIGINAL text (same length after normalise). */
 export function findTerm(text, term, aliases = []) {
   const hay = normalise(text);
+  const seen = new Set();
   const spans = [];
   for (const candidate of new Set([term, ...aliases])) {
     const re = termPattern(candidate);
     if (!re) continue;
     let m;
     while ((m = re.exec(hay)) !== null) {
-      spans.push({ start: m.index, end: m.index + m[0].length });
       if (m[0].length === 0) re.lastIndex++;
+      const key = `${m.index}:${m.index + m[0].length}`;
+      // Aliases that spell the same span ("front end" / "frontend") count it once.
+      if (seen.has(key)) continue;
+      seen.add(key);
+      spans.push({ start: m.index, end: m.index + m[0].length });
     }
   }
   return spans.sort((a, b) => a.start - b.start);

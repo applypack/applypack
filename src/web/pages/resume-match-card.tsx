@@ -552,6 +552,11 @@ const KeywordRow: FC<{ k: MatchKeyword }> = ({ k }) => (
       <span class="inline-flex flex-wrap items-center gap-1">
         <Badge tone={STATUS_VIEW[k.status].tone}>{STATUS_VIEW[k.status].label}</Badge>
         {k.elsewhere && <Badge tone="violet">in "{k.elsewhere}"</Badge>}
+        {k.unanchored && (
+          <span title="The AI worded this keyword differently from the posting, so the description pane cannot highlight it.">
+            <Badge>not in posting</Badge>
+          </span>
+        )}
       </span>
     </Td>
     <Td class="text-xs text-ink-muted">{k.where ?? '—'}</Td>

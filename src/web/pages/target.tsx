@@ -5,6 +5,7 @@ import { Badge, Button, Card, FitBadge, Flash, Hint, SUBMIT_ONCE } from '../ui';
 import type { FlashMessage } from '../flash';
 import { fitTone, formatRelative, type Tone } from '../format';
 import type { MatchWithResume } from '../../resume/store';
+import { withTableAliases } from '../../resume/keyword-aliases';
 import { readActions, readHardRequirements, readKeywords, readRemovals } from '../../resume/prompts';
 import { readBreakdown } from '../../resume/score';
 import {
@@ -98,7 +99,8 @@ export const TargetPage: FC<TargetPageProps> = ({
   resumeText,
   flash,
 }) => {
-  const keywords = readKeywords(match.keywords);
+  // Table spellings apply on read too, so matches stored before the table (or before an entry) highlight the same way.
+  const keywords = readKeywords(match.keywords).map(withTableAliases);
   const actions = readActions(match.actions);
   const removals = readRemovals(match.removals);
   const hard = readHardRequirements(match.hardRequirements);
@@ -417,6 +419,9 @@ export const TargetPage: FC<TargetPageProps> = ({
             id="jd"
             class="max-h-[70vh] overflow-auto whitespace-pre-wrap break-words font-sans text-sm leading-7 text-ink-muted"
           ></div>
+          <Hint class="mt-2">
+            Highlights follow the AI's keyword list — benefits, perks and legal boilerplate are deliberately never keywords.
+          </Hint>
         </Card>
 
         <Card class="pane-resume">

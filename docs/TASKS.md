@@ -810,8 +810,8 @@ icon; progress visible step-by-step via the target-run registry pattern.
 
 ## 13. /target compare speed (30-40 s) + keyword-matcher accuracy (analysis 2026-08-31)
 
-Full plan: [docs/target-plan.md](./target-plan.md). **Block 1 shipped
-2026-09-02 (measured numbers in the plan's §2.3); blocks 2–6 open.** §12's
+Full plan: [docs/target-plan.md](./target-plan.md). **Blocks 1–2 shipped
+2026-09-02 (measured numbers in the plan's §2.3 and §4); blocks 3–6 open.** §12's
 async-upload item overlaps the `/resumes`
 sync-scan finding, planned there, referenced here.
 
@@ -836,15 +836,28 @@ Sonnet bench for the resume role — not "make Opus stream faster".
       `/target` compare 158 → 128 s, a repeat 158 → 38 s, Compare repeat
       109 → 0 s, re-upload 117 → 95 s; the match call itself is 78–109 s
       (p50 ≈ 94 s) — 30–40 s needs blocks 3–4.
-- [ ] `keyword-matcher-v2` — persist-time verbatim guard, deterministic
-      alias table (`keyword-aliases.ts`, pure), plural + separator
-      tolerance in `termPattern`, tiered keyword budget (all must/
-      preferred always listed); table-driven tests
+- [x] `keyword-matcher-v2` — persist-time verbatim guard
+      (`keyword-anchor.ts`: a paraphrased term is re-anchored to the longest
+      verbatim phrase of itself the posting contains, else flagged
+      `unanchored` — "not in posting" in the keyword table, counted on the
+      `resume: matched` log line), deterministic alias table
+      (`keyword-aliases.ts`, 170 spelling groups, applied at persist time
+      and when a stored match loads), plural + separator tolerance in
+      `termPattern`; table-driven tests — done 2026-09-02, branch
+      `keyword-matcher-v2` (PR #80). Measured on the 15 stored comparisons
+      (`npm run keywords:audit`, no AI): rows with no highlight in the
+      posting 54 → 53 of 305, `present` rows with no highlight in the
+      resume 36 → 35 of 181; what remains are paraphrases from pre-v5
+      analyses — on the current prompt no stored row misses the posting.
+      The tiered keyword budget (F1) is a prompt change and moved to
+      `match-fast-mode` below; "Rebuild keywords" (F7) is issue #79.
 - [ ] `target-instant-check` — reupload → parse-only dirty draft in the
       target editor (~2-5 s, zero AI), "Re-analyze" upgrades on demand
 - [ ] `match-fast-mode` — keywords-only prompt variant (score-complete
       subset, ~¼ output tokens) + `bench:resume` Sonnet-vs-Opus decision
-      (**PROMPT_VERSION bump**; possibly ADR)
+      + the tiered keyword budget from §4 F1 (every must/preferred term
+      listed, the soft cap only on nice/context) — one
+      **PROMPT_VERSION bump** for all three; possibly ADR
 - [ ] `keyword-priority-ui` — per-keyword user overrides (re-level /
       exclude / add own term) via existing `updateMatchScoring`, visual
       weight for must+primary misses, posting-frequency tiebreaker

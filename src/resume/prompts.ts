@@ -103,6 +103,9 @@ export const MatchSchema = z.object({
         note: nullableText,
         // Set by post-processing when another stored resume evidences the term.
         elsewhere: nullableText,
+        // Set by post-processing when the posting contains the term in no
+        // recognisable spelling — the panes cannot highlight it (F2 guard).
+        unanchored: z.boolean().optional(),
       }),
     )
     .max(80)
