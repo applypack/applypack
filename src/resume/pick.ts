@@ -39,6 +39,22 @@ export function preselectResume<T extends PickableResume>(
   return linked ?? pickResumeForJob(resumes, jobText);
 }
 
+/**
+ * Which resume the "Mark applied" select starts on. A comparison the user
+ * actually ran on this posting is the strongest evidence of what they sent, so
+ * the newest match wins; with no match it falls back to whatever the page
+ * already preselected (`preselectResume`: the winning search's resume, else
+ * skill overlap). A match against a resume that is gone or hidden — the
+ * /target scratch row never appears in the picker — falls back too.
+ */
+export function preselectAppliedResume<T extends PickableResume>(
+  resumes: T[],
+  latestMatchResumeId: number | null,
+  suggested: T | null,
+): T | null {
+  return resumes.find((r) => r.id === latestMatchResumeId) ?? suggested;
+}
+
 /** Number of skill tags that appear in the text as whole tokens. Exported for tests. */
 export function countSkillHits(skills: string[], text: string): number {
   const haystack = tokenise(text);

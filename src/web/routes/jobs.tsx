@@ -35,7 +35,7 @@ import {
   updateCoverLetterEdit,
   upsertScratchResume,
 } from '../../resume/store';
-import { preselectResume } from '../../resume/pick';
+import { preselectAppliedResume, preselectResume } from '../../resume/pick';
 import { matchResumeToJob } from '../../resume/match';
 import { generateCoverLetter } from '../../resume/cover-letter';
 import {
@@ -82,6 +82,8 @@ const ListQuerySchema = z.object({
 
 const StatusBodySchema = z.object({
   status: z.enum(['NEW', 'ALERTED', 'APPLIED', 'SAVED', 'DISMISSED']),
+  // Stage C: only read when the status is APPLIED. Empty = "don't record one".
+  appliedResumeId: z.coerce.number().int().positive().optional(),
 });
 
 export const jobsRoute = new Hono();
@@ -215,6 +217,9 @@ jobsRoute.get('/jobs/:id', async (c) => {
         crossListings: {
           select: { id: true, title: true, company: { select: { name: true } } },
         },
+        // Stage C: the resume this application went out with. Only the name is
+        // read — the version and text snapshot live on the job itself.
+        appliedResume: { select: { name: true } },
         // Every search's verdict, best first (ADR 0028).
         scores: {
           include: { profile: { select: { id: true, name: true, resumeId: true, active: true } } },
@@ -243,11 +248,19 @@ jobsRoute.get('/jobs/:id', async (c) => {
   const linkedResumeId = winning?.resumeId ?? activeProfile?.resumeId ?? null;
   const suggested = preselectResume(resumes, `${job.title} ${job.description}`, linkedResumeId);
   const suggestedReason = suggested && suggested.id === linkedResumeId ? 'linked' : 'overlap';
+  // "Mark applied" starts on the resume this posting was actually compared
+  // with — the comparison on screen — and only falls back to the page's own
+  // preselect (Stage C).
+  const appliedPick = preselectAppliedResume(resumes, selected?.resumeId ?? null, suggested);
 
   const flashCookie = parseFlashCookie(c.req.header('cookie'));
   return c.html(
     <JobDetailPage
       job={job}
+      appliedResumePicker={{
+        resumes: resumes.map((r) => ({ id: r.id, name: r.name })),
+        suggestedId: appliedPick?.id ?? null,
+      }}
       profileScores={job.scores.map((sc) => ({
         profileId: sc.profileId,
         name: sc.profile.name,
@@ -290,7 +303,10 @@ jobsRoute.post('/jobs/:id/status', async (c) => {
   if (!Number.isFinite(id)) return c.text('Bad id', 400);
 
   const form = await c.req.parseBody();
-  const parsed = StatusBodySchema.safeParse({ status: form.status });
+  const parsed = StatusBodySchema.safeParse({
+    status: form.status,
+    appliedResumeId: form.appliedResumeId === '' ? undefined : form.appliedResumeId,
+  });
   if (!parsed.success) return c.text('Invalid status', 400);
 
   const data: Prisma.JobUpdateInput = { status: parsed.data.status };
@@ -316,6 +332,18 @@ jobsRoute.post('/jobs/:id/status', async (c) => {
       }
       if (!current?.appliedAt) data.appliedAt = new Date();
     }
+
+    // Stage C. The snapshot is what makes this answerable later: the bytes of
+    // a resume are replaced in place on "Upload a new version", so the id and
+    // the version alone would name v3 and hand back v5's words. The select is
+    // the whole answer — an empty pick, a resume deleted in another tab and the
+    // /target scratch row all record nothing rather than block the status change.
+    const requested = parsed.data.appliedResumeId;
+    const picked = requested ? await getResume(requested) : null;
+    const applied = picked && !picked.hidden ? picked : null;
+    data.appliedResume = applied ? { connect: { id: applied.id } } : { disconnect: true };
+    data.appliedResumeVersion = applied?.version ?? null;
+    data.appliedResumeText = applied?.text ?? null;
   }
 
   const update = prisma.job.update({ where: { id }, data });

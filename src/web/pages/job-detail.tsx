@@ -18,6 +18,7 @@ import {
   Textarea,
 } from '../ui';
 import { formatDate, formatSalary } from '../format';
+import { appliedWithLabel } from '../../jobs/applied-with';
 import type { FlashMessage } from '../flash';
 import { CoverLetterCard, type CoverLetterCardProps } from './cover-letter-card';
 import { ResumeMatchCard, type ResumeMatchCardProps } from './resume-match-card';
@@ -42,6 +43,9 @@ interface JobDetail {
   externalId: string;
   company: { id: number; name: string; atsType: string };
   appliedAt: Date | null;
+  appliedResumeVersion: number | null;
+  /** null once the resume row is deleted — the snapshot outlives it. */
+  appliedResume: { name: string } | null;
   pipelineStage: string | null;
   recruiterContact: string | null;
   applicationNotes: string | null;
@@ -72,6 +76,8 @@ export interface ProfileScore {
 
 export interface JobDetailProps {
   job: JobDetail;
+  /** Resumes offered by "Mark applied", and the one it starts on. */
+  appliedResumePicker: { resumes: { id: number; name: string }[]; suggestedId: number | null };
   /** Every search that has scored this posting, best first. */
   profileScores: ProfileScore[];
   applicationTrackingEnabled: boolean;
@@ -84,8 +90,8 @@ export interface JobDetailProps {
   flash?: FlashMessage | null;
 }
 
+// "Mark applied" is not here — it carries the resume select, so MarkAppliedForm owns it.
 const STATUS_ACTIONS: { status: JobStatus; label: string; variant: ButtonVariant }[] = [
-  { status: 'APPLIED', label: 'Mark applied', variant: 'primary' },
   { status: 'SAVED', label: 'Save', variant: 'violet' },
   { status: 'DISMISSED', label: 'Dismiss', variant: 'secondary' },
   { status: 'NEW', label: 'Reopen', variant: 'secondary' },
@@ -93,6 +99,7 @@ const STATUS_ACTIONS: { status: JobStatus; label: string; variant: ButtonVariant
 
 export const JobDetailPage: FC<JobDetailProps> = ({
   job,
+  appliedResumePicker,
   profileScores,
   applicationTrackingEnabled,
   pipelineStages,
@@ -112,6 +119,7 @@ export const JobDetailPage: FC<JobDetailProps> = ({
       <div class="min-w-0 space-y-4 xl:order-2">
         <Card>
           <SectionTitle>Actions</SectionTitle>
+          <MarkAppliedForm job={job} picker={appliedResumePicker} />
           <div class="flex flex-wrap items-center gap-2">
             {STATUS_ACTIONS.filter((a) => a.status !== job.status).map((a) => (
               <ActionForm action={`/jobs/${job.id}/status`} hidden={{ status: a.status }}>
@@ -137,6 +145,7 @@ export const JobDetailPage: FC<JobDetailProps> = ({
             <FactRow label="Posted">{formatDate(job.postedAt)}</FactRow>
             <FactRow label="Fetched">{formatDate(job.fetchedAt)}</FactRow>
             {job.alertedAt && <FactRow label="Alerted">{formatDate(job.alertedAt)}</FactRow>}
+            <AppliedWithRow job={job} />
             <FactRow label="Source">{job.company.atsType.replace('_', ' ')}</FactRow>
             <FactRow label="External id">
               <span class="block truncate font-mono text-xs" title={job.externalId}>
@@ -357,6 +366,49 @@ const PageHeaderBlock: FC<{ job: JobDetail }> = ({ job }) => (
     </div>
   </header>
 );
+
+/**
+ * "Mark applied" plus the resume it went out with. The select is the whole
+ * point of the button here: the answer is only knowable at the moment of
+ * applying, and a resume is edited in place afterwards, so the route stores a
+ * text snapshot alongside the id (Stage C).
+ */
+const MarkAppliedForm: FC<{ job: JobDetail; picker: JobDetailProps['appliedResumePicker'] }> = ({
+  job,
+  picker,
+}) =>
+  job.status === 'APPLIED' ? null : (
+    <ActionForm
+      action={`/jobs/${job.id}/status`}
+      hidden={{ status: 'APPLIED' }}
+      class={picker.resumes.length > 0 ? 'mb-3 space-y-2' : 'mb-3'}
+    >
+      {picker.resumes.length > 0 && (
+        <Field label="Applied with" hint="Recorded with the version you sent, for the follow-up nudge.">
+          <Select name="appliedResumeId">
+            <option value="">— don't record a resume —</option>
+            {picker.resumes.map((r) => (
+              <option value={r.id} selected={r.id === picker.suggestedId}>
+                {r.name}
+              </option>
+            ))}
+          </Select>
+        </Field>
+      )}
+      <Button variant="primary" size="sm">
+        Mark applied
+      </Button>
+    </ActionForm>
+  );
+
+/** Silent until an application recorded its resume — most rows never will. */
+const AppliedWithRow: FC<{ job: JobDetail }> = ({ job }) => {
+  const label = appliedWithLabel({
+    name: job.appliedResume?.name ?? null,
+    version: job.appliedResumeVersion,
+  });
+  return label === null ? null : <FactRow label="Applied with">{label}</FactRow>;
+};
 
 const FactRow: FC<PropsWithChildren<{ label: string }>> = ({ label, children }) => (
   <div class="flex items-baseline justify-between gap-4">
