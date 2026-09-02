@@ -101,6 +101,19 @@ test('parseMatchResponse defaults requirement/primary for older replies and acce
   assert.equal(r.data.removals[0]?.quote, 'Kafka, Chef');
 });
 
+test('an over-long keyword list is sliced, never a failed analysis', () => {
+  const kw = (i: number) => ({ term: `T${i}`, priority: 1, requirement: 'must', primary: false, status: 'present', aliases: [] });
+  const r = parseMatchResponse(
+    JSON.stringify({
+      summary: 'x',
+      alignment: { title: 'off', summary: 'off', recent_role: 'off' },
+      keywords: Array.from({ length: 95 }, (_, i) => kw(i)),
+    }),
+  );
+  assert.ok(r.ok, 'the tiered budget can overrun a huge posting; the reply must still parse');
+  assert.equal(r.data.keywords.length, 80);
+});
+
 test('readHardRequirements tolerates legacy rows', () => {
   assert.deepEqual(readHardRequirements(undefined), []);
   assert.deepEqual(readHardRequirements([]), []);
