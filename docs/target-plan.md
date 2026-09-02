@@ -97,6 +97,23 @@ scan / extract / classify log lines and log a per-stage delta in
 `updateRun` (`stageAt` already exists) — one log pass over a week of real
 runs replaces every estimate above. No schema change.
 
+**Measured 2026-09-02** (block 1, `claude_code` CLI engine, Opus for the
+resume role, Haiku 4.5 single-stage classifier, one run at a time; 12 runs):
+
+| Call | Samples (s) | Note |
+| --- | --- | --- |
+| match | 78 · 83 · 85 · 94 · 94 · 96 · 109 | p50 ≈ 94, p90 ≈ 109 — the whole critical path after P0 |
+| scan | 26 · 33 · 36 | half the "about a minute" the copy promised |
+| extract | 12 · 32 · 37 | high variance on the CLI engine |
+| classify | 49 · 55 | single-stage; off the critical path since block 1 |
+
+Critical-path wall time, before → after block 1: fresh `/target` compare
+158 → 128 s, the same paste again 158 → 38 s (extract, then the stored row),
+Compare 109 → 79 s and a repeat 109 → 0 s, re-upload 117 → 95 s and the same
+file again 117 → 2 s. §2.2's "~150-300 s" first-compare estimate was right
+for the CLI engine; the API-engine column stays unmeasured (not in the
+owner's chain).
+
 ---
 
 ## 3. Speed plan
