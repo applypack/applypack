@@ -109,6 +109,19 @@ const CASES: Record<string, Case> = {
     build: () => resumeMod.buildScanPrompt(RESUME),
     fenced: [['RESUME', RESUME]],
   },
+  buildReviewPrompt: {
+    build: () =>
+      resumeMod.buildReviewPrompt(RESUME, {
+        roleTypes: ['ROLETYPE-NEEDLE'],
+        // Our own words about the text, so they carry no fence — see the builder.
+        atsChecks: ['No email address in the extracted text'],
+      }),
+    fenced: [
+      ['RESUME', RESUME],
+      // Tier 2: scanned out of the same untrusted resume.
+      ['CLAIMED ROLES', 'ROLETYPE-NEEDLE'],
+    ],
+  },
   buildMatchPrompt: {
     build: () =>
       resumeMod.buildMatchPrompt(RESUME, JOB, 'full', {
