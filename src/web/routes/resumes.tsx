@@ -170,14 +170,16 @@ resumesRoute.post('/resumes/:id/draft', async (c) => {
   });
   if (joined) return c.redirect(`/target/runs/${run.id}`, 303);
 
-  const resume = await saveResumeTextVersion(id, text);
-  updateRun(run.id, {
-    resumeName: resume.name,
-    subtitle: `Saved as v${resume.version}.${job ? ' Reading it, then scoring it against the posting.' : ''}`,
-  });
-  // Scan and match are the slow part: two AI calls back to back is the worst
-  // wait on the site, so it gets a run too.
+  // The save happens inside the run, so a failure lands on the progress page
+  // as an error instead of stranding a claimed run nothing will ever finish.
+  // Scan and match are the slow part after it: two AI calls back to back is
+  // the worst wait on the site, which is why this gets a run at all.
   startRun(run.id, async () => {
+    const resume = await saveResumeTextVersion(id, text);
+    updateRun(run.id, {
+      resumeName: resume.name,
+      subtitle: `Saved as v${resume.version}.${job ? ' Reading it, then scoring it against the posting.' : ''}`,
+    });
     const scan = await scanResume(resume);
     if (!job) {
       updateRun(run.id, scan

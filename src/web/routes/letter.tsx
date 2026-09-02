@@ -218,8 +218,10 @@ letterRoute.post('/letter', resumeUploadLimit('/letter'), async (c) => {
     ...(runVerify && !hasSnapshot ? (['verify'] as const) : []),
     'letter',
   ];
+  // Everything the user chose is in the key — the posting, the resume, the
+  // tone and the two enrichers — so only a genuinely identical request joins.
   const { run, joined } = claimRun(
-    `letter:${existingJob?.id ?? `new:${hashShortId(`${jobUrl}\n${description}`)}`}:${resume.id}`,
+    `letter:${existingJob?.id ?? `new:${hashShortId(`${jobUrl}\n${description}`)}`}:${resume.id}:${tone}:${runMatch ? 'm' : ''}${runVerify ? 'v' : ''}`,
     {
       steps,
       jobTitle: existingJob?.title ?? title ?? 'Detecting the role…',

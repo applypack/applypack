@@ -574,7 +574,9 @@ jobsRoute.post('/jobs/:id/cover', async (c) => {
 
   if (fromForm) await setCoverAngles(angles);
 
-  const { run, joined } = claimRun(`letter:${id}:${resume.id}`, {
+  // Tone and angles are part of the request: a second Generate with a
+  // different tone is different work, not the same work twice.
+  const { run, joined } = claimRun(`cover:${id}:${resume.id}:${tone}:${hashShortId(JSON.stringify(angles))}`, {
     steps: ['letter'],
     jobTitle: job.title,
     resumeName: resume.name,

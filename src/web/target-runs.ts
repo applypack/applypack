@@ -101,6 +101,10 @@ export function claimRun(
   key: string,
   fields: Parameters<typeof createRun>[0],
 ): { run: TargetRun; joined: boolean } {
+  // Prune first: a run that died mid-flight (a web restart, a crash between
+  // ticks) stays "in flight" forever otherwise, and every retry would join a
+  // run that will never move.
+  prune();
   const live = findLiveRun(key);
   if (live) {
     logger.info({ runId: live.id, key }, 'run: joined a run already in flight');
