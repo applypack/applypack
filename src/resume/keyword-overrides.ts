@@ -211,7 +211,9 @@ export function carryOverrides(
     if (!hit) return k;
     seen.add(hit);
     // The model judged this one itself now, so "added" retires — but the level
-    // the user picked for it is still theirs and rides on as an override.
+    // the user picked for it is still theirs and rides on as an override. It
+    // is kept even when this reply happens to agree: the point of an override
+    // is that the level stops depending on what the model says next time.
     const next = tidy({
       requirement: hit.override?.requirement ?? (hit.override?.added ? hit.requirement : undefined),
       excluded: hit.override?.excluded,

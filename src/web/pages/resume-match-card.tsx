@@ -645,7 +645,13 @@ const KeywordRow: FC<{ k: CountedKeyword; edit?: KeywordEditTarget }> = ({ k, ed
         <Badge tone={STATUS_VIEW[k.status].tone}>{STATUS_VIEW[k.status].label}</Badge>
         {k.elsewhere && <Badge tone="violet">in "{k.elsewhere}"</Badge>}
         {k.unanchored && (
-          <span title="The AI worded this keyword differently from the posting, so the description pane cannot highlight it.">
+          <span
+            title={
+              k.override?.added
+                ? 'You added this word and the posting does not contain it, so the description pane cannot highlight it.'
+                : 'The AI worded this keyword differently from the posting, so the description pane cannot highlight it.'
+            }
+          >
             <Badge>not in posting</Badge>
           </span>
         )}
@@ -678,7 +684,13 @@ const LevelControls: FC<{ k: CountedKeyword; edit: KeywordEditTarget }> = ({ k, 
         class="!w-auto py-1 text-xs"
         onchange="this.form.submit()"
         aria-label={`How much the posting wants ${k.term}`}
-        title={overridden ? `you set this — the AI said ${k.requirement}` : 'how much the posting wants it'}
+        title={
+          !overridden
+            ? 'how much the posting wants it'
+            : level === k.requirement
+              ? 'you set this level — it stays yours on every re-run'
+              : `you set this — the AI said ${k.requirement}`
+        }
       >
         {REQUIREMENT_LEVELS.map((r) => (
           <option value={r} selected={r === level}>

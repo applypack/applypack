@@ -192,6 +192,14 @@ test('when the model finally lists a hand-added term, the row is its own but the
   assert.equal(r.keywords[0]?.override?.added, undefined);
 });
 
+test('an override the model now agrees with is still kept — that is what makes it stick', async () => {
+  const previous = [kw({ term: 'Laravel', requirement: 'must', override: { requirement: 'nice' } })];
+  // The frame told the model "nice", so it says nice this time. Dropping the
+  // override here would leave the level at the mercy of the next reply.
+  const r = carryOverrides([kw({ term: 'Laravel', requirement: 'nice' })], previous, await context());
+  assert.equal(r.keywords[0]?.override?.requirement, 'nice');
+});
+
 test('an override in the reply is stripped — only the user writes that field', async () => {
   const fresh = [kw({ term: 'Laravel', requirement: 'must', override: { excluded: true } })];
   const r = carryOverrides(fresh, [], await context());
