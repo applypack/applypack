@@ -79,6 +79,7 @@ import { isBlankProfile } from '../../profile-guards';
 import { isSettingsTab, SettingsPage } from '../pages/settings';
 import { sourceLabel } from '../source-names';
 import { clearFlashCookie, flashRedirect, parseFlashCookie } from '../flash';
+import { missingLinkMessage } from '../profile-links';
 import { createResume, getResume, listResumes } from '../../resume/store';
 import { scanResume } from '../../resume/scan';
 import { buildProfileDraft } from '../../resume/profile-draft';
@@ -757,6 +758,21 @@ settingsRoute.post('/settings/profiles/:id/save', async (c) => {
       `Priority rules — line ${first.line}: ${first.reason}. Profile not saved.`,
     );
   }
+
+  // Both ids come from dropdowns rendered when the page loaded; either row
+  // can be gone by the time the form arrives (issue #73). Prisma's answer to
+  // a dead id is a raw foreign-key error — a 500 with the whole edit lost.
+  const [resumeRow, targetRow] = await Promise.all([
+    resumeId === null ? null : getResume(resumeId),
+    telegramTargetId === null
+      ? null
+      : prisma.telegramTarget.findUnique({ where: { id: telegramTargetId }, select: { id: true } }),
+  ]);
+  const missing = missingLinkMessage({
+    resumeGone: resumeId !== null && resumeRow === null,
+    telegramTargetGone: telegramTargetId !== null && targetRow === null,
+  });
+  if (missing) return flashRedirect('/settings?tab=profile', 'err', missing);
 
   const input = {
     name: f.name,

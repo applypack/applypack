@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { prisma } from '../../db';
 import { logger } from '../../logger';
 import { hashShortId } from '../../text-utils';
+import { appliedResumeColumns } from '../applied-resume';
 import { getSettings } from '../../settings';
 import { allStages, parseStageConfig } from '../stage-config';
 import { classifyExistingJob } from '../../jobs/classify-existing';
@@ -364,15 +365,17 @@ jobsRoute.post('/jobs/:id/status', async (c) => {
 
     // Stage C. The snapshot is what makes this answerable later: the bytes of
     // a resume are replaced in place on "Upload a new version", so the id and
-    // the version alone would name v3 and hand back v5's words. The select is
-    // the whole answer — an empty pick, a resume deleted in another tab and the
-    // /target scratch row all record nothing rather than block the status change.
+    // the version alone would name v3 and hand back v5's words. The rules for
+    // what counts live in applied-resume.ts, shared with the two paths on
+    // /applications that used to record nothing at all (#75).
     const requested = parsed.data.appliedResumeId;
     const picked = requested ? await getResume(requested) : null;
-    const applied = picked && !picked.hidden ? picked : null;
-    data.appliedResume = applied ? { connect: { id: applied.id } } : { disconnect: true };
-    data.appliedResumeVersion = applied?.version ?? null;
-    data.appliedResumeText = applied?.text ?? null;
+    const columns = appliedResumeColumns(picked);
+    data.appliedResume = columns.appliedResumeId
+      ? { connect: { id: columns.appliedResumeId } }
+      : { disconnect: true };
+    data.appliedResumeVersion = columns.appliedResumeVersion;
+    data.appliedResumeText = columns.appliedResumeText;
   }
 
   const update = prisma.job.update({ where: { id }, data });

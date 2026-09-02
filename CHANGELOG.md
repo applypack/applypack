@@ -4,6 +4,31 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.21.0] — 2026-09-02
+
+### Added
+- **"Applied with" on the Application tracking card** (#75). Until now only
+  the "Mark applied" button ever recorded which resume went out; dragging a
+  card into Applied on the board, or filling in the application form, left it
+  blank with no way to say afterwards. In the live database that was **eight
+  applications and not one recorded resume**. The form now carries the
+  question, and a job that is in the funnel with no answer says so — with the
+  resume the page would have guessed, named in the hint rather than
+  preselected. Moving a card cannot ask, and the app does not answer for you.
+- **"The text that went out"** (#74). The resume snapshot stored with every
+  application has been written since v1.11.0 and read by nothing. It is now a
+  disclosure on the job page: the words as they were on the day, which is the
+  point of storing them — a resume version is edited in place, so the name and
+  the number stop being an answer the moment you upload a new one.
+
+### Fixed
+- **A profile saved against a deleted resume or Telegram target says so**
+  (#73). Both ids come from dropdowns rendered when the page loaded; deleting
+  either row in another tab used to answer the save with a raw foreign-key
+  error — a 500 page with a constraint name on it, and the whole edit lost.
+  The save now checks first and flashes "That resume no longer exists —
+  reload the page and pick another one. Nothing was saved."
+
 ## [1.20.0] — 2026-09-02
 
 ### Fixed
@@ -1219,6 +1244,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[1.21.0]: https://github.com/applypack/applypack/compare/v1.20.0...v1.21.0
 [1.20.0]: https://github.com/applypack/applypack/compare/v1.19.0...v1.20.0
 [1.19.0]: https://github.com/applypack/applypack/compare/v1.18.0...v1.19.0
 [1.18.0]: https://github.com/applypack/applypack/compare/v1.17.0...v1.18.0

@@ -3,6 +3,8 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import { prisma } from '../../db';
 import { getSettings } from '../../settings';
+import { getResume } from '../../resume/store';
+import { appliedResumeColumns, readAppliedResumeChoice } from '../applied-resume';
 import { flashRedirect, parseFlashCookie } from '../flash';
 import { ApplicationsPage } from '../pages/applications';
 import { allStages, labelFor, parseStageConfig } from '../stage-config';
@@ -16,6 +18,9 @@ export const ApplicationFormSchema = z.object({
   appliedAt: z.string().optional(),
   recruiterContact: z.string().optional(),
   applicationNotes: z.string().optional(),
+  // Absent when the page had no resumes to offer — "keep what is stored"
+  // rather than "erase it" (applied-resume.ts).
+  appliedResumeId: z.string().optional(),
 });
 
 export const applicationsRoute = new Hono();
@@ -153,12 +158,22 @@ applicationsRoute.post('/jobs/:id/application', async (c) => {
     appliedAt: form.appliedAt,
     recruiterContact: form.recruiterContact,
     applicationNotes: form.applicationNotes,
+    appliedResumeId: form.appliedResumeId,
   });
   if (!parsed.success) {
     return c.text('Invalid form values', 400);
   }
   const { pipelineStage, appliedAt, recruiterContact, applicationNotes } =
     parsed.data;
+
+  // "Which resume did I send?" is part of the application, so the form that
+  // records the application records it too (#75). Until now only "Mark
+  // applied" ever wrote these columns, and this form silently left them NULL.
+  const choice = readAppliedResumeChoice(parsed.data.appliedResumeId);
+  const appliedResume =
+    choice.kind === 'keep'
+      ? null
+      : appliedResumeColumns(choice.kind === 'set' ? await getResume(choice.id) : null);
 
   const stageValue =
     pipelineStage && pipelineStage.length > 0 ? pipelineStage : null;
@@ -202,6 +217,7 @@ applicationsRoute.post('/jobs/:id/application', async (c) => {
         applicationNotes && applicationNotes.trim().length > 0
           ? applicationNotes
           : null,
+      ...(appliedResume ?? {}),
     },
   });
   if (event) {
