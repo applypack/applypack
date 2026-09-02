@@ -474,19 +474,35 @@ export const Button: FC<
 };
 
 /** One-button POST form — the dashboard's main mutation idiom. */
+/**
+ * `onsubmit` guard for a form whose POST starts real work — an upload, an AI
+ * run. The redirect to the progress page is fast but not instant, and a
+ * second click inside that window used to create a second resume and a
+ * second AI call. Disabling after the submit event fired does not cancel the
+ * submission, and with JS off the form still works as before.
+ */
+export const SUBMIT_ONCE =
+  "if(this.dataset.sent)return false;this.dataset.sent='1';" +
+  "this.querySelectorAll('button').forEach(function(b){b.disabled=true});";
+
 export const ActionForm: FC<
   PropsWithChildren<{
     action: string;
     confirm?: string;
     hidden?: Record<string, string | number>;
     class?: string;
+    /** Disable the buttons once pressed — for POSTs that start an AI run. */
+    once?: boolean;
   }>
-> = ({ action, confirm, hidden, children, class: className = '' }) => (
+> = ({ action, confirm, hidden, children, class: className = '', once }) => (
   <form
     method="post"
     action={action}
     class={className}
-    onsubmit={confirm ? `return confirm(${JSON.stringify(confirm)});` : undefined}
+    onsubmit={
+      [confirm ? `if(!confirm(${JSON.stringify(confirm)}))return false;` : '', once ? SUBMIT_ONCE : '']
+        .join('') || undefined
+    }
   >
     {hidden &&
       Object.entries(hidden).map(([k, v]) => <input type="hidden" name={k} value={String(v)} />)}

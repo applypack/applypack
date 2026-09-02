@@ -1,7 +1,7 @@
 /** @jsxImportSource hono/jsx */
 import type { FC } from 'hono/jsx';
 import { Layout } from '../layout';
-import { Badge, Button, Card, FitBadge, Flash, Hint } from '../ui';
+import { Badge, Button, Card, FitBadge, Flash, Hint, SUBMIT_ONCE } from '../ui';
 import type { FlashMessage } from '../flash';
 import { fitTone, formatRelative, type Tone } from '../format';
 import type { MatchWithResume } from '../../resume/store';
@@ -302,7 +302,12 @@ export const TargetPage: FC<TargetPageProps> = ({
                   </Button>
                 </form>
                 {!resume.ephemeral && (
-                  <form method="post" action={`/resumes/${resume.id}/draft`} id="save-form">
+                  <form
+                    method="post"
+                    action={`/resumes/${resume.id}/draft`}
+                    id="save-form"
+                    onsubmit={SUBMIT_ONCE}
+                  >
                     <input type="hidden" name="text" id="save-text" value="" />
                     <input type="hidden" name="jobId" value={job.id} />
                     <Button

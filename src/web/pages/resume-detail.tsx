@@ -14,6 +14,7 @@ import {
   Input,
   PageHeader,
   SectionTitle,
+  SUBMIT_ONCE,
   Table,
   Tag,
   Td,
@@ -59,7 +60,7 @@ export const ResumeDetailPage: FC<ResumeDetailProps> = ({
             <Button variant="secondary" size="sm" href={`/resumes/${resume.id}/download`}>
               Download original
             </Button>
-            <ActionForm action={`/resumes/${resume.id}/rescan`}>
+            <ActionForm action={`/resumes/${resume.id}/rescan`} once>
               <Button variant="violet" size="sm">
                 {resume.scannedAt ? 'Re-scan' : 'Scan'}
               </Button>
@@ -149,6 +150,7 @@ export const ResumeDetailPage: FC<ResumeDetailProps> = ({
           method="post"
           action={`/resumes/${resume.id}/replace`}
           enctype="multipart/form-data"
+          onsubmit={SUBMIT_ONCE}
           class="grid gap-3 sm:grid-cols-[1.6fr_auto]"
         >
           <Field label="File" hint={`${ACCEPTED_EXTENSIONS.join(', ')} · up to ${MAX_UPLOAD_MB} MB`}>
