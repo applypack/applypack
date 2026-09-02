@@ -4,6 +4,42 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.18.0] — 2026-09-02
+
+### Added
+- **Rebuild keywords** ([docs/target-plan.md](docs/target-plan.md) §4 F7,
+  TASKS §13). Every comparison of the same posting has been reusing the first
+  run's keyword list on purpose, so scores stay comparable between resume
+  versions — but a word the model missed on run 1 stayed missed on every run
+  after it. The keyword table now carries a way out: one run with the stored
+  list withheld, so the model reads the terms out of the posting again.
+  Measured on a real posting: the carried list had been repeating the same 26
+  terms through five analyses; the rebuild found 30, including **BullMQ** and
+  **GCP PubSub** — both named in the job description, neither ever listed.
+- **A prompt bump no longer inherits the old prompt's keywords.** When the
+  analysis prompt changes, the stored list was written under rules the new one
+  does not follow, so it is not offered to the model at all.
+- **A rebuilt analysis says the score is not comparable** instead of showing a
+  delta against the previous one: the two count different terms, and a −3 that
+  means "different list" reads exactly like a −3 that means "worse resume".
+
+### Changed
+- A rebuild skips the reuse memo. Without that it would answer with the very
+  analysis whose keyword list the user asked to replace.
+- **Your keyword edits survive a rebuild.** Re-levelled, ignored and
+  hand-added terms are re-applied to whatever the fresh run returns — a
+  rebuild resets the model's guess, never your decision.
+- `resume: matched` logs which frame the run used (`carried`, `first-run`,
+  `rebuild`, `prompt-bump`) next to the keyword counts.
+
+### Closed without building
+- `match-split-frame` (a cached per-job keyword frame + a statuses-only call),
+  the one block of the compare-speed plan left open. The gate was "only if the
+  measurements demand it": the quick check now runs at a p50 of 15 s on the
+  bench fixtures and 40-42 s on one of the longest postings we store, against
+  a 30-40 s target — so the block is closed by the numbers rather than built.
+  Details in TASKS §13.
+
 ## [1.17.0] — 2026-09-02
 
 ### Added
@@ -1112,6 +1148,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[1.18.0]: https://github.com/applypack/applypack/compare/v1.17.0...v1.18.0
 [1.17.0]: https://github.com/applypack/applypack/compare/v1.16.0...v1.17.0
 [1.16.0]: https://github.com/applypack/applypack/compare/v1.15.0...v1.16.0
 [1.15.0]: https://github.com/applypack/applypack/compare/v1.14.0...v1.15.0

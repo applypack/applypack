@@ -314,6 +314,21 @@ frequent first:
   stays missed on every later run. *Fix:* a "Rebuild keywords" action that
   skips `previousKeywords` once, and an automatic skip when the stored
   frame's `PROMPT_VERSION` is older than current.
+  **Shipped 2026-09-02** (issue #79, PR #84): the decision is a pure function
+  (`keyword-frame.ts:planKeywordFrame`) of the stored frame's prompt version
+  and one request flag, and its reason is stored in the `breakdown` JSON so a
+  rebuilt row can say why its score stands alone. Measured live on job #1393
+  (5 k-char posting, resume 5, quick check on the CLI engine): the carried run
+  cost **42.2 s and listed the same 26 terms the frame has carried since
+  prompt v5** (5 analyses deep — matches #55…#59), the rebuild cost **41.8 s
+  and listed 30**: 23 shared, 3 dropped, **7 new — BullMQ, GCP PubSub, AI
+  tools, observability tools, performance monitoring, CI/CD, Microservices**.
+  All seven are literally in the posting, so five consecutive runs had been
+  reproducing a list that was missing two named technologies the job asks for;
+  `unanchored` stayed 0, so nothing new was invented either. Score 67 → 64 —
+  which is the point of the "not comparable" line on the card, not a
+  regression. A rebuild costs exactly one normal call: it is the same request
+  minus one prompt block.
 - **F8 (optional safety net) — deterministic lexicon sweep.** A pure module
   with a few hundred known tech terms scans the posting for anything absent
   from the AI list and shows them as neutral **unrated** marks (never
@@ -340,7 +355,8 @@ lead" or "startup / fast-paced environment" that no matcher can place. On the
 current prompt no stored row misses the posting, so F2 acts as the safety net
 and the metric (`anchored` / `unanchored` on the `resume: matched` line), not
 as a repair of today's output. F1 moved to `match-fast-mode` (block 4) — it is
-a prompt change; F7 is issue #79; F8 stays open (§8).
+a prompt change; F7 shipped as `keyword-frame-rebuild` (above); F8 stays open
+(§8).
 
 ## 5. Keyword priorities — present vs missing
 
@@ -450,7 +466,26 @@ Sources: [jobscan.co](https://www.jobscan.co/blog/top-resume-keywords-boost-resu
    no ADR and no schema change; `PROMPT_VERSION` untouched — this is
    post-processing. `score.ts` untouched too, so the score.mjs parity test
    stayed green without a mirrored edit.
-6. (only if measurements demand) `match-split-frame` — §3.3 item 8 + ADR.
+6. ~~(only if measurements demand) `match-split-frame` — §3.3 item 8 + ADR.~~
+   **Not needed — closed 2026-09-02 by the numbers.** The condition was
+   "only if measurements demand"; the owner's band is 30-40 s. Where the quick
+   check lands after block 4: **p50 15 s** on the gold fixtures (24 s full,
+   77 s vs 116 s for the suite) and **40 s / 42.2 s / 41.8 s** on job #1393,
+   whose 5 k-char description is at the long end of what we store. So the band
+   is met on short postings and missed by ~2 s on a long one. Splitting the
+   frame would buy the difference by caching the term list per job and asking
+   the model for statuses only — the same saving the fast prompt already
+   made (**2591 vs 4373 reply characters**), for a second prompt variant, an
+   ADR, and a cached frame to invalidate on every posting edit. Against that:
+   block 3 already answers the as-you-type case with **no call at all**
+   (0-15 ms), and F7 above exists precisely because a frozen frame goes stale
+   — a cache would freeze it harder. Reopen only if a measured compare goes
+   back over ~60 s.
+7. `keyword-frame-rebuild` — §4 F7 (issue #79): "Rebuild keywords" runs once
+   without `previousKeywords`, and a frame written by another `PROMPT_VERSION`
+   is never inherited. Pure decision module, no schema change, no prompt
+   change, `PROMPT_VERSION` untouched. **Shipped 2026-09-02** (PR #84, numbers
+   in §4 F7).
 
 ## 8. Open questions for the owner
 
