@@ -40,6 +40,10 @@ const STEP_VIEW: Record<RunStep, StepView> = {
     label: 'Write the cover letter',
     detail: 'grounded in the resume, fact-checked before it is shown — about a minute',
   },
+  review: {
+    label: 'Review the resume',
+    detail: 'six dimensions graded with quotes from your own text, then the advice — about a minute on Opus',
+  },
   score: {
     label: 'Score the best matches',
     detail: 'the AI reads each one against your profile — seconds on an API engine, up to half a minute on a CLI one',

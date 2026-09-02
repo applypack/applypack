@@ -19,6 +19,7 @@ export type RunStep =
   | 'suggestions'
   | 'verify'
   | 'letter'
+  | 'review'
   | 'score';
 export type RunStage = RunStep | 'done' | 'error';
 

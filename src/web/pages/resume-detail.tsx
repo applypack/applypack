@@ -25,7 +25,10 @@ import { ACCEPTED_EXTENSIONS } from '../../resume/resume-text';
 import { MAX_UPLOAD_MB } from '../upload';
 import type { FlashMessage } from '../flash';
 import { formatDate, formatRelative } from '../format';
+import type { ResumeReview } from '@prisma/client';
 import type { MatchWithJob, ResumeSummary } from '../../resume/store';
+import { ResumeReviewCard } from './resume-review-card';
+import { reviewIsStale } from '../../resume/review-score';
 import { readIssues } from '../../resume/prompts';
 import type { ParseWarning } from '../../resume/parse-warnings';
 import type { ProfileDraft } from '../../resume/profile-draft';
@@ -33,8 +36,10 @@ import type { ProfileDraft } from '../../resume/profile-draft';
 export interface ResumeDetailProps {
   resume: ResumeSummary;
   matches: MatchWithJob[];
-  /** What Delete would cascade — named in the confirm, letters included. */
-  deleteImpact: { matches: number; letters: number };
+  /** The latest strength review, or null when the user has never asked for one. */
+  review: ResumeReview | null;
+  /** What Delete would cascade — named in the confirm: comparisons, letters and reviews. */
+  deleteImpact: { matches: number; letters: number; reviews: number };
   /** Deterministic ATS-parseability checks over the extracted text. */
   warnings: ParseWarning[];
   /** Searches already linked to this resume, and the one a click would create. */
@@ -48,12 +53,17 @@ export interface ResumeDetailProps {
 export const ResumeDetailPage: FC<ResumeDetailProps> = ({
   resume,
   matches,
+  review,
   deleteImpact,
   warnings,
   search,
   flash,
 }) => {
   const issues = readIssues(resume.issues);
+  // One advice surface, never two (resumes-plan §B.2): once a review has read
+  // the CURRENT version, its list supersedes the scan's notes, which stay
+  // available behind a disclosure rather than competing for attention.
+  const reviewed = review !== null && !reviewIsStale(review.resumeVersion, resume.version);
   return (
     <Layout title={resume.name} active="resumes">
       <PageHeader
@@ -99,7 +109,9 @@ export const ResumeDetailPage: FC<ResumeDetailProps> = ({
       </PageHeader>
       <Flash flash={flash} />
 
-      <div class="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+      <ResumeReviewCard resume={resume} review={review} />
+
+      <div class="mt-4 grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
         <Card>
           <SectionTitle>Scan</SectionTitle>
           {resume.scannedAt ? (
@@ -130,18 +142,21 @@ export const ResumeDetailPage: FC<ResumeDetailProps> = ({
                 ? 'Nothing flagged — the parser-facing basics look fine.'
                 : 'Appears after the first scan.'}
             </Hint>
+          ) : reviewed ? (
+            <>
+              <Hint>
+                The strength review above judged this version — follow its list. These are the
+                first scan's notes, kept for reference.
+              </Hint>
+              <details class="mt-2">
+                <summary class="cursor-pointer text-[13px] font-medium text-ink-muted transition-colors duration-150 hover:text-ink">
+                  What the scan flagged — {issues.length} note{issues.length === 1 ? '' : 's'}
+                </summary>
+                <IssueList issues={issues} />
+              </details>
+            </>
           ) : (
-            <ul class="divide-y divide-line">
-              {issues.map((i) => (
-                <li class="py-3 first:pt-0 last:pb-0">
-                  <Badge tone="warn">{i.section}</Badge>
-                  <div class="mt-1.5 min-w-0 text-sm">
-                    <div class="text-ink">{i.issue}</div>
-                    <div class="mt-0.5 text-[13px] leading-5 text-ink-muted">→ {i.fix}</div>
-                  </div>
-                </li>
-              ))}
-            </ul>
+            <IssueList issues={issues} />
           )}
         </Card>
       </div>
@@ -323,6 +338,20 @@ const SearchCard: FC<ResumeDetailProps['search'] & { resumeId: number }> = ({
     </Card>
   );
 };
+
+const IssueList: FC<{ issues: ReturnType<typeof readIssues> }> = ({ issues }) => (
+  <ul class="divide-y divide-line">
+    {issues.map((i) => (
+      <li class="py-3 first:pt-0 last:pb-0">
+        <Badge tone="warn">{i.section}</Badge>
+        <div class="mt-1.5 min-w-0 text-sm">
+          <div class="text-ink">{i.issue}</div>
+          <div class="mt-0.5 text-[13px] leading-5 text-ink-muted">→ {i.fix}</div>
+        </div>
+      </li>
+    ))}
+  </ul>
+);
 
 const TagRow: FC<{ label: string; items: string[]; tone: 'ok' | 'info' }> = ({
   label,

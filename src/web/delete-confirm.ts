@@ -1,19 +1,21 @@
 /**
  * The confirm text for "Delete this resume". Pure so the blast radius can be
- * unit-tested: deleting cascades every comparison AND every cover letter,
- * including the letters the user edited by hand, and the old wording named
- * only the comparisons.
+ * unit-tested: deleting cascades every comparison, every cover letter —
+ * including the letters the user edited by hand — and every strength review,
+ * and the old wording named only the comparisons.
  */
 
 export interface DeleteImpact {
   matches: number;
   letters: number;
+  reviews: number;
 }
 
 export function deleteConfirm(name: string, impact: DeleteImpact): string {
   const parts = [
     countOf(impact.matches, 'comparison', 'comparisons'),
     countOf(impact.letters, 'cover letter', 'cover letters'),
+    countOf(impact.reviews, 'strength review', 'strength reviews'),
   ].filter((p): p is string => p !== null);
 
   if (parts.length === 0) return `Delete "${name}"? Nothing else is attached to it.`;

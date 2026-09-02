@@ -4,6 +4,39 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.19.0] — 2026-09-02
+
+### Added
+- **"Is this resume strong?"** ([docs/resumes-plan.md](docs/resumes-plan.md)
+  §B, [ADR 0030](docs/adr/0030-resume-strength-review.md)). A new card on
+  `/resumes/:id` answers the question the app could not: not "does this fit
+  that job", but does this document read like a strong professional at the
+  level it claims. **Six dimensions** — first impression, impact & outcomes,
+  seniority signal, clarity & structure, skill evidence, wording & polish —
+  each graded with quotes from your own text.
+- **The model grades; the code scores.** The prompt is forbidden to output a
+  number: weights (impact 30, first impression 20, seniority 20, clarity 15,
+  evidence 10, polish 5) and two hard caps live in `review-score.ts`. A resume
+  whose bullets list duties instead of outcomes cannot pass **55** however
+  polished the rest is, and two weak dimensions cap it at **45**. Live on a
+  real resume the caps turned a raw 70 into a 45 — the weights alone would
+  have called it above average.
+- **Advice that asks instead of inventing.** Every item points at a verbatim
+  line and either rewrites it using facts already in your resume, or asks you
+  for the number a stronger line would need ("which services were consolidated
+  for the six-figure saving?"). Across 23 items in the first live runs, not one
+  invented a fact — several rewrites *removed* unsupportable percentages.
+- **Strength column on `/resumes`**, with a badge when a review has aged behind
+  the resume it read, and a "Keep these" list so you don't edit away what works.
+- Progress is the usual run page: the rubric is walked step by step, no spinner.
+
+### Changed
+- The review never runs on its own — not on upload, not on a version save. One
+  button, one AI call, about a minute; the card explains what it checks before
+  you press it.
+- Once a review has read the current version, the scan's "Issues to fix" list
+  folds into a disclosure behind it. One advice surface, never two.
+
 ## [1.18.0] — 2026-09-02
 
 ### Added
@@ -1148,6 +1181,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[1.19.0]: https://github.com/applypack/applypack/compare/v1.18.0...v1.19.0
 [1.18.0]: https://github.com/applypack/applypack/compare/v1.17.0...v1.18.0
 [1.17.0]: https://github.com/applypack/applypack/compare/v1.16.0...v1.17.0
 [1.16.0]: https://github.com/applypack/applypack/compare/v1.15.0...v1.16.0

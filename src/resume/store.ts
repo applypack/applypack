@@ -1,9 +1,10 @@
-import type { CandidateFact, CoverLetter, Prisma, Resume, ResumeMatch } from '@prisma/client';
+import type { CandidateFact, CoverLetter, Prisma, Resume, ResumeMatch, ResumeReview } from '@prisma/client';
 import { prisma } from '../db';
 import { logger } from '../logger';
 import type { FrameReason } from './keyword-frame';
 import { storedBreakdown, withSuggestionsMode, type MatchMode } from './match-mode';
-import type { MatchKeyword, MatchSuggestions, ResumeMatchResult, ResumeScan } from './prompts';
+import type { MatchKeyword, MatchSuggestions, ResumeMatchResult, ResumeReviewResult, ResumeScan } from './prompts';
+import { storedReviewBreakdown, type ReviewBreakdown } from './review-score';
 import type { ScoreBreakdown } from './score';
 
 /** Resume without the uploaded bytes — what every page and prompt works with. */
@@ -173,12 +174,15 @@ export async function listMatchesForResume(resumeId: number): Promise<MatchWithJ
  * What deleting a resume takes with it. Both cascade, and the letters carry
  * the user's own edited text — the confirm dialog has to say so.
  */
-export async function deleteImpact(resumeId: number): Promise<{ matches: number; letters: number }> {
-  const [matches, letters] = await Promise.all([
+export async function deleteImpact(
+  resumeId: number,
+): Promise<{ matches: number; letters: number; reviews: number }> {
+  const [matches, letters, reviews] = await Promise.all([
     prisma.resumeMatch.count({ where: { resumeId } }),
     prisma.coverLetter.count({ where: { resumeId } }),
+    prisma.resumeReview.count({ where: { resumeId } }),
   ]);
-  return { matches, letters };
+  return { matches, letters, reviews };
 }
 
 export interface ResumeMatchStats {
@@ -202,6 +206,54 @@ export async function matchStatsByResume(): Promise<Map<number, ResumeMatchStats
   return new Map(
     rows.map((r) => [r.resumeId, { count: r._count._all, best: r._max.matchScore ?? 0 }]),
   );
+}
+
+/* ---------- strength reviews (docs/resumes-plan.md §B) ---------- */
+
+export async function createReview(input: {
+  resumeId: number;
+  resumeVersion: number;
+  model: string;
+  result: ResumeReviewResult;
+  /** Computed by review-score.ts — the model never sets the number (ADR 0012). */
+  breakdown: ReviewBreakdown;
+  /** Rides inside the breakdown JSON, the way the match markers do. */
+  promptVersion: number;
+}): Promise<ResumeReview> {
+  return prisma.resumeReview.create({
+    data: {
+      resumeId: input.resumeId,
+      resumeVersion: input.resumeVersion,
+      model: input.model,
+      reviewScore: input.breakdown.score,
+      headline: input.result.headline,
+      grades: input.result.grades as unknown as Prisma.InputJsonValue,
+      advice: input.result.advice as unknown as Prisma.InputJsonValue,
+      strengths: input.result.strengths,
+      breakdown: storedReviewBreakdown(input.breakdown, input) as Prisma.InputJsonValue,
+    },
+  });
+}
+
+/** The review a resume page shows: the most recent run, whatever version it read. */
+export async function getLatestReviewForResume(resumeId: number): Promise<ResumeReview | null> {
+  return prisma.resumeReview.findFirst({ where: { resumeId }, orderBy: { createdAt: 'desc' } });
+}
+
+export type ReviewSummary = Pick<ResumeReview, 'resumeId' | 'resumeVersion' | 'reviewScore' | 'createdAt'>;
+
+/**
+ * Latest review per resume for the hub column — one query, not one per row.
+ * A resume with no review is absent from the map: "never reviewed" and
+ * "reviewed, scored 0" are different answers (as in matchStatsByResume).
+ */
+export async function latestReviewByResume(): Promise<Map<number, ReviewSummary>> {
+  const rows = await prisma.resumeReview.findMany({
+    distinct: ['resumeId'],
+    orderBy: [{ resumeId: 'asc' }, { createdAt: 'desc' }],
+    select: { resumeId: true, resumeVersion: true, reviewScore: true, createdAt: true },
+  });
+  return new Map(rows.map((r) => [r.resumeId, r]));
 }
 
 /** A resume version made from edited text (the targeted view's "Save as vN") — a .md file, no docx. */

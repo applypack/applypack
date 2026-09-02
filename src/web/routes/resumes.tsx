@@ -1,6 +1,7 @@
 /** @jsxImportSource hono/jsx */
 import { Hono, type Context } from 'hono';
 import { logger } from '../../logger';
+import { reviewResume } from '../../resume/review';
 import { scanResume } from '../../resume/scan';
 import type { ResumeScan } from '../../resume/prompts';
 import { matchResumeToJob } from '../../resume/match';
@@ -9,8 +10,10 @@ import {
   createResume,
   deleteImpact,
   deleteResume,
+  getLatestReviewForResume,
   getResume,
   getResumeOriginal,
+  latestReviewByResume,
   listFacts,
   listMatchesForResume,
   listResumes,
@@ -39,14 +42,19 @@ const MIN_DRAFT_CHARS = 200;
 export const resumesRoute = new Hono();
 
 resumesRoute.get('/resumes', async (c) => {
-  const [resumes, facts, stats] = await Promise.all([
+  const [resumes, facts, stats, reviews] = await Promise.all([
     listResumes(),
     listFacts(),
     matchStatsByResume(),
+    latestReviewByResume(),
   ]);
   return c.html(
     <ResumesPage
-      resumes={resumes.map((r) => ({ ...r, matches: stats.get(r.id) ?? null }))}
+      resumes={resumes.map((r) => ({
+        ...r,
+        matches: stats.get(r.id) ?? null,
+        review: reviews.get(r.id) ?? null,
+      }))}
       facts={facts}
       flash={parseFlashCookie(c.req.header('cookie'))}
     />,
@@ -67,7 +75,7 @@ resumesRoute.post('/resumes', resumeUploadLimit('/resumes'), async (c) => {
   return startScanRun(c, resume, {
     subtitle: `"${name}" — headline, tools, seniority. About half a minute.`,
     onScanned: () =>
-      `Uploaded and scanned "${name}". Tip: Settings → Profile → "Fill from a resume" updates your search profile from it.`,
+      `Uploaded and scanned "${name}". "Run strength review" on this page grades it on its own; Settings → Profile → "Fill from a resume" updates your search profile from it.`,
     onFailed: `Uploaded "${name}", but the AI scan failed — check the web logs, then try "Scan".`,
   });
 });
@@ -89,9 +97,10 @@ resumesRoute.post('/resumes/:id/replace', resumeUploadLimit('/resumes'), async (
 resumesRoute.get('/resumes/:id', async (c) => {
   const id = Number(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text('Bad id', 400);
-  const [resume, matches, linkedProfiles, impact] = await Promise.all([
+  const [resume, matches, review, linkedProfiles, impact] = await Promise.all([
     getResume(id),
     listMatchesForResume(id),
+    getLatestReviewForResume(id),
     listProfilesForResume(id),
     deleteImpact(id),
   ]);
@@ -100,6 +109,7 @@ resumesRoute.get('/resumes/:id', async (c) => {
     <ResumeDetailPage
       resume={resume}
       matches={matches}
+      review={review}
       deleteImpact={impact}
       warnings={parseWarnings(resume.text)}
       // The draft the "Create a search" button would save — rendered, not
@@ -217,6 +227,40 @@ resumesRoute.post('/resumes/:id/rescan', async (c) => {
     onScanned: (scan) => `Scanned: ${scan.skills.length} skills, ${scan.issues.length} issues.`,
     onFailed: 'Scan failed — see the web logs.',
   });
+});
+
+/**
+ * "Run strength review" — one AI call, on demand only (resumes-plan §B.1). The
+ * run registry shows the rubric being walked instead of a spinner; nothing
+ * about the resume changes, so a failure costs the user nothing but the wait.
+ */
+resumesRoute.post('/resumes/:id/review', async (c) => {
+  const id = Number(c.req.param('id'));
+  if (!Number.isFinite(id)) return c.text('Bad id', 400);
+  const resume = await getResume(id);
+  if (!resume) return c.text('Not found', 404);
+  const { text, version, roleTypes } = resume;
+
+  const run = createRun({
+    steps: ['review'],
+    jobTitle: '',
+    resumeName: resume.name,
+    heading: { running: 'Reviewing your resume', failed: 'Could not review the resume' },
+    subtitle: 'Six dimensions, graded against your own text — no job posting involved.',
+    backUrl: `/resumes/${id}`,
+    backLabel: 'Back to the resume',
+  });
+  startRun(run.id, async () => {
+    const row = await reviewResume({ id, text, version, roleTypes });
+    updateRun(run.id, row
+      ? {
+          stage: 'done',
+          resultUrl: `/resumes/${id}`,
+          flash: `Strength ${row.reviewScore}/100 — ${row.headline}`,
+        }
+      : { stage: 'error', error: 'The review failed — see the web logs.' });
+  });
+  return c.redirect(`/target/runs/${run.id}`, 303);
 });
 
 resumesRoute.post('/resumes/:id/default', async (c) => {
