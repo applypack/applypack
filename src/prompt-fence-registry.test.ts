@@ -46,6 +46,7 @@ const KNOWN_CALL_SITES: Record<string, string> = {
   'resume/match.ts': 'buildMatchPrompt',
   'resume/suggestions.ts': 'buildSuggestionsPrompt',
   'resume/scan.ts': 'buildScanPrompt',
+  'resume/review.ts': 'buildReviewPrompt',
   'resume/cover-letter.ts': 'buildCoverPrompt',
   'verification/verify.ts': 'buildVerifyPrompt',
   'scripts/resume-bench-once.ts': 'bench harness, reuses buildMatchPrompt',

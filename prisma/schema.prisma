@@ -363,33 +363,34 @@ model Profile {
 // for download. The scan fields are filled by scanResume() and stay null
 // until the first successful scan.
 model Resume {
-  id              Int           @id @default(autoincrement())
+  id              Int            @id @default(autoincrement())
   name            String
   sourceFilename  String
   mimeType        String
   original        Bytes
-  text            String        @db.Text
+  text            String         @db.Text
   // Bumped on "Upload new version"; matches record the version they scored.
-  version         Int           @default(1)
-  isDefault       Boolean       @default(false)
+  version         Int            @default(1)
+  isDefault       Boolean        @default(false)
   // The /target scratch row: replaced in place on every ephemeral compare,
   // excluded from every list and picker.
-  hidden          Boolean       @default(false)
+  hidden          Boolean        @default(false)
   scannedAt       DateTime?
   title           String?
   seniority       String?
   yearsExperience Int?
-  skills          String[]      @default([])
+  skills          String[]       @default([])
   // Subset of skills: the 2-5 core languages/frameworks of the candidate's
   // day-to-day work. Feeds Profile.stackRequired via "Fill from resume".
-  primarySkills   String[]      @default([])
-  roleTypes       String[]      @default([])
-  summary         String?       @db.Text
+  primarySkills   String[]       @default([])
+  roleTypes       String[]       @default([])
+  summary         String?        @db.Text
   // [{ section, issue, fix }] — job-agnostic ATS / recruiter problems.
-  issues          Json          @default("[]")
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  issues          Json           @default("[]")
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
   matches         ResumeMatch[]
+  reviews         ResumeReview[]
   coverLetters    CoverLetter[]
   // Searches that hunt with this resume (Profile.resumeId).
   profiles        Profile[]
@@ -407,6 +408,32 @@ model Resume {
 // removals = [{ section, where, what, why }] — what to delete or shorten
 // Since phase 9 (ADR 0012) matchScore is computed by src/resume/score.ts from
 // the keyword statuses + alignment — the model never sets the number.
+/// One on-demand strength review of a resume, judged on its own with no job
+/// posting (docs/resumes-plan.md §B). History is kept: a row per run makes the
+/// version-over-version trend free.
+model ResumeReview {
+  id            Int      @id @default(autoincrement())
+  resumeId      Int
+  resume        Resume   @relation(fields: [resumeId], references: [id], onDelete: Cascade)
+  // The version that was judged — a review goes stale when the resume moves on.
+  resumeVersion Int      @default(1)
+  model         String
+  // Computed by review-score.ts from the grades; the model never sets it (ADR 0012).
+  reviewScore   Int
+  headline      String   @db.Text
+  // [{ dimension, grade strong|ok|weak, why, evidence[] }]
+  grades        Json
+  // [{ priority, dimension, issue, why, fix, example, ask, quote }]
+  advice        Json
+  strengths     String[] @default([])
+  // ReviewBreakdown from review-score.ts, plus the promptVersion marker.
+  breakdown     Json     @default("{}")
+  createdAt     DateTime @default(now())
+
+  @@index([resumeId, createdAt])
+  @@map("resume_review")
+}
+
 model ResumeMatch {
   id               Int      @id @default(autoincrement())
   jobId            Int

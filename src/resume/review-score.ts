@@ -1,3 +1,5 @@
+import { z } from 'zod';
+
 /*
  * Deterministic strength score for one resume, job-agnostic (docs/resumes-plan.md
  * §B.3). The same division of labour as the match score (ADR 0012): the model
@@ -130,4 +132,41 @@ export function capExplanation(bd: ReviewBreakdown): string | null {
   return bd.capReason === 'impact'
     ? `Capped at ${bd.cap}: the experience reads as duties rather than outcomes, and no amount of polish elsewhere makes a resume read senior without them.`
     : `Capped at ${bd.cap}: ${bd.weakCount} of ${REVIEW_DIMENSIONS.length} dimensions came back weak — those are the ones to fix first.`;
+}
+
+/* Stored JSON: the computation plus the prompt that produced the grades. The
+   version rides inside the breakdown, as ResumeMatch has done since ADR 0029 —
+   a marker never needs a column of its own. */
+
+export function storedReviewBreakdown(
+  bd: ReviewBreakdown,
+  meta: { promptVersion: number },
+): Record<string, unknown> {
+  return { ...bd, promptVersion: meta.promptVersion };
+}
+
+const ReviewBreakdownSchema = z.object({
+  v: z.number().int(),
+  rawPts: z.number(),
+  max: z.number(),
+  points: z.record(z.string(), z.number()).default({}),
+  weakCount: z.number().int(),
+  cap: z.number().nullable(),
+  capReason: z.enum(['impact', 'two-weak']).nullish().transform((x) => x ?? null),
+  score: z.number(),
+  missing: z.array(z.string()).default([]),
+});
+
+export function readReviewBreakdown(v: unknown): ReviewBreakdown | null {
+  const r = ReviewBreakdownSchema.safeParse(v);
+  return r.success ? r.data : null;
+}
+
+/**
+ * A review describes the version it read. Once the resume moves on, its
+ * verdict is about text that no longer exists — the card says so rather than
+ * quietly ageing.
+ */
+export function reviewIsStale(reviewVersion: number, resumeVersion: number): boolean {
+  return reviewVersion < resumeVersion;
 }
