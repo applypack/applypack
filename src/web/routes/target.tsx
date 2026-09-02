@@ -1,6 +1,7 @@
 /** @jsxImportSource hono/jsx */
 import { Hono } from 'hono';
 import { z } from 'zod';
+import { classifyInBackground } from '../../jobs/classify-existing';
 import { createManualJob, ManualJobSchema, MAX_FIELD_CHARS, MIN_DESCRIPTION_CHARS } from '../../jobs/manual-job';
 import { extractPostingFacts, fallbackTitle } from '../../jobs/posting-extract';
 import { matchResumeToJob } from '../../resume/match';
@@ -142,7 +143,7 @@ targetRoute.post('/target', resumeUploadLimit('/target'), async (c) => {
     };
   }
 
-  const steps: RunStep[] = needExtract ? ['extract', 'classify', 'match'] : ['classify', 'match'];
+  const steps: RunStep[] = needExtract ? ['extract', 'match'] : ['match'];
   const run = createRun({
     steps,
     jobTitle: title || 'Detecting the role…',
@@ -165,21 +166,28 @@ targetRoute.post('/target', resumeUploadLimit('/target'), async (c) => {
         const label = workplace === 'onsite' ? 'on-site' : workplace;
         location = location ? `${location} (${label})` : label;
       }
-      updateRun(run.id, { stage: 'classify', jobTitle: title });
+      updateRun(run.id, { stage: 'match', jobTitle: title });
     }
 
-    // 1. The posting becomes a normal MANUAL job (deduped, classified when new).
-    const result = await createManualJob({
-      companyName,
-      title,
-      url: f.url,
-      location,
-      description: f.description,
-      salaryMin,
-      salaryMax,
-    });
+    // 1. The posting becomes a normal MANUAL job (deduped). A new one is
+    //    classified in the background: the comparison never reads the fit
+    //    score, and that leg alone was ~50 s on a CLI engine
+    //    (docs/target-plan.md §3.1).
+    const result = await createManualJob(
+      {
+        companyName,
+        title,
+        url: f.url,
+        location,
+        description: f.description,
+        salaryMin,
+        salaryMax,
+      },
+      { classify: false },
+    );
     const job = result.job;
-    updateRun(run.id, { stage: 'match', jobId: job.id });
+    if (result.kind === 'created') classifyInBackground(result.job);
+    updateRun(run.id, { jobId: job.id });
 
     // 2. Ephemeral compares keep only the current analysis.
     if (resume.ephemeral) {
@@ -208,7 +216,9 @@ targetRoute.post('/target', resumeUploadLimit('/target'), async (c) => {
     updateRun(run.id, {
       stage: 'done',
       resultUrl: `/jobs/${job.id}/target?match=${row.id}`,
-      flash: `AI match ${row.matchScore}/100 — "${resume.name}" vs "${job.title}".`,
+      flash:
+        `AI match ${row.matchScore}/100 — "${resume.name}" vs "${job.title}".` +
+        (result.kind === 'created' ? ' The fit score is still being scored; it lands on the job page in about a minute.' : ''),
     });
   });
 

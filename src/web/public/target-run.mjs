@@ -18,10 +18,6 @@ const ACTIVITIES = {
     'Reading the pasted posting…',
     'Picking out company, title, location and salary…',
   ],
-  classify: [
-    'Reading the posting…',
-    'Scoring fit against the active profile — stack, role type, region, salary…',
-  ],
   scan: [
     'Extracting the text an ATS parser would see…',
     'Cataloguing skills, seniority and job-agnostic issues…',

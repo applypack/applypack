@@ -2,14 +2,14 @@ import { randomUUID } from 'node:crypto';
 import { logger } from '../logger';
 
 /*
- * In-memory registry for long compare runs (classify → scan → match). The
+ * In-memory registry for long compare runs (extract → scan → match). The
  * POST returns immediately with a redirect to /target/runs/:id; the page
  * polls /target/runs/:id/state until the async chain flips the run to done
  * or error. Web-process-only state; a restart simply forgets unfinished
  * runs (node-cron philosophy: no queue, ADR 0003).
  */
 
-export type RunStep = 'fetch' | 'extract' | 'classify' | 'scan' | 'match' | 'verify' | 'letter' | 'score';
+export type RunStep = 'fetch' | 'extract' | 'scan' | 'match' | 'verify' | 'letter' | 'score';
 export type RunStage = RunStep | 'done' | 'error';
 
 export interface TargetRun {

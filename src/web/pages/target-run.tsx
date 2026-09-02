@@ -14,10 +14,6 @@ const STEP_VIEW: Record<RunStep, StepView> = {
     label: 'Detect posting facts',
     detail: 'company, title, location, salary from the description — seconds',
   },
-  classify: {
-    label: 'Classify the posting',
-    detail: 'fit score against every running search — seconds',
-  },
   scan: {
     // Also reached by a plain re-scan and a first upload, where there is no
     // "new version" to speak of.

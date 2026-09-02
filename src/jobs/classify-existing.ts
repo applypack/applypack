@@ -7,6 +7,8 @@ import { getSettings } from '../settings';
 import { buildVerdicts, mergeVerdicts } from './verdict-merge';
 import { saveJobScores } from './score-store';
 
+export type ClassifiableJob = Job & { company: { name: string; atsType: AtsType } };
+
 /**
  * Classifies one stored job against every active search and writes the scores
  * back (ADR 0028). Used by the per-job "Re-classify" button and by manual job
@@ -17,7 +19,7 @@ import { saveJobScores } from './score-store';
  * Returns false when no search is active or the classifier failed.
  */
 export async function classifyExistingJob(
-  job: Job & { company: { name: string; atsType: AtsType } },
+  job: ClassifiableJob,
   opts: { keepStatus: boolean },
 ): Promise<boolean> {
   const started = Date.now();
@@ -59,4 +61,15 @@ export async function classifyExistingJob(
     'classify-existing: scored',
   );
   return true;
+}
+
+/**
+ * The same call with nobody waiting on it — for a pasted posting whose
+ * reader wants the comparison, not the fit score. The score lands on the job
+ * page whenever the classifier answers; a failure is logged, never surfaced.
+ */
+export function classifyInBackground(job: ClassifiableJob): void {
+  void classifyExistingJob(job, { keepStatus: true }).catch((err) => {
+    logger.error({ err, jobId: job.id }, 'classify-existing: background run failed');
+  });
 }

@@ -5,7 +5,7 @@ import { prisma } from '../db';
 import { decodeHtmlEntities } from '../http';
 import { logger } from '../logger';
 import { hashShortId } from '../text-utils';
-import { classifyExistingJob } from './classify-existing';
+import { classifyExistingJob, type ClassifiableJob } from './classify-existing';
 
 /*
  * Pasted postings (the /jobs/new form and the /target compare page) become
@@ -36,7 +36,7 @@ export type ManualJobInput = z.infer<typeof ManualJobSchema>;
 
 export type ManualJobResult =
   | { kind: 'existing'; job: Job }
-  | { kind: 'created'; job: Job; classified: boolean };
+  | { kind: 'created'; job: ClassifiableJob; classified: boolean };
 
 /**
  * `classify: false` skips the fit-score call — the cover-letter path never
