@@ -210,3 +210,32 @@ test('an override in the reply is stripped — only the user writes that field',
   assert.equal(r.keywords[0]?.override, undefined);
   assert.equal(effectiveKeywords(r.keywords).length, 1, 'a prompt-injected exclusion cannot drop a must-have');
 });
+
+test('a rebuilt frame keeps every override — the machine guess resets, the human decision does not', async () => {
+  // What "Rebuild keywords" produces (keyword-frame.ts): the model never saw
+  // the old list, so the reply shares neither its order, its levels nor all of
+  // its terms. carryOverrides reads the FULL stored row, not the frame that
+  // was withheld, so all three edits still land.
+  const ctx = await context();
+  const previous = [
+    kw({ term: 'Laravel', requirement: 'must', override: { requirement: 'nice' } }),
+    kw({ term: 'ping-pong', requirement: 'nice', override: { excluded: true } }),
+    ...(addKeyword([], { term: 'Kafka', requirement: 'must' }, ctx) as { keywords: MatchKeyword[] }).keywords,
+  ];
+  const rebuilt = [
+    kw({ term: 'Docker', requirement: 'must' }),
+    kw({ term: 'ping-pong', requirement: 'context' }),
+    kw({ term: 'Laravel', requirement: 'must' }),
+  ];
+  const r = carryOverrides(rebuilt, previous, ctx);
+  assert.equal(r.carried, 2);
+  assert.equal(r.readded, 1, "the term the user added is not the model's to forget");
+  assert.equal(effectiveRequirement(r.keywords.find((k) => k.term === 'Laravel')!), 'nice');
+  assert.ok(isIgnored(r.keywords.find((k) => k.term === 'ping-pong')!));
+  assert.equal(r.keywords.at(-1)?.term, 'Kafka');
+  assert.equal(
+    r.keywords.find((k) => k.term === 'Docker')?.override,
+    undefined,
+    'a term only the rebuild found arrives clean',
+  );
+});

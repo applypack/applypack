@@ -29,7 +29,8 @@ import {
   type MatchHardRequirement,
   type MatchKeyword,
 } from '../../resume/prompts';
-import { readMatchMode } from '../../resume/match-mode';
+import { freshFrame, freshFrameNotice } from '../../resume/keyword-frame';
+import { readMatchMode, type MatchMode } from '../../resume/match-mode';
 import type { CountedKeyword } from '../../resume/keyword-matcher';
 import { effectiveRequirement, isIgnored } from '../../resume/keyword-overrides';
 import { REQUIREMENT_LEVELS, type RequirementLevel } from '../../resume/score';
@@ -70,6 +71,20 @@ export interface KeywordEditTarget {
   jobId: number;
   matchId: number;
   back: string;
+}
+
+/**
+ * What "Rebuild keywords" needs to re-run this comparison (issue #79). The
+ * targeted view passes `formId` so its own form — the one carrying the live
+ * editor text — is submitted instead of ours.
+ */
+export interface RebuildTarget {
+  jobId: number;
+  resumeId: number;
+  mode: MatchMode;
+  /** The analysed text when it was an unsaved draft: re-judged as is, so the frame is the only thing that changes. */
+  draftText?: string;
+  formId?: string;
 }
 
 const HARD_VIEW: Record<MatchHardRequirement['status'], { label: string; tone: Tone }> = {
@@ -312,7 +327,9 @@ export const MatchReport: FC<{
   factsBack: string;
 }> = ({ match, previous, keywords, factsBack }) => {
   const bd = readBreakdown(match.breakdown);
-  const scoreDelta = previous ? match.matchScore - previous.matchScore : null;
+  // A re-extracted frame counts different terms, so the older number is not a
+  // baseline for this one (keyword-frame.ts). DeltaBox says so in words.
+  const scoreDelta = previous && !freshFrame(match.breakdown) ? match.matchScore - previous.matchScore : null;
   return (
     <div class="mt-5 space-y-5 border-t border-line pt-4">
       <div class="flex flex-wrap items-center gap-3">
@@ -364,6 +381,12 @@ export const MatchReport: FC<{
       <KeywordTable
         keywords={keywords}
         edit={bd ? { jobId: match.jobId, matchId: match.id, back: factsBack } : undefined}
+        rebuild={{
+          jobId: match.jobId,
+          resumeId: match.resumeId,
+          mode: readMatchMode(match.breakdown),
+          ...(match.draft ? { draftText: match.resumeText } : {}),
+        }}
       />
     </div>
   );
@@ -399,6 +422,15 @@ export const DeltaBox: FC<{ match: MatchWithResume; previous: MatchWithResume | 
   previous,
 }) => {
   if (!previous) return null;
+  const fresh = freshFrame(match.breakdown);
+  if (fresh) {
+    return (
+      <div class="rounded-md border border-line bg-surface-overlay/50 px-3 py-2 text-xs leading-5 text-ink-muted">
+        <span class="font-medium text-ink">Not comparable with v{previous.resumeVersion}: </span>
+        {freshFrameNotice(fresh)}
+      </div>
+    );
+  }
   const delta = diffMatches(
     { keywords: readKeywords(previous.keywords), breakdown: readBreakdown(previous.breakdown) },
     { keywords: readKeywords(match.keywords), breakdown: readBreakdown(match.breakdown) },
@@ -568,10 +600,11 @@ export const RemovalsBlock: FC<{ removals: ReturnType<typeof readRemovals>; jump
  * and a form to add a term the model missed. Each is a plain POST that
  * recomputes the score in code — no AI call.
  */
-export const KeywordTable: FC<{ keywords: CountedKeyword[]; edit?: KeywordEditTarget }> = ({
-  keywords,
-  edit,
-}) => {
+export const KeywordTable: FC<{
+  keywords: CountedKeyword[];
+  edit?: KeywordEditTarget;
+  rebuild?: RebuildTarget;
+}> = ({ keywords, edit, rebuild }) => {
   if (keywords.length === 0) return null;
   const ignored = keywords.filter(isIgnored);
   const counted = keywords.filter((k) => !isIgnored(k));
@@ -579,9 +612,12 @@ export const KeywordTable: FC<{ keywords: CountedKeyword[]; edit?: KeywordEditTa
   const matchedKeywords = counted.filter((k) => k.status === 'present');
   return (
     <div class="-mx-5 -mb-5 border-t border-line">
-      <div class="px-5 py-3 text-[13px] font-medium text-ink-muted">
-        Keyword coverage — {matchedKeywords.length} of {counted.length} matched
-        {ignored.length > 0 ? ` · ${ignored.length} ignored` : ''}
+      <div class="flex flex-wrap items-center gap-x-3 gap-y-1 px-5 py-3 text-[13px] font-medium text-ink-muted">
+        <span>
+          Keyword coverage — {matchedKeywords.length} of {counted.length} matched
+          {ignored.length > 0 ? ` · ${ignored.length} ignored` : ''}
+        </span>
+        {rebuild && <RebuildKeywords target={rebuild} />}
       </div>
       {attention.length > 0 ? (
         <Table columns={KEYWORD_COLUMNS}>
@@ -618,6 +654,41 @@ export const KeywordTable: FC<{ keywords: CountedKeyword[]; edit?: KeywordEditTa
     </div>
   );
 };
+
+/**
+ * The way out of a keyword frame that got it wrong (issue #79): one run with
+ * the stored list withheld, so the model reads the posting again. The user's
+ * own keyword edits are re-applied to whatever comes back — a rebuild resets
+ * the model's guess, not their decisions.
+ */
+function rebuildTitle(mode: MatchMode): string {
+  return `Runs this ${mode === 'fast' ? 'check (~½ min on Opus)' : 'full analysis (~2 min on Opus)'} once without the stored keyword list, so the model reads the terms out of the posting again. Your own keyword edits are kept; the new score counts a different set of terms.`;
+}
+
+const RebuildKeywords: FC<{ target: RebuildTarget }> = ({ target }) =>
+  target.formId ? (
+    <button
+      type="submit"
+      form={target.formId}
+      class={`${ROW_LINK} ml-auto`}
+      title={rebuildTitle(target.mode)}
+      onclick={`this.form.elements.rebuild.value='1';this.form.elements.mode.value='${target.mode}'`}
+    >
+      Rebuild keywords
+    </button>
+  ) : (
+    <form method="post" action={`/jobs/${target.jobId}/match`} class="ml-auto" onsubmit={SUBMIT_ONCE}>
+      <input type="hidden" name="resumeId" value={String(target.resumeId)} />
+      <input type="hidden" name="mode" value={target.mode} />
+      <input type="hidden" name="rebuild" value="1" />
+      {/* A draft row was judged on text no version holds — send it back, or the
+          rebuild would quietly score the stored resume instead. */}
+      {target.draftText !== undefined && <input type="hidden" name="draftText" value={target.draftText} />}
+      <button type="submit" class={ROW_LINK} title={rebuildTitle(target.mode)}>
+        Rebuild keywords
+      </button>
+    </form>
+  );
 
 const KEYWORD_SUMMARY =
   'cursor-pointer border-t border-line px-5 py-2.5 text-[13px] font-medium text-ink-muted transition-colors duration-150 hover:text-ink';

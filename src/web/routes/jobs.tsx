@@ -468,14 +468,19 @@ jobsRoute.post('/jobs/:id/match', async (c) => {
   const text = draft ? draftText : resume.text;
   // The quick check unless the form asked for the full report (ADR 0029).
   const mode = parseMatchMode(form.mode);
+  // "Rebuild keywords": read the terms out of the posting again instead of
+  // inheriting the frame this posting has been carrying (issue #79).
+  const rebuild = form.rebuild === '1';
   const toTarget = form.next === 'target';
   const resultUrl = (matchId: number) =>
     toTarget ? `/jobs/${id}/target?match=${matchId}` : `/jobs/${id}?match=${matchId}#resume-match`;
 
   // The same text was already judged: show that analysis instead of paying
-  // for it again — unless "Re-run anyway" asked for a fresh call. A full
-  // report asked of a stored quick check needs only the suggestions call.
-  if (form.force !== '1') {
+  // for it again — unless "Re-run anyway" or a rebuild asked for a fresh call.
+  // A rebuild that hit the memo would silently hand back the very frame it was
+  // asked to replace. A full report asked of a stored quick check needs only
+  // the suggestions call.
+  if (form.force !== '1' && !rebuild) {
     const reused = await findReusableMatch(job.id, resume.id, text, mode);
     if (reused?.decision === 'reuse') {
       return flashRedirect(resultUrl(reused.row.id), 'warn', reuseNotice(formatRelative(reused.row.createdAt)), {
@@ -492,7 +497,7 @@ jobsRoute.post('/jobs/:id/match', async (c) => {
   startRun(run.id, async () => {
     // Ephemeral (scratch) compares keep only the current analysis.
     if (resume.hidden) await deleteMatchesForResume(resume.id);
-    const row = await matchResumeToJob({ id: resume.id, version: resume.version, text }, jobInput, { draft, mode });
+    const row = await matchResumeToJob({ id: resume.id, version: resume.version, text }, jobInput, { draft, mode, rebuild });
     if (!row) {
       updateRun(run.id, { stage: 'error', error: 'Comparison failed — see the web logs.' });
       return;
@@ -500,7 +505,9 @@ jobsRoute.post('/jobs/:id/match', async (c) => {
     updateRun(run.id, {
       stage: 'done',
       resultUrl: resultUrl(row.id),
-      flash: `${draft ? 'Draft' : `"${resume.name}"`} ${mode === 'fast' ? 'checked' : 'compared'} — AI match ${row.matchScore}/100.`,
+      flash: rebuild
+        ? `Keywords rebuilt from the posting — AI match ${row.matchScore}/100, counted over a fresh set of terms.`
+        : `${draft ? 'Draft' : `"${resume.name}"`} ${mode === 'fast' ? 'checked' : 'compared'} — AI match ${row.matchScore}/100.`,
     });
   });
   return c.redirect(`/target/runs/${run.id}`, 303);

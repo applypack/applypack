@@ -359,8 +359,9 @@ export const TargetPage: FC<TargetPageProps> = ({
                   <input type="hidden" name="resumeId" value={resume.id} />
                   <input type="hidden" name="draftText" id="reanalyze-text" value="" />
                   <input type="hidden" name="next" value="target" />
-                  {/* Set by the full-analysis button's click — a disabled submitter is left out of the form data. */}
+                  {/* Set by the full-analysis and Rebuild buttons' clicks — a disabled submitter is left out of the form data. */}
                   <input type="hidden" name="mode" value="fast" />
+                  <input type="hidden" name="rebuild" value="" />
                   <Button variant="violet" class="w-full" title="Re-scores the text in the editor: keywords, gates and the number (~½ min on Opus)">
                     Re-check with AI
                   </Button>
@@ -545,6 +546,9 @@ export const TargetPage: FC<TargetPageProps> = ({
                     ? { jobId: job.id, matchId: match.id, back: `/jobs/${job.id}/target?match=${match.id}` }
                     : undefined
                 }
+                // Through the editor's own form, so a rebuild judges the text on
+                // screen — the same call Re-check makes, minus the stored frame.
+                rebuild={{ jobId: job.id, resumeId: resume.id, mode: fast ? 'fast' : 'full', formId: 'reanalyze-form' }}
               />
             </div>
           </Card>

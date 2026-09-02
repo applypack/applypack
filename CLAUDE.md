@@ -90,7 +90,7 @@
   (ADR 0012), `facts.ts`, `diff.ts`, `parse-warnings.ts`, `match-mode.ts`,
   `match-reuse.ts`, `bench-report.ts`,
   `profile-draft.ts` (ADR 0015), `fact-check.ts` (ADR 0020),
-  `keyword-overrides.ts` are pure (tested);
+  `keyword-overrides.ts`, `keyword-frame.ts` are pure (tested);
   `scan.ts` / `match.ts` / `suggestions.ts` / `cover-letter.ts` call the AI
   provider (the letter is gated by `fact-check.ts` and generates from stored
   inputs only — ADR 0021); `store.ts` is the only file that touches Prisma.
@@ -197,6 +197,7 @@ When the question is **"where does X live?"**, save yourself a `find`:
 | What counts as primary stack / sibling-tech rules (prompt side) | `src/resume/prompts.ts:MATCH_SYSTEM` steps 3-4 — guard-tested in `prompts.test.ts` |
 | ask_user confirmations (CandidateFact rows, instant re-score) | `src/resume/facts.ts` (pure) + `src/web/routes/facts.ts` (POST /facts), managed on `/resumes` |
 | Per-keyword overrides (re-level / ignore / add your own term) | `src/resume/keyword-overrides.ts` (pure): `effectiveKeywords` feeds the score, `carryOverrides` re-applies them to the next reply; route `src/web/routes/keywords.ts` |
+| Whether a run inherits the posting's keyword frame (rebuild, prompt bump) | `src/resume/keyword-frame.ts:planKeywordFrame` (pure, issue #79) — the reason is stored in the `breakdown` JSON and read back by `freshFrame` |
 | Keyword display order + mark intensity (weight, then posting frequency) | `src/web/public/target.mjs:keywordRank` / `orderKeywords` — one implementation for the panes, the chips and the server-rendered table |
 | Anti-hallucination gate for generated prose (pass/warn/block) | `src/resume/fact-check.ts:factCheck` (pure, ADR 0020) — sources arrive as arguments, `store.ts` loads them |
 | Cover letter generation (gated, stored-inputs-only) | `src/resume/cover-letter.ts` + `COVER_SYSTEM` in `prompts.ts` (ADR 0021); card `src/web/pages/cover-letter-card.tsx` |
@@ -253,6 +254,7 @@ When the question is **"how does the user toggle / configure X?"**:
 | Compare a resume with a posting | `/jobs/:id` → "Resume match" card — **Compare** = quick check (keywords, gates, score), **Full analysis** = also the edit suggestions (ADR 0029) |
 | Get the edit suggestions for a quick check | the comparison → "Get suggestions" (second call, reuses the stored verdicts, score unchanged) |
 | Re-level, ignore or add a keyword by hand | the keyword table on `/jobs/:id` or `/jobs/:id/target` → the "Wants it" select, `ignore` / `reset`, and "Add a keyword" (instant re-score, no AI call; the edit sticks to the posting across re-runs) |
+| Throw away a keyword list the model got wrong | the keyword table → "Rebuild keywords" (one run with the stored frame withheld; your own keyword edits survive it, the new score is not comparable with the old) |
 | Paste a posting the fetchers don't see | `/jobs` → "+ Paste a job" (`/jobs/new`) |
 | Compare a pasted posting with any resume in one step | menu → Compare (`/target`): paste posting, pick / upload / paste resume, Compare |
 | Check whether a posting is real | `/jobs/:id` → "Is this job real?" → Verify (web search, 2-4 min) |

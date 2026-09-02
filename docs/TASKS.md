@@ -810,9 +810,10 @@ icon; progress visible step-by-step via the target-run registry pattern.
 
 ## 13. /target compare speed (30-40 s) + keyword-matcher accuracy (analysis 2026-08-31)
 
-Full plan: [docs/target-plan.md](./target-plan.md). **Blocks 1–5 shipped
-2026-09-02 (measured numbers in the plan's §2.3, §3.4, §4 and §5); block 6
-opens only if the numbers demand it.** §12's
+Full plan: [docs/target-plan.md](./target-plan.md). **Section closed
+2026-09-02: blocks 1–5 plus `keyword-frame-rebuild` shipped (measured numbers
+in the plan's §2.3, §3.4, §4 and §5), block 6 closed by the numbers rather
+than built.** §12's
 async-upload item overlaps the `/resumes`
 sync-scan finding, planned there, referenced here.
 
@@ -900,5 +901,32 @@ Sonnet bench for the resume role — not "make Opus stream faster".
       re-run logged `overrides: 3, readded: 1`, so the edits survived into
       the fresh reply. An added term's status is read from the resume, and
       the `override` field is stripped from every model reply on the way in.
-- [ ] (only if still short of target) `match-split-frame` — per-job cached
-      keyword frame + statuses-only judge call (**ADR**)
+- [x] `keyword-frame-rebuild` — "Rebuild keywords" runs the analysis once
+      without `previousKeywords`, and a frame written under another
+      `PROMPT_VERSION` is never inherited (§4 F7, issue #79) — done
+      2026-09-02, branch `keyword-frame-rebuild` (PR #84). The decision is a
+      pure function of (stored prompt version, request flag) in
+      `keyword-frame.ts`; its reason rides in the `breakdown` JSON, so a
+      rebuilt row replaces the version delta with *"not comparable"* instead
+      of inviting a comparison between two different term lists. A rebuild
+      bypasses the reuse memo (it would otherwise hand back the very frame it
+      was asked to replace) and keeps every user override — `carryOverrides`
+      reads the full stored row, not the withheld frame. Measured live on job
+      #1393 (quick check, CLI engine): carried **42.2 s / 26 terms**, the same
+      list the frame had carried through five analyses since prompt v5;
+      rebuilt **41.8 s / 30 terms** — 23 shared, 3 dropped, **7 new (BullMQ,
+      GCP PubSub, AI tools, observability tools, performance monitoring,
+      CI/CD, Microservices)**, every one of them literally in the posting,
+      `unanchored` still 0. Score 67 → 64, which is what the card now says
+      out loud. The must → nice override set before the rebuild survived it.
+- [x] `match-split-frame` — per-job cached keyword frame + statuses-only judge
+      call (**ADR**). **Not built: closed 2026-09-02 by the numbers, not by
+      taste.** The gate was "only if still short of target" (30-40 s). After
+      block 4 the quick check is **p50 15 s** on the gold fixtures and
+      **40 / 42.2 / 41.8 s** on job #1393, one of the longest descriptions we
+      store — inside the band on short postings, ~2 s over on a long one. The
+      split would buy those seconds with a second prompt variant, an ADR and a
+      per-job cache to invalidate, while block 3 already answers the
+      as-you-type case with no call at all (0-15 ms) and F7 shows that a
+      frozen frame is a liability, not an asset. Reopen only if a measured
+      compare goes back over ~60 s.

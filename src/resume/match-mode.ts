@@ -1,3 +1,4 @@
+import type { FrameReason } from './keyword-frame';
 import type { ScoreBreakdown } from './score';
 
 /*
@@ -23,12 +24,17 @@ export function readMatchMode(breakdown: unknown): MatchMode {
   return (breakdown as { mode?: unknown }).mode === 'fast' ? 'fast' : 'full';
 }
 
-/** What store.ts writes into the JSON column: the score parts plus both markers. */
+/**
+ * What store.ts writes into the JSON column: the score parts plus the three
+ * markers. Every field is required, so the compiler names any write that would
+ * drop one — a re-score that forgets `frame` would silently make an
+ * incomparable score look comparable again.
+ */
 export function storedBreakdown(
   bd: ScoreBreakdown,
-  meta: { promptVersion: number | null; mode: MatchMode },
+  meta: { promptVersion: number | null; mode: MatchMode; frame: FrameReason | null },
 ): Record<string, unknown> {
-  return { ...bd, promptVersion: meta.promptVersion, mode: meta.mode };
+  return { ...bd, promptVersion: meta.promptVersion, mode: meta.mode, frame: meta.frame };
 }
 
 /** The same JSON after suggestions were added — the row is now a full analysis. */
