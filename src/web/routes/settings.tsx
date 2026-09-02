@@ -834,7 +834,10 @@ settingsRoute.post(
     primarySkills: resume.primarySkills,
     roleTypes: resume.roleTypes,
   });
-  if (draft.changed.length === 0) {
+  // Filling from a resume also proposes it as the search's resume — same
+  // review-then-save contract (ADR 0015): the select below carries it.
+  const linking = profile.resumeId !== resume.id;
+  if (draft.changed.length === 0 && !linking) {
     const note = draft.warnings[0] ? ` — ${draft.warnings[0]}` : '';
     return flashRedirect(
       '/settings?tab=profile',
@@ -849,10 +852,10 @@ settingsRoute.post(
       {...props}
       activeTab="profile"
       flash={null}
-      activeProfile={{ ...profile, ...draft.changes }}
+      activeProfile={{ ...profile, ...draft.changes, resumeId: resume.id }}
       profileDraft={{
         resumeName: resume.name,
-        changed: draft.changed,
+        changed: linking ? [...draft.changed, 'resume for this search'] : draft.changed,
         warnings: draft.warnings,
       }}
     />,

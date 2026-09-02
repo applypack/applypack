@@ -26,16 +26,28 @@ import { formatDate, formatRelative } from '../format';
 import type { MatchWithJob, ResumeSummary } from '../../resume/store';
 import { readIssues } from '../../resume/prompts';
 import type { ParseWarning } from '../../resume/parse-warnings';
+import type { ProfileDraft } from '../../resume/profile-draft';
 
 export interface ResumeDetailProps {
   resume: ResumeSummary;
   matches: MatchWithJob[];
   /** Deterministic ATS-parseability checks over the extracted text. */
   warnings: ParseWarning[];
+  /** Searches already linked to this resume, and the one a click would create. */
+  search: {
+    linkedProfiles: { id: number; name: string }[];
+    draft: ProfileDraft | null;
+  };
   flash?: FlashMessage | null;
 }
 
-export const ResumeDetailPage: FC<ResumeDetailProps> = ({ resume, matches, warnings, flash }) => {
+export const ResumeDetailPage: FC<ResumeDetailProps> = ({
+  resume,
+  matches,
+  warnings,
+  search,
+  flash,
+}) => {
   const issues = readIssues(resume.issues);
   return (
     <Layout title={resume.name} active="resumes">
@@ -128,6 +140,8 @@ export const ResumeDetailPage: FC<ResumeDetailProps> = ({ resume, matches, warni
           )}
         </Card>
       </div>
+
+      <SearchCard resumeId={resume.id} scanned={resume.scannedAt !== null} {...search} />
 
       <Card class="mt-4">
         <SectionTitle>Upload a new version</SectionTitle>
@@ -226,6 +240,83 @@ export const ResumeDetailPage: FC<ResumeDetailProps> = ({ resume, matches, warni
         </details>
       </Card>
     </Layout>
+  );
+};
+
+/**
+ * Stage A of the multi-resume search: one press turns a scanned resume into a
+ * search that hunts the jobs you'd apply to with it. The draft is shown in
+ * full first — the button saves exactly what the line above it says (ADR 0015).
+ */
+const SearchCard: FC<ResumeDetailProps['search'] & { resumeId: number; scanned: boolean }> = ({
+  resumeId,
+  scanned,
+  linkedProfiles,
+  draft,
+}) => {
+  const c = draft?.changes;
+  return (
+    <Card class="mt-4">
+      <SectionTitle>Search profile</SectionTitle>
+      {linkedProfiles.length > 0 && (
+        <p class="text-sm text-ink">
+          This resume is what{' '}
+          {linkedProfiles.map((p, i) => (
+            <>
+              {i > 0 && ', '}
+              <a
+                href={`/settings?tab=profile&profile=${p.id}`}
+                class="font-medium text-accent-strong hover:underline"
+              >
+                {p.name}
+              </a>
+            </>
+          ))}{' '}
+          {linkedProfiles.length === 1 ? 'hunts with' : 'hunt with'} — job pages preselect it for
+          those searches.
+        </p>
+      )}
+      {!scanned ? (
+        <Hint class={linkedProfiles.length > 0 ? 'mt-3' : ''}>
+          Scan the resume first — a search is built from the headline, tools and roles the scan
+          finds.
+        </Hint>
+      ) : (
+        <>
+          <p class={`text-sm text-ink-muted ${linkedProfiles.length > 0 ? 'mt-3' : ''}`}>
+            {linkedProfiles.length > 0 ? 'Add another search' : 'Create a search'} that hunts the
+            jobs you'd apply to with this resume:
+          </p>
+          <div class="mt-2.5 flex flex-wrap items-center gap-1.5 text-sm">
+            <span class="font-medium text-ink">"{c?.name ?? 'New profile'}"</span>
+            {(c?.stackRequired ?? []).map((t) => (
+              <Tag tone="ok">{t}</Tag>
+            ))}
+            {(c?.roleTypes ?? []).map((t) => (
+              <Tag tone="info">{t}</Tag>
+            ))}
+            {(c?.seniority ?? []).map((t) => (
+              <Tag tone="info">{t}</Tag>
+            ))}
+          </div>
+          {(draft?.warnings ?? []).length > 0 && (
+            <p class="mt-2 text-[13px] leading-5 text-warn">Note: {draft?.warnings.join('; ')}.</p>
+          )}
+          <div class="mt-3.5">
+            <ActionForm action={`/resumes/${resumeId}/profile`}>
+              <Button variant="violet" size="sm">
+                Create a search from this resume
+              </Button>
+            </ActionForm>
+          </div>
+          <Hint class="mt-3">
+            It starts switched off — your current search keeps running until you press Activate on
+            Settings → Profile. Location, salary and alert routing are yours to set; a resume
+            cannot know them.
+          </Hint>
+        </>
+      )}
+    </Card>
   );
 };
 

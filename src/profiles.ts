@@ -59,6 +59,17 @@ export async function getProfile(id: number): Promise<Profile | null> {
   return prisma.profile.findUnique({ where: { id } });
 }
 
+/** The searches that hunt with a given resume — shown on that resume's page. */
+export async function listProfilesForResume(
+  resumeId: number,
+): Promise<Pick<Profile, 'id' | 'name'>[]> {
+  return prisma.profile.findMany({
+    where: { resumeId },
+    select: { id: true, name: true },
+    orderBy: { id: 'asc' },
+  });
+}
+
 export async function getActiveProfile(): Promise<Profile | null> {
   const settings = await prisma.appSettings.findUnique({
     where: { id: SETTINGS_ID },
