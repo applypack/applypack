@@ -937,7 +937,7 @@ const ProfileEditor: FC<{
       </div>
     )}
     <div class="grid gap-4 sm:grid-cols-2">
-      <Field label="Name">
+      <Field label="Name" hint="What you call this search — yours alone, nothing reads it.">
         <Input type="text" name="name" required value={profile.name} />
       </Field>
       <Field

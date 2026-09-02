@@ -17,6 +17,8 @@ export interface CoverLetterCardProps {
   resumes: { id: number; name: string; isDefault: boolean }[];
   /** Best skill overlap for this posting — preselected, same as the match card. */
   suggestedResumeId: number | null;
+  /** Why that one is preselected: the search names it, or it overlaps the posting most. */
+  suggestedReason: 'linked' | 'overlap';
   letters: CoverLetterWithResume[];
   selected: CoverLetterWithResume | null;
   /** A stored verification snapshot exists — company facts beyond the posting. */
@@ -38,6 +40,7 @@ export const CoverLetterCard: FC<CoverLetterCardProps> = ({
   jobId,
   resumes,
   suggestedResumeId,
+  suggestedReason,
   letters,
   selected,
   hasCompanyFacts,
@@ -64,7 +67,11 @@ export const CoverLetterCard: FC<CoverLetterCardProps> = ({
                 {resumes.map((r) => (
                   <option value={r.id} selected={r.id === (suggestedResumeId ?? resumes[0]?.id)}>
                     {r.name}
-                    {r.id === suggestedResumeId ? ' · best skill overlap' : ''}
+                    {r.id === suggestedResumeId
+                      ? suggestedReason === 'linked'
+                        ? ' · your search hunts with this'
+                        : ' · best skill overlap'
+                      : ''}
                     {r.isDefault ? ' · default' : ''}
                   </option>
                 ))}

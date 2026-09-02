@@ -219,11 +219,9 @@ jobsRoute.get('/jobs/:id', async (c) => {
   // Stage A of the multi-resume search: the profile doing the hunting is the
   // active one, and its linked resume wins the preselect (§4 of the plan).
   // Stage B replaces "active" with the profile that scored this job best.
-  const suggested = preselectResume(
-    resumes,
-    `${job.title} ${job.description}`,
-    activeProfile?.resumeId ?? null,
-  );
+  const linkedResumeId = activeProfile?.resumeId ?? null;
+  const suggested = preselectResume(resumes, `${job.title} ${job.description}`, linkedResumeId);
+  const suggestedReason = suggested && suggested.id === linkedResumeId ? 'linked' : 'overlap';
 
   const flashCookie = parseFlashCookie(c.req.header('cookie'));
   return c.html(
@@ -237,6 +235,7 @@ jobsRoute.get('/jobs/:id', async (c) => {
         jobId: id,
         resumes: resumes.map((r) => ({ id: r.id, name: r.name, isDefault: r.isDefault })),
         suggestedResumeId: suggested?.id ?? null,
+        suggestedReason,
         matches,
         selected,
       }}
@@ -244,6 +243,7 @@ jobsRoute.get('/jobs/:id', async (c) => {
         jobId: id,
         resumes: resumes.map((r) => ({ id: r.id, name: r.name, isDefault: r.isDefault })),
         suggestedResumeId: suggested?.id ?? null,
+        suggestedReason,
         letters,
         selected: selectedLetter,
         hasCompanyFacts: Boolean(verifications[0]?.companySnapshot?.trim()),
