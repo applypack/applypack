@@ -84,7 +84,6 @@ export interface RebuildTarget {
   mode: MatchMode;
   /** The analysed text when it was an unsaved draft: re-judged as is, so the frame is the only thing that changes. */
   draftText?: string;
-  next?: 'target';
   formId?: string;
 }
 
@@ -662,8 +661,9 @@ export const KeywordTable: FC<{
  * own keyword edits are re-applied to whatever comes back — a rebuild resets
  * the model's guess, not their decisions.
  */
-const REBUILD_TITLE =
-  'Runs the analysis once without the stored keyword list, so the model reads the terms out of the posting again (~½ min). Your own keyword edits are kept; the new score counts a different set of terms.';
+function rebuildTitle(mode: MatchMode): string {
+  return `Runs this ${mode === 'fast' ? 'check (~½ min on Opus)' : 'full analysis (~2 min on Opus)'} once without the stored keyword list, so the model reads the terms out of the posting again. Your own keyword edits are kept; the new score counts a different set of terms.`;
+}
 
 const RebuildKeywords: FC<{ target: RebuildTarget }> = ({ target }) =>
   target.formId ? (
@@ -671,7 +671,7 @@ const RebuildKeywords: FC<{ target: RebuildTarget }> = ({ target }) =>
       type="submit"
       form={target.formId}
       class={`${ROW_LINK} ml-auto`}
-      title={REBUILD_TITLE}
+      title={rebuildTitle(target.mode)}
       onclick={`this.form.elements.rebuild.value='1';this.form.elements.mode.value='${target.mode}'`}
     >
       Rebuild keywords
@@ -681,11 +681,10 @@ const RebuildKeywords: FC<{ target: RebuildTarget }> = ({ target }) =>
       <input type="hidden" name="resumeId" value={String(target.resumeId)} />
       <input type="hidden" name="mode" value={target.mode} />
       <input type="hidden" name="rebuild" value="1" />
-      {target.next && <input type="hidden" name="next" value={target.next} />}
       {/* A draft row was judged on text no version holds — send it back, or the
           rebuild would quietly score the stored resume instead. */}
       {target.draftText !== undefined && <input type="hidden" name="draftText" value={target.draftText} />}
-      <button type="submit" class={ROW_LINK} title={REBUILD_TITLE}>
+      <button type="submit" class={ROW_LINK} title={rebuildTitle(target.mode)}>
         Rebuild keywords
       </button>
     </form>

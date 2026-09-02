@@ -21,12 +21,7 @@
  * ADR 0029) so the card can say why a score stands on its own.
  */
 
-export const FRAME_REASONS = [
-  "carried",
-  "first-run",
-  "rebuild",
-  "prompt-bump",
-] as const;
+export const FRAME_REASONS = ['carried', 'first-run', 'rebuild', 'prompt-bump'] as const;
 export type FrameReason = (typeof FRAME_REASONS)[number];
 
 /** The latest stored analysis of this posting, as the frame decision reads it. */
@@ -43,25 +38,19 @@ export interface FramePlan {
   reason: FrameReason;
 }
 
-export function planKeywordFrame(
-  stored: StoredFrame | null,
-  promptVersion: number,
-  rebuild: boolean,
-): FramePlan {
-  if (stored === null || stored.terms === 0)
-    return { carry: false, reason: "first-run" };
-  if (rebuild) return { carry: false, reason: "rebuild" };
+export function planKeywordFrame(stored: StoredFrame | null, promptVersion: number, rebuild: boolean): FramePlan {
+  if (stored === null || stored.terms === 0) return { carry: false, reason: 'first-run' };
+  if (rebuild) return { carry: false, reason: 'rebuild' };
   // Any other version, not just an older one: a downgrade inherits a frame
   // written by rules this prompt does not have either, and a pre-marker row
   // (null) cannot say which rules it followed at all.
-  if (stored.promptVersion !== promptVersion)
-    return { carry: false, reason: "prompt-bump" };
-  return { carry: true, reason: "carried" };
+  if (stored.promptVersion !== promptVersion) return { carry: false, reason: 'prompt-bump' };
+  return { carry: true, reason: 'carried' };
 }
 
 /** The stored marker; null on rows written before it existed. */
 export function readFrameReason(breakdown: unknown): FrameReason | null {
-  if (typeof breakdown !== "object" || breakdown === null) return null;
+  if (typeof breakdown !== 'object' || breakdown === null) return null;
   const v = (breakdown as { frame?: unknown }).frame;
   return FRAME_REASONS.includes(v as FrameReason) ? (v as FrameReason) : null;
 }
@@ -72,18 +61,16 @@ export function readFrameReason(breakdown: unknown): FrameReason | null {
  * nothing to be compared with, and a carried frame is what makes the comparison
  * fair in the first place — neither says anything here.
  */
-export function freshFrame(
-  breakdown: unknown,
-): "rebuild" | "prompt-bump" | null {
+export function freshFrame(breakdown: unknown): 'rebuild' | 'prompt-bump' | null {
   const reason = readFrameReason(breakdown);
-  return reason === "rebuild" || reason === "prompt-bump" ? reason : null;
+  return reason === 'rebuild' || reason === 'prompt-bump' ? reason : null;
 }
 
 /** What the card says in place of the version delta. */
-export function freshFrameNotice(reason: "rebuild" | "prompt-bump"): string {
+export function freshFrameNotice(reason: 'rebuild' | 'prompt-bump'): string {
   const why =
-    reason === "rebuild"
-      ? "Keywords were rebuilt from the posting for this run"
-      : "The analysis prompt changed, so the earlier keywords were not reused";
+    reason === 'rebuild'
+      ? 'Keywords were rebuilt from the posting for this run'
+      : 'The analysis prompt changed, so the earlier keywords were not reused';
   return `${why}, so this analysis counts a different set of terms. Read the score on its own — the earlier ones judged another list.`;
 }
