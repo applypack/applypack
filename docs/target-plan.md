@@ -1,6 +1,7 @@
 # /target compare flow: speed (30-40 s target) + keyword-matching accuracy
 
-> **Analysis only — nothing implemented.** Written 2026-08-31 from a parallel
+> **Analysis written 2026-08-31; blocks 1–2 of §7 shipped 2026-09-02 (measured
+> numbers in §2.3 and §4).** Written from a parallel
 > session (full source pass over the compare pipeline: `src/web/routes/target.tsx`,
 > `jobs.tsx`, `src/resume/{match,scan,prompts,score}.ts`, `src/web/public/{target,score,target-page}.mjs`,
 > `src/ai-{runtime,provider}.ts`, `src/jobs/{manual-job,posting-extract,classify-existing}.ts`)
@@ -286,6 +287,22 @@ earlier-starting mark (cosmetic); benefits/EEO/marketing text is *deliberately*
 never keyworded (NOISE rule) — worth one line in the pane legend so it stops
 looking like a miss.
 
+**Measured 2026-09-02** (block 2, `npm run keywords:audit` over the 15 stored
+comparisons — the same `findTerm` the panes use, no AI call):
+
+| Rows | Before | After F3–F5 |
+| --- | --- | --- |
+| keyword rows with no highlight in the posting (of 305) | 54 (9 title-only) | 53 |
+| `present` rows with no highlight in the resume (of 181) | 36 | 35 |
+
+Every remaining miss comes from the seven analyses written before the
+VERBATIM rule (prompt v5): slash-joined paraphrases such as "Mentoring / team
+lead" or "startup / fast-paced environment" that no matcher can place. On the
+current prompt no stored row misses the posting, so F2 acts as the safety net
+and the metric (`anchored` / `unanchored` on the `resume: matched` line), not
+as a repair of today's output. F1 moved to `match-fast-mode` (block 4) — it is
+a prompt change; F7 is issue #79; F8 stays open (§8).
+
 ## 5. Keyword priorities — present vs missing
 
 Already there: `priority` 1-4, `requirement` must/preferred/nice/context
@@ -341,11 +358,12 @@ Sources: [jobscan.co](https://www.jobscan.co/blog/top-resume-keywords-boost-resu
 2. `keyword-matcher-v2` — F2 verbatim guard + F3 alias module + F4/F5
    pattern tolerance + tests (table-driven pairs in `target.test.ts`,
    alias-module unit tests). Pure-module work; `PROMPT_VERSION` untouched
-   (post-processing).
+   (post-processing). **Shipped 2026-09-02** (PR #80, numbers in §4).
 3. `target-instant-check` — §3.2 item 5 (parse-only reupload → dirty draft
    in the editor). UX copy honest about "estimate vs frame".
 4. `match-fast-mode` — §3.2 items 6-7: keywords-only prompt variant +
-   `bench:resume` Sonnet-vs-Opus numbers + default/model-select decision.
+   `bench:resume` Sonnet-vs-Opus numbers + default/model-select decision,
+   plus the F1 tiered keyword budget (same prompt, same bump).
    `PROMPT_VERSION` bump; gotcha-11 guard tests extended to the short
    prompt. Possibly an ADR (second match mode).
 5. `keyword-priority-ui` — §5 overrides + visual weight + frequency. Reuses

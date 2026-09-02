@@ -4,6 +4,42 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.14.0] — 2026-09-02
+
+### Changed
+- **Keyword highlights tolerate spellings, plurals and separators**
+  ([docs/target-plan.md](docs/target-plan.md) §4 F3–F6, TASKS §13 block 2).
+  The matcher behind the `/target` panes and the live score now treats the
+  separators inside a multi-word term as interchangeable and optional
+  (`CI/CD` = `CI / CD` = `CI-CD`, `Node.js` = `NodeJS`, `front-end` =
+  `front end` = `frontend`), matches the regular plural of a term and the
+  singular of a plural one (`microservice(s)`, `API(s)`, `query` /
+  `queries`, `patch(es)`), and unions a curated table of 170 spelling groups
+  (`node.js` / `node` / `nodejs`, `go` / `golang`, `postgresql` / `postgres` /
+  `pgsql`, `k8s` / `kubernetes`, `ci/cd` / `continuous integration` …) into
+  every keyword — when an analysis is stored and again when one is loaded, so
+  earlier analyses highlight the same way. The whole-token guards stay: `C`
+  is not `C++`, `Java` is not `JavaScript`, a Capitalised name that ends in
+  s (`Rails`, `Windows`, `Kubernetes`) is not a plural, and there is no
+  stemming beyond plurals.
+- **Every keyword is anchored to the posting when the analysis is stored.**
+  A term the model paraphrased is rewritten to the longest verbatim phrase of
+  itself the posting contains, spelled as the posting spells it; one the
+  posting contains in no recognisable form is flagged — the keyword table
+  shows *not in posting*, and the `resume: matched` log line counts
+  `anchored` / `unanchored`, the regression metric for future prompt
+  changes. No prompt change and no schema change (an optional field in the
+  keyword JSON).
+- The job-description pane says that benefits, perks and legal boilerplate
+  are never keywords, so an unmarked paragraph there stops reading as a miss.
+
+### Added
+- `npm run keywords:audit` — read-only: lists every stored keyword row that
+  highlights nowhere, as stored and with the alias table. Measured on the 15
+  stored comparisons: rows with no highlight in the posting 54 → 53 of 305,
+  `present` rows with no highlight in the resume 36 → 35 of 181 — what
+  remains are paraphrases from analyses older than the verbatim rule.
+
 ## [1.13.0] — 2026-09-02
 
 ### Changed
@@ -948,6 +984,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[1.14.0]: https://github.com/applypack/applypack/compare/v1.13.0...v1.14.0
 [1.13.0]: https://github.com/applypack/applypack/compare/v1.12.0...v1.13.0
 [1.12.0]: https://github.com/applypack/applypack/compare/v1.11.0...v1.12.0
 [1.11.0]: https://github.com/applypack/applypack/compare/v1.10.0...v1.11.0
