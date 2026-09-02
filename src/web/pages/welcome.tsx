@@ -36,6 +36,8 @@ export interface EngineStatusRow {
   label: string;
   ok: boolean;
   detail: string;
+  /** The .env variable this engine's key mirrors; null = login-only (ADR 0027). */
+  keyEnvVar: string | null;
 }
 
 export interface LastSearch {
@@ -108,26 +110,26 @@ const ENGINE_CARDS: { id: AiProviderId; title: string; how: string; env: string 
   {
     id: 'claude_code',
     title: 'I have a Claude subscription',
-    how: 'Run `claude setup-token` on your computer, paste the token into .env, then `docker compose up -d`.',
-    env: 'CLAUDE_CODE_OAUTH_TOKEN=…',
+    how: 'Run `claude setup-token` on your computer — it opens a browser and prints a token.',
+    env: 'CLAUDE_CODE_OAUTH_TOKEN',
   },
   {
     id: 'anthropic_api',
     title: 'I have an Anthropic API key',
     how: 'Keys live at console.anthropic.com → API keys. Pays per token — the classifier is cheap.',
-    env: 'ANTHROPIC_API_KEY=sk-ant-…',
+    env: 'ANTHROPIC_API_KEY',
   },
   {
     id: 'gemini_cli',
     title: 'I have a Gemini key — the free tier works',
     how: 'Get one at aistudio.google.com/apikey.',
-    env: 'GEMINI_API_KEY=…',
+    env: 'GEMINI_API_KEY',
   },
   {
     id: 'openai_api',
     title: 'OpenAI, OpenRouter, Groq or a local model',
-    how: 'Any server that speaks /chat/completions; add OPENAI_BASE_URL for the non-OpenAI ones.',
-    env: 'OPENAI_API_KEY=…',
+    how: 'Any server that speaks /chat/completions; add OPENAI_BASE_URL to .env for the non-OpenAI ones.',
+    env: 'OPENAI_API_KEY',
   },
   {
     id: 'codex_cli',
@@ -255,8 +257,8 @@ const AiStep: FC<WelcomeProps> = ({ ai, steps }) => {
         <>
           <p class="text-sm text-ink-muted">
             An AI reads every job and scores how well it matches you. Nothing usable was detected
-            yet — pick the one you have, add the line to <Code>.env</Code>, restart with{' '}
-            <Code>docker compose up -d</Code> and press Check again.
+            yet — pick the one you have and paste its key below. It is saved in your own
+            database: no file to edit, no restart.
           </p>
           <ul class="mt-4 grid gap-3 lg:grid-cols-2">
             {ENGINE_CARDS.map((card) => {
@@ -265,13 +267,36 @@ const AiStep: FC<WelcomeProps> = ({ ai, steps }) => {
                 <li class="rounded-md border border-line px-4 py-3">
                   <div class="text-sm font-medium text-ink">{card.title}</div>
                   <p class="mt-1 text-[13px] leading-5 text-ink-faint">{card.how}</p>
-                  {card.env && (
-                    <pre class="mt-2 overflow-x-auto rounded bg-surface-overlay px-2.5 py-1.5 font-mono text-xs text-ink">
-                      {card.env}
-                    </pre>
+                  {status?.keyEnvVar && (
+                    <form
+                      method="post"
+                      action="/welcome/ai/key"
+                      class="mt-2.5 flex flex-wrap items-end gap-2"
+                    >
+                      <input type="hidden" name="provider" value={card.id} />
+                      <Input
+                        type="password"
+                        name="key"
+                        required
+                        autocomplete="off"
+                        spellcheck="false"
+                        aria-label={`${status.label} key`}
+                        placeholder="Paste it here"
+                        mono
+                        class="min-w-[12rem] flex-1"
+                      />
+                      <Button size="sm" variant="secondary">
+                        Save
+                      </Button>
+                    </form>
                   )}
                   {status && (
                     <p class="mt-2 text-xs text-ink-faint">Right now: {status.detail}</p>
+                  )}
+                  {card.env && (
+                    <p class="mt-1 text-xs text-ink-faint">
+                      Prefer a file? <Code>{card.env}</Code> in <Code>.env</Code> works too.
+                    </p>
                   )}
                 </li>
               );

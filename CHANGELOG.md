@@ -4,6 +4,37 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.8.0] — 2026-09-02
+
+### Added
+- **Paste an AI key instead of editing `.env`** ([ADR 0027](docs/adr/0027-ai-keys-in-the-database.md),
+  [docs/onboarding-plan.md §2](docs/onboarding-plan.md) Phase B, TASKS §11
+  block 4). Every engine card on `/settings` → AI engine now has a key row,
+  and so does each card in step 1 of `/welcome` — paste, Save, Test, done.
+  The key lands in the new `AppSettings.aiKeys` column, applies to the
+  dashboard immediately and to the worker on its next tick, and wins over
+  the matching `.env` variable. Four engines take one: Anthropic API
+  (`ANTHROPIC_API_KEY`), Claude Code CLI (`CLAUDE_CODE_OAUTH_TOKEN`),
+  Gemini CLI (`GEMINI_API_KEY`) and the OpenAI-compatible API
+  (`OPENAI_API_KEY`); Codex CLI stays `codex login`.
+- The stored key is never handed back: the field always renders empty, the
+  card shows only the last four characters and where the credential comes
+  from ("saved here" / "from .env"), and **Remove** deletes it.
+
+### Changed
+- `.env` keeps working exactly as before and stays the documented choice
+  for anyone who would rather keep secrets out of the database — the ADR is
+  explicit that a database dump contains a pasted key.
+- The `claude_code` badge is honest about a logged-out CLI. `claude
+  --version` answers whether or not anyone is signed in, so the engine used
+  to read "available" on `/settings` and in the wizard and then fail on its
+  first real call. The probe now reads the CLI's own auth signals (token in
+  the environment, `.credentials.json`, the recorded account) without
+  spending a call or slowing the page down.
+- Provider constructors no longer hold credentials — the key arrives per
+  call on `AiRequest`, so whether an engine can run at all is decided in one
+  place (`ai-engine.ts:providerUnusable`) instead of two.
+
 ## [1.7.0] — 2026-09-01
 
 ### Added
@@ -694,6 +725,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[1.8.0]: https://github.com/applypack/applypack/compare/v1.7.0...v1.8.0
 [1.7.0]: https://github.com/applypack/applypack/compare/v1.6.0...v1.7.0
 [1.6.0]: https://github.com/applypack/applypack/compare/v1.5.0...v1.6.0
 [1.5.0]: https://github.com/applypack/applypack/compare/v1.4.1...v1.5.0

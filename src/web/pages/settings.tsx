@@ -64,6 +64,12 @@ export interface AiEngineRow {
   freeTextModels: boolean;
   /** Metered billing — every call costs money (vs a flat subscription). */
   paid: boolean;
+  /** The .env variable this engine's key mirrors; null = login-only engine. */
+  keyEnvVar: string | null;
+  /** Where the credential comes from right now (ADR 0027). */
+  keySource: 'db' | 'env' | 'none';
+  /** Last four characters of the stored key — never the key itself. */
+  maskedKey: string;
 }
 
 export interface AiStatusSummary {
@@ -726,6 +732,65 @@ export const SettingsPage: FC<SettingsProps> = ({
   </Layout>
 );
 
+/**
+ * Paste-a-credential row (ADR 0027). The field is always empty: a stored key
+ * is only ever described (last four characters, where it came from), so the
+ * page can never hand the secret back or have a mask saved over the real one.
+ */
+const EngineKeyRow: FC<{ engine: AiEngineRow }> = ({ engine: e }) => {
+  const label = e.keyEnvVar?.endsWith('_TOKEN') ? 'Access token' : 'API key';
+  return (
+    <div class="mt-3 rounded-md border border-line bg-surface-raised px-3.5 py-3">
+      <div class="flex flex-wrap items-center gap-2">
+        <span class="text-[13px] font-medium text-ink">{label}</span>
+        {e.keySource === 'db' && (
+          <>
+            <Badge tone="ok">saved</Badge>
+            <span class="font-mono text-xs text-ink-muted">{e.maskedKey}</span>
+          </>
+        )}
+        {e.keySource === 'env' && <Badge tone="neutral">from .env</Badge>}
+        {e.keySource === 'db' && (
+          <ActionForm
+            action="/settings/ai/key"
+            hidden={{ provider: e.id, clear: '1' }}
+            confirm={`Remove the saved ${e.label} ${label.toLowerCase()}?`}
+            class="ml-auto"
+          >
+            <Button size="sm" variant="danger">
+              Remove
+            </Button>
+          </ActionForm>
+        )}
+      </div>
+      <form method="post" action="/settings/ai/key" class="mt-2.5 flex flex-wrap items-end gap-2">
+        <input type="hidden" name="provider" value={e.id} />
+        <Input
+          type="password"
+          name="key"
+          required
+          autocomplete="off"
+          spellcheck="false"
+          aria-label={`${e.label} ${label.toLowerCase()}`}
+          placeholder={e.keySource === 'db' ? 'Paste a new one to replace it' : 'Paste it here'}
+          mono
+          class="min-w-[16rem] flex-1"
+        />
+        <Button size="sm" variant="secondary">
+          Save
+        </Button>
+      </form>
+      <Hint class="mt-2">
+        {e.keySource === 'db'
+          ? `Saved in the database and used instead of ${e.keyEnvVar} from .env.`
+          : e.keySource === 'env'
+            ? `Currently read from ${e.keyEnvVar} in .env. A key pasted here overrides it, no restart needed.`
+            : `Stored in the database — the same place as Telegram tokens. ${e.keyEnvVar} in .env still works instead.`}
+      </Hint>
+    </div>
+  );
+};
+
 const AiEngineCard: FC<{ engine: AiEngineRow }> = ({ engine: e }) => (
   <Card class={e.enabled ? '' : 'opacity-75'}>
     <div class="flex flex-wrap items-center gap-2">
@@ -756,6 +821,7 @@ const AiEngineCard: FC<{ engine: AiEngineRow }> = ({ engine: e }) => (
     <p class="mt-1.5 text-[13px] leading-5 text-ink-faint">
       {e.desc} ({e.detail})
     </p>
+    {e.keyEnvVar && <EngineKeyRow engine={e} />}
     {e.enabled && (
       <form
         method="post"

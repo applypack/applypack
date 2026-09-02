@@ -18,6 +18,7 @@ import {
   type CliOutcome,
 } from './ai-provider-parse';
 import type { AiProviderId } from './ai-engine';
+import { AI_KEY_ENV_VARS } from './ai-keys';
 
 /**
  * The single seam between the callers and whatever runs the AI (ADR 0013/0014).
@@ -52,6 +53,11 @@ export interface AiRequest {
    * the API, WebSearch/WebFetch on the CLI). Only the final text comes back.
    */
   webTools?: boolean;
+  /**
+   * Credential for this engine, already resolved DB-key-first (ADR 0027).
+   * Absent means "whatever .env holds" — the path scripts still take.
+   */
+  apiKey?: string;
 }
 
 export interface AiProvider {
@@ -79,16 +85,24 @@ const execFileAsync = promisify(execFile);
 
 class AnthropicApiProvider implements AiProvider {
   readonly name = 'anthropic_api';
-  private readonly client: Anthropic;
+  // The key can change under a running process (ADR 0027), so the SDK client
+  // is rebuilt when it does — one slot, because it changes about never.
+  private cached: { key: string; client: Anthropic } | null = null;
 
-  constructor(apiKey: string) {
-    this.client = new Anthropic({ apiKey });
+  private clientFor(key: string): Anthropic {
+    if (this.cached?.key !== key) this.cached = { key, client: new Anthropic({ apiKey: key }) };
+    return this.cached.client;
   }
 
   async complete(req: AiRequest): Promise<string | null> {
+    const key = req.apiKey ?? config.ANTHROPIC_API_KEY;
+    if (!key) {
+      logger.error({ label: req.label }, 'ai: no Anthropic API key — paste one on /settings');
+      return null;
+    }
     for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
       try {
-        return await this.run(req);
+        return await this.run(req, this.clientFor(key));
       } catch (err) {
         const status = err instanceof Anthropic.APIError ? err.status : undefined;
         if (status === 429 && attempt < MAX_ATTEMPTS - 1) {
@@ -103,7 +117,7 @@ class AnthropicApiProvider implements AiProvider {
     return null;
   }
 
-  private async run(req: AiRequest): Promise<string> {
+  private async run(req: AiRequest, client: Anthropic): Promise<string> {
     const messages: Anthropic.MessageParam[] = [{ role: 'user', content: req.user }];
     const tools = req.webTools
       ? [
@@ -112,7 +126,7 @@ class AnthropicApiProvider implements AiProvider {
         ]
       : undefined;
     for (let resumes = 0; ; resumes++) {
-      const resp = await this.client.messages.create({
+      const resp = await client.messages.create({
         model: req.model ?? config.CLAUDE_MODEL,
         max_tokens: req.maxTokens,
         system: [{ type: 'text', text: req.system, cache_control: { type: 'ephemeral' } }],
@@ -135,12 +149,14 @@ class AnthropicApiProvider implements AiProvider {
 class OpenAiApiProvider implements AiProvider {
   readonly name = 'openai_api';
 
-  constructor(
-    private readonly apiKey: string,
-    private readonly baseUrl: string,
-  ) {}
+  constructor(private readonly baseUrl: string) {}
 
   async complete(req: AiRequest): Promise<string | null> {
+    const apiKey = req.apiKey ?? config.OPENAI_API_KEY;
+    if (!apiKey) {
+      logger.error({ label: req.label }, 'ai: no OpenAI API key — paste one on /settings');
+      return null;
+    }
     const model = req.model || config.OPENAI_MODEL || OPENAI_FALLBACK_MODEL;
     // api.openai.com rejects max_tokens for reasoning models; most
     // compatible servers (OpenRouter, Groq, local) only know max_tokens.
@@ -167,7 +183,7 @@ class OpenAiApiProvider implements AiProvider {
         const resp = await fetch(`${this.baseUrl}/chat/completions`, {
           method: 'POST',
           headers: {
-            Authorization: `Bearer ${this.apiKey}`,
+            Authorization: `Bearer ${apiKey}`,
             'Content-Type': 'application/json',
           },
           body,
@@ -204,6 +220,8 @@ interface CliSpec {
   defaultModel: string;
   /** Auth variables this provider's child may see (buildCliEnv allowlist). */
   envKeys: readonly string[];
+  /** Which of those carries a pasted key, when the request brings one. */
+  keyEnv?: string;
   /** Working directory — set to keep the CLI away from workspace context. */
   cwd?: string;
 }
@@ -230,7 +248,7 @@ class CliProvider implements AiProvider {
           timeout: req.timeoutMs ?? CLI_TIMEOUT_MS,
           maxBuffer: CLI_MAX_BUFFER,
           cwd: this.spec.cwd,
-          env: buildCliEnv(this.spec.envKeys),
+          env: buildCliEnv(this.spec.envKeys, this.envSource(req)),
         }));
       } catch (err) {
         logger.error({ err, label: req.label, provider: this.name }, 'ai: cli process failed');
@@ -251,32 +269,40 @@ class CliProvider implements AiProvider {
     }
     return null;
   }
+
+  /**
+   * A pasted key reaches the CLI the only way it reads one: as its own auth
+   * variable in the child env, still filtered by the buildCliEnv allowlist.
+   */
+  private envSource(req: AiRequest): NodeJS.ProcessEnv {
+    const { keyEnv } = this.spec;
+    if (!keyEnv || !req.apiKey) return process.env;
+    return { ...process.env, [keyEnv]: req.apiKey };
+  }
 }
 
 const providers = new Map<AiProviderId, AiProvider>();
 
 /**
- * Lazily constructs and caches the backend. Throws for anthropic_api without
- * an API key — ai-runtime's resolution never selects it in that case.
+ * Lazily constructs and caches the backend. Credentials are not baked in: a
+ * key arrives per call on AiRequest (ADR 0027), and whether an engine has one
+ * at all is decided in one place — ai-engine.ts:providerUnusable.
  */
 export function getAiProviderById(id: AiProviderId): AiProvider {
   const cached = providers.get(id);
   if (cached) return cached;
   let provider: AiProvider;
   switch (id) {
-    case 'anthropic_api': {
-      if (!config.ANTHROPIC_API_KEY) {
-        throw new Error('ANTHROPIC_API_KEY is required for the anthropic_api provider');
-      }
-      provider = new AnthropicApiProvider(config.ANTHROPIC_API_KEY);
+    case 'anthropic_api':
+      provider = new AnthropicApiProvider();
       break;
-    }
     case 'claude_code':
       provider = new CliProvider('claude_code', config.CLAUDE_CODE_BIN, {
         buildArgs: buildClaudeCodeArgs,
         parse: parseClaudeCodeOutput,
         defaultModel: config.CLAUDE_MODEL,
         envKeys: CLI_PROVIDER_ENV_KEYS.claude_code ?? [],
+        keyEnv: AI_KEY_ENV_VARS.claude_code,
       });
       break;
     case 'gemini_cli':
@@ -285,18 +311,15 @@ export function getAiProviderById(id: AiProviderId): AiProvider {
         parse: parseGeminiCliOutput,
         defaultModel: 'gemini-2.5-flash',
         envKeys: CLI_PROVIDER_ENV_KEYS.gemini_cli ?? [],
+        keyEnv: AI_KEY_ENV_VARS.gemini_cli,
         // gemini has no --tools '' switch; an empty cwd keeps it from
         // ingesting workspace files (GEMINI.md, sources) as context.
         cwd: tmpdir(),
       });
       break;
-    case 'openai_api': {
-      if (!config.OPENAI_API_KEY) {
-        throw new Error('OPENAI_API_KEY is required for the openai_api provider');
-      }
-      provider = new OpenAiApiProvider(config.OPENAI_API_KEY, config.OPENAI_BASE_URL);
+    case 'openai_api':
+      provider = new OpenAiApiProvider(config.OPENAI_BASE_URL);
       break;
-    }
     case 'codex_cli':
       provider = new CliProvider('codex_cli', config.CODEX_CLI_BIN, {
         buildArgs: buildCodexCliArgs,

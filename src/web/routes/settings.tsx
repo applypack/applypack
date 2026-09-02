@@ -6,10 +6,12 @@ import { logger } from '../../logger';
 import {
   addTelegramTarget,
   deleteTelegramTarget,
+  getAiKeys,
   getSettings,
   listTelegramTargets,
   maskToken,
   setAiEngineConfig,
+  setAiKey,
   setApplicationTrackingEnabled,
   setClassifierMode,
   setDisabledSources,
@@ -45,7 +47,13 @@ import {
   type AiEngineConfig,
   type AiProviderId,
 } from '../../ai-engine';
-import { getAiEngineEnv, probeAiProviders } from '../../ai-runtime';
+import { forgetAiProbe, getAiEngineEnv, probeAiProviders } from '../../ai-runtime';
+import {
+  AI_KEY_ENV_VARS,
+  aiKeySource,
+  MAX_AI_KEY_LENGTH,
+  providerTakesKey,
+} from '../../ai-keys';
 import { testAiEngine } from '../ai-test';
 import {
   createProfile,
@@ -116,7 +124,7 @@ export const settingsRoute = new Hono();
 /** Everything the settings page needs except activeTab/flash/profileDraft —
  *  shared by the GET and by POSTs that render a draft instead of redirecting. */
 async function loadSettingsProps() {
-  const [settings, targets, profiles, active, resumes, aiStatuses, stageCounts] =
+  const [settings, targets, profiles, active, resumes, aiStatuses, aiKeys, stageCounts] =
     await Promise.all([
       getSettings(),
       listTelegramTargets(),
@@ -124,6 +132,7 @@ async function loadSettingsProps() {
       getActiveProfile(),
       listResumes(),
       probeAiProviders(),
+      getAiKeys(),
       prisma.job.groupBy({
         by: ['pipelineStage'],
         _count: { _all: true },
@@ -133,7 +142,7 @@ async function loadSettingsProps() {
   const countByStage = new Map(
     stageCounts.map((row) => [row.pipelineStage, row._count._all]),
   );
-  const aiEnv = getAiEngineEnv();
+  const aiEnv = getAiEngineEnv(aiKeys);
   const engine = resolveAiEngine(settings.aiEngine, aiEnv);
   const aiConfig = parseAiEngineConfig(settings.aiEngine);
   // With no stored config the .env-seeded chain is shown as enabled.
@@ -142,6 +151,7 @@ async function loadSettingsProps() {
     const position = enabledOrder.indexOf(id);
     const classifierDefault = defaultModelFor(id, 'classifier', aiEnv) || 'CLI default';
     const resumeDefault = defaultModelFor(id, 'resume', aiEnv) || 'CLI default';
+    const storedKey = providerTakesKey(id) ? aiKeys[id] : undefined;
     return {
       id,
       label: AI_PROVIDER_LABELS[id],
@@ -160,6 +170,11 @@ async function loadSettingsProps() {
       options: PROVIDER_MODEL_OPTIONS[id],
       freeTextModels: id === 'openai_api',
       paid: PROVIDER_PAID[id],
+      // ADR 0027: the field takes a key, it never hands one back — only the
+      // last four characters of what is stored, and where it came from.
+      keyEnvVar: providerTakesKey(id) ? AI_KEY_ENV_VARS[id] : null,
+      keySource: aiKeySource(id, aiKeys),
+      maskedKey: storedKey ? maskToken(storedKey) : '',
     };
   }).sort((a, b) => {
     if (a.enabled !== b.enabled) return a.enabled ? -1 : 1;
@@ -369,6 +384,39 @@ settingsRoute.post('/settings/ai/models', async (c) => {
   return wantsJson
     ? c.json({ ok: true })
     : flashRedirect('/settings?tab=ai', 'ok', `${label} models saved.`);
+});
+
+/**
+ * Saves or removes one engine's pasted credential (ADR 0027). The value never
+ * comes back to the browser and never reaches a log line or a flash message —
+ * the response says which engine changed, not what was stored.
+ */
+settingsRoute.post('/settings/ai/key', async (c) => {
+  const form = await c.req.parseBody();
+  const provider = typeof form.provider === 'string' ? form.provider : '';
+  if (!isAiProviderId(provider) || !providerTakesKey(provider)) {
+    return flashRedirect('/settings?tab=ai', 'err', 'That engine does not take a pasted key.');
+  }
+  const label = AI_PROVIDER_LABELS[provider];
+  const clearing = form.clear === '1';
+  const key = typeof form.key === 'string' ? form.key.trim() : '';
+  if (!clearing && key.length === 0) {
+    return flashRedirect('/settings?tab=ai', 'err', `Paste a ${label} key first.`);
+  }
+  if (key.length > MAX_AI_KEY_LENGTH) {
+    return flashRedirect(
+      '/settings?tab=ai',
+      'err',
+      `That is ${key.length} characters — longer than any API key. Nothing saved.`,
+    );
+  }
+  await setAiKey(provider, clearing ? '' : key);
+  forgetAiProbe();
+  if (clearing) {
+    const fallback = aiKeySource(provider, {}) === 'env' ? ` Falling back to ${AI_KEY_ENV_VARS[provider]} from .env.` : '';
+    return flashRedirect('/settings?tab=ai', 'ok', `${label} key removed.${fallback}`);
+  }
+  return flashRedirect('/settings?tab=ai', 'ok', `${label} key saved. Press Test to prove it works.`);
 });
 
 settingsRoute.post('/settings/ai/test', async (c) => {

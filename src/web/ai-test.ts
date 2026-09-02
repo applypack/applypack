@@ -1,7 +1,13 @@
 import { getAiProviderById } from '../ai-provider';
-import { AI_PROVIDER_LABELS, resolveAiEngine, type AiProviderId } from '../ai-engine';
+import {
+  AI_PROVIDER_LABELS,
+  providerUnusable,
+  resolveAiEngine,
+  type AiProviderId,
+} from '../ai-engine';
+import { resolveAiKey } from '../ai-keys';
 import { getAiEngineEnv } from '../ai-runtime';
-import { getSettings } from '../settings';
+import { getAiKeys, getSettings } from '../settings';
 
 const ENGINE_TEST_TIMEOUT_MS = 90_000;
 
@@ -22,8 +28,12 @@ export async function testAiEngine(provider: AiProviderId): Promise<EngineTestRe
       text: `${label} test failed: ${err instanceof Error ? err.message : 'not configured'}.`,
     };
   }
-  const settings = await getSettings();
-  const engine = resolveAiEngine(settings.aiEngine, getAiEngineEnv());
+  const [settings, keys] = await Promise.all([getSettings(), getAiKeys()]);
+  const env = getAiEngineEnv(keys);
+  if (providerUnusable(provider, env)) {
+    return { ok: false, text: `${label} has no credentials yet — paste a key, or set it in .env.` };
+  }
+  const engine = resolveAiEngine(settings.aiEngine, env);
   const model = engine.modelFor(provider, 'classifier');
   const started = Date.now();
   const text = await backend.complete({
@@ -33,6 +43,7 @@ export async function testAiEngine(provider: AiProviderId): Promise<EngineTestRe
     label: 'engine-test',
     model,
     timeoutMs: ENGINE_TEST_TIMEOUT_MS,
+    apiKey: resolveAiKey(provider, keys),
   });
   const seconds = ((Date.now() - started) / 1000).toFixed(1);
   if (text !== null) {

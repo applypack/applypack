@@ -2,13 +2,19 @@
 import { Hono } from 'hono';
 import { CronRunStatus, JobStatus, type Profile } from '@prisma/client';
 import { prisma } from '../../db';
-import { setFetchingEnabled, setSetupCompleted } from '../../settings';
+import { getAiKeys, setAiKey, setFetchingEnabled, setSetupCompleted } from '../../settings';
 import { updateProfile, type ProfileInput } from '../../profiles';
 import { passesBaseFilter } from '../../filter';
 import { parsePriorityRules } from '../../priority-rules';
 import { parseTagList, toStringArray } from '../../text-utils';
-import { getAiEngineEnv } from '../../ai-runtime';
-import { AI_PROVIDER_IDS, AI_PROVIDER_LABELS, resolveAiEngine } from '../../ai-engine';
+import { forgetAiProbe, getAiEngineEnv } from '../../ai-runtime';
+import {
+  AI_PROVIDER_IDS,
+  AI_PROVIDER_LABELS,
+  isAiProviderId,
+  resolveAiEngine,
+} from '../../ai-engine';
+import { AI_KEY_ENV_VARS, MAX_AI_KEY_LENGTH, providerTakesKey } from '../../ai-keys';
 import { createResume, getResume, listResumes, type ResumeSummary } from '../../resume/store';
 import { scanResume } from '../../resume/scan';
 import { buildProfileDraft, SENIORITY_LEVELS } from '../../resume/profile-draft';
@@ -77,7 +83,12 @@ welcomeRoute.get('/welcome', async (c) => {
       fetchingEnabled={settings.fetchingEnabled}
       telegramEnabled={settings.telegramEnabled}
       ai={{
-        engines: AI_PROVIDER_IDS.map((id) => ({ id, label: AI_PROVIDER_LABELS[id], ...statuses[id] })),
+        engines: AI_PROVIDER_IDS.map((id) => ({
+          id,
+          label: AI_PROVIDER_LABELS[id],
+          keyEnvVar: providerTakesKey(id) ? AI_KEY_ENV_VARS[id] : null,
+          ...statuses[id],
+        })),
       }}
       search={{ jobCount: facts.jobCount, last: lastSearch, runningRunId: activeFetchRun()?.id ?? null }}
       profile={{
@@ -120,10 +131,41 @@ welcomeRoute.post('/welcome/finish', async () => {
   return flashRedirect('/', 'ok', 'Setup complete — the hourly watch is on. New matches land here.');
 });
 
+/**
+ * Step 1's paste-a-key path (ADR 0027): the credential lands in the database,
+ * the probe cache is dropped so the page shows the engine as connected right
+ * away, and the Test button next to it proves the connection for real.
+ */
+welcomeRoute.post('/welcome/ai/key', async (c) => {
+  const form = await c.req.parseBody();
+  const provider = typeof form.provider === 'string' ? form.provider : '';
+  if (!isAiProviderId(provider) || !providerTakesKey(provider)) {
+    return flashRedirect('/welcome?step=ai', 'err', 'That engine does not take a pasted key.');
+  }
+  const key = typeof form.key === 'string' ? form.key.trim() : '';
+  if (key.length === 0) {
+    return flashRedirect('/welcome?step=ai', 'err', 'Paste the key first.');
+  }
+  if (key.length > MAX_AI_KEY_LENGTH) {
+    return flashRedirect(
+      '/welcome?step=ai',
+      'err',
+      `That is ${key.length} characters — longer than any API key. Nothing saved.`,
+    );
+  }
+  await setAiKey(provider, key);
+  forgetAiProbe();
+  return flashRedirect(
+    '/welcome?step=ai',
+    'ok',
+    `${AI_PROVIDER_LABELS[provider]} key saved. Send a test message to be sure it works.`,
+  );
+});
+
 /** Step 1's optional proof: one tiny live call through the engine that would serve the pipeline. */
 welcomeRoute.post('/welcome/ai/test', async () => {
   const { statuses, settings } = await loadWelcomeContext();
-  const chain = resolveAiEngine(settings.aiEngine, getAiEngineEnv()).chain;
+  const chain = resolveAiEngine(settings.aiEngine, getAiEngineEnv(await getAiKeys())).chain;
   const provider = chain.find((id) => statuses[id].ok) ?? AI_PROVIDER_IDS.find((id) => statuses[id].ok);
   if (!provider) return flashRedirect('/welcome?step=ai', 'err', 'No usable AI engine detected yet.');
   const result = await testAiEngine(provider);

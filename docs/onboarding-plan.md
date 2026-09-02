@@ -8,9 +8,9 @@
 > [CLAUDE.md](../CLAUDE.md), the testing-gate / commit-discipline skills and
 > the ADR register in [docs/adr](./adr/).
 >
-> **Status:** stages 1–3 of §5 shipped (`profile-tab-quickwins` v1.5.0,
-> `fetch-now` v1.6.0, `welcome-wizard` v1.7.0); stages 4–7 are analysis
-> only. Constants
+> **Status:** stages 1–4 of §5 shipped (`profile-tab-quickwins` v1.5.0,
+> `fetch-now` v1.6.0, `welcome-wizard` v1.7.0, `ai-key-in-db` v1.8.0);
+> stages 5–7 are analysis only. Constants
 > (batch caps, source subsets, timings) are starting hypotheses to
 > re-measure at implementation time.
 
@@ -134,14 +134,13 @@ principle 2.
   compatible"), each with the exact `.env` line to paste and a "Check
   again" button. This is the weakest step for the non-technical persona
   until Phase B lands:
-- **Phase B (separate stage, ADR required):** paste the API key directly
-  into the wizard/Settings, stored in the DB, masked like Telegram bot
-  tokens. Precedent: `TelegramTarget` tokens already live in DB rows and
-  CLAUDE.md's secrets rule carves that exception explicitly; ADR 0013
-  already resolves engine config DB-row-first with `.env` fallback. The
-  ADR extends both to per-engine keys. Dashboard binds to 127.0.0.1 by
-  default, which bounds the exposure. Until then the wizard shows the
-  `.env` path honestly.
+- **Phase B — shipped in stage 4 (ADR 0027).** The four key-bearing
+  engines take a pasted key on the wizard card itself and on
+  `/settings` → AI engine; it lands in `AppSettings.aiKeys`, wins over the
+  matching `.env` variable, and is only ever shown back as its last four
+  characters. `.env` stays a first-class path for anyone who wants secrets
+  off the database. The same stage made the `claude_code` badge honest — a
+  logged-out CLI answers `--version` and used to read "available".
 
 ### Step 2 — Test the search (no AI, no profile needed)
 
@@ -302,7 +301,7 @@ hand-written migrations verified through a container rebuild.
 | 1 | `profile-tab-quickwins` | §3 quick wins + reorder, inline upload in Fill card | — | — | dashboard matrix; profile save round-trip; chip editor no-JS path |
 | 2 | `fetch-now` | "Fetch now" button + `{classify: false}` seam + background run + progress page (standalone value) | — | — | smoke `fetch:once`; run visible on `/runs`; unscored jobs stored; dashboard matrix |
 | 3 | `welcome-wizard` | `/welcome` steps 1–4, redirect, skip, Overview chip | `setupCompletedAt` | — | migration via container rebuild; full wizard walkthrough on a wiped DB (docker volume rm) at 1200/375; every step's auto-complete branch |
-| 4 | `ai-key-in-db` | per-engine API key in DB, masked; wizard step 1 upgrade | engine-key column/JSON | **yes** (extends 0013 + secrets policy) | probe/test with DB key and with `.env` fallback; key never logged; masked render |
+| 4 | `ai-key-in-db` ✅ v1.8.0 | per-engine API key in DB, masked; wizard step 1 upgrade | `aiKeys` JSONB | **0027** | probe/test with DB key and with `.env` fallback; key never logged; masked render |
 | 5 | `profile-resume-link` | Stage A | `Profile.resumeId` | — | create-from-resume flow; preselect unit test in `pick.test.ts` scope |
 | 6 | `multi-profile-search` | Stage B | `JobScore`, `Profile.active` | **yes** | prompt/parser unit tests; live smoke on 2 profiles; alert routing test send; jobs-list filters |
 | 7 | `applied-resume` | Stage C | 3 columns on `Job` | — | mark-applied round-trip; digest line render test |
