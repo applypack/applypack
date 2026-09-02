@@ -48,8 +48,8 @@ export function weightClass(k) {
   return 'kw-w' + keywordRank(k);
 }
 
-/** The requirement in words, for tooltips and chip titles. */
-function wantsLabel(k) {
+/** The requirement in words — one vocabulary for the pane tooltips and the chips. */
+export function wantsLabel(k) {
   const level = levelOf(k) ?? 'P' + k.priority;
   return k.primary === true ? level + ' · primary stack' : level;
 }

@@ -469,6 +469,13 @@ export const TargetPage: FC<TargetPageProps> = ({
               <span><mark class="kw-missing rounded px-1">missing</mark></span>
               <span><mark class="kw-ask rounded px-1">confirm</mark></span>
               <span><mark class="kw-cannot rounded px-1">no evidence</mark></span>
+              {/* The intensity key: same colour, graded by how hard the posting asks. */}
+              <span class="inline-flex items-center gap-1">
+                weight
+                <mark class="kw-missing kw-w4 rounded px-1">must</mark>
+                <mark class="kw-missing kw-w2 rounded px-1">preferred</mark>
+                <mark class="kw-missing kw-w1 rounded px-1">nice</mark>
+              </span>
             </div>
           </div>
           <div
@@ -476,7 +483,9 @@ export const TargetPage: FC<TargetPageProps> = ({
             class="max-h-[70vh] overflow-auto whitespace-pre-wrap break-words font-sans text-sm leading-7 text-ink-muted"
           ></div>
           <Hint class="mt-2">
-            Highlights follow the AI's keyword list — benefits, perks and legal boilerplate are deliberately never keywords.
+            Highlights follow the AI's keyword list — benefits, perks and legal boilerplate are
+            deliberately never keywords. The stronger a mark, the harder the posting asks; hover one
+            to see how often it says the word. Re-level or ignore any of them in the keyword table.
           </Hint>
         </Card>
 
@@ -616,6 +625,16 @@ const TARGET_CSS = `
   .kw-missing { background: rgb(var(--warn) / 0.22); }
   .kw-ask { background: rgb(var(--violet) / 0.16); box-shadow: inset 0 0 0 1px rgb(var(--violet) / 0.4); }
   .kw-cannot { background: rgb(var(--ink-faint) / 0.2); text-decoration: line-through; }
+  /* Visual weight (target-plan.md §5). jobSpans tags every mark kw-w0 (context)
+     … kw-w4 (a primary-stack must), so a gap the posting insists on can never
+     look like a gap it merely mentions. The base rules above are the preferred
+     tier; only the problem marks are graded — a matched word is matched. */
+  .kw-missing.kw-w3 { background: rgb(var(--warn) / 0.34); box-shadow: inset 0 0 0 1px rgb(var(--warn) / 0.6); }
+  .kw-missing.kw-w4 { background: rgb(var(--warn) / 0.42); box-shadow: inset 0 0 0 1.5px rgb(var(--warn) / 0.85); font-weight: 600; }
+  .kw-missing.kw-w1, .kw-missing.kw-w0 { background: rgb(var(--warn) / 0.1); }
+  .kw-ask.kw-w3, .kw-ask.kw-w4 { background: rgb(var(--violet) / 0.24); box-shadow: inset 0 0 0 1.5px rgb(var(--violet) / 0.7); }
+  .kw-ask.kw-w1, .kw-ask.kw-w0 { background: rgb(var(--violet) / 0.1); box-shadow: none; }
+  .kw-cannot.kw-w1, .kw-cannot.kw-w0 { background: rgb(var(--ink-faint) / 0.12); text-decoration-color: rgb(var(--ink-faint) / 0.5); }
   .edit-remove { background: rgb(var(--danger) / 0.15); text-decoration: line-through; }
   .edit-change { background: rgb(var(--warn) / 0.1); box-shadow: inset 0 0 0 1px rgb(var(--warn) / 0.55); }
   /* Matched highlights are opt-in inside the panes; issue marks always show.
