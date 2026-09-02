@@ -65,7 +65,7 @@ resumesRoute.post('/resumes', resumeUploadLimit('/resumes'), async (c) => {
       : nameFromFilename(upload.sourceFilename);
   const resume = await createResume({ name, ...upload });
   return startScanRun(c, resume, {
-    subtitle: `"${name}" — headline, tools, seniority. About a minute.`,
+    subtitle: `"${name}" — headline, tools, seniority. About half a minute.`,
     onScanned: () =>
       `Uploaded and scanned "${name}". Tip: Settings → Profile → "Fill from a resume" updates your search profile from it.`,
     onFailed: `Uploaded "${name}", but the AI scan failed — check the web logs, then try "Scan".`,
@@ -213,7 +213,7 @@ resumesRoute.post('/resumes/:id/rescan', async (c) => {
   const resume = await getResume(id);
   if (!resume) return c.text('Not found', 404);
   return startScanRun(c, resume, {
-    subtitle: `"${resume.name}" — headline, tools, seniority. About a minute.`,
+    subtitle: `"${resume.name}" — headline, tools, seniority. About half a minute.`,
     onScanned: (scan) => `Scanned: ${scan.skills.length} skills, ${scan.issues.length} issues.`,
     onFailed: 'Scan failed — see the web logs.',
   });

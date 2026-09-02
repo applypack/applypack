@@ -111,7 +111,17 @@ export const JobDetailPage: FC<JobDetailProps> = ({
 }) => (
   <Layout title={job.title} active="jobs">
     <PageHeaderBlock job={job} />
-    <Flash flash={flash} />
+    <Flash flash={flash}>
+      {flash?.rerun && resumeMatch.selected && (
+        <form method="post" action={`/jobs/${job.id}/match`}>
+          <input type="hidden" name="resumeId" value={resumeMatch.selected.resumeId} />
+          <input type="hidden" name="force" value="1" />
+          <Button variant="secondary" size="sm">
+            Re-run anyway
+          </Button>
+        </form>
+      )}
+    </Flash>
     <CrossListingNotice job={job} />
 
     <div class="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">

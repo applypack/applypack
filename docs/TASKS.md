@@ -810,8 +810,9 @@ icon; progress visible step-by-step via the target-run registry pattern.
 
 ## 13. /target compare speed (30-40 s) + keyword-matcher accuracy (analysis 2026-08-31)
 
-Full plan: [docs/target-plan.md](./target-plan.md). **Analysis only —
-nothing implemented.** §12's async-upload item overlaps the `/resumes`
+Full plan: [docs/target-plan.md](./target-plan.md). **Block 1 shipped
+2026-09-02 (measured numbers in the plan's §2.3); blocks 2–6 open.** §12's
+async-upload item overlaps the `/resumes`
 sync-scan finding, planned there, referenced here.
 
 Driver: a fresh-resume compare takes ~3 min (owner target: 30-40 s), and
@@ -826,10 +827,15 @@ sticky). Speed strategy: instant no-AI check against the stored frame
 (the live-editor machinery already does it), keywords-only fast AI mode,
 Sonnet bench for the resume role — not "make Opus stream faster".
 
-- [ ] `target-speed-p0` — classify off the critical path (parallel,
+- [x] `target-speed-p0` — classify off the critical path (background,
       `{classify:false}`), scan → background on reupload, memoize
-      identical (job, resumeText) re-runs, honest `STEP_VIEW` copy +
-      per-step ms logging
+      identical (job, resumeText, prompt version) re-runs with a "Re-run
+      anyway" escape, per-step times on the run page, `STEP_VIEW` copy from
+      measured runs + per-step ms logging — done 2026-09-02, branch
+      `target-speed-p0` (PR #78). Measured on the CLI engine: a fresh
+      `/target` compare 158 → 128 s, a repeat 158 → 38 s, Compare repeat
+      109 → 0 s, re-upload 117 → 95 s; the match call itself is 78–109 s
+      (p50 ≈ 94 s) — 30–40 s needs blocks 3–4.
 - [ ] `keyword-matcher-v2` — persist-time verbatim guard, deterministic
       alias table (`keyword-aliases.ts`, pure), plural + separator
       tolerance in `termPattern`, tiered keyword budget (all must/

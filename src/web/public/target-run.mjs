@@ -18,10 +18,6 @@ const ACTIVITIES = {
     'Reading the pasted posting…',
     'Picking out company, title, location and salary…',
   ],
-  classify: [
-    'Reading the posting…',
-    'Scoring fit against the active profile — stack, role type, region, salary…',
-  ],
   scan: [
     'Extracting the text an ATS parser would see…',
     'Cataloguing skills, seniority and job-agnostic issues…',
@@ -83,6 +79,13 @@ export function formatElapsed(ms) {
   return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${s % 60}s`;
 }
 
+/** The time slot next to a step: its final time once done, a live count while active. */
+export function stepTime(stepState, step, state) {
+  if (stepState === 'active') return formatElapsed(state.stageElapsedMs);
+  if (stepState === 'done' && state.stepMs && state.stepMs[step] != null) return formatElapsed(state.stepMs[step]);
+  return '';
+}
+
 export function init(data, activity = defaultActivity) {
   const steps = [...document.querySelectorAll('[data-step]')];
   const elapsedEl = document.getElementById('run-elapsed');
@@ -96,6 +99,8 @@ export function init(data, activity = defaultActivity) {
       const i = state.steps.indexOf(li.dataset.step);
       // idx === -1 means a terminal stage: everything reads done while we reload.
       li.dataset.state = idx === -1 || i < idx ? 'done' : i === idx ? 'active' : 'pending';
+      const timeEl = li.querySelector('[data-step-time]');
+      if (timeEl) timeEl.textContent = stepTime(li.dataset.state, li.dataset.step, state);
     }
     const active = steps.find((li) => li.dataset.state === 'active');
     if (!active) return;

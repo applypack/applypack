@@ -224,6 +224,8 @@ export async function createMatch(input: {
   result: ResumeMatchResult;
   /** Computed by score.ts — the model never sets the number (ADR 0012). */
   breakdown: ScoreBreakdown;
+  /** Rides inside the breakdown JSON — the memo key (match-reuse.ts). */
+  promptVersion: number;
 }): Promise<ResumeMatch> {
   const r = input.result;
   return prisma.resumeMatch.create({
@@ -242,7 +244,7 @@ export async function createMatch(input: {
       keywords: r.keywords as Prisma.InputJsonValue,
       actions: r.actions as Prisma.InputJsonValue,
       removals: r.removals as Prisma.InputJsonValue,
-      breakdown: input.breakdown as unknown as Prisma.InputJsonValue,
+      breakdown: { ...input.breakdown, promptVersion: input.promptVersion } as unknown as Prisma.InputJsonValue,
       hardRequirements: r.hard_requirements as Prisma.InputJsonValue,
     },
   });
@@ -260,13 +262,13 @@ export async function getLatestMatchForJob(jobId: number): Promise<ResumeMatch |
 /** A fact flip recomputes the stored score deterministically — no AI call. */
 export async function updateMatchScoring(
   id: number,
-  input: { keywords: MatchKeyword[]; breakdown: ScoreBreakdown },
+  input: { keywords: MatchKeyword[]; breakdown: ScoreBreakdown; promptVersion: number | null },
 ): Promise<ResumeMatch> {
   return prisma.resumeMatch.update({
     where: { id },
     data: {
       keywords: input.keywords as Prisma.InputJsonValue,
-      breakdown: input.breakdown as unknown as Prisma.InputJsonValue,
+      breakdown: { ...input.breakdown, promptVersion: input.promptVersion } as unknown as Prisma.InputJsonValue,
       matchScore: input.breakdown.score,
     },
   });

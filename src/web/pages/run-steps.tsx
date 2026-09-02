@@ -17,7 +17,10 @@ export const RunSteps: FC<{
   steps: string[];
   currentIdx: number;
   view: Record<string, StepView>;
-}> = ({ steps, currentIdx, view }) => (
+  /** Time already spent: finished steps from the registry, the active one as of this render. */
+  stepMs?: Partial<Record<string, number>>;
+  activeMs?: number;
+}> = ({ steps, currentIdx, view, stepMs = {}, activeMs }) => (
   <>
     <ol class="mt-5 space-y-5" aria-label="Progress">
       {steps.map((s, i) => (
@@ -34,7 +37,12 @@ export const RunSteps: FC<{
             <span class="i i-pending h-2 w-2 rounded-full bg-line-strong"></span>
           </span>
           <span class="min-w-0 flex-1">
-            <span class="t-label block text-sm">{view[s]?.label ?? s}</span>
+            <span class="flex items-baseline gap-2">
+              <span class="t-label text-sm">{view[s]?.label ?? s}</span>
+              <span class="text-xs tabular-nums text-ink-faint" data-step-time>
+                {formatElapsed(i < currentIdx ? stepMs[s] : i === currentIdx ? activeMs : undefined)}
+              </span>
+            </span>
             <span class="t-detail block text-xs">{view[s]?.detail}</span>
             <span
               class="t-activity mt-1.5 block text-[13px] leading-5 text-violet transition-opacity duration-300"
@@ -48,6 +56,13 @@ export const RunSteps: FC<{
     <style dangerouslySetInnerHTML={{ __html: RUN_CSS }} />
   </>
 );
+
+/** "4s" / "1m 16s" — the same shape target-run.mjs paints once it polls. */
+function formatElapsed(ms: number | undefined): string {
+  if (ms === undefined) return '';
+  const s = Math.max(0, Math.round(ms / 1000));
+  return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${s % 60}s`;
+}
 
 /* Step visuals are CSS-driven off data-state so the poller only flips attributes. */
 const RUN_CSS = `

@@ -2,14 +2,14 @@ import { randomUUID } from 'node:crypto';
 import { logger } from '../logger';
 
 /*
- * In-memory registry for long compare runs (classify → scan → match). The
+ * In-memory registry for long compare runs (extract → scan → match). The
  * POST returns immediately with a redirect to /target/runs/:id; the page
  * polls /target/runs/:id/state until the async chain flips the run to done
  * or error. Web-process-only state; a restart simply forgets unfinished
  * runs (node-cron philosophy: no queue, ADR 0003).
  */
 
-export type RunStep = 'fetch' | 'extract' | 'classify' | 'scan' | 'match' | 'verify' | 'letter' | 'score';
+export type RunStep = 'fetch' | 'extract' | 'scan' | 'match' | 'verify' | 'letter' | 'score';
 export type RunStage = RunStep | 'done' | 'error';
 
 export interface TargetRun {
@@ -19,6 +19,8 @@ export interface TargetRun {
   startedAt: number;
   /** When the current stage began — paces the progress page's activity line. */
   stageAt: number;
+  /** How long each finished step took — shown next to it on the progress page. */
+  stepMs: Partial<Record<RunStep, number>>;
   jobTitle: string;
   resumeName: string;
   /** Where the error state sends the user back to — the launcher that started it. */
@@ -34,6 +36,8 @@ export interface TargetRun {
   /** Set on done: where to send the user, with the flash to show there. */
   resultUrl?: string;
   flash?: string;
+  /** Done with a stored analysis, not a fresh one — the flash warns and offers "Re-run anyway". */
+  reused?: boolean;
   error?: string;
 }
 
@@ -50,6 +54,7 @@ export function createRun(
     stage: fields.steps[0] ?? 'match',
     startedAt: Date.now(),
     stageAt: Date.now(),
+    stepMs: {},
     backUrl: '/target',
     backLabel: 'Back to Target',
     ...fields,
@@ -61,7 +66,16 @@ export function createRun(
 export function updateRun(id: string, patch: Partial<Omit<TargetRun, 'id'>>): void {
   const run = runs.get(id);
   if (!run) return;
-  if (patch.stage && patch.stage !== run.stage) run.stageAt = Date.now();
+  if (patch.stage && patch.stage !== run.stage) {
+    const now = Date.now();
+    const ms = now - run.stageAt;
+    if (run.stage !== 'done' && run.stage !== 'error') run.stepMs[run.stage] = ms;
+    logger.info(
+      { runId: id, step: run.stage, ms, next: patch.stage, totalMs: now - run.startedAt },
+      'run: step finished',
+    );
+    run.stageAt = now;
+  }
   Object.assign(run, patch);
 }
 

@@ -7,6 +7,7 @@ import {
   Card,
   FitBadge,
   Hint,
+  SUBMIT_ONCE,
   Input,
   MarkIcon,
   SectionTitle,
@@ -89,7 +90,7 @@ export const ResumeMatchCard: FC<ResumeMatchCardProps> = ({
           to see what to change before applying here.
         </Hint>
       ) : (
-        <form method="post" action={`/jobs/${jobId}/match`} class="flex flex-wrap items-end gap-3">
+        <form method="post" action={`/jobs/${jobId}/match`} class="flex flex-wrap items-end gap-3" onsubmit={SUBMIT_ONCE}>
           <label class="block min-w-0 max-w-full">
             <span class="block text-[13px] font-medium text-ink">Resume</span>
             <Select name="resumeId" class="mt-1.5 !w-auto max-w-full">
@@ -108,7 +109,7 @@ export const ResumeMatchCard: FC<ResumeMatchCardProps> = ({
           </label>
           <Button variant="violet">Compare</Button>
           <Hint class="basis-full">
-            One call to the resume model, about a minute. The score itself is computed
+            One call to the resume model — 1½ to 2 minutes on Opus. The score itself is computed
             deterministically from the reply — same facts, same number, every time.
           </Hint>
         </form>

@@ -4,6 +4,44 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.13.0] — 2026-09-02
+
+### Changed
+- **A compare waits for one AI call, not three**
+  ([docs/target-plan.md](docs/target-plan.md) §3.1, TASKS §13 block 1). On
+  `/target` the posting's fit score is now classified in the background while
+  the resume-model call runs — the comparison never read it, and that leg
+  alone measured 49–55 s on the `claude_code` engine. On "Upload vN &
+  re-analyze" the new version's scan runs the same way instead of ahead of
+  the match (26–33 s measured). Known cost of the second one: until the
+  background scan lands, the resume's headline / skills / core stack still
+  describe the previous version — `scannedAt: null` marks it, and nothing but
+  `/resumes` and other resumes' "elsewhere" hints read those fields.
+- **Repeating a comparison is free.** A double submit, a back button, a
+  re-paste or a re-upload whose text did not change no longer buys a second
+  resume-model call: when the latest stored analysis for that resume and
+  posting judged the identical text under the same prompt version, the page
+  shows it with *"Unchanged since the last analysis (3m ago)"* and a
+  **Re-run anyway** button for the rare time a fresh call is wanted. Plain
+  string equality — a one-character edit is a new analysis
+  (`src/resume/match-reuse.ts`, unit-tested).
+- **The progress page tells the truth about time.** Every step shows the
+  seconds it took once done and a live count while it runs, next to a total
+  that ticks every second. Step copy now quotes measured durations instead of
+  "about a minute": the match is 1½–2 minutes on Opus (83–109 s measured), a
+  scan about half a minute, posting-fact detection 10–40 s on a CLI engine.
+  The same numbers replaced the promises on the job page, the targeted
+  editor, `/welcome` and Settings.
+- Per-step timing logs: `resume: scanned`, `posting-extract: done`,
+  `classify-existing: scored` and `run: step finished` all carry `ms`, so the
+  next optimisation round starts from numbers, not estimates.
+
+### Notes
+- `ResumeMatch` has no prompt-version column and this release changes no
+  schema, so the version rides inside the `breakdown` JSON (written by
+  `createMatch` / `updateMatchScoring`). Rows from before this release carry
+  no marker and are never reused. No migration.
+
 ## [1.12.0] — 2026-09-02
 
 ### Fixed
@@ -910,6 +948,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[1.13.0]: https://github.com/applypack/applypack/compare/v1.12.0...v1.13.0
 [1.12.0]: https://github.com/applypack/applypack/compare/v1.11.0...v1.12.0
 [1.11.0]: https://github.com/applypack/applypack/compare/v1.10.0...v1.11.0
 [1.10.0]: https://github.com/applypack/applypack/compare/v1.9.0...v1.10.0

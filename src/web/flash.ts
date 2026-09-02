@@ -8,12 +8,19 @@ export type FlashKind = 'ok' | 'warn' | 'err';
 export interface FlashMessage {
   kind: FlashKind;
   text: string;
+  /** The result shown is a stored analysis — the page offers "Re-run anyway". */
+  rerun?: boolean;
 }
 
 const FLASH_TTL_SECONDS = 5;
 
-export function flashRedirect(location: string, kind: FlashMessage['kind'], text: string): Response {
-  const value = encodeURIComponent(JSON.stringify({ kind, text }));
+export function flashRedirect(
+  location: string,
+  kind: FlashMessage['kind'],
+  text: string,
+  opts: { rerun?: boolean } = {},
+): Response {
+  const value = encodeURIComponent(JSON.stringify({ kind, text, ...(opts.rerun ? { rerun: true } : {}) }));
   return new Response(null, {
     status: 303,
     headers: {
@@ -35,7 +42,7 @@ export function parseFlashCookie(cookieHeader: string | undefined): FlashMessage
       (parsed.kind === 'ok' || parsed.kind === 'warn' || parsed.kind === 'err') &&
       typeof parsed.text === 'string'
     ) {
-      return parsed;
+      return { kind: parsed.kind, text: parsed.text, ...(parsed.rerun === true ? { rerun: true } : {}) };
     }
   } catch {
     return null;

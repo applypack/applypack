@@ -91,9 +91,8 @@ const FLASH_TONE: Record<FlashKind, string> = {
   err: 'border-danger/25 bg-danger/5 text-danger',
 };
 
-export const Flash: FC<{
-  flash?: FlashMessage | null;
-}> = ({ flash }) =>
+/** `children` is the message's one action, if any — a form or a button after the text. */
+export const Flash: FC<PropsWithChildren<{ flash?: FlashMessage | null }>> = ({ flash, children }) =>
   flash ? (
     <div
       role="status"
@@ -128,7 +127,8 @@ export const Flash: FC<{
           </>
         )}
       </svg>
-      <span class="min-w-0">{flash.text}</span>
+      <span class="min-w-0 flex-1">{flash.text}</span>
+      {children}
     </div>
   ) : null;
 

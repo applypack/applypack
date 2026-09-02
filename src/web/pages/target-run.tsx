@@ -12,21 +12,17 @@ const STEP_VIEW: Record<RunStep, StepView> = {
   },
   extract: {
     label: 'Detect posting facts',
-    detail: 'company, title, location, salary from the description — seconds',
-  },
-  classify: {
-    label: 'Classify the posting',
-    detail: 'fit score against every running search — seconds',
+    detail: 'company, title, location, salary from the description — 10 to 40 s on a CLI engine, seconds on an API one',
   },
   scan: {
     // Also reached by a plain re-scan and a first upload, where there is no
     // "new version" to speak of.
     label: 'Read the resume',
-    detail: 'headline, skills, ATS issues — about a minute',
+    detail: 'headline, skills, ATS issues — about half a minute',
   },
   match: {
     label: 'AI match',
-    detail: 'the resume model reads both texts — about a minute',
+    detail: 'the resume model reads both texts and writes the full report — 1½ to 2 minutes on Opus',
   },
   verify: {
     label: 'Research the company',
@@ -90,7 +86,13 @@ export const TargetRunPage: FC<{ run: TargetRun }> = ({ run }) => {
             </div>
           ) : (
             <>
-              <RunSteps steps={run.steps} currentIdx={currentIdx} view={STEP_VIEW} />
+              <RunSteps
+                steps={run.steps}
+                currentIdx={currentIdx}
+                view={STEP_VIEW}
+                stepMs={run.stepMs}
+                activeMs={Date.now() - run.stageAt}
+              />
               <div class="mt-5 flex items-center justify-between gap-3 border-t border-line pt-3">
                 <Hint>
                   You can close this page — the run keeps going and the result lands{' '}

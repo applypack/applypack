@@ -1,7 +1,20 @@
 /** @jsxImportSource hono/jsx */
 import type { FC, PropsWithChildren } from 'hono/jsx';
 import { Layout } from '../layout';
-import { Button, Card, Field, FILE_INPUT_CLASS, Flash, Hint, Input, PageHeader, SectionTitle, Select, Textarea } from '../ui';
+import {
+  Button,
+  Card,
+  Field,
+  FILE_INPUT_CLASS,
+  Flash,
+  Hint,
+  Input,
+  PageHeader,
+  SectionTitle,
+  Select,
+  SUBMIT_ONCE,
+  Textarea,
+} from '../ui';
 import type { FlashMessage } from '../flash';
 import { ACCEPTED_EXTENSIONS } from '../../resume/resume-text';
 import { MAX_UPLOAD_MB } from '../upload';
@@ -38,6 +51,7 @@ export const TargetStartPage: FC<TargetStartProps> = ({ resumes, flash }) => {
         action="/target"
         enctype="multipart/form-data"
         class="w-full"
+        onsubmit={SUBMIT_ONCE}
       >
         <div class="grid items-start gap-4 lg:grid-cols-2">
           <Card>

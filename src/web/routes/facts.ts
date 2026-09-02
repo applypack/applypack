@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { applyFacts } from '../../resume/facts';
+import { readPromptVersion } from '../../resume/match-reuse';
 import { readKeywords } from '../../resume/prompts';
 import { readBreakdown, scoreMatch } from '../../resume/score';
 import { deleteFact, getMatch, updateMatchScoring, upsertFact } from '../../resume/store';
@@ -43,7 +44,11 @@ factsRoute.post('/facts', async (c) => {
       const bd = readBreakdown(match.breakdown);
       if (changed > 0 && bd) {
         const newBd = scoreMatch(next, bd.alignment, match.redFlags.length);
-        await updateMatchScoring(match.id, { keywords: next, breakdown: newBd });
+        await updateMatchScoring(match.id, {
+          keywords: next,
+          breakdown: newBd,
+          promptVersion: readPromptVersion(match.breakdown),
+        });
         return flashRedirect(
           back,
           'ok',

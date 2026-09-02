@@ -18,8 +18,9 @@ import { JobNewPage } from '../pages/job-new';
 import { TargetPage } from '../pages/target';
 import { previousFor } from '../pages/resume-match-card';
 import { nameFromFilename, readResumeUpload, resumeUploadLimit } from '../upload';
-import { scanResume } from '../../resume/scan';
+import { scanInBackground } from '../../resume/scan';
 import { clearFlashCookie, flashRedirect, parseFlashCookie } from '../flash';
+import { formatRelative } from '../format';
 import { createRun, startRun, updateRun } from '../target-runs';
 import {
   deleteCoverLettersForResume,
@@ -36,7 +37,8 @@ import {
   upsertScratchResume,
 } from '../../resume/store';
 import { preselectAppliedResume, preselectResume } from '../../resume/pick';
-import { matchResumeToJob } from '../../resume/match';
+import { findReusableMatch, matchResumeToJob } from '../../resume/match';
+import { reuseNotice } from '../../resume/match-reuse';
 import { generateCoverLetter } from '../../resume/cover-letter';
 import {
   countWords,
@@ -436,14 +438,26 @@ jobsRoute.post('/jobs/:id/match', async (c) => {
   // The targeted view posts its edited text; a non-empty draft is judged instead of the stored version.
   const draftText = typeof form.draftText === 'string' ? form.draftText.replace(/\r\n/g, '\n').trim() : '';
   const draft = draftText.length > 0 && draftText !== resume.text;
+  const text = draft ? draftText : resume.text;
   const toTarget = form.next === 'target';
+  const resultUrl = (matchId: number) =>
+    toTarget ? `/jobs/${id}/target?match=${matchId}` : `/jobs/${id}?match=${matchId}#resume-match`;
+
+  // The same text was already judged: show that analysis instead of paying
+  // for it again — unless "Re-run anyway" asked for a fresh call.
+  if (form.force !== '1') {
+    const reused = await findReusableMatch(job.id, resume.id, text);
+    if (reused) {
+      return flashRedirect(resultUrl(reused.id), 'warn', reuseNotice(formatRelative(reused.createdAt)), { rerun: true });
+    }
+  }
 
   const run = createRun({ steps: ['match'], jobTitle: job.title, resumeName: resume.name, jobId: id });
   startRun(run.id, async () => {
     // Ephemeral (scratch) compares keep only the current analysis.
     if (resume.hidden) await deleteMatchesForResume(resume.id);
     const row = await matchResumeToJob(
-      { id: resume.id, version: resume.version, text: draft ? draftText : resume.text },
+      { id: resume.id, version: resume.version, text },
       { id: job.id, title: job.title, companyName: job.company.name, location: job.location, description: job.description },
       { draft },
     );
@@ -453,7 +467,7 @@ jobsRoute.post('/jobs/:id/match', async (c) => {
     }
     updateRun(run.id, {
       stage: 'done',
-      resultUrl: toTarget ? `/jobs/${id}/target?match=${row.id}` : `/jobs/${id}?match=${row.id}#resume-match`,
+      resultUrl: resultUrl(row.id),
       flash: `${draft ? 'Draft' : `"${resume.name}"`} compared — AI match ${row.matchScore}/100.`,
     });
   });
@@ -646,22 +660,32 @@ jobsRoute.post('/jobs/:id/target/reupload', async (c, next) => resumeUploadLimit
   // history — a fresh upload means a fresh analysis, nothing saved.
   const ephemeral = existing.hidden;
   const newName = ephemeral ? nameFromFilename(upload.sourceFilename) : existing.name;
-  const run = createRun({
-    steps: ephemeral ? ['match'] : ['scan', 'match'],
-    jobTitle: job.title,
-    resumeName: newName,
-    jobId: id,
-  });
+  const run = createRun({ steps: ['match'], jobTitle: job.title, resumeName: newName, jobId: id });
   startRun(run.id, async () => {
     let resume;
     if (ephemeral) {
       resume = await upsertScratchResume({ name: newName, ...upload });
-      await deleteMatchesForResume(resume.id);
-      await deleteCoverLettersForResume(resume.id);
     } else {
       resume = await replaceResumeFile(resumeId, upload);
-      await scanResume(resume);
-      updateRun(run.id, { stage: 'match' });
+      // The match never reads the scan, so the new version's scan runs
+      // alongside it instead of ahead of it — a whole resume-model call off
+      // the wait. Cost: Resume.skills stay one version stale until it lands.
+      scanInBackground(resume);
+    }
+    // A file whose text did not change is already answered.
+    const reused = await findReusableMatch(job.id, resume.id, resume.text);
+    if (reused) {
+      updateRun(run.id, {
+        stage: 'done',
+        resultUrl: `/jobs/${id}/target?match=${reused.id}`,
+        flash: `${ephemeral ? `"${newName}"` : `v${resume.version}`} uploaded. ${reuseNotice(formatRelative(reused.createdAt))}`,
+        reused: true,
+      });
+      return;
+    }
+    if (ephemeral) {
+      await deleteMatchesForResume(resume.id);
+      await deleteCoverLettersForResume(resume.id);
     }
     const row = await matchResumeToJob(resume, {
       id: job.id,
