@@ -9,10 +9,13 @@ import { reuseNotice } from '../../resume/match-reuse';
 import {
   deleteCoverLettersForResume,
   deleteMatchesForResume,
+  getLatestMatchForResumeAndJob,
   getResume,
   listResumes,
   upsertScratchResume,
 } from '../../resume/store';
+import { draftStash } from '../draft-stash';
+import { decideInstantCheck, instantCheckNotice } from '../instant-check';
 import { TargetStartPage } from '../pages/target-start';
 import { TargetRunPage } from '../pages/target-run';
 import { clearFlashCookie, flashRedirect, parseFlashCookie } from '../flash';
@@ -176,6 +179,7 @@ targetRoute.post('/target', resumeUploadLimit('/target'), async (c) => {
     //    classified in the background: the comparison never reads the fit
     //    score, and that leg alone was ~50 s on a CLI engine
     //    (docs/target-plan.md §3.1).
+    const checkStarted = Date.now();
     const result = await createManualJob(
       {
         companyName,
@@ -203,6 +207,23 @@ targetRoute.post('/target', resumeUploadLimit('/target'), async (c) => {
         reused: true,
       });
       return;
+    }
+
+    // 2b. This resume was analysed against the posting before and its text
+    //     changed since (a new version, another file on the scratch row):
+    //     the instant check — the new text as a draft over that analysis,
+    //     the AI on demand (docs/target-plan.md §3.2 item 5).
+    if (result.kind === 'existing') {
+      const decision = decideInstantCheck(await getLatestMatchForResumeAndJob(job.id, resume.id), resume.text);
+      if (decision.kind === 'draft') {
+        const key = draftStash.put({ matchId: decision.frame.id, text: resume.text });
+        updateRun(run.id, {
+          stage: 'done',
+          resultUrl: `/jobs/${job.id}/target?match=${decision.frame.id}&draft=${key}`,
+          flash: instantCheckNotice(resume.name, formatRelative(decision.frame.createdAt), Date.now() - checkStarted),
+        });
+        return;
+      }
     }
 
     // 3. Ephemeral compares keep only the current analysis.
