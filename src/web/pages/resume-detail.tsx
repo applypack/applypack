@@ -14,11 +14,13 @@ import {
   Input,
   PageHeader,
   SectionTitle,
+  SUBMIT_ONCE,
   Table,
   Tag,
   Td,
   Tr,
 } from '../ui';
+import { deleteConfirm } from '../delete-confirm';
 import { ACCEPTED_EXTENSIONS } from '../../resume/resume-text';
 import { MAX_UPLOAD_MB } from '../upload';
 import type { FlashMessage } from '../flash';
@@ -31,6 +33,8 @@ import type { ProfileDraft } from '../../resume/profile-draft';
 export interface ResumeDetailProps {
   resume: ResumeSummary;
   matches: MatchWithJob[];
+  /** What Delete would cascade — named in the confirm, letters included. */
+  deleteImpact: { matches: number; letters: number };
   /** Deterministic ATS-parseability checks over the extracted text. */
   warnings: ParseWarning[];
   /** Searches already linked to this resume, and the one a click would create. */
@@ -44,6 +48,7 @@ export interface ResumeDetailProps {
 export const ResumeDetailPage: FC<ResumeDetailProps> = ({
   resume,
   matches,
+  deleteImpact,
   warnings,
   search,
   flash,
@@ -59,7 +64,7 @@ export const ResumeDetailPage: FC<ResumeDetailProps> = ({
             <Button variant="secondary" size="sm" href={`/resumes/${resume.id}/download`}>
               Download original
             </Button>
-            <ActionForm action={`/resumes/${resume.id}/rescan`}>
+            <ActionForm action={`/resumes/${resume.id}/rescan`} once>
               <Button variant="violet" size="sm">
                 {resume.scannedAt ? 'Re-scan' : 'Scan'}
               </Button>
@@ -73,7 +78,7 @@ export const ResumeDetailPage: FC<ResumeDetailProps> = ({
             )}
             <ActionForm
               action={`/resumes/${resume.id}/delete`}
-              confirm="Delete this resume and its comparisons?"
+              confirm={deleteConfirm(resume.name, deleteImpact)}
             >
               <Button variant="danger" size="sm">
                 Delete
@@ -149,6 +154,7 @@ export const ResumeDetailPage: FC<ResumeDetailProps> = ({
           method="post"
           action={`/resumes/${resume.id}/replace`}
           enctype="multipart/form-data"
+          onsubmit={SUBMIT_ONCE}
           class="grid gap-3 sm:grid-cols-[1.6fr_auto]"
         >
           <Field label="File" hint={`${ACCEPTED_EXTENSIONS.join(', ')} · up to ${MAX_UPLOAD_MB} MB`}>

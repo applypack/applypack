@@ -775,10 +775,10 @@ Telegram explicitly optional.
 
 ## 12. /resumes overhaul + on-demand resume strength review (analysis 2026-08-31)
 
-Full plan: [docs/resumes-plan.md](./resumes-plan.md). **Analysis only —
-nothing implemented** (browser audit of the live page at desktop + 375px,
-plus code verification). Overlaps §11's resume work: check the §11
-checklist before starting.
+Full plan: [docs/resumes-plan.md](./resumes-plan.md). **In progress —
+Part A's P0/P1 findings shipped in v1.12.0**; Part B (the strength
+review) is still analysis only. Original audit: browser pass over the
+live page at desktop + 375px, plus code verification.
 
 Driver: `/resumes` shows inventory, not effectiveness — no per-resume
 match signal, upload & scan freezes the browser ~60 s (double-submit
@@ -790,10 +790,14 @@ metric *asks* instead of invented numbers (ADR 0020 stance). Never
 auto-run on upload; discoverable as a real card with an explainer, not an
 icon; progress visible step-by-step via the target-run registry pattern.
 
-- [ ] `resumes-page-p0` — async upload/replace/rescan via the run
-      registry, mobile row fix (Delete off hub rows, responsive columns —
-      needs a small `Table` th-class extension), delete-confirm mentions
-      cover letters, `primarySkills` column, Matches/`FitBadge` column
+- [x] `resumes-page-p0` — async upload/replace/rescan **and "Save as vN"**
+      via the run registry (+ a `SUBMIT_ONCE` guard on the forms that start
+      one), mobile row fix (Delete off hub rows, columns drop out by width
+      over the new `Table` `thClasses`), delete-confirm counts comparisons
+      AND cover letters, `primarySkills` column, Matches/`FitBadge` column,
+      version badge (#6 rode along) — done 2026-09-02, branch
+      `resumes-page-p0`. Findings #7 (facts add/flip), #8 (rename) and #9
+      (polish) stay open in the quick-wins bullet below.
 - [ ] `resume-strength` — fenced `REVIEW_SYSTEM` (grades only — the model
       never outputs the score; pure `review-score.ts` applies hard caps,
       gotcha-11 guard test) + `ResumeReview` table + detail card + hub

@@ -167,6 +167,41 @@ export async function listMatchesForResume(resumeId: number): Promise<MatchWithJ
   });
 }
 
+/**
+ * What deleting a resume takes with it. Both cascade, and the letters carry
+ * the user's own edited text — the confirm dialog has to say so.
+ */
+export async function deleteImpact(resumeId: number): Promise<{ matches: number; letters: number }> {
+  const [matches, letters] = await Promise.all([
+    prisma.resumeMatch.count({ where: { resumeId } }),
+    prisma.coverLetter.count({ where: { resumeId } }),
+  ]);
+  return { matches, letters };
+}
+
+export interface ResumeMatchStats {
+  /** Comparisons run against this resume, all versions. */
+  count: number;
+  /** The best score it has ever reached — the hub's "is this one working?" signal. */
+  best: number;
+}
+
+/**
+ * One groupBy for the whole hub, instead of a query per row. Resumes with no
+ * comparison are absent from the map rather than present with zeros: "never
+ * compared" and "compared, scored 0" are different answers.
+ */
+export async function matchStatsByResume(): Promise<Map<number, ResumeMatchStats>> {
+  const rows = await prisma.resumeMatch.groupBy({
+    by: ['resumeId'],
+    _count: { _all: true },
+    _max: { matchScore: true },
+  });
+  return new Map(
+    rows.map((r) => [r.resumeId, { count: r._count._all, best: r._max.matchScore ?? 0 }]),
+  );
+}
+
 /** A resume version made from edited text (the targeted view's "Save as vN") — a .md file, no docx. */
 export async function saveResumeTextVersion(id: number, text: string): Promise<ResumeSummary> {
   const current = await prisma.resume.findUniqueOrThrow({ where: { id }, select: { name: true, version: true } });

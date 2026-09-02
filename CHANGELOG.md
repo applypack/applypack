@@ -4,6 +4,44 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.12.0] — 2026-09-02
+
+### Fixed
+- **No resume write freezes the browser any more**
+  ([docs/resumes-plan.md](docs/resumes-plan.md) Part A, TASKS §12 block 1).
+  Upload, "Upload a new version", Re-scan and the targeted editor's
+  "Save as vN" each awaited a ~60 s call to the resume model inline, on a form
+  whose submit button stayed live — a second click created a **duplicate
+  resume and a second AI call**. All four now run through the same run
+  registry that `/target` and Compare already used: the POST returns at once
+  and you watch a progress page you are free to close. The forms that start
+  one also disable themselves on the first press.
+- **The `/resumes` rows are usable on a phone.** The hub forced a 52 rem
+  minimum width inside a horizontal scroller, which put Skills, Scanned and
+  *both* action buttons off-screen at 375 px. Delete has left the hub for the
+  detail page — a destructive action should not be one click from a list —
+  and the remaining columns now drop out by width instead: Name, Matches and
+  Set default survive everywhere, Scanned returns at 640 px, Core stack at
+  1024, Headline at 1280.
+- **The delete confirm no longer understates what it destroys.** Deleting a
+  resume cascades its cover letters — including text the user wrote by hand —
+  and the dialog said only "and its comparisons". It now counts both:
+  *"Delete "Senior Backend" and 14 comparisons and 17 cover letters?"*
+
+### Added
+- A **Matches** column on `/resumes`: the best score a resume has ever
+  reached plus how many comparisons it has been through, so the hub answers
+  "is this one working?" and not just "does this one exist?".
+- The Skills column became **Core stack** and reads `Resume.primarySkills`.
+  The scanned `skills` list runs to ~85 entries that open the same way on
+  every resume ("php, go, javascript…"); the 2-5 core technologies actually
+  tell two resumes apart. A version badge joins the name.
+
+### Changed
+- `Table` accepts `thClasses` — the only place a responsive `hidden
+  sm:table-cell` can live, since a class on the header label still leaves the
+  cell occupying its column. Table gutters tighten below 640 px.
+
 ## [1.11.0] — 2026-09-02
 
 ### Added
@@ -872,6 +910,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[1.12.0]: https://github.com/applypack/applypack/compare/v1.11.0...v1.12.0
 [1.11.0]: https://github.com/applypack/applypack/compare/v1.10.0...v1.11.0
 [1.10.0]: https://github.com/applypack/applypack/compare/v1.9.0...v1.10.0
 [1.9.0]: https://github.com/applypack/applypack/compare/v1.8.0...v1.9.0
