@@ -25,11 +25,12 @@ You know what you're looking for. The boards keep showing you everything
 else, and every "Senior Engineer" listing takes three minutes of reading
 to reveal the wrong stack, the wrong country, or a ghost posting.
 
-ApplyPack does that reading for you. It watches 22 job sources around
-the clock, scores each posting against your real profile, and pings your
-Telegram only when something deserves an application. Then it helps you
-apply well: it checks whether the job is real, scores your resume against
-the posting, and shows you exactly what to change.
+ApplyPack does that reading for you. It watches 22 kinds of job source
+around the clock, scores each posting against your real profile — several
+searches at once, if you're hunting in more than one direction — and pings
+your Telegram only when something deserves an application. Then it helps
+you apply well: it checks whether the job is real, scores your resume
+against the posting, and shows you exactly what to change.
 
 Everything runs on your machine. Your resume, your profile and every AI
 report stay in your own Postgres. `docker compose up` on a laptop or a
@@ -39,16 +40,19 @@ $5 VPS is the whole deployment story.
 
 | | |
 | --- | --- |
-| 🔭 **22 sources, checked hourly** | Ten ATS vendors — Greenhouse, Lever, Ashby, Workable, SmartRecruiters, Recruitee, Breezy, BambooHR, Pinpoint, Rippling — on the boards you pick, plus 11 aggregators and the monthly HN "Who is hiring" thread |
+| 🔭 **22 source integrations, checked hourly** | The number counts *kinds* of board, not companies: ten ATS vendors — Greenhouse, Lever, Ashby, Workable, SmartRecruiters, Recruitee, Breezy, BambooHR, Pinpoint, Rippling — on as many companies as you care to add, plus 11 cross-company aggregators and the monthly HN "Who is hiring" thread. Curated **starter packs** add a whole segment of companies at once |
+| 🚀 **A guided first run** | `/welcome` walks a first install through connecting an AI, proving the search works, turning a resume into a profile, and scoring the first matches — four clicks and one file pick |
+| 🎯 **Several searches at once** | Backend and QA, or contract and full-time: each search has its own stack, thresholds, resume and Telegram chat, and up to eight run in parallel. One AI call per posting scores all of them, so a second direction costs almost nothing |
 | 🧠 **A classifier with strict rules** | AI reads the full description against your stack, role types, seniority, regions and salary floor. "Full-stack" in a title is not a tech match, and "Remote · Germany" is not a US-remote job |
 | 📲 **Telegram instead of tab-refreshing** | alerts above your fit threshold, a daily digest, and a nudge when an application goes quiet for two weeks |
 | 🕵️ **Ghost-job verification** | a live web-search checklist (careers page, company footprint, posting age, named humans) returns `legit` / `suspicious` / `fake` with evidence URLs |
 | 📄 **Resume scores that can't flatter** | the model marks facts, application code computes the score. A Laravel resume cannot sweet-talk its way to 85 against a Node.js posting, and v2 is honestly comparable to v1 |
 | ✍️ **Targeted resume editor** | posting and resume side by side, every keyword highlighted, coverage recomputed on each keystroke without spending a single AI call |
 | 💌 **Cover letters that can't invent facts** | drafted from the posting, your resume and your own angle notes; every claim passes a fact gate against stored evidence, and the letter exports to PDF / DOCX |
-| 🗂 **Application tracking** | a small kanban from *applied* to *offer*, plus reminders for applications gone quiet |
+| 🗂 **Application tracking** | a kanban with columns you name yourself, the resume each application went out with, and reminders for the ones gone quiet |
 | 🔌 **Five AI backends, auto-failover** | Claude Code / Gemini / Codex CLIs riding your subscriptions, the Anthropic API, or any OpenAI-compatible endpoint including free local models |
 | 🧭 **Board discovery** | harvests company ATS boards from HN comments and queues them for a one-click promote |
+| 🛡 **Job posts can't hijack the prompt** | every posting, resume and web page reaches the model inside explicit untrusted-text markers, and a test fails the build if a new AI call site skips them |
 | 🏠 **Self-hosted and private** | official public APIs and RSS only, dashboard bound to `127.0.0.1`, no accounts, no telemetry |
 
 ## Quick start
@@ -56,12 +60,17 @@ $5 VPS is the whole deployment story.
 ```bash
 git clone https://github.com/applypack/applypack.git
 cd applypack
-cp .env.example .env    # add one AI engine, see below
+cp .env.example .env    # nothing to fill in yet
 docker compose up -d    # postgres + worker + dashboard → http://localhost:4747
 ```
 
-One line in `.env` is enough to start; the rest is configured in the
-dashboard later:
+**You don't need an API key before the first boot.** Paste one into the
+dashboard instead — step 1 of `/welcome`, or **Settings → AI engine** any
+time. Keys are stored in Postgres, shown masked, and never logged
+([ADR 0027](./docs/adr/0027-ai-keys-in-the-database.md)); `.env` is only the
+fallback for engines that have no key saved.
+
+If you'd rather keep credentials in the file, one line still does it:
 
 ```bash
 ANTHROPIC_API_KEY=sk-ant-...                              # Anthropic API
@@ -70,13 +79,17 @@ ANTHROPIC_API_KEY=sk-ant-...                              # Anthropic API
 # or: OPENAI_API_KEY=... (+ OPENAI_BASE_URL)              # OpenAI, OpenRouter, Groq, local
 ```
 
+Either way the AI tab shows, per engine, whether it is usable on this
+machine and where its credential came from.
+
 ### Your first fifteen minutes
 
 The dashboard opens on a four-step setup (`/welcome`) and walks you
 through it — about four clicks and one file pick:
 
-1. **Connect an AI** — the engine from `.env` is detected automatically;
-   with none, the page shows which line to add.
+1. **Connect an AI** — paste a key straight into the page, or let it
+   detect the engine already configured in `.env` or logged in on this
+   machine. A Test button proves the connection before you move on.
 2. **Test the search** — one button asks every job board and stores what
    it finds, no AI spent. You watch the sources answer.
 3. **Tell us about you** — upload your resume; the summary it comes back
@@ -140,8 +153,8 @@ green. Details per engine in [docs/ai-engines.md](./docs/ai-engines.md).
 
 ```
  22 sources ──▶ normalize ──▶ base filter ──▶ AI classifier ──▶ Postgres ──▶ Telegram
-   hourly        + dedupe      pure code,      your profile,     dashboard    only when
-   fetch                       zero cost       strict rules                   fit ≥ threshold
+   hourly        + dedupe      pure code,      one call, a       dashboard    only when
+   fetch                       zero cost       score per search               fit ≥ threshold
 ```
 
 Cheap deterministic filters drop the obvious misses first (excluded words
@@ -166,9 +179,9 @@ jobs" API, only per-company endpoints:
   `/companies`; the form probes the API live and refuses slugs that
   don't resolve.
 - **Aggregators**: RemoteOK, Remotive, We Work Remotely, Jobicy, Working
-  Nomads, Himalayas, Laravel Jobs, Golang Projects, Arbeitnow, the HN
-  jobs feed and the monthly HN "Who is hiring" thread. Broad and noisy,
-  which is fine: the filters and the classifier do the narrowing.
+  Nomads, Himalayas, Laravel Jobs, Golang Projects, Arbeitnow, 4 Day Week,
+  the HN jobs feed and the monthly HN "Who is hiring" thread. Broad and
+  noisy, which is fine: the filters and the classifier do the narrowing.
 
 Leave the aggregators on. Turning them off to "only watch real boards"
 sounds tidy and produces near-zero new jobs, because a dozen tracked
@@ -185,7 +198,7 @@ backends**, and you can attach every subscription and key you own:
 | Claude Code CLI | headless `claude -p` | your Claude.ai Pro/Max subscription |
 | Gemini CLI | headless `gemini -p` | your Google account (generous free tier) or an AI Studio key |
 | Codex CLI | headless `codex exec` | your ChatGPT Plus/Pro subscription |
-| Anthropic API | Messages API, prompt-cached | per token |
+| Anthropic API | Messages API | per token |
 | OpenAI-compatible API | `POST /chat/completions` to any base URL | OpenAI, OpenRouter, Groq, DeepSeek, or a free local model via LM Studio / Ollama |
 
 On **Settings → AI engine** each backend is a card: enable the ones you
@@ -201,10 +214,12 @@ the exact missing step), metered engines carry a "pay per token" badge,
 and a **Test** button runs one real end-to-end call. A "Last 7 days" line
 counts who actually served your calls.
 
-Two model slots per engine keep costs sane: a cheap **classifier model**
-reads every fetched job (Haiku 4.5 on the Claude engines) and a strong
-**resume model** handles the few judgment calls a day: resume scans,
-matches, verification (Opus 5 on the Claude engines).
+Three model slots per engine keep costs sane: a cheap **classifier
+model** reads every fetched job (Haiku 4.5 on the Claude engines), a
+strong **resume model** handles the few judgment calls a day — resume
+scans, matches, verification (Opus 5 on the Claude engines) — and an
+optional **cover-letter model** that follows the resume model unless you
+set it.
 
 Setup for every engine, local and Docker, lives in
 **[docs/ai-engines.md](./docs/ai-engines.md)**.
@@ -221,10 +236,14 @@ bench for exactly that: `npm run bench:resume -- --engine all`).
   extra. The CLI engines ride the subscription's usage window; when it
   runs dry mid-day, the chain fails over to your next engine and comes
   back on its own.
-- **Anthropic API only**: roughly **$2–10/month**. About $0.001 per
-  classified job at 5–10 matching jobs a day, with prompt caching
-  covering ~90% of the system-prompt tokens. The two-stage classifier
-  mode cuts another 30–40%.
+- **Anthropic API only**: roughly **$2–10/month**. A classified posting
+  costs about **$0.003** — ~2,000 input and ~250 output tokens on Haiku
+  4.5 — and the bill follows how many postings your sources produce, not
+  how many you apply to. The two-stage classifier mode cuts 30–40% more
+  by sending most postings a much shorter prompt.
+  *No prompt-cache discount is included in that figure, and none applies:
+  Haiku 4.5 only caches prefixes of 4,096 tokens or more and our
+  classifier prompt is well under that. Measured, not assumed.*
 - **Free tier**: Gemini CLI's free quota covers the classifier for a
   typical day; a local model via LM Studio / Ollama through the
   OpenAI-compatible engine costs nothing at all.
@@ -240,13 +259,15 @@ on the AI tab shows exactly which engine your calls went to.
 
 | Page | URL | What it's for |
 | --- | --- | --- |
-| Overview | `/` | Counters by status, recent alerts, cron health, pause/resume |
+| First run | `/welcome` | The four setup steps; `/` redirects here until you finish or skip |
+| Overview | `/` | Counters by status, recent alerts, cron health, pause/resume, Fetch now |
 | Jobs | `/jobs` | Filterable, sortable list of everything fetched |
 | Paste a job | `/jobs/new` | Save a posting by hand (LinkedIn, email, referral); it gets classified like any other |
 | Job detail | `/jobs/:id` | Full description, AI verdict, status actions, verification, resume match, tracking |
 | Targeted editor | `/jobs/:id/target` | Posting ↔ resume side by side, live keyword score, edit in place |
-| Target | `/target` | One-shot comparison: paste any posting, pick / upload / paste any resume |
-| Applications | `/applications` | Kanban: applied → screen → tech → onsite → offer / rejected / ghosted |
+| Compare | `/target` | One-shot comparison: paste any posting, pick / upload / paste any resume |
+| Cover letter | `/letter` | Write a letter for a posting that isn't stored yet: pick, paste or link it, then draft |
+| Applications | `/applications` | Kanban with drag-and-drop. Applied and Rejected/Ghosted are fixed; every column between them is yours to name, add and reorder ([ADR 0025](./docs/adr/0025-custom-work-stages.md)) |
 | Resumes | `/resumes` | Upload `.pdf` / `.docx` / `.md` / `.txt`, AI scan, version history |
 | Companies | `/companies` | Tracked boards; add new ones with a live probe that refuses bad slugs |
 | Discovery | `/discovery` | Board candidates harvested from HN, with the discovery toggles |
@@ -295,7 +316,7 @@ a toggle flipped in the UI reaches the worker on its next tick.
 
 ```bash
 npm run lint:types   # tsc --noEmit
-npm test             # node --test, 400+ unit tests on the pure modules
+npm test             # node --test, 860 unit tests on the pure modules
 ```
 
 CI runs both on every push. AI- and DB-touching modules are verified by

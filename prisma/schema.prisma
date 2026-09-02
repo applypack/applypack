@@ -112,6 +112,15 @@ model Job {
   pipelineStage    String?
   applicationNotes String?   @db.Text
 
+  // Stage C: which resume this application went out with. The text snapshot is
+  // not redundant with the FK — "Upload a new version" rewrites the bytes of
+  // the SAME resume row, so an id alone would name v3 and hand back v5's
+  // words. Same reasoning (and same shape) as ResumeMatch.resumeText.
+  appliedResumeId      Int?
+  appliedResume        Resume? @relation(fields: [appliedResumeId], references: [id], onDelete: SetNull)
+  appliedResumeVersion Int?
+  appliedResumeText    String? @db.Text
+
   // Phase 7.1: labels of Profile.priorityRules that matched this job at
   // classify-time and bumped fitScore to the rule's floor. Empty when no
   // rule applied. Surfaced as a badge on /jobs/:id.
@@ -384,6 +393,8 @@ model Resume {
   coverLetters    CoverLetter[]
   // Searches that hunt with this resume (Profile.resumeId).
   profiles        Profile[]
+  // Applications sent with this resume (Job.appliedResumeId).
+  appliedTo       Job[]
 
   @@map("resume")
 }

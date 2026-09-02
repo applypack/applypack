@@ -235,6 +235,7 @@ src/
     cleanup-job.ts              ← runCleanupJob (Sunday 03:00)
     stale-applications-job.ts   ← runStaleApplicationsJob (daily 08:00)
     stale-applications-format.ts  pure formatStaleMessage
+    applied-with.ts             ← pure "Senior Backend v3" label for the applied resume
     hn-hiring-job.ts            ← runHnHiringJob (monthly 1st 06:00)
     discovery-job.ts            ← runDiscoveryJob (Sunday 04:00, validation probe)
     process-jobs.ts             ← shared inner loop used by fetch + HN
@@ -328,6 +329,7 @@ prisma/
 | `POST /settings/reclassify`      | web     | spawns `runReclassifyAll` async (lock)   |
 | `POST /settings/hn-run`          | web     | spawns `runHnHiringJob` async (lock)     |
 | `POST /jobs/:id/reclassify`      | web     | sync `classifyJob` → auto-demote on fail |
+| `POST /jobs/:id/status`          | web     | status change; on APPLIED also seeds the funnel and snapshots the picked resume (id + version + text) |
 | `POST /companies/new`            | web     | sync `probeAts` → upsert                 |
 | `POST /companies/starter-pack`   | web     | resolve a pack live (`probeAts`, ≥1 job wins) → preview; `/import` inserts inactive, `/enable` activates |
 | `POST /resumes`                  | web     | extract text → `scanResume` (sync, ~1 min) |
@@ -358,6 +360,8 @@ erDiagram
   Job ||--o{ JobScore : "1..N onDelete:Cascade"
   Company ||--o{ Job : "1..N onDelete:Cascade"
   CompanyCandidate }o--|| AtsType : "PROMOTED → Company"
+  Resume ||--o| Profile : "resumeId — onDelete:SetNull"
+  Resume ||--o{ Job : "appliedResumeId — onDelete:SetNull"
   Resume ||--o{ ResumeMatch : "1..N onDelete:Cascade"
   Job ||--o{ ResumeMatch : "1..N onDelete:Cascade"
   Job ||--o{ JobVerification : "1..N onDelete:Cascade"
@@ -374,6 +378,9 @@ erDiagram
     bool hnParserEnabled
     bool discoveryEnabled
     string_array disabledSources
+    json aiKeys "per-engine API keys, DB-first (ADR 0027)"
+    datetime setupCompletedAt "NULL = / redirects to /welcome"
+    json pipelineStages "user-named funnel columns (ADR 0025)"
   }
 
   Profile {
@@ -392,6 +399,8 @@ erDiagram
     int minSalaryUsd
     int minFitScore
     int telegramTargetId FK
+    bool active "runs in the pipeline (ADR 0028)"
+    int resumeId FK "the resume this search hunts with"
   }
 
   Company {
@@ -423,6 +432,9 @@ erDiagram
     string pipelineStage
     string recruiterContact
     text applicationNotes
+    int appliedResumeId FK "onDelete:SetNull"
+    int appliedResumeVersion
+    text appliedResumeText "snapshot — resume bytes are replaced in place"
   }
 
   TelegramTarget {
@@ -458,6 +470,7 @@ erDiagram
     string seniority
     int yearsExperience
     string_array skills
+    string_array primarySkills "the 2-5 core technologies"
     string_array roleTypes
     text summary
     json issues

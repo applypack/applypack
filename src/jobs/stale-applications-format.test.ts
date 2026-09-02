@@ -12,6 +12,7 @@ const sample: StaleApplicationItem = {
   appliedAt: new Date('2026-04-10T10:00:00Z'),
   daysSince: 17,
   recruiterContact: null,
+  appliedWith: null,
 };
 
 describe('formatStaleMessage', () => {
@@ -43,5 +44,25 @@ describe('formatStaleMessage', () => {
     assert.match(out, /Senior PHP Engineer/);
     assert.match(out, /Staff Backend Eng/);
     assert.match(out, /21d ago/);
+  });
+});
+
+describe('formatStaleMessage — applied with', () => {
+  it('names the resume the application went out with', () => {
+    const out = formatStaleMessage([
+      { ...sample, appliedWith: 'Senior Backend v3' },
+    ]);
+    assert.match(out, /applied 17d ago with Senior Backend v3/);
+  });
+
+  it('says nothing extra when no resume was recorded', () => {
+    assert.match(formatStaleMessage([sample]), /applied 17d ago$/m);
+  });
+
+  it('keeps the resume ahead of the recruiter note', () => {
+    const out = formatStaleMessage([
+      { ...sample, appliedWith: 'Senior Backend v3', recruiterContact: 'jane@acme.com' },
+    ]);
+    assert.match(out, /with Senior Backend v3 \(last contact: jane@acme\.com\)/);
   });
 });

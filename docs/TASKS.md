@@ -734,9 +734,9 @@ when next touching it.
 
 ## 11. Onboarding wizard + profile simplification + multi-resume search (analysis 2026-08-31)
 
-Full plan: [docs/onboarding-plan.md](./onboarding-plan.md). **In
-progress — 5 of 7 stages shipped** (v1.5.0–v1.9.0); the
-checklist below is the status of record.
+Full plan: [docs/onboarding-plan.md](./onboarding-plan.md). **Done —
+all 7 stages shipped** (v1.5.0–v1.11.0); the checklist below is the
+status of record.
 
 Driver: users don't find where to create a profile or upload a resume;
 no way to verify the pipeline works from the UI; target persona for
@@ -764,11 +764,14 @@ Telegram explicitly optional.
       second resume; job pages preselect the linked resume — done
       2026-09-02, branch `profile-resume-link`; new profiles born
       inactive, `SetNull` on resume delete
-- [ ] `multi-profile-search` — multiple active profiles, union base
+- [x] `multi-profile-search` — multiple active profiles, union base
       filter, **one** classifier call returning per-profile scores,
-      `JobScore` table, per-profile alert routing (**ADR**)
-- [ ] `applied-resume` — record which resume (+ text snapshot) a job was
-      applied with; surface in stale digest
+      `JobScore` table, per-profile alert routing — done 2026-09-02,
+      branch `multi-profile-search` (ADR 0028, supersedes 0004; the
+      ceiling is 8, not the hypothesised 5)
+- [x] `applied-resume` — record which resume (+ text snapshot) a job was
+      applied with; surface in stale digest — done 2026-09-02, branch
+      `applied-resume`; **§11 closed**
 
 ## 12. /resumes overhaul + on-demand resume strength review (analysis 2026-08-31)
 

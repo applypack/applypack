@@ -8,11 +8,12 @@
 > [CLAUDE.md](../CLAUDE.md), the testing-gate / commit-discipline skills and
 > the ADR register in [docs/adr](./adr/).
 >
-> **Status:** stages 1–4 of §5 shipped (`profile-tab-quickwins` v1.5.0,
-> `fetch-now` v1.6.0, `welcome-wizard` v1.7.0, `ai-key-in-db` v1.8.0);
-> stages 5–7 are analysis only. Constants
-> (batch caps, source subsets, timings) are starting hypotheses to
-> re-measure at implementation time.
+> **Status:** all seven stages of §5 shipped — `profile-tab-quickwins`
+> v1.5.0, `fetch-now` v1.6.0, `welcome-wizard` v1.7.0, `ai-key-in-db`
+> v1.8.0, `profile-resume-link` v1.9.0, `multi-profile-search` v1.10.0,
+> `applied-resume` v1.11.0. Where a constant below was a hypothesis, the
+> measured value won: the wizard scores 10 jobs per press, not 100, and
+> the ceiling on parallel searches is 8, not 5.
 
 **Who this is for.** The target user of the wizard is explicitly
 non-technical — a manager who can install Docker by following a README but

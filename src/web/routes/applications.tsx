@@ -25,9 +25,20 @@ applicationsRoute.get('/applications', async (c) => {
   const work = parseStageConfig(settings.pipelineStages);
   const stageKeys = allStages(work).map((s) => s.key);
 
+  // Explicit select, not include: the board reads six scalars, and a whole
+  // Job row would drag the description and the applied-resume snapshot along
+  // for every card — this query is unbounded in the number of applications.
   const rows = await prisma.job.findMany({
     where: { pipelineStage: { in: stageKeys } },
-    include: { company: { select: { name: true } } },
+    select: {
+      id: true,
+      title: true,
+      fitScore: true,
+      recruiterContact: true,
+      pipelineStage: true,
+      appliedAt: true,
+      company: { select: { name: true } },
+    },
     orderBy: [{ appliedAt: 'desc' }, { id: 'desc' }],
   });
 
