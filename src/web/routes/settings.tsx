@@ -124,15 +124,16 @@ export const settingsRoute = new Hono();
 /** Everything the settings page needs except activeTab/flash/profileDraft —
  *  shared by the GET and by POSTs that render a draft instead of redirecting. */
 async function loadSettingsProps() {
-  const [settings, targets, profiles, active, resumes, aiStatuses, aiKeys, stageCounts] =
+  // The keys are read once and lent to the probe — both need them (ADR 0027).
+  const aiKeys = await getAiKeys();
+  const [settings, targets, profiles, active, resumes, aiStatuses, stageCounts] =
     await Promise.all([
       getSettings(),
       listTelegramTargets(),
       listProfiles(),
       getActiveProfile(),
       listResumes(),
-      probeAiProviders(),
-      getAiKeys(),
+      probeAiProviders(aiKeys),
       prisma.job.groupBy({
         by: ['pipelineStage'],
         _count: { _all: true },

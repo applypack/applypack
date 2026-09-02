@@ -216,15 +216,18 @@ let probeCache: { at: number; statuses: Record<AiProviderId, AiProviderStatus> }
 /**
  * Which backends this host can actually run: key present for the APIs,
  * binary on PATH + detectable auth for the CLIs. Cached briefly — the
- * settings page calls it on every render.
+ * settings page calls it on every render. A caller that already holds the
+ * stored keys passes them in rather than paying for a second read.
  */
-export async function probeAiProviders(): Promise<Record<AiProviderId, AiProviderStatus>> {
+export async function probeAiProviders(
+  stored?: AiKeys,
+): Promise<Record<AiProviderId, AiProviderStatus>> {
   if (probeCache && Date.now() - probeCache.at < PROBE_TTL_MS) return probeCache.statuses;
   const [claude, gemini, codex, keys] = await Promise.all([
     probeCliBin(config.CLAUDE_CODE_BIN),
     probeCliBin(config.GEMINI_CLI_BIN),
     probeCliBin(config.CODEX_CLI_BIN),
-    readAiKeys(),
+    stored ?? readAiKeys(),
   ]);
   const from = (id: AiProviderId): AiKeySource => aiKeySource(id, keys);
   const statuses: Record<AiProviderId, AiProviderStatus> = {
