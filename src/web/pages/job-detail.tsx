@@ -19,6 +19,7 @@ import {
 } from '../ui';
 import { formatDate, formatSalary } from '../format';
 import { appliedWithLabel } from '../../jobs/applied-with';
+import { needsAppliedResume } from '../applied-resume';
 import type { FlashMessage } from '../flash';
 import { CoverLetterCard, type CoverLetterCardProps } from './cover-letter-card';
 import { ResumeMatchCard, type ResumeMatchCardProps } from './resume-match-card';
@@ -43,7 +44,10 @@ interface JobDetail {
   externalId: string;
   company: { id: number; name: string; atsType: string };
   appliedAt: Date | null;
+  appliedResumeId: number | null;
   appliedResumeVersion: number | null;
+  /** The resume's words as they were on the day — a version is edited in place (#74). */
+  appliedResumeText: string | null;
   /** null once the resume row is deleted — the snapshot outlives it. */
   appliedResume: { name: string } | null;
   pipelineStage: string | null;
@@ -196,6 +200,7 @@ export const JobDetailPage: FC<JobDetailProps> = ({
                   value={job.appliedAt ? job.appliedAt.toISOString().slice(0, 10) : ''}
                 />
               </Field>
+              <AppliedWithField job={job} picker={appliedResumePicker} />
               <Field label="Recruiter contact">
                 <Input
                   type="text"
@@ -211,6 +216,7 @@ export const JobDetailPage: FC<JobDetailProps> = ({
               </Field>
               <Button>Save application</Button>
             </form>
+            <AppliedTextDisclosure job={job} />
           </Card>
         )}
       </div>
@@ -412,6 +418,57 @@ const MarkAppliedForm: FC<{ job: JobDetail; picker: JobDetailProps['appliedResum
       </Button>
     </ActionForm>
   );
+
+/**
+ * "Which resume did I send?" on the card that records the application (#75).
+ *
+ * Never preselected when nothing is stored: a card dragged into Applied on the
+ * board carries no picker, and filling this in on the user's behalf would turn
+ * a guess into a recorded fact. The hint says which one the page would have
+ * suggested; choosing it stays the user's move.
+ */
+const AppliedWithField: FC<{ job: JobDetail; picker: JobDetailProps['appliedResumePicker'] }> = ({
+  job,
+  picker,
+}) => {
+  if (picker.resumes.length === 0) return null;
+  const asking = needsAppliedResume(job);
+  const suggestion = picker.resumes.find((r) => r.id === picker.suggestedId);
+  return (
+    <Field
+      label="Applied with"
+      hint={
+        asking
+          ? `Not recorded — pick the one you sent.${suggestion ? ` Most likely "${suggestion.name}".` : ''}`
+          : 'Kept as it was on the day, so a later edit cannot rewrite history.'
+      }
+    >
+      <Select name="appliedResumeId">
+        <option value="" selected={job.appliedResumeId === null}>
+          — not recorded —
+        </option>
+        {picker.resumes.map((r) => (
+          <option value={r.id} selected={r.id === job.appliedResumeId}>
+            {r.name}
+          </option>
+        ))}
+      </Select>
+    </Field>
+  );
+};
+
+/** The words that actually went out (#74) — written since v1.11.0, read by nothing until now. */
+const AppliedTextDisclosure: FC<{ job: JobDetail }> = ({ job }) =>
+  job.appliedResumeText ? (
+    <details class="mt-3 rounded-md border border-line px-3 py-2">
+      <summary class="cursor-pointer select-none text-[13px] font-medium text-ink-muted transition-colors duration-150 hover:text-ink">
+        The text that went out ({job.appliedResumeText.length.toLocaleString()} chars)
+      </summary>
+      <pre class="mt-3 whitespace-pre-wrap break-words font-sans text-[13px] leading-6 text-ink-muted">
+        {job.appliedResumeText}
+      </pre>
+    </details>
+  ) : null;
 
 /** Silent until an application recorded its resume — most rows never will. */
 const AppliedWithRow: FC<{ job: JobDetail }> = ({ job }) => {

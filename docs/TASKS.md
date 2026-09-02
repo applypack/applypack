@@ -993,10 +993,19 @@ before anyone else installs this.
         pure `sameOriginPost`.
       - Five follow-ups that had only ever lived in PR bodies became issues
         #88-#92; three of the same class were fixed here instead.
-- [ ] `pre-public-hardening` C — #73 (a stale `resumeId` in the profile
-      form raises a raw FK error), #74 + #75 (`appliedResumeText` is written
-      and never read; the board's drag and the application form leave the
-      applied-resume columns NULL).
+- [x] `pre-public-hardening` C — #73, #74, #75, branch
+      `applied-resume-truth` (stacked on the above).
+      - **#75 measured in the live database first**: 8 rows with a pipeline
+        stage or `APPLIED` status, **0** of them recording a resume. The
+        application form now asks; the board's drag deliberately does not
+        guess (a drag carries no picker, and a guess written into the record
+        is worse than a blank), so the job page shows the gap and offers the
+        answer instead.
+      - **#74** the snapshot is rendered as a disclosure — it had been
+        written since v1.11.0 and read by nothing.
+      - **#73** verified live: a `resumeId` that no longer exists flashes
+        *"That resume no longer exists — reload the page and pick another
+        one. Nothing was saved."* and `profile.updatedAt` does not move.
 - [ ] `pre-public-check` — the six-point audit before strangers arrive:
       clean install from an empty database, migrations, secrets, exposure,
       README against the live UI, delete blast radius + a backup recipe.
