@@ -4,6 +4,20 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.23.1] — 2026-09-02
+
+### Fixed
+- **The cross-origin guard reads the two headers it was given in v1.20.0.**
+  Merging the two CSRF implementations (#93 and #87) taught the check to
+  consult `Referer` when a browser sends no `Origin`, and `X-Forwarded-Host`
+  when a reverse proxy rewrites `Host` — but the middleware went on passing
+  three headers to it, so the running dashboard kept the old behaviour: a
+  foreign `Referer` was not refused, and a dashboard behind a proxy refused
+  its own forms. Every unit test stayed green because they call the pure
+  function directly. The wiring now lives in `src/web/origin-guard.ts` with
+  tests that drive a real Hono app — the shape PR #87 used, and the one that
+  catches this class of bug. Caught by the live smoke run, not by the suite.
+
 ## [1.23.0] — 2026-09-02
 
 The pre-public audit: six checks nobody had run against this project as an
@@ -1318,6 +1332,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[1.23.1]: https://github.com/applypack/applypack/compare/v1.23.0...v1.23.1
 [1.23.0]: https://github.com/applypack/applypack/compare/v1.22.0...v1.23.0
 [1.22.0]: https://github.com/applypack/applypack/compare/v1.21.0...v1.22.0
 [1.21.0]: https://github.com/applypack/applypack/compare/v1.20.0...v1.21.0
