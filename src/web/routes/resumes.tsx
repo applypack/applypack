@@ -1,6 +1,7 @@
 /** @jsxImportSource hono/jsx */
 import { Hono, type Context } from 'hono';
 import { logger } from '../../logger';
+import type { ResumeReview } from '@prisma/client';
 import { reviewResume } from '../../resume/review';
 import { scanResume } from '../../resume/scan';
 import type { ResumeScan } from '../../resume/prompts';
@@ -11,6 +12,7 @@ import {
   deleteImpact,
   deleteResume,
   getLatestReviewForResume,
+  getPreviousReview,
   getResume,
   getResumeOriginal,
   latestReviewByResume,
@@ -18,11 +20,17 @@ import {
   listMatchesForResume,
   listResumes,
   matchStatsByResume,
+  renameResume,
   replaceResumeFile,
   type ResumeSummary,
+  saveReviewAnswer,
   saveResumeTextVersion,
   setDefaultResume,
 } from '../../resume/store';
+import { readAnswers, unansweredAsks } from '../../resume/answers';
+import { deltaSentence, reviewDelta, type ReviewSnapshot } from '../../resume/review-delta';
+import { readReviewAdvice, readReviewGrades } from '../../resume/prompts';
+import { readReviewPromptVersion } from '../../resume/review-score';
 import { parseWarnings } from '../../resume/parse-warnings';
 import { listProfilesForResume } from '../../profiles';
 import { createProfileFromResume, newProfileDraft } from '../profile-from-resume';
@@ -106,11 +114,15 @@ resumesRoute.get('/resumes/:id', async (c) => {
     deleteImpact(id),
   ]);
   if (!resume) return c.text('Not found', 404);
+  // The run before this one, so the card can say what the edits changed.
+  const previous = review ? await getPreviousReview(id, review.id) : null;
   return c.html(
     <ResumeDetailPage
       resume={resume}
       matches={matches}
       review={review}
+      answers={readAnswers(resume.answers)}
+      reviewDelta={review ? reviewDelta(snapshotOf(previous), snapshotOf(review)!) : null}
       deleteImpact={impact}
       warnings={parseWarnings(resume.text)}
       // The draft the "Create a search" button would save — rendered, not
@@ -242,6 +254,17 @@ resumesRoute.post('/resumes/:id/rescan', async (c) => {
   });
 });
 
+/** A stored review as the delta reads it; null passes straight through. */
+function snapshotOf(review: ResumeReview | null): ReviewSnapshot | null {
+  if (!review) return null;
+  return {
+    score: review.reviewScore,
+    version: review.resumeVersion,
+    promptVersion: readReviewPromptVersion(review.breakdown),
+    grades: readReviewGrades(review.grades).map((g) => ({ dimension: g.dimension, grade: g.grade })),
+  };
+}
+
 /**
  * "Run strength review" — one AI call, on demand only (resumes-plan §B.1). The
  * run registry shows the rubric being walked instead of a spinner; nothing
@@ -252,11 +275,14 @@ resumesRoute.post('/resumes/:id/review', async (c) => {
   if (!Number.isFinite(id)) return c.text('Bad id', 400);
   const resume = await getResume(id);
   if (!resume) return c.text('Not found', 404);
-  const { text, version, roleTypes } = resume;
+  const { text, version, roleTypes, answers } = resume;
+  const answered = readAnswers(answers);
 
   // Two tabs used to start two reviews of the same version and store both
-  // (PR #86's follow-up); the second POST now joins the first.
-  const { run, joined } = claimRun(`review:${id}:v${version}`, {
+  // (PR #86's follow-up); the second POST now joins the first. The answers
+  // are part of the key: answering a question and re-running is a DIFFERENT
+  // review of the same version, and must not join the run that predates it.
+  const { run, joined } = claimRun(`review:${id}:v${version}:a${answered.length}`, {
     steps: ['review'],
     jobTitle: '',
     resumeName: resume.name,
@@ -267,16 +293,70 @@ resumesRoute.post('/resumes/:id/review', async (c) => {
   });
   if (joined) return c.redirect(`/target/runs/${run.id}`, 303);
   startRun(run.id, async () => {
-    const row = await reviewResume({ id, text, version, roleTypes });
+    const row = await reviewResume({ id, text, version, roleTypes, answers });
+    const previous = row ? await getPreviousReview(id, row.id) : null;
+    const delta = row ? reviewDelta(snapshotOf(previous), snapshotOf(row)!) : null;
     updateRun(run.id, row
       ? {
           stage: 'done',
           resultUrl: `/resumes/${id}`,
-          flash: `Strength ${row.reviewScore}/100 — ${row.headline}`,
+          flash: delta
+            ? deltaSentence(delta)
+            : `Strength ${row.reviewScore}/100 — ${row.headline}`,
         }
       : { stage: 'error', error: 'The review failed — see the web logs.' });
   });
   return c.redirect(`/target/runs/${run.id}`, 303);
+});
+
+/**
+ * One answer to one of the review's questions (ADR 0030 phase 3). No AI call
+ * and no re-run: the answer is stored, and the NEXT review reads it. Saying so
+ * in the flash matters — this is a button that spends nothing, and the user
+ * should know which button does.
+ */
+resumesRoute.post('/resumes/:id/answers', async (c) => {
+  const id = Number(c.req.param('id'));
+  if (!Number.isFinite(id)) return c.text('Bad id', 400);
+  const form = await c.req.parseBody();
+  const question = typeof form.question === 'string' ? form.question : '';
+  const answer = typeof form.answer === 'string' ? form.answer : '';
+  if (question.trim().length === 0) return c.text('Bad answer', 400);
+
+  const saved = await saveReviewAnswer(id, question, answer);
+  if (saved === null) return c.text('Not found', 404);
+  const open = unansweredAsks(
+    readReviewAdvice((await getLatestReviewForResume(id))?.advice).map((a) => a.ask),
+    saved,
+  ).length;
+  const cleared = answer.trim().length === 0;
+  logger.info({ resumeId: id, answers: saved.length, open, cleared }, 'resume: review answer saved');
+  return flashRedirect(
+    `/resumes/${id}#resume-strength`,
+    'ok',
+    cleared
+      ? 'Answer removed — the next review will ask again.'
+      : `Saved. ${open === 0 ? 'That was the last open question' : `${open} question${open === 1 ? '' : 's'} still open`} — run the review again to fold it in. No AI call was made.`,
+  );
+});
+
+/**
+ * Rename a resume (§12 quick win). The name is what every picker, flash and
+ * "applied with" line says, and until now it was whatever the uploaded file
+ * happened to be called — `nameFromFilename` on a download from a job board
+ * produces things like "Alex Doe Senior Backend Resume (3)".
+ */
+resumesRoute.post('/resumes/:id/rename', async (c) => {
+  const id = Number(c.req.param('id'));
+  if (!Number.isFinite(id)) return c.text('Bad id', 400);
+  const form = await c.req.parseBody();
+  const name = (typeof form.name === 'string' ? form.name : '').trim().slice(0, MAX_RESUME_NAME_CHARS);
+  if (name.length === 0) {
+    return flashRedirect(`/resumes/${id}`, 'err', 'A resume needs a name.');
+  }
+  const renamed = await renameResume(id, name);
+  if (!renamed) return c.text('Not found', 404);
+  return flashRedirect(`/resumes/${id}`, 'ok', `Renamed to "${name}".`);
 });
 
 resumesRoute.post('/resumes/:id/default', async (c) => {

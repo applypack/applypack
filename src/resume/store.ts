@@ -1,6 +1,7 @@
 import type { CandidateFact, CoverLetter, Prisma, Resume, ResumeMatch, ResumeReview } from '@prisma/client';
 import { prisma } from '../db';
 import { logger } from '../logger';
+import { readAnswers, upsertAnswer, type ReviewAnswer } from './answers';
 import { readFrameReason, type FrameReason } from './keyword-frame';
 import { effectiveKeywords } from './keyword-overrides';
 import { readMatchMode, storedBreakdown, withSuggestionsMode, type MatchMode } from './match-mode';
@@ -114,6 +115,13 @@ export async function replaceResumeFile(
   });
   logger.info({ id, version: row.version, chars: input.text.length }, 'resume: new version');
   return row;
+}
+
+/** Renames a resume; null when the row is gone (deleted in another tab). */
+export async function renameResume(id: number, name: string): Promise<ResumeSummary | null> {
+  return prisma.resume
+    .update({ where: { id }, data: { name }, omit: WITHOUT_ORIGINAL })
+    .catch(() => null);
 }
 
 export async function deleteResume(id: number): Promise<void> {
@@ -240,6 +248,41 @@ export async function createReview(input: {
 /** The review a resume page shows: the most recent run, whatever version it read. */
 export async function getLatestReviewForResume(resumeId: number): Promise<ResumeReview | null> {
   return prisma.resumeReview.findFirst({ where: { resumeId }, orderBy: { createdAt: 'desc' } });
+}
+
+/**
+ * The run before a given one, for the delta (review-delta.ts). Ordered by id,
+ * not by `createdAt`: two runs a second apart are exactly what "answer, then
+ * re-run" produces, and a timestamp tie would pick arbitrarily.
+ */
+export async function getPreviousReview(resumeId: number, beforeId: number): Promise<ResumeReview | null> {
+  return prisma.resumeReview.findFirst({
+    where: { resumeId, id: { lt: beforeId } },
+    orderBy: { id: 'desc' },
+  });
+}
+
+/**
+ * The candidate's answers to the review's questions (answers.ts). Read-modify-
+ * write of one JSON column, so it takes the row lock the same way a keyword
+ * edit does — two answers typed in two tabs must both survive.
+ */
+export async function saveReviewAnswer(
+  resumeId: number,
+  question: string,
+  answer: string,
+): Promise<ReviewAnswer[] | null> {
+  return prisma.$transaction(async (tx) => {
+    const locked = await tx.$queryRaw<{ id: number }[]>`SELECT id FROM resume WHERE id = ${resumeId} FOR UPDATE`;
+    if (locked.length === 0) return null;
+    const row = await tx.resume.findUniqueOrThrow({ where: { id: resumeId }, select: { answers: true } });
+    const next = upsertAnswer(readAnswers(row.answers), question, answer);
+    await tx.resume.update({
+      where: { id: resumeId },
+      data: { answers: next as unknown as Prisma.InputJsonValue },
+    });
+    return next;
+  });
 }
 
 export type ReviewSummary = Pick<ResumeReview, 'resumeId' | 'resumeVersion' | 'reviewScore' | 'createdAt'>;

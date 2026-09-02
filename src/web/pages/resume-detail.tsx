@@ -28,6 +28,8 @@ import { formatDate, formatRelative } from '../format';
 import type { ResumeReview } from '@prisma/client';
 import type { MatchWithJob, ResumeSummary } from '../../resume/store';
 import { ResumeReviewCard } from './resume-review-card';
+import type { ReviewAnswer } from '../../resume/answers';
+import type { ReviewDelta } from '../../resume/review-delta';
 import { reviewIsStale } from '../../resume/review-score';
 import { readIssues } from '../../resume/prompts';
 import type { ParseWarning } from '../../resume/parse-warnings';
@@ -38,6 +40,10 @@ export interface ResumeDetailProps {
   matches: MatchWithJob[];
   /** The latest strength review, or null when the user has never asked for one. */
   review: ResumeReview | null;
+  /** The candidate's answers to the review's questions (ADR 0030 phase 3). */
+  answers: ReviewAnswer[];
+  /** What moved since the previous run of this resume, when there was one. */
+  reviewDelta: ReviewDelta | null;
   /** What Delete would cascade — named in the confirm: comparisons, letters and reviews. */
   deleteImpact: { matches: number; letters: number; reviews: number };
   /** Deterministic ATS-parseability checks over the extracted text. */
@@ -54,6 +60,8 @@ export const ResumeDetailPage: FC<ResumeDetailProps> = ({
   resume,
   matches,
   review,
+  answers,
+  reviewDelta,
   deleteImpact,
   warnings,
   search,
@@ -109,7 +117,7 @@ export const ResumeDetailPage: FC<ResumeDetailProps> = ({
       </PageHeader>
       <Flash flash={flash} />
 
-      <ResumeReviewCard resume={resume} review={review} />
+      <ResumeReviewCard resume={resume} review={review} answers={answers} delta={reviewDelta} />
 
       <div class="mt-4 grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
         <Card>

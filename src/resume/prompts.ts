@@ -206,8 +206,12 @@ export type CoverResult = z.infer<typeof CoverSchema>;
 
 export const REVIEW_MAX_TOKENS = 6_000;
 
-/** Bumped when the rubric or its rules change materially; stored with the score. */
-export const REVIEW_PROMPT_VERSION = 1;
+/**
+ * Bumped when the rubric or its rules change materially; stored with the score.
+ * v2: the candidate's answers to earlier asks ride into the prompt, and the
+ * rules say to write the figure into the rewrite instead of asking again.
+ */
+export const REVIEW_PROMPT_VERSION = 2;
 
 export const REVIEW_PRIORITIES = ACTION_PRIORITIES;
 
@@ -488,6 +492,7 @@ ADVICE — 3 to 8 items, the ones that would change a hiring decision first:
 - "issue" names what is wrong with THIS document, "why" says what a recruiter or an ATS does about it, "fix" is the concrete change to make. "quote" carries the verbatim line the item points at, or null.
 - "example" is a rewritten line built ONLY from facts the resume already contains. NO INVENTION: never add a number, employer, title, date, team size or technology that is not already in the text.
 - When the better line NEEDS a number the resume does not have, leave "example" null and put the question in "ask" ("how many requests per day did that service handle?"). Asking is the honest path to a stronger resume; inventing is fraud the candidate has to defend in the interview.
+- When a CANDIDATE-SUPPLIED METRICS block is present, those figures are answers the candidate already gave you. Treat them as true, WRITE THEM INTO the "example" rewrite, and set "ask" to null for that item — asking a second time for a number you have been given is the one thing this rubric must never do. Never carry a supplied figure into a line it does not belong to, and never let it change a grade on its own: the resume is graded as WRITTEN, and a metric the document does not carry is a reason for advice, not for a better grade.
 - Judge the document, never the person. A gap in the dates is a presentation problem ("say what you did with that time"), never a guess about someone's life.
 - No generic career advice. "Tailor your resume to each posting" is not advice; "your Vodwork bullet says migrated, not what the migration bought" is.
 
@@ -817,6 +822,12 @@ export interface ReviewContext {
   atsChecks?: string[];
   /** The role types the scan read out of this resume; keyword coverage is judged against them. */
   roleTypes?: string[];
+  /**
+   * The candidate's answers to earlier asks (answers.ts). Outside the fence
+   * on purpose — like `Profile.notes` and the confirmed ask_user facts, this
+   * is the user talking to their own tool, not text a job board wrote.
+   */
+  answers?: string[];
 }
 
 export function buildReviewPrompt(resumeText: string, context: ReviewContext = {}): Prompt {
@@ -830,6 +841,7 @@ export function buildReviewPrompt(resumeText: string, context: ReviewContext = {
   if (checks.length > 0) {
     lines.push('ATS CHECKS (deterministic, already verified — weigh them under "clarity"):', ...checks.map((w) => `- ${w}`), '');
   }
+  lines.push(...(context.answers ?? []));
   return {
     system: REVIEW_SYSTEM,
     user: [fence('RESUME', clip(resumeText, MAX_RESUME_CHARS)), '', ...lines, 'Return raw JSON only.'].join('\n'),
