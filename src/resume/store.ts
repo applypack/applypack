@@ -1,11 +1,13 @@
 import type { CandidateFact, CoverLetter, Prisma, Resume, ResumeMatch, ResumeReview } from '@prisma/client';
 import { prisma } from '../db';
 import { logger } from '../logger';
-import type { FrameReason } from './keyword-frame';
-import { storedBreakdown, withSuggestionsMode, type MatchMode } from './match-mode';
+import { readFrameReason, type FrameReason } from './keyword-frame';
+import { effectiveKeywords } from './keyword-overrides';
+import { readMatchMode, storedBreakdown, withSuggestionsMode, type MatchMode } from './match-mode';
+import { readPromptVersion } from './match-reuse';
 import type { MatchKeyword, MatchSuggestions, ResumeMatchResult, ResumeReviewResult, ResumeScan } from './prompts';
 import { storedReviewBreakdown, type ReviewBreakdown } from './review-score';
-import type { ScoreBreakdown } from './score';
+import { readBreakdown, scoreMatch, type ScoreBreakdown } from './score';
 
 /** Resume without the uploaded bytes — what every page and prompt works with. */
 export type ResumeSummary = Omit<Resume, 'original'>;
@@ -315,25 +317,69 @@ export async function getLatestMatchForJob(jobId: number): Promise<ResumeMatch |
   return prisma.resumeMatch.findFirst({ where: { jobId }, orderBy: { createdAt: 'desc' } });
 }
 
-/** A fact flip recomputes the stored score deterministically — no AI call. */
-export async function updateMatchScoring(
+export interface KeywordRescore<T> {
+  /** The list to store, or null to leave the row exactly as it is. */
+  keywords: MatchKeyword[] | null;
+  /** Handed back to the caller — the pure edit's own result, for the flash. */
+  detail: T;
+}
+
+export interface RescoreOutcome<T> {
+  detail: T;
+  /** The stored score before and after the edit; equal when nothing was written. */
+  before: number;
+  after: number;
+  /** False when the row predates the deterministic score (ADR 0012) — nothing was written. */
+  scored: boolean;
+}
+
+/**
+ * Read → pure edit → write of one comparison's keyword list, under a row lock.
+ *
+ * Two routes share this shape: a keyword override and an answered `ask_user`
+ * question. Both used to read the row, compute outside, and write the whole
+ * JSON back — check-then-act, so two edits in flight, or a confirmation
+ * landing during an override, kept only the last one (PR #83's follow-up).
+ * Postgres runs at Read Committed, so a plain transaction here would change
+ * nothing: the read inside it still returns the version current when it
+ * started. `SELECT … FOR UPDATE` first is what serialises them; the edit is
+ * pure and instant, so the lock is held for a millisecond.
+ *
+ * Scoring lives here too, deliberately: `effectiveKeywords` — the user's
+ * levels minus the rows they ignored — has to be applied before `scoreMatch`
+ * or an override silently disappears from the number, which is what the facts
+ * route did.
+ */
+export async function rescoreMatchKeywords<T>(
   id: number,
-  input: {
-    keywords: MatchKeyword[];
-    breakdown: ScoreBreakdown;
-    /** The row's own markers, read off it and written back — a re-score changes the number, never what the row is. */
-    promptVersion: number | null;
-    mode: MatchMode;
-    frame: FrameReason | null;
-  },
-): Promise<ResumeMatch> {
-  return prisma.resumeMatch.update({
-    where: { id },
-    data: {
-      keywords: input.keywords as Prisma.InputJsonValue,
-      breakdown: storedBreakdown(input.breakdown, input) as Prisma.InputJsonValue,
-      matchScore: input.breakdown.score,
-    },
+  edit: (match: ResumeMatch) => KeywordRescore<T>,
+): Promise<RescoreOutcome<T> | null> {
+  return prisma.$transaction(async (tx) => {
+    const locked = await tx.$queryRaw<{ id: number }[]>`SELECT id FROM resume_match WHERE id = ${id} FOR UPDATE`;
+    if (locked.length === 0) return null;
+    const match = await tx.resumeMatch.findUniqueOrThrow({ where: { id } });
+    const { keywords, detail } = edit(match);
+    const breakdown = readBreakdown(match.breakdown);
+    const before = match.matchScore;
+    if (keywords === null || !breakdown) {
+      return { detail, before, after: before, scored: breakdown !== null };
+    }
+    const next = scoreMatch(effectiveKeywords(keywords), breakdown.alignment, match.redFlags.length);
+    await tx.resumeMatch.update({
+      where: { id },
+      data: {
+        keywords: keywords as Prisma.InputJsonValue,
+        breakdown: storedBreakdown(next, {
+          // Read off the locked row, not off the caller's older copy: a
+          // re-score changes the number, never what the row is.
+          promptVersion: readPromptVersion(match.breakdown),
+          mode: readMatchMode(match.breakdown),
+          frame: readFrameReason(match.breakdown),
+        }) as Prisma.InputJsonValue,
+        matchScore: next.score,
+      },
+    });
+    return { detail, before, after: next.score, scored: true };
   });
 }
 
