@@ -135,6 +135,7 @@ model Job {
   verifications JobVerification[]
   coverLetters  CoverLetter[]
   stageEvents   JobStageEvent[]
+  scores        JobScore[]
 
   @@unique([companyId, externalId])
   @@index([status, fetchedAt])
@@ -142,6 +143,35 @@ model Job {
   // The dedup scan reads fingerprints from the last 90 days.
   @@index([fetchedAt, descriptionSimhash])
   @@map("job")
+}
+
+// ADR 0028: what ONE active search thought of one posting. The classifier
+// returns every search's verdict in a single reply, and each entry lands here.
+// Job.fitScore and the other classifier columns keep the BEST-OF row, so every
+// list, sort, badge and digest written against Job renders unchanged — the
+// profile that won is named here, not there.
+model JobScore {
+  id        Int     @id @default(autoincrement())
+  jobId     Int
+  job       Job     @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  profileId Int
+  profile   Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  fitScore             Int
+  locationMatch        Boolean
+  techMatch            String[]
+  redFlags             String[]
+  summary              String?  @db.Text
+  // Labels of this profile's priorityRules that lifted the score (phase 7.1).
+  priorityRulesApplied String[] @default([])
+
+  scoredAt DateTime @default(now())
+
+  // One verdict per (posting, search) — a re-classify updates in place.
+  @@unique([jobId, profileId])
+  // The /jobs chips filter by profile and rank by that profile's score.
+  @@index([profileId, fitScore])
+  @@map("job_score")
 }
 
 model CronRun {
@@ -293,6 +323,11 @@ model Profile {
   // forced true. Lets you say "PHP roles posted as remote-US must score
   // ≥90 even if the JD is bare-bones" without trying to convince Claude.
   priorityRules    Json            @default("[]")
+  // ADR 0028: several searches run at once. `active` is the switch — a job is
+  // scored against every active profile in ONE classifier call, and each row
+  // gates its own alerts with its own minFitScore. AppSettings.activeProfileId
+  // stays as the PRIMARY (defaults, preselects); the primary is always active.
+  active           Boolean         @default(false)
   // Where alerts for this profile go. null → broadcast to all active targets.
   telegramTargetId Int?
   telegramTarget   TelegramTarget? @relation(fields: [telegramTargetId], references: [id], onDelete: SetNull)
@@ -308,7 +343,9 @@ model Profile {
 
   // Back-relation for AppSettings.activeProfileId
   activeFor AppSettings[]
+  jobScores JobScore[]
 
+  @@index([active])
   @@map("profile")
 }
 

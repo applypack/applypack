@@ -1,6 +1,12 @@
 # 0004 — One active Profile, not multi-tenant
 
-**Status:** Accepted (phase-3.0, reaffirmed at user's request when
+**Status:** Superseded by [0028](./0028-parallel-searches-one-call-per-posting.md)
+(2026-09-02). Several profiles now run at once and each posting carries a
+`JobScore` per search — the table this ADR's last consequence said we would
+need. What survives: this is still one person's deployment, not multi-tenant.
+No auth, no per-user views; a friend still runs their own compose.
+
+**Was:** Accepted (phase-3.0, reaffirmed at user's request when
 asked about giving friends access)
 
 ## Context

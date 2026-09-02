@@ -12,7 +12,7 @@ consequences (what we accept). Aim for 15–30 lines each.
 - [0001 — Hono not Express](./0001-hono-not-express.md)
 - [0002 — Worker and web as separate processes](./0002-worker-and-web-as-separate-processes.md)
 - [0003 — No queue, just node-cron](./0003-no-queue-just-node-cron.md)
-- [0004 — One active profile, not multi-tenant](./0004-single-active-profile.md)
+- [0004 — One active profile, not multi-tenant](./0004-single-active-profile.md) — *superseded by 0028*
 - [0005 — No LinkedIn / Indeed / Workday](./0005-no-linkedin-indeed-workday.md)
 - [0006 — Discovery via HN parser, not ATS-vendor lists](./0006-discovery-via-hn-parser.md)
 - [0007 — One AI provider seam: Messages API or Claude Code CLI](./0007-ai-provider-seam.md)
@@ -36,6 +36,7 @@ consequences (what we accept). Aim for 15–30 lines each.
 - [0025 — Work columns are user-defined; fixed entry and exits](./0025-custom-work-stages.md)
 - [0026 — Database tables are snake_case, mapped with `@@map()`](./0026-snake-case-table-names.md)
 - [0027 — Per-engine AI keys live in the database, `.env` as fallback](./0027-ai-keys-in-the-database.md)
+- [0028 — Several searches run in parallel, scored by one call per posting](./0028-parallel-searches-one-call-per-posting.md) *(supersedes 0004)*
 
 ## When to write a new one
 
