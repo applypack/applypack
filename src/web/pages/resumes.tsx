@@ -21,6 +21,8 @@ export interface ResumeRow {
   createdAt: Date;
   /** Absent until the resume has been compared with something. */
   matches: { count: number; best: number } | null;
+  /** The latest strength review, absent until the user asks for one. */
+  review: { reviewScore: number; resumeVersion: number } | null;
 }
 
 export interface FactRow {
@@ -71,10 +73,11 @@ export const ResumesPage: FC<{
             'Headline',
             'Core stack',
             'Matches',
+            'Strength',
             'Scanned',
             <span class="block text-right">Default</span>,
           ]}
-          thClasses={['', HIDE_XL, HIDE_LG, '', HIDE_SM, '']}
+          thClasses={['', HIDE_XL, HIDE_LG, '', HIDE_SM, HIDE_SM, '']}
         >
           {resumes.map((r) => (
             <Tr>
@@ -108,6 +111,9 @@ export const ResumesPage: FC<{
               </Td>
               <Td class="whitespace-nowrap">
                 <MatchCell matches={r.matches} />
+              </Td>
+              <Td class={`whitespace-nowrap ${HIDE_SM}`}>
+                <StrengthCell resume={r} />
               </Td>
               <Td class={`whitespace-nowrap text-[13px] text-ink-faint ${HIDE_SM}`}>
                 {r.scannedAt ? formatRelative(r.scannedAt) : <Badge tone="warn">not scanned</Badge>}
@@ -199,6 +205,30 @@ const MatchCell: FC<{ matches: ResumeRow['matches'] }> = ({ matches }) =>
       <span class="hidden text-xs text-ink-faint sm:inline">
         {matches.count === 1 ? '1 run' : `${matches.count} runs`}
       </span>
+    </div>
+  );
+
+/**
+ * The on-demand review, surfaced where the user compares resumes (§B.4). Never
+ * a call to action that runs anything: reviewing is a decision made on the
+ * resume's own page, so an unreviewed row links there instead.
+ */
+const StrengthCell: FC<{ resume: ResumeRow }> = ({ resume }) =>
+  resume.review === null ? (
+    <a
+      href={`/resumes/${resume.id}`}
+      class="text-[13px] text-ink-faint underline-offset-2 transition-colors duration-150 hover:text-ink hover:underline"
+    >
+      not reviewed
+    </a>
+  ) : (
+    <div class="flex items-center gap-2">
+      <FitBadge score={resume.review.reviewScore} label="strength" />
+      {resume.review.resumeVersion < resume.version && (
+        <span title={`the review read v${resume.review.resumeVersion}, the resume is at v${resume.version}`}>
+          <Badge tone="warn">v{resume.review.resumeVersion}</Badge>
+        </span>
+      )}
     </div>
   );
 

@@ -53,6 +53,14 @@ const ACTIVITIES = {
     'Drafting the letter — role, evidence, why this company…',
     'Fact-checking every claim against the resume…',
   ],
+  review: [
+    'Reading the resume the way a recruiter reads it…',
+    'Judging the first impression — headline and summary…',
+    'Looking for outcomes behind the duties…',
+    'Weighing the seniority the wording actually shows…',
+    'Checking structure, keyword evidence and wording…',
+    'Writing what to change, with quotes from your text…',
+  ],
   score: [
     'Filtering the stored jobs against your profile…',
     'Scoring what passed — a few seconds per job…',
