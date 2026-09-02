@@ -28,5 +28,5 @@ export function readPromptVersion(breakdown: unknown): number | null {
 
 /** The flash shown instead of a run; `when` is the stored row's age ("3m ago"). */
 export function reuseNotice(when: string): string {
-  return `Unchanged since the last analysis (${when}) — showing that result; no AI call was spent.`;
+  return `Unchanged since the last analysis (${when}) — showing that result; the resume model was not called again.`;
 }

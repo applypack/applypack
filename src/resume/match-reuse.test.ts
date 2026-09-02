@@ -31,8 +31,8 @@ test('readPromptVersion reads the marker and nothing else', () => {
   assert.equal(readPromptVersion(null), null);
 });
 
-test('reuseNotice names the age and says nothing was spent', () => {
+test('reuseNotice names the age and says the model was not called', () => {
   const notice = reuseNotice('3m ago');
   assert.match(notice, /3m ago/);
-  assert.match(notice, /no AI call/);
+  assert.match(notice, /not called again/);
 });
