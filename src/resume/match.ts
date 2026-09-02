@@ -13,6 +13,7 @@ import {
 } from './prompts';
 import { annotateElsewhere, applyFacts } from './facts';
 import { withTableAliases } from './keyword-aliases';
+import { carryOverrides, effectiveKeywords } from './keyword-overrides';
 import { anchorKeywords } from './keyword-anchor';
 import { loadKeywordMatcher } from './keyword-matcher';
 import { readMatchMode, type MatchMode } from './match-mode';
@@ -55,17 +56,20 @@ export async function matchResumeToJob(
     getLatestMatchForJob(job.id),
     loadKeywordMatcher(),
   ]);
+  // The user's own edits to the last frame for this posting: the levels they
+  // set go into the prompt, and carryOverrides puts every override back on the
+  // fresh reply below, so an override sticks to the posting (§5).
+  const storedKeywords = previousMatch ? readKeywords(previousMatch.keywords) : [];
   const context: MatchContext = {
     confirmedFacts: facts.filter((f) => f.status === 'confirmed').map((f) => ({ term: f.term, note: f.note })),
     deniedTerms: facts.filter((f) => f.status === 'denied').map((f) => f.term),
     otherResumeSkills: otherSkills,
     // The previous run's keyword frame keeps terms/levels stable across
-    // versions, so a better resume shows up as a better number.
-    previousKeywords: previousMatch
-      ? readKeywords(previousMatch.keywords)
-          .slice(0, PREVIOUS_KEYWORDS_MAX)
-          .map((k) => ({ term: k.term, priority: k.priority, requirement: k.requirement, primary: k.primary }))
-      : undefined,
+    // versions, so a better resume shows up as a better number. Terms the user
+    // ignored are left out of it — asking for them back would be noise.
+    previousKeywords: effectiveKeywords(storedKeywords)
+      .slice(0, PREVIOUS_KEYWORDS_MAX)
+      .map((k) => ({ term: k.term, priority: k.priority, requirement: k.requirement, primary: k.primary })),
   };
   const prompt = buildMatchPrompt(resume.text, job, mode, context);
   const ai = await getAiRuntime();
@@ -88,14 +92,22 @@ export async function matchResumeToJob(
       // table joins the model's spellings, every term is anchored to the
       // posting (or flagged), stored facts always win, and unclaimable terms
       // point at the resume that has them.
-      const anchor = anchorKeywords(
-        parsed.data.keywords.map(withTableAliases),
-        `${job.title}\n${job.description}`,
+      const posting = `${job.title}\n${job.description}`;
+      const anchor = anchorKeywords(parsed.data.keywords.map(withTableAliases), posting, matcher);
+      const carry = carryOverrides(anchor.keywords, storedKeywords, {
+        resumeText: resume.text,
+        posting,
         matcher,
-      );
-      const withFacts = applyFacts(anchor.keywords, facts).keywords;
+      });
+      const withFacts = applyFacts(carry.keywords, facts).keywords;
       const keywords = annotateElsewhere(withFacts, otherSkills);
-      const breakdown = scoreMatch(keywords, parsed.data.alignment, parsed.data.red_flags.length);
+      // The row stores what the user sees; the score reads what they decided:
+      // their levels, without the terms they ignored (§5).
+      const breakdown = scoreMatch(
+        effectiveKeywords(keywords),
+        parsed.data.alignment,
+        parsed.data.red_flags.length,
+      );
       const row = await createMatch({
         jobId: job.id,
         resumeId: resume.id,
@@ -121,6 +133,8 @@ export async function matchResumeToJob(
           keywords: keywords.length,
           anchored: anchor.anchored,
           unanchored: anchor.unanchored,
+          overrides: carry.carried,
+          readded: carry.readded,
           promptVersion: PROMPT_VERSION,
           chars: out.text.length,
           ms: Date.now() - started,

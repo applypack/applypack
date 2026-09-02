@@ -5,8 +5,9 @@ import { Badge, Button, Card, FitBadge, Flash, Hint, SUBMIT_ONCE } from '../ui';
 import type { FlashMessage } from '../flash';
 import { fitTone, formatRelative, type Tone } from '../format';
 import type { MatchWithResume } from '../../resume/store';
-import { withTableAliases } from '../../resume/keyword-aliases';
-import { readActions, readHardRequirements, readKeywords, readRemovals } from '../../resume/prompts';
+import type { CountedKeyword } from '../../resume/keyword-matcher';
+import { effectiveKeywords } from '../../resume/keyword-overrides';
+import { readActions, readHardRequirements, readRemovals } from '../../resume/prompts';
 import { readMatchMode } from '../../resume/match-mode';
 import { readBreakdown } from '../../resume/score';
 import {
@@ -42,6 +43,8 @@ export interface TargetPageProps {
   /** ephemeral = the hidden /target scratch resume: no versions, no saving. */
   resume: { id: number; name: string; version: number; ephemeral: boolean };
   match: MatchWithResume;
+  /** The match's keywords, ordered and counted against the posting (§5). */
+  keywords: CountedKeyword[];
   matches: MatchWithResume[];
   /** Most recent earlier run of the same resume — the "vs last time" delta. */
   previous: MatchWithResume | null;
@@ -98,18 +101,21 @@ export const TargetPage: FC<TargetPageProps> = ({
   job,
   resume,
   match,
+  keywords,
   matches,
   previous,
   resumeText,
   draftText,
   flash,
 }) => {
-  // Table spellings apply on read too, so matches stored before the table (or before an entry) highlight the same way.
-  const keywords = readKeywords(match.keywords).map(withTableAliases);
+  // The panes, the chips and the live score work from the effective list: the
+  // user's own levels, without the terms they ignored (§5). The table below
+  // still gets the full list, so an ignored row can be brought back.
+  const scored = effectiveKeywords(keywords);
   const actions = readActions(match.actions);
   const removals = readRemovals(match.removals);
   const hard = readHardRequirements(match.hardRequirements);
-  const asks = keywords.filter((k) => k.status === 'ask_user');
+  const asks = scored.filter((k) => k.status === 'ask_user');
   const highActions = actions.filter((a) => a.priority === 'high').length;
   // A quick check has no suggestions yet — the tab offers the second call instead (ADR 0029).
   const fast = readMatchMode(match.breakdown) === 'fast';
@@ -125,7 +131,7 @@ export const TargetPage: FC<TargetPageProps> = ({
     resumeText,
     draftText: draftText ?? null,
     jobText: job.description,
-    keywords,
+    keywords: scored,
     actions,
     removals,
     // Fixed score parts for the live estimate; null on pre-ADR-0012 matches.
@@ -406,7 +412,7 @@ export const TargetPage: FC<TargetPageProps> = ({
                 </span>
               </div>
               <div id="score-detail" class="mt-0.5 text-xs text-ink-faint">
-                {keywords.length} keywords from the AI match
+                {scored.length} keywords from the AI match
               </div>
               <Hint class="mt-1">
                 {breakdown
@@ -463,6 +469,13 @@ export const TargetPage: FC<TargetPageProps> = ({
               <span><mark class="kw-missing rounded px-1">missing</mark></span>
               <span><mark class="kw-ask rounded px-1">confirm</mark></span>
               <span><mark class="kw-cannot rounded px-1">no evidence</mark></span>
+              {/* The intensity key: same colour, graded by how hard the posting asks. */}
+              <span class="inline-flex items-center gap-1">
+                weight
+                <mark class="kw-missing kw-w4 rounded px-1">must</mark>
+                <mark class="kw-missing kw-w2 rounded px-1">preferred</mark>
+                <mark class="kw-missing kw-w1 rounded px-1">nice</mark>
+              </span>
             </div>
           </div>
           <div
@@ -470,7 +483,9 @@ export const TargetPage: FC<TargetPageProps> = ({
             class="max-h-[70vh] overflow-auto whitespace-pre-wrap break-words font-sans text-sm leading-7 text-ink-muted"
           ></div>
           <Hint class="mt-2">
-            Highlights follow the AI's keyword list — benefits, perks and legal boilerplate are deliberately never keywords.
+            Highlights follow the AI's keyword list — benefits, perks and legal boilerplate are
+            deliberately never keywords. The stronger a mark, the harder the posting asks; hover one
+            to see how often it says the word. Re-level or ignore any of them in the keyword table.
           </Hint>
         </Card>
 
@@ -523,7 +538,14 @@ export const TargetPage: FC<TargetPageProps> = ({
                 </>
               )}
               <MatchSignals match={match} />
-              <KeywordTable keywords={keywords} />
+              <KeywordTable
+                keywords={keywords}
+                edit={
+                  breakdown
+                    ? { jobId: job.id, matchId: match.id, back: `/jobs/${job.id}/target?match=${match.id}` }
+                    : undefined
+                }
+              />
             </div>
           </Card>
         </div>
@@ -607,6 +629,16 @@ const TARGET_CSS = `
   .kw-missing { background: rgb(var(--warn) / 0.22); }
   .kw-ask { background: rgb(var(--violet) / 0.16); box-shadow: inset 0 0 0 1px rgb(var(--violet) / 0.4); }
   .kw-cannot { background: rgb(var(--ink-faint) / 0.2); text-decoration: line-through; }
+  /* Visual weight (target-plan.md §5). jobSpans tags every mark kw-w0 (context)
+     … kw-w4 (a primary-stack must), so a gap the posting insists on can never
+     look like a gap it merely mentions. The base rules above are the preferred
+     tier; only the problem marks are graded — a matched word is matched. */
+  .kw-missing.kw-w3 { background: rgb(var(--warn) / 0.34); box-shadow: inset 0 0 0 1px rgb(var(--warn) / 0.6); }
+  .kw-missing.kw-w4 { background: rgb(var(--warn) / 0.42); box-shadow: inset 0 0 0 1.5px rgb(var(--warn) / 0.85); font-weight: 600; }
+  .kw-missing.kw-w1, .kw-missing.kw-w0 { background: rgb(var(--warn) / 0.1); }
+  .kw-ask.kw-w3, .kw-ask.kw-w4 { background: rgb(var(--violet) / 0.24); box-shadow: inset 0 0 0 1.5px rgb(var(--violet) / 0.7); }
+  .kw-ask.kw-w1, .kw-ask.kw-w0 { background: rgb(var(--violet) / 0.1); box-shadow: none; }
+  .kw-cannot.kw-w1, .kw-cannot.kw-w0 { background: rgb(var(--ink-faint) / 0.12); text-decoration-color: rgb(var(--ink-faint) / 0.5); }
   .edit-remove { background: rgb(var(--danger) / 0.15); text-decoration: line-through; }
   .edit-change { background: rgb(var(--warn) / 0.1); box-shadow: inset 0 0 0 1px rgb(var(--warn) / 0.55); }
   /* Matched highlights are opt-in inside the panes; issue marks always show.

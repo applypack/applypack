@@ -119,6 +119,17 @@ export const MatchSchema = z.object({
         // Set by post-processing when the posting contains the term in no
         // recognisable spelling — the panes cannot highlight it (F2 guard).
         unanchored: z.boolean().optional(),
+        // The user's own say over this row (§5): a re-levelled requirement, a
+        // term ignored as noise, a term they typed themselves. Written only by
+        // keyword-overrides.ts — never by the model, whose copy of the field is
+        // stripped on the way in — and read back from older rows as absent.
+        override: z
+          .object({
+            requirement: z.enum(REQUIREMENT_LEVELS).optional(),
+            excluded: z.boolean().optional(),
+            added: z.boolean().optional(),
+          })
+          .optional(),
       }),
     )
     .default([])

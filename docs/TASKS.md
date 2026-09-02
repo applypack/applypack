@@ -810,8 +810,9 @@ icon; progress visible step-by-step via the target-run registry pattern.
 
 ## 13. /target compare speed (30-40 s) + keyword-matcher accuracy (analysis 2026-08-31)
 
-Full plan: [docs/target-plan.md](./target-plan.md). **Blocks 1–3 shipped
-2026-09-02 (measured numbers in the plan's §2.3, §3.4 and §4); blocks 4–6 open.** §12's
+Full plan: [docs/target-plan.md](./target-plan.md). **Blocks 1–5 shipped
+2026-09-02 (measured numbers in the plan's §2.3, §3.4, §4 and §5); block 6
+opens only if the numbers demand it.** §12's
 async-upload item overlaps the `/resumes`
 sync-scan finding, planned there, referenced here.
 
@@ -882,8 +883,22 @@ Sonnet bench for the resume role — not "make Opus stream faster".
       (v5: p50 40 s vs Opus 22 s, 95% status agreement, 74% term overlap),
       so `CLAUDE_MODEL_RESUME` stays `claude-opus-5` and §8 question 1 is
       answered by the numbers.
-- [ ] `keyword-priority-ui` — per-keyword user overrides (re-level /
-      exclude / add own term) via existing `updateMatchScoring`, visual
-      weight for must+primary misses, posting-frequency tiebreaker
+- [x] `keyword-priority-ui` — per-keyword user overrides (re-level /
+      ignore / add own term) through the existing `updateMatchScoring` path,
+      visual weight for must+primary misses, posting-frequency tiebreaker —
+      done 2026-09-02, branch `keyword-priority-ui` (PR #83). The override
+      rides beside the model's verdict in the comparison's own `keywords`
+      JSON (no schema change, no ADR, `PROMPT_VERSION` untouched);
+      `effectiveKeywords()` is what the score, the panes and the live editor
+      read, so **`score.ts` never changed** and the score.mjs parity test
+      stayed green on its own. Weight and frequency come from
+      `keywordRank()` / `orderKeywords()` in `target.mjs` — one
+      implementation for the panes, the chips and the server-rendered table.
+      Measured live on job #1393: **2–15 ms per edit, no `resume:` line in
+      the web log** (must → nice 66 → 67, ignore 67 → 68, add-and-present
+      68 → 68, add-and-missing 68 → 67, five resets back to 66); a forced
+      re-run logged `overrides: 3, readded: 1`, so the edits survived into
+      the fresh reply. An added term's status is read from the resume, and
+      the `override` field is stripped from every model reply on the way in.
 - [ ] (only if still short of target) `match-split-frame` — per-job cached
       keyword frame + statuses-only judge call (**ADR**)

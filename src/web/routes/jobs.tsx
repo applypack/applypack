@@ -51,8 +51,11 @@ import {
   COVER_TONES,
   coverGateSources,
   readCoverAngles,
+  readKeywords,
   type CoverTone,
 } from '../../resume/prompts';
+import { withTableAliases } from '../../resume/keyword-aliases';
+import { loadKeywordMatcher, type CountedKeyword } from '../../resume/keyword-matcher';
 import { factCheck } from '../../resume/fact-check';
 import { buildLetterDocx, DOCX_MIME } from '../../resume/docx-write';
 import { buildLetterPdf } from '../../resume/pdf-write';
@@ -208,6 +211,21 @@ jobsRoute.post('/jobs/new', async (c) => {
   );
 });
 
+/**
+ * One comparison's keywords as both pages want them: alias-table spellings
+ * applied on read (so a match stored before an entry highlights the same way)
+ * and ordered by the matcher — hardest requirement first, ties broken by how
+ * often the posting repeats the term, each row carrying that count (§5).
+ */
+async function orderedKeywords(
+  match: { keywords: unknown } | null,
+  posting: string,
+): Promise<CountedKeyword[]> {
+  if (!match) return [];
+  const matcher = await loadKeywordMatcher();
+  return matcher.orderKeywords(readKeywords(match.keywords).map(withTableAliases), posting);
+}
+
 jobsRoute.get('/jobs/:id', async (c) => {
   const id = Number(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text('Bad id', 400);
@@ -262,6 +280,7 @@ jobsRoute.get('/jobs/:id', async (c) => {
   const appliedPick = preselectAppliedResume(resumes, selected?.resumeId ?? null, suggested);
 
   const flashCookie = parseFlashCookie(c.req.header('cookie'));
+  const selectedKeywords = await orderedKeywords(selected, job.description);
   return c.html(
     <JobDetailPage
       job={job}
@@ -288,6 +307,7 @@ jobsRoute.get('/jobs/:id', async (c) => {
         suggestedReason,
         matches,
         selected,
+        selectedKeywords,
       }}
       coverLetters={{
         jobId: id,
@@ -668,6 +688,7 @@ jobsRoute.get('/jobs/:id/target', async (c) => {
       job={{ id: job.id, title: job.title, companyName: job.company.name, location: job.location, description: job.description }}
       resume={{ id: resume.id, name: resume.name, version: resume.version, ephemeral: resume.hidden }}
       match={match}
+      keywords={await orderedKeywords(match, job.description)}
       matches={matches}
       previous={previousFor(match, matches)}
       resumeText={match.resumeText || resume.text}

@@ -6,7 +6,7 @@ import { readPromptVersion } from '../../resume/match-reuse';
 import { readKeywords } from '../../resume/prompts';
 import { readBreakdown, scoreMatch } from '../../resume/score';
 import { deleteFact, getMatch, updateMatchScoring, upsertFact } from '../../resume/store';
-import { flashRedirect } from '../flash';
+import { flashRedirect, safeBack } from '../flash';
 
 /*
  * "ask_user" answers. Confirming or denying a term stores a CandidateFact and
@@ -22,18 +22,13 @@ const FactFormSchema = z.object({
   back: z.string().optional().default('/resumes'),
 });
 
-/** Local paths only — no open redirects. */
-function safeBack(back: string): string {
-  return back.startsWith('/') && !back.startsWith('//') ? back : '/resumes';
-}
-
 export const factsRoute = new Hono();
 
 factsRoute.post('/facts', async (c) => {
   const parsed = FactFormSchema.safeParse(await c.req.parseBody());
   if (!parsed.success) return c.text('Bad fact', 400);
   const f = parsed.data;
-  const back = safeBack(f.back);
+  const back = safeBack(f.back, '/resumes');
   const note = f.note.trim().slice(0, 300) || null;
   const fact = await upsertFact(f.term, f.decision, note);
 
@@ -68,7 +63,7 @@ factsRoute.post('/facts', async (c) => {
 factsRoute.post('/facts/delete', async (c) => {
   const form = await c.req.parseBody();
   const term = typeof form.term === 'string' ? form.term : '';
-  const back = safeBack(typeof form.back === 'string' ? form.back : '/resumes');
+  const back = safeBack(form.back, '/resumes');
   if (term.trim().length === 0) return c.text('Bad fact', 400);
   await deleteFact(term);
   return flashRedirect(back, 'ok', `Forgot "${term.trim().toLowerCase()}".`);

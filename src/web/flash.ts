@@ -60,6 +60,14 @@ export function parseFlashCookie(cookieHeader: string | undefined): FlashMessage
   return null;
 }
 
+/**
+ * A redirect target from a form field, kept local — an absolute or
+ * protocol-relative URL would be an open redirect.
+ */
+export function safeBack(back: unknown, fallback: string): string {
+  return typeof back === 'string' && back.startsWith('/') && !back.startsWith('//') ? back : fallback;
+}
+
 export function clearFlashCookie(): string {
   return 'flash=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax';
 }

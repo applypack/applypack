@@ -364,6 +364,38 @@ Worth adding (all deterministic, no AI):
   it and show "×4 in the posting" in the tooltip. Matches the
   "mentioned-multiple-times matters" practice at zero AI cost.
 
+**Shipped 2026-09-02** (block 5, PR #83). All three, all deterministic:
+
+- Overrides live in the comparison's own `keywords` JSON as an `override`
+  object beside the model's verdict (`src/resume/keyword-overrides.ts`, pure),
+  so nothing is overwritten and "reset" always has somewhere to go back to.
+  `effectiveKeywords()` — the user's levels, minus the rows they ignored — is
+  what the score, the panes and the live editor read; **`score.ts` did not
+  change**, an override is a different input, not a different formula. No
+  schema change and no ADR: the JSON absorbed it, exactly as the mode marker
+  did (ADR 0029).
+- The write path is `POST /jobs/:id/matches/:matchId/keywords` →
+  `updateMatchScoring`, the same free path a confirmed fact takes. **Measured
+  live on job #1393 (match #59): 2–15 ms per edit, zero `resume:` lines in the
+  web log** — must → nice 66 → 67, ignoring a `cannot_claim` nice 67 → 68,
+  adding a term the resume already had 68 → 68, adding one it lacked 68 → 67,
+  and five resets back to exactly 66. An added term's status is read from the
+  resume text (present) or asked (ask_user); one the posting does not contain
+  is flagged `unanchored`, the same badge a model paraphrase gets.
+- Carrying works: a forced re-run of the quick check on the same posting
+  logged `overrides: 3, readded: 1` in 50 s — two re-levelled/ignored rows and
+  one hand-added term the model had adopted came back on its fresh reply, and
+  the one it did not repeat was put back with its status re-read against the
+  current resume. A carried level is kept even when that reply agrees: an
+  override exists precisely so the level stops depending on the next one.
+  `override` is stripped from every reply on the way in — the field is the
+  user's, and a posting cannot talk the model into dropping a must-have.
+- Weight and frequency come from `keywordRank()` / `orderKeywords()` in
+  `target.mjs` — the module the panes, the chips and the server-rendered table
+  all share, so there is nothing to mirror. Marks are graded `kw-w0`…`kw-w4`
+  (a primary-stack must), the legend shows three of the tiers, and a tooltip
+  reads `system scalability · nice · missing · ×5 in the posting`.
+
 ## 6. Best-practice cross-check
 
 Current guidance (Jobscan, uppl.ai, PassTheScan, TailorCV, ResumeAdapter,
@@ -414,6 +446,10 @@ Sources: [jobscan.co](https://www.jobscan.co/blog/top-resume-keywords-boost-resu
    below.
 5. `keyword-priority-ui` — §5 overrides + visual weight + frequency. Reuses
    `updateMatchScoring`; ADR only if overrides outgrow the keywords JSON.
+   **Shipped 2026-09-02** (PR #83, numbers in §5). The JSON absorbed them, so
+   no ADR and no schema change; `PROMPT_VERSION` untouched — this is
+   post-processing. `score.ts` untouched too, so the score.mjs parity test
+   stayed green without a mirrored edit.
 6. (only if measurements demand) `match-split-frame` — §3.3 item 8 + ADR.
 
 ## 8. Open questions for the owner

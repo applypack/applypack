@@ -4,6 +4,42 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.17.0] — 2026-09-02
+
+### Added
+- **Your say over every keyword** ([docs/target-plan.md](docs/target-plan.md)
+  §5, TASKS §13 block 5). Each row of the keyword table now carries three
+  edits: **re-level** what the posting demands (must ↔ preferred ↔ nice ↔
+  context), **ignore** a term as noise, or **add** a word the model missed.
+  All three are arithmetic over the stored analysis — the score is recomputed
+  by `score.ts` on the spot, the same free path a confirmed ask_user fact
+  takes. No AI call is made, and the flash says so: *"system scalability" is
+  now nice — score 66 → 67, no AI call.*
+- An added term's status is **read from your resume, never guessed**: written
+  in → matched; not written → a confirm question the existing ask_user flow
+  answers. A term the posting does not literally contain is flagged *not in
+  posting*, exactly as a paraphrase from the model would be.
+- **Overrides stick to the posting.** They ride in the comparison's own
+  `keywords` JSON, go into the next run's keyword frame, and are re-applied to
+  the fresh reply afterwards — including a hand-added term the model did not
+  repeat, whose status is re-read against the current resume text. An override
+  is kept even when the model comes to agree, because the point of it is that
+  the level stops depending on the next reply.
+- **Visual weight in the panes.** A missing must-have no longer looks like a
+  missing nice-to-have: every mark and chip is graded `kw-w0` (context) to
+  `kw-w4` (a primary-stack must) from one shared function, with the legend
+  showing the three tiers.
+- **Frequency as a tiebreaker.** Equal-weight keywords are ordered by how
+  often the posting repeats the term, the count shows in the keyword table
+  (*×4*) and in every pane tooltip (*×4 in the posting*). It costs nothing:
+  the panes already had every occurrence in hand.
+
+### Changed
+- The keyword table orders through the matcher — hardest requirement first,
+  then frequency, then priority — instead of sorting by requirement alone, and
+  gained a third group for ignored rows so they can be brought back.
+- `PROMPT_VERSION` is untouched: this is post-processing, not a prompt change.
+
 ## [1.16.0] — 2026-09-02
 
 ### Added
@@ -1076,6 +1112,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[1.17.0]: https://github.com/applypack/applypack/compare/v1.16.0...v1.17.0
 [1.16.0]: https://github.com/applypack/applypack/compare/v1.15.0...v1.16.0
 [1.15.0]: https://github.com/applypack/applypack/compare/v1.14.0...v1.15.0
 [1.14.0]: https://github.com/applypack/applypack/compare/v1.13.0...v1.14.0
