@@ -73,16 +73,21 @@ database can read it: `psql`, a `pg_dump`, a stolen volume, a backup copied
 somewhere careless. This is a real widening of the blast radius versus a
 gitignored `.env`, and it is the price of the feature. What bounds it: the
 dashboard binds to `127.0.0.1` by default (config.ts `WEB_HOST`), Postgres
-is not published beyond the compose network, and the dashboard is
-single-user. What does not bound it: nothing else. A user who wants the key
-off the disk keeps using `.env` — that path is not deprecated.
-❌ The save route has no CSRF protection, because no route in this dashboard
-does. A page open in the same browser can POST a key of its own choosing to
-`127.0.0.1:4747` — it cannot read the stored one, but it can point the user's
-AI calls at an account it controls. That is the same class of exposure as
-every other unauthenticated POST here (delete a Telegram target, change the
-profile); this ADR does not fix it, it records that adding credentials to the
-surface makes fixing it worth scheduling.
+is published on loopback only, and the dashboard is single-user. What does
+not bound it: nothing else. A user who wants the key off the disk keeps
+using `.env` — that path is not deprecated.
+
+  *Correction, 2026-09-02:* this paragraph read "Postgres is not published
+  beyond the compose network" and that was not true — compose published it on
+  every interface with the password from the compose file, so the key in this
+  row was one LAN connection away. Demonstrated and fixed in the pre-public
+  audit (TASKS §14); the port is `127.0.0.1:5433` now.
+✅ **Cross-origin writes are refused (issue #69).** Every mutating route,
+including the key-save route, is checked against the headers a browser
+attaches itself — `Sec-Fetch-Site` first, then `Origin`, with `Referer` as
+the fallback and `X-Forwarded-Host` for a reverse proxy (`src/web/same-origin.ts`,
+originally two implementations: PR #87 and PR #93, merged into one). A page on
+another origin, or on another port of this machine, gets a 403.
 ❌ Encryption at rest was rejected, not overlooked: the decryption key would
 have to live in `.env`, which moves the secret rather than removing it, and
 reintroduces the file edit this ADR exists to delete. An OS keychain does
