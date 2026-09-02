@@ -208,7 +208,7 @@ welcomeRoute.post('/welcome/resume', resumeUploadLimit(PROFILE_STEP), async (c) 
     jobTitle: '',
     resumeName: name,
     heading: { running: 'Reading your resume', failed: 'Could not read the resume' },
-    subtitle: `"${name}" — headline, tools, seniority. About a minute.`,
+    subtitle: `"${name}" — headline, tools, seniority. About half a minute.`,
     backUrl: PROFILE_STEP,
     backLabel: 'Back to setup',
   });

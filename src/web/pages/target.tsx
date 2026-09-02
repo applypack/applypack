@@ -289,8 +289,8 @@ export const TargetPage: FC<TargetPageProps> = ({
                   </Button>
                   <Hint>
                     {resume.ephemeral
-                      ? 'Replaces this comparison with a fresh analysis — nothing lands in your Resumes (~1 min).'
-                      : 'New version, scan and AI match in one go — about 2 minutes.'}
+                      ? 'Replaces this comparison with a fresh analysis — nothing lands in your Resumes (~2 min).'
+                      : 'New version and AI match — about 2 minutes; the resume scan runs in the background.'}
                   </Hint>
                 </form>
               </div>
@@ -311,7 +311,7 @@ export const TargetPage: FC<TargetPageProps> = ({
                   <input type="hidden" name="resumeId" value={resume.id} />
                   <input type="hidden" name="draftText" id="reanalyze-text" value="" />
                   <input type="hidden" name="next" value="target" />
-                  <Button variant="violet" class="w-full" title="Sends the text in the editor to the resume model (~1 min)">
+                  <Button variant="violet" class="w-full" title="Sends the text in the editor to the resume model (~2 min)">
                     Re-analyze with AI
                   </Button>
                 </form>

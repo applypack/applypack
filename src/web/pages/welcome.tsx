@@ -513,8 +513,8 @@ const ProfileStep: FC<WelcomeProps> = ({ profile, steps }) => {
       ) : (
         <>
           <p class="text-sm text-ink-muted">
-            Upload your resume and we'll read the tools you use and the roles you do. Takes about a
-            minute; the file stays on your Resumes page for later comparisons and cover letters.
+            Upload your resume and we'll read the tools you use and the roles you do. Takes about
+            half a minute; the file stays on your Resumes page for later comparisons and cover letters.
           </p>
           <form
             method="post"

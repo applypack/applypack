@@ -12,17 +12,17 @@ const STEP_VIEW: Record<RunStep, StepView> = {
   },
   extract: {
     label: 'Detect posting facts',
-    detail: 'company, title, location, salary from the description — seconds',
+    detail: 'company, title, location, salary from the description — 10 to 30 s on a CLI engine, seconds on an API one',
   },
   scan: {
     // Also reached by a plain re-scan and a first upload, where there is no
     // "new version" to speak of.
     label: 'Read the resume',
-    detail: 'headline, skills, ATS issues — about a minute',
+    detail: 'headline, skills, ATS issues — about half a minute',
   },
   match: {
     label: 'AI match',
-    detail: 'the resume model reads both texts — about a minute',
+    detail: 'the resume model reads both texts and writes the full report — 1½ to 2 minutes on Opus',
   },
   verify: {
     label: 'Research the company',

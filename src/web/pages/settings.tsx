@@ -281,7 +281,7 @@ export const SettingsPage: FC<SettingsProps> = ({
                   No resumes yet — pick a file ({ACCEPTED_EXTENSIONS.join(', ')} · up to{' '}
                   {MAX_UPLOAD_MB} MB) and AI maps its stack onto the profile: primary stack →
                   required, other skills → nice-to-have, plus role types and seniority. Takes
-                  about a minute; the file also lands in Resumes. The result appears below as
+                  about half a minute; the file also lands in Resumes. The result appears below as
                   a draft; nothing is saved until you press "Save profile".
                 </Hint>
                 <form

@@ -109,7 +109,7 @@ export const ResumeMatchCard: FC<ResumeMatchCardProps> = ({
           </label>
           <Button variant="violet">Compare</Button>
           <Hint class="basis-full">
-            One call to the resume model, about a minute. The score itself is computed
+            One call to the resume model — 1½ to 2 minutes on Opus. The score itself is computed
             deterministically from the reply — same facts, same number, every time.
           </Hint>
         </form>
