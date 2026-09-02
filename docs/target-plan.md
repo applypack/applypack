@@ -220,12 +220,19 @@ upgrade — not by making Opus emit 4 000 tokens faster.
 fixtures, `npm run bench:resume -- --model <id> --mode <fast|full>`; "before"
 is prompt v5, "after" is v6 with the tiered budget):
 
-| Run | p50 | Suite total | Reply chars | Checks failed | Status agreement vs Opus full |
+| Run | p50 | Suite total | Reply chars | Checks failed | Status agreement vs Opus full v6 |
 | --- | --- | --- | --- | --- | --- |
-| Opus, full, v5 (before) | 22 s | 136 s | 4899 | 0 | baseline |
-| Sonnet, full, v5 (before) | 40 s | 231 s | 3261 | 0 | 95% (35/37), 74% term overlap |
+| Opus, full, v5 (before) | 22 s | 136 s | 4899 | 0 | — (baseline of the v5 pair) |
+| Sonnet, full, v5 (before) | 40 s | 231 s | 3261 | 0 | 95% vs Opus v5, 74% term overlap |
 | **Opus, quick check, v6** | **15 s** | **77 s** | **2591** | 0 | 98% (45/46), 88% term overlap |
-| Opus, full, v6 | 24 s | 116 s | 4373 | 0 | 100% |
+| Opus, full, v6 | 24 s | 116 s | 4373 | 0 | 100% (52/52) |
+| Sonnet, quick check, v6 | 26 s | 161 s | 2126 | 0 | 93% (37/40), 77% term overlap |
+| Sonnet, full, v6 | 52 s | 252 s | 3099 | 0 | 95% (38/40), 77% term overlap |
+
+Every one of the four v6 runs passed every gold check (stack mismatch capped
+at 30, matching stack ≥75 uncapped, injection ≤45, tailored ≥85 with ≤4
+actions, re-run overlap ≥70%), and the quick check passed the added
+"returns no actions" check.
 
 Two corrections to the estimates above. **The quick check on Opus is ~15 s on
 the fixtures, not 20-40** — the row above was pessimistic for short postings;

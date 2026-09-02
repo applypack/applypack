@@ -45,10 +45,15 @@ All notable changes to this project are documented here. The format follows
   116 s for the whole suite, **2591 vs 4373 reply characters**; all checks
   green in both, keyword statuses agreeing 98%.
 - Sonnet was measured for the resume role and **is not the faster option
-  here**: on prompt v5 it was slower than Opus on every full fixture (p50
-  40 s vs 22 s) at 95% status agreement and only 74% term overlap. The
-  default `CLAUDE_MODEL_RESUME` stays `claude-opus-5`; the per-engine
-  "Resume model" select on `/settings` remains the speed dial.
+  here**: p50 52 s full and 26 s quick against Opus's 24 s and 15 s, at 95%
+  and 93% status agreement and 77% term overlap (a less stable keyword frame
+  than Opus's 88%). The default `CLAUDE_MODEL_RESUME` stays `claude-opus-5`;
+  the per-engine "Resume model" select on `/settings` remains the speed dial.
+- Live on job #1393 (Docker, Opus, a 4 988-character posting): the quick
+  check took **40 s and scored 66 — the same number the v5 full analysis
+  gave**; "Get suggestions" then took 35 s and wrote 10 edits and 8 removals
+  onto the same row. A full analysis of the same pair took 77 s.
+- All four bench runs (both models × both modes) passed every gold check.
 
 ### Notes
 - No schema change: the mode marker rides inside the `breakdown` JSON next to
