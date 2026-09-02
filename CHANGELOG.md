@@ -4,6 +4,53 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.11.0] — 2026-09-02
+
+### Added
+- **The resume an application went out with is recorded**
+  ([docs/onboarding-plan.md §4](docs/onboarding-plan.md) stage C, TASKS §11
+  block 7 — the block that closes §11). "Mark applied" on `/jobs/:id` now
+  carries a resume select, and the job page and the stale-applications digest
+  answer "applied with Senior Backend v3" instead of leaving you to remember.
+- The select starts on the resume this posting was actually compared with; with
+  no comparison it falls back to the page's own preselect — since 1.10.0 that
+  is the resume of the search that scored the posting **best**, not merely the
+  primary (ADR 0028), so stage 5's behaviour is unchanged where it applied.
+- New `Job.appliedResumeId` (FK, `SET NULL`), `appliedResumeVersion` and
+  `appliedResumeText`. The text snapshot is not redundant with the id:
+  "Upload a new version" replaces the bytes of the *same* `Resume` row, so an
+  id alone would name v3 and hand back v5's words — the pattern
+  `ResumeMatch.resumeText` has used since phase 9. Applications recorded before
+  this release stay NULL and render exactly as they did.
+
+### Changed
+- `/applications` reads six columns instead of whole `Job` rows. The board
+  query is unbounded in the number of applications, and every card it draws is
+  an applied posting — the one place where a per-application text column would
+  land on 100% of the rows.
+- Documentation caught up with 1.8.0–1.10.0, three releases behind:
+  - **Quick start no longer demands an API key in `.env`.** Since 1.8.0
+    ([ADR 0027](docs/adr/0027-ai-keys-in-the-database.md)) the key is pasted
+    into `/welcome` step 1 or Settings → AI engine and lives in Postgres;
+    `.env` is documented as the fallback it became.
+  - The Anthropic API row no longer claims "prompt-cached", and the cost
+    section no longer bills a caching discount that never applied: Haiku 4.5
+    caches nothing under a 4,096-token prefix and our classifier prompt is
+    1,216 (`cache_creation_input_tokens` was 0 on every measured call). The
+    per-posting figure is restated as ~$0.003 from token counts.
+  - "22 sources" now says what it counts — 22 fetchable `AtsType` branches in
+    `fetchOne`, i.e. kinds of board, not the 73 companies this install tracks.
+    The aggregator list had been missing 4 Day Week.
+  - The feature table learns parallel searches, starter packs, the first-run
+    wizard and the prompt fence; the page table gains `/welcome` and `/letter`
+    and stops advertising a fixed funnel that
+    [ADR 0025](docs/adr/0025-custom-work-stages.md) made configurable.
+  - `docs/screenshots/overview.png` and `jobs.png` retaken: the stored pair
+    predated "Fetch now" and the Target → Compare rename.
+  - SPEC's pipeline diagram still described one profile and one verdict;
+    ARCHITECTURE's ER diagram was missing `Profile.active`, `Profile.resumeId`,
+    `AppSettings.aiKeys` and `setupCompletedAt`.
+
 ## [1.10.0] — 2026-09-02
 
 ### Added
@@ -825,6 +872,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[1.11.0]: https://github.com/applypack/applypack/compare/v1.10.0...v1.11.0
 [1.10.0]: https://github.com/applypack/applypack/compare/v1.9.0...v1.10.0
 [1.9.0]: https://github.com/applypack/applypack/compare/v1.8.0...v1.9.0
 [1.8.0]: https://github.com/applypack/applypack/compare/v1.7.0...v1.8.0
