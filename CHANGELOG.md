@@ -4,6 +4,27 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.23.2] — 2026-09-02
+
+### Fixed
+- **Three cards had a button on a line of its own.** A layout pass over every
+  dashboard page, prompted by "on some pages the buttons are scattered — one
+  sits higher than another".
+  - `/jobs/:id` — v1.11.0 wrapped the "Applied with" select and **Mark
+    applied** in one form so the select's value would post with the button,
+    which pushed the primary action onto its own line above Save / Dismiss /
+    Re-classify. The two want opposite layouts: a full-width labelled field
+    and a button on the shared row. They are now bound by the HTML `form`
+    attribute instead of by nesting, so the select still posts and the button
+    sits with its peers.
+  - `/discovery` — `ToggleRow`'s action column was `flex-col`, so a card with
+    an `extra` action drew **Run now** underneath **Disable**. It is a row now,
+    wrapping only when the card is genuinely too narrow; the fix is in the
+    shared primitive, so every future `extra` inherits it.
+  - `/settings` → Notifications — its two toggles were bare siblings inside the
+    card, touching, so the second row's button looked like it belonged to the
+    first. Same `space-y-5` wrapper and rule the General tab already used.
+
 ## [1.23.1] — 2026-09-02
 
 ### Fixed
@@ -1332,6 +1353,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[1.23.2]: https://github.com/applypack/applypack/compare/v1.23.1...v1.23.2
 [1.23.1]: https://github.com/applypack/applypack/compare/v1.23.0...v1.23.1
 [1.23.0]: https://github.com/applypack/applypack/compare/v1.22.0...v1.23.0
 [1.22.0]: https://github.com/applypack/applypack/compare/v1.21.0...v1.22.0
