@@ -28,6 +28,7 @@
     "discovery:once": "tsx src/scripts/discovery-once.ts",
     "priority:dryrun": "tsx src/scripts/priority-rules-dryrun.ts",
     "bench:resume": "tsx src/scripts/resume-bench-once.ts",
+    "keywords:audit": "tsx src/scripts/keyword-audit.ts",
     "test:telegram": "tsx src/scripts/test-telegram.ts",
     "prisma:generate": "prisma generate",
     "prisma:migrate:deploy": "prisma migrate deploy",
