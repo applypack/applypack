@@ -94,7 +94,11 @@ export interface JobDetailProps {
   flash?: FlashMessage | null;
 }
 
-// "Mark applied" is not here — it carries the resume select, so MarkAppliedForm owns it.
+/** The id the out-of-form select and the in-row button both post through. */
+const MARK_APPLIED_FORM = 'mark-applied';
+
+// "Mark applied" is not in this list: it posts through MARK_APPLIED_FORM so the
+// resume select can sit above the row while the button stays inside it.
 const STATUS_ACTIONS: { status: JobStatus; label: string; variant: ButtonVariant }[] = [
   { status: 'SAVED', label: 'Save', variant: 'violet' },
   { status: 'DISMISSED', label: 'Dismiss', variant: 'secondary' },
@@ -135,8 +139,13 @@ export const JobDetailPage: FC<JobDetailProps> = ({
       <div class="min-w-0 space-y-4 xl:order-2">
         <Card>
           <SectionTitle>Actions</SectionTitle>
-          <MarkAppliedForm job={job} picker={appliedResumePicker} />
+          <MarkAppliedPicker job={job} picker={appliedResumePicker} />
           <div class="flex flex-wrap items-center gap-2">
+            {job.status !== 'APPLIED' && (
+              <Button variant="primary" size="sm" form={MARK_APPLIED_FORM}>
+                Mark applied
+              </Button>
+            )}
             {STATUS_ACTIONS.filter((a) => a.status !== job.status).map((a) => (
               <ActionForm action={`/jobs/${job.id}/status`} hidden={{ status: a.status }}>
                 <Button variant={a.variant} size="sm">
@@ -391,19 +400,32 @@ const PageHeaderBlock: FC<{ job: JobDetail }> = ({ job }) => (
  * applying, and a resume is edited in place afterwards, so the route stores a
  * text snapshot alongside the id (Stage C).
  */
-const MarkAppliedForm: FC<{ job: JobDetail; picker: JobDetailProps['appliedResumePicker'] }> = ({
-  job,
-  picker,
-}) =>
+/**
+ * The full-width "Applied with" select, plus the empty form its select and its
+ * button both post through.
+ *
+ * They are bound by the HTML `form` attribute rather than nesting, because the
+ * two want opposite layouts: the select is a full-width labelled field, while
+ * "Mark applied" belongs on the same row as Save / Dismiss / Re-classify.
+ * Wrapping both in one form put the primary action on a line of its own above
+ * the others, which read as two unrelated groups of buttons.
+ */
+const MarkAppliedPicker: FC<{
+  job: JobDetail;
+  picker: JobDetailProps['appliedResumePicker'];
+}> = ({ job, picker }) =>
   job.status === 'APPLIED' ? null : (
-    <ActionForm
-      action={`/jobs/${job.id}/status`}
-      hidden={{ status: 'APPLIED' }}
-      class={picker.resumes.length > 0 ? 'mb-3 space-y-2' : 'mb-3'}
-    >
+    <>
+      <form id={MARK_APPLIED_FORM} method="post" action={`/jobs/${job.id}/status`}>
+        <input type="hidden" name="status" value="APPLIED" />
+      </form>
       {picker.resumes.length > 0 && (
-        <Field label="Applied with" hint="Recorded with the version you sent, for the follow-up nudge.">
-          <Select name="appliedResumeId">
+        <Field
+          label="Applied with"
+          hint="Recorded with the version you sent, for the follow-up nudge."
+          class="mb-3"
+        >
+          <Select name="appliedResumeId" form={MARK_APPLIED_FORM}>
             <option value="">— don't record a resume —</option>
             {picker.resumes.map((r) => (
               <option value={r.id} selected={r.id === picker.suggestedId}>
@@ -413,10 +435,7 @@ const MarkAppliedForm: FC<{ job: JobDetail; picker: JobDetailProps['appliedResum
           </Select>
         </Field>
       )}
-      <Button variant="primary" size="sm">
-        Mark applied
-      </Button>
-    </ActionForm>
+    </>
   );
 
 /**

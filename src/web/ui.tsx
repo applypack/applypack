@@ -551,7 +551,10 @@ export const ToggleRow: FC<
       </div>
       <Hint class="mt-1">{children}</Hint>
     </div>
-    <div class="flex shrink-0 flex-col items-end gap-2">
+    {/* Row, not column: a card with an `extra` action (Discovery's "Run now")
+        stacked its two buttons vertically, which read as one button dropped
+        below the other. They wrap only when the card is too narrow for both. */}
+    <div class="flex shrink-0 flex-wrap items-center justify-end gap-2">
       <ActionForm action={action}>
         <Button variant={enabled ? 'secondary' : 'primary'}>
           {enabled ? disableText : enableText}

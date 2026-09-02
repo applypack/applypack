@@ -609,22 +609,29 @@ export const SettingsPage: FC<SettingsProps> = ({
         desc="Telegram bots and chats that receive job alerts."
       >
         <Card>
-          <ToggleRow
-            label="Telegram alerts"
-            enabled={telegramEnabled}
-            action="/settings/telegram-toggle"
-          >
-            When off, nothing is sent regardless of targets. Jobs are still classified and
-            stored.
-          </ToggleRow>
-          <ToggleRow
-            label="Source health alerts"
-            enabled={sourceHealthAlerts}
-            action="/settings/source-health-toggle"
-          >
-            Adds one line to the daily digest when a tracked board stops answering —
-            usually a rotated slug. The quiet-sources card on Companies is always on.
-          </ToggleRow>
+          {/* Same spacing and rule as the General tab's toggle pair: bare
+              siblings here had the two rows touching, so the second row's
+              button looked like it belonged to the first. */}
+          <div class="space-y-5">
+            <ToggleRow
+              label="Telegram alerts"
+              enabled={telegramEnabled}
+              action="/settings/telegram-toggle"
+            >
+              When off, nothing is sent regardless of targets. Jobs are still classified and
+              stored.
+            </ToggleRow>
+            <div class="border-t border-line pt-5">
+              <ToggleRow
+                label="Source health alerts"
+                enabled={sourceHealthAlerts}
+                action="/settings/source-health-toggle"
+              >
+                Adds one line to the daily digest when a tracked board stops answering —
+                usually a rotated slug. The quiet-sources card on Companies is always on.
+              </ToggleRow>
+            </div>
+          </div>
         </Card>
 
         {targets.length === 0 ? (
