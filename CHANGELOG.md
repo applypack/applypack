@@ -4,6 +4,47 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.22.0] — 2026-09-02
+
+### Added
+- **The review's questions can be answered, and the answer changes the next
+  one** ([ADR 0030](docs/adr/0030-resume-strength-review.md) phase 3, TASKS
+  §12). The strength review refuses to invent a number: where a stronger line
+  needs one your resume doesn't carry, it asks instead. That was a dead end —
+  nothing could be answered, so the next run asked again. Now each question
+  has a box: the answer is stored on the resume and read into the next review,
+  which writes the figure into the rewritten line and stops asking. Measured
+  on a real resume: 4 questions, 2 answered, re-run asked **2** and both
+  figures appeared verbatim in the rewrites.
+- **What moved since the last review.** A second run of the same resume now
+  says whether the edits worked — the score before and after, and every
+  dimension whose grade changed. When the two runs used different rubric
+  versions it says so instead of subtracting them, because that difference is
+  not a measurement.
+- **Facts can be added and flipped from `/resumes`.** The "do you have this?"
+  answers fed every future comparison but could only be created by a
+  comparison that happened to ask. Add a skill nothing asked about, or turn a
+  wrong answer around, from the resumes page. No AI call either way.
+- **Rename a resume.** The name is what every picker, flash and "applied with"
+  line says, and it used to be whatever the uploaded file was called.
+- **Comparisons group per job.** Re-checking one posting used to produce
+  unrelated rows; they now read as one progression — *5 runs · 62 → 70 → 64 →
+  66 → 68*, each score still its own link, with the change since the previous
+  run beside the latest score.
+
+### Changed
+- `REVIEW_PROMPT_VERSION` 1 → 2: the rubric now receives the candidate's
+  supplied metrics and is told to write them in rather than ask again — and
+  told, just as explicitly, that a metric the document does not carry is a
+  reason for advice, never for a better grade. The resume is graded as
+  written.
+
+### Schema
+- `resume.answers` (JSONB, default `[]`) — hand-written migration
+  `20260902200000_add_resume_answers`. On the resume rather than the review
+  row: an answer is a fact about the document and has to outlive the run that
+  asked for it.
+
 ## [1.21.0] — 2026-09-02
 
 ### Added
@@ -1244,6 +1285,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[1.22.0]: https://github.com/applypack/applypack/compare/v1.21.0...v1.22.0
 [1.21.0]: https://github.com/applypack/applypack/compare/v1.20.0...v1.21.0
 [1.20.0]: https://github.com/applypack/applypack/compare/v1.19.0...v1.20.0
 [1.19.0]: https://github.com/applypack/applypack/compare/v1.18.0...v1.19.0

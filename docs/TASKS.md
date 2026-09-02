@@ -775,10 +775,10 @@ Telegram explicitly optional.
 
 ## 12. /resumes overhaul + on-demand resume strength review (analysis 2026-08-31)
 
-Full plan: [docs/resumes-plan.md](./resumes-plan.md). **Part A shipped in
-v1.12.0, Part B's review shipped 2026-09-02**; what is left is the
-metric-ask loop and three quick wins. Original audit: browser pass over the
-live page at desktop + 375px, plus code verification.
+Full plan: [docs/resumes-plan.md](./resumes-plan.md). **Section closed
+2026-09-02**: Part A shipped in v1.12.0, Part B's review the same day, and the
+metric-ask loop plus the quick wins in `resume-strength-loop`. Original audit:
+browser pass over the live page at desktop + 375px, plus code verification.
 
 Driver: `/resumes` shows inventory, not effectiveness — no per-resume
 match signal, upload & scan freezes the browser ~60 s (double-submit
@@ -820,11 +820,32 @@ icon; progress visible step-by-step via the target-run registry pattern.
       characters, 8 advice items, 4 asks. **Zero invented facts across 23
       advice items** — several rewrites removed unsupportable percentages
       instead of adding numbers.
-- [ ] `resume-strength-loop` — metric asks → user answers → re-run
-      deltas; version-over-version strength trend
-- [ ] quick wins ride along where touched: facts add/flip on `/resumes`
-      (existing `POST /facts` covers it), rename route, version badge in
-      hub, grouped per-job score history (`diff.ts`)
+- [x] `resume-strength-loop` — metric asks → user answers → re-run deltas,
+      done 2026-09-02, branch `resume-strength-loop`. One column
+      (`Resume.answers`, hand-written migration) rather than a table or a
+      `CandidateFact` row: an answer belongs to the DOCUMENT, has to outlive
+      the run that asked, and "1.2M requests/day" would poison the skill
+      vocabulary that feeds the match prompt. `REVIEW_PROMPT_VERSION` 1 → 2.
+      **Measured live on resume 1** (Opus, CLI engine): 4 asks → answered 2 →
+      re-run in 69.3 s with `answersUsed: 2` and **asks 4 → 2**, and both
+      figures were written into the rewrites verbatim ("Consolidated 3
+      microservices into 1 and retired 2 paid SaaS licences, cutting cloud
+      spend by ~$40k/year"). The score stayed 45, which is correct: the prompt
+      forbids a supplied metric from moving a grade on its own, because the
+      resume is graded as WRITTEN. The delta against the earlier run said so
+      out loud — *"2 dimensions moved — but the two runs used different rubric
+      versions, so the difference is not a measurement"* — which is the whole
+      point of storing the prompt version. Test rows removed afterwards.
+      **Not built:** the version-over-version trend. Two reviews exist on two
+      different resumes and no resume has two comparable runs — n = 0, the
+      same trap the repo closed F18 with.
+- [x] quick wins: facts add/flip on `/resumes` (the existing `POST /facts`
+      took any term; only the form was missing), a rename route + header
+      form, and comparisons grouped per job — 14 flat rows became 10, with
+      the five-run posting reading **5 runs · 62 → 70 → 64 → 66 → 68**, every
+      score still its own link. The plan's fourth item, "version badge in
+      hub", shipped with `resumes-page-p0`; removed from the list rather than
+      built twice.
 
 ## 13. /target compare speed (30-40 s) + keyword-matcher accuracy (analysis 2026-08-31)
 

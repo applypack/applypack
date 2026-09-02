@@ -28,7 +28,7 @@ import {
   setDefaultResume,
 } from '../../resume/store';
 import { readAnswers, unansweredAsks } from '../../resume/answers';
-import { deltaSentence, reviewDelta, type ReviewSnapshot } from '../../resume/review-delta';
+import { deltaSentence, reviewDelta, type ReviewDelta, type ReviewSnapshot } from '../../resume/review-delta';
 import { readReviewAdvice, readReviewGrades } from '../../resume/prompts';
 import { readReviewPromptVersion } from '../../resume/review-score';
 import { parseWarnings } from '../../resume/parse-warnings';
@@ -122,7 +122,7 @@ resumesRoute.get('/resumes/:id', async (c) => {
       matches={matches}
       review={review}
       answers={readAnswers(resume.answers)}
-      reviewDelta={review ? reviewDelta(snapshotOf(previous), snapshotOf(review)!) : null}
+      reviewDelta={deltaFor(review, previous)}
       deleteImpact={impact}
       warnings={parseWarnings(resume.text)}
       // The draft the "Create a search" button would save — rendered, not
@@ -265,6 +265,12 @@ function snapshotOf(review: ResumeReview | null): ReviewSnapshot | null {
   };
 }
 
+/** What moved between two runs of one resume — null unless both exist. */
+function deltaFor(current: ResumeReview | null, previous: ResumeReview | null): ReviewDelta | null {
+  const now = snapshotOf(current);
+  return now ? reviewDelta(snapshotOf(previous), now) : null;
+}
+
 /**
  * "Run strength review" — one AI call, on demand only (resumes-plan §B.1). The
  * run registry shows the rubric being walked instead of a spinner; nothing
@@ -279,10 +285,11 @@ resumesRoute.post('/resumes/:id/review', async (c) => {
   const answered = readAnswers(answers);
 
   // Two tabs used to start two reviews of the same version and store both
-  // (PR #86's follow-up); the second POST now joins the first. The answers
-  // are part of the key: answering a question and re-running is a DIFFERENT
-  // review of the same version, and must not join the run that predates it.
-  const { run, joined } = claimRun(`review:${id}:v${version}:a${answered.length}`, {
+  // (PR #86's follow-up); the second POST now joins the first. The answers are
+  // part of the key, hashed rather than counted: correcting a figure leaves the
+  // count alone but is a different review, and must not join the run that
+  // predates it.
+  const { run, joined } = claimRun(`review:${id}:v${version}:${hashShortId(JSON.stringify(answered))}`, {
     steps: ['review'],
     jobTitle: '',
     resumeName: resume.name,
@@ -294,8 +301,7 @@ resumesRoute.post('/resumes/:id/review', async (c) => {
   if (joined) return c.redirect(`/target/runs/${run.id}`, 303);
   startRun(run.id, async () => {
     const row = await reviewResume({ id, text, version, roleTypes, answers });
-    const previous = row ? await getPreviousReview(id, row.id) : null;
-    const delta = row ? reviewDelta(snapshotOf(previous), snapshotOf(row)!) : null;
+    const delta = deltaFor(row, row ? await getPreviousReview(id, row.id) : null);
     updateRun(run.id, row
       ? {
           stage: 'done',
