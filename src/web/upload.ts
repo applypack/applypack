@@ -1,5 +1,6 @@
 import { extname } from 'node:path';
 import { bodyLimit } from 'hono/body-limit';
+import { logger } from '../logger';
 import { ResumeTextError } from '../resume/docx-text';
 import { ACCEPTED_EXTENSIONS, extractResumeText } from '../resume/resume-text';
 import { flashRedirect } from './flash';
@@ -40,11 +41,18 @@ export async function readResumeUpload(
   }
   const original = Buffer.from(await file.arrayBuffer());
   try {
+    const started = Date.now();
+    const text = await extractResumeText(file.name, original);
+    // The parse is the whole cost of an instant check (docs/target-plan.md §3.4).
+    logger.info(
+      { file: file.name, bytes: original.length, chars: text.length, ms: Date.now() - started },
+      'resume: upload parsed',
+    );
     return {
       sourceFilename: file.name,
       mimeType: file.type || MIME_BY_EXT[extname(file.name).toLowerCase()] || 'application/octet-stream',
       original,
-      text: await extractResumeText(file.name, original),
+      text,
     };
   } catch (err) {
     if (err instanceof ResumeTextError) return { error: err.message };
