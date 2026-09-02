@@ -87,12 +87,20 @@
   returns `[]`, `/companies` and the source toggles hide them.
 - `src/resume/` is the resume module: `zip.ts`, `docx-text.ts`, `pdf-text.ts`
   (unpdf, ADR 0011), `resume-text.ts`, `prompts.ts`, `pick.ts`, `score.ts`
-  (ADR 0012), `facts.ts`, `diff.ts`, `parse-warnings.ts`,
+  (ADR 0012), `facts.ts`, `diff.ts`, `parse-warnings.ts`, `match-mode.ts`,
+  `match-reuse.ts`, `bench-report.ts`,
   `profile-draft.ts` (ADR 0015), `fact-check.ts` (ADR 0020) are pure (tested);
-  `scan.ts` / `match.ts` / `cover-letter.ts` call the AI provider (the letter
-  is gated by `fact-check.ts` and generates from stored inputs only —
-  ADR 0021); `store.ts` is the only file that touches Prisma. Web-only — the
-  worker never imports it (ADR 0008).
+  `scan.ts` / `match.ts` / `suggestions.ts` / `cover-letter.ts` call the AI
+  provider (the letter is gated by `fact-check.ts` and generates from stored
+  inputs only — ADR 0021); `store.ts` is the only file that touches Prisma.
+  Web-only — the worker never imports it (ADR 0008).
+- A comparison has two shapes (ADR 0029): `matchResumeToJob(..., {mode})`
+  runs the quick check (`fast`, the default: keywords + alignment + gates +
+  red flags — everything `score.ts` reads) or the full report (`full`, which
+  also writes actions/removals/strengths/cautions). Both variants are built
+  from the SAME rule constants in `prompts.ts` and parsed by the same
+  `MatchSchema`; `suggestions.ts` fills a fast row in later from its stored
+  verdicts. The mode marker rides in the `breakdown` JSON, never in the schema.
 - `src/web/public/score.mjs` mirrors `src/resume/score.ts` line for line —
   change one, change the other; `src/web/score.test.ts` enforces parity.
 - The cron worker (`src/index.ts` + `src/jobs/*`) MUST NOT run an HTTP server.
@@ -182,6 +190,9 @@ When the question is **"where does X live?"**, save yourself a `find`:
 | Paste posting + resume → one-shot targeted analysis | `/target` — `src/web/routes/target.tsx` (composes `jobs/manual-job.ts` + `resume/match.ts`; upload/paste land on the hidden scratch resume, old scratch matches auto-deleted) |
 | Resume scan + resume-vs-job prompts and their zod schemas | `src/resume/prompts.ts` (`PROMPT_VERSION` bump on material change) |
 | The match-score formula (weights, alignment points, primary-stack cap) | `src/resume/score.ts` (ADR 0012) — mirrored in `src/web/public/score.mjs`, parity test `src/web/score.test.ts` |
+| Quick check vs full analysis (which prompt variant runs, what a stored row holds) | `src/resume/match-mode.ts` (pure) + the `MATCH_STEPS` / `MATCH_OUTPUT` tables in `src/resume/prompts.ts` (ADR 0029) |
+| "Get suggestions" on a quick check (the lazy second call) | `src/resume/suggestions.ts` + `buildSuggestionsPrompt`; run wiring `src/web/suggestions-run.ts`, route `POST /jobs/:id/matches/:matchId/suggestions` |
+| Comparing models / modes on the gold fixtures | `npm run bench:resume -- --model <id> --mode fast\|full --out f.json`, then `--table a.json b.json` (pure renderer `src/resume/bench-report.ts`) |
 | What counts as primary stack / sibling-tech rules (prompt side) | `src/resume/prompts.ts:MATCH_SYSTEM` steps 3-4 — guard-tested in `prompts.test.ts` |
 | ask_user confirmations (CandidateFact rows, instant re-score) | `src/resume/facts.ts` (pure) + `src/web/routes/facts.ts` (POST /facts), managed on `/resumes` |
 | Anti-hallucination gate for generated prose (pass/warn/block) | `src/resume/fact-check.ts:factCheck` (pure, ADR 0020) — sources arrive as arguments, `store.ts` loads them |
@@ -236,7 +247,8 @@ When the question is **"how does the user toggle / configure X?"**:
 | Review newly discovered companies | `/discovery` (sorted by jobsSeen DESC) |
 | Toggle auto-discovery / HN parser | `/discovery` (card at the top; moved off `/settings` 2026-08-29) |
 | Upload / scan a resume | `/resumes` (the Settings card only lists + links) |
-| Compare a resume with a posting | `/jobs/:id` → "Resume match" card (Compare) |
+| Compare a resume with a posting | `/jobs/:id` → "Resume match" card — **Compare** = quick check (keywords, gates, score), **Full analysis** = also the edit suggestions (ADR 0029) |
+| Get the edit suggestions for a quick check | the comparison → "Get suggestions" (second call, reuses the stored verdicts, score unchanged) |
 | Paste a posting the fetchers don't see | `/jobs` → "+ Paste a job" (`/jobs/new`) |
 | Compare a pasted posting with any resume in one step | menu → Compare (`/target`): paste posting, pick / upload / paste resume, Compare |
 | Check whether a posting is real | `/jobs/:id` → "Is this job real?" → Verify (web search, 2-4 min) |
@@ -245,7 +257,7 @@ When the question is **"how does the user toggle / configure X?"**:
 | Write a letter for a NEW posting (searchable picker / URL / paste; match & research opt-in) | menu → Cover letter (`/letter`) |
 | Download a letter as .pdf / .docx | `/jobs/:id` → Cover letter card → PDF / DOCX buttons |
 | Re-check an edited resume | `/resumes/:id` → "Upload a new version", then Compare again |
-| Edit in place with a live score | comparison → "Open targeted view →" (`/jobs/:id/target`); "Re-analyze with AI" for the rubric score, "Save as vN" to keep the draft |
+| Edit in place with a live score | comparison → "Open targeted view →" (`/jobs/:id/target`); "Re-check with AI" for the rubric score (or "Full analysis with suggestions"), "Save as vN" to keep the draft |
 
 ---
 

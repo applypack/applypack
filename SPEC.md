@@ -251,9 +251,20 @@ becomes the default.
 `ResumeMatch` is one comparison of a resume against a job, triggered from
 `/jobs/:id` → "Resume match" → Compare (the dropdown preselects the resume
 with the most skill-tag overlap). Stored per run: `matchScore`, `summary`,
-`strengths`, `redFlags`, `keywords` (`present | add | cannot_claim`, where,
-note) and `actions` (section, where, what, why, priority). Nothing edits
-the resume — the report is the to-do list. See ADR 0008.
+`strengths`, `redFlags`, `keywords` (`present | add | ask_user |
+cannot_claim`, where, note) and `actions` (section, where, what, why,
+priority). Nothing edits the resume — the report is the to-do list. See
+ADR 0008.
+
+A comparison has two shapes (ADR 0029). **Compare** runs the quick check:
+one call that returns the keywords, alignment grades, hard-requirement gates
+and red flags — everything the score is computed from — and no edit
+suggestions. **Full analysis** runs the same rules plus the suggestions, and
+**Get suggestions** adds them to a stored quick check in a second call that
+reuses its verdicts and leaves the score untouched. The mode is recorded in
+the `breakdown` JSON next to the prompt version, so a re-run of unchanged
+text is still free and a full request over a stored quick check pays only
+for the suggestions.
 
 The targeted view (`/jobs/:id/target`, ADR 0010) shows one match as two
 panes: the posting with every keyword highlighted, and the resume text in an
@@ -261,7 +272,7 @@ editor. `src/web/public/target.mjs` scores keyword coverage in the browser
 on every edit (P1 = 3, P2 = 2, P3/P4 = 1, `cannot_claim` excluded by
 default) and renders both panes' highlights from the match's `keywords`
 (with `aliases`), `actions` and `removals` (with verbatim `quote`s).
-"Re-analyze with AI" posts the draft (`draftText`) → a `ResumeMatch` with
+"Re-check with AI" posts the draft (`draftText`) → a `ResumeMatch` with
 `draft = true`; `resumeText` snapshots the judged text on every match.
 "Save as vN" turns the draft into a `.md` resume version.
 

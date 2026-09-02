@@ -194,7 +194,10 @@ src/
     docx-text.ts               ← word/document.xml → plain text, pure
     pdf-text.ts                ← PDF → plain text via unpdf (ADR 0011), tested
     resume-text.ts             ← upload dispatch by extension, pure
-    prompts.ts                 ← scan + match + cover prompts, zod schemas, Json readers, pure
+    prompts.ts                 ← scan + match (two variants) + suggestions + cover prompts, zod schemas, Json readers, pure
+    match-mode.ts              ← quick check vs full report: the marker inside breakdown JSON (ADR 0029), pure
+    match-reuse.ts             ← is a stored row the answer? reuse / suggestions-only / new run, pure
+    bench-report.ts            ← saved bench runs → latency + status-agreement table, pure
     profile-draft.ts           ← resume scan → profile-editor draft (ADR 0015), pure
     score.ts                   ← deterministic match score + breakdown (ADR 0012), pure
     facts.ts                   ← apply CandidateFacts / cross-resume hints to keywords, pure
@@ -207,7 +210,8 @@ src/
     docx-write.ts              ← letter → .docx, round-trip-tested against zip.ts + docx-text.ts, pure
     pdf-write.ts               ← letter → minimal Helvetica PDF, pure
     scan.ts                    ← one AI call → Resume scan fields
-    match.ts                   ← one AI call → facts context in, statuses out, score.ts computes → ResumeMatch row
+    match.ts                   ← one AI call (fast | full) → facts context in, statuses out, score.ts computes → ResumeMatch row
+    suggestions.ts             ← the lazy second call: stored verdicts in, actions/removals out → same row (ADR 0029)
     cover-letter.ts            ← one gated AI call → CoverLetter row; gate block → regen once → refuse (ADR 0021)
 
   verification/                ← ghost-job check (ADR 0009) + liveness ladder (ADR 0016)
@@ -333,10 +337,11 @@ prisma/
 | `POST /companies/new`            | web     | sync `probeAts` → upsert                 |
 | `POST /companies/starter-pack`   | web     | resolve a pack live (`probeAts`, ≥1 job wins) → preview; `/import` inserts inactive, `/enable` activates |
 | `POST /resumes`                  | web     | extract text → `scanResume` (sync, ~1 min) |
-| `POST /jobs/:id/match`           | web     | async run: (scratch cleanup) → `matchResumeToJob`; redirects to `/target/runs/:id` |
+| `POST /jobs/:id/match`           | web     | async run: (scratch cleanup) → `matchResumeToJob` (`mode` = fast \| full); a stored quick check + `mode=full` starts the suggestions run instead; redirects to `/target/runs/:id` |
+| `POST /jobs/:id/matches/:matchId/suggestions` | web | async run: `suggestForMatch` — actions/removals/strengths/cautions onto the stored row, score untouched |
 | `POST /jobs/:id/verify`          | web     | `checkLiveness` (free rungs, seconds) → stop on a verdict; else / `deep=1` sync `verifyJob` with web tools (2-4 min) → `JobVerification` |
 | `POST /jobs/new`                 | web     | MANUAL company upsert + Job + `classifyExistingJob` |
-| `POST /target`                   | web     | resolve resume inline (upload/paste → hidden scratch row), then async: `createManualJob` → scratch-match cleanup → `matchResumeToJob`; redirects to `/target/runs/:id` |
+| `POST /target`                   | web     | resolve resume inline (upload/paste → hidden scratch row), then async: `createManualJob` → scratch-match cleanup → `matchResumeToJob` (`mode` from the pressed button); redirects to `/target/runs/:id` |
 | `GET /target/runs/:id`           | web     | progress page (meta-refresh 2s); done → flash + redirect into the targeted view |
 | `POST /resumes/:id/replace`      | web     | new file → `version`+1 → `scanResume`    |
 | `POST /jobs/:id/target/reupload` | web     | async run: replace (+scan for real resumes; scratch skips it) → match |
