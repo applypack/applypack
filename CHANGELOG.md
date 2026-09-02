@@ -725,6 +725,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[1.8.0]: https://github.com/applypack/applypack/compare/v1.7.0...v1.8.0
 [1.7.0]: https://github.com/applypack/applypack/compare/v1.6.0...v1.7.0
 [1.6.0]: https://github.com/applypack/applypack/compare/v1.5.0...v1.6.0
 [1.5.0]: https://github.com/applypack/applypack/compare/v1.4.1...v1.5.0
