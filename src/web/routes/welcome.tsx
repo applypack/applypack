@@ -362,6 +362,7 @@ function profileInput(p: Profile): ProfileInput {
     minSalaryUsd: p.minSalaryUsd,
     minFitScore: p.minFitScore,
     telegramTargetId: p.telegramTargetId,
+    resumeId: p.resumeId,
     priorityRules: parsePriorityRules(p.priorityRules),
   };
 }

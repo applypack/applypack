@@ -76,6 +76,7 @@ async function bootstrapDefaultProfile(): Promise<void> {
     ],
     notes: null,
     seniority: [],
+    resumeId: null,
     remoteOk: true,
     remoteRegions: [],
     onsiteCities: [],

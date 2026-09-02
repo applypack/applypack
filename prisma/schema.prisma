@@ -296,6 +296,13 @@ model Profile {
   // Where alerts for this profile go. null → broadcast to all active targets.
   telegramTargetId Int?
   telegramTarget   TelegramTarget? @relation(fields: [telegramTargetId], references: [id], onDelete: SetNull)
+  // The resume this search hunts with: "jobs I'd apply to with THIS CV".
+  // Preselects the resume on a job page (src/resume/pick.ts). SetNull, not
+  // Cascade — a profile owns regions, thresholds, rules and alert routing
+  // that no resume can speak for, so deleting the file must not delete the
+  // search; the preselect falls back to skill overlap, as before the link.
+  resumeId         Int?
+  resume           Resume?         @relation(fields: [resumeId], references: [id], onDelete: SetNull)
   createdAt        DateTime        @default(now())
   updatedAt        DateTime        @updatedAt
 
@@ -338,6 +345,8 @@ model Resume {
   updatedAt       DateTime      @updatedAt
   matches         ResumeMatch[]
   coverLetters    CoverLetter[]
+  // Searches that hunt with this resume (Profile.resumeId).
+  profiles        Profile[]
 
   @@map("resume")
 }

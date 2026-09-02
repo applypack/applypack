@@ -56,6 +56,7 @@ import {
 } from '../../ai-keys';
 import { testAiEngine } from '../ai-test';
 import {
+  blankProfileInput,
   createProfile,
   deleteProfile,
   getActiveProfile,
@@ -103,6 +104,7 @@ const ProfileFormSchema = z.object({
   minSalaryUsd: z.coerce.number().int().min(0).default(0),
   minFitScore: z.coerce.number().int().min(0).max(100).default(70),
   telegramTargetId: z.string().optional().default(''),
+  resumeId: z.string().optional().default(''),
   priorityRules: z.string().optional().default(''),
   action: z.string().optional(),
 });
@@ -628,23 +630,7 @@ settingsRoute.post('/settings/targets/:id/test', async (c) => {
 // --- Profiles ---------------------------------------------------------------
 
 settingsRoute.post('/settings/profiles/new', async (c) => {
-  const profile = await createProfile({
-    name: 'New profile',
-    stackRequired: [],
-    roleTypes: [],
-    stackNiceToHave: [],
-    stackExclude: ['junior', 'intern'],
-    notes: null,
-    seniority: [],
-    remoteOk: true,
-    remoteRegions: [],
-    onsiteCities: [],
-    hybridOk: false,
-    minSalaryUsd: 0,
-    minFitScore: 70,
-    telegramTargetId: null,
-    priorityRules: [],
-  });
+  const profile = await createProfile(blankProfileInput());
   // Born inactive (issue #50): a blank profile must never become the
   // scoring profile. The first save with real content activates it.
   return flashRedirect(
@@ -722,10 +708,8 @@ settingsRoute.post('/settings/profiles/:id/save', async (c) => {
   }
   const f = parsed.data;
 
-  const telegramTargetId =
-    f.telegramTargetId && f.telegramTargetId.length > 0
-      ? Number(f.telegramTargetId)
-      : null;
+  const telegramTargetId = optionalId(f.telegramTargetId);
+  const resumeId = optionalId(f.resumeId);
 
   const { rules: priorityRules, errors: priorityErrors } =
     parsePriorityRulesText(f.priorityRules);
@@ -752,10 +736,8 @@ settingsRoute.post('/settings/profiles/:id/save', async (c) => {
     hybridOk: f.hybridOk === '1',
     minSalaryUsd: f.minSalaryUsd,
     minFitScore: f.minFitScore,
-    telegramTargetId:
-      telegramTargetId !== null && Number.isFinite(telegramTargetId)
-        ? telegramTargetId
-        : null,
+    telegramTargetId,
+    resumeId,
     priorityRules,
   };
   await updateProfile(id, input);
@@ -880,6 +862,12 @@ settingsRoute.post(
 // --- Re-classify ------------------------------------------------------------
 // Reached only through "Save & re-classify" in the profile editor — the
 // standalone top-row button was removed (docs/onboarding-plan.md §3).
+
+/** An optional `<select>` of row ids: "" (the "none" option) and junk both mean null. */
+function optionalId(value: string): number | null {
+  const n = Number(value);
+  return value.length > 0 && Number.isFinite(n) ? n : null;
+}
 
 function triggerReclassifyAsync(): void {
   if (reclassifyInFlight) return;
