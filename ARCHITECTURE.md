@@ -201,7 +201,7 @@ src/
     fact-check.ts              ← deterministic fabrication gate for generated prose (ADR 0020), pure
     diff.ts                    ← version delta from two matches (gained/lost, components), pure
     parse-warnings.ts          ← ATS parseability checks over extracted text, pure
-    pick.ts                    ← preselect resume by skill-tag overlap, pure
+    pick.ts                    ← preselect: profile link first, then skill-tag overlap, pure
     store.ts                   ← Resume / ResumeMatch / CandidateFact / CoverLetter CRUD (Prisma)
     zip-write.ts               ← minimal STORED zip writer (docx container), pure
     docx-write.ts              ← letter → .docx, round-trip-tested against zip.ts + docx-text.ts, pure
@@ -262,6 +262,7 @@ src/
     welcome-steps.ts          ← pure first-run wizard rules (steps from data, score-run summary)
     welcome-facts.ts          ← loads what the wizard and the Overview chip derive from
     ai-test.ts                ← one live engine call — Settings Test button + wizard step 1
+    profile-from-resume.ts    ← "create a search from this resume": blank-base draft + inactive create
     public/target.mjs         ← browser keyword matcher (pure ES module, node-tested)
     public/score.mjs          ← browser mirror of resume/score.ts (parity-tested, ADR 0012)
     public/cover-letter.mjs   ← copy-to-clipboard for the letter card (import-smoke-tested)

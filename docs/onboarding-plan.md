@@ -257,6 +257,14 @@ Reorder (one PR):
 - Job page preselect: winning profile's resume when the link exists,
   `pickResumeForJob` fallback otherwise.
 
+Shipped 2026-09-02 (v1.9.0). What the build settled beyond the sketch:
+`onDelete: SetNull` on the link, so deleting a resume neither deletes the
+search nor is blocked by it — the preselect drops back to skill overlap.
+The link is editable in the profile editor ("Resume for this search"), and
+"Fill from a resume" proposes it alongside the fields it fills. Profiles
+created from a resume are born inactive (issue #50's rule, and creating a
+search must not switch the one that is running).
+
 ### Stage B — parallel search across active profiles (the big one, ADR)
 
 - Multiple **active** profiles replace the single `activeProfileId`
@@ -302,7 +310,7 @@ hand-written migrations verified through a container rebuild.
 | 2 | `fetch-now` | "Fetch now" button + `{classify: false}` seam + background run + progress page (standalone value) | — | — | smoke `fetch:once`; run visible on `/runs`; unscored jobs stored; dashboard matrix |
 | 3 | `welcome-wizard` | `/welcome` steps 1–4, redirect, skip, Overview chip | `setupCompletedAt` | — | migration via container rebuild; full wizard walkthrough on a wiped DB (docker volume rm) at 1200/375; every step's auto-complete branch |
 | 4 | `ai-key-in-db` ✅ v1.8.0 | per-engine API key in DB, masked; wizard step 1 upgrade | `aiKeys` JSONB | **0027** | probe/test with DB key and with `.env` fallback; key never logged; masked render |
-| 5 | `profile-resume-link` | Stage A | `Profile.resumeId` | — | create-from-resume flow; preselect unit test in `pick.test.ts` scope |
+| 5 | `profile-resume-link` ✅ v1.9.0 | Stage A | `Profile.resumeId` | — | create-from-resume flow; preselect unit test in `pick.test.ts` scope |
 | 6 | `multi-profile-search` | Stage B | `JobScore`, `Profile.active` | **yes** | prompt/parser unit tests; live smoke on 2 profiles; alert routing test send; jobs-list filters |
 | 7 | `applied-resume` | Stage C | 3 columns on `Job` | — | mark-applied round-trip; digest line render test |
 
@@ -336,5 +344,16 @@ resumes in one sitting.
   (not `fetch-test`), and classification follows the pause flag: paused →
   stored unscored, running → the hourly tick, just now.
 - Wizard copy voice pass (stop-slop skill) once screens exist.
-- Whether step 3 should offer multi-upload immediately or defer extra
-  resumes to `/resumes` until stage 5 lands.
+- ~~Whether step 3 should offer multi-upload immediately or defer extra
+  resumes to `/resumes`.~~ Decided in stage 5: **neither — one resume at a
+  time, and a second one only after the first search exists.** Step 3's
+  done state carries a collapsed "Another resume for a different kind of
+  role?" that takes exactly one file (or one already-uploaded resume) and
+  drafts a *second profile* from it, linked to that resume; `/resumes/:id`
+  carries the same action for every later resume. Multi-upload was
+  rejected on two counts: it would ask the user to choose which resume the
+  profile uses before they have seen a single match, and until stage B
+  lands only the active profile scores, so N uploads would produce N-1
+  searches that do nothing. The copy says so — the new search is born
+  inactive and the running one is untouched. That also keeps step 3's
+  primary path (upload → scan → "yes, that's me") at one screen.

@@ -49,6 +49,10 @@ export interface LastSearch {
 }
 
 export interface ProfileDraftCard {
+  /** true = the card offers a second search; false = it fills the active profile. */
+  asNew: boolean;
+  /** What the search would be called — the resume's headline, usually. */
+  profileName: string;
   resumeId: number;
   resumeName: string;
   title: string | null;
@@ -401,28 +405,53 @@ const ProfileStep: FC<WelcomeProps> = ({ profile, steps }) => {
               </>
             )}
             {d.skillCount > 0 && <>, plus {d.skillCount} more skills</>}.{' '}
-            We'll hunt for{d.seniority ? ` ${d.seniority}` : ''}{' '}
+            {d.asNew ? (
+              <>
+                The second search would be called{' '}
+                <span class="font-medium">"{d.profileName}"</span> and hunt for
+              </>
+            ) : (
+              <>We'll hunt for</>
+            )}
+            {d.seniority ? ` ${d.seniority}` : ''}{' '}
             {d.roleTypes.length > 0 ? d.roleTypes.join(' / ') : 'matching'} roles using these.
           </p>
           {d.warnings.length > 0 && (
             <p class="mt-2 text-[13px] leading-5 text-warn">Note: {d.warnings.join('; ')}.</p>
           )}
           <div class="mt-4 flex flex-wrap items-center gap-2">
-            {d.changed.length > 0 ? (
-              <ActionForm action="/welcome/profile/apply" hidden={{ resumeId: d.resumeId }}>
-                <Button>Yes, that's me — start matching</Button>
-              </ActionForm>
+            {d.asNew ? (
+              <>
+                <ActionForm action="/welcome/profile/create" hidden={{ resumeId: d.resumeId }}>
+                  <Button>Create this second search</Button>
+                </ActionForm>
+                <Button href="/welcome?step=profile" variant="secondary">
+                  Cancel
+                </Button>
+              </>
             ) : (
-              <Button href="/welcome?step=matches">Continue →</Button>
+              <>
+                {d.changed.length > 0 ? (
+                  <ActionForm action="/welcome/profile/apply" hidden={{ resumeId: d.resumeId }}>
+                    <Button>Yes, that's me — start matching</Button>
+                  </ActionForm>
+                ) : (
+                  <Button href="/welcome?step=matches">Continue →</Button>
+                )}
+                <ActionForm
+                  action={`/settings/profiles/${profile.id}/fill-from-resume`}
+                  hidden={{ resumeId: d.resumeId }}
+                >
+                  <Button variant="secondary">Let me adjust</Button>
+                </ActionForm>
+              </>
             )}
-            <ActionForm
-              action={`/settings/profiles/${profile.id}/fill-from-resume`}
-              hidden={{ resumeId: d.resumeId }}
-            >
-              <Button variant="secondary">Let me adjust</Button>
-            </ActionForm>
           </div>
-          <Hint class="mt-3">Nothing is saved until you press one of these.</Hint>
+          <Hint class="mt-3">
+            {d.asNew
+              ? 'Nothing is saved until you press Create. The search you already set up keeps running — switch to the new one on Settings → Profile.'
+              : 'Nothing is saved until you press one of these.'}
+          </Hint>
         </>
       ) : done ? (
         <>
@@ -438,6 +467,48 @@ const ProfileStep: FC<WelcomeProps> = ({ profile, steps }) => {
               Adjust in Settings
             </Button>
           </div>
+          <details class="mt-5 rounded-md border border-line">
+            <summary class="cursor-pointer select-none px-4 py-2.5 text-[13px] font-medium text-ink hover:text-accent-strong">
+              Another resume for a different kind of role?
+            </summary>
+            <div class="space-y-3 border-t border-line px-4 py-4">
+              <Hint class="!mt-0">
+                It becomes a second search of its own, linked to that resume — one search per
+                resume. Only one runs at a time; you switch between them on Settings → Profile.
+              </Hint>
+              <form
+                method="post"
+                action="/welcome/resume"
+                enctype="multipart/form-data"
+                class="flex flex-wrap items-end gap-3"
+              >
+                <input type="hidden" name="mode" value="new" />
+                <Field label="Another resume" class="min-w-0 flex-1">
+                  <input
+                    type="file"
+                    name="file"
+                    accept={ACCEPTED_EXTENSIONS.join(',')}
+                    required
+                    class={`block w-full text-sm text-ink-muted ${FILE_INPUT_CLASS}`}
+                  />
+                </Field>
+                <Button variant="secondary">Upload &amp; read it</Button>
+              </form>
+              {profile.resumes.length > 0 && (
+                <form method="post" action="/welcome/resume" class="flex flex-wrap items-end gap-3">
+                  <input type="hidden" name="mode" value="new" />
+                  <Field label="…or one you already uploaded" class="min-w-0 flex-1">
+                    <Select name="resumeId">
+                      {profile.resumes.map((r) => (
+                        <option value={r.id}>{r.name}</option>
+                      ))}
+                    </Select>
+                  </Field>
+                  <Button variant="secondary">Use this resume</Button>
+                </form>
+              )}
+            </div>
+          </details>
         </>
       ) : (
         <>
