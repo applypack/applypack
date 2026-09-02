@@ -6,7 +6,7 @@ import { secureHeaders } from 'hono/secure-headers';
 import { config } from '../config';
 import { logger } from '../logger';
 import { prisma } from '../db';
-import { guardedMethod, sameOriginPost } from './same-origin';
+import { originGuard } from './origin-guard';
 import { overviewRoute } from './routes/overview';
 import { jobsRoute } from './routes/jobs';
 import { companiesRoute } from './routes/companies';
@@ -65,25 +65,9 @@ if (config.WEB_BASIC_AUTH) {
  * reaches it is a page in the same browser POSTing to localhost:4747 — this
  * is the check that costs nothing and stops it. Same-origin forms, curl and
  * the repo's own scripts are unaffected; see same-origin.ts for why there is
- * no token.
+ * no token, and origin-guard.ts for why the wiring is not inline here.
  */
-app.use('*', async (c, next) => {
-  if (guardedMethod(c.req.method)) {
-    const verdict = sameOriginPost({
-      origin: c.req.header('origin'),
-      secFetchSite: c.req.header('sec-fetch-site'),
-      host: c.req.header('host'),
-    });
-    if (!verdict.ok) {
-      logger.warn(
-        { method: c.req.method, path: c.req.path, reason: verdict.reason },
-        'web: cross-origin write refused',
-      );
-      return c.text('Cross-origin request refused.', 403);
-    }
-  }
-  return next();
-});
+app.use('*', originGuard());
 
 // Tiny request log.
 app.use('*', async (c, next) => {
