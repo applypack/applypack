@@ -18,7 +18,7 @@ import { JobNewPage } from '../pages/job-new';
 import { TargetPage } from '../pages/target';
 import { previousFor } from '../pages/resume-match-card';
 import { nameFromFilename, readResumeUpload, resumeUploadLimit } from '../upload';
-import { scanResume } from '../../resume/scan';
+import { scanInBackground } from '../../resume/scan';
 import { clearFlashCookie, flashRedirect, parseFlashCookie } from '../flash';
 import { createRun, startRun, updateRun } from '../target-runs';
 import {
@@ -646,12 +646,7 @@ jobsRoute.post('/jobs/:id/target/reupload', async (c, next) => resumeUploadLimit
   // history — a fresh upload means a fresh analysis, nothing saved.
   const ephemeral = existing.hidden;
   const newName = ephemeral ? nameFromFilename(upload.sourceFilename) : existing.name;
-  const run = createRun({
-    steps: ephemeral ? ['match'] : ['scan', 'match'],
-    jobTitle: job.title,
-    resumeName: newName,
-    jobId: id,
-  });
+  const run = createRun({ steps: ['match'], jobTitle: job.title, resumeName: newName, jobId: id });
   startRun(run.id, async () => {
     let resume;
     if (ephemeral) {
@@ -660,8 +655,10 @@ jobsRoute.post('/jobs/:id/target/reupload', async (c, next) => resumeUploadLimit
       await deleteCoverLettersForResume(resume.id);
     } else {
       resume = await replaceResumeFile(resumeId, upload);
-      await scanResume(resume);
-      updateRun(run.id, { stage: 'match' });
+      // The match never reads the scan, so the new version's scan runs
+      // alongside it instead of ahead of it — a whole resume-model call off
+      // the wait. Cost: Resume.skills stay one version stale until it lands.
+      scanInBackground(resume);
     }
     const row = await matchResumeToJob(resume, {
       id: job.id,
