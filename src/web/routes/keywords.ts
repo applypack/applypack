@@ -8,6 +8,7 @@ import {
   effectiveKeywords,
   type EditResult,
 } from '../../resume/keyword-overrides';
+import { readFrameReason } from '../../resume/keyword-frame';
 import { readMatchMode } from '../../resume/match-mode';
 import { readPromptVersion } from '../../resume/match-reuse';
 import { readKeywords } from '../../resume/prompts';
@@ -97,6 +98,7 @@ keywordsRoute.post('/jobs/:id/matches/:matchId/keywords', async (c) => {
     breakdown: next,
     promptVersion: readPromptVersion(match.breakdown),
     mode: readMatchMode(match.breakdown),
+    frame: readFrameReason(match.breakdown),
   });
   const score =
     next.score === match.matchScore ? `score stays ${next.score}` : `score ${match.matchScore} → ${next.score}`;

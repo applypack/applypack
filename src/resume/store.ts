@@ -1,6 +1,7 @@
 import type { CandidateFact, CoverLetter, Prisma, Resume, ResumeMatch } from '@prisma/client';
 import { prisma } from '../db';
 import { logger } from '../logger';
+import type { FrameReason } from './keyword-frame';
 import { storedBreakdown, withSuggestionsMode, type MatchMode } from './match-mode';
 import type { MatchKeyword, MatchSuggestions, ResumeMatchResult, ResumeScan } from './prompts';
 import type { ScoreBreakdown } from './score';
@@ -225,9 +226,10 @@ export async function createMatch(input: {
   result: ResumeMatchResult;
   /** Computed by score.ts — the model never sets the number (ADR 0012). */
   breakdown: ScoreBreakdown;
-  /** Both ride inside the breakdown JSON — the memo key (match-reuse.ts) and the row's shape (ADR 0029). */
+  /** All three ride inside the breakdown JSON — the memo key (match-reuse.ts), the row's shape (ADR 0029) and where its keyword frame came from (keyword-frame.ts). */
   promptVersion: number;
   mode: MatchMode;
+  frame: FrameReason;
 }): Promise<ResumeMatch> {
   const r = input.result;
   return prisma.resumeMatch.create({
@@ -264,7 +266,14 @@ export async function getLatestMatchForJob(jobId: number): Promise<ResumeMatch |
 /** A fact flip recomputes the stored score deterministically — no AI call. */
 export async function updateMatchScoring(
   id: number,
-  input: { keywords: MatchKeyword[]; breakdown: ScoreBreakdown; promptVersion: number | null; mode: MatchMode },
+  input: {
+    keywords: MatchKeyword[];
+    breakdown: ScoreBreakdown;
+    /** The row's own markers, read off it and written back — a re-score changes the number, never what the row is. */
+    promptVersion: number | null;
+    mode: MatchMode;
+    frame: FrameReason | null;
+  },
 ): Promise<ResumeMatch> {
   return prisma.resumeMatch.update({
     where: { id },

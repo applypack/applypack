@@ -15,6 +15,7 @@ import { annotateElsewhere, applyFacts } from './facts';
 import { withTableAliases } from './keyword-aliases';
 import { carryOverrides, effectiveKeywords } from './keyword-overrides';
 import { anchorKeywords } from './keyword-anchor';
+import { planKeywordFrame } from './keyword-frame';
 import { loadKeywordMatcher } from './keyword-matcher';
 import { readMatchMode, type MatchMode } from './match-mode';
 import { readPromptVersion, reuseDecision } from './match-reuse';
@@ -43,11 +44,13 @@ const PARSE_ATTEMPTS = 2;
  *
  * `mode` picks the prompt variant (ADR 0029): the quick check (default)
  * returns the score-complete subset, "full" also writes the suggestions.
+ * `rebuild` throws away the keyword frame this posting has been carrying and
+ * lets the model read the terms out of the description again (issue #79).
  */
 export async function matchResumeToJob(
   resume: { id: number; text: string; version: number },
   job: MatchJobInput & { id: number },
-  opts: { draft?: boolean; mode?: MatchMode } = {},
+  opts: { draft?: boolean; mode?: MatchMode; rebuild?: boolean } = {},
 ): Promise<ResumeMatch | null> {
   const mode = opts.mode ?? 'fast';
   const [facts, otherSkills, previousMatch, matcher] = await Promise.all([
@@ -58,8 +61,16 @@ export async function matchResumeToJob(
   ]);
   // The user's own edits to the last frame for this posting: the levels they
   // set go into the prompt, and carryOverrides puts every override back on the
-  // fresh reply below, so an override sticks to the posting (§5).
+  // fresh reply below, so an override sticks to the posting (§5) — including
+  // when the frame itself is dropped.
   const storedKeywords = previousMatch ? readKeywords(previousMatch.keywords) : [];
+  const frame = planKeywordFrame(
+    previousMatch
+      ? { terms: storedKeywords.length, promptVersion: readPromptVersion(previousMatch.breakdown) }
+      : null,
+    PROMPT_VERSION,
+    opts.rebuild ?? false,
+  );
   const context: MatchContext = {
     confirmedFacts: facts.filter((f) => f.status === 'confirmed').map((f) => ({ term: f.term, note: f.note })),
     deniedTerms: facts.filter((f) => f.status === 'denied').map((f) => f.term),
@@ -67,9 +78,11 @@ export async function matchResumeToJob(
     // The previous run's keyword frame keeps terms/levels stable across
     // versions, so a better resume shows up as a better number. Terms the user
     // ignored are left out of it — asking for them back would be noise.
-    previousKeywords: effectiveKeywords(storedKeywords)
-      .slice(0, PREVIOUS_KEYWORDS_MAX)
-      .map((k) => ({ term: k.term, priority: k.priority, requirement: k.requirement, primary: k.primary })),
+    previousKeywords: frame.carry
+      ? effectiveKeywords(storedKeywords)
+          .slice(0, PREVIOUS_KEYWORDS_MAX)
+          .map((k) => ({ term: k.term, priority: k.priority, requirement: k.requirement, primary: k.primary }))
+      : undefined,
   };
   const prompt = buildMatchPrompt(resume.text, job, mode, context);
   const ai = await getAiRuntime();
@@ -119,6 +132,7 @@ export async function matchResumeToJob(
         breakdown,
         promptVersion: PROMPT_VERSION,
         mode,
+        frame: frame.reason,
       });
       logger.info(
         {
@@ -135,6 +149,7 @@ export async function matchResumeToJob(
           unanchored: anchor.unanchored,
           overrides: carry.carried,
           readded: carry.readded,
+          frame: frame.reason,
           promptVersion: PROMPT_VERSION,
           chars: out.text.length,
           ms: Date.now() - started,
