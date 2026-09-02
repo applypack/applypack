@@ -37,7 +37,10 @@ All notable changes to this project are documented here. The format follows
   the target site. Every state-changing request is now checked against the
   headers a browser attaches itself (`Origin`, `Sec-Fetch-Site`). No tokens, no
   session store, and `curl` still works: a request with no browser origin
-  headers at all is not the attack this stops.
+  headers at all is not the attack this stops. `Sec-Fetch-Site` decides
+  whenever the browser sends it — a dashboard rendered in a sandboxed frame
+  posts to itself with an opaque `Origin` *and* `Sec-Fetch-Site: same-origin`
+  (measured, not assumed), and no cross-site page can produce that pair.
 
 ## [1.19.0] — 2026-09-02
 

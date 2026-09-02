@@ -37,9 +37,34 @@ test('a sibling subdomain is not "us"', () => {
   assert.equal(v.ok, false);
 });
 
-test('an opaque Origin (sandboxed iframe, redirected form) is refused', () => {
+test("an opaque Origin is refused when no browser vouches for it", () => {
+  // What an attacker's sandboxed frame looks like on a browser too old to
+  // send fetch metadata.
+  const v = sameOriginPost({ origin: 'null', host: HOST });
+  assert.equal(v.ok, false);
+  assert.match(v.reason, /opaque Origin/);
+});
+
+test('an opaque Origin from someone else is still refused', () => {
   assert.equal(sameOriginPost({ origin: 'null', secFetchSite: 'cross-site', host: HOST }).ok, false);
-  assert.equal(sameOriginPost({ origin: 'null', host: HOST }).ok, false);
+});
+
+test('a page in a sandboxed frame posting to ITSELF passes', () => {
+  // Measured, not assumed: an embedded dashboard sends `Origin: null`
+  // (the document's origin is opaque) with `Sec-Fetch-Site: same-origin`
+  // (the browser's own comparison of the initiator against this URL). No
+  // cross-site page can produce that pair, so the browser's word wins.
+  const v = sameOriginPost({ origin: 'null', secFetchSite: 'same-origin', host: HOST });
+  assert.equal(v.ok, true);
+  assert.match(v.reason, /same-origin/);
+});
+
+test('the browser\'s word beats a mismatched Origin in both directions', () => {
+  // cross-site with a host that happens to match is still cross-site…
+  assert.equal(
+    sameOriginPost({ origin: `http://${HOST}`, secFetchSite: 'cross-site', host: HOST }).ok,
+    false,
+  );
 });
 
 test('the port is part of the host — another service on the same machine is not us', () => {

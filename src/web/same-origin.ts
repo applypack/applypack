@@ -46,29 +46,44 @@ function hostOf(origin: string): string | null {
 /**
  * Whether a state-changing request came from the dashboard itself.
  *
+ * `Sec-Fetch-Site` decides whenever the browser sent it, and it decides
+ * before `Origin` on purpose. Page script cannot set either header, but the
+ * two answer different questions: `Origin` names the *document* that made the
+ * request, while `Sec-Fetch-Site` is the browser's own comparison of that
+ * initiator against this URL. They come apart in one real case — a page
+ * rendered in a sandboxed frame has an opaque origin, so it posts to itself
+ * with `Origin: null` and `Sec-Fetch-Site: same-origin` (measured, not
+ * assumed). A page on someone else's site cannot produce `same-origin` in any
+ * frame, sandboxed or not, so trusting it costs nothing and refusing it would
+ * break a dashboard embedded in another tool.
+ *
  * Accepted:
  * - `Sec-Fetch-Site: same-origin` — the browser vouches for it.
  * - `Sec-Fetch-Site: none` — typed, bookmarked or otherwise user-initiated;
  *   there is no other page involved, so there is nothing to ride.
+ * - an `Origin` whose host is this host.
  * - no `Origin` and no `Sec-Fetch-Site` — curl, a script, the repo's own
  *   smoke runs. A browser always sends at least one of them on a POST, so
  *   this is not a hole an attacking page can climb through.
  *
- * Rejected: a foreign `Origin`, and `cross-site` / `same-site` from the
- * browser. `same-site` is refused too because it means a *different* host
+ * Rejected: `cross-site` / `same-site` from the browser, a foreign `Origin`,
+ * and an opaque `Origin` with no `Sec-Fetch-Site` to vouch for it (which is
+ * what an attacker's sandboxed frame looks like on a browser too old to send
+ * fetch metadata). `same-site` is refused because it means a *different* host
  * under the same registrable domain — a sibling subdomain someone else
- * controls is exactly the neighbour this is meant to keep out, and every
- * form on this dashboard is served from the dashboard itself.
+ * controls is exactly the neighbour this is meant to keep out, and every form
+ * on this dashboard is served from the dashboard itself.
  */
 export function sameOriginPost(check: OriginCheck): OriginVerdict {
   const site = check.secFetchSite?.trim().toLowerCase();
   if (site === 'cross-site' || site === 'same-site') {
     return { ok: false, reason: `Sec-Fetch-Site: ${site}` };
   }
+  if (site === 'same-origin' || site === 'none') {
+    return { ok: true, reason: `Sec-Fetch-Site: ${site}` };
+  }
 
   const origin = check.origin?.trim();
-  // "null" is a real Origin value — a sandboxed iframe or a redirected form.
-  // It is not this dashboard, so it is not allowed to write to it.
   if (origin && origin !== 'null') {
     const from = hostOf(origin);
     const host = check.host?.trim().toLowerCase();
@@ -76,9 +91,8 @@ export function sameOriginPost(check: OriginCheck): OriginVerdict {
     if (!host) return { ok: false, reason: 'no Host header to compare the Origin with' };
     return from === host ? { ok: true, reason: 'same origin' } : { ok: false, reason: `Origin ${from} is not ${host}` };
   }
-  if (origin === 'null') return { ok: false, reason: 'opaque Origin' };
+  if (origin === 'null') return { ok: false, reason: 'opaque Origin, and no Sec-Fetch-Site to vouch for it' };
 
-  if (site === 'same-origin' || site === 'none') return { ok: true, reason: `Sec-Fetch-Site: ${site}` };
   return { ok: true, reason: 'no browser origin headers (not a browser)' };
 }
 
