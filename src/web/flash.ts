@@ -10,6 +10,8 @@ export interface FlashMessage {
   text: string;
   /** The result shown is a stored analysis — the page offers "Re-run anyway". */
   rerun?: boolean;
+  /** Which comparison the user asked for, so "Re-run anyway" repeats THAT one (ADR 0029). */
+  mode?: string;
 }
 
 const FLASH_TTL_SECONDS = 5;
@@ -18,9 +20,11 @@ export function flashRedirect(
   location: string,
   kind: FlashMessage['kind'],
   text: string,
-  opts: { rerun?: boolean } = {},
+  opts: { rerun?: boolean; mode?: string } = {},
 ): Response {
-  const value = encodeURIComponent(JSON.stringify({ kind, text, ...(opts.rerun ? { rerun: true } : {}) }));
+  const value = encodeURIComponent(
+    JSON.stringify({ kind, text, ...(opts.rerun ? { rerun: true, mode: opts.mode } : {}) }),
+  );
   return new Response(null, {
     status: 303,
     headers: {
@@ -42,7 +46,13 @@ export function parseFlashCookie(cookieHeader: string | undefined): FlashMessage
       (parsed.kind === 'ok' || parsed.kind === 'warn' || parsed.kind === 'err') &&
       typeof parsed.text === 'string'
     ) {
-      return { kind: parsed.kind, text: parsed.text, ...(parsed.rerun === true ? { rerun: true } : {}) };
+      return {
+        kind: parsed.kind,
+        text: parsed.text,
+        ...(parsed.rerun === true
+          ? { rerun: true, ...(typeof parsed.mode === 'string' ? { mode: parsed.mode } : {}) }
+          : {}),
+      };
     }
   } catch {
     return null;

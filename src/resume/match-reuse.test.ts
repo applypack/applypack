@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readPromptVersion, reuseDecision, reuseNotice, type StoredMatch } from './match-reuse';
+import { readPromptVersion, reuseDecision, reuseNotice, suggestNotice, type StoredMatch } from './match-reuse';
 
 const TEXT = 'Nazar Boyko\nSenior Software Engineer\n## SKILLS\nPHP, Laravel, React';
 const full: StoredMatch = { resumeText: TEXT, promptVersion: 5, mode: 'full' };
@@ -43,4 +43,11 @@ test('reuseNotice names the age and says the model was not called', () => {
   const notice = reuseNotice('3m ago');
   assert.match(notice, /3m ago/);
   assert.match(notice, /not called again/);
+});
+
+test('suggestNotice keeps the verdicts and never claims the model stayed idle', () => {
+  const notice = suggestNotice('3m ago');
+  assert.match(notice, /3m ago/);
+  assert.match(notice, /verdicts and score/);
+  assert.doesNotMatch(notice, /not called/);
 });

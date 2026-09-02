@@ -163,6 +163,8 @@ export const TargetPage: FC<TargetPageProps> = ({
             value="1"
             variant="secondary"
             size="sm"
+            // Repeats the comparison the user asked for, not the form's default.
+            onclick={`document.getElementById('reanalyze-form').elements.mode.value='${flash.mode === 'full' ? 'full' : 'fast'}'`}
             title="Spend a fresh resume-model call on the text in the editor"
           >
             Re-run anyway
@@ -300,7 +302,7 @@ export const TargetPage: FC<TargetPageProps> = ({
                   {/* Set by the second button's click, not by the submitter's value: SUBMIT_ONCE
                       disables the buttons in the submit event, and a disabled submitter is left
                       out of the form data. */}
-                  <input type="hidden" name="mode" value="check" />
+                  <input type="hidden" name="uploadMode" value="check" />
                   <input
                     type="file"
                     name="file"
@@ -315,7 +317,7 @@ export const TargetPage: FC<TargetPageProps> = ({
                     size="sm"
                     variant="secondary"
                     class="w-full"
-                    onclick="this.form.elements.mode.value='analyze'"
+                    onclick="this.form.elements.uploadMode.value='analyze'"
                     title={
                       resume.ephemeral
                         ? 'Replaces this comparison with a fresh quick AI check (~½ min)'

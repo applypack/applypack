@@ -111,7 +111,7 @@ const CASES: Record<string, Case> = {
   },
   buildMatchPrompt: {
     build: () =>
-      resumeMod.buildMatchPrompt(RESUME, JOB, {
+      resumeMod.buildMatchPrompt(RESUME, JOB, 'full', {
         otherResumeSkills: [{ skill: 'ELSEWHERE-NEEDLE', resumeName: 'Old CV' }],
         previousKeywords: [{ term: 'PREVKW-NEEDLE', priority: 1, requirement: 'must', primary: true }],
       }),

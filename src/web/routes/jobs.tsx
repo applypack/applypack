@@ -458,7 +458,10 @@ jobsRoute.post('/jobs/:id/match', async (c) => {
   if (form.force !== '1') {
     const reused = await findReusableMatch(job.id, resume.id, text, mode);
     if (reused?.decision === 'reuse') {
-      return flashRedirect(resultUrl(reused.row.id), 'warn', reuseNotice(formatRelative(reused.row.createdAt)), { rerun: true });
+      return flashRedirect(resultUrl(reused.row.id), 'warn', reuseNotice(formatRelative(reused.row.createdAt)), {
+        rerun: true,
+        mode,
+      });
     }
     if (reused) {
       return c.redirect(startSuggestionsRun({ match: reused.row, job: jobInput, resumeName: resume.name, resultUrl: resultUrl(reused.row.id) }), 303);
@@ -695,7 +698,7 @@ jobsRoute.post('/jobs/:id/target/reupload', async (c, next) => resumeUploadLimit
   // over the analysis the page showed — no AI call, no new version, nothing
   // written (docs/target-plan.md §3.2 item 5). "Upload & analyze" opts into
   // the full run below.
-  if (form.mode !== 'analyze') {
+  if (form.uploadMode !== 'analyze') {
     const decision = decideInstantCheck(await frameFor(id, resumeId, Number(form.matchId)), upload.text);
     if (decision.kind !== 'analyze') {
       const when = formatRelative(decision.frame.createdAt);

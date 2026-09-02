@@ -46,3 +46,8 @@ export function readPromptVersion(breakdown: unknown): number | null {
 export function reuseNotice(when: string): string {
   return `Unchanged since the last analysis (${when}) — showing that result; the resume model was not called again.`;
 }
+
+/** The flash for the "suggest" decision: the verdicts stand, only the suggestions are being written. */
+export function suggestNotice(when: string): string {
+  return `The quick check from ${when} judged this exact text — keeping its verdicts and score, and writing the suggestions now.`;
+}

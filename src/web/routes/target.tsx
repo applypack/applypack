@@ -6,7 +6,7 @@ import { createManualJob, ManualJobSchema, MAX_FIELD_CHARS, MIN_DESCRIPTION_CHAR
 import { extractPostingFacts, fallbackTitle } from '../../jobs/posting-extract';
 import { findReusableMatch, matchResumeToJob } from '../../resume/match';
 import { parseMatchMode } from '../../resume/match-mode';
-import { reuseNotice } from '../../resume/match-reuse';
+import { reuseNotice, suggestNotice } from '../../resume/match-reuse';
 import {
   deleteCoverLettersForResume,
   deleteMatchesForResume,
@@ -220,7 +220,7 @@ targetRoute.post('/target', resumeUploadLimit('/target'), async (c) => {
       updateRun(run.id, {
         stage: 'done',
         resultUrl: startSuggestionsRun({ match: reused.row, job: jobInput, resumeName: resume.name, resultUrl: page }),
-        flash: reuseNotice(formatRelative(reused.row.createdAt)),
+        flash: suggestNotice(formatRelative(reused.row.createdAt)),
       });
       return;
     }

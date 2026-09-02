@@ -276,20 +276,25 @@ export async function updateMatchScoring(
   });
 }
 
-/** The lazy second call lands: a quick check becomes a full analysis; the verdicts and the score stay (ADR 0029). */
+/**
+ * The lazy second call lands: a quick check becomes a full analysis; the
+ * verdicts and the score stay (ADR 0029). The breakdown is re-read here, not
+ * taken from the caller: a fact confirmation during the ~40 s call rewrites
+ * that JSON, and writing back a snapshot would silently undo it.
+ */
 export async function updateMatchSuggestions(
   id: number,
-  input: { suggestions: MatchSuggestions; breakdown: unknown },
+  suggestions: MatchSuggestions,
 ): Promise<ResumeMatch> {
-  const s = input.suggestions;
+  const current = await prisma.resumeMatch.findUniqueOrThrow({ where: { id }, select: { breakdown: true } });
   return prisma.resumeMatch.update({
     where: { id },
     data: {
-      strengths: s.strengths,
-      cautions: s.cautions,
-      actions: s.actions as Prisma.InputJsonValue,
-      removals: s.removals as Prisma.InputJsonValue,
-      breakdown: withSuggestionsMode(input.breakdown) as Prisma.InputJsonValue,
+      strengths: suggestions.strengths,
+      cautions: suggestions.cautions,
+      actions: suggestions.actions as Prisma.InputJsonValue,
+      removals: suggestions.removals as Prisma.InputJsonValue,
+      breakdown: withSuggestionsMode(current.breakdown) as Prisma.InputJsonValue,
     },
   });
 }

@@ -1,5 +1,5 @@
 import type { ResumeMatch } from '@prisma/client';
-import type { MatchJobInput } from '../resume/prompts';
+import { readActions, readRemovals, type MatchJobInput } from '../resume/prompts';
 import { suggestForMatch } from '../resume/suggestions';
 import { createRun, startRun, updateRun } from './target-runs';
 
@@ -31,14 +31,10 @@ export function startSuggestionsRun(input: {
         ? {
             stage: 'done',
             resultUrl: input.resultUrl,
-            flash: `Suggestions added — ${countOf(row.actions)} edits, ${countOf(row.removals)} removals; the score is unchanged.`,
+            flash: `Suggestions added — ${readActions(row.actions).length} edits, ${readRemovals(row.removals).length} removals; the score is unchanged.`,
           }
         : { stage: 'error', error: 'The suggestions call failed — the quick check is still there. See the web logs.' },
     );
   });
   return `/target/runs/${run.id}`;
-}
-
-function countOf(v: unknown): number {
-  return Array.isArray(v) ? v.length : 0;
 }

@@ -68,35 +68,48 @@ matches at v5 stop being reusable, which is the intended meaning of a bump.
 `npm run bench:resume -- --model <id> --mode <fast|full> --out <file>`, then
 `--table` for the comparison. Prompt v5 is the "before" column.
 
-| Run | p50 | Total | Reply chars | Checks failed | Status agreement vs Opus full |
+| Run | p50 | Suite total | Reply chars | Checks failed | Status agreement vs Opus full v6 |
 | --- | --- | --- | --- | --- | --- |
-| Opus, full, v5 | 22 s | 136 s | 4899 | 0 | baseline |
-| Sonnet, full, v5 | 40 s | 231 s | 3261 | 0 | 95% (35/37), 74% term overlap |
+| Opus, full, v5 (before) | 22 s | 136 s | 4899 | 0 | — |
+| Sonnet, full, v5 (before) | 40 s | 231 s | 3261 | 0 | 95% vs Opus v5, 74% term overlap |
+| **Opus, quick check, v6** | **15 s** | **77 s** | **2591** | 0 | 98% (45/46), 88% term overlap |
+| Opus, full, v6 | 24 s | 116 s | 4373 | 0 | 100% (52/52) |
+| Sonnet, quick check, v6 | 26 s | 161 s | 2126 | 0 | 93% (37/40), 77% term overlap |
+| Sonnet, full, v6 | 52 s | 252 s | 3099 | 0 | 95% (38/40), 77% term overlap |
 
-The v6 numbers (both models × both modes) are in the plan's §3.4 table and the
-1.16.0 release notes. Two things they show:
+Two things they show:
 
-- **The quick check is the win.** Same verdicts, a fraction of the output.
-- **Sonnet is not faster here.** On the CLI engine it was *slower* than Opus on
-  every full fixture (p50 40 s vs 22 s) at 95% status agreement and only 74%
-  term overlap — a less stable keyword frame, which is exactly what
-  CONSISTENCY ACROSS RUNS exists to prevent. So the plan's §3.2 item 7
-  condition ("2–3× faster at ≥85% agreement") is **not met**, the default stays
-  `claude-opus-5`, and the per-engine "Resume model" select on `/settings`
-  remains the speed dial for anyone whose engine says otherwise.
+- **The quick check is the win.** Same verdicts, 59% of the output, 63% of the
+  time — and every gold check still green, including the primary-stack caps.
+- **Sonnet is not faster here.** On the CLI engine it was *slower* than Opus in
+  both modes (p50 52 s and 26 s against 24 s and 15 s) at 95% / 93% status
+  agreement and only 77% term overlap — a less stable keyword frame, which is
+  exactly what CONSISTENCY ACROSS RUNS exists to prevent. So the plan's §3.2
+  item 7 condition ("2-3× faster at ≥85% agreement") is **not met**, the
+  default stays `claude-opus-5`, and the per-engine "Resume model" select on
+  `/settings` remains the speed dial for anyone whose engine says otherwise.
+
+Live on a real posting (job #1393, Docker, Opus): quick check 39.5 s scoring
+**66 — the number the v5 full analysis gave for the same resume** — then
+"Get suggestions" 35.2 s; a full analysis of the same pair took 77.1 s.
 
 ## Consequences
 
-✅ The default comparison is roughly a third of the output tokens and answers
-in about half a minute on Opus; the score is identical because `score.ts` never
-read the suggestions. Suggestions stay one click away and reuse the frame, so
-asking for them later costs no re-judgment and cannot move the number. One
-rulebook means one place to fix a rule, and the guard tests prove both variants
-carry it.
+✅ The default comparison writes ~60% of a full reply (2591 vs 4373 characters
+on the fixtures, 6 003 vs 13 577 on a real posting) and answers in 15-40 s on
+Opus; the score is identical because `score.ts` never read the suggestions.
+Suggestions stay one click away and reuse the frame, so asking for them later
+costs no re-judgment and cannot move the number. One rulebook means one place
+to fix a rule, and the guard tests prove both variants carry it.
 
 ❌ Two AI call sites for one feature instead of one (registered in the fence
 registry test), and a stored row now has two shapes — every reader must handle
-a row with empty suggestion arrays. A user who always wants suggestions pays
+a row with empty suggestion arrays. One reader degrades quietly:
+`cover-letter.ts` distils the latest stored match into its shortlist, so when
+that row is a quick check the letter gets the verdict and the evidenced
+keywords but no `strengths` lines. The letter flow asks for `full` on the runs
+it starts, and the prompt already handles a missing strengths list, so the
+letter is thinner rather than wrong. A user who always wants suggestions pays
 two calls where one used to do (~30 s more in total), which is why "Full
 analysis" sits next to every quick-check button.
 

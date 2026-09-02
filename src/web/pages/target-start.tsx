@@ -38,7 +38,7 @@ export const TargetStartPage: FC<TargetStartProps> = ({ resumes, flash }) => {
   const defaultResumeId = (resumes.find((r) => r.isDefault) ?? resumes[0])?.id;
   return (
     <Layout title="Compare" active="target">
-      <PageHeader title="Compare" meta="~1 min per run">
+      <PageHeader title="Compare" meta="~½ min quick · ~2 min full">
         Paste a posting — the description alone is enough, company / title / location are
         detected during the run — and pick a resume. One run classifies the posting, scores the
         resume against it and opens the side-by-side targeted view.

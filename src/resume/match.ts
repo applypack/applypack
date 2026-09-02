@@ -67,7 +67,7 @@ export async function matchResumeToJob(
           .map((k) => ({ term: k.term, priority: k.priority, requirement: k.requirement, primary: k.primary }))
       : undefined,
   };
-  const prompt = buildMatchPrompt(resume.text, job, context, mode);
+  const prompt = buildMatchPrompt(resume.text, job, mode, context);
   const ai = await getAiRuntime();
   for (let attempt = 0; attempt < PARSE_ATTEMPTS; attempt++) {
     const started = Date.now();

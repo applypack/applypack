@@ -132,7 +132,7 @@ async function runFixture(
 ): Promise<{ checks: Check[]; record: BenchFixture }> {
   const started = Date.now();
   const text = await benchProvider.complete({
-    ...buildMatchPrompt(resume, job, context, benchMode),
+    ...buildMatchPrompt(resume, job, benchMode, context),
     maxTokens: benchMode === 'fast' ? MATCH_FAST_MAX_TOKENS : MATCH_MAX_TOKENS,
     label: `bench:${name}`,
     model: benchModel,
@@ -323,7 +323,14 @@ async function main(): Promise<void> {
   const engineArg = flag(argv, '--engine');
   const modelArg = flag(argv, '--model');
   const outFile = flag(argv, '--out');
-  benchMode = parseMatchMode(flag(argv, '--mode') ?? 'full');
+  // A typo must not quietly bench a different configuration than the one
+  // whose numbers get quoted.
+  const modeArg = flag(argv, '--mode') ?? 'full';
+  if (modeArg !== 'fast' && modeArg !== 'full') {
+    logger.error({ mode: modeArg }, 'bench: --mode must be fast or full');
+    process.exit(2);
+  }
+  benchMode = parseMatchMode(modeArg);
   let targets: { tag: AiProviderId; provider: AiProvider; model: string }[];
   if (engineArg === 'all') {
     const statuses = await probeAiProviders();
@@ -347,6 +354,11 @@ async function main(): Promise<void> {
     }];
   } else {
     targets = [{ tag: config.AI_PROVIDER, provider: getAiProvider(), model: config.CLAUDE_MODEL_RESUME }];
+  }
+
+  if (modelArg !== undefined && !targets.some((t) => modelFitsProvider(modelArg, t.tag))) {
+    logger.error({ model: modelArg, engines: targets.map((t) => t.tag) }, 'bench: --model fits none of the engines');
+    process.exit(2);
   }
 
   let failed = 0;

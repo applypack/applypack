@@ -8,6 +8,7 @@ import {
   readKeywords,
   SUGGESTIONS_MAX_TOKENS,
   type MatchJobInput,
+  type MatchSuggestions,
 } from './prompts';
 import { readBreakdown } from './score';
 import { listFacts, updateMatchSuggestions } from './store';
@@ -44,8 +45,10 @@ export async function suggestForMatch(match: ResumeMatch, job: MatchJobInput): P
     });
     if (out === null) return null;
     const parsed = parseSuggestionsResponse(out.text);
-    if (parsed.ok) {
-      const row = await updateMatchSuggestions(match.id, { suggestions: parsed.data, breakdown: match.breakdown });
+    // Every array defaults to empty, so "{}" parses — but a reply with nothing
+    // in it would flip the row to "full" and lock the button out for good.
+    if (parsed.ok && !isEmpty(parsed.data)) {
+      const row = await updateMatchSuggestions(match.id, parsed.data);
       logger.info(
         {
           matchId: match.id,
@@ -62,9 +65,13 @@ export async function suggestForMatch(match: ResumeMatch, job: MatchJobInput): P
       return row;
     }
     logger.warn(
-      { matchId: match.id, attempt, error: parsed.error, raw: out.text.slice(0, 500) },
-      'resume: suggestions reply did not match schema',
+      { matchId: match.id, attempt, error: parsed.ok ? 'empty reply' : parsed.error, raw: out.text.slice(0, 500) },
+      'resume: suggestions reply unusable',
     );
   }
   return null;
+}
+
+function isEmpty(s: MatchSuggestions): boolean {
+  return s.actions.length + s.removals.length + s.strengths.length + s.cautions.length === 0;
 }

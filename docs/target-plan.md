@@ -242,11 +242,18 @@ without changing models. **Sonnet is not the fast lane** on this engine: it was
 *slower* than Opus on every full fixture, so the "Quick AI check on Sonnet" row
 is not the recommended path — see §8 question 1.
 
-Live on job #1393 (Docker, Opus, real posting): quick check **39.5 s → score
-66**, the identical number the v5 full analysis produced for the same resume;
-"Get suggestions" then took **35.2 s** and wrote 10 actions and 8 removals onto
-the same row. Both calls together (74.7 s) still land under the 78-109 s a
-single v5 full analysis cost, and the score is on screen after the first.
+Live on job #1393 (Docker, Opus, a 4 988-character posting, 5 908-character
+resume, 26 keywords), all three runs on prompt v6:
+
+| Run | Wall time | Reply chars | Score |
+| --- | --- | --- | --- |
+| quick check | 39.5 s (a repeat: 40.8 s) | 6 003 | 66 |
+| "Get suggestions" on that row | 35.2 s | 6 917 | unchanged (10 actions, 8 removals) |
+| full analysis, same pair | 77.1 s | 13 577 | 68 |
+
+The quick check reproduced **66** — the identical number the v5 full analysis
+gave for this resume. Both calls together (74.7 s) still land under the 78-109 s
+a single v5 full analysis cost, and the score is on screen after the first.
 
 ---
 

@@ -63,6 +63,8 @@ export async function generateCoverLetter(
       .filter((f) => f.status === 'confirmed')
       .map((f) => ({ term: f.term, note: f.note })),
     deniedTerms: facts.filter((f) => f.status === 'denied').map((f) => f.term),
+    // A quick-check row (ADR 0029) carries no strengths, so the shortlist is
+    // then the verdict plus the evidenced keywords — thinner, never wrong.
     match: match ? distillMatch(match.summary, match.strengths, match.keywords) : undefined,
     companySnapshot,
   };
