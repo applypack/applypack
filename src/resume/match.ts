@@ -11,8 +11,15 @@ import {
   type MatchJobInput,
 } from './prompts';
 import { annotateElsewhere, applyFacts } from './facts';
+import { canReuseMatch, readPromptVersion } from './match-reuse';
 import { scoreMatch } from './score';
-import { createMatch, getLatestMatchForJob, listFacts, listOtherResumeSkills } from './store';
+import {
+  createMatch,
+  getLatestMatchForJob,
+  getLatestMatchForResumeAndJob,
+  listFacts,
+  listOtherResumeSkills,
+} from './store';
 
 const PREVIOUS_KEYWORDS_MAX = 40;
 
@@ -81,6 +88,7 @@ export async function matchResumeToJob(
         model,
         result: { ...parsed.data, keywords },
         breakdown,
+        promptVersion: PROMPT_VERSION,
       });
       logger.info(
         {
@@ -104,4 +112,19 @@ export async function matchResumeToJob(
     );
   }
   return null;
+}
+
+/**
+ * The stored comparison that already answers this request, or null. Callers
+ * check it before starting a run so a repeat costs nothing (match-reuse.ts).
+ */
+export async function findReusableMatch(
+  jobId: number,
+  resumeId: number,
+  text: string,
+): Promise<ResumeMatch | null> {
+  const previous = await getLatestMatchForResumeAndJob(jobId, resumeId);
+  if (!previous) return null;
+  const stored = { resumeText: previous.resumeText, promptVersion: readPromptVersion(previous.breakdown) };
+  return canReuseMatch(stored, text, PROMPT_VERSION) ? previous : null;
 }

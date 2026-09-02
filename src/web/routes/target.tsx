@@ -4,7 +4,8 @@ import { z } from 'zod';
 import { classifyInBackground } from '../../jobs/classify-existing';
 import { createManualJob, ManualJobSchema, MAX_FIELD_CHARS, MIN_DESCRIPTION_CHARS } from '../../jobs/manual-job';
 import { extractPostingFacts, fallbackTitle } from '../../jobs/posting-extract';
-import { matchResumeToJob } from '../../resume/match';
+import { findReusableMatch, matchResumeToJob } from '../../resume/match';
+import { reuseNotice } from '../../resume/match-reuse';
 import {
   deleteCoverLettersForResume,
   deleteMatchesForResume,
@@ -15,6 +16,7 @@ import {
 import { TargetStartPage } from '../pages/target-start';
 import { TargetRunPage } from '../pages/target-run';
 import { clearFlashCookie, flashRedirect, parseFlashCookie } from '../flash';
+import { formatRelative } from '../format';
 import { createRun, getRun, startRun, updateRun, type RunStep } from '../target-runs';
 import {
   MAX_RESUME_NAME_CHARS,
@@ -82,7 +84,7 @@ targetRoute.get('/target/runs/:id', (c) => {
     return flashRedirect('/target', 'err', 'That comparison run is gone (runs live ~30 min). Start again.');
   }
   if (run.stage === 'done' && run.resultUrl) {
-    return flashRedirect(run.resultUrl, 'ok', run.flash ?? 'Done.');
+    return flashRedirect(run.resultUrl, run.reused ? 'warn' : 'ok', run.flash ?? 'Done.', { rerun: run.reused });
   }
   return c.html(<TargetRunPage run={run} />);
 });
@@ -189,13 +191,26 @@ targetRoute.post('/target', resumeUploadLimit('/target'), async (c) => {
     if (result.kind === 'created') classifyInBackground(result.job);
     updateRun(run.id, { jobId: job.id });
 
-    // 2. Ephemeral compares keep only the current analysis.
+    // 2. The same text against the same posting is already answered — a
+    //    double submit or a re-paste shows the stored analysis instead.
+    const reused = await findReusableMatch(job.id, resume.id, resume.text);
+    if (reused) {
+      updateRun(run.id, {
+        stage: 'done',
+        resultUrl: `/jobs/${job.id}/target?match=${reused.id}`,
+        flash: reuseNotice(formatRelative(reused.createdAt)),
+        reused: true,
+      });
+      return;
+    }
+
+    // 3. Ephemeral compares keep only the current analysis.
     if (resume.ephemeral) {
       await deleteMatchesForResume(resume.id);
       await deleteCoverLettersForResume(resume.id);
     }
 
-    // 3. One resume-model call, then straight into the targeted workspace.
+    // 4. One resume-model call, then straight into the targeted workspace.
     const row = await matchResumeToJob(
       { id: resume.id, version: resume.version, text: resume.text },
       {

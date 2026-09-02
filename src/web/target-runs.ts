@@ -34,6 +34,8 @@ export interface TargetRun {
   /** Set on done: where to send the user, with the flash to show there. */
   resultUrl?: string;
   flash?: string;
+  /** Done with a stored analysis, not a fresh one — the flash warns and offers "Re-run anyway". */
+  reused?: boolean;
   error?: string;
 }
 
