@@ -23,7 +23,8 @@ import { draftStash } from '../draft-stash';
 import { scanInBackground } from '../../resume/scan';
 import { clearFlashCookie, flashRedirect, parseFlashCookie } from '../flash';
 import { formatRelative } from '../format';
-import { createRun, startRun, updateRun } from '../target-runs';
+import { createRun, matchStep, startRun, updateRun } from '../target-runs';
+import { startSuggestionsRun } from '../suggestions-run';
 import {
   deleteCoverLettersForResume,
   deleteMatchesForResume,
@@ -42,6 +43,7 @@ import {
 } from '../../resume/store';
 import { preselectAppliedResume, preselectResume } from '../../resume/pick';
 import { findReusableMatch, matchResumeToJob } from '../../resume/match';
+import { parseMatchMode, readMatchMode } from '../../resume/match-mode';
 import { reuseNotice } from '../../resume/match-reuse';
 import { generateCoverLetter } from '../../resume/cover-letter';
 import {
@@ -438,33 +440,39 @@ jobsRoute.post('/jobs/:id/match', async (c) => {
     getResume(resumeId),
   ]);
   if (!job || !resume) return c.text('Not found', 404);
+  const jobInput = { id: job.id, title: job.title, companyName: job.company.name, location: job.location, description: job.description };
 
   // The targeted view posts its edited text; a non-empty draft is judged instead of the stored version.
   const draftText = typeof form.draftText === 'string' ? form.draftText.replace(/\r\n/g, '\n').trim() : '';
   const draft = draftText.length > 0 && draftText !== resume.text;
   const text = draft ? draftText : resume.text;
+  // The quick check unless the form asked for the full report (ADR 0029).
+  const mode = parseMatchMode(form.mode);
   const toTarget = form.next === 'target';
   const resultUrl = (matchId: number) =>
     toTarget ? `/jobs/${id}/target?match=${matchId}` : `/jobs/${id}?match=${matchId}#resume-match`;
 
   // The same text was already judged: show that analysis instead of paying
-  // for it again — unless "Re-run anyway" asked for a fresh call.
+  // for it again — unless "Re-run anyway" asked for a fresh call. A full
+  // report asked of a stored quick check needs only the suggestions call.
   if (form.force !== '1') {
-    const reused = await findReusableMatch(job.id, resume.id, text);
+    const reused = await findReusableMatch(job.id, resume.id, text, mode);
+    if (reused?.decision === 'reuse') {
+      return flashRedirect(resultUrl(reused.row.id), 'warn', reuseNotice(formatRelative(reused.row.createdAt)), {
+        rerun: true,
+        mode,
+      });
+    }
     if (reused) {
-      return flashRedirect(resultUrl(reused.id), 'warn', reuseNotice(formatRelative(reused.createdAt)), { rerun: true });
+      return c.redirect(startSuggestionsRun({ match: reused.row, job: jobInput, resumeName: resume.name, resultUrl: resultUrl(reused.row.id) }), 303);
     }
   }
 
-  const run = createRun({ steps: ['match'], jobTitle: job.title, resumeName: resume.name, jobId: id });
+  const run = createRun({ steps: [matchStep(mode)], jobTitle: job.title, resumeName: resume.name, jobId: id });
   startRun(run.id, async () => {
     // Ephemeral (scratch) compares keep only the current analysis.
     if (resume.hidden) await deleteMatchesForResume(resume.id);
-    const row = await matchResumeToJob(
-      { id: resume.id, version: resume.version, text },
-      { id: job.id, title: job.title, companyName: job.company.name, location: job.location, description: job.description },
-      { draft },
-    );
+    const row = await matchResumeToJob({ id: resume.id, version: resume.version, text }, jobInput, { draft, mode });
     if (!row) {
       updateRun(run.id, { stage: 'error', error: 'Comparison failed — see the web logs.' });
       return;
@@ -472,10 +480,31 @@ jobsRoute.post('/jobs/:id/match', async (c) => {
     updateRun(run.id, {
       stage: 'done',
       resultUrl: resultUrl(row.id),
-      flash: `${draft ? 'Draft' : `"${resume.name}"`} compared — AI match ${row.matchScore}/100.`,
+      flash: `${draft ? 'Draft' : `"${resume.name}"`} ${mode === 'fast' ? 'checked' : 'compared'} — AI match ${row.matchScore}/100.`,
     });
   });
   return c.redirect(`/target/runs/${run.id}`, 303);
+});
+
+/** "Get suggestions" on a quick check: the lazy second call, the verdicts and the score untouched (ADR 0029). */
+jobsRoute.post('/jobs/:id/matches/:matchId/suggestions', async (c) => {
+  const id = Number(c.req.param('id'));
+  const matchId = Number(c.req.param('matchId'));
+  if (!Number.isFinite(id) || !Number.isFinite(matchId)) return c.text('Bad id', 400);
+  const form = await c.req.parseBody();
+  const [job, match] = await Promise.all([
+    prisma.job.findUnique({ where: { id }, include: { company: { select: { name: true } } } }),
+    getMatch(matchId),
+  ]);
+  if (!job || !match || match.jobId !== id) return c.text('Not found', 404);
+  const resume = await getResume(match.resumeId);
+  if (!resume) return c.text('Not found', 404);
+  const resultUrl = form.next === 'target' ? `/jobs/${id}/target?match=${matchId}` : `/jobs/${id}?match=${matchId}#resume-match`;
+  if (readMatchMode(match.breakdown) === 'full') {
+    return flashRedirect(resultUrl, 'warn', 'This analysis already has its suggestions.');
+  }
+  const jobInput = { id: job.id, title: job.title, companyName: job.company.name, location: job.location, description: job.description };
+  return c.redirect(startSuggestionsRun({ match, job: jobInput, resumeName: resume.name, resultUrl }), 303);
 });
 
 jobsRoute.post('/jobs/:id/cover', async (c) => {
@@ -669,7 +698,7 @@ jobsRoute.post('/jobs/:id/target/reupload', async (c, next) => resumeUploadLimit
   // over the analysis the page showed — no AI call, no new version, nothing
   // written (docs/target-plan.md §3.2 item 5). "Upload & analyze" opts into
   // the full run below.
-  if (form.mode !== 'analyze') {
+  if (form.uploadMode !== 'analyze') {
     const decision = decideInstantCheck(await frameFor(id, resumeId, Number(form.matchId)), upload.text);
     if (decision.kind !== 'analyze') {
       const when = formatRelative(decision.frame.createdAt);
@@ -691,7 +720,7 @@ jobsRoute.post('/jobs/:id/target/reupload', async (c, next) => resumeUploadLimit
   // history — a fresh upload means a fresh analysis, nothing saved.
   const ephemeral = existing.hidden;
   const newName = ephemeral ? nameFromFilename(upload.sourceFilename) : existing.name;
-  const run = createRun({ steps: ['match'], jobTitle: job.title, resumeName: newName, jobId: id });
+  const run = createRun({ steps: ['keywords'], jobTitle: job.title, resumeName: newName, jobId: id });
   startRun(run.id, async () => {
     let resume;
     if (ephemeral) {
@@ -704,12 +733,12 @@ jobsRoute.post('/jobs/:id/target/reupload', async (c, next) => resumeUploadLimit
       scanInBackground(resume);
     }
     // A file whose text did not change is already answered.
-    const reused = await findReusableMatch(job.id, resume.id, resume.text);
+    const reused = await findReusableMatch(job.id, resume.id, resume.text, 'fast');
     if (reused) {
       updateRun(run.id, {
         stage: 'done',
-        resultUrl: `/jobs/${id}/target?match=${reused.id}`,
-        flash: `${ephemeral ? `"${newName}"` : `v${resume.version}`} uploaded. ${reuseNotice(formatRelative(reused.createdAt))}`,
+        resultUrl: `/jobs/${id}/target?match=${reused.row.id}`,
+        flash: `${ephemeral ? `"${newName}"` : `v${resume.version}`} uploaded. ${reuseNotice(formatRelative(reused.row.createdAt))}`,
         reused: true,
       });
       return;
@@ -738,8 +767,8 @@ jobsRoute.post('/jobs/:id/target/reupload', async (c, next) => resumeUploadLimit
       stage: 'done',
       resultUrl: `/jobs/${id}/target?match=${row.id}`,
       flash: ephemeral
-        ? `"${newName}" compared — AI match ${row.matchScore}/100.`
-        : `v${resume.version} uploaded and compared — AI match ${row.matchScore}/100.`,
+        ? `"${newName}" checked — AI match ${row.matchScore}/100.`
+        : `v${resume.version} uploaded and checked — AI match ${row.matchScore}/100.`,
     });
   });
   return c.redirect(`/target/runs/${run.id}`, 303);

@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { logger } from '../logger';
+import type { MatchMode } from '../resume/match-mode';
 
 /*
  * In-memory registry for long compare runs (extract → scan → match). The
@@ -9,8 +10,22 @@ import { logger } from '../logger';
  * runs (node-cron philosophy: no queue, ADR 0003).
  */
 
-export type RunStep = 'fetch' | 'extract' | 'scan' | 'match' | 'verify' | 'letter' | 'score';
+export type RunStep =
+  | 'fetch'
+  | 'extract'
+  | 'scan'
+  | 'keywords'
+  | 'match'
+  | 'suggestions'
+  | 'verify'
+  | 'letter'
+  | 'score';
 export type RunStage = RunStep | 'done' | 'error';
+
+/** The comparison step a mode runs as: the quick check or the full report (ADR 0029). */
+export function matchStep(mode: MatchMode): RunStep {
+  return mode === 'fast' ? 'keywords' : 'match';
+}
 
 export interface TargetRun {
   id: string;

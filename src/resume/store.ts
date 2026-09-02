@@ -1,7 +1,8 @@
 import type { CandidateFact, CoverLetter, Prisma, Resume, ResumeMatch } from '@prisma/client';
 import { prisma } from '../db';
 import { logger } from '../logger';
-import type { MatchKeyword, ResumeMatchResult, ResumeScan } from './prompts';
+import { storedBreakdown, withSuggestionsMode, type MatchMode } from './match-mode';
+import type { MatchKeyword, MatchSuggestions, ResumeMatchResult, ResumeScan } from './prompts';
 import type { ScoreBreakdown } from './score';
 
 /** Resume without the uploaded bytes — what every page and prompt works with. */
@@ -224,8 +225,9 @@ export async function createMatch(input: {
   result: ResumeMatchResult;
   /** Computed by score.ts — the model never sets the number (ADR 0012). */
   breakdown: ScoreBreakdown;
-  /** Rides inside the breakdown JSON — the memo key (match-reuse.ts). */
+  /** Both ride inside the breakdown JSON — the memo key (match-reuse.ts) and the row's shape (ADR 0029). */
   promptVersion: number;
+  mode: MatchMode;
 }): Promise<ResumeMatch> {
   const r = input.result;
   return prisma.resumeMatch.create({
@@ -244,7 +246,7 @@ export async function createMatch(input: {
       keywords: r.keywords as Prisma.InputJsonValue,
       actions: r.actions as Prisma.InputJsonValue,
       removals: r.removals as Prisma.InputJsonValue,
-      breakdown: { ...input.breakdown, promptVersion: input.promptVersion } as unknown as Prisma.InputJsonValue,
+      breakdown: storedBreakdown(input.breakdown, input) as Prisma.InputJsonValue,
       hardRequirements: r.hard_requirements as Prisma.InputJsonValue,
     },
   });
@@ -262,14 +264,37 @@ export async function getLatestMatchForJob(jobId: number): Promise<ResumeMatch |
 /** A fact flip recomputes the stored score deterministically — no AI call. */
 export async function updateMatchScoring(
   id: number,
-  input: { keywords: MatchKeyword[]; breakdown: ScoreBreakdown; promptVersion: number | null },
+  input: { keywords: MatchKeyword[]; breakdown: ScoreBreakdown; promptVersion: number | null; mode: MatchMode },
 ): Promise<ResumeMatch> {
   return prisma.resumeMatch.update({
     where: { id },
     data: {
       keywords: input.keywords as Prisma.InputJsonValue,
-      breakdown: { ...input.breakdown, promptVersion: input.promptVersion } as unknown as Prisma.InputJsonValue,
+      breakdown: storedBreakdown(input.breakdown, input) as Prisma.InputJsonValue,
       matchScore: input.breakdown.score,
+    },
+  });
+}
+
+/**
+ * The lazy second call lands: a quick check becomes a full analysis; the
+ * verdicts and the score stay (ADR 0029). The breakdown is re-read here, not
+ * taken from the caller: a fact confirmation during the ~40 s call rewrites
+ * that JSON, and writing back a snapshot would silently undo it.
+ */
+export async function updateMatchSuggestions(
+  id: number,
+  suggestions: MatchSuggestions,
+): Promise<ResumeMatch> {
+  const current = await prisma.resumeMatch.findUniqueOrThrow({ where: { id }, select: { breakdown: true } });
+  return prisma.resumeMatch.update({
+    where: { id },
+    data: {
+      strengths: suggestions.strengths,
+      cautions: suggestions.cautions,
+      actions: suggestions.actions as Prisma.InputJsonValue,
+      removals: suggestions.removals as Prisma.InputJsonValue,
+      breakdown: withSuggestionsMode(current.breakdown) as Prisma.InputJsonValue,
     },
   });
 }

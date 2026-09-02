@@ -116,6 +116,8 @@ export const JobDetailPage: FC<JobDetailProps> = ({
         <form method="post" action={`/jobs/${job.id}/match`}>
           <input type="hidden" name="resumeId" value={resumeMatch.selected.resumeId} />
           <input type="hidden" name="force" value="1" />
+          {/* Repeat the comparison the user asked for, not the default one. */}
+          <input type="hidden" name="mode" value={flash.mode ?? 'fast'} />
           <Button variant="secondary" size="sm">
             Re-run anyway
           </Button>

@@ -29,6 +29,7 @@ import {
   type MatchHardRequirement,
   type MatchKeyword,
 } from '../../resume/prompts';
+import { readMatchMode } from '../../resume/match-mode';
 import { readBreakdown, type ScoreBreakdown } from '../../resume/score';
 import { diffMatches } from '../../resume/diff';
 
@@ -91,6 +92,9 @@ export const ResumeMatchCard: FC<ResumeMatchCardProps> = ({
         </Hint>
       ) : (
         <form method="post" action={`/jobs/${jobId}/match`} class="flex flex-wrap items-end gap-3" onsubmit={SUBMIT_ONCE}>
+          {/* Set by the second button's click: SUBMIT_ONCE disables the buttons in the
+              submit event, and a disabled submitter is left out of the form data. */}
+          <input type="hidden" name="mode" value="fast" />
           <label class="block min-w-0 max-w-full">
             <span class="block text-[13px] font-medium text-ink">Resume</span>
             <Select name="resumeId" class="mt-1.5 !w-auto max-w-full">
@@ -107,10 +111,21 @@ export const ResumeMatchCard: FC<ResumeMatchCardProps> = ({
               ))}
             </Select>
           </label>
-          <Button variant="violet">Compare</Button>
+          <Button variant="violet" title="Keywords, hard requirements and the score — no edit suggestions">
+            Compare
+          </Button>
+          <Button
+            variant="secondary"
+            onclick="this.form.elements.mode.value='full'"
+            title="The same check plus what to change and what to remove"
+          >
+            Full analysis
+          </Button>
           <Hint class="basis-full">
-            One call to the resume model — 1½ to 2 minutes on Opus. The score itself is computed
-            deterministically from the reply — same facts, same number, every time.
+            Compare is the quick check — one call to the resume model, about half a minute on
+            Opus, and you can ask for the suggestions afterwards. Full analysis writes them right
+            away and takes 1½ to 2 minutes. The score itself is computed deterministically from
+            the reply — same facts, same number, every time.
           </Hint>
         </form>
       )}
@@ -323,12 +338,42 @@ export const MatchReport: FC<{
         back={factsBack}
       />
 
-      <ActionsBlock actions={readActions(match.actions)} />
-      <RemovalsBlock removals={readRemovals(match.removals)} />
+      {readMatchMode(match.breakdown) === 'fast' ? (
+        <SuggestionsPrompt matchId={match.id} jobId={match.jobId} />
+      ) : (
+        <>
+          <ActionsBlock actions={readActions(match.actions)} />
+          <RemovalsBlock removals={readRemovals(match.removals)} />
+        </>
+      )}
       <KeywordTable keywords={keywords} />
     </div>
   );
 };
+
+/**
+ * What a quick check shows where the suggestions would be: the second call is
+ * one button away and never changes the score (ADR 0029).
+ */
+export const SuggestionsPrompt: FC<{ matchId: number; jobId: number; next?: 'target' }> = ({
+  matchId,
+  jobId,
+  next,
+}) => (
+  <div class="rounded-md border border-line bg-surface-overlay/50 p-3">
+    <div class={SUBHEAD}>What to change — not written yet</div>
+    <p class="mb-2.5 text-sm leading-6 text-ink-muted">
+      This was a quick check: keywords, hard requirements and the score. Edit suggestions are a
+      second call to the resume model that reuses these verdicts — about a minute on Opus, and the
+      score stays exactly as it is.
+    </p>
+    <ActionForm action={`/jobs/${jobId}/matches/${matchId}/suggestions`} hidden={next ? { next } : undefined}>
+      <Button size="sm" variant="violet">
+        Get suggestions
+      </Button>
+    </ActionForm>
+  </div>
+);
 
 /** Version-over-version diff: gained/lost keywords + component deltas. */
 export const DeltaBox: FC<{ match: MatchWithResume; previous: MatchWithResume | null }> = ({

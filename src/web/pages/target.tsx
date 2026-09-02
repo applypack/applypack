@@ -7,6 +7,7 @@ import { fitTone, formatRelative, type Tone } from '../format';
 import type { MatchWithResume } from '../../resume/store';
 import { withTableAliases } from '../../resume/keyword-aliases';
 import { readActions, readHardRequirements, readKeywords, readRemovals } from '../../resume/prompts';
+import { readMatchMode } from '../../resume/match-mode';
 import { readBreakdown } from '../../resume/score';
 import {
   ActionsBlock,
@@ -17,6 +18,7 @@ import {
   MatchSignals,
   RemovalsBlock,
   ScoreBreakdownChips,
+  SuggestionsPrompt,
 } from './resume-match-card';
 import { ACCEPTED_EXTENSIONS } from '../../resume/resume-text';
 
@@ -26,7 +28,7 @@ import { ACCEPTED_EXTENSIONS } from '../../resume/resume-text';
  * (nothing is saved until "Save as new version"); highlights and the live
  * estimate re-render on every keystroke from /static/target-page.mjs. The AI
  * match (keywords, actions, removals) is the fixed frame the live score works
- * within — "Re-analyze with AI" sends the edited text back to Claude.
+ * within — "Re-check with AI" sends the edited text back to Claude.
  *
  * Layout rule (external UX audit, docs/archive/applypack-resume-match-ux-refactor.md):
  * everything needed for a decision — score, hard-requirement gates, confirm
@@ -109,6 +111,8 @@ export const TargetPage: FC<TargetPageProps> = ({
   const hard = readHardRequirements(match.hardRequirements);
   const asks = keywords.filter((k) => k.status === 'ask_user');
   const highActions = actions.filter((a) => a.priority === 'high').length;
+  // A quick check has no suggestions yet — the tab offers the second call instead (ADR 0029).
+  const fast = readMatchMode(match.breakdown) === 'fast';
   const breakdown = readBreakdown(match.breakdown);
   const recent = matches.slice(0, RECENT_RUNS);
   const shownRuns = recent.some((m) => m.id === match.id)
@@ -159,6 +163,8 @@ export const TargetPage: FC<TargetPageProps> = ({
             value="1"
             variant="secondary"
             size="sm"
+            // Repeats the comparison the user asked for, not the form's default.
+            onclick={`document.getElementById('reanalyze-form').elements.mode.value='${flash.mode === 'full' ? 'full' : 'fast'}'`}
             title="Spend a fresh resume-model call on the text in the editor"
           >
             Re-run anyway
@@ -202,7 +208,7 @@ export const TargetPage: FC<TargetPageProps> = ({
             the middle, never under 14rem — the rail grows while editing) | actions
             rail. The gates line spans the full width below. */}
         <div class="grid grid-cols-1 items-start gap-x-8 gap-y-4 lg:grid-cols-[auto_minmax(14rem,1fr)_auto]">
-          {/* Primary: the honest score — the AI rubric verdict. Static until Re-analyze. */}
+          {/* Primary: the honest score — the AI rubric verdict. Static until a re-check. */}
           <div class="flex items-center gap-4">
             <svg viewBox="0 0 96 96" class="h-20 w-20 -rotate-90" aria-hidden="true">
               <circle cx="48" cy="48" r="40" fill="none" stroke="rgb(var(--line))" stroke-width="8" />
@@ -229,13 +235,14 @@ export const TargetPage: FC<TargetPageProps> = ({
                 AI match ·{' '}
                 <span class={AI_TONE[fitTone(match.matchScore)]}>{matchQuality(match.matchScore)}</span>
                 <span id="ai-stale" hidden class="font-medium text-warn">
-                  edited — Re-analyze to refresh
+                  edited — re-check to refresh
                 </span>
               </div>
               {/* Which resume/version is named by the pane header and the run chips —
                   repeating it here was pure duplication. */}
               <div class="mt-0.5 text-xs text-ink-faint">
-                {match.draft ? 'draft · ' : ''}analyzed {formatRelative(match.createdAt)}
+                {match.draft ? 'draft · ' : ''}
+                {fast ? 'quick check' : 'full analysis'} {formatRelative(match.createdAt)}
               </div>
               {match.matchScore >= READY_TO_APPLY && (
                 <div class="mt-1 text-[13px] font-medium text-ok">
@@ -249,15 +256,21 @@ export const TargetPage: FC<TargetPageProps> = ({
           <div class="min-w-0 space-y-1.5">
             <p class="text-sm leading-6 text-ink">{match.summary}</p>
             {breakdown && <ScoreBreakdownChips bd={breakdown} />}
-            {(actions.length > 0 || removals.length > 0) && (
+            {(fast || actions.length > 0 || removals.length > 0) && (
               <button
                 type="button"
                 data-goto-tab="changes"
                 class="cursor-pointer text-left text-[13px] font-medium text-accent-strong transition-colors duration-150 hover:text-accent-deep"
               >
-                {actions.length} suggested edits
-                {highActions > 0 ? ` (${highActions} high)` : ''}
-                {removals.length > 0 ? ` · ${removals.length} removals` : ''}
+                {fast ? (
+                  'Keywords only — get edit suggestions'
+                ) : (
+                  <>
+                    {actions.length} suggested edits
+                    {highActions > 0 ? ` (${highActions} high)` : ''}
+                    {removals.length > 0 ? ` · ${removals.length} removals` : ''}
+                  </>
+                )}
                 {' →'}
               </button>
             )}
@@ -267,7 +280,7 @@ export const TargetPage: FC<TargetPageProps> = ({
           <div class="flex flex-col gap-3 lg:items-end">
             <div class="flex flex-wrap items-center gap-2">
             {/* One visible action — a fresh file is how a better match usually happens.
-                Re-analyze and Save live in the ⋯ menu; the sticky bar resurfaces them while editing.
+                Re-check and Save live in the ⋯ menu; the sticky bar resurfaces them while editing.
                 data-menu opts into light dismiss (outside click / Escape) in target-page.mjs. */}
             <details class="relative" data-menu>
               <summary class={`${SUMMARY_BUTTON} bg-accent-strong px-3 text-white shadow-sm hover:bg-accent-deep`}>
@@ -289,7 +302,7 @@ export const TargetPage: FC<TargetPageProps> = ({
                   {/* Set by the second button's click, not by the submitter's value: SUBMIT_ONCE
                       disables the buttons in the submit event, and a disabled submitter is left
                       out of the form data. */}
-                  <input type="hidden" name="mode" value="check" />
+                  <input type="hidden" name="uploadMode" value="check" />
                   <input
                     type="file"
                     name="file"
@@ -304,19 +317,19 @@ export const TargetPage: FC<TargetPageProps> = ({
                     size="sm"
                     variant="secondary"
                     class="w-full"
-                    onclick="this.form.elements.mode.value='analyze'"
+                    onclick="this.form.elements.uploadMode.value='analyze'"
                     title={
                       resume.ephemeral
-                        ? 'Replaces this comparison with a fresh AI analysis (~2 min)'
-                        : `Saves the file as v${resume.version + 1} and runs the AI analysis (~2 min); the scan runs in the background`
+                        ? 'Replaces this comparison with a fresh quick AI check (~½ min)'
+                        : `Saves the file as v${resume.version + 1} and runs the quick AI check (~½ min); the scan runs in the background`
                     }
                   >
-                    {resume.ephemeral ? 'Upload & analyze with AI' : `Upload as v${resume.version + 1} & analyze with AI`}
+                    {resume.ephemeral ? 'Upload & check with AI' : `Upload as v${resume.version + 1} & check with AI`}
                   </Button>
                   <Hint>
                     Check opens the new text as an unsaved draft scored against this analysis: the text confirms
                     what is present, while add / confirm / can't-claim keep the AI's verdict on the analysed
-                    version until you Re-analyze.{' '}
+                    version until you re-check.{' '}
                     {resume.ephemeral
                       ? 'Nothing lands in your Resumes either way.'
                       : `Nothing is saved — Save as v${resume.version + 1} keeps the text, not the file.`}
@@ -340,8 +353,18 @@ export const TargetPage: FC<TargetPageProps> = ({
                   <input type="hidden" name="resumeId" value={resume.id} />
                   <input type="hidden" name="draftText" id="reanalyze-text" value="" />
                   <input type="hidden" name="next" value="target" />
-                  <Button variant="violet" class="w-full" title="Sends the text in the editor to the resume model (~2 min)">
-                    Re-analyze with AI
+                  {/* Set by the full-analysis button's click — a disabled submitter is left out of the form data. */}
+                  <input type="hidden" name="mode" value="fast" />
+                  <Button variant="violet" class="w-full" title="Re-scores the text in the editor: keywords, gates and the number (~½ min on Opus)">
+                    Re-check with AI
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    class="mt-2 w-full"
+                    onclick="this.form.elements.mode.value='full'"
+                    title="The same check plus fresh edit suggestions (~2 min on Opus)"
+                  >
+                    Full analysis with suggestions
                   </Button>
                 </form>
                 {!resume.ephemeral && (
@@ -358,7 +381,7 @@ export const TargetPage: FC<TargetPageProps> = ({
                       class="w-full"
                       id="save-button"
                       disabled
-                      title={`Enabled once you edit the text — saves it as v${resume.version + 1} (a text version, not a file), re-scans and re-analyzes (~2 min)`}
+                      title={`Enabled once you edit the text — saves it as v${resume.version + 1} (a text version, not a file), re-scans and re-checks (~1 min)`}
                     >
                       Save as v{resume.version + 1}
                     </Button>
@@ -387,8 +410,8 @@ export const TargetPage: FC<TargetPageProps> = ({
               </div>
               <Hint class="mt-1">
                 {breakdown
-                  ? "Same formula as the AI score, live as you type — the text confirms what is present; add / confirm / can't-claim keep the AI's verdict on the analysed version. Re-analyze to make it official."
-                  : 'Keywords only, live as you type. Re-analyze to get the full score.'}
+                  ? "Same formula as the AI score, live as you type — the text confirms what is present; add / confirm / can't-claim keep the AI's verdict on the analysed version. Re-check to make it official."
+                  : 'Keywords only, live as you type. Re-check to get the full score.'}
               </Hint>
             </div>
           </div>
@@ -482,8 +505,8 @@ export const TargetPage: FC<TargetPageProps> = ({
           </div>
           <Hint class="mt-2">
             {resume.ephemeral
-              ? 'Plain text — what an ATS parser sees. Edits stay in this browser tab until you Re-analyze. Click a suggestion to select the text it targets.'
-              : 'Plain text — what an ATS parser sees. Edits stay in this browser tab until you Re-analyze or Save. Click a suggestion to select the text it targets.'}
+              ? 'Plain text — what an ATS parser sees. Edits stay in this browser tab until you re-check. Click a suggestion to select the text it targets.'
+              : 'Plain text — what an ATS parser sees. Edits stay in this browser tab until you re-check or Save. Click a suggestion to select the text it targets.'}
           </Hint>
         </Card>
 
@@ -491,8 +514,14 @@ export const TargetPage: FC<TargetPageProps> = ({
           <Card>
             <div class="space-y-5">
               <DeltaBox match={match} previous={previous} />
-              <ActionsBlock actions={actions} jumpable />
-              <RemovalsBlock removals={removals} jumpable />
+              {fast ? (
+                <SuggestionsPrompt matchId={match.id} jobId={job.id} next="target" />
+              ) : (
+                <>
+                  <ActionsBlock actions={actions} jumpable />
+                  <RemovalsBlock removals={removals} jumpable />
+                </>
+              )}
               <MatchSignals match={match} />
               <KeywordTable keywords={keywords} />
             </div>
@@ -519,14 +548,14 @@ export const TargetPage: FC<TargetPageProps> = ({
               Discard
             </Button>
             <Button variant="violet" size="sm" form="reanalyze-form">
-              Re-analyze with AI
+              Re-check with AI
             </Button>
             {!resume.ephemeral && (
               <Button
                 variant="secondary"
                 size="sm"
                 form="save-form"
-                title={`Saves the text as v${resume.version + 1} (a text version, not a file), re-scans and re-analyzes (~2 min)`}
+                title={`Saves the text as v${resume.version + 1} (a text version, not a file), re-scans and re-checks (~1 min)`}
               >
                 Save as v{resume.version + 1}
               </Button>

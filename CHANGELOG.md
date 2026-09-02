@@ -4,6 +4,62 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.16.0] — 2026-09-02
+
+### Added
+- **A comparison is a quick check by default; the edit suggestions are a
+  second call** ([docs/target-plan.md](docs/target-plan.md) §3.2 items 6-7,
+  TASKS §13 block 4, [ADR 0029](docs/adr/0029-quick-check-and-lazy-suggestions.md)).
+  **Compare** on `/jobs/:id`, **Re-check with AI** on the targeted view and
+  the **Compare** button on `/target` now run one shorter call that returns
+  exactly what the score is computed from — every keyword with its
+  requirement level, primary flag and status, the alignment grades, the
+  hard-requirement gates and the red flags. The number is identical to
+  before, because `score.ts` never read the suggestions.
+- **Get suggestions** fills a quick check in afterwards: a second call that
+  reads the stored verdicts and writes only what to change, what to remove,
+  what already sells you and the soft concerns. The verdicts and the score
+  are not re-judged, so a filled-in analysis equals one that was full from
+  the start, and asking for a full analysis of text already quick-checked
+  costs the suggestions call alone.
+- **Full analysis** stays one click away everywhere the quick check runs, and
+  is what the cover-letter flow asks for (a letter leads with strengths).
+- **The tiered keyword budget** ([docs/target-plan.md](docs/target-plan.md)
+  §4 F1): every `must` and `preferred` term the posting names is always
+  listed; the soft cap of ~25 keywords now applies only to `nice` and
+  `context` terms, so an important word can no longer fall off the end of a
+  long list.
+
+### Changed
+- `PROMPT_VERSION` 5 → 6, once, for all three prompt changes. Analyses stored
+  under v5 are no longer reused for a new run, which is what a bump means.
+- The two match prompts are assembled from the same rule constants, so the
+  quick check carries the primary-stack gate, the verbatim rule, the
+  consistency rule and the red-flag rules verbatim — the guard tests assert
+  every one of them against **both** variants.
+- Progress pages name what is running: *Quick AI check*, *Full AI analysis*,
+  *Edit suggestions*, each with its measured duration.
+
+### Measured (2026-09-02, `claude_code` CLI engine, 5 gold fixtures per run)
+- Opus, quick check vs full report, prompt v6: **p50 15 s vs 24 s**, 77 s vs
+  116 s for the whole suite, **2591 vs 4373 reply characters**; all checks
+  green in both, keyword statuses agreeing 98%.
+- Sonnet was measured for the resume role and **is not the faster option
+  here**: p50 52 s full and 26 s quick against Opus's 24 s and 15 s, at 95%
+  and 93% status agreement and 77% term overlap (a less stable keyword frame
+  than Opus's 88%). The default `CLAUDE_MODEL_RESUME` stays `claude-opus-5`;
+  the per-engine "Resume model" select on `/settings` remains the speed dial.
+- Live on job #1393 (Docker, Opus, a 4 988-character posting): the quick
+  check took **40 s and scored 66 — the same number the v5 full analysis
+  gave**; "Get suggestions" then took 35 s and wrote 10 edits and 8 removals
+  onto the same row. A full analysis of the same pair took 77 s.
+- All four bench runs (both models × both modes) passed every gold check.
+
+### Notes
+- No schema change: the mode marker rides inside the `breakdown` JSON next to
+  the prompt version, and rows written before it read as full analyses,
+  which is what they are.
+
 ## [1.15.0] — 2026-09-02
 
 ### Added
@@ -1020,6 +1076,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[1.16.0]: https://github.com/applypack/applypack/compare/v1.15.0...v1.16.0
 [1.15.0]: https://github.com/applypack/applypack/compare/v1.14.0...v1.15.0
 [1.14.0]: https://github.com/applypack/applypack/compare/v1.13.0...v1.14.0
 [1.13.0]: https://github.com/applypack/applypack/compare/v1.12.0...v1.13.0

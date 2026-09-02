@@ -5,7 +5,8 @@ import { classifyInBackground } from '../../jobs/classify-existing';
 import { createManualJob, ManualJobSchema, MAX_FIELD_CHARS, MIN_DESCRIPTION_CHARS } from '../../jobs/manual-job';
 import { extractPostingFacts, fallbackTitle } from '../../jobs/posting-extract';
 import { findReusableMatch, matchResumeToJob } from '../../resume/match';
-import { reuseNotice } from '../../resume/match-reuse';
+import { parseMatchMode } from '../../resume/match-mode';
+import { reuseNotice, suggestNotice } from '../../resume/match-reuse';
 import {
   deleteCoverLettersForResume,
   deleteMatchesForResume,
@@ -20,7 +21,8 @@ import { TargetStartPage } from '../pages/target-start';
 import { TargetRunPage } from '../pages/target-run';
 import { clearFlashCookie, flashRedirect, parseFlashCookie } from '../flash';
 import { formatRelative } from '../format';
-import { createRun, getRun, startRun, updateRun, type RunStep } from '../target-runs';
+import { startSuggestionsRun } from '../suggestions-run';
+import { createRun, getRun, matchStep, startRun, updateRun, type RunStep } from '../target-runs';
 import {
   MAX_RESUME_NAME_CHARS,
   nameFromFilename,
@@ -38,6 +40,8 @@ const TargetFormSchema = ManualJobSchema.extend({
   companyName: z.string().trim().max(MAX_FIELD_CHARS).default(''),
   title: z.string().trim().max(MAX_FIELD_CHARS).default(''),
   resumeMode: z.enum(['existing', 'upload', 'paste']),
+  /** The quick check unless "Full analysis" was pressed (ADR 0029). */
+  mode: z.unknown().transform(parseMatchMode),
   resumeId: z.coerce.number().int().optional(),
   resumeText: z.string().optional().default(''),
   uploadName: z.string().optional().default(''),
@@ -149,7 +153,7 @@ targetRoute.post('/target', resumeUploadLimit('/target'), async (c) => {
     };
   }
 
-  const steps: RunStep[] = needExtract ? ['extract', 'match'] : ['match'];
+  const steps: RunStep[] = needExtract ? ['extract', matchStep(f.mode)] : [matchStep(f.mode)];
   const run = createRun({
     steps,
     jobTitle: title || 'Detecting the role…',
@@ -172,7 +176,7 @@ targetRoute.post('/target', resumeUploadLimit('/target'), async (c) => {
         const label = workplace === 'onsite' ? 'on-site' : workplace;
         location = location ? `${location} (${label})` : label;
       }
-      updateRun(run.id, { stage: 'match', jobTitle: title });
+      updateRun(run.id, { stage: matchStep(f.mode), jobTitle: title });
     }
 
     // 1. The posting becomes a normal MANUAL job (deduped). A new one is
@@ -195,16 +199,28 @@ targetRoute.post('/target', resumeUploadLimit('/target'), async (c) => {
     const job = result.job;
     if (result.kind === 'created') classifyInBackground(result.job);
     updateRun(run.id, { jobId: job.id });
+    const jobInput = { id: job.id, title: job.title, companyName, location: job.location, description: job.description };
 
     // 2. The same text against the same posting is already answered — a
-    //    double submit or a re-paste shows the stored analysis instead.
-    const reused = await findReusableMatch(job.id, resume.id, resume.text);
-    if (reused) {
+    //    double submit or a re-paste shows the stored analysis instead. A
+    //    full analysis asked of a stored quick check needs only the
+    //    suggestions call, which gets its own run.
+    const reused = await findReusableMatch(job.id, resume.id, resume.text, f.mode);
+    if (reused?.decision === 'reuse') {
       updateRun(run.id, {
         stage: 'done',
-        resultUrl: `/jobs/${job.id}/target?match=${reused.id}`,
-        flash: reuseNotice(formatRelative(reused.createdAt)),
+        resultUrl: `/jobs/${job.id}/target?match=${reused.row.id}`,
+        flash: reuseNotice(formatRelative(reused.row.createdAt)),
         reused: true,
+      });
+      return;
+    }
+    if (reused) {
+      const page = `/jobs/${job.id}/target?match=${reused.row.id}`;
+      updateRun(run.id, {
+        stage: 'done',
+        resultUrl: startSuggestionsRun({ match: reused.row, job: jobInput, resumeName: resume.name, resultUrl: page }),
+        flash: suggestNotice(formatRelative(reused.row.createdAt)),
       });
       return;
     }
@@ -235,13 +251,8 @@ targetRoute.post('/target', resumeUploadLimit('/target'), async (c) => {
     // 4. One resume-model call, then straight into the targeted workspace.
     const row = await matchResumeToJob(
       { id: resume.id, version: resume.version, text: resume.text },
-      {
-        id: job.id,
-        title: job.title,
-        companyName,
-        location: job.location,
-        description: job.description,
-      },
+      jobInput,
+      { mode: f.mode },
     );
     if (!row) {
       updateRun(run.id, {
@@ -254,7 +265,7 @@ targetRoute.post('/target', resumeUploadLimit('/target'), async (c) => {
       stage: 'done',
       resultUrl: `/jobs/${job.id}/target?match=${row.id}`,
       flash:
-        `AI match ${row.matchScore}/100 — "${resume.name}" vs "${job.title}".` +
+        `AI match ${row.matchScore}/100 — "${resume.name}" vs "${job.title}"${f.mode === 'fast' ? ' (quick check: keywords, gates and score).' : '.'}` +
         (result.kind === 'created' ? ' The fit score is still being scored; it lands on the job page in about a minute.' : ''),
     });
   });

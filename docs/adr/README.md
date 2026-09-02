@@ -37,6 +37,7 @@ consequences (what we accept). Aim for 15–30 lines each.
 - [0026 — Database tables are snake_case, mapped with `@@map()`](./0026-snake-case-table-names.md)
 - [0027 — Per-engine AI keys live in the database, `.env` as fallback](./0027-ai-keys-in-the-database.md)
 - [0028 — Several searches run in parallel, scored by one call per posting](./0028-parallel-searches-one-call-per-posting.md) *(supersedes 0004)*
+- [0029 — A comparison is a quick check by default; suggestions are a second call](./0029-quick-check-and-lazy-suggestions.md)
 
 ## When to write a new one
 
