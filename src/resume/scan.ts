@@ -11,6 +11,7 @@ export async function scanResume(resume: { id: number; text: string }): Promise<
   const prompt = buildScanPrompt(resume.text);
   const ai = await getAiRuntime();
   for (let attempt = 0; attempt < PARSE_ATTEMPTS; attempt++) {
+    const started = Date.now();
     const out = await ai.complete({
       ...prompt,
       maxTokens: SCAN_MAX_TOKENS,
@@ -23,7 +24,13 @@ export async function scanResume(resume: { id: number; text: string }): Promise<
     if (parsed.ok) {
       await saveResumeScan(resume.id, parsed.data);
       logger.info(
-        { id: resume.id, skills: parsed.data.skills.length, issues: parsed.data.issues.length },
+        {
+          id: resume.id,
+          skills: parsed.data.skills.length,
+          issues: parsed.data.issues.length,
+          attempt,
+          ms: Date.now() - started,
+        },
         'resume: scanned',
       );
       return parsed.data;

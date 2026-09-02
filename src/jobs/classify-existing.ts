@@ -20,6 +20,7 @@ export async function classifyExistingJob(
   job: Job & { company: { name: string; atsType: AtsType } },
   opts: { keepStatus: boolean },
 ): Promise<boolean> {
+  const started = Date.now();
   // Blank searches are dropped here exactly as in the tick and in
   // "Re-classify all" (issue #50) — otherwise this path, and only this path,
   // would store a vibes-based verdict next to the real ones.
@@ -53,5 +54,9 @@ export async function classifyExistingJob(
   }
 
   await saveJobScores(job, merged, verdicts, status);
+  logger.info(
+    { jobId: job.id, searches: profiles.length, kept: merged.kept, ms: Date.now() - started },
+    'classify-existing: scored',
+  );
   return true;
 }

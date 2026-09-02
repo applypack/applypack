@@ -61,7 +61,14 @@ export function createRun(
 export function updateRun(id: string, patch: Partial<Omit<TargetRun, 'id'>>): void {
   const run = runs.get(id);
   if (!run) return;
-  if (patch.stage && patch.stage !== run.stage) run.stageAt = Date.now();
+  if (patch.stage && patch.stage !== run.stage) {
+    const now = Date.now();
+    logger.info(
+      { runId: id, step: run.stage, ms: now - run.stageAt, next: patch.stage, totalMs: now - run.startedAt },
+      'run: step finished',
+    );
+    run.stageAt = now;
+  }
   Object.assign(run, patch);
 }
 
