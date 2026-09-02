@@ -286,7 +286,7 @@ const SearchCard: FC<ResumeDetailProps['search'] & { resumeId: number }> = ({
             jobs you'd apply to with this resume:
           </p>
           <div class="mt-2.5 flex flex-wrap items-center gap-1.5 text-sm">
-            <span class="font-medium text-ink">"{draft.changes.name ?? 'New profile'}"</span>
+            <span class="font-medium text-ink">"{draft.changes.name}"</span>
             {(draft.changes.stackRequired ?? []).map((t) => (
               <Tag tone="ok">{t}</Tag>
             ))}

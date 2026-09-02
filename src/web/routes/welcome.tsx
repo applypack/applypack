@@ -3,7 +3,7 @@ import { Hono } from 'hono';
 import { CronRunStatus, JobStatus, type Profile } from '@prisma/client';
 import { prisma } from '../../db';
 import { getAiKeys, setAiKey, setFetchingEnabled, setSetupCompleted } from '../../settings';
-import { blankProfileInput, updateProfile, type ProfileInput } from '../../profiles';
+import { updateProfile, type ProfileInput } from '../../profiles';
 import { passesBaseFilter } from '../../filter';
 import { parsePriorityRules } from '../../priority-rules';
 import { parseTagList, toStringArray } from '../../text-utils';
@@ -22,7 +22,7 @@ import {
   SENIORITY_LEVELS,
   type ProfileForDraft,
 } from '../../resume/profile-draft';
-import { createProfileFromResume, scanFields } from '../profile-from-resume';
+import { createProfileFromResume, newProfileDraft, scanFields } from '../profile-from-resume';
 import { recordCronRun, type CronStats } from '../../jobs/cron-run';
 import { runScoreUnscored, SCORE_BATCH } from '../../jobs/reclassify-job';
 import { activeFetchRun } from '../fetch-runs';
@@ -79,9 +79,7 @@ welcomeRoute.get('/welcome', async (c) => {
   const resumeId = Number(c.req.query('resume'));
   const asNew = c.req.query('mode') === 'new';
   const draftResume = Number.isFinite(resumeId) && profile ? await getResume(resumeId) : null;
-  const draft = draftResume && profile
-    ? draftCard(asNew ? blankProfileInput() : profile, draftResume, asNew)
-    : null;
+  const draft = draftResume && profile ? draftCard(profile, draftResume, asNew) : null;
 
   return c.html(
     <WelcomePage
@@ -348,17 +346,18 @@ async function countWaitingUnscored(profile: Profile): Promise<number> {
   return rows.filter((j) => passesBaseFilter(j, profile)).length;
 }
 
+/** asNew drafts a second search off a blank base; otherwise it fills `profile`. */
 function draftCard(
-  base: ProfileForDraft,
+  profile: ProfileForDraft,
   resume: ResumeSummary,
   asNew: boolean,
 ): ProfileDraftCard | null {
   if (!resume.scannedAt || resume.hidden) return null;
-  const draft = buildProfileDraft(base, scanFields(resume));
+  const draft = asNew ? newProfileDraft(resume) : buildProfileDraft(profile, scanFields(resume));
   const primary = draft.changes.stackRequired ?? resume.primarySkills;
   return {
     asNew,
-    profileName: draft.changes.name ?? base.name,
+    profileName: draft.changes.name ?? profile.name,
     resumeId: resume.id,
     resumeName: resume.name,
     title: resume.title,

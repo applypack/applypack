@@ -23,8 +23,12 @@ export function scanFields(resume: ResumeSummary): ScanForDraft {
   };
 }
 
+/** The draft a "create a search" button would save. `changes.name` is always set. */
 export function newProfileDraft(resume: ResumeSummary): ProfileDraft {
-  return buildProfileDraft(blankProfileInput(), scanFields(resume));
+  const draft = buildProfileDraft(blankProfileInput(), scanFields(resume));
+  // A scan with no headline leaves the base name, "New profile" — the resume's
+  // own name says more, and the user renames either one in the editor.
+  return { ...draft, changes: { ...draft.changes, name: draft.changes.name ?? resume.name } };
 }
 
 /**
