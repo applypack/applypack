@@ -20,6 +20,7 @@ import { factsRoute } from './routes/facts';
 import { keywordsRoute } from './routes/keywords';
 import { healthRoute } from './routes/health';
 import { welcomeRoute } from './routes/welcome';
+import { csrfProtection } from './csrf';
 
 const app = new Hono();
 
@@ -39,6 +40,8 @@ app.use(
     referrerPolicy: 'no-referrer',
   }),
 );
+
+app.use('*', csrfProtection());
 
 if (config.WEB_BASIC_AUTH) {
   const [username, ...rest] = config.WEB_BASIC_AUTH.split(':');

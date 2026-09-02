@@ -76,13 +76,10 @@ dashboard binds to `127.0.0.1` by default (config.ts `WEB_HOST`), Postgres
 is not published beyond the compose network, and the dashboard is
 single-user. What does not bound it: nothing else. A user who wants the key
 off the disk keeps using `.env` — that path is not deprecated.
-❌ The save route has no CSRF protection, because no route in this dashboard
-does. A page open in the same browser can POST a key of its own choosing to
-`127.0.0.1:4747` — it cannot read the stored one, but it can point the user's
-AI calls at an account it controls. That is the same class of exposure as
-every other unauthenticated POST here (delete a Telegram target, change the
-profile); this ADR does not fix it, it records that adding credentials to the
-surface makes fixing it worth scheduling.
+✅ **CSRF protection implemented (Issue #69).** All mutating routes (including
+the key-save route) are protected against cross-site POSTs via `Sec-Fetch-Site`
+and `Origin` header validation in `src/web/csrf.ts`. Cross-site requests from
+other origins or different local ports are rejected with 403 Forbidden.
 ❌ Encryption at rest was rejected, not overlooked: the decryption key would
 have to live in `.env`, which moves the secret rather than removing it, and
 reintroduces the file edit this ADR exists to delete. An OS keychain does
