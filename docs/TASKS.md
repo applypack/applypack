@@ -775,9 +775,9 @@ Telegram explicitly optional.
 
 ## 12. /resumes overhaul + on-demand resume strength review (analysis 2026-08-31)
 
-Full plan: [docs/resumes-plan.md](./resumes-plan.md). **In progress —
-Part A's P0/P1 findings shipped in v1.12.0**; Part B (the strength
-review) is still analysis only. Original audit: browser pass over the
+Full plan: [docs/resumes-plan.md](./resumes-plan.md). **Part A shipped in
+v1.12.0, Part B's review shipped 2026-09-02**; what is left is the
+metric-ask loop and three quick wins. Original audit: browser pass over the
 live page at desktop + 375px, plus code verification.
 
 Driver: `/resumes` shows inventory, not effectiveness — no per-resume
@@ -798,10 +798,28 @@ icon; progress visible step-by-step via the target-run registry pattern.
       version badge (#6 rode along) — done 2026-09-02, branch
       `resumes-page-p0`. Findings #7 (facts add/flip), #8 (rename) and #9
       (polish) stay open in the quick-wins bullet below.
-- [ ] `resume-strength` — fenced `REVIEW_SYSTEM` (grades only — the model
+- [x] `resume-strength` — fenced `REVIEW_SYSTEM` (grades only — the model
       never outputs the score; pure `review-score.ts` applies hard caps,
       gotcha-11 guard test) + `ResumeReview` table + detail card + hub
-      column + run-page `review` step (**ADR**: new AI call site + table)
+      column + run-page `review` step — done 2026-09-02, branch
+      `resume-strength` ([ADR 0030](./adr/0030-resume-strength-review.md)).
+      Six dimensions graded `strong | ok | weak` with verbatim evidence,
+      weights 30/20/20/15/10/5 and two caps in code: weak `impact` caps at
+      55, two weak dimensions cap at 45. Advice either rewrites with facts
+      already in the resume or ASKS for the number it would need — the
+      ADR 0020/0021 stance on a new surface. Departures from the plan:
+      the sixth dimension is `polish` (positively phrased, so `strong`
+      always means good) and asks live inside their advice rows rather than
+      in a column of their own. Measured live
+      on the three stored resumes (Opus, CLI engine): **45 / 78 / 78** — the
+      45 is a raw 70 pulled down by the two-weak cap (a KEY SKILLS block whose
+      labels and values collapse into two unreadable lines, plus a typo and a
+      product version that did not exist when the role ended); the two 78s are
+      two variants of the same CV and drew an identical grade vector, which is
+      the right answer rather than a miss. First run 72.6 s / 12 110 reply
+      characters, 8 advice items, 4 asks. **Zero invented facts across 23
+      advice items** — several rewrites removed unsupportable percentages
+      instead of adding numbers.
 - [ ] `resume-strength-loop` — metric asks → user answers → re-run
       deltas; version-over-version strength trend
 - [ ] quick wins ride along where touched: facts add/flip on `/resumes`

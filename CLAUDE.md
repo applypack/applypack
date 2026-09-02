@@ -90,9 +90,10 @@
   (ADR 0012), `facts.ts`, `diff.ts`, `parse-warnings.ts`, `match-mode.ts`,
   `match-reuse.ts`, `bench-report.ts`,
   `profile-draft.ts` (ADR 0015), `fact-check.ts` (ADR 0020),
-  `keyword-overrides.ts`, `keyword-frame.ts` are pure (tested);
-  `scan.ts` / `match.ts` / `suggestions.ts` / `cover-letter.ts` call the AI
-  provider (the letter is gated by `fact-check.ts` and generates from stored
+  `keyword-overrides.ts`, `keyword-frame.ts`, `review-score.ts` (ADR 0030)
+  are pure (tested);
+  `scan.ts` / `match.ts` / `suggestions.ts` / `review.ts` / `cover-letter.ts`
+  call the AI provider (the letter is gated by `fact-check.ts` and generates from stored
   inputs only — ADR 0021); `store.ts` is the only file that touches Prisma.
   Web-only — the worker never imports it (ADR 0008).
 - A comparison has two shapes (ADR 0029): `matchResumeToJob(..., {mode})`
@@ -205,6 +206,8 @@ When the question is **"where does X live?"**, save yourself a `find`:
 | Fetch one posting page by URL (user-requested, not a crawler) | `src/jobs/posting-url.ts` — ADR 0005 blocklist + private-host SSRF guard; bot checks fail honestly |
 | "In another resume" evidence hints | `src/resume/store.ts:listOtherResumeSkills` → `facts.ts:annotateElsewhere` |
 | ATS parse warnings ("What the ATS sees") | `src/resume/parse-warnings.ts`, rendered on `/resumes/:id` |
+| Resume strength review (job-agnostic rubric) | `src/resume/review.ts` (the call) + `REVIEW_SYSTEM` in `prompts.ts`; card `src/web/pages/resume-review-card.tsx`, route `POST /resumes/:id/review` (ADR 0030) |
+| The strength formula (six dimensions, weights, the duties-only cap) | `src/resume/review-score.ts` (pure) — the model grades, the code scores, exactly as ADR 0012 does for the match |
 | Version delta (gained/lost keywords, component moves) | `src/resume/diff.ts:diffMatches`, rendered in `resume-match-card.tsx` |
 | Live smoke bench of the match prompt (3 gold fixtures) | `npm run bench:resume` — `src/scripts/resume-bench-once.ts` |
 | Compare-run progress pages (async classify/scan/match) | `src/web/target-runs.ts` (in-memory registry) + `src/web/pages/target-run.tsx`; started by `/target`, `/jobs/:id/match`, `/jobs/:id/target/reupload` |
@@ -251,6 +254,7 @@ When the question is **"how does the user toggle / configure X?"**:
 | Review newly discovered companies | `/discovery` (sorted by jobsSeen DESC) |
 | Toggle auto-discovery / HN parser | `/discovery` (card at the top; moved off `/settings` 2026-08-29) |
 | Upload / scan a resume | `/resumes` (the Settings card only lists + links) |
+| Ask how strong a resume is on its own (no posting) | `/resumes/:id` → "Resume strength" → Run strength review (one AI call, ~1 min; nothing runs on its own). Scores show in the `/resumes` Strength column |
 | Compare a resume with a posting | `/jobs/:id` → "Resume match" card — **Compare** = quick check (keywords, gates, score), **Full analysis** = also the edit suggestions (ADR 0029) |
 | Get the edit suggestions for a quick check | the comparison → "Get suggestions" (second call, reuses the stored verdicts, score unchanged) |
 | Re-level, ignore or add a keyword by hand | the keyword table on `/jobs/:id` or `/jobs/:id/target` → the "Wants it" select, `ignore` / `reset`, and "Add a keyword" (instant re-score, no AI call; the edit sticks to the posting across re-runs) |

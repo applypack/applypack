@@ -207,7 +207,13 @@ with visible progress and concrete make-it-stronger advice.
    P2/P3 items ride along only where the diff already touches them.
 2. **`resume-strength`** — Part B MVP: `REVIEW_SYSTEM` + zod schema + pure
    reply parser + pure `review-score.ts` caps + `ResumeReview` migration +
-   run-page step + detail card + hub column + ADR.
+   run-page step + detail card + hub column + ADR. **Shipped 2026-09-02**
+   ([ADR 0030](./adr/0030-resume-strength-review.md), numbers in TASKS §12):
+   six dimensions, weights 30/20/20/15/10/5, caps 55 (weak impact) and 45
+   (two weak) — live scores 45 / 78 / 78 on the stored resumes. Two
+   departures from §B.3 recorded in the ADR: the sixth dimension is `polish`
+   rather than an inverted "red flags", and asks live inside their advice
+   rows instead of a column of their own.
 3. **`resume-strength-loop`** — metric asks → answers → re-run deltas;
    version-over-version strength trend on the detail page (pairs naturally
    with A.2's grouped score history).
