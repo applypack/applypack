@@ -26,7 +26,7 @@ export async function runDigestJob(): Promise<{ stats: CronStats }> {
       scores: {
         include: { profile: { select: { name: true } } },
         orderBy: { fitScore: 'desc' },
-        take: 1,
+        take: 2,
       },
     },
     orderBy: [{ fitScore: 'desc' }, { fetchedAt: 'desc' }],
@@ -43,7 +43,9 @@ export async function runDigestJob(): Promise<{ stats: CronStats }> {
     techMatch: j.techMatch,
     redFlags: j.redFlags,
     summary: j.summary ?? '',
-    matchedProfile: j.scores[0]?.profile.name ?? null,
+    // Named only when the posting carries more than one verdict — with a
+    // single search the name is noise on every line.
+    matchedProfile: j.scores.length > 1 ? (j.scores[0]?.profile.name ?? null) : null,
   }));
 
   // Broadcast, not routed: the digest spans every search, so it goes to every

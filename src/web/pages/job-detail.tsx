@@ -68,7 +68,6 @@ export interface ProfileScore {
   fitScore: number;
   locationMatch: boolean;
   summary: string | null;
-  techMatch: string[];
 }
 
 export interface JobDetailProps {

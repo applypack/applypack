@@ -255,7 +255,6 @@ jobsRoute.get('/jobs/:id', async (c) => {
         fitScore: sc.fitScore,
         locationMatch: sc.locationMatch,
         summary: sc.summary,
-        techMatch: sc.techMatch,
       }))}
       applicationTrackingEnabled={settings.applicationTrackingEnabled}
       pipelineStages={allStages(parseStageConfig(settings.pipelineStages))}

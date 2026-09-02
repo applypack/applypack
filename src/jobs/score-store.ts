@@ -10,14 +10,28 @@ import type { MergedVerdict, ProfileVerdict } from './verdict-merge';
  * the best-of on Job and the per-search rows can never drift apart.
  */
 
-/** One search's verdict, as the row that keeps it. */
-export function toScoreData(v: ProfileVerdict): Prisma.JobScoreCreateWithoutJobInput {
+/** Where the posting can be applied — the same context `Job.redFlags` gets. */
+export interface ApplyLinkContext {
+  url: string;
+  pasted: boolean;
+}
+
+/**
+ * One search's verdict, as the row that keeps it. The apply-link flags are a
+ * property of the posting rather than of a search, so every row carries them:
+ * CLAUDE.md's invariant is that `withApplyLinkFlags` runs at every site that
+ * persists `redFlags` (ADR 0023), and this is one.
+ */
+export function toScoreData(
+  v: ProfileVerdict,
+  link: ApplyLinkContext,
+): Prisma.JobScoreCreateWithoutJobInput {
   return {
     profile: { connect: { id: v.profileId } },
     fitScore: v.classification.fit_score,
     locationMatch: v.classification.location_match,
     techMatch: v.classification.tech_match,
-    redFlags: v.classification.red_flags,
+    redFlags: withApplyLinkFlags(v.classification.red_flags, link),
     summary: v.classification.summary,
     priorityRulesApplied: v.priorityRulesApplied,
   };
@@ -39,6 +53,7 @@ export async function saveJobScores(
   status: JobStatus,
 ): Promise<void> {
   const c = merged.winner.classification;
+  const link = { url: job.url, pasted: job.company.atsType === AtsType.MANUAL };
   await prisma.$transaction([
     prisma.jobScore.deleteMany({ where: { jobId: job.id } }),
     prisma.job.update({
@@ -48,14 +63,11 @@ export async function saveJobScores(
         salaryMin: c.salary_min_usd,
         salaryMax: c.salary_max_usd,
         techMatch: c.tech_match,
-        redFlags: withApplyLinkFlags(c.red_flags, {
-          url: job.url,
-          pasted: job.company.atsType === AtsType.MANUAL,
-        }),
+        redFlags: withApplyLinkFlags(c.red_flags, link),
         summary: c.summary,
         status,
         priorityRulesApplied: merged.winner.priorityRulesApplied,
-        scores: { create: verdicts.map(toScoreData) },
+        scores: { create: verdicts.map((v) => toScoreData(v, link)) },
       },
     }),
   ]);

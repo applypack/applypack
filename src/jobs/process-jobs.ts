@@ -111,8 +111,10 @@ export async function processNormalizedJobs(
       break;
     }
     // A posting is admitted when ANY active search admits it (ADR 0028).
-    // The unfiltered roster is used while storing unscored, so "Fetch now"
-    // with every search paused still keeps what the searches would want.
+    // Storing unscored keeps the UNFILTERED roster on purpose: the wizard's
+    // step 2 runs "Fetch now" before step 3 creates a profile, so at that
+    // moment every search is blank — and a blank search's gate admits
+    // everything, which is what makes the fresh-install run show results.
     if (!passesAnyBaseFilter(item.job, classify ? profiles : activeProfiles)) {
       stats.filterRejected++;
       continue;
@@ -265,9 +267,11 @@ export async function processNormalizedJobs(
           crossListedAt: crossListing
             ? await companyNameOfJob(crossListing.job.id)
             : null,
-          // One alert per posting, naming the search that wanted it and what
+          // One alert per posting. With a single search running, naming it
+          // adds nothing and the message stays exactly what it is today; with
+          // several, the header says which hunt fired and the line says what
           // the others made of it (ADR 0028).
-          matchedProfile: winner.profileName,
+          matchedProfile: verdicts.length > 1 ? winner.profileName : null,
           profileScores: verdicts.length > 1 ? scoreLine : null,
         },
         // Routed to the winning search's chat; null still broadcasts.
@@ -370,7 +374,11 @@ async function persistJob(
         }),
         // Every search's verdict, written with the row it belongs to — a
         // second statement could leave a scored Job with no JobScore.
-        scores: { create: verdicts.map(toScoreData) },
+        // `pasted: false` is the same invariant buildJobData relies on: a
+        // MANUAL company's fetchOne returns [], so no pasted row reaches here.
+        scores: {
+          create: verdicts.map((v) => toScoreData(v, { url: job.url, pasted: false })),
+        },
       },
     });
   } catch (err) {
