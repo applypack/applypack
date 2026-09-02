@@ -4,6 +4,68 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.10.0] — 2026-09-02
+
+### Added
+- **Several searches run at once**
+  ([docs/onboarding-plan.md §4](docs/onboarding-plan.md) stage B, TASKS §11
+  block 6, [ADR 0028](docs/adr/0028-parallel-searches-one-call-per-posting.md),
+  which supersedes 0004). A backend search and a QA search now hunt in
+  parallel: each new posting is scored against every running search in **one**
+  AI call, and each search keeps its own threshold, its own priority rules and
+  its own Telegram chat. New `Profile.active` is the switch;
+  `AppSettings.activeProfileId` stays as the **primary** — the search that
+  supplies defaults everywhere, and the one that always runs. Up to 8 at once.
+- New `JobScore` table, one row per (posting, search), holding that search's
+  fit, location verdict, tech tags, flags and summary. `Job.fitScore` and its
+  neighbours keep the **best-of**, so every list, badge, sort and digest reads
+  exactly as before.
+- **Search chips on `/jobs`** narrow the list to one search, and the Fit column
+  then shows that search's own score rather than the best-of. The Fit ≥ filter
+  follows the same score.
+- **"By search" on `/jobs/:id`** — every search's fit, verdict and location
+  call, best first. The top row is the search the page speaks for: the resume
+  the Compare and Cover letter cards preselect now follows the search that
+  scored the posting best, not merely the primary.
+- **A "Searches" list on `/settings` → Profile** replaces the single Activate
+  control: Run / Pause / Make primary / Delete per row, with the primary
+  protected from being paused or deleted.
+- Alerts name the winning search in the header and carry a `🎯` line with every
+  search's score ("Backend 87 · QA 41"); they are delivered to the winning
+  search's `Profile.telegramTargetId`, which already existed and was unused.
+  The daily digest still broadcasts, with each entry naming its search.
+
+### Changed
+- A posting is admitted when **any** running search's base filter admits it,
+  and dismissed only when **every** search rejects it. `passesBaseFilter` stays
+  pure and single-search; `passesAnyBaseFilter` is the union wrapper.
+- Issue #50's blank-search guard is now per search: an empty search is dropped
+  from the roster for the tick instead of silencing the ones beside it, and its
+  fit ≤ 50 cap is applied to its own verdict only.
+- The two-stage classifier's stage-1 gate was rewritten. Measured on 24 stored
+  postings, the shipped wording admitted 2 and kept only **1 of the 8** the full
+  classifier had scored 75-90: the gate sees just the first 800 characters and
+  read "the stack is not mentioned" as "the stack mismatches". Saying that
+  explicitly, plus "unambiguous mismatch for every search", takes the same
+  single search to 17 of 24 and 5 of 8. The mode has never been on in
+  production (`classifierMode` defaults to `single`), so nothing was lost —
+  but it was unusable and is now usable.
+- `CLASSIFIER_PROMPT_VERSION` → 3; `max_tokens` scales with the number of
+  searches (400 + 180·N), measured with headroom through 12.
+
+### Fixed
+- CLAUDE.md gotcha 3 claimed the two-stage classifier's economics rest on the
+  prompt cache. They do not, and never did: `cache_creation_input_tokens` is
+  **0 on every call**, because Haiku 4.5 needs a 4096-token prefix and the
+  classifier prompt is 1216. The saving is the short prompt and tiny
+  `max_tokens`. The note now says so, with the per-model floor.
+
+### Migration
+- `20260902140000_add_job_score_and_active_profiles` adds the column, the table
+  and its indexes, marks the primary as running, and **backfills every already
+  scored posting into `JobScore`** against the profile those scores came from.
+  Verified on the live database: 986 rows moved, 0 orphans, 0 mismatches.
+
 ## [1.9.0] — 2026-09-02
 
 ### Added
@@ -763,6 +825,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[1.10.0]: https://github.com/applypack/applypack/compare/v1.9.0...v1.10.0
 [1.9.0]: https://github.com/applypack/applypack/compare/v1.8.0...v1.9.0
 [1.8.0]: https://github.com/applypack/applypack/compare/v1.7.0...v1.8.0
 [1.7.0]: https://github.com/applypack/applypack/compare/v1.6.0...v1.7.0

@@ -50,12 +50,17 @@
 
 ## File rules
 - Each fetcher returns `NormalizedJob[]` — never writes to DB directly.
-- `filter.ts` is pure — no I/O.
+- `filter.ts` is pure — no I/O. `passesBaseFilter` stays single-profile;
+  `passesAnyBaseFilter` is the union wrapper every caller uses (ADR 0028).
 - `apply-link.ts` is pure — no I/O. It flags apply links, never rejects a
   row, and the company name is deliberately not an input (ADR 0023).
   `withApplyLinkFlags` is called at every site that persists `redFlags`.
 - `classifier.ts` (and `classifier-prefilter.ts`) build prompts and parse
   replies; the only thing that talks to the AI is `ai-provider.ts` — no DB.
+  Both take a `Profile[]`: ONE call scores a posting against every running
+  search and returns a verdict each (ADR 0028). `jobs/verdict-merge.ts` is
+  pure — per-search thresholds, the winner, the score line;
+  `jobs/score-store.ts` is the single write path for a re-score.
   Engine choice (provider + models) resolves per call via `ai-runtime.ts`
   (DB row → `.env` fallback, pure merge in `ai-engine.ts` — ADR 0013), and
   so does the credential (`ai-keys.ts`, pure — ADR 0027).
@@ -163,7 +168,9 @@ When the question is **"where does X live?"**, save yourself a `find`:
 | What a CLI child process may see in env | `ai-provider-parse.ts:CLI_PROVIDER_ENV_KEYS` (allowlist; ANTHROPIC_API_KEY never reaches claude_code) |
 | How many jobs are classified at once | `AI_CONCURRENCY` in `.env` (default 3); limiter in `src/concurrency.ts`, used by `jobs/process-jobs.ts` and `jobs/reclassify-job.ts` |
 | The two-stage prefilter prompt | `src/classifier-prefilter.ts:buildPrefilterPrompt` |
-| Per-job filter rules (pre-Claude) | `src/filter.ts:passesBaseFilter` |
+| Per-job filter rules (pre-Claude) | `src/filter.ts:passesBaseFilter`; union across running searches = `passesAnyBaseFilter` |
+| One posting → a verdict per running search (winner, score line, thresholds) | `src/jobs/verdict-merge.ts` (pure, ADR 0028); parser `classifier.ts:parseClassifications`; write path `src/jobs/score-store.ts` |
+| Which searches are running, and the ceiling on them | `src/profiles.ts:listActiveProfiles` / `setProfileActive`; `MAX_ACTIVE_PROFILES` in `src/profile-guards.ts` |
 | Blank-profile guards (skip tick, fit ≤ 50 cap, activation gate) | `src/profile-guards.ts` (pure, issue #50) — wired in `process-jobs.ts`, `classifier.ts`, `routes/settings.tsx` |
 | Telegram MarkdownV2 escape | `src/notifier.ts:escapeMarkdownV2` |
 | Profile-to-prompt translation | `src/classifier.ts:buildSystemPrompt` (stack/role/location/notes lines) |
@@ -218,7 +225,9 @@ When the question is **"how does the user toggle / configure X?"**:
 | Fill the profile from a resume (AI draft, review before save) | `/settings` Profile tab → "Fill from a resume" |
 | Create a second search from another resume | `/resumes/:id` → "Search profile" card, or `/welcome?step=profile` → "Another resume for a different kind of role?" |
 | Which resume a search hunts with | `/settings` Profile tab → "Resume for this search" (empty = pick by skill overlap) |
-| Switch between profiles | `/settings` Profile tab → dropdown + Activate |
+| Run / pause a search, or make one primary | `/settings` Profile tab → "Searches" list (up to 8 running; the primary always runs) |
+| See only one search's matches | `/jobs` → the search chips (the Fit column then shows that search's score) |
+| What each search made of one posting | `/jobs/:id` → Classifier card → "By search" |
 | Re-classify all jobs against new profile | `/settings` Profile tab → "Save & re-classify" in the editor (async, watch /runs) |
 | Telegram on/off | `/settings` Notifications tab |
 | Add Telegram bot or chat | `/settings` Notifications tab → "Add target" (validates with getMe + sendMessage) |
@@ -257,7 +266,15 @@ Naming convention changed at the 4.x boundary:
 - 4.x: `claude-haiku-4-5-20251001` (kebab-case, version-then-date)
 - 3.x: `claude-3-5-haiku-20241022` (different pattern!)
 
-Both stages of our two-stage classifier now use Haiku 4.5. Savings come from a much shorter prefilter prompt + prompt cache, **not** from a cheaper model. See [classifier-prefilter.ts:7-12](src/classifier-prefilter.ts#L7-L12) for the comment that explains this.
+Both stages of our two-stage classifier now use Haiku 4.5. Savings come from a much shorter prefilter prompt + tiny `max_tokens`, **not** from a cheaper model. See [classifier-prefilter.ts:7-12](src/classifier-prefilter.ts#L7-L12) for the comment that explains this.
+
+**The prompt cache is not part of that, and never was.** Measured 2026-09-02:
+`cache_creation_input_tokens` is **0 on every call**. The minimum cacheable
+prefix is per-model and not monotonic — **4096 tokens on Haiku 4.5** against 512
+on Opus 5 — and our classifier system prompt is 1216. Even the multi-search
+prompt at 8 searches (~2100) stays under it, and the `claude_code` CLI sets no
+`cache_control` at all. Never justify a design by caching without checking the
+model's floor and reading `usage.cache_read_input_tokens` back.
 
 ### 4. RemoteOK puts a meta object at `array[0]`
 Their `/api` returns `[{legal: "…", last_updated: …}, …jobs]`. **`.slice(1)` is mandatory** before zod-validating jobs. See [remoteok.ts:46-48](src/fetchers/remoteok.ts#L46-L48).

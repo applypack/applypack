@@ -329,7 +329,9 @@ export const SettingsPage: FC<SettingsProps> = ({
                   class={`h-1.5 w-1.5 shrink-0 rounded-full ${p.running ? 'bg-ok' : 'bg-line-strong'}`}
                   aria-hidden="true"
                 />
-                <span class="min-w-0 flex-1 truncate text-[13px] text-ink">
+                {/* On a narrow screen the name takes its own line — the row's
+                    four actions otherwise squeeze it down to "S…". */}
+                <span class="min-w-0 basis-[calc(100%-1.5rem)] truncate text-[13px] text-ink sm:basis-0 sm:flex-1">
                   {p.name}
                   {p.primary && (
                     <span class="ml-1.5 text-xs text-ink-faint">· primary</span>
@@ -381,7 +383,7 @@ export const SettingsPage: FC<SettingsProps> = ({
         </div>
         <div class="flex flex-wrap items-center gap-2">
           <ActionForm action="/settings/profiles/new">
-            <Button variant="secondary">+ New profile</Button>
+            <Button variant="secondary">+ New search</Button>
           </ActionForm>
         </div>
       </Section>

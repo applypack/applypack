@@ -130,11 +130,11 @@ ADR: [0006-discovery-via-hn-parser.md](./docs/adr/0006-discovery-via-hn-parser.m
 ```mermaid
 flowchart LR
   subgraph settings["AppSettings (singleton)"]
-    apId[activeProfileId]
+    apId["activeProfileId (primary)"]
     cm[classifierMode]
     dsr[disabledSources]
   end
-  subgraph profile["Profile (active)"]
+  subgraph profile["Profile (each running search)"]
     sr[stackRequired]
     rt[roleTypes]
     snth[stackNiceToHave]
@@ -351,9 +351,11 @@ prisma/
 
 ```mermaid
 erDiagram
-  AppSettings ||--o| Profile : "activeProfileId"
+  AppSettings ||--o| Profile : "activeProfileId (primary)"
   Profile ||--o| TelegramTarget : "telegramTargetId"
   Profile ||--o{ AppSettings : "back-relation"
+  Profile ||--o{ JobScore : "1..N onDelete:Cascade"
+  Job ||--o{ JobScore : "1..N onDelete:Cascade"
   Company ||--o{ Job : "1..N onDelete:Cascade"
   CompanyCandidate }o--|| AtsType : "PROMOTED → Company"
   Resume ||--o{ ResumeMatch : "1..N onDelete:Cascade"
@@ -365,7 +367,7 @@ erDiagram
   AppSettings {
     int id PK
     bool telegramEnabled
-    int activeProfileId FK
+    int activeProfileId FK "the primary search"
     string classifierMode "single|two_stage"
     bool applicationTrackingEnabled
     bool staleApplicationsDigestEnabled
@@ -509,7 +511,7 @@ These are codified as ADRs — go there for the full reasoning:
 - [0001 — Hono not Express](./docs/adr/0001-hono-not-express.md)
 - [0002 — Worker and web as separate processes](./docs/adr/0002-worker-and-web-as-separate-processes.md)
 - [0003 — No queue, just node-cron](./docs/adr/0003-no-queue-just-node-cron.md)
-- [0004 — One active profile, not multi-tenant](./docs/adr/0004-single-active-profile.md)
+- [0004 — One active profile, not multi-tenant](./docs/adr/0004-single-active-profile.md) *(superseded by 0028)*
 - [0005 — No LinkedIn / Indeed / Workday](./docs/adr/0005-no-linkedin-indeed-workday.md)
 - [0006 — Discovery via HN parser](./docs/adr/0006-discovery-via-hn-parser.md)
 

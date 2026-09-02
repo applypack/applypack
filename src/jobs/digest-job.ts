@@ -19,7 +19,16 @@ export async function runDigestJob(): Promise<{ stats: CronStats }> {
       status: { in: [JobStatus.NEW, JobStatus.ALERTED] },
       fetchedAt: { gte: since },
     },
-    include: { company: true },
+    include: {
+      company: true,
+      // The search that scored each posting best, so a reader running several
+      // can tell the hunts apart in one list (ADR 0028).
+      scores: {
+        include: { profile: { select: { name: true } } },
+        orderBy: { fitScore: 'desc' },
+        take: 1,
+      },
+    },
     orderBy: [{ fitScore: 'desc' }, { fetchedAt: 'desc' }],
   });
 
@@ -34,8 +43,11 @@ export async function runDigestJob(): Promise<{ stats: CronStats }> {
     techMatch: j.techMatch,
     redFlags: j.redFlags,
     summary: j.summary ?? '',
+    matchedProfile: j.scores[0]?.profile.name ?? null,
   }));
 
+  // Broadcast, not routed: the digest spans every search, so it goes to every
+  // active target rather than to any one search's chat.
   await sendDigest(alerts, undefined, await quietSources());
   const durationMs = Date.now() - started;
   logger.info({ count: alerts.length, durationMs }, 'digest-job: done');
