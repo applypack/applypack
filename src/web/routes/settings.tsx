@@ -869,7 +869,7 @@ settingsRoute.post(
 /** An optional `<select>` of row ids: "" (the "none" option) and junk both mean null. */
 function optionalId(value: string): number | null {
   const n = Number(value);
-  return value.length > 0 && Number.isFinite(n) ? n : null;
+  return Number.isInteger(n) && n > 0 ? n : null;
 }
 
 function triggerReclassifyAsync(): void {

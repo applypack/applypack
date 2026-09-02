@@ -96,7 +96,7 @@ resumesRoute.get('/resumes/:id', async (c) => {
       // stored (ADR 0015). Only a scanned resume has anything to say.
       search={{
         linkedProfiles,
-        draft: resume.scannedAt ? newProfileDraft(resume) : null,
+        draft: resume.scannedAt && !resume.hidden ? newProfileDraft(resume) : null,
       }}
       flash={parseFlashCookie(c.req.header('cookie'))}
     />,

@@ -141,7 +141,7 @@ export const ResumeDetailPage: FC<ResumeDetailProps> = ({
         </Card>
       </div>
 
-      <SearchCard resumeId={resume.id} scanned={resume.scannedAt !== null} {...search} />
+      <SearchCard resumeId={resume.id} {...search} />
 
       <Card class="mt-4">
         <SectionTitle>Upload a new version</SectionTitle>
@@ -248,13 +248,11 @@ export const ResumeDetailPage: FC<ResumeDetailProps> = ({
  * search that hunts the jobs you'd apply to with it. The draft is shown in
  * full first — the button saves exactly what the line above it says (ADR 0015).
  */
-const SearchCard: FC<ResumeDetailProps['search'] & { resumeId: number; scanned: boolean }> = ({
+const SearchCard: FC<ResumeDetailProps['search'] & { resumeId: number }> = ({
   resumeId,
-  scanned,
   linkedProfiles,
   draft,
 }) => {
-  const c = draft?.changes;
   return (
     <Card class="mt-4">
       <SectionTitle>Search profile</SectionTitle>
@@ -276,7 +274,7 @@ const SearchCard: FC<ResumeDetailProps['search'] & { resumeId: number; scanned: 
           those searches.
         </p>
       )}
-      {!scanned ? (
+      {draft === null ? (
         <Hint class={linkedProfiles.length > 0 ? 'mt-3' : ''}>
           Scan the resume first — a search is built from the headline, tools and roles the scan
           finds.
@@ -288,19 +286,19 @@ const SearchCard: FC<ResumeDetailProps['search'] & { resumeId: number; scanned: 
             jobs you'd apply to with this resume:
           </p>
           <div class="mt-2.5 flex flex-wrap items-center gap-1.5 text-sm">
-            <span class="font-medium text-ink">"{c?.name ?? 'New profile'}"</span>
-            {(c?.stackRequired ?? []).map((t) => (
+            <span class="font-medium text-ink">"{draft.changes.name ?? 'New profile'}"</span>
+            {(draft.changes.stackRequired ?? []).map((t) => (
               <Tag tone="ok">{t}</Tag>
             ))}
-            {(c?.roleTypes ?? []).map((t) => (
+            {(draft.changes.roleTypes ?? []).map((t) => (
               <Tag tone="info">{t}</Tag>
             ))}
-            {(c?.seniority ?? []).map((t) => (
+            {(draft.changes.seniority ?? []).map((t) => (
               <Tag tone="info">{t}</Tag>
             ))}
           </div>
-          {(draft?.warnings ?? []).length > 0 && (
-            <p class="mt-2 text-[13px] leading-5 text-warn">Note: {draft?.warnings.join('; ')}.</p>
+          {draft.warnings.length > 0 && (
+            <p class="mt-2 text-[13px] leading-5 text-warn">Note: {draft.warnings.join('; ')}.</p>
           )}
           <div class="mt-3.5">
             <ActionForm action={`/resumes/${resumeId}/profile`}>
