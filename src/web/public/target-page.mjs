@@ -189,6 +189,8 @@ export function init(data) {
     });
   }
 
-  editor.value = load() ?? data.resumeText;
+  // An instant check hands over its parsed upload: it becomes this tab's draft
+  // in place of whatever the tab held, and lives in localStorage from here on.
+  editor.value = typeof data.draftText === 'string' ? data.draftText : (load() ?? data.resumeText);
   render();
 }

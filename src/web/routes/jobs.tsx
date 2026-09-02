@@ -18,6 +18,8 @@ import { JobNewPage } from '../pages/job-new';
 import { TargetPage } from '../pages/target';
 import { previousFor } from '../pages/resume-match-card';
 import { nameFromFilename, readResumeUpload, resumeUploadLimit } from '../upload';
+import { decideInstantCheck, draftTextForPage, instantCheckNotice, unchangedNotice } from '../instant-check';
+import { draftStash } from '../draft-stash';
 import { scanInBackground } from '../../resume/scan';
 import { clearFlashCookie, flashRedirect, parseFlashCookie } from '../flash';
 import { formatRelative } from '../format';
@@ -27,6 +29,8 @@ import {
   deleteMatchesForResume,
   getCoverLetter,
   getLatestCompanySnapshot,
+  getLatestMatchForResumeAndJob,
+  getMatch,
   getResume,
   listCoverLettersForJob,
   listFacts,
@@ -627,6 +631,9 @@ jobsRoute.get('/jobs/:id/target', async (c) => {
   }
   const resume = await getResume(match.resumeId);
   if (!resume) return c.text('Not found', 404);
+  // An instant check arrives with its parsed upload — taken once; from then on the browser holds it.
+  const draftKey = c.req.query('draft');
+  const draftText = draftTextForPage(draftKey ? draftStash.take(draftKey) : null, match.id);
   return c.html(
     <TargetPage
       job={{ id: job.id, title: job.title, companyName: job.company.name, location: job.location, description: job.description }}
@@ -635,6 +642,7 @@ jobsRoute.get('/jobs/:id/target', async (c) => {
       matches={matches}
       previous={previousFor(match, matches)}
       resumeText={match.resumeText || resume.text}
+      draftText={draftText}
       flash={parseFlashCookie(c.req.header('cookie'))}
     />,
     200,
@@ -643,6 +651,7 @@ jobsRoute.get('/jobs/:id/target', async (c) => {
 });
 
 jobsRoute.post('/jobs/:id/target/reupload', async (c, next) => resumeUploadLimit(`/jobs/${c.req.param('id')}/target`)(c, next), async (c) => {
+  const started = Date.now();
   const id = Number(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text('Bad id', 400);
   const form = await c.req.parseBody();
@@ -655,6 +664,28 @@ jobsRoute.post('/jobs/:id/target/reupload', async (c, next) => resumeUploadLimit
   if (!job || !existing) return c.text('Not found', 404);
   const upload = await readResumeUpload(form);
   if ('error' in upload) return flashRedirect(`/jobs/${id}/target`, 'err', upload.error);
+
+  // The default is the instant check: the new text becomes an unsaved draft
+  // over the analysis the page showed — no AI call, no new version, nothing
+  // written (docs/target-plan.md §3.2 item 5). "Upload & analyze" opts into
+  // the full run below.
+  if (form.mode !== 'analyze') {
+    const decision = decideInstantCheck(await frameFor(id, resumeId, Number(form.matchId)), upload.text);
+    if (decision.kind !== 'analyze') {
+      const when = formatRelative(decision.frame.createdAt);
+      const page = `/jobs/${id}/target?match=${decision.frame.id}`;
+      if (decision.kind === 'unchanged') {
+        return flashRedirect(page, 'warn', unchangedNotice(upload.sourceFilename, when));
+      }
+      const key = draftStash.put({ matchId: decision.frame.id, text: upload.text });
+      const ms = Date.now() - started;
+      logger.info(
+        { jobId: id, matchId: decision.frame.id, resumeId, file: upload.sourceFilename, chars: upload.text.length, ms },
+        'resume: instant check',
+      );
+      return flashRedirect(`${page}&draft=${key}`, 'ok', instantCheckNotice(upload.sourceFilename, when, ms));
+    }
+  }
 
   // Scratch (ephemeral) resumes are replaced in place with no scan and no
   // history — a fresh upload means a fresh analysis, nothing saved.
@@ -713,6 +744,13 @@ jobsRoute.post('/jobs/:id/target/reupload', async (c, next) => resumeUploadLimit
   });
   return c.redirect(`/target/runs/${run.id}`, 303);
 });
+
+/** The analysis a re-upload is checked against: the one the page showed, else the resume's latest for the job. */
+async function frameFor(jobId: number, resumeId: number, matchId: number) {
+  const shown = Number.isFinite(matchId) ? await getMatch(matchId) : null;
+  if (shown && shown.jobId === jobId && shown.resumeId === resumeId) return shown;
+  return getLatestMatchForResumeAndJob(jobId, resumeId);
+}
 
 function sortToOrderBy(sort: string): Prisma.JobOrderByWithRelationInput[] {
   switch (sort) {
