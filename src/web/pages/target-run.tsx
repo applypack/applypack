@@ -12,7 +12,7 @@ const STEP_VIEW: Record<RunStep, StepView> = {
   },
   extract: {
     label: 'Detect posting facts',
-    detail: 'company, title, location, salary from the description — 10 to 30 s on a CLI engine, seconds on an API one',
+    detail: 'company, title, location, salary from the description — 10 to 40 s on a CLI engine, seconds on an API one',
   },
   scan: {
     // Also reached by a plain re-scan and a first upload, where there is no
