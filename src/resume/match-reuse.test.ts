@@ -1,26 +1,34 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { canReuseMatch, readPromptVersion, reuseNotice } from './match-reuse';
+import { readPromptVersion, reuseDecision, reuseNotice, type StoredMatch } from './match-reuse';
 
 const TEXT = 'Nazar Boyko\nSenior Software Engineer\n## SKILLS\nPHP, Laravel, React';
-const stored = { resumeText: TEXT, promptVersion: 5 };
+const full: StoredMatch = { resumeText: TEXT, promptVersion: 5, mode: 'full' };
+const fast: StoredMatch = { ...full, mode: 'fast' };
 
 test('identical text under the same prompt reuses the stored row', () => {
-  assert.equal(canReuseMatch(stored, TEXT, 5), true);
+  assert.equal(reuseDecision(full, TEXT, 5, 'fast'), 'reuse');
+  assert.equal(reuseDecision(full, TEXT, 5, 'full'), 'reuse', 'a full row answers a full request');
+  assert.equal(reuseDecision(fast, TEXT, 5, 'fast'), 'reuse');
+});
+
+test('a fast row answers a full request with the suggestions call only', () => {
+  assert.equal(reuseDecision(fast, TEXT, 5, 'full'), 'suggest');
 });
 
 test('a one-character edit is a new analysis', () => {
-  assert.equal(canReuseMatch(stored, `${TEXT}.`, 5), false);
-  assert.equal(canReuseMatch(stored, TEXT.replace('React', 'react'), 5), false);
+  assert.equal(reuseDecision(full, `${TEXT}.`, 5, 'fast'), 'none');
+  assert.equal(reuseDecision(full, TEXT.replace('React', 'react'), 5, 'full'), 'none');
 });
 
 test('a prompt bump is a new analysis', () => {
-  assert.equal(canReuseMatch(stored, TEXT, 6), false);
+  assert.equal(reuseDecision(full, TEXT, 6, 'fast'), 'none');
+  assert.equal(reuseDecision(fast, TEXT, 6, 'full'), 'none', 'never suggestions on a stale frame');
 });
 
 test('no previous row, or one without a version marker, never reuses', () => {
-  assert.equal(canReuseMatch(null, TEXT, 5), false);
-  assert.equal(canReuseMatch({ resumeText: TEXT, promptVersion: null }, TEXT, 5), false);
+  assert.equal(reuseDecision(null, TEXT, 5, 'fast'), 'none');
+  assert.equal(reuseDecision({ ...full, promptVersion: null }, TEXT, 5, 'fast'), 'none');
 });
 
 test('readPromptVersion reads the marker and nothing else', () => {

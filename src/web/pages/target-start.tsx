@@ -38,7 +38,7 @@ export const TargetStartPage: FC<TargetStartProps> = ({ resumes, flash }) => {
   const defaultResumeId = (resumes.find((r) => r.isDefault) ?? resumes[0])?.id;
   return (
     <Layout title="Compare" active="target">
-      <PageHeader title="Compare" meta="~1–2 min per run">
+      <PageHeader title="Compare" meta="~1 min per run">
         Paste a posting — the description alone is enough, company / title / location are
         detected during the run — and pick a resume. One run classifies the posting, scores the
         resume against it and opens the side-by-side targeted view.
@@ -157,12 +157,26 @@ export const TargetStartPage: FC<TargetStartProps> = ({ resumes, flash }) => {
         </div>
 
         <div class="mt-4 flex flex-wrap items-center gap-3">
-          <Button size="lg" variant="violet">
+          {/* Set by the second button's click: SUBMIT_ONCE disables the buttons in the
+              submit event, and a disabled submitter is left out of the form data. */}
+          <input type="hidden" name="mode" value="fast" />
+          <Button size="lg" variant="violet" title="Keywords, hard requirements and the score — no edit suggestions">
             Compare
           </Button>
+          <Button
+            size="lg"
+            variant="secondary"
+            onclick="this.form.elements.mode.value='full'"
+            title="The same check plus what to change and what to remove"
+          >
+            Full analysis
+          </Button>
           <Hint>
-            Detects missing fields (seconds), classifies the posting, then one resume-model
-            call (~1 min) and the targeted view opens. Re-pasting the same posting reuses its job.
+            Detects missing fields (seconds), classifies the posting, then one resume-model call
+            and the targeted view opens. Compare is the quick check — keywords, gates and the
+            score, about half a minute on Opus; Full analysis also writes the edit suggestions and
+            takes 1½ to 2 minutes. Either way you can ask for the suggestions later.
+            Re-pasting the same posting reuses its job.
           </Hint>
         </div>
       </form>

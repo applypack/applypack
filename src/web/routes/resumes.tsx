@@ -147,7 +147,7 @@ resumesRoute.post('/resumes/:id/draft', async (c) => {
   // The version is already saved; scan and match are the slow part. Two AI
   // calls back to back is the worst wait on the site, so it gets a run too.
   const run = createRun({
-    steps: job ? ['scan', 'match'] : ['scan'],
+    steps: job ? ['scan', 'keywords'] : ['scan'],
     jobTitle: job?.title ?? '',
     resumeName: resume.name,
     jobId: job?.id,
@@ -164,7 +164,7 @@ resumesRoute.post('/resumes/:id/draft', async (c) => {
         : { stage: 'error', error: `Saved as v${resume.version}, but the scan failed — try "Scan".` });
       return;
     }
-    updateRun(run.id, { stage: 'match' });
+    updateRun(run.id, { stage: 'keywords' });
     const match = await matchResumeToJob(resume, {
       id: job.id,
       title: job.title,
@@ -176,7 +176,7 @@ resumesRoute.post('/resumes/:id/draft', async (c) => {
       ? {
           stage: 'done',
           resultUrl: `/jobs/${job.id}/target?match=${match.id}`,
-          flash: `Saved as v${resume.version} (text) and re-analyzed: AI match ${match.matchScore}/100.`,
+          flash: `Saved as v${resume.version} (text) and checked: AI match ${match.matchScore}/100.`,
         }
       : {
           stage: 'error',

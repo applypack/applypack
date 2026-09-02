@@ -44,6 +44,7 @@ const KNOWN_CALL_SITES: Record<string, string> = {
   'classifier-prefilter.ts': 'buildPrefilterPrompt',
   'jobs/posting-extract.ts': 'buildExtractPrompt',
   'resume/match.ts': 'buildMatchPrompt',
+  'resume/suggestions.ts': 'buildSuggestionsPrompt',
   'resume/scan.ts': 'buildScanPrompt',
   'resume/cover-letter.ts': 'buildCoverPrompt',
   'verification/verify.ts': 'buildVerifyPrompt',
@@ -122,6 +123,25 @@ const CASES: Record<string, Case> = {
       // Tier 2: text of ours that was derived from an untrusted posting.
       ['OTHER RESUME SKILLS', 'ELSEWHERE-NEEDLE'],
       ['PREVIOUS KEYWORDS', 'PREVKW-NEEDLE'],
+    ],
+  },
+  buildSuggestionsPrompt: {
+    build: () =>
+      resumeMod.buildSuggestionsPrompt(RESUME, JOB, {
+        summary: 'SUMMARY-NEEDLE',
+        alignment: null,
+        keywords: [{ term: 'VERDICT-NEEDLE', requirement: 'must', primary: true, status: 'present', where: 'WHERE-NEEDLE' }],
+        hardRequirements: [{ requirement: 'GATE-NEEDLE', status: 'unknown' }],
+      }),
+    fenced: [
+      ['RESUME', RESUME],
+      ['JOB POSTING', DESC],
+      ['JOB POSTING', 'TITLE-NEEDLE'],
+      // Tier 2: the stored verdicts are model output over the untrusted texts.
+      ['KEYWORD VERDICTS', 'SUMMARY-NEEDLE'],
+      ['KEYWORD VERDICTS', 'VERDICT-NEEDLE'],
+      ['KEYWORD VERDICTS', 'WHERE-NEEDLE'],
+      ['KEYWORD VERDICTS', 'GATE-NEEDLE'],
     ],
   },
   buildCoverPrompt: {

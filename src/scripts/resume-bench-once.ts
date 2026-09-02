@@ -12,12 +12,14 @@ import {
 import { getAiEngineEnv, probeAiProviders } from '../ai-runtime';
 import {
   buildMatchPrompt,
+  MATCH_FAST_MAX_TOKENS,
   MATCH_MAX_TOKENS,
   parseMatchResponse,
   PROMPT_VERSION,
   type MatchContext,
 } from '../resume/prompts';
 import { readBenchRun, renderBenchTable, type BenchFixture, type BenchRun } from '../resume/bench-report';
+import { parseMatchMode, type MatchMode } from '../resume/match-mode';
 import { scoreMatch } from '../resume/score';
 import { logger } from '../logger';
 
@@ -34,12 +36,13 @@ import { logger } from '../logger';
  *   npm run bench:resume -- --engine all        # every probe-ok engine
  * Default (no flags) stays on the .env provider + CLAUDE_MODEL_RESUME.
  *
- * Model comparison (docs/target-plan.md §3.2 item 7): --model overrides the
- * resolved model, --out saves the run (per-fixture ms, score, keywords) and
+ * Model and mode comparison (docs/target-plan.md §3.2 items 6-7): --model
+ * overrides the resolved model, --mode fast runs the quick-check variant
+ * (default full), --out saves the run (per-fixture ms, score, keywords) and
  * --table renders saved runs side by side, statuses compared with the first
  * file (or --baseline <tag>) — no AI spend:
- *   npm run bench:resume -- --model claude-sonnet-5 --out sonnet.json
- *   npm run bench:resume -- --table opus.json sonnet.json
+ *   npm run bench:resume -- --model claude-sonnet-5 --mode fast --out sonnet-fast.json
+ *   npm run bench:resume -- --table opus-full.json sonnet-fast.json
  */
 
 const LARAVEL_RESUME = `Alex Example — Senior Backend Engineer
@@ -129,8 +132,8 @@ async function runFixture(
 ): Promise<{ checks: Check[]; record: BenchFixture }> {
   const started = Date.now();
   const text = await benchProvider.complete({
-    ...buildMatchPrompt(resume, job, context),
-    maxTokens: MATCH_MAX_TOKENS,
+    ...buildMatchPrompt(resume, job, context, benchMode),
+    maxTokens: benchMode === 'fast' ? MATCH_FAST_MAX_TOKENS : MATCH_MAX_TOKENS,
     label: `bench:${name}`,
     model: benchModel,
     timeoutMs: 5 * 60_000,
@@ -165,9 +168,10 @@ function scoreOf(r: Extract<ReturnType<typeof parseMatchResponse>, { ok: true }>
   return scoreMatch(r.data.keywords, r.data.alignment, r.data.red_flags.length);
 }
 
-// Which backend/model the fixtures run on; main() sets these per engine.
+// Which backend/model/variant the fixtures run on; main() sets these per engine.
 let benchProvider: AiProvider = getAiProvider();
 let benchModel: string = config.CLAUDE_MODEL_RESUME;
+let benchMode: MatchMode = 'full';
 
 async function runSuite(): Promise<{ checks: Check[]; fixtures: BenchFixture[] }> {
   const all: Check[] = [];
@@ -229,7 +233,9 @@ async function runSuite(): Promise<{ checks: Check[]; fixtures: BenchFixture[] }
       checks.push(
         { name: 'tailored resume scores ≥85', ok: bd.score >= 85, detail: `score ${bd.score}, penalty ${bd.penalty}, cap ${bd.cap}` },
         { name: 'no soft red flags (≤1)', ok: r.data.red_flags.length <= 1, detail: r.data.red_flags.join('; ') || 'none' },
-        { name: 'few actions left (≤4)', ok: r.data.actions.length <= 4, detail: `${r.data.actions.length} actions` },
+        benchMode === 'fast'
+          ? { name: 'quick check returns no actions', ok: r.data.actions.length === 0, detail: `${r.data.actions.length} actions` }
+          : { name: 'few actions left (≤4)', ok: r.data.actions.length <= 4, detail: `${r.data.actions.length} actions` },
         { name: 'ceiling ≈ score (nothing unreachable invented)', ok: (bd.ceiling ?? 0) - bd.score <= 10, detail: `score ${bd.score}, ceiling ${bd.ceiling}` },
       );
     }),
@@ -317,6 +323,7 @@ async function main(): Promise<void> {
   const engineArg = flag(argv, '--engine');
   const modelArg = flag(argv, '--model');
   const outFile = flag(argv, '--out');
+  benchMode = parseMatchMode(flag(argv, '--mode') ?? 'full');
   let targets: { tag: AiProviderId; provider: AiProvider; model: string }[];
   if (engineArg === 'all') {
     const statuses = await probeAiProviders();
@@ -348,15 +355,15 @@ async function main(): Promise<void> {
     if (modelArg !== undefined && modelFitsProvider(modelArg, t.tag)) t.model = modelArg;
     benchProvider = t.provider;
     benchModel = t.model;
-    logger.info({ engine: t.tag, model: t.model || '(engine default)' }, 'bench: engine start');
+    logger.info({ engine: t.tag, model: t.model || '(engine default)', mode: benchMode }, 'bench: engine start');
     const suite = await runSuite();
     failed += reportSuite(t.tag, suite.checks);
     if (outFile !== undefined) {
       const run: BenchRun = {
-        tag: `${t.model || t.tag}-full`,
+        tag: `${t.model || t.tag}-${benchMode}`,
         engine: t.tag,
         model: t.model,
-        mode: 'full',
+        mode: benchMode,
         promptVersion: PROMPT_VERSION,
         at: new Date().toISOString(),
         fixtures: suite.fixtures,

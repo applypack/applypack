@@ -22,6 +22,14 @@ const ACTIVITIES = {
     'Extracting the text an ATS parser would see…',
     'Cataloguing skills, seniority and job-agnostic issues…',
   ],
+  keywords: [
+    'Reading the posting and the resume side by side…',
+    'Building the keyword frame — must-have, preferred, nice-to-have, primary stack…',
+    'Searching the resume for evidence of every keyword…',
+    'Grading alignment — title, summary, most recent role…',
+    'Checking hard requirements and red flags…',
+    'Composing the deterministic score — almost there…',
+  ],
   match: [
     'Reading the posting and the resume side by side…',
     'Building the keyword frame — must-have, preferred, nice-to-have, primary stack…',
@@ -30,6 +38,11 @@ const ACTIVITIES = {
     'Checking hard requirements, red flags and facts to confirm…',
     'Drafting edit suggestions and removals with exact quotes…',
     'Composing the deterministic score — almost there…',
+  ],
+  suggestions: [
+    'Reading the stored verdicts and the resume…',
+    'Drafting edit suggestions with exact quotes…',
+    'Listing what to remove and what already sells you…',
   ],
   verify: [
     'Searching for the company and this posting…',

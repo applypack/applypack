@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { applyFacts } from '../../resume/facts';
+import { readMatchMode } from '../../resume/match-mode';
 import { readPromptVersion } from '../../resume/match-reuse';
 import { readKeywords } from '../../resume/prompts';
 import { readBreakdown, scoreMatch } from '../../resume/score';
@@ -48,6 +49,7 @@ factsRoute.post('/facts', async (c) => {
           keywords: next,
           breakdown: newBd,
           promptVersion: readPromptVersion(match.breakdown),
+          mode: readMatchMode(match.breakdown),
         });
         return flashRedirect(
           back,

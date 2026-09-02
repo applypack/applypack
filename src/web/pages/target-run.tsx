@@ -20,9 +20,17 @@ const STEP_VIEW: Record<RunStep, StepView> = {
     label: 'Read the resume',
     detail: 'headline, skills, ATS issues — about half a minute',
   },
+  keywords: {
+    label: 'Quick AI check',
+    detail: 'the resume model judges every keyword, the gates and the score — no edit suggestions — about half a minute on Opus',
+  },
   match: {
-    label: 'AI match',
-    detail: 'the resume model reads both texts and writes the full report — 1½ to 2 minutes on Opus',
+    label: 'Full AI analysis',
+    detail: 'the resume model reads both texts and writes the full report with edit suggestions — 1½ to 2 minutes on Opus',
+  },
+  suggestions: {
+    label: 'Edit suggestions',
+    detail: 'what to change and what to remove, written from the stored keyword verdicts — the score stays — about a minute on Opus',
   },
   verify: {
     label: 'Research the company',
@@ -47,13 +55,9 @@ export const TargetRunPage: FC<{ run: TargetRun }> = ({ run }) => {
   const failed = run.stage === 'error';
   const currentIdx = run.steps.indexOf(run.stage as RunStep);
   const elapsed = Math.max(0, Math.round((Date.now() - run.startedAt) / 1000));
-  // A letter run reads oddly as "Comparing" — the verb follows the steps;
-  // wizard runs (scan / score) bring their own copy.
-  const letter = run.steps.includes('letter');
-  const copy = run.heading ?? {
-    running: letter ? 'Writing a cover letter' : 'Comparing',
-    failed: letter ? 'Generation failed' : 'Comparison failed',
-  };
+  // A letter or suggestions run reads oddly as "Comparing" — the verb follows
+  // the steps; wizard runs (scan / score) bring their own copy.
+  const copy = run.heading ?? runCopy(run.steps);
   const heading = failed ? copy.failed : copy.running;
   return (
     <Layout title={failed ? heading : `${heading}…`} active={run.heading ? undefined : 'target'}>
@@ -115,6 +119,12 @@ export const TargetRunPage: FC<{ run: TargetRun }> = ({ run }) => {
     </Layout>
   );
 };
+
+function runCopy(steps: RunStep[]): { running: string; failed: string } {
+  if (steps.includes('letter')) return { running: 'Writing a cover letter', failed: 'Generation failed' };
+  if (steps.includes('suggestions')) return { running: 'Writing suggestions', failed: 'Suggestions failed' };
+  return { running: 'Comparing', failed: 'Comparison failed' };
+}
 
 const RUN_BOOT = `
 import { init } from '/static/target-run.mjs';

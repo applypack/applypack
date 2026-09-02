@@ -21,6 +21,8 @@ test('activityFor advances with stage time and holds on the last line', async ()
   assert.equal(activityFor('match', 20 * 60_000), last, 'holds on the final line');
   assert.notEqual(activityFor('extract', 0), '', 'the detect step narrates too');
   assert.notEqual(activityFor('letter', 0), '', 'the cover-letter step narrates too');
+  assert.notEqual(activityFor('keywords', 0), '', 'the quick check narrates too');
+  assert.notEqual(activityFor('suggestions', 0), '', 'the suggestions step narrates too');
   assert.equal(activityFor('nope', 0), '', 'unknown step yields nothing');
 });
 
