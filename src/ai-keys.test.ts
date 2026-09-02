@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  AI_KEY_PROVIDER_IDS,
+  AI_KEY_ENV_VARS,
   MAX_AI_KEY_LENGTH,
   aiKeySource,
   parseAiKeys,
@@ -12,7 +12,7 @@ import {
 
 describe('providerTakesKey', () => {
   it('covers the four key-bearing engines and not codex', () => {
-    assert.deepEqual(AI_KEY_PROVIDER_IDS, [
+    assert.deepEqual(Object.keys(AI_KEY_ENV_VARS), [
       'anthropic_api',
       'claude_code',
       'gemini_cli',

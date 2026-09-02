@@ -230,7 +230,7 @@ export async function probeAiProviders(): Promise<Record<AiProviderId, AiProvide
   const statuses: Record<AiProviderId, AiProviderStatus> = {
     anthropic_api:
       from('anthropic_api') === 'none'
-        ? { ok: false, detail: 'paste an API key below, or set ANTHROPIC_API_KEY in .env' }
+        ? { ok: false, detail: 'paste an API key, or set ANTHROPIC_API_KEY in .env' }
         : { ok: true, detail: `API key ${keyOrigin(from('anthropic_api'))}` },
     claude_code: withClaudeAuth(claude, from('claude_code')),
     gemini_cli: withGeminiAuth(gemini, from('gemini_cli')),
@@ -238,7 +238,7 @@ export async function probeAiProviders(): Promise<Record<AiProviderId, AiProvide
       from('openai_api') === 'none'
         ? {
             ok: false,
-            detail: `paste an API key below, or set OPENAI_API_KEY in .env (endpoint: ${baseUrlHost()})`,
+            detail: `paste an API key, or set OPENAI_API_KEY in .env (endpoint: ${baseUrlHost()})`,
           }
         : { ok: true, detail: `API key ${keyOrigin(from('openai_api'))} · ${baseUrlHost()}` },
     codex_cli: withCodexAuth(codex),
@@ -298,7 +298,7 @@ function withGeminiAuth(bin: AiProviderStatus, keySource: AiKeySource): AiProvid
   if (geminiAuthConfigured()) return bin;
   return {
     ok: false,
-    detail: `${bin.detail} installed — paste an API key below, or log in once with \`gemini\` (mount ~/.gemini in Docker)`,
+    detail: `${bin.detail} installed — paste an API key, or log in once with \`gemini\` (mount ~/.gemini in Docker)`,
   };
 }
 
@@ -348,7 +348,7 @@ function withClaudeAuth(bin: AiProviderStatus, keySource: AiKeySource): AiProvid
   if (claudeAuthConfigured()) return bin;
   return {
     ok: false,
-    detail: `${bin.detail} installed, but not logged in — run \`claude\` once, or paste a \`claude setup-token\` token below`,
+    detail: `${bin.detail} installed, but not logged in — run \`claude\` once, or paste a \`claude setup-token\` token`,
   };
 }
 

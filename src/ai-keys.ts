@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { AI_PROVIDER_IDS, type AiProviderId } from './ai-engine';
+import type { AiProviderId } from './ai-engine';
 
 /*
  * Per-engine credentials (ADR 0027): the key an engine needs, stored in
@@ -35,9 +35,6 @@ export const MAX_AI_KEY_LENGTH = 500;
 export function providerTakesKey(id: AiProviderId): id is AiKeyProviderId {
   return id in AI_KEY_ENV_VARS;
 }
-
-/** Engines that accept a pasted key, in the roster's own order. */
-export const AI_KEY_PROVIDER_IDS: AiKeyProviderId[] = AI_PROVIDER_IDS.filter(providerTakesKey);
 
 const StoredKeysSchema = z.record(z.string(), z.string());
 
