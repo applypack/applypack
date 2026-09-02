@@ -4,6 +4,44 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.20.0] — 2026-09-02
+
+### Fixed
+- **Two tabs no longer lose an AI key** (#72). Saving a key read the whole
+  `aiKeys` map, merged one engine in and wrote the map back, so two saves in
+  flight kept only the later snapshot — the other engine's key was gone. The
+  merge is now a single `jsonb_set` statement: the database merges, and there
+  is no window to lose. Measured on a scratch database: two saves in flight,
+  before → one key stored, after → both.
+- **The eight-search ceiling is no longer advisory** (#70). Counting the
+  running searches and then flipping the row is check-then-act: two
+  activations both read seven, both passed, nine searches ran. The count and
+  the write now happen under one row lock. Measured: seven running, two
+  activations in flight, before → 9 running, after → 8.
+- **A second submit joins the run in flight instead of starting a second one**
+  (#76). `SUBMIT_ONCE` disables buttons in the browser, which cannot help a
+  second tab, a re-POSTed reload or a client with scripting off. Every POST
+  that starts an AI run — compare, full analysis, suggestions, cover letter,
+  scan, strength review, the wizard's steps, `/target` and `/letter` — now
+  names the work it is doing, and a request for work already running is
+  redirected to it. Repeating a *finished* run still starts a fresh one.
+- **A confirmed fact no longer drops your keyword overrides out of the score.**
+  The `/facts` re-score skipped `effectiveKeywords`, so answering a question on
+  a comparison you had re-levelled recomputed the number as if you never had.
+  Both re-score paths now share one locked function.
+
+### Security
+- **Cross-origin writes are refused** (#69). A page open in the same browser
+  could POST to the dashboard on `localhost:4747` — change a setting, delete a
+  resume, overwrite an AI key — because a form POST needs no permission from
+  the target site. Every state-changing request is now checked against the
+  headers a browser attaches itself (`Origin`, `Sec-Fetch-Site`). No tokens, no
+  session store, and `curl` still works: a request with no browser origin
+  headers at all is not the attack this stops. `Sec-Fetch-Site` decides
+  whenever the browser sends it — a dashboard rendered in a sandboxed frame
+  posts to itself with an opaque `Origin` *and* `Sec-Fetch-Site: same-origin`
+  (measured, not assumed), and no cross-site page can produce that pair.
+
 ## [1.19.0] — 2026-09-02
 
 ### Added
@@ -1181,6 +1219,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[1.20.0]: https://github.com/applypack/applypack/compare/v1.19.0...v1.20.0
 [1.19.0]: https://github.com/applypack/applypack/compare/v1.18.0...v1.19.0
 [1.18.0]: https://github.com/applypack/applypack/compare/v1.17.0...v1.18.0
 [1.17.0]: https://github.com/applypack/applypack/compare/v1.16.0...v1.17.0

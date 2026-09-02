@@ -55,14 +55,17 @@ export interface TargetRun {
   /** Done with a stored analysis, not a fresh one — the flash warns and offers "Re-run anyway". */
   reused?: boolean;
   error?: string;
+  /** What this run is working on — a second POST for the same thing joins it (issue #76). */
+  key?: string;
 }
 
 const RUN_TTL_MS = 30 * 60_000;
 const runs = new Map<string, TargetRun>();
 
-export function createRun(
+/** Registers a run. Private: every start goes through `claimRun`, which is what makes a second POST join instead of duplicate. */
+function createRun(
   fields: Pick<TargetRun, 'steps' | 'jobTitle' | 'resumeName'> &
-    Partial<Pick<TargetRun, 'jobId' | 'backUrl' | 'backLabel' | 'heading' | 'subtitle'>>,
+    Partial<Pick<TargetRun, 'jobId' | 'backUrl' | 'backLabel' | 'heading' | 'subtitle' | 'key'>>,
 ): TargetRun {
   prune();
   const run: TargetRun = {
@@ -77,6 +80,45 @@ export function createRun(
   };
   runs.set(run.id, run);
   return run;
+}
+
+/**
+ * Start the work, or hand back the run already doing it (issue #76).
+ *
+ * `SUBMIT_ONCE` disables the buttons in the browser, which is the wrong place
+ * for the guarantee: it is inline JS, and it cannot help a second tab, a
+ * reload of the POST, or a client with scripting off. The registry can, and
+ * needs nothing new to do it — a `key` naming the work (this job, this resume,
+ * this text) is enough to recognise the second request as the same one.
+ *
+ * The lookup and the insert are one synchronous statement pair with no `await`
+ * between them, and that is the whole guarantee: a Node request handler runs
+ * to its next suspension point before any other can resume, so two POSTs in
+ * flight cannot both find nothing. Finished runs are not matched, so asking
+ * again after an answer starts a fresh one, exactly as before.
+ */
+export function claimRun(
+  key: string,
+  fields: Parameters<typeof createRun>[0],
+): { run: TargetRun; joined: boolean } {
+  // Prune first: a run that died mid-flight (a web restart, a crash between
+  // ticks) stays "in flight" forever otherwise, and every retry would join a
+  // run that will never move.
+  prune();
+  const live = findLiveRun(key);
+  if (live) {
+    logger.info({ runId: live.id, key }, 'run: joined a run already in flight');
+    return { run: live, joined: true };
+  }
+  return { run: createRun({ ...fields, key }), joined: false };
+}
+
+/** The unfinished run for `key`, if one is in flight. */
+export function findLiveRun(key: string): TargetRun | null {
+  for (const run of runs.values()) {
+    if (run.key === key && run.stage !== 'done' && run.stage !== 'error') return run;
+  }
+  return null;
 }
 
 export function updateRun(id: string, patch: Partial<Omit<TargetRun, 'id'>>): void {

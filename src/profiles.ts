@@ -2,9 +2,8 @@ import type { Profile } from '@prisma/client';
 import { prisma } from './db';
 import { logger } from './logger';
 import { MAX_ACTIVE_PROFILES } from './profile-guards';
+import { ensureSettingsRow, SETTINGS_ID } from './settings';
 import type { PriorityRule } from './priority-rules';
-
-const SETTINGS_ID = 1;
 
 export interface ProfileInput {
   name: string;
@@ -87,23 +86,35 @@ export async function listActiveProfiles(): Promise<Profile[]> {
  * a dashboard that quietly stops working.
  */
 export async function setProfileActive(id: number, active: boolean): Promise<void> {
-  const profile = await prisma.profile.findUnique({ where: { id } });
-  if (!profile) throw new Error(`Profile ${id} not found`);
-  if (active) {
-    const running = await prisma.profile.count({ where: { active: true, id: { not: id } } });
-    if (running >= MAX_ACTIVE_PROFILES) {
-      throw new Error(
-        `At most ${MAX_ACTIVE_PROFILES} searches can run at once. Switch one off first.`,
-      );
+  // The whole decision runs under one lock (issue #70). Counting the running
+  // searches and then flipping the row in a second statement is check-then-act:
+  // two tabs both read 7, both pass, and 9 searches run. A transaction alone
+  // does not fix it — at Read Committed each transaction's count reads its own
+  // snapshot — and locking the rows we counted cannot see a row that became
+  // active while we waited. So both writers queue on the one row that stands
+  // for global state, and the loser re-counts after the winner has committed.
+  await ensureSettingsRow();
+  const name = await prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM app_settings WHERE id = ${SETTINGS_ID} FOR UPDATE`;
+    const profile = await tx.profile.findUnique({ where: { id } });
+    if (!profile) throw new Error(`Profile ${id} not found`);
+    if (active) {
+      const running = await tx.profile.count({ where: { active: true, id: { not: id } } });
+      if (running >= MAX_ACTIVE_PROFILES) {
+        throw new Error(
+          `At most ${MAX_ACTIVE_PROFILES} searches can run at once. Switch one off first.`,
+        );
+      }
+    } else {
+      const settings = await tx.appSettings.findUnique({ where: { id: SETTINGS_ID } });
+      if (settings?.activeProfileId === id) {
+        throw new Error('The primary search cannot be switched off. Make another one primary first.');
+      }
     }
-  } else {
-    const settings = await prisma.appSettings.findUnique({ where: { id: SETTINGS_ID } });
-    if (settings?.activeProfileId === id) {
-      throw new Error('The primary search cannot be switched off. Make another one primary first.');
-    }
-  }
-  await prisma.profile.update({ where: { id }, data: { active } });
-  logger.info({ profileId: id, name: profile.name, active }, 'profiles: active toggled');
+    await tx.profile.update({ where: { id }, data: { active } });
+    return profile.name;
+  });
+  logger.info({ profileId: id, name, active }, 'profiles: active toggled');
 }
 
 export async function getActiveProfile(): Promise<Profile | null> {

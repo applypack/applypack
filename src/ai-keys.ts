@@ -4,7 +4,8 @@ import type { AiProviderId } from './ai-engine';
 /*
  * Per-engine credentials (ADR 0027): the key an engine needs, stored in
  * AppSettings.aiKeys so a non-technical user can paste it into the dashboard
- * instead of editing .env. Pure — parsing, merging and env resolution only;
+ * instead of editing .env. Pure — parsing and env resolution only; storing a
+ * key merges in SQL (settings.ts), so no in-memory merge can lose one;
  * the row itself is read and written through settings.ts. No I/O, no logging:
  * a secret must never leave this module by any path but its return value.
  */
@@ -55,15 +56,6 @@ export function parseAiKeys(raw: unknown): AiKeys {
     if (providerTakesKey(id as AiProviderId)) keys[id as AiKeyProviderId] = key;
   }
   return keys;
-}
-
-/** Stores a pasted key, or removes it when the value is blank. */
-export function withAiKey(keys: AiKeys, id: AiKeyProviderId, value: string): AiKeys {
-  const next = { ...keys };
-  const key = value.trim();
-  if (key.length === 0) delete next[id];
-  else next[id] = key;
-  return next;
 }
 
 /**

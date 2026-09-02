@@ -29,7 +29,8 @@ import { createProfileFromResume, newProfileDraft } from '../profile-from-resume
 import { ResumeDetailPage } from '../pages/resume-detail';
 import { ResumesPage } from '../pages/resumes';
 import { clearFlashCookie, flashRedirect, parseFlashCookie } from '../flash';
-import { createRun, startRun, updateRun } from '../target-runs';
+import { claimRun, startRun, updateRun } from '../target-runs';
+import { hashShortId } from '../../text-utils';
 import {
   MAX_RESUME_NAME_CHARS,
   nameFromFilename,
@@ -148,25 +149,37 @@ resumesRoute.post('/resumes/:id/draft', async (c) => {
   if (text.length < MIN_DRAFT_CHARS) {
     return flashRedirect(`/resumes/${id}`, 'err', 'The draft is too short to be a resume.');
   }
-  const resume = await saveResumeTextVersion(id, text);
   const jobId = Number(form.jobId);
   const job = Number.isFinite(jobId)
     ? await prisma.job.findUnique({ where: { id: jobId }, include: { company: { select: { name: true } } } })
     : null;
 
-  // The version is already saved; scan and match are the slow part. Two AI
-  // calls back to back is the worst wait on the site, so it gets a run too.
-  const run = createRun({
+  // Claimed BEFORE the save, not after: this route's side effect is a new
+  // resume version, so a second submit that got as far as saving would leave
+  // a duplicate version behind whatever the run registry then did. Keyed on
+  // the text, because that is what the user submitted (issue #76).
+  const { run, joined } = claimRun(`draft:${id}:${hashShortId(text)}:${job?.id ?? ''}`, {
     steps: job ? ['scan', 'keywords'] : ['scan'],
     jobTitle: job?.title ?? '',
-    resumeName: resume.name,
+    resumeName: '',
     jobId: job?.id,
     heading: { running: 'Re-reading your edited resume', failed: 'Could not read the edited resume' },
-    subtitle: `Saved as v${resume.version}.${job ? ' Reading it, then scoring it against the posting.' : ''}`,
+    subtitle: 'Saving the new version…',
     backUrl: `/resumes/${id}`,
     backLabel: 'Back to the resume',
   });
+  if (joined) return c.redirect(`/target/runs/${run.id}`, 303);
+
+  // The save happens inside the run, so a failure lands on the progress page
+  // as an error instead of stranding a claimed run nothing will ever finish.
+  // Scan and match are the slow part after it: two AI calls back to back is
+  // the worst wait on the site, which is why this gets a run at all.
   startRun(run.id, async () => {
+    const resume = await saveResumeTextVersion(id, text);
+    updateRun(run.id, {
+      resumeName: resume.name,
+      subtitle: `Saved as v${resume.version}.${job ? ' Reading it, then scoring it against the posting.' : ''}`,
+    });
     const scan = await scanResume(resume);
     if (!job) {
       updateRun(run.id, scan
@@ -241,7 +254,9 @@ resumesRoute.post('/resumes/:id/review', async (c) => {
   if (!resume) return c.text('Not found', 404);
   const { text, version, roleTypes } = resume;
 
-  const run = createRun({
+  // Two tabs used to start two reviews of the same version and store both
+  // (PR #86's follow-up); the second POST now joins the first.
+  const { run, joined } = claimRun(`review:${id}:v${version}`, {
     steps: ['review'],
     jobTitle: '',
     resumeName: resume.name,
@@ -250,6 +265,7 @@ resumesRoute.post('/resumes/:id/review', async (c) => {
     backUrl: `/resumes/${id}`,
     backLabel: 'Back to the resume',
   });
+  if (joined) return c.redirect(`/target/runs/${run.id}`, 303);
   startRun(run.id, async () => {
     const row = await reviewResume({ id, text, version, roleTypes });
     updateRun(run.id, row
@@ -292,7 +308,7 @@ function startScanRun(
   copy: { subtitle: string; onScanned: (scan: ResumeScan) => string; onFailed: string },
 ): Response {
   const { id, name, text } = resume;
-  const run = createRun({
+  const { run, joined } = claimRun(`scan:${id}:${hashShortId(text)}`, {
     steps: ['scan'],
     jobTitle: '',
     resumeName: name,
@@ -302,6 +318,7 @@ function startScanRun(
     backUrl: `/resumes/${id}`,
     backLabel: 'Back to the resume',
   });
+  if (joined) return c.redirect(`/target/runs/${run.id}`, 303);
   startRun(run.id, async () => {
     const scan = await scanResume({ id, text });
     updateRun(run.id, scan

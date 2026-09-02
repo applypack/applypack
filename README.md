@@ -139,6 +139,15 @@ authentication unless you set `WEB_BASIC_AUTH`, so bind it wider only
 together with that. (Under Docker, compose sets `0.0.0.0` for the
 container and publishes the port on loopback only.)
 
+Writes are refused when they come from another origin: a POST whose
+`Origin` is not this dashboard, or whose `Sec-Fetch-Site` says
+`cross-site`, gets a 403. That is what stops a page open in the same
+browser from posting to your `localhost:4747`. A request with no browser
+origin headers at all — `curl`, a script — is not that attack and passes.
+If you put the dashboard behind a reverse proxy, pass the browser's host
+through (`proxy_set_header Host $host` in nginx); a proxy that rewrites
+`Host` to `localhost` makes every form look cross-origin.
+
 CLI engines (claude / gemini / codex) are simpler locally: install them
 globally, log in once in your terminal, and the probe on the AI tab turns
 green. Details per engine in [docs/ai-engines.md](./docs/ai-engines.md).

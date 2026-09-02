@@ -948,3 +948,55 @@ Sonnet bench for the resume role — not "make Opus stream faster".
       as-you-type case with no call at all (0-15 ms) and F7 shows that a
       frozen frame is a liability, not an asset. Reopen only if a measured
       compare goes back over ~60 s.
+
+## 14. Pre-public hardening (2026-09-02)
+
+Not a feature: the class of bug a stranger meets first. Ordered by damage,
+not by issue number — #72 loses a pasted AI key, which is worth fixing
+before anyone else installs this.
+
+- [x] `pre-public-hardening` A+B — the read-modify-write races and the
+      cross-origin write guard, branch `pre-public-hardening`.
+      **Measured on a throwaway database** (`race_test`, all 47 migrations
+      applied from empty), each race run twice: once through the old code
+      path re-created inline, once through the shipped function.
+      - **#72** two tabs save a key for two engines: before → `[gemini_cli]`
+        (one key lost), after → `[gemini_cli, openai_api]`. The merge moved
+        into one `jsonb_set` statement; a transaction would not have helped,
+        because at Read Committed the read inside it still returns the
+        version current when it started.
+      - **#70** seven searches running, two activations in flight: before →
+        **2 accepted, 9 running**; after → **1 accepted, 8 running**. The
+        count and the write now share one lock on the singleton settings
+        row — locking the rows counted cannot see a row that became active
+        during the wait.
+      - **#76** three POSTs to `POST /resumes/8/review`, two of them
+        concurrent: **one run** (`abbe4376…`), two `run: joined a run
+        already in flight` lines, one review row. Every POST that starts an
+        AI run now names its work; a repeat after the answer still starts a
+        fresh run. The wizard's bespoke `scoreRunId` singleton was deleted
+        in favour of it.
+      - **PR #83's follow-up** — the keyword override and the `ask_user`
+        answer shared a read-modify-write of the same JSON. Two edits in
+        flight: before → one survived (`[postgres]`), after → both
+        (`[node.js, postgres]`). One locked function now serves both, which
+        also fixed a real bug: `/facts` re-scored without
+        `effectiveKeywords`, so answering a question on a comparison you had
+        re-levelled silently recomputed the number as if you never had.
+        Repeated live on job #1393 / match #59: two simultaneous edits →
+        3 overrides stored, five resets → back to **66** with 0 overrides,
+        the state PR #83 left behind.
+      - **#69** cross-origin POST → **403** from the middleware
+        (`Cross-origin request refused.` + a `web: cross-origin write
+        refused` log line); same-origin POST and header-less `curl` reach
+        their routes unchanged; GET is never checked. 11 unit tests on the
+        pure `sameOriginPost`.
+      - Five follow-ups that had only ever lived in PR bodies became issues
+        #88-#92; three of the same class were fixed here instead.
+- [ ] `pre-public-hardening` C — #73 (a stale `resumeId` in the profile
+      form raises a raw FK error), #74 + #75 (`appliedResumeText` is written
+      and never read; the board's drag and the application form leave the
+      applied-resume columns NULL).
+- [ ] `pre-public-check` — the six-point audit before strangers arrive:
+      clean install from an empty database, migrations, secrets, exposure,
+      README against the live UI, delete blast radius + a backup recipe.

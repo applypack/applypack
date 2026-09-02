@@ -2,18 +2,10 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import { prisma } from '../../db';
 import { loadKeywordMatcher } from '../../resume/keyword-matcher';
-import {
-  addKeyword,
-  editKeyword,
-  effectiveKeywords,
-  type EditResult,
-} from '../../resume/keyword-overrides';
-import { readFrameReason } from '../../resume/keyword-frame';
-import { readMatchMode } from '../../resume/match-mode';
-import { readPromptVersion } from '../../resume/match-reuse';
-import { readKeywords } from '../../resume/prompts';
-import { readBreakdown, REQUIREMENT_LEVELS, scoreMatch } from '../../resume/score';
-import { getMatch, updateMatchScoring } from '../../resume/store';
+import { addKeyword, editKeyword, type EditResult } from '../../resume/keyword-overrides';
+import { readKeywords, type MatchKeyword } from '../../resume/prompts';
+import { REQUIREMENT_LEVELS } from '../../resume/score';
+import { getMatch, rescoreMatchKeywords } from '../../resume/store';
 import { flashRedirect, safeBack } from '../flash';
 
 /*
@@ -63,15 +55,13 @@ keywordsRoute.post('/jobs/:id/matches/:matchId/keywords', async (c) => {
   const form = parsed.data;
   const back = safeBack(form.back, `/jobs/${id}?match=${matchId}#resume-match`);
 
-  const match = await getMatch(matchId);
-  if (!match || match.jobId !== id) return c.text('Not found', 404);
-  const breakdown = readBreakdown(match.breakdown);
-  if (!breakdown) {
-    return flashRedirect(back, 'warn', 'This comparison predates the deterministic score — run Compare again to edit its keywords.');
-  }
+  const existing = await getMatch(matchId);
+  if (!existing || existing.jobId !== id) return c.text('Not found', 404);
 
-  const keywords = readKeywords(match.keywords);
-  let result: EditResult;
+  // The edit itself is pure; everything it needs from the database is loaded
+  // here, before the lock, so the row below is held for the length of a
+  // function call and nothing else.
+  let edit: (keywords: MatchKeyword[], resumeText: string) => EditResult;
   if (form.op === 'add') {
     const [job, matcher] = await Promise.all([
       prisma.job.findUnique({ where: { id }, select: { title: true, description: true } }),
@@ -79,28 +69,34 @@ keywordsRoute.post('/jobs/:id/matches/:matchId/keywords', async (c) => {
     ]);
     if (!job) return c.text('Not found', 404);
     const requirement = form.requirement ?? 'preferred';
-    result = addKeyword(
-      keywords,
-      { term: form.term, requirement },
-      // The same posting text the anchor pass reads, so "not in posting" means
-      // the same thing whoever added the term.
-      { resumeText: match.resumeText, posting: `${job.title}\n${job.description}`, matcher },
-    );
+    // The same posting text the anchor pass reads, so "not in posting" means
+    // the same thing whoever added the term.
+    const posting = `${job.title}\n${job.description}`;
+    edit = (keywords, resumeText) =>
+      addKeyword(keywords, { term: form.term, requirement }, { resumeText, posting, matcher });
   } else {
     if (form.op === 'level' && !form.requirement) return c.text('Bad keyword edit', 400);
-    result = editKeyword(keywords, { op: form.op, term: form.term, requirement: form.requirement });
+    const op = form.op;
+    edit = (keywords) => editKeyword(keywords, { op, term: form.term, requirement: form.requirement });
   }
-  if (!result.ok) return flashRedirect(back, 'err', result.error);
 
-  const next = scoreMatch(effectiveKeywords(result.keywords), breakdown.alignment, match.redFlags.length);
-  await updateMatchScoring(match.id, {
-    keywords: result.keywords,
-    breakdown: next,
-    promptVersion: readPromptVersion(match.breakdown),
-    mode: readMatchMode(match.breakdown),
-    frame: readFrameReason(match.breakdown),
+  // Read, edit and write under one row lock: the same JSON is rewritten by
+  // /facts and by the next re-run, and the loser of an unlocked race lost an
+  // edit outright.
+  const outcome = await rescoreMatchKeywords<EditResult>(matchId, (match) => {
+    const result = edit(readKeywords(match.keywords), match.resumeText);
+    return { keywords: result.ok ? result.keywords : null, detail: result };
   });
+
+  if (!outcome) return c.text('Not found', 404);
+  const result = outcome.detail;
+  if (!result.ok) return flashRedirect(back, 'err', result.error);
+  if (!outcome.scored) {
+    return flashRedirect(back, 'warn', 'This comparison predates the deterministic score — run Compare again to edit its keywords.');
+  }
   const score =
-    next.score === match.matchScore ? `score stays ${next.score}` : `score ${match.matchScore} → ${next.score}`;
+    outcome.after === outcome.before
+      ? `score stays ${outcome.after}`
+      : `score ${outcome.before} → ${outcome.after}`;
   return flashRedirect(back, 'ok', `${describe(form.op, result, form.requirement)} — ${score}, no AI call.`);
 });
