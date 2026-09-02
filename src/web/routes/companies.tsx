@@ -73,6 +73,28 @@ companiesRoute.get('/companies', async (c) => {
     alertedMap.set(row.companyId, row._count._all);
   }
 
+  // What "Delete" would take beyond the jobs. A job cascades to the
+  // application tracked against it, its comparisons and its letters, and the
+  // confirm used to count the jobs only — on real data that hid six
+  // applications behind "and all its 73 jobs?" (audit, TASKS §14).
+  const applicationCounts = await prisma.job.groupBy({
+    by: ['companyId'],
+    where: { OR: [{ pipelineStage: { not: null } }, { status: JobStatus.APPLIED }] },
+    _count: { _all: true },
+  });
+  const applicationMap = new Map(applicationCounts.map((r) => [r.companyId, r._count._all]));
+  const [matchRows, letterRows] = await Promise.all([
+    prisma.resumeMatch.findMany({ select: { job: { select: { companyId: true } } } }),
+    prisma.coverLetter.findMany({ select: { job: { select: { companyId: true } } } }),
+  ]);
+  const tally = (rows: { job: { companyId: number } }[]): Map<number, number> => {
+    const m = new Map<number, number>();
+    for (const r of rows) m.set(r.job.companyId, (m.get(r.job.companyId) ?? 0) + 1);
+    return m;
+  };
+  const matchMap = tally(matchRows);
+  const letterMap = tally(letterRows);
+
   const settings = await getSettings();
   const now = new Date();
   const rows = companies.map((c) => ({
@@ -84,6 +106,12 @@ companiesRoute.get('/companies', async (c) => {
     careerUrl: c.careerUrl,
     jobsTotal: c._count.jobs,
     alertedTotal: alertedMap.get(c.id) ?? 0,
+    deleteImpact: {
+      jobs: c._count.jobs,
+      applications: applicationMap.get(c.id) ?? 0,
+      comparisons: matchMap.get(c.id) ?? 0,
+      letters: letterMap.get(c.id) ?? 0,
+    },
     lastFetchedAt: c.jobs[0]?.fetchedAt ?? null,
     lastFetchStatus: c.lastFetchStatus,
     consecutiveFailures: c.consecutiveFailures,

@@ -297,6 +297,44 @@ draft feels right, "Re-analyze with AI" gives the honest rubric score and
 the delta is real because the scoring is deterministic.
 
 <details>
+<summary><b>Your data, and how to keep it</b> (backup, restore, what a delete takes)</summary>
+
+Everything lives in one Postgres database — jobs, resumes and their versions,
+comparisons, cover letters, applications, and your AI keys if you pasted them
+into the dashboard instead of `.env`. Nothing is sent anywhere but the AI
+engine you chose and, if you set it up, your own Telegram bot.
+
+Back it up with one command; it is a plain SQL dump:
+
+```bash
+docker compose exec -T postgres pg_dump -U jobhunter jobhunter > applypack-$(date +%F).sql
+```
+
+Restore into an empty database (stop the app first so nothing writes while it
+loads):
+
+```bash
+docker compose stop app web
+docker compose exec -T postgres psql -U jobhunter -d jobhunter < applypack-2026-09-02.sql
+docker compose start app web
+```
+
+`docker compose down` keeps the data (it lives in the `pgdata` volume);
+`docker compose down -v` deletes it. There is no undo, so take a dump first.
+
+The database port is published on **`127.0.0.1:5433`** for `psql` and Prisma on
+the host — loopback only, and 5433 so it does not collide with a Postgres you
+already run on 5432. The app itself never uses that port; it reaches Postgres
+over the compose network.
+
+Deletes inside the dashboard cascade, and each confirm names what it will take:
+deleting a resume takes its comparisons, its cover letters and its strength
+reviews; deleting a company takes every job it posted, and with each job the
+application you tracked against it.
+
+</details>
+
+<details>
 <summary><b>The worker's schedule</b> (six cron jobs, <code>TZ</code> from <code>.env</code>)</summary>
 
 | Cron | Job | What it does |

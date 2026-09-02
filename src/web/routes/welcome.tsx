@@ -41,6 +41,7 @@ import {
 } from '../welcome-steps';
 
 const TOP_MATCHES = 5;
+const AI_STEP = '/welcome?step=ai';
 const PROFILE_STEP = '/welcome?step=profile';
 const MATCHES_STEP = '/welcome?step=matches';
 
@@ -285,6 +286,16 @@ welcomeRoute.post('/welcome/score', async (c) => {
   const { facts } = await loadWelcomeContext();
   if (!facts.profileReady) {
     return flashRedirect(PROFILE_STEP, 'err', 'Fill the profile first — scoring needs your technologies or role words.');
+  }
+  // Step 1 can be skipped, and then every call in this pass fails one by one:
+  // a minute of watching a progress bar to be told nothing could be scored.
+  // The wizard already knows whether an engine answers — ask it first.
+  if (!facts.aiReady) {
+    return flashRedirect(
+      AI_STEP,
+      'err',
+      'No AI engine answered, so there is nothing to score with. Connect one here first — the jobs we found are already stored and stay put.',
+    );
   }
   const { run, joined } = claimRun(SCORE_RUN_KEY, {
     steps: ['score'],

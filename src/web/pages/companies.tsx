@@ -22,6 +22,7 @@ import {
   Tr,
 } from '../ui';
 import { formatRelative } from '../format';
+import { companyDeleteConfirm, type CompanyDeleteImpact } from '../delete-confirm';
 import {
   QUIET_STREAK,
   SILENT_DAYS,
@@ -40,6 +41,8 @@ interface CompanyRow {
   active: boolean;
   careerUrl: string | null;
   jobsTotal: number;
+  /** What Delete would cascade — jobs, and the work recorded against them. */
+  deleteImpact: CompanyDeleteImpact;
   alertedTotal: number;
   lastFetchedAt: Date | null;
   lastFetchStatus: string | null;
@@ -300,7 +303,7 @@ export const CompaniesPage: FC<CompaniesProps> = ({
                   <Td>
                     <ActionForm
                       action={`/companies/${c.id}/delete`}
-                      confirm={`Delete "${c.name}" and all its ${c.jobsTotal} jobs?`}
+                      confirm={companyDeleteConfirm(c.name, c.deleteImpact)}
                       class="flex justify-end"
                     >
                       <Button size="sm" variant="danger">

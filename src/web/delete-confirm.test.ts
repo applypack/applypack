@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { deleteConfirm } from './delete-confirm';
+import { companyDeleteConfirm, deleteConfirm } from './delete-confirm';
 
 describe('deleteConfirm', () => {
   it('names every cascade — letters and strength reviews included', () => {
@@ -36,6 +36,38 @@ describe('deleteConfirm', () => {
     assert.equal(
       deleteConfirm('CV', { matches: 1, letters: 1, reviews: 1 }),
       'Delete "CV" and 1 comparison, 1 cover letter and 1 strength review? This cannot be undone.',
+    );
+  });
+});
+
+describe('companyDeleteConfirm', () => {
+  it('names what rides along with the jobs', () => {
+    // Measured on the live database: "Delete Reddit and all its 73 jobs?" was
+    // hiding six applications and a cover letter.
+    assert.equal(
+      companyDeleteConfirm('Reddit', { jobs: 73, applications: 6, comparisons: 0, letters: 1 }),
+      'Delete "Reddit", 73 jobs, and with them 6 tracked applications and 1 cover letter? This cannot be undone.',
+    );
+  });
+
+  it('stays short when only the jobs would go', () => {
+    assert.equal(
+      companyDeleteConfirm('Acme', { jobs: 12, applications: 0, comparisons: 0, letters: 0 }),
+      'Delete "Acme" and 12 jobs? This cannot be undone.',
+    );
+  });
+
+  it('handles a company that never posted anything', () => {
+    assert.match(
+      companyDeleteConfirm('Acme', { jobs: 0, applications: 0, comparisons: 0, letters: 0 }),
+      /and no jobs\?/,
+    );
+  });
+
+  it('uses the singular for one of each', () => {
+    assert.match(
+      companyDeleteConfirm('Acme', { jobs: 1, applications: 1, comparisons: 1, letters: 1 }),
+      /1 job, and with them 1 tracked application, 1 resume comparison and 1 cover letter/,
     );
   });
 });
