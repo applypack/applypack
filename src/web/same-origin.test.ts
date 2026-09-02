@@ -87,3 +87,65 @@ test('only state-changing methods are guarded', () => {
   assert.equal(guardedMethod('POST'), true);
   assert.equal(guardedMethod('delete'), true);
 });
+
+/*
+ * The cases below came in with PR #87 (rayulumukku), whose middleware this
+ * module absorbed: a Referer fallback for browsers that send no Origin, and
+ * X-Forwarded-Host so a reverse proxy does not make every form look foreign.
+ */
+
+test('a Referer from this host stands in for a missing Origin', () => {
+  const v = sameOriginPost({ referer: `http://${HOST}/jobs/123`, host: HOST });
+  assert.equal(v.ok, true);
+  assert.match(v.reason, /Referer/);
+});
+
+test("a Referer from someone else's site is refused", () => {
+  const v = sameOriginPost({ referer: 'http://evil.example/attacker-form', host: HOST });
+  assert.equal(v.ok, false);
+  assert.match(v.reason, /evil\.example is not/);
+});
+
+test('a garbled Referer is refused rather than ignored', () => {
+  assert.equal(sameOriginPost({ referer: 'not a url', host: HOST }).ok, false);
+});
+
+test('the Origin wins over the Referer when both are present', () => {
+  // A cross-site POST cannot launder itself by sending a friendly Referer.
+  const v = sameOriginPost({ origin: 'https://evil.example', referer: `http://${HOST}/jobs`, host: HOST });
+  assert.equal(v.ok, false);
+});
+
+test('behind a proxy, X-Forwarded-Host is what the browser asked for', () => {
+  // nginx passing Host: localhost:4747 upstream would otherwise make every
+  // same-origin form on jobs.example.com look cross-origin.
+  const v = sameOriginPost({
+    origin: 'https://jobs.example.com',
+    host: 'localhost:4747',
+    forwardedHost: 'jobs.example.com',
+  });
+  assert.equal(v.ok, true);
+});
+
+test('only the first X-Forwarded-Host entry counts — a chain appends', () => {
+  const v = sameOriginPost({
+    origin: 'https://jobs.example.com',
+    host: 'localhost:4747',
+    forwardedHost: 'jobs.example.com, inner-proxy.internal',
+  });
+  assert.equal(v.ok, true);
+});
+
+test('a forwarded host still has to match the Origin', () => {
+  const v = sameOriginPost({
+    origin: 'https://evil.example',
+    host: 'localhost:4747',
+    forwardedHost: 'jobs.example.com',
+  });
+  assert.equal(v.ok, false);
+});
+
+test('another service on the same host but a different port is not us', () => {
+  // From PR #87: localhost:3000 posting to localhost:4747.
+  assert.equal(sameOriginPost({ origin: 'http://localhost:3000', host: 'localhost:4747' }).ok, false);
+});
