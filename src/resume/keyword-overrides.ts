@@ -145,8 +145,12 @@ export function addKeyword(
   input: { term: string; requirement: RequirementLevel },
   ctx: KeywordEditContext,
 ): EditResult {
-  const term = input.term.trim().replace(/\s+/g, ' ').slice(0, MAX_TERM_CHARS);
+  const term = input.term.trim().replace(/\s+/g, ' ');
   if (term.length === 0) return { ok: false, error: 'Type the keyword first.' };
+  // Truncating would store a term that highlights nothing and reads as a bug.
+  if (term.length > MAX_TERM_CHARS) {
+    return { ok: false, error: `Keep the keyword under ${MAX_TERM_CHARS} characters — it has to match the posting word for word.` };
+  }
   const key = canonicalTerm(term);
   const clash = keywords.find((k) => names(k).includes(key));
   if (clash) {

@@ -148,8 +148,11 @@ test('a duplicate is refused, and an ignored duplicate says so', async () => {
   assert.match((again as { error: string }).error, /restore/);
 });
 
-test('an empty term is refused', async () => {
-  assert.equal(addKeyword(LIST, { term: '   ', requirement: 'must' }, await context()).ok, false);
+test('an empty term is refused, and so is one too long to match anything', async () => {
+  const ctx = await context();
+  assert.equal(addKeyword(LIST, { term: '   ', requirement: 'must' }, ctx).ok, false);
+  const long = addKeyword(LIST, { term: 'x'.repeat(61), requirement: 'must' }, ctx);
+  assert.equal(long.ok, false, 'refused, not silently truncated to something that highlights nowhere');
 });
 
 /* ---------- carrying overrides into the next run ---------- */

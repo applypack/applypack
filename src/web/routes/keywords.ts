@@ -31,7 +31,11 @@ const KeywordFormSchema = z.object({
 });
 
 /** What the flash says happened, before the score half of the sentence. */
-function describe(op: string, result: { term: string; removed: boolean }, requirement: string | undefined): string {
+function describe(
+  op: z.infer<typeof KeywordFormSchema>['op'],
+  result: { term: string; removed: boolean },
+  requirement: string | undefined,
+): string {
   const term = result.term;
   switch (op) {
     case 'add':

@@ -358,9 +358,12 @@ export const MatchReport: FC<{
           <RemovalsBlock removals={readRemovals(match.removals)} />
         </>
       )}
+      {/* A comparison written before ADR 0012 has no breakdown to re-score
+          from, so it gets the table without the controls rather than buttons
+          that can only fail. */}
       <KeywordTable
         keywords={keywords}
-        edit={{ jobId: match.jobId, matchId: match.id, back: factsBack }}
+        edit={bd ? { jobId: match.jobId, matchId: match.id, back: factsBack } : undefined}
       />
     </div>
   );

@@ -540,7 +540,11 @@ export const TargetPage: FC<TargetPageProps> = ({
               <MatchSignals match={match} />
               <KeywordTable
                 keywords={keywords}
-                edit={{ jobId: job.id, matchId: match.id, back: `/jobs/${job.id}/target?match=${match.id}` }}
+                edit={
+                  breakdown
+                    ? { jobId: job.id, matchId: match.id, back: `/jobs/${job.id}/target?match=${match.id}` }
+                    : undefined
+                }
               />
             </div>
           </Card>
