@@ -72,19 +72,22 @@ runAllFetchers()         filter by Company.active and AppSettings.disabledSource
    ↓
 NormalizedJob[]          unified shape (companyId, externalId, title, location, …)
    ↓
-passesBaseFilter()       admit if title contains stackRequired OR roleTypes; reject stackExclude
+passesAnyBaseFilter()    admit if ANY running search admits it (title contains its
+                         stackRequired OR roleTypes; its stackExclude rejects)
    ↓
 findUnique (companyId, externalId)
    ↓ (skip if seen before)
-classifyJob(input, profile, mode)
+classifyJob(input, profiles[], mode)   ONE call for every running search
    ├─ mode='single':   Haiku 4.5 only
    └─ mode='two_stage': Haiku 4.5 prefilter → Haiku 4.5 full only on yes
    ↓
-ClaudeClassification     {fit_score, location_match, salary, tech_match, red_flags, summary}
+{salary, scores: [{profile_id, fit_score, location_match, tech_match, …}]}
    ↓
-decideDismissReason()    fit < minFitScore | !location_match | salary < minSalaryUsd → DISMISSED
-   ↓ otherwise
-Job(status=NEW) → sendTelegramAlert(profile-routed) → Job.status=ALERTED
+mergeVerdicts()          per-search decideDismissReason() against that search's
+                         thresholds; the winner's numbers become Job.fitScore,
+                         every verdict becomes a JobScore row
+   ↓ dismissed only when every search dismissed it
+Job(status=NEW) → one alert, named for the winner, routed to its telegramTargetId
 ```
 
 The same inner loop is reused by `runHnHiringJob` (extracted into
@@ -165,6 +168,27 @@ clause at the start of the affected job/handler.
 | `discoveryEnabled`               | false    | HN parser does not record CompanyCandidates  |
 | `fetchingEnabled`                | false    | Master pause: hourly fetch + monthly HN pull exit early (`fetching-paused`); digest/cleanup/discovery/dashboard unaffected. Deployments start PAUSED — enable via `/settings` → "Job fetching" |
 | `disabledSources` (String[])     | `[]`     | Skip whole AtsType families in runAllFetchers |
+
+## Application tracking
+
+`Job.pipelineStage` is the funnel state, orthogonal to `Job.status`
+(`status=APPLIED` + `pipelineStage='ghosted'` is a valid pair). Columns are
+configured on `/settings` → General: **Applied** and **Rejected/Ghosted** are
+fixed, everything between them is user-named and reorderable, and keys never
+change once created (ADR 0025). Every stage move writes a `JobStageEvent`
+ledger row in the same transaction (ADR 0024).
+
+**Which resume it went out with.** "Mark applied" on `/jobs/:id` carries a
+resume select — preselected from the comparison on screen, else from the
+search that scored the posting best — and writes `Job.appliedResumeId`,
+`appliedResumeVersion` and `appliedResumeText`. The text snapshot is not
+redundant: "Upload a new version" replaces the bytes of the same `Resume`
+row, so an id alone would name v3 and hand back v5's words (the pattern
+`ResumeMatch.resumeText` already uses). The job page and the stale digest
+then say "applied with Senior Backend v3"
+(`src/jobs/applied-with.ts`, pure). Deleting the resume sets the FK NULL and
+leaves the snapshot; rows applied before the feature stay NULL and render as
+they always did.
 
 ## Discovery
 
@@ -334,10 +358,10 @@ exclusive to verification, ADR 0009).
 - Prisma 6 + Postgres 16 (real migrations from `phase-3.0` baseline onward)
 - node-cron for scheduling, no Redis / BullMQ
 - Hono 4 for the dashboard, JSX SSR with `hono/jsx`, Tailwind via CDN over semantic CSS-variable tokens (no build pipeline; light SaaS theme, see DESIGN.md)
-- `src/ai-provider.ts` seam, five engines: `anthropic_api` (SDK, per-token), `claude_code` (headless CLI, subscription), `gemini_cli` (headless CLI, Google account), `openai_api` (fetch → any /chat/completions endpoint via OPENAI_BASE_URL), `codex_cli` (headless CLI, ChatGPT subscription). `/settings` → "AI engine" stores an ordered chain + per-engine classifier/resume models (AppSettings.aiEngine JSON, ADR 0013/0014); calls fail over down the chain automatically; `.env` seeds the default (Haiku 4.5 classifier, Opus 5 resume); `AI_CONCURRENCY` jobs classified at once (default 3)
+- `src/ai-provider.ts` seam, five engines: `anthropic_api` (SDK, per-token), `claude_code` (headless CLI, subscription), `gemini_cli` (headless CLI, Google account), `openai_api` (fetch → any /chat/completions endpoint via OPENAI_BASE_URL), `codex_cli` (headless CLI, ChatGPT subscription). `/settings` → "AI engine" stores an ordered chain + per-engine classifier/resume/cover models (AppSettings.aiEngine JSON, ADR 0013/0014) and, for the four key-bearing engines, the API key itself (AppSettings.aiKeys, ADR 0027 — DB first, `.env` as fallback, never rendered in full); calls fail over down the chain automatically; `.env` seeds the default (Haiku 4.5 classifier, Opus 5 resume); `AI_CONCURRENCY` jobs classified at once (default 3)
 - node:test runner (`npm test`), no jest
 
 ## Project layout
 
-See [README.md](./README.md) for the full source tree.
+See [ARCHITECTURE.md](./ARCHITECTURE.md) for the data flow and file map.
 See [docs/adr/](./docs/adr/) for the "why" behind non-trivial choices.
