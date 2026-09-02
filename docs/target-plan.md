@@ -1,7 +1,7 @@
 # /target compare flow: speed (30-40 s target) + keyword-matching accuracy
 
-> **Analysis written 2026-08-31; blocks 1–2 of §7 shipped 2026-09-02 (measured
-> numbers in §2.3 and §4).** Written from a parallel
+> **Analysis written 2026-08-31; blocks 1–3 of §7 shipped 2026-09-02 (measured
+> numbers in §2.3, §3.4 and §4).** Written from a parallel
 > session (full source pass over the compare pipeline: `src/web/routes/target.tsx`,
 > `jobs.tsx`, `src/resume/{match,scan,prompts,score}.ts`, `src/web/public/{target,score,target-page}.mjs`,
 > `src/ai-{runtime,provider}.ts`, `src/jobs/{manual-job,posting-extract,classify-existing}.ts`)
@@ -206,7 +206,7 @@ second HTTP server.
 
 | Scenario after the plan | Chain | est. wall time |
 | --- | --- | --- |
-| Re-upload vs analyzed job, instant check (5) | parse only | **~2-5 s** |
+| Re-upload vs analyzed job, instant check (5) | parse only | **~2-5 s** → measured 2026-09-02: parse 0–2 ms (.docx) / 10–15 ms (.pdf, 64 ms cold), POST → rendered page ~30 ms server-side, ~155 ms to `load` in the browser |
 | Quick AI check (6) on Sonnet (7) | match-lite | **~10-25 s** ✅ |
 | Quick AI check (6) on Opus | match-lite | ~20-40 s ✅ (borderline) |
 | Full analysis, Sonnet, P0 ordering | match | ~30-70 s (close; suggestions arrive with it) |
@@ -360,7 +360,9 @@ Sources: [jobscan.co](https://www.jobscan.co/blog/top-resume-keywords-boost-resu
    alias-module unit tests). Pure-module work; `PROMPT_VERSION` untouched
    (post-processing). **Shipped 2026-09-02** (PR #80, numbers in §4).
 3. `target-instant-check` — §3.2 item 5 (parse-only reupload → dirty draft
-   in the editor). UX copy honest about "estimate vs frame".
+   in the editor). UX copy honest about "estimate vs frame". **Shipped
+   2026-09-02** (PR #81, numbers in §3.4; §8 question 2 decided: the check is the
+   default, the AI never auto-runs, the full run stays an explicit button).
 4. `match-fast-mode` — §3.2 items 6-7: keywords-only prompt variant +
    `bench:resume` Sonnet-vs-Opus numbers + default/model-select decision,
    plus the F1 tiered keyword budget (same prompt, same bump).
@@ -374,6 +376,10 @@ Sources: [jobscan.co](https://www.jobscan.co/blog/top-resume-keywords-boost-resu
 
 - After the bench: flip the resume-role default to Sonnet, or keep Opus and
   surface a "fast/thorough" choice per compare?
-- Should reupload land on the instant check by default (AI never auto-runs),
-  or instant check + full analysis auto-started in the background?
+- ~~Should reupload land on the instant check by default (AI never auto-runs),
+  or instant check + full analysis auto-started in the background?~~ Decided
+  2026-09-02 (block 3): instant check by default, nothing auto-runs — every
+  auto-started analysis is 78–109 s of Opus on the CLI engine and the memo
+  only saves repeats. The background variant stays a separate branch if
+  ever wanted.
 - Is the F8 curated lexicon worth its maintenance, or are F1-F7 enough?

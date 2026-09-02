@@ -4,6 +4,42 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.15.0] — 2026-09-02
+
+### Added
+- **Instant check: a re-uploaded resume is scored in the editor before the
+  AI is asked** ([docs/target-plan.md](docs/target-plan.md) §3.2 item 5,
+  TASKS §13 block 3). "Re-upload resume" on the targeted view now defaults
+  to **Upload & check**: the file (.pdf / .docx / .md / .txt) is parsed and
+  opens in the editor as an unsaved draft over the analysis the page showed
+  — live estimate, missing-keyword chips and highlights, the same formula as
+  the AI score. Nothing is written: no new version, no scan, no match row;
+  the draft lives in the browser tab (a reload keeps it) until **Re-analyze
+  with AI** makes it official or **Save as vN** keeps the text. The page
+  says what the number is — *"Estimate vs the analysis from 40m ago"*: the
+  text confirms what is present, while add / confirm / can't-claim keep the
+  AI's verdict on the analysed version until the re-analysis. **Upload as
+  vN & analyze with AI** keeps the previous behaviour (new version with the
+  file, AI match, scan in the background) one click away. `/target` answers
+  the same way when the pasted posting dedupes to a job this resume was
+  analysed against before and its text changed since.
+- Measured on the stored originals: parsing takes 0–2 ms (.docx) and
+  10–15 ms (.pdf, 64 ms cold); a re-upload lands on the rendered page in
+  ~30 ms server-side (POST + redirect + GET) and ~155 ms to `load` in the
+  browser, against the 95 s of the full run measured in 1.13.0. The
+  `resume: upload parsed` and `resume: instant check` log lines carry the
+  `ms`.
+
+### Notes
+- Known cost, stated on the page: after an instant check **Save as vN**
+  stores the text as a text version — the uploaded file itself does not
+  become the version's original. *Upload as vN & analyze with AI* (or
+  "Upload a new version" on `/resumes/:id`) is the path when the file must
+  be kept.
+- The draft waits between the POST and the page in web-process memory
+  (`src/web/draft-stash.ts`: 10-minute TTL, taken once) and is copied into
+  `localStorage` on first render. No schema change, no migration.
+
 ## [1.14.0] — 2026-09-02
 
 ### Changed
@@ -984,6 +1020,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[1.15.0]: https://github.com/applypack/applypack/compare/v1.14.0...v1.15.0
 [1.14.0]: https://github.com/applypack/applypack/compare/v1.13.0...v1.14.0
 [1.13.0]: https://github.com/applypack/applypack/compare/v1.12.0...v1.13.0
 [1.12.0]: https://github.com/applypack/applypack/compare/v1.11.0...v1.12.0

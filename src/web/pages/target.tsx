@@ -45,6 +45,8 @@ export interface TargetPageProps {
   previous: MatchWithResume | null;
   /** The text the selected match analysed (not necessarily the resume's current text). */
   resumeText: string;
+  /** An instant check's parsed upload — opens in the editor as the unsaved draft (target-page.mjs). */
+  draftText?: string | null;
   flash?: FlashMessage | null;
 }
 
@@ -97,6 +99,7 @@ export const TargetPage: FC<TargetPageProps> = ({
   matches,
   previous,
   resumeText,
+  draftText,
   flash,
 }) => {
   // Table spellings apply on read too, so matches stored before the table (or before an entry) highlight the same way.
@@ -116,6 +119,7 @@ export const TargetPage: FC<TargetPageProps> = ({
     matchId: match.id,
     aiScore: match.matchScore,
     resumeText,
+    draftText: draftText ?? null,
     jobText: job.description,
     keywords,
     actions,
@@ -195,8 +199,9 @@ export const TargetPage: FC<TargetPageProps> = ({
 
       <Card class="mb-4">
         {/* Proportional columns instead of a scattered flex row: score | why (owns
-            the middle) | actions rail. The gates line spans the full width below. */}
-        <div class="grid grid-cols-1 items-start gap-x-8 gap-y-4 lg:grid-cols-[auto_minmax(0,1fr)_auto]">
+            the middle, never under 14rem — the rail grows while editing) | actions
+            rail. The gates line spans the full width below. */}
+        <div class="grid grid-cols-1 items-start gap-x-8 gap-y-4 lg:grid-cols-[auto_minmax(14rem,1fr)_auto]">
           {/* Primary: the honest score — the AI rubric verdict. Static until Re-analyze. */}
           <div class="flex items-center gap-4">
             <svg viewBox="0 0 96 96" class="h-20 w-20 -rotate-90" aria-hidden="true">
@@ -219,7 +224,8 @@ export const TargetPage: FC<TargetPageProps> = ({
                 {match.matchScore}
                 <span class="text-base font-normal text-ink-faint">/100</span>
               </div>
-              <div class="flex items-center gap-2 text-[13px] font-medium text-ink-muted">
+              {/* Wraps: the stale marker must not widen this auto column and squeeze the summary. */}
+              <div class="flex flex-wrap items-center gap-x-2 text-[13px] font-medium text-ink-muted">
                 AI match ·{' '}
                 <span class={AI_TONE[fitTone(match.matchScore)]}>{matchQuality(match.matchScore)}</span>
                 <span id="ai-stale" hidden class="font-medium text-warn">
@@ -279,6 +285,11 @@ export const TargetPage: FC<TargetPageProps> = ({
                   onsubmit={SUBMIT_ONCE}
                 >
                   <input type="hidden" name="resumeId" value={resume.id} />
+                  <input type="hidden" name="matchId" value={match.id} />
+                  {/* Set by the second button's click, not by the submitter's value: SUBMIT_ONCE
+                      disables the buttons in the submit event, and a disabled submitter is left
+                      out of the form data. */}
+                  <input type="hidden" name="mode" value="check" />
                   <input
                     type="file"
                     name="file"
@@ -286,13 +297,29 @@ export const TargetPage: FC<TargetPageProps> = ({
                     accept={ACCEPTED_EXTENSIONS.join(',')}
                     class="block w-full text-xs text-ink file:mr-2 file:cursor-pointer file:rounded-md file:border-0 file:bg-surface-overlay file:px-2.5 file:py-1 file:text-xs file:font-medium file:text-ink"
                   />
-                  <Button size="sm" class="w-full">
-                    {resume.ephemeral ? 'Upload & re-analyze' : `Upload v${resume.version + 1} & re-analyze`}
+                  <Button size="sm" class="w-full" title="Parses the file into the editor and scores it against this analysis — no AI call">
+                    Upload & check (seconds)
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    class="w-full"
+                    onclick="this.form.elements.mode.value='analyze'"
+                    title={
+                      resume.ephemeral
+                        ? 'Replaces this comparison with a fresh AI analysis (~2 min)'
+                        : `Saves the file as v${resume.version + 1} and runs the AI analysis (~2 min); the scan runs in the background`
+                    }
+                  >
+                    {resume.ephemeral ? 'Upload & analyze with AI' : `Upload as v${resume.version + 1} & analyze with AI`}
                   </Button>
                   <Hint>
+                    Check opens the new text as an unsaved draft scored against this analysis: the text confirms
+                    what is present, while add / confirm / can't-claim keep the AI's verdict on the analysed
+                    version until you Re-analyze.{' '}
                     {resume.ephemeral
-                      ? 'Replaces this comparison with a fresh analysis — nothing lands in your Resumes (~2 min).'
-                      : 'New version and AI match — about 2 minutes; the resume scan runs in the background.'}
+                      ? 'Nothing lands in your Resumes either way.'
+                      : `Nothing is saved — Save as v${resume.version + 1} keeps the text, not the file.`}
                   </Hint>
                 </form>
               </div>
@@ -331,7 +358,7 @@ export const TargetPage: FC<TargetPageProps> = ({
                       class="w-full"
                       id="save-button"
                       disabled
-                      title="Enabled once you edit the text"
+                      title={`Enabled once you edit the text — saves it as v${resume.version + 1} (a text version, not a file), re-scans and re-analyzes (~2 min)`}
                     >
                       Save as v{resume.version + 1}
                     </Button>
@@ -343,8 +370,8 @@ export const TargetPage: FC<TargetPageProps> = ({
 
             {/* Appears only while the text differs from the analyzed version. */}
             <div id="live-est" hidden class="lg:max-w-[280px] lg:text-right">
-              <div class="flex items-center gap-2 text-[13px] font-medium text-ink-muted lg:justify-end">
-                {breakdown ? 'Estimate after your edits' : 'Keyword coverage after edits'}
+              <div class="flex flex-wrap items-center gap-x-2 text-[13px] font-medium text-ink-muted lg:justify-end">
+                {breakdown ? `Estimate vs the analysis from ${formatRelative(match.createdAt)}` : 'Keyword coverage after edits'}
                 <span id="live-delta" class="text-xs font-medium"></span>
               </div>
               <div class="mt-1 flex items-center gap-2.5 lg:justify-end">
@@ -360,7 +387,7 @@ export const TargetPage: FC<TargetPageProps> = ({
               </div>
               <Hint class="mt-1">
                 {breakdown
-                  ? 'Same formula as the AI score, live as you type — "can\'t claim" terms never count. Re-analyze to make it official.'
+                  ? "Same formula as the AI score, live as you type — the text confirms what is present; add / confirm / can't-claim keep the AI's verdict on the analysed version. Re-analyze to make it official."
                   : 'Keywords only, live as you type. Re-analyze to get the full score.'}
               </Hint>
             </div>
@@ -499,7 +526,7 @@ export const TargetPage: FC<TargetPageProps> = ({
                 variant="secondary"
                 size="sm"
                 form="save-form"
-                title="Saves a text version, re-scans and re-analyzes (~2 min)"
+                title={`Saves the text as v${resume.version + 1} (a text version, not a file), re-scans and re-analyzes (~2 min)`}
               >
                 Save as v{resume.version + 1}
               </Button>

@@ -810,8 +810,8 @@ icon; progress visible step-by-step via the target-run registry pattern.
 
 ## 13. /target compare speed (30-40 s) + keyword-matcher accuracy (analysis 2026-08-31)
 
-Full plan: [docs/target-plan.md](./target-plan.md). **Blocks 1–2 shipped
-2026-09-02 (measured numbers in the plan's §2.3 and §4); blocks 3–6 open.** §12's
+Full plan: [docs/target-plan.md](./target-plan.md). **Blocks 1–3 shipped
+2026-09-02 (measured numbers in the plan's §2.3, §3.4 and §4); blocks 4–6 open.** §12's
 async-upload item overlaps the `/resumes`
 sync-scan finding, planned there, referenced here.
 
@@ -851,8 +851,19 @@ Sonnet bench for the resume role — not "make Opus stream faster".
       analyses — on the current prompt no stored row misses the posting.
       The tiered keyword budget (F1) is a prompt change and moved to
       `match-fast-mode` below; "Rebuild keywords" (F7) is issue #79.
-- [ ] `target-instant-check` — reupload → parse-only dirty draft in the
-      target editor (~2-5 s, zero AI), "Re-analyze" upgrades on demand
+- [x] `target-instant-check` — reupload → parse-only dirty draft in the
+      target editor, "Re-analyze" upgrades on demand — done 2026-09-02,
+      branch `target-instant-check` (PR #81). "Upload & check" is the default of
+      "Re-upload resume" on `/jobs/:id/target` (no AI, no new version,
+      nothing written; the draft lives in the tab and survives a reload);
+      the full run stays as "Upload as vN & analyze with AI". `/target`
+      answers the same way when the posting dedupes to a job this resume
+      was analysed against and its text changed since. Measured on the
+      stored originals: parse 0–2 ms (.docx) / 10–15 ms (.pdf, 64 ms
+      cold); POST → rendered page ~30 ms server-side, ~155 ms to `load`
+      in the browser — the plan's "~2–5 s" was two orders too pessimistic,
+      the AI upgrade stays the 78–109 s of block 1. Known cost, stated on
+      the page: "Save as vN" after a check keeps the text, not the file.
 - [ ] `match-fast-mode` — keywords-only prompt variant (score-complete
       subset, ~¼ output tokens) + `bench:resume` Sonnet-vs-Opus decision
       + the tiered keyword budget from §4 F1 (every must/preferred term
