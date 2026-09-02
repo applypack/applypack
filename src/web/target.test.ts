@@ -129,3 +129,71 @@ test('resumeSpans marks keywords and quoted edits, edits first on ties', async (
     ['edit-change', 'kw-present', 'edit-remove'],
   );
 });
+
+// F4 — plural tolerance on the last token, both directions. F5 — separators
+// between the tokens of a multi-token term are interchangeable and optional.
+// Guards keep the whole-token rule (C ≠ C++, Java ≠ JavaScript) and rule out
+// stemming: a Capitalised name ending in s is not a plural.
+const TOLERANCE: [term: string, text: string, hits: number][] = [
+  // F4: singular term, plural text
+  ['microservice', 'microservices architecture', 1],
+  ['API', 'REST APIs', 1],
+  ['query', 'SQL queries', 1],
+  ['class', 'PHP classes', 1],
+  ['unit test', 'unit tests', 1],
+  ['proxy', 'reverse proxies', 1],
+  // F4: plural term, singular text
+  ['microservices', 'a microservice', 1],
+  ['APIs', 'REST API design', 1],
+  ['LLMs', 'an LLM', 1],
+  ['queries', 'one query', 1],
+  ['patches', 'a security patch', 1],
+  ['releases', 'each release', 1],
+  ['databases', 'the database', 1],
+  ['unit tests', 'unit test coverage', 1],
+  // F4 guards
+  ['Rails', 'light rail', 0],
+  ['rails', 'light rail', 0],
+  ['Windows', 'window functions', 0],
+  ['Kubernetes', 'Kubernetes', 1],
+  ['AWS', 'aw', 0],
+  ['Go', 'goes', 0],
+  ['Sass', 'SAS', 0],
+  ['scaling', 'scale', 0],
+  ['Java', 'JavaScript', 0],
+  ['C', 'C++', 0],
+  ['Node', 'Node.js', 0],
+  // F5: separators
+  ['CI/CD', 'CI / CD', 1],
+  ['CI/CD', 'CI-CD', 1],
+  ['CI / CD', 'CI/CD', 1],
+  ['Node.js', 'NodeJS', 1],
+  ['Node.js', 'Node js', 1],
+  ['front-end', 'front end', 1],
+  ['front-end', 'frontend', 1],
+  ['front end', 'front-end', 1],
+  ['docker-compose', 'Docker Compose', 1],
+  ['ASP.NET', 'aspnet', 1],
+  ['A/B testing', 'AB testing', 1],
+  ['test-driven development', 'Test Driven Development', 1],
+  // F5 guards: edge symbols stay literal, single tokens stay whole
+  ['.NET', 'ASP.NET', 0],
+  ['.NET', '.NET Core', 1],
+  ['C#', 'C', 0],
+  ['C++', 'C++ and C', 1],
+  ['PHP', 'x.php', 0],
+  ['PHP', 'PHP.', 1],
+  ['NodeJS', 'Node.js', 0],
+];
+
+test('findTerm tolerates plurals and separators and keeps the whole-token guards', async () => {
+  const { findTerm } = await matcher;
+  for (const [term, text, hits] of TOLERANCE) {
+    assert.equal(findTerm(text, term).length, hits, `${JSON.stringify(term)} in ${JSON.stringify(text)}`);
+  }
+});
+
+test('findTerm counts a span once when the term and an alias both spell it', async () => {
+  const { findTerm } = await matcher;
+  assert.deepEqual(findTerm('frontend work', 'front end', ['frontend']), [{ start: 0, end: 8 }]);
+});
