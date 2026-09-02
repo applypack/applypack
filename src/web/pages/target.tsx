@@ -358,7 +358,7 @@ export const TargetPage: FC<TargetPageProps> = ({
                       class="w-full"
                       id="save-button"
                       disabled
-                      title={`Saves the text as v${resume.version + 1} (a text version, not a file), re-scans and re-analyzes (~2 min)`}
+                      title={`Enabled once you edit the text — saves it as v${resume.version + 1} (a text version, not a file), re-scans and re-analyzes (~2 min)`}
                     >
                       Save as v{resume.version + 1}
                     </Button>
