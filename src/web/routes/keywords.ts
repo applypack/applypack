@@ -31,7 +31,8 @@ const KeywordFormSchema = z.object({
 });
 
 /** What the flash says happened, before the score half of the sentence. */
-function describe(op: string, term: string, requirement: string | undefined): string {
+function describe(op: string, result: { term: string; removed: boolean }, requirement: string | undefined): string {
+  const term = result.term;
   switch (op) {
     case 'add':
       return `Added "${term}" as ${requirement}`;
@@ -42,7 +43,7 @@ function describe(op: string, term: string, requirement: string | undefined): st
     case 'restore':
       return `"${term}" counts again`;
     default:
-      return `"${term}" back to the AI's own verdict`;
+      return result.removed ? `Removed "${term}"` : `"${term}" back to the AI's own verdict`;
   }
 }
 
@@ -95,5 +96,5 @@ keywordsRoute.post('/jobs/:id/matches/:matchId/keywords', async (c) => {
   });
   const score =
     next.score === match.matchScore ? `score stays ${next.score}` : `score ${match.matchScore} → ${next.score}`;
-  return flashRedirect(back, 'ok', `${describe(form.op, result.term, form.requirement)} — ${score}, no AI call.`);
+  return flashRedirect(back, 'ok', `${describe(form.op, result, form.requirement)} — ${score}, no AI call.`);
 });

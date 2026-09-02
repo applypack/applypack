@@ -110,6 +110,7 @@ test('reset clears an override on a model row and deletes a row the user added',
   const gone = editKeyword(clean.keywords, { op: 'reset', term: 'Kafka' });
   assert.ok(gone.ok);
   assert.equal(gone.keywords.length, LIST.length);
+  assert.equal(gone.removed, true, 'the row is gone, not reverted — the flash has to say so');
 });
 
 test('an added term reads its status from the resume, never from a guess', async () => {

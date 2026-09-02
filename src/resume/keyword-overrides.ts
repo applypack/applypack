@@ -38,7 +38,14 @@ export interface KeywordEdit {
 }
 
 export type EditResult =
-  | { ok: true; keywords: MatchKeyword[]; term: string }
+  | {
+      ok: true;
+      keywords: MatchKeyword[];
+      /** The row's own spelling — the edit may have been addressed by an alias. */
+      term: string;
+      /** The edit deleted the row: only a "reset" on a term the user added does that. */
+      removed: boolean;
+    }
   | { ok: false; error: string };
 
 /** Context the two text-reading edits need; the matcher is the browser module (keyword-matcher.ts). */
@@ -110,7 +117,7 @@ export function editKeyword(keywords: MatchKeyword[], edit: KeywordEdit): EditRe
   if (!current) return { ok: false, error: `"${edit.term}" is not in this comparison.` };
 
   if (edit.op === 'reset' && current.override?.added) {
-    return { ok: true, keywords: keywords.filter((_, i) => i !== index), term: current.term };
+    return { ok: true, keywords: keywords.filter((_, i) => i !== index), term: current.term, removed: true };
   }
   const patch: KeywordOverride =
     edit.op === 'level'
@@ -123,7 +130,7 @@ export function editKeyword(keywords: MatchKeyword[], edit: KeywordEdit): EditRe
           : { requirement: undefined, excluded: false };
   const next = [...keywords];
   next[index] = withOverride(current, patch);
-  return { ok: true, keywords: next, term: current.term };
+  return { ok: true, keywords: next, term: current.term, removed: false };
 }
 
 /**
@@ -170,7 +177,7 @@ export function addKeyword(
     note: found ? 'added by you — already in this resume' : 'added by you — confirm whether you have it',
     ...(inPosting ? {} : { unanchored: true }),
   };
-  return { ok: true, keywords: [...keywords, added], term: added.term };
+  return { ok: true, keywords: [...keywords, added], term: added.term, removed: false };
 }
 
 export interface CarryReport {
