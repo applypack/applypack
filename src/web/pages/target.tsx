@@ -28,7 +28,7 @@ import { ACCEPTED_EXTENSIONS } from '../../resume/resume-text';
  * (nothing is saved until "Save as new version"); highlights and the live
  * estimate re-render on every keystroke from /static/target-page.mjs. The AI
  * match (keywords, actions, removals) is the fixed frame the live score works
- * within — "Re-analyze with AI" sends the edited text back to Claude.
+ * within — "Re-check with AI" sends the edited text back to Claude.
  *
  * Layout rule (external UX audit, docs/archive/applypack-resume-match-ux-refactor.md):
  * everything needed for a decision — score, hard-requirement gates, confirm
@@ -206,7 +206,7 @@ export const TargetPage: FC<TargetPageProps> = ({
             the middle, never under 14rem — the rail grows while editing) | actions
             rail. The gates line spans the full width below. */}
         <div class="grid grid-cols-1 items-start gap-x-8 gap-y-4 lg:grid-cols-[auto_minmax(14rem,1fr)_auto]">
-          {/* Primary: the honest score — the AI rubric verdict. Static until Re-analyze. */}
+          {/* Primary: the honest score — the AI rubric verdict. Static until a re-check. */}
           <div class="flex items-center gap-4">
             <svg viewBox="0 0 96 96" class="h-20 w-20 -rotate-90" aria-hidden="true">
               <circle cx="48" cy="48" r="40" fill="none" stroke="rgb(var(--line))" stroke-width="8" />
@@ -278,7 +278,7 @@ export const TargetPage: FC<TargetPageProps> = ({
           <div class="flex flex-col gap-3 lg:items-end">
             <div class="flex flex-wrap items-center gap-2">
             {/* One visible action — a fresh file is how a better match usually happens.
-                Re-analyze and Save live in the ⋯ menu; the sticky bar resurfaces them while editing.
+                Re-check and Save live in the ⋯ menu; the sticky bar resurfaces them while editing.
                 data-menu opts into light dismiss (outside click / Escape) in target-page.mjs. */}
             <details class="relative" data-menu>
               <summary class={`${SUMMARY_BUTTON} bg-accent-strong px-3 text-white shadow-sm hover:bg-accent-deep`}>
@@ -327,7 +327,7 @@ export const TargetPage: FC<TargetPageProps> = ({
                   <Hint>
                     Check opens the new text as an unsaved draft scored against this analysis: the text confirms
                     what is present, while add / confirm / can't-claim keep the AI's verdict on the analysed
-                    version until you Re-analyze.{' '}
+                    version until you re-check.{' '}
                     {resume.ephemeral
                       ? 'Nothing lands in your Resumes either way.'
                       : `Nothing is saved — Save as v${resume.version + 1} keeps the text, not the file.`}
@@ -408,8 +408,8 @@ export const TargetPage: FC<TargetPageProps> = ({
               </div>
               <Hint class="mt-1">
                 {breakdown
-                  ? "Same formula as the AI score, live as you type — the text confirms what is present; add / confirm / can't-claim keep the AI's verdict on the analysed version. Re-analyze to make it official."
-                  : 'Keywords only, live as you type. Re-analyze to get the full score.'}
+                  ? "Same formula as the AI score, live as you type — the text confirms what is present; add / confirm / can't-claim keep the AI's verdict on the analysed version. Re-check to make it official."
+                  : 'Keywords only, live as you type. Re-check to get the full score.'}
               </Hint>
             </div>
           </div>
@@ -503,8 +503,8 @@ export const TargetPage: FC<TargetPageProps> = ({
           </div>
           <Hint class="mt-2">
             {resume.ephemeral
-              ? 'Plain text — what an ATS parser sees. Edits stay in this browser tab until you Re-analyze. Click a suggestion to select the text it targets.'
-              : 'Plain text — what an ATS parser sees. Edits stay in this browser tab until you Re-analyze or Save. Click a suggestion to select the text it targets.'}
+              ? 'Plain text — what an ATS parser sees. Edits stay in this browser tab until you re-check. Click a suggestion to select the text it targets.'
+              : 'Plain text — what an ATS parser sees. Edits stay in this browser tab until you re-check or Save. Click a suggestion to select the text it targets.'}
           </Hint>
         </Card>
 

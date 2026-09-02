@@ -58,7 +58,7 @@ factsRoute.post('/facts', async (c) => {
         );
       }
       if (changed > 0) {
-        return flashRedirect(back, 'ok', `Saved "${fact.term}". Re-analyze to refresh this comparison.`);
+        return flashRedirect(back, 'ok', `Saved "${fact.term}". Re-check to refresh this comparison.`);
       }
     }
   }

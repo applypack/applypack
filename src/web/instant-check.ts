@@ -4,7 +4,7 @@
  * posting — no AI call, no new version, nothing saved. The live estimate on
  * the page reads that analysis as its frame: the text confirms what is
  * `present`, while `add` / `ask_user` / `cannot_claim` stay the AI's verdict
- * on the resume it analysed, until "Re-analyze with AI" makes the draft
+ * on the resume it analysed, until "Re-check with AI" makes the draft
  * official. Pure — the routes decide what to fetch and where to redirect.
  */
 
@@ -33,7 +33,7 @@ export function instantCheckNotice(filename: string, when: string, ms: number): 
   return (
     `"${filename}" checked in ${ms} ms — no AI call. The estimate is measured against the analysis ` +
     `from ${when}: the text confirms what is present; add / confirm / can't-claim keep the AI's ` +
-    `verdict on the analysed version until you Re-analyze.`
+    `verdict on the analysed version until you re-check.`
   );
 }
 
