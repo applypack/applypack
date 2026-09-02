@@ -480,7 +480,6 @@ export const Button: FC<
   );
 };
 
-/** One-button POST form — the dashboard's main mutation idiom. */
 /**
  * `onsubmit` guard for a form whose POST starts real work — an upload, an AI
  * run. The redirect to the progress page is fast but not instant, and a
@@ -492,6 +491,7 @@ export const SUBMIT_ONCE =
   "if(this.dataset.sent)return false;this.dataset.sent='1';" +
   "this.querySelectorAll('button').forEach(function(b){b.disabled=true});";
 
+/** One-button POST form — the dashboard's main mutation idiom. */
 export const ActionForm: FC<
   PropsWithChildren<{
     action: string;
