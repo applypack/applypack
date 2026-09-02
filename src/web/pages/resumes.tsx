@@ -152,14 +152,18 @@ export const ResumesPage: FC<{
       </Hint>
       {facts.length > 0 && (
         <ul class="mb-3 divide-y divide-line">
+          {/* Two deliberate lines below sm rather than a ragged wrap: the
+              term reads first, the two actions sit together under it. */}
           {facts.map((f) => (
-            <li class="flex flex-wrap items-center gap-2 py-2 first:pt-0">
-              <Badge tone={f.status === 'confirmed' ? 'ok' : 'neutral'}>
-                {f.status === 'confirmed' ? 'have it' : "don't"}
-              </Badge>
-              <span class="text-sm font-medium text-ink">{f.term}</span>
-              {f.note && <span class="min-w-0 text-xs text-ink-faint">— {f.note}</span>}
-              <div class="ml-auto flex items-center gap-1.5">
+            <li class="flex flex-col gap-1 py-2 first:pt-0 sm:flex-row sm:items-center sm:gap-2">
+              <div class="flex min-w-0 items-center gap-2">
+                <Badge tone={f.status === 'confirmed' ? 'ok' : 'neutral'}>
+                  {f.status === 'confirmed' ? 'have it' : "don't"}
+                </Badge>
+                <span class="truncate text-sm font-medium text-ink">{f.term}</span>
+              </div>
+              {f.note && <span class="min-w-0 truncate text-xs text-ink-faint sm:before:content-['—_']">{f.note}</span>}
+              <div class="flex items-center gap-1.5 sm:ml-auto">
                 {/* The same POST /facts the comparison uses, with the answer
                     turned around — no second endpoint for the same decision. */}
                 <ActionForm
