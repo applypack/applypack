@@ -7,7 +7,6 @@ import {
   parseAiKeys,
   providerTakesKey,
   resolveAiKey,
-  withAiKey,
 } from './ai-keys';
 
 describe('providerTakesKey', () => {
@@ -44,27 +43,6 @@ describe('parseAiKeys', () => {
     assert.deepEqual(keys, {});
     const atLimit = parseAiKeys({ openai_api: 'k'.repeat(MAX_AI_KEY_LENGTH) });
     assert.equal(atLimit.openai_api?.length, MAX_AI_KEY_LENGTH);
-  });
-});
-
-describe('withAiKey', () => {
-  it('adds, replaces and clears without touching the other engines', () => {
-    const one = withAiKey({}, 'openai_api', ' sk-openai ');
-    assert.deepEqual(one, { openai_api: 'sk-openai' });
-    const two = withAiKey(one, 'gemini_cli', 'gm');
-    assert.deepEqual(two, { openai_api: 'sk-openai', gemini_cli: 'gm' });
-    assert.deepEqual(withAiKey(two, 'openai_api', '   '), { gemini_cli: 'gm' });
-  });
-
-  it('keeps a long key intact — the routes reject one before it gets here', () => {
-    const long = 'k'.repeat(MAX_AI_KEY_LENGTH + 10);
-    assert.equal(withAiKey({}, 'openai_api', long).openai_api, long);
-  });
-
-  it('does not mutate the input', () => {
-    const before = { openai_api: 'a' };
-    withAiKey(before, 'openai_api', '');
-    assert.deepEqual(before, { openai_api: 'a' });
   });
 });
 

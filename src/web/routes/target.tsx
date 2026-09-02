@@ -1,6 +1,7 @@
 /** @jsxImportSource hono/jsx */
 import { Hono } from 'hono';
 import { z } from 'zod';
+import { hashShortId } from '../../text-utils';
 import { classifyInBackground } from '../../jobs/classify-existing';
 import { createManualJob, ManualJobSchema, MAX_FIELD_CHARS, MIN_DESCRIPTION_CHARS } from '../../jobs/manual-job';
 import { extractPostingFacts, fallbackTitle } from '../../jobs/posting-extract';
@@ -22,7 +23,7 @@ import { TargetRunPage } from '../pages/target-run';
 import { clearFlashCookie, flashRedirect, parseFlashCookie } from '../flash';
 import { formatRelative } from '../format';
 import { startSuggestionsRun } from '../suggestions-run';
-import { createRun, getRun, matchStep, startRun, updateRun, type RunStep } from '../target-runs';
+import { claimRun, getRun, matchStep, startRun, updateRun, type RunStep } from '../target-runs';
 import {
   MAX_RESUME_NAME_CHARS,
   nameFromFilename,
@@ -154,11 +155,13 @@ targetRoute.post('/target', resumeUploadLimit('/target'), async (c) => {
   }
 
   const steps: RunStep[] = needExtract ? ['extract', matchStep(f.mode)] : [matchStep(f.mode)];
-  const run = createRun({
-    steps,
-    jobTitle: title || 'Detecting the role…',
-    resumeName: resume.name,
-  });
+  // The posting text and the resolved resume are what was submitted; a second
+  // POST of the same pair joins the run instead of paying twice (issue #76).
+  const { run, joined } = claimRun(
+    `target:${resume.id}:${f.mode}:${hashShortId(f.description)}`,
+    { steps, jobTitle: title || 'Detecting the role…', resumeName: resume.name },
+  );
+  if (joined) return c.redirect(`/target/runs/${run.id}`, 303);
 
   startRun(run.id, async () => {
     // 0. Detect what the user left empty; fall back to visible defaults.

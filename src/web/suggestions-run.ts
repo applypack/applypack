@@ -1,7 +1,7 @@
 import type { ResumeMatch } from '@prisma/client';
 import { readActions, readRemovals, type MatchJobInput } from '../resume/prompts';
 import { suggestForMatch } from '../resume/suggestions';
-import { createRun, startRun, updateRun } from './target-runs';
+import { claimRun, startRun, updateRun } from './target-runs';
 
 /**
  * The lazy second call as a progress-page run (ADR 0029): "Get suggestions"
@@ -15,7 +15,9 @@ export function startSuggestionsRun(input: {
   resultUrl: string;
 }): string {
   const { match, job } = input;
-  const run = createRun({
+  // One comparison can only be completed once: a second "Get suggestions" —
+  // another tab, a reload — joins the call in flight (issue #76).
+  const { run, joined } = claimRun(`suggestions:${match.id}`, {
     steps: ['suggestions'],
     jobTitle: job.title,
     resumeName: input.resumeName,
@@ -23,6 +25,7 @@ export function startSuggestionsRun(input: {
     backUrl: input.resultUrl,
     backLabel: 'Back to the comparison',
   });
+  if (joined) return `/target/runs/${run.id}`;
   startRun(run.id, async () => {
     const row = await suggestForMatch(match, job);
     updateRun(

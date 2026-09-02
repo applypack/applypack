@@ -4,6 +4,7 @@ import { JobStatus, type Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { prisma } from '../../db';
 import { logger } from '../../logger';
+import { hashShortId } from '../../text-utils';
 import { getSettings } from '../../settings';
 import { allStages, parseStageConfig } from '../stage-config';
 import { classifyExistingJob } from '../../jobs/classify-existing';
@@ -23,7 +24,7 @@ import { draftStash } from '../draft-stash';
 import { scanInBackground } from '../../resume/scan';
 import { clearFlashCookie, flashRedirect, parseFlashCookie } from '../flash';
 import { formatRelative } from '../format';
-import { createRun, matchStep, startRun, updateRun } from '../target-runs';
+import { claimRun, matchStep, startRun, updateRun } from '../target-runs';
 import { startSuggestionsRun } from '../suggestions-run';
 import {
   deleteCoverLettersForResume,
@@ -493,7 +494,13 @@ jobsRoute.post('/jobs/:id/match', async (c) => {
     }
   }
 
-  const run = createRun({ steps: [matchStep(mode)], jobTitle: job.title, resumeName: resume.name, jobId: id });
+  // Same job, same resume, same text, same mode is the same comparison, so a
+  // second submit joins the run in flight rather than paying for it twice.
+  const { run, joined } = claimRun(
+    `match:${id}:${resume.id}:${mode}:${rebuild ? 'rebuild' : 'frame'}:${hashShortId(text)}`,
+    { steps: [matchStep(mode)], jobTitle: job.title, resumeName: resume.name, jobId: id },
+  );
+  if (joined) return c.redirect(`/target/runs/${run.id}`, 303);
   startRun(run.id, async () => {
     // Ephemeral (scratch) compares keep only the current analysis.
     if (resume.hidden) await deleteMatchesForResume(resume.id);
@@ -567,7 +574,13 @@ jobsRoute.post('/jobs/:id/cover', async (c) => {
 
   if (fromForm) await setCoverAngles(angles);
 
-  const run = createRun({ steps: ['letter'], jobTitle: job.title, resumeName: resume.name, jobId: id });
+  const { run, joined } = claimRun(`letter:${id}:${resume.id}`, {
+    steps: ['letter'],
+    jobTitle: job.title,
+    resumeName: resume.name,
+    jobId: id,
+  });
+  if (joined) return c.redirect(`/target/runs/${run.id}`, 303);
   startRun(run.id, async () => {
     const outcome = await generateCoverLetter(
       { id: resume.id, text: resume.text, version: resume.version },
@@ -748,7 +761,13 @@ jobsRoute.post('/jobs/:id/target/reupload', async (c, next) => resumeUploadLimit
   // history — a fresh upload means a fresh analysis, nothing saved.
   const ephemeral = existing.hidden;
   const newName = ephemeral ? nameFromFilename(upload.sourceFilename) : existing.name;
-  const run = createRun({ steps: ['keywords'], jobTitle: job.title, resumeName: newName, jobId: id });
+  const { run, joined } = claimRun(`reupload:${id}:${resumeId}:${hashShortId(upload.text)}`, {
+    steps: ['keywords'],
+    jobTitle: job.title,
+    resumeName: newName,
+    jobId: id,
+  });
+  if (joined) return c.redirect(`/target/runs/${run.id}`, 303);
   startRun(run.id, async () => {
     let resume;
     if (ephemeral) {

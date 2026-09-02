@@ -6,7 +6,7 @@ import { getAiKeys, setAiKey, setFetchingEnabled, setSetupCompleted } from '../.
 import { updateProfile, type ProfileInput } from '../../profiles';
 import { passesBaseFilter } from '../../filter';
 import { parsePriorityRules } from '../../priority-rules';
-import { parseTagList, toStringArray } from '../../text-utils';
+import { hashShortId, parseTagList, toStringArray } from '../../text-utils';
 import { forgetAiProbe, getAiEngineEnv } from '../../ai-runtime';
 import {
   AI_PROVIDER_IDS,
@@ -26,7 +26,7 @@ import { createProfileFromResume, newProfileDraft, scanFields } from '../profile
 import { recordCronRun, type CronStats } from '../../jobs/cron-run';
 import { runScoreUnscored, SCORE_BATCH } from '../../jobs/reclassify-job';
 import { activeFetchRun } from '../fetch-runs';
-import { createRun, getRun, startRun, updateRun } from '../target-runs';
+import { claimRun, findLiveRun, startRun, updateRun } from '../target-runs';
 import { testAiEngine } from '../ai-test';
 import { clearFlashCookie, flashRedirect, parseFlashCookie } from '../flash';
 import { nameFromFilename, readResumeUpload, resumeUploadLimit } from '../upload';
@@ -45,12 +45,7 @@ const PROFILE_STEP = '/welcome?step=profile';
 const MATCHES_STEP = '/welcome?step=matches';
 
 /** The scoring pass in flight, if any — one at a time, like re-classify. */
-let scoreRunId: string | null = null;
-
-function runningScoreRun(): string | null {
-  const run = scoreRunId ? getRun(scoreRunId) : null;
-  return run && run.stage !== 'done' && run.stage !== 'error' ? run.id : null;
-}
+const SCORE_RUN_KEY = 'score';
 
 export const welcomeRoute = new Hono();
 
@@ -112,7 +107,7 @@ welcomeRoute.get('/welcome', async (c) => {
         minFitScore: profile?.minFitScore ?? 0,
         top: top.map((j) => ({ id: j.id, title: j.title, companyName: j.company.name, fitScore: j.fitScore })),
         waiting,
-        runningRunId: runningScoreRun(),
+        runningRunId: findLiveRun(SCORE_RUN_KEY)?.id ?? null,
       }}
       flash={parseFlashCookie(c.req.header('cookie'))}
     />,
@@ -203,7 +198,7 @@ welcomeRoute.post('/welcome/resume', resumeUploadLimit(PROFILE_STEP), async (c) 
   }
 
   const { id, name, text } = resume;
-  const run = createRun({
+  const { run, joined } = claimRun(`scan:${id}:${hashShortId(text)}`, {
     steps: ['scan'],
     jobTitle: '',
     resumeName: name,
@@ -212,6 +207,7 @@ welcomeRoute.post('/welcome/resume', resumeUploadLimit(PROFILE_STEP), async (c) 
     backUrl: PROFILE_STEP,
     backLabel: 'Back to setup',
   });
+  if (joined) return c.redirect(`/target/runs/${run.id}`, 303);
   startRun(run.id, async () => {
     const scan = await scanResume({ id, text });
     if (!scan) {
@@ -286,13 +282,11 @@ welcomeRoute.post('/welcome/profile', async (c) => {
 
 /** Step 4: score the stored-unscored jobs on the progress page; one pass at a time. */
 welcomeRoute.post('/welcome/score', async (c) => {
-  const running = runningScoreRun();
-  if (running) return c.redirect(`/target/runs/${running}`, 303);
   const { facts } = await loadWelcomeContext();
   if (!facts.profileReady) {
     return flashRedirect(PROFILE_STEP, 'err', 'Fill the profile first — scoring needs your technologies or role words.');
   }
-  const run = createRun({
+  const { run, joined } = claimRun(SCORE_RUN_KEY, {
     steps: ['score'],
     jobTitle: '',
     resumeName: '',
@@ -301,7 +295,7 @@ welcomeRoute.post('/welcome/score', async (c) => {
     backUrl: MATCHES_STEP,
     backLabel: 'Back to setup',
   });
-  scoreRunId = run.id;
+  if (joined) return c.redirect(`/target/runs/${run.id}`, 303);
   startRun(run.id, async () => {
     let stats: CronStats = {};
     await recordCronRun('score-unscored', async () => {
