@@ -4,6 +4,21 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.23.3] — 2026-09-02
+
+### Fixed
+- **The board read the whole ledger to date a handful of cards.**
+  `/applications` loaded every `job_stage_event` row ever written, grouped
+  them all by job, then used only the ones belonging to a card on screen.
+  The ledger is append-only by ADR 0024 — it grows with every stage move
+  forever — while the board is bounded by how many applications are open, so
+  the read got steadily more wasteful with no ceiling. Measured on the live
+  database: 26 rows loaded, 24 used, 2 discarded. Same class as the v1.11.0
+  fix on this route, which pulled whole `Job` rows; that query at least had a
+  `where`, this one had none. The query is now scoped to the jobs the board
+  draws, and an empty board skips it entirely. The grouping moved out of the
+  route into `stage-time.ts:groupEventsByJob`, where it is unit-tested.
+
 ## [1.23.2] — 2026-09-02
 
 ### Fixed
@@ -1353,6 +1368,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[1.23.3]: https://github.com/applypack/applypack/compare/v1.23.2...v1.23.3
 [1.23.2]: https://github.com/applypack/applypack/compare/v1.23.1...v1.23.2
 [1.23.1]: https://github.com/applypack/applypack/compare/v1.23.0...v1.23.1
 [1.23.0]: https://github.com/applypack/applypack/compare/v1.22.0...v1.23.0

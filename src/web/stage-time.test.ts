@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { stageTimeLine, type StageTimeEvent } from './stage-time';
+import { groupEventsByJob, stageTimeLine, type StageTimeEvent } from './stage-time';
 
 const NOW = new Date('2026-09-01T12:00:00Z');
 
@@ -107,4 +107,30 @@ test('a custom label replaces the key in the text', () => {
 test('a future since-day clamps to zero days', () => {
   const line = stageTimeLine('applied', daysAgo(-3), [], NOW);
   assert.equal(line?.text, 'applied today');
+});
+
+// groupEventsByJob — the board's ledger lookup.
+
+const row = (jobId: number, toStage: string) => ({ jobId, toStage });
+
+test('events are keyed by job, in the order they arrived', () => {
+  const byJob = groupEventsByJob(
+    [row(1, 'applied'), row(2, 'applied'), row(1, 'screen')],
+    [1, 2],
+  );
+  assert.deepEqual([...byJob.keys()], [1, 2]);
+  assert.deepEqual(byJob.get(1), [row(1, 'applied'), row(1, 'screen')]);
+  assert.deepEqual(byJob.get(2), [row(2, 'applied')]);
+});
+
+test('an event for a job that is not on the board is dropped', () => {
+  const byJob = groupEventsByJob([row(1, 'applied'), row(99, 'ghosted')], [1]);
+  assert.deepEqual([...byJob.keys()], [1]);
+  assert.equal(byJob.get(99), undefined);
+});
+
+test('no cards means an empty map, whatever the ledger holds', () => {
+  assert.equal(groupEventsByJob([row(1, 'applied')], []).size, 0);
+  assert.equal(groupEventsByJob([], []).size, 0);
+  assert.equal(groupEventsByJob([], [1, 2]).size, 0);
 });
