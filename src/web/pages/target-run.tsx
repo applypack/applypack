@@ -86,7 +86,13 @@ export const TargetRunPage: FC<{ run: TargetRun }> = ({ run }) => {
             </div>
           ) : (
             <>
-              <RunSteps steps={run.steps} currentIdx={currentIdx} view={STEP_VIEW} />
+              <RunSteps
+                steps={run.steps}
+                currentIdx={currentIdx}
+                view={STEP_VIEW}
+                stepMs={run.stepMs}
+                activeMs={Date.now() - run.stageAt}
+              />
               <div class="mt-5 flex items-center justify-between gap-3 border-t border-line pt-3">
                 <Hint>
                   You can close this page — the run keeps going and the result lands{' '}

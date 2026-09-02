@@ -19,6 +19,8 @@ export interface TargetRun {
   startedAt: number;
   /** When the current stage began — paces the progress page's activity line. */
   stageAt: number;
+  /** How long each finished step took — shown next to it on the progress page. */
+  stepMs: Partial<Record<RunStep, number>>;
   jobTitle: string;
   resumeName: string;
   /** Where the error state sends the user back to — the launcher that started it. */
@@ -52,6 +54,7 @@ export function createRun(
     stage: fields.steps[0] ?? 'match',
     startedAt: Date.now(),
     stageAt: Date.now(),
+    stepMs: {},
     backUrl: '/target',
     backLabel: 'Back to Target',
     ...fields,
@@ -65,8 +68,10 @@ export function updateRun(id: string, patch: Partial<Omit<TargetRun, 'id'>>): vo
   if (!run) return;
   if (patch.stage && patch.stage !== run.stage) {
     const now = Date.now();
+    const ms = now - run.stageAt;
+    if (run.stage !== 'done' && run.stage !== 'error') run.stepMs[run.stage] = ms;
     logger.info(
-      { runId: id, step: run.stage, ms: now - run.stageAt, next: patch.stage, totalMs: now - run.startedAt },
+      { runId: id, step: run.stage, ms, next: patch.stage, totalMs: now - run.startedAt },
       'run: step finished',
     );
     run.stageAt = now;
