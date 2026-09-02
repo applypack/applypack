@@ -15,9 +15,63 @@ import { SCORING } from './score.mjs';
 // Fallback for keyword rows that predate requirement levels (ADR 0012).
 const PRIORITY_WEIGHT = { 1: 3, 2: 2, 3: 1, 4: 1 };
 
+/**
+ * The requirement level in force. A row the user re-levelled by hand carries
+ * their choice in `override` (src/resume/keyword-overrides.ts); the panes and
+ * the live editor are handed lists with that already applied, the
+ * server-rendered keyword table is not — so read both here and neither caller
+ * has to care.
+ */
+function levelOf(k) {
+  return k.override?.requirement ?? k.requirement;
+}
+
 function keywordWeight(k) {
-  if (k.requirement) return SCORING.requirementWeight[k.requirement] ?? 0;
+  const level = levelOf(k);
+  if (level) return SCORING.requirementWeight[level] ?? 0;
   return PRIORITY_WEIGHT[k.priority] ?? 1;
+}
+
+/**
+ * How loudly the posting asks for a term: 4 a primary-stack must · 3 must ·
+ * 2 preferred · 1 nice · 0 context. One source for both the display order and
+ * the intensity of the mark, so a missing must-have can never look like a
+ * missing nice-to-have (target-plan.md §5).
+ */
+export function keywordRank(k) {
+  const weight = keywordWeight(k);
+  return k.primary === true && levelOf(k) === 'must' ? weight + 1 : weight;
+}
+
+/** Intensity class for a mark or a chip: kw-w0 (context) … kw-w4 (primary must). */
+export function weightClass(k) {
+  return 'kw-w' + keywordRank(k);
+}
+
+/** The requirement in words, for tooltips and chip titles. */
+function wantsLabel(k) {
+  const level = levelOf(k) ?? 'P' + k.priority;
+  return k.primary === true ? level + ' · primary stack' : level;
+}
+
+/**
+ * Display order for keyword lists: what the posting insists on hardest first,
+ * ties broken by how often the posting repeats the term — a word said four
+ * times outranks one said once at the same level. Every row comes back with
+ * that `count`, so callers can say "×4 in the posting" without searching
+ * again. Used by the panes, the missing chips and the server-rendered keyword
+ * table: one implementation, nothing to mirror.
+ */
+export function orderKeywords(keywords, jobText) {
+  return keywords
+    .map((k) => ({ ...k, count: findTerm(jobText, k.term, k.aliases ?? []).length }))
+    .sort(
+      (a, b) =>
+        keywordRank(b) - keywordRank(a) ||
+        b.count - a.count ||
+        (a.priority ?? 4) - (b.priority ?? 4) ||
+        a.term.localeCompare(b.term),
+    );
 }
 // A hit must not be glued to token characters: "C" is not "C++", "Java" is
 // not "JavaScript", "x.php" is a file. A trailing "." before a space or the
@@ -194,8 +248,12 @@ export function jobSpans(keywords, jobText, scored) {
       : found ? 'kw-found'
       : k.status === 'ask_user' ? 'kw-ask'
       : 'kw-missing';
-    for (const s of findTerm(jobText, k.term, k.aliases ?? [])) {
-      spans.push({ ...s, cls, title: `${k.term} · P${k.priority} · ${LABEL[cls]}` });
+    // Every occurrence is already in hand, so the frequency costs nothing.
+    const hits = findTerm(jobText, k.term, k.aliases ?? []);
+    const often = hits.length > 1 ? ` · ×${hits.length} in the posting` : '';
+    const title = `${k.term} · ${wantsLabel(k)} · ${LABEL[cls]}${often}`;
+    for (const s of hits) {
+      spans.push({ ...s, cls: `${cls} ${weightClass(k)}`, title });
     }
   }
   return spans;
@@ -204,9 +262,11 @@ export function jobSpans(keywords, jobText, scored) {
 /** Spans for the resume pane: present keywords, quoted removals, quoted actions. */
 export function resumeSpans(keywords, actions, removals, resumeText) {
   const spans = [];
+  // No weight class here: everything marked in the resume is a keyword the
+  // resume HAS, and the sort below keys off a single class per span.
   for (const k of keywords) {
     for (const s of findTerm(resumeText, k.term, k.aliases ?? [])) {
-      spans.push({ ...s, cls: 'kw-present', title: `${k.term} · P${k.priority}` });
+      spans.push({ ...s, cls: 'kw-present', title: `${k.term} · ${wantsLabel(k)}` });
     }
   }
   for (const r of removals) {

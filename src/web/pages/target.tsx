@@ -5,8 +5,9 @@ import { Badge, Button, Card, FitBadge, Flash, Hint, SUBMIT_ONCE } from '../ui';
 import type { FlashMessage } from '../flash';
 import { fitTone, formatRelative, type Tone } from '../format';
 import type { MatchWithResume } from '../../resume/store';
-import { withTableAliases } from '../../resume/keyword-aliases';
-import { readActions, readHardRequirements, readKeywords, readRemovals } from '../../resume/prompts';
+import type { CountedKeyword } from '../../resume/keyword-matcher';
+import { effectiveKeywords } from '../../resume/keyword-overrides';
+import { readActions, readHardRequirements, readRemovals } from '../../resume/prompts';
 import { readMatchMode } from '../../resume/match-mode';
 import { readBreakdown } from '../../resume/score';
 import {
@@ -42,6 +43,8 @@ export interface TargetPageProps {
   /** ephemeral = the hidden /target scratch resume: no versions, no saving. */
   resume: { id: number; name: string; version: number; ephemeral: boolean };
   match: MatchWithResume;
+  /** The match's keywords, ordered and counted against the posting (§5). */
+  keywords: CountedKeyword[];
   matches: MatchWithResume[];
   /** Most recent earlier run of the same resume — the "vs last time" delta. */
   previous: MatchWithResume | null;
@@ -98,18 +101,21 @@ export const TargetPage: FC<TargetPageProps> = ({
   job,
   resume,
   match,
+  keywords,
   matches,
   previous,
   resumeText,
   draftText,
   flash,
 }) => {
-  // Table spellings apply on read too, so matches stored before the table (or before an entry) highlight the same way.
-  const keywords = readKeywords(match.keywords).map(withTableAliases);
+  // The panes, the chips and the live score work from the effective list: the
+  // user's own levels, without the terms they ignored (§5). The table below
+  // still gets the full list, so an ignored row can be brought back.
+  const scored = effectiveKeywords(keywords);
   const actions = readActions(match.actions);
   const removals = readRemovals(match.removals);
   const hard = readHardRequirements(match.hardRequirements);
-  const asks = keywords.filter((k) => k.status === 'ask_user');
+  const asks = scored.filter((k) => k.status === 'ask_user');
   const highActions = actions.filter((a) => a.priority === 'high').length;
   // A quick check has no suggestions yet — the tab offers the second call instead (ADR 0029).
   const fast = readMatchMode(match.breakdown) === 'fast';
@@ -125,7 +131,7 @@ export const TargetPage: FC<TargetPageProps> = ({
     resumeText,
     draftText: draftText ?? null,
     jobText: job.description,
-    keywords,
+    keywords: scored,
     actions,
     removals,
     // Fixed score parts for the live estimate; null on pre-ADR-0012 matches.
@@ -406,7 +412,7 @@ export const TargetPage: FC<TargetPageProps> = ({
                 </span>
               </div>
               <div id="score-detail" class="mt-0.5 text-xs text-ink-faint">
-                {keywords.length} keywords from the AI match
+                {scored.length} keywords from the AI match
               </div>
               <Hint class="mt-1">
                 {breakdown
@@ -523,7 +529,10 @@ export const TargetPage: FC<TargetPageProps> = ({
                 </>
               )}
               <MatchSignals match={match} />
-              <KeywordTable keywords={keywords} />
+              <KeywordTable
+                keywords={keywords}
+                edit={{ jobId: job.id, matchId: match.id, back: `/jobs/${job.id}/target?match=${match.id}` }}
+              />
             </div>
           </Card>
         </div>
