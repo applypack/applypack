@@ -1,6 +1,7 @@
 import type { ResumeReview } from '@prisma/client';
 import { logger } from '../logger';
 import { getAiRuntime } from '../ai-runtime';
+import { answerLines, readAnswers } from './answers';
 import { parseWarnings } from './parse-warnings';
 import {
   buildReviewPrompt,
@@ -29,10 +30,14 @@ export async function reviewResume(resume: {
   text: string;
   version: number;
   roleTypes: string[];
+  /** Raw Resume.answers JSON — the figures an earlier run asked for (ADR 0030 phase 3). */
+  answers?: unknown;
 }): Promise<ResumeReview | null> {
+  const answers = readAnswers(resume.answers);
   const prompt = buildReviewPrompt(resume.text, {
     atsChecks: parseWarnings(resume.text).map((w) => w.message),
     roleTypes: resume.roleTypes,
+    answers: answerLines(answers),
   });
   const ai = await getAiRuntime();
   for (let attempt = 0; attempt < PARSE_ATTEMPTS; attempt++) {
@@ -69,6 +74,8 @@ export async function reviewResume(resume: {
           missing: breakdown.missing.length,
           advice: parsed.data.advice.length,
           asks: parsed.data.advice.filter((a) => a.ask !== null).length,
+          // The point of the loop: answered figures should make asks go down.
+          answersUsed: answers.length,
           chars: out.text.length,
           ms: Date.now() - started,
         },

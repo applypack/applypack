@@ -1,7 +1,7 @@
 /** @jsxImportSource hono/jsx */
 import type { FC } from 'hono/jsx';
 import { Layout } from '../layout';
-import { ActionForm, Badge, Button, Card, Empty, Field, FILE_INPUT_CLASS, FitBadge, Flash, Hint, Input, PageHeader, SectionTitle, SUBMIT_ONCE, Table, Tag, Td, Tr } from '../ui';
+import { ActionForm, Badge, Button, Card, Empty, Field, FILE_INPUT_CLASS, FitBadge, Flash, Hint, Input, PageHeader, SectionTitle, Select, SUBMIT_ONCE, Table, Tag, Td, Tr } from '../ui';
 import type { FlashMessage } from '../flash';
 import { formatRelative } from '../format';
 import { ACCEPTED_EXTENSIONS } from '../../resume/resume-text';
@@ -143,32 +143,79 @@ export const ResumesPage: FC<{
       <ResumeUploadForm />
     </Card>
 
-    {facts.length > 0 && (
-      <Card class="mt-4">
-        <SectionTitle>Confirmed facts</SectionTitle>
-        <Hint class="mb-3">
-          Your answers to "do you have this?" questions from comparisons. They feed every future
-          match — delete one if it's wrong.
-        </Hint>
-        <ul class="divide-y divide-line">
+    <Card class="mt-4">
+      <SectionTitle>Confirmed facts</SectionTitle>
+      <Hint class="mb-3">
+        Your answers to "do you have this?" questions from comparisons. They feed every future
+        match, so a skill you have but never wrote down is worth adding here — and a wrong one is
+        worth flipping. None of this calls the AI.
+      </Hint>
+      {facts.length > 0 && (
+        <ul class="mb-3 divide-y divide-line">
+          {/* Two deliberate lines below sm rather than a ragged wrap: the
+              term reads first, the two actions sit together under it. */}
           {facts.map((f) => (
-            <li class="flex flex-wrap items-center gap-2 py-2 first:pt-0 last:pb-0">
-              <Badge tone={f.status === 'confirmed' ? 'ok' : 'neutral'}>
-                {f.status === 'confirmed' ? 'have it' : "don't"}
-              </Badge>
-              <span class="text-sm font-medium text-ink">{f.term}</span>
-              {f.note && <span class="min-w-0 text-xs text-ink-faint">— {f.note}</span>}
-              <ActionForm action="/facts/delete" hidden={{ term: f.term, back: '/resumes' }} class="ml-auto">
-                <Button size="sm" variant="ghost">
-                  Forget
-                </Button>
-              </ActionForm>
+            <li class="flex flex-col gap-1 py-2 first:pt-0 sm:flex-row sm:items-center sm:gap-2">
+              <div class="flex min-w-0 items-center gap-2">
+                <Badge tone={f.status === 'confirmed' ? 'ok' : 'neutral'}>
+                  {f.status === 'confirmed' ? 'have it' : "don't"}
+                </Badge>
+                <span class="truncate text-sm font-medium text-ink">{f.term}</span>
+              </div>
+              {f.note && <span class="min-w-0 truncate text-xs text-ink-faint sm:before:content-['—_']">{f.note}</span>}
+              <div class="flex items-center gap-1.5 sm:ml-auto">
+                {/* The same POST /facts the comparison uses, with the answer
+                    turned around — no second endpoint for the same decision. */}
+                <ActionForm
+                  action="/facts"
+                  hidden={{
+                    term: f.term,
+                    decision: f.status === 'confirmed' ? 'denied' : 'confirmed',
+                    note: f.note ?? '',
+                    back: '/resumes',
+                  }}
+                >
+                  <Button size="sm" variant="ghost">
+                    {f.status === 'confirmed' ? "I don't, actually" : 'I do have it'}
+                  </Button>
+                </ActionForm>
+                <ActionForm action="/facts/delete" hidden={{ term: f.term, back: '/resumes' }}>
+                  <Button size="sm" variant="ghost">
+                    Forget
+                  </Button>
+                </ActionForm>
+              </div>
             </li>
           ))}
         </ul>
-      </Card>
-    )}
+      )}
+      <AddFactForm />
+    </Card>
   </Layout>
+);
+
+/**
+ * Adding a fact by hand (§12 quick win). `POST /facts` already accepted any
+ * term — it was only ever reachable from a comparison that happened to ask
+ * about one, so a skill no posting had asked about could not be recorded.
+ */
+const AddFactForm: FC = () => (
+  <form method="post" action="/facts" class="flex flex-wrap items-end gap-2">
+    <input type="hidden" name="back" value="/resumes" />
+    <Field label="Skill or tool" class="min-w-[10rem] flex-1">
+      <Input name="term" maxlength="100" required placeholder="kubernetes" />
+    </Field>
+    <Field label="Do you have it?" class="w-40">
+      <Select name="decision">
+        <option value="confirmed">I have it</option>
+        <option value="denied">I don't</option>
+      </Select>
+    </Field>
+    <Field label="Where / when" class="min-w-[12rem] flex-[2]" hint="Optional — the match prompt quotes it.">
+      <Input name="note" maxlength="300" placeholder="ran the cluster at Vodwork, 2023-2025" />
+    </Field>
+    <Button variant="violet">Remember this</Button>
+  </form>
 );
 
 /**

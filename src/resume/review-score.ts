@@ -163,6 +163,17 @@ export function readReviewBreakdown(v: unknown): ReviewBreakdown | null {
 }
 
 /**
+ * The rubric version a stored review was graded under. Two runs from
+ * different versions are two different measurements, which is what the delta
+ * has to say out loud instead of subtracting them (review-delta.ts).
+ */
+export function readReviewPromptVersion(breakdown: unknown): number | null {
+  if (typeof breakdown !== 'object' || breakdown === null) return null;
+  const v = (breakdown as { promptVersion?: unknown }).promptVersion;
+  return Number.isInteger(v) ? (v as number) : null;
+}
+
+/**
  * A review describes the version it read. Once the resume moves on, its
  * verdict is about text that no longer exists — the card says so rather than
  * quietly ageing.

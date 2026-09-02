@@ -387,6 +387,11 @@ model Resume {
   summary         String?        @db.Text
   // [{ section, issue, fix }] — job-agnostic ATS / recruiter problems.
   issues          Json           @default("[]")
+  // [{ question, answer, answeredAt }] — the metrics the strength review asked
+  // for and the candidate supplied. On the RESUME, not the review row: an
+  // answer is a fact about this document and has to outlive the run that
+  // asked (ADR 0030 phase 3).
+  answers         Json           @default("[]")
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
   matches         ResumeMatch[]

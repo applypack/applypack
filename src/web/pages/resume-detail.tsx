@@ -28,6 +28,9 @@ import { formatDate, formatRelative } from '../format';
 import type { ResumeReview } from '@prisma/client';
 import type { MatchWithJob, ResumeSummary } from '../../resume/store';
 import { ResumeReviewCard } from './resume-review-card';
+import type { ReviewAnswer } from '../../resume/answers';
+import type { ReviewDelta } from '../../resume/review-delta';
+import { groupMatchesByJob, historyLabel, progression } from '../match-history';
 import { reviewIsStale } from '../../resume/review-score';
 import { readIssues } from '../../resume/prompts';
 import type { ParseWarning } from '../../resume/parse-warnings';
@@ -38,6 +41,10 @@ export interface ResumeDetailProps {
   matches: MatchWithJob[];
   /** The latest strength review, or null when the user has never asked for one. */
   review: ResumeReview | null;
+  /** The candidate's answers to the review's questions (ADR 0030 phase 3). */
+  answers: ReviewAnswer[];
+  /** What moved since the previous run of this resume, when there was one. */
+  reviewDelta: ReviewDelta | null;
   /** What Delete would cascade — named in the confirm: comparisons, letters and reviews. */
   deleteImpact: { matches: number; letters: number; reviews: number };
   /** Deterministic ATS-parseability checks over the extracted text. */
@@ -54,6 +61,8 @@ export const ResumeDetailPage: FC<ResumeDetailProps> = ({
   resume,
   matches,
   review,
+  answers,
+  reviewDelta,
   deleteImpact,
   warnings,
   search,
@@ -98,6 +107,21 @@ export const ResumeDetailPage: FC<ResumeDetailProps> = ({
         }
       >
         <span class="flex flex-wrap items-center gap-2">
+          {/* The name is what every picker, flash and "applied with" line
+              says, and it starts as whatever the uploaded file was called. */}
+          <form method="post" action={`/resumes/${resume.id}/rename`} class="flex items-center gap-1.5">
+            <Input
+              name="name"
+              value={resume.name}
+              maxlength="120"
+              required
+              aria-label="Resume name"
+              class="!w-56 !px-2 !py-1 !text-xs"
+            />
+            <Button size="sm" variant="ghost">
+              Rename
+            </Button>
+          </form>
           <span class="break-all font-mono text-xs">{resume.sourceFilename}</span>
           <Badge tone="info">v{resume.version}</Badge>
           {resume.isDefault && <Badge tone="ok">default</Badge>}
@@ -109,7 +133,7 @@ export const ResumeDetailPage: FC<ResumeDetailProps> = ({
       </PageHeader>
       <Flash flash={flash} />
 
-      <ResumeReviewCard resume={resume} review={review} />
+      <ResumeReviewCard resume={resume} review={review} answers={answers} delta={reviewDelta} />
 
       <div class="mt-4 grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
         <Card>
@@ -203,32 +227,62 @@ export const ResumeDetailPage: FC<ResumeDetailProps> = ({
           </div>
         ) : (
           <Table columns={['Job', 'Company', 'Version', 'Match', <span class="block text-right">When</span>]}>
-            {matches.map((m) => (
-              <Tr>
-                <Td class="max-w-[24rem]">
-                  <a
-                    href={`/jobs/${m.job.id}/target?match=${m.id}`}
-                    class="block truncate font-medium text-ink transition-colors duration-150 hover:text-accent-strong"
-                    title={m.job.title}
-                  >
-                    {m.job.title}
-                  </a>
-                </Td>
-                <Td class="max-w-[14rem] text-ink-muted">
-                  <div class="truncate">{m.job.company.name}</div>
-                </Td>
-                <Td class="whitespace-nowrap font-mono text-xs text-ink-faint">
-                  v{m.resumeVersion}
-                  {m.draft ? ' draft' : ''}
-                </Td>
-                <Td>
-                  <FitBadge score={m.matchScore} label="match" />
-                </Td>
-                <Td class="whitespace-nowrap text-right text-[13px] text-ink-faint">
-                  {formatDate(m.createdAt)}
-                </Td>
-              </Tr>
-            ))}
+            {groupMatchesByJob(matches).map((h) => {
+              const line = historyLabel(h);
+              const runs = progression(h);
+              return (
+                <Tr>
+                  <Td class="max-w-[24rem]">
+                    <a
+                      href={`/jobs/${h.job.id}/target?match=${h.latest.id}`}
+                      class="block truncate font-medium text-ink transition-colors duration-150 hover:text-accent-strong"
+                      title={h.job.title}
+                    >
+                      {h.job.title}
+                    </a>
+                    {/* Every earlier run stays one click away — grouping must
+                        not hide history, only stop repeating the job title. */}
+                    {line && (
+                      <div class="mt-0.5 flex flex-wrap items-center gap-x-1 text-xs text-ink-faint">
+                        <span class="mr-0.5">{line} ·</span>
+                        {runs.map((r, i) => (
+                          <>
+                            {i > 0 && <span aria-hidden="true">→</span>}
+                            <a
+                              href={`/jobs/${h.job.id}/target?match=${r.id}`}
+                              class="font-mono transition-colors duration-150 hover:text-accent-strong"
+                              title={`${formatDate(r.createdAt)} · v${r.resumeVersion}`}
+                            >
+                              {r.matchScore}
+                            </a>
+                          </>
+                        ))}
+                      </div>
+                    )}
+                  </Td>
+                  <Td class="max-w-[14rem] text-ink-muted">
+                    <div class="truncate">{h.job.company.name}</div>
+                  </Td>
+                  <Td class="whitespace-nowrap font-mono text-xs text-ink-faint">
+                    v{h.latest.resumeVersion}
+                    {h.latest.draft ? ' draft' : ''}
+                  </Td>
+                  <Td>
+                    <div class="flex items-center gap-1.5">
+                      <FitBadge score={h.latest.matchScore} label="match" />
+                      {h.delta !== null && h.delta !== 0 && (
+                        <Badge tone={h.delta > 0 ? 'ok' : 'danger'}>
+                          {h.delta > 0 ? `+${h.delta}` : h.delta}
+                        </Badge>
+                      )}
+                    </div>
+                  </Td>
+                  <Td class="whitespace-nowrap text-right text-[13px] text-ink-faint">
+                    {formatDate(h.latest.createdAt)}
+                  </Td>
+                </Tr>
+              );
+            })}
           </Table>
         )}
       </Card>
