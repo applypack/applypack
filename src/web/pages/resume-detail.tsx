@@ -38,8 +38,8 @@ export interface ResumeDetailProps {
   matches: MatchWithJob[];
   /** The latest strength review, or null when the user has never asked for one. */
   review: ResumeReview | null;
-  /** What Delete would cascade — named in the confirm, letters included. */
-  deleteImpact: { matches: number; letters: number };
+  /** What Delete would cascade — named in the confirm: comparisons, letters and reviews. */
+  deleteImpact: { matches: number; letters: number; reviews: number };
   /** Deterministic ATS-parseability checks over the extracted text. */
   warnings: ParseWarning[];
   /** Searches already linked to this resume, and the one a click would create. */

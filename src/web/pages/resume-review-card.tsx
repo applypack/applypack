@@ -151,7 +151,7 @@ const ReviewReport: FC<{
                 {g.evidence.length > 0 && (
                   <ul class="mt-1.5 space-y-1">
                     {g.evidence.map((e) => (
-                      <li class="border-l-2 border-line-strong pl-2 font-mono text-xs text-ink-faint">
+                      <li class="whitespace-pre-line border-l-2 border-line-strong pl-2 font-mono text-xs text-ink-faint">
                         {e}
                       </li>
                     ))}
@@ -177,12 +177,12 @@ const ReviewReport: FC<{
                 <div class="text-[13px] leading-5 text-ink-muted">{a.why}</div>
                 <div class="text-[13px] leading-5 text-ink">→ {a.fix}</div>
                 {a.quote && (
-                  <div class="border-l-2 border-line-strong pl-2 font-mono text-xs text-ink-faint">
+                  <div class="whitespace-pre-line border-l-2 border-line-strong pl-2 font-mono text-xs text-ink-faint">
                     {a.quote}
                   </div>
                 )}
                 {a.example && (
-                  <div class="rounded-md border border-ok/30 bg-surface-overlay/50 px-2.5 py-1.5 text-[13px] leading-5 text-ink">
+                  <div class="whitespace-pre-line rounded-md border border-ok/30 bg-surface-overlay/50 px-2.5 py-1.5 text-[13px] leading-5 text-ink">
                     <span class="text-ink-faint">Rewrite: </span>
                     {a.example}
                   </div>

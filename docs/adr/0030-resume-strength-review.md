@@ -26,7 +26,7 @@ Both were fixed the same way: the model marks facts, code applies hard caps.
 
 ## Decision
 
-**A sixth AI call site, `resume/review.ts`, on demand only.** Never on upload,
+**A fifth resume AI call site, `resume/review.ts`, on demand only.** Never on upload,
 never on a version save, never in the worker (ADR 0008). One button, one call,
 about a minute, counted in `aiUsage` like every other.
 
@@ -129,8 +129,9 @@ duties-only resume cannot pass 55 however good the rest is. The advice is
 actionable because it quotes the line it targets, and honest because the only
 route to a number the resume lacks is a question to the user.
 
-❌ A sixth AI call site and a fifth prompt to keep fenced and guarded (both
-registered in `prompt-fence-registry.test.ts`). The weights and caps are
+❌ A fifth call site in the resume module (ninth in the app) and a fifth
+resume prompt to keep fenced and guarded — both registered in
+`prompt-fence-registry.test.ts`, which failed until they were. The weights and caps are
 judgment, not measurement — they were set from the rubric's intent and checked
 against the stored resumes, and they will need re-tuning if the grades turn out
 to bunch. And a second score now exists in the product: "match 66/100" (against

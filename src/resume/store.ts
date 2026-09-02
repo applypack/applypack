@@ -174,12 +174,15 @@ export async function listMatchesForResume(resumeId: number): Promise<MatchWithJ
  * What deleting a resume takes with it. Both cascade, and the letters carry
  * the user's own edited text — the confirm dialog has to say so.
  */
-export async function deleteImpact(resumeId: number): Promise<{ matches: number; letters: number }> {
-  const [matches, letters] = await Promise.all([
+export async function deleteImpact(
+  resumeId: number,
+): Promise<{ matches: number; letters: number; reviews: number }> {
+  const [matches, letters, reviews] = await Promise.all([
     prisma.resumeMatch.count({ where: { resumeId } }),
     prisma.coverLetter.count({ where: { resumeId } }),
+    prisma.resumeReview.count({ where: { resumeId } }),
   ]);
-  return { matches, letters };
+  return { matches, letters, reviews };
 }
 
 export interface ResumeMatchStats {
