@@ -292,8 +292,15 @@ export const Table: FC<
     stickyHeader?: boolean;
     /** Proportional column widths (`w-[34%]`, …) with table-fixed layout. */
     widths?: string[];
+    /**
+     * Per-column classes on the `th` itself — the only place a responsive
+     * `hidden sm:table-cell` can live, since a class on the label inside
+     * still leaves the cell occupying its column. Pair each entry with the
+     * same class on that column's `Td`.
+     */
+    thClasses?: string[];
   }>
-> = ({ columns, stickyHeader = false, widths, children }) => {
+> = ({ columns, stickyHeader = false, widths, thClasses, children }) => {
   const table = (
     <table class={`w-full text-sm ${widths ? 'table-fixed' : ''}`}>
       <thead>
@@ -301,9 +308,9 @@ export const Table: FC<
           {columns.map((c, i) => (
             <th
               scope="col"
-              class={`bg-surface-overlay px-4 py-2.5 font-medium first:rounded-tl-none first:pl-5 last:pr-5 ${
+              class={`bg-surface-overlay px-2.5 py-2.5 font-medium first:rounded-tl-none first:pl-3.5 last:pr-3.5 sm:px-4 sm:first:pl-5 sm:last:pr-5 ${
                 widths?.[i] ?? ''
-              } ${
+              } ${thClasses?.[i] ?? ''} ${
                 stickyHeader
                   ? 'sticky top-0 z-10 shadow-[inset_0_-1px_0_rgb(var(--line))]'
                   : 'border-b border-line'
@@ -334,7 +341,7 @@ export const Td: FC<PropsWithChildren<{ class?: string; title?: string }>> = ({
   class: className = '',
   title,
 }) => (
-  <td class={`px-4 py-3 first:pl-5 last:pr-5 ${className}`} title={title}>
+  <td class={`px-2.5 py-3 first:pl-3.5 last:pr-3.5 sm:px-4 sm:first:pl-5 sm:last:pr-5 ${className}`} title={title}>
     {children}
   </td>
 );

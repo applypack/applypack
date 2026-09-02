@@ -20,6 +20,7 @@ import {
   Td,
   Tr,
 } from '../ui';
+import { deleteConfirm } from '../delete-confirm';
 import { ACCEPTED_EXTENSIONS } from '../../resume/resume-text';
 import { MAX_UPLOAD_MB } from '../upload';
 import type { FlashMessage } from '../flash';
@@ -32,6 +33,8 @@ import type { ProfileDraft } from '../../resume/profile-draft';
 export interface ResumeDetailProps {
   resume: ResumeSummary;
   matches: MatchWithJob[];
+  /** What Delete would cascade — named in the confirm, letters included. */
+  deleteImpact: { matches: number; letters: number };
   /** Deterministic ATS-parseability checks over the extracted text. */
   warnings: ParseWarning[];
   /** Searches already linked to this resume, and the one a click would create. */
@@ -45,6 +48,7 @@ export interface ResumeDetailProps {
 export const ResumeDetailPage: FC<ResumeDetailProps> = ({
   resume,
   matches,
+  deleteImpact,
   warnings,
   search,
   flash,
@@ -74,7 +78,7 @@ export const ResumeDetailPage: FC<ResumeDetailProps> = ({
             )}
             <ActionForm
               action={`/resumes/${resume.id}/delete`}
-              confirm="Delete this resume and its comparisons?"
+              confirm={deleteConfirm(resume.name, deleteImpact)}
             >
               <Button variant="danger" size="sm">
                 Delete

@@ -19,7 +19,9 @@ const STEP_VIEW: Record<RunStep, StepView> = {
     detail: 'fit score against every running search — seconds',
   },
   scan: {
-    label: 'Scan the new resume version',
+    // Also reached by a plain re-scan and a first upload, where there is no
+    // "new version" to speak of.
+    label: 'Read the resume',
     detail: 'headline, skills, ATS issues — about a minute',
   },
   match: {

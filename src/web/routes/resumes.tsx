@@ -7,12 +7,14 @@ import { matchResumeToJob } from '../../resume/match';
 import { prisma } from '../../db';
 import {
   createResume,
+  deleteImpact,
   deleteResume,
   getResume,
   getResumeOriginal,
   listFacts,
   listMatchesForResume,
   listResumes,
+  matchStatsByResume,
   replaceResumeFile,
   type ResumeSummary,
   saveResumeTextVersion,
@@ -37,9 +39,17 @@ const MIN_DRAFT_CHARS = 200;
 export const resumesRoute = new Hono();
 
 resumesRoute.get('/resumes', async (c) => {
-  const [resumes, facts] = await Promise.all([listResumes(), listFacts()]);
+  const [resumes, facts, stats] = await Promise.all([
+    listResumes(),
+    listFacts(),
+    matchStatsByResume(),
+  ]);
   return c.html(
-    <ResumesPage resumes={resumes} facts={facts} flash={parseFlashCookie(c.req.header('cookie'))} />,
+    <ResumesPage
+      resumes={resumes.map((r) => ({ ...r, matches: stats.get(r.id) ?? null }))}
+      facts={facts}
+      flash={parseFlashCookie(c.req.header('cookie'))}
+    />,
     200,
     { 'Set-Cookie': clearFlashCookie() },
   );
@@ -79,16 +89,18 @@ resumesRoute.post('/resumes/:id/replace', resumeUploadLimit('/resumes'), async (
 resumesRoute.get('/resumes/:id', async (c) => {
   const id = Number(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text('Bad id', 400);
-  const [resume, matches, linkedProfiles] = await Promise.all([
+  const [resume, matches, linkedProfiles, impact] = await Promise.all([
     getResume(id),
     listMatchesForResume(id),
     listProfilesForResume(id),
+    deleteImpact(id),
   ]);
   if (!resume) return c.text('Not found', 404);
   return c.html(
     <ResumeDetailPage
       resume={resume}
       matches={matches}
+      deleteImpact={impact}
       warnings={parseWarnings(resume.text)}
       // The draft the "Create a search" button would save — rendered, not
       // stored (ADR 0015). Only a scanned resume has anything to say.
