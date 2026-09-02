@@ -235,7 +235,7 @@ welcomeRoute.post('/welcome/profile/apply', async (c) => {
   const form = await c.req.parseBody();
   const { profile } = await loadWelcomeContext();
   const resume = await getResume(Number(form.resumeId));
-  if (!profile) return flashRedirect(PROFILE_STEP, 'err', 'No active profile — create one in Settings → Profile.');
+  if (!profile) return flashRedirect(PROFILE_STEP, 'err', 'No primary search — create one in Settings → Profile.');
   if (!resume || !resume.scannedAt) return flashRedirect(PROFILE_STEP, 'err', 'That resume has not been read yet.');
   const draft = buildProfileDraft(profile, scanFields(resume));
   await updateProfile(profile.id, { ...profileInput(profile), ...draft.changes });
@@ -271,7 +271,7 @@ welcomeRoute.post('/welcome/profile/create', async (c) => {
 welcomeRoute.post('/welcome/profile', async (c) => {
   const form = await c.req.parseBody({ all: true });
   const { profile } = await loadWelcomeContext();
-  if (!profile) return flashRedirect(PROFILE_STEP, 'err', 'No active profile — create one in Settings → Profile.');
+  if (!profile) return flashRedirect(PROFILE_STEP, 'err', 'No primary search — create one in Settings → Profile.');
   const stackRequired = parseTagList(String(form.stackRequired ?? ''));
   const roleTypes = parseTagList(String(form.roleTypes ?? ''));
   const seniority = toStringArray(form.seniority).filter((s) =>

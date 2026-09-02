@@ -1,7 +1,8 @@
 import { logger } from '../logger';
 import { runAllFetchers, type SourceProgress } from '../fetchers';
 import { isFailureStatus } from '../fetchers/source-health';
-import { getActiveProfile } from '../profiles';
+import { listActiveProfiles } from '../profiles';
+import type { Profile } from '@prisma/client';
 import { getSettings } from '../settings';
 import { recordCandidatesFromText } from '../discovery';
 import { makeFetchPauseProbe } from './fetch-pause';
@@ -31,17 +32,21 @@ export async function runFetchJob(opts: FetchJobOptions = {}): Promise<{ stats: 
   }
   const classify = settings.fetchingEnabled;
 
-  const profile = await getActiveProfile();
-  if (!profile) {
+  const profiles = await listActiveProfiles();
+  if (profiles.length === 0) {
     logger.warn(
-      'fetch-job: no active profile configured; aborting (configure one at /settings)',
+      'fetch-job: no active search configured; aborting (switch one on at /settings)',
     );
     return { stats: { aborted: 1, reason: 'no-active-profile' } };
   }
   const { classifierMode } = settings;
   logger.info(
-    { profile: profile.name, minFitScore: profile.minFitScore, classifierMode, classify },
-    'fetch-job: using active profile',
+    {
+      searches: profiles.map((p) => `${p.name} (>=${p.minFitScore})`),
+      classifierMode,
+      classify,
+    },
+    'fetch-job: using active searches',
   );
 
   // Pausing on /settings must also stop a tick that is already running —
@@ -92,7 +97,7 @@ export async function runFetchJob(opts: FetchJobOptions = {}): Promise<{ stats: 
     );
     return {
       stats: {
-        profile: profile.name,
+        profile: searchNames(profiles),
         aborted: 1,
         reason: 'paused-mid-run',
         fetched: fetched.length,
@@ -121,7 +126,7 @@ export async function runFetchJob(opts: FetchJobOptions = {}): Promise<{ stats: 
     skippedByPause: 0,
     skippedBlankProfile: 0,
   };
-  await processNormalizedJobs(fetched, profile, inner, {
+  await processNormalizedJobs(fetched, profiles, inner, {
     classifierMode,
     classify,
     isCancelled: paused,
@@ -129,7 +134,7 @@ export async function runFetchJob(opts: FetchJobOptions = {}): Promise<{ stats: 
 
   const durationMs = Date.now() - started;
   const stats: CronStats = {
-    profile: profile.name,
+    profile: searchNames(profiles),
     classifierMode,
     ...(!classify && { classify: false }),
     fetched: fetched.length,
@@ -141,4 +146,9 @@ export async function runFetchJob(opts: FetchJobOptions = {}): Promise<{ stats: 
   };
   logger.info(stats, 'fetch-job: done');
   return { stats };
+}
+
+/** One `profile` line for the run row, whatever the number of searches. */
+function searchNames(profiles: Profile[]): string {
+  return profiles.map((p) => p.name).join(' · ');
 }

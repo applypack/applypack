@@ -64,7 +64,7 @@ export const letterRoute = new Hono();
 
 letterRoute.get('/letter', async (c) => {
   const settings = await getSettings();
-  // Newest first among the jobs that clear the active profile's threshold —
+  // Newest first among the jobs that clear the primary search's threshold —
   // a letter is written for something you would actually apply to, and the
   // freshest of those is the likeliest target. The picker is searchable, so
   // a long list costs nothing.

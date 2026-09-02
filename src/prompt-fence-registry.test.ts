@@ -52,6 +52,8 @@ const KNOWN_CALL_SITES: Record<string, string> = {
 };
 
 const PROFILE = {
+  id: 1,
+  name: 'Backend',
   seniority: ['senior'],
   stackRequired: ['php'],
   roleTypes: ['backend'],
@@ -64,6 +66,10 @@ const PROFILE = {
   minSalaryUsd: 0,
   notes: '',
 } as unknown as Profile;
+
+/* A second search, so the multi-profile builders are fenced under the shape
+   they actually run in — one search is the degenerate case, not the contract. */
+const PROFILE_2 = { ...PROFILE, id: 7, name: 'QA', stackRequired: ['playwright'] } as Profile;
 
 const RESUME = 'RESUME-NEEDLE';
 const DESC = 'POSTING-NEEDLE';
@@ -78,7 +84,7 @@ interface Case {
 
 const CASES: Record<string, Case> = {
   buildClassifyPrompt: {
-    build: () => classifierMod.buildClassifyPrompt(CLASSIFY_INPUT, PROFILE),
+    build: () => classifierMod.buildClassifyPrompt(CLASSIFY_INPUT, [PROFILE, PROFILE_2]),
     fenced: [
       ['JOB POSTING', DESC],
       ['JOB POSTING', 'TITLE-NEEDLE'],
@@ -87,7 +93,7 @@ const CASES: Record<string, Case> = {
     ],
   },
   buildPrefilterPrompt: {
-    build: () => prefilterMod.buildPrefilterPrompt(CLASSIFY_INPUT, PROFILE),
+    build: () => prefilterMod.buildPrefilterPrompt(CLASSIFY_INPUT, [PROFILE, PROFILE_2]),
     fenced: [
       ['JOB POSTING', DESC],
       ['JOB POSTING', 'TITLE-NEEDLE'],

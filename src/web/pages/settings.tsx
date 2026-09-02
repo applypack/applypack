@@ -8,7 +8,7 @@ import type { FlashMessage } from '../flash';
 import { sourceLabel } from '../source-names';
 import { dotClassFor, MAX_WORK_STAGES } from '../stage-config';
 import { formatPriorityRulesText, parsePriorityRules } from '../../priority-rules';
-import { isBlankProfile } from '../../profile-guards';
+import { isBlankProfile, MAX_ACTIVE_PROFILES } from '../../profile-guards';
 import { SENIORITY_LEVELS } from '../../resume/profile-draft';
 import { ACCEPTED_EXTENSIONS } from '../../resume/resume-text';
 import { MAX_UPLOAD_MB } from '../upload';
@@ -26,8 +26,11 @@ interface MaskedTarget {
 interface ProfileListItem {
   id: number;
   name: string;
-  active: boolean;
-  /** No required stack and no role types — activation is gated (issue #50). */
+  /** Running: scored on every tick, alerts on its own threshold (ADR 0028). */
+  running: boolean;
+  /** The primary — supplies defaults everywhere, and always runs. */
+  primary: boolean;
+  /** No required stack and no role types — running is gated (issue #50). */
   blank: boolean;
 }
 
@@ -220,25 +223,24 @@ export const SettingsPage: FC<SettingsProps> = ({
       {activeTab === 'profile' && (
       <Section
         title="Profile"
-        desc="What a matching job looks like: stack, role types, regions, salary floor. The classifier scores every job against the active profile."
+        desc="What a matching job looks like: stack, role types, regions, salary floor. One AI call scores every posting against every running search."
       >
         {/* Order follows the user's journey: contextual warnings → fill from a
             resume → the editor → profile management last (docs/onboarding-plan.md §3). */}
-        {profiles.some((p) => p.active && p.blank) && (
+        {profiles.some((p) => p.running && p.blank) && profiles.every((p) => !p.running || p.blank) && (
           <div class="rounded-md border border-warn/25 bg-warn/5 px-3.5 py-2.5 text-[13px] leading-5 text-warn">
-            Active profile is empty — classification idle. New jobs are fetched but not
-            scored or alerted until it lists a required stack or role types.
+            Every running search is empty — classification idle. New jobs are fetched but
+            not scored or alerted until one lists a required stack or role types.
             {resumes.length > 0
               ? ' Fastest fix: fill the fields from a resume below.'
               : ' Fastest fix: upload a resume below and fill the fields from it.'}
           </div>
         )}
-        {activeProfile && !profiles.some((p) => p.id === activeProfile.id && p.active) && (
+        {activeProfile && !profiles.some((p) => p.id === activeProfile.id && p.running) && (
           <div class="rounded-md border border-line bg-surface-overlay px-3.5 py-2.5 text-[13px] leading-5 text-ink-muted">
-            Editing an inactive profile — the worker keeps scoring with the active one.
-            {isBlankProfile(activeProfile)
-              ? ' It activates automatically on the first save with a required stack or role types.'
-              : ' Use Activate below to make it the scoring profile.'}
+            Editing a paused search — it scores nothing until you press Run below.
+            {isBlankProfile(activeProfile) &&
+              ' It starts running automatically on the first save with a required stack or role types.'}
           </div>
         )}
         {activeProfile && (
@@ -312,37 +314,76 @@ export const SettingsPage: FC<SettingsProps> = ({
             />
           </Card>
         ) : (
-          <Empty>No active profile. Pick one below or create a new one.</Empty>
+          <Empty>No search selected. Pick one below or create a new one.</Empty>
         )}
-        <div class="flex flex-wrap items-center gap-2">
-          <form
-            method="post"
-            action="/settings/profiles/activate"
-            class="flex min-w-0 max-w-full flex-wrap items-center gap-2"
-          >
-            <Select
-              name="id"
-              class="!w-auto min-w-0 max-w-full"
-              aria-label="Profile to activate or delete"
-            >
-              {profiles.map((p) => (
-                <option value={p.id} selected={p.active}>
+        <div class="space-y-2">
+          <div class="text-[13px] font-medium text-ink">Searches</div>
+          <Hint>
+            Every running search scores each new posting in the same AI call, with its
+            own threshold and its own Telegram chat. Up to {MAX_ACTIVE_PROFILES} at once.
+          </Hint>
+          <ul class="divide-y divide-line rounded-md border border-line">
+            {profiles.map((p) => (
+              <li class="flex flex-wrap items-center gap-2 px-3 py-2">
+                <span
+                  class={`h-1.5 w-1.5 shrink-0 rounded-full ${p.running ? 'bg-ok' : 'bg-line-strong'}`}
+                  aria-hidden="true"
+                />
+                {/* On a narrow screen the name takes its own line — the row's
+                    four actions otherwise squeeze it down to "S…". */}
+                <span class="min-w-0 basis-[calc(100%-1.5rem)] truncate text-[13px] text-ink sm:basis-0 sm:flex-1">
                   {p.name}
-                  {p.active ? ' (active)' : p.blank ? ' (empty — fill in first)' : ''}
-                </option>
-              ))}
-            </Select>
-            <Button variant="secondary">Activate</Button>
-            <Button
-              variant="danger"
-              formaction="/settings/profiles/delete"
-              onclick="return confirm('Delete the selected profile? This cannot be undone.')"
-            >
-              Delete
-            </Button>
-          </form>
+                  {p.primary && (
+                    <span class="ml-1.5 text-xs text-ink-faint">· primary</span>
+                  )}
+                  {p.blank && (
+                    <span class="ml-1.5 text-xs text-warn">· empty, fill it in first</span>
+                  )}
+                  {!p.running && !p.blank && (
+                    <span class="ml-1.5 text-xs text-ink-faint">· paused</span>
+                  )}
+                </span>
+                <a
+                  href={`/settings?tab=profile&profile=${p.id}`}
+                  class="text-[13px] text-ink-muted underline-offset-2 hover:text-ink hover:underline"
+                >
+                  Edit
+                </a>
+                {!p.primary && (
+                  <ActionForm
+                    action="/settings/profiles/active"
+                    hidden={{ id: p.id, active: p.running ? '' : '1' }}
+                  >
+                    <Button variant="secondary" size="sm" disabled={p.blank && !p.running}>
+                      {p.running ? 'Pause' : 'Run'}
+                    </Button>
+                  </ActionForm>
+                )}
+                {!p.primary && (
+                  <ActionForm action="/settings/profiles/activate" hidden={{ id: p.id }}>
+                    <Button variant="secondary" size="sm" disabled={p.blank}>
+                      Make primary
+                    </Button>
+                  </ActionForm>
+                )}
+                {!p.primary && (
+                  <ActionForm action="/settings/profiles/delete" hidden={{ id: p.id }}>
+                    <Button
+                      variant="danger"
+                      size="sm"
+                      onclick="return confirm('Delete this search? This cannot be undone.')"
+                    >
+                      Delete
+                    </Button>
+                  </ActionForm>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
           <ActionForm action="/settings/profiles/new">
-            <Button variant="secondary">+ New profile</Button>
+            <Button variant="secondary">+ New search</Button>
           </ActionForm>
         </div>
       </Section>

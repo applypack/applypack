@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { passesBaseFilter } from './filter';
+import { passesAnyBaseFilter, passesBaseFilter } from './filter';
 
 const phpProfile = {
   stackRequired: ['php', 'laravel', 'symfony'],
@@ -232,6 +232,49 @@ describe('passesBaseFilter — strict (remote off, hybrid off)', () => {
         officeOnly,
       ),
       true,
+    );
+  });
+});
+
+describe('passesAnyBaseFilter — the union across active searches (ADR 0028)', () => {
+  const goProfile = {
+    stackRequired: ['go', 'kubernetes'],
+    roleTypes: ['platform'],
+    stackExclude: ['junior'],
+    remoteOk: true,
+    remoteRegions: ['US'],
+    onsiteCities: [],
+    hybridOk: false,
+  };
+
+  it('admits a job that only the second search wants', () => {
+    const job = { title: 'Senior Go Platform Engineer', location: 'Remote, US' };
+    assert.equal(passesBaseFilter(job, phpProfile), false);
+    assert.equal(passesAnyBaseFilter(job, [phpProfile, goProfile]), true);
+  });
+
+  it('admits a job that only the first search wants', () => {
+    const job = { title: 'Senior Laravel Engineer', location: 'Remote, US' };
+    assert.equal(passesBaseFilter(job, goProfile), false);
+    assert.equal(passesAnyBaseFilter(job, [phpProfile, goProfile]), true);
+  });
+
+  it('rejects a job no search wants', () => {
+    const job = { title: 'Senior Rust Compiler Engineer', location: 'Remote, US' };
+    assert.equal(passesAnyBaseFilter(job, [phpProfile, goProfile]), false);
+  });
+
+  it("one search's exclude does not veto another search's match", () => {
+    // 'wordpress' is excluded by phpProfile only; the Go search never sees it.
+    const job = { title: 'Go Platform Engineer (WordPress infra)', location: 'Remote, US' };
+    assert.equal(passesBaseFilter(job, phpProfile), false);
+    assert.equal(passesAnyBaseFilter(job, [phpProfile, goProfile]), true);
+  });
+
+  it('admits nothing when no search is active', () => {
+    assert.equal(
+      passesAnyBaseFilter({ title: 'Senior Laravel Engineer', location: 'Remote, US' }, []),
+      false,
     );
   });
 });

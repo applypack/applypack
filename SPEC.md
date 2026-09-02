@@ -103,10 +103,16 @@ The same inner loop is reused by `runHnHiringJob` (extracted into
 
 ## Profiles
 
-A `Profile` row encodes "what kind of role am I looking for". One profile
-is **active** at a time (`AppSettings.activeProfileId`). Switching profiles
-is instant; a "Re-classify all" button reruns Claude across existing jobs
-under the new profile.
+A `Profile` row encodes "what kind of role am I looking for" — a **search**.
+Several run at once, up to 8 (ADR 0028): `Profile.active` is the switch, and
+`AppSettings.activeProfileId` names the **primary**, the one that supplies
+defaults everywhere and always runs. One classifier call scores each posting
+against every running search and returns a verdict each; those land in
+`JobScore` (jobId × profileId) while `Job.fitScore` keeps the best-of for
+sorting. A posting is admitted when any search's base filter admits it, and
+dismissed only when every search rejects it. Alerts are one per posting,
+named for the winner and routed to that search's `telegramTargetId`.
+"Save & re-classify" reruns the classifier across existing jobs.
 
 Profile fields that drive matching:
 - `stackRequired` — actual technologies (e.g. `php`, `laravel`, `javascript`, `go`)
@@ -247,7 +253,7 @@ returns `removals` — what to cut so the resume reads cleaner.
 `/jobs/new` pastes a posting the fetchers never see. It is stored as a
 normal `Job` under a per-employer `Company` with `atsType = MANUAL`
 (`active = false`, so `runAllFetchers` skips it) and `status = SAVED`,
-then classified against the active profile without touching the status.
+then classified against every running search without touching the status.
 
 "Is this job real?" on `/jobs/:id` first runs the free liveness ladder
 (ADR 0016): rung 1 asks the ATS vendor's public posting API (the five
@@ -281,7 +287,7 @@ posting or resume exists.
 
 The menu's **Cover letter** page (`/letter`) is the standalone entry point.
 Two job sources: a searchable picker over the newest jobs that clear the
-active profile's fit threshold, or one "new posting" box taking a URL
+primary search's fit threshold, or one "new posting" box taking a URL
 and/or pasted text (pasted text wins; a bare URL is fetched — ADR 0005
 hosts and the private address space refused, bot checks fail honestly, and
 an unreadable page returns the user to the form with the URL kept). Resume

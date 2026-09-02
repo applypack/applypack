@@ -7,7 +7,7 @@ import { logger } from '../../logger';
 import { getSettings } from '../../settings';
 import { allStages, parseStageConfig } from '../stage-config';
 import { classifyExistingJob } from '../../jobs/classify-existing';
-import { getActiveProfile } from '../../profiles';
+import { getActiveProfile, listActiveProfiles } from '../../profiles';
 import { isBlankProfile } from '../../profile-guards';
 import { createManualJob, ManualJobSchema, MIN_DESCRIPTION_CHARS } from '../../jobs/manual-job';
 import { checkLiveness, listVerificationsForJob, verifyJob } from '../../verification/verify';
@@ -76,6 +76,8 @@ const ListQuerySchema = z.object({
     .string()
     .optional()
     .transform((v) => (v === '1' ? '1' : '')),
+  // ADR 0028: narrow the list to one search. Empty = every search.
+  profile: z.coerce.number().int().positive().optional().catch(undefined),
 });
 
 const StatusBodySchema = z.object({
@@ -92,18 +94,25 @@ jobsRoute.get('/jobs', async (c) => {
     q: c.req.query('q'),
     sort: c.req.query('sort'),
     verified: c.req.query('verified'),
+    profile: c.req.query('profile') || undefined,
   });
   if (!parsed.success) {
     return c.text('Invalid query', 400);
   }
-  const { page, status, minFit, q, sort, verified } = parsed.data;
+  const { page, status, minFit, q, sort, verified, profile } = parsed.data;
 
   const where: Prisma.JobWhereInput = {};
   if (status) {
     where.status = status as JobStatus;
   }
   const minFitNum = minFit ? Number(minFit) : NaN;
-  if (!Number.isNaN(minFitNum)) {
+  // With a search selected both filters read that search's own score, not the
+  // best-of — a chip that showed rows another search scored would be a lie.
+  if (profile) {
+    where.scores = {
+      some: { profileId: profile, ...(Number.isNaN(minFitNum) ? {} : { fitScore: { gte: minFitNum } }) },
+    };
+  } else if (!Number.isNaN(minFitNum)) {
     where.fitScore = { gte: minFitNum };
   }
   if (q.trim().length > 0) {
@@ -118,7 +127,7 @@ jobsRoute.get('/jobs', async (c) => {
 
   const orderBy = sortToOrderBy(sort);
 
-  const [jobs, total, activeProfile] = await Promise.all([
+  const [jobs, total, activeProfile, activeProfiles] = await Promise.all([
     prisma.job.findMany({
       where,
       orderBy,
@@ -131,10 +140,14 @@ jobsRoute.get('/jobs', async (c) => {
           orderBy: { createdAt: 'desc' },
           take: 1,
         },
+        // Only the selected search's row, so the list renders that search's
+        // score in place of the best-of.
+        ...(profile && { scores: { where: { profileId: profile }, take: 1 } }),
       },
     }),
     prisma.job.count({ where }),
     getActiveProfile(),
+    listActiveProfiles(),
   ]);
 
   return c.html(
@@ -149,7 +162,9 @@ jobsRoute.get('/jobs', async (c) => {
         q,
         sort,
         verified,
+        profile: profile ?? null,
       }}
+      profiles={activeProfiles.map((p) => ({ id: p.id, name: p.name }))}
       blankProfileBanner={activeProfile !== null && isBlankProfile(activeProfile)}
     />,
   );
@@ -178,8 +193,8 @@ jobsRoute.post('/jobs/new', async (c) => {
     `/jobs/${result.job.id}`,
     'ok',
     result.classified
-      ? 'Saved and scored against the active profile. Next: Verify, then Compare with a resume.'
-      : 'Saved. Classifier skipped (no active profile or AI failure) — Verify and Compare still work.',
+      ? 'Saved and scored against every running search. Next: Verify, then Compare with a resume.'
+      : 'Saved. Classifier skipped (no running search or AI failure) — Verify and Compare still work.',
   );
 });
 
@@ -200,6 +215,11 @@ jobsRoute.get('/jobs/:id', async (c) => {
         crossListings: {
           select: { id: true, title: true, company: { select: { name: true } } },
         },
+        // Every search's verdict, best first (ADR 0028).
+        scores: {
+          include: { profile: { select: { id: true, name: true, resumeId: true, active: true } } },
+          orderBy: { fitScore: 'desc' },
+        },
       },
     }),
     getSettings(),
@@ -216,10 +236,11 @@ jobsRoute.get('/jobs/:id', async (c) => {
   const selected = matches.find((m) => m.id === requestedMatch) ?? matches[0] ?? null;
   const requestedLetter = Number(c.req.query('letter'));
   const selectedLetter = letters.find((l) => l.id === requestedLetter) ?? letters[0] ?? null;
-  // Stage A of the multi-resume search: the profile doing the hunting is the
-  // active one, and its linked resume wins the preselect (§4 of the plan).
-  // Stage B replaces "active" with the profile that scored this job best.
-  const linkedResumeId = activeProfile?.resumeId ?? null;
+  // The search that speaks for this posting is the one that scored it best,
+  // not merely the primary (ADR 0028) — its linked resume wins the preselect.
+  // Falls back to the primary for a posting nothing has scored yet.
+  const winning = job.scores[0]?.profile ?? null;
+  const linkedResumeId = winning?.resumeId ?? activeProfile?.resumeId ?? null;
   const suggested = preselectResume(resumes, `${job.title} ${job.description}`, linkedResumeId);
   const suggestedReason = suggested && suggested.id === linkedResumeId ? 'linked' : 'overlap';
 
@@ -227,6 +248,14 @@ jobsRoute.get('/jobs/:id', async (c) => {
   return c.html(
     <JobDetailPage
       job={job}
+      profileScores={job.scores.map((sc) => ({
+        profileId: sc.profileId,
+        name: sc.profile.name,
+        active: sc.profile.active,
+        fitScore: sc.fitScore,
+        locationMatch: sc.locationMatch,
+        summary: sc.summary,
+      }))}
       applicationTrackingEnabled={settings.applicationTrackingEnabled}
       pipelineStages={allStages(parseStageConfig(settings.pipelineStages))}
       verification={verifications[0] ?? null}

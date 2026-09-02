@@ -21,9 +21,9 @@ export type PrefilterResult = z.infer<typeof PrefilterSchema>;
 
 export async function preClassify(
   input: ClassifyInput,
-  profile: Profile,
+  profiles: Profile[],
 ): Promise<PrefilterResult | null> {
-  const { system: systemPrompt, user: userText } = buildPrefilterPrompt(input, profile);
+  const { system: systemPrompt, user: userText } = buildPrefilterPrompt(input, profiles);
 
   const ai = await getAiRuntime();
   const out = await ai.complete({
@@ -53,37 +53,48 @@ export function parsePrefilterResponse(text: string): PrefilterResult | null {
   return parsed.data;
 }
 
-/** System + user for the stage-1 gate. Pure. */
+/**
+ * System + user for the stage-1 gate. Pure.
+ *
+ * The gate is a union (ADR 0028): one search wanting the role is enough. Two
+ * sentences here were measured, not styled. The shipped wording admitted 2 of
+ * 24 postings and only 1 of the 8 the full classifier scored 75-90, because
+ * the model reads "the stack is not mentioned" as "the stack mismatches" —
+ * and it only ever sees the first 800 characters, where most postings are
+ * still company boilerplate. Saying so explicitly, plus "unambiguous mismatch
+ * for EVERY search", took the same single search to 17 of 24 and 5 of 8.
+ */
 export function buildPrefilterPrompt(
   input: ClassifyInput,
-  profile: Profile,
+  profiles: Profile[],
 ): { system: string; user: string } {
-  const required =
-    profile.stackRequired.length > 0
-      ? profile.stackRequired.join(', ')
-      : '(any stack)';
-  const exclude =
-    profile.stackExclude.length > 0
-      ? profile.stackExclude.join(', ')
-      : '(none)';
-  const seniority =
-    profile.seniority.length > 0
-      ? profile.seniority.join('/')
-      : 'any';
+  const searches = profiles
+    .map(
+      (p) =>
+        `SEARCH ${p.id}: required stack — ${
+          p.stackRequired.length > 0 ? p.stackRequired.join(', ') : '(any stack)'
+        }; auto-reject — ${
+          p.stackExclude.length > 0 ? p.stackExclude.join(', ') : '(none)'
+        }; seniority — ${p.seniority.length > 0 ? p.seniority.join('/') : 'any'}`,
+    )
+    .join('\n');
+  const every = profiles.length > 1 ? 'EVERY search listed' : 'the search listed';
 
-  const system = `You are a fast yes/no relevance gate. Decide whether a job posting could plausibly fit this candidate before a more expensive classifier looks at it.
+  const system = `You are a fast yes/no relevance gate. Decide whether a job posting could plausibly fit ${
+    profiles.length > 1 ? 'AT LEAST ONE of these searches' : 'this search'
+  } before a more expensive classifier looks at it.
 
 ${UNTRUSTED_DIRECTIVE_SHORT}
 
-Required stack (must be plausibly present): ${required}
-Auto-reject signals (presence => not relevant): ${exclude}
-Seniority preference: ${seniority}
+${searches}
 
 Output STRICT JSON ONLY (no prose):
 
 {"relevant": true|false, "reason": "one short phrase"}
 
-Be GENEROUS — say true unless the role is clearly off (wrong stack, junior when senior wanted, etc.). Borderline cases should be true; the next stage will decide finely. False only when the mismatch is unambiguous.`;
+Be GENEROUS. You see only the first ${MAX_DESC_CHARS} characters of the posting, so a stack named further down is INVISIBLE to you: absence of evidence is NOT a mismatch. Say true whenever ${
+    profiles.length > 1 ? 'any one search' : 'the search'
+  } could plausibly fit, and answer false ONLY when the posting is an unambiguous mismatch for ${every} — wrong seniority, an auto-reject signal, or a clearly different discipline.`;
 
   const user = [
     fence(
@@ -92,7 +103,7 @@ Be GENEROUS — say true unless the role is clearly off (wrong stack, junior whe
         `Title: ${input.title}`,
         `Location: ${input.location || '(not specified)'}`,
         '',
-        `Description (first 800 chars):`,
+        `Description (first ${MAX_DESC_CHARS} chars):`,
         input.description.slice(0, MAX_DESC_CHARS),
       ].join('\n'),
     ),

@@ -32,6 +32,8 @@ interface JobRow {
   techMatch: string[];
   company: { name: string };
   verifications: { verdict: string }[];
+  /** Present only when one search is selected: that search's own verdict. */
+  scores?: { fitScore: number }[];
 }
 
 export interface JobsListProps {
@@ -45,8 +47,12 @@ export interface JobsListProps {
     q: string;
     sort: string;
     verified: string;
+    /** Which search the list is narrowed to; null = all of them. */
+    profile: number | null;
   };
-  /** True when the active profile is blank — classification is idling (issue #50). */
+  /** Every running search — one chip each (ADR 0028). */
+  profiles: { id: number; name: string }[];
+  /** True when the primary profile is blank — classification is idling (issue #50). */
   blankProfileBanner?: boolean;
 }
 
@@ -68,6 +74,7 @@ const SORT_OPTIONS: { value: string; label: string }[] = [
 
 export const JobsListPage: FC<JobsListProps> = ({
   jobs,
+  profiles,
   total,
   page,
   pageSize,
@@ -98,13 +105,40 @@ export const JobsListPage: FC<JobsListProps> = ({
 
       {blankProfileBanner && (
         <div class="mb-4 shrink-0 rounded-md border border-warn/25 bg-warn/5 px-3.5 py-2.5 text-[13px] leading-5 text-warn">
-          Active profile is empty — classification idle. New jobs are fetched but not scored
-          or alerted until the profile lists a required stack or role types.{' '}
+          Every running search is empty — classification idle. New jobs are fetched but
+          not scored or alerted until one lists a required stack or role types.{' '}
           <a href="/settings?tab=profile" class="font-medium underline">
-            Fix the profile
+            Fix the search
           </a>
           .
         </div>
+      )}
+
+      {profiles.length > 1 && (
+        <nav
+          aria-label="Filter by search"
+          class="mb-3 flex shrink-0 flex-wrap items-center gap-1"
+        >
+          <span class="mr-1 text-xs font-medium uppercase tracking-wide text-ink-faint">
+            Search
+          </span>
+          {[{ id: null as number | null, name: 'All' }, ...profiles].map((p) => {
+            const on = filters.profile === p.id;
+            return (
+              <a
+                href={buildQuery({ ...filters, profile: p.id ?? '', page: 1 })}
+                aria-current={on ? 'true' : undefined}
+                class={`rounded-full border px-3 py-1 text-[13px] transition-colors duration-150 ${
+                  on
+                    ? 'border-accent/40 bg-accent/10 font-medium text-accent-strong'
+                    : 'border-line text-ink-muted hover:bg-surface-overlay/70 hover:text-ink'
+                }`}
+              >
+                {p.name}
+              </a>
+            );
+          })}
+        </nav>
       )}
 
       <div class="mb-4 flex shrink-0 flex-wrap items-center gap-x-4 gap-y-2">
@@ -143,6 +177,7 @@ export const JobsListPage: FC<JobsListProps> = ({
         <form method="get" action="/jobs" class="ml-auto flex flex-wrap items-center gap-2">
           <input type="hidden" name="status" value={filters.status} />
           <input type="hidden" name="verified" value={filters.verified} />
+          <input type="hidden" name="profile" value={filters.profile ?? ''} />
           <Input
             type="search"
             name="q"
@@ -246,7 +281,11 @@ export const JobsListPage: FC<JobsListProps> = ({
                           </div>
                         </Td>
                         <Td class="whitespace-nowrap">
-                          <FitBadge score={j.fitScore} />
+                          <FitBadge
+                            score={
+                              filters.profile ? (j.scores?.[0]?.fitScore ?? null) : j.fitScore
+                            }
+                          />
                         </Td>
                         <Td
                           class="overflow-hidden whitespace-nowrap text-right text-[13px] tabular-nums text-ink-muted"
@@ -326,9 +365,10 @@ const PageLink: FC<{ href: string; disabled: boolean; children: string }> = ({
     </a>
   );
 
-function buildQuery(params: Record<string, string | number>): string {
+function buildQuery(params: Record<string, string | number | null>): string {
   const usp = new URLSearchParams();
   for (const [k, v] of Object.entries(params)) {
+    if (v === null) continue;
     const s = String(v);
     if (s.length === 0) continue;
     if (k === 'page' && s === '1') continue;

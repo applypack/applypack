@@ -16,7 +16,7 @@ const STEP_VIEW: Record<RunStep, StepView> = {
   },
   classify: {
     label: 'Classify the posting',
-    detail: 'fit score against the active profile — seconds',
+    detail: 'fit score against every running search — seconds',
   },
   scan: {
     label: 'Scan the new resume version',

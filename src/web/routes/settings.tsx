@@ -63,6 +63,7 @@ import {
   getProfile,
   listProfiles,
   setActiveProfile,
+  setProfileActive,
   updateProfile,
 } from '../../profiles';
 import { runReclassifyAll } from '../../jobs/reclassify-job';
@@ -223,7 +224,8 @@ async function loadSettingsProps() {
     profiles: profiles.map((p) => ({
       id: p.id,
       name: p.name,
-      active: active?.id === p.id,
+      running: p.active,
+      primary: active?.id === p.id,
       blank: isBlankProfile(p),
     })),
     activeProfile: active,
@@ -278,7 +280,7 @@ settingsRoute.post('/settings/fetching-toggle', async (c) => {
     return flashRedirect(
       back,
       'warn',
-      'Job fetching resumed, but the active profile has no required stack or role types — every fetched job goes to the AI classifier. Fill the profile first (Settings → Profile).',
+      'Job fetching resumed, but no running search has a required stack or role types — every fetched job goes to the AI classifier. Fill one in first (Settings → Profile).',
     );
   }
   return flashRedirect(back, 'ok', 'Job fetching resumed — next hourly tick will pull new jobs.');
@@ -636,7 +638,42 @@ settingsRoute.post('/settings/profiles/new', async (c) => {
   return flashRedirect(
     `/settings?tab=profile&profile=${profile.id}`,
     'ok',
-    'New profile created. Add a required stack or role types and save — it activates on the first save with content.',
+    'New search created. Add a required stack or role types and save — it starts running on the first save with content.',
+  );
+});
+
+// ADR 0028: run or pause one search. The primary is refused server-side —
+// the hidden Run/Pause button is advisory only.
+settingsRoute.post('/settings/profiles/active', async (c) => {
+  const form = await c.req.parseBody();
+  const id = Number(form.id);
+  const want = form.active === '1';
+  if (!Number.isFinite(id)) return flashRedirect('/settings?tab=profile', 'err', 'Invalid id.');
+  // Server-side half of the gate (issue #50): a search with nothing to match
+  // on would admit every posting and score it on vibes.
+  const target = await getProfile(id);
+  if (want && target && isBlankProfile(target)) {
+    return flashRedirect(
+      `/settings?tab=profile&profile=${id}`,
+      'err',
+      'This search has no required stack and no role types — fill it in and save before running it.',
+    );
+  }
+  try {
+    await setProfileActive(id, want);
+  } catch (err) {
+    return flashRedirect(
+      '/settings?tab=profile',
+      'err',
+      err instanceof Error ? err.message : 'Failed to change the search.',
+    );
+  }
+  return flashRedirect(
+    '/settings?tab=profile',
+    'ok',
+    want
+      ? `"${target?.name ?? 'Search'}" is running — new postings are scored against it too. "Save & re-classify" in its editor scores the ones already stored.`
+      : `"${target?.name ?? 'Search'}" paused. Its existing scores stay on the jobs it already scored.`,
   );
 });
 
@@ -651,7 +688,7 @@ settingsRoute.post('/settings/profiles/activate', async (c) => {
     return flashRedirect(
       `/settings?tab=profile&profile=${id}`,
       'err',
-      'This profile has no required stack and no role types — fill it in and save before activating.',
+      'This search has no required stack and no role types — fill it in and save before making it primary.',
     );
   }
   try {
@@ -660,17 +697,16 @@ settingsRoute.post('/settings/profiles/activate', async (c) => {
     return flashRedirect(
       '/settings?tab=profile',
       'err',
-      err instanceof Error ? err.message : 'Failed to activate.',
+      err instanceof Error ? err.message : 'Failed to change the primary search.',
     );
   }
   return flashRedirect(
     '/settings?tab=profile',
     'ok',
-    'Profile activated. "Save & re-classify" in the editor re-scores existing jobs against it.',
+    'Primary search changed. It also runs from now on; "Save & re-classify" in the editor re-scores existing jobs.',
   );
 });
 
-// The management row's Delete posts the select's value — id in the body.
 settingsRoute.post('/settings/profiles/delete', async (c) => {
   const form = await c.req.parseBody();
   const id = Number(form.id);
@@ -684,7 +720,7 @@ settingsRoute.post('/settings/profiles/delete', async (c) => {
       err instanceof Error ? err.message : 'Delete failed.',
     );
   }
-  return flashRedirect('/settings?tab=profile', 'ok', 'Profile deleted.');
+  return flashRedirect('/settings?tab=profile', 'ok', 'Search deleted.');
 });
 
 settingsRoute.post('/settings/profiles/:id/save', async (c) => {
@@ -742,47 +778,47 @@ settingsRoute.post('/settings/profiles/:id/save', async (c) => {
   };
   await updateProfile(id, input);
 
-  // The second half of "born inactive" (issue #50): the first save that
-  // gives a blank profile real content makes it the active profile. Edits
-  // to profiles that already had content never steal activation.
-  const active = await getActiveProfile();
-  let isActive = active?.id === id;
+  // The second half of "born inactive" (issue #50): the first save that gives
+  // a blank search real content starts it running. Since ADR 0028 that no
+  // longer displaces anything — the searches already running keep running, and
+  // the primary is untouched.
+  let isActive = before.active;
   let activated = false;
   if (!isActive && isBlankProfile(before) && !isBlankProfile(input)) {
-    await setActiveProfile(id);
+    await setProfileActive(id, true);
     isActive = true;
     activated = true;
   }
-  const editorUrl = isActive
-    ? '/settings?tab=profile'
-    : `/settings?tab=profile&profile=${id}`;
+  const active = await getActiveProfile();
+  const editorUrl =
+    active?.id === id ? '/settings?tab=profile' : `/settings?tab=profile&profile=${id}`;
 
   if (f.action === 'save-and-reclassify') {
     if (!isActive) {
       return flashRedirect(
         editorUrl,
         'warn',
-        'Profile saved, but re-classify skipped — it runs against the active profile only.',
+        'Search saved, but re-classify skipped — it scores against running searches only. Press Run first.',
       );
     }
     triggerReclassifyAsync();
     return flashRedirect(
       editorUrl,
       'ok',
-      `Profile saved${activated ? ' and activated' : ''}. Re-classify started in the background — track progress at /runs.`,
+      `Search saved${activated ? ' and started' : ''}. Re-classify started in the background — track progress at /runs.`,
     );
   }
   if (activated) {
-    return flashRedirect(editorUrl, 'ok', 'Profile saved and activated.');
+    return flashRedirect(editorUrl, 'ok', 'Search saved and started — it scores new postings from the next tick.');
   }
   if (!isActive && isBlankProfile(input)) {
     return flashRedirect(
       editorUrl,
       'ok',
-      'Profile saved. It stays inactive until it lists a required stack or role types.',
+      'Search saved. It stays paused until it lists a required stack or role types.',
     );
   }
-  return flashRedirect(editorUrl, 'ok', 'Profile saved.');
+  return flashRedirect(editorUrl, 'ok', 'Search saved.');
 });
 
 // Prefill the editor from a resume's AI scan. Renders the draft directly —

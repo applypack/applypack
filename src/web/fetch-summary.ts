@@ -14,7 +14,7 @@ function num(stats: CronStats, key: string): number {
 
 export function summarizeFetchRun(stats: CronStats): { kind: FlashKind; text: string } {
   if (stats.reason === 'no-active-profile') {
-    return { kind: 'err', text: 'Fetch now: no active profile — create one on Settings → Profile.' };
+    return { kind: 'err', text: 'Fetch now: no running search — create one on Settings → Profile.' };
   }
   const fetched = num(stats, 'fetched');
   const sources = num(stats, 'sources');
@@ -43,7 +43,7 @@ export function summarizeFetchRun(stats: CronStats): { kind: FlashKind; text: st
   if (stats.skippedBlankProfile === 1) {
     return {
       kind: 'warn',
-      text: `Fetch now: ${fetched} jobs from ${sources} sources in ${took}, nothing stored — the active profile is blank, so classification is idle.`,
+      text: `Fetch now: ${fetched} jobs from ${sources} sources in ${took}, nothing stored — every running search is empty, so classification is idle.`,
     };
   }
   if (stats.abortedMidRun === 1) {

@@ -8,6 +8,14 @@ import type { ClaudeClassification } from './types';
  * worker, the classifier and the settings routes all decide through it.
  */
 
+/**
+ * How many searches may run at once (ADR 0028). Not a model limit — replies
+ * stayed complete and discriminating through 12 — but a user-experience one:
+ * per-posting latency grows ~0.6 s and output ~100 tokens per search, and
+ * eight is where a "Fetch now" still feels immediate.
+ */
+export const MAX_ACTIVE_PROFILES = 8;
+
 /** Red flag stamped on classifications made without a required stack. */
 export const NO_PROFILE_STACK_FLAG = 'no-profile-stack';
 

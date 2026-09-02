@@ -60,8 +60,20 @@ export interface CrossListedJob {
   company: { name: string };
 }
 
+/** One running search's verdict on this posting (ADR 0028). */
+export interface ProfileScore {
+  profileId: number;
+  name: string;
+  active: boolean;
+  fitScore: number;
+  locationMatch: boolean;
+  summary: string | null;
+}
+
 export interface JobDetailProps {
   job: JobDetail;
+  /** Every search that has scored this posting, best first. */
+  profileScores: ProfileScore[];
   applicationTrackingEnabled: boolean;
   /** Configured funnel stages in order (ADR 0025). */
   pipelineStages: { key: string; label: string }[];
@@ -81,6 +93,7 @@ const STATUS_ACTIONS: { status: JobStatus; label: string; variant: ButtonVariant
 
 export const JobDetailPage: FC<JobDetailProps> = ({
   job,
+  profileScores,
   applicationTrackingEnabled,
   pipelineStages,
   verification,
@@ -196,6 +209,7 @@ export const JobDetailPage: FC<JobDetailProps> = ({
               <TagRow label="Flags" items={job.redFlags} tone="danger" />
               <TagRow label="Priority rules" items={job.priorityRulesApplied} tone="violet" />
             </dl>
+            <ProfileScoreRow scores={profileScores} />
           </Card>
         )}
 
@@ -224,6 +238,52 @@ export const JobDetailPage: FC<JobDetailProps> = ({
     </div>
   </Layout>
 );
+
+/**
+ * What each running search made of this posting. Hidden while only one search
+ * has scored it — a single row is the Job's own score restated, and the card
+ * already shows that. The top row is the search the page speaks for: it names
+ * the winner and picks the resume the Compare card preselects.
+ */
+const ProfileScoreRow: FC<{ scores: ProfileScore[] }> = ({ scores }) => {
+  if (scores.length < 2) return null;
+  return (
+    <div class="mt-3 border-t border-line pt-3">
+      <div class="mb-2 text-xs font-medium uppercase tracking-wide text-ink-faint">
+        By search
+      </div>
+      <ul class="space-y-1.5">
+        {scores.map((s, i) => (
+          <li class="flex items-start gap-2 text-[13px]">
+            <FitBadge score={s.fitScore} />
+            <div class="min-w-0 flex-1">
+              <a
+                href={`/jobs?profile=${s.profileId}`}
+                class="font-medium text-ink transition-colors duration-150 hover:text-accent-strong"
+              >
+                {s.name}
+              </a>
+              {i === 0 && (
+                <span class="ml-1.5 text-xs text-ink-faint">· best match</span>
+              )}
+              {!s.active && (
+                <span class="ml-1.5 text-xs text-ink-faint">· paused</span>
+              )}
+              {!s.locationMatch && (
+                <span class="ml-1.5 text-xs text-warn">· location mismatch</span>
+              )}
+              {s.summary && (
+                <div class="truncate text-xs text-ink-muted" title={s.summary}>
+                  {s.summary}
+                </div>
+              )}
+            </div>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+};
 
 /**
  * "The same posting is also over there." Both directions are shown: the job
