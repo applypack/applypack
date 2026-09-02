@@ -216,6 +216,31 @@ The 30-40 s promise is kept by making **quick check the default reaction**
 to "new resume/version" and full analysis an explicit, honestly-labeled
 upgrade — not by making Opus emit 4 000 tokens faster.
 
+**Measured 2026-09-02** (block 4, `claude_code` CLI engine, the five gold
+fixtures, `npm run bench:resume -- --model <id> --mode <fast|full>`; "before"
+is prompt v5, "after" is v6 with the tiered budget):
+
+| Run | p50 | Suite total | Reply chars | Checks failed | Status agreement vs Opus full |
+| --- | --- | --- | --- | --- | --- |
+| Opus, full, v5 (before) | 22 s | 136 s | 4899 | 0 | baseline |
+| Sonnet, full, v5 (before) | 40 s | 231 s | 3261 | 0 | 95% (35/37), 74% term overlap |
+| **Opus, quick check, v6** | **15 s** | **77 s** | **2591** | 0 | 98% (45/46), 88% term overlap |
+| Opus, full, v6 | 24 s | 116 s | 4373 | 0 | 100% |
+
+Two corrections to the estimates above. **The quick check on Opus is ~15 s on
+the fixtures, not 20-40** — the row above was pessimistic for short postings;
+on the real posting of job #1393 (4 988 chars, 5 908-char resume, 26 keywords)
+it took **40 s**, so 15-40 s is the honest band and the 30-40 s target is met
+without changing models. **Sonnet is not the fast lane** on this engine: it was
+*slower* than Opus on every full fixture, so the "Quick AI check on Sonnet" row
+is not the recommended path — see §8 question 1.
+
+Live on job #1393 (Docker, Opus, real posting): quick check **39.5 s → score
+66**, the identical number the v5 full analysis produced for the same resume;
+"Get suggestions" then took **35.2 s** and wrote 10 actions and 8 removals onto
+the same row. Both calls together (74.7 s) still land under the 78-109 s a
+single v5 full analysis cost, and the score is on screen after the first.
+
 ---
 
 ## 4. Keyword highlighting audit — why important words are missed
@@ -367,15 +392,31 @@ Sources: [jobscan.co](https://www.jobscan.co/blog/top-resume-keywords-boost-resu
    `bench:resume` Sonnet-vs-Opus numbers + default/model-select decision,
    plus the F1 tiered keyword budget (same prompt, same bump).
    `PROMPT_VERSION` bump; gotcha-11 guard tests extended to the short
-   prompt. Possibly an ADR (second match mode).
+   prompt. Possibly an ADR (second match mode). **Shipped 2026-09-02**
+   (PR #82, [ADR 0029](./adr/0029-quick-check-and-lazy-suggestions.md),
+   numbers in §3.4). The suggestions became a lazy second call rather than
+   a lost feature, the mode marker rides in the `breakdown` JSON (no schema
+   change) and the model default did not move — §8 question 1 is answered
+   below.
 5. `keyword-priority-ui` — §5 overrides + visual weight + frequency. Reuses
    `updateMatchScoring`; ADR only if overrides outgrow the keywords JSON.
 6. (only if measurements demand) `match-split-frame` — §3.3 item 8 + ADR.
 
 ## 8. Open questions for the owner
 
-- After the bench: flip the resume-role default to Sonnet, or keep Opus and
-  surface a "fast/thorough" choice per compare?
+- ~~After the bench: flip the resume-role default to Sonnet, or keep Opus and
+  surface a "fast/thorough" choice per compare?~~ Decided 2026-09-02 (block 4)
+  **by the numbers, not by taste**: keep Opus, surface the fast/thorough
+  choice. The §3.2 item 7 condition was "the same checks pass and statuses
+  agree ≥~85% at 2-3× the speed". Statuses agreed (95%), but Sonnet was
+  **slower than Opus on every full fixture** on the `claude_code` engine
+  (p50 40 s vs 22 s) and its keyword frame drifted more (74% term overlap
+  against Opus, where the fast Opus run keeps 88%) — an unstable frame is
+  exactly what CONSISTENCY ACROSS RUNS exists to prevent. So
+  `CLAUDE_MODEL_RESUME` stays `claude-opus-5`, the per-engine "Resume model"
+  select on `/settings` is documented as the speed dial for anyone whose
+  engine says otherwise, and the speed comes from the shorter prompt
+  instead.
 - ~~Should reupload land on the instant check by default (AI never auto-runs),
   or instant check + full analysis auto-started in the background?~~ Decided
   2026-09-02 (block 3): instant check by default, nothing auto-runs — every

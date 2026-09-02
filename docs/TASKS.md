@@ -864,11 +864,24 @@ Sonnet bench for the resume role — not "make Opus stream faster".
       in the browser — the plan's "~2–5 s" was two orders too pessimistic,
       the AI upgrade stays the 78–109 s of block 1. Known cost, stated on
       the page: "Save as vN" after a check keeps the text, not the file.
-- [ ] `match-fast-mode` — keywords-only prompt variant (score-complete
-      subset, ~¼ output tokens) + `bench:resume` Sonnet-vs-Opus decision
-      + the tiered keyword budget from §4 F1 (every must/preferred term
-      listed, the soft cap only on nice/context) — one
-      **PROMPT_VERSION bump** for all three; possibly ADR
+- [x] `match-fast-mode` — keywords-only prompt variant (the score-complete
+      subset), the lazy "Get suggestions" second call, the tiered keyword
+      budget from §4 F1 and the Sonnet-vs-Opus bench — one **PROMPT_VERSION
+      bump (5 → 6)** for all three prompt changes, ADR 0029 — done
+      2026-09-02, branch `match-fast-mode` (PR #82). Both match prompts are
+      assembled from the same rule constants, so the guard tests run every
+      gotcha-11 rule against both; the mode marker rides in the `breakdown`
+      JSON (no schema change) and the reuse memo learned it, so a full
+      analysis over a stored quick check pays for the suggestions alone.
+      Measured on the gold fixtures (CLI engine, Opus): quick check p50
+      **15 s vs 24 s** full, 77 s vs 116 s for the suite, **2591 vs 4373
+      reply characters**, all checks green, statuses agreeing 98%. Live on
+      job #1393: the quick check scored **66 — the same number the v5 full
+      analysis gave** in 40 s, and "Get suggestions" completed the row
+      afterwards. Sonnet is NOT the faster resume model on this engine
+      (v5: p50 40 s vs Opus 22 s, 95% status agreement, 74% term overlap),
+      so `CLAUDE_MODEL_RESUME` stays `claude-opus-5` and §8 question 1 is
+      answered by the numbers.
 - [ ] `keyword-priority-ui` — per-keyword user overrides (re-level /
       exclude / add own term) via existing `updateMatchScoring`, visual
       weight for must+primary misses, posting-frequency tiebreaker
