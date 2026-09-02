@@ -49,6 +49,12 @@ const NewCompanySchema = z.object({
 
 export const companiesRoute = new Hono();
 
+/** One "how many rows point at this company" row, from a grouped count. */
+interface CompanyTally {
+  companyId: number;
+  n: number;
+}
+
 companiesRoute.get('/companies', async (c) => {
   const companies = await prisma.company.findMany({
     where: { atsType: { not: AtsType.MANUAL } },
@@ -83,17 +89,19 @@ companiesRoute.get('/companies', async (c) => {
     _count: { _all: true },
   });
   const applicationMap = new Map(applicationCounts.map((r) => [r.companyId, r._count._all]));
-  const [matchRows, letterRows] = await Promise.all([
-    prisma.resumeMatch.findMany({ select: { job: { select: { companyId: true } } } }),
-    prisma.coverLetter.findMany({ select: { job: { select: { companyId: true } } } }),
+  // Counted in SQL, one row per company: `groupBy` cannot group across a
+  // relation, and loading every match and every letter to tally them in
+  // memory would grow with the user's whole history for a confirm string.
+  const [matchCounts, letterCounts] = await Promise.all([
+    prisma.$queryRaw<CompanyTally[]>`
+      SELECT j."companyId" AS "companyId", count(*)::int AS n
+      FROM resume_match m JOIN job j ON j.id = m."jobId" GROUP BY j."companyId"`,
+    prisma.$queryRaw<CompanyTally[]>`
+      SELECT j."companyId" AS "companyId", count(*)::int AS n
+      FROM cover_letter l JOIN job j ON j.id = l."jobId" GROUP BY j."companyId"`,
   ]);
-  const tally = (rows: { job: { companyId: number } }[]): Map<number, number> => {
-    const m = new Map<number, number>();
-    for (const r of rows) m.set(r.job.companyId, (m.get(r.job.companyId) ?? 0) + 1);
-    return m;
-  };
-  const matchMap = tally(matchRows);
-  const letterMap = tally(letterRows);
+  const matchMap = new Map(matchCounts.map((r) => [r.companyId, r.n]));
+  const letterMap = new Map(letterCounts.map((r) => [r.companyId, r.n]));
 
   const settings = await getSettings();
   const now = new Date();
