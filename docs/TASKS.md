@@ -734,9 +734,9 @@ when next touching it.
 
 ## 11. Onboarding wizard + profile simplification + multi-resume search (analysis 2026-08-31)
 
-Full plan: [docs/onboarding-plan.md](./onboarding-plan.md). **Analysis
-only — nothing implemented yet** (written from a parallel session; do not
-start without checking §10's status first).
+Full plan: [docs/onboarding-plan.md](./onboarding-plan.md). **In
+progress — 5 of 7 stages shipped** (v1.5.0–v1.9.0); the
+checklist below is the status of record.
 
 Driver: users don't find where to create a profile or upload a resume;
 no way to verify the pipeline works from the UI; target persona for
@@ -759,8 +759,11 @@ Telegram explicitly optional.
 - [x] `ai-key-in-db` — paste API key in UI, DB-stored, masked — done
       2026-09-02, branch `ai-key-in-db` (ADR 0027: `AppSettings.aiKeys`,
       four key-bearing engines, `.env` stays the fallback)
-- [ ] `profile-resume-link` — `Profile.resumeId` + one-click "Create
-      profile from this resume"
+- [x] `profile-resume-link` — `Profile.resumeId` + one-click "Create a
+      search from this resume" on `/resumes/:id` and in step 3 for a
+      second resume; job pages preselect the linked resume — done
+      2026-09-02, branch `profile-resume-link`; new profiles born
+      inactive, `SetNull` on resume delete
 - [ ] `multi-profile-search` — multiple active profiles, union base
       filter, **one** classifier call returning per-profile scores,
       `JobScore` table, per-profile alert routing (**ADR**)
@@ -770,9 +773,9 @@ Telegram explicitly optional.
 ## 12. /resumes overhaul + on-demand resume strength review (analysis 2026-08-31)
 
 Full plan: [docs/resumes-plan.md](./resumes-plan.md). **Analysis only —
-nothing implemented** (written from a parallel session: browser audit of
-the live page at desktop + 375px, plus code verification; do not start
-without checking §10/§11 status first).
+nothing implemented** (browser audit of the live page at desktop + 375px,
+plus code verification). Overlaps §11's resume work: check the §11
+checklist before starting.
 
 Driver: `/resumes` shows inventory, not effectiveness — no per-resume
 match signal, upload & scan freezes the browser ~60 s (double-submit
@@ -801,9 +804,8 @@ icon; progress visible step-by-step via the target-run registry pattern.
 ## 13. /target compare speed (30-40 s) + keyword-matcher accuracy (analysis 2026-08-31)
 
 Full plan: [docs/target-plan.md](./target-plan.md). **Analysis only —
-nothing implemented** (written from a parallel session; do not start
-without checking §10–§12 status first — §12's async-upload item overlaps
-the `/resumes` sync-scan finding, planned there, referenced here).
+nothing implemented.** §12's async-upload item overlaps the `/resumes`
+sync-scan finding, planned there, referenced here.
 
 Driver: a fresh-resume compare takes ~3 min (owner target: 30-40 s), and
 the JD pane skips important posting words. Verified causes: one

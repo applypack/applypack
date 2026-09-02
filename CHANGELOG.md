@@ -4,6 +4,44 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.9.0] — 2026-09-02
+
+### Added
+- **A search can name the resume it hunts with**
+  ([docs/onboarding-plan.md §4](docs/onboarding-plan.md) stage A, TASKS §11
+  block 5). New `Profile.resumeId`: "this search is for jobs I'd apply to
+  with *this* CV". A job page found by that search preselects its resume in
+  the Resume match and Cover letter cards instead of guessing from
+  skill-tag overlap; profiles without a link behave exactly as before.
+  Editable on `/settings` → Profile → "Resume for this search", where
+  clearing it returns to the overlap pick.
+- **"Create a search from this resume"** on `/resumes/:id`. The card shows
+  the whole profile a click would produce — name from the resume's
+  headline, primary stack → required, other skills → nice-to-have, plus
+  role types and seniority — and one press saves it, linked to that resume
+  ([ADR 0015](docs/adr/0015-profile-draft-from-resume-scan.md) unchanged:
+  the draft is rendered, never written before the press). The card also
+  names the searches already hunting with that resume.
+- The same action in the wizard's step 3, once the first search exists:
+  "Another resume for a different kind of role?" takes one file (or one
+  already-uploaded resume), reads it on the usual progress page, and offers
+  the second search as a draft.
+
+### Changed
+- New profiles created from a resume are **born inactive**, like every
+  other new profile — creating a search never switches the one the pipeline
+  is scoring against. The flash and the card copy say where to activate it.
+- "Fill from a resume" now proposes that resume as the search's resume
+  alongside the fields it fills, in the same unsaved draft.
+- Deleting a resume clears the link (`ON DELETE SET NULL`) rather than
+  deleting the search or refusing the delete: a profile owns regions,
+  thresholds, priority rules and alert routing that no resume can speak
+  for. The preselect falls back to skill overlap.
+- One read of `AppSettings.aiKeys` per `/settings` render instead of two
+  (the page and the engine probe now share it).
+- `docs/TASKS.md` §11–§13 headers state what actually shipped; §11 had
+  claimed nothing was implemented while four of its seven stages were live.
+
 ## [1.8.0] — 2026-09-02
 
 ### Added
@@ -725,6 +763,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[1.9.0]: https://github.com/applypack/applypack/compare/v1.8.0...v1.9.0
 [1.8.0]: https://github.com/applypack/applypack/compare/v1.7.0...v1.8.0
 [1.7.0]: https://github.com/applypack/applypack/compare/v1.6.0...v1.7.0
 [1.6.0]: https://github.com/applypack/applypack/compare/v1.5.0...v1.6.0

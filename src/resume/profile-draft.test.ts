@@ -68,3 +68,22 @@ test('unknown seniority and empty scan lists are ignored', () => {
   assert.deepEqual(d.changed, []);
   assert.equal(d.warnings.length, 1);
 });
+
+test('a blank base takes everything the scan speaks for — the new-profile case', () => {
+  const blank = { name: 'New profile', stackRequired: [], stackNiceToHave: [], roleTypes: [], seniority: [] };
+  const d = buildProfileDraft(blank, {
+    title: 'Senior Backend Engineer',
+    seniority: 'senior',
+    skills: ['PHP', 'Laravel', 'Redis'],
+    primarySkills: ['PHP', 'Laravel'],
+    roleTypes: ['backend'],
+  });
+  assert.deepEqual(d.changes, {
+    name: 'Senior Backend Engineer',
+    stackRequired: ['PHP', 'Laravel'],
+    stackNiceToHave: ['Redis'],
+    roleTypes: ['backend'],
+    seniority: ['senior'],
+  });
+  assert.equal(d.warnings.length, 0);
+});

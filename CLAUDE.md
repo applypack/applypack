@@ -152,6 +152,7 @@ When the question is **"where does X live?"**, save yourself a `find`:
 | Adding a new ATS source — list + detail | `src/fetchers/smartrecruiters.ts` |
 | Where to register a new ATS | `src/fetchers/index.ts:fetchOne` switch + `prisma/schema.prisma:AtsType` enum |
 | Where to add a new toggle | `prisma/schema.prisma:AppSettings` (column) → `src/settings.ts` (getter/setter) → `src/web/pages/settings.tsx` (UI) → `src/web/routes/settings.tsx` (POST) |
+| Where to add a new profile field | `prisma/schema.prisma:Profile` → `ProfileInput` + `blankProfileInput()` in `src/profiles.ts` (the compiler then names every construction site) → `ProfileFormSchema` + the save route in `src/web/routes/settings.tsx` → the editor in `src/web/pages/settings.tsx` |
 | The Claude system prompt | `src/classifier.ts:buildSystemPrompt` |
 | Fence markers, the untrusted directive, the forged-marker sanitiser | `src/prompt-fence.ts` (pure, ADR 0022); guard `src/prompt-fence-registry.test.ts` |
 | Which AI engines run (priority chain + per-engine models, auto-failover) | `src/ai-runtime.ts:getAiRuntime().complete({role})` + pure chain merge in `src/ai-engine.ts` (ADR 0013/0014); UI on `/settings` → "AI engine" tab |
@@ -185,7 +186,8 @@ When the question is **"where does X live?"**, save yourself a `find`:
 | Version delta (gained/lost keywords, component moves) | `src/resume/diff.ts:diffMatches`, rendered in `resume-match-card.tsx` |
 | Live smoke bench of the match prompt (3 gold fixtures) | `npm run bench:resume` — `src/scripts/resume-bench-once.ts` |
 | Compare-run progress pages (async classify/scan/match) | `src/web/target-runs.ts` (in-memory registry) + `src/web/pages/target-run.tsx`; started by `/target`, `/jobs/:id/match`, `/jobs/:id/target/reupload` |
-| Which resume a job page preselects | `src/resume/pick.ts:pickResumeForJob` (skill-tag overlap) |
+| Which resume a job page preselects | `src/resume/pick.ts:preselectResume` — the active profile's `resumeId` first, then `pickResumeForJob` (skill-tag overlap) |
+| Creating a search profile from a resume (both entry points) | `src/web/profile-from-resume.ts` → `POST /resumes/:id/profile` and `POST /welcome/profile/create`; born inactive |
 | Prefill the profile from a resume scan | `src/resume/profile-draft.ts:buildProfileDraft` (pure) + `POST /settings/profiles/:id/fill-from-resume` (renders a draft, saves nothing — ADR 0015) |
 | Model for cover letters (empty = follows the resume model) | `/settings` → AI engine → "Cover letter model" (role `cover` in `ai-engine.ts`; pickers save on change) |
 | Model for resume calls | per-engine "Resume model" on `/settings` → AI engine; Claude engines fall back to `CLAUDE_MODEL_RESUME` in `.env` (default `claude-opus-5`) |
@@ -214,6 +216,8 @@ When the question is **"how does the user toggle / configure X?"**:
 | Enable two-stage classifier (cheaper, less precise) | `/settings` AI engine tab → "Classifier" |
 | Edit profile (stack, role types, regions, fit threshold) | `/settings` Profile tab (excludes, notes, priority rules, thresholds live in its "Advanced" block) |
 | Fill the profile from a resume (AI draft, review before save) | `/settings` Profile tab → "Fill from a resume" |
+| Create a second search from another resume | `/resumes/:id` → "Search profile" card, or `/welcome?step=profile` → "Another resume for a different kind of role?" |
+| Which resume a search hunts with | `/settings` Profile tab → "Resume for this search" (empty = pick by skill overlap) |
 | Switch between profiles | `/settings` Profile tab → dropdown + Activate |
 | Re-classify all jobs against new profile | `/settings` Profile tab → "Save & re-classify" in the editor (async, watch /runs) |
 | Telegram on/off | `/settings` Notifications tab |

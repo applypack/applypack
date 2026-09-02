@@ -56,6 +56,7 @@ import {
 } from '../../ai-keys';
 import { testAiEngine } from '../ai-test';
 import {
+  blankProfileInput,
   createProfile,
   deleteProfile,
   getActiveProfile,
@@ -103,6 +104,7 @@ const ProfileFormSchema = z.object({
   minSalaryUsd: z.coerce.number().int().min(0).default(0),
   minFitScore: z.coerce.number().int().min(0).max(100).default(70),
   telegramTargetId: z.string().optional().default(''),
+  resumeId: z.string().optional().default(''),
   priorityRules: z.string().optional().default(''),
   action: z.string().optional(),
 });
@@ -124,15 +126,16 @@ export const settingsRoute = new Hono();
 /** Everything the settings page needs except activeTab/flash/profileDraft —
  *  shared by the GET and by POSTs that render a draft instead of redirecting. */
 async function loadSettingsProps() {
-  const [settings, targets, profiles, active, resumes, aiStatuses, aiKeys, stageCounts] =
+  // The keys are read once and lent to the probe — both need them (ADR 0027).
+  const aiKeys = await getAiKeys();
+  const [settings, targets, profiles, active, resumes, aiStatuses, stageCounts] =
     await Promise.all([
       getSettings(),
       listTelegramTargets(),
       listProfiles(),
       getActiveProfile(),
       listResumes(),
-      probeAiProviders(),
-      getAiKeys(),
+      probeAiProviders(aiKeys),
       prisma.job.groupBy({
         by: ['pipelineStage'],
         _count: { _all: true },
@@ -627,23 +630,7 @@ settingsRoute.post('/settings/targets/:id/test', async (c) => {
 // --- Profiles ---------------------------------------------------------------
 
 settingsRoute.post('/settings/profiles/new', async (c) => {
-  const profile = await createProfile({
-    name: 'New profile',
-    stackRequired: [],
-    roleTypes: [],
-    stackNiceToHave: [],
-    stackExclude: ['junior', 'intern'],
-    notes: null,
-    seniority: [],
-    remoteOk: true,
-    remoteRegions: [],
-    onsiteCities: [],
-    hybridOk: false,
-    minSalaryUsd: 0,
-    minFitScore: 70,
-    telegramTargetId: null,
-    priorityRules: [],
-  });
+  const profile = await createProfile(blankProfileInput());
   // Born inactive (issue #50): a blank profile must never become the
   // scoring profile. The first save with real content activates it.
   return flashRedirect(
@@ -721,10 +708,8 @@ settingsRoute.post('/settings/profiles/:id/save', async (c) => {
   }
   const f = parsed.data;
 
-  const telegramTargetId =
-    f.telegramTargetId && f.telegramTargetId.length > 0
-      ? Number(f.telegramTargetId)
-      : null;
+  const telegramTargetId = optionalId(f.telegramTargetId);
+  const resumeId = optionalId(f.resumeId);
 
   const { rules: priorityRules, errors: priorityErrors } =
     parsePriorityRulesText(f.priorityRules);
@@ -751,10 +736,8 @@ settingsRoute.post('/settings/profiles/:id/save', async (c) => {
     hybridOk: f.hybridOk === '1',
     minSalaryUsd: f.minSalaryUsd,
     minFitScore: f.minFitScore,
-    telegramTargetId:
-      telegramTargetId !== null && Number.isFinite(telegramTargetId)
-        ? telegramTargetId
-        : null,
+    telegramTargetId,
+    resumeId,
     priorityRules,
   };
   await updateProfile(id, input);
@@ -851,7 +834,10 @@ settingsRoute.post(
     primarySkills: resume.primarySkills,
     roleTypes: resume.roleTypes,
   });
-  if (draft.changed.length === 0) {
+  // Filling from a resume also proposes it as the search's resume — same
+  // review-then-save contract (ADR 0015): the select below carries it.
+  const linking = profile.resumeId !== resume.id;
+  if (draft.changed.length === 0 && !linking) {
     const note = draft.warnings[0] ? ` — ${draft.warnings[0]}` : '';
     return flashRedirect(
       '/settings?tab=profile',
@@ -866,10 +852,10 @@ settingsRoute.post(
       {...props}
       activeTab="profile"
       flash={null}
-      activeProfile={{ ...profile, ...draft.changes }}
+      activeProfile={{ ...profile, ...draft.changes, resumeId: resume.id }}
       profileDraft={{
         resumeName: resume.name,
-        changed: draft.changed,
+        changed: linking ? [...draft.changed, 'resume for this search'] : draft.changed,
         warnings: draft.warnings,
       }}
     />,
@@ -879,6 +865,12 @@ settingsRoute.post(
 // --- Re-classify ------------------------------------------------------------
 // Reached only through "Save & re-classify" in the profile editor — the
 // standalone top-row button was removed (docs/onboarding-plan.md §3).
+
+/** An optional `<select>` of row ids: "" (the "none" option) and junk both mean null. */
+function optionalId(value: string): number | null {
+  const n = Number(value);
+  return Number.isInteger(n) && n > 0 ? n : null;
+}
 
 function triggerReclassifyAsync(): void {
   if (reclassifyInFlight) return;

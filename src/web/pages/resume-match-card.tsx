@@ -36,6 +36,8 @@ export interface ResumeMatchCardProps {
   resumes: { id: number; name: string; isDefault: boolean }[];
   /** Best skill overlap for this posting — preselected in the dropdown. */
   suggestedResumeId: number | null;
+  /** Why that one is preselected: the search names it, or it overlaps the posting most. */
+  suggestedReason: 'linked' | 'overlap';
   matches: MatchWithResume[];
   selected: MatchWithResume | null;
 }
@@ -71,6 +73,7 @@ export const ResumeMatchCard: FC<ResumeMatchCardProps> = ({
   jobId,
   resumes,
   suggestedResumeId,
+  suggestedReason,
   matches,
   selected,
 }) => (
@@ -93,7 +96,11 @@ export const ResumeMatchCard: FC<ResumeMatchCardProps> = ({
               {resumes.map((r) => (
                 <option value={r.id} selected={r.id === (suggestedResumeId ?? resumes[0]?.id)}>
                   {r.name}
-                  {r.id === suggestedResumeId ? ' · best skill overlap' : ''}
+                  {r.id === suggestedResumeId
+                    ? suggestedReason === 'linked'
+                      ? ' · your search hunts with this'
+                      : ' · best skill overlap'
+                    : ''}
                   {r.isDefault ? ' · default' : ''}
                 </option>
               ))}

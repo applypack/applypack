@@ -307,6 +307,7 @@ export const SettingsPage: FC<SettingsProps> = ({
             <ProfileEditor
               profile={activeProfile}
               availableTargets={availableTargets}
+              resumes={resumes}
               draft={profileDraft}
             />
           </Card>
@@ -903,8 +904,9 @@ const ModelPicker: FC<{
 const ProfileEditor: FC<{
   profile: Profile;
   availableTargets: AvailableTarget[];
+  resumes: ResumeListItem[];
   draft?: ProfileDraftNotice | null;
-}> = ({ profile, availableTargets, draft }) => {
+}> = ({ profile, availableTargets, resumes, draft }) => {
   const rulesCount = parsePriorityRules(profile.priorityRules).length;
   // Open the advanced block only when free-form content lives in it. Salary
   // and the Telegram target deliberately don't count — init.ts seeds a salary
@@ -934,9 +936,27 @@ const ProfileEditor: FC<{
         re-classify".
       </div>
     )}
-    <Field label="Name" class="max-w-md">
-      <Input type="text" name="name" required value={profile.name} />
-    </Field>
+    <div class="grid gap-4 sm:grid-cols-2">
+      <Field label="Name" hint="What you call this search — yours alone, nothing reads it.">
+        <Input type="text" name="name" required value={profile.name} />
+      </Field>
+      <Field
+        label="Resume for this search"
+        hint="Preselected on every job page this search finds. Leave unset to pick by skill overlap."
+      >
+        <Select name="resumeId">
+          <option value="" selected={profile.resumeId === null}>
+            (pick by skill overlap)
+          </option>
+          {resumes.map((r) => (
+            <option value={r.id} selected={profile.resumeId === r.id}>
+              {r.name}
+              {r.isDefault ? ' (default)' : ''}
+            </option>
+          ))}
+        </Select>
+      </Field>
+    </div>
 
     <fieldset class="space-y-4">
       <legend class="text-[13px] font-medium text-ink">What are we hunting for?</legend>

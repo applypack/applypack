@@ -117,6 +117,10 @@ Profile fields that drive matching:
 - `minFitScore`, `minSalaryUsd`
 - `notes` — free-form prose appended to the Claude prompt
 - `telegramTargetId` — optional: route alerts to a specific bot (else broadcast)
+- `resumeId` — optional: the resume this search hunts with. A job page
+  preselects it for comparisons and cover letters; unset falls back to
+  skill-tag overlap (`src/resume/pick.ts:preselectResume`). `SET NULL` on
+  resume delete — the search survives, the preselect goes back to guessing.
 
 The editor shows the essentials (stack, role types, seniority, location);
 excludes, notes, on-site cities, priority rules, thresholds and Telegram
@@ -128,6 +132,17 @@ them is customised.
 scanned skills), `roleTypes` and `seniority` from any scanned resume —
 rendered as an unsaved draft in the editor; nothing persists until Save.
 Resumes scanned before `primarySkills` existed are re-scanned on demand.
+Filling also proposes that resume as the search's `resumeId`, in the same
+unsaved draft.
+
+**Create a search from a resume**: `/resumes/:id` renders the profile a
+click would create (name from the resume's headline, primary stack →
+required, remaining skills → nice-to-have, plus role types and seniority)
+and saves it on one press, linked to that resume. The wizard's step 3
+offers the same for a second resume once the first search exists. New
+profiles are **born inactive** — creating a search never switches the one
+the pipeline is scoring against; activation stays a deliberate press on
+`/settings` → Profile.
 
 ## Toggles in `/settings`
 

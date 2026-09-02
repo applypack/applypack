@@ -20,7 +20,35 @@ export interface ProfileInput {
   minSalaryUsd: number;
   minFitScore: number;
   telegramTargetId: number | null;
+  /** The resume this search hunts with; null = pick by skill overlap. */
+  resumeId: number | null;
   priorityRules: PriorityRule[];
+}
+
+/**
+ * A profile with nothing said yet — what "New profile" creates, and the base
+ * a resume draft is measured against so every field the scan speaks for lands
+ * in the new search (src/resume/profile-draft.ts). Born inactive (issue #50).
+ */
+export function blankProfileInput(): ProfileInput {
+  return {
+    name: 'New profile',
+    stackRequired: [],
+    roleTypes: [],
+    stackNiceToHave: [],
+    stackExclude: ['junior', 'intern'],
+    notes: null,
+    seniority: [],
+    remoteOk: true,
+    remoteRegions: [],
+    onsiteCities: [],
+    hybridOk: false,
+    minSalaryUsd: 0,
+    minFitScore: 70,
+    telegramTargetId: null,
+    resumeId: null,
+    priorityRules: [],
+  };
 }
 
 export async function listProfiles(): Promise<Profile[]> {
@@ -29,6 +57,17 @@ export async function listProfiles(): Promise<Profile[]> {
 
 export async function getProfile(id: number): Promise<Profile | null> {
   return prisma.profile.findUnique({ where: { id } });
+}
+
+/** The searches that hunt with a given resume — shown on that resume's page. */
+export async function listProfilesForResume(
+  resumeId: number,
+): Promise<Pick<Profile, 'id' | 'name'>[]> {
+  return prisma.profile.findMany({
+    where: { resumeId },
+    select: { id: true, name: true },
+    orderBy: { id: 'asc' },
+  });
 }
 
 export async function getActiveProfile(): Promise<Profile | null> {

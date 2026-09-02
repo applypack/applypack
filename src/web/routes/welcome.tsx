@@ -17,7 +17,12 @@ import {
 import { AI_KEY_ENV_VARS, MAX_AI_KEY_LENGTH, providerTakesKey } from '../../ai-keys';
 import { createResume, getResume, listResumes, type ResumeSummary } from '../../resume/store';
 import { scanResume } from '../../resume/scan';
-import { buildProfileDraft, SENIORITY_LEVELS } from '../../resume/profile-draft';
+import {
+  buildProfileDraft,
+  SENIORITY_LEVELS,
+  type ProfileForDraft,
+} from '../../resume/profile-draft';
+import { createProfileFromResume, newProfileDraft, scanFields } from '../profile-from-resume';
 import { recordCronRun, type CronStats } from '../../jobs/cron-run';
 import { runScoreUnscored, SCORE_BATCH } from '../../jobs/reclassify-job';
 import { activeFetchRun } from '../fetch-runs';
@@ -72,8 +77,9 @@ welcomeRoute.get('/welcome', async (c) => {
   ]);
 
   const resumeId = Number(c.req.query('resume'));
+  const asNew = c.req.query('mode') === 'new';
   const draftResume = Number.isFinite(resumeId) && profile ? await getResume(resumeId) : null;
-  const draft = draftResume && profile ? draftCard(profile, draftResume) : null;
+  const draft = draftResume && profile ? draftCard(profile, draftResume, asNew) : null;
 
   return c.html(
     <WelcomePage
@@ -179,6 +185,9 @@ welcomeRoute.post('/welcome/ai/test', async () => {
  */
 welcomeRoute.post('/welcome/resume', resumeUploadLimit(PROFILE_STEP), async (c) => {
   const form = await c.req.parseBody();
+  // "A second search" (§4 stage A) drafts a new profile instead of filling
+  // the active one; the flag rides through the scan run in the result URL.
+  const back = form.mode === 'new' ? `${PROFILE_STEP}&mode=new` : PROFILE_STEP;
   let resume: ResumeSummary | null = null;
   if (form.file instanceof File && form.file.size > 0) {
     const upload = await readResumeUpload(form);
@@ -190,7 +199,7 @@ welcomeRoute.post('/welcome/resume', resumeUploadLimit(PROFILE_STEP), async (c) 
   }
   if (!resume || resume.hidden) return flashRedirect(PROFILE_STEP, 'err', 'Pick a resume file first.');
   if (resume.scannedAt && resume.primarySkills.length > 0) {
-    return c.redirect(`${PROFILE_STEP}&resume=${resume.id}`, 303);
+    return c.redirect(`${back}&resume=${resume.id}`, 303);
   }
 
   const { id, name, text } = resume;
@@ -214,7 +223,7 @@ welcomeRoute.post('/welcome/resume', resumeUploadLimit(PROFILE_STEP), async (c) 
     }
     updateRun(run.id, {
       stage: 'done',
-      resultUrl: `${PROFILE_STEP}&resume=${id}`,
+      resultUrl: `${back}&resume=${id}`,
       flash: `Read "${name}" — check the summary below.`,
     });
   });
@@ -228,7 +237,7 @@ welcomeRoute.post('/welcome/profile/apply', async (c) => {
   const resume = await getResume(Number(form.resumeId));
   if (!profile) return flashRedirect(PROFILE_STEP, 'err', 'No active profile — create one in Settings → Profile.');
   if (!resume || !resume.scannedAt) return flashRedirect(PROFILE_STEP, 'err', 'That resume has not been read yet.');
-  const draft = buildProfileDraft(profile, scanOf(resume));
+  const draft = buildProfileDraft(profile, scanFields(resume));
   await updateProfile(profile.id, { ...profileInput(profile), ...draft.changes });
   return flashRedirect(
     MATCHES_STEP,
@@ -236,6 +245,25 @@ welcomeRoute.post('/welcome/profile/apply', async (c) => {
     draft.changed.length > 0
       ? `Profile filled from "${resume.name}" — ${draft.changed.join(', ')}. Adjust it any time in Settings → Profile.`
       : `Profile already matched "${resume.name}".`,
+  );
+});
+
+/**
+ * Step 3's second-resume action: the card above it showed the whole draft,
+ * so one press creates the search (ADR 0015). It is born inactive — the
+ * search the wizard just set up keeps running.
+ */
+welcomeRoute.post('/welcome/profile/create', async (c) => {
+  const form = await c.req.parseBody();
+  const resume = await getResume(Number(form.resumeId));
+  if (!resume || resume.hidden || !resume.scannedAt) {
+    return flashRedirect(PROFILE_STEP, 'err', 'That resume has not been read yet.');
+  }
+  const profile = await createProfileFromResume(resume);
+  return flashRedirect(
+    PROFILE_STEP,
+    'ok',
+    `Created a second search, "${profile.name}", from "${resume.name}". Your current search keeps running — switch to it on Settings → Profile.`,
   );
 });
 
@@ -318,21 +346,18 @@ async function countWaitingUnscored(profile: Profile): Promise<number> {
   return rows.filter((j) => passesBaseFilter(j, profile)).length;
 }
 
-function scanOf(resume: ResumeSummary) {
-  return {
-    title: resume.title,
-    seniority: resume.seniority,
-    skills: resume.skills,
-    primarySkills: resume.primarySkills,
-    roleTypes: resume.roleTypes,
-  };
-}
-
-function draftCard(profile: Profile, resume: ResumeSummary): ProfileDraftCard | null {
+/** asNew drafts a second search off a blank base; otherwise it fills `profile`. */
+function draftCard(
+  profile: ProfileForDraft,
+  resume: ResumeSummary,
+  asNew: boolean,
+): ProfileDraftCard | null {
   if (!resume.scannedAt || resume.hidden) return null;
-  const draft = buildProfileDraft(profile, scanOf(resume));
+  const draft = asNew ? newProfileDraft(resume) : buildProfileDraft(profile, scanFields(resume));
   const primary = draft.changes.stackRequired ?? resume.primarySkills;
   return {
+    asNew,
+    profileName: draft.changes.name ?? profile.name,
     resumeId: resume.id,
     resumeName: resume.name,
     title: resume.title,
@@ -362,6 +387,7 @@ function profileInput(p: Profile): ProfileInput {
     minSalaryUsd: p.minSalaryUsd,
     minFitScore: p.minFitScore,
     telegramTargetId: p.telegramTargetId,
+    resumeId: p.resumeId,
     priorityRules: parsePriorityRules(p.priorityRules),
   };
 }

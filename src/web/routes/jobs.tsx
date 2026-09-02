@@ -35,7 +35,7 @@ import {
   updateCoverLetterEdit,
   upsertScratchResume,
 } from '../../resume/store';
-import { pickResumeForJob } from '../../resume/pick';
+import { preselectResume } from '../../resume/pick';
 import { matchResumeToJob } from '../../resume/match';
 import { generateCoverLetter } from '../../resume/cover-letter';
 import {
@@ -187,7 +187,7 @@ jobsRoute.get('/jobs/:id', async (c) => {
   const id = Number(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text('Bad id', 400);
 
-  const [job, settings, resumes, matches, verifications, letters] = await Promise.all([
+  const [job, settings, resumes, matches, verifications, letters, activeProfile] = await Promise.all([
     prisma.job.findUnique({
       where: { id },
       include: {
@@ -207,6 +207,7 @@ jobsRoute.get('/jobs/:id', async (c) => {
     listMatchesForJob(id),
     listVerificationsForJob(id),
     listCoverLettersForJob(id),
+    getActiveProfile(),
   ]);
   if (!job) return c.text('Not found', 404);
 
@@ -215,7 +216,12 @@ jobsRoute.get('/jobs/:id', async (c) => {
   const selected = matches.find((m) => m.id === requestedMatch) ?? matches[0] ?? null;
   const requestedLetter = Number(c.req.query('letter'));
   const selectedLetter = letters.find((l) => l.id === requestedLetter) ?? letters[0] ?? null;
-  const suggested = pickResumeForJob(resumes, `${job.title} ${job.description}`);
+  // Stage A of the multi-resume search: the profile doing the hunting is the
+  // active one, and its linked resume wins the preselect (§4 of the plan).
+  // Stage B replaces "active" with the profile that scored this job best.
+  const linkedResumeId = activeProfile?.resumeId ?? null;
+  const suggested = preselectResume(resumes, `${job.title} ${job.description}`, linkedResumeId);
+  const suggestedReason = suggested && suggested.id === linkedResumeId ? 'linked' : 'overlap';
 
   const flashCookie = parseFlashCookie(c.req.header('cookie'));
   return c.html(
@@ -229,6 +235,7 @@ jobsRoute.get('/jobs/:id', async (c) => {
         jobId: id,
         resumes: resumes.map((r) => ({ id: r.id, name: r.name, isDefault: r.isDefault })),
         suggestedResumeId: suggested?.id ?? null,
+        suggestedReason,
         matches,
         selected,
       }}
@@ -236,6 +243,7 @@ jobsRoute.get('/jobs/:id', async (c) => {
         jobId: id,
         resumes: resumes.map((r) => ({ id: r.id, name: r.name, isDefault: r.isDefault })),
         suggestedResumeId: suggested?.id ?? null,
+        suggestedReason,
         letters,
         selected: selectedLetter,
         hasCompanyFacts: Boolean(verifications[0]?.companySnapshot?.trim()),
