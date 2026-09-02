@@ -199,8 +199,9 @@ export const TargetPage: FC<TargetPageProps> = ({
 
       <Card class="mb-4">
         {/* Proportional columns instead of a scattered flex row: score | why (owns
-            the middle) | actions rail. The gates line spans the full width below. */}
-        <div class="grid grid-cols-1 items-start gap-x-8 gap-y-4 lg:grid-cols-[auto_minmax(0,1fr)_auto]">
+            the middle, never under 14rem — the rail grows while editing) | actions
+            rail. The gates line spans the full width below. */}
+        <div class="grid grid-cols-1 items-start gap-x-8 gap-y-4 lg:grid-cols-[auto_minmax(14rem,1fr)_auto]">
           {/* Primary: the honest score — the AI rubric verdict. Static until Re-analyze. */}
           <div class="flex items-center gap-4">
             <svg viewBox="0 0 96 96" class="h-20 w-20 -rotate-90" aria-hidden="true">
@@ -223,7 +224,8 @@ export const TargetPage: FC<TargetPageProps> = ({
                 {match.matchScore}
                 <span class="text-base font-normal text-ink-faint">/100</span>
               </div>
-              <div class="flex items-center gap-2 text-[13px] font-medium text-ink-muted">
+              {/* Wraps: the stale marker must not widen this auto column and squeeze the summary. */}
+              <div class="flex flex-wrap items-center gap-x-2 text-[13px] font-medium text-ink-muted">
                 AI match ·{' '}
                 <span class={AI_TONE[fitTone(match.matchScore)]}>{matchQuality(match.matchScore)}</span>
                 <span id="ai-stale" hidden class="font-medium text-warn">
@@ -368,7 +370,7 @@ export const TargetPage: FC<TargetPageProps> = ({
 
             {/* Appears only while the text differs from the analyzed version. */}
             <div id="live-est" hidden class="lg:max-w-[280px] lg:text-right">
-              <div class="flex items-center gap-2 text-[13px] font-medium text-ink-muted lg:justify-end">
+              <div class="flex flex-wrap items-center gap-x-2 text-[13px] font-medium text-ink-muted lg:justify-end">
                 {breakdown ? `Estimate vs the analysis from ${formatRelative(match.createdAt)}` : 'Keyword coverage after edits'}
                 <span id="live-delta" class="text-xs font-medium"></span>
               </div>
