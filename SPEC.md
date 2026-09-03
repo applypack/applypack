@@ -26,7 +26,7 @@ port.
 
 See [ARCHITECTURE.md](./ARCHITECTURE.md) for diagrams.
 
-## Sources (23 ATS / aggregator types + MANUAL)
+## Sources (24 ATS / aggregator types + MANUAL)
 
 | AtsType            | Shape         | Auth      | Notes                                           |
 | ------------------ | ------------- | --------- | ----------------------------------------------- |
@@ -45,6 +45,7 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for diagrams.
 | REMOTIVE           | aggregator    | none      | `?category=software-dev`                        |
 | ARBEITNOW          | aggregator    | none      | EU-skewed; **disabled by default**              |
 | DOU                | aggregator    | feed query (`category=PHP&remote`) | Ukraine's board via its RSS; one row per query; **disabled by default** (stage 3b) |
+| DJINNI             | aggregator    | feed filter (`primary_keyword=PHP&employment=remote&region=UKR`) | Ukraine's marketplace via its RSS; location comes from the filter; **disabled by default** (stage 3b) |
 | HN_HIRING          | aggregator    | none      | Algolia API → monthly "Ask HN: Who is hiring?" |
 | WEWORKREMOTELY     | aggregator    | none      | Per-category RSS, atsToken = category slug      |
 | GOLANGPROJECTS     | aggregator    | none      | Single RSS; **disabled by default** (Go-only)   |

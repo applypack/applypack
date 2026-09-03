@@ -583,7 +583,13 @@ adopted or rejected.
   default RSS User-Agent, the feed is fetched with the project's)*
 - `DJINNI` fetcher: RSS, `atsToken` = the filter string
   (`primary_keyword=PHP&employment=remote&region=UKR`); company from prose
-  or blank; region hint from the filter itself.
+  or blank; region hint from the filter itself. *(done: v1.31.0 —
+  `djinniPlace(token)` writes the location string and the hints from the
+  filter (`region=UKR` → UA, `eu` → EU, `worldwide`; `employment` → the
+  arrangement); an unknown `primary_keyword` answers the whole bare feed, so
+  rows whose `<category>` is not the keyword are dropped and the probe
+  refuses a keyword that leaves nothing; the channel head lists all 168
+  categories — "Fullstack", not "Full Stack"; no "React")*
 - Starter pack "UA-friendly remote": add N-iX, Ajax Systems, Genesis;
   re-probe the eleven existing entries; drop or replace `sigmasoftware`.
 - Docs line on DOU terms (self-hosted personal use, link-back kept).

@@ -468,6 +468,7 @@ Three reference patterns, copy whichever fits the new source:
 | --- | --- | --- |
 | Single curated RSS | `src/fetchers/larajobs.ts` | RSS one feed for the whole site, no per-company config |
 | RSS whose title carries the structure, one row per query | `src/fetchers/dou.ts` + `dou-title.ts` | atsToken = the feed's query string; a pure title-grammar parser; fetched with the project UA because the board blocks rss-parser's |
+| RSS whose LOCATION lives in the filter, not the items | `src/fetchers/djinni.ts` | atsToken = the filter string; `djinniPlace(token)` writes the location + hints from it; rows whose category ≠ the requested keyword are the bare-feed fallback and are dropped |
 | Per-category RSS, atsToken = category slug | `src/fetchers/weworkremotely.ts` | Same pattern, atsToken changes per Company row |
 | Single JSON aggregator | `src/fetchers/remotive.ts` | One feed, structured JSON, all jobs under one synthetic Company |
 | Per-company GET JSON | `src/fetchers/ashby.ts` | atsToken = company slug, GET endpoint, no auth |
