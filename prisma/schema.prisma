@@ -30,6 +30,8 @@ enum AtsType {
   PINPOINT
   RIPPLING
   FOURDAYWEEK
+  // Stage 3b: DOU.ua RSS, one row per query string (category / city / remote / search).
+  DOU
   // Phase 8.2: pasted by hand on /jobs/new. One inactive Company row per
   // employer; runAllFetchers never touches it.
   MANUAL

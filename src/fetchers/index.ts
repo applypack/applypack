@@ -35,6 +35,7 @@ import { fetchBamboo } from './bamboohr';
 import { fetchPinpoint } from './pinpoint';
 import { fetchRippling } from './rippling';
 import { fetchFourDayWeek } from './fourdayweek';
+import { fetchDou } from './dou';
 import type { NormalizedJob } from '../types';
 
 const POLITE_DELAY_MS = 1_000;
@@ -206,6 +207,8 @@ export async function fetchOne(
       return fetchRippling({ id: company.id, atsToken: company.atsToken });
     case AtsType.FOURDAYWEEK:
       return fetchFourDayWeek(company.id, context);
+    case AtsType.DOU:
+      return fetchDou({ id: company.id, atsToken: company.atsToken });
     case AtsType.MANUAL:
       // Pasted by hand on /jobs/new — nothing to fetch (and the row is inactive).
       return [];

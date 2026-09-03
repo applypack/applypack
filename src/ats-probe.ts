@@ -1,5 +1,6 @@
 import { AtsType } from '@prisma/client';
 import { fetchWithRetry, HttpError } from './http';
+import { douFeedUrl } from './fetchers/dou';
 
 export interface ProbeResult {
   ok: boolean;
@@ -95,6 +96,15 @@ export async function probeAts(
           { timeoutMs: 8_000, init: { redirect: 'error' } },
         );
         break;
+      case AtsType.DOU: {
+        // The token is a feed query, not a slug: an unknown category answers
+        // an EMPTY channel (verified 2026-09-03), so "no items" is the failure.
+        const feed = await fetchWithRetry(douFeedUrl(trimmed), { timeoutMs: 8_000 });
+        const items = ((await feed.text()).match(/<item>/g) ?? []).length;
+        return items > 0
+          ? { ok: true, jobsCount: items }
+          : { ok: false, error: 'DOU answered no vacancies for this query — check the category spelling.' };
+      }
       case AtsType.SMARTRECRUITERS:
         resp = await fetchWithRetry(
           `https://api.smartrecruiters.com/v1/companies/${encodeURIComponent(trimmed)}/postings?limit=1`,
