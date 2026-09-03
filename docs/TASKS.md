@@ -1147,3 +1147,349 @@ seeded inactive. Sources verified 2026-09-03 with robots.txt are in the plan
       countries + groups; delete `remoteRegions`; `residence` in stage 2 or
       4; robots vs licence for Adzuna / France Travail; source keys in the
       database; JOIN's undocumented endpoint; salary currency design.
+
+---
+
+## 16. Schedule: when the search runs and when alerts arrive (analysis 2026-09-03, nothing built)
+
+Owner's ask: let the user choose *when* jobs are fetched (hours, days) and
+*when* notifications arrive, in a way that is obviously simple. The rule
+from [country-search-plan.md](./country-search-plan.md) applies: a written
+analysis note in the PR body before the branch exists; every step below has
+its own "analyse first" line.
+
+### 16.1 Facts established (don't re-derive)
+
+- The worker has six fixed crons in `src/index.ts:registerCron`: fetch
+  `5 * * * *`, digest `0 9 * * *`, stale-applications `0 8 * * *`, cleanup
+  `0 3 * * 0`, discovery `0 4 * * 0`, hn-hiring `0 6 1 * *` — all in
+  `config.TZ` from `.env` (default `UTC`, ADR 0003).
+- The only time control today is the pause flag `AppSettings.fetchingEnabled`
+  (`/settings` General → "Job fetching"; Overview shows "Pipeline
+  running / paused"). A paused tick still writes a `CronRun` row with
+  `{ skipped: 1, reason: 'fetching-paused' }` — the precedent for a
+  "skipped" tick. Manual "Fetch now" ignores the pause.
+- Alerts are sent per job right after classification
+  (`jobs/process-jobs.ts` → `notifier.sendTelegramAlert`), then the row
+  becomes `ALERTED` with `alertedAt`. There is no "held" state.
+- The 09:00 digest (`jobs/digest-job.ts` → `sendDigest`) re-sends the last
+  24 h of matches as one message plus the quiet-sources line; it is a recap,
+  not a delivery channel. Chunking under Telegram's 4 096-char limit already
+  exists in `sendDigest`.
+- Settings are read at the start of every tick (gotcha 9) — a schedule
+  stored in `AppSettings` is live within an hour with no worker restart.
+- Source health counts ticks (`QUIET_STREAK = 3`) and days
+  (`SILENT_DAYS = 14`, ADR 0019): a daily schedule needs three days to mark a
+  board quiet — acceptable, but the copy on `/companies` must not promise
+  "three hours".
+
+### 16.2 Options considered
+
+| Option | Verdict | Why |
+|---|---|---|
+| Let the user type cron expressions | no | powerful, not simple; timezone confusion; unreadable errors. Keep at most as a future "Advanced" field |
+| Re-register node-cron with a user-chosen expression | no | web writes, worker must notice and re-schedule; cross-process coordination for nothing |
+| **Fixed hourly heartbeat + a pure `isDue` gate read from settings** | **yes** | the cron never changes; the decision is one tested pure function over `now`, the schedule and the last run; same shape as the pause flag |
+| Alerts: only instant (today) | no | the owner's ask is exactly "not at night, not on weekends" |
+| Alerts: per-search or per-Telegram-target windows | later, if ever | one global window covers the need; two levels double the UI |
+| Notifications as push at the window start vs. one grouped message | **grouped** | 12 separate messages at 07:00 are noise; `sendDigest` already renders a group |
+
+### 16.3 Recommended design
+
+**One setting object, two schedules, one timezone.**
+
+```ts
+// AppSettings.schedule (Json, zod-validated in src/schedule.ts)
+{
+  timezone: 'Europe/Kyiv',                 // IANA; default = config.TZ
+  fetch:  { every: 'hour' | '2h' | '4h' | 'day', from: 7, to: 23, days: [1,2,3,4,5,6,7] },
+  alerts: { mode: 'instant' | 'window' | 'digest', from: 8, to: 22, days: [...], digestAt: [9] }
+}
+```
+
+- **Fetch.** The cron stays `5 * * * *`. Each tick, `runFetchJob` asks
+  `isFetchDue(now, schedule, lastFetchRunAt)` (pure, `src/schedule.ts`);
+  `lastFetchRunAt` is the newest finished `CronRun` of kind `fetch` — no new
+  column. Not due → `{ skipped: 1, reason: 'outside-schedule' }`, exactly
+  like a paused tick. Whole hours only (07:00–23:00, "daily at 09:00"):
+  minute precision has no value for job fetching and would force a
+  15-minute heartbeat that writes 96 run rows a day. Manual "Fetch now"
+  ignores the schedule, as it ignores the pause.
+- **Alerts.** `process-jobs` asks `canAlertNow(now, schedule)`. Yes → send
+  as today. No → set `Job.alertHeldAt = now` (one nullable column; the row
+  stays `NEW`, the verdicts are already in `job_score`). Delivery: every
+  hourly tick that is inside the window (or equals a digest hour) runs
+  `deliverHeldAlerts()` — one grouped message per Telegram target
+  ("7 matches while you were away", via `sendDigest`'s chunking), rows
+  become `ALERTED`, `alertHeldAt` cleared. Routing per search
+  (`profile.telegramTargetId`) is recomputed from the stored winner, so a
+  held job goes where an instant one would have gone. `mode: 'digest'` holds
+  everything and delivers only at `digestAt` hours; the existing 09:00 recap
+  becomes that delivery (no double sends: a recap lists only rows alerted
+  since the last recap, a delivery lists held rows).
+- **Timezone.** One `Intl.DateTimeFormat(..., { timeZone }).formatToParts`
+  helper gives weekday/hour in the user's zone — no date library. The
+  setting defaults to `config.TZ`; the settings page pre-fills it from the
+  browser once (`Intl.DateTimeFormat().resolvedOptions().timeZone`) and asks
+  the user to confirm. The fixed crons for cleanup / discovery / HN keep
+  `config.TZ`; they are not user-facing. The digest hour moves to the
+  schedule so that ONE timezone rules everything the user sees.
+- **What the user sees.** `/settings` General → one "Schedule" card:
+
+  ```
+  Time zone        [Europe/Kyiv ▾]   used for everything below
+  Check for jobs   [Every hour ▾] from [07:00 ▾] to [23:00 ▾]  Mon Tue Wed Thu Fri Sat Sun (pills)
+                   Next check: today at 14:05
+  Send alerts      (•) Right away
+                   ( ) Only between [08:00] and [22:00] on [days] — matches found outside arrive at 08:00 in one message
+                   ( ) As a digest at [09:00] [+ add a time]
+                   3 matches are waiting for 08:00
+  ```
+
+  Overview: the status pill gains a third state — "Running", "Paused",
+  "Sleeping until Mon 07:05" — and the alert line "3 held until 08:00".
+  Both sentences come from one pure `describeSchedule()` so the settings
+  card, the overview and the Telegram digest header say the same thing.
+- **Not built:** per-search schedules, per-target windows, minute
+  precision, custom cron, scheduling of cleanup / discovery / HN.
+
+### 16.4 Implementation order (one branch `fetch-schedule`, ~1 session)
+
+- [ ] **Analyse first:** read `src/index.ts`, `jobs/cron-run.ts`,
+      `jobs/fetch-job.ts`, `jobs/process-jobs.ts` (alert block),
+      `jobs/digest-job.ts`, `notifier.ts` (`sendDigest`, `broadcast`),
+      `jobs/reclassify-job.ts` (does a re-classify alert? if yes it needs
+      the same gate); confirm Node's ICU handles `Europe/Kyiv` and DST in
+      `formatToParts`; write the analysis note.
+- [ ] `add schedule module` — `src/schedule.ts` (types, zod schema,
+      defaults = today's behaviour, `isFetchDue`, `canAlertNow`,
+      `nextFetchAt`, `nextAlertAt`, `describeSchedule`) + `schedule.test.ts`
+      with fixed instants: window edges, Sunday→Monday wrap, DST day, "every
+      4h" against a last run 3 h 59 min ago, invalid timezone rejected.
+- [ ] `store schedule in settings` — `AppSettings.schedule Json?` +
+      `Job.alertHeldAt DateTime?` (hand-written migration), getter/setter in
+      `settings.ts` (null = defaults).
+- [ ] `gate the fetch tick` — `runFetchJob` skips with reason
+      `outside-schedule`; `/runs` shows it like `fetching-paused`.
+- [ ] `hold alerts outside the window` — the gate in `process-jobs`,
+      `deliverHeldAlerts()` in `jobs/alert-delivery.ts`, called from the
+      fetch tick and from the digest path; `sendDigest` header text
+      parameterised ("Daily digest" / "While you were away").
+- [ ] `add schedule card` — `pages/settings.tsx` + `routes/settings.tsx`
+      (`parseBody({ all: true })` for the day pills — gotcha 1); Overview
+      pill + held-count line.
+- [ ] `document schedule` — CLAUDE.md "Where to look" + "how does the user
+      toggle" rows, SPEC.md, README one line, CHANGELOG + bump.
+
+**Verification.** Pure tests above; `npm run test:telegram` for the grouped
+message; a scratch run with `from: 7, to: 23` at a fake `now` outside the
+window shows `outside-schedule` on `/runs`; a held job appears in the
+Overview count and is delivered by the next in-window tick; light + dark
+screenshots of the card; keyboard walk of the pills and selects.
+
+**Decisions for the owner.** (1) Whole hours only — agreed? (2) Does a
+manual "Fetch now" outside the alert window send instantly (recommended:
+yes, the user is at the screen) or hold? (3) Should the stale-applications
+digest follow `digestAt` too (recommended: yes, one "digest time" for both)?
+
+---
+
+## 17. Company watchlist: "check these 20 companies for new jobs" (analysis 2026-09-03, nothing built)
+
+Owner's ask: paste a list of companies (site or job-list URLs), have them
+checked at a chosen interval, show their postings apart from the rest, and
+do it without fragile HTML parsing — "maybe Playwright".
+
+### 17.1 Facts established (don't re-derive)
+
+- A watched company already has a home: `Company` rows are the unit the
+  hourly tick iterates (`fetchers/index.ts:runAllFetchers`, sequential with
+  a polite delay, health per row per ADR 0019). `Company.careerUrl` exists
+  in the schema and the add form, is stored — and never read by any fetcher.
+- The add form on `/companies` makes the user pick the ATS from a select
+  and type the slug; the URL → token resolver `text-utils.ts:extractAtsToken`
+  (ten vendors' URL shapes) is used only by discovery (HN comments), not by
+  the form. Starter packs already have the preview → confirm → "added
+  disabled" → "Enable all" flow (ADR 0017) that a bulk import can reuse.
+- `jobs/posting-url.ts` is the honest single-page fetch: SSRF guard
+  (private ranges, checked again after redirects), ADR 0005 host blocklist,
+  bot-check markers that fail instead of being worked around, 12 s timeout,
+  30 k chars. It is the only place that fetches an arbitrary user URL.
+- No HTML parser and no browser in the dependencies; the runtime image is
+  `node:24-alpine`. Nothing in `src/` reads JSON-LD or sitemaps yet.
+- Ground rules that bind this feature: ADR 0005 ("scrapers of any kind"
+  are out; the listed platforms are never fetched), the feature-expansion
+  ground rules ("no bot-protection bypass, ever"; robots.txt that names AI
+  bots is binding because every description goes to the classifier).
+
+### 17.2 Why not Playwright — and what actually makes checks stable
+
+A headless browser does not remove parsing; it renders JavaScript and then
+you still read a DOM whose classes change with every redesign. It adds
+Chromium to the image (hundreds of MB, awkward on alpine), CPU and memory on
+every tick, and it is exactly the class of tool the project promises not to
+run: career sites behind Cloudflare Turnstile block headless clients, and
+"getting past that" is the bypass the ground rules forbid. What is stable is
+**data a site publishes for machines on purpose**, in this order:
+
+1. **The ATS behind the page.** Most career pages are a Greenhouse / Lever /
+   Ashby / Workable / SmartRecruiters / Recruitee / Breezy / BambooHR /
+   Pinpoint / Rippling board (all supported), or Personio / Teamtailor /
+   Homerun / d.vinci (verified public feeds, §15 plan). The board API is
+   the vendor's contract — it does not change with the site's CSS.
+2. **Feeds.** `<link rel="alternate" type="application/rss+xml|atom+xml">`
+   on the careers page, or well-known paths (`/jobs.rss`, `/feed`,
+   `/careers/feed`). `rss-parser` is already a dependency.
+3. **Sitemaps + JSON-LD `JobPosting`.** `robots.txt` names the sitemap;
+   the sitemap lists job URLs with `lastmod`; each job page carries
+   `<script type="application/ld+json">` with a schema.org `JobPosting`
+   (title, description, hiringOrganization, jobLocation,
+   `jobLocationType: TELECOMMUTE`, `applicantLocationRequirements`,
+   datePosted, validThrough) — the format Google for Jobs requires, so
+   custom career sites ship it. New URL in the sitemap → fetch that one
+   page → read the JSON block. No layout parsing at all, and the location
+   arrives structured (feeds `locationHints` from the country plan).
+4. **Change watch (last resort).** When a site offers none of the above:
+   hash the page's plain text (`stripHtml`, whitespace and digits
+   normalised) and alert "Careers page changed — have a look" with the
+   link, at most once a day. It never claims to know the jobs; it tells the
+   user when to look. Honest, cheap, and it is what a person checking daily
+   actually does.
+5. **Refused, with the reason on screen:** LinkedIn / Workday / Indeed /
+   Glassdoor / Wellfound hosts (ADR 0005), a `robots.txt` that disallows the
+   path or bans AI bots, a page that answers with a bot check. The message
+   suggests the alternative: find the company's board on a supported ATS.
+
+Every rung fetches only at the user's request or on the company's own
+interval, with the project's honest User-Agent and a polite delay, and
+checks `robots.txt` first — a small pure `src/robots.ts` (user-agent groups,
+longest-match Allow/Disallow, our token and `*`, the AI-bot names) does
+automatically what the ADR 0005 addendum has been doing by hand.
+
+### 17.3 Recommended design
+
+**Data.** No new table — the watchlist is `Company` with four small fields:
+
+```prisma
+model Company {
+  watched      Boolean  @default(false)   // ★ on /jobs, own section on /companies
+  checkEvery   String   @default("hour")  // hour | day | week — the user's interval
+  nextCheckAt  DateTime?                  // set after each check; NULL = due now
+  alertPolicy  String   @default("matches") // matches | all — watched rows default to "all"
+  lastContentHash String?                 // change-watch rung only
+}
+enum AtsType { … FEED CAREER_PAGE }        // atsToken = the feed URL / the careers URL
+```
+
+- `runAllFetchers` selects `active AND (nextCheckAt IS NULL OR nextCheckAt <= now)`
+  and writes `nextCheckAt` afterwards — the per-company interval rides on
+  the hourly tick, no new cron (ADR 0003). "Check now" on a row clears
+  `nextCheckAt` and runs the tick for that company only (reuse the
+  fetch-runs progress registry).
+- `alertPolicy = 'all'` on a watched company: the base filter is bypassed
+  (the user wants to *see* every posting there), the job is classified as
+  usual so it carries a fit score, and it alerts on arrival with a ★
+  prefix whatever the threshold says. `'matches'` = the normal pipeline.
+  Held-alert rules from §16 apply unchanged.
+- Two new fetchers, one ladder resolver:
+  - `fetchers/feed.ts` — generic RSS/Atom (title, link, description, date;
+    `feedItemKey` for ids).
+  - `fetchers/career-page.ts` — sitemap + JSON-LD rung, with the
+    change-watch rung as its fallback status. Pure pieces next to it:
+    `jsonld.ts` (`extractJobPostings(html)` → typed objects, tolerant of
+    `@graph` and arrays), `sitemap.ts` (urlset / sitemapindex, `lastmod`,
+    bounded to the careers path prefix), `page-hash.ts`. Per tick at most
+    `MAX_NEW_PAGES_PER_TICK` (20) job pages are fetched per company.
+  - `watchlist/resolve.ts` — `resolveCompanyUrl(url)`: direct board URL →
+    `extractAtsToken`; else one page fetch through the `posting-url` guards
+    and a scan of the HTML for ATS links / iframes / scripts, feed links,
+    JSON-LD, then `robots.txt` for the sitemap; then the common career
+    paths (`/careers`, `/jobs`, `/karriere`, `/vacancies`, ≤ 5 requests per
+    company, only at add time). Returns one of: `ats(type, token, jobs)`,
+    `feed(url)`, `careerPage(url, postings)`, `watchOnly(url)`,
+    `refused(reason)`.
+- **UX.**
+  - `/companies` → "Add companies": a textarea, one URL per line (optionally
+    `Name — URL`), or a `.txt` / `.csv` upload. Resolve runs as a progress
+    page (one line per URL), then a preview table: URL → what was found
+    ("Greenhouse `acme` · 34 jobs", "Teamtailor jobs.acme.com", "RSS feed",
+    "Careers site · 12 postings in the sitemap", "Change watch only",
+    "Refused: robots.txt asks not to fetch /careers") → the user edits names,
+    unticks rows, picks the interval once for the batch → Confirm → rows
+    created with `watched = true`, first check runs in the background.
+  - `/companies` → a "Watchlist" section on top: name, how it is checked,
+    last check, next check, new postings since your last visit, ★ toggle,
+    "Check now". Aggregators stay in their own section as today.
+  - `/jobs`: ★ before the company name, a "Watched" chip that filters to
+    watched companies, sort "watched first" when the chip is on. Job page:
+    "★ Watched company · checked daily". Overview: "Watched companies: 3
+    new postings today".
+  - Telegram: watched alerts start with "★ Acme" and say "new posting"
+    rather than "match" when the policy is `all`.
+- **Not built:** a headless browser, screenshot diffing, a crawler beyond
+  one careers path prefix, per-company custom cron, price/keyword rules on
+  the change watch, LinkedIn company pages.
+
+### 17.4 Implementation order (three branches, each its own PR + tag)
+
+**Stage A — `company-watchlist` (bulk add on known ATS + feeds, ★, intervals; ~2 sessions)**
+- [ ] **Analyse first:** read `routes/companies.tsx` (new / reprobe /
+      starter-pack flows), `pages/companies.tsx`, `starter-packs/resolve.ts`
+      + `probe.ts`, `text-utils.ts:extractAtsToken`, `jobs/posting-url.ts`,
+      `fetchers/index.ts:runAllFetchers`, `web/fetch-runs.ts`; take the
+      owner's real list of 20 companies and resolve each by hand (which rung
+      would catch it?) — that table is the analysis note and the fixture.
+- [ ] `add watchlist fields` — the four `Company` columns + `FEED` type,
+      hand-written migration, `nextCheckAt` honoured by `runAllFetchers`.
+- [ ] `add robots parser` — `src/robots.ts` + tests (RFC 9309 basics, AI-bot
+      group, longest match, missing file = allowed).
+- [ ] `add feed fetcher` — `fetchers/feed.ts` + mapper test; `probeAts` for
+      `FEED`; `extractAtsToken` learns Personio / Teamtailor / Homerun /
+      d.vinci URL shapes as those types land (§15 stage 3d).
+- [ ] `resolve company urls` — `watchlist/resolve.ts` (ATS + feed rungs only
+      in this stage; `careerPage` returns `watchOnly` for now) + tests on
+      recorded HTML fixtures.
+- [ ] `bulk add companies` — textarea/upload → progress → preview →
+      confirm; interval picker for the batch; `watched = true`.
+- [ ] `show watched jobs` — ★ on `/jobs`, "Watched" chip, job page line,
+      Overview count; `alertPolicy = 'all'` bypasses the base filter and the
+      threshold; Telegram prefix.
+- [ ] `document watchlist` — ADR 0034 "watch checks read published data
+      only; no headless browser" (records the Playwright rejection),
+      CLAUDE.md rows, SPEC, README, CHANGELOG + bump.
+
+**Stage B — `career-page-fetcher` (sitemap + JSON-LD rung; ~1–2 sessions)**
+- [ ] **Analyse first:** fetch the sitemaps and one job page of five sites
+      from the owner's list that are not on a supported ATS; record which
+      carry `JobPosting` JSON-LD and where (listing page vs detail page);
+      measure sitemap sizes; write the note.
+- [ ] `add jsonld parser` — `jsonld.ts` + tests (single object, array,
+      `@graph`, nested `hiringOrganization`, HTML-escaped description).
+- [ ] `add sitemap reader` — `sitemap.ts` + tests (index → urlset, `lastmod`,
+      path-prefix bound, gzip refused or handled — decide in the note).
+- [ ] `add career page fetcher` — `fetchers/career-page.ts`, `CAREER_PAGE`
+      type, `MAX_NEW_PAGES_PER_TICK`, robots check per host, location hints
+      from `jobLocation` / `applicantLocationRequirements` / `TELECOMMUTE`.
+- [ ] `resolve career pages` — the resolver returns `careerPage` when the
+      sitemap + JSON-LD rung finds postings; smoke run on the five sites.
+
+**Stage C — `change-watch` (last rung; ~½ session)**
+- [ ] **Analyse first:** run the hash over three dynamic career pages for
+      two days; count false positives; pick the normalisation.
+- [ ] `add change watch` — `page-hash.ts` + tests; `lastContentHash`;
+      "Careers page changed" alert once a day; `/companies` shows "watching
+      for changes" honestly instead of a job count.
+
+**Verification (all stages).** Pure modules unit-tested next to the file;
+each fetcher smoke-run on the owner's list with fixtures recorded; a refused
+URL shows its reason in the preview; the SSRF guard is exercised with a
+private-IP URL in a test; `/companies` and `/jobs` screenshots light + dark;
+keyboard walk of the preview table; a full hourly tick with 20 watched
+companies stays under the polite-delay budget (note the measured duration).
+
+**Decisions for the owner.** (1) Watched companies default to "alert on
+every new posting" — agreed, or "matches only" by default? (2) Interval
+presets `hour / day / week` only — enough? (3) Is the change-watch rung
+wanted at all, or is "refused / not supported" the more honest answer for
+sites with no machine-readable data? (4) ADR 0034 states "no headless
+browser" as policy — confirm before stage A so the question is closed.
