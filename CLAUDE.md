@@ -167,6 +167,7 @@ When the question is **"where does X live?"**, save yourself a `find`:
 | Where the running searches hunt, handed to every fetcher (`FetchContext`: union of countries + regions; anywhere = empty) | `src/fetchers/fetch-context.ts:searchPlaces` (pure) built once per tick in `fetchers/index.ts:runAllFetchers`; a source with a geo filter maps it (`jobicy.ts:jobicySlugsFor`, `himalayas.ts:himalayasUrls`, `fourdayweek.ts:fourDayWeekPlaces`), the rest ignore it |
 | Per-source health (error→status, failure streak, quiet/silent) | `src/fetchers/source-health.ts` (pure, ADR 0019); recorded by the wrapper in `fetchers/index.ts:runAllFetchers` |
 | Apply-link flags (missing / unusable / shortened / not-an-application) | `src/apply-link.ts` (pure, ADR 0023); merged into `Job.redFlags` at all three persist paths |
+| Which token-driven feeds a search's countries call for (DOU / Djinni for UA, Arbeitnow for DE / GB), and their state | `src/starter-packs/suggest.ts:suggestSources(searches, tracked)` (pure) → the "Sources for your searches" card on `/companies` (`POST /companies/suggested` probes, then adds off); the profile save flash counts what is waiting |
 | Where a SEARCH hunts (countries / regions / workplace on the profile), the set filter with group expansion | `prisma/schema.prisma:Profile` (ADR 0032) → `src/profiles.ts:ProfileInput` → `src/filter.ts:locationMatches` / `placesOverlap` (pure); the prompt line `classifier.ts:describeLocation` (codes only); the editor control `pages/settings.tsx` Location fieldset + `public/countries.mjs` over `GET /countries.json` |
 | The classifier's own reading of a posting's place, and how it meets the parser's | reply block `location` in `classifier.ts:LocationBlockSchema` → `src/jobs/location-merge.ts:mergeAiLocation` (pure: fill or narrow, never blank; `locationSource = 'ai'`) at all three write paths |
 | Why a verdict says "location mismatch" | `src/jobs/location-reason.ts:locationMismatchReason` (pure, columns only) → the Classifier card on `/jobs/:id` |
@@ -253,6 +254,7 @@ When the question is **"how does the user toggle / configure X?"**:
 | Paste an AI key without touching `.env` | `/settings` AI engine tab → the key row on each engine card, or step 1 of `/welcome` (ADR 0027) |
 | Add / remove tracked company | `/companies` (with manual probe before save) |
 | Bulk-add a curated segment of companies | `/companies` → "Add a starter pack" (preview → confirm → added disabled → "Enable all") |
+| Get the DOU / Djinni / Arbeitnow feeds a search's countries call for | `/companies` → "Sources for your searches" (shown when a running search names UA, DE, AT, CH or GB; Add (off) probes first, then the row's toggle enables it) |
 | Disable whole ATS family (e.g. all Workable) | `/settings` Sources tab |
 | Enable two-stage classifier (cheaper, less precise) | `/settings` AI engine tab → "Classifier" |
 | Edit profile (stack, role types, regions, fit threshold) | `/settings` Profile tab (excludes, notes, priority rules, thresholds live in its "Advanced" block) |
