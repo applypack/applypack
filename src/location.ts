@@ -196,11 +196,12 @@ function countryHit(code: string, hit: PlaceHit | undefined): PlaceHit | undefin
 }
 
 /**
- * A segment that is exactly two capital letters. After "Remote" it is a
- * country ("Remote (US)", "Remote · DE"). After a place it is that place's
- * subdivision when the place is known ("Kyiv, UA" stays Ukraine,
- * "Indianapolis, IN" stays Indiana); after an unknown word a US state wins
- * ("Wilmington, DE"), then the ISO country ("Delft, NL"), then a province.
+ * A segment that is exactly two capital letters. After a known city it is
+ * that city's country or state ("Kyiv, UA" stays Ukraine, "Indianapolis, IN"
+ * stays Indiana, "Birmingham, AL" becomes Alabama's city); after an unknown
+ * word a US state wins ("Wilmington, DE"), then the ISO country ("Delft,
+ * NL"), then a province. Anywhere else — after "Remote", after another code
+ * or a region — it is a country ("Remote · DE", "US, CA, GB", "Europe, DE").
  */
 function readBareCode(result: SegmentResult, code: string, previous: SegmentResult | null): void {
   const hit = PLACE_ALIASES.get(code.toLowerCase());
@@ -208,20 +209,21 @@ function readBareCode(result: SegmentResult, code: string, previous: SegmentResu
 
   const stateOf = SUBDIVISION_CODES.get(code) ?? null;
   const country = countryHit(code, hit)?.code ?? null;
-  const placeCountry = previous && !previous.marker ? (previous.countries[0] ?? null) : null;
+  const cityCountry = previous?.city ? (previous.countries[0] ?? null) : null;
+  const unknownWord = previous !== null && !previous.marker && previous.countries.length === 0 && previous.regions.length === 0;
 
   let resolved: string | null;
-  if (placeCountry === null) {
-    resolved = previous && !previous.marker && stateOf === 'US' ? 'US' : (country ?? stateOf);
-  } else if (placeCountry === code || placeCountry === country) {
-    resolved = placeCountry;
-  } else if (stateOf === placeCountry) {
-    resolved = stateOf;
-  } else if (stateOf && previous?.city) {
-    resolved = stateOf;
-    result.dropsPrevious = true;
+  if (cityCountry !== null) {
+    if (cityCountry === country) resolved = country;
+    else if (stateOf === cityCountry) resolved = stateOf;
+    else if (stateOf) {
+      resolved = stateOf;
+      result.dropsPrevious = true;
+    } else resolved = country;
+  } else if (unknownWord && stateOf === 'US') {
+    resolved = 'US';
   } else {
-    resolved = country;
+    resolved = country ?? stateOf;
   }
   if (resolved) push(result.countries, resolved);
 }
