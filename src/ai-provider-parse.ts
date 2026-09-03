@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { AiProviderId } from './ai-engine';
+import { maskToken } from './text-utils';
 
 /**
  * Shape of `claude -p --output-format json`. Only the fields we act on are
@@ -23,6 +24,29 @@ export interface CliOutcome {
 
 const RATE_LIMIT_STATUS = 429;
 const RATE_LIMIT_PATTERN = /rate.?limit|usage limit|overloaded|resource.?exhausted|quota/i;
+
+const MAX_FAILURE_REASON = 200;
+// Anything shaped like a credential. A CLI writes whatever it likes to
+// stderr, so the reason is scrubbed before it can reach a flash message.
+const KEY_SHAPED = /\b(?:sk-[A-Za-z0-9._-]{8,}|AIza[A-Za-z0-9._-]{10,})\b/g;
+
+/**
+ * One-line, browser-safe rendering of a provider failure: masks credentials,
+ * collapses whitespace and caps the length. ADR 0027 keeps keys out of the
+ * browser, and that must not depend on what a CLI happened to print.
+ */
+export function describeAiFailure(reason: string): string {
+  const oneLine = reason.replace(/\s+/g, ' ').trim();
+  if (oneLine.length === 0) return 'no reason reported';
+  const masked = oneLine.replace(KEY_SHAPED, maskToken);
+  const capped =
+    masked.length > MAX_FAILURE_REASON
+      ? `${masked.slice(0, MAX_FAILURE_REASON).trimEnd()}…`
+      : masked;
+  // The caller owns the sentence, so it owns the full stop too — provider
+  // messages usually end in one, and two in a row read like a typo.
+  return capped.replace(/\.+$/, '');
+}
 
 export function parseClaudeCodeOutput(raw: string): CliOutcome {
   let json: unknown;

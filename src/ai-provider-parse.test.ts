@@ -6,6 +6,7 @@ import {
   buildCodexCliArgs,
   buildGeminiCliArgs,
   CLI_PROVIDER_ENV_KEYS,
+  describeAiFailure,
   parseClaudeCodeOutput,
   parseCodexCliOutput,
   parseGeminiCliOutput,
@@ -225,4 +226,25 @@ test('option parsing ends before the prompt, which carries untrusted text', () =
   const args = buildClaudeCodeArgs({ system: 'S', user: '--anything-at-all', model: 'm' });
   assert.equal(args.at(-1), '--anything-at-all');
   assert.equal(args.at(-2), '--');
+});
+
+test('describeAiFailure keeps the API sentence on one line, without its full stop', () => {
+  const out = describeAiFailure('Your credit balance is too low\n  to access the API.');
+  assert.equal(out, 'Your credit balance is too low to access the API');
+});
+
+test('describeAiFailure masks anything key-shaped', () => {
+  const out = describeAiFailure('auth failed for sk-ant-api03-abcdefghijklmnop and AIzaSyABCDEFGHIJ');
+  assert.doesNotMatch(out, /sk-ant-api03-abcdefghijklmnop|AIzaSyABCDEFGHIJ/);
+  assert.match(out, /\*\*\*mnop/);
+});
+
+test('describeAiFailure caps a runaway stderr dump', () => {
+  const out = describeAiFailure('x'.repeat(5_000));
+  assert.ok(out.length <= 201, `length was ${out.length}`);
+  assert.ok(out.endsWith('…'));
+});
+
+test('describeAiFailure never renders an empty message', () => {
+  assert.equal(describeAiFailure('   \n  '), 'no reason reported');
 });
