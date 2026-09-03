@@ -115,8 +115,10 @@
     { "name": "Skylum", "segment": "ua-friendly", "atsType": "BAMBOOHR", "atsToken": "skylum" },
     { "name": "Lemon.io", "segment": "ua-friendly", "atsType": "BAMBOOHR", "atsToken": "lemonio" },
     { "name": "Namecheap", "segment": "ua-friendly", "atsType": "RECRUITEE", "atsToken": "namecheap" },
-    { "name": "Sigma Software", "segment": "ua-friendly", "atsType": "SMARTRECRUITERS", "atsToken": "sigmasoftware" },
     { "name": "Gcore", "segment": "ua-friendly", "atsType": "SMARTRECRUITERS", "atsToken": "gcore" },
-    { "name": "Wirex", "segment": "ua-friendly", "atsType": "BAMBOOHR", "atsToken": "wirex" }
+    { "name": "Wirex", "segment": "ua-friendly", "atsType": "BAMBOOHR", "atsToken": "wirex" },
+    { "name": "N-iX", "segment": "ua-friendly", "atsType": "GREENHOUSE", "atsToken": "nix" },
+    { "name": "Ajax Systems", "segment": "ua-friendly", "atsType": "LEVER", "atsToken": "ajax" },
+    { "name": "Genesis", "segment": "ua-friendly", "atsType": "BREEZY", "atsToken": "gen-tech" }
   ]
 }
