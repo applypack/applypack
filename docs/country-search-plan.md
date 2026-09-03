@@ -592,6 +592,10 @@ adopted or rejected.
   categories — "Fullstack", not "Full Stack"; no "React")*
 - Starter pack "UA-friendly remote": add N-iX, Ajax Systems, Genesis;
   re-probe the eleven existing entries; drop or replace `sigmasoftware`.
+  *(done: v1.32.0 — all eleven re-probed live, Sigma Software dropped (one
+  legacy posting), the three added with their boards' own name fields
+  checked: "N-iX", company "Genesis", "Ajax Systems" in every description;
+  Namecheap answers an empty board and is kept)*
 - Docs line on DOU terms (self-hosted personal use, link-back kept).
 
 **3c — European boards without a key**

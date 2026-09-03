@@ -59,7 +59,7 @@ roadmap item.
 
 | | |
 | --- | --- |
-| 🔭 **22 source integrations, checked hourly** | The number counts *kinds* of board, not companies: ten ATS vendors — Greenhouse, Lever, Ashby, Workable, SmartRecruiters, Recruitee, Breezy, BambooHR, Pinpoint, Rippling — on as many companies as you care to add, plus 11 cross-company aggregators and the monthly HN "Who is hiring" thread. Curated **starter packs** add a whole segment of companies at once |
+| 🔭 **24 source integrations, checked hourly** | The number counts *kinds* of board, not companies: ten ATS vendors — Greenhouse, Lever, Ashby, Workable, SmartRecruiters, Recruitee, Breezy, BambooHR, Pinpoint, Rippling — on as many companies as you care to add, plus 13 cross-company aggregators (DOU and Djinni for Ukraine among them) and the monthly HN "Who is hiring" thread. Curated **starter packs** add a whole segment of companies at once |
 | 🚀 **A guided first run** | `/welcome` walks a first install through connecting an AI, proving the search works, turning a resume into a profile, and scoring the first matches — four clicks and one file pick |
 | 🎯 **Several searches at once** | Backend and QA, or contract and full-time: each search has its own stack, thresholds, resume and Telegram chat, and up to eight run in parallel. One AI call per posting scores all of them, so a second direction costs almost nothing |
 | 🧠 **A classifier with strict rules** | AI reads the full description against your stack, role types, seniority, regions and salary floor. "Full-stack" in a title is not a tech match, and "Remote · Germany" is not a US-remote job |

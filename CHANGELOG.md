@@ -4,6 +4,20 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.32.0] — 2026-09-03
+
+### Changed
+- **The "UA-friendly remote" starter pack was re-probed and refreshed**
+  (stage 3b, plan §4.2). Every board was hit live: Preply 104 postings,
+  Solidgate 54, MacPaw 18, Gcore 13, Restream 8, Wirex 6, Skylum 4, Lemon.io
+  2, Reface 1, Namecheap 0 (an empty board, kept — the board is real). Sigma
+  Software's SmartRecruiters board holds one legacy posting since the company
+  moved hiring to its own site, so it leaves the pack (ADR 0017: a legacy
+  board is not shipped). Three Ukrainian employers join, each identified by
+  the board's own name field: N-iX (Greenhouse `nix`, 121 postings, 53 in
+  Ukraine), Ajax Systems (Lever `ajax`, 201, 112 in Ukraine), Genesis
+  (Breezy `gen-tech`, 85, 77 in Ukraine). Thirteen entries now.
+
 ## [1.31.0] — 2026-09-03
 
 ### Added
