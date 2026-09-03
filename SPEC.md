@@ -71,7 +71,9 @@ Per-tick flow inside `runFetchJob`:
 runAllFetchers()         filter by Company.active and AppSettings.disabledSources
    ↓
 NormalizedJob[]          unified shape (companyId, externalId, title, location, …)
-                         + locationHints where the feed has structured geodata (ADR 0031)
+                         + locationHints where the feed has structured geodata (ADR 0031);
+                         geo-filtered sources (Jobicy) read the FetchContext — the union of the
+                         running searches' countries + regions — instead of the whole feed
    ↓
 passesAnyBaseFilter()    admit if ANY running search admits it (title contains its
                          stackRequired OR roleTypes; its stackExclude rejects)

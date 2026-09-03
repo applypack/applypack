@@ -546,9 +546,14 @@ adopted or rejected.
 
 **3a — use the geodata we already receive** (no new source)
 - WWR: register `region` and `country` in `customFields`; `country` is the
-  allow-list, `region` the coarse label.
-- Jobicy: one Company row per `geo` slug the user's countries map to
-  (`JOBICY` / `atsToken = "poland"`), RSS with `industry=engineering`.
+  allow-list, `region` the coarse label. *(done in stage 1)*
+- Jobicy: ~~one Company row per `geo` slug~~ — amended 2026-09-03: the one
+  Jobicy row follows the running searches. `runAllFetchers` builds a
+  `FetchContext` (union of the active searches' countries + regions) and the
+  fetcher reads one `geo=` feed per slug it maps to, merged by guid. One row
+  per slug would have stored the same posting under several company ids
+  (the `(companyId, externalId)` key), and a hand-edited token is a hidden
+  setting the plan's own ground rules forbid. *(done: v1.26.0)*
 - Himalayas: switch to `/jobs/api/search?country=…&exclude_worldwide=true`
   per profile country, plus one `worldwide=true` row.
 - 4dayweek: `country=` from profile countries, `work_arrangement` hint.
