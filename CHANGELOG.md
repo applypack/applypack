@@ -4,6 +4,23 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.26.0] — 2026-09-03
+
+### Added
+- **Jobicy follows the searches.** The fetcher used to read one unfiltered
+  feed (~200 rows, 58 of them US-only). It now reads one `geo=` feed per
+  place the running searches hunt in — a PL + DE + EU search pulls
+  `poland`, `germany` and `europe` — and keeps a posting listed in several
+  of them once. Jobicy's `geo` has eligibility semantics (`poland` also
+  returns Europe / EMEA / Anywhere rows), so nothing a search could want is
+  lost, and the US-only rows a European search never wanted stop arriving.
+  A search that hunts anywhere, or a place Jobicy has no slug for, falls
+  back to the whole feed. Verified live: an unknown slug returns an EMPTY
+  feed, which is why only the 13 slugs the API echoed back are ever sent.
+- Every fetcher now receives the searches' places (`FetchContext`, the
+  union of the active non-blank profiles' countries and regions, built once
+  per tick); sources without a geo filter ignore it. Plan §4.2, stage 3a.
+
 ## [1.25.0] — 2026-09-03
 
 ### Added

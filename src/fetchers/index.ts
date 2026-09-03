@@ -3,6 +3,9 @@ import { prisma } from '../db';
 import { logger } from '../logger';
 import { sleep } from '../http';
 import { getSettings, toAtsTypes } from '../settings';
+import { listActiveProfiles } from '../profiles';
+import { isBlankProfile } from '../profile-guards';
+import { EMPTY_CONTEXT, searchPlaces, type FetchContext } from './fetch-context';
 import {
   QUIET_STREAK,
   classifyFetchCount,
@@ -68,6 +71,14 @@ export async function runAllFetchers(
     orderBy: { id: 'asc' },
   });
 
+  // Where the running searches hunt (stage 3a): sources with a geo filter
+  // ask for these places instead of the whole world. Blank searches are
+  // left out here as they are in process-jobs — they gate on nothing.
+  const context = searchPlaces((await listActiveProfiles()).filter((p) => !isBlankProfile(p)));
+  if (context.countries.length > 0 || context.regions.length > 0) {
+    logger.info(context, 'fetchers: geo-filtered sources follow the searches');
+  }
+
   const out: FetcherResult[] = [];
   let done = 0;
 
@@ -83,7 +94,7 @@ export async function runAllFetchers(
     let status: FetchStatus;
     let count = 0;
     try {
-      const jobs = await fetchOne(company);
+      const jobs = await fetchOne(company, context);
       count = jobs.length;
       // Status comes from the RAW count, before passesBaseFilter — a profile
       // that matches nothing is not a broken board (ADR 0019).
@@ -140,11 +151,10 @@ async function recordFetchHealth(
   }
 }
 
-export async function fetchOne(company: {
-  id: number;
-  atsType: AtsType;
-  atsToken: string;
-}): Promise<NormalizedJob[]> {
+export async function fetchOne(
+  company: { id: number; atsType: AtsType; atsToken: string },
+  context: FetchContext = EMPTY_CONTEXT,
+): Promise<NormalizedJob[]> {
   switch (company.atsType) {
     case AtsType.GREENHOUSE:
       return fetchGreenhouse({ id: company.id, atsToken: company.atsToken });
@@ -177,7 +187,7 @@ export async function fetchOne(company: {
     case AtsType.GOLANGPROJECTS:
       return fetchGolangProjects(company.id);
     case AtsType.JOBICY:
-      return fetchJobicy(company.id);
+      return fetchJobicy(company.id, context);
     case AtsType.HN_JOBS:
       return fetchHnJobs(company.id);
     case AtsType.WORKINGNOMADS:
