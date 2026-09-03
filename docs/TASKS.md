@@ -1101,3 +1101,49 @@ Owner items left open by the branch:
 - [ ] GitHub About text and social preview from the new
       `docs/brand/social-card.png`.
 - [ ] Read Cloudflare Web Analytics for a before/after baseline.
+
+---
+
+## 15. Country-aware search: Europe + Ukraine (analysis 2026-09-03, nothing built)
+
+Full plan with the facts, the target model, a mandatory pre-work analysis
+checklist per stage, step lists, verification matrices and the verified
+source register: [docs/country-search-plan.md](./country-search-plan.md).
+Every stage starts with its analysis note in the PR body — no branch before
+the note.
+
+**Facts established (don't re-derive):** 949 of 1 035 verdicts are
+`location mismatch` because both profiles are US / Americas; 151 European
+rows are already stored; `Job.location` is one string; the profile knows six
+regions and no country; the classifier's location rules are written for a
+"US-based search"; WWR's ISO `<country>` list is thrown away; Arbeitnow is
+seeded inactive. Sources verified 2026-09-03 with robots.txt are in the plan
+(§0.5) and the ADR 0005 register.
+
+- [ ] **Stage 1 `location-model`** — `src/countries.json` + `src/countries.ts`
+      + `src/location.ts` (pure, trap tests), `Job.workplace / countries /
+      regions / locationSource`, `locationHints` from fetchers (WWR
+      `region` + `country` first), `backfill-locations.ts --dry-run`, `/jobs`
+      country / workplace / date facets, `q` on location, chips on the job
+      page, ADR 0031. No prompt change, no verdict moves.
+- [ ] **Stage 2 `profile-countries`** — `Profile.countries / regions /
+      workplace` with a data migration that retires `remoteRegions`,
+      `remoteOk`, `hybridOk`; one typeahead control (flags + group chips) in
+      settings, welcome and fill-from-resume; `filter.ts` on sets; prompt
+      rewritten without "US-based"; shared `location` block in the
+      classifier output; mismatch reason on the job page.
+- [ ] **Stage 3 sources** (one PR + tag per source, acceptance checklist in
+      feature-expansion-plan §0.3): 3a use existing geodata (WWR, Jobicy
+      `geo`, Himalayas search, 4dayweek `country`, Arbeitnow on + paginated);
+      3b Ukraine (DOU RSS, Djinni RSS, UA-friendly pack + N-iX / Ajax /
+      Genesis, re-probe `sigmasoftware`); 3c EU boards (solid.jobs,
+      GermanTechJobs / DevITjobs, Landing.jobs Atom, JobTech); 3d EU ATS
+      types (Personio, Teamtailor; later Homerun, d.vinci); 3e keyed
+      (France Travail, Adzuna) only after the robots-vs-licence decision.
+- [ ] **Stage 4 `eligibility`** — `residence`, `relocation`, red flags
+      `no-visa-sponsorship` / `work-permit-required`, "Open to me" on
+      eligibility, Telegram flags; salary currencies as their own PR.
+- [ ] **Owner decisions before the stages that need them** (plan §6):
+      countries + groups; delete `remoteRegions`; `residence` in stage 2 or
+      4; robots vs licence for Adzuna / France Travail; source keys in the
+      database; JOIN's undocumented endpoint; salary currency design.
