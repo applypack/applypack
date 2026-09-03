@@ -1,9 +1,22 @@
 import { z } from 'zod';
-import { fetchWithRetry, stripHtml } from '../http';
+import { fetchWithRetry, sleep, stripHtml } from '../http';
+import { logger } from '../logger';
 import { hashShortId } from '../text-utils';
 import type { NormalizedJob } from '../types';
 
 const ENDPOINT = 'https://www.arbeitnow.com/api/job-board-api';
+// 175 rows a page, no total, `links.next` until the end (verified live
+// 2026-09-03). Three pages an hour is well inside "please do not abuse";
+// the base filter culls the rest by title before any AI call.
+const MAX_PAGES = 3;
+const PAGE_DELAY_MS = 1_000;
+
+/**
+ * The second Company row (stage 3a): `visa_sponsorship=true` is a server-side
+ * filter — the rows carry no visa field of their own — so it is a feed of
+ * its own, keyed by this token. Any other token is the plain board.
+ */
+export const VISA_TOKEN = 'visa';
 
 const ArbeitnowJobSchema = z
   .object({
@@ -26,15 +39,41 @@ type ArbeitnowJob = z.infer<typeof ArbeitnowJobSchema>;
 const ArbeitnowResponseSchema = z
   .object({
     data: z.array(z.unknown()),
+    links: z.object({ next: z.string().nullable().optional() }).passthrough().optional(),
   })
   .passthrough();
 
-export async function fetchArbeitnow(companyId: number): Promise<NormalizedJob[]> {
-  // TODO(phase-4): paginate via response.links.next; current call returns
-  // ~100 jobs (page 1) which is enough for now.
-  const resp = await fetchWithRetry(ENDPOINT);
-  const raw: unknown = await resp.json();
-  return mapArbeitnowFeed(raw, companyId);
+export interface ArbeitnowCompany {
+  id: number;
+  /** `visa` for the sponsorship feed; anything else is the plain board. */
+  atsToken: string;
+}
+
+export async function fetchArbeitnow(company: ArbeitnowCompany): Promise<NormalizedJob[]> {
+  const out = new Map<string, NormalizedJob>();
+  let url: string | null = arbeitnowUrl(company.atsToken);
+  for (let page = 1; url && page <= MAX_PAGES; page++) {
+    if (page > 1) await sleep(PAGE_DELAY_MS);
+    const resp = await fetchWithRetry(url);
+    const raw: unknown = await resp.json();
+    for (const job of mapArbeitnowFeed(raw, company.id)) {
+      if (!out.has(job.externalId)) out.set(job.externalId, job);
+    }
+    url = nextPageUrl(raw);
+    logger.debug({ page, rows: out.size, next: url }, 'arbeitnow: page read');
+  }
+  return [...out.values()];
+}
+
+export function arbeitnowUrl(token: string): string {
+  return token === VISA_TOKEN ? `${ENDPOINT}?visa_sponsorship=true` : ENDPOINT;
+}
+
+/** The API's own next link, followed only when it stays on the board's host. */
+export function nextPageUrl(raw: unknown): string | null {
+  const top = ArbeitnowResponseSchema.safeParse(raw);
+  const next = top.success ? top.data.links?.next : null;
+  return next && next.startsWith(`${ENDPOINT}?`) ? next : null;
 }
 
 export function mapArbeitnowFeed(raw: unknown, companyId: number): NormalizedJob[] {

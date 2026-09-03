@@ -169,7 +169,7 @@ export async function fetchOne(
     case AtsType.REMOTIVE:
       return fetchRemotive(company.id);
     case AtsType.ARBEITNOW:
-      return fetchArbeitnow(company.id);
+      return fetchArbeitnow({ id: company.id, atsToken: company.atsToken });
     case AtsType.HN_HIRING:
       return fetchHnHiring(company.id);
     case AtsType.WORKABLE:

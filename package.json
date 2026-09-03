@@ -1,6 +1,6 @@
 {
   "name": "applypack",
-  "version": "1.28.0",
+  "version": "1.29.0",
   "private": true,
   "description": "Self-hosted AI console for the whole job search: finds the postings, checks they're real, scores your resume without flattering it, drafts the cover letter, tracks the application. 22 sources, 5 swappable AI backends, your data in your own Postgres.",
   "license": "MIT",

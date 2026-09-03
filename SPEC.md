@@ -72,8 +72,8 @@ runAllFetchers()         filter by Company.active and AppSettings.disabledSource
    ↓
 NormalizedJob[]          unified shape (companyId, externalId, title, location, …)
                          + locationHints where the feed has structured geodata (ADR 0031);
-                         geo-filtered sources (Jobicy) read the FetchContext — the union of the
-                         running searches' countries + regions — instead of the whole feed
+                         geo-filtered sources (Jobicy, Himalayas, 4dayweek) read the FetchContext —
+                         the union of the running searches' countries + regions — instead of the whole feed
    ↓
 passesAnyBaseFilter()    admit if ANY running search admits it (title contains its
                          stackRequired OR roleTypes; its stackExclude rejects)

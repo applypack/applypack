@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { mapArbeitnowFeed } from './arbeitnow';
+import { arbeitnowUrl, mapArbeitnowFeed, nextPageUrl } from './arbeitnow';
 
 describe('mapArbeitnowFeed', () => {
   it('parses a typical data payload', () => {
@@ -129,5 +129,23 @@ describe('mapArbeitnowFeed — location hints (ADR 0031)', () => {
     );
     assert.deepEqual(out[0]?.locationHints, { workplace: 'REMOTE' });
     assert.deepEqual(out[1]?.locationHints, { workplace: 'UNKNOWN' });
+  });
+});
+
+describe('arbeitnow pagination and the visa feed (stage 3a)', () => {
+  it('the visa token selects the sponsorship feed; any other token the plain board', () => {
+    assert.equal(arbeitnowUrl('visa'), 'https://www.arbeitnow.com/api/job-board-api?visa_sponsorship=true');
+    assert.equal(arbeitnowUrl('arbeitnow'), 'https://www.arbeitnow.com/api/job-board-api');
+  });
+
+  it("follows the API's next link only on its own host", () => {
+    assert.equal(
+      nextPageUrl({ data: [], links: { next: 'https://www.arbeitnow.com/api/job-board-api?page=2' } }),
+      'https://www.arbeitnow.com/api/job-board-api?page=2',
+    );
+    assert.equal(nextPageUrl({ data: [], links: { next: 'https://evil.example/api/job-board-api?page=2' } }), null);
+    assert.equal(nextPageUrl({ data: [], links: { next: null } }), null);
+    assert.equal(nextPageUrl({ data: [] }), null);
+    assert.equal(nextPageUrl('nonsense'), null);
   });
 });
