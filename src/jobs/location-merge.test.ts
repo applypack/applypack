@@ -44,6 +44,11 @@ describe('mergeAiLocation', () => {
 
   it('marks the source ai only when something changed', () => {
     assert.equal(mergeAiLocation(parsed(), { workplace: 'REMOTE', countries: ['US', 'CA'], regions: [] }).source, 'parsed');
-    assert.equal(mergeAiLocation(parsed({ regions: [] }), { workplace: 'REMOTE', countries: [], regions: ['AMERICAS'] }).source, 'ai');
+    assert.equal(mergeAiLocation(parsed({ countries: [] }), { workplace: 'REMOTE', countries: [], regions: ['AMERICAS'] }).source, 'ai');
+  });
+
+  it('ignores a region the model derives next to a parsed country', () => {
+    const out = mergeAiLocation(parsed({ countries: ['PL'] }), { workplace: 'REMOTE', countries: ['PL'], regions: ['EMEA'] });
+    assert.deepEqual(out, { workplace: 'REMOTE', countries: ['PL'], regions: [], source: 'parsed' });
   });
 });

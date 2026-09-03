@@ -309,7 +309,7 @@ Each search says where it hunts as codes: ISO countries (PL, DE, US, GB) and gro
 - Region-locked remote ("EU only", "Europe", "EMEA", "US time zones") → true only for a search that lists that region, a country inside it, or WORLDWIDE. EU is law and EUROPE is geography: an EU work-right requirement fails a GB or UA search even when that search lists EUROPE.
 - Worldwide / "anywhere" / "we hire globally" with no restriction → true for every search that accepts remote.
 - A bare "Remote" with no country anywhere in the posting → true only for a search that accepts any place; otherwise false.
-- Hybrid / on-site roles → true only for a search that accepts that arrangement AND names the office's city, or the office's country (or a containing group) when it lists no cities. Never infer remote eligibility from an office address.
+- Hybrid / on-site roles → true only for a search that accepts that arrangement AND lists the office's city, its country, or a group containing it (a listed city adds to the countries, it never narrows them). Never infer remote eligibility from an office address.
 - Several offices or arrangements → judge by the softest one named.
 - When in doubt, default to location_match = false.
 

@@ -220,6 +220,7 @@ test('location rules are generic: codes and groups, no US-based wording (ADR 003
   assert.doesNotMatch(system, /US-based/);
   assert.match(system, /EU is law and EUROPE is geography/);
   assert.match(system, /Never infer remote eligibility from an office address/);
+  assert.match(system, /a listed city adds to the countries, it never narrows them/);
   assert.match(system, /When in doubt, default to location_match = false/);
   assert.match(system, /"location": \{/);
   assert.equal(system.split('CRITICAL — LOCATION MATCHING').length - 1, 1);

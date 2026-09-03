@@ -26,7 +26,9 @@ export interface StoredPlace {
  *   - an arrangement where the parser had UNKNOWN;
  *   - countries where the parser had none, or a strict subset of the
  *     parser's list (the description narrowed a multi-country line);
- *   - regions where the parser had none.
+ *   - regions only where the parser found no place at all — a region next
+ *     to a parsed country would be the model's derivation (PL → EMEA), and
+ *     ADR 0031 keeps `regions` to markers the posting itself names.
  * Anything else keeps the parser's reading. `source` becomes 'ai' when the
  * model changed something, so a later re-parse knows not to overwrite it.
  */
@@ -35,7 +37,8 @@ export function mergeAiLocation(parsed: StoredPlace, ai: AiPlace | null): Stored
 
   const workplace = parsed.workplace === 'UNKNOWN' && ai.workplace !== 'UNKNOWN' ? ai.workplace : parsed.workplace;
   const countries = narrower(parsed.countries, ai.countries);
-  const regions = parsed.regions.length === 0 && ai.regions.length > 0 ? ai.regions : parsed.regions;
+  const nothingParsed = parsed.countries.length === 0 && parsed.regions.length === 0;
+  const regions = nothingParsed && ai.regions.length > 0 ? ai.regions : parsed.regions;
 
   const changed =
     workplace !== parsed.workplace || countries !== parsed.countries || regions !== parsed.regions;
