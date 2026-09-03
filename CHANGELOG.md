@@ -4,6 +4,19 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.36.0] — 2026-09-03
+
+### Added
+- **Landing.jobs** (plan §4.2, stage 3c): the Portuguese tech board's Atom
+  feed as a source — city, country and remote policy from the feed's own
+  fields (Full remote → remote, Partial remote → hybrid), the company from
+  the author, salary and expiry kept in the description. Seeded switched
+  off; "Sources for your searches" offers it to a search that names
+  Portugal.
+
+### Schema
+- `AtsType.LANDINGJOBS` (migration `20260903230000_add_landingjobs`).
+
 ## [1.35.0] — 2026-09-03
 
 ### Added

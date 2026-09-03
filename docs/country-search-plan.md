@@ -621,6 +621,12 @@ adopted or rejected.
   a restart costs one full read; three seeded rows off, each offered to a
   search that names its country)*
 - `LANDINGJOBS`: Atom feed only; `lj:country`, `lj:remote_policy` hints.
+  *(done: v1.36.0 — 55 entries on 2026-09-03 (Portugal 49, Brazil 3,
+  Germany 2, Poland 1; "Partial remote" 43, "Full remote" 12), every one
+  with `lj:city` / `lj:country` / `lj:remote_policy`, salary and expiry
+  when the posting has them; the feed answers 304 to its ETag but at
+  294 KB it is read plainly each tick; seeded off, offered to a search
+  that names PT)*
 - `JOBTECH` (SE): JSON search with `published-after` = last tick;
   `workplace_address.country_code`, `workplace_model` hints; Swedish text is
   fine for the classifier, note it for resume matching.

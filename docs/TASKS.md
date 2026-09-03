@@ -1145,7 +1145,7 @@ seeded inactive. Sources verified 2026-09-03 with robots.txt are in the plan
       UA-friendly pack refreshed v1.32.0: + N-iX / Ajax / Genesis,
       `sigmasoftware` dropped); §4.3 "Sources for your searches" card —
       **done** v1.33.0; 3c EU boards (solid.jobs **done** v1.34.0,
-      DevITjobs family **done** v1.35.0,
+      DevITjobs family **done** v1.35.0, Landing.jobs **done** v1.36.0,
       GermanTechJobs / DevITjobs, Landing.jobs Atom, JobTech); 3d EU ATS
       types (Personio, Teamtailor; later Homerun, d.vinci); 3e keyed
       (France Travail, Adzuna) only after the robots-vs-licence decision.
