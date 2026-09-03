@@ -157,6 +157,7 @@ const PROBEABLE_ATS: AtsType[] = [
   AtsType.RIPPLING,
   AtsType.DOU,
   AtsType.DJINNI,
+  AtsType.JOBTECH,
 ];
 
 const AGGREGATORS = ['LARAJOBS', 'REMOTEOK', 'REMOTIVE', 'JOBICY', 'WEWORKREMOTELY', 'HN_HIRING'];
@@ -259,9 +260,10 @@ export const CompaniesPage: FC<CompaniesProps> = ({
       <Hint class="mb-4">
         We probe the public ATS endpoint before saving and refuse invalid tokens. Aggregator
         feeds have no per-company token — those are seeded once via <Code>src/seed.ts</Code>.
-        DOU and Djinni take a feed query instead of a slug: <Code>category=PHP&amp;remote</Code>,{' '}
+        DOU, Djinni and JobTech take a feed query instead of a slug: <Code>category=PHP&amp;remote</Code>,{' '}
         <Code>search=laravel</Code>, <Code>city=Львів</Code>;{' '}
-        <Code>primary_keyword=PHP&amp;employment=remote&amp;region=UKR</Code>.
+        <Code>primary_keyword=PHP&amp;employment=remote&amp;region=UKR</Code>;{' '}
+        <Code>occupation-field=apaJ_2ja_LuF</Code>, <Code>q=php&amp;remote=true</Code>.
       </Hint>
       <form
         method="post"

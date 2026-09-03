@@ -4,6 +4,20 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.37.0] — 2026-09-03
+
+### Added
+- **JobTech JobSearch** (plan §4.2, stage 3c): Arbetsförmedlingen's open API
+  over every job ad in Sweden as a source. The token is the search filter
+  (the seeded row is the Data/IT field); each tick reads the ads published
+  in the last 24 hours, newest first, with the municipality and country
+  from the ad, the employer, the deadline and the plain-text description.
+  Seeded switched off; "Sources for your searches" offers it to a search
+  that names Sweden or the Nordics. Stage 3c is complete.
+
+### Schema
+- `AtsType.JOBTECH` (migration `20260903233000_add_jobtech`).
+
 ## [1.36.0] — 2026-09-03
 
 ### Added

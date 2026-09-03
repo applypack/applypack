@@ -72,6 +72,14 @@ describe('suggestSources', () => {
     assert.equal(suggestSources([{ ...php, countries: ['ES'], regions: ['EU'] }], []).length, 0);
   });
 
+  it('offers the JobTech Data/IT row for a search that names Sweden or the Nordics', () => {
+    assert.deepEqual(
+      suggestSources([{ ...php, countries: ['SE'], regions: [] }], []).map((s) => [s.atsType, s.atsToken, s.reason]),
+      [['JOBTECH', 'occupation-field=apaJ_2ja_LuF', '🇸🇪 Sweden in "PHP/Laravel"']],
+    );
+    assert.equal(suggestSources([{ ...php, countries: [], regions: ['NORDICS'] }], []).length, 1);
+  });
+
   it('offers the DevITjobs site of the country a search names', () => {
     const uk = suggestSources([{ ...php, countries: ['GB'], regions: [] }], []);
     assert.deepEqual(uk.map((s) => [s.atsType, s.atsToken, s.reason]).filter((r) => r[0] === 'DEVITJOBS'), [

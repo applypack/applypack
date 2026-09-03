@@ -336,6 +336,18 @@ const SEED_COMPANIES: SeedCompany[] = [
     active: false,
   },
 
+  // JobTech JobSearch (stage 3c, plan §4.2): Arbetsförmedlingen's open API
+  // over every ad in Sweden, CC0. The token is the search filter string;
+  // this row is the Data/IT field, ~140 ads a day. Off until a search hunts
+  // in Sweden.
+  {
+    name: 'JobTech · Data/IT, Sweden',
+    atsType: AtsType.JOBTECH,
+    atsToken: 'occupation-field=apaJ_2ja_LuF',
+    careerUrl: 'https://arbetsformedlingen.se/platsbanken/annonser?q=&occupation-field=apaJ_2ja_LuF',
+    active: false,
+  },
+
   // Himalayas — free no-auth JSON API, 20 newest cross-company postings
   // per call across ALL categories (tech + Legal/Sales/…; base filter
   // culls). Carries structured salary + seniority that we fold into the

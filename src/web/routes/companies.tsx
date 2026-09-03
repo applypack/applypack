@@ -47,6 +47,7 @@ const NewCompanySchema = z.object({
     AtsType.RIPPLING,
     AtsType.DOU,
     AtsType.DJINNI,
+    AtsType.JOBTECH,
   ] as const),
   atsToken: z.string().min(1).max(120),
   careerUrl: z.string().url().optional().or(z.literal('')),

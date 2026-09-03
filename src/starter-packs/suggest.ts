@@ -5,7 +5,7 @@ import type { WorkplaceCode } from '../location';
  * a search's places and stack call for — DOU and Djinni rows for Ukraine,
  * the Arbeitnow rows for the German-speaking and British markets, solid.jobs
  * for Poland, the DevITjobs site of Germany, the UK or the Netherlands,
- * Landing.jobs for Portugal. Pure: the
+ * Landing.jobs for Portugal, JobTech for Sweden. Pure: the
  * route hands in the running searches and the rows already tracked, gets
  * back what to offer and in which state. The aggregators that follow the
  * searches by themselves (Jobicy, Himalayas, 4dayweek) need no suggestion.
@@ -28,7 +28,7 @@ export interface TrackedRow {
 
 export interface SourceSuggestion {
   name: string;
-  atsType: 'DOU' | 'DJINNI' | 'ARBEITNOW' | 'SOLIDJOBS' | 'DEVITJOBS' | 'LANDINGJOBS';
+  atsType: 'DOU' | 'DJINNI' | 'ARBEITNOW' | 'SOLIDJOBS' | 'DEVITJOBS' | 'LANDINGJOBS' | 'JOBTECH';
   atsToken: string;
   careerUrl: string;
   /** Which search asked for it, in plain words: "🇺🇦 Ukraine in "PHP/Laravel"". */
@@ -127,6 +127,15 @@ export function suggestSources(searches: readonly SuggestSearch[], tracked: read
         atsToken: 'landingjobs',
         careerUrl: 'https://landing.jobs',
         reason: `🇵🇹 Portugal in "${search.name}"`,
+      });
+    }
+    if (search.countries.includes('SE') || search.regions.includes('NORDICS')) {
+      offer({
+        name: 'JobTech · Data/IT, Sweden',
+        atsType: 'JOBTECH',
+        atsToken: 'occupation-field=apaJ_2ja_LuF',
+        careerUrl: 'https://arbetsformedlingen.se/platsbanken/annonser?q=&occupation-field=apaJ_2ja_LuF',
+        reason: `🇸🇪 Sweden in "${search.name}"`,
       });
     }
     for (const site of DEVITJOBS_SITES) {
