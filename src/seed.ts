@@ -324,6 +324,18 @@ const SEED_COMPANIES: SeedCompany[] = [
     active: false,
   },
 
+  // Landing.jobs (stage 3c, plan §4.2): the Portuguese tech board's Atom
+  // feed — city, country and remote policy in its own `lj:` fields. The
+  // JSON API is off-limits by robots (ADR 0005). Off until a search hunts
+  // in Portugal.
+  {
+    name: 'Landing.jobs',
+    atsType: AtsType.LANDINGJOBS,
+    atsToken: 'landingjobs',
+    careerUrl: 'https://landing.jobs',
+    active: false,
+  },
+
   // Himalayas — free no-auth JSON API, 20 newest cross-company postings
   // per call across ALL categories (tech + Legal/Sales/…; base filter
   // culls). Carries structured salary + seniority that we fold into the

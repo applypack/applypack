@@ -39,6 +39,7 @@ import { fetchDou } from './dou';
 import { fetchDjinni } from './djinni';
 import { fetchSolidJobs } from './solidjobs';
 import { fetchDevItJobs } from './devitjobs';
+import { fetchLandingJobs } from './landingjobs';
 import type { NormalizedJob } from '../types';
 
 const POLITE_DELAY_MS = 1_000;
@@ -218,6 +219,8 @@ export async function fetchOne(
       return fetchSolidJobs(company.id);
     case AtsType.DEVITJOBS:
       return fetchDevItJobs({ id: company.id, atsToken: company.atsToken });
+    case AtsType.LANDINGJOBS:
+      return fetchLandingJobs(company.id);
     case AtsType.MANUAL:
       // Pasted by hand on /jobs/new — nothing to fetch (and the row is inactive).
       return [];
