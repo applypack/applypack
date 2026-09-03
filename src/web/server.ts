@@ -21,6 +21,7 @@ import { factsRoute } from './routes/facts';
 import { keywordsRoute } from './routes/keywords';
 import { healthRoute } from './routes/health';
 import { welcomeRoute } from './routes/welcome';
+import { countriesRoute } from './routes/countries';
 
 const app = new Hono();
 
@@ -89,6 +90,7 @@ app.use('/static/*', serveStatic({ root: './src/web/public', rewriteRequestPath:
 
 app.route('/', overviewRoute);
 app.route('/', welcomeRoute);
+app.route('/', countriesRoute);
 app.route('/', jobsRoute);
 app.route('/', applicationsRoute);
 app.route('/', resumesRoute);
