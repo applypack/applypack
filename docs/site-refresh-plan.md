@@ -617,7 +617,14 @@ Appended by the implementing session; each line names the rule it follows.
   score meta line reserve their height so the demo's load does not shift
   the page (CLS 0.10 → 0).
 - **Local Lighthouse after the rebuild** (python http.server, so no
-  compression or edge cache): mobile 96 / desktop 95 performance, LCP 2.0 s
-  mobile, page weight 227 KiB against 488 before; the remaining audits are
-  server-side (text compression, cache lifetimes) and Cloudflare handles
-  them in production.
+  compression or edge cache): mobile 99 / desktop 100 performance,
+  accessibility 100, CLS 0, LCP 2.0 s mobile, page weight 162 KiB against
+  488 before; the remaining audits are server-side (text compression, cache
+  lifetimes) and Cloudflare handles them in production.
+- **Layout audit at 375 / 768 / 1440** (computed in the browser, not by
+  eye): no horizontal overflow at any width, two nav links and stacked
+  46 px buttons on the phone, the resume pane above the posting, a 16 px
+  editor so iOS does not zoom, one-column rows on the tablet, five-column
+  pipeline on the desktop. The full-page renders that Lighthouse captures
+  were the visual check, since the Browser pane only paints the first
+  viewport of this page.
