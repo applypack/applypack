@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { mapJobicyItem, type JobicyItem } from './jobicy';
+import { JOBICY_GEO, jobicyFeedUrl, jobicySlugsFor, mapJobicyItem, type JobicyItem } from './jobicy';
 
 const COMPANY_ID = 99;
 
@@ -128,5 +128,26 @@ describe('mapJobicyItem — location hints (ADR 0031)', () => {
     );
     assert.equal(job.location, 'Europe, Norway');
     assert.deepEqual(job.locationHints, { workplace: 'REMOTE' });
+  });
+});
+
+describe('jobicySlugsFor — the feeds a set of searches needs (stage 3a)', () => {
+  it('maps countries and groups to the slugs Jobicy knows, once each', () => {
+    assert.deepEqual(jobicySlugsFor({ countries: ['PL', 'DE', 'GB'], regions: ['EU', 'EUROPE'] }), ['poland', 'germany', 'uk', 'europe']);
+  });
+
+  it('drops places Jobicy has no slug for, and an empty context means the whole feed', () => {
+    assert.deepEqual(jobicySlugsFor({ countries: ['LT', 'PL'], regions: ['DACH'] }), ['poland']);
+    assert.deepEqual(jobicySlugsFor({ countries: [], regions: [] }), []);
+  });
+
+  it('builds the feed URL with and without a geo', () => {
+    assert.equal(jobicyFeedUrl('dev', null), 'https://jobicy.com/?feed=job_feed&job_categories=dev');
+    assert.equal(jobicyFeedUrl('dev', 'poland'), 'https://jobicy.com/?feed=job_feed&job_categories=dev&geo=poland');
+  });
+
+  it('every slug in the table is one the API echoed back on 2026-09-03', () => {
+    const verified = ['usa', 'canada', 'uk', 'germany', 'poland', 'ukraine', 'netherlands', 'spain', 'france', 'europe', 'emea', 'latam', 'apac'];
+    for (const slug of Object.values(JOBICY_GEO)) assert.ok(verified.includes(slug), slug);
   });
 });
