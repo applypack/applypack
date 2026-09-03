@@ -178,6 +178,17 @@ const SEED_COMPANIES: SeedCompany[] = [
     careerUrl: 'https://ats.rippling.com/rippling/jobs',
   },
 
+  // Personio (stage 3d, plan §4.2): the DACH mid-market ATS, public XML per
+  // slug. Holidu is the reference board (54 positions, Munich / Italy /
+  // Spain on 2026-09-03). Off until a search hunts in that market.
+  {
+    name: 'Holidu',
+    atsType: AtsType.PERSONIO,
+    atsToken: 'holidu',
+    careerUrl: 'https://holidu.jobs.personio.de',
+    active: false,
+  },
+
   // LaraJobs RSS — Laravel-only board, single feed under one synthetic
   // company. Enable when the active profile targets PHP/Laravel.
   {

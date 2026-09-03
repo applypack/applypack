@@ -302,6 +302,14 @@ describe('extractAtsToken', () => {
       { atsType: 'RIPPLING', atsToken: 'rippling' },
     );
     assert.deepEqual(
+      extractAtsToken('https://holidu.jobs.personio.de/job/2777239?language=en'),
+      { atsType: 'PERSONIO', atsToken: 'holidu' },
+    );
+    assert.deepEqual(
+      extractAtsToken('https://Ottonova.jobs.personio.com/'),
+      { atsType: 'PERSONIO', atsToken: 'ottonova' },
+    );
+    assert.deepEqual(
       extractAtsToken(
         'https://api.rippling.com/platform/api/ats/v1/board/acme/jobs',
       ),
