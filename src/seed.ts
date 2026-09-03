@@ -232,6 +232,16 @@ const SEED_COMPANIES: SeedCompany[] = [
     active: false,
   },
 
+  // Djinni (stage 3b) — one row per filter string; the location lives in the
+  // filter, so the row's name says it. Off until a search hunts in Ukraine.
+  {
+    name: 'Djinni · PHP, remote, Ukraine',
+    atsType: AtsType.DJINNI,
+    atsToken: 'primary_keyword=PHP&employment=remote&region=UKR',
+    careerUrl: 'https://djinni.co/jobs/?primary_keyword=PHP&employment=remote&region=UKR',
+    active: false,
+  },
+
   // HN /jobs — individual YC-job posts indexed by Algolia under
   // tags=job (separate from the monthly Who-is-hiring thread). Each
   // hit is a YC-portfolio company hiring continuously, with the post

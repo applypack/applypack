@@ -28,6 +28,7 @@ const SOURCE_NAMES: Record<string, string> = {
   RIPPLING: 'Rippling',
   FOURDAYWEEK: '4 Day Week',
   DOU: 'DOU',
+  DJINNI: 'Djinni',
   MANUAL: 'Manual',
 };
 
