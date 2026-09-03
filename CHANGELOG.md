@@ -4,6 +4,19 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.34.0] — 2026-09-03
+
+### Added
+- **solid.jobs** (plan §4.2, stage 3c): the Polish IT board's public offers
+  API as a source — three pages of 500 per tick, Polish cities, remote /
+  hybrid flags, PLN salary with the employment type and the skill list in
+  the description head, the PL country hint on every row. Seeded switched
+  off; "Sources for your searches" offers it to a search that names Poland
+  or the CEE group.
+
+### Schema
+- `AtsType.SOLIDJOBS` (migration `20260903210000_add_solidjobs`).
+
 ## [1.33.0] — 2026-09-03
 
 ### Added

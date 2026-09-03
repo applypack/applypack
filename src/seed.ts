@@ -288,6 +288,17 @@ const SEED_COMPANIES: SeedCompany[] = [
     careerUrl: 'https://4dayweek.io',
   },
 
+  // solid.jobs (stage 3c, plan §4.2): the Polish IT board's public offers
+  // API, ~1 500 offers with cities, remote / hybrid flags and PLN salaries.
+  // Off until a search hunts in Poland — /companies suggests it then.
+  {
+    name: 'solid.jobs',
+    atsType: AtsType.SOLIDJOBS,
+    atsToken: 'solidjobs',
+    careerUrl: 'https://solid.jobs',
+    active: false,
+  },
+
   // Himalayas — free no-auth JSON API, 20 newest cross-company postings
   // per call across ALL categories (tech + Legal/Sales/…; base filter
   // culls). Carries structured salary + seniority that we fold into the

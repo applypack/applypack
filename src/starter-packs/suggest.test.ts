@@ -4,7 +4,7 @@ import { suggestSources, type SuggestSearch } from './suggest';
 
 const php: SuggestSearch = {
   name: 'PHP/Laravel',
-  countries: ['UA', 'PL'],
+  countries: ['UA'],
   regions: ['EU'],
   workplace: ['REMOTE'],
   stackRequired: ['php', 'laravel', 'mysql'],
@@ -42,6 +42,14 @@ describe('suggestSources', () => {
       { id: 8, atsType: 'DJINNI', atsToken: 'primary_keyword=PHP&employment=remote&region=UKR', active: true },
     ]);
     assert.deepEqual(out.map((s) => [s.state, s.companyId]), [['off', 7], ['on', 8], ['missing', null]]);
+  });
+
+  it('offers solid.jobs for a search that names Poland or the CEE group', () => {
+    assert.deepEqual(
+      suggestSources([{ ...php, countries: ['PL'], regions: [] }], []).map((s) => [s.atsType, s.atsToken, s.reason]),
+      [['SOLIDJOBS', 'solidjobs', '🇵🇱 Poland in "PHP/Laravel"']],
+    );
+    assert.equal(suggestSources([{ ...php, countries: [], regions: ['CEE'] }], []).filter((s) => s.atsType === 'SOLIDJOBS').length, 1);
   });
 
   it('offers the two Arbeitnow rows for German-speaking and British searches', () => {

@@ -54,6 +54,7 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for diagrams.
 | WORKINGNOMADS      | aggregator    | none      | `/api/exposed_jobs/` JSON, ~30 most recent, mixed categories |
 | HIMALAYAS          | aggregator    | none      | `/jobs/api?limit=20` JSON (limit cap 20), all categories, salary folded into description |
 | FOURDAYWEEK        | aggregator    | none      | `4dayweek.io/api/v2/jobs?page=N` (the robots-allowed versioned API), 25/page, cap 3 pages; salary arrives in minor units (÷100) |
+| SOLIDJOBS          | aggregator    | none      | `solid.jobs/public-api/offers/IT?campaign=applypack&pageSize=500&pageIndex=N` (+ `X-Api-Version: 1.0`), cap 3 pages; Polish cities, `isRemote`/`isHybrid`, PLN salary + employment type + skills folded into the description; PL hint on every row; seeded off |
 
 **Hard exclusions** — never added regardless of demand:
 - LinkedIn / Indeed / Glassdoor (TOS, anti-bot, account ban risk)
