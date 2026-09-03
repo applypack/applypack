@@ -1,3 +1,5 @@
+import type { LocationHints } from './location';
+
 export interface NormalizedJob {
   companyId: number;
   externalId: string;
@@ -6,6 +8,12 @@ export interface NormalizedJob {
   location: string;
   description: string;
   postedAt: Date;
+  /**
+   * What the source said in structured fields (ISO codes, region codes, the
+   * arrangement) — ADR 0031. Filled only where a feed has such fields; the
+   * location parser reads the string for everything else.
+   */
+  locationHints?: LocationHints;
 }
 
 export interface ClaudeClassification {
