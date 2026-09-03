@@ -299,6 +299,31 @@ const SEED_COMPANIES: SeedCompany[] = [
     active: false,
   },
 
+  // The DevITjobs family (stage 3c, plan §4.2): one RSS feed per country
+  // site, the host is the token. Salary in every title, no city in the feed
+  // — the country is the site. Off until a search hunts there.
+  {
+    name: 'GermanTechJobs',
+    atsType: AtsType.DEVITJOBS,
+    atsToken: 'germantechjobs.de',
+    careerUrl: 'https://germantechjobs.de',
+    active: false,
+  },
+  {
+    name: 'DevITjobs UK',
+    atsType: AtsType.DEVITJOBS,
+    atsToken: 'devitjobs.uk',
+    careerUrl: 'https://devitjobs.uk',
+    active: false,
+  },
+  {
+    name: 'DevITjobs NL',
+    atsType: AtsType.DEVITJOBS,
+    atsToken: 'devitjobs.nl',
+    careerUrl: 'https://devitjobs.nl',
+    active: false,
+  },
+
   // Himalayas — free no-auth JSON API, 20 newest cross-company postings
   // per call across ALL categories (tech + Legal/Sales/…; base filter
   // culls). Carries structured salary + seniority that we fold into the
