@@ -4,6 +4,21 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.33.0] — 2026-09-03
+
+### Added
+- **Sources for your searches** (plan §4.3). Companies gets a card listing
+  the token-driven feeds the running searches' countries call for, built
+  from each search's stack: a search that names Ukraine gets DOU and Djinni
+  rows (`category=PHP&remote`, `primary_keyword=Laravel&employment=remote&region=UKR`),
+  a search that names Germany or the UK gets the two Arbeitnow rows. Each
+  row shows its state — Add (off), Enable, or On — and "Add" probes the feed
+  first, so a category the board does not know never becomes a silent empty
+  source; rows are added switched off, like a starter pack (ADR 0017).
+  Saving a search that has such feeds waiting says so in the flash. The
+  aggregators that already follow the searches (Jobicy, Himalayas,
+  4dayweek) need no suggestion and get none.
+
 ## [1.32.0] — 2026-09-03
 
 ### Changed

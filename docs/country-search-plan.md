@@ -641,6 +641,15 @@ This is the starter-pack flow (ADR 0017) reused, driven by a pure
 `src/starter-packs/`. Small countries on an hourly tick will often report
 `empty`; ADR 0019's two signals already handle that.
 
+*Done: v1.33.0 — `src/starter-packs/suggest.ts:suggestSources(searches,
+tracked)` and the "Sources for your searches" card on `/companies`. Amended
+against the text above: the card lives on Companies (where the rows are),
+the profile save only points at it; each row has one button for its state
+(Add off / Enable / On) instead of a preview step, because a suggestion is
+one known feed, not a list to resolve; and only the token-driven sources
+are suggested — Jobicy, Himalayas and 4dayweek follow the searches by
+themselves since 3a.*
+
 ### 4.4 Definition of done (per source)
 
 - Smoke run stores real rows with correct `countries` / `workplace` from
