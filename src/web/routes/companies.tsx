@@ -15,6 +15,9 @@ import {
   segments as packSegments,
 } from '../../starter-packs/catalog';
 import { resolvePack } from '../../starter-packs/probe';
+import { suggestSources, type SourceSuggestion } from '../../starter-packs/suggest';
+import { listActiveProfiles } from '../../profiles';
+import { isBlankProfile } from '../../profile-guards';
 import {
   boardUrl,
   buildPreview,
@@ -145,12 +148,51 @@ companiesRoute.get('/companies', async (c) => {
     <CompaniesPage
       companies={rows}
       packs={packs}
+      suggestions={await suggestedSources(companies)}
       flash={flash}
       fetchingEnabled={settings.fetchingEnabled}
     />,
     200,
     { 'Set-Cookie': clearFlashCookie() },
   );
+});
+
+// --- sources for the searches' countries (plan §4.3) -----------------------
+
+/** What the running searches' places and stacks call for, against the rows tracked. */
+async function suggestedSources(
+  tracked: readonly { id: number; atsType: string; atsToken: string; active: boolean }[],
+): Promise<SourceSuggestion[]> {
+  const searches = (await listActiveProfiles()).filter((p) => !isBlankProfile(p));
+  return suggestSources(searches, tracked);
+}
+
+const SuggestedAddSchema = z.object({ atsType: z.string(), atsToken: z.string().min(1).max(120) });
+
+/**
+ * Adds one suggested row, inactive like a pack import (ADR 0017). The pair is
+ * recomputed here and must be among today's suggestions — the browser
+ * round-trips it, so it is not trusted; and the feed is probed first, so a
+ * category the board does not know never becomes a silent empty source.
+ */
+companiesRoute.post('/companies/suggested', async (c) => {
+  const form = await c.req.parseBody();
+  const parsed = SuggestedAddSchema.safeParse({ atsType: form.atsType, atsToken: form.atsToken });
+  if (!parsed.success) return redirectWithFlash(c, 'err', 'Invalid form values.');
+  const tracked = await prisma.company.findMany({ select: { id: true, atsType: true, atsToken: true, active: true } });
+  const wanted = (await suggestedSources(tracked)).find(
+    (s) => s.atsType === parsed.data.atsType && s.atsToken === parsed.data.atsToken && s.state === 'missing',
+  );
+  if (!wanted) return redirectWithFlash(c, 'err', 'That source is not among today\'s suggestions.');
+
+  const probe = await probeAts(wanted.atsType, wanted.atsToken);
+  if (!probe.ok) return redirectWithFlash(c, 'err', `Probe failed: ${probe.error}`);
+
+  await prisma.company.create({
+    data: { name: wanted.name, atsType: wanted.atsType, atsToken: wanted.atsToken, careerUrl: wanted.careerUrl, active: false },
+  });
+  logger.info({ name: wanted.name, atsToken: wanted.atsToken, jobs: probe.jobsCount }, 'companies: suggested source added');
+  return redirectWithFlash(c, 'ok', `Added "${wanted.name}" (${probe.jobsCount ?? 0} postings), switched off — enable it when ready.`);
 });
 
 // --- starter packs ----------------------------------------------------------

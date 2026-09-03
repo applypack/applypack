@@ -71,6 +71,7 @@ import { recordCronRun } from '../../jobs/cron-run';
 import { parseTagList, toStringArray } from '../../text-utils';
 import { isRegionCode, resolveCountries } from '../../countries';
 import { isProfileWorkplace } from '../../location';
+import { suggestSources } from '../../starter-packs/suggest';
 import {
   formatPriorityRulesText,
   parsePriorityRules,
@@ -806,7 +807,12 @@ settingsRoute.post('/settings/profiles/:id/save', async (c) => {
     resumeId,
     priorityRules,
   };
-  await updateProfile(id, input);
+  const saved = await updateProfile(id, input);
+  // Plan §4.3: a search that names Ukraine, Germany or the UK has feeds
+  // waiting on /companies; say so once, on the save that made it true.
+  const tracked = await prisma.company.findMany({ select: { id: true, atsType: true, atsToken: true, active: true } });
+  const waiting = suggestSources([saved], tracked).filter((s) => s.state !== 'on').length;
+  const sourcesHint = waiting > 0 ? ` ${waiting} source${waiting === 1 ? '' : 's'} fit these countries — see Companies → "Sources for your searches".` : '';
 
   // The second half of "born inactive" (issue #50): the first save that gives
   // a blank search real content starts it running. Since ADR 0028 that no
@@ -835,11 +841,11 @@ settingsRoute.post('/settings/profiles/:id/save', async (c) => {
     return flashRedirect(
       editorUrl,
       'ok',
-      `Search saved${activated ? ' and started' : ''}. Re-classify started in the background — track progress at /runs.`,
+      `Search saved${activated ? ' and started' : ''}. Re-classify started in the background — track progress at /runs.${sourcesHint}`,
     );
   }
   if (activated) {
-    return flashRedirect(editorUrl, 'ok', 'Search saved and started — it scores new postings from the next tick.');
+    return flashRedirect(editorUrl, 'ok', `Search saved and started — it scores new postings from the next tick.${sourcesHint}`);
   }
   if (!isActive && isBlankProfile(input)) {
     return flashRedirect(
@@ -848,7 +854,7 @@ settingsRoute.post('/settings/profiles/:id/save', async (c) => {
       'Search saved. It stays paused until it lists a required stack or role types.',
     );
   }
-  return flashRedirect(editorUrl, 'ok', 'Search saved.');
+  return flashRedirect(editorUrl, 'ok', `Search saved.${sourcesHint}`);
 });
 
 // Prefill the editor from a resume's AI scan. Renders the draft directly —

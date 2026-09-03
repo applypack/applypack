@@ -32,6 +32,7 @@ import {
 } from '../../fetchers/source-health';
 import type { FlashMessage } from '../flash';
 import { StarterPackPicker, type PackSegmentChoice } from './starter-pack';
+import type { SourceSuggestion } from '../../starter-packs/suggest';
 
 interface CompanyRow {
   id: number;
@@ -54,6 +55,8 @@ interface CompanyRow {
 export interface CompaniesProps {
   companies: CompanyRow[];
   packs: PackSegmentChoice[];
+  /** Token-driven sources the running searches' countries call for (plan §4.3). */
+  suggestions: SourceSuggestion[];
   flash?: FlashMessage | null;
   fetchingEnabled: boolean;
 }
@@ -158,9 +161,54 @@ const PROBEABLE_ATS: AtsType[] = [
 
 const AGGREGATORS = ['LARAJOBS', 'REMOTEOK', 'REMOTIVE', 'JOBICY', 'WEWORKREMOTELY', 'HN_HIRING'];
 
+/**
+ * "Enable sources for your countries" (plan §4.3): DOU and Djinni rows for a
+ * search that names Ukraine, the Arbeitnow rows for Germany or the UK, built
+ * from each search's stack. Added off, like a pack; the row's own toggle
+ * switches it on. Nothing to show when no running search names such a place.
+ */
+const SuggestedSources: FC<{ suggestions: SourceSuggestion[] }> = ({ suggestions }) => {
+  if (suggestions.length === 0) return null;
+  return (
+    <Card class="mb-4">
+      <SectionTitle>Sources for your searches</SectionTitle>
+      <Hint class="mb-3">
+        Feeds that fit where your running searches hunt, built from their stack. Added switched off;
+        enable each one when you want it in the hourly tick.
+      </Hint>
+      <ul class="divide-y divide-line">
+        {suggestions.map((s) => (
+          <li class="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 py-2">
+            <div class="min-w-0">
+              <div class="text-[13px] font-medium text-ink">{s.name}</div>
+              <div class="truncate text-xs text-ink-faint">
+                {s.reason} · <Code>{s.atsToken}</Code>
+              </div>
+            </div>
+            {s.state === 'missing' && (
+              <form method="post" action="/companies/suggested">
+                <input type="hidden" name="atsType" value={s.atsType} />
+                <input type="hidden" name="atsToken" value={s.atsToken} />
+                <Button size="sm" variant="secondary">Add (off)</Button>
+              </form>
+            )}
+            {s.state === 'off' && s.companyId !== null && (
+              <form method="post" action={`/companies/${s.companyId}/toggle-active`}>
+                <Button size="sm">Enable</Button>
+              </form>
+            )}
+            {s.state === 'on' && <Badge tone="ok">On</Badge>}
+          </li>
+        ))}
+      </ul>
+    </Card>
+  );
+};
+
 export const CompaniesPage: FC<CompaniesProps> = ({
   companies,
   packs,
+  suggestions,
   flash,
   fetchingEnabled,
 }) => (
@@ -203,6 +251,7 @@ export const CompaniesPage: FC<CompaniesProps> = ({
       </div>
     </details>
 
+    <SuggestedSources suggestions={suggestions} />
     <StarterPackPicker segments={packs} />
 
     <Card class="mb-4">
