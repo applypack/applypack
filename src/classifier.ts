@@ -34,7 +34,9 @@ export const CLASSIFIER_PROMPT_VERSION = 4;
  */
 const LocationBlockSchema = z
   .object({
-    workplace: z.enum(['REMOTE', 'HYBRID', 'ONSITE', 'UNKNOWN']).catch('UNKNOWN'),
+    workplace: z
+      .preprocess((v) => (typeof v === 'string' ? v.toUpperCase() : v), z.enum(['REMOTE', 'HYBRID', 'ONSITE', 'UNKNOWN']))
+      .catch('UNKNOWN'),
     countries: z.array(z.string()).catch([]),
     regions: z.array(z.string()).catch([]),
     note: z.string().nullable().catch(null),

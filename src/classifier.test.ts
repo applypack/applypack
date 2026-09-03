@@ -259,8 +259,8 @@ test('the location block is read once, codes validated, and optional', () => {
     scores: [entry(3, 80)],
   });
   const out = parseClassifications(withLocation, [PROFILE]);
-  assert.deepEqual(out?.location, { workplace: 'UNKNOWN', countries: ['PL', 'DE'], regions: ['EU'], note: 'Poland or Germany residents' });
-  const upper = parseClassifications(withLocation.replace('"remote"', '"REMOTE"'), [PROFILE]);
-  assert.equal(upper?.location?.workplace, 'REMOTE');
+  assert.deepEqual(out?.location, { workplace: 'REMOTE', countries: ['PL', 'DE'], regions: ['EU'], note: 'Poland or Germany residents' });
+  const odd = parseClassifications(withLocation.replace('"remote"', '"office"'), [PROFILE]);
+  assert.equal(odd?.location?.workplace, 'UNKNOWN');
   assert.equal(parseClassifications(reply([entry(3, 80)]), [PROFILE])?.location, null);
 });
