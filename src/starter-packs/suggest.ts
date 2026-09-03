@@ -4,7 +4,7 @@ import type { WorkplaceCode } from '../location';
  * "Enable sources for your countries" (plan §4.3): the token-driven sources
  * a search's places and stack call for — DOU and Djinni rows for Ukraine,
  * the Arbeitnow rows for the German-speaking and British markets, solid.jobs
- * for Poland. Pure: the
+ * for Poland, the DevITjobs site of Germany, the UK or the Netherlands. Pure: the
  * route hands in the running searches and the rows already tracked, gets
  * back what to offer and in which state. The aggregators that follow the
  * searches by themselves (Jobicy, Himalayas, 4dayweek) need no suggestion.
@@ -27,7 +27,7 @@ export interface TrackedRow {
 
 export interface SourceSuggestion {
   name: string;
-  atsType: 'DOU' | 'DJINNI' | 'ARBEITNOW' | 'SOLIDJOBS';
+  atsType: 'DOU' | 'DJINNI' | 'ARBEITNOW' | 'SOLIDJOBS' | 'DEVITJOBS';
   atsToken: string;
   careerUrl: string;
   /** Which search asked for it, in plain words: "🇺🇦 Ukraine in "PHP/Laravel"". */
@@ -68,6 +68,13 @@ const MAX_FEEDS_PER_SEARCH = 3;
 /** The countries and groups that make Arbeitnow worth switching on. */
 const ARBEITNOW_COUNTRIES = ['DE', 'AT', 'CH', 'GB'];
 const ARBEITNOW_REGIONS = ['DACH', 'UK_IE'];
+
+/** The DevITjobs family: one site per country, offered when a search names it. */
+const DEVITJOBS_SITES: readonly { host: string; name: string; countries: string[]; regions: string[]; flag: string; place: string }[] = [
+  { host: 'germantechjobs.de', name: 'GermanTechJobs', countries: ['DE'], regions: ['DACH'], flag: '🇩🇪', place: 'Germany' },
+  { host: 'devitjobs.uk', name: 'DevITjobs UK', countries: ['GB'], regions: ['UK_IE'], flag: '🇬🇧', place: 'the UK' },
+  { host: 'devitjobs.nl', name: 'DevITjobs NL', countries: ['NL'], regions: ['BENELUX'], flag: '🇳🇱', place: 'the Netherlands' },
+];
 
 export function suggestSources(searches: readonly SuggestSearch[], tracked: readonly TrackedRow[]): SourceSuggestion[] {
   const byKey = new Map(tracked.map((r) => [`${r.atsType}:${r.atsToken}`, r]));
@@ -110,6 +117,17 @@ export function suggestSources(searches: readonly SuggestSearch[], tracked: read
         atsToken: 'solidjobs',
         careerUrl: 'https://solid.jobs',
         reason: `🇵🇱 Poland in "${search.name}"`,
+      });
+    }
+    for (const site of DEVITJOBS_SITES) {
+      const named = search.countries.some((c) => site.countries.includes(c)) || search.regions.some((r) => site.regions.includes(r));
+      if (!named) continue;
+      offer({
+        name: site.name,
+        atsType: 'DEVITJOBS',
+        atsToken: site.host,
+        careerUrl: `https://${site.host}`,
+        reason: `${site.flag} ${site.place} in "${search.name}"`,
       });
     }
     const germanOrBritish =

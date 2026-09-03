@@ -610,6 +610,16 @@ adopted or rejected.
 - `DEVITJOBS` family: one fetcher, `atsToken` = host
   (germantechjobs.de, devitjobs.uk, devitjobs.nl); conditional GET
   (ETag / Last-Modified) because the feeds are 5–8 MB; country hint = site.
+  *(done: v1.35.0 — 839 / 1 758 / 242 items on 2026-09-03, every title
+  parses as `Role @ Company [salary]`; the feed names no city and no
+  arrangement (a Requirements tag reader found 1 hit in 2 839 items and
+  was dropped), so the row carries the country hint only and the
+  classifier reads the rest; the feeds keep postings for years (DE back to
+  2020), so items older than 90 days are skipped — 777 / 1 744 / 191 stay;
+  the sites answer 304 to both validators and serve brotli (1.6 MB →
+  223 KB), so the cache is in-process — a 304 answers the previous parse,
+  a restart costs one full read; three seeded rows off, each offered to a
+  search that names its country)*
 - `LANDINGJOBS`: Atom feed only; `lj:country`, `lj:remote_policy` hints.
 - `JOBTECH` (SE): JSON search with `published-after` = last tick;
   `workplace_address.country_code`, `workplace_model` hints; Swedish text is

@@ -55,9 +55,22 @@ describe('suggestSources', () => {
   it('offers the two Arbeitnow rows for German-speaking and British searches', () => {
     const de = { ...php, countries: ['DE'], regions: [], stackRequired: ['java'] };
     const out = suggestSources([de], [{ id: 3, atsType: 'ARBEITNOW', atsToken: 'arbeitnow', active: false }]);
-    assert.deepEqual(out.map((s) => [s.atsType, s.atsToken, s.state]), [['ARBEITNOW', 'arbeitnow', 'off'], ['ARBEITNOW', 'visa', 'missing']]);
-    assert.equal(suggestSources([{ ...de, countries: [], regions: ['DACH'] }], []).length, 2);
+    assert.deepEqual(out.map((s) => [s.atsType, s.atsToken, s.state]), [
+      ['DEVITJOBS', 'germantechjobs.de', 'missing'],
+      ['ARBEITNOW', 'arbeitnow', 'off'],
+      ['ARBEITNOW', 'visa', 'missing'],
+    ]);
+    assert.equal(suggestSources([{ ...de, countries: [], regions: ['DACH'] }], []).length, 3);
     assert.equal(suggestSources([{ ...de, countries: ['FR'], regions: ['EU'] }], []).length, 0);
+  });
+
+  it('offers the DevITjobs site of the country a search names', () => {
+    const uk = suggestSources([{ ...php, countries: ['GB'], regions: [] }], []);
+    assert.deepEqual(uk.map((s) => [s.atsType, s.atsToken, s.reason]).filter((r) => r[0] === 'DEVITJOBS'), [
+      ['DEVITJOBS', 'devitjobs.uk', '🇬🇧 the UK in "PHP/Laravel"'],
+    ]);
+    const nl = suggestSources([{ ...php, countries: [], regions: ['BENELUX'] }], []);
+    assert.deepEqual(nl.map((s) => s.atsToken), ['devitjobs.nl']);
   });
 
   it('says nothing for a search with no matching place, and merges two searches without duplicates', () => {
