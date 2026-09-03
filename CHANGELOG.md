@@ -4,6 +4,24 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.30.0] — 2026-09-03
+
+### Added
+- **DOU.ua as a source** (stage 3b, plan §4.2) — the Ukrainian tech job
+  board through its own RSS interface. One Company row per feed query,
+  which is the row's token: `category=PHP&remote`, `search=laravel`,
+  `city=Львів`, `exp=5plus`; add more on Companies, where the probe refuses
+  a query DOU answers with no vacancies (an unknown category is an empty
+  channel there, not an error). The title carries everything but the
+  description — "Backend Engineer в BetterMe, Київ, за кордоном, віддалено"
+  — so a small grammar parser splits role, employer, salary, cities and the
+  two markers: the employer and salary go into the description, the cities
+  and "віддалено" into the location the stage-1 parser already reads
+  (Cyrillic cities included). Seeded off as "DOU · PHP, remote". DOU
+  answers the default RSS User-Agent with 403, so the feed is fetched with
+  the project's. Terms: fine for a self-hosted personal tool with the
+  link-back kept; a hosted or commercial deployment needs DOU's consent.
+
 ## [1.29.0] — 2026-09-03
 
 ### Added

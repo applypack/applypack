@@ -85,6 +85,7 @@ original decision (from the feature-expansion-plan ground rules):
 | The Muse | deferred | very high volume, low match density — re-decide at F10 |
 | WelcomeToTheJungle | deferred | search backend keys rotate per-run and are referer-locked — fragile |
 | TrueUp / Remote Rocketship / DevRelX / Tecnoempleo / JobFluent | rejected for now | no structured public feed found |
+| DOU.ua | adopted (v1.30.0) | RSS at `/vacancies/feeds/` is DOU's own interface (`utm_source=jobsrss`); `robots.txt` names no AI bots and allows the path; legal §2.5 forbids automated collection without consent and §3.2 licenses content CC BY-NC-SA — fine for a self-hosted personal tool with the link-back kept, a hosted or commercial deployment needs written consent. Fetched with the project User-Agent (the default RSS UA gets 403) (2026-09-03) |
 | Jooble | rejected | documented API, but "a total lifetime limit of 500 requests per key", snippets only, API terms unpublished (2026-09-03) |
 | Reed.co.uk | rejected | `robots.txt` `Disallow: /api/` in the group that names AnthropicBot (2026-09-03) |
 | Bundesagentur für Arbeit Jobsuche | rejected | an app backend behind a leaked client id, not a published API; Nutzungsbedingungen 2a(3) forbid reading content through interfaces for data collection (2026-09-03) |

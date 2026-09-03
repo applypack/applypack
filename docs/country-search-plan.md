@@ -575,7 +575,12 @@ adopted or rejected.
 - `DOU` fetcher: RSS, `atsToken` = the query string (`category=PHP&remote`);
   title grammar parser `<Title> в <Company>[, $salary][, City…][, за
   кордоном][, віддалено]` as a pure function with tests; entities decoded
-  after XML parsing; salary USD ranges kept in the description.
+  after XML parsing; salary USD ranges kept in the description. *(done:
+  v1.30.0 — `dou-title.ts` reads the tail from the end so "Stape, Inc" keeps
+  its comma; the token is re-serialised through URLSearchParams because an
+  unencoded city answers 400; an unknown category answers an empty channel,
+  so the /companies probe refuses a query with no items; DOU blocks the
+  default RSS User-Agent, the feed is fetched with the project's)*
 - `DJINNI` fetcher: RSS, `atsToken` = the filter string
   (`primary_keyword=PHP&employment=remote&region=UKR`); company from prose
   or blank; region hint from the filter itself.
