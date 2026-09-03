@@ -6,6 +6,14 @@ import { prisma } from '../../db';
 import { logger } from '../../logger';
 import { hashShortId } from '../../text-utils';
 import { appliedResumeColumns } from '../applied-resume';
+import {
+  parsePlaces,
+  parsePosted,
+  parseWorkplaces,
+  placeWhere,
+  postedSince,
+  tallyFacets,
+} from '../job-facets';
 import { getSettings } from '../../settings';
 import { allStages, parseStageConfig } from '../stage-config';
 import { classifyExistingJob } from '../../jobs/classify-existing';
@@ -91,6 +99,10 @@ const ListQuerySchema = z.object({
     .transform((v) => (v === '1' ? '1' : '')),
   // ADR 0028: narrow the list to one search. Empty = every search.
   profile: z.coerce.number().int().positive().optional().catch(undefined),
+  // ADR 0031: the facets. Unknown values are dropped, never rejected.
+  country: z.string().optional().transform(parsePlaces),
+  workplace: z.string().optional().transform(parseWorkplaces),
+  posted: z.string().optional().transform(parsePosted),
 });
 
 const StatusBodySchema = z.object({
@@ -110,11 +122,15 @@ jobsRoute.get('/jobs', async (c) => {
     sort: c.req.query('sort'),
     verified: c.req.query('verified'),
     profile: c.req.query('profile') || undefined,
+    country: c.req.query('country'),
+    workplace: c.req.query('workplace'),
+    posted: c.req.query('posted'),
   });
   if (!parsed.success) {
     return c.text('Invalid query', 400);
   }
-  const { page, status, minFit, q, sort, verified, profile } = parsed.data;
+  const { page, status, minFit, q, sort, verified, profile, country, workplace, posted } = parsed.data;
+  const now = new Date();
 
   const where: Prisma.JobWhereInput = {};
   if (status) {
@@ -134,15 +150,27 @@ jobsRoute.get('/jobs', async (c) => {
     where.OR = [
       { title: { contains: q, mode: 'insensitive' } },
       { description: { contains: q, mode: 'insensitive' } },
+      { location: { contains: q, mode: 'insensitive' } },
     ];
   }
   if (verified) {
     where.verifications = { some: {} };
   }
+  // The facet counts come from the rows matching everything above; each
+  // facet then applies the others' selections in tallyFacets. Four narrow
+  // columns per row — ~1k rows today; past ~50k move the tally into SQL.
+  const facetWhere: Prisma.JobWhereInput = { ...where };
+  const since = postedSince(posted, now);
+  if (since) where.postedAt = { gte: since };
+  const facetAnd: Prisma.JobWhereInput[] = [];
+  const place = placeWhere(country);
+  if (place) facetAnd.push(place);
+  if (workplace.length > 0) facetAnd.push({ workplace: { in: workplace } });
+  if (facetAnd.length > 0) where.AND = facetAnd;
 
   const orderBy = sortToOrderBy(sort);
 
-  const [jobs, total, activeProfile, activeProfiles] = await Promise.all([
+  const [jobs, total, facetRows, activeProfile, activeProfiles] = await Promise.all([
     prisma.job.findMany({
       where,
       orderBy,
@@ -161,6 +189,10 @@ jobsRoute.get('/jobs', async (c) => {
       },
     }),
     prisma.job.count({ where }),
+    prisma.job.findMany({
+      where: facetWhere,
+      select: { countries: true, regions: true, workplace: true, postedAt: true },
+    }),
     getActiveProfile(),
     listActiveProfiles(),
   ]);
@@ -178,7 +210,11 @@ jobsRoute.get('/jobs', async (c) => {
         sort,
         verified,
         profile: profile ?? null,
+        country,
+        workplace: workplace.map((w) => w.toLowerCase()),
+        posted,
       }}
+      facets={tallyFacets(facetRows, { places: country, workplaces: workplace, posted }, now)}
       profiles={activeProfiles.map((p) => ({ id: p.id, name: p.name }))}
       blankProfileBanner={activeProfile !== null && isBlankProfile(activeProfile)}
     />,
