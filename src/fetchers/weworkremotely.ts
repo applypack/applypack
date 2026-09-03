@@ -1,23 +1,34 @@
 import Parser from 'rss-parser';
 import { stripHtml } from '../http';
+import { parseLocation } from '../location';
 import { feedItemKey } from '../text-utils';
 import type { NormalizedJob } from '../types';
 
 const PARSER_TIMEOUT_MS = 10_000;
+/** A 70-country allow-list stays in the hints; the string shows the region instead. */
+const MAX_COUNTRY_TEXT = 120;
 
-interface WwrItem {
+/**
+ * WWR's feed carries two location elements rss-parser drops unless they are
+ * registered (the LaraJobs pitfall): `<region>` is the coarse label
+ * ("Anywhere in the World", "USA Only") and `<country>` a comma list of
+ * flag + ISO name ("🇵🇱 Poland, 🇷🇴 Romania, … 🇺🇦 Ukraine") — empty on most
+ * items, 70 entries long on some. Verified live 2026-09-03.
+ */
+export interface WwrItem {
   title?: string;
   link?: string;
   pubDate?: string;
   contentSnippet?: string;
   content?: string;
   guid?: string;
-  // WWR includes a custom <region> tag, but rss-parser ignores unknown tags
-  // unless we register them — keep it simple, location stays "Remote".
+  region?: string;
+  country?: string;
 }
 
 const parser: Parser<unknown, WwrItem> = new Parser({
   timeout: PARSER_TIMEOUT_MS,
+  customFields: { item: ['region', 'country'] },
 });
 
 export interface WwrCompany {
@@ -37,27 +48,38 @@ export async function fetchWeWorkRemotely(
   const slug = (company.atsToken || 'back-end-programming').trim();
   const url = `https://weworkremotely.com/categories/remote-${slug}-jobs.rss`;
   const feed = await parser.parseURL(url);
-  return feed.items.flatMap((item) => {
-    const link = item.link ?? '';
-    const externalId = item.guid ?? feedItemKey(link, item.title);
-    // Nothing identifies this row — skip it rather than hash '' and merge
-    // every such row onto one shared id.
-    if (!externalId) return [];
-    const description =
-      item.contentSnippet ?? (item.content ? stripHtml(item.content) : '') ?? '';
-    return {
-      companyId: company.id,
-      externalId,
-      title: item.title ?? 'Untitled',
-      url: link,
-      // WWR jobs are by definition remote; the feed doesn't expose a
-      // structured location and the title usually carries any country
-      // restriction (the actual <region> field is namespaced and skipped
-      // by our parser). Keep "Remote" — Claude reads the description for
-      // country-locks.
-      location: 'Remote',
-      description,
-      postedAt: item.pubDate ? new Date(item.pubDate) : new Date(),
-    } satisfies NormalizedJob;
-  });
+  return feed.items.flatMap((item) => mapWwrItem(item, company.id) ?? []);
+}
+
+/**
+ * Pure mapper extracted for unit tests. Every WWR job is remote; the
+ * country list is the eligibility allow-list and wins over the region
+ * label, which only speaks when the list is empty. The location string
+ * carries whichever of the two decided, so the classifier reads it too.
+ */
+export function mapWwrItem(item: WwrItem, companyId: number): NormalizedJob | null {
+  const link = item.link ?? '';
+  const externalId = item.guid ?? feedItemKey(link, item.title);
+  // Nothing identifies this row — skip it rather than hash '' and merge
+  // every such row onto one shared id.
+  if (!externalId) return null;
+  const description =
+    item.contentSnippet ?? (item.content ? stripHtml(item.content) : '') ?? '';
+  const countryText = (item.country ?? '').trim();
+  const region = (item.region ?? '').trim();
+  const allowList = parseLocation(countryText).countries;
+  const fromRegion = parseLocation(region);
+  const countries = allowList.length > 0 ? allowList : fromRegion.countries;
+  const regions = allowList.length > 0 ? [] : fromRegion.regions;
+  const where = allowList.length > 0 && countryText.length <= MAX_COUNTRY_TEXT ? countryText : region;
+  return {
+    companyId,
+    externalId,
+    title: item.title ?? 'Untitled',
+    url: link,
+    location: where.length > 0 ? `Remote · ${where}` : 'Remote',
+    description,
+    postedAt: item.pubDate ? new Date(item.pubDate) : new Date(),
+    locationHints: { workplace: 'REMOTE', countries, regions },
+  } satisfies NormalizedJob;
 }
