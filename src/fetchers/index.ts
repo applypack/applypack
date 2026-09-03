@@ -37,6 +37,7 @@ import { fetchRippling } from './rippling';
 import { fetchFourDayWeek } from './fourdayweek';
 import { fetchDou } from './dou';
 import { fetchDjinni } from './djinni';
+import { fetchSolidJobs } from './solidjobs';
 import type { NormalizedJob } from '../types';
 
 const POLITE_DELAY_MS = 1_000;
@@ -212,6 +213,8 @@ export async function fetchOne(
       return fetchDou({ id: company.id, atsToken: company.atsToken });
     case AtsType.DJINNI:
       return fetchDjinni({ id: company.id, atsToken: company.atsToken });
+    case AtsType.SOLIDJOBS:
+      return fetchSolidJobs(company.id);
     case AtsType.MANUAL:
       // Pasted by hand on /jobs/new — nothing to fetch (and the row is inactive).
       return [];
