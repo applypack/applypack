@@ -1,4 +1,4 @@
-import { REVIEW_DIMENSIONS, REVIEW_GRADES, type ReviewDimension, type ReviewGrade } from './review-score';
+import { REVIEW_DIMENSIONS, type ReviewDimension, type ReviewGrade } from './review-score';
 
 /*
  * What changed between two strength reviews of the SAME resume (ADR 0030
@@ -98,9 +98,4 @@ export function deltaSentence(delta: ReviewDelta): string {
       ? ' — same text, re-judged'
       : '';
   return `${head}; ${moved}${caveat}.`;
-}
-
-/** True for every grade string the delta can be built from. */
-export function isReviewGrade(v: unknown): v is ReviewGrade {
-  return typeof v === 'string' && (REVIEW_GRADES as readonly string[]).includes(v);
 }
