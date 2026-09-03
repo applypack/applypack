@@ -33,7 +33,7 @@ and wrong-fit postings, shows exactly which words a posting wants and your
 resume lacks, helps you fix it in place, and writes a cover letter that
 cannot invent. Then it tracks the application.
 
-- **Find real jobs.** 22 sources hourly, a classifier with strict stack
+- **Find real jobs.** 23 sources hourly, a classifier with strict stack
   and location rules, a ghost-job check with evidence links, Telegram only
   above your fit threshold, several searches at once.
 - **Fix the resume for this posting.** The model marks facts, code
@@ -182,7 +182,7 @@ green. Details per engine in [docs/ai-engines.md](./docs/ai-engines.md).
 ## How it works
 
 ```
- 22 sources ──▶ normalize ──▶ base filter ──▶ AI classifier ──▶ Postgres ──▶ Telegram
+ 23 sources ──▶ normalize ──▶ base filter ──▶ AI classifier ──▶ Postgres ──▶ Telegram
    hourly        + dedupe      pure code,      one call, a       dashboard    only when
    fetch                       zero cost       score per search               fit ≥ threshold
 ```

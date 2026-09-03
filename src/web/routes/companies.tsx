@@ -42,6 +42,7 @@ const NewCompanySchema = z.object({
     AtsType.BAMBOOHR,
     AtsType.PINPOINT,
     AtsType.RIPPLING,
+    AtsType.DOU,
   ] as const),
   atsToken: z.string().min(1).max(120),
   careerUrl: z.string().url().optional().or(z.literal('')),

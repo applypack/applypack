@@ -221,6 +221,17 @@ const SEED_COMPANIES: SeedCompany[] = [
     active: false,
   },
 
+  // DOU.ua (stage 3b) — one row per feed query; the reference deployment's
+  // own search is PHP, so that is the seeded example. Off until a search
+  // hunts in Ukraine; add other queries on /companies (category=…, search=…).
+  {
+    name: 'DOU · PHP, remote',
+    atsType: AtsType.DOU,
+    atsToken: 'category=PHP&remote',
+    careerUrl: 'https://jobs.dou.ua/vacancies/?category=PHP&remote',
+    active: false,
+  },
+
   // HN /jobs — individual YC-job posts indexed by Algolia under
   // tags=job (separate from the monthly Who-is-hiring thread). Each
   // hit is a YC-portfolio company hiring continuously, with the post
