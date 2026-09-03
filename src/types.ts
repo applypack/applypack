@@ -1,4 +1,4 @@
-import type { LocationHints } from './location';
+import type { LocationHints, WorkplaceCode } from './location';
 
 export interface NormalizedJob {
   companyId: number;
@@ -31,6 +31,8 @@ export interface ClassifyInput {
   title: string;
   companyName: string;
   location: string;
+  /** The columns the parser filled (ADR 0031) — the prompt's starting point for the place. */
+  place?: { workplace: WorkplaceCode; countries: string[]; regions: string[] };
   description: string;
   postedAt: Date;
 }

@@ -6,6 +6,7 @@ import { isBlankProfile } from '../profile-guards';
 import { getSettings } from '../settings';
 import { buildVerdicts, mergeVerdicts } from './verdict-merge';
 import { saveJobScores } from './score-store';
+import { mergeAiLocation, type StoredPlace } from './location-merge';
 
 export type ClassifiableJob = Job & { company: { name: string; atsType: AtsType } };
 
@@ -37,6 +38,7 @@ export async function classifyExistingJob(
       title: job.title,
       companyName: job.company.name,
       location: job.location,
+      place: { workplace: job.workplace, countries: job.countries, regions: job.regions },
       description: job.description,
       postedAt: job.postedAt,
     },
@@ -55,12 +57,22 @@ export async function classifyExistingJob(
     else if (job.status === JobStatus.DISMISSED) status = JobStatus.NEW;
   }
 
-  await saveJobScores(job, merged, verdicts, status);
+  await saveJobScores(job, merged, verdicts, status, mergeAiLocation(storedPlace(job), outcome.location));
   logger.info(
     { jobId: job.id, searches: profiles.length, kept: merged.kept, ms: Date.now() - started },
     'classify-existing: scored',
   );
   return true;
+}
+
+/** The row's own columns as the merge's starting point (ADR 0031 wrote them). */
+export function storedPlace(job: Pick<Job, 'workplace' | 'countries' | 'regions' | 'locationSource'>): StoredPlace {
+  return {
+    workplace: job.workplace,
+    countries: job.countries,
+    regions: job.regions,
+    source: job.locationSource as StoredPlace['source'],
+  };
 }
 
 /**

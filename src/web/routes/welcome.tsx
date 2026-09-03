@@ -346,7 +346,7 @@ async function findLastSearch(): Promise<LastSearch | null> {
 async function countWaitingUnscored(profile: Profile): Promise<number> {
   const rows = await prisma.job.findMany({
     where: { fitScore: null, status: JobStatus.NEW },
-    select: { title: true, location: true },
+    select: { title: true, location: true, workplace: true, countries: true, regions: true },
   });
   return rows.filter((j) => passesBaseFilter(j, profile)).length;
 }
@@ -385,10 +385,10 @@ function profileInput(p: Profile): ProfileInput {
     stackExclude: p.stackExclude,
     notes: p.notes,
     seniority: p.seniority,
-    remoteOk: p.remoteOk,
-    remoteRegions: p.remoteRegions,
+    countries: p.countries,
+    regions: p.regions,
+    workplace: p.workplace,
     onsiteCities: p.onsiteCities,
-    hybridOk: p.hybridOk,
     minSalaryUsd: p.minSalaryUsd,
     minFitScore: p.minFitScore,
     telegramTargetId: p.telegramTargetId,

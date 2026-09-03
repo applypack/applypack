@@ -40,6 +40,7 @@ consequences (what we accept). Aim for 15–30 lines each.
 - [0029 — A comparison is a quick check by default; suggestions are a second call](./0029-quick-check-and-lazy-suggestions.md)
 - [0030 — The strength review grades; the code scores](./0030-resume-strength-review.md)
 - [0031 — A job's location is three columns next to the string, filled by hints and a parser](./0031-structured-location-columns.md)
+- [0032 — A search hunts in countries and groups; the classifier's place may only narrow the parser's](./0032-profile-countries-and-the-classifier-place.md)
 
 ## When to write a new one
 

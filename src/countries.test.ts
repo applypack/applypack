@@ -67,6 +67,7 @@ describe('findCountry', () => {
     assert.equal(findCountry('Polska')?.code, 'PL');
     assert.equal(findCountry('Польща')?.code, 'PL');
     assert.equal(findCountry('🇵🇱')?.code, 'PL');
+    assert.equal(findCountry('🇵🇱 Poland')?.code, 'PL');
     assert.equal(findCountry('Kraków')?.code, 'PL');
     assert.equal(findCountry('krakow')?.code, 'PL');
     assert.equal(findCountry('Polish')?.code, 'PL');

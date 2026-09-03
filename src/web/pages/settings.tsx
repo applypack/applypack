@@ -8,6 +8,8 @@ import type { FlashMessage } from '../flash';
 import { sourceLabel } from '../source-names';
 import { dotClassFor, MAX_WORK_STAGES } from '../stage-config';
 import { formatPriorityRulesText, parsePriorityRules } from '../../priority-rules';
+import { REGIONS, flagOf, placeLabel } from '../../countries';
+import { PROFILE_WORKPLACES, WORKPLACE_LABEL } from '../../location';
 import { isBlankProfile, MAX_ACTIVE_PROFILES } from '../../profile-guards';
 import { SENIORITY_LEVELS } from '../../resume/profile-draft';
 import { ACCEPTED_EXTENSIONS } from '../../resume/resume-text';
@@ -100,7 +102,6 @@ export function isSettingsTab(value: unknown): value is SettingsTab {
   return SETTINGS_TABS.some((t) => t.id === value);
 }
 
-const REGION_OPTIONS = ['US', 'Americas', 'EU', 'UK', 'APAC', 'Worldwide'];
 
 /** What "Fill from resume" replaced — rendered as an unsaved-draft notice. */
 export interface ProfileDraftNotice {
@@ -1050,20 +1051,34 @@ const ProfileEditor: FC<{
 
     <fieldset class="space-y-3">
       <legend class="text-[13px] font-medium text-ink">Location</legend>
-      <div class="mt-2 flex flex-wrap gap-x-6 gap-y-1.5">
-        <PillCheckbox name="remoteOk" value="1" checked={profile.remoteOk}>
-          Accept remote roles
-        </PillCheckbox>
-        <PillCheckbox name="hybridOk" value="1" checked={profile.hybridOk}>
-          Hybrid OK
-        </PillCheckbox>
-      </div>
+      <Hint class="!mt-0.5">
+        Where this search hunts. Countries and regions add up; leave both empty for anywhere.
+      </Hint>
       <div>
-        <Hint>Acceptable remote regions</Hint>
+        <Hint>Arrangements you accept</Hint>
         <div class="mt-1.5 flex flex-wrap gap-1.5">
-          {REGION_OPTIONS.map((r) => (
-            <PillCheckbox name="remoteRegions" value={r} checked={profile.remoteRegions.includes(r)}>
-              {r}
+          {PROFILE_WORKPLACES.map((w) => (
+            <PillCheckbox name="workplace" value={w} checked={profile.workplace.includes(w)}>
+              {WORKPLACE_LABEL[w]}
+            </PillCheckbox>
+          ))}
+        </div>
+      </div>
+      <TagListInput
+        label="Countries"
+        hint='Where you can work from — type "Poland", "Polska", "Польща", "PL" or a city and pick from the list. For hybrid and on-site roles: where the office may be.'
+        name="countries"
+        values={profile.countries.map((c) => `${flagOf(c)} ${placeLabel(c)}`)}
+        placeholder="Poland, Germany, Netherlands…"
+        rows={2}
+        picker="countries"
+      />
+      <div>
+        <Hint>Regions — a group counts as a group, not as its members</Hint>
+        <div class="mt-1.5 flex flex-wrap gap-1.5">
+          {REGIONS.map((r) => (
+            <PillCheckbox name="regions" value={r.code} checked={profile.regions.includes(r.code)}>
+              {r.flag ? `${r.flag} ${r.label}` : r.label}
             </PillCheckbox>
           ))}
         </div>
@@ -1166,9 +1181,11 @@ const TagListInput: FC<{
   rows?: number;
   /** Real example values — shown in the textarea and the chip input alike. */
   placeholder?: string;
-}> = ({ label, hint, name, values, rows = 3, placeholder }) => (
+  /** "countries": countries.mjs adds gazetteer suggestions to the chip input (ADR 0032). */
+  picker?: 'countries';
+}> = ({ label, hint, name, values, rows = 3, placeholder, picker }) => (
   <Field label={label} hint={hint}>
-    <div data-chips data-label={label} data-placeholder={placeholder}>
+    <div data-chips data-label={label} data-placeholder={placeholder} data-picker={picker}>
       <Textarea name={name} rows={rows} mono placeholder={placeholder}>
         {values.join('\n')}
       </Textarea>
@@ -1235,6 +1252,8 @@ const PriorityRulesEditor: FC<{ profile: Profile }> = ({ profile }) => {
 const MODELS_BOOT = `
 import { init } from '/static/settings-models.mjs';
 init();
+import { mountCountryPickers } from '/static/countries.mjs';
+mountCountryPickers();
 `;
 
 const SETTINGS_JS = `

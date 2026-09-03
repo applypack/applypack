@@ -139,7 +139,7 @@ flowchart LR
     rt[roleTypes]
     snth[stackNiceToHave]
     sex[stackExclude]
-    rg[remoteRegions]
+    rg[countries / regions / workplace]
     notes
   end
   apId --> profile
@@ -172,6 +172,10 @@ src/
   countries.json / countries.ts ← the gazetteer: 86 countries, cities, region groups; lookups (pure, ADR 0031)
   location.ts                  ← parseLocation: string + fetcher hints → workplace/countries/regions (pure, ADR 0031)
   location-corpus.json         ← every stored location string on 2026-09-03 with its pinned reading (a test)
+  jobs/location-merge.ts       ← the classifier's place may only narrow the parser's (pure, ADR 0032)
+  jobs/location-reason.ts      ← "open to Poland; this search hunts in …" for the job page (pure, ADR 0032)
+  web/job-facets.ts            ← /jobs place / workplace / posted facets: params, where, chip counts (pure)
+  web/public/countries.mjs     ← country picker: search over /countries.json + the suggestion list (tested via import())
   ai-provider.ts               ← AiProvider seam: AnthropicApiProvider | ClaudeCodeProvider
   ai-provider-parse.ts         ← pure parser for `claude -p` JSON output (tested)
   prompt-fence.ts              ← untrusted-text markers + directive (pure, tested, ADR 0022)
@@ -400,10 +404,10 @@ erDiagram
     string_array stackExclude
     text notes
     string_array seniority
-    bool remoteOk
-    string_array remoteRegions
+    string_array countries "ISO-2 — where the search hunts (ADR 0032)"
+    string_array regions "group codes, stored as groups"
+    enum_array workplace "REMOTE|HYBRID|ONSITE accepted; empty = any"
     string_array onsiteCities
-    bool hybridOk
     int minSalaryUsd
     int minFitScore
     int telegramTargetId FK

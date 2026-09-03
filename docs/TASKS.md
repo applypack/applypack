@@ -1126,12 +1126,15 @@ seeded inactive. Sources verified 2026-09-03 with robots.txt are in the plan
       of 1 038 rows filled, no verdict moved), `/jobs` place / workplace /
       posted facets, `q` on location, chips on the job page. Plan corrections
       recorded in §0.2 (Workable `locations[]`, Lever `onsite`, Ashby `AMER`).
-- [ ] **Stage 2 `profile-countries`** — `Profile.countries / regions /
-      workplace` with a data migration that retires `remoteRegions`,
-      `remoteOk`, `hybridOk`; one typeahead control (flags + group chips) in
-      settings, welcome and fill-from-resume; `filter.ts` on sets; prompt
-      rewritten without "US-based"; shared `location` block in the
-      classifier output; mismatch reason on the job page.
+- [x] **Stage 2 `profile-countries`** — shipped on the `profile-countries`
+      branch (ADR 0032): `Profile.countries / regions / workplace`, one
+      migration that maps and drops the three pill fields (`US` / `UK` →
+      countries, amended from the plan), the chip picker over
+      `/countries.json`, `filter.ts` on sets with group expansion, the prompt
+      without "US-based" and with the shared `location` block, the merge
+      that lets the model narrow the parser, the mismatch reason on the job
+      page. The wizard's step 3 and "Fill from a resume" reuse the editor
+      unchanged — neither speaks for location.
 - [ ] **Stage 3 sources** (one PR + tag per source, acceptance checklist in
       feature-expansion-plan §0.3): 3a use existing geodata (WWR, Jobicy
       `geo`, Himalayas search, 4dayweek `country`, Arbeitnow on + paginated);

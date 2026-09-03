@@ -10,8 +10,9 @@ import { placeLabel } from '../countries';
  *
  * Only those four columns are written — `location` and `description` are
  * never touched, and no row is hidden, merged or deleted. Rows already marked
- * `structured` came from a source's own fields, which this script cannot
- * reproduce, so they are left alone. Idempotent: a row whose columns already
+ * `structured` (a source's own fields) or `ai` (the classifier's reading,
+ * ADR 0032) know more than the string does, so they are left alone.
+ * Idempotent: a row whose columns already
  * equal the parse is skipped. --dry-run reads only and prints the
  * distribution, which is the thing to check by hand before the real run.
  *
@@ -42,7 +43,7 @@ async function main(): Promise<void> {
   let updated = 0;
 
   for (const job of jobs) {
-    if (job.locationSource === 'structured') {
+    if (job.locationSource === 'structured' || job.locationSource === 'ai') {
       structured++;
       continue;
     }
@@ -79,7 +80,7 @@ async function main(): Promise<void> {
   logger.info(
     {
       total: jobs.length,
-      structured,
+      keptStructuredOrAi: structured,
       updated,
       unknownPlace,
       workplace: Object.fromEntries(

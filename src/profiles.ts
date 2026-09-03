@@ -2,6 +2,7 @@ import type { Profile } from '@prisma/client';
 import { prisma } from './db';
 import { logger } from './logger';
 import { MAX_ACTIVE_PROFILES } from './profile-guards';
+import type { WorkplaceCode } from './location';
 import { ensureSettingsRow, SETTINGS_ID } from './settings';
 import type { PriorityRule } from './priority-rules';
 
@@ -13,10 +14,12 @@ export interface ProfileInput {
   stackExclude: string[];
   notes: string | null;
   seniority: string[];
-  remoteOk: boolean;
-  remoteRegions: string[];
+  /** ISO-2 codes and group codes (ADR 0032); both empty = anywhere. */
+  countries: string[];
+  regions: string[];
+  /** Arrangements the search accepts; empty = any. */
+  workplace: WorkplaceCode[];
   onsiteCities: string[];
-  hybridOk: boolean;
   minSalaryUsd: number;
   minFitScore: number;
   telegramTargetId: number | null;
@@ -39,10 +42,10 @@ export function blankProfileInput(): ProfileInput {
     stackExclude: ['junior', 'intern'],
     notes: null,
     seniority: [],
-    remoteOk: true,
-    remoteRegions: [],
+    countries: [],
+    regions: [],
+    workplace: ['REMOTE'],
     onsiteCities: [],
-    hybridOk: false,
     minSalaryUsd: 0,
     minFitScore: 70,
     telegramTargetId: null,

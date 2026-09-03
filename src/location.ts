@@ -25,6 +25,13 @@ export type WorkplaceCode = 'REMOTE' | 'HYBRID' | 'ONSITE' | 'UNKNOWN';
 
 export const WORKPLACE_CODES: readonly WorkplaceCode[] = ['REMOTE', 'HYBRID', 'ONSITE', 'UNKNOWN'];
 
+/** What a search can accept (ADR 0032): UNKNOWN is a reading of a posting, never a preference. */
+export const PROFILE_WORKPLACES: readonly WorkplaceCode[] = ['REMOTE', 'HYBRID', 'ONSITE'];
+
+export function isProfileWorkplace(s: string): s is WorkplaceCode {
+  return (PROFILE_WORKPLACES as readonly string[]).includes(s);
+}
+
 export const WORKPLACE_LABEL: Record<WorkplaceCode, string> = {
   REMOTE: 'Remote',
   HYBRID: 'Hybrid',

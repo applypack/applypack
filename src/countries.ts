@@ -202,14 +202,32 @@ function escapeRegExp(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+/**
+ * A typed list ("Poland, Polska, DE, Kraków") → ISO codes, once each, plus
+ * the entries nothing resolved — the form names those back to the user.
+ */
+export function resolveCountries(values: readonly string[]): { codes: string[]; unknown: string[] } {
+  const codes: string[] = [];
+  const unknown: string[] = [];
+  for (const v of values) {
+    const trimmed = v.trim();
+    if (trimmed.length === 0) continue;
+    const country = findCountry(trimmed);
+    if (!country) unknown.push(trimmed);
+    else if (!codes.includes(country.code)) codes.push(country.code);
+  }
+  return { codes, unknown };
+}
+
 /** A single spelling → the country. Code, any name, flag, city, subdivision or demonym. */
 export function findCountry(query: string): Country | null {
   const trimmed = query.trim();
   if (trimmed.length === 0) return null;
   const upper = trimmed.toUpperCase();
   if (byCode.has(upper)) return byCode.get(upper)!;
-  const fromFlag = codeOfFlag(trimmed);
-  if (fromFlag && byCode.has(fromFlag)) return byCode.get(fromFlag)!;
+  // "🇵🇱" or "🇵🇱 Poland" — the picker's chips carry both.
+  const fromFlag = codesOfFlags(trimmed)[0];
+  if (fromFlag) return byCode.get(fromFlag)!;
   const key = normalizePlace(trimmed);
   const hit = PLACE_ALIASES.get(key);
   if (hit && hit.kind !== 'region') return byCode.get(hit.code) ?? null;
