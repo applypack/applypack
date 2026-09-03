@@ -1,6 +1,6 @@
 import Parser from 'rss-parser';
 import { findCountry } from '../countries';
-import { stripHtml } from '../http';
+import { fetchWithRetry, stripHtml } from '../http';
 import { feedItemKey } from '../text-utils';
 import type { NormalizedJob } from '../types';
 import { insideParens, parseDouTitle } from './dou-title';
@@ -22,6 +22,10 @@ import { insideParens, parseDouTitle } from './dou-title';
  *
  * The title carries everything but the description — role, company,
  * salary, cities, "за кордоном", "віддалено" — see dou-title.ts.
+ *
+ * DOU answers rss-parser's own User-Agent with 403 (measured 2026-09-03),
+ * so the feed is fetched with the project's UA through fetchWithRetry and
+ * only parsed by rss-parser.
  */
 const FEED_URL = 'https://jobs.dou.ua/vacancies/feeds/';
 const PARSER_TIMEOUT_MS = 15_000;
@@ -46,7 +50,8 @@ export interface DouCompany {
 }
 
 export async function fetchDou(company: DouCompany): Promise<NormalizedJob[]> {
-  const feed = await parser.parseURL(douFeedUrl(company.atsToken));
+  const resp = await fetchWithRetry(douFeedUrl(company.atsToken), { timeoutMs: PARSER_TIMEOUT_MS });
+  const feed = await parser.parseString(await resp.text());
   return feed.items.flatMap((item) => mapDouItem(item, company.id) ?? []);
 }
 
