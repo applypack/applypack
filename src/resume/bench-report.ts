@@ -10,8 +10,6 @@ import { canonicalTerm } from './facts';
  * baseline run's — the number the Sonnet-vs-Opus decision rests on. No I/O.
  */
 
-export type BenchMode = 'fast' | 'full';
-
 const KeywordSchema = z.object({
   term: z.string(),
   status: z.string(),
