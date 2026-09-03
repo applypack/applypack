@@ -80,6 +80,19 @@ const TOKENS_CSS = `
   :focus-visible { outline: 2px solid rgb(var(--accent)); outline-offset: 2px; border-radius: 4px; }
   .skip-link { position: absolute; left: -999px; top: 8px; z-index: 50; }
   .skip-link:focus { left: 8px; }
+  /* Navigation progress (public/progress.mjs). Above the skip link and the
+     mobile sidebar, so it stays visible whatever is open. The transition
+     matches the script's tick, making the creep continuous rather than steppy;
+     reduced-motion flattens it via the global rule below. */
+  #page-progress {
+    position: fixed; top: 0; left: 0; z-index: 60; height: 3px; width: 100%;
+    background: rgb(var(--accent)); transform: scaleX(0); transform-origin: 0 50%;
+    transition: transform 120ms linear; pointer-events: none;
+    /* Same emerald as the AP mark, but a hairline reads lighter than a solid
+       square — the glow carries the brand colour at this thickness. */
+    box-shadow: 0 0 8px rgb(var(--accent) / 0.55);
+  }
+  #page-progress[hidden] { display: none; }
   @media (max-width: 767.98px) {
     .app-sidebar {
       position: fixed; top: 0; bottom: 0; left: 0; z-index: 40; width: 16rem;
@@ -144,6 +157,11 @@ FORM: Brief-pinned light ops console (Linear density, Stripe forms, GitHub table
 FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, DESIGN.md, and every shipping raster carrying its provenance.
 -->`;
 
+const PROGRESS_BOOT = `
+import { init } from '/static/progress.mjs';
+init();
+`;
+
 const NAV_JS = `
   (function () {
     var toggle = document.getElementById('nav-toggle');
@@ -191,6 +209,7 @@ export const Layout: FC<PropsWithChildren<LayoutProps>> = ({
     </head>
     <body class="bg-surface font-sans text-sm text-ink antialiased">
       {raw(DIRECTION_CONTRACT)}
+      <div id="page-progress" aria-hidden="true" hidden></div>
       <a
         href="#main"
         class="skip-link rounded-md bg-accent-strong px-3 py-1.5 text-sm font-medium text-white"
@@ -214,6 +233,7 @@ export const Layout: FC<PropsWithChildren<LayoutProps>> = ({
       </div>
       <div id="nav-backdrop" class="nav-backdrop" aria-hidden="true"></div>
       <script dangerouslySetInnerHTML={{ __html: NAV_JS }} />
+      <script type="module" dangerouslySetInnerHTML={{ __html: PROGRESS_BOOT }} />
     </body>
   </html>
 );
