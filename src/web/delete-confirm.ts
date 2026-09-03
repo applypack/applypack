@@ -12,17 +12,44 @@ export interface DeleteImpact {
   matches: number;
   letters: number;
   reviews: number;
+  /** Searches hunting with this resume. SetNull: the search lives on, unlinked. */
+  searches: number;
+  /** Applications that recorded it as the resume they went out with. */
+  applications: number;
 }
 
+/**
+ * Two clauses, because a resume has two kinds of dependant. The Cascade
+ * children are deleted with it and belong in the question. The SetNull ones
+ * survive with a link cleared — a search that loses its resume goes back to
+ * guessing by skill overlap (`resume/pick.ts`), and an application keeps its
+ * text snapshot but loses the name (`jobs/applied-with.ts`). Listing those
+ * alongside the deletions would claim the search is deleted too, which is the
+ * opposite of what happens, so they get a sentence of their own.
+ */
 export function deleteConfirm(name: string, impact: DeleteImpact): string {
-  const parts = [
+  const deleted = [
     countOf(impact.matches, 'comparison', 'comparisons'),
     countOf(impact.letters, 'cover letter', 'cover letters'),
     countOf(impact.reviews, 'strength review', 'strength reviews'),
   ].filter((p): p is string => p !== null);
 
-  if (parts.length === 0) return `Delete "${name}"? Nothing else is attached to it.`;
-  return `Delete "${name}" and ${joinList(parts)}? This cannot be undone.`;
+  const unlinked = [
+    impact.searches === 0
+      ? null
+      : `${impact.searches} ${impact.searches === 1 ? 'search stops' : 'searches stop'} hunting with it`,
+    impact.applications === 0
+      ? null
+      : `${impact.applications} ${impact.applications === 1 ? 'application' : 'applications'} will show "a deleted resume" instead`,
+  ].filter((p): p is string => p !== null);
+
+  if (deleted.length === 0 && unlinked.length === 0) {
+    return `Delete "${name}"? Nothing else is attached to it.`;
+  }
+  const head =
+    deleted.length === 0 ? `Delete "${name}"?` : `Delete "${name}" and ${joinList(deleted)}?`;
+  const side = unlinked.length === 0 ? '' : ` ${joinList(unlinked)}.`;
+  return `${head}${side} This cannot be undone.`;
 }
 
 export interface CompanyDeleteImpact {
