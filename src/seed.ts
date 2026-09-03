@@ -210,6 +210,16 @@ const SEED_COMPANIES: SeedCompany[] = [
     careerUrl: 'https://www.arbeitnow.com',
     active: false,
   },
+  {
+    // Same board, only the postings whose employer sponsors a visa — a
+    // server-side filter, so a feed of its own (stage 3a). Off until a
+    // search needs it, like the plain feed.
+    name: 'Arbeitnow · visa sponsorship',
+    atsType: AtsType.ARBEITNOW,
+    atsToken: 'visa',
+    careerUrl: 'https://www.arbeitnow.com/?visa_sponsorship=true',
+    active: false,
+  },
 
   // HN /jobs — individual YC-job posts indexed by Algolia under
   // tags=job (separate from the monthly Who-is-hiring thread). Each
