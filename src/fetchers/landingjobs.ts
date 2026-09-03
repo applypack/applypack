@@ -4,6 +4,7 @@ import { fetchWithRetry, stripHtml } from '../http';
 import type { LocationHints, WorkplaceCode } from '../location';
 import { feedItemKey } from '../text-utils';
 import type { NormalizedJob } from '../types';
+import { firstText, nested } from './xml-text';
 
 /**
  * Landing.jobs — the Portuguese tech board (stage 3c, plan §4.2). Its Atom
@@ -92,15 +93,3 @@ function formatLocation(policy: string, city: string, country: string): string {
   return place.length > 0 ? `${policy} · ${place}` : policy;
 }
 
-/** A child of an xml2js element node, if the node is one. */
-function nested(node: unknown, key: string): unknown {
-  return node !== null && typeof node === 'object' && key in node ? (node as Record<string, unknown>)[key] : undefined;
-}
-
-/** The text of an xml2js value: a string, the first of an array, or a node's `_`. */
-function firstText(value: unknown): string {
-  if (typeof value === 'string') return value.trim();
-  if (Array.isArray(value)) return firstText(value[0]);
-  if (value !== null && typeof value === 'object' && '_' in value) return firstText((value as { _: unknown })._);
-  return '';
-}

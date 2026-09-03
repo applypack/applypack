@@ -310,6 +310,15 @@ describe('extractAtsToken', () => {
       { atsType: 'PERSONIO', atsToken: 'ottonova' },
     );
     assert.deepEqual(
+      extractAtsToken('https://tibber.teamtailor.com/jobs/1234567-backend-engineer'),
+      { atsType: 'TEAMTAILOR', atsToken: 'tibber' },
+    );
+    assert.equal(extractAtsToken('https://www.teamtailor.com/en/pricing'), null);
+    assert.deepEqual(
+      extractAtsToken('https://holidu.jobs.personio.de/'),
+      { atsType: 'PERSONIO', atsToken: 'holidu' },
+    );
+    assert.deepEqual(
       extractAtsToken(
         'https://api.rippling.com/platform/api/ats/v1/board/acme/jobs',
       ),

@@ -176,7 +176,8 @@ export type DiscoverableAtsType =
   | 'BAMBOOHR'
   | 'PINPOINT'
   | 'RIPPLING'
-  | 'PERSONIO';
+  | 'PERSONIO'
+  | 'TEAMTAILOR';
 
 // Vendor marketing/support subdomains that look like board slugs in
 // subdomain-style ATS URLs ({slug}.recruitee.com) but never are.
@@ -271,6 +272,11 @@ export function extractAtsToken(
   m = /https?:\/\/([\w-]{2,60})\.jobs\.personio\.(?:de|com)(?:\/|$|\?)/i.exec(url);
   if (m && m[1]) {
     return { atsType: 'PERSONIO', atsToken: m[1].toLowerCase() };
+  }
+  // Teamtailor: {slug}.teamtailor.com/... (custom career domains cannot be told apart)
+  m = /https?:\/\/([\w-]{2,60})\.teamtailor\.com(?:\/|$|\?)/i.exec(url);
+  if (m && m[1] && !GENERIC_SUBDOMAINS.has(m[1].toLowerCase())) {
+    return { atsType: 'TEAMTAILOR', atsToken: m[1].toLowerCase() };
   }
   return null;
 }

@@ -156,6 +156,7 @@ const PROBEABLE_ATS: AtsType[] = [
   AtsType.PINPOINT,
   AtsType.RIPPLING,
   AtsType.PERSONIO,
+  AtsType.TEAMTAILOR,
   AtsType.DOU,
   AtsType.DJINNI,
   AtsType.JOBTECH,

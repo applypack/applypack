@@ -4,6 +4,7 @@ import { douFeedUrl } from './fetchers/dou';
 import { djinniFeedUrl } from './fetchers/djinni';
 import { jobTechProbeUrl, parseJobTechTotal } from './fetchers/jobtech';
 import { isPersonioFeed, parsePersonioXml, personioFeedUrl, personioSlug } from './fetchers/personio';
+import { teamtailorFeedUrl, teamtailorHost } from './fetchers/teamtailor';
 
 export interface ProbeResult {
   ok: boolean;
@@ -141,6 +142,20 @@ export async function probeAts(
         }
         if (!isPersonioFeed(xml)) return { ok: false, error: `"${slug}" answered something other than a Personio job feed.` };
         return { ok: true, jobsCount: parsePersonioXml(xml).length };
+      }
+      case AtsType.TEAMTAILOR: {
+        // An unknown slug is a plain 404 (verified 2026-09-03); a custom
+        // career domain is the user's own token and must be a public host.
+        let host: string;
+        try {
+          host = teamtailorHost(trimmed);
+        } catch (err) {
+          return { ok: false, error: err instanceof Error ? err.message : 'Invalid Teamtailor token.' };
+        }
+        const feed = await fetchWithRetry(teamtailorFeedUrl(host), { timeoutMs: 8_000 });
+        const xml = await feed.text();
+        if (!/<rss[\s>]/i.test(xml)) return { ok: false, error: `"${host}" answered something other than a Teamtailor job feed.` };
+        return { ok: true, jobsCount: (xml.match(/<item>/g) ?? []).length };
       }
       case AtsType.JOBTECH: {
         // An unknown taxonomy code or a hopeless query answers 200 with

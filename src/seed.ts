@@ -189,6 +189,17 @@ const SEED_COMPANIES: SeedCompany[] = [
     active: false,
   },
 
+  // Teamtailor (stage 3d, plan §4.2): the Nordic / UK / NL ATS, public JSON
+  // Feed per board. Tibber is the reference board (Nordic energy tech,
+  // ISO countries on every posting, 2026-09-03). Off until a search hunts there.
+  {
+    name: 'Tibber',
+    atsType: AtsType.TEAMTAILOR,
+    atsToken: 'tibber',
+    careerUrl: 'https://tibber.teamtailor.com',
+    active: false,
+  },
+
   // LaraJobs RSS — Laravel-only board, single feed under one synthetic
   // company. Enable when the active profile targets PHP/Laravel.
   {
