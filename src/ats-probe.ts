@@ -2,6 +2,7 @@ import { AtsType } from '@prisma/client';
 import { fetchWithRetry, HttpError } from './http';
 import { douFeedUrl } from './fetchers/dou';
 import { djinniFeedUrl } from './fetchers/djinni';
+import { jobTechProbeUrl, parseJobTechTotal } from './fetchers/jobtech';
 
 export interface ProbeResult {
   ok: boolean;
@@ -120,6 +121,15 @@ export async function probeAts(
         return matching > 0
           ? { ok: true, jobsCount: matching }
           : { ok: false, error: keyword ? `Djinni knows no primary_keyword "${keyword}" (or it has no vacancies right now).` : 'Djinni answered no vacancies for this filter.' };
+      }
+      case AtsType.JOBTECH: {
+        // An unknown taxonomy code or a hopeless query answers 200 with
+        // total 0 (verified 2026-09-03), so the count is the check.
+        const answer = await fetchWithRetry(jobTechProbeUrl(trimmed), { timeoutMs: 8_000 });
+        const total = parseJobTechTotal(await answer.json());
+        return total > 0
+          ? { ok: true, jobsCount: total }
+          : { ok: false, error: 'JobTech answered no ads for this filter — check the taxonomy codes or the query.' };
       }
       case AtsType.SMARTRECRUITERS:
         resp = await fetchWithRetry(

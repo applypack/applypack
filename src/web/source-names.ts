@@ -30,6 +30,7 @@ const SOURCE_NAMES: Record<string, string> = {
   SOLIDJOBS: 'solid.jobs',
   DEVITJOBS: 'DevITjobs',
   LANDINGJOBS: 'Landing.jobs',
+  JOBTECH: 'JobTech',
   DOU: 'DOU',
   DJINNI: 'Djinni',
   MANUAL: 'Manual',
