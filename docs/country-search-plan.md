@@ -247,7 +247,7 @@ Semantics to write into ADR 0031:
 model Profile {
   countries    String[] @default([])        // ["PL","DE","NL"] — remote or on-site
   regions      String[] @default([])        // ["EU","WORLDWIDE"] — groups, stored as groups
-  workplace    String[] @default(["remote"]) // remote | hybrid | onsite
+  workplace    Workplace[] @default([REMOTE])  // the Job enum, one vocabulary (amended 2026-09-03)
   onsiteCities String[]                     // unchanged — city-level precision
   residence    String?                      // stage 4: "UA" — where the candidate lives now
   relocation   String   @default("no")      // stage 4: no | yes | sponsorship
@@ -259,8 +259,8 @@ Migration of existing rows (SQL, hand-written):
 
 | Was | Becomes |
 |---|---|
-| `remoteRegions ⊇ {US}` / `{Americas}` / `{EU}` / `{APAC}` / `{Worldwide}` | `regions` gets `US` / `AMERICAS` / `EU` / `APAC` / `WORLDWIDE` |
-| `remoteRegions ⊇ {UK}` | `countries` gets `GB` |
+| `remoteRegions ⊇ {Americas}` / `{EU}` / `{APAC}` / `{Worldwide}` | `regions` gets `AMERICAS` / `EU` / `APAC` / `WORLDWIDE` |
+| `remoteRegions ⊇ {US}` / `{UK}` | `countries` gets `US` / `GB` — both were countries wearing a region's hat (amended 2026-09-03, stage 2; the gazetteer has no `US` group) |
 | `remoteOk = true` | `workplace` gets `remote` |
 | `hybridOk = true` | `workplace` gets `hybrid` |
 | `onsiteCities` non-empty | `workplace` gets `onsite` |

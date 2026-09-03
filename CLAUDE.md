@@ -52,6 +52,9 @@
 - Each fetcher returns `NormalizedJob[]` — never writes to DB directly.
 - `filter.ts` is pure — no I/O. `passesBaseFilter` stays single-profile;
   `passesAnyBaseFilter` is the union wrapper every caller uses (ADR 0028).
+  It reads the Job columns, not the string: callers pass stored rows or a
+  `parseLocation` result; `placesOverlap` expands groups on both sides
+  (ADR 0032) and everything unknown goes to the classifier.
 - `apply-link.ts` is pure — no I/O. It flags apply links, never rejects a
   row, and the company name is deliberately not an input (ADR 0023).
   `withApplyLinkFlags` is called at every site that persists `redFlags`.
@@ -163,6 +166,9 @@ When the question is **"where does X live?"**, save yourself a `find`:
 | Near-duplicate detection across sources (SimHash, Hamming) | `src/fingerprint.ts` (ADR 0018); wired in `jobs/process-jobs.ts` |
 | Per-source health (error→status, failure streak, quiet/silent) | `src/fetchers/source-health.ts` (pure, ADR 0019); recorded by the wrapper in `fetchers/index.ts:runAllFetchers` |
 | Apply-link flags (missing / unusable / shortened / not-an-application) | `src/apply-link.ts` (pure, ADR 0023); merged into `Job.redFlags` at all three persist paths |
+| Where a SEARCH hunts (countries / regions / workplace on the profile), the set filter with group expansion | `prisma/schema.prisma:Profile` (ADR 0032) → `src/profiles.ts:ProfileInput` → `src/filter.ts:locationMatches` / `placesOverlap` (pure); the prompt line `classifier.ts:describeLocation` (codes only); the editor control `pages/settings.tsx` Location fieldset + `public/countries.mjs` over `GET /countries.json` |
+| The classifier's own reading of a posting's place, and how it meets the parser's | reply block `location` in `classifier.ts:LocationBlockSchema` → `src/jobs/location-merge.ts:mergeAiLocation` (pure: fill or narrow, never blank; `locationSource = 'ai'`) at all three write paths |
+| Why a verdict says "location mismatch" | `src/jobs/location-reason.ts:locationMismatchReason` (pure, columns only) → the Classifier card on `/jobs/:id` |
 | Location string → workplace + countries + regions (ADR 0031) | `src/location.ts:parseLocation` (pure; the §7.1 traps are its tests) over the gazetteer `src/countries.json` + `src/countries.ts` (`findCountry`, `countriesOf`, `groupsOf`); hints from fetchers in `NormalizedJob.locationHints`; backfill `src/scripts/backfill-locations.ts --dry-run` |
 | The /jobs place / workplace / posted facets (query params, where-clause, chip counts) | `src/web/job-facets.ts` (pure) — `country=PL,DE,EUROPE,unknown`, `workplace=remote,hybrid`, `posted=24h\|7d\|30d`; rendered in `pages/jobs-list.tsx`, chips on `/jobs/:id` |
 | Stable id for a feed row with no id of its own | `src/text-utils.ts:feedItemKey` (URL key → text key → null, never `''`) |
@@ -249,6 +255,7 @@ When the question is **"how does the user toggle / configure X?"**:
 | Disable whole ATS family (e.g. all Workable) | `/settings` Sources tab |
 | Enable two-stage classifier (cheaper, less precise) | `/settings` AI engine tab → "Classifier" |
 | Edit profile (stack, role types, regions, fit threshold) | `/settings` Profile tab (excludes, notes, priority rules, thresholds live in its "Advanced" block) |
+| Say where a search hunts (countries, groups, remote / hybrid / on-site) | `/settings` Profile tab → "Location": arrangement pills, the Countries chip input (type "Poland", "Polska", "PL" or a city, pick from the list; any spelling works without JS), region pills (🇪🇺 European Union, Europe, DACH, 🌍 Worldwide …). Empty countries + regions = anywhere |
 | Fill the profile from a resume (AI draft, review before save) | `/settings` Profile tab → "Fill from a resume" |
 | Create a second search from another resume | `/resumes/:id` → "Search profile" card, or `/welcome?step=profile` → "Another resume for a different kind of role?" |
 | Which resume a search hunts with | `/settings` Profile tab → "Resume for this search" (empty = pick by skill overlap) |

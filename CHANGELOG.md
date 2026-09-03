@@ -4,6 +4,46 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.25.0] — 2026-09-03
+
+### Added
+- **A search says where it hunts.** The profile's six region pills and two
+  booleans are gone; a search now lists `countries` (ISO codes), `regions`
+  (groups — 🇪🇺 European Union, Europe, DACH, Nordics, 🌍 Worldwide …, a group
+  stored as a group) and the arrangements it accepts (remote / hybrid /
+  on-site), next to its on-site cities. One migration maps the old pills —
+  `US` and `UK` were countries wearing a region's hat and become countries —
+  and drops the old columns, so no running deployment ever sees two models.
+  The editor is one control: arrangement pills, a country chip input with
+  gazetteer suggestions (type "Poland", "Polska", "Польща", "PL" or "Kraków",
+  arrow down, Enter), region pills; without JavaScript the textarea takes any
+  spelling the gazetteer knows. ADR 0032.
+- **The base filter compares sets.** A posting reaches the classifier when
+  its countries or regions overlap the search's, with groups expanded on both
+  sides — Poland sits inside an EU search, "Europe" on a posting reaches an EU
+  search, Worldwide reaches everyone. A listed on-site city still admits
+  outright; an arrangement the search does not accept rejects; a posting that
+  names no place goes to the model as before. Hybrid postings no longer reach
+  a remote-only search (0 of 65 had ever matched).
+- **The classifier prompt no longer assumes a US search.** Its location rules
+  speak codes and groups, distinguish EU (law) from Europe (geography),
+  require the office's city or country for hybrid and on-site roles, and never
+  infer remote eligibility from an office address. The reply gains a shared
+  `location` block — the posting's own place, read once like salary — which
+  may only narrow what the parser found (an arrangement where the parser had
+  none, a country list the description made stricter); rows it changed carry
+  `locationSource = ai`, and the backfill leaves them alone.
+- **The job page says why.** Next to "location mismatch" a search's verdict
+  now reads "open to Poland; this search hunts in United States, Americas" or
+  "hybrid role; this search accepts remote" — built from the columns, no AI
+  call; nothing is added when only the summary can explain it.
+- `GET /countries.json` serves the gazetteer to the browser.
+
+### Changed
+- Every profile construction site (`blankProfileInput`, the first-boot
+  bootstrap, the wizard, "create a search from a resume") now starts from
+  `countries: []`, `regions: []`, `workplace: [REMOTE]` — anywhere, remote.
+
 ## [1.24.0] — 2026-09-03
 
 ### Added

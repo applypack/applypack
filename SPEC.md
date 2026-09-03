@@ -129,7 +129,10 @@ Profile fields that drive matching:
 - `roleTypes` — job categories (e.g. `full-stack`, `backend`). Title hint only — Claude is told a role-type alone is **not** a tech match.
 - `stackNiceToHave` — boost
 - `stackExclude` — drop on title hit (`junior`, `intern`, `wordpress`)
-- `seniority`, `remoteOk`, `remoteRegions`, `onsiteCities`, `hybridOk`
+- `seniority`
+- `countries` (ISO-2), `regions` (group codes — a group stays a group), `workplace`
+  (arrangements accepted), `onsiteCities` — where the search hunts (ADR 0032);
+  both lists empty = anywhere, empty `workplace` = any arrangement
 - `minFitScore`, `minSalaryUsd`
 - `notes` — free-form prose appended to the Claude prompt
 - `telegramTargetId` — optional: route alerts to a specific bot (else broadcast)
