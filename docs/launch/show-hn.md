@@ -23,10 +23,11 @@ Show HN: A resume scorer the model can't flatter, from my self-hosted job hunt (
 
 ## First comment (post right after submitting)
 
-I'm mid job hunt. The boards were eating my evenings: every promising
-"Senior Engineer" listing took three minutes of reading to reveal a wrong
-stack, a wrong country, or a ghost posting. ApplyPack does that reading
-for me, on my own machine, and I run it for my own search every day.
+I built this mid job hunt, and it is how I found the job I have now.
+The boards were eating my evenings: every promising "Senior Engineer"
+listing took three minutes of reading to reveal a wrong stack, a wrong
+country, or a ghost posting. ApplyPack did that reading for me, on my
+own machine, every day of the search.
 
 The submission link (https://applypack.dev/demo/) is the app's actual
 scoring module compiled for the browser, on a synthetic resume and

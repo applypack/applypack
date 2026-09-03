@@ -734,9 +734,9 @@ when next touching it.
 
 ## 11. Onboarding wizard + profile simplification + multi-resume search (analysis 2026-08-31)
 
-Full plan: [docs/onboarding-plan.md](./onboarding-plan.md). **Analysis
-only — nothing implemented yet** (written from a parallel session; do not
-start without checking §10's status first).
+Full plan: [docs/onboarding-plan.md](./onboarding-plan.md). **Done —
+all 7 stages shipped** (v1.5.0–v1.11.0); the checklist below is the
+status of record.
 
 Driver: users don't find where to create a profile or upload a resume;
 no way to verify the pipeline works from the UI; target persona for
@@ -744,31 +744,41 @@ first-run is a non-technical user. Critical path decided by owner:
 connect AI → prove search works → build profile from a resume;
 Telegram explicitly optional.
 
-- [ ] `profile-tab-quickwins` — reorder Profile tab around the journey,
+- [x] `profile-tab-quickwins` — reorder Profile tab around the journey,
       kill top "Re-classify all", placeholders, conditional rules hint,
-      `advancedOpen` fix, inline upload in the Fill card
-- [ ] `fetch-now` — "Fetch now" button + `{classify: false}` seam +
-      background run (reclassify pattern) + progress page
-- [ ] `welcome-wizard` — `/welcome` 4-step first-run flow
+      `advancedOpen` fix, inline upload in the Fill card — done 2026-09-01,
+      branch `profile-tab-quickwins`
+- [x] `fetch-now` — "Fetch now" button + `{classify: false}` seam +
+      background run (reclassify pattern) + progress page — done 2026-09-01,
+      branch `fetch-now`; lives on Overview AND `/runs` (one shared button)
+- [x] `welcome-wizard` — `/welcome` 4-step first-run flow
       (AI → test search → resume → first matches), redirect while
       `AppSettings.setupCompletedAt` null, skip link, Overview chip;
-      ~4 clicks + one file pick end-to-end
-- [ ] `ai-key-in-db` — paste API key in UI, DB-stored, masked
-      (**ADR**: extends 0013 + secrets policy; TelegramTarget precedent)
-- [ ] `profile-resume-link` — `Profile.resumeId` + one-click "Create
-      profile from this resume"
-- [ ] `multi-profile-search` — multiple active profiles, union base
+      ~4 clicks + one file pick end-to-end — done 2026-09-01, branch
+      `welcome-wizard`; step 4 scores the best 10 per press ("Score 10 more")
+- [x] `ai-key-in-db` — paste API key in UI, DB-stored, masked — done
+      2026-09-02, branch `ai-key-in-db` (ADR 0027: `AppSettings.aiKeys`,
+      four key-bearing engines, `.env` stays the fallback)
+- [x] `profile-resume-link` — `Profile.resumeId` + one-click "Create a
+      search from this resume" on `/resumes/:id` and in step 3 for a
+      second resume; job pages preselect the linked resume — done
+      2026-09-02, branch `profile-resume-link`; new profiles born
+      inactive, `SetNull` on resume delete
+- [x] `multi-profile-search` — multiple active profiles, union base
       filter, **one** classifier call returning per-profile scores,
-      `JobScore` table, per-profile alert routing (**ADR**)
-- [ ] `applied-resume` — record which resume (+ text snapshot) a job was
-      applied with; surface in stale digest
+      `JobScore` table, per-profile alert routing — done 2026-09-02,
+      branch `multi-profile-search` (ADR 0028, supersedes 0004; the
+      ceiling is 8, not the hypothesised 5)
+- [x] `applied-resume` — record which resume (+ text snapshot) a job was
+      applied with; surface in stale digest — done 2026-09-02, branch
+      `applied-resume`; **§11 closed**
 
 ## 12. /resumes overhaul + on-demand resume strength review (analysis 2026-08-31)
 
-Full plan: [docs/resumes-plan.md](./resumes-plan.md). **Analysis only —
-nothing implemented** (written from a parallel session: browser audit of
-the live page at desktop + 375px, plus code verification; do not start
-without checking §10/§11 status first).
+Full plan: [docs/resumes-plan.md](./resumes-plan.md). **Section closed
+2026-09-02**: Part A shipped in v1.12.0, Part B's review the same day, and the
+metric-ask loop plus the quick wins in `resume-strength-loop`. Original audit:
+browser pass over the live page at desktop + 375px, plus code verification.
 
 Driver: `/resumes` shows inventory, not effectiveness — no per-resume
 match signal, upload & scan freezes the browser ~60 s (double-submit
@@ -780,26 +790,71 @@ metric *asks* instead of invented numbers (ADR 0020 stance). Never
 auto-run on upload; discoverable as a real card with an explainer, not an
 icon; progress visible step-by-step via the target-run registry pattern.
 
-- [ ] `resumes-page-p0` — async upload/replace/rescan via the run
-      registry, mobile row fix (Delete off hub rows, responsive columns —
-      needs a small `Table` th-class extension), delete-confirm mentions
-      cover letters, `primarySkills` column, Matches/`FitBadge` column
-- [ ] `resume-strength` — fenced `REVIEW_SYSTEM` (grades only — the model
+- [x] `resumes-page-p0` — async upload/replace/rescan **and "Save as vN"**
+      via the run registry (+ a `SUBMIT_ONCE` guard on the forms that start
+      one), mobile row fix (Delete off hub rows, columns drop out by width
+      over the new `Table` `thClasses`), delete-confirm counts comparisons
+      AND cover letters, `primarySkills` column, Matches/`FitBadge` column,
+      version badge (#6 rode along) — done 2026-09-02, branch
+      `resumes-page-p0`. Findings #7 (facts add/flip), #8 (rename) and #9
+      (polish) stay open in the quick-wins bullet below.
+- [x] `resume-strength` — fenced `REVIEW_SYSTEM` (grades only — the model
       never outputs the score; pure `review-score.ts` applies hard caps,
       gotcha-11 guard test) + `ResumeReview` table + detail card + hub
-      column + run-page `review` step (**ADR**: new AI call site + table)
-- [ ] `resume-strength-loop` — metric asks → user answers → re-run
-      deltas; version-over-version strength trend
-- [ ] quick wins ride along where touched: facts add/flip on `/resumes`
-      (existing `POST /facts` covers it), rename route, version badge in
-      hub, grouped per-job score history (`diff.ts`)
+      column + run-page `review` step — done 2026-09-02, branch
+      `resume-strength` ([ADR 0030](./adr/0030-resume-strength-review.md)).
+      Six dimensions graded `strong | ok | weak` with verbatim evidence,
+      weights 30/20/20/15/10/5 and two caps in code: weak `impact` caps at
+      55, two weak dimensions cap at 45. Advice either rewrites with facts
+      already in the resume or ASKS for the number it would need — the
+      ADR 0020/0021 stance on a new surface. Departures from the plan:
+      the sixth dimension is `polish` (positively phrased, so `strong`
+      always means good) and asks live inside their advice rows rather than
+      in a column of their own. Measured live
+      on the three stored resumes (Opus, CLI engine): **45 / 78 / 78** — the
+      45 is a raw 70 pulled down by the two-weak cap (a KEY SKILLS block whose
+      labels and values collapse into two unreadable lines, plus a typo and a
+      product version that did not exist when the role ended); the two 78s are
+      two variants of the same CV and drew an identical grade vector, which is
+      the right answer rather than a miss. First run 72.6 s / 12 110 reply
+      characters, 8 advice items, 4 asks. **Zero invented facts across 23
+      advice items** — several rewrites removed unsupportable percentages
+      instead of adding numbers.
+- [x] `resume-strength-loop` — metric asks → user answers → re-run deltas,
+      done 2026-09-02, branch `resume-strength-loop`. One column
+      (`Resume.answers`, hand-written migration) rather than a table or a
+      `CandidateFact` row: an answer belongs to the DOCUMENT, has to outlive
+      the run that asked, and "1.2M requests/day" would poison the skill
+      vocabulary that feeds the match prompt. `REVIEW_PROMPT_VERSION` 1 → 2.
+      **Measured live on resume 1** (Opus, CLI engine): 4 asks → answered 2 →
+      re-run in 69.3 s with `answersUsed: 2` and **asks 4 → 2**, and both
+      figures were written into the rewrites verbatim ("Consolidated 3
+      microservices into 1 and retired 2 paid SaaS licences, cutting cloud
+      spend by ~$40k/year"). The score stayed 45, which is correct: the prompt
+      forbids a supplied metric from moving a grade on its own, because the
+      resume is graded as WRITTEN. The delta against the earlier run said so
+      out loud — *"2 dimensions moved — but the two runs used different rubric
+      versions, so the difference is not a measurement"* — which is the whole
+      point of storing the prompt version. Test rows removed afterwards.
+      **Not built:** the version-over-version trend. Two reviews exist on two
+      different resumes and no resume has two comparable runs — n = 0, the
+      same trap the repo closed F18 with.
+- [x] quick wins: facts add/flip on `/resumes` (the existing `POST /facts`
+      took any term; only the form was missing), a rename route + header
+      form, and comparisons grouped per job — 14 flat rows became 10, with
+      the five-run posting reading **5 runs · 62 → 70 → 64 → 66 → 68**, every
+      score still its own link. The plan's fourth item, "version badge in
+      hub", shipped with `resumes-page-p0`; removed from the list rather than
+      built twice.
 
 ## 13. /target compare speed (30-40 s) + keyword-matcher accuracy (analysis 2026-08-31)
 
-Full plan: [docs/target-plan.md](./target-plan.md). **Analysis only —
-nothing implemented** (written from a parallel session; do not start
-without checking §10–§12 status first — §12's async-upload item overlaps
-the `/resumes` sync-scan finding, planned there, referenced here).
+Full plan: [docs/target-plan.md](./target-plan.md). **Section closed
+2026-09-02: blocks 1–5 plus `keyword-frame-rebuild` shipped (measured numbers
+in the plan's §2.3, §3.4, §4 and §5), block 6 closed by the numbers rather
+than built.** §12's
+async-upload item overlaps the `/resumes`
+sync-scan finding, planned there, referenced here.
 
 Driver: a fresh-resume compare takes ~3 min (owner target: 30-40 s), and
 the JD pane skips important posting words. Verified causes: one
@@ -813,21 +868,635 @@ sticky). Speed strategy: instant no-AI check against the stored frame
 (the live-editor machinery already does it), keywords-only fast AI mode,
 Sonnet bench for the resume role — not "make Opus stream faster".
 
-- [ ] `target-speed-p0` — classify off the critical path (parallel,
+- [x] `target-speed-p0` — classify off the critical path (background,
       `{classify:false}`), scan → background on reupload, memoize
-      identical (job, resumeText) re-runs, honest `STEP_VIEW` copy +
-      per-step ms logging
-- [ ] `keyword-matcher-v2` — persist-time verbatim guard, deterministic
-      alias table (`keyword-aliases.ts`, pure), plural + separator
-      tolerance in `termPattern`, tiered keyword budget (all must/
-      preferred always listed); table-driven tests
-- [ ] `target-instant-check` — reupload → parse-only dirty draft in the
-      target editor (~2-5 s, zero AI), "Re-analyze" upgrades on demand
-- [ ] `match-fast-mode` — keywords-only prompt variant (score-complete
-      subset, ~¼ output tokens) + `bench:resume` Sonnet-vs-Opus decision
-      (**PROMPT_VERSION bump**; possibly ADR)
-- [ ] `keyword-priority-ui` — per-keyword user overrides (re-level /
-      exclude / add own term) via existing `updateMatchScoring`, visual
-      weight for must+primary misses, posting-frequency tiebreaker
-- [ ] (only if still short of target) `match-split-frame` — per-job cached
-      keyword frame + statuses-only judge call (**ADR**)
+      identical (job, resumeText, prompt version) re-runs with a "Re-run
+      anyway" escape, per-step times on the run page, `STEP_VIEW` copy from
+      measured runs + per-step ms logging — done 2026-09-02, branch
+      `target-speed-p0` (PR #78). Measured on the CLI engine: a fresh
+      `/target` compare 158 → 128 s, a repeat 158 → 38 s, Compare repeat
+      109 → 0 s, re-upload 117 → 95 s; the match call itself is 78–109 s
+      (p50 ≈ 94 s) — 30–40 s needs blocks 3–4.
+- [x] `keyword-matcher-v2` — persist-time verbatim guard
+      (`keyword-anchor.ts`: a paraphrased term is re-anchored to the longest
+      verbatim phrase of itself the posting contains, else flagged
+      `unanchored` — "not in posting" in the keyword table, counted on the
+      `resume: matched` log line), deterministic alias table
+      (`keyword-aliases.ts`, 170 spelling groups, applied at persist time
+      and when a stored match loads), plural + separator tolerance in
+      `termPattern`; table-driven tests — done 2026-09-02, branch
+      `keyword-matcher-v2` (PR #80). Measured on the 15 stored comparisons
+      (`npm run keywords:audit`, no AI): rows with no highlight in the
+      posting 54 → 53 of 305, `present` rows with no highlight in the
+      resume 36 → 35 of 181; what remains are paraphrases from pre-v5
+      analyses — on the current prompt no stored row misses the posting.
+      The tiered keyword budget (F1) is a prompt change and moved to
+      `match-fast-mode` below; "Rebuild keywords" (F7) is issue #79.
+- [x] `target-instant-check` — reupload → parse-only dirty draft in the
+      target editor, "Re-analyze" upgrades on demand — done 2026-09-02,
+      branch `target-instant-check` (PR #81). "Upload & check" is the default of
+      "Re-upload resume" on `/jobs/:id/target` (no AI, no new version,
+      nothing written; the draft lives in the tab and survives a reload);
+      the full run stays as "Upload as vN & analyze with AI". `/target`
+      answers the same way when the posting dedupes to a job this resume
+      was analysed against and its text changed since. Measured on the
+      stored originals: parse 0–2 ms (.docx) / 10–15 ms (.pdf, 64 ms
+      cold); POST → rendered page ~30 ms server-side, ~155 ms to `load`
+      in the browser — the plan's "~2–5 s" was two orders too pessimistic,
+      the AI upgrade stays the 78–109 s of block 1. Known cost, stated on
+      the page: "Save as vN" after a check keeps the text, not the file.
+- [x] `match-fast-mode` — keywords-only prompt variant (the score-complete
+      subset), the lazy "Get suggestions" second call, the tiered keyword
+      budget from §4 F1 and the Sonnet-vs-Opus bench — one **PROMPT_VERSION
+      bump (5 → 6)** for all three prompt changes, ADR 0029 — done
+      2026-09-02, branch `match-fast-mode` (PR #82). Both match prompts are
+      assembled from the same rule constants, so the guard tests run every
+      gotcha-11 rule against both; the mode marker rides in the `breakdown`
+      JSON (no schema change) and the reuse memo learned it, so a full
+      analysis over a stored quick check pays for the suggestions alone.
+      Measured on the gold fixtures (CLI engine, Opus): quick check p50
+      **15 s vs 24 s** full, 77 s vs 116 s for the suite, **2591 vs 4373
+      reply characters**, all checks green, statuses agreeing 98%. Live on
+      job #1393: the quick check scored **66 — the same number the v5 full
+      analysis gave** in 40 s, and "Get suggestions" completed the row
+      afterwards. Sonnet is NOT the faster resume model on this engine
+      (v5: p50 40 s vs Opus 22 s, 95% status agreement, 74% term overlap),
+      so `CLAUDE_MODEL_RESUME` stays `claude-opus-5` and §8 question 1 is
+      answered by the numbers.
+- [x] `keyword-priority-ui` — per-keyword user overrides (re-level /
+      ignore / add own term) through the existing `updateMatchScoring` path,
+      visual weight for must+primary misses, posting-frequency tiebreaker —
+      done 2026-09-02, branch `keyword-priority-ui` (PR #83). The override
+      rides beside the model's verdict in the comparison's own `keywords`
+      JSON (no schema change, no ADR, `PROMPT_VERSION` untouched);
+      `effectiveKeywords()` is what the score, the panes and the live editor
+      read, so **`score.ts` never changed** and the score.mjs parity test
+      stayed green on its own. Weight and frequency come from
+      `keywordRank()` / `orderKeywords()` in `target.mjs` — one
+      implementation for the panes, the chips and the server-rendered table.
+      Measured live on job #1393: **2–15 ms per edit, no `resume:` line in
+      the web log** (must → nice 66 → 67, ignore 67 → 68, add-and-present
+      68 → 68, add-and-missing 68 → 67, five resets back to 66); a forced
+      re-run logged `overrides: 3, readded: 1`, so the edits survived into
+      the fresh reply. An added term's status is read from the resume, and
+      the `override` field is stripped from every model reply on the way in.
+- [x] `keyword-frame-rebuild` — "Rebuild keywords" runs the analysis once
+      without `previousKeywords`, and a frame written under another
+      `PROMPT_VERSION` is never inherited (§4 F7, issue #79) — done
+      2026-09-02, branch `keyword-frame-rebuild` (PR #84). The decision is a
+      pure function of (stored prompt version, request flag) in
+      `keyword-frame.ts`; its reason rides in the `breakdown` JSON, so a
+      rebuilt row replaces the version delta with *"not comparable"* instead
+      of inviting a comparison between two different term lists. A rebuild
+      bypasses the reuse memo (it would otherwise hand back the very frame it
+      was asked to replace) and keeps every user override — `carryOverrides`
+      reads the full stored row, not the withheld frame. Measured live on job
+      #1393 (quick check, CLI engine): carried **42.2 s / 26 terms**, the same
+      list the frame had carried through five analyses since prompt v5;
+      rebuilt **41.8 s / 30 terms** — 23 shared, 3 dropped, **7 new (BullMQ,
+      GCP PubSub, AI tools, observability tools, performance monitoring,
+      CI/CD, Microservices)**, every one of them literally in the posting,
+      `unanchored` still 0. Score 67 → 64, which is what the card now says
+      out loud. The must → nice override set before the rebuild survived it.
+- [x] `match-split-frame` — per-job cached keyword frame + statuses-only judge
+      call (**ADR**). **Not built: closed 2026-09-02 by the numbers, not by
+      taste.** The gate was "only if still short of target" (30-40 s). After
+      block 4 the quick check is **p50 15 s** on the gold fixtures and
+      **40 / 42.2 / 41.8 s** on job #1393, one of the longest descriptions we
+      store — inside the band on short postings, ~2 s over on a long one. The
+      split would buy those seconds with a second prompt variant, an ADR and a
+      per-job cache to invalidate, while block 3 already answers the
+      as-you-type case with no call at all (0-15 ms) and F7 shows that a
+      frozen frame is a liability, not an asset. Reopen only if a measured
+      compare goes back over ~60 s.
+
+## 14. Pre-public hardening (2026-09-02)
+
+Not a feature: the class of bug a stranger meets first. Ordered by damage,
+not by issue number — #72 loses a pasted AI key, which is worth fixing
+before anyone else installs this.
+
+- [x] `pre-public-hardening` A+B — the read-modify-write races and the
+      cross-origin write guard, branch `pre-public-hardening`.
+      **Measured on a throwaway database** (`race_test`, all 47 migrations
+      applied from empty), each race run twice: once through the old code
+      path re-created inline, once through the shipped function.
+      - **#72** two tabs save a key for two engines: before → `[gemini_cli]`
+        (one key lost), after → `[gemini_cli, openai_api]`. The merge moved
+        into one `jsonb_set` statement; a transaction would not have helped,
+        because at Read Committed the read inside it still returns the
+        version current when it started.
+      - **#70** seven searches running, two activations in flight: before →
+        **2 accepted, 9 running**; after → **1 accepted, 8 running**. The
+        count and the write now share one lock on the singleton settings
+        row — locking the rows counted cannot see a row that became active
+        during the wait.
+      - **#76** three POSTs to `POST /resumes/8/review`, two of them
+        concurrent: **one run** (`abbe4376…`), two `run: joined a run
+        already in flight` lines, one review row. Every POST that starts an
+        AI run now names its work; a repeat after the answer still starts a
+        fresh run. The wizard's bespoke `scoreRunId` singleton was deleted
+        in favour of it.
+      - **PR #83's follow-up** — the keyword override and the `ask_user`
+        answer shared a read-modify-write of the same JSON. Two edits in
+        flight: before → one survived (`[postgres]`), after → both
+        (`[node.js, postgres]`). One locked function now serves both, which
+        also fixed a real bug: `/facts` re-scored without
+        `effectiveKeywords`, so answering a question on a comparison you had
+        re-levelled silently recomputed the number as if you never had.
+        Repeated live on job #1393 / match #59: two simultaneous edits →
+        3 overrides stored, five resets → back to **66** with 0 overrides,
+        the state PR #83 left behind.
+      - **#69** cross-origin POST → **403** from the middleware
+        (`Cross-origin request refused.` + a `web: cross-origin write
+        refused` log line); same-origin POST and header-less `curl` reach
+        their routes unchanged; GET is never checked. 11 unit tests on the
+        pure `sameOriginPost`.
+      - Five follow-ups that had only ever lived in PR bodies became issues
+        #88-#92; three of the same class were fixed here instead.
+- [x] `pre-public-hardening` C — #73, #74, #75, branch
+      `applied-resume-truth` (stacked on the above).
+      - **#75 measured in the live database first**: 8 rows with a pipeline
+        stage or `APPLIED` status, **0** of them recording a resume. The
+        application form now asks; the board's drag deliberately does not
+        guess (a drag carries no picker, and a guess written into the record
+        is worse than a blank), so the job page shows the gap and offers the
+        answer instead.
+      - **#74** the snapshot is rendered as a disclosure — it had been
+        written since v1.11.0 and read by nothing.
+      - **#73** verified live: a `resumeId` that no longer exists flashes
+        *"That resume no longer exists — reload the page and pick another
+        one. Nothing was saved."* and `profile.updatedAt` does not move.
+- [x] `pre-public-check` — the six-point audit, done 2026-09-02, branch
+      `pre-public-check`. Six checks, each with its evidence; **two P1s found
+      and fixed here**, two findings filed as issues.
+
+      1. **Clean install from nothing** — the check nobody had ever run. The
+         real stack down, `cp .env.example .env` (no keys of any kind), a
+         separate compose project on a fresh volume. `/` redirected to
+         `/welcome`, step 1 reported each engine honestly ("2.1.251 installed,
+         but not logged in"), step 2 fetched **2 633 jobs from 32/32 sources in
+         93 s with no AI**, step 3's no-resume fallback saved a profile, and
+         "Start the hourly watch" set `setupCompletedAt` and stopped the
+         redirect. **P1 found:** step 4 ran a full scoring pass with no engine
+         connected — ten failing calls and a minute of progress bar to be told
+         nothing could be scored. It now checks `facts.aiReady` (which the
+         wizard already computed) and sends the user back to step 1. The
+         missing *reason* on every other failure path is issue #97.
+      2. **Migrations** — all **47** applied to the empty database in order,
+         16 tables, `0` rows left unfinished in `_prisma_migrations`.
+      3. **Secrets** — `.env` is gitignored and untracked (only `.env.example`
+         is in the tree), a regex sweep for key shapes over the tracked files
+         found nothing, and `.env` has never been committed. Every variable
+         `config.ts` reads is present in `.env.example`; the two extras there
+         (`CLAUDE_CODE_OAUTH_TOKEN`, `GEMINI_API_KEY`) are the CLI credentials
+         `ai-keys.ts` reads, and both key paths (`.env` and
+         `AppSettings.aiKeys`) are documented.
+      4. **Exposure — P1, the worst finding.** The dashboard was carefully
+         bound to loopback while compose published **Postgres on
+         `0.0.0.0:5432` with the password in the compose file**. Demonstrated,
+         not theorised: `psql -h <LAN ip> -U jobhunter` from another address
+         connected and read the database — every job, resume, letter and
+         application, plus `app_settings.aiKeys`, where a pasted AI key lives
+         in plaintext (ADR 0027). Now `127.0.0.1:5433:5432`: loopback only, and
+         5433 because a host Postgres on 5432 would otherwise shadow it — the
+         gotcha this repo had been working around by hand. Re-checked after the
+         change: both LAN ports refused, host tools work on 5433, the app
+         (which uses the compose network, never this port) unaffected.
+      5. **README against the live UI** — text accurate: "22 sources" is
+         exactly the `AtsType` count minus `MANUAL`, "five AI backends" is
+         exactly `AI_PROVIDER_IDS`, and the page table already calls `/target`
+         "Compare". `overview.png` and `jobs.png` are current;
+         `target.png` is four releases stale (its nav still says "Target") →
+         issue #96, because re-shooting it needs the demo fixture that is not
+         in the repo.
+      6. **Data — P1.** There were **no backup instructions anywhere**, in a
+         project whose pitch is "your data in your own Postgres". The README
+         now carries a verified recipe: the documented `pg_dump` produced an
+         **8.7 MB dump of all 16 tables**, and the documented restore loaded it
+         into an empty database with **0 errors** (1 016 jobs, 4 resumes, 17
+         letters). Delete confirmations were re-checked against the schema's
+         cascades: the resume one was fixed in v1.19.0, but "Delete "Reddit"
+         and all its 73 jobs?" was hiding **6 tracked applications and a cover
+         letter**. Company deletes now name them.
+
+---
+
+## 14. applypack.dev + README refresh (analysis 2026-09-02 — built on `site-refresh`)
+
+Analysis and the build log: [docs/site-refresh-plan.md](./site-refresh-plan.md).
+The landing was rewritten around the live demo (hero within a 45-word
+budget, three pillars, story, open-source and install sections), the demo
+page hardened, README and the launch drafts aligned, the social card
+regenerated. Docs/site PR, no version tag.
+
+Owner items left open by the branch:
+
+- [ ] Story facts for the `#story` section: month, employer if named,
+      2–3 counters from the Overview (the section ships number-free).
+- [ ] Label 3–5 issues `good first issue` (the site and README link there;
+      the label is empty).
+- [ ] Cloudflare: Always Use HTTPS, HSTS, redirect www → apex
+      (`http://applypack.dev/` answers 200 over plain HTTP today).
+- [ ] GitHub About text and social preview from the new
+      `docs/brand/social-card.png`.
+- [ ] Read Cloudflare Web Analytics for a before/after baseline.
+
+---
+
+## 15. Country-aware search: Europe + Ukraine (analysis 2026-09-03, nothing built)
+
+Full plan with the facts, the target model, a mandatory pre-work analysis
+checklist per stage, step lists, verification matrices and the verified
+source register: [docs/country-search-plan.md](./country-search-plan.md).
+Every stage starts with its analysis note in the PR body — no branch before
+the note.
+
+**Facts established (don't re-derive):** 949 of 1 035 verdicts are
+`location mismatch` because both profiles are US / Americas; 151 European
+rows are already stored; `Job.location` is one string; the profile knows six
+regions and no country; the classifier's location rules are written for a
+"US-based search"; WWR's ISO `<country>` list is thrown away; Arbeitnow is
+seeded inactive. Sources verified 2026-09-03 with robots.txt are in the plan
+(§0.5) and the ADR 0005 register.
+
+- [x] **Stage 1 `location-model`** — shipped on the `location-model` branch, PR #111
+      (ADR 0031): gazetteer + parser with the §7.1 trap tests and the 250-string
+      corpus, the four Job columns, hints from 14 fetchers, the backfill (1 021
+      of 1 038 rows filled, no verdict moved), `/jobs` place / workplace /
+      posted facets, `q` on location, chips on the job page. Plan corrections
+      recorded in §0.2 (Workable `locations[]`, Lever `onsite`, Ashby `AMER`).
+- [x] **Stage 2 `profile-countries`** — shipped on the `profile-countries`
+      branch (ADR 0032): `Profile.countries / regions / workplace`, one
+      migration that maps and drops the three pill fields (`US` / `UK` →
+      countries, amended from the plan), the chip picker over
+      `/countries.json`, `filter.ts` on sets with group expansion, the prompt
+      without "US-based" and with the shared `location` block, the merge
+      that lets the model narrow the parser, the mismatch reason on the job
+      page. The wizard's step 3 and "Fill from a resume" reuse the editor
+      unchanged — neither speaks for location.
+- [ ] **Stage 3 sources** (one PR + tag per source, acceptance checklist in
+      feature-expansion-plan §0.3): 3a use existing geodata — **done**
+      2026-09-03 (WWR in stage 1; Jobicy `geo` v1.26.0, Himalayas search
+      v1.27.0, 4dayweek `country` v1.28.0, Arbeitnow paginated + visa row
+      v1.29.0 — the installed aggregators follow the searches through the
+      `FetchContext`, so §4.3's card is for new sources only);
+      3b Ukraine — **done** (DOU RSS v1.30.0; Djinni RSS v1.31.0;
+      UA-friendly pack refreshed v1.32.0: + N-iX / Ajax / Genesis,
+      `sigmasoftware` dropped); 3c EU boards (solid.jobs,
+      GermanTechJobs / DevITjobs, Landing.jobs Atom, JobTech); 3d EU ATS
+      types (Personio, Teamtailor; later Homerun, d.vinci); 3e keyed
+      (France Travail, Adzuna) only after the robots-vs-licence decision.
+- [ ] **Stage 4 `eligibility`** — `residence`, `relocation`, red flags
+      `no-visa-sponsorship` / `work-permit-required`, "Open to me" on
+      eligibility, Telegram flags; salary currencies as their own PR.
+- [ ] **Owner decisions before the stages that need them** (plan §6):
+      countries + groups; delete `remoteRegions`; `residence` in stage 2 or
+      4; robots vs licence for Adzuna / France Travail; source keys in the
+      database; JOIN's undocumented endpoint; salary currency design.
+
+---
+
+## 16. Schedule: when the search runs and when alerts arrive (analysis 2026-09-03, nothing built)
+
+Owner's ask: let the user choose *when* jobs are fetched (hours, days) and
+*when* notifications arrive, in a way that is obviously simple. The rule
+from [country-search-plan.md](./country-search-plan.md) applies: a written
+analysis note in the PR body before the branch exists; every step below has
+its own "analyse first" line.
+
+### 16.1 Facts established (don't re-derive)
+
+- The worker has six fixed crons in `src/index.ts:registerCron`: fetch
+  `5 * * * *`, digest `0 9 * * *`, stale-applications `0 8 * * *`, cleanup
+  `0 3 * * 0`, discovery `0 4 * * 0`, hn-hiring `0 6 1 * *` — all in
+  `config.TZ` from `.env` (default `UTC`, ADR 0003).
+- The only time control today is the pause flag `AppSettings.fetchingEnabled`
+  (`/settings` General → "Job fetching"; Overview shows "Pipeline
+  running / paused"). A paused tick still writes a `CronRun` row with
+  `{ skipped: 1, reason: 'fetching-paused' }` — the precedent for a
+  "skipped" tick. Manual "Fetch now" ignores the pause.
+- Alerts are sent per job right after classification
+  (`jobs/process-jobs.ts` → `notifier.sendTelegramAlert`), then the row
+  becomes `ALERTED` with `alertedAt`. There is no "held" state.
+- The 09:00 digest (`jobs/digest-job.ts` → `sendDigest`) re-sends the last
+  24 h of matches as one message plus the quiet-sources line; it is a recap,
+  not a delivery channel. Chunking under Telegram's 4 096-char limit already
+  exists in `sendDigest`.
+- Settings are read at the start of every tick (gotcha 9) — a schedule
+  stored in `AppSettings` is live within an hour with no worker restart.
+- Source health counts ticks (`QUIET_STREAK = 3`) and days
+  (`SILENT_DAYS = 14`, ADR 0019): a daily schedule needs three days to mark a
+  board quiet — acceptable, but the copy on `/companies` must not promise
+  "three hours".
+
+### 16.2 Options considered
+
+| Option | Verdict | Why |
+|---|---|---|
+| Let the user type cron expressions | no | powerful, not simple; timezone confusion; unreadable errors. Keep at most as a future "Advanced" field |
+| Re-register node-cron with a user-chosen expression | no | web writes, worker must notice and re-schedule; cross-process coordination for nothing |
+| **Fixed hourly heartbeat + a pure `isDue` gate read from settings** | **yes** | the cron never changes; the decision is one tested pure function over `now`, the schedule and the last run; same shape as the pause flag |
+| Alerts: only instant (today) | no | the owner's ask is exactly "not at night, not on weekends" |
+| Alerts: per-search or per-Telegram-target windows | later, if ever | one global window covers the need; two levels double the UI |
+| Notifications as push at the window start vs. one grouped message | **grouped** | 12 separate messages at 07:00 are noise; `sendDigest` already renders a group |
+
+### 16.3 Recommended design
+
+**One setting object, two schedules, one timezone.**
+
+```ts
+// AppSettings.schedule (Json, zod-validated in src/schedule.ts)
+{
+  timezone: 'Europe/Kyiv',                 // IANA; default = config.TZ
+  fetch:  { every: 'hour' | '2h' | '4h' | 'day', from: 7, to: 23, days: [1,2,3,4,5,6,7] },
+  alerts: { mode: 'instant' | 'window' | 'digest', from: 8, to: 22, days: [...], digestAt: [9] }
+}
+```
+
+- **Fetch.** The cron stays `5 * * * *`. Each tick, `runFetchJob` asks
+  `isFetchDue(now, schedule, lastFetchRunAt)` (pure, `src/schedule.ts`);
+  `lastFetchRunAt` is the newest finished `CronRun` of kind `fetch` — no new
+  column. Not due → `{ skipped: 1, reason: 'outside-schedule' }`, exactly
+  like a paused tick. Whole hours only (07:00–23:00, "daily at 09:00"):
+  minute precision has no value for job fetching and would force a
+  15-minute heartbeat that writes 96 run rows a day. Manual "Fetch now"
+  ignores the schedule, as it ignores the pause.
+- **Alerts.** `process-jobs` asks `canAlertNow(now, schedule)`. Yes → send
+  as today. No → set `Job.alertHeldAt = now` (one nullable column; the row
+  stays `NEW`, the verdicts are already in `job_score`). Delivery: every
+  hourly tick that is inside the window (or equals a digest hour) runs
+  `deliverHeldAlerts()` — one grouped message per Telegram target
+  ("7 matches while you were away", via `sendDigest`'s chunking), rows
+  become `ALERTED`, `alertHeldAt` cleared. Routing per search
+  (`profile.telegramTargetId`) is recomputed from the stored winner, so a
+  held job goes where an instant one would have gone. `mode: 'digest'` holds
+  everything and delivers only at `digestAt` hours; the existing 09:00 recap
+  becomes that delivery (no double sends: a recap lists only rows alerted
+  since the last recap, a delivery lists held rows).
+- **Timezone.** One `Intl.DateTimeFormat(..., { timeZone }).formatToParts`
+  helper gives weekday/hour in the user's zone — no date library. The
+  setting defaults to `config.TZ`; the settings page pre-fills it from the
+  browser once (`Intl.DateTimeFormat().resolvedOptions().timeZone`) and asks
+  the user to confirm. The fixed crons for cleanup / discovery / HN keep
+  `config.TZ`; they are not user-facing. The digest hour moves to the
+  schedule so that ONE timezone rules everything the user sees.
+- **What the user sees.** `/settings` General → one "Schedule" card:
+
+  ```
+  Time zone        [Europe/Kyiv ▾]   used for everything below
+  Check for jobs   [Every hour ▾] from [07:00 ▾] to [23:00 ▾]  Mon Tue Wed Thu Fri Sat Sun (pills)
+                   Next check: today at 14:05
+  Send alerts      (•) Right away
+                   ( ) Only between [08:00] and [22:00] on [days] — matches found outside arrive at 08:00 in one message
+                   ( ) As a digest at [09:00] [+ add a time]
+                   3 matches are waiting for 08:00
+  ```
+
+  Overview: the status pill gains a third state — "Running", "Paused",
+  "Sleeping until Mon 07:05" — and the alert line "3 held until 08:00".
+  Both sentences come from one pure `describeSchedule()` so the settings
+  card, the overview and the Telegram digest header say the same thing.
+- **Not built:** per-search schedules, per-target windows, minute
+  precision, custom cron, scheduling of cleanup / discovery / HN.
+
+### 16.4 Implementation order (one branch `fetch-schedule`, ~1 session)
+
+- [ ] **Analyse first:** read `src/index.ts`, `jobs/cron-run.ts`,
+      `jobs/fetch-job.ts`, `jobs/process-jobs.ts` (alert block),
+      `jobs/digest-job.ts`, `notifier.ts` (`sendDigest`, `broadcast`),
+      `jobs/reclassify-job.ts` (does a re-classify alert? if yes it needs
+      the same gate); confirm Node's ICU handles `Europe/Kyiv` and DST in
+      `formatToParts`; write the analysis note.
+- [ ] `add schedule module` — `src/schedule.ts` (types, zod schema,
+      defaults = today's behaviour, `isFetchDue`, `canAlertNow`,
+      `nextFetchAt`, `nextAlertAt`, `describeSchedule`) + `schedule.test.ts`
+      with fixed instants: window edges, Sunday→Monday wrap, DST day, "every
+      4h" against a last run 3 h 59 min ago, invalid timezone rejected.
+- [ ] `store schedule in settings` — `AppSettings.schedule Json?` +
+      `Job.alertHeldAt DateTime?` (hand-written migration), getter/setter in
+      `settings.ts` (null = defaults).
+- [ ] `gate the fetch tick` — `runFetchJob` skips with reason
+      `outside-schedule`; `/runs` shows it like `fetching-paused`.
+- [ ] `hold alerts outside the window` — the gate in `process-jobs`,
+      `deliverHeldAlerts()` in `jobs/alert-delivery.ts`, called from the
+      fetch tick and from the digest path; `sendDigest` header text
+      parameterised ("Daily digest" / "While you were away").
+- [ ] `add schedule card` — `pages/settings.tsx` + `routes/settings.tsx`
+      (`parseBody({ all: true })` for the day pills — gotcha 1); Overview
+      pill + held-count line.
+- [ ] `document schedule` — CLAUDE.md "Where to look" + "how does the user
+      toggle" rows, SPEC.md, README one line, CHANGELOG + bump.
+
+**Verification.** Pure tests above; `npm run test:telegram` for the grouped
+message; a scratch run with `from: 7, to: 23` at a fake `now` outside the
+window shows `outside-schedule` on `/runs`; a held job appears in the
+Overview count and is delivered by the next in-window tick; light + dark
+screenshots of the card; keyboard walk of the pills and selects.
+
+**Decisions for the owner.** (1) Whole hours only — agreed? (2) Does a
+manual "Fetch now" outside the alert window send instantly (recommended:
+yes, the user is at the screen) or hold? (3) Should the stale-applications
+digest follow `digestAt` too (recommended: yes, one "digest time" for both)?
+
+---
+
+## 17. Company watchlist: "check these 20 companies for new jobs" (analysis 2026-09-03, nothing built)
+
+Owner's ask: paste a list of companies (site or job-list URLs), have them
+checked at a chosen interval, show their postings apart from the rest, and
+do it without fragile HTML parsing — "maybe Playwright".
+
+### 17.1 Facts established (don't re-derive)
+
+- A watched company already has a home: `Company` rows are the unit the
+  hourly tick iterates (`fetchers/index.ts:runAllFetchers`, sequential with
+  a polite delay, health per row per ADR 0019). `Company.careerUrl` exists
+  in the schema and the add form, is stored — and never read by any fetcher.
+- The add form on `/companies` makes the user pick the ATS from a select
+  and type the slug; the URL → token resolver `text-utils.ts:extractAtsToken`
+  (ten vendors' URL shapes) is used only by discovery (HN comments), not by
+  the form. Starter packs already have the preview → confirm → "added
+  disabled" → "Enable all" flow (ADR 0017) that a bulk import can reuse.
+- `jobs/posting-url.ts` is the honest single-page fetch: SSRF guard
+  (private ranges, checked again after redirects), ADR 0005 host blocklist,
+  bot-check markers that fail instead of being worked around, 12 s timeout,
+  30 k chars. It is the only place that fetches an arbitrary user URL.
+- No HTML parser and no browser in the dependencies; the runtime image is
+  `node:24-alpine`. Nothing in `src/` reads JSON-LD or sitemaps yet.
+- Ground rules that bind this feature: ADR 0005 ("scrapers of any kind"
+  are out; the listed platforms are never fetched), the feature-expansion
+  ground rules ("no bot-protection bypass, ever"; robots.txt that names AI
+  bots is binding because every description goes to the classifier).
+
+### 17.2 Why not Playwright — and what actually makes checks stable
+
+A headless browser does not remove parsing; it renders JavaScript and then
+you still read a DOM whose classes change with every redesign. It adds
+Chromium to the image (hundreds of MB, awkward on alpine), CPU and memory on
+every tick, and it is exactly the class of tool the project promises not to
+run: career sites behind Cloudflare Turnstile block headless clients, and
+"getting past that" is the bypass the ground rules forbid. What is stable is
+**data a site publishes for machines on purpose**, in this order:
+
+1. **The ATS behind the page.** Most career pages are a Greenhouse / Lever /
+   Ashby / Workable / SmartRecruiters / Recruitee / Breezy / BambooHR /
+   Pinpoint / Rippling board (all supported), or Personio / Teamtailor /
+   Homerun / d.vinci (verified public feeds, §15 plan). The board API is
+   the vendor's contract — it does not change with the site's CSS.
+2. **Feeds.** `<link rel="alternate" type="application/rss+xml|atom+xml">`
+   on the careers page, or well-known paths (`/jobs.rss`, `/feed`,
+   `/careers/feed`). `rss-parser` is already a dependency.
+3. **Sitemaps + JSON-LD `JobPosting`.** `robots.txt` names the sitemap;
+   the sitemap lists job URLs with `lastmod`; each job page carries
+   `<script type="application/ld+json">` with a schema.org `JobPosting`
+   (title, description, hiringOrganization, jobLocation,
+   `jobLocationType: TELECOMMUTE`, `applicantLocationRequirements`,
+   datePosted, validThrough) — the format Google for Jobs requires, so
+   custom career sites ship it. New URL in the sitemap → fetch that one
+   page → read the JSON block. No layout parsing at all, and the location
+   arrives structured (feeds `locationHints` from the country plan).
+4. **Change watch (last resort).** When a site offers none of the above:
+   hash the page's plain text (`stripHtml`, whitespace and digits
+   normalised) and alert "Careers page changed — have a look" with the
+   link, at most once a day. It never claims to know the jobs; it tells the
+   user when to look. Honest, cheap, and it is what a person checking daily
+   actually does.
+5. **Refused, with the reason on screen:** LinkedIn / Workday / Indeed /
+   Glassdoor / Wellfound hosts (ADR 0005), a `robots.txt` that disallows the
+   path or bans AI bots, a page that answers with a bot check. The message
+   suggests the alternative: find the company's board on a supported ATS.
+
+Every rung fetches only at the user's request or on the company's own
+interval, with the project's honest User-Agent and a polite delay, and
+checks `robots.txt` first — a small pure `src/robots.ts` (user-agent groups,
+longest-match Allow/Disallow, our token and `*`, the AI-bot names) does
+automatically what the ADR 0005 addendum has been doing by hand.
+
+### 17.3 Recommended design
+
+**Data.** No new table — the watchlist is `Company` with four small fields:
+
+```prisma
+model Company {
+  watched      Boolean  @default(false)   // ★ on /jobs, own section on /companies
+  checkEvery   String   @default("hour")  // hour | day | week — the user's interval
+  nextCheckAt  DateTime?                  // set after each check; NULL = due now
+  alertPolicy  String   @default("matches") // matches | all — watched rows default to "all"
+  lastContentHash String?                 // change-watch rung only
+}
+enum AtsType { … FEED CAREER_PAGE }        // atsToken = the feed URL / the careers URL
+```
+
+- `runAllFetchers` selects `active AND (nextCheckAt IS NULL OR nextCheckAt <= now)`
+  and writes `nextCheckAt` afterwards — the per-company interval rides on
+  the hourly tick, no new cron (ADR 0003). "Check now" on a row clears
+  `nextCheckAt` and runs the tick for that company only (reuse the
+  fetch-runs progress registry).
+- `alertPolicy = 'all'` on a watched company: the base filter is bypassed
+  (the user wants to *see* every posting there), the job is classified as
+  usual so it carries a fit score, and it alerts on arrival with a ★
+  prefix whatever the threshold says. `'matches'` = the normal pipeline.
+  Held-alert rules from §16 apply unchanged.
+- Two new fetchers, one ladder resolver:
+  - `fetchers/feed.ts` — generic RSS/Atom (title, link, description, date;
+    `feedItemKey` for ids).
+  - `fetchers/career-page.ts` — sitemap + JSON-LD rung, with the
+    change-watch rung as its fallback status. Pure pieces next to it:
+    `jsonld.ts` (`extractJobPostings(html)` → typed objects, tolerant of
+    `@graph` and arrays), `sitemap.ts` (urlset / sitemapindex, `lastmod`,
+    bounded to the careers path prefix), `page-hash.ts`. Per tick at most
+    `MAX_NEW_PAGES_PER_TICK` (20) job pages are fetched per company.
+  - `watchlist/resolve.ts` — `resolveCompanyUrl(url)`: direct board URL →
+    `extractAtsToken`; else one page fetch through the `posting-url` guards
+    and a scan of the HTML for ATS links / iframes / scripts, feed links,
+    JSON-LD, then `robots.txt` for the sitemap; then the common career
+    paths (`/careers`, `/jobs`, `/karriere`, `/vacancies`, ≤ 5 requests per
+    company, only at add time). Returns one of: `ats(type, token, jobs)`,
+    `feed(url)`, `careerPage(url, postings)`, `watchOnly(url)`,
+    `refused(reason)`.
+- **UX.**
+  - `/companies` → "Add companies": a textarea, one URL per line (optionally
+    `Name — URL`), or a `.txt` / `.csv` upload. Resolve runs as a progress
+    page (one line per URL), then a preview table: URL → what was found
+    ("Greenhouse `acme` · 34 jobs", "Teamtailor jobs.acme.com", "RSS feed",
+    "Careers site · 12 postings in the sitemap", "Change watch only",
+    "Refused: robots.txt asks not to fetch /careers") → the user edits names,
+    unticks rows, picks the interval once for the batch → Confirm → rows
+    created with `watched = true`, first check runs in the background.
+  - `/companies` → a "Watchlist" section on top: name, how it is checked,
+    last check, next check, new postings since your last visit, ★ toggle,
+    "Check now". Aggregators stay in their own section as today.
+  - `/jobs`: ★ before the company name, a "Watched" chip that filters to
+    watched companies, sort "watched first" when the chip is on. Job page:
+    "★ Watched company · checked daily". Overview: "Watched companies: 3
+    new postings today".
+  - Telegram: watched alerts start with "★ Acme" and say "new posting"
+    rather than "match" when the policy is `all`.
+- **Not built:** a headless browser, screenshot diffing, a crawler beyond
+  one careers path prefix, per-company custom cron, price/keyword rules on
+  the change watch, LinkedIn company pages.
+
+### 17.4 Implementation order (three branches, each its own PR + tag)
+
+**Stage A — `company-watchlist` (bulk add on known ATS + feeds, ★, intervals; ~2 sessions)**
+- [ ] **Analyse first:** read `routes/companies.tsx` (new / reprobe /
+      starter-pack flows), `pages/companies.tsx`, `starter-packs/resolve.ts`
+      + `probe.ts`, `text-utils.ts:extractAtsToken`, `jobs/posting-url.ts`,
+      `fetchers/index.ts:runAllFetchers`, `web/fetch-runs.ts`; take the
+      owner's real list of 20 companies and resolve each by hand (which rung
+      would catch it?) — that table is the analysis note and the fixture.
+- [ ] `add watchlist fields` — the four `Company` columns + `FEED` type,
+      hand-written migration, `nextCheckAt` honoured by `runAllFetchers`.
+- [ ] `add robots parser` — `src/robots.ts` + tests (RFC 9309 basics, AI-bot
+      group, longest match, missing file = allowed).
+- [ ] `add feed fetcher` — `fetchers/feed.ts` + mapper test; `probeAts` for
+      `FEED`; `extractAtsToken` learns Personio / Teamtailor / Homerun /
+      d.vinci URL shapes as those types land (§15 stage 3d).
+- [ ] `resolve company urls` — `watchlist/resolve.ts` (ATS + feed rungs only
+      in this stage; `careerPage` returns `watchOnly` for now) + tests on
+      recorded HTML fixtures.
+- [ ] `bulk add companies` — textarea/upload → progress → preview →
+      confirm; interval picker for the batch; `watched = true`.
+- [ ] `show watched jobs` — ★ on `/jobs`, "Watched" chip, job page line,
+      Overview count; `alertPolicy = 'all'` bypasses the base filter and the
+      threshold; Telegram prefix.
+- [ ] `document watchlist` — ADR 0034 "watch checks read published data
+      only; no headless browser" (records the Playwright rejection),
+      CLAUDE.md rows, SPEC, README, CHANGELOG + bump.
+
+**Stage B — `career-page-fetcher` (sitemap + JSON-LD rung; ~1–2 sessions)**
+- [ ] **Analyse first:** fetch the sitemaps and one job page of five sites
+      from the owner's list that are not on a supported ATS; record which
+      carry `JobPosting` JSON-LD and where (listing page vs detail page);
+      measure sitemap sizes; write the note.
+- [ ] `add jsonld parser` — `jsonld.ts` + tests (single object, array,
+      `@graph`, nested `hiringOrganization`, HTML-escaped description).
+- [ ] `add sitemap reader` — `sitemap.ts` + tests (index → urlset, `lastmod`,
+      path-prefix bound, gzip refused or handled — decide in the note).
+- [ ] `add career page fetcher` — `fetchers/career-page.ts`, `CAREER_PAGE`
+      type, `MAX_NEW_PAGES_PER_TICK`, robots check per host, location hints
+      from `jobLocation` / `applicantLocationRequirements` / `TELECOMMUTE`.
+- [ ] `resolve career pages` — the resolver returns `careerPage` when the
+      sitemap + JSON-LD rung finds postings; smoke run on the five sites.
+
+**Stage C — `change-watch` (last rung; ~½ session)**
+- [ ] **Analyse first:** run the hash over three dynamic career pages for
+      two days; count false positives; pick the normalisation.
+- [ ] `add change watch` — `page-hash.ts` + tests; `lastContentHash`;
+      "Careers page changed" alert once a day; `/companies` shows "watching
+      for changes" honestly instead of a job count.
+
+**Verification (all stages).** Pure modules unit-tested next to the file;
+each fetcher smoke-run on the owner's list with fixtures recorded; a refused
+URL shows its reason in the preview; the SSRF guard is exercised with a
+private-IP URL in a test; `/companies` and `/jobs` screenshots light + dark;
+keyboard walk of the preview table; a full hourly tick with 20 watched
+companies stays under the polite-delay budget (note the measured duration).
+
+**Decisions for the owner.** (1) Watched companies default to "alert on
+every new posting" — agreed, or "matches only" by default? (2) Interval
+presets `hour / day / week` only — enough? (3) Is the change-watch rung
+wanted at all, or is "refused / not supported" the more honest answer for
+sites with no machine-readable data? (4) ADR 0034 states "no headless
+browser" as policy — confirm before stage A so the question is closed.

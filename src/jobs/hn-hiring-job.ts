@@ -2,7 +2,7 @@ import { AtsType } from '@prisma/client';
 import { prisma } from '../db';
 import { logger } from '../logger';
 import { fetchHnHiring, findLatestHiringThread } from '../fetchers/hn-hiring';
-import { getActiveProfile } from '../profiles';
+import { listActiveProfiles } from '../profiles';
 import { getSettings } from '../settings';
 import { recordCandidatesFromText } from '../discovery';
 import { makeFetchPauseProbe } from './fetch-pause';
@@ -32,9 +32,9 @@ export async function runHnHiringJob(): Promise<{ stats: CronStats }> {
     return { stats: { skipped: 1, reason: 'parser-disabled' } };
   }
 
-  const profile = await getActiveProfile();
-  if (!profile) {
-    logger.warn('hn-hiring: no active profile; aborting');
+  const profiles = await listActiveProfiles();
+  if (profiles.length === 0) {
+    logger.warn('hn-hiring: no active search; aborting');
     return { stats: { aborted: 1, reason: 'no-active-profile' } };
   }
 
@@ -101,11 +101,14 @@ export async function runHnHiringJob(): Promise<{ stats: CronStats }> {
     skippedByPause: 0,
     skippedBlankProfile: 0,
   };
-  await processNormalizedJobs(items, profile, settings.classifierMode, inner, paused);
+  await processNormalizedJobs(items, profiles, inner, {
+    classifierMode: settings.classifierMode,
+    isCancelled: paused,
+  });
 
   const durationMs = Date.now() - started;
   const stats: CronStats = {
-    profile: profile.name,
+    profile: profiles.map((p) => p.name).join(' · '),
     classifierMode: settings.classifierMode,
     fetched: fetched.length,
     candidatesRecorded: candidates,

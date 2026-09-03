@@ -3,163 +3,296 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ApplyPack — the whole job search, self-hosted</title>
-<meta name="description" content="Self-hosted AI console for the whole job search: finds the postings, checks they're real, scores your resume without flattering it, drafts the cover letter, tracks the application. Your data in your own Postgres.">
+<title>ApplyPack: open-source job search and ATS resume check</title>
+<meta name="description" content="Free, self-hosted job search: watches 22 boards, drops fake and wrong-fit postings, shows which keywords your resume lacks, helps you fix it, writes the cover letter. MIT.">
+<meta name="theme-color" content="#f7f8fa">
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="apple-touch-icon" href="img/apple-touch-icon.png">
 <link rel="canonical" href="https://applypack.dev/">
+<link rel="preload" href="fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="modulepreload" href="demo/demo.mjs">
+<link rel="modulepreload" href="demo/target.mjs">
+<link rel="modulepreload" href="demo/score.mjs">
+<link rel="stylesheet" href="style.css">
 <meta property="og:type" content="website">
-<meta property="og:title" content="ApplyPack — the whole job search, self-hosted">
-<meta property="og:description" content="Finds the postings, checks they're real, scores your resume without flattering it, drafts the cover letter, tracks the application. 22 sources, 5 swappable AI backends.">
+<meta property="og:title" content="Stop losing interviews to a missing keyword">
+<meta property="og:description" content="ApplyPack finds real jobs, scores your resume without flattering it, and writes a cover letter that cannot invent. Free, open source, on your machine.">
 <meta property="og:url" content="https://applypack.dev/">
 <meta property="og:image" content="https://applypack.dev/img/og.png">
+<meta property="og:image:width" content="1280">
+<meta property="og:image:height" content="640">
+<meta property="og:image:alt" content="ApplyPack: stop losing interviews to a missing keyword">
 <meta name="twitter:card" content="summary_large_image">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;450;500;550;600;650&display=swap">
-<link rel="stylesheet" href="style.css">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"SoftwareApplication","name":"ApplyPack","url":"https://applypack.dev/","applicationCategory":"BusinessApplication","operatingSystem":"Docker, Node.js","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"license":"https://opensource.org/licenses/MIT","codeRepository":"https://github.com/applypack/applypack","description":"Self-hosted job search that watches 22 job sources, scores postings against your profile, checks whether a job is real, scores your resume against the posting without flattering it, and writes a fact-checked cover letter."}
+</script>
 </head>
 <body>
+<a class="skip" href="#main">Skip to content</a>
 
-<header>
-  <div class="wrap nav">
-    <div class="mark">AP</div>
-    <div class="word">ApplyPack</div>
-    <div class="spacer"></div>
-    <a class="plain" href="#features">What you get</a>
-    <a class="plain" href="#score">Honest scoring</a>
-    <a class="plain" href="#start">Quick start</a>
-    <a class="btn" href="https://github.com/applypack/applypack">GitHub&nbsp;→</a>
-  </div>
+<header class="top">
+  <nav class="wrap nav" aria-label="Primary">
+    <a class="brand" href="/"><span class="mark" aria-hidden="true">AP</span><span class="word">ApplyPack</span></a>
+    <div class="links">
+      <a href="#demo">Demo</a>
+      <a href="#what">What it does</a>
+      <a class="open key" href="#open">Open source</a>
+      <a href="#install">Install</a>
+    </div>
+    <a class="btn small gh-btn" href="https://github.com/applypack/applypack" aria-label="GitHub"><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg><span>GitHub</span></a>
+  </nav>
 </header>
 
-<main>
-  <div class="wrap hero">
-    <h1>The whole job search,<br><em>self-hosted</em></h1>
-    <p class="sub">ApplyPack reads the boards so you don't have to — then helps you
-    apply well. It watches 22 job sources, scores each posting against your real
-    profile, checks the job is real, tailors your resume and drafts the cover
-    letter. Everything runs on your machine.</p>
-    <div class="cta">
-      <a class="btn primary" href="#start">Get started</a>
-      <a class="btn" href="demo/">Try the live score</a>
-      <a class="btn" href="https://github.com/applypack/applypack">Star on GitHub</a>
-    </div>
-    <div class="shot"><img src="img/target.png" alt="Resume match: a deterministic 82/100 score with the primary-stack verdict, experience confirmations and the side-by-side editor with keyword highlights" loading="eager"></div>
-    <p class="under">The targeted editor: an honest, deterministic resume-vs-posting score,
-    one-click experience confirmations, live keyword highlights.</p>
-  </div>
-
-  <section id="features" class="alt">
-    <div class="wrap">
-      <h2>What you get</h2>
-      <p class="lead">One pipeline from "a posting exists somewhere" to "application sent
-      and tracked" — with an AI that is told exactly where it isn't allowed to flatter you.</p>
-      <div class="grid">
-        <div class="card"><div class="emo">🔭</div><h3>22 sources, checked hourly</h3>
-          <p>Ten ATS vendors — Greenhouse, Lever, Ashby, Workable, SmartRecruiters and five more — on the boards you pick, plus 11 aggregators and the monthly HN "Who is hiring" thread.</p></div>
-        <div class="card"><div class="emo">🧠</div><h3>A classifier with strict rules</h3>
-          <p>AI reads the full description against your stack, role types, seniority, regions and salary floor. "Full-stack" in a title is not a tech match, and "Remote · Germany" is not a US-remote job.</p></div>
-        <div class="card"><div class="emo">📲</div><h3>Telegram instead of tab-refreshing</h3>
-          <p>Alerts above your fit threshold, a daily digest, and a nudge when an application goes quiet for two weeks.</p></div>
-        <div class="card"><div class="emo">🕵️</div><h3>Ghost-job verification</h3>
-          <p>A live web-search checklist — careers page, company footprint, posting age, named humans — returns legit / suspicious / fake with evidence URLs.</p></div>
-        <div class="card"><div class="emo">📄</div><h3>Resume scores that can't flatter</h3>
-          <p>The model marks facts, application code computes the score. A Laravel resume cannot sweet-talk its way to 85 against a Node.js posting.</p></div>
-        <div class="card"><div class="emo">✍️</div><h3>Targeted resume editor</h3>
-          <p>Posting and resume side by side, every keyword highlighted, coverage recomputed on each keystroke without spending a single AI call.</p></div>
-        <div class="card"><div class="emo">💌</div><h3>Cover letters that can't invent facts</h3>
-          <p>Drafted from the posting, your resume and your own angle notes; every claim passes a fact gate against stored evidence. Exports to PDF / DOCX.</p></div>
-        <div class="card"><div class="emo">🗂</div><h3>Application tracking</h3>
-          <p>A small kanban from applied to offer, plus reminders for applications gone quiet.</p></div>
-        <div class="card"><div class="emo">🏠</div><h3>Self-hosted and private</h3>
-          <p>Official public APIs and RSS only, dashboard bound to localhost, no accounts, no telemetry. Your resume never leaves your Postgres.</p></div>
+<main id="main">
+  <section class="hero" aria-labelledby="hero-h">
+    <div class="wrap hero-text">
+      <h1 id="hero-h">Stop losing interviews to a missing keyword.</h1>
+      <p class="free"><strong>Free and open source.</strong> MIT license, no subscription, no ads, no accounts.</p>
+      <p class="sub">ApplyPack finds real openings, shows exactly which words a posting wants and your resume lacks, helps you fix it in place, and writes the cover letter. On your own machine.</p>
+      <div class="cta">
+        <a class="btn primary" href="#demo">Try the live demo</a>
+        <a class="btn" href="#install">Install with Docker</a>
       </div>
+      <ul class="trust" role="list" aria-label="The short version">
+        <li>Runs locally or in Docker</li>
+        <li>Your data stays in your Postgres</li>
+        <li>22 job sources</li>
+        <li><a href="https://github.com/applypack/applypack/releases"><img src="https://img.shields.io/github/v/release/applypack/applypack?display_name=tag&amp;label=latest&amp;labelColor=1e293b&amp;color=047857" alt="Latest release" width="104" height="20"></a></li>
+      </ul>
     </div>
-  </section>
 
-  <section>
-    <div class="wrap">
-      <h2>How it works</h2>
-      <div class="pipe">
-        <div class="step"><b>22 sources</b><span>hourly fetch</span></div>
-        <div class="arrow">→</div>
-        <div class="step"><b>Base filter</b><span>pure code, zero cost</span></div>
-        <div class="arrow">→</div>
-        <div class="step"><b>AI classifier</b><span>your profile, strict rules</span></div>
-        <div class="arrow">→</div>
-        <div class="step"><b>Postgres</b><span>your machine</span></div>
-        <div class="arrow">→</div>
-        <div class="step"><b>Telegram</b><span>only when fit ≥ threshold</span></div>
-      </div>
-      <p class="qs-note">Cheap deterministic filters drop the obvious misses first,
-      so the AI only reads postings that might actually be for you.</p>
-    </div>
-  </section>
-
-  <section id="score" class="alt">
-    <div class="wrap">
-      <h2>Scores you can argue with</h2>
-      <div class="split">
-        <div>
-          <h3>The model marks facts. Code computes the number.</h3>
-          <p>Most AI resume tools average their way to a flattering score. ApplyPack
-          splits the job: the model only marks what's present, missing or unverifiable —
-          a unit-tested formula applies the caps.</p>
-          <ul>
-            <li><b>Primary-stack gate:</b> no core-stack overlap caps the score at 30,
-            no matter how good the rest looks.</li>
-            <li><b>No sibling credit:</b> Vue is not React, PHP is not Node.js.</li>
-            <li><b>Unknowns stay unknown:</b> the posting wants performance profiling
-            and your resume doesn't say? You get a question, not a guess.</li>
-            <li><b>Honest deltas:</b> v2 of your resume is scored by the same
-            deterministic path as v1, so "▲ +16" means something.</li>
-          </ul>
-          <p style="margin-top:18px"><a class="btn" href="demo/">See it live — edit a resume, watch the score →</a></p>
+    <div id="demo" class="wrap wide demo">
+      <div class="demo-frame">
+        <div class="demo-head">
+          <span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>
+          <span><b>Live.</b> The app's own scoring module on a synthetic posting and resume. Edit the resume and watch.</span>
+          <a href="demo/">Open the full demo</a>
         </div>
-        <div class="shot"><img src="img/overview.png" alt="Overview: status counters with 24h deltas, recent alerts and cron health" loading="lazy"></div>
+        <div class="scorebox">
+          <span id="score-value" aria-live="polite">—</span>
+          <span class="track" aria-hidden="true"><span id="score-bar"></span></span>
+          <div class="meta">
+            <span id="score-detail"></span>
+            <span id="score-delta"></span>
+            <button id="reset" type="button" hidden>Reset the resume</button>
+          </div>
+        </div>
+        <div id="chips"></div>
+        <div class="panes">
+          <div class="pane">
+            <div class="pane-title">Job posting <span class="hint">green: in the resume · amber: still missing</span></div>
+            <div class="pane-body"><div id="jd" class="layer"></div></div>
+          </div>
+          <div class="pane resume">
+            <div class="pane-title">Your resume, editable <span class="hint">the score and the posting react</span></div>
+            <div class="pane-body">
+              <pre id="backdrop" class="layer" aria-hidden="true"></pre>
+              <textarea id="editor" class="layer" spellcheck="false" autocapitalize="off" autocorrect="off" aria-label="Editable resume text"></textarea>
+            </div>
+          </div>
+        </div>
+      </div>
+      <p class="demo-hint">Type <code>Redis</code> into the skills line: the score moves on the next keystroke. Type <code>Terraform</code>: nothing moves, because the model marked it cannot-claim against the original resume, and typing a word is not evidence. Delete every <code>TypeScript</code> to watch the primary-stack cap bite.</p>
+    </div>
+  </section>
+
+  <section id="why" aria-labelledby="why-h">
+    <div class="wrap">
+      <h2 id="why-h">Why a strong resume gets filtered</h2>
+      <div class="why-grid">
+        <div>
+          <b>The filter counts words, not years.</b>
+          <p>A resume that says "PHP 8, Laravel, Symfony" can miss a requirement that says "PHP", and a recruiter never sees it.</p>
+        </div>
+        <div>
+          <b>Half the postings are noise.</b>
+          <p>The wrong stack in paragraph four, "Remote" that means remote in Germany, a listing nobody will ever fill.</p>
+        </div>
+        <div>
+          <b>You end up being the cron job.</b>
+          <p>Refreshing boards, reading, guessing what to change, rewriting the letter. ApplyPack was built during my own search to take that over.</p>
+        </div>
       </div>
     </div>
   </section>
 
-  <section id="start">
+  <section id="what" class="raised" aria-labelledby="what-h">
     <div class="wrap">
-      <h2>Quick start</h2>
-      <p class="lead">Postgres, the worker and the dashboard — one compose file.
-      A laptop or a $5 VPS is the whole deployment story.</p>
+      <h2 id="what-h">Three things it does for you</h2>
+
+      <div class="row">
+        <div class="row-text">
+          <h3>Find real jobs, not noise</h3>
+          <ul role="list">
+            <li><b>22 sources every hour.</b> Ten ATS vendors on the companies you pick, eleven aggregators, the monthly HN thread. Starter packs add a whole segment at once.</li>
+            <li><b>A classifier with rules that burned me.</b> "Full-stack" in a title is not a stack match; "Remote · Germany" is not US-remote. Up to eight searches at once, one AI call per posting.</li>
+            <li><b>Is it real?</b> A free liveness check first, then a web-search verdict with evidence links: legit, suspicious, fake.</li>
+            <li><b>Telegram only above your fit threshold.</b> Paste a posting from anywhere and it gets the same treatment.</li>
+          </ul>
+        </div>
+        <figure class="shot">
+          <img src="img/jobs.webp" srcset="img/jobs-720.webp 720w, img/jobs.webp 1440w" sizes="(max-width: 900px) calc(100vw - 48px), 600px" width="1440" height="900" alt="The Jobs list: fit scores from 98 down, salary, status pills and the source of each posting" loading="lazy" decoding="async">
+        </figure>
+      </div>
+
+      <div class="row flip">
+        <div class="row-text">
+          <h3>Fix your resume for this posting. Honestly.</h3>
+          <ul role="list">
+            <li><b>Every keyword the posting wants,</b> graded must / preferred / nice and marked present, missing or confirm-with-you.</li>
+            <li><b>The model marks facts, code computes the score.</b> No core-stack overlap caps it at 30, Vue is not React, and typing a word is not evidence.</li>
+            <li><b>Edit side by side</b> with the score updating on every keystroke, free of AI calls. Re-check with AI in about 15 seconds. Save as v2, and the delta against v1 is real.</li>
+            <li><b>Disagree with the model?</b> Re-level a keyword, ignore it, add the one it missed, or rebuild the list. Your edits survive every re-run.</li>
+          </ul>
+        </div>
+        <figure class="shot">
+          <img src="img/resume-score.webp" srcset="img/resume-score-720.webp 720w, img/resume-score.webp 1200w" sizes="(max-width: 900px) calc(100vw - 48px), 600px" width="1200" height="673" alt="Resume match: 82 of 100 with the primary-stack verdict, five of six hard requirements passed, and the experience the posting asks you to confirm" loading="lazy" decoding="async">
+        </figure>
+      </div>
+
+      <div class="row">
+        <div class="row-text">
+          <h3>A cover letter that cannot invent</h3>
+          <ul role="list">
+            <li><b>Drafted from the posting, your resume and the facts you confirmed.</b> Nothing else.</li>
+            <li><b>A fact gate reads every claim back</b> against that evidence. A number that is not in your resume never reaches the letter.</li>
+            <li><b>Pick a tone, add your own angle.</b> About 30 seconds. Edit in place, export PDF or DOCX.</li>
+            <li><b>Works for a posting that is not stored yet.</b> Paste it or give the URL.</li>
+          </ul>
+        </div>
+        <figure class="fig" aria-label="How the fact gate reads a draft">
+          <div class="gate">
+            <div class="claim">
+              <div>Moved billing off a legacy Rails monolith into Node.js services without downtime<span>found in the resume</span></div>
+              <span class="verdict pass">in evidence</span>
+            </div>
+            <div class="claim">
+              <div>Mentored two mid-level engineers<span>confirmed by you when the comparison asked</span></div>
+              <span class="verdict fact">confirmed fact</span>
+            </div>
+            <div class="claim blocked">
+              <div>Cut infrastructure spend by 30%<span>in neither the resume nor your confirmed facts</span></div>
+              <span class="verdict block">blocked</span>
+            </div>
+            <p class="sum">A blocked claim sends the draft back once with the violation quoted. Still blocked: nothing is stored.</p>
+          </div>
+          <figcaption>The gate polices the model, not you: your own edits are re-checked as warnings only.</figcaption>
+        </figure>
+      </div>
+
+      <div class="more">
+        <h3>And the rest</h3>
+        <ul class="more-list" role="list">
+          <li><b>Applications board.</b> Columns you name, drag and drop, which resume each application went out with, a nudge when one goes quiet for two weeks.</li>
+          <li><b>Guided first run.</b> Connect an AI, test the search, turn a resume into a profile, score the first matches.</li>
+          <li><b>Five AI engines with failover.</b> Claude Code, Gemini and Codex CLIs on subscriptions you already pay for, the Anthropic API, any OpenAI-compatible endpoint including free local models.</li>
+          <li><b>Postings cannot hijack the prompt.</b> Every outside text reaches the model inside untrusted-text markers; a test fails the build otherwise.</li>
+          <li><b>Board discovery.</b> Company boards harvested from HN comments, one click to track.</li>
+          <li><b>Daily digest and source health.</b> Which boards went quiet, before you wonder.</li>
+          <li><b>Private by construction.</b> Localhost, no accounts, no telemetry, your own Postgres.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section id="how" aria-labelledby="how-h">
+    <div class="wrap">
+      <h2 id="how-h">How it works</h2>
+      <ol class="pipe" role="list">
+        <li><b>22 sources</b>hourly fetch, official APIs and RSS only</li>
+        <li><b>Base filter</b>pure code, zero cost, drops the obvious misses</li>
+        <li><b>AI classifier</b>reads the full posting against every running search</li>
+        <li><b>Your Postgres</b>on your machine, nothing leaves it</li>
+        <li><b>Telegram</b>only when the fit clears your threshold</li>
+      </ol>
+      <p class="pipe-note">Cheap deterministic filters drop the obvious misses first, so the AI only reads postings that might be for you.</p>
+    </div>
+  </section>
+
+  <section id="score" class="raised" aria-labelledby="score-h">
+    <div class="wrap">
+      <h2 id="score-h">Scores you can argue with</h2>
+      <p class="lead">Most AI resume tools average their way to a flattering number. ApplyPack splits the job: the model only marks what is present, missing or unverifiable, and a unit-tested formula applies the caps.</p>
+      <ul class="theses" role="list">
+        <li><b>Primary-stack gate.</b> No core-stack overlap caps the score at 30, however good the rest looks.</li>
+        <li><b>No sibling credit.</b> Vue is not React, PHP is not Node.js.</li>
+        <li><b>Unknowns stay unknown.</b> The posting wants profiling and your resume does not say? You get a question, not a guess.</li>
+        <li><b>Honest deltas.</b> v2 is scored by the same code path as v1, so "+16" means something.</li>
+      </ul>
+      <div class="cta left">
+        <a class="btn" href="demo/">Open the full demo</a>
+        <a class="btn" href="https://github.com/applypack/applypack/blob/main/docs/adr/0012-deterministic-match-score.md">Read the scoring decision record</a>
+      </div>
+    </div>
+  </section>
+
+  <section id="story" class="story" aria-labelledby="story-h">
+    <div class="wrap story-inner">
+      <h2 id="story-h">I built this during my own job search. It found me a job.</h2>
+      <p>I was mid job hunt when I started ApplyPack. Every evening went to refreshing boards and reading postings that turned out to be the wrong stack, the wrong country, or nobody's real vacancy. So I built the tool I wanted and ran my own search through it every day. That is how I found the job I have now.</p>
+      <p>It is the same tool you install, unchanged.</p>
+      <!-- Owner facts still to add here: the month, the employer if he wants it named,
+           and two or three counters from the Overview (postings read, alerts, applications). -->
+      <p class="sig">Nazar Boyko, September 2026</p>
+    </div>
+  </section>
+
+  <section id="open" aria-labelledby="open-h">
+    <div class="wrap">
+      <h2 id="open-h">Free, open source, yours to bend</h2>
+      <p class="lead">ApplyPack is MIT-licensed and has no hosted version: no accounts, no subscription, no telemetry, no ads. You bring the AI: a subscription you already pay for, an API key, or a local model that costs nothing.</p>
+      <p class="note">It is built to be changed. Over a thousand unit tests on the pure modules, a decision record for every non-obvious choice, and a CLAUDE.md that says where everything lives, so a first change takes an evening, with an AI assistant or without one.</p>
+      <ul class="ways" role="list">
+        <li><b>Add a job source</b>Close to a one-file change: three fetcher templates in the repo, a unit test for the mapper, a smoke run.</li>
+        <li><b>Take a good first issue</b>Scoped tasks with file pointers, labelled in the tracker.</li>
+        <li><b>Bring an idea</b>Open an issue with the feature template. Public APIs and RSS only, never scraping; everything else is on the table.</li>
+      </ul>
+      <div class="cta left">
+        <a class="btn primary" href="https://github.com/applypack/applypack/blob/main/CONTRIBUTING.md">Read CONTRIBUTING</a>
+        <a class="btn" href="https://github.com/applypack/applypack/issues/new/choose">Open an issue</a>
+        <a class="btn" href="https://github.com/applypack/applypack/fork">Fork on GitHub</a>
+      </div>
+    </div>
+  </section>
+
+  <section id="install" class="raised" aria-labelledby="install-h">
+    <div class="wrap">
+      <h2 id="install-h">Install in four commands</h2>
+      <p class="lead">Postgres, the worker and the dashboard from one compose file. A laptop or a $5 VPS is the whole deployment.</p>
       <div class="term">
-        <div class="bar"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+        <div class="bar" aria-hidden="true"><i></i><i></i><i></i></div>
         <pre><span class="g">git</span> clone https://github.com/applypack/applypack.git
 <span class="g">cd</span> applypack
-<span class="g">cp</span> .env.example .env    <span class="c"># add one AI engine key</span>
-<span class="g">docker</span> compose up -d    <span class="c"># → http://localhost:4747</span></pre>
+<span class="g">cp</span> .env.example .env    <span class="c"># nothing to fill in yet</span>
+<span class="g">docker</span> compose up -d    <span class="c"># → http://localhost:4747, a four-step setup opens</span></pre>
       </div>
-      <p class="qs-note">Fetchers, filters and the dashboard run without any AI key —
-      you only need one for classification and resume work.</p>
-      <div class="engines">
-        <span class="chip"><b>Claude Code</b> CLI · your subscription</span>
-        <span class="chip"><b>Gemini</b> CLI</span>
-        <span class="chip"><b>Codex</b> CLI</span>
-        <span class="chip"><b>Anthropic</b> API</span>
-        <span class="chip"><b>Any OpenAI-compatible</b> · incl. free local models</span>
-      </div>
+      <p class="note">Paste an AI key on the first screen, or let the dashboard detect the CLI you are already logged into. Fetching starts paused until you finish the setup, so a blank profile never burns your quota.</p>
+      <ul class="engines" role="list" aria-label="AI engines">
+        <li><b>Claude Code</b> CLI, your subscription</li>
+        <li><b>Gemini</b> CLI, free tier</li>
+        <li><b>Codex</b> CLI, your subscription</li>
+        <li><b>Anthropic</b> API</li>
+        <li><b>Any OpenAI-compatible</b> endpoint, local models included</li>
+      </ul>
+      <p class="fine">Engines chain with automatic failover. Consumer-subscription terms do not spell out background services; read yours before making a subscription the primary engine.</p>
     </div>
   </section>
 </main>
 
 <footer>
   <div class="wrap foot">
-    <div class="mark">AP</div>
-    <div class="word" style="font-size:15px">ApplyPack</div>
-    <div class="spacer" style="flex:1"></div>
+    <a class="brand" href="/"><span class="mark" aria-hidden="true">AP</span>ApplyPack</a>
     <div class="links">
       <a href="https://github.com/applypack/applypack">GitHub</a>
       <a href="https://github.com/applypack/applypack/releases">Releases</a>
+      <a href="https://github.com/applypack/applypack/blob/main/CHANGELOG.md">Changelog</a>
       <a href="https://github.com/applypack/applypack/blob/main/CONTRIBUTING.md">Contributing</a>
       <a href="https://github.com/applypack/applypack/blob/main/SECURITY.md">Security</a>
     </div>
-    <div class="tail">MIT licensed. Runs locally — your data stays in your Postgres.</div>
+    <p class="tail">MIT licensed. Built by <a href="https://github.com/nazboyko">Nazar Boyko</a>. Runs locally; your data stays in your Postgres.</p>
   </div>
 </footer>
 
+<script type="module" src="demo/demo.mjs"></script>
 </body>
 </html>

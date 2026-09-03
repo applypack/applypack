@@ -16,6 +16,8 @@ import {
   Tr,
 } from '../ui';
 import { formatDateShort, formatRelative, formatSalary } from '../format';
+import { flagOf } from '../../countries';
+import { splitPlaces, toggled, type FacetChip, type FacetChips } from '../job-facets';
 import { VERDICT_TONE } from './verification-card';
 
 interface JobRow {
@@ -23,6 +25,8 @@ interface JobRow {
   title: string;
   url: string;
   location: string;
+  /** ADR 0031: the structured reading of `location`; flags decorate the row. */
+  countries: string[];
   fitScore: number | null;
   salaryMin: number | null;
   salaryMax: number | null;
@@ -32,6 +36,8 @@ interface JobRow {
   techMatch: string[];
   company: { name: string };
   verifications: { verdict: string }[];
+  /** Present only when one search is selected: that search's own verdict. */
+  scores?: { fitScore: number }[];
 }
 
 export interface JobsListProps {
@@ -45,8 +51,18 @@ export interface JobsListProps {
     q: string;
     sort: string;
     verified: string;
+    /** Which search the list is narrowed to; null = all of them. */
+    profile: number | null;
+    /** ADR 0031 facets: place values (codes or "unknown"), workplace values, posted window. */
+    country: string[];
+    workplace: string[];
+    posted: string;
   };
-  /** True when the active profile is blank — classification is idling (issue #50). */
+  /** Chips with counts for the three facets (ADR 0031). */
+  facets: FacetChips;
+  /** Every running search — one chip each (ADR 0028). */
+  profiles: { id: number; name: string }[];
+  /** True when the primary profile is blank — classification is idling (issue #50). */
   blankProfileBanner?: boolean;
 }
 
@@ -68,6 +84,8 @@ const SORT_OPTIONS: { value: string; label: string }[] = [
 
 export const JobsListPage: FC<JobsListProps> = ({
   jobs,
+  profiles,
+  facets,
   total,
   page,
   pageSize,
@@ -82,7 +100,11 @@ export const JobsListPage: FC<JobsListProps> = ({
     filters.q.length > 0 ||
     filters.status.length > 0 ||
     filters.minFit.length > 0 ||
-    filters.verified.length > 0;
+    filters.verified.length > 0 ||
+    filters.country.length > 0 ||
+    filters.workplace.length > 0 ||
+    filters.posted.length > 0;
+  const places = splitPlaces(facets.places);
 
   return (
     <Layout title="Jobs" active="jobs" fill>
@@ -98,14 +120,87 @@ export const JobsListPage: FC<JobsListProps> = ({
 
       {blankProfileBanner && (
         <div class="mb-4 shrink-0 rounded-md border border-warn/25 bg-warn/5 px-3.5 py-2.5 text-[13px] leading-5 text-warn">
-          Active profile is empty — classification idle. New jobs are fetched but not scored
-          or alerted until the profile lists a required stack or role types.{' '}
+          Every running search is empty — classification idle. New jobs are fetched but
+          not scored or alerted until one lists a required stack or role types.{' '}
           <a href="/settings?tab=profile" class="font-medium underline">
-            Fix the profile
+            Fix the search
           </a>
           .
         </div>
       )}
+
+      {profiles.length > 1 && (
+        <nav
+          aria-label="Filter by search"
+          class="mb-3 flex shrink-0 flex-wrap items-center gap-1"
+        >
+          <span class="mr-1 text-xs font-medium uppercase tracking-wide text-ink-faint">
+            Search
+          </span>
+          {[{ id: null as number | null, name: 'All' }, ...profiles].map((p) => {
+            const on = filters.profile === p.id;
+            return (
+              <a
+                href={buildQuery({ ...filters, profile: p.id ?? '', page: 1 })}
+                aria-current={on ? 'true' : undefined}
+                class={`rounded-full border px-3 py-1 text-[13px] transition-colors duration-150 ${
+                  on
+                    ? 'border-accent/40 bg-accent/10 font-medium text-accent-strong'
+                    : 'border-line text-ink-muted hover:bg-surface-overlay/70 hover:text-ink'
+                }`}
+              >
+                {p.name}
+              </a>
+            );
+          })}
+        </nav>
+      )}
+
+      {facets.places.length > 0 && (
+      <nav aria-label="Filter by place" class="mb-2 flex shrink-0 flex-wrap items-center gap-1">
+        <span class="mr-1 text-xs font-medium uppercase tracking-wide text-ink-faint">Where</span>
+        {places.shown.map((c) => (
+          <FacetLink
+            href={buildQuery({ ...filters, country: toggled(filters.country, c.value), page: 1 })}
+            chip={c}
+          />
+        ))}
+        {places.more.length > 0 && (
+          <details class="contents">
+            <summary class="cursor-pointer rounded-full border border-transparent px-2.5 py-1 text-[13px] text-ink-faint hover:text-ink [&::-webkit-details-marker]:hidden">
+              More…
+            </summary>
+            {places.more.map((c) => (
+              <FacetLink
+                href={buildQuery({ ...filters, country: toggled(filters.country, c.value), page: 1 })}
+                chip={c}
+              />
+            ))}
+          </details>
+        )}
+      </nav>
+      )}
+
+      <div class="mb-4 flex shrink-0 flex-wrap items-center gap-x-4 gap-y-2">
+        <nav aria-label="Filter by workplace" class="flex flex-wrap items-center gap-1">
+          <span class="mr-1 text-xs font-medium uppercase tracking-wide text-ink-faint">Work</span>
+          {facets.workplaces.map((c) => (
+            <FacetLink
+              href={buildQuery({ ...filters, workplace: toggled(filters.workplace, c.value), page: 1 })}
+              chip={c}
+            />
+          ))}
+        </nav>
+        <nav aria-label="Filter by posting date" class="flex flex-wrap items-center gap-1">
+          <span class="mr-1 text-xs font-medium uppercase tracking-wide text-ink-faint">Posted</span>
+          {facets.posted.map((c) => (
+            <FacetLink
+              href={buildQuery({ ...filters, posted: c.selected ? '' : c.value, page: 1 })}
+              chip={c}
+            />
+          ))}
+        </nav>
+      </div>
 
       <div class="mb-4 flex shrink-0 flex-wrap items-center gap-x-4 gap-y-2">
         <nav aria-label="Job filters" class="flex flex-wrap items-center gap-1">
@@ -143,11 +238,15 @@ export const JobsListPage: FC<JobsListProps> = ({
         <form method="get" action="/jobs" class="ml-auto flex flex-wrap items-center gap-2">
           <input type="hidden" name="status" value={filters.status} />
           <input type="hidden" name="verified" value={filters.verified} />
+          <input type="hidden" name="profile" value={filters.profile ?? ''} />
+          <input type="hidden" name="country" value={filters.country.join(',')} />
+          <input type="hidden" name="workplace" value={filters.workplace.join(',')} />
+          <input type="hidden" name="posted" value={filters.posted} />
           <Input
             type="search"
             name="q"
             value={filters.q}
-            placeholder="Search title or description…"
+            placeholder="Search title, description or location…"
             aria-label="Search jobs"
             class="!w-56"
           />
@@ -242,11 +341,20 @@ export const JobsListPage: FC<JobsListProps> = ({
                         </Td>
                         <Td class="text-ink-muted">
                           <div class="truncate" title={j.location || 'Remote'}>
+                            {j.countries.length > 0 && (
+                              <span class="mr-1" aria-hidden="true">
+                                {j.countries.map(flagOf).join('')}
+                              </span>
+                            )}
                             {j.location || 'Remote'}
                           </div>
                         </Td>
                         <Td class="whitespace-nowrap">
-                          <FitBadge score={j.fitScore} />
+                          <FitBadge
+                            score={
+                              filters.profile ? (j.scores?.[0]?.fitScore ?? null) : j.fitScore
+                            }
+                          />
                         </Td>
                         <Td
                           class="overflow-hidden whitespace-nowrap text-right text-[13px] tabular-nums text-ink-muted"
@@ -305,6 +413,23 @@ export const JobsListPage: FC<JobsListProps> = ({
   );
 };
 
+/** One facet chip: a link that toggles its value; the count reads without colour. */
+const FacetLink: FC<{ href: string; chip: FacetChip }> = ({ href, chip }) => (
+  <a
+    href={href}
+    aria-current={chip.selected ? 'true' : undefined}
+    class={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[13px] transition-colors duration-150 ${
+      chip.selected
+        ? 'border-accent/40 bg-accent/10 font-medium text-accent-strong'
+        : 'border-line text-ink-muted hover:bg-surface-overlay/70 hover:text-ink'
+    }`}
+  >
+    {chip.flag && <span aria-hidden="true">{chip.flag}</span>}
+    {chip.label}
+    <span class="tabular-nums text-ink-faint">{chip.count}</span>
+  </a>
+);
+
 const PageLink: FC<{ href: string; disabled: boolean; children: string }> = ({
   href,
   disabled,
@@ -326,10 +451,11 @@ const PageLink: FC<{ href: string; disabled: boolean; children: string }> = ({
     </a>
   );
 
-function buildQuery(params: Record<string, string | number>): string {
+function buildQuery(params: Record<string, string | number | string[] | null>): string {
   const usp = new URLSearchParams();
   for (const [k, v] of Object.entries(params)) {
-    const s = String(v);
+    if (v === null) continue;
+    const s = Array.isArray(v) ? v.join(',') : String(v);
     if (s.length === 0) continue;
     if (k === 'page' && s === '1') continue;
     usp.set(k, s);

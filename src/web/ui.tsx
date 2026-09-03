@@ -91,9 +91,8 @@ const FLASH_TONE: Record<FlashKind, string> = {
   err: 'border-danger/25 bg-danger/5 text-danger',
 };
 
-export const Flash: FC<{
-  flash?: FlashMessage | null;
-}> = ({ flash }) =>
+/** `children` is the message's one action, if any — a form or a button after the text. */
+export const Flash: FC<PropsWithChildren<{ flash?: FlashMessage | null }>> = ({ flash, children }) =>
   flash ? (
     <div
       role="status"
@@ -128,7 +127,8 @@ export const Flash: FC<{
           </>
         )}
       </svg>
-      <span class="min-w-0">{flash.text}</span>
+      <span class="min-w-0 flex-1">{flash.text}</span>
+      {children}
     </div>
   ) : null;
 
@@ -292,8 +292,15 @@ export const Table: FC<
     stickyHeader?: boolean;
     /** Proportional column widths (`w-[34%]`, …) with table-fixed layout. */
     widths?: string[];
+    /**
+     * Per-column classes on the `th` itself — the only place a responsive
+     * `hidden sm:table-cell` can live, since a class on the label inside
+     * still leaves the cell occupying its column. Pair each entry with the
+     * same class on that column's `Td`.
+     */
+    thClasses?: string[];
   }>
-> = ({ columns, stickyHeader = false, widths, children }) => {
+> = ({ columns, stickyHeader = false, widths, thClasses, children }) => {
   const table = (
     <table class={`w-full text-sm ${widths ? 'table-fixed' : ''}`}>
       <thead>
@@ -301,9 +308,9 @@ export const Table: FC<
           {columns.map((c, i) => (
             <th
               scope="col"
-              class={`bg-surface-overlay px-4 py-2.5 font-medium first:rounded-tl-none first:pl-5 last:pr-5 ${
+              class={`bg-surface-overlay px-2.5 py-2.5 font-medium first:rounded-tl-none first:pl-3.5 last:pr-3.5 sm:px-4 sm:first:pl-5 sm:last:pr-5 ${
                 widths?.[i] ?? ''
-              } ${
+              } ${thClasses?.[i] ?? ''} ${
                 stickyHeader
                   ? 'sticky top-0 z-10 shadow-[inset_0_-1px_0_rgb(var(--line))]'
                   : 'border-b border-line'
@@ -334,12 +341,16 @@ export const Td: FC<PropsWithChildren<{ class?: string; title?: string }>> = ({
   class: className = '',
   title,
 }) => (
-  <td class={`px-4 py-3 first:pl-5 last:pr-5 ${className}`} title={title}>
+  <td class={`px-2.5 py-3 first:pl-3.5 last:pr-3.5 sm:px-4 sm:first:pl-5 sm:last:pr-5 ${className}`} title={title}>
     {children}
   </td>
 );
 
 /* ---------- forms ---------- */
+
+/** Native file input styled to match the controls (shared by every upload form). */
+export const FILE_INPUT_CLASS =
+  'file:mr-3 file:cursor-pointer file:rounded-md file:border-0 file:bg-surface-overlay file:px-2.5 file:py-1 file:text-xs file:font-medium file:text-ink';
 
 export const Field: FC<PropsWithChildren<{ label: string; hint?: string; class?: string }>> = ({
   label,
@@ -469,6 +480,17 @@ export const Button: FC<
   );
 };
 
+/**
+ * `onsubmit` guard for a form whose POST starts real work — an upload, an AI
+ * run. The redirect to the progress page is fast but not instant, and a
+ * second click inside that window used to create a second resume and a
+ * second AI call. Disabling after the submit event fired does not cancel the
+ * submission, and with JS off the form still works as before.
+ */
+export const SUBMIT_ONCE =
+  "if(this.dataset.sent)return false;this.dataset.sent='1';" +
+  "this.querySelectorAll('button').forEach(function(b){b.disabled=true});";
+
 /** One-button POST form — the dashboard's main mutation idiom. */
 export const ActionForm: FC<
   PropsWithChildren<{
@@ -476,13 +498,18 @@ export const ActionForm: FC<
     confirm?: string;
     hidden?: Record<string, string | number>;
     class?: string;
+    /** Disable the buttons once pressed — for POSTs that start an AI run. */
+    once?: boolean;
   }>
-> = ({ action, confirm, hidden, children, class: className = '' }) => (
+> = ({ action, confirm, hidden, children, class: className = '', once }) => (
   <form
     method="post"
     action={action}
     class={className}
-    onsubmit={confirm ? `return confirm(${JSON.stringify(confirm)});` : undefined}
+    onsubmit={
+      [confirm ? `if(!confirm(${JSON.stringify(confirm)}))return false;` : '', once ? SUBMIT_ONCE : '']
+        .join('') || undefined
+    }
   >
     {hidden &&
       Object.entries(hidden).map(([k, v]) => <input type="hidden" name={k} value={String(v)} />)}
@@ -524,7 +551,10 @@ export const ToggleRow: FC<
       </div>
       <Hint class="mt-1">{children}</Hint>
     </div>
-    <div class="flex shrink-0 flex-col items-end gap-2">
+    {/* Row, not column: a card with an `extra` action (Discovery's "Run now")
+        stacked its two buttons vertically, which read as one button dropped
+        below the other. They wrap only when the card is too narrow for both. */}
+    <div class="flex shrink-0 flex-wrap items-center justify-end gap-2">
       <ActionForm action={action}>
         <Button variant={enabled ? 'secondary' : 'primary'}>
           {enabled ? disableText : enableText}

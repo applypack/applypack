@@ -5,13 +5,33 @@
  * elements, so importing it under node:test touches no DOM.
  */
 
-import { scoreKeywords, highlightHtml, jobSpans, resumeSpans, locateQuote } from './target.mjs';
+import {
+  scoreKeywords,
+  highlightHtml,
+  jobSpans,
+  resumeSpans,
+  locateQuote,
+  keywordRank,
+  orderKeywords,
+  wantsLabel,
+} from './target.mjs';
 import { computeScore, entriesFromLive } from './score.mjs';
 
 // Full literal class names — the Tailwind CDN JIT only generates what it can
 // see verbatim in the document, composed strings would come out unstyled.
 const TONE_TEXT = { ok: 'text-ok', info: 'text-info', warn: 'text-warn', danger: 'text-danger' };
 const TONE_BG = { ok: 'bg-ok', info: 'bg-info', warn: 'bg-warn', danger: 'bg-danger' };
+
+// A missing chip carries the same weight the pane marks do (target-plan.md §5):
+// a primary-stack must shouts, a nice-to-have whispers.
+const CHIP_BASE = 'chip inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-medium ring-1 ring-inset';
+const CHIP_WEIGHT = {
+  4: 'bg-warn/25 text-warn ring-warn/60 font-semibold',
+  3: 'bg-warn/15 text-warn ring-warn/40',
+  2: 'bg-warn/10 text-warn ring-warn/25',
+  1: 'bg-warn/5 text-ink-muted ring-line',
+  0: 'bg-warn/5 text-ink-muted ring-line',
+};
 
 function tone(score) {
   return score >= 85 ? 'ok' : score >= 70 ? 'info' : score >= 50 ? 'warn' : 'danger';
@@ -88,12 +108,18 @@ export function init(data) {
     jd.innerHTML = highlightHtml(data.jobText, jobSpans(data.keywords, data.jobText, scored));
 
     chips.innerHTML = '';
-    for (const r of scored.rows.filter((r) => !r.found && !r.excluded).sort((a, b) => a.priority - b.priority)) {
+    // Hardest requirement first, then the words the posting keeps repeating.
+    for (const r of orderKeywords(scored.rows.filter((r) => !r.found && !r.excluded), data.jobText)) {
       const b = document.createElement('button');
       b.type = 'button';
-      b.className = 'chip inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-medium ring-1 ring-inset bg-warn/10 text-warn ring-warn/25';
-      b.textContent = r.term + ' · P' + r.priority;
-      b.title = (r.where ? 'Add in: ' + r.where + '. ' : '') + (r.note || '');
+      b.className = CHIP_BASE + ' ' + (CHIP_WEIGHT[keywordRank(r)] ?? CHIP_WEIGHT[2]);
+      b.textContent = r.count > 1 ? r.term + ' ×' + r.count : r.term;
+      b.title = [
+        wantsLabel(r),
+        r.count > 1 ? '×' + r.count + ' in the posting' : null,
+        r.where ? 'add in: ' + r.where : null,
+        r.note,
+      ].filter(Boolean).join(' · ');
       b.addEventListener('click', () => jumpToSection(r.where));
       chips.appendChild(b);
     }
@@ -189,6 +215,8 @@ export function init(data) {
     });
   }
 
-  editor.value = load() ?? data.resumeText;
+  // An instant check hands over its parsed upload: it becomes this tab's draft
+  // in place of whatever the tab held, and lives in localStorage from here on.
+  editor.value = typeof data.draftText === 'string' ? data.draftText : (load() ?? data.resumeText);
   render();
 }

@@ -32,7 +32,9 @@ cron job. The two processes share state only through Postgres
 
 ## Per-tick fetch pipeline
 
-This is what runs every hour at `:05`:
+This is what runs every hour at `:05` — and, since v1.6.0, whenever
+"Fetch now" is pressed on the dashboard (same `runFetchJob`, in the web
+process; while the pipeline is paused it stores the new jobs unscored):
 
 ```mermaid
 sequenceDiagram
@@ -128,16 +130,16 @@ ADR: [0006-discovery-via-hn-parser.md](./docs/adr/0006-discovery-via-hn-parser.m
 ```mermaid
 flowchart LR
   subgraph settings["AppSettings (singleton)"]
-    apId[activeProfileId]
+    apId["activeProfileId (primary)"]
     cm[classifierMode]
     dsr[disabledSources]
   end
-  subgraph profile["Profile (active)"]
+  subgraph profile["Profile (each running search)"]
     sr[stackRequired]
     rt[roleTypes]
     snth[stackNiceToHave]
     sex[stackExclude]
-    rg[remoteRegions]
+    rg[countries / regions / workplace]
     notes
   end
   apId --> profile
@@ -167,6 +169,13 @@ src/
   text-utils.ts                ← pure helpers: parseTagList, extractJson, extractAtsToken,
                                  daysSince, hashShortId, maskToken, decideStageStrategy
   filter.ts                    ← passesBaseFilter (pure, profile-aware)
+  countries.json / countries.ts ← the gazetteer: 86 countries, cities, region groups; lookups (pure, ADR 0031)
+  location.ts                  ← parseLocation: string + fetcher hints → workplace/countries/regions (pure, ADR 0031)
+  location-corpus.json         ← every stored location string on 2026-09-03 with its pinned reading (a test)
+  jobs/location-merge.ts       ← the classifier's place may only narrow the parser's (pure, ADR 0032)
+  jobs/location-reason.ts      ← "open to Poland; this search hunts in …" for the job page (pure, ADR 0032)
+  web/job-facets.ts            ← /jobs place / workplace / posted facets: params, where, chip counts (pure)
+  web/public/countries.mjs     ← country picker: search over /countries.json + the suggestion list (tested via import())
   ai-provider.ts               ← AiProvider seam: AnthropicApiProvider | ClaudeCodeProvider
   ai-provider-parse.ts         ← pure parser for `claude -p` JSON output (tested)
   prompt-fence.ts              ← untrusted-text markers + directive (pure, tested, ADR 0022)
@@ -192,20 +201,24 @@ src/
     docx-text.ts               ← word/document.xml → plain text, pure
     pdf-text.ts                ← PDF → plain text via unpdf (ADR 0011), tested
     resume-text.ts             ← upload dispatch by extension, pure
-    prompts.ts                 ← scan + match + cover prompts, zod schemas, Json readers, pure
+    prompts.ts                 ← scan + match (two variants) + suggestions + cover prompts, zod schemas, Json readers, pure
+    match-mode.ts              ← quick check vs full report: the marker inside breakdown JSON (ADR 0029), pure
+    match-reuse.ts             ← is a stored row the answer? reuse / suggestions-only / new run, pure
+    bench-report.ts            ← saved bench runs → latency + status-agreement table, pure
     profile-draft.ts           ← resume scan → profile-editor draft (ADR 0015), pure
     score.ts                   ← deterministic match score + breakdown (ADR 0012), pure
     facts.ts                   ← apply CandidateFacts / cross-resume hints to keywords, pure
     fact-check.ts              ← deterministic fabrication gate for generated prose (ADR 0020), pure
     diff.ts                    ← version delta from two matches (gained/lost, components), pure
     parse-warnings.ts          ← ATS parseability checks over extracted text, pure
-    pick.ts                    ← preselect resume by skill-tag overlap, pure
+    pick.ts                    ← preselect: profile link first, then skill-tag overlap, pure
     store.ts                   ← Resume / ResumeMatch / CandidateFact / CoverLetter CRUD (Prisma)
     zip-write.ts               ← minimal STORED zip writer (docx container), pure
     docx-write.ts              ← letter → .docx, round-trip-tested against zip.ts + docx-text.ts, pure
     pdf-write.ts               ← letter → minimal Helvetica PDF, pure
     scan.ts                    ← one AI call → Resume scan fields
-    match.ts                   ← one AI call → facts context in, statuses out, score.ts computes → ResumeMatch row
+    match.ts                   ← one AI call (fast | full) → facts context in, statuses out, score.ts computes → ResumeMatch row
+    suggestions.ts             ← the lazy second call: stored verdicts in, actions/removals out → same row (ADR 0029)
     cover-letter.ts            ← one gated AI call → CoverLetter row; gate block → regen once → refuse (ADR 0021)
 
   verification/                ← ghost-job check (ADR 0009) + liveness ladder (ADR 0016)
@@ -228,15 +241,17 @@ src/
     hn-parser.ts                         pure heuristic parser
 
   jobs/
-    fetch-job.ts                ← runFetchJob (cron entry)
+    fetch-job.ts                ← runFetchJob (cron entry; {manual:true} from "Fetch now")
     digest-job.ts               ← runDigestJob (daily 09:00)
     cleanup-job.ts              ← runCleanupJob (Sunday 03:00)
     stale-applications-job.ts   ← runStaleApplicationsJob (daily 08:00)
     stale-applications-format.ts  pure formatStaleMessage
+    applied-with.ts             ← pure "Senior Backend v3" label for the applied resume
     hn-hiring-job.ts            ← runHnHiringJob (monthly 1st 06:00)
     discovery-job.ts            ← runDiscoveryJob (Sunday 04:00, validation probe)
     process-jobs.ts             ← shared inner loop used by fetch + HN
-    reclassify-job.ts           ← runReclassifyAll (web-triggered, async)
+    reclassify-job.ts           ← runReclassifyAll + runScoreUnscored (web-triggered, async)
+    score-pick.ts               ← pure ranking of unscored jobs by profile mentions (wizard step 4)
     classify-existing.ts        ← classify one stored job (Re-classify button, manual entry)
     posting-url.ts              ← one user-requested posting-page GET → plain text (ADR 0005 blocklist, honest bot-check failure)
     manual-job.ts               ← pasted posting → MANUAL company + Job + classify (used by /jobs/new and /target)
@@ -254,10 +269,17 @@ src/
     flash.ts                  ← POST → redirect → GET flash cookie
     upload.ts                 ← multipart resume upload helper + 5 MB limit
     target-runs.ts            ← in-memory compare-run registry (async classify/scan/match)
+    fetch-runs.ts             ← in-memory "Fetch now" registry (live source progress; the 'fetch-now' CronRun is the record)
+    fetch-summary.ts          ← pure one-line verdict of a finished fetch-now run
+    welcome-steps.ts          ← pure first-run wizard rules (steps from data, score-run summary)
+    welcome-facts.ts          ← loads what the wizard and the Overview chip derive from
+    ai-test.ts                ← one live engine call — Settings Test button + wizard step 1
+    profile-from-resume.ts    ← "create a search from this resume": blank-base draft + inactive create
     public/target.mjs         ← browser keyword matcher (pure ES module, node-tested)
     public/score.mjs          ← browser mirror of resume/score.ts (parity-tested, ADR 0012)
     public/cover-letter.mjs   ← copy-to-clipboard for the letter card (import-smoke-tested)
     public/board.mjs          ← /applications drag-and-drop over POST /jobs/:id/stage (planMove tested)
+    public/fetch-run.mjs      ← activity lines for the fetch-now progress page (pure; target-run.mjs polls)
 
     pages/
       overview.tsx              ← /
@@ -267,7 +289,10 @@ src/
       companies.tsx             ← /companies
       starter-pack.tsx          ← pack picker card + preview + import result
       discovery.tsx             ← /discovery
-      runs.tsx                  ← /runs
+      runs.tsx                  ← /runs (+ Fetch now button)
+      welcome.tsx               ← /welcome first-run wizard (4 steps, one card at a time)
+      fetch-run.tsx             ← /runs/fetch-now/:id progress page + FetchNowButton
+      run-steps.tsx             ← step list shared by the two progress pages
       settings.tsx              ← /settings (9 cards)
       resumes.tsx               ← /resumes (list + upload form component)
       resume-detail.tsx         ← /resumes/:id
@@ -277,7 +302,7 @@ src/
       job-new.tsx               ← /jobs/new (paste a posting)
       target-start.tsx          ← /target (paste posting + pick/upload/paste resume → one run)
       letter-start.tsx          ← /letter (job by pick/URL/paste + resume + optional match/verify → letter)
-      target-run.tsx            ← /target/runs/:id (progress steps, meta-refresh 2s)
+      target-run.tsx            ← /target/runs/:id (progress steps, polled by target-run.mjs)
       target.tsx                ← /jobs/:id/target (side-by-side editor, live score)
 
     routes/
@@ -289,7 +314,8 @@ src/
       applications.tsx          ← board + stage-only quick-move + per-job application form
       companies.tsx              ← list + new (probe-validated) + delete + toggle + starter packs
       discovery.tsx             ← list + promote + ignore + delete + manual probe
-      runs.tsx
+      runs.tsx                  ← /runs + POST /runs/fetch-now (the tick in the web process) + progress/state
+      welcome.tsx               ← /welcome + skip / finish / ai test / resume → scan run / profile apply / score run
       settings.tsx              ← profile editor + 8 toggles + telegram targets
       health.ts                 ← JSON liveness for external monitoring
 
@@ -314,13 +340,15 @@ prisma/
 | `POST /settings/reclassify`      | web     | spawns `runReclassifyAll` async (lock)   |
 | `POST /settings/hn-run`          | web     | spawns `runHnHiringJob` async (lock)     |
 | `POST /jobs/:id/reclassify`      | web     | sync `classifyJob` → auto-demote on fail |
+| `POST /jobs/:id/status`          | web     | status change; on APPLIED also seeds the funnel and snapshots the picked resume (id + version + text) |
 | `POST /companies/new`            | web     | sync `probeAts` → upsert                 |
 | `POST /companies/starter-pack`   | web     | resolve a pack live (`probeAts`, ≥1 job wins) → preview; `/import` inserts inactive, `/enable` activates |
 | `POST /resumes`                  | web     | extract text → `scanResume` (sync, ~1 min) |
-| `POST /jobs/:id/match`           | web     | async run: (scratch cleanup) → `matchResumeToJob`; redirects to `/target/runs/:id` |
+| `POST /jobs/:id/match`           | web     | async run: (scratch cleanup) → `matchResumeToJob` (`mode` = fast \| full); a stored quick check + `mode=full` starts the suggestions run instead; redirects to `/target/runs/:id` |
+| `POST /jobs/:id/matches/:matchId/suggestions` | web | async run: `suggestForMatch` — actions/removals/strengths/cautions onto the stored row, score untouched |
 | `POST /jobs/:id/verify`          | web     | `checkLiveness` (free rungs, seconds) → stop on a verdict; else / `deep=1` sync `verifyJob` with web tools (2-4 min) → `JobVerification` |
 | `POST /jobs/new`                 | web     | MANUAL company upsert + Job + `classifyExistingJob` |
-| `POST /target`                   | web     | resolve resume inline (upload/paste → hidden scratch row), then async: `createManualJob` → scratch-match cleanup → `matchResumeToJob`; redirects to `/target/runs/:id` |
+| `POST /target`                   | web     | resolve resume inline (upload/paste → hidden scratch row), then async: `createManualJob` → scratch-match cleanup → `matchResumeToJob` (`mode` from the pressed button); redirects to `/target/runs/:id` |
 | `GET /target/runs/:id`           | web     | progress page (meta-refresh 2s); done → flash + redirect into the targeted view |
 | `POST /resumes/:id/replace`      | web     | new file → `version`+1 → `scanResume`    |
 | `POST /jobs/:id/target/reupload` | web     | async run: replace (+scan for real resumes; scratch skips it) → match |
@@ -337,11 +365,15 @@ prisma/
 
 ```mermaid
 erDiagram
-  AppSettings ||--o| Profile : "activeProfileId"
+  AppSettings ||--o| Profile : "activeProfileId (primary)"
   Profile ||--o| TelegramTarget : "telegramTargetId"
   Profile ||--o{ AppSettings : "back-relation"
+  Profile ||--o{ JobScore : "1..N onDelete:Cascade"
+  Job ||--o{ JobScore : "1..N onDelete:Cascade"
   Company ||--o{ Job : "1..N onDelete:Cascade"
   CompanyCandidate }o--|| AtsType : "PROMOTED → Company"
+  Resume ||--o| Profile : "resumeId — onDelete:SetNull"
+  Resume ||--o{ Job : "appliedResumeId — onDelete:SetNull"
   Resume ||--o{ ResumeMatch : "1..N onDelete:Cascade"
   Job ||--o{ ResumeMatch : "1..N onDelete:Cascade"
   Job ||--o{ JobVerification : "1..N onDelete:Cascade"
@@ -351,13 +383,16 @@ erDiagram
   AppSettings {
     int id PK
     bool telegramEnabled
-    int activeProfileId FK
+    int activeProfileId FK "the primary search"
     string classifierMode "single|two_stage"
     bool applicationTrackingEnabled
     bool staleApplicationsDigestEnabled
     bool hnParserEnabled
     bool discoveryEnabled
     string_array disabledSources
+    json aiKeys "per-engine API keys, DB-first (ADR 0027)"
+    datetime setupCompletedAt "NULL = / redirects to /welcome"
+    json pipelineStages "user-named funnel columns (ADR 0025)"
   }
 
   Profile {
@@ -369,13 +404,15 @@ erDiagram
     string_array stackExclude
     text notes
     string_array seniority
-    bool remoteOk
-    string_array remoteRegions
+    string_array countries "ISO-2 — where the search hunts (ADR 0032)"
+    string_array regions "group codes, stored as groups"
+    enum_array workplace "REMOTE|HYBRID|ONSITE accepted; empty = any"
     string_array onsiteCities
-    bool hybridOk
     int minSalaryUsd
     int minFitScore
     int telegramTargetId FK
+    bool active "runs in the pipeline (ADR 0028)"
+    int resumeId FK "the resume this search hunts with"
   }
 
   Company {
@@ -393,7 +430,11 @@ erDiagram
     string externalId
     string title
     string url
-    string location
+    string location "as fetched, never rewritten"
+    enum workplace "REMOTE|HYBRID|ONSITE|UNKNOWN (ADR 0031)"
+    string_array countries "ISO-2: where to live (remote) or the office"
+    string_array regions "named markers only: EU, EUROPE, WORLDWIDE …"
+    string locationSource "structured|parsed|null"
     text description
     int fitScore
     int salaryMin
@@ -407,6 +448,9 @@ erDiagram
     string pipelineStage
     string recruiterContact
     text applicationNotes
+    int appliedResumeId FK "onDelete:SetNull"
+    int appliedResumeVersion
+    text appliedResumeText "snapshot — resume bytes are replaced in place"
   }
 
   TelegramTarget {
@@ -442,6 +486,7 @@ erDiagram
     string seniority
     int yearsExperience
     string_array skills
+    string_array primarySkills "the 2-5 core technologies"
     string_array roleTypes
     text summary
     json issues
@@ -495,7 +540,7 @@ These are codified as ADRs — go there for the full reasoning:
 - [0001 — Hono not Express](./docs/adr/0001-hono-not-express.md)
 - [0002 — Worker and web as separate processes](./docs/adr/0002-worker-and-web-as-separate-processes.md)
 - [0003 — No queue, just node-cron](./docs/adr/0003-no-queue-just-node-cron.md)
-- [0004 — One active profile, not multi-tenant](./docs/adr/0004-single-active-profile.md)
+- [0004 — One active profile, not multi-tenant](./docs/adr/0004-single-active-profile.md) *(superseded by 0028)*
 - [0005 — No LinkedIn / Indeed / Workday](./docs/adr/0005-no-linkedin-indeed-workday.md)
 - [0006 — Discovery via HN parser](./docs/adr/0006-discovery-via-hn-parser.md)
 

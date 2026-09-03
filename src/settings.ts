@@ -3,6 +3,7 @@ import type { Prisma, TelegramTarget } from '@prisma/client';
 import { prisma } from './db';
 import { logger } from './logger';
 import type { AiEngineConfig } from './ai-engine';
+import { parseAiKeys, type AiKeyProviderId, type AiKeys } from './ai-keys';
 
 export const SETTINGS_ID = 1;
 const TELEGRAM_API = 'https://api.telegram.org';
@@ -29,7 +30,22 @@ export interface AppSettingsView {
   coverAngles: unknown;
   /** Raw AppSettings.pipelineStages JSON — parse with parseStageConfig (ADR 0025). */
   pipelineStages: unknown;
+  /** NULL until the first-run wizard finishes or is skipped — `/` redirects to /welcome meanwhile. */
+  setupCompletedAt: Date | null;
   updatedAt: Date;
+}
+
+/**
+ * Creates the singleton AppSettings row if it is missing. Callers that reach
+ * for it with raw SQL — an atomic `jsonb_set`, a `FOR UPDATE` lock — need the
+ * row to exist first: an UPDATE or a lock over nothing is a silent no-op.
+ */
+export async function ensureSettingsRow(): Promise<void> {
+  await prisma.appSettings.upsert({
+    where: { id: SETTINGS_ID },
+    update: {},
+    create: { id: SETTINGS_ID },
+  });
 }
 
 /**
@@ -55,8 +71,19 @@ export async function getSettings(): Promise<AppSettingsView> {
     aiUsage: row.aiUsage,
     coverAngles: row.coverAngles,
     pipelineStages: row.pipelineStages,
+    setupCompletedAt: row.setupCompletedAt,
     updatedAt: row.updatedAt,
   };
+}
+
+/** Marks the first-run wizard as finished (or skipped); `/` stops redirecting. */
+export async function setSetupCompleted(): Promise<void> {
+  await prisma.appSettings.upsert({
+    where: { id: SETTINGS_ID },
+    update: { setupCompletedAt: new Date() },
+    create: { id: SETTINGS_ID, setupCompletedAt: new Date() },
+  });
+  logger.info('settings: setup marked complete');
 }
 
 /**
@@ -97,6 +124,49 @@ export async function setAiEngineConfig(engine: AiEngineConfig): Promise<void> {
     create: { id: SETTINGS_ID, aiEngine: value },
   });
   logger.info({ engine }, 'settings: ai engine updated');
+}
+
+/**
+ * The pasted per-engine credentials (ADR 0027). Deliberately NOT part of
+ * AppSettingsView: a secret is only ever read by the code that is about to
+ * use it, so an ordinary settings read can never carry one into a log line
+ * or a rendered page.
+ */
+export async function getAiKeys(): Promise<AiKeys> {
+  const row = await prisma.appSettings.findUnique({
+    where: { id: SETTINGS_ID },
+    select: { aiKeys: true },
+  });
+  return parseAiKeys(row?.aiKeys ?? null);
+}
+
+/**
+ * Stores a pasted key, or removes it when `key` is blank. Logs the engine only.
+ *
+ * The merge is one SQL statement on purpose (issue #72). Read the map, merge
+ * in memory, write the map back and two tabs saving two engines lose one of
+ * them: the later write carries a snapshot taken before the earlier one. A
+ * transaction around the same read and write would not help — Postgres runs
+ * at Read Committed, so the read inside it still returns the version current
+ * when it started. `jsonb_set` (and `-` for a removal) touches one path and
+ * leaves every other engine's key exactly as the row has it, so the database
+ * does the merge and there is no window to lose.
+ */
+export async function setAiKey(id: AiKeyProviderId, key: string): Promise<void> {
+  const value = key.trim();
+  // The statement below is an UPDATE, so the singleton row has to exist.
+  await ensureSettingsRow();
+  if (value.length === 0) {
+    await prisma.$executeRaw`
+      UPDATE app_settings SET "aiKeys" = COALESCE("aiKeys", '{}'::jsonb) - ${id}
+      WHERE id = ${SETTINGS_ID}`;
+  } else {
+    await prisma.$executeRaw`
+      UPDATE app_settings SET "aiKeys" =
+        jsonb_set(COALESCE("aiKeys", '{}'::jsonb), ARRAY[${id}], to_jsonb(${value}::text), true)
+      WHERE id = ${SETTINGS_ID}`;
+  }
+  logger.info({ provider: id, stored: value.length > 0 }, 'settings: ai key updated');
 }
 
 export async function setTelegramEnabled(enabled: boolean): Promise<void> {

@@ -1,3 +1,5 @@
+import type { LocationHints, WorkplaceCode } from './location';
+
 export interface NormalizedJob {
   companyId: number;
   externalId: string;
@@ -6,6 +8,12 @@ export interface NormalizedJob {
   location: string;
   description: string;
   postedAt: Date;
+  /**
+   * What the source said in structured fields (ISO codes, region codes, the
+   * arrangement) — ADR 0031. Filled only where a feed has such fields; the
+   * location parser reads the string for everything else.
+   */
+  locationHints?: LocationHints;
 }
 
 export interface ClaudeClassification {
@@ -23,6 +31,8 @@ export interface ClassifyInput {
   title: string;
   companyName: string;
   location: string;
+  /** The columns the parser filled (ADR 0031) — the prompt's starting point for the place. */
+  place?: { workplace: WorkplaceCode; countries: string[]; regions: string[] };
   description: string;
   postedAt: Date;
 }
@@ -40,4 +50,9 @@ export interface AlertJob {
   summary: string;
   /** Company this posting is also listed at (F3 cross-listing annotation). */
   crossListedAt?: string | null;
+  /** ADR 0028: the search that wanted this posting most. */
+  matchedProfile?: string | null;
+  /** Every search's verdict, best first ("Backend 87 · QA 41"). Null when
+   *  only one search is running — a one-item list is noise, not context. */
+  profileScores?: string | null;
 }

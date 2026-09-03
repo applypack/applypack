@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { mapFourDayWeekPage } from './fourdayweek';
+import { fourDayWeekPlaces, fourDayWeekUrl, mapFourDayWeekPage } from './fourdayweek';
 
 const COMPANY_ID = 29;
 
@@ -89,5 +89,49 @@ describe('mapFourDayWeekPage', () => {
     );
     assert.equal(jobs[0]!.location, 'Remote');
     assert.doesNotMatch(jobs[0]!.description, /Salary:/);
+  });
+});
+
+describe('mapFourDayWeekPage — location hints (ADR 0031)', () => {
+  it('resolves the geocoded country names and the arrangement', () => {
+    // Recorded live 2026-09-03: a primary office plus a country-wide remote entry.
+    const { jobs } = mapFourDayWeekPage(
+      {
+        data: [
+          row({
+            work_arrangement: 'remote',
+            locations: [
+              { city: 'Herndon', state: 'Virginia', country: 'United States', work_arrangement: 'onsite', is_primary: true },
+              { country: 'United States', work_arrangement: 'remote' },
+            ],
+          }),
+        ],
+      },
+      COMPANY_ID,
+    );
+    assert.deepEqual(jobs[0]?.locationHints, { countries: ['US', 'US'], workplace: 'REMOTE' });
+    assert.deepEqual(mapFourDayWeekPage({ data: [row()] }, COMPANY_ID).jobs[0]?.locationHints, {
+      countries: ['GB'],
+      workplace: 'HYBRID',
+    });
+  });
+});
+
+describe('fourDayWeekPlaces — the country= values a context needs (stage 3a)', () => {
+  it('names for countries, continents for groups, once each', () => {
+    assert.deepEqual(fourDayWeekPlaces({ countries: ['PL', 'DE'], regions: ['EU', 'DACH'] }), ['Poland', 'Germany', 'Europe']);
+    assert.deepEqual(fourDayWeekPlaces({ countries: ['US'], regions: ['AMERICAS', 'APAC'] }), ['United States', 'North America', 'South America', 'Asia', 'Oceania']);
+    assert.deepEqual(fourDayWeekPlaces({ countries: [], regions: [] }), []);
+  });
+
+  it('builds a scoped page URL, or the plain one', () => {
+    assert.equal(fourDayWeekUrl(2, ['Germany', 'Poland']), 'https://4dayweek.io/api/v2/jobs?page=2&country=Germany%2CPoland');
+    assert.equal(fourDayWeekUrl(1, []), 'https://4dayweek.io/api/v2/jobs?page=1');
+  });
+
+  it('a scoped fetch drops the rows that have no location', () => {
+    const page = { data: [row(), row({ id: 'x2', locations: [] })], has_more: false };
+    assert.equal(mapFourDayWeekPage(page, COMPANY_ID).jobs.length, 2);
+    assert.equal(mapFourDayWeekPage(page, COMPANY_ID, { requirePlace: true }).jobs.length, 1);
   });
 });

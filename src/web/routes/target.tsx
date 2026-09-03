@@ -1,20 +1,29 @@
 /** @jsxImportSource hono/jsx */
 import { Hono } from 'hono';
 import { z } from 'zod';
+import { hashShortId } from '../../text-utils';
+import { classifyInBackground } from '../../jobs/classify-existing';
 import { createManualJob, ManualJobSchema, MAX_FIELD_CHARS, MIN_DESCRIPTION_CHARS } from '../../jobs/manual-job';
 import { extractPostingFacts, fallbackTitle } from '../../jobs/posting-extract';
-import { matchResumeToJob } from '../../resume/match';
+import { findReusableMatch, matchResumeToJob } from '../../resume/match';
+import { parseMatchMode } from '../../resume/match-mode';
+import { reuseNotice, suggestNotice } from '../../resume/match-reuse';
 import {
   deleteCoverLettersForResume,
   deleteMatchesForResume,
+  getLatestMatchForResumeAndJob,
   getResume,
   listResumes,
   upsertScratchResume,
 } from '../../resume/store';
+import { draftStash } from '../draft-stash';
+import { decideInstantCheck, instantCheckNotice } from '../instant-check';
 import { TargetStartPage } from '../pages/target-start';
 import { TargetRunPage } from '../pages/target-run';
 import { clearFlashCookie, flashRedirect, parseFlashCookie } from '../flash';
-import { createRun, getRun, startRun, updateRun, type RunStep } from '../target-runs';
+import { formatRelative } from '../format';
+import { startSuggestionsRun } from '../suggestions-run';
+import { claimRun, getRun, matchStep, startRun, updateRun, type RunStep } from '../target-runs';
 import {
   MAX_RESUME_NAME_CHARS,
   nameFromFilename,
@@ -32,6 +41,8 @@ const TargetFormSchema = ManualJobSchema.extend({
   companyName: z.string().trim().max(MAX_FIELD_CHARS).default(''),
   title: z.string().trim().max(MAX_FIELD_CHARS).default(''),
   resumeMode: z.enum(['existing', 'upload', 'paste']),
+  /** The quick check unless "Full analysis" was pressed (ADR 0029). */
+  mode: z.unknown().transform(parseMatchMode),
   resumeId: z.coerce.number().int().optional(),
   resumeText: z.string().optional().default(''),
   uploadName: z.string().optional().default(''),
@@ -68,6 +79,8 @@ targetRoute.get('/target/runs/:id/state', (c) => {
     stage: run.stage,
     steps: run.steps,
     jobTitle: run.jobTitle,
+    progress: run.progress ?? null,
+    stepMs: run.stepMs,
     stageElapsedMs: Date.now() - run.stageAt,
     elapsedMs: Date.now() - run.startedAt,
   });
@@ -80,7 +93,7 @@ targetRoute.get('/target/runs/:id', (c) => {
     return flashRedirect('/target', 'err', 'That comparison run is gone (runs live ~30 min). Start again.');
   }
   if (run.stage === 'done' && run.resultUrl) {
-    return flashRedirect(run.resultUrl, 'ok', run.flash ?? 'Done.');
+    return flashRedirect(run.resultUrl, run.reused ? 'warn' : 'ok', run.flash ?? 'Done.', { rerun: run.reused });
   }
   return c.html(<TargetRunPage run={run} />);
 });
@@ -141,12 +154,14 @@ targetRoute.post('/target', resumeUploadLimit('/target'), async (c) => {
     };
   }
 
-  const steps: RunStep[] = needExtract ? ['extract', 'classify', 'match'] : ['classify', 'match'];
-  const run = createRun({
-    steps,
-    jobTitle: title || 'Detecting the role…',
-    resumeName: resume.name,
-  });
+  const steps: RunStep[] = needExtract ? ['extract', matchStep(f.mode)] : [matchStep(f.mode)];
+  // The posting text and the resolved resume are what was submitted; a second
+  // POST of the same pair joins the run instead of paying twice (issue #76).
+  const { run, joined } = claimRun(
+    `target:${resume.id}:${f.mode}:${hashShortId(f.description)}`,
+    { steps, jobTitle: title || 'Detecting the role…', resumeName: resume.name },
+  );
+  if (joined) return c.redirect(`/target/runs/${run.id}`, 303);
 
   startRun(run.id, async () => {
     // 0. Detect what the user left empty; fall back to visible defaults.
@@ -158,44 +173,90 @@ targetRoute.post('/target', resumeUploadLimit('/target'), async (c) => {
       salaryMin = salaryMin ?? facts?.salaryMin ?? undefined;
       salaryMax = salaryMax ?? facts?.salaryMax ?? undefined;
       const workplace = facts?.workplace ?? null;
-      // No workplace column on Job; the location string is where the
-      // classifier reads the arrangement anyway (CLAUDE.md gotcha 8).
+      // The arrangement goes into the string on purpose: the classifier prompt
+      // reads the location string (CLAUDE.md gotcha 8), and the parser fills
+      // Job.workplace from the same words — one text, two readers (ADR 0031).
       if (workplace && !/(remote|hybrid|on-?site)/i.test(location)) {
         const label = workplace === 'onsite' ? 'on-site' : workplace;
         location = location ? `${location} (${label})` : label;
       }
-      updateRun(run.id, { stage: 'classify', jobTitle: title });
+      updateRun(run.id, { stage: matchStep(f.mode), jobTitle: title });
     }
 
-    // 1. The posting becomes a normal MANUAL job (deduped, classified when new).
-    const result = await createManualJob({
-      companyName,
-      title,
-      url: f.url,
-      location,
-      description: f.description,
-      salaryMin,
-      salaryMax,
-    });
+    // 1. The posting becomes a normal MANUAL job (deduped). A new one is
+    //    classified in the background: the comparison never reads the fit
+    //    score, and that leg alone was ~50 s on a CLI engine
+    //    (docs/target-plan.md §3.1).
+    const checkStarted = Date.now();
+    const result = await createManualJob(
+      {
+        companyName,
+        title,
+        url: f.url,
+        location,
+        description: f.description,
+        salaryMin,
+        salaryMax,
+      },
+      { classify: false },
+    );
     const job = result.job;
-    updateRun(run.id, { stage: 'match', jobId: job.id });
+    if (result.kind === 'created') classifyInBackground(result.job);
+    updateRun(run.id, { jobId: job.id });
+    const jobInput = { id: job.id, title: job.title, companyName, location: job.location, description: job.description };
 
-    // 2. Ephemeral compares keep only the current analysis.
+    // 2. The same text against the same posting is already answered — a
+    //    double submit or a re-paste shows the stored analysis instead. A
+    //    full analysis asked of a stored quick check needs only the
+    //    suggestions call, which gets its own run.
+    const reused = await findReusableMatch(job.id, resume.id, resume.text, f.mode);
+    if (reused?.decision === 'reuse') {
+      updateRun(run.id, {
+        stage: 'done',
+        resultUrl: `/jobs/${job.id}/target?match=${reused.row.id}`,
+        flash: reuseNotice(formatRelative(reused.row.createdAt)),
+        reused: true,
+      });
+      return;
+    }
+    if (reused) {
+      const page = `/jobs/${job.id}/target?match=${reused.row.id}`;
+      updateRun(run.id, {
+        stage: 'done',
+        resultUrl: startSuggestionsRun({ match: reused.row, job: jobInput, resumeName: resume.name, resultUrl: page }),
+        flash: suggestNotice(formatRelative(reused.row.createdAt)),
+      });
+      return;
+    }
+
+    // 2b. This resume was analysed against the posting before and its text
+    //     changed since (a new version, another file on the scratch row):
+    //     the instant check — the new text as a draft over that analysis,
+    //     the AI on demand (docs/target-plan.md §3.2 item 5).
+    if (result.kind === 'existing') {
+      const decision = decideInstantCheck(await getLatestMatchForResumeAndJob(job.id, resume.id), resume.text);
+      if (decision.kind === 'draft') {
+        const key = draftStash.put({ matchId: decision.frame.id, text: resume.text });
+        updateRun(run.id, {
+          stage: 'done',
+          resultUrl: `/jobs/${job.id}/target?match=${decision.frame.id}&draft=${key}`,
+          flash: instantCheckNotice(resume.name, formatRelative(decision.frame.createdAt), Date.now() - checkStarted),
+        });
+        return;
+      }
+    }
+
+    // 3. Ephemeral compares keep only the current analysis.
     if (resume.ephemeral) {
       await deleteMatchesForResume(resume.id);
       await deleteCoverLettersForResume(resume.id);
     }
 
-    // 3. One resume-model call, then straight into the targeted workspace.
+    // 4. One resume-model call, then straight into the targeted workspace.
     const row = await matchResumeToJob(
       { id: resume.id, version: resume.version, text: resume.text },
-      {
-        id: job.id,
-        title: job.title,
-        companyName,
-        location: job.location,
-        description: job.description,
-      },
+      jobInput,
+      { mode: f.mode },
     );
     if (!row) {
       updateRun(run.id, {
@@ -207,7 +268,9 @@ targetRoute.post('/target', resumeUploadLimit('/target'), async (c) => {
     updateRun(run.id, {
       stage: 'done',
       resultUrl: `/jobs/${job.id}/target?match=${row.id}`,
-      flash: `AI match ${row.matchScore}/100 — "${resume.name}" vs "${job.title}".`,
+      flash:
+        `AI match ${row.matchScore}/100 — "${resume.name}" vs "${job.title}"${f.mode === 'fast' ? ' (quick check: keywords, gates and score).' : '.'}` +
+        (result.kind === 'created' ? ' The fit score is still being scored; it lands on the job page in about a minute.' : ''),
     });
   });
 

@@ -3,9 +3,10 @@ import type { Job } from '@prisma/client';
 import { z } from 'zod';
 import { prisma } from '../db';
 import { decodeHtmlEntities } from '../http';
+import { parseLocation } from '../location';
 import { logger } from '../logger';
 import { hashShortId } from '../text-utils';
-import { classifyExistingJob } from './classify-existing';
+import { classifyExistingJob, type ClassifiableJob } from './classify-existing';
 
 /*
  * Pasted postings (the /jobs/new form and the /target compare page) become
@@ -36,7 +37,7 @@ export type ManualJobInput = z.infer<typeof ManualJobSchema>;
 
 export type ManualJobResult =
   | { kind: 'existing'; job: Job }
-  | { kind: 'created'; job: Job; classified: boolean };
+  | { kind: 'created'; job: ClassifiableJob; classified: boolean };
 
 /**
  * `classify: false` skips the fit-score call — the cover-letter path never
@@ -62,6 +63,9 @@ export async function createManualJob(
   });
   if (existing) return { kind: 'existing', job: existing };
 
+  // A pasted posting has no structured fields: the parser reads the string
+  // the user typed (ADR 0031), and nothing here rewrites that string.
+  const place = parseLocation(f.location);
   const job = await prisma.job.create({
     data: {
       companyId: company.id,
@@ -69,6 +73,10 @@ export async function createManualJob(
       title: f.title,
       url: f.url,
       location: f.location,
+      workplace: place.workplace,
+      countries: place.countries,
+      regions: place.regions,
+      locationSource: place.source,
       description,
       salaryMin: f.salaryMin ?? null,
       salaryMax: f.salaryMax ?? null,

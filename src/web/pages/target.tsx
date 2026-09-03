@@ -1,11 +1,14 @@
 /** @jsxImportSource hono/jsx */
 import type { FC } from 'hono/jsx';
 import { Layout } from '../layout';
-import { Badge, Button, Card, FitBadge, Flash, Hint } from '../ui';
+import { Badge, Button, Card, FitBadge, Flash, Hint, SUBMIT_ONCE } from '../ui';
 import type { FlashMessage } from '../flash';
 import { fitTone, formatRelative, type Tone } from '../format';
 import type { MatchWithResume } from '../../resume/store';
-import { readActions, readHardRequirements, readKeywords, readRemovals } from '../../resume/prompts';
+import type { CountedKeyword } from '../../resume/keyword-matcher';
+import { effectiveKeywords } from '../../resume/keyword-overrides';
+import { readActions, readHardRequirements, readRemovals } from '../../resume/prompts';
+import { readMatchMode } from '../../resume/match-mode';
 import { readBreakdown } from '../../resume/score';
 import {
   ActionsBlock,
@@ -16,6 +19,7 @@ import {
   MatchSignals,
   RemovalsBlock,
   ScoreBreakdownChips,
+  SuggestionsPrompt,
 } from './resume-match-card';
 import { ACCEPTED_EXTENSIONS } from '../../resume/resume-text';
 
@@ -25,7 +29,7 @@ import { ACCEPTED_EXTENSIONS } from '../../resume/resume-text';
  * (nothing is saved until "Save as new version"); highlights and the live
  * estimate re-render on every keystroke from /static/target-page.mjs. The AI
  * match (keywords, actions, removals) is the fixed frame the live score works
- * within — "Re-analyze with AI" sends the edited text back to Claude.
+ * within — "Re-check with AI" sends the edited text back to Claude.
  *
  * Layout rule (external UX audit, docs/archive/applypack-resume-match-ux-refactor.md):
  * everything needed for a decision — score, hard-requirement gates, confirm
@@ -39,11 +43,15 @@ export interface TargetPageProps {
   /** ephemeral = the hidden /target scratch resume: no versions, no saving. */
   resume: { id: number; name: string; version: number; ephemeral: boolean };
   match: MatchWithResume;
+  /** The match's keywords, ordered and counted against the posting (§5). */
+  keywords: CountedKeyword[];
   matches: MatchWithResume[];
   /** Most recent earlier run of the same resume — the "vs last time" delta. */
   previous: MatchWithResume | null;
   /** The text the selected match analysed (not necessarily the resume's current text). */
   resumeText: string;
+  /** An instant check's parsed upload — opens in the editor as the unsaved draft (target-page.mjs). */
+  draftText?: string | null;
   flash?: FlashMessage | null;
 }
 
@@ -93,17 +101,24 @@ export const TargetPage: FC<TargetPageProps> = ({
   job,
   resume,
   match,
+  keywords,
   matches,
   previous,
   resumeText,
+  draftText,
   flash,
 }) => {
-  const keywords = readKeywords(match.keywords);
+  // The panes, the chips and the live score work from the effective list: the
+  // user's own levels, without the terms they ignored (§5). The table below
+  // still gets the full list, so an ignored row can be brought back.
+  const scored = effectiveKeywords(keywords);
   const actions = readActions(match.actions);
   const removals = readRemovals(match.removals);
   const hard = readHardRequirements(match.hardRequirements);
-  const asks = keywords.filter((k) => k.status === 'ask_user');
+  const asks = scored.filter((k) => k.status === 'ask_user');
   const highActions = actions.filter((a) => a.priority === 'high').length;
+  // A quick check has no suggestions yet — the tab offers the second call instead (ADR 0029).
+  const fast = readMatchMode(match.breakdown) === 'fast';
   const breakdown = readBreakdown(match.breakdown);
   const recent = matches.slice(0, RECENT_RUNS);
   const shownRuns = recent.some((m) => m.id === match.id)
@@ -114,8 +129,9 @@ export const TargetPage: FC<TargetPageProps> = ({
     matchId: match.id,
     aiScore: match.matchScore,
     resumeText,
+    draftText: draftText ?? null,
     jobText: job.description,
-    keywords,
+    keywords: scored,
     actions,
     removals,
     // Fixed score parts for the live estimate; null on pre-ADR-0012 matches.
@@ -145,7 +161,22 @@ export const TargetPage: FC<TargetPageProps> = ({
           Resume match
         </span>
       </nav>
-      <Flash flash={flash} />
+      <Flash flash={flash}>
+        {flash?.rerun && (
+          <Button
+            form="reanalyze-form"
+            name="force"
+            value="1"
+            variant="secondary"
+            size="sm"
+            // Repeats the comparison the user asked for, not the form's default.
+            onclick={`document.getElementById('reanalyze-form').elements.mode.value='${flash.mode === 'full' ? 'full' : 'fast'}'`}
+            title="Spend a fresh resume-model call on the text in the editor"
+          >
+            Re-run anyway
+          </Button>
+        )}
+      </Flash>
 
       <div class="mb-4 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div class="min-w-0 lg:min-w-[15rem] lg:shrink-0">
@@ -180,9 +211,10 @@ export const TargetPage: FC<TargetPageProps> = ({
 
       <Card class="mb-4">
         {/* Proportional columns instead of a scattered flex row: score | why (owns
-            the middle) | actions rail. The gates line spans the full width below. */}
-        <div class="grid grid-cols-1 items-start gap-x-8 gap-y-4 lg:grid-cols-[auto_minmax(0,1fr)_auto]">
-          {/* Primary: the honest score — the AI rubric verdict. Static until Re-analyze. */}
+            the middle, never under 14rem — the rail grows while editing) | actions
+            rail. The gates line spans the full width below. */}
+        <div class="grid grid-cols-1 items-start gap-x-8 gap-y-4 lg:grid-cols-[auto_minmax(14rem,1fr)_auto]">
+          {/* Primary: the honest score — the AI rubric verdict. Static until a re-check. */}
           <div class="flex items-center gap-4">
             <svg viewBox="0 0 96 96" class="h-20 w-20 -rotate-90" aria-hidden="true">
               <circle cx="48" cy="48" r="40" fill="none" stroke="rgb(var(--line))" stroke-width="8" />
@@ -204,17 +236,19 @@ export const TargetPage: FC<TargetPageProps> = ({
                 {match.matchScore}
                 <span class="text-base font-normal text-ink-faint">/100</span>
               </div>
-              <div class="flex items-center gap-2 text-[13px] font-medium text-ink-muted">
+              {/* Wraps: the stale marker must not widen this auto column and squeeze the summary. */}
+              <div class="flex flex-wrap items-center gap-x-2 text-[13px] font-medium text-ink-muted">
                 AI match ·{' '}
                 <span class={AI_TONE[fitTone(match.matchScore)]}>{matchQuality(match.matchScore)}</span>
                 <span id="ai-stale" hidden class="font-medium text-warn">
-                  edited — Re-analyze to refresh
+                  edited — re-check to refresh
                 </span>
               </div>
               {/* Which resume/version is named by the pane header and the run chips —
                   repeating it here was pure duplication. */}
               <div class="mt-0.5 text-xs text-ink-faint">
-                {match.draft ? 'draft · ' : ''}analyzed {formatRelative(match.createdAt)}
+                {match.draft ? 'draft · ' : ''}
+                {fast ? 'quick check' : 'full analysis'} {formatRelative(match.createdAt)}
               </div>
               {match.matchScore >= READY_TO_APPLY && (
                 <div class="mt-1 text-[13px] font-medium text-ok">
@@ -228,15 +262,21 @@ export const TargetPage: FC<TargetPageProps> = ({
           <div class="min-w-0 space-y-1.5">
             <p class="text-sm leading-6 text-ink">{match.summary}</p>
             {breakdown && <ScoreBreakdownChips bd={breakdown} />}
-            {(actions.length > 0 || removals.length > 0) && (
+            {(fast || actions.length > 0 || removals.length > 0) && (
               <button
                 type="button"
                 data-goto-tab="changes"
                 class="cursor-pointer text-left text-[13px] font-medium text-accent-strong transition-colors duration-150 hover:text-accent-deep"
               >
-                {actions.length} suggested edits
-                {highActions > 0 ? ` (${highActions} high)` : ''}
-                {removals.length > 0 ? ` · ${removals.length} removals` : ''}
+                {fast ? (
+                  'Keywords only — get edit suggestions'
+                ) : (
+                  <>
+                    {actions.length} suggested edits
+                    {highActions > 0 ? ` (${highActions} high)` : ''}
+                    {removals.length > 0 ? ` · ${removals.length} removals` : ''}
+                  </>
+                )}
                 {' →'}
               </button>
             )}
@@ -246,7 +286,7 @@ export const TargetPage: FC<TargetPageProps> = ({
           <div class="flex flex-col gap-3 lg:items-end">
             <div class="flex flex-wrap items-center gap-2">
             {/* One visible action — a fresh file is how a better match usually happens.
-                Re-analyze and Save live in the ⋯ menu; the sticky bar resurfaces them while editing.
+                Re-check and Save live in the ⋯ menu; the sticky bar resurfaces them while editing.
                 data-menu opts into light dismiss (outside click / Escape) in target-page.mjs. */}
             <details class="relative" data-menu>
               <summary class={`${SUMMARY_BUTTON} bg-accent-strong px-3 text-white shadow-sm hover:bg-accent-deep`}>
@@ -261,8 +301,14 @@ export const TargetPage: FC<TargetPageProps> = ({
                   action={`/jobs/${job.id}/target/reupload`}
                   enctype="multipart/form-data"
                   class="mt-2 space-y-2"
+                  onsubmit={SUBMIT_ONCE}
                 >
                   <input type="hidden" name="resumeId" value={resume.id} />
+                  <input type="hidden" name="matchId" value={match.id} />
+                  {/* Set by the second button's click, not by the submitter's value: SUBMIT_ONCE
+                      disables the buttons in the submit event, and a disabled submitter is left
+                      out of the form data. */}
+                  <input type="hidden" name="uploadMode" value="check" />
                   <input
                     type="file"
                     name="file"
@@ -270,13 +316,29 @@ export const TargetPage: FC<TargetPageProps> = ({
                     accept={ACCEPTED_EXTENSIONS.join(',')}
                     class="block w-full text-xs text-ink file:mr-2 file:cursor-pointer file:rounded-md file:border-0 file:bg-surface-overlay file:px-2.5 file:py-1 file:text-xs file:font-medium file:text-ink"
                   />
-                  <Button size="sm" class="w-full">
-                    {resume.ephemeral ? 'Upload & re-analyze' : `Upload v${resume.version + 1} & re-analyze`}
+                  <Button size="sm" class="w-full" title="Parses the file into the editor and scores it against this analysis — no AI call">
+                    Upload & check (seconds)
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    class="w-full"
+                    onclick="this.form.elements.uploadMode.value='analyze'"
+                    title={
+                      resume.ephemeral
+                        ? 'Replaces this comparison with a fresh quick AI check (~½ min)'
+                        : `Saves the file as v${resume.version + 1} and runs the quick AI check (~½ min); the scan runs in the background`
+                    }
+                  >
+                    {resume.ephemeral ? 'Upload & check with AI' : `Upload as v${resume.version + 1} & check with AI`}
                   </Button>
                   <Hint>
+                    Check opens the new text as an unsaved draft scored against this analysis: the text confirms
+                    what is present, while add / confirm / can't-claim keep the AI's verdict on the analysed
+                    version until you re-check.{' '}
                     {resume.ephemeral
-                      ? 'Replaces this comparison with a fresh analysis — nothing lands in your Resumes (~1 min).'
-                      : 'New version, scan and AI match in one go — about 2 minutes.'}
+                      ? 'Nothing lands in your Resumes either way.'
+                      : `Nothing is saved — Save as v${resume.version + 1} keeps the text, not the file.`}
                   </Hint>
                 </form>
               </div>
@@ -293,16 +355,32 @@ export const TargetPage: FC<TargetPageProps> = ({
                 </svg>
               </summary>
               <div class={`${MENU_PANEL} space-y-2`}>
-                <form method="post" action={`/jobs/${job.id}/match`} id="reanalyze-form">
+                <form method="post" action={`/jobs/${job.id}/match`} id="reanalyze-form" onsubmit={SUBMIT_ONCE}>
                   <input type="hidden" name="resumeId" value={resume.id} />
                   <input type="hidden" name="draftText" id="reanalyze-text" value="" />
                   <input type="hidden" name="next" value="target" />
-                  <Button variant="violet" class="w-full" title="Sends the text in the editor to the resume model (~1 min)">
-                    Re-analyze with AI
+                  {/* Set by the full-analysis and Rebuild buttons' clicks — a disabled submitter is left out of the form data. */}
+                  <input type="hidden" name="mode" value="fast" />
+                  <input type="hidden" name="rebuild" value="" />
+                  <Button variant="violet" class="w-full" title="Re-scores the text in the editor: keywords, gates and the number (~½ min on Opus)">
+                    Re-check with AI
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    class="mt-2 w-full"
+                    onclick="this.form.elements.mode.value='full'"
+                    title="The same check plus fresh edit suggestions (~2 min on Opus)"
+                  >
+                    Full analysis with suggestions
                   </Button>
                 </form>
                 {!resume.ephemeral && (
-                  <form method="post" action={`/resumes/${resume.id}/draft`} id="save-form">
+                  <form
+                    method="post"
+                    action={`/resumes/${resume.id}/draft`}
+                    id="save-form"
+                    onsubmit={SUBMIT_ONCE}
+                  >
                     <input type="hidden" name="text" id="save-text" value="" />
                     <input type="hidden" name="jobId" value={job.id} />
                     <Button
@@ -310,7 +388,7 @@ export const TargetPage: FC<TargetPageProps> = ({
                       class="w-full"
                       id="save-button"
                       disabled
-                      title="Enabled once you edit the text"
+                      title={`Enabled once you edit the text — saves it as v${resume.version + 1} (a text version, not a file), re-scans and re-checks (~1 min)`}
                     >
                       Save as v{resume.version + 1}
                     </Button>
@@ -322,8 +400,8 @@ export const TargetPage: FC<TargetPageProps> = ({
 
             {/* Appears only while the text differs from the analyzed version. */}
             <div id="live-est" hidden class="lg:max-w-[280px] lg:text-right">
-              <div class="flex items-center gap-2 text-[13px] font-medium text-ink-muted lg:justify-end">
-                {breakdown ? 'Estimate after your edits' : 'Keyword coverage after edits'}
+              <div class="flex flex-wrap items-center gap-x-2 text-[13px] font-medium text-ink-muted lg:justify-end">
+                {breakdown ? `Estimate vs the analysis from ${formatRelative(match.createdAt)}` : 'Keyword coverage after edits'}
                 <span id="live-delta" class="text-xs font-medium"></span>
               </div>
               <div class="mt-1 flex items-center gap-2.5 lg:justify-end">
@@ -335,12 +413,12 @@ export const TargetPage: FC<TargetPageProps> = ({
                 </span>
               </div>
               <div id="score-detail" class="mt-0.5 text-xs text-ink-faint">
-                {keywords.length} keywords from the AI match
+                {scored.length} keywords from the AI match
               </div>
               <Hint class="mt-1">
                 {breakdown
-                  ? 'Same formula as the AI score, live as you type — "can\'t claim" terms never count. Re-analyze to make it official.'
-                  : 'Keywords only, live as you type. Re-analyze to get the full score.'}
+                  ? "Same formula as the AI score, live as you type — the text confirms what is present; add / confirm / can't-claim keep the AI's verdict on the analysed version. Re-check to make it official."
+                  : 'Keywords only, live as you type. Re-check to get the full score.'}
               </Hint>
             </div>
           </div>
@@ -392,12 +470,24 @@ export const TargetPage: FC<TargetPageProps> = ({
               <span><mark class="kw-missing rounded px-1">missing</mark></span>
               <span><mark class="kw-ask rounded px-1">confirm</mark></span>
               <span><mark class="kw-cannot rounded px-1">no evidence</mark></span>
+              {/* The intensity key: same colour, graded by how hard the posting asks. */}
+              <span class="inline-flex items-center gap-1">
+                weight
+                <mark class="kw-missing kw-w4 rounded px-1">must</mark>
+                <mark class="kw-missing kw-w2 rounded px-1">preferred</mark>
+                <mark class="kw-missing kw-w1 rounded px-1">nice</mark>
+              </span>
             </div>
           </div>
           <div
             id="jd"
             class="max-h-[70vh] overflow-auto whitespace-pre-wrap break-words font-sans text-sm leading-7 text-ink-muted"
           ></div>
+          <Hint class="mt-2">
+            Highlights follow the AI's keyword list — benefits, perks and legal boilerplate are
+            deliberately never keywords. The stronger a mark, the harder the posting asks; hover one
+            to see how often it says the word. Re-level or ignore any of them in the keyword table.
+          </Hint>
         </Card>
 
         <Card class="pane-resume">
@@ -431,8 +521,8 @@ export const TargetPage: FC<TargetPageProps> = ({
           </div>
           <Hint class="mt-2">
             {resume.ephemeral
-              ? 'Plain text — what an ATS parser sees. Edits stay in this browser tab until you Re-analyze. Click a suggestion to select the text it targets.'
-              : 'Plain text — what an ATS parser sees. Edits stay in this browser tab until you Re-analyze or Save. Click a suggestion to select the text it targets.'}
+              ? 'Plain text — what an ATS parser sees. Edits stay in this browser tab until you re-check. Click a suggestion to select the text it targets.'
+              : 'Plain text — what an ATS parser sees. Edits stay in this browser tab until you re-check or Save. Click a suggestion to select the text it targets.'}
           </Hint>
         </Card>
 
@@ -440,10 +530,26 @@ export const TargetPage: FC<TargetPageProps> = ({
           <Card>
             <div class="space-y-5">
               <DeltaBox match={match} previous={previous} />
-              <ActionsBlock actions={actions} jumpable />
-              <RemovalsBlock removals={removals} jumpable />
+              {fast ? (
+                <SuggestionsPrompt matchId={match.id} jobId={job.id} next="target" />
+              ) : (
+                <>
+                  <ActionsBlock actions={actions} jumpable />
+                  <RemovalsBlock removals={removals} jumpable />
+                </>
+              )}
               <MatchSignals match={match} />
-              <KeywordTable keywords={keywords} />
+              <KeywordTable
+                keywords={keywords}
+                edit={
+                  breakdown
+                    ? { jobId: job.id, matchId: match.id, back: `/jobs/${job.id}/target?match=${match.id}` }
+                    : undefined
+                }
+                // Through the editor's own form, so a rebuild judges the text on
+                // screen — the same call Re-check makes, minus the stored frame.
+                rebuild={{ jobId: job.id, resumeId: resume.id, mode: fast ? 'fast' : 'full', formId: 'reanalyze-form' }}
+              />
             </div>
           </Card>
         </div>
@@ -468,14 +574,14 @@ export const TargetPage: FC<TargetPageProps> = ({
               Discard
             </Button>
             <Button variant="violet" size="sm" form="reanalyze-form">
-              Re-analyze with AI
+              Re-check with AI
             </Button>
             {!resume.ephemeral && (
               <Button
                 variant="secondary"
                 size="sm"
                 form="save-form"
-                title="Saves a text version, re-scans and re-analyzes (~2 min)"
+                title={`Saves the text as v${resume.version + 1} (a text version, not a file), re-scans and re-checks (~1 min)`}
               >
                 Save as v{resume.version + 1}
               </Button>
@@ -527,6 +633,16 @@ const TARGET_CSS = `
   .kw-missing { background: rgb(var(--warn) / 0.22); }
   .kw-ask { background: rgb(var(--violet) / 0.16); box-shadow: inset 0 0 0 1px rgb(var(--violet) / 0.4); }
   .kw-cannot { background: rgb(var(--ink-faint) / 0.2); text-decoration: line-through; }
+  /* Visual weight (target-plan.md §5). jobSpans tags every mark kw-w0 (context)
+     … kw-w4 (a primary-stack must), so a gap the posting insists on can never
+     look like a gap it merely mentions. The base rules above are the preferred
+     tier; only the problem marks are graded — a matched word is matched. */
+  .kw-missing.kw-w3 { background: rgb(var(--warn) / 0.34); box-shadow: inset 0 0 0 1px rgb(var(--warn) / 0.6); }
+  .kw-missing.kw-w4 { background: rgb(var(--warn) / 0.42); box-shadow: inset 0 0 0 1.5px rgb(var(--warn) / 0.85); font-weight: 600; }
+  .kw-missing.kw-w1, .kw-missing.kw-w0 { background: rgb(var(--warn) / 0.1); }
+  .kw-ask.kw-w3, .kw-ask.kw-w4 { background: rgb(var(--violet) / 0.24); box-shadow: inset 0 0 0 1.5px rgb(var(--violet) / 0.7); }
+  .kw-ask.kw-w1, .kw-ask.kw-w0 { background: rgb(var(--violet) / 0.1); box-shadow: none; }
+  .kw-cannot.kw-w1, .kw-cannot.kw-w0 { background: rgb(var(--ink-faint) / 0.12); text-decoration-color: rgb(var(--ink-faint) / 0.5); }
   .edit-remove { background: rgb(var(--danger) / 0.15); text-decoration: line-through; }
   .edit-change { background: rgb(var(--warn) / 0.1); box-shadow: inset 0 0 0 1px rgb(var(--warn) / 0.55); }
   /* Matched highlights are opt-in inside the panes; issue marks always show.

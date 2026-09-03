@@ -1,6 +1,7 @@
 # /target compare flow: speed (30-40 s target) + keyword-matching accuracy
 
-> **Analysis only — nothing implemented.** Written 2026-08-31 from a parallel
+> **Analysis written 2026-08-31; blocks 1–3 of §7 shipped 2026-09-02 (measured
+> numbers in §2.3, §3.4 and §4).** Written from a parallel
 > session (full source pass over the compare pipeline: `src/web/routes/target.tsx`,
 > `jobs.tsx`, `src/resume/{match,scan,prompts,score}.ts`, `src/web/public/{target,score,target-page}.mjs`,
 > `src/ai-{runtime,provider}.ts`, `src/jobs/{manual-job,posting-extract,classify-existing}.ts`)
@@ -97,6 +98,23 @@ scan / extract / classify log lines and log a per-stage delta in
 `updateRun` (`stageAt` already exists) — one log pass over a week of real
 runs replaces every estimate above. No schema change.
 
+**Measured 2026-09-02** (block 1, `claude_code` CLI engine, Opus for the
+resume role, Haiku 4.5 single-stage classifier, one run at a time; 12 runs):
+
+| Call | Samples (s) | Note |
+| --- | --- | --- |
+| match | 78 · 83 · 85 · 94 · 94 · 96 · 109 | p50 ≈ 94, p90 ≈ 109 — the whole critical path after P0 |
+| scan | 26 · 33 · 36 | half the "about a minute" the copy promised |
+| extract | 12 · 32 · 37 | high variance on the CLI engine |
+| classify | 49 · 55 | single-stage; off the critical path since block 1 |
+
+Critical-path wall time, before → after block 1: fresh `/target` compare
+158 → 128 s, the same paste again 158 → 38 s (extract, then the stored row),
+Compare 109 → 79 s and a repeat 109 → 0 s, re-upload 117 → 95 s and the same
+file again 117 → 2 s. §2.2's "~150-300 s" first-compare estimate was right
+for the CLI engine; the API-engine column stays unmeasured (not in the
+owner's chain).
+
 ---
 
 ## 3. Speed plan
@@ -188,7 +206,7 @@ second HTTP server.
 
 | Scenario after the plan | Chain | est. wall time |
 | --- | --- | --- |
-| Re-upload vs analyzed job, instant check (5) | parse only | **~2-5 s** |
+| Re-upload vs analyzed job, instant check (5) | parse only | **~2-5 s** → measured 2026-09-02: parse 0–2 ms (.docx) / 10–15 ms (.pdf, 64 ms cold), POST → rendered page ~30 ms server-side, ~155 ms to `load` in the browser |
 | Quick AI check (6) on Sonnet (7) | match-lite | **~10-25 s** ✅ |
 | Quick AI check (6) on Opus | match-lite | ~20-40 s ✅ (borderline) |
 | Full analysis, Sonnet, P0 ordering | match | ~30-70 s (close; suggestions arrive with it) |
@@ -197,6 +215,45 @@ second HTTP server.
 The 30-40 s promise is kept by making **quick check the default reaction**
 to "new resume/version" and full analysis an explicit, honestly-labeled
 upgrade — not by making Opus emit 4 000 tokens faster.
+
+**Measured 2026-09-02** (block 4, `claude_code` CLI engine, the five gold
+fixtures, `npm run bench:resume -- --model <id> --mode <fast|full>`; "before"
+is prompt v5, "after" is v6 with the tiered budget):
+
+| Run | p50 | Suite total | Reply chars | Checks failed | Status agreement vs Opus full v6 |
+| --- | --- | --- | --- | --- | --- |
+| Opus, full, v5 (before) | 22 s | 136 s | 4899 | 0 | — (baseline of the v5 pair) |
+| Sonnet, full, v5 (before) | 40 s | 231 s | 3261 | 0 | 95% vs Opus v5, 74% term overlap |
+| **Opus, quick check, v6** | **15 s** | **77 s** | **2591** | 0 | 98% (45/46), 88% term overlap |
+| Opus, full, v6 | 24 s | 116 s | 4373 | 0 | 100% (52/52) |
+| Sonnet, quick check, v6 | 26 s | 161 s | 2126 | 0 | 93% (37/40), 77% term overlap |
+| Sonnet, full, v6 | 52 s | 252 s | 3099 | 0 | 95% (38/40), 77% term overlap |
+
+Every one of the four v6 runs passed every gold check (stack mismatch capped
+at 30, matching stack ≥75 uncapped, injection ≤45, tailored ≥85 with ≤4
+actions, re-run overlap ≥70%), and the quick check passed the added
+"returns no actions" check.
+
+Two corrections to the estimates above. **The quick check on Opus is ~15 s on
+the fixtures, not 20-40** — the row above was pessimistic for short postings;
+on the real posting of job #1393 (4 988 chars, 5 908-char resume, 26 keywords)
+it took **40 s**, so 15-40 s is the honest band and the 30-40 s target is met
+without changing models. **Sonnet is not the fast lane** on this engine: it was
+*slower* than Opus on every full fixture, so the "Quick AI check on Sonnet" row
+is not the recommended path — see §8 question 1.
+
+Live on job #1393 (Docker, Opus, a 4 988-character posting, 5 908-character
+resume, 26 keywords), all three runs on prompt v6:
+
+| Run | Wall time | Reply chars | Score |
+| --- | --- | --- | --- |
+| quick check | 39.5 s (a repeat: 40.8 s) | 6 003 | 66 |
+| "Get suggestions" on that row | 35.2 s | 6 917 | unchanged (10 actions, 8 removals) |
+| full analysis, same pair | 77.1 s | 13 577 | 68 |
+
+The quick check reproduced **66** — the identical number the v5 full analysis
+gave for this resume. Both calls together (74.7 s) still land under the 78-109 s
+a single v5 full analysis cost, and the score is on screen after the first.
 
 ---
 
@@ -257,6 +314,21 @@ frequent first:
   stays missed on every later run. *Fix:* a "Rebuild keywords" action that
   skips `previousKeywords` once, and an automatic skip when the stored
   frame's `PROMPT_VERSION` is older than current.
+  **Shipped 2026-09-02** (issue #79, PR #84): the decision is a pure function
+  (`keyword-frame.ts:planKeywordFrame`) of the stored frame's prompt version
+  and one request flag, and its reason is stored in the `breakdown` JSON so a
+  rebuilt row can say why its score stands alone. Measured live on job #1393
+  (5 k-char posting, resume 5, quick check on the CLI engine): the carried run
+  cost **42.2 s and listed the same 26 terms the frame has carried since
+  prompt v5** (5 analyses deep — matches #55…#59), the rebuild cost **41.8 s
+  and listed 30**: 23 shared, 3 dropped, **7 new — BullMQ, GCP PubSub, AI
+  tools, observability tools, performance monitoring, CI/CD, Microservices**.
+  All seven are literally in the posting, so five consecutive runs had been
+  reproducing a list that was missing two named technologies the job asks for;
+  `unanchored` stayed 0, so nothing new was invented either. Score 67 → 64 —
+  which is the point of the "not comparable" line on the card, not a
+  regression. A rebuild costs exactly one normal call: it is the same request
+  minus one prompt block.
 - **F8 (optional safety net) — deterministic lexicon sweep.** A pure module
   with a few hundred known tech terms scans the posting for anything absent
   from the AI list and shows them as neutral **unrated** marks (never
@@ -268,6 +340,23 @@ Minor/by-design, to document rather than fix: overlapping spans keep the
 earlier-starting mark (cosmetic); benefits/EEO/marketing text is *deliberately*
 never keyworded (NOISE rule) — worth one line in the pane legend so it stops
 looking like a miss.
+
+**Measured 2026-09-02** (block 2, `npm run keywords:audit` over the 15 stored
+comparisons — the same `findTerm` the panes use, no AI call):
+
+| Rows | Before | After F3–F5 |
+| --- | --- | --- |
+| keyword rows with no highlight in the posting (of 305) | 54 (9 title-only) | 53 |
+| `present` rows with no highlight in the resume (of 181) | 36 | 35 |
+
+Every remaining miss comes from the seven analyses written before the
+VERBATIM rule (prompt v5): slash-joined paraphrases such as "Mentoring / team
+lead" or "startup / fast-paced environment" that no matcher can place. On the
+current prompt no stored row misses the posting, so F2 acts as the safety net
+and the metric (`anchored` / `unanchored` on the `resume: matched` line), not
+as a repair of today's output. F1 moved to `match-fast-mode` (block 4) — it is
+a prompt change; F7 shipped as `keyword-frame-rebuild` (above); F8 stays open
+(§8).
 
 ## 5. Keyword priorities — present vs missing
 
@@ -290,6 +379,38 @@ Worth adding (all deterministic, no AI):
   posting (`findTerm` already returns spans) — sort equal-weight keywords by
   it and show "×4 in the posting" in the tooltip. Matches the
   "mentioned-multiple-times matters" practice at zero AI cost.
+
+**Shipped 2026-09-02** (block 5, PR #83). All three, all deterministic:
+
+- Overrides live in the comparison's own `keywords` JSON as an `override`
+  object beside the model's verdict (`src/resume/keyword-overrides.ts`, pure),
+  so nothing is overwritten and "reset" always has somewhere to go back to.
+  `effectiveKeywords()` — the user's levels, minus the rows they ignored — is
+  what the score, the panes and the live editor read; **`score.ts` did not
+  change**, an override is a different input, not a different formula. No
+  schema change and no ADR: the JSON absorbed it, exactly as the mode marker
+  did (ADR 0029).
+- The write path is `POST /jobs/:id/matches/:matchId/keywords` →
+  `updateMatchScoring`, the same free path a confirmed fact takes. **Measured
+  live on job #1393 (match #59): 2–15 ms per edit, zero `resume:` lines in the
+  web log** — must → nice 66 → 67, ignoring a `cannot_claim` nice 67 → 68,
+  adding a term the resume already had 68 → 68, adding one it lacked 68 → 67,
+  and five resets back to exactly 66. An added term's status is read from the
+  resume text (present) or asked (ask_user); one the posting does not contain
+  is flagged `unanchored`, the same badge a model paraphrase gets.
+- Carrying works: a forced re-run of the quick check on the same posting
+  logged `overrides: 3, readded: 1` in 50 s — two re-levelled/ignored rows and
+  one hand-added term the model had adopted came back on its fresh reply, and
+  the one it did not repeat was put back with its status re-read against the
+  current resume. A carried level is kept even when that reply agrees: an
+  override exists precisely so the level stops depending on the next one.
+  `override` is stripped from every reply on the way in — the field is the
+  user's, and a posting cannot talk the model into dropping a must-have.
+- Weight and frequency come from `keywordRank()` / `orderKeywords()` in
+  `target.mjs` — the module the panes, the chips and the server-rendered table
+  all share, so there is nothing to mirror. Marks are graded `kw-w0`…`kw-w4`
+  (a primary-stack must), the legend shows three of the tiers, and a tooltip
+  reads `system scalability · nice · missing · ×5 in the posting`.
 
 ## 6. Best-practice cross-check
 
@@ -324,21 +445,67 @@ Sources: [jobscan.co](https://www.jobscan.co/blog/top-resume-keywords-boost-resu
 2. `keyword-matcher-v2` — F2 verbatim guard + F3 alias module + F4/F5
    pattern tolerance + tests (table-driven pairs in `target.test.ts`,
    alias-module unit tests). Pure-module work; `PROMPT_VERSION` untouched
-   (post-processing).
+   (post-processing). **Shipped 2026-09-02** (PR #80, numbers in §4).
 3. `target-instant-check` — §3.2 item 5 (parse-only reupload → dirty draft
-   in the editor). UX copy honest about "estimate vs frame".
+   in the editor). UX copy honest about "estimate vs frame". **Shipped
+   2026-09-02** (PR #81, numbers in §3.4; §8 question 2 decided: the check is the
+   default, the AI never auto-runs, the full run stays an explicit button).
 4. `match-fast-mode` — §3.2 items 6-7: keywords-only prompt variant +
-   `bench:resume` Sonnet-vs-Opus numbers + default/model-select decision.
+   `bench:resume` Sonnet-vs-Opus numbers + default/model-select decision,
+   plus the F1 tiered keyword budget (same prompt, same bump).
    `PROMPT_VERSION` bump; gotcha-11 guard tests extended to the short
-   prompt. Possibly an ADR (second match mode).
+   prompt. Possibly an ADR (second match mode). **Shipped 2026-09-02**
+   (PR #82, [ADR 0029](./adr/0029-quick-check-and-lazy-suggestions.md),
+   numbers in §3.4). The suggestions became a lazy second call rather than
+   a lost feature, the mode marker rides in the `breakdown` JSON (no schema
+   change) and the model default did not move — §8 question 1 is answered
+   below.
 5. `keyword-priority-ui` — §5 overrides + visual weight + frequency. Reuses
    `updateMatchScoring`; ADR only if overrides outgrow the keywords JSON.
-6. (only if measurements demand) `match-split-frame` — §3.3 item 8 + ADR.
+   **Shipped 2026-09-02** (PR #83, numbers in §5). The JSON absorbed them, so
+   no ADR and no schema change; `PROMPT_VERSION` untouched — this is
+   post-processing. `score.ts` untouched too, so the score.mjs parity test
+   stayed green without a mirrored edit.
+6. ~~(only if measurements demand) `match-split-frame` — §3.3 item 8 + ADR.~~
+   **Not needed — closed 2026-09-02 by the numbers.** The condition was
+   "only if measurements demand"; the owner's band is 30-40 s. Where the quick
+   check lands after block 4: **p50 15 s** on the gold fixtures (24 s full,
+   77 s vs 116 s for the suite) and **40 s / 42.2 s / 41.8 s** on job #1393,
+   whose 5 k-char description is at the long end of what we store. So the band
+   is met on short postings and missed by ~2 s on a long one. Splitting the
+   frame would buy the difference by caching the term list per job and asking
+   the model for statuses only — the same saving the fast prompt already
+   made (**2591 vs 4373 reply characters**), for a second prompt variant, an
+   ADR, and a cached frame to invalidate on every posting edit. Against that:
+   block 3 already answers the as-you-type case with **no call at all**
+   (0-15 ms), and F7 above exists precisely because a frozen frame goes stale
+   — a cache would freeze it harder. Reopen only if a measured compare goes
+   back over ~60 s.
+7. `keyword-frame-rebuild` — §4 F7 (issue #79): "Rebuild keywords" runs once
+   without `previousKeywords`, and a frame written by another `PROMPT_VERSION`
+   is never inherited. Pure decision module, no schema change, no prompt
+   change, `PROMPT_VERSION` untouched. **Shipped 2026-09-02** (PR #84, numbers
+   in §4 F7).
 
 ## 8. Open questions for the owner
 
-- After the bench: flip the resume-role default to Sonnet, or keep Opus and
-  surface a "fast/thorough" choice per compare?
-- Should reupload land on the instant check by default (AI never auto-runs),
-  or instant check + full analysis auto-started in the background?
+- ~~After the bench: flip the resume-role default to Sonnet, or keep Opus and
+  surface a "fast/thorough" choice per compare?~~ Decided 2026-09-02 (block 4)
+  **by the numbers, not by taste**: keep Opus, surface the fast/thorough
+  choice. The §3.2 item 7 condition was "the same checks pass and statuses
+  agree ≥~85% at 2-3× the speed". Statuses agreed (95%), but Sonnet was
+  **slower than Opus on every full fixture** on the `claude_code` engine
+  (p50 40 s vs 22 s) and its keyword frame drifted more (74% term overlap
+  against Opus, where the fast Opus run keeps 88%) — an unstable frame is
+  exactly what CONSISTENCY ACROSS RUNS exists to prevent. So
+  `CLAUDE_MODEL_RESUME` stays `claude-opus-5`, the per-engine "Resume model"
+  select on `/settings` is documented as the speed dial for anyone whose
+  engine says otherwise, and the speed comes from the shorter prompt
+  instead.
+- ~~Should reupload land on the instant check by default (AI never auto-runs),
+  or instant check + full analysis auto-started in the background?~~ Decided
+  2026-09-02 (block 3): instant check by default, nothing auto-runs — every
+  auto-started analysis is 78–109 s of Opus on the CLI engine and the memo
+  only saves repeats. The background variant stays a separate branch if
+  ever wanted.
 - Is the F8 curated lexicon worth its maintenance, or are F1-F7 enough?

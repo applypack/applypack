@@ -44,26 +44,34 @@ const KNOWN_CALL_SITES: Record<string, string> = {
   'classifier-prefilter.ts': 'buildPrefilterPrompt',
   'jobs/posting-extract.ts': 'buildExtractPrompt',
   'resume/match.ts': 'buildMatchPrompt',
+  'resume/suggestions.ts': 'buildSuggestionsPrompt',
   'resume/scan.ts': 'buildScanPrompt',
+  'resume/review.ts': 'buildReviewPrompt',
   'resume/cover-letter.ts': 'buildCoverPrompt',
   'verification/verify.ts': 'buildVerifyPrompt',
   'scripts/resume-bench-once.ts': 'bench harness, reuses buildMatchPrompt',
-  'web/routes/settings.tsx': 'engine connectivity test — a fixed literal, no outside text',
+  'web/ai-test.ts': 'engine connectivity test — a fixed literal, no outside text',
 };
 
 const PROFILE = {
+  id: 1,
+  name: 'Backend',
   seniority: ['senior'],
   stackRequired: ['php'],
   roleTypes: ['backend'],
   stackNiceToHave: [],
   stackExclude: [],
-  remoteOk: true,
-  remoteRegions: ['US'],
-  hybridOk: false,
+  countries: ['US'],
+  regions: [],
+  workplace: ['REMOTE'],
   onsiteCities: [],
   minSalaryUsd: 0,
   notes: '',
 } as unknown as Profile;
+
+/* A second search, so the multi-profile builders are fenced under the shape
+   they actually run in — one search is the degenerate case, not the contract. */
+const PROFILE_2 = { ...PROFILE, id: 7, name: 'QA', stackRequired: ['playwright'] } as Profile;
 
 const RESUME = 'RESUME-NEEDLE';
 const DESC = 'POSTING-NEEDLE';
@@ -78,7 +86,7 @@ interface Case {
 
 const CASES: Record<string, Case> = {
   buildClassifyPrompt: {
-    build: () => classifierMod.buildClassifyPrompt(CLASSIFY_INPUT, PROFILE),
+    build: () => classifierMod.buildClassifyPrompt(CLASSIFY_INPUT, [PROFILE, PROFILE_2]),
     fenced: [
       ['JOB POSTING', DESC],
       ['JOB POSTING', 'TITLE-NEEDLE'],
@@ -87,7 +95,7 @@ const CASES: Record<string, Case> = {
     ],
   },
   buildPrefilterPrompt: {
-    build: () => prefilterMod.buildPrefilterPrompt(CLASSIFY_INPUT, PROFILE),
+    build: () => prefilterMod.buildPrefilterPrompt(CLASSIFY_INPUT, [PROFILE, PROFILE_2]),
     fenced: [
       ['JOB POSTING', DESC],
       ['JOB POSTING', 'TITLE-NEEDLE'],
@@ -102,9 +110,22 @@ const CASES: Record<string, Case> = {
     build: () => resumeMod.buildScanPrompt(RESUME),
     fenced: [['RESUME', RESUME]],
   },
+  buildReviewPrompt: {
+    build: () =>
+      resumeMod.buildReviewPrompt(RESUME, {
+        roleTypes: ['ROLETYPE-NEEDLE'],
+        // Our own words about the text, so they carry no fence — see the builder.
+        atsChecks: ['No email address in the extracted text'],
+      }),
+    fenced: [
+      ['RESUME', RESUME],
+      // Tier 2: scanned out of the same untrusted resume.
+      ['CLAIMED ROLES', 'ROLETYPE-NEEDLE'],
+    ],
+  },
   buildMatchPrompt: {
     build: () =>
-      resumeMod.buildMatchPrompt(RESUME, JOB, {
+      resumeMod.buildMatchPrompt(RESUME, JOB, 'full', {
         otherResumeSkills: [{ skill: 'ELSEWHERE-NEEDLE', resumeName: 'Old CV' }],
         previousKeywords: [{ term: 'PREVKW-NEEDLE', priority: 1, requirement: 'must', primary: true }],
       }),
@@ -116,6 +137,25 @@ const CASES: Record<string, Case> = {
       // Tier 2: text of ours that was derived from an untrusted posting.
       ['OTHER RESUME SKILLS', 'ELSEWHERE-NEEDLE'],
       ['PREVIOUS KEYWORDS', 'PREVKW-NEEDLE'],
+    ],
+  },
+  buildSuggestionsPrompt: {
+    build: () =>
+      resumeMod.buildSuggestionsPrompt(RESUME, JOB, {
+        summary: 'SUMMARY-NEEDLE',
+        alignment: null,
+        keywords: [{ term: 'VERDICT-NEEDLE', requirement: 'must', primary: true, status: 'present', where: 'WHERE-NEEDLE' }],
+        hardRequirements: [{ requirement: 'GATE-NEEDLE', status: 'unknown' }],
+      }),
+    fenced: [
+      ['RESUME', RESUME],
+      ['JOB POSTING', DESC],
+      ['JOB POSTING', 'TITLE-NEEDLE'],
+      // Tier 2: the stored verdicts are model output over the untrusted texts.
+      ['KEYWORD VERDICTS', 'SUMMARY-NEEDLE'],
+      ['KEYWORD VERDICTS', 'VERDICT-NEEDLE'],
+      ['KEYWORD VERDICTS', 'WHERE-NEEDLE'],
+      ['KEYWORD VERDICTS', 'GATE-NEEDLE'],
     ],
   },
   buildCoverPrompt: {

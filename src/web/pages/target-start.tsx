@@ -5,12 +5,14 @@ import {
   Button,
   Card,
   Field,
+  FILE_INPUT_CLASS,
   Flash,
   Hint,
   Input,
   PageHeader,
   SectionTitle,
   Select,
+  SUBMIT_ONCE,
   Textarea,
 } from '../ui';
 import type { FlashMessage } from '../flash';
@@ -31,15 +33,12 @@ export interface TargetStartProps {
   flash?: FlashMessage | null;
 }
 
-const FILE_INPUT_CLASS =
-  'file:mr-3 file:cursor-pointer file:rounded-md file:border-0 file:bg-surface-overlay file:px-2.5 file:py-1 file:text-xs file:font-medium file:text-ink';
-
 export const TargetStartPage: FC<TargetStartProps> = ({ resumes, flash }) => {
   const hasResumes = resumes.length > 0;
   const defaultResumeId = (resumes.find((r) => r.isDefault) ?? resumes[0])?.id;
   return (
     <Layout title="Compare" active="target">
-      <PageHeader title="Compare" meta="~1–2 min per run">
+      <PageHeader title="Compare" meta="~½ min quick · ~2 min full">
         Paste a posting — the description alone is enough, company / title / location are
         detected during the run — and pick a resume. One run classifies the posting, scores the
         resume against it and opens the side-by-side targeted view.
@@ -52,6 +51,7 @@ export const TargetStartPage: FC<TargetStartProps> = ({ resumes, flash }) => {
         action="/target"
         enctype="multipart/form-data"
         class="w-full"
+        onsubmit={SUBMIT_ONCE}
       >
         <div class="grid items-start gap-4 lg:grid-cols-2">
           <Card>
@@ -157,12 +157,26 @@ export const TargetStartPage: FC<TargetStartProps> = ({ resumes, flash }) => {
         </div>
 
         <div class="mt-4 flex flex-wrap items-center gap-3">
-          <Button size="lg" variant="violet">
+          {/* Set by the second button's click: SUBMIT_ONCE disables the buttons in the
+              submit event, and a disabled submitter is left out of the form data. */}
+          <input type="hidden" name="mode" value="fast" />
+          <Button size="lg" variant="violet" title="Keywords, hard requirements and the score — no edit suggestions">
             Compare
           </Button>
+          <Button
+            size="lg"
+            variant="secondary"
+            onclick="this.form.elements.mode.value='full'"
+            title="The same check plus what to change and what to remove"
+          >
+            Full analysis
+          </Button>
           <Hint>
-            Detects missing fields (seconds), classifies the posting, then one resume-model
-            call (~1 min) and the targeted view opens. Re-pasting the same posting reuses its job.
+            Detects missing fields (seconds), classifies the posting, then one resume-model call
+            and the targeted view opens. Compare is the quick check — keywords, gates and the
+            score, about half a minute on Opus; Full analysis also writes the edit suggestions and
+            takes 1½ to 2 minutes. Either way you can ask for the suggestions later.
+            Re-pasting the same posting reuses its job.
           </Hint>
         </div>
       </form>

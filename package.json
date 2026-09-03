@@ -1,8 +1,8 @@
 {
   "name": "applypack",
-  "version": "1.4.1",
+  "version": "1.32.0",
   "private": true,
-  "description": "Self-hosted AI console for the whole job search: finds the postings, checks they're real, scores your resume without flattering it, drafts the cover letter, tracks the application. 22 sources, 5 swappable AI backends, your data in your own Postgres.",
+  "description": "Self-hosted AI console for the whole job search: finds the postings, checks they're real, scores your resume without flattering it, drafts the cover letter, tracks the application. 24 sources, 5 swappable AI backends, your data in your own Postgres.",
   "license": "MIT",
   "author": "Nazar Boyko (https://github.com/nazboyko)",
   "repository": {
@@ -28,6 +28,7 @@
     "discovery:once": "tsx src/scripts/discovery-once.ts",
     "priority:dryrun": "tsx src/scripts/priority-rules-dryrun.ts",
     "bench:resume": "tsx src/scripts/resume-bench-once.ts",
+    "keywords:audit": "tsx src/scripts/keyword-audit.ts",
     "test:telegram": "tsx src/scripts/test-telegram.ts",
     "prisma:generate": "prisma generate",
     "prisma:migrate:deploy": "prisma migrate deploy",

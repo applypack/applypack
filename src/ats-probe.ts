@@ -1,5 +1,7 @@
 import { AtsType } from '@prisma/client';
 import { fetchWithRetry, HttpError } from './http';
+import { douFeedUrl } from './fetchers/dou';
+import { djinniFeedUrl } from './fetchers/djinni';
 
 export interface ProbeResult {
   ok: boolean;
@@ -95,6 +97,30 @@ export async function probeAts(
           { timeoutMs: 8_000, init: { redirect: 'error' } },
         );
         break;
+      case AtsType.DOU: {
+        // The token is a feed query, not a slug: an unknown category answers
+        // an EMPTY channel (verified 2026-09-03), so "no items" is the failure.
+        const feed = await fetchWithRetry(douFeedUrl(trimmed), { timeoutMs: 8_000 });
+        const items = ((await feed.text()).match(/<item>/g) ?? []).length;
+        return items > 0
+          ? { ok: true, jobsCount: items }
+          : { ok: false, error: 'DOU answered no vacancies for this query — check the category spelling.' };
+      }
+      case AtsType.DJINNI: {
+        // An unknown primary_keyword answers the whole bare feed (verified
+        // 2026-09-03): the keyword must appear among the items' categories.
+        const feed = await fetchWithRetry(djinniFeedUrl(trimmed), { timeoutMs: 8_000 });
+        const xml = await feed.text();
+        const keyword = new URLSearchParams(trimmed.replace(/^\?/, '')).get('primary_keyword');
+        const itemXml = xml.slice(xml.indexOf('<item>'));
+        const items = (itemXml.match(/<item>/g) ?? []).length;
+        const matching = keyword
+          ? (itemXml.match(/<category>([^<]*)<\/category>/g) ?? []).filter((c) => c.toLowerCase() === `<category>${keyword.toLowerCase()}</category>`).length
+          : items;
+        return matching > 0
+          ? { ok: true, jobsCount: matching }
+          : { ok: false, error: keyword ? `Djinni knows no primary_keyword "${keyword}" (or it has no vacancies right now).` : 'Djinni answered no vacancies for this filter.' };
+      }
       case AtsType.SMARTRECRUITERS:
         resp = await fetchWithRetry(
           `https://api.smartrecruiters.com/v1/companies/${encodeURIComponent(trimmed)}/postings?limit=1`,

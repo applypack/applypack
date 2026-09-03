@@ -105,13 +105,18 @@ export function classifyFetchCount(count: number): FetchStatus {
   return count > 0 ? 'ok' : 'empty';
 }
 
+/** Anything but a successful fetch — `empty` is an answer, not a failure. */
+export function isFailureStatus(status: FetchStatus): boolean {
+  return !HEALTHY.has(status);
+}
+
 /**
  * The streak, inverted on purpose: `ok` and `empty` reset, EVERYTHING else
  * increments — including `unknown`. A status added later cannot fall out of
  * the streak by omission; the worst it can do is be counted.
  */
 export function nextStreak(status: FetchStatus, current: number): number {
-  if (HEALTHY.has(status)) return 0;
+  if (!isFailureStatus(status)) return 0;
   return Math.max(0, current) + 1;
 }
 

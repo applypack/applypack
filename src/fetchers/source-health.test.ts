@@ -9,6 +9,7 @@ import {
   classifyFetchError,
   describeStatus,
   isFailing,
+  isFailureStatus,
   isSilent,
   nextStreak,
   quietReason,
@@ -212,5 +213,16 @@ describe('describeStatus', () => {
 
   it('never calls a rate limit a dead slug', () => {
     assert.notEqual(describeStatus('rate_limit').tone, describeStatus('slug_gone').tone);
+  });
+});
+
+describe('isFailureStatus', () => {
+  it('treats only ok and empty as answers', () => {
+    assert.equal(isFailureStatus('ok'), false);
+    assert.equal(isFailureStatus('empty'), false);
+    for (const s of FETCH_STATUSES) {
+      if (s === 'ok' || s === 'empty') continue;
+      assert.equal(isFailureStatus(s), true, s);
+    }
   });
 });

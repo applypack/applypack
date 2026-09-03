@@ -3,6 +3,7 @@ import { logger } from '../logger';
 import { sendDigest } from '../notifier';
 import { getSettings } from '../settings';
 import { daysSince } from '../text-utils';
+import { appliedWithLabel } from './applied-with';
 import {
   formatStaleMessage,
   type StaleApplicationItem,
@@ -36,7 +37,10 @@ export async function runStaleApplicationsJob(): Promise<{ stats: CronStats }> {
       appliedAt: { lt: cutoff },
       recruiterContact: null,
     },
-    include: { company: { select: { name: true } } },
+    include: {
+      company: { select: { name: true } },
+      appliedResume: { select: { name: true } },
+    },
     orderBy: { appliedAt: 'asc' },
   });
 
@@ -47,6 +51,10 @@ export async function runStaleApplicationsJob(): Promise<{ stats: CronStats }> {
     appliedAt: j.appliedAt as Date,
     daysSince: daysSince(j.appliedAt as Date),
     recruiterContact: j.recruiterContact,
+    appliedWith: appliedWithLabel({
+      name: j.appliedResume?.name ?? null,
+      version: j.appliedResumeVersion,
+    }),
   }));
 
   if (items.length === 0) {

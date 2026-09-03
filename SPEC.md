@@ -26,7 +26,7 @@ port.
 
 See [ARCHITECTURE.md](./ARCHITECTURE.md) for diagrams.
 
-## Sources (22 ATS / aggregator types + MANUAL)
+## Sources (24 ATS / aggregator types + MANUAL)
 
 | AtsType            | Shape         | Auth      | Notes                                           |
 | ------------------ | ------------- | --------- | ----------------------------------------------- |
@@ -44,6 +44,8 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for diagrams.
 | REMOTEOK           | aggregator    | none      | First array element is meta (`legal:`) — dropped via `slice(1)` |
 | REMOTIVE           | aggregator    | none      | `?category=software-dev`                        |
 | ARBEITNOW          | aggregator    | none      | EU-skewed; **disabled by default**              |
+| DOU                | aggregator    | feed query (`category=PHP&remote`) | Ukraine's board via its RSS; one row per query; **disabled by default** (stage 3b) |
+| DJINNI             | aggregator    | feed filter (`primary_keyword=PHP&employment=remote&region=UKR`) | Ukraine's marketplace via its RSS; location comes from the filter; **disabled by default** (stage 3b) |
 | HN_HIRING          | aggregator    | none      | Algolia API → monthly "Ask HN: Who is hiring?" |
 | WEWORKREMOTELY     | aggregator    | none      | Per-category RSS, atsToken = category slug      |
 | GOLANGPROJECTS     | aggregator    | none      | Single RSS; **disabled by default** (Go-only)   |
@@ -71,21 +73,33 @@ Per-tick flow inside `runFetchJob`:
 runAllFetchers()         filter by Company.active and AppSettings.disabledSources
    ↓
 NormalizedJob[]          unified shape (companyId, externalId, title, location, …)
+                         + locationHints where the feed has structured geodata (ADR 0031);
+                         geo-filtered sources (Jobicy, Himalayas, 4dayweek) read the FetchContext —
+                         the union of the running searches' countries + regions — instead of the whole feed
    ↓
-passesBaseFilter()       admit if title contains stackRequired OR roleTypes; reject stackExclude
+passesAnyBaseFilter()    admit if ANY running search admits it (title contains its
+                         stackRequired OR roleTypes; its stackExclude rejects)
    ↓
 findUnique (companyId, externalId)
    ↓ (skip if seen before)
-classifyJob(input, profile, mode)
+classifyJob(input, profiles[], mode)   ONE call for every running search
    ├─ mode='single':   Haiku 4.5 only
    └─ mode='two_stage': Haiku 4.5 prefilter → Haiku 4.5 full only on yes
    ↓
-ClaudeClassification     {fit_score, location_match, salary, tech_match, red_flags, summary}
+{salary, scores: [{profile_id, fit_score, location_match, tech_match, …}]}
    ↓
-decideDismissReason()    fit < minFitScore | !location_match | salary < minSalaryUsd → DISMISSED
-   ↓ otherwise
-Job(status=NEW) → sendTelegramAlert(profile-routed) → Job.status=ALERTED
+mergeVerdicts()          per-search decideDismissReason() against that search's
+                         thresholds; the winner's numbers become Job.fitScore,
+                         every verdict becomes a JobScore row
+   ↓ dismissed only when every search dismissed it
+Job(status=NEW) → one alert, named for the winner, routed to its telegramTargetId
 ```
+
+Every persisted Job also carries `workplace`, `countries`, `regions` and
+`locationSource` — the structured reading of the location string by
+`src/location.ts` (hints from the fetcher first, the parser for the rest);
+the string itself is never rewritten (ADR 0031). `/jobs` filters on them
+(`country=`, `workplace=`, `posted=`).
 
 The same inner loop is reused by `runHnHiringJob` (extracted into
 `src/jobs/process-jobs.ts`).
@@ -103,20 +117,33 @@ The same inner loop is reused by `runHnHiringJob` (extracted into
 
 ## Profiles
 
-A `Profile` row encodes "what kind of role am I looking for". One profile
-is **active** at a time (`AppSettings.activeProfileId`). Switching profiles
-is instant; a "Re-classify all" button reruns Claude across existing jobs
-under the new profile.
+A `Profile` row encodes "what kind of role am I looking for" — a **search**.
+Several run at once, up to 8 (ADR 0028): `Profile.active` is the switch, and
+`AppSettings.activeProfileId` names the **primary**, the one that supplies
+defaults everywhere and always runs. One classifier call scores each posting
+against every running search and returns a verdict each; those land in
+`JobScore` (jobId × profileId) while `Job.fitScore` keeps the best-of for
+sorting. A posting is admitted when any search's base filter admits it, and
+dismissed only when every search rejects it. Alerts are one per posting,
+named for the winner and routed to that search's `telegramTargetId`.
+"Save & re-classify" reruns the classifier across existing jobs.
 
 Profile fields that drive matching:
 - `stackRequired` — actual technologies (e.g. `php`, `laravel`, `javascript`, `go`)
 - `roleTypes` — job categories (e.g. `full-stack`, `backend`). Title hint only — Claude is told a role-type alone is **not** a tech match.
 - `stackNiceToHave` — boost
 - `stackExclude` — drop on title hit (`junior`, `intern`, `wordpress`)
-- `seniority`, `remoteOk`, `remoteRegions`, `onsiteCities`, `hybridOk`
+- `seniority`
+- `countries` (ISO-2), `regions` (group codes — a group stays a group), `workplace`
+  (arrangements accepted), `onsiteCities` — where the search hunts (ADR 0032);
+  both lists empty = anywhere, empty `workplace` = any arrangement
 - `minFitScore`, `minSalaryUsd`
 - `notes` — free-form prose appended to the Claude prompt
 - `telegramTargetId` — optional: route alerts to a specific bot (else broadcast)
+- `resumeId` — optional: the resume this search hunts with. A job page
+  preselects it for comparisons and cover letters; unset falls back to
+  skill-tag overlap (`src/resume/pick.ts:preselectResume`). `SET NULL` on
+  resume delete — the search survives, the preselect goes back to guessing.
 
 The editor shows the essentials (stack, role types, seniority, location);
 excludes, notes, on-site cities, priority rules, thresholds and Telegram
@@ -128,6 +155,17 @@ them is customised.
 scanned skills), `roleTypes` and `seniority` from any scanned resume —
 rendered as an unsaved draft in the editor; nothing persists until Save.
 Resumes scanned before `primarySkills` existed are re-scanned on demand.
+Filling also proposes that resume as the search's `resumeId`, in the same
+unsaved draft.
+
+**Create a search from a resume**: `/resumes/:id` renders the profile a
+click would create (name from the resume's headline, primary stack →
+required, remaining skills → nice-to-have, plus role types and seniority)
+and saves it on one press, linked to that resume. The wizard's step 3
+offers the same for a second resume once the first search exists. New
+profiles are **born inactive** — creating a search never switches the one
+the pipeline is scoring against; activation stays a deliberate press on
+`/settings` → Profile.
 
 ## Toggles in `/settings`
 
@@ -144,6 +182,27 @@ clause at the start of the affected job/handler.
 | `discoveryEnabled`               | false    | HN parser does not record CompanyCandidates  |
 | `fetchingEnabled`                | false    | Master pause: hourly fetch + monthly HN pull exit early (`fetching-paused`); digest/cleanup/discovery/dashboard unaffected. Deployments start PAUSED — enable via `/settings` → "Job fetching" |
 | `disabledSources` (String[])     | `[]`     | Skip whole AtsType families in runAllFetchers |
+
+## Application tracking
+
+`Job.pipelineStage` is the funnel state, orthogonal to `Job.status`
+(`status=APPLIED` + `pipelineStage='ghosted'` is a valid pair). Columns are
+configured on `/settings` → General: **Applied** and **Rejected/Ghosted** are
+fixed, everything between them is user-named and reorderable, and keys never
+change once created (ADR 0025). Every stage move writes a `JobStageEvent`
+ledger row in the same transaction (ADR 0024).
+
+**Which resume it went out with.** "Mark applied" on `/jobs/:id` carries a
+resume select — preselected from the comparison on screen, else from the
+search that scored the posting best — and writes `Job.appliedResumeId`,
+`appliedResumeVersion` and `appliedResumeText`. The text snapshot is not
+redundant: "Upload a new version" replaces the bytes of the same `Resume`
+row, so an id alone would name v3 and hand back v5's words (the pattern
+`ResumeMatch.resumeText` already uses). The job page and the stale digest
+then say "applied with Senior Backend v3"
+(`src/jobs/applied-with.ts`, pure). Deleting the resume sets the FK NULL and
+leaves the snapshot; rows applied before the feature stay NULL and render as
+they always did.
 
 ## Discovery
 
@@ -206,9 +265,20 @@ becomes the default.
 `ResumeMatch` is one comparison of a resume against a job, triggered from
 `/jobs/:id` → "Resume match" → Compare (the dropdown preselects the resume
 with the most skill-tag overlap). Stored per run: `matchScore`, `summary`,
-`strengths`, `redFlags`, `keywords` (`present | add | cannot_claim`, where,
-note) and `actions` (section, where, what, why, priority). Nothing edits
-the resume — the report is the to-do list. See ADR 0008.
+`strengths`, `redFlags`, `keywords` (`present | add | ask_user |
+cannot_claim`, where, note) and `actions` (section, where, what, why,
+priority). Nothing edits the resume — the report is the to-do list. See
+ADR 0008.
+
+A comparison has two shapes (ADR 0029). **Compare** runs the quick check:
+one call that returns the keywords, alignment grades, hard-requirement gates
+and red flags — everything the score is computed from — and no edit
+suggestions. **Full analysis** runs the same rules plus the suggestions, and
+**Get suggestions** adds them to a stored quick check in a second call that
+reuses its verdicts and leaves the score untouched. The mode is recorded in
+the `breakdown` JSON next to the prompt version, so a re-run of unchanged
+text is still free and a full request over a stored quick check pays only
+for the suggestions.
 
 The targeted view (`/jobs/:id/target`, ADR 0010) shows one match as two
 panes: the posting with every keyword highlighted, and the resume text in an
@@ -216,7 +286,7 @@ editor. `src/web/public/target.mjs` scores keyword coverage in the browser
 on every edit (P1 = 3, P2 = 2, P3/P4 = 1, `cannot_claim` excluded by
 default) and renders both panes' highlights from the match's `keywords`
 (with `aliases`), `actions` and `removals` (with verbatim `quote`s).
-"Re-analyze with AI" posts the draft (`draftText`) → a `ResumeMatch` with
+"Re-check with AI" posts the draft (`draftText`) → a `ResumeMatch` with
 `draft = true`; `resumeText` snapshots the judged text on every match.
 "Save as vN" turns the draft into a `.md` resume version.
 
@@ -232,7 +302,7 @@ returns `removals` — what to cut so the resume reads cleaner.
 `/jobs/new` pastes a posting the fetchers never see. It is stored as a
 normal `Job` under a per-employer `Company` with `atsType = MANUAL`
 (`active = false`, so `runAllFetchers` skips it) and `status = SAVED`,
-then classified against the active profile without touching the status.
+then classified against every running search without touching the status.
 
 "Is this job real?" on `/jobs/:id` first runs the free liveness ladder
 (ADR 0016): rung 1 asks the ATS vendor's public posting API (the five
@@ -266,7 +336,7 @@ posting or resume exists.
 
 The menu's **Cover letter** page (`/letter`) is the standalone entry point.
 Two job sources: a searchable picker over the newest jobs that clear the
-active profile's fit threshold, or one "new posting" box taking a URL
+primary search's fit threshold, or one "new posting" box taking a URL
 and/or pasted text (pasted text wins; a bare URL is fetched — ADR 0005
 hosts and the private address space refused, bot checks fail honestly, and
 an unreadable page returns the user to the form with the URL kept). Resume
@@ -313,10 +383,10 @@ exclusive to verification, ADR 0009).
 - Prisma 6 + Postgres 16 (real migrations from `phase-3.0` baseline onward)
 - node-cron for scheduling, no Redis / BullMQ
 - Hono 4 for the dashboard, JSX SSR with `hono/jsx`, Tailwind via CDN over semantic CSS-variable tokens (no build pipeline; light SaaS theme, see DESIGN.md)
-- `src/ai-provider.ts` seam, five engines: `anthropic_api` (SDK, per-token), `claude_code` (headless CLI, subscription), `gemini_cli` (headless CLI, Google account), `openai_api` (fetch → any /chat/completions endpoint via OPENAI_BASE_URL), `codex_cli` (headless CLI, ChatGPT subscription). `/settings` → "AI engine" stores an ordered chain + per-engine classifier/resume models (AppSettings.aiEngine JSON, ADR 0013/0014); calls fail over down the chain automatically; `.env` seeds the default (Haiku 4.5 classifier, Opus 5 resume); `AI_CONCURRENCY` jobs classified at once (default 3)
+- `src/ai-provider.ts` seam, five engines: `anthropic_api` (SDK, per-token), `claude_code` (headless CLI, subscription), `gemini_cli` (headless CLI, Google account), `openai_api` (fetch → any /chat/completions endpoint via OPENAI_BASE_URL), `codex_cli` (headless CLI, ChatGPT subscription). `/settings` → "AI engine" stores an ordered chain + per-engine classifier/resume/cover models (AppSettings.aiEngine JSON, ADR 0013/0014) and, for the four key-bearing engines, the API key itself (AppSettings.aiKeys, ADR 0027 — DB first, `.env` as fallback, never rendered in full); calls fail over down the chain automatically; `.env` seeds the default (Haiku 4.5 classifier, Opus 5 resume); `AI_CONCURRENCY` jobs classified at once (default 3)
 - node:test runner (`npm test`), no jest
 
 ## Project layout
 
-See [README.md](./README.md) for the full source tree.
+See [ARCHITECTURE.md](./ARCHITECTURE.md) for the data flow and file map.
 See [docs/adr/](./docs/adr/) for the "why" behind non-trivial choices.

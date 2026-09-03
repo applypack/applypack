@@ -3,6 +3,9 @@ import { prisma } from '../db';
 import { logger } from '../logger';
 import { sleep } from '../http';
 import { getSettings, toAtsTypes } from '../settings';
+import { listActiveProfiles } from '../profiles';
+import { isBlankProfile } from '../profile-guards';
+import { EMPTY_CONTEXT, searchPlaces, type FetchContext } from './fetch-context';
 import {
   QUIET_STREAK,
   classifyFetchCount,
@@ -32,6 +35,8 @@ import { fetchBamboo } from './bamboohr';
 import { fetchPinpoint } from './pinpoint';
 import { fetchRippling } from './rippling';
 import { fetchFourDayWeek } from './fourdayweek';
+import { fetchDou } from './dou';
+import { fetchDjinni } from './djinni';
 import type { NormalizedJob } from '../types';
 
 const POLITE_DELAY_MS = 1_000;
@@ -41,8 +46,18 @@ export interface FetcherResult {
   companyName: string;
 }
 
+/** One source answered — live progress for the dashboard's "Fetch now" page. */
+export interface SourceProgress {
+  company: string;
+  status: FetchStatus;
+  count: number;
+  done: number;
+  total: number;
+}
+
 export async function runAllFetchers(
   isCancelled?: () => Promise<boolean>,
+  onSource?: (progress: SourceProgress) => void,
 ): Promise<FetcherResult[]> {
   const settings = await getSettings();
   const disabled = toAtsTypes(settings.disabledSources);
@@ -58,6 +73,14 @@ export async function runAllFetchers(
     orderBy: { id: 'asc' },
   });
 
+  // Where the running searches hunt (stage 3a): sources with a geo filter
+  // ask for these places instead of the whole world. Blank searches are
+  // left out here as they are in process-jobs — they gate on nothing.
+  const context = searchPlaces((await listActiveProfiles()).filter((p) => !isBlankProfile(p)));
+  if (context.countries.length > 0 || context.regions.length > 0) {
+    logger.info(context, 'fetchers: geo-filtered sources follow the searches');
+  }
+
   const out: FetcherResult[] = [];
   let done = 0;
 
@@ -71,13 +94,15 @@ export async function runAllFetchers(
     }
     done++;
     let status: FetchStatus;
+    let count = 0;
     try {
-      const jobs = await fetchOne(company);
+      const jobs = await fetchOne(company, context);
+      count = jobs.length;
       // Status comes from the RAW count, before passesBaseFilter — a profile
       // that matches nothing is not a broken board (ADR 0019).
-      status = classifyFetchCount(jobs.length);
+      status = classifyFetchCount(count);
       logger.info(
-        { company: company.name, count: jobs.length, ats: company.atsType, status },
+        { company: company.name, count, ats: company.atsType, status },
         'fetcher: ok',
       );
       for (const job of jobs) {
@@ -91,6 +116,7 @@ export async function runAllFetchers(
       );
     }
     await recordFetchHealth(company, status);
+    onSource?.({ company: company.name, status, count, done, total: companies.length });
     await sleep(POLITE_DELAY_MS);
   }
 
@@ -127,11 +153,10 @@ async function recordFetchHealth(
   }
 }
 
-export async function fetchOne(company: {
-  id: number;
-  atsType: AtsType;
-  atsToken: string;
-}): Promise<NormalizedJob[]> {
+export async function fetchOne(
+  company: { id: number; atsType: AtsType; atsToken: string },
+  context: FetchContext = EMPTY_CONTEXT,
+): Promise<NormalizedJob[]> {
   switch (company.atsType) {
     case AtsType.GREENHOUSE:
       return fetchGreenhouse({ id: company.id, atsToken: company.atsToken });
@@ -146,7 +171,7 @@ export async function fetchOne(company: {
     case AtsType.REMOTIVE:
       return fetchRemotive(company.id);
     case AtsType.ARBEITNOW:
-      return fetchArbeitnow(company.id);
+      return fetchArbeitnow({ id: company.id, atsToken: company.atsToken });
     case AtsType.HN_HIRING:
       return fetchHnHiring(company.id);
     case AtsType.WORKABLE:
@@ -164,13 +189,13 @@ export async function fetchOne(company: {
     case AtsType.GOLANGPROJECTS:
       return fetchGolangProjects(company.id);
     case AtsType.JOBICY:
-      return fetchJobicy(company.id);
+      return fetchJobicy(company.id, context);
     case AtsType.HN_JOBS:
       return fetchHnJobs(company.id);
     case AtsType.WORKINGNOMADS:
       return fetchWorkingNomads(company.id);
     case AtsType.HIMALAYAS:
-      return fetchHimalayas(company.id);
+      return fetchHimalayas(company.id, context);
     case AtsType.RECRUITEE:
       return fetchRecruitee({ id: company.id, atsToken: company.atsToken });
     case AtsType.BREEZY:
@@ -182,7 +207,11 @@ export async function fetchOne(company: {
     case AtsType.RIPPLING:
       return fetchRippling({ id: company.id, atsToken: company.atsToken });
     case AtsType.FOURDAYWEEK:
-      return fetchFourDayWeek(company.id);
+      return fetchFourDayWeek(company.id, context);
+    case AtsType.DOU:
+      return fetchDou({ id: company.id, atsToken: company.atsToken });
+    case AtsType.DJINNI:
+      return fetchDjinni({ id: company.id, atsToken: company.atsToken });
     case AtsType.MANUAL:
       // Pasted by hand on /jobs/new — nothing to fetch (and the row is inactive).
       return [];

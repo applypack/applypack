@@ -1,29 +1,36 @@
 /** @jsxImportSource hono/jsx */
 import type { FC } from 'hono/jsx';
 import { Layout } from '../layout';
-import { Button, Card, Hint, MarkIcon } from '../ui';
+import { Button, Card, Hint } from '../ui';
+import { RunSteps, type StepView } from './run-steps';
 import type { RunStep, TargetRun } from '../target-runs';
 
-const STEP_VIEW: Record<RunStep, { label: string; detail: string }> = {
+const STEP_VIEW: Record<RunStep, StepView> = {
   fetch: {
     label: 'Read the posting page',
     detail: 'one request to the URL you gave — seconds',
   },
   extract: {
     label: 'Detect posting facts',
-    detail: 'company, title, location, salary from the description — seconds',
-  },
-  classify: {
-    label: 'Classify the posting',
-    detail: 'fit score against the active profile — seconds',
+    detail: 'company, title, location, salary from the description — 10 to 40 s on a CLI engine, seconds on an API one',
   },
   scan: {
-    label: 'Scan the new resume version',
-    detail: 'headline, skills, ATS issues — about a minute',
+    // Also reached by a plain re-scan and a first upload, where there is no
+    // "new version" to speak of.
+    label: 'Read the resume',
+    detail: 'headline, skills, ATS issues — about half a minute',
+  },
+  keywords: {
+    label: 'Quick AI check',
+    detail: 'the resume model judges every keyword, the gates and the score — no edit suggestions — about half a minute on Opus',
   },
   match: {
-    label: 'AI match',
-    detail: 'the resume model reads both texts — about a minute',
+    label: 'Full AI analysis',
+    detail: 'the resume model reads both texts and writes the full report with edit suggestions — 1½ to 2 minutes on Opus',
+  },
+  suggestions: {
+    label: 'Edit suggestions',
+    detail: 'what to change and what to remove, written from the stored keyword verdicts — the score stays — about a minute on Opus',
   },
   verify: {
     label: 'Research the company',
@@ -32,6 +39,14 @@ const STEP_VIEW: Record<RunStep, { label: string; detail: string }> = {
   letter: {
     label: 'Write the cover letter',
     detail: 'grounded in the resume, fact-checked before it is shown — about a minute',
+  },
+  review: {
+    label: 'Review the resume',
+    detail: 'six dimensions graded with quotes from your own text, then the advice — about a minute on Opus',
+  },
+  score: {
+    label: 'Score the best matches',
+    detail: 'the AI reads each one against your profile — seconds on an API engine, up to half a minute on a CLI one',
   },
 };
 
@@ -44,22 +59,21 @@ export const TargetRunPage: FC<{ run: TargetRun }> = ({ run }) => {
   const failed = run.stage === 'error';
   const currentIdx = run.steps.indexOf(run.stage as RunStep);
   const elapsed = Math.max(0, Math.round((Date.now() - run.startedAt) / 1000));
-  // A letter run reads oddly as "Comparing" — the verb follows the steps.
-  const letter = run.steps.includes('letter');
-  const heading = failed
-    ? letter
-      ? 'Generation failed'
-      : 'Comparison failed'
-    : letter
-      ? 'Writing a cover letter'
-      : 'Comparing';
+  // A letter or suggestions run reads oddly as "Comparing" — the verb follows
+  // the steps; wizard runs (scan / score) bring their own copy.
+  const copy = run.heading ?? runCopy(run.steps);
+  const heading = failed ? copy.failed : copy.running;
   return (
-    <Layout title={failed ? heading : `${heading}…`} active="target">
+    <Layout title={failed ? heading : `${heading}…`} active={run.heading ? undefined : 'target'}>
       <div class="mx-auto w-full max-w-2xl pt-6 lg:pt-16">
         <Card>
           <div class="mb-1 text-sm font-semibold text-ink">{heading}</div>
           <div class="text-sm text-ink-muted">
-            "{run.resumeName}" ↔ "<span id="run-job-title">{run.jobTitle}</span>"
+            {run.subtitle ?? (
+              <>
+                "{run.resumeName}" ↔ "<span id="run-job-title">{run.jobTitle}</span>"
+              </>
+            )}
           </div>
 
           {failed ? (
@@ -80,42 +94,22 @@ export const TargetRunPage: FC<{ run: TargetRun }> = ({ run }) => {
             </div>
           ) : (
             <>
-              <ol class="mt-5 space-y-5" aria-label="Progress">
-                {run.steps.map((s, i) => (
-                  <li
-                    class="step flex items-start gap-3"
-                    data-step={s}
-                    data-state={i < currentIdx ? 'done' : i === currentIdx ? 'active' : 'pending'}
-                  >
-                    <span class="mt-0.5 grid h-5 w-5 shrink-0 place-items-center" aria-hidden="true">
-                      <span class="i i-done">
-                        <MarkIcon kind="check" class="text-ok" />
-                      </span>
-                      <span class="i i-active h-4 w-4 animate-spin rounded-full border-2 border-line-strong border-t-accent"></span>
-                      <span class="i i-pending h-2 w-2 rounded-full bg-line-strong"></span>
-                    </span>
-                    <span class="min-w-0 flex-1">
-                      <span class="t-label block text-sm">{STEP_VIEW[s].label}</span>
-                      <span class="t-detail block text-xs">{STEP_VIEW[s].detail}</span>
-                      <span
-                        class="t-activity mt-1.5 block text-[13px] leading-5 text-violet transition-opacity duration-300"
-                        data-activity
-                        aria-live="polite"
-                      ></span>
-                    </span>
-                  </li>
-                ))}
-              </ol>
+              <RunSteps
+                steps={run.steps}
+                currentIdx={currentIdx}
+                view={STEP_VIEW}
+                stepMs={run.stepMs}
+                activeMs={Date.now() - run.stageAt}
+              />
               <div class="mt-5 flex items-center justify-between gap-3 border-t border-line pt-3">
                 <Hint>
-                  You can close this page — the run keeps going and the result lands on the job
-                  page.
+                  You can close this page — the run keeps going and the result lands{' '}
+                  {run.heading ? 'back in setup' : 'on the job page'}.
                 </Hint>
                 <span id="run-elapsed" class="shrink-0 text-xs tabular-nums text-ink-faint">
                   {elapsed}s
                 </span>
               </div>
-              <style dangerouslySetInnerHTML={{ __html: RUN_CSS }} />
               <script
                 id="run-data"
                 type="application/json"
@@ -130,19 +124,11 @@ export const TargetRunPage: FC<{ run: TargetRun }> = ({ run }) => {
   );
 };
 
-/* Step visuals are CSS-driven off data-state so the poller only flips attributes. */
-const RUN_CSS = `
-  .step .i { display: none; }
-  .step[data-state="done"] .i-done,
-  .step[data-state="active"] .i-active,
-  .step[data-state="pending"] .i-pending { display: block; }
-  .step .t-label { color: rgb(var(--ink)); font-weight: 500; }
-  .step[data-state="pending"] .t-label { color: rgb(var(--ink-faint)); font-weight: 400; }
-  .step .t-detail { color: rgb(var(--ink-faint)); }
-  .step[data-state="active"] .t-detail { color: rgb(var(--ink-muted)); }
-  .step .t-activity { display: none; }
-  .step[data-state="active"] .t-activity { display: block; }
-`;
+function runCopy(steps: RunStep[]): { running: string; failed: string } {
+  if (steps.includes('letter')) return { running: 'Writing a cover letter', failed: 'Generation failed' };
+  if (steps.includes('suggestions')) return { running: 'Writing suggestions', failed: 'Suggestions failed' };
+  return { running: 'Comparing', failed: 'Comparison failed' };
+}
 
 const RUN_BOOT = `
 import { init } from '/static/target-run.mjs';

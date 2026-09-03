@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { mapHimalayasFeed } from './himalayas';
+import { himalayasUrls, mapHimalayasFeed } from './himalayas';
 import type { NormalizedJob } from '../types';
 
 const COMPANY_ID = 88;
@@ -134,5 +134,33 @@ describe('mapHimalayasFeed', () => {
     assert.deepEqual(mapHimalayasFeed([SAMPLE_JOB], COMPANY_ID), []);
     assert.deepEqual(mapHimalayasFeed(null, COMPANY_ID), []);
     assert.deepEqual(mapHimalayasFeed({ notJobs: [] }, COMPANY_ID), []);
+  });
+});
+
+describe('mapHimalayasFeed — location hints (ADR 0031)', () => {
+  it('resolves the ISO names in locationRestrictions to codes', () => {
+    const [job] = mapHimalayasFeed({ jobs: [{ ...SAMPLE_JOB, locationRestrictions: ['Germany', 'Netherlands', 'Narnia'] }] }, COMPANY_ID);
+    assert.equal(job?.location, 'Remote · Germany, Netherlands, Narnia');
+    assert.deepEqual(job?.locationHints, { workplace: 'REMOTE', countries: ['DE', 'NL'] });
+  });
+});
+
+describe('himalayasUrls — the calls a context needs (stage 3a)', () => {
+  it('one search per country plus worldwide when the searches name countries', () => {
+    assert.deepEqual(himalayasUrls({ countries: ['PL', 'DE'], regions: ['EU'] }), [
+      'https://himalayas.app/jobs/api/search?country=PL&exclude_worldwide=true&limit=20',
+      'https://himalayas.app/jobs/api/search?country=DE&exclude_worldwide=true&limit=20',
+      'https://himalayas.app/jobs/api/search?worldwide=true&limit=20',
+    ]);
+  });
+
+  it('the browse feed when the searches hunt anywhere or name only groups', () => {
+    assert.deepEqual(himalayasUrls({ countries: [], regions: [] }), ['https://himalayas.app/jobs/api?limit=20']);
+    assert.deepEqual(himalayasUrls({ countries: [], regions: ['EU'] }), ['https://himalayas.app/jobs/api?limit=20']);
+  });
+
+  it('caps the country calls', () => {
+    const many = Array.from({ length: 12 }, (_, i) => `C${i}`);
+    assert.equal(himalayasUrls({ countries: many, regions: [] }).length, 9);
   });
 });

@@ -62,3 +62,24 @@ export function stageTimeLine(
   const stale = !terminal && entryKnown && days > STALE_DAYS;
   return { text: stale ? `${text} · stalled` : text, stale, since };
 }
+
+/**
+ * Ledger rows keyed by job, dropping any row whose job is not on the board.
+ * The query is scoped the same way (applications.tsx) — grouping here keeps
+ * the map honest if it ever isn't, and testable without Prisma. Generic so
+ * the caller keeps its own row type; only `jobId` is read.
+ */
+export function groupEventsByJob<E extends { jobId: number }>(
+  events: readonly E[],
+  jobIds: readonly number[],
+): Map<number, E[]> {
+  const onBoard = new Set(jobIds);
+  const byJob = new Map<number, E[]>();
+  for (const e of events) {
+    if (!onBoard.has(e.jobId)) continue;
+    const list = byJob.get(e.jobId);
+    if (list) list.push(e);
+    else byJob.set(e.jobId, [e]);
+  }
+  return byJob;
+}

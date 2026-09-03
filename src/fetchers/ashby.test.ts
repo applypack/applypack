@@ -128,3 +128,29 @@ describe('mapAshbyJob', () => {
     assert.equal(job.url, 'https://jobs.ashbyhq.com/buffer/ashby-uuid-abc');
   });
 });
+
+describe('mapAshbyJob — location hints (ADR 0031)', () => {
+  it('reads the address country name and the arrangement', () => {
+    // Recorded from the supabase board on 2026-09-03.
+    const job = mapAshbyJob(
+      baseJob({
+        location: 'Remote, San Francisco, CA',
+        isRemote: true,
+        workplaceType: 'Remote',
+        address: { postalAddress: { addressCountry: 'United States', addressLocality: 'San Francisco' } },
+      }),
+      COMPANY_ID,
+    );
+    assert.deepEqual(job.locationHints, { countries: ['US'], workplace: 'REMOTE' });
+  });
+
+  it('most rows carry no address — the string is all there is', () => {
+    const job = mapAshbyJob(
+      baseJob({ location: 'Remote, EMEA', isRemote: null, workplaceType: null, address: null }),
+      COMPANY_ID,
+    );
+    assert.equal(job.location, 'Remote, EMEA');
+    assert.deepEqual(job.locationHints, { countries: [], workplace: 'UNKNOWN' });
+    assert.equal(mapAshbyJob(baseJob({ workplaceType: 'OnSite' }), COMPANY_ID).locationHints?.workplace, 'ONSITE');
+  });
+});

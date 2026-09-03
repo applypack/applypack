@@ -6,10 +6,12 @@ import { logger } from '../../logger';
 import {
   addTelegramTarget,
   deleteTelegramTarget,
+  getAiKeys,
   getSettings,
   listTelegramTargets,
   maskToken,
   setAiEngineConfig,
+  setAiKey,
   setApplicationTrackingEnabled,
   setClassifierMode,
   setDisabledSources,
@@ -45,20 +47,30 @@ import {
   type AiEngineConfig,
   type AiProviderId,
 } from '../../ai-engine';
-import { getAiEngineEnv, probeAiProviders } from '../../ai-runtime';
-import { getAiProviderById } from '../../ai-provider';
+import { forgetAiProbe, getAiEngineEnv, probeAiProviders } from '../../ai-runtime';
 import {
+  AI_KEY_ENV_VARS,
+  aiKeySource,
+  MAX_AI_KEY_LENGTH,
+  providerTakesKey,
+} from '../../ai-keys';
+import { testAiEngine } from '../ai-test';
+import {
+  blankProfileInput,
   createProfile,
   deleteProfile,
   getActiveProfile,
   getProfile,
   listProfiles,
   setActiveProfile,
+  setProfileActive,
   updateProfile,
 } from '../../profiles';
 import { runReclassifyAll } from '../../jobs/reclassify-job';
 import { recordCronRun } from '../../jobs/cron-run';
 import { parseTagList, toStringArray } from '../../text-utils';
+import { isRegionCode, resolveCountries } from '../../countries';
+import { isProfileWorkplace } from '../../location';
 import {
   formatPriorityRulesText,
   parsePriorityRules,
@@ -69,9 +81,11 @@ import { isBlankProfile } from '../../profile-guards';
 import { isSettingsTab, SettingsPage } from '../pages/settings';
 import { sourceLabel } from '../source-names';
 import { clearFlashCookie, flashRedirect, parseFlashCookie } from '../flash';
-import { getResume, listResumes } from '../../resume/store';
+import { missingLinkMessage } from '../profile-links';
+import { createResume, getResume, listResumes } from '../../resume/store';
 import { scanResume } from '../../resume/scan';
 import { buildProfileDraft } from '../../resume/profile-draft';
+import { nameFromFilename, readResumeUpload, resumeUploadLimit } from '../upload';
 
 const NewTargetSchema = z.object({
   name: z.string().min(1).max(100),
@@ -87,13 +101,15 @@ const ProfileFormSchema = z.object({
   stackExclude: z.string().optional().default(''),
   notes: z.string().optional().default(''),
   seniority: z.union([z.string(), z.array(z.string())]).optional(),
-  remoteOk: z.string().optional(),
-  remoteRegions: z.union([z.string(), z.array(z.string())]).optional(),
+  // ADR 0032: chips post one value each, the no-JS textarea posts a list.
+  countries: z.union([z.string(), z.array(z.string())]).optional(),
+  regions: z.union([z.string(), z.array(z.string())]).optional(),
+  workplace: z.union([z.string(), z.array(z.string())]).optional(),
   onsiteCities: z.string().optional().default(''),
-  hybridOk: z.string().optional(),
   minSalaryUsd: z.coerce.number().int().min(0).default(0),
   minFitScore: z.coerce.number().int().min(0).max(100).default(70),
   telegramTargetId: z.string().optional().default(''),
+  resumeId: z.string().optional().default(''),
   priorityRules: z.string().optional().default(''),
   action: z.string().optional(),
 });
@@ -108,8 +124,6 @@ const AI_PROVIDER_DESCS: Record<AiProviderId, string> = {
   codex_cli: 'Headless codex exec on your ChatGPT subscription.',
 };
 
-const ENGINE_TEST_TIMEOUT_MS = 90_000;
-
 let reclassifyInFlight = false;
 
 export const settingsRoute = new Hono();
@@ -117,6 +131,8 @@ export const settingsRoute = new Hono();
 /** Everything the settings page needs except activeTab/flash/profileDraft —
  *  shared by the GET and by POSTs that render a draft instead of redirecting. */
 async function loadSettingsProps() {
+  // The keys are read once and lent to the probe — both need them (ADR 0027).
+  const aiKeys = await getAiKeys();
   const [settings, targets, profiles, active, resumes, aiStatuses, stageCounts] =
     await Promise.all([
       getSettings(),
@@ -124,7 +140,7 @@ async function loadSettingsProps() {
       listProfiles(),
       getActiveProfile(),
       listResumes(),
-      probeAiProviders(),
+      probeAiProviders(aiKeys),
       prisma.job.groupBy({
         by: ['pipelineStage'],
         _count: { _all: true },
@@ -134,7 +150,7 @@ async function loadSettingsProps() {
   const countByStage = new Map(
     stageCounts.map((row) => [row.pipelineStage, row._count._all]),
   );
-  const aiEnv = getAiEngineEnv();
+  const aiEnv = getAiEngineEnv(aiKeys);
   const engine = resolveAiEngine(settings.aiEngine, aiEnv);
   const aiConfig = parseAiEngineConfig(settings.aiEngine);
   // With no stored config the .env-seeded chain is shown as enabled.
@@ -143,6 +159,7 @@ async function loadSettingsProps() {
     const position = enabledOrder.indexOf(id);
     const classifierDefault = defaultModelFor(id, 'classifier', aiEnv) || 'CLI default';
     const resumeDefault = defaultModelFor(id, 'resume', aiEnv) || 'CLI default';
+    const storedKey = providerTakesKey(id) ? aiKeys[id] : undefined;
     return {
       id,
       label: AI_PROVIDER_LABELS[id],
@@ -161,6 +178,11 @@ async function loadSettingsProps() {
       options: PROVIDER_MODEL_OPTIONS[id],
       freeTextModels: id === 'openai_api',
       paid: PROVIDER_PAID[id],
+      // ADR 0027: the field takes a key, it never hands one back — only the
+      // last four characters of what is stored, and where it came from.
+      keyEnvVar: providerTakesKey(id) ? AI_KEY_ENV_VARS[id] : null,
+      keySource: aiKeySource(id, aiKeys),
+      maskedKey: storedKey ? maskToken(storedKey) : '',
     };
   }).sort((a, b) => {
     if (a.enabled !== b.enabled) return a.enabled ? -1 : 1;
@@ -206,10 +228,8 @@ async function loadSettingsProps() {
     profiles: profiles.map((p) => ({
       id: p.id,
       name: p.name,
-      stackPreview:
-        p.stackRequired.slice(0, 4).join(', ') +
-        (p.stackRequired.length > 4 ? '...' : ''),
-      active: active?.id === p.id,
+      running: p.active,
+      primary: active?.id === p.id,
       blank: isBlankProfile(p),
     })),
     activeProfile: active,
@@ -264,7 +284,7 @@ settingsRoute.post('/settings/fetching-toggle', async (c) => {
     return flashRedirect(
       back,
       'warn',
-      'Job fetching resumed, but the active profile has no required stack or role types — every fetched job goes to the AI classifier. Fill the profile first (Settings → Profile).',
+      'Job fetching resumed, but no running search has a required stack or role types — every fetched job goes to the AI classifier. Fill one in first (Settings → Profile).',
     );
   }
   return flashRedirect(back, 'ok', 'Job fetching resumed — next hourly tick will pull new jobs.');
@@ -375,46 +395,45 @@ settingsRoute.post('/settings/ai/models', async (c) => {
     : flashRedirect('/settings?tab=ai', 'ok', `${label} models saved.`);
 });
 
+/**
+ * Saves or removes one engine's pasted credential (ADR 0027). The value never
+ * comes back to the browser and never reaches a log line or a flash message —
+ * the response says which engine changed, not what was stored.
+ */
+settingsRoute.post('/settings/ai/key', async (c) => {
+  const form = await c.req.parseBody();
+  const provider = typeof form.provider === 'string' ? form.provider : '';
+  if (!isAiProviderId(provider) || !providerTakesKey(provider)) {
+    return flashRedirect('/settings?tab=ai', 'err', 'That engine does not take a pasted key.');
+  }
+  const label = AI_PROVIDER_LABELS[provider];
+  const clearing = form.clear === '1';
+  const key = typeof form.key === 'string' ? form.key.trim() : '';
+  if (!clearing && key.length === 0) {
+    return flashRedirect('/settings?tab=ai', 'err', `Paste a ${label} key first.`);
+  }
+  if (key.length > MAX_AI_KEY_LENGTH) {
+    return flashRedirect(
+      '/settings?tab=ai',
+      'err',
+      `That is ${key.length} characters — longer than any API key. Nothing saved.`,
+    );
+  }
+  await setAiKey(provider, clearing ? '' : key);
+  forgetAiProbe();
+  if (clearing) {
+    const fallback = aiKeySource(provider, {}) === 'env' ? ` Falling back to ${AI_KEY_ENV_VARS[provider]} from .env.` : '';
+    return flashRedirect('/settings?tab=ai', 'ok', `${label} key removed.${fallback}`);
+  }
+  return flashRedirect('/settings?tab=ai', 'ok', `${label} key saved. Press Test to prove it works.`);
+});
+
 settingsRoute.post('/settings/ai/test', async (c) => {
   const form = await c.req.parseBody();
   const provider = typeof form.provider === 'string' ? form.provider : '';
   if (!isAiProviderId(provider)) return flashRedirect('/settings?tab=ai', 'err', 'Unknown engine.');
-  const label = AI_PROVIDER_LABELS[provider];
-  let backend;
-  try {
-    backend = getAiProviderById(provider);
-  } catch (err) {
-    return flashRedirect(
-      '/settings?tab=ai',
-      'err',
-      `${label} test failed: ${err instanceof Error ? err.message : 'not configured'}.`,
-    );
-  }
-  const settings = await getSettings();
-  const engine = resolveAiEngine(settings.aiEngine, getAiEngineEnv());
-  const model = engine.modelFor(provider, 'classifier');
-  const started = Date.now();
-  const text = await backend.complete({
-    system: 'You are a connectivity test. Reply with exactly: OK',
-    user: 'Reply with exactly: OK',
-    maxTokens: 20,
-    label: 'engine-test',
-    model,
-    timeoutMs: ENGINE_TEST_TIMEOUT_MS,
-  });
-  const seconds = ((Date.now() - started) / 1000).toFixed(1);
-  if (text !== null) {
-    return flashRedirect(
-      '/settings?tab=ai',
-      'ok',
-      `${label} works — replied in ${seconds}s (model ${model || 'CLI default'}).`,
-    );
-  }
-  return flashRedirect(
-    '/settings?tab=ai',
-    'err',
-    `${label} test failed after ${seconds}s — see the web container logs for the reason.`,
-  );
+  const result = await testAiEngine(provider);
+  return flashRedirect('/settings?tab=ai', result.ok ? 'ok' : 'err', result.text);
 });
 
 function cleanModelId(value: unknown): string | null {
@@ -617,29 +636,48 @@ settingsRoute.post('/settings/targets/:id/test', async (c) => {
 // --- Profiles ---------------------------------------------------------------
 
 settingsRoute.post('/settings/profiles/new', async (c) => {
-  const profile = await createProfile({
-    name: 'New profile',
-    stackRequired: [],
-    roleTypes: [],
-    stackNiceToHave: [],
-    stackExclude: ['junior', 'intern'],
-    notes: null,
-    seniority: [],
-    remoteOk: true,
-    remoteRegions: [],
-    onsiteCities: [],
-    hybridOk: false,
-    minSalaryUsd: 0,
-    minFitScore: 70,
-    telegramTargetId: null,
-    priorityRules: [],
-  });
+  const profile = await createProfile(blankProfileInput());
   // Born inactive (issue #50): a blank profile must never become the
   // scoring profile. The first save with real content activates it.
   return flashRedirect(
     `/settings?tab=profile&profile=${profile.id}`,
     'ok',
-    'New profile created. Add a required stack or role types and save — it activates on the first save with content.',
+    'New search created. Add a required stack or role types and save — it starts running on the first save with content.',
+  );
+});
+
+// ADR 0028: run or pause one search. The primary is refused server-side —
+// the hidden Run/Pause button is advisory only.
+settingsRoute.post('/settings/profiles/active', async (c) => {
+  const form = await c.req.parseBody();
+  const id = Number(form.id);
+  const want = form.active === '1';
+  if (!Number.isFinite(id)) return flashRedirect('/settings?tab=profile', 'err', 'Invalid id.');
+  // Server-side half of the gate (issue #50): a search with nothing to match
+  // on would admit every posting and score it on vibes.
+  const target = await getProfile(id);
+  if (want && target && isBlankProfile(target)) {
+    return flashRedirect(
+      `/settings?tab=profile&profile=${id}`,
+      'err',
+      'This search has no required stack and no role types — fill it in and save before running it.',
+    );
+  }
+  try {
+    await setProfileActive(id, want);
+  } catch (err) {
+    return flashRedirect(
+      '/settings?tab=profile',
+      'err',
+      err instanceof Error ? err.message : 'Failed to change the search.',
+    );
+  }
+  return flashRedirect(
+    '/settings?tab=profile',
+    'ok',
+    want
+      ? `"${target?.name ?? 'Search'}" is running — new postings are scored against it too. "Save & re-classify" in its editor scores the ones already stored.`
+      : `"${target?.name ?? 'Search'}" paused. Its existing scores stay on the jobs it already scored.`,
   );
 });
 
@@ -654,7 +692,7 @@ settingsRoute.post('/settings/profiles/activate', async (c) => {
     return flashRedirect(
       `/settings?tab=profile&profile=${id}`,
       'err',
-      'This profile has no required stack and no role types — fill it in and save before activating.',
+      'This search has no required stack and no role types — fill it in and save before making it primary.',
     );
   }
   try {
@@ -663,19 +701,20 @@ settingsRoute.post('/settings/profiles/activate', async (c) => {
     return flashRedirect(
       '/settings?tab=profile',
       'err',
-      err instanceof Error ? err.message : 'Failed to activate.',
+      err instanceof Error ? err.message : 'Failed to change the primary search.',
     );
   }
   return flashRedirect(
     '/settings?tab=profile',
     'ok',
-    'Profile activated. Click "Re-classify all jobs" to score them with this profile.',
+    'Primary search changed. It also runs from now on; "Save & re-classify" in the editor re-scores existing jobs.',
   );
 });
 
-settingsRoute.post('/settings/profiles/:id/delete', async (c) => {
-  const id = Number(c.req.param('id'));
-  if (!Number.isFinite(id)) return c.text('Bad id', 400);
+settingsRoute.post('/settings/profiles/delete', async (c) => {
+  const form = await c.req.parseBody();
+  const id = Number(form.id);
+  if (!Number.isFinite(id)) return flashRedirect('/settings?tab=profile', 'err', 'Invalid id.');
   try {
     await deleteProfile(id);
   } catch (err) {
@@ -685,7 +724,7 @@ settingsRoute.post('/settings/profiles/:id/delete', async (c) => {
       err instanceof Error ? err.message : 'Delete failed.',
     );
   }
-  return flashRedirect('/settings?tab=profile', 'ok', 'Profile deleted.');
+  return flashRedirect('/settings?tab=profile', 'ok', 'Search deleted.');
 });
 
 settingsRoute.post('/settings/profiles/:id/save', async (c) => {
@@ -709,10 +748,8 @@ settingsRoute.post('/settings/profiles/:id/save', async (c) => {
   }
   const f = parsed.data;
 
-  const telegramTargetId =
-    f.telegramTargetId && f.telegramTargetId.length > 0
-      ? Number(f.telegramTargetId)
-      : null;
+  const telegramTargetId = optionalId(f.telegramTargetId);
+  const resumeId = optionalId(f.resumeId);
 
   const { rules: priorityRules, errors: priorityErrors } =
     parsePriorityRulesText(f.priorityRules);
@@ -725,6 +762,32 @@ settingsRoute.post('/settings/profiles/:id/save', async (c) => {
     );
   }
 
+  // Both ids come from dropdowns rendered when the page loaded; either row
+  // can be gone by the time the form arrives (issue #73). Prisma's answer to
+  // a dead id is a raw foreign-key error — a 500 with the whole edit lost.
+  const [resumeRow, targetRow] = await Promise.all([
+    resumeId === null ? null : getResume(resumeId),
+    telegramTargetId === null
+      ? null
+      : prisma.telegramTarget.findUnique({ where: { id: telegramTargetId }, select: { id: true } }),
+  ]);
+  const missing = missingLinkMessage({
+    resumeGone: resumeId !== null && resumeRow === null,
+    telegramTargetGone: telegramTargetId !== null && targetRow === null,
+  });
+  if (missing) return flashRedirect('/settings?tab=profile', 'err', missing);
+
+  // Countries arrive as names, codes or flags in any spelling; an entry the
+  // gazetteer does not know is an error, not a silent drop.
+  const countries = resolveCountries(toStringArray(f.countries).flatMap(parseTagList));
+  if (countries.unknown.length > 0) {
+    return flashRedirect(
+      '/settings?tab=profile',
+      'err',
+      `Country not recognised: ${countries.unknown.join(', ')}. Profile not saved.`,
+    );
+  }
+
   const input = {
     name: f.name,
     stackRequired: parseTagList(f.stackRequired),
@@ -733,76 +796,86 @@ settingsRoute.post('/settings/profiles/:id/save', async (c) => {
     stackExclude: parseTagList(f.stackExclude),
     notes: f.notes && f.notes.trim().length > 0 ? f.notes.trim() : null,
     seniority: toStringArray(f.seniority),
-    remoteOk: f.remoteOk === '1',
-    remoteRegions: toStringArray(f.remoteRegions),
+    countries: countries.codes,
+    regions: toStringArray(f.regions).filter(isRegionCode),
+    workplace: toStringArray(f.workplace).filter(isProfileWorkplace),
     onsiteCities: parseTagList(f.onsiteCities),
-    hybridOk: f.hybridOk === '1',
     minSalaryUsd: f.minSalaryUsd,
     minFitScore: f.minFitScore,
-    telegramTargetId:
-      telegramTargetId !== null && Number.isFinite(telegramTargetId)
-        ? telegramTargetId
-        : null,
+    telegramTargetId,
+    resumeId,
     priorityRules,
   };
   await updateProfile(id, input);
 
-  // The second half of "born inactive" (issue #50): the first save that
-  // gives a blank profile real content makes it the active profile. Edits
-  // to profiles that already had content never steal activation.
-  const active = await getActiveProfile();
-  let isActive = active?.id === id;
+  // The second half of "born inactive" (issue #50): the first save that gives
+  // a blank search real content starts it running. Since ADR 0028 that no
+  // longer displaces anything — the searches already running keep running, and
+  // the primary is untouched.
+  let isActive = before.active;
   let activated = false;
   if (!isActive && isBlankProfile(before) && !isBlankProfile(input)) {
-    await setActiveProfile(id);
+    await setProfileActive(id, true);
     isActive = true;
     activated = true;
   }
-  const editorUrl = isActive
-    ? '/settings?tab=profile'
-    : `/settings?tab=profile&profile=${id}`;
+  const active = await getActiveProfile();
+  const editorUrl =
+    active?.id === id ? '/settings?tab=profile' : `/settings?tab=profile&profile=${id}`;
 
   if (f.action === 'save-and-reclassify') {
     if (!isActive) {
       return flashRedirect(
         editorUrl,
         'warn',
-        'Profile saved, but re-classify skipped — it runs against the active profile only.',
+        'Search saved, but re-classify skipped — it scores against running searches only. Press Run first.',
       );
     }
     triggerReclassifyAsync();
     return flashRedirect(
       editorUrl,
       'ok',
-      `Profile saved${activated ? ' and activated' : ''}. Re-classify started in the background — track progress at /runs.`,
+      `Search saved${activated ? ' and started' : ''}. Re-classify started in the background — track progress at /runs.`,
     );
   }
   if (activated) {
-    return flashRedirect(editorUrl, 'ok', 'Profile saved and activated.');
+    return flashRedirect(editorUrl, 'ok', 'Search saved and started — it scores new postings from the next tick.');
   }
   if (!isActive && isBlankProfile(input)) {
     return flashRedirect(
       editorUrl,
       'ok',
-      'Profile saved. It stays inactive until it lists a required stack or role types.',
+      'Search saved. It stays paused until it lists a required stack or role types.',
     );
   }
-  return flashRedirect(editorUrl, 'ok', 'Profile saved.');
+  return flashRedirect(editorUrl, 'ok', 'Search saved.');
 });
 
 // Prefill the editor from a resume's AI scan. Renders the draft directly —
-// nothing is saved until the user submits the profile form.
-settingsRoute.post('/settings/profiles/:id/fill-from-resume', async (c) => {
+// nothing is saved until the user submits the profile form. With no resumes
+// yet the card sends a file instead of a resumeId: the upload becomes a real
+// Resume row (first one turns default in createResume), then the same flow.
+settingsRoute.post(
+  '/settings/profiles/:id/fill-from-resume',
+  resumeUploadLimit('/settings?tab=profile'),
+  async (c) => {
   const id = Number(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text('Bad id', 400);
   const profile = await getProfile(id);
   if (!profile) return flashRedirect('/settings?tab=profile', 'err', 'Profile not found.');
   const form = await c.req.parseBody();
-  const resumeId = Number(form.resumeId);
-  if (!Number.isFinite(resumeId)) {
-    return flashRedirect('/settings?tab=profile', 'err', 'Pick a resume first.');
+  let resume;
+  if (form.file instanceof File && form.file.size > 0) {
+    const upload = await readResumeUpload(form);
+    if ('error' in upload) return flashRedirect('/settings?tab=profile', 'err', upload.error);
+    resume = await createResume({ name: nameFromFilename(upload.sourceFilename), ...upload });
+  } else {
+    const resumeId = Number(form.resumeId);
+    if (!Number.isFinite(resumeId)) {
+      return flashRedirect('/settings?tab=profile', 'err', 'Pick a resume first.');
+    }
+    resume = await getResume(resumeId);
   }
-  let resume = await getResume(resumeId);
   if (!resume || resume.hidden) {
     return flashRedirect('/settings?tab=profile', 'err', 'Resume not found.');
   }
@@ -817,7 +890,7 @@ settingsRoute.post('/settings/profiles/:id/fill-from-resume', async (c) => {
         `The AI scan of "${resume.name}" failed — check the web logs and try again.`,
       );
     }
-    resume = (await getResume(resumeId)) ?? resume;
+    resume = (await getResume(resume.id)) ?? resume;
   }
 
   const draft = buildProfileDraft(profile, {
@@ -827,7 +900,10 @@ settingsRoute.post('/settings/profiles/:id/fill-from-resume', async (c) => {
     primarySkills: resume.primarySkills,
     roleTypes: resume.roleTypes,
   });
-  if (draft.changed.length === 0) {
+  // Filling from a resume also proposes it as the search's resume — same
+  // review-then-save contract (ADR 0015): the select below carries it.
+  const linking = profile.resumeId !== resume.id;
+  if (draft.changed.length === 0 && !linking) {
     const note = draft.warnings[0] ? ` — ${draft.warnings[0]}` : '';
     return flashRedirect(
       '/settings?tab=profile',
@@ -842,10 +918,10 @@ settingsRoute.post('/settings/profiles/:id/fill-from-resume', async (c) => {
       {...props}
       activeTab="profile"
       flash={null}
-      activeProfile={{ ...profile, ...draft.changes }}
+      activeProfile={{ ...profile, ...draft.changes, resumeId: resume.id }}
       profileDraft={{
         resumeName: resume.name,
-        changed: draft.changed,
+        changed: linking ? [...draft.changed, 'resume for this search'] : draft.changed,
         warnings: draft.warnings,
       }}
     />,
@@ -853,22 +929,14 @@ settingsRoute.post('/settings/profiles/:id/fill-from-resume', async (c) => {
 });
 
 // --- Re-classify ------------------------------------------------------------
+// Reached only through "Save & re-classify" in the profile editor — the
+// standalone top-row button was removed (docs/onboarding-plan.md §3).
 
-settingsRoute.post('/settings/reclassify', (c) => {
-  if (reclassifyInFlight) {
-    return flashRedirect(
-      '/settings?tab=profile',
-      'err',
-      'A re-classify is already running. Watch /runs for progress.',
-    );
-  }
-  triggerReclassifyAsync();
-  return flashRedirect(
-    '/settings?tab=profile',
-    'ok',
-    'Re-classify started in the background. Track progress at /runs.',
-  );
-});
+/** An optional `<select>` of row ids: "" (the "none" option) and junk both mean null. */
+function optionalId(value: string): number | null {
+  const n = Number(value);
+  return Number.isInteger(n) && n > 0 ? n : null;
+}
 
 function triggerReclassifyAsync(): void {
   if (reclassifyInFlight) return;

@@ -11,7 +11,15 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
     ports:
-      - "5432:5432"
+      # Loopback only, and 5433 on purpose. "5432:5432" published the database
+      # on every interface with the password above — on any shared network that
+      # is the whole dataset (resumes, applications, and the AI keys in
+      # app_settings) one connection away. The app itself never uses this port:
+      # it reaches Postgres over the compose network as postgres:5432. This
+      # publish exists for psql and Prisma on the host, and 5433 keeps it clear
+      # of a Postgres already running there — which would otherwise shadow
+      # localhost:5432 and silently answer host tools from the wrong database.
+      - "127.0.0.1:5433:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U jobhunter -d jobhunter"]
       interval: 5s

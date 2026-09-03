@@ -1,0 +1,21 @@
+-- Answers to the strength review's questions (ADR 0030 phase 3).
+--
+-- The review asks for the numbers only the candidate has ("how many requests
+-- per day did that service handle?") instead of inventing them. Until now the
+-- question was a dead end: nothing could be answered, so the next run asked
+-- again. The answer goes into the next prompt, and the model rewrites the line
+-- with the real figure.
+--
+-- On "resume", not on "resume_review", and deliberately:
+--   * an answer is a fact about the DOCUMENT, not about one run of the rubric,
+--     and it must survive the re-run it feeds (a review row is per-press);
+--   * it must not go into candidate_fact either — that dictionary is skill
+--     vocabulary that feeds the MATCH prompt, and "1.2M requests/day" would
+--     poison it as a keyword;
+--   * one JSON column, no new table, cascade already handled by the resume row.
+--
+-- Shape: [{ "question": string, "answer": string, "answeredAt": ISO string }].
+-- Default '[]' so every existing resume reads as "nothing answered yet"; no
+-- backfill is possible or needed.
+
+ALTER TABLE "resume" ADD COLUMN "answers" JSONB NOT NULL DEFAULT '[]';

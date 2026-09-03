@@ -210,6 +210,37 @@ const SEED_COMPANIES: SeedCompany[] = [
     careerUrl: 'https://www.arbeitnow.com',
     active: false,
   },
+  {
+    // Same board, only the postings whose employer sponsors a visa — a
+    // server-side filter, so a feed of its own (stage 3a). Off until a
+    // search needs it, like the plain feed.
+    name: 'Arbeitnow · visa sponsorship',
+    atsType: AtsType.ARBEITNOW,
+    atsToken: 'visa',
+    careerUrl: 'https://www.arbeitnow.com/?visa_sponsorship=true',
+    active: false,
+  },
+
+  // DOU.ua (stage 3b) — one row per feed query; the reference deployment's
+  // own search is PHP, so that is the seeded example. Off until a search
+  // hunts in Ukraine; add other queries on /companies (category=…, search=…).
+  {
+    name: 'DOU · PHP, remote',
+    atsType: AtsType.DOU,
+    atsToken: 'category=PHP&remote',
+    careerUrl: 'https://jobs.dou.ua/vacancies/?category=PHP&remote',
+    active: false,
+  },
+
+  // Djinni (stage 3b) — one row per filter string; the location lives in the
+  // filter, so the row's name says it. Off until a search hunts in Ukraine.
+  {
+    name: 'Djinni · PHP, remote, Ukraine',
+    atsType: AtsType.DJINNI,
+    atsToken: 'primary_keyword=PHP&employment=remote&region=UKR',
+    careerUrl: 'https://djinni.co/jobs/?primary_keyword=PHP&employment=remote&region=UKR',
+    active: false,
+  },
 
   // HN /jobs — individual YC-job posts indexed by Algolia under
   // tags=job (separate from the monthly Who-is-hiring thread). Each

@@ -7,6 +7,7 @@ import {
   Card,
   FitBadge,
   Hint,
+  SUBMIT_ONCE,
   Input,
   MarkIcon,
   SectionTitle,
@@ -28,6 +29,11 @@ import {
   type MatchHardRequirement,
   type MatchKeyword,
 } from '../../resume/prompts';
+import { freshFrame, freshFrameNotice } from '../../resume/keyword-frame';
+import { readMatchMode, type MatchMode } from '../../resume/match-mode';
+import type { CountedKeyword } from '../../resume/keyword-matcher';
+import { effectiveRequirement, isIgnored } from '../../resume/keyword-overrides';
+import { REQUIREMENT_LEVELS, type RequirementLevel } from '../../resume/score';
 import { readBreakdown, type ScoreBreakdown } from '../../resume/score';
 import { diffMatches } from '../../resume/diff';
 
@@ -36,8 +42,12 @@ export interface ResumeMatchCardProps {
   resumes: { id: number; name: string; isDefault: boolean }[];
   /** Best skill overlap for this posting — preselected in the dropdown. */
   suggestedResumeId: number | null;
+  /** Why that one is preselected: the search names it, or it overlaps the posting most. */
+  suggestedReason: 'linked' | 'overlap';
   matches: MatchWithResume[];
   selected: MatchWithResume | null;
+  /** The selected comparison's keywords, ordered and counted by the matcher. */
+  selectedKeywords: CountedKeyword[];
 }
 
 const PRIORITY_TONE: Record<MatchAction['priority'], Tone> = {
@@ -54,10 +64,28 @@ const STATUS_VIEW: Record<MatchKeyword['status'], { label: string; tone: Tone }>
   cannot_claim: { label: 'no evidence', tone: 'danger' },
 };
 
-/** Sort order for the needs-attention keyword rows: hardest requirement first. */
-const REQ_RANK: Record<string, number> = { must: 0, preferred: 1, nice: 2, context: 3 };
-
 const KEYWORD_COLUMNS = ['Keyword', 'Wants it', 'Status', 'Where', 'Note'];
+
+/** Where a keyword edit posts and where it comes back to (§5). */
+export interface KeywordEditTarget {
+  jobId: number;
+  matchId: number;
+  back: string;
+}
+
+/**
+ * What "Rebuild keywords" needs to re-run this comparison (issue #79). The
+ * targeted view passes `formId` so its own form — the one carrying the live
+ * editor text — is submitted instead of ours.
+ */
+export interface RebuildTarget {
+  jobId: number;
+  resumeId: number;
+  mode: MatchMode;
+  /** The analysed text when it was an unsaved draft: re-judged as is, so the frame is the only thing that changes. */
+  draftText?: string;
+  formId?: string;
+}
 
 const HARD_VIEW: Record<MatchHardRequirement['status'], { label: string; tone: Tone }> = {
   pass: { label: 'pass', tone: 'ok' },
@@ -71,8 +99,10 @@ export const ResumeMatchCard: FC<ResumeMatchCardProps> = ({
   jobId,
   resumes,
   suggestedResumeId,
+  suggestedReason,
   matches,
   selected,
+  selectedKeywords,
 }) => (
   <div id="resume-match">
     <Card>
@@ -86,23 +116,41 @@ export const ResumeMatchCard: FC<ResumeMatchCardProps> = ({
           to see what to change before applying here.
         </Hint>
       ) : (
-        <form method="post" action={`/jobs/${jobId}/match`} class="flex flex-wrap items-end gap-3">
+        <form method="post" action={`/jobs/${jobId}/match`} class="flex flex-wrap items-end gap-3" onsubmit={SUBMIT_ONCE}>
+          {/* Set by the second button's click: SUBMIT_ONCE disables the buttons in the
+              submit event, and a disabled submitter is left out of the form data. */}
+          <input type="hidden" name="mode" value="fast" />
           <label class="block min-w-0 max-w-full">
             <span class="block text-[13px] font-medium text-ink">Resume</span>
             <Select name="resumeId" class="mt-1.5 !w-auto max-w-full">
               {resumes.map((r) => (
                 <option value={r.id} selected={r.id === (suggestedResumeId ?? resumes[0]?.id)}>
                   {r.name}
-                  {r.id === suggestedResumeId ? ' · best skill overlap' : ''}
+                  {r.id === suggestedResumeId
+                    ? suggestedReason === 'linked'
+                      ? ' · your search hunts with this'
+                      : ' · best skill overlap'
+                    : ''}
                   {r.isDefault ? ' · default' : ''}
                 </option>
               ))}
             </Select>
           </label>
-          <Button variant="violet">Compare</Button>
+          <Button variant="violet" title="Keywords, hard requirements and the score — no edit suggestions">
+            Compare
+          </Button>
+          <Button
+            variant="secondary"
+            onclick="this.form.elements.mode.value='full'"
+            title="The same check plus what to change and what to remove"
+          >
+            Full analysis
+          </Button>
           <Hint class="basis-full">
-            One call to the resume model, about a minute. The score itself is computed
-            deterministically from the reply — same facts, same number, every time.
+            Compare is the quick check — one call to the resume model, about half a minute on
+            Opus, and you can ask for the suggestions afterwards. Full analysis writes them right
+            away and takes 1½ to 2 minutes. The score itself is computed deterministically from
+            the reply — same facts, same number, every time.
           </Hint>
         </form>
       )}
@@ -111,6 +159,7 @@ export const ResumeMatchCard: FC<ResumeMatchCardProps> = ({
         <MatchReport
           match={selected}
           previous={previousFor(selected, matches)}
+          keywords={selectedKeywords}
           factsBack={`/jobs/${jobId}?match=${selected.id}#resume-match`}
         />
       )}
@@ -272,12 +321,15 @@ export const ConfirmFacts: FC<{ asks: MatchKeyword[]; matchId: number; back: str
 export const MatchReport: FC<{
   match: MatchWithResume;
   previous: MatchWithResume | null;
-  /** Where the ask_user confirm/deny forms return to. */
+  /** This match's keywords, ordered and counted by the matcher (§5). */
+  keywords: CountedKeyword[];
+  /** Where the ask_user confirm/deny and keyword-override forms return to. */
   factsBack: string;
-}> = ({ match, previous, factsBack }) => {
-  const keywords = readKeywords(match.keywords);
+}> = ({ match, previous, keywords, factsBack }) => {
   const bd = readBreakdown(match.breakdown);
-  const scoreDelta = previous ? match.matchScore - previous.matchScore : null;
+  // A re-extracted frame counts different terms, so the older number is not a
+  // baseline for this one (keyword-frame.ts). DeltaBox says so in words.
+  const scoreDelta = previous && !freshFrame(match.breakdown) ? match.matchScore - previous.matchScore : null;
   return (
     <div class="mt-5 space-y-5 border-t border-line pt-4">
       <div class="flex flex-wrap items-center gap-3">
@@ -315,12 +367,54 @@ export const MatchReport: FC<{
         back={factsBack}
       />
 
-      <ActionsBlock actions={readActions(match.actions)} />
-      <RemovalsBlock removals={readRemovals(match.removals)} />
-      <KeywordTable keywords={keywords} />
+      {readMatchMode(match.breakdown) === 'fast' ? (
+        <SuggestionsPrompt matchId={match.id} jobId={match.jobId} />
+      ) : (
+        <>
+          <ActionsBlock actions={readActions(match.actions)} />
+          <RemovalsBlock removals={readRemovals(match.removals)} />
+        </>
+      )}
+      {/* A comparison written before ADR 0012 has no breakdown to re-score
+          from, so it gets the table without the controls rather than buttons
+          that can only fail. */}
+      <KeywordTable
+        keywords={keywords}
+        edit={bd ? { jobId: match.jobId, matchId: match.id, back: factsBack } : undefined}
+        rebuild={{
+          jobId: match.jobId,
+          resumeId: match.resumeId,
+          mode: readMatchMode(match.breakdown),
+          ...(match.draft ? { draftText: match.resumeText } : {}),
+        }}
+      />
     </div>
   );
 };
+
+/**
+ * What a quick check shows where the suggestions would be: the second call is
+ * one button away and never changes the score (ADR 0029).
+ */
+export const SuggestionsPrompt: FC<{ matchId: number; jobId: number; next?: 'target' }> = ({
+  matchId,
+  jobId,
+  next,
+}) => (
+  <div class="rounded-md border border-line bg-surface-overlay/50 p-3">
+    <div class={SUBHEAD}>What to change — not written yet</div>
+    <p class="mb-2.5 text-sm leading-6 text-ink-muted">
+      This was a quick check: keywords, hard requirements and the score. Edit suggestions are a
+      second call to the resume model that reuses these verdicts — about a minute on Opus, and the
+      score stays exactly as it is.
+    </p>
+    <ActionForm action={`/jobs/${jobId}/matches/${matchId}/suggestions`} hidden={next ? { next } : undefined}>
+      <Button size="sm" variant="violet">
+        Get suggestions
+      </Button>
+    </ActionForm>
+  </div>
+);
 
 /** Version-over-version diff: gained/lost keywords + component deltas. */
 export const DeltaBox: FC<{ match: MatchWithResume; previous: MatchWithResume | null }> = ({
@@ -328,6 +422,15 @@ export const DeltaBox: FC<{ match: MatchWithResume; previous: MatchWithResume | 
   previous,
 }) => {
   if (!previous) return null;
+  const fresh = freshFrame(match.breakdown);
+  if (fresh) {
+    return (
+      <div class="rounded-md border border-line bg-surface-overlay/50 px-3 py-2 text-xs leading-5 text-ink-muted">
+        <span class="font-medium text-ink">Not comparable with v{previous.resumeVersion}: </span>
+        {freshFrameNotice(fresh)}
+      </div>
+    );
+  }
   const delta = diffMatches(
     { keywords: readKeywords(previous.keywords), breakdown: readBreakdown(previous.breakdown) },
     { keywords: readKeywords(match.keywords), breakdown: readBreakdown(match.breakdown) },
@@ -486,24 +589,40 @@ export const RemovalsBlock: FC<{ removals: ReturnType<typeof readRemovals>; jump
     </div>
   );
 
-/** Keyword coverage: needs-attention rows first, matched rows behind a disclosure. */
-export const KeywordTable: FC<{ keywords: MatchKeyword[] }> = ({ keywords }) => {
+/**
+ * Keyword coverage: needs-attention rows first, matched rows behind a
+ * disclosure, and — when the user has ignored any — a third group they can
+ * bring back. Rows arrive ORDERED (hardest requirement first, ties broken by
+ * how often the posting repeats the term): only the matcher can count that,
+ * so the routes order through it and this component renders what it is given.
+ *
+ * With `edit`, every row carries the §5 controls: re-level, ignore, reset,
+ * and a form to add a term the model missed. Each is a plain POST that
+ * recomputes the score in code — no AI call.
+ */
+export const KeywordTable: FC<{
+  keywords: CountedKeyword[];
+  edit?: KeywordEditTarget;
+  rebuild?: RebuildTarget;
+}> = ({ keywords, edit, rebuild }) => {
   if (keywords.length === 0) return null;
-  // Problems first: unmatched keywords sorted hardest-requirement-first; matched
-  // rows fold behind a disclosure so success noise never buries the gaps.
-  const attention = keywords
-    .filter((k) => k.status !== 'present')
-    .sort((a, b) => (REQ_RANK[a.requirement ?? ''] ?? 4) - (REQ_RANK[b.requirement ?? ''] ?? 4));
-  const matchedKeywords = keywords.filter((k) => k.status === 'present');
+  const ignored = keywords.filter(isIgnored);
+  const counted = keywords.filter((k) => !isIgnored(k));
+  const attention = counted.filter((k) => k.status !== 'present');
+  const matchedKeywords = counted.filter((k) => k.status === 'present');
   return (
     <div class="-mx-5 -mb-5 border-t border-line">
-      <div class="px-5 py-3 text-[13px] font-medium text-ink-muted">
-        Keyword coverage — {matchedKeywords.length} of {keywords.length} matched
+      <div class="flex flex-wrap items-center gap-x-3 gap-y-1 px-5 py-3 text-[13px] font-medium text-ink-muted">
+        <span>
+          Keyword coverage — {matchedKeywords.length} of {counted.length} matched
+          {ignored.length > 0 ? ` · ${ignored.length} ignored` : ''}
+        </span>
+        {rebuild && <RebuildKeywords target={rebuild} />}
       </div>
       {attention.length > 0 ? (
         <Table columns={KEYWORD_COLUMNS}>
           {attention.map((k) => (
-            <KeywordRow k={k} />
+            <KeywordRow k={k} edit={edit} />
           ))}
         </Table>
       ) : (
@@ -511,44 +630,212 @@ export const KeywordTable: FC<{ keywords: MatchKeyword[] }> = ({ keywords }) => 
       )}
       {matchedKeywords.length > 0 && (
         <details>
-          <summary class="cursor-pointer border-t border-line px-5 py-2.5 text-[13px] font-medium text-ink-muted transition-colors duration-150 hover:text-ink">
-            Matched — {matchedKeywords.length} keywords
-          </summary>
+          <summary class={KEYWORD_SUMMARY}>Matched — {matchedKeywords.length} keywords</summary>
           <Table columns={KEYWORD_COLUMNS}>
             {matchedKeywords.map((k) => (
-              <KeywordRow k={k} />
+              <KeywordRow k={k} edit={edit} />
             ))}
           </Table>
         </details>
       )}
+      {ignored.length > 0 && (
+        <details>
+          <summary class={KEYWORD_SUMMARY}>
+            Ignored — {ignored.length} keyword{ignored.length === 1 ? '' : 's'} out of the score
+          </summary>
+          <Table columns={KEYWORD_COLUMNS}>
+            {ignored.map((k) => (
+              <KeywordRow k={k} edit={edit} />
+            ))}
+          </Table>
+        </details>
+      )}
+      {edit && <AddKeywordForm edit={edit} />}
     </div>
   );
 };
+
+/**
+ * The way out of a keyword frame that got it wrong (issue #79): one run with
+ * the stored list withheld, so the model reads the posting again. The user's
+ * own keyword edits are re-applied to whatever comes back — a rebuild resets
+ * the model's guess, not their decisions.
+ */
+function rebuildTitle(mode: MatchMode): string {
+  return `Runs this ${mode === 'fast' ? 'check (~½ min on Opus)' : 'full analysis (~2 min on Opus)'} once without the stored keyword list, so the model reads the terms out of the posting again. Your own keyword edits are kept; the new score counts a different set of terms.`;
+}
+
+const RebuildKeywords: FC<{ target: RebuildTarget }> = ({ target }) =>
+  target.formId ? (
+    <button
+      type="submit"
+      form={target.formId}
+      class={`${ROW_LINK} ml-auto`}
+      title={rebuildTitle(target.mode)}
+      onclick={`this.form.elements.rebuild.value='1';this.form.elements.mode.value='${target.mode}'`}
+    >
+      Rebuild keywords
+    </button>
+  ) : (
+    <form method="post" action={`/jobs/${target.jobId}/match`} class="ml-auto" onsubmit={SUBMIT_ONCE}>
+      <input type="hidden" name="resumeId" value={String(target.resumeId)} />
+      <input type="hidden" name="mode" value={target.mode} />
+      <input type="hidden" name="rebuild" value="1" />
+      {/* A draft row was judged on text no version holds — send it back, or the
+          rebuild would quietly score the stored resume instead. */}
+      {target.draftText !== undefined && <input type="hidden" name="draftText" value={target.draftText} />}
+      <button type="submit" class={ROW_LINK} title={rebuildTitle(target.mode)}>
+        Rebuild keywords
+      </button>
+    </form>
+  );
+
+const KEYWORD_SUMMARY =
+  'cursor-pointer border-t border-line px-5 py-2.5 text-[13px] font-medium text-ink-muted transition-colors duration-150 hover:text-ink';
 
 function fmtDelta(n: number): string {
   return `${n > 0 ? '+' : ''}${n}`;
 }
 
-const KeywordRow: FC<{ k: MatchKeyword }> = ({ k }) => (
-  <Tr>
+const KeywordRow: FC<{ k: CountedKeyword; edit?: KeywordEditTarget }> = ({ k, edit }) => (
+  <Tr class={isIgnored(k) ? 'opacity-60' : ''}>
     <Td class="text-xs font-medium text-ink">
       <span class="inline-flex flex-wrap items-center gap-1.5">
         {k.term}
         {k.primary && <Badge tone="info">primary</Badge>}
+        {k.count > 1 && (
+          <span class="font-mono text-ink-faint" title={`the posting says it ${k.count} times`}>
+            ×{k.count}
+          </span>
+        )}
+        {k.override?.added && <Badge tone="violet">yours</Badge>}
       </span>
     </Td>
-    <Td class="text-xs text-ink-faint" title={`priority ${k.priority}`}>
-      {k.requirement}
+    <Td class="text-xs text-ink-faint">
+      {edit ? <LevelControls k={k} edit={edit} /> : effectiveRequirement(k)}
     </Td>
     <Td>
       <span class="inline-flex flex-wrap items-center gap-1">
         <Badge tone={STATUS_VIEW[k.status].tone}>{STATUS_VIEW[k.status].label}</Badge>
         {k.elsewhere && <Badge tone="violet">in "{k.elsewhere}"</Badge>}
+        {k.unanchored && (
+          <span
+            title={
+              k.override?.added
+                ? 'You added this word and the posting does not contain it, so the description pane cannot highlight it.'
+                : 'The AI worded this keyword differently from the posting, so the description pane cannot highlight it.'
+            }
+          >
+            <Badge>not in posting</Badge>
+          </span>
+        )}
       </span>
     </Td>
     <Td class="text-xs text-ink-muted">{k.where ?? '—'}</Td>
     <Td class="max-w-md text-xs text-ink-muted">{k.note ?? '—'}</Td>
   </Tr>
+);
+
+/*
+ * One form per row: the select posts on change, and each button sets `op`
+ * before submitting (the same idiom as the Compare / Full analysis pair
+ * above), so the row never sends two conflicting values for one field.
+ */
+const LevelControls: FC<{ k: CountedKeyword; edit: KeywordEditTarget }> = ({ k, edit }) => {
+  const level = effectiveRequirement(k);
+  const overridden = k.override?.requirement !== undefined;
+  return (
+    <form
+      method="post"
+      action={`/jobs/${edit.jobId}/matches/${edit.matchId}/keywords`}
+      class="flex flex-wrap items-center gap-1.5"
+    >
+      <input type="hidden" name="term" value={k.term} />
+      <input type="hidden" name="back" value={edit.back} />
+      <input type="hidden" name="op" value="level" />
+      <Select
+        name="requirement"
+        class="!w-auto py-1 text-xs"
+        onchange="this.form.submit()"
+        aria-label={`How much the posting wants ${k.term}`}
+        title={
+          !overridden
+            ? 'how much the posting wants it'
+            : level === k.requirement
+              ? 'you set this level — it stays yours on every re-run'
+              : `you set this — the AI said ${k.requirement}`
+        }
+      >
+        {REQUIREMENT_LEVELS.map((r) => (
+          <option value={r} selected={r === level}>
+            {r}
+          </option>
+        ))}
+      </Select>
+      {overridden && <Badge tone="violet">yours</Badge>}
+      <button
+        type="submit"
+        class={ROW_LINK}
+        onclick={`this.form.elements.op.value='${isIgnored(k) ? 'restore' : 'ignore'}'`}
+        title={
+          isIgnored(k)
+            ? 'Count this keyword again'
+            : 'Noise: drop it from the score and the highlights (you can bring it back)'
+        }
+      >
+        {isIgnored(k) ? 'restore' : 'ignore'}
+      </button>
+      {(overridden || k.override?.added) && (
+        <button
+          type="submit"
+          class={ROW_LINK}
+          onclick="this.form.elements.op.value='reset'"
+          title={k.override?.added ? 'Remove the keyword you added' : "Back to the AI's own verdict"}
+        >
+          {k.override?.added ? 'remove' : 'reset'}
+        </button>
+      )}
+    </form>
+  );
+};
+
+const ROW_LINK =
+  'cursor-pointer whitespace-nowrap text-xs text-ink-muted underline-offset-2 transition-colors duration-150 hover:text-ink hover:underline';
+
+/** A word the model missed. Status is read from the resume text, never guessed. */
+const AddKeywordForm: FC<{ edit: KeywordEditTarget }> = ({ edit }) => (
+  <form
+    method="post"
+    action={`/jobs/${edit.jobId}/matches/${edit.matchId}/keywords`}
+    class="flex flex-wrap items-end gap-2 border-t border-line px-5 py-3"
+  >
+    <input type="hidden" name="op" value="add" />
+    <input type="hidden" name="back" value={edit.back} />
+    <label class="block">
+      <span class="block text-[13px] font-medium text-ink">Add a keyword</span>
+      <Input
+        name="term"
+        required
+        maxlength={60}
+        placeholder="a word this posting wants"
+        class="mt-1.5 !w-56 py-1 text-xs"
+      />
+    </label>
+    <Select name="requirement" class="!w-auto py-1 text-xs" aria-label="How much the posting wants it">
+      {REQUIREMENT_LEVELS.map((r) => (
+        <option value={r} selected={r === 'preferred'}>
+          {r}
+        </option>
+      ))}
+    </Select>
+    <Button size="sm" variant="secondary">
+      Add
+    </Button>
+    <Hint class="basis-full">
+      It counts in the score straight away — matched if your resume already says it, otherwise a
+      confirm question. No AI call.
+    </Hint>
+  </form>
 );
 
 const MarkedList: FC<{ label: string; items: string[]; kind: 'check' | 'x'; tone: string }> = ({

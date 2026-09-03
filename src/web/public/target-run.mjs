@@ -1,11 +1,23 @@
 /*
- * Progress-page driver: polls /target/runs/:id/state every 2 s, advances the
+ * Progress-page driver: polls the run's state route every 2 s, advances the
  * step list and rotates a "what the analysis is doing right now" line with a
  * fade. On a terminal state it reloads — the server route then redirects with
  * the flash. The activity lines mirror the checklist the prompts actually walk
  * through (profile scoring; the MATCH_SYSTEM steps), paced by stage-elapsed
- * time. activityFor is pure — tested from src/web/target-run.test.ts.
+ * time. The "Fetch now" page reuses init with its own state URL and activity
+ * function (fetch-run.mjs). activityFor / paced are pure — tested from
+ * src/web/target-run.test.ts.
  */
+
+/** The judgment half of the match prompt — walked by both variants. */
+const VERDICT_LINES = [
+  'Reading the posting and the resume side by side…',
+  'Building the keyword frame — must-have, preferred, nice-to-have, primary stack…',
+  'Searching the resume for evidence of every keyword…',
+  'Grading alignment — title, summary, most recent role…',
+  'Checking hard requirements, red flags and facts to confirm…',
+];
+const SCORE_LINE = 'Composing the deterministic score — almost there…';
 
 const ACTIVITIES = {
   fetch: [
@@ -16,22 +28,18 @@ const ACTIVITIES = {
     'Reading the pasted posting…',
     'Picking out company, title, location and salary…',
   ],
-  classify: [
-    'Reading the posting…',
-    'Scoring fit against the active profile — stack, role type, region, salary…',
-  ],
   scan: [
     'Extracting the text an ATS parser would see…',
     'Cataloguing skills, seniority and job-agnostic issues…',
   ],
-  match: [
-    'Reading the posting and the resume side by side…',
-    'Building the keyword frame — must-have, preferred, nice-to-have, primary stack…',
-    'Searching the resume for evidence of every keyword…',
-    'Grading alignment — title, summary, most recent role…',
-    'Checking hard requirements, red flags and facts to confirm…',
-    'Drafting edit suggestions and removals with exact quotes…',
-    'Composing the deterministic score — almost there…',
+  // The quick check walks the same steps as the full report minus the
+  // suggestion drafting, so the two lists are one list (ADR 0029).
+  keywords: [...VERDICT_LINES, SCORE_LINE],
+  match: [...VERDICT_LINES, 'Drafting edit suggestions and removals with exact quotes…', SCORE_LINE],
+  suggestions: [
+    'Reading the stored verdicts and the resume…',
+    'Drafting edit suggestions with exact quotes…',
+    'Listing what to remove and what already sells you…',
   ],
   verify: [
     'Searching for the company and this posting…',
@@ -45,16 +53,43 @@ const ACTIVITIES = {
     'Drafting the letter — role, evidence, why this company…',
     'Fact-checking every claim against the resume…',
   ],
+  review: [
+    'Reading the resume the way a recruiter reads it…',
+    'Judging the first impression — headline and summary…',
+    'Looking for outcomes behind the duties…',
+    'Weighing the seniority the wording actually shows…',
+    'Checking structure, keyword evidence and wording…',
+    'Writing what to change, with quotes from your text…',
+  ],
+  score: [
+    'Filtering the stored jobs against your profile…',
+    'Scoring what passed — a few seconds per job…',
+  ],
 };
+/** What one unit of a step's progress is called. */
+const PROGRESS_UNIT = { score: 'jobs scored' };
 const ROTATE_MS = 9000;
 const POLL_MS = 2000;
 const FADE_MS = 250;
 
-/** Which activity line a step shows after `stageElapsedMs`; holds on the last one. */
-export function activityFor(step, stageElapsedMs) {
-  const list = ACTIVITIES[step] ?? [];
+/** Which line of `list` shows after `elapsedMs`; holds on the last one. */
+export function paced(list, elapsedMs) {
   if (list.length === 0) return '';
-  return list[Math.min(Math.floor(stageElapsedMs / ROTATE_MS), list.length - 1)];
+  return list[Math.min(Math.floor(elapsedMs / ROTATE_MS), list.length - 1)];
+}
+
+/** Which activity line a step shows after `stageElapsedMs`. */
+export function activityFor(step, stageElapsedMs) {
+  return paced(ACTIVITIES[step] ?? [], stageElapsedMs);
+}
+
+/** "12 of 100 jobs scored" — the line once the run reports real counts. */
+export function progressLine(step, progress) {
+  return `${progress.done} of ${progress.total} ${PROGRESS_UNIT[step] ?? 'done'}`;
+}
+
+function defaultActivity(step, state) {
+  return state.progress ? progressLine(step, state.progress) : activityFor(step, state.stageElapsedMs);
 }
 
 export function formatElapsed(ms) {
@@ -62,7 +97,14 @@ export function formatElapsed(ms) {
   return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${s % 60}s`;
 }
 
-export function init(data) {
+/** The time slot next to a step: its final time once done, a live count while active. */
+export function stepTime(stepState, step, state) {
+  if (stepState === 'active') return formatElapsed(state.stageElapsedMs);
+  if (stepState === 'done' && state.stepMs && state.stepMs[step] != null) return formatElapsed(state.stepMs[step]);
+  return '';
+}
+
+export function init(data, activity = defaultActivity) {
   const steps = [...document.querySelectorAll('[data-step]')];
   const elapsedEl = document.getElementById('run-elapsed');
   let state = null;
@@ -75,11 +117,13 @@ export function init(data) {
       const i = state.steps.indexOf(li.dataset.step);
       // idx === -1 means a terminal stage: everything reads done while we reload.
       li.dataset.state = idx === -1 || i < idx ? 'done' : i === idx ? 'active' : 'pending';
+      const timeEl = li.querySelector('[data-step-time]');
+      if (timeEl) timeEl.textContent = stepTime(li.dataset.state, li.dataset.step, state);
     }
     const active = steps.find((li) => li.dataset.state === 'active');
     if (!active) return;
     const el = active.querySelector('[data-activity]');
-    const text = activityFor(active.dataset.step, state.stageElapsedMs);
+    const text = activity(active.dataset.step, state);
     if (el && text !== shownText) {
       shownText = text;
       el.style.opacity = '0';
@@ -92,7 +136,7 @@ export function init(data) {
 
   async function poll() {
     try {
-      const res = await fetch(`/target/runs/${data.id}/state`);
+      const res = await fetch(data.stateUrl ?? `/target/runs/${data.id}/state`);
       if (res.status === 404) return location.reload();
       if (!res.ok) return;
       state = await res.json();

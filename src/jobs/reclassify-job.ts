@@ -1,49 +1,114 @@
-import { AtsType, JobStatus } from '@prisma/client';
+import { JobStatus } from '@prisma/client';
 import { prisma } from '../db';
 import { config } from '../config';
 import { logger } from '../logger';
 import { createLimiter } from '../concurrency';
 import { classifyJob } from '../classifier';
-import { passesBaseFilter } from '../filter';
-import { getActiveProfile } from '../profiles';
+import { passesAnyBaseFilter } from '../filter';
+import { getActiveProfile, listActiveProfiles } from '../profiles';
 import { getSettings } from '../settings';
 import { isBlankProfile } from '../profile-guards';
-import { parsePriorityRules } from '../priority-rules';
-import { applyPriorityFloor } from './process-jobs';
-import { withApplyLinkFlags } from '../apply-link';
+import { buildVerdicts, mergeVerdicts } from './verdict-merge';
+import { saveJobScores } from './score-store';
+import { storedPlace } from './classify-existing';
+import { mergeAiLocation } from './location-merge';
+import { rankByProfileFit, SCORE_BATCH, type ScorableJob } from './score-pick';
+
+export { SCORE_BATCH };
 import type { CronStats } from './cron-run';
 
 const RECLASSIFY_BATCH_SIZE = 50;
 
+export interface ReclassifyOptions {
+  /** Restrict the pass to these ids; default: every job except APPLIED. */
+  ids?: number[];
+  onProgress?: (done: number, total: number) => void;
+}
+
 /**
- * Re-classifies all jobs (except APPLIED) against the currently active
- * profile. Updates fitScore / techMatch / redFlags / summary / salary, and
- * may move jobs between NEW and DISMISSED based on the new score.
+ * Re-classifies all jobs (except APPLIED) against every active search
+ * (ADR 0028). Rewrites that job's JobScore rows and the best-of on the Job
+ * row, and may move jobs between NEW and DISMISSED — dismissed only when
+ * every search rejects them.
  */
 export async function runReclassifyAll(): Promise<{ stats: CronStats }> {
-  const started = Date.now();
-  const profile = await getActiveProfile();
-  if (!profile) {
-    logger.warn('reclassify-all: no active profile');
-    return { stats: { aborted: 1, reason: 'no-active-profile' } };
+  return reclassify({});
+}
+
+/**
+ * The wizard's step 4: jobs a paused "Fetch now" stored unscored get their
+ * score against the profile that now exists. Rows failing the base filter
+ * are dismissed in one update — no AI spent on them; of the rest, the
+ * `limit` best matches by rankByProfileFit are classified (the wizard reads
+ * the most promising ten, not the ten most recent), and `remaining` says
+ * how many a second press would take.
+ */
+export async function runScoreUnscored(
+  opts: Pick<ReclassifyOptions, 'onProgress'> & { limit?: number } = {},
+): Promise<{ stats: CronStats }> {
+  const profiles = (await listActiveProfiles()).filter((p) => !isBlankProfile(p));
+  if (profiles.length === 0) return { stats: { aborted: 1, reason: 'no-active-profile' } };
+  // The wizard reads the most promising ten, and "promising" needs one
+  // yardstick — the primary's, falling back to the first running search.
+  const primary = (await getActiveProfile()) ?? profiles[0]!;
+  const ranker = isBlankProfile(primary) ? profiles[0]! : primary;
+
+  const unscored = await prisma.job.findMany({
+    where: { fitScore: null, status: JobStatus.NEW },
+    select: {
+      id: true,
+      title: true,
+      location: true,
+      workplace: true,
+      countries: true,
+      regions: true,
+      description: true,
+      fetchedAt: true,
+    },
+  });
+  const rejectedIds: number[] = [];
+  const passing: ScorableJob[] = [];
+  for (const j of unscored) {
+    if (passesAnyBaseFilter(j, profiles)) passing.push(j);
+    else rejectedIds.push(j.id);
   }
-  // Issue #50: re-scoring every job against a blank profile would overwrite
-  // real scores with vibes-based ones and demote most of the inbox.
-  if (isBlankProfile(profile)) {
-    logger.warn(
-      { profile: profile.name },
-      'reclassify-all: active profile has no required stack and no role types; aborting',
-    );
-    return { stats: { aborted: 1, reason: 'blank-profile' } };
+  if (rejectedIds.length > 0) {
+    await prisma.job.updateMany({
+      where: { id: { in: rejectedIds } },
+      data: { status: JobStatus.DISMISSED },
+    });
+  }
+  const ranked = rankByProfileFit(passing, ranker);
+  const ids = ranked.slice(0, opts.limit ?? SCORE_BATCH).map((r) => r.id);
+  const { stats } = await reclassify({ ids, onProgress: opts.onProgress });
+  return {
+    stats: {
+      ...stats,
+      unscored: unscored.length,
+      filterDismissed: rejectedIds.length,
+      remaining: ranked.length - ids.length,
+    },
+  };
+}
+
+async function reclassify(opts: ReclassifyOptions): Promise<{ stats: CronStats }> {
+  const started = Date.now();
+  // Issue #50: re-scoring against a blank search would overwrite real scores
+  // with vibes-based ones and demote most of the inbox, so blank rows are
+  // dropped from the roster rather than aborting the pass.
+  const profiles = (await listActiveProfiles()).filter((p) => !isBlankProfile(p));
+  if (profiles.length === 0) {
+    logger.warn('reclassify-all: no usable active search');
+    return { stats: { aborted: 1, reason: 'no-active-profile' } };
   }
 
   const { classifierMode } = await getSettings();
-  const priorityRules = parsePriorityRules(profile.priorityRules);
+  const scope = { status: { not: JobStatus.APPLIED }, ...(opts.ids && { id: { in: opts.ids } }) };
+  const total = opts.ids ? opts.ids.length : await prisma.job.count({ where: scope });
   logger.info(
     {
-      profile: profile.name,
+      searches: profiles.map((p) => p.name),
       classifierMode,
-      priorityRules: priorityRules.length,
       concurrency: config.AI_CONCURRENCY,
     },
     'reclassify-all: start',
@@ -64,8 +129,8 @@ export async function runReclassifyAll(): Promise<{ stats: CronStats }> {
   while (true) {
     const batch = await prisma.job.findMany({
       where: {
-        status: { not: JobStatus.APPLIED },
-        id: { gt: lastId },
+        ...scope,
+        id: { ...scope.id, gt: lastId },
       },
       include: { company: { select: { name: true, atsType: true } } },
       orderBy: { id: 'asc' },
@@ -74,22 +139,23 @@ export async function runReclassifyAll(): Promise<{ stats: CronStats }> {
     if (batch.length === 0) break;
     lastId = batch[batch.length - 1]?.id ?? lastId;
 
-    // Jobs that fail the current profile's base filter skip Claude entirely;
-    // the rest are classified AI_CONCURRENCY at a time and persisted in
-    // id order as their results come in.
+    // Jobs no active search admits skip Claude entirely; the rest are
+    // classified AI_CONCURRENCY at a time and persisted in id order as their
+    // results come in.
     const pending = batch.map((j) => ({
       job: j,
-      outcome: passesBaseFilter(j, profile)
+      outcome: passesAnyBaseFilter(j, profiles)
         ? limit(() =>
             classifyJob(
               {
                 title: j.title,
                 companyName: j.company.name,
                 location: j.location,
+                place: { workplace: j.workplace, countries: j.countries, regions: j.regions },
                 description: j.description,
                 postedAt: j.postedAt,
               },
-              profile,
+              profiles,
               classifierMode,
             ),
           )
@@ -98,6 +164,7 @@ export async function runReclassifyAll(): Promise<{ stats: CronStats }> {
 
     for (const { job: j, outcome } of pending) {
       scanned++;
+      opts.onProgress?.(scanned, total);
 
       if (outcome === null) {
         if (j.status !== JobStatus.DISMISSED) {
@@ -111,7 +178,7 @@ export async function runReclassifyAll(): Promise<{ stats: CronStats }> {
         continue;
       }
 
-      const { result: c0, preFiltered: wasPreFiltered } = await outcome;
+      const { results, location, preFiltered: wasPreFiltered } = await outcome;
       if (wasPreFiltered) {
         preFiltered++;
         // Reclassify treats pre-filtered jobs the same as base-filter rejects:
@@ -125,41 +192,28 @@ export async function runReclassifyAll(): Promise<{ stats: CronStats }> {
         }
         continue;
       }
-      if (!c0) {
+      if (results.size === 0) {
+        failed++;
+        continue;
+      }
+
+      const { verdicts, boosted } = buildVerdicts(results, profiles, j);
+      const merged = mergeVerdicts(verdicts);
+      if (!merged) {
         failed++;
         continue;
       }
       reclassified++;
-
-      const priority = applyPriorityFloor(c0, priorityRules, j);
-      if (priority.applied.length > 0) priorityBoosted++;
-      const c = priority.classification;
-      const appliedLabels = priority.applied.map((r) => r.label);
+      priorityBoosted += boosted;
 
       const previousStatus = j.status;
-      const dismissReason = decide(c, profile);
-      const targetStatus = dismissReason
+      const targetStatus = !merged.kept
         ? JobStatus.DISMISSED
         : previousStatus === JobStatus.DISMISSED
           ? JobStatus.NEW
           : previousStatus;
 
-      await prisma.job.update({
-        where: { id: j.id },
-        data: {
-          fitScore: c.fit_score,
-          salaryMin: c.salary_min_usd,
-          salaryMax: c.salary_max_usd,
-          techMatch: c.tech_match,
-          redFlags: withApplyLinkFlags(c.red_flags, {
-            url: j.url,
-            pasted: j.company.atsType === AtsType.MANUAL,
-          }),
-          summary: c.summary,
-          status: targetStatus,
-          priorityRulesApplied: appliedLabels,
-        },
-      });
+      await saveJobScores(j, merged, verdicts, targetStatus, mergeAiLocation(storedPlace(j), location));
 
       if (
         targetStatus === JobStatus.NEW &&
@@ -179,7 +233,7 @@ export async function runReclassifyAll(): Promise<{ stats: CronStats }> {
 
   const durationMs = Date.now() - started;
   const stats: CronStats = {
-    profile: profile.name,
+    profile: profiles.map((p) => p.name).join(' · '),
     classifierMode,
     concurrency: config.AI_CONCURRENCY,
     scanned,
@@ -195,21 +249,4 @@ export async function runReclassifyAll(): Promise<{ stats: CronStats }> {
   };
   logger.info(stats, 'reclassify-all: done');
   return { stats };
-}
-
-function decide(
-  c: { fit_score: number; location_match: boolean; salary_min_usd: number | null },
-  profile: { minFitScore: number; minSalaryUsd: number },
-): 'low-fit' | 'location-mismatch' | 'low-salary' | null {
-  if (c.fit_score < profile.minFitScore) return 'low-fit';
-  if (!c.location_match) return 'location-mismatch';
-  if (
-    profile.minSalaryUsd > 0 &&
-    c.salary_min_usd !== null &&
-    c.salary_min_usd > 0 &&
-    c.salary_min_usd < profile.minSalaryUsd
-  ) {
-    return 'low-salary';
-  }
-  return null;
 }

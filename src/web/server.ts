@@ -6,6 +6,7 @@ import { secureHeaders } from 'hono/secure-headers';
 import { config } from '../config';
 import { logger } from '../logger';
 import { prisma } from '../db';
+import { originGuard } from './origin-guard';
 import { overviewRoute } from './routes/overview';
 import { jobsRoute } from './routes/jobs';
 import { companiesRoute } from './routes/companies';
@@ -17,7 +18,10 @@ import { resumesRoute } from './routes/resumes';
 import { targetRoute } from './routes/target';
 import { letterRoute } from './routes/letter';
 import { factsRoute } from './routes/facts';
+import { keywordsRoute } from './routes/keywords';
 import { healthRoute } from './routes/health';
+import { welcomeRoute } from './routes/welcome';
+import { countriesRoute } from './routes/countries';
 
 const app = new Hono();
 
@@ -56,6 +60,16 @@ if (config.WEB_BASIC_AUTH) {
   }
 }
 
+/**
+ * Cross-origin writes are refused (issue #69). The dashboard binds to
+ * 127.0.0.1 and its Basic Auth is optional, so the attack that actually
+ * reaches it is a page in the same browser POSTing to localhost:4747 — this
+ * is the check that costs nothing and stops it. Same-origin forms, curl and
+ * the repo's own scripts are unaffected; see same-origin.ts for why there is
+ * no token, and origin-guard.ts for why the wiring is not inline here.
+ */
+app.use('*', originGuard());
+
 // Tiny request log.
 app.use('*', async (c, next) => {
   const started = Date.now();
@@ -75,12 +89,15 @@ app.use('*', async (c, next) => {
 app.use('/static/*', serveStatic({ root: './src/web/public', rewriteRequestPath: (p) => p.replace(/^\/static/, '') }));
 
 app.route('/', overviewRoute);
+app.route('/', welcomeRoute);
+app.route('/', countriesRoute);
 app.route('/', jobsRoute);
 app.route('/', applicationsRoute);
 app.route('/', resumesRoute);
 app.route('/', targetRoute);
 app.route('/', letterRoute);
 app.route('/', factsRoute);
+app.route('/', keywordsRoute);
 app.route('/', companiesRoute);
 app.route('/', discoveryRoute);
 app.route('/', runsRoute);

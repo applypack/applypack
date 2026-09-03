@@ -50,17 +50,34 @@
 
 ## File rules
 - Each fetcher returns `NormalizedJob[]` — never writes to DB directly.
-- `filter.ts` is pure — no I/O.
+- `filter.ts` is pure — no I/O. `passesBaseFilter` stays single-profile;
+  `passesAnyBaseFilter` is the union wrapper every caller uses (ADR 0028).
+  It reads the Job columns, not the string: callers pass stored rows or a
+  `parseLocation` result; `placesOverlap` expands groups on both sides
+  (ADR 0032) and everything unknown goes to the classifier.
 - `apply-link.ts` is pure — no I/O. It flags apply links, never rejects a
   row, and the company name is deliberately not an input (ADR 0023).
   `withApplyLinkFlags` is called at every site that persists `redFlags`.
+- `location.ts` is pure — no I/O. `parseLocation(text, hints)` fills
+  `Job.workplace / countries / regions / locationSource` at every site that
+  persists a Job (`process-jobs.ts`, `manual-job.ts`); it never rewrites
+  `Job.location` (ADR 0031). The gazetteer is `countries.json` +
+  `countries.ts` (pure); fetchers pass structured fields as
+  `NormalizedJob.locationHints`. The 250-string corpus in
+  `location-corpus.json` is a test — a parser change that moves a row says why.
 - `classifier.ts` (and `classifier-prefilter.ts`) build prompts and parse
   replies; the only thing that talks to the AI is `ai-provider.ts` — no DB.
+  Both take a `Profile[]`: ONE call scores a posting against every running
+  search and returns a verdict each (ADR 0028). `jobs/verdict-merge.ts` is
+  pure — per-search thresholds, the winner, the score line;
+  `jobs/score-store.ts` is the single write path for a re-score.
   Engine choice (provider + models) resolves per call via `ai-runtime.ts`
-  (DB row → `.env` fallback, pure merge in `ai-engine.ts` — ADR 0013).
+  (DB row → `.env` fallback, pure merge in `ai-engine.ts` — ADR 0013), and
+  so does the credential (`ai-keys.ts`, pure — ADR 0027).
 - `jobs/process-jobs.ts` is the single source of truth for the inner
   filter → dedupe → classify → persist → alert sequence. Reused by
-  `runFetchJob` and `runHnHiringJob`.
+  `runFetchJob` and `runHnHiringJob`. `{ classify: false }` stores what
+  passes the filter unscored (no AI, no alert) — "Fetch now" while paused.
 - `AiProvider` calls are tool-free unless the request sets `webTools`; only
   `src/verification/verify.ts` does (ADR 0009). Never turn it on for the classifier.
 - Every AI call site takes its prompt from an exported `build*Prompt`, and
@@ -80,12 +97,22 @@
   returns `[]`, `/companies` and the source toggles hide them.
 - `src/resume/` is the resume module: `zip.ts`, `docx-text.ts`, `pdf-text.ts`
   (unpdf, ADR 0011), `resume-text.ts`, `prompts.ts`, `pick.ts`, `score.ts`
-  (ADR 0012), `facts.ts`, `diff.ts`, `parse-warnings.ts`,
-  `profile-draft.ts` (ADR 0015), `fact-check.ts` (ADR 0020) are pure (tested);
-  `scan.ts` / `match.ts` / `cover-letter.ts` call the AI provider (the letter
-  is gated by `fact-check.ts` and generates from stored inputs only —
-  ADR 0021); `store.ts` is the only file that touches Prisma. Web-only — the
-  worker never imports it (ADR 0008).
+  (ADR 0012), `facts.ts`, `diff.ts`, `parse-warnings.ts`, `match-mode.ts`,
+  `match-reuse.ts`, `bench-report.ts`,
+  `profile-draft.ts` (ADR 0015), `fact-check.ts` (ADR 0020),
+  `keyword-overrides.ts`, `keyword-frame.ts`, `review-score.ts` (ADR 0030)
+  are pure (tested);
+  `scan.ts` / `match.ts` / `suggestions.ts` / `review.ts` / `cover-letter.ts`
+  call the AI provider (the letter is gated by `fact-check.ts` and generates from stored
+  inputs only — ADR 0021); `store.ts` is the only file that touches Prisma.
+  Web-only — the worker never imports it (ADR 0008).
+- A comparison has two shapes (ADR 0029): `matchResumeToJob(..., {mode})`
+  runs the quick check (`fast`, the default: keywords + alignment + gates +
+  red flags — everything `score.ts` reads) or the full report (`full`, which
+  also writes actions/removals/strengths/cautions). Both variants are built
+  from the SAME rule constants in `prompts.ts` and parsed by the same
+  `MatchSchema`; `suggestions.ts` fills a fast row in later from its stored
+  verdicts. The mode marker rides in the `breakdown` JSON, never in the schema.
 - `src/web/public/score.mjs` mirrors `src/resume/score.ts` line for line —
   change one, change the other; `src/web/score.test.ts` enforces parity.
 - The cron worker (`src/index.ts` + `src/jobs/*`) MUST NOT run an HTTP server.
@@ -98,7 +125,7 @@
 - Do not add Express, Next.js, or any HTTP server to the worker process.
 - Do not add Redis, BullMQ, or other queues — node-cron is sufficient.
 - Do not expose the dashboard on a public interface by default — bind to `127.0.0.1` in compose.
-- Do not store secrets anywhere except `.env` (gitignored). Telegram tokens belong in `TelegramTarget` rows once `init.ts` has bootstrapped them; `.env` becomes optional after first boot.
+- Do not store secrets anywhere except `.env` (gitignored). Two carve-outs, both deliberate: Telegram tokens belong in `TelegramTarget` rows once `init.ts` has bootstrapped them, and per-engine AI keys belong in `AppSettings.aiKeys` (ADR 0027) — in both cases `.env` becomes optional after first boot. A secret in the DB is read only through its own accessor, never rendered in full, never logged.
 - Do not commit `node_modules`, `dist`, or `.env`.
 - Do not use any `--save-dev` that isn't necessary.
 - Do not scrape LinkedIn / Indeed / Glassdoor / Workday / Wellfound — see [ADR 0005](./docs/adr/0005-no-linkedin-indeed-workday.md).
@@ -137,10 +164,18 @@ When the question is **"where does X live?"**, save yourself a `find`:
 | HTML → plaintext (entities, paragraphs, bullets) | `src/http.ts:stripHtml` + `decodeHtmlEntities` (gotcha 12) |
 | Pure helpers (parsing, hashing, masking) | `src/text-utils.ts` |
 | Near-duplicate detection across sources (SimHash, Hamming) | `src/fingerprint.ts` (ADR 0018); wired in `jobs/process-jobs.ts` |
+| Where the running searches hunt, handed to every fetcher (`FetchContext`: union of countries + regions; anywhere = empty) | `src/fetchers/fetch-context.ts:searchPlaces` (pure) built once per tick in `fetchers/index.ts:runAllFetchers`; a source with a geo filter maps it (`jobicy.ts:jobicySlugsFor`, `himalayas.ts:himalayasUrls`, `fourdayweek.ts:fourDayWeekPlaces`), the rest ignore it |
 | Per-source health (error→status, failure streak, quiet/silent) | `src/fetchers/source-health.ts` (pure, ADR 0019); recorded by the wrapper in `fetchers/index.ts:runAllFetchers` |
 | Apply-link flags (missing / unusable / shortened / not-an-application) | `src/apply-link.ts` (pure, ADR 0023); merged into `Job.redFlags` at all three persist paths |
+| Where a SEARCH hunts (countries / regions / workplace on the profile), the set filter with group expansion | `prisma/schema.prisma:Profile` (ADR 0032) → `src/profiles.ts:ProfileInput` → `src/filter.ts:locationMatches` / `placesOverlap` (pure); the prompt line `classifier.ts:describeLocation` (codes only); the editor control `pages/settings.tsx` Location fieldset + `public/countries.mjs` over `GET /countries.json` |
+| The classifier's own reading of a posting's place, and how it meets the parser's | reply block `location` in `classifier.ts:LocationBlockSchema` → `src/jobs/location-merge.ts:mergeAiLocation` (pure: fill or narrow, never blank; `locationSource = 'ai'`) at all three write paths |
+| Why a verdict says "location mismatch" | `src/jobs/location-reason.ts:locationMismatchReason` (pure, columns only) → the Classifier card on `/jobs/:id` |
+| Location string → workplace + countries + regions (ADR 0031) | `src/location.ts:parseLocation` (pure; the §7.1 traps are its tests) over the gazetteer `src/countries.json` + `src/countries.ts` (`findCountry`, `countriesOf`, `groupsOf`); hints from fetchers in `NormalizedJob.locationHints`; backfill `src/scripts/backfill-locations.ts --dry-run` |
+| The /jobs place / workplace / posted facets (query params, where-clause, chip counts) | `src/web/job-facets.ts` (pure) — `country=PL,DE,EUROPE,unknown`, `workplace=remote,hybrid`, `posted=24h\|7d\|30d`; rendered in `pages/jobs-list.tsx`, chips on `/jobs/:id` |
 | Stable id for a feed row with no id of its own | `src/text-utils.ts:feedItemKey` (URL key → text key → null, never `''`) |
 | The cron list (6 schedules) | `src/index.ts:registerCron` |
+| First-run wizard (`/welcome`: steps derived from data, `/` redirect, skip/finish) | `src/web/welcome-steps.ts` (pure: step rules + score summary) · `src/web/welcome-facts.ts` (loads the facts) · `src/web/routes/welcome.tsx` + `pages/welcome.tsx`; step 4 = `runScoreUnscored` in `src/jobs/reclassify-job.ts`, which picks its batch with `src/jobs/score-pick.ts` (pure ranking, `SCORE_BATCH`) |
+| "Fetch now" (the tick from the dashboard: live progress, unscored while paused) | `POST /runs/fetch-now` in `src/web/routes/runs.tsx` → `runFetchJob({ manual: true })` in `src/jobs/fetch-job.ts`; registry `src/web/fetch-runs.ts`; verdict line `src/web/fetch-summary.ts` (pure) |
 | What runs on container boot | `src/init.ts` |
 | Adding a new ATS source — single-feed template | `src/fetchers/larajobs.ts` (LARAJOBS_RSS) or `src/fetchers/golangprojects.ts` (single RSS) |
 | Adding a new ATS source — per-company JSON | `src/fetchers/ashby.ts` (cleanest), `src/fetchers/greenhouse.ts` |
@@ -148,16 +183,20 @@ When the question is **"where does X live?"**, save yourself a `find`:
 | Adding a new ATS source — list + detail | `src/fetchers/smartrecruiters.ts` |
 | Where to register a new ATS | `src/fetchers/index.ts:fetchOne` switch + `prisma/schema.prisma:AtsType` enum |
 | Where to add a new toggle | `prisma/schema.prisma:AppSettings` (column) → `src/settings.ts` (getter/setter) → `src/web/pages/settings.tsx` (UI) → `src/web/routes/settings.tsx` (POST) |
+| Where to add a new profile field | `prisma/schema.prisma:Profile` → `ProfileInput` + `blankProfileInput()` in `src/profiles.ts` (the compiler then names every construction site) → `ProfileFormSchema` + the save route in `src/web/routes/settings.tsx` → the editor in `src/web/pages/settings.tsx` |
 | The Claude system prompt | `src/classifier.ts:buildSystemPrompt` |
 | Fence markers, the untrusted directive, the forged-marker sanitiser | `src/prompt-fence.ts` (pure, ADR 0022); guard `src/prompt-fence-registry.test.ts` |
 | Which AI engines run (priority chain + per-engine models, auto-failover) | `src/ai-runtime.ts:getAiRuntime().complete({role})` + pure chain merge in `src/ai-engine.ts` (ADR 0013/0014); UI on `/settings` → "AI engine" tab |
-| Adding a new AI backend | `src/ai-provider.ts` (`CliProvider` spec or fetch class) + `AI_PROVIDER_IDS`/labels/options in `src/ai-engine.ts` + probe in `src/ai-runtime.ts` |
+| Adding a new AI backend | `src/ai-provider.ts` (`CliProvider` spec or fetch class) + `AI_PROVIDER_IDS`/labels/options in `src/ai-engine.ts` + probe in `src/ai-runtime.ts` + `AI_KEY_ENV_VARS` in `src/ai-keys.ts` if it takes a key |
+| Per-engine API keys (DB-first, `.env` fallback, masking) | `src/ai-keys.ts` (pure, ADR 0027) + `settings.ts:getAiKeys/setAiKey`; resolved in `ai-runtime.ts`, spent as `AiRequest.apiKey` |
 | How users set up each engine (local + Docker) | `docs/ai-engines.md` |
 | AI usage counters (runs per engine × role) | `AppSettings.aiUsage` — incremented in `ai-runtime.ts:recordUsage`, 7-day summary on `/settings` AI tab, 60-day trim in `cleanup-job.ts` |
 | What a CLI child process may see in env | `ai-provider-parse.ts:CLI_PROVIDER_ENV_KEYS` (allowlist; ANTHROPIC_API_KEY never reaches claude_code) |
 | How many jobs are classified at once | `AI_CONCURRENCY` in `.env` (default 3); limiter in `src/concurrency.ts`, used by `jobs/process-jobs.ts` and `jobs/reclassify-job.ts` |
 | The two-stage prefilter prompt | `src/classifier-prefilter.ts:buildPrefilterPrompt` |
-| Per-job filter rules (pre-Claude) | `src/filter.ts:passesBaseFilter` |
+| Per-job filter rules (pre-Claude) | `src/filter.ts:passesBaseFilter`; union across running searches = `passesAnyBaseFilter` |
+| One posting → a verdict per running search (winner, score line, thresholds) | `src/jobs/verdict-merge.ts` (pure, ADR 0028); parser `classifier.ts:parseClassifications`; write path `src/jobs/score-store.ts` |
+| Which searches are running, and the ceiling on them | `src/profiles.ts:listActiveProfiles` / `setProfileActive`; `MAX_ACTIVE_PROFILES` in `src/profile-guards.ts` |
 | Blank-profile guards (skip tick, fit ≤ 50 cap, activation gate) | `src/profile-guards.ts` (pure, issue #50) — wired in `process-jobs.ts`, `classifier.ts`, `routes/settings.tsx` |
 | Telegram MarkdownV2 escape | `src/notifier.ts:escapeMarkdownV2` |
 | Profile-to-prompt translation | `src/classifier.ts:buildSystemPrompt` (stack/role/location/notes lines) |
@@ -169,18 +208,27 @@ When the question is **"where does X live?"**, save yourself a `find`:
 | Paste posting + resume → one-shot targeted analysis | `/target` — `src/web/routes/target.tsx` (composes `jobs/manual-job.ts` + `resume/match.ts`; upload/paste land on the hidden scratch resume, old scratch matches auto-deleted) |
 | Resume scan + resume-vs-job prompts and their zod schemas | `src/resume/prompts.ts` (`PROMPT_VERSION` bump on material change) |
 | The match-score formula (weights, alignment points, primary-stack cap) | `src/resume/score.ts` (ADR 0012) — mirrored in `src/web/public/score.mjs`, parity test `src/web/score.test.ts` |
+| Quick check vs full analysis (which prompt variant runs, what a stored row holds) | `src/resume/match-mode.ts` (pure) + the `MATCH_STEPS` / `MATCH_OUTPUT` tables in `src/resume/prompts.ts` (ADR 0029) |
+| "Get suggestions" on a quick check (the lazy second call) | `src/resume/suggestions.ts` + `buildSuggestionsPrompt`; run wiring `src/web/suggestions-run.ts`, route `POST /jobs/:id/matches/:matchId/suggestions` |
+| Comparing models / modes on the gold fixtures | `npm run bench:resume -- --model <id> --mode fast\|full --out f.json`, then `--table a.json b.json` (pure renderer `src/resume/bench-report.ts`) |
 | What counts as primary stack / sibling-tech rules (prompt side) | `src/resume/prompts.ts:MATCH_SYSTEM` steps 3-4 — guard-tested in `prompts.test.ts` |
 | ask_user confirmations (CandidateFact rows, instant re-score) | `src/resume/facts.ts` (pure) + `src/web/routes/facts.ts` (POST /facts), managed on `/resumes` |
+| Per-keyword overrides (re-level / ignore / add your own term) | `src/resume/keyword-overrides.ts` (pure): `effectiveKeywords` feeds the score, `carryOverrides` re-applies them to the next reply; route `src/web/routes/keywords.ts` |
+| Whether a run inherits the posting's keyword frame (rebuild, prompt bump) | `src/resume/keyword-frame.ts:planKeywordFrame` (pure, issue #79) — the reason is stored in the `breakdown` JSON and read back by `freshFrame` |
+| Keyword display order + mark intensity (weight, then posting frequency) | `src/web/public/target.mjs:keywordRank` / `orderKeywords` — one implementation for the panes, the chips and the server-rendered table |
 | Anti-hallucination gate for generated prose (pass/warn/block) | `src/resume/fact-check.ts:factCheck` (pure, ADR 0020) — sources arrive as arguments, `store.ts` loads them |
 | Cover letter generation (gated, stored-inputs-only) | `src/resume/cover-letter.ts` + `COVER_SYSTEM` in `prompts.ts` (ADR 0021); card `src/web/pages/cover-letter-card.tsx` |
 | Letter → .pdf / .docx bytes | `src/resume/pdf-write.ts`, `docx-write.ts` (over `zip-write.ts`) — all pure, no dependencies |
 | Fetch one posting page by URL (user-requested, not a crawler) | `src/jobs/posting-url.ts` — ADR 0005 blocklist + private-host SSRF guard; bot checks fail honestly |
 | "In another resume" evidence hints | `src/resume/store.ts:listOtherResumeSkills` → `facts.ts:annotateElsewhere` |
 | ATS parse warnings ("What the ATS sees") | `src/resume/parse-warnings.ts`, rendered on `/resumes/:id` |
+| Resume strength review (job-agnostic rubric) | `src/resume/review.ts` (the call) + `REVIEW_SYSTEM` in `prompts.ts`; card `src/web/pages/resume-review-card.tsx`, route `POST /resumes/:id/review` (ADR 0030) |
+| The strength formula (six dimensions, weights, the duties-only cap) | `src/resume/review-score.ts` (pure) — the model grades, the code scores, exactly as ADR 0012 does for the match |
 | Version delta (gained/lost keywords, component moves) | `src/resume/diff.ts:diffMatches`, rendered in `resume-match-card.tsx` |
 | Live smoke bench of the match prompt (3 gold fixtures) | `npm run bench:resume` — `src/scripts/resume-bench-once.ts` |
 | Compare-run progress pages (async classify/scan/match) | `src/web/target-runs.ts` (in-memory registry) + `src/web/pages/target-run.tsx`; started by `/target`, `/jobs/:id/match`, `/jobs/:id/target/reupload` |
-| Which resume a job page preselects | `src/resume/pick.ts:pickResumeForJob` (skill-tag overlap) |
+| Which resume a job page preselects | `src/resume/pick.ts:preselectResume` — the active profile's `resumeId` first, then `pickResumeForJob` (skill-tag overlap) |
+| Creating a search profile from a resume (both entry points) | `src/web/profile-from-resume.ts` → `POST /resumes/:id/profile` and `POST /welcome/profile/create`; born inactive |
 | Prefill the profile from a resume scan | `src/resume/profile-draft.ts:buildProfileDraft` (pure) + `POST /settings/profiles/:id/fill-from-resume` (renders a draft, saves nothing — ADR 0015) |
 | Model for cover letters (empty = follows the resume model) | `/settings` → AI engine → "Cover letter model" (role `cover` in `ai-engine.ts`; pickers save on change) |
 | Model for resume calls | per-engine "Resume model" on `/settings` → AI engine; Claude engines fall back to `CLAUDE_MODEL_RESUME` in `.env` (default `claude-opus-5`) |
@@ -197,17 +245,27 @@ When the question is **"how does the user toggle / configure X?"**:
 | What | Page |
 | --- | --- |
 | Pause / resume all new-job fetching | `/settings` General tab → "Job fetching" |
+| Walk through first-run setup again (AI → test search → profile → first matches) | `/welcome` — `/` redirects there while `AppSettings.setupCompletedAt` is NULL; "Skip setup" or "Start the hourly watch" ends it; Overview shows "Finish setup →" while a step is open |
+| Pull jobs right now instead of waiting for the hourly tick | Overview header or `/runs` → "Fetch now" (progress page; while paused the jobs land unscored — score them later with Save & re-classify) |
 | See which boards stopped answering | `/companies` → "Quiet sources" card (Re-probe to repair) |
 | Telegram line when a source goes quiet | `/settings` Notifications tab → "Source health alerts" |
 | Pick / order AI engines + models, test them | `/settings` AI engine tab (per-engine cards: Enable, ↑ priority, model selects, Test) |
+| Paste an AI key without touching `.env` | `/settings` AI engine tab → the key row on each engine card, or step 1 of `/welcome` (ADR 0027) |
 | Add / remove tracked company | `/companies` (with manual probe before save) |
 | Bulk-add a curated segment of companies | `/companies` → "Add a starter pack" (preview → confirm → added disabled → "Enable all") |
 | Disable whole ATS family (e.g. all Workable) | `/settings` Sources tab |
 | Enable two-stage classifier (cheaper, less precise) | `/settings` AI engine tab → "Classifier" |
 | Edit profile (stack, role types, regions, fit threshold) | `/settings` Profile tab (excludes, notes, priority rules, thresholds live in its "Advanced" block) |
+| Say where a search hunts (countries, groups, remote / hybrid / on-site) | `/settings` Profile tab → "Location": arrangement pills, the Countries chip input (type "Poland", "Polska", "PL" or a city, pick from the list; any spelling works without JS), region pills (🇪🇺 European Union, Europe, DACH, 🌍 Worldwide …). Empty countries + regions = anywhere |
 | Fill the profile from a resume (AI draft, review before save) | `/settings` Profile tab → "Fill from a resume" |
-| Switch between profiles | `/settings` Profile tab → dropdown + Activate |
-| Re-classify all jobs against new profile | `/settings` Profile tab → "Re-classify all jobs" (async, watch /runs) |
+| Create a second search from another resume | `/resumes/:id` → "Search profile" card, or `/welcome?step=profile` → "Another resume for a different kind of role?" |
+| Which resume a search hunts with | `/settings` Profile tab → "Resume for this search" (empty = pick by skill overlap) |
+| Run / pause a search, or make one primary | `/settings` Profile tab → "Searches" list (up to 8 running; the primary always runs) |
+| See only one search's matches | `/jobs` → the search chips (the Fit column then shows that search's score) |
+| See jobs in one country, region or arrangement, or posted this week | `/jobs` → the "Where" chips (🇵🇱 Poland, 🇪🇺 European Union, Unknown … — OR within the row, "More…" opens the rest), the "Work" chips (Remote / Hybrid / On-site / Unknown) and the "Posted" chips; the search box also matches the location string |
+| Fill the country columns on jobs stored before v1.24 | `docker compose exec app node dist/scripts/backfill-locations.js --dry-run`, read the distribution, then without the flag (no AI call; `location` and `description` untouched) |
+| What each search made of one posting | `/jobs/:id` → Classifier card → "By search" |
+| Re-classify all jobs against new profile | `/settings` Profile tab → "Save & re-classify" in the editor (async, watch /runs) |
 | Telegram on/off | `/settings` Notifications tab |
 | Add Telegram bot or chat | `/settings` Notifications tab → "Add target" (validates with getMe + sendMessage) |
 | Pipeline stage on a job | `/jobs/:id` → "Application tracking" card; on `/applications` drag the card between columns (`public/board.mjs`) or use its quick-move select — both hit the stage-only endpoint that never touches appliedAt/notes |
@@ -215,7 +273,11 @@ When the question is **"how does the user toggle / configure X?"**:
 | Review newly discovered companies | `/discovery` (sorted by jobsSeen DESC) |
 | Toggle auto-discovery / HN parser | `/discovery` (card at the top; moved off `/settings` 2026-08-29) |
 | Upload / scan a resume | `/resumes` (the Settings card only lists + links) |
-| Compare a resume with a posting | `/jobs/:id` → "Resume match" card (Compare) |
+| Ask how strong a resume is on its own (no posting) | `/resumes/:id` → "Resume strength" → Run strength review (one AI call, ~1 min; nothing runs on its own). Scores show in the `/resumes` Strength column |
+| Compare a resume with a posting | `/jobs/:id` → "Resume match" card — **Compare** = quick check (keywords, gates, score), **Full analysis** = also the edit suggestions (ADR 0029) |
+| Get the edit suggestions for a quick check | the comparison → "Get suggestions" (second call, reuses the stored verdicts, score unchanged) |
+| Re-level, ignore or add a keyword by hand | the keyword table on `/jobs/:id` or `/jobs/:id/target` → the "Wants it" select, `ignore` / `reset`, and "Add a keyword" (instant re-score, no AI call; the edit sticks to the posting across re-runs) |
+| Throw away a keyword list the model got wrong | the keyword table → "Rebuild keywords" (one run with the stored frame withheld; your own keyword edits survive it, the new score is not comparable with the old) |
 | Paste a posting the fetchers don't see | `/jobs` → "+ Paste a job" (`/jobs/new`) |
 | Compare a pasted posting with any resume in one step | menu → Compare (`/target`): paste posting, pick / upload / paste resume, Compare |
 | Check whether a posting is real | `/jobs/:id` → "Is this job real?" → Verify (web search, 2-4 min) |
@@ -224,7 +286,7 @@ When the question is **"how does the user toggle / configure X?"**:
 | Write a letter for a NEW posting (searchable picker / URL / paste; match & research opt-in) | menu → Cover letter (`/letter`) |
 | Download a letter as .pdf / .docx | `/jobs/:id` → Cover letter card → PDF / DOCX buttons |
 | Re-check an edited resume | `/resumes/:id` → "Upload a new version", then Compare again |
-| Edit in place with a live score | comparison → "Open targeted view →" (`/jobs/:id/target`); "Re-analyze with AI" for the rubric score, "Save as vN" to keep the draft |
+| Edit in place with a live score | comparison → "Open targeted view →" (`/jobs/:id/target`); "Re-check with AI" for the rubric score (or "Full analysis with suggestions"), "Save as vN" to keep the draft |
 
 ---
 
@@ -245,7 +307,15 @@ Naming convention changed at the 4.x boundary:
 - 4.x: `claude-haiku-4-5-20251001` (kebab-case, version-then-date)
 - 3.x: `claude-3-5-haiku-20241022` (different pattern!)
 
-Both stages of our two-stage classifier now use Haiku 4.5. Savings come from a much shorter prefilter prompt + prompt cache, **not** from a cheaper model. See [classifier-prefilter.ts:7-12](src/classifier-prefilter.ts#L7-L12) for the comment that explains this.
+Both stages of our two-stage classifier now use Haiku 4.5. Savings come from a much shorter prefilter prompt + tiny `max_tokens`, **not** from a cheaper model. See [classifier-prefilter.ts:7-12](src/classifier-prefilter.ts#L7-L12) for the comment that explains this.
+
+**The prompt cache is not part of that, and never was.** Measured 2026-09-02:
+`cache_creation_input_tokens` is **0 on every call**. The minimum cacheable
+prefix is per-model and not monotonic — **4096 tokens on Haiku 4.5** against 512
+on Opus 5 — and our classifier system prompt is 1216. Even the multi-search
+prompt at 8 searches (~2100) stays under it, and the `claude_code` CLI sets no
+`cache_control` at all. Never justify a design by caching without checking the
+model's floor and reading `usage.cache_read_input_tokens` back.
 
 ### 4. RemoteOK puts a meta object at `array[0]`
 Their `/api` returns `[{legal: "…", last_updated: …}, …jobs]`. **`.slice(1)` is mandatory** before zod-validating jobs. See [remoteok.ts:46-48](src/fetchers/remoteok.ts#L46-L48).
@@ -397,6 +467,8 @@ Three reference patterns, copy whichever fits the new source:
 | Shape of the new ATS | Reference file | Examples |
 | --- | --- | --- |
 | Single curated RSS | `src/fetchers/larajobs.ts` | RSS one feed for the whole site, no per-company config |
+| RSS whose title carries the structure, one row per query | `src/fetchers/dou.ts` + `dou-title.ts` | atsToken = the feed's query string; a pure title-grammar parser; fetched with the project UA because the board blocks rss-parser's |
+| RSS whose LOCATION lives in the filter, not the items | `src/fetchers/djinni.ts` | atsToken = the filter string; `djinniPlace(token)` writes the location + hints from it; rows whose category ≠ the requested keyword are the bare-feed fallback and are dropped |
 | Per-category RSS, atsToken = category slug | `src/fetchers/weworkremotely.ts` | Same pattern, atsToken changes per Company row |
 | Single JSON aggregator | `src/fetchers/remotive.ts` | One feed, structured JSON, all jobs under one synthetic Company |
 | Per-company GET JSON | `src/fetchers/ashby.ts` | atsToken = company slug, GET endpoint, no auth |
@@ -418,7 +490,7 @@ Always:
 
 | Task | Command |
 | --- | --- |
-| Run one fetch tick now | `docker compose exec app node dist/scripts/fetch-once.js` |
+| Run one fetch tick now | UI: Overview → "Fetch now" (live progress, row on `/runs`); or `docker compose exec app node dist/scripts/fetch-once.js` |
 | Run discovery probe now | `docker compose exec app node dist/scripts/discovery-once.js` |
 | Pull HN Who-is-hiring now | `docker compose exec app node dist/scripts/hn-once.js` |
 | Send the stale-applications digest now | `docker compose exec app node dist/scripts/stale-once.js` |
@@ -426,11 +498,13 @@ Always:
 | Tail the worker | `docker compose logs -f app` |
 | Tail the dashboard | `docker compose logs -f web` |
 | psql into the DB | `docker compose exec postgres psql -U jobhunter -d jobhunter` |
+| psql / Prisma from the HOST | port **5433** (`postgresql://jobhunter:jobhunter@localhost:5433/jobhunter`) — compose publishes the DB on loopback only, on 5433 so a host Postgres on 5432 cannot shadow it |
+| Back up the database | `docker compose exec -T postgres pg_dump -U jobhunter jobhunter > applypack-$(date +%F).sql` (verified: 8.7 MB, 16 tables; restore into an empty DB with `psql < dump`) |
 | Re-clean stored descriptions (rows with leftover markup) | `docker compose exec app node dist/scripts/backfill-descriptions.js --dry-run`, then without the flag |
 | Fingerprint existing jobs + link cross-listings | `docker compose exec app node dist/scripts/backfill-fingerprints.js --dry-run`, then without the flag |
 | Flag apply links on already-stored jobs | `docker compose exec app node dist/scripts/backfill-apply-link-flags.js --dry-run`, then without the flag |
 | Re-pull descriptions from the boards (structure lost) | `docker compose exec app node dist/scripts/refetch-descriptions.js --dry-run`, then without the flag |
 | Migrate after a schema change | `DATABASE_URL=… npx prisma migrate dev --name <name>` |
-| Re-classify everything against the active profile | UI: `/settings` → "Re-classify all jobs" |
+| Re-classify everything against the active profile | UI: `/settings` → Profile → "Save & re-classify" |
 | Pause all alerts temporarily | UI: `/settings` → "Telegram alerts" → Disable |
 | Pause new-job fetching entirely (no docker) | UI: `/settings` → "Job fetching" → Pause |

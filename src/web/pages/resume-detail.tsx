@@ -14,29 +14,65 @@ import {
   Input,
   PageHeader,
   SectionTitle,
+  SUBMIT_ONCE,
   Table,
   Tag,
   Td,
   Tr,
 } from '../ui';
+import { deleteConfirm, type DeleteImpact } from '../delete-confirm';
 import { ACCEPTED_EXTENSIONS } from '../../resume/resume-text';
 import { MAX_UPLOAD_MB } from '../upload';
 import type { FlashMessage } from '../flash';
 import { formatDate, formatRelative } from '../format';
+import type { ResumeReview } from '@prisma/client';
 import type { MatchWithJob, ResumeSummary } from '../../resume/store';
+import { ResumeReviewCard } from './resume-review-card';
+import type { ReviewAnswer } from '../../resume/answers';
+import type { ReviewDelta } from '../../resume/review-delta';
+import { groupMatchesByJob, historyLabel, progression } from '../match-history';
+import { reviewIsStale } from '../../resume/review-score';
 import { readIssues } from '../../resume/prompts';
 import type { ParseWarning } from '../../resume/parse-warnings';
+import type { ProfileDraft } from '../../resume/profile-draft';
 
 export interface ResumeDetailProps {
   resume: ResumeSummary;
   matches: MatchWithJob[];
+  /** The latest strength review, or null when the user has never asked for one. */
+  review: ResumeReview | null;
+  /** The candidate's answers to the review's questions (ADR 0030 phase 3). */
+  answers: ReviewAnswer[];
+  /** What moved since the previous run of this resume, when there was one. */
+  reviewDelta: ReviewDelta | null;
+  /** What Delete would take, and what it would merely unlink — both named in the confirm. */
+  deleteImpact: DeleteImpact;
   /** Deterministic ATS-parseability checks over the extracted text. */
   warnings: ParseWarning[];
+  /** Searches already linked to this resume, and the one a click would create. */
+  search: {
+    linkedProfiles: { id: number; name: string }[];
+    draft: ProfileDraft | null;
+  };
   flash?: FlashMessage | null;
 }
 
-export const ResumeDetailPage: FC<ResumeDetailProps> = ({ resume, matches, warnings, flash }) => {
+export const ResumeDetailPage: FC<ResumeDetailProps> = ({
+  resume,
+  matches,
+  review,
+  answers,
+  reviewDelta,
+  deleteImpact,
+  warnings,
+  search,
+  flash,
+}) => {
   const issues = readIssues(resume.issues);
+  // One advice surface, never two (resumes-plan §B.2): once a review has read
+  // the CURRENT version, its list supersedes the scan's notes, which stay
+  // available behind a disclosure rather than competing for attention.
+  const reviewed = review !== null && !reviewIsStale(review.resumeVersion, resume.version);
   return (
     <Layout title={resume.name} active="resumes">
       <PageHeader
@@ -47,7 +83,7 @@ export const ResumeDetailPage: FC<ResumeDetailProps> = ({ resume, matches, warni
             <Button variant="secondary" size="sm" href={`/resumes/${resume.id}/download`}>
               Download original
             </Button>
-            <ActionForm action={`/resumes/${resume.id}/rescan`}>
+            <ActionForm action={`/resumes/${resume.id}/rescan`} once>
               <Button variant="violet" size="sm">
                 {resume.scannedAt ? 'Re-scan' : 'Scan'}
               </Button>
@@ -61,7 +97,7 @@ export const ResumeDetailPage: FC<ResumeDetailProps> = ({ resume, matches, warni
             )}
             <ActionForm
               action={`/resumes/${resume.id}/delete`}
-              confirm="Delete this resume and its comparisons?"
+              confirm={deleteConfirm(resume.name, deleteImpact)}
             >
               <Button variant="danger" size="sm">
                 Delete
@@ -71,6 +107,21 @@ export const ResumeDetailPage: FC<ResumeDetailProps> = ({ resume, matches, warni
         }
       >
         <span class="flex flex-wrap items-center gap-2">
+          {/* The name is what every picker, flash and "applied with" line
+              says, and it starts as whatever the uploaded file was called. */}
+          <form method="post" action={`/resumes/${resume.id}/rename`} class="flex items-center gap-1.5">
+            <Input
+              name="name"
+              value={resume.name}
+              maxlength="120"
+              required
+              aria-label="Resume name"
+              class="!w-56 !px-2 !py-1 !text-xs"
+            />
+            <Button size="sm" variant="ghost">
+              Rename
+            </Button>
+          </form>
           <span class="break-all font-mono text-xs">{resume.sourceFilename}</span>
           <Badge tone="info">v{resume.version}</Badge>
           {resume.isDefault && <Badge tone="ok">default</Badge>}
@@ -82,7 +133,9 @@ export const ResumeDetailPage: FC<ResumeDetailProps> = ({ resume, matches, warni
       </PageHeader>
       <Flash flash={flash} />
 
-      <div class="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+      <ResumeReviewCard resume={resume} review={review} answers={answers} delta={reviewDelta} />
+
+      <div class="mt-4 grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
         <Card>
           <SectionTitle>Scan</SectionTitle>
           {resume.scannedAt ? (
@@ -113,21 +166,26 @@ export const ResumeDetailPage: FC<ResumeDetailProps> = ({ resume, matches, warni
                 ? 'Nothing flagged — the parser-facing basics look fine.'
                 : 'Appears after the first scan.'}
             </Hint>
+          ) : reviewed ? (
+            <>
+              <Hint>
+                The strength review above judged this version — follow its list. These are the
+                first scan's notes, kept for reference.
+              </Hint>
+              <details class="mt-2">
+                <summary class="cursor-pointer text-[13px] font-medium text-ink-muted transition-colors duration-150 hover:text-ink">
+                  What the scan flagged — {issues.length} note{issues.length === 1 ? '' : 's'}
+                </summary>
+                <IssueList issues={issues} />
+              </details>
+            </>
           ) : (
-            <ul class="divide-y divide-line">
-              {issues.map((i) => (
-                <li class="py-3 first:pt-0 last:pb-0">
-                  <Badge tone="warn">{i.section}</Badge>
-                  <div class="mt-1.5 min-w-0 text-sm">
-                    <div class="text-ink">{i.issue}</div>
-                    <div class="mt-0.5 text-[13px] leading-5 text-ink-muted">→ {i.fix}</div>
-                  </div>
-                </li>
-              ))}
-            </ul>
+            <IssueList issues={issues} />
           )}
         </Card>
       </div>
+
+      <SearchCard resumeId={resume.id} {...search} />
 
       <Card class="mt-4">
         <SectionTitle>Upload a new version</SectionTitle>
@@ -135,6 +193,7 @@ export const ResumeDetailPage: FC<ResumeDetailProps> = ({ resume, matches, warni
           method="post"
           action={`/resumes/${resume.id}/replace`}
           enctype="multipart/form-data"
+          onsubmit={SUBMIT_ONCE}
           class="grid gap-3 sm:grid-cols-[1.6fr_auto]"
         >
           <Field label="File" hint={`${ACCEPTED_EXTENSIONS.join(', ')} · up to ${MAX_UPLOAD_MB} MB`}>
@@ -168,32 +227,62 @@ export const ResumeDetailPage: FC<ResumeDetailProps> = ({ resume, matches, warni
           </div>
         ) : (
           <Table columns={['Job', 'Company', 'Version', 'Match', <span class="block text-right">When</span>]}>
-            {matches.map((m) => (
-              <Tr>
-                <Td class="max-w-[24rem]">
-                  <a
-                    href={`/jobs/${m.job.id}/target?match=${m.id}`}
-                    class="block truncate font-medium text-ink transition-colors duration-150 hover:text-accent-strong"
-                    title={m.job.title}
-                  >
-                    {m.job.title}
-                  </a>
-                </Td>
-                <Td class="max-w-[14rem] text-ink-muted">
-                  <div class="truncate">{m.job.company.name}</div>
-                </Td>
-                <Td class="whitespace-nowrap font-mono text-xs text-ink-faint">
-                  v{m.resumeVersion}
-                  {m.draft ? ' draft' : ''}
-                </Td>
-                <Td>
-                  <FitBadge score={m.matchScore} label="match" />
-                </Td>
-                <Td class="whitespace-nowrap text-right text-[13px] text-ink-faint">
-                  {formatDate(m.createdAt)}
-                </Td>
-              </Tr>
-            ))}
+            {groupMatchesByJob(matches).map((h) => {
+              const line = historyLabel(h);
+              const runs = progression(h);
+              return (
+                <Tr>
+                  <Td class="max-w-[24rem]">
+                    <a
+                      href={`/jobs/${h.job.id}/target?match=${h.latest.id}`}
+                      class="block truncate font-medium text-ink transition-colors duration-150 hover:text-accent-strong"
+                      title={h.job.title}
+                    >
+                      {h.job.title}
+                    </a>
+                    {/* Every earlier run stays one click away — grouping must
+                        not hide history, only stop repeating the job title. */}
+                    {line && (
+                      <div class="mt-0.5 flex flex-wrap items-center gap-x-1 text-xs text-ink-faint">
+                        <span class="mr-0.5">{line} ·</span>
+                        {runs.map((r, i) => (
+                          <>
+                            {i > 0 && <span aria-hidden="true">→</span>}
+                            <a
+                              href={`/jobs/${h.job.id}/target?match=${r.id}`}
+                              class="font-mono transition-colors duration-150 hover:text-accent-strong"
+                              title={`${formatDate(r.createdAt)} · v${r.resumeVersion}`}
+                            >
+                              {r.matchScore}
+                            </a>
+                          </>
+                        ))}
+                      </div>
+                    )}
+                  </Td>
+                  <Td class="max-w-[14rem] text-ink-muted">
+                    <div class="truncate">{h.job.company.name}</div>
+                  </Td>
+                  <Td class="whitespace-nowrap font-mono text-xs text-ink-faint">
+                    v{h.latest.resumeVersion}
+                    {h.latest.draft ? ' draft' : ''}
+                  </Td>
+                  <Td>
+                    <div class="flex items-center gap-1.5">
+                      <FitBadge score={h.latest.matchScore} label="match" />
+                      {h.delta !== null && h.delta !== 0 && (
+                        <Badge tone={h.delta > 0 ? 'ok' : 'danger'}>
+                          {h.delta > 0 ? `+${h.delta}` : h.delta}
+                        </Badge>
+                      )}
+                    </div>
+                  </Td>
+                  <Td class="whitespace-nowrap text-right text-[13px] text-ink-faint">
+                    {formatDate(h.latest.createdAt)}
+                  </Td>
+                </Tr>
+              );
+            })}
           </Table>
         )}
       </Card>
@@ -228,6 +317,95 @@ export const ResumeDetailPage: FC<ResumeDetailProps> = ({ resume, matches, warni
     </Layout>
   );
 };
+
+/**
+ * Stage A of the multi-resume search: one press turns a scanned resume into a
+ * search that hunts the jobs you'd apply to with it. The draft is shown in
+ * full first — the button saves exactly what the line above it says (ADR 0015).
+ */
+const SearchCard: FC<ResumeDetailProps['search'] & { resumeId: number }> = ({
+  resumeId,
+  linkedProfiles,
+  draft,
+}) => {
+  return (
+    <Card class="mt-4">
+      <SectionTitle>Search profile</SectionTitle>
+      {linkedProfiles.length > 0 && (
+        <p class="text-sm text-ink">
+          This resume is what{' '}
+          {linkedProfiles.map((p, i) => (
+            <>
+              {i > 0 && ', '}
+              <a
+                href={`/settings?tab=profile&profile=${p.id}`}
+                class="font-medium text-accent-strong hover:underline"
+              >
+                {p.name}
+              </a>
+            </>
+          ))}{' '}
+          {linkedProfiles.length === 1 ? 'hunts with' : 'hunt with'} — job pages preselect it for
+          those searches.
+        </p>
+      )}
+      {draft === null ? (
+        <Hint class={linkedProfiles.length > 0 ? 'mt-3' : ''}>
+          Scan the resume first — a search is built from the headline, tools and roles the scan
+          finds.
+        </Hint>
+      ) : (
+        <>
+          <p class={`text-sm text-ink-muted ${linkedProfiles.length > 0 ? 'mt-3' : ''}`}>
+            {linkedProfiles.length > 0 ? 'Add another search' : 'Create a search'} that hunts the
+            jobs you'd apply to with this resume:
+          </p>
+          <div class="mt-2.5 flex flex-wrap items-center gap-1.5 text-sm">
+            <span class="font-medium text-ink">"{draft.changes.name}"</span>
+            {(draft.changes.stackRequired ?? []).map((t) => (
+              <Tag tone="ok">{t}</Tag>
+            ))}
+            {(draft.changes.roleTypes ?? []).map((t) => (
+              <Tag tone="info">{t}</Tag>
+            ))}
+            {(draft.changes.seniority ?? []).map((t) => (
+              <Tag tone="info">{t}</Tag>
+            ))}
+          </div>
+          {draft.warnings.length > 0 && (
+            <p class="mt-2 text-[13px] leading-5 text-warn">Note: {draft.warnings.join('; ')}.</p>
+          )}
+          <div class="mt-3.5">
+            <ActionForm action={`/resumes/${resumeId}/profile`}>
+              <Button variant="violet" size="sm">
+                Create a search from this resume
+              </Button>
+            </ActionForm>
+          </div>
+          <Hint class="mt-3">
+            It starts switched off — your current search keeps running until you press Activate on
+            Settings → Profile. Location, salary and alert routing are yours to set; a resume
+            cannot know them.
+          </Hint>
+        </>
+      )}
+    </Card>
+  );
+};
+
+const IssueList: FC<{ issues: ReturnType<typeof readIssues> }> = ({ issues }) => (
+  <ul class="divide-y divide-line">
+    {issues.map((i) => (
+      <li class="py-3 first:pt-0 last:pb-0">
+        <Badge tone="warn">{i.section}</Badge>
+        <div class="mt-1.5 min-w-0 text-sm">
+          <div class="text-ink">{i.issue}</div>
+          <div class="mt-0.5 text-[13px] leading-5 text-ink-muted">→ {i.fix}</div>
+        </div>
+      </li>
+    ))}
+  </ul>
+);
 
 const TagRow: FC<{ label: string; items: string[]; tone: 'ok' | 'info' }> = ({
   label,

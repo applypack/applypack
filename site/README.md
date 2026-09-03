@@ -1,15 +1,24 @@
 # applypack.dev
 
 Static landing for the project. Zero build step, zero dependencies —
-`public/` is served as-is. The screenshots are copies of
-`docs/screenshots/` (kept in sync by hand when those regenerate), and
-`img/og.png` is a copy of `docs/brand/social-card.png`.
+`public/` is served as-is.
 
-`demo/` is the live-scoring demo: `demo/score.mjs` and `demo/target.mjs`
-are byte copies of `src/web/public/` (enforced by
-`src/web/site-vendor.test.ts` — re-copy when they change), and
-`demo/fixture.json` is the synthetic Fernway / Dana Ruiz comparison
-exported from a real match run.
+- `index.html` is the landing; `demo/` is the live-scoring demo, and the
+  landing embeds the same demo in its hero (both pages load
+  `demo/demo.mjs`).
+- `demo/score.mjs` and `demo/target.mjs` are byte copies of
+  `src/web/public/` (enforced by `src/web/site-vendor.test.ts` — re-copy
+  when they change); `demo/fixture.json` is the synthetic Fernway /
+  Dana Ruiz comparison exported from a real match run.
+- `fonts/inter-latin.woff2` is the Inter variable font, latin subset, as
+  served by Google Fonts (SIL OFL, `fonts/LICENSE-Inter.txt`). Self-hosted
+  so the page does not block on a third-party stylesheet.
+- `img/*.webp` are crops of `docs/screenshots/` (`cwebp -q 82`; re-make
+  them when those regenerate), `img/og.png` is a copy of
+  `docs/brand/social-card.png`, and `img/apple-touch-icon.png` is
+  `favicon.svg` rendered at 180 px.
+
+The plan behind the current page is [docs/site-refresh-plan.md](../docs/site-refresh-plan.md).
 
 ## Local preview
 

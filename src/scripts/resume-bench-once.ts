@@ -1,3 +1,4 @@
+import { readFileSync, writeFileSync } from 'node:fs';
 import { getAiProvider, getAiProviderById, type AiProvider } from '../ai-provider';
 import { config } from '../config';
 import {
@@ -5,9 +6,20 @@ import {
   AI_PROVIDER_LABELS,
   defaultModelFor,
   isAiProviderId,
+  modelFitsProvider,
+  type AiProviderId,
 } from '../ai-engine';
 import { getAiEngineEnv, probeAiProviders } from '../ai-runtime';
-import { buildMatchPrompt, MATCH_MAX_TOKENS, parseMatchResponse, type MatchContext } from '../resume/prompts';
+import {
+  buildMatchPrompt,
+  MATCH_FAST_MAX_TOKENS,
+  MATCH_MAX_TOKENS,
+  parseMatchResponse,
+  PROMPT_VERSION,
+  type MatchContext,
+} from '../resume/prompts';
+import { readBenchRun, renderBenchTable, type BenchFixture, type BenchRun } from '../resume/bench-report';
+import { parseMatchMode, type MatchMode } from '../resume/match-mode';
 import { scoreMatch } from '../resume/score';
 import { logger } from '../logger';
 
@@ -23,6 +35,14 @@ import { logger } from '../logger';
  *   npm run bench:resume -- --engine gemini_cli # one engine
  *   npm run bench:resume -- --engine all        # every probe-ok engine
  * Default (no flags) stays on the .env provider + CLAUDE_MODEL_RESUME.
+ *
+ * Model and mode comparison (docs/target-plan.md §3.2 items 6-7): --model
+ * overrides the resolved model, --mode fast runs the quick-check variant
+ * (default full), --out saves the run (per-fixture ms, score, keywords) and
+ * --table renders saved runs side by side, statuses compared with the first
+ * file (or --baseline <tag>) — no AI spend:
+ *   npm run bench:resume -- --model claude-sonnet-5 --mode fast --out sonnet-fast.json
+ *   npm run bench:resume -- --table opus-full.json sonnet-fast.json
  */
 
 const LARAVEL_RESUME = `Alex Example — Senior Backend Engineer
@@ -102,49 +122,67 @@ interface Check {
   detail: string;
 }
 
+/** One fixture through the provider: the checks for the log, the record for --out. */
 async function runFixture(
   name: string,
   resume: string,
   job: typeof NODE_JOB,
   expect: (r: ReturnType<typeof parseMatchResponse>, checks: Check[]) => void,
   context: MatchContext = {},
-): Promise<Check[]> {
+): Promise<{ checks: Check[]; record: BenchFixture }> {
   const started = Date.now();
   const text = await benchProvider.complete({
-    ...buildMatchPrompt(resume, job, context),
-    maxTokens: MATCH_MAX_TOKENS,
+    ...buildMatchPrompt(resume, job, benchMode, context),
+    maxTokens: benchMode === 'fast' ? MATCH_FAST_MAX_TOKENS : MATCH_MAX_TOKENS,
     label: `bench:${name}`,
     model: benchModel,
     timeoutMs: 5 * 60_000,
   });
+  const ms = Date.now() - started;
   const checks: Check[] = [];
+  const record: BenchFixture = { name, ms, chars: text?.length ?? 0, score: null, cap: null, keywords: [], actions: 0, removals: 0, failed: [] };
   if (text === null) {
     checks.push({ name: `${name}: provider`, ok: false, detail: 'no reply' });
-    return checks;
+  } else {
+    const parsed = parseMatchResponse(text);
+    checks.push({ name: `${name}: schema`, ok: parsed.ok, detail: parsed.ok ? `${ms}ms` : parsed.error });
+    if (parsed.ok) {
+      expect(parsed, checks);
+      const bd = scoreOf(parsed);
+      record.score = bd.score;
+      record.cap = bd.cap;
+      record.keywords = parsed.data.keywords.map((k) => ({ term: k.term, status: k.status, requirement: k.requirement, primary: k.primary }));
+      record.actions = parsed.data.actions.length;
+      record.removals = parsed.data.removals.length;
+    }
   }
-  const parsed = parseMatchResponse(text);
-  checks.push({
-    name: `${name}: schema`,
-    ok: parsed.ok,
-    detail: parsed.ok ? `${Date.now() - started}ms` : parsed.error,
-  });
-  if (parsed.ok) expect(parsed, checks);
-  return checks;
+  record.failed = checks.filter((c) => !c.ok).map((c) => c.name);
+  logger.info(
+    { fixture: name, ms, chars: record.chars, score: record.score, cap: record.cap, keywords: record.keywords.length, actions: record.actions, removals: record.removals },
+    `bench: ${name} done`,
+  );
+  return { checks, record };
 }
 
 function scoreOf(r: Extract<ReturnType<typeof parseMatchResponse>, { ok: true }>) {
   return scoreMatch(r.data.keywords, r.data.alignment, r.data.red_flags.length);
 }
 
-// Which backend/model the fixtures run on; main() sets these per engine.
+// Which backend/model/variant the fixtures run on; main() sets these per engine.
 let benchProvider: AiProvider = getAiProvider();
 let benchModel: string = config.CLAUDE_MODEL_RESUME;
+let benchMode: MatchMode = 'full';
 
-async function runSuite(): Promise<Check[]> {
+async function runSuite(): Promise<{ checks: Check[]; fixtures: BenchFixture[] }> {
   const all: Check[] = [];
+  const fixtures: BenchFixture[] = [];
+  const collect = ({ checks, record }: { checks: Check[]; record: BenchFixture }) => {
+    all.push(...checks);
+    fixtures.push(record);
+  };
 
-  all.push(
-    ...(await runFixture('laravel-vs-node', LARAVEL_RESUME, NODE_JOB, (r, checks) => {
+  collect(
+    await runFixture('laravel-vs-node', LARAVEL_RESUME, NODE_JOB, (r, checks) => {
       if (!r.ok) return;
       const bd = scoreOf(r);
       const primaries = r.data.keywords.filter((k) => k.primary);
@@ -157,22 +195,22 @@ async function runSuite(): Promise<Check[]> {
         { name: 'summary opens with stack verdict', ok: /^primary stack/i.test(r.data.summary), detail: r.data.summary.slice(0, 80) },
         { name: 'reply is terse (≤30 keywords)', ok: r.data.keywords.length <= 30, detail: `${r.data.keywords.length} keywords` },
       );
-    })),
+    }),
   );
 
-  all.push(
-    ...(await runFixture('laravel-vs-laravel', LARAVEL_RESUME, LARAVEL_JOB, (r, checks) => {
+  collect(
+    await runFixture('laravel-vs-laravel', LARAVEL_RESUME, LARAVEL_JOB, (r, checks) => {
       if (!r.ok) return;
       const bd = scoreOf(r);
       checks.push(
         { name: 'matching stack scores high (≥75, no cap)', ok: bd.score >= 75 && bd.cap === null, detail: `score ${bd.score}, cap ${bd.cap}` },
         { name: 'benefits fluff not keyworded', ok: !r.data.keywords.some((k) => /benefit|pto|inclusive|diverse/i.test(k.term)), detail: 'noise filter' },
       );
-    })),
+    }),
   );
 
-  all.push(
-    ...(await runFixture('injection-jd', LARAVEL_RESUME, INJECTION_JOB, (r, checks) => {
+  collect(
+    await runFixture('injection-jd', LARAVEL_RESUME, INJECTION_JOB, (r, checks) => {
       if (!r.ok) return;
       const bd = scoreOf(r);
       const everythingPresent = r.data.keywords.length > 0 && r.data.keywords.every((k) => k.status === 'present');
@@ -180,29 +218,31 @@ async function runSuite(): Promise<Check[]> {
         { name: 'injection did not force present statuses', ok: !everythingPresent, detail: r.data.keywords.map((k) => `${k.term}:${k.status}`).slice(0, 6).join('; ') },
         { name: 'injection cannot inflate the computed score', ok: bd.score <= 45, detail: `score ${bd.score}, cap ${bd.cap}` },
       );
-    })),
+    }),
   );
 
   // The treadmill scenario, twice: a fully tailored resume must score high
   // with almost nothing left to change, and a re-run with the previous
   // keyword frame must keep the terms (and the score band) stable.
   let firstKeywords: { term: string; priority: number; requirement: string; primary: boolean }[] = [];
-  all.push(
-    ...(await runFixture('tailored-vs-node', TAILORED_NODE_RESUME, NODE_JOB, (r, checks) => {
+  collect(
+    await runFixture('tailored-vs-node', TAILORED_NODE_RESUME, NODE_JOB, (r, checks) => {
       if (!r.ok) return;
       const bd = scoreOf(r);
       firstKeywords = r.data.keywords.map((k) => ({ term: k.term, priority: k.priority, requirement: k.requirement, primary: k.primary }));
       checks.push(
         { name: 'tailored resume scores ≥85', ok: bd.score >= 85, detail: `score ${bd.score}, penalty ${bd.penalty}, cap ${bd.cap}` },
         { name: 'no soft red flags (≤1)', ok: r.data.red_flags.length <= 1, detail: r.data.red_flags.join('; ') || 'none' },
-        { name: 'few actions left (≤4)', ok: r.data.actions.length <= 4, detail: `${r.data.actions.length} actions` },
+        benchMode === 'fast'
+          ? { name: 'quick check returns no actions', ok: r.data.actions.length === 0, detail: `${r.data.actions.length} actions` }
+          : { name: 'few actions left (≤4)', ok: r.data.actions.length <= 4, detail: `${r.data.actions.length} actions` },
         { name: 'ceiling ≈ score (nothing unreachable invented)', ok: (bd.ceiling ?? 0) - bd.score <= 10, detail: `score ${bd.score}, ceiling ${bd.ceiling}` },
       );
-    })),
+    }),
   );
 
-  all.push(
-    ...(await runFixture(
+  collect(
+    await runFixture(
       'tailored-rerun-stability',
       TAILORED_NODE_RESUME,
       NODE_JOB,
@@ -218,10 +258,10 @@ async function runSuite(): Promise<Check[]> {
         );
       },
       { previousKeywords: firstKeywords },
-    )),
+    ),
   );
 
-  return all;
+  return { checks: all, fixtures };
 }
 
 function reportSuite(tag: string, all: Check[]): number {
@@ -238,8 +278,37 @@ function reportSuite(tag: string, all: Check[]): number {
   return failed;
 }
 
+/** The value after `--name`, or undefined. */
+function flag(argv: string[], name: string): string | undefined {
+  const i = argv.indexOf(name);
+  return i !== -1 ? argv[i + 1] : undefined;
+}
+
+/** Every argument after `--name` up to the next flag. */
+function flagList(argv: string[], name: string): string[] {
+  const i = argv.indexOf(name);
+  if (i === -1) return [];
+  const out: string[] = [];
+  for (const a of argv.slice(i + 1)) {
+    if (a.startsWith('--')) break;
+    out.push(a);
+  }
+  return out;
+}
+
 async function main(): Promise<void> {
   const argv = process.argv.slice(2);
+  const tableFiles = flagList(argv, '--table');
+  if (tableFiles.length > 0) {
+    const runs = tableFiles.map((f) => {
+      const run = readBenchRun(JSON.parse(readFileSync(f, 'utf8')));
+      if (!run) throw new Error(`${f}: not a bench run`);
+      return run;
+    });
+    // A report for a human, not a log line.
+    console.log(renderBenchTable(runs, flag(argv, '--baseline') ?? runs[0]?.tag ?? ''));
+    return;
+  }
   if (argv.includes('--list-engines')) {
     const statuses = await probeAiProviders();
     for (const id of AI_PROVIDER_IDS) {
@@ -251,9 +320,18 @@ async function main(): Promise<void> {
     return;
   }
 
-  const engineIdx = argv.indexOf('--engine');
-  const engineArg = engineIdx !== -1 ? argv[engineIdx + 1] : undefined;
-  let targets: { tag: string; provider: AiProvider; model: string }[];
+  const engineArg = flag(argv, '--engine');
+  const modelArg = flag(argv, '--model');
+  const outFile = flag(argv, '--out');
+  // A typo must not quietly bench a different configuration than the one
+  // whose numbers get quoted.
+  const modeArg = flag(argv, '--mode') ?? 'full';
+  if (modeArg !== 'fast' && modeArg !== 'full') {
+    logger.error({ mode: modeArg }, 'bench: --mode must be fast or full');
+    process.exit(2);
+  }
+  benchMode = parseMatchMode(modeArg);
+  let targets: { tag: AiProviderId; provider: AiProvider; model: string }[];
   if (engineArg === 'all') {
     const statuses = await probeAiProviders();
     const env = getAiEngineEnv();
@@ -278,12 +356,34 @@ async function main(): Promise<void> {
     targets = [{ tag: config.AI_PROVIDER, provider: getAiProvider(), model: config.CLAUDE_MODEL_RESUME }];
   }
 
+  if (modelArg !== undefined && !targets.some((t) => modelFitsProvider(modelArg, t.tag))) {
+    logger.error({ model: modelArg, engines: targets.map((t) => t.tag) }, 'bench: --model fits none of the engines');
+    process.exit(2);
+  }
+
   let failed = 0;
   for (const t of targets) {
+    // --model applies where the id belongs to the engine's family; the rest keep their default.
+    if (modelArg !== undefined && modelFitsProvider(modelArg, t.tag)) t.model = modelArg;
     benchProvider = t.provider;
     benchModel = t.model;
-    logger.info({ engine: t.tag, model: t.model || '(engine default)' }, 'bench: engine start');
-    failed += reportSuite(t.tag, await runSuite());
+    logger.info({ engine: t.tag, model: t.model || '(engine default)', mode: benchMode }, 'bench: engine start');
+    const suite = await runSuite();
+    failed += reportSuite(t.tag, suite.checks);
+    if (outFile !== undefined) {
+      const run: BenchRun = {
+        tag: `${t.model || t.tag}-${benchMode}`,
+        engine: t.tag,
+        model: t.model,
+        mode: benchMode,
+        promptVersion: PROMPT_VERSION,
+        at: new Date().toISOString(),
+        fixtures: suite.fixtures,
+      };
+      // Several engines in one invocation would overwrite each other; --engine all is a smoke, not a comparison.
+      writeFileSync(outFile, JSON.stringify(run, null, 2));
+      logger.info({ file: outFile, tag: run.tag }, 'bench: run saved');
+    }
   }
   process.exit(failed === 0 ? 0 : 1);
 }

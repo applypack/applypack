@@ -3,6 +3,7 @@ import { Hono } from 'hono';
 import { JobStatus } from '@prisma/client';
 import { z } from 'zod';
 import { prisma } from '../../db';
+import { hashShortId } from '../../text-utils';
 import { createManualJob, MAX_FIELD_CHARS, MIN_DESCRIPTION_CHARS } from '../../jobs/manual-job';
 import { extractPostingFacts, fallbackTitle } from '../../jobs/posting-extract';
 import { checkPostingUrl, fetchPostingText } from '../../jobs/posting-url';
@@ -22,7 +23,7 @@ import { getActiveProfile } from '../../profiles';
 import { getSettings, setCoverAngles } from '../../settings';
 import { LetterStartPage } from '../pages/letter-start';
 import { clearFlashCookie, flashRedirect, parseFlashCookie } from '../flash';
-import { createRun, startRun, updateRun, type RunStep } from '../target-runs';
+import { claimRun, startRun, updateRun, type RunStep } from '../target-runs';
 import {
   MAX_RESUME_NAME_CHARS,
   nameFromFilename,
@@ -64,7 +65,7 @@ export const letterRoute = new Hono();
 
 letterRoute.get('/letter', async (c) => {
   const settings = await getSettings();
-  // Newest first among the jobs that clear the active profile's threshold —
+  // Newest first among the jobs that clear the primary search's threshold —
   // a letter is written for something you would actually apply to, and the
   // freshest of those is the likeliest target. The picker is searchable, so
   // a long list costs nothing.
@@ -217,14 +218,20 @@ letterRoute.post('/letter', resumeUploadLimit('/letter'), async (c) => {
     ...(runVerify && !hasSnapshot ? (['verify'] as const) : []),
     'letter',
   ];
-  const run = createRun({
-    steps,
-    jobTitle: existingJob?.title ?? title ?? 'Detecting the role…',
-    resumeName: resume.name,
-    jobId: existingJob?.id,
-    backUrl: '/letter',
-    backLabel: 'Back to Cover letter',
-  });
+  // Everything the user chose is in the key — the posting, the resume, the
+  // tone and the two enrichers — so only a genuinely identical request joins.
+  const { run, joined } = claimRun(
+    `letter:${existingJob?.id ?? `new:${hashShortId(`${jobUrl}\n${description}`)}`}:${resume.id}:${tone}:${runMatch ? 'm' : ''}${runVerify ? 'v' : ''}`,
+    {
+      steps,
+      jobTitle: existingJob?.title ?? title ?? 'Detecting the role…',
+      resumeName: resume.name,
+      jobId: existingJob?.id,
+      backUrl: '/letter',
+      backLabel: 'Back to Cover letter',
+    },
+  );
+  if (joined) return c.redirect(`/target/runs/${run.id}`, 303);
 
   startRun(run.id, async () => {
     const warnings: string[] = [];
@@ -296,9 +303,11 @@ letterRoute.post('/letter', resumeUploadLimit('/letter'), async (c) => {
 
     if (runMatch) {
       updateRun(run.id, { stage: 'match' });
+      // The letter leads with strengths, which only the full report writes.
       const row = await matchResumeToJob(
         { id: resume.id, version: resume.version, text: resume.text },
         { id: job.id, title: job.title, companyName: job.companyName, location: job.location, description: job.description },
+        { mode: 'full' },
       );
       if (!row) warnings.push('The resume match failed, so the letter works from the resume and posting alone.');
     }

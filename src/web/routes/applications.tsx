@@ -3,11 +3,13 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import { prisma } from '../../db';
 import { getSettings } from '../../settings';
+import { getResume } from '../../resume/store';
+import { appliedResumeColumns, readAppliedResumeChoice } from '../applied-resume';
 import { flashRedirect, parseFlashCookie } from '../flash';
 import { ApplicationsPage } from '../pages/applications';
 import { allStages, labelFor, parseStageConfig } from '../stage-config';
 import { appliedDateCorrection, stageChangeEvent } from '../stage-events';
-import { stageTimeLine, type StageTimeLine } from '../stage-time';
+import { groupEventsByJob, stageTimeLine, type StageTimeLine } from '../stage-time';
 
 // Stage keys are validated at runtime against the configured list
 // (ADR 0025) — an enum would freeze what is now user data.
@@ -16,6 +18,9 @@ export const ApplicationFormSchema = z.object({
   appliedAt: z.string().optional(),
   recruiterContact: z.string().optional(),
   applicationNotes: z.string().optional(),
+  // Absent when the page had no resumes to offer — "keep what is stored"
+  // rather than "erase it" (applied-resume.ts).
+  appliedResumeId: z.string().optional(),
 });
 
 export const applicationsRoute = new Hono();
@@ -25,23 +30,36 @@ applicationsRoute.get('/applications', async (c) => {
   const work = parseStageConfig(settings.pipelineStages);
   const stageKeys = allStages(work).map((s) => s.key);
 
+  // Explicit select, not include: the board reads six scalars, and a whole
+  // Job row would drag the description and the applied-resume snapshot along
+  // for every card — this query is unbounded in the number of applications.
   const rows = await prisma.job.findMany({
     where: { pipelineStage: { in: stageKeys } },
-    include: { company: { select: { name: true } } },
+    select: {
+      id: true,
+      title: true,
+      fitScore: true,
+      recruiterContact: true,
+      pipelineStage: true,
+      appliedAt: true,
+      company: { select: { name: true } },
+    },
     orderBy: [{ appliedAt: 'desc' }, { id: 'desc' }],
   });
 
   // The ledger dates each card's time-in-stage (ADR 0024 keeps recording
-  // even though the funnel cards are gone — ADR 0025).
-  const events = settings.applicationTrackingEnabled
-    ? await prisma.jobStageEvent.findMany({ orderBy: { recordedAt: 'asc' } })
-    : [];
-  const eventsByJob = new Map<number, typeof events>();
-  for (const e of events) {
-    const list = eventsByJob.get(e.jobId);
-    if (list) list.push(e);
-    else eventsByJob.set(e.jobId, [e]);
-  }
+  // even though the funnel cards are gone — ADR 0025). Scoped to the cards
+  // on screen: the ledger is append-only, so it grows with every stage move
+  // ever made while the board only dates the jobs it draws.
+  const boardIds = rows.map((r) => r.id);
+  const events =
+    settings.applicationTrackingEnabled && boardIds.length > 0
+      ? await prisma.jobStageEvent.findMany({
+          where: { jobId: { in: boardIds } },
+          orderBy: { recordedAt: 'asc' },
+        })
+      : [];
+  const eventsByJob = groupEventsByJob(events, boardIds);
 
   const now = new Date();
   const byStage = Object.fromEntries(stageKeys.map((k) => [k, []])) as Record<
@@ -142,12 +160,22 @@ applicationsRoute.post('/jobs/:id/application', async (c) => {
     appliedAt: form.appliedAt,
     recruiterContact: form.recruiterContact,
     applicationNotes: form.applicationNotes,
+    appliedResumeId: form.appliedResumeId,
   });
   if (!parsed.success) {
     return c.text('Invalid form values', 400);
   }
   const { pipelineStage, appliedAt, recruiterContact, applicationNotes } =
     parsed.data;
+
+  // "Which resume did I send?" is part of the application, so the form that
+  // records the application records it too (#75). Until now only "Mark
+  // applied" ever wrote these columns, and this form silently left them NULL.
+  const choice = readAppliedResumeChoice(parsed.data.appliedResumeId);
+  const appliedResume =
+    choice.kind === 'keep'
+      ? null
+      : appliedResumeColumns(choice.kind === 'set' ? await getResume(choice.id) : null);
 
   const stageValue =
     pipelineStage && pipelineStage.length > 0 ? pipelineStage : null;
@@ -191,6 +219,7 @@ applicationsRoute.post('/jobs/:id/application', async (c) => {
         applicationNotes && applicationNotes.trim().length > 0
           ? applicationNotes
           : null,
+      ...(appliedResume ?? {}),
     },
   });
   if (event) {

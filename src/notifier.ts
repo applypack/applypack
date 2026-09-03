@@ -5,7 +5,7 @@ import {
   markTargetUsed,
 } from './settings';
 import { prisma } from './db';
-import type { Profile, TelegramTarget } from '@prisma/client';
+import type { TelegramTarget } from '@prisma/client';
 import { describeStatus } from './fetchers/source-health';
 import type { AlertJob } from './types';
 
@@ -20,23 +20,29 @@ const MAX_MESSAGE_LENGTH = 4096;
  */
 const MAX_QUIET_NAMED = 8;
 
+/**
+ * One alert per posting (ADR 0028). `targetId` is the winning search's
+ * `Profile.telegramTargetId` — a number, not the whole row, because routing is
+ * the only thing the notifier ever wanted from a profile, and passing the row
+ * invited callers to think the message was per-profile.
+ */
 export async function sendTelegramAlert(
   job: AlertJob,
-  profile?: Profile,
+  targetId?: number | null,
 ): Promise<void> {
   const text = formatJobMessage(job);
-  await broadcast(text, profile);
+  await broadcast(text, targetId);
 }
 
 export async function sendDigest(
   jobs: AlertJob[],
-  profile?: Profile,
+  targetId?: number | null,
   quiet: QuietSourceAlert[] = [],
 ): Promise<void> {
   const healthLine = formatSourceHealthLine(quiet);
   if (jobs.length === 0) {
     const empty = escapeMarkdownV2('No new matches in the last 24h.');
-    await broadcast(healthLine ? `${empty}\n\n${healthLine}` : empty, profile);
+    await broadcast(healthLine ? `${empty}\n\n${healthLine}` : empty, targetId);
     return;
   }
   const header = `*Daily digest — ${jobs.length} match${jobs.length === 1 ? '' : 'es'}*${
@@ -50,18 +56,18 @@ export async function sendDigest(
   for (const block of blocks) {
     const candidate = buf.length === 0 ? block : `${buf}${separator}${block}`;
     if (candidate.length > MAX_MESSAGE_LENGTH) {
-      await broadcast(buf, profile);
+      await broadcast(buf, targetId);
       buf = block;
     } else {
       buf = candidate;
     }
   }
   if (buf.length > 0) {
-    await broadcast(buf, profile);
+    await broadcast(buf, targetId);
   }
 }
 
-async function broadcast(text: string, profile?: Profile): Promise<void> {
+async function broadcast(text: string, targetId?: number | null): Promise<void> {
   const settings = await getSettings();
   if (!settings.telegramEnabled) {
     logger.info(
@@ -71,12 +77,12 @@ async function broadcast(text: string, profile?: Profile): Promise<void> {
     return;
   }
 
-  const targets = await resolveTargets(profile);
+  const targets = await resolveTargets(targetId);
   if (targets.length === 0) {
     logger.info(
       {
         telegram: 'no-targets',
-        profile: profile?.name,
+        targetId,
         preview: text.slice(0, 200),
       },
       'telegram: no eligible targets; skipping',
@@ -107,20 +113,16 @@ async function broadcast(text: string, profile?: Profile): Promise<void> {
 
 /**
  * Pick the targets for this broadcast:
- * - If profile.telegramTargetId is set and that target is active, send only there.
+ * - If the search named a target and that target is active, send only there.
  * - Otherwise broadcast to all active targets.
  */
-async function resolveTargets(
-  profile?: Profile,
-): Promise<TelegramTarget[]> {
-  if (profile?.telegramTargetId) {
-    const t = await prisma.telegramTarget.findUnique({
-      where: { id: profile.telegramTargetId },
-    });
+async function resolveTargets(targetId?: number | null): Promise<TelegramTarget[]> {
+  if (targetId) {
+    const t = await prisma.telegramTarget.findUnique({ where: { id: targetId } });
     if (t && t.active) return [t];
     logger.warn(
-      { profile: profile.name, targetId: profile.telegramTargetId },
-      'telegram: profile target inactive or missing; falling back to all active',
+      { targetId },
+      'telegram: search target inactive or missing; falling back to all active',
     );
   }
   return listActiveTelegramTargets();
@@ -161,7 +163,13 @@ async function deliverToTarget(
  *  rejects a whole message on a single unescaped special character. */
 export function formatJobMessage(job: AlertJob): string {
   const lines: string[] = [];
-  lines.push(`*New role match — fit ${job.fitScore}/100*`);
+  // The header names the search that wanted it, so a reader running several
+  // knows which hunt fired without opening the link (ADR 0028).
+  lines.push(
+    job.matchedProfile
+      ? `*${escapeMarkdownV2(job.matchedProfile)} — fit ${job.fitScore}/100*`
+      : `*New role match — fit ${job.fitScore}/100*`,
+  );
   lines.push(
     `*${escapeMarkdownV2(job.title)}* @ ${escapeMarkdownV2(job.companyName)}`,
   );
@@ -179,6 +187,9 @@ export function formatJobMessage(job: AlertJob): string {
     lines.push(
       `🔁 Also listed at ${escapeMarkdownV2(job.crossListedAt)} — apply through one channel only`,
     );
+  }
+  if (job.profileScores) {
+    lines.push(`🎯 ${escapeMarkdownV2(job.profileScores)}`);
   }
   if (job.summary) {
     lines.push(`_${escapeMarkdownV2(job.summary)}_`);

@@ -4,10 +4,21 @@ import { JobStatus, type Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { prisma } from '../../db';
 import { logger } from '../../logger';
+import { hashShortId } from '../../text-utils';
+import { appliedResumeColumns } from '../applied-resume';
+import {
+  parsePlaces,
+  parsePosted,
+  parseWorkplaces,
+  placeWhere,
+  postedSince,
+  tallyFacets,
+} from '../job-facets';
 import { getSettings } from '../../settings';
 import { allStages, parseStageConfig } from '../stage-config';
 import { classifyExistingJob } from '../../jobs/classify-existing';
-import { getActiveProfile } from '../../profiles';
+import { locationMismatchReason } from '../../jobs/location-reason';
+import { getActiveProfile, listActiveProfiles } from '../../profiles';
 import { isBlankProfile } from '../../profile-guards';
 import { createManualJob, ManualJobSchema, MIN_DESCRIPTION_CHARS } from '../../jobs/manual-job';
 import { checkLiveness, listVerificationsForJob, verifyJob } from '../../verification/verify';
@@ -18,14 +29,20 @@ import { JobNewPage } from '../pages/job-new';
 import { TargetPage } from '../pages/target';
 import { previousFor } from '../pages/resume-match-card';
 import { nameFromFilename, readResumeUpload, resumeUploadLimit } from '../upload';
-import { scanResume } from '../../resume/scan';
+import { decideInstantCheck, draftTextForPage, instantCheckNotice, unchangedNotice } from '../instant-check';
+import { draftStash } from '../draft-stash';
+import { scanInBackground } from '../../resume/scan';
 import { clearFlashCookie, flashRedirect, parseFlashCookie } from '../flash';
-import { createRun, startRun, updateRun } from '../target-runs';
+import { formatRelative } from '../format';
+import { claimRun, matchStep, startRun, updateRun } from '../target-runs';
+import { startSuggestionsRun } from '../suggestions-run';
 import {
   deleteCoverLettersForResume,
   deleteMatchesForResume,
   getCoverLetter,
   getLatestCompanySnapshot,
+  getLatestMatchForResumeAndJob,
+  getMatch,
   getResume,
   listCoverLettersForJob,
   listFacts,
@@ -35,16 +52,21 @@ import {
   updateCoverLetterEdit,
   upsertScratchResume,
 } from '../../resume/store';
-import { pickResumeForJob } from '../../resume/pick';
-import { matchResumeToJob } from '../../resume/match';
+import { preselectAppliedResume, preselectResume } from '../../resume/pick';
+import { findReusableMatch, matchResumeToJob } from '../../resume/match';
+import { parseMatchMode, readMatchMode } from '../../resume/match-mode';
+import { reuseNotice } from '../../resume/match-reuse';
 import { generateCoverLetter } from '../../resume/cover-letter';
 import {
   countWords,
   COVER_TONES,
   coverGateSources,
   readCoverAngles,
+  readKeywords,
   type CoverTone,
 } from '../../resume/prompts';
+import { withTableAliases } from '../../resume/keyword-aliases';
+import { loadKeywordMatcher, type CountedKeyword } from '../../resume/keyword-matcher';
 import { factCheck } from '../../resume/fact-check';
 import { buildLetterDocx, DOCX_MIME } from '../../resume/docx-write';
 import { buildLetterPdf } from '../../resume/pdf-write';
@@ -76,10 +98,18 @@ const ListQuerySchema = z.object({
     .string()
     .optional()
     .transform((v) => (v === '1' ? '1' : '')),
+  // ADR 0028: narrow the list to one search. Empty = every search.
+  profile: z.coerce.number().int().positive().optional().catch(undefined),
+  // ADR 0031: the facets. Unknown values are dropped, never rejected.
+  country: z.string().optional().transform(parsePlaces),
+  workplace: z.string().optional().transform(parseWorkplaces),
+  posted: z.string().optional().transform(parsePosted),
 });
 
 const StatusBodySchema = z.object({
   status: z.enum(['NEW', 'ALERTED', 'APPLIED', 'SAVED', 'DISMISSED']),
+  // Stage C: only read when the status is APPLIED. Empty = "don't record one".
+  appliedResumeId: z.coerce.number().int().positive().optional(),
 });
 
 export const jobsRoute = new Hono();
@@ -92,33 +122,56 @@ jobsRoute.get('/jobs', async (c) => {
     q: c.req.query('q'),
     sort: c.req.query('sort'),
     verified: c.req.query('verified'),
+    profile: c.req.query('profile') || undefined,
+    country: c.req.query('country'),
+    workplace: c.req.query('workplace'),
+    posted: c.req.query('posted'),
   });
   if (!parsed.success) {
     return c.text('Invalid query', 400);
   }
-  const { page, status, minFit, q, sort, verified } = parsed.data;
+  const { page, status, minFit, q, sort, verified, profile, country, workplace, posted } = parsed.data;
+  const now = new Date();
 
   const where: Prisma.JobWhereInput = {};
   if (status) {
     where.status = status as JobStatus;
   }
   const minFitNum = minFit ? Number(minFit) : NaN;
-  if (!Number.isNaN(minFitNum)) {
+  // With a search selected both filters read that search's own score, not the
+  // best-of — a chip that showed rows another search scored would be a lie.
+  if (profile) {
+    where.scores = {
+      some: { profileId: profile, ...(Number.isNaN(minFitNum) ? {} : { fitScore: { gte: minFitNum } }) },
+    };
+  } else if (!Number.isNaN(minFitNum)) {
     where.fitScore = { gte: minFitNum };
   }
   if (q.trim().length > 0) {
     where.OR = [
       { title: { contains: q, mode: 'insensitive' } },
       { description: { contains: q, mode: 'insensitive' } },
+      { location: { contains: q, mode: 'insensitive' } },
     ];
   }
   if (verified) {
     where.verifications = { some: {} };
   }
+  // The facet counts come from the rows matching everything above; each
+  // facet then applies the others' selections in tallyFacets. Four narrow
+  // columns per row — ~1k rows today; past ~50k move the tally into SQL.
+  const facetWhere: Prisma.JobWhereInput = { ...where };
+  const since = postedSince(posted, now);
+  if (since) where.postedAt = { gte: since };
+  const facetAnd: Prisma.JobWhereInput[] = [];
+  const place = placeWhere(country);
+  if (place) facetAnd.push(place);
+  if (workplace.length > 0) facetAnd.push({ workplace: { in: workplace } });
+  if (facetAnd.length > 0) where.AND = facetAnd;
 
   const orderBy = sortToOrderBy(sort);
 
-  const [jobs, total, activeProfile] = await Promise.all([
+  const [jobs, total, facetRows, activeProfile, activeProfiles] = await Promise.all([
     prisma.job.findMany({
       where,
       orderBy,
@@ -131,10 +184,18 @@ jobsRoute.get('/jobs', async (c) => {
           orderBy: { createdAt: 'desc' },
           take: 1,
         },
+        // Only the selected search's row, so the list renders that search's
+        // score in place of the best-of.
+        ...(profile && { scores: { where: { profileId: profile }, take: 1 } }),
       },
     }),
     prisma.job.count({ where }),
+    prisma.job.findMany({
+      where: facetWhere,
+      select: { countries: true, regions: true, workplace: true, postedAt: true },
+    }),
     getActiveProfile(),
+    listActiveProfiles(),
   ]);
 
   return c.html(
@@ -149,7 +210,13 @@ jobsRoute.get('/jobs', async (c) => {
         q,
         sort,
         verified,
+        profile: profile ?? null,
+        country,
+        workplace: workplace.map((w) => w.toLowerCase()),
+        posted,
       }}
+      facets={tallyFacets(facetRows, { places: country, workplaces: workplace, posted }, now)}
+      profiles={activeProfiles.map((p) => ({ id: p.id, name: p.name }))}
       blankProfileBanner={activeProfile !== null && isBlankProfile(activeProfile)}
     />,
   );
@@ -178,16 +245,31 @@ jobsRoute.post('/jobs/new', async (c) => {
     `/jobs/${result.job.id}`,
     'ok',
     result.classified
-      ? 'Saved and scored against the active profile. Next: Verify, then Compare with a resume.'
-      : 'Saved. Classifier skipped (no active profile or AI failure) — Verify and Compare still work.',
+      ? 'Saved and scored against every running search. Next: Verify, then Compare with a resume.'
+      : 'Saved. Classifier skipped (no running search or AI failure) — Verify and Compare still work.',
   );
 });
+
+/**
+ * One comparison's keywords as both pages want them: alias-table spellings
+ * applied on read (so a match stored before an entry highlights the same way)
+ * and ordered by the matcher — hardest requirement first, ties broken by how
+ * often the posting repeats the term, each row carrying that count (§5).
+ */
+async function orderedKeywords(
+  match: { keywords: unknown } | null,
+  posting: string,
+): Promise<CountedKeyword[]> {
+  if (!match) return [];
+  const matcher = await loadKeywordMatcher();
+  return matcher.orderKeywords(readKeywords(match.keywords).map(withTableAliases), posting);
+}
 
 jobsRoute.get('/jobs/:id', async (c) => {
   const id = Number(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text('Bad id', 400);
 
-  const [job, settings, resumes, matches, verifications, letters] = await Promise.all([
+  const [job, settings, resumes, matches, verifications, letters, activeProfile] = await Promise.all([
     prisma.job.findUnique({
       where: { id },
       include: {
@@ -200,6 +282,26 @@ jobsRoute.get('/jobs/:id', async (c) => {
         crossListings: {
           select: { id: true, title: true, company: { select: { name: true } } },
         },
+        // Stage C: the resume this application went out with. Only the name is
+        // read — the version and text snapshot live on the job itself.
+        appliedResume: { select: { name: true } },
+        // Every search's verdict, best first (ADR 0028).
+        scores: {
+          include: {
+            profile: {
+              select: {
+                id: true,
+                name: true,
+                resumeId: true,
+                active: true,
+                countries: true,
+                regions: true,
+                workplace: true,
+              },
+            },
+          },
+          orderBy: { fitScore: 'desc' },
+        },
       },
     }),
     getSettings(),
@@ -207,6 +309,7 @@ jobsRoute.get('/jobs/:id', async (c) => {
     listMatchesForJob(id),
     listVerificationsForJob(id),
     listCoverLettersForJob(id),
+    getActiveProfile(),
   ]);
   if (!job) return c.text('Not found', 404);
 
@@ -215,12 +318,37 @@ jobsRoute.get('/jobs/:id', async (c) => {
   const selected = matches.find((m) => m.id === requestedMatch) ?? matches[0] ?? null;
   const requestedLetter = Number(c.req.query('letter'));
   const selectedLetter = letters.find((l) => l.id === requestedLetter) ?? letters[0] ?? null;
-  const suggested = pickResumeForJob(resumes, `${job.title} ${job.description}`);
+  // The search that speaks for this posting is the one that scored it best,
+  // not merely the primary (ADR 0028) — its linked resume wins the preselect.
+  // Falls back to the primary for a posting nothing has scored yet.
+  const winning = job.scores[0]?.profile ?? null;
+  const linkedResumeId = winning?.resumeId ?? activeProfile?.resumeId ?? null;
+  const suggested = preselectResume(resumes, `${job.title} ${job.description}`, linkedResumeId);
+  const suggestedReason = suggested && suggested.id === linkedResumeId ? 'linked' : 'overlap';
+  // "Mark applied" starts on the resume this posting was actually compared
+  // with — the comparison on screen — and only falls back to the page's own
+  // preselect (Stage C).
+  const appliedPick = preselectAppliedResume(resumes, selected?.resumeId ?? null, suggested);
 
   const flashCookie = parseFlashCookie(c.req.header('cookie'));
+  const selectedKeywords = await orderedKeywords(selected, job.description);
   return c.html(
     <JobDetailPage
       job={job}
+      appliedResumePicker={{
+        resumes: resumes.map((r) => ({ id: r.id, name: r.name })),
+        suggestedId: appliedPick?.id ?? null,
+      }}
+      profileScores={job.scores.map((sc) => ({
+        profileId: sc.profileId,
+        name: sc.profile.name,
+        active: sc.profile.active,
+        fitScore: sc.fitScore,
+        locationMatch: sc.locationMatch,
+        // Built from the columns, no AI call (ADR 0032); null when they cannot say.
+        locationReason: sc.locationMatch ? null : locationMismatchReason(job, sc.profile),
+        summary: sc.summary,
+      }))}
       applicationTrackingEnabled={settings.applicationTrackingEnabled}
       pipelineStages={allStages(parseStageConfig(settings.pipelineStages))}
       verification={verifications[0] ?? null}
@@ -229,13 +357,16 @@ jobsRoute.get('/jobs/:id', async (c) => {
         jobId: id,
         resumes: resumes.map((r) => ({ id: r.id, name: r.name, isDefault: r.isDefault })),
         suggestedResumeId: suggested?.id ?? null,
+        suggestedReason,
         matches,
         selected,
+        selectedKeywords,
       }}
       coverLetters={{
         jobId: id,
         resumes: resumes.map((r) => ({ id: r.id, name: r.name, isDefault: r.isDefault })),
         suggestedResumeId: suggested?.id ?? null,
+        suggestedReason,
         letters,
         selected: selectedLetter,
         hasCompanyFacts: Boolean(verifications[0]?.companySnapshot?.trim()),
@@ -253,7 +384,10 @@ jobsRoute.post('/jobs/:id/status', async (c) => {
   if (!Number.isFinite(id)) return c.text('Bad id', 400);
 
   const form = await c.req.parseBody();
-  const parsed = StatusBodySchema.safeParse({ status: form.status });
+  const parsed = StatusBodySchema.safeParse({
+    status: form.status,
+    appliedResumeId: form.appliedResumeId === '' ? undefined : form.appliedResumeId,
+  });
   if (!parsed.success) return c.text('Invalid status', 400);
 
   const data: Prisma.JobUpdateInput = { status: parsed.data.status };
@@ -279,6 +413,20 @@ jobsRoute.post('/jobs/:id/status', async (c) => {
       }
       if (!current?.appliedAt) data.appliedAt = new Date();
     }
+
+    // Stage C. The snapshot is what makes this answerable later: the bytes of
+    // a resume are replaced in place on "Upload a new version", so the id and
+    // the version alone would name v3 and hand back v5's words. The rules for
+    // what counts live in applied-resume.ts, shared with the two paths on
+    // /applications that used to record nothing at all (#75).
+    const requested = parsed.data.appliedResumeId;
+    const picked = requested ? await getResume(requested) : null;
+    const columns = appliedResumeColumns(picked);
+    data.appliedResume = columns.appliedResumeId
+      ? { connect: { id: columns.appliedResumeId } }
+      : { disconnect: true };
+    data.appliedResumeVersion = columns.appliedResumeVersion;
+    data.appliedResumeText = columns.appliedResumeText;
   }
 
   const update = prisma.job.update({ where: { id }, data });
@@ -367,32 +515,84 @@ jobsRoute.post('/jobs/:id/match', async (c) => {
     getResume(resumeId),
   ]);
   if (!job || !resume) return c.text('Not found', 404);
+  const jobInput = { id: job.id, title: job.title, companyName: job.company.name, location: job.location, description: job.description };
 
   // The targeted view posts its edited text; a non-empty draft is judged instead of the stored version.
   const draftText = typeof form.draftText === 'string' ? form.draftText.replace(/\r\n/g, '\n').trim() : '';
   const draft = draftText.length > 0 && draftText !== resume.text;
+  const text = draft ? draftText : resume.text;
+  // The quick check unless the form asked for the full report (ADR 0029).
+  const mode = parseMatchMode(form.mode);
+  // "Rebuild keywords": read the terms out of the posting again instead of
+  // inheriting the frame this posting has been carrying (issue #79).
+  const rebuild = form.rebuild === '1';
   const toTarget = form.next === 'target';
+  const resultUrl = (matchId: number) =>
+    toTarget ? `/jobs/${id}/target?match=${matchId}` : `/jobs/${id}?match=${matchId}#resume-match`;
 
-  const run = createRun({ steps: ['match'], jobTitle: job.title, resumeName: resume.name, jobId: id });
+  // The same text was already judged: show that analysis instead of paying
+  // for it again — unless "Re-run anyway" or a rebuild asked for a fresh call.
+  // A rebuild that hit the memo would silently hand back the very frame it was
+  // asked to replace. A full report asked of a stored quick check needs only
+  // the suggestions call.
+  if (form.force !== '1' && !rebuild) {
+    const reused = await findReusableMatch(job.id, resume.id, text, mode);
+    if (reused?.decision === 'reuse') {
+      return flashRedirect(resultUrl(reused.row.id), 'warn', reuseNotice(formatRelative(reused.row.createdAt)), {
+        rerun: true,
+        mode,
+      });
+    }
+    if (reused) {
+      return c.redirect(startSuggestionsRun({ match: reused.row, job: jobInput, resumeName: resume.name, resultUrl: resultUrl(reused.row.id) }), 303);
+    }
+  }
+
+  // Same job, same resume, same text, same mode is the same comparison, so a
+  // second submit joins the run in flight rather than paying for it twice.
+  const { run, joined } = claimRun(
+    `match:${id}:${resume.id}:${mode}:${rebuild ? 'rebuild' : 'frame'}:${hashShortId(text)}`,
+    { steps: [matchStep(mode)], jobTitle: job.title, resumeName: resume.name, jobId: id },
+  );
+  if (joined) return c.redirect(`/target/runs/${run.id}`, 303);
   startRun(run.id, async () => {
     // Ephemeral (scratch) compares keep only the current analysis.
     if (resume.hidden) await deleteMatchesForResume(resume.id);
-    const row = await matchResumeToJob(
-      { id: resume.id, version: resume.version, text: draft ? draftText : resume.text },
-      { id: job.id, title: job.title, companyName: job.company.name, location: job.location, description: job.description },
-      { draft },
-    );
+    const row = await matchResumeToJob({ id: resume.id, version: resume.version, text }, jobInput, { draft, mode, rebuild });
     if (!row) {
       updateRun(run.id, { stage: 'error', error: 'Comparison failed — see the web logs.' });
       return;
     }
     updateRun(run.id, {
       stage: 'done',
-      resultUrl: toTarget ? `/jobs/${id}/target?match=${row.id}` : `/jobs/${id}?match=${row.id}#resume-match`,
-      flash: `${draft ? 'Draft' : `"${resume.name}"`} compared — AI match ${row.matchScore}/100.`,
+      resultUrl: resultUrl(row.id),
+      flash: rebuild
+        ? `Keywords rebuilt from the posting — AI match ${row.matchScore}/100, counted over a fresh set of terms.`
+        : `${draft ? 'Draft' : `"${resume.name}"`} ${mode === 'fast' ? 'checked' : 'compared'} — AI match ${row.matchScore}/100.`,
     });
   });
   return c.redirect(`/target/runs/${run.id}`, 303);
+});
+
+/** "Get suggestions" on a quick check: the lazy second call, the verdicts and the score untouched (ADR 0029). */
+jobsRoute.post('/jobs/:id/matches/:matchId/suggestions', async (c) => {
+  const id = Number(c.req.param('id'));
+  const matchId = Number(c.req.param('matchId'));
+  if (!Number.isFinite(id) || !Number.isFinite(matchId)) return c.text('Bad id', 400);
+  const form = await c.req.parseBody();
+  const [job, match] = await Promise.all([
+    prisma.job.findUnique({ where: { id }, include: { company: { select: { name: true } } } }),
+    getMatch(matchId),
+  ]);
+  if (!job || !match || match.jobId !== id) return c.text('Not found', 404);
+  const resume = await getResume(match.resumeId);
+  if (!resume) return c.text('Not found', 404);
+  const resultUrl = form.next === 'target' ? `/jobs/${id}/target?match=${matchId}` : `/jobs/${id}?match=${matchId}#resume-match`;
+  if (readMatchMode(match.breakdown) === 'full') {
+    return flashRedirect(resultUrl, 'warn', 'This analysis already has its suggestions.');
+  }
+  const jobInput = { id: job.id, title: job.title, companyName: job.company.name, location: job.location, description: job.description };
+  return c.redirect(startSuggestionsRun({ match, job: jobInput, resumeName: resume.name, resultUrl }), 303);
 });
 
 jobsRoute.post('/jobs/:id/cover', async (c) => {
@@ -428,7 +628,15 @@ jobsRoute.post('/jobs/:id/cover', async (c) => {
 
   if (fromForm) await setCoverAngles(angles);
 
-  const run = createRun({ steps: ['letter'], jobTitle: job.title, resumeName: resume.name, jobId: id });
+  // Tone and angles are part of the request: a second Generate with a
+  // different tone is different work, not the same work twice.
+  const { run, joined } = claimRun(`cover:${id}:${resume.id}:${tone}:${hashShortId(JSON.stringify(angles))}`, {
+    steps: ['letter'],
+    jobTitle: job.title,
+    resumeName: resume.name,
+    jobId: id,
+  });
+  if (joined) return c.redirect(`/target/runs/${run.id}`, 303);
   startRun(run.id, async () => {
     const outcome = await generateCoverLetter(
       { id: resume.id, text: resume.text, version: resume.version },
@@ -548,14 +756,19 @@ jobsRoute.get('/jobs/:id/target', async (c) => {
   }
   const resume = await getResume(match.resumeId);
   if (!resume) return c.text('Not found', 404);
+  // An instant check arrives with its parsed upload — taken once; from then on the browser holds it.
+  const draftKey = c.req.query('draft');
+  const draftText = draftTextForPage(draftKey ? draftStash.take(draftKey) : null, match.id);
   return c.html(
     <TargetPage
       job={{ id: job.id, title: job.title, companyName: job.company.name, location: job.location, description: job.description }}
       resume={{ id: resume.id, name: resume.name, version: resume.version, ephemeral: resume.hidden }}
       match={match}
+      keywords={await orderedKeywords(match, job.description)}
       matches={matches}
       previous={previousFor(match, matches)}
       resumeText={match.resumeText || resume.text}
+      draftText={draftText}
       flash={parseFlashCookie(c.req.header('cookie'))}
     />,
     200,
@@ -564,6 +777,7 @@ jobsRoute.get('/jobs/:id/target', async (c) => {
 });
 
 jobsRoute.post('/jobs/:id/target/reupload', async (c, next) => resumeUploadLimit(`/jobs/${c.req.param('id')}/target`)(c, next), async (c) => {
+  const started = Date.now();
   const id = Number(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text('Bad id', 400);
   const form = await c.req.parseBody();
@@ -577,26 +791,64 @@ jobsRoute.post('/jobs/:id/target/reupload', async (c, next) => resumeUploadLimit
   const upload = await readResumeUpload(form);
   if ('error' in upload) return flashRedirect(`/jobs/${id}/target`, 'err', upload.error);
 
+  // The default is the instant check: the new text becomes an unsaved draft
+  // over the analysis the page showed — no AI call, no new version, nothing
+  // written (docs/target-plan.md §3.2 item 5). "Upload & analyze" opts into
+  // the full run below.
+  if (form.uploadMode !== 'analyze') {
+    const decision = decideInstantCheck(await frameFor(id, resumeId, Number(form.matchId)), upload.text);
+    if (decision.kind !== 'analyze') {
+      const when = formatRelative(decision.frame.createdAt);
+      const page = `/jobs/${id}/target?match=${decision.frame.id}`;
+      if (decision.kind === 'unchanged') {
+        return flashRedirect(page, 'warn', unchangedNotice(upload.sourceFilename, when));
+      }
+      const key = draftStash.put({ matchId: decision.frame.id, text: upload.text });
+      const ms = Date.now() - started;
+      logger.info(
+        { jobId: id, matchId: decision.frame.id, resumeId, file: upload.sourceFilename, chars: upload.text.length, ms },
+        'resume: instant check',
+      );
+      return flashRedirect(`${page}&draft=${key}`, 'ok', instantCheckNotice(upload.sourceFilename, when, ms));
+    }
+  }
+
   // Scratch (ephemeral) resumes are replaced in place with no scan and no
   // history — a fresh upload means a fresh analysis, nothing saved.
   const ephemeral = existing.hidden;
   const newName = ephemeral ? nameFromFilename(upload.sourceFilename) : existing.name;
-  const run = createRun({
-    steps: ephemeral ? ['match'] : ['scan', 'match'],
+  const { run, joined } = claimRun(`reupload:${id}:${resumeId}:${hashShortId(upload.text)}`, {
+    steps: ['keywords'],
     jobTitle: job.title,
     resumeName: newName,
     jobId: id,
   });
+  if (joined) return c.redirect(`/target/runs/${run.id}`, 303);
   startRun(run.id, async () => {
     let resume;
     if (ephemeral) {
       resume = await upsertScratchResume({ name: newName, ...upload });
-      await deleteMatchesForResume(resume.id);
-      await deleteCoverLettersForResume(resume.id);
     } else {
       resume = await replaceResumeFile(resumeId, upload);
-      await scanResume(resume);
-      updateRun(run.id, { stage: 'match' });
+      // The match never reads the scan, so the new version's scan runs
+      // alongside it instead of ahead of it — a whole resume-model call off
+      // the wait. Cost: Resume.skills stay one version stale until it lands.
+      scanInBackground(resume);
+    }
+    // A file whose text did not change is already answered.
+    const reused = await findReusableMatch(job.id, resume.id, resume.text, 'fast');
+    if (reused) {
+      updateRun(run.id, {
+        stage: 'done',
+        resultUrl: `/jobs/${id}/target?match=${reused.row.id}`,
+        flash: `${ephemeral ? `"${newName}"` : `v${resume.version}`} uploaded. ${reuseNotice(formatRelative(reused.row.createdAt))}`,
+        reused: true,
+      });
+      return;
+    }
+    if (ephemeral) {
+      await deleteMatchesForResume(resume.id);
+      await deleteCoverLettersForResume(resume.id);
     }
     const row = await matchResumeToJob(resume, {
       id: job.id,
@@ -618,12 +870,19 @@ jobsRoute.post('/jobs/:id/target/reupload', async (c, next) => resumeUploadLimit
       stage: 'done',
       resultUrl: `/jobs/${id}/target?match=${row.id}`,
       flash: ephemeral
-        ? `"${newName}" compared — AI match ${row.matchScore}/100.`
-        : `v${resume.version} uploaded and compared — AI match ${row.matchScore}/100.`,
+        ? `"${newName}" checked — AI match ${row.matchScore}/100.`
+        : `v${resume.version} uploaded and checked — AI match ${row.matchScore}/100.`,
     });
   });
   return c.redirect(`/target/runs/${run.id}`, 303);
 });
+
+/** The analysis a re-upload is checked against: the one the page showed, else the resume's latest for the job. */
+async function frameFor(jobId: number, resumeId: number, matchId: number) {
+  const shown = Number.isFinite(matchId) ? await getMatch(matchId) : null;
+  if (shown && shown.jobId === jobId && shown.resumeId === resumeId) return shown;
+  return getLatestMatchForResumeAndJob(jobId, resumeId);
+}
 
 function sortToOrderBy(sort: string): Prisma.JobOrderByWithRelationInput[] {
   switch (sort) {

@@ -30,6 +30,10 @@ enum AtsType {
   PINPOINT
   RIPPLING
   FOURDAYWEEK
+  // Stage 3b: DOU.ua RSS, one row per query string (category / city / remote / search).
+  DOU
+  // Stage 3b: Djinni RSS, one row per filter string (primary_keyword / employment / region).
+  DJINNI
   // Phase 8.2: pasted by hand on /jobs/new. One inactive Company row per
   // employer; runAllFetchers never touches it.
   MANUAL
@@ -41,6 +45,14 @@ enum JobStatus {
   APPLIED
   DISMISSED
   SAVED
+}
+
+// ADR 0031: the arrangement a posting names. UNKNOWN = nothing said, not "on-site".
+enum Workplace {
+  REMOTE
+  HYBRID
+  ONSITE
+  UNKNOWN
 }
 
 enum CronRunStatus {
@@ -84,24 +96,37 @@ model Company {
 }
 
 model Job {
-  id          Int       @id @default(autoincrement())
+  id          Int      @id @default(autoincrement())
   companyId   Int
-  company     Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
   externalId  String
   title       String
   url         String
   location    String
-  description String    @db.Text
+  description String   @db.Text
   postedAt    DateTime
-  fetchedAt   DateTime  @default(now())
-  fitScore    Int?
-  salaryMin   Int?
-  salaryMax   Int?
-  techMatch   String[]
-  redFlags    String[]
-  summary     String?   @db.Text
-  status      JobStatus @default(NEW)
-  alertedAt   DateTime?
+  fetchedAt   DateTime @default(now())
+
+  // ADR 0031: the structured reading of `location`, which itself is never
+  // rewritten. REMOTE → countries are where the candidate may live;
+  // HYBRID / ONSITE → where the office is. `regions` holds only the markers
+  // the source named (EU, EUROPE, WORLDWIDE, …), never groups derived from
+  // countries. locationSource: structured (the source's own fields) | parsed
+  // (src/location.ts) | null (nothing recognised). A bare "Remote" is
+  // REMOTE with empty countries — the facet shows it as "Unknown".
+  workplace      Workplace @default(UNKNOWN)
+  countries      String[]  @default([])
+  regions        String[]  @default([])
+  locationSource String?
+
+  fitScore  Int?
+  salaryMin Int?
+  salaryMax Int?
+  techMatch String[]
+  redFlags  String[]
+  summary   String?   @db.Text
+  status    JobStatus @default(NEW)
+  alertedAt DateTime?
 
   // Application tracking (Phase 3.4). pipelineStage is orthogonal to status:
   //   status        = inbox state (NEW / ALERTED / SAVED / DISMISSED / APPLIED)
@@ -111,6 +136,15 @@ model Job {
   recruiterContact String?
   pipelineStage    String?
   applicationNotes String?   @db.Text
+
+  // Stage C: which resume this application went out with. The text snapshot is
+  // not redundant with the FK — "Upload a new version" rewrites the bytes of
+  // the SAME resume row, so an id alone would name v3 and hand back v5's
+  // words. Same reasoning (and same shape) as ResumeMatch.resumeText.
+  appliedResumeId      Int?
+  appliedResume        Resume? @relation(fields: [appliedResumeId], references: [id], onDelete: SetNull)
+  appliedResumeVersion Int?
+  appliedResumeText    String? @db.Text
 
   // Phase 7.1: labels of Profile.priorityRules that matched this job at
   // classify-time and bumped fitScore to the rule's floor. Empty when no
@@ -135,13 +169,47 @@ model Job {
   verifications JobVerification[]
   coverLetters  CoverLetter[]
   stageEvents   JobStageEvent[]
+  scores        JobScore[]
 
   @@unique([companyId, externalId])
   @@index([status, fetchedAt])
   @@index([pipelineStage, appliedAt])
   // The dedup scan reads fingerprints from the last 90 days.
   @@index([fetchedAt, descriptionSimhash])
+  // /jobs facets: `countries hasSome` / `regions hasSome` use the GIN indexes.
+  @@index([countries], type: Gin)
+  @@index([regions], type: Gin)
+  @@index([workplace])
   @@map("job")
+}
+
+// ADR 0028: what ONE active search thought of one posting. The classifier
+// returns every search's verdict in a single reply, and each entry lands here.
+// Job.fitScore and the other classifier columns keep the BEST-OF row, so every
+// list, sort, badge and digest written against Job renders unchanged — the
+// profile that won is named here, not there.
+model JobScore {
+  id        Int     @id @default(autoincrement())
+  jobId     Int
+  job       Job     @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  profileId Int
+  profile   Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  fitScore             Int
+  locationMatch        Boolean
+  techMatch            String[]
+  redFlags             String[]
+  summary              String?  @db.Text
+  // Labels of this profile's priorityRules that lifted the score (phase 7.1).
+  priorityRulesApplied String[] @default([])
+
+  scoredAt DateTime @default(now())
+
+  // One verdict per (posting, search) — a re-classify updates in place.
+  @@unique([jobId, profileId])
+  // The /jobs chips filter by profile and rank by that profile's score.
+  @@index([profileId, fitScore])
+  @@map("job_score")
 }
 
 model CronRun {
@@ -160,26 +228,26 @@ model CronRun {
 
 // Singleton table — always one row with id=1.
 model AppSettings {
-  id                             Int      @id @default(1)
-  telegramEnabled                Boolean  @default(false)
+  id                             Int       @id @default(1)
+  telegramEnabled                Boolean   @default(false)
   activeProfileId                Int?
-  activeProfile                  Profile? @relation(fields: [activeProfileId], references: [id], onDelete: SetNull)
+  activeProfile                  Profile?  @relation(fields: [activeProfileId], references: [id], onDelete: SetNull)
   // Classifier mode: 'single' = full classifier only;
   // 'two_stage' = short prefilter prompt, full classifier only on yes.
-  classifierMode                 String   @default("single")
+  classifierMode                 String    @default("single")
   // Phase 3.4 toggles
-  applicationTrackingEnabled     Boolean  @default(true)
-  staleApplicationsDigestEnabled Boolean  @default(true)
+  applicationTrackingEnabled     Boolean   @default(true)
+  staleApplicationsDigestEnabled Boolean   @default(true)
   // Phase 3.2 toggle
-  hnParserEnabled                Boolean  @default(false)
+  hnParserEnabled                Boolean   @default(false)
   // Phase 4.1: list of AtsType values to skip in runAllFetchers, e.g.
   // ["LEVER","ARBEITNOW"]. Empty array = all enabled. Coexists with
   // per-Company.active so users can disable a whole source family with
   // one click without flipping each company toggle.
-  disabledSources                String[] @default([])
+  disabledSources                String[]  @default([])
   // Phase 4.2: discovery toggle (gates auto-creation of CompanyCandidate
   // rows from HN comments and the weekly probe job).
-  discoveryEnabled               Boolean  @default(false)
+  discoveryEnabled               Boolean   @default(false)
   // Phase 7.7: master pause for new-job ingestion. When false, the hourly
   // fetch tick and the monthly HN pull exit early ("fetching-paused" in
   // /runs). Digest, stale nudge, cleanup, discovery probe, and the
@@ -187,12 +255,18 @@ model AppSettings {
   // touching docker" switch. Default FALSE by user choice: deployments
   // (and the existing row, backfilled by the migration) start paused;
   // enable from /settings → "Job fetching" when ready.
-  fetchingEnabled                Boolean  @default(false)
+  fetchingEnabled                Boolean   @default(false)
   // AI engine chain (ADR 0013/0014): { order: [provider ids by priority],
   // models: { <id>: { classifier, resume } } }. The first usable engine
   // serves each call; the rest are automatic fallbacks. NULL = follow .env
   // (AI_PROVIDER seeds a one-engine chain).
   aiEngine                       Json?
+  // Per-engine credentials (ADR 0027): { <provider id>: "<secret>" }, stored
+  // in plaintext so the dashboard can take a pasted key instead of a .env
+  // edit. NULL / a missing entry = fall back to the .env variable. Read only
+  // through settings.ts:getAiKeys — never joined into AppSettingsView, so a
+  // secret cannot ride along with an ordinary settings read.
+  aiKeys                         Json?
   // Lightweight AI usage counters: { "YYYY-MM-DD": { <provider>: {
   // classifier: n, resume: n } } }. Incremented atomically per successful
   // call (ai-runtime.ts:recordUsage), trimmed to 60 days by the cleanup
@@ -200,7 +274,7 @@ model AppSettings {
   aiUsage                        Json?
   // F4 (ADR 0019): one digest line when a source crosses the failure
   // streak. Default TRUE — the alert adds a signal, never suppresses a job.
-  sourceHealthAlerts             Boolean  @default(true)
+  sourceHealthAlerts             Boolean   @default(true)
   // F8.1: standing angle inputs for the cover-letter card ({ whyCompany,
   // problem, approach, notes }), saved on every generation so the user
   // never retypes them. Parse with readCoverAngles (resume/prompts.ts).
@@ -208,7 +282,11 @@ model AppSettings {
   // ADR 0025: ordered work columns [{key,label}] between the fixed
   // 'applied' entry and the fixed rejected/ghosted exits. null = defaults.
   pipelineStages                 Json?
-  updatedAt                      DateTime @updatedAt
+  // First-run wizard (docs/onboarding-plan.md §2): NULL sends `/` to
+  // /welcome. Set by the wizard's last step or "Skip setup"; the migration
+  // backfills existing deployments so nobody is walked through setup twice.
+  setupCompletedAt               DateTime?
+  updatedAt                      DateTime  @updatedAt
 
   @@map("app_settings")
 }
@@ -267,11 +345,15 @@ model Profile {
   notes            String?         @db.Text
   // Seniority tags: senior, staff, lead, principal, mid, junior, etc.
   seniority        String[]
-  // Location preferences
-  remoteOk         Boolean         @default(true)
-  remoteRegions    String[] // e.g. ["US","Americas","Worldwide"]
+  // Where this search hunts (ADR 0032). `countries` are ISO-2 codes and
+  // `regions` group codes from src/countries.json, stored as the user picked
+  // them (a group stays a group, never 27 codes); both empty = anywhere.
+  // `workplace` lists the arrangements the search accepts; empty = any.
+  // `onsiteCities` keeps city-level precision for hybrid / on-site roles.
+  countries        String[]        @default([])
+  regions          String[]        @default([])
+  workplace        Workplace[]     @default([REMOTE])
   onsiteCities     String[] // e.g. ["Austin, TX","Berlin"]
-  hybridOk         Boolean         @default(false)
   // Thresholds
   minSalaryUsd     Int             @default(0) // 0 = don't filter on salary
   minFitScore      Int             @default(70)
@@ -283,15 +365,29 @@ model Profile {
   // forced true. Lets you say "PHP roles posted as remote-US must score
   // ≥90 even if the JD is bare-bones" without trying to convince Claude.
   priorityRules    Json            @default("[]")
+  // ADR 0028: several searches run at once. `active` is the switch — a job is
+  // scored against every active profile in ONE classifier call, and each row
+  // gates its own alerts with its own minFitScore. AppSettings.activeProfileId
+  // stays as the PRIMARY (defaults, preselects); the primary is always active.
+  active           Boolean         @default(false)
   // Where alerts for this profile go. null → broadcast to all active targets.
   telegramTargetId Int?
   telegramTarget   TelegramTarget? @relation(fields: [telegramTargetId], references: [id], onDelete: SetNull)
+  // The resume this search hunts with: "jobs I'd apply to with THIS CV".
+  // Preselects the resume on a job page (src/resume/pick.ts). SetNull, not
+  // Cascade — a profile owns regions, thresholds, rules and alert routing
+  // that no resume can speak for, so deleting the file must not delete the
+  // search; the preselect falls back to skill overlap, as before the link.
+  resumeId         Int?
+  resume           Resume?         @relation(fields: [resumeId], references: [id], onDelete: SetNull)
   createdAt        DateTime        @default(now())
   updatedAt        DateTime        @updatedAt
 
   // Back-relation for AppSettings.activeProfileId
   activeFor AppSettings[]
+  jobScores JobScore[]
 
+  @@index([active])
   @@map("profile")
 }
 
@@ -300,34 +396,44 @@ model Profile {
 // for download. The scan fields are filled by scanResume() and stay null
 // until the first successful scan.
 model Resume {
-  id              Int           @id @default(autoincrement())
+  id              Int            @id @default(autoincrement())
   name            String
   sourceFilename  String
   mimeType        String
   original        Bytes
-  text            String        @db.Text
+  text            String         @db.Text
   // Bumped on "Upload new version"; matches record the version they scored.
-  version         Int           @default(1)
-  isDefault       Boolean       @default(false)
+  version         Int            @default(1)
+  isDefault       Boolean        @default(false)
   // The /target scratch row: replaced in place on every ephemeral compare,
   // excluded from every list and picker.
-  hidden          Boolean       @default(false)
+  hidden          Boolean        @default(false)
   scannedAt       DateTime?
   title           String?
   seniority       String?
   yearsExperience Int?
-  skills          String[]      @default([])
+  skills          String[]       @default([])
   // Subset of skills: the 2-5 core languages/frameworks of the candidate's
   // day-to-day work. Feeds Profile.stackRequired via "Fill from resume".
-  primarySkills   String[]      @default([])
-  roleTypes       String[]      @default([])
-  summary         String?       @db.Text
+  primarySkills   String[]       @default([])
+  roleTypes       String[]       @default([])
+  summary         String?        @db.Text
   // [{ section, issue, fix }] — job-agnostic ATS / recruiter problems.
-  issues          Json          @default("[]")
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  issues          Json           @default("[]")
+  // [{ question, answer, answeredAt }] — the metrics the strength review asked
+  // for and the candidate supplied. On the RESUME, not the review row: an
+  // answer is a fact about this document and has to outlive the run that
+  // asked (ADR 0030 phase 3).
+  answers         Json           @default("[]")
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
   matches         ResumeMatch[]
+  reviews         ResumeReview[]
   coverLetters    CoverLetter[]
+  // Searches that hunt with this resume (Profile.resumeId).
+  profiles        Profile[]
+  // Applications sent with this resume (Job.appliedResumeId).
+  appliedTo       Job[]
 
   @@map("resume")
 }
@@ -340,6 +446,32 @@ model Resume {
 // removals = [{ section, where, what, why }] — what to delete or shorten
 // Since phase 9 (ADR 0012) matchScore is computed by src/resume/score.ts from
 // the keyword statuses + alignment — the model never sets the number.
+/// One on-demand strength review of a resume, judged on its own with no job
+/// posting (docs/resumes-plan.md §B). History is kept: a row per run makes the
+/// version-over-version trend free.
+model ResumeReview {
+  id            Int      @id @default(autoincrement())
+  resumeId      Int
+  resume        Resume   @relation(fields: [resumeId], references: [id], onDelete: Cascade)
+  // The version that was judged — a review goes stale when the resume moves on.
+  resumeVersion Int      @default(1)
+  model         String
+  // Computed by review-score.ts from the grades; the model never sets it (ADR 0012).
+  reviewScore   Int
+  headline      String   @db.Text
+  // [{ dimension, grade strong|ok|weak, why, evidence[] }]
+  grades        Json
+  // [{ priority, dimension, issue, why, fix, example, ask, quote }]
+  advice        Json
+  strengths     String[] @default([])
+  // ReviewBreakdown from review-score.ts, plus the promptVersion marker.
+  breakdown     Json     @default("{}")
+  createdAt     DateTime @default(now())
+
+  @@index([resumeId, createdAt])
+  @@map("resume_review")
+}
+
 model ResumeMatch {
   id               Int      @id @default(autoincrement())
   jobId            Int

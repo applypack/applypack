@@ -8,9 +8,12 @@
 > [CLAUDE.md](../CLAUDE.md), the testing-gate / commit-discipline skills and
 > the ADR register in [docs/adr](./adr/).
 >
-> **Status: analysis only.** Nothing here is implemented. Constants
-> (batch caps, source subsets, timings) are starting hypotheses to
-> re-measure at implementation time.
+> **Status:** all seven stages of §5 shipped — `profile-tab-quickwins`
+> v1.5.0, `fetch-now` v1.6.0, `welcome-wizard` v1.7.0, `ai-key-in-db`
+> v1.8.0, `profile-resume-link` v1.9.0, `multi-profile-search` v1.10.0,
+> `applied-resume` v1.11.0. Where a constant below was a hypothesis, the
+> measured value won: the wizard scores 10 jobs per press, not 100, and
+> the ceiling on parallel searches is 8, not 5.
 
 **Who this is for.** The target user of the wizard is explicitly
 non-technical — a manager who can install Docker by following a README but
@@ -132,14 +135,13 @@ principle 2.
   compatible"), each with the exact `.env` line to paste and a "Check
   again" button. This is the weakest step for the non-technical persona
   until Phase B lands:
-- **Phase B (separate stage, ADR required):** paste the API key directly
-  into the wizard/Settings, stored in the DB, masked like Telegram bot
-  tokens. Precedent: `TelegramTarget` tokens already live in DB rows and
-  CLAUDE.md's secrets rule carves that exception explicitly; ADR 0013
-  already resolves engine config DB-row-first with `.env` fallback. The
-  ADR extends both to per-engine keys. Dashboard binds to 127.0.0.1 by
-  default, which bounds the exposure. Until then the wizard shows the
-  `.env` path honestly.
+- **Phase B — shipped in stage 4 (ADR 0027).** The four key-bearing
+  engines take a pasted key on the wizard card itself and on
+  `/settings` → AI engine; it lands in `AppSettings.aiKeys`, wins over the
+  matching `.env` variable, and is only ever shown back as its last four
+  characters. `.env` stays a first-class path for anyone who wants secrets
+  off the database. The same stage made the `claude_code` badge honest — a
+  logged-out CLI answers `--version` and used to read "available".
 
 ### Step 2 — Test the search (no AI, no profile needed)
 
@@ -256,6 +258,14 @@ Reorder (one PR):
 - Job page preselect: winning profile's resume when the link exists,
   `pickResumeForJob` fallback otherwise.
 
+Shipped 2026-09-02 (v1.9.0). What the build settled beyond the sketch:
+`onDelete: SetNull` on the link, so deleting a resume neither deletes the
+search nor is blocked by it — the preselect drops back to skill overlap.
+The link is editable in the profile editor ("Resume for this search"), and
+"Fill from a resume" proposes it alongside the fields it fills. Profiles
+created from a resume are born inactive (issue #50's rule, and creating a
+search must not switch the one that is running).
+
 ### Stage B — parallel search across active profiles (the big one, ADR)
 
 - Multiple **active** profiles replace the single `activeProfileId`
@@ -300,8 +310,8 @@ hand-written migrations verified through a container rebuild.
 | 1 | `profile-tab-quickwins` | §3 quick wins + reorder, inline upload in Fill card | — | — | dashboard matrix; profile save round-trip; chip editor no-JS path |
 | 2 | `fetch-now` | "Fetch now" button + `{classify: false}` seam + background run + progress page (standalone value) | — | — | smoke `fetch:once`; run visible on `/runs`; unscored jobs stored; dashboard matrix |
 | 3 | `welcome-wizard` | `/welcome` steps 1–4, redirect, skip, Overview chip | `setupCompletedAt` | — | migration via container rebuild; full wizard walkthrough on a wiped DB (docker volume rm) at 1200/375; every step's auto-complete branch |
-| 4 | `ai-key-in-db` | per-engine API key in DB, masked; wizard step 1 upgrade | engine-key column/JSON | **yes** (extends 0013 + secrets policy) | probe/test with DB key and with `.env` fallback; key never logged; masked render |
-| 5 | `profile-resume-link` | Stage A | `Profile.resumeId` | — | create-from-resume flow; preselect unit test in `pick.test.ts` scope |
+| 4 | `ai-key-in-db` ✅ v1.8.0 | per-engine API key in DB, masked; wizard step 1 upgrade | `aiKeys` JSONB | **0027** | probe/test with DB key and with `.env` fallback; key never logged; masked render |
+| 5 | `profile-resume-link` ✅ v1.9.0 | Stage A | `Profile.resumeId` | — | create-from-resume flow; preselect unit test in `pick.test.ts` scope |
 | 6 | `multi-profile-search` | Stage B | `JobScore`, `Profile.active` | **yes** | prompt/parser unit tests; live smoke on 2 profiles; alert routing test send; jobs-list filters |
 | 7 | `applied-resume` | Stage C | 3 columns on `Job` | — | mark-applied round-trip; digest line render test |
 
@@ -312,12 +322,39 @@ resumes in one sitting.
 
 ## 6. Open decisions
 
-- Step-2 source subset: all enabled sources vs a fast-aggregator subset
-  (RemoteOK/Remotive answer in seconds; per-company boards add minutes).
-  Hypothesis: all enabled, with the progress page making the wait fun.
-- Step-4 classification cap (hypothesis 100 — measure cost/latency on
-  Haiku 4.5 two-stage vs single).
-- Whether "Fetch now" lives on `/runs`, Overview, or both.
+- ~~Step-2 source subset~~ — stage 3 kept **all enabled sources** (the
+  same Fetch now run, verdict routed back into setup); the live progress
+  line carries the wait.
+- ~~Step-4 classification cap~~ — the hypothesis of 100 was **measured and
+  rejected**. On the `claude_code` CLI engine (a `claude -p` process per
+  job, `AI_CONCURRENCY=3`) 100 jobs took 24 min — the wow moment turns
+  into an afternoon. Stage 3 ships **`SCORE_BATCH = 10` per press**, and
+  the ten are the *best* matches, not the newest: `jobs/score-pick.ts`
+  (pure) ranks the filter-passing rows by how much of the profile the
+  posting actually mentions (title hit worth double a description hit;
+  required stack > role words > nice-to-have). Measured on the same
+  engine: 10 jobs in 5.4 min, scores 89 / 88 / 85 / 80 / 79 / 75 at the
+  top — the first screen is a real shortlist. "Score 10 more" walks the
+  rest, and the hourly watch scores new arrivals anyway. On an API engine
+  the same ten take well under a minute.
+- ~~Whether "Fetch now" lives on `/runs`, Overview, or both.~~ Decided in
+  stage 2: **both**, one shared `FetchNowButton` — Overview because it is
+  the page a fresh install lands on ("does the search work?" is answered
+  next to the pipeline switch), `/runs` because that is where the verdict
+  lands and where a re-run is wanted. The CronRun row is named `fetch-now`
+  (not `fetch-test`), and classification follows the pause flag: paused →
+  stored unscored, running → the hourly tick, just now.
 - Wizard copy voice pass (stop-slop skill) once screens exist.
-- Whether step 3 should offer multi-upload immediately or defer extra
-  resumes to `/resumes` until stage 5 lands.
+- ~~Whether step 3 should offer multi-upload immediately or defer extra
+  resumes to `/resumes`.~~ Decided in stage 5: **neither — one resume at a
+  time, and a second one only after the first search exists.** Step 3's
+  done state carries a collapsed "Another resume for a different kind of
+  role?" that takes exactly one file (or one already-uploaded resume) and
+  drafts a *second profile* from it, linked to that resume; `/resumes/:id`
+  carries the same action for every later resume. Multi-upload was
+  rejected on two counts: it would ask the user to choose which resume the
+  profile uses before they have seen a single match, and until stage B
+  lands only the active profile scores, so N uploads would produce N-1
+  searches that do nothing. The copy says so — the new search is born
+  inactive and the running one is untouched. That also keeps step 3's
+  primary path (upload → scan → "yes, that's me") at one screen.

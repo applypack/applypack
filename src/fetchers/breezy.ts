@@ -12,8 +12,9 @@ const BreezyLocationSchema = z
   .object({
     name: z.string().nullable().optional(),
     is_remote: z.boolean().nullable().optional(),
+    /** `id` is the ISO 3166-1 alpha-2 code ("PL"). */
     country: z
-      .object({ name: z.string().nullable().optional() })
+      .object({ name: z.string().nullable().optional(), id: z.string().nullable().optional() })
       .passthrough()
       .nullable()
       .optional(),
@@ -77,6 +78,10 @@ function toNormalized(p: BreezyPosition, companyId: number): NormalizedJob {
     location: formatLocation(p.location ?? null),
     description: buildDescription(p),
     postedAt: safeDate(p.published_date),
+    locationHints: {
+      countries: p.location?.country?.id ? [p.location.country.id] : [],
+      workplace: p.location?.is_remote ? 'REMOTE' : 'UNKNOWN',
+    },
   };
 }
 

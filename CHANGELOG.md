@@ -4,15 +4,1001 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [1.32.0] — 2026-09-03
 
 ### Changed
+- **The "UA-friendly remote" starter pack was re-probed and refreshed**
+  (stage 3b, plan §4.2). Every board was hit live: Preply 104 postings,
+  Solidgate 54, MacPaw 18, Gcore 13, Restream 8, Wirex 6, Skylum 4, Lemon.io
+  2, Reface 1, Namecheap 0 (an empty board, kept — the board is real). Sigma
+  Software's SmartRecruiters board holds one legacy posting since the company
+  moved hiring to its own site, so it leaves the pack (ADR 0017: a legacy
+  board is not shipped). Three Ukrainian employers join, each identified by
+  the board's own name field: N-iX (Greenhouse `nix`, 121 postings, 53 in
+  Ukraine), Ajax Systems (Lever `ajax`, 201, 112 in Ukraine), Genesis
+  (Breezy `gen-tech`, 85, 77 in Ukraine). Thirteen entries now.
+
+## [1.31.0] — 2026-09-03
+
+### Added
+- **Djinni as a source** (stage 3b, plan §4.2) — the Ukrainian tech job
+  marketplace through its RSS. One Company row per filter string, which is
+  the row's token: `primary_keyword=PHP&employment=remote&region=UKR`; the
+  items carry no location and no employer, so the location is written from
+  the filter ("Remote · Ukraine", "Office · Kyiv, Ukraine") and the hints
+  with it. Verified live: an unknown `primary_keyword` answers the whole
+  bare feed, byte-identical, not an error — so rows whose `<category>` is
+  not the requested keyword are dropped and the Companies probe refuses a
+  keyword that leaves nothing. Seeded off as "Djinni · PHP, remote,
+  Ukraine". robots.txt allows `/jobs/rss/`; Djinni's terms cover posting
+  and fees only.
+
+## [1.30.0] — 2026-09-03
+
+### Added
+- **DOU.ua as a source** (stage 3b, plan §4.2) — the Ukrainian tech job
+  board through its own RSS interface. One Company row per feed query,
+  which is the row's token: `category=PHP&remote`, `search=laravel`,
+  `city=Львів`, `exp=5plus`; add more on Companies, where the probe refuses
+  a query DOU answers with no vacancies (an unknown category is an empty
+  channel there, not an error). The title carries everything but the
+  description — "Backend Engineer в BetterMe, Київ, за кордоном, віддалено"
+  — so a small grammar parser splits role, employer, salary, cities and the
+  two markers: the employer and salary go into the description, the cities
+  and "віддалено" into the location the stage-1 parser already reads
+  (Cyrillic cities included). Seeded off as "DOU · PHP, remote". DOU
+  answers the default RSS User-Agent with 403, so the feed is fetched with
+  the project's. Terms: fine for a self-hosted personal tool with the
+  link-back kept; a hosted or commercial deployment needs DOU's consent.
+
+## [1.29.0] — 2026-09-03
+
+### Added
+- **Arbeitnow reads three pages and has a visa-sponsorship feed.** The
+  fetcher followed nothing beyond page 1 (175 rows of 650+); it now walks
+  the API's own `links.next` for up to three pages, a second apart, on the
+  board's host only, and keeps a posting once. A second Company row,
+  "Arbeitnow · visa sponsorship" (`atsToken: visa`), reads
+  `?visa_sponsorship=true` — a server-side filter the rows themselves do
+  not carry, so it is a feed of its own. Both rows stay off until a search
+  needs them: the board is German and British office jobs first. Plan §4.2,
+  stage 3a.
+
+## [1.28.0] — 2026-09-03
+
+### Added
+- **4dayweek follows the searches.** With searches that name places the
+  three pages are scoped with `country=` — gazetteer names for countries,
+  continents for groups (`Germany,Poland,Europe`) — so a European search
+  reads Europe's postings instead of the newest 75 of everything. Verified
+  live: the API takes names and continents, not codes, and answers an
+  unknown value with its ~141 rows that have no location at all; a scoped
+  fetch therefore drops rows without a location — they can never be
+  evidence for a place. A search that hunts anywhere still reads the
+  newest pages of everything. Plan §4.2, stage 3a.
+
+## [1.27.0] — 2026-09-03
+
+### Added
+- **Himalayas follows the searches.** With searches that name countries the
+  fetcher calls the search endpoint once per country
+  (`country=PL&exclude_worldwide=true`) and once for the worldwide rows,
+  merged by guid — country-locked postings for Poland or Germany instead of
+  the newest 20 of everything. A search that hunts anywhere, or one that
+  names only groups the API cannot express, still reads the browse feed.
+  Verified live: the search endpoint answers HTTP 400 to an unknown code
+  (never a silent empty feed), caps `limit` at 20, and ignores `offset`,
+  so each call is the newest 20 — enough for an hourly tick. Plan §4.2,
+  stage 3a.
+
+## [1.26.0] — 2026-09-03
+
+### Added
+- **Jobicy follows the searches.** The fetcher used to read one unfiltered
+  feed (~200 rows, 58 of them US-only). It now reads one `geo=` feed per
+  place the running searches hunt in — a PL + DE + EU search pulls
+  `poland`, `germany` and `europe` — and keeps a posting listed in several
+  of them once. Jobicy's `geo` has eligibility semantics (`poland` also
+  returns Europe / EMEA / Anywhere rows), so nothing a search could want is
+  lost, and the US-only rows a European search never wanted stop arriving.
+  A search that hunts anywhere, or a place Jobicy has no slug for, falls
+  back to the whole feed. Verified live: an unknown slug returns an EMPTY
+  feed, which is why only the 13 slugs the API echoed back are ever sent.
+- Every fetcher now receives the searches' places (`FetchContext`, the
+  union of the active non-blank profiles' countries and regions, built once
+  per tick); sources without a geo filter ignore it. Plan §4.2, stage 3a.
+
+## [1.25.0] — 2026-09-03
+
+### Added
+- **A search says where it hunts.** The profile's six region pills and two
+  booleans are gone; a search now lists `countries` (ISO codes), `regions`
+  (groups — 🇪🇺 European Union, Europe, DACH, Nordics, 🌍 Worldwide …, a group
+  stored as a group) and the arrangements it accepts (remote / hybrid /
+  on-site), next to its on-site cities. One migration maps the old pills —
+  `US` and `UK` were countries wearing a region's hat and become countries —
+  and drops the old columns, so no running deployment ever sees two models.
+  The editor is one control: arrangement pills, a country chip input with
+  gazetteer suggestions (type "Poland", "Polska", "Польща", "PL" or "Kraków",
+  arrow down, Enter), region pills; without JavaScript the textarea takes any
+  spelling the gazetteer knows. ADR 0032.
+- **The base filter compares sets.** A posting reaches the classifier when
+  its countries or regions overlap the search's, with groups expanded on both
+  sides — Poland sits inside an EU search, "Europe" on a posting reaches an EU
+  search, Worldwide reaches everyone. A listed on-site city still admits
+  outright; an arrangement the search does not accept rejects; a posting that
+  names no place goes to the model as before. Hybrid postings no longer reach
+  a remote-only search (0 of 65 had ever matched).
+- **The classifier prompt no longer assumes a US search.** Its location rules
+  speak codes and groups, distinguish EU (law) from Europe (geography),
+  require the office's city or country for hybrid and on-site roles, and never
+  infer remote eligibility from an office address. The reply gains a shared
+  `location` block — the posting's own place, read once like salary — which
+  may only narrow what the parser found (an arrangement where the parser had
+  none, a country list the description made stricter); rows it changed carry
+  `locationSource = ai`, and the backfill leaves them alone.
+- **The job page says why.** Next to "location mismatch" a search's verdict
+  now reads "open to Poland; this search hunts in United States, Americas" or
+  "hybrid role; this search accepts remote" — built from the columns, no AI
+  call; nothing is added when only the summary can explain it.
+- `GET /countries.json` serves the gazetteer to the browser.
+
+### Changed
+- Every profile construction site (`blankProfileInput`, the first-boot
+  bootstrap, the wizard, "create a search from a resume") now starts from
+  `countries: []`, `regions: []`, `workplace: [REMOTE]` — anywhere, remote.
+
+## [1.24.0] — 2026-09-03
+
+### Added
+- **Jobs know where they are.** Every job row now carries `workplace`
+  (remote / hybrid / on-site / unknown), `countries` (ISO codes) and
+  `regions` (the markers a source names: EU, Europe, EMEA, Worldwide, …),
+  next to the location string, which is never rewritten. A pure parser over
+  a hand-written gazetteer of 86 countries fills them (`src/location.ts`,
+  `src/countries.json`), and fourteen fetchers now pass what their feeds
+  already said in structured fields — WWR's `<country>` allow-list and
+  `<region>`, Lever's ISO `country`, Workable's `locations[]` (the full list
+  of countries a remote post accepts, which nobody had read before),
+  Recruitee, Breezy, Ashby, Himalayas, 4dayweek and the arrangement flags of
+  the rest. The parser is a hint layer with its traps as tests: "Atlanta,
+  Georgia" is the US and "Tbilisi, Georgia" is Georgia, "Portland, OR" is a
+  state and "Remote · DE" a country, "US" never fires inside "Russia", "UK"
+  is not the EU, and a bare "Remote" is remote with no country — never
+  worldwide. Every one of the 250 distinct location strings the database
+  held is pinned in `src/location-corpus.json`. ADR 0031 records the
+  semantics: for remote rows the countries are where you may live, for
+  hybrid and on-site rows where the office is; geography (`EUROPE`) and law
+  (`EU`) are different codes.
+- **Country, workplace and date facets on `/jobs`.** A "Where" row of chips
+  with counts — 🇺🇸 United States 601, 🇨🇦 Canada 135, 🇬🇧 United Kingdom
+  52, 🇵🇱 Poland 30 … and "Unknown" for the rows nothing places — OR'ed
+  within the row, "More…" for the rest; "Work" chips (Remote / Hybrid /
+  On-site / Unknown); "Posted" chips (24h / 7 days / 30 days). Each facet's
+  counts respect the other filters, so a chip's number is what clicking it
+  shows. The search box now matches the location string too. The job page
+  shows the arrangement and one flag chip per country or region under the
+  raw location, each a link into the facet.
+- **`backfill-locations.js --dry-run`** fills the columns on jobs stored
+  before this release from the string alone — no AI call — and prints the
+  distribution to check before the real run. On the live database: 1 021 of
+  1 038 rows filled in under a second; the checksums of every verdict and of
+  every `location` and `description` were identical before and after.
+
+### Changed
+- The three arrangement regexes moved from `filter.ts` into `location.ts`
+  and learned the non-English spellings ("Homeoffice", "praca zdalna",
+  "віддалено", "home based"); the base filter reads them from there and
+  keeps its behaviour.
+- golangprojects: the flag emoji its titles used to carry are gone, so the
+  region is read from the URL slug ("Remote · Europe") instead of a stale
+  regex that returned "Remote" for everything.
+
+## [1.23.4] — 2026-09-02
+
+### Fixed
+- **Deleting a resume said nothing about the searches hunting with it.** The
+  confirm dialog counted the three Cascade children — comparisons, cover
+  letters, strength reviews — and stopped there. Two `SetNull` consequences
+  stayed invisible: a search linked to the resume silently lost the link and
+  went back to guessing by skill overlap (`resume/pick.ts`), and applications
+  recorded as sent with it kept their text snapshot but lost the name,
+  degrading to "a deleted resume v4". The first is the one that bites — you
+  do not find out until job pages start preselecting the wrong resume.
+  Both are now counted and named. They get their own clause rather than
+  joining the list of deletions, because they are the opposite of deleted:
+  saying "and 1 search" would read as though the search went too. Same class
+  as the v1.23.0 company fix, where "Delete Reddit and all its 73 jobs?" hid
+  six applications and a cover letter; the resume half of that audit left the
+  search link behind.
+
+## [1.23.3] — 2026-09-02
+
+### Fixed
+- **The board read the whole ledger to date a handful of cards.**
+  `/applications` loaded every `job_stage_event` row ever written, grouped
+  them all by job, then used only the ones belonging to a card on screen.
+  The ledger is append-only by ADR 0024 — it grows with every stage move
+  forever — while the board is bounded by how many applications are open, so
+  the read got steadily more wasteful with no ceiling. Measured on the live
+  database: 26 rows loaded, 24 used, 2 discarded. Same class as the v1.11.0
+  fix on this route, which pulled whole `Job` rows; that query at least had a
+  `where`, this one had none. The query is now scoped to the jobs the board
+  draws, and an empty board skips it entirely. The grouping moved out of the
+  route into `stage-time.ts:groupEventsByJob`, where it is unit-tested.
+
+## [1.23.2] — 2026-09-02
+
+### Fixed
+- **Three cards had a button on a line of its own.** A layout pass over every
+  dashboard page, prompted by "on some pages the buttons are scattered — one
+  sits higher than another".
+  - `/jobs/:id` — v1.11.0 wrapped the "Applied with" select and **Mark
+    applied** in one form so the select's value would post with the button,
+    which pushed the primary action onto its own line above Save / Dismiss /
+    Re-classify. The two want opposite layouts: a full-width labelled field
+    and a button on the shared row. They are now bound by the HTML `form`
+    attribute instead of by nesting, so the select still posts and the button
+    sits with its peers.
+  - `/discovery` — `ToggleRow`'s action column was `flex-col`, so a card with
+    an `extra` action drew **Run now** underneath **Disable**. It is a row now,
+    wrapping only when the card is genuinely too narrow; the fix is in the
+    shared primitive, so every future `extra` inherits it.
+  - `/settings` → Notifications — its two toggles were bare siblings inside the
+    card, touching, so the second row's button looked like it belonged to the
+    first. Same `space-y-5` wrapper and rule the General tab already used.
+
+## [1.23.1] — 2026-09-02
+
+### Fixed
+- **The cross-origin guard reads the two headers it was given in v1.20.0.**
+  Merging the two CSRF implementations (#93 and #87) taught the check to
+  consult `Referer` when a browser sends no `Origin`, and `X-Forwarded-Host`
+  when a reverse proxy rewrites `Host` — but the middleware went on passing
+  three headers to it, so the running dashboard kept the old behaviour: a
+  foreign `Referer` was not refused, and a dashboard behind a proxy refused
+  its own forms. Every unit test stayed green because they call the pure
+  function directly. The wiring now lives in `src/web/origin-guard.ts` with
+  tests that drive a real Hono app — the shape PR #87 used, and the one that
+  catches this class of bug. Caught by the live smoke run, not by the suite.
+
+## [1.23.0] — 2026-09-02
+
+The pre-public audit: six checks nobody had run against this project as an
+outsider would (TASKS §14). Two of them found something.
+
+### Security
+- **The database is no longer published to your whole network.** `docker
+  compose up` published Postgres on **every interface** with the password that
+  sits in the compose file, so anyone on the same Wi-Fi could read the entire
+  database — jobs, resumes, cover letters, applications, and any AI key pasted
+  into the dashboard (`AppSettings.aiKeys`, stored in plaintext by design).
+  Demonstrated from another address before the fix. It is now published on
+  **`127.0.0.1:5433`**: loopback only, and on 5433 so it cannot be shadowed by
+  a Postgres already running on 5432. The app never used this port — it reaches
+  Postgres over the compose network — so only host tools are affected: use
+  `localhost:5433`.
+
+### Added
+- **Backup and restore, documented and verified.** A project whose whole pitch
+  is "your data in your own Postgres" had no instructions for keeping it. The
+  README now carries both commands; the dump they produce was checked (8.7 MB,
+  all 16 tables) and reloaded into an empty database with no errors.
+
+### Fixed
+- **The setup wizard no longer runs a scoring pass with no AI connected.** Step
+  1 can be skipped, and step 4 would then spend a minute failing ten calls one
+  by one before admitting nothing could be scored. It now says so before
+  starting and sends you back to step 1 — the jobs already found stay put.
+- **Deleting a company says what goes with it.** The confirm counted the jobs
+  only; on real data "Delete "Reddit" and all its 73 jobs?" was hiding six
+  tracked applications and a cover letter. It names them now, the way the
+  resume delete has since v1.19.0.
+
+## [1.22.0] — 2026-09-02
+
+### Added
+- **The review's questions can be answered, and the answer changes the next
+  one** ([ADR 0030](docs/adr/0030-resume-strength-review.md) phase 3, TASKS
+  §12). The strength review refuses to invent a number: where a stronger line
+  needs one your resume doesn't carry, it asks instead. That was a dead end —
+  nothing could be answered, so the next run asked again. Now each question
+  has a box: the answer is stored on the resume and read into the next review,
+  which writes the figure into the rewritten line and stops asking. Measured
+  on a real resume: 4 questions, 2 answered, re-run asked **2** and both
+  figures appeared verbatim in the rewrites.
+- **What moved since the last review.** A second run of the same resume now
+  says whether the edits worked — the score before and after, and every
+  dimension whose grade changed. When the two runs used different rubric
+  versions it says so instead of subtracting them, because that difference is
+  not a measurement.
+- **Facts can be added and flipped from `/resumes`.** The "do you have this?"
+  answers fed every future comparison but could only be created by a
+  comparison that happened to ask. Add a skill nothing asked about, or turn a
+  wrong answer around, from the resumes page. No AI call either way.
+- **Rename a resume.** The name is what every picker, flash and "applied with"
+  line says, and it used to be whatever the uploaded file was called.
+- **Comparisons group per job.** Re-checking one posting used to produce
+  unrelated rows; they now read as one progression — *5 runs · 62 → 70 → 64 →
+  66 → 68*, each score still its own link, with the change since the previous
+  run beside the latest score.
+
+### Changed
+- `REVIEW_PROMPT_VERSION` 1 → 2: the rubric now receives the candidate's
+  supplied metrics and is told to write them in rather than ask again — and
+  told, just as explicitly, that a metric the document does not carry is a
+  reason for advice, never for a better grade. The resume is graded as
+  written.
+
+### Schema
+- `resume.answers` (JSONB, default `[]`) — hand-written migration
+  `20260902200000_add_resume_answers`. On the resume rather than the review
+  row: an answer is a fact about the document and has to outlive the run that
+  asked for it.
+
+## [1.21.0] — 2026-09-02
+
+### Added
+- **"Applied with" on the Application tracking card** (#75). Until now only
+  the "Mark applied" button ever recorded which resume went out; dragging a
+  card into Applied on the board, or filling in the application form, left it
+  blank with no way to say afterwards. In the live database that was **eight
+  applications and not one recorded resume**. The form now carries the
+  question, and a job that is in the funnel with no answer says so — with the
+  resume the page would have guessed, named in the hint rather than
+  preselected. Moving a card cannot ask, and the app does not answer for you.
+- **"The text that went out"** (#74). The resume snapshot stored with every
+  application has been written since v1.11.0 and read by nothing. It is now a
+  disclosure on the job page: the words as they were on the day, which is the
+  point of storing them — a resume version is edited in place, so the name and
+  the number stop being an answer the moment you upload a new one.
+
+### Fixed
+- **A profile saved against a deleted resume or Telegram target says so**
+  (#73). Both ids come from dropdowns rendered when the page loaded; deleting
+  either row in another tab used to answer the save with a raw foreign-key
+  error — a 500 page with a constraint name on it, and the whole edit lost.
+  The save now checks first and flashes "That resume no longer exists —
+  reload the page and pick another one. Nothing was saved."
+
+## [1.20.0] — 2026-09-02
+
+### Fixed
+- **Two tabs no longer lose an AI key** (#72). Saving a key read the whole
+  `aiKeys` map, merged one engine in and wrote the map back, so two saves in
+  flight kept only the later snapshot — the other engine's key was gone. The
+  merge is now a single `jsonb_set` statement: the database merges, and there
+  is no window to lose. Measured on a scratch database: two saves in flight,
+  before → one key stored, after → both.
+- **The eight-search ceiling is no longer advisory** (#70). Counting the
+  running searches and then flipping the row is check-then-act: two
+  activations both read seven, both passed, nine searches ran. The count and
+  the write now happen under one row lock. Measured: seven running, two
+  activations in flight, before → 9 running, after → 8.
+- **A second submit joins the run in flight instead of starting a second one**
+  (#76). `SUBMIT_ONCE` disables buttons in the browser, which cannot help a
+  second tab, a re-POSTed reload or a client with scripting off. Every POST
+  that starts an AI run — compare, full analysis, suggestions, cover letter,
+  scan, strength review, the wizard's steps, `/target` and `/letter` — now
+  names the work it is doing, and a request for work already running is
+  redirected to it. Repeating a *finished* run still starts a fresh one.
+- **A confirmed fact no longer drops your keyword overrides out of the score.**
+  The `/facts` re-score skipped `effectiveKeywords`, so answering a question on
+  a comparison you had re-levelled recomputed the number as if you never had.
+  Both re-score paths now share one locked function.
+
+### Security
+- **Cross-origin writes are refused** (#69). A page open in the same browser
+  could POST to the dashboard on `localhost:4747` — change a setting, delete a
+  resume, overwrite an AI key — because a form POST needs no permission from
+  the target site. Every state-changing request is now checked against the
+  headers a browser attaches itself (`Origin`, `Sec-Fetch-Site`). No tokens, no
+  session store, and `curl` still works: a request with no browser origin
+  headers at all is not the attack this stops. `Sec-Fetch-Site` decides
+  whenever the browser sends it — a dashboard rendered in a sandboxed frame
+  posts to itself with an opaque `Origin` *and* `Sec-Fetch-Site: same-origin`
+  (measured, not assumed), and no cross-site page can produce that pair.
+
+## [1.19.0] — 2026-09-02
+
+### Added
+- **"Is this resume strong?"** ([docs/resumes-plan.md](docs/resumes-plan.md)
+  §B, [ADR 0030](docs/adr/0030-resume-strength-review.md)). A new card on
+  `/resumes/:id` answers the question the app could not: not "does this fit
+  that job", but does this document read like a strong professional at the
+  level it claims. **Six dimensions** — first impression, impact & outcomes,
+  seniority signal, clarity & structure, skill evidence, wording & polish —
+  each graded with quotes from your own text.
+- **The model grades; the code scores.** The prompt is forbidden to output a
+  number: weights (impact 30, first impression 20, seniority 20, clarity 15,
+  evidence 10, polish 5) and two hard caps live in `review-score.ts`. A resume
+  whose bullets list duties instead of outcomes cannot pass **55** however
+  polished the rest is, and two weak dimensions cap it at **45**. Live on a
+  real resume the caps turned a raw 70 into a 45 — the weights alone would
+  have called it above average.
+- **Advice that asks instead of inventing.** Every item points at a verbatim
+  line and either rewrites it using facts already in your resume, or asks you
+  for the number a stronger line would need ("which services were consolidated
+  for the six-figure saving?"). Across 23 items in the first live runs, not one
+  invented a fact — several rewrites *removed* unsupportable percentages.
+- **Strength column on `/resumes`**, with a badge when a review has aged behind
+  the resume it read, and a "Keep these" list so you don't edit away what works.
+- Progress is the usual run page: the rubric is walked step by step, no spinner.
+
+### Changed
+- The review never runs on its own — not on upload, not on a version save. One
+  button, one AI call, about a minute; the card explains what it checks before
+  you press it.
+- Once a review has read the current version, the scan's "Issues to fix" list
+  folds into a disclosure behind it. One advice surface, never two.
+
+## [1.18.0] — 2026-09-02
+
+### Added
+- **Rebuild keywords** ([docs/target-plan.md](docs/target-plan.md) §4 F7,
+  TASKS §13). Every comparison of the same posting has been reusing the first
+  run's keyword list on purpose, so scores stay comparable between resume
+  versions — but a word the model missed on run 1 stayed missed on every run
+  after it. The keyword table now carries a way out: one run with the stored
+  list withheld, so the model reads the terms out of the posting again.
+  Measured on a real posting: the carried list had been repeating the same 26
+  terms through five analyses; the rebuild found 30, including **BullMQ** and
+  **GCP PubSub** — both named in the job description, neither ever listed.
+- **A prompt bump no longer inherits the old prompt's keywords.** When the
+  analysis prompt changes, the stored list was written under rules the new one
+  does not follow, so it is not offered to the model at all.
+- **A rebuilt analysis says the score is not comparable** instead of showing a
+  delta against the previous one: the two count different terms, and a −3 that
+  means "different list" reads exactly like a −3 that means "worse resume".
+
+### Changed
+- A rebuild skips the reuse memo. Without that it would answer with the very
+  analysis whose keyword list the user asked to replace.
+- **Your keyword edits survive a rebuild.** Re-levelled, ignored and
+  hand-added terms are re-applied to whatever the fresh run returns — a
+  rebuild resets the model's guess, never your decision.
+- `resume: matched` logs which frame the run used (`carried`, `first-run`,
+  `rebuild`, `prompt-bump`) next to the keyword counts.
+
+### Closed without building
+- `match-split-frame` (a cached per-job keyword frame + a statuses-only call),
+  the one block of the compare-speed plan left open. The gate was "only if the
+  measurements demand it": the quick check now runs at a p50 of 15 s on the
+  bench fixtures and 40-42 s on one of the longest postings we store, against
+  a 30-40 s target — so the block is closed by the numbers rather than built.
+  Details in TASKS §13.
+
+## [1.17.0] — 2026-09-02
+
+### Added
+- **Your say over every keyword** ([docs/target-plan.md](docs/target-plan.md)
+  §5, TASKS §13 block 5). Each row of the keyword table now carries three
+  edits: **re-level** what the posting demands (must ↔ preferred ↔ nice ↔
+  context), **ignore** a term as noise, or **add** a word the model missed.
+  All three are arithmetic over the stored analysis — the score is recomputed
+  by `score.ts` on the spot, the same free path a confirmed ask_user fact
+  takes. No AI call is made, and the flash says so: *"system scalability" is
+  now nice — score 66 → 67, no AI call.*
+- An added term's status is **read from your resume, never guessed**: written
+  in → matched; not written → a confirm question the existing ask_user flow
+  answers. A term the posting does not literally contain is flagged *not in
+  posting*, exactly as a paraphrase from the model would be.
+- **Overrides stick to the posting.** They ride in the comparison's own
+  `keywords` JSON, go into the next run's keyword frame, and are re-applied to
+  the fresh reply afterwards — including a hand-added term the model did not
+  repeat, whose status is re-read against the current resume text. An override
+  is kept even when the model comes to agree, because the point of it is that
+  the level stops depending on the next reply.
+- **Visual weight in the panes.** A missing must-have no longer looks like a
+  missing nice-to-have: every mark and chip is graded `kw-w0` (context) to
+  `kw-w4` (a primary-stack must) from one shared function, with the legend
+  showing the three tiers.
+- **Frequency as a tiebreaker.** Equal-weight keywords are ordered by how
+  often the posting repeats the term, the count shows in the keyword table
+  (*×4*) and in every pane tooltip (*×4 in the posting*). It costs nothing:
+  the panes already had every occurrence in hand.
+
+### Changed
+- The keyword table orders through the matcher — hardest requirement first,
+  then frequency, then priority — instead of sorting by requirement alone, and
+  gained a third group for ignored rows so they can be brought back.
+- `PROMPT_VERSION` is untouched: this is post-processing, not a prompt change.
+
+## [1.16.0] — 2026-09-02
+
+### Added
+- **A comparison is a quick check by default; the edit suggestions are a
+  second call** ([docs/target-plan.md](docs/target-plan.md) §3.2 items 6-7,
+  TASKS §13 block 4, [ADR 0029](docs/adr/0029-quick-check-and-lazy-suggestions.md)).
+  **Compare** on `/jobs/:id`, **Re-check with AI** on the targeted view and
+  the **Compare** button on `/target` now run one shorter call that returns
+  exactly what the score is computed from — every keyword with its
+  requirement level, primary flag and status, the alignment grades, the
+  hard-requirement gates and the red flags. The number is identical to
+  before, because `score.ts` never read the suggestions.
+- **Get suggestions** fills a quick check in afterwards: a second call that
+  reads the stored verdicts and writes only what to change, what to remove,
+  what already sells you and the soft concerns. The verdicts and the score
+  are not re-judged, so a filled-in analysis equals one that was full from
+  the start, and asking for a full analysis of text already quick-checked
+  costs the suggestions call alone.
+- **Full analysis** stays one click away everywhere the quick check runs, and
+  is what the cover-letter flow asks for (a letter leads with strengths).
+- **The tiered keyword budget** ([docs/target-plan.md](docs/target-plan.md)
+  §4 F1): every `must` and `preferred` term the posting names is always
+  listed; the soft cap of ~25 keywords now applies only to `nice` and
+  `context` terms, so an important word can no longer fall off the end of a
+  long list.
+
+### Changed
+- `PROMPT_VERSION` 5 → 6, once, for all three prompt changes. Analyses stored
+  under v5 are no longer reused for a new run, which is what a bump means.
+- The two match prompts are assembled from the same rule constants, so the
+  quick check carries the primary-stack gate, the verbatim rule, the
+  consistency rule and the red-flag rules verbatim — the guard tests assert
+  every one of them against **both** variants.
+- Progress pages name what is running: *Quick AI check*, *Full AI analysis*,
+  *Edit suggestions*, each with its measured duration.
+
+### Measured (2026-09-02, `claude_code` CLI engine, 5 gold fixtures per run)
+- Opus, quick check vs full report, prompt v6: **p50 15 s vs 24 s**, 77 s vs
+  116 s for the whole suite, **2591 vs 4373 reply characters**; all checks
+  green in both, keyword statuses agreeing 98%.
+- Sonnet was measured for the resume role and **is not the faster option
+  here**: p50 52 s full and 26 s quick against Opus's 24 s and 15 s, at 95%
+  and 93% status agreement and 77% term overlap (a less stable keyword frame
+  than Opus's 88%). The default `CLAUDE_MODEL_RESUME` stays `claude-opus-5`;
+  the per-engine "Resume model" select on `/settings` remains the speed dial.
+- Live on job #1393 (Docker, Opus, a 4 988-character posting): the quick
+  check took **40 s and scored 66 — the same number the v5 full analysis
+  gave**; "Get suggestions" then took 35 s and wrote 10 edits and 8 removals
+  onto the same row. A full analysis of the same pair took 77 s.
+- All four bench runs (both models × both modes) passed every gold check.
+
+### Notes
+- No schema change: the mode marker rides inside the `breakdown` JSON next to
+  the prompt version, and rows written before it read as full analyses,
+  which is what they are.
+
+## [1.15.0] — 2026-09-02
+
+### Added
+- **Instant check: a re-uploaded resume is scored in the editor before the
+  AI is asked** ([docs/target-plan.md](docs/target-plan.md) §3.2 item 5,
+  TASKS §13 block 3). "Re-upload resume" on the targeted view now defaults
+  to **Upload & check**: the file (.pdf / .docx / .md / .txt) is parsed and
+  opens in the editor as an unsaved draft over the analysis the page showed
+  — live estimate, missing-keyword chips and highlights, the same formula as
+  the AI score. Nothing is written: no new version, no scan, no match row;
+  the draft lives in the browser tab (a reload keeps it) until **Re-analyze
+  with AI** makes it official or **Save as vN** keeps the text. The page
+  says what the number is — *"Estimate vs the analysis from 40m ago"*: the
+  text confirms what is present, while add / confirm / can't-claim keep the
+  AI's verdict on the analysed version until the re-analysis. **Upload as
+  vN & analyze with AI** keeps the previous behaviour (new version with the
+  file, AI match, scan in the background) one click away. `/target` answers
+  the same way when the pasted posting dedupes to a job this resume was
+  analysed against before and its text changed since.
+- Measured on the stored originals: parsing takes 0–2 ms (.docx) and
+  10–15 ms (.pdf, 64 ms cold); a re-upload lands on the rendered page in
+  ~30 ms server-side (POST + redirect + GET) and ~155 ms to `load` in the
+  browser, against the 95 s of the full run measured in 1.13.0. The
+  `resume: upload parsed` and `resume: instant check` log lines carry the
+  `ms`.
+
+### Notes
+- Known cost, stated on the page: after an instant check **Save as vN**
+  stores the text as a text version — the uploaded file itself does not
+  become the version's original. *Upload as vN & analyze with AI* (or
+  "Upload a new version" on `/resumes/:id`) is the path when the file must
+  be kept.
+- The draft waits between the POST and the page in web-process memory
+  (`src/web/draft-stash.ts`: 10-minute TTL, taken once) and is copied into
+  `localStorage` on first render. No schema change, no migration.
+
+## [1.14.0] — 2026-09-02
+
+### Changed
+- **Keyword highlights tolerate spellings, plurals and separators**
+  ([docs/target-plan.md](docs/target-plan.md) §4 F3–F6, TASKS §13 block 2).
+  The matcher behind the `/target` panes and the live score now treats the
+  separators inside a multi-word term as interchangeable and optional
+  (`CI/CD` = `CI / CD` = `CI-CD`, `Node.js` = `NodeJS`, `front-end` =
+  `front end` = `frontend`), matches the regular plural of a term and the
+  singular of a plural one (`microservice(s)`, `API(s)`, `query` /
+  `queries`, `patch(es)`), and unions a curated table of 170 spelling groups
+  (`node.js` / `node` / `nodejs`, `go` / `golang`, `postgresql` / `postgres` /
+  `pgsql`, `k8s` / `kubernetes`, `ci/cd` / `continuous integration` …) into
+  every keyword — when an analysis is stored and again when one is loaded, so
+  earlier analyses highlight the same way. The whole-token guards stay: `C`
+  is not `C++`, `Java` is not `JavaScript`, a Capitalised name that ends in
+  s (`Rails`, `Windows`, `Kubernetes`) is not a plural, and there is no
+  stemming beyond plurals.
+- **Every keyword is anchored to the posting when the analysis is stored.**
+  A term the model paraphrased is rewritten to the longest verbatim phrase of
+  itself the posting contains, spelled as the posting spells it; one the
+  posting contains in no recognisable form is flagged — the keyword table
+  shows *not in posting*, and the `resume: matched` log line counts
+  `anchored` / `unanchored`, the regression metric for future prompt
+  changes. No prompt change and no schema change (an optional field in the
+  keyword JSON).
+- The job-description pane says that benefits, perks and legal boilerplate
+  are never keywords, so an unmarked paragraph there stops reading as a miss.
+
+### Added
+- `npm run keywords:audit` — read-only: lists every stored keyword row that
+  highlights nowhere, as stored and with the alias table. Measured on the 15
+  stored comparisons: rows with no highlight in the posting 54 → 53 of 305,
+  `present` rows with no highlight in the resume 36 → 35 of 181 — what
+  remains are paraphrases from analyses older than the verbatim rule.
+
+## [1.13.0] — 2026-09-02
+
+### Changed
+- **A compare waits for one AI call, not three**
+  ([docs/target-plan.md](docs/target-plan.md) §3.1, TASKS §13 block 1). On
+  `/target` the posting's fit score is now classified in the background while
+  the resume-model call runs — the comparison never read it, and that leg
+  alone measured 49–55 s on the `claude_code` engine. On "Upload vN &
+  re-analyze" the new version's scan runs the same way instead of ahead of
+  the match (26–33 s measured). Known cost of the second one: until the
+  background scan lands, the resume's headline / skills / core stack still
+  describe the previous version — `scannedAt: null` marks it, and nothing but
+  `/resumes` and other resumes' "elsewhere" hints read those fields.
+- **Repeating a comparison is free.** A double submit, a back button, a
+  re-paste or a re-upload whose text did not change no longer buys a second
+  resume-model call: when the latest stored analysis for that resume and
+  posting judged the identical text under the same prompt version, the page
+  shows it with *"Unchanged since the last analysis (3m ago)"* and a
+  **Re-run anyway** button for the rare time a fresh call is wanted. Plain
+  string equality — a one-character edit is a new analysis
+  (`src/resume/match-reuse.ts`, unit-tested).
+- **The progress page tells the truth about time.** Every step shows the
+  seconds it took once done and a live count while it runs, next to a total
+  that ticks every second. Step copy now quotes measured durations instead of
+  "about a minute": the match is 1½–2 minutes on Opus (83–109 s measured), a
+  scan about half a minute, posting-fact detection 10–40 s on a CLI engine.
+  The same numbers replaced the promises on the job page, the targeted
+  editor, `/welcome` and Settings.
+- Per-step timing logs: `resume: scanned`, `posting-extract: done`,
+  `classify-existing: scored` and `run: step finished` all carry `ms`, so the
+  next optimisation round starts from numbers, not estimates.
+
+### Notes
+- `ResumeMatch` has no prompt-version column and this release changes no
+  schema, so the version rides inside the `breakdown` JSON (written by
+  `createMatch` / `updateMatchScoring`). Rows from before this release carry
+  no marker and are never reused. No migration.
+
+## [1.12.0] — 2026-09-02
+
+### Fixed
+- **No resume write freezes the browser any more**
+  ([docs/resumes-plan.md](docs/resumes-plan.md) Part A, TASKS §12 block 1).
+  Upload, "Upload a new version", Re-scan and the targeted editor's
+  "Save as vN" each awaited a ~60 s call to the resume model inline, on a form
+  whose submit button stayed live — a second click created a **duplicate
+  resume and a second AI call**. All four now run through the same run
+  registry that `/target` and Compare already used: the POST returns at once
+  and you watch a progress page you are free to close. The forms that start
+  one also disable themselves on the first press.
+- **The `/resumes` rows are usable on a phone.** The hub forced a 52 rem
+  minimum width inside a horizontal scroller, which put Skills, Scanned and
+  *both* action buttons off-screen at 375 px. Delete has left the hub for the
+  detail page — a destructive action should not be one click from a list —
+  and the remaining columns now drop out by width instead: Name, Matches and
+  Set default survive everywhere, Scanned returns at 640 px, Core stack at
+  1024, Headline at 1280.
+- **The delete confirm no longer understates what it destroys.** Deleting a
+  resume cascades its cover letters — including text the user wrote by hand —
+  and the dialog said only "and its comparisons". It now counts both:
+  *"Delete "Senior Backend" and 14 comparisons and 17 cover letters?"*
+
+### Added
+- A **Matches** column on `/resumes`: the best score a resume has ever
+  reached plus how many comparisons it has been through, so the hub answers
+  "is this one working?" and not just "does this one exist?".
+- The Skills column became **Core stack** and reads `Resume.primarySkills`.
+  The scanned `skills` list runs to ~85 entries that open the same way on
+  every resume ("php, go, javascript…"); the 2-5 core technologies actually
+  tell two resumes apart. A version badge joins the name.
+
+### Changed
+- `Table` accepts `thClasses` — the only place a responsive `hidden
+  sm:table-cell` can live, since a class on the header label still leaves the
+  cell occupying its column. Table gutters tighten below 640 px.
+
+## [1.11.0] — 2026-09-02
+
+### Added
+- **The resume an application went out with is recorded**
+  ([docs/onboarding-plan.md §4](docs/onboarding-plan.md) stage C, TASKS §11
+  block 7 — the block that closes §11). "Mark applied" on `/jobs/:id` now
+  carries a resume select, and the job page and the stale-applications digest
+  answer "applied with Senior Backend v3" instead of leaving you to remember.
+- The select starts on the resume this posting was actually compared with; with
+  no comparison it falls back to the page's own preselect — since 1.10.0 that
+  is the resume of the search that scored the posting **best**, not merely the
+  primary (ADR 0028), so stage 5's behaviour is unchanged where it applied.
+- New `Job.appliedResumeId` (FK, `SET NULL`), `appliedResumeVersion` and
+  `appliedResumeText`. The text snapshot is not redundant with the id:
+  "Upload a new version" replaces the bytes of the *same* `Resume` row, so an
+  id alone would name v3 and hand back v5's words — the pattern
+  `ResumeMatch.resumeText` has used since phase 9. Applications recorded before
+  this release stay NULL and render exactly as they did.
+
+### Changed
+- `/applications` reads six columns instead of whole `Job` rows. The board
+  query is unbounded in the number of applications, and every card it draws is
+  an applied posting — the one place where a per-application text column would
+  land on 100% of the rows.
+- Documentation caught up with 1.8.0–1.10.0, three releases behind:
+  - **Quick start no longer demands an API key in `.env`.** Since 1.8.0
+    ([ADR 0027](docs/adr/0027-ai-keys-in-the-database.md)) the key is pasted
+    into `/welcome` step 1 or Settings → AI engine and lives in Postgres;
+    `.env` is documented as the fallback it became.
+  - The Anthropic API row no longer claims "prompt-cached", and the cost
+    section no longer bills a caching discount that never applied: Haiku 4.5
+    caches nothing under a 4,096-token prefix and our classifier prompt is
+    1,216 (`cache_creation_input_tokens` was 0 on every measured call). The
+    per-posting figure is restated as ~$0.003 from token counts.
+  - "22 sources" now says what it counts — 22 fetchable `AtsType` branches in
+    `fetchOne`, i.e. kinds of board, not the 73 companies this install tracks.
+    The aggregator list had been missing 4 Day Week.
+  - The feature table learns parallel searches, starter packs, the first-run
+    wizard and the prompt fence; the page table gains `/welcome` and `/letter`
+    and stops advertising a fixed funnel that
+    [ADR 0025](docs/adr/0025-custom-work-stages.md) made configurable.
+  - `docs/screenshots/overview.png` and `jobs.png` retaken: the stored pair
+    predated "Fetch now" and the Target → Compare rename.
+  - SPEC's pipeline diagram still described one profile and one verdict;
+    ARCHITECTURE's ER diagram was missing `Profile.active`, `Profile.resumeId`,
+    `AppSettings.aiKeys` and `setupCompletedAt`.
+
+## [1.10.0] — 2026-09-02
+
+### Added
+- **Several searches run at once**
+  ([docs/onboarding-plan.md §4](docs/onboarding-plan.md) stage B, TASKS §11
+  block 6, [ADR 0028](docs/adr/0028-parallel-searches-one-call-per-posting.md),
+  which supersedes 0004). A backend search and a QA search now hunt in
+  parallel: each new posting is scored against every running search in **one**
+  AI call, and each search keeps its own threshold, its own priority rules and
+  its own Telegram chat. New `Profile.active` is the switch;
+  `AppSettings.activeProfileId` stays as the **primary** — the search that
+  supplies defaults everywhere, and the one that always runs. Up to 8 at once.
+- New `JobScore` table, one row per (posting, search), holding that search's
+  fit, location verdict, tech tags, flags and summary. `Job.fitScore` and its
+  neighbours keep the **best-of**, so every list, badge, sort and digest reads
+  exactly as before.
+- **Search chips on `/jobs`** narrow the list to one search, and the Fit column
+  then shows that search's own score rather than the best-of. The Fit ≥ filter
+  follows the same score.
+- **"By search" on `/jobs/:id`** — every search's fit, verdict and location
+  call, best first. The top row is the search the page speaks for: the resume
+  the Compare and Cover letter cards preselect now follows the search that
+  scored the posting best, not merely the primary.
+- **A "Searches" list on `/settings` → Profile** replaces the single Activate
+  control: Run / Pause / Make primary / Delete per row, with the primary
+  protected from being paused or deleted.
+- Alerts name the winning search in the header and carry a `🎯` line with every
+  search's score ("Backend 87 · QA 41"); they are delivered to the winning
+  search's `Profile.telegramTargetId`, which already existed and was unused.
+  The daily digest still broadcasts, with each entry naming its search.
+
+### Changed
+- A posting is admitted when **any** running search's base filter admits it,
+  and dismissed only when **every** search rejects it. `passesBaseFilter` stays
+  pure and single-search; `passesAnyBaseFilter` is the union wrapper.
+- Issue #50's blank-search guard is now per search: an empty search is dropped
+  from the roster for the tick instead of silencing the ones beside it, and its
+  fit ≤ 50 cap is applied to its own verdict only.
+- The two-stage classifier's stage-1 gate was rewritten. Measured on 24 stored
+  postings, the shipped wording admitted 2 and kept only **1 of the 8** the full
+  classifier had scored 75-90: the gate sees just the first 800 characters and
+  read "the stack is not mentioned" as "the stack mismatches". Saying that
+  explicitly, plus "unambiguous mismatch for every search", takes the same
+  single search to 17 of 24 and 5 of 8. The mode has never been on in
+  production (`classifierMode` defaults to `single`), so nothing was lost —
+  but it was unusable and is now usable.
+- `CLASSIFIER_PROMPT_VERSION` → 3; `max_tokens` scales with the number of
+  searches (400 + 180·N), measured with headroom through 12.
+
+### Fixed
+- CLAUDE.md gotcha 3 claimed the two-stage classifier's economics rest on the
+  prompt cache. They do not, and never did: `cache_creation_input_tokens` is
+  **0 on every call**, because Haiku 4.5 needs a 4096-token prefix and the
+  classifier prompt is 1216. The saving is the short prompt and tiny
+  `max_tokens`. The note now says so, with the per-model floor.
+
+### Migration
+- `20260902140000_add_job_score_and_active_profiles` adds the column, the table
+  and its indexes, marks the primary as running, and **backfills every already
+  scored posting into `JobScore`** against the profile those scores came from.
+  Verified on the live database: 986 rows moved, 0 orphans, 0 mismatches.
+
+## [1.9.0] — 2026-09-02
+
+### Added
+- **A search can name the resume it hunts with**
+  ([docs/onboarding-plan.md §4](docs/onboarding-plan.md) stage A, TASKS §11
+  block 5). New `Profile.resumeId`: "this search is for jobs I'd apply to
+  with *this* CV". A job page found by that search preselects its resume in
+  the Resume match and Cover letter cards instead of guessing from
+  skill-tag overlap; profiles without a link behave exactly as before.
+  Editable on `/settings` → Profile → "Resume for this search", where
+  clearing it returns to the overlap pick.
+- **"Create a search from this resume"** on `/resumes/:id`. The card shows
+  the whole profile a click would produce — name from the resume's
+  headline, primary stack → required, other skills → nice-to-have, plus
+  role types and seniority — and one press saves it, linked to that resume
+  ([ADR 0015](docs/adr/0015-profile-draft-from-resume-scan.md) unchanged:
+  the draft is rendered, never written before the press). The card also
+  names the searches already hunting with that resume.
+- The same action in the wizard's step 3, once the first search exists:
+  "Another resume for a different kind of role?" takes one file (or one
+  already-uploaded resume), reads it on the usual progress page, and offers
+  the second search as a draft.
+
+### Changed
+- New profiles created from a resume are **born inactive**, like every
+  other new profile — creating a search never switches the one the pipeline
+  is scoring against. The flash and the card copy say where to activate it.
+- "Fill from a resume" now proposes that resume as the search's resume
+  alongside the fields it fills, in the same unsaved draft.
+- Deleting a resume clears the link (`ON DELETE SET NULL`) rather than
+  deleting the search or refusing the delete: a profile owns regions,
+  thresholds, priority rules and alert routing that no resume can speak
+  for. The preselect falls back to skill overlap.
+- One read of `AppSettings.aiKeys` per `/settings` render instead of two
+  (the page and the engine probe now share it).
+- `docs/TASKS.md` §11–§13 headers state what actually shipped; §11 had
+  claimed nothing was implemented while four of its seven stages were live.
+
+## [1.8.0] — 2026-09-02
+
+### Added
+- **Paste an AI key instead of editing `.env`** ([ADR 0027](docs/adr/0027-ai-keys-in-the-database.md),
+  [docs/onboarding-plan.md §2](docs/onboarding-plan.md) Phase B, TASKS §11
+  block 4). Every engine card on `/settings` → AI engine now has a key row,
+  and so does each card in step 1 of `/welcome` — paste, Save, Test, done.
+  The key lands in the new `AppSettings.aiKeys` column, applies to the
+  dashboard immediately and to the worker on its next tick, and wins over
+  the matching `.env` variable. Four engines take one: Anthropic API
+  (`ANTHROPIC_API_KEY`), Claude Code CLI (`CLAUDE_CODE_OAUTH_TOKEN`),
+  Gemini CLI (`GEMINI_API_KEY`) and the OpenAI-compatible API
+  (`OPENAI_API_KEY`); Codex CLI stays `codex login`.
+- The stored key is never handed back: the field always renders empty, the
+  card shows only the last four characters and where the credential comes
+  from ("saved here" / "from .env"), and **Remove** deletes it.
+
+### Changed
+- `.env` keeps working exactly as before and stays the documented choice
+  for anyone who would rather keep secrets out of the database — the ADR is
+  explicit that a database dump contains a pasted key.
+- The `claude_code` badge is honest about a logged-out CLI. `claude
+  --version` answers whether or not anyone is signed in, so the engine used
+  to read "available" on `/settings` and in the wizard and then fail on its
+  first real call. The probe now reads the CLI's own auth signals (token in
+  the environment, `.credentials.json`, the recorded account) without
+  spending a call or slowing the page down.
+- Provider constructors no longer hold credentials — the key arrives per
+  call on `AiRequest`, so whether an engine can run at all is decided in one
+  place (`ai-engine.ts:providerUnusable`) instead of two.
+
+## [1.7.0] — 2026-09-01
+
+### Added
+- **First-run wizard at `/welcome`** ([docs/onboarding-plan.md §2](docs/onboarding-plan.md),
+  TASKS §11 block 3). A fresh install lands there from `/` until setup is
+  finished or skipped; every other page keeps working. Four steps, each
+  derived from data and auto-completing when its result already exists:
+  1. **Connect an AI** — detected engines are listed (zero clicks for a
+     `.env` key); with nothing detected, plain-language cards say which
+     line to add per engine. "Send a test message" runs the same tiny live
+     call as the Settings Test button.
+  2. **Test the search** — "Run a test search" is Fetch now with the
+     verdict routed back into setup: no AI, no profile needed, jobs stored
+     unscored.
+  3. **Tell us about you** — upload a resume (or pick one), the scan runs
+     on a progress page and comes back as a one-paragraph summary ("Looks
+     like you're a Senior Backend Engineer — main tools PHP, Laravel…");
+     "Yes, that's me" applies the draft to the active profile, "Let me
+     adjust" opens it in the profile editor. No file handy: three
+     questions (technologies, role words, seniority) write the same fields.
+  4. **See your first matches** — "Score the best matches" scores the ten
+     stored jobs that mention the most of your profile (`runScoreUnscored`
+     over the pure ranking in `jobs/score-pick.ts`: a title hit counts
+     double a description hit, required stack outranks role words);
+     everything that mentions none of your words is set aside without
+     spending anything. Result: "8 of 10 look like a match" with the top
+     five, "Score 10 more" while jobs are waiting, then "Start the hourly
+     watch" (turns fetching on, marks setup done). Ten because a CLI
+     engine needs 15-30 s per job — 100 would have meant a 24-minute wait
+     on the first screen. Telegram is a quiet link.
+- "Skip setup" marks setup done; the Overview shows a "Finish setup →"
+  chip while any step is still open, flag or no flag.
+- Progress pages carry their own heading and subtitle and can show
+  data-driven progress ("12 of 100 jobs scored").
+
+### Changed
+- The engine connectivity test moved into `src/web/ai-test.ts`, shared by
+  Settings and the wizard; the file-input style is one constant in `ui.tsx`.
+
+### Schema
+- `AppSettings.setupCompletedAt` (nullable) — migration
+  `20260901220000_add_setup_completed_at` backfills existing deployments
+  with `now()`, so nobody who already set up by hand is walked through the
+  wizard.
+
+## [1.6.0] — 2026-09-01
+
+### Added
+- **"Fetch now"** ([docs/onboarding-plan.md §2 step 2](docs/onboarding-plan.md),
+  TASKS §11 block 2): a button in the Overview header and on `/runs` runs
+  the hourly fetch tick immediately, in the web process, with a live
+  progress page (`/runs/fetch-now/:id`) that narrates the sources as they
+  answer and lands back on `/runs` with a one-line verdict ("312 jobs from
+  71 sources in 40s — 118 new stored…"). One run at a time; recorded as a
+  `fetch-now` row on `/runs`.
+- **Unscored ingestion seam**: `processNormalizedJobs` accepts
+  `{ classify: false }` and stores what passes the base filter with no fit
+  score, no AI call and no alert. "Fetch now" uses it while the pipeline is
+  paused — paused still means no AI spend — so a fresh install can prove the
+  search works before any profile exists (the wizard's step 2 builds on it).
+  Score those rows later with Re-classify; the hourly tick dedupes them and
+  never revisits them.
+
+### Changed
+- Fetch stats on `/runs` carry `sources` / `sourcesFailed` per tick, and a
+  run started while paused shows `classify: false`.
+- A posting stored by another run meanwhile (the hourly tick and a manual
+  fetch can overlap) now counts as a duplicate instead of failing the whole
+  tick.
+
+## [1.5.0] — 2026-09-01
+
+### Changed
+- **Settings → Profile now follows the user's journey**
+  ([docs/onboarding-plan.md §3](docs/onboarding-plan.md)): contextual
+  warnings first, then "Fill from a resume", then the editor; the profile
+  management row (switch / Activate / Delete / + New) moved to the bottom
+  and the "Other profiles" table is gone — the select is the one
+  mechanism. The standalone "Re-classify all jobs" button was removed:
+  "Save & re-classify" in the editor footer covers it, and a paid AI
+  action no longer greets a fresh install at the top of the page.
+- **"Fill from a resume" accepts a direct file upload** when no resumes
+  exist yet — no more round trip to `/resumes` and back. The upload
+  becomes a normal Resume row (first one becomes the default), is
+  scanned, and the profile draft renders as before; nothing is saved
+  until "Save profile".
+- The three chip fields sit under one "What are we hunting for?" heading
+  with a two-line legend (languages/frameworks → required; job-title
+  words → role types), each with real example placeholders
+  ("php, laravel, mysql…") instead of three identical "Add and press
+  Enter…" prompts.
+- Priority rules live in their own collapsed sub-section; the
+  region-phrase warning shows only when rules exist. The Advanced block
+  no longer auto-opens because of a seeded salary or a Telegram target —
+  only notes, on-site cities or rules open it.
+- The Settings header no longer claims everything saves on click — the
+  profile editor saves on submit, and the copy now says so.
+- Overview explains a paused pipeline: fresh installs start paused so a
+  blank profile doesn't spend AI credit, with a link to fill the profile.
 - **Moved to the `applypack` organization** — the repository now lives at
   `applypack/applypack`. Old URLs redirect, so existing clones and forks
   keep working, but the outbound `User-Agent` job boards see, the README
   badges, the `CHANGELOG` compare links and the launch drafts all point at
   the new address. `scripts/archive-traffic.sh` follows via its `REPO`
   default.
+- **Database tables are snake_case now** ([ADR 0026](docs/adr/0026-snake-case-table-names.md),
+  [#59](https://github.com/applypack/applypack/pull/59),
+  [#61](https://github.com/applypack/applypack/pull/61)): all 13 models map
+  to snake_case tables (`"Job"` → `job`, `"AppSettings"` → `app_settings`)
+  and the autoincrement sequences follow in a second migration; columns and
+  enum types keep their names. Both migrations run on the next boot — back
+  up an existing deployment first. #61 also fixed the two raw-SQL sites (AI
+  usage counters, nightly cleanup) that still named `"AppSettings"`.
 
 ## [1.4.1] — 2026-09-01
 
@@ -590,7 +1576,29 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
-[Unreleased]: https://github.com/applypack/applypack/compare/v1.4.1...HEAD
+[1.23.4]: https://github.com/applypack/applypack/compare/v1.23.3...v1.23.4
+[1.23.3]: https://github.com/applypack/applypack/compare/v1.23.2...v1.23.3
+[1.23.2]: https://github.com/applypack/applypack/compare/v1.23.1...v1.23.2
+[1.23.1]: https://github.com/applypack/applypack/compare/v1.23.0...v1.23.1
+[1.23.0]: https://github.com/applypack/applypack/compare/v1.22.0...v1.23.0
+[1.22.0]: https://github.com/applypack/applypack/compare/v1.21.0...v1.22.0
+[1.21.0]: https://github.com/applypack/applypack/compare/v1.20.0...v1.21.0
+[1.20.0]: https://github.com/applypack/applypack/compare/v1.19.0...v1.20.0
+[1.19.0]: https://github.com/applypack/applypack/compare/v1.18.0...v1.19.0
+[1.18.0]: https://github.com/applypack/applypack/compare/v1.17.0...v1.18.0
+[1.17.0]: https://github.com/applypack/applypack/compare/v1.16.0...v1.17.0
+[1.16.0]: https://github.com/applypack/applypack/compare/v1.15.0...v1.16.0
+[1.15.0]: https://github.com/applypack/applypack/compare/v1.14.0...v1.15.0
+[1.14.0]: https://github.com/applypack/applypack/compare/v1.13.0...v1.14.0
+[1.13.0]: https://github.com/applypack/applypack/compare/v1.12.0...v1.13.0
+[1.12.0]: https://github.com/applypack/applypack/compare/v1.11.0...v1.12.0
+[1.11.0]: https://github.com/applypack/applypack/compare/v1.10.0...v1.11.0
+[1.10.0]: https://github.com/applypack/applypack/compare/v1.9.0...v1.10.0
+[1.9.0]: https://github.com/applypack/applypack/compare/v1.8.0...v1.9.0
+[1.8.0]: https://github.com/applypack/applypack/compare/v1.7.0...v1.8.0
+[1.7.0]: https://github.com/applypack/applypack/compare/v1.6.0...v1.7.0
+[1.6.0]: https://github.com/applypack/applypack/compare/v1.5.0...v1.6.0
+[1.5.0]: https://github.com/applypack/applypack/compare/v1.4.1...v1.5.0
 [1.4.1]: https://github.com/applypack/applypack/compare/v1.4.0...v1.4.1
 [1.4.0]: https://github.com/applypack/applypack/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/applypack/applypack/compare/v1.2.0...v1.3.0

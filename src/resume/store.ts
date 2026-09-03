@@ -1,8 +1,14 @@
-import type { CandidateFact, CoverLetter, Prisma, Resume, ResumeMatch } from '@prisma/client';
+import type { CandidateFact, CoverLetter, Prisma, Resume, ResumeMatch, ResumeReview } from '@prisma/client';
 import { prisma } from '../db';
 import { logger } from '../logger';
-import type { MatchKeyword, ResumeMatchResult, ResumeScan } from './prompts';
-import type { ScoreBreakdown } from './score';
+import { readAnswers, upsertAnswer, type ReviewAnswer } from './answers';
+import { readFrameReason, type FrameReason } from './keyword-frame';
+import { effectiveKeywords } from './keyword-overrides';
+import { readMatchMode, storedBreakdown, withSuggestionsMode, type MatchMode } from './match-mode';
+import { readPromptVersion } from './match-reuse';
+import type { MatchKeyword, MatchSuggestions, ResumeMatchResult, ResumeReviewResult, ResumeScan } from './prompts';
+import { storedReviewBreakdown, type ReviewBreakdown } from './review-score';
+import { readBreakdown, scoreMatch, type ScoreBreakdown } from './score';
 
 /** Resume without the uploaded bytes — what every page and prompt works with. */
 export type ResumeSummary = Omit<Resume, 'original'>;
@@ -111,6 +117,13 @@ export async function replaceResumeFile(
   return row;
 }
 
+/** Renames a resume; null when the row is gone (deleted in another tab). */
+export async function renameResume(id: number, name: string): Promise<ResumeSummary | null> {
+  return prisma.resume
+    .update({ where: { id }, data: { name }, omit: WITHOUT_ORIGINAL })
+    .catch(() => null);
+}
+
 export async function deleteResume(id: number): Promise<void> {
   await prisma.resume.delete({ where: { id } }).catch((err) => {
     logger.warn({ err, id }, 'resume: delete failed (already gone?)');
@@ -167,6 +180,136 @@ export async function listMatchesForResume(resumeId: number): Promise<MatchWithJ
   });
 }
 
+/**
+ * What deleting a resume touches. The first three cascade, and the letters
+ * carry the user's own edited text — the confirm dialog has to say so. The
+ * last two are SetNull: a search keeps running but goes back to guessing its
+ * resume by skill overlap, and an application keeps its text snapshot but
+ * loses the name. Silent either way until the dialog names them.
+ */
+export async function deleteImpact(resumeId: number): Promise<{
+  matches: number;
+  letters: number;
+  reviews: number;
+  searches: number;
+  applications: number;
+}> {
+  const [matches, letters, reviews, searches, applications] = await Promise.all([
+    prisma.resumeMatch.count({ where: { resumeId } }),
+    prisma.coverLetter.count({ where: { resumeId } }),
+    prisma.resumeReview.count({ where: { resumeId } }),
+    prisma.profile.count({ where: { resumeId } }),
+    prisma.job.count({ where: { appliedResumeId: resumeId } }),
+  ]);
+  return { matches, letters, reviews, searches, applications };
+}
+
+export interface ResumeMatchStats {
+  /** Comparisons run against this resume, all versions. */
+  count: number;
+  /** The best score it has ever reached — the hub's "is this one working?" signal. */
+  best: number;
+}
+
+/**
+ * One groupBy for the whole hub, instead of a query per row. Resumes with no
+ * comparison are absent from the map rather than present with zeros: "never
+ * compared" and "compared, scored 0" are different answers.
+ */
+export async function matchStatsByResume(): Promise<Map<number, ResumeMatchStats>> {
+  const rows = await prisma.resumeMatch.groupBy({
+    by: ['resumeId'],
+    _count: { _all: true },
+    _max: { matchScore: true },
+  });
+  return new Map(
+    rows.map((r) => [r.resumeId, { count: r._count._all, best: r._max.matchScore ?? 0 }]),
+  );
+}
+
+/* ---------- strength reviews (docs/resumes-plan.md §B) ---------- */
+
+export async function createReview(input: {
+  resumeId: number;
+  resumeVersion: number;
+  model: string;
+  result: ResumeReviewResult;
+  /** Computed by review-score.ts — the model never sets the number (ADR 0012). */
+  breakdown: ReviewBreakdown;
+  /** Rides inside the breakdown JSON, the way the match markers do. */
+  promptVersion: number;
+}): Promise<ResumeReview> {
+  return prisma.resumeReview.create({
+    data: {
+      resumeId: input.resumeId,
+      resumeVersion: input.resumeVersion,
+      model: input.model,
+      reviewScore: input.breakdown.score,
+      headline: input.result.headline,
+      grades: input.result.grades as unknown as Prisma.InputJsonValue,
+      advice: input.result.advice as unknown as Prisma.InputJsonValue,
+      strengths: input.result.strengths,
+      breakdown: storedReviewBreakdown(input.breakdown, input) as Prisma.InputJsonValue,
+    },
+  });
+}
+
+/** The review a resume page shows: the most recent run, whatever version it read. */
+export async function getLatestReviewForResume(resumeId: number): Promise<ResumeReview | null> {
+  return prisma.resumeReview.findFirst({ where: { resumeId }, orderBy: { createdAt: 'desc' } });
+}
+
+/**
+ * The run before a given one, for the delta (review-delta.ts). Ordered by id,
+ * not by `createdAt`: two runs a second apart are exactly what "answer, then
+ * re-run" produces, and a timestamp tie would pick arbitrarily.
+ */
+export async function getPreviousReview(resumeId: number, beforeId: number): Promise<ResumeReview | null> {
+  return prisma.resumeReview.findFirst({
+    where: { resumeId, id: { lt: beforeId } },
+    orderBy: { id: 'desc' },
+  });
+}
+
+/**
+ * The candidate's answers to the review's questions (answers.ts). Read-modify-
+ * write of one JSON column, so it takes the row lock the same way a keyword
+ * edit does — two answers typed in two tabs must both survive.
+ */
+export async function saveReviewAnswer(
+  resumeId: number,
+  question: string,
+  answer: string,
+): Promise<ReviewAnswer[] | null> {
+  return prisma.$transaction(async (tx) => {
+    const locked = await tx.$queryRaw<{ id: number }[]>`SELECT id FROM resume WHERE id = ${resumeId} FOR UPDATE`;
+    if (locked.length === 0) return null;
+    const row = await tx.resume.findUniqueOrThrow({ where: { id: resumeId }, select: { answers: true } });
+    const next = upsertAnswer(readAnswers(row.answers), question, answer);
+    await tx.resume.update({
+      where: { id: resumeId },
+      data: { answers: next as unknown as Prisma.InputJsonValue },
+    });
+    return next;
+  });
+}
+
+export type ReviewSummary = Pick<ResumeReview, 'resumeId' | 'resumeVersion' | 'reviewScore' | 'createdAt'>;
+
+/**
+ * Latest review per resume for the hub column — one query, not one per row.
+ * A resume with no review is absent from the map: "never reviewed" and
+ * "reviewed, scored 0" are different answers (as in matchStatsByResume).
+ */
+export async function latestReviewByResume(): Promise<Map<number, ReviewSummary>> {
+  const rows = await prisma.resumeReview.findMany({
+    distinct: ['resumeId'],
+    orderBy: [{ resumeId: 'asc' }, { createdAt: 'desc' }],
+    select: { resumeId: true, resumeVersion: true, reviewScore: true, createdAt: true },
+  });
+  return new Map(rows.map((r) => [r.resumeId, r]));
+}
+
 /** A resume version made from edited text (the targeted view's "Save as vN") — a .md file, no docx. */
 export async function saveResumeTextVersion(id: number, text: string): Promise<ResumeSummary> {
   const current = await prisma.resume.findUniqueOrThrow({ where: { id }, select: { name: true, version: true } });
@@ -189,6 +332,10 @@ export async function createMatch(input: {
   result: ResumeMatchResult;
   /** Computed by score.ts — the model never sets the number (ADR 0012). */
   breakdown: ScoreBreakdown;
+  /** All three ride inside the breakdown JSON — the memo key (match-reuse.ts), the row's shape (ADR 0029) and where its keyword frame came from (keyword-frame.ts). */
+  promptVersion: number;
+  mode: MatchMode;
+  frame: FrameReason;
 }): Promise<ResumeMatch> {
   const r = input.result;
   return prisma.resumeMatch.create({
@@ -207,7 +354,7 @@ export async function createMatch(input: {
       keywords: r.keywords as Prisma.InputJsonValue,
       actions: r.actions as Prisma.InputJsonValue,
       removals: r.removals as Prisma.InputJsonValue,
-      breakdown: input.breakdown as unknown as Prisma.InputJsonValue,
+      breakdown: storedBreakdown(input.breakdown, input) as Prisma.InputJsonValue,
       hardRequirements: r.hard_requirements as Prisma.InputJsonValue,
     },
   });
@@ -222,17 +369,91 @@ export async function getLatestMatchForJob(jobId: number): Promise<ResumeMatch |
   return prisma.resumeMatch.findFirst({ where: { jobId }, orderBy: { createdAt: 'desc' } });
 }
 
-/** A fact flip recomputes the stored score deterministically — no AI call. */
-export async function updateMatchScoring(
+export interface KeywordRescore<T> {
+  /** The list to store, or null to leave the row exactly as it is. */
+  keywords: MatchKeyword[] | null;
+  /** Handed back to the caller — the pure edit's own result, for the flash. */
+  detail: T;
+}
+
+export interface RescoreOutcome<T> {
+  detail: T;
+  /** The stored score before and after the edit; equal when nothing was written. */
+  before: number;
+  after: number;
+  /** False when the row predates the deterministic score (ADR 0012) — nothing was written. */
+  scored: boolean;
+}
+
+/**
+ * Read → pure edit → write of one comparison's keyword list, under a row lock.
+ *
+ * Two routes share this shape: a keyword override and an answered `ask_user`
+ * question. Both used to read the row, compute outside, and write the whole
+ * JSON back — check-then-act, so two edits in flight, or a confirmation
+ * landing during an override, kept only the last one (PR #83's follow-up).
+ * Postgres runs at Read Committed, so a plain transaction here would change
+ * nothing: the read inside it still returns the version current when it
+ * started. `SELECT … FOR UPDATE` first is what serialises them; the edit is
+ * pure and instant, so the lock is held for a millisecond.
+ *
+ * Scoring lives here too, deliberately: `effectiveKeywords` — the user's
+ * levels minus the rows they ignored — has to be applied before `scoreMatch`
+ * or an override silently disappears from the number, which is what the facts
+ * route did.
+ */
+export async function rescoreMatchKeywords<T>(
   id: number,
-  input: { keywords: MatchKeyword[]; breakdown: ScoreBreakdown },
+  edit: (match: ResumeMatch) => KeywordRescore<T>,
+): Promise<RescoreOutcome<T> | null> {
+  return prisma.$transaction(async (tx) => {
+    const locked = await tx.$queryRaw<{ id: number }[]>`SELECT id FROM resume_match WHERE id = ${id} FOR UPDATE`;
+    if (locked.length === 0) return null;
+    const match = await tx.resumeMatch.findUniqueOrThrow({ where: { id } });
+    const { keywords, detail } = edit(match);
+    const breakdown = readBreakdown(match.breakdown);
+    const before = match.matchScore;
+    if (keywords === null || !breakdown) {
+      return { detail, before, after: before, scored: breakdown !== null };
+    }
+    const next = scoreMatch(effectiveKeywords(keywords), breakdown.alignment, match.redFlags.length);
+    await tx.resumeMatch.update({
+      where: { id },
+      data: {
+        keywords: keywords as Prisma.InputJsonValue,
+        breakdown: storedBreakdown(next, {
+          // Read off the locked row, not off the caller's older copy: a
+          // re-score changes the number, never what the row is.
+          promptVersion: readPromptVersion(match.breakdown),
+          mode: readMatchMode(match.breakdown),
+          frame: readFrameReason(match.breakdown),
+        }) as Prisma.InputJsonValue,
+        matchScore: next.score,
+      },
+    });
+    return { detail, before, after: next.score, scored: true };
+  });
+}
+
+/**
+ * The lazy second call lands: a quick check becomes a full analysis; the
+ * verdicts and the score stay (ADR 0029). The breakdown is re-read here, not
+ * taken from the caller: a fact confirmation during the ~40 s call rewrites
+ * that JSON, and writing back a snapshot would silently undo it.
+ */
+export async function updateMatchSuggestions(
+  id: number,
+  suggestions: MatchSuggestions,
 ): Promise<ResumeMatch> {
+  const current = await prisma.resumeMatch.findUniqueOrThrow({ where: { id }, select: { breakdown: true } });
   return prisma.resumeMatch.update({
     where: { id },
     data: {
-      keywords: input.keywords as Prisma.InputJsonValue,
-      breakdown: input.breakdown as unknown as Prisma.InputJsonValue,
-      matchScore: input.breakdown.score,
+      strengths: suggestions.strengths,
+      cautions: suggestions.cautions,
+      actions: suggestions.actions as Prisma.InputJsonValue,
+      removals: suggestions.removals as Prisma.InputJsonValue,
+      breakdown: withSuggestionsMode(current.breakdown) as Prisma.InputJsonValue,
     },
   });
 }

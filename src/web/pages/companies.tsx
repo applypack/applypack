@@ -22,6 +22,7 @@ import {
   Tr,
 } from '../ui';
 import { formatRelative } from '../format';
+import { companyDeleteConfirm, type CompanyDeleteImpact } from '../delete-confirm';
 import {
   QUIET_STREAK,
   SILENT_DAYS,
@@ -40,6 +41,8 @@ interface CompanyRow {
   active: boolean;
   careerUrl: string | null;
   jobsTotal: number;
+  /** What Delete would cascade — jobs, and the work recorded against them. */
+  deleteImpact: CompanyDeleteImpact;
   alertedTotal: number;
   lastFetchedAt: Date | null;
   lastFetchStatus: string | null;
@@ -149,6 +152,8 @@ const PROBEABLE_ATS: AtsType[] = [
   AtsType.BAMBOOHR,
   AtsType.PINPOINT,
   AtsType.RIPPLING,
+  AtsType.DOU,
+  AtsType.DJINNI,
 ];
 
 const AGGREGATORS = ['LARAJOBS', 'REMOTEOK', 'REMOTIVE', 'JOBICY', 'WEWORKREMOTELY', 'HN_HIRING'];
@@ -205,6 +210,9 @@ export const CompaniesPage: FC<CompaniesProps> = ({
       <Hint class="mb-4">
         We probe the public ATS endpoint before saving and refuse invalid tokens. Aggregator
         feeds have no per-company token — those are seeded once via <Code>src/seed.ts</Code>.
+        DOU and Djinni take a feed query instead of a slug: <Code>category=PHP&amp;remote</Code>,{' '}
+        <Code>search=laravel</Code>, <Code>city=Львів</Code>;{' '}
+        <Code>primary_keyword=PHP&amp;employment=remote&amp;region=UKR</Code>.
       </Hint>
       <form
         method="post"
@@ -300,7 +308,7 @@ export const CompaniesPage: FC<CompaniesProps> = ({
                   <Td>
                     <ActionForm
                       action={`/companies/${c.id}/delete`}
-                      confirm={`Delete "${c.name}" and all its ${c.jobsTotal} jobs?`}
+                      confirm={companyDeleteConfirm(c.name, c.deleteImpact)}
                       class="flex justify-end"
                     >
                       <Button size="sm" variant="danger">
