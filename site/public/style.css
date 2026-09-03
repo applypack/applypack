@@ -239,7 +239,7 @@ section.raised { background: var(--surface); border-top: 1px solid var(--line); 
 .fig { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); box-shadow: var(--shadow-1); padding: var(--s-5); }
 .gate { display: grid; gap: var(--s-3); font-size: 14.5px; }
 .gate .claim { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--s-3); align-items: start; padding: var(--s-3) var(--s-4); border: 1px solid var(--line); border-radius: var(--r-md); }
-.gate .claim span { color: var(--ink-3); font-size: 13px; display: block; margin-top: 2px; }
+.gate .claim div span { color: var(--ink-3); font-size: 13px; display: block; margin-top: 2px; }
 .gate .claim.blocked { border-color: rgb(217 45 32 / 0.35); background: rgb(217 45 32 / 0.04); text-decoration: line-through; text-decoration-color: rgb(217 45 32 / 0.5); }
 .gate .claim.blocked span { text-decoration: none; }
 .verdict { font-size: 12px; font-weight: 700; letter-spacing: 0.02em; border-radius: 999px; padding: 2px 10px; white-space: nowrap; line-height: 20px; }
