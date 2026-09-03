@@ -12,11 +12,12 @@ ApplyPack: self-hosted job-hunt console – watches the boards, scores your resu
 
 ## Body
 
-I'm looking for a job and got tired of being the cron job myself:
+I was looking for a job and got tired of being the cron job myself:
 refresh the boards, read every posting, realize it's the wrong stack or
-quietly country-locked. So I built the console I wanted. It watches the
-boards, and my Telegram only rings when a posting clears my fit
-threshold. Resume, profile and every AI report stay in my Postgres. The
+quietly country-locked. So I built the console I wanted, ran my own
+search through it every day, and that is how I found the job I have
+now. It watches the boards, and my Telegram only rings when a posting
+clears my fit threshold. Resume, profile and every AI report stay in my Postgres. The
 scoring part runs live in your browser, no signup:
 https://applypack.dev/demo/
 

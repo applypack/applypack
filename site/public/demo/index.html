@@ -3,122 +3,95 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ApplyPack — live scoring demo</title>
-<meta name="description" content="The exact resume-scoring module from ApplyPack, running in your browser on a real comparison. Edit the resume and watch the deterministic score recompute — no AI calls.">
+<title>ApplyPack: watch the resume score move</title>
+<meta name="description" content="The exact resume-scoring module from ApplyPack, running in your browser on a real comparison. Edit the resume and watch the deterministic score recompute, with no AI calls.">
+<meta name="theme-color" content="#f7f8fa">
 <link rel="icon" type="image/svg+xml" href="../favicon.svg">
+<link rel="apple-touch-icon" href="../img/apple-touch-icon.png">
 <link rel="canonical" href="https://applypack.dev/demo/">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;450;500;550;600;650&display=swap">
+<link rel="preload" href="../fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="modulepreload" href="demo.mjs">
+<link rel="modulepreload" href="target.mjs">
+<link rel="modulepreload" href="score.mjs">
 <link rel="stylesheet" href="../style.css">
-<style>
-  .demo-wrap { max-width: 1240px; margin: 0 auto; padding: 0 24px; }
-  .demo-head { padding: 44px 0 8px; text-align: center; }
-  .demo-head p { margin: 12px auto 0; max-width: 700px; color: var(--ink-2); font-size: 15.5px; }
-  .demo-head p code { background: var(--surface); border: 1px solid var(--line); border-radius: 5px; padding: 1px 5px; }
-
-  .scorebox {
-    margin: 26px auto 0; max-width: 860px; background: var(--surface);
-    border: 1px solid var(--line); border-radius: 10px; padding: 16px 20px;
-    display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
-  }
-  #score-value { font-size: 34px; font-weight: 650; line-height: 1; min-width: 58px; }
-  .scorebox .track { flex: 1; min-width: 160px; height: 8px; border-radius: 999px; background: var(--line); overflow: hidden; }
-  #score-bar { display: block; height: 100%; border-radius: 999px; transition: width .3s; }
-  .scorebox .meta { flex-basis: 100%; display: flex; gap: 12px; flex-wrap: wrap; font-size: 13px; color: var(--ink-3); }
-  #score-delta { font-weight: 550; }
-  #reset { border: 1px solid var(--line); background: var(--surface); border-radius: 7px;
-           padding: 4px 12px; font: inherit; font-size: 13px; cursor: pointer; }
-  #reset:hover { border-color: #cbd5e1; }
-
-  #chips { margin: 14px auto 0; max-width: 860px; display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; }
-  .chip-missing { background: rgba(217, 119, 6, .1); color: #b45309; border: 1px solid rgba(217, 119, 6, .25);
-                  border-radius: 6px; padding: 2px 8px; font-size: 12.5px; font-weight: 550; cursor: default; }
-  .chips-empty { font-size: 13px; color: var(--ink-3); }
-
-  .panes { margin: 26px 0 64px; display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
-  .pane { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
-  .pane .pane-title { padding: 10px 16px; border-bottom: 1px solid var(--line); font-size: 13px;
-                      font-weight: 600; color: var(--ink-2); display: flex; gap: 10px; align-items: baseline; }
-  .pane .pane-title .hint { font-weight: 450; color: var(--ink-3); }
-  .pane-body { position: relative; height: 520px; }
-  .layer { position: absolute; inset: 0; margin: 0; padding: 16px; overflow: auto;
-           font: 14px/1.6 Inter, system-ui, sans-serif; white-space: pre-wrap; overflow-wrap: break-word; }
-  #jd.layer { position: static; height: 100%; }
-  #backdrop { color: var(--ink); pointer-events: none; overflow: hidden; }
-  #editor { background: transparent; color: transparent; caret-color: var(--ink);
-            border: 0; outline: none; resize: none; width: 100%; height: 100%; }
-  #editor::selection { background: rgba(5, 150, 105, .25); }
-
-  mark { color: inherit; border-radius: 4px; }
-  .kw-found, .kw-present { background: rgba(5, 150, 105, .18); }
-  .kw-missing { background: rgba(217, 119, 6, .22); }
-  .kw-ask { background: rgba(124, 58, 237, .14); box-shadow: inset 0 0 0 1px rgba(124, 58, 237, .4); }
-  .kw-cannot { background: rgba(100, 116, 139, .2); text-decoration: line-through; }
-  .edit-remove { background: rgba(220, 38, 38, .15); text-decoration: line-through; }
-  .edit-change { background: rgba(217, 119, 6, .1); box-shadow: inset 0 0 0 1px rgba(217, 119, 6, .55); }
-
-  .fineprint { margin: 0 auto 72px; max-width: 760px; font-size: 13.5px; color: var(--ink-3); text-align: center; }
-  @media (max-width: 860px) { .panes { grid-template-columns: 1fr; } .pane-body { height: 380px; } }
-</style>
+<meta property="og:type" content="website">
+<meta property="og:title" content="Watch the resume score move">
+<meta property="og:description" content="ApplyPack's own scoring module in your browser: the AI marked the facts once, code computes the number as you type.">
+<meta property="og:url" content="https://applypack.dev/demo/">
+<meta property="og:image" content="https://applypack.dev/img/og.png">
+<meta property="og:image:width" content="1280">
+<meta property="og:image:height" content="640">
+<meta property="og:image:alt" content="ApplyPack: stop losing interviews to a missing keyword">
+<meta name="twitter:card" content="summary_large_image">
 </head>
 <body>
+<a class="skip" href="#main">Skip to content</a>
 
-<header>
-  <div class="wrap nav">
-    <a href="../" style="display:flex;align-items:center;gap:12px;color:inherit;text-decoration:none">
-      <div class="mark">AP</div><div class="word">ApplyPack</div>
-    </a>
-    <div class="spacer"></div>
-    <a class="btn" href="https://github.com/applypack/applypack">GitHub&nbsp;→</a>
-  </div>
+<header class="top">
+  <nav class="wrap nav" aria-label="Primary">
+    <a class="brand" href="../"><span class="mark" aria-hidden="true">AP</span><span class="word">ApplyPack</span></a>
+    <div class="links">
+      <a href="../#what">What it does</a>
+      <a class="open key" href="../#open">Open source</a>
+      <a href="../#install">Install</a>
+    </div>
+    <a class="btn small gh-btn" href="https://github.com/applypack/applypack" aria-label="GitHub"><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg><span>GitHub</span></a>
+  </nav>
 </header>
 
-<main class="demo-wrap">
-  <div class="demo-head">
-    <h2>The score, live</h2>
-    <p>This is the <strong>exact scoring module from the app</strong>, running in your
-    browser on a real comparison — a synthetic posting against a synthetic resume.
-    The AI marked the facts once; everything below recomputes in pure code as you
-    type. Try adding <code>Redis</code> to the skills line — the number moves
-    instantly. Then try adding <code>Terraform</code>: nothing moves, because the
-    AI marked it cannot-claim against the original resume, and typing a word is
-    not evidence. Delete every <code>TypeScript</code> to watch the
-    primary-stack cap bite.</p>
-  </div>
+<main id="main" class="wrap wide demo-page">
+  <h1>The score, live</h1>
+  <p class="lead">This is the exact scoring module from the app, on a synthetic posting and a synthetic resume. The AI marked the facts once; everything below recomputes in pure code as you type.</p>
 
-  <div class="scorebox">
-    <span id="score-value">—</span>
-    <span class="track"><span id="score-bar"></span></span>
-    <div class="meta">
-      <span id="score-detail"></span>
-      <span id="score-delta"></span>
-      <button id="reset" hidden>Reset the resume</button>
-    </div>
-  </div>
-  <div id="chips"></div>
-
-  <div class="panes">
-    <div class="pane">
-      <div class="pane-title">Job posting <span class="hint">green = in the resume, amber = still missing</span></div>
-      <div class="pane-body"><div id="jd" class="layer"></div></div>
-    </div>
-    <div class="pane">
-      <div class="pane-title">The resume — edit it <span class="hint">watch the score and the posting react</span></div>
-      <div class="pane-body">
-        <pre id="backdrop" class="layer" aria-hidden="true"></pre>
-        <textarea id="editor" class="layer" spellcheck="false" aria-label="Editable resume text"></textarea>
+  <div class="demo">
+    <div class="demo-frame">
+      <div class="scorebox">
+        <span id="score-value" aria-live="polite">—</span>
+        <span class="track" aria-hidden="true"><span id="score-bar"></span></span>
+        <div class="meta">
+          <span id="score-detail"></span>
+          <span id="score-delta"></span>
+          <button id="reset" type="button" hidden>Reset the resume</button>
+        </div>
+      </div>
+      <div id="chips"></div>
+      <div class="panes">
+        <div class="pane">
+          <div class="pane-title">Job posting <span class="hint">green: in the resume · amber: still missing · the stronger the mark, the harder the posting asks</span></div>
+          <div class="pane-body"><div id="jd" class="layer"></div></div>
+        </div>
+        <div class="pane resume">
+          <div class="pane-title">Your resume, editable <span class="hint">the score and the posting react</span></div>
+          <div class="pane-body">
+            <pre id="backdrop" class="layer" aria-hidden="true"></pre>
+            <textarea id="editor" class="layer" spellcheck="false" autocapitalize="off" autocorrect="off" aria-label="Editable resume text"></textarea>
+          </div>
+        </div>
       </div>
     </div>
+    <p class="demo-hint">Type <code>Redis</code> into the skills line: the number moves on the next keystroke. Type <code>Terraform</code>: nothing moves, because the AI marked it cannot-claim against the original resume, and typing a word is not evidence. Delete every <code>TypeScript</code> to watch the primary-stack cap bite.</p>
   </div>
 
-  <p class="fineprint">What's AI and what isn't: one AI call marked each keyword as
-  present / missing / ask-the-user against the original resume, and graded the
-  alignment. Everything since — coverage, the primary-stack cap, the number — is
-  <a href="https://github.com/applypack/applypack/blob/main/src/web/public/score.mjs">score.mjs</a>,
-  the same file the dashboard ships. A parity test keeps this page's copy
-  byte-identical.</p>
+  <div class="after-demo">
+    <p>This runs on your machine too, against real postings and your own resume.</p>
+    <a class="btn primary" href="../#install">Install with Docker</a>
+    <a class="btn" href="../">What else it does</a>
+  </div>
+
+  <p class="fine">What is AI and what is not: one AI call marked each keyword as present, missing or ask-the-user against the original resume, and graded the alignment. Everything since, coverage, the primary-stack cap and the number, is <a href="https://github.com/applypack/applypack/blob/main/src/web/public/score.mjs">score.mjs</a>, the same file the dashboard ships; a parity test keeps this page's copy byte-identical.</p>
 </main>
+
+<footer>
+  <div class="wrap foot">
+    <a class="brand" href="../"><span class="mark" aria-hidden="true">AP</span>ApplyPack</a>
+    <div class="links">
+      <a href="https://github.com/applypack/applypack">GitHub</a>
+      <a href="https://github.com/applypack/applypack/releases">Releases</a>
+      <a href="https://github.com/applypack/applypack/blob/main/CONTRIBUTING.md">Contributing</a>
+    </div>
+    <p class="tail">MIT licensed. Runs locally; your data stays in your Postgres.</p>
+  </div>
+</footer>
 
 <script type="module" src="demo.mjs"></script>
 </body>
