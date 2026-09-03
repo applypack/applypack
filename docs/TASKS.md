@@ -1120,7 +1120,7 @@ regions and no country; the classifier's location rules are written for a
 seeded inactive. Sources verified 2026-09-03 with robots.txt are in the plan
 (§0.5) and the ADR 0005 register.
 
-- [x] **Stage 1 `location-model`** — shipped on the `location-model` branch
+- [x] **Stage 1 `location-model`** — shipped on the `location-model` branch, PR #111
       (ADR 0031): gazetteer + parser with the §7.1 trap tests and the 250-string
       corpus, the four Job columns, hints from 14 fetchers, the backfill (1 021
       of 1 038 rows filled, no verdict moved), `/jobs` place / workplace /
