@@ -17,6 +17,7 @@ import {
 import { getSettings } from '../../settings';
 import { allStages, parseStageConfig } from '../stage-config';
 import { classifyExistingJob } from '../../jobs/classify-existing';
+import { locationMismatchReason } from '../../jobs/location-reason';
 import { getActiveProfile, listActiveProfiles } from '../../profiles';
 import { isBlankProfile } from '../../profile-guards';
 import { createManualJob, ManualJobSchema, MIN_DESCRIPTION_CHARS } from '../../jobs/manual-job';
@@ -286,7 +287,19 @@ jobsRoute.get('/jobs/:id', async (c) => {
         appliedResume: { select: { name: true } },
         // Every search's verdict, best first (ADR 0028).
         scores: {
-          include: { profile: { select: { id: true, name: true, resumeId: true, active: true } } },
+          include: {
+            profile: {
+              select: {
+                id: true,
+                name: true,
+                resumeId: true,
+                active: true,
+                countries: true,
+                regions: true,
+                workplace: true,
+              },
+            },
+          },
           orderBy: { fitScore: 'desc' },
         },
       },
@@ -332,6 +345,8 @@ jobsRoute.get('/jobs/:id', async (c) => {
         active: sc.profile.active,
         fitScore: sc.fitScore,
         locationMatch: sc.locationMatch,
+        // Built from the columns, no AI call (ADR 0032); null when they cannot say.
+        locationReason: sc.locationMatch ? null : locationMismatchReason(job, sc.profile),
         summary: sc.summary,
       }))}
       applicationTrackingEnabled={settings.applicationTrackingEnabled}

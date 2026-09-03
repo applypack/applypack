@@ -81,6 +81,8 @@ export interface ProfileScore {
   active: boolean;
   fitScore: number;
   locationMatch: boolean;
+  /** Why the columns say it is a mismatch; null when only the summary can tell. */
+  locationReason: string | null;
   summary: string | null;
 }
 
@@ -312,7 +314,9 @@ const ProfileScoreRow: FC<{ scores: ProfileScore[] }> = ({ scores }) => {
                 <span class="ml-1.5 text-xs text-ink-faint">· paused</span>
               )}
               {!s.locationMatch && (
-                <span class="ml-1.5 text-xs text-warn">· location mismatch</span>
+                <span class="ml-1.5 text-xs text-warn">
+                  · location mismatch{s.locationReason ? ` — ${s.locationReason}` : ''}
+                </span>
               )}
               {s.summary && (
                 <div class="truncate text-xs text-ink-muted" title={s.summary}>
