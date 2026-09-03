@@ -4,6 +4,19 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.38.0] — 2026-09-03
+
+### Added
+- **Personio** (plan §4.2, stage 3d): the DACH mid-market ATS as a
+  per-company source — paste a `*.jobs.personio.de` career URL or a slug
+  on Companies, the probe checks the public XML feed, and every position
+  arrives with its offices, employment type, seniority, schedule, salary
+  when published, and the posting's sections. Discovery recognises Personio
+  career URLs. Holidu seeded switched off as the reference board.
+
+### Schema
+- `AtsType.PERSONIO` (migration `20260903234500_add_personio`).
+
 ## [1.37.0] — 2026-09-03
 
 ### Added

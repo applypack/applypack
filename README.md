@@ -33,7 +33,7 @@ and wrong-fit postings, shows exactly which words a posting wants and your
 resume lacks, helps you fix it in place, and writes a cover letter that
 cannot invent. Then it tracks the application.
 
-- **Find real jobs.** 28 sources hourly, a classifier with strict stack
+- **Find real jobs.** 29 sources hourly, a classifier with strict stack
   and location rules, a ghost-job check with evidence links, Telegram only
   above your fit threshold, several searches at once.
 - **Fix the resume for this posting.** The model marks facts, code
@@ -59,7 +59,7 @@ roadmap item.
 
 | | |
 | --- | --- |
-| 🔭 **28 source integrations, checked hourly** | The number counts *kinds* of board, not companies: ten ATS vendors — Greenhouse, Lever, Ashby, Workable, SmartRecruiters, Recruitee, Breezy, BambooHR, Pinpoint, Rippling — on as many companies as you care to add, plus 17 cross-company aggregators (DOU and Djinni for Ukraine, solid.jobs for Poland, the DevITjobs sites for Germany, the UK and the Netherlands, Landing.jobs for Portugal, JobTech for Sweden among them) and the monthly HN "Who is hiring" thread. Curated **starter packs** add a whole segment of companies at once |
+| 🔭 **29 source integrations, checked hourly** | The number counts *kinds* of board, not companies: eleven ATS vendors — Greenhouse, Lever, Ashby, Workable, SmartRecruiters, Recruitee, Breezy, BambooHR, Pinpoint, Rippling, Personio — on as many companies as you care to add, plus 17 cross-company aggregators (DOU and Djinni for Ukraine, solid.jobs for Poland, the DevITjobs sites for Germany, the UK and the Netherlands, Landing.jobs for Portugal, JobTech for Sweden among them) and the monthly HN "Who is hiring" thread. Curated **starter packs** add a whole segment of companies at once |
 | 🚀 **A guided first run** | `/welcome` walks a first install through connecting an AI, proving the search works, turning a resume into a profile, and scoring the first matches — four clicks and one file pick |
 | 🎯 **Several searches at once** | Backend and QA, or contract and full-time: each search has its own stack, thresholds, resume and Telegram chat, and up to eight run in parallel. One AI call per posting scores all of them, so a second direction costs almost nothing |
 | 🧠 **A classifier with strict rules** | AI reads the full description against your stack, role types, seniority, regions and salary floor. "Full-stack" in a title is not a tech match, and "Remote · Germany" is not a US-remote job |
@@ -182,7 +182,7 @@ green. Details per engine in [docs/ai-engines.md](./docs/ai-engines.md).
 ## How it works
 
 ```
- 28 sources ──▶ normalize ──▶ base filter ──▶ AI classifier ──▶ Postgres ──▶ Telegram
+ 29 sources ──▶ normalize ──▶ base filter ──▶ AI classifier ──▶ Postgres ──▶ Telegram
    hourly        + dedupe      pure code,      one call, a       dashboard    only when
    fetch                       zero cost       score per search               fit ≥ threshold
 ```
@@ -204,7 +204,7 @@ permanently out of scope
 Coverage is two-tier by design, because the big HR vendors have no "all
 jobs" API, only per-company endpoints:
 
-- **Direct boards**: Greenhouse, Lever, Ashby, Workable, SmartRecruiters
+- **Direct boards**: Greenhouse, Lever, Ashby, Workable, SmartRecruiters, Personio
   boards for companies *you* track. Add one by pasting its board URL on
   `/companies`; the form probes the API live and refuses slugs that
   don't resolve.

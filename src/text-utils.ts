@@ -175,7 +175,8 @@ export type DiscoverableAtsType =
   | 'BREEZY'
   | 'BAMBOOHR'
   | 'PINPOINT'
-  | 'RIPPLING';
+  | 'RIPPLING'
+  | 'PERSONIO';
 
 // Vendor marketing/support subdomains that look like board slugs in
 // subdomain-style ATS URLs ({slug}.recruitee.com) but never are.
@@ -265,6 +266,11 @@ export function extractAtsToken(
     );
   if (m && m[1]) {
     return { atsType: 'RIPPLING', atsToken: m[1].toLowerCase() };
+  }
+  // Personio: {slug}.jobs.personio.de/... OR {slug}.jobs.personio.com/...
+  m = /https?:\/\/([\w-]{2,60})\.jobs\.personio\.(?:de|com)(?:\/|$|\?)/i.exec(url);
+  if (m && m[1]) {
+    return { atsType: 'PERSONIO', atsToken: m[1].toLowerCase() };
   }
   return null;
 }

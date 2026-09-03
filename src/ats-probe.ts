@@ -3,6 +3,7 @@ import { fetchWithRetry, HttpError } from './http';
 import { douFeedUrl } from './fetchers/dou';
 import { djinniFeedUrl } from './fetchers/djinni';
 import { jobTechProbeUrl, parseJobTechTotal } from './fetchers/jobtech';
+import { isPersonioFeed, parsePersonioXml, personioFeedUrl, personioSlug } from './fetchers/personio';
 
 export interface ProbeResult {
   ok: boolean;
@@ -121,6 +122,25 @@ export async function probeAts(
         return matching > 0
           ? { ok: true, jobsCount: matching }
           : { ok: false, error: keyword ? `Djinni knows no primary_keyword "${keyword}" (or it has no vacancies right now).` : 'Djinni answered no vacancies for this filter.' };
+      }
+      case AtsType.PERSONIO: {
+        // An unknown slug is a 307 to personio.com (verified 2026-09-03);
+        // the fetch refuses redirects, so it surfaces here as a thrown error.
+        let slug: string;
+        try {
+          slug = personioSlug(trimmed);
+        } catch (err) {
+          return { ok: false, error: err instanceof Error ? err.message : 'Invalid Personio token.' };
+        }
+        let xml: string;
+        try {
+          const feed = await fetchWithRetry(personioFeedUrl(slug), { timeoutMs: 8_000, init: { redirect: 'error' } });
+          xml = await feed.text();
+        } catch {
+          return { ok: false, error: `Personio has no public feed for "${slug}" — the host redirects to personio.com.` };
+        }
+        if (!isPersonioFeed(xml)) return { ok: false, error: `"${slug}" answered something other than a Personio job feed.` };
+        return { ok: true, jobsCount: parsePersonioXml(xml).length };
       }
       case AtsType.JOBTECH: {
         // An unknown taxonomy code or a hopeless query answers 200 with

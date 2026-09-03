@@ -18,6 +18,7 @@ export const RESOLVE_ORDER = [
   'BAMBOOHR',
   'PINPOINT',
   'RIPPLING',
+  'PERSONIO',
 ] as const satisfies readonly DiscoverableAtsType[];
 
 /** Adding a vendor to `DiscoverableAtsType` without adding it to the chain
@@ -124,6 +125,8 @@ export function boardUrl(atsType: DiscoverableAtsType, atsToken: string): string
       return `https://${t}.pinpointhq.com/`;
     case 'RIPPLING':
       return `https://ats.rippling.com/${t}/jobs`;
+    case 'PERSONIO':
+      return `https://${t}.jobs.personio.de/`;
   }
 }
 

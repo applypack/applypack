@@ -643,6 +643,14 @@ adopted or rejected.
 **3d — European ATS types**
 - `PERSONIO`: XML with `?language=en`; URL built from id; `office` → parser;
   probe = feed answers 200 with `<workzag-jobs>`; 307/429 = no feed.
+  *(done: v1.38.0 — the feed is flat enough to read without an XML
+  dependency (a position is a `<position>` block of text or CDATA tags,
+  `jobDescriptions` a list of name / value pairs); the token accepts a slug
+  or the `*.jobs.personio.de|com` host and the discovery parser learns
+  those hosts; the fetch refuses redirects, so an unknown slug's 307 to
+  personio.com never becomes the 429 that follows it; `office` is what the
+  employer typed — "Munich, Germany", "München", "Remote Italy", a street
+  address — and goes to the parser as is; Holidu seeded off)*
 - `TEAMTAILOR`: `jobs.json` (ISO country) with `jobs.rss` as fallback;
   `atsToken` accepts a bare slug or a host; `extractAtsToken` learns
   `*.teamtailor.com`.
