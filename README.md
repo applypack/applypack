@@ -2,9 +2,10 @@
 
 # ApplyPack
 
-**A self-hosted AI console for the whole job search: it reads the boards so you don't have to, then helps you apply well.**
+**Free, open-source job search that gets your resume past the keyword filter.**
 
 [![CI](https://github.com/applypack/applypack/actions/workflows/test.yml/badge.svg)](https://github.com/applypack/applypack/actions/workflows/test.yml)
+[![Live demo](https://img.shields.io/badge/live%20demo-applypack.dev-047857)](https://applypack.dev/demo/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 [![Node 24](https://img.shields.io/badge/node-%3E%3D22-339933?logo=node.js&logoColor=white)](./package.json)
 [![TypeScript strict](https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white)](./tsconfig.json)
@@ -21,22 +22,40 @@ one-click experience confirmations, live keyword highlights.</sub>
 
 </div>
 
-You know what you're looking for. The boards keep showing you everything
-else, and every "Senior Engineer" listing takes three minutes of reading
-to reveal the wrong stack, the wrong country, or a ghost posting.
+Companies screen resumes with AI and ATS keyword filters now. The filter
+counts words, not years: "PHP 8, Laravel, Symfony" can miss a requirement
+that says "PHP", and a recruiter never sees the fifteen years behind it.
+Half the postings are noise on top: the wrong stack in paragraph four,
+"Remote" that means remote in Germany, a listing nobody will ever fill.
 
-ApplyPack does that reading for you. It watches 22 kinds of job source
-around the clock, scores each posting against your real profile — several
-searches at once, if you're hunting in more than one direction — and pings
-your Telegram only when something deserves an application. Then it helps
-you apply well: it checks whether the job is real, scores your resume
-against the posting, and shows you exactly what to change.
+ApplyPack watches 22 kinds of job source around the clock, drops the fake
+and wrong-fit postings, shows exactly which words a posting wants and your
+resume lacks, helps you fix it in place, and writes a cover letter that
+cannot invent. Then it tracks the application.
 
-Everything runs on your machine. Your resume, your profile and every AI
-report stay in your own Postgres. `docker compose up` on a laptop or a
-$5 VPS is the whole deployment story.
+- **Find real jobs.** 22 sources hourly, a classifier with strict stack
+  and location rules, a ghost-job check with evidence links, Telegram only
+  above your fit threshold, several searches at once.
+- **Fix the resume for this posting.** The model marks facts, code
+  computes the score. Edit side by side with a live score; honest deltas
+  between versions. [Try it live →](https://applypack.dev/demo/)
+- **Write the letter without inventing.** Fact-gated against your resume
+  and your confirmed facts. PDF / DOCX.
+
+I built it during my own job search and found my job with it
+([the story](https://applypack.dev/#story)). Everything runs on your
+machine: your resume, your profile and every AI report stay in your own
+Postgres, and `docker compose up` on a laptop or a $5 VPS is the whole
+deployment. MIT, no accounts, no telemetry, no ads. Bring your own AI: a
+subscription you already pay for, a key, or a local model.
 
 ## What you get
+
+The three things above, in full. Every line is a shipped feature, not a
+roadmap item.
+
+<details>
+<summary><b>The whole list, one line each</b></summary>
 
 | | |
 | --- | --- |
@@ -54,6 +73,8 @@ $5 VPS is the whole deployment story.
 | 🧭 **Board discovery** | harvests company ATS boards from HN comments and queues them for a one-click promote |
 | 🛡 **Job posts can't hijack the prompt** | every posting, resume and web page reaches the model inside explicit untrusted-text markers, and a test fails the build if a new AI call site skips them |
 | 🏠 **Self-hosted and private** | official public APIs and RSS only, dashboard bound to `127.0.0.1`, no accounts, no telemetry |
+
+</details>
 
 ## Quick start
 
@@ -290,11 +311,16 @@ on the AI tab shows exactly which engine your calls went to.
 **The resume toolkit, in practice.** Upload the resumes you actually send
 on `/resumes`; each gets one AI scan (headline, seniority, skill tags,
 job-agnostic ATS issues). On any job page, **Compare** runs the match and
-stores the report. On the targeted editor you fix the resume in place,
-watching keyword coverage update as you type, free of AI calls. When the
-draft feels right, "Re-analyze with AI" gives the honest rubric score and
-"Save as vN" keeps the version. The next report shows "▲ +16 vs v1", and
-the delta is real because the scoring is deterministic.
+stores the report: a quick check by default (every keyword graded and
+marked, the gates, the score), the edit suggestions one click later. On
+the targeted editor you fix the resume in place, watching keyword coverage
+update as you type, free of AI calls; re-upload a file and it is scored
+in the editor before the AI is asked. Disagree with the model? Re-level a
+keyword, ignore it, add the one it missed, or rebuild the whole list; your
+edits survive every re-run. When the draft feels right, "Re-check with
+AI" gives the honest rubric score and "Save as vN" keeps the version. The
+next report shows "▲ +16 vs v1", and the delta is real because the
+scoring is deterministic.
 
 <details>
 <summary><b>Your data, and how to keep it</b> (backup, restore, what a delete takes)</summary>
@@ -363,7 +389,7 @@ a toggle flipped in the UI reaches the worker on its next tick.
 
 ```bash
 npm run lint:types   # tsc --noEmit
-npm test             # node --test, 860 unit tests on the pure modules
+npm test             # node --test, over a thousand unit tests on the pure modules
 ```
 
 CI runs both on every push. AI- and DB-touching modules are verified by
@@ -378,6 +404,13 @@ down in [CLAUDE.md](./CLAUDE.md).
 > [CHANGELOG.md](./CHANGELOG.md) — releases.
 
 ## Contributing
+
+Ideas are welcome, not just patches. Anything that fits the sourcing
+policy can land here: open an issue with the
+[feature template](https://github.com/applypack/applypack/issues/new/choose)
+and it gets scoped in the open. The roadmap is the issue tracker, on
+purpose; [#24](https://github.com/applypack/applypack/issues/24) (a Discord
+channel next to Telegram) is the kind of task that is waiting for someone.
 
 Three good entry points:
 

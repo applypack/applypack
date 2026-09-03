@@ -1079,3 +1079,25 @@ before anyone else installs this.
          cascades: the resume one was fixed in v1.19.0, but "Delete "Reddit"
          and all its 73 jobs?" was hiding **6 tracked applications and a cover
          letter**. Company deletes now name them.
+
+---
+
+## 14. applypack.dev + README refresh (analysis 2026-09-02 — built on `site-refresh`)
+
+Analysis and the build log: [docs/site-refresh-plan.md](./site-refresh-plan.md).
+The landing was rewritten around the live demo (hero within a 45-word
+budget, three pillars, story, open-source and install sections), the demo
+page hardened, README and the launch drafts aligned, the social card
+regenerated. Docs/site PR, no version tag.
+
+Owner items left open by the branch:
+
+- [ ] Story facts for the `#story` section: month, employer if named,
+      2–3 counters from the Overview (the section ships number-free).
+- [ ] Label 3–5 issues `good first issue` (the site and README link there;
+      the label is empty).
+- [ ] Cloudflare: Always Use HTTPS, HSTS, redirect www → apex
+      (`http://applypack.dev/` answers 200 over plain HTTP today).
+- [ ] GitHub About text and social preview from the new
+      `docs/brand/social-card.png`.
+- [ ] Read Cloudflare Web Analytics for a before/after baseline.
