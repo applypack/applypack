@@ -169,6 +169,9 @@ src/
   text-utils.ts                ← pure helpers: parseTagList, extractJson, extractAtsToken,
                                  daysSince, hashShortId, maskToken, decideStageStrategy
   filter.ts                    ← passesBaseFilter (pure, profile-aware)
+  countries.json / countries.ts ← the gazetteer: 86 countries, cities, region groups; lookups (pure, ADR 0031)
+  location.ts                  ← parseLocation: string + fetcher hints → workplace/countries/regions (pure, ADR 0031)
+  location-corpus.json         ← every stored location string on 2026-09-03 with its pinned reading (a test)
   ai-provider.ts               ← AiProvider seam: AnthropicApiProvider | ClaudeCodeProvider
   ai-provider-parse.ts         ← pure parser for `claude -p` JSON output (tested)
   prompt-fence.ts              ← untrusted-text markers + directive (pure, tested, ADR 0022)
@@ -423,7 +426,11 @@ erDiagram
     string externalId
     string title
     string url
-    string location
+    string location "as fetched, never rewritten"
+    enum workplace "REMOTE|HYBRID|ONSITE|UNKNOWN (ADR 0031)"
+    string_array countries "ISO-2: where to live (remote) or the office"
+    string_array regions "named markers only: EU, EUROPE, WORLDWIDE …"
+    string locationSource "structured|parsed|null"
     text description
     int fitScore
     int salaryMin

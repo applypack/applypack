@@ -43,6 +43,14 @@ enum JobStatus {
   SAVED
 }
 
+// ADR 0031: the arrangement a posting names. UNKNOWN = nothing said, not "on-site".
+enum Workplace {
+  REMOTE
+  HYBRID
+  ONSITE
+  UNKNOWN
+}
+
 enum CronRunStatus {
   RUNNING
   OK
@@ -84,24 +92,37 @@ model Company {
 }
 
 model Job {
-  id          Int       @id @default(autoincrement())
+  id          Int      @id @default(autoincrement())
   companyId   Int
-  company     Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
   externalId  String
   title       String
   url         String
   location    String
-  description String    @db.Text
+  description String   @db.Text
   postedAt    DateTime
-  fetchedAt   DateTime  @default(now())
-  fitScore    Int?
-  salaryMin   Int?
-  salaryMax   Int?
-  techMatch   String[]
-  redFlags    String[]
-  summary     String?   @db.Text
-  status      JobStatus @default(NEW)
-  alertedAt   DateTime?
+  fetchedAt   DateTime @default(now())
+
+  // ADR 0031: the structured reading of `location`, which itself is never
+  // rewritten. REMOTE → countries are where the candidate may live;
+  // HYBRID / ONSITE → where the office is. `regions` holds only the markers
+  // the source named (EU, EUROPE, WORLDWIDE, …), never groups derived from
+  // countries. locationSource: structured (the source's own fields) | parsed
+  // (src/location.ts) | null (nothing recognised). A bare "Remote" is
+  // REMOTE with empty countries — the facet shows it as "Unknown".
+  workplace      Workplace @default(UNKNOWN)
+  countries      String[]  @default([])
+  regions        String[]  @default([])
+  locationSource String?
+
+  fitScore  Int?
+  salaryMin Int?
+  salaryMax Int?
+  techMatch String[]
+  redFlags  String[]
+  summary   String?   @db.Text
+  status    JobStatus @default(NEW)
+  alertedAt DateTime?
 
   // Application tracking (Phase 3.4). pipelineStage is orthogonal to status:
   //   status        = inbox state (NEW / ALERTED / SAVED / DISMISSED / APPLIED)
@@ -151,6 +172,10 @@ model Job {
   @@index([pipelineStage, appliedAt])
   // The dedup scan reads fingerprints from the last 90 days.
   @@index([fetchedAt, descriptionSimhash])
+  // /jobs facets: `countries hasSome` / `regions hasSome` use the GIN indexes.
+  @@index([countries], type: Gin)
+  @@index([regions], type: Gin)
+  @@index([workplace])
   @@map("job")
 }
 

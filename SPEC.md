@@ -71,6 +71,7 @@ Per-tick flow inside `runFetchJob`:
 runAllFetchers()         filter by Company.active and AppSettings.disabledSources
    ↓
 NormalizedJob[]          unified shape (companyId, externalId, title, location, …)
+                         + locationHints where the feed has structured geodata (ADR 0031)
    ↓
 passesAnyBaseFilter()    admit if ANY running search admits it (title contains its
                          stackRequired OR roleTypes; its stackExclude rejects)
@@ -89,6 +90,12 @@ mergeVerdicts()          per-search decideDismissReason() against that search's
    ↓ dismissed only when every search dismissed it
 Job(status=NEW) → one alert, named for the winner, routed to its telegramTargetId
 ```
+
+Every persisted Job also carries `workplace`, `countries`, `regions` and
+`locationSource` — the structured reading of the location string by
+`src/location.ts` (hints from the fetcher first, the parser for the rest);
+the string itself is never rewritten (ADR 0031). `/jobs` filters on them
+(`country=`, `workplace=`, `posted=`).
 
 The same inner loop is reused by `runHnHiringJob` (extracted into
 `src/jobs/process-jobs.ts`).

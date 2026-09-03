@@ -114,3 +114,28 @@ describe('parseRecruiteeDate', () => {
     assert.ok(d.getTime() >= before - 1000);
   });
 });
+
+describe('mapRecruiteeFeed — location hints (ADR 0031)', () => {
+  it('reads country_code, the offices and the three booleans', () => {
+    // Recorded from the channable board on 2026-09-03.
+    const [job] = mapRecruiteeFeed(
+      {
+        offers: [
+          offer({
+            country_code: 'NL',
+            hybrid: true,
+            on_site: false,
+            locations: [{ id: 64463, name: 'Utrecht', country_code: 'NL' }],
+          }),
+        ],
+      },
+      COMPANY_ID,
+      SLUG,
+    );
+    assert.deepEqual(job?.locationHints, { countries: ['NL', 'NL'], workplace: 'HYBRID' });
+    const [remote] = mapRecruiteeFeed({ offers: [offer({ remote: true, country_code: 'UA' })] }, COMPANY_ID, SLUG);
+    assert.deepEqual(remote?.locationHints, { countries: ['UA'], workplace: 'REMOTE' });
+    const [office] = mapRecruiteeFeed({ offers: [offer({ hybrid: false, on_site: true })] }, COMPANY_ID, SLUG);
+    assert.deepEqual(office?.locationHints, { countries: [], workplace: 'ONSITE' });
+  });
+});

@@ -84,6 +84,9 @@ export function mapJobicyItem(
     location,
     description,
     postedAt: item.pubDate ? new Date(item.pubDate) : new Date(),
+    // <job_listing:location> is a fixed vocabulary ("USA", "Europe, Norway",
+    // "Anywhere") the parser reads from the string; the board is remote-only.
+    locationHints: { workplace: 'REMOTE' },
   } satisfies NormalizedJob;
 }
 

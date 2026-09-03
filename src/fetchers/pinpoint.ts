@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { fetchWithRetry, stripHtml } from '../http';
+import { workplaceFromText } from '../location';
 import type { NormalizedJob } from '../types';
 
 // Pinpoint's public postings JSON: one GET, all open postings, no auth.
@@ -76,6 +77,9 @@ function toNormalized(p: PinpointPosting, companyId: number): NormalizedJob {
     location: formatLocation(p),
     description: buildDescription(p),
     postedAt: new Date(),
+    // No country field at all (verified live 2026-09-03): `location.name`
+    // is a country name the parser reads from the string.
+    locationHints: { workplace: workplaceFromText(p.workplace_type ?? '') },
   };
 }
 

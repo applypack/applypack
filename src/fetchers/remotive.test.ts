@@ -98,3 +98,14 @@ describe('mapRemotiveFeed', () => {
     assert.equal(out[0]!.externalId, '12345');
   });
 });
+
+describe('mapRemotiveFeed — location hints (ADR 0031)', () => {
+  it('marks the board remote and leaves the countries to the parser', () => {
+    const out = mapRemotiveFeed(
+      { jobs: [{ id: 5, title: 'X', candidate_required_location: 'LATAM, Europe, USA', description: '' }] },
+      1,
+    );
+    assert.equal(out[0]?.location, 'Remote · LATAM, Europe, USA');
+    assert.deepEqual(out[0]?.locationHints, { workplace: 'REMOTE' });
+  });
+});

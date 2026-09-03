@@ -85,3 +85,15 @@ describe('mapBreezyFeed', () => {
     assert.equal(job!.description, '');
   });
 });
+
+describe('mapBreezyFeed — location hints (ADR 0031)', () => {
+  it('reads the ISO id of the country and is_remote', () => {
+    const [job] = mapBreezyFeed([position()], COMPANY_ID);
+    assert.deepEqual(job?.locationHints, { countries: ['PL'], workplace: 'UNKNOWN' });
+    const [remote] = mapBreezyFeed(
+      [position({ location: { name: 'Kyiv, UA', is_remote: true, country: { name: 'Ukraine', id: 'UA' } } })],
+      COMPANY_ID,
+    );
+    assert.deepEqual(remote?.locationHints, { countries: ['UA'], workplace: 'REMOTE' });
+  });
+});

@@ -119,3 +119,14 @@ function mustmapJobicyItem(...args: Parameters<typeof mapJobicyItem>): NonNullab
   assert.ok(job, 'expected the fixture to map to a job');
   return job;
 }
+
+describe('mapJobicyItem — location hints (ADR 0031)', () => {
+  it('marks the board remote; the vocabulary stays in the string', () => {
+    const job = mustmapJobicyItem(
+      { title: 'X', link: 'https://jobicy.com/jobs/1', guid: '1', jobLocation: 'Europe, Norway' },
+      COMPANY_ID,
+    );
+    assert.equal(job.location, 'Europe, Norway');
+    assert.deepEqual(job.locationHints, { workplace: 'REMOTE' });
+  });
+});

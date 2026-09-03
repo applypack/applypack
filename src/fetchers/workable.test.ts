@@ -180,3 +180,41 @@ describe('mapWorkableFeed', () => {
     assert.ok((out[0]?.postedAt.getTime() ?? 0) >= before);
   });
 });
+
+describe('mapWorkableFeed — location hints (ADR 0031)', () => {
+  it('collects every country a remote post accepts from locations[]', () => {
+    // Recorded from the laravel board on 2026-09-03.
+    const out = mapWorkableFeed(
+      {
+        results: [
+          {
+            id: 1,
+            shortcode: 'AB12CD',
+            title: 'Senior Engineer',
+            remote: true,
+            workplace: 'remote',
+            location: { country: 'United Kingdom', countryCode: 'GB', city: '', region: null },
+            locations: [
+              { country: 'United Kingdom', countryCode: 'GB', city: '', region: null, hidden: true },
+              { country: 'Portugal', countryCode: 'PT', city: '', region: null, hidden: true },
+              { country: 'United States', countryCode: 'US', city: 'New York', region: 'New York', hidden: true },
+            ],
+          },
+        ],
+      },
+      COMPANY_ID,
+      SLUG,
+    );
+    assert.equal(out[0]?.location, 'Remote · United Kingdom');
+    assert.deepEqual(out[0]?.locationHints, { countries: ['GB', 'GB', 'PT', 'US'], workplace: 'REMOTE' });
+  });
+
+  it('reads on_site and hybrid from the workplace field', () => {
+    const out = mapWorkableFeed(
+      { results: [{ id: 2, shortcode: 'EF34GH', title: 'X', workplace: 'on_site', location: { countryCode: 'DE', city: 'Berlin' } }] },
+      COMPANY_ID,
+      SLUG,
+    );
+    assert.deepEqual(out[0]?.locationHints, { countries: ['DE'], workplace: 'ONSITE' });
+  });
+});

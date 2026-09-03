@@ -1,5 +1,7 @@
 import { z } from 'zod';
+import { findCountry } from '../countries';
 import { fetchWithRetry, sleep } from '../http';
+import { workplaceFromText } from '../location';
 import type { NormalizedJob } from '../types';
 
 // 4dayweek.io publishes a versioned public API; robots.txt disallows
@@ -99,6 +101,11 @@ function toNormalized(j: FourDayWeekJob, companyId: number): NormalizedJob {
     // strip over it would collapse its real newlines (gotcha 12).
     description: augmentDescription((j.description ?? '').trim(), j),
     postedAt: safeDate(j.posted_at),
+    // `locations[].country` are geocoded names (verified live 2026-09-03).
+    locationHints: {
+      countries: j.locations.flatMap((l) => findCountry(l.country ?? '')?.code ?? []),
+      workplace: workplaceFromText(j.work_arrangement ?? ''),
+    },
   };
 }
 

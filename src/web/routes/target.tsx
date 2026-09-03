@@ -173,8 +173,9 @@ targetRoute.post('/target', resumeUploadLimit('/target'), async (c) => {
       salaryMin = salaryMin ?? facts?.salaryMin ?? undefined;
       salaryMax = salaryMax ?? facts?.salaryMax ?? undefined;
       const workplace = facts?.workplace ?? null;
-      // No workplace column on Job; the location string is where the
-      // classifier reads the arrangement anyway (CLAUDE.md gotcha 8).
+      // The arrangement goes into the string on purpose: the classifier prompt
+      // reads the location string (CLAUDE.md gotcha 8), and the parser fills
+      // Job.workplace from the same words — one text, two readers (ADR 0031).
       if (workplace && !/(remote|hybrid|on-?site)/i.test(location)) {
         const label = workplace === 'onsite' ? 'on-site' : workplace;
         location = location ? `${location} (${label})` : label;

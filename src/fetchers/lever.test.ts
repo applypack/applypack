@@ -107,3 +107,24 @@ describe('mapLeverPosting', () => {
     assert.match(job.description, /Laravel \+ Vue/);
   });
 });
+
+describe('mapLeverPosting — location hints (ADR 0031)', () => {
+  it('passes the ISO country and the arrangement as hints', () => {
+    // Recorded from the spotify board on 2026-09-03.
+    const job = mapLeverPosting(
+      basePosting({ categories: { location: 'London', allLocations: [] }, country: 'GB', workplaceType: 'hybrid' }),
+      COMPANY_ID,
+    );
+    assert.equal(job.location, 'London (hybrid)');
+    assert.deepEqual(job.locationHints, { countries: ['GB'], workplace: 'HYBRID' });
+    assert.deepEqual(
+      mapLeverPosting(basePosting({ country: 'US', workplaceType: 'onsite' }), COMPANY_ID).locationHints,
+      { countries: ['US'], workplace: 'ONSITE' },
+    );
+  });
+
+  it('leaves the hints empty when the board sends neither', () => {
+    const job = mapLeverPosting(basePosting({ country: null, workplaceType: null }), COMPANY_ID);
+    assert.deepEqual(job.locationHints, { countries: [], workplace: 'UNKNOWN' });
+  });
+});

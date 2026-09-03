@@ -1,6 +1,4 @@
-const REMOTE_RE = /\bremote\b/i;
-const HYBRID_RE = /\bhybrid\b/i;
-const ONSITE_RE = /\b(on[- ]?site|in[- ]?office|in[- ]?person)\b/i;
+import { HYBRID_RE, ONSITE_RE, REMOTE_RE } from './location';
 
 const REGION_PATTERNS: Record<string, RegExp> = {
   US: /\b(united states|usa|us only|us[- ]based|americas|north america|usa?\b)/i,

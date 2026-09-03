@@ -55,6 +55,13 @@
 - `apply-link.ts` is pure — no I/O. It flags apply links, never rejects a
   row, and the company name is deliberately not an input (ADR 0023).
   `withApplyLinkFlags` is called at every site that persists `redFlags`.
+- `location.ts` is pure — no I/O. `parseLocation(text, hints)` fills
+  `Job.workplace / countries / regions / locationSource` at every site that
+  persists a Job (`process-jobs.ts`, `manual-job.ts`); it never rewrites
+  `Job.location` (ADR 0031). The gazetteer is `countries.json` +
+  `countries.ts` (pure); fetchers pass structured fields as
+  `NormalizedJob.locationHints`. The 250-string corpus in
+  `location-corpus.json` is a test — a parser change that moves a row says why.
 - `classifier.ts` (and `classifier-prefilter.ts`) build prompts and parse
   replies; the only thing that talks to the AI is `ai-provider.ts` — no DB.
   Both take a `Profile[]`: ONE call scores a posting against every running
@@ -156,6 +163,8 @@ When the question is **"where does X live?"**, save yourself a `find`:
 | Near-duplicate detection across sources (SimHash, Hamming) | `src/fingerprint.ts` (ADR 0018); wired in `jobs/process-jobs.ts` |
 | Per-source health (error→status, failure streak, quiet/silent) | `src/fetchers/source-health.ts` (pure, ADR 0019); recorded by the wrapper in `fetchers/index.ts:runAllFetchers` |
 | Apply-link flags (missing / unusable / shortened / not-an-application) | `src/apply-link.ts` (pure, ADR 0023); merged into `Job.redFlags` at all three persist paths |
+| Location string → workplace + countries + regions (ADR 0031) | `src/location.ts:parseLocation` (pure; the §7.1 traps are its tests) over the gazetteer `src/countries.json` + `src/countries.ts` (`findCountry`, `countriesOf`, `groupsOf`); hints from fetchers in `NormalizedJob.locationHints`; backfill `src/scripts/backfill-locations.ts --dry-run` |
+| The /jobs place / workplace / posted facets (query params, where-clause, chip counts) | `src/web/job-facets.ts` (pure) — `country=PL,DE,EUROPE,unknown`, `workplace=remote,hybrid`, `posted=24h\|7d\|30d`; rendered in `pages/jobs-list.tsx`, chips on `/jobs/:id` |
 | Stable id for a feed row with no id of its own | `src/text-utils.ts:feedItemKey` (URL key → text key → null, never `''`) |
 | The cron list (6 schedules) | `src/index.ts:registerCron` |
 | First-run wizard (`/welcome`: steps derived from data, `/` redirect, skip/finish) | `src/web/welcome-steps.ts` (pure: step rules + score summary) · `src/web/welcome-facts.ts` (loads the facts) · `src/web/routes/welcome.tsx` + `pages/welcome.tsx`; step 4 = `runScoreUnscored` in `src/jobs/reclassify-job.ts`, which picks its batch with `src/jobs/score-pick.ts` (pure ranking, `SCORE_BATCH`) |
@@ -245,6 +254,8 @@ When the question is **"how does the user toggle / configure X?"**:
 | Which resume a search hunts with | `/settings` Profile tab → "Resume for this search" (empty = pick by skill overlap) |
 | Run / pause a search, or make one primary | `/settings` Profile tab → "Searches" list (up to 8 running; the primary always runs) |
 | See only one search's matches | `/jobs` → the search chips (the Fit column then shows that search's score) |
+| See jobs in one country, region or arrangement, or posted this week | `/jobs` → the "Where" chips (🇵🇱 Poland, 🇪🇺 European Union, Unknown … — OR within the row, "More…" opens the rest), the "Work" chips (Remote / Hybrid / On-site / Unknown) and the "Posted" chips; the search box also matches the location string |
+| Fill the country columns on jobs stored before v1.24 | `docker compose exec app node dist/scripts/backfill-locations.js --dry-run`, read the distribution, then without the flag (no AI call; `location` and `description` untouched) |
 | What each search made of one posting | `/jobs/:id` → Classifier card → "By search" |
 | Re-classify all jobs against new profile | `/settings` Profile tab → "Save & re-classify" in the editor (async, watch /runs) |
 | Telegram on/off | `/settings` Notifications tab |

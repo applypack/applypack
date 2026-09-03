@@ -1120,12 +1120,12 @@ regions and no country; the classifier's location rules are written for a
 seeded inactive. Sources verified 2026-09-03 with robots.txt are in the plan
 (§0.5) and the ADR 0005 register.
 
-- [ ] **Stage 1 `location-model`** — `src/countries.json` + `src/countries.ts`
-      + `src/location.ts` (pure, trap tests), `Job.workplace / countries /
-      regions / locationSource`, `locationHints` from fetchers (WWR
-      `region` + `country` first), `backfill-locations.ts --dry-run`, `/jobs`
-      country / workplace / date facets, `q` on location, chips on the job
-      page, ADR 0031. No prompt change, no verdict moves.
+- [x] **Stage 1 `location-model`** — shipped on the `location-model` branch, PR #111
+      (ADR 0031): gazetteer + parser with the §7.1 trap tests and the 250-string
+      corpus, the four Job columns, hints from 14 fetchers, the backfill (1 021
+      of 1 038 rows filled, no verdict moved), `/jobs` place / workplace /
+      posted facets, `q` on location, chips on the job page. Plan corrections
+      recorded in §0.2 (Workable `locations[]`, Lever `onsite`, Ashby `AMER`).
 - [ ] **Stage 2 `profile-countries`** — `Profile.countries / regions /
       workplace` with a data migration that retires `remoteRegions`,
       `remoteOk`, `hybridOk`; one typeahead control (flags + group chips) in

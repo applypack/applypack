@@ -66,6 +66,9 @@ function toNormalized(j: ArbeitnowJob, companyId: number): NormalizedJob {
     location,
     description: stripHtml(j.description ?? ''),
     postedAt: Number.isNaN(postedAt.getTime()) ? new Date() : postedAt,
+    // `location` is free text ("Berlin", "Homeoffice", "Deutschlandweit") the
+    // parser reads; `remote` is the only structured field.
+    locationHints: { workplace: j.remote ? 'REMOTE' : 'UNKNOWN' },
   };
 }
 
