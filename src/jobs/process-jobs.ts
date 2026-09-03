@@ -5,6 +5,7 @@ import { logger } from '../logger';
 import { createLimiter } from '../concurrency';
 import { passesAnyBaseFilter } from '../filter';
 import { withApplyLinkFlags } from '../apply-link';
+import { parseLocation } from '../location';
 import { classifyJob, type ClassifyOutcome } from '../classifier';
 import { buildVerdicts, mergeVerdicts, type ProfileVerdict } from './verdict-merge';
 import { toScoreData } from './score-store';
@@ -426,6 +427,9 @@ function buildJobData(
   priorityRulesApplied: string[],
   dedup: DedupData,
 ): Prisma.JobCreateInput {
+  // The structured reading of the location string (ADR 0031): the source's
+  // hints first, the parser for the rest. The string itself is stored as is.
+  const place = parseLocation(job.location, job.locationHints);
   return {
     company: { connect: { id: job.companyId } },
     descriptionSimhash: toDbBigInt(dedup.descriptionSimhash),
@@ -436,6 +440,10 @@ function buildJobData(
     title: job.title,
     url: job.url,
     location: job.location,
+    workplace: place.workplace,
+    countries: place.countries,
+    regions: place.regions,
+    locationSource: place.source,
     description: job.description,
     postedAt: job.postedAt,
     fitScore: c?.fit_score ?? null,
