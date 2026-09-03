@@ -560,6 +560,10 @@ adopted or rejected.
   API caps `limit` at 20 and ignores `offset`; groups cannot be expressed,
   so a groups-only search keeps the browse feed)*
 - 4dayweek: `country=` from profile countries, `work_arrangement` hint.
+  *(done: v1.28.0 — names for countries, continents for groups, OR-joined
+  in one `country=`; no `work_arrangement` filter, an in-country hybrid role
+  matters; rows without a location are dropped from a scoped fetch because an
+  unknown value answers those ~141 rows instead of an error)*
 - Arbeitnow: enable, paginate via `links.next`, map `remote`, expose
   `visa_sponsorship=true` as a second row.
 - golangprojects: read the region from the URL slug.

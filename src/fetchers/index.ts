@@ -205,7 +205,7 @@ export async function fetchOne(
     case AtsType.RIPPLING:
       return fetchRippling({ id: company.id, atsToken: company.atsToken });
     case AtsType.FOURDAYWEEK:
-      return fetchFourDayWeek(company.id);
+      return fetchFourDayWeek(company.id, context);
     case AtsType.MANUAL:
       // Pasted by hand on /jobs/new — nothing to fetch (and the row is inactive).
       return [];

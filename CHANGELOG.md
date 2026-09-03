@@ -4,6 +4,19 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.28.0] — 2026-09-03
+
+### Added
+- **4dayweek follows the searches.** With searches that name places the
+  three pages are scoped with `country=` — gazetteer names for countries,
+  continents for groups (`Germany,Poland,Europe`) — so a European search
+  reads Europe's postings instead of the newest 75 of everything. Verified
+  live: the API takes names and continents, not codes, and answers an
+  unknown value with its ~141 rows that have no location at all; a scoped
+  fetch therefore drops rows without a location — they can never be
+  evidence for a place. A search that hunts anywhere still reads the
+  newest pages of everything. Plan §4.2, stage 3a.
+
 ## [1.27.0] — 2026-09-03
 
 ### Added
