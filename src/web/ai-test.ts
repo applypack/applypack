@@ -36,6 +36,10 @@ export async function testAiEngine(provider: AiProviderId): Promise<EngineTestRe
   const engine = resolveAiEngine(settings.aiEngine, env);
   const model = engine.modelFor(provider, 'classifier');
   const started = Date.now();
+  // The reason a call failed is otherwise only in the logs: complete()
+  // answers null so one bad job never stops a tick. A test button, though,
+  // exists to name the cause — "credit balance too low" is not "see logs".
+  let failure: string | null = null;
   const text = await backend.complete({
     system: 'You are a connectivity test. Reply with exactly: OK',
     user: 'Reply with exactly: OK',
@@ -44,13 +48,17 @@ export async function testAiEngine(provider: AiProviderId): Promise<EngineTestRe
     model,
     timeoutMs: ENGINE_TEST_TIMEOUT_MS,
     apiKey: resolveAiKey(provider, keys),
+    onError: (reason) => {
+      failure = reason;
+    },
   });
   const seconds = ((Date.now() - started) / 1000).toFixed(1);
   if (text !== null) {
     return { ok: true, text: `${label} works — replied in ${seconds}s (model ${model || 'CLI default'}).` };
   }
+  const reason: string = failure ?? 'no reason reported — see the web container logs';
   return {
     ok: false,
-    text: `${label} test failed after ${seconds}s — see the web container logs for the reason.`,
+    text: `${label} test failed after ${seconds}s — ${reason}.`,
   };
 }

@@ -11,6 +11,7 @@ import {
   buildCodexCliArgs,
   buildGeminiCliArgs,
   CLI_PROVIDER_ENV_KEYS,
+  describeAiFailure,
   parseClaudeCodeOutput,
   parseCodexCliOutput,
   parseGeminiCliOutput,
@@ -58,11 +59,21 @@ export interface AiRequest {
    * Absent means "whatever .env holds" — the path scripts still take.
    */
   apiKey?: string;
+  /**
+   * Called with a one-line reason just before complete() resolves null. The
+   * /settings connectivity test uses it to name the real cause instead of
+   * sending the user to the container logs; every production call site still
+   * treats a failure as "no answer" and ignores this.
+   */
+  onError?: (reason: string) => void;
 }
 
 export interface AiProvider {
   readonly name: string;
-  /** Returns the model text, or null after logging the failure. */
+  /**
+   * Returns the model text, or null after logging the failure — and after
+   * handing the reason to req.onError, when the caller asked for one.
+   */
   complete(req: AiRequest): Promise<string | null>;
 }
 
@@ -83,6 +94,20 @@ const OPENAI_FALLBACK_MODEL = 'gpt-5-mini';
 
 const execFileAsync = promisify(execFile);
 
+/**
+ * The human sentence inside a thrown provider error. The Anthropic SDK keeps
+ * the API's own message under .error.error.message, while err.message wraps
+ * it in the raw JSON body — readable in a log, useless in a flash message.
+ */
+function errorReason(err: unknown): string {
+  if (err instanceof Anthropic.APIError) {
+    const body = err.error as { error?: { message?: unknown } } | undefined;
+    const inner = body?.error?.message;
+    if (typeof inner === 'string' && inner.trim().length > 0) return inner;
+  }
+  return err instanceof Error ? err.message : String(err);
+}
+
 class AnthropicApiProvider implements AiProvider {
   readonly name = 'anthropic_api';
   // The key can change under a running process (ADR 0027), so the SDK client
@@ -98,6 +123,7 @@ class AnthropicApiProvider implements AiProvider {
     const key = req.apiKey ?? config.ANTHROPIC_API_KEY;
     if (!key) {
       logger.error({ label: req.label }, 'ai: no Anthropic API key — paste one on /settings');
+      req.onError?.('no API key — paste one on /settings, or set it in .env');
       return null;
     }
     for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
@@ -111,9 +137,13 @@ class AnthropicApiProvider implements AiProvider {
           continue;
         }
         logger.error({ err, status, label: req.label }, 'ai: request failed');
+        req.onError?.(
+          describeAiFailure(status ? `HTTP ${status}: ${errorReason(err)}` : errorReason(err)),
+        );
         return null;
       }
     }
+    req.onError?.('rate-limited on every attempt');
     return null;
   }
 
@@ -155,6 +185,7 @@ class OpenAiApiProvider implements AiProvider {
     const apiKey = req.apiKey ?? config.OPENAI_API_KEY;
     if (!apiKey) {
       logger.error({ label: req.label }, 'ai: no OpenAI API key — paste one on /settings');
+      req.onError?.('no API key — paste one on /settings, or set it in .env');
       return null;
     }
     const model = req.model || config.OPENAI_MODEL || OPENAI_FALLBACK_MODEL;
@@ -202,14 +233,17 @@ class OpenAiApiProvider implements AiProvider {
           { label: req.label, status: resp.status, error: out.error, model },
           'ai: openai request failed',
         );
+        req.onError?.(describeAiFailure(`HTTP ${resp.status}: ${out.error ?? 'no reply text'}`));
         return null;
       } catch (err) {
         logger.error({ err, label: req.label, model }, 'ai: openai request failed');
+        req.onError?.(describeAiFailure(errorReason(err)));
         return null;
       } finally {
         clearTimeout(timer);
       }
     }
+    req.onError?.('rate-limited on every attempt');
     return null;
   }
 }
@@ -252,6 +286,12 @@ class CliProvider implements AiProvider {
         }));
       } catch (err) {
         logger.error({ err, label: req.label, provider: this.name }, 'ai: cli process failed');
+        // execFile puts the whole command line — prompt included — in
+        // err.message, so prefer stderr, where the CLI states the reason.
+        const stderr = (err as { stderr?: unknown }).stderr;
+        const detail =
+          typeof stderr === 'string' && stderr.trim().length > 0 ? stderr : errorReason(err);
+        req.onError?.(describeAiFailure(`${this.bin}: ${detail}`));
         return null;
       }
       const out = this.spec.parse(stdout);
@@ -265,8 +305,10 @@ class CliProvider implements AiProvider {
         { label: req.label, provider: this.name, error: out.error, rateLimited: out.rateLimited },
         'ai: cli returned an error',
       );
+      req.onError?.(describeAiFailure(out.error ?? 'the CLI returned no text'));
       return null;
     }
+    req.onError?.('rate-limited on every attempt');
     return null;
   }
 
