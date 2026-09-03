@@ -555,7 +555,10 @@ adopted or rejected.
   (the `(companyId, externalId)` key), and a hand-edited token is a hidden
   setting the plan's own ground rules forbid. *(done: v1.26.0)*
 - Himalayas: switch to `/jobs/api/search?country=…&exclude_worldwide=true`
-  per profile country, plus one `worldwide=true` row.
+  per profile country, plus one `worldwide=true` row. *(done: v1.27.0 —
+  one call per context country + one worldwide call, merged by guid; the
+  API caps `limit` at 20 and ignores `offset`; groups cannot be expressed,
+  so a groups-only search keeps the browse feed)*
 - 4dayweek: `country=` from profile countries, `work_arrangement` hint.
 - Arbeitnow: enable, paginate via `links.next`, map `remote`, expose
   `visa_sponsorship=true` as a second row.

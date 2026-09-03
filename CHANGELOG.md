@@ -4,6 +4,20 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.27.0] — 2026-09-03
+
+### Added
+- **Himalayas follows the searches.** With searches that name countries the
+  fetcher calls the search endpoint once per country
+  (`country=PL&exclude_worldwide=true`) and once for the worldwide rows,
+  merged by guid — country-locked postings for Poland or Germany instead of
+  the newest 20 of everything. A search that hunts anywhere, or one that
+  names only groups the API cannot express, still reads the browse feed.
+  Verified live: the search endpoint answers HTTP 400 to an unknown code
+  (never a silent empty feed), caps `limit` at 20, and ignores `offset`,
+  so each call is the newest 20 — enough for an hourly tick. Plan §4.2,
+  stage 3a.
+
 ## [1.26.0] — 2026-09-03
 
 ### Added
