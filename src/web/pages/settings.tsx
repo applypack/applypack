@@ -8,7 +8,7 @@ import type { FlashMessage } from '../flash';
 import { sourceLabel } from '../source-names';
 import { dotClassFor, MAX_WORK_STAGES } from '../stage-config';
 import { formatPriorityRulesText, parsePriorityRules } from '../../priority-rules';
-import { REGIONS, placeLabel } from '../../countries';
+import { REGIONS, flagOf, placeLabel } from '../../countries';
 import { PROFILE_WORKPLACES, WORKPLACE_LABEL } from '../../location';
 import { isBlankProfile, MAX_ACTIVE_PROFILES } from '../../profile-guards';
 import { SENIORITY_LEVELS } from '../../resume/profile-draft';
@@ -1066,11 +1066,12 @@ const ProfileEditor: FC<{
       </div>
       <TagListInput
         label="Countries"
-        hint='Where you can work from — "Poland", "Polska", "Польща" or "PL", one per line. For hybrid and on-site roles: where the office may be.'
+        hint='Where you can work from — type "Poland", "Polska", "Польща", "PL" or a city and pick from the list. For hybrid and on-site roles: where the office may be.'
         name="countries"
-        values={profile.countries.map(placeLabel)}
+        values={profile.countries.map((c) => `${flagOf(c)} ${placeLabel(c)}`)}
         placeholder="Poland, Germany, Netherlands…"
         rows={2}
+        picker="countries"
       />
       <div>
         <Hint>Regions — a group counts as a group, not as its members</Hint>
@@ -1180,9 +1181,11 @@ const TagListInput: FC<{
   rows?: number;
   /** Real example values — shown in the textarea and the chip input alike. */
   placeholder?: string;
-}> = ({ label, hint, name, values, rows = 3, placeholder }) => (
+  /** "countries": countries.mjs adds gazetteer suggestions to the chip input (ADR 0032). */
+  picker?: 'countries';
+}> = ({ label, hint, name, values, rows = 3, placeholder, picker }) => (
   <Field label={label} hint={hint}>
-    <div data-chips data-label={label} data-placeholder={placeholder}>
+    <div data-chips data-label={label} data-placeholder={placeholder} data-picker={picker}>
       <Textarea name={name} rows={rows} mono placeholder={placeholder}>
         {values.join('\n')}
       </Textarea>
@@ -1249,6 +1252,8 @@ const PriorityRulesEditor: FC<{ profile: Profile }> = ({ profile }) => {
 const MODELS_BOOT = `
 import { init } from '/static/settings-models.mjs';
 init();
+import { mountCountryPickers } from '/static/countries.mjs';
+mountCountryPickers();
 `;
 
 const SETTINGS_JS = `

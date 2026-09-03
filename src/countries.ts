@@ -225,8 +225,9 @@ export function findCountry(query: string): Country | null {
   if (trimmed.length === 0) return null;
   const upper = trimmed.toUpperCase();
   if (byCode.has(upper)) return byCode.get(upper)!;
-  const fromFlag = codeOfFlag(trimmed);
-  if (fromFlag && byCode.has(fromFlag)) return byCode.get(fromFlag)!;
+  // "🇵🇱" or "🇵🇱 Poland" — the picker's chips carry both.
+  const fromFlag = codesOfFlags(trimmed)[0];
+  if (fromFlag) return byCode.get(fromFlag)!;
   const key = normalizePlace(trimmed);
   const hit = PLACE_ALIASES.get(key);
   if (hit && hit.kind !== 'region') return byCode.get(hit.code) ?? null;
