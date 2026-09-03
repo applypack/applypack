@@ -4,7 +4,8 @@ import type { WorkplaceCode } from '../location';
  * "Enable sources for your countries" (plan §4.3): the token-driven sources
  * a search's places and stack call for — DOU and Djinni rows for Ukraine,
  * the Arbeitnow rows for the German-speaking and British markets, solid.jobs
- * for Poland, the DevITjobs site of Germany, the UK or the Netherlands. Pure: the
+ * for Poland, the DevITjobs site of Germany, the UK or the Netherlands,
+ * Landing.jobs for Portugal. Pure: the
  * route hands in the running searches and the rows already tracked, gets
  * back what to offer and in which state. The aggregators that follow the
  * searches by themselves (Jobicy, Himalayas, 4dayweek) need no suggestion.
@@ -27,7 +28,7 @@ export interface TrackedRow {
 
 export interface SourceSuggestion {
   name: string;
-  atsType: 'DOU' | 'DJINNI' | 'ARBEITNOW' | 'SOLIDJOBS' | 'DEVITJOBS';
+  atsType: 'DOU' | 'DJINNI' | 'ARBEITNOW' | 'SOLIDJOBS' | 'DEVITJOBS' | 'LANDINGJOBS';
   atsToken: string;
   careerUrl: string;
   /** Which search asked for it, in plain words: "🇺🇦 Ukraine in "PHP/Laravel"". */
@@ -117,6 +118,15 @@ export function suggestSources(searches: readonly SuggestSearch[], tracked: read
         atsToken: 'solidjobs',
         careerUrl: 'https://solid.jobs',
         reason: `🇵🇱 Poland in "${search.name}"`,
+      });
+    }
+    if (search.countries.includes('PT')) {
+      offer({
+        name: 'Landing.jobs',
+        atsType: 'LANDINGJOBS',
+        atsToken: 'landingjobs',
+        careerUrl: 'https://landing.jobs',
+        reason: `🇵🇹 Portugal in "${search.name}"`,
       });
     }
     for (const site of DEVITJOBS_SITES) {

@@ -29,6 +29,7 @@ const SOURCE_NAMES: Record<string, string> = {
   FOURDAYWEEK: '4 Day Week',
   SOLIDJOBS: 'solid.jobs',
   DEVITJOBS: 'DevITjobs',
+  LANDINGJOBS: 'Landing.jobs',
   DOU: 'DOU',
   DJINNI: 'Djinni',
   MANUAL: 'Manual',
