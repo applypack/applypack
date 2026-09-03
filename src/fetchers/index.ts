@@ -193,7 +193,7 @@ export async function fetchOne(
     case AtsType.WORKINGNOMADS:
       return fetchWorkingNomads(company.id);
     case AtsType.HIMALAYAS:
-      return fetchHimalayas(company.id);
+      return fetchHimalayas(company.id, context);
     case AtsType.RECRUITEE:
       return fetchRecruitee({ id: company.id, atsToken: company.atsToken });
     case AtsType.BREEZY:
