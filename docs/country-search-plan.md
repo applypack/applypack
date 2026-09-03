@@ -601,7 +601,12 @@ adopted or rejected.
 **3c — European boards without a key**
 - `SOLIDJOBS` (PL): JSON, `campaign=applypack`, `X-Api-Version: 1.0`,
   `pageSize=500`, salary in PLN with employment type, `isRemote/isHybrid`
-  hints, `locations[]` → PL cities.
+  hints, `locations[]` → PL cities. *(done: v1.34.0 — three pages per tick
+  (1 468 offers on 2026-09-03), `jobOfferKey` as the id, every row carries
+  the PL hint and the arrangement from the two flags ("Remote or hybrid"
+  when both); company, level, contract type, PLN salary and the skill list
+  are folded into the description head; seeded off, offered on /companies
+  for a search that names PL or CEE)*
 - `DEVITJOBS` family: one fetcher, `atsToken` = host
   (germantechjobs.de, devitjobs.uk, devitjobs.nl); conditional GET
   (ETag / Last-Modified) because the feeds are 5–8 MB; country hint = site.
