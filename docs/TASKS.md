@@ -1136,8 +1136,11 @@ seeded inactive. Sources verified 2026-09-03 with robots.txt are in the plan
       page. The wizard's step 3 and "Fill from a resume" reuse the editor
       unchanged — neither speaks for location.
 - [ ] **Stage 3 sources** (one PR + tag per source, acceptance checklist in
-      feature-expansion-plan §0.3): 3a use existing geodata (WWR, Jobicy
-      `geo`, Himalayas search, 4dayweek `country`, Arbeitnow on + paginated);
+      feature-expansion-plan §0.3): 3a use existing geodata — **done**
+      2026-09-03 (WWR in stage 1; Jobicy `geo` v1.26.0, Himalayas search
+      v1.27.0, 4dayweek `country` v1.28.0, Arbeitnow paginated + visa row
+      v1.29.0 — the installed aggregators follow the searches through the
+      `FetchContext`, so §4.3's card is for new sources only);
       3b Ukraine (DOU RSS, Djinni RSS, UA-friendly pack + N-iX / Ajax /
       Genesis, re-probe `sigmasoftware`); 3c EU boards (solid.jobs,
       GermanTechJobs / DevITjobs, Landing.jobs Atom, JobTech); 3d EU ATS

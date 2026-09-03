@@ -4,6 +4,19 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.29.0] — 2026-09-03
+
+### Added
+- **Arbeitnow reads three pages and has a visa-sponsorship feed.** The
+  fetcher followed nothing beyond page 1 (175 rows of 650+); it now walks
+  the API's own `links.next` for up to three pages, a second apart, on the
+  board's host only, and keeps a posting once. A second Company row,
+  "Arbeitnow · visa sponsorship" (`atsToken: visa`), reads
+  `?visa_sponsorship=true` — a server-side filter the rows themselves do
+  not carry, so it is a feed of its own. Both rows stay off until a search
+  needs them: the board is German and British office jobs first. Plan §4.2,
+  stage 3a.
+
 ## [1.28.0] — 2026-09-03
 
 ### Added

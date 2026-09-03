@@ -565,7 +565,10 @@ adopted or rejected.
   matters; rows without a location are dropped from a scoped fetch because an
   unknown value answers those ~141 rows instead of an error)*
 - Arbeitnow: enable, paginate via `links.next`, map `remote`, expose
-  `visa_sponsorship=true` as a second row.
+  `visa_sponsorship=true` as a second row. *(done: v1.29.0 — three pages
+  via `links.next` on the board's host only, the `remote` hint since stage 1,
+  a second seeded row `visa`; both rows stay seeded inactive — "enable" is
+  the user's switch on /companies, not a default for every deployment)*
 - golangprojects: read the region from the URL slug.
 
 **3b — Ukraine**
