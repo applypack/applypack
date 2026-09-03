@@ -4,6 +4,21 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.31.0] — 2026-09-03
+
+### Added
+- **Djinni as a source** (stage 3b, plan §4.2) — the Ukrainian tech job
+  marketplace through its RSS. One Company row per filter string, which is
+  the row's token: `primary_keyword=PHP&employment=remote&region=UKR`; the
+  items carry no location and no employer, so the location is written from
+  the filter ("Remote · Ukraine", "Office · Kyiv, Ukraine") and the hints
+  with it. Verified live: an unknown `primary_keyword` answers the whole
+  bare feed, byte-identical, not an error — so rows whose `<category>` is
+  not the requested keyword are dropped and the Companies probe refuses a
+  keyword that leaves nothing. Seeded off as "Djinni · PHP, remote,
+  Ukraine". robots.txt allows `/jobs/rss/`; Djinni's terms cover posting
+  and fees only.
+
 ## [1.30.0] — 2026-09-03
 
 ### Added

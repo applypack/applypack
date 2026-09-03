@@ -1141,8 +1141,9 @@ seeded inactive. Sources verified 2026-09-03 with robots.txt are in the plan
       v1.27.0, 4dayweek `country` v1.28.0, Arbeitnow paginated + visa row
       v1.29.0 — the installed aggregators follow the searches through the
       `FetchContext`, so §4.3's card is for new sources only);
-      3b Ukraine (DOU RSS — **done** v1.30.0; Djinni RSS, UA-friendly pack +
-      N-iX / Ajax / Genesis, re-probe `sigmasoftware`); 3c EU boards (solid.jobs,
+      3b Ukraine (DOU RSS — **done** v1.30.0; Djinni RSS — **done**
+      v1.31.0; UA-friendly pack + N-iX / Ajax / Genesis, re-probe
+      `sigmasoftware`); 3c EU boards (solid.jobs,
       GermanTechJobs / DevITjobs, Landing.jobs Atom, JobTech); 3d EU ATS
       types (Personio, Teamtailor; later Homerun, d.vinci); 3e keyed
       (France Travail, Adzuna) only after the robots-vs-licence decision.
