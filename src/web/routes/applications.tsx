@@ -9,7 +9,7 @@ import { flashRedirect, parseFlashCookie } from '../flash';
 import { ApplicationsPage } from '../pages/applications';
 import { allStages, labelFor, parseStageConfig } from '../stage-config';
 import { appliedDateCorrection, stageChangeEvent } from '../stage-events';
-import { stageTimeLine, type StageTimeLine } from '../stage-time';
+import { groupEventsByJob, stageTimeLine, type StageTimeLine } from '../stage-time';
 
 // Stage keys are validated at runtime against the configured list
 // (ADR 0025) — an enum would freeze what is now user data.
@@ -48,16 +48,18 @@ applicationsRoute.get('/applications', async (c) => {
   });
 
   // The ledger dates each card's time-in-stage (ADR 0024 keeps recording
-  // even though the funnel cards are gone — ADR 0025).
-  const events = settings.applicationTrackingEnabled
-    ? await prisma.jobStageEvent.findMany({ orderBy: { recordedAt: 'asc' } })
-    : [];
-  const eventsByJob = new Map<number, typeof events>();
-  for (const e of events) {
-    const list = eventsByJob.get(e.jobId);
-    if (list) list.push(e);
-    else eventsByJob.set(e.jobId, [e]);
-  }
+  // even though the funnel cards are gone — ADR 0025). Scoped to the cards
+  // on screen: the ledger is append-only, so it grows with every stage move
+  // ever made while the board only dates the jobs it draws.
+  const boardIds = rows.map((r) => r.id);
+  const events =
+    settings.applicationTrackingEnabled && boardIds.length > 0
+      ? await prisma.jobStageEvent.findMany({
+          where: { jobId: { in: boardIds } },
+          orderBy: { recordedAt: 'asc' },
+        })
+      : [];
+  const eventsByJob = groupEventsByJob(events, boardIds);
 
   const now = new Date();
   const byStage = Object.fromEntries(stageKeys.map((k) => [k, []])) as Record<
