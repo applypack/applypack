@@ -18,6 +18,11 @@ All notable changes to this project are documented here. The format follows
   304 per tick. Seeded switched off; "Sources for your searches" offers
   each site to a search that names its country.
 
+### Fixed
+- The Test button on Settings → AI engine now names the real reason a test
+  failed (the HTTP status and message, key-shaped text masked, 200 chars)
+  instead of pointing at the container logs — #122 by @boykoandrii.
+
 ### Schema
 - `AtsType.DEVITJOBS` (migration `20260903220000_add_devitjobs`).
 
