@@ -630,6 +630,15 @@ adopted or rejected.
 - `JOBTECH` (SE): JSON search with `published-after` = last tick;
   `workplace_address.country_code`, `workplace_model` hints; Swedish text is
   fine for the classifier, note it for resume matching.
+  *(done: v1.37.0 — the token is the filter string, as for Djinni, the
+  seed row being the Data/IT field (`occupation-field=apaJ_2ja_LuF`: 140
+  ads a day, 771 a week, 2 736 live on 2026-09-03); the fetcher adds
+  `published-after` = 24 h back, `sort=pubdate-desc`, `limit=100` and
+  reads up to three offset pages; `country_code` is Arbetsförmedlingen's
+  taxonomy ("199" = Sweden), not ISO, so the hint maps that one code and
+  otherwise reads the country name; `workplace_model` says "Arbete på
+  plats" on every ad — a form default, not a signal — so no arrangement
+  hint; `description.text` is plain text, kept as is; ads are CC0)*
 
 **3d — European ATS types**
 - `PERSONIO`: XML with `?language=en`; URL built from id; `office` → parser;
