@@ -1,5 +1,7 @@
 import { z } from 'zod';
+import { findCountry } from '../countries';
 import { fetchWithRetry, stripHtml } from '../http';
+import { workplaceFromText } from '../location';
 import type { NormalizedJob } from '../types';
 
 const AshbyJobSchema = z.object({
@@ -24,6 +26,18 @@ const AshbyJobSchema = z.object({
   jobUrl: z.string(),
   applyUrl: z.string().optional(),
   descriptionHtml: z.string().nullable().optional(),
+  /** Country NAME of the primary office; null on most rows (verified live 2026-09-03). */
+  address: z
+    .object({
+      postalAddress: z
+        .object({ addressCountry: z.string().nullable().optional() })
+        .passthrough()
+        .nullable()
+        .optional(),
+    })
+    .passthrough()
+    .nullable()
+    .optional(),
 });
 
 export type AshbyJob = z.infer<typeof AshbyJobSchema>;
@@ -70,6 +84,7 @@ export function mapAshbyJob(j: AshbyJob, companyId: number): NormalizedJob {
     (s) => s.length > 0,
   );
   const workplace = j.workplaceType ? ` (${j.workplaceType})` : '';
+  const country = findCountry(j.address?.postalAddress?.addressCountry ?? '');
   return {
     companyId,
     externalId: j.id,
@@ -78,6 +93,10 @@ export function mapAshbyJob(j: AshbyJob, companyId: number): NormalizedJob {
     location: `${locationParts.join(' / ')}${workplace}`.trim(),
     description: stripHtml(j.descriptionHtml ?? ''),
     postedAt: parseDate(j.publishedAt),
+    locationHints: {
+      countries: country ? [country.code] : [],
+      workplace: j.isRemote ? 'REMOTE' : workplaceFromText(j.workplaceType ?? ''),
+    },
   } satisfies NormalizedJob;
 }
 

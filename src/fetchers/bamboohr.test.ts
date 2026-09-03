@@ -70,3 +70,12 @@ describe('mapBambooFeed', () => {
     assert.ok(job!.postedAt.getTime() >= before - 1000);
   });
 });
+
+describe('mapBambooFeed — location hints (ADR 0031)', () => {
+  it('passes only the arrangement — the list has no country', () => {
+    const [office] = mapBambooFeed({ result: [row()] }, COMPANY_ID, SLUG);
+    assert.deepEqual(office?.locationHints, { workplace: 'UNKNOWN' });
+    const [remote] = mapBambooFeed({ result: [row({ isRemote: true })] }, COMPANY_ID, SLUG);
+    assert.deepEqual(remote?.locationHints, { workplace: 'REMOTE' });
+  });
+});

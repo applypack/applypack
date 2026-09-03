@@ -82,6 +82,7 @@ function toNormalized(
     location: formatLocation(j),
     description: buildDescription(j),
     postedAt: new Date(),
+    locationHints: { workplace: j.isRemote ? 'REMOTE' : 'UNKNOWN' },
   };
 }
 

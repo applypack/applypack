@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { fetchWithRetry, stripHtml } from '../http';
+import type { WorkplaceCode } from '../location';
 import type { NormalizedJob } from '../types';
 
 // Recruitee's public careers-site API: one GET, all published offers,
@@ -28,6 +29,13 @@ const RecruiteeOfferSchema = z
     location: z.string().nullable().optional(),
     remote: z.boolean().nullable().optional(),
     hybrid: z.boolean().nullable().optional(),
+    on_site: z.boolean().nullable().optional(),
+    /** ISO 3166-1 alpha-2 of the primary office, and one per office (verified live 2026-09-03). */
+    country_code: z.string().nullable().optional(),
+    locations: z
+      .array(z.object({ country_code: z.string().nullable().optional() }).passthrough())
+      .optional()
+      .default([]),
     description: z.string().nullable().optional(),
     requirements: z.string().nullable().optional(),
     salary: RecruiteeSalarySchema.nullable().optional(),
@@ -91,7 +99,18 @@ function toNormalized(
     location: formatLocation(o),
     description: buildDescription(o),
     postedAt: parseRecruiteeDate(o.published_at ?? o.created_at),
+    locationHints: {
+      countries: [o.country_code, ...o.locations.map((l) => l.country_code)].flatMap((c) => c ?? []),
+      workplace: workplaceOf(o),
+    },
   };
+}
+
+function workplaceOf(o: RecruiteeOffer): WorkplaceCode {
+  if (o.remote) return 'REMOTE';
+  if (o.hybrid) return 'HYBRID';
+  if (o.on_site) return 'ONSITE';
+  return 'UNKNOWN';
 }
 
 function formatLocation(o: RecruiteeOffer): string {

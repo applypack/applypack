@@ -71,3 +71,16 @@ describe('mapPinpointFeed', () => {
     assert.ok(job!.postedAt.getTime() >= before - 1000);
   });
 });
+
+describe('mapPinpointFeed — location hints (ADR 0031)', () => {
+  it('passes only the arrangement — Pinpoint has no country field', () => {
+    // Recorded from the digitalscience board on 2026-09-03: name is a country.
+    const [job] = mapPinpointFeed(
+      { data: [posting({ workplace_type: 'remote', location: { id: '49050', city: ' ', name: 'Germany', province: ' ' } })] },
+      COMPANY_ID,
+    );
+    assert.equal(job?.location, 'Remote · Germany');
+    assert.deepEqual(job?.locationHints, { workplace: 'REMOTE' });
+    assert.deepEqual(mapPinpointFeed({ data: [posting()] }, COMPANY_ID)[0]?.locationHints, { workplace: 'ONSITE' });
+  });
+});

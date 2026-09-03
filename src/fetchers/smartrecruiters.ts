@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { fetchWithRetry, sleep, stripHtml } from '../http';
 import { logger } from '../logger';
+import type { LocationHints } from '../location';
 import type { NormalizedJob } from '../types';
 
 const LIST_LIMIT = 100;
@@ -147,12 +148,29 @@ export async function fetchSmartRecruiters(
       location: formatLocation(p.location ?? null),
       description,
       postedAt: p.releasedDate ? safeDate(p.releasedDate) : new Date(),
+      locationHints: srLocationHints(p.location ?? null),
     });
   }
   return out;
 }
 
-function formatLocation(
+/**
+ * The docs say `location.country` is ISO-2 lowercase; it could not be
+ * re-verified live (every board answers totalFound 0 — gotcha 13), so only
+ * a two-letter value is trusted and the parser validates it against the
+ * gazetteer.
+ */
+export function srLocationHints(
+  loc: z.infer<typeof SrLocationSchema> | null,
+): LocationHints {
+  const country = (loc?.country ?? '').trim();
+  return {
+    countries: /^[a-z]{2}$/i.test(country) ? [country.toUpperCase()] : [],
+    workplace: loc?.remote ? 'REMOTE' : loc?.hybrid ? 'HYBRID' : 'UNKNOWN',
+  };
+}
+
+export function formatLocation(
   loc: z.infer<typeof SrLocationSchema> | null,
 ): string {
   if (!loc) return '';

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { fetchWithRetry } from '../http';
+import { workplaceFromText } from '../location';
 import type { NormalizedJob } from '../types';
 
 const LeverPostingSchema = z.object({
@@ -18,6 +19,8 @@ const LeverPostingSchema = z.object({
   hostedUrl: z.string(),
   createdAt: z.number(),
   workplaceType: z.string().nullable().optional(),
+  /** ISO 3166-1 alpha-2 of the primary office (verified live 2026-09-03). */
+  country: z.string().nullable().optional(),
 });
 
 export type LeverPosting = z.infer<typeof LeverPostingSchema>;
@@ -48,8 +51,9 @@ export async function fetchLever(
  * Pure mapper extracted for unit tests. Lever puts location in
  * `categories.location` (most reliable) or as the first item of
  * `categories.allLocations`. `workplaceType` is a separate enum
- * ("remote"/"on-site"/"hybrid") which we append in parens so the
- * downstream filter can read it as part of the location string.
+ * ("remote"/"onsite"/"hybrid") which we append in parens so the
+ * downstream filter can read it as part of the location string; it and the
+ * ISO `country` also travel as structured hints (ADR 0031).
  */
 export function mapLeverPosting(
   p: LeverPosting,
@@ -66,5 +70,9 @@ export function mapLeverPosting(
     location: `${primary}${workplace}`.trim(),
     description: p.descriptionPlain ?? '',
     postedAt: new Date(p.createdAt),
+    locationHints: {
+      countries: p.country ? [p.country] : [],
+      workplace: workplaceFromText(p.workplaceType ?? ''),
+    },
   } satisfies NormalizedJob;
 }

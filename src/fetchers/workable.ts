@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { fetchWithRetry } from '../http';
+import { workplaceFromText } from '../location';
 import type { NormalizedJob } from '../types';
 
 const ENDPOINT_TEMPLATE = (slug: string) =>
@@ -25,6 +26,8 @@ const WorkableJobSchema = z
     title: z.string(),
     remote: z.boolean().optional().default(false),
     location: WorkableLocationSchema.nullable().optional(),
+    /** Every country a remote post accepts, `countryCode` each (verified live 2026-09-03). */
+    locations: z.array(WorkableLocationSchema).optional().default([]),
     state: z.string().optional(),
     published: z.string().optional(),
     workplace: z.string().nullable().optional(),
@@ -79,6 +82,10 @@ export function mapWorkableFeed(
       // classifies on the title alone for these roles.
       description: '',
       postedAt: j.published ? safeDate(j.published) : new Date(),
+      locationHints: {
+        countries: [j.location, ...j.locations].flatMap((l) => l?.countryCode ?? []),
+        workplace: j.remote ? 'REMOTE' : workplaceFromText(j.workplace ?? ''),
+      },
     });
   }
   return out;
