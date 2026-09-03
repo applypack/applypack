@@ -33,9 +33,6 @@
   --accent-ink: #047857;
   --accent-deep: #065f46;
   --accent-soft: #ecfdf5;
-  --warn: #b45309;
-  --danger: #d92d20;
-  --violet: #6d28d9;
   --term: #0f172a;
   --term-bar: #1e293b;
   --term-ink: #e2e8f0;
@@ -52,12 +49,10 @@
   --s-6: 32px;
   --s-7: 48px;
   --s-8: 64px;
-  --s-9: 96px;
   --text-sm: 13.5px;
   --text-base: 15px;
   --text-md: clamp(16px, 0.6vw + 13px, 18px);
   --text-lg: clamp(18px, 0.9vw + 14px, 22px);
-  --text-xl: clamp(22px, 1.6vw + 15px, 32px);
   --text-2xl: clamp(28px, 2.6vw + 16px, 44px);
   --text-3xl: clamp(38px, 4.6vw + 18px, 66px);
   --wrap: 1120px;
@@ -235,7 +230,7 @@ section.raised { background: var(--surface); border-top: 1px solid var(--line); 
 .row-text li b { color: var(--ink); font-weight: 600; }
 .shot { border: 1px solid var(--line); border-radius: var(--r-lg); overflow: hidden; background: var(--surface); box-shadow: var(--shadow-1); }
 .shot img { width: 100%; }
-.shot figcaption, .fig figcaption { margin-top: var(--s-2); font-size: 13px; color: var(--ink-3); }
+.fig figcaption { margin-top: var(--s-2); font-size: 13px; color: var(--ink-3); }
 .fig { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); box-shadow: var(--shadow-1); padding: var(--s-5); }
 .gate { display: grid; gap: var(--s-3); font-size: 14.5px; }
 .gate .claim { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--s-3); align-items: start; padding: var(--s-3) var(--s-4); border: 1px solid var(--line); border-radius: var(--r-md); }
@@ -283,7 +278,7 @@ section.story { background: var(--accent-soft); border-top: 1px solid #d1fae5; b
 .ways { margin-top: var(--s-6); display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--s-6); }
 .ways li { border-top: 2px solid var(--ink); padding-top: var(--s-4); color: var(--ink-2); }
 .ways b { display: block; color: var(--ink); font-size: var(--text-md); font-weight: 600; margin-bottom: var(--s-2); }
-.cta.left { justify-content: flex-start; }
+.cta.left { justify-content: flex-start; margin-top: var(--s-6); }
 
 /* install */
 .term {

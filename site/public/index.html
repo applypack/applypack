@@ -52,7 +52,7 @@
         <a class="btn primary" href="#demo">Try the live demo</a>
         <a class="btn" href="#install">Install with Docker</a>
       </div>
-      <ul class="trust" aria-label="The short version">
+      <ul class="trust" role="list" aria-label="The short version">
         <li>Open source, MIT</li>
         <li>No ads, no payments, no accounts</li>
         <li>Runs locally or in Docker</li>
@@ -123,7 +123,7 @@
       <div class="row">
         <div class="row-text">
           <h3>Find real jobs, not noise</h3>
-          <ul>
+          <ul role="list">
             <li><b>22 sources every hour.</b> Ten ATS vendors on the companies you pick, eleven aggregators, the monthly HN thread. Starter packs add a whole segment at once.</li>
             <li><b>A classifier with rules that burned me.</b> "Full-stack" in a title is not a stack match; "Remote · Germany" is not US-remote. Up to eight searches at once, one AI call per posting.</li>
             <li><b>Is it real?</b> A free liveness check first, then a web-search verdict with evidence links: legit, suspicious, fake.</li>
@@ -138,7 +138,7 @@
       <div class="row flip">
         <div class="row-text">
           <h3>Fix your resume for this posting. Honestly.</h3>
-          <ul>
+          <ul role="list">
             <li><b>Every keyword the posting wants,</b> graded must / preferred / nice and marked present, missing or confirm-with-you.</li>
             <li><b>The model marks facts, code computes the score.</b> No core-stack overlap caps it at 30, Vue is not React, and typing a word is not evidence.</li>
             <li><b>Edit side by side</b> with the score updating on every keystroke, free of AI calls. Re-check with AI in about 15 seconds. Save as v2, and the delta against v1 is real.</li>
@@ -153,7 +153,7 @@
       <div class="row">
         <div class="row-text">
           <h3>A cover letter that cannot invent</h3>
-          <ul>
+          <ul role="list">
             <li><b>Drafted from the posting, your resume and the facts you confirmed.</b> Nothing else.</li>
             <li><b>A fact gate reads every claim back</b> against that evidence. A number that is not in your resume never reaches the letter.</li>
             <li><b>Pick a tone, add your own angle.</b> About 30 seconds. Edit in place, export PDF or DOCX.</li>
@@ -182,7 +182,7 @@
 
       <div class="more">
         <h3>And the rest</h3>
-        <ul class="more-list">
+        <ul class="more-list" role="list">
           <li><b>Applications board.</b> Columns you name, drag and drop, which resume each application went out with, a nudge when one goes quiet for two weeks.</li>
           <li><b>Guided first run.</b> Connect an AI, test the search, turn a resume into a profile, score the first matches.</li>
           <li><b>Five AI engines with failover.</b> Claude Code, Gemini and Codex CLIs on subscriptions you already pay for, the Anthropic API, any OpenAI-compatible endpoint including free local models.</li>
@@ -198,7 +198,7 @@
   <section id="how" aria-labelledby="how-h">
     <div class="wrap">
       <h2 id="how-h">How it works</h2>
-      <ol class="pipe">
+      <ol class="pipe" role="list">
         <li><b>22 sources</b>hourly fetch, official APIs and RSS only</li>
         <li><b>Base filter</b>pure code, zero cost, drops the obvious misses</li>
         <li><b>AI classifier</b>reads the full posting against every running search</li>
@@ -213,13 +213,13 @@
     <div class="wrap">
       <h2 id="score-h">Scores you can argue with</h2>
       <p class="lead">Most AI resume tools average their way to a flattering number. ApplyPack splits the job: the model only marks what is present, missing or unverifiable, and a unit-tested formula applies the caps.</p>
-      <ul class="theses">
+      <ul class="theses" role="list">
         <li><b>Primary-stack gate.</b> No core-stack overlap caps the score at 30, however good the rest looks.</li>
         <li><b>No sibling credit.</b> Vue is not React, PHP is not Node.js.</li>
         <li><b>Unknowns stay unknown.</b> The posting wants profiling and your resume does not say? You get a question, not a guess.</li>
         <li><b>Honest deltas.</b> v2 is scored by the same code path as v1, so "+16" means something.</li>
       </ul>
-      <div class="cta left" style="margin-top: var(--s-6)">
+      <div class="cta left">
         <a class="btn" href="demo/">Open the full demo</a>
         <a class="btn" href="https://github.com/applypack/applypack/blob/main/docs/adr/0012-deterministic-match-score.md">Read the scoring decision record</a>
       </div>
@@ -242,12 +242,12 @@
       <h2 id="open-h">Free, open source, yours to bend</h2>
       <p class="lead">ApplyPack is MIT-licensed and has no hosted version: no accounts, no subscription, no telemetry, no ads. You bring the AI: a subscription you already pay for, an API key, or a local model that costs nothing.</p>
       <p class="note">It is built to be changed. Over a thousand unit tests on the pure modules, a decision record for every non-obvious choice, and a CLAUDE.md that says where everything lives, so a first change takes an evening, with an AI assistant or without one.</p>
-      <ul class="ways">
+      <ul class="ways" role="list">
         <li><b>Add a job source</b>Close to a one-file change: three fetcher templates in the repo, a unit test for the mapper, a smoke run.</li>
         <li><b>Take a good first issue</b>Scoped tasks with file pointers, labelled in the tracker.</li>
         <li><b>Bring an idea</b>Open an issue with the feature template. Public APIs and RSS only, never scraping; everything else is on the table.</li>
       </ul>
-      <div class="cta left" style="margin-top: var(--s-6)">
+      <div class="cta left">
         <a class="btn primary" href="https://github.com/applypack/applypack/blob/main/CONTRIBUTING.md">Read CONTRIBUTING</a>
         <a class="btn" href="https://github.com/applypack/applypack/issues/new/choose">Open an issue</a>
         <a class="btn" href="https://github.com/applypack/applypack/fork">Fork on GitHub</a>
@@ -267,7 +267,7 @@
 <span class="g">docker</span> compose up -d    <span class="c"># → http://localhost:4747, a four-step setup opens</span></pre>
       </div>
       <p class="note">Paste an AI key on the first screen, or let the dashboard detect the CLI you are already logged into. Fetching starts paused until you finish the setup, so a blank profile never burns your quota.</p>
-      <ul class="engines" aria-label="AI engines">
+      <ul class="engines" role="list" aria-label="AI engines">
         <li><b>Claude Code</b> CLI, your subscription</li>
         <li><b>Gemini</b> CLI, free tier</li>
         <li><b>Codex</b> CLI, your subscription</li>
