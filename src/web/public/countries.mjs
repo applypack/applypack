@@ -13,7 +13,7 @@
 /** How many suggestions show at once. */
 export const SUGGESTION_LIMIT = 8;
 
-/** Ranks: exact code, then a name that starts with the query, then a city or demonym, then any substring. */
+/** Ranks: exact code, then a name that starts with the query, then a city or demonym that does, then a name containing it. */
 const RANK = { code: 0, namePrefix: 1, cityPrefix: 2, contains: 3 };
 
 export function normalize(s) {
@@ -47,17 +47,19 @@ export function searchCountries(query, countries, limit = SUGGESTION_LIMIT) {
 function bestMatch(q, country) {
   if (q === country.code.toLowerCase()) return { via: country.code, rank: RANK.code };
   let best = null;
-  const consider = (spelling, prefixRank) => {
+  // Names match anywhere inside from three letters ("land" → Poland, Finland…);
+  // cities and demonyms only at the start — "pol" must not surface Napoli.
+  const consider = (spelling, prefixRank, inside) => {
     const n = normalize(spelling);
     let rank = null;
     if (n.startsWith(q)) rank = prefixRank;
-    else if (q.length >= 3 && n.includes(q)) rank = RANK.contains;
+    else if (inside && q.length >= 3 && n.includes(q)) rank = RANK.contains;
     if (rank !== null && (best === null || rank < best.rank)) best = { via: spelling, rank };
   };
-  consider(country.name, RANK.namePrefix);
-  for (const n of country.names) consider(n, RANK.namePrefix);
-  for (const c of country.cities) consider(c, RANK.cityPrefix);
-  for (const d of country.demonyms) consider(d, RANK.cityPrefix);
+  consider(country.name, RANK.namePrefix, true);
+  for (const n of country.names) consider(n, RANK.namePrefix, true);
+  for (const c of country.cities) consider(c, RANK.cityPrefix, false);
+  for (const d of country.demonyms) consider(d, RANK.cityPrefix, false);
   return best;
 }
 

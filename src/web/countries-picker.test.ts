@@ -42,6 +42,8 @@ test('ranks an exact code and a name prefix above a city or a substring', async 
   // "land" is inside many names; a substring needs three letters and ranks last.
   assert.ok(searchCountries('land', COUNTRIES).length > 1);
   assert.deepEqual(searchCountries('la', COUNTRIES).filter((h) => h.via.toLowerCase().includes('land')), []);
+  // A city matches only at its start: "pol" is Poland, never Napoli or Minneapolis.
+  assert.deepEqual(searchCountries('pol', COUNTRIES).map((h) => h.country.code), ['PL']);
 });
 
 test('caps the list and returns nothing for an empty or unknown query', async () => {
