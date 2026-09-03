@@ -79,6 +79,7 @@ import {
 } from '../../priority-rules';
 import { prisma } from '../../db';
 import { isBlankProfile } from '../../profile-guards';
+import type { Profile } from '@prisma/client';
 import { isSettingsTab, SettingsPage } from '../pages/settings';
 import { sourceLabel } from '../source-names';
 import { clearFlashCookie, flashRedirect, parseFlashCookie } from '../flash';
@@ -808,11 +809,6 @@ settingsRoute.post('/settings/profiles/:id/save', async (c) => {
     priorityRules,
   };
   const saved = await updateProfile(id, input);
-  // Plan §4.3: a search that names Ukraine, Germany or the UK has feeds
-  // waiting on /companies; say so once, on the save that made it true.
-  const tracked = await prisma.company.findMany({ select: { id: true, atsType: true, atsToken: true, active: true } });
-  const waiting = suggestSources([saved], tracked).filter((s) => s.state !== 'on').length;
-  const sourcesHint = waiting > 0 ? ` ${waiting} source${waiting === 1 ? '' : 's'} fit these countries — see Companies → "Sources for your searches".` : '';
 
   // The second half of "born inactive" (issue #50): the first save that gives
   // a blank search real content starts it running. Since ADR 0028 that no
@@ -828,6 +824,9 @@ settingsRoute.post('/settings/profiles/:id/save', async (c) => {
   const active = await getActiveProfile();
   const editorUrl =
     active?.id === id ? '/settings?tab=profile' : `/settings?tab=profile&profile=${id}`;
+  // Plan §4.3: a running search that names Ukraine, Germany or the UK has
+  // feeds waiting on /companies — say so on the save, where the countries were picked.
+  const sourcesHint = isActive ? await sourcesWaiting(saved) : '';
 
   if (f.action === 'save-and-reclassify') {
     if (!isActive) {
@@ -856,6 +855,14 @@ settingsRoute.post('/settings/profiles/:id/save', async (c) => {
   }
   return flashRedirect(editorUrl, 'ok', `Search saved.${sourcesHint}`);
 });
+
+/** " 2 sources fit these countries — see Companies → …", or '' when every suggested feed already runs. */
+async function sourcesWaiting(search: Profile): Promise<string> {
+  const tracked = await prisma.company.findMany({ select: { id: true, atsType: true, atsToken: true, active: true } });
+  const waiting = suggestSources([search], tracked).filter((s) => s.state !== 'on').length;
+  if (waiting === 0) return '';
+  return ` ${waiting} source${waiting === 1 ? '' : 's'} fit these countries — see Companies → "Sources for your searches".`;
+}
 
 // Prefill the editor from a resume's AI scan. Renders the draft directly —
 // nothing is saved until the user submits the profile form. With no resumes
