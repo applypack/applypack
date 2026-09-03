@@ -14,8 +14,12 @@ export interface AppliedResume {
   version: number | null;
 }
 
-/** A deleted resume still counts as an answer: we know it was sent, just not what it was called. */
-const DELETED_LABEL = 'a deleted resume';
+/**
+ * A deleted resume still counts as an answer: we know it was sent, just not
+ * what it was called. Exported so the delete dialog can promise the exact
+ * words the page will show afterwards.
+ */
+export const DELETED_LABEL = 'a deleted resume';
 
 /**
  * Short label for the resume: `Senior Backend v3`. Null when nothing was

@@ -1,3 +1,5 @@
+import { DELETED_LABEL } from '../jobs/applied-with';
+
 /**
  * Confirm text for the two deletes that cascade (audit, TASKS §14). Pure so the
  * blast radius can be unit-tested rather than trusted.
@@ -6,6 +8,10 @@
  * ones the user edited by hand — and every strength review. Deleting a company
  * takes every job it posted, and with each job the application tracked against
  * it. Both wordings used to name only the obvious half.
+ *
+ * A resume also has two SetNull dependants that neither deletes nor survives
+ * unchanged — the search that hunts with it and the applications it went out
+ * with. Those are named too, in a clause of their own.
  */
 
 export interface DeleteImpact {
@@ -40,7 +46,7 @@ export function deleteConfirm(name: string, impact: DeleteImpact): string {
       : `${impact.searches} ${impact.searches === 1 ? 'search stops' : 'searches stop'} hunting with it`,
     impact.applications === 0
       ? null
-      : `${impact.applications} ${impact.applications === 1 ? 'application' : 'applications'} will show "a deleted resume" instead`,
+      : `${impact.applications} ${impact.applications === 1 ? 'application' : 'applications'} will show "${DELETED_LABEL}" instead`,
   ].filter((p): p is string => p !== null);
 
   if (deleted.length === 0 && unlinked.length === 0) {

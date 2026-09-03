@@ -45,7 +45,7 @@ export interface ResumeDetailProps {
   answers: ReviewAnswer[];
   /** What moved since the previous run of this resume, when there was one. */
   reviewDelta: ReviewDelta | null;
-  /** What Delete would cascade — named in the confirm: comparisons, letters and reviews. */
+  /** What Delete would take, and what it would merely unlink — both named in the confirm. */
   deleteImpact: DeleteImpact;
   /** Deterministic ATS-parseability checks over the extracted text. */
   warnings: ParseWarning[];
