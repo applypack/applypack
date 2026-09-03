@@ -106,8 +106,11 @@ h3 { font-size: var(--text-lg); font-weight: 600; line-height: 1.3; }
   display: grid; place-items: center; font-size: 13px; font-weight: 700; flex: none;
 }
 .nav .links { display: flex; gap: var(--s-2); margin-left: auto; }
-.nav .links a { color: var(--ink-2); font-size: 14.5px; padding: var(--s-2) var(--s-3); border-radius: var(--r-sm); }
+.nav .links a { color: var(--ink-2); font-size: 14.5px; padding: var(--s-2) var(--s-3); border-radius: var(--r-sm); white-space: nowrap; }
 .nav .links a:hover { color: var(--ink); background: var(--overlay); text-decoration: none; }
+/* the one nav item that answers "is this a subscription?" before anything else */
+.nav .links a.open { background: var(--accent-soft); color: var(--accent-ink); font-weight: 600; border: 1px solid rgb(4 120 87 / 0.25); }
+.nav .links a.open:hover { background: #d1fae5; color: var(--accent-deep); }
 
 /* buttons */
 .btn {
@@ -121,6 +124,7 @@ h3 { font-size: var(--text-lg); font-weight: 600; line-height: 1.3; }
 .btn.primary { background: var(--accent-ink); border-color: var(--accent-ink); color: #fff; }
 .btn.primary:hover { background: var(--accent-deep); border-color: var(--accent-deep); }
 .btn.small { min-height: 36px; padding: 0 var(--s-4); font-size: 14px; }
+.btn svg { width: 16px; height: 16px; flex: none; }
 
 /* hero */
 .hero { padding: var(--s-8) 0 var(--s-7); }
@@ -128,7 +132,13 @@ h3 { font-size: var(--text-lg); font-weight: 600; line-height: 1.3; }
 .hero h1 {
   font-size: var(--text-3xl); font-weight: 700; line-height: 1.05; letter-spacing: -0.03em;
 }
-.hero .sub { margin: var(--s-5) auto 0; max-width: 620px; font-size: var(--text-lg); color: var(--ink-2); }
+.free {
+  display: inline-block; margin: var(--s-5) auto 0; padding: 7px 16px; max-width: none;
+  border-radius: 999px; background: var(--accent-soft); border: 1px solid rgb(4 120 87 / 0.25);
+  color: var(--accent-deep); font-size: var(--text-sm); line-height: 1.5;
+}
+.free strong { color: var(--accent-ink); font-weight: 700; }
+.hero .sub { margin: var(--s-4) auto 0; max-width: 620px; font-size: var(--text-lg); color: var(--ink-2); }
 .cta { margin-top: var(--s-6); display: flex; gap: var(--s-3); justify-content: center; flex-wrap: wrap; }
 .trust {
   margin: var(--s-5) auto 0; display: flex; flex-wrap: wrap; justify-content: center; align-items: center;
@@ -341,6 +351,12 @@ footer { border-top: 1px solid var(--line); background: var(--surface); padding:
 /* phone */
 @media (max-width: 640px) {
   .nav .links a:not(.key) { display: none; }
+  .gh-btn { padding: 0 11px; }
+  .gh-btn span { display: none; }
+  .free { border-radius: 10px; text-align: left; }
+  .demo-head { flex-wrap: wrap; }
+  .demo-head .dots { display: none; }
+  .demo-head a { margin-left: 0; flex-basis: 100%; }
   .hero { padding: var(--s-6) 0 var(--s-6); }
   .hero-text, .hero .sub { text-align: left; margin-left: 0; }
   .hero h1 { font-size: clamp(32px, 9.5vw, 40px); }
@@ -361,4 +377,8 @@ footer { border-top: 1px solid var(--line); background: var(--surface); padding:
   .pipe { grid-template-columns: 1fr; }
   .term pre { font-size: 13px; }
   .foot .links { margin-left: 0; }
+}
+/* the narrowest phones: the mark alone identifies the site, the nav keeps its two items */
+@media (max-width: 360px) {
+  .top .brand .word { display: none; }
 }
