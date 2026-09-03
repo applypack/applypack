@@ -5,6 +5,7 @@ import { extractJson } from './text-utils';
 import { getAiRuntime } from './ai-runtime';
 import { preClassify } from './classifier-prefilter';
 import { capFitForMissingStack } from './profile-guards';
+import { isCountryCode, isRegionCode } from './countries';
 import { INJECTION_FLAG, fence, untrustedDirective } from './prompt-fence';
 import type { ClassifyInput, ClaudeClassification } from './types';
 
@@ -19,16 +20,38 @@ const MAX_DESC_CHARS = 4000;
 // Bump on any material change to buildClassifyPrompt (rules, rubric, format,
 // fencing) — cross-engine quality comparisons are meaningless across versions.
 // v3: one call scores every active search (ADR 0028).
-export const CLASSIFIER_PROMPT_VERSION = 3;
+export const CLASSIFIER_PROMPT_VERSION = 4;
 
 /**
  * Salary is hoisted out of the per-search entries on purpose: it is a fact of
  * the posting, not of a search, and asking for it N times invites two searches
  * to report different numbers for one job.
  */
+/**
+ * ADR 0032: the posting's own place, read once and shared like salary. Codes
+ * the gazetteer does not know are dropped rather than failing the reply;
+ * the block is optional so an engine that omits it still yields verdicts.
+ */
+const LocationBlockSchema = z
+  .object({
+    workplace: z.enum(['REMOTE', 'HYBRID', 'ONSITE', 'UNKNOWN']).catch('UNKNOWN'),
+    countries: z.array(z.string()).catch([]),
+    regions: z.array(z.string()).catch([]),
+    note: z.string().nullable().catch(null),
+  })
+  .transform((b) => ({
+    workplace: b.workplace,
+    countries: unique(b.countries.map((c) => c.toUpperCase()).filter(isCountryCode)),
+    regions: unique(b.regions.map((r) => r.toUpperCase()).filter(isRegionCode)),
+    note: b.note && b.note.trim().length > 0 ? b.note.trim() : null,
+  }));
+
+export type AiLocation = z.infer<typeof LocationBlockSchema>;
+
 const MultiClassificationSchema = z.object({
   salary_min_usd: z.number().int().nullable(),
   salary_max_usd: z.number().int().nullable(),
+  location: LocationBlockSchema.optional(),
   scores: z
     .array(
       z.object({
@@ -46,14 +69,18 @@ const MultiClassificationSchema = z.object({
 /** One verdict per active search, keyed by profile id. */
 export type ClassificationsByProfile = Map<number, ClaudeClassification>;
 
-export interface ClassifyOutcome {
-  /** Empty on classifier failure or when stage 1 filtered the posting out. */
+/** What one reply says: a verdict per search, and the posting's place (ADR 0032). */
+export interface Classifications {
   results: ClassificationsByProfile;
+  location: AiLocation | null;
+}
+
+export interface ClassifyOutcome extends Classifications {
   /** True when stage-1 prefilter rejected — counted separately in stats. */
   preFiltered: boolean;
 }
 
-const EMPTY: ClassifyOutcome = { results: new Map(), preFiltered: false };
+const EMPTY: ClassifyOutcome = { results: new Map(), location: null, preFiltered: false };
 
 /**
  * Score one posting against every active search in a single call (ADR 0028).
@@ -91,7 +118,7 @@ async function runStages(
         { title: input.title, reason: pre.reason },
         'classifier: stage1 not-relevant, skipping stage2',
       );
-      return { results: new Map(), preFiltered: true };
+      return { results: new Map(), location: null, preFiltered: true };
     }
     if (pre === null) {
       logger.warn(
@@ -100,7 +127,11 @@ async function runStages(
       );
     }
   }
-  return { results: await classifyWithClaude(input, profiles), preFiltered: false };
+  return { ...(await classifyWithClaude(input, profiles)), preFiltered: false };
+}
+
+function unique(list: string[]): string[] {
+  return [...new Set(list)];
 }
 
 export { decideStageStrategy } from './text-utils';
@@ -110,10 +141,17 @@ export function buildClassifyPrompt(
   input: ClassifyInput,
   profiles: Profile[],
 ): { system: string; user: string } {
+  const place = input.place;
+  const parsedLine = place
+    ? `Location as parsed from the source: ${place.workplace}${
+        place.countries.length > 0 ? ` · countries ${place.countries.join(', ')}` : ''
+      }${place.regions.length > 0 ? ` · regions ${place.regions.join(', ')}` : ''}`
+    : null;
   return {
     system: buildSystemPrompt(profiles),
     user: [
       `Posted: ${input.postedAt.toISOString()}`,
+      ...(parsedLine ? [parsedLine] : []),
       '',
       fence(
         'JOB POSTING',
@@ -145,7 +183,7 @@ export function buildClassifyPrompt(
 export function parseClassifications(
   text: string,
   profiles: Profile[],
-): ClassificationsByProfile | null {
+): Classifications | null {
   const json = extractJson(text);
   if (json === null) return null;
   const parsed = MultiClassificationSchema.safeParse(json);
@@ -174,13 +212,13 @@ export function parseClassifications(
       ),
     );
   }
-  return out.size > 0 ? out : null;
+  return out.size > 0 ? { results: out, location: parsed.data.location ?? null } : null;
 }
 
 export async function classifyWithClaude(
   input: ClassifyInput,
   profiles: Profile[],
-): Promise<ClassificationsByProfile> {
+): Promise<Classifications> {
   const { system: systemPrompt, user: userText } = buildClassifyPrompt(input, profiles);
 
   const ai = await getAiRuntime();
@@ -193,13 +231,13 @@ export async function classifyWithClaude(
       label: 'classifier',
       role: 'classifier',
     });
-    if (out === null) return new Map();
+    if (out === null) return { results: new Map(), location: null };
 
     const parsed = parseClassifications(out.text, profiles);
     if (parsed) {
-      if (parsed.size < profiles.length) {
+      if (parsed.results.size < profiles.length) {
         logger.warn(
-          { title: input.title, got: parsed.size, want: profiles.length },
+          { title: input.title, got: parsed.results.size, want: profiles.length },
           'classifier: reply skipped some searches; they stay unscored',
         );
       }
@@ -217,7 +255,7 @@ export async function classifyWithClaude(
       'classifier: response did not match schema',
     );
   }
-  return new Map();
+  return { results: new Map(), location: null };
 }
 
 /** One block per search — the only part of the prompt that repeats. */
@@ -263,11 +301,14 @@ CRITICAL — TECH STACK MATCHING (applies to every search on its own):
 - The title can mislead — a "Senior Full-Stack Rails Engineer" is a Rails job, not a generic full-stack match. Score it low for a PHP/JS-focused search.
 
 CRITICAL — LOCATION MATCHING (per search, SET location_match):
-- "Remote, US" / "Remote, USA" / "Remote (US-based)" / "Remote · United States" / "Remote · North America" / "Remote · Americas" → location_match = true if that search includes US or Americas.
-- "Remote · {Single Country}" patterns (e.g. "Remote · Germany", "Remote · UK", "Remote · India") indicate a country-locked role with local payroll/work-permit constraints. UNLESS the description explicitly opens it to other regions (e.g. "we hire globally"), location_match = FALSE for a US-based search. National flag emojis (🇩🇪 🇬🇧 🇮🇳) in the title are a strong country-lock signal — treat as country-locked.
-- "Worldwide" or "Anywhere" or "Fully remote" with no further restriction → location_match = true if that search includes Worldwide, otherwise check if "US" is implicitly included.
-- "Remote · EU only" / "EMEA only" / "APAC only" → location_match = false unless that search explicitly lists those regions.
-- Hybrid / on-site roles → location_match only if the city is in that search's on-site list.
+Each search says where it hunts as codes: ISO countries (PL, DE, US, GB) and groups — EU = the 27 member states; EUROPE = the continent, which also holds GB, CH, NO, UA; EMEA; AMERICAS; NORTH_AMERICA; LATAM; APAC; DACH; NORDICS; BENELUX; CEE; WORLDWIDE = anywhere — plus the arrangements it accepts. A search that lists no countries and no regions accepts any place.
+- Read the location line AND the description: residency, work-permit, payroll, contract-type and time-zone sentences override the location line. "Location as parsed from the source" is a starting point, not a verdict.
+- Country-locked remote ("Remote · Germany", "must reside in Poland", a national flag, local-payroll wording) → true only for a search that lists that country or a group containing it.
+- Region-locked remote ("EU only", "Europe", "EMEA", "US time zones") → true only for a search that lists that region, a country inside it, or WORLDWIDE. EU is law and EUROPE is geography: an EU work-right requirement fails a GB or UA search even when that search lists EUROPE.
+- Worldwide / "anywhere" / "we hire globally" with no restriction → true for every search that accepts remote.
+- A bare "Remote" with no country anywhere in the posting → true only for a search that accepts any place; otherwise false.
+- Hybrid / on-site roles → true only for a search that accepts that arrangement AND names the office's city, or the office's country (or a containing group) when it lists no cities. Never infer remote eligibility from an office address.
+- Several offices or arrangements → judge by the softest one named.
 - When in doubt, default to location_match = false.
 
 OUTPUT STRICT JSON ONLY (no prose, no code fences, no commentary), matching this schema exactly:
@@ -275,6 +316,12 @@ OUTPUT STRICT JSON ONLY (no prose, no code fences, no commentary), matching this
 {
   "salary_min_usd": integer or null,
   "salary_max_usd": integer or null,
+  "location": {
+    "workplace": "REMOTE" | "HYBRID" | "ONSITE" | "UNKNOWN",
+    "countries": ISO-2 codes — where the candidate may live for a remote role, where the office is otherwise,
+    "regions": group codes the posting names (EU, EUROPE, EMEA, WORLDWIDE, AMERICAS, NORTH_AMERICA, LATAM, APAC, DACH, NORDICS, BENELUX, CEE),
+    "note": the sentence that decided it, at most 15 words, or null
+  },
   "scores": [
     {
       "profile_id": integer,
@@ -289,7 +336,7 @@ OUTPUT STRICT JSON ONLY (no prose, no code fences, no commentary), matching this
 
 "scores" MUST hold EXACTLY ${profiles.length} ${many ? 'entries' : 'entry'} — one per search — using ${many ? 'these ids and no others' : 'this id and no other'}: ${ids}.
 
-Salary belongs to the posting, not to a search: read it once from the description and report it at the top level, null when it is not disclosed.
+Salary and location belong to the posting, not to a search: read each once and report it at the top level — salary null when not disclosed, location with empty arrays and "UNKNOWN" when the posting names no place.
 
 SCORING GUIDANCE (apply per search):
 - 90-100: that search's required stack present in title or strongly evidenced; seniority matches; location compatible with that search's preferences; salary clear and meets target.
@@ -301,7 +348,7 @@ location_match = true ONLY when the role is open to that search's candidate per 
 
 tech_match: lowercase tags that intersect what the role uses with THAT search's stack (required + nice-to-have). Empty array if none match.
 
-red_flags: short kebab-case tags such as "wordpress-only", "onsite-required-wrong-city", "junior-level", "eu-only", "uk-only", "contract-only", "low-pay", "no-salary-listed", "stack-mismatch", "${INJECTION_FLAG}". Empty array if none.
+red_flags: short kebab-case tags such as "wordpress-only", "onsite-required-wrong-city", "junior-level", "country-locked", "eu-only", "residency-required", "contract-only", "low-pay", "no-salary-listed", "stack-mismatch", "${INJECTION_FLAG}". Empty array if none.
 
 summary: ONE sentence (max ~25 words) explaining why the posting fits that search or does not.`;
 }

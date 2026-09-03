@@ -10,6 +10,8 @@ import { getSettings } from '../settings';
 import { isBlankProfile } from '../profile-guards';
 import { buildVerdicts, mergeVerdicts } from './verdict-merge';
 import { saveJobScores } from './score-store';
+import { storedPlace } from './classify-existing';
+import { mergeAiLocation } from './location-merge';
 import { rankByProfileFit, SCORE_BATCH, type ScorableJob } from './score-pick';
 
 export { SCORE_BATCH };
@@ -149,6 +151,7 @@ async function reclassify(opts: ReclassifyOptions): Promise<{ stats: CronStats }
                 title: j.title,
                 companyName: j.company.name,
                 location: j.location,
+                place: { workplace: j.workplace, countries: j.countries, regions: j.regions },
                 description: j.description,
                 postedAt: j.postedAt,
               },
@@ -175,7 +178,7 @@ async function reclassify(opts: ReclassifyOptions): Promise<{ stats: CronStats }
         continue;
       }
 
-      const { results, preFiltered: wasPreFiltered } = await outcome;
+      const { results, location, preFiltered: wasPreFiltered } = await outcome;
       if (wasPreFiltered) {
         preFiltered++;
         // Reclassify treats pre-filtered jobs the same as base-filter rejects:
@@ -210,7 +213,7 @@ async function reclassify(opts: ReclassifyOptions): Promise<{ stats: CronStats }
           ? JobStatus.NEW
           : previousStatus;
 
-      await saveJobScores(j, merged, verdicts, targetStatus);
+      await saveJobScores(j, merged, verdicts, targetStatus, mergeAiLocation(storedPlace(j), location));
 
       if (
         targetStatus === JobStatus.NEW &&

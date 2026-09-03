@@ -2,6 +2,7 @@ import { AtsType, JobStatus, Prisma, type Job } from '@prisma/client';
 import { prisma } from '../db';
 import { withApplyLinkFlags } from '../apply-link';
 import type { MergedVerdict, ProfileVerdict } from './verdict-merge';
+import type { StoredPlace } from './location-merge';
 
 /*
  * The one place a re-score is written (ADR 0028). New postings take the nested
@@ -51,6 +52,8 @@ export async function saveJobScores(
   merged: MergedVerdict,
   verdicts: ProfileVerdict[],
   status: JobStatus,
+  /** The posting's place after the model's block was merged in (ADR 0032); omitted = untouched. */
+  place?: StoredPlace,
 ): Promise<void> {
   const c = merged.winner.classification;
   const link = { url: job.url, pasted: job.company.atsType === AtsType.MANUAL };
@@ -59,6 +62,12 @@ export async function saveJobScores(
     prisma.job.update({
       where: { id: job.id },
       data: {
+        ...(place && {
+          workplace: place.workplace,
+          countries: place.countries,
+          regions: place.regions,
+          locationSource: place.source,
+        }),
         fitScore: c.fit_score,
         salaryMin: c.salary_min_usd,
         salaryMax: c.salary_max_usd,

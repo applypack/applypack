@@ -154,13 +154,13 @@ test('every search gets its own verdict, salary is shared', () => {
     [PROFILE, QA_PROFILE],
   );
   assert.ok(out);
-  assert.equal(out.size, 2);
-  assert.equal(out.get(3)!.fit_score, 87);
-  assert.equal(out.get(9)!.fit_score, 41);
-  assert.equal(out.get(9)!.summary, 'off-stack');
+  assert.equal(out.results.size, 2);
+  assert.equal(out.results.get(3)!.fit_score, 87);
+  assert.equal(out.results.get(9)!.fit_score, 41);
+  assert.equal(out.results.get(9)!.summary, 'off-stack');
   // Hoisted once, handed to both — two searches can never disagree on it.
-  assert.equal(out.get(3)!.salary_min_usd, 120_000);
-  assert.equal(out.get(9)!.salary_max_usd, 150_000);
+  assert.equal(out.results.get(3)!.salary_min_usd, 120_000);
+  assert.equal(out.results.get(9)!.salary_max_usd, 150_000);
 });
 
 test('a verdict for a search we never asked about voids the whole reply', () => {
@@ -174,8 +174,8 @@ test('a duplicated search voids the reply — the model lost the roster', () => 
 test('a partial reply keeps what came back; the rest stay unscored', () => {
   const out = parseClassifications(reply([entry(3, 87)]), [PROFILE, QA_PROFILE]);
   assert.ok(out);
-  assert.equal(out.size, 1);
-  assert.equal(out.has(9), false);
+  assert.equal(out.results.size, 1);
+  assert.equal(out.results.has(9), false);
 });
 
 test('the blank-search cap is applied per search, not per reply (issue #50)', () => {
@@ -184,10 +184,10 @@ test('the blank-search cap is applied per search, not per reply (issue #50)', ()
     [PROFILE, BLANK_PROFILE],
   );
   assert.ok(out);
-  assert.equal(out.get(3)!.fit_score, 92, 'a search with a stack is untouched');
-  assert.equal(out.get(12)!.fit_score, 50, 'a blank search is capped');
-  assert.ok(out.get(12)!.red_flags.includes('no-profile-stack'));
-  assert.ok(!out.get(3)!.red_flags.includes('no-profile-stack'));
+  assert.equal(out.results.get(3)!.fit_score, 92, 'a search with a stack is untouched');
+  assert.equal(out.results.get(12)!.fit_score, 50, 'a blank search is capped');
+  assert.ok(out.results.get(12)!.red_flags.includes('no-profile-stack'));
+  assert.ok(!out.results.get(3)!.red_flags.includes('no-profile-stack'));
 });
 
 test('malformed replies parse to null, not to a score', () => {
@@ -203,7 +203,7 @@ test('malformed replies parse to null, not to a score', () => {
 
 test('a reply wrapped in a code fence still parses', () => {
   const out = parseClassifications('```json\n' + reply([entry(3, 80)]) + '\n```', [PROFILE]);
-  assert.equal(out?.get(3)?.fit_score, 80);
+  assert.equal(out?.results.get(3)?.fit_score, 80);
 });
 
 test('the prefilter gate says absence of evidence is not a mismatch', () => {
@@ -213,4 +213,54 @@ test('the prefilter gate says absence of evidence is not a mismatch', () => {
   assert.match(system, /absence of evidence is NOT a mismatch/);
   assert.match(system, /unambiguous mismatch for EVERY search listed/);
   assert.match(system, /AT LEAST ONE of these searches/);
+});
+
+test('location rules are generic: codes and groups, no US-based wording (ADR 0032)', () => {
+  const { system } = buildClassifyPrompt(input('x'), [PROFILE]);
+  assert.doesNotMatch(system, /US-based/);
+  assert.match(system, /EU is law and EUROPE is geography/);
+  assert.match(system, /Never infer remote eligibility from an office address/);
+  assert.match(system, /When in doubt, default to location_match = false/);
+  assert.match(system, /"location": \{/);
+  assert.equal(system.split('CRITICAL — LOCATION MATCHING').length - 1, 1);
+});
+
+test('a search describes its place as codes only', () => {
+  const eu = { ...PROFILE, countries: ['PL', 'DE'], regions: ['EU'], workplace: ['REMOTE', 'HYBRID'], onsiteCities: ['Warsaw'] } as Profile;
+  const { system } = buildClassifyPrompt(input('x'), [eu]);
+  assert.match(system, /Location preferences: remote from: PL, DE, EU; hybrid in: Warsaw/);
+  const anywhere = { ...PROFILE, countries: [], regions: [], workplace: [] } as Profile;
+  assert.match(buildClassifyPrompt(input('x'), [anywhere]).system, /remote from: anywhere; hybrid \/ on-site in: anywhere/);
+  const line = system.split('\n').find((l) => l.startsWith('- Location preferences:')) ?? '';
+  assert.doesNotMatch(line, /Poland|Germany|European Union/);
+});
+
+test('eight searches keep the system prompt under the budget', () => {
+  const eight = Array.from({ length: 8 }, (_, i) => ({ ...PROFILE, id: 20 + i, name: `Search ${i}` }) as Profile);
+  const { system } = buildClassifyPrompt(input('x'), eight);
+  assert.ok(system.length < 11_000, `${system.length} chars`);
+});
+
+test('the parsed place rides in the user prompt outside the fence', () => {
+  const { user } = buildClassifyPrompt(
+    { ...input('x'), place: { workplace: 'REMOTE', countries: ['PL', 'DE'], regions: ['EU'] } },
+    [PROFILE],
+  );
+  assert.match(user, /Location as parsed from the source: REMOTE · countries PL, DE · regions EU/);
+  assert.ok(!between(user, 'JOB POSTING', 'Location as parsed'));
+  assert.doesNotMatch(buildClassifyPrompt(input('x'), [PROFILE]).user, /Location as parsed/);
+});
+
+test('the location block is read once, codes validated, and optional', () => {
+  const withLocation = JSON.stringify({
+    salary_min_usd: null,
+    salary_max_usd: null,
+    location: { workplace: 'remote', countries: ['pl', 'XX', 'de', 'pl'], regions: ['eu', 'MARS'], note: '  Poland or Germany residents  ' },
+    scores: [entry(3, 80)],
+  });
+  const out = parseClassifications(withLocation, [PROFILE]);
+  assert.deepEqual(out?.location, { workplace: 'UNKNOWN', countries: ['PL', 'DE'], regions: ['EU'], note: 'Poland or Germany residents' });
+  const upper = parseClassifications(withLocation.replace('"remote"', '"REMOTE"'), [PROFILE]);
+  assert.equal(upper?.location?.workplace, 'REMOTE');
+  assert.equal(parseClassifications(reply([entry(3, 80)]), [PROFILE])?.location, null);
 });

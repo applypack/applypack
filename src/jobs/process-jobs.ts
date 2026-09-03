@@ -5,10 +5,11 @@ import { logger } from '../logger';
 import { createLimiter } from '../concurrency';
 import { passesAnyBaseFilter } from '../filter';
 import { withApplyLinkFlags } from '../apply-link';
-import { parseLocation, type ParsedLocation } from '../location';
+import { parseLocation } from '../location';
 import { classifyJob, type ClassifyOutcome } from '../classifier';
 import { buildVerdicts, mergeVerdicts, type ProfileVerdict } from './verdict-merge';
 import { toScoreData } from './score-store';
+import { mergeAiLocation, type StoredPlace } from './location-merge';
 import { isBlankProfile, NO_PROFILE_STACK_FLAG } from '../profile-guards';
 import { sendTelegramAlert } from '../notifier';
 import type { ClassifierMode } from '../settings';
@@ -33,7 +34,7 @@ export interface FetchResult {
 
 /** A fetched row plus its parsed location — read once, used by the filter and the insert. */
 interface Candidate extends FetchResult {
-  place: ParsedLocation;
+  place: StoredPlace;
 }
 
 export interface ProcessStats {
@@ -164,9 +165,9 @@ export async function processNormalizedJobs(
   const pending = candidates.map((item) => ({
     ...item,
     outcome: limit(async (): Promise<ClassifyOutcome> => {
-      if (cancelled) return { results: new Map(), preFiltered: false };
+      if (cancelled) return { results: new Map(), location: null, preFiltered: false };
       return classifyJob(
-        buildClassifyInput(item.job, item.companyName),
+        buildClassifyInput(item.job, item.companyName, item.place),
         profiles,
         classifierMode,
       );
@@ -196,7 +197,10 @@ export async function processNormalizedJobs(
       break;
     }
     consumed++;
-    const { results, preFiltered } = await outcome;
+    const { results, location, preFiltered } = await outcome;
+    // The model read the whole description; where it knows more than the
+    // location line said, the row is stored with that (ADR 0032).
+    const placed: Candidate = { ...item, place: mergeAiLocation(item.place, location) };
     if (preFiltered) {
       stats.preFiltered++;
       continue;
@@ -221,7 +225,7 @@ export async function processNormalizedJobs(
 
     if (!kept) {
       const stored = await persistJob(
-        item,
+        placed,
         finalClassification,
         JobStatus.DISMISSED,
         winner.priorityRulesApplied,
@@ -245,7 +249,7 @@ export async function processNormalizedJobs(
     }
 
     const stored = await persistJob(
-      item,
+      placed,
       finalClassification,
       JobStatus.NEW,
       winner.priorityRulesApplied,
@@ -318,11 +322,13 @@ async function isPersisted(job: NormalizedJob): Promise<boolean> {
 function buildClassifyInput(
   job: NormalizedJob,
   companyName: string,
+  place: StoredPlace,
 ): ClassifyInput {
   return {
     title: job.title,
     companyName,
     location: job.location,
+    place,
     description: job.description,
     postedAt: job.postedAt,
   };
@@ -431,7 +437,7 @@ interface DedupData {
 /** `c === null` stores the posting unscored — every classifier field stays empty. */
 function buildJobData(
   job: NormalizedJob,
-  place: ParsedLocation,
+  place: StoredPlace,
   c: ClaudeClassification | null,
   status: JobStatus,
   priorityRulesApplied: string[],
