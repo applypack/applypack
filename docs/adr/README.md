@@ -38,6 +38,8 @@ consequences (what we accept). Aim for 15–30 lines each.
 - [0027 — Per-engine AI keys live in the database, `.env` as fallback](./0027-ai-keys-in-the-database.md)
 - [0028 — Several searches run in parallel, scored by one call per posting](./0028-parallel-searches-one-call-per-posting.md) *(supersedes 0004)*
 - [0029 — A comparison is a quick check by default; suggestions are a second call](./0029-quick-check-and-lazy-suggestions.md)
+- [0030 — The strength review grades; the code scores](./0030-resume-strength-review.md)
+- [0031 — A job's location is three columns next to the string, filled by hints and a parser](./0031-structured-location-columns.md)
 
 ## When to write a new one
 

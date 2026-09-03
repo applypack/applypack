@@ -93,13 +93,14 @@ rejected by the running profile, not by any fetcher.
 | Source | Structured location it already sends | Today |
 |---|---|---|
 | WeWorkRemotely | `<region>` ("Anywhere in the World", "USA Only") **and `<country>`** — a comma list of flag + ISO name ("🇵🇱 Poland, 🇷🇴 Romania, … 🇺🇦 Ukraine") | both ignored; `location: 'Remote'` (`src/fetchers/weworkremotely.ts`) |
-| Lever | `categories.location`, `country` (ISO-2), `workplaceType` (on-site / remote / hybrid) | string; `country` unread |
-| Ashby | `location`, `isRemote`, `workplaceType`, `secondaryLocations[]`, `address.postalAddress.addressCountry` (name) | joined with " / " + "(Remote)" |
-| Workable (v3) | `location.countryCode`, `city`, `remote`, `workplace` | string |
+| Lever | `categories.location`, `country` (ISO-2), `workplaceType` (`onsite` / `remote` / `hybrid` — verified 2026-09-03, not "on-site") | string; `country` unread |
+| Ashby | `location`, `isRemote`, `workplaceType`, `secondaryLocations[]`, `address.postalAddress.addressCountry` (name; present on 4 of 61 supabase rows) — most rows say `Remote, Global` / `Remote, AMER` / `Remote, EMEA` in the string | joined with " / " + "(Remote)" |
+| Workable (v3) | `location.countryCode`, `city`, `remote`, `workplace` (`remote` / `hybrid` / `on_site`) — **and `locations[]`**, the full list of countries a remote post accepts (`countryCode` each, `hidden: true`; 5–6 per row on 2026-09-03). The richest eligibility list of any per-company vendor; the plan had missed it | string |
 | Recruitee | `country_code`, booleans `remote / hybrid / on_site` | string |
 | SmartRecruiters | `location.country` (ISO-2 lowercase), `remote`, `hybrid` | string |
 | Greenhouse | `location.name`, `offices[].{name,location}` — free text only | first office |
-| Pinpoint | `location.{city, province}`, `workplace_type` — **no country field at all** | string |
+| Pinpoint | `location.{city, province}`, `workplace_type` — **no country field at all**; `location.name` is a country name ("UK", "Germany") on the seeded board | string |
+| Breezy | `location.country.id` is ISO-2, `is_remote` | string |
 | Himalayas | `locationRestrictions[]` (ISO names as strings; docs say objects) | "Remote · Germany, Netherlands" |
 | Remotive | `candidate_required_location` (free text) | "Remote · Europe" |
 | 4dayweek | `locations[].{city,country,continent}`, `work_arrangement`, `timezones[]` | "Remote · Berlin, Germany" |

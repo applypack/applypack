@@ -4,6 +4,52 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.24.0] — 2026-09-03
+
+### Added
+- **Jobs know where they are.** Every job row now carries `workplace`
+  (remote / hybrid / on-site / unknown), `countries` (ISO codes) and
+  `regions` (the markers a source names: EU, Europe, EMEA, Worldwide, …),
+  next to the location string, which is never rewritten. A pure parser over
+  a hand-written gazetteer of 86 countries fills them (`src/location.ts`,
+  `src/countries.json`), and fourteen fetchers now pass what their feeds
+  already said in structured fields — WWR's `<country>` allow-list and
+  `<region>`, Lever's ISO `country`, Workable's `locations[]` (the full list
+  of countries a remote post accepts, which nobody had read before),
+  Recruitee, Breezy, Ashby, Himalayas, 4dayweek and the arrangement flags of
+  the rest. The parser is a hint layer with its traps as tests: "Atlanta,
+  Georgia" is the US and "Tbilisi, Georgia" is Georgia, "Portland, OR" is a
+  state and "Remote · DE" a country, "US" never fires inside "Russia", "UK"
+  is not the EU, and a bare "Remote" is remote with no country — never
+  worldwide. Every one of the 250 distinct location strings the database
+  held is pinned in `src/location-corpus.json`. ADR 0031 records the
+  semantics: for remote rows the countries are where you may live, for
+  hybrid and on-site rows where the office is; geography (`EUROPE`) and law
+  (`EU`) are different codes.
+- **Country, workplace and date facets on `/jobs`.** A "Where" row of chips
+  with counts — 🇺🇸 United States 601, 🇨🇦 Canada 135, 🇬🇧 United Kingdom
+  52, 🇵🇱 Poland 30 … and "Unknown" for the rows nothing places — OR'ed
+  within the row, "More…" for the rest; "Work" chips (Remote / Hybrid /
+  On-site / Unknown); "Posted" chips (24h / 7 days / 30 days). Each facet's
+  counts respect the other filters, so a chip's number is what clicking it
+  shows. The search box now matches the location string too. The job page
+  shows the arrangement and one flag chip per country or region under the
+  raw location, each a link into the facet.
+- **`backfill-locations.js --dry-run`** fills the columns on jobs stored
+  before this release from the string alone — no AI call — and prints the
+  distribution to check before the real run. On the live database: 1 021 of
+  1 038 rows filled in under a second; the checksums of every verdict and of
+  every `location` and `description` were identical before and after.
+
+### Changed
+- The three arrangement regexes moved from `filter.ts` into `location.ts`
+  and learned the non-English spellings ("Homeoffice", "praca zdalna",
+  "віддалено", "home based"); the base filter reads them from there and
+  keeps its behaviour.
+- golangprojects: the flag emoji its titles used to carry are gone, so the
+  region is read from the URL slug ("Remote · Europe") instead of a stale
+  regex that returned "Remote" for everything.
+
 ## [1.23.4] — 2026-09-02
 
 ### Fixed
