@@ -602,3 +602,22 @@ Appended by the implementing session; each line names the rule it follows.
   marking where the facts go.
 - **Built in a git worktree** (`../job-hunter-site-refresh`) because another
   session was working in the main checkout at the time.
+- **No fresh dashboard screenshots.** The Fernway / Dana Ruiz pair exists
+  only in `demo/fixture.json` now, not in the local database, so the resume
+  pillar reuses a crop of the 2026-08-31 target-page capture (still the
+  current score card) and the letter pillar shows an authored fact-gate
+  figure instead of a screenshot with somebody's real letter in it.
+- **The social card is an SVG** (`docs/brand/social-card.svg`) rendered
+  with Quick Look (`qlmanage -t -s 1280`, then a centre crop to 1280×640),
+  because no scriptable browser was available from the session: Playwright
+  was held by the other session and headless Chrome hung. The HTML source
+  was removed so there is one source of truth.
+- **Verdict pills darkened** (`#5b21b6`, `#b42318`) after Lighthouse
+  measured 4.36:1 and 4.17:1 on the tinted backgrounds; the chip row and the
+  score meta line reserve their height so the demo's load does not shift
+  the page (CLS 0.10 → 0).
+- **Local Lighthouse after the rebuild** (python http.server, so no
+  compression or edge cache): mobile 96 / desktop 95 performance, LCP 2.0 s
+  mobile, page weight 227 KiB against 488 before; the remaining audits are
+  server-side (text compression, cache lifetimes) and Cloudflare handles
+  them in production.
