@@ -20,7 +20,7 @@ import {
   Td,
   Tr,
 } from '../ui';
-import { deleteConfirm } from '../delete-confirm';
+import { deleteConfirm, type DeleteImpact } from '../delete-confirm';
 import { ACCEPTED_EXTENSIONS } from '../../resume/resume-text';
 import { MAX_UPLOAD_MB } from '../upload';
 import type { FlashMessage } from '../flash';
@@ -45,8 +45,8 @@ export interface ResumeDetailProps {
   answers: ReviewAnswer[];
   /** What moved since the previous run of this resume, when there was one. */
   reviewDelta: ReviewDelta | null;
-  /** What Delete would cascade — named in the confirm: comparisons, letters and reviews. */
-  deleteImpact: { matches: number; letters: number; reviews: number };
+  /** What Delete would take, and what it would merely unlink — both named in the confirm. */
+  deleteImpact: DeleteImpact;
   /** Deterministic ATS-parseability checks over the extracted text. */
   warnings: ParseWarning[];
   /** Searches already linked to this resume, and the one a click would create. */

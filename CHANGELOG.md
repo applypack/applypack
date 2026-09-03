@@ -4,6 +4,24 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.23.4] — 2026-09-02
+
+### Fixed
+- **Deleting a resume said nothing about the searches hunting with it.** The
+  confirm dialog counted the three Cascade children — comparisons, cover
+  letters, strength reviews — and stopped there. Two `SetNull` consequences
+  stayed invisible: a search linked to the resume silently lost the link and
+  went back to guessing by skill overlap (`resume/pick.ts`), and applications
+  recorded as sent with it kept their text snapshot but lost the name,
+  degrading to "a deleted resume v4". The first is the one that bites — you
+  do not find out until job pages start preselecting the wrong resume.
+  Both are now counted and named. They get their own clause rather than
+  joining the list of deletions, because they are the opposite of deleted:
+  saying "and 1 search" would read as though the search went too. Same class
+  as the v1.23.0 company fix, where "Delete Reddit and all its 73 jobs?" hid
+  six applications and a cover letter; the resume half of that audit left the
+  search link behind.
+
 ## [1.23.3] — 2026-09-02
 
 ### Fixed
@@ -1368,6 +1386,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[1.23.4]: https://github.com/applypack/applypack/compare/v1.23.3...v1.23.4
 [1.23.3]: https://github.com/applypack/applypack/compare/v1.23.2...v1.23.3
 [1.23.2]: https://github.com/applypack/applypack/compare/v1.23.1...v1.23.2
 [1.23.1]: https://github.com/applypack/applypack/compare/v1.23.0...v1.23.1
