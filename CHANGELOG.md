@@ -4,6 +4,23 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.35.0] — 2026-09-03
+
+### Added
+- **The DevITjobs family** (plan §4.2, stage 3c): GermanTechJobs.de,
+  DevITjobs.uk and DevITjobs.nl as sources — one fetcher, one row per site
+  with the host as its token. Every title carries the company and the
+  salary range, the description keeps the Requirements / Responsibilities /
+  Technologies lists, and the country comes from the site — the feed names
+  no city and no arrangement, so those stay with the classifier. Items
+  older than 90 days are skipped (the feeds keep postings for years). The
+  feeds are read with ETag / Last-Modified, so an unchanged feed costs one
+  304 per tick. Seeded switched off; "Sources for your searches" offers
+  each site to a search that names its country.
+
+### Schema
+- `AtsType.DEVITJOBS` (migration `20260903220000_add_devitjobs`).
+
 ## [1.34.0] — 2026-09-03
 
 ### Added
