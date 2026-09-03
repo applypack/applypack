@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { findCountry } from '../countries';
 import { fetchWithRetry, stripHtml } from '../http';
 import { hashShortId } from '../text-utils';
 import type { NormalizedJob } from '../types';
@@ -84,6 +85,12 @@ function toNormalized(j: HimalayasJob, companyId: number): NormalizedJob {
     location: formatLocation(j.locationRestrictions),
     description: augmentDescription(stripHtml(rawDescription), j),
     postedAt: parsePubDate(j.pubDate),
+    // `locationRestrictions` are ISO country names ("United States",
+    // "Romania"); verified live 2026-09-03. Unknown names stay in the string.
+    locationHints: {
+      workplace: 'REMOTE',
+      countries: j.locationRestrictions.flatMap((name) => findCountry(name)?.code ?? []),
+    },
   };
 }
 

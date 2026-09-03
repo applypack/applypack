@@ -136,3 +136,11 @@ describe('mapHimalayasFeed', () => {
     assert.deepEqual(mapHimalayasFeed({ notJobs: [] }, COMPANY_ID), []);
   });
 });
+
+describe('mapHimalayasFeed — location hints (ADR 0031)', () => {
+  it('resolves the ISO names in locationRestrictions to codes', () => {
+    const [job] = mapHimalayasFeed({ jobs: [{ ...SAMPLE_JOB, locationRestrictions: ['Germany', 'Netherlands', 'Narnia'] }] }, COMPANY_ID);
+    assert.equal(job?.location, 'Remote · Germany, Netherlands, Narnia');
+    assert.deepEqual(job?.locationHints, { workplace: 'REMOTE', countries: ['DE', 'NL'] });
+  });
+});

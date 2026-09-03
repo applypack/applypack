@@ -61,6 +61,9 @@ function toNormalized(j: RemotiveJob, companyId: number): NormalizedJob {
     location,
     description,
     postedAt: Number.isNaN(postedAt.getTime()) ? new Date() : postedAt,
+    // `candidate_required_location` is free text ("LATAM, Europe, USA") the
+    // parser reads from the string; the board itself is remote-only.
+    locationHints: { workplace: 'REMOTE' },
   };
 }
 

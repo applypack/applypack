@@ -120,3 +120,14 @@ describe('mapArbeitnowFeed', () => {
     assert.equal(out[0]!.location, 'Remote, Germany');
   });
 });
+
+describe('mapArbeitnowFeed — location hints (ADR 0031)', () => {
+  it('passes the remote flag only', () => {
+    const out = mapArbeitnowFeed(
+      { data: [{ slug: 'a', title: 'X', remote: true, location: 'Homeoffice' }, { slug: 'b', title: 'Y', remote: false, location: 'Berlin' }] },
+      1,
+    );
+    assert.deepEqual(out[0]?.locationHints, { workplace: 'REMOTE' });
+    assert.deepEqual(out[1]?.locationHints, { workplace: 'UNKNOWN' });
+  });
+});

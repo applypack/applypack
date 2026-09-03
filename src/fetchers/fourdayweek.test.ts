@@ -91,3 +91,28 @@ describe('mapFourDayWeekPage', () => {
     assert.doesNotMatch(jobs[0]!.description, /Salary:/);
   });
 });
+
+describe('mapFourDayWeekPage — location hints (ADR 0031)', () => {
+  it('resolves the geocoded country names and the arrangement', () => {
+    // Recorded live 2026-09-03: a primary office plus a country-wide remote entry.
+    const { jobs } = mapFourDayWeekPage(
+      {
+        data: [
+          row({
+            work_arrangement: 'remote',
+            locations: [
+              { city: 'Herndon', state: 'Virginia', country: 'United States', work_arrangement: 'onsite', is_primary: true },
+              { country: 'United States', work_arrangement: 'remote' },
+            ],
+          }),
+        ],
+      },
+      COMPANY_ID,
+    );
+    assert.deepEqual(jobs[0]?.locationHints, { countries: ['US', 'US'], workplace: 'REMOTE' });
+    assert.deepEqual(mapFourDayWeekPage({ data: [row()] }, COMPANY_ID).jobs[0]?.locationHints, {
+      countries: ['GB'],
+      workplace: 'HYBRID',
+    });
+  });
+});
