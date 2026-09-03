@@ -53,7 +53,16 @@ export async function runScoreUnscored(
 
   const unscored = await prisma.job.findMany({
     where: { fitScore: null, status: JobStatus.NEW },
-    select: { id: true, title: true, location: true, description: true, fetchedAt: true },
+    select: {
+      id: true,
+      title: true,
+      location: true,
+      workplace: true,
+      countries: true,
+      regions: true,
+      description: true,
+      fetchedAt: true,
+    },
   });
   const rejectedIds: number[] = [];
   const passing: ScorableJob[] = [];

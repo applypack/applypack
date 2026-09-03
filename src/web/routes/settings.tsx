@@ -69,6 +69,8 @@ import {
 import { runReclassifyAll } from '../../jobs/reclassify-job';
 import { recordCronRun } from '../../jobs/cron-run';
 import { parseTagList, toStringArray } from '../../text-utils';
+import { isRegionCode, resolveCountries } from '../../countries';
+import { isProfileWorkplace } from '../../location';
 import {
   formatPriorityRulesText,
   parsePriorityRules,
@@ -99,10 +101,11 @@ const ProfileFormSchema = z.object({
   stackExclude: z.string().optional().default(''),
   notes: z.string().optional().default(''),
   seniority: z.union([z.string(), z.array(z.string())]).optional(),
-  remoteOk: z.string().optional(),
-  remoteRegions: z.union([z.string(), z.array(z.string())]).optional(),
+  // ADR 0032: chips post one value each, the no-JS textarea posts a list.
+  countries: z.union([z.string(), z.array(z.string())]).optional(),
+  regions: z.union([z.string(), z.array(z.string())]).optional(),
+  workplace: z.union([z.string(), z.array(z.string())]).optional(),
   onsiteCities: z.string().optional().default(''),
-  hybridOk: z.string().optional(),
   minSalaryUsd: z.coerce.number().int().min(0).default(0),
   minFitScore: z.coerce.number().int().min(0).max(100).default(70),
   telegramTargetId: z.string().optional().default(''),
@@ -774,6 +777,17 @@ settingsRoute.post('/settings/profiles/:id/save', async (c) => {
   });
   if (missing) return flashRedirect('/settings?tab=profile', 'err', missing);
 
+  // Countries arrive as names, codes or flags in any spelling; an entry the
+  // gazetteer does not know is an error, not a silent drop.
+  const countries = resolveCountries(toStringArray(f.countries).flatMap(parseTagList));
+  if (countries.unknown.length > 0) {
+    return flashRedirect(
+      '/settings?tab=profile',
+      'err',
+      `Country not recognised: ${countries.unknown.join(', ')}. Profile not saved.`,
+    );
+  }
+
   const input = {
     name: f.name,
     stackRequired: parseTagList(f.stackRequired),
@@ -782,10 +796,10 @@ settingsRoute.post('/settings/profiles/:id/save', async (c) => {
     stackExclude: parseTagList(f.stackExclude),
     notes: f.notes && f.notes.trim().length > 0 ? f.notes.trim() : null,
     seniority: toStringArray(f.seniority),
-    remoteOk: f.remoteOk === '1',
-    remoteRegions: toStringArray(f.remoteRegions),
+    countries: countries.codes,
+    regions: toStringArray(f.regions).filter(isRegionCode),
+    workplace: toStringArray(f.workplace).filter(isProfileWorkplace),
     onsiteCities: parseTagList(f.onsiteCities),
-    hybridOk: f.hybridOk === '1',
     minSalaryUsd: f.minSalaryUsd,
     minFitScore: f.minFitScore,
     telegramTargetId,

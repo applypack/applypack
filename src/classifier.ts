@@ -306,23 +306,21 @@ red_flags: short kebab-case tags such as "wordpress-only", "onsite-required-wron
 summary: ONE sentence (max ~25 words) explaining why the posting fits that search or does not.`;
 }
 
+/**
+ * Codes, not names — eight searches must stay short (ADR 0032). "remote
+ * from: PL, DE, EU; hybrid / on-site in: Warsaw" is what the rules below
+ * refer to as "that search's countries / regions / cities".
+ */
 function describeLocation(profile: Profile): string {
+  const places = [...profile.countries, ...profile.regions];
+  const where = places.length > 0 ? places.join(', ') : 'anywhere';
+  const accepts = profile.workplace.length > 0 ? profile.workplace : ['REMOTE', 'HYBRID', 'ONSITE'];
   const parts: string[] = [];
-  if (profile.remoteOk) {
-    if (profile.remoteRegions.length > 0) {
-      parts.push(`remote OK (regions: ${profile.remoteRegions.join('/')})`);
-    } else {
-      parts.push('remote OK (any region)');
-    }
-  }
-  if (profile.hybridOk) {
-    parts.push('hybrid OK');
-  }
-  if (profile.onsiteCities.length > 0) {
-    parts.push(`on-site OK in: ${profile.onsiteCities.join(', ')}`);
-  }
-  if (parts.length === 0) {
-    return 'no preference (any location)';
+  if (accepts.includes('REMOTE')) parts.push(`remote from: ${where}`);
+  const office = accepts.filter((w) => w !== 'REMOTE').map((w) => w.toLowerCase().replace('onsite', 'on-site'));
+  if (office.length > 0) {
+    const cities = profile.onsiteCities.length > 0 ? profile.onsiteCities.join(', ') : where;
+    parts.push(`${office.join(' / ')} in: ${cities}`);
   }
   return parts.join('; ');
 }

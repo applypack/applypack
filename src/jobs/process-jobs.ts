@@ -5,7 +5,7 @@ import { logger } from '../logger';
 import { createLimiter } from '../concurrency';
 import { passesAnyBaseFilter } from '../filter';
 import { withApplyLinkFlags } from '../apply-link';
-import { parseLocation } from '../location';
+import { parseLocation, type ParsedLocation } from '../location';
 import { classifyJob, type ClassifyOutcome } from '../classifier';
 import { buildVerdicts, mergeVerdicts, type ProfileVerdict } from './verdict-merge';
 import { toScoreData } from './score-store';
@@ -29,6 +29,11 @@ import type {
 export interface FetchResult {
   job: NormalizedJob;
   companyName: string;
+}
+
+/** A fetched row plus its parsed location — read once, used by the filter and the insert. */
+interface Candidate extends FetchResult {
+  place: ParsedLocation;
 }
 
 export interface ProcessStats {
@@ -104,19 +109,23 @@ export async function processNormalizedJobs(
 
   // `seen` catches the same posting twice in one fetch: the sequential loop
   // used to see it in the DB, now both copies would be classified together.
-  const candidates: FetchResult[] = [];
+  const candidates: Candidate[] = [];
   const seen = new Set<string>();
   for (const item of items) {
     if (isCancelled && (await isCancelled())) {
       cancelled = true;
       break;
     }
+    // The structured reading of the location string (ADR 0031): the source's
+    // hints first, the parser for the rest. The filter compares its columns
+    // with each search's (ADR 0032); the insert stores them as they are here.
+    const place = parseLocation(item.job.location, item.job.locationHints);
     // A posting is admitted when ANY active search admits it (ADR 0028).
     // Storing unscored keeps the UNFILTERED roster on purpose: the wizard's
     // step 2 runs "Fetch now" before step 3 creates a profile, so at that
     // moment every search is blank — and a blank search's gate admits
     // everything, which is what makes the fresh-install run show results.
-    if (!passesAnyBaseFilter(item.job, classify ? profiles : activeProfiles)) {
+    if (!passesAnyBaseFilter({ ...item.job, ...place }, classify ? profiles : activeProfiles)) {
       stats.filterRejected++;
       continue;
     }
@@ -126,7 +135,7 @@ export async function processNormalizedJobs(
       continue;
     }
     seen.add(key);
-    candidates.push(item);
+    candidates.push({ ...item, place });
   }
   if (cancelled) {
     stats.abortedMidRun = 1;
@@ -355,7 +364,7 @@ type CrossListing = ReturnType<typeof findCrossListing<FingerprintedJob>>;
  * now" can overlap, and the loser of that race holds a duplicate, not an error.
  */
 async function persistJob(
-  { job, companyName }: FetchResult,
+  { job, companyName, place }: Candidate,
   c: ClaudeClassification | null,
   status: JobStatus,
   priorityRulesApplied: string[],
@@ -369,7 +378,7 @@ async function persistJob(
   try {
     created = await prisma.job.create({
       data: {
-        ...buildJobData(job, c, status, priorityRulesApplied, {
+        ...buildJobData(job, place, c, status, priorityRulesApplied, {
           descriptionSimhash: fingerprint,
           crossListedOfJobId: crossListing?.job.id ?? null,
         }),
@@ -422,14 +431,12 @@ interface DedupData {
 /** `c === null` stores the posting unscored — every classifier field stays empty. */
 function buildJobData(
   job: NormalizedJob,
+  place: ParsedLocation,
   c: ClaudeClassification | null,
   status: JobStatus,
   priorityRulesApplied: string[],
   dedup: DedupData,
 ): Prisma.JobCreateInput {
-  // The structured reading of the location string (ADR 0031): the source's
-  // hints first, the parser for the rest. The string itself is stored as is.
-  const place = parseLocation(job.location, job.locationHints);
   return {
     company: { connect: { id: job.companyId } },
     descriptionSimhash: toDbBigInt(dedup.descriptionSimhash),

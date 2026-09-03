@@ -202,6 +202,23 @@ function escapeRegExp(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+/**
+ * A typed list ("Poland, Polska, DE, Kraków") → ISO codes, once each, plus
+ * the entries nothing resolved — the form names those back to the user.
+ */
+export function resolveCountries(values: readonly string[]): { codes: string[]; unknown: string[] } {
+  const codes: string[] = [];
+  const unknown: string[] = [];
+  for (const v of values) {
+    const trimmed = v.trim();
+    if (trimmed.length === 0) continue;
+    const country = findCountry(trimmed);
+    if (!country) unknown.push(trimmed);
+    else if (!codes.includes(country.code)) codes.push(country.code);
+  }
+  return { codes, unknown };
+}
+
 /** A single spelling → the country. Code, any name, flag, city, subdivision or demonym. */
 export function findCountry(query: string): Country | null {
   const trimmed = query.trim();
