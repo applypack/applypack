@@ -654,6 +654,13 @@ adopted or rejected.
 - `TEAMTAILOR`: `jobs.json` (ISO country) with `jobs.rss` as fallback;
   `atsToken` accepts a bare slug or a host; `extractAtsToken` learns
   `*.teamtailor.com`.
+  *(done: v1.39.0 — amended: the JSON Feed's schema.org JobPosting has
+  ISO-2 countries but `jobLocationType` is null even on hybrid postings,
+  while the RSS carries `remoteStatus` (fully / hybrid / none), the
+  locations with city and country name, department and role — so the RSS
+  is the one feed read and the gazetteer turns the names into codes; a
+  custom career domain is the token as a host, refused when private (the
+  posting-URL guard); an unknown slug is a plain 404; Tibber seeded off)*
 - Later, same pattern: `HOMERUN` (Atom by subdomain), `DVINCI` (list.json).
 - `probeAts`, `extractAtsToken`, seed entries (inactive unless the profile
   targets that market), mapper tests.

@@ -4,6 +4,20 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.39.0] — 2026-09-03
+
+### Added
+- **Teamtailor** (plan §4.2, stage 3d): the Nordic / UK / Benelux ATS as a
+  per-company source — paste a `*.teamtailor.com` career URL, a slug, or
+  the board's own career domain on Companies; every posting arrives with
+  the board's city and country, the arrangement the posting declares
+  (remote / hybrid / on-site), department and role, and the full text. Discovery recognises Teamtailor
+  career URLs. Tibber seeded switched off as the reference board. Stage 3d
+  is complete.
+
+### Schema
+- `AtsType.TEAMTAILOR` (migration `20260903235500_add_teamtailor`).
+
 ## [1.38.0] — 2026-09-03
 
 ### Added
