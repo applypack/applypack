@@ -18,6 +18,8 @@ import {
   Textarea,
 } from '../ui';
 import { formatDate, formatSalary } from '../format';
+import { flagOf, placeLabel } from '../../countries';
+import { WORKPLACE_LABEL, type WorkplaceCode } from '../../location';
 import { appliedWithLabel } from '../../jobs/applied-with';
 import { needsAppliedResume } from '../applied-resume';
 import type { FlashMessage } from '../flash';
@@ -30,6 +32,10 @@ interface JobDetail {
   title: string;
   url: string;
   location: string;
+  /** ADR 0031: the structured reading of `location`, shown as chips under it. */
+  workplace: WorkplaceCode;
+  countries: string[];
+  regions: string[];
   description: string;
   fitScore: number | null;
   salaryMin: number | null;
@@ -380,6 +386,7 @@ const PageHeaderBlock: FC<{ job: JobDetail }> = ({ job }) => (
         <div class="mt-1 text-sm text-ink-muted">
           {job.company.name} · {job.location || 'Remote'}
         </div>
+        <PlaceChips job={job} />
       </div>
       <div class="flex shrink-0 flex-wrap items-center gap-3">
         <FitBadge score={job.fitScore} />
@@ -393,6 +400,35 @@ const PageHeaderBlock: FC<{ job: JobDetail }> = ({ job }) => (
     </div>
   </header>
 );
+
+/**
+ * The parsed location as chips: the arrangement, then one chip per country
+ * or region, each a link into the /jobs facet. Nothing when the parser found
+ * nothing — the raw string above is all there is.
+ */
+const PlaceChips: FC<{ job: Pick<JobDetail, 'workplace' | 'countries' | 'regions' | 'location'> }> = ({ job }) => {
+  const places = [...job.countries, ...job.regions];
+  if (job.workplace === 'UNKNOWN' && places.length === 0) return null;
+  return (
+    <ul class="mt-2 flex flex-wrap items-center gap-1.5" aria-label="Where this job is" title={job.location}>
+      {job.workplace !== 'UNKNOWN' && (
+        <li>
+          <Tag tone="info">{WORKPLACE_LABEL[job.workplace]}</Tag>
+        </li>
+      )}
+      {places.map((code) => (
+        <li>
+          <a href={`/jobs?country=${encodeURIComponent(code)}`} class="hover:underline">
+            <Tag>
+              {flagOf(code) && <span aria-hidden="true">{flagOf(code)} </span>}
+              {placeLabel(code)}
+            </Tag>
+          </a>
+        </li>
+      ))}
+    </ul>
+  );
+};
 
 /**
  * "Mark applied" plus the resume it went out with. The select is the whole
