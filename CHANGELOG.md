@@ -59,6 +59,16 @@ All notable changes to this project are documented here. The format follows
 - `SCAN_MAX_TOKENS` 3 000 → 12 000: the scan now copies the whole resume into
   its reply. One new nullable column, `resume.structure`, hand-written
   migration, no backfill — NULL means "read it from the text instead".
+## [1.54.1] — 2026-09-04
+
+### Fixed
+- **A one-off check from the Compare page could not be saved at all.** The
+  scratch resume `/target` uploads to has no versions by design, so the
+  targeted view hid every Save — while the line above the editor promised a
+  text version. It now offers one button, **Save as a new resume**, which
+  keeps the edited text as a resume of its own on `/resumes` (named after the
+  company), and the line above the editor says so. A scratch resume is never
+  bumped in place, whatever the form sends.
 
 ## [1.54.0] — 2026-09-04
 
@@ -2231,7 +2241,8 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
-[1.55.0]: https://github.com/applypack/applypack/compare/v1.54.0...v1.55.0
+[1.55.0]: https://github.com/applypack/applypack/compare/v1.54.1...v1.55.0
+[1.54.1]: https://github.com/applypack/applypack/compare/v1.54.0...v1.54.1
 [1.54.0]: https://github.com/applypack/applypack/compare/v1.53.0...v1.54.0
 [1.53.0]: https://github.com/applypack/applypack/compare/v1.52.0...v1.53.0
 [1.52.0]: https://github.com/applypack/applypack/compare/v1.51.0...v1.52.0

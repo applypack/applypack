@@ -383,13 +383,15 @@ export const TargetPage: FC<TargetPageProps> = ({
                     Full analysis with suggestions
                   </Button>
                 </form>
-                {!resume.ephemeral && (
-                  <form
-                    method="post"
-                    action={`/resumes/${resume.id}/draft`}
-                    id="save-form"
-                    onsubmit={SUBMIT_ONCE}
-                  >
+                {/* The Compare page's scratch resume has no versions, so it saves one
+                    way only: as a resume of its own (issue: a pasted posting, an
+                    uploaded resume, an hour of edits and nowhere to put them). */}
+                <form
+                  method="post"
+                  action={`/resumes/${resume.id}/draft`}
+                  id="save-form"
+                  onsubmit={SUBMIT_ONCE}
+                >
                     <input type="hidden" name="text" id="save-text" value="" />
                     <input type="hidden" name="jobId" value={job.id} />
                     {/* The text the edits started from: the patcher diffs against it (ADR 0038). */}
@@ -403,10 +405,15 @@ export const TargetPage: FC<TargetPageProps> = ({
                       onclick="this.form.elements.as.value='copy'"
                       data-save-button
                       disabled
-                      title="Enabled once you edit the text — saves a new resume beside this one, named after the company, and leaves this one as it is; a .docx is patched in place when its layout allows (~1 min)"
+                      title={
+                        resume.ephemeral
+                          ? 'Enabled once you edit the text — keeps this one-off check as a resume of its own, named after the company, on /resumes (~1 min)'
+                          : 'Enabled once you edit the text — saves a new resume beside this one, named after the company, and leaves this one as it is; a .docx is patched in place when its layout allows (~1 min)'
+                      }
                     >
-                      Save as a tailored copy
+                      {resume.ephemeral ? 'Save as a new resume' : 'Save as a tailored copy'}
                     </Button>
+                    {!resume.ephemeral && (
                     <Button
                       variant="secondary"
                       class="mt-2 w-full"
@@ -418,8 +425,8 @@ export const TargetPage: FC<TargetPageProps> = ({
                     >
                       Save as v{resume.version + 1}
                     </Button>
+                    )}
                   </form>
-                )}
               </div>
             </details>
             </div>
@@ -647,11 +654,17 @@ export const TargetPage: FC<TargetPageProps> = ({
             <Button variant="violet" size="sm" form="reanalyze-form">
               Re-check with AI
             </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              form="save-form"
+              onclick="document.getElementById('save-form').elements.as.value='copy'"
+              title={resume.ephemeral ? 'Keeps this one-off check as a resume of its own on /resumes' : 'A new resume beside this one, named after the company; this one stays as it is'}
+            >
+              {resume.ephemeral ? 'Save as a new resume' : 'Save as a tailored copy'}
+            </Button>
             {!resume.ephemeral && (
               <>
-                <Button variant="primary" size="sm" form="save-form" onclick="document.getElementById('save-form').elements.as.value='copy'" title="A new resume beside this one, named after the company; this one stays as it is">
-                  Save as a tailored copy
-                </Button>
                 <Button
                   variant="secondary"
                   size="sm"
