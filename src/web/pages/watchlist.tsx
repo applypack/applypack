@@ -182,7 +182,9 @@ export const WatchlistPreviewPage: FC<{ run: WatchlistRun }> = ({ run }) => {
               <label class="flex items-center gap-2 text-sm text-ink-muted">
                 Alert me about {POLICY_SELECT('alertPolicy', 'all')}
               </label>
-              <Button class="ml-auto">Add {addable.length} companies</Button>
+              <Button class="ml-auto">
+                Add {addable.length} compan{addable.length === 1 ? 'y' : 'ies'}
+              </Button>
             </div>
             <Hint class="border-b border-line px-5 py-3">
               &ldquo;Every posting&rdquo; ignores your filter and your fit threshold for these

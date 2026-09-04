@@ -33,6 +33,37 @@ export const PROVIDER_WEB_TOOLS: Record<AiProviderId, boolean> = {
   codex_cli: true,
 };
 
+/**
+ * The crawler tokens each backend's vendor publishes (ADR 0036).
+ *
+ * A site's robots.txt binds this install through the engine it actually
+ * runs: every description we fetch is read by THAT vendor's model, so a
+ * `Disallow` aimed at that vendor's crawler is aimed at what we are about to
+ * do. An install on Gemini is bound by `Google-Extended` and not by
+ * `ClaudeBot`; an install on Codex by OpenAI's tokens and not by Google's.
+ *
+ * Measured 2026-09-04: binding on EVERY AI token instead refused 3 of 16
+ * European companies whose robots.txt named only a scraper (Bytespider) or a
+ * dataset crawler (CCBot) — neither of which is this project.
+ *
+ * `openai_api` is the loose one: the same slot serves api.openai.com and a
+ * local model on localhost, and nothing in the config says which. It is
+ * mapped to OpenAI's tokens because that is what the setting is named for,
+ * and erring toward the vendor is the direction that asks for less.
+ */
+export const PROVIDER_AI_TOKENS: Record<AiProviderId, readonly string[]> = {
+  anthropic_api: ['claudebot', 'claude-web', 'anthropic-ai'],
+  claude_code: ['claudebot', 'claude-web', 'anthropic-ai'],
+  gemini_cli: ['google-extended'],
+  openai_api: ['gptbot', 'chatgpt-user', 'oai-searchbot'],
+  codex_cli: ['gptbot', 'chatgpt-user', 'oai-searchbot'],
+};
+
+/** Every vendor token that binds an install running these engines, once each. */
+export function aiCrawlerTokens(providers: readonly AiProviderId[]): string[] {
+  return [...new Set(providers.flatMap((p) => PROVIDER_AI_TOKENS[p] ?? []))];
+}
+
 /** Metered billing — every call spends money (vs a flat subscription). */
 export const PROVIDER_PAID: Record<AiProviderId, boolean> = {
   anthropic_api: true,

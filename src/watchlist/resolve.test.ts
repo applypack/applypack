@@ -2,6 +2,10 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { AtsType } from '@prisma/client';
 import { MAX_HOST_REQUESTS, resolveCompanyUrl, type PageAnswer, type ResolveIo } from './resolve';
+import { aiCrawlerTokens } from '../ai-engine';
+
+/** An install running Claude — the .env default (ADR 0036). */
+const CLAUDE = { aiTokens: aiCrawlerTokens(['claude_code']) };
 
 /*
  * Every page below reproduces something measured on 2026-09-04 against the
@@ -296,15 +300,40 @@ describe('refusals', () => {
     assert.deepEqual(stub.asked, ['https://acme.com/robots.txt']);
   });
 
-  it('refuses a path an AI bot is banned from (ADR 0005 addendum rule 2)', async () => {
+  // The fail-safe: omitting the engine list must ask for LESS, not more.
+  it('omitting the engine list still refuses an AI-bot ban', async () => {
+    const stub = io({
+      pages: {
+        'https://acme.com/robots.txt': { status: 200, body: 'User-agent: Google-Extended\nDisallow: /' },
+      },
+    });
+    const r = await resolveCompanyUrl(paste('https://acme.com/careers'), stub);
+    assert.equal(r.resolution.kind, 'refused');
+  });
+
+  it('refuses a path the engine this install runs is banned from (ADR 0005 rule 2)', async () => {
     const stub = io({
       pages: {
         'https://acme.com/robots.txt': { status: 200, body: 'User-agent: ClaudeBot\nDisallow: /\n\nUser-agent: *\nAllow: /' },
       },
     });
-    const r = await resolveCompanyUrl(paste('https://acme.com/careers'), stub);
+    const r = await resolveCompanyUrl(paste('https://acme.com/careers'), stub, CLAUDE);
     assert.equal(r.resolution.kind, 'refused');
     assert.match((r.resolution as { reason: string }).reason, /AI classifier/);
+  });
+
+  // Measured: binding on every AI token refused 3 of 16 EU companies whose
+  // robots named only a scraper or a dataset crawler (ADR 0036).
+  it('does not refuse a Claude install over a ban aimed at another vendor', async () => {
+    const stub = io({
+      pages: {
+        'https://acme.com/robots.txt': { status: 200, body: 'User-agent: bytespider\nDisallow: /\n\nUser-agent: ccbot\nDisallow: /' },
+        'https://acme.com/careers': { status: 200, body: '<a href="https://job-boards.greenhouse.io/acme">Role</a>' },
+      },
+      boards: { 'GREENHOUSE:acme': 4 },
+    });
+    const r = await resolveCompanyUrl(paste('https://acme.com/careers'), stub, CLAUDE);
+    assert.equal(r.resolution.kind, 'ats');
   });
 
   it('reports an HTTP error with its status (grafana.com/about/careers/ is a 404)', async () => {

@@ -8,7 +8,7 @@ import { sleep } from '../../http';
 import { flashRedirect } from '../flash';
 import { ALERT_POLICIES, CHECK_INTERVALS } from '../../watchlist/interval';
 import { parseCompanyLines } from '../../watchlist/parse-input';
-import { liveResolveIo, resolveCompanyUrl, type ResolvedCompany } from '../../watchlist/resolve';
+import { installAiTokens, liveResolveIo, resolveCompanyUrl, type ResolvedCompany } from '../../watchlist/resolve';
 import { verdictLine } from '../../watchlist/verdict';
 import {
   activeWatchlistRun,
@@ -47,11 +47,14 @@ watchlistRoute.post('/companies/watchlist', async (c) => {
   if (active) return c.redirect(`/companies/watchlist/${active.id}`, 303);
 
   const run = createWatchlistRun(parsed.rows.length, parsed.rejected);
-  const io = liveResolveIo();
+  const io = await liveResolveIo();
+  // Read once for the whole run, so every URL of one paste is judged against
+  // the same engine list (ADR 0036).
+  const aiTokens = await installAiTokens();
   startWatchlistRun(run.id, async () => {
     for (const input of parsed.rows) {
       markResolving(run.id, input.url);
-      recordResolved(run.id, await resolveCompanyUrl(input, io));
+      recordResolved(run.id, await resolveCompanyUrl(input, io, { aiTokens }));
       await sleep(BETWEEN_COMPANIES_MS);
     }
     finishWatchlistRun(run.id);
