@@ -4,6 +4,37 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.45.0] — 2026-09-04
+
+### Changed
+- **Your install picks its own tick minute.** Fetching used to run at :05
+  past the hour on every ApplyPack ever installed, in the same handful of
+  time zones, walking the same seeded sources in the same order — a
+  synchronised knock on free job boards that owe us nothing. The minute now
+  comes from your install's own id (stable across restarts, printed at boot),
+  the source order is shuffled each tick, and the jobs that only touch your
+  Telegram and your database still run at the hour they always did
+  ([ADR 0035](docs/adr/0035-many-installs-one-set-of-boards.md)).
+- **A feed is only downloaded when it changed.** 44 of the 62 seeded sources
+  answer "unchanged" to a conditional request — measured, not assumed
+  ([docs/scale-plan.md](docs/scale-plan.md)) — including every Greenhouse,
+  Lever and Ashby board. Those ticks now cost one small request instead of a
+  full feed, with no parsing, deduping or storing behind it. Companies shows
+  such a source as **Unchanged**, and "Fetch now" says "44 of 62 sources
+  unchanged since the last tick" instead of warning you about the network.
+- An unchanged board still has to prove it is alive: a source whose last full
+  read was empty keeps ageing towards "silent" no matter how many times it
+  answers 304, and a tick that was paused part-way throws its validators away
+  rather than risk skipping postings it never stored.
+- Golang Projects and We Work Remotely are fetched through the shared HTTP
+  layer now, so they carry ApplyPack's User-Agent, timeout and retries like
+  every other source.
+
+### Added
+- **README: "Hosting this for other people"** — what changes when ApplyPack
+  is not just yours: whose vendor terms apply, the daily obligation that does
+  not pause when fetching does, and why each instance wants its own database.
+
 ## [1.44.0] — 2026-09-04
 
 ### Changed

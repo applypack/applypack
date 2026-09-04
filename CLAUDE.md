@@ -80,6 +80,13 @@
   passes the filter unscored (no AI, no alert) — "Fetch now" while paused.
 - `AiProvider` calls are tool-free unless the request sets `webTools`; only
   `src/verification/verify.ts` does (ADR 0009). Never turn it on for the classifier.
+- A fetcher that makes ONE request per tick sends `conditionalHeaders(id, url)`
+  and calls `rememberResponse(id, url, resp, jobs.length)` after parsing
+  (ADR 0035). It is a no-op for a vendor that offers no validator, so it goes
+  in unconditionally; a 304 propagates as `HttpError` and `runAllFetchers`
+  reads it as `not_modified`. Sources that make SEVERAL requests for one row
+  (Arbeitnow's pages, Jobicy/Himalayas per place, the keyed sources) are left
+  out on purpose. Never store a validator before the jobs are persisted.
 - Every AI call site takes its prompt from an exported `build*Prompt`, and
   every builder wraps outside text with `fence()` from `src/prompt-fence.ts`
   (ADR 0022). `src/prompt-fence-registry.test.ts` derives both rosters, so a
@@ -180,6 +187,9 @@ When the question is **"where does X live?"**, save yourself a `find`:
 | The /jobs place / workplace / posted facets (query params, where-clause, chip counts) | `src/web/job-facets.ts` (pure) — `country=PL,DE,EUROPE,unknown`, `workplace=remote,hybrid`, `posted=24h\|7d\|30d`; rendered in `pages/jobs-list.tsx`, chips on `/jobs/:id` |
 | Stable id for a feed row with no id of its own | `src/text-utils.ts:feedItemKey` (URL key → text key → null, never `''`) |
 | The cron list (6 schedules) | `src/index.ts:registerCron` |
+| Which minute THIS install ticks at (and why it is not :05 everywhere) | `src/schedule.ts:spreadMinute` (pure, ADR 0035) over `AppSettings.instanceId`; only `fetch` / `hn-hiring` / `discovery` move |
+| The order sources are walked in (shuffled per tick; the Adzuna ten are still picked from id order first) | `src/fetchers/source-order.ts:shuffleSources` (pure), called in `fetchers/index.ts:runAllFetchers` |
+| Asking a board for its feed only when it changed (ETag / Last-Modified, and why a 304 returns no jobs) | `src/fetchers/conditional.ts` (ADR 0035) — `conditionalHeaders` + `rememberResponse` in each single-URL fetcher, `commitConditionalCache()` in `jobs/fetch-job.ts` after the jobs are stored; status `not_modified` + `advancesLastOk` in `fetchers/source-health.ts`; the live measurements are `docs/scale-plan.md` §1 |
 | First-run wizard (`/welcome`: steps derived from data, `/` redirect, skip/finish) | `src/web/welcome-steps.ts` (pure: step rules + score summary) · `src/web/welcome-facts.ts` (loads the facts) · `src/web/routes/welcome.tsx` + `pages/welcome.tsx`; step 4 = `runScoreUnscored` in `src/jobs/reclassify-job.ts`, which picks its batch with `src/jobs/score-pick.ts` (pure ranking, `SCORE_BATCH`) |
 | "Fetch now" (the tick from the dashboard: live progress, unscored while paused) | `POST /runs/fetch-now` in `src/web/routes/runs.tsx` → `runFetchJob({ manual: true })` in `src/jobs/fetch-job.ts`; registry `src/web/fetch-runs.ts`; verdict line `src/web/fetch-summary.ts` (pure) |
 | What runs on container boot | `src/init.ts` |

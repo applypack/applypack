@@ -41,6 +41,9 @@ consequences (what we accept). Aim for 15–30 lines each.
 - [0030 — The strength review grades; the code scores](./0030-resume-strength-review.md)
 - [0031 — A job's location is three columns next to the string, filled by hints and a parser](./0031-structured-location-columns.md)
 - [0032 — A search hunts in countries and groups; the classifier's place may only narrow the parser's](./0032-profile-countries-and-the-classifier-place.md)
+- [0033 — A search says where its candidate lives; the model decides whether a posting is open to them](./0033-residence-and-relocation.md)
+- [0034 — A vendor's own licence governs keyed access, and the vendor's terms are code](./0034-keyed-sources.md)
+- [0035 — Many installs, one set of boards: spread the tick, shuffle the walk, revalidate](./0035-many-installs-one-set-of-boards.md)
 
 ## When to write a new one
 
