@@ -19,7 +19,7 @@ const target = {
   atsToken: 'rocketchat',
 };
 
-test('the resolve chain covers all eleven per-company vendors, in order', () => {
+test('the resolve chain covers all twelve per-company vendors, in order', () => {
   assert.deepEqual(RESOLVE_ORDER, [
     'GREENHOUSE',
     'ASHBY',
@@ -32,6 +32,7 @@ test('the resolve chain covers all eleven per-company vendors, in order', () => 
     'PINPOINT',
     'RIPPLING',
       'PERSONIO',
+      'TEAMTAILOR',
   ]);
 });
 

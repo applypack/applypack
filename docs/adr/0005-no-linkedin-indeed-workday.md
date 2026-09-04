@@ -92,6 +92,7 @@ original decision (from the feature-expansion-plan ground rules):
 | Landing.jobs Atom feed | adopted (v1.36.0) | `/feed` allowed while `/api/` is disallowed — the feed only, with the board's own `lj:` location fields; links carry `utm_source=rss` (2026-09-03) |
 | JobTech JobSearch (Arbetsförmedlingen) | adopted (v1.37.0) | Sweden's public employment service publishes every ad through an open, key-less API under CC0; no robots.txt is served; `limit` ≤ 100, `offset` ≤ 2000 — we read at most three pages an hour (2026-09-03) |
 | Personio XML feed | adopted (v1.38.0) | the vendor's documented public feed (`developer.personio.de` get_xml), one request per slug per tick; per-company hosts serve no robots.txt; an unknown slug redirects to personio.com and is refused, never followed (2026-09-03) |
+| Teamtailor JSON Feed / RSS | adopted (v1.39.0) | the vendor documents `jobs.rss` as public data and serves `jobs.json` beside it (JSON Feed with schema.org JobPosting); one request per board per tick; a custom career domain is read only as the user's own token, never crawled for (2026-09-03) |
 | Jooble | rejected | documented API, but "a total lifetime limit of 500 requests per key", snippets only, API terms unpublished (2026-09-03) |
 | Reed.co.uk | rejected | `robots.txt` `Disallow: /api/` in the group that names AnthropicBot (2026-09-03) |
 | Bundesagentur für Arbeit Jobsuche | rejected | an app backend behind a leaked client id, not a published API; Nutzungsbedingungen 2a(3) forbid reading content through interfaces for data collection (2026-09-03) |

@@ -46,6 +46,7 @@ const NewCompanySchema = z.object({
     AtsType.PINPOINT,
     AtsType.RIPPLING,
     AtsType.PERSONIO,
+    AtsType.TEAMTAILOR,
     AtsType.DOU,
     AtsType.DJINNI,
     AtsType.JOBTECH,
