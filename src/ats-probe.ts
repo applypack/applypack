@@ -5,6 +5,8 @@ import { djinniFeedUrl } from './fetchers/djinni';
 import { jobTechProbeUrl, parseJobTechTotal } from './fetchers/jobtech';
 import { isPersonioFeed, parsePersonioXml, personioFeedUrl, personioSlug } from './fetchers/personio';
 import { teamtailorFeedUrl, teamtailorHost } from './fetchers/teamtailor';
+import { adzunaCount, adzunaMarket, adzunaSearchUrl, fetchAdzunaJson } from './fetchers/adzuna';
+import { resolveSourceKeys, type SourceKeys } from './source-keys';
 
 export interface ProbeResult {
   ok: boolean;
@@ -25,6 +27,7 @@ export interface ProbeResult {
 export async function probeAts(
   atsType: AtsType,
   atsToken: string,
+  opts: { keys?: SourceKeys } = {},
 ): Promise<ProbeResult> {
   const trimmed = atsToken.trim();
   if (trimmed.length === 0) {
@@ -156,6 +159,23 @@ export async function probeAts(
         const xml = await feed.text();
         if (!/<rss[\s>]/i.test(xml)) return { ok: false, error: `"${host}" answered something other than a Teamtailor job feed.` };
         return { ok: true, jobsCount: (xml.match(/<item>/g) ?? []).length };
+      }
+      case AtsType.ADZUNA: {
+        // One call with the user's own keys (ADR 0034); without them the
+        // answer is the Sources tab, not a request.
+        let code: string;
+        try {
+          code = adzunaMarket(trimmed).code;
+        } catch (err) {
+          return { ok: false, error: err instanceof Error ? err.message : 'Not an Adzuna market.' };
+        }
+        const creds = resolveSourceKeys('ADZUNA', opts.keys ?? {});
+        if (!creds) return { ok: false, error: 'Adzuna needs your app_id and app_key — paste them on Settings → Sources first.' };
+        const raw = await fetchAdzunaJson(adzunaSearchUrl(code, creds as { app_id: string; app_key: string }, 1), creds);
+        const count = adzunaCount(raw);
+        return count === null
+          ? { ok: false, error: 'Adzuna answered something other than a search result — check the keys.' }
+          : { ok: true, jobsCount: count };
       }
       case AtsType.JOBTECH: {
         // An unknown taxonomy code or a hopeless query answers 200 with

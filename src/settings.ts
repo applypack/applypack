@@ -4,6 +4,7 @@ import { prisma } from './db';
 import { logger } from './logger';
 import type { AiEngineConfig } from './ai-engine';
 import { parseAiKeys, type AiKeyProviderId, type AiKeys } from './ai-keys';
+import { parseSourceKeys, type KeyedSource, type SourceKeyField, type SourceKeys } from './source-keys';
 
 export const SETTINGS_ID = 1;
 const TELEGRAM_API = 'https://api.telegram.org';
@@ -167,6 +168,39 @@ export async function setAiKey(id: AiKeyProviderId, key: string): Promise<void> 
       WHERE id = ${SETTINGS_ID}`;
   }
   logger.info({ provider: id, stored: value.length > 0 }, 'settings: ai key updated');
+}
+
+/** The keyed sources' credentials (ADR 0034) — same rules as getAiKeys: read only by the code about to use them. */
+export async function getSourceKeys(): Promise<SourceKeys> {
+  const row = await prisma.appSettings.findUnique({
+    where: { id: SETTINGS_ID },
+    select: { sourceKeys: true },
+  });
+  return parseSourceKeys(row?.sourceKeys ?? null);
+}
+
+/** Stores one field of one source's credential, or removes it when blank. One SQL merge, as setAiKey. */
+export async function setSourceKey(source: KeyedSource, field: SourceKeyField, value: string): Promise<void> {
+  const secret = value.trim();
+  await ensureSettingsRow();
+  if (secret.length === 0) {
+    await prisma.$executeRaw`
+      UPDATE app_settings SET "sourceKeys" =
+        jsonb_set(COALESCE("sourceKeys", '{}'::jsonb), ARRAY[${source}],
+          COALESCE("sourceKeys" -> ${source}, '{}'::jsonb) - ${field}, true)
+      WHERE id = ${SETTINGS_ID}`;
+  } else {
+    // jsonb_set never creates the parent object, so the source's map is
+    // put in place first — measured: a two-element path over '{}' is a
+    // silent no-op, and the flash said "saved" over a row that had nothing.
+    await prisma.$executeRaw`
+      UPDATE app_settings SET "sourceKeys" =
+        jsonb_set(
+          jsonb_set(COALESCE("sourceKeys", '{}'::jsonb), ARRAY[${source}], COALESCE("sourceKeys" -> ${source}, '{}'::jsonb), true),
+          ARRAY[${source}, ${field}], to_jsonb(${secret}::text), true)
+      WHERE id = ${SETTINGS_ID}`;
+  }
+  logger.info({ source, field, stored: secret.length > 0 }, 'settings: source key updated');
 }
 
 export async function setTelegramEnabled(enabled: boolean): Promise<void> {

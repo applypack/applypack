@@ -40,6 +40,7 @@ enum AtsType {
   JOBTECH
   PERSONIO
   TEAMTAILOR
+  ADZUNA
   // Phase 8.2: pasted by hand on /jobs/new. One inactive Company row per
   // employer; runAllFetchers never touches it.
   MANUAL
@@ -279,6 +280,10 @@ model AppSettings {
   // through settings.ts:getAiKeys — never joined into AppSettingsView, so a
   // secret cannot ride along with an ordinary settings read.
   aiKeys                         Json?
+  // Stage 3e (ADR 0034): credentials for the keyed job sources (Adzuna,
+  // France Travail) — {SOURCE: {field: secret}}, same rules as aiKeys: read
+  // only through its accessor, never rendered in full, never logged.
+  sourceKeys                     Json?
   // Lightweight AI usage counters: { "YYYY-MM-DD": { <provider>: {
   // classifier: n, resume: n } } }. Incremented atomically per successful
   // call (ai-runtime.ts:recordUsage), trimmed to 60 days by the cleanup

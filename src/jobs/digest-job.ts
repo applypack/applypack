@@ -2,6 +2,7 @@ import { JobStatus } from '@prisma/client';
 import { prisma } from '../db';
 import { logger } from '../logger';
 import { sendDigest, type QuietSourceAlert } from '../notifier';
+import { attributionLine } from '../web/pages/attribution';
 import { QUIET_STREAK } from '../fetchers/source-health';
 import { getSettings, toAtsTypes } from '../settings';
 import type { CronStats } from './cron-run';
@@ -36,6 +37,7 @@ export async function runDigestJob(): Promise<{ stats: CronStats }> {
     title: j.title,
     companyName: j.company.name,
     location: j.location,
+    attribution: attributionLine(j.company.atsType, j.company.atsToken),
     countries: j.countries,
     workplace: j.workplace,
     url: j.url,

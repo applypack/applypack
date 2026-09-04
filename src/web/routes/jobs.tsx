@@ -192,7 +192,7 @@ jobsRoute.get('/jobs', async (c) => {
       skip: (page - 1) * PAGE_SIZE,
       take: PAGE_SIZE,
       include: {
-        company: { select: { name: true } },
+        company: { select: { name: true, atsType: true, atsToken: true } },
         verifications: {
           select: { verdict: true },
           orderBy: { createdAt: 'desc' },
@@ -288,7 +288,7 @@ jobsRoute.get('/jobs/:id', async (c) => {
     prisma.job.findUnique({
       where: { id },
       include: {
-        company: { select: { id: true, name: true, atsType: true } },
+        company: { select: { id: true, name: true, atsType: true, atsToken: true } },
         // F3: the posting this one near-duplicates, and any that
         // near-duplicate it — the link is annotation only (ADR 0018).
         crossListedOf: {

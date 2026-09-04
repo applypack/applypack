@@ -22,6 +22,8 @@ import {
   setTelegramEnabled,
   testTelegramTarget,
   toggleTelegramTarget,
+  getSourceKeys,
+  setSourceKey,
 } from '../../settings';
 import {
   addStage,
@@ -54,6 +56,18 @@ import {
   MAX_AI_KEY_LENGTH,
   providerTakesKey,
 } from '../../ai-keys';
+import {
+  KEYED_SOURCES,
+  MAX_SOURCE_KEY_LENGTH,
+  SOURCE_KEY_FIELDS,
+  envVarOf,
+  isKeyedSource,
+  isSourceKeyField,
+  sourceKeyOrigin,
+  type KeyedSource,
+  type SourceKeyField,
+  type SourceKeys,
+} from '../../source-keys';
 import { testAiEngine } from '../ai-test';
 import {
   blankProfileInput,
@@ -81,7 +95,7 @@ import {
 import { prisma } from '../../db';
 import { isBlankProfile } from '../../profile-guards';
 import type { Profile } from '@prisma/client';
-import { isSettingsTab, SettingsPage } from '../pages/settings';
+import { isSettingsTab, SettingsPage, type SourceKeyRow } from '../pages/settings';
 import { sourceLabel } from '../source-names';
 import { clearFlashCookie, flashRedirect, parseFlashCookie } from '../flash';
 import { missingLinkMessage } from '../profile-links';
@@ -219,6 +233,7 @@ async function loadSettingsProps() {
     sourceHealthAlerts: settings.sourceHealthAlerts,
     disabledSources: settings.disabledSources,
     allSources: Object.values(AtsType).filter((t) => t !== AtsType.MANUAL),
+    sourceKeyRows: sourceKeyRows(await getSourceKeys()),
     fetchingEnabled: settings.fetchingEnabled,
     aiEngines,
     aiStatus,
@@ -432,6 +447,71 @@ settingsRoute.post('/settings/ai/key', async (c) => {
     return flashRedirect('/settings?tab=ai', 'ok', `${label} key removed.${fallback}`);
   }
   return flashRedirect('/settings?tab=ai', 'ok', `${label} key saved. Press Test to prove it works.`);
+});
+
+/** The keyed sources as the Sources tab shows them — origins and masks, never values (ADR 0034). */
+function sourceKeyRows(keys: SourceKeys): SourceKeyRow[] {
+  return KEYED_SOURCES.map((source) => {
+    const meta = SOURCE_KEY_META[source];
+    return {
+      source,
+      label: meta.label,
+      terms: meta.terms,
+      termsUrl: meta.termsUrl,
+      fields: (Object.keys(SOURCE_KEY_FIELDS[source]) as SourceKeyField[]).map((field) => {
+        const origin = sourceKeyOrigin(source, field, keys);
+        const stored = keys[source]?.[field];
+        return {
+          field,
+          label: meta.fields[field] ?? field,
+          envVar: envVarOf(source, field),
+          origin,
+          masked: origin === 'db' && stored ? maskToken(stored) : '',
+        };
+      }),
+    };
+  });
+}
+
+/** UI copy per keyed source: the vendor's own name for each field, and the terms the user accepted. */
+const SOURCE_KEY_META: Record<KeyedSource, { label: string; terms: string; termsUrl: string; fields: Record<string, string> }> = {
+  ADZUNA: {
+    label: 'Adzuna',
+    terms: 'Adzuna API terms — personal research, "Jobs by Adzuna" shown on every listing',
+    termsUrl: 'https://developer.adzuna.com/docs/terms_of_service',
+    fields: { app_id: 'Application ID', app_key: 'Application key' },
+  },
+  FRANCETRAVAIL: {
+    label: 'France Travail',
+    terms: 'Licence offres d\'emploi — source and date shown on every listing',
+    termsUrl: 'https://francetravail.io/produits-partages/documentation/conditions-dutilisation-api/licence-offres-emploi',
+    fields: { client_id: 'Client ID', client_secret: 'Client secret' },
+  },
+};
+
+/**
+ * Saves or removes one field of a keyed source's credential (ADR 0034). As
+ * with engine keys, the value never comes back to the browser, a log line
+ * or a flash message.
+ */
+settingsRoute.post('/settings/sources/key', async (c) => {
+  const form = await c.req.parseBody();
+  const source = typeof form.source === 'string' ? form.source : '';
+  const field = typeof form.field === 'string' ? form.field : '';
+  if (!isKeyedSource(source) || !isSourceKeyField(source, field)) {
+    return flashRedirect('/settings?tab=sources', 'err', 'That source takes no such key.');
+  }
+  const label = `${SOURCE_KEY_META[source].label} ${SOURCE_KEY_META[source].fields[field] ?? field}`;
+  const clearing = form.clear === '1';
+  const key = typeof form.key === 'string' ? form.key.trim() : '';
+  if (!clearing && key.length === 0) {
+    return flashRedirect('/settings?tab=sources', 'err', `Paste the ${label} first.`);
+  }
+  if (key.length > MAX_SOURCE_KEY_LENGTH) {
+    return flashRedirect('/settings?tab=sources', 'err', `That is ${key.length} characters — longer than any key. Nothing saved.`);
+  }
+  await setSourceKey(source, field, clearing ? '' : key);
+  return flashRedirect('/settings?tab=sources', 'ok', clearing ? `${label} removed.` : `${label} saved.`);
 });
 
 settingsRoute.post('/settings/ai/test', async (c) => {

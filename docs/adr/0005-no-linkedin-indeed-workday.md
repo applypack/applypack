@@ -71,6 +71,13 @@ original decision (from the feature-expansion-plan ground rules):
    binding for this project: every fetched description is fed into a
    Claude/AI classifier, so fetching under a different User-Agent would
    do exactly what the ban refuses.
+3. (2026-09-04, ADR 0034) robots.txt governs crawling; a vendor's own
+   published licence governs keyed access. An API reached at one documented
+   endpoint with a credential the vendor issued to us, under terms we
+   accepted, is admitted when — and only when — those terms permit our use,
+   and every obligation they impose is implemented in code. Rule 1 still
+   rejects a host whose only refusal is robots; rule 2 still rejects a host
+   that names AI agents.
 
 | Source | Verdict | Reason (verified date) |
 |---|---|---|
@@ -108,7 +115,8 @@ original decision (from the feature-expansion-plan ground rules):
 | relocate.me / iamexpat / remote-europe.com / Lobby X / jobs.ua | rejected | no feed; no feed; dead TLS; `Disallow: /feed/`; HTML only (2026-09-03) |
 | Landing.jobs JSON API | rejected (Atom feed usable) | `Disallow: /api/`; `/feed` is allowed (2026-09-03) |
 | Talent.com / Welcome to the Jungle / Otta / XING / StepStone / Honeypot | rejected | no public API (2026-09-03) |
-| Adzuna / France Travail | deferred — decision pending | keyed APIs whose published terms permit programmatic use (Adzuna "Personal research", Open Licence 2.0) while `api.adzuna.com` and `api.francetravail.io` answer `Disallow: /`; needs a ruling on rule 1 vs a published licence — see [country-search-plan.md §6](../country-search-plan.md) (2026-09-03) |
+| Adzuna | adopted (v1.42.0) under rule 3 | API terms (read 2026-09-04) permit personal research and publishing listings with the "Jobs by Adzuna" label, 25/min, 250/day, 1 000/week, 2 500/month; the label, the four-a-day cadence, the ten-row ceiling, the snippet note and key redaction are code (ADR 0034) |
+| France Travail (Offres d'emploi v2) | adopting under rule 3 — licence read 2026-09-04, next PR | not Etalab: its own "Licence de réutilisation de la base de données des offres d'emploi" — source + date + licence link on every offer (art. 4), poll at least every 24 h and mirror deletions (5.2), show the whole offer (5.3), anonymise withdrawn offers (7); 4 calls/s per application |
 
 Sources verified usable on 2026-09-03 (DOU.ua, Djinni, solid.jobs, the
 GermanTechJobs / DevITjobs feeds, Landing.jobs Atom, JobTech Sweden,

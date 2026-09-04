@@ -675,6 +675,15 @@ adopted or rejected.
   the hourly tick never exceeds 250 calls/day, attribution shown wherever a
   listing is displayed; snippet-only descriptions flagged so the classifier
   and the match know the text is partial.
+  *(done: v1.42.0 — amended: the binding limit is 2 500 a month, not 250 a
+  day, so a row is polled four times a day (00/06/12/18 UTC) and ten rows
+  are the ceiling; the keys live in `AppSettings.sourceKeys` (ADR 0034)
+  and ride in the FetchContext; "Jobs by Adzuna" is rendered as the terms
+  spell it — "Jobs" linked, the logo linked, on the list, the job page and
+  the Telegram line; the snippet note is the description's last line;
+  errors are scrubbed of the keys before source health sees them; not run
+  live — the owner's own key is needed, the mapper is tested on the
+  vendor's documented sample)*
 
 ### 4.3 "Enable sources for your countries"
 
@@ -822,6 +831,9 @@ Telegram line. The salary work stayed out, as this section says.*
    4 as planned, unless stage 2's 30-verdict fixture shows most European
    false negatives are EU-only rows — then pull it forward.
 4. **robots.txt versus a published licence for keyed APIs (§0.5).**
+   **Decided (ADR 0034, 2026-09-04): robots governs crawling, the vendor's
+   own licence governs keyed access; every obligation of that licence is
+   code.**
    `api.adzuna.com` and `api.francetravail.io` answer `Disallow: /` while
    their published terms allow programmatic use with a key. ADR 0005
    addendum rule 1 read literally rejects them; read as "robots governs
@@ -830,7 +842,8 @@ Telegram line. The salary work stayed out, as this section says.*
    added to ADR 0005 before stage 3e.
 5. **Source keys in the database.** First non-AI key in `AppSettings`;
    ADR 0027's pattern fits, but it is a separate decision and a separate
-   accessor.
+   accessor. **Decided (ADR 0034): `AppSettings.sourceKeys`, own accessor,
+   pasted on the Sources tab, .env as the fallback.**
 6. **JOIN's undocumented endpoint.** Best structured location data of any
    EU ATS, served token-less for its own pages, robots welcomes AI bots —
    but undocumented and 5 rows per page. Default: no, per "explicitly

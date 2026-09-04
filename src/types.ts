@@ -65,4 +65,6 @@ export interface AlertJob {
   /** Every search's verdict, best first ("Backend 87 · QA 41"). Null when
    *  only one search is running — a one-item list is noise, not context. */
   profileScores?: string | null;
+  /** What a vendor's terms make the alert say ("Jobs by Adzuna — https://…", ADR 0034). */
+  attribution?: string | null;
 }

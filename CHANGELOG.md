@@ -4,6 +4,27 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.42.0] — 2026-09-04
+
+### Added
+- **Adzuna, with your own free key** (plan §3e, ADR 0034). Register at
+  developer.adzuna.com, paste the app_id and app_key on Settings → Sources
+  → "Source keys", and Companies offers one Adzuna row per country a
+  running search names (nineteen markets). Rows are polled four times a
+  day and capped at ten, which keeps the vendor's 2 500-calls-a-month
+  limit; every listing shows the "Jobs by Adzuna" label the terms ask for,
+  on the list, the job page and in Telegram; descriptions are snippets and
+  say so.
+- **Source keys** on the Sources tab: stored like engine keys — masked,
+  never rendered in full, never logged, `.env` as the fallback — and
+  scrubbed from any error a keyed source raises.
+- ADR 0005 gains a fourth addendum rule: robots.txt governs crawling, a
+  vendor's published licence governs keyed access.
+
+### Schema
+- `AtsType.ADZUNA` (migration `20260904030000_add_adzuna`),
+  `AppSettings.sourceKeys` (migration `20260904020000_add_source_keys`).
+
 ## [1.41.0] — 2026-09-04
 
 ### Added

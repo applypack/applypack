@@ -1,7 +1,7 @@
 import { AtsType } from '@prisma/client';
 import { prisma } from '../db';
 import { logger } from '../logger';
-import { sleep } from '../http';
+import { HttpError, sleep } from '../http';
 import { getSettings, toAtsTypes } from '../settings';
 import { listActiveProfiles } from '../profiles';
 import { isBlankProfile } from '../profile-guards';
@@ -43,6 +43,8 @@ import { fetchLandingJobs } from './landingjobs';
 import { fetchJobTech } from './jobtech';
 import { fetchPersonio } from './personio';
 import { fetchTeamtailor } from './teamtailor';
+import { MAX_ADZUNA_ROWS, fetchAdzuna } from './adzuna';
+import { getSourceKeys } from '../settings';
 import type { NormalizedJob } from '../types';
 
 const POLITE_DELAY_MS = 1_000;
@@ -50,6 +52,8 @@ const POLITE_DELAY_MS = 1_000;
 export interface FetcherResult {
   job: NormalizedJob;
   companyName: string;
+  /** Which source the row came from — the alert's attribution line reads it (ADR 0034). */
+  source: { atsType: AtsType; atsToken: string };
 }
 
 /** One source answered — live progress for the dashboard's "Fetch now" page. */
@@ -64,6 +68,7 @@ export interface SourceProgress {
 export async function runAllFetchers(
   isCancelled?: () => Promise<boolean>,
   onSource?: (progress: SourceProgress) => void,
+  opts: { manual?: boolean } = {},
 ): Promise<FetcherResult[]> {
   const settings = await getSettings();
   const disabled = toAtsTypes(settings.disabledSources);
@@ -82,10 +87,18 @@ export async function runAllFetchers(
   // Where the running searches hunt (stage 3a): sources with a geo filter
   // ask for these places instead of the whole world. Blank searches are
   // left out here as they are in process-jobs — they gate on nothing.
-  const context = searchPlaces((await listActiveProfiles()).filter((p) => !isBlankProfile(p)));
-  if (context.countries.length > 0 || context.regions.length > 0) {
-    logger.info(context, 'fetchers: geo-filtered sources follow the searches');
+  const places = searchPlaces((await listActiveProfiles()).filter((p) => !isBlankProfile(p)));
+  if (places.countries.length > 0 || places.regions.length > 0) {
+    logger.info(places, 'fetchers: geo-filtered sources follow the searches');
   }
+  // The keyed sources' credentials ride in the context (ADR 0034); the
+  // context is never logged whole from here on.
+  const context: FetchContext = { ...places, keys: await getSourceKeys(), manual: opts.manual === true, now: new Date() };
+  // Adzuna's monthly limit allows ten rows on the four-a-day cadence; any
+  // beyond that are refused, not silently fetched (ADR 0034).
+  const adzunaOverflow = new Set(
+    companies.filter((c) => c.atsType === AtsType.ADZUNA).slice(MAX_ADZUNA_ROWS).map((c) => c.id),
+  );
 
   const out: FetcherResult[] = [];
   let done = 0;
@@ -102,6 +115,9 @@ export async function runAllFetchers(
     let status: FetchStatus;
     let count = 0;
     try {
+      if (adzunaOverflow.has(company.id)) {
+        throw new HttpError(`Adzuna: more than ${MAX_ADZUNA_ROWS} rows would exceed the monthly limit — this one is not fetched`, 429, '');
+      }
       const jobs = await fetchOne(company, context);
       count = jobs.length;
       // Status comes from the RAW count, before passesBaseFilter — a profile
@@ -112,7 +128,7 @@ export async function runAllFetchers(
         'fetcher: ok',
       );
       for (const job of jobs) {
-        out.push({ job, companyName: company.name });
+        out.push({ job, companyName: company.name, source: { atsType: company.atsType, atsToken: company.atsToken } });
       }
     } catch (err) {
       status = classifyFetchError(err);
@@ -230,6 +246,8 @@ export async function fetchOne(
       return fetchPersonio({ id: company.id, atsToken: company.atsToken });
     case AtsType.TEAMTAILOR:
       return fetchTeamtailor({ id: company.id, atsToken: company.atsToken });
+    case AtsType.ADZUNA:
+      return fetchAdzuna({ id: company.id, atsToken: company.atsToken }, context);
     case AtsType.MANUAL:
       // Pasted by hand on /jobs/new — nothing to fetch (and the row is inactive).
       return [];
