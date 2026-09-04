@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { Profile } from '@prisma/client';
+import { currencyOf, isCurrencyCode, isSalaryPeriod } from './currency';
 import { RELOCATION_PROMPT, isRelocation } from './eligibility';
 import { logger } from './logger';
 import { extractJson } from './text-utils';
@@ -52,8 +53,11 @@ const LocationBlockSchema = z
 export type AiLocation = z.infer<typeof LocationBlockSchema>;
 
 const MultiClassificationSchema = z.object({
-  salary_min_usd: z.number().int().nullable(),
-  salary_max_usd: z.number().int().nullable(),
+  // The posting's own numbers — the model reports, src/currency.ts converts.
+  salary_min: z.number().int().nullable(),
+  salary_max: z.number().int().nullable(),
+  salary_currency: z.string().nullable().optional(),
+  salary_period: z.string().nullable().optional(),
   location: LocationBlockSchema.optional(),
   scores: z
     .array(
@@ -205,8 +209,10 @@ export function parseClassifications(
         {
           fit_score: entry.fit_score,
           location_match: entry.location_match,
-          salary_min_usd: parsed.data.salary_min_usd,
-          salary_max_usd: parsed.data.salary_max_usd,
+          salary_min: parsed.data.salary_min,
+          salary_max: parsed.data.salary_max,
+          salary_currency: isCurrencyCode(parsed.data.salary_currency) ? currencyOf(parsed.data.salary_currency) : null,
+          salary_period: isSalaryPeriod(parsed.data.salary_period) ? parsed.data.salary_period : null,
           tech_match: entry.tech_match,
           red_flags: entry.red_flags,
           summary: entry.summary,
@@ -323,8 +329,10 @@ ELIGIBILITY (only for a search that says where the candidate lives):
 OUTPUT STRICT JSON ONLY (no prose, no code fences, no commentary), matching this schema exactly:
 
 {
-  "salary_min_usd": integer or null,
-  "salary_max_usd": integer or null,
+  "salary_min": integer or null — the posting's own number,
+  "salary_max": integer or null,
+  "salary_currency": ISO-4217 ("USD", "EUR", "PLN") or null,
+  "salary_period": "year" | "month" | "week" | "day" | "hour" or null,
   "location": {
     "workplace": "REMOTE" | "HYBRID" | "ONSITE" | "UNKNOWN",
     "countries": ISO-2 codes — where the candidate may live for a remote role, where the office is otherwise,
@@ -345,7 +353,7 @@ OUTPUT STRICT JSON ONLY (no prose, no code fences, no commentary), matching this
 
 "scores" MUST hold EXACTLY ${profiles.length} ${many ? 'entries' : 'entry'} — one per search — using ${many ? 'these ids and no others' : 'this id and no other'}: ${ids}.
 
-Salary and location belong to the posting, not to a search: read each once and report it at the top level — salary null when not disclosed, location with empty arrays and "UNKNOWN" when the posting names no place.
+Salary and location belong to the posting, not to a search: read each once and report it at the top level — salary null when not disclosed, location with empty arrays and "UNKNOWN" when the posting names no place. Report salary EXACTLY as the posting states it — its own numbers, currency and period ("20 200 - 27 600 PLN/month" → 20200, 27600, "PLN", "month"). Never convert or annualise: that is what the two extra fields are for.
 
 SCORING GUIDANCE (apply per search):
 - 90-100: that search's required stack present in title or strongly evidenced; seniority matches; location compatible with that search's preferences; salary clear and meets target.

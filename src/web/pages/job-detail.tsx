@@ -18,6 +18,7 @@ import {
   Textarea,
 } from '../ui';
 import { formatDate, formatSalary } from '../format';
+import { formatUsdPerYear } from '../../currency';
 import { flagOf, placeLabel } from '../../countries';
 import { WORKPLACE_LABEL, type WorkplaceCode } from '../../location';
 import { appliedWithLabel } from '../../jobs/applied-with';
@@ -40,6 +41,8 @@ interface JobDetail {
   fitScore: number | null;
   salaryMin: number | null;
   salaryMax: number | null;
+  salaryCurrency: string | null;
+  salaryPeriod: string | null;
   techMatch: string[];
   redFlags: string[];
   summary: string | null;
@@ -173,7 +176,14 @@ export const JobDetailPage: FC<JobDetailProps> = ({
           <SectionTitle>Details</SectionTitle>
           <dl class="space-y-2.5 text-sm">
             <FactRow label="Salary">
-              <span class="tabular-nums">{formatSalary(job.salaryMin, job.salaryMax)}</span>
+              <span class="tabular-nums">
+                {formatSalary(job.salaryMin, job.salaryMax, job.salaryCurrency, job.salaryPeriod)}
+              </span>
+              {formatUsdPerYear(job.salaryMin, job.salaryMax, job.salaryCurrency, job.salaryPeriod) && (
+                <span class="ml-2 text-xs text-ink-faint">
+                  {formatUsdPerYear(job.salaryMin, job.salaryMax, job.salaryCurrency, job.salaryPeriod)}
+                </span>
+              )}
             </FactRow>
             <FactRow label="Posted">{formatDate(job.postedAt)}</FactRow>
             <FactRow label="Fetched">{formatDate(job.fetchedAt)}</FactRow>

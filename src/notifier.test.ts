@@ -14,8 +14,8 @@ describe('formatSalary', () => {
     assert.equal(formatSalary(null, null), '—');
   });
 
-  it('formats a closed range', () => {
-    assert.equal(formatSalary(140000, 180000), '$140k-$180k');
+  it('formats a closed range, the symbol once', () => {
+    assert.equal(formatSalary(140000, 180000), '$140k-180k');
   });
 
   it('formats min-only as $Nk+', () => {
@@ -27,7 +27,14 @@ describe('formatSalary', () => {
   });
 
   it('rounds to nearest thousand', () => {
-    assert.equal(formatSalary(149500, 150500), '$150k-$151k');
+    assert.equal(formatSalary(149500, 150500), '$150k-151k');
+  });
+
+  it('shows the posting\'s own money and period when it is not USD a year', () => {
+    assert.equal(formatSalary(60000, 80000, 'EUR', 'year'), '€60k-80k');
+    assert.equal(formatSalary(20200, 27600, 'PLN', 'month'), 'zł20k-28k/mo');
+    // Rows stored before the columns existed carry nulls and stay dollars.
+    assert.equal(formatSalary(140000, 180000, null, null), '$140k-180k');
   });
 });
 

@@ -361,8 +361,8 @@ describe('applyPriorityFloor', () => {
   ): ClaudeClassification => ({
     fit_score: 50,
     location_match: false,
-    salary_min_usd: null,
-    salary_max_usd: null,
+    salary_min: null,
+    salary_max: null,
     tech_match: ['php'],
     red_flags: [],
     summary: 'Bare-bones PHP backend role.',
@@ -412,14 +412,14 @@ describe('applyPriorityFloor', () => {
   });
 
   it('does NOT touch salary fields (salary remains a hard floor for dismissal)', () => {
-    const c = baseClassification({ salary_min_usd: 40_000, salary_max_usd: 60_000 });
+    const c = baseClassification({ salary_min: 40_000, salary_max: 60_000 });
     const out = applyPriorityFloor(
       c,
       [PHP_REMOTE_US],
       job({ title: 'Senior PHP Engineer', location: 'Remote — US' }),
     );
-    assert.equal(out.classification.salary_min_usd, 40_000);
-    assert.equal(out.classification.salary_max_usd, 60_000);
+    assert.equal(out.classification.salary_min, 40_000);
+    assert.equal(out.classification.salary_max, 60_000);
   });
 
   it('preserves tech_match / red_flags / summary verbatim', () => {

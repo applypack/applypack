@@ -16,6 +16,7 @@ import {
   Tr,
 } from '../ui';
 import { formatDateShort, formatRelative, formatSalary } from '../format';
+import { formatUsdPerYear } from '../../currency';
 import { flagOf } from '../../countries';
 import { splitPlaces, toggled, type FacetChip, type FacetChips } from '../job-facets';
 import { VERDICT_TONE } from './verification-card';
@@ -30,6 +31,8 @@ interface JobRow {
   fitScore: number | null;
   salaryMin: number | null;
   salaryMax: number | null;
+  salaryCurrency: string | null;
+  salaryPeriod: string | null;
   status: JobStatus;
   fetchedAt: Date;
   postedAt: Date;
@@ -373,9 +376,9 @@ export const JobsListPage: FC<JobsListProps> = ({
                         </Td>
                         <Td
                           class="overflow-hidden whitespace-nowrap text-right text-[13px] tabular-nums text-ink-muted"
-                          title={formatSalary(j.salaryMin, j.salaryMax)}
+                          title={salaryTitle(j)}
                         >
-                          {formatSalary(j.salaryMin, j.salaryMax)}
+                          {formatSalary(j.salaryMin, j.salaryMax, j.salaryCurrency, j.salaryPeriod)}
                         </Td>
                         <Td class="whitespace-nowrap">
                           <StatusBadge status={j.status} />
@@ -465,6 +468,13 @@ const PageLink: FC<{ href: string; disabled: boolean; children: string }> = ({
       {children}
     </a>
   );
+
+/** The cell shows the posting's own money; the tooltip adds the USD a year it compares to. */
+function salaryTitle(j: { salaryMin: number | null; salaryMax: number | null; salaryCurrency: string | null; salaryPeriod: string | null }): string {
+  const own = formatSalary(j.salaryMin, j.salaryMax, j.salaryCurrency, j.salaryPeriod);
+  const usd = formatUsdPerYear(j.salaryMin, j.salaryMax, j.salaryCurrency, j.salaryPeriod);
+  return usd ? `${own} (${usd})` : own;
+}
 
 function buildQuery(params: Record<string, string | number | string[] | null>): string {
   const usp = new URLSearchParams();

@@ -13,8 +13,8 @@ const classification = (
 ): ClaudeClassification => ({
   fit_score: 93,
   location_match: true,
-  salary_min_usd: null,
-  salary_max_usd: null,
+  salary_min: null,
+  salary_max: null,
   tech_match: [],
   red_flags: [],
   summary: 'x',

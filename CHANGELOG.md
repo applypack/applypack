@@ -4,6 +4,22 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.41.0] — 2026-09-04
+
+### Added
+- **Salary in the posting's own money** (plan §5.1 / §6.7). Until now the
+  classifier was asked for one USD number and converted silently, so a
+  stored "60000" could be euros a year or złoty a month. It now reports
+  what the posting says — the numbers, the currency, the period — and
+  `src/currency.ts` does the arithmetic: jobs and Telegram show `€60k-80k`
+  or `zł20k-28k/mo`, with `≈ $89k/yr` beside it, and the salary floor on a
+  search compares against that converted number instead of a raw one.
+
+### Schema
+- `Job.salaryCurrency`, `Job.salaryPeriod` (migration
+  `20260904010000_add_salary_currency`). Both null on existing rows, which
+  reads as USD a year — what they have always meant.
+
 ## [1.40.0] — 2026-09-04
 
 ### Added

@@ -125,14 +125,20 @@ model Job {
   regions        String[]  @default([])
   locationSource String?
 
-  fitScore  Int?
-  salaryMin Int?
-  salaryMax Int?
-  techMatch String[]
-  redFlags  String[]
-  summary   String?   @db.Text
-  status    JobStatus @default(NEW)
-  alertedAt DateTime?
+  fitScore       Int?
+  // The posting's OWN numbers (plan §5.1): `salaryCurrency` is ISO-4217 and
+  // `salaryPeriod` one of year|month|week|day|hour. Both null on every row
+  // stored before this change, which means USD a year — what the model used
+  // to convert to silently. src/currency.ts does the arithmetic now.
+  salaryMin      Int?
+  salaryMax      Int?
+  salaryCurrency String?
+  salaryPeriod   String?
+  techMatch      String[]
+  redFlags       String[]
+  summary        String?   @db.Text
+  status         JobStatus @default(NEW)
+  alertedAt      DateTime?
 
   // Application tracking (Phase 3.4). pipelineStage is orthogonal to status:
   //   status        = inbox state (NEW / ALERTED / SAVED / DISMISSED / APPLIED)

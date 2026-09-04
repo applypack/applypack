@@ -41,6 +41,8 @@ export async function runDigestJob(): Promise<{ stats: CronStats }> {
     url: j.url,
     fitScore: j.fitScore ?? 0,
     salaryMin: j.salaryMin,
+    salaryCurrency: j.salaryCurrency,
+    salaryPeriod: j.salaryPeriod,
     salaryMax: j.salaryMax,
     techMatch: j.techMatch,
     redFlags: j.redFlags,
