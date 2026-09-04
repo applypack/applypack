@@ -1567,7 +1567,7 @@ That is accepted as one intent, and both the UI and ADR 0036 say so.
 
 ---
 
-## 18. Tailoring loop: apply, copy, save, export (analysis 2026-09-03, nothing built)
+## 18. Tailoring loop: apply, copy, save, export (SHIPPED v1.51.0–v1.55.0)
 
 Owner's ask: after a resume-vs-posting comparison, let the user take the
 AI's edit suggestions in a few clicks (apply, add missing keywords, reorder)
@@ -1753,25 +1753,42 @@ bench); re-run `bench:resume` after stages 3 and 5.
       CLAUDE.md rows; CHANGELOG + bump + tag; screenshots of the patched
       file in Word, Pages, LibreOffice in the PR.
 
-**Stage 5 — `resume-render` (deps docx + pdfkit + one OFL font, ADR 0037; ~2 sessions)**
-- [ ] **Analyse first:** render one JSON Resume sample through `docx` +
-      pdfkit and through Typst; compare output, size, producer strings
-      (owner question 3); pick the bundled font family.
-- [ ] `add json resume model` — `json-resume.ts` (zod subset).
-- [ ] `add scan structure` — `structure` block in `SCAN_SYSTEM` +
-      `ScanSchema`; `structure-anchor.ts` verbatim guard;
-      `Resume.structure Json?` with a hand-written migration;
-      `structure-from-text.ts` fallback.
-- [ ] `add style inference` — `style-infer.ts` from docx styles / pdf.js
-      fonts + tests.
-- [ ] `add clean renderers` — `render/clean-docx.ts`, `render/clean-pdf.ts`
-      (metadata per library, Cyrillic-capable font, fonts copied in the
-      Dockerfile).
-- [ ] `add render page` — `/resumes/:id/render`: knobs prefilled, structure
-      editable, "what the ATS sees" preview, download or save as a new
-      resume; links from `/resumes/:id` and the target page for PDF-only and
-      structural files.
-- [ ] `write adr 0037` — JSON Resume as the model, the dependencies, the
+**Stage 5 — `resume-render` — SHIPPED (deps docx 9.7.1 + pdfkit 0.20.2 + Liberation Sans, ADR 0039 — 0037 and 0038 were taken)**
+- [x] **Analysed first:** the same JSON Resume through `docx` + pdfkit and
+      through Typst. **pdfkit wins on the metadata policy, not on looks**:
+      Typst stamps `Typst 0.14.2` into `/Info` *and* the XMP packet with no
+      way to set either from the compile call, writes no `.docx` (so it would
+      be a second layout engine beside `docx`, not instead of it), and is a
+      native napi addon in a repo with none. pdfkit's `Producer`/`Creator` go
+      to the empty string — measured, not assumed. Typst's two real wins
+      (hanging indents, `#h(1fr)`) were stolen as implementation notes.
+      **Liberation Sans 2.1.5** chosen and measured with fontkit: identical
+      advance widths to Arial on all 95 printable ASCII codepoints (max delta
+      0/2048), full Ukrainian Cyrillic, OFL 1.1.
+- [x] `add json resume model` — `json-resume.ts` (zod subset + `extras`).
+      Caps SLICE rather than reject: the corpus has a 60-term skills line.
+- [x] `add scan structure` — `SCAN_STRUCTURE` block + optional `structure` in
+      `ScanSchema` (a reply without it still scans — guard-tested);
+      `structure-anchor.ts`; migration `add_resume_structure`;
+      `structure-from-text.ts` reads BOTH heading dialects (`## KEY SKILLS`
+      from the .docx reader, bare caps from the PDF) and rejoins wrapped
+      bullets. First live scan: 161 strings kept, **0 dropped**, 6 roles,
+      24 bullets — the same split the deterministic reader finds.
+- [x] `add style inference` — `style-infer.ts`. The guide's recipe was wrong
+      twice and both are in the tests: `styles.xml` says Times New Roman 12 pt
+      where the runs say Arial 11 pt with a blue accent, and pdf.js gives only
+      `sans-serif` until `getOperatorList()` populates `commonObjs`.
+- [x] `add clean renderers` — one plan (`render/sections.ts`), two writers.
+      `render/drawable.ts` folds what the face cannot draw (a live render came
+      back with ☐ where Word formula objects left MATHEMATICAL ITALIC letters);
+      its kept set is walked codepoint by codepoint against both faces.
+      Fonts copied in the Dockerfile and verified in the built image.
+- [x] `add render page` — `/resumes/:id/render`, linked from `/resumes/:id`
+      and the targeted view's file line. Live walk: resume 5 (PDF) → clean
+      .docx + .pdf → **Save as a new resume** → template check *Editable in
+      place, 61 of 61 lines* → Compare (87/100) → Save patched that .docx in
+      place (`changed: 1`, `skipped: []`).
+- [x] `write adr 0039` — JSON Resume as the model, the dependencies, the
       font, the label; CHANGELOG + bump + tag.
 
 **Optional — LibreOffice profile.** Only if the owner reports the "export

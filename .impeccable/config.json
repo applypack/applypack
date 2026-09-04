@@ -11,6 +11,18 @@
         "value": "inter",
         "createdAt": "2026-08-28T16:29:38.844Z",
         "reason": "owner's redesign brief explicitly pinned Inter for UI (operate-mode workhorse face)"
+      },
+      {
+        "rule": "design-system-font",
+        "value": "arial",
+        "createdAt": "2026-09-04T20:11:24.259Z",
+        "reason": "Not dashboard typography: this is the default family NAME written into the user's own generated resume .docx (ADR 0039), overridden by style-infer.ts from their file. DESIGN.md governs the UI, not the documents ApplyPack writes."
+      },
+      {
+        "rule": "design-system-font",
+        "value": "calibri",
+        "createdAt": "2026-09-04T20:15:53.374Z",
+        "reason": "Test fixture, not dashboard typography: 'Calibri' is a family name a user's own .docx can carry, asserted on in src/resume/render/render.test.ts and style-infer tests. DESIGN.md governs the UI."
       }
     ]
   }

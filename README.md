@@ -66,7 +66,8 @@ roadmap item.
 | 📲 **Telegram instead of tab-refreshing** | alerts above your fit threshold, a daily digest, and a nudge when an application goes quiet for two weeks |
 | 🕵️ **Ghost-job verification** | a live web-search checklist (careers page, company footprint, posting age, named humans) returns `legit` / `suspicious` / `fake` with evidence URLs |
 | 📄 **Resume scores that can't flatter** | the model marks facts, application code computes the score. A Laravel resume cannot sweet-talk its way to 85 against a Node.js posting, and v2 is honestly comparable to v1 |
-| ✍️ **Targeted resume editor** | posting and resume side by side, every keyword highlighted, coverage recomputed on each keystroke without spending a single AI call |
+| ✍️ **Targeted resume editor** | posting and resume side by side, every keyword highlighted, coverage recomputed on each keystroke without spending a single AI call. Save writes the accepted edits back into your own `.docx`, formatting intact ([ADR 0038](./docs/adr/0038-save-patches-the-users-docx-in-place.md)) |
+| 🖨 **A clean version of a resume that cannot be edited** | a PDF has no paragraphs to patch. One press re-typesets it as a single-column `.docx` and `.pdf` in your own font, sizes, accent and margins — and the `.docx` it saves is one the editor can write into ([ADR 0039](./docs/adr/0039-clean-render-from-json-resume.md)) |
 | 💌 **Cover letters that can't invent facts** | drafted from the posting, your resume and your own angle notes; every claim passes a fact gate against stored evidence, and the letter exports to PDF / DOCX |
 | 🗂 **Application tracking** | a kanban with columns you name yourself, the resume each application went out with, and reminders for the ones gone quiet |
 | 🔌 **Five AI backends, auto-failover** | Claude Code / Gemini / Codex CLIs riding your subscriptions, the Anthropic API, or any OpenAI-compatible endpoint including free local models |
@@ -303,7 +304,8 @@ on the AI tab shows exactly which engine your calls went to.
 | Compare | `/target` | One-shot comparison: paste any posting, pick / upload / paste any resume |
 | Cover letter | `/letter` | Write a letter for a posting that isn't stored yet: pick, paste or link it, then draft |
 | Applications | `/applications` | Kanban with drag-and-drop. Applied and Rejected/Ghosted are fixed; every column between them is yours to name, add and reorder ([ADR 0025](./docs/adr/0025-custom-work-stages.md)) |
-| Resumes | `/resumes` | Upload `.pdf` / `.docx` / `.md` / `.txt`, AI scan, version history |
+| Resumes | `/resumes` | Upload `.pdf` / `.docx` / `.md` / `.txt`, AI scan, version history, template check |
+| Clean version | `/resumes/:id/render` | Re-typeset a resume that cannot be edited in place as a single-column `.docx` / `.pdf` in its own typography |
 | Companies | `/companies` | Tracked boards; add new ones with a live probe that refuses bad slugs. **Watch specific companies** takes a pasted list of career-page URLs and resolves each to the board or feed behind it |
 | Discovery | `/discovery` | Board candidates harvested from HN, with the discovery toggles |
 | Runs | `/runs` | The last 100 cron runs with stats and errors |

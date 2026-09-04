@@ -784,7 +784,8 @@ jobsRoute.get('/jobs/:id/target', async (c) => {
   const resume = await getResume(match.resumeId);
   if (!resume) return c.text('Not found', 404);
   // The scratch resume from /target has no versions: its one save is a resume of its own.
-  const fileVerdict = (resume.hidden ? 'This is a one-off check from the Compare page — Save keeps it as a resume of its own. ' : '') + (await describeResumeFile(resume));
+  const file = await describeResumeFile(resume);
+  const fileVerdict = (resume.hidden ? 'This is a one-off check from the Compare page — Save keeps it as a resume of its own. ' : '') + file.verdict;
   // An instant check arrives with its parsed upload — taken once; from then on the browser holds it.
   const draftKey = c.req.query('draft');
   const draftText = draftTextForPage(draftKey ? draftStash.take(draftKey) : null, match.id);
@@ -799,6 +800,7 @@ jobsRoute.get('/jobs/:id/target', async (c) => {
       resumeText={match.resumeText || resume.text}
       draftText={draftText}
       fileVerdict={fileVerdict}
+      cleanHref={file.clean ? `/resumes/${resume.id}/render` : null}
       flash={parseFlashCookie(c.req.header('cookie'))}
     />,
     200,
@@ -928,14 +930,26 @@ function sortToOrderBy(sort: string): Prisma.JobOrderByWithRelationInput[] {
   }
 }
 
-/** One sentence on what a Save can do with the resume's own file (ADR 0038). Only a .docx is read from the database. */
-async function describeResumeFile(resume: { id: number; sourceFilename: string }): Promise<string> {
+/**
+ * One sentence on what a Save can do with the resume's own file (ADR 0038),
+ * and whether the clean re-render is worth offering beside it (ADR 0039).
+ * Only a .docx is read from the database. `clean` is true exactly when Save
+ * cannot write the whole file — a PDF, a text version, or a layout the
+ * patcher only partly reaches.
+ */
+async function describeResumeFile(resume: { id: number; sourceFilename: string; hidden: boolean }): Promise<{ verdict: string; clean: boolean }> {
   if (/\.docx$/i.test(resume.sourceFilename)) {
     const row = await getResumeOriginal(resume.id);
-    if (row) return describeStructure(docxStructure(Buffer.from(row.original)));
+    if (row) {
+      const structure = docxStructure(Buffer.from(row.original));
+      return { verdict: describeStructure(structure), clean: !resume.hidden && structure.kind !== 'flow' };
+    }
   }
   if (/\.pdf$/i.test(resume.sourceFilename)) {
-    return 'This file is a PDF: Save keeps a text version; upload the .docx it was printed from to get a styled file back.';
+    return {
+      verdict: 'This file is a PDF: Save keeps a text version; upload the .docx it was printed from to get a styled file back.',
+      clean: !resume.hidden,
+    };
   }
-  return 'This file is plain text: Save keeps a text version.';
+  return { verdict: 'This file is plain text: Save keeps a text version.', clean: !resume.hidden };
 }

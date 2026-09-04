@@ -407,6 +407,25 @@ so and suggests uploading the `.docx` they were printed from. The document
 properties of a downloaded template (its author's name) are fixed on click
 only, bytes only, current values shown.
 
+A file a Save cannot write into gets **Clean version in your typeface**
+(`/resumes/:id/render`, ADR 0039) — the way a PDF enters the loop at all, and
+three of the four resumes in a live database are PDFs. The scan reads the
+resume into a JSON Resume subset (`resume/json-resume.ts`) under one rule,
+copy never write; `resume/structure-anchor.ts` drops at persist time every
+string that is not a verbatim span of the resume text, and refuses to store a
+structure it emptied — `resume/structure-from-text.ts` then reads the text
+deterministically instead. `resume/style-infer.ts` takes the typography from
+the file's own runs (not its style sheet, which on the corpus file says a
+different font and size entirely) and from a PDF's embedded fonts. One plan
+(`resume/render/sections.ts`) is drawn twice: `render/clean-docx.ts` names the
+user's family and lets Word supply it, `render/clean-pdf.ts` embeds Liberation
+Sans, whose letter widths are identical to Arial's, so the two files break
+their lines in the same places. The page prefills every knob from the file,
+previews the rendered `.docx` read back through the same reader an upload goes
+through, and offers both downloads plus **Save as a new resume** — a `.docx`
+the template check calls *editable in place*, so the patcher above works on it.
+The label never says "AI-generated" and never claims the original design back.
+
 The loop: edit the resume → "Upload a new version" on `/resumes/:id`
 (`Resume.version` +1, re-scan) → Compare again. `ResumeMatch.resumeVersion`
 records which version scored; the card shows the delta vs the previous run.
