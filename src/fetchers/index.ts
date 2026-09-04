@@ -48,10 +48,8 @@ import { fetchTeamtailor } from './teamtailor';
 import { MAX_ADZUNA_ROWS, fetchAdzuna } from './adzuna';
 import { fetchFranceTravail } from './francetravail';
 import { getSourceKeys } from '../settings';
-import { shuffleSources, tickSeed } from './source-order';
+import { politeDelayMs, shuffleSources, tickSeed } from './source-order';
 import type { NormalizedJob } from '../types';
-
-const POLITE_DELAY_MS = 1_000;
 
 export interface FetcherResult {
   job: NormalizedJob;
@@ -157,7 +155,9 @@ export async function runAllFetchers(
     }
     await recordFetchHealth(company, status, cachedCount(company.id));
     onSource?.({ company: company.name, status, count, done, total: companies.length });
-    await sleep(POLITE_DELAY_MS);
+    // Back off in proportion to what we just spent of the board's: a feed we
+    // did not download does not earn the same second as one we did.
+    await sleep(politeDelayMs(status, company.atsType));
   }
 
   return out;

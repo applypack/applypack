@@ -73,6 +73,17 @@ Adzuna overflow set is still decided from the id-ordered list *before* the
 shuffle: which ten markets fall inside the monthly limit has to be the same
 answer every tick, or the user cannot tell which ten they get.
 
+**The gap between requests follows what we just spent.** A flat second after
+every source charges a 304 the same as a megabyte of RSS, so an unchanged
+feed is followed by 250 ms instead — a cap of four revalidations a second,
+and still a pause, because a 304 is still a request. `empty` and every
+failure keep the full second: those cost the board a whole response.
+`politeDelayMs(status, atsType)` also takes a floor from any board that
+publishes its own pacing. Exactly one does: `api.lever.co/robots.txt` is
+`User-agent: *` / `Allow: /` / `Crawl-delay: 1`, addressed to every
+automated client on that host, so Lever keeps its second whatever the answer
+cost. A vendor asking for a second did not add "unless it is cheap".
+
 **A conditional request is the default, and a 304 returns no jobs.**
 `src/fetchers/conditional.ts` holds `{url, etag, lastModified, count}` per
 company; `conditionalHeaders()` sends whatever the vendor last gave us and
@@ -146,7 +157,10 @@ SmartRecruiters) reported it without advancing `lastOkAt`.
 being a burst against one board.
 ✅ A tick where nothing changed does almost no work: no parsing, no
 dedupe, no upserts, and "Fetch now" says so ("42 of 62 sources unchanged
-since the last tick") instead of warning about the network.
+since the last tick") instead of warning about the network. On a live
+install it also finishes in 112.7 s against 159.1 s cold — with a flat delay
+the two were indistinguishable (163.9 s and 160.9 s), because the tick spent
+its time backing off from feeds it never downloaded.
 ✅ Golang Projects and We Work Remotely now go through `fetchWithRetry`
 rather than `rss-parser`'s own fetch, so they carry our User-Agent and our
 retry policy like every other source.
@@ -167,10 +181,19 @@ the one-request-per-tick rule, and We Work Remotely is wired but will rarely
 fire: its ETag hashes a body that changes between requests, so it answers
 200 with a new ETag most of the time.
 
+❌ The 250 ms is a judgement, not a measured limit: no vendor publishes a
+rate for conditional requests. It is bounded on one side by Lever's declared
+second and on the other by "never zero", and it is one constant to move if a
+board ever objects.
+
 ## When to revisit
 
-When a source that makes several requests per tick becomes heavy enough to
-be worth a per-URL cache — Arbeitnow's three pages are the candidate. When
+When a board starts declaring a `Crawl-delay` we are not honouring —
+`DECLARED_CRAWL_DELAY_MS` holds one entry today and nothing re-reads
+robots.txt, so it is a fact checked by hand and due a re-check when a source
+is added. When a source that makes several requests per tick becomes heavy
+enough to be worth a per-URL cache — Arbeitnow's three pages are the
+candidate. When
 `instanceId` gains a second reader, which would be the argument for
 surfacing the chosen minute in the dashboard rather than only in the boot
 log. And if a restart ever stops being rare — a crash loop, or a host that

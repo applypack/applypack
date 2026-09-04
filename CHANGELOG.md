@@ -23,6 +23,12 @@ All notable changes to this project are documented here. The format follows
   Companies shows such a source as **Unchanged**, and "Fetch now" says "42 of
   62 sources unchanged since the last tick" instead of warning you about the
   network.
+- **And the tick stops waiting for feeds it never downloaded.** The pause
+  between sources used to be a flat second whether the board sent a megabyte
+  of RSS or a 304; now an unchanged board is followed by a quarter-second.
+  On a real install an unchanged tick finishes in 1m53s instead of 2m44s.
+  A board that publishes its own pacing keeps it — Lever's robots.txt asks
+  for a second between requests, so Lever still gets one.
 - An unchanged board still has to prove it is alive: a source whose last full
   read was empty keeps ageing towards "silent" no matter how many times it
   answers 304, and a tick that was paused part-way throws its validators away

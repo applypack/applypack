@@ -231,7 +231,7 @@ src/
   fetchers/
     index.ts                   ← runAllFetchers + fetchOne switch
     conditional.ts             ← ETag / Last-Modified per source; a 304 returns no jobs (ADR 0035)
-    source-order.ts            ← pure seeded shuffle of the walk order (ADR 0035)
+    source-order.ts            ← pure: seeded shuffle of the walk + politeDelayMs (ADR 0035)
     {greenhouse,lever,ashby}.ts          per-company JSON fetchers
     {workable,smartrecruiters}.ts        per-company JSON fetchers
     {recruitee,breezy,bamboohr,pinpoint}.ts  per-company JSON fetchers (F2)

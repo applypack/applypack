@@ -1,6 +1,14 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { shuffleSources, tickSeed } from './source-order';
+import { AtsType } from '@prisma/client';
+import { FETCH_STATUSES } from './source-health';
+import {
+  POLITE_DELAY_MS,
+  UNCHANGED_DELAY_MS,
+  politeDelayMs,
+  shuffleSources,
+  tickSeed,
+} from './source-order';
 
 const ids = (n: number): number[] => Array.from({ length: n }, (_, i) => i + 1);
 
@@ -52,6 +60,41 @@ describe('tickSeed', () => {
     for (let i = 0; i < 100; i++) {
       const seed = tickSeed();
       assert.ok(Number.isInteger(seed) && seed >= 0 && seed < 2 ** 32, `${seed}`);
+    }
+  });
+});
+
+describe('politeDelayMs', () => {
+  it('leaves the full second after a board that sent us a feed', () => {
+    assert.equal(politeDelayMs('ok', AtsType.GREENHOUSE), POLITE_DELAY_MS);
+    assert.equal(politeDelayMs('empty', AtsType.GREENHOUSE), POLITE_DELAY_MS);
+  });
+
+  it('shortens it after an unchanged feed', () => {
+    assert.equal(politeDelayMs('not_modified', AtsType.GREENHOUSE), UNCHANGED_DELAY_MS);
+  });
+
+  it('shortens it for `not_modified` and nothing else', () => {
+    // `empty` and every failure cost the board a whole response; only a 304
+    // is the cheap answer. A status added later must opt in here on purpose.
+    const short = FETCH_STATUSES.filter(
+      (s) => politeDelayMs(s, AtsType.GREENHOUSE) < POLITE_DELAY_MS,
+    );
+    assert.deepEqual([...short], ['not_modified']);
+  });
+
+  it('never goes below a delay the board publishes for itself', () => {
+    // api.lever.co/robots.txt: "User-agent: * / Allow: / / Crawl-delay: 1".
+    // A vendor asking for a second did not add "unless it's cheap".
+    assert.equal(politeDelayMs('not_modified', AtsType.LEVER), POLITE_DELAY_MS);
+    assert.equal(politeDelayMs('ok', AtsType.LEVER), POLITE_DELAY_MS);
+  });
+
+  it('is never zero, whatever the answer', () => {
+    for (const status of FETCH_STATUSES) {
+      for (const ats of Object.values(AtsType)) {
+        assert.ok(politeDelayMs(status, ats) > 0, `${status}/${ats}`);
+      }
     }
   });
 });

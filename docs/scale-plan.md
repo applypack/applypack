@@ -121,10 +121,10 @@ and `cleanup` touch only the user's own Telegram and database; 09:00 means
 Pure and testable: `fetchMinute(instanceId, jobName)` → 0–59, spread checked
 over a few thousand ids.
 
-## 3. Source order
+## 3. Source order, and the gap between requests
 
-**Now:** `orderBy: { id: 'asc' }`, plus a 1 s polite delay between sources.
-Identical ids on every install ⇒ identical order ⇒ the burst in §0.
+**Now:** `orderBy: { id: 'asc' }`, plus a flat 1 s polite delay between
+sources. Identical ids on every install ⇒ identical order ⇒ the burst in §0.
 
 **Change:** shuffle the walk order per tick (seeded Fisher–Yates, so the
 shuffle itself is a pure function with a seed argument and unit-testable;
@@ -144,6 +144,23 @@ Two things must NOT move with the shuffle:
    inserted first becomes the original" — that was already arbitrary (lowest
    company id), it is now arbitrary in a different way. Worth stating; not
    worth defending.
+
+**The delay is part of the same policy, so it lives in the same module.**
+A flat second after every source charges a 304 the same as a megabyte of
+RSS. Backing off in proportion to what we just spent of the board's is the
+honest rule, so an unchanged feed is followed by **250 ms** — still a cap of
+four revalidations a second, and still a pause, because a 304 is still a
+request. Everything else keeps the full second: `empty` and every failure
+cost the board a whole response.
+
+With one floor under it. `api.lever.co/robots.txt` (read 2026-09-04) is
+`User-agent: *` / `Allow: /` / **`Crawl-delay: 1`** — an explicit pacing
+expectation addressed to every automated client on that host, so Lever keeps
+its second whatever the answer cost. It is the only conditional-capable
+source that declares one; Greenhouse, Ashby, SmartRecruiters, Personio,
+Teamtailor, We Work Remotely, Golang Projects, Remotive and DevITjobs have
+nothing in robots.txt. A vendor asking for a second did not add "unless it
+is cheap".
 
 ## 4. Conditional requests
 
@@ -261,9 +278,8 @@ second, with 52 of 73 sources unchanged**. `/companies` shows those 52 as
 broken rows, and the SmartRecruiters board that answers 304 over an empty
 list is still called Silent — which is the whole point of §4's rule 2.
 
-One honest number: **the tick is not faster** (160.9 s vs 163.9 s). The
-one-second politeness delay between sources dominates the wall clock, so
-what a 304 saves is the vendor's bandwidth and our own parsing and database
-work, not time. Shortening the delay after a 304 would change that; it is
-deliberately not in this change, because the delay is politeness and a 304
-is still a request.
+**With the shortened pause after a 304** (§3), the same install: an
+unchanged tick runs in **112.7 s against 159.1 s cold** — 47 s of it was
+backing off from feeds it never downloaded. Before the pacing change the two
+ticks were indistinguishable (160.9 s and 163.9 s), which is what a flat
+delay does: it charges a 304 the same as a megabyte of RSS.
