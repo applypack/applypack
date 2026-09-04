@@ -310,6 +310,11 @@ model AppSettings {
   // /welcome. Set by the wizard's last step or "Skip setup"; the migration
   // backfills existing deployments so nobody is walked through setup twice.
   setupCompletedAt               DateTime?
+  // This install's identity, written once at first boot. Its only job is to
+  // seed the cron minute (src/schedule.ts): every deployment ships the same
+  // seed data, so without it every install would tick at the same second
+  // against the same boards. Never leaves the database.
+  instanceId                     String    @default(uuid())
   updatedAt                      DateTime  @updatedAt
 
   @@map("app_settings")
