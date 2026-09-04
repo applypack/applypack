@@ -100,6 +100,7 @@ export async function runHnHiringJob(): Promise<{ stats: CronStats }> {
     abortedMidRun: 0,
     skippedByPause: 0,
     skippedBlankProfile: 0,
+    alertHeld: 0,
   };
   await processNormalizedJobs(items, profiles, inner, {
     classifierMode: settings.classifierMode,

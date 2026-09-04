@@ -1,15 +1,21 @@
 import { logger } from '../logger';
+import { prisma } from '../db';
 import { runAllFetchers, type SourceProgress } from '../fetchers';
 import { beginConditionalTick, commitConditionalCache, tickStoredEverything } from '../fetchers/conditional';
 import { syncFranceTravail, type MirrorStats } from './france-travail-sync';
 import { isFailureStatus } from '../fetchers/source-health';
 import { listActiveProfiles } from '../profiles';
 import type { Profile } from '@prisma/client';
-import { getSettings, getSourceKeys } from '../settings';
+import { getSchedule, getSettings, getSourceKeys } from '../settings';
+import { describeSchedule, isFetchDue, lastRealFetch } from '../user-schedule';
+import { deliverHeldAlerts } from './alert-delivery';
 import { recordCandidatesFromText } from '../discovery';
 import { makeFetchPauseProbe } from './fetch-pause';
 import { processNormalizedJobs, type ProcessStats } from './process-jobs';
 import type { CronStats } from './cron-run';
+
+/** How many run rows the cadence gate looks back through — a fortnight of skipped ticks. */
+const RUN_LOOKBACK = 400;
 
 export interface FetchJobOptions {
   /**
@@ -38,9 +44,25 @@ export async function runFetchJob(opts: FetchJobOptions = {}): Promise<{ stats: 
   const mirrored = await syncFranceTravail({ countries: [], regions: [], keys: await getSourceKeys(), now: new Date() });
   const licence = mirrorStats(mirrored);
 
+  // Matches held outside the alert window go out on the first heartbeat that
+  // allows it — also above the gates, for the same reason: they were found
+  // and scored already, and neither a pause nor a quiet hour is a reason for
+  // the user never to hear about them (TASKS §16).
+  const schedule = await getSchedule();
+  const held = await deliverHeldAlerts(new Date(), schedule);
+  const delivery: CronStats = held.delivered > 0 ? { heldDelivered: held.delivered, heldMessages: held.messages } : {};
+
   if (!settings.fetchingEnabled && !opts.manual) {
     logger.info('fetch-job: skipped (fetching paused in settings)');
-    return { stats: { skipped: 1, reason: 'fetching-paused', ...licence } };
+    return { stats: { skipped: 1, reason: 'fetching-paused', ...licence, ...delivery } };
+  }
+
+  // The cron is a heartbeat; the schedule decides whether this beat searches
+  // (TASKS §16). "Fetch now" ignores it exactly as it ignores the pause — the
+  // user is at the screen and has just asked.
+  if (!opts.manual && !isFetchDue(new Date(), schedule, await lastFetchAt())) {
+    logger.info({ schedule: describeSchedule(schedule) }, 'fetch-job: skipped (outside the schedule)');
+    return { stats: { skipped: 1, reason: 'outside-schedule', ...licence, ...delivery } };
   }
   const classify = settings.fetchingEnabled;
 
@@ -49,7 +71,7 @@ export async function runFetchJob(opts: FetchJobOptions = {}): Promise<{ stats: 
     logger.warn(
       'fetch-job: no active search configured; aborting (switch one on at /settings)',
     );
-    return { stats: { aborted: 1, reason: 'no-active-profile', ...licence } };
+    return { stats: { aborted: 1, reason: 'no-active-profile', ...licence, ...delivery } };
   }
   const { classifierMode } = settings;
   logger.info(
@@ -126,6 +148,7 @@ export async function runFetchJob(opts: FetchJobOptions = {}): Promise<{ stats: 
         ...(sourcesUnchanged > 0 && { sourcesUnchanged }),
         candidatesRecorded: candidates,
         ...licence,
+        ...delivery,
         durationMs,
       },
     };
@@ -147,11 +170,13 @@ export async function runFetchJob(opts: FetchJobOptions = {}): Promise<{ stats: 
     abortedMidRun: 0,
     skippedByPause: 0,
     skippedBlankProfile: 0,
+    alertHeld: 0,
   };
   await processNormalizedJobs(fetched, profiles, inner, {
     classifierMode,
     classify,
     isCancelled: paused,
+    schedule,
   });
 
   // Only now may this tick's validators be sent, and only if it stored
@@ -170,11 +195,28 @@ export async function runFetchJob(opts: FetchJobOptions = {}): Promise<{ stats: 
     ...(sourcesUnchanged > 0 && { sourcesUnchanged }),
     candidatesRecorded: candidates,
     ...licence,
+    ...delivery,
     ...inner,
     durationMs,
   };
   logger.info(stats, 'fetch-job: done');
   return { stats };
+}
+
+/**
+ * The last heartbeat that actually asked the boards, for the cadence gate.
+ * Read from the run log rather than a new column (TASKS §16.3); the lookback
+ * only has to outlast a stretch of skipped ticks, and finding none simply
+ * means "nothing recent", which lets the next heartbeat run.
+ */
+async function lastFetchAt(): Promise<Date | null> {
+  const runs = await prisma.cronRun.findMany({
+    where: { name: 'fetch' },
+    select: { startedAt: true, stats: true },
+    orderBy: { startedAt: 'desc' },
+    take: RUN_LOOKBACK,
+  });
+  return lastRealFetch(runs);
 }
 
 /**

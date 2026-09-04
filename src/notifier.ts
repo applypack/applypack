@@ -44,6 +44,8 @@ export async function sendDigest(
   jobs: AlertJob[],
   targetId?: number | null,
   quiet: QuietSourceAlert[] = [],
+  /** What the header calls this batch — the daily recap, or a held delivery (TASKS §16). */
+  title = 'Daily digest',
 ): Promise<void> {
   const healthLine = formatSourceHealthLine(quiet);
   if (jobs.length === 0) {
@@ -51,7 +53,7 @@ export async function sendDigest(
     await broadcast(healthLine ? `${empty}\n\n${healthLine}` : empty, targetId);
     return;
   }
-  const header = `*Daily digest — ${jobs.length} match${jobs.length === 1 ? '' : 'es'}*${
+  const header = `*${title} — ${jobs.length} match${jobs.length === 1 ? '' : 'es'}*${
     healthLine ? `\n${healthLine}` : ''
   }`;
   const blocks = jobs.map(formatJobMessage);
