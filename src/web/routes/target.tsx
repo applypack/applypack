@@ -7,7 +7,8 @@ import { createManualJob, ManualJobSchema, MAX_FIELD_CHARS, MIN_DESCRIPTION_CHAR
 import { extractPostingFacts, fallbackTitle } from '../../jobs/posting-extract';
 import { findReusableMatch, matchResumeToJob } from '../../resume/match';
 import { parseMatchMode } from '../../resume/match-mode';
-import { reuseNotice, suggestNotice } from '../../resume/match-reuse';
+import { reuseNotice } from '../../resume/match-reuse';
+import { readActions, readRemovals } from '../../resume/prompts';
 import {
   deleteCoverLettersForResume,
   deleteMatchesForResume,
@@ -16,13 +17,13 @@ import {
   listResumes,
   upsertScratchResume,
 } from '../../resume/store';
+import { suggestForMatch } from '../../resume/suggestions';
 import { draftStash } from '../draft-stash';
 import { decideInstantCheck, instantCheckNotice } from '../instant-check';
 import { TargetStartPage } from '../pages/target-start';
 import { TargetRunPage } from '../pages/target-run';
 import { clearFlashCookie, flashRedirect, parseFlashCookie } from '../flash';
 import { formatRelative } from '../format';
-import { startSuggestionsRun } from '../suggestions-run';
 import { claimRun, getRun, matchStep, startRun, updateRun, type RunStep } from '../target-runs';
 import {
   MAX_RESUME_NAME_CHARS,
@@ -180,7 +181,7 @@ targetRoute.post('/target', resumeUploadLimit('/target'), async (c) => {
         const label = workplace === 'onsite' ? 'on-site' : workplace;
         location = location ? `${location} (${label})` : label;
       }
-      updateRun(run.id, { stage: matchStep(f.mode), jobTitle: title });
+      updateRun(run.id, { jobTitle: title });
     }
 
     // 1. The posting becomes a normal MANUAL job (deduped). A new one is
@@ -220,13 +221,28 @@ targetRoute.post('/target', resumeUploadLimit('/target'), async (c) => {
       return;
     }
     if (reused) {
-      const page = `/jobs/${job.id}/target?match=${reused.row.id}`;
+      updateRun(run.id, {
+        steps: needExtract ? ['extract', 'suggestions'] : ['suggestions'],
+        stage: 'suggestions',
+      });
+      const row = await suggestForMatch(reused.row, jobInput);
+      if (!row) {
+        updateRun(run.id, {
+          stage: 'error',
+          error: 'The suggestions call failed — the quick check is still there. See the web logs.',
+        });
+        return;
+      }
       updateRun(run.id, {
         stage: 'done',
-        resultUrl: startSuggestionsRun({ match: reused.row, job: jobInput, resumeName: resume.name, resultUrl: page }),
-        flash: suggestNotice(formatRelative(reused.row.createdAt)),
+        resultUrl: `/jobs/${job.id}/target?match=${reused.row.id}`,
+        flash: `Suggestions added — ${readActions(row.actions).length} edits, ${readRemovals(row.removals).length} removals; the score is unchanged.`,
       });
       return;
+    }
+
+    if (needExtract) {
+      updateRun(run.id, { stage: matchStep(f.mode) });
     }
 
     // 2b. This resume was analysed against the posting before and its text
