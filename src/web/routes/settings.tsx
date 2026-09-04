@@ -24,22 +24,12 @@ import {
   toggleTelegramTarget,
   getSourceKeys,
   setSourceKey,
-  getInstanceId,
   setSchedule,
 } from '../../settings';
 import { config } from '../../config';
-import { cronMinute } from '../../schedule';
-import {
-  ALL_DAYS,
-  MAX_DIGEST_HOURS,
-  ScheduleSchema,
-  describeNextFetch,
-  describeSchedule,
-  lastRealFetch,
-  nextFetchAt,
-  parseSchedule,
-} from '../../user-schedule';
+import { ALL_DAYS, MAX_DIGEST_HOURS, ScheduleSchema, describeSchedule, parseSchedule } from '../../user-schedule';
 import { countHeldAlerts } from '../../jobs/alert-delivery';
+import { loadNextCheck } from '../schedule-view';
 import {
   addStage,
   allStages,
@@ -177,24 +167,6 @@ function supportedTimezones(current: string): string[] {
   return zones.includes(current) ? [...zones] : [current, ...zones];
 }
 
-/** The last few fetch runs, for "next check at" — the same source the gate uses. */
-async function recentFetchRuns() {
-  return prisma.cronRun.findMany({
-    where: { name: 'fetch' },
-    select: { startedAt: true, stats: true },
-    orderBy: { startedAt: 'desc' },
-    take: RUN_LOOKBACK,
-  });
-}
-
-/** This install's cron minute, so "next check" names the minute the worker will actually wake at. */
-async function cronMinuteHere(): Promise<number> {
-  return cronMinute(await getInstanceId(), 'fetch');
-}
-
-/** How far back "next check" looks for a real fetch; matches the gate's own lookback. */
-const RUN_LOOKBACK = 400;
-
 async function loadSettingsProps() {
   // The keys are read once and lent to the probe — both need them (ADR 0027).
   const aiKeys = await getAiKeys();
@@ -212,16 +184,11 @@ async function loadSettingsProps() {
         where: { pipelineStage: { not: null } },
       }),
     ]);
-  const schedule = parseSchedule(settings.schedule, config.TZ);
-  const now = new Date();
+  const check = await loadNextCheck(settings.schedule);
   const scheduleView = {
-    schedule,
-    zones: supportedTimezones(schedule.timezone),
-    nextFetch: describeNextFetch(
-      nextFetchAt(now, schedule, lastRealFetch(await recentFetchRuns()), await cronMinuteHere()),
-      now,
-      schedule.timezone,
-    ),
+    schedule: check.schedule,
+    zones: supportedTimezones(check.schedule.timezone),
+    nextFetch: check.next,
     held: await countHeldAlerts(),
   };
   const countByStage = new Map(

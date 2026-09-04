@@ -41,6 +41,15 @@ const EVERY_MS: Record<FetchEvery, number> = { hour: 0, '2h': 2 * HOUR_MS, '4h':
 const EVERY_TOLERANCE_MS = 5 * 60 * 1000;
 /** How far `nextFetchAt` will look ahead: a week and a day covers any weekday set. */
 const LOOKAHEAD_TICKS = 24 * 8;
+/**
+ * How many `fetch` run rows `lastRealFetch` is given. It only has to outlast
+ * the longest stretch of skipped ticks — a Fri-evening-to-Mon-morning window
+ * is 56, a week of pause is 168 — and reading fewer keeps the stats JSON off
+ * every page render. Finding none means "nothing recent", which lets the next
+ * heartbeat run.
+ */
+export const RUN_LOOKBACK = 200;
+
 /** At most four digest times — more than that is a window, not a digest. */
 export const MAX_DIGEST_HOURS = 4;
 

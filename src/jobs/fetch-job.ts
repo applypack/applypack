@@ -7,15 +7,12 @@ import { isFailureStatus } from '../fetchers/source-health';
 import { listActiveProfiles } from '../profiles';
 import type { Profile } from '@prisma/client';
 import { getSchedule, getSettings, getSourceKeys } from '../settings';
-import { describeSchedule, isFetchDue, lastRealFetch } from '../user-schedule';
+import { describeSchedule, isFetchDue, lastRealFetch, RUN_LOOKBACK } from '../user-schedule';
 import { deliverHeldAlerts } from './alert-delivery';
 import { recordCandidatesFromText } from '../discovery';
 import { makeFetchPauseProbe } from './fetch-pause';
 import { processNormalizedJobs, type ProcessStats } from './process-jobs';
 import type { CronStats } from './cron-run';
-
-/** How many run rows the cadence gate looks back through — a fortnight of skipped ticks. */
-const RUN_LOOKBACK = 400;
 
 export interface FetchJobOptions {
   /**

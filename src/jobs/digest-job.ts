@@ -19,6 +19,9 @@ export async function runDigestJob(): Promise<{ stats: CronStats }> {
     where: {
       status: { in: [JobStatus.NEW, JobStatus.ALERTED] },
       fetchedAt: { gte: since },
+      // A held match is delivered on its own a few minutes from now (TASKS
+      // §16); listing it here too would show the user the same posting twice.
+      alertHeldAt: null,
     },
     include: {
       company: true,
