@@ -129,6 +129,19 @@ test('the plan puts the dates and the place on the right of their line', () => {
   assert.equal(role?.right[0]?.text, 'Dec. 2024 – Present');
 });
 
+test('the same link in url and profiles is written once', () => {
+  const resume = JsonResumeSchema.parse({
+    basics: {
+      name: 'Nazar Boyko',
+      url: 'linkedin.com/in/nazar-boyko',
+      profiles: ['https://linkedin.com/in/nazar-boyko/', 'github.com/nazboyko'],
+    },
+  });
+  const contact = planRender(resume, KNOBS).header.contact ?? '';
+  assert.equal(contact.match(/nazar-boyko/g)?.length, 1, contact);
+  assert.match(contact, /github\.com\/nazboyko/);
+});
+
 test('planToText reads as the resume, headings and bullets included', () => {
   const text = planToText(planRender(RESUME, KNOBS));
   assert.match(text, /^Назар Бойко/);

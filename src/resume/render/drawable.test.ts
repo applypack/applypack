@@ -48,6 +48,13 @@ test('isKept covers what a resume is actually written in', () => {
   }
 });
 
+test('the separators the live corpus writes survive', () => {
+  // U+2219 BULLET OPERATOR is what the resumes here put between a city and
+  // "Remote"; folding it ran the two words together in the first live render.
+  assert.equal(drawable('Austin, Texas, US ∙ Remote'), 'Austin, Texas, US ∙ Remote');
+  assert.equal(drawable('a · b • c ∙ d'), 'a · b • c ∙ d');
+});
+
 test('undrawable names only what would be lost outright', () => {
   assert.deepEqual(undrawable(MATH_LINE), [], 'these fold, they are not lost');
   assert.deepEqual(undrawable('a 🚀 b'), ['🚀']);

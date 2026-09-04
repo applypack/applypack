@@ -42,6 +42,9 @@ const KEPT_SINGLES = new Set([
   '†', '‡', '•', '…', '‰', '′', '″', '‹', '›',
   '€', '₣', '₤', '₧', '₰', '₱', '₵',
   '←', '↑', '→', '↓', '−', '≠', '≤', '≥', '™', '№',
+  // U+2219 BULLET OPERATOR: what the corpus uses between the parts of a
+  // contact line and a role's location. Dropping it ran two places together.
+  '∙', '∞', '≈', '∑', '√', '∫', '∆', '∏',
 ]);
 
 export function isKept(ch: string): boolean {

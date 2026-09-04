@@ -57,13 +57,29 @@ export interface RenderPlan {
   blocks: RenderBlock[];
 }
 
+function unique(parts: Array<string | null>): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const part of parts) {
+    if (!part) continue;
+    const key = part.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/$/, '');
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(part);
+  }
+  return out;
+}
+
 /** The separator between the parts of a contact line, and between list items. */
 const DOT = ' · ';
 const DASH = ' – ';
 
 export function planRender(resume: JsonResume, knobs: RenderKnobs): RenderPlan {
   const b = resume.basics;
-  const contact = [b.location, b.email, b.phone, b.url, ...b.profiles].filter(Boolean).join(DOT);
+  // A model reading a one-link contact line often fills BOTH `url` and
+  // `profiles` with it, and the line then says linkedin.com twice (measured on
+  // the first live scan). Same link, once.
+  const contact = unique([b.location, b.email, b.phone, b.url, ...b.profiles]).join(DOT);
   const blocks: RenderBlock[] = [];
   for (const key of knobs.sectionOrder) blocks.push(...section(key, resume));
   // Folded here, once, rather than at each of the dozen places a string is
