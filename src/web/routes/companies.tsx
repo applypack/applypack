@@ -51,6 +51,7 @@ const NewCompanySchema = z.object({
     AtsType.DJINNI,
     AtsType.JOBTECH,
     AtsType.ADZUNA,
+    AtsType.FRANCETRAVAIL,
   ] as const),
   atsToken: z.string().min(1).max(120),
   careerUrl: z.string().url().optional().or(z.literal('')),

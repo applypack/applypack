@@ -472,6 +472,8 @@ function buildJobData(
     salaryMax: c?.salary_max ?? null,
     salaryCurrency: c?.salary_currency ?? null,
     salaryPeriod: c?.salary_period ?? null,
+    ...(job.sourcePayload !== undefined ? { sourcePayload: job.sourcePayload as Prisma.InputJsonValue } : {}),
+    ...(job.sourceUpdatedAt ? { sourceUpdatedAt: job.sourceUpdatedAt, sourceCheckedAt: new Date() } : {}),
     techMatch: c?.tech_match ?? [],
     // `pasted: false` is an invariant, not an assumption: a MANUAL company's
     // fetchOne returns [], so a pasted row never reaches this loop. Pasted

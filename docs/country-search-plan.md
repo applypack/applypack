@@ -671,6 +671,14 @@ adopted or rejected.
   an error message).
 - `FRANCETRAVAIL`: OAuth client credentials, token cached per process,
   `range` pagination, `lieuTravail` hints.
+  *(done: v1.43.0 — the offers API is under the board's own licence, not
+  Etalab, and its obligations are code (ADR 0034): the offer is stored and
+  shown whole, source + update date + licence link ride with every
+  display, a daily mirror re-asks the board about every stored offer (the
+  detail resource answers 204 for a withdrawn one) and deletes it or, for
+  the user's own record, anonymises it as art. 7 lists; `docs/france-travail-reuse.md`
+  is the art. 4 method statement; not run live — the owner's own client
+  id is needed, the mapper is tested on the documented fields)*
 - `ADZUNA`: one row per country code, `max_days_old=1`, a budget guard so
   the hourly tick never exceeds 250 calls/day, attribution shown wherever a
   listing is displayed; snippet-only descriptions flagged so the classifier

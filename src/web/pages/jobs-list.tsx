@@ -19,7 +19,7 @@ import { formatDateShort, formatRelative, formatSalary } from '../format';
 import { formatUsdPerYear } from '../../currency';
 import { flagOf } from '../../countries';
 import { splitPlaces, toggled, type FacetChip, type FacetChips } from '../job-facets';
-import { AdzunaLabel } from './attribution';
+import { AdzunaLabel, FranceTravailLine } from './attribution';
 import { VERDICT_TONE } from './verification-card';
 
 interface JobRow {
@@ -34,6 +34,7 @@ interface JobRow {
   salaryMax: number | null;
   salaryCurrency: string | null;
   salaryPeriod: string | null;
+  sourceUpdatedAt: Date | null;
   status: JobStatus;
   fetchedAt: Date;
   postedAt: Date;
@@ -358,6 +359,7 @@ export const JobsListPage: FC<JobsListProps> = ({
                             {j.company.name}
                           </div>
                           {j.company.atsType === 'ADZUNA' && <AdzunaLabel market={j.company.atsToken} class="mt-0.5" />}
+                          {j.company.atsType === 'FRANCETRAVAIL' && <FranceTravailLine updatedAt={j.sourceUpdatedAt} class="mt-0.5" />}
                         </Td>
                         <Td class="text-ink-muted">
                           <div class="truncate" title={j.location || 'Remote'}>

@@ -41,6 +41,7 @@ enum AtsType {
   PERSONIO
   TEAMTAILOR
   ADZUNA
+  FRANCETRAVAIL
   // Phase 8.2: pasted by hand on /jobs/new. One inactive Company row per
   // employer; runAllFetchers never touches it.
   MANUAL
@@ -126,20 +127,26 @@ model Job {
   regions        String[]  @default([])
   locationSource String?
 
-  fitScore       Int?
+  fitScore        Int?
   // The posting's OWN numbers (plan §5.1): `salaryCurrency` is ISO-4217 and
   // `salaryPeriod` one of year|month|week|day|hour. Both null on every row
   // stored before this change, which means USD a year — what the model used
   // to convert to silently. src/currency.ts does the arithmetic now.
-  salaryMin      Int?
-  salaryMax      Int?
-  salaryCurrency String?
-  salaryPeriod   String?
-  techMatch      String[]
-  redFlags       String[]
-  summary        String?   @db.Text
-  status         JobStatus @default(NEW)
-  alertedAt      DateTime?
+  salaryMin       Int?
+  salaryMax       Int?
+  salaryCurrency  String?
+  salaryPeriod    String?
+  // Stage 3e (ADR 0034), France Travail's licence as columns: the offer as
+  // received (art. 5.3, shown whole), the board's last update (art. 4), and
+  // when the daily mirror last asked the board about it (art. 5.2).
+  sourcePayload   Json?
+  sourceUpdatedAt DateTime?
+  sourceCheckedAt DateTime?
+  techMatch       String[]
+  redFlags        String[]
+  summary         String?   @db.Text
+  status          JobStatus @default(NEW)
+  alertedAt       DateTime?
 
   // Application tracking (Phase 3.4). pipelineStage is orthogonal to status:
   //   status        = inbox state (NEW / ALERTED / SAVED / DISMISSED / APPLIED)

@@ -4,6 +4,25 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.43.0] — 2026-09-04
+
+### Added
+- **France Travail, with your own free client id** (plan §3e, ADR 0034):
+  every job ad in France through the board's Offres d'emploi API. Create an
+  app on francetravail.io, paste the client id and secret on Settings →
+  Sources, and Companies offers the developer row (`codeROME=M1805`) to a
+  search that names France; any filter the API takes works as a row.
+- The board's licence as code: every offer is stored and shown whole
+  ("Full offer as published"), every display names the source, the
+  board's last update and the licence, and a daily mirror re-checks each
+  stored offer — withdrawn ones are deleted, or kept anonymised when they
+  are your own application record. `docs/france-travail-reuse.md` states
+  the method. Stage 3e, and the country-aware source plan, are complete.
+
+### Schema
+- `AtsType.FRANCETRAVAIL`, `Job.sourcePayload`, `Job.sourceUpdatedAt`,
+  `Job.sourceCheckedAt` (migration `20260904040000_add_france_travail`).
+
 ## [1.42.0] — 2026-09-04
 
 ### Added

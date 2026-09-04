@@ -1,9 +1,10 @@
 import { logger } from '../logger';
 import { runAllFetchers, type SourceProgress } from '../fetchers';
+import { syncFranceTravail } from './france-travail-sync';
 import { isFailureStatus } from '../fetchers/source-health';
 import { listActiveProfiles } from '../profiles';
 import type { Profile } from '@prisma/client';
-import { getSettings } from '../settings';
+import { getSettings, getSourceKeys } from '../settings';
 import { recordCandidatesFromText } from '../discovery';
 import { makeFetchPauseProbe } from './fetch-pause';
 import { processNormalizedJobs, type ProcessStats } from './process-jobs';
@@ -62,6 +63,11 @@ export async function runFetchJob(opts: FetchJobOptions = {}): Promise<{ stats: 
     opts.onSource?.(progress);
   }, { manual: opts.manual === true });
   logger.info({ count: fetched.length, sources, sourcesFailed }, 'fetch-job: total fetched');
+
+  // France Travail's licence asks the board again about every stored offer
+  // at least daily (ADR 0034); the mirror does what is due on every tick.
+  const mirrored = await syncFranceTravail({ countries: [], regions: [], keys: await getSourceKeys(), now: new Date() }, paused);
+  if (mirrored.checked > 0) logger.info(mirrored, 'fetch-job: france travail mirrored');
 
   // Phase 7.5 — universal ATS-URL discovery from any fetched job's URL
   // and description. The HN /jobs feed is the primary source: each

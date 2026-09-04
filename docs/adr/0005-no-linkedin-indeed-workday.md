@@ -116,7 +116,7 @@ original decision (from the feature-expansion-plan ground rules):
 | Landing.jobs JSON API | rejected (Atom feed usable) | `Disallow: /api/`; `/feed` is allowed (2026-09-03) |
 | Talent.com / Welcome to the Jungle / Otta / XING / StepStone / Honeypot | rejected | no public API (2026-09-03) |
 | Adzuna | adopted (v1.42.0) under rule 3 | API terms (read 2026-09-04) permit personal research and publishing listings with the "Jobs by Adzuna" label, 25/min, 250/day, 1 000/week, 2 500/month; the label, the four-a-day cadence, the ten-row ceiling, the snippet note and key redaction are code (ADR 0034) |
-| France Travail (Offres d'emploi v2) | adopting under rule 3 — licence read 2026-09-04, next PR | not Etalab: its own "Licence de réutilisation de la base de données des offres d'emploi" — source + date + licence link on every offer (art. 4), poll at least every 24 h and mirror deletions (5.2), show the whole offer (5.3), anonymise withdrawn offers (7); 4 calls/s per application |
+| France Travail (Offres d'emploi v2) | adopted (v1.43.0) under rule 3 | not Etalab: its own "Licence de réutilisation de la base de données des offres d'emploi" — source + date + licence link on every offer (art. 4), poll at least every 24 h and mirror deletions (5.2), show the whole offer (5.3), anonymise withdrawn offers (7); 4 calls/s per application |
 
 Sources verified usable on 2026-09-03 (DOU.ua, Djinni, solid.jobs, the
 GermanTechJobs / DevITjobs feeds, Landing.jobs Atom, JobTech Sweden,

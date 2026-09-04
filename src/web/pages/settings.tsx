@@ -803,7 +803,9 @@ const SourceKeysCard: FC<{ rows: SourceKeyRow[] }> = ({ rows }) => (
     <Hint class="mb-3">
       Two sources need a free key of your own. Register with the vendor, paste the values here — they
       are stored like Telegram tokens and never shown again — then add the source on Companies. The
-      .env variables named below still work instead.
+      .env variables named below still work instead. France Travail's licence asks every stored offer
+      to be re-checked daily: pausing fetching for longer than a day breaks that — disable its rows
+      on Companies first.
     </Hint>
     <div class="space-y-4">
       {rows.map((r) => (

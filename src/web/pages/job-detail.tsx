@@ -16,9 +16,10 @@ import {
   StatusBadge,
   Tag,
   Textarea,
+  Hint,
 } from '../ui';
 import { formatDate, formatSalary } from '../format';
-import { AdzunaLabel } from './attribution';
+import { AdzunaLabel, FranceTravailLine, JsonTree } from './attribution';
 import { formatUsdPerYear } from '../../currency';
 import { flagOf, placeLabel } from '../../countries';
 import { WORKPLACE_LABEL, type WorkplaceCode } from '../../location';
@@ -44,6 +45,9 @@ interface JobDetail {
   salaryMax: number | null;
   salaryCurrency: string | null;
   salaryPeriod: string | null;
+  /** ADR 0034: the offer as the source sent it, and the source's own last update. */
+  sourcePayload: unknown;
+  sourceUpdatedAt: Date | null;
   techMatch: string[];
   redFlags: string[];
   summary: string | null;
@@ -282,6 +286,21 @@ export const JobDetailPage: FC<JobDetailProps> = ({
         <ResumeMatchCard {...resumeMatch} />
 
         <CoverLetterCard {...coverLetters} />
+        {job.company.atsType === 'FRANCETRAVAIL' && job.sourcePayload !== null && job.sourcePayload !== undefined && (
+          <Card>
+            <SectionTitle>Full offer as published by France Travail</SectionTitle>
+            <Hint class="mb-3">
+              Every field the board sent, unchanged — its licence asks for the whole offer to be shown.
+            </Hint>
+            <details>
+              <summary class="cursor-pointer select-none text-[13px] font-medium text-ink">Show all fields</summary>
+              <div class="mt-3 overflow-x-auto">
+                <JsonTree value={job.sourcePayload} />
+              </div>
+            </details>
+          </Card>
+        )}
+
 
         <Card>
           <SectionTitle>Description</SectionTitle>
@@ -402,6 +421,7 @@ const PageHeaderBlock: FC<{ job: JobDetail }> = ({ job }) => (
           {job.company.name} · {job.location || 'Remote'}
         </div>
         {job.company.atsType === 'ADZUNA' && <AdzunaLabel market={job.company.atsToken} class="mt-1" />}
+        {job.company.atsType === 'FRANCETRAVAIL' && <FranceTravailLine updatedAt={job.sourceUpdatedAt} class="mt-1" />}
         <PlaceChips job={job} />
       </div>
       <div class="flex shrink-0 flex-wrap items-center gap-3">
