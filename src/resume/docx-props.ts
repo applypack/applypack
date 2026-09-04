@@ -56,19 +56,22 @@ export function readProps(bytes: Buffer): DocxProps {
  * added before `</cp:coreProperties>`.
  */
 export async function withProps(bytes: Buffer, patch: PropsPatch, now: Date = new Date()): Promise<Buffer> {
-  const zip = await JSZip.loadAsync(bytes);
+  const zip = await JSZip.loadAsync(bytes, { createFolders: false });
   const file = zip.file(CORE_PART);
-  zip.file(CORE_PART, setCoreProps(file ? await file.async('string') : null, patch, now));
+  // A package without core.xml has nothing to fix; adding an orphan part would
+  // need a content-type override and a relationship, so it is left alone.
+  if (!file) return bytes;
+  zip.file(CORE_PART, setCoreProps(await file.async('string'), patch, now), { createFolders: false });
   return zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' });
 }
 
 /**
  * core.xml with the named properties rewritten and dcterms:modified stamped
  * with `now`. Pure on the string, so the patcher can apply it inside its own
- * archive rewrite. A property the file never had is added before the close.
+ * archive rewrite. A property the part never had is added before the close.
  */
-export function setCoreProps(core: string | null, patch: PropsPatch, now: Date): string {
-  let xml = core ?? MINIMAL_CORE;
+export function setCoreProps(core: string, patch: PropsPatch, now: Date): string {
+  let xml = core;
   const set = (name: string, value: string, attrs = '') => {
     const re = new RegExp(`<${name}(?:\\s[^>]*)?>[^<]*</${name}>`);
     const tag = `<${name}${attrs}>${encode(value)}</${name}>`;
@@ -80,8 +83,6 @@ export function setCoreProps(core: string | null, patch: PropsPatch, now: Date):
   set('dcterms:modified', now.toISOString().replace(/\.\d{3}Z$/, 'Z'), ' xsi:type="dcterms:W3CDTF"');
   return xml;
 }
-
-const MINIMAL_CORE = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\r\n<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:dcmitype="http://purl.org/dc/dcmitype/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"></cp:coreProperties>`;
 
 function encode(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');

@@ -112,17 +112,19 @@ resumesRoute.post('/resumes/:id/replace', resumeUploadLimit('/resumes'), async (
 resumesRoute.get('/resumes/:id', async (c) => {
   const id = Number(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text('Bad id', 400);
-  const [resume, matches, review, linkedProfiles, impact, original] = await Promise.all([
+  const [resume, matches, review, linkedProfiles, impact] = await Promise.all([
     getResume(id),
     listMatchesForResume(id),
     getLatestReviewForResume(id),
     listProfilesForResume(id),
     deleteImpact(id),
-    getResumeOriginal(id),
   ]);
   if (!resume) return c.text('Not found', 404);
-  // The template check is recomputed from the bytes on every view (ADR 0038) — 40 KB of XML, sub-millisecond.
-  const docx = original && isDocx(original.sourceFilename) ? Buffer.from(original.original) : null;
+  // The template check is recomputed from the bytes on every view (ADR 0038) —
+  // 40 KB of XML, sub-millisecond. Only a .docx is read; a 5 MB PDF is not
+  // pulled out of the database to learn its extension.
+  const original = isDocx(resume.sourceFilename) ? await getResumeOriginal(id) : null;
+  const docx = original ? Buffer.from(original.original) : null;
   const structure: DocxStructure | null = docx ? docxStructure(docx) : null;
   const props: DocxProps | null = docx ? readProps(docx) : null;
   // The run before this one, so the card can say what the edits changed.

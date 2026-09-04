@@ -783,7 +783,7 @@ jobsRoute.get('/jobs/:id/target', async (c) => {
   }
   const resume = await getResume(match.resumeId);
   if (!resume) return c.text('Not found', 404);
-  const fileVerdict = await describeResumeFile(match.resumeId);
+  const fileVerdict = await describeResumeFile(resume);
   // An instant check arrives with its parsed upload — taken once; from then on the browser holds it.
   const draftKey = c.req.query('draft');
   const draftText = draftTextForPage(draftKey ? draftStash.take(draftKey) : null, match.id);
@@ -927,12 +927,13 @@ function sortToOrderBy(sort: string): Prisma.JobOrderByWithRelationInput[] {
   }
 }
 
-/** One sentence on what a Save can do with the resume's own file (ADR 0038). */
-async function describeResumeFile(resumeId: number): Promise<string> {
-  const row = await getResumeOriginal(resumeId);
-  if (!row) return 'This resume has no file: Save keeps a text version.';
-  if (/\.docx$/i.test(row.sourceFilename)) return describeStructure(docxStructure(Buffer.from(row.original)));
-  if (/\.pdf$/i.test(row.sourceFilename)) {
+/** One sentence on what a Save can do with the resume's own file (ADR 0038). Only a .docx is read from the database. */
+async function describeResumeFile(resume: { id: number; sourceFilename: string }): Promise<string> {
+  if (/\.docx$/i.test(resume.sourceFilename)) {
+    const row = await getResumeOriginal(resume.id);
+    if (row) return describeStructure(docxStructure(Buffer.from(row.original)));
+  }
+  if (/\.pdf$/i.test(resume.sourceFilename)) {
     return 'This file is a PDF: Save keeps a text version; upload the .docx it was printed from to get a styled file back.';
   }
   return 'This file is plain text: Save keeps a text version.';

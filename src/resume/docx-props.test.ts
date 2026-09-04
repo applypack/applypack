@@ -40,8 +40,9 @@ test('withProps adds a property the file never had and escapes what it writes', 
   assert.equal(readProps(after).title, 'R&D <lead>');
 });
 
-test('readProps on a file with no properties parts is all null, not a throw', () => {
+test('a file with no properties part reads as all null and is returned untouched by withProps', async () => {
   const { buildZip } = require('./zip-write') as typeof import('./zip-write');
   const bare = buildZip([{ name: 'word/document.xml', data: Buffer.from('<w:document/>') }]);
   assert.deepEqual(readProps(bare), { title: null, creator: null, lastModifiedBy: null, modified: null, application: null });
+  assert.equal(await withProps(bare, { title: 'x' }), bare, 'no orphan part is invented');
 });

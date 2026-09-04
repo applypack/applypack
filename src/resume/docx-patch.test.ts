@@ -144,7 +144,11 @@ test('an unchanged text round-trips every fixture and leaves the document part e
     assert.equal(res.text, text, name);
     assert.deepEqual(res.report, { changed: 0, removed: 0, added: 0, skipped: [] }, name);
     assert.equal(await documentXml(res.docx), await documentXml(original), `${name}: document.xml byte-identical`);
-    assert.equal(readProps(res.docx).modified, '2026-09-04T12:00:00Z', `${name}: modified stamped`);
+    // Word writes no directory entries; neither do we (jszip would add word/ and docProps/ otherwise).
+    assert.deepEqual(Object.keys((await JSZip.loadAsync(res.docx)).files), Object.keys((await JSZip.loadAsync(original)).files), `${name}: same entries, in order`);
+    // Only a package that has a properties part gets its timestamp; none is ever added.
+    if (readProps(original).modified !== null) assert.equal(readProps(res.docx).modified, '2026-09-04T12:00:00Z', `${name}: modified stamped`);
+    else assert.equal(readProps(res.docx).modified, null, `${name}: no properties part invented`);
   }
 });
 

@@ -23,7 +23,7 @@ import { XMLSerializer } from '@xmldom/xmldom';
 import type { Document, Element } from '@xmldom/xmldom';
 import { docxToText, parseDocumentXml, renderLines, walkDocument, W_NS, type Block, type LineOwner } from './docx-text';
 import { setCoreProps } from './docx-props';
-import { loadLineDiff, type DiffOp } from './line-diff';
+import { loadLineDiff } from './line-diff';
 import { toPlainPunctuation } from './prompts';
 
 export interface PatchReport {
@@ -58,7 +58,7 @@ export async function patchDocx(
   editedText: string,
   opts: PatchOptions = {},
 ): Promise<PatchResult> {
-  const zip = await JSZip.loadAsync(original);
+  const zip = await JSZip.loadAsync(original, { createFolders: false });
   const part = zip.file(DOCUMENT_PART);
   if (!part) return { ok: false, reason: 'not a .docx file (word/document.xml missing)' };
   const xml = await part.async('string');
@@ -137,13 +137,15 @@ export async function patchDocx(
   // Serialise; give the declaration its CRLF back when Word wrote one.
   let out = new XMLSerializer().serializeToString(doc);
   if (/^<\?xml[^>]*\?>\r\n/.test(xml)) out = out.replace(/^(<\?xml[^>]*\?>)\n/, '$1\r\n');
-  zip.file(DOCUMENT_PART, out);
+  zip.file(DOCUMENT_PART, out, { createFolders: false });
+  // Stamp the properties part when the package has one; never add a part.
   const core = zip.file(CORE_PART);
-  const now = opts.now ?? new Date();
-  const props = opts.fixProperties
-    ? { title: opts.fixProperties.title, creator: opts.fixProperties.author, lastModifiedBy: opts.fixProperties.author }
-    : {};
-  zip.file(CORE_PART, setCoreProps(core ? await core.async('string') : null, props, now));
+  if (core) {
+    const props = opts.fixProperties
+      ? { title: opts.fixProperties.title, creator: opts.fixProperties.author, lastModifiedBy: opts.fixProperties.author }
+      : {};
+    zip.file(CORE_PART, setCoreProps(await core.async('string'), props, opts.now ?? new Date()), { createFolders: false });
+  }
   const docx = await zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' });
 
   // The gates: what the file now reads as must be exactly the edit, and
@@ -384,4 +386,3 @@ function countIn(xml: string, name: string): number {
   return (xml.match(new RegExp(`<(?:w|m):${name}(?=[\\s>/])`, 'g')) ?? []).length;
 }
 
-export type { DiffOp };
