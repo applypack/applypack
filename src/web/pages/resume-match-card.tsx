@@ -97,8 +97,13 @@ const HARD_VIEW: Record<MatchHardRequirement['status'], { label: string; tone: T
 };
 
 const SUBHEAD = 'mb-2 text-[13px] font-medium text-ink-muted';
-/** The Now / Proposed captions: quiet enough to read as labels, not as content. */
-const LABEL = 'text-[11px] font-semibold uppercase tracking-wide text-ink-faint';
+/**
+ * The Now / Proposed captions. Micro step (12px/500) — the ramp's floor — and
+ * no uppercase tracking: DESIGN.md says nothing in this app is ever set that
+ * way, and the caption is a real word the model chose ("Rewrite", "Add"), not
+ * a category shouting at the reader.
+ */
+const LABEL = 'text-xs font-medium text-ink-faint';
 
 export const ResumeMatchCard: FC<ResumeMatchCardProps> = ({
   jobId,
