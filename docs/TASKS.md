@@ -1504,3 +1504,206 @@ presets `hour / day / week` only — enough? (3) Is the change-watch rung
 wanted at all, or is "refused / not supported" the more honest answer for
 sites with no machine-readable data? (4) ADR 0034 states "no headless
 browser" as policy — confirm before stage A so the question is closed.
+
+---
+
+## 18. Tailoring loop: apply, copy, save, export (analysis 2026-09-03, nothing built)
+
+Owner's ask: after a resume-vs-posting comparison, let the user take the
+AI's edit suggestions in a few clicks (apply, add missing keywords, reorder)
+or copy them comfortably and edit by hand, then save the tailored resume as
+a real file; check whether the linkedin-radar "resume regeneration" service
+is worth reusing; make sure nothing ApplyPack writes gets a resume flagged
+as "AI-generated"; use libraries where they exist; handle every user's own
+template. Analysis: [tailoring-loop-plan.md](./tailoring-loop-plan.md).
+Build guide, file by file, with the session model and effort per stage:
+[tailoring-loop-integration.md](./tailoring-loop-integration.md).
+
+### 18.1 Facts established (don't re-derive)
+
+- `/jobs/:id/target` already has the editor, the live score, the
+  quote-to-editor jump, the draft in localStorage and Save as vN (a `.md`
+  text version). Missing: copying a proposal, applying one, adding a
+  keyword to the text, a file after Save. §5.10 (.docx export) and §5.15
+  (AI-tailored resume) were closed with reopen triggers; this ask is the
+  trigger, in a narrower form: the user picks each edit, the model only
+  proposes wording, the file keeps the user's design.
+- The stored suggestion shape is `actions[] {section, where, what, why,
+  priority, quote}`; 16 of the 18 actions on the two stored full analyses
+  (matches 59, 68) carry the proposal as a quoted string inside `what`.
+  Removals carry the exact quote to delete; the card does not show it.
+- Live corpus: resume 1 is the only `.docx` (89 paragraphs, 527 runs, 31 of
+  65 non-empty paragraphs fragmented into 4+ runs, one 1×2 skills table,
+  2 OMML objects, 100 tabs, junk third-party template properties in
+  `core.xml`, mime stored as `application/octet-stream`); resumes 4
+  (scratch), 5 and 8 are PDFs from macOS Quartz. Our own writers
+  (`pdf-write.ts`, `docx-write.ts`) emit no `/Info` and no `docProps`.
+- The linkedin-radar "service" is the `job-apply` Claude Code skill: two
+  rulebooks + nine stdlib-Python scripts that patch one person's .docx in
+  place (run-mapped replacement, byte-identical style parts, text round
+  trip, hygiene, metadata cleaning) and render the PDF through Pages / Word
+  on macOS. Take the gates and the idea; the code is tuned to one template
+  and one Mac.
+- No major ATS detects AI authorship (Jobscan, Enhancv, 2026). What is
+  flagged: hidden white text (Greenhouse: ~1% of ~300 M resumes in H1 2025),
+  unparseable layout. Library fingerprints in metadata (`python-docx`,
+  `pdf-lib`, `docx` "Un-named", pdfkit "PDFKit") are visible to a human
+  opening File → Properties, not a rejection rule. linkedin-radar's
+  rulebook claim about "vendor AI-content classifiers since late 2025" is
+  unsupported.
+- No Node library replaces arbitrary text inside an existing .docx with
+  formatting intact (`docx.patchDocument` wants `{{placeholders}}`;
+  docxtemplater's search-and-replace is a paid module). Generation has
+  libraries: `docx` (dolanmiu), `pdfkit`, Typst via WASM; `@xmldom/xmldom`
+  + `jszip` for the patcher; LibreOffice (~240 MB image) only as an
+  optional profile. OpenResume's parser is AGPL. JSON Resume is the model.
+- Templates are three populations: flow `.docx` (patch fully), structural
+  `.docx` with tables / text boxes / columns (patch partly), PDF-only
+  (nothing to patch). A deterministic check at upload sorts them.
+- Page review (live, 800 px and 375 px): clicking a suggestion focuses the
+  editor and scrolls the page away from the proposal; the wording is buried
+  in "Reword as: "…"" sentences; cards are clickable `<li>` elements; the
+  selection is invisible; chips only navigate. Hierarchy 7, consistency 8,
+  accessibility 5, polish 6.
+
+### 18.2 Decisions
+
+Copy and Locate as separate controls (Locate never moves the page); every
+card shows Now / Proposed; a Markdown change sheet ("Copy all suggestions",
+"Copy my changes") ships first as the universal manual path; Apply, Remove,
+Add to Skills, Undo are client-side text operations; the model returns
+`replacement` / `insert_after` and `fact-check.ts` decides at persist time
+what is applicable (blocked proposals become questions); keyword additions
+stay deterministic (`add` and confirmed terms only); Save patches the
+user's `.docx` in place when the template check allows it, else a text
+version with the reason; the patcher is in-house over xmldom + jszip,
+generation uses `docx` + pdfkit, JSON Resume is the structured model; the
+metadata policy binds every writer (no tool name, no hidden text); for
+PDF-only and structural files the product offers a clean single-column
+re-render in the user's typography, labelled as such; no external service.
+
+### 18.3 Session model and effort per stage
+
+| Stage | Session model | Effort |
+|---|---|---|
+| Pre-work notes, `code-review-expert` passes | Fable 5.1 | high |
+| 1 `target-copy-locate` | Opus 5 (`/fast` for markup) | medium |
+| 2 `target-apply-edits` | Opus 5 | high |
+| 3 `suggestion-replacements` | Fable 5.1 | high |
+| 4 `docx-patch` | Fable 5.1 for the patcher, check and fixtures; Opus 5 for wiring | max / medium |
+| 5 `resume-render` | Opus 5 for libraries and pages; Fable 5.1 for the `structure` prompt | high |
+
+Product engine unchanged: the resume role stays `claude-opus-5` (ADR 0029
+bench); re-run `bench:resume` after stages 3 and 5.
+
+### 18.4 Implementation order (five branches, each its own PR; tags from stage 3 on)
+
+**Stage 1 — `target-copy-locate` (no schema, no prompt; ~1 session)**
+- [ ] **Analyse first:** read the page and card sources; pull every stored
+      `actions[].what` and write the proposal extractor against the real
+      shapes; one 375 px screenshot of the Suggestions tab in the note.
+- [ ] `add proposal extractor` — `target.mjs:proposalOf` + tests.
+- [ ] `add line diff` — `public/line-diff.mjs:diffLines` + tests.
+- [ ] `add change sheet` — `changeSheet` / `formatChangeSheet` (Markdown);
+      "Copy all suggestions", "Copy my changes".
+- [ ] `add copy and locate` — `copy.mjs:wireCopy` (clipboard + fallback,
+      aria-live "Copied"); Locate outlines the span (`.located`), scrolls
+      the editor only, `focus({ preventScroll: true })` on wide screens;
+      "Couldn't find this text" inline instead of the pulse.
+- [ ] `restructure suggestion cards` — `SuggestionCard` with Now / Proposed,
+      `<button>` controls, removal quote shown, badge inline; Copy also on
+      `/jobs/:id`.
+- [ ] `fix narrow layout` — editor first and collapsed at ≤ 1023 px, keyword
+      table behind a disclosure, "show matched" toggle into the editor header.
+- [ ] `document copy path` — CLAUDE.md rows, SPEC, CHANGELOG + bump.
+
+**Stage 2 — `target-apply-edits` (no schema, no prompt; ~1 session)**
+- [ ] **Analyse first:** read `keyword-overrides.ts` and `facts.ts`; count
+      quotes `locateQuote` finds and multi-line removal quotes.
+- [ ] `add text operations` — `applyReplacement`, `removeSpan` (contact line
+      protected), `insertIntoSkills`, `moveLineToBlockTop` + tests.
+- [ ] `add apply state` — Apply / Edit & apply / Skip / Remove / Undo;
+      `target-edits:<matchId>` in localStorage beside the draft.
+- [ ] `add keyword insert` — "Add to Skills" on `add` and confirmed chips;
+      `cannot_claim` never gets a button.
+- [ ] `document apply` — CLAUDE.md rows, SPEC, CHANGELOG + bump.
+
+**Stage 3 — `suggestion-replacements` (PROMPT_VERSION 7, ADR 0035; ~1 session)**
+- [ ] **Analyse first:** read `prompts.ts`, `match.ts`, `suggestions.ts`,
+      `cover-letter.ts` (the `factCheck` call), `prompts.test.ts`; run
+      `bench:resume --mode full` before the change and keep the file.
+- [ ] `add replacement fields` — `replacement`, `insert_after` in
+      `MatchSchema`; `RULE_BULLET_STYLE` shared with the review's example
+      rule; `OUTPUT_ACTIONS`; `PROMPT_VERSION = 7`.
+- [ ] `add replacement gate` — `replacement-gate.ts:gateActions` (plain
+      punctuation, `factCheck`, KEEP WANTED KEYWORDS in code); wired before
+      `createMatch` and `updateMatchSuggestions`.
+- [ ] `test both variants` — guard tests: rule present in full, fast and
+      suggestions prompts; a reply without the fields parses; the gate
+      blocks an invented figure and keeps a real one.
+- [ ] `write adr 0035` — "suggestions carry replacement text; the fact gate
+      decides what is applicable"; bench after-table in the PR; CHANGELOG +
+      bump + tag.
+
+**Stage 4 — `docx-patch` (deps xmldom + jszip, ADR 0036; ~2 sessions)**
+- [ ] **Analyse first:** prove xmldom fidelity on resume 1's `document.xml`
+      (DOM for `document.xml`, raw bytes for every other part); build the
+      three fixtures (`flow-fragmented`, `structural-table-layout`,
+      `flow-simple`); run the parser-disagreement check by hand.
+- [ ] `add template check` — `docx-structure.ts:docxStructure` (kind, lines,
+      counts, notes) + tests; shown on `/resumes/:id` and above the editor.
+- [ ] `expose document blocks` — `docx-text.ts:walkDocument` with a parity
+      test against the old text output on every fixture.
+- [ ] `share line diff` — `resume/line-diff.ts` bridging to the `.mjs`.
+- [ ] `add docx patcher` — `docx-patch.ts:patchDocx` (change / delete /
+      insert, tabbed headers, cell text, hygiene on new text, gates) +
+      `docx-props.ts` + tests.
+- [ ] `save patched versions` — `POST /resumes/:id/draft` branches on
+      `.docx` + check; `replaceResumeFile` with the patched bytes; text
+      fallback with the reason; "Save as a tailored copy" (owner decides the
+      default); Download reflects the new file; export report line.
+- [ ] `fix document properties` — the opt-in POST; current values shown.
+- [ ] `write adr 0036` — supersedes ADR 0010's text-only consequence;
+      CLAUDE.md rows; CHANGELOG + bump + tag; screenshots of the patched
+      file in Word, Pages, LibreOffice in the PR.
+
+**Stage 5 — `resume-render` (deps docx + pdfkit + one OFL font, ADR 0037; ~2 sessions)**
+- [ ] **Analyse first:** render one JSON Resume sample through `docx` +
+      pdfkit and through Typst; compare output, size, producer strings
+      (owner question 3); pick the bundled font family.
+- [ ] `add json resume model` — `json-resume.ts` (zod subset).
+- [ ] `add scan structure` — `structure` block in `SCAN_SYSTEM` +
+      `ScanSchema`; `structure-anchor.ts` verbatim guard;
+      `Resume.structure Json?` with a hand-written migration;
+      `structure-from-text.ts` fallback.
+- [ ] `add style inference` — `style-infer.ts` from docx styles / pdf.js
+      fonts + tests.
+- [ ] `add clean renderers` — `render/clean-docx.ts`, `render/clean-pdf.ts`
+      (metadata per library, Cyrillic-capable font, fonts copied in the
+      Dockerfile).
+- [ ] `add render page` — `/resumes/:id/render`: knobs prefilled, structure
+      editable, "what the ATS sees" preview, download or save as a new
+      resume; links from `/resumes/:id` and the target page for PDF-only and
+      structural files.
+- [ ] `write adr 0037` — JSON Resume as the model, the dependencies, the
+      font, the label; CHANGELOG + bump + tag.
+
+**Optional — LibreOffice profile.** Only if the owner reports the "export
+the PDF from Word or Pages" step as friction after stage 4.
+
+**Verification (all stages).** Pure modules unit-tested next to the file;
+`npm run lint:types && npm test` every commit; `docker compose build web`
+and a curl of every touched route; screenshots at 1200 / 768 / 375 with
+keyboard walks; stage 3 benched before and after; stage 4's patched file
+opened in Word, Pages and LibreOffice; stage 5's outputs round-tripped
+through our own extractors and `parse-warnings`; `code-review-expert` over
+`git diff main...HEAD` before every PR.
+
+**Decisions for the owner.** (1) Tailored edits save as a copy per posting
+(recommended) or as a version of the master? (2) Fix junk document
+properties on click (recommended) or on the first patched save? (3) pdfkit
+(recommended) or Typst for stage 5? (4) Is "export the PDF from Word or
+Pages" acceptable for v1, or is the LibreOffice profile required? (5)
+Tables in the patcher's v1: cell text edits or refuse? (6) Reordering:
+"make this the first bullet" only, or free line moves? (7) Ship stages 1
+and 2 as one branch or two?
