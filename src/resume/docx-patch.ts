@@ -31,6 +31,8 @@ export interface PatchReport {
   removed: number;
   added: number;
   skipped: { line: string; reason: string }[];
+  /** When the read-back gate refuses: the first line that differs, in full, for the log. */
+  readback?: { line: number; got: string; wanted: string };
 }
 
 export type PatchResult =
@@ -148,7 +150,10 @@ export async function patchDocx(
   // nothing the patcher never touches may have moved.
   const text = docxToText(docx);
   const wanted = foldText(expected);
-  if (text !== wanted) return { ok: false, reason: 'the patched file does not read back as the edited text', report };
+  if (text !== wanted) {
+    const diff = firstDifference(text, wanted);
+    return { ok: false, reason: `the patched file does not read back as the edited text (line ${diff.line} reads ${JSON.stringify(diff.got.slice(0, 60))}, expected ${JSON.stringify(diff.wanted.slice(0, 60))})`, report: { ...report, readback: diff } };
+  }
   for (const [name, ns] of [['oMath', M_NS], ['drawing', W_NS], ['txbxContent', W_NS], ['vanish', W_NS]] as const) {
     const before = countIn(xml, name);
     const after = countIn(out, name);
@@ -239,7 +244,12 @@ function writeGroup(group: Group, wanted: string): void {
   let tail = 0;
   while (tail < raw.length - head && tail < wanted.length - head && raw[raw.length - 1 - tail] === wanted[wanted.length - 1 - tail]) tail++;
   const middle = wanted.slice(head, wanted.length - tail);
-  // Walk the runs, keeping what sits outside [head, raw.length - tail).
+  // The window [winStart, winEnd) of raw that changes. It can be empty — a pure
+  // insertion — and then it belongs to the run that ends on that boundary:
+  // resume 1 keeps a bullet's final "." in a run of its own, and an insertion
+  // before it must not fall between two runs and land nowhere.
+  const winStart = head;
+  const winEnd = raw.length - tail;
   let offset = 0;
   let placed = false;
   for (const t of texts) {
@@ -247,13 +257,18 @@ function writeGroup(group: Group, wanted: string): void {
     const start = offset;
     const end = offset + text.length;
     offset = end;
-    if (end <= head || start >= raw.length - tail) continue; // untouched run
-    const keepHead = text.slice(0, Math.max(0, head - start));
-    const keepTail = text.slice(Math.max(0, raw.length - tail - start));
+    const overlaps = start < winEnd && end > winStart;
+    const boundary = !placed && winStart === winEnd && start <= winStart && end >= winStart;
+    if (!overlaps && !boundary) continue;
+    const keepHead = text.slice(0, Math.min(text.length, Math.max(0, winStart - start)));
+    const keepTail = text.slice(Math.min(text.length, Math.max(0, winEnd - start)));
     setText(t, keepHead + (placed ? '' : middle) + keepTail);
     placed = true;
   }
-  if (!placed) setText(texts[0]!, wanted);
+  if (!placed) {
+    setText(texts[0]!, wanted);
+    for (const t of texts.slice(1)) setText(t, '');
+  }
 }
 
 function setText(t: Element, value: string): void {
@@ -353,6 +368,16 @@ function isW(n: Element, name: string): boolean {
 
 function boxed(p: Element): boolean {
   return p.getElementsByTagNameNS(W_NS, 'txbxContent').length > 0;
+}
+
+/** Where two texts part ways: the first line that differs, both versions in full. */
+function firstDifference(got: string, wanted: string): { line: number; got: string; wanted: string } {
+  const a = got.split('\n');
+  const b = wanted.split('\n');
+  for (let i = 0; i < Math.max(a.length, b.length); i++) {
+    if (a[i] !== b[i]) return { line: i + 1, got: a[i] ?? '', wanted: b[i] ?? '' };
+  }
+  return { line: 0, got, wanted };
 }
 
 function countIn(xml: string, name: string): number {

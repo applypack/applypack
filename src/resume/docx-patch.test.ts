@@ -42,6 +42,30 @@ test('only the changed window of a run group is rewritten — formatting outside
   assert.equal(res.text, 'Led payment architecture for PHP services.');
 });
 
+test('an insertion on a run boundary lands in the run before it — the bullet whose "." is its own run', async () => {
+  // Resume 1's bullets end in a run holding only the full stop. Appending a
+  // clause makes an empty change window exactly on that boundary; the first
+  // live save doubled the stop because neither run claimed it.
+  const original = docxOf(p(r('Reduced risk by 40%+') + r('.')));
+  const before = docxToText(original);
+  const res = ok(await patchDocx(original, before, 'Reduced risk by 40%+, rewritten in the editor.'));
+  assert.equal(res.text, 'Reduced risk by 40%+, rewritten in the editor.');
+  const xml = await documentXml(res.docx);
+  assert.match(xml, /Reduced risk by 40%\+, rewritten in the editor<\/w:t>/, 'appended to the run before the boundary');
+  assert.match(xml, /<w:t xml:space="preserve">\.<\/w:t>/, 'the full-stop run is untouched');
+});
+
+test('when the raw text is not what the renderer showed, the first run takes it all and the rest are emptied', async () => {
+  // A double space inside the run: raw ≠ rendered, so the window path is off.
+  const original = docxOf(p(r('Led  the ') + r('team') + r('.')));
+  const before = docxToText(original);
+  assert.equal(before, 'Led the team.');
+  const res = ok(await patchDocx(original, before, 'Led the squad.'));
+  assert.equal(res.text, 'Led the squad.');
+  const xml = await documentXml(res.docx);
+  assert.equal((xml.match(/<w:t xml:space="preserve"><\/w:t>/g) ?? []).length, 2, 'two runs emptied, none left with stale text');
+});
+
 test('both halves of a tabbed header are patched within their own runs', async () => {
   const original = docxOf(p(r('Marketplace Co') + '<w:r><w:tab/></w:r>' + r('Austin, Texas')) + p(r('Body line.')));
   const before = docxToText(original);

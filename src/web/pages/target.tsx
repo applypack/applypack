@@ -391,11 +391,13 @@ export const TargetPage: FC<TargetPageProps> = ({
                     <input type="hidden" name="jobId" value={job.id} />
                     {/* The text the edits started from: the patcher diffs against it (ADR 0038). */}
                     <input type="hidden" name="baseText" value={resumeText} />
+                    {/* Set by the copy buttons' click: SUBMIT_ONCE disables the submitter in the
+                        submit event, and a disabled submitter is left out of the form data. */}
+                    <input type="hidden" name="as" value="" />
                     <Button
                       variant="primary"
                       class="w-full"
-                      name="as"
-                      value="copy"
+                      onclick="this.form.elements.as.value='copy'"
                       data-save-button
                       disabled
                       title="Enabled once you edit the text — saves a new resume beside this one, named after the company, and leaves this one as it is; a .docx is patched in place when its layout allows (~1 min)"
@@ -406,6 +408,7 @@ export const TargetPage: FC<TargetPageProps> = ({
                       variant="secondary"
                       class="mt-2 w-full"
                       id="save-button"
+                      onclick="this.form.elements.as.value=''"
                       data-save-button
                       disabled
                       title={`Enabled once you edit the text — saves it as v${resume.version + 1} of this resume, re-scans and re-checks (~1 min)`}
@@ -633,13 +636,14 @@ export const TargetPage: FC<TargetPageProps> = ({
             </Button>
             {!resume.ephemeral && (
               <>
-                <Button variant="primary" size="sm" form="save-form" name="as" value="copy" title="A new resume beside this one, named after the company; this one stays as it is">
+                <Button variant="primary" size="sm" form="save-form" onclick="document.getElementById('save-form').elements.as.value='copy'" title="A new resume beside this one, named after the company; this one stays as it is">
                   Save as a tailored copy
                 </Button>
                 <Button
                   variant="secondary"
                   size="sm"
                   form="save-form"
+                  onclick="document.getElementById('save-form').elements.as.value=''"
                   title={`Saves the text as v${resume.version + 1} of this resume, re-scans and re-checks (~1 min)`}
                 >
                   Save as v{resume.version + 1}
