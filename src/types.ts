@@ -41,6 +41,9 @@ export interface AlertJob {
   title: string;
   companyName: string;
   location: string;
+  /** ADR 0031 columns, so the line can show flags and the arrangement. */
+  countries?: string[];
+  workplace?: WorkplaceCode;
   url: string;
   fitScore: number;
   salaryMin: number | null;

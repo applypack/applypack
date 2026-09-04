@@ -98,6 +98,11 @@ const ListQuerySchema = z.object({
     .string()
     .optional()
     .transform((v) => (v === '1' ? '1' : '')),
+  // ADR 0033: only rows a search of mine can actually take.
+  open: z
+    .string()
+    .optional()
+    .transform((v) => (v === '1' ? '1' : '')),
   // ADR 0028: narrow the list to one search. Empty = every search.
   profile: z.coerce.number().int().positive().optional().catch(undefined),
   // ADR 0031: the facets. Unknown values are dropped, never rejected.
@@ -126,11 +131,12 @@ jobsRoute.get('/jobs', async (c) => {
     country: c.req.query('country'),
     workplace: c.req.query('workplace'),
     posted: c.req.query('posted'),
+    open: c.req.query('open'),
   });
   if (!parsed.success) {
     return c.text('Invalid query', 400);
   }
-  const { page, status, minFit, q, sort, verified, profile, country, workplace, posted } = parsed.data;
+  const { page, status, minFit, q, sort, verified, profile, country, workplace, posted, open } = parsed.data;
   const now = new Date();
 
   const where: Prisma.JobWhereInput = {};
@@ -140,12 +146,20 @@ jobsRoute.get('/jobs', async (c) => {
   const minFitNum = minFit ? Number(minFit) : NaN;
   // With a search selected both filters read that search's own score, not the
   // best-of — a chip that showed rows another search scored would be a lie.
+  // "Open to me" reads the same per-search verdict (ADR 0033): with a search
+  // selected, that search's; without one, any search that said yes.
+  const openOnly = open === '1' ? { locationMatch: true } : {};
   if (profile) {
     where.scores = {
-      some: { profileId: profile, ...(Number.isNaN(minFitNum) ? {} : { fitScore: { gte: minFitNum } }) },
+      some: {
+        profileId: profile,
+        ...(Number.isNaN(minFitNum) ? {} : { fitScore: { gte: minFitNum } }),
+        ...openOnly,
+      },
     };
-  } else if (!Number.isNaN(minFitNum)) {
-    where.fitScore = { gte: minFitNum };
+  } else {
+    if (!Number.isNaN(minFitNum)) where.fitScore = { gte: minFitNum };
+    if (open === '1') where.scores = { some: { locationMatch: true } };
   }
   if (q.trim().length > 0) {
     where.OR = [
@@ -210,6 +224,7 @@ jobsRoute.get('/jobs', async (c) => {
         q,
         sort,
         verified,
+        open,
         profile: profile ?? null,
         country,
         workplace: workplace.map((w) => w.toLowerCase()),

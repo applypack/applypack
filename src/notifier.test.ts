@@ -4,6 +4,7 @@ import {
   escapeMarkdownV2,
   escapeMarkdownV2Url,
   formatJobMessage,
+  formatPlaceLine,
   formatSalary,
   formatSourceHealthLine,
 } from './notifier';
@@ -191,5 +192,33 @@ describe('formatSourceHealthLine', () => {
       { name: 'X', atsType: 'ASHBY', status: null, streak: 3 },
     ]);
     assert.match(line, /not fetched yet/);
+  });
+});
+
+describe('formatPlaceLine', () => {
+  const base = {
+    title: 't', companyName: 'c', location: '', url: 'u', fitScore: 90,
+    salaryMin: null, salaryMax: null, techMatch: [], redFlags: [], summary: '',
+  };
+
+  it('carries the flags and adds the arrangement the words do not say (ADR 0033)', () => {
+    assert.equal(
+      formatPlaceLine({ ...base, location: 'Hybrid · Berlin, Germany', countries: ['DE'], workplace: 'HYBRID' }),
+      '🇩🇪 Hybrid · Berlin, Germany',
+    );
+    assert.equal(
+      formatPlaceLine({ ...base, location: 'Kyiv, Ukraine', countries: ['UA'], workplace: 'HYBRID' }),
+      '🇺🇦 Kyiv, Ukraine · hybrid',
+    );
+    assert.equal(
+      formatPlaceLine({ ...base, location: 'Remote', countries: ['PL', 'DE'], workplace: 'REMOTE' }),
+      '🇵🇱🇩🇪 Remote',
+    );
+  });
+
+  it('falls back to the arrangement, then to Remote, when the posting names no place', () => {
+    assert.equal(formatPlaceLine({ ...base, location: '', countries: [], workplace: 'ONSITE' }), 'On-site');
+    assert.equal(formatPlaceLine({ ...base, location: '', countries: [], workplace: 'UNKNOWN' }), 'Remote');
+    assert.equal(formatPlaceLine({ ...base, location: 'Anywhere' }), 'Anywhere');
   });
 });
