@@ -23,7 +23,7 @@ import { formatRelative } from '../format';
 import { sourceLabel } from '../source-names';
 import { CHECK_INTERVALS, intervalLabel } from '../../watchlist/interval';
 import { MAX_LINES } from '../../watchlist/parse-input';
-import type { ResolvedCompany } from '../../watchlist/resolve';
+import { verdictLabel } from '../../watchlist/verdict';
 import type { WatchlistRun } from '../watchlist-runs';
 
 /** One row of the watchlist section on /companies. */
@@ -133,18 +133,6 @@ export const WatchlistRunPage: FC<{ run: WatchlistRun }> = ({ run }) => (
 
 const VERDICT_TONE = { ats: 'ok', feed: 'ok', watchOnly: 'warn', refused: 'danger' } as const;
 
-function verdictLabel(r: ResolvedCompany['resolution']): string {
-  switch (r.kind) {
-    case 'ats':
-      return `${sourceLabel(r.atsType)} · ${r.jobs} posting${r.jobs === 1 ? '' : 's'}`;
-    case 'feed':
-      return `RSS feed · ${r.items} entr${r.items === 1 ? 'y' : 'ies'}`;
-    case 'watchOnly':
-      return 'Nothing machine-readable';
-    case 'refused':
-      return 'Refused';
-  }
-}
 
 /**
  * The preview. Every row the resolver could turn into a source is ticked;

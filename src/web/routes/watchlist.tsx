@@ -6,10 +6,10 @@ import { prisma } from '../../db';
 import { logger } from '../../logger';
 import { sleep } from '../../http';
 import { flashRedirect } from '../flash';
-import { CHECK_INTERVALS, ALERT_POLICIES, toAlertPolicy, toCheckInterval } from '../../watchlist/interval';
+import { ALERT_POLICIES, CHECK_INTERVALS } from '../../watchlist/interval';
 import { parseCompanyLines } from '../../watchlist/parse-input';
 import { liveResolveIo, resolveCompanyUrl, type ResolvedCompany } from '../../watchlist/resolve';
-import { sourceLabel } from '../source-names';
+import { verdictLine } from '../../watchlist/verdict';
 import {
   activeWatchlistRun,
   createWatchlistRun,
@@ -69,7 +69,7 @@ watchlistRoute.get('/companies/watchlist/:id/state', (c) => {
     total: run.total,
     resolved: run.results.length,
     current: run.current,
-    rows: run.results.map((r) => ({ name: r.name, verdict: shortVerdict(r) })),
+    rows: run.results.map((r) => ({ name: r.name, verdict: verdictLine(r.resolution) })),
   });
 });
 
@@ -218,23 +218,6 @@ export function sourceOf(r: ResolvedCompany): { atsType: AtsType; atsToken: stri
   return null;
 }
 
-/** One line for the progress page's activity list. */
-export function shortVerdict(r: ResolvedCompany): string {
-  switch (r.resolution.kind) {
-    case 'ats':
-      return `${sourceLabel(r.resolution.atsType)} · ${plural(r.resolution.jobs, 'posting')}`;
-    case 'feed':
-      return `RSS feed · ${r.resolution.items} ${r.resolution.items === 1 ? 'entry' : 'entries'}`;
-    case 'watchOnly':
-      return 'nothing machine-readable';
-    case 'refused':
-      return r.resolution.reason;
-  }
-}
-
-function plural(n: number, word: string): string {
-  return `${n} ${word}${n === 1 ? '' : 's'}`;
-}
 
 /** Form fields that arrive as string | string[] | File. */
 function toList(value: unknown): string[] {
@@ -242,5 +225,3 @@ function toList(value: unknown): string[] {
   if (Array.isArray(value)) return value.filter((v): v is string => typeof v === 'string');
   return [];
 }
-
-export { toCheckInterval, toAlertPolicy };

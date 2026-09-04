@@ -68,9 +68,14 @@ export function finishWatchlistRun(id: string, error?: string): void {
   if (error !== undefined) run.error = error;
 }
 
-/** At most one resolve at a time per web process — they all spend the same politeness budget. */
+/**
+ * At most one resolve at a time per web process — they all spend the same
+ * politeness budget. A run past its TTL does not count, or a crash that
+ * skipped `finishWatchlistRun` would disable the feature until a restart.
+ */
 export function activeWatchlistRun(): WatchlistRun | null {
-  for (const run of runs.values()) if (!run.done) return run;
+  const cutoff = Date.now() - RUN_TTL_MS;
+  for (const run of runs.values()) if (!run.done && run.startedAt >= cutoff) return run;
   return null;
 }
 

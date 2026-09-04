@@ -252,7 +252,6 @@ export async function processNormalizedJobs(
     // this company posts. The row is kept and alerted; the message says
     // "new posting", not "match", so it never claims a score it does not have.
     const keptByPolicy = !merged.kept && alertsEveryPosting(item.watch);
-    if (keptByPolicy) stats.watchedKept++;
     const kept = merged.kept || keptByPolicy;
 
     if (!kept) {
@@ -290,6 +289,9 @@ export async function processNormalizedJobs(
     );
     if (!stored) continue;
     const { created, crossListing } = stored;
+    // Counted where every other counter is: after the row exists. A posting
+    // the unique key rejected was not kept by anything.
+    if (keptByPolicy) stats.watchedKept++;
 
     // A score produced without a required stack never alerts, whatever the
     // threshold or priority boosts say (issue #50). The row stays NEW.

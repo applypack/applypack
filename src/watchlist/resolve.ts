@@ -1,11 +1,14 @@
 import { AtsType } from '@prisma/client';
+import { fetchWithRetry, HttpError } from '../http';
+import { probeAts } from '../ats-probe';
+import { getSourceKeys } from '../settings';
 import { extractAtsToken } from '../text-utils';
 import { checkPostingUrl } from '../jobs/posting-url';
 import { robotsAllows } from '../robots';
-import { sourceLabel } from '../web/source-names';
 import { looksLikeFeed } from '../fetchers/feed';
 import { boardHints, declaredJobFeeds, looksLikeChallenge, wellKnownFeeds } from './scan';
 import { nameFromUrl, type CompanyInput } from './parse-input';
+import { boardMissReason } from './verdict';
 
 /**
  * One pasted URL → what we can actually watch (TASKS §17 stage A, ADR 0036).
@@ -133,10 +136,16 @@ export async function resolveCompanyUrl(input: CompanyInput, io: ResolveIo): Pro
   // only ever a feed that carries entries — a valid empty one is not a source.
   for (const url of [...declaredJobFeeds(page.body, page.url), ...wellKnownFeeds(page.url)]) {
     if (requests >= MAX_HOST_REQUESTS) break;
-    if (!robotsAllows(robotsAnswer.status, robotsAnswer.body, new URL(url).pathname).allowed) continue;
+    // A declared href is content from the page we just fetched, so it is
+    // untrusted input and goes through the same guard the pasted URL did —
+    // `<link rel="alternate" href="http://169.254.169.254/…">` is a valid tag.
+    const checkedFeed = checkPostingUrl(url);
+    if (!checkedFeed.ok) continue;
+    if (!robotsAllows(robotsAnswer.status, robotsAnswer.body, checkedFeed.url.pathname).allowed) continue;
     const answer = await io.get(url);
     requests++;
-    if (answer.status !== 200 || !looksLikeFeed(answer.body)) continue;
+    // And again on whatever answered, for the same reason as the page above.
+    if (answer.status !== 200 || !checkPostingUrl(answer.url).ok || !looksLikeFeed(answer.body)) continue;
     const items = countEntries(answer.body);
     if (items === 0) continue;
     return { ...named, resolution: { kind: 'feed', url, items, via: url }, requests };
@@ -161,11 +170,6 @@ export async function resolveCompanyUrl(input: CompanyInput, io: ResolveIo): Pro
   };
 }
 
-function boardMissReason(hit: { atsType: string; atsToken: string }): string {
-  const vendor = sourceLabel(hit.atsType);
-  const article = /^[AEIOU]/i.test(vendor) ? 'an' : 'a';
-  return `That is ${article} ${vendor} board, but the public posting API does not serve "${hit.atsToken}" — the board is probably embed-only.`;
-}
 
 /** `<item>` / `<entry>` count — the emptiness test, not a parse. */
 export function countEntries(xml: string): number {
@@ -188,7 +192,6 @@ async function confirmBoard(
 export function liveResolveIo(): ResolveIo {
   return {
     async get(url) {
-      const { fetchWithRetry, HttpError } = await import('../http');
       try {
         const resp = await fetchWithRetry(url, { timeoutMs: FETCH_TIMEOUT_MS });
         return { status: resp.status, url: resp.url || url, body: await resp.text() };
@@ -199,8 +202,6 @@ export function liveResolveIo(): ResolveIo {
       }
     },
     async probe(atsType, atsToken) {
-      const { probeAts } = await import('../ats-probe');
-      const { getSourceKeys } = await import('../settings');
       return probeAts(atsType, atsToken, { keys: await getSourceKeys() });
     },
   };

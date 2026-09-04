@@ -204,6 +204,51 @@ describe('rung 4 — a feed', () => {
     assert.equal((await resolveCompanyUrl(paste('https://acme.com/careers'), stub)).resolution.kind, 'watchOnly');
   });
 
+  // A declared href is content from a page we just fetched, so it is
+  // untrusted: `<link rel="alternate" href="http://169.254.169.254/…">` is a
+  // perfectly valid tag.
+  it('never fetches a declared feed that points at a private address', async () => {
+    const stub = io({
+      pages: {
+        ...robots,
+        'https://acme.com/careers': {
+          status: 200,
+          body: '<link rel="alternate" type="application/rss+xml" href="http://169.254.169.254/jobs.rss">',
+        },
+        'http://169.254.169.254/jobs.rss': { status: 200, body: RSS(5) },
+      },
+    });
+    const r = await resolveCompanyUrl(paste('https://acme.com/careers'), stub);
+    assert.equal(r.resolution.kind, 'watchOnly');
+    assert.equal(stub.asked.includes('http://169.254.169.254/jobs.rss'), false);
+  });
+
+  it('never fetches a declared feed on an ADR 0005 host', async () => {
+    const stub = io({
+      pages: {
+        ...robots,
+        'https://acme.com/careers': {
+          status: 200,
+          body: '<link rel="alternate" type="application/rss+xml" href="https://www.linkedin.com/jobs.rss">',
+        },
+      },
+    });
+    await resolveCompanyUrl(paste('https://acme.com/careers'), stub);
+    assert.equal(stub.asked.some((u) => u.includes('linkedin')), false);
+  });
+
+  it('drops a feed whose answer came from somewhere it may not fetch', async () => {
+    const stub = io({
+      pages: {
+        ...robots,
+        'https://acme.com/careers': { status: 200, body: '<h1>Work with us</h1>' },
+        // A public feed URL that redirects into the private range.
+        'https://acme.com/jobs.rss': { status: 200, url: 'http://10.0.0.5/jobs.rss', body: RSS(9) },
+      },
+    });
+    assert.equal((await resolveCompanyUrl(paste('https://acme.com/careers'), stub)).resolution.kind, 'watchOnly');
+  });
+
   it('spends at most MAX_HOST_REQUESTS on the site', async () => {
     const stub = io({
       pages: { ...robots, 'https://acme.com/careers': { status: 200, body: '<h1>Work with us</h1>' } },

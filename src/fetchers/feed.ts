@@ -18,9 +18,11 @@ import type { NormalizedJob } from '../types';
  *
  * - **The URL is the user's, so it goes through the same guards an arbitrary
  *   posting URL does** — `checkPostingUrl` refuses a private address, a
- *   non-http scheme and every ADR 0005 host. It is checked again here rather
- *   than trusted from the moment it was added, because a row is a row and
- *   nothing stops one being edited into the database by hand.
+ *   non-http scheme and every ADR 0005 host, before the request AND on the
+ *   URL that answered it. It is checked on every tick rather than trusted
+ *   from the moment it was added, because a row is a row and nothing stops
+ *   one being edited into the database by hand — and because a host that was
+ *   public last week can start redirecting somewhere else today.
  * - **A feed with no items is not a feed.** Measured on automattic.com:
  *   WordPress answers a well-formed, item-less RSS at any `/<x>/feed`, so a
  *   resolver that accepts "200 and parses" would add a source that can never
@@ -56,6 +58,10 @@ export async function fetchFeed(company: FeedCompany): Promise<NormalizedJob[]> 
     timeoutMs: TIMEOUT_MS,
     init: { headers: conditionalHeaders(company.id, url) },
   });
+  // Redirects are followed, so the host that actually answered is checked
+  // again — a public feed URL can start redirecting into the private range,
+  // and then its "postings" would be whatever that host serves.
+  feedUrl(resp.url || url);
   const feed = await parser.parseString(await resp.text());
   const jobs = feed.items.flatMap((item) => mapFeedItem(item, company.id) ?? []);
   rememberResponse(company.id, url, resp, jobs.length);
