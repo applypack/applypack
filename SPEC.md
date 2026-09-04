@@ -365,6 +365,18 @@ analysed text against the editor in the browser (`public/line-diff.mjs`). This
 manual path is complete on its own — nothing has to be applied for it to be
 useful.
 
+A card that quotes your text and proposes wording also offers **Apply** and
+**Edit & apply**; a removal offers **Remove**; every one of them offers **Skip**
+and, once acted on, **Undo**. The operations are `public/text-edits.mjs`, pure
+and unit-tested: they never throw, they refuse rather than write a wrong edit
+(the line carrying your email or phone is never cut), and each returns the span
+it changed so the editor can outline it. What a card did is kept in
+`target-edits:<matchId>` as the *inverse* edit — the sentence to put back, not
+a copy of the resume — so Undo is exact and survives a reload. Missing-keyword
+chips carry **+ add** when the term is claimable and the resume has a skills
+line shaped like a list. None of this writes to the database: the edits live in
+the editor until "Save as vN".
+
 The loop: edit the resume → "Upload a new version" on `/resumes/:id`
 (`Resume.version` +1, re-scan) → Compare again. `ResumeMatch.resumeVersion`
 records which version scored; the card shows the delta vs the previous run.
