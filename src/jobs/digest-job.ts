@@ -17,7 +17,8 @@ export async function runDigestJob(): Promise<{ stats: CronStats }> {
   // digest hours are the user's now (TASKS §16) and there may be several: with
   // 09:00 and 19:00 a fixed 24-hour window would make the evening message
   // repeat the morning's in full. A failed run does not move the mark, so
-  // nothing is skipped either.
+  // nothing is skipped either; `digest-once.js` does move it, which is right —
+  // asking for the recap now means the next one starts from here.
   const previous = await lastSuccessfulRunAt('digest');
   const since = previous ?? new Date(Date.now() - DIGEST_WINDOW_MS);
   logger.info({ since: since.toISOString(), firstEver: previous === null }, 'digest-job: start');
