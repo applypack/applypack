@@ -1094,7 +1094,8 @@ Owner items left open by the branch:
 
 - [ ] Story facts for the `#story` section: month, employer if named,
       2–3 counters from the Overview (the section ships number-free).
-- [ ] Label 3–5 issues `good first issue` (the site and README link there;
+- [x] Label 3–5 issues `good first issue` — done 2026-09-04: #90, #92, #96,
+      #100, each scoped with file pointers. (the site and README link there;
       the label is empty).
 - [ ] Cloudflare: Always Use HTTPS, HSTS, redirect www → apex
       (`http://applypack.dev/` answers 200 over plain HTTP today).
@@ -1104,7 +1105,7 @@ Owner items left open by the branch:
 
 ---
 
-## 15. Country-aware search: Europe + Ukraine (analysis 2026-09-03, nothing built)
+## 15. Country-aware search: Europe + Ukraine (SHIPPED 2026-09-04, v1.24.0–v1.44.0)
 
 Full plan with the facts, the target model, a mandatory pre-work analysis
 checklist per stage, step lists, verification matrices and the verified
@@ -1135,29 +1136,37 @@ seeded inactive. Sources verified 2026-09-03 with robots.txt are in the plan
       that lets the model narrow the parser, the mismatch reason on the job
       page. The wizard's step 3 and "Fill from a resume" reuse the editor
       unchanged — neither speaks for location.
-- [ ] **Stage 3 sources** (one PR + tag per source, acceptance checklist in
-      feature-expansion-plan §0.3): 3a use existing geodata — **done**
-      2026-09-03 (WWR in stage 1; Jobicy `geo` v1.26.0, Himalayas search
-      v1.27.0, 4dayweek `country` v1.28.0, Arbeitnow paginated + visa row
-      v1.29.0 — the installed aggregators follow the searches through the
-      `FetchContext`, so §4.3's card is for new sources only);
-      3b Ukraine — **done** (DOU RSS v1.30.0; Djinni RSS v1.31.0;
-      UA-friendly pack refreshed v1.32.0: + N-iX / Ajax / Genesis,
-      `sigmasoftware` dropped); §4.3 "Sources for your searches" card —
-      **done** v1.33.0; 3c EU boards (solid.jobs **done** v1.34.0,
-      DevITjobs family **done** v1.35.0, Landing.jobs **done** v1.36.0, JobTech **done** v1.37.0 — 3c complete,
-      3d Personio **done** v1.38.0, Teamtailor **done** v1.39.0 — 3d complete;
-      3e Adzuna **done** v1.42.0 (keys on the Sources tab, ADR 0034); France Travail **done** v1.43.0 — 3e and the whole source plan complete;
-      GermanTechJobs / DevITjobs, Landing.jobs Atom, JobTech); 3d EU ATS
-      types (Personio, Teamtailor; later Homerun, d.vinci); 3e keyed
-      (France Travail, Adzuna) only after the robots-vs-licence decision.
-- [ ] **Stage 4 `eligibility`** — `residence`, `relocation`, red flags
-      `no-visa-sponsorship` / `work-permit-required`, "Open to me" on
-      eligibility, Telegram flags; salary currencies as their own PR.
-- [ ] **Owner decisions before the stages that need them** (plan §6):
-      countries + groups; delete `remoteRegions`; `residence` in stage 2 or
-      4; robots vs licence for Adzuna / France Travail; source keys in the
-      database; JOIN's undocumented endpoint; salary currency design.
+- [x] **Stage 3 sources** — one PR + tag per source, acceptance checklist in
+      feature-expansion-plan §0.3. All five sub-stages shipped:
+      - 3a, existing geodata: WWR (in stage 1), Jobicy `geo` v1.26.0,
+        Himalayas search v1.27.0, 4dayweek `country` v1.28.0, Arbeitnow
+        paginated + visa row v1.29.0. The installed aggregators follow the
+        searches through the `FetchContext`, so §4.3's card is for new
+        sources only.
+      - 3b Ukraine: DOU RSS v1.30.0, Djinni RSS v1.31.0, UA-friendly pack
+        refreshed v1.32.0 (+ N-iX / Ajax / Genesis, `sigmasoftware` dropped).
+      - §4.3 "Sources for your searches" card: v1.33.0.
+      - 3c EU boards: solid.jobs v1.34.0, DevITjobs v1.35.0,
+        Landing.jobs v1.36.0, JobTech v1.37.0.
+      - 3d EU ATS types: Personio v1.38.0, Teamtailor v1.39.0. Homerun and
+        d.vinci were left for later, deliberately.
+      - 3e keyed, after the robots-vs-licence decision (ADR 0034): Adzuna
+        v1.42.0 with the keys on the Sources tab, France Travail v1.43.0,
+        both hidden until their credential exists v1.44.0. Neither has been
+        run live — that needs the owner's own credentials.
+- [x] **Stage 4 `eligibility`** — `residence` + `relocation` and the prompt's
+      ELIGIBILITY block v1.40.0 (ADR 0033); the red flags
+      `no-visa-sponsorship` / `work-permit-required` are in the classifier's
+      vocabulary and the model decides them (the sponsorship wordlist was
+      measured 14/24 noise, so no code gate); "Open to me" on `/jobs` reads
+      each search's own location verdict. Salary currencies shipped as their
+      own PR, v1.41.0 (`src/currency.ts`).
+- [x] **Owner decisions** (plan §6), all answered: countries + groups →
+      ADR 0032; `remoteRegions` deleted in the stage-2 migration; `residence`
+      went into stage 4, not 2; robots vs licence → ADR 0034 rule 1; source
+      keys in the database → ADR 0034 rule 2; JOIN's undocumented endpoint →
+      not used; salary currency → the model reports the posting's own money
+      and `currency.ts` converts.
 
 ---
 

@@ -4,6 +4,25 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.47.2] — 2026-09-04
+
+### Fixed
+- **Two digest times no longer mean the same recap twice.** v1.47.0 let you
+  pick up to four digest times, but the daily recap still looked back a fixed
+  24 hours — so a 19:00 message repeated the 09:00 one in full. It now covers
+  what arrived since the last recap. A failed run does not move that mark, so
+  nothing is skipped either, and with a single digest time nothing changes.
+- **The stale-application nudge goes out once a day again**, at the first
+  digest time. It reports a standing state — "these six applications are 14
+  days old with no reply" — so four digest times were four identical
+  reminders.
+- **A match you dismissed while it waited is no longer alerted anyway.** Held
+  matches sit on /jobs as normal rows, so you can dismiss, save or apply to
+  one before the alert window opens. Delivery used to send it regardless and
+  overwrite your status with "alerted". It now delivers only matches you have
+  not answered, and drops the hold on the ones you have. The counts on the
+  Overview and the Schedule card follow the same rule.
+
 ## [1.47.1] — 2026-09-04
 
 ### Fixed
@@ -1883,6 +1902,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[1.47.2]: https://github.com/applypack/applypack/compare/v1.47.1...v1.47.2
 [1.47.1]: https://github.com/applypack/applypack/compare/v1.47.0...v1.47.1
 [1.47.0]: https://github.com/applypack/applypack/compare/v1.46.0...v1.47.0
 [1.46.0]: https://github.com/applypack/applypack/compare/v1.45.0...v1.46.0

@@ -62,11 +62,10 @@ export async function runStaleApplicationsJob(): Promise<{ stats: CronStats }> {
     return { stats: { found: 0 } };
   }
 
-  // sendDigest of an empty list outputs the "no new matches" placeholder, so
-  // we manually package a single message instead of using sendDigest.
-  // We piggy-back on the same notifier multi-target broadcast by passing a
-  // single AlertJob-shaped record? No — the markdown is custom. Use sendDigest
-  // with one synthetic AlertJob whose summary IS the digest body.
+  // One synthetic AlertJob whose summary IS the message body: the nudge's
+  // markdown is its own, but the chunking and the multi-target broadcast are
+  // sendDigest's and worth reusing. An empty list is never passed — that
+  // branch prints the recap's "no new matches" placeholder.
   await sendDigest(
     [
       {

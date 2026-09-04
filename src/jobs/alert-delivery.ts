@@ -21,8 +21,17 @@ import type { AlertJob } from '../types';
 export async function deliverHeldAlerts(now: Date, schedule: Schedule): Promise<{ delivered: number; messages: number }> {
   if (!shouldDeliverHeld(now, schedule)) return { delivered: 0, messages: 0 };
 
+  // A match can be dismissed, saved or applied to from the dashboard while it
+  // waits — the row is on /jobs the whole time. Acting on it settles it: the
+  // hold is moot, and delivering it would both pester the user about a
+  // posting they have answered and overwrite their status with ALERTED.
+  await prisma.job.updateMany({
+    where: { alertHeldAt: { not: null }, status: { not: JobStatus.NEW } },
+    data: { alertHeldAt: null },
+  });
+
   const rows = await prisma.job.findMany({
-    where: { alertHeldAt: { not: null } },
+    where: { alertHeldAt: { not: null }, status: JobStatus.NEW },
     include: {
       company: { select: { name: true, atsType: true, atsToken: true } },
       scores: {
@@ -70,7 +79,10 @@ export async function deliverHeldAlerts(now: Date, schedule: Schedule): Promise<
       continue;
     }
     const { count } = await prisma.job.updateMany({
-      where: { id: { in: group.ids } },
+      // Still NEW: the same guard again, because the send takes seconds and
+      // the dashboard is open. A row settled in between keeps the user's
+      // status and simply loses its stamp on the next pass.
+      where: { id: { in: group.ids }, status: JobStatus.NEW },
       data: { status: JobStatus.ALERTED, alertedAt: now, alertHeldAt: null },
     });
     delivered += count;
@@ -82,5 +94,5 @@ export async function deliverHeldAlerts(now: Date, schedule: Schedule): Promise<
 
 /** How many matches are waiting — for the overview line and the settings card. */
 export async function countHeldAlerts(): Promise<number> {
-  return prisma.job.count({ where: { alertHeldAt: { not: null } } });
+  return prisma.job.count({ where: { alertHeldAt: { not: null }, status: JobStatus.NEW } });
 }

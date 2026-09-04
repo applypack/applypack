@@ -12,7 +12,7 @@ import { runDiscoveryJob } from './jobs/discovery-job';
 import { recordCronRun, type CronStats } from './jobs/cron-run';
 import { spreadMinute } from './schedule';
 import { getInstanceId, getSchedule } from './settings';
-import { isDigestHour } from './user-schedule';
+import { isDigestHour, isFirstDigestHour, type Schedule } from './user-schedule';
 
 const SHUTDOWN_POLL_MS = 250;
 const SHUTDOWN_MAX_WAIT_MS = 60_000;
@@ -31,11 +31,13 @@ async function main(): Promise<void> {
 
   registerCron('5 * * * *', 'fetch', () => recordCronRun('fetch', runFetchJob));
   // Both daily summaries follow the one "digest time" the user picks
-  // (TASKS §16.4), so the heartbeat is hourly and the hour decides.
-  registerCron('0 * * * *', 'digest', () => onDigestHour('digest', runDigestJob));
+  // (TASKS §16.4), so the heartbeat is hourly and the hour decides. They read
+  // that hour differently: the recap is a window and goes out at every digest
+  // time, the nudge is a standing state and goes out at the first one.
+  registerCron('0 * * * *', 'digest', () => onSchedule('digest', isDigestHour, runDigestJob));
   registerCron('0 3 * * 0', 'cleanup', () => recordCronRun('cleanup', runCleanupJob));
   registerCron('0 * * * *', 'stale-applications', () =>
-    onDigestHour('stale-applications', runStaleApplicationsJob),
+    onSchedule('stale-applications', isFirstDigestHour, runStaleApplicationsJob),
   );
   // 06:00 Chicago on the 1st of each month (Who-is-hiring threads land
   // around the 1st-2nd of the month).
@@ -59,14 +61,18 @@ async function main(): Promise<void> {
 }
 
 /**
- * The daily summaries beat hourly and do their work on the hours the user
- * named. Unlike the fetch tick, a beat that is not a digest hour writes no
- * run row: twenty-three "skipped" lines a day on /runs would be noise, not
- * evidence, and CronRun rows are never trimmed.
+ * The daily summaries beat hourly and do their work on the hours `due` picks.
+ * Unlike the fetch tick, a beat that is not one writes no run row: twenty-three
+ * "skipped" lines a day on /runs would be noise, not evidence, and CronRun
+ * rows are never trimmed.
  */
-async function onDigestHour(name: string, fn: () => Promise<{ stats: CronStats }>): Promise<void> {
+async function onSchedule(
+  name: string,
+  due: (now: Date, schedule: Schedule) => boolean,
+  fn: () => Promise<{ stats: CronStats }>,
+): Promise<void> {
   const schedule = await getSchedule();
-  if (!isDigestHour(new Date(), schedule)) return;
+  if (!due(new Date(), schedule)) return;
   await recordCronRun(name, fn);
 }
 

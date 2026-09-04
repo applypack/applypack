@@ -56,6 +56,21 @@ export async function recordCronRun<T>(
   }
 }
 
+/**
+ * When the previous successful run of `name` started, or null if it has never
+ * finished one. The current run's own row is still RUNNING while its task
+ * executes, so a caller inside a job reads the run before it — which is what
+ * "since the last one" means.
+ */
+export async function lastSuccessfulRunAt(name: string): Promise<Date | null> {
+  const row = await prisma.cronRun.findFirst({
+    where: { name, status: CronRunStatus.OK },
+    orderBy: { startedAt: 'desc' },
+    select: { startedAt: true },
+  });
+  return row?.startedAt ?? null;
+}
+
 function extractStats(ret: unknown): CronStats | null {
   if (
     ret &&
