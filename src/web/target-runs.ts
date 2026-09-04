@@ -142,7 +142,8 @@ export function alsoClaims(id: string, key: string): void {
   logger.info({ runId: id, key }, 'run: also answering to another name');
 }
 
-export function updateRun(id: string, patch: Partial<Omit<TargetRun, 'id'>>): void {
+/** `keys` is not patchable: a run's names are claimed, never overwritten. */
+export function updateRun(id: string, patch: Partial<Omit<TargetRun, 'id' | 'keys'>>): void {
   const run = runs.get(id);
   if (!run) return;
   if (patch.stage && patch.stage !== run.stage) {

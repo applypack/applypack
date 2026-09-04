@@ -4,6 +4,22 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.47.1] — 2026-09-04
+
+### Fixed
+- **/target no longer names a step it never runs.** When a full analysis is
+  asked of a posting whose quick check is already stored, only the suggestions
+  call is needed — but the progress page still advertised the comparison step
+  and then flipped straight to done. It now writes the suggestions itself, on
+  one progress page instead of two chained ones, and says so
+  (thanks [@harshvardhan60792](https://github.com/harshvardhan60792), [#138](https://github.com/applypack/applypack/pull/138)).
+- Pressing "Get suggestions" on that comparison while /target is already
+  writing them joins the run in flight instead of calling the model a second
+  time — the guarantee [#76](https://github.com/applypack/applypack/issues/76)
+  exists for. A run can now answer to more than one name.
+- The flash that follows a suggestions call has one wording again, in one
+  place, and the /target path says why the score did not move.
+
 ## [1.47.0] — 2026-09-04
 
 ### Added
@@ -1867,6 +1883,31 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[1.47.1]: https://github.com/applypack/applypack/compare/v1.47.0...v1.47.1
+[1.47.0]: https://github.com/applypack/applypack/compare/v1.46.0...v1.47.0
+[1.46.0]: https://github.com/applypack/applypack/compare/v1.45.0...v1.46.0
+[1.45.0]: https://github.com/applypack/applypack/compare/v1.44.0...v1.45.0
+[1.44.0]: https://github.com/applypack/applypack/compare/v1.43.0...v1.44.0
+[1.43.0]: https://github.com/applypack/applypack/compare/v1.42.0...v1.43.0
+[1.42.0]: https://github.com/applypack/applypack/compare/v1.41.0...v1.42.0
+[1.41.0]: https://github.com/applypack/applypack/compare/v1.40.0...v1.41.0
+[1.40.0]: https://github.com/applypack/applypack/compare/v1.39.0...v1.40.0
+[1.39.0]: https://github.com/applypack/applypack/compare/v1.38.0...v1.39.0
+[1.38.0]: https://github.com/applypack/applypack/compare/v1.37.0...v1.38.0
+[1.37.0]: https://github.com/applypack/applypack/compare/v1.36.0...v1.37.0
+[1.36.0]: https://github.com/applypack/applypack/compare/v1.35.0...v1.36.0
+[1.35.0]: https://github.com/applypack/applypack/compare/v1.34.0...v1.35.0
+[1.34.0]: https://github.com/applypack/applypack/compare/v1.33.0...v1.34.0
+[1.33.0]: https://github.com/applypack/applypack/compare/v1.32.0...v1.33.0
+[1.32.0]: https://github.com/applypack/applypack/compare/v1.31.0...v1.32.0
+[1.31.0]: https://github.com/applypack/applypack/compare/v1.30.0...v1.31.0
+[1.30.0]: https://github.com/applypack/applypack/compare/v1.29.0...v1.30.0
+[1.29.0]: https://github.com/applypack/applypack/compare/v1.28.0...v1.29.0
+[1.28.0]: https://github.com/applypack/applypack/compare/v1.27.0...v1.28.0
+[1.27.0]: https://github.com/applypack/applypack/compare/v1.26.0...v1.27.0
+[1.26.0]: https://github.com/applypack/applypack/compare/v1.25.0...v1.26.0
+[1.25.0]: https://github.com/applypack/applypack/compare/v1.24.0...v1.25.0
+[1.24.0]: https://github.com/applypack/applypack/compare/v1.23.4...v1.24.0
 [1.23.4]: https://github.com/applypack/applypack/compare/v1.23.3...v1.23.4
 [1.23.3]: https://github.com/applypack/applypack/compare/v1.23.2...v1.23.3
 [1.23.2]: https://github.com/applypack/applypack/compare/v1.23.1...v1.23.2

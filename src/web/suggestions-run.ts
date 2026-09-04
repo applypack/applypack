@@ -4,16 +4,16 @@ import { readActions, readRemovals, type MatchJobInput } from '../resume/prompts
 import { suggestForMatch } from '../resume/suggestions';
 import { claimRun, startRun, updateRun } from './target-runs';
 
-/**
- * The lazy second call as a progress-page run (ADR 0029): "Get suggestions"
- * on a quick check, and the answer to a full analysis asked of a text whose
- * quick check is already stored. Returns the run URL to redirect to.
- */
 /** The name the suggestions work for one comparison is claimed under (issue #76). */
 export function suggestionsKey(matchId: number): string {
   return `suggestions:${matchId}`;
 }
 
+/**
+ * The lazy second call as a progress-page run (ADR 0029): "Get suggestions"
+ * on a quick check, and the answer to a full analysis asked of a text whose
+ * quick check is already stored. Returns the run URL to redirect to.
+ */
 export function startSuggestionsRun(input: {
   match: ResumeMatch;
   job: MatchJobInput & { id: number };
