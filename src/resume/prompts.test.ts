@@ -749,3 +749,46 @@ test('parseReviewResponse keeps a valid reply and rejects an invented dimension'
   );
   assert.equal(bad.ok, false);
 });
+
+/* ---------- v7: paste-ready wording (ADR 0037) ---------- */
+
+test('the two prompts that write suggestions ask for replacement and insert_after; the quick check writes none', () => {
+  const full = buildMatchPrompt('resume', JOB, 'full').system;
+  const suggestions = buildSuggestionsPrompt('resume', JOB, SUGGEST_INPUT).system;
+  for (const system of [full, suggestions]) {
+    assert.match(system, /Put the COMPLETE new text in "replacement"/);
+    assert.match(system, /put the resume line it follows in "insert_after"/);
+    assert.match(system, /"replacement": string\|null, "insert_after": string\|null/);
+  }
+  // The quick check has no actions at all (ADR 0029), so it has no wording to ask for.
+  assert.doesNotMatch(buildMatchPrompt('resume', JOB, 'fast').system, /"replacement"/);
+});
+
+test('the bullet rules are one string, and the review’s example line follows them too', () => {
+  const match = buildMatchPrompt('resume', JOB, 'full').system;
+  const review = buildReviewPrompt('resume').system;
+  for (const rule of [/Verb first, past tense/, /POSTING'S OWN vocabulary/, /NEVER invent a metric/, /Never use: results-driven/]) {
+    assert.match(match, rule);
+    assert.match(review, rule);
+  }
+  // The review has no posting and no "why": its variant asks instead of naming a requirement.
+  assert.match(review, /put the question in "ask"/);
+  assert.doesNotMatch(review, /ask the candidate for the real number/);
+  assert.match(review, /the role the resume claims/);
+});
+
+test('a reply without the v7 fields still parses, and a reply with them keeps them', () => {
+  const base = {
+    summary: 'Primary stack 1/1', alignment: { title: 'strong', summary: 'strong', recent_role: 'strong' },
+    keywords: [], hard_requirements: [], red_flags: [], strengths: [], cautions: [], removals: [],
+  };
+  const v6 = { ...base, actions: [{ section: 'title', where: 'x', what: 'y', why: 'z', priority: 'high', quote: null }] };
+  const parsedV6 = parseMatchResponse(JSON.stringify(v6));
+  assert.ok(parsedV6.ok);
+  assert.equal('replacement' in parsedV6.data.actions[0]!, false, 'no field on a v6 reply — proposalOf may parse `what`');
+  const v7 = { ...base, actions: [{ ...v6.actions[0], replacement: 'New title', insert_after: null }] };
+  const parsedV7 = parseMatchResponse(JSON.stringify(v7));
+  assert.ok(parsedV7.ok);
+  assert.equal(parsedV7.data.actions[0]!.replacement, 'New title');
+  assert.equal(parsedV7.data.actions[0]!.insert_after, null);
+});

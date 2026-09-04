@@ -1707,22 +1707,29 @@ bench); re-run `bench:resume` after stages 3 and 5.
       neither does a resume with no skills list to write to.
 - [x] `document apply` — CLAUDE.md rows, SPEC, CHANGELOG + bump.
 
-**Stage 3 — `suggestion-replacements` (PROMPT_VERSION 7, ADR 0035; ~1 session)**
-- [ ] **Analyse first:** read `prompts.ts`, `match.ts`, `suggestions.ts`,
+**Stage 3 — `suggestion-replacements` — SHIPPED (PROMPT_VERSION 7, ADR 0037 — 0035/0036 were taken)**
+- [x] **Analyse first:** read `prompts.ts`, `match.ts`, `suggestions.ts`,
       `cover-letter.ts` (the `factCheck` call), `prompts.test.ts`; run
       `bench:resume --mode full` before the change and keep the file.
-- [ ] `add replacement fields` — `replacement`, `insert_after` in
+- [x] `add replacement fields` — `replacement`, `insert_after` in
       `MatchSchema`; `RULE_BULLET_STYLE` shared with the review's example
       rule; `OUTPUT_ACTIONS`; `PROMPT_VERSION = 7`.
-- [ ] `add replacement gate` — `replacement-gate.ts:gateActions` (plain
+- [x] `add replacement gate` — `replacement-gate.ts:gateActions` (plain
       punctuation, `factCheck`, KEEP WANTED KEYWORDS in code); wired before
-      `createMatch` and `updateMatchSuggestions`.
-- [ ] `test both variants` — guard tests: rule present in full, fast and
+      `createMatch` and `updateMatchSuggestions`. Measured on the 108 stored
+      wordings first: the posting joins the sources (else "B2B SaaS" blocks
+      as an employer; 0 metrics laundered), a `cannot_claim` rule is added
+      (the one real fabrication the employer heuristic caught by accident),
+      and KEEP WANTED KEYWORDS blocks on must/primary only — 11 of its 21
+      as-specified drops were paraphrased phrases or nice-to-haves.
+- [x] `test both variants` — guard tests: rule present in full, fast and
       suggestions prompts; a reply without the fields parses; the gate
       blocks an invented figure and keeps a real one.
-- [ ] `write adr 0035` — "suggestions carry replacement text; the fact gate
+- [x] `write adr 0037` — "suggestions carry replacement text; the fact gate
       decides what is applicable"; bench after-table in the PR; CHANGELOG +
-      bump + tag.
+      bump + tag. Also: `insertAfterLine` makes additions applicable (the
+      guide's own rule needs it), and `REVIEW_PROMPT_VERSION` 2 → 3 because
+      the review's "example" line now follows `RULE_BULLET_STYLE`.
 
 **Stage 4 — `docx-patch` (deps xmldom + jszip, ADR 0036; ~2 sessions)**
 - [ ] **Analyse first:** prove xmldom fidelity on resume 1's `document.xml`

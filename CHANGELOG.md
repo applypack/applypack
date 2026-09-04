@@ -4,6 +4,43 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.53.0] — 2026-09-04
+
+### Added
+- **Every suggestion now arrives with the wording ready to paste.** The model
+  writes the complete new text into a field of its own (`replacement`), and
+  for an addition names the resume line it follows (`insert_after`). On the
+  first live analysis 9 of 10 suggestions came with wording, against about
+  half before — and Apply now works on additions too, inserting after the
+  anchored line.
+- **A gate in code decides what Apply may paste** (ADR 0037). At analysis
+  time every wording is checked against the resume, the posting and your
+  confirmed facts: an invented figure, a technology the resume has no evidence
+  for, or a rewrite that drops a must-have keyword is refused. A refused card
+  keeps its advice and says why on its *why* line — *"not applied — claims
+  "Node.js", which this resume has no evidence for"* — with Copy and Edit &
+  apply still there. A lost nice-to-have or an unconfirmed term is a note,
+  not a refusal.
+- The resume strength review's "example" lines follow the same bullet rules as
+  the match suggestions: one house style for every sentence this product
+  proposes.
+
+### Notes
+- Prompt versions: match **v7**, review **v3**. A comparison stored under v6
+  is re-run rather than reused, and its keyword frame is rebuilt.
+- Measured before it was built, on the 108 wordings the model had already
+  written: resume + facts alone blocked 4, all by the employer heuristic and
+  none by a metric — "B2B SaaS" and "East Coast hours" are posting vocabulary,
+  so the posting is a source (0 metrics laundered); "Node.js and TypeScript"
+  in a PHP resume was a real fabrication the fact check cannot see, hence the
+  `cannot_claim` rule. KEEP WANTED KEYWORDS as specified would have dropped 21
+  of 108, and 11 of those were paraphrased phrases — so it refuses on
+  must/primary only.
+- Bench, five fixtures, claude-opus-5: reply **+4 %** (4 710 → 4 910 chars),
+  p50 20 → 22 s, 10 of 10 actions paste-ready, 0 checks failed.
+- `bench:resume --table` shows two new columns, Replacements and Anchored; an
+  older run prints an em dash there rather than a misleading 0.
+
 ## [1.52.0] — 2026-09-04
 
 ### Added
@@ -2089,6 +2126,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[1.53.0]: https://github.com/applypack/applypack/compare/v1.52.0...v1.53.0
 [1.52.0]: https://github.com/applypack/applypack/compare/v1.51.0...v1.52.0
 [1.51.0]: https://github.com/applypack/applypack/compare/v1.50.0...v1.51.0
 [1.50.0]: https://github.com/applypack/applypack/compare/v1.49.0...v1.50.0

@@ -154,6 +154,9 @@ async function runFixture(
       record.keywords = parsed.data.keywords.map((k) => ({ term: k.term, status: k.status, requirement: k.requirement, primary: k.primary }));
       record.actions = parsed.data.actions.length;
       record.removals = parsed.data.removals.length;
+      // v7: how much of the list is paste-ready, and how many anchors the model copied verbatim.
+      record.replacements = parsed.data.actions.filter((a) => typeof a.replacement === 'string' && a.replacement.trim() !== '').length;
+      record.anchored = parsed.data.actions.filter((a) => typeof a.insert_after === 'string' && resume.includes(a.insert_after.trim())).length;
     }
   }
   record.failed = checks.filter((c) => !c.ok).map((c) => c.name);

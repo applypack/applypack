@@ -77,11 +77,16 @@ export interface Proposal {
  * The wording an action proposes, or null when `what` is an instruction with
  * no quoted wording in it ("Cut to four bullets", "Add a number").
  */
-export function proposalOf(action: Pick<MatchAction, 'what'> & { replacement?: unknown }): Proposal | null {
-  // Stage 3 gives the model a field of its own; when it is there, nothing is parsed.
+export function proposalOf(
+  action: Pick<MatchAction, 'what'> & { quote?: string | null; replacement?: string | null; insert_after?: string | null },
+): Proposal | null {
+  // v7 rows carry the wording in a field of their own (ADR 0037); nothing is parsed.
   if (typeof action.replacement === 'string' && action.replacement.trim()) {
-    return { text: action.replacement.trim(), verb: 'Replace' };
+    return { text: action.replacement.trim(), verb: action.quote ? 'Replace' : 'Add' };
   }
+  // An explicit null is a judged row — the model gave no wording, or the gate
+  // refused it. Parsing `what` here would hand a blocked wording back to Apply.
+  if (action.replacement === null) return null;
   const what = fold(action.what ?? '');
   const all = [...quotedSpans(what, '"'), ...quotedSpans(what, "'")].sort((a, b) => a.start - b.start);
   let candidates = all.filter((s) => s.text.trim().length >= MIN_PROPOSAL);

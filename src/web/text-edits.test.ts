@@ -8,6 +8,7 @@ const edits = import('./public/text-edits.mjs') as Promise<{
   applyReplacement: (text: string, quote: string, replacement: string) => Edit;
   removeSpan: (text: string, quote: string) => Edit;
   insertIntoSkills: (text: string, term: string, where?: string) => Edit;
+  insertAfterLine: (text: string, anchor: string, wording: string) => Edit;
   inverseEdit: (before: string, after: string) => { start: number; removed: string; inserted: string };
   undoEdit: (text: string, edit: { start: number; removed: string; inserted: string }) => Edit;
 }>;
@@ -219,6 +220,34 @@ test('inverseEdit round-trips every operation', async () => {
     const back = ok(undoEdit(after, inverseEdit(text, after)));
     assert.equal(back.text, text, 'undo restores the text exactly');
   }
+});
+
+test('insertAfterLine adds the wording as the next line and inherits the bullet marker', async () => {
+  const { insertAfterLine } = await edits;
+  const r = ok(insertAfterLine(RESUME, 'Built a multi-gateway payment platform from scratch in Laravel.', 'Cut checkout failures 18% with retry queues.'));
+  const lines = r.text.split('\n');
+  const i = lines.findIndex((l) => l.includes('multi-gateway'));
+  assert.equal(lines[i + 1], '• Cut checkout failures 18% with retry queues.', 'takes the anchor line’s marker');
+  assert.equal(lines.length, RESUME.split('\n').length + 1, 'exactly one line added');
+  assert.equal(r.text.slice(r.span.start, r.span.end), '• Cut checkout failures 18% with retry queues.');
+});
+
+test('insertAfterLine does not double a marker the wording already carries, nor add one under a paragraph', async () => {
+  const { insertAfterLine } = await edits;
+  const withMarker = ok(insertAfterLine(RESUME, 'Improved SEO rankings', '- Already a bullet.'));
+  assert.match(withMarker.text, /^- Already a bullet\.$/m);
+  assert.equal(withMarker.text.includes('• - '), false);
+  const underProse = ok(insertAfterLine(RESUME, 'Senior engineer (10+ years)', 'Remote full-time since 2015.'));
+  assert.match(underProse.text, /^Remote full-time since 2015\.$/m);
+});
+
+test('insertAfterLine lands after the LAST line of a two-line anchor and refuses a missing one', async () => {
+  const { insertAfterLine } = await edits;
+  const text = 'SUMMARY\nDesigned and integrated real-time address\nverification services (USPS, Smarty).\n• Kept.';
+  const r = ok(insertAfterLine(text, 'Designed and integrated real-time address verification services (USPS, Smarty).', 'New line.'));
+  assert.deepEqual(r.text.split('\n').slice(2, 4), ['verification services (USPS, Smarty).', 'New line.']);
+  assert.equal(err(insertAfterLine(text, 'no such anchor anywhere here', 'x')), 'not-found');
+  assert.equal(err(insertAfterLine(text, 'Kept.', '  ')), 'no-replacement');
 });
 
 test('undoEdit refuses once the user has typed over the edit', async () => {

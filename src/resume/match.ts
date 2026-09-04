@@ -12,6 +12,7 @@ import {
   type MatchJobInput,
 } from './prompts';
 import { annotateElsewhere, applyFacts } from './facts';
+import { gateActions } from './replacement-gate';
 import { withTableAliases } from './keyword-aliases';
 import { carryOverrides, effectiveKeywords } from './keyword-overrides';
 import { anchorKeywords } from './keyword-anchor';
@@ -114,6 +115,9 @@ export async function matchResumeToJob(
       });
       const withFacts = applyFacts(carry.keywords, facts).keywords;
       const keywords = annotateElsewhere(withFacts, otherSkills);
+      // What may be applied with one press is decided here, in code, against
+      // the resume, the posting and the facts — never by the model (ADR 0037).
+      const gate = gateActions(parsed.data.actions, { resumeText: resume.text, posting, facts, keywords, matcher });
       // The row stores what the user sees; the score reads what they decided:
       // their levels, without the terms they ignored (§5).
       const breakdown = scoreMatch(
@@ -128,7 +132,7 @@ export async function matchResumeToJob(
         resumeText: resume.text,
         draft: opts.draft ?? false,
         model,
-        result: { ...parsed.data, keywords },
+        result: { ...parsed.data, keywords, actions: gate.actions },
         breakdown,
         promptVersion: PROMPT_VERSION,
         mode,
@@ -143,6 +147,8 @@ export async function matchResumeToJob(
           draft: row.draft,
           mode,
           score: row.matchScore,
+          replacementsBlocked: gate.blocked,
+          replacementsWarned: gate.warned,
           cap: breakdown.cap,
           keywords: keywords.length,
           anchored: anchor.anchored,

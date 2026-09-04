@@ -45,6 +45,7 @@ consequences (what we accept). Aim for 15–30 lines each.
 - [0034 — A vendor's own licence governs keyed access, and the vendor's terms are code](./0034-keyed-sources.md)
 - [0035 — Many installs, one set of boards: spread the tick, shuffle the walk, revalidate](./0035-many-installs-one-set-of-boards.md)
 - [0036 — Watched companies are checked by reading what a site publishes for machines, never by rendering it](./0036-watchlist-reads-published-data-only.md)
+- [0037 — Suggestions carry replacement text; the fact gate decides what is applicable](./0037-suggestions-carry-replacement-text-gated-in-code.md)
 
 ## When to write a new one
 

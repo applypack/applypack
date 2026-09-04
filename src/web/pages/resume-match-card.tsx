@@ -538,7 +538,15 @@ export const MatchSignals: FC<{ match: MatchWithResume }> = ({ match }) => (
  * it never moves the page.
  */
 const SuggestionCard: FC<{
-  item: { section: string; where: string; what: string; why: string; quote?: string | null };
+  item: {
+    section: string;
+    where: string;
+    what: string;
+    why: string;
+    quote?: string | null;
+    /** An addition's anchor line (ADR 0037): Apply inserts after it instead of replacing. */
+    insert_after?: string | null;
+  };
   badge: Child;
   /** The wording to copy, when the model quoted one inside `what`. */
   proposal: Proposal | null;
@@ -552,7 +560,13 @@ const SuggestionCard: FC<{
   const copyable = proposal?.text ?? item.quote ?? item.what;
   // Stable across re-runs of the same comparison, so applied/skipped marks survive a reload.
   const key = hashShortId(`${item.section}|${item.where}|${item.quote ?? ''}`);
-  const canApply = interactive && Boolean(item.quote) && Boolean(proposal);
+  // A change applies over its quote; an addition applies after its anchor line.
+  // The edit box is the one carrier of that target — Apply reads it from there.
+  const target = item.quote ? { 'data-quote': item.quote } : item.insert_after ? { 'data-anchor': item.insert_after } : null;
+  const canApply = interactive && Boolean(proposal) && target !== null;
+  // Edit & apply needs only a place to write: a card whose wording the gate
+  // refused (ADR 0037) keeps it, prefilled with the text as it stands.
+  const canEdit = interactive && target !== null && !removal;
   const canRemove = interactive && Boolean(item.quote) && removal;
   return (
     <li class="flex flex-col gap-1 p-3 sm:flex-row sm:gap-3" data-card={interactive ? key : undefined}>
@@ -583,11 +597,11 @@ const SuggestionCard: FC<{
         <div class="mt-1 text-xs leading-5 text-ink-faint">why: {item.why}</div>
         <div class="mt-2 flex flex-wrap items-center gap-2">
           {canApply && (
-            <Button type="button" variant="primary" size="sm" data-apply={proposal?.text} data-quote={item.quote}>
+            <Button type="button" variant="primary" size="sm" data-apply={proposal?.text}>
               Apply
             </Button>
           )}
-          {canApply && (
+          {canEdit && (
             <Button type="button" variant="ghost" size="sm" data-edit-apply>
               Edit &amp; apply
             </Button>
@@ -605,7 +619,7 @@ const SuggestionCard: FC<{
               Locate
             </Button>
           )}
-          {interactive && (canApply || canRemove) && (
+          {(canEdit || canRemove) && (
             <Button type="button" variant="ghost" size="sm" data-skip>
               Skip
             </Button>
@@ -618,8 +632,8 @@ const SuggestionCard: FC<{
           {/* One status line per card: Locate's line number, and what an edit did. */}
           {interactive && <span class="text-xs text-ink-faint" data-card-status role="status"></span>}
         </div>
-        {canApply && (
-          <div class="mt-2" data-edit-box hidden>
+        {canEdit && (
+          <div class="mt-2" data-edit-box hidden {...target}>
             <label class="block">
               <span class={LABEL}>Your wording</span>
               <textarea
@@ -627,7 +641,7 @@ const SuggestionCard: FC<{
                 rows={3}
                 data-edit-text
               >
-                {proposal?.text}
+                {proposal?.text ?? item.quote ?? ''}
               </textarea>
             </label>
             <div class="mt-1.5 flex flex-wrap gap-2">

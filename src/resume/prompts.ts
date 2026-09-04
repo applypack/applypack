@@ -37,8 +37,9 @@ const KEYWORDS_MAX = 80;
  * Bumped whenever the match rules change materially; stored next to the score
  * (both variants share the rules, so one version covers both — ADR 0029).
  * v6: quick-check variant, the tiered keyword budget (F1), lazy suggestions.
+ * v7: actions carry "replacement" / "insert_after" — paste-ready wording (ADR 0037).
  */
-export const PROMPT_VERSION = 6;
+export const PROMPT_VERSION = 7;
 
 export { KEYWORD_STATUSES };
 
@@ -51,6 +52,18 @@ const nullableText = z
   .string()
   .nullish()
   .transform((v) => (v && v.trim().length > 0 ? v.trim() : null));
+
+/**
+ * Like nullableText, but an ABSENT field stays absent. The v7 action fields
+ * need the distinction: no field is a v6 row (proposalOf may still parse the
+ * quoted wording in `what`), an explicit null is a judged row — the model gave
+ * no wording or the gate refused it (replacement-gate.ts, ADR 0037).
+ */
+const judgedText = z
+  .string()
+  .nullable()
+  .optional()
+  .transform((v) => (v === undefined ? undefined : v && v.trim().length > 0 ? v.trim() : null));
 
 const tagList = z
   .array(z.string())
@@ -147,6 +160,12 @@ export const MatchSchema = z.object({
         priority: z.enum(ACTION_PRIORITIES),
         // Verbatim excerpt of the resume the edit points at (highlighted in the editor).
         quote: nullableText,
+        // v7 (ADR 0037): the complete new text for the quoted span, or for an
+        // addition the new line — what Apply pastes. Absent on a v6 row; an
+        // explicit null means the gate judged it (replacement-gate.ts).
+        replacement: judgedText,
+        // For an addition: the resume line the new text follows, verbatim.
+        insert_after: judgedText,
       }),
     )
     .max(40)
@@ -210,8 +229,9 @@ export const REVIEW_MAX_TOKENS = 6_000;
  * Bumped when the rubric or its rules change materially; stored with the score.
  * v2: the candidate's answers to earlier asks ride into the prompt, and the
  * rules say to write the figure into the rewrite instead of asking again.
+ * v3: the "example" line follows the same bullet rules as a match suggestion.
  */
-export const REVIEW_PROMPT_VERSION = 2;
+export const REVIEW_PROMPT_VERSION = 3;
 
 export const REVIEW_PRIORITIES = ACTION_PRIORITIES;
 
@@ -302,15 +322,31 @@ const RULE_ALIGNMENT = `"alignment" — grade each strong | partial | off by OBJ
 
 const RULE_GATES = `"hard_requirements": the gates that decide the application regardless of score — work authorization / visa, location or on-site demands, minimum years of experience, a non-negotiable technology, certification, clearance. Status "pass" = the resume shows it; "fail" = the resume contradicts it; "unknown" = the resume is silent, and "note" says what to confirm. Silence is NEVER "fail". At most 8 gates; no gates → empty array.`;
 
-const RULE_ACTIONS = `"actions" is the to-do list of ADDITIONS and CHANGES: concrete edits, each pointing at one place ("where") with the exact change ("what") and the posting requirement it serves ("why"). When the edit changes existing text, put that text in "quote" — copied VERBATIM from the resume, at most ~200 characters, so it can be highlighted; "quote" is null for additions. Concentrate on the title, summary, skills and the most recent role: the title and the top required skills must be visible in the top third of page one, and the current role must open with its strongest, most relevant accomplishment. Bullets of the two most recent roles may be reworded or reordered; older roles get trims only. Max 4 bullets per role. Priority "high" = a must-requirement keyword, the title, or the first bullet of the current role; "medium" = preferred keywords or another recent-role bullet; "low" = polish.
-   NO TREADMILL: suggest an edit ONLY when it would flip a keyword status, raise an alignment grade, resolve a gate or remove a caution. Never re-suggest something the resume already does, and never invent new polish because the list looks short — for a well-tailored resume, one or two actions (or none) is the correct answer, said in "strengths" instead.
-   BULLET RULES — every suggested experience-bullet wording follows all of them:
+/**
+ * One wording rule for every rewritten line the product proposes — match
+ * suggestions and the review's "example" alike (ADR 0037). The three phrases
+ * that differ between the two surfaces are parameters, so neither prompt can
+ * silently inherit the other's wording after an edit to the shared text.
+ */
+function bulletRules(subject: string, aim: string, noFigure: string): string {
+  return `BULLET RULES — ${subject} follows all of them:
    - Verb first, past tense, no pronouns, at most ~28 words; vary the verbs across bullets.
    - Shape: the outcome this employer cares about → how → with what. State the business result (revenue, cost, latency, uptime, users, conversion, release frequency, hours saved), not just the activity.
    - Use the POSTING'S OWN vocabulary for technologies and process terms — that is what the ATS and the recruiter search for, and what the highlighter matches.
-   - Aim each bullet at a NAMED requirement of this posting ("why" names it). A bullet that impresses generally but serves no requirement here is not an action.
-   - Quantify only with a number that exists in the resume or in a candidate-confirmed fact. NEVER invent a metric and NEVER embed placeholders such as "[add your real number]" inside the wording — when no real figure exists, keep the bullet qualitative and end "why" with "ask the candidate for the real number".
+   - Aim each bullet at a NAMED requirement of this posting ${aim}
+   - Quantify only with a number that exists in the resume or in a candidate-confirmed fact. NEVER invent a metric and NEVER embed placeholders such as "[add your real number]" inside the wording — when no real figure exists, keep the bullet qualitative and ${noFigure}.
    - Plain, specific, human. Never use: results-driven, passionate, synergy, dynamic, go-getter, team player, detail-oriented, proven track record, responsible for, seasoned, leverage, utilize, spearheaded.`;
+}
+
+const RULE_BULLET_STYLE = bulletRules(
+  'every suggested experience-bullet wording',
+  '("why" names it). A bullet that impresses generally but serves no requirement here is not an action.',
+  'end "why" with "ask the candidate for the real number"',
+);
+
+const RULE_ACTIONS = `"actions" is the to-do list of ADDITIONS and CHANGES: concrete edits, each pointing at one place ("where") with the exact change ("what") and the posting requirement it serves ("why"). When the edit changes existing text, put that text in "quote" — copied VERBATIM from the resume, at most ~200 characters, so it can be highlighted; "quote" is null for additions. Put the COMPLETE new text in "replacement", ready to paste in place of "quote"; for an addition put the resume line it follows in "insert_after" (copied VERBATIM) and the new text in "replacement"; "what" says what changes in one clause. "replacement" is null only for an instruction with no wording (a reorder, a cut). Concentrate on the title, summary, skills and the most recent role: the title and the top required skills must be visible in the top third of page one, and the current role must open with its strongest, most relevant accomplishment. Bullets of the two most recent roles may be reworded or reordered; older roles get trims only. Max 4 bullets per role. Priority "high" = a must-requirement keyword, the title, or the first bullet of the current role; "medium" = preferred keywords or another recent-role bullet; "low" = polish.
+   NO TREADMILL: suggest an edit ONLY when it would flip a keyword status, raise an alignment grade, resolve a gate or remove a caution. Never re-suggest something the resume already does, and never invent new polish because the list looks short — for a well-tailored resume, one or two actions (or none) is the correct answer, said in "strengths" instead.
+   ${RULE_BULLET_STYLE}`;
 
 const RULE_REMOVALS = `"removals" is the list of what to DELETE or SHORTEN so the resume reads cleaner for this posting: skills listed but never evidenced in a role; bullets with no number or no relevance to this posting (especially in roles older than two years); roles older than ~10 years condensed to one line; duplicated tech lists; filler sentences; anything a US recruiter does not want (photo, age, marital status, street-level home address); sections that add nothing (objective, references available on request). Each item: section, where, what to remove, why, and "quote" — the exact text to delete, copied verbatim (at most ~200 characters). Two hard rules:
    - PROTECTED: never remove the contact line or anything in it — name, email, phone, city/state/country, LinkedIn or GitHub links. Only a street-level home address may be trimmed, and then "quote" covers ONLY the street address and "what" says explicitly to keep email and phone.
@@ -350,7 +386,7 @@ const MATCH_PACE: Record<MatchMode, string> = {
 const OUTPUT_ALIGNMENT = `"alignment": {"title": "strong"|"partial"|"off", "summary": "strong"|"partial"|"off", "recent_role": "strong"|"partial"|"off"}`;
 const OUTPUT_GATES = `"hard_requirements": [{"requirement": string, "status": "pass"|"unknown"|"fail", "note": string|null}]`;
 const OUTPUT_KEYWORDS = `"keywords": [{"term": string, "priority": 1|2|3|4, "requirement": "must"|"preferred"|"nice"|"context", "primary": boolean, "status": "present"|"add"|"ask_user"|"cannot_claim", "aliases": string[], "where": string|null, "note": string|null}]`;
-const OUTPUT_ACTIONS = `"actions": [{"section": "title"|"summary"|"skills"|"experience"|"education"|"format", "where": string, "what": string, "why": string, "priority": "high"|"medium"|"low", "quote": string|null}]`;
+const OUTPUT_ACTIONS = `"actions": [{"section": "title"|"summary"|"skills"|"experience"|"education"|"format", "where": string, "what": string, "why": string, "priority": "high"|"medium"|"low", "quote": string|null, "replacement": string|null, "insert_after": string|null}]`;
 const OUTPUT_REMOVALS = `"removals": [{"section": "title"|"summary"|"skills"|"experience"|"education"|"format", "where": string, "what": string, "why": string, "quote": string|null}]`;
 
 const MATCH_OUTPUT: Record<MatchMode, string> = {
@@ -490,7 +526,8 @@ EVIDENCE: every grade carries 1-2 "evidence" strings copied CHARACTER-FOR-CHARAC
 
 ADVICE — 3 to 8 items, the ones that would change a hiring decision first:
 - "issue" names what is wrong with THIS document, "why" says what a recruiter or an ATS does about it, "fix" is the concrete change to make. "quote" carries the verbatim line the item points at, or null.
-- "example" is a rewritten line built ONLY from facts the resume already contains. NO INVENTION: never add a number, employer, title, date, team size or technology that is not already in the text.
+- "example" is a rewritten line built ONLY from facts the resume already contains. NO INVENTION: never add a number, employer, title, date, team size or technology that is not already in the text. It is written to the same rules as every bullet this product proposes:
+${bulletRules('every "example"', '— here, the role the resume claims.', 'put the question in "ask"')}
 - When the better line NEEDS a number the resume does not have, leave "example" null and put the question in "ask" ("how many requests per day did that service handle?"). Asking is the honest path to a stronger resume; inventing is fraud the candidate has to defend in the interview.
 - When a CANDIDATE-SUPPLIED METRICS block is present, those figures are answers the candidate already gave you. Treat them as true, WRITE THEM INTO the "example" rewrite, and set "ask" to null for that item — asking a second time for a number you have been given is the one thing this rubric must never do. Never carry a supplied figure into a line it does not belong to, and never let it change a grade on its own: the resume is graded as WRITTEN, and a metric the document does not carry is a reason for advice, not for a better grade.
 - Judge the document, never the person. A gap in the dates is a presentation problem ("say what you did with that time"), never a guess about someone's life.
