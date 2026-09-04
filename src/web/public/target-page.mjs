@@ -330,11 +330,11 @@ export function init(data) {
     announce(message);
   }
 
-  /** A change goes over its quote; an addition goes after its anchor line (ADR 0037). */
-  function place(text, apply, wording) {
-    return apply?.dataset.anchor
-      ? insertAfterLine(text, apply.dataset.anchor, wording)
-      : applyReplacement(text, apply?.dataset.quote, wording);
+  /** A change goes over its quote; an addition goes after its anchor line (ADR 0037). `at` carries one or the other. */
+  function place(text, at, wording) {
+    return at?.dataset.anchor
+      ? insertAfterLine(text, at.dataset.anchor, wording)
+      : applyReplacement(text, at?.dataset.quote, wording);
   }
 
   /**
@@ -374,9 +374,9 @@ export function init(data) {
     } else if (button.hasAttribute('data-edit-cancel')) {
       if (box) box.hidden = true;
     } else if (button.hasAttribute('data-edit-save')) {
-      const apply = card.querySelector('[data-apply]');
+      // The box carries the target itself: a card whose wording the gate refused has no Apply button.
       const wording = box?.querySelector('[data-edit-text]')?.value ?? '';
-      if (runEdit(card, (t) => place(t, apply, wording), 'Applied') && box) box.hidden = true;
+      if (runEdit(card, (t) => place(t, box, wording), 'Applied') && box) box.hidden = true;
     } else if (button.hasAttribute('data-skip')) {
       if (!edits.skipped.includes(card.dataset.card)) edits.skipped.push(card.dataset.card);
       storeEdits();

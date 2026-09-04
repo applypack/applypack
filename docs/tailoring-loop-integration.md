@@ -71,7 +71,7 @@ table into the PR.
 | `prisma/schema.prisma` + migration | | | | | `Resume.structure Json?` |
 | `Dockerfile` | | | | | copy `src/resume/fonts` |
 | `package.json` | | | | `@xmldom/xmldom`, `jszip` | `docx`, `pdfkit`, `@types/pdfkit` |
-| `docs/adr/0035…0037` | | | 0035 | 0036 | 0037 |
+| `docs/adr/` (0035–0036 were taken before stage 3 shipped: stage 3 is **0037**, stages 4 and 5 take the next free numbers) | | | 0037 | next | next |
 | CLAUDE.md, SPEC.md, CHANGELOG.md, README | rows + bump | rows + bump | rows + bump | rows + bump | rows + bump |
 
 Stages 1 and 2 need no schema and no prompt change. Stage 3 bumps
@@ -372,7 +372,7 @@ agreement); one live full analysis and one Get suggestions on a stored
 resume; count blocked replacements and paste the numbers in the PR;
 `prompt-fence-registry.test.ts` green (no new call site).
 
-### 4.7 ADR 0035 and release
+### 4.7 ADR 0037 (the plan said 0035; that number was taken) and release
 
 "Suggestions carry replacement text; the fact gate decides what is
 applicable." Context: TASKS §5.15's closure and its reopen trigger, the

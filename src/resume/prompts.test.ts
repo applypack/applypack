@@ -756,7 +756,7 @@ test('the two prompts that write suggestions ask for replacement and insert_afte
   const full = buildMatchPrompt('resume', JOB, 'full').system;
   const suggestions = buildSuggestionsPrompt('resume', JOB, SUGGEST_INPUT).system;
   for (const system of [full, suggestions]) {
-    assert.match(system, /put the COMPLETE new text in "replacement"/);
+    assert.match(system, /Put the COMPLETE new text in "replacement"/);
     assert.match(system, /put the resume line it follows in "insert_after"/);
     assert.match(system, /"replacement": string\|null, "insert_after": string\|null/);
   }
