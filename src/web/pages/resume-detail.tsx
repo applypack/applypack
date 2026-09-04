@@ -458,7 +458,7 @@ const TemplateCheck: FC<{ resumeId: number; candidate: string; structure: DocxSt
       <SectionTitle>Template check</SectionTitle>
       <div class="flex flex-wrap items-center gap-2">
         <Badge tone={view.tone}>{view.label}</Badge>
-        <span class="text-sm text-ink-muted">{describeStructure(structure)}</span>
+        <span class="text-sm text-ink-muted">{describeStructure(structure, { withNote: false })}</span>
       </div>
       {structure.notes.length > 0 && (
         <ul class="mt-3 space-y-1 text-sm text-ink-muted">

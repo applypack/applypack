@@ -120,7 +120,8 @@
   `match-reuse.ts`, `bench-report.ts`,
   `profile-draft.ts` (ADR 0015), `fact-check.ts` (ADR 0020),
   `keyword-overrides.ts`, `keyword-frame.ts`, `review-score.ts` (ADR 0030),
-  `change-sheet.ts`, `replacement-gate.ts` (ADR 0037)
+  `change-sheet.ts`, `replacement-gate.ts` (ADR 0037),
+  `docx-structure.ts`, `docx-patch.ts`, `docx-props.ts` (ADR 0038)
   are pure (tested);
   `scan.ts` / `match.ts` / `suggestions.ts` / `review.ts` / `cover-letter.ts`
   call the AI provider (the letter is gated by `fact-check.ts` and generates from stored
@@ -240,6 +241,11 @@ When the question is **"where does X live?"**, save yourself a `find`:
 | URL → ATS recognition (greenhouse/lever/ashby/workable/SR) | `src/text-utils.ts:extractAtsToken` |
 | Manual company probe before save | `src/ats-probe.ts:probeAts` |
 | Curated company packs (catalog, resolve order, preview) | `src/starter-packs/` — `catalog.json` + `resolve.ts` (pure) + `probe.ts`; ADR 0017 |
+| What a .docx is made of, and whether Save can write into it | `src/resume/docx-structure.ts:docxStructure` (pure, ADR 0038): `flow` / `structural` / `unsupported`, editable-line count, plain-sentence notes; never stored, recomputed from the bytes on `/resumes/:id` and the target page; `describeStructure` is the one-liner above the editor |
+| Writing the editor's edits back into the user's own .docx | `src/resume/docx-patch.ts:patchDocx(original, analysedText, editedText)` (pure): `diffLines` → the paragraph behind each line (`docx-text.ts:walkDocument` / `renderLines`) → changed window rewritten run by run, tabbed headers split on ` \| `, deletes remove the `w:p`, inserts clone the paragraph above with its `numPr`; refuses table rows, text boxes, shared paragraphs and tab-layout changes; four gates before the bytes leave. Called from `routes/resumes.tsx:saveEdited` |
+| The .docx reader (DOM walk + regex fallback), and why a soft break inside a table cell splits the row | `src/resume/docx-text.ts` — `walkDocument` → `Block[]` (kind, node, lines, table row/cell), `renderLines` → lines + owners, `blocksToText`; the regex reader stays as the fallback and the parity test (`docx-text.test.ts`) pins its output, quirks included, because every stored `resumeText` was rendered by it |
+| A .docx's document properties (the template author's name), and the opt-in fix | `src/resume/docx-props.ts:readProps` / `withProps` / `setCoreProps` (pure); `POST /resumes/:id/props` swaps the bytes only (`store.ts:replaceResumeBytes` — no version bump, no re-scan) |
+| The three .docx fixtures (a structural twin of resume 1, a paragraphs-only file, a table layout with a text box and a header) | `src/resume/fixtures/*.docx` — the twin was built from the real file with every text node replaced by neutral prose of the same length and its properties / rels scrubbed; the other two are hand-written XML through `zip-write.ts` |
 | Resume upload → text (.pdf/.docx/.md/.txt) | `src/resume/resume-text.ts:extractResumeText` (docx via `zip.ts` + `docx-text.ts`, pdf via `pdf-text.ts` / unpdf — ADR 0011) |
 | Paste posting + resume → one-shot targeted analysis | `/target` — `src/web/routes/target.tsx` (composes `jobs/manual-job.ts` + `resume/match.ts`; upload/paste land on the hidden scratch resume, old scratch matches auto-deleted) |
 | Resume scan + resume-vs-job prompts and their zod schemas | `src/resume/prompts.ts` (`PROMPT_VERSION` bump on material change) |
@@ -344,6 +350,8 @@ When the question is **"how does the user toggle / configure X?"**:
 | Standing angle inputs for letters (typed once, remembered) | `/jobs/:id` → Cover letter card → "Angle" — saved to `AppSettings.coverAngles` on every Generate |
 | Write a letter for a NEW posting (searchable picker / URL / paste; match & research opt-in) | menu → Cover letter (`/letter`) |
 | Download a letter as .pdf / .docx | `/jobs/:id` → Cover letter card → PDF / DOCX buttons |
+| Save the edits into my own .docx | `/jobs/:id/target` → **Save as a tailored copy** (a new resume named after the company; the master untouched) or **Save as vN**. When the file is a .docx the template check allows, the file itself is patched with the edits and Download hands it back; otherwise the version is text and the flash says why. The sentence above the editor says which it will be |
+| See what a Save can do with this file, and fix a downloaded template's author name | `/resumes/:id` → "Template check": Editable in place / Partly editable / Text only, the parts it cannot write into, and **Fix document properties** when the file names someone else (current values shown; bytes only, no new version) |
 | Re-check an edited resume | `/resumes/:id` → "Upload a new version", then Compare again |
 | Edit in place with a live score | comparison → "Open targeted view →" (`/jobs/:id/target`); "Re-check with AI" for the rubric score (or "Full analysis with suggestions"), "Save as vN" to keep the draft |
 

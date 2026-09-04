@@ -36,7 +36,8 @@ test('the real resume’s twin is structural because its skills live in a table 
   assert.equal(s.lines.editable, s.lines.total, 'cell text counts as editable in v1');
   assert.ok(s.notes.some((n) => /table/.test(n)));
   assert.ok(s.notes.some((n) => /formula/.test(n)));
-  assert.match(describeStructure(s), /partly editable in place/);
+  assert.match(describeStructure(s), /partly editable in place, \d+ of \d+ lines — A table/);
+  assert.match(describeStructure(s, { withNote: false }), /partly editable in place, \d+ of \d+ lines\.$/);
 });
 
 test('a table layout with a text box and a header is structural, and the notes name each', () => {

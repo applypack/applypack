@@ -126,11 +126,15 @@ function marginChars(bytes: Buffer): { headerChars: number; footerChars: number 
   return { headerChars, footerChars };
 }
 
-/** The one-line verdict the target page prints above the editor. */
-export function describeStructure(s: DocxStructure): string {
+/**
+ * The one-line verdict. Above the editor it carries the first note, because
+ * that line is all the page says; on the card the notes are listed under it,
+ * so `withNote: false` keeps the line short.
+ */
+export function describeStructure(s: DocxStructure, opts: { withNote?: boolean } = {}): string {
   if (s.kind === 'unsupported') return 'This file cannot be edited in place: Save keeps a text version.';
   const lines = `${s.lines.editable} of ${s.lines.total} lines`;
-  return s.kind === 'flow'
-    ? `This file: editable in place, ${lines}.`
-    : `This file: partly editable in place, ${lines} — ${s.notes[0] ?? 'some parts are not paragraphs'}`;
+  if (s.kind === 'flow') return `This file: editable in place, ${lines}.`;
+  const note = opts.withNote === false ? '' : ` — ${s.notes[0] ?? 'some parts are not paragraphs'}`;
+  return `This file: partly editable in place, ${lines}${note}${note ? '' : '.'}`;
 }

@@ -4,6 +4,55 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.54.0] — 2026-09-04
+
+### Added
+- **Save writes your edits into your own .docx.** On the targeted view, when
+  the resume's file is a `.docx` whose layout allows it, Save patches that
+  file in place — the edited lines rewritten inside their own paragraphs,
+  formatting kept outside the words you changed, deleted lines gone, added
+  lines shaped like the line above them (a bullet after a bullet stays in the
+  list). Download hands the file back. When a line cannot be placed honestly
+  (a table row, a text box, a line that shares its paragraph, an edit that
+  changes a line's tab layout) the save is a text version and the flash says
+  why (ADR 0038).
+- **Save as a tailored copy** is now the primary action: a new resume beside
+  the master, named after the company, the master untouched. **Save as vN**
+  stays.
+- **Template check** on `/resumes/:id`: *Editable in place*, *Partly
+  editable* or *Text only*, how many lines a save can rewrite, and the parts
+  it cannot touch — tables, text boxes, columns, header text, formula
+  objects, hidden or white or 4-pt runs — each as a sentence. The line above
+  the editor says the same for the file at hand; a PDF is told to upload the
+  `.docx` it was printed from.
+- **Fix document properties**: a downloaded template keeps its author's name
+  and title in the file — the one `.docx` in the corpus says it was written by
+  "Joshua" and is titled with a street address in Lagos. The card shows the
+  current values and one press writes the candidate's name instead, bytes
+  only: no new version, no re-scan.
+
+### Notes
+- Two dependencies, both pure JavaScript, pinned: `jszip` 3.10.1 and
+  `@xmldom/xmldom` 0.9.12. No Dockerfile change, no migration.
+- Measured before it was built, on the real file: xmldom reproduces
+  `word/document.xml` to one byte (the CRLF after the XML declaration, put
+  back), jszip returns the other 30 parts byte for byte, and 235 of 432 text
+  nodes lack `xml:space="preserve"` — so every node the patcher writes gets it.
+- The `.docx` reader is now a DOM walk (`walkDocument`) that hands the patcher
+  the paragraph behind every line; the regex reader stays as the fallback for
+  XML the parser refuses, and a parity test pins the two to the same text,
+  quirks included — a soft break inside a table cell still splits the row,
+  because every stored resume text was rendered that way.
+- Three fixtures: a structural twin of resume 1 (every text node replaced by
+  neutral prose of the same length, properties and links scrubbed; 89
+  paragraphs, 527 runs, the 1 × 2 table, both formula objects, all 100 tabs
+  intact), a paragraphs-only file, and a table layout with a text box and a
+  header.
+- The first live save found what no fixture had: resume 1 keeps a bullet's
+  full stop in a run of its own, so appending a clause makes an empty change
+  window exactly on a run boundary, and the file read back with a doubled
+  stop. The window now belongs to the run before it.
+
 ## [1.53.0] — 2026-09-04
 
 ### Added
@@ -2126,6 +2175,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[1.54.0]: https://github.com/applypack/applypack/compare/v1.53.0...v1.54.0
 [1.53.0]: https://github.com/applypack/applypack/compare/v1.52.0...v1.53.0
 [1.52.0]: https://github.com/applypack/applypack/compare/v1.51.0...v1.52.0
 [1.51.0]: https://github.com/applypack/applypack/compare/v1.50.0...v1.51.0
