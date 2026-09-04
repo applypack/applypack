@@ -168,6 +168,7 @@ export async function runFetchJob(opts: FetchJobOptions = {}): Promise<{ stats: 
     skippedByPause: 0,
     skippedBlankProfile: 0,
     alertHeld: 0,
+    watchedKept: 0,
   };
   await processNormalizedJobs(fetched, profiles, inner, {
     classifierMode,

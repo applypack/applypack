@@ -120,6 +120,26 @@ describe('formatJobMessage', () => {
     assert.match(msg, /Flags: stack\\-mismatch, apply\\-url\\-not\\-an\\-application/);
   });
 
+  it('opens with the search name when several are running (ADR 0028)', () => {
+    assert.match(formatJobMessage({ ...base, matchedProfile: 'Backend' }), /^\*Backend — fit 88\/100\*/);
+    assert.match(formatJobMessage(base), /^\*New role match — fit 88\/100\*/);
+  });
+
+  // ADR 0036: with alertPolicy = 'all' the row may be below every threshold,
+  // so the header must not call it a match.
+  it('says "new posting" for a watched company, whatever the score', () => {
+    const msg = formatJobMessage({ ...base, watched: true, companyName: '★ Acme', fitScore: 12 });
+    assert.match(msg, /^\*★ New posting — fit 12\/100\*/);
+    assert.match(msg, /@ ★ Acme/);
+  });
+
+  it('lets the watched header win over the search name — one header, not two', () => {
+    assert.match(
+      formatJobMessage({ ...base, watched: true, matchedProfile: 'Backend' }),
+      /^\*★ New posting/,
+    );
+  });
+
   it('escapes the cross-listed company name', () => {
     // Parentheses, dots and hyphens all need escaping in MarkdownV2 — an
     // unescaped one makes Telegram reject the entire message.

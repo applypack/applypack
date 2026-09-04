@@ -18,6 +18,7 @@ import {
   Textarea,
   Hint,
 } from '../ui';
+import { intervalLabel } from '../../watchlist/interval';
 import { formatDate, formatSalary } from '../format';
 import { AdzunaLabel, FranceTravailLine, JsonTree } from './attribution';
 import { formatUsdPerYear } from '../../currency';
@@ -56,7 +57,16 @@ interface JobDetail {
   postedAt: Date;
   alertedAt: Date | null;
   externalId: string;
-  company: { id: number; name: string; atsType: string; atsToken: string };
+  company: {
+    id: number;
+    name: string;
+    atsType: string;
+    atsToken: string;
+    /** §17: on the user's watchlist, and how it is checked (ADR 0036). */
+    watched: boolean;
+    checkEvery: string;
+    alertPolicy: string;
+  };
   appliedAt: Date | null;
   appliedResumeId: number | null;
   appliedResumeVersion: number | null;
@@ -418,8 +428,18 @@ const PageHeaderBlock: FC<{ job: JobDetail }> = ({ job }) => (
       <div class="min-w-0 flex-1 basis-72">
         <h1 class="text-xl font-semibold leading-snug tracking-tight">{job.title}</h1>
         <div class="mt-1 text-sm text-ink-muted">
+          {job.company.watched && <span aria-label="Watched company">★ </span>}
           {job.company.name} · {job.location || 'Remote'}
         </div>
+        {job.company.watched && (
+          <div class="mt-1 text-xs text-ink-faint">
+            Watched company · {intervalLabel(job.company.checkEvery).toLowerCase()}, with your search&rsquo;s schedule ·{' '}
+            {job.company.alertPolicy === 'all' ? 'alerts on every posting' : 'alerts on matches only'} ·{' '}
+            <a href="/companies" class="underline">
+              change
+            </a>
+          </div>
+        )}
         {job.company.atsType === 'ADZUNA' && <AdzunaLabel market={job.company.atsToken} class="mt-1" />}
         {job.company.atsType === 'FRANCETRAVAIL' && <FranceTravailLine updatedAt={job.sourceUpdatedAt} class="mt-1" />}
         <PlaceChips job={job} />

@@ -17,6 +17,7 @@ import {
 } from '../../starter-packs/catalog';
 import { resolvePack } from '../../starter-packs/probe';
 import { suggestSources, type SourceSuggestion } from '../../starter-packs/suggest';
+import { activeWatchlistRun } from '../watchlist-runs';
 import { listActiveProfiles } from '../../profiles';
 import { isBlankProfile } from '../../profile-guards';
 import {
@@ -26,6 +27,7 @@ import {
   keyOf,
 } from '../../starter-packs/resolve';
 import { CompaniesPage } from '../pages/companies';
+import type { WatchedRow } from '../pages/watchlist';
 import {
   StarterPackPreviewPage,
   StarterPackResultPage,
@@ -53,6 +55,7 @@ const NewCompanySchema = z.object({
     AtsType.JOBTECH,
     AtsType.ADZUNA,
     AtsType.FRANCETRAVAIL,
+    AtsType.FEED,
   ] as const),
   atsToken: z.string().min(1).max(120),
   careerUrl: z.string().url().optional().or(z.literal('')),
@@ -149,10 +152,21 @@ companiesRoute.get('/companies', async (c) => {
     count: counts.get(s.id) ?? 0,
   }));
 
+  // Postings a watched company put up in the last week — the number the user
+  // opens this page for. One grouped count, not one query per row.
+  const freshCounts = await prisma.job.groupBy({
+    by: ['companyId'],
+    where: { companyId: { in: companies.filter((c) => c.watched).map((c) => c.id) }, fetchedAt: { gte: weekAgo(now) } },
+    _count: { _all: true },
+  });
+  const freshMap = new Map(freshCounts.map((r) => [r.companyId, r._count._all]));
+
   const flash = parseFlashCookie(c.req.header('cookie'));
   return c.html(
     <CompaniesPage
       companies={rows}
+      watchlist={watchedRows(companies, freshMap)}
+      watchlistRun={activeWatchlistRun()}
       packs={packs}
       suggestions={await suggestedSources(companies)}
       keyedUnlocked={unlockedSources(await getSourceKeys())}
@@ -163,6 +177,50 @@ companiesRoute.get('/companies', async (c) => {
     { 'Set-Cookie': clearFlashCookie() },
   );
 });
+
+const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+
+function weekAgo(now: Date): Date {
+  return new Date(now.getTime() - WEEK_MS);
+}
+
+/** The watchlist section's rows (TASKS §17), newest interval-first is not a thing — by name. */
+function watchedRows(
+  companies: readonly {
+    id: number;
+    name: string;
+    atsType: AtsType;
+    atsToken: string;
+    active: boolean;
+    careerUrl: string | null;
+    watched: boolean;
+    checkEvery: string;
+    alertPolicy: string;
+    nextCheckAt: Date | null;
+    lastOkAt: Date | null;
+    lastFetchStatus: string | null;
+    _count: { jobs: number };
+  }[],
+  fresh: Map<number, number>,
+): WatchedRow[] {
+  return companies
+    .filter((c) => c.watched)
+    .map((c) => ({
+      id: c.id,
+      name: c.name,
+      atsType: c.atsType,
+      atsToken: c.atsToken,
+      active: c.active,
+      careerUrl: c.careerUrl,
+      checkEvery: c.checkEvery,
+      alertPolicy: c.alertPolicy,
+      nextCheckAt: c.nextCheckAt,
+      lastOkAt: c.lastOkAt,
+      lastFetchStatus: c.lastFetchStatus,
+      jobsTotal: c._count.jobs,
+      newJobs: fresh.get(c.id) ?? 0,
+    }));
+}
 
 // --- sources for the searches' countries (plan §4.3) -----------------------
 

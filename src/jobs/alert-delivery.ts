@@ -4,6 +4,7 @@ import { logger } from '../logger';
 import { sendDigest } from '../notifier';
 import { attributionLine } from '../web/pages/attribution';
 import { shouldDeliverHeld, type Schedule } from '../user-schedule';
+import { starred, watchRules } from '../watchlist/interval';
 import { groupHeldByTarget, HELD_TITLE, type HeldRow } from './held-alerts';
 import type { AlertJob } from '../types';
 
@@ -33,7 +34,7 @@ export async function deliverHeldAlerts(now: Date, schedule: Schedule): Promise<
   const rows = await prisma.job.findMany({
     where: { alertHeldAt: { not: null }, status: JobStatus.NEW },
     include: {
-      company: { select: { name: true, atsType: true, atsToken: true } },
+      company: { select: { name: true, atsType: true, atsToken: true, watched: true, alertPolicy: true } },
       scores: {
         include: { profile: { select: { name: true, telegramTargetId: true } } },
         orderBy: { fitScore: 'desc' },
@@ -49,7 +50,10 @@ export async function deliverHeldAlerts(now: Date, schedule: Schedule): Promise<
     targetId: j.scores[0]?.profile.telegramTargetId ?? null,
     alert: {
       title: j.title,
-      companyName: j.company.name,
+      // The ★ is on the row, not on the send: a held posting from a watched
+      // company must read the same as one sent on the spot (ADR 0036).
+      companyName: starred(j.company.name, watchRules(j.company)),
+      watched: j.company.watched,
       attribution: attributionLine(j.company.atsType, j.company.atsToken),
       location: j.location,
       countries: j.countries,

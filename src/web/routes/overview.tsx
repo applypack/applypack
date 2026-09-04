@@ -8,6 +8,16 @@ import { loadWelcomeContext } from '../welcome-facts';
 import { currentStep, needsWelcome } from '../welcome-steps';
 import { OverviewPage } from '../pages/overview';
 import { countHeldAlerts } from '../../jobs/alert-delivery';
+
+/** ★ How many companies the user watches, and what they put up today (ADR 0036). */
+async function watchedSummary(): Promise<{ companies: number; newJobs: number }> {
+  const companies = await prisma.company.count({ where: { watched: true } });
+  if (companies === 0) return { companies: 0, newJobs: 0 };
+  const newJobs = await prisma.job.count({
+    where: { company: { watched: true }, fetchedAt: { gte: new Date(Date.now() - DAY_MS) } },
+  });
+  return { companies, newJobs };
+}
 import { loadNextCheck } from '../schedule-view';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -76,6 +86,7 @@ overviewRoute.get('/', async (c) => {
       fetchingEnabled={settings.fetchingEnabled}
       sleepingUntil={sleepingUntil}
       heldAlerts={await countHeldAlerts()}
+      watched={await watchedSummary()}
       fetchRun={activeFetchRun()}
       finishSetup={currentStep(facts) !== null}
       flash={parseFlashCookie(c.req.header('cookie'))}

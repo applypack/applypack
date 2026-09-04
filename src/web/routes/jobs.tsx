@@ -103,6 +103,11 @@ const ListQuerySchema = z.object({
     .string()
     .optional()
     .transform((v) => (v === '1' ? '1' : '')),
+  // ADR 0036: only postings from companies on the watchlist.
+  watched: z
+    .string()
+    .optional()
+    .transform((v) => (v === '1' ? '1' : '')),
   // ADR 0028: narrow the list to one search. Empty = every search.
   profile: z.coerce.number().int().positive().optional().catch(undefined),
   // ADR 0031: the facets. Unknown values are dropped, never rejected.
@@ -132,11 +137,12 @@ jobsRoute.get('/jobs', async (c) => {
     workplace: c.req.query('workplace'),
     posted: c.req.query('posted'),
     open: c.req.query('open'),
+    watched: c.req.query('watched'),
   });
   if (!parsed.success) {
     return c.text('Invalid query', 400);
   }
-  const { page, status, minFit, q, sort, verified, profile, country, workplace, posted, open } = parsed.data;
+  const { page, status, minFit, q, sort, verified, profile, country, workplace, posted, open, watched } = parsed.data;
   const now = new Date();
 
   const where: Prisma.JobWhereInput = {};
@@ -171,6 +177,8 @@ jobsRoute.get('/jobs', async (c) => {
   if (verified) {
     where.verifications = { some: {} };
   }
+  // ★ Only the companies the user put on the watchlist (ADR 0036).
+  if (watched === '1') where.company = { watched: true };
   // The facet counts come from the rows matching everything above; each
   // facet then applies the others' selections in tallyFacets. Four narrow
   // columns per row — ~1k rows today; past ~50k move the tally into SQL.
@@ -192,7 +200,7 @@ jobsRoute.get('/jobs', async (c) => {
       skip: (page - 1) * PAGE_SIZE,
       take: PAGE_SIZE,
       include: {
-        company: { select: { name: true, atsType: true, atsToken: true } },
+        company: { select: { name: true, atsType: true, atsToken: true, watched: true } },
         verifications: {
           select: { verdict: true },
           orderBy: { createdAt: 'desc' },
@@ -225,6 +233,7 @@ jobsRoute.get('/jobs', async (c) => {
         sort,
         verified,
         open,
+        watched,
         profile: profile ?? null,
         country,
         workplace: workplace.map((w) => w.toLowerCase()),
@@ -288,7 +297,7 @@ jobsRoute.get('/jobs/:id', async (c) => {
     prisma.job.findUnique({
       where: { id },
       include: {
-        company: { select: { id: true, name: true, atsType: true, atsToken: true } },
+        company: { select: { id: true, name: true, atsType: true, atsToken: true, watched: true, checkEvery: true, alertPolicy: true } },
         // F3: the posting this one near-duplicates, and any that
         // near-duplicate it — the link is annotation only (ADR 0018).
         crossListedOf: {

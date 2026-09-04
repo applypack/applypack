@@ -47,6 +47,8 @@ export interface OverviewProps {
   sleepingUntil: string;
   /** Matches scored outside the alert window, waiting for the next one. */
   heldAlerts: number;
+  /** §17: watched companies, and what they put up in the last 24h (ADR 0036). */
+  watched: { companies: number; newJobs: number };
   /** The manual fetch in flight, if any — the button turns into a link to it. */
   fetchRun: FetchRun | null;
   /** A wizard step is still undone (skipped or not) — show the way back to /welcome. */
@@ -74,6 +76,7 @@ export const OverviewPage: FC<OverviewProps> = ({
   fetchingEnabled,
   sleepingUntil,
   heldAlerts,
+  watched,
   fetchRun,
   finishSetup,
   flash,
@@ -129,6 +132,23 @@ export const OverviewPage: FC<OverviewProps> = ({
           >
             change when alerts arrive
           </a>
+          .
+        </p>
+      )}
+
+      {watched.companies > 0 && (
+        <p class="-mt-2 mb-4 text-[13px] leading-5 text-ink-faint">
+          ★ {watched.companies} watched compan{watched.companies === 1 ? 'y' : 'ies'} ·{' '}
+          {watched.newJobs === 0 ? (
+            'nothing new in the last 24 hours'
+          ) : (
+            <a
+              href="/jobs?watched=1"
+              class="font-medium text-accent-strong transition-colors duration-150 hover:text-accent-deep"
+            >
+              {watched.newJobs} new posting{watched.newJobs === 1 ? '' : 's'} in the last 24 hours
+            </a>
+          )}
           .
         </p>
       )}
