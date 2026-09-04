@@ -20,8 +20,13 @@ export interface ClaudeClassification {
   fit_score: number;
   /** True when the role matches the active profile's location preferences. */
   location_match: boolean;
-  salary_min_usd: number | null;
-  salary_max_usd: number | null;
+  /** The posting's own numbers; the currency and the period say what they mean. */
+  salary_min: number | null;
+  salary_max: number | null;
+  /** ISO-4217; absent or null = USD (src/currency.ts). */
+  salary_currency?: string | null;
+  /** year | month | week | day | hour; absent or null = year. */
+  salary_period?: string | null;
   tech_match: string[];
   red_flags: string[];
   summary: string;
@@ -48,6 +53,8 @@ export interface AlertJob {
   fitScore: number;
   salaryMin: number | null;
   salaryMax: number | null;
+  salaryCurrency?: string | null;
+  salaryPeriod?: string | null;
   techMatch: string[];
   redFlags: string[];
   summary: string;

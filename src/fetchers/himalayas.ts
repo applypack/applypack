@@ -29,7 +29,7 @@ const CALL_DELAY_MS = 1_000;
  *
  * Structured extras the feed carries (employer, seniority, employment
  * type, salary range) are folded into the description so Claude sees
- * them; salary especially, since `salary_min_usd` extraction otherwise
+ * them; salary especially, since `salary_min` extraction otherwise
  * has nothing to work with. `applicationLink` pages often carry the
  * employer's real ATS URL, which feeds the phase-7.5 discovery harvest.
  */

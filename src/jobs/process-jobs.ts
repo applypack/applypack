@@ -462,8 +462,10 @@ function buildJobData(
     description: job.description,
     postedAt: job.postedAt,
     fitScore: c?.fit_score ?? null,
-    salaryMin: c?.salary_min_usd ?? null,
-    salaryMax: c?.salary_max_usd ?? null,
+    salaryMin: c?.salary_min ?? null,
+    salaryMax: c?.salary_max ?? null,
+    salaryCurrency: c?.salary_currency ?? null,
+    salaryPeriod: c?.salary_period ?? null,
     techMatch: c?.tech_match ?? [],
     // `pasted: false` is an invariant, not an assumption: a MANUAL company's
     // fetchOne returns [], so a pasted row never reaches this loop. Pasted

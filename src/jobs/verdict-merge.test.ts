@@ -12,8 +12,8 @@ import type { ClaudeClassification } from '../types';
 const classification = (fit: number, over: Partial<ClaudeClassification> = {}): ClaudeClassification => ({
   fit_score: fit,
   location_match: true,
-  salary_min_usd: null,
-  salary_max_usd: null,
+  salary_min: null,
+  salary_max: null,
   tech_match: [],
   red_flags: [],
   summary: `fit ${fit}`,
@@ -148,6 +148,6 @@ test('dismiss reasons keep their order of precedence', () => {
   const p = profile(1, { minFitScore: 70, minSalaryUsd: 100_000 });
   assert.equal(decideDismissReason(classification(50), p), 'low-fit');
   assert.equal(decideDismissReason(classification(80, { location_match: false }), p), 'location-mismatch');
-  assert.equal(decideDismissReason(classification(80, { salary_min_usd: 60_000 }), p), 'low-salary');
-  assert.equal(decideDismissReason(classification(80, { salary_min_usd: 120_000 }), p), null);
+  assert.equal(decideDismissReason(classification(80, { salary_min: 60_000 }), p), 'low-salary');
+  assert.equal(decideDismissReason(classification(80, { salary_min: 120_000 }), p), null);
 });

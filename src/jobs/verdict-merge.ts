@@ -1,4 +1,5 @@
 import type { Job, Profile } from '@prisma/client';
+import { toUsdPerYear } from '../currency';
 import { applyPriorityFloor, parsePriorityRules } from '../priority-rules';
 import type { ClaudeClassification } from '../types';
 import type { ClassificationsByProfile } from '../classifier';
@@ -111,12 +112,10 @@ export function decideDismissReason(
 ): DismissReason | null {
   if (c.fit_score < profile.minFitScore) return 'low-fit';
   if (!c.location_match) return 'location-mismatch';
-  if (
-    profile.minSalaryUsd > 0 &&
-    c.salary_min_usd !== null &&
-    c.salary_min_usd > 0 &&
-    c.salary_min_usd < profile.minSalaryUsd
-  ) {
+  // The posting may quote złoty a month; the target is USD a year. One
+  // pure conversion decides, with the rate table src/currency.ts dates.
+  const salaryUsd = toUsdPerYear(c.salary_min, c.salary_currency, c.salary_period);
+  if (profile.minSalaryUsd > 0 && salaryUsd !== null && salaryUsd < profile.minSalaryUsd) {
     return 'low-salary';
   }
   return null;

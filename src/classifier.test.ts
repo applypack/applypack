@@ -117,7 +117,7 @@ test('the prefilter prompt stays short — a cheap gate is its whole point', () 
  * ---------------------------------------------------------------------- */
 
 const reply = (scores: unknown[], salary: [number | null, number | null] = [null, null]) =>
-  JSON.stringify({ salary_min_usd: salary[0], salary_max_usd: salary[1], scores });
+  JSON.stringify({ salary_min: salary[0], salary_max: salary[1], scores });
 
 const entry = (id: number, fit: number, over: Record<string, unknown> = {}) => ({
   profile_id: id,
@@ -159,8 +159,8 @@ test('every search gets its own verdict, salary is shared', () => {
   assert.equal(out.results.get(9)!.fit_score, 41);
   assert.equal(out.results.get(9)!.summary, 'off-stack');
   // Hoisted once, handed to both — two searches can never disagree on it.
-  assert.equal(out.results.get(3)!.salary_min_usd, 120_000);
-  assert.equal(out.results.get(9)!.salary_max_usd, 150_000);
+  assert.equal(out.results.get(3)!.salary_min, 120_000);
+  assert.equal(out.results.get(9)!.salary_max, 150_000);
 });
 
 test('a verdict for a search we never asked about voids the whole reply', () => {
@@ -279,8 +279,8 @@ test('the parsed place rides in the user prompt outside the fence', () => {
 
 test('the location block is read once, codes validated, and optional', () => {
   const withLocation = JSON.stringify({
-    salary_min_usd: null,
-    salary_max_usd: null,
+    salary_min: null,
+    salary_max: null,
     location: { workplace: 'remote', countries: ['pl', 'XX', 'de', 'pl'], regions: ['eu', 'MARS'], note: '  Poland or Germany residents  ' },
     scores: [entry(3, 80)],
   });
