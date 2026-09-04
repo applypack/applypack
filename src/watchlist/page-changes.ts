@@ -17,8 +17,15 @@ export interface PageChange {
   companyName: string;
   /** The page the user asked us to watch. */
   url: string;
-  /** The hash to store once the alert is sent. */
+  /** The hash to store. */
   hash: string;
+  /**
+   * false for the first read of a page: there is no previous text to differ
+   * from, so the hash is stored and nothing is said. Staged rather than
+   * written on the spot so that a fetcher never touches the database — the
+   * rule every other fetcher in this project follows.
+   */
+  announce: boolean;
 }
 
 const staged: PageChange[] = [];

@@ -18,7 +18,16 @@ import { canAlertNow, type Schedule } from '../user-schedule';
  * "the page changed" is a standing fact, not an event that expires.
  */
 export async function deliverPageChanges(now: Date, schedule: Schedule): Promise<{ alerted: number }> {
-  const changes = takePageChanges();
+  const staged = takePageChanges();
+  if (staged.length === 0) return { alerted: 0 };
+
+  // A page seen for the first time has no news in it: store the hash so the
+  // next check has something to compare against, and say nothing.
+  for (const first of staged.filter((c) => !c.announce)) {
+    await prisma.company.update({ where: { id: first.companyId }, data: { lastContentHash: first.hash } });
+  }
+
+  const changes = staged.filter((c) => c.announce);
   if (changes.length === 0) return { alerted: 0 };
   if (!canAlertNow(now, schedule)) {
     logger.info({ pages: changes.length }, 'page-change: outside the alert window; leaving them pending');

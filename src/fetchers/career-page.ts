@@ -1,4 +1,3 @@
-import { prisma } from '../db';
 import { logger } from '../logger';
 import { fetchWithRetry } from '../http';
 import { checkPostingUrl } from '../jobs/posting-url';
@@ -21,7 +20,18 @@ import type { NormalizedJob } from '../types';
  * Returning `[]` means `classifyFetchCount` reads it as `empty`, which is the
  * truth: this source produces no postings, ever. Its health therefore rests on
  * the failure streak alone — a page that 404s or starts answering a bot check
- * still goes quiet on `/companies` the ordinary way.
+ * still goes quiet on `/companies` the ordinary way, and `source-health.ts`
+ * exempts it from the "silent" rule, which exists to catch a board that
+ * STOPPED producing postings.
+ *
+ * Conditional requests are wired in like every other single-request fetcher,
+ * and they are a particularly good fit here: a 304 is the page telling us it
+ * did not change, which is the whole question this rung asks. The hash is then
+ * never computed, and nothing is staged.
+ *
+ * Like every other fetcher, this one does not write to the database. What it
+ * saw is staged (`watchlist/page-changes.ts`) and `jobs/page-change-alerts.ts`
+ * owns every write.
  */
 const TIMEOUT_MS = 15_000;
 
@@ -52,12 +62,13 @@ export async function fetchCareerPage(company: CareerPageCompany): Promise<Norma
   }
 
   const decision = decideChange(company, html, new Date());
+  const base = { companyId: company.id, companyName: company.name, url };
   if (decision.kind === 'first') {
     // No previous text to differ from: remember it and say nothing.
-    await prisma.company.update({ where: { id: company.id }, data: { lastContentHash: decision.hash } });
+    stagePageChange({ ...base, hash: decision.hash, announce: false });
     logger.info({ company: company.name }, 'career-page: first read, nothing to report');
   } else if (decision.kind === 'changed') {
-    stagePageChange({ companyId: company.id, companyName: company.name, url, hash: decision.hash });
+    stagePageChange({ ...base, hash: decision.hash, announce: true });
   } else if (decision.kind === 'held') {
     logger.info({ company: company.name }, 'career-page: changed again inside the daily window; still pending');
   }
