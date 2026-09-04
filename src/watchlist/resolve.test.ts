@@ -59,11 +59,23 @@ describe('rung 1 — the pasted URL is already a board', () => {
   it('does not trust a board URL the vendor will not serve', async () => {
     const r = await resolveCompanyUrl(paste('https://jobs.ashbyhq.com/Deno'), io({}));
     assert.equal(r.resolution.kind, 'watchOnly');
-    assert.match((r.resolution as { reason: string }).reason, /public API does not serve "deno"/i);
+    assert.match((r.resolution as { reason: string }).reason, /public posting API does not serve "deno"/i);
   });
 });
 
 describe('rung 2 — the URL redirects onto a board', () => {
+  it('says an embed-only board is embed-only, rather than "nothing found"', async () => {
+    const stub = io({
+      pages: {
+        'https://deno.com/robots.txt': { status: 404 },
+        'https://deno.com/jobs': { status: 200, url: 'https://jobs.ashbyhq.com/Deno', body: '<html>SPA</html>' },
+      },
+    });
+    const r = await resolveCompanyUrl(paste('https://deno.com/jobs'), stub);
+    assert.equal(r.resolution.kind, 'watchOnly');
+    assert.match((r.resolution as { reason: string }).reason, /embed-only/);
+  });
+
   it('reads the landed URL (deno.com/jobs → jobs.ashbyhq.com/Deno)', async () => {
     const stub = io({
       pages: {

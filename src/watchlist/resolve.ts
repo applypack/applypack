@@ -84,14 +84,7 @@ export async function resolveCompanyUrl(input: CompanyInput, io: ResolveIo): Pro
   if (direct) {
     const confirmed = await confirmBoard(direct, target.toString(), io);
     if (confirmed) return { ...base, resolution: confirmed, requests: 0 };
-    return {
-      ...base,
-      resolution: {
-        kind: 'watchOnly',
-        reason: `That looks like a ${direct.atsType} board, but its public API does not serve "${direct.atsToken}" — the board may be embed-only.`,
-      },
-      requests: 0,
-    };
+    return { ...base, resolution: { kind: 'watchOnly', reason: boardMissReason(direct) }, requests: 0 };
   }
 
   let requests = 0;
@@ -117,11 +110,16 @@ export async function resolveCompanyUrl(input: CompanyInput, io: ResolveIo): Pro
   if (!landed.ok) return { ...base, resolution: { kind: 'refused', reason: landed.error }, requests };
   const named = { ...base, name: input.name ?? nameFromUrl(page.url), careerUrl: page.url };
 
-  // Rung 2: the redirect landed on a board.
+  // Rung 2: the redirect landed on a board. A board URL whose public API does
+  // not serve it is worth saying out loud rather than folding into "nothing
+  // found" — measured on deno.com/jobs, which lands on a live Ashby board
+  // whose posting API is switched off.
+  let boardMiss: string | null = null;
   const redirected = extractAtsToken(page.url);
   if (redirected) {
     const confirmed = await confirmBoard(redirected, page.url, io);
     if (confirmed) return { ...named, resolution: confirmed, requests };
+    boardMiss = boardMissReason(redirected);
   }
 
   // Rung 3: the page links to one. Confirmed with the vendor before it counts.
@@ -156,10 +154,14 @@ export async function resolveCompanyUrl(input: CompanyInput, io: ResolveIo): Pro
     ...named,
     resolution: {
       kind: 'watchOnly',
-      reason: 'No job board and no job feed on that page. Paste the board URL if you know it.',
+      reason: boardMiss ?? 'No job board and no job feed on that page. Paste the board URL if you know it.',
     },
     requests,
   };
+}
+
+function boardMissReason(hit: { atsType: string; atsToken: string }): string {
+  return `That is a ${hit.atsType} board, but the public posting API does not serve "${hit.atsToken}" — the board is probably embed-only.`;
 }
 
 /** `<item>` / `<entry>` count — the emptiness test, not a parse. */

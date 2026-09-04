@@ -117,7 +117,28 @@ describe('looksLikeChallenge', () => {
     assert.equal(looksLikeChallenge('<title>Careers | Cloudflare</title><p>Help build a better Internet</p>'), false);
   });
 
+  // Both measured live: the bare word "captcha" hid inside markup on two of
+  // the twenty, and reported a working careers page as a bot check.
+  it('does not fire on a captcha mentioned in a style block (jobs.ashbyhq.com)', () => {
+    assert.equal(
+      looksLikeChallenge('<html><head><style>.grecaptcha-badge { visibility: hidden; }</style></head><body>Open roles</body></html>'),
+      false,
+    );
+  });
+
+  it('does not fire on a captcha mentioned in a comment (storyblok.com)', () => {
+    assert.equal(
+      looksLikeChallenge('<head><!-- ReCaptcha --><link href="https://www.google.com" rel="preconnect"></head><body>Careers</body>'),
+      false,
+    );
+  });
+
+  it('does fire on wording an interstitial actually shows a reader', () => {
+    assert.equal(looksLikeChallenge('<h1>Please complete the captcha to continue</h1>'), true);
+    assert.equal(looksLikeChallenge('<p>DDoS protection by Cloudflare</p>'), true);
+  });
+
   it('does not scan the whole document for the phrase', () => {
-    assert.equal(looksLikeChallenge(`${'x'.repeat(6_000)}just a moment`), false);
+    assert.equal(looksLikeChallenge(`<p>${'x '.repeat(3_000)}</p><p>just a moment</p>`), false);
   });
 });

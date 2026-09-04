@@ -7,6 +7,7 @@
  * `<link rel="alternate">` whose own path names jobs. Not a class name, not a
  * heading, not a guess at what a div means.
  */
+import { stripHtml } from '../http';
 import { extractAtsToken, type DiscoverableAtsType } from '../text-utils';
 
 /** A board link found on the page. */
@@ -94,17 +95,26 @@ export function wellKnownFeeds(pageUrl: string): string[] {
 }
 
 /**
- * Bot-check phrasing only.
+ * Bot-check phrasing only, read from the page's TEXT rather than its markup.
  *
- * `jobs/posting-url.ts` matches the bare word "cloudflare" as well, which is
- * right for a posting page and wrong here: measured 2026-09-04,
- * cloudflare.com's own careers page is refused as a bot check by that set. A
- * careers page belongs to a company that may be named after the vendor
- * protecting it, so the vendor's name is not evidence — only the interstitial
- * wording is.
+ * Two false positives, both measured on 2026-09-04, set these rules:
+ *
+ * - `jobs/posting-url.ts` matches the bare word "cloudflare", so
+ *   cloudflare.com's own careers page is refused as a bot check. A careers
+ *   page belongs to a company that may be named after the vendor protecting
+ *   it, so a vendor's name is never evidence.
+ * - The bare word "captcha" matched `.grecaptcha-badge` in a `<style>` block
+ *   (jobs.ashbyhq.com) and `<!-- ReCaptcha -->` in a `<head>` (storyblok.com).
+ *   A site that puts a captcha on its contact form has not challenged us.
+ *
+ * Hence: strip the markup first, then look only for what an interstitial
+ * actually says to a reader. The broad set stays right where it is for a
+ * posting page, where the page IS the content and a vendor name in the first
+ * paragraph is a strong signal.
  */
-const CHALLENGE = /just a moment|checking your browser|verify you are human|are you a (?:robot|human)|enable javascript and cookies|attention required|captcha|ddos protection by/i;
+const CHALLENGE =
+  /just a moment|checking your browser|verify you are human|are you a (?:robot|human)|enable javascript and cookies|attention required|(?:solve|complete) the captcha|captcha challenge|security check to access|ddos protection by/i;
 
 export function looksLikeChallenge(html: string): boolean {
-  return CHALLENGE.test(html.slice(0, 4_000));
+  return CHALLENGE.test(stripHtml(html).slice(0, 2_000));
 }

@@ -213,14 +213,18 @@ export function sourceOf(r: ResolvedCompany): { atsType: AtsType; atsToken: stri
 export function shortVerdict(r: ResolvedCompany): string {
   switch (r.resolution.kind) {
     case 'ats':
-      return `${sourceLabel(r.resolution.atsType)} · ${r.resolution.jobs} postings`;
+      return `${sourceLabel(r.resolution.atsType)} · ${plural(r.resolution.jobs, 'posting')}`;
     case 'feed':
-      return `RSS feed · ${r.resolution.items} entries`;
+      return `RSS feed · ${r.resolution.items} ${r.resolution.items === 1 ? 'entry' : 'entries'}`;
     case 'watchOnly':
       return 'nothing machine-readable';
     case 'refused':
       return r.resolution.reason;
   }
+}
+
+function plural(n: number, word: string): string {
+  return `${n} ${word}${n === 1 ? '' : 's'}`;
 }
 
 /** Form fields that arrive as string | string[] | File. */
