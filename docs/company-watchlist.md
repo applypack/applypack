@@ -187,3 +187,63 @@ benefits page.
 
 That is a different feature from the one §17 specifies, so it is the owner's
 call, not an implementation detail.
+
+
+## 5. The second sample: what the owner's users will actually add
+
+The thirteen above are US/global giants. The owner's point, fairly made: his
+users will add mid-size companies in the countries they hunt in. So the
+**shipped stage A resolver** was run against sixteen European companies
+(UA / PL / DE / NL / PT / SE) on 2026-09-04.
+
+| Verdict | n | Who |
+|---|---|---|
+| **ats** | 2 | Ajax Systems `LEVER:ajax` · Netguru `WORKABLE:netguru` |
+| **watchOnly** | 8 | MacPaw, Preply, Readdle, DocPlanner, Tidio, sipgate, Mollie, Tink |
+| **refused** | 6 | Brainly, STX Next, Software Mansion (all three: robots) · Ecosia (403) · Channable (429) · Unbabel (no answer) |
+
+None of the sixteen emits `JobPosting` in any form.
+
+And the number that decides stage B — **URLs listed under the careers path in
+each site's own sitemap**, which is what a "new URL = new posting" rung needs:
+
+| MacPaw | Preply | Readdle | DocPlanner | Tidio | sipgate | Mollie | Tink |
+|---|---|---|---|---|---|---|---|
+| 0 | 0 | 0 | 0 | 0 | 0 | 70 (the whole site, incl. `/404`) | sitemap 404 |
+
+So across **21 sites** measured on two continents, the sitemap + JSON-LD rung
+would produce postings for **two** — Shopify (114) and Fly.io (5) — and the
+JSON-LD half for none at all. Stage B does not earn its surface. Stage C's
+"the careers page changed, have a look" is the honest offer for the rest, and
+it costs a hash.
+
+## 6. The robots rule refuses three EU companies it should not
+
+`src/robots.ts` takes the strictest verdict across every token in
+`AI_TOKENS`, on the ADR 0005 addendum's reasoning that a site banning AI
+agents has refused what we do. Measured against the sixteen, that rule fires
+three times, and each time it reads the site wrong:
+
+| Site | What its robots.txt actually says | Our verdict |
+|---|---|---|
+| **Software Mansion** | `User-agent: *` `Allow: /` **`Content-Signal: search=yes, ai-input=yes, ai-train=yes`**, then `User-agent: Bytespider` `Disallow: /` with a comment explaining Bytespider gives nothing back | refused |
+| **STX Next** | `bytespider: Disallow /` and `ccbot: Disallow /`. Nothing about `*`, nothing about Anthropic | refused |
+| **Brainly** | `GPTBot: Disallow /`. `*` is allowed for the careers path | refused |
+
+Software Mansion is the clearest: the site **explicitly permits AI input and
+AI training**, allows every agent, and blocks one scraper by name — and we
+refuse it. Blocking ByteDance's scraper or Common Crawl's dataset builder is
+not the same act as refusing a person's own job-search tool that reads one
+page they asked for and hands it to Claude.
+
+The addendum's reasoning — *"every fetched description is fed into a Claude
+classifier, so fetching under a different User-Agent would do exactly what the
+ban refuses"* — binds us squarely to **Anthropic's own tokens**
+(`claudebot`, `claude-web`, `anthropic-ai`) and to `*`. It does not stretch to
+a training-corpus crawler or a scraper. Narrowing `BINDING_TOKENS` to those,
+and honouring Cloudflare's `Content-Signal: ai-input=no` where a site
+publishes one, recovers 3 of 16 European companies without touching a single
+site that asked us to stay away.
+
+That is a change to a standing rule (ADR 0005 addendum rule 2), so it is the
+owner's call.
