@@ -6,6 +6,8 @@ import { jobTechProbeUrl, parseJobTechTotal } from './fetchers/jobtech';
 import { isPersonioFeed, parsePersonioXml, personioFeedUrl, personioSlug } from './fetchers/personio';
 import { teamtailorFeedUrl, teamtailorHost } from './fetchers/teamtailor';
 import { adzunaCount, adzunaMarket, adzunaSearchUrl, fetchAdzunaJson } from './fetchers/adzuna';
+import { franceTravailProbeCount } from './fetchers/francetravail';
+import type { FranceTravailCredentials } from './fetchers/francetravail-auth';
 import { resolveSourceKeys, type SourceKeys } from './source-keys';
 
 export interface ProbeResult {
@@ -176,6 +178,17 @@ export async function probeAts(
         return count === null
           ? { ok: false, error: 'Adzuna answered something other than a search result — check the keys.' }
           : { ok: true, jobsCount: count };
+      }
+      case AtsType.FRANCETRAVAIL: {
+        // A token, then one empty-range search: the total rides in Content-Range (ADR 0034).
+        const creds = resolveSourceKeys('FRANCETRAVAIL', opts.keys ?? {});
+        if (!creds) return { ok: false, error: 'France Travail needs your client id and secret — paste them on Settings → Sources first.' };
+        const count = await franceTravailProbeCount(trimmed, creds as unknown as FranceTravailCredentials);
+        return count === null
+          ? { ok: false, error: 'France Travail answered something other than a search result — check the filter.' }
+          : count > 0
+            ? { ok: true, jobsCount: count }
+            : { ok: false, error: 'France Travail answered no offers for this filter — check the ROME code or the keywords.' };
       }
       case AtsType.JOBTECH: {
         // An unknown taxonomy code or a hopeless query answers 200 with

@@ -30,7 +30,7 @@ export interface TrackedRow {
 
 export interface SourceSuggestion {
   name: string;
-  atsType: 'DOU' | 'DJINNI' | 'ARBEITNOW' | 'SOLIDJOBS' | 'DEVITJOBS' | 'LANDINGJOBS' | 'JOBTECH' | 'ADZUNA';
+  atsType: 'DOU' | 'DJINNI' | 'ARBEITNOW' | 'SOLIDJOBS' | 'DEVITJOBS' | 'LANDINGJOBS' | 'JOBTECH' | 'ADZUNA' | 'FRANCETRAVAIL';
   atsToken: string;
   careerUrl: string;
   /** Which search asked for it, in plain words: "🇺🇦 Ukraine in "PHP/Laravel"". */
@@ -142,6 +142,15 @@ export function suggestSources(searches: readonly SuggestSearch[], tracked: read
         atsToken: code,
         careerUrl: `https://${ADZUNA_MARKETS[code]?.domain ?? 'www.adzuna.com'}/`,
         reason: `${flagOf(country)} ${placeLabel(country)} in "${search.name}" — needs your Adzuna key`,
+      });
+    }
+    if (search.countries.includes('FR')) {
+      offer({
+        name: 'France Travail · développement informatique (M1805)',
+        atsType: 'FRANCETRAVAIL',
+        atsToken: 'codeROME=M1805',
+        careerUrl: 'https://candidat.francetravail.fr/offres/recherche?codeROME=M1805',
+        reason: `🇫🇷 France in "${search.name}" — needs your France Travail client id and secret`,
       });
     }
     if (search.countries.includes('SE') || search.regions.includes('NORDICS')) {

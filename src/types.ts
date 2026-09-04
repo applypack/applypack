@@ -14,6 +14,10 @@ export interface NormalizedJob {
    * location parser reads the string for everything else.
    */
   locationHints?: LocationHints;
+  /** The posting as the source sent it, when its licence asks for it to be shown whole (ADR 0034). */
+  sourcePayload?: unknown;
+  /** The source's own last-update stamp, when it has one. */
+  sourceUpdatedAt?: Date | null;
 }
 
 export interface ClaudeClassification {

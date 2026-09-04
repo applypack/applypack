@@ -96,6 +96,12 @@ describe('suggestSources', () => {
     assert.equal(adzuna[0]?.careerUrl, 'https://www.adzuna.de/');
   });
 
+  it('offers the France Travail developer row for a search that names France', () => {
+    const fr = suggestSources([{ ...php, countries: ['FR'], regions: [] }], []).filter((s) => s.atsType === 'FRANCETRAVAIL');
+    assert.deepEqual(fr.map((s) => [s.atsToken, s.state]), [['codeROME=M1805', 'missing']]);
+    assert.match(fr[0]?.reason ?? '', /needs your France Travail client id and secret/);
+  });
+
   it('offers the DevITjobs site of the country a search names', () => {
     const uk = suggestSources([{ ...php, countries: ['GB'], regions: [] }], []);
     assert.deepEqual(uk.map((s) => [s.atsType, s.atsToken, s.reason]).filter((r) => r[0] === 'DEVITJOBS'), [

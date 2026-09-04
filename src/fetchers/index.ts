@@ -44,6 +44,7 @@ import { fetchJobTech } from './jobtech';
 import { fetchPersonio } from './personio';
 import { fetchTeamtailor } from './teamtailor';
 import { MAX_ADZUNA_ROWS, fetchAdzuna } from './adzuna';
+import { fetchFranceTravail } from './francetravail';
 import { getSourceKeys } from '../settings';
 import type { NormalizedJob } from '../types';
 
@@ -248,6 +249,8 @@ export async function fetchOne(
       return fetchTeamtailor({ id: company.id, atsToken: company.atsToken });
     case AtsType.ADZUNA:
       return fetchAdzuna({ id: company.id, atsToken: company.atsToken }, context);
+    case AtsType.FRANCETRAVAIL:
+      return fetchFranceTravail({ id: company.id, atsToken: company.atsToken }, context);
     case AtsType.MANUAL:
       // Pasted by hand on /jobs/new — nothing to fetch (and the row is inactive).
       return [];
