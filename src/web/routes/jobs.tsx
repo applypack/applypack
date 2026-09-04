@@ -27,6 +27,7 @@ import { JobsListPage } from '../pages/jobs-list';
 import { JobDetailPage } from '../pages/job-detail';
 import { JobNewPage } from '../pages/job-new';
 import { TargetPage } from '../pages/target';
+import { describeStructure, docxStructure } from '../../resume/docx-structure';
 import { previousFor } from '../pages/resume-match-card';
 import { nameFromFilename, readResumeUpload, resumeUploadLimit } from '../upload';
 import { decideInstantCheck, draftTextForPage, instantCheckNotice, unchangedNotice } from '../instant-check';
@@ -51,6 +52,7 @@ import {
   replaceResumeFile,
   updateCoverLetterEdit,
   upsertScratchResume,
+  getResumeOriginal,
 } from '../../resume/store';
 import { preselectAppliedResume, preselectResume } from '../../resume/pick';
 import { findReusableMatch, matchResumeToJob } from '../../resume/match';
@@ -781,6 +783,7 @@ jobsRoute.get('/jobs/:id/target', async (c) => {
   }
   const resume = await getResume(match.resumeId);
   if (!resume) return c.text('Not found', 404);
+  const fileVerdict = await describeResumeFile(resume);
   // An instant check arrives with its parsed upload — taken once; from then on the browser holds it.
   const draftKey = c.req.query('draft');
   const draftText = draftTextForPage(draftKey ? draftStash.take(draftKey) : null, match.id);
@@ -794,6 +797,7 @@ jobsRoute.get('/jobs/:id/target', async (c) => {
       previous={previousFor(match, matches)}
       resumeText={match.resumeText || resume.text}
       draftText={draftText}
+      fileVerdict={fileVerdict}
       flash={parseFlashCookie(c.req.header('cookie'))}
     />,
     200,
@@ -921,4 +925,16 @@ function sortToOrderBy(sort: string): Prisma.JobOrderByWithRelationInput[] {
     default:
       return [{ fetchedAt: 'desc' }];
   }
+}
+
+/** One sentence on what a Save can do with the resume's own file (ADR 0038). Only a .docx is read from the database. */
+async function describeResumeFile(resume: { id: number; sourceFilename: string }): Promise<string> {
+  if (/\.docx$/i.test(resume.sourceFilename)) {
+    const row = await getResumeOriginal(resume.id);
+    if (row) return describeStructure(docxStructure(Buffer.from(row.original)));
+  }
+  if (/\.pdf$/i.test(resume.sourceFilename)) {
+    return 'This file is a PDF: Save keeps a text version; upload the .docx it was printed from to get a styled file back.';
+  }
+  return 'This file is plain text: Save keeps a text version.';
 }

@@ -26,8 +26,14 @@ import {
   saveReviewAnswer,
   saveResumeTextVersion,
   setDefaultResume,
+  replaceResumeBytes,
+  versionFileName,
 } from '../../resume/store';
 import { readAnswers, unansweredAsks } from '../../resume/answers';
+import { describeStructure, docxStructure, type DocxStructure } from '../../resume/docx-structure';
+import { patchDocx } from '../../resume/docx-patch';
+import { readProps, withProps, type DocxProps } from '../../resume/docx-props';
+import { DOCX_MIME } from '../../resume/docx-write';
 import { deltaSentence, reviewDelta, type ReviewDelta, type ReviewSnapshot } from '../../resume/review-delta';
 import { readReviewAdvice, readReviewGrades } from '../../resume/prompts';
 import { readReviewPromptVersion } from '../../resume/review-score';
@@ -114,6 +120,13 @@ resumesRoute.get('/resumes/:id', async (c) => {
     deleteImpact(id),
   ]);
   if (!resume) return c.text('Not found', 404);
+  // The template check is recomputed from the bytes on every view (ADR 0038) —
+  // 40 KB of XML, sub-millisecond. Only a .docx is read; a 5 MB PDF is not
+  // pulled out of the database to learn its extension.
+  const original = isDocx(resume.sourceFilename) ? await getResumeOriginal(id) : null;
+  const docx = original ? Buffer.from(original.original) : null;
+  const structure: DocxStructure | null = docx ? docxStructure(docx) : null;
+  const props: DocxProps | null = docx ? readProps(docx) : null;
   // The run before this one, so the card can say what the edits changed.
   const previous = review ? await getPreviousReview(id, review.id) : null;
   return c.html(
@@ -125,6 +138,8 @@ resumesRoute.get('/resumes/:id', async (c) => {
       reviewDelta={deltaFor(review, previous)}
       deleteImpact={impact}
       warnings={parseWarnings(resume.text)}
+      structure={structure}
+      props={props}
       // The draft the "Create a search" button would save — rendered, not
       // stored (ADR 0015). Only a scanned resume has anything to say.
       search={{
@@ -161,6 +176,11 @@ resumesRoute.post('/resumes/:id/draft', async (c) => {
   if (text.length < MIN_DRAFT_CHARS) {
     return flashRedirect(`/resumes/${id}`, 'err', 'The draft is too short to be a resume.');
   }
+  // What the edits are relative to — the text the editor started from. Without
+  // it a .docx cannot be patched (the diff would be against nothing) and the
+  // save is a text version, as before ADR 0038.
+  const baseText = typeof form.baseText === 'string' ? form.baseText.replace(/\r\n/g, '\n').trim() : '';
+  const asCopy = form.as === 'copy';
   const jobId = Number(form.jobId);
   const job = Number.isFinite(jobId)
     ? await prisma.job.findUnique({ where: { id: jobId }, include: { company: { select: { name: true } } } })
@@ -170,7 +190,7 @@ resumesRoute.post('/resumes/:id/draft', async (c) => {
   // resume version, so a second submit that got as far as saving would leave
   // a duplicate version behind whatever the run registry then did. Keyed on
   // the text, because that is what the user submitted (issue #76).
-  const { run, joined } = claimRun(`draft:${id}:${hashShortId(text)}:${job?.id ?? ''}`, {
+  const { run, joined } = claimRun(`draft:${id}:${hashShortId(text)}:${job?.id ?? ''}:${asCopy ? 'copy' : 'version'}`, {
     steps: job ? ['scan', 'keywords'] : ['scan'],
     jobTitle: job?.title ?? '',
     resumeName: '',
@@ -187,16 +207,17 @@ resumesRoute.post('/resumes/:id/draft', async (c) => {
   // Scan and match are the slow part after it: two AI calls back to back is
   // the worst wait on the site, which is why this gets a run at all.
   startRun(run.id, async () => {
-    const resume = await saveResumeTextVersion(id, text);
+    const { resume, note } = await saveEdited(id, text, baseText, asCopy, job?.company.name ?? null);
+    const saved = asCopy ? `Saved as a new resume "${resume.name}" (${note})` : `Saved as v${resume.version} (${note})`;
     updateRun(run.id, {
       resumeName: resume.name,
-      subtitle: `Saved as v${resume.version}.${job ? ' Reading it, then scoring it against the posting.' : ''}`,
+      subtitle: `${saved}.${job ? ' Reading it, then scoring it against the posting.' : ''}`,
     });
     const scan = await scanResume(resume);
     if (!job) {
       updateRun(run.id, scan
-        ? { stage: 'done', resultUrl: `/resumes/${id}`, flash: `Saved as v${resume.version} (text version).` }
-        : { stage: 'error', error: `Saved as v${resume.version}, but the scan failed — try "Scan".` });
+        ? { stage: 'done', resultUrl: `/resumes/${resume.id}`, flash: `${saved}.` }
+        : { stage: 'error', error: `${saved}, but the scan failed — try "Scan".` });
       return;
     }
     updateRun(run.id, { stage: 'keywords' });
@@ -211,14 +232,82 @@ resumesRoute.post('/resumes/:id/draft', async (c) => {
       ? {
           stage: 'done',
           resultUrl: `/jobs/${job.id}/target?match=${match.id}`,
-          flash: `Saved as v${resume.version} (text) and checked: AI match ${match.matchScore}/100.`,
+          flash: `${saved} and checked: AI match ${match.matchScore}/100.`,
         }
       : {
           stage: 'error',
-          error: `Saved as v${resume.version}, but the comparison failed — see the web logs.`,
+          error: `${saved}, but the comparison failed — see the web logs.`,
         });
   });
   return c.redirect(`/target/runs/${run.id}`, 303);
+});
+
+function isDocx(filename: string): boolean {
+  return /\.docx$/i.test(filename);
+}
+
+/**
+ * Save the editor's text as the next version of the resume, or as a new
+ * resume beside it ("tailored copy", the master untouched). When the file is a
+ * .docx the template check allows, the user's own file is patched with the
+ * edits (ADR 0038); otherwise, or when the patch is refused, the version is
+ * plain text and `note` says why.
+ */
+async function saveEdited(
+  id: number,
+  text: string,
+  baseText: string,
+  asCopy: boolean,
+  companyName: string | null,
+): Promise<{ resume: ResumeSummary; note: string }> {
+  const [current, row] = await Promise.all([getResume(id), getResumeOriginal(id)]);
+  if (!current) throw new Error(`resume ${id} is gone`);
+  const nextVersion = asCopy ? 1 : current.version + 1;
+  const name = asCopy ? `${current.name} · ${companyName ?? 'tailored'}` : current.name;
+  let file: { sourceFilename: string; mimeType: string; original: Buffer; text: string } | null = null;
+  let note = 'text version';
+  if (row && isDocx(row.sourceFilename)) {
+    const original = Buffer.from(row.original);
+    if (!baseText) note = 'text version — the editor did not say which text the edits started from';
+    else if (docxStructure(original).kind === 'unsupported') note = 'text version — this .docx cannot be edited in place';
+    else {
+      const patched = await patchDocx(original, baseText, text);
+      if (patched.ok) {
+        const r = patched.report;
+        file = { sourceFilename: versionFileName(name, nextVersion, 'docx'), mimeType: DOCX_MIME, original: patched.docx, text: patched.text };
+        note = `.docx patched: ${r.changed} changed, ${r.added} added, ${r.removed} removed`;
+        logger.info({ id, ...r, bytes: patched.docx.length }, 'resume: docx patched');
+      } else {
+        note = `text version — the .docx could not be patched: ${patched.reason}`;
+        logger.info({ id, reason: patched.reason, skipped: patched.report?.skipped }, 'resume: docx patch refused');
+      }
+    }
+  }
+  const payload = file ?? {
+    sourceFilename: versionFileName(name, nextVersion, 'md'),
+    mimeType: 'text/markdown',
+    original: Buffer.from(text, 'utf8'),
+    text,
+  };
+  const resume = asCopy ? await createResume({ name, ...payload }) : await replaceResumeFile(id, payload);
+  return { resume, note };
+}
+
+/**
+ * "Fix document properties": the template author's name and title out, the
+ * candidate's in, bytes only — the words, the version and the scan stay.
+ * Offered on click with the current values shown, never done silently.
+ */
+resumesRoute.post('/resumes/:id/props', async (c) => {
+  const id = Number(c.req.param('id'));
+  if (!Number.isFinite(id)) return c.text('Bad id', 400);
+  const [resume, row] = await Promise.all([getResume(id), getResumeOriginal(id)]);
+  if (!resume || !row) return c.text('Not found', 404);
+  if (!isDocx(row.sourceFilename)) return flashRedirect(`/resumes/${id}`, 'err', 'Only a .docx carries document properties.');
+  const candidate = resume.text.split('\n')[0]?.trim() || resume.name;
+  const fixed = await withProps(Buffer.from(row.original), { title: `${candidate} — Resume`, creator: candidate, lastModifiedBy: candidate });
+  await replaceResumeBytes(id, fixed);
+  return flashRedirect(`/resumes/${id}`, 'ok', `Document properties now name ${candidate}. Download the file to get the fixed copy.`);
 });
 
 /**

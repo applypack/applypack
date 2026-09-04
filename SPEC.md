@@ -389,6 +389,24 @@ wording becomes an explicit `null` with the reason appended to `why` — the car
 then shows the question, Copy and Edit & apply, but no Apply. Rows from earlier
 prompts have no field at all and keep the quoted-span fallback.
 
+Save writes the edits into the user's own `.docx` when the file allows it
+(ADR 0038). `resume/docx-structure.ts` reads the file at view time — never
+stored — and says beforehand what a Save can do: *editable in place* (a flow
+document), *partly editable* (tables, text boxes, columns or header text: a
+paragraph is patched, the rest is refused with a reason) or *text only*.
+`resume/docx-patch.ts` maps the editor's line diff back to the paragraphs
+that rendered each line, rewrites only the changed window of a line's runs,
+removes deleted paragraphs, clones the paragraph above for an inserted line,
+and passes four gates before the bytes leave (the analysed text matches the
+file, the result reads back as the edit, no math / drawing / text-box /
+hidden-run count moved, nothing skipped). **Save as a tailored copy** is the
+primary action — a new resume beside the master, named after the company;
+**Save as vN** bumps the master. Either way a refused patch is a text version
+whose flash says why. PDFs keep text versions; the line above the editor says
+so and suggests uploading the `.docx` they were printed from. The document
+properties of a downloaded template (its author's name) are fixed on click
+only, bytes only, current values shown.
+
 The loop: edit the resume → "Upload a new version" on `/resumes/:id`
 (`Resume.version` +1, re-scan) → Compare again. `ResumeMatch.resumeVersion`
 records which version scored; the card shows the delta vs the previous run.

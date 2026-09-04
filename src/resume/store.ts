@@ -311,15 +311,30 @@ export async function latestReviewByResume(): Promise<Map<number, ReviewSummary>
 }
 
 /** A resume version made from edited text (the targeted view's "Save as vN") — a .md file, no docx. */
+/** "Senior Backend PHP" + 5 + ".docx" → "senior-backend-php-v5.docx". */
+export function versionFileName(name: string, version: number, ext: string): string {
+  const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'resume';
+  return `${slug}-v${version}.${ext}`;
+}
+
 export async function saveResumeTextVersion(id: number, text: string): Promise<ResumeSummary> {
   const current = await prisma.resume.findUniqueOrThrow({ where: { id }, select: { name: true, version: true } });
-  const slug = current.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'resume';
   return replaceResumeFile(id, {
-    sourceFilename: `${slug}-v${current.version + 1}.md`,
+    sourceFilename: versionFileName(current.name, current.version + 1, 'md'),
     mimeType: 'text/markdown',
     original: Buffer.from(text, 'utf8'),
     text,
   });
+}
+
+/**
+ * Swap the stored bytes and nothing else — the text, the version and the scan
+ * stay. For the document-properties fix (ADR 0038): the words did not change,
+ * so a new version and a re-scan would be noise.
+ */
+export async function replaceResumeBytes(id: number, original: Buffer): Promise<void> {
+  await prisma.resume.update({ where: { id }, data: { original: new Uint8Array(original) } });
+  logger.info({ id, bytes: original.length }, 'resume: bytes replaced');
 }
 
 export async function createMatch(input: {

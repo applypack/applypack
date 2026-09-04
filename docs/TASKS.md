@@ -1731,25 +1731,25 @@ bench); re-run `bench:resume` after stages 3 and 5.
       guide's own rule needs it), and `REVIEW_PROMPT_VERSION` 2 → 3 because
       the review's "example" line now follows `RULE_BULLET_STYLE`.
 
-**Stage 4 — `docx-patch` (deps xmldom + jszip, ADR 0036; ~2 sessions)**
-- [ ] **Analyse first:** prove xmldom fidelity on resume 1's `document.xml`
+**Stage 4 — `docx-patch` — SHIPPED (deps xmldom + jszip, ADR 0038 — 0036 was taken)**
+- [x] **Analyse first:** prove xmldom fidelity on resume 1's `document.xml`
       (DOM for `document.xml`, raw bytes for every other part); build the
       three fixtures (`flow-fragmented`, `structural-table-layout`,
       `flow-simple`); run the parser-disagreement check by hand.
-- [ ] `add template check` — `docx-structure.ts:docxStructure` (kind, lines,
+- [x] `add template check` — `docx-structure.ts:docxStructure` (kind, lines,
       counts, notes) + tests; shown on `/resumes/:id` and above the editor.
-- [ ] `expose document blocks` — `docx-text.ts:walkDocument` with a parity
+- [x] `expose document blocks` — `docx-text.ts:walkDocument` with a parity
       test against the old text output on every fixture.
-- [ ] `share line diff` — `resume/line-diff.ts` bridging to the `.mjs`.
-- [ ] `add docx patcher` — `docx-patch.ts:patchDocx` (change / delete /
+- [x] `share line diff` — `resume/line-diff.ts` bridging to the `.mjs`.
+- [x] `add docx patcher` — `docx-patch.ts:patchDocx` (change / delete /
       insert, tabbed headers, cell text, hygiene on new text, gates) +
       `docx-props.ts` + tests.
-- [ ] `save patched versions` — `POST /resumes/:id/draft` branches on
+- [x] `save patched versions` — `POST /resumes/:id/draft` branches on
       `.docx` + check; `replaceResumeFile` with the patched bytes; text
       fallback with the reason; "Save as a tailored copy" (owner decides the
       default); Download reflects the new file; export report line.
-- [ ] `fix document properties` — the opt-in POST; current values shown.
-- [ ] `write adr 0036` — supersedes ADR 0010's text-only consequence;
+- [x] `fix document properties` — the opt-in POST; current values shown.
+- [x] `write adr 0038` — supersedes ADR 0010's text-only consequence;
       CLAUDE.md rows; CHANGELOG + bump + tag; screenshots of the patched
       file in Word, Pages, LibreOffice in the PR.
 

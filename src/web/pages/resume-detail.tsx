@@ -34,10 +34,16 @@ import { groupMatchesByJob, historyLabel, progression } from '../match-history';
 import { reviewIsStale } from '../../resume/review-score';
 import { readIssues } from '../../resume/prompts';
 import type { ParseWarning } from '../../resume/parse-warnings';
+import { describeStructure, type DocxStructure } from '../../resume/docx-structure';
+import type { DocxProps } from '../../resume/docx-props';
 import type { ProfileDraft } from '../../resume/profile-draft';
 
 export interface ResumeDetailProps {
   resume: ResumeSummary;
+  /** The template check (ADR 0038); null for anything but a .docx. */
+  structure: DocxStructure | null;
+  /** Its document properties; null for anything but a .docx. */
+  props: DocxProps | null;
   matches: MatchWithJob[];
   /** The latest strength review, or null when the user has never asked for one. */
   review: ResumeReview | null;
@@ -59,6 +65,8 @@ export interface ResumeDetailProps {
 
 export const ResumeDetailPage: FC<ResumeDetailProps> = ({
   resume,
+  structure,
+  props,
   matches,
   review,
   answers,
@@ -287,6 +295,8 @@ export const ResumeDetailPage: FC<ResumeDetailProps> = ({
         )}
       </Card>
 
+      {structure && <TemplateCheck resumeId={resume.id} candidate={resume.text.split('\n')[0]?.trim() || resume.name} structure={structure} props={props} />}
+
       <Card class="mt-4">
         <SectionTitle>What the ATS sees</SectionTitle>
         {warnings.length === 0 ? (
@@ -420,3 +430,65 @@ const TagRow: FC<{ label: string; items: string[]; tone: 'ok' | 'info' }> = ({
       ))}
     </div>
   );
+
+const KIND_VIEW: Record<DocxStructure['kind'], { label: string; tone: 'ok' | 'warn' | 'neutral' }> = {
+  flow: { label: 'Editable in place', tone: 'ok' },
+  structural: { label: 'Partly editable', tone: 'warn' },
+  unsupported: { label: 'Text only', tone: 'neutral' },
+};
+
+/**
+ * What a Save can do with this .docx (ADR 0038): the kind as a badge, the
+ * lines it can rewrite, and the parts it cannot — each a plain sentence. The
+ * properties fix is offered only when the file names someone else.
+ */
+const TemplateCheck: FC<{ resumeId: number; candidate: string; structure: DocxStructure; props: DocxProps | null }> = ({
+  resumeId,
+  candidate,
+  structure,
+  props,
+}) => {
+  const view = KIND_VIEW[structure.kind];
+  const foreign = props
+    ? [props.creator, props.lastModifiedBy].some((v) => v && !v.toLowerCase().includes(candidate.toLowerCase())) ||
+      Boolean(props.title && !props.title.toLowerCase().includes(candidate.toLowerCase()))
+    : false;
+  return (
+    <Card class="mt-4">
+      <SectionTitle>Template check</SectionTitle>
+      <div class="flex flex-wrap items-center gap-2">
+        <Badge tone={view.tone}>{view.label}</Badge>
+        <span class="text-sm text-ink-muted">{describeStructure(structure, { withNote: false })}</span>
+      </div>
+      {structure.notes.length > 0 && (
+        <ul class="mt-3 space-y-1 text-sm text-ink-muted">
+          {structure.notes.map((n) => (
+            <li>{n}</li>
+          ))}
+        </ul>
+      )}
+      <Hint class="mt-3">
+        Save on the targeted view writes your edits back into this file when the line is a paragraph;
+        anything it cannot place honestly makes that save a text version, with the reason.
+      </Hint>
+      {props && foreign && (
+        <form method="post" action={`/resumes/${resumeId}/props`} class="mt-4 border-t border-line pt-3" onsubmit={SUBMIT_ONCE}>
+          <div class="text-sm text-ink">
+            The file says it was written by <span class="font-medium">{props.creator ?? '—'}</span>
+            {props.lastModifiedBy ? <> and last edited by <span class="font-medium">{props.lastModifiedBy}</span></> : null}
+            {props.title ? <>, titled “{props.title}”</> : null}
+            {props.application ? <> ({props.application})</> : null}.
+          </div>
+          <Hint class="mt-1">
+            A downloaded template keeps its author's name. Nothing rejects a resume for it, but a human who opens
+            File → Properties sees it. This writes <span class="font-medium">{candidate}</span> as the author and title,
+            and changes nothing else.
+          </Hint>
+          <Button variant="secondary" size="sm" class="mt-2">
+            Fix document properties
+          </Button>
+        </form>
+      )}
+    </Card>
+  );
+};

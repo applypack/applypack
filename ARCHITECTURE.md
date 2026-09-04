@@ -208,7 +208,12 @@ src/
 
   resume/                      ← web-only resume module (ADR 0008)
     zip.ts                     ← read one entry from a zip (node:zlib), pure
-    docx-text.ts               ← word/document.xml → plain text, pure
+    docx-text.ts               ← word/document.xml → plain text: DOM walk (blocks + line owners) with the regex reader as fallback, parity-tested (ADR 0038)
+    docx-structure.ts          ← the template check: flow / structural / unsupported, editable lines, notes (ADR 0038), pure
+    docx-patch.ts              ← line diff written back into the user's .docx paragraphs, four gates (ADR 0038), pure
+    docx-props.ts              ← core.xml properties: read, fix on click, stamp modified (ADR 0038), pure
+    line-diff.ts               ← server bridge to public/line-diff.mjs, so the sheet and the patcher share one diff
+    fixtures/*.docx            ← flow-fragmented (resume 1's structural twin), flow-simple, structural-table-layout
     pdf-text.ts                ← PDF → plain text via unpdf (ADR 0011), tested
     resume-text.ts             ← upload dispatch by extension, pure
     prompts.ts                 ← scan + match (two variants) + suggestions + cover prompts, zod schemas, Json readers, pure
