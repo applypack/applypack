@@ -6,6 +6,7 @@ import assert from 'node:assert/strict';
  * browser loads it — see src/web/target.test.ts for the pattern.
  */
 interface WatchlistModule {
+  init: unknown;
   resolveLine: (s: { resolved: number; total: number; current: string | null; done: boolean }) => string;
   short: (u: string) => string;
   verdictLine: (r: { name: string; verdict: string }) => string;
@@ -14,13 +15,14 @@ interface WatchlistModule {
 let mod: WatchlistModule;
 
 before(async () => {
-  // The module calls init() at load; give it the globals it touches.
-  (globalThis as Record<string, unknown>).document = {
-    getElementById: () => null,
-    querySelectorAll: () => [],
-  };
   // @ts-expect-error — plain JS with no declaration file; the shape is asserted below.
   mod = (await import('./public/watchlist.mjs')) as WatchlistModule;
+});
+
+describe('the module', () => {
+  it('imports without a DOM and exposes init — the page boots it, so it runs once', () => {
+    assert.equal(typeof mod.init, 'function');
+  });
 });
 
 describe('resolveLine', () => {

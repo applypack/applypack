@@ -130,7 +130,7 @@ watchlistRoute.post('/companies/watchlist/add', async (c) => {
     // though — that one may have been edited on purpose.
     const before = await prisma.company.findUnique({
       where: { atsType_atsToken: { atsType: source.atsType, atsToken: source.atsToken } },
-      select: { id: true, watched: true },
+      select: { watched: true },
     });
     try {
       await prisma.company.upsert({

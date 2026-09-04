@@ -19,7 +19,7 @@ import {
   Textarea,
   Tr,
 } from '../ui';
-import { formatRelative } from '../format';
+import { formatUntil } from '../format';
 import { sourceLabel } from '../source-names';
 import { CHECK_INTERVALS, intervalLabel } from '../../watchlist/interval';
 import { MAX_LINES } from '../../watchlist/parse-input';
@@ -44,8 +44,8 @@ export interface WatchedRow {
   newJobs: number;
 }
 
-const INTERVAL_SELECT = (name: string, value: string) => (
-  <Select name={name} class="min-w-[7.5rem]">
+const INTERVAL_SELECT = (name: string, value: string, company?: string) => (
+  <Select name={name} class="min-w-[8rem]" aria-label={company ? `How often ${company} is checked` : 'How often this company is checked'}>
     {CHECK_INTERVALS.map((i) => (
       <option value={i} selected={i === value}>
         {intervalLabel(i)}
@@ -54,8 +54,8 @@ const INTERVAL_SELECT = (name: string, value: string) => (
   </Select>
 );
 
-const POLICY_SELECT = (name: string, value: string) => (
-  <Select name={name} class="min-w-[8rem]">
+const POLICY_SELECT = (name: string, value: string, company?: string) => (
+  <Select name={name} class="min-w-[8.75rem]" aria-label={company ? `What ${company} alerts about` : 'What this company alerts about'}>
     <option value="all" selected={value === 'all'}>
       Every posting
     </option>
@@ -127,9 +127,23 @@ export const WatchlistRunPage: FC<{ run: WatchlistRun }> = ({ run }) => (
         <ul id="wl-lines" class="mt-3 flex flex-col gap-1 text-[13px] text-ink-muted" />
       </Card>
     </div>
-    <script src="/static/watchlist.mjs" type="module" />
+    <WatchlistScript />
   </Layout>
 );
+
+/**
+ * Loads the browser module. Both pages that use it need it: the run page
+ * polls, and the watchlist section's selects submit themselves. Without JS
+ * the page still works — the selects keep their <noscript> Save button.
+ */
+export const WatchlistScript: FC = () => (
+  <script type="module" dangerouslySetInnerHTML={{ __html: WATCHLIST_BOOT }} />
+);
+
+const WATCHLIST_BOOT = `
+import { init } from '/static/watchlist.mjs';
+init();
+`;
 
 const VERDICT_TONE = { ats: 'ok', feed: 'ok', watchOnly: 'warn', refused: 'danger' } as const;
 
@@ -303,7 +317,7 @@ export const WatchlistSection: FC<{ rows: WatchedRow[] }> = ({ rows }) => {
             </Td>
             <Td class="text-ink-muted">
               <form method="post" action={`/companies/${r.id}/watch`}>
-                {INTERVAL_SELECT('checkEvery', r.checkEvery)}
+                {INTERVAL_SELECT('checkEvery', r.checkEvery, r.name)}
                 <input type="hidden" name="alertPolicy" value={r.alertPolicy} />
                 <noscript>
                   <Button size="sm" variant="secondary">Save</Button>
@@ -312,7 +326,7 @@ export const WatchlistSection: FC<{ rows: WatchedRow[] }> = ({ rows }) => {
             </Td>
             <Td class="text-ink-muted">
               <form method="post" action={`/companies/${r.id}/watch`}>
-                {POLICY_SELECT('alertPolicy', r.alertPolicy)}
+                {POLICY_SELECT('alertPolicy', r.alertPolicy, r.name)}
                 <input type="hidden" name="checkEvery" value={r.checkEvery} />
                 <noscript>
                   <Button size="sm" variant="secondary">Save</Button>
@@ -320,11 +334,15 @@ export const WatchlistSection: FC<{ rows: WatchedRow[] }> = ({ rows }) => {
               </form>
             </Td>
             <Td class="hidden whitespace-nowrap text-ink-muted sm:table-cell">
-              {r.nextCheckAt === null ? 'next tick' : formatRelative(r.nextCheckAt)}
+              {r.nextCheckAt === null ? 'next tick' : formatUntil(r.nextCheckAt)}
             </Td>
             <Td class="whitespace-nowrap">
               {r.newJobs > 0 ? (
-                <a href={`/jobs?q=${encodeURIComponent(r.name)}`} class="font-medium text-accent">
+                <a
+                  href={`/jobs?q=${encodeURIComponent(r.name)}`}
+                  class="font-medium text-accent"
+                  aria-label={`${r.newJobs} posting${r.newJobs === 1 ? '' : 's'} from ${r.name} in the last week`}
+                >
                   {r.newJobs}
                 </a>
               ) : (
@@ -332,12 +350,21 @@ export const WatchlistSection: FC<{ rows: WatchedRow[] }> = ({ rows }) => {
               )}
             </Td>
             <Td>
+              {/* Five identical "Check now" buttons read as five identical
+                  buttons, so each one names its company. The visible label
+                  stays the first words of the accessible one (WCAG 2.5.3). */}
               <div class="flex flex-wrap items-center justify-end gap-2">
                 <ActionForm action={`/companies/${r.id}/check-now`}>
-                  <Button size="sm" variant="secondary">Check now</Button>
+                  <Button size="sm" variant="secondary" aria-label={`Check ${r.name} now`}>
+                    Check now
+                  </Button>
                 </ActionForm>
                 <ActionForm action={`/companies/${r.id}/unwatch`}>
-                  <Button size="sm" variant="ghost" title="Keep the company, drop the star">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    aria-label={`Unwatch ${r.name} — it stays in the hourly tick`}
+                  >
                     Unwatch
                   </Button>
                 </ActionForm>
@@ -346,6 +373,7 @@ export const WatchlistSection: FC<{ rows: WatchedRow[] }> = ({ rows }) => {
           </Tr>
         ))}
       </Table>
+      <WatchlistScript />
     </Card>
   );
 };

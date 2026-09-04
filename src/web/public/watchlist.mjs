@@ -65,10 +65,9 @@ function wireSelfSubmit() {
   }
 }
 
+/** Called by the page's boot script — never on import, so it runs once. */
 export function init() {
   const box = document.getElementById('wl-progress');
   if (box) void poll(box);
   wireSelfSubmit();
 }
-
-init();
