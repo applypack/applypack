@@ -4,6 +4,7 @@ import { logger } from '../../logger';
 import { createResume, getResume, getResumeOriginal, versionFileName, type ResumeSummary } from '../../resume/store';
 import { readStructure, type JsonResume } from '../../resume/json-resume';
 import { structureFromText } from '../../resume/structure-from-text';
+import { anchorStructure, structureIsUsable } from '../../resume/structure-anchor';
 import { blankStyle, inferFromDocx, inferFromPdf, type InferredStyle } from '../../resume/style-infer';
 import { knobsFrom, readKnobs, type RenderKnobs } from '../../resume/render/knobs';
 import { DOCX_MIME, renderDocx } from '../../resume/render/clean-docx';
@@ -103,15 +104,26 @@ async function load(c: Context): Promise<RenderContext | { response: Response }>
     };
   }
 
+  // The stored structure is checked against the CURRENT text before it is
+  // drawn, not only when it was written: a scan that finished after a version
+  // bump, or a row written before the bump cleared it, would otherwise render
+  // words the resume no longer contains. Anchoring ~6 KB costs microseconds.
   const stored = readStructure(resume.structure);
-  const structure = stored ?? structureFromText(resume.text);
-  const origin: Origin = stored ? 'scan' : 'text';
+  const guarded = stored ? anchorStructure(stored, resume.text) : null;
+  const usable = guarded !== null && structureIsUsable(guarded);
+  if (guarded && !usable) {
+    logger.info({ id, dropped: guarded.dropped }, 'resume: stored structure no longer matches the text');
+  }
+  const structure = usable ? guarded.structure : structureFromText(resume.text);
+  const origin: Origin = usable ? 'scan' : 'text';
 
   const row = await getResumeOriginal(id);
   const bytes = row ? Buffer.from(row.original) : null;
   let style = blankStyle();
-  if (bytes && isDocx(row!.sourceFilename)) style = inferFromDocx(bytes);
-  else if (bytes && isPdf(row!.sourceFilename)) style = await inferFromPdf(bytes);
+  if (row && bytes) {
+    if (isDocx(row.sourceFilename)) style = inferFromDocx(bytes);
+    else if (isPdf(row.sourceFilename)) style = await inferFromPdf(bytes);
+  }
 
   return { resume, structure, origin, style, reason: reasonFor(resume, bytes) };
 }

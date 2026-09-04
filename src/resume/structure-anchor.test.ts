@@ -83,14 +83,20 @@ test('a smart quote against a straight one is the same text', () => {
   assert.equal(report.dropped, 0);
 });
 
-test('a role that loses every bullet is counted and kept', () => {
+test('a role that loses every bullet is counted and kept, but does not carry the structure', () => {
   const report = anchorStructure(
-    structure({ work: [{ name: 'V Shred', position: 'Senior Software Engineer', highlights: ['Invented this entirely.'] }] }),
+    structure({
+      work: [
+        { name: 'V Shred', position: 'Senior Software Engineer', highlights: ['Invented this entirely.'] },
+        { name: 'V Shred', highlights: ['Built and deployed a cross-platform notification system.'] },
+      ],
+    }),
     RESUME,
   );
   assert.equal(report.emptiedRoles, 1);
-  assert.equal(report.structure.work.length, 1, 'the role itself is real, so it stays');
+  assert.equal(report.structure.work.length, 2, 'the roles themselves are real, so they stay');
   assert.deepEqual(report.structure.work[0]?.highlights, []);
+  assert.equal(structureIsUsable(report), true, 'another role still has its bullets');
 });
 
 test('an entry left with nothing at all is pruned', () => {
@@ -122,6 +128,21 @@ test('structureIsUsable: a structure the guard emptied is not worth storing', ()
   assert.equal(structureIsUsable(empty), false);
   const kept = anchorStructure(structure({ skills: [{ name: 'Programming', keywords: ['PHP'] }] }), RESUME);
   assert.equal(structureIsUsable(kept), true);
+});
+
+test('a structure written for the previous version does not survive new text', () => {
+  // The bug this closes: a scan that finished after a version bump, or a row
+  // written before the bump cleared the column, would otherwise draw words the
+  // resume no longer contains. The render route anchors before it draws.
+  const v1 = structure({
+    basics: { name: 'Nazar Boyko' },
+    work: [{ name: 'V Shred', highlights: ['Built and deployed a cross-platform notification system.'] }],
+  });
+  const v2Text = 'Nazar Boyko\n\n## PROFESSIONAL EXPERIENCE\nV Shred\n- An entirely rewritten bullet about something else.\n';
+  const report = anchorStructure(v1, v2Text);
+  assert.equal(report.dropped, 1);
+  assert.deepEqual(report.structure.work[0]?.highlights, []);
+  assert.equal(structureIsUsable(report), false, 'and so the deterministic reader is used instead');
 });
 
 test('normaliseForAnchor flattens the families that differ between a file and a model', () => {

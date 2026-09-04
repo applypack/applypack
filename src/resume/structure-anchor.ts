@@ -150,11 +150,20 @@ function prune(resume: JsonResume): JsonResume {
 }
 
 /**
- * Whether a guarded structure is worth storing. A reply the guard emptied is
- * not better than the deterministic fallback, and pretending otherwise would
- * put a blank render page in front of the user.
+ * Whether a guarded structure is worth using. A reply the guard gutted is not
+ * better than the deterministic reader, and pretending otherwise would put a
+ * hollow resume in front of the user — a role with a company name and no
+ * bullets reads worse than the text it came from.
+ *
+ * The three ways a structure fails: nothing left to draw; more written than
+ * copied, which means it describes a different document (a structure stored
+ * before a version bump, or a scan that finished after one); and every role
+ * that had bullets losing all of them.
  */
 export function structureIsUsable(report: AnchorStructureReport): boolean {
   const s = report.structure;
-  return s.work.length > 0 || s.skills.length > 0 || s.basics.summary !== null;
+  if (s.work.length === 0 && s.skills.length === 0 && s.basics.summary === null) return false;
+  if (report.dropped > report.kept) return false;
+  const bullets = s.work.reduce((n, w) => n + w.highlights.length, 0);
+  return !(report.emptiedRoles > 0 && bullets === 0);
 }

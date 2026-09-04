@@ -1,4 +1,5 @@
-import type { CandidateFact, CoverLetter, Prisma, Resume, ResumeMatch, ResumeReview } from '@prisma/client';
+import { Prisma } from '@prisma/client';
+import type { CandidateFact, CoverLetter, Resume, ResumeMatch, ResumeReview } from '@prisma/client';
 import { prisma } from '../db';
 import { logger } from '../logger';
 import { readAnswers, upsertAnswer, type ReviewAnswer } from './answers';
@@ -111,6 +112,10 @@ export async function replaceResumeFile(
       original: new Uint8Array(input.original),
       version: { increment: 1 },
       scannedAt: null,
+      // The structure is derived from `text` (ADR 0039), so new text makes it
+      // wrong, not stale-but-usable: keeping it would let the render page draw
+      // words the user has just deleted. The next scan fills it back in.
+      structure: Prisma.DbNull,
     },
     omit: WITHOUT_ORIGINAL,
   });
