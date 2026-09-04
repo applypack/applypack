@@ -70,6 +70,7 @@ roadmap item.
 | 💌 **Cover letters that can't invent facts** | drafted from the posting, your resume and your own angle notes; every claim passes a fact gate against stored evidence, and the letter exports to PDF / DOCX |
 | 🗂 **Application tracking** | a kanban with columns you name yourself, the resume each application went out with, and reminders for the ones gone quiet |
 | 🔌 **Five AI backends, auto-failover** | Claude Code / Gemini / Codex CLIs riding your subscriptions, the Anthropic API, or any OpenAI-compatible endpoint including free local models |
+| ⭐ **A watchlist of companies you name** | paste a list of career-page URLs; each is resolved to the job board or feed behind it, checked on your interval, marked ★ in the list and in Telegram, and — if you say so — alerting on **every** posting it puts up, threshold or not. It reads only what a site publishes for machines: no headless browser, and robots.txt decides ([ADR 0036](./docs/adr/0036-watchlist-reads-published-data-only.md)) |
 | 🧭 **Board discovery** | harvests company ATS boards from HN comments and queues them for a one-click promote |
 | 🛡 **Job posts can't hijack the prompt** | every posting, resume and web page reaches the model inside explicit untrusted-text markers, and a test fails the build if a new AI call site skips them |
 | 🏠 **Self-hosted and private** | official public APIs and RSS only, dashboard bound to `127.0.0.1`, no accounts, no telemetry |
@@ -303,7 +304,7 @@ on the AI tab shows exactly which engine your calls went to.
 | Cover letter | `/letter` | Write a letter for a posting that isn't stored yet: pick, paste or link it, then draft |
 | Applications | `/applications` | Kanban with drag-and-drop. Applied and Rejected/Ghosted are fixed; every column between them is yours to name, add and reorder ([ADR 0025](./docs/adr/0025-custom-work-stages.md)) |
 | Resumes | `/resumes` | Upload `.pdf` / `.docx` / `.md` / `.txt`, AI scan, version history |
-| Companies | `/companies` | Tracked boards; add new ones with a live probe that refuses bad slugs |
+| Companies | `/companies` | Tracked boards; add new ones with a live probe that refuses bad slugs. **Watch specific companies** takes a pasted list of career-page URLs and resolves each to the board or feed behind it |
 | Discovery | `/discovery` | Board candidates harvested from HN, with the discovery toggles |
 | Runs | `/runs` | The last 100 cron runs with stats and errors |
 | Settings | `/settings` | Five tabs: General · Profile · AI engine · Notifications · Sources |

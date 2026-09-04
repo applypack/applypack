@@ -113,26 +113,35 @@ watchlistRoute.post('/companies/watchlist/add', async (c) => {
     }
     const typed = form[`name:${result.input.url}`];
     const name = (typeof typed === 'string' && typed.trim().length > 0 ? typed.trim() : result.name).slice(0, 100);
+    const watch = {
+      // Watched rows go in switched ON: unlike a starter pack, the user named
+      // these companies one by one and asked to be told about them.
+      active: true,
+      watched: true,
+      checkEvery: parsed.data.checkEvery,
+      alertPolicy: parsed.data.alertPolicy,
+      // NULL = due on the next tick, which is what "watch this" means.
+      nextCheckAt: null,
+    };
+    // A board already in the rotation (seeded, or from a pack) is UPDATED, not
+    // skipped: the user has just said they want to watch that company, and
+    // refusing because we happened to know the board already would be a
+    // surprise. The name they typed is not forced over an existing row's,
+    // though — that one may have been edited on purpose.
+    const before = await prisma.company.findUnique({
+      where: { atsType_atsToken: { atsType: source.atsType, atsToken: source.atsToken } },
+      select: { id: true, watched: true },
+    });
     try {
-      await prisma.company.create({
-        data: {
-          name,
-          atsType: source.atsType,
-          atsToken: source.atsToken,
-          careerUrl: result.careerUrl,
-          // Watched rows go in switched ON: unlike a starter pack, the user
-          // named these companies one by one and asked to be told about them.
-          active: true,
-          watched: true,
-          checkEvery: parsed.data.checkEvery,
-          alertPolicy: parsed.data.alertPolicy,
-          // NULL = due on the next tick, which is what "add and watch" means.
-          nextCheckAt: null,
-        },
+      await prisma.company.upsert({
+        where: { atsType_atsToken: { atsType: source.atsType, atsToken: source.atsToken } },
+        create: { name, atsType: source.atsType, atsToken: source.atsToken, careerUrl: result.careerUrl, ...watch },
+        update: watch,
       });
-      added++;
-    } catch {
-      // Unique (atsType, atsToken): already tracked, or added twice in one list.
+      if (before?.watched === true) skipped++;
+      else added++;
+    } catch (err) {
+      logger.error({ err, name }, 'watchlist: could not add a company');
       skipped++;
     }
   }
@@ -141,8 +150,8 @@ watchlistRoute.post('/companies/watchlist/add', async (c) => {
     '/companies',
     added > 0 ? 'ok' : 'err',
     added > 0
-      ? `Watching ${added} compan${added === 1 ? 'y' : 'ies'}${skipped > 0 ? ` (${skipped} already tracked)` : ''} — first check on the next tick.`
-      : 'Nothing added — those companies are already tracked.',
+      ? `Watching ${added} compan${added === 1 ? 'y' : 'ies'}${skipped > 0 ? ` (${skipped} already watched)` : ''} — first check on the next tick.`
+      : 'Nothing changed — those companies are already watched.',
   );
 });
 

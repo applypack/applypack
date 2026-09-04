@@ -1467,31 +1467,31 @@ enum AtsType { … FEED CAREER_PAGE }        // atsToken = the feed URL / the ca
 
 ### 17.4 Implementation order (three branches, each its own PR + tag)
 
-**Stage A — `company-watchlist` (bulk add on known ATS + feeds, ★, intervals; ~2 sessions)**
-- [ ] **Analyse first:** read `routes/companies.tsx` (new / reprobe /
+**Stage A — `company-watchlist` — SHIPPED v1.48.0 (ADR 0036)**
+- [x] **Analyse first:** read `routes/companies.tsx` (new / reprobe /
       starter-pack flows), `pages/companies.tsx`, `starter-packs/resolve.ts`
       + `probe.ts`, `text-utils.ts:extractAtsToken`, `jobs/posting-url.ts`,
       `fetchers/index.ts:runAllFetchers`, `web/fetch-runs.ts`; take the
       owner's real list of 20 companies and resolve each by hand (which rung
       would catch it?) — that table is the analysis note and the fixture.
-- [ ] `add watchlist fields` — the four `Company` columns + `FEED` type,
+- [x] `add watchlist fields` — the four `Company` columns + `FEED` type,
       hand-written migration, `nextCheckAt` honoured by `runAllFetchers`.
-- [ ] `add robots parser` — `src/robots.ts` + tests (RFC 9309 basics, AI-bot
+- [x] `add robots parser` — `src/robots.ts` + tests (RFC 9309 basics, AI-bot
       group, longest match, missing file = allowed).
-- [ ] `add feed fetcher` — `fetchers/feed.ts` + mapper test; `probeAts` for
+- [x] `add feed fetcher` — `fetchers/feed.ts` + mapper test; `probeAts` for
       `FEED`; `extractAtsToken` learns Personio / Teamtailor / Homerun /
       d.vinci URL shapes as those types land (§15 stage 3d).
-- [ ] `resolve company urls` — `watchlist/resolve.ts` (ATS + feed rungs only
+- [x] `resolve company urls` — `watchlist/resolve.ts` (ATS + feed rungs only
       in this stage; `careerPage` returns `watchOnly` for now) + tests on
       recorded HTML fixtures.
-- [ ] `bulk add companies` — textarea/upload → progress → preview →
+- [x] `bulk add companies` — textarea/upload → progress → preview →
       confirm; interval picker for the batch; `watched = true`.
-- [ ] `show watched jobs` — ★ on `/jobs`, "Watched" chip, job page line,
+- [x] `show watched jobs` — ★ on `/jobs`, "Watched" chip, job page line,
       Overview count; `alertPolicy = 'all'` bypasses the base filter and the
       threshold; Telegram prefix.
-- [ ] `document watchlist` — ADR 0034 "watch checks read published data
-      only; no headless browser" (records the Playwright rejection),
-      CLAUDE.md rows, SPEC, README, CHANGELOG + bump.
+- [x] `document watchlist` — ADR **0036** (not 0034: that one is about keyed
+      sources), CLAUDE.md rows, SPEC, README, CHANGELOG + bump, and the
+      measurement note `docs/company-watchlist.md`.
 
 **Stage B — `career-page-fetcher` (sitemap + JSON-LD rung; ~1–2 sessions)**
 - [ ] **Analyse first:** fetch the sitemaps and one job page of five sites
@@ -1518,16 +1518,30 @@ enum AtsType { … FEED CAREER_PAGE }        // atsToken = the feed URL / the ca
 **Verification (all stages).** Pure modules unit-tested next to the file;
 each fetcher smoke-run on the owner's list with fixtures recorded; a refused
 URL shows its reason in the preview; the SSRF guard is exercised with a
-private-IP URL in a test; `/companies` and `/jobs` screenshots light + dark;
-keyboard walk of the preview table; a full hourly tick with 20 watched
-companies stays under the polite-delay budget (note the measured duration).
+private-IP URL in a test; `/companies` and `/jobs` screenshots (**light only**
+— the dashboard has no dark theme: zero `dark:` classes in `ui.tsx` and
+`layout.tsx`, corrected 2026-09-04); keyboard walk of the preview table; a
+full tick with the watched companies stays under the polite-delay budget
+(note the measured duration).
 
-**Decisions for the owner.** (1) Watched companies default to "alert on
-every new posting" — agreed, or "matches only" by default? (2) Interval
-presets `hour / day / week` only — enough? (3) Is the change-watch rung
-wanted at all, or is "refused / not supported" the more honest answer for
-sites with no machine-readable data? (4) ADR 0034 states "no headless
-browser" as policy — confirm before stage A so the question is closed.
+**Decisions for the owner — answered 2026-09-04.** (1) Watched companies
+default to "alert on every new posting" — **yes**, the companies were chosen
+deliberately. (2) `hour / day / week` presets only, no cron expressions —
+**yes**, the same philosophy as §16. (3) The change-watch rung is **deferred
+to stage C**; stage A returns `watchOnly` for those sites. (4) "No headless
+browser" is **confirmed as policy**, written as its own
+[ADR 0036](./adr/0036-watchlist-reads-published-data-only.md) rather than
+appended to 0034 (which is about keyed sources).
+
+**What stage A actually measured (2026-09-04).** Twenty JavaScript-heavy
+companies: 5 resolve to a board, 13 publish nothing machine-readable, 2
+answered an HTTP error, 0 had a job feed
+([docs/company-watchlist.md](./company-watchlist.md)). A full tick with 76
+active sources including the five watched took **180 s of fetching** against
+a 159 s baseline on 70 — the extra is the polite second per new source, not
+the due filter. One thing the §17 plan could not know: since v1.47.0 the tick
+is gated by the user's schedule, so watched companies inherit its quiet hours.
+That is accepted as one intent, and both the UI and ADR 0036 say so.
 
 ---
 

@@ -45,7 +45,7 @@ export interface WatchedRow {
 }
 
 const INTERVAL_SELECT = (name: string, value: string) => (
-  <Select name={name} class="w-auto">
+  <Select name={name} class="min-w-[7.5rem]">
     {CHECK_INTERVALS.map((i) => (
       <option value={i} selected={i === value}>
         {intervalLabel(i)}
@@ -55,7 +55,7 @@ const INTERVAL_SELECT = (name: string, value: string) => (
 );
 
 const POLICY_SELECT = (name: string, value: string) => (
-  <Select name={name} class="w-auto">
+  <Select name={name} class="min-w-[8rem]">
     <option value="all" selected={value === 'all'}>
       Every posting
     </option>
@@ -182,6 +182,12 @@ export const WatchlistPreviewPage: FC<{ run: WatchlistRun }> = ({ run }) => {
               </label>
               <Button class="ml-auto">Add {addable.length} companies</Button>
             </div>
+            <Hint class="border-b border-line px-5 py-3">
+              &ldquo;Every posting&rdquo; ignores your filter and your fit threshold for these
+              companies, so the <strong class="font-medium text-ink">first check scores
+              everything they currently have up</strong> — on five companies that was 217
+              postings. A longer interval is the lever if that is more AI than you want.
+            </Hint>
             <Table
               columns={['', 'Name', 'What we found', 'Source']}
               widths={['w-[5%]', 'w-[28%]', 'w-[32%]', 'w-[35%]']}
@@ -293,7 +299,8 @@ export const WatchlistSection: FC<{ rows: WatchedRow[] }> = ({ rows }) => {
       </div>
       <Table
         columns={['Company', 'Checked', 'Alerts', 'Next check', 'New', '']}
-        widths={['w-[28%]', 'w-[15%]', 'w-[15%]', 'w-[16%]', 'w-[8%]', 'w-[18%]']}
+        widths={['w-[24%]', 'w-[16%]', 'w-[16%]', 'w-[13%]', 'w-[7%]', 'w-[24%]']}
+        thClasses={['', '', '', 'hidden sm:table-cell', '', 'text-right']}
       >
         {rows.map((r) => (
           <Tr>
@@ -324,7 +331,7 @@ export const WatchlistSection: FC<{ rows: WatchedRow[] }> = ({ rows }) => {
                 </noscript>
               </form>
             </Td>
-            <Td class="whitespace-nowrap text-ink-muted">
+            <Td class="hidden whitespace-nowrap text-ink-muted sm:table-cell">
               {r.nextCheckAt === null ? 'next tick' : formatRelative(r.nextCheckAt)}
             </Td>
             <Td class="whitespace-nowrap">
@@ -337,7 +344,7 @@ export const WatchlistSection: FC<{ rows: WatchedRow[] }> = ({ rows }) => {
               )}
             </Td>
             <Td>
-              <div class="flex flex-wrap justify-end gap-2">
+              <div class="flex flex-wrap items-center justify-end gap-2">
                 <ActionForm action={`/companies/${r.id}/check-now`}>
                   <Button size="sm" variant="secondary">Check now</Button>
                 </ActionForm>

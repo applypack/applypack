@@ -2,6 +2,7 @@ import { AtsType } from '@prisma/client';
 import { extractAtsToken } from '../text-utils';
 import { checkPostingUrl } from '../jobs/posting-url';
 import { robotsAllows } from '../robots';
+import { sourceLabel } from '../web/source-names';
 import { looksLikeFeed } from '../fetchers/feed';
 import { boardHints, declaredJobFeeds, looksLikeChallenge, wellKnownFeeds } from './scan';
 import { nameFromUrl, type CompanyInput } from './parse-input';
@@ -161,7 +162,9 @@ export async function resolveCompanyUrl(input: CompanyInput, io: ResolveIo): Pro
 }
 
 function boardMissReason(hit: { atsType: string; atsToken: string }): string {
-  return `That is a ${hit.atsType} board, but the public posting API does not serve "${hit.atsToken}" — the board is probably embed-only.`;
+  const vendor = sourceLabel(hit.atsType);
+  const article = /^[AEIOU]/i.test(vendor) ? 'an' : 'a';
+  return `That is ${article} ${vendor} board, but the public posting API does not serve "${hit.atsToken}" — the board is probably embed-only.`;
 }
 
 /** `<item>` / `<entry>` count — the emptiness test, not a parse. */

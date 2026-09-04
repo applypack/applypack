@@ -53,7 +53,7 @@ sequenceDiagram
   Cron->>Job: tick
   Job->>Profile: read active Profile
   Job->>Settings: read classifierMode, disabledSources
-  Job->>Fetchers: enumerate active Companies, skip disabledSources
+  Job->>Fetchers: active Companies, minus disabledSources, minus rows not due yet (ADR 0036)
   loop per Company
     Fetchers->>Fetchers: fetchOne(c) → NormalizedJob[]
   end
@@ -173,6 +173,12 @@ src/
   text-utils.ts                ← pure helpers: parseTagList, extractJson, extractAtsToken,
                                  daysSince, hashShortId, maskToken, decideStageStrategy
   filter.ts                    ← passesBaseFilter (pure, profile-aware)
+  robots.ts                    ← pure: RFC 9309 reader; an AI-agent ban binds us (ADR 0036)
+  watchlist/
+    interval.ts                ← pure: check intervals, due-ness, the ★ and the alert policy
+    parse-input.ts             ← pure: the "one URL per line" textarea
+    scan.ts                    ← pure: board links, job-shaped feeds, bot-check wording
+    resolve.ts                 ← the ladder (I/O injected; liveResolveIo touches the network)
   countries.json / countries.ts ← the gazetteer: 86 countries, cities, region groups; lookups (pure, ADR 0031)
   location.ts                  ← parseLocation: string + fetcher hints → workplace/countries/regions (pure, ADR 0031)
   location-corpus.json         ← every stored location string on 2026-09-03 with its pinned reading (a test)
