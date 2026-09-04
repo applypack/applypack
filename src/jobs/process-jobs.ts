@@ -15,6 +15,7 @@ import { sendTelegramAlert } from '../notifier';
 import { attributionLine } from '../web/pages/attribution';
 import type { ClassifierMode } from '../settings';
 import { canAlertNow, type Schedule } from '../user-schedule';
+import { alertsEveryPosting, starred, type WatchRules } from '../watchlist/interval';
 import {
   findCrossListing,
   fromDbBigInt,
@@ -34,6 +35,8 @@ export interface FetchResult {
   companyName: string;
   /** Which source the row came from — the alert's attribution line reads it (ADR 0034). HN rows carry none. */
   source?: { atsType: string; atsToken: string };
+  /** What the watchlist asks of this row (ADR 0036). Absent = the normal pipeline. */
+  watch?: WatchRules;
 }
 
 /** A fetched row plus its parsed location — read once, used by the filter and the insert. */
@@ -61,6 +64,8 @@ export interface ProcessStats {
   skippedBlankProfile: number;
   /** Matches scored outside the alert window; they wait for the next one (TASKS §16). */
   alertHeld: number;
+  /** Postings kept because a watched company alerts on everything (ADR 0036). */
+  watchedKept: number;
 }
 
 export interface ProcessOptions {
@@ -140,7 +145,14 @@ export async function processNormalizedJobs(
     // step 2 runs "Fetch now" before step 3 creates a profile, so at that
     // moment every search is blank — and a blank search's gate admits
     // everything, which is what makes the fresh-install run show results.
-    if (!passesAnyBaseFilter({ ...item.job, ...place }, classify ? profiles : activeProfiles)) {
+    // A watched company set to "every posting" is the user saying they want
+    // to SEE what appears there, so the roster's gate does not apply to it.
+    // The posting is still classified below — the policy decides what is done
+    // with the verdict, not whether one is formed (ADR 0036).
+    if (
+      !alertsEveryPosting(item.watch) &&
+      !passesAnyBaseFilter({ ...item.job, ...place }, classify ? profiles : activeProfiles)
+    ) {
       stats.filterRejected++;
       continue;
     }
@@ -234,8 +246,13 @@ export async function processNormalizedJobs(
       stats.classifyFailed++;
       continue;
     }
-    const { winner, kept, scoreLine } = merged;
+    const { winner, scoreLine } = merged;
     const finalClassification = winner.classification;
+    // Every search dismissed it, but the user asked to be shown everything
+    // this company posts. The row is kept and alerted; the message says
+    // "new posting", not "match", so it never claims a score it does not have.
+    const keptByPolicy = !merged.kept && alertsEveryPosting(item.watch);
+    const kept = merged.kept || keptByPolicy;
 
     if (!kept) {
       const stored = await persistJob(
@@ -272,10 +289,16 @@ export async function processNormalizedJobs(
     );
     if (!stored) continue;
     const { created, crossListing } = stored;
+    // Counted where every other counter is: after the row exists. A posting
+    // the unique key rejected was not kept by anything.
+    if (keptByPolicy) stats.watchedKept++;
 
     // A score produced without a required stack never alerts, whatever the
     // threshold or priority boosts say (issue #50). The row stays NEW.
-    if (finalClassification.red_flags.includes(NO_PROFILE_STACK_FLAG)) {
+    // A watched company on "every posting" is the exception: that flag is a
+    // statement about the SCORE, and this alert makes no claim about the
+    // score — it says a company the user chose has put something up.
+    if (finalClassification.red_flags.includes(NO_PROFILE_STACK_FLAG) && !alertsEveryPosting(item.watch)) {
       continue;
     }
 
@@ -292,7 +315,8 @@ export async function processNormalizedJobs(
       await sendTelegramAlert(
         {
           title: created.title,
-          companyName,
+          companyName: starred(companyName, item.watch),
+          watched: item.watch?.watched === true,
           attribution: item.source ? attributionLine(item.source.atsType, item.source.atsToken) : null,
           location: created.location,
           countries: created.countries,

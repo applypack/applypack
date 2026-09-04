@@ -33,6 +33,8 @@ import {
 import type { FlashMessage } from '../flash';
 import { StarterPackPicker, type PackSegmentChoice } from './starter-pack';
 import type { SourceSuggestion } from '../../starter-packs/suggest';
+import { AddCompaniesCard, WatchlistSection, type WatchedRow } from './watchlist';
+import type { WatchlistRun } from '../watchlist-runs';
 
 interface CompanyRow {
   id: number;
@@ -54,6 +56,10 @@ interface CompanyRow {
 
 export interface CompaniesProps {
   companies: CompanyRow[];
+  /** §17: the companies the user chose by hand, shown apart from the rest. */
+  watchlist: WatchedRow[];
+  /** A resolve run in flight, so the add card links to it instead of offering a second one. */
+  watchlistRun: WatchlistRun | null;
   packs: PackSegmentChoice[];
   /** Token-driven sources the running searches' countries call for (plan §4.3). */
   suggestions: SourceSuggestion[];
@@ -164,6 +170,7 @@ const PROBEABLE_ATS: AtsType[] = [
   AtsType.JOBTECH,
   AtsType.ADZUNA,
   AtsType.FRANCETRAVAIL,
+  AtsType.FEED,
 ];
 
 const AGGREGATORS = ['LARAJOBS', 'REMOTEOK', 'REMOTIVE', 'JOBICY', 'WEWORKREMOTELY', 'HN_HIRING'];
@@ -217,6 +224,8 @@ const SuggestedSources: FC<{ suggestions: SourceSuggestion[] }> = ({ suggestions
 
 export const CompaniesPage: FC<CompaniesProps> = ({
   companies,
+  watchlist,
+  watchlistRun,
   packs,
   suggestions,
   keyedUnlocked,
@@ -226,6 +235,9 @@ export const CompaniesPage: FC<CompaniesProps> = ({
   <Layout title="Companies" active="companies">
     <PageHeader title="Companies" meta={`${companies.length} sources`} />
     <Flash flash={flash} />
+
+    <WatchlistSection rows={watchlist} />
+    <AddCompaniesCard running={watchlistRun} />
 
     <QuietSources companies={companies} fetchingEnabled={fetchingEnabled} />
 

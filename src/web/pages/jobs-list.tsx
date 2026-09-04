@@ -39,7 +39,7 @@ interface JobRow {
   fetchedAt: Date;
   postedAt: Date;
   techMatch: string[];
-  company: { name: string; atsType: string; atsToken: string };
+  company: { name: string; atsType: string; atsToken: string; watched: boolean };
   verifications: { verdict: string }[];
   /** Present only when one search is selected: that search's own verdict. */
   scores?: { fitScore: number }[];
@@ -56,6 +56,8 @@ export interface JobsListProps {
     q: string;
     sort: string;
     verified: string;
+    /** '1' = only companies on the watchlist (ADR 0036). */
+    watched: string;
     /** ADR 0033: "1" = only rows a search of mine can take. */
     open: string;
     /** Which search the list is narrowed to; null = all of them. */
@@ -108,6 +110,7 @@ export const JobsListPage: FC<JobsListProps> = ({
     filters.status.length > 0 ||
     filters.minFit.length > 0 ||
     filters.verified.length > 0 ||
+    filters.watched.length > 0 ||
     filters.country.length > 0 ||
     filters.workplace.length > 0 ||
     filters.posted.length > 0;
@@ -241,6 +244,18 @@ export const JobsListPage: FC<JobsListProps> = ({
             Verified
           </a>
           <a
+            href={buildQuery({ ...filters, watched: filters.watched ? '' : '1', page: 1 })}
+            aria-current={filters.watched ? 'true' : undefined}
+            title="Only postings from companies on your watchlist"
+            class={`rounded-md border px-2.5 py-1 text-[13px] transition-colors duration-150 ${
+              filters.watched
+                ? 'border-line-strong bg-surface-overlay font-medium text-ink'
+                : 'border-transparent text-ink-muted hover:bg-surface-overlay/70 hover:text-ink'
+            }`}
+          >
+            ★ Watched
+          </a>
+          <a
             href={buildQuery({ ...filters, open: filters.open ? '' : '1', page: 1 })}
             aria-current={filters.open ? 'true' : undefined}
             title="Only roles a search of yours can take from where you live"
@@ -262,6 +277,7 @@ export const JobsListPage: FC<JobsListProps> = ({
           <input type="hidden" name="workplace" value={filters.workplace.join(',')} />
           <input type="hidden" name="posted" value={filters.posted} />
           <input type="hidden" name="open" value={filters.open} />
+          <input type="hidden" name="watched" value={filters.watched} />
           <Input
             type="search"
             name="q"
@@ -356,6 +372,9 @@ export const JobsListPage: FC<JobsListProps> = ({
                         </Td>
                         <Td class="text-ink-muted">
                           <div class="truncate" title={j.company.name}>
+                            {j.company.watched && (
+                              <span title="On your watchlist" aria-label="Watched company">★ </span>
+                            )}
                             {j.company.name}
                           </div>
                           {j.company.atsType === 'ADZUNA' && <AdzunaLabel market={j.company.atsToken} class="mt-0.5" />}

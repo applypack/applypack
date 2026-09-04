@@ -71,4 +71,8 @@ export interface AlertJob {
   profileScores?: string | null;
   /** What a vendor's terms make the alert say ("Jobs by Adzuna — https://…", ADR 0034). */
   attribution?: string | null;
+  /** ★ A company the user put on the watchlist (ADR 0036). The header then
+   *  says "new posting" rather than "match": with `alertPolicy = all` the row
+   *  may be below every threshold, and the alert must not claim otherwise. */
+  watched?: boolean;
 }

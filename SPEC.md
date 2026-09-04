@@ -26,7 +26,7 @@ port.
 
 See [ARCHITECTURE.md](./ARCHITECTURE.md) for diagrams.
 
-## Sources (24 ATS / aggregator types + MANUAL)
+## Sources (25 ATS / aggregator types + MANUAL)
 
 | AtsType            | Shape         | Auth      | Notes                                           |
 | ------------------ | ------------- | --------- | ----------------------------------------------- |
@@ -42,6 +42,7 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for diagrams.
 | RIPPLING           | per-company   | none      | List + per-job detail (`api.rippling.com/platform/api/ats/v1/board/<slug>/jobs`). 60 details/cycle. |
 | TEAMTAILOR         | per-company   | none      | `<slug>.teamtailor.com/jobs.rss` (or a custom career domain as the token; private hosts refused) — `remoteStatus` (fully / hybrid / none) as the arrangement, `tt:locations` city + country name through the gazetteer, department and role in the head, full HTML; `jobs.json` beside it has ISO codes but no remote status, so the RSS is the feed read; an unknown slug is a 404 |
 | PERSONIO           | per-company   | none      | `<slug>.jobs.personio.de/xml?language=en` — documented XML (`<workzag-jobs><position>`), parsed without a dependency; `office` + `additionalOffices` free text for the parser, sections of `jobDescriptions` as the description, employment / seniority / schedule / salary in its head, `createdAt` as the date; an unknown slug is a 307 to personio.com (refused as "no feed") |
+| FEED               | per-company   | none      | A generic RSS / Atom job feed; the atsToken IS the feed URL, re-checked through the posting-URL guards on every tick. The rung below the vendor types — `watchlist/resolve.ts` only reaches it when no board resolves (ADR 0036) |
 | LARAJOBS_RSS       | aggregator    | none      | Single RSS, all jobs under one synthetic Company |
 | REMOTEOK           | aggregator    | none      | First array element is meta (`legal:`) — dropped via `slice(1)` |
 | REMOTIVE           | aggregator    | none      | `?category=software-dev`                        |
@@ -274,6 +275,36 @@ resolve chain falls back through all ten per-company vendors
 (greenhouse → ashby → lever → workable → smartrecruiters → recruitee →
 breezy → bamboohr → pinpoint → rippling) if the pinned board has moved.
 Re-importing a pack adds nothing.
+
+## Company watchlist (§17 stage A, ADR 0036)
+
+`/companies` → **Watch specific companies**: paste career-page or board URLs,
+one per line (optionally `Name — URL`). Each one is resolved by a ladder that
+reads only what a site publishes for machines — the ATS behind the page
+(confirmed against the vendor's API), then an RSS/Atom feed whose own path
+names jobs and which carries entries. Nothing else: **no headless browser**,
+ever. `robots.txt` is read first by `src/robots.ts` (RFC 9309, plus ADR 0005's
+rule that an AI-agent ban binds us), and at most five requests go to the site,
+only at add time.
+
+A watched company is a `Company` row with four columns — `watched`,
+`checkEvery` (`hour | day | week`), `nextCheckAt`, `alertPolicy`
+(`matches | all`) — and no cron of its own: the hourly tick selects
+`active AND (nextCheckAt IS NULL OR nextCheckAt <= now)` and stamps
+`nextCheckAt` after every attempt, failures included. That means watched
+companies **follow the user's search schedule** (§16) and are not checked
+during hours the search sleeps.
+
+`alertPolicy = 'all'` bypasses the base filter and the fit threshold: the
+posting is still classified, so it carries a score, but the alert reads
+`★ New posting` rather than claiming a match. `★` marks the company on
+`/jobs`, on the job page and in Telegram, and the `★ Watched` chip filters
+the list.
+
+Measured on twenty JavaScript-heavy companies (2026-09-04): 5 resolved to a
+board, 13 published nothing machine-readable, 2 answered an HTTP error, 0 had
+a job feed — see [docs/company-watchlist.md](./docs/company-watchlist.md).
+Stage B (sitemap + JSON-LD) is what serves the thirteen.
 
 ## Resumes (Phase 8.1)
 

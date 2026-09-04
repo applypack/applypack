@@ -47,6 +47,24 @@ export function formatRelative(d: Date | null | undefined): string {
   return `${day}d ago`;
 }
 
+/**
+ * The mirror of formatRelative for a time that has not happened yet — "in
+ * 22h", "in 6d". A past instant reads as "due now", because that is what a
+ * `nextCheckAt` in the past means to the reader (§17): the row is waiting for
+ * the next heartbeat, not overdue by a day.
+ */
+export function formatUntil(d: Date | null | undefined): string {
+  if (!d) return '—';
+  const sec = Math.round((d.getTime() - Date.now()) / 1000);
+  if (sec <= 0) return 'due now';
+  if (sec < 60) return `in ${sec}s`;
+  const min = Math.round(sec / 60);
+  if (min < 60) return `in ${min}m`;
+  const hr = Math.round(min / 60);
+  if (hr < 48) return `in ${hr}h`;
+  return `in ${Math.round(hr / 24)}d`;
+}
+
 export function formatDuration(ms: number | null | undefined): string {
   if (ms == null) return '—';
   if (ms < 1000) return `${ms}ms`;

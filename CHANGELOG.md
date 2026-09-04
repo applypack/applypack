@@ -4,6 +4,55 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.48.0] — 2026-09-04
+
+### Added
+- **A watchlist of companies you name.** `/companies` → *Watch specific
+  companies*: paste career-page or board URLs, one per line (optionally
+  `Name — URL`). Each is resolved to the job board or feed behind it on a
+  progress page, then a preview shows what every URL actually turned into —
+  and what it did not, with the reason, so nothing is half-added. Watched
+  companies get a ★ on `/jobs`, on the job page and in Telegram, and a
+  `★ Watched` chip filters the list.
+- **Per-company check intervals** — every hour, once a day, once a week. They
+  ride on the existing tick rather than a cron of their own, so a watched
+  company follows your search schedule and is not checked during hours you
+  told the search to sleep. "Check now" makes a row due on the next tick.
+- **"Alert me about every posting"** for a watched company: the base filter
+  and the fit threshold are bypassed, and the alert reads *★ New posting*
+  rather than claiming a match. The posting is still scored, so it carries a
+  fit number — the message just does not pretend the number is why you are
+  hearing about it.
+- **`src/robots.ts`** — the RFC 9309 reader the resolver calls before it
+  fetches anything: user-agent groups, longest-match Allow/Disallow, a missing
+  file means allowed. Two rules are stricter than the protocol on purpose. A
+  group naming any AI agent binds us, because every description this project
+  fetches is read by an AI classifier, and a 5xx on robots.txt means "not
+  allowed" — a failing server has told us nothing.
+- **A generic `FEED` source**: an RSS or Atom job feed, where the token is the
+  feed URL. It is the rung below the vendor types, never a replacement for
+  one, and the URL goes through the same SSRF and ADR 0005 guards on every
+  tick.
+
+### Notes
+- **No headless browser, ever** — the decision behind the whole feature, now
+  written down as [ADR 0036](./docs/adr/0036-watchlist-reads-published-data-only.md).
+  A watch check reads only data a site publishes for machines.
+- Measured on twenty JavaScript-heavy companies that hire often: 5 resolved to
+  a board, 13 publish nothing machine-readable at the URL you would paste, 2
+  answered an HTTP error, 0 had a job feed. The table is in
+  [docs/company-watchlist.md](./docs/company-watchlist.md), and the thirteen
+  are what stage B (sitemap + JSON-LD) is for.
+- Three findings from that run changed the code: a board URL is not a board
+  (Deno's Ashby board answers 200 while its public API 404s, so every match is
+  confirmed with the vendor first); a guessed feed path finds blogs and
+  item-less WordPress feeds, so a feed must name jobs in its path *and* carry
+  entries; and a vendor's name is not evidence of its bot check —
+  `.grecaptcha-badge` in a stylesheet is not a challenge.
+- The first check after adding a watchlist with "every posting" classifies
+  everything those companies have up, which on five companies was 217
+  postings. The interval is the lever if that is more AI than you want.
+
 ## [1.47.2] — 2026-09-04
 
 ### Fixed
@@ -1902,6 +1951,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[1.48.0]: https://github.com/applypack/applypack/compare/v1.47.2...v1.48.0
 [1.47.2]: https://github.com/applypack/applypack/compare/v1.47.1...v1.47.2
 [1.47.1]: https://github.com/applypack/applypack/compare/v1.47.0...v1.47.1
 [1.47.0]: https://github.com/applypack/applypack/compare/v1.46.0...v1.47.0

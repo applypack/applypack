@@ -93,6 +93,16 @@
   new builder or call site fails CI until it is covered. Operator input
   (`Profile.notes`, cover angles, confirmed facts) stays OUTSIDE the fence —
   that is the user's own instruction channel.
+- `src/watchlist/` is the company-watchlist module (ADR 0036): `interval.ts`
+  (intervals, due-ness, the ★ and the alert policy), `parse-input.ts` (the
+  textarea), `scan.ts` (what a careers page publishes) are pure and tested;
+  `resolve.ts` is the ladder with its I/O injected, so the ladder itself is
+  tested on recorded answers and only `liveResolveIo()` touches the network.
+  Every `ats` verdict is confirmed by `probeAts` before it is offered — a URL
+  match is a hypothesis, the vendor's answer is the evidence. `src/robots.ts`
+  is the RFC 9309 reader it calls first: it is stricter than the protocol in
+  two places, and both are deliberate (an AI-agent group binds us; a 5xx on
+  robots.txt means "not allowed").
 - `src/starter-packs/` is the curated-pack module: `catalog.json` (data),
   `catalog.ts` and `resolve.ts` are pure (tested), `probe.ts` calls
   `probeAts`. Web-only — the worker never imports it. Every catalog entry
@@ -172,6 +182,9 @@ When the question is **"where does X live?"**, save yourself a `find`:
 | Pure helpers (parsing, hashing, masking) | `src/text-utils.ts` |
 | Near-duplicate detection across sources (SimHash, Hamming) | `src/fingerprint.ts` (ADR 0018); wired in `jobs/process-jobs.ts` |
 | Where the running searches hunt, handed to every fetcher (`FetchContext`: union of countries + regions; anywhere = empty) | `src/fetchers/fetch-context.ts:searchPlaces` (pure) built once per tick in `fetchers/index.ts:runAllFetchers`; a source with a geo filter maps it (`jobicy.ts:jobicySlugsFor`, `himalayas.ts:himalayasUrls`, `fourdayweek.ts:fourDayWeekPlaces`), the rest ignore it |
+| A company the user watches: the interval, the ★, "alert on every posting" | `src/watchlist/interval.ts` (pure, ADR 0036) over `Company.watched / checkEvery / nextCheckAt / alertPolicy`; the due filter sits in `fetchers/index.ts:runAllFetchers` BEFORE `shuffleSources` (the Adzuna slice still comes from the full active list), and `recordFetchHealth` stamps `nextCheckAt` after every attempt |
+| One pasted careers URL → a board, a feed, or an honest "nothing here" | `src/watchlist/resolve.ts:resolveCompanyUrl(input, io)` (ladder, ≤ 5 requests per company, add time only) over `scan.ts` + `text-utils.ts:extractAtsToken` + `ats-probe.ts:probeAts`; the fixture that shaped it is `docs/company-watchlist.md` |
+| Whether robots.txt lets us fetch a path (and why an AI-bot ban binds us) | `src/robots.ts` (pure, RFC 9309 + ADR 0005 addendum rule 2) |
 | Per-source health (error→status, failure streak, quiet/silent) | `src/fetchers/source-health.ts` (pure, ADR 0019); recorded by the wrapper in `fetchers/index.ts:runAllFetchers` |
 | Apply-link flags (missing / unusable / shortened / not-an-application) | `src/apply-link.ts` (pure, ADR 0023); merged into `Job.redFlags` at all three persist paths |
 | Keys for the keyed sources (Adzuna, France Travail) — where they live, how a fetcher gets them, how an error is scrubbed | `src/source-keys.ts` (pure, ADR 0034: `SOURCE_KEY_FIELDS`, `resolveSourceKeys`, `redactSecrets`, `SourceKeyMissingError`) + `settings.ts:getSourceKeys/setSourceKey`; the tick puts them in `FetchContext.keys`; UI on `/settings` → Sources → "Source keys" |
@@ -195,6 +208,7 @@ When the question is **"where does X live?"**, save yourself a `find`:
 | First-run wizard (`/welcome`: steps derived from data, `/` redirect, skip/finish) | `src/web/welcome-steps.ts` (pure: step rules + score summary) · `src/web/welcome-facts.ts` (loads the facts) · `src/web/routes/welcome.tsx` + `pages/welcome.tsx`; step 4 = `runScoreUnscored` in `src/jobs/reclassify-job.ts`, which picks its batch with `src/jobs/score-pick.ts` (pure ranking, `SCORE_BATCH`) |
 | "Fetch now" (the tick from the dashboard: live progress, unscored while paused) | `POST /runs/fetch-now` in `src/web/routes/runs.tsx` → `runFetchJob({ manual: true })` in `src/jobs/fetch-job.ts`; registry `src/web/fetch-runs.ts`; verdict line `src/web/fetch-summary.ts` (pure) |
 | What runs on container boot | `src/init.ts` |
+| A generic RSS/Atom job feed as a source (atsToken = the feed URL) | `src/fetchers/feed.ts` (ADR 0036); the URL goes through `checkPostingUrl` on every tick, and an empty feed is `empty`, not a source |
 | Adding a new ATS source — single-feed template | `src/fetchers/larajobs.ts` (LARAJOBS_RSS) or `src/fetchers/golangprojects.ts` (single RSS) |
 | Adding a new ATS source — per-company JSON | `src/fetchers/ashby.ts` (cleanest), `src/fetchers/greenhouse.ts` |
 | Adding a new ATS source — POST endpoint | `src/fetchers/workable.ts` (POST + body) |
@@ -271,6 +285,9 @@ When the question is **"how does the user toggle / configure X?"**:
 | Pick / order AI engines + models, test them | `/settings` AI engine tab (per-engine cards: Enable, ↑ priority, model selects, Test) |
 | Paste an AI key without touching `.env` | `/settings` AI engine tab → the key row on each engine card, or step 1 of `/welcome` (ADR 0027) |
 | Add / remove tracked company | `/companies` (with manual probe before save) |
+| Watch specific companies (paste a list of career-page URLs) | `/companies` → "Watch specific companies": one URL per line (optionally `Name — URL`), Resolve these → a progress page → a preview showing what each URL resolved to → pick the interval and the alert policy for the batch → Add. Watched rows go in switched ON |
+| Change how often a watched company is checked, or what it alerts about | `/companies` → "Watchlist" → the row's two selects (Every hour / Once a day / Once a week; Every posting / Matches only). "Check now" makes it due on the next tick; "Unwatch" keeps the company and drops the star |
+| See only postings from watched companies | `/jobs` → the "★ Watched" chip; ★ also sits before the company name on the list and the job page |
 | Bulk-add a curated segment of companies | `/companies` → "Add a starter pack" (preview → confirm → added disabled → "Enable all") |
 | Turn on a source that needs your own vendor account (and read whether you need it) | `/settings` → Sources → "Extra sources — a free account of your own": what each adds, when it is worth it, what the vendor asks, where to register. Until both fields are saved the source is hidden everywhere (`source-keys.ts:sourceUnlocked`, ADR 0034 rule 4) |
 | Use Adzuna (free key) for a country a search names | register at developer.adzuna.com, paste app_id + app_key on `/settings` → Sources → "Source keys", then `/companies` → "Sources for your searches" → Add (off) the market row → Enable; polled four times a day, ten markets at most (ADR 0034) |

@@ -187,12 +187,15 @@ export function formatPlaceLine(job: AlertJob): string {
 export function formatJobMessage(job: AlertJob): string {
   const lines: string[] = [];
   // The header names the search that wanted it, so a reader running several
-  // knows which hunt fired without opening the link (ADR 0028).
-  lines.push(
-    job.matchedProfile
-      ? `*${escapeMarkdownV2(job.matchedProfile)} — fit ${job.fitScore}/100*`
-      : `*New role match — fit ${job.fitScore}/100*`,
-  );
+  // knows which hunt fired without opening the link (ADR 0028). A watched
+  // company's posting says what it is instead: it may be here because the
+  // user asked for every posting, not because a search wanted it (ADR 0036).
+  const headline = job.watched
+    ? '★ New posting'
+    : job.matchedProfile
+      ? escapeMarkdownV2(job.matchedProfile)
+      : 'New role match';
+  lines.push(`*${headline} — fit ${job.fitScore}/100*`);
   lines.push(
     `*${escapeMarkdownV2(job.title)}* @ ${escapeMarkdownV2(job.companyName)}`,
   );
