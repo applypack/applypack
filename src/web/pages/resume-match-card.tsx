@@ -544,16 +544,16 @@ const SuggestionCard: FC<{
   proposal: Proposal | null;
   /** True on the targeted view, where an editor exists to locate the quote in. */
   interactive: boolean;
-  /** A removal shows its quote struck through: this is the text to delete. */
-  strike?: boolean;
+  /** A removal: its quote is the text to cut, shown struck through, and Remove acts on it. */
+  removal?: boolean;
   /** Priority badges are one word, section badges are up to four syllables. */
   badgeWidth?: string;
-}> = ({ item, badge, proposal, interactive, strike = false, badgeWidth = 'w-16' }) => {
+}> = ({ item, badge, proposal, interactive, removal = false, badgeWidth = 'w-16' }) => {
   const copyable = proposal?.text ?? item.quote ?? item.what;
   // Stable across re-runs of the same comparison, so applied/skipped marks survive a reload.
   const key = hashShortId(`${item.section}|${item.where}|${item.quote ?? ''}`);
   const canApply = interactive && Boolean(item.quote) && Boolean(proposal);
-  const canRemove = interactive && Boolean(item.quote) && strike;
+  const canRemove = interactive && Boolean(item.quote) && removal;
   return (
     <li class="flex flex-col gap-1 p-3 sm:flex-row sm:gap-3" data-card={interactive ? key : undefined}>
       <div class={`${badgeWidth} shrink-0`}>{badge}</div>
@@ -565,7 +565,7 @@ const SuggestionCard: FC<{
             <div class={LABEL}>Now</div>
             <p
               class={`mt-0.5 whitespace-pre-wrap break-words border-l-2 border-line-strong pl-2 leading-6 text-ink-muted ${
-                strike ? 'line-through decoration-danger/60' : ''
+                removal ? 'line-through decoration-danger/60' : ''
               }`}
             >
               {item.quote}
@@ -696,7 +696,7 @@ export const RemovalsBlock: FC<{
             badge={<Badge tone="neutral">{r.section}</Badge>}
             proposal={null}
             interactive={interactive}
-            strike
+            removal
             badgeWidth="w-24"
           />
         ))}

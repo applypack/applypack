@@ -247,6 +247,9 @@ export function init(data) {
   let timer = null;
   editor.addEventListener('input', () => {
     located = null;
+    // A refusal ("couldn't find this text") describes the text as it was; once
+    // the user types, it may no longer be true, so it stops being sticky.
+    for (const st of document.querySelectorAll('[data-card-status][data-sticky]')) delete st.dataset.sticky;
     clearTimeout(timer);
     timer = setTimeout(render, 120);
   });
@@ -282,6 +285,10 @@ export function init(data) {
   });
   document.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape') return;
+    for (const box of document.querySelectorAll('[data-edit-box]:not([hidden])')) {
+      box.hidden = true;
+      box.closest('[data-card]')?.querySelector('[data-edit-apply]')?.focus();
+    }
     for (const d of document.querySelectorAll('details[data-menu][open]')) {
       d.open = false;
       const s = d.querySelector('summary');
@@ -298,11 +305,18 @@ export function init(data) {
       card.classList.toggle('card-done', Boolean(applied) || skipped);
       const undo = card.querySelector('[data-undo]');
       if (undo) undo.hidden = !applied && !skipped;
+      // Hidden rather than disabled: a row of five dead buttons is louder than
+      // the card it belongs to. Copy and Locate stay — both still make sense.
+      const done = Boolean(applied) || skipped;
       for (const b of card.querySelectorAll('[data-apply], [data-remove], [data-skip], [data-edit-apply]')) {
-        b.disabled = Boolean(applied) || skipped;
+        b.hidden = done;
       }
+      const box = card.querySelector('[data-edit-box]');
+      if (box && done) box.hidden = true;
       const status = card.querySelector('[data-card-status]');
-      if (status && !status.dataset.sticky) status.textContent = applied ? 'Applied' : skipped ? 'Skipped' : '';
+      if (status && !status.dataset.sticky) {
+        status.textContent = applied ? (applied.inserted === '' ? 'Removed' : 'Applied') : skipped ? 'Skipped' : '';
+      }
     }
   }
 
@@ -320,7 +334,7 @@ export function init(data) {
    * Run one text operation for a card: write the result, remember the inverse
    * so Undo is exact, and outline what changed. A refusal never touches the text.
    */
-  function runEdit(card, operation) {
+  function runEdit(card, operation, verb) {
     const before = editor.value;
     const result = operation(before);
     if (result.error) {
@@ -334,7 +348,7 @@ export function init(data) {
     located = result.span;
     render();
     scrollEditorTo(result.span.start);
-    say(card, 'Applied', false);
+    say(card, verb, false);
     return true;
   }
 
@@ -344,9 +358,9 @@ export function init(data) {
     if (!button || !card) return;
     const box = card.querySelector('[data-edit-box]');
     if (button.hasAttribute('data-apply')) {
-      runEdit(card, (t) => applyReplacement(t, button.dataset.quote, button.dataset.apply));
+      runEdit(card, (t) => applyReplacement(t, button.dataset.quote, button.dataset.apply), 'Applied');
     } else if (button.hasAttribute('data-remove')) {
-      runEdit(card, (t) => removeSpan(t, button.dataset.remove));
+      runEdit(card, (t) => removeSpan(t, button.dataset.remove), 'Removed');
     } else if (button.hasAttribute('data-edit-apply')) {
       if (box) box.hidden = false;
       box?.querySelector('[data-edit-text]')?.focus();
@@ -355,7 +369,7 @@ export function init(data) {
     } else if (button.hasAttribute('data-edit-save')) {
       const apply = card.querySelector('[data-apply]');
       const wording = box?.querySelector('[data-edit-text]')?.value ?? '';
-      if (runEdit(card, (t) => applyReplacement(t, apply?.dataset.quote, wording)) && box) box.hidden = true;
+      if (runEdit(card, (t) => applyReplacement(t, apply?.dataset.quote, wording), 'Applied') && box) box.hidden = true;
     } else if (button.hasAttribute('data-skip')) {
       if (!edits.skipped.includes(card.dataset.card)) edits.skipped.push(card.dataset.card);
       storeEdits();
@@ -384,20 +398,20 @@ export function init(data) {
   // Locate: outline the quote in the editor and scroll THE EDITOR to it. The
   // page does not move — losing the card you just read was the whole complaint.
   for (const button of document.querySelectorAll('[data-locate]')) {
-    const status = button.parentElement?.querySelector('[data-locate-status]');
+    const card = button.closest('[data-card]');
     button.addEventListener('click', () => {
       const loc = locateQuote(editor.value, button.dataset.locate);
       if (!loc) {
         located = null;
         render();
-        if (status) status.textContent = "Couldn't find this text in the editor, it may already be edited";
+        if (card) say(card, REASON['not-found'], true);
         return;
       }
       located = loc;
       render();
       const line = editor.value.slice(0, loc.start).split('\n').length;
       // The outline is not the only signal: the line number is readable and announced.
-      if (status) status.textContent = 'Line ' + line;
+      if (card) say(card, 'Line ' + line, true);
       scrollEditorTo(loc.start);
       // Focus moves the caret, which on a phone opens the keyboard over the text.
       if (window.matchMedia('(min-width: 1024px)').matches) {
