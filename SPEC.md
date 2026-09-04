@@ -377,6 +377,18 @@ chips carry **+ add** when the term is claimable and the resume has a skills
 line shaped like a list. None of this writes to the database: the edits live in
 the editor until "Save as vN".
 
+Since prompt v7 (ADR 0037) the model writes the wording into a field of its
+own: `replacement` is the complete new text for the quoted span, and for an
+addition `insert_after` is the resume line it follows, verbatim. Whether that
+wording may be applied is decided in code at persist time by
+`resume/replacement-gate.ts`, never by the model: `factCheck` against the
+resume, the posting and the confirmed facts; a replacement may not introduce a
+keyword marked `cannot_claim`; and a rewrite that loses a must-have or primary
+keyword the quote carried is refused (a lost nice-to-have is a note). A refused
+wording becomes an explicit `null` with the reason appended to `why` — the card
+then shows the question, Copy and Edit & apply, but no Apply. Rows from earlier
+prompts have no field at all and keep the quoted-span fallback.
+
 The loop: edit the resume → "Upload a new version" on `/resumes/:id`
 (`Resume.version` +1, re-scan) → Compare again. `ResumeMatch.resumeVersion`
 records which version scored; the card shows the delta vs the previous run.

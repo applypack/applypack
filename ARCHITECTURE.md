@@ -221,6 +221,7 @@ src/
     fact-check.ts              ← deterministic fabrication gate for generated prose (ADR 0020), pure
     diff.ts                    ← version delta from two matches (gained/lost, components), pure
     change-sheet.ts            ← the wording a suggestion proposes + the whole list as Markdown, pure
+    replacement-gate.ts        ← may this replacement be applied? fact check + keyword rules at persist time (ADR 0037), pure
     parse-warnings.ts          ← ATS parseability checks over extracted text, pure
     pick.ts                    ← preselect: profile link first, then skill-tag overlap, pure
     store.ts                   ← Resume / ResumeMatch / CandidateFact / CoverLetter CRUD (Prisma)
