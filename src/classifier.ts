@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { Profile } from '@prisma/client';
+import { RELOCATION_PROMPT, isRelocation } from './eligibility';
 import { logger } from './logger';
 import { extractJson } from './text-utils';
 import { getAiRuntime } from './ai-runtime';
@@ -283,7 +284,7 @@ function describeProfile(profile: Profile): string {
 - Acceptable role types (job category, NOT a tech match by themselves): ${list(profile.roleTypes, '(any role type)')}
 - Nice-to-have stack (boost fit_score when present): ${list(profile.stackNiceToHave, '(none specified)')}
 - Auto-reject signals (drastically lower fit_score if these match the role): ${list(profile.stackExclude, '(none)')}
-- Location preferences: ${describeLocation(profile)}
+- Location preferences: ${describeLocation(profile)}${describeEligibility(profile)}
 - ${salaryLine}${notesLine}`;
 }
 
@@ -312,6 +313,12 @@ Each search says where it hunts as codes: ISO countries (PL, DE, US, GB) and gro
 - Hybrid / on-site roles → true only for a search that accepts that arrangement AND lists the office's city, its country, or a group containing it (a listed city adds to the countries, it never narrows them). Never infer remote eligibility from an office address.
 - Several offices or arrangements → judge by the softest one named.
 - When in doubt, default to location_match = false.
+
+ELIGIBILITY (only for a search that says where the candidate lives):
+- Its countries are where it WANTS to work; "lives in" is where it may work today. A posting closed to that country matches only if the posting opens it — relocation, sponsorship, an employer of record, or B2B abroad.
+- "Right to work in X required" / "no visa sponsorship", candidate outside X → false, flag "work-permit-required", or "no-visa-sponsorship" when the search needs sponsorship the posting refuses.
+- "will not relocate": hybrid / on-site outside that country is false. "would relocate": an on-site role offering relocation matches, with sponsorship when the search needs it.
+- Silence is not a refusal: no permit wording keeps the verdict above.
 
 OUTPUT STRICT JSON ONLY (no prose, no code fences, no commentary), matching this schema exactly:
 
@@ -350,9 +357,21 @@ location_match = true ONLY when the role is open to that search's candidate per 
 
 tech_match: lowercase tags that intersect what the role uses with THAT search's stack (required + nice-to-have). Empty array if none match.
 
-red_flags: short kebab-case tags such as "wordpress-only", "onsite-required-wrong-city", "junior-level", "country-locked", "eu-only", "residency-required", "contract-only", "low-pay", "no-salary-listed", "stack-mismatch", "${INJECTION_FLAG}". Empty array if none.
+red_flags: short kebab-case tags such as "wordpress-only", "onsite-required-wrong-city", "junior-level", "country-locked", "eu-only", "residency-required", "work-permit-required", "no-visa-sponsorship", "contract-only", "low-pay", "no-salary-listed", "stack-mismatch", "${INJECTION_FLAG}". Empty array if none.
 
 summary: ONE sentence (max ~25 words) explaining why the posting fits that search or does not.`;
+}
+
+/**
+ * Where the candidate lives and whether they would move (ADR 0033) — said
+ * only when one of them is set, so a search that does not care costs the
+ * prompt nothing. Codes, like the location line.
+ */
+function describeEligibility(profile: Profile): string {
+  const relocation = isRelocation(profile.relocation) ? profile.relocation : 'no';
+  if (!profile.residence && relocation === 'no') return '';
+  const lives = profile.residence ? `lives in: ${profile.residence}` : 'residence not stated';
+  return `\n- Candidate ${lives}; ${RELOCATION_PROMPT[relocation]}`;
 }
 
 /**

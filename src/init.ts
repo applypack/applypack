@@ -80,6 +80,8 @@ async function bootstrapDefaultProfile(): Promise<void> {
     countries: [],
     regions: [],
     workplace: ['REMOTE'],
+    residence: null,
+    relocation: 'no',
     onsiteCities: [],
     minSalaryUsd: config.MIN_SALARY_USD,
     minFitScore: config.MIN_FIT_SCORE,

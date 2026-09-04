@@ -360,6 +360,11 @@ model Profile {
   regions          String[]        @default([])
   workplace        Workplace[]     @default([REMOTE])
   onsiteCities     String[] // e.g. ["Austin, TX","Berlin"]
+  // Stage 4 (ADR 0033): where the candidate LIVES (ISO-2, null = not said)
+  // and whether they would move — no | yes | sponsorship. `countries` is a
+  // wish, `residence` is a fact; the classifier weighs them separately.
+  residence        String?
+  relocation       String          @default("no")
   // Thresholds
   minSalaryUsd     Int             @default(0) // 0 = don't filter on salary
   minFitScore      Int             @default(70)

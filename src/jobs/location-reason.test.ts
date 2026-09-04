@@ -39,6 +39,31 @@ describe('locationMismatchReason', () => {
     );
   });
 
+  it('explains what the search\'s own list cannot: the candidate does not live there (ADR 0033)', () => {
+    const uaEu = { ...eu, residence: 'UA', relocation: 'no' };
+    assert.equal(
+      locationMismatchReason({ workplace: 'REMOTE', countries: [], regions: ['EU'] }, uaEu),
+      'open to European Union; you live in Ukraine and this search does not relocate',
+    );
+    assert.equal(
+      locationMismatchReason({ workplace: 'HYBRID', countries: ['PL'], regions: [] }, { ...uaEu, relocation: 'sponsorship' }),
+      'office in Poland; you live in Ukraine',
+    );
+    // A search that hunts anywhere still has a residence to answer for.
+    assert.equal(
+      locationMismatchReason({ workplace: 'REMOTE', countries: ['US'], regions: [] }, { countries: [], regions: [], workplace: [], residence: 'UA', relocation: 'no' }),
+      'open to United States; you live in Ukraine and this search does not relocate',
+    );
+  });
+
+  it('says nothing about residence when the posting covers it, or none is set', () => {
+    const uaEu = { ...eu, residence: 'UA', relocation: 'no' };
+    assert.equal(locationMismatchReason({ workplace: 'REMOTE', countries: [], regions: ['EUROPE'] }, uaEu), null);
+    assert.equal(locationMismatchReason({ workplace: 'REMOTE', countries: [], regions: ['WORLDWIDE'] }, uaEu), null);
+    assert.equal(locationMismatchReason({ workplace: 'REMOTE', countries: ['UA', 'PL'], regions: [] }, uaEu), null);
+    assert.equal(locationMismatchReason({ workplace: 'REMOTE', countries: [], regions: ['EU'] }, eu), null);
+  });
+
   it('has nothing to add when the columns agree or say nothing', () => {
     assert.equal(locationMismatchReason({ workplace: 'REMOTE', countries: ['US'], regions: [] }, us), null);
     assert.equal(locationMismatchReason({ workplace: 'REMOTE', countries: ['PL'], regions: [] }, eu), null);

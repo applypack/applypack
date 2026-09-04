@@ -1,4 +1,6 @@
 import { logger } from './logger';
+import { flagOf } from './countries';
+import { WORKPLACE_LABEL } from './location';
 import {
   getSettings,
   listActiveTelegramTargets,
@@ -8,6 +10,9 @@ import { prisma } from './db';
 import type { TelegramTarget } from '@prisma/client';
 import { describeStatus } from './fetchers/source-health';
 import type { AlertJob } from './types';
+
+/** Arrangement words a location string may already carry. */
+const WORKPLACE_WORDS = '\\b(remote|hybrid|on-?site|in-office)\\b';
 
 const TELEGRAM_API = 'https://api.telegram.org';
 const TELEGRAM_TIMEOUT_MS = 10_000;
@@ -159,6 +164,21 @@ async function deliverToTarget(
   }
 }
 
+/**
+ * The place line: the posting's own words, the flags of the countries the
+ * stage-1 columns hold, and the arrangement when the words do not already
+ * say it (ADR 0033). "🇩🇪 Remote · Berlin, Germany", "🇺🇦 Kyiv · hybrid".
+ */
+export function formatPlaceLine(job: AlertJob): string {
+  const flags = (job.countries ?? []).map(flagOf).filter((f) => f.length > 0).join('');
+  const workplace = job.workplace && job.workplace !== 'UNKNOWN' ? WORKPLACE_LABEL[job.workplace] : '';
+  const words = job.location.trim();
+  const said = words.length > 0 && new RegExp(WORKPLACE_WORDS, 'i').test(words);
+  const place = words.length > 0 ? words : workplace || 'Remote';
+  const tail = workplace && !said && words.length > 0 ? ` · ${workplace.toLowerCase()}` : '';
+  return `${flags ? `${flags} ` : ''}${place}${tail}`;
+}
+
 /** Pure — exported so the MarkdownV2 escaping can be unit-tested; Telegram
  *  rejects a whole message on a single unescaped special character. */
 export function formatJobMessage(job: AlertJob): string {
@@ -173,9 +193,8 @@ export function formatJobMessage(job: AlertJob): string {
   lines.push(
     `*${escapeMarkdownV2(job.title)}* @ ${escapeMarkdownV2(job.companyName)}`,
   );
-  const loc = job.location || 'Remote';
   lines.push(
-    `📍 ${escapeMarkdownV2(loc)} \\| 💰 ${escapeMarkdownV2(formatSalary(job.salaryMin, job.salaryMax))}`,
+    `📍 ${escapeMarkdownV2(formatPlaceLine(job))} \\| 💰 ${escapeMarkdownV2(formatSalary(job.salaryMin, job.salaryMax))}`,
   );
   if (job.techMatch.length > 0) {
     lines.push(`✅ Tech: ${escapeMarkdownV2(job.techMatch.join(', '))}`);

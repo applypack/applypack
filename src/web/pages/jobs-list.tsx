@@ -51,6 +51,8 @@ export interface JobsListProps {
     q: string;
     sort: string;
     verified: string;
+    /** ADR 0033: "1" = only rows a search of mine can take. */
+    open: string;
     /** Which search the list is narrowed to; null = all of them. */
     profile: number | null;
     /** ADR 0031 facets: place values (codes or "unknown"), workplace values, posted window. */
@@ -233,6 +235,18 @@ export const JobsListPage: FC<JobsListProps> = ({
           >
             Verified
           </a>
+          <a
+            href={buildQuery({ ...filters, open: filters.open ? '' : '1', page: 1 })}
+            aria-current={filters.open ? 'true' : undefined}
+            title="Only roles a search of yours can take from where you live"
+            class={`rounded-md border px-2.5 py-1 text-[13px] transition-colors duration-150 ${
+              filters.open
+                ? 'border-line-strong bg-surface-overlay font-medium text-ink'
+                : 'border-transparent text-ink-muted hover:bg-surface-overlay/70 hover:text-ink'
+            }`}
+          >
+            Open to me
+          </a>
         </nav>
 
         <form method="get" action="/jobs" class="ml-auto flex flex-wrap items-center gap-2">
@@ -242,6 +256,7 @@ export const JobsListPage: FC<JobsListProps> = ({
           <input type="hidden" name="country" value={filters.country.join(',')} />
           <input type="hidden" name="workplace" value={filters.workplace.join(',')} />
           <input type="hidden" name="posted" value={filters.posted} />
+          <input type="hidden" name="open" value={filters.open} />
           <Input
             type="search"
             name="q"

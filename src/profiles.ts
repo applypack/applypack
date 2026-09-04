@@ -3,6 +3,7 @@ import { prisma } from './db';
 import { logger } from './logger';
 import { MAX_ACTIVE_PROFILES } from './profile-guards';
 import type { WorkplaceCode } from './location';
+import type { RelocationCode } from './eligibility';
 import { ensureSettingsRow, SETTINGS_ID } from './settings';
 import type { PriorityRule } from './priority-rules';
 
@@ -19,6 +20,10 @@ export interface ProfileInput {
   regions: string[];
   /** Arrangements the search accepts; empty = any. */
   workplace: WorkplaceCode[];
+  /** Where the candidate lives now (ISO-2), null = not said (ADR 0033). */
+  residence: string | null;
+  /** Whether they would move for a role: no | yes | sponsorship (ADR 0033). */
+  relocation: RelocationCode;
   onsiteCities: string[];
   minSalaryUsd: number;
   minFitScore: number;
@@ -45,6 +50,8 @@ export function blankProfileInput(): ProfileInput {
     countries: [],
     regions: [],
     workplace: ['REMOTE'],
+    residence: null,
+    relocation: 'no',
     onsiteCities: [],
     minSalaryUsd: 0,
     minFitScore: 70,

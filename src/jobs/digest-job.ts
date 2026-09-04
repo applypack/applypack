@@ -36,6 +36,8 @@ export async function runDigestJob(): Promise<{ stats: CronStats }> {
     title: j.title,
     companyName: j.company.name,
     location: j.location,
+    countries: j.countries,
+    workplace: j.workplace,
     url: j.url,
     fitScore: j.fitScore ?? 0,
     salaryMin: j.salaryMin,

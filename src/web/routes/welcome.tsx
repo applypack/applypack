@@ -1,5 +1,6 @@
 /** @jsxImportSource hono/jsx */
 import { Hono } from 'hono';
+import { isRelocation } from '../../eligibility';
 import { CronRunStatus, JobStatus, type Profile } from '@prisma/client';
 import { prisma } from '../../db';
 import { getAiKeys, setAiKey, setFetchingEnabled, setSetupCompleted } from '../../settings';
@@ -378,6 +379,8 @@ function draftCard(
 /** A stored Profile row as the input shape updateProfile takes. */
 function profileInput(p: Profile): ProfileInput {
   return {
+    residence: p.residence,
+    relocation: isRelocation(p.relocation) ? p.relocation : 'no',
     name: p.name,
     stackRequired: p.stackRequired,
     roleTypes: p.roleTypes,

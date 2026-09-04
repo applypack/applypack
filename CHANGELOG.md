@@ -4,6 +4,27 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.40.0] — 2026-09-04
+
+### Added
+- **Where you live, and whether you would move** (plan §5, ADR 0033). A
+  search now says "I live in" and picks one of three: I stay where I am,
+  I would relocate, I would relocate and need visa sponsorship. The
+  classifier reads both: a role open only to places you cannot work from
+  matches only if the posting itself opens it — relocation, sponsorship,
+  an employer of record or a contract abroad — and it flags
+  `work-permit-required` or `no-visa-sponsorship` when it does not.
+- **"Open to me"** on Jobs: only the roles a search of yours can actually
+  take, read from the same per-search verdict the fit chips read.
+- The job page says why a role is closed to you when the columns can prove
+  it: "open to European Union; you live in Ukraine and this search does not
+  relocate".
+- Telegram alerts show the country flags and the arrangement.
+
+### Schema
+- `Profile.residence`, `Profile.relocation` (migration
+  `20260904000000_add_profile_eligibility`).
+
 ## [1.39.0] — 2026-09-03
 
 ### Added

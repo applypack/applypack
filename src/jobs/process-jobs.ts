@@ -271,6 +271,8 @@ export async function processNormalizedJobs(
           title: created.title,
           companyName,
           location: created.location,
+          countries: created.countries,
+          workplace: created.workplace,
           url: created.url,
           fitScore: created.fitScore ?? finalClassification.fit_score,
           salaryMin: created.salaryMin,

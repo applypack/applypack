@@ -711,16 +711,61 @@ question a Ukrainian or any non-US candidate actually has.
 
 ### 5.0 Pre-work analysis
 
-- [ ] Read the stage-2 prompt and its guard tests; list the rules that
+- [x] Read the stage-2 prompt and its guard tests; list the rules that
       change when `residence` and `relocation` exist.
-- [ ] Collect 20 postings with "must have the right to work in …",
+- [x] Collect 20 postings with "must have the right to work in …",
       "no visa sponsorship", "relocation package", "EOR", "B2B contract",
       "remote from Ukraine" — the fixture for the new red flags.
-- [ ] Check how `salary_min_usd` is produced today for EUR / PLN / GBP
+- [x] Check how `salary_min_usd` is produced today for EUR / PLN / GBP
       postings (the model converts?) and how `minSalaryUsd` compares; decide
       between a conversion table with a monthly constant and a per-profile
       currency. Prefer the smaller change; write the alternative down.
-- [ ] Analysis note.
+- [x] Analysis note.
+
+**Findings (2026-09-04, over the 1 059 stored postings and the stage-2
+prompt).**
+
+*Which prompt rules change.* Four of the eight LOCATION lines are written
+as if the only question were where the search hunts. Residence splits them
+in two: a place the candidate may WORK FROM (`countries` / `regions` — the
+search's wish) and a place they may work from LEGALLY today (`residence` —
+a fact). The rules that change: region-locked remote ("EU only" fails a
+UA-resident search even when it lists EU, unless relocation covers it),
+on-site / hybrid (a listed city is enough only when the candidate can
+legally be there, or the posting offers relocation and the search accepts
+it), and the "when in doubt, false" default, which must not fire on a
+posting that says nothing about permits — silence is not a refusal. The
+tech-stack rules and the `location` block are untouched.
+
+*The fixture says the flags must come from the model.* 115 of 1 059
+postings contain "sponsorship"; only 12 state a policy. Sampling 24 hits:
+7 are real ("authorized to work in the United States without … employer-
+sponsored work authorization"; "visa sponsorship is not available for this
+position"; "able to offer visa sponsorship … but do require that someone
+is based in Spain"), 3 are the ATS application-form question scraped into
+the description ("Do you now, or will you in the future, require
+immigration sponsorship … ?"), and 14 are benefits or an org chart
+("co-sponsored Multisport card", "employer-sponsored group medical plan",
+"under the direct sponsorship of the CTO"). A keyword rule would flag more
+noise than signal, so `no-visa-sponsorship` and `work-permit-required` are
+model verdicts, like every other red flag; `filter.ts` stays out of it.
+Volumes for the other phrases: relocation 12, employer-of-record 2,
+B2B 1, work-permit wording 10 — the corpus is US-heavy, so the European
+sources of stage 3 are what will exercise these rules.
+
+*Salary.* The model already converts silently: the prompt asks for
+`salary_min_usd` with no rate and no currency field, `Job.salaryMin` is
+filled on 155 of 1 059 rows, and `Profile.minSalaryUsd` is only a prompt
+line ("lower fit_score for clearly under-market roles") — no code compares
+the two. Non-USD postings are 7 % today (€ 39, PLN 29, £ 7) and will grow
+with solid.jobs (PLN only), DevITjobs (€ / £), Landing.jobs (€) and
+JobTech (SEK). Decision: keep it out of this stage, as §5.1 says, and when
+it lands prefer **conversion constants in code** — the model reports the
+posting's own amount and currency, `src/currency.ts` converts with a table
+reviewed monthly — because that is the only shape where the number can be
+audited and a UA candidate's USD target keeps its meaning. The alternative,
+`minSalary` + `salaryCurrency` on the profile, does not remove the
+conversion, it moves it into the model's head for every comparison.
 
 ### 5.1 Design
 
@@ -741,6 +786,11 @@ question a Ukrainian or any non-US candidate actually has.
   in the pre-work note; do not bundle with the eligibility PR.
 - Bench: three gold fixtures with European postings added to
   `bench:resume`-style guard runs for the classifier rules.
+
+*Built (v1.40.0): `Profile.residence` + `Profile.relocation`, the prompt's
+ELIGIBILITY block and per-search line, the two red flags, the residence
+sentence on the job page, "Open to me" on /jobs, flags + arrangement in the
+Telegram line. The salary work stayed out, as this section says.*
 
 ### 5.2 Definition of done
 
