@@ -77,3 +77,113 @@ resolver uses them.
 Job-shaped path, real entries, not already a source type (checked 2026-09-04):
 `python.org/jobs/feed/rss/` (20), `jobs.wordpress.net/feed/` (8),
 `euremotejobs.com/feed/` (15).
+
+
+---
+
+# Stage B analysis — do career sites publish `JobPosting`? (2026-09-04)
+
+The §17 stage B plan rests on one sentence: *"each job page carries
+`<script type="application/ld+json">` with a schema.org `JobPosting` … the
+format Google for Jobs requires, so custom career sites ship it."* Everything
+else in the stage — the sitemap reader, the JSON-LD parser, the
+`CAREER_PAGE` type, the per-tick page budget — exists to act on that.
+
+It was measured before any of it was built. **It is false for company career
+sites.**
+
+## 1. Sitemaps: 12 of 13 declare one, and they are large
+
+Every site is one of the thirteen stage A left as `watchOnly`. The bytes are
+the root sitemap plus up to three children of an index.
+
+| Site | Root | Children | Bytes read | "job-ish" URLs |
+|---|---|---|---|---|
+| Stripe | index | 9 | **15.8 MB** | 1 144 |
+| Elastic | urlset | — | **7.0 MB** | 26 |
+| Remote | urlset | — | **4.9 MB** | 767 |
+| GitLab | index | 2 | 3.9 MB | 9 |
+| PostHog | index | 1 | 1.8 MB | 29 |
+| Cloudflare | urlset | — | 1.4 MB | 2 |
+| Storyblok | index | 9 | 603 kB | 1 |
+| Fly.io | index | 2 | 86 kB | 5 |
+| Shopify | index | **568** | 75 kB | 114 |
+| Datadog | urlset | — | 64 kB | 476 |
+| Automattic | index | 1 | 40 kB | 1 |
+| Doist | urlset | — | 1 kB | 0 |
+| Deno | — | — | — | no sitemap declared |
+
+None was gzipped; all were served as plain XML. (A `.gz` sitemap still has to
+be decided for — `zlib.gunzipSync` on a body starting `1f 8b` is three lines,
+and no vendor here forced the question.)
+
+## 2. The URL heuristic is mostly noise
+
+A path containing `job` / `career` / `vacancy` does not mean a posting:
+
+- **Remote's 767** are marketing templates —
+  `/en-nz/resources/job-descriptions/it-specialist-job-description`. They look
+  more like postings than the real ones do.
+- **Datadog's 476** are `/benefits/`, `/candidate-experience/`, `/all-jobs/`.
+- **PostHog's 29** are handbook pages (`/handbook/people/career-progression`).
+- **Cloudflare's 2**, **Storyblok's 1**, **Automattic's 1** are the listing page.
+
+Only **Shopify (114)** and **Fly.io (5)** list URLs that are one-per-posting.
+So the sitemap cannot classify a URL; only fetching it can.
+
+## 3. `JobPosting` structured data: not there
+
+Checked on the listing page and, where one exists, a real posting page.
+"Usable" means a `JobPosting` in JSON-LD, or microdata with actual `itemprop`
+fields.
+
+| Sample | n | Carrying usable `JobPosting` |
+|---|---|---|
+| The owner's 13 (listing and/or posting page) | 13 | **0** |
+| Other custom career sites, listing page (Basecamp, Ghost, JetBrains, Mozilla, Proton, Nextcloud, DuckDuckGo, Wikimedia, Kagi, python.org, jobs.wordpress.net, euremotejobs.com) | 12 | **0** |
+| Detail pages reached from those listings | 6 | **1** |
+
+The one hit is `euremotejobs.com` — a WordPress **job board**, not a company
+career site, whose plugin emits the JSON-LD. It already publishes an RSS feed
+with 15 entries, so the `FEED` rung from stage A serves it without any of this.
+
+Two near-misses are worth recording because they look like hits:
+
+- **Shopify** has `itemscope itemType="https://schema.org/JobPosting"` on a
+  `<div>` with **zero `itemprop` attributes** — an empty shell. The real
+  fields (`"@type","JobPosting","description","datePosted",
+  "hiringOrganization","jobLocation"`) exist only inside a dehydrated
+  framework payload with numeric back-references
+  (`\"_637\":662,\"_93\":469`). Reading that means reconstructing a
+  private hydration format that changes with every deploy — the parsing
+  [ADR 0036](./adr/0036-watchlist-reads-published-data-only.md) exists to
+  refuse.
+- **A first pass that looked only at `<script type="application/ld+json">`
+  reported Shopify as having nothing at all.** Microdata is the other half of
+  schema.org and has to be read too, or the measurement is wrong in the
+  optimistic direction.
+
+## 4. What follows
+
+Built as specified, the stage would add a sitemap reader, a JSON-LD parser, a
+new `AtsType`, a per-tick page budget and a crawl surface — to serve **0 of
+the 13 sites it exists for**. The premise holds for job *boards*, which we
+already reach through feeds and APIs, and not for company career sites.
+
+What the measurement does support is a different rung, made of the two facts
+that did hold:
+
+1. A sitemap bounded to the careers path lists **one URL per posting** on the
+   sites that have real posting pages (Shopify 114, Fly.io 5), with `lastmod`.
+2. A posting page's prose is readable without any structured data —
+   `jobs/posting-url.ts` already turns one into text, and that is exactly what
+   a user pasting a URL into `/jobs/new` gets today.
+
+So: **new URL under the careers prefix → fetch that one page → `stripHtml` for
+the description, `<title>` / `og:title` for the title.** No JSON-LD, no layout
+parsing, and it degrades to stage C's "the page changed, have a look" for
+sites like Datadog and Stripe whose sitemap cannot separate a posting from a
+benefits page.
+
+That is a different feature from the one §17 specifies, so it is the owner's
+call, not an implementation detail.
