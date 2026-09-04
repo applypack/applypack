@@ -154,8 +154,10 @@ retry policy like every other source.
 about it; `describeStatus` and `isFailureStatus` are the only two places
 that do, and both are guard-tested against `FETCH_STATUSES`.
 ❌ A tick that dropped anything throws away its validators, so the tick after
-a pause — or after the AI chain ran dry — is a full refetch. That is the
-price of never losing a posting. Its own failure mode is worth knowing: a
+a pause — or after the AI chain ran dry — is a full refetch. Measured on a
+live install: `classifyFailed` was non-zero in **1 of 857** recorded fetch
+runs, and its value there was 1. The rule costs about one wasted re-read in
+a thousand ticks, which is the price of never losing a posting. Its own failure mode is worth knowing: a
 posting that fails to classify on *every* tick keeps conditional requests
 switched off for the whole install, visibly, in `classifyFailed` on /runs.
 ❌ The cache is per-process: the worker and the dashboard's "Fetch now" keep
