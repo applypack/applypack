@@ -8,7 +8,8 @@ import type { FlashMessage } from '../flash';
 import { sourceLabel } from '../source-names';
 import { dotClassFor, MAX_WORK_STAGES } from '../stage-config';
 import { formatPriorityRulesText, parsePriorityRules } from '../../priority-rules';
-import { REGIONS, flagOf, placeLabel } from '../../countries';
+import { COUNTRIES, REGIONS, flagOf, placeLabel } from '../../countries';
+import { RELOCATION_CODES, RELOCATION_LABEL } from '../../eligibility';
 import { PROFILE_WORKPLACES, WORKPLACE_LABEL } from '../../location';
 import { isBlankProfile, MAX_ACTIVE_PROFILES } from '../../profile-guards';
 import { SENIORITY_LEVELS } from '../../resume/profile-draft';
@@ -950,6 +951,13 @@ const ModelPicker: FC<{
     </Select>
   );
 
+/** One line under each relocation choice — editor copy, not vocabulary. */
+const RELOCATION_HINT: Record<string, string> = {
+  no: 'Only roles I can take from where I am.',
+  yes: 'I can move, and I may work there already.',
+  sponsorship: 'A visa or work permit has to come with the job.',
+};
+
 const ProfileEditor: FC<{
   profile: Profile;
   availableTargets: AvailableTarget[];
@@ -1080,6 +1088,36 @@ const ProfileEditor: FC<{
             <PillCheckbox name="regions" value={r.code} checked={profile.regions.includes(r.code)}>
               {r.flag ? `${r.flag} ${r.label}` : r.label}
             </PillCheckbox>
+          ))}
+        </div>
+      </div>
+      <Field
+        label="I live in"
+        hint="Where you are now. Not a place this search hunts — it decides whether a role's work-permit and relocation wording is a problem for you."
+      >
+        <Select name="residence">
+          <option value="" selected={!profile.residence}>
+            Not set
+          </option>
+          {COUNTRIES.map((c) => (
+            <option value={c.code} selected={profile.residence === c.code}>
+              {c.flag} {c.name}
+            </option>
+          ))}
+        </Select>
+      </Field>
+      <div>
+        <Hint>If the role is somewhere you do not live</Hint>
+        <div class="mt-1.5 grid gap-2 sm:grid-cols-3">
+          {RELOCATION_CODES.map((r) => (
+            <Radio
+              name="relocation"
+              value={r}
+              checked={(profile.relocation ?? 'no') === r}
+              title={RELOCATION_LABEL[r]}
+            >
+              {RELOCATION_HINT[r]}
+            </Radio>
           ))}
         </div>
       </div>

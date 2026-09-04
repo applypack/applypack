@@ -69,7 +69,8 @@ import {
 import { runReclassifyAll } from '../../jobs/reclassify-job';
 import { recordCronRun } from '../../jobs/cron-run';
 import { parseTagList, toStringArray } from '../../text-utils';
-import { isRegionCode, resolveCountries } from '../../countries';
+import { isCountryCode, isRegionCode, resolveCountries } from '../../countries';
+import { isRelocation, parseResidence } from '../../eligibility';
 import { isProfileWorkplace } from '../../location';
 import { suggestSources } from '../../starter-packs/suggest';
 import {
@@ -107,6 +108,9 @@ const ProfileFormSchema = z.object({
   countries: z.union([z.string(), z.array(z.string())]).optional(),
   regions: z.union([z.string(), z.array(z.string())]).optional(),
   workplace: z.union([z.string(), z.array(z.string())]).optional(),
+  // ADR 0033: where the candidate lives, and whether they would move.
+  residence: z.string().optional().default(''),
+  relocation: z.string().optional().default('no'),
   onsiteCities: z.string().optional().default(''),
   minSalaryUsd: z.coerce.number().int().min(0).default(0),
   minFitScore: z.coerce.number().int().min(0).max(100).default(70),
@@ -801,6 +805,8 @@ settingsRoute.post('/settings/profiles/:id/save', async (c) => {
     countries: countries.codes,
     regions: toStringArray(f.regions).filter(isRegionCode),
     workplace: toStringArray(f.workplace).filter(isProfileWorkplace),
+    residence: parseResidence(f.residence, isCountryCode),
+    relocation: isRelocation(f.relocation) ? f.relocation : 'no',
     onsiteCities: parseTagList(f.onsiteCities),
     minSalaryUsd: f.minSalaryUsd,
     minFitScore: f.minFitScore,
