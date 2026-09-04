@@ -2,7 +2,7 @@
 import type { Child, FC, PropsWithChildren } from 'hono/jsx';
 import type { Profile } from '@prisma/client';
 import { Layout } from '../layout';
-import { ActionForm, Badge, Button, Card, Code, Empty, Field, FILE_INPUT_CLASS, Flash, Hint, Input, PageHeader, PillCheckbox, Radio, Select, Table, Tag, Td, Textarea, ToggleRow, Tr } from '../ui';
+import { ActionForm, Badge, Button, Card, Code, Empty, Field, FILE_INPUT_CLASS, Flash, Hint, Input, PageHeader, PillCheckbox, Radio, SectionTitle, Select, Table, Tag, Td, Textarea, ToggleRow, Tr } from '../ui';
 import { formatRelative } from '../format';
 import type { FlashMessage } from '../flash';
 import { sourceLabel } from '../source-names';
@@ -120,6 +120,8 @@ export interface SettingsProps {
   staleApplicationsDigestEnabled: boolean;
   sourceHealthAlerts: boolean;
   disabledSources: string[];
+  /** ADR 0034: the keyed sources' credential rows — origins and masks only, never a value. */
+  sourceKeyRows: SourceKeyRow[];
   allSources: string[];
   fetchingEnabled: boolean;
   aiEngines: AiEngineRow[];
@@ -158,6 +160,7 @@ export const SettingsPage: FC<SettingsProps> = ({
   staleApplicationsDigestEnabled,
   sourceHealthAlerts,
   disabledSources,
+  sourceKeyRows,
   allSources,
   fetchingEnabled,
   aiEngines,
@@ -742,6 +745,7 @@ export const SettingsPage: FC<SettingsProps> = ({
             <Button variant="secondary">Save sources</Button>
           </form>
         </Card>
+        <SourceKeysCard rows={sourceKeyRows} />
       </Section>
       )}
 
@@ -782,6 +786,74 @@ export const SettingsPage: FC<SettingsProps> = ({
     <script type="module" dangerouslySetInnerHTML={{ __html: MODELS_BOOT }} />
   </Layout>
 );
+
+/** One keyed source on the Sources tab (ADR 0034): where each field comes from, never what it is. */
+export interface SourceKeyRow {
+  source: string;
+  label: string;
+  /** Free access, but the vendor's own terms — shown so the user knows what they agreed to. */
+  terms: string;
+  termsUrl: string;
+  fields: { field: string; label: string; envVar: string; origin: 'db' | 'env' | 'none'; masked: string }[];
+}
+
+const SourceKeysCard: FC<{ rows: SourceKeyRow[] }> = ({ rows }) => (
+  <Card class="mt-4">
+    <SectionTitle>Source keys</SectionTitle>
+    <Hint class="mb-3">
+      Two sources need a free key of your own. Register with the vendor, paste the values here — they
+      are stored like Telegram tokens and never shown again — then add the source on Companies. The
+      .env variables named below still work instead.
+    </Hint>
+    <div class="space-y-4">
+      {rows.map((r) => (
+        <div class="rounded-md border border-line bg-surface-raised px-3.5 py-3">
+          <div class="flex flex-wrap items-center gap-2">
+            <span class="text-[13px] font-medium text-ink">{r.label}</span>
+            <a href={r.termsUrl} target="_blank" rel="noopener" class="text-xs text-accent-strong hover:underline">
+              {r.terms}
+            </a>
+          </div>
+          {r.fields.map((f) => (
+            <form method="post" action="/settings/sources/key" class="mt-2.5 flex flex-wrap items-end gap-2">
+              <input type="hidden" name="source" value={r.source} />
+              <input type="hidden" name="field" value={f.field} />
+              <div class="flex min-w-[9rem] flex-col gap-1 text-xs text-ink-muted">
+                <span class="font-medium text-ink">{f.label}</span>
+                {f.origin === 'db' && (
+                  <span>
+                    <Badge tone="ok">saved</Badge> <span class="font-mono">{f.masked}</span>
+                  </span>
+                )}
+                {f.origin === 'env' && <Badge tone="neutral">from .env</Badge>}
+                {f.origin === 'none' && <span class="text-ink-faint">{f.envVar}</span>}
+              </div>
+              <Input
+                type="password"
+                name="key"
+                autocomplete="off"
+                spellcheck="false"
+                aria-label={`${r.label} ${f.label}`}
+                placeholder={f.origin === 'db' ? 'Paste a new one to replace it' : 'Paste it here'}
+                mono
+                class="min-w-[14rem] flex-1"
+              />
+              <Button size="sm" variant="secondary">
+                Save
+              </Button>
+              {f.origin === 'db' && (
+                <Button size="sm" variant="danger" name="clear" value="1">
+                  Remove
+                </Button>
+              )}
+            </form>
+          ))}
+        </div>
+      ))}
+    </div>
+  </Card>
+);
+
 
 /**
  * Paste-a-credential row (ADR 0027). The field is always empty: a stored key
