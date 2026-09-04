@@ -250,3 +250,17 @@ DevITjobs.nl (224 → 0, 320 → 126), plus the two empty boards. We Work
 Remotely refetched, for the reason in §1. Both empty boards — Breezy and
 SmartRecruiters — reported `not_modified` with `lastOkAt advances: false`,
 which is the ADR 0019 invariant holding under the new status.
+
+**And end-to-end on a live install (73 active sources, two "Fetch now" runs
+in the same web process):** 5 500 rows on the cold tick, **1 607 on the
+second, with 52 of 73 sources unchanged**. `/companies` shows those 52 as
+"Unchanged"; the Quiet sources card still lists only the four genuinely
+broken rows, and the SmartRecruiters board that answers 304 over an empty
+list is still called Silent — which is the whole point of §4's rule 2.
+
+One honest number: **the tick is not faster** (160.9 s vs 163.9 s). The
+one-second politeness delay between sources dominates the wall clock, so
+what a 304 saves is the vendor's bandwidth and our own parsing and database
+work, not time. Shortening the delay after a 304 would change that; it is
+deliberately not in this change, because the delay is politeness and a 304
+is still a request.
