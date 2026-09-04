@@ -1,4 +1,5 @@
 import type { JsonResume } from '../json-resume';
+import { drawable } from './drawable';
 import { SECTION_LABELS, type RenderKnobs, type SectionKey } from './knobs';
 
 /*
@@ -65,9 +66,25 @@ export function planRender(resume: JsonResume, knobs: RenderKnobs): RenderPlan {
   const contact = [b.location, b.email, b.phone, b.url, ...b.profiles].filter(Boolean).join(DOT);
   const blocks: RenderBlock[] = [];
   for (const key of knobs.sectionOrder) blocks.push(...section(key, resume));
-  return {
+  // Folded here, once, rather than at each of the dozen places a string is
+  // put into a block: a construction site added later cannot forget it.
+  return fold({
     header: { name: b.name, label: b.label, contact: contact.length > 0 ? contact : null },
     blocks,
+  });
+}
+
+/** Every string of a plan through `drawable` (see that module for why). */
+function fold(plan: RenderPlan): RenderPlan {
+  const text = (v: string | null) => (v === null ? null : drawable(v));
+  const runs = (rs: Run[]) => rs.map((r) => ({ ...r, text: drawable(r.text) }));
+  return {
+    header: { name: text(plan.header.name), label: text(plan.header.label), contact: text(plan.header.contact) },
+    blocks: plan.blocks.map((b) =>
+      b.kind === 'line' ? { ...b, left: runs(b.left), right: runs(b.right) }
+      : b.kind === 'gap' ? b
+      : { ...b, text: drawable(b.text) },
+    ),
   };
 }
 
