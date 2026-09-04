@@ -110,22 +110,6 @@ export function readStructure(value: unknown): JsonResume | null {
   return parsed.success ? parsed.data : null;
 }
 
-/** Every string the structure carries, in reading order. What the anchor guard checks. */
-export function structureStrings(resume: JsonResume): string[] {
-  const out: string[] = [];
-  const push = (...vs: Array<string | null>) => out.push(...vs.filter((v): v is string => v !== null));
-  const b = resume.basics;
-  push(b.name, b.label, b.email, b.phone, b.url, b.location, b.summary, ...b.profiles);
-  for (const w of resume.work) push(w.name, w.position, w.location, w.startDate, w.endDate, w.summary, ...w.highlights);
-  for (const e of resume.education) push(e.institution, e.area, e.studyType, e.startDate, e.endDate, e.score);
-  for (const s of resume.skills) push(s.name, ...s.keywords);
-  for (const l of resume.languages) push(l.language, l.fluency);
-  for (const c of resume.certificates) push(c.name, c.issuer, c.date);
-  for (const p of resume.projects) push(p.name, p.description, p.url, ...p.highlights);
-  for (const x of resume.extras) push(x.heading, ...x.lines);
-  return out;
-}
-
 /** How much of a resume the structure accounts for — the number the render page shows. */
 export function structureCoverage(resume: JsonResume): { sections: number; roles: number; bullets: number } {
   const sections =

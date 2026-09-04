@@ -11,8 +11,7 @@ import {
   type IParagraphOptions,
 } from 'docx';
 import type { JsonResume } from '../json-resume';
-import { DOCX_MIME } from '../docx-write';
-import { planRender, type RenderBlock, type Run } from './sections';
+import { planRender } from './sections';
 import type { RenderKnobs } from './knobs';
 
 /*
@@ -29,8 +28,6 @@ import type { RenderKnobs } from './knobs';
  * PDF twin embeds Liberation Sans, whose metrics are identical, so the two
  * files break their lines in the same places.
  */
-
-export { DOCX_MIME };
 
 const BULLETS = 'clean-bullets';
 const MUTED = '404040';
@@ -165,17 +162,6 @@ function pageSize(knobs: RenderKnobs) {
     : { width: convertInchesToTwip(8.5), height: convertInchesToTwip(11) };
 }
 
-export function pageWidthIn(knobs: RenderKnobs): number {
+function pageWidthIn(knobs: RenderKnobs): number {
   return knobs.page === 'A4' ? 8.27 : 8.5;
 }
-
-/** Blocks a caller may want to count without rendering (the page's summary line). */
-export function blockCounts(blocks: RenderBlock[]): { headings: number; bullets: number; lines: number } {
-  return {
-    headings: blocks.filter((b) => b.kind === 'heading').length,
-    bullets: blocks.filter((b) => b.kind === 'bullet').length,
-    lines: blocks.filter((b) => b.kind === 'line' || b.kind === 'paragraph').length,
-  };
-}
-
-export type { Run };

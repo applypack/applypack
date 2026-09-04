@@ -5,7 +5,6 @@ import {
   JsonResumeSchema,
   readStructure,
   structureCoverage,
-  structureStrings,
 } from './json-resume';
 
 test('emptyResume gives every section, so a renderer never branches on null', () => {
@@ -55,20 +54,6 @@ test('readStructure keeps a structure whose unknown extra keys are ignored', () 
   const r = readStructure({ basics: { name: 'Nazar Boyko' }, awards: [{ title: 'ignored' }] });
   assert.equal(r?.basics.name, 'Nazar Boyko');
   assert.equal((r as unknown as { awards?: unknown }).awards, undefined);
-});
-
-test('structureStrings lists every string the guard has to anchor', () => {
-  const r = JsonResumeSchema.parse({
-    basics: { name: 'Nazar Boyko', summary: 'Ten years.', profiles: ['github.com/n'] },
-    work: [{ name: 'V Shred', position: 'Senior', highlights: ['Shipped a thing.'] }],
-    skills: [{ name: 'Programming', keywords: ['PHP', 'Go'] }],
-    extras: [{ heading: 'AWARDS', lines: ['Something'] }],
-  });
-  const strings = structureStrings(r);
-  for (const expected of ['Nazar Boyko', 'Ten years.', 'github.com/n', 'V Shred', 'Senior', 'Shipped a thing.', 'Programming', 'PHP', 'Go', 'AWARDS', 'Something']) {
-    assert.ok(strings.includes(expected), `missing ${expected}`);
-  }
-  assert.ok(!strings.includes(''), 'no empty strings reach the guard');
 });
 
 test('structureCoverage counts what the page reports', () => {
