@@ -4,6 +4,20 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.44.0] — 2026-09-04
+
+### Changed
+- **A source that needs your own account stays out of sight until you have
+  one.** Adzuna and France Travail are no longer suggested on Companies,
+  no longer listed in its add-company form, and never fetched until the
+  credential is in place — nothing points a user at a source they cannot
+  use. They are opt-in extras, and the place to opt in is Settings →
+  Sources.
+- That section is now **"Extra sources — a free account of your own"** and
+  says, per vendor, what it adds, when it is worth it (and when it is
+  not — most people need neither), what the vendor asks in return, and
+  where to register. Each row shows whether it is ready or not set up.
+
 ## [1.43.0] — 2026-09-04
 
 ### Added

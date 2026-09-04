@@ -87,10 +87,23 @@ each is met:
   it; a row makes one call per 150 offers per tick, sequentially.
 - Art. 10: credentials lapse after twelve months without a call.
 
+**4. A keyed source is invisible until its credential exists** (added
+2026-09-04, v1.44.0). ApplyPack is installed by many people in many
+countries; most of them need neither vendor. Suggesting a source that
+cannot work — or letting the add-company form offer it, so the first thing
+the user meets is a probe error — is noise at best and, for a user who
+would fall outside a vendor's personal-use terms, an invitation to a
+mistake. So `sourceUnlocked()` gates all three surfaces: the suggestion
+card, the add-company form and the fetch. The Sources tab is where the
+user opts in, and it says per vendor what the source adds, when it is
+worth having, and what the vendor asks in return — including the case for
+not using it at all.
+
 ## Consequences
 
 - `src/source-keys.ts` (pure) is the second key module beside `ai-keys.ts`;
-  a third keyed source adds one entry to `SOURCE_KEY_FIELDS`.
+  a third keyed source adds one entry to `SOURCE_KEY_FIELDS` — and, being
+  keyed, is hidden by rule 4 until the user registers.
 - A keyed source with no key is a health status (`auth`) with a sentence
   pointing at the Sources tab, not a crash and not a silent empty.
 - The attribution components are the terms' wording rendered; changing
