@@ -24,7 +24,22 @@ import {
   toggleTelegramTarget,
   getSourceKeys,
   setSourceKey,
+  getInstanceId,
+  setSchedule,
 } from '../../settings';
+import { config } from '../../config';
+import { cronMinute } from '../../schedule';
+import {
+  ALL_DAYS,
+  MAX_DIGEST_HOURS,
+  ScheduleSchema,
+  describeNextFetch,
+  describeSchedule,
+  lastRealFetch,
+  nextFetchAt,
+  parseSchedule,
+} from '../../user-schedule';
+import { countHeldAlerts } from '../../jobs/alert-delivery';
 import {
   addStage,
   allStages,
@@ -151,6 +166,35 @@ export const settingsRoute = new Hono();
 
 /** Everything the settings page needs except activeTab/flash/profileDraft —
  *  shared by the GET and by POSTs that render a draft instead of redirecting. */
+
+/**
+ * The zone picker's options: every IANA zone the runtime knows, plus the
+ * stored one if this Node build has never heard of it (so a schedule saved
+ * on another machine is not silently rewritten by the select).
+ */
+function supportedTimezones(current: string): string[] {
+  const zones = Intl.supportedValuesOf('timeZone');
+  return zones.includes(current) ? [...zones] : [current, ...zones];
+}
+
+/** The last few fetch runs, for "next check at" — the same source the gate uses. */
+async function recentFetchRuns() {
+  return prisma.cronRun.findMany({
+    where: { name: 'fetch' },
+    select: { startedAt: true, stats: true },
+    orderBy: { startedAt: 'desc' },
+    take: RUN_LOOKBACK,
+  });
+}
+
+/** This install's cron minute, so "next check" names the minute the worker will actually wake at. */
+async function cronMinuteHere(): Promise<number> {
+  return cronMinute(await getInstanceId(), 'fetch');
+}
+
+/** How far back "next check" looks for a real fetch; matches the gate's own lookback. */
+const RUN_LOOKBACK = 400;
+
 async function loadSettingsProps() {
   // The keys are read once and lent to the probe — both need them (ADR 0027).
   const aiKeys = await getAiKeys();
@@ -168,6 +212,18 @@ async function loadSettingsProps() {
         where: { pipelineStage: { not: null } },
       }),
     ]);
+  const schedule = parseSchedule(settings.schedule, config.TZ);
+  const now = new Date();
+  const scheduleView = {
+    schedule,
+    zones: supportedTimezones(schedule.timezone),
+    nextFetch: describeNextFetch(
+      nextFetchAt(now, schedule, lastRealFetch(await recentFetchRuns()), await cronMinuteHere()),
+      now,
+      schedule.timezone,
+    ),
+    held: await countHeldAlerts(),
+  };
   const countByStage = new Map(
     stageCounts.map((row) => [row.pipelineStage, row._count._all]),
   );
@@ -236,6 +292,7 @@ async function loadSettingsProps() {
     allSources: Object.values(AtsType).filter((t) => t !== AtsType.MANUAL),
     sourceKeyRows: sourceKeyRows(await getSourceKeys()),
     fetchingEnabled: settings.fetchingEnabled,
+    schedule: scheduleView,
     aiEngines,
     aiStatus,
     targets: targets.map((t) => ({
@@ -311,6 +368,60 @@ settingsRoute.post('/settings/fetching-toggle', async (c) => {
   }
   return flashRedirect(back, 'ok', 'Job fetching resumed — next hourly tick will pull new jobs.');
 });
+
+
+/**
+ * Saves the whole Schedule card (TASKS §16). Day and digest pills are
+ * repeated checkboxes, so the body is read with `{ all: true }` (gotcha 1);
+ * an empty day set would silence the search forever, so it falls back to
+ * every day rather than saving nothing.
+ */
+settingsRoute.post('/settings/schedule', async (c) => {
+  const form = await c.req.parseBody({ all: true });
+  const current = parseSchedule((await getSettings()).schedule, config.TZ);
+  const candidate = {
+    timezone: str(form.timezone) || current.timezone,
+    fetch: {
+      every: str(form.fetchEvery),
+      from: hour(form.fetchFrom, current.fetch.from),
+      to: hour(form.fetchTo, current.fetch.to),
+      days: pills(form.fetchDays, ALL_DAYS),
+    },
+    alerts: {
+      mode: str(form.alertMode),
+      from: hour(form.alertFrom, current.alerts.from),
+      to: hour(form.alertTo, current.alerts.to),
+      days: pills(form.alertDays, ALL_DAYS),
+      digestAt: pills(form.digestAt, current.alerts.digestAt).slice(0, MAX_DIGEST_HOURS),
+    },
+  };
+  const parsed = ScheduleSchema.safeParse(candidate);
+  if (!parsed.success) {
+    const first = parsed.error.issues[0];
+    return flashRedirect('/settings?tab=general', 'err', `Schedule not saved: ${first?.path.join('.') ?? 'input'} — ${first?.message ?? 'invalid'}.`);
+  }
+  await setSchedule(parsed.data);
+  const held = await countHeldAlerts();
+  const waiting = parsed.data.alerts.mode !== 'instant' && held > 0 ? ` ${held} waiting ${held === 1 ? 'match' : 'matches'} will go out at the next window.` : '';
+  return flashRedirect('/settings?tab=general', 'ok', `Schedule saved — ${describeSchedule(parsed.data)}.${waiting}`);
+});
+
+function str(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+/** One hour select; anything unreadable keeps what was stored. */
+function hour(value: unknown, fallback: number): number {
+  const n = Number(str(value));
+  return Number.isInteger(n) && n >= 0 && n <= 23 ? n : fallback;
+}
+
+/** Repeated checkboxes → numbers. An empty set means the user unticked them all, which is never what they meant. */
+function pills(value: unknown, fallback: readonly number[]): number[] {
+  const raw = Array.isArray(value) ? value : value === undefined ? [] : [value];
+  const picked = raw.map((v) => Number(str(v))).filter((n) => Number.isInteger(n));
+  return picked.length > 0 ? picked : [...fallback];
+}
 
 // --- Telegram toggle / targets ---------------------------------------------
 

@@ -7,10 +7,17 @@ import { activeFetchRun } from '../fetch-runs';
 import { loadWelcomeContext } from '../welcome-facts';
 import { currentStep, needsWelcome } from '../welcome-steps';
 import { OverviewPage } from '../pages/overview';
+import { config } from '../../config';
+import { cronMinute } from '../../schedule';
+import { getInstanceId } from '../../settings';
+import { countHeldAlerts } from '../../jobs/alert-delivery';
+import { describeNextFetch, isFetchDue, lastRealFetch, nextFetchAt, parseSchedule } from '../../user-schedule';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const RECENT_LIMIT = 8;
 const CRON_NAMES = ['fetch', 'digest', 'cleanup'] as const;
+/** How far back the pill looks for a real fetch; matches the gate's own lookback. */
+const SCHEDULE_LOOKBACK = 400;
 
 export const overviewRoute = new Hono();
 
@@ -55,6 +62,22 @@ overviewRoute.get('/', async (c) => {
     status: r.status,
     count: r._count._all,
   }));
+  // The status pill's third state: the schedule says this hour is not one of
+  // the user's, so the next heartbeat that searches is named (TASKS §16).
+  const schedule = parseSchedule(settings.schedule, config.TZ);
+  const now = new Date();
+  const lastFetch = lastRealFetch(
+    await prisma.cronRun.findMany({
+      where: { name: 'fetch' },
+      select: { startedAt: true, stats: true },
+      orderBy: { startedAt: 'desc' },
+      take: SCHEDULE_LOOKBACK,
+    }),
+  );
+  const sleepingUntil = isFetchDue(now, schedule, lastFetch)
+    ? ''
+    : describeNextFetch(nextFetchAt(now, schedule, lastFetch, cronMinute(await getInstanceId(), 'fetch')), now, schedule.timezone);
+
   const latestRuns = CRON_NAMES.map((name, i) => ({
     name,
     run: latestRunRows[i] ?? null,
@@ -67,6 +90,8 @@ overviewRoute.get('/', async (c) => {
       recentAlerts={recentAlerts}
       latestRuns={latestRuns}
       fetchingEnabled={settings.fetchingEnabled}
+      sleepingUntil={sleepingUntil}
+      heldAlerts={await countHeldAlerts()}
       fetchRun={activeFetchRun()}
       finishSetup={currentStep(facts) !== null}
       flash={parseFlashCookie(c.req.header('cookie'))}
