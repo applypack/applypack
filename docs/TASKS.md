@@ -1516,12 +1516,26 @@ enum AtsType { … FEED CAREER_PAGE }        // atsToken = the feed URL / the ca
   sites and costs a hash. Revisit only if a future owner list is made of
   WordPress/plugin-driven career sites, where the rung does fire.
 
-**Stage C — `change-watch` (last rung; ~½ session)**
-- [ ] **Analyse first:** run the hash over three dynamic career pages for
-      two days; count false positives; pick the normalisation.
-- [ ] `add change watch` — `page-hash.ts` + tests; `lastContentHash`;
-      "Careers page changed" alert once a day; `/companies` shows "watching
-      for changes" honestly instead of a job count.
+**Stage C — `change-watch` — SHIPPED v1.50.0 (ADR 0036)**
+- [x] **Analyse first** — done differently and better: rather than one sample
+      a day for two days, the same ten careers pages were fetched three times
+      ninety seconds apart, so every difference was certainly noise. Raw HTML
+      changed on **4 of 10**; `stripHtml` on **0 of 10**. Then their text was
+      scanned for anything time-dependent: no dates, no relative timestamps,
+      no countdowns — the only digits were Datadog's "92 positions", PostHog's
+      "0 Job" and Doist's "2024 Open roles", every one of them the signal.
+      **So the plan's digit masking was dropped**: it would have hashed "92
+      positions" and "93 positions" to the same string.
+      ([company-watchlist.md](./company-watchlist.md) stage C section.)
+- [x] `add change watch` — `page-hash.ts` (pure, 13 tests) + `CAREER_PAGE` +
+      `lastContentHash` / `lastContentAlertAt`; `fetchers/career-page.ts`
+      returns `[]` forever and stages through `watchlist/page-changes.ts`;
+      `jobs/page-change-alerts.ts` sends one grouped message after the walk
+      and only then advances the hash. `/companies` says *Page changes* and
+      *watching* instead of a count.
+- [x] The resolver's last rung is now `changeWatch` rather than a dead end, so
+      a page with prose is addable; one with almost no text stays `watchOnly`
+      (hashing a loading shell reports the shell).
 
 **Verification (all stages).** Pure modules unit-tested next to the file;
 each fetcher smoke-run on the owner's list with fixtures recorded; a refused

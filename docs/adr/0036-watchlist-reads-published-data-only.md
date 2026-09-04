@@ -49,9 +49,21 @@ Three measurements shaped the rules more than the totals:
 **A watch check reads only published machine-readable data, in this order,
 and stops at the first rung that answers:** the ATS behind the page (the
 vendor's own documented API), then an RSS/Atom feed whose own path names jobs.
-Stage B adds sitemap + JSON-LD `JobPosting`; stage C adds a page-text hash
-that says "this page changed" and never claims to know the jobs. Anything
-below that is `watchOnly` — labelled honestly on screen, not half-added.
+Stage C adds a page-text hash that says "this page changed" and never claims
+to know the jobs. Anything below that is `watchOnly` — labelled honestly on
+screen, not half-added.
+
+**Stage B (sitemap + JSON-LD) was measured and not built** (2026-09-04): of 41
+career pages across two continents, none publishes usable `JobPosting`, and
+only 2 have a sitemap that lists one URL per posting. The rung holds for job
+*boards*, which feeds and APIs already reach.
+
+**Stage C's normalisation is `stripHtml` plus collapsed whitespace, and
+nothing else.** The plan proposed masking digits to absorb dates; measured
+across ten careers pages, none carried a date or a relative timestamp, and the
+only digits in their prose were the counts that ARE the signal — Datadog's "92
+positions", PostHog's "0 Job". Raw HTML changed on 4 of 10 between two fetches
+ninety seconds apart (nonces, build ids); `stripHtml` changed on none.
 
 **No headless browser, ever** — not Playwright, not Puppeteer, not a
 rendering service. A page that needs JavaScript to list its jobs is a page
