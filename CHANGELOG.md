@@ -4,6 +4,37 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.47.0] — 2026-09-04
+
+### Added
+- **A Schedule card on Settings → General: when the search runs, and when
+  alerts arrive.** Pick a time zone once and it rules every hour on the page.
+  The search gets a cadence (every hour, 2 h, 4 h, once a day), a window of
+  whole hours and a set of weekdays — "every 4 hours, 07:00–23:59, Mon–Fri".
+  Alerts get three choices: **Right away** (what it has always done),
+  **Only during these hours** (a match found at 03:00 waits and arrives in one
+  message when the window opens), or **As one digest** at times you pick.
+- The Overview status pill gained a third state, **"Sleeping until Mon 07:05"**,
+  and a line saying how many matches are waiting for the alert window.
+- The run row on /runs says `outside-schedule` when a heartbeat did not search,
+  the way it already said `fetching-paused`.
+
+### Changed
+- **The daily recap and the stale-application nudge now go out at the digest
+  times you set**, instead of at 09:00 and 08:00 in the server's zone. With no
+  schedule saved that is 09:00 in `TZ` for both — the recap does not move, the
+  nudge moves by an hour.
+- The cron is untouched: it still beats hourly at this install's own minute
+  ([ADR 0035](docs/adr/0035-many-installs-one-set-of-boards.md)) and a tested
+  pure gate decides whether that beat does anything. No cron expressions to
+  write, nothing to restart.
+- **"Fetch now" ignores the schedule entirely**, exactly as it ignores the
+  pause — you are at the screen and you just asked.
+
+### Notes
+- An empty schedule means today's behaviour in every respect, so nothing
+  changes until you open the card. Both new columns are NULL on upgrade.
+
 ## [1.46.0] — 2026-09-04
 
 ### Fixed

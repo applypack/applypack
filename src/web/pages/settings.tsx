@@ -15,6 +15,7 @@ import { isBlankProfile, MAX_ACTIVE_PROFILES } from '../../profile-guards';
 import { SENIORITY_LEVELS } from '../../resume/profile-draft';
 import { ACCEPTED_EXTENSIONS } from '../../resume/resume-text';
 import { MAX_UPLOAD_MB } from '../upload';
+import { ALERT_MODES, ALL_DAYS, DAY_LABELS, FETCH_EVERY, MAX_DIGEST_HOURS, describeSchedule, type Schedule } from '../../user-schedule';
 
 interface MaskedTarget {
   id: number;
@@ -78,6 +79,17 @@ export interface AiEngineRow {
   maskedKey: string;
 }
 
+/** Everything the Schedule card renders, resolved by the route (TASKS §16). */
+export interface ScheduleView {
+  schedule: Schedule;
+  /** IANA zones the runtime knows, for the picker. */
+  zones: string[];
+  /** "today at 14:05" — already formatted in the schedule's own zone. */
+  nextFetch: string;
+  /** Matches waiting for the alert window to open. */
+  held: number;
+}
+
 export interface AiStatusSummary {
   active: string;
   chain: string[];
@@ -124,6 +136,7 @@ export interface SettingsProps {
   sourceKeyRows: SourceKeyRow[];
   allSources: string[];
   fetchingEnabled: boolean;
+  schedule: ScheduleView;
   aiEngines: AiEngineRow[];
   aiStatus: AiStatusSummary;
   targets: MaskedTarget[];
@@ -152,6 +165,152 @@ const Section: FC<PropsWithChildren<{ title: string; desc?: string | Child }>> =
   </section>
 );
 
+
+/**
+ * The Schedule card (TASKS §16.3). Whole hours only, one time zone for
+ * everything the user sees, and every control saves with the form — no
+ * JavaScript, so the day pills are plain checkboxes and the route reads them
+ * with `parseBody({ all: true })` (gotcha 1).
+ */
+const HOURS = Array.from({ length: 24 }, (_, h) => h);
+
+const HourSelect: FC<{ name: string; value: number; label: string; hint?: string }> = ({ name, value, label, hint }) => (
+  <Field label={label} hint={hint} class="w-40">
+    <Select name={name}>
+      {HOURS.map((h) => (
+        <option value={String(h)} selected={h === value}>
+          {String(h).padStart(2, '0')}:00
+        </option>
+      ))}
+    </Select>
+  </Field>
+);
+
+const DayPills: FC<{ name: string; days: readonly number[] }> = ({ name, days }) => (
+  <fieldset class="mt-1.5">
+    <legend class="sr-only">Days</legend>
+    <div class="flex flex-wrap gap-1.5">
+      {ALL_DAYS.map((d) => (
+        <PillCheckbox name={name} value={String(d)} checked={days.includes(d)}>
+          {DAY_LABELS[d - 1]}
+        </PillCheckbox>
+      ))}
+    </div>
+  </fieldset>
+);
+
+const EVERY_LABEL: Record<(typeof FETCH_EVERY)[number], string> = {
+  hour: 'Every hour',
+  '2h': 'Every 2 hours',
+  '4h': 'Every 4 hours',
+  day: 'Once a day',
+};
+
+const ALERT_MODE_TITLE: Record<(typeof ALERT_MODES)[number], string> = {
+  instant: 'Right away',
+  window: 'Only during these hours',
+  digest: 'As one digest',
+};
+
+export const ScheduleCard: FC<{ view: ScheduleView }> = ({ view }) => {
+  const { schedule: s, zones, nextFetch, held } = view;
+  return (
+    <Card>
+      <form method="post" action="/settings/schedule" class="space-y-5">
+        <Field
+          label="Time zone"
+          hint="Used for every hour on this card — the search window, the alert window and the digest."
+          class="max-w-sm"
+        >
+          <Select name="timezone">
+            {zones.map((z) => (
+              <option value={z} selected={z === s.timezone}>
+                {z}
+              </option>
+            ))}
+          </Select>
+        </Field>
+
+        <div class="border-t border-line pt-4">
+          <div class="text-[13px] font-medium text-ink">Check for jobs</div>
+          <Hint class="mt-0.5 mb-2">
+            {describeSchedule(s)}
+            {nextFetch ? ` · next check ${nextFetch}` : ''}
+          </Hint>
+          <div class="flex flex-wrap items-end gap-3">
+            <Field label="How often" class="w-44">
+              <Select name="fetchEvery">
+                {FETCH_EVERY.map((e) => (
+                  <option value={e} selected={e === s.fetch.every}>
+                    {EVERY_LABEL[e]}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <HourSelect name="fetchFrom" value={s.fetch.from} label="From" />
+            <HourSelect name="fetchTo" value={s.fetch.to} label="To (inclusive)" />
+          </div>
+          <DayPills name="fetchDays" days={s.fetch.days} />
+          <Hint class="mt-2">
+            "Fetch now" ignores all of this — press it whenever you want a tick.
+          </Hint>
+        </div>
+
+        <div class="border-t border-line pt-4">
+          <div class="text-[13px] font-medium text-ink">Send alerts</div>
+          {held > 0 && (
+            <Hint class="mt-0.5 text-warn">
+              {held} {held === 1 ? 'match is' : 'matches are'} waiting for the next window.
+            </Hint>
+          )}
+          <div class="mt-2 grid gap-2 sm:grid-cols-3">
+            {ALERT_MODES.map((mode) => (
+              <Radio
+                name="alertMode"
+                value={mode}
+                checked={mode === s.alerts.mode}
+                title={ALERT_MODE_TITLE[mode]}
+              >
+                {mode === 'instant'
+                  ? 'One message per match, the moment it is scored. This is the default.'
+                  : mode === 'window'
+                    ? 'Matches found outside the hours arrive in one message when it opens.'
+                    : 'Nothing arrives on the spot; everything comes at the times below.'}
+              </Radio>
+            ))}
+          </div>
+          <div class="mt-4 border-t border-line pt-3">
+            <Hint>
+              The hours and days below apply to "Only during these hours". Everything found
+              outside them waits and arrives in one message when the window opens.
+            </Hint>
+            <div class="mt-2 flex flex-wrap items-end gap-3">
+              <HourSelect name="alertFrom" value={s.alerts.from} label="Alerts from" />
+              <HourSelect name="alertTo" value={s.alerts.to} label="Until (inclusive)" />
+            </div>
+            <DayPills name="alertDays" days={s.alerts.days} />
+          </div>
+          <Field
+            label="Digest times"
+            hint={`Up to ${MAX_DIGEST_HOURS}. Also when the daily recap and the stale-application nudge go out.`}
+            class="mt-3"
+          >
+            <div class="flex flex-wrap gap-1.5">
+              {HOURS.map((h) => (
+                <PillCheckbox name="digestAt" value={String(h)} checked={s.alerts.digestAt.includes(h)}>
+                  {String(h).padStart(2, '0')}
+                </PillCheckbox>
+              ))}
+            </div>
+          </Field>
+        </div>
+
+        <Button type="submit">Save schedule</Button>
+      </form>
+    </Card>
+  );
+};
+
 export const SettingsPage: FC<SettingsProps> = ({
   telegramEnabled,
   classifierMode,
@@ -163,6 +322,7 @@ export const SettingsPage: FC<SettingsProps> = ({
   sourceKeyRows,
   allSources,
   fetchingEnabled,
+  schedule,
   aiEngines,
   aiStatus,
   targets,
@@ -222,6 +382,15 @@ export const SettingsPage: FC<SettingsProps> = ({
             digests and cleanup keep running.
           </ToggleRow>
         </Card>
+      </Section>
+      )}
+
+      {activeTab === 'general' && (
+      <Section
+        title="Schedule"
+        desc="When the search runs and when alerts arrive. Defaults to what it has always done: every hour, around the clock, one message per match."
+      >
+        <ScheduleCard view={schedule} />
       </Section>
       )}
 

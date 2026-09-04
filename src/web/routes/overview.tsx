@@ -7,6 +7,8 @@ import { activeFetchRun } from '../fetch-runs';
 import { loadWelcomeContext } from '../welcome-facts';
 import { currentStep, needsWelcome } from '../welcome-steps';
 import { OverviewPage } from '../pages/overview';
+import { countHeldAlerts } from '../../jobs/alert-delivery';
+import { loadNextCheck } from '../schedule-view';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const RECENT_LIMIT = 8;
@@ -55,6 +57,11 @@ overviewRoute.get('/', async (c) => {
     status: r.status,
     count: r._count._all,
   }));
+  // The status pill's third state: the schedule says this hour is not one of
+  // the user's, so the next heartbeat that searches is named (TASKS §16).
+  const check = await loadNextCheck(settings.schedule);
+  const sleepingUntil = check.dueNow ? '' : check.next;
+
   const latestRuns = CRON_NAMES.map((name, i) => ({
     name,
     run: latestRunRows[i] ?? null,
@@ -67,6 +74,8 @@ overviewRoute.get('/', async (c) => {
       recentAlerts={recentAlerts}
       latestRuns={latestRuns}
       fetchingEnabled={settings.fetchingEnabled}
+      sleepingUntil={sleepingUntil}
+      heldAlerts={await countHeldAlerts()}
       fetchRun={activeFetchRun()}
       finishSetup={currentStep(facts) !== null}
       flash={parseFlashCookie(c.req.header('cookie'))}

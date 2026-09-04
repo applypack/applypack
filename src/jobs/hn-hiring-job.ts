@@ -3,7 +3,7 @@ import { prisma } from '../db';
 import { logger } from '../logger';
 import { fetchHnHiring, findLatestHiringThread } from '../fetchers/hn-hiring';
 import { listActiveProfiles } from '../profiles';
-import { getSettings } from '../settings';
+import { getSchedule, getSettings } from '../settings';
 import { recordCandidatesFromText } from '../discovery';
 import { makeFetchPauseProbe } from './fetch-pause';
 import { processNormalizedJobs, type ProcessStats } from './process-jobs';
@@ -100,8 +100,10 @@ export async function runHnHiringJob(): Promise<{ stats: CronStats }> {
     abortedMidRun: 0,
     skippedByPause: 0,
     skippedBlankProfile: 0,
+    alertHeld: 0,
   };
   await processNormalizedJobs(items, profiles, inner, {
+    schedule: await getSchedule(),
     classifierMode: settings.classifierMode,
     isCancelled: paused,
   });

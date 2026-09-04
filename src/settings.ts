@@ -5,6 +5,8 @@ import { logger } from './logger';
 import type { AiEngineConfig } from './ai-engine';
 import { parseAiKeys, type AiKeyProviderId, type AiKeys } from './ai-keys';
 import { parseSourceKeys, type KeyedSource, type SourceKeyField, type SourceKeys } from './source-keys';
+import { parseSchedule, type Schedule } from './user-schedule';
+import { config } from './config';
 
 export const SETTINGS_ID = 1;
 const TELEGRAM_API = 'https://api.telegram.org';
@@ -31,6 +33,8 @@ export interface AppSettingsView {
   coverAngles: unknown;
   /** Raw AppSettings.pipelineStages JSON — parse with parseStageConfig (ADR 0025). */
   pipelineStages: unknown;
+  /** Raw AppSettings.schedule JSON — parse with parseSchedule (TASKS §16). */
+  schedule: unknown;
   /** NULL until the first-run wizard finishes or is skipped — `/` redirects to /welcome meanwhile. */
   setupCompletedAt: Date | null;
   updatedAt: Date;
@@ -72,6 +76,7 @@ export async function getSettings(): Promise<AppSettingsView> {
     aiUsage: row.aiUsage,
     coverAngles: row.coverAngles,
     pipelineStages: row.pipelineStages,
+    schedule: row.schedule,
     setupCompletedAt: row.setupCompletedAt,
     updatedAt: row.updatedAt,
   };
@@ -216,6 +221,26 @@ export async function setSourceKey(source: KeyedSource, field: SourceKeyField, v
       WHERE id = ${SETTINGS_ID}`;
   }
   logger.info({ source, field, stored: secret.length > 0 }, 'settings: source key updated');
+}
+
+/**
+ * The schedule as the gate wants it: parsed, with `config.TZ` standing in for
+ * a zone the user never chose. One read per heartbeat, so a change on
+ * /settings takes effect on the next one (gotcha 9).
+ */
+export async function getSchedule(): Promise<Schedule> {
+  const row = await prisma.appSettings.findUnique({ where: { id: SETTINGS_ID }, select: { schedule: true } });
+  return parseSchedule(row?.schedule ?? null, config.TZ);
+}
+
+/** Stores the whole object — a schedule is only ever edited as one form. */
+export async function setSchedule(schedule: Schedule): Promise<void> {
+  await prisma.appSettings.upsert({
+    where: { id: SETTINGS_ID },
+    update: { schedule },
+    create: { id: SETTINGS_ID, schedule },
+  });
+  logger.info({ schedule }, 'settings: schedule updated');
 }
 
 export async function setTelegramEnabled(enabled: boolean): Promise<void> {

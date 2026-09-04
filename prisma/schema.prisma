@@ -147,6 +147,11 @@ model Job {
   summary         String?   @db.Text
   status          JobStatus @default(NEW)
   alertedAt       DateTime?
+  // TASKS §16: set when a match was scored outside the alert window, so the
+  // next heartbeat inside it delivers a grouped message instead of twelve
+  // separate ones at 03:00. The row stays NEW and its verdicts are already
+  // in job_score; cleared when it goes out.
+  alertHeldAt     DateTime?
 
   // Application tracking (Phase 3.4). pipelineStage is orthogonal to status:
   //   status        = inbox state (NEW / ALERTED / SAVED / DISMISSED / APPLIED)
@@ -193,6 +198,8 @@ model Job {
 
   @@unique([companyId, externalId])
   @@index([status, fetchedAt])
+  // Delivery reads the held rows on every heartbeat; almost always none.
+  @@index([alertHeldAt])
   @@index([pipelineStage, appliedAt])
   // The dedup scan reads fingerprints from the last 90 days.
   @@index([fetchedAt, descriptionSimhash])
@@ -306,6 +313,13 @@ model AppSettings {
   // ADR 0025: ordered work columns [{key,label}] between the fixed
   // 'applied' entry and the fixed rejected/ghosted exits. null = defaults.
   pipelineStages                 Json?
+  // TASKS §16: when the search runs and when alerts arrive, as one JSON
+  // object — { timezone, fetch: {every,from,to,days}, alerts:
+  // {mode,from,to,days,digestAt} }. NULL means the defaults in
+  // src/user-schedule.ts, which are exactly today's behaviour: hourly,
+  // around the clock, alerts the moment a match is scored. The cron is
+  // untouched; this is read by a pure gate on every heartbeat.
+  schedule                       Json?
   // First-run wizard (docs/onboarding-plan.md §2): NULL sends `/` to
   // /welcome. Set by the wizard's last step or "Skip setup"; the migration
   // backfills existing deployments so nobody is walked through setup twice.

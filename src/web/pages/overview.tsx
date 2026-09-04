@@ -43,6 +43,10 @@ export interface OverviewProps {
   recentAlerts: JobRow[];
   latestRuns: { name: string; run: RunRow | null }[];
   fetchingEnabled: boolean;
+  /** "" while the schedule lets every hour through; "Sleeping until Mon 07:05" otherwise (TASKS §16). */
+  sleepingUntil: string;
+  /** Matches scored outside the alert window, waiting for the next one. */
+  heldAlerts: number;
   /** The manual fetch in flight, if any — the button turns into a link to it. */
   fetchRun: FetchRun | null;
   /** A wizard step is still undone (skipped or not) — show the way back to /welcome. */
@@ -68,6 +72,8 @@ export const OverviewPage: FC<OverviewProps> = ({
   recentAlerts,
   latestRuns,
   fetchingEnabled,
+  sleepingUntil,
+  heldAlerts,
   fetchRun,
   finishSetup,
   flash,
@@ -97,8 +103,12 @@ export const OverviewPage: FC<OverviewProps> = ({
               class="flex items-center gap-2"
             >
               <input type="hidden" name="back" value="/" />
-              <Badge tone={fetchingEnabled ? 'ok' : 'neutral'}>
-                {fetchingEnabled ? 'Pipeline running' : 'Pipeline paused'}
+              <Badge tone={fetchingEnabled ? (sleepingUntil ? 'neutral' : 'ok') : 'neutral'}>
+                {!fetchingEnabled
+                  ? 'Pipeline paused'
+                  : sleepingUntil
+                    ? `Sleeping until ${sleepingUntil}`
+                    : 'Pipeline running'}
               </Badge>
               <Button size="sm" variant="secondary">
                 {fetchingEnabled ? 'Pause' : 'Resume'}
@@ -108,6 +118,20 @@ export const OverviewPage: FC<OverviewProps> = ({
         }
       />
       <Flash flash={flash} />
+
+      {fetchingEnabled && heldAlerts > 0 && (
+        <p class="-mt-2 mb-4 text-[13px] leading-5 text-ink-faint">
+          {heldAlerts} {heldAlerts === 1 ? 'match is' : 'matches are'} waiting for the alert
+          window to open —{' '}
+          <a
+            href="/settings?tab=general"
+            class="font-medium text-accent-strong transition-colors duration-150 hover:text-accent-deep"
+          >
+            change when alerts arrive
+          </a>
+          .
+        </p>
+      )}
 
       {!fetchingEnabled && (
         <p class="-mt-2 mb-4 text-[13px] leading-5 text-ink-faint">

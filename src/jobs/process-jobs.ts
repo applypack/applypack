@@ -14,6 +14,7 @@ import { isBlankProfile, NO_PROFILE_STACK_FLAG } from '../profile-guards';
 import { sendTelegramAlert } from '../notifier';
 import { attributionLine } from '../web/pages/attribution';
 import type { ClassifierMode } from '../settings';
+import { canAlertNow, type Schedule } from '../user-schedule';
 import {
   findCrossListing,
   fromDbBigInt,
@@ -58,6 +59,8 @@ export interface ProcessStats {
   skippedByPause: number;
   /** 1 when the tick skipped classify+alerts because no usable search is active. */
   skippedBlankProfile: number;
+  /** Matches scored outside the alert window; they wait for the next one (TASKS §16). */
+  alertHeld: number;
 }
 
 export interface ProcessOptions {
@@ -70,6 +73,13 @@ export interface ProcessOptions {
    */
   classify?: boolean;
   isCancelled?: () => Promise<boolean>;
+  /**
+   * When alerts may leave (TASKS §16). Read once per tick by the caller, so
+   * every posting of one run is judged against the same instant. Absent =
+   * send on the spot, which is what every caller did before the schedule
+   * existed.
+   */
+  schedule?: Schedule;
 }
 
 /** How far back the cross-listing scan looks. */
@@ -86,7 +96,8 @@ export async function processNormalizedJobs(
   stats: ProcessStats,
   opts: ProcessOptions,
 ): Promise<void> {
-  const { classifierMode, classify = true, isCancelled } = opts;
+  const { classifierMode, classify = true, isCancelled, schedule } = opts;
+  const mayAlert = schedule === undefined || canAlertNow(new Date(), schedule);
 
   // Issue #50: a search with no required stack and no role types has nothing
   // to gate on — the filter admits everything and the classifier scores on
@@ -265,6 +276,15 @@ export async function processNormalizedJobs(
     // A score produced without a required stack never alerts, whatever the
     // threshold or priority boosts say (issue #50). The row stays NEW.
     if (finalClassification.red_flags.includes(NO_PROFILE_STACK_FLAG)) {
+      continue;
+    }
+
+    // Outside the alert window the match is kept, not dropped: the row stays
+    // NEW with its verdicts already stored, and the next heartbeat inside the
+    // window sends it in one grouped message instead of twelve at 03:00.
+    if (!mayAlert) {
+      await prisma.job.update({ where: { id: created.id }, data: { alertHeldAt: new Date() } });
+      stats.alertHeld++;
       continue;
     }
 
