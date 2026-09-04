@@ -151,6 +151,10 @@ export function stripHtml(html: string): string {
       // Source newlines/tabs are not structure — block tags below are.
       .replace(/\s+/g, ' ')
       .replace(/<!--[\s\S]*?-->/g, ' ')
+      // Markup declarations — `<!DOCTYPE html>` and friends. The tag regex
+      // below needs a letter after `<`, so these used to survive it and show
+      // up at the head of every description taken from a whole page.
+      .replace(/<![^>]*>/g, ' ')
       .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, ' ')
       .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, ' ')
       .replace(/<li(?:\s[^>]*)?>/gi, '\n• ')

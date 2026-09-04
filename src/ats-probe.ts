@@ -7,6 +7,9 @@ import { isPersonioFeed, parsePersonioXml, personioFeedUrl, personioSlug } from 
 import { teamtailorFeedUrl, teamtailorHost } from './fetchers/teamtailor';
 import { adzunaCount, adzunaMarket, adzunaSearchUrl, fetchAdzunaJson } from './fetchers/adzuna';
 import { feedUrl, looksLikeFeed } from './fetchers/feed';
+import { careerPageUrl } from './fetchers/career-page';
+import { looksLikeChallenge } from './watchlist/scan';
+import { MIN_WATCHABLE_CHARS, normalisePageText } from './watchlist/page-hash';
 import { franceTravailProbeCount } from './fetchers/francetravail';
 import type { FranceTravailCredentials } from './fetchers/francetravail-auth';
 import { resolveSourceKeys, type SourceKeys } from './source-keys';
@@ -219,6 +222,27 @@ export async function probeAts(
         return items > 0
           ? { ok: true, jobsCount: items }
           : { ok: false, error: 'That feed is valid but carries no entries — it is not a job feed.' };
+      }
+      case AtsType.CAREER_PAGE: {
+        // There is no board to count. The check is that the page is reachable
+        // and has readable prose to hash — a bot check or an empty shell
+        // would make a change watch that reports the interstitial, not the
+        // careers page (ADR 0036).
+        let url: string;
+        try {
+          url = careerPageUrl(trimmed);
+        } catch (err) {
+          return { ok: false, error: err instanceof Error ? err.message.replace(/^career-page: /, '') : 'Invalid page URL.' };
+        }
+        const answer = await fetchWithRetry(url, { timeoutMs: 8_000 });
+        const html = await answer.text();
+        if (looksLikeChallenge(html)) {
+          return { ok: false, error: 'That page answered with a bot check, so its text cannot be watched.' };
+        }
+        const text = normalisePageText(html);
+        return text.length >= MIN_WATCHABLE_CHARS
+          ? { ok: true, jobsCount: 0 }
+          : { ok: false, error: 'That page has almost no text to watch — it probably needs JavaScript to render.' };
       }
       case AtsType.SMARTRECRUITERS:
         resp = await fetchWithRetry(

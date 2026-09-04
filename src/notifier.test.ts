@@ -4,6 +4,7 @@ import {
   escapeMarkdownV2,
   escapeMarkdownV2Url,
   formatJobMessage,
+  formatPageChangeMessage,
   formatPlaceLine,
   formatSalary,
   formatSourceHealthLine,
@@ -146,6 +147,29 @@ describe('formatJobMessage', () => {
     const msg = formatJobMessage({ ...base, crossListedAt: 'Acme (US) Inc. - Jobs' });
     assert.match(msg, /Also listed at Acme \\\(US\\\) Inc\\\. \\- Jobs/);
     assert.match(msg, /apply through one channel only/);
+  });
+});
+
+describe('formatPageChangeMessage', () => {
+  const acme = { companyName: 'Acme (EU) Ltd.', url: 'https://acme.com/careers?x=1' };
+
+  it('says what it knows and no more', () => {
+    const msg = formatPageChangeMessage([acme]);
+    assert.match(msg, /^\*★ A watched careers page changed\*/);
+    assert.match(msg, /cannot read this page for jobs/);
+  });
+
+  it('counts them when several changed', () => {
+    const msg = formatPageChangeMessage([acme, { companyName: 'Beta', url: 'https://beta.io/jobs' }]);
+    assert.match(msg, /^\*★ 2 watched careers pages changed\*/);
+  });
+
+  it('escapes the company name — parentheses and dots are reserved in MarkdownV2', () => {
+    assert.match(formatPageChangeMessage([acme]), /Acme \\\(EU\\\) Ltd\\\./);
+  });
+
+  it('links each page so the reader can go and look', () => {
+    assert.match(formatPageChangeMessage([acme]), /\]\(https:\/\/acme\.com\/careers\?x=1\)/);
   });
 });
 

@@ -19,11 +19,12 @@ import {
   Textarea,
   Tr,
 } from '../ui';
-import { formatUntil } from '../format';
+import { formatRelative, formatUntil } from '../format';
 import { sourceLabel } from '../source-names';
 import { CHECK_INTERVALS, intervalLabel } from '../../watchlist/interval';
 import { MAX_LINES } from '../../watchlist/parse-input';
 import { verdictLabel } from '../../watchlist/verdict';
+import type { ResolvedCompany } from '../../watchlist/resolve';
 import type { WatchlistRun } from '../watchlist-runs';
 
 /** One row of the watchlist section on /companies. */
@@ -42,6 +43,13 @@ export interface WatchedRow {
   jobsTotal: number;
   /** Postings stored since the user last opened this page. */
   newJobs: number;
+  /** §17 stage C — when we last said this page changed. */
+  lastContentAlertAt: Date | null;
+}
+
+/** A change watch produces no postings, so its row says different things. */
+function isChangeWatch(r: WatchedRow): boolean {
+  return r.atsType === 'CAREER_PAGE';
 }
 
 const INTERVAL_SELECT = (name: string, value: string, company?: string) => (
@@ -145,7 +153,20 @@ import { init } from '/static/watchlist.mjs';
 init();
 `;
 
-const VERDICT_TONE = { ats: 'ok', feed: 'ok', watchOnly: 'warn', refused: 'danger' } as const;
+const VERDICT_TONE = {
+  ats: 'ok',
+  feed: 'ok',
+  changeWatch: 'info',
+  watchOnly: 'warn',
+  refused: 'danger',
+} as const;
+
+/** The three verdicts that become a row. */
+const ADDABLE = ['ats', 'feed', 'changeWatch'] as const;
+
+function isAddable(r: ResolvedCompany): boolean {
+  return (ADDABLE as readonly string[]).includes(r.resolution.kind);
+}
 
 
 /**
@@ -154,8 +175,9 @@ const VERDICT_TONE = { ats: 'ok', feed: 'ok', watchOnly: 'warn', refused: 'dange
  * company we cannot read would be a row that is silent forever.
  */
 export const WatchlistPreviewPage: FC<{ run: WatchlistRun }> = ({ run }) => {
-  const addable = run.results.filter((r) => r.resolution.kind === 'ats' || r.resolution.kind === 'feed');
-  const rest = run.results.filter((r) => r.resolution.kind !== 'ats' && r.resolution.kind !== 'feed');
+  const addable = run.results.filter(isAddable);
+  const rest = run.results.filter((r) => !isAddable(r));
+  const watching = addable.filter((r) => r.resolution.kind === 'changeWatch').length;
   return (
     <Layout title="Add companies" active="companies">
       <PageHeader
@@ -191,6 +213,17 @@ export const WatchlistPreviewPage: FC<{ run: WatchlistRun }> = ({ run }) => {
               companies, so the <strong class="font-medium text-ink">first check scores
               everything they currently have up</strong> — on five companies that was 217
               postings. A longer interval is the lever if that is more AI than you want.
+              {watching > 0 && (
+                <>
+                  {' '}
+                  <strong class="font-medium text-ink">
+                    {watching} of these publish no board and no feed
+                  </strong>
+                  , so they are watched a different way: we hash the page&rsquo;s text and tell
+                  you when it changes, at most once a day. Those never produce postings and
+                  never cost AI — they say &ldquo;have a look&rdquo;.
+                </>
+              )}
             </Hint>
             <Table
               columns={['', 'Name', 'What we found', 'Source']}
@@ -223,11 +256,13 @@ export const WatchlistPreviewPage: FC<{ run: WatchlistRun }> = ({ run }) => {
                   </Td>
                   <Td class="text-ink-muted">
                     <div class="truncate text-xs" title={r.careerUrl}>
-                      {r.resolution.kind === 'ats' ? (
-                        <Code>{r.resolution.atsToken}</Code>
-                      ) : (
-                        <Code>{r.resolution.kind === 'feed' ? r.resolution.url : r.careerUrl}</Code>
-                      )}
+                      <Code>
+                        {r.resolution.kind === 'ats'
+                          ? r.resolution.atsToken
+                          : r.resolution.kind === 'feed'
+                            ? r.resolution.url
+                            : r.careerUrl}
+                      </Code>
                     </div>
                   </Td>
                 </Tr>
@@ -298,7 +333,9 @@ export const WatchlistSection: FC<{ rows: WatchedRow[] }> = ({ rows }) => {
         <Hint class="mb-3">
           Companies you chose by hand. They are checked on the same tick as your search, so they
           follow your schedule — set it on Settings → General. &ldquo;Every posting&rdquo; alerts
-          you about everything they put up, whatever your fit threshold says.
+          you about everything they put up, whatever your fit threshold says. A row marked{' '}
+          <em>Page changes</em> publishes no board and no feed: we cannot read its jobs, so we
+          watch the page&rsquo;s text and say when it moves.
         </Hint>
       </div>
       <Table
@@ -327,19 +364,29 @@ export const WatchlistSection: FC<{ rows: WatchedRow[] }> = ({ rows }) => {
               </form>
             </Td>
             <Td class="text-ink-muted">
-              <form method="post" action={`/companies/${r.id}/watch`}>
-                {POLICY_SELECT('alertPolicy', r.alertPolicy, r.name)}
-                <input type="hidden" name="checkEvery" value={r.checkEvery} />
-                <noscript>
-                  <Button size="sm" variant="secondary">Save</Button>
-                </noscript>
-              </form>
+              {isChangeWatch(r) ? (
+                <span class="text-[13px]" title="This page publishes no board and no feed, so there are no postings to score — we tell you when its text changes, at most once a day.">
+                  Page changes
+                </span>
+              ) : (
+                <form method="post" action={`/companies/${r.id}/watch`}>
+                  {POLICY_SELECT('alertPolicy', r.alertPolicy, r.name)}
+                  <input type="hidden" name="checkEvery" value={r.checkEvery} />
+                  <noscript>
+                    <Button size="sm" variant="secondary">Save</Button>
+                  </noscript>
+                </form>
+              )}
             </Td>
             <Td class="hidden whitespace-nowrap text-ink-muted sm:table-cell">
               {r.nextCheckAt === null ? 'next tick' : formatUntil(r.nextCheckAt)}
             </Td>
             <Td class="whitespace-nowrap">
-              {r.newJobs > 0 ? (
+              {isChangeWatch(r) ? (
+                <span class="text-[13px] text-ink-faint" title="A change watch never stores postings.">
+                  {r.lastContentAlertAt ? `changed ${formatRelative(r.lastContentAlertAt)}` : 'watching'}
+                </span>
+              ) : r.newJobs > 0 ? (
                 <a
                   href={`/jobs?q=${encodeURIComponent(r.name)}`}
                   class="font-medium text-accent"

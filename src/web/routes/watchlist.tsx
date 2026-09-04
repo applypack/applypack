@@ -218,6 +218,8 @@ watchlistRoute.post('/companies/:id/unwatch', async (c) => {
 export function sourceOf(r: ResolvedCompany): { atsType: AtsType; atsToken: string } | null {
   if (r.resolution.kind === 'ats') return { atsType: r.resolution.atsType, atsToken: r.resolution.atsToken };
   if (r.resolution.kind === 'feed') return { atsType: AtsType.FEED, atsToken: r.resolution.url };
+  // The last rung: no postings, just "this page changed" (ADR 0036).
+  if (r.resolution.kind === 'changeWatch') return { atsType: AtsType.CAREER_PAGE, atsToken: r.resolution.url };
   return null;
 }
 

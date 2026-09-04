@@ -48,6 +48,7 @@ import { fetchTeamtailor } from './teamtailor';
 import { MAX_ADZUNA_ROWS, fetchAdzuna } from './adzuna';
 import { fetchFranceTravail } from './francetravail';
 import { fetchFeed } from './feed';
+import { fetchCareerPage } from './career-page';
 import { getSourceKeys } from '../settings';
 import { politeDelayMs, shuffleSources, tickSeed } from './source-order';
 import { isDue, nextCheckAfter, watchRules, type WatchRules } from '../watchlist/interval';
@@ -216,7 +217,15 @@ async function recordFetchHealth(
 }
 
 export async function fetchOne(
-  company: { id: number; atsType: AtsType; atsToken: string },
+  company: {
+    id: number;
+    name: string;
+    atsType: AtsType;
+    atsToken: string;
+    /** §17 stage C — read by CAREER_PAGE only. */
+    lastContentHash?: string | null;
+    lastContentAlertAt?: Date | null;
+  },
   context: FetchContext = EMPTY_CONTEXT,
 ): Promise<NormalizedJob[]> {
   switch (company.atsType) {
@@ -292,6 +301,16 @@ export async function fetchOne(
       return fetchFranceTravail({ id: company.id, atsToken: company.atsToken }, context);
     case AtsType.FEED:
       return fetchFeed({ id: company.id, atsToken: company.atsToken });
+    case AtsType.CAREER_PAGE:
+      // The change watch (ADR 0036). It reports a changed page through
+      // `watchlist/page-changes.ts` and returns no jobs, ever.
+      return fetchCareerPage({
+        id: company.id,
+        name: company.name,
+        atsToken: company.atsToken,
+        lastContentHash: company.lastContentHash ?? null,
+        lastContentAlertAt: company.lastContentAlertAt ?? null,
+      });
     case AtsType.MANUAL:
       // Pasted by hand on /jobs/new — nothing to fetch (and the row is inactive).
       return [];

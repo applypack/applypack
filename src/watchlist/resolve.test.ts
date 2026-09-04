@@ -111,7 +111,7 @@ describe('rung 3 — the page links to a board', () => {
     assert.equal(r.requests, 2);
   });
 
-  it('falls through to watchOnly when the linked board does not resolve', async () => {
+  it('falls through when the linked board does not resolve', async () => {
     const stub = io({ pages: page('<a href="https://job-boards.greenhouse.io/ghost">Role</a>') });
     const r = await resolveCompanyUrl(paste('https://www.netlify.com/careers/'), stub);
     assert.equal(r.resolution.kind, 'watchOnly');
@@ -260,6 +260,53 @@ describe('rung 4 — a feed', () => {
     const r = await resolveCompanyUrl(paste('https://acme.com/careers'), stub);
     assert.ok(r.requests <= MAX_HOST_REQUESTS, `spent ${r.requests}`);
     assert.equal(stub.asked.length, r.requests);
+  });
+});
+
+describe('rung 5 — the change watch', () => {
+  const robots = { 'https://acme.com/robots.txt': { status: 404 } };
+  const prose = `<h1>Work with us</h1><p>${'We are hiring engineers. '.repeat(30)}</p>`;
+
+  it('offers a change watch when the page has prose but no board and no feed', async () => {
+    const stub = io({ pages: { ...robots, 'https://acme.com/careers': { status: 200, body: prose } } });
+    const r = await resolveCompanyUrl(paste('https://acme.com/careers'), stub, CLAUDE);
+    assert.equal(r.resolution.kind, 'changeWatch');
+    assert.equal((r.resolution as { url: string }).url, 'https://acme.com/careers');
+  });
+
+  // Hashing a loading shell reports the shell, not the careers page.
+  it('refuses to watch a page with almost no text', async () => {
+    const stub = io({
+      pages: { ...robots, 'https://acme.com/careers': { status: 200, body: '<div id="root"></div>' } },
+    });
+    const r = await resolveCompanyUrl(paste('https://acme.com/careers'), stub, CLAUDE);
+    assert.equal(r.resolution.kind, 'watchOnly');
+    assert.match((r.resolution as { reason: string }).reason, /needs JavaScript/);
+  });
+
+  // An embed-only board is a different problem, and saying "we will watch the
+  // page" would bury the one thing the user could act on.
+  it('keeps saying "embed-only" rather than offering a change watch', async () => {
+    const stub = io({
+      pages: {
+        'https://deno.com/robots.txt': { status: 404 },
+        'https://deno.com/jobs': { status: 200, url: 'https://jobs.ashbyhq.com/Deno', body: prose },
+      },
+    });
+    const r = await resolveCompanyUrl(paste('https://deno.com/jobs'), stub, CLAUDE);
+    assert.equal(r.resolution.kind, 'watchOnly');
+    assert.match((r.resolution as { reason: string }).reason, /embed-only/);
+  });
+
+  it('still prefers a board over a change watch', async () => {
+    const stub = io({
+      pages: {
+        ...robots,
+        'https://acme.com/careers': { status: 200, body: `${prose}<a href="https://job-boards.greenhouse.io/acme">Roles</a>` },
+      },
+      boards: { 'GREENHOUSE:acme': 7 },
+    });
+    assert.equal((await resolveCompanyUrl(paste('https://acme.com/careers'), stub, CLAUDE)).resolution.kind, 'ats');
   });
 });
 

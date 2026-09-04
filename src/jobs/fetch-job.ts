@@ -2,6 +2,8 @@ import { logger } from '../logger';
 import { prisma } from '../db';
 import { runAllFetchers, type SourceProgress } from '../fetchers';
 import { beginConditionalTick, commitConditionalCache, tickStoredEverything } from '../fetchers/conditional';
+import { beginPageChangeTick } from '../watchlist/page-changes';
+import { deliverPageChanges } from './page-change-alerts';
 import { syncFranceTravail, type MirrorStats } from './france-travail-sync';
 import { isFailureStatus } from '../fetchers/source-health';
 import { listActiveProfiles } from '../profiles';
@@ -91,6 +93,10 @@ export async function runFetchJob(opts: FetchJobOptions = {}): Promise<{ stats: 
   // Validators learned below are staged, not live, until the jobs they came
   // with are stored (docs/scale-plan.md §4).
   beginConditionalTick();
+  // A careers page that changed is staged by its fetcher during the walk and
+  // reported after it (TASKS §17 stage C); anything a previous run staged and
+  // never delivered is dropped here.
+  beginPageChangeTick();
   const fetched = await runAllFetchers(paused, (progress) => {
     sources = progress.done;
     if (isFailureStatus(progress.status)) sourcesFailed++;
@@ -101,6 +107,10 @@ export async function runFetchJob(opts: FetchJobOptions = {}): Promise<{ stats: 
     { count: fetched.length, sources, sourcesFailed, sourcesUnchanged },
     'fetch-job: total fetched',
   );
+
+  // Reported straight after the walk, before classification: the message
+  // carries no posting and costs no AI, so there is nothing to wait for.
+  const pageChanges = await deliverPageChanges(new Date(), schedule);
 
   // Phase 7.5 — universal ATS-URL discovery from any fetched job's URL
   // and description. The HN /jobs feed is the primary source: each
@@ -192,6 +202,7 @@ export async function runFetchJob(opts: FetchJobOptions = {}): Promise<{ stats: 
     sourcesFailed,
     ...(sourcesUnchanged > 0 && { sourcesUnchanged }),
     candidatesRecorded: candidates,
+    ...(pageChanges.alerted > 0 && { pagesChanged: pageChanges.alerted }),
     ...licence,
     ...delivery,
     ...inner,

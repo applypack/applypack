@@ -15,6 +15,8 @@ export function verdictLabel(r: Resolution): string {
       return `${sourceLabel(r.atsType)} · ${plural(r.jobs, 'posting')}`;
     case 'feed':
       return `RSS feed · ${r.items} ${r.items === 1 ? 'entry' : 'entries'}`;
+    case 'changeWatch':
+      return 'Change watch';
     case 'watchOnly':
       return 'Nothing machine-readable';
     case 'refused':
@@ -24,7 +26,9 @@ export function verdictLabel(r: Resolution): string {
 
 /** One line for the progress list: what was found, or why nothing was. */
 export function verdictLine(r: Resolution): string {
-  return r.kind === 'ats' || r.kind === 'feed' ? verdictLabel(r) : r.reason;
+  if (r.kind === 'ats' || r.kind === 'feed') return verdictLabel(r);
+  if (r.kind === 'changeWatch') return 'no board or feed — watching the page for changes';
+  return r.reason;
 }
 
 /** "That is an Ashby board, but the public posting API does not serve …" */

@@ -46,6 +46,11 @@ enum AtsType {
   // vendor-shaped types above are preferred whenever one of them resolves;
   // this is the rung below them (ADR 0036).
   FEED
+  // §17 stage C: a careers page with nothing machine-readable on it. atsToken
+  // is the page URL. It never yields a Job — it hashes the page's text and
+  // says "this changed, have a look", which is what a person checking daily
+  // actually does (ADR 0036).
+  CAREER_PAGE
   // Phase 8.2: pasted by hand on /jobs/new. One inactive Company row per
   // employer; runAllFetchers never touches it.
   MANUAL
@@ -115,6 +120,13 @@ model Company {
   // matches | all. `all` keeps and alerts every posting the company puts up,
   // whatever the base filter and the fit threshold say.
   alertPolicy String    @default("matches")
+
+  // §17 stage C — the change watch, for CAREER_PAGE rows only. The hash of
+  // the page's text as we last reported it, and when we last said so. The
+  // hash advances only when an alert is actually sent, so a change seen
+  // inside the once-a-day window waits rather than being lost.
+  lastContentHash    String?
+  lastContentAlertAt DateTime?
 
   @@unique([atsType, atsToken])
   @@index([active, nextCheckAt])
