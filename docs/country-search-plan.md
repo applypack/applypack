@@ -784,6 +784,13 @@ conversion, it moves it into the model's head for every comparison.
 - Salary: separate small PR — either `salary_min_usd` conversion constants
   reviewed monthly, or `minSalary` + `salaryCurrency` on the profile. Decide
   in the pre-work note; do not bundle with the eligibility PR.
+  *(done: v1.41.0, the first shape — the model reports the posting's own
+  `salary_min` / `salary_max` / `salary_currency` / `salary_period` and
+  never converts; `src/currency.ts` holds the dated rate table and the
+  working-year constants (220 days, 1 760 hours); `Job.salaryCurrency` and
+  `Job.salaryPeriod` are null on every older row, which reads as USD a
+  year; the `low-salary` dismissal in `verdict-merge.ts` converts before it
+  compares, which is the one place code ever compared the two)*
 - Bench: three gold fixtures with European postings added to
   `bench:resume`-style guard runs for the classifier rules.
 
@@ -828,8 +835,9 @@ Telegram line. The salary work stayed out, as this section says.*
    EU ATS, served token-less for its own pages, robots welcomes AI bots —
    but undocumented and 5 rows per page. Default: no, per "explicitly
    public".
-7. **Salary in EUR / PLN / GBP.** Own PR after stage 4; which of the two
-   designs in §5.1.
+7. **Salary in EUR / PLN / GBP.** ~~Own PR after stage 4; which of the two
+   designs in §5.1.~~ **Decided and shipped (v1.41.0):** conversion
+   constants in code, the model reports the posting's own money.
 
 ---
 
