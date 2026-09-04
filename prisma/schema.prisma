@@ -42,6 +42,10 @@ enum AtsType {
   TEAMTAILOR
   ADZUNA
   FRANCETRAVAIL
+  // §17 stage A: a generic RSS/Atom job feed, atsToken = the feed URL. The
+  // vendor-shaped types above are preferred whenever one of them resolves;
+  // this is the rung below them (ADR 0036).
+  FEED
   // Phase 8.2: pasted by hand on /jobs/new. One inactive Company row per
   // employer; runAllFetchers never touches it.
   MANUAL
@@ -99,7 +103,21 @@ model Company {
   // for every id, so `empty` alone never proves a board is alive.
   lastOkAt            DateTime?
 
+  // §17 stage A — the watchlist (ADR 0036). A company the user chose by
+  // hand, checked on its own interval and shown apart from the rest.
+  watched     Boolean   @default(false)
+  // hour | day | week. Presets, not cron: the interval rides on the hourly
+  // heartbeat and is bounded below by it and by the user's own schedule.
+  checkEvery  String    @default("hour")
+  // When this row is next due. NULL = due now, which is what a fresh row and
+  // a "Check now" both mean. Written after every attempt, failed ones too.
+  nextCheckAt DateTime?
+  // matches | all. `all` keeps and alerts every posting the company puts up,
+  // whatever the base filter and the fit threshold say.
+  alertPolicy String    @default("matches")
+
   @@unique([atsType, atsToken])
+  @@index([active, nextCheckAt])
   @@map("company")
 }
 

@@ -6,6 +6,7 @@ import { jobTechProbeUrl, parseJobTechTotal } from './fetchers/jobtech';
 import { isPersonioFeed, parsePersonioXml, personioFeedUrl, personioSlug } from './fetchers/personio';
 import { teamtailorFeedUrl, teamtailorHost } from './fetchers/teamtailor';
 import { adzunaCount, adzunaMarket, adzunaSearchUrl, fetchAdzunaJson } from './fetchers/adzuna';
+import { feedUrl, looksLikeFeed } from './fetchers/feed';
 import { franceTravailProbeCount } from './fetchers/francetravail';
 import type { FranceTravailCredentials } from './fetchers/francetravail-auth';
 import { resolveSourceKeys, type SourceKeys } from './source-keys';
@@ -198,6 +199,26 @@ export async function probeAts(
         return total > 0
           ? { ok: true, jobsCount: total }
           : { ok: false, error: 'JobTech answered no ads for this filter — check the taxonomy codes or the query.' };
+      }
+      case AtsType.FEED: {
+        // The token is the feed URL, so the probe is the fetch the tick will
+        // make. An item-less feed fails here on purpose: WordPress answers a
+        // well-formed, empty RSS at any `/<x>/feed` (measured on
+        // automattic.com), and adding that is adding a source that can never
+        // produce a posting.
+        let url: string;
+        try {
+          url = feedUrl(trimmed);
+        } catch (err) {
+          return { ok: false, error: err instanceof Error ? err.message.replace(/^feed: /, '') : 'Invalid feed URL.' };
+        }
+        const answer = await fetchWithRetry(url, { timeoutMs: 8_000 });
+        const xml = await answer.text();
+        if (!looksLikeFeed(xml)) return { ok: false, error: 'That URL answered something other than an RSS or Atom feed.' };
+        const items = (xml.match(/<item[\s>]|<entry[\s>]/gi) ?? []).length;
+        return items > 0
+          ? { ok: true, jobsCount: items }
+          : { ok: false, error: 'That feed is valid but carries no entries — it is not a job feed.' };
       }
       case AtsType.SMARTRECRUITERS:
         resp = await fetchWithRetry(

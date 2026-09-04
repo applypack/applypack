@@ -47,8 +47,10 @@ import { fetchPersonio } from './personio';
 import { fetchTeamtailor } from './teamtailor';
 import { MAX_ADZUNA_ROWS, fetchAdzuna } from './adzuna';
 import { fetchFranceTravail } from './francetravail';
+import { fetchFeed } from './feed';
 import { getSourceKeys } from '../settings';
 import { politeDelayMs, shuffleSources, tickSeed } from './source-order';
+import { isDue, nextCheckAfter, watchRules, type WatchRules } from '../watchlist/interval';
 import type { NormalizedJob } from '../types';
 
 export interface FetcherResult {
@@ -56,6 +58,8 @@ export interface FetcherResult {
   companyName: string;
   /** Which source the row came from — the alert's attribution line reads it (ADR 0034). */
   source: { atsType: AtsType; atsToken: string };
+  /** What the watchlist asks of this row's postings (ADR 0036). */
+  watch: WatchRules;
 }
 
 /** One source answered — live progress for the dashboard's "Fetch now" page. */
@@ -78,6 +82,7 @@ export async function runAllFetchers(
     logger.info({ disabled }, 'fetchers: skipping disabled source families');
   }
 
+  const now = new Date();
   const companies = await prisma.company.findMany({
     where: {
       active: true,
@@ -85,6 +90,15 @@ export async function runAllFetchers(
     },
     orderBy: { id: 'asc' },
   });
+  // The watchlist's intervals ride on this tick, they do not replace it
+  // (ADR 0036): the heartbeat still fires, the interval decides which rows it
+  // asks. A row with no `nextCheckAt` is due, so every source behaves exactly
+  // as it did before the column existed until the user changes one.
+  const due = companies.filter((c) => isDue(c, now));
+  const waiting = companies.length - due.length;
+  if (waiting > 0) {
+    logger.info({ due: due.length, waiting }, 'fetchers: some sources are not due yet');
+  }
 
   // Where the running searches hunt (stage 3a): sources with a geo filter
   // ask for these places instead of the whole world. Blank searches are
@@ -95,17 +109,19 @@ export async function runAllFetchers(
   }
   // The keyed sources' credentials ride in the context (ADR 0034); the
   // context is never logged whole from here on.
-  const context: FetchContext = { ...places, keys: await getSourceKeys(), manual: opts.manual === true, now: new Date() };
+  const context: FetchContext = { ...places, keys: await getSourceKeys(), manual: opts.manual === true, now };
   // Adzuna's monthly limit allows ten rows on the four-a-day cadence; any
   // beyond that are refused, not silently fetched (ADR 0034). Decided from
-  // the id order, BEFORE the shuffle: which markets are live has to be the
-  // same answer every tick, or the user cannot tell which ten they get.
+  // the id order and from the FULL active list — before the shuffle and
+  // before the due filter: which markets are live has to be the same answer
+  // every tick, or a market that merely was not due would promote the
+  // eleventh into the ten and the user could not tell which ten they get.
   const adzunaOverflow = new Set(
     companies.filter((c) => c.atsType === AtsType.ADZUNA).slice(MAX_ADZUNA_ROWS).map((c) => c.id),
   );
   // Every install seeds the same ids, so a fixed order means every install
   // asks the same board in the same second (docs/scale-plan.md §3).
-  const walk = shuffleSources(companies, tickSeed());
+  const walk = shuffleSources(due, tickSeed());
 
   const out: FetcherResult[] = [];
   let done = 0;
@@ -113,7 +129,7 @@ export async function runAllFetchers(
   for (const company of walk) {
     if (isCancelled && (await isCancelled())) {
       logger.warn(
-        { done, remaining: companies.length - done },
+        { done, remaining: due.length - done },
         'fetchers: aborted (fetching paused mid-run)',
       );
       break;
@@ -134,8 +150,9 @@ export async function runAllFetchers(
         { company: company.name, count, ats: company.atsType, status },
         'fetcher: ok',
       );
+      const watch = watchRules(company);
       for (const job of jobs) {
-        out.push({ job, companyName: company.name, source: { atsType: company.atsType, atsToken: company.atsToken } });
+        out.push({ job, companyName: company.name, source: { atsType: company.atsType, atsToken: company.atsToken }, watch });
       }
     } catch (err) {
       status = classifyFetchError(err);
@@ -154,7 +171,7 @@ export async function runAllFetchers(
       }
     }
     await recordFetchHealth(company, status, cachedCount(company.id));
-    onSource?.({ company: company.name, status, count, done, total: companies.length });
+    onSource?.({ company: company.name, status, count, done, total: due.length });
     // Back off in proportion to what we just spent of the board's: a feed we
     // did not download does not earn the same second as one we did.
     await sleep(politeDelayMs(status, company.atsType));
@@ -168,7 +185,7 @@ export async function runAllFetchers(
  * a health write that fails must not cost us the jobs we just fetched.
  */
 async function recordFetchHealth(
-  company: { id: number; name: string; consecutiveFailures: number },
+  company: { id: number; name: string; consecutiveFailures: number; checkEvery: string },
   status: FetchStatus,
   lastFullCount: number | null,
 ): Promise<void> {
@@ -179,6 +196,10 @@ async function recordFetchHealth(
       data: {
         lastFetchStatus: status,
         consecutiveFailures: streak,
+        // Stamped after EVERY attempt, failures included: a board that throws
+        // has to wait its interval like a healthy one, or a broken feed is
+        // retried every heartbeat while a working one waits an hour.
+        nextCheckAt: nextCheckAfter(company, new Date()),
         ...(advancesLastOk(status, lastFullCount) ? { lastOkAt: new Date() } : {}),
       },
     });
@@ -269,6 +290,8 @@ export async function fetchOne(
       return fetchAdzuna({ id: company.id, atsToken: company.atsToken }, context);
     case AtsType.FRANCETRAVAIL:
       return fetchFranceTravail({ id: company.id, atsToken: company.atsToken }, context);
+    case AtsType.FEED:
+      return fetchFeed({ id: company.id, atsToken: company.atsToken });
     case AtsType.MANUAL:
       // Pasted by hand on /jobs/new — nothing to fetch (and the row is inactive).
       return [];

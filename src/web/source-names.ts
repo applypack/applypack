@@ -37,6 +37,7 @@ const SOURCE_NAMES: Record<string, string> = {
   FRANCETRAVAIL: 'France Travail',
   DOU: 'DOU',
   DJINNI: 'Djinni',
+  FEED: 'RSS/Atom feed',
   MANUAL: 'Manual',
 };
 
