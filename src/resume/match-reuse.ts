@@ -47,7 +47,19 @@ export function reuseNotice(when: string): string {
   return `Unchanged since the last analysis (${when}) — showing that result; the resume model was not called again.`;
 }
 
-/** The flash for the "suggest" decision: the verdicts stand, only the suggestions are being written. */
-export function suggestNotice(when: string): string {
-  return `The quick check from ${when} judged this exact text — keeping its verdicts and score, and writing the suggestions now.`;
+/** What the user is told when the suggestions call could not answer. */
+export const SUGGESTIONS_FAILED =
+  'The suggestions call failed — the quick check is still there. See the web logs.';
+
+/**
+ * The flash a finished suggestions call leaves. `reusedFrom` is the stored
+ * quick check's age, given only by the "suggest" decision — there the user
+ * asked for a full analysis and needs to know why the score did not move.
+ * Pressing "Get suggestions" on a comparison already knows that.
+ */
+export function suggestionsFlash(counts: { actions: number; removals: number }, reusedFrom?: string): string {
+  const kept = reusedFrom
+    ? `The quick check from ${reusedFrom} judged this exact text, so its verdicts and score stand. `
+    : '';
+  return `${kept}Suggestions added — ${counts.actions} edits, ${counts.removals} removals; the score is unchanged.`;
 }
