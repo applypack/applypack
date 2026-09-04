@@ -122,10 +122,19 @@ test('proposalOf returns instructions without a wording as null', () => {
 });
 
 test('proposalOf prefers the model’s own replacement field over parsing', () => {
-  const withField = { ...action(`Reword: 'the parsed one, which is long enough'`), replacement: '  the field one  ' };
+  const withField = { ...action(`Reword: 'the parsed one, which is long enough'`), quote: 'x', replacement: '  the field one  ' };
   assert.deepEqual(proposalOf(withField), { text: 'the field one', verb: 'Replace' });
+  assert.equal(proposalOf({ ...withField, quote: null, insert_after: 'after this line' })?.verb, 'Add');
   // An empty field falls back to the sentence rather than blanking the card.
   assert.equal(proposalOf({ ...withField, replacement: '   ' })?.text, 'the parsed one, which is long enough');
+});
+
+test('proposalOf never parses `what` on a judged row — an explicit null stays null', () => {
+  // The gate nulls a blocked replacement; the same wording quoted inside `what`
+  // must not come back through the fallback. A v6 row has no field at all.
+  const judged = { ...action(`Rewrite as: 'Cut infrastructure cost 40% across the platform'`), replacement: null };
+  assert.equal(proposalOf(judged), null);
+  assert.equal(proposalOf({ ...judged, replacement: undefined })?.text, 'Cut infrastructure cost 40% across the platform');
 });
 
 test('proposalOf folds curly quotes so a re-styled reply still parses', () => {

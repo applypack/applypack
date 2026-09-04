@@ -164,6 +164,24 @@ export function insertIntoSkills(text, term, where) {
 }
 
 /**
+ * Add `wording` as the line after the one the model anchored it to
+ * (`insert_after`, stage 3). The anchor is found the way Locate finds it; the
+ * new line takes the anchor's bullet marker unless the wording brought its own,
+ * so a bullet added under a bullet reads as one of the list.
+ */
+export function insertAfterLine(text, anchor, wording) {
+  const loc = locateQuote(text, anchor);
+  if (!loc) return { error: 'not-found' };
+  if (typeof wording !== 'string' || wording.trim() === '') return { error: 'no-replacement' };
+  const end = lineEnd(text, loc.end);
+  const anchorLine = text.slice(lineStart(text, loc.start), lineEnd(text, loc.start));
+  const body = wording.trim();
+  const marker = BULLET.exec(anchorLine)?.[1] ?? '';
+  const line = (marker && !BULLET.test(body) ? marker : '') + body;
+  return { text: text.slice(0, end) + '\n' + line + text.slice(end), span: { start: end + 1, end: end + 1 + line.length } };
+}
+
+/**
  * The smallest edit that turns `before` into `after`: the common prefix and
  * suffix are untouched, everything between them changed. Undo stores this
  * rather than a copy of the whole resume — it is one sentence, it survives a

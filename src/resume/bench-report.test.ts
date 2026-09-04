@@ -90,11 +90,20 @@ test('renderBenchTable lists every run against the baseline and every fixture pe
     ],
   });
   const table = renderBenchTable([base, fast], 'opus-full');
-  assert.match(table, /\| opus-full \| claude-opus-5 \| full \| v5 \| 90 s \| 180 s \| 3 \| 6000 \| 0 \| 100% \(6\/6\) \| 100% \|/);
-  assert.match(table, /\| opus-fast \| claude-opus-5 \| fast \| v5 \| 33 s \| 65 s \| 3 \| 1450 \| 1 \| 100% \(6\/6\) \| 100% \|/);
+  // Runs saved before v7 carry no replacement counters: an em dash, never a 0.
+  assert.match(table, /\| opus-full \| claude-opus-5 \| full \| v5 \| 90 s \| 180 s \| 3 \| 6000 \| 10 \| — \| — \| 0 \| 100% \(6\/6\) \| 100% \|/);
+  assert.match(table, /\| opus-fast \| claude-opus-5 \| fast \| v5 \| 33 s \| 65 s \| 3 \| 1450 \| 0 \| — \| — \| 1 \| 100% \(6\/6\) \| 100% \|/);
   assert.match(table, /\| a \| 66 · 80 s · 3 kw \| 66 · 30 s · 3 kw ✗1 \|/);
   assert.match(table, /\| b \| 92 · 100 s · 3 kw \| 30 cap 30 · 35 s · 3 kw \|/);
   assert.equal(renderBenchTable([], 'x'), '(no runs)');
+});
+
+test('renderBenchTable sums the v7 counters when a run carries them', () => {
+  const v7 = run('opus-v7', {
+    promptVersion: 7,
+    fixtures: [fixture('a', { replacements: 3, anchored: 1 }), fixture('b', { replacements: 2, anchored: 0 })],
+  });
+  assert.match(renderBenchTable([v7], 'opus-v7'), /\| opus-v7 \| claude-opus-5 \| full \| v7 \| 80 s \| 160 s \| 3 \| 6000 \| 10 \| 5 \| 1 \| 0 \|/);
 });
 
 test('renderBenchTable marks a fixture that returned nothing', () => {

@@ -18,7 +18,7 @@ import {
 import { computeScore, entriesFromLive } from './score.mjs';
 import { formatEditSheet } from './change-sheet.mjs';
 import { wireCopy, copyFrom, announce } from './copy.mjs';
-import { applyReplacement, removeSpan, insertIntoSkills, inverseEdit, undoEdit } from './text-edits.mjs';
+import { applyReplacement, insertAfterLine, removeSpan, insertIntoSkills, inverseEdit, undoEdit } from './text-edits.mjs';
 
 // Full literal class names — the Tailwind CDN JIT only generates what it can
 // see verbatim in the document, composed strings would come out unstyled.
@@ -330,6 +330,13 @@ export function init(data) {
     announce(message);
   }
 
+  /** A change goes over its quote; an addition goes after its anchor line (ADR 0037). */
+  function place(text, apply, wording) {
+    return apply?.dataset.anchor
+      ? insertAfterLine(text, apply.dataset.anchor, wording)
+      : applyReplacement(text, apply?.dataset.quote, wording);
+  }
+
   /**
    * Run one text operation for a card: write the result, remember the inverse
    * so Undo is exact, and outline what changed. A refusal never touches the text.
@@ -358,7 +365,7 @@ export function init(data) {
     if (!button || !card) return;
     const box = card.querySelector('[data-edit-box]');
     if (button.hasAttribute('data-apply')) {
-      runEdit(card, (t) => applyReplacement(t, button.dataset.quote, button.dataset.apply), 'Applied');
+      runEdit(card, (t) => place(t, button, button.dataset.apply), 'Applied');
     } else if (button.hasAttribute('data-remove')) {
       runEdit(card, (t) => removeSpan(t, button.dataset.remove), 'Removed');
     } else if (button.hasAttribute('data-edit-apply')) {
@@ -369,7 +376,7 @@ export function init(data) {
     } else if (button.hasAttribute('data-edit-save')) {
       const apply = card.querySelector('[data-apply]');
       const wording = box?.querySelector('[data-edit-text]')?.value ?? '';
-      if (runEdit(card, (t) => applyReplacement(t, apply?.dataset.quote, wording), 'Applied') && box) box.hidden = true;
+      if (runEdit(card, (t) => place(t, apply, wording), 'Applied') && box) box.hidden = true;
     } else if (button.hasAttribute('data-skip')) {
       if (!edits.skipped.includes(card.dataset.card)) edits.skipped.push(card.dataset.card);
       storeEdits();

@@ -11,6 +11,8 @@ import {
   type MatchSuggestions,
 } from './prompts';
 import { readBreakdown } from './score';
+import { loadKeywordMatcher } from './keyword-matcher';
+import { gateActions } from './replacement-gate';
 import { listFacts, updateMatchSuggestions } from './store';
 
 const SUGGESTIONS_TIMEOUT_MS = 5 * 60_000;
@@ -48,7 +50,15 @@ export async function suggestForMatch(match: ResumeMatch, job: MatchJobInput): P
     // Every array defaults to empty, so "{}" parses — but a reply with nothing
     // in it would flip the row to "full" and lock the button out for good.
     if (parsed.ok && !isEmpty(parsed.data)) {
-      const row = await updateMatchSuggestions(match.id, parsed.data);
+      // The same gate the full report runs before it stores (ADR 0037).
+      const gate = gateActions(parsed.data.actions, {
+        resumeText: match.resumeText,
+        posting: `${job.title}\n${job.description}`,
+        facts,
+        keywords: readKeywords(match.keywords),
+        matcher: await loadKeywordMatcher(),
+      });
+      const row = await updateMatchSuggestions(match.id, { ...parsed.data, actions: gate.actions });
       logger.info(
         {
           matchId: match.id,
@@ -56,6 +66,8 @@ export async function suggestForMatch(match: ResumeMatch, job: MatchJobInput): P
           resumeId: match.resumeId,
           actions: parsed.data.actions.length,
           removals: parsed.data.removals.length,
+          replacementsBlocked: gate.blocked,
+          replacementsWarned: gate.warned,
           model: out.model || out.providerId,
           chars: out.text.length,
           ms: Date.now() - started,

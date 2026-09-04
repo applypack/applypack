@@ -538,7 +538,15 @@ export const MatchSignals: FC<{ match: MatchWithResume }> = ({ match }) => (
  * it never moves the page.
  */
 const SuggestionCard: FC<{
-  item: { section: string; where: string; what: string; why: string; quote?: string | null };
+  item: {
+    section: string;
+    where: string;
+    what: string;
+    why: string;
+    quote?: string | null;
+    /** An addition's anchor line (ADR 0037): Apply inserts after it instead of replacing. */
+    insert_after?: string | null;
+  };
   badge: Child;
   /** The wording to copy, when the model quoted one inside `what`. */
   proposal: Proposal | null;
@@ -552,7 +560,8 @@ const SuggestionCard: FC<{
   const copyable = proposal?.text ?? item.quote ?? item.what;
   // Stable across re-runs of the same comparison, so applied/skipped marks survive a reload.
   const key = hashShortId(`${item.section}|${item.where}|${item.quote ?? ''}`);
-  const canApply = interactive && Boolean(item.quote) && Boolean(proposal);
+  // A change applies over its quote; an addition applies after its anchor line.
+  const canApply = interactive && Boolean(proposal) && Boolean(item.quote || item.insert_after);
   const canRemove = interactive && Boolean(item.quote) && removal;
   return (
     <li class="flex flex-col gap-1 p-3 sm:flex-row sm:gap-3" data-card={interactive ? key : undefined}>
@@ -583,7 +592,14 @@ const SuggestionCard: FC<{
         <div class="mt-1 text-xs leading-5 text-ink-faint">why: {item.why}</div>
         <div class="mt-2 flex flex-wrap items-center gap-2">
           {canApply && (
-            <Button type="button" variant="primary" size="sm" data-apply={proposal?.text} data-quote={item.quote}>
+            <Button
+              type="button"
+              variant="primary"
+              size="sm"
+              data-apply={proposal?.text}
+              data-quote={item.quote ?? undefined}
+              data-anchor={item.quote ? undefined : (item.insert_after ?? undefined)}
+            >
               Apply
             </Button>
           )}

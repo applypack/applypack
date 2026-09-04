@@ -27,6 +27,9 @@ const FixtureSchema = z.object({
   keywords: z.array(KeywordSchema),
   actions: z.number(),
   removals: z.number(),
+  /** v7 (ADR 0037): actions that came with paste-ready wording, and additions whose anchor line is in the resume verbatim. Absent on older runs. */
+  replacements: z.number().optional(),
+  anchored: z.number().optional(),
   /** Names of the checks that failed; empty when the fixture passed. */
   failed: z.array(z.string()),
 });
@@ -120,16 +123,20 @@ export function renderBenchTable(runs: BenchRun[], baselineTag: string): string 
   const baseline = runs.find((r) => r.tag === baselineTag) ?? runs[0];
   if (!baseline) return '(no runs)';
   const lines: string[] = [];
-  lines.push(`| Run | Model | Mode | Prompt | p50 | Total | Keywords | Reply chars | Checks failed | Status agreement vs ${baseline.tag} | Term overlap |`);
-  lines.push('| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |');
+  lines.push(`| Run | Model | Mode | Prompt | p50 | Total | Keywords | Reply chars | Actions | Replacements | Anchored | Checks failed | Status agreement vs ${baseline.tag} | Term overlap |`);
+  lines.push('| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |');
   for (const r of runs) {
     const done = r.fixtures.filter((f) => f.score !== null);
     const a = agreementWith(r, baseline);
     const failed = r.fixtures.reduce((n, f) => n + f.failed.length, 0);
     const kw = done.length === 0 ? 0 : Math.round(done.reduce((n, f) => n + f.keywords.length, 0) / done.length);
     const chars = done.length === 0 ? 0 : Math.round(done.reduce((n, f) => n + f.chars, 0) / done.length);
+    const actions = done.reduce((n, f) => n + f.actions, 0);
+    // Older runs carry no counters: an em dash says "not measured", never 0.
+    const sum = (pick: (f: BenchFixture) => number | undefined) =>
+      done.some((f) => pick(f) !== undefined) ? String(done.reduce((n, f) => n + (pick(f) ?? 0), 0)) : '—';
     lines.push(
-      `| ${r.tag} | ${r.model || '(engine default)'} | ${r.mode} | v${r.promptVersion} | ${seconds(p50(r.fixtures.map((f) => f.ms)))} | ${seconds(r.fixtures.reduce((n, f) => n + f.ms, 0))} | ${kw} | ${chars} | ${failed} | ${pct(a.agree, a.shared)} (${a.agree}/${a.shared}) | ${pct(a.shared, a.union)} |`,
+      `| ${r.tag} | ${r.model || '(engine default)'} | ${r.mode} | v${r.promptVersion} | ${seconds(p50(r.fixtures.map((f) => f.ms)))} | ${seconds(r.fixtures.reduce((n, f) => n + f.ms, 0))} | ${kw} | ${chars} | ${actions} | ${sum((f) => f.replacements)} | ${sum((f) => f.anchored)} | ${failed} | ${pct(a.agree, a.shared)} (${a.agree}/${a.shared}) | ${pct(a.shared, a.union)} |`,
     );
   }
   lines.push('');
