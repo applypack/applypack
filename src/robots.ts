@@ -10,14 +10,20 @@
  * Two deliberate departures from the RFC, both in the direction of asking for
  * less than the protocol allows:
  *
- * 1. **Every group that could mean us is honoured, not only the most specific
- *    one.** RFC 9309 §2.2.1 says a crawler picks the one group matching its
- *    own product token and ignores the rest. We take the strictest verdict
- *    across our own token, `*`, and the AI-agent tokens — because every
- *    description this project fetches is fed to a Claude/AI classifier, so a
- *    site that tells ClaudeBot to stay out has refused what we are about to
- *    do, whatever name we ask under (ADR 0005 addendum rule 2). Fetching it
- *    under `applypack/` would be routing around a stated refusal.
+ * 1. **More than one group can bind us.** RFC 9309 §2.2.1 says a crawler
+ *    picks the one group matching its own product token and ignores the rest.
+ *    We take the strictest verdict across our own token, `*`, and the crawler
+ *    tokens of **the AI backend this install actually runs** — because every
+ *    description we fetch is read by that vendor's model, so a `Disallow`
+ *    aimed at that crawler is aimed at what we are about to do, whatever name
+ *    we ask under (ADR 0005 addendum rule 2).
+ *
+ *    Which tokens those are is the caller's to say (`ai-engine.ts:
+ *    aiCrawlerTokens`), and the narrowing is measured, not theoretical:
+ *    binding on every AI token in existence refused 3 of 16 European
+ *    companies on 2026-09-04, each of which had named only a scraper
+ *    (Bytespider) or a dataset crawler (CCBot). One of them, Software
+ *    Mansion, published `Content-Signal: ai-input=yes` in the same file.
  * 2. **A 5xx means not allowed.** The RFC lets a crawler treat an
  *    unreachable robots.txt as full allow after a while. A server that is
  *    failing has not told us anything, and this is a personal tool checking
@@ -25,36 +31,25 @@
  *
  * A missing file (404 / 410) IS allow-all: that is the protocol's own answer
  * and the overwhelming majority of career hosts serve nothing.
+ *
+ * On top of the RFC this reads Cloudflare's `Content-Signal`, because it
+ * speaks about the act rather than about a crawler's name: `ai-input=no` is a
+ * refusal of exactly what this project does with a description, and
+ * `ai-input=yes` is a permission that outranks a group aimed at somebody
+ * else's bot.
  */
 
 /** Our own product token — the first word of DEFAULT_USER_AGENT. */
 export const OUR_TOKEN = 'applypack';
 
 /**
- * The AI-agent tokens whose refusal binds us (ADR 0005 addendum rule 2).
- * Anthropic's three first, then the crawlers a site names when it means "no
- * AI": if any of these is told to stay out of a path, so are we.
+ * Our own token plus the vendor crawlers of the engines this install runs.
+ * `ai-engine.ts:aiCrawlerTokens` produces the second half; passing none means
+ * only our own token and `*` bind, which is the plain RFC reading.
  */
-export const AI_TOKENS = [
-  'claudebot',
-  'claude-web',
-  'anthropic-ai',
-  'gptbot',
-  'chatgpt-user',
-  'oai-searchbot',
-  'ccbot',
-  'google-extended',
-  'perplexitybot',
-  'applebot-extended',
-  'bytespider',
-  'meta-externalagent',
-  'cohere-ai',
-  'diffbot',
-  'omgili',
-] as const;
-
-/** Every token a group may carry that we must read. `*` is handled apart. */
-export const BINDING_TOKENS: readonly string[] = [OUR_TOKEN, ...AI_TOKENS];
+export function bindingTokens(aiTokens: readonly string[] = []): string[] {
+  return [...new Set([OUR_TOKEN, ...aiTokens.map((t) => t.toLowerCase())])];
+}
 
 interface Rule {
   allow: boolean;
@@ -70,9 +65,16 @@ export interface RobotsGroup {
 
 export interface Robots {
   groups: RobotsGroup[];
+  /**
+   * Cloudflare's `Content-Signal`, as the file states it: `ai-input`,
+   * `ai-train`, `search` → true / false. Only `ai-input` is read here, and
+   * only the last value in the file wins — the signal is about the site, not
+   * about one group.
+   */
+  signals: Record<string, boolean>;
 }
 
-export const ALLOW_ALL: Robots = { groups: [] };
+export const ALLOW_ALL: Robots = { groups: [], signals: {} };
 
 /**
  * Parse robots.txt into groups. Consecutive `User-agent` lines share the
@@ -86,6 +88,7 @@ export const ALLOW_ALL: Robots = { groups: [] };
  */
 export function parseRobots(text: string): Robots {
   const groups: RobotsGroup[] = [];
+  const signals: Record<string, boolean> = {};
   let current: RobotsGroup | null = null;
   // True while we are still collecting the agent lines that open a group.
   let collectingAgents = false;
@@ -107,6 +110,15 @@ export function parseRobots(text: string): Robots {
       if (value.length > 0) current.agents.push(value.toLowerCase());
       continue;
     }
+    if (field === 'content-signal') {
+      // `search=yes, ai-input=yes, ai-train=no` — anything but an explicit
+      // yes/no is skipped rather than guessed at.
+      for (const part of value.split(',')) {
+        const [k, v] = part.split('=').map((x) => x.trim().toLowerCase());
+        if (k && (v === 'yes' || v === 'no')) signals[k] = v === 'yes';
+      }
+      continue;
+    }
     if (field !== 'allow' && field !== 'disallow') continue;
     // A rule before any user-agent line addresses nobody; the RFC says to
     // ignore it, and so does every major implementation.
@@ -118,7 +130,7 @@ export function parseRobots(text: string): Robots {
     if (value.length === 0) continue;
     current.rules.push({ allow: field === 'allow', pattern: value });
   }
-  return { groups };
+  return { groups, signals };
 }
 
 /**
@@ -176,13 +188,26 @@ export interface RobotsVerdict {
 }
 
 /**
- * Is this path allowed to us? The strictest answer across our own token and
- * every AI token, each resolved the way the RFC resolves it: the token's own
- * group if it has one, else `*`; then the longest matching pattern wins, and
- * a tie goes to Allow.
+ * Is this path allowed to us? The strictest answer across the tokens given,
+ * each resolved the way the RFC resolves it: the token's own group if it has
+ * one, else `*`; then the longest matching pattern wins, and a tie goes to
+ * Allow.
+ *
+ * `Content-Signal` is read first, because it speaks about the act rather than
+ * about a crawler's name. `ai-input=no` refuses us outright. `ai-input=yes` is
+ * a permission, so the vendor-crawler tokens are dropped and only our own
+ * token and `*` decide the path — the case Software Mansion publishes:
+ * `Allow: /` and `ai-input=yes` for everyone, `Disallow: /` for Bytespider.
  */
-export function isAllowed(robots: Robots, path: string, tokens: readonly string[] = BINDING_TOKENS): RobotsVerdict {
-  for (const token of tokens) {
+export function isAllowed(robots: Robots, path: string, tokens: readonly string[]): RobotsVerdict {
+  if (robots.signals['ai-input'] === false) {
+    return {
+      allowed: false,
+      reason: `This site publishes "Content-Signal: ai-input=no" — every posting here would be read by an AI, so that refusal covers us (ADR 0005).`,
+    };
+  }
+  const binding = robots.signals['ai-input'] === true ? [OUR_TOKEN] : tokens;
+  for (const token of binding) {
     const rules = rulesFor(robots, token);
     if (rules.length === 0) continue;
     const allow = matchLength(rules, path, true);
@@ -211,7 +236,7 @@ export function robotsAllows(
   status: number,
   body: string,
   path: string,
-  tokens: readonly string[] = BINDING_TOKENS,
+  tokens: readonly string[],
 ): RobotsVerdict {
   // The protocol's own answer: nothing published means nothing refused.
   if (status === 404 || status === 410) return { allowed: true, reason: '' };

@@ -1,10 +1,12 @@
 import { AtsType } from '@prisma/client';
 import { fetchWithRetry, HttpError } from '../http';
 import { probeAts } from '../ats-probe';
-import { getSourceKeys } from '../settings';
+import { getSettings, getSourceKeys } from '../settings';
+import { aiCrawlerTokens, parseAiEngineConfig, type AiProviderId } from '../ai-engine';
+import { config } from '../config';
 import { extractAtsToken } from '../text-utils';
 import { checkPostingUrl } from '../jobs/posting-url';
-import { robotsAllows } from '../robots';
+import { bindingTokens, robotsAllows } from '../robots';
 import { looksLikeFeed } from '../fetchers/feed';
 import { boardHints, declaredJobFeeds, looksLikeChallenge, wellKnownFeeds } from './scan';
 import { nameFromUrl, type CompanyInput } from './parse-input';
@@ -75,7 +77,22 @@ export interface ResolveIo {
   probe(atsType: AtsType, atsToken: string): Promise<{ ok: boolean; jobsCount?: number; error?: string }>;
 }
 
-export async function resolveCompanyUrl(input: CompanyInput, io: ResolveIo): Promise<ResolvedCompany> {
+export interface ResolveOptions {
+  /**
+   * The vendor crawler tokens of the AI backends this install runs — the
+   * robots.txt groups that bind us besides our own (ADR 0036). Read once per
+   * run by the caller (`installAiTokens`), so every URL of one paste is
+   * judged against the same engine list. Empty = only `applypack` and `*`.
+   */
+  aiTokens?: readonly string[];
+}
+
+export async function resolveCompanyUrl(
+  input: CompanyInput,
+  io: ResolveIo,
+  opts: ResolveOptions = {},
+): Promise<ResolvedCompany> {
+  const tokens = bindingTokens(opts.aiTokens ?? []);
   const base = { input, name: input.name ?? nameFromUrl(input.url), careerUrl: input.url };
 
   const checked = checkPostingUrl(input.url);
@@ -94,7 +111,7 @@ export async function resolveCompanyUrl(input: CompanyInput, io: ResolveIo): Pro
   let requests = 0;
   const robotsAnswer = await io.get(`${target.origin}/robots.txt`);
   requests++;
-  const robots = robotsAllows(robotsAnswer.status, robotsAnswer.body, target.pathname);
+  const robots = robotsAllows(robotsAnswer.status, robotsAnswer.body, target.pathname, tokens);
   if (!robots.allowed) return { ...base, resolution: { kind: 'refused', reason: robots.reason }, requests };
 
   const page = await io.get(target.toString());
@@ -141,7 +158,7 @@ export async function resolveCompanyUrl(input: CompanyInput, io: ResolveIo): Pro
     // `<link rel="alternate" href="http://169.254.169.254/…">` is a valid tag.
     const checkedFeed = checkPostingUrl(url);
     if (!checkedFeed.ok) continue;
-    if (!robotsAllows(robotsAnswer.status, robotsAnswer.body, checkedFeed.url.pathname).allowed) continue;
+    if (!robotsAllows(robotsAnswer.status, robotsAnswer.body, checkedFeed.url.pathname, tokens).allowed) continue;
     const answer = await io.get(url);
     requests++;
     // And again on whatever answered, for the same reason as the page above.
@@ -186,6 +203,19 @@ async function confirmBoard(
   const probe = await io.probe(atsType, hit.atsToken);
   if (!probe.ok) return null;
   return { kind: 'ats', atsType, atsToken: hit.atsToken, jobs: probe.jobsCount ?? 0, via };
+}
+
+/**
+ * The crawler tokens this install is bound by, from the engines the user
+ * enabled — the stored chain, plus the .env provider that runs when the
+ * chain is empty. Everything the install *might* call counts, not only what
+ * is usable this minute: an engine that is skipped today because its CLI is
+ * not logged in will read these descriptions tomorrow.
+ */
+export async function installAiTokens(): Promise<string[]> {
+  const stored = parseAiEngineConfig((await getSettings()).aiEngine).order;
+  const providers: AiProviderId[] = [...new Set([...stored, config.AI_PROVIDER as AiProviderId])];
+  return aiCrawlerTokens(providers);
 }
 
 /** The real I/O: every request goes through the project's guards and UA. */
