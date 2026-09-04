@@ -276,6 +276,8 @@ export async function processNormalizedJobs(
           url: created.url,
           fitScore: created.fitScore ?? finalClassification.fit_score,
           salaryMin: created.salaryMin,
+          salaryCurrency: created.salaryCurrency,
+          salaryPeriod: created.salaryPeriod,
           salaryMax: created.salaryMax,
           techMatch: created.techMatch,
           redFlags: created.redFlags,

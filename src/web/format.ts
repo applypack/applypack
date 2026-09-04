@@ -1,14 +1,16 @@
+import { formatSalaryRange } from '../currency';
 import type { JobStatus } from '@prisma/client';
 
 const SHORT_TZ = 'America/Chicago';
 
-export function formatSalary(min: number | null, max: number | null): string {
-  if (min === null && max === null) return '—';
-  const fmt = (n: number) => `$${Math.round(n / 1000)}k`;
-  if (min !== null && max !== null) return `${fmt(min)}-${fmt(max)}`;
-  if (min !== null) return `${fmt(min)}+`;
-  if (max !== null) return `up to ${fmt(max)}`;
-  return '—';
+/** The posting's own money and period (src/currency.ts); null columns read as USD a year. */
+export function formatSalary(
+  min: number | null,
+  max: number | null,
+  currency?: string | null,
+  period?: string | null,
+): string {
+  return formatSalaryRange(min, max, currency, period);
 }
 
 export function formatDate(d: Date | null | undefined): string {

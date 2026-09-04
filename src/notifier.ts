@@ -1,5 +1,6 @@
 import { logger } from './logger';
 import { flagOf } from './countries';
+import { formatSalaryRange } from './currency';
 import { WORKPLACE_LABEL } from './location';
 import {
   getSettings,
@@ -194,7 +195,7 @@ export function formatJobMessage(job: AlertJob): string {
     `*${escapeMarkdownV2(job.title)}* @ ${escapeMarkdownV2(job.companyName)}`,
   );
   lines.push(
-    `📍 ${escapeMarkdownV2(formatPlaceLine(job))} \\| 💰 ${escapeMarkdownV2(formatSalary(job.salaryMin, job.salaryMax))}`,
+    `📍 ${escapeMarkdownV2(formatPlaceLine(job))} \\| 💰 ${escapeMarkdownV2(formatSalary(job.salaryMin, job.salaryMax, job.salaryCurrency, job.salaryPeriod))}`,
   );
   if (job.techMatch.length > 0) {
     lines.push(`✅ Tech: ${escapeMarkdownV2(job.techMatch.join(', '))}`);
@@ -217,13 +218,14 @@ export function formatJobMessage(job: AlertJob): string {
   return lines.join('\n');
 }
 
-export function formatSalary(min: number | null, max: number | null): string {
-  if (min === null && max === null) return '—';
-  const fmt = (n: number) => `$${Math.round(n / 1000)}k`;
-  if (min !== null && max !== null) return `${fmt(min)}-${fmt(max)}`;
-  if (min !== null) return `${fmt(min)}+`;
-  if (max !== null) return `up to ${fmt(max)}`;
-  return '—';
+/** The posting's own money and period (src/currency.ts); null columns read as USD a year. */
+export function formatSalary(
+  min: number | null,
+  max: number | null,
+  currency?: string | null,
+  period?: string | null,
+): string {
+  return formatSalaryRange(min, max, currency, period);
 }
 
 export interface QuietSourceAlert {
