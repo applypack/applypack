@@ -4,6 +4,33 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.46.0] — 2026-09-04
+
+### Fixed
+- **Pausing job fetching no longer breaks France Travail's licence.** That
+  licence asks for every stored offer to be re-checked at least once a day,
+  and an offer the board withdrew to disappear here too. The check used to
+  live inside the hourly fetch *after* the pause switch, so two days on pause
+  put the install in breach — and nothing but a warning sentence stood in the
+  way. It now runs at the top of the tick, above the pause, above the "no
+  search configured" abort and above anything added later: it fetches no new
+  postings, spends no AI and adds no rows, so there is nothing about it to
+  pause ([ADR 0034](docs/adr/0034-keyed-sources.md) rule 5).
+- Switching the France Travail rows off on Companies used to freeze their
+  stored offers in place, unchecked forever — the very thing the old
+  documentation recommended as the remedy. Turning a row off stops new
+  offers; the ones already stored are still re-checked.
+
+### Added
+- **A backstop for when the re-check cannot run at all** — the credential was
+  removed, the API was down, the machine was off over the weekend. An offer
+  whose last successful check is more than two days old is withdrawn here by
+  the same rules as one the board withdrew: deleted, or kept anonymised when
+  it is your own application record. Two days is one day of grace past the
+  licence's window, about twenty-four hourly attempts. The run row on /runs
+  counts what happened (`ftChecked`, `ftDeleted`, `ftAnonymised`, `ftExpired`)
+  even on a tick that was skipped.
+
 ## [1.45.0] — 2026-09-04
 
 ### Changed

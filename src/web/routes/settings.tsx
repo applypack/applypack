@@ -501,7 +501,7 @@ const SOURCE_KEY_META: Record<
     label: 'France Travail',
     what: "The French state employment service's own API: every public job ad in France, with full descriptions — the most complete source there is for that country.",
     worthIt: 'you hunt in France. It adds nothing anywhere else, so leave it alone otherwise.',
-    cost: 'the board\'s licence: every offer is shown whole with its source, date and licence link, and each stored offer is re-checked daily — so leave fetching on, or switch its rows off. Offers the board withdraws are deleted here, or kept anonymised when they are your own application record. Charging job seekers for a service built on this data is forbidden by French law.',
+    cost: 'the board\'s licence: every offer is shown whole with its source, date and licence link, and each stored offer is re-checked daily. That re-check runs on every hourly tick whatever else you switch off — pausing fetching does not pause it — so the obligation is not yours to remember. Offers the board withdraws are deleted here, or kept anonymised when they are your own application record; an offer this app could not re-check for two days goes the same way. Charging job seekers for a service built on this data is forbidden by French law.',
     signupUrl: 'https://francetravail.io/produits-partages/catalogue',
     signupLabel: 'Create a free account and an app (francetravail.io)',
     terms: 'Licence offres d\'emploi',

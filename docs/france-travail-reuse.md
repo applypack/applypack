@@ -27,9 +27,18 @@ decisions behind it.
 
 - Every stored offer is asked about again on francetravail.io **at least
   once every 24 hours** (licence art. 5.2). The daily mirror runs inside
-  the hourly fetch and does whatever is due, so a missed hour never becomes
-  a missed day. If fetching is paused for longer than a day, that
-  obligation lapses; disable the France Travail rows on Companies first.
+  the hourly tick and does whatever is due, so a missed hour never becomes
+  a missed day. It runs whatever else is switched off: pausing job
+  fetching, running no search, or switching the France Travail rows
+  themselves off all stop new offers arriving and none of them stop the
+  re-check, because the offers already stored are still ours to keep
+  current.
+- **An offer that could not be re-checked for two days is removed here**,
+  by the same rules as one the board withdrew. That covers the cases where
+  the mirror cannot do its work at all — the credential was removed, the
+  API was unreachable, the machine was off over a weekend. Two days is one
+  day of grace past the licence's window, roughly twenty-four attempts;
+  past it, this app stops showing content it can no longer vouch for.
 - An offer the board **modified** is replaced by the board's newer version.
 - An offer the board **withdrew** is deleted. If the user had applied to
   it, saved it, or moved it on their application board, the row stays as

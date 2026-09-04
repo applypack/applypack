@@ -1,7 +1,7 @@
 import { logger } from '../logger';
 import { runAllFetchers, type SourceProgress } from '../fetchers';
 import { beginConditionalTick, commitConditionalCache, tickStoredEverything } from '../fetchers/conditional';
-import { syncFranceTravail } from './france-travail-sync';
+import { syncFranceTravail, type MirrorStats } from './france-travail-sync';
 import { isFailureStatus } from '../fetchers/source-health';
 import { listActiveProfiles } from '../profiles';
 import type { Profile } from '@prisma/client';
@@ -28,9 +28,19 @@ export async function runFetchJob(opts: FetchJobOptions = {}): Promise<{ stats: 
   logger.info({ manual: opts.manual === true }, 'fetch-job: start');
 
   const settings = await getSettings();
+
+  // France Travail's licence asks the board again about every stored offer
+  // at least daily (ADR 0034 rule 5), and that duty is not a search: it
+  // fetches nothing new, spends no AI and adds no row — it re-reads what is
+  // already stored and removes what the board withdrew. So it runs above
+  // every gate below. A pause, a missing search, a schedule that says "not
+  // now" must not be able to put this install in breach.
+  const mirrored = await syncFranceTravail({ countries: [], regions: [], keys: await getSourceKeys(), now: new Date() });
+  const licence = mirrorStats(mirrored);
+
   if (!settings.fetchingEnabled && !opts.manual) {
     logger.info('fetch-job: skipped (fetching paused in settings)');
-    return { stats: { skipped: 1, reason: 'fetching-paused' } };
+    return { stats: { skipped: 1, reason: 'fetching-paused', ...licence } };
   }
   const classify = settings.fetchingEnabled;
 
@@ -39,7 +49,7 @@ export async function runFetchJob(opts: FetchJobOptions = {}): Promise<{ stats: 
     logger.warn(
       'fetch-job: no active search configured; aborting (switch one on at /settings)',
     );
-    return { stats: { aborted: 1, reason: 'no-active-profile' } };
+    return { stats: { aborted: 1, reason: 'no-active-profile', ...licence } };
   }
   const { classifierMode } = settings;
   logger.info(
@@ -72,11 +82,6 @@ export async function runFetchJob(opts: FetchJobOptions = {}): Promise<{ stats: 
     { count: fetched.length, sources, sourcesFailed, sourcesUnchanged },
     'fetch-job: total fetched',
   );
-
-  // France Travail's licence asks the board again about every stored offer
-  // at least daily (ADR 0034); the mirror does what is due on every tick.
-  const mirrored = await syncFranceTravail({ countries: [], regions: [], keys: await getSourceKeys(), now: new Date() }, paused);
-  if (mirrored.checked > 0) logger.info(mirrored, 'fetch-job: france travail mirrored');
 
   // Phase 7.5 — universal ATS-URL discovery from any fetched job's URL
   // and description. The HN /jobs feed is the primary source: each
@@ -120,6 +125,7 @@ export async function runFetchJob(opts: FetchJobOptions = {}): Promise<{ stats: 
         sourcesFailed,
         ...(sourcesUnchanged > 0 && { sourcesUnchanged }),
         candidatesRecorded: candidates,
+        ...licence,
         durationMs,
       },
     };
@@ -163,11 +169,26 @@ export async function runFetchJob(opts: FetchJobOptions = {}): Promise<{ stats: 
     sourcesFailed,
     ...(sourcesUnchanged > 0 && { sourcesUnchanged }),
     candidatesRecorded: candidates,
+    ...licence,
     ...inner,
     durationMs,
   };
   logger.info(stats, 'fetch-job: done');
   return { stats };
+}
+
+/**
+ * The mirror's counters for the run row — omitted when it had nothing to do,
+ * so a quiet tick stays readable. `ftExpired` is the one to watch: it counts
+ * offers withdrawn because nobody could ask the board about them in time.
+ */
+function mirrorStats(m: MirrorStats): CronStats {
+  return {
+    ...(m.checked > 0 && { ftChecked: m.checked }),
+    ...(m.deleted > 0 && { ftDeleted: m.deleted }),
+    ...(m.anonymised > 0 && { ftAnonymised: m.anonymised }),
+    ...(m.expired > 0 && { ftExpired: m.expired }),
+  };
 }
 
 /** One `profile` line for the run row, whatever the number of searches. */
