@@ -783,7 +783,8 @@ jobsRoute.get('/jobs/:id/target', async (c) => {
   }
   const resume = await getResume(match.resumeId);
   if (!resume) return c.text('Not found', 404);
-  const fileVerdict = await describeResumeFile(resume);
+  // The scratch resume from /target has no versions: its one save is a resume of its own.
+  const fileVerdict = (resume.hidden ? 'This is a one-off check from the Compare page — Save keeps it as a resume of its own. ' : '') + (await describeResumeFile(resume));
   // An instant check arrives with its parsed upload — taken once; from then on the browser holds it.
   const draftKey = c.req.query('draft');
   const draftText = draftTextForPage(draftKey ? draftStash.take(draftKey) : null, match.id);

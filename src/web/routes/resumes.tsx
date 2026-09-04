@@ -170,7 +170,8 @@ resumesRoute.get('/resumes/:id/download', async (c) => {
 resumesRoute.post('/resumes/:id/draft', async (c) => {
   const id = Number(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text('Bad id', 400);
-  if (!(await getResume(id))) return c.text('Not found', 404);
+  const current = await getResume(id);
+  if (!current) return c.text('Not found', 404);
   const form = await c.req.parseBody();
   const text = typeof form.text === 'string' ? form.text.replace(/\r\n/g, '\n').trim() : '';
   if (text.length < MIN_DRAFT_CHARS) {
@@ -180,7 +181,8 @@ resumesRoute.post('/resumes/:id/draft', async (c) => {
   // it a .docx cannot be patched (the diff would be against nothing) and the
   // save is a text version, as before ADR 0038.
   const baseText = typeof form.baseText === 'string' ? form.baseText.replace(/\r\n/g, '\n').trim() : '';
-  const asCopy = form.as === 'copy';
+  // The /target scratch resume has no versions of its own: it is only ever saved as a new resume.
+  const asCopy = form.as === 'copy' || current.hidden;
   const jobId = Number(form.jobId);
   const job = Number.isFinite(jobId)
     ? await prisma.job.findUnique({ where: { id: jobId }, include: { company: { select: { name: true } } } })
