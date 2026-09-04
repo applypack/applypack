@@ -44,7 +44,7 @@ status. Script: `scratchpad/probe-etag.sh` (`curl -D -`, our own UA).
 | Lever | `ETag` | 6 | 697 KB × 6 |
 | Ashby | `ETag` | 3 | full board × 3 |
 | DevITjobs family | `ETag` + `Last-Modified` | 3 | 1.6–12.6 MB × 3 |
-| We Work Remotely | `ETag` | 2 | 23 KB × 2 |
+| We Work Remotely | `ETag`, but see below | 2 | 23 KB × 2 |
 | Pinpoint | `ETag` | 2 | 85 KB × 2 |
 | Personio | `ETag` (strong) | 1 | |
 | Teamtailor | `ETag` + `Last-Modified` | 1 | 55 KB |
@@ -61,11 +61,11 @@ Workable (POST), Himalayas (sends `Last-Modified`, answers 200),
 Landing.jobs (sends a weak `ETag`, answers 200), DOU (sends
 `Last-Modified`, answers 200), Djinni (sends `Last-Modified`, answers 200).
 
-That is **44 of the 62 seeded rows** on sources that will answer 304 — and
-the three heaviest families (Greenhouse, Lever, Ashby: 32 rows) are all in
-the first group.
+That is **42 of the 62 seeded rows** on sources that will answer 304 (44
+minus We Work Remotely's two, for the reason below) — and the three heaviest
+families (Greenhouse, Lever, Ashby: 32 rows) are all in the first group.
 
-Two details worth writing down because they shaped the design:
+Three details worth writing down because they shaped the design:
 
 - **Remotive sends `Cache-Control: no-store` and still honours
   `If-Modified-Since`.** We must not keep its payload. The design below
@@ -75,6 +75,24 @@ Two details worth writing down because they shaped the design:
   let a permanently empty board look alive forever — exactly the failure
   [ADR 0019](./adr/0019-source-health-streaks.md) and gotcha 13 exist to
   catch. See §4.
+- **We Work Remotely's ETag is a hash of a body that is not byte-stable.**
+  It answers 304 when two requests happen to land on the same edge copy and
+  200 with a brand-new ETag otherwise — four consecutive probes produced four
+  different ETags for the same feed. The mechanism handles it correctly (a
+  200 is just a normal fetch) and the feed is 23 KB, so it stays wired; it is
+  simply not one of the sources that will actually save anything.
+
+**And one that only appeared in the live run.** Node's `fetch` appends
+`Cache-Control: no-cache` to any request carrying a validator — the fetch
+spec flips the cache mode to "no-store" when a conditional header is
+present, and that appends the directive unless the caller sets its own.
+Express reads that *request* directive literally (`fresh()` returns false)
+and answers 200 with the identical ETag. Measured 2026-09-04: Lever and
+SmartRecruiters revalidated fine under `curl` and never under ours, until
+`conditionalHeaders` began sending `Cache-Control: max-age=0` — which is
+what we actually mean. This is the kind of thing that would have shipped as
+"conditional requests are on" while nothing was ever revalidated, so §6's
+live double-tick is not optional.
 
 ## 2. Tick jitter
 
@@ -223,3 +241,12 @@ infer:
   and the source is neither failing nor silent.
 - Live: run a tick twice against a real board and confirm the second one
   reports `not_modified` and zero rows, with the job count unchanged.
+
+**Result (2026-09-04, twelve boards, two ticks):** eleven answered
+`not_modified` on the second tick — Greenhouse (88 rows → 0, 435 ms → 198 ms),
+Lever (73 → 0, 776 → 333), Ashby (102 → 0), Personio (54 → 0), Teamtailor
+(8 → 0), Golang Projects (5 → 0), Remotive (17 → 0), Pinpoint (7 → 0),
+DevITjobs.nl (224 → 0, 320 → 126), plus the two empty boards. We Work
+Remotely refetched, for the reason in §1. Both empty boards — Breezy and
+SmartRecruiters — reported `not_modified` with `lastOkAt advances: false`,
+which is the ADR 0019 invariant holding under the new status.

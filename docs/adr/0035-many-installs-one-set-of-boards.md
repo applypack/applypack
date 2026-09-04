@@ -27,22 +27,29 @@ broken yet, which is exactly when this is cheap to fix.
 
 What the vendors actually support was measured on 2026-09-04 rather than
 assumed (probe: GET, read the validators, send them back, record the
-status). 44 of the 62 seeded rows are on sources that answer **304**:
-Greenhouse, Lever, Ashby, DevITjobs, We Work Remotely, Pinpoint, Personio,
-Teamtailor, Golang Projects, Breezy and SmartRecruiters honour
-`If-None-Match`; Remotive and Arbeitnow honour `If-Modified-Since`. RemoteOK,
+status). 42 of the 62 seeded rows are on sources that answer **304**:
+Greenhouse, Lever, Ashby, DevITjobs, Pinpoint, Personio, Teamtailor, Golang
+Projects, Breezy and SmartRecruiters honour `If-None-Match`; Remotive and
+Arbeitnow honour `If-Modified-Since`. We Work Remotely sends an ETag over a
+body that changes between requests, so it answers 200 more often than not.
+RemoteOK,
 Working Nomads, 4 Day Week, LaraJobs, JobTech, Recruitee, Rippling, BambooHR
 and Workable offer no validator; Himalayas, Landing.jobs, DOU and Djinni
 send one and answer 200 to it anyway. The full table is in
 [docs/scale-plan.md](../scale-plan.md) §1.
 
-Two measurements shaped the design more than the rest:
+Three measurements shaped the design more than the rest:
 
 - **Remotive sends `Cache-Control: no-store` and still honours
   `If-Modified-Since`.** Whatever we keep, it must not be the payload.
 - **Breezy answered 304 over an empty body** (`[]`, stable ETag). A design
   that reads "304" as "healthy" would let a permanently empty board look
   alive forever — the failure ADR 0019 exists to catch.
+- **Node's `fetch` appends `Cache-Control: no-cache` to any request carrying
+  a validator**, and Express reads that request directive literally and
+  answers 200. Found only in the live double-tick, after the unit tests were
+  green: Lever and SmartRecruiters revalidated under `curl` and never under
+  ours. Gotcha 15 in CLAUDE.md.
 
 ## Decision
 
@@ -127,12 +134,15 @@ install fetches at :41" stops being a true sentence.
 
 ## Consequences
 
-✅ 44 of 62 seeded rows revalidate instead of re-downloading; the three
+✅ 42 of 62 seeded rows revalidate instead of re-downloading; the three
 heaviest families (Greenhouse, Lever, Ashby — 32 rows) are all in that set.
+Verified live over two ticks on twelve boards: eleven came back
+`not_modified` with zero rows, and both empty boards (Breezy,
+SmartRecruiters) reported it without advancing `lastOkAt`.
 ✅ Installs no longer share a minute or an order, so a popular hour stops
 being a burst against one board.
 ✅ A tick where nothing changed does almost no work: no parsing, no
-dedupe, no upserts, and "Fetch now" says so ("44 of 62 sources unchanged
+dedupe, no upserts, and "Fetch now" says so ("42 of 62 sources unchanged
 since the last tick") instead of warning about the network.
 ✅ Golang Projects and We Work Remotely now go through `fetchWithRetry`
 rather than `rss-parser`'s own fetch, so they carry our User-Agent and our
@@ -145,8 +155,10 @@ full refetch. That is the price of never losing a posting, and it is paid
 once per pause.
 ❌ The cache is per-process: the worker and the dashboard's "Fetch now" keep
 separate ones, and both start empty after a restart.
-❌ Three sources that do honour validators (Arbeitnow, Jobicy) are left out
-by the one-request-per-tick rule.
+❌ Two sources that do honour validators (Arbeitnow, Jobicy) are left out by
+the one-request-per-tick rule, and We Work Remotely is wired but will rarely
+fire: its ETag hashes a body that changes between requests, so it answers
+200 with a new ETag most of the time.
 
 ## When to revisit
 

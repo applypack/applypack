@@ -9,6 +9,9 @@ import {
   resetConditionalCache,
 } from './conditional';
 
+/** What we send instead of the `no-cache` Node would add. */
+const CC = 'max-age=0';
+
 const URL_A = 'https://boards-api.greenhouse.io/v1/boards/gusto/jobs?content=true';
 const URL_B = 'https://jobicy.com/?feed=job_feed&geo=poland';
 
@@ -36,18 +39,31 @@ describe('conditionalHeaders', () => {
 
   it('sends back whichever validators the vendor gave', () => {
     fullTick(1, URL_A, { etag: 'W/"abc"' }, 40);
-    assert.deepEqual(conditionalHeaders(1, URL_A), { 'If-None-Match': 'W/"abc"' });
+    assert.deepEqual(conditionalHeaders(1, URL_A), { 'If-None-Match': 'W/"abc"', 'Cache-Control': CC });
 
     fullTick(2, URL_A, { 'last-modified': 'Thu, 03 Sep 2026 11:09:17 GMT' }, 12);
     assert.deepEqual(conditionalHeaders(2, URL_A), {
       'If-Modified-Since': 'Thu, 03 Sep 2026 11:09:17 GMT',
+      'Cache-Control': CC,
     });
 
     fullTick(3, URL_A, { etag: 'W/"x"', 'last-modified': 'Thu, 03 Sep 2026 11:09:17 GMT' }, 3);
     assert.deepEqual(conditionalHeaders(3, URL_A), {
       'If-None-Match': 'W/"x"',
       'If-Modified-Since': 'Thu, 03 Sep 2026 11:09:17 GMT',
+      'Cache-Control': CC,
     });
+  });
+
+  it('overrides the Cache-Control Node would otherwise send', () => {
+    // Node appends `Cache-Control: no-cache` to a conditional request, and
+    // Express answers 200 to that — measured on Lever and SmartRecruiters.
+    fullTick(1, URL_A, { etag: 'W/"abc"' }, 40);
+    assert.equal(conditionalHeaders(1, URL_A)['Cache-Control'], 'max-age=0');
+  });
+
+  it('sends no Cache-Control when there is nothing to revalidate', () => {
+    assert.equal(conditionalHeaders(9, URL_A)['Cache-Control'], undefined);
   });
 
   it('stays a no-op for a vendor that sends no validator', () => {
@@ -66,8 +82,8 @@ describe('conditionalHeaders', () => {
   it('keeps sources apart', () => {
     fullTick(1, URL_A, { etag: 'W/"one"' }, 1);
     fullTick(2, URL_A, { etag: 'W/"two"' }, 1);
-    assert.deepEqual(conditionalHeaders(1, URL_A), { 'If-None-Match': 'W/"one"' });
-    assert.deepEqual(conditionalHeaders(2, URL_A), { 'If-None-Match': 'W/"two"' });
+    assert.deepEqual(conditionalHeaders(1, URL_A), { 'If-None-Match': 'W/"one"', 'Cache-Control': CC });
+    assert.deepEqual(conditionalHeaders(2, URL_A), { 'If-None-Match': 'W/"two"', 'Cache-Control': CC });
   });
 });
 
@@ -92,14 +108,14 @@ describe('the commit rule — a validator is only sent once its jobs are stored'
     commitConditionalCache();
 
     assert.deepEqual(conditionalHeaders(1, URL_A), {}, 'the aborted entry never went live');
-    assert.deepEqual(conditionalHeaders(2, URL_B), { 'If-None-Match': 'W/"stored"' });
+    assert.deepEqual(conditionalHeaders(2, URL_B), { 'If-None-Match': 'W/"stored"', 'Cache-Control': CC });
   });
 
   it('a committed entry survives later ticks that stage nothing', () => {
     fullTick(1, URL_A, { etag: 'W/"abc"' }, 40);
     beginConditionalTick();
     commitConditionalCache();
-    assert.deepEqual(conditionalHeaders(1, URL_A), { 'If-None-Match': 'W/"abc"' });
+    assert.deepEqual(conditionalHeaders(1, URL_A), { 'If-None-Match': 'W/"abc"', 'Cache-Control': CC });
   });
 });
 
@@ -122,6 +138,6 @@ describe('cachedCount — what a 304 repeats', () => {
     fullTick(1, URL_A, { etag: 'W/"abc"' }, 40);
     fullTick(1, URL_A, { etag: 'W/"def"' }, 41);
     assert.equal(cachedCount(1), 41);
-    assert.deepEqual(conditionalHeaders(1, URL_A), { 'If-None-Match': 'W/"def"' });
+    assert.deepEqual(conditionalHeaders(1, URL_A), { 'If-None-Match': 'W/"def"', 'Cache-Control': CC });
   });
 });

@@ -458,6 +458,40 @@ Two fixes, both kept:
 positional that begins with our system text, so neither is exposed — and
 neither was changed, because neither could be tested from here.
 
+### 15. Node's `fetch` sabotages conditional requests unless you set Cache-Control
+
+Conditional requests (ADR 0035) shipped green — unit tests passing, `If-None-Match`
+demonstrably on the wire — and revalidated **nothing** on two of the vendors
+that `curl` got a 304 from. Lever and SmartRecruiters returned 200 with a
+byte-identical ETag.
+
+The cause is in the fetch spec, not the vendors. A request carrying
+`If-None-Match` / `If-Modified-Since` has its cache mode flipped to
+"no-store", and a no-store request gets `Pragma: no-cache` **and
+`Cache-Control: no-cache`** appended — unless the caller already set them.
+Express's `fresh()` reads that *request* directive exactly as written and
+refuses to answer 304. `conditionalHeaders` therefore sends
+`Cache-Control: max-age=0` with every validator: a stored copy is fine once
+revalidated, which is what we actually mean. (`Pragma` makes no difference —
+`fresh` ignores it — so it is left alone.)
+
+Two lessons, both cheap:
+
+- **Read what the server sees.** `fetch('https://postman-echo.com/get')`
+  printed the two headers nobody wrote, in one call. Guessing at
+  encodings and user agents took longer and found nothing.
+- **A live double-tick is the only proof.** Unit tests cover the cache, not
+  the vendor's answer, and this would have shipped as "conditional requests
+  are on" while every feed was still downloaded in full. See
+  `docs/scale-plan.md` §6 for what the run has to show.
+
+A related measurement from the same run: **We Work Remotely's ETag is a hash
+of a body that is not byte-stable** — four consecutive requests, four
+different ETags. Its `Vary: Accept-Encoding, Origin` and a 304 on a lucky
+pair of requests make it look like a revalidating source; it is not. A
+vendor that "supports ETag" is not the same as a vendor whose feed is stable
+enough for it to fire.
+
 ### 12. stripHtml: decode entities FIRST, and never re-run it on its own output
 
 Three lessons paid for with one broken evening (2026-08-30):

@@ -2,10 +2,12 @@
  * Conditional requests: ask a board for its feed only when the feed changed
  * (docs/scale-plan.md §4).
  *
- * Measured 2026-09-04, not assumed: Greenhouse, Lever, Ashby, DevITjobs, We
- * Work Remotely, Pinpoint, Personio, Teamtailor, Golang Projects, Breezy and
- * SmartRecruiters answer 304 to `If-None-Match`; Remotive answers 304 to
- * `If-Modified-Since`. Others send no validator or ignore the one they send,
+ * Measured 2026-09-04 over two live ticks, not assumed: Greenhouse, Lever,
+ * Ashby, DevITjobs, Pinpoint, Personio, Teamtailor, Golang Projects, Breezy
+ * and SmartRecruiters answer 304 to `If-None-Match`; Remotive answers 304 to
+ * `If-Modified-Since`; We Work Remotely is wired but rarely fires, because
+ * its ETag hashes a body that is not byte-stable between requests.
+ * Others send no validator or ignore the one they send,
  * and for those this module is a no-op — `conditionalHeaders` returns nothing
  * until a vendor has actually handed us a validator, so a source that turns
  * them on later is picked up for free and there is no allow-list to keep in
@@ -57,6 +59,14 @@ export function conditionalHeaders(companyId: number, url: string): Record<strin
   const headers: Record<string, string> = {};
   if (entry.etag) headers['If-None-Match'] = entry.etag;
   if (entry.lastModified) headers['If-Modified-Since'] = entry.lastModified;
+  // Node's fetch appends `Cache-Control: no-cache` to any request carrying a
+  // validator (the spec flips the cache mode to "no-store", which appends it
+  // unless we set our own). Express reads that request directive literally
+  // and refuses to answer 304 — measured 2026-09-04: Lever and
+  // SmartRecruiters returned an IDENTICAL ETag and a full body until this
+  // line was added, while curl got a 304 from the same URL. `max-age=0` says
+  // what we actually mean: a stored copy is fine once revalidated.
+  if (Object.keys(headers).length > 0) headers['Cache-Control'] = 'max-age=0';
   return headers;
 }
 
