@@ -1,5 +1,6 @@
 import Parser from 'rss-parser';
-import { stripHtml } from '../http';
+import { fetchWithRetry, stripHtml } from '../http';
+import { conditionalHeaders, rememberResponse } from './conditional';
 import { parseLocation } from '../location';
 import { feedItemKey } from '../text-utils';
 import type { NormalizedJob } from '../types';
@@ -47,8 +48,16 @@ export async function fetchWeWorkRemotely(
 ): Promise<NormalizedJob[]> {
   const slug = (company.atsToken || 'back-end-programming').trim();
   const url = `https://weworkremotely.com/categories/remote-${slug}-jobs.rss`;
-  const feed = await parser.parseURL(url);
-  return feed.items.flatMap((item) => mapWwrItem(item, company.id) ?? []);
+  // Fetched here rather than through parser.parseURL, so the request carries
+  // our own User-Agent and the feed's ETag (docs/scale-plan.md §4).
+  const resp = await fetchWithRetry(url, {
+    timeoutMs: PARSER_TIMEOUT_MS,
+    init: { headers: conditionalHeaders(company.id, url) },
+  });
+  const feed = await parser.parseString(await resp.text());
+  const jobs = feed.items.flatMap((item) => mapWwrItem(item, company.id) ?? []);
+  rememberResponse(company.id, url, resp, jobs.length);
+  return jobs;
 }
 
 /**

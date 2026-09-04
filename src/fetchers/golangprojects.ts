@@ -1,6 +1,7 @@
 import Parser from 'rss-parser';
-import { stripHtml } from '../http';
+import { fetchWithRetry, stripHtml } from '../http';
 import { feedItemKey } from '../text-utils';
+import { conditionalHeaders, rememberResponse } from './conditional';
 import type { NormalizedJob } from '../types';
 
 const FEED_URL = 'https://www.golangprojects.com/rss.xml';
@@ -28,8 +29,14 @@ const parser: Parser<unknown, GolangProjectsItem> = new Parser({
 export async function fetchGolangProjects(
   companyId: number,
 ): Promise<NormalizedJob[]> {
-  const feed = await parser.parseURL(FEED_URL);
-  return feed.items.flatMap((item) => mapGolangProjectsItem(item, companyId) ?? []);
+  const resp = await fetchWithRetry(FEED_URL, {
+    timeoutMs: PARSER_TIMEOUT_MS,
+    init: { headers: conditionalHeaders(companyId, FEED_URL) },
+  });
+  const feed = await parser.parseString(await resp.text());
+  const jobs = feed.items.flatMap((item) => mapGolangProjectsItem(item, companyId) ?? []);
+  rememberResponse(companyId, FEED_URL, resp, jobs.length);
+  return jobs;
 }
 
 export function mapGolangProjectsItem(

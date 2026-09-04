@@ -26,14 +26,23 @@ export function summarizeFetchRun(stats: CronStats): { kind: FlashKind; text: st
       text: `Fetch now stopped: fetching was paused mid-run after ${sources} sources (${fetched} jobs, nothing stored).`,
     };
   }
+  const unchanged = num(stats, 'sourcesUnchanged');
   if (fetched === 0) {
+    // A source that answered "unchanged" proves the tick reached the boards,
+    // so an empty run is the boards having nothing new — not a broken setup.
+    if (unchanged > 0) {
+      return {
+        kind: 'ok',
+        text: `Fetch now: nothing new in ${took} — ${unchanged} of ${sources} sources unchanged since the last tick${failed > 0 ? `, ${failed} failed` : ''}.`,
+      };
+    }
     return {
       kind: 'warn',
       text: `Fetch now: no jobs from ${sources} sources${failed > 0 ? ` (${failed} failed)` : ''} in ${took} — check the network, then the Quiet sources card on /companies.`,
     };
   }
   const persisted = num(stats, 'persisted');
-  const head = `Fetch now: ${fetched} jobs from ${sources} sources${failed > 0 ? ` (${failed} failed)` : ''} in ${took} — ${persisted} new stored`;
+  const head = `Fetch now: ${fetched} jobs from ${sources} sources${sourceNotes(unchanged, failed)} in ${took} — ${persisted} new stored`;
   if (stats.classify === false) {
     return {
       kind: 'ok',
@@ -50,4 +59,13 @@ export function summarizeFetchRun(stats: CronStats): { kind: FlashKind; text: st
     return { kind: 'warn', text: `${head}; the rest was skipped when fetching was paused mid-run.` };
   }
   return { kind: 'ok', text: `${head}, ${num(stats, 'classified')} scored, ${num(stats, 'alerted')} alerted.` };
+}
+
+/** "(44 unchanged, 2 failed)" — whichever of the two happened. */
+function sourceNotes(unchanged: number, failed: number): string {
+  const notes = [
+    ...(unchanged > 0 ? [`${unchanged} unchanged`] : []),
+    ...(failed > 0 ? [`${failed} failed`] : []),
+  ];
+  return notes.length > 0 ? ` (${notes.join(', ')})` : '';
 }

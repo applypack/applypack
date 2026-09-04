@@ -114,14 +114,18 @@ The same inner loop is reused by `runHnHiringJob` (extracted into
 
 ## Cron schedule (all `America/Chicago`)
 
-| Cron expr   | Job                | What it does                                   |
-| ----------- | ------------------ | ---------------------------------------------- |
-| `5 * * * *` | fetch              | full fetch + filter + classify + alert         |
+`mm` is this install's own minute, hashed from `AppSettings.instanceId` so
+that every deployment does not knock on the same board in the same second
+(ADR 0035); it applies to the three jobs that reach somebody else's server.
+
+| Cron expr    | Job                | What it does                                   |
+| ------------ | ------------------ | ---------------------------------------------- |
+| `mm * * * *` | fetch              | full fetch + filter + classify + alert         |
 | `0 9 * * *` | digest             | Telegram digest of last 24h NEW/ALERTED        |
 | `0 8 * * *` | stale-applications | Telegram nudge for `applied >14d ago, no contact` |
 | `0 3 * * 0` | cleanup            | Delete DISMISSED older than 30 days            |
-| `0 4 * * 0` | discovery          | Re-probe pending CompanyCandidates             |
-| `0 6 1 * *` | hn-hiring          | Pull latest HN Who-is-hiring + extract candidates |
+| `mm 4 * * 0` | discovery         | Re-probe pending CompanyCandidates             |
+| `mm 6 1 * *` | hn-hiring         | Pull latest HN Who-is-hiring + extract candidates |
 
 ## Profiles
 

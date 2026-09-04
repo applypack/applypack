@@ -32,13 +32,14 @@ cron job. The two processes share state only through Postgres
 
 ## Per-tick fetch pipeline
 
-This is what runs every hour at `:05` — and, since v1.6.0, whenever
+This is what runs once an hour, at the minute this install picked for
+itself (ADR 0035) — and, since v1.6.0, whenever
 "Fetch now" is pressed on the dashboard (same `runFetchJob`, in the web
 process; while the pipeline is paused it stores the new jobs unscored):
 
 ```mermaid
 sequenceDiagram
-  participant Cron as node-cron (:05)
+  participant Cron as node-cron (hourly)
   participant Job as runFetchJob<br/>jobs/fetch-job.ts
   participant Profile as getActiveProfile<br/>profiles.ts
   participant Settings as getSettings<br/>settings.ts
@@ -160,6 +161,7 @@ input tokens, then it stabilises).
 ```
 src/
   index.ts                     ← cron registration (6 jobs) + graceful shutdown
+  schedule.ts                  ← pure: this install's cron minute, from instanceId (ADR 0035)
   init.ts                      ← prisma migrate deploy + seed + bootstrap profile/Telegram
   config.ts                    ← zod-validated env (worker + web)
   logger.ts                    ← pino instance
@@ -228,6 +230,8 @@ src/
 
   fetchers/
     index.ts                   ← runAllFetchers + fetchOne switch
+    conditional.ts             ← ETag / Last-Modified per source; a 304 returns no jobs (ADR 0035)
+    source-order.ts            ← pure: seeded shuffle of the walk + politeDelayMs (ADR 0035)
     {greenhouse,lever,ashby}.ts          per-company JSON fetchers
     {workable,smartrecruiters}.ts        per-company JSON fetchers
     {recruitee,breezy,bamboohr,pinpoint}.ts  per-company JSON fetchers (F2)
@@ -330,12 +334,12 @@ prisma/
 
 | Trigger                          | Process | Entry point                              |
 | -------------------------------- | ------- | ---------------------------------------- |
-| `:05` every hour                 | app     | `runFetchJob`                            |
+| hourly, at this install's minute  | app     | `runFetchJob`                            |
 | `09:00` daily (Chicago)          | app     | `runDigestJob`                           |
 | `08:00` daily (Chicago)          | app     | `runStaleApplicationsJob`                |
 | `03:00` Sunday                   | app     | `runCleanupJob`                          |
-| `04:00` Sunday                   | app     | `runDiscoveryJob`                        |
-| `06:00` 1st of each month        | app     | `runHnHiringJob`                         |
+| Sunday `04:xx` (own minute)       | app     | `runDiscoveryJob`                        |
+| 1st of the month `06:xx`          | app     | `runHnHiringJob`                         |
 | any HTTP request                 | web     | Hono routing                             |
 | `POST /settings/reclassify`      | web     | spawns `runReclassifyAll` async (lock)   |
 | `POST /settings/hn-run`          | web     | spawns `runHnHiringJob` async (lock)     |

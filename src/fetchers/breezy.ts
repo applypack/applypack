@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { fetchWithRetry, stripHtml } from '../http';
+import { conditionalHeaders, rememberResponse } from './conditional';
 import type { NormalizedJob } from '../types';
 
 // Breezy's public board JSON: top-level array, one GET, no auth.
@@ -50,9 +51,12 @@ export interface BreezyCompany {
 export async function fetchBreezy(
   company: BreezyCompany,
 ): Promise<NormalizedJob[]> {
-  const resp = await fetchWithRetry(ENDPOINT_TEMPLATE(company.atsToken));
+  const url = ENDPOINT_TEMPLATE(company.atsToken);
+  const resp = await fetchWithRetry(url, { init: { headers: conditionalHeaders(company.id, url) } });
   const raw: unknown = await resp.json();
-  return mapBreezyFeed(raw, company.id);
+  const jobs = mapBreezyFeed(raw, company.id);
+  rememberResponse(company.id, url, resp, jobs.length);
+  return jobs;
 }
 
 export function mapBreezyFeed(

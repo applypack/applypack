@@ -10,15 +10,23 @@ import { runStaleApplicationsJob } from './jobs/stale-applications-job';
 import { runHnHiringJob } from './jobs/hn-hiring-job';
 import { runDiscoveryJob } from './jobs/discovery-job';
 import { recordCronRun } from './jobs/cron-run';
+import { spreadMinute } from './schedule';
+import { getInstanceId } from './settings';
 
 const SHUTDOWN_POLL_MS = 250;
 const SHUTDOWN_MAX_WAIT_MS = 60_000;
 
 let inFlight = 0;
 let shuttingDown = false;
+/** This install's identity — read once in main(), before anything registers. */
+let instanceId = '';
 
 async function main(): Promise<void> {
   await init();
+
+  // Every install ships the same seed data; without this they would all ask
+  // the same board in the same second (docs/scale-plan.md §2).
+  instanceId = await getInstanceId();
 
   registerCron('5 * * * *', 'fetch', () => recordCronRun('fetch', runFetchJob));
   registerCron('0 9 * * *', 'digest', () => recordCronRun('digest', runDigestJob));
@@ -52,8 +60,9 @@ function registerCron(
   name: string,
   fn: () => Promise<void>,
 ): void {
+  const schedule = spreadMinute(expression, instanceId, name);
   cron.schedule(
-    expression,
+    schedule,
     async () => {
       if (shuttingDown) {
         logger.warn({ name }, 'cron: skipping (shutting down)');
@@ -76,7 +85,7 @@ function registerCron(
     },
     { timezone: config.TZ },
   );
-  logger.info({ name, expression, tz: config.TZ }, 'cron: registered');
+  logger.info({ name, schedule, tz: config.TZ }, 'cron: registered');
 }
 
 async function shutdown(signal: string): Promise<void> {

@@ -8,11 +8,13 @@ import { isBlankProfile } from '../profile-guards';
 import { EMPTY_CONTEXT, searchPlaces, type FetchContext } from './fetch-context';
 import {
   QUIET_STREAK,
+  advancesLastOk,
   classifyFetchCount,
   classifyFetchError,
   nextStreak,
   type FetchStatus,
 } from './source-health';
+import { cachedCount } from './conditional';
 import { fetchGreenhouse } from './greenhouse';
 import { fetchLever } from './lever';
 import { fetchAshby } from './ashby';
@@ -46,9 +48,8 @@ import { fetchTeamtailor } from './teamtailor';
 import { MAX_ADZUNA_ROWS, fetchAdzuna } from './adzuna';
 import { fetchFranceTravail } from './francetravail';
 import { getSourceKeys } from '../settings';
+import { politeDelayMs, shuffleSources, tickSeed } from './source-order';
 import type { NormalizedJob } from '../types';
-
-const POLITE_DELAY_MS = 1_000;
 
 export interface FetcherResult {
   job: NormalizedJob;
@@ -96,15 +97,20 @@ export async function runAllFetchers(
   // context is never logged whole from here on.
   const context: FetchContext = { ...places, keys: await getSourceKeys(), manual: opts.manual === true, now: new Date() };
   // Adzuna's monthly limit allows ten rows on the four-a-day cadence; any
-  // beyond that are refused, not silently fetched (ADR 0034).
+  // beyond that are refused, not silently fetched (ADR 0034). Decided from
+  // the id order, BEFORE the shuffle: which markets are live has to be the
+  // same answer every tick, or the user cannot tell which ten they get.
   const adzunaOverflow = new Set(
     companies.filter((c) => c.atsType === AtsType.ADZUNA).slice(MAX_ADZUNA_ROWS).map((c) => c.id),
   );
+  // Every install seeds the same ids, so a fixed order means every install
+  // asks the same board in the same second (docs/scale-plan.md §3).
+  const walk = shuffleSources(companies, tickSeed());
 
   const out: FetcherResult[] = [];
   let done = 0;
 
-  for (const company of companies) {
+  for (const company of walk) {
     if (isCancelled && (await isCancelled())) {
       logger.warn(
         { done, remaining: companies.length - done },
@@ -133,14 +139,25 @@ export async function runAllFetchers(
       }
     } catch (err) {
       status = classifyFetchError(err);
-      logger.error(
-        { err, company: company.name, ats: company.atsType, status },
-        'fetcher: failed',
-      );
+      if (status === 'not_modified') {
+        // Not a failure: the board says its feed is what we already read, so
+        // there is nothing to fetch and nothing to store (scale-plan §4).
+        logger.info(
+          { company: company.name, ats: company.atsType },
+          'fetcher: unchanged since the last tick',
+        );
+      } else {
+        logger.error(
+          { err, company: company.name, ats: company.atsType, status },
+          'fetcher: failed',
+        );
+      }
     }
-    await recordFetchHealth(company, status);
+    await recordFetchHealth(company, status, cachedCount(company.id));
     onSource?.({ company: company.name, status, count, done, total: companies.length });
-    await sleep(POLITE_DELAY_MS);
+    // Back off in proportion to what we just spent of the board's: a feed we
+    // did not download does not earn the same second as one we did.
+    await sleep(politeDelayMs(status, company.atsType));
   }
 
   return out;
@@ -153,6 +170,7 @@ export async function runAllFetchers(
 async function recordFetchHealth(
   company: { id: number; name: string; consecutiveFailures: number },
   status: FetchStatus,
+  lastFullCount: number | null,
 ): Promise<void> {
   const streak = nextStreak(status, company.consecutiveFailures);
   try {
@@ -161,7 +179,7 @@ async function recordFetchHealth(
       data: {
         lastFetchStatus: status,
         consecutiveFailures: streak,
-        ...(status === 'ok' ? { lastOkAt: new Date() } : {}),
+        ...(advancesLastOk(status, lastFullCount) ? { lastOkAt: new Date() } : {}),
       },
     });
   } catch (err) {

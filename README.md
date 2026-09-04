@@ -369,12 +369,20 @@ application you tracked against it.
 
 | Cron | Job | What it does |
 | --- | --- | --- |
-| `5 * * * *` | fetch | Pull all sources → filter → classify → alert |
+| `mm * * * *` † | fetch | Pull all sources → filter → classify → alert |
 | `0 9 * * *` | digest | Telegram digest of the last 24h of new/alerted jobs |
 | `0 8 * * *` | stale-applications | Nudge for applications quiet for 14+ days |
 | `0 3 * * 0` | cleanup | Drop dismissed jobs older than 30 days, trim usage counters |
-| `0 4 * * 0` | discovery | Re-probe pending company candidates |
-| `0 6 1 * *` | hn-hiring | Pull the monthly HN "Who is hiring" thread |
+| `mm 4 * * 0` † | discovery | Re-probe pending company candidates |
+| `mm 6 1 * *` † | hn-hiring | Pull the monthly HN "Who is hiring" thread |
+
+† `mm` is a fixed minute your install picks for itself, so that every
+ApplyPack in your time zone doesn't ask the same free job board in the same
+second. It's stable across restarts and printed at boot (`cron: registered`
+in the worker log). The three jobs that reach somebody else's server get
+their own minute; the ones that only touch your Telegram and your database
+run at the hour written above. See
+[ADR 0035](./docs/adr/0035-many-installs-one-set-of-boards.md).
 
 Every cron has a matching one-shot script for manual runs
 (`docker compose exec app node dist/scripts/<name>-once.js`, or
@@ -406,6 +414,40 @@ down in [CLAUDE.md](./CLAUDE.md).
 > [docs/ai-engines.md](./docs/ai-engines.md) — AI setup, local + Docker ·
 > [docs/adr/](./docs/adr/) — every non-obvious decision, with reasons ·
 > [CHANGELOG.md](./CHANGELOG.md) — releases.
+
+## Hosting this for other people
+
+ApplyPack is built as a personal tool: one person, their own machine, their
+own keys. That is also the shape its sources assume. If you're putting it in
+front of other people, three things change, and none of them are in the code.
+
+**The vendors' terms become yours.** Adzuna's API is for personal research
+and for publishing its listings; an organisation deploying it is on a
+14-day trial and has to arrange its own licence. France Travail's licence
+does not let you pass its content on to third parties, and does not let you
+charge job seekers for access to it. A hosted, multi-user ApplyPack is
+exactly the case both clauses are about — read them before you point either
+source at somebody else's screen. Neither is on by default, and neither
+appears anywhere in the UI until you paste a credential
+([ADR 0034](./docs/adr/0034-keyed-sources.md)).
+
+**The daily obligation doesn't pause when you do.** France Travail asks for
+every stored offer to be re-checked every 24 hours; ApplyPack does that on
+each tick, so leaving fetching paused for more than a day quietly puts your
+stored offers out of compliance. The Sources tab says so next to the source.
+
+**Be a good guest on the free ones.** The default sources are RSS feeds and
+public APIs with no contract at all, which is a reason for more care rather
+than less. Each install picks its own tick minute and its own source order,
+and revalidates a feed instead of re-downloading it wherever the vendor
+supports that ([ADR 0035](./docs/adr/0035-many-installs-one-set-of-boards.md),
+measurements in [docs/scale-plan.md](./docs/scale-plan.md)). All of that is
+per-install, so give each instance its own database rather than sharing one
+— which is the default anyway.
+
+One practical note: compose binds the dashboard to `127.0.0.1` on purpose.
+Exposing it is your call and your reverse proxy; ApplyPack has no user
+accounts and no authentication of its own.
 
 ## Contributing
 

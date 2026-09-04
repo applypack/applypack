@@ -80,6 +80,13 @@
   passes the filter unscored (no AI, no alert) — "Fetch now" while paused.
 - `AiProvider` calls are tool-free unless the request sets `webTools`; only
   `src/verification/verify.ts` does (ADR 0009). Never turn it on for the classifier.
+- A fetcher that makes ONE request per tick sends `conditionalHeaders(id, url)`
+  and calls `rememberResponse(id, url, resp, jobs.length)` after parsing
+  (ADR 0035). It is a no-op for a vendor that offers no validator, so it goes
+  in unconditionally; a 304 propagates as `HttpError` and `runAllFetchers`
+  reads it as `not_modified`. Sources that make SEVERAL requests for one row
+  (Arbeitnow's pages, Jobicy/Himalayas per place, the keyed sources) are left
+  out on purpose. Never store a validator before the jobs are persisted.
 - Every AI call site takes its prompt from an exported `build*Prompt`, and
   every builder wraps outside text with `fence()` from `src/prompt-fence.ts`
   (ADR 0022). `src/prompt-fence-registry.test.ts` derives both rosters, so a
@@ -180,6 +187,9 @@ When the question is **"where does X live?"**, save yourself a `find`:
 | The /jobs place / workplace / posted facets (query params, where-clause, chip counts) | `src/web/job-facets.ts` (pure) — `country=PL,DE,EUROPE,unknown`, `workplace=remote,hybrid`, `posted=24h\|7d\|30d`; rendered in `pages/jobs-list.tsx`, chips on `/jobs/:id` |
 | Stable id for a feed row with no id of its own | `src/text-utils.ts:feedItemKey` (URL key → text key → null, never `''`) |
 | The cron list (6 schedules) | `src/index.ts:registerCron` |
+| Which minute THIS install ticks at (and why it is not :05 everywhere) | `src/schedule.ts:spreadMinute` (pure, ADR 0035) over `AppSettings.instanceId`; only `fetch` / `hn-hiring` / `discovery` move |
+| How the tick paces itself: the walk order (shuffled per tick; the Adzuna ten still come from id order first) and the gap between requests (`not_modified` → 250 ms, everything else 1 s, Lever's published `Crawl-delay` as a floor) | `src/fetchers/source-order.ts:shuffleSources` / `politeDelayMs` (pure, ADR 0035), called in `fetchers/index.ts:runAllFetchers` |
+| Asking a board for its feed only when it changed (ETag / Last-Modified, and why a 304 returns no jobs) | `src/fetchers/conditional.ts` (ADR 0035) — `conditionalHeaders` + `rememberResponse` in each single-URL fetcher, `commitConditionalCache()` in `jobs/fetch-job.ts` after the jobs are stored; status `not_modified` + `advancesLastOk` in `fetchers/source-health.ts`; the live measurements are `docs/scale-plan.md` §1 |
 | First-run wizard (`/welcome`: steps derived from data, `/` redirect, skip/finish) | `src/web/welcome-steps.ts` (pure: step rules + score summary) · `src/web/welcome-facts.ts` (loads the facts) · `src/web/routes/welcome.tsx` + `pages/welcome.tsx`; step 4 = `runScoreUnscored` in `src/jobs/reclassify-job.ts`, which picks its batch with `src/jobs/score-pick.ts` (pure ranking, `SCORE_BATCH`) |
 | "Fetch now" (the tick from the dashboard: live progress, unscored while paused) | `POST /runs/fetch-now` in `src/web/routes/runs.tsx` → `runFetchJob({ manual: true })` in `src/jobs/fetch-job.ts`; registry `src/web/fetch-runs.ts`; verdict line `src/web/fetch-summary.ts` (pure) |
 | What runs on container boot | `src/init.ts` |
@@ -447,6 +457,40 @@ Two fixes, both kept:
 `gemini_cli` passes the prompt as a flag *value* and `codex_cli` as a
 positional that begins with our system text, so neither is exposed — and
 neither was changed, because neither could be tested from here.
+
+### 15. Node's `fetch` sabotages conditional requests unless you set Cache-Control
+
+Conditional requests (ADR 0035) shipped green — unit tests passing, `If-None-Match`
+demonstrably on the wire — and revalidated **nothing** on two of the vendors
+that `curl` got a 304 from. Lever and SmartRecruiters returned 200 with a
+byte-identical ETag.
+
+The cause is in the fetch spec, not the vendors. A request carrying
+`If-None-Match` / `If-Modified-Since` has its cache mode flipped to
+"no-store", and a no-store request gets `Pragma: no-cache` **and
+`Cache-Control: no-cache`** appended — unless the caller already set them.
+Express's `fresh()` reads that *request* directive exactly as written and
+refuses to answer 304. `conditionalHeaders` therefore sends
+`Cache-Control: max-age=0` with every validator: a stored copy is fine once
+revalidated, which is what we actually mean. (`Pragma` makes no difference —
+`fresh` ignores it — so it is left alone.)
+
+Two lessons, both cheap:
+
+- **Read what the server sees.** `fetch('https://postman-echo.com/get')`
+  printed the two headers nobody wrote, in one call. Guessing at
+  encodings and user agents took longer and found nothing.
+- **A live double-tick is the only proof.** Unit tests cover the cache, not
+  the vendor's answer, and this would have shipped as "conditional requests
+  are on" while every feed was still downloaded in full. See
+  `docs/scale-plan.md` §6 for what the run has to show.
+
+A related measurement from the same run: **We Work Remotely's ETag is a hash
+of a body that is not byte-stable** — four consecutive requests, four
+different ETags. Its `Vary: Accept-Encoding, Origin` and a 304 on a lucky
+pair of requests make it look like a revalidating source; it is not. A
+vendor that "supports ETag" is not the same as a vendor whose feed is stable
+enough for it to fire.
 
 ### 12. stripHtml: decode entities FIRST, and never re-run it on its own output
 

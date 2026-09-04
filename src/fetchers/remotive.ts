@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { fetchWithRetry, stripHtml } from '../http';
+import { conditionalHeaders, rememberResponse } from './conditional';
 import { hashShortId } from '../text-utils';
 import type { NormalizedJob } from '../types';
 
@@ -30,9 +31,15 @@ const RemotiveResponseSchema = z
   .passthrough();
 
 export async function fetchRemotive(companyId: number): Promise<NormalizedJob[]> {
-  const resp = await fetchWithRetry(ENDPOINT);
+  const resp = await fetchWithRetry(ENDPOINT, {
+    init: { headers: conditionalHeaders(companyId, ENDPOINT) },
+  });
   const raw: unknown = await resp.json();
-  return mapRemotiveFeed(raw, companyId);
+  const jobs = mapRemotiveFeed(raw, companyId);
+  // Remotive sends `Cache-Control: no-store` and still honours
+  // If-Modified-Since: we keep the validator, never the payload.
+  rememberResponse(companyId, ENDPOINT, resp, jobs.length);
+  return jobs;
 }
 
 export function mapRemotiveFeed(raw: unknown, companyId: number): NormalizedJob[] {

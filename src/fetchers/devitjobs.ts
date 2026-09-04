@@ -1,6 +1,7 @@
 import Parser from 'rss-parser';
 import { placeLabel } from '../countries';
-import { HttpError, decodeHtmlEntities, fetchWithRetry, stripHtml } from '../http';
+import { decodeHtmlEntities, fetchWithRetry, stripHtml } from '../http';
+import { conditionalHeaders, rememberResponse } from './conditional';
 import { feedItemKey } from '../text-utils';
 import type { NormalizedJob } from '../types';
 
@@ -16,8 +17,8 @@ import type { NormalizedJob } from '../types';
  * hint is the site's and the arrangement stays with the classifier. The
  * feeds keep items for years; only the last MAX_AGE_DAYS are taken, the
  * rest would be dead postings scored for nothing. Both validators answer
- * 304, and the cache is in-process: an unchanged feed costs one 304 per
- * tick and hands back the previous parse; a restart costs one full read.
+ * 304 — the shared conditional cache handles that for every source now
+ * (docs/scale-plan.md §4).
  */
 const SITES: Readonly<Record<string, string>> = {
   'germantechjobs.de': 'DE',
@@ -45,14 +46,6 @@ const parser: Parser<unknown, DevItJobsItem> = new Parser({
   customFields: { item: ['content:encoded'] },
 });
 
-interface FeedCache {
-  etag: string | null;
-  lastModified: string | null;
-  jobs: NormalizedJob[];
-}
-
-const feedCache = new Map<string, FeedCache>();
-
 export interface DevItJobsCompany {
   id: number;
   /** The site host: "germantechjobs.de", "devitjobs.uk" or "devitjobs.nl". */
@@ -61,28 +54,15 @@ export interface DevItJobsCompany {
 
 export async function fetchDevItJobs(company: DevItJobsCompany): Promise<NormalizedJob[]> {
   const host = devItJobsHost(company.atsToken);
-  const cached = feedCache.get(host);
-  const headers: Record<string, string> = {};
-  if (cached?.etag) headers['If-None-Match'] = cached.etag;
-  if (cached?.lastModified) headers['If-Modified-Since'] = cached.lastModified;
-  let resp: Response;
-  try {
-    resp = await fetchWithRetry(`https://${host}/rss`, { timeoutMs: TIMEOUT_MS, init: { headers } });
-  } catch (err) {
-    // 304 is not an error: the feed is exactly what we parsed last time.
-    if (cached && err instanceof HttpError && err.status === 304) {
-      return cached.jobs.map((job) => ({ ...job, companyId: company.id }));
-    }
-    throw err;
-  }
+  const url = `https://${host}/rss`;
+  const resp = await fetchWithRetry(url, {
+    timeoutMs: TIMEOUT_MS,
+    init: { headers: conditionalHeaders(company.id, url) },
+  });
   const feed = await parser.parseString(await resp.text());
   const now = new Date();
   const jobs = feed.items.flatMap((item) => mapDevItJobsItem(item, company.id, host, now) ?? []);
-  feedCache.set(host, {
-    etag: resp.headers.get('etag'),
-    lastModified: resp.headers.get('last-modified'),
-    jobs,
-  });
+  rememberResponse(company.id, url, resp, jobs.length);
   return jobs;
 }
 

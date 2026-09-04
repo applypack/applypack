@@ -4,6 +4,7 @@ import { HttpError } from '../http';
 import {
   FETCH_STATUSES,
   QUIET_STREAK,
+  advancesLastOk,
   SILENT_DAYS,
   classifyFetchCount,
   classifyFetchError,
@@ -17,6 +18,9 @@ import {
   type SourceHealth,
 } from './source-health';
 
+/** The statuses that mean "the board answered", in FETCH_STATUSES order. */
+const ANSWERS: ReadonlySet<FetchStatus> = new Set<FetchStatus>(['ok', 'empty', 'not_modified']);
+
 const http = (status: number): HttpError =>
   new HttpError(`HTTP ${status} for https://x/y`, status, 'https://x/y');
 
@@ -26,6 +30,12 @@ function fetchFailed(cause: { code?: string; message?: string }): TypeError {
 }
 
 describe('classifyFetchError — measured vendor behaviour', () => {
+  it('304 is the feed being unchanged, not a failure', () => {
+    // fetchWithRetry throws on every non-2xx, so a conditional hit arrives
+    // here as an HttpError and must not be read as one.
+    assert.equal(classifyFetchError(http(304)), 'not_modified');
+  });
+
   it('404 and 410 mean the slug is gone', () => {
     assert.equal(classifyFetchError(http(404)), 'slug_gone');
     assert.equal(classifyFetchError(http(410)), 'slug_gone');
@@ -105,15 +115,44 @@ describe('classifyFetchCount', () => {
   });
 });
 
+describe('advancesLastOk — a 304 is only as good as what it repeats', () => {
+  it('a full response with rows moves lastOkAt', () => {
+    assert.equal(advancesLastOk('ok', null), true);
+  });
+
+  it('an unchanged feed that last carried rows moves it too', () => {
+    assert.equal(advancesLastOk('not_modified', 40), true);
+  });
+
+  it('an unchanged EMPTY board does not — the Breezy case', () => {
+    // Measured 2026-09-04: a stable ETag over `[]`. Treating that as healthy
+    // would let a dead board pass the silence check forever (gotcha 13).
+    assert.equal(advancesLastOk('not_modified', 0), false);
+  });
+
+  it('a 304 we have no full response for proves nothing', () => {
+    assert.equal(advancesLastOk('not_modified', null), false);
+  });
+
+  it('never moves it for empty or for a failure', () => {
+    for (const status of FETCH_STATUSES) {
+      if (status === 'ok' || status === 'not_modified') continue;
+      assert.equal(advancesLastOk(status, 99), false, status);
+    }
+  });
+});
+
 describe('nextStreak — the inversion', () => {
-  it('ok and empty reset', () => {
+  it('ok, empty and not_modified reset', () => {
     assert.equal(nextStreak('ok', 9), 0);
     assert.equal(nextStreak('empty', 9), 0);
+    // A 304 is the board answering, so it cannot count against the source.
+    assert.equal(nextStreak('not_modified', 9), 0);
   });
 
   it('every other status increments', () => {
     for (const status of FETCH_STATUSES) {
-      if (status === 'ok' || status === 'empty') continue;
+      if (ANSWERS.has(status)) continue;
       assert.equal(nextStreak(status, 2), 3, `${status} must increment`);
     }
   });
@@ -122,9 +161,11 @@ describe('nextStreak — the inversion', () => {
     assert.equal(nextStreak('unknown', 0), 1);
   });
 
-  it('exactly two statuses are treated as healthy', () => {
+  it('exactly three statuses are treated as healthy', () => {
+    // The list is the guard: a status added later is a failure unless
+    // somebody deliberately said otherwise here.
     const healthy = FETCH_STATUSES.filter((s) => nextStreak(s, 5) === 0);
-    assert.deepEqual([...healthy], ['ok', 'empty']);
+    assert.deepEqual([...healthy], [...ANSWERS]);
   });
 
   it('a corrupt negative counter cannot make the streak go backwards', () => {
@@ -217,11 +258,10 @@ describe('describeStatus', () => {
 });
 
 describe('isFailureStatus', () => {
-  it('treats only ok and empty as answers', () => {
-    assert.equal(isFailureStatus('ok'), false);
-    assert.equal(isFailureStatus('empty'), false);
+  it('treats only ok, empty and not_modified as answers', () => {
+    for (const s of ANSWERS) assert.equal(isFailureStatus(s), false, s);
     for (const s of FETCH_STATUSES) {
-      if (s === 'ok' || s === 'empty') continue;
+      if (ANSWERS.has(s)) continue;
       assert.equal(isFailureStatus(s), true, s);
     }
   });

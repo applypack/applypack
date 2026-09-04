@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { fetchWithRetry, sleep, stripHtml } from '../http';
+import { conditionalHeaders, rememberResponse } from './conditional';
 import { logger } from '../logger';
 import type { LocationHints } from '../location';
 import type { NormalizedJob } from '../types';
@@ -85,7 +86,9 @@ export async function fetchSmartRecruiters(
   company: SmartRecruitersCompany,
 ): Promise<NormalizedJob[]> {
   const listUrl = `https://api.smartrecruiters.com/v1/companies/${encodeURIComponent(company.atsToken)}/postings?limit=${LIST_LIMIT}`;
-  const resp = await fetchWithRetry(listUrl);
+  const resp = await fetchWithRetry(listUrl, {
+    init: { headers: conditionalHeaders(company.id, listUrl) },
+  });
   const raw: unknown = await resp.json();
   const list = SrListSchema.safeParse(raw);
   if (!list.success) {
@@ -151,6 +154,9 @@ export async function fetchSmartRecruiters(
       locationHints: srLocationHints(p.location ?? null),
     });
   }
+  // Only the list call is conditional; an unchanged list means no posting
+  // appeared or disappeared, so the detail fetches are skipped with it.
+  rememberResponse(company.id, listUrl, resp, out.length);
   return out;
 }
 

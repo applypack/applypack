@@ -77,6 +77,21 @@ export async function getSettings(): Promise<AppSettingsView> {
   };
 }
 
+/**
+ * This install's identity (docs/scale-plan.md §2). Read at worker boot to
+ * pick the cron minute; deliberately outside AppSettingsView, because
+ * nothing renders it and nothing else has any business with it.
+ */
+export async function getInstanceId(): Promise<string> {
+  const row = await prisma.appSettings.upsert({
+    where: { id: SETTINGS_ID },
+    update: {},
+    create: { id: SETTINGS_ID },
+    select: { instanceId: true },
+  });
+  return row.instanceId;
+}
+
 /** Marks the first-run wizard as finished (or skipped); `/` stops redirecting. */
 export async function setSetupCompleted(): Promise<void> {
   await prisma.appSettings.upsert({

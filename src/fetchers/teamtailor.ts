@@ -1,6 +1,7 @@
 import Parser from 'rss-parser';
 import { findCountry } from '../countries';
 import { fetchWithRetry, stripHtml } from '../http';
+import { conditionalHeaders, rememberResponse } from './conditional';
 import { isPrivateHost } from '../jobs/posting-url';
 import type { LocationHints, WorkplaceCode } from '../location';
 import { feedItemKey } from '../text-utils';
@@ -61,9 +62,15 @@ export interface TeamtailorCompany {
 
 export async function fetchTeamtailor(company: TeamtailorCompany): Promise<NormalizedJob[]> {
   const host = teamtailorHost(company.atsToken);
-  const resp = await fetchWithRetry(teamtailorFeedUrl(host), { timeoutMs: TIMEOUT_MS });
+  const url = teamtailorFeedUrl(host);
+  const resp = await fetchWithRetry(url, {
+    timeoutMs: TIMEOUT_MS,
+    init: { headers: conditionalHeaders(company.id, url) },
+  });
   const feed = await parser.parseString(await resp.text());
-  return feed.items.flatMap((item) => mapTeamtailorItem(item, company.id, feed.title) ?? []);
+  const jobs = feed.items.flatMap((item) => mapTeamtailorItem(item, company.id, feed.title) ?? []);
+  rememberResponse(company.id, url, resp, jobs.length);
+  return jobs;
 }
 
 export function teamtailorFeedUrl(host: string): string {

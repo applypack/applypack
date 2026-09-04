@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { fetchWithRetry, stripHtml } from '../http';
+import { conditionalHeaders, rememberResponse } from './conditional';
 import type { NormalizedJob } from '../types';
 
 const GreenhouseLocationSchema = z
@@ -41,7 +42,7 @@ export async function fetchGreenhouse(
   company: GreenhouseCompany,
 ): Promise<NormalizedJob[]> {
   const url = `https://boards-api.greenhouse.io/v1/boards/${encodeURIComponent(company.atsToken)}/jobs?content=true`;
-  const resp = await fetchWithRetry(url);
+  const resp = await fetchWithRetry(url, { init: { headers: conditionalHeaders(company.id, url) } });
   const data: unknown = await resp.json();
   const parsed = GreenhouseResponseSchema.safeParse(data);
   if (!parsed.success) {
@@ -49,7 +50,9 @@ export async function fetchGreenhouse(
       `Greenhouse schema invalid for "${company.atsToken}": ${parsed.error.message}`,
     );
   }
-  return parsed.data.jobs.map((j) => mapGreenhouseJob(j, company.id));
+  const jobs = parsed.data.jobs.map((j) => mapGreenhouseJob(j, company.id));
+  rememberResponse(company.id, url, resp, jobs.length);
+  return jobs;
 }
 
 /**
