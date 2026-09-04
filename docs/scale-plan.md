@@ -187,9 +187,12 @@ again.
 
 So the cache is two layers. A fetcher writes to a **staged** map; the live
 map is only updated by `commitConditionalCache()`, which `runFetchJob` calls
-after a processing pass that completed without aborting. Anything else —
-pause, error, forced shutdown — leaves the live map untouched and costs one
-full refetch next tick. Staging is cleared at the start of each tick, which
+when `tickStoredEverything()` agrees — nothing aborted, a usable search
+existed, and every posting got a verdict. Anything else — a pause, an AI
+chain that ran dry mid-tick, a forced shutdown — leaves the live map
+untouched and costs one full refetch next tick. (A database failure needs no
+counter of its own: `persistJob` rethrows everything except "already
+stored", so it never reaches the commit at all.) Staging is cleared at the start of each tick, which
 is also correct under two overlapping ticks: the worst interleaving commits
 a validator for jobs the *other* tick already persisted.
 

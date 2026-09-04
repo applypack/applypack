@@ -31,6 +31,11 @@ const CRON_FIELDS = 5;
  * would collide those two every Sunday on every install.
  */
 export function cronMinute(instanceId: string, jobName: string): number {
+  // Without an id every install hashes the same string and lands on the same
+  // minute — the exact thing this exists to prevent, and silently. The column
+  // is NOT NULL, so an empty value means a caller scheduled something before
+  // reading it.
+  if (instanceId === '') throw new Error('schedule: no instanceId — read it before registering crons');
   return hash32(`${instanceId}:${jobName}`) % MINUTES_PER_HOUR;
 }
 

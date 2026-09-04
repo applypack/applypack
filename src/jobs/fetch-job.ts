@@ -1,6 +1,6 @@
 import { logger } from '../logger';
 import { runAllFetchers, type SourceProgress } from '../fetchers';
-import { beginConditionalTick, commitConditionalCache } from '../fetchers/conditional';
+import { beginConditionalTick, commitConditionalCache, tickStoredEverything } from '../fetchers/conditional';
 import { syncFranceTravail } from './france-travail-sync';
 import { isFailureStatus } from '../fetchers/source-health';
 import { listActiveProfiles } from '../profiles';
@@ -148,12 +148,10 @@ export async function runFetchJob(opts: FetchJobOptions = {}): Promise<{ stats: 
     isCancelled: paused,
   });
 
-  // Only now may this tick's validators be sent: a pass that aborted, or one
-  // that never reached the persist loop, discarded what it fetched, and a
-  // committed ETag would answer 304 over postings nobody stored.
-  if (inner.abortedMidRun === 0 && inner.skippedBlankProfile === 0) {
-    commitConditionalCache();
-  }
+  // Only now may this tick's validators be sent, and only if it stored
+  // everything it fetched — see tickStoredEverything for why each counter
+  // costs us a full re-read next tick instead of a skipped posting.
+  if (tickStoredEverything(inner)) commitConditionalCache();
 
   const durationMs = Date.now() - started;
   const stats: CronStats = {

@@ -45,7 +45,10 @@ describe('shuffleSources', () => {
 });
 
 describe('tickSeed', () => {
-  it('is a 32-bit unsigned integer', () => {
+  it('is an integer — a float would collapse to seed 0 and freeze the order', () => {
+    // mulberry32 does `seed >>> 0`, so Math.random() straight from the box
+    // would give every tick the same permutation and silently undo this.
+    assert.notDeepEqual(shuffleSources(ids(30), 0.4), shuffleSources(ids(30), 7));
     for (let i = 0; i < 100; i++) {
       const seed = tickSeed();
       assert.ok(Number.isInteger(seed) && seed >= 0 && seed < 2 ** 32, `${seed}`);

@@ -96,12 +96,15 @@ Three rules keep that safe rather than merely cheap:
    only when the last full response actually carried rows. Breezy's empty
    board still ages into "silent"; ADR 0019's second signal survives intact.
 3. **A validator is committed only once its jobs are stored.** Fetchers write
-   to a staged map; `runFetchJob` calls `commitConditionalCache()` only after
-   a processing pass that neither aborted nor skipped the persist loop.
-   Pausing fetching mid-tick is a normal, frequent path that discards
-   everything fetched so far — an eagerly stored ETag would answer 304 next
-   tick over postings nobody saved, and they would stay lost until the feed
-   happened to change.
+   to a staged map, and `runFetchJob` promotes it only when
+   `tickStoredEverything()` agrees: nothing aborted, a usable search existed,
+   and every posting got a verdict. Pausing fetching mid-tick is a normal,
+   frequent path that discards everything fetched so far, and an AI chain
+   that runs dry drops the postings it could not score — an eagerly stored
+   ETag would answer 304 next tick over those postings, and they would stay
+   unseen until the feed happened to change. A write failure needs no
+   counter: `persistJob` rethrows everything except "already stored", so it
+   never reaches the commit.
 
 The cache is per-process and dies with it. A restart costs one full read per
 source, which at an hourly tick is a rounding error against keeping it out
@@ -150,9 +153,11 @@ retry policy like every other source.
 ❌ A new `FetchStatus`. Anything that switches on the vocabulary has to know
 about it; `describeStatus` and `isFailureStatus` are the only two places
 that do, and both are guard-tested against `FETCH_STATUSES`.
-❌ An aborted tick throws away its validators, so the tick after a pause is a
-full refetch. That is the price of never losing a posting, and it is paid
-once per pause.
+❌ A tick that dropped anything throws away its validators, so the tick after
+a pause — or after the AI chain ran dry — is a full refetch. That is the
+price of never losing a posting. Its own failure mode is worth knowing: a
+posting that fails to classify on *every* tick keeps conditional requests
+switched off for the whole install, visibly, in `classifyFailed` on /runs.
 ❌ The cache is per-process: the worker and the dashboard's "Fetch now" keep
 separate ones, and both start empty after a restart.
 ❌ Two sources that do honour validators (Arbeitnow, Jobicy) are left out by

@@ -15,6 +15,10 @@ describe('cronMinute', () => {
     }
   });
 
+  it('refuses an empty id instead of silently putting every install on one minute', () => {
+    assert.throws(() => cronMinute('', 'fetch'), /instanceId/);
+  });
+
   it('is stable for the same install and job', () => {
     const id = 'c0ffee00-1111-4222-8333-444455556666';
     assert.equal(cronMinute(id, 'fetch'), cronMinute(id, 'fetch'));

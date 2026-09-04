@@ -25,10 +25,11 @@
  *    "silent", which is the whole point of ADR 0019 and gotcha 13.
  * 3. **A validator is only committed once its jobs are stored.** A fetcher
  *    writes to the staged map; `commitConditionalCache()` promotes it, and
- *    `runFetchJob` calls that only after a processing pass that finished.
- *    Pausing mid-tick discards everything fetched so far — committing
- *    eagerly would answer 304 next tick and lose those postings until the
- *    feed happened to change again.
+ *    `runFetchJob` calls that only when `tickStoredEverything()` agrees.
+ *    Pausing mid-tick discards everything fetched so far, and a
+ *    classification that never returned a verdict drops its posting —
+ *    committing after either would answer 304 next tick and leave those
+ *    postings unseen until the feed happened to change again.
  *
  * The cache is per-process and dies with it: a restart costs one full read
  * per source. That is the price of keeping it out of the schema, and at an
@@ -94,6 +95,25 @@ export function cachedCount(companyId: number): number | null {
 /** Start of a tick: anything staged by a tick that never committed is dropped. */
 export function beginConditionalTick(): void {
   staged.clear();
+}
+
+/**
+ * Whether this tick may promote what it staged: only if it stored everything
+ * it fetched. Every counter here marks a posting that was fetched and then
+ * dropped — the pass aborted on a pause, no usable search existed, or the
+ * model never produced a verdict. Committing after any of those would answer
+ * 304 next tick over a posting nobody stored, and it would stay unseen until
+ * the feed happened to change. One wasted full read is the cheaper mistake.
+ *
+ * A write failure needs no counter: `persistJob` rethrows everything except
+ * P2002 (already stored), so a failing insert never reaches the commit.
+ */
+export function tickStoredEverything(stats: {
+  abortedMidRun: number;
+  skippedBlankProfile: number;
+  classifyFailed: number;
+}): boolean {
+  return stats.abortedMidRun === 0 && stats.skippedBlankProfile === 0 && stats.classifyFailed === 0;
 }
 
 /** The jobs are stored — the validators they came with may now be sent. */

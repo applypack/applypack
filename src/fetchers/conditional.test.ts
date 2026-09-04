@@ -7,6 +7,7 @@ import {
   conditionalHeaders,
   rememberResponse,
   resetConditionalCache,
+  tickStoredEverything,
 } from './conditional';
 
 /** What we send instead of the `no-cache` Node would add. */
@@ -139,5 +140,27 @@ describe('cachedCount — what a 304 repeats', () => {
     fullTick(1, URL_A, { etag: 'W/"def"' }, 41);
     assert.equal(cachedCount(1), 41);
     assert.deepEqual(conditionalHeaders(1, URL_A), { 'If-None-Match': 'W/"def"', 'Cache-Control': CC });
+  });
+});
+
+describe('tickStoredEverything — the rule that keeps a posting from vanishing', () => {
+  const clean = { abortedMidRun: 0, skippedBlankProfile: 0, classifyFailed: 0 };
+
+  it('lets a tick that stored everything promote its validators', () => {
+    assert.equal(tickStoredEverything(clean), true);
+  });
+
+  it('refuses after a pause aborted the pass', () => {
+    assert.equal(tickStoredEverything({ ...clean, abortedMidRun: 1 }), false);
+  });
+
+  it('refuses when no usable search existed, so nothing was persisted', () => {
+    assert.equal(tickStoredEverything({ ...clean, skippedBlankProfile: 1 }), false);
+  });
+
+  it('refuses when a posting was fetched but never got a verdict', () => {
+    // The AI chain ran dry mid-tick: those postings were dropped, and a
+    // committed ETag would hide them until the feed changed.
+    assert.equal(tickStoredEverything({ ...clean, classifyFailed: 1 }), false);
   });
 });
