@@ -13,6 +13,11 @@
 
 const RESET_MS = 2000;
 const LIVE_ID = 'copy-live';
+/**
+ * Roots already listening. /jobs/:id boots this module itself AND through the
+ * cover-letter card, so without this every click there would copy twice.
+ */
+const wired = new WeakSet();
 
 /** The one live region per page, created on first use so no page has to carry the markup. */
 function liveRegion() {
@@ -82,6 +87,8 @@ export async function copyFrom(button, text) {
  * rather than per-button listeners, so markup rendered after boot works too.
  */
 export function wireCopy(root = document) {
+  if (wired.has(root)) return;
+  wired.add(root);
   root.addEventListener('click', (event) => {
     const button = event.target.closest?.('[data-copy], [data-copy-target]');
     if (!button || !root.contains(button)) return;

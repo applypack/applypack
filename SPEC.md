@@ -354,6 +354,17 @@ default) and renders both panes' highlights from the match's `keywords`
 `draft = true`; `resumeText` snapshots the judged text on every match.
 "Save as vN" turns the draft into a `.md` resume version.
 
+Each suggestion is a card showing **Now** (the resume's own words) and
+**Proposed** (the wording the model quoted inside its `what` sentence, pulled
+out by `resume/change-sheet.ts:proposalOf`), with **Copy** for that wording and
+**Locate**, which outlines it in the editor and scrolls the editor only — the
+page never moves. Removals show the text to cut rather than describing it.
+The whole list travels as Markdown: **Copy all suggestions** is rendered
+server-side, so it also works on `/jobs/:id`, and **Copy my changes** diffs the
+analysed text against the editor in the browser (`public/line-diff.mjs`). This
+manual path is complete on its own — nothing has to be applied for it to be
+useful.
+
 The loop: edit the resume → "Upload a new version" on `/resumes/:id`
 (`Resume.version` +1, re-scan) → Compare again. `ResumeMatch.resumeVersion`
 records which version scored; the card shows the delta vs the previous run.

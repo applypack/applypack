@@ -4,6 +4,47 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.51.0] — 2026-09-04
+
+### Added
+- **Every suggestion now shows what your resume says now and what to make it
+  say.** A comparison used to bury the proposed wording inside a sentence
+  (*Reword as: "…"*) and hide the removal quotes entirely — it told you to
+  delete something it would not show you. Each card is now a **Now** block and
+  a **Proposed** block with the wording on its own, and removals show the text
+  to cut, struck through.
+- **Copy** on every card puts just the proposed wording on the clipboard — on
+  `/jobs/:id` as well as the targeted view — so the manual path is one press
+  instead of a careful drag through a sentence.
+- **Locate** outlines the target text in the editor and scrolls **the editor**
+  to it. The page does not move, so the card you were reading is still in front
+  of you. It also prints the line number, and says *"Couldn't find this text in
+  the editor, it may already be edited"* when the text has already changed.
+- **Copy all suggestions** and **Copy my changes** hand over the whole list as
+  Markdown — the first from the AI's suggestions, the second as a diff of your
+  own edits. This is the universal path: it needs no Apply button, and it
+  pastes into whatever your resume actually lives in.
+
+### Fixed
+- **The targeted view no longer scrolls sideways on a phone.** At 375 px the
+  suggestions pane was 499 px wide and dragged the page with it: the keyword
+  table's `overflow-x-auto` wrapper had nothing bounding it, because a grid
+  item defaults to `min-width: auto` and is sized by its widest content.
+- On a narrow screen the editor now comes first in the Suggestions view and
+  starts at 40 vh (**expand editor** makes it tall), and the keyword table
+  starts folded — it is by far the longest block on the page.
+
+### Notes
+- The proposal extractor was written against the **209 stored actions**, not
+  against the plan's assumption. Straight single quotes outnumber double ones
+  **131 to 45** and curly quotes never occur, so the double-quote-only rule the
+  guide specified would have found a wording in 22 % of them; reading both, with
+  an apostrophe guard, finds one in **80 %**. The 42 it declines were read by
+  hand: 33 are instructions with no wording in them, 8 quote a term rather than
+  a sentence, 1 quotes the current text.
+- Cover-letter Copy now shares one clipboard module with the new buttons
+  instead of its own copy of the same fallback.
+
 ## [1.50.0] — 2026-09-04
 
 ### Added
@@ -2015,6 +2056,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[1.51.0]: https://github.com/applypack/applypack/compare/v1.50.0...v1.51.0
 [1.50.0]: https://github.com/applypack/applypack/compare/v1.49.0...v1.50.0
 [1.49.0]: https://github.com/applypack/applypack/compare/v1.48.0...v1.49.0
 [1.48.0]: https://github.com/applypack/applypack/compare/v1.47.2...v1.48.0

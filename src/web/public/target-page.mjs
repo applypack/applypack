@@ -181,6 +181,8 @@ export function init(data) {
 
   function resetEdits() {
     editor.value = data.resumeText;
+    // The outline was an offset into the text being discarded.
+    located = null;
     render();
   }
 

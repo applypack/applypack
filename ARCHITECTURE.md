@@ -220,6 +220,7 @@ src/
     facts.ts                   ← apply CandidateFacts / cross-resume hints to keywords, pure
     fact-check.ts              ← deterministic fabrication gate for generated prose (ADR 0020), pure
     diff.ts                    ← version delta from two matches (gained/lost, components), pure
+    change-sheet.ts            ← the wording a suggestion proposes + the whole list as Markdown, pure
     parse-warnings.ts          ← ATS parseability checks over extracted text, pure
     pick.ts                    ← preselect: profile link first, then skill-tag overlap, pure
     store.ts                   ← Resume / ResumeMatch / CandidateFact / CoverLetter CRUD (Prisma)
@@ -291,7 +292,10 @@ src/
     profile-from-resume.ts    ← "create a search from this resume": blank-base draft + inactive create
     public/target.mjs         ← browser keyword matcher (pure ES module, node-tested)
     public/score.mjs          ← browser mirror of resume/score.ts (parity-tested, ADR 0012)
-    public/cover-letter.mjs   ← copy-to-clipboard for the letter card (import-smoke-tested)
+    public/cover-letter.mjs   ← autosave + fact-check status for the letter card (import-smoke-tested)
+    public/copy.mjs           ← copy-to-clipboard for every page (delegated, execCommand fallback, aria-live)
+    public/line-diff.mjs      ← LCS line diff of the analysed text vs the editor (pure, node-tested)
+    public/change-sheet.mjs   ← "Copy my changes" as Markdown over line-diff.mjs (pure, node-tested)
     public/board.mjs          ← /applications drag-and-drop over POST /jobs/:id/stage (planMove tested)
     public/fetch-run.mjs      ← activity lines for the fetch-now progress page (pure; target-run.mjs polls)
 

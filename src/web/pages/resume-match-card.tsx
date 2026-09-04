@@ -576,11 +576,15 @@ const SuggestionCard: FC<{
             Copy
           </Button>
           {interactive && item.quote && (
-            <Button type="button" variant="ghost" size="sm" data-locate={item.quote}>
-              Locate
-            </Button>
+            <>
+              <Button type="button" variant="ghost" size="sm" data-locate={item.quote}>
+                Locate
+              </Button>
+              {/* Only where Locate exists: an empty live region on every card of
+                  every page is noise a screen reader has to carry. */}
+              <span class="text-xs text-ink-faint" data-locate-status role="status"></span>
+            </>
           )}
-          <span class="text-xs text-ink-faint" data-locate-status role="status"></span>
         </div>
       </div>
     </li>

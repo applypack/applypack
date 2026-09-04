@@ -119,6 +119,16 @@ test('copy module loads without a DOM and exposes the clipboard helpers', async 
   }
 });
 
+test('wireCopy listens once per root, so a page that boots it twice copies once', async () => {
+  const { wireCopy } = (await copy) as { wireCopy: (root: unknown) => void };
+  // /jobs/:id boots this module itself and again through the cover-letter card.
+  let listeners = 0;
+  const root = { addEventListener: () => listeners++ };
+  wireCopy(root);
+  wireCopy(root);
+  assert.equal(listeners, 1);
+});
+
 test('copyToClipboard refuses empty text rather than clearing the clipboard', async () => {
   const { copyToClipboard } = (await copy) as { copyToClipboard: (t: string) => Promise<boolean> };
   assert.equal(await copyToClipboard(''), false);
