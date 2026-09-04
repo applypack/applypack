@@ -170,6 +170,16 @@ export function isDigestHour(now: Date, schedule: Schedule): boolean {
 }
 
 /**
+ * Whether this is the day's FIRST digest hour — what a once-a-day summary
+ * runs on. The stale-application nudge is a snapshot of a standing state, not
+ * a window of new things, so four digest times must not mean the same
+ * reminder four times. `digestAt` is stored sorted, so the earliest is [0].
+ */
+export function isFirstDigestHour(now: Date, schedule: Schedule): boolean {
+  return schedule.alerts.digestAt[0] === zonedParts(now, schedule.timezone).hour;
+}
+
+/**
  * Whether held matches go out on this heartbeat. In `instant` mode anything
  * held is a leftover from an earlier setting, so it leaves at once rather
  * than sitting in a state the user can no longer reach.

@@ -5,15 +5,22 @@ import { sendDigest, type QuietSourceAlert } from '../notifier';
 import { attributionLine } from '../web/pages/attribution';
 import { QUIET_STREAK } from '../fetchers/source-health';
 import { getSettings, toAtsTypes } from '../settings';
-import type { CronStats } from './cron-run';
+import { lastSuccessfulRunAt, type CronStats } from './cron-run';
 import type { AlertJob } from '../types';
 
+/** The reach of the very first recap, before there is a previous one to measure from. */
 const DIGEST_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 export async function runDigestJob(): Promise<{ stats: CronStats }> {
   const started = Date.now();
-  const since = new Date(Date.now() - DIGEST_WINDOW_MS);
-  logger.info({ since: since.toISOString() }, 'digest-job: start');
+  // The recap covers what arrived since the last recap, not a fixed day. The
+  // digest hours are the user's now (TASKS §16) and there may be several: with
+  // 09:00 and 19:00 a fixed 24-hour window would make the evening message
+  // repeat the morning's in full. A failed run does not move the mark, so
+  // nothing is skipped either.
+  const previous = await lastSuccessfulRunAt('digest');
+  const since = previous ?? new Date(Date.now() - DIGEST_WINDOW_MS);
+  logger.info({ since: since.toISOString(), firstEver: previous === null }, 'digest-job: start');
 
   const jobs = await prisma.job.findMany({
     where: {

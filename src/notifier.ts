@@ -49,7 +49,7 @@ export async function sendDigest(
 ): Promise<void> {
   const healthLine = formatSourceHealthLine(quiet);
   if (jobs.length === 0) {
-    const empty = escapeMarkdownV2('No new matches in the last 24h.');
+    const empty = escapeMarkdownV2('No new matches since the last digest.');
     await broadcast(healthLine ? `${empty}\n\n${healthLine}` : empty, targetId);
     return;
   }

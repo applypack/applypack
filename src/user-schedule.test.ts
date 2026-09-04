@@ -1,6 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  ALL_DAYS,
   canAlertNow,
   defaultSchedule,
   describeDays,
@@ -8,6 +9,7 @@ import {
   describeSchedule,
   inHours,
   isDigestHour,
+  isFirstDigestHour,
   isFetchDue,
   isTimezone,
   lastRealFetch,
@@ -156,6 +158,21 @@ describe('alerts', () => {
     assert.equal(isDigestHour(new Date('2026-09-01T06:05:00Z'), digest), true, '09:05 Kyiv');
     assert.equal(isDigestHour(new Date('2026-09-01T16:05:00Z'), digest), true, '19:05 Kyiv');
     assert.equal(shouldDeliverHeld(new Date('2026-09-01T07:05:00Z'), digest), false, '10:05 is neither');
+  });
+
+  // TASKS §16 gave the user up to four digest times. The recap is a window and
+  // belongs at every one of them; the stale nudge is a snapshot of a standing
+  // state and must not repeat four times a day.
+  it('names the day\'s first digest hour for the once-a-day summary', () => {
+    assert.equal(isFirstDigestHour(new Date('2026-09-01T06:05:00Z'), digest), true, '09:05 Kyiv is the first');
+    assert.equal(isFirstDigestHour(new Date('2026-09-01T16:05:00Z'), digest), false, '19:05 Kyiv is the second');
+    assert.equal(isDigestHour(new Date('2026-09-01T16:05:00Z'), digest), true, '…but the recap still runs then');
+  });
+
+  it('is the only digest hour when the user picked one', () => {
+    const single = schedule({ alerts: { mode: 'digest', from: 8, to: 22, days: [...ALL_DAYS], digestAt: [9] } });
+    assert.equal(isFirstDigestHour(new Date('2026-09-01T06:05:00Z'), single), true);
+    assert.equal(isFirstDigestHour(new Date('2026-09-01T16:05:00Z'), single), false);
   });
 
   it('delivers held matches on every in-window heartbeat', () => {
