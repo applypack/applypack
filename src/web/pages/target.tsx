@@ -54,6 +54,8 @@ export interface TargetPageProps {
   /** An instant check's parsed upload — opens in the editor as the unsaved draft (target-page.mjs). */
   draftText?: string | null;
   flash?: FlashMessage | null;
+  /** What a Save can do with this resume's file — one sentence (docx-structure.ts, ADR 0038). */
+  fileVerdict: string;
 }
 
 /* Side by side is first and default (user pref); Suggestions keeps its
@@ -107,6 +109,7 @@ export const TargetPage: FC<TargetPageProps> = ({
   previous,
   resumeText,
   draftText,
+  fileVerdict,
   flash,
 }) => {
   // The panes, the chips and the live score work from the effective list: the
@@ -386,12 +389,26 @@ export const TargetPage: FC<TargetPageProps> = ({
                   >
                     <input type="hidden" name="text" id="save-text" value="" />
                     <input type="hidden" name="jobId" value={job.id} />
+                    {/* The text the edits started from: the patcher diffs against it (ADR 0038). */}
+                    <input type="hidden" name="baseText" value={resumeText} />
+                    <Button
+                      variant="primary"
+                      class="w-full"
+                      name="as"
+                      value="copy"
+                      data-save-button
+                      disabled
+                      title="Enabled once you edit the text — saves a new resume beside this one, named after the company, and leaves this one as it is; a .docx is patched in place when its layout allows (~1 min)"
+                    >
+                      Save as a tailored copy
+                    </Button>
                     <Button
                       variant="secondary"
-                      class="w-full"
+                      class="mt-2 w-full"
                       id="save-button"
+                      data-save-button
                       disabled
-                      title={`Enabled once you edit the text — saves it as v${resume.version + 1} (a text version, not a file), re-scans and re-checks (~1 min)`}
+                      title={`Enabled once you edit the text — saves it as v${resume.version + 1} of this resume, re-scans and re-checks (~1 min)`}
                     >
                       Save as v{resume.version + 1}
                     </Button>
@@ -521,6 +538,7 @@ export const TargetPage: FC<TargetPageProps> = ({
             </div>
           </div>
           <div id="missing-chips" class="mb-3 flex flex-wrap gap-1.5"></div>
+          <Hint class="mb-2">{fileVerdict}</Hint>
           <div class="editor relative h-[70vh] overflow-hidden rounded-md border border-line-strong bg-surface-raised">
             <div id="backdrop" class="editor-layer" aria-hidden="true"></div>
             <textarea
@@ -614,14 +632,19 @@ export const TargetPage: FC<TargetPageProps> = ({
               Re-check with AI
             </Button>
             {!resume.ephemeral && (
-              <Button
-                variant="secondary"
-                size="sm"
-                form="save-form"
-                title={`Saves the text as v${resume.version + 1} (a text version, not a file), re-scans and re-checks (~1 min)`}
-              >
-                Save as v{resume.version + 1}
-              </Button>
+              <>
+                <Button variant="primary" size="sm" form="save-form" name="as" value="copy" title="A new resume beside this one, named after the company; this one stays as it is">
+                  Save as a tailored copy
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  form="save-form"
+                  title={`Saves the text as v${resume.version + 1} of this resume, re-scans and re-checks (~1 min)`}
+                >
+                  Save as v{resume.version + 1}
+                </Button>
+              </>
             )}
           </div>
         </div>

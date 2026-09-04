@@ -61,7 +61,7 @@ export function init(data) {
   const scoreValue = document.getElementById('score-value');
   const scoreDetail = document.getElementById('score-detail');
   const chips = document.getElementById('missing-chips');
-  const saveButton = document.getElementById('save-button');
+  const saveButtons = document.querySelectorAll('[data-save-button]');
   const aiStale = document.getElementById('ai-stale');
   const liveEst = document.getElementById('live-est');
   const liveDelta = document.getElementById('live-delta');
@@ -196,7 +196,7 @@ export function init(data) {
     aiStale.hidden = !dirty;
     liveEst.hidden = !dirty;
     dirtyBar.hidden = !dirty;
-    if (saveButton) saveButton.disabled = !dirty;
+    for (const b of saveButtons) b.disabled = !dirty;
     const saveText = document.getElementById('save-text');
     if (saveText) saveText.value = text;
     document.getElementById('reanalyze-text').value = dirty ? text : '';
