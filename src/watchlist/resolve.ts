@@ -218,8 +218,15 @@ export async function installAiTokens(): Promise<string[]> {
   return aiCrawlerTokens(providers);
 }
 
-/** The real I/O: every request goes through the project's guards and UA. */
-export function liveResolveIo(): ResolveIo {
+/**
+ * The real I/O: every request goes through the project's guards and UA.
+ *
+ * The keyed sources' credentials are read once per run, not once per probe:
+ * a paste of fifty URLs probes up to three boards each, and that was fifty
+ * to a hundred and fifty round trips to Postgres for one unchanging row.
+ */
+export async function liveResolveIo(): Promise<ResolveIo> {
+  const keys = await getSourceKeys();
   return {
     async get(url) {
       try {
@@ -232,7 +239,7 @@ export function liveResolveIo(): ResolveIo {
       }
     },
     async probe(atsType, atsToken) {
-      return probeAts(atsType, atsToken, { keys: await getSourceKeys() });
+      return probeAts(atsType, atsToken, { keys });
     },
   };
 }

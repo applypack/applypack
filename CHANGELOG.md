@@ -4,6 +4,37 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.49.0] — 2026-09-04
+
+### Changed
+- **A site's robots.txt now binds you through the AI engine you actually
+  run.** v1.48.0 read a fixed list of fifteen AI-adjacent crawler tokens and
+  refused a careers page if any of them was told to stay away. Measured
+  against sixteen European companies, that refused three of them for somebody
+  else's reasons: swmansion.com blocks ByteDance's `Bytespider` alone while
+  publishing `Allow: /` and `Content-Signal: ai-input=yes`; stxnext.com blocks
+  `bytespider` and `ccbot`; brainly.com blocks `GPTBot` and allows everyone
+  else. None of them was talking about us.
+  The rule the ADR always meant is that the vendor whose model reads the
+  description is the one whose ban counts — so an install on Claude is bound
+  by `ClaudeBot`, one on Gemini by `Google-Extended`, one on Codex or an
+  OpenAI-compatible endpoint by `GPTBot`, and an install running several by
+  all of theirs. Blocking a scraper or a dataset crawler is no longer read as
+  blocking you.
+- **`Content-Signal` is read too.** It speaks about the act rather than about
+  a crawler's name: `ai-input=no` refuses us whatever the groups say, and
+  `ai-input=yes` outranks a group aimed at another vendor's bot.
+
+### Notes
+- **Stage B of the company watchlist (sitemap + JSON-LD) was measured and not
+  built.** It rests on career sites publishing `JobPosting` structured data;
+  across 21 sites on two continents, **zero** do. The redesigned version —
+  "a new URL under the careers path is a new posting" — needs the sitemap to
+  list one URL per posting, which is true for 2 of 21 and for none of the
+  eight European sites. The numbers, and the two traps that make a naive
+  check look positive, are in
+  [docs/company-watchlist.md](./docs/company-watchlist.md).
+
 ## [1.48.0] — 2026-09-04
 
 ### Added
@@ -1951,6 +1982,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[1.49.0]: https://github.com/applypack/applypack/compare/v1.48.0...v1.49.0
 [1.48.0]: https://github.com/applypack/applypack/compare/v1.47.2...v1.48.0
 [1.47.2]: https://github.com/applypack/applypack/compare/v1.47.1...v1.47.2
 [1.47.1]: https://github.com/applypack/applypack/compare/v1.47.0...v1.47.1

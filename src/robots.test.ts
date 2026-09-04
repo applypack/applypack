@@ -155,8 +155,17 @@ describe('isAllowed — which groups bind us', () => {
     assert.equal(allowed('User-agent: *\nAllow: /\n\nUser-agent: GPTBot\nDisallow: /', '/careers', openai), false);
   });
 
-  it('passing no AI tokens is the plain RFC reading — our token and *', () => {
-    const bare = bindingTokens();
+  // A caller that forgets which engine runs should ask for LESS than it may.
+  it('falls back to every supported backend when the engine list is omitted', () => {
+    const fallback = bindingTokens();
+    assert.ok(fallback.includes(OUR_TOKEN));
+    for (const t of ['claudebot', 'gptbot', 'google-extended']) assert.ok(fallback.includes(t), t);
+    assert.equal(allowed('User-agent: ClaudeBot\nDisallow: /', '/careers', fallback), false);
+    assert.equal(allowed('User-agent: Google-Extended\nDisallow: /', '/careers', fallback), false);
+  });
+
+  it('an explicitly empty list is the plain RFC reading — our token and *', () => {
+    const bare = bindingTokens([]);
     assert.deepEqual(bare, [OUR_TOKEN]);
     assert.equal(allowed('User-agent: ClaudeBot\nDisallow: /', '/careers', bare), true);
     assert.equal(allowed('User-agent: *\nDisallow: /', '/careers', bare), false);

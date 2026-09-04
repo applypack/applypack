@@ -39,16 +39,23 @@
  * else's bot.
  */
 
+import { AI_PROVIDER_IDS, aiCrawlerTokens } from './ai-engine';
+
 /** Our own product token — the first word of DEFAULT_USER_AGENT. */
 export const OUR_TOKEN = 'applypack';
 
 /**
- * Our own token plus the vendor crawlers of the engines this install runs.
- * `ai-engine.ts:aiCrawlerTokens` produces the second half; passing none means
- * only our own token and `*` bind, which is the plain RFC reading.
+ * Our own token plus the vendor crawlers of the engines this install runs;
+ * `ai-engine.ts:aiCrawlerTokens` produces the second half.
+ *
+ * Omitting them falls back to EVERY backend this project supports, not to
+ * none: a caller that forgets which engine is running should end up asking
+ * for less than it may, never for more. Production passes the install's own
+ * (narrower) set.
  */
-export function bindingTokens(aiTokens: readonly string[] = []): string[] {
-  return [...new Set([OUR_TOKEN, ...aiTokens.map((t) => t.toLowerCase())])];
+export function bindingTokens(aiTokens?: readonly string[]): string[] {
+  const ai = aiTokens ?? aiCrawlerTokens(AI_PROVIDER_IDS);
+  return [...new Set([OUR_TOKEN, ...ai.map((t) => t.toLowerCase())])];
 }
 
 interface Rule {

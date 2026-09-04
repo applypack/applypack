@@ -1493,20 +1493,28 @@ enum AtsType { … FEED CAREER_PAGE }        // atsToken = the feed URL / the ca
       sources), CLAUDE.md rows, SPEC, README, CHANGELOG + bump, and the
       measurement note `docs/company-watchlist.md`.
 
-**Stage B — `career-page-fetcher` (sitemap + JSON-LD rung; ~1–2 sessions)**
-- [ ] **Analyse first:** fetch the sitemaps and one job page of five sites
-      from the owner's list that are not on a supported ATS; record which
-      carry `JobPosting` JSON-LD and where (listing page vs detail page);
-      measure sitemap sizes; write the note.
-- [ ] `add jsonld parser` — `jsonld.ts` + tests (single object, array,
-      `@graph`, nested `hiringOrganization`, HTML-escaped description).
-- [ ] `add sitemap reader` — `sitemap.ts` + tests (index → urlset, `lastmod`,
-      path-prefix bound, gzip refused or handled — decide in the note).
-- [ ] `add career page fetcher` — `fetchers/career-page.ts`, `CAREER_PAGE`
-      type, `MAX_NEW_PAGES_PER_TICK`, robots check per host, location hints
-      from `jobLocation` / `applicantLocationRequirements` / `TELECOMMUTE`.
-- [ ] `resolve career pages` — the resolver returns `careerPage` when the
-      sitemap + JSON-LD rung finds postings; smoke run on the five sites.
+**Stage B — `career-page-fetcher` — NOT BUILT, measured 2026-09-04**
+- [x] **Analyse first** — done, and it killed the stage. Full note:
+      [company-watchlist.md](./company-watchlist.md) §5–§6.
+- [x] The premise is false. The stage rests on *"each job page carries
+      `JobPosting` JSON-LD — the format Google for Jobs requires, so custom
+      career sites ship it."* Across **21 sites on two continents** (the 13
+      the owner's list left as `watchOnly`, plus 16 European mid-size
+      companies): **0** carry usable `JobPosting`. The only hit in a wider
+      sample of 6 detail pages was euremotejobs.com, a WordPress **job
+      board**, which the stage A `FEED` rung already serves.
+- [x] The redesigned version does not pay either. "New URL under the careers
+      prefix = new posting" needs the sitemap to list one URL per posting:
+      true for **2 of 21** (Shopify 114, Fly.io 5), and **0 of 8** European
+      `watchOnly` sites list anything under their careers path at all.
+- [x] Two traps recorded so nobody re-derives them: schema.org microdata is
+      the other half of the format and a JSON-LD-only check reports a false
+      negative (Shopify); and a path containing `job`/`career` is not a
+      posting — Remote's sitemap has 767 marketing templates that look more
+      like postings than the real ones do.
+- **Superseded by stage C**, which is the honest offer for every one of these
+  sites and costs a hash. Revisit only if a future owner list is made of
+  WordPress/plugin-driven career sites, where the rung does fire.
 
 **Stage C — `change-watch` (last rung; ~½ session)**
 - [ ] **Analyse first:** run the hash over three dynamic career pages for

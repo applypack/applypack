@@ -47,7 +47,7 @@ watchlistRoute.post('/companies/watchlist', async (c) => {
   if (active) return c.redirect(`/companies/watchlist/${active.id}`, 303);
 
   const run = createWatchlistRun(parsed.rows.length, parsed.rejected);
-  const io = liveResolveIo();
+  const io = await liveResolveIo();
   // Read once for the whole run, so every URL of one paste is judged against
   // the same engine list (ADR 0036).
   const aiTokens = await installAiTokens();

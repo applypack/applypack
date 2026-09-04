@@ -66,11 +66,22 @@ original decision (from the feature-expansion-plan ground rules):
 
 1. A `robots.txt` that disallows the API path we would call is a stated
    refusal — binding, not a technicality to route around.
-2. A robots.txt that bans AI agents (ClaudeBot-class rules or
-   `ai-train=no` content signals with AI bots disallowed) is equally
-   binding for this project: every fetched description is fed into a
-   Claude/AI classifier, so fetching under a different User-Agent would
-   do exactly what the ban refuses.
+2. A robots.txt that bans AI agents is equally binding for this project:
+   every fetched description is fed into an AI classifier, so fetching under
+   a different User-Agent would do exactly what the ban refuses.
+
+   **Amended 2026-09-04 (ADR 0036).** "AI agents" means the crawlers of the
+   backend *this install actually runs* — an install on Gemini is bound by
+   `Google-Extended`, one on Codex by `GPTBot`, one on Claude by `ClaudeBot`
+   (`ai-engine.ts:PROVIDER_AI_TOKENS`). It is not every AI-adjacent token in
+   existence: a site that blocks ByteDance's `Bytespider` or Common Crawl's
+   `CCBot` has refused a scraper and a dataset builder, not a person's own
+   job-search tool reading one page they asked for. Measured on 16 European
+   companies, the wider reading refused 3 of them, including one
+   (swmansion.com) that published `Content-Signal: ai-input=yes` and
+   `Allow: /` in the same file. Cloudflare's `Content-Signal` is read
+   alongside: `ai-input=no` refuses us outright, `ai-input=yes` is a
+   permission that outranks a group aimed at somebody else's bot.
 3. (2026-09-04, ADR 0034) robots.txt governs crawling; a vendor's own
    published licence governs keyed access. An API reached at one documented
    endpoint with a credential the vendor issued to us, under terms we

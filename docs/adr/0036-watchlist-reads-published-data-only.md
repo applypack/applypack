@@ -66,9 +66,10 @@ Four rules make the ladder honest rather than merely cheap:
 3. **`robots.txt` is read in code, not by hand.** `src/robots.ts` implements
    RFC 9309 (groups, longest match, ties to Allow, missing file = allowed)
    with two deliberate departures, both stricter than the protocol: a group
-   naming any AI agent binds us, because every description fetched here is fed
-   to an AI classifier (ADR 0005 addendum rule 2); and a 5xx on robots.txt
-   means "not allowed", because a failing server has told us nothing.
+   naming the crawler of an AI backend **this install runs** binds us, because
+   every description fetched here is read by that vendor's model (ADR 0005
+   addendum rule 2); and a 5xx on robots.txt means "not allowed", because a
+   failing server has told us nothing.
 4. **At most 5 requests per company, at add time only.** Afterwards the
    company is one source in the ordinary tick.
 
@@ -93,6 +94,32 @@ alert reads `★ New posting` rather than a match: the posting is still
 classified, so it carries a score, but the message never claims the score
 means anything. The same exception covers issue #50's `no-profile-stack`
 guard, which is a statement about a score this alert is not making.
+
+## Amendment (2026-09-04) — the binding set follows the engine, not the alphabet
+
+The first implementation bound this project to a fixed list of fifteen
+AI-adjacent crawler tokens. Measured against sixteen European companies, that
+refused three of them, and each refusal read the site wrong:
+
+- **swmansion.com** publishes `User-agent: *` / `Allow: /` /
+  `Content-Signal: search=yes, ai-input=yes, ai-train=yes`, and blocks
+  `Bytespider` alone with a comment explaining why. It says yes to what we do,
+  by name, and we refused it.
+- **stxnext.com** blocks `bytespider` and `ccbot` and nothing else.
+- **brainly.com** blocks `GPTBot`; `*` is allowed.
+
+The addendum's own reasoning — *every description is fed to an AI classifier,
+so fetching under another name does what the ban refuses* — binds us to the
+vendor whose model will actually read the text. This project runs five
+backends and the user picks (ADR 0014), so the binding set is computed from
+the engines the install has enabled (`ai-engine.ts:aiCrawlerTokens`,
+`robots.ts:bindingTokens`) and read once per resolve run. A ban on a scraper
+or a dataset crawler is somebody else's refusal.
+
+`Content-Signal` is honoured alongside, because it speaks about the act rather
+than about a crawler's name: `ai-input=no` refuses us whatever the groups say,
+and `ai-input=yes` drops the vendor tokens so only `applypack` and `*` decide
+the path.
 
 ## Consequences
 
