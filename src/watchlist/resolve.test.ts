@@ -300,6 +300,17 @@ describe('refusals', () => {
     assert.deepEqual(stub.asked, ['https://acme.com/robots.txt']);
   });
 
+  // The fail-safe: omitting the engine list must ask for LESS, not more.
+  it('omitting the engine list still refuses an AI-bot ban', async () => {
+    const stub = io({
+      pages: {
+        'https://acme.com/robots.txt': { status: 200, body: 'User-agent: Google-Extended\nDisallow: /' },
+      },
+    });
+    const r = await resolveCompanyUrl(paste('https://acme.com/careers'), stub);
+    assert.equal(r.resolution.kind, 'refused');
+  });
+
   it('refuses a path the engine this install runs is banned from (ADR 0005 rule 2)', async () => {
     const stub = io({
       pages: {

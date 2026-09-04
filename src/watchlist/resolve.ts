@@ -82,7 +82,8 @@ export interface ResolveOptions {
    * The vendor crawler tokens of the AI backends this install runs — the
    * robots.txt groups that bind us besides our own (ADR 0036). Read once per
    * run by the caller (`installAiTokens`), so every URL of one paste is
-   * judged against the same engine list. Empty = only `applypack` and `*`.
+   * judged against the same engine list. Omitted falls back to every backend
+   * this project supports — asking for less than we may, never more.
    */
   aiTokens?: readonly string[];
 }
@@ -92,7 +93,7 @@ export async function resolveCompanyUrl(
   io: ResolveIo,
   opts: ResolveOptions = {},
 ): Promise<ResolvedCompany> {
-  const tokens = bindingTokens(opts.aiTokens ?? []);
+  const tokens = bindingTokens(opts.aiTokens);
   const base = { input, name: input.name ?? nameFromUrl(input.url), careerUrl: input.url };
 
   const checked = checkPostingUrl(input.url);
