@@ -247,3 +247,67 @@ site that asked us to stay away.
 
 That is a change to a standing rule (ADR 0005 addendum rule 2), so it is the
 owner's call.
+
+
+---
+
+# Stage C analysis — what a page hash must ignore, and what it must not (2026-09-04)
+
+The §17 stage C plan says: *"hash the page's plain text (`stripHtml`,
+whitespace and digits normalised)"*. The digits half is wrong, and the
+measurement says so.
+
+## 1. Raw HTML is unusable; `stripHtml` is enough
+
+Ten careers pages — the ones stage A leaves as `watchOnly`, which is who this
+rung is for — were each fetched **three times over ninety seconds**, so the
+content was certainly identical. Anything that changed is noise the
+normalisation has to absorb.
+
+| Normalisation | Pages whose hash changed anyway |
+|---|---|
+| raw HTML | **4 of 10** — Storyblok, Shopify, MacPaw, Preply |
+| `stripHtml` | **0 of 10** |
+| + collapse whitespace | 0 of 10 |
+| + mask digits | 0 of 10 |
+| + lowercase | 0 of 10 |
+
+Raw HTML carries a nonce, a build id or a session token on nearly half of
+them. `stripHtml` removes every one of those for free, because they live in
+attributes and script blocks and never in the prose. Nothing beyond it earns
+its place on this evidence — whitespace collapsing is kept anyway, because it
+costs nothing and a reflow that only moves text is not a change worth waking
+someone for.
+
+## 2. Masking digits would delete the signal, not the noise
+
+The reason the plan proposes it is to absorb dates and "posted 3 days ago"
+counters. Scanned across all ten pages' text for anything time-dependent —
+relative times, absolute dates, ISO dates, countdowns:
+
+**None of the ten carries any.** The only digits in the prose are these:
+
+| Page | The digits it publishes |
+|---|---|
+| Datadog | `92 positions`, `37 positions`, `18 positions` … (11 per-department counts) |
+| PostHog | `0 Job` |
+| Doist | `2024 Open roles` |
+
+Every one of them **is the signal**. "92 positions" becoming "93 positions" is
+exactly the event this rung exists to report, and masking digits would hash
+both to the same string. So: **`stripHtml` + collapse whitespace, and nothing
+else.** No digit masking, no lowercasing — a page that changes `Senior` to
+`Staff` has changed.
+
+## 3. What the rung therefore is
+
+- Hash = `sha256(stripHtml(html).replace(/\s+/g, ' ').trim())`.
+- **The first fetch never alerts.** There is no previous hash to differ from;
+  it is stored and that is all.
+- **A change alerts at most once a day per company**, whatever the check
+  interval says, and the hash is only advanced when the alert is actually
+  sent — so a change seen inside the quiet window is not lost, it waits.
+- The alert says what it knows and no more: *"the careers page changed, have
+  a look"*, with the link. It never claims to know the jobs.
+- `/companies` says **"watching for changes"** for these rows rather than a
+  posting count, because a posting count would be a lie.
