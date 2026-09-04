@@ -266,6 +266,36 @@ export function formatSourceHealthLine(sources: QuietSourceAlert[]): string {
   return `${header} — ${items.join(', ')}`;
 }
 
+export interface PageChangeNotice {
+  companyName: string;
+  url: string;
+}
+
+/**
+ * "This careers page changed" (TASKS §17 stage C, ADR 0036). Pure, so the
+ * MarkdownV2 escaping is unit-tested like every other message.
+ *
+ * The wording is deliberately modest. This rung reads a page that publishes
+ * nothing machine-readable, so it does not know what changed, whether a job
+ * was added or a photo was swapped. Claiming otherwise would train the reader
+ * to ignore it.
+ */
+export function formatPageChangeMessage(pages: readonly PageChangeNotice[]): string {
+  const header =
+    pages.length === 1
+      ? '*★ A watched careers page changed*'
+      : `*★ ${pages.length} watched careers pages changed*`;
+  const lines = pages.map(
+    (p) => `• [${escapeMarkdownV2(p.companyName)}](${escapeMarkdownV2Url(p.url)})`,
+  );
+  return [header, ...lines, escapeMarkdownV2('We cannot read this page for jobs — have a look.')].join('\n');
+}
+
+export async function sendPageChangeAlert(pages: readonly PageChangeNotice[]): Promise<void> {
+  if (pages.length === 0) return;
+  await broadcast(formatPageChangeMessage(pages), null);
+}
+
 export function escapeMarkdownV2(text: string): string {
   return text.replace(/([_*\[\]()~`>#+\-=|{}.!\\])/g, '\\$1');
 }

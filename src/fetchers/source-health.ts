@@ -140,11 +140,25 @@ export function nextStreak(status: FetchStatus, current: number): number {
   return Math.max(0, current) + 1;
 }
 
+/**
+ * Sources that never yield a posting by design, so ageing them into "silent"
+ * would be reporting the design as a fault. A change watch (ADR 0036) reports
+ * that a page moved and stores no Job; a MANUAL row is not fetched at all.
+ * Everything else has to earn `lastOkAt` the ordinary way.
+ */
+export function neverPosts(atsType: string | null | undefined): boolean {
+  // Compared as strings on purpose: importing AtsType would pull the Prisma
+  // client into a module whose whole point is that it unit-tests without one.
+  return atsType === 'CAREER_PAGE' || atsType === 'MANUAL';
+}
+
 export interface SourceHealth {
   lastFetchStatus: string | null;
   consecutiveFailures: number;
   lastOkAt: Date | null;
   createdAt: Date;
+  /** Read by `isSilent` only — a source that never posts cannot go quiet. */
+  atsType?: string | null;
 }
 
 /** Loud breakage: the source is throwing and has been for QUIET_STREAK ticks. */
@@ -160,6 +174,10 @@ export function isFailing(h: SourceHealth): boolean {
  */
 export function isSilent(h: SourceHealth, now: Date): boolean {
   if (h.lastFetchStatus === null || isFailing(h)) return false;
+  // A change watch answers `empty` every time it succeeds, so `lastOkAt` never
+  // advances for it. Without this, every one of them would show as silent
+  // fourteen days after it was added, forever.
+  if (neverPosts(h.atsType)) return false;
   const since = h.lastOkAt ?? h.createdAt;
   return now.getTime() - since.getTime() >= SILENT_DAYS * DAY_MS;
 }

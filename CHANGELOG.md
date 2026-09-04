@@ -4,6 +4,39 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.50.0] — 2026-09-04
+
+### Added
+- **A company whose careers page publishes nothing can still be watched.**
+  Paste it like any other: if the page has no board and no feed but does have
+  readable text, the preview offers a **change watch**. It hashes the page and
+  tells you *"this careers page changed, have a look"*, with the link, at most
+  once a day. It never claims to know the jobs, never stores a posting and
+  never spends an AI call — which is exactly what it is worth, and saying more
+  would train you to ignore it.
+- On `/companies` those rows say **Page changes** and **watching** instead of
+  an alert policy and a posting count, because a posting count would be a lie.
+
+### Fixed
+- `stripHtml` no longer leaves `<!DOCTYPE html>` at the head of the text. It
+  stripped comments but not markup declarations, so every description taken
+  from a whole page began with it.
+
+### Notes
+- **The normalisation is `stripHtml` plus collapsed whitespace, and nothing
+  else** — the §17 plan's digit masking was measured and dropped. Ten careers
+  pages, each fetched three times ninety seconds apart so any difference was
+  noise: raw HTML changed on **4 of 10** (nonces, build ids), `stripHtml` on
+  **none**. And none of the ten carried a date, a relative timestamp or a
+  countdown — the only digits in their prose were Datadog's "92 positions",
+  PostHog's "0 Job" and Doist's "2024 Open roles". Masking digits would have
+  erased the one signal these pages actually publish.
+- **The hash advances only once the alert is sent.** A change that lands
+  inside the daily window, or outside your alert hours, or that Telegram
+  refused, stays pending — the row still holds the text you were last told
+  about, so the next allowed check reports it rather than swallowing it.
+- The first read of a page never alerts: there is nothing to differ from yet.
+
 ## [1.49.0] — 2026-09-04
 
 ### Changed
@@ -1982,6 +2015,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[1.50.0]: https://github.com/applypack/applypack/compare/v1.49.0...v1.50.0
 [1.49.0]: https://github.com/applypack/applypack/compare/v1.48.0...v1.49.0
 [1.48.0]: https://github.com/applypack/applypack/compare/v1.47.2...v1.48.0
 [1.47.2]: https://github.com/applypack/applypack/compare/v1.47.1...v1.47.2

@@ -56,6 +56,7 @@ const NewCompanySchema = z.object({
     AtsType.ADZUNA,
     AtsType.FRANCETRAVAIL,
     AtsType.FEED,
+    AtsType.CAREER_PAGE,
   ] as const),
   atsToken: z.string().min(1).max(120),
   careerUrl: z.string().url().optional().or(z.literal('')),
@@ -197,6 +198,7 @@ function watchedRows(
     checkEvery: string;
     alertPolicy: string;
     nextCheckAt: Date | null;
+    lastContentAlertAt: Date | null;
     lastOkAt: Date | null;
     lastFetchStatus: string | null;
     _count: { jobs: number };
@@ -215,6 +217,7 @@ function watchedRows(
       checkEvery: c.checkEvery,
       alertPolicy: c.alertPolicy,
       nextCheckAt: c.nextCheckAt,
+      lastContentAlertAt: c.lastContentAlertAt,
       lastOkAt: c.lastOkAt,
       lastFetchStatus: c.lastFetchStatus,
       jobsTotal: c._count.jobs,

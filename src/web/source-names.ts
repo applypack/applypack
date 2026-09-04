@@ -38,6 +38,7 @@ const SOURCE_NAMES: Record<string, string> = {
   DOU: 'DOU',
   DJINNI: 'Djinni',
   FEED: 'RSS/Atom feed',
+  CAREER_PAGE: 'Careers page (change watch)',
   MANUAL: 'Manual',
 };
 

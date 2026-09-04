@@ -95,7 +95,9 @@
   that is the user's own instruction channel.
 - `src/watchlist/` is the company-watchlist module (ADR 0036): `interval.ts`
   (intervals, due-ness, the ★ and the alert policy), `parse-input.ts` (the
-  textarea), `scan.ts` (what a careers page publishes) are pure and tested;
+  textarea), `scan.ts` (what a careers page publishes), `page-hash.ts` (the
+  change watch: what the hash ignores, and the once-a-day rule) are pure and
+  tested;
   `resolve.ts` is the ladder with its I/O injected, so the ladder itself is
   tested on recorded answers and only `liveResolveIo()` touches the network.
   Every `ats` verdict is confirmed by `probeAts` before it is offered — a URL
@@ -209,6 +211,7 @@ When the question is **"where does X live?"**, save yourself a `find`:
 | "Fetch now" (the tick from the dashboard: live progress, unscored while paused) | `POST /runs/fetch-now` in `src/web/routes/runs.tsx` → `runFetchJob({ manual: true })` in `src/jobs/fetch-job.ts`; registry `src/web/fetch-runs.ts`; verdict line `src/web/fetch-summary.ts` (pure) |
 | What runs on container boot | `src/init.ts` |
 | A generic RSS/Atom job feed as a source (atsToken = the feed URL) | `src/fetchers/feed.ts` (ADR 0036); the URL goes through `checkPostingUrl` on every tick, and an empty feed is `empty`, not a source |
+| A careers page with nothing machine-readable — "this page changed, have a look" | `src/watchlist/page-hash.ts` (pure: `normalisePageText` = stripHtml + collapse whitespace and NOTHING else — masking digits would erase "92 positions", which is the signal; `decideChange` holds the once-a-day rule) · `src/fetchers/career-page.ts` returns `[]` forever and stages through `watchlist/page-changes.ts` · `jobs/page-change-alerts.ts` sends one grouped message after the walk and only THEN advances `lastContentHash` |
 | Adding a new ATS source — single-feed template | `src/fetchers/larajobs.ts` (LARAJOBS_RSS) or `src/fetchers/golangprojects.ts` (single RSS) |
 | Adding a new ATS source — per-company JSON | `src/fetchers/ashby.ts` (cleanest), `src/fetchers/greenhouse.ts` |
 | Adding a new ATS source — POST endpoint | `src/fetchers/workable.ts` (POST + body) |
@@ -286,6 +289,7 @@ When the question is **"how does the user toggle / configure X?"**:
 | Paste an AI key without touching `.env` | `/settings` AI engine tab → the key row on each engine card, or step 1 of `/welcome` (ADR 0027) |
 | Add / remove tracked company | `/companies` (with manual probe before save) |
 | Watch specific companies (paste a list of career-page URLs) | `/companies` → "Watch specific companies": one URL per line (optionally `Name — URL`), Resolve these → a progress page → a preview showing what each URL resolved to → pick the interval and the alert policy for the batch → Add. Watched rows go in switched ON |
+| Watch a company whose careers page publishes no board and no feed | paste it like any other; the preview says "Change watch". The row says *Page changes* and *watching* instead of a posting count, costs no AI, and alerts at most once a day with the link |
 | Change how often a watched company is checked, or what it alerts about | `/companies` → "Watchlist" → the row's two selects (Every hour / Once a day / Once a week; Every posting / Matches only). "Check now" makes it due on the next tick; "Unwatch" keeps the company and drops the star |
 | See only postings from watched companies | `/jobs` → the "★ Watched" chip; ★ also sits before the company name on the list and the job page |
 | Bulk-add a curated segment of companies | `/companies` → "Add a starter pack" (preview → confirm → added disabled → "Enable all") |

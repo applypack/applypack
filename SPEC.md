@@ -26,7 +26,7 @@ port.
 
 See [ARCHITECTURE.md](./ARCHITECTURE.md) for diagrams.
 
-## Sources (25 ATS / aggregator types + MANUAL)
+## Sources (26 ATS / aggregator types + MANUAL)
 
 | AtsType            | Shape         | Auth      | Notes                                           |
 | ------------------ | ------------- | --------- | ----------------------------------------------- |
@@ -43,6 +43,7 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for diagrams.
 | TEAMTAILOR         | per-company   | none      | `<slug>.teamtailor.com/jobs.rss` (or a custom career domain as the token; private hosts refused) — `remoteStatus` (fully / hybrid / none) as the arrangement, `tt:locations` city + country name through the gazetteer, department and role in the head, full HTML; `jobs.json` beside it has ISO codes but no remote status, so the RSS is the feed read; an unknown slug is a 404 |
 | PERSONIO           | per-company   | none      | `<slug>.jobs.personio.de/xml?language=en` — documented XML (`<workzag-jobs><position>`), parsed without a dependency; `office` + `additionalOffices` free text for the parser, sections of `jobDescriptions` as the description, employment / seniority / schedule / salary in its head, `createdAt` as the date; an unknown slug is a 307 to personio.com (refused as "no feed") |
 | FEED               | per-company   | none      | A generic RSS / Atom job feed; the atsToken IS the feed URL, re-checked through the posting-URL guards on every tick. The rung below the vendor types — `watchlist/resolve.ts` only reaches it when no board resolves (ADR 0036) |
+| CAREER_PAGE        | per-company   | none      | A careers page with nothing machine-readable on it; the atsToken is the page URL. **Never yields a job** — it hashes the page's text and reports that it changed (ADR 0036) |
 | LARAJOBS_RSS       | aggregator    | none      | Single RSS, all jobs under one synthetic Company |
 | REMOTEOK           | aggregator    | none      | First array element is meta (`legal:`) — dropped via `slice(1)` |
 | REMOTIVE           | aggregator    | none      | `?category=software-dev`                        |
@@ -301,10 +302,21 @@ posting is still classified, so it carries a score, but the alert reads
 `/jobs`, on the job page and in Telegram, and the `★ Watched` chip filters
 the list.
 
-Measured on twenty JavaScript-heavy companies (2026-09-04): 5 resolved to a
-board, 13 published nothing machine-readable, 2 answered an HTTP error, 0 had
-a job feed — see [docs/company-watchlist.md](./docs/company-watchlist.md).
-Stage B (sitemap + JSON-LD) is what serves the thirteen.
+When a page publishes no board and no feed but does publish prose, the last
+rung takes it: **the change watch**. It hashes `stripHtml(page)` with
+whitespace collapsed — and nothing else, because on the sampled pages the only
+digits in the text were the counts that ARE the signal ("92 positions") — and
+says *"this careers page changed, have a look"* at most once a day, with the
+link. It never claims to know the jobs, produces no `Job` rows and costs no
+AI; `/companies` says *Page changes* and *watching* rather than a count. The
+hash advances only once the alert is actually sent, so a change seen inside
+the quiet window waits instead of being lost.
+
+Measured on twenty JavaScript-heavy companies and sixteen European ones
+(2026-09-04, [docs/company-watchlist.md](./docs/company-watchlist.md)): 7
+resolved to a board, 0 to a feed, and the rest to a change watch or an honest
+refusal. The sitemap + JSON-LD rung the plan called stage B was measured and
+**not built** — across 41 career pages, none publishes `JobPosting`.
 
 ## Resumes (Phase 8.1)
 

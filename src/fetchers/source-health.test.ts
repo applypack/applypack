@@ -266,3 +266,30 @@ describe('isFailureStatus', () => {
     }
   });
 });
+
+describe('isSilent — sources that never post', () => {
+  const old = { lastFetchStatus: 'empty', consecutiveFailures: 0, lastOkAt: null, createdAt: new Date('2026-01-01T00:00:00Z') };
+  const now = new Date('2026-06-01T00:00:00Z');
+
+  it('ages an ordinary board that has produced nothing', () => {
+    assert.equal(isSilent({ ...old, atsType: 'GREENHOUSE' }, now), true);
+  });
+
+  // A change watch returns [] on every successful read, so lastOkAt can never
+  // advance. Without the exemption every one would read as silent forever.
+  it('never ages a change watch, which produces no postings by design', () => {
+    assert.equal(isSilent({ ...old, atsType: 'CAREER_PAGE' }, now), false);
+    assert.equal(isSilent({ ...old, atsType: 'MANUAL' }, now), false);
+  });
+
+  it('still reports one that is failing outright', () => {
+    assert.equal(
+      isFailing({ ...old, atsType: 'CAREER_PAGE', lastFetchStatus: 'slug_gone', consecutiveFailures: 3 }),
+      true,
+    );
+  });
+
+  it('an absent atsType behaves as before', () => {
+    assert.equal(isSilent(old, now), true);
+  });
+});

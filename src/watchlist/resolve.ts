@@ -9,6 +9,7 @@ import { checkPostingUrl } from '../jobs/posting-url';
 import { bindingTokens, robotsAllows } from '../robots';
 import { looksLikeFeed } from '../fetchers/feed';
 import { boardHints, declaredJobFeeds, looksLikeChallenge, wellKnownFeeds } from './scan';
+import { MIN_WATCHABLE_CHARS, normalisePageText } from './page-hash';
 import { nameFromUrl, type CompanyInput } from './parse-input';
 import { boardMissReason } from './verdict';
 
@@ -23,8 +24,10 @@ import { boardMissReason } from './verdict';
  *    all put the board URL in their markup.
  * 4. **A declared feed whose own path names jobs**, then three well-known
  *    job-shaped paths.
- * 5. **Nothing machine-readable** — `watchOnly`, honestly labelled, which is
- *    where stage B's sitemap + JSON-LD rung will pick it up.
+ * 5. **Nothing machine-readable, but readable prose** — `changeWatch`: we
+ *    cannot know the jobs, so we watch the page's text and say when it
+ *    changes (stage C). A page with almost no text is `watchOnly` instead;
+ *    hashing a loading shell reports the shell.
  * 6. **Refused**, with the reason on screen: an ADR 0005 host, a private
  *    address, a robots.txt that says no, an HTTP error, a bot check.
  *
@@ -50,6 +53,8 @@ const FETCH_TIMEOUT_MS = 12_000;
 export type Resolution =
   | { kind: 'ats'; atsType: AtsType; atsToken: string; jobs: number; via: string }
   | { kind: 'feed'; url: string; items: number; via: string }
+  /** No board and no feed, but readable prose — the change watch can hash it. */
+  | { kind: 'changeWatch'; url: string; chars: number }
   | { kind: 'watchOnly'; reason: string }
   | { kind: 'refused'; reason: string };
 
@@ -178,11 +183,20 @@ export async function resolveCompanyUrl(
       requests,
     };
   }
+  // Rung 5: nothing machine-readable. If the page has prose, the change watch
+  // can tell the user when it moves — which is the honest offer, and all the
+  // measurement supports (docs/company-watchlist.md §5-§6).
+  const chars = normalisePageText(page.body).length;
+  if (boardMiss === null && chars >= MIN_WATCHABLE_CHARS) {
+    return { ...named, resolution: { kind: 'changeWatch', url: page.url, chars }, requests };
+  }
   return {
     ...named,
     resolution: {
       kind: 'watchOnly',
-      reason: boardMiss ?? 'No job board and no job feed on that page. Paste the board URL if you know it.',
+      reason:
+        boardMiss ??
+        'No job board, no job feed, and almost no text on that page — it probably needs JavaScript. Paste the board URL if you know it.',
     },
     requests,
   };

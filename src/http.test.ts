@@ -136,6 +136,17 @@ describe('stripHtml', () => {
   });
 });
 
+describe('stripHtml — markup declarations', () => {
+  it('drops the doctype instead of leaking it into the prose', () => {
+    assert.equal(stripHtml('<!DOCTYPE html><html><body><p>Careers</p></body></html>'), 'Careers');
+    assert.equal(stripHtml('<!doctype html>\n<p>Careers</p>'), 'Careers');
+  });
+
+  it('still leaves prose that merely contains a "<"', () => {
+    assert.equal(stripHtml('<p>salary &lt; 100k</p>'), 'salary < 100k');
+  });
+});
+
 describe('sleep', () => {
   it('resolves after roughly the requested time', async () => {
     const before = Date.now();
