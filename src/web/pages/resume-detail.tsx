@@ -297,6 +297,8 @@ export const ResumeDetailPage: FC<ResumeDetailProps> = ({
 
       {structure && <TemplateCheck resumeId={resume.id} candidate={resume.text.split('\n')[0]?.trim() || resume.name} structure={structure} props={props} />}
 
+      <CleanVersion resumeId={resume.id} kind={structure?.kind ?? null} filename={resume.sourceFilename} />
+
       <Card class="mt-4">
         <SectionTitle>What the ATS sees</SectionTitle>
         {warnings.length === 0 ? (
@@ -435,6 +437,40 @@ const KIND_VIEW: Record<DocxStructure['kind'], { label: string; tone: 'ok' | 'wa
   flow: { label: 'Editable in place', tone: 'ok' },
   structural: { label: 'Partly editable', tone: 'warn' },
   unsupported: { label: 'Text only', tone: 'neutral' },
+};
+
+
+/**
+ * "Clean version in your typeface" (ADR 0039). Offered on every resume, but
+ * the sentence changes: for a PDF or a layout the patcher refuses it is the
+ * way to get a file the editor can write into; for a flow .docx it is simply
+ * a plainer alternative, and the card says so rather than inventing a need.
+ */
+const CleanVersion: FC<{ resumeId: number; kind: DocxStructure['kind'] | null; filename: string }> = ({
+  resumeId,
+  kind,
+  filename,
+}) => {
+  const patchable = kind === 'flow';
+  const isPdf = /\.pdf$/i.test(filename);
+  return (
+    <Card class="mt-4">
+      <SectionTitle>Clean version in your typeface</SectionTitle>
+      <p class="text-sm text-ink">
+        {patchable
+          ? 'This file can already be edited in place, so this is optional: a plainer single-column .docx and .pdf of the same words, set in the typography this file uses.'
+          : isPdf
+            ? 'A PDF has no paragraphs to edit — only glyphs at coordinates. This rebuilds the same words as a single-column .docx and .pdf in the typography your PDF uses, and the .docx is one the editor can write into.'
+            : 'Some of this file’s text sits where a save cannot rewrite it line by line. This rebuilds the same words as a plain single-column .docx and .pdf, in the typography this file uses.'}
+      </p>
+      <Hint class="mt-2">
+        It is not your original design back — the layout is rebuilt plainly. Nothing here changes this resume.
+      </Hint>
+      <Button href={`/resumes/${resumeId}/render`} variant={patchable ? 'secondary' : 'primary'} size="sm" class="mt-3">
+        Clean version in your typeface
+      </Button>
+    </Card>
+  );
 };
 
 /**

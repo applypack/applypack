@@ -56,6 +56,8 @@ export interface TargetPageProps {
   flash?: FlashMessage | null;
   /** What a Save can do with this resume's file — one sentence (docx-structure.ts, ADR 0038). */
   fileVerdict: string;
+  /** Where the clean re-render lives, when this file is one a Save cannot fully write (ADR 0039). */
+  cleanHref?: string | null;
 }
 
 /* Side by side is first and default (user pref); Suggestions keeps its
@@ -110,6 +112,7 @@ export const TargetPage: FC<TargetPageProps> = ({
   resumeText,
   draftText,
   fileVerdict,
+  cleanHref,
   flash,
 }) => {
   // The panes, the chips and the live score work from the effective list: the
@@ -541,7 +544,17 @@ export const TargetPage: FC<TargetPageProps> = ({
             </div>
           </div>
           <div id="missing-chips" class="mb-3 flex flex-wrap gap-1.5"></div>
-          <Hint class="mb-2">{fileVerdict}</Hint>
+          <Hint class="mb-2">
+            {fileVerdict}
+            {cleanHref && (
+              <>
+                {' '}
+                <a href={cleanHref} class="text-accent underline underline-offset-2 hover:no-underline">
+                  Clean version in your typeface →
+                </a>
+              </>
+            )}
+          </Hint>
           <div class="editor relative h-[70vh] overflow-hidden rounded-md border border-line-strong bg-surface-raised">
             <div id="backdrop" class="editor-layer" aria-hidden="true"></div>
             <textarea
