@@ -12,6 +12,7 @@ import { toScoreData } from './score-store';
 import { mergeAiLocation, type StoredPlace } from './location-merge';
 import { isBlankProfile, NO_PROFILE_STACK_FLAG } from '../profile-guards';
 import { sendTelegramAlert } from '../notifier';
+import { attributionLine } from '../web/pages/attribution';
 import type { ClassifierMode } from '../settings';
 import {
   findCrossListing,
@@ -30,6 +31,8 @@ import type {
 export interface FetchResult {
   job: NormalizedJob;
   companyName: string;
+  /** Which source the row came from — the alert's attribution line reads it (ADR 0034). HN rows carry none. */
+  source?: { atsType: string; atsToken: string };
 }
 
 /** A fetched row plus its parsed location — read once, used by the filter and the insert. */
@@ -270,6 +273,7 @@ export async function processNormalizedJobs(
         {
           title: created.title,
           companyName,
+          attribution: item.source ? attributionLine(item.source.atsType, item.source.atsToken) : null,
           location: created.location,
           countries: created.countries,
           workplace: created.workplace,

@@ -19,6 +19,7 @@ import { formatDateShort, formatRelative, formatSalary } from '../format';
 import { formatUsdPerYear } from '../../currency';
 import { flagOf } from '../../countries';
 import { splitPlaces, toggled, type FacetChip, type FacetChips } from '../job-facets';
+import { AdzunaLabel } from './attribution';
 import { VERDICT_TONE } from './verification-card';
 
 interface JobRow {
@@ -37,7 +38,7 @@ interface JobRow {
   fetchedAt: Date;
   postedAt: Date;
   techMatch: string[];
-  company: { name: string };
+  company: { name: string; atsType: string; atsToken: string };
   verifications: { verdict: string }[];
   /** Present only when one search is selected: that search's own verdict. */
   scores?: { fitScore: number }[];
@@ -356,6 +357,7 @@ export const JobsListPage: FC<JobsListProps> = ({
                           <div class="truncate" title={j.company.name}>
                             {j.company.name}
                           </div>
+                          {j.company.atsType === 'ADZUNA' && <AdzunaLabel market={j.company.atsToken} class="mt-0.5" />}
                         </Td>
                         <Td class="text-ink-muted">
                           <div class="truncate" title={j.location || 'Remote'}>

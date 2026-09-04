@@ -60,7 +60,7 @@ export async function runFetchJob(opts: FetchJobOptions = {}): Promise<{ stats: 
     sources = progress.done;
     if (isFailureStatus(progress.status)) sourcesFailed++;
     opts.onSource?.(progress);
-  });
+  }, { manual: opts.manual === true });
   logger.info({ count: fetched.length, sources, sourcesFailed }, 'fetch-job: total fetched');
 
   // Phase 7.5 — universal ATS-URL discovery from any fetched job's URL

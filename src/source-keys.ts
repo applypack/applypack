@@ -95,6 +95,14 @@ export function envVarOf(source: KeyedSource, field: SourceKeyField): string {
   return (SOURCE_KEY_FIELDS[source] as Record<string, string>)[field] ?? '';
 }
 
+/** Thrown by a keyed fetcher with no credential; source health files it as `auth`. */
+export class SourceKeyMissingError extends Error {
+  constructor(sourceLabel: string) {
+    super(`${sourceLabel}: no key — paste it on Settings → Sources`);
+    this.name = 'SourceKeyMissingError';
+  }
+}
+
 /** A message with every secret replaced — for anything that may be logged or stored. */
 export function redactSecrets(text: string, secrets: readonly string[]): string {
   let out = text;

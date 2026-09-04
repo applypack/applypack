@@ -1,3 +1,5 @@
+import { flagOf, placeLabel } from '../countries';
+import { ADZUNA_MARKETS, adzunaCodeFor } from '../fetchers/adzuna';
 import type { WorkplaceCode } from '../location';
 
 /*
@@ -28,7 +30,7 @@ export interface TrackedRow {
 
 export interface SourceSuggestion {
   name: string;
-  atsType: 'DOU' | 'DJINNI' | 'ARBEITNOW' | 'SOLIDJOBS' | 'DEVITJOBS' | 'LANDINGJOBS' | 'JOBTECH';
+  atsType: 'DOU' | 'DJINNI' | 'ARBEITNOW' | 'SOLIDJOBS' | 'DEVITJOBS' | 'LANDINGJOBS' | 'JOBTECH' | 'ADZUNA';
   atsToken: string;
   careerUrl: string;
   /** Which search asked for it, in plain words: "🇺🇦 Ukraine in "PHP/Laravel"". */
@@ -127,6 +129,19 @@ export function suggestSources(searches: readonly SuggestSearch[], tracked: read
         atsToken: 'landingjobs',
         careerUrl: 'https://landing.jobs',
         reason: `🇵🇹 Portugal in "${search.name}"`,
+      });
+    }
+    // Adzuna serves nineteen markets with the user's own free key (ADR 0034);
+    // one row per country the search names.
+    for (const country of search.countries) {
+      const code = adzunaCodeFor(country);
+      if (!code) continue;
+      offer({
+        name: `Adzuna · ${placeLabel(country)}`,
+        atsType: 'ADZUNA',
+        atsToken: code,
+        careerUrl: `https://${ADZUNA_MARKETS[code]?.domain ?? 'www.adzuna.com'}/`,
+        reason: `${flagOf(country)} ${placeLabel(country)} in "${search.name}" — needs your Adzuna key`,
       });
     }
     if (search.countries.includes('SE') || search.regions.includes('NORDICS')) {

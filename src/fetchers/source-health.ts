@@ -76,6 +76,8 @@ export function classifyFetchError(err: unknown): FetchStatus {
   }
 
   const name = (err as { name?: unknown })?.name;
+  // A keyed source with nothing pasted yet (ADR 0034) — the fix is on the Sources tab.
+  if (name === 'SourceKeyMissingError') return 'auth';
   // A 200 carrying HTML instead of JSON dies in resp.json().
   if (name === 'SyntaxError' || name === 'ZodError') return 'bad_payload';
 

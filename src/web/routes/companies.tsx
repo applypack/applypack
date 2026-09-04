@@ -6,7 +6,7 @@ import { prisma } from '../../db';
 import { logger } from '../../logger';
 import { probeAts } from '../../ats-probe';
 import { quietReason } from '../../fetchers/source-health';
-import { getSettings } from '../../settings';
+import { getSettings, getSourceKeys } from '../../settings';
 import { toStringArray } from '../../text-utils';
 import {
   companiesInSegments,
@@ -50,6 +50,7 @@ const NewCompanySchema = z.object({
     AtsType.DOU,
     AtsType.DJINNI,
     AtsType.JOBTECH,
+    AtsType.ADZUNA,
   ] as const),
   atsToken: z.string().min(1).max(120),
   careerUrl: z.string().url().optional().or(z.literal('')),
@@ -188,7 +189,7 @@ companiesRoute.post('/companies/suggested', async (c) => {
   );
   if (!wanted) return redirectWithFlash(c, 'err', 'That source is not among today\'s suggestions.');
 
-  const probe = await probeAts(wanted.atsType, wanted.atsToken);
+  const probe = await probeAts(wanted.atsType, wanted.atsToken, { keys: await getSourceKeys() });
   if (!probe.ok) return redirectWithFlash(c, 'err', `Probe failed: ${probe.error}`);
 
   await prisma.company.create({
@@ -344,7 +345,7 @@ companiesRoute.post('/companies/:id/reprobe', async (c) => {
   });
   if (!company) return c.text('Not found', 404);
 
-  const probe = await probeAts(company.atsType, company.atsToken);
+  const probe = await probeAts(company.atsType, company.atsToken, { keys: await getSourceKeys() });
   if (!probe.ok) {
     return redirectWithFlash(
       c,
@@ -398,7 +399,7 @@ companiesRoute.post('/companies/new', async (c) => {
   }
   const { name, atsType, atsToken, careerUrl } = parsed.data;
 
-  const probe = await probeAts(atsType, atsToken);
+  const probe = await probeAts(atsType, atsToken, { keys: await getSourceKeys() });
   if (!probe.ok) {
     return redirectWithFlash(c, 'err', `Probe failed: ${probe.error}`);
   }

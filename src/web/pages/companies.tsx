@@ -160,6 +160,7 @@ const PROBEABLE_ATS: AtsType[] = [
   AtsType.DOU,
   AtsType.DJINNI,
   AtsType.JOBTECH,
+  AtsType.ADZUNA,
 ];
 
 const AGGREGATORS = ['LARAJOBS', 'REMOTEOK', 'REMOTIVE', 'JOBICY', 'WEWORKREMOTELY', 'HN_HIRING'];

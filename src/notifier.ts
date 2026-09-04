@@ -214,6 +214,9 @@ export function formatJobMessage(job: AlertJob): string {
   if (job.summary) {
     lines.push(`_${escapeMarkdownV2(job.summary)}_`);
   }
+  if (job.attribution) {
+    lines.push(escapeMarkdownV2(job.attribution));
+  }
   lines.push(`[Apply →](${escapeMarkdownV2Url(job.url)})`);
   return lines.join('\n');
 }

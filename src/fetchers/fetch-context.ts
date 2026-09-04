@@ -1,3 +1,5 @@
+import type { SourceKeys } from '../source-keys';
+
 /**
  * What every fetcher may know about the searches that are running (plan
  * §4.2, stage 3a): the union of their places. A source with a geo filter
@@ -11,6 +13,12 @@ export interface FetchContext {
   countries: string[];
   /** Group codes (EU, EUROPE, WORLDWIDE, …), once each. */
   regions: string[];
+  /** The keyed sources' credentials (ADR 0034), loaded once per tick; absent = none pasted. */
+  keys?: SourceKeys;
+  /** True for the dashboard's "Fetch now": a source polled on a cadence asks anyway. */
+  manual?: boolean;
+  /** When the tick runs — for sources polled on a cadence. */
+  now?: Date;
 }
 
 export const EMPTY_CONTEXT: FetchContext = { countries: [], regions: [] };

@@ -18,6 +18,7 @@ import {
   Textarea,
 } from '../ui';
 import { formatDate, formatSalary } from '../format';
+import { AdzunaLabel } from './attribution';
 import { formatUsdPerYear } from '../../currency';
 import { flagOf, placeLabel } from '../../countries';
 import { WORKPLACE_LABEL, type WorkplaceCode } from '../../location';
@@ -51,7 +52,7 @@ interface JobDetail {
   postedAt: Date;
   alertedAt: Date | null;
   externalId: string;
-  company: { id: number; name: string; atsType: string };
+  company: { id: number; name: string; atsType: string; atsToken: string };
   appliedAt: Date | null;
   appliedResumeId: number | null;
   appliedResumeVersion: number | null;
@@ -400,6 +401,7 @@ const PageHeaderBlock: FC<{ job: JobDetail }> = ({ job }) => (
         <div class="mt-1 text-sm text-ink-muted">
           {job.company.name} · {job.location || 'Remote'}
         </div>
+        {job.company.atsType === 'ADZUNA' && <AdzunaLabel market={job.company.atsToken} class="mt-1" />}
         <PlaceChips job={job} />
       </div>
       <div class="flex shrink-0 flex-wrap items-center gap-3">
