@@ -1,8 +1,13 @@
 /*
- * The four edits the suggestion cards can make to the resume text: replace a
- * quoted span, cut one, add a term to a skills line, lift a bullet to the top
- * of its block. Dependency-free ES module, no DOM — served as-is and
- * unit-tested from src/web/text-edits.test.ts.
+ * The edits the suggestion cards can make to the resume text: replace a quoted
+ * span, cut one, add a term to a skills line — and the inverse of any of them,
+ * which is what Undo restores. Dependency-free ES module, no DOM — served
+ * as-is and unit-tested from src/web/text-edits.test.ts.
+ *
+ * There is deliberately no "move this bullet to the top". 24 stored actions use
+ * move/lead wording, and reading them shows the model means "make the first
+ * bullet say this" — it quotes the leading bullet and proposes new words for
+ * it, which is a replacement. A real move applied to only 4 of the 24.
  *
  * Every function is total: it returns either { text, span } — the whole new
  * text plus where the edit landed, so the caller can outline it — or
@@ -114,13 +119,15 @@ function termList(line) {
 }
 
 const SKILLS_HEADING = /skills|technolog|stack|competenc/i;
+const HEADING_MAX = 60;
 
 /**
- * Add `term` to a skills line: the one whose label matches the `where` hint if
- * there is one, else the first term list under a skills heading. Returns
- * `no-skills-list` when the resume has no line shaped like a list — see
- * termList(); the caller must not offer the button in that case rather than
- * offer one that writes nonsense. A term already present is a no-op.
+ * Add `term` to a skills line. Only ever writes inside a skills section: a term
+ * list somewhere else is not a skills list, and the first walk of this shipped
+ * appending a keyword to the contact line, which split on ", " into four parts
+ * and passed for one. Returns `no-skills-list` when there is nothing safe to
+ * write to — the caller must then not offer the button at all rather than offer
+ * one that writes nonsense. A term already present is a no-op.
  */
 export function insertIntoSkills(text, term, where) {
   const clean = String(term ?? '').trim();
@@ -132,20 +139,22 @@ export function insertIntoSkills(text, term, where) {
   let underHeading = false;
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
-    // A heading is a short line with no list in it; it opens the section it names.
-    if (line.trim() !== '' && line.length < 60 && !termList(line)) underHeading = SKILLS_HEADING.test(line);
     const list = termList(line);
-    if (list) lists.push({ i, ...list, underHeading });
+    // A bare label ("Programming:") belongs to the section it sits in and must
+    // not close it — every stored resume stacks its labels that way.
+    const isLabel = line.trimEnd().endsWith(':');
+    if (!list && !isLabel && line.trim() !== '' && line.length < HEADING_MAX) {
+      underHeading = SKILLS_HEADING.test(line);
+    }
+    if (list && underHeading && !isContactLine(line)) lists.push({ i, ...list });
   }
   if (lists.length === 0) return { error: 'no-skills-list' };
 
   // The hint names a category ("Key Skills, Programming line"); prefer a list whose label says so.
   const hint = String(where ?? '').toLowerCase();
   const hintWords = hint.match(/[a-z]{4,}/g) ?? [];
-  const target =
-    lists.find((l) => hintWords.some((w) => lines[l.i].toLowerCase().slice(0, lines[l.i].indexOf(':') + 1 || 40).includes(w))) ??
-    lists.find((l) => l.underHeading) ??
-    lists[0];
+  const label = (i) => lines[i].toLowerCase().slice(0, lines[i].indexOf(':') + 1 || HEADING_MAX);
+  const target = lists.find((l) => hintWords.some((w) => label(l.i).includes(w))) ?? lists[0];
 
   const line = lines[target.i];
   const next = line.replace(/\s*$/, '') + target.sep + clean;
@@ -155,29 +164,36 @@ export function insertIntoSkills(text, term, where) {
 }
 
 /**
- * Move the quoted bullet to the top of its own block — "lead with the payments
- * bullet" is the most common ordering suggestion in the corpus. The block is the
- * run of consecutive bullets around it; a line that is not a bullet is refused,
- * because moving a paragraph would change what it belongs to.
+ * The smallest edit that turns `before` into `after`: the common prefix and
+ * suffix are untouched, everything between them changed. Undo stores this
+ * rather than a copy of the whole resume — it is one sentence, it survives a
+ * reload in localStorage, and it says exactly what to put back.
  */
-export function moveLineToBlockTop(text, quote) {
-  const loc = locateQuote(text, quote);
-  if (!loc) return { error: 'not-found' };
-  const lines = text.split('\n');
-  // Which line the span starts on.
-  let index = 0;
-  let seen = 0;
-  for (; index < lines.length; index++) {
-    const after = seen + lines[index].length + 1;
-    if (loc.start < after) break;
-    seen = after;
+export function inverseEdit(before, after) {
+  let head = 0;
+  while (head < before.length && head < after.length && before[head] === after[head]) head++;
+  let tail = 0;
+  while (
+    tail < before.length - head &&
+    tail < after.length - head &&
+    before[before.length - 1 - tail] === after[after.length - 1 - tail]
+  ) {
+    tail++;
   }
-  if (index >= lines.length || !BULLET.test(lines[index])) return { error: 'not-a-bullet' };
-  let top = index;
-  while (top > 0 && BULLET.test(lines[top - 1])) top--;
-  if (top === index) return { error: 'already-first' };
-  const [moved] = lines.splice(index, 1);
-  lines.splice(top, 0, moved);
-  const start = lines.slice(0, top).reduce((n, l) => n + l.length + 1, 0);
-  return { text: lines.join('\n'), span: { start, end: start + moved.length } };
+  return {
+    start: head,
+    removed: before.slice(head, before.length - tail),
+    inserted: after.slice(head, after.length - tail),
+  };
+}
+
+/**
+ * Put `edit.removed` back where `edit.inserted` still stands. Refuses when the
+ * text has moved on, so Undo can never silently overwrite later typing.
+ */
+export function undoEdit(text, edit) {
+  const at = edit.start;
+  if (text.slice(at, at + edit.inserted.length) !== edit.inserted) return { error: 'moved-on' };
+  const next = text.slice(0, at) + edit.removed + text.slice(at + edit.inserted.length);
+  return { text: next, span: { start: at, end: at + edit.removed.length } };
 }

@@ -726,6 +726,10 @@ const TARGET_CSS = `
     #panes .editor { height: 40vh; }
     #panes.editor-tall .editor { height: 75vh; }
   }
+  /* A card that has been applied or skipped steps back without disappearing —
+     it is still the record of what was suggested, and Undo lives on it. */
+  .card-done { opacity: 0.55; }
+  .card-done:hover, .card-done:focus-within { opacity: 1; }
   .chip { cursor: pointer; }
   .runs-toggle::-webkit-details-marker { display: none; }
   .runs-toggle::before { content: '▸ '; }

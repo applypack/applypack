@@ -8,7 +8,8 @@ const edits = import('./public/text-edits.mjs') as Promise<{
   applyReplacement: (text: string, quote: string, replacement: string) => Edit;
   removeSpan: (text: string, quote: string) => Edit;
   insertIntoSkills: (text: string, term: string, where?: string) => Edit;
-  moveLineToBlockTop: (text: string, quote: string) => Edit;
+  inverseEdit: (before: string, after: string) => { start: number; removed: string; inserted: string };
+  undoEdit: (text: string, edit: { start: number; removed: string; inserted: string }) => Edit;
 }>;
 
 const ok = (r: Edit) => {
@@ -112,16 +113,54 @@ test('insertIntoSkills appends to a real term list with the separator it already
   assert.match(ok(insertIntoSkills(text, 'Svelte', 'Frameworks line')).text, /^Frameworks: Laravel \| Vue \| React \| Svelte$/m);
 });
 
-test('insertIntoSkills refuses the stacked-label shape every stored resume has', async () => {
+test('insertIntoSkills refuses a section of labels with no values at all', async () => {
   const { insertIntoSkills } = await edits;
-  // "Programming:" is a bare label; the values are three lines below. Appending
-  // there would write the term onto a label — measured on all 6 live resumes.
+  // Bare labels and nothing to append to: there is no list, so no button.
   assert.equal(err(insertIntoSkills('KEY SKILLS\nProgramming:\nFrameworks/Libraries:\nOthers:', 'Kotlin', 'Programming')), 'no-skills-list');
   // A run of labels glued onto one line is not a term list either.
   assert.equal(
     err(insertIntoSkills('KEY SKILLS\nProgramming: Frameworks/Libraries: Data Storages: Others:', 'Kotlin', 'Programming')),
     'no-skills-list',
   );
+});
+
+test('insertIntoSkills never writes to the contact line', async () => {
+  const { insertIntoSkills } = await edits;
+  // The first live walk did exactly this: the contact line splits on ", " into
+  // four parts with no colon, so it passed for a term list and a keyword was
+  // appended after the LinkedIn URL. Nothing outside a skills section is a
+  // skills list, and the contact line is refused on top of that.
+  const r = insertIntoSkills(RESUME, 'GraphQL', 'Key Skills, Programming line');
+  if (!('error' in r)) {
+    assert.equal(r.text.split('\n')[2], RESUME.split('\n')[2], 'the contact line is untouched');
+    assert.equal(r.text.includes('nazar-boyko, GraphQL'), false);
+  }
+});
+
+test('insertIntoSkills reads a bare label as part of the section, not the end of it', async () => {
+  const { insertIntoSkills } = await edits;
+  // Every stored resume stacks labels and then values; "Programming:" must not
+  // close KEY SKILLS, or the value lines below it are never seen as the target.
+  const text = [
+    'Nazar Boyko',
+    'Austin, Texas ∙ nazar@example.com ∙ +1 (612) 267-5544',
+    'KEY SKILLS',
+    'Programming:',
+    'Frameworks/Libraries:',
+    'Go, PHP, JavaScript, TypeScript',
+    'EXPERIENCE',
+    'Shipped A, B, C for the team',
+  ].join('\n');
+  const r = ok(insertIntoSkills(text, 'Rust', 'Key Skills, Programming line'));
+  assert.match(r.text, /^Go, PHP, JavaScript, TypeScript, Rust$/m, 'landed on the value line under the labels');
+  assert.equal(r.text.includes('267-5544, Rust'), false, 'not the contact line');
+  assert.equal(r.text.includes('B, C for the team, Rust'), false, 'not a sentence in EXPERIENCE');
+});
+
+test('insertIntoSkills refuses a term list that is not in a skills section', async () => {
+  const { insertIntoSkills } = await edits;
+  const text = 'EXPERIENCE\nShipped A, B and C, then D for the team\nSUMMARY\nOne, two, three.';
+  assert.equal(err(insertIntoSkills(text, 'Rust', 'Programming')), 'no-skills-list');
 });
 
 test('insertIntoSkills is a no-op for a term the resume already claims', async () => {
@@ -137,22 +176,6 @@ test('insertIntoSkills prefers a list under a skills heading over an unrelated o
   assert.match(ok(insertIntoSkills(text, 'Rust', 'nothing that matches')).text, /^Programming: Go, PHP, Rust$/m);
 });
 
-test('moveLineToBlockTop lifts a bullet to the top of its own block', async () => {
-  const { moveLineToBlockTop } = await edits;
-  const r = ok(moveLineToBlockTop(RESUME, 'Built a multi-gateway payment platform from scratch in Laravel.'));
-  const bullets = r.text.split('\n').filter((l) => l.startsWith('•'));
-  assert.equal(bullets[0], '• Built a multi-gateway payment platform from scratch in Laravel.');
-  assert.equal(bullets.length, 3, 'nothing was lost');
-  assert.equal(r.text.slice(r.span.start, r.span.end), bullets[0]);
-});
-
-test('moveLineToBlockTop refuses a paragraph and a bullet already on top', async () => {
-  const { moveLineToBlockTop } = await edits;
-  assert.equal(err(moveLineToBlockTop(RESUME, 'Senior engineer (10+ years)')), 'not-a-bullet');
-  assert.equal(err(moveLineToBlockTop(RESUME, 'Led backend architecture for PHP services')), 'already-first');
-  assert.equal(err(moveLineToBlockTop(RESUME, 'no such line anywhere in this text')), 'not-found');
-});
-
 test('the operations read a two-line quote, which 22 stored quotes are', async () => {
   const { applyReplacement, removeSpan } = await edits;
   const text = 'SUMMARY\nDesigned and integrated real-time address\nverification services (USPS, Smarty).\n• Kept.';
@@ -164,11 +187,46 @@ test('the operations read a two-line quote, which 22 stored quotes are', async (
 });
 
 test('every operation leaves the input string untouched', async () => {
-  const { applyReplacement, removeSpan, insertIntoSkills, moveLineToBlockTop } = await edits;
+  const { applyReplacement, removeSpan, insertIntoSkills } = await edits;
   const before = RESUME;
   applyReplacement(RESUME, 'Senior Full-Stack Engineer', 'X');
   removeSpan(RESUME, '• Improved SEO rankings for marketing pages.');
   insertIntoSkills(RESUME, 'Rust', 'Programming');
-  moveLineToBlockTop(RESUME, 'Built a multi-gateway payment platform from scratch in Laravel.');
   assert.equal(RESUME, before);
+});
+
+test('inverseEdit names only the part that changed', async () => {
+  const { inverseEdit } = await edits;
+  assert.deepEqual(inverseEdit('Alpha bravo charlie', 'Alpha DELTA charlie'), {
+    start: 6, removed: 'bravo', inserted: 'DELTA',
+  });
+  // A pure insertion and a pure deletion are the same shape with one side empty.
+  assert.deepEqual(inverseEdit('Alpha charlie', 'Alpha bravo charlie'), { start: 6, removed: '', inserted: 'bravo ' });
+  assert.deepEqual(inverseEdit('Alpha bravo charlie', 'Alpha charlie'), { start: 6, removed: 'bravo ', inserted: '' });
+  assert.deepEqual(inverseEdit('same', 'same'), { start: 4, removed: '', inserted: '' });
+});
+
+test('inverseEdit round-trips every operation', async () => {
+  const { applyReplacement, removeSpan, insertIntoSkills, inverseEdit, undoEdit } = await edits;
+  const text = 'KEY SKILLS\nProgramming: Go, PHP\n\nEXPERIENCE\n• Led backend architecture.\n• Improved SEO rankings.';
+  const runs = [
+    applyReplacement(text, 'Led backend architecture.', 'Owned the payments backend end to end.'),
+    removeSpan(text, '• Improved SEO rankings.'),
+    insertIntoSkills(text, 'Rust', 'Programming'),
+  ];
+  for (const r of runs) {
+    const after = ok(r).text;
+    const back = ok(undoEdit(after, inverseEdit(text, after)));
+    assert.equal(back.text, text, 'undo restores the text exactly');
+  }
+});
+
+test('undoEdit refuses once the user has typed over the edit', async () => {
+  const { applyReplacement, inverseEdit, undoEdit } = await edits;
+  const text = 'Alpha\nBravo line here\nCharlie';
+  const after = ok(applyReplacement(text, 'Bravo line here', 'Delta line here')).text;
+  const edit = inverseEdit(text, after);
+  assert.equal(err(undoEdit(after.replace('Delta', 'Echo'), edit)), 'moved-on');
+  // And it still works on the untouched text.
+  assert.equal(ok(undoEdit(after, edit)).text, text);
 });
