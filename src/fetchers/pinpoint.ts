@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { fetchWithRetry, stripHtml } from '../http';
+import { conditionalHeaders, rememberResponse } from './conditional';
 import { workplaceFromText } from '../location';
 import type { NormalizedJob } from '../types';
 
@@ -48,9 +49,12 @@ export interface PinpointCompany {
 export async function fetchPinpoint(
   company: PinpointCompany,
 ): Promise<NormalizedJob[]> {
-  const resp = await fetchWithRetry(ENDPOINT_TEMPLATE(company.atsToken));
+  const url = ENDPOINT_TEMPLATE(company.atsToken);
+  const resp = await fetchWithRetry(url, { init: { headers: conditionalHeaders(company.id, url) } });
   const raw: unknown = await resp.json();
-  return mapPinpointFeed(raw, company.id);
+  const jobs = mapPinpointFeed(raw, company.id);
+  rememberResponse(company.id, url, resp, jobs.length);
+  return jobs;
 }
 
 export function mapPinpointFeed(

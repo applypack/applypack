@@ -1,5 +1,6 @@
 import { logger } from '../logger';
 import { runAllFetchers, type SourceProgress } from '../fetchers';
+import { beginConditionalTick, commitConditionalCache } from '../fetchers/conditional';
 import { syncFranceTravail } from './france-travail-sync';
 import { isFailureStatus } from '../fetchers/source-health';
 import { listActiveProfiles } from '../profiles';
@@ -57,12 +58,20 @@ export async function runFetchJob(opts: FetchJobOptions = {}): Promise<{ stats: 
 
   let sources = 0;
   let sourcesFailed = 0;
+  let sourcesUnchanged = 0;
+  // Validators learned below are staged, not live, until the jobs they came
+  // with are stored (docs/scale-plan.md §4).
+  beginConditionalTick();
   const fetched = await runAllFetchers(paused, (progress) => {
     sources = progress.done;
     if (isFailureStatus(progress.status)) sourcesFailed++;
+    if (progress.status === 'not_modified') sourcesUnchanged++;
     opts.onSource?.(progress);
   }, { manual: opts.manual === true });
-  logger.info({ count: fetched.length, sources, sourcesFailed }, 'fetch-job: total fetched');
+  logger.info(
+    { count: fetched.length, sources, sourcesFailed, sourcesUnchanged },
+    'fetch-job: total fetched',
+  );
 
   // France Travail's licence asks the board again about every stored offer
   // at least daily (ADR 0034); the mirror does what is due on every tick.
@@ -109,6 +118,7 @@ export async function runFetchJob(opts: FetchJobOptions = {}): Promise<{ stats: 
         fetched: fetched.length,
         sources,
         sourcesFailed,
+        ...(sourcesUnchanged > 0 && { sourcesUnchanged }),
         candidatesRecorded: candidates,
         durationMs,
       },
@@ -138,6 +148,13 @@ export async function runFetchJob(opts: FetchJobOptions = {}): Promise<{ stats: 
     isCancelled: paused,
   });
 
+  // Only now may this tick's validators be sent: a pass that aborted, or one
+  // that never reached the persist loop, discarded what it fetched, and a
+  // committed ETag would answer 304 over postings nobody stored.
+  if (inner.abortedMidRun === 0 && inner.skippedBlankProfile === 0) {
+    commitConditionalCache();
+  }
+
   const durationMs = Date.now() - started;
   const stats: CronStats = {
     profile: searchNames(profiles),
@@ -146,6 +163,7 @@ export async function runFetchJob(opts: FetchJobOptions = {}): Promise<{ stats: 
     fetched: fetched.length,
     sources,
     sourcesFailed,
+    ...(sourcesUnchanged > 0 && { sourcesUnchanged }),
     candidatesRecorded: candidates,
     ...inner,
     durationMs,

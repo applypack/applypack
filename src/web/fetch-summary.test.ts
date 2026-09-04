@@ -18,6 +18,19 @@ test('a running-pipeline run reports scored and alerted counts', () => {
   assert.match(text, /118 new stored, 100 scored, 5 alerted\./);
 });
 
+test('zero jobs is not a warning when the sources were simply unchanged', () => {
+  // 44 of 62 sources answer 304 on an ordinary second tick; "check the
+  // network" would be nonsense there.
+  const { kind, text } = summarizeFetchRun({ ...base, fetched: 0, persisted: 0, sources: 62, sourcesUnchanged: 44 });
+  assert.equal(kind, 'ok');
+  assert.match(text, /44 of 62 sources unchanged since the last tick/);
+});
+
+test('names the unchanged sources alongside the fetched ones', () => {
+  const { text } = summarizeFetchRun({ ...base, sources: 62, sourcesUnchanged: 44, sourcesFailed: 2 });
+  assert.match(text, /62 sources \(44 unchanged, 2 failed\)/);
+});
+
 test('zero jobs from every source points at the network', () => {
   const { kind, text } = summarizeFetchRun({ ...base, fetched: 0, persisted: 0, sourcesFailed: 71 });
   assert.equal(kind, 'warn');

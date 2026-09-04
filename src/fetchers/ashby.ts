@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { findCountry } from '../countries';
 import { fetchWithRetry, stripHtml } from '../http';
+import { conditionalHeaders, rememberResponse } from './conditional';
 import { workplaceFromText } from '../location';
 import type { NormalizedJob } from '../types';
 
@@ -55,7 +56,7 @@ export async function fetchAshby(
   company: AshbyCompany,
 ): Promise<NormalizedJob[]> {
   const url = `https://api.ashbyhq.com/posting-api/job-board/${encodeURIComponent(company.atsToken)}`;
-  const resp = await fetchWithRetry(url);
+  const resp = await fetchWithRetry(url, { init: { headers: conditionalHeaders(company.id, url) } });
   const data: unknown = await resp.json();
   const parsed = AshbyResponseSchema.safeParse(data);
   if (!parsed.success) {
@@ -63,9 +64,11 @@ export async function fetchAshby(
       `Ashby schema invalid for "${company.atsToken}": ${parsed.error.message}`,
     );
   }
-  return parsed.data.jobs
+  const jobs = parsed.data.jobs
     .filter((j) => j.isListed !== false)
     .map((j) => mapAshbyJob(j, company.id));
+  rememberResponse(company.id, url, resp, jobs.length);
+  return jobs;
 }
 
 /**

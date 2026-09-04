@@ -13,6 +13,7 @@ import { HttpError } from '../http';
 export const FETCH_STATUSES = [
   'ok',
   'empty',
+  'not_modified',
   'slug_gone',
   'auth',
   'rate_limit',
@@ -25,7 +26,7 @@ export const FETCH_STATUSES = [
 export type FetchStatus = (typeof FETCH_STATUSES)[number];
 
 /** Statuses that clear the streak. Everything else increments it. */
-const HEALTHY: ReadonlySet<FetchStatus> = new Set<FetchStatus>(['ok', 'empty']);
+const HEALTHY: ReadonlySet<FetchStatus> = new Set<FetchStatus>(['ok', 'empty', 'not_modified']);
 
 /** Three hourly ticks — see ADR 0019 for why the base rate allows this. */
 export const QUIET_STREAK = 3;
@@ -68,6 +69,9 @@ function causeOf(err: unknown): { code?: string; message?: string } {
  */
 export function classifyFetchError(err: unknown): FetchStatus {
   if (err instanceof HttpError) {
+    // Not an error at all: fetchWithRetry throws on every non-2xx, and a 304
+    // is the board saying its feed is byte-for-byte what we already read.
+    if (err.status === 304) return 'not_modified';
     if (err.status === 404 || err.status === 410) return 'slug_gone';
     if (err.status === 401 || err.status === 403) return 'auth';
     if (err.status === 429) return 'rate_limit';
@@ -105,6 +109,20 @@ export function classifyFetchError(err: unknown): FetchStatus {
 /** A successful fetch → a status, from the RAW pre-filter row count. */
 export function classifyFetchCount(count: number): FetchStatus {
   return count > 0 ? 'ok' : 'empty';
+}
+
+/**
+ * Whether this answer proves the source is still producing postings.
+ *
+ * A 304 says the feed is unchanged — which makes it as good as the last full
+ * read, and no better. An unchanged EMPTY board (measured on Breezy: a
+ * stable ETag over `[]`) must still age into "silent", or conditional
+ * requests would quietly undo ADR 0019.
+ */
+export function advancesLastOk(status: FetchStatus, cachedCount: number | null): boolean {
+  if (status === 'ok') return true;
+  if (status === 'not_modified') return (cachedCount ?? 0) > 0;
+  return false;
 }
 
 /** Anything but a successful fetch — `empty` is an answer, not a failure. */
@@ -166,6 +184,8 @@ export function describeStatus(status: string | null): {
       return { label: 'OK', tone: 'good' };
     case 'empty':
       return { label: 'No postings', tone: 'idle' };
+    case 'not_modified':
+      return { label: 'Unchanged', tone: 'good' };
     case 'slug_gone':
       return { label: 'Slug not found', tone: 'bad' };
     case 'auth':

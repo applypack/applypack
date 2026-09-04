@@ -1,4 +1,5 @@
 import { decodeHtmlEntities, fetchWithRetry, stripHtml } from '../http';
+import { conditionalHeaders, rememberResponse } from './conditional';
 import type { NormalizedJob } from '../types';
 
 /**
@@ -47,10 +48,16 @@ export interface PersonioPosition {
 
 export async function fetchPersonio(company: PersonioCompany): Promise<NormalizedJob[]> {
   const slug = personioSlug(company.atsToken);
-  const resp = await fetchWithRetry(personioFeedUrl(slug), { timeoutMs: TIMEOUT_MS, init: { redirect: 'error' } });
+  const url = personioFeedUrl(slug);
+  const resp = await fetchWithRetry(url, {
+    timeoutMs: TIMEOUT_MS,
+    init: { redirect: 'error', headers: conditionalHeaders(company.id, url) },
+  });
   const xml = await resp.text();
   if (!isPersonioFeed(xml)) throw new Error(`personio: "${slug}" answered no job feed (expected <workzag-jobs>)`);
-  return parsePersonioXml(xml).map((p) => mapPersonioPosition(p, company.id, slug));
+  const jobs = parsePersonioXml(xml).map((p) => mapPersonioPosition(p, company.id, slug));
+  rememberResponse(company.id, url, resp, jobs.length);
+  return jobs;
 }
 
 export function personioFeedUrl(slug: string): string {

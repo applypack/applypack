@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { fetchWithRetry } from '../http';
+import { conditionalHeaders, rememberResponse } from './conditional';
 import { workplaceFromText } from '../location';
 import type { NormalizedJob } from '../types';
 
@@ -36,7 +37,7 @@ export async function fetchLever(
   company: LeverCompany,
 ): Promise<NormalizedJob[]> {
   const url = `https://api.lever.co/v0/postings/${encodeURIComponent(company.atsToken)}?mode=json`;
-  const resp = await fetchWithRetry(url);
+  const resp = await fetchWithRetry(url, { init: { headers: conditionalHeaders(company.id, url) } });
   const data: unknown = await resp.json();
   const parsed = LeverResponseSchema.safeParse(data);
   if (!parsed.success) {
@@ -44,7 +45,9 @@ export async function fetchLever(
       `Lever schema invalid for "${company.atsToken}": ${parsed.error.message}`,
     );
   }
-  return parsed.data.map((p) => mapLeverPosting(p, company.id));
+  const jobs = parsed.data.map((p) => mapLeverPosting(p, company.id));
+  rememberResponse(company.id, url, resp, jobs.length);
+  return jobs;
 }
 
 /**
