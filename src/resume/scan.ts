@@ -1,6 +1,8 @@
 import { logger } from '../logger';
 import { getAiRuntime } from '../ai-runtime';
 import { buildScanPrompt, parseScanResponse, SCAN_MAX_TOKENS, type ResumeScan } from './prompts';
+import type { JsonResume } from './json-resume';
+import { anchorStructure, structureIsUsable } from './structure-anchor';
 import { saveResumeScan } from './store';
 
 const SCAN_TIMEOUT_MS = 5 * 60_000;
@@ -22,7 +24,8 @@ export async function scanResume(resume: { id: number; text: string }): Promise<
     if (out === null) return null;
     const parsed = parseScanResponse(out.text);
     if (parsed.ok) {
-      await saveResumeScan(resume.id, parsed.data);
+      const structure = guardStructure(resume, parsed.data);
+      await saveResumeScan(resume.id, parsed.data, structure);
       logger.info(
         {
           id: resume.id,
@@ -38,6 +41,33 @@ export async function scanResume(resume: { id: number; text: string }): Promise<
     logger.warn({ id: resume.id, attempt, error: parsed.error, raw: out.text.slice(0, 500) }, 'resume: scan reply did not match schema');
   }
   return null;
+}
+
+/**
+ * The structure block, checked against the resume before it is stored
+ * (ADR 0039): a string the model wrote rather than copied is dropped, and a
+ * reply the guard emptied is not stored at all — the render page's
+ * deterministic fallback is better than a half-built shape. The drop count is
+ * the regression metric for a scan-prompt change, so it is logged every time.
+ */
+function guardStructure(resume: { id: number; text: string }, scan: ResumeScan): JsonResume | null {
+  if (!scan.structure) return null;
+  const report = anchorStructure(scan.structure, resume.text);
+  const usable = structureIsUsable(report);
+  logger.info(
+    {
+      id: resume.id,
+      kept: report.kept,
+      dropped: report.dropped,
+      emptiedRoles: report.emptiedRoles,
+      roles: report.structure.work.length,
+      bullets: report.structure.work.reduce((n, w) => n + w.highlights.length, 0),
+      usable,
+      samples: report.samples,
+    },
+    'resume: structure anchored',
+  );
+  return usable ? report.structure : null;
 }
 
 /**

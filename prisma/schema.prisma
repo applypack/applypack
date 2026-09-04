@@ -498,6 +498,11 @@ model Resume {
   summary         String?        @db.Text
   // [{ section, issue, fix }] — job-agnostic ATS / recruiter problems.
   issues          Json           @default("[]")
+  // The resume as a JSON Resume subset (ADR 0039), written by the scan and
+  // guarded verbatim against `text` before it is stored. NULL means the scan
+  // predates the block or the guard emptied it; the render page then falls
+  // back to structure-from-text.ts. Never a source of truth — `text` is.
+  structure       Json?
   // [{ question, answer, answeredAt }] — the metrics the strength review asked
   // for and the candidate supplied. On the RESUME, not the review row: an
   // answer is a fact about this document and has to outlive the run that

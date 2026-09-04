@@ -4,6 +4,7 @@ import { logger } from '../logger';
 import { readAnswers, upsertAnswer, type ReviewAnswer } from './answers';
 import { readFrameReason, type FrameReason } from './keyword-frame';
 import { effectiveKeywords } from './keyword-overrides';
+import type { JsonResume } from './json-resume';
 import { readMatchMode, storedBreakdown, withSuggestionsMode, type MatchMode } from './match-mode';
 import { readPromptVersion } from './match-reuse';
 import type { MatchKeyword, MatchSuggestions, ResumeMatchResult, ResumeReviewResult, ResumeScan } from './prompts';
@@ -137,7 +138,16 @@ export async function setDefaultResume(id: number): Promise<void> {
   ]);
 }
 
-export async function saveResumeScan(id: number, scan: ResumeScan): Promise<void> {
+/**
+ * The scan's verdict. `structure` arrives already guarded (ADR 0039) — the
+ * caller has the resume text and the log line — and null leaves the column
+ * alone rather than clearing a structure an earlier scan earned.
+ */
+export async function saveResumeScan(
+  id: number,
+  scan: ResumeScan,
+  structure: JsonResume | null,
+): Promise<void> {
   await prisma.resume.update({
     where: { id },
     data: {
@@ -150,6 +160,7 @@ export async function saveResumeScan(id: number, scan: ResumeScan): Promise<void
       roleTypes: scan.role_types,
       summary: scan.summary,
       issues: scan.issues as Prisma.InputJsonValue,
+      ...(structure ? { structure: structure as unknown as Prisma.InputJsonValue } : {}),
     },
   });
 }

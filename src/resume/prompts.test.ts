@@ -792,3 +792,38 @@ test('a reply without the v7 fields still parses, and a reply with them keeps th
   assert.equal(parsedV7.data.actions[0]!.replacement, 'New title');
   assert.equal(parsedV7.data.actions[0]!.insert_after, null);
 });
+
+test('the scan asks for a structure and states the copy-never-write rule', () => {
+  const { system } = buildScanPrompt('RESUME BODY');
+  assert.match(system, /"structure"/);
+  assert.match(system, /COPIED CHARACTER FOR CHARACTER/);
+  assert.match(system, /Do not tighten a bullet/);
+  // The one judgement the block does ask for — the corpus's skills table
+  // extracts as a label stack and a value stack (ADR 0039).
+  assert.match(system, /TABLE or as two stacked columns/);
+  assert.match(system, /"highlights"/);
+  assert.match(system, /"extras"/);
+});
+
+test('a scan reply without "structure" still parses — the block is optional', () => {
+  const base = { title: 'Senior Backend Engineer', skills: ['php'], role_types: ['backend'], summary: 'Ten years of PHP.' };
+  const without = parseScanResponse(JSON.stringify(base));
+  assert.ok(without.ok);
+  assert.equal(without.data.structure, undefined);
+
+  const withBlock = parseScanResponse(
+    JSON.stringify({ ...base, structure: { basics: { name: 'Nazar Boyko' }, work: [{ name: 'V Shred', highlights: ['Shipped.'] }] } }),
+  );
+  assert.ok(withBlock.ok);
+  assert.equal(withBlock.data.structure?.basics.name, 'Nazar Boyko');
+  assert.equal(withBlock.data.structure?.work[0]?.highlights[0], 'Shipped.');
+});
+
+test('a malformed structure costs the block, never the scan', () => {
+  const parsed = parseScanResponse(
+    JSON.stringify({ title: 'Senior', skills: [], role_types: [], summary: 'Ten years.', structure: 'not an object' }),
+  );
+  assert.ok(parsed.ok);
+  assert.equal(parsed.data.structure, undefined);
+  assert.equal(parsed.data.title, 'Senior');
+});
