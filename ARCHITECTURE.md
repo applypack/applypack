@@ -162,6 +162,8 @@ input tokens, then it stabilises).
 src/
   index.ts                     ← cron registration (6 jobs) + graceful shutdown
   schedule.ts                  ← pure: this install's cron minute, from instanceId (ADR 0035)
+  user-schedule.ts             ← pure: the user's own schedule — when the search runs,
+                                 when alerts may leave, which hours are digest hours
   init.ts                      ← prisma migrate deploy + seed + bootstrap profile/Telegram
   config.ts                    ← zod-validated env (worker + web)
   logger.ts                    ← pino instance
@@ -246,6 +248,8 @@ src/
 
   jobs/
     fetch-job.ts                ← runFetchJob (cron entry; {manual:true} from "Fetch now")
+    alert-delivery.ts           ← sends the matches held outside the alert window
+    held-alerts.ts              ← pure: one grouped message per Telegram chat
     digest-job.ts               ← runDigestJob (daily 09:00)
     cleanup-job.ts              ← runCleanupJob (Sunday 03:00)
     stale-applications-job.ts   ← runStaleApplicationsJob (daily 08:00)

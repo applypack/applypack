@@ -118,11 +118,20 @@ The same inner loop is reused by `runHnHiringJob` (extracted into
 that every deployment does not knock on the same board in the same second
 (ADR 0035); it applies to the three jobs that reach somebody else's server.
 
+The cron list itself never changes. What the user picks on Settings →
+General → Schedule is read by a pure gate (`src/user-schedule.ts`) at the
+start of each beat: `isFetchDue` decides whether the fetch tick searches (a
+"no" is `outside-schedule` on /runs), `canAlertNow` decides whether a fresh
+match is sent or held on `Job.alertHeldAt`, and `isDigestHour` decides
+whether the two hourly summary beats do anything at all — a beat that is not
+a digest hour writes no run row. An empty `AppSettings.schedule` means every
+hour, around the clock, one message per match: the behaviour before v1.47.0.
+
 | Cron expr    | Job                | What it does                                   |
 | ------------ | ------------------ | ---------------------------------------------- |
-| `mm * * * *` | fetch              | full fetch + filter + classify + alert         |
-| `0 9 * * *` | digest             | Telegram digest of last 24h NEW/ALERTED        |
-| `0 8 * * *` | stale-applications | Telegram nudge for `applied >14d ago, no contact` |
+| `mm * * * *` | fetch              | full fetch + filter + classify + alert — gated by the user's schedule |
+| `0 * * * *` | digest             | Telegram digest of last 24h NEW/ALERTED — only on the digest hours |
+| `0 * * * *` | stale-applications | Telegram nudge for `applied >14d ago, no contact` — only on the digest hours |
 | `0 3 * * 0` | cleanup            | Delete DISMISSED older than 30 days            |
 | `mm 4 * * 0` | discovery         | Re-probe pending CompanyCandidates             |
 | `mm 6 1 * *` | hn-hiring         | Pull latest HN Who-is-hiring + extract candidates |

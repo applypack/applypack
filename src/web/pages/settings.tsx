@@ -279,11 +279,17 @@ export const ScheduleCard: FC<{ view: ScheduleView }> = ({ view }) => {
               </Radio>
             ))}
           </div>
-          <div class="mt-3 flex flex-wrap items-end gap-3">
-            <HourSelect name="alertFrom" value={s.alerts.from} label="Quiet until" />
-            <HourSelect name="alertTo" value={s.alerts.to} label="Quiet from (after)" />
+          <div class="mt-4 border-t border-line pt-3">
+            <Hint>
+              The hours and days below apply to "Only during these hours". Everything found
+              outside them waits and arrives in one message when the window opens.
+            </Hint>
+            <div class="mt-2 flex flex-wrap items-end gap-3">
+              <HourSelect name="alertFrom" value={s.alerts.from} label="Alerts from" />
+              <HourSelect name="alertTo" value={s.alerts.to} label="Until (inclusive)" />
+            </div>
+            <DayPills name="alertDays" days={s.alerts.days} />
           </div>
-          <DayPills name="alertDays" days={s.alerts.days} />
           <Field
             label="Digest times"
             hint={`Up to ${MAX_DIGEST_HOURS}. Also when the daily recap and the stale-application nudge go out.`}

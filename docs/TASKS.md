@@ -1161,7 +1161,7 @@ seeded inactive. Sources verified 2026-09-03 with robots.txt are in the plan
 
 ---
 
-## 16. Schedule: when the search runs and when alerts arrive (analysis 2026-09-03, nothing built)
+## 16. Schedule: when the search runs and when alerts arrive (SHIPPED 2026-09-04, v1.47.0)
 
 Owner's ask: let the user choose *when* jobs are fetched (hours, days) and
 *when* notifications arrive, in a way that is obviously simple. The rule
@@ -1264,32 +1264,32 @@ its own "analyse first" line.
 - **Not built:** per-search schedules, per-target windows, minute
   precision, custom cron, scheduling of cleanup / discovery / HN.
 
-### 16.4 Implementation order (one branch `fetch-schedule`, ~1 session)
+### 16.4 Implementation order (one branch `fetch-schedule`) — done
 
-- [ ] **Analyse first:** read `src/index.ts`, `jobs/cron-run.ts`,
+- [x] **Analyse first:** read `src/index.ts`, `jobs/cron-run.ts`,
       `jobs/fetch-job.ts`, `jobs/process-jobs.ts` (alert block),
       `jobs/digest-job.ts`, `notifier.ts` (`sendDigest`, `broadcast`),
       `jobs/reclassify-job.ts` (does a re-classify alert? if yes it needs
       the same gate); confirm Node's ICU handles `Europe/Kyiv` and DST in
       `formatToParts`; write the analysis note.
-- [ ] `add schedule module` — `src/schedule.ts` (types, zod schema,
+- [x] `add schedule module` — `src/schedule.ts` (types, zod schema,
       defaults = today's behaviour, `isFetchDue`, `canAlertNow`,
       `nextFetchAt`, `nextAlertAt`, `describeSchedule`) + `schedule.test.ts`
       with fixed instants: window edges, Sunday→Monday wrap, DST day, "every
       4h" against a last run 3 h 59 min ago, invalid timezone rejected.
-- [ ] `store schedule in settings` — `AppSettings.schedule Json?` +
+- [x] `store schedule in settings` — `AppSettings.schedule Json?` +
       `Job.alertHeldAt DateTime?` (hand-written migration), getter/setter in
       `settings.ts` (null = defaults).
-- [ ] `gate the fetch tick` — `runFetchJob` skips with reason
+- [x] `gate the fetch tick` — `runFetchJob` skips with reason
       `outside-schedule`; `/runs` shows it like `fetching-paused`.
-- [ ] `hold alerts outside the window` — the gate in `process-jobs`,
+- [x] `hold alerts outside the window` — the gate in `process-jobs`,
       `deliverHeldAlerts()` in `jobs/alert-delivery.ts`, called from the
       fetch tick and from the digest path; `sendDigest` header text
       parameterised ("Daily digest" / "While you were away").
-- [ ] `add schedule card` — `pages/settings.tsx` + `routes/settings.tsx`
+- [x] `add schedule card` — `pages/settings.tsx` + `routes/settings.tsx`
       (`parseBody({ all: true })` for the day pills — gotcha 1); Overview
       pill + held-count line.
-- [ ] `document schedule` — CLAUDE.md "Where to look" + "how does the user
+- [x] `document schedule` — CLAUDE.md "Where to look" + "how does the user
       toggle" rows, SPEC.md, README one line, CHANGELOG + bump.
 
 **Verification.** Pure tests above; `npm run test:telegram` for the grouped
@@ -1298,10 +1298,25 @@ window shows `outside-schedule` on `/runs`; a held job appears in the
 Overview count and is delivered by the next in-window tick; light + dark
 screenshots of the card; keyboard walk of the pills and selects.
 
-**Decisions for the owner.** (1) Whole hours only — agreed? (2) Does a
-manual "Fetch now" outside the alert window send instantly (recommended:
-yes, the user is at the screen) or hold? (3) Should the stale-applications
-digest follow `digestAt` too (recommended: yes, one "digest time" for both)?
+**Decisions, as answered 2026-09-04.** (1) Whole hours only — yes.
+(2) A manual "Fetch now" sends instantly — yes. (3) The stale-applications
+nudge follows `digestAt` too — yes, one digest time for everything.
+
+**What the plan got wrong** (it was written before v1.45.0):
+- `src/schedule.ts` already existed — it holds this install's cron MINUTE
+  (ADR 0035). The gate went into a new `src/user-schedule.ts`; the two answer
+  different questions and share nothing.
+- "fetch `5 * * * *`" is no longer true: the minute comes from
+  `AppSettings.instanceId`. The gate sits on top of the heartbeat, not
+  instead of it, so this made no difference to the design.
+- `lastFetchRunAt` cannot be "the newest finished CronRun of kind fetch" —
+  a skipped tick is also a finished run row, and counting it would hold a
+  4-hour cadence off forever. The pure `lastRealFetch` reads the newest run
+  whose stats carry a `fetched` count.
+- The digest and the stale nudge could not simply gain a gate: their crons
+  fired once a day, so a user picking 19:00 would have got nothing. They beat
+  hourly now, and a beat that is not a digest hour writes no run row — 23
+  skipped rows a day would be noise, and CronRun rows are never trimmed.
 
 ---
 
