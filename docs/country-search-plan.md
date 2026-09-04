@@ -787,6 +787,11 @@ conversion, it moves it into the model's head for every comparison.
 - Bench: three gold fixtures with European postings added to
   `bench:resume`-style guard runs for the classifier rules.
 
+*Built (v1.40.0): `Profile.residence` + `Profile.relocation`, the prompt's
+ELIGIBILITY block and per-search line, the two red flags, the residence
+sentence on the job page, "Open to me" on /jobs, flags + arrangement in the
+Telegram line. The salary work stayed out, as this section says.*
+
 ### 5.2 Definition of done
 
 - A UA-resident search sees "Remote · EU only" as a mismatch with the

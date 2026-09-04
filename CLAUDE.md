@@ -168,6 +168,7 @@ When the question is **"where does X live?"**, save yourself a `find`:
 | Per-source health (error→status, failure streak, quiet/silent) | `src/fetchers/source-health.ts` (pure, ADR 0019); recorded by the wrapper in `fetchers/index.ts:runAllFetchers` |
 | Apply-link flags (missing / unusable / shortened / not-an-application) | `src/apply-link.ts` (pure, ADR 0023); merged into `Job.redFlags` at all three persist paths |
 | Which token-driven feeds a search's countries call for (DOU / Djinni for UA, Arbeitnow for DE / GB), and their state | `src/starter-packs/suggest.ts:suggestSources(searches, tracked)` (pure) → the "Sources for your searches" card on `/companies` (`POST /companies/suggested` probes, then adds off); the profile save flash counts what is waiting |
+| Where the candidate LIVES and whether they would move (ADR 0033) | `prisma/schema.prisma:Profile.residence / .relocation` → `src/eligibility.ts` (pure: the three relocation choices, `residenceCovered`) → the prompt's ELIGIBILITY block in `classifier.ts:describeEligibility` → the sentence in `jobs/location-reason.ts:livingReason`; editor on `/settings` → Profile → Location |
 | Where a SEARCH hunts (countries / regions / workplace on the profile), the set filter with group expansion | `prisma/schema.prisma:Profile` (ADR 0032) → `src/profiles.ts:ProfileInput` → `src/filter.ts:locationMatches` / `placesOverlap` (pure); the prompt line `classifier.ts:describeLocation` (codes only); the editor control `pages/settings.tsx` Location fieldset + `public/countries.mjs` over `GET /countries.json` |
 | The classifier's own reading of a posting's place, and how it meets the parser's | reply block `location` in `classifier.ts:LocationBlockSchema` → `src/jobs/location-merge.ts:mergeAiLocation` (pure: fill or narrow, never blank; `locationSource = 'ai'`) at all three write paths |
 | Why a verdict says "location mismatch" | `src/jobs/location-reason.ts:locationMismatchReason` (pure, columns only) → the Classifier card on `/jobs/:id` |
@@ -258,12 +259,14 @@ When the question is **"how does the user toggle / configure X?"**:
 | Disable whole ATS family (e.g. all Workable) | `/settings` Sources tab |
 | Enable two-stage classifier (cheaper, less precise) | `/settings` AI engine tab → "Classifier" |
 | Edit profile (stack, role types, regions, fit threshold) | `/settings` Profile tab (excludes, notes, priority rules, thresholds live in its "Advanced" block) |
+| Say where you live and whether you would relocate | `/settings` Profile tab → "Location" → "I live in" + the three relocation choices (ADR 0033); both stay empty-ish by default, and then nothing changes |
 | Say where a search hunts (countries, groups, remote / hybrid / on-site) | `/settings` Profile tab → "Location": arrangement pills, the Countries chip input (type "Poland", "Polska", "PL" or a city, pick from the list; any spelling works without JS), region pills (🇪🇺 European Union, Europe, DACH, 🌍 Worldwide …). Empty countries + regions = anywhere |
 | Fill the profile from a resume (AI draft, review before save) | `/settings` Profile tab → "Fill from a resume" |
 | Create a second search from another resume | `/resumes/:id` → "Search profile" card, or `/welcome?step=profile` → "Another resume for a different kind of role?" |
 | Which resume a search hunts with | `/settings` Profile tab → "Resume for this search" (empty = pick by skill overlap) |
 | Run / pause a search, or make one primary | `/settings` Profile tab → "Searches" list (up to 8 running; the primary always runs) |
 | See only one search's matches | `/jobs` → the search chips (the Fit column then shows that search's score) |
+| See only roles you could actually take from where you live | `/jobs` → the "Open to me" chip (reads each search's own location verdict; set "I live in" on `/settings` → Profile → Location first) |
 | See jobs in one country, region or arrangement, or posted this week | `/jobs` → the "Where" chips (🇵🇱 Poland, 🇪🇺 European Union, Unknown … — OR within the row, "More…" opens the rest), the "Work" chips (Remote / Hybrid / On-site / Unknown) and the "Posted" chips; the search box also matches the location string |
 | Fill the country columns on jobs stored before v1.24 | `docker compose exec app node dist/scripts/backfill-locations.js --dry-run`, read the distribution, then without the flag (no AI call; `location` and `description` untouched) |
 | What each search made of one posting | `/jobs/:id` → Classifier card → "By search" |
