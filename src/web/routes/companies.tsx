@@ -7,6 +7,7 @@ import { logger } from '../../logger';
 import { probeAts } from '../../ats-probe';
 import { quietReason } from '../../fetchers/source-health';
 import { getSettings, getSourceKeys } from '../../settings';
+import { unlockedSources } from '../../source-keys';
 import { toStringArray } from '../../text-utils';
 import {
   companiesInSegments,
@@ -154,6 +155,7 @@ companiesRoute.get('/companies', async (c) => {
       companies={rows}
       packs={packs}
       suggestions={await suggestedSources(companies)}
+      keyedUnlocked={unlockedSources(await getSourceKeys())}
       flash={flash}
       fetchingEnabled={settings.fetchingEnabled}
     />,
@@ -169,7 +171,7 @@ async function suggestedSources(
   tracked: readonly { id: number; atsType: string; atsToken: string; active: boolean }[],
 ): Promise<SourceSuggestion[]> {
   const searches = (await listActiveProfiles()).filter((p) => !isBlankProfile(p));
-  return suggestSources(searches, tracked);
+  return suggestSources(searches, tracked, { unlocked: unlockedSources(await getSourceKeys()) });
 }
 
 const SuggestedAddSchema = z.object({ atsType: z.string(), atsToken: z.string().min(1).max(120) });

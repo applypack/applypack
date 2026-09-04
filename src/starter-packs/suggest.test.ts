@@ -86,20 +86,36 @@ describe('suggestSources', () => {
   it('offers an Adzuna row for every market a search names, and none for a country Adzuna does not serve', () => {
     const out = suggestSources([{ ...php, countries: ['DE', 'UA', 'PL'], regions: [] }], [
       { id: 9, atsType: 'ADZUNA', atsToken: 'pl', active: true },
-    ]);
+    ], { unlocked: ['ADZUNA'] });
     const adzuna = out.filter((s) => s.atsType === 'ADZUNA');
     assert.deepEqual(adzuna.map((s) => [s.atsToken, s.name, s.state]), [
       ['de', 'Adzuna · Germany', 'missing'],
       ['pl', 'Adzuna · Poland', 'on'],
     ]);
-    assert.equal(adzuna[0]?.reason, '🇩🇪 Germany in "PHP/Laravel" — needs your Adzuna key');
+    assert.equal(adzuna[0]?.reason, '🇩🇪 Germany in "PHP/Laravel"');
     assert.equal(adzuna[0]?.careerUrl, 'https://www.adzuna.de/');
   });
 
   it('offers the France Travail developer row for a search that names France', () => {
-    const fr = suggestSources([{ ...php, countries: ['FR'], regions: [] }], []).filter((s) => s.atsType === 'FRANCETRAVAIL');
-    assert.deepEqual(fr.map((s) => [s.atsToken, s.state]), [['codeROME=M1805', 'missing']]);
-    assert.match(fr[0]?.reason ?? '', /needs your France Travail client id and secret/);
+    const fr = suggestSources([{ ...php, countries: ['FR'], regions: [] }], [], { unlocked: ['FRANCETRAVAIL'] });
+    assert.deepEqual(fr.map((s) => [s.atsType, s.atsToken, s.state]), [['FRANCETRAVAIL', 'codeROME=M1805', 'missing']]);
+    assert.equal(fr[0]?.reason, '🇫🇷 France in "PHP/Laravel"');
+  });
+
+  it('offers a keyed source only once its credential is in place (ADR 0034)', () => {
+    const french = [{ ...php, countries: ['FR'], regions: [] }];
+    // Nothing at all for a user who has not registered with either vendor.
+    assert.deepEqual(suggestSources(french, []), []);
+    assert.deepEqual(
+      suggestSources(french, [], { unlocked: ['ADZUNA'] }).map((s) => s.atsType),
+      ['ADZUNA'],
+    );
+    assert.deepEqual(
+      suggestSources(french, [], { unlocked: ['ADZUNA', 'FRANCETRAVAIL'] }).map((s) => s.atsType),
+      ['ADZUNA', 'FRANCETRAVAIL'],
+    );
+    // An unkeyed source is unaffected by any of this.
+    assert.deepEqual(suggestSources([{ ...php, countries: ['UA'], regions: [] }], []).map((s) => s.atsType), ['DOU', 'DJINNI', 'DJINNI']);
   });
 
   it('offers the DevITjobs site of the country a search names', () => {
@@ -113,7 +129,12 @@ describe('suggestSources', () => {
 
   it('says nothing for a search with no matching place, and merges two searches without duplicates', () => {
     assert.deepEqual(suggestSources([{ ...php, countries: ['AR'], regions: [] }], []), []);
-    assert.deepEqual(suggestSources([{ ...php, countries: ['US'], regions: [] }], []).map((s) => s.atsToken), ['us']);
+    // US is an Adzuna market, so a user without that key still sees nothing.
+    assert.deepEqual(suggestSources([{ ...php, countries: ['US'], regions: [] }], []), []);
+    assert.deepEqual(
+      suggestSources([{ ...php, countries: ['US'], regions: [] }], [], { unlocked: ['ADZUNA'] }).map((s) => s.atsToken),
+      ['us'],
+    );
     const two = suggestSources([php, { ...php, name: 'Second', stackRequired: ['php'] }], []);
     assert.equal(two.filter((s) => s.atsToken === 'category=PHP&remote').length, 1);
   });

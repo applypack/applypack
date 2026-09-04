@@ -64,6 +64,7 @@ import {
   isKeyedSource,
   isSourceKeyField,
   sourceKeyOrigin,
+  sourceUnlocked,
   type KeyedSource,
   type SourceKeyField,
   type SourceKeys,
@@ -456,8 +457,14 @@ function sourceKeyRows(keys: SourceKeys): SourceKeyRow[] {
     return {
       source,
       label: meta.label,
+      what: meta.what,
+      worthIt: meta.worthIt,
+      cost: meta.cost,
+      signupUrl: meta.signupUrl,
+      signupLabel: meta.signupLabel,
       terms: meta.terms,
       termsUrl: meta.termsUrl,
+      ready: sourceUnlocked(source, keys),
       fields: (Object.keys(SOURCE_KEY_FIELDS[source]) as SourceKeyField[]).map((field) => {
         const origin = sourceKeyOrigin(source, field, keys);
         const stored = keys[source]?.[field];
@@ -474,16 +481,30 @@ function sourceKeyRows(keys: SourceKeys): SourceKeyRow[] {
 }
 
 /** UI copy per keyed source: the vendor's own name for each field, and the terms the user accepted. */
-const SOURCE_KEY_META: Record<KeyedSource, { label: string; terms: string; termsUrl: string; fields: Record<string, string> }> = {
+const SOURCE_KEY_META: Record<
+  KeyedSource,
+  { label: string; what: string; worthIt: string; cost: string; signupUrl: string; signupLabel: string; terms: string; termsUrl: string; fields: Record<string, string> }
+> = {
   ADZUNA: {
     label: 'Adzuna',
-    terms: 'Adzuna API terms — personal research, "Jobs by Adzuna" shown on every listing',
+    what: 'A job-ad aggregator covering nineteen countries — Germany, France, Spain, Italy, the Netherlands, Poland, the UK, the US, Canada, Australia, India and more — including ads from boards this app has no other way to see.',
+    worthIt:
+      'you hunt in a country the free sources barely cover (ES, IT, BE, CH, AT, IN, BR, MX, ZA, AU, NZ, SG, CA) or want a wider net than the tech-specific boards. Skip it if you hunt remote-first English roles or in UA, PL, DE, GB, NL, PT, SE — the free sources already cover those.',
+    cost: 'personal research only (a company needs its own licence from Adzuna), a "Jobs by Adzuna" label on every listing shown, and 2 500 calls a month — so a market is checked four times a day and ten markets is the ceiling. Descriptions arrive as snippets, so the classifier and the resume match see less than usual.',
+    signupUrl: 'https://developer.adzuna.com/signup',
+    signupLabel: 'Register for a free key (developer.adzuna.com)',
+    terms: 'API terms',
     termsUrl: 'https://developer.adzuna.com/docs/terms_of_service',
     fields: { app_id: 'Application ID', app_key: 'Application key' },
   },
   FRANCETRAVAIL: {
     label: 'France Travail',
-    terms: 'Licence offres d\'emploi — source and date shown on every listing',
+    what: "The French state employment service's own API: every public job ad in France, with full descriptions — the most complete source there is for that country.",
+    worthIt: 'you hunt in France. It adds nothing anywhere else, so leave it alone otherwise.',
+    cost: 'the board\'s licence: every offer is shown whole with its source, date and licence link, and each stored offer is re-checked daily — so leave fetching on, or switch its rows off. Offers the board withdraws are deleted here, or kept anonymised when they are your own application record. Charging job seekers for a service built on this data is forbidden by French law.',
+    signupUrl: 'https://francetravail.io/produits-partages/catalogue',
+    signupLabel: 'Create a free account and an app (francetravail.io)',
+    terms: 'Licence offres d\'emploi',
     termsUrl: 'https://francetravail.io/produits-partages/documentation/conditions-dutilisation-api/licence-offres-emploi',
     fields: { client_id: 'Client ID', client_secret: 'Client secret' },
   },

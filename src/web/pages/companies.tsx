@@ -57,6 +57,8 @@ export interface CompaniesProps {
   packs: PackSegmentChoice[];
   /** Token-driven sources the running searches' countries call for (plan §4.3). */
   suggestions: SourceSuggestion[];
+  /** Keyed sources whose credential is in place — the only ones the form offers (ADR 0034). */
+  keyedUnlocked: string[];
   flash?: FlashMessage | null;
   fetchingEnabled: boolean;
 }
@@ -166,6 +168,9 @@ const PROBEABLE_ATS: AtsType[] = [
 
 const AGGREGATORS = ['LARAJOBS', 'REMOTEOK', 'REMOTIVE', 'JOBICY', 'WEWORKREMOTELY', 'HN_HIRING'];
 
+/** Sources that need the user's own vendor account (ADR 0034) — hidden until it exists. */
+const KEYED_ATS: string[] = [AtsType.ADZUNA, AtsType.FRANCETRAVAIL];
+
 /**
  * "Enable sources for your countries" (plan §4.3): DOU and Djinni rows for a
  * search that names Ukraine, the Arbeitnow rows for Germany or the UK, built
@@ -214,6 +219,7 @@ export const CompaniesPage: FC<CompaniesProps> = ({
   companies,
   packs,
   suggestions,
+  keyedUnlocked,
   flash,
   fetchingEnabled,
 }) => (
@@ -279,7 +285,7 @@ export const CompaniesPage: FC<CompaniesProps> = ({
         </Field>
         <Field label="ATS">
           <Select name="atsType">
-            {PROBEABLE_ATS.map((t) => (
+            {PROBEABLE_ATS.filter((t) => !KEYED_ATS.includes(t) || keyedUnlocked.includes(t)).map((t) => (
               <option value={t}>{t}</option>
             ))}
           </Select>
