@@ -190,9 +190,14 @@ export async function setSourceKey(source: KeyedSource, field: SourceKeyField, v
           COALESCE("sourceKeys" -> ${source}, '{}'::jsonb) - ${field}, true)
       WHERE id = ${SETTINGS_ID}`;
   } else {
+    // jsonb_set never creates the parent object, so the source's map is
+    // put in place first — measured: a two-element path over '{}' is a
+    // silent no-op, and the flash said "saved" over a row that had nothing.
     await prisma.$executeRaw`
       UPDATE app_settings SET "sourceKeys" =
-        jsonb_set(COALESCE("sourceKeys", '{}'::jsonb), ARRAY[${source}, ${field}], to_jsonb(${secret}::text), true)
+        jsonb_set(
+          jsonb_set(COALESCE("sourceKeys", '{}'::jsonb), ARRAY[${source}], COALESCE("sourceKeys" -> ${source}, '{}'::jsonb), true),
+          ARRAY[${source}, ${field}], to_jsonb(${secret}::text), true)
       WHERE id = ${SETTINGS_ID}`;
   }
   logger.info({ source, field, stored: secret.length > 0 }, 'settings: source key updated');
