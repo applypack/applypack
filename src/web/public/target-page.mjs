@@ -365,7 +365,7 @@ export function init(data) {
     if (!button || !card) return;
     const box = card.querySelector('[data-edit-box]');
     if (button.hasAttribute('data-apply')) {
-      runEdit(card, (t) => place(t, button, button.dataset.apply), 'Applied');
+      runEdit(card, (t) => place(t, box, button.dataset.apply), 'Applied');
     } else if (button.hasAttribute('data-remove')) {
       runEdit(card, (t) => removeSpan(t, button.dataset.remove), 'Removed');
     } else if (button.hasAttribute('data-edit-apply')) {

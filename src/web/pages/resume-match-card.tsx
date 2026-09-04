@@ -561,6 +561,7 @@ const SuggestionCard: FC<{
   // Stable across re-runs of the same comparison, so applied/skipped marks survive a reload.
   const key = hashShortId(`${item.section}|${item.where}|${item.quote ?? ''}`);
   // A change applies over its quote; an addition applies after its anchor line.
+  // The edit box is the one carrier of that target — Apply reads it from there.
   const target = item.quote ? { 'data-quote': item.quote } : item.insert_after ? { 'data-anchor': item.insert_after } : null;
   const canApply = interactive && Boolean(proposal) && target !== null;
   // Edit & apply needs only a place to write: a card whose wording the gate
@@ -596,7 +597,7 @@ const SuggestionCard: FC<{
         <div class="mt-1 text-xs leading-5 text-ink-faint">why: {item.why}</div>
         <div class="mt-2 flex flex-wrap items-center gap-2">
           {canApply && (
-            <Button type="button" variant="primary" size="sm" data-apply={proposal?.text} {...target}>
+            <Button type="button" variant="primary" size="sm" data-apply={proposal?.text}>
               Apply
             </Button>
           )}
