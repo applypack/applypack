@@ -28,7 +28,7 @@ touches the other.
 | 4 `docx-patch` | Fable 5.1 for `docx-patch.ts`, `docx-structure.ts` and the fixtures; Opus 5 for routes and pages | max for the patcher, medium for the wiring | the patcher is the one piece with no library behind it and a byte-level correctness bar |
 | 5 `resume-render` | Opus 5 for the library wiring and pages; Fable 5.1 for the `structure` prompt block and its anchoring | high | new dependencies, fonts, two renderers, one prompt change |
 | `code-review-expert` pass before each PR | Fable 5.1 | high | mandatory pre-merge gate |
-| ADRs 0035–0037, CLAUDE.md rows, CHANGELOG | Opus 5 | medium | mechanical |
+| ADRs 0037–0039, CLAUDE.md rows, CHANGELOG | Opus 5 | medium | mechanical |
 
 Product engine: no change. The resume role stays Opus 5 (the ADR 0029 bench
 measured Sonnet slower on the CLI engine at lower keyword-frame stability);
@@ -71,7 +71,7 @@ table into the PR.
 | `prisma/schema.prisma` + migration | | | | | `Resume.structure Json?` |
 | `Dockerfile` | | | | | copy `src/resume/fonts` |
 | `package.json` | | | | `@xmldom/xmldom`, `jszip` | `docx`, `pdfkit`, `@types/pdfkit` |
-| `docs/adr/` (0035–0036 were taken before stage 3 shipped: stage 3 is **0037**, stages 4 and 5 take the next free numbers) | | | 0037 | next | next |
+| `docs/adr/` (0035–0036 were taken before stage 3 shipped, so the stages moved up: stage 3 is **0037**, stage 4 **0038**, stage 5 **0039**) | | | 0037 | 0038 | 0039 |
 | CLAUDE.md, SPEC.md, CHANGELOG.md, README | rows + bump | rows + bump | rows + bump | rows + bump | rows + bump |
 
 Stages 1 and 2 need no schema and no prompt change. Stage 3 bumps
@@ -658,12 +658,21 @@ outputs in Word, Pages, Preview and LibreOffice, check Cyrillic in a name,
 run `parse-warnings` on the outputs; `bench:resume` unaffected (the scan
 prompt is not benched; run one scan and inspect the structure).
 
-### 6.9 ADR 0037 and release
+### 6.9 ADR 0039 and release
 
 "Resumes render from JSON Resume through `docx` and pdfkit; metadata per
 library." Records the dependencies, the font, the WinAnsi limitation and
 its fix, the Typst comparison result, the honest label. CHANGELOG + minor
 bump + tag.
+
+**Shipped as [ADR 0039](./adr/0039-clean-render-from-json-resume.md)**
+(v1.55.0). Three things in §6 above were wrong and the branch says why:
+§6.4's docx recipe reads the style sheet, which on the corpus file names a
+different font and size from the runs; §6.4's PDF recipe reads
+`styles[fontName].fontFamily`, which only ever returns `sans-serif`; and the
+WinAnsi worry is not the failure mode — the real one was Word formula objects
+leaving MATHEMATICAL ITALIC letters that no bundled face can draw
+(`render/drawable.ts`).
 
 ---
 

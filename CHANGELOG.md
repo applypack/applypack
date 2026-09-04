@@ -4,6 +4,62 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.55.0] — 2026-09-04
+
+### Added
+- **A clean version of any resume, in your own typeface.** A PDF has no
+  paragraphs to edit — only glyphs at coordinates — and a `.docx` that keeps
+  its skills in a table has lines a Save cannot rewrite. Both now get **Clean
+  version in your typeface** on the resume page: a single-column `.docx` and
+  `.pdf` of the same words, set in the font, sizes, accent colour, page and
+  margins your own file uses, with every one of those adjustable. **Save as a
+  new resume** lands the `.docx` beside the original — and the template check
+  calls it *Editable in place*, so everything the targeted editor does works
+  on it from then on (ADR 0039). The label is exactly that: it is not your
+  original design, and the page says so.
+- **The scan now reads your resume as a shape, not just a wall of text** —
+  headings, roles, dates, bullets and, crucially, the label→values pairing of
+  a skills table, which comes out of a PDF as eight labels stacked above eight
+  value lines and out of a `.docx` as one run-on line. Every string is checked
+  against your own words before it is stored and dropped if it is not a
+  verbatim copy, so nothing the model rewrote can reach the page.
+- **"What the ATS sees" on the render page** is the rendered `.docx` read back
+  through the same reader an upload goes through, with the parse checks run on
+  it — not a guess at what it would say.
+
+### Notes
+- Two dependencies, both pure JavaScript, pinned: `docx` 9.7.1 and `pdfkit`
+  0.20.2. Plus **Liberation Sans 2.1.5** (OFL 1.1, licence beside the fonts,
+  825 KB) in the image.
+- Why that font, measured with fontkit rather than assumed: its advance widths
+  are **identical to Arial's on all 95 printable ASCII codepoints** (max delta
+  0 of 2048 units/em) and it covers Ukrainian Cyrillic. The `.docx` names your
+  own family and lets Word supply it; the `.pdf` embeds this one; because the
+  metrics match, the two files break their lines in the same places.
+- **Typst was measured and refused.** It typesets better out of the box, but it
+  stamps `Typst 0.14.2` into the PDF's `/Info` *and* its XMP metadata with no
+  way to set either from the compile call, it writes no `.docx`, and it is a
+  native binary in a project that has none. pdfkit's `Producer` and `Creator`
+  are the empty string — checked after the change, not assumed. Neither writer
+  leaves a tool name in a file: 0 occurrences of the libraries' own names in
+  any part of the output.
+- **The guide this stage followed was wrong twice, and the corpus said so.**
+  Reading typography from `styles.xml` would have dressed this resume as Times
+  New Roman 12 pt when its own runs are Arial 11 pt with a blue accent; and
+  pdf.js reports a font family of `sans-serif` for every item until
+  `getOperatorList()` has run. Both are now read from the document itself.
+- The first live render came back with a row of ☐: Word formula objects leave
+  MATHEMATICAL ITALIC letters in the text, which no bundled face has. They now
+  fold to the letters they are, and the set of characters kept is checked
+  codepoint by codepoint against both font files rather than hand-listed.
+- First live walk, resume 5 (a PDF): scan read 161 strings with **0 dropped**,
+  6 roles and 24 bullets — the same split the deterministic reader finds;
+  saved as a new resume it reports *Editable in place, 61 of 61 lines*; a
+  comparison scored 87/100 and its Save patched that `.docx` in place.
+- `SCAN_MAX_TOKENS` 3 000 → 12 000: the scan now copies the whole resume into
+  its reply. One new nullable column, `resume.structure`, hand-written
+  migration, no backfill — NULL means "read it from the text instead".
+
 ## [1.54.0] — 2026-09-04
 
 ### Added
@@ -2175,6 +2231,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[1.55.0]: https://github.com/applypack/applypack/compare/v1.54.0...v1.55.0
 [1.54.0]: https://github.com/applypack/applypack/compare/v1.53.0...v1.54.0
 [1.53.0]: https://github.com/applypack/applypack/compare/v1.52.0...v1.53.0
 [1.52.0]: https://github.com/applypack/applypack/compare/v1.51.0...v1.52.0
