@@ -31,6 +31,7 @@ import {
 } from '../../resume/prompts';
 import { freshFrame, freshFrameNotice } from '../../resume/keyword-frame';
 import { proposalOf, suggestionSheet, type Proposal } from '../../resume/change-sheet';
+import { hashShortId } from '../../text-utils';
 import { readMatchMode, type MatchMode } from '../../resume/match-mode';
 import type { CountedKeyword } from '../../resume/keyword-matcher';
 import { effectiveRequirement, isIgnored } from '../../resume/keyword-overrides';
@@ -543,14 +544,18 @@ const SuggestionCard: FC<{
   proposal: Proposal | null;
   /** True on the targeted view, where an editor exists to locate the quote in. */
   interactive: boolean;
-  /** A removal shows its quote struck through: this is the text to delete. */
-  strike?: boolean;
+  /** A removal: its quote is the text to cut, shown struck through, and Remove acts on it. */
+  removal?: boolean;
   /** Priority badges are one word, section badges are up to four syllables. */
   badgeWidth?: string;
-}> = ({ item, badge, proposal, interactive, strike = false, badgeWidth = 'w-16' }) => {
+}> = ({ item, badge, proposal, interactive, removal = false, badgeWidth = 'w-16' }) => {
   const copyable = proposal?.text ?? item.quote ?? item.what;
+  // Stable across re-runs of the same comparison, so applied/skipped marks survive a reload.
+  const key = hashShortId(`${item.section}|${item.where}|${item.quote ?? ''}`);
+  const canApply = interactive && Boolean(item.quote) && Boolean(proposal);
+  const canRemove = interactive && Boolean(item.quote) && removal;
   return (
-    <li class="flex flex-col gap-1 p-3 sm:flex-row sm:gap-3">
+    <li class="flex flex-col gap-1 p-3 sm:flex-row sm:gap-3" data-card={interactive ? key : undefined}>
       <div class={`${badgeWidth} shrink-0`}>{badge}</div>
       <div class="min-w-0 flex-1 text-sm">
         <div class="font-medium text-ink">{item.where}</div>
@@ -560,7 +565,7 @@ const SuggestionCard: FC<{
             <div class={LABEL}>Now</div>
             <p
               class={`mt-0.5 whitespace-pre-wrap break-words border-l-2 border-line-strong pl-2 leading-6 text-ink-muted ${
-                strike ? 'line-through decoration-danger/60' : ''
+                removal ? 'line-through decoration-danger/60' : ''
               }`}
             >
               {item.quote}
@@ -577,20 +582,64 @@ const SuggestionCard: FC<{
         )}
         <div class="mt-1 text-xs leading-5 text-ink-faint">why: {item.why}</div>
         <div class="mt-2 flex flex-wrap items-center gap-2">
+          {canApply && (
+            <Button type="button" variant="primary" size="sm" data-apply={proposal?.text} data-quote={item.quote}>
+              Apply
+            </Button>
+          )}
+          {canApply && (
+            <Button type="button" variant="ghost" size="sm" data-edit-apply>
+              Edit &amp; apply
+            </Button>
+          )}
+          {canRemove && (
+            <Button type="button" variant="danger" size="sm" data-remove={item.quote}>
+              Remove
+            </Button>
+          )}
           <Button type="button" variant="secondary" size="sm" data-copy={copyable}>
             Copy
           </Button>
           {interactive && item.quote && (
-            <>
-              <Button type="button" variant="ghost" size="sm" data-locate={item.quote}>
-                Locate
-              </Button>
-              {/* Only where Locate exists: an empty live region on every card of
-                  every page is noise a screen reader has to carry. */}
-              <span class="text-xs text-ink-faint" data-locate-status role="status"></span>
-            </>
+            <Button type="button" variant="ghost" size="sm" data-locate={item.quote}>
+              Locate
+            </Button>
           )}
+          {interactive && (canApply || canRemove) && (
+            <Button type="button" variant="ghost" size="sm" data-skip>
+              Skip
+            </Button>
+          )}
+          {interactive && (
+            <Button type="button" variant="ghost" size="sm" data-undo hidden>
+              Undo
+            </Button>
+          )}
+          {/* One status line per card: Locate's line number, and what an edit did. */}
+          {interactive && <span class="text-xs text-ink-faint" data-card-status role="status"></span>}
         </div>
+        {canApply && (
+          <div class="mt-2" data-edit-box hidden>
+            <label class="block">
+              <span class={LABEL}>Your wording</span>
+              <textarea
+                class="mt-1 block w-full rounded-md border border-line-strong bg-surface-raised p-2 text-sm leading-6 text-ink"
+                rows={3}
+                data-edit-text
+              >
+                {proposal?.text}
+              </textarea>
+            </label>
+            <div class="mt-1.5 flex flex-wrap gap-2">
+              <Button type="button" variant="primary" size="sm" data-edit-save>
+                Apply this
+              </Button>
+              <Button type="button" variant="ghost" size="sm" data-edit-cancel>
+                Cancel
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
     </li>
   );
@@ -647,7 +696,7 @@ export const RemovalsBlock: FC<{
             badge={<Badge tone="neutral">{r.section}</Badge>}
             proposal={null}
             interactive={interactive}
-            strike
+            removal
             badgeWidth="w-24"
           />
         ))}

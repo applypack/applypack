@@ -294,6 +294,7 @@ src/
     public/score.mjs          ← browser mirror of resume/score.ts (parity-tested, ADR 0012)
     public/cover-letter.mjs   ← autosave + fact-check status for the letter card (import-smoke-tested)
     public/copy.mjs           ← copy-to-clipboard for every page (delegated, execCommand fallback, aria-live)
+    public/text-edits.mjs     ← apply / remove / add-a-term / undo over the resume text (pure, node-tested)
     public/line-diff.mjs      ← LCS line diff of the analysed text vs the editor (pure, node-tested)
     public/change-sheet.mjs   ← "Copy my changes" as Markdown over line-diff.mjs (pure, node-tested)
     public/board.mjs          ← /applications drag-and-drop over POST /jobs/:id/stage (planMove tested)

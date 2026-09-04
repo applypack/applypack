@@ -1686,16 +1686,26 @@ bench); re-run `bench:resume` after stages 3 and 5.
       pane's own control with it.
 - [x] `document copy path` — CLAUDE.md rows, SPEC, CHANGELOG + bump.
 
-**Stage 2 — `target-apply-edits` (no schema, no prompt; ~1 session)**
-- [ ] **Analyse first:** read `keyword-overrides.ts` and `facts.ts`; count
+**Stage 2 — `target-apply-edits` — SHIPPED v1.52.0 (no schema, no prompt)**
+- [x] **Analyse first:** read `keyword-overrides.ts` and `facts.ts`; count
       quotes `locateQuote` finds and multi-line removal quotes.
-- [ ] `add text operations` — `applyReplacement`, `removeSpan` (contact line
-      protected), `insertIntoSkills`, `moveLineToBlockTop` + tests.
-- [ ] `add apply state` — Apply / Edit & apply / Skip / Remove / Undo;
-      `target-edits:<matchId>` in localStorage beside the draft.
-- [ ] `add keyword insert` — "Add to Skills" on `add` and confirmed chips;
-      `cannot_claim` never gets a button.
-- [ ] `document apply` — CLAUDE.md rows, SPEC, CHANGELOG + bump.
+- [x] `add text operations` — `applyReplacement`, `removeSpan` (contact line
+      protected), `insertIntoSkills` + tests, in a new `public/text-edits.mjs`
+      (not `target.mjs`: the landing demo ships a byte copy of that file).
+      `moveLineToBlockTop` was built, measured at 4 of 24 move-worded actions,
+      and dropped — the model means "make the first bullet say this", which is
+      a replacement. `insertIntoSkills` gained a shape test: on all six stored
+      resumes the skills section is bare labels with the values stacked below,
+      and the first live walk appended a keyword to the contact line.
+- [x] `add apply state` — Apply / Edit & apply / Skip / Remove / Undo;
+      `target-edits:<matchId>` in localStorage beside the draft, holding the
+      *inverse* edit per card (598 bytes for three) rather than a copy of the
+      resume, so Undo is exact and survives a reload.
+- [x] `add keyword insert` — "+ add" on `add` chips (a confirmed CandidateFact
+      is already flipped to `add` by `applyFacts` before the page renders, so
+      that is one condition, not two); `cannot_claim` never gets a button, and
+      neither does a resume with no skills list to write to.
+- [x] `document apply` — CLAUDE.md rows, SPEC, CHANGELOG + bump.
 
 **Stage 3 — `suggestion-replacements` (PROMPT_VERSION 7, ADR 0035; ~1 session)**
 - [ ] **Analyse first:** read `prompts.ts`, `match.ts`, `suggestions.ts`,

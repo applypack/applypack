@@ -17,7 +17,8 @@ import {
 } from './target.mjs';
 import { computeScore, entriesFromLive } from './score.mjs';
 import { formatEditSheet } from './change-sheet.mjs';
-import { wireCopy, copyFrom } from './copy.mjs';
+import { wireCopy, copyFrom, announce } from './copy.mjs';
+import { applyReplacement, removeSpan, insertIntoSkills, inverseEdit, undoEdit } from './text-edits.mjs';
 
 // Full literal class names — the Tailwind CDN JIT only generates what it can
 // see verbatim in the document, composed strings would come out unstyled.
@@ -27,6 +28,8 @@ const TONE_BG = { ok: 'bg-ok', info: 'bg-info', warn: 'bg-warn', danger: 'bg-dan
 // A missing chip carries the same weight the pane marks do (target-plan.md §5):
 // a primary-stack must shouts, a nice-to-have whispers.
 const CHIP_BASE = 'chip inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-medium ring-1 ring-inset';
+// The add control beside a missing chip: an action, so it reads as the accent, not the warning.
+const CHIP_ADD = 'border border-accent/40 bg-accent/5 text-accent-strong hover:bg-accent/10';
 const CHIP_WEIGHT = {
   4: 'bg-warn/25 text-warn ring-warn/60 font-semibold',
   3: 'bg-warn/15 text-warn ring-warn/40',
@@ -38,6 +41,17 @@ const CHIP_WEIGHT = {
 function tone(score) {
   return score >= 85 ? 'ok' : score >= 70 ? 'info' : score >= 50 ? 'warn' : 'danger';
 }
+
+/** Why an edit did not happen — every error the text operations can return. */
+const REASON = {
+  'not-found': "Couldn't find this text in the editor, it may already be edited",
+  'no-replacement': 'This suggestion has no wording to apply — copy it and write your own',
+  protected: 'That line carries your email or phone — edit it by hand',
+  'no-term': 'Nothing to add',
+  'already-present': 'Already in your resume',
+  'no-skills-list': 'Your skills section is a column of labels, not a list — add it by hand',
+  'moved-on': 'The text moved on since you applied this — undo it by hand',
+};
 
 export function init(data) {
   const editor = document.getElementById('editor');
@@ -56,9 +70,26 @@ export function init(data) {
   const barDelta = document.getElementById('bar-delta');
   const panes = document.getElementById('panes');
   const storageKey = 'target-draft:' + data.matchId;
+  const editsKey = 'target-edits:' + data.matchId;
   // The span Locate is pointing at, or null. Cleared on every edit, because an
   // offset into text the user has since changed points at the wrong words.
   let located = null;
+  // What each card did, so it can be undone and so the marks survive a reload.
+  // applied holds the inverse edit (one sentence), never a copy of the resume.
+  let edits = { applied: {}, skipped: [] };
+
+  function loadEdits() {
+    try {
+      const raw = JSON.parse(localStorage.getItem(editsKey) ?? 'null');
+      if (raw && typeof raw === 'object') edits = { applied: raw.applied ?? {}, skipped: raw.skipped ?? [] };
+    } catch {}
+  }
+  function storeEdits() {
+    try {
+      if (Object.keys(edits.applied).length === 0 && edits.skipped.length === 0) localStorage.removeItem(editsKey);
+      else localStorage.setItem(editsKey, JSON.stringify(edits));
+    } catch {}
+  }
 
   function load() {
     try { return localStorage.getItem(storageKey); } catch { return null; }
@@ -135,6 +166,29 @@ export function init(data) {
       ].filter(Boolean).join(' · ');
       b.addEventListener('click', () => jumpToSection(r.where));
       chips.appendChild(b);
+      // "Add to Skills" only where it can honestly work: the model (or a fact the
+      // user confirmed — applyFacts flips confirmed to `add` before this page
+      // renders) says the term is addable, AND the resume has a line shaped like
+      // a term list to put it on. cannot_claim never gets one.
+      if (r.status !== 'add') continue;
+      const probe = insertIntoSkills(editor.value, r.term, r.where);
+      if (probe.error) continue;
+      const add = document.createElement('button');
+      add.type = 'button';
+      add.className = CHIP_BASE + ' ' + CHIP_ADD;
+      add.textContent = '+ add';
+      add.title = 'Add "' + r.term + '" to your skills line';
+      add.addEventListener('click', () => {
+        const before = editor.value;
+        const result = insertIntoSkills(before, r.term, r.where);
+        if (result.error) { announce(REASON[result.error] ?? 'Could not add it'); return; }
+        editor.value = result.text;
+        located = result.span;
+        render();
+        scrollEditorTo(result.span.start);
+        announce('Added ' + r.term + ' to your skills');
+      });
+      chips.appendChild(add);
     }
     if (chips.children.length === 0) chips.innerHTML = '<span class="text-xs text-ink-faint">Every countable keyword is present.</span>';
 
@@ -149,6 +203,7 @@ export function init(data) {
     // Nothing to carry out until the text differs from what the AI judged.
     const copyEdits = document.getElementById('copy-edits');
     if (copyEdits) copyEdits.disabled = !dirty;
+    paintCards();
     store(text);
   }
 
@@ -181,14 +236,20 @@ export function init(data) {
 
   function resetEdits() {
     editor.value = data.resumeText;
-    // The outline was an offset into the text being discarded.
+    // The outline was an offset into the text being discarded, and so were the
+    // applied/skipped marks — they describe edits that no longer exist.
     located = null;
+    edits = { applied: {}, skipped: [] };
+    storeEdits();
     render();
   }
 
   let timer = null;
   editor.addEventListener('input', () => {
     located = null;
+    // A refusal ("couldn't find this text") describes the text as it was; once
+    // the user types, it may no longer be true, so it stops being sticky.
+    for (const st of document.querySelectorAll('[data-card-status][data-sticky]')) delete st.dataset.sticky;
     clearTimeout(timer);
     timer = setTimeout(render, 120);
   });
@@ -224,10 +285,110 @@ export function init(data) {
   });
   document.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape') return;
+    for (const box of document.querySelectorAll('[data-edit-box]:not([hidden])')) {
+      box.hidden = true;
+      box.closest('[data-card]')?.querySelector('[data-edit-apply]')?.focus();
+    }
     for (const d of document.querySelectorAll('details[data-menu][open]')) {
       d.open = false;
       const s = d.querySelector('summary');
       if (s) s.focus();
+    }
+  });
+
+  /** Dim a card that has been dealt with, and offer Undo only where it can work. */
+  function paintCards() {
+    for (const card of document.querySelectorAll('[data-card]')) {
+      const key = card.dataset.card;
+      const applied = edits.applied[key];
+      const skipped = edits.skipped.includes(key);
+      card.classList.toggle('card-done', Boolean(applied) || skipped);
+      const undo = card.querySelector('[data-undo]');
+      if (undo) undo.hidden = !applied && !skipped;
+      // Hidden rather than disabled: a row of five dead buttons is louder than
+      // the card it belongs to. Copy and Locate stay — both still make sense.
+      const done = Boolean(applied) || skipped;
+      for (const b of card.querySelectorAll('[data-apply], [data-remove], [data-skip], [data-edit-apply]')) {
+        b.hidden = done;
+      }
+      const box = card.querySelector('[data-edit-box]');
+      if (box && done) box.hidden = true;
+      const status = card.querySelector('[data-card-status]');
+      if (status && !status.dataset.sticky) {
+        status.textContent = applied ? (applied.inserted === '' ? 'Removed' : 'Applied') : skipped ? 'Skipped' : '';
+      }
+    }
+  }
+
+  /** Say what happened on this card, and to a screen reader once. */
+  function say(card, message, sticky) {
+    const status = card.querySelector('[data-card-status]');
+    if (!status) return;
+    status.textContent = message;
+    if (sticky) status.dataset.sticky = '1';
+    else delete status.dataset.sticky;
+    announce(message);
+  }
+
+  /**
+   * Run one text operation for a card: write the result, remember the inverse
+   * so Undo is exact, and outline what changed. A refusal never touches the text.
+   */
+  function runEdit(card, operation, verb) {
+    const before = editor.value;
+    const result = operation(before);
+    if (result.error) {
+      say(card, REASON[result.error] ?? 'That edit could not be made', true);
+      return false;
+    }
+    editor.value = result.text;
+    edits.applied[card.dataset.card] = inverseEdit(before, result.text);
+    edits.skipped = edits.skipped.filter((k) => k !== card.dataset.card);
+    storeEdits();
+    located = result.span;
+    render();
+    scrollEditorTo(result.span.start);
+    say(card, verb, false);
+    return true;
+  }
+
+  document.addEventListener('click', (event) => {
+    const button = event.target.closest?.('[data-apply], [data-remove], [data-skip], [data-undo], [data-edit-apply], [data-edit-save], [data-edit-cancel]');
+    const card = button?.closest('[data-card]');
+    if (!button || !card) return;
+    const box = card.querySelector('[data-edit-box]');
+    if (button.hasAttribute('data-apply')) {
+      runEdit(card, (t) => applyReplacement(t, button.dataset.quote, button.dataset.apply), 'Applied');
+    } else if (button.hasAttribute('data-remove')) {
+      runEdit(card, (t) => removeSpan(t, button.dataset.remove), 'Removed');
+    } else if (button.hasAttribute('data-edit-apply')) {
+      if (box) box.hidden = false;
+      box?.querySelector('[data-edit-text]')?.focus();
+    } else if (button.hasAttribute('data-edit-cancel')) {
+      if (box) box.hidden = true;
+    } else if (button.hasAttribute('data-edit-save')) {
+      const apply = card.querySelector('[data-apply]');
+      const wording = box?.querySelector('[data-edit-text]')?.value ?? '';
+      if (runEdit(card, (t) => applyReplacement(t, apply?.dataset.quote, wording), 'Applied') && box) box.hidden = true;
+    } else if (button.hasAttribute('data-skip')) {
+      if (!edits.skipped.includes(card.dataset.card)) edits.skipped.push(card.dataset.card);
+      storeEdits();
+      paintCards();
+      say(card, 'Skipped', false);
+    } else if (button.hasAttribute('data-undo')) {
+      const key = card.dataset.card;
+      const entry = edits.applied[key];
+      if (entry) {
+        const back = undoEdit(editor.value, entry);
+        if (back.error) { say(card, REASON[back.error], true); return; }
+        editor.value = back.text;
+        located = back.span;
+      }
+      delete edits.applied[key];
+      edits.skipped = edits.skipped.filter((k) => k !== key);
+      storeEdits();
+      render();
+      say(card, 'Undone', false);
     }
   });
 
@@ -237,20 +398,20 @@ export function init(data) {
   // Locate: outline the quote in the editor and scroll THE EDITOR to it. The
   // page does not move — losing the card you just read was the whole complaint.
   for (const button of document.querySelectorAll('[data-locate]')) {
-    const status = button.parentElement?.querySelector('[data-locate-status]');
+    const card = button.closest('[data-card]');
     button.addEventListener('click', () => {
       const loc = locateQuote(editor.value, button.dataset.locate);
       if (!loc) {
         located = null;
         render();
-        if (status) status.textContent = "Couldn't find this text in the editor, it may already be edited";
+        if (card) say(card, REASON['not-found'], true);
         return;
       }
       located = loc;
       render();
       const line = editor.value.slice(0, loc.start).split('\n').length;
       // The outline is not the only signal: the line number is readable and announced.
-      if (status) status.textContent = 'Line ' + line;
+      if (card) say(card, 'Line ' + line, true);
       scrollEditorTo(loc.start);
       // Focus moves the caret, which on a phone opens the keyboard over the text.
       if (window.matchMedia('(min-width: 1024px)').matches) {
@@ -286,5 +447,8 @@ export function init(data) {
   // An instant check hands over its parsed upload: it becomes this tab's draft
   // in place of whatever the tab held, and lives in localStorage from here on.
   editor.value = typeof data.draftText === 'string' ? data.draftText : (load() ?? data.resumeText);
+  // An instant check replaces the tab's text, so its marks no longer describe it.
+  if (typeof data.draftText === 'string') storeEdits();
+  else loadEdits();
   render();
 }

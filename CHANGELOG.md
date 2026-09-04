@@ -4,6 +4,39 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.52.0] — 2026-09-04
+
+### Added
+- **Apply a suggestion instead of retyping it.** On the targeted view each
+  suggestion that quotes your text and proposes new wording gets **Apply**, and
+  **Edit & apply** opens the wording in a box first so you can make it yours.
+  Removals get **Remove**. Every card also has **Skip**, and everything you do
+  is one **Undo** away.
+- **Add a missing keyword to your skills line in one press.** The `+ add`
+  control appears beside a missing chip only when the term is one you can
+  honestly claim *and* your resume has a skills line shaped like a list to put
+  it on. A `no evidence` keyword never gets one.
+- Applied and skipped cards step back and keep only Copy, Locate and Undo, so
+  the list shows what is left to deal with. The marks survive a reload.
+
+### Notes
+- **Undo stores the inverse edit, not a copy of your resume** — three applied
+  cards cost 598 bytes instead of three 6 KB copies, and Undo still works after
+  a reload. It refuses if you have typed over the edit rather than overwriting
+  your later work.
+- **Apply reaches about half of today's suggestions.** Of 209 stored actions,
+  108 carry both a quote and a wording; 59 propose an addition with nothing to
+  replace, 16 quote without proposing, 26 are instructions. That ceiling is the
+  data, not the code — the `insert_after` field in the next stage is what lifts
+  it. `locateQuote` itself found **237 of 237** quotes, so nothing fails at
+  finding your text.
+- **Removing text on the line with your email or phone is refused**, with the
+  reason. Three of the stored removals ask for exactly that.
+- There is no "move this bullet to the top". 24 actions use move/lead wording,
+  but reading them shows the model means *make the first bullet say this* — it
+  quotes the leading bullet and proposes new words, which is a replacement. A
+  real move applied to 4 of the 24, so no button was built for it.
+
 ## [1.51.0] — 2026-09-04
 
 ### Added
@@ -2056,6 +2089,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[1.52.0]: https://github.com/applypack/applypack/compare/v1.51.0...v1.52.0
 [1.51.0]: https://github.com/applypack/applypack/compare/v1.50.0...v1.51.0
 [1.50.0]: https://github.com/applypack/applypack/compare/v1.49.0...v1.50.0
 [1.49.0]: https://github.com/applypack/applypack/compare/v1.48.0...v1.49.0
