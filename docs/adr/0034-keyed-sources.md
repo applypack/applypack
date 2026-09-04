@@ -99,6 +99,35 @@ user opts in, and it says per vendor what the source adds, when it is
 worth having, and what the vendor asks in return — including the case for
 not using it at all.
 
+**5. A licence obligation runs above every gate** (added 2026-09-04,
+v1.46.0). France Travail's art. 5.2 asks for a daily re-check of every
+stored offer. Until now the mirror that does it lived inside `runFetchJob`
+*after* the pause check, so pausing "Job fetching" for two days put the
+install in breach — and the only thing standing between a user and that was
+a warning sentence on the Sources tab. Three readings settle it:
+
+- The duty is not a search. The mirror fetches no new posting, spends no
+  AI and inserts no row; it re-reads what is already stored and deletes
+  what the board withdrew. "Job fetching" is about acquiring postings and
+  spending money, and neither describes this.
+- Nor is it the user's to remember. A licence obligation that depends on a
+  toggle being in the right position is not implemented, it is documented.
+
+So `syncFranceTravail` runs at the top of `runFetchJob`, above the pause
+check, above the no-active-search abort and above anything added later; its
+counters ride on the skipped tick's run row. It also stopped reading
+`Company.active` — switching a France Travail row off stops new offers, it
+does not release us from the ones already stored.
+
+And because a mirror can be prevented from running at all (the credential
+removed, the board down, the container off for a weekend), the obligation
+gets a backstop that needs neither: an offer whose last successful check is
+older than `LICENCE_MAX_AGE_MS` (two days — one day of grace beyond the
+licence's window, about 24 hourly attempts) is withdrawn here the same way a
+board-withdrawn offer is, deleted or anonymised. Holding content we can no
+longer verify is the breach art. 5.2 exists to prevent; the grace margin is
+grace, never permission, and a unit test keeps it wider than the due window.
+
 ## Consequences
 
 - `src/source-keys.ts` (pure) is the second key module beside `ai-keys.ts`;
@@ -108,6 +137,9 @@ not using it at all.
   pointing at the Sources tab, not a crash and not a silent empty.
 - The attribution components are the terms' wording rendered; changing
   them is changing what we agreed to.
+- A vendor obligation is code that runs whatever the user has switched off,
+  and it degrades towards removing data rather than towards keeping it. The
+  next keyed source with a freshness clause inherits both rules.
 - Live verification of either source needs the owner's own credentials;
   the mappers are tested on the vendors' documented payloads, and the
   pull request that adds each source says what was and was not run live.

@@ -46,6 +46,8 @@ const DAY_MS = 24 * 60 * 60 * 1000;
  * than the due window, or an offer would expire before anyone asked about it.
  */
 export const LICENCE_MAX_AGE_MS = 2 * DAY_MS;
+/** Ids per DELETE — Postgres takes 65 535 bind parameters, and one statement should not court the limit. */
+const DELETE_BATCH = 1_000;
 
 export interface StoredOffer {
   id: number;
@@ -200,15 +202,22 @@ function credentials(context: FetchContext): { client_id: string; client_secret:
   }
 }
 
-/** Carries out one plan, counting what it did. */
+/**
+ * Carries out one plan, counting what it did. Deletions go in batched
+ * statements because phase 2's list has no ceiling — a fortnight without a
+ * key expires everything at once, and that must not become a row-at-a-time
+ * loop. Anonymising stays per row: it writes the same columns to each, and
+ * only the offers the user applied to or saved ever reach it.
+ */
 async function apply(plan: SyncPlan, now: Date, result: MirrorStats): Promise<void> {
+  const deleting = plan.flatMap((step) => (step.action === 'delete' ? [step.id] : []));
+  for (let i = 0; i < deleting.length; i += DELETE_BATCH) {
+    const { count } = await prisma.job.deleteMany({ where: { id: { in: deleting.slice(i, i + DELETE_BATCH) } } });
+    result.deleted += count;
+  }
   for (const step of plan) {
-    if (step.action === 'delete') {
-      await prisma.job.delete({ where: { id: step.id } });
-      result.deleted++;
-    } else if (step.action === 'anonymise') {
-      await prisma.job.update({ where: { id: step.id }, data: anonymisedOffer(now) });
-      result.anonymised++;
-    }
+    if (step.action !== 'anonymise') continue;
+    await prisma.job.update({ where: { id: step.id }, data: anonymisedOffer(now) });
+    result.anonymised++;
   }
 }
