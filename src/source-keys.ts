@@ -95,6 +95,21 @@ export function envVarOf(source: KeyedSource, field: SourceKeyField): string {
   return (SOURCE_KEY_FIELDS[source] as Record<string, string>)[field] ?? '';
 }
 
+/**
+ * Whether a keyed source can be used at all: every field it needs is
+ * present, pasted or in `.env`. Until then the source is not offered
+ * anywhere — no suggestion row, no entry in the add-company form — because
+ * the user has not registered with that vendor and accepted its terms.
+ */
+export function sourceUnlocked(source: KeyedSource, keys: SourceKeys, env: NodeJS.ProcessEnv = process.env): boolean {
+  return resolveSourceKeys(source, keys, env) !== null;
+}
+
+/** The keyed sources ready to use, as the plain strings the UI and the suggester compare against. */
+export function unlockedSources(keys: SourceKeys, env: NodeJS.ProcessEnv = process.env): string[] {
+  return KEYED_SOURCES.filter((s) => sourceUnlocked(s, keys, env));
+}
+
 /** Thrown by a keyed fetcher with no credential; source health files it as `auth`. */
 export class SourceKeyMissingError extends Error {
   constructor(sourceLabel: string) {

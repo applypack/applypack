@@ -79,12 +79,27 @@ const DEVITJOBS_SITES: readonly { host: string; name: string; countries: string[
   { host: 'devitjobs.nl', name: 'DevITjobs NL', countries: ['NL'], regions: ['BENELUX'], flag: '🇳🇱', place: 'the Netherlands' },
 ];
 
-export function suggestSources(searches: readonly SuggestSearch[], tracked: readonly TrackedRow[]): SourceSuggestion[] {
+/** Sources that need the user's own account with the vendor (ADR 0034). */
+const KEYED: readonly string[] = ['ADZUNA', 'FRANCETRAVAIL'];
+
+/**
+ * `unlocked` lists the keyed sources whose credential is in place. A keyed
+ * source the user has not registered for is not offered at all — it is an
+ * extra the user opts into on Settings → Sources, not something the app
+ * suggests to someone who cannot use it.
+ */
+export function suggestSources(
+  searches: readonly SuggestSearch[],
+  tracked: readonly TrackedRow[],
+  opts: { unlocked?: readonly string[] } = {},
+): SourceSuggestion[] {
+  const unlocked = opts.unlocked ?? [];
   const byKey = new Map(tracked.map((r) => [`${r.atsType}:${r.atsToken}`, r]));
   const out = new Map<string, SourceSuggestion>();
   const offer = (s: Omit<SourceSuggestion, 'state' | 'companyId'>) => {
     const key = `${s.atsType}:${s.atsToken}`;
     if (out.has(key)) return;
+    if (KEYED.includes(s.atsType) && !unlocked.includes(s.atsType)) return;
     const row = byKey.get(key);
     out.set(key, { ...s, state: row ? (row.active ? 'on' : 'off') : 'missing', companyId: row?.id ?? null });
   };
@@ -141,7 +156,7 @@ export function suggestSources(searches: readonly SuggestSearch[], tracked: read
         atsType: 'ADZUNA',
         atsToken: code,
         careerUrl: `https://${ADZUNA_MARKETS[code]?.domain ?? 'www.adzuna.com'}/`,
-        reason: `${flagOf(country)} ${placeLabel(country)} in "${search.name}" — needs your Adzuna key`,
+        reason: `${flagOf(country)} ${placeLabel(country)} in "${search.name}"`,
       });
     }
     if (search.countries.includes('FR')) {
@@ -150,7 +165,7 @@ export function suggestSources(searches: readonly SuggestSearch[], tracked: read
         atsType: 'FRANCETRAVAIL',
         atsToken: 'codeROME=M1805',
         careerUrl: 'https://candidat.francetravail.fr/offres/recherche?codeROME=M1805',
-        reason: `🇫🇷 France in "${search.name}" — needs your France Travail client id and secret`,
+        reason: `🇫🇷 France in "${search.name}"`,
       });
     }
     if (search.countries.includes('SE') || search.regions.includes('NORDICS')) {

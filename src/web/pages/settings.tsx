@@ -791,31 +791,54 @@ export const SettingsPage: FC<SettingsProps> = ({
 export interface SourceKeyRow {
   source: string;
   label: string;
+  /** One sentence: what this source adds that the free ones do not. */
+  what: string;
+  /** When a user actually needs it — and by omission, when they do not. */
+  worthIt: string;
+  /** What the vendor asks in return, in the user's words. */
+  cost: string;
+  signupUrl: string;
+  signupLabel: string;
   /** Free access, but the vendor's own terms — shown so the user knows what they agreed to. */
   terms: string;
   termsUrl: string;
+  /** True when every field is in place: the source is usable. */
+  ready: boolean;
   fields: { field: string; label: string; envVar: string; origin: 'db' | 'env' | 'none'; masked: string }[];
 }
 
 const SourceKeysCard: FC<{ rows: SourceKeyRow[] }> = ({ rows }) => (
   <Card class="mt-4">
-    <SectionTitle>Source keys</SectionTitle>
+    <SectionTitle>Extra sources — a free account of your own</SectionTitle>
     <Hint class="mb-3">
-      Two sources need a free key of your own. Register with the vendor, paste the values here — they
-      are stored like Telegram tokens and never shown again — then add the source on Companies. The
-      .env variables named below still work instead. France Travail's licence asks every stored offer
-      to be re-checked daily: pausing fetching for longer than a day breaks that — disable its rows
-      on Companies first.
+      Everything above works without any account. These two search wider, and each needs a free
+      account <em>you</em> register with the vendor, because you accept their terms and their limits
+      apply to you. Until you paste the values here, the source stays out of the app: it is not
+      fetched, not offered on Companies and not listed in its add-company form.
     </Hint>
     <div class="space-y-4">
       {rows.map((r) => (
         <div class="rounded-md border border-line bg-surface-raised px-3.5 py-3">
-          <div class="flex flex-wrap items-center gap-2">
+          <div class="flex flex-wrap items-baseline gap-x-2 gap-y-1">
             <span class="text-[13px] font-medium text-ink">{r.label}</span>
-            <a href={r.termsUrl} target="_blank" rel="noopener" class="text-xs text-accent-strong hover:underline">
+            <Badge tone={r.ready ? 'ok' : 'neutral'}>{r.ready ? 'ready' : 'not set up'}</Badge>
+          </div>
+          <p class="mt-1.5 text-[13px] leading-5 text-ink-muted">{r.what}</p>
+          <p class="mt-1 text-[13px] leading-5 text-ink-faint">
+            <span class="font-medium text-ink-muted">Worth it if:</span> {r.worthIt}
+          </p>
+          <p class="mt-1 text-[13px] leading-5 text-ink-faint">
+            <span class="font-medium text-ink-muted">In exchange:</span> {r.cost}
+          </p>
+          <p class="mt-1.5 text-[13px] leading-5">
+            <a href={r.signupUrl} target="_blank" rel="noopener" class="text-accent-strong hover:underline">
+              {r.signupLabel}
+            </a>
+            <span class="text-ink-faint"> · </span>
+            <a href={r.termsUrl} target="_blank" rel="noopener" class="text-ink-muted hover:underline">
               {r.terms}
             </a>
-          </div>
+          </p>
           {r.fields.map((f) => (
             <form method="post" action="/settings/sources/key" class="mt-2.5 flex flex-wrap items-end gap-2">
               <input type="hidden" name="source" value={r.source} />
@@ -850,12 +873,16 @@ const SourceKeysCard: FC<{ rows: SourceKeyRow[] }> = ({ rows }) => (
               )}
             </form>
           ))}
+          <Hint class="mt-2">
+            {r.ready
+              ? `Ready. Add it on Companies → "Sources for your searches", then switch the row on.`
+              : `Once both values are saved, the source appears on Companies → "Sources for your searches".`}
+          </Hint>
         </div>
       ))}
     </div>
   </Card>
 );
-
 
 /**
  * Paste-a-credential row (ADR 0027). The field is always empty: a stored key
