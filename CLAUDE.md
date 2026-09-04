@@ -119,7 +119,8 @@
   (ADR 0012), `facts.ts`, `diff.ts`, `parse-warnings.ts`, `match-mode.ts`,
   `match-reuse.ts`, `bench-report.ts`,
   `profile-draft.ts` (ADR 0015), `fact-check.ts` (ADR 0020),
-  `keyword-overrides.ts`, `keyword-frame.ts`, `review-score.ts` (ADR 0030)
+  `keyword-overrides.ts`, `keyword-frame.ts`, `review-score.ts` (ADR 0030),
+  `change-sheet.ts`
   are pure (tested);
   `scan.ts` / `match.ts` / `suggestions.ts` / `review.ts` / `cover-letter.ts`
   call the AI provider (the letter is gated by `fact-check.ts` and generates from stored
@@ -272,6 +273,9 @@ When the question is **"where does X live?"**, save yourself a `find`:
 | Letting a call use web search (API server tools / CLI WebSearch) | `AiRequest.webTools` in `src/ai-provider.ts`, args in `ai-provider-parse.ts:buildClaudeCodeArgs` |
 | Classify one stored job (Re-classify button, pasted jobs) | `src/jobs/classify-existing.ts` |
 | Live keyword score + highlights in the browser | `src/web/public/target.mjs` (served at `/static/`, tested from `src/web/target.test.ts`) |
+| The wording a suggestion proposes, pulled out of its `what` sentence | `src/resume/change-sheet.ts:proposalOf` (pure) — reads `'…'` and `"…"`, guards the apostrophe, takes the span after a `to`/`with` connective, refuses a run under 12 chars; `suggestionSheet` renders the whole list as the Markdown behind "Copy all suggestions" |
+| What the user changed in the editor, as Markdown ("Copy my changes") | `src/web/public/line-diff.mjs:diffLines` (LCS over normalised lines; a delete/insert pair becomes a `change` only when 30 % of the wording survives) + `public/change-sheet.mjs:formatEditSheet` |
+| Copy-to-clipboard anywhere in the dashboard | `src/web/public/copy.mjs:wireCopy` — delegates `[data-copy]` (literal text) and `[data-copy-target]` (an element's value), falls back to `execCommand`, announces in one `aria-live` region it creates itself |
 | The targeted-resume page (editor, tabs, score ring) | `src/web/pages/target.tsx` (`TARGET_JS` wires the DOM) |
 | Each cron's once-script (manual trigger) | `src/scripts/{fetch,digest,cleanup,stale,hn,discovery}-once.ts` |
 
@@ -322,6 +326,8 @@ When the question is **"how does the user toggle / configure X?"**:
 | Ask how strong a resume is on its own (no posting) | `/resumes/:id` → "Resume strength" → Run strength review (one AI call, ~1 min; nothing runs on its own). Scores show in the `/resumes` Strength column |
 | Compare a resume with a posting | `/jobs/:id` → "Resume match" card — **Compare** = quick check (keywords, gates, score), **Full analysis** = also the edit suggestions (ADR 0029) |
 | Get the edit suggestions for a quick check | the comparison → "Get suggestions" (second call, reuses the stored verdicts, score unchanged) |
+| Copy a suggested wording, or find it in the editor | the comparison on `/jobs/:id` or `/jobs/:id/target` → each card's **Copy** (the proposed wording alone) and **Locate** (outlines it in the editor and scrolls the editor — never the page) |
+| Take the whole change list into Word / Docs / a mail | the comparison → **Copy all suggestions** (the AI's list) or, on the targeted view, **Copy my changes** (a diff of your own edits, live once you type). Both are Markdown and need no Apply |
 | Re-level, ignore or add a keyword by hand | the keyword table on `/jobs/:id` or `/jobs/:id/target` → the "Wants it" select, `ignore` / `reset`, and "Add a keyword" (instant re-score, no AI call; the edit sticks to the posting across re-runs) |
 | Throw away a keyword list the model got wrong | the keyword table → "Rebuild keywords" (one run with the stored frame withheld; your own keyword edits survive it, the new score is not comparable with the old) |
 | Paste a posting the fetchers don't see | `/jobs` → "+ Paste a job" (`/jobs/new`) |

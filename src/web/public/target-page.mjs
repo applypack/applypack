@@ -16,6 +16,8 @@ import {
   wantsLabel,
 } from './target.mjs';
 import { computeScore, entriesFromLive } from './score.mjs';
+import { formatEditSheet } from './change-sheet.mjs';
+import { wireCopy, copyFrom } from './copy.mjs';
 
 // Full literal class names — the Tailwind CDN JIT only generates what it can
 // see verbatim in the document, composed strings would come out unstyled.
@@ -54,6 +56,9 @@ export function init(data) {
   const barDelta = document.getElementById('bar-delta');
   const panes = document.getElementById('panes');
   const storageKey = 'target-draft:' + data.matchId;
+  // The span Locate is pointing at, or null. Cleared on every edit, because an
+  // offset into text the user has since changed points at the wrong words.
+  let located = null;
 
   function load() {
     try { return localStorage.getItem(storageKey); } catch { return null; }
@@ -104,7 +109,15 @@ export function init(data) {
       + (missing.length ? ' · missing: ' + missingNames + (missing.length > 3 ? ' +' + (missing.length - 3) : '') : '')
       + capNote + maxNote;
 
-    backdrop.innerHTML = highlightHtml(text, resumeSpans(data.keywords, data.actions, data.removals, text)) + '\n';
+    const spans = resumeSpans(data.keywords, data.actions, data.removals, text);
+    if (located) {
+      // The quote usually already carries an edit mark; add the outline to that
+      // span rather than pushing a rival one, which highlightHtml would drop.
+      const same = spans.find((s) => s.start === located.start && s.end === located.end);
+      if (same) same.cls += ' located';
+      else spans.push({ ...located, cls: 'located' });
+    }
+    backdrop.innerHTML = highlightHtml(text, spans) + '\n';
     jd.innerHTML = highlightHtml(data.jobText, jobSpans(data.keywords, data.jobText, scored));
 
     chips.innerHTML = '';
@@ -133,6 +146,9 @@ export function init(data) {
     const saveText = document.getElementById('save-text');
     if (saveText) saveText.value = text;
     document.getElementById('reanalyze-text').value = dirty ? text : '';
+    // Nothing to carry out until the text differs from what the AI judged.
+    const copyEdits = document.getElementById('copy-edits');
+    if (copyEdits) copyEdits.disabled = !dirty;
     store(text);
   }
 
@@ -149,24 +165,33 @@ export function init(data) {
     }
   }
 
-  function select(start, end) {
-    editor.focus();
-    editor.setSelectionRange(start, end);
-    // Scroll the caret into view: estimate the line's offset from the top.
-    const before = editor.value.slice(0, start);
-    const lineIndex = before.split('\n').length - 1;
+  /** Scroll THE EDITOR so the offset sits in its upper third. The page never moves. */
+  function scrollEditorTo(start) {
+    const lineIndex = editor.value.slice(0, start).split('\n').length - 1;
     const lineHeight = parseFloat(getComputedStyle(editor).lineHeight) || 22;
     editor.scrollTop = Math.max(0, lineIndex * lineHeight - editor.clientHeight / 3);
     backdrop.scrollTop = editor.scrollTop;
   }
 
+  function select(start, end) {
+    editor.focus();
+    editor.setSelectionRange(start, end);
+    scrollEditorTo(start);
+  }
+
   function resetEdits() {
     editor.value = data.resumeText;
+    // The outline was an offset into the text being discarded.
+    located = null;
     render();
   }
 
   let timer = null;
-  editor.addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(render, 120); });
+  editor.addEventListener('input', () => {
+    located = null;
+    clearTimeout(timer);
+    timer = setTimeout(render, 120);
+  });
   editor.addEventListener('scroll', () => { backdrop.scrollTop = editor.scrollTop; backdrop.scrollLeft = editor.scrollLeft; });
   document.getElementById('show-matched').addEventListener('change', (e) => {
     panes.classList.toggle('show-matched', e.target.checked);
@@ -206,14 +231,57 @@ export function init(data) {
     }
   });
 
-  // The editor sits beside the suggestions, so a click selects in place — no tab switch.
-  for (const item of document.querySelectorAll('[data-quote]')) {
-    item.addEventListener('click', () => {
-      const loc = locateQuote(editor.value, item.dataset.quote);
-      if (!loc) { item.classList.add('flash-target'); setTimeout(() => item.classList.remove('flash-target'), 1200); return; }
-      select(loc.start, loc.end);
+  // Copy works the same on every page; Locate only exists where this editor does.
+  wireCopy(document);
+
+  // Locate: outline the quote in the editor and scroll THE EDITOR to it. The
+  // page does not move — losing the card you just read was the whole complaint.
+  for (const button of document.querySelectorAll('[data-locate]')) {
+    const status = button.parentElement?.querySelector('[data-locate-status]');
+    button.addEventListener('click', () => {
+      const loc = locateQuote(editor.value, button.dataset.locate);
+      if (!loc) {
+        located = null;
+        render();
+        if (status) status.textContent = "Couldn't find this text in the editor, it may already be edited";
+        return;
+      }
+      located = loc;
+      render();
+      const line = editor.value.slice(0, loc.start).split('\n').length;
+      // The outline is not the only signal: the line number is readable and announced.
+      if (status) status.textContent = 'Line ' + line;
+      scrollEditorTo(loc.start);
+      // Focus moves the caret, which on a phone opens the keyboard over the text.
+      if (window.matchMedia('(min-width: 1024px)').matches) {
+        editor.focus({ preventScroll: true });
+        editor.setSelectionRange(loc.start, loc.end);
+      }
     });
   }
+
+  // "Copy my changes": the diff of the analysed text against what is on screen.
+  const copyEdits = document.getElementById('copy-edits');
+  if (copyEdits) {
+    copyEdits.addEventListener('click', () => {
+      const sheet = formatEditSheet(data.sheet, data.resumeText, editor.value);
+      if (sheet) copyFrom(copyEdits, sheet);
+    });
+  }
+
+  const expand = document.getElementById('expand-editor');
+  if (expand) {
+    expand.addEventListener('click', () => {
+      const tall = panes.classList.toggle('editor-tall');
+      expand.textContent = tall ? 'shrink editor' : 'expand editor';
+      expand.setAttribute('aria-expanded', String(tall));
+    });
+  }
+
+  // The keyword table is the longest block on the page; on a phone it starts
+  // folded, on a desktop it is simply open. Media queries cannot set `open`.
+  const fold = document.querySelector('details.kw-fold');
+  if (fold) fold.open = window.matchMedia('(min-width: 1024px)').matches;
 
   // An instant check hands over its parsed upload: it becomes this tab's draft
   // in place of whatever the tab held, and lives in localStorage from here on.

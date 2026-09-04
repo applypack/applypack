@@ -1658,24 +1658,33 @@ bench); re-run `bench:resume` after stages 3 and 5.
 
 ### 18.4 Implementation order (five branches, each its own PR; tags from stage 3 on)
 
-**Stage 1 — `target-copy-locate` (no schema, no prompt; ~1 session)**
-- [ ] **Analyse first:** read the page and card sources; pull every stored
+**Stage 1 — `target-copy-locate` — SHIPPED v1.51.0 (no schema, no prompt)**
+- [x] **Analyse first:** read the page and card sources; pull every stored
       `actions[].what` and write the proposal extractor against the real
       shapes; one 375 px screenshot of the Suggestions tab in the note.
-- [ ] `add proposal extractor` — `target.mjs:proposalOf` + tests.
-- [ ] `add line diff` — `public/line-diff.mjs:diffLines` + tests.
-- [ ] `add change sheet` — `changeSheet` / `formatChangeSheet` (Markdown);
-      "Copy all suggestions", "Copy my changes".
-- [ ] `add copy and locate` — `copy.mjs:wireCopy` (clipboard + fallback,
+- [x] `add proposal extractor` — `resume/change-sheet.ts:proposalOf` + tests
+      (NOT `target.mjs`: the card renders it server-side, and `target.mjs` is a
+      byte copy in the landing demo — a new import there 404s on applypack.dev).
+      Measured 167/209 on the live corpus; single quotes are 131 of them.
+- [x] `add line diff` — `public/line-diff.mjs:diffLines` + tests.
+- [x] `add change sheet` — two, not one: `resume/change-sheet.ts:suggestionSheet`
+      is rendered server-side into the button ("Copy all suggestions" therefore
+      works on `/jobs/:id`, which carries no editor), `public/change-sheet.mjs:formatEditSheet`
+      builds "Copy my changes" from the live editor.
+- [x] `add copy and locate` — `copy.mjs:wireCopy` (clipboard + fallback,
       aria-live "Copied"); Locate outlines the span (`.located`), scrolls
       the editor only, `focus({ preventScroll: true })` on wide screens;
       "Couldn't find this text" inline instead of the pulse.
-- [ ] `restructure suggestion cards` — `SuggestionCard` with Now / Proposed,
+- [x] `restructure suggestion cards` — `SuggestionCard` with Now / Proposed,
       `<button>` controls, removal quote shown, badge inline; Copy also on
       `/jobs/:id`.
-- [ ] `fix narrow layout` — editor first and collapsed at ≤ 1023 px, keyword
-      table behind a disclosure, "show matched" toggle into the editor header.
-- [ ] `document copy path` — CLAUDE.md rows, SPEC, CHANGELOG + bump.
+- [x] `fix narrow layout` — editor first and collapsed at ≤ 1023 px, keyword
+      table behind a disclosure, and `#panes > * { min-width: 0 }`: the real
+      bug was a grid track widened to 499 px by the keyword table inside a
+      375 px column. The "show matched" toggle stayed where it is — the editor
+      card is `display:none` in the job-only view, which would take the job
+      pane's own control with it.
+- [x] `document copy path` — CLAUDE.md rows, SPEC, CHANGELOG + bump.
 
 **Stage 2 — `target-apply-edits` (no schema, no prompt; ~1 session)**
 - [ ] **Analyse first:** read `keyword-overrides.ts` and `facts.ts`; count

@@ -385,6 +385,7 @@ jobsRoute.get('/jobs/:id', async (c) => {
         matches,
         selected,
         selectedKeywords,
+        job: { title: job.title, companyName: job.company.name },
       }}
       coverLetters={{
         jobId: id,

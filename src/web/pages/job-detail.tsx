@@ -320,8 +320,16 @@ export const JobDetailPage: FC<JobDetailProps> = ({
         </Card>
       </div>
     </div>
+    {/* Copy on the suggestion cards and the change sheet; the card itself is
+        server-rendered, so this is all the JavaScript this page needs. */}
+    <script type="module" dangerouslySetInnerHTML={{ __html: COPY_BOOT }} />
   </Layout>
 );
+
+const COPY_BOOT = `
+import { wireCopy } from '/static/copy.mjs';
+wireCopy(document);
+`;
 
 /**
  * What each running search made of this posting. Hidden while only one search

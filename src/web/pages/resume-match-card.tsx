@@ -1,5 +1,5 @@
 /** @jsxImportSource hono/jsx */
-import type { FC } from 'hono/jsx';
+import type { Child, FC } from 'hono/jsx';
 import {
   ActionForm,
   Badge,
@@ -30,6 +30,7 @@ import {
   type MatchKeyword,
 } from '../../resume/prompts';
 import { freshFrame, freshFrameNotice } from '../../resume/keyword-frame';
+import { proposalOf, suggestionSheet, type Proposal } from '../../resume/change-sheet';
 import { readMatchMode, type MatchMode } from '../../resume/match-mode';
 import type { CountedKeyword } from '../../resume/keyword-matcher';
 import { effectiveRequirement, isIgnored } from '../../resume/keyword-overrides';
@@ -48,6 +49,8 @@ export interface ResumeMatchCardProps {
   selected: MatchWithResume | null;
   /** The selected comparison's keywords, ordered and counted by the matcher. */
   selectedKeywords: CountedKeyword[];
+  /** Names the change sheet the Copy button hands over. */
+  job: { title: string; companyName: string };
 }
 
 const PRIORITY_TONE: Record<MatchAction['priority'], Tone> = {
@@ -94,6 +97,13 @@ const HARD_VIEW: Record<MatchHardRequirement['status'], { label: string; tone: T
 };
 
 const SUBHEAD = 'mb-2 text-[13px] font-medium text-ink-muted';
+/**
+ * The Now / Proposed captions. Micro step (12px/500) — the ramp's floor — and
+ * no uppercase tracking: DESIGN.md says nothing in this app is ever set that
+ * way, and the caption is a real word the model chose ("Rewrite", "Add"), not
+ * a category shouting at the reader.
+ */
+const LABEL = 'text-xs font-medium text-ink-faint';
 
 export const ResumeMatchCard: FC<ResumeMatchCardProps> = ({
   jobId,
@@ -103,6 +113,7 @@ export const ResumeMatchCard: FC<ResumeMatchCardProps> = ({
   matches,
   selected,
   selectedKeywords,
+  job,
 }) => (
   <div id="resume-match">
     <Card>
@@ -161,6 +172,7 @@ export const ResumeMatchCard: FC<ResumeMatchCardProps> = ({
           previous={previousFor(selected, matches)}
           keywords={selectedKeywords}
           factsBack={`/jobs/${jobId}?match=${selected.id}#resume-match`}
+          job={job}
         />
       )}
 
@@ -325,7 +337,9 @@ export const MatchReport: FC<{
   keywords: CountedKeyword[];
   /** Where the ask_user confirm/deny and keyword-override forms return to. */
   factsBack: string;
-}> = ({ match, previous, keywords, factsBack }) => {
+  /** Names the change sheet the Copy button hands over. */
+  job: { title: string; companyName: string };
+}> = ({ match, previous, keywords, factsBack, job }) => {
   const bd = readBreakdown(match.breakdown);
   // A re-extracted frame counts different terms, so the older number is not a
   // baseline for this one (keyword-frame.ts). DeltaBox says so in words.
@@ -371,6 +385,15 @@ export const MatchReport: FC<{
         <SuggestionsPrompt matchId={match.id} jobId={match.jobId} />
       ) : (
         <>
+          <div class="flex flex-wrap items-center gap-2">
+            <ChangeSheetButton
+              job={job}
+              resumeName={match.resume.name}
+              actions={readActions(match.actions)}
+              removals={readRemovals(match.removals)}
+            />
+            <Hint class="!mt-0">as Markdown, for the document your resume really lives in</Hint>
+          </div>
           <ActionsBlock actions={readActions(match.actions)} />
           <RemovalsBlock removals={readRemovals(match.removals)} />
         </>
@@ -506,10 +529,77 @@ export const MatchSignals: FC<{ match: MatchWithResume }> = ({ match }) => (
   </>
 );
 
-/** "What to change" — jumpable on the targeted view (click selects the quote). */
-export const ActionsBlock: FC<{ actions: MatchAction[]; jumpable?: boolean }> = ({
+/**
+ * One suggestion: what the resume says now, the wording proposed for it, and
+ * the two controls that make the manual path bearable. Copy is always there —
+ * a proposal you cannot get onto the clipboard is a proposal you retype.
+ * Locate only exists where there is an editor to scroll (`interactive`), and
+ * it never moves the page.
+ */
+const SuggestionCard: FC<{
+  item: { section: string; where: string; what: string; why: string; quote?: string | null };
+  badge: Child;
+  /** The wording to copy, when the model quoted one inside `what`. */
+  proposal: Proposal | null;
+  /** True on the targeted view, where an editor exists to locate the quote in. */
+  interactive: boolean;
+  /** A removal shows its quote struck through: this is the text to delete. */
+  strike?: boolean;
+  /** Priority badges are one word, section badges are up to four syllables. */
+  badgeWidth?: string;
+}> = ({ item, badge, proposal, interactive, strike = false, badgeWidth = 'w-16' }) => {
+  const copyable = proposal?.text ?? item.quote ?? item.what;
+  return (
+    <li class="flex flex-col gap-1 p-3 sm:flex-row sm:gap-3">
+      <div class={`${badgeWidth} shrink-0`}>{badge}</div>
+      <div class="min-w-0 flex-1 text-sm">
+        <div class="font-medium text-ink">{item.where}</div>
+        <div class="mt-0.5 leading-6 text-ink">{item.what}</div>
+        {item.quote && (
+          <div class="mt-2">
+            <div class={LABEL}>Now</div>
+            <p
+              class={`mt-0.5 whitespace-pre-wrap break-words border-l-2 border-line-strong pl-2 leading-6 text-ink-muted ${
+                strike ? 'line-through decoration-danger/60' : ''
+              }`}
+            >
+              {item.quote}
+            </p>
+          </div>
+        )}
+        {proposal && (
+          <div class="mt-2">
+            <div class={LABEL}>{proposal.verb ?? 'Proposed'}</div>
+            <p class="mt-0.5 whitespace-pre-wrap break-words border-l-2 border-accent/50 pl-2 leading-6 text-ink">
+              {proposal.text}
+            </p>
+          </div>
+        )}
+        <div class="mt-1 text-xs leading-5 text-ink-faint">why: {item.why}</div>
+        <div class="mt-2 flex flex-wrap items-center gap-2">
+          <Button type="button" variant="secondary" size="sm" data-copy={copyable}>
+            Copy
+          </Button>
+          {interactive && item.quote && (
+            <>
+              <Button type="button" variant="ghost" size="sm" data-locate={item.quote}>
+                Locate
+              </Button>
+              {/* Only where Locate exists: an empty live region on every card of
+                  every page is noise a screen reader has to carry. */}
+              <span class="text-xs text-ink-faint" data-locate-status role="status"></span>
+            </>
+          )}
+        </div>
+      </div>
+    </li>
+  );
+};
+
+/** "What to change" — one card per edit, with Copy and (on the targeted view) Locate. */
+export const ActionsBlock: FC<{ actions: MatchAction[]; interactive?: boolean }> = ({
   actions,
-  jumpable = false,
+  interactive = false,
 }) => {
   const sections = ACTION_SECTIONS.filter((s) => actions.some((a) => a.section === s));
   return (
@@ -526,26 +616,12 @@ export const ActionsBlock: FC<{ actions: MatchAction[]; jumpable?: boolean }> = 
                 {actions
                   .filter((a) => a.section === section)
                   .map((a) => (
-                    <li
-                      class={`flex flex-col gap-1 p-3 sm:flex-row sm:gap-3 ${
-                        jumpable && a.quote
-                          ? 'cursor-pointer transition-colors duration-150 hover:bg-surface-overlay/50'
-                          : ''
-                      }`}
-                      data-quote={jumpable && a.quote ? a.quote : undefined}
-                      title={
-                        jumpable && a.quote ? 'Click to select this text in the editor' : undefined
-                      }
-                    >
-                      <div class="w-16 shrink-0">
-                        <Badge tone={PRIORITY_TONE[a.priority]}>{a.priority}</Badge>
-                      </div>
-                      <div class="min-w-0 text-sm">
-                        <div class="font-medium text-ink">{a.where}</div>
-                        <div class="mt-0.5 leading-6 text-ink">{a.what}</div>
-                        <div class="mt-0.5 text-xs leading-5 text-ink-faint">why: {a.why}</div>
-                      </div>
-                    </li>
+                    <SuggestionCard
+                      item={a}
+                      badge={<Badge tone={PRIORITY_TONE[a.priority]}>{a.priority}</Badge>}
+                      proposal={proposalOf(a)}
+                      interactive={interactive}
+                    />
                   ))}
               </ol>
             </div>
@@ -556,37 +632,53 @@ export const ActionsBlock: FC<{ actions: MatchAction[]; jumpable?: boolean }> = 
   );
 };
 
-/** "What to remove" — same jumpable behavior as ActionsBlock. */
-export const RemovalsBlock: FC<{ removals: ReturnType<typeof readRemovals>; jumpable?: boolean }> = ({
-  removals,
-  jumpable = false,
-}) =>
+/** "What to remove" — the same card, showing the text to cut rather than hiding it. */
+export const RemovalsBlock: FC<{
+  removals: ReturnType<typeof readRemovals>;
+  interactive?: boolean;
+}> = ({ removals, interactive = false }) =>
   removals.length === 0 ? null : (
     <div>
       <div class={SUBHEAD}>What to remove — {removals.length} items</div>
       <ul class="divide-y divide-line rounded-md border border-line">
         {removals.map((r) => (
-          <li
-            class={`flex flex-col gap-1 p-3 sm:flex-row sm:gap-3 ${
-              jumpable && r.quote
-                ? 'cursor-pointer transition-colors duration-150 hover:bg-surface-overlay/50'
-                : ''
-            }`}
-            data-quote={jumpable && r.quote ? r.quote : undefined}
-            title={jumpable && r.quote ? 'Click to select this text in the editor' : undefined}
-          >
-            <div class="w-24 shrink-0">
-              <Badge tone="neutral">{r.section}</Badge>
-            </div>
-            <div class="min-w-0 text-sm">
-              <div class="font-medium text-ink">{r.where}</div>
-              <div class="mt-0.5 leading-6 text-ink">{r.what}</div>
-              <div class="mt-0.5 text-xs leading-5 text-ink-faint">why: {r.why}</div>
-            </div>
-          </li>
+          <SuggestionCard
+            item={r}
+            badge={<Badge tone="neutral">{r.section}</Badge>}
+            proposal={null}
+            interactive={interactive}
+            strike
+            badgeWidth="w-24"
+          />
         ))}
       </ul>
     </div>
+  );
+
+/**
+ * The whole list as Markdown, on the clipboard in one press. The payload is
+ * rendered here rather than built in the browser, so it works on this page
+ * too — which carries no editor and no JSON blob.
+ */
+export const ChangeSheetButton: FC<{
+  job: { title: string; companyName: string };
+  resumeName: string;
+  actions: MatchAction[];
+  removals: ReturnType<typeof readRemovals>;
+}> = ({ job, resumeName, actions, removals }) =>
+  actions.length === 0 && removals.length === 0 ? null : (
+    <Button
+      type="button"
+      variant="secondary"
+      size="sm"
+      data-copy={suggestionSheet(
+        { jobTitle: job.title, companyName: job.companyName, resumeName },
+        actions,
+        removals,
+      )}
+    >
+      Copy all suggestions
+    </Button>
   );
 
 /**
