@@ -55,8 +55,14 @@ export interface TargetRun {
   /** Done with a stored analysis, not a fresh one — the flash warns and offers "Re-run anyway". */
   reused?: boolean;
   error?: string;
-  /** What this run is working on — a second POST for the same thing joins it (issue #76). */
-  key?: string;
+  /**
+   * What this run is working on — a second POST for the same thing joins it
+   * (issue #76). More than one name, because one run can answer requests that
+   * arrive under different names: /target's suggest path is both "this
+   * posting and this resume" and "the suggestions for this comparison", and a
+   * request under either must join it rather than call the model again.
+   */
+  keys: string[];
 }
 
 const RUN_TTL_MS = 30 * 60_000;
@@ -65,11 +71,12 @@ const runs = new Map<string, TargetRun>();
 /** Registers a run. Private: every start goes through `claimRun`, which is what makes a second POST join instead of duplicate. */
 function createRun(
   fields: Pick<TargetRun, 'steps' | 'jobTitle' | 'resumeName'> &
-    Partial<Pick<TargetRun, 'jobId' | 'backUrl' | 'backLabel' | 'heading' | 'subtitle' | 'key'>>,
+    Partial<Pick<TargetRun, 'jobId' | 'backUrl' | 'backLabel' | 'heading' | 'subtitle'>>,
 ): TargetRun {
   prune();
   const run: TargetRun = {
     id: randomUUID(),
+    keys: [],
     stage: fields.steps[0] ?? 'match',
     startedAt: Date.now(),
     stageAt: Date.now(),
@@ -110,18 +117,33 @@ export function claimRun(
     logger.info({ runId: live.id, key }, 'run: joined a run already in flight');
     return { run: live, joined: true };
   }
-  return { run: createRun({ ...fields, key }), joined: false };
+  const run = createRun(fields);
+  run.keys.push(key);
+  return { run, joined: false };
 }
 
-/** The unfinished run for `key`, if one is in flight. */
+/** The unfinished run answering to `key`, if one is in flight. */
 export function findLiveRun(key: string): TargetRun | null {
   for (const run of runs.values()) {
-    if (run.key === key && run.stage !== 'done' && run.stage !== 'error') return run;
+    if (run.keys.includes(key) && run.stage !== 'done' && run.stage !== 'error') return run;
   }
   return null;
 }
 
-export function updateRun(id: string, patch: Partial<Omit<TargetRun, 'id'>>): void {
+/**
+ * Gives a run another name to be found by, once it turns out to be doing work
+ * a different request would ask for. Idempotent, and a no-op on a run that has
+ * gone: only a live run is worth joining.
+ */
+export function alsoClaims(id: string, key: string): void {
+  const run = runs.get(id);
+  if (!run || run.keys.includes(key)) return;
+  run.keys.push(key);
+  logger.info({ runId: id, key }, 'run: also answering to another name');
+}
+
+/** `keys` is not patchable: a run's names are claimed, never overwritten. */
+export function updateRun(id: string, patch: Partial<Omit<TargetRun, 'id' | 'keys'>>): void {
   const run = runs.get(id);
   if (!run) return;
   if (patch.stage && patch.stage !== run.stage) {

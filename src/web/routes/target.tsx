@@ -7,7 +7,7 @@ import { createManualJob, ManualJobSchema, MAX_FIELD_CHARS, MIN_DESCRIPTION_CHAR
 import { extractPostingFacts, fallbackTitle } from '../../jobs/posting-extract';
 import { findReusableMatch, matchResumeToJob } from '../../resume/match';
 import { parseMatchMode } from '../../resume/match-mode';
-import { reuseNotice } from '../../resume/match-reuse';
+import { reuseNotice, SUGGESTIONS_FAILED, suggestionsFlash } from '../../resume/match-reuse';
 import { readActions, readRemovals } from '../../resume/prompts';
 import {
   deleteCoverLettersForResume,
@@ -18,13 +18,14 @@ import {
   upsertScratchResume,
 } from '../../resume/store';
 import { suggestForMatch } from '../../resume/suggestions';
+import { suggestionsKey } from '../suggestions-run';
 import { draftStash } from '../draft-stash';
 import { decideInstantCheck, instantCheckNotice } from '../instant-check';
 import { TargetStartPage } from '../pages/target-start';
 import { TargetRunPage } from '../pages/target-run';
 import { clearFlashCookie, flashRedirect, parseFlashCookie } from '../flash';
 import { formatRelative } from '../format';
-import { claimRun, getRun, matchStep, startRun, updateRun, type RunStep } from '../target-runs';
+import { alsoClaims, claimRun, getRun, matchStep, startRun, updateRun, type RunStep } from '../target-runs';
 import {
   MAX_RESUME_NAME_CHARS,
   nameFromFilename,
@@ -209,7 +210,10 @@ targetRoute.post('/target', resumeUploadLimit('/target'), async (c) => {
     // 2. The same text against the same posting is already answered — a
     //    double submit or a re-paste shows the stored analysis instead. A
     //    full analysis asked of a stored quick check needs only the
-    //    suggestions call, which gets its own run.
+    //    suggestions call, which this run makes itself: one progress page,
+    //    not two chained ones. It answers to the suggestions key as well,
+    //    so pressing "Get suggestions" on that comparison meanwhile joins
+    //    this run instead of calling the model a second time (issue #76).
     const reused = await findReusableMatch(job.id, resume.id, resume.text, f.mode);
     if (reused?.decision === 'reuse') {
       updateRun(run.id, {
@@ -221,22 +225,23 @@ targetRoute.post('/target', resumeUploadLimit('/target'), async (c) => {
       return;
     }
     if (reused) {
+      alsoClaims(run.id, suggestionsKey(reused.row.id));
       updateRun(run.id, {
         steps: needExtract ? ['extract', 'suggestions'] : ['suggestions'],
         stage: 'suggestions',
       });
       const row = await suggestForMatch(reused.row, jobInput);
       if (!row) {
-        updateRun(run.id, {
-          stage: 'error',
-          error: 'The suggestions call failed — the quick check is still there. See the web logs.',
-        });
+        updateRun(run.id, { stage: 'error', error: SUGGESTIONS_FAILED });
         return;
       }
       updateRun(run.id, {
         stage: 'done',
         resultUrl: `/jobs/${job.id}/target?match=${reused.row.id}`,
-        flash: `Suggestions added — ${readActions(row.actions).length} edits, ${readRemovals(row.removals).length} removals; the score is unchanged.`,
+        flash: suggestionsFlash(
+          { actions: readActions(row.actions).length, removals: readRemovals(row.removals).length },
+          formatRelative(reused.row.createdAt),
+        ),
       });
       return;
     }

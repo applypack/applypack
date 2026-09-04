@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { claimRun, findLiveRun, getRun, startRun, updateRun } from './target-runs';
+import { alsoClaims, claimRun, findLiveRun, getRun, startRun, updateRun } from './target-runs';
 
 /*
  * Issue #76 — server-side idempotency for the POSTs that start AI runs. Every
@@ -83,4 +83,42 @@ test('the work runs once: the second claim must not start a second chain', async
   await new Promise((r) => setImmediate(r));
   assert.equal(calls, 1);
   assert.equal(findLiveRun(key), null);
+});
+
+/*
+ * One run, two names (issue #88 follow-up). /target's suggest path makes the
+ * suggestions call itself, so the run started as "this posting and this
+ * resume" is also the run doing "the suggestions for this comparison" — and a
+ * request arriving under the second name must join it, not pay again.
+ */
+test('a run answers to a name it picked up mid-flight', () => {
+  const stamp = Math.random();
+  const first = claim(`target:1:full:${stamp}`);
+  alsoClaims(first.run.id, `suggestions:${stamp}`);
+
+  const second = claim(`suggestions:${stamp}`);
+  assert.equal(second.joined, true);
+  assert.equal(second.run.id, first.run.id);
+  // …and the name it started with still finds it.
+  assert.equal(findLiveRun(`target:1:full:${stamp}`)?.id, first.run.id);
+});
+
+test('the second name stops working when the run finishes, like the first', () => {
+  const stamp = Math.random();
+  const first = claim(`target:2:full:${stamp}`);
+  alsoClaims(first.run.id, `suggestions:${stamp}`);
+  updateRun(first.run.id, { stage: 'done' });
+
+  assert.equal(findLiveRun(`suggestions:${stamp}`), null);
+  assert.equal(claim(`suggestions:${stamp}`).joined, false);
+});
+
+test('picking up a name twice, or on a run that is gone, changes nothing', () => {
+  const stamp = Math.random();
+  const first = claim(`target:3:full:${stamp}`);
+  alsoClaims(first.run.id, `suggestions:${stamp}`);
+  alsoClaims(first.run.id, `suggestions:${stamp}`);
+  alsoClaims('no-such-run', `suggestions:${stamp}`);
+
+  assert.deepEqual(getRun(first.run.id)?.keys, [`target:3:full:${stamp}`, `suggestions:${stamp}`]);
 });

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readPromptVersion, reuseDecision, reuseNotice, suggestNotice, type StoredMatch } from './match-reuse';
+import { readPromptVersion, reuseDecision, reuseNotice, suggestionsFlash, type StoredMatch } from './match-reuse';
 
 const TEXT = 'Nazar Boyko\nSenior Software Engineer\n## SKILLS\nPHP, Laravel, React';
 const full: StoredMatch = { resumeText: TEXT, promptVersion: 5, mode: 'full' };
@@ -45,9 +45,19 @@ test('reuseNotice names the age and says the model was not called', () => {
   assert.match(notice, /not called again/);
 });
 
-test('suggestNotice keeps the verdicts and never claims the model stayed idle', () => {
-  const notice = suggestNotice('3m ago');
-  assert.match(notice, /3m ago/);
-  assert.match(notice, /verdicts and score/);
-  assert.doesNotMatch(notice, /not called/);
+test('suggestionsFlash counts what was written and never claims the model stayed idle', () => {
+  const flash = suggestionsFlash({ actions: 4, removals: 2 });
+  assert.match(flash, /4 edits/);
+  assert.match(flash, /2 removals/);
+  assert.match(flash, /score is unchanged/);
+  assert.doesNotMatch(flash, /not called/);
+});
+
+// The "suggest" decision is the one path where the user asked for a full
+// analysis and gets a score that did not move — it has to say why.
+test('suggestionsFlash explains the kept verdicts when a stored quick check was reused', () => {
+  const flash = suggestionsFlash({ actions: 1, removals: 0 }, '3m ago');
+  assert.match(flash, /3m ago/);
+  assert.match(flash, /verdicts and score stand/);
+  assert.match(flash, /1 edits, 0 removals/);
 });

@@ -1,7 +1,13 @@
 import type { ResumeMatch } from '@prisma/client';
+import { SUGGESTIONS_FAILED, suggestionsFlash } from '../resume/match-reuse';
 import { readActions, readRemovals, type MatchJobInput } from '../resume/prompts';
 import { suggestForMatch } from '../resume/suggestions';
 import { claimRun, startRun, updateRun } from './target-runs';
+
+/** The name the suggestions work for one comparison is claimed under (issue #76). */
+export function suggestionsKey(matchId: number): string {
+  return `suggestions:${matchId}`;
+}
 
 /**
  * The lazy second call as a progress-page run (ADR 0029): "Get suggestions"
@@ -17,7 +23,7 @@ export function startSuggestionsRun(input: {
   const { match, job } = input;
   // One comparison can only be completed once: a second "Get suggestions" —
   // another tab, a reload — joins the call in flight (issue #76).
-  const { run, joined } = claimRun(`suggestions:${match.id}`, {
+  const { run, joined } = claimRun(suggestionsKey(match.id), {
     steps: ['suggestions'],
     jobTitle: job.title,
     resumeName: input.resumeName,
@@ -34,9 +40,9 @@ export function startSuggestionsRun(input: {
         ? {
             stage: 'done',
             resultUrl: input.resultUrl,
-            flash: `Suggestions added — ${readActions(row.actions).length} edits, ${readRemovals(row.removals).length} removals; the score is unchanged.`,
+            flash: suggestionsFlash({ actions: readActions(row.actions).length, removals: readRemovals(row.removals).length }),
           }
-        : { stage: 'error', error: 'The suggestions call failed — the quick check is still there. See the web logs.' },
+        : { stage: 'error', error: SUGGESTIONS_FAILED },
     );
   });
   return `/target/runs/${run.id}`;
