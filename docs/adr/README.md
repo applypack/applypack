@@ -47,6 +47,7 @@ consequences (what we accept). Aim for 15–30 lines each.
 - [0036 — Watched companies are checked by reading what a site publishes for machines, never by rendering it](./0036-watchlist-reads-published-data-only.md)
 - [0037 — Suggestions carry replacement text; the fact gate decides what is applicable](./0037-suggestions-carry-replacement-text-gated-in-code.md)
 - [0038 — Save patches the user's .docx in place; text-only versions are the fallback](./0038-save-patches-the-users-docx-in-place.md) *(supersedes the text-only consequence of 0010)*
+- [0039 — A resume that cannot be patched is re-typeset from JSON Resume, in the user's own typography](./0039-clean-render-from-json-resume.md) *(extends 0038)*
 
 ## When to write a new one
 
