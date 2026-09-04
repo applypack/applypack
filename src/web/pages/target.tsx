@@ -12,6 +12,7 @@ import { readMatchMode } from '../../resume/match-mode';
 import { readBreakdown } from '../../resume/score';
 import {
   ActionsBlock,
+  ChangeSheetButton,
   ConfirmFacts,
   DeltaBox,
   HardRequirementsDigest,
@@ -140,6 +141,8 @@ export const TargetPage: FC<TargetPageProps> = ({
     scoring: breakdown
       ? { alignment: breakdown.alignment, redFlagCount: match.redFlags.length, penalty: breakdown.penalty }
       : null,
+    // Heads "Copy my changes"; the suggestion sheet is rendered server-side.
+    sheet: { jobTitle: job.title, companyName: job.companyName, resumeName: resume.name },
   };
   return (
     <Layout title={`Resume match · ${job.title}`} active="jobs">
@@ -502,6 +505,14 @@ export const TargetPage: FC<TargetPageProps> = ({
               <span><mark class="edit-remove rounded px-1">remove</mark></span>
               <button
                 type="button"
+                id="expand-editor"
+                class="cursor-pointer text-ink-muted underline-offset-2 transition-colors duration-150 hover:text-ink hover:underline lg:hidden"
+                aria-expanded="false"
+              >
+                expand editor
+              </button>
+              <button
+                type="button"
                 id="reset-edits"
                 class="cursor-pointer text-ink-muted underline-offset-2 transition-colors duration-150 hover:text-ink hover:underline"
               >
@@ -521,8 +532,8 @@ export const TargetPage: FC<TargetPageProps> = ({
           </div>
           <Hint class="mt-2">
             {resume.ephemeral
-              ? 'Plain text — what an ATS parser sees. Edits stay in this browser tab until you re-check. Click a suggestion to select the text it targets.'
-              : 'Plain text — what an ATS parser sees. Edits stay in this browser tab until you re-check or Save. Click a suggestion to select the text it targets.'}
+              ? 'Plain text — what an ATS parser sees. Edits stay in this browser tab until you re-check. Locate on a suggestion outlines the text it targets.'
+              : 'Plain text — what an ATS parser sees. Edits stay in this browser tab until you re-check or Save. Locate on a suggestion outlines the text it targets.'}
           </Hint>
         </Card>
 
@@ -534,11 +545,35 @@ export const TargetPage: FC<TargetPageProps> = ({
                 <SuggestionsPrompt matchId={match.id} jobId={job.id} next="target" />
               ) : (
                 <>
-                  <ActionsBlock actions={actions} jumpable />
-                  <RemovalsBlock removals={removals} jumpable />
+                  <div>
+                    <div class="flex flex-wrap items-center gap-2">
+                      <ChangeSheetButton
+                        job={{ title: job.title, companyName: job.companyName }}
+                        resumeName={resume.name}
+                        actions={actions}
+                        removals={removals}
+                      />
+                      <Button type="button" variant="secondary" size="sm" id="copy-edits" disabled>
+                        Copy my changes
+                      </Button>
+                    </div>
+                    <Hint class="mt-1.5">
+                      Markdown, for the document your resume really lives in. The second one is the
+                      diff of your own edits and turns on once you change the text.
+                    </Hint>
+                  </div>
+                  <ActionsBlock actions={actions} interactive />
+                  <RemovalsBlock removals={removals} interactive />
                 </>
               )}
               <MatchSignals match={match} />
+              {/* Wide screens open it on boot (target-page.mjs); narrow ones keep
+                  it shut, because it is the longest block on the page by far. */}
+              <details class="kw-fold">
+                <summary class="cursor-pointer text-[13px] font-medium text-ink-muted">
+                  Keyword coverage — {keywords.length} terms
+                </summary>
+                <div class="mt-3">
               <KeywordTable
                 keywords={keywords}
                 edit={
@@ -550,6 +585,8 @@ export const TargetPage: FC<TargetPageProps> = ({
                 // screen — the same call Re-check makes, minus the stored frame.
                 rebuild={{ jobId: job.id, resumeId: resume.id, mode: fast ? 'fast' : 'full', formId: 'reanalyze-form' }}
               />
+                </div>
+              </details>
             </div>
           </Card>
         </div>
@@ -657,6 +694,10 @@ const TARGET_CSS = `
   #backdrop { color: rgb(var(--ink)); pointer-events: none; overflow: hidden; }
   #editor { background: transparent; color: transparent; caret-color: rgb(var(--ink)); border: 0; outline: none; resize: none; }
   #editor::selection { background: rgb(var(--accent) / 0.25); }
+  /* A grid item defaults to min-width:auto, so it is sized by its widest
+     content — which made the keyword table's own overflow-x-auto wrapper
+     497px wide inside a 375px column and pushed the page sideways. */
+  #panes > * { min-width: 0; }
   #panes[data-view="job"] .pane-resume, #panes[data-view="job"] .pane-changes,
   #panes[data-view="both"] .pane-changes,
   #panes[data-view="changes"] .pane-job { display: none; }
@@ -666,6 +707,24 @@ const TARGET_CSS = `
   #panes[data-view="changes"] .pane-changes { order: -1; }
   @media (min-width: 1024px) {
     #panes[data-view="changes"] .pane-resume { position: sticky; top: 0.75rem; align-self: start; }
+  }
+  /* Locate: the outline says "here", and it fades on its own so it never
+     becomes permanent furniture. It is never the ONLY signal — the card
+     prints the line number beside the button. */
+  .located { outline: 2px solid rgb(var(--accent) / 0.9); outline-offset: 1px; border-radius: 3px; animation: located-fade 2s ease-out forwards; }
+  @keyframes located-fade { from { background: rgb(var(--accent) / 0.3); } to { background: transparent; } }
+  @media (prefers-reduced-motion: reduce) {
+    .located { animation: none; }
+  }
+  .kw-fold > summary::-webkit-details-marker { display: none; }
+  .kw-fold > summary::before { content: '▸ '; }
+  .kw-fold[open] > summary::before { content: '▾ '; }
+  @media (max-width: 1023px) {
+    /* The editor is what the user is here to change, so it comes first and
+       starts short; the advice column below it is the long read. */
+    #panes[data-view="changes"] .pane-changes { order: 0; }
+    #panes .editor { height: 40vh; }
+    #panes.editor-tall .editor { height: 75vh; }
   }
   .chip { cursor: pointer; }
   .runs-toggle::-webkit-details-marker { display: none; }

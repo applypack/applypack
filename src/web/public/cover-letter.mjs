@@ -3,12 +3,13 @@
  * card boots init(). Progressive: without JS the Save button is visible and
  * the plain form POST still works, so nothing here is load-bearing.
  *   - the letter autosaves while you type (debounced), the button hides;
- *   - Copy puts the current text on the clipboard.
+ *   - Copy puts the current text on the clipboard (shared with ./copy.mjs).
  * statusFor and nextDelay are pure — unit-tested from src/web/cover-letter.test.ts.
  */
 
+import { wireCopy } from './copy.mjs';
+
 const SAVE_DEBOUNCE_MS = 900;
-const COPY_RESET_MS = 1500;
 
 /** What the status line says for a given save state. */
 export function statusFor(state, verdict) {
@@ -33,29 +34,6 @@ export function statusFor(state, verdict) {
 /** Retry backoff after a failed autosave; capped so it never sleeps forever. */
 export function nextDelay(attempt) {
   return Math.min(SAVE_DEBOUNCE_MS * 2 ** attempt, 15_000);
-}
-
-function wireCopy() {
-  for (const btn of document.querySelectorAll('[data-copy-target]')) {
-    btn.addEventListener('click', async () => {
-      const el = document.getElementById(btn.dataset.copyTarget);
-      if (!el) return;
-      let ok = true;
-      try {
-        await navigator.clipboard.writeText(el.value);
-      } catch {
-        el.select();
-        ok = typeof document.execCommand === 'function' && document.execCommand('copy');
-      }
-      const original = btn.textContent;
-      btn.textContent = ok ? 'Copied' : 'Copy failed';
-      btn.disabled = true;
-      setTimeout(() => {
-        btn.textContent = original;
-        btn.disabled = false;
-      }, COPY_RESET_MS);
-    });
-  }
 }
 
 function wireAutosave() {
@@ -135,6 +113,6 @@ function wireAutosave() {
 }
 
 export function init() {
-  wireCopy();
+  wireCopy(document);
   wireAutosave();
 }
