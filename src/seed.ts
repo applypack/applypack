@@ -35,91 +35,26 @@ const OBSOLETE_TOKENS: Array<{ atsType: AtsType; atsToken: string }> = [
   { atsType: AtsType.LEVER, atsToken: 'toggl' },
   { atsType: AtsType.LEVER, atsToken: 'scribd' },
   { atsType: AtsType.LEVER, atsToken: 'attentivemobile' },
+  // moved to Ashby (31 / 103 open jobs there on 2026-09-05); both boards
+  // now live in the starter-pack catalog (ADR 0040)
+  { atsType: AtsType.GREENHOUSE, atsToken: 'pleo' },
+  { atsType: AtsType.LEVER, atsToken: 'plaid' },
 ];
 
+/*
+ * The default set is the aggregators, switched on, and the regional feeds,
+ * off — the same nine boards answer a fresh install in Kyiv and one in
+ * Austin, and the boards for a place are one press on the wizard's fourth
+ * step. No employer board is on by default (ADR 0040): the curated ones
+ * live in src/starter-packs/catalog.json and arrive as a pack the user
+ * previews and confirms. What stays here per vendor is one reference
+ * board, off, so the vendor's fetcher has a live row to be checked against.
+ * The upsert below never touches `active` on an existing row, so an install
+ * that has the old boards keeps them as they are.
+ */
 const SEED_COMPANIES: SeedCompany[] = [
-  // Greenhouse
-  { name: 'Pantheon', atsType: AtsType.GREENHOUSE, atsToken: 'pantheon' },
-  { name: 'Acquia', atsType: AtsType.GREENHOUSE, atsToken: 'acquia' },
-  { name: 'TaskRabbit', atsType: AtsType.GREENHOUSE, atsToken: 'taskrabbit' },
-  {
-    name: 'Wikimedia Foundation',
-    atsType: AtsType.GREENHOUSE,
-    atsToken: 'wikimedia',
-  },
-  { name: 'Doximity', atsType: AtsType.GREENHOUSE, atsToken: 'doximity' },
-  { name: 'Lattice', atsType: AtsType.GREENHOUSE, atsToken: 'lattice' },
-  { name: 'Gusto', atsType: AtsType.GREENHOUSE, atsToken: 'gusto' },
-  { name: 'Square (Block)', atsType: AtsType.GREENHOUSE, atsToken: 'block' },
-  { name: 'Affirm', atsType: AtsType.GREENHOUSE, atsToken: 'affirm' },
-  { name: 'Betterment', atsType: AtsType.GREENHOUSE, atsToken: 'betterment' },
-  { name: 'Reddit', atsType: AtsType.GREENHOUSE, atsToken: 'reddit' },
-  { name: 'MongoDB', atsType: AtsType.GREENHOUSE, atsToken: 'mongodb' },
-  { name: 'Pleo', atsType: AtsType.GREENHOUSE, atsToken: 'pleo' },
-  { name: 'Attentive', atsType: AtsType.GREENHOUSE, atsToken: 'attentive' },
-  // HigherLogic — added phase-7.3 as the long-tail case the system needs
-  // to scale to: companies that post a handful of matching roles without
-  // ever crowding the aggregator boards. The /companies UI is the proper
-  // way to grow this list; the seed is just a starter set.
-  {
-    name: 'HigherLogic',
-    atsType: AtsType.GREENHOUSE,
-    atsToken: 'higherlogic',
-    careerUrl: 'https://www.higherlogic.com/about/careers/',
-  },
-
-  // Lever — verified live as of phase-7.2 re-seed:
-  //   plaid: ~95 postings; lots of fintech engineering, broad role-type
-  //     coverage (Data Engineer / Eng Manager / Sales Engineer / Backend
-  //     in mix). Always-on hiring.
-  //   spotify: ~180 postings; many "Backend Engineer - X" titles that
-  //     match the default profile's roleTypes filter directly.
-  // Both endpoints respond 200 with non-trivial payloads. Other Lever
-  // tokens we tried (figma/discord/box/retool/grammarly/etc.) are now
-  // 404 — those companies migrated off Lever to Greenhouse / Workable
-  // / private ATSes between 2024 and 2026.
-  {
-    name: 'Plaid',
-    atsType: AtsType.LEVER,
-    atsToken: 'plaid',
-    careerUrl: 'https://plaid.com/careers/openings',
-  },
-  {
-    name: 'Spotify',
-    atsType: AtsType.LEVER,
-    atsToken: 'spotify',
-    careerUrl: 'https://www.lifeatspotify.com/jobs',
-  },
-
-  // Ashby
-  {
-    name: 'Buffer',
-    atsType: AtsType.ASHBY,
-    atsToken: 'buffer',
-    careerUrl: 'https://buffer.com/journey',
-  },
-  {
-    name: 'Niantic',
-    atsType: AtsType.ASHBY,
-    atsToken: 'niantic',
-    careerUrl: 'https://nianticlabs.com/careers',
-  },
-  {
-    name: 'Scribd / Everand',
-    atsType: AtsType.ASHBY,
-    atsToken: 'scribdinc',
-    careerUrl: 'https://www.scribd.com/about',
-  },
-
-  // Recruitee (F2) — verified live 2026-08-31. Channable: Utrecht SaaS
-  // with recurring backend/support roles. Tylko: Warsaw furniture-tech,
+  // Recruitee (F2) — verified live 2026-08-31. Tylko: Warsaw furniture-tech,
   // specialised — starts disabled.
-  {
-    name: 'Channable',
-    atsType: AtsType.RECRUITEE,
-    atsToken: 'channable',
-    careerUrl: 'https://jobs.channable.com',
-  },
   {
     name: 'Tylko',
     atsType: AtsType.RECRUITEE,
@@ -150,32 +85,14 @@ const SEED_COMPANIES: SeedCompany[] = [
     active: false,
   },
 
-  // Pinpoint (F2) — verified live 2026-08-31. Digital Science: research
-  // software (Altmetric, Dimensions), recurring engineering roles.
-  // YouLend: London/EU fintech. Dateless source — postedAt is
-  // first-seen time.
-  {
-    name: 'Digital Science',
-    atsType: AtsType.PINPOINT,
-    atsToken: 'digitalscience',
-    careerUrl: 'https://digitalscience.pinpointhq.com',
-  },
+  // Pinpoint (F2) — verified live 2026-08-31. YouLend: London/EU fintech.
+  // Dateless source — postedAt is first-seen time.
   {
     name: 'YouLend',
     atsType: AtsType.PINPOINT,
     atsToken: 'youlend',
     careerUrl: 'https://youlend.pinpointhq.com',
     active: false,
-  },
-
-  // Rippling ATS (F2) — verified live 2026-08-31. Rippling itself:
-  // ~750 open roles incl. lots of engineering; the fetcher caps
-  // per-tick detail fetches at 60, the rest ship title-only.
-  {
-    name: 'Rippling',
-    atsType: AtsType.RIPPLING,
-    atsToken: 'rippling',
-    careerUrl: 'https://ats.rippling.com/rippling/jobs',
   },
 
   // Personio (stage 3d, plan §4.2): the DACH mid-market ATS, public XML per

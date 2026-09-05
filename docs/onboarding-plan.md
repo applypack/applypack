@@ -325,7 +325,10 @@ resumes in one sitting.
 - ~~Step-2 source subset~~ — stage 3 kept **all enabled sources** (the
   same Fetch now run, verdict routed back into setup); the live progress
   line carries the wait. Reopened by #154 with numbers — the analysis and
-  the two decisions it needs are in [onboarding-sources.md](./onboarding-sources.md).
+  the two decisions it needs are in [onboarding-sources.md](./onboarding-sources.md):
+  since v1.61.0 step 2 asks the aggregators alone (591 postings in 17 s on
+  a fresh install), and since v1.62.0 the seed ships no employer board on —
+  they are starter packs the boards step offers (ADR 0040).
 - ~~Step-4 classification cap~~ — the hypothesis of 100 was **measured and
   rejected**. On the `claude_code` CLI engine (a `claude -p` process per
   job, `AI_CONCURRENCY=3`) 100 jobs took 24 min — the wow moment turns

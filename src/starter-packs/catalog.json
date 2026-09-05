@@ -1,5 +1,5 @@
 {
-  "$comment": "Curated starter packs. Every board below was resolved AND identity-checked against the live vendor API on 2026-08-31 (see ADR 0017) — a 200 with jobs proves a board exists, not whose it is. Names whose slug belongs to someone else, whose board is a demo/test/decommissioned tenant, or whose board holds nothing but 'General Application' are deliberately absent. Re-verify before editing.",
+  "$comment": "Curated starter packs. Every board below was resolved AND identity-checked against the live vendor API on 2026-08-31 (see ADR 0017) — a 200 with jobs proves a board exists, not whose it is. Names whose slug belongs to someone else, whose board is a demo/test/decommissioned tenant, or whose board holds nothing but 'General Application' are deliberately absent. Re-verify before editing. The us-product / eu-product segments and Buffer are the boards src/seed.ts shipped switched on until v1.62 (ADR 0040): each answered the fresh-install fetch of 2026-09-05 with open jobs, and Pleo / Plaid were re-pointed to Ashby (31 / 103 open jobs, probed the same day). Niantic's board was empty and was left out.",
   "segments": [
     {
       "id": "php-laravel",
@@ -25,6 +25,16 @@
       "id": "ua-friendly",
       "label": "UA-friendly remote",
       "blurb": "Ukrainian-founded companies and employers with documented hiring in Ukraine."
+    },
+    {
+      "id": "us-product",
+      "label": "US product companies",
+      "blurb": "Fintech, marketplaces, developer platforms and media hiring mostly in the United States — the boards every install shipped switched on before v1.62."
+    },
+    {
+      "id": "eu-product",
+      "label": "European product companies",
+      "blurb": "Product companies with public boards in Sweden, Denmark, the Netherlands and the UK."
     }
   ],
   "companies": [
@@ -51,7 +61,6 @@
     { "name": "Rocket.Chat", "segment": "php-laravel", "atsType": "GREENHOUSE", "atsToken": "rocketchat" },
     { "name": "Kit", "segment": "php-laravel", "atsType": "ASHBY", "atsToken": "kit" },
     { "name": "Perforce", "segment": "php-laravel", "atsType": "LEVER", "atsToken": "perforce" },
-
     { "name": "Vercel", "segment": "js-infra", "atsType": "GREENHOUSE", "atsToken": "vercel" },
     { "name": "Netlify", "segment": "js-infra", "atsType": "GREENHOUSE", "atsToken": "netlify" },
     { "name": "Cloudflare", "segment": "js-infra", "atsType": "GREENHOUSE", "atsToken": "cloudflare" },
@@ -81,7 +90,6 @@
     { "name": "Descope", "segment": "js-infra", "atsType": "GREENHOUSE", "atsToken": "descope" },
     { "name": "Replit", "segment": "js-infra", "atsType": "ASHBY", "atsToken": "replit" },
     { "name": "JetBrains", "segment": "js-infra", "atsType": "GREENHOUSE", "atsToken": "jetbrains" },
-
     { "name": "Linear", "segment": "js-product", "atsType": "ASHBY", "atsToken": "linear" },
     { "name": "Vanta", "segment": "js-product", "atsType": "ASHBY", "atsToken": "vanta" },
     { "name": "Sanity", "segment": "js-product", "atsType": "ASHBY", "atsToken": "sanity" },
@@ -96,7 +104,6 @@
     { "name": "Miro", "segment": "js-product", "atsType": "ASHBY", "atsToken": "miro" },
     { "name": "SurveyMonkey", "segment": "js-product", "atsType": "ASHBY", "atsToken": "surveymonkey" },
     { "name": "Contentsquare", "segment": "js-product", "atsType": "LEVER", "atsToken": "contentsquare" },
-
     { "name": "GitLab", "segment": "remote-first", "atsType": "GREENHOUSE", "atsToken": "gitlab" },
     { "name": "Canonical", "segment": "remote-first", "atsType": "GREENHOUSE", "atsToken": "canonical" },
     { "name": "Zapier", "segment": "remote-first", "atsType": "ASHBY", "atsToken": "zapier" },
@@ -106,7 +113,6 @@
     { "name": "Andela", "segment": "remote-first", "atsType": "ASHBY", "atsToken": "andela" },
     { "name": "Percona", "segment": "remote-first", "atsType": "ASHBY", "atsToken": "percona" },
     { "name": "Elastic", "segment": "remote-first", "atsType": "GREENHOUSE", "atsToken": "elastic" },
-
     { "name": "Preply", "segment": "ua-friendly", "atsType": "ASHBY", "atsToken": "preply" },
     { "name": "MacPaw", "segment": "ua-friendly", "atsType": "RECRUITEE", "atsToken": "macpaw" },
     { "name": "Restream", "segment": "ua-friendly", "atsType": "ASHBY", "atsToken": "restream" },
@@ -119,6 +125,28 @@
     { "name": "Wirex", "segment": "ua-friendly", "atsType": "BAMBOOHR", "atsToken": "wirex" },
     { "name": "N-iX", "segment": "ua-friendly", "atsType": "GREENHOUSE", "atsToken": "nix" },
     { "name": "Ajax Systems", "segment": "ua-friendly", "atsType": "LEVER", "atsToken": "ajax" },
-    { "name": "Genesis", "segment": "ua-friendly", "atsType": "BREEZY", "atsToken": "gen-tech" }
+    { "name": "Genesis", "segment": "ua-friendly", "atsType": "BREEZY", "atsToken": "gen-tech" },
+    { "name": "Pantheon", "segment": "us-product", "atsType": "GREENHOUSE", "atsToken": "pantheon" },
+    { "name": "Acquia", "segment": "us-product", "atsType": "GREENHOUSE", "atsToken": "acquia" },
+    { "name": "TaskRabbit", "segment": "us-product", "atsType": "GREENHOUSE", "atsToken": "taskrabbit" },
+    { "name": "Wikimedia Foundation", "segment": "us-product", "atsType": "GREENHOUSE", "atsToken": "wikimedia" },
+    { "name": "Doximity", "segment": "us-product", "atsType": "GREENHOUSE", "atsToken": "doximity" },
+    { "name": "Lattice", "segment": "us-product", "atsType": "GREENHOUSE", "atsToken": "lattice" },
+    { "name": "Gusto", "segment": "us-product", "atsType": "GREENHOUSE", "atsToken": "gusto" },
+    { "name": "Square (Block)", "segment": "us-product", "atsType": "GREENHOUSE", "atsToken": "block" },
+    { "name": "Affirm", "segment": "us-product", "atsType": "GREENHOUSE", "atsToken": "affirm" },
+    { "name": "Betterment", "segment": "us-product", "atsType": "GREENHOUSE", "atsToken": "betterment" },
+    { "name": "Reddit", "segment": "us-product", "atsType": "GREENHOUSE", "atsToken": "reddit" },
+    { "name": "MongoDB", "segment": "us-product", "atsType": "GREENHOUSE", "atsToken": "mongodb" },
+    { "name": "Attentive", "segment": "us-product", "atsType": "GREENHOUSE", "atsToken": "attentive" },
+    { "name": "HigherLogic", "segment": "us-product", "atsType": "GREENHOUSE", "atsToken": "higherlogic" },
+    { "name": "Plaid", "segment": "us-product", "atsType": "ASHBY", "atsToken": "plaid" },
+    { "name": "Scribd / Everand", "segment": "us-product", "atsType": "ASHBY", "atsToken": "scribdinc" },
+    { "name": "Rippling", "segment": "us-product", "atsType": "RIPPLING", "atsToken": "rippling" },
+    { "name": "Spotify", "segment": "eu-product", "atsType": "LEVER", "atsToken": "spotify" },
+    { "name": "Pleo", "segment": "eu-product", "atsType": "ASHBY", "atsToken": "pleo" },
+    { "name": "Channable", "segment": "eu-product", "atsType": "RECRUITEE", "atsToken": "channable" },
+    { "name": "Digital Science", "segment": "eu-product", "atsType": "PINPOINT", "atsToken": "digitalscience" },
+    { "name": "Buffer", "segment": "remote-first", "atsType": "ASHBY", "atsToken": "buffer" }
   ]
 }

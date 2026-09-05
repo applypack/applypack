@@ -244,7 +244,7 @@ When the question is **"where does X live?"**, save yourself a `find`:
 | Discovery candidate extraction | `src/discovery.ts:recordCandidatesFromText` (calls `extractAtsToken`) |
 | URL → ATS recognition (greenhouse/lever/ashby/workable/SR) | `src/text-utils.ts:extractAtsToken` |
 | Manual company probe before save | `src/ats-probe.ts:probeAts` |
-| Curated company packs (catalog, resolve order, preview) | `src/starter-packs/` — `catalog.json` + `resolve.ts` (pure) + `probe.ts`; ADR 0017 |
+| Curated company packs (catalog, resolve order, preview), and which packs the wizard offers | `src/starter-packs/` — `catalog.json` + `resolve.ts` (pure) + `probe.ts`; ADR 0017. `suggest.ts:packsForSearches` (pure) picks the segments for the running searches' countries, groups, stack and remote-ness; the wizard's boards step lists them and threads `next=welcome` through preview → add → enable (ADR 0040) |
 | What a .docx is made of, and whether Save can write into it | `src/resume/docx-structure.ts:docxStructure` (pure, ADR 0038): `flow` / `structural` / `unsupported`, editable-line count, plain-sentence notes; never stored, recomputed from the bytes on `/resumes/:id` and the target page; `describeStructure` is the one-liner above the editor |
 | Writing the editor's edits back into the user's own .docx | `src/resume/docx-patch.ts:patchDocx(original, analysedText, editedText)` (pure): `diffLines` → the paragraph behind each line (`docx-text.ts:walkDocument` / `renderLines`) → changed window rewritten run by run, tabbed headers split on ` \| `, deletes remove the `w:p`, inserts clone the paragraph above with its `numPr`; refuses table rows, text boxes, shared paragraphs and tab-layout changes; four gates before the bytes leave. Called from `routes/resumes.tsx:saveEdited` |
 | The .docx reader (DOM walk + regex fallback), and why a soft break inside a table cell splits the row | `src/resume/docx-text.ts` — `walkDocument` → `Block[]` (kind, node, lines, table row/cell), `renderLines` → lines + owners, `blocksToText`; the regex reader stays as the fallback and the parity test (`docx-text.test.ts`) pins its output, quirks included, because every stored `resumeText` was rendered by it |
@@ -432,7 +432,7 @@ Coverage is therefore **two-tier**:
 1. **Direct boards** (per-company, narrow but precise) — `Company` rows with `atsType ∈ {GREENHOUSE, LEVER, ASHBY, WORKABLE, SMARTRECRUITERS, RECRUITEE, BREEZY, BAMBOOHR, PINPOINT, RIPPLING, PERSONIO, TEAMTAILOR}`. Curated by the user via `/companies` (paste a board URL → manual probe → save) or seeded in `src/seed.ts`. Catches every job at the companies you've added; misses everything else.
 2. **Cross-company aggregators** (broad but noisy) — `LARAJOBS_RSS`, `REMOTEOK`, `REMOTIVE`, `JOBICY`, `WEWORKREMOTELY`, `HN_HIRING`, `HN_JOBS`, `ARBEITNOW`, `GOLANGPROJECTS`, `WORKINGNOMADS`, `HIMALAYAS`, `FOURDAYWEEK`, `SOLIDJOBS`, `DEVITJOBS`, `LANDINGJOBS`, `JOBTECH`, `ADZUNA`, `FRANCETRAVAIL` (both need the user's key). Each is a single synthetic Company row that ingests jobs from many employers we'd never seed individually (PSI CRO, ManTech, DoorDash, Lemon.io, …). Catches the long tail; lets `passesBaseFilter` + Claude cull the noise.
 
-Common user trap: disabling all aggregators in `/settings → Job sources` because "I want only Greenhouse" produces near-zero new jobs (we have ~15 seeded Greenhouse boards, most don't post matching roles weekly). The cure is to **leave aggregators enabled** and let the profile filter narrow scope. Document this in any user-facing copy that talks about "monitoring".
+Common user trap: disabling all aggregators in `/settings → Job sources` because "I want only Greenhouse" produces near-zero new jobs (a fresh install has no employer board switched on — they arrive as starter packs, and most post a matching role rarely; ADR 0040). The cure is to **leave aggregators enabled** and let the profile filter narrow scope. Document this in any user-facing copy that talks about "monitoring".
 
 When a user finds a job at a company we don't track (e.g. via LinkedIn), the right path is:
 - Paste the board URL into `/companies → Add company` — the form runs `extractAtsToken` + `probeAts` and refuses to save if the slug doesn't resolve. One-click promote into the rotation.
@@ -611,7 +611,7 @@ Always:
 1. Add the new value to `AtsType` enum in `prisma/schema.prisma`
 2. `npx prisma migrate dev --name add_<X>` to generate the migration
 3. Wire into `src/fetchers/index.ts:fetchOne` switch
-4. Add seed entry to `src/seed.ts` (active=false if EU-skewed or specialised)
+4. Add ONE reference board to `src/seed.ts`, `active: false` (the seed ships no employer board on — curated ones go to `src/starter-packs/catalog.json`, ADR 0040)
 5. Extend `src/text-utils.ts:extractAtsToken` if discoveryEnabled should pick up URLs from this ATS
 6. Extend `src/ats-probe.ts:probeAts` if the new ATS is per-company (so manual /companies add validates tokens)
 7. Add a unit test for the pure mapper if you have a `mapXFeed(parsed, companyId)` helper

@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { suggestSources, type SuggestSearch } from './suggest';
+import { packsForSearches, suggestSources, type SuggestSearch } from './suggest';
 
 const php: SuggestSearch = {
   name: 'PHP/Laravel',
@@ -142,5 +142,21 @@ describe('suggestSources', () => {
   it('a stack with no known feed name offers nothing for that source', () => {
     const out = suggestSources([{ ...php, stackRequired: ['cobol'] }], []);
     assert.deepEqual(out, []);
+  });
+});
+
+describe('packsForSearches', () => {
+  it('offers the place packs for the countries named and the groups they belong to', () => {
+    assert.deepEqual(packsForSearches([php]), ['php-laravel', 'remote-first', 'ua-friendly', 'eu-product']);
+    const us = { ...php, countries: ['US'], regions: [], workplace: ['ONSITE' as const], stackRequired: ['go'] };
+    assert.deepEqual(packsForSearches([us]), ['us-product']);
+    const de = { ...us, countries: ['DE'], stackRequired: ['TypeScript', 'React'] };
+    assert.deepEqual(packsForSearches([de]), ['js-infra', 'js-product', 'eu-product']);
+  });
+
+  it('a search that hunts anywhere gets the remote-first pack, and nothing else without a stack', () => {
+    assert.deepEqual(packsForSearches([{ countries: [], regions: [], workplace: [], stackRequired: [] }]), ['remote-first']);
+    assert.deepEqual(packsForSearches([{ countries: ['JP'], regions: ['WORLDWIDE'], workplace: [], stackRequired: [] }]), ['remote-first']);
+    assert.deepEqual(packsForSearches([]), []);
   });
 });

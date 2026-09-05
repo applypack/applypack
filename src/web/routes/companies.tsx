@@ -30,6 +30,7 @@ import type { WatchedRow } from '../pages/watchlist';
 import {
   StarterPackPreviewPage,
   StarterPackResultPage,
+  type PackOrigin,
 } from '../pages/starter-pack';
 
 const FLASH_TTL_SECONDS = 5;
@@ -304,6 +305,7 @@ companiesRoute.post('/companies/starter-pack', async (c) => {
   // Repeated checkboxes collapse to the last value without `all` (gotcha 1).
   const form = await c.req.parseBody({ all: true });
   const chosen = toStringArray(form.segment);
+  const next = packOrigin(form.next);
   const targets = companiesInSegments(chosen);
   if (targets.length === 0) {
     return redirectWithFlash(c, 'err', 'Pick at least one segment.');
@@ -325,13 +327,14 @@ companiesRoute.post('/companies/starter-pack', async (c) => {
     .filter((s) => chosen.includes(s.id))
     .map((s) => s.label);
   return c.html(
-    <StarterPackPreviewPage preview={preview} segmentLabels={labels} />,
+    <StarterPackPreviewPage preview={preview} segmentLabels={labels} next={next} />,
   );
 });
 
 companiesRoute.post('/companies/starter-pack/import', async (c) => {
   const form = await c.req.parseBody({ all: true });
   const picks = toStringArray(form.pick);
+  const next = packOrigin(form.next);
   if (picks.length === 0) {
     return redirectWithFlash(c, 'err', 'Nothing selected.');
   }
@@ -382,7 +385,7 @@ companiesRoute.post('/companies/starter-pack/import', async (c) => {
   }
 
   logger.info({ added: added.length, skipped }, 'starter-pack: imported');
-  return c.html(<StarterPackResultPage added={added} skipped={skipped} />);
+  return c.html(<StarterPackResultPage added={added} skipped={skipped} next={next} />);
 });
 
 companiesRoute.post('/companies/starter-pack/enable', async (c) => {
@@ -390,16 +393,23 @@ companiesRoute.post('/companies/starter-pack/enable', async (c) => {
   const ids = toStringArray(form.id)
     .map(Number)
     .filter((n) => Number.isInteger(n));
+  const back = packOrigin(form.next) === 'welcome' ? '/welcome?step=sources' : null;
   if (ids.length === 0) {
-    return redirectWithFlash(c, 'err', 'No companies to enable.');
+    return back ? flashRedirect(back, 'err', 'No companies to enable.') : redirectWithFlash(c, 'err', 'No companies to enable.');
   }
 
   const { count } = await prisma.company.updateMany({
     where: { id: { in: ids }, active: false },
     data: { active: true },
   });
-  return redirectWithFlash(c, 'ok', `Enabled ${count} companies.`);
+  const text = `Enabled ${count} companies.`;
+  return back ? flashRedirect(back, 'ok', text) : redirectWithFlash(c, 'ok', text);
 });
+
+/** The wizard's boards step threads `next=welcome` through preview → add → enable, so the flow returns to setup. */
+function packOrigin(value: unknown): PackOrigin {
+  return toStringArray(value).includes('welcome') ? 'welcome' : undefined;
+}
 
 companiesRoute.post('/companies/:id/toggle-active', async (c) => {
   const id = Number(c.req.param('id'));

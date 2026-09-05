@@ -1,4 +1,4 @@
-import { flagOf, placeLabel } from '../countries';
+import { flagOf, groupsOf, placeLabel } from '../countries';
 import { ADZUNA_MARKETS, adzunaCodeFor } from '../fetchers/adzuna';
 import type { WorkplaceCode } from '../location';
 
@@ -214,4 +214,53 @@ function pick(stack: readonly string[], table: Readonly<Record<string, string>>)
     if (names.length === MAX_FEEDS_PER_SEARCH) break;
   }
   return names;
+}
+
+const JS_STACK = ['javascript', 'typescript', 'node', 'nodejs', 'node.js', 'react', 'vue', 'angular', 'next.js', 'nextjs'];
+
+/**
+ * Each starter-pack segment, in catalog order, with what makes it worth
+ * offering: a country the search names or a group it belongs to, a required
+ * technology, or — for the remote-first pack — a search that hunts anywhere
+ * or takes remote work.
+ */
+const PACK_FITS: readonly {
+  id: string;
+  countries?: readonly string[];
+  regions?: readonly string[];
+  stack?: readonly string[];
+  remote?: true;
+}[] = [
+  { id: 'php-laravel', stack: ['php', 'laravel', 'symfony', 'wordpress', 'drupal', 'magento'] },
+  { id: 'js-infra', stack: JS_STACK },
+  { id: 'js-product', stack: JS_STACK },
+  { id: 'remote-first', remote: true },
+  { id: 'ua-friendly', countries: ['UA'], regions: ['CEE'] },
+  { id: 'us-product', countries: ['US'], regions: ['NORTH_AMERICA', 'AMERICAS'] },
+  { id: 'eu-product', regions: ['EU', 'EEA', 'EUROPE', 'DACH', 'NORDICS', 'BENELUX', 'CEE', 'UK_IE'] },
+];
+
+type PackSearch = Pick<SuggestSearch, 'countries' | 'regions' | 'workplace' | 'stackRequired'>;
+
+function packFits(pack: (typeof PACK_FITS)[number], search: PackSearch): boolean {
+  if (pack.remote) {
+    const anywhere = (search.countries.length === 0 && search.regions.length === 0) || search.regions.includes('WORLDWIDE');
+    return anywhere || search.workplace.includes('REMOTE');
+  }
+  const regions = new Set([...search.regions, ...search.countries.flatMap(groupsOf)]);
+  const stack = new Set(search.stackRequired.map((t) => t.trim().toLowerCase()));
+  return (
+    (pack.countries?.some((c) => search.countries.includes(c)) ?? false) ||
+    (pack.regions?.some((r) => regions.has(r)) ?? false) ||
+    (pack.stack?.some((t) => stack.has(t)) ?? false)
+  );
+}
+
+/**
+ * Which starter packs fit the running searches — offered on the wizard's
+ * boards step, never presumed (ADR 0040: the seed ships no employer board).
+ * Catalog order; segment ids.
+ */
+export function packsForSearches(searches: readonly PackSearch[]): string[] {
+  return PACK_FITS.filter((pack) => searches.some((s) => packFits(pack, s))).map((pack) => pack.id);
 }
