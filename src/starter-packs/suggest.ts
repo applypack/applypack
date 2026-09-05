@@ -216,38 +216,51 @@ function pick(stack: readonly string[], table: Readonly<Record<string, string>>)
   return names;
 }
 
-/** Starter-pack segments and the countries, regions and stack words that make each worth offering. */
-const PACK_FOR: readonly { id: string; countries?: readonly string[]; regions?: readonly string[]; stack?: readonly string[] }[] = [
+const JS_STACK = ['javascript', 'typescript', 'node', 'nodejs', 'node.js', 'react', 'vue', 'angular', 'next.js', 'nextjs'];
+
+/**
+ * Each starter-pack segment, in catalog order, with what makes it worth
+ * offering: a country the search names or a group it belongs to, a required
+ * technology, or — for the remote-first pack — a search that hunts anywhere
+ * or takes remote work.
+ */
+const PACK_FITS: readonly {
+  id: string;
+  countries?: readonly string[];
+  regions?: readonly string[];
+  stack?: readonly string[];
+  remote?: true;
+}[] = [
   { id: 'php-laravel', stack: ['php', 'laravel', 'symfony', 'wordpress', 'drupal', 'magento'] },
-  { id: 'js-infra', stack: ['javascript', 'typescript', 'node', 'nodejs', 'node.js', 'react', 'vue', 'angular', 'next.js', 'nextjs'] },
-  { id: 'js-product', stack: ['javascript', 'typescript', 'node', 'nodejs', 'node.js', 'react', 'vue', 'angular', 'next.js', 'nextjs'] },
+  { id: 'js-infra', stack: JS_STACK },
+  { id: 'js-product', stack: JS_STACK },
+  { id: 'remote-first', remote: true },
   { id: 'ua-friendly', countries: ['UA'], regions: ['CEE'] },
   { id: 'us-product', countries: ['US'], regions: ['NORTH_AMERICA', 'AMERICAS'] },
   { id: 'eu-product', regions: ['EU', 'EEA', 'EUROPE', 'DACH', 'NORDICS', 'BENELUX', 'CEE', 'UK_IE'] },
 ];
 
+type PackSearch = Pick<SuggestSearch, 'countries' | 'regions' | 'workplace' | 'stackRequired'>;
+
+function packFits(pack: (typeof PACK_FITS)[number], search: PackSearch): boolean {
+  if (pack.remote) {
+    const anywhere = (search.countries.length === 0 && search.regions.length === 0) || search.regions.includes('WORLDWIDE');
+    return anywhere || search.workplace.includes('REMOTE');
+  }
+  const regions = new Set([...search.regions, ...search.countries.flatMap(groupsOf)]);
+  const stack = new Set(search.stackRequired.map((t) => t.trim().toLowerCase()));
+  return (
+    (pack.countries?.some((c) => search.countries.includes(c)) ?? false) ||
+    (pack.regions?.some((r) => regions.has(r)) ?? false) ||
+    (pack.stack?.some((t) => stack.has(t)) ?? false)
+  );
+}
+
 /**
  * Which starter packs fit the running searches — offered on the wizard's
  * boards step, never presumed (ADR 0040: the seed ships no employer board).
- * "Remote-first, worldwide" fits a search that hunts anywhere or takes
- * remote work; a place pack fits a country the search names or a group it
- * belongs to; a stack pack fits a required technology. Catalog order.
+ * Catalog order; segment ids.
  */
-export function packsForSearches(
-  searches: readonly Pick<SuggestSearch, 'countries' | 'regions' | 'workplace' | 'stackRequired'>[],
-): string[] {
-  const out = new Set<string>();
-  for (const search of searches) {
-    const anywhere = (search.countries.length === 0 && search.regions.length === 0) || search.regions.includes('WORLDWIDE');
-    if (anywhere || search.workplace.includes('REMOTE')) out.add('remote-first');
-    const regions = new Set([...search.regions, ...search.countries.flatMap(groupsOf)]);
-    const stack = new Set(search.stackRequired.map((t) => t.trim().toLowerCase()));
-    for (const pack of PACK_FOR) {
-      const place = pack.countries?.some((c) => search.countries.includes(c)) || pack.regions?.some((r) => regions.has(r));
-      const tech = pack.stack?.some((t) => stack.has(t));
-      if (place || tech) out.add(pack.id);
-    }
-  }
-  const order = ['php-laravel', 'js-infra', 'js-product', 'remote-first', 'ua-friendly', 'us-product', 'eu-product'];
-  return order.filter((id) => out.has(id));
+export function packsForSearches(searches: readonly PackSearch[]): string[] {
+  return PACK_FITS.filter((pack) => searches.some((s) => packFits(pack, s))).map((pack) => pack.id);
 }

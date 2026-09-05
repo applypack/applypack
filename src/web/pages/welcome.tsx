@@ -28,6 +28,15 @@ import { SCORE_BATCH } from '../../jobs/score-pick';
 import { WELCOME_STEPS, type WelcomeStep } from '../welcome-steps';
 import type { SourceSuggestion } from '../../starter-packs/suggest';
 
+/** A starter pack that fits the running searches, and how much of it is here already (ADR 0040). */
+export interface PackOffer {
+  id: string;
+  label: string;
+  blurb: string;
+  count: number;
+  tracked: number;
+}
+
 /*
  * First-run wizard (docs/onboarding-plan.md §2). One screen, one action:
  * the checklist on top, the first undone step below it. Copy stays in plain
@@ -102,7 +111,7 @@ export interface WelcomeProps {
     draft: ProfileDraftCard | null;
   };
   /** The boards that fit where the searches hunt, with their state here (#148). */
-  sources: { suggestions: SourceSuggestion[] };
+  sources: { suggestions: SourceSuggestion[]; packs: PackOffer[] };
   matches: {
     scoredCount: number;
     matchCount: number;
@@ -627,8 +636,9 @@ const SourcesStep: FC<WelcomeProps> = ({ sources, steps }) => {
     <StepCard n={4} step="sources" done={done}>
       {sources.suggestions.length === 0 ? (
         <p class="text-sm text-ink-muted">
-          Your searches hunt where the boards already switched on look — nothing to add. Name a
-          country in Settings → Profile and the boards for it show up here.
+          {sources.packs.length > 0
+            ? 'No board feed fits where your searches hunt yet — the starter packs below do.'
+            : 'Your searches hunt where the boards already switched on look — nothing to add. Name a country in Settings → Profile and the boards for it show up here.'}
         </p>
       ) : (
         <>
@@ -650,6 +660,35 @@ const SourcesStep: FC<WelcomeProps> = ({ sources, steps }) => {
             ))}
           </ul>
         </>
+      )}
+      {sources.packs.length > 0 && (
+        <div class="mt-4">
+          <p class="text-[13px] font-medium text-ink">Starter packs for your searches</p>
+          <Hint>
+            Curated employer boards, checked by hand. A preview shows what resolves, nothing is
+            added until you confirm, and the boards land switched off.
+          </Hint>
+          <ul class="mt-2 divide-y divide-line rounded-md border border-line">
+            {sources.packs.map((p) => (
+              <li class="flex items-center justify-between gap-4 px-4 py-2.5 text-sm">
+                <span class="min-w-0">
+                  <span class="block font-medium text-ink">
+                    {p.label}{' '}
+                    <span class="font-normal text-ink-faint tabular-nums">
+                      · {p.count} boards{p.tracked > 0 ? `, ${p.tracked} already here` : ''}
+                    </span>
+                  </span>
+                  <span class="block text-[13px] leading-5 text-ink-faint">{p.blurb}</span>
+                </span>
+                <ActionForm action="/companies/starter-pack" hidden={{ segment: p.id, next: 'welcome' }}>
+                  <Button size="sm" variant="secondary">
+                    Preview →
+                  </Button>
+                </ActionForm>
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
       <div class="mt-4 flex flex-wrap items-center gap-2">
         {waiting > 0 && (

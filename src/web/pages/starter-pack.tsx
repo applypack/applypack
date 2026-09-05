@@ -131,20 +131,28 @@ const UnresolvedList: FC<{ entries: UnresolvedEntry[] }> = ({ entries }) => (
   </div>
 );
 
+/** Where the pack flow came from: the wizard's boards step, or Companies (ADR 0040). */
+export type PackOrigin = 'welcome' | undefined;
+
+const backFor = (next: PackOrigin) =>
+  next === 'welcome' ? { href: '/welcome?step=sources', label: 'Setup' } : { href: '/companies', label: 'Companies' };
+
 export const StarterPackPreviewPage: FC<{
   preview: PackPreview;
   segmentLabels: string[];
-}> = ({ preview, segmentLabels }) => (
+  next?: PackOrigin;
+}> = ({ preview, segmentLabels, next }) => (
   <Layout title="Starter pack" active="companies">
     <PageHeader
       title="Starter pack preview"
       meta={`${preview.toAdd.length} to add · ${preview.alreadyAdded.length} already tracked · ${preview.unresolved.length} unresolved`}
-      back={{ href: '/companies', label: 'Companies' }}
+      back={backFor(next)}
     >
       {segmentLabels.join(' · ')}
     </PageHeader>
 
     <form method="post" action="/companies/starter-pack/import">
+      {next && <input type="hidden" name="next" value={next} />}
       <Card class="mb-4">
         <SectionTitle>New boards</SectionTitle>
         {preview.toAdd.length === 0 ? (
@@ -192,12 +200,13 @@ export const StarterPackPreviewPage: FC<{
 export const StarterPackResultPage: FC<{
   added: Array<{ id: number; name: string; atsType: string; atsToken: string }>;
   skipped: number;
-}> = ({ added, skipped }) => (
+  next?: PackOrigin;
+}> = ({ added, skipped, next }) => (
   <Layout title="Starter pack" active="companies">
     <PageHeader
       title="Pack added"
       meta={`${added.length} added${skipped > 0 ? ` · ${skipped} skipped` : ''}`}
-      back={{ href: '/companies', label: 'Companies' }}
+      back={backFor(next)}
     />
 
     <Card>
@@ -226,11 +235,12 @@ export const StarterPackResultPage: FC<{
             </div>
           </div>
           <form method="post" action="/companies/starter-pack/enable" class="mt-4 flex gap-2">
+            {next && <input type="hidden" name="next" value={next} />}
             {added.map((a) => (
               <input type="hidden" name="id" value={String(a.id)} />
             ))}
             <Button>Enable all {added.length}</Button>
-            <Button href="/companies" variant="ghost">
+            <Button href={backFor(next).href} variant="ghost">
               Leave disabled
             </Button>
           </form>

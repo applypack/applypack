@@ -4,7 +4,11 @@ import { isRelocation } from '../../eligibility';
 import { CronRunStatus, JobStatus, type Profile } from '@prisma/client';
 import { prisma } from '../../db';
 import { getAiKeys, setAiKey, setFetchingEnabled, setSetupCompleted } from '../../settings';
-import { getActiveProfile, updateProfile, type ProfileInput } from '../../profiles';
+import { getActiveProfile, listActiveProfiles, updateProfile, type ProfileInput } from '../../profiles';
+import { isBlankProfile } from '../../profile-guards';
+import { packsForSearches } from '../../starter-packs/suggest';
+import { companiesInSegments, countsBySegment, segments } from '../../starter-packs/catalog';
+import { keyOf } from '../../starter-packs/resolve';
 import { flagOf, placeLabel, resolveCountries } from '../../countries';
 import { searchPlaces } from '../../fetchers/fetch-context';
 import { isAggregator } from '../source-groups';
@@ -35,7 +39,7 @@ import { claimRun, findLiveRun, startRun, updateRun } from '../target-runs';
 import { testAiEngine } from '../ai-test';
 import { clearFlashCookie, flashRedirect, parseFlashCookie } from '../flash';
 import { nameFromFilename, readResumeUpload, resumeUploadLimit } from '../upload';
-import { WelcomePage, type LastSearch, type ProfileDraftCard } from '../pages/welcome';
+import { WelcomePage, type LastSearch, type PackOffer, type ProfileDraftCard } from '../pages/welcome';
 import { loadWelcomeContext } from '../welcome-facts';
 import {
   WELCOME_STEPS,
@@ -61,10 +65,11 @@ welcomeRoute.get('/welcome', async (c) => {
   const requested = c.req.query('step');
   const current = isWelcomeStep(requested) ? requested : currentStep(facts);
 
-  const [resumes, lastSearch, aggregators, matchCount, top, waiting] = await Promise.all([
+  const [resumes, lastSearch, aggregators, packs, matchCount, top, waiting] = await Promise.all([
     listResumes(),
     findLastSearch(),
     countAggregators(),
+    packOffers(),
     profile
       ? prisma.job.count({
           where: { fitScore: { gte: profile.minFitScore }, status: { not: JobStatus.DISMISSED } },
@@ -115,7 +120,7 @@ welcomeRoute.get('/welcome', async (c) => {
         resumes: resumes.map((r) => ({ id: r.id, name: r.name })),
         draft,
       }}
-      sources={{ suggestions }}
+      sources={{ suggestions, packs }}
       matches={{
         scoredCount: facts.scoredCount,
         matchCount,
@@ -368,6 +373,25 @@ welcomeRoute.post('/welcome/score', async (c) => {
 });
 
 /* ---------- helpers ---------- */
+
+/** The starter packs that fit the running searches, less any already here in full (ADR 0040). */
+async function packOffers(): Promise<PackOffer[]> {
+  const [profiles, tracked] = await Promise.all([
+    listActiveProfiles(),
+    prisma.company.findMany({ select: { atsType: true, atsToken: true } }),
+  ]);
+  const fit = new Set(packsForSearches(profiles.filter((p) => !isBlankProfile(p))));
+  const here = new Set(tracked.map((r) => keyOf(r.atsType, r.atsToken)));
+  const counts = countsBySegment();
+  return segments()
+    .filter((s) => fit.has(s.id))
+    .map((s) => ({
+      ...s,
+      count: counts.get(s.id) ?? 0,
+      tracked: companiesInSegments([s.id]).filter((c) => here.has(keyOf(c.atsType, c.atsToken))).length,
+    }))
+    .filter((p) => p.tracked < p.count);
+}
 
 /** The aggregators switched on — what step 2 asks. */
 async function countAggregators(): Promise<number> {
