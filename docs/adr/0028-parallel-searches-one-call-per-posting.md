@@ -125,6 +125,12 @@ search on that posting, where N calls would have failed independently.
 that search's `JobScore` rows only, but the best-of on `Job` must be recomputed.
 ❌ Eight searches is still one person's dashboard. The chips, the score row and
 the digest were designed for a handful, not for a team.
+❌ Deleting a search cascades its `JobScore` rows, but the best-of on `Job`
+(`fitScore`, `fitReason`) keeps that search's numbers until the posting is
+scored again. Accepted (#71): the winner columns are a cache of the per-search
+rows, and recomputing them on every profile delete was judged not worth the
+write. If it ever matters, recompute the winner from the remaining `JobScore`
+rows when a profile is deleted.
 
 ## When to revisit
 
