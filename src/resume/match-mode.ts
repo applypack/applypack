@@ -32,13 +32,19 @@ export function readMatchMode(breakdown: unknown): MatchMode {
  */
 export function storedBreakdown(
   bd: ScoreBreakdown,
-  meta: { promptVersion: number | null; mode: MatchMode; frame: FrameReason | null },
+  meta: {
+    promptVersion: number | null;
+    mode: MatchMode;
+    frame: FrameReason | null;
+    /** The verification whose company context a full row read; null for a quick check or none stored (#162 stage 2). */
+    verificationId: number | null;
+  },
 ): Record<string, unknown> {
-  return { ...bd, promptVersion: meta.promptVersion, mode: meta.mode, frame: meta.frame };
+  return { ...bd, promptVersion: meta.promptVersion, mode: meta.mode, frame: meta.frame, verificationId: meta.verificationId };
 }
 
-/** The same JSON after suggestions were added — the row is now a full analysis. */
-export function withSuggestionsMode(breakdown: unknown): Record<string, unknown> {
+/** The same JSON after suggestions were added — the row is now a full analysis, read with this verification's context. */
+export function withSuggestionsMode(breakdown: unknown, verificationId: number | null): Record<string, unknown> {
   const base = typeof breakdown === 'object' && breakdown !== null ? (breakdown as Record<string, unknown>) : {};
-  return { ...base, mode: 'full' };
+  return { ...base, mode: 'full', verificationId };
 }

@@ -15,7 +15,7 @@ import {
 import { readBreakdown } from './score';
 import { loadKeywordMatcher } from './keyword-matcher';
 import { gateActions } from './replacement-gate';
-import { listFacts, updateMatchSuggestions } from './store';
+import { getLatestVerificationContext, listFacts, updateMatchSuggestions } from './store';
 
 
 /**
@@ -27,10 +27,10 @@ import { listFacts, updateMatchSuggestions } from './store';
  */
 export async function suggestForMatch(
   match: ResumeMatch,
-  job: MatchJobInput,
+  job: MatchJobInput & { id: number },
   onError?: (reason: string) => void,
 ): Promise<ResumeMatch | null> {
-  const facts = await listFacts();
+  const [facts, verification] = await Promise.all([listFacts(), getLatestVerificationContext(job.id)]);
   const prompt = buildSuggestionsPrompt(match.resumeText, job, {
     summary: match.summary,
     alignment: readBreakdown(match.breakdown)?.alignment ?? null,
@@ -38,6 +38,8 @@ export async function suggestForMatch(
     hardRequirements: readHardRequirements(match.hardRequirements),
     confirmedFacts: facts.filter((f) => f.status === 'confirmed').map((f) => ({ term: f.term, note: f.note })),
     deniedTerms: facts.filter((f) => f.status === 'denied').map((f) => f.term),
+    // Context for the "why" lines, never evidence (ADR 0042).
+    companySnapshot: verification?.snapshot ?? null,
   });
   const answer = await askForJson(
     await getAiRuntime(),
@@ -59,7 +61,7 @@ export async function suggestForMatch(
     keywords: readKeywords(match.keywords),
     matcher: await loadKeywordMatcher(),
   });
-  const row = await updateMatchSuggestions(match.id, { ...answer.data, actions: gate.actions });
+  const row = await updateMatchSuggestions(match.id, { ...answer.data, actions: gate.actions }, verification?.id ?? null);
   logger.info(
     {
       matchId: match.id,

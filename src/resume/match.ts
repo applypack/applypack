@@ -21,17 +21,20 @@ import { anchorKeywords, elsewhereForPosting } from './keyword-anchor';
 import { planKeywordFrame } from './keyword-frame';
 import { loadKeywordMatcher } from './keyword-matcher';
 import { readMatchMode, type MatchMode } from './match-mode';
-import { readPromptVersion, reuseDecision } from './match-reuse';
+import { pickReusable, readPromptVersion, readVerificationId } from './match-reuse';
 import { scoreMatch } from './score';
 import {
   createMatch,
   getLatestMatchForJob,
-  getLatestMatchForResumeAndJob,
+  getLatestVerificationContext,
   listFacts,
+  listMatchesForText,
   listOtherResumeSkills,
 } from './store';
 
 const PREVIOUS_KEYWORDS_MAX = 40;
+/** How many rows on the same text the memo looks through — identical text only lands twice by a forced run, a rebuild or a fast-then-full pair. */
+const REUSE_CANDIDATES = 4;
 
 
 /**
@@ -54,11 +57,14 @@ export async function matchResumeToJob(
   opts: { draft?: boolean; mode?: MatchMode; rebuild?: boolean; onError?: (reason: string) => void } = {},
 ): Promise<ResumeMatch | null> {
   const mode = opts.mode ?? 'fast';
-  const [facts, otherSkills, previousMatch, matcher] = await Promise.all([
+  const [facts, otherSkills, previousMatch, matcher, verification] = await Promise.all([
     listFacts(),
     listOtherResumeSkills(resume.id),
     getLatestMatchForJob(job.id),
     loadKeywordMatcher(),
+    // The full analysis reads what the verifier learned about the company as
+    // context; the quick check never does (ADR 0042).
+    mode === 'full' ? getLatestVerificationContext(job.id) : null,
   ]);
   // The user's own edits to the last frame for this posting: the levels they
   // set go into the prompt, and carryOverrides puts every override back on the
@@ -85,6 +91,7 @@ export async function matchResumeToJob(
           .slice(0, PREVIOUS_KEYWORDS_MAX)
           .map((k) => ({ term: k.term, priority: k.priority, requirement: k.requirement, primary: k.primary }))
       : undefined,
+    companySnapshot: verification?.snapshot ?? null,
   };
   const answer = await askForJson(
     await getAiRuntime(),
@@ -129,6 +136,7 @@ export async function matchResumeToJob(
     promptVersion: PROMPT_VERSION,
     mode,
     frame: frame.reason,
+    verificationId: verification?.id ?? null,
   });
   logger.info(
     {
@@ -149,6 +157,7 @@ export async function matchResumeToJob(
       readded: carry.readded,
       frame: frame.reason,
       promptVersion: PROMPT_VERSION,
+      verificationId: verification?.id ?? null,
       elsewhere: context.otherResumeSkills?.length,
       chars: answer.chars,
       ms: answer.ms,
@@ -170,13 +179,17 @@ export async function findReusableMatch(
   text: string,
   mode: MatchMode,
 ): Promise<{ row: ResumeMatch; decision: 'reuse' | 'suggest' } | null> {
-  const previous = await getLatestMatchForResumeAndJob(jobId, resumeId);
-  if (!previous) return null;
-  const stored = {
-    resumeText: previous.resumeText,
-    promptVersion: readPromptVersion(previous.breakdown),
-    mode: readMatchMode(previous.breakdown),
-  };
-  const decision = reuseDecision(stored, text, PROMPT_VERSION, mode);
-  return decision === 'none' ? null : { row: previous, decision };
+  const [rows, verification] = await Promise.all([
+    listMatchesForText(jobId, resumeId, text, REUSE_CANDIDATES),
+    mode === 'full' ? getLatestVerificationContext(jobId) : null,
+  ]);
+  const stored = rows.map((match) => ({
+    match,
+    resumeText: match.resumeText,
+    promptVersion: readPromptVersion(match.breakdown),
+    mode: readMatchMode(match.breakdown),
+    verificationId: readVerificationId(match.breakdown),
+  }));
+  const best = pickReusable(stored, text, PROMPT_VERSION, mode, verification?.id ?? null);
+  return best ? { row: best.row.match, decision: best.decision } : null;
 }

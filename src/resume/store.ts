@@ -7,7 +7,7 @@ import { readFrameReason, type FrameReason } from './keyword-frame';
 import { effectiveKeywords } from './keyword-overrides';
 import type { JsonResume } from './json-resume';
 import { readMatchMode, storedBreakdown, withSuggestionsMode, type MatchMode } from './match-mode';
-import { readPromptVersion } from './match-reuse';
+import { readPromptVersion, readVerificationId } from './match-reuse';
 import type { MatchKeyword, MatchSuggestions, ResumeMatchResult, ResumeReviewResult, ResumeScan } from './prompts';
 import { storedReviewBreakdown, type ReviewBreakdown } from './review-score';
 import { readBreakdown, scoreMatch, type ScoreBreakdown } from './score';
@@ -366,10 +366,11 @@ export async function createMatch(input: {
   result: ResumeMatchResult;
   /** Computed by score.ts — the model never sets the number (ADR 0012). */
   breakdown: ScoreBreakdown;
-  /** All three ride inside the breakdown JSON — the memo key (match-reuse.ts), the row's shape (ADR 0029) and where its keyword frame came from (keyword-frame.ts). */
+  /** All four ride inside the breakdown JSON — the memo key (match-reuse.ts), the row's shape (ADR 0029), where its keyword frame came from (keyword-frame.ts) and which verification's company context it read (ADR 0042). */
   promptVersion: number;
   mode: MatchMode;
   frame: FrameReason;
+  verificationId: number | null;
 }): Promise<ResumeMatch> {
   const r = input.result;
   return prisma.resumeMatch.create({
@@ -461,6 +462,7 @@ export async function rescoreMatchKeywords<T>(
           promptVersion: readPromptVersion(match.breakdown),
           mode: readMatchMode(match.breakdown),
           frame: readFrameReason(match.breakdown),
+          verificationId: readVerificationId(match.breakdown),
         }) as Prisma.InputJsonValue,
         matchScore: next.score,
       },
@@ -478,6 +480,8 @@ export async function rescoreMatchKeywords<T>(
 export async function updateMatchSuggestions(
   id: number,
   suggestions: MatchSuggestions,
+  /** The verification whose company context the suggestions call read (ADR 0042). */
+  verificationId: number | null,
 ): Promise<ResumeMatch> {
   const current = await prisma.resumeMatch.findUniqueOrThrow({ where: { id }, select: { breakdown: true } });
   return prisma.resumeMatch.update({
@@ -487,9 +491,28 @@ export async function updateMatchSuggestions(
       cautions: suggestions.cautions,
       actions: suggestions.actions as Prisma.InputJsonValue,
       removals: suggestions.removals as Prisma.InputJsonValue,
-      breakdown: withSuggestionsMode(current.breakdown) as Prisma.InputJsonValue,
+      breakdown: withSuggestionsMode(current.breakdown, verificationId) as Prisma.InputJsonValue,
     },
   });
+}
+
+/**
+ * What the latest "Is this job real?" run learned about the company, for the
+ * full analysis and the suggestions call to read as context (ADR 0042). The
+ * id is the memo key: a full row that read another verification's snapshot
+ * — or none — is stale once a newer run exists. Null when the job was never
+ * verified; a run that wrote no snapshot still counts, so the memo stays
+ * honest about which run the row saw.
+ */
+export async function getLatestVerificationContext(jobId: number): Promise<{ id: number; snapshot: string | null } | null> {
+  const row = await prisma.jobVerification.findFirst({
+    where: { jobId },
+    orderBy: { createdAt: 'desc' },
+    select: { id: true, companySnapshot: true },
+  });
+  if (!row) return null;
+  const snapshot = row.companySnapshot?.trim();
+  return { id: row.id, snapshot: snapshot && snapshot.length > 0 ? snapshot : null };
 }
 
 /* ---------- cover letters (F8, ADR 0021) ---------- */
@@ -522,15 +545,18 @@ export async function getLatestMatchForResumeAndJob(
   });
 }
 
+/** The newest rows that judged exactly this text for (job, resume) — the memo's candidates (match-reuse.ts:pickReusable). */
+export async function listMatchesForText(jobId: number, resumeId: number, text: string, take: number): Promise<ResumeMatch[]> {
+  return prisma.resumeMatch.findMany({
+    where: { jobId, resumeId, resumeText: text },
+    orderBy: { createdAt: 'desc' },
+    take,
+  });
+}
+
 /** Company facts researched by "Is this job real?" — the letter's only company source beyond the posting. */
 export async function getLatestCompanySnapshot(jobId: number): Promise<string | null> {
-  const row = await prisma.jobVerification.findFirst({
-    where: { jobId },
-    orderBy: { createdAt: 'desc' },
-    select: { companySnapshot: true },
-  });
-  const snapshot = row?.companySnapshot?.trim();
-  return snapshot && snapshot.length > 0 ? snapshot : null;
+  return (await getLatestVerificationContext(jobId))?.snapshot ?? null;
 }
 
 /** Only pass|warn letters reach this — a blocked generation persists nothing. */

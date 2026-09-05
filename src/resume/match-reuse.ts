@@ -20,6 +20,8 @@ export interface StoredMatch {
   resumeText: string;
   promptVersion: number | null;
   mode: MatchMode;
+  /** The verification a full row read its company context from; null = none stored, or a row from before the marker. */
+  verificationId?: number | null;
 }
 
 /** reuse = show the row; suggest = the row lacks only suggestions; none = a new analysis. */
@@ -30,9 +32,41 @@ export function reuseDecision(
   text: string,
   promptVersion: number,
   mode: MatchMode,
+  /** The verification a full request would read now; a full row that read another one is stale for a full request (#162 stage 2). */
+  verificationId: number | null = null,
 ): ReuseDecision {
   if (previous === null || previous.promptVersion !== promptVersion || previous.resumeText !== text) return 'none';
+  if (mode === 'full' && previous.mode === 'full' && (previous.verificationId ?? null) !== verificationId) return 'none';
   return previous.mode === 'full' || mode === 'fast' ? 'reuse' : 'suggest';
+}
+
+/**
+ * The newest rows judged on this same text, newest first, and the best of
+ * them: a row to show beats a row that only lacks suggestions — a quick
+ * check written after a full analysis of the same text (the editor's
+ * re-check does that) must not cost a second suggestions call.
+ */
+export function pickReusable<T extends StoredMatch>(
+  rows: T[],
+  text: string,
+  promptVersion: number,
+  mode: MatchMode,
+  verificationId: number | null = null,
+): { row: T; decision: Exclude<ReuseDecision, 'none'> } | null {
+  let suggest: T | null = null;
+  for (const row of rows) {
+    const decision = reuseDecision(row, text, promptVersion, mode, verificationId);
+    if (decision === 'reuse') return { row, decision };
+    if (decision === 'suggest' && suggest === null) suggest = row;
+  }
+  return suggest ? { row: suggest, decision: 'suggest' } : null;
+}
+
+/** The verification id a stored `breakdown` JSON carries, if any (full rows since v1.68.0). */
+export function readVerificationId(breakdown: unknown): number | null {
+  if (typeof breakdown !== 'object' || breakdown === null) return null;
+  const v = (breakdown as { verificationId?: unknown }).verificationId;
+  return Number.isInteger(v) ? (v as number) : null;
 }
 
 /** The prompt version a stored `breakdown` JSON carries, if any. */

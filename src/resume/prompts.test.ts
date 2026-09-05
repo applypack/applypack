@@ -855,3 +855,21 @@ test('the letter greets the addressee the card names, and the rule says how (#16
   const { user: without } = buildCoverPrompt('RESUME BODY', job, { tone: 'warm' });
   assert.doesNotMatch(without, /ADDRESSEE/);
 });
+
+test('the company snapshot reaches the full analysis and the suggestions as context, never the quick check (#162 stage 2)', () => {
+  const job = { title: 'Backend Engineer', companyName: 'Acme', location: 'Remote', description: 'PHP and Laravel.' };
+  const full = buildMatchPrompt('RESUME BODY', job, 'full', { companySnapshot: 'Series B, 40 engineers, Laravel + Vue, calls itself AI-forward.' });
+  assert.match(full.system, /COMPANY CONTEXT, when present, is what an independent check learned/);
+  assert.match(full.system, /It changes NOTHING that is scored: judge every keyword's "status", "primary" and "requirement", the "alignment", "hard_requirements" and "red_flags"/);
+  assert.match(full.system, /not a keyword and not primary unless the POSTING asks for it/);
+  assert.match(full.user, /=== BEGIN UNTRUSTED COMPANY CONTEXT ===\nSeries B, 40 engineers/);
+  const fast = buildMatchPrompt('RESUME BODY', job, 'fast', { companySnapshot: 'Series B, 40 engineers.' });
+  assert.doesNotMatch(fast.user, /COMPANY CONTEXT/);
+  assert.doesNotMatch(fast.system, /COMPANY CONTEXT/);
+  const suggestions = buildSuggestionsPrompt('RESUME BODY', job, { summary: 'ok', alignment: null, keywords: [], hardRequirements: [], companySnapshot: 'Series B.' });
+  assert.match(suggestions.user, /=== BEGIN UNTRUSTED COMPANY CONTEXT ===\nSeries B\./);
+  assert.match(suggestions.system, /COMPANY CONTEXT, when present/);
+  assert.match(suggestions.system, /The verdicts are fixed and it changes none of them/);
+  assert.doesNotMatch(suggestions.system, /"red_flags"/, 'the suggestions call outputs no scored field, so its rule names none');
+  assert.doesNotMatch(buildSuggestionsPrompt('RESUME BODY', job, { summary: 'ok', alignment: null, keywords: [], hardRequirements: [] }).user, /COMPANY CONTEXT/);
+});

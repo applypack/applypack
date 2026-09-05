@@ -4,6 +4,28 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.68.0] — 2026-09-05
+
+### Added
+- **Full analysis and Get suggestions read what the verifier learned about
+  the company.** "Is this job real?" stores a company snapshot (stack, size,
+  stage, practices); until now only the cover letter read it. The full
+  analysis and the suggestions call now take it as a fenced COMPANY CONTEXT
+  block — for emphasis, strengths and each action's *why* ("the team calls
+  itself AI-forward — lead with the Cursor bullet"), never as evidence: no
+  keyword, status, gate or paste-ready wording may rest on it, and the quick
+  check never sees it, so the score is unchanged by design (ADR 0042; the
+  bench's new `--company` flag checks 0 status flips and 0 score changes).
+  A Full analysis re-runs once after a new verification; the quick check and
+  a repeat Full analysis stay memo hits (#162 stage 2).
+
+### Changed
+- **A full analysis behind a newer quick check on the same text is shown
+  again, not suggested again.** The memo looked at the latest row only, so
+  Full analysis → a re-check in the editor → Full analysis paid a second
+  suggestions call for text it had already analysed in full. It now looks
+  through the rows on that exact text and prefers a full one.
+
 ## [1.67.0] — 2026-09-05
 
 ### Added

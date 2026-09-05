@@ -132,7 +132,7 @@ async function runFixture(
 ): Promise<{ checks: Check[]; record: BenchFixture }> {
   const started = Date.now();
   const text = await benchProvider.complete({
-    ...buildMatchPrompt(resume, job, benchMode, context),
+    ...buildMatchPrompt(resume, job, benchMode, { ...context, companySnapshot: benchCompany }),
     maxTokens: benchMode === 'fast' ? MATCH_FAST_MAX_TOKENS : MATCH_MAX_TOKENS,
     label: `bench:${name}`,
     model: benchModel,
@@ -175,6 +175,15 @@ function scoreOf(r: Extract<ReturnType<typeof parseMatchResponse>, { ok: true }>
 let benchProvider: AiProvider = getAiProvider();
 let benchModel: string = config.CLAUDE_MODEL_RESUME;
 let benchMode: MatchMode = 'full';
+/**
+ * --company: a synthetic verification snapshot in every fixture's context, so
+ * a run with it can be laid beside one without (#162 stage 2, ADR 0042): the
+ * rule is 0 status flips and 0 score changes, only better "why" lines. It
+ * names a technology no posting has (GKE), so a flip on it is the tell.
+ */
+let benchCompany: string | null = null;
+const SYNTHETIC_SNAPSHOT =
+  'Series B fintech, about 40 engineers, remote-first across Europe. Backend in Node.js and TypeScript, React front end, PostgreSQL, Kubernetes on GKE. Ships weekly; calls itself AI-forward (Cursor in the daily workflow). Hiring for the payments team.';
 
 async function runSuite(): Promise<{ checks: Check[]; fixtures: BenchFixture[] }> {
   const all: Check[] = [];
@@ -329,6 +338,7 @@ async function main(): Promise<void> {
   // A typo must not quietly bench a different configuration than the one
   // whose numbers get quoted.
   const modeArg = flag(argv, '--mode') ?? 'full';
+  benchCompany = argv.includes('--company') ? SYNTHETIC_SNAPSHOT : null;
   if (modeArg !== 'fast' && modeArg !== 'full') {
     logger.error({ mode: modeArg }, 'bench: --mode must be fast or full');
     process.exit(2);
