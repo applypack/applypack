@@ -50,6 +50,8 @@ export interface ProcessStats {
   preFiltered: number;
   classified: number;
   classifyFailed: number;
+  /** Why the last failed classification failed, in the provider's words (#97). */
+  classifyError: string | null;
   persisted: number;
   dismissed: number;
   alerted: number;
@@ -196,6 +198,9 @@ export async function processNormalizedJobs(
         buildClassifyInput(item.job, item.companyName, item.place),
         profiles,
         classifierMode,
+        (reason) => {
+          stats.classifyError = reason;
+        },
       );
     }),
   }));

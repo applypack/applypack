@@ -101,9 +101,10 @@ export async function classifyJob(
   input: ClassifyInput,
   profiles: Profile[],
   mode: ClassifierMode,
+  onError?: (reason: string) => void,
 ): Promise<ClassifyOutcome> {
   try {
-    return await runStages(input, profiles, mode);
+    return await runStages(input, profiles, mode, onError);
   } catch (err) {
     // Callers queue several classifications and await them in order, so a
     // rejection here would become an unhandled rejection in the meantime.
@@ -116,6 +117,7 @@ async function runStages(
   input: ClassifyInput,
   profiles: Profile[],
   mode: ClassifierMode,
+  onError?: (reason: string) => void,
 ): Promise<ClassifyOutcome> {
   if (profiles.length === 0) return EMPTY;
   if (mode === 'two_stage') {
@@ -134,7 +136,7 @@ async function runStages(
       );
     }
   }
-  return { ...(await classifyWithClaude(input, profiles)), preFiltered: false };
+  return { ...(await classifyWithClaude(input, profiles, onError)), preFiltered: false };
 }
 
 function unique(list: string[]): string[] {
@@ -227,6 +229,7 @@ export function parseClassifications(
 export async function classifyWithClaude(
   input: ClassifyInput,
   profiles: Profile[],
+  onError?: (reason: string) => void,
 ): Promise<Classifications> {
   const { system: systemPrompt, user: userText } = buildClassifyPrompt(input, profiles);
 
@@ -239,6 +242,7 @@ export async function classifyWithClaude(
       maxTokens: BASE_MAX_TOKENS + MAX_TOKENS_PER_PROFILE * profiles.length,
       label: 'classifier',
       role: 'classifier',
+      onError,
     });
     if (out === null) return { results: new Map(), location: null };
 

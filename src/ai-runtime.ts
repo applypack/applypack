@@ -62,6 +62,8 @@ export interface AiCallRequest {
   role: AiRole;
   timeoutMs?: number;
   webTools?: boolean;
+  /** The last engine's one-line reason when no engine answers (#97) — same contract as AiRequest.onError. */
+  onError?: (reason: string) => void;
 }
 
 export interface AiCallResult {
@@ -156,6 +158,7 @@ async function completeWithFailover(
       timeoutMs: Math.min(perAttemptMs, remainingMs),
       webTools: req.webTools,
       apiKey: resolveAiKey(id, keys),
+      onError: req.onError,
     });
     if (text !== null) {
       cooldowns.success(id);
