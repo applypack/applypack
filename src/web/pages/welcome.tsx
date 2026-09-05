@@ -17,6 +17,7 @@ import {
   MarkIcon,
   PillCheckbox,
   Select,
+  TagListInput,
 } from '../ui';
 import type { FlashMessage } from '../flash';
 import { formatDuration } from '../format';
@@ -82,7 +83,15 @@ export interface WelcomeProps {
   fetchingEnabled: boolean;
   telegramEnabled: boolean;
   ai: { engines: EngineStatusRow[] };
-  search: { jobCount: number; last: LastSearch | null; runningRunId: string | null };
+  search: {
+    jobCount: number;
+    last: LastSearch | null;
+    runningRunId: string | null;
+    /** The aggregators switched on — what the test search asks (docs/onboarding-sources.md, Decision B). */
+    aggregators: number;
+    /** The primary search's countries, as the chip editor shows them. */
+    countries: string[];
+  };
   profile: {
     id: number;
     name: string;
@@ -213,6 +222,7 @@ export const WelcomePage: FC<WelcomeProps> = (p) => (
     {p.current === 'sources' && <SourcesStep {...p} />}
     {p.current === 'matches' && <MatchesStep {...p} />}
     {p.current === null && <AllDone {...p} />}
+    <script type="module" dangerouslySetInnerHTML={{ __html: SEARCH_BOOT }} />
   </Layout>
 );
 
@@ -359,7 +369,7 @@ const SearchStep: FC<WelcomeProps> = ({ search, steps }) => {
           </p>
           <div class="mt-4 flex flex-wrap items-center gap-2">
             <Button href="/welcome?step=profile">Continue →</Button>
-            <ActionForm action="/runs/fetch-now" hidden={{ back: '/welcome' }}>
+            <ActionForm action="/welcome/search">
               <Button variant="secondary">Search again</Button>
             </ActionForm>
           </div>
@@ -367,9 +377,10 @@ const SearchStep: FC<WelcomeProps> = ({ search, steps }) => {
       ) : (
         <>
           <p class="text-sm text-ink-muted">
-            Does the job search actually work? Find out before setting anything up: this asks
-            every enabled job board and stores what it finds — no AI, no profile needed. It takes a
-            few minutes; you'll watch the sources answer one by one.
+            Does the job search actually work? Find out before setting anything up: this asks the{' '}
+            {search.aggregators} aggregator boards that are on — the ones that publish every posting
+            they have — and stores what it finds. No AI, no profile needed; you'll watch them answer
+            one by one. The company boards join the hourly watch once your profile exists.
           </p>
           {last && last.fetched === 0 && (
             <p class="mt-2 text-[13px] leading-5 text-warn">
@@ -378,15 +389,24 @@ const SearchStep: FC<WelcomeProps> = ({ search, steps }) => {
               stopped answering.
             </p>
           )}
-          <div class="mt-4 flex flex-wrap items-center gap-2">
-            {search.runningRunId ? (
+          {search.runningRunId ? (
+            <div class="mt-4">
               <Button href={`/runs/fetch-now/${search.runningRunId}`}>Watch the search →</Button>
-            ) : (
-              <ActionForm action="/runs/fetch-now" hidden={{ back: '/welcome' }}>
-                <Button>Run a test search</Button>
-              </ActionForm>
-            )}
-          </div>
+            </div>
+          ) : (
+            <form method="post" action="/welcome/search" class="mt-4">
+              <TagListInput
+                label="Where do you work? (optional)"
+                hint='The boards that can narrow by place will, and your search profile starts from it. Type "Poland", "Polska", "PL" or a city and pick from the list.'
+                name="countries"
+                values={search.countries}
+                placeholder="Poland, Germany, United States…"
+                rows={1}
+                picker="countries"
+              />
+              <Button class="mt-3">Run a test search</Button>
+            </form>
+          )}
         </>
       )}
     </StepCard>
@@ -521,7 +541,8 @@ const ProfileStep: FC<WelcomeProps> = ({ profile, steps }) => {
         <>
           <p class="text-sm text-ink-muted">
             Choose your resume — we read the tools you use and the roles you do, in about half a
-            minute.
+            minute. ApplyPack is built for software engineering roles: the boards, the scan and the
+            scoring assume a tech stack.
           </p>
           <form
             method="post"
@@ -775,3 +796,11 @@ const AllDone: FC<WelcomeProps> = ({ setupCompleted, fetchingEnabled, matches })
     </div>
   </Card>
 );
+
+/** Step 2's country field: the chip editor, then the gazetteer suggestions on top of it. */
+const SEARCH_BOOT = `
+import { mountChipEditors } from '/static/chips.mjs';
+mountChipEditors();
+import { mountCountryPickers } from '/static/countries.mjs';
+mountCountryPickers();
+`;

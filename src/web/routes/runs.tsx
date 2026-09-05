@@ -1,21 +1,11 @@
 /** @jsxImportSource hono/jsx */
 import { Hono } from 'hono';
 import { prisma } from '../../db';
-import { getSettings } from '../../settings';
-import { recordCronRun, type CronStats } from '../../jobs/cron-run';
-import { runFetchJob } from '../../jobs/fetch-job';
 import { RunsPage } from '../pages/runs';
 import { FetchRunPage } from '../pages/fetch-run';
 import { clearFlashCookie, flashRedirect, parseFlashCookie } from '../flash';
-import {
-  FETCH_RUN_STEPS,
-  activeFetchRun,
-  createFetchRun,
-  getFetchRun,
-  recordSource,
-  startFetchRun,
-  updateFetchRun,
-} from '../fetch-runs';
+import { FETCH_RUN_STEPS, activeFetchRun, getFetchRun } from '../fetch-runs';
+import { beginFetchNow } from '../fetch-now';
 import { summarizeFetchRun } from '../fetch-summary';
 
 const RUNS_LIMIT = 100;
@@ -34,34 +24,9 @@ runsRoute.get('/runs', async (c) => {
   );
 });
 
-/**
- * "Fetch now": the hourly tick started from the dashboard — one at a time,
- * in the web process, recorded as a 'fetch-now' CronRun (the re-classify
- * pattern). While the pipeline is paused the run still fetches, but stores
- * new jobs unscored: paused means no AI spend.
- */
+/** "Fetch now" from the Overview or /runs — every source that is due (fetch-now.ts). */
 runsRoute.post('/runs/fetch-now', async (c) => {
-  const form = await c.req.parseBody();
-  // The wizard's "Run a test search" wants the verdict back in setup.
-  const backUrl = form.back === '/welcome' ? '/welcome' : '/runs';
-  const { fetchingEnabled } = await getSettings();
-  // No await between the guard and the create — a double submit lands on the same run.
-  const active = activeFetchRun();
-  if (active) return c.redirect(`/runs/fetch-now/${active.id}`, 303);
-  const run = createFetchRun({ classify: fetchingEnabled, backUrl });
-  startFetchRun(run.id, async () => {
-    let stats: CronStats | undefined;
-    await recordCronRun('fetch-now', async () => {
-      const out = await runFetchJob({
-        manual: true,
-        onSource: (p) => recordSource(run.id, p),
-        onProcessing: () => updateFetchRun(run.id, { stage: 'store' }),
-      });
-      stats = out.stats;
-      return out;
-    });
-    updateFetchRun(run.id, { stage: 'done', stats });
-  });
+  const run = await beginFetchNow({ backUrl: '/runs' });
   return c.redirect(`/runs/fetch-now/${run.id}`, 303);
 });
 
