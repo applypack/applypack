@@ -1,4 +1,5 @@
 import { canonicalTerm } from './facts';
+import { aliasesFor } from './keyword-aliases';
 import type { KeywordMatcher } from './keyword-matcher';
 import type { MatchKeyword } from './prompts';
 
@@ -58,4 +59,18 @@ function longestVerbatimPhrase(term: string, posting: string, matcher: KeywordMa
     }
   }
   return null;
+}
+
+/**
+ * The other-resume hints this posting can use. A skill the posting never
+ * names cannot become one of its keywords, and with four resumes stored the
+ * full list ran to 122 fenced lines on every call (#159). annotateElsewhere
+ * still reads the whole list — it annotates terms the model returned.
+ */
+export function elsewhereForPosting<S extends { skill: string }>(
+  otherSkills: S[],
+  posting: string,
+  matcher: Pick<KeywordMatcher, 'findTerm'>,
+): S[] {
+  return otherSkills.filter((s) => matcher.findTerm(posting, s.skill, aliasesFor(s.skill)).length > 0);
 }

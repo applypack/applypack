@@ -16,7 +16,7 @@ import { annotateElsewhere, applyFacts } from './facts';
 import { gateActions } from './replacement-gate';
 import { withTableAliases } from './keyword-aliases';
 import { carryOverrides, effectiveKeywords } from './keyword-overrides';
-import { anchorKeywords } from './keyword-anchor';
+import { anchorKeywords, elsewhereForPosting } from './keyword-anchor';
 import { planKeywordFrame } from './keyword-frame';
 import { loadKeywordMatcher } from './keyword-matcher';
 import { readMatchMode, type MatchMode } from './match-mode';
@@ -76,7 +76,7 @@ export async function matchResumeToJob(
   const context: MatchContext = {
     confirmedFacts: facts.filter((f) => f.status === 'confirmed').map((f) => ({ term: f.term, note: f.note })),
     deniedTerms: facts.filter((f) => f.status === 'denied').map((f) => f.term),
-    otherResumeSkills: otherSkills,
+    otherResumeSkills: elsewhereForPosting(otherSkills, posting, matcher),
     // The previous run's keyword frame keeps terms/levels stable across
     // versions, so a better resume shows up as a better number. Terms the user
     // ignored are left out of it — asking for them back would be noise.
@@ -148,6 +148,7 @@ export async function matchResumeToJob(
       readded: carry.readded,
       frame: frame.reason,
       promptVersion: PROMPT_VERSION,
+      elsewhere: context.otherResumeSkills?.length,
       chars: answer.chars,
       ms: answer.ms,
     },
