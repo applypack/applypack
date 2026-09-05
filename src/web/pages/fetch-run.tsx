@@ -5,12 +5,18 @@ import { ActionForm, Button, Card, Hint } from '../ui';
 import { RunSteps, type StepView } from './run-steps';
 import { FETCH_RUN_STEPS, type FetchRun } from '../fetch-runs';
 
-function stepView(classify: boolean): Record<string, StepView> {
+function stepView({ classify, scope }: Pick<FetchRun, 'classify' | 'scope'>): Record<string, StepView> {
   return {
-    fetch: {
-      label: 'Ask every enabled source',
-      detail: 'one request per board, a polite second apart — a few minutes',
-    },
+    fetch:
+      scope === 'aggregators'
+        ? {
+            label: 'Ask the aggregators',
+            detail: 'the boards that publish every posting they have, a polite second apart — well under a minute',
+          }
+        : {
+            label: 'Ask every enabled source',
+            detail: 'one request per board, a polite second apart — a few minutes',
+          },
     store: classify
       ? {
           label: 'Score what is new',
@@ -76,7 +82,7 @@ export const FetchRunPage: FC<{ run: FetchRun }> = ({ run }) => {
             </div>
           ) : (
             <>
-              <RunSteps steps={FETCH_RUN_STEPS} currentIdx={currentIdx} view={stepView(run.classify)} />
+              <RunSteps steps={FETCH_RUN_STEPS} currentIdx={currentIdx} view={stepView(run)} />
               <div class="mt-5 flex items-center justify-between gap-3 border-t border-line pt-3">
                 <Hint>You can close this page — the run keeps going, and its row lands on Runs.</Hint>
                 <span id="run-elapsed" class="shrink-0 text-xs tabular-nums text-ink-faint">

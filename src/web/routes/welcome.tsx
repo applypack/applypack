@@ -7,7 +7,7 @@ import { getAiKeys, setAiKey, setFetchingEnabled, setSetupCompleted } from '../.
 import { getActiveProfile, updateProfile, type ProfileInput } from '../../profiles';
 import { flagOf, placeLabel, resolveCountries } from '../../countries';
 import { searchPlaces } from '../../fetchers/fetch-context';
-import { sourceFamily } from '../source-groups';
+import { isAggregator } from '../source-groups';
 import { beginFetchNow } from '../fetch-now';
 import { passesBaseFilter } from '../../filter';
 import { parsePriorityRules } from '../../priority-rules';
@@ -321,7 +321,7 @@ welcomeRoute.post('/welcome/search', async (c) => {
   }
   const run = await beginFetchNow({
     backUrl: '/welcome',
-    only: isAggregator,
+    scope: 'aggregators',
     places: profile ? searchPlaces([profile]) : undefined,
   });
   return c.redirect(`/runs/fetch-now/${run.id}`, 303);
@@ -368,8 +368,6 @@ welcomeRoute.post('/welcome/score', async (c) => {
 });
 
 /* ---------- helpers ---------- */
-
-const isAggregator = (source: { atsType: string }): boolean => sourceFamily(source.atsType) === 'aggregator';
 
 /** The aggregators switched on — what step 2 asks. */
 async function countAggregators(): Promise<number> {
