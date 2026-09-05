@@ -32,7 +32,7 @@ export interface FetchRun {
   sourcesTotal: number | null;
   jobsFetched: number;
   /** The last source that answered, for the activity line. */
-  lastSource: { name: string; count: number; failed: boolean } | null;
+  lastSource: { name: string; count: number; failed: boolean; durationMs: number } | null;
   stats?: CronStats;
   error?: string;
 }
@@ -70,7 +70,7 @@ export function recordSource(id: string, p: SourceProgress): void {
   run.sourcesDone = p.done;
   run.sourcesTotal = p.total;
   run.jobsFetched += p.count;
-  run.lastSource = { name: p.company, count: p.count, failed: isFailureStatus(p.status) };
+  run.lastSource = { name: p.company, count: p.count, failed: isFailureStatus(p.status), durationMs: p.durationMs };
 }
 
 export function getFetchRun(id: string): FetchRun | null {

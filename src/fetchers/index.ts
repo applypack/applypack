@@ -1,4 +1,4 @@
-import { AtsType } from '@prisma/client';
+import { AtsType, type Company } from '@prisma/client';
 import { prisma } from '../db';
 import { logger } from '../logger';
 import { HttpError, sleep } from '../http';
@@ -70,12 +70,29 @@ export interface SourceProgress {
   count: number;
   done: number;
   total: number;
+  /** How long this source took, the polite delay not included (docs/onboarding-sources.md §1). */
+  durationMs: number;
+}
+
+export interface FetchWalkOptions {
+  manual?: boolean;
+  /**
+   * Walk only the sources this keeps. The wizard's test search asks the
+   * aggregators alone — they need no company row and answer with hundreds of
+   * postings each (docs/onboarding-sources.md, Decision B).
+   */
+  only?: (company: Pick<Company, 'atsType'>) => boolean;
+  /**
+   * Where this walk hunts, in place of the running searches' places — the
+   * wizard's "Where do you work?", asked before a search exists.
+   */
+  places?: Pick<FetchContext, 'countries' | 'regions'>;
 }
 
 export async function runAllFetchers(
   isCancelled?: () => Promise<boolean>,
   onSource?: (progress: SourceProgress) => void,
-  opts: { manual?: boolean } = {},
+  opts: FetchWalkOptions = {},
 ): Promise<FetcherResult[]> {
   const settings = await getSettings();
   const disabled = toAtsTypes(settings.disabledSources);
@@ -95,7 +112,7 @@ export async function runAllFetchers(
   // (ADR 0036): the heartbeat still fires, the interval decides which rows it
   // asks. A row with no `nextCheckAt` is due, so every source behaves exactly
   // as it did before the column existed until the user changes one.
-  const due = companies.filter((c) => isDue(c, now));
+  const due = companies.filter((c) => isDue(c, now) && (opts.only?.(c) ?? true));
   const waiting = companies.length - due.length;
   if (waiting > 0) {
     logger.info({ due: due.length, waiting }, 'fetchers: some sources are not due yet');
@@ -104,7 +121,7 @@ export async function runAllFetchers(
   // Where the running searches hunt (stage 3a): sources with a geo filter
   // ask for these places instead of the whole world. Blank searches are
   // left out here as they are in process-jobs — they gate on nothing.
-  const places = searchPlaces((await listActiveProfiles()).filter((p) => !isBlankProfile(p)));
+  const places = opts.places ?? searchPlaces((await listActiveProfiles()).filter((p) => !isBlankProfile(p)));
   if (places.countries.length > 0 || places.regions.length > 0) {
     logger.info(places, 'fetchers: geo-filtered sources follow the searches');
   }
@@ -136,6 +153,7 @@ export async function runAllFetchers(
       break;
     }
     done++;
+    const startedAt = Date.now();
     let status: FetchStatus;
     let count = 0;
     try {
@@ -148,7 +166,7 @@ export async function runAllFetchers(
       // that matches nothing is not a broken board (ADR 0019).
       status = classifyFetchCount(count);
       logger.info(
-        { company: company.name, count, ats: company.atsType, status },
+        { company: company.name, count, ats: company.atsType, status, ms: Date.now() - startedAt },
         'fetcher: ok',
       );
       const watch = watchRules(company);
@@ -166,13 +184,14 @@ export async function runAllFetchers(
         );
       } else {
         logger.error(
-          { err, company: company.name, ats: company.atsType, status },
+          { err, company: company.name, ats: company.atsType, status, ms: Date.now() - startedAt },
           'fetcher: failed',
         );
       }
     }
+    const durationMs = Date.now() - startedAt;
     await recordFetchHealth(company, status, cachedCount(company.id));
-    onSource?.({ company: company.name, status, count, done, total: due.length });
+    onSource?.({ company: company.name, status, count, done, total: due.length, durationMs });
     // Back off in proportion to what we just spent of the board's: a feed we
     // did not download does not earn the same second as one we did.
     await sleep(politeDelayMs(status, company.atsType));

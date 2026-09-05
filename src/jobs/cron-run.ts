@@ -2,7 +2,15 @@ import { CronRunStatus, Prisma } from '@prisma/client';
 import { prisma } from '../db';
 import { logger } from '../logger';
 
-export type CronStats = Record<string, number | string | boolean | null>;
+/** One source's answer in a fetch tick — which boards took the time and which failed (docs/onboarding-sources.md §1). */
+export type SourceStat = {
+  name: string;
+  status: string;
+  count: number;
+  ms: number;
+};
+
+export type CronStats = Record<string, number | string | boolean | null | SourceStat[]>;
 
 interface RunResult<T> {
   result: T;

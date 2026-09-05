@@ -16,17 +16,17 @@ test('sourceLine narrates the sources as they answer', async () => {
       sourcesTotal: 71,
       sourcesDone: 14,
       jobsFetched: 312,
-      lastSource: { name: 'RemoteOK', count: 120, failed: false },
+      lastSource: { name: 'RemoteOK', count: 120, failed: false, durationMs: 1234 },
     }),
-    '14 of 71 sources · 312 jobs so far · RemoteOK: 120 jobs',
+    '14 of 71 sources · 312 jobs so far · RemoteOK: 120 jobs in 1.2s',
   );
   assert.match(
     sourceLine({ sourcesTotal: 71, sourcesDone: 2, jobsFetched: 1, lastSource: { name: 'Acme', count: 0, failed: true } }),
     /1 job so far · Acme: failed$/,
   );
   assert.match(
-    sourceLine({ sourcesTotal: 71, sourcesDone: 3, jobsFetched: 1, lastSource: { name: 'Acme', count: 0, failed: false } }),
-    /Acme: no jobs$/,
+    sourceLine({ sourcesTotal: 71, sourcesDone: 3, jobsFetched: 1, lastSource: { name: 'Acme', count: 0, failed: false, durationMs: 80 } }),
+    /Acme: no jobs in 80ms$/,
   );
 });
 

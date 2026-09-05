@@ -6,6 +6,7 @@ import { Badge, Card, Empty, Flash, PageHeader, Table, Td, Tr } from '../ui';
 import type { FlashMessage } from '../flash';
 import { formatDate, formatDuration } from '../format';
 import type { FetchRun } from '../fetch-runs';
+import type { SourceStat } from '../../jobs/cron-run';
 import { FetchNowButton } from './fetch-run';
 import { runLabel, runTone } from './overview';
 
@@ -68,9 +69,7 @@ export const RunsPage: FC<RunsProps> = ({ runs, fetchRun, flash }) => (
                         {r.errorMessage}
                       </pre>
                     ) : r.stats ? (
-                      <code class="block whitespace-pre-wrap break-words font-mono text-xs leading-5 text-ink-faint">
-                        {JSON.stringify(r.stats)}
-                      </code>
+                      <StatsCell stats={r.stats} />
                     ) : (
                       <span class="text-xs text-ink-faint">—</span>
                     )}
@@ -84,3 +83,34 @@ export const RunsPage: FC<RunsProps> = ({ runs, fetchRun, flash }) => (
     )}
   </Layout>
 );
+
+/**
+ * The stats JSON, with a fetch tick's per-source list folded under it —
+ * slowest first, so the source that took the minute is the first line.
+ */
+const StatsCell: FC<{ stats: unknown }> = ({ stats }) => {
+  const { bySource, ...rest } = (typeof stats === 'object' && stats !== null ? stats : {}) as Record<string, unknown>;
+  const sources = Array.isArray(bySource) ? (bySource as SourceStat[]) : [];
+  return (
+    <>
+      <code class="block whitespace-pre-wrap break-words font-mono text-xs leading-5 text-ink-faint">
+        {JSON.stringify(rest)}
+      </code>
+      {sources.length > 0 && (
+        <details class="mt-1">
+          <summary class="cursor-pointer text-xs text-ink-faint">by source ({sources.length}), slowest first</summary>
+          <ul class="mt-1 font-mono text-xs leading-5 text-ink-faint">
+            {[...sources]
+              .sort((a, b) => b.ms - a.ms)
+              .map((s) => (
+                <li>
+                  {formatDuration(s.ms)} · {s.name} · {s.status}
+                  {s.count > 0 ? ` · ${s.count}` : ''}
+                </li>
+              ))}
+          </ul>
+        </details>
+      )}
+    </>
+  );
+};
