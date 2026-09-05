@@ -1060,7 +1060,7 @@ async function sourcesWaiting(search: Profile): Promise<string> {
   const tracked = await prisma.company.findMany({ select: { id: true, atsType: true, atsToken: true, active: true } });
   const waiting = suggestSources([search], tracked).filter((s) => s.state !== 'on').length;
   if (waiting === 0) return '';
-  return ` ${waiting} source${waiting === 1 ? '' : 's'} fit these countries — see Companies → "Sources for your searches".`;
+  return ` ${waiting} source${waiting === 1 ? '' : 's'} fit these countries — Companies → "Sources for your searches" → Enable all.`;
 }
 
 // Prefill the editor from a resume's AI scan. Renders the draft directly —

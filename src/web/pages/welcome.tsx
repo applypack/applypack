@@ -24,6 +24,7 @@ import { SENIORITY_LEVELS } from '../../resume/profile-draft';
 import type { AiProviderId } from '../../ai-engine';
 import { SCORE_BATCH } from '../../jobs/score-pick';
 import { WELCOME_STEPS, type WelcomeStep } from '../welcome-steps';
+import type { SourceSuggestion } from '../../starter-packs/suggest';
 
 /*
  * First-run wizard (docs/onboarding-plan.md §2). One screen, one action:
@@ -90,6 +91,8 @@ export interface WelcomeProps {
     resumes: { id: number; name: string }[];
     draft: ProfileDraftCard | null;
   };
+  /** The boards that fit where the searches hunt, with their state here (#148). */
+  sources: { suggestions: SourceSuggestion[] };
   matches: {
     scoredCount: number;
     matchCount: number;
@@ -106,6 +109,7 @@ const STEP_TITLES: Record<WelcomeStep, string> = {
   ai: 'Connect an AI',
   search: 'Test the search',
   profile: 'Tell us about you',
+  sources: 'Turn on the boards for your countries',
   matches: 'See your first matches',
 };
 
@@ -150,8 +154,9 @@ export const WelcomePage: FC<WelcomeProps> = (p) => (
         <div>
           <h1 class="text-xl font-semibold tracking-tight">Welcome to ApplyPack</h1>
           <p class="mt-1 text-[13px] leading-5 text-ink-faint">
-            Four short steps: connect an AI, prove the search works, tell us about you, see your
-            first matches. Everything here can be changed later in Settings.
+            Five short steps: connect an AI, prove the search works, tell us about you, turn on
+            the boards for your countries, see your first matches. Everything here can be changed
+            later in Settings.
           </p>
         </div>
         {!p.setupCompleted && (
@@ -204,6 +209,7 @@ export const WelcomePage: FC<WelcomeProps> = (p) => (
     {p.current === 'ai' && <AiStep {...p} />}
     {p.current === 'search' && <SearchStep {...p} />}
     {p.current === 'profile' && <ProfileStep {...p} />}
+    {p.current === 'sources' && <SourcesStep {...p} />}
     {p.current === 'matches' && <MatchesStep {...p} />}
     {p.current === null && <AllDone {...p} />}
   </Layout>
@@ -590,12 +596,59 @@ const ProfileStep: FC<WelcomeProps> = ({ profile, steps }) => {
 
 /* ---------- step 4 ---------- */
 
+const SourcesStep: FC<WelcomeProps> = ({ sources, steps }) => {
+  const done = steps.find((s) => s.key === 'sources')?.done ?? false;
+  const waiting = sources.suggestions.filter((s) => s.state !== 'on').length;
+  return (
+    <StepCard n={4} step="sources" done={done}>
+      {sources.suggestions.length === 0 ? (
+        <p class="text-sm text-ink-muted">
+          Your searches hunt where the boards already switched on look — nothing to add. Name a
+          country in Settings → Profile and the boards for it show up here.
+        </p>
+      ) : (
+        <>
+          <p class="text-sm text-ink-muted">
+            Job boards that fit where your searches hunt, built from their stack. Turn them all on
+            now; each one can be switched off on the Companies page later.
+          </p>
+          <ul class="mt-3 divide-y divide-line rounded-md border border-line">
+            {sources.suggestions.map((s) => (
+              <li class="flex items-center justify-between gap-4 px-4 py-2.5 text-sm">
+                <span class="min-w-0">
+                  <span class="block truncate font-medium text-ink">{s.name}</span>
+                  <span class="block truncate text-[13px] text-ink-faint">{s.reason}</span>
+                </span>
+                <Badge tone={s.state === 'on' ? 'ok' : 'neutral'}>
+                  {s.state === 'on' ? 'on' : s.state === 'off' ? 'added, off' : 'not added yet'}
+                </Badge>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+      <div class="mt-4 flex flex-wrap items-center gap-2">
+        {waiting > 0 && (
+          <ActionForm action="/companies/suggested/all" hidden={{ next: 'welcome' }} once>
+            <Button>Enable all {waiting}</Button>
+          </ActionForm>
+        )}
+        <Button href="/welcome?step=matches" variant={waiting > 0 ? 'secondary' : 'primary'}>
+          {waiting > 0 ? 'Skip for now →' : 'Continue →'}
+        </Button>
+      </div>
+    </StepCard>
+  );
+};
+
+/* ---------- step 5 ---------- */
+
 const MatchesStep: FC<WelcomeProps> = (p) => {
   const { matches, steps } = p;
   // A pass in flight already scored a few rows — show the running copy, not "0 of 3".
   const done = (steps.find((s) => s.key === 'matches')?.done ?? false) && !matches.runningRunId;
   return (
-    <StepCard n={4} step="matches" done={done}>
+    <StepCard n={5} step="matches" done={done}>
       {done ? (
         <>
           <p class="text-sm text-ink">

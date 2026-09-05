@@ -52,7 +52,7 @@ const SCORE_RUN_KEY = 'score';
 export const welcomeRoute = new Hono();
 
 welcomeRoute.get('/welcome', async (c) => {
-  const { facts, settings, statuses, profile } = await loadWelcomeContext();
+  const { facts, settings, statuses, profile, suggestions } = await loadWelcomeContext();
   const requested = c.req.query('step');
   const current = isWelcomeStep(requested) ? requested : currentStep(facts);
 
@@ -103,6 +103,7 @@ welcomeRoute.get('/welcome', async (c) => {
         resumes: resumes.map((r) => ({ id: r.id, name: r.name })),
         draft,
       }}
+      sources={{ suggestions }}
       matches={{
         scoredCount: facts.scoredCount,
         matchCount,
@@ -127,7 +128,7 @@ welcomeRoute.post('/welcome/skip', async () => {
   );
 });
 
-/** Step 4's closing action: the hourly watch starts and the wizard stops greeting. */
+/** Step 5's closing action: the hourly watch starts and the wizard stops greeting. */
 welcomeRoute.post('/welcome/finish', async () => {
   await setFetchingEnabled(true);
   await setSetupCompleted();
@@ -240,8 +241,10 @@ welcomeRoute.post('/welcome/profile/apply', async (c) => {
   // same link the settings route proposes when it fills from a resume.
   await updateProfile(profile.id, { ...profileInput(profile), ...draft.changes, resumeId: resume.id });
   const changed = profile.resumeId === resume.id ? draft.changed : [...draft.changed, 'resume for this search'];
+  // No step named: the wizard lands on the first undone one — the sources
+  // step when the new countries call for boards, the matches otherwise.
   return flashRedirect(
-    MATCHES_STEP,
+    '/welcome',
     'ok',
     changed.length > 0
       ? `Profile filled from "${resume.name}" — ${changed.join(', ')}. Adjust it any time in Settings → Profile.`
@@ -282,10 +285,10 @@ welcomeRoute.post('/welcome/profile', async (c) => {
     return flashRedirect(PROFILE_STEP, 'err', 'Add at least one technology or one role word.');
   }
   await updateProfile(profile.id, { ...profileInput(profile), stackRequired, roleTypes, seniority });
-  return flashRedirect(MATCHES_STEP, 'ok', 'Profile saved. Adjust it any time in Settings → Profile.');
+  return flashRedirect('/welcome', 'ok', 'Profile saved. Adjust it any time in Settings → Profile.');
 });
 
-/** Step 4: score the stored-unscored jobs on the progress page; one pass at a time. */
+/** Step 5: score the stored-unscored jobs on the progress page; one pass at a time. */
 welcomeRoute.post('/welcome/score', async (c) => {
   const { facts } = await loadWelcomeContext();
   if (!facts.profileReady) {
