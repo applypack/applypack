@@ -32,6 +32,11 @@ const ACTIVITIES = {
     'Extracting the text an ATS parser would see…',
     'Cataloguing skills, seniority and job-agnostic issues…',
   ],
+  structure: [
+    'Copying the resume into the JSON Resume shape…',
+    'Pairing the skills table back into groups…',
+    'Checking every line against your own words…',
+  ],
   // The quick check walks the same steps as the full report minus the
   // suggestion drafting, so the two lists are one list (ADR 0029).
   keywords: [...VERDICT_LINES, SCORE_LINE],

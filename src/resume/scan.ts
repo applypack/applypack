@@ -2,8 +2,6 @@ import { logger } from '../logger';
 import { getAiRuntime } from '../ai-runtime';
 import { askForJson } from '../ai-json';
 import { buildScanPrompt, parseScanResponse, RESUME_TIMEOUT_MS, SCAN_MAX_TOKENS, type ResumeScan } from './prompts';
-import type { JsonResume } from './json-resume';
-import { anchorStructure, structureIsUsable } from './structure-anchor';
 import { saveResumeScan } from './store';
 
 
@@ -20,39 +18,12 @@ export async function scanResume(
   );
   if (!answer) return null;
   const scan = answer.data;
-  await saveResumeScan(resume.id, scan, guardStructure(resume, scan));
+  await saveResumeScan(resume.id, scan);
   logger.info(
     { id: resume.id, skills: scan.skills.length, issues: scan.issues.length, attempt: answer.attempt, chars: answer.chars, ms: answer.ms },
     'resume: scanned',
   );
   return scan;
-}
-
-/**
- * The structure block, checked against the resume before it is stored
- * (ADR 0039): a string the model wrote rather than copied is dropped, and a
- * reply the guard emptied is not stored at all — the render page's
- * deterministic fallback is better than a half-built shape. The drop count is
- * the regression metric for a scan-prompt change, so it is logged every time.
- */
-function guardStructure(resume: { id: number; text: string }, scan: ResumeScan): JsonResume | null {
-  if (!scan.structure) return null;
-  const report = anchorStructure(scan.structure, resume.text);
-  const usable = structureIsUsable(report);
-  logger.info(
-    {
-      id: resume.id,
-      kept: report.kept,
-      dropped: report.dropped,
-      emptiedRoles: report.emptiedRoles,
-      roles: report.structure.work.length,
-      bullets: report.structure.work.reduce((n, w) => n + w.highlights.length, 0),
-      usable,
-      samples: report.samples,
-    },
-    'resume: structure anchored',
-  );
-  return usable ? report.structure : null;
 }
 
 /**

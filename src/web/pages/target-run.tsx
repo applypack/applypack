@@ -25,6 +25,10 @@ const STEP_VIEW: Record<RunStep, StepView> = {
     label: 'Read the resume',
     detail: 'headline, skills, ATS issues, the resume as a shape',
   },
+  structure: {
+    label: 'Read the resume as data',
+    detail: 'every line copied into the JSON Resume shape, then checked against your own words',
+  },
   keywords: {
     label: 'Quick AI check',
     detail: 'the resume model judges every keyword, the gates and the score — no edit suggestions',
@@ -58,6 +62,7 @@ const STEP_VIEW: Record<RunStep, StepView> = {
 /** What the timed steps cost when the lane is not one we measured. */
 const GENERIC_BAND: Partial<Record<RunStep, string>> = {
   scan: 'half a minute to a minute',
+  structure: 'half a minute to a minute',
   keywords: 'half a minute to a minute',
   match: '1½ to 2 minutes on Opus',
   suggestions: 'about a minute on Opus',
@@ -152,6 +157,7 @@ export const TargetRunPage: FC<{ run: TargetRun; lane: Lane }> = ({ run, lane })
 
 function runCopy(steps: RunStep[]): { running: string; failed: string } {
   if (steps.includes('letter')) return { running: 'Writing a cover letter', failed: 'Generation failed' };
+  if (steps.includes('structure')) return { running: 'Reading the resume as data', failed: 'The reading failed' };
   if (steps.includes('suggestions')) return { running: 'Writing suggestions', failed: 'Suggestions failed' };
   return { running: 'Comparing', failed: 'Comparison failed' };
 }

@@ -15,6 +15,7 @@ export type RunStep =
   | 'fetch'
   | 'extract'
   | 'scan'
+  | 'structure'
   | 'keywords'
   | 'match'
   | 'suggestions'

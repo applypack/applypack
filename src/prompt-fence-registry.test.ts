@@ -47,6 +47,7 @@ const KNOWN_CALL_SITES: Record<string, string> = {
   'resume/match.ts': 'buildMatchPrompt',
   'resume/suggestions.ts': 'buildSuggestionsPrompt',
   'resume/scan.ts': 'buildScanPrompt',
+  'resume/structure.ts': 'buildStructurePrompt',
   'resume/review.ts': 'buildReviewPrompt',
   'resume/cover-letter.ts': 'buildCoverPrompt',
   'verification/verify.ts': 'buildVerifyPrompt',
@@ -109,6 +110,10 @@ const CASES: Record<string, Case> = {
   },
   buildScanPrompt: {
     build: () => resumeMod.buildScanPrompt(RESUME),
+    fenced: [['RESUME', RESUME]],
+  },
+  buildStructurePrompt: {
+    build: () => resumeMod.buildStructurePrompt(RESUME),
     fenced: [['RESUME', RESUME]],
   },
   buildReviewPrompt: {
