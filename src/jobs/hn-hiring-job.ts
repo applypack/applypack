@@ -91,6 +91,7 @@ export async function runHnHiringJob(): Promise<{ stats: CronStats }> {
     preFiltered: 0,
     classified: 0,
     classifyFailed: 0,
+    classifyError: null,
     persisted: 0,
     dismissed: 0,
     alerted: 0,

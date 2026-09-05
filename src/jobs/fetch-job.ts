@@ -168,6 +168,7 @@ export async function runFetchJob(opts: FetchJobOptions = {}): Promise<{ stats: 
     preFiltered: 0,
     classified: 0,
     classifyFailed: 0,
+    classifyError: null,
     persisted: 0,
     dismissed: 0,
     alerted: 0,

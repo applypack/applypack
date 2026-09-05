@@ -123,6 +123,9 @@ async function reclassify(opts: ReclassifyOptions): Promise<{ stats: CronStats }
   let failed = 0;
   let filterRejected = 0;
   let priorityBoosted = 0;
+  // Why the last failed call failed — "no API key", "HTTP 401 …" — so the
+  // flash and /runs can say it instead of leaving it to the container logs (#97).
+  let lastError: string | null = null;
 
   const limit = createLimiter(config.AI_CONCURRENCY);
   let lastId = 0;
@@ -157,6 +160,9 @@ async function reclassify(opts: ReclassifyOptions): Promise<{ stats: CronStats }
               },
               profiles,
               classifierMode,
+              (reason) => {
+                lastError = reason;
+              },
             ),
           )
         : null,
@@ -245,6 +251,7 @@ async function reclassify(opts: ReclassifyOptions): Promise<{ stats: CronStats }
     filterRejected,
     priorityBoosted,
     failed,
+    lastError,
     durationMs,
   };
   logger.info(stats, 'reclassify-all: done');

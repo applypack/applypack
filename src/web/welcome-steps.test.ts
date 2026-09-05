@@ -56,4 +56,8 @@ test('summarizeScoreRun reads the reclassify stats in plain words', () => {
   );
   assert.equal(summarizeScoreRun({ aborted: 1, reason: 'blank-profile' }).kind, 'warn');
   assert.equal(summarizeScoreRun({ reclassified: 0, failed: 3 }).kind, 'warn');
+  assert.equal(
+    summarizeScoreRun({ reclassified: 0, failed: 10, lastError: 'no API key — paste one on /settings, or set it in .env' }).text,
+    'Scored 0 jobs — 0 look like a match; 10 could not be scored — the AI did not answer: no API key — paste one on /settings, or set it in .env.',
+  );
 });

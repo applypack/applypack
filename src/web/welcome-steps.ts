@@ -65,7 +65,10 @@ export function summarizeScoreRun(stats: Record<string, unknown>): { kind: 'ok' 
   const matches = n('unchanged') + n('promoted');
   const parts = [`Scored ${scored} jobs — ${matches} look like a match`];
   if (n('filterDismissed') > 0) parts.push(`${n('filterDismissed')} set aside as off-topic without AI`);
-  if (n('failed') > 0) parts.push(`${n('failed')} could not be scored`);
+  if (n('failed') > 0) {
+    const why = typeof stats.lastError === 'string' && stats.lastError ? ` — the AI did not answer: ${stats.lastError}` : '';
+    parts.push(`${n('failed')} could not be scored${why}`);
+  }
   if (n('remaining') > 0) parts.push(`${n('remaining')} more waiting for the next pass`);
   return { kind: scored === 0 && n('failed') > 0 ? 'warn' : 'ok', text: `${parts.join('; ')}.` };
 }
