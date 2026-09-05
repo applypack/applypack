@@ -397,6 +397,7 @@ jobsRoute.get('/jobs/:id', async (c) => {
         selected,
         selectedKeywords,
         job: { title: job.title, companyName: job.company.name },
+        verification: verifications[0] ?? null,
       }}
       coverLetters={{
         jobId: id,
@@ -832,9 +833,10 @@ jobsRoute.post('/jobs/:id/cover/:letterId', async (c) => {
 jobsRoute.get('/jobs/:id/target', async (c) => {
   const id = Number(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text('Bad id', 400);
-  const [job, matches] = await Promise.all([
+  const [job, matches, verifications] = await Promise.all([
     prisma.job.findUnique({ where: { id }, include: { company: { select: { name: true } } } }),
     listMatchesForJob(id),
+    listVerificationsForJob(id),
   ]);
   if (!job) return c.text('Not found', 404);
   const requested = Number(c.req.query('match'));
@@ -860,6 +862,7 @@ jobsRoute.get('/jobs/:id/target', async (c) => {
       previous={previousFor(match, matches)}
       resumeText={match.resumeText || resume.text}
       draftText={draftText}
+      verification={verifications[0] ?? null}
       fileVerdict={fileVerdict}
       cleanHref={file.clean ? `/resumes/${resume.id}/render` : null}
       flash={parseFlashCookie(c.req.header('cookie'))}

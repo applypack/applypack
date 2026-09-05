@@ -33,6 +33,7 @@ import { freshFrame, freshFrameNotice } from '../../resume/keyword-frame';
 import { proposalOf, suggestionSheet, type Proposal } from '../../resume/change-sheet';
 import { hashShortId } from '../../text-utils';
 import { readMatchMode, type MatchMode } from '../../resume/match-mode';
+import { verificationCautions, verificationHint, type VerificationForHint, type VerificationHint } from '../../resume/verification-hint';
 import type { CountedKeyword } from '../../resume/keyword-matcher';
 import { effectiveRequirement, isIgnored } from '../../resume/keyword-overrides';
 import { REQUIREMENT_LEVELS, type RequirementLevel } from '../../resume/score';
@@ -52,6 +53,8 @@ export interface ResumeMatchCardProps {
   selectedKeywords: CountedKeyword[];
   /** Names the change sheet the Copy button hands over. */
   job: { title: string; companyName: string };
+  /** The latest "Is this job real?" verdict, read for one line and the cautions — never scored (#162). */
+  verification: VerificationForHint | null;
 }
 
 const PRIORITY_TONE: Record<MatchAction['priority'], Tone> = {
@@ -115,10 +118,12 @@ export const ResumeMatchCard: FC<ResumeMatchCardProps> = ({
   selected,
   selectedKeywords,
   job,
+  verification,
 }) => (
   <div id="resume-match">
     <Card>
       <SectionTitle>Resume match</SectionTitle>
+      <VerificationLine verification={verification} />
       {resumes.length === 0 ? (
         <Hint>
           No resumes uploaded.{' '}
@@ -176,6 +181,7 @@ export const ResumeMatchCard: FC<ResumeMatchCardProps> = ({
           keywords={selectedKeywords}
           factsBack={`/jobs/${jobId}?match=${selected.id}#resume-match`}
           job={job}
+          verification={verification}
         />
       )}
 
@@ -342,7 +348,9 @@ export const MatchReport: FC<{
   factsBack: string;
   /** Names the change sheet the Copy button hands over. */
   job: { title: string; companyName: string };
-}> = ({ match, previous, keywords, factsBack, job }) => {
+  /** The latest verdict's findings ride along the cautions (#162). */
+  verification: VerificationForHint | null;
+}> = ({ match, previous, keywords, factsBack, job, verification }) => {
   const bd = readBreakdown(match.breakdown);
   // A re-extracted frame counts different terms, so the older number is not a
   // baseline for this one (keyword-frame.ts). DeltaBox says so in words.
@@ -375,7 +383,7 @@ export const MatchReport: FC<{
 
       <DeltaBox match={match} previous={previous} />
       <HardRequirementsBlock hard={readHardRequirements(match.hardRequirements)} />
-      <MatchSignals match={match} />
+      <MatchSignals match={match} verification={verification} />
       <ConfirmFacts
         asks={keywords.filter((k) => k.status === 'ask_user')}
         matchId={match.id}
@@ -507,28 +515,73 @@ export const HardRequirementsBlock: FC<{ hard: MatchHardRequirement[] }> = ({ ha
     </div>
   );
 
+/**
+ * What the comparison says about the stored verdict before any AI is spent
+ * (#162 stage 0): one line, the verifier's own recommendation, a link to the
+ * card that holds the evidence — and the mirror of the cover card's hint
+ * when nothing is stored yet.
+ */
+export const VerificationLine: FC<{ verification: VerificationForHint | null; class?: string; href?: string }> = ({
+  verification,
+  class: className = 'mb-3',
+  href = '#verification',
+}) => {
+  const link = (
+    <a href={href} class="font-medium text-accent-strong hover:text-accent-deep">
+      {verification ? 'see the verification' : 'Verify first'}
+    </a>
+  );
+  if (!verification) {
+    return (
+      <Hint class={className}>
+        Not checked for ghost-job signals yet — {link} if you want that answered before you tailor.
+      </Hint>
+    );
+  }
+  const hint = verificationHint(verification);
+  return (
+    <p class={`${className} text-[13px] leading-5 ${VERIFICATION_TONE[hint.tone]}`}>
+      {hint.text} {link}.
+    </p>
+  );
+};
+
+const VERIFICATION_TONE: Record<VerificationHint['tone'], string> = {
+  ok: 'text-ink-muted',
+  warn: 'text-warn',
+  danger: 'text-danger',
+};
+
 /** Red flags, unscored cautions and strengths — the qualitative read on a match. */
-export const MatchSignals: FC<{ match: MatchWithResume }> = ({ match }) => (
-  <>
-    <MarkedList label="Red flags" items={match.redFlags} kind="x" tone="text-danger" />
-    {match.cautions.length > 0 && (
-      <div>
-        <div class={SUBHEAD}>Worth knowing — not scored</div>
-        <ul class="space-y-1 text-sm text-ink-muted">
-          {match.cautions.map((s) => (
-            <li class="flex gap-2">
-              <span class="mt-[3px] h-3.5 w-3.5 shrink-0 text-center text-xs leading-none text-ink-faint" aria-hidden="true">
-                ·
-              </span>
-              <span>{s}</span>
-            </li>
-          ))}
-        </ul>
-      </div>
-    )}
-    <MarkedList label="Already working for you" items={match.strengths} kind="check" tone="text-ok" />
-  </>
-);
+export const MatchSignals: FC<{ match: MatchWithResume; verification?: VerificationForHint | null }> = ({
+  match,
+  verification,
+}) => {
+  // The verifier's findings ride along the model's cautions, labelled — a
+  // finding about the posting is not a finding about the resume (#162 stage 1).
+  const cautions = [...match.cautions, ...(verification ? verificationCautions(verification) : [])];
+  return (
+    <>
+      <MarkedList label="Red flags" items={match.redFlags} kind="x" tone="text-danger" />
+      {cautions.length > 0 && (
+        <div>
+          <div class={SUBHEAD}>Worth knowing — not scored</div>
+          <ul class="space-y-1 text-sm text-ink-muted">
+            {cautions.map((s) => (
+              <li class="flex gap-2">
+                <span class="mt-[3px] h-3.5 w-3.5 shrink-0 text-center text-xs leading-none text-ink-faint" aria-hidden="true">
+                  ·
+                </span>
+                <span>{s}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      <MarkedList label="Already working for you" items={match.strengths} kind="check" tone="text-ok" />
+    </>
+  );
+};
 
 /**
  * One suggestion: what the resume says now, the wording proposed for it, and

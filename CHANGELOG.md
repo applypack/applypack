@@ -4,6 +4,21 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.60.0] — 2026-09-05
+
+### Added
+- **The comparison reads the verification.** The Resume match card and the
+  resume editor's header carry one line from the latest "Is this job real?"
+  verdict — *"Verification says apply with caution (72 %): the posting cannot
+  be found on any public board. A quick check is enough here."* — with a link
+  to the evidence; `skip` warns that a comparison may be wasted effort and
+  Compare still works; a job never verified says so on the card and points at
+  Verify. The verifier's red flags and a ghost / scam reading of the posting's
+  own text appear under "Worth knowing — not scored", labelled *From
+  verification* (#162, stages 0 and 1). Nothing is stored on the match row, no
+  AI is spent, and the score does not move — a finding about the posting is
+  not a finding about the resume.
+
 ## [1.59.2] — 2026-09-05
 
 ### Fixed
@@ -2462,6 +2477,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[1.60.0]: https://github.com/applypack/applypack/compare/v1.59.2...v1.60.0
 [1.59.2]: https://github.com/applypack/applypack/compare/v1.59.1...v1.59.2
 [1.59.1]: https://github.com/applypack/applypack/compare/v1.59.0...v1.59.1
 [1.59.0]: https://github.com/applypack/applypack/compare/v1.58.0...v1.59.0

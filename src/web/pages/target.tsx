@@ -6,6 +6,7 @@ import type { FlashMessage } from '../flash';
 import { fitTone, formatRelative, type Tone } from '../format';
 import type { MatchWithResume } from '../../resume/store';
 import type { CountedKeyword } from '../../resume/keyword-matcher';
+import type { VerificationForHint } from '../../resume/verification-hint';
 import { effectiveKeywords } from '../../resume/keyword-overrides';
 import { readActions, readHardRequirements, readRemovals } from '../../resume/prompts';
 import { readMatchMode } from '../../resume/match-mode';
@@ -18,6 +19,7 @@ import {
   HardRequirementsDigest,
   KeywordTable,
   MatchSignals,
+  VerificationLine,
   RemovalsBlock,
   ScoreBreakdownChips,
   SuggestionsPrompt,
@@ -53,6 +55,8 @@ export interface TargetPageProps {
   resumeText: string;
   /** An instant check's parsed upload — opens in the editor as the unsaved draft (target-page.mjs). */
   draftText?: string | null;
+  /** The latest "Is this job real?" verdict — one line under the title, findings among the cautions (#162). */
+  verification: VerificationForHint | null;
   flash?: FlashMessage | null;
   /** What a Save can do with this resume's file — one sentence (docx-structure.ts, ADR 0038). */
   fileVerdict: string;
@@ -111,6 +115,7 @@ export const TargetPage: FC<TargetPageProps> = ({
   previous,
   resumeText,
   draftText,
+  verification,
   fileVerdict,
   cleanHref,
   flash,
@@ -217,6 +222,9 @@ export const TargetPage: FC<TargetPageProps> = ({
           )}
         </div>
       </div>
+      {verification && (
+        <VerificationLine verification={verification} class="-mt-2 mb-4" href={`/jobs/${job.id}#verification`} />
+      )}
 
       <Card class="mb-4">
         {/* Proportional columns instead of a scattered flex row: score | why (owns
@@ -607,7 +615,7 @@ export const TargetPage: FC<TargetPageProps> = ({
                   <RemovalsBlock removals={removals} interactive />
                 </>
               )}
-              <MatchSignals match={match} />
+              <MatchSignals match={match} verification={verification} />
               {/* Wide screens open it on boot (target-page.mjs); narrow ones keep
                   it shut, because it is the longest block on the page by far. */}
               <details class="kw-fold">
