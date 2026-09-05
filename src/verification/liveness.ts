@@ -26,6 +26,7 @@ export type LivenessCode =
   | 'insufficient_content'
   | 'page_ok'
   | 'unfetchable_url'
+  | 'no_url'
   | 'network_error'
   | 'conflicting_signals';
 
@@ -73,6 +74,7 @@ export const LIVENESS_CODE_LABEL: Record<LivenessCode, string> = {
   insufficient_content: 'the page rendered no readable content',
   page_ok: 'the posting page renders normally',
   unfetchable_url: 'the stored URL is not safely fetchable',
+  no_url: 'no posting URL stored — the free checks need one',
   network_error: 'the site could not be reached',
   conflicting_signals: 'the board API and the live page disagree',
 };
@@ -393,6 +395,8 @@ async function checkAtsApi(p: LivenessProbe): Promise<LivenessVerdict> {
 }
 
 async function checkPostingPage(url: string): Promise<LivenessVerdict> {
+  // A pasted posting often has no URL at all — that is not a dangerous link (#161).
+  if (url.trim().length === 0) return v('uncertain', 'no_url');
   if (!isFetchableJobUrl(url)) return v('uncertain', 'unfetchable_url');
   const got = await fetchRaw(url, 'follow');
   if (!got) return v('uncertain', 'network_error');

@@ -20,7 +20,9 @@ export const RunSteps: FC<{
   /** Time already spent: finished steps from the registry, the active one as of this render. */
   stepMs?: Partial<Record<string, number>>;
   activeMs?: number;
-}> = ({ steps, currentIdx, view, stepMs = {}, activeMs }) => (
+  /** What a finished step found, in words — the free rungs of a verify run (#161). */
+  results?: Partial<Record<string, string>>;
+}> = ({ steps, currentIdx, view, stepMs = {}, activeMs, results = {} }) => (
   <>
     <ol class="mt-5 space-y-5" aria-label="Progress">
       {steps.map((s, i) => (
@@ -44,6 +46,9 @@ export const RunSteps: FC<{
               </span>
             </span>
             <span class="t-detail block text-xs">{view[s]?.detail}</span>
+            <span class="t-result block text-[13px] leading-5 text-ink-muted" data-result>
+              {results[s] ?? ''}
+            </span>
             <span
               class="t-activity mt-1.5 block text-[13px] leading-5 text-violet transition-opacity duration-300"
               data-activity

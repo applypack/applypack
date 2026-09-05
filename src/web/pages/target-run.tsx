@@ -6,6 +6,10 @@ import { RunSteps, type StepView } from './run-steps';
 import type { RunStep, TargetRun } from '../target-runs';
 
 const STEP_VIEW: Record<RunStep, StepView> = {
+  liveness: {
+    label: 'Ask the board and read the posting page',
+    detail: 'the free checks — seconds, no AI spent',
+  },
   fetch: {
     label: 'Read the posting page',
     detail: 'one request to the URL you gave — seconds',
@@ -34,7 +38,7 @@ const STEP_VIEW: Record<RunStep, StepView> = {
   },
   verify: {
     label: 'Research the company',
-    detail: 'ghost-check with web search — 2 to 4 minutes',
+    detail: 'seven named checks with web search — careers page, LinkedIn, reputation, posting age, salary, named humans, the posting itself — 2 to 4 minutes',
   },
   letter: {
     label: 'Write the cover letter',
@@ -100,6 +104,7 @@ export const TargetRunPage: FC<{ run: TargetRun }> = ({ run }) => {
                 view={STEP_VIEW}
                 stepMs={run.stepMs}
                 activeMs={Date.now() - run.stageAt}
+                results={run.results}
               />
               <div class="mt-5 flex items-center justify-between gap-3 border-t border-line pt-3">
                 <Hint>

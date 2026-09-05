@@ -35,7 +35,7 @@ import { draftStash } from '../draft-stash';
 import { scanInBackground } from '../../resume/scan';
 import { clearFlashCookie, flashRedirect, parseFlashCookie } from '../flash';
 import { formatRelative } from '../format';
-import { claimRun, matchStep, startRun, updateRun } from '../target-runs';
+import { claimRun, findLiveRun, matchStep, startRun, updateRun } from '../target-runs';
 import { startSuggestionsRun } from '../suggestions-run';
 import {
   deleteCoverLettersForResume,
@@ -387,6 +387,7 @@ jobsRoute.get('/jobs/:id', async (c) => {
       pipelineStages={allStages(parseStageConfig(settings.pipelineStages))}
       verification={verifications[0] ?? null}
       verificationCount={verifications.length}
+      verificationRun={verifyRunView(id)}
       resumeMatch={{
         jobId: id,
         resumes: resumes.map((r) => ({ id: r.id, name: r.name, isDefault: r.isDefault })),
@@ -500,44 +501,89 @@ jobsRoute.post('/jobs/:id/verify', async (c) => {
   if (!job) return c.text('Not found', 404);
 
   // Rungs 1-2 (ADR 0016): free ATS-API / page checks. A resolved verdict
-  // stops here at $0; `deep=1` (the "Deep check" button) always goes to AI.
+  // stops there at $0; `deep=1` (the "Deep check" button) always goes to AI.
+  // The whole ladder runs on the progress page (#161): the free rungs' answer
+  // lands under their step within seconds, the research step names what it
+  // checks, and a closed tab loses nothing. One run per job at a time.
   const form = await c.req.parseBody().catch(() => ({}) as Record<string, unknown>);
   const deep = form['deep'] === '1';
-  const live = await checkLiveness({
-    id: job.id,
-    url: job.url,
-    externalId: job.externalId,
-    atsType: job.company.atsType,
-    atsToken: job.company.atsToken,
+  const back = `/jobs/${id}#verification`;
+  const { run, joined } = claimRun(VERIFY_RUN_KEY(id), {
+    steps: deep ? ['verify'] : ['liveness', 'verify'],
+    jobTitle: job.title,
+    resumeName: '',
+    jobId: id,
+    heading: { running: 'Checking whether the job is real', failed: 'The check failed' },
+    subtitle: deep
+      ? 'Straight to the AI research.'
+      : job.url
+        ? 'The free checks first; the AI only when they cannot say.'
+        : 'No posting URL stored, so the free checks have nothing to ask — straight to the AI research.',
+    backUrl: back,
+    backLabel: 'Back to the job',
   });
-  if (!deep && live.liveness !== 'uncertain') {
-    const how = `${LIVENESS_CODE_LABEL[live.code]} (rung ${live.rung}, no AI spent)`;
-    return live.liveness === 'expired'
-      ? flashRedirect(`/jobs/${id}#verification`, 'warn', `Posting looks closed — ${how}.`)
-      : flashRedirect(
-          `/jobs/${id}#verification`,
-          'ok',
-          `Posting is live — ${how}. Deep check runs the full ghost-job analysis.`,
-        );
-  }
-
-  const row = await verifyJob({
-    id: job.id,
-    title: job.title,
-    companyName: job.company.name,
-    location: job.location,
-    url: job.url,
-    description: job.description,
-    postedAt: job.postedAt,
+  if (joined) return c.redirect(`/target/runs/${run.id}`, 303);
+  startRun(run.id, async () => {
+    if (!deep) {
+      const live = await checkLiveness({
+        id: job.id,
+        url: job.url,
+        externalId: job.externalId,
+        atsType: job.company.atsType,
+        atsToken: job.company.atsToken,
+      });
+      const how = `${LIVENESS_CODE_LABEL[live.code]} (rung ${live.rung}, no AI spent)`;
+      updateRun(run.id, { results: { liveness: how } });
+      if (live.liveness !== 'uncertain') {
+        updateRun(run.id, {
+          stage: 'done',
+          resultUrl: back,
+          flashKind: live.liveness === 'expired' ? 'warn' : 'ok',
+          flash:
+            live.liveness === 'expired'
+              ? `Posting looks closed — ${how}.`
+              : `Posting is live — ${how}. Deep check runs the full ghost-job analysis.`,
+        });
+        return;
+      }
+      updateRun(run.id, { stage: 'verify' });
+    }
+    let reason: string | null = null;
+    const row = await verifyJob(
+      {
+        id: job.id,
+        title: job.title,
+        companyName: job.company.name,
+        location: job.location,
+        url: job.url,
+        description: job.description,
+        postedAt: job.postedAt,
+      },
+      (r) => {
+        reason = r;
+      },
+    );
+    updateRun(
+      run.id,
+      row
+        ? {
+            stage: 'done',
+            resultUrl: back,
+            flash: `Verified: ${row.verdict} (${row.confidence}% confidence) — recommendation: ${row.recommendation}.`,
+          }
+        : { stage: 'error', error: `Verification failed${reason ? `: ${reason}` : ' — see the web logs'}.` },
+    );
   });
-  return row
-    ? flashRedirect(
-        `/jobs/${id}#verification`,
-        'ok',
-        `Verified: ${row.verdict} (${row.confidence}% confidence) — recommendation: ${row.recommendation}.`,
-      )
-    : flashRedirect(`/jobs/${id}#verification`, 'err', 'Verification failed — see the web logs.');
+  return c.redirect(`/target/runs/${run.id}`, 303);
 });
+
+/** One verify run per job at a time — a second click joins it, a reload of the job page sees it. */
+const VERIFY_RUN_KEY = (jobId: number): string => `verify:${jobId}`;
+
+function verifyRunView(jobId: number): { id: string; startedAt: number } | null {
+  const run = findLiveRun(VERIFY_RUN_KEY(jobId));
+  return run ? { id: run.id, startedAt: run.startedAt } : null;
+}
 
 jobsRoute.post('/jobs/:id/match', async (c) => {
   const id = Number(c.req.param('id'));

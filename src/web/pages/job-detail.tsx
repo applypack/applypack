@@ -115,6 +115,8 @@ export interface JobDetailProps {
   pipelineStages: { key: string; label: string }[];
   verification: VerificationCardProps['verification'];
   verificationCount: number;
+  /** A verify run in flight for this job — the card points at its progress page instead of a second button (#161). */
+  verificationRun: VerificationCardProps['run'];
   resumeMatch: ResumeMatchCardProps;
   coverLetters: CoverLetterCardProps;
   flash?: FlashMessage | null;
@@ -139,6 +141,7 @@ export const JobDetailPage: FC<JobDetailProps> = ({
   pipelineStages,
   verification,
   verificationCount,
+  verificationRun,
   resumeMatch,
   coverLetters,
   flash,
@@ -275,6 +278,8 @@ export const JobDetailPage: FC<JobDetailProps> = ({
           }
           verification={verification}
           verificationCount={verificationCount}
+          run={verificationRun}
+          url={job.url}
         />
 
         <ResumeMatchCard {...resumeMatch} />

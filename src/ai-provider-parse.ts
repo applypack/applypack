@@ -68,6 +68,19 @@ export function anthropicMaxTokens(answerTokens: number): number {
  * collapses whitespace and caps the length. ADR 0027 keeps keys out of the
  * browser, and that must not depend on what a CLI happened to print.
  */
+/**
+ * The 2026-02-09 web tools filter their results through code execution, and
+ * that needs programmatic tool calling — Opus 4.6+, Sonnet 4.6+ and their
+ * successors. Haiku 4.5 (and anything older) answered 400 to the same request
+ * (#161); the API's own escape hatch is to allow direct calls only, which is
+ * the same tools without the filtering.
+ */
+const PROGRAMMATIC_TOOL_MODEL = /^claude-(opus-(4-[6-9]|5)|sonnet-(4-[6-9]|5)|fable|mythos)\b/;
+
+export function webToolsDirectOnly(model: string): boolean {
+  return !PROGRAMMATIC_TOOL_MODEL.test(model);
+}
+
 export function describeAiFailure(reason: string): string {
   const oneLine = reason.replace(/\s+/g, ' ').trim();
   if (oneLine.length === 0) return 'no reason reported';

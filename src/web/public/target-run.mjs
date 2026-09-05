@@ -41,11 +41,17 @@ const ACTIVITIES = {
     'Drafting edit suggestions with exact quotes…',
     'Listing what to remove and what already sells you…',
   ],
+  liveness: ["Asking the company's board API…", 'Reading the posting page…'],
+  // The prompt's seven named checks (EVIDENCE_CHECKS), in its order.
   verify: [
-    'Searching for the company and this posting…',
-    'Cross-checking the careers page and the ATS…',
-    'Weighing ghost-job signals…',
-    'Writing the company snapshot…',
+    "Looking for the company's careers page and this posting on it…",
+    'Searching LinkedIn for the company and the role…',
+    'Reading reputation and scam reports…',
+    'Judging how long the posting has been up…',
+    'Comparing the salary with the market…',
+    'Looking for named humans behind the posting…',
+    "Weighing the posting's own quality…",
+    'Writing the verdict and the company snapshot…',
   ],
   letter: [
     'Reading the posting and the resume…',
@@ -119,6 +125,8 @@ export function init(data, activity = defaultActivity) {
       li.dataset.state = idx === -1 || i < idx ? 'done' : i === idx ? 'active' : 'pending';
       const timeEl = li.querySelector('[data-step-time]');
       if (timeEl) timeEl.textContent = stepTime(li.dataset.state, li.dataset.step, state);
+      const resultEl = li.querySelector('[data-result]');
+      if (resultEl && state.results) resultEl.textContent = state.results[li.dataset.step] ?? '';
     }
     const active = steps.find((li) => li.dataset.state === 'active');
     if (!active) return;

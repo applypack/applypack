@@ -4,6 +4,31 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.59.2] — 2026-09-05
+
+### Fixed
+- **Verify works on the API path with Haiku 4.5.** The web-search and
+  web-fetch tools of 2026-02-09 filter their results through code execution,
+  which needs programmatic tool calling — Opus 4.6+ and Sonnet 4.6+ have it,
+  Haiku 4.5 does not and answered 400 to every verify request (#161). On
+  models without it the same tools are declared with direct calls only, the
+  API's own escape hatch.
+- **A failed verify says why.** The provider's one-line reason (keys masked)
+  reaches the run page — *"Verification failed: 'claude-haiku-4-5-20251001'
+  does not support programmatic tool calling …"* — instead of "see the web
+  logs".
+
+### Changed
+- **Verify runs on a progress page.** The free rungs (the company's board
+  API, the posting page) are a step whose answer appears under it within
+  seconds — *"the posting page renders normally (rung 2, no AI spent)"* —
+  and the research step names the seven checks it runs as it runs them;
+  closing the tab loses nothing, a second click joins the run, and the job
+  page's card says "Checking… — open the progress page" while it is in
+  flight instead of offering a second button (#161). A pasted posting with
+  no URL says so up front (`no_url`) instead of "the stored URL is not
+  safely fetchable", and its Verify goes straight to the research.
+
 ## [1.59.1] — 2026-09-05
 
 ### Fixed
@@ -2437,6 +2462,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[1.59.2]: https://github.com/applypack/applypack/compare/v1.59.1...v1.59.2
 [1.59.1]: https://github.com/applypack/applypack/compare/v1.59.0...v1.59.1
 [1.59.0]: https://github.com/applypack/applypack/compare/v1.58.0...v1.59.0
 [1.58.0]: https://github.com/applypack/applypack/compare/v1.57.3...v1.58.0
