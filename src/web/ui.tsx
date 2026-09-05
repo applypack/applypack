@@ -491,7 +491,14 @@ export const SUBMIT_ONCE =
   "if(this.dataset.sent)return false;this.dataset.sent='1';" +
   "this.querySelectorAll('button').forEach(function(b){b.disabled=true});";
 
-/** One-button POST form — the dashboard's main mutation idiom. */
+/**
+ * One-button POST form — the dashboard's main mutation idiom.
+ *
+ * A flex container, not a block: a block form wraps its inline-flex button in
+ * a line box (button plus the font's descender), so a row that mixed a bare
+ * Button with an ActionForm-wrapped one put them a few pixels apart (#153).
+ * Block-level still, so stacked forms keep stacking.
+ */
 export const ActionForm: FC<
   PropsWithChildren<{
     action: string;
@@ -505,7 +512,7 @@ export const ActionForm: FC<
   <form
     method="post"
     action={action}
-    class={className}
+    class={`flex ${className}`}
     onsubmit={
       [confirm ? `if(!confirm(${JSON.stringify(confirm)}))return false;` : '', once ? SUBMIT_ONCE : '']
         .join('') || undefined
