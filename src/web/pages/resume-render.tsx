@@ -1,7 +1,7 @@
 /** @jsxImportSource hono/jsx */
 import type { FC } from 'hono/jsx';
 import { Layout } from '../layout';
-import { Badge, Button, Card, Field, Flash, Hint, Input, PageHeader, SectionTitle, Select, SUBMIT_ONCE } from '../ui';
+import { ActionForm, Badge, Button, Card, Field, Flash, Hint, Input, PageHeader, SectionTitle, Select, SUBMIT_ONCE } from '../ui';
 import type { FlashMessage } from '../flash';
 import type { JsonResume } from '../../resume/json-resume';
 import { structureCoverage } from '../../resume/json-resume';
@@ -21,8 +21,8 @@ export interface RenderPageProps {
   resume: { id: number; name: string; version: number; sourceFilename: string };
   knobs: RenderKnobs;
   structure: JsonResume;
-  /** Where the structure came from — the scan's reading or the deterministic one. */
-  origin: 'scan' | 'text';
+  /** Where the structure came from — the AI's reading (structure.ts) or the built-in reader's. */
+  origin: 'ai' | 'text';
   /** Where the typography came from; 'none' means the file said nothing. */
   styleSource: 'docx' | 'pdf' | 'none';
   /** The plain text the .docx renders to — literally what the ATS gets. */
@@ -33,8 +33,8 @@ export interface RenderPageProps {
 }
 
 const ORIGIN_NOTE: Record<RenderPageProps['origin'], string> = {
-  scan: 'Read by the AI scan of this resume, then checked line by line against your own words — anything it did not copy exactly was dropped.',
-  text: 'Read from the resume text by the built-in reader. Run a scan on this resume for a closer reading, especially of a skills table.',
+  ai: 'Read by the AI as data, then checked line by line against your own words — anything it did not copy exactly was dropped.',
+  text: 'Read from the resume text by the built-in reader — the AI reading was not stored, or did not answer. The AI pairs a skills table back into groups and keeps every line.',
 };
 
 const STYLE_NOTE: Record<RenderPageProps['styleSource'], string> = {
@@ -80,7 +80,7 @@ export const ResumeRenderPage: FC<RenderPageProps> = ({
       <Card class="mt-4">
         <SectionTitle>What it found in your resume</SectionTitle>
         <div class="flex flex-wrap items-center gap-2">
-          <Badge tone={origin === 'scan' ? 'ok' : 'neutral'}>{origin === 'scan' ? 'From the scan' : 'From the text'}</Badge>
+          <Badge tone={origin === 'ai' ? 'ok' : 'neutral'}>{origin === 'ai' ? 'Read by the AI' : 'From the text'}</Badge>
           <span class="text-sm text-ink-muted">
             {coverage.sections} {coverage.sections === 1 ? 'section' : 'sections'} · {coverage.roles}{' '}
             {coverage.roles === 1 ? 'role' : 'roles'} · {coverage.bullets}{' '}
@@ -88,6 +88,13 @@ export const ResumeRenderPage: FC<RenderPageProps> = ({
           </span>
         </div>
         <Hint class="mt-2">{ORIGIN_NOTE[origin]}</Hint>
+        {origin === 'text' && (
+          <ActionForm action={`/resumes/${resume.id}/render/shape`} class="mt-3" once>
+            <Button size="sm" variant="violet" title="One AI call — under a minute on every engine we measured">
+              Read the shape with AI
+            </Button>
+          </ActionForm>
+        )}
       </Card>
 
       <form method="post" action={action} class="mt-4" onsubmit={SUBMIT_ONCE}>

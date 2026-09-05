@@ -9,7 +9,7 @@
 
 export type Lane = 'cli-haiku' | 'cli-sonnet' | 'cli-opus' | 'api-haiku' | 'api-sonnet' | 'api-opus' | 'other';
 type MeasuredLane = Exclude<Lane, 'other'>;
-type TimedStep = 'scan' | 'keywords' | 'match' | 'suggestions' | 'review';
+type TimedStep = 'scan' | 'structure' | 'keywords' | 'match' | 'suggestions' | 'review';
 
 const LABEL: Record<MeasuredLane, string> = {
   'cli-haiku': 'Haiku 4.5 through the Claude CLI',
@@ -23,16 +23,18 @@ const LABEL: Record<MeasuredLane, string> = {
 /**
  * Wall seconds per call. The CLI caps thinking (v1.59.1), so Sonnet and
  * Opus are quick there; on the API Sonnet 5 and Opus 5 think for a minute
- * and the API's suggestions / review were not measured ("~" is the CLI
- * ratio applied to the API's quick check).
+ * and the API's suggestions / review were not measured. "~" is an estimate:
+ * the CLI ratio applied to the API's quick check, and — for scan and
+ * structure — the measured scan of v1.65 (35–75 s) split between the two
+ * calls it became in v1.66.
  */
 const BANDS: Record<MeasuredLane, Record<TimedStep, string>> = {
-  'cli-sonnet': { scan: '45 s', keywords: '20 s', match: '35 s', suggestions: '30 s', review: '40 s' },
-  'cli-haiku': { scan: '50 s', keywords: '25 s, twice that when a reply has to be retried', match: '75 s', suggestions: '35 s', review: '55 s' },
-  'cli-opus': { scan: '55 s', keywords: '25 s', match: '60 s', suggestions: '45 s', review: '50 s' },
-  'api-haiku': { scan: '35 s', keywords: '20 s', match: '45 s', suggestions: '~30 s', review: '~40 s' },
-  'api-sonnet': { scan: '75 s', keywords: '65 s', match: 'more than 2 minutes', suggestions: '~1 minute', review: '~1 minute' },
-  'api-opus': { scan: '70 s', keywords: '40 s', match: '110 s', suggestions: '~1 minute', review: '~1 minute' },
+  'cli-sonnet': { scan: '~20 s', structure: '~40 s', keywords: '20 s', match: '35 s', suggestions: '30 s', review: '40 s' },
+  'cli-haiku': { scan: '~25 s', structure: '~45 s', keywords: '25 s, twice that when a reply has to be retried', match: '75 s', suggestions: '35 s', review: '55 s' },
+  'cli-opus': { scan: '~25 s', structure: '~50 s', keywords: '25 s', match: '60 s', suggestions: '45 s', review: '50 s' },
+  'api-haiku': { scan: '~15 s', structure: '~30 s', keywords: '20 s', match: '45 s', suggestions: '~30 s', review: '~40 s' },
+  'api-sonnet': { scan: '~40 s', structure: '~1 minute', keywords: '65 s', match: 'more than 2 minutes', suggestions: '~1 minute', review: '~1 minute' },
+  'api-opus': { scan: '~35 s', structure: '~1 minute', keywords: '40 s', match: '110 s', suggestions: '~1 minute', review: '~1 minute' },
 };
 
 export function laneOf(provider: string, model: string): Lane {

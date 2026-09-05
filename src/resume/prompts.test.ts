@@ -16,6 +16,8 @@ import {
   readCoverAngles,
   readHardRequirements,
   toPlainPunctuation,
+  buildStructurePrompt,
+  parseStructureResponse,
 } from './prompts';
 import { MATCH_MODES } from './match-mode';
 import { REVIEW_DIMENSIONS } from './review-score';
@@ -802,9 +804,12 @@ test('a reply without the v7 fields still parses, and a reply with them keeps th
   assert.equal(parsedV7.data.actions[0]!.insert_after, null);
 });
 
-test('the scan asks for a structure and states the copy-never-write rule', () => {
-  const { system } = buildScanPrompt('RESUME BODY');
-  assert.match(system, /"structure"/);
+test('the structure is its own call: the scan no longer asks for it, the structure prompt states the copy-never-write rule', () => {
+  const scan = buildScanPrompt('RESUME BODY');
+  assert.doesNotMatch(scan.system, /"structure"/);
+  assert.doesNotMatch(scan.system, /COPIED CHARACTER FOR CHARACTER/);
+  const { system, user } = buildStructurePrompt('RESUME BODY');
+  assert.match(system, /the same resume as data/);
   assert.match(system, /COPIED CHARACTER FOR CHARACTER/);
   assert.match(system, /Do not tighten a bullet/);
   // The one judgement the block does ask for — the corpus's skills table
@@ -812,6 +817,11 @@ test('the scan asks for a structure and states the copy-never-write rule', () =>
   assert.match(system, /TABLE or as two stacked columns/);
   assert.match(system, /"highlights"/);
   assert.match(system, /"extras"/);
+  assert.match(user, /RESUME BODY/);
+  const parsed = parseStructureResponse(JSON.stringify({ basics: { name: 'Nazar Boyko' }, work: [{ name: 'V Shred', highlights: ['Shipped.'] }] }));
+  assert.ok(parsed.ok);
+  assert.equal(parsed.data.work[0]?.highlights[0], 'Shipped.');
+  assert.equal(parseStructureResponse('not json').ok, false);
 });
 
 test('a scan reply without "structure" still parses — the block is optional', () => {

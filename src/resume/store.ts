@@ -148,11 +148,7 @@ export async function setDefaultResume(id: number): Promise<void> {
  * caller has the resume text and the log line — and null leaves the column
  * alone rather than clearing a structure an earlier scan earned.
  */
-export async function saveResumeScan(
-  id: number,
-  scan: ResumeScan,
-  structure: JsonResume | null,
-): Promise<void> {
+export async function saveResumeScan(id: number, scan: ResumeScan): Promise<void> {
   await prisma.resume.update({
     where: { id },
     data: {
@@ -165,8 +161,15 @@ export async function saveResumeScan(
       roleTypes: scan.role_types,
       summary: scan.summary,
       issues: scan.issues as Prisma.InputJsonValue,
-      ...(structure ? { structure: structure as unknown as Prisma.InputJsonValue } : {}),
     },
+  });
+}
+
+/** The resume as data, read by its own call (structure.ts) and guarded before it gets here (ADR 0039). */
+export async function saveResumeStructure(id: number, structure: JsonResume): Promise<void> {
+  await prisma.resume.update({
+    where: { id },
+    data: { structure: structure as unknown as Prisma.InputJsonValue },
   });
 }
 

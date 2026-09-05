@@ -14,6 +14,9 @@ import { docxStructure } from '../../resume/docx-structure';
 import { docxToText } from '../../resume/docx-text';
 import { parseWarnings } from '../../resume/parse-warnings';
 import { scanInBackground } from '../../resume/scan';
+import { structureResume } from '../../resume/structure';
+import { hashShortId } from '../../text-utils';
+import { claimRun, runFailure, startRun, updateRun, type TargetRun } from '../target-runs';
 import { ResumeRenderPage } from '../pages/resume-render';
 import { clearFlashCookie, flashRedirect, parseFlashCookie } from '../flash';
 
@@ -27,7 +30,7 @@ import { clearFlashCookie, flashRedirect, parseFlashCookie } from '../flash';
 
 export const resumeRenderRoute = new Hono();
 
-type Origin = 'scan' | 'text';
+type Origin = 'ai' | 'text';
 
 interface RenderContext {
   resume: ResumeSummary;
@@ -44,11 +47,55 @@ const isPdf = (filename: string) => /\.pdf$/i.test(filename);
 resumeRenderRoute.get('/resumes/:id/render', async (c) => {
   const ctx = await load(c);
   if ('response' in ctx) return ctx.response;
+  // The shape is read by its own AI call on the first visit (#184): the scan
+  // no longer carries it. `?shape=text` is where a failed reading lands — the
+  // built-in reader's shape, and a button to try the AI again.
+  if (ctx.origin === 'text' && c.req.query('shape') !== 'text') {
+    return c.redirect(`/target/runs/${startStructureRun(ctx.resume).id}`, 303);
+  }
   const knobs = knobsFrom(ctx.style);
   return c.html(await page(ctx, knobs, parseFlashCookie(c.req.header('cookie'))), 200, {
     'Set-Cookie': clearFlashCookie(),
   });
 });
+
+/** "Read the shape with AI" on the page: the same run the first visit starts. */
+resumeRenderRoute.post('/resumes/:id/render/shape', async (c) => {
+  const ctx = await load(c);
+  if ('response' in ctx) return ctx.response;
+  return c.redirect(`/target/runs/${startStructureRun(ctx.resume).id}`, 303);
+});
+
+/**
+ * One reading per resume text at a time (claimed on the text, so a new
+ * version is a new run); a failure lands on the built-in reading with the
+ * engine's reason, never on a page that would start the run again.
+ */
+function startStructureRun(resume: ResumeSummary): TargetRun {
+  const back = `/resumes/${resume.id}/render`;
+  const { run, joined } = claimRun(`structure:${resume.id}:${hashShortId(resume.text)}`, {
+    steps: ['structure'],
+    jobTitle: '',
+    resumeName: resume.name,
+    subtitle: 'Every line of the resume copied into the JSON Resume shape, so a clean file can be drawn from it.',
+    backUrl: `${back}?shape=text`,
+    backLabel: 'Show the built-in reading',
+  });
+  if (joined) return run;
+  startRun(run.id, async () => {
+    let reason = '';
+    const structure = await structureResume(resume, (r) => {
+      reason = r;
+    });
+    updateRun(
+      run.id,
+      structure
+        ? { stage: 'done', resultUrl: back, flash: `Read as data: ${structure.work.length} roles, ${structure.work.reduce((n, w) => n + w.highlights.length, 0)} bullets.` }
+        : { stage: 'error', error: runFailure('The AI could not read the resume as data', reason) },
+    );
+  });
+  return run;
+}
 
 resumeRenderRoute.post('/resumes/:id/render', async (c) => {
   const ctx = await load(c);
@@ -116,7 +163,7 @@ async function load(c: Context): Promise<RenderContext | { response: Response }>
     logger.info({ id, dropped: guarded.dropped }, 'resume: stored structure no longer matches the text');
   }
   const structure = usable ? guarded.structure : structureFromText(resume.text);
-  const origin: Origin = usable ? 'scan' : 'text';
+  const origin: Origin = usable ? 'ai' : 'text';
 
   const row = await getResumeOriginal(id);
   const bytes = row ? Buffer.from(row.original) : null;
