@@ -204,6 +204,25 @@ test('an override the model now agrees with is still kept — that is what makes
   assert.equal(r.keywords[0]?.override?.requirement, 'nice');
 });
 
+test('one override lands on one row — the exact spelling first, an alias only when nothing spells it (#85)', async () => {
+  const previous = [
+    kw({ term: 'Grafana', requirement: 'must', aliases: ['observability', 'monitoring'], override: { requirement: 'nice' } }),
+  ];
+  // What a rebuilt frame produced live on job #1393: three rows for one concept.
+  const split = [
+    kw({ term: 'observability tools', aliases: ['observability'], requirement: 'must' }),
+    kw({ term: 'Grafana', requirement: 'must' }),
+    kw({ term: 'performance monitoring', aliases: ['monitoring'], requirement: 'nice' }),
+  ];
+  const r = carryOverrides(split, previous, await context());
+  assert.equal(r.carried, 1);
+  assert.deepEqual(r.keywords.map((k) => k.override?.requirement ?? null), [null, 'nice', null]);
+  // Nothing spells it: the first alias match takes it, and only that one.
+  const byAlias = carryOverrides(split.filter((k) => k.term !== 'Grafana'), previous, await context());
+  assert.equal(byAlias.carried, 1);
+  assert.deepEqual(byAlias.keywords.map((k) => k.override?.requirement ?? null), ['nice', null]);
+});
+
 test('an override in the reply is stripped — only the user writes that field', async () => {
   const fresh = [kw({ term: 'Laravel', requirement: 'must', override: { excluded: true } })];
   const r = carryOverrides(fresh, [], await context());
