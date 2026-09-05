@@ -137,6 +137,14 @@ const ReviewReport: FC<{
         </span>
       </div>
       <p class="text-sm leading-6 text-ink">{review.headline}</p>
+      <Hint>
+        Graded from the extracted text — wording, structure, evidence. A photo, columns or a table
+        are invisible to it; that half of the answer is{' '}
+        <a href="#ats" class="font-medium text-accent-strong hover:text-accent-deep">
+          What the ATS sees
+        </a>{' '}
+        below.
+      </Hint>
       {delta && <DeltaLine delta={delta} />}
       {capLine && (
         <p class="rounded-md border border-warn/40 bg-surface-overlay/50 px-3 py-2 text-[13px] leading-5 text-ink">

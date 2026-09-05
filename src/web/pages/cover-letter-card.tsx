@@ -25,7 +25,16 @@ export interface CoverLetterCardProps {
   hasCompanyFacts: boolean;
   /** Saved on every generation, prefilled here — typed once, remembered (F8.1). */
   angles: CoverAngles;
+  /**
+   * The latest comparison with the preselected resume is a quick check — no
+   * strengths for the letter to draw on (ADR 0029, #89). Null when it is a
+   * full analysis or there is none.
+   */
+  quickCheck: { matchId: number; resumeName: string } | null;
 }
+
+/** The out-of-form "Get suggestions" button posts through this form (a form cannot nest). */
+const COVER_SUGGESTIONS_FORM = 'cover-suggestions';
 
 /** `block` is reachable only through a manual edit — generation never persists one. */
 const GATE_VIEW: Record<string, { label: string; tone: Tone }> = {
@@ -45,6 +54,7 @@ export const CoverLetterCard: FC<CoverLetterCardProps> = ({
   selected,
   hasCompanyFacts,
   angles,
+  quickCheck,
 }) => (
   <div id="cover-letter">
     <Card>
@@ -89,6 +99,15 @@ export const CoverLetterCard: FC<CoverLetterCardProps> = ({
             </label>
             <Button variant="violet">Generate letter</Button>
           </div>
+          {quickCheck && (
+            <Hint>
+              The latest comparison with "{quickCheck.resumeName}" is a quick check — verdicts and
+              keywords, but no strengths for the letter to draw on.{' '}
+              <Button variant="secondary" size="sm" form={COVER_SUGGESTIONS_FORM}>
+                Get suggestions first
+              </Button>
+            </Hint>
+          )}
           <details class="rounded-md border border-line px-3 py-2" open={hasAngles(angles)}>
             <summary class="cursor-pointer text-[13px] font-medium text-ink-muted transition-colors duration-150 hover:text-ink">
               Angle — optional, saved for your next letters
@@ -135,6 +154,16 @@ export const CoverLetterCard: FC<CoverLetterCardProps> = ({
               </>
             )}
           </Hint>
+        </form>
+      )}
+
+      {quickCheck && (
+        <form
+          id={COVER_SUGGESTIONS_FORM}
+          method="post"
+          action={`/jobs/${jobId}/matches/${quickCheck.matchId}/suggestions`}
+        >
+          <input type="hidden" name="next" value="cover" />
         </form>
       )}
 

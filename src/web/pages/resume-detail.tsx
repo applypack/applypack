@@ -299,7 +299,7 @@ export const ResumeDetailPage: FC<ResumeDetailProps> = ({
 
       <CleanVersion resumeId={resume.id} kind={structure?.kind ?? null} filename={resume.sourceFilename} />
 
-      <Card class="mt-4">
+      <Card class="mt-4" id="ats">
         <SectionTitle>What the ATS sees</SectionTitle>
         {warnings.length === 0 ? (
           <Hint>
