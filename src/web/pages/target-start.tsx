@@ -41,7 +41,7 @@ export const TargetStartPage: FC<TargetStartProps> = ({ resumes, flash }) => {
       <PageHeader title="Compare" meta="~½ min quick · ~2 min full">
         Paste a posting — the description alone is enough, company / title / location are
         detected during the run — and pick a resume. One run classifies the posting, scores the
-        resume against it and opens the side-by-side targeted view.
+        resume against it and opens the resume editor beside the posting.
       </PageHeader>
       <Flash flash={flash} />
 
@@ -173,7 +173,7 @@ export const TargetStartPage: FC<TargetStartProps> = ({ resumes, flash }) => {
           </Button>
           <Hint>
             Detects missing fields (seconds), classifies the posting, then one resume-model call
-            and the targeted view opens. Compare is the quick check — keywords, gates and the
+            and the resume editor opens. Compare is the quick check — keywords, gates and the
             score, about half a minute on Opus; Full analysis also writes the edit suggestions and
             takes 1½ to 2 minutes. Either way you can ask for the suggestions later.
             Re-pasting the same posting reuses its job.

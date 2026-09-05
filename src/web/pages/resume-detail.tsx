@@ -504,7 +504,7 @@ const TemplateCheck: FC<{ resumeId: number; candidate: string; structure: DocxSt
         </ul>
       )}
       <Hint class="mt-3">
-        Save on the targeted view writes your edits back into this file when the line is a paragraph;
+        Save in the resume editor writes your edits back into this file when the line is a paragraph;
         anything it cannot place honestly makes that save a text version, with the reason.
       </Hint>
       {props && foreign && (

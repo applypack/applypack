@@ -602,6 +602,7 @@ jobsRoute.post('/jobs/:id/match', async (c) => {
     updateRun(run.id, {
       stage: 'done',
       resultUrl: resultUrl(row.id),
+      tailorUrl: `/jobs/${id}/target?match=${row.id}`,
       flash: rebuild
         ? `Keywords rebuilt from the posting — AI match ${row.matchScore}/100, counted over a fresh set of terms.`
         : `${draft ? 'Draft' : `"${resume.name}"`} ${mode === 'fast' ? 'checked' : 'compared'} — AI match ${row.matchScore}/100.`,
@@ -793,7 +794,7 @@ jobsRoute.get('/jobs/:id/target', async (c) => {
   const requested = Number(c.req.query('match'));
   const match = matches.find((m) => m.id === requested) ?? matches[0];
   if (!match) {
-    return flashRedirect(`/jobs/${id}#resume-match`, 'err', 'Run Compare once — the targeted view needs an AI match to work from.');
+    return flashRedirect(`/jobs/${id}#resume-match`, 'err', 'Run Compare once — tailoring the resume needs an AI match to work from.');
   }
   const resume = await getResume(match.resumeId);
   if (!resume) return c.text('Not found', 404);
