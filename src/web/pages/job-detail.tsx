@@ -311,12 +311,6 @@ wireCopy(document);
 `;
 
 /**
- * What each running search made of this posting. Hidden while only one search
- * has scored it — a single row is the Job's own score restated, and the card
- * already shows that. The top row is the search the page speaks for: it names
- * the winner and picks the resume the Compare card preselects.
- */
-/**
  * The verdict and the button that replaces it, on one card (#100). Rendered
  * for an unscored posting too — that is when Re-classify matters most.
  */
@@ -353,6 +347,12 @@ const ClassifierCard: FC<{ job: JobDetail; scores: ProfileScore[] }> = ({ job, s
   );
 };
 
+/**
+ * What each running search made of this posting. Hidden while only one search
+ * has scored it — a single row is the Job's own score restated, and the card
+ * already shows that. The top row is the search the page speaks for: it names
+ * the winner and picks the resume the Compare card preselects.
+ */
 const ProfileScoreRow: FC<{ scores: ProfileScore[] }> = ({ scores }) => {
   if (scores.length < 2) return null;
   return (
