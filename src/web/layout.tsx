@@ -187,7 +187,12 @@ export const Layout: FC<PropsWithChildren<LayoutProps>> = ({
   fill = false,
   children,
 }) => (
-  <html lang="en">
+  <>
+    {/* Without the doctype the browser renders the dashboard in quirks mode —
+        every <form> grew a 1em bottom margin, which is what put a form-wrapped
+        button below its bare neighbour (#153). */}
+    {raw('<!DOCTYPE html>')}
+    <html lang="en">
     <head>
       <meta charset="utf-8" />
       <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -236,6 +241,7 @@ export const Layout: FC<PropsWithChildren<LayoutProps>> = ({
       <script type="module" dangerouslySetInnerHTML={{ __html: PROGRESS_BOOT }} />
     </body>
   </html>
+  </>
 );
 
 /* Lucide icon paths (MIT), 24px grid, stroke-based. */
