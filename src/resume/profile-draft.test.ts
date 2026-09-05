@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildProfileDraft, type ProfileForDraft, type ScanForDraft } from './profile-draft';
+import { buildProfileDraft, NICE_TO_HAVE_MAX, type ProfileForDraft, type ScanForDraft } from './profile-draft';
 
 const PROFILE: ProfileForDraft = {
   name: 'PHP hunt',
@@ -86,4 +86,22 @@ test('a blank base takes everything the scan speaks for — the new-profile case
     seniority: ['senior'],
   });
   assert.equal(d.warnings.length, 0);
+});
+
+test('universal tooling never becomes a scored preference', () => {
+  const d = buildProfileDraft(PROFILE, {
+    ...SCAN,
+    skills: ['php', 'laravel', 'git', 'GitHub', 'jira', 'agile', 'scrum', 'kanban', 'ci/cd', 'redis'],
+  });
+  assert.deepEqual(d.changes.stackNiceToHave, ['redis']);
+  assert.equal(d.warnings.length, 0);
+});
+
+test('the drafted nice-to-have list is capped, and the draft says so', () => {
+  const skills = Array.from({ length: 90 }, (_, i) => `tool-${i}`);
+  const d = buildProfileDraft({ ...PROFILE, stackRequired: [] }, { ...SCAN, skills, primarySkills: ['tool-0', 'tool-1'] });
+  assert.equal(d.changes.stackNiceToHave?.length, NICE_TO_HAVE_MAX);
+  assert.equal(d.changes.stackNiceToHave?.[0], 'tool-2');
+  assert.equal(d.warnings.length, 1);
+  assert.match(d.warnings[0] ?? '', /90 skills/);
 });

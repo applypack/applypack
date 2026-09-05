@@ -34,6 +34,18 @@ export interface ProfileDraft {
 /** Only a freshly created profile gets renamed from the resume headline. */
 const DEFAULT_PROFILE_NAMES = ['New profile', 'My profile'];
 
+/**
+ * The classifier is told to raise the score for every nice-to-have term, and
+ * the draft is reviewed as chips (ADR 0015): a scan of 90 skills produced an
+ * 86-chip list nobody checks and 717 characters of prompt per search (#157).
+ */
+export const NICE_TO_HAVE_MAX = 20;
+/** Tooling every software posting can be assumed to involve — a boost for it is noise, not preference. */
+const UNIVERSAL_TOOLING = new Set([
+  'git', 'github', 'gitlab', 'bitbucket', 'svn', 'mercurial',
+  'jira', 'confluence', 'agile', 'scrum', 'kanban', 'ci/cd', 'rest', 'restful',
+]);
+
 export function buildProfileDraft(current: ProfileForDraft, scan: ScanForDraft): ProfileDraft {
   const changes: Partial<ProfileForDraft> = {};
   const changed: string[] = [];
@@ -50,7 +62,13 @@ export function buildProfileDraft(current: ProfileForDraft, scan: ScanForDraft):
 
   const required = changes.stackRequired ?? current.stackRequired;
   if (scan.skills.length > 0) {
-    const nice = withoutTags(scan.skills, required);
+    const candidates = withoutTags(scan.skills, required).filter((s) => !UNIVERSAL_TOOLING.has(norm(s)));
+    const nice = candidates.slice(0, NICE_TO_HAVE_MAX);
+    if (candidates.length > nice.length) {
+      warnings.push(
+        `the scan names ${scan.skills.length} skills — the nice-to-have list keeps the first ${NICE_TO_HAVE_MAX}, add any other by hand`,
+      );
+    }
     if (!sameTags(nice, current.stackNiceToHave)) {
       changes.stackNiceToHave = nice;
       changed.push('nice-to-have stack');
