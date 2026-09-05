@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { extractJson } from '../text-utils';
+import { extractJson, jsonFailure, type ParseResult } from '../text-utils';
 import {
   ALIGNMENT_GRADES,
   KEYWORD_STATUSES,
@@ -726,8 +726,6 @@ export function buildSuggestionsPrompt(
   };
 }
 
-export type ParseResult<T> = { ok: true; data: T } | { ok: false; error: string };
-
 export function parseScanResponse(text: string): ParseResult<ResumeScan> {
   return parseWith(ScanSchema, text);
 }
@@ -973,7 +971,7 @@ export function coverGateSources(
 
 function parseWith<T>(schema: z.ZodType<T, z.ZodTypeDef, unknown>, text: string): ParseResult<T> {
   const json = extractJson(text);
-  if (json === null) return { ok: false, error: 'no JSON object in reply' };
+  if (json === null) return jsonFailure(text);
   const parsed = schema.safeParse(json);
   if (!parsed.success) {
     return { ok: false, error: JSON.stringify(parsed.error.flatten().fieldErrors) };

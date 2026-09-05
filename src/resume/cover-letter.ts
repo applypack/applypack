@@ -1,6 +1,7 @@
 import type { CoverLetter } from '@prisma/client';
 import { logger } from '../logger';
-import { getAiRuntime, type AiRuntime } from '../ai-runtime';
+import { getAiRuntime } from '../ai-runtime';
+import { askForJson } from '../ai-json';
 import {
   buildCoverPrompt,
   COVER_MAX_TOKENS,
@@ -13,10 +14,8 @@ import {
   toPlainPunctuation,
   type CoverAngles,
   type CoverContext,
-  type CoverResult,
   type CoverTone,
   type MatchJobInput,
-  type Prompt,
 } from './prompts';
 import { factCheck } from './fact-check';
 import {
@@ -27,7 +26,6 @@ import {
 } from './store';
 
 const COVER_TIMEOUT_MS = 3 * 60_000;
-const PARSE_ATTEMPTS = 2;
 const MATCH_ALIGNED_MAX = 12;
 const MATCH_GAPS_MAX = 6;
 
@@ -74,11 +72,16 @@ export async function generateCoverLetter(
   let regenerated = false;
   let prompt = buildCoverPrompt(resume.text, job, context);
   for (;;) {
-    const answer = await askOnce(ai, prompt, job.id);
+    const answer = await askForJson(
+      ai,
+      { ...prompt, maxTokens: COVER_MAX_TOKENS, label: 'cover-letter', role: 'cover', timeoutMs: COVER_TIMEOUT_MS },
+      parseCoverResponse,
+      { jobId: job.id },
+    );
     if (!answer) return { kind: 'failed' };
     // Deterministic plain-punctuation pass BEFORE the gate, so what is
     // checked is exactly what gets stored and copied (F8.1).
-    const letter = toPlainPunctuation(answer.parsed.letter);
+    const letter = toPlainPunctuation(answer.data.letter);
     const gate = factCheck({
       text: letter,
       sources,
@@ -117,8 +120,8 @@ export async function generateCoverLetter(
       text: letter,
       model: answer.model,
       promptVersion: COVER_PROMPT_VERSION,
-      keywordsUsed: answer.parsed.keywords_used,
-      gapsAcknowledged: answer.parsed.gaps_acknowledged,
+      keywordsUsed: answer.data.keywords_used,
+      gapsAcknowledged: answer.data.gaps_acknowledged,
       usedVerification: companySnapshot !== null,
       gateVerdict: gate.verdict,
       gateNotes: notes,
@@ -138,35 +141,6 @@ export async function generateCoverLetter(
     );
     return { kind: 'ok', row };
   }
-}
-
-/** One provider call with the match.ts parse-retry pattern. */
-async function askOnce(
-  ai: AiRuntime,
-  prompt: Prompt,
-  jobId: number,
-): Promise<{ parsed: CoverResult; model: string } | null> {
-  for (let attempt = 0; attempt < PARSE_ATTEMPTS; attempt++) {
-    const out = await ai.complete({
-      ...prompt,
-      maxTokens: COVER_MAX_TOKENS,
-      label: 'cover-letter',
-      role: 'cover',
-      timeoutMs: COVER_TIMEOUT_MS,
-    });
-    if (out === null) return null;
-    const parsed = parseCoverResponse(out.text);
-    if (parsed.ok) {
-      // Same marker as the match card: the user sees when a fallback engine
-      // (not chain #1) wrote this letter.
-      return { parsed: parsed.data, model: (out.model || out.providerId) + (out.viaFallback ? ' · fallback' : '') };
-    }
-    logger.warn(
-      { jobId, attempt, error: parsed.error, raw: out.text.slice(0, 300) },
-      'cover: reply did not match schema',
-    );
-  }
-  return null;
 }
 
 /** The match row boiled down to what a letter needs: what to feature, what to concede. */

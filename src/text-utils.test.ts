@@ -8,6 +8,7 @@ import {
   decideStageStrategy,
   extractAtsToken,
   extractJson,
+  jsonFailure,
   maskToken,
   parseTagList,
   toStringArray,
@@ -399,4 +400,22 @@ describe('url and text keys', () => {
   assert.equal(feedItemKey('n/a', '!!!'), null);
   });
 
+});
+
+describe('jsonFailure', () => {
+  it('names a reply with no JSON at all', () => {
+    assert.deepEqual(jsonFailure('Sorry, I cannot help with that.'), { ok: false, error: 'no JSON object in reply' });
+  });
+
+  it('tells a reply cut off inside the JSON from one that is not JSON', () => {
+    const cut = jsonFailure('{"keywords": [{"term": "Laravel", "replacement": "Frameworks: Laravel 10, Sym');
+    assert.equal(cut.cutOff, true);
+    assert.match(cut.error, /cut off/);
+  });
+
+  it('calls balanced braces that still do not parse malformed, not cut off', () => {
+    const bad = jsonFailure('{"a": 1, "b": }');
+    assert.equal(bad.cutOff, undefined);
+    assert.equal(bad.error, 'malformed JSON in reply');
+  });
 });

@@ -1,6 +1,7 @@
 import type { ResumeMatch } from '@prisma/client';
 import { logger } from '../logger';
 import { getAiRuntime } from '../ai-runtime';
+import { askForJson } from '../ai-json';
 import {
   buildMatchPrompt,
   MATCH_FAST_MAX_TOKENS,
@@ -32,7 +33,6 @@ import {
 const PREVIOUS_KEYWORDS_MAX = 40;
 
 const MATCH_TIMEOUT_MS = 5 * 60_000;
-const PARSE_ATTEMPTS = 2;
 
 /**
  * One resume-vs-posting comparison, persisted as a ResumeMatch row. `resume.text`
@@ -72,6 +72,7 @@ export async function matchResumeToJob(
     PROMPT_VERSION,
     opts.rebuild ?? false,
   );
+  const posting = `${job.title}\n${job.description}`;
   const context: MatchContext = {
     confirmedFacts: facts.filter((f) => f.status === 'confirmed').map((f) => ({ term: f.term, note: f.note })),
     deniedTerms: facts.filter((f) => f.status === 'denied').map((f) => f.term),
@@ -85,91 +86,74 @@ export async function matchResumeToJob(
           .map((k) => ({ term: k.term, priority: k.priority, requirement: k.requirement, primary: k.primary }))
       : undefined,
   };
-  const prompt = buildMatchPrompt(resume.text, job, mode, context);
-  const ai = await getAiRuntime();
-  for (let attempt = 0; attempt < PARSE_ATTEMPTS; attempt++) {
-    const started = Date.now();
-    const out = await ai.complete({
-      ...prompt,
+  const answer = await askForJson(
+    await getAiRuntime(),
+    {
+      ...buildMatchPrompt(resume.text, job, mode, context),
       maxTokens: mode === 'fast' ? MATCH_FAST_MAX_TOKENS : MATCH_MAX_TOKENS,
       label: mode === 'fast' ? 'resume-match-fast' : 'resume-match',
       role: 'resume',
       timeoutMs: MATCH_TIMEOUT_MS,
-    });
-    if (out === null) return null;
+    },
+    parseMatchResponse,
+    { jobId: job.id, resumeId: resume.id },
+  );
+  if (!answer) return null;
+  const reply = answer.data;
+  // Deterministic guarantees on top of the model's judgment: the alias
+  // table joins the model's spellings, every term is anchored to the
+  // posting (or flagged), stored facts always win, and unclaimable terms
+  // point at the resume that has them.
+  const anchor = anchorKeywords(reply.keywords.map(withTableAliases), posting, matcher);
+  const carry = carryOverrides(anchor.keywords, storedKeywords, { resumeText: resume.text, posting, matcher });
+  const withFacts = applyFacts(carry.keywords, facts).keywords;
+  const keywords = annotateElsewhere(withFacts, otherSkills);
+  // What may be applied with one press is decided here, in code, against
+  // the resume, the posting and the facts — never by the model (ADR 0037).
+  const gate = gateActions(reply.actions, { resumeText: resume.text, posting, facts, keywords, matcher });
+  // The row stores what the user sees; the score reads what they decided:
+  // their levels, without the terms they ignored (§5).
+  const breakdown = scoreMatch(effectiveKeywords(keywords), reply.alignment, reply.red_flags.length);
+  const row = await createMatch({
+    jobId: job.id,
+    resumeId: resume.id,
+    resumeVersion: resume.version,
+    resumeText: resume.text,
+    draft: opts.draft ?? false,
     // The marker surfaces on the match card's meta line — the user can see
     // that a fallback engine (not chain #1) produced this analysis.
-    const model = (out.model || out.providerId) + (out.viaFallback ? ' · fallback' : '');
-    const parsed = parseMatchResponse(out.text);
-    if (parsed.ok) {
-      // Deterministic guarantees on top of the model's judgment: the alias
-      // table joins the model's spellings, every term is anchored to the
-      // posting (or flagged), stored facts always win, and unclaimable terms
-      // point at the resume that has them.
-      const posting = `${job.title}\n${job.description}`;
-      const anchor = anchorKeywords(parsed.data.keywords.map(withTableAliases), posting, matcher);
-      const carry = carryOverrides(anchor.keywords, storedKeywords, {
-        resumeText: resume.text,
-        posting,
-        matcher,
-      });
-      const withFacts = applyFacts(carry.keywords, facts).keywords;
-      const keywords = annotateElsewhere(withFacts, otherSkills);
-      // What may be applied with one press is decided here, in code, against
-      // the resume, the posting and the facts — never by the model (ADR 0037).
-      const gate = gateActions(parsed.data.actions, { resumeText: resume.text, posting, facts, keywords, matcher });
-      // The row stores what the user sees; the score reads what they decided:
-      // their levels, without the terms they ignored (§5).
-      const breakdown = scoreMatch(
-        effectiveKeywords(keywords),
-        parsed.data.alignment,
-        parsed.data.red_flags.length,
-      );
-      const row = await createMatch({
-        jobId: job.id,
-        resumeId: resume.id,
-        resumeVersion: resume.version,
-        resumeText: resume.text,
-        draft: opts.draft ?? false,
-        model,
-        result: { ...parsed.data, keywords, actions: gate.actions },
-        breakdown,
-        promptVersion: PROMPT_VERSION,
-        mode,
-        frame: frame.reason,
-      });
-      logger.info(
-        {
-          matchId: row.id,
-          jobId: job.id,
-          resumeId: resume.id,
-          version: resume.version,
-          draft: row.draft,
-          mode,
-          score: row.matchScore,
-          replacementsBlocked: gate.blocked,
-          replacementsWarned: gate.warned,
-          cap: breakdown.cap,
-          keywords: keywords.length,
-          anchored: anchor.anchored,
-          unanchored: anchor.unanchored,
-          overrides: carry.carried,
-          readded: carry.readded,
-          frame: frame.reason,
-          promptVersion: PROMPT_VERSION,
-          chars: out.text.length,
-          ms: Date.now() - started,
-        },
-        'resume: matched',
-      );
-      return row;
-    }
-    logger.warn(
-      { jobId: job.id, resumeId: resume.id, attempt, error: parsed.error, raw: out.text.slice(0, 500) },
-      'resume: match reply did not match schema',
-    );
-  }
-  return null;
+    model: answer.model,
+    result: { ...reply, keywords, actions: gate.actions },
+    breakdown,
+    promptVersion: PROMPT_VERSION,
+    mode,
+    frame: frame.reason,
+  });
+  logger.info(
+    {
+      matchId: row.id,
+      jobId: job.id,
+      resumeId: resume.id,
+      version: resume.version,
+      draft: row.draft,
+      mode,
+      score: row.matchScore,
+      replacementsBlocked: gate.blocked,
+      replacementsWarned: gate.warned,
+      cap: breakdown.cap,
+      keywords: keywords.length,
+      anchored: anchor.anchored,
+      unanchored: anchor.unanchored,
+      overrides: carry.carried,
+      readded: carry.readded,
+      frame: frame.reason,
+      promptVersion: PROMPT_VERSION,
+      chars: answer.chars,
+      ms: answer.ms,
+    },
+    'resume: matched',
+  );
+  return row;
 }
 
 /**

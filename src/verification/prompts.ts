@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { extractJson } from '../text-utils';
+import { extractJson, jsonFailure, type ParseResult } from '../text-utils';
 import { fence, untrustedDirective } from '../prompt-fence';
 
 /*
@@ -121,11 +121,9 @@ export function buildVerifyPrompt(job: VerifyJobInput): { system: string; user: 
   };
 }
 
-export type ParseResult<T> = { ok: true; data: T } | { ok: false; error: string };
-
 export function parseVerifyResponse(text: string): ParseResult<VerificationResult> {
   const json = extractJson(text);
-  if (json === null) return { ok: false, error: 'no JSON object in reply' };
+  if (json === null) return jsonFailure(text);
   const parsed = VerificationSchema.safeParse(json);
   if (!parsed.success) return { ok: false, error: JSON.stringify(parsed.error.flatten().fieldErrors) };
   return { ok: true, data: parsed.data };

@@ -40,6 +40,7 @@ const PROMPT_MODULES: Record<string, Record<string, unknown>> = {
 const KNOWN_CALL_SITES: Record<string, string> = {
   'ai-provider.ts': 'the seam itself',
   'ai-runtime.ts': 'the chain that drives the seam',
+  'ai-json.ts': 'the parse-and-retry wrapper over the seam — its callers bring the prompt',
   'classifier.ts': 'buildClassifyPrompt',
   'classifier-prefilter.ts': 'buildPrefilterPrompt',
   'jobs/posting-extract.ts': 'buildExtractPrompt',
@@ -205,7 +206,7 @@ test('every exported prompt builder has a fence case', () => {
 });
 
 test('every AI call site is a known one', () => {
-  const callers = walkSrc().filter((f) => readFileSync(join(SRC, f), 'utf8').includes('.complete('));
+  const callers = walkSrc().filter((f) => /\.complete\(|askForJson\(/.test(readFileSync(join(SRC, f), 'utf8')));
   const unknown = callers.filter((f) => !(f in KNOWN_CALL_SITES));
   assert.deepEqual(
     unknown,
