@@ -3,13 +3,14 @@ import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { CronRunStatus } from '@prisma/client';
 import { config } from './config';
+import { isDiscordWebhookUrl } from './notify/discord';
 import { prisma } from './db';
 import { logger } from './logger';
 import { runSeed } from './seed';
 import {
-  addTelegramTarget,
+  addNotificationTarget,
   getSettings,
-  listTelegramTargets,
+  listNotificationTargets,
   setTelegramEnabled,
 } from './settings';
 import { createProfile, listProfiles, setActiveProfile } from './profiles';
@@ -27,7 +28,7 @@ export async function init(): Promise<void> {
   logger.info(seeded, 'init: seed complete');
 
   await bootstrapDefaultProfile();
-  await bootstrapTelegramFromEnv();
+  await bootstrapTargetsFromEnv();
 }
 
 /**
@@ -85,7 +86,7 @@ async function bootstrapDefaultProfile(): Promise<void> {
     onsiteCities: [],
     minSalaryUsd: config.MIN_SALARY_USD,
     minFitScore: config.MIN_FIT_SCORE,
-    telegramTargetId: null,
+    notificationTargetId: null,
     priorityRules: [],
   });
   await setActiveProfile(profile.id);
@@ -96,28 +97,38 @@ async function bootstrapDefaultProfile(): Promise<void> {
 }
 
 /**
- * On first boot, if .env contains TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID and
- * the settings table has no targets yet, import them as a single target and
- * enable telegram. After this, .env values are no longer consulted at runtime
- * — the dashboard / Settings page is the source of truth.
+ * On first boot, if .env names a Telegram bot + chat or a Discord webhook and
+ * the settings table has no targets yet, import them and enable alerts. After
+ * this, .env values are no longer consulted at runtime — the dashboard /
+ * Settings page is the source of truth (ADR 0041).
  */
-async function bootstrapTelegramFromEnv(): Promise<void> {
-  const existing = await listTelegramTargets();
+async function bootstrapTargetsFromEnv(): Promise<void> {
+  const existing = await listNotificationTargets();
   if (existing.length > 0) return;
-  if (!config.TELEGRAM_BOT_TOKEN || !config.TELEGRAM_CHAT_ID) return;
-
-  await addTelegramTarget({
-    name: 'from .env',
-    botToken: config.TELEGRAM_BOT_TOKEN,
-    chatId: config.TELEGRAM_CHAT_ID,
-  });
+  let added = 0;
+  if (config.TELEGRAM_BOT_TOKEN && config.TELEGRAM_CHAT_ID) {
+    await addNotificationTarget({
+      kind: 'TELEGRAM',
+      name: 'from .env',
+      botToken: config.TELEGRAM_BOT_TOKEN,
+      chatId: config.TELEGRAM_CHAT_ID,
+    });
+    added++;
+  }
+  if (config.DISCORD_WEBHOOK_URL) {
+    if (isDiscordWebhookUrl(config.DISCORD_WEBHOOK_URL)) {
+      await addNotificationTarget({ kind: 'DISCORD', name: 'Discord from .env', webhookUrl: config.DISCORD_WEBHOOK_URL });
+      added++;
+    } else {
+      logger.warn('init: DISCORD_WEBHOOK_URL is not a Discord webhook URL; ignored');
+    }
+  }
+  if (added === 0) return;
   const settings = await getSettings();
   if (!settings.telegramEnabled) {
     await setTelegramEnabled(true);
   }
-  logger.info(
-    'init: bootstrapped Telegram target from .env; manage via /settings now',
-  );
+  logger.info({ added }, 'init: bootstrapped notification targets from .env; manage via /settings now');
 }
 
 function applySchema(): void {

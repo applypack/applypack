@@ -1,7 +1,7 @@
 import { config } from '../config';
 import { logger } from '../logger';
-import { sendDigest, sendTelegramAlert } from '../notifier';
-import { listTelegramTargets } from '../settings';
+import { sendDigest, sendAlert } from '../notifier';
+import { listNotificationTargets } from '../settings';
 import type { AlertJob } from '../types';
 
 const TELEGRAM_API = 'https://api.telegram.org';
@@ -73,7 +73,7 @@ async function main(): Promise<void> {
   await sendDigest([]);
 
   logger.info('test-telegram: step 3/5 — single job alert');
-  await sendTelegramAlert(fakeAlert);
+  await sendAlert(fakeAlert);
 
   logger.info('test-telegram: step 4/5 — digest with 2 jobs');
   await sendDigest([fakeAlert, fakeAlert2]);
@@ -83,13 +83,13 @@ async function main(): Promise<void> {
   // silent breakage — every chat still gets a message — so it is exercised
   // against a real target rather than left to a unit test.
   logger.info('test-telegram: step 5/5 — alert routed to one target');
-  const targets = (await listTelegramTargets()).filter((t) => t.active);
+  const targets = (await listNotificationTargets()).filter((t) => t.active);
   if (targets.length === 0) {
     logger.warn('test-telegram: no active targets; routing step skipped');
   } else {
     const target = targets[0]!;
     logger.info({ target: target.name, id: target.id }, 'test-telegram: routing to');
-    await sendTelegramAlert(
+    await sendAlert(
       { ...fakeAlert, title: `Routed to "${target.name}" only (Test)` },
       target.id,
     );

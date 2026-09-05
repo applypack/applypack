@@ -11,7 +11,7 @@ import { buildVerdicts, mergeVerdicts, type ProfileVerdict } from './verdict-mer
 import { toScoreData } from './score-store';
 import { mergeAiLocation, type StoredPlace } from './location-merge';
 import { isBlankProfile, NO_PROFILE_STACK_FLAG } from '../profile-guards';
-import { sendTelegramAlert } from '../notifier';
+import { sendAlert } from '../notifier';
 import { attributionLine } from '../web/pages/attribution';
 import type { ClassifierMode } from '../settings';
 import { canAlertNow, type Schedule } from '../user-schedule';
@@ -317,7 +317,7 @@ export async function processNormalizedJobs(
     }
 
     try {
-      await sendTelegramAlert(
+      await sendAlert(
         {
           title: created.title,
           companyName: starred(companyName, item.watch),
@@ -346,7 +346,7 @@ export async function processNormalizedJobs(
           profileScores: verdicts.length > 1 ? scoreLine : null,
         },
         // Routed to the winning search's chat; null still broadcasts.
-        winner.telegramTargetId,
+        winner.notificationTargetId,
       );
       await prisma.job.update({
         where: { id: created.id },

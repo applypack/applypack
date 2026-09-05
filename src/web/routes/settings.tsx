@@ -4,11 +4,11 @@ import { AtsType } from '@prisma/client';
 import { z } from 'zod';
 import { logger } from '../../logger';
 import {
-  addTelegramTarget,
-  deleteTelegramTarget,
+  addNotificationTarget,
+  deleteNotificationTarget,
   getAiKeys,
   getSettings,
-  listTelegramTargets,
+  listNotificationTargets,
   maskToken,
   setAiEngineConfig,
   setAiKey,
@@ -21,7 +21,7 @@ import {
   setStaleApplicationsDigestEnabled,
   setTelegramEnabled,
   testTelegramTarget,
-  toggleTelegramTarget,
+  toggleNotificationTarget,
   getSourceKeys,
   setSourceKey,
   setSchedule,
@@ -105,16 +105,23 @@ import type { Profile } from '@prisma/client';
 import { isSettingsTab, SettingsPage, type SourceKeyRow } from '../pages/settings';
 import { sourceLabel } from '../source-names';
 import { clearFlashCookie, flashRedirect, parseFlashCookie } from '../flash';
+import { describeDestination } from '../../notify/targets';
+import { isDiscordWebhookUrl, testDiscordWebhook } from '../../notify/discord';
 import { missingLinkMessage } from '../profile-links';
 import { createResume, getResume, listResumes } from '../../resume/store';
 import { scanResume } from '../../resume/scan';
 import { buildProfileDraft } from '../../resume/profile-draft';
 import { nameFromFilename, readResumeUpload, resumeUploadLimit } from '../upload';
 
-const NewTargetSchema = z.object({
+const TelegramTargetSchema = z.object({
   name: z.string().min(1).max(100),
   botToken: z.string().min(20).max(200),
   chatId: z.string().min(1).max(100),
+});
+
+const DiscordTargetSchema = z.object({
+  name: z.string().min(1).max(100),
+  webhookUrl: z.string().min(20).max(400).refine(isDiscordWebhookUrl, 'not a Discord webhook URL'),
 });
 
 const ProfileFormSchema = z.object({
@@ -135,7 +142,7 @@ const ProfileFormSchema = z.object({
   onsiteCities: z.string().optional().default(''),
   minSalaryUsd: z.coerce.number().int().min(0).default(0),
   minFitScore: z.coerce.number().int().min(0).max(100).default(70),
-  telegramTargetId: z.string().optional().default(''),
+  notificationTargetId: z.string().optional().default(''),
   resumeId: z.string().optional().default(''),
   priorityRules: z.string().optional().default(''),
   action: z.string().optional(),
@@ -174,7 +181,7 @@ async function loadSettingsProps() {
   const [settings, targets, profiles, active, resumes, aiStatuses, stageCounts] =
     await Promise.all([
       getSettings(),
-      listTelegramTargets(),
+      listNotificationTargets(),
       listProfiles(),
       getActiveProfile(),
       listResumes(),
@@ -279,8 +286,8 @@ async function loadSettingsProps() {
     targets: targets.map((t) => ({
       id: t.id,
       name: t.name,
-      maskedToken: maskToken(t.botToken),
-      chatId: t.chatId,
+      kind: t.kind,
+      destination: describeDestination(t),
       active: t.active,
       createdAt: t.createdAt,
       lastUsed: t.lastUsed,
@@ -296,6 +303,7 @@ async function loadSettingsProps() {
     availableTargets: targets.map((t) => ({
       id: t.id,
       name: t.name,
+      kind: t.kind,
       active: t.active,
     })),
     resumes: resumes.map((r) => ({
@@ -776,27 +784,35 @@ settingsRoute.post('/settings/sources', async (c) => {
   );
 });
 
+/** Both channels land here; `kind` says which form it was. A real test message goes out before the row is saved. */
 settingsRoute.post('/settings/targets', async (c) => {
   const form = await c.req.parseBody();
-  const parsed = NewTargetSchema.safeParse({
+  const back = '/settings?tab=notifications';
+  if (form.kind === 'discord') {
+    const parsed = DiscordTargetSchema.safeParse({ name: form.name, webhookUrl: form.webhookUrl });
+    if (!parsed.success) {
+      return flashRedirect(back, 'err', 'Invalid input — a name and a Discord webhook URL (https://discord.com/api/webhooks/…) are required.');
+    }
+    const test = await testDiscordWebhook(parsed.data.webhookUrl);
+    if (!test.ok) return flashRedirect(back, 'err', `Validation failed: ${test.error ?? 'unknown'}`);
+    await addNotificationTarget({ kind: 'DISCORD', ...parsed.data });
+    return flashRedirect(back, 'ok', `Added Discord webhook "${parsed.data.name}". Test message sent.`);
+  }
+  const parsed = TelegramTargetSchema.safeParse({
     name: form.name,
     botToken: form.botToken,
     chatId: form.chatId,
   });
   if (!parsed.success) {
-    return flashRedirect('/settings?tab=notifications', 'err', 'Invalid input — name, token, chat id required.');
+    return flashRedirect(back, 'err', 'Invalid input — name, token, chat id required.');
   }
   const test = await testTelegramTarget(parsed.data.botToken, parsed.data.chatId);
   if (!test.ok) {
-    return flashRedirect(
-      '/settings?tab=notifications',
-      'err',
-      `Validation failed: ${test.error ?? 'unknown'}`,
-    );
+    return flashRedirect(back, 'err', `Validation failed: ${test.error ?? 'unknown'}`);
   }
-  await addTelegramTarget(parsed.data);
+  await addNotificationTarget({ kind: 'TELEGRAM', ...parsed.data });
   return flashRedirect(
-    '/settings?tab=notifications',
+    back,
     'ok',
     `Added target "${parsed.data.name}" (bot @${test.botUsername ?? '?'}). Test message sent.`,
   );
@@ -805,23 +821,29 @@ settingsRoute.post('/settings/targets', async (c) => {
 settingsRoute.post('/settings/targets/:id/toggle', async (c) => {
   const id = Number(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text('Bad id', 400);
-  await toggleTelegramTarget(id);
+  await toggleNotificationTarget(id);
   return flashRedirect('/settings?tab=notifications', 'ok', 'Target toggled.');
 });
 
 settingsRoute.post('/settings/targets/:id/delete', async (c) => {
   const id = Number(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text('Bad id', 400);
-  await deleteTelegramTarget(id);
+  await deleteNotificationTarget(id);
   return flashRedirect('/settings?tab=notifications', 'ok', 'Target deleted.');
 });
 
 settingsRoute.post('/settings/targets/:id/test', async (c) => {
   const id = Number(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text('Bad id', 400);
-  const t = await prisma.telegramTarget.findUnique({ where: { id } });
+  const t = await prisma.notificationTarget.findUnique({ where: { id } });
   if (!t) return flashRedirect('/settings?tab=notifications', 'err', 'Target not found.');
-  const result = await testTelegramTarget(t.botToken, t.chatId);
+  if (t.kind === 'DISCORD') {
+    const result = await testDiscordWebhook(t.webhookUrl ?? '');
+    return result.ok
+      ? flashRedirect('/settings?tab=notifications', 'ok', `Test sent to "${t.name}".`)
+      : flashRedirect('/settings?tab=notifications', 'err', `Test failed: ${result.error ?? 'unknown'}`);
+  }
+  const result = await testTelegramTarget(t.botToken ?? '', t.chatId ?? '');
   if (result.ok) {
     return flashRedirect(
       '/settings?tab=notifications',
@@ -947,7 +969,7 @@ settingsRoute.post('/settings/profiles/:id/save', async (c) => {
   }
   const f = parsed.data;
 
-  const telegramTargetId = optionalId(f.telegramTargetId);
+  const notificationTargetId = optionalId(f.notificationTargetId);
   const resumeId = optionalId(f.resumeId);
 
   const { rules: priorityRules, errors: priorityErrors } =
@@ -966,13 +988,13 @@ settingsRoute.post('/settings/profiles/:id/save', async (c) => {
   // a dead id is a raw foreign-key error — a 500 with the whole edit lost.
   const [resumeRow, targetRow] = await Promise.all([
     resumeId === null ? null : getResume(resumeId),
-    telegramTargetId === null
+    notificationTargetId === null
       ? null
-      : prisma.telegramTarget.findUnique({ where: { id: telegramTargetId }, select: { id: true } }),
+      : prisma.notificationTarget.findUnique({ where: { id: notificationTargetId }, select: { id: true } }),
   ]);
   const missing = missingLinkMessage({
     resumeGone: resumeId !== null && resumeRow === null,
-    telegramTargetGone: telegramTargetId !== null && targetRow === null,
+    notificationTargetGone: notificationTargetId !== null && targetRow === null,
   });
   if (missing) return flashRedirect('/settings?tab=profile', 'err', missing);
 
@@ -1003,7 +1025,7 @@ settingsRoute.post('/settings/profiles/:id/save', async (c) => {
     onsiteCities: parseTagList(f.onsiteCities),
     minSalaryUsd: f.minSalaryUsd,
     minFitScore: f.minFitScore,
-    telegramTargetId,
+    notificationTargetId,
     resumeId,
     priorityRules,
   };

@@ -23,7 +23,7 @@ export interface ProfileVerdict {
   dismissReason: DismissReason | null;
   priorityRulesApplied: string[];
   /** Where this search's alerts go; null = broadcast to all active targets. */
-  telegramTargetId: number | null;
+  notificationTargetId: number | null;
 }
 
 export interface MergedVerdict {
@@ -99,7 +99,7 @@ export function buildVerdicts(
       classification: priority.classification,
       dismissReason: decideDismissReason(priority.classification, profile),
       priorityRulesApplied: priority.applied.map((r) => r.label),
-      telegramTargetId: profile.telegramTargetId,
+      notificationTargetId: profile.notificationTargetId,
     });
   }
   return { verdicts, boosted };

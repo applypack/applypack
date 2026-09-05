@@ -1,5 +1,5 @@
 import { AtsType } from '@prisma/client';
-import type { Prisma, TelegramTarget } from '@prisma/client';
+import type { Prisma, NotificationTarget } from '@prisma/client';
 import { prisma } from './db';
 import { logger } from './logger';
 import type { AiEngineConfig } from './ai-engine';
@@ -334,49 +334,48 @@ function normaliseClassifierMode(raw: string): ClassifierMode {
   return raw === 'two_stage' ? 'two_stage' : 'single';
 }
 
-export async function listTelegramTargets(): Promise<TelegramTarget[]> {
-  return prisma.telegramTarget.findMany({ orderBy: { id: 'asc' } });
+export async function listNotificationTargets(): Promise<NotificationTarget[]> {
+  return prisma.notificationTarget.findMany({ orderBy: { id: 'asc' } });
 }
 
-export async function listActiveTelegramTargets(): Promise<TelegramTarget[]> {
-  return prisma.telegramTarget.findMany({
+export async function listActiveNotificationTargets(): Promise<NotificationTarget[]> {
+  return prisma.notificationTarget.findMany({
     where: { active: true },
     orderBy: { id: 'asc' },
   });
 }
 
-export async function addTelegramTarget(input: {
-  name: string;
-  botToken: string;
-  chatId: string;
-}): Promise<TelegramTarget> {
-  return prisma.telegramTarget.create({
-    data: {
-      name: input.name,
-      botToken: input.botToken,
-      chatId: input.chatId,
-      active: true,
-    },
+/** A target as the settings form or `.env` hands it over — one shape per channel (ADR 0041). */
+export type NewTarget =
+  | { kind: 'TELEGRAM'; name: string; botToken: string; chatId: string }
+  | { kind: 'DISCORD'; name: string; webhookUrl: string };
+
+export async function addNotificationTarget(input: NewTarget): Promise<NotificationTarget> {
+  return prisma.notificationTarget.create({
+    data:
+      input.kind === 'DISCORD'
+        ? { kind: 'DISCORD', name: input.name, webhookUrl: input.webhookUrl, active: true }
+        : { kind: 'TELEGRAM', name: input.name, botToken: input.botToken, chatId: input.chatId, active: true },
   });
 }
 
-export async function toggleTelegramTarget(id: number): Promise<void> {
-  const t = await prisma.telegramTarget.findUnique({ where: { id } });
+export async function toggleNotificationTarget(id: number): Promise<void> {
+  const t = await prisma.notificationTarget.findUnique({ where: { id } });
   if (!t) return;
-  await prisma.telegramTarget.update({
+  await prisma.notificationTarget.update({
     where: { id },
     data: { active: !t.active },
   });
 }
 
-export async function deleteTelegramTarget(id: number): Promise<void> {
-  await prisma.telegramTarget.delete({ where: { id } }).catch((err) => {
+export async function deleteNotificationTarget(id: number): Promise<void> {
+  await prisma.notificationTarget.delete({ where: { id } }).catch((err) => {
     logger.warn({ err, id }, 'settings: delete target failed (already gone?)');
   });
 }
 
 export async function markTargetUsed(id: number): Promise<void> {
-  await prisma.telegramTarget
+  await prisma.notificationTarget
     .update({ where: { id }, data: { lastUsed: new Date() } })
     .catch(() => undefined);
 }
