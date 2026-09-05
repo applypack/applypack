@@ -46,12 +46,34 @@ const UNIVERSAL_TOOLING = new Set([
   'jira', 'confluence', 'agile', 'scrum', 'kanban', 'ci/cd', 'rest', 'restful',
 ]);
 
+/**
+ * Titles and role words that read as a resume from outside software
+ * engineering. ApplyPack's boards, scan and scoring assume a tech stack
+ * (docs/onboarding-sources.md, Decision A): a product manager's resume once
+ * scanned to a required stack of `sql` — an honest reading, and a fatal one,
+ * because every posting without the word then scored 35 at most. The draft
+ * says so and leaves the required stack alone.
+ */
+const NON_ENGINEERING =
+  /\b(?:product|project|program(?:me)?|delivery)\s+(?:manager|owner|lead)\b|\b(?:recruiter|talent acquisition|marketing|sales|account manager|customer success|designer|human resources|business analyst)\b/i;
+
+/** The words that make a scan read as a non-engineering resume, or null. */
+export function readsAsNonEngineering(scan: Pick<ScanForDraft, 'title' | 'roleTypes'>): string | null {
+  const hit = NON_ENGINEERING.exec([scan.title ?? '', ...scan.roleTypes].join(' · '));
+  return hit ? hit[0].toLowerCase() : null;
+}
+
 export function buildProfileDraft(current: ProfileForDraft, scan: ScanForDraft): ProfileDraft {
   const changes: Partial<ProfileForDraft> = {};
   const changed: string[] = [];
   const warnings: string[] = [];
 
-  if (scan.primarySkills.length > 0) {
+  const outside = readsAsNonEngineering(scan);
+  if (outside) {
+    warnings.push(
+      `this resume reads as a ${outside} role — ApplyPack's boards, scan and scoring are built for software engineering, so the required stack was left as it is; expect few matches`,
+    );
+  } else if (scan.primarySkills.length > 0) {
     if (!sameTags(scan.primarySkills, current.stackRequired)) {
       changes.stackRequired = scan.primarySkills;
       changed.push('required stack');
