@@ -12,6 +12,8 @@ export interface FlashMessage {
   rerun?: boolean;
   /** Which comparison the user asked for, so "Re-run anyway" repeats THAT one (ADR 0029). */
   mode?: string;
+  /** The editor for the comparison just made — the flash offers "Tailor resume →" (#164). */
+  tailor?: string;
 }
 
 const FLASH_TTL_SECONDS = 5;
@@ -20,10 +22,15 @@ export function flashRedirect(
   location: string,
   kind: FlashMessage['kind'],
   text: string,
-  opts: { rerun?: boolean; mode?: string } = {},
+  opts: { rerun?: boolean; mode?: string; tailor?: string } = {},
 ): Response {
   const value = encodeURIComponent(
-    JSON.stringify({ kind, text, ...(opts.rerun ? { rerun: true, mode: opts.mode } : {}) }),
+    JSON.stringify({
+      kind,
+      text,
+      ...(opts.rerun ? { rerun: true, mode: opts.mode } : {}),
+      ...(opts.tailor ? { tailor: opts.tailor } : {}),
+    }),
   );
   return new Response(null, {
     status: 303,
@@ -51,6 +58,10 @@ export function parseFlashCookie(cookieHeader: string | undefined): FlashMessage
         text: parsed.text,
         ...(parsed.rerun === true
           ? { rerun: true, ...(typeof parsed.mode === 'string' ? { mode: parsed.mode } : {}) }
+          : {}),
+        // A path of ours only — a cookie is the browser's to edit.
+        ...(typeof parsed.tailor === 'string' && /^\/jobs\/\d+\/target\?match=\d+$/.test(parsed.tailor)
+          ? { tailor: parsed.tailor }
           : {}),
       };
     }

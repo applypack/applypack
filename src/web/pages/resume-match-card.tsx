@@ -158,12 +158,14 @@ export const ResumeMatchCard: FC<ResumeMatchCardProps> = ({
           >
             Full analysis
           </Button>
-          <Hint class="basis-full">
-            Compare is the quick check — one call to the resume model, about half a minute on
-            Opus, and you can ask for the suggestions afterwards. Full analysis writes them right
-            away and takes 1½ to 2 minutes. The score itself is computed deterministically from
-            the reply — same facts, same number, every time.
-          </Hint>
+          {!selected && (
+            <Hint class="basis-full">
+              Compare is the quick check — one call to the resume model, about half a minute on
+              Opus, and you can ask for the suggestions afterwards. Full analysis writes them
+              right away and takes 1½ to 2 minutes. The score itself is computed
+              deterministically from the reply — same facts, same number, every time.
+            </Hint>
+          )}
         </form>
       )}
 
@@ -363,12 +365,10 @@ export const MatchReport: FC<{
           {formatRelative(match.createdAt)} · <span class="font-mono">{match.model}</span>
           {match.draft ? ' · draft' : ''}
         </span>
-        <a
-          href={`/jobs/${match.jobId}/target?match=${match.id}`}
-          class="ml-auto text-sm font-medium text-accent-strong transition-colors duration-150 hover:text-accent-deep"
-        >
-          Open targeted view →
-        </a>
+        {/* The card's primary once a result exists: free, and the step the verdict leads to (#164). Full-width under the score row on a phone. */}
+        <Button href={`/jobs/${match.jobId}/target?match=${match.id}`} size="sm" class="ml-auto max-sm:basis-full">
+          Tailor resume →
+        </Button>
       </div>
       <p class="text-sm leading-6 text-ink">{match.summary}</p>
       {bd && <ScoreBreakdownChips bd={bd} />}

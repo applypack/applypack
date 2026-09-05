@@ -151,7 +151,7 @@ export const TargetPage: FC<TargetPageProps> = ({
     sheet: { jobTitle: job.title, companyName: job.companyName, resumeName: resume.name },
   };
   return (
-    <Layout title={`Resume match · ${job.title}`} active="jobs">
+    <Layout title={`Tailor resume · ${job.title}`} active="jobs">
       <div class="w-full">
       <nav aria-label="Breadcrumb" class="mb-1.5 flex items-center gap-1.5 text-[13px] text-ink-faint">
         <a href="/jobs" class="transition-colors duration-150 hover:text-ink">
@@ -167,7 +167,7 @@ export const TargetPage: FC<TargetPageProps> = ({
         </a>
         <span aria-hidden="true">/</span>
         <span aria-current="page" class="font-medium text-ink-muted">
-          Resume match
+          Tailor resume
         </span>
       </nav>
       <Flash flash={flash}>
@@ -189,7 +189,7 @@ export const TargetPage: FC<TargetPageProps> = ({
 
       <div class="mb-4 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div class="min-w-0 lg:min-w-[15rem] lg:shrink-0">
-          <h1 class="text-xl font-semibold tracking-tight">Resume match</h1>
+          <h1 class="text-xl font-semibold tracking-tight">Tailor resume</h1>
           <div class="mt-1 text-sm text-ink-muted">
             {job.companyName} · {job.title}
             {job.location ? ` · ${job.location}` : ''}

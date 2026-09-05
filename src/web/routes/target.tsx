@@ -95,7 +95,10 @@ targetRoute.get('/target/runs/:id', (c) => {
     return flashRedirect('/target', 'err', 'That comparison run is gone (runs live ~30 min). Start again.');
   }
   if (run.stage === 'done' && run.resultUrl) {
-    return flashRedirect(run.resultUrl, run.reused ? 'warn' : 'ok', run.flash ?? 'Done.', { rerun: run.reused });
+    return flashRedirect(run.resultUrl, run.reused ? 'warn' : 'ok', run.flash ?? 'Done.', {
+      rerun: run.reused,
+      tailor: run.tailorUrl,
+    });
   }
   return c.html(<TargetRunPage run={run} />);
 });

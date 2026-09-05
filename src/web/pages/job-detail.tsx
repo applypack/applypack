@@ -146,6 +146,11 @@ export const JobDetailPage: FC<JobDetailProps> = ({
   <Layout title={job.title} active="jobs">
     <PageHeaderBlock job={job} />
     <Flash flash={flash}>
+      {flash?.tailor && (
+        <Button href={flash.tailor} size="sm">
+          Tailor resume →
+        </Button>
+      )}
       {flash?.rerun && resumeMatch.selected && (
         <form method="post" action={`/jobs/${job.id}/match`}>
           <input type="hidden" name="resumeId" value={resumeMatch.selected.resumeId} />
