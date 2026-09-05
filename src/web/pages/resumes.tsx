@@ -39,11 +39,8 @@ const PRIMARY_PREVIEW = 3;
  * Scanned and BOTH action buttons behind a horizontal scroll at 375px — the
  * actions were effectively unreachable on a phone. Name, Matches and Set
  * default now survive at every width; the descriptive columns drop out.
- * Each entry pairs with the same class on its `Td`.
+ * The table declares it once (`hideBelow`), header and cells alike.
  */
-const HIDE_SM = 'hidden sm:table-cell';
-const HIDE_LG = 'hidden lg:table-cell';
-const HIDE_XL = 'hidden xl:table-cell';
 /** Same idea for things that are not table cells. */
 const HIDE_SM_INLINE = 'hidden sm:inline-flex';
 
@@ -77,7 +74,7 @@ export const ResumesPage: FC<{
             'Scanned',
             <span class="block text-right">Default</span>,
           ]}
-          thClasses={['', HIDE_XL, HIDE_LG, '', HIDE_SM, HIDE_SM, '']}
+          hideBelow={['', 'xl', 'lg', '', 'sm', 'sm', '']}
         >
           {resumes.map((r) => (
             <Tr>
@@ -101,21 +98,21 @@ export const ResumesPage: FC<{
                   {r.sourceFilename}
                 </div>
               </Td>
-              <Td class={`max-w-[16rem] text-ink-muted ${HIDE_XL}`}>
+              <Td class="max-w-[16rem] text-ink-muted">
                 <div class="truncate" title={r.title ?? undefined}>
                   {r.title ?? '—'}
                 </div>
               </Td>
-              <Td class={`max-w-[18rem] ${HIDE_LG}`}>
+              <Td class="max-w-[18rem]">
                 <PrimaryStack resume={r} />
               </Td>
               <Td class="whitespace-nowrap">
                 <MatchCell matches={r.matches} />
               </Td>
-              <Td class={`whitespace-nowrap ${HIDE_SM}`}>
+              <Td class="whitespace-nowrap">
                 <StrengthCell resume={r} />
               </Td>
-              <Td class={`whitespace-nowrap text-[13px] text-ink-faint ${HIDE_SM}`}>
+              <Td class="whitespace-nowrap text-[13px] text-ink-faint">
                 {r.scannedAt ? formatRelative(r.scannedAt) : <Badge tone="warn">not scanned</Badge>}
               </Td>
               <Td>
