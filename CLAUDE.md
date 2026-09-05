@@ -282,7 +282,7 @@ When the question is **"where does X live?"**, save yourself a `find`:
 | Creating a search profile from a resume (both entry points) | `src/web/profile-from-resume.ts` → `POST /resumes/:id/profile` and `POST /welcome/profile/create`; born inactive |
 | Prefill the profile from a resume scan | `src/resume/profile-draft.ts:buildProfileDraft` (pure) + `POST /settings/profiles/:id/fill-from-resume` (renders a draft, saves nothing — ADR 0015) |
 | Model for cover letters (empty = follows the resume model) | `/settings` → AI engine → "Cover letter model" (role `cover` in `ai-engine.ts`; pickers save on change) |
-| Model for resume calls | per-engine "Resume model" on `/settings` → AI engine; Claude engines fall back to `CLAUDE_MODEL_RESUME` in `.env` (default `claude-opus-5`) |
+| Model for resume calls, and for cover letters | per-engine "Resume model" / "Cover letter model" on `/settings` → AI engine; an empty slot takes `ai-engine.ts:defaultModelFor` — Sonnet 5 on the Claude CLI, Haiku 4.5 on the API, Opus 5 for the letter (measured 2026-09-05, docs/target-plan.md §2.3); `CLAUDE_MODEL_RESUME` / `CLAUDE_MODEL_COVER` in `.env` override. The budgets per call are `resume/prompts.ts:RESUME_TIMEOUT_MS`, the run page's band per lane `web/lane.ts` |
 | Ghost-job checklist prompt + verdict schema | `src/verification/prompts.ts` |
 | Liveness ladder (free ATS-API + page checks before AI verify) | `src/verification/liveness.ts` (ADR 0016), run by `verify.ts:checkLiveness` |
 | Letting a call use web search (API server tools / CLI WebSearch) | `AiRequest.webTools` in `src/ai-provider.ts`, args in `ai-provider-parse.ts:buildClaudeCodeArgs` |

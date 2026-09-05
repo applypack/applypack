@@ -4,6 +4,30 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.65.0] — 2026-09-05
+
+### Changed
+- **Default models per engine, from a measurement.** With the CLI's
+  thinking capped (v1.59.1) Sonnet 5 answers a quick check there in 19 s
+  and never broke its JSON, while Haiku 4.5 took 21–26 s and returned JSON
+  that could not be parsed in two of three calls; on the API Haiku is the
+  fast one at 18 s while Sonnet 5 and Opus 5 think for a minute. So an empty
+  Resume model slot now means Sonnet 5 on the Claude CLI and Haiku 4.5 on
+  the API, and an empty Cover letter slot means Opus 5, the writer, instead
+  of following the resume slot; `CLAUDE_MODEL_RESUME` and the new
+  `CLAUDE_MODEL_COVER` in `.env` still override (#184). The whole table —
+  scan, quick check, full analysis, suggestions, review on six lanes — is
+  in docs/target-plan.md §2.3.
+- **A resume call fails with a reason instead of waiting five minutes.**
+  Each tool-free call has a budget about twice its slowest measured lane —
+  quick check 90 s, scan / suggestions / review 120 s, full analysis
+  180 s — and the run page says what the engine answered (*"Comparison
+  failed: claude timed out after 90 s"*) instead of "see the web logs".
+- **The progress page states this install's lane.** *"Quick AI check —
+  about 20 s on Sonnet 5 through the Claude CLI"* instead of "half a minute
+  to a minute" for everyone; the AI engine tab warns when the resume slot
+  resolves to Haiku on the CLI.
+
 ## [1.64.0] — 2026-09-05
 
 ### Changed
@@ -2587,6 +2611,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[1.65.0]: https://github.com/applypack/applypack/compare/v1.64.0...v1.65.0
 [1.64.0]: https://github.com/applypack/applypack/compare/v1.63.0...v1.64.0
 [1.63.0]: https://github.com/applypack/applypack/compare/v1.62.1...v1.63.0
 [1.62.1]: https://github.com/applypack/applypack/compare/v1.62.0...v1.62.1
