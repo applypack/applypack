@@ -15,7 +15,7 @@
 [How it works](#how-it-works) · [Bring your own AI](#bring-your-own-ai) ·
 [What it costs](#what-it-costs) · [Contributing](#contributing)
 
-<img src="docs/screenshots/target.png" alt="Resume match: deterministic 82/100 score with primary-stack verdict, experience confirmations, and the side-by-side editor with keyword highlights" width="900">
+<img src="docs/screenshots/target.png" alt="Tailor resume: a deterministic 70/100 score capped by the primary-stack verdict, nine suggested edits, experience confirmations, and the posting beside the resume with every keyword weighted and counted" width="900">
 
 <sub>Tailor resume: an honest, deterministic resume-vs-posting score,
 one-click experience confirmations, live keyword highlights.</sub>
