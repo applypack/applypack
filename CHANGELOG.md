@@ -4,6 +4,17 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.57.3] — 2026-09-05
+
+### Fixed
+- **One keyword override lands on one row.** A stored re-level or ignore
+  followed the concept through its aliases, so when a rebuilt keyword frame
+  split "Grafana" into *Grafana*, *observability tools* and *performance
+  monitoring*, one decision moved the score three times and two rows wore a
+  *yours* badge the user never set (#85). Now the row that spells the term
+  exactly takes it, and an alias match only when no row does — and only the
+  first one.
+
 ## [1.57.2] — 2026-09-05
 
 ### Fixed
@@ -2376,6 +2387,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[1.57.3]: https://github.com/applypack/applypack/compare/v1.57.2...v1.57.3
 [1.57.2]: https://github.com/applypack/applypack/compare/v1.57.1...v1.57.2
 [1.57.1]: https://github.com/applypack/applypack/compare/v1.57.0...v1.57.1
 [1.57.0]: https://github.com/applypack/applypack/compare/v1.56.0...v1.57.0
