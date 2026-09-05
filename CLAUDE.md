@@ -136,6 +136,11 @@
   from the SAME rule constants in `prompts.ts` and parsed by the same
   `MatchSchema`; `suggestions.ts` fills a fast row in later from its stored
   verdicts. The mode marker rides in the `breakdown` JSON, never in the schema.
+  The verifier's `companySnapshot` reaches `full` and the suggestions call
+  ONLY, as a fenced COMPANY CONTEXT block — context for emphasis and `why`,
+  never evidence for a status, a gate or a replacement (ADR 0042); the
+  fourth `breakdown` marker, `verificationId`, is the memo key that makes a
+  full row stale after a new verification.
 - `src/web/public/score.mjs` mirrors `src/resume/score.ts` line for line —
   change one, change the other; `src/web/score.test.ts` enforces parity.
 - The cron worker (`src/index.ts` + `src/jobs/*`) MUST NOT run an HTTP server.
@@ -284,6 +289,7 @@ When the question is **"where does X live?"**, save yourself a `find`:
 | Model for cover letters (empty = follows the resume model) | `/settings` → AI engine → "Cover letter model" (role `cover` in `ai-engine.ts`; pickers save on change) |
 | Model for resume calls, and for cover letters | per-engine "Resume model" / "Cover letter model" on `/settings` → AI engine; an empty slot takes `ai-engine.ts:defaultModelFor` — Sonnet 5 on the Claude CLI, Haiku 4.5 on the API, Opus 5 for the letter (measured 2026-09-05, docs/target-plan.md §2.3); `CLAUDE_MODEL_RESUME` / `CLAUDE_MODEL_COVER` in `.env` override. The budgets per call are `resume/prompts.ts:RESUME_TIMEOUT_MS`, the run page's band per lane `web/lane.ts` |
 | Ghost-job checklist prompt + verdict schema | `src/verification/prompts.ts` |
+| What the resume side reads out of "Is this job real?" (the snapshot as context, the hint line, the letter's greeting) | `store.ts:getLatestVerificationContext` → `prompts.ts:companyContextLines` (full analysis + suggestions only, ADR 0042) · `src/resume/verification-hint.ts` (the line on the match card) · `src/resume/addressee.ts` (the Addressed-to prefill) |
 | Liveness ladder (free ATS-API + page checks before AI verify) | `src/verification/liveness.ts` (ADR 0016), run by `verify.ts:checkLiveness` |
 | Letting a call use web search (API server tools / CLI WebSearch) | `AiRequest.webTools` in `src/ai-provider.ts`, args in `ai-provider-parse.ts:buildClaudeCodeArgs` |
 | Classify one stored job (Re-classify button, pasted jobs) | `src/jobs/classify-existing.ts` |

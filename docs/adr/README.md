@@ -50,6 +50,7 @@ consequences (what we accept). Aim for 15–30 lines each.
 - [0039 — A resume that cannot be patched is re-typeset from JSON Resume, in the user's own typography](./0039-clean-render-from-json-resume.md) *(extends 0038)*
 - [0040 — The default source set is the aggregators; employer boards are starter packs](./0040-default-sources-are-the-aggregators.md) *(extends 0017)*
 - [0041 — Alerts go through a channel seam; Telegram and Discord are its first two channels](./0041-notification-channels.md)
+- [0042 — The verifier's company facts are context for the match, never evidence](./0042-company-facts-are-context-never-evidence.md) *(extends 0021 and 0037)*
 
 ## When to write a new one
 

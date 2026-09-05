@@ -134,6 +134,7 @@ const CASES: Record<string, Case> = {
       resumeMod.buildMatchPrompt(RESUME, JOB, 'full', {
         otherResumeSkills: [{ skill: 'ELSEWHERE-NEEDLE', resumeName: 'Old CV' }],
         previousKeywords: [{ term: 'PREVKW-NEEDLE', priority: 1, requirement: 'must', primary: true }],
+        companySnapshot: 'SNAPSHOT-NEEDLE',
       }),
     fenced: [
       ['RESUME', RESUME],
@@ -143,6 +144,8 @@ const CASES: Record<string, Case> = {
       // Tier 2: text of ours that was derived from an untrusted posting.
       ['OTHER RESUME SKILLS', 'ELSEWHERE-NEEDLE'],
       ['PREVIOUS KEYWORDS', 'PREVKW-NEEDLE'],
+      // Tier 2: the verifier's reading of the company, laundered from the web (ADR 0042).
+      ['COMPANY CONTEXT', 'SNAPSHOT-NEEDLE'],
     ],
   },
   buildSuggestionsPrompt: {
@@ -152,6 +155,7 @@ const CASES: Record<string, Case> = {
         alignment: null,
         keywords: [{ term: 'VERDICT-NEEDLE', requirement: 'must', primary: true, status: 'present', where: 'WHERE-NEEDLE' }],
         hardRequirements: [{ requirement: 'GATE-NEEDLE', status: 'unknown' }],
+        companySnapshot: 'SNAPSHOT-NEEDLE',
       }),
     fenced: [
       ['RESUME', RESUME],
@@ -162,6 +166,7 @@ const CASES: Record<string, Case> = {
       ['KEYWORD VERDICTS', 'VERDICT-NEEDLE'],
       ['KEYWORD VERDICTS', 'WHERE-NEEDLE'],
       ['KEYWORD VERDICTS', 'GATE-NEEDLE'],
+      ['COMPANY CONTEXT', 'SNAPSHOT-NEEDLE'],
     ],
   },
   buildCoverPrompt: {

@@ -450,6 +450,8 @@ button (or an `uncertain` ladder) runs the ghost-job checklist with web
 search (`AiRequest.webTools`, ADR 0009) and stores a `JobVerification`:
 `verdict` legit | suspicious | fake, `recommendation` apply | caution |
 skip, confidence, evidence rows with URLs, red flags, company snapshot.
+The snapshot feeds the cover letter (ADR 0021) and, since 1.68.0, the full
+analysis and the suggestions as context — never evidence (ADR 0042).
 
 ## Cover letters (F8, ADR 0021)
 

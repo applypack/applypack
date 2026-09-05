@@ -20,19 +20,21 @@ test('readMatchMode: the marker, and "full" for rows written before it', () => {
   assert.equal(readMatchMode(null), 'full');
 });
 
-test('storedBreakdown carries the score parts and all three markers', () => {
+test('storedBreakdown carries the score parts and all four markers', () => {
   const bd = scoreMatch([], null, 0);
-  const stored = storedBreakdown(bd, { promptVersion: 6, mode: 'fast', frame: 'rebuild' });
+  const stored = storedBreakdown(bd, { promptVersion: 6, mode: 'fast', frame: 'rebuild', verificationId: 12 });
   assert.equal(stored.score, bd.score);
   assert.equal(stored.promptVersion, 6);
   assert.equal(stored.mode, 'fast');
   assert.equal(stored.frame, 'rebuild');
+  assert.equal(stored.verificationId, 12);
   assert.equal(readMatchMode(stored), 'fast');
   assert.equal(readFrameReason(stored), 'rebuild');
+  assert.equal(storedBreakdown(bd, { promptVersion: 6, mode: 'fast', frame: null, verificationId: null }).verificationId, null);
 });
 
-test('withSuggestionsMode flips a stored JSON to full and keeps everything else', () => {
-  const next = withSuggestionsMode({ v: 3, score: 66, promptVersion: 6, mode: 'fast' });
-  assert.deepEqual(next, { v: 3, score: 66, promptVersion: 6, mode: 'full' });
-  assert.deepEqual(withSuggestionsMode(null), { mode: 'full' });
+test('withSuggestionsMode flips a stored JSON to full, stamps the verification and keeps everything else', () => {
+  const next = withSuggestionsMode({ v: 3, score: 66, promptVersion: 6, mode: 'fast' }, 12);
+  assert.deepEqual(next, { v: 3, score: 66, promptVersion: 6, mode: 'full', verificationId: 12 });
+  assert.deepEqual(withSuggestionsMode(null, null), { mode: 'full', verificationId: null });
 });
