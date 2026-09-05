@@ -3,7 +3,7 @@ import { Hono, type Context } from 'hono';
 import { logger } from '../../logger';
 import type { ResumeReview } from '@prisma/client';
 import { reviewResume } from '../../resume/review';
-import { scanResume } from '../../resume/scan';
+import { scanInBackground, scanResume } from '../../resume/scan';
 import type { ResumeScan } from '../../resume/prompts';
 import { matchResumeToJob } from '../../resume/match';
 import { prisma } from '../../db';
@@ -193,7 +193,7 @@ resumesRoute.post('/resumes/:id/draft', async (c) => {
   // a duplicate version behind whatever the run registry then did. Keyed on
   // the text, because that is what the user submitted (issue #76).
   const { run, joined } = claimRun(`draft:${id}:${hashShortId(text)}:${job?.id ?? ''}:${asCopy ? 'copy' : 'version'}`, {
-    steps: job ? ['scan', 'keywords'] : ['scan'],
+    steps: job ? ['keywords'] : ['scan'],
     jobTitle: job?.title ?? '',
     resumeName: '',
     jobId: job?.id,
@@ -213,16 +213,19 @@ resumesRoute.post('/resumes/:id/draft', async (c) => {
     const saved = asCopy ? `Saved as a new resume "${resume.name}" (${note})` : `Saved as v${resume.version} (${note})`;
     updateRun(run.id, {
       resumeName: resume.name,
-      subtitle: `${saved}.${job ? ' Reading it, then scoring it against the posting.' : ''}`,
+      subtitle: `${saved}.${job ? ' Scoring it against the posting.' : ''}`,
     });
-    const scan = await scanResume(resume);
     if (!job) {
+      const scan = await scanResume(resume);
       updateRun(run.id, scan
         ? { stage: 'done', resultUrl: `/resumes/${resume.id}`, flash: `${saved}.` }
         : { stage: 'error', error: `${saved}, but the scan failed — try "Scan".` });
       return;
     }
-    updateRun(run.id, { stage: 'keywords' });
+    // The match reads the text, never the scan (target-plan §3.1 item 2), so
+    // the scan runs behind it as the re-upload route's does — it was 63 % of
+    // a six-minute wait on a CLI engine (#168).
+    scanInBackground(resume);
     const match = await matchResumeToJob(resume, {
       id: job.id,
       title: job.title,
@@ -234,7 +237,7 @@ resumesRoute.post('/resumes/:id/draft', async (c) => {
       ? {
           stage: 'done',
           resultUrl: `/jobs/${job.id}/target?match=${match.id}`,
-          flash: `${saved} and checked: AI match ${match.matchScore}/100.`,
+          flash: `${saved} and checked: AI match ${match.matchScore}/100. The headline and skills refresh in the background.`,
         }
       : {
           stage: 'error',

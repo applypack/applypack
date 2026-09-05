@@ -18,11 +18,11 @@ const STEP_VIEW: Record<RunStep, StepView> = {
     // Also reached by a plain re-scan and a first upload, where there is no
     // "new version" to speak of.
     label: 'Read the resume',
-    detail: 'headline, skills, ATS issues — about half a minute',
+    detail: 'headline, skills, ATS issues, the resume as a shape — half a minute to a minute',
   },
   keywords: {
     label: 'Quick AI check',
-    detail: 'the resume model judges every keyword, the gates and the score — no edit suggestions — about half a minute on Opus',
+    detail: 'the resume model judges every keyword, the gates and the score — no edit suggestions — half a minute to a minute',
   },
   match: {
     label: 'Full AI analysis',
