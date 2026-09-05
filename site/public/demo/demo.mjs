@@ -5,7 +5,7 @@
  * to the page. Mirrors the dashboard's target-page.mjs render path:
  * scoreKeywords → entriesFromLive → computeScore.
  */
-import { scoreKeywords, highlightHtml, jobSpans, resumeSpans } from './target.mjs';
+import { scoreKeywords, highlightHtml, jobSpans, resumeSpans, orderKeywords, keywordRank, wantsLabel } from './target.mjs';
 import { computeScore, entriesFromLive } from './score.mjs';
 
 const editor = document.getElementById('editor');
@@ -74,11 +74,16 @@ function wire(data) {
     jd.innerHTML = highlightHtml(data.jobText, jobSpans(data.keywords, data.jobText, scored));
 
     chips.innerHTML = '';
-    for (const r of missing.sort((a, b) => a.priority - b.priority)) {
+    // The dashboard's order and weight (target-page.mjs): the hardest
+    // requirement first, then the words the posting keeps repeating; a
+    // primary-stack must shouts, a nice-to-have whispers.
+    for (const r of orderKeywords(missing, data.jobText)) {
       const chip = document.createElement('span');
-      chip.className = 'chip-missing';
-      chip.textContent = r.term + ' · P' + r.priority;
-      if (r.where || r.note) chip.title = (r.where ? 'Add in: ' + r.where + '. ' : '') + (r.note || '');
+      chip.className = 'chip-missing kw-w' + keywordRank(r);
+      chip.textContent = r.count > 1 ? r.term + ' ×' + r.count : r.term;
+      chip.title = [wantsLabel(r), r.count > 1 ? '×' + r.count + ' in the posting' : null, r.where ? 'add in: ' + r.where : null, r.note]
+        .filter(Boolean)
+        .join(' · ');
       chips.appendChild(chip);
     }
     if (missing.length === 0) chips.innerHTML = '<span class="chips-empty">Every countable keyword is present.</span>';

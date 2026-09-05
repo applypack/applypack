@@ -178,10 +178,14 @@ h3 { font-size: var(--text-lg); font-weight: 600; line-height: 1.3; }
 #reset:hover { background: var(--overlay); }
 /* min-height reserves the chip row before the fixture loads, so nothing below it jumps */
 #chips { display: flex; gap: 6px; flex-wrap: wrap; min-height: 44px; padding: 0 var(--s-5) var(--s-4); }
+/* The dashboard's chip weights (target-page.mjs CHIP_WEIGHT): kw-w4 a primary-stack must, kw-w0 context. */
 .chip-missing {
-  background: rgb(217 119 6 / 0.1); color: #9a3412; border: 1px solid rgb(217 119 6 / 0.3);
-  border-radius: var(--r-sm); padding: 2px 8px; font-size: 12.5px; font-weight: 600; cursor: default;
+  background: rgb(217 119 6 / 0.1); color: #9a3412; border: 1px solid rgb(217 119 6 / 0.25);
+  border-radius: var(--r-sm); padding: 2px 8px; font-size: 12.5px; font-weight: 500; cursor: default;
 }
+.chip-missing.kw-w4 { background: rgb(217 119 6 / 0.25); border-color: rgb(217 119 6 / 0.6); font-weight: 600; }
+.chip-missing.kw-w3 { background: rgb(217 119 6 / 0.15); border-color: rgb(217 119 6 / 0.4); }
+.chip-missing.kw-w1, .chip-missing.kw-w0 { background: rgb(217 119 6 / 0.05); border-color: rgb(217 119 6 / 0.15); color: var(--ink-3); }
 .chips-empty { font-size: 13px; color: var(--ink-3); }
 .panes { display: grid; grid-template-columns: 1fr 1fr; border-top: 1px solid var(--line); }
 .pane + .pane { border-left: 1px solid var(--line); }
