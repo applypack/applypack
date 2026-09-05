@@ -4,6 +4,29 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.62.0] — 2026-09-05
+
+### Changed
+- **A fresh install starts with the aggregators only; the employer boards
+  are starter packs.** The seed shipped 23 employer boards switched on —
+  every one a US or US-adjacent company — and every regional feed off
+  (#149). Now the nine aggregators are on, the regional feeds stay off, and
+  no employer board is on by default: the 22 live boards moved into the pack
+  catalog as *US product companies* (17), *European product companies*
+  (Spotify, Pleo, Channable, Digital Science) and Buffer under *Remote-first,
+  worldwide*; Niantic's empty board was dropped. The wizard's boards step
+  offers the packs that fit the running searches — a country named or a
+  group it belongs to, a required technology, remote work — next to the
+  board feeds, and the pack's preview → add → enable flow returns to setup.
+  An install that already has the boards keeps them exactly as they are
+  (ADR 0040).
+
+### Fixed
+- **Two seeded boards were dead slugs.** `GREENHOUSE:pleo` and `LEVER:plaid`
+  failed on every tick since the companies moved to Ashby; the seed removes
+  them on the next boot — with any jobs they once fetched, as every obsolete
+  row goes — and their Ashby boards (31 and 103 open jobs) are in the packs.
+
 ## [1.61.0] — 2026-09-05
 
 ### Changed
@@ -2513,6 +2536,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[1.62.0]: https://github.com/applypack/applypack/compare/v1.61.0...v1.62.0
 [1.61.0]: https://github.com/applypack/applypack/compare/v1.60.0...v1.61.0
 [1.60.0]: https://github.com/applypack/applypack/compare/v1.59.2...v1.60.0
 [1.59.2]: https://github.com/applypack/applypack/compare/v1.59.1...v1.59.2

@@ -91,7 +91,7 @@ before it can be argued.
 1. Per-source `durationMs` in `runAllFetchers` → `FetchRun` and the cron row. — done, v1.61.0
 2. One fresh-install walk with #148, numbers per source (this doc, §6). — done
 3. Step 2 = aggregators, plus the country field (Decision B). — done, v1.61.0
-4. #149 seed rebalance from the numbers. — §7
+4. #149 seed rebalance from the numbers. — done, v1.62.0 (§7, ADR 0040)
 5. Decision A surfaces in copy (README, wizard step 3). — done, v1.61.0
 
 ## 6. Measured, then built (2026-09-05)
@@ -145,4 +145,7 @@ removes the reason the 23 were active (§4, onboarding-plan §6). The seed can
 ship the aggregators on and the company boards as a starter pack the wizard
 offers — the issue's option 1 — without an emptier first run: 591 postings
 in 17 s is the proof, and it is the same proof for a user in Kyiv and one in
-Austin. Details and the decision in the #149 pull request.
+Austin. Done in v1.62.0 — the decision and its alternatives are ADR 0040;
+the wizard's boards step offers the packs that fit the searches
+(`packsForSearches`), and the seed's two dead slugs (Pleo, Plaid — both on
+Ashby since) go on its obsolete list.
