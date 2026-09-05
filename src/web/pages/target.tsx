@@ -55,6 +55,8 @@ export interface TargetPageProps {
   resumeText: string;
   /** An instant check's parsed upload — opens in the editor as the unsaved draft (target-page.mjs). */
   draftText?: string | null;
+  /** A background AI check the page follows: the chip beside the number polls it (#184). */
+  runId?: string | null;
   /** The latest "Is this job real?" verdict — one line under the title, findings among the cautions (#162). */
   verification: VerificationForHint | null;
   flash?: FlashMessage | null;
@@ -115,6 +117,7 @@ export const TargetPage: FC<TargetPageProps> = ({
   previous,
   resumeText,
   draftText,
+  runId,
   verification,
   fileVerdict,
   cleanHref,
@@ -142,6 +145,7 @@ export const TargetPage: FC<TargetPageProps> = ({
     aiScore: match.matchScore,
     resumeText,
     draftText: draftText ?? null,
+    runId: runId ?? null,
     jobText: job.description,
     keywords: scored,
     actions,
@@ -260,6 +264,8 @@ export const TargetPage: FC<TargetPageProps> = ({
                 <span id="ai-stale" hidden class="font-medium text-warn">
                   edited — re-check to refresh
                 </span>
+                {/* The background AI check, when one is running (#184): running · ready with "Use it" · failed. */}
+                <span data-ai-run hidden class="font-medium"></span>
               </div>
               {/* Which resume/version is named by the pane header and the run chips —
                   repeating it here was pure duplication. */}
@@ -322,10 +328,6 @@ export const TargetPage: FC<TargetPageProps> = ({
                 >
                   <input type="hidden" name="resumeId" value={resume.id} />
                   <input type="hidden" name="matchId" value={match.id} />
-                  {/* Set by the second button's click, not by the submitter's value: SUBMIT_ONCE
-                      disables the buttons in the submit event, and a disabled submitter is left
-                      out of the form data. */}
-                  <input type="hidden" name="uploadMode" value="check" />
                   <input
                     type="file"
                     name="file"
@@ -333,29 +335,14 @@ export const TargetPage: FC<TargetPageProps> = ({
                     accept={ACCEPTED_EXTENSIONS.join(',')}
                     class="block w-full text-xs text-ink file:mr-2 file:cursor-pointer file:rounded-md file:border-0 file:bg-surface-overlay file:px-2.5 file:py-1 file:text-xs file:font-medium file:text-ink"
                   />
-                  <Button size="sm" class="w-full" title="Parses the file into the editor and scores it against this analysis — no AI call">
-                    Upload & check (seconds)
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    class="w-full"
-                    onclick="this.form.elements.uploadMode.value='analyze'"
-                    title={
-                      resume.ephemeral
-                        ? 'Replaces this comparison with a fresh quick AI check (~½ min)'
-                        : `Saves the file as v${resume.version + 1} and runs the quick AI check (~½ min); the scan runs in the background`
-                    }
-                  >
-                    {resume.ephemeral ? 'Upload & check with AI' : `Upload as v${resume.version + 1} & check with AI`}
+                  <Button size="sm" class="w-full" title="Opens the file in the editor at once; the quick AI check runs behind it">
+                    Upload & check
                   </Button>
                   <Hint>
-                    Check opens the new text as an unsaved draft scored against this analysis: the text confirms
-                    what is present, while add / confirm / can't-claim keep the AI's verdict on the analysed
-                    version until you re-check.{' '}
-                    {resume.ephemeral
-                      ? 'Nothing lands in your Resumes either way.'
-                      : `Nothing is saved — Save as v${resume.version + 1} keeps the text, not the file.`}
+                    The text opens here within a second with the live estimate; the AI check of it runs in the
+                    background and its number lands beside the score — about half a minute. Nothing is saved
+                    until you {resume.ephemeral ? 'Save as a new resume' : `Save as v${resume.version + 1} or as a tailored copy`} on the bar
+                    below.
                   </Hint>
                 </form>
               </div>
@@ -374,8 +361,10 @@ export const TargetPage: FC<TargetPageProps> = ({
               <div class={`${MENU_PANEL} space-y-2`}>
                 <form method="post" action={`/jobs/${job.id}/match`} id="reanalyze-form" onsubmit={SUBMIT_ONCE}>
                   <input type="hidden" name="resumeId" value={resume.id} />
+                  <input type="hidden" name="matchId" value={match.id} />
                   <input type="hidden" name="draftText" id="reanalyze-text" value="" />
-                  <input type="hidden" name="next" value="target" />
+                  {/* The editor stays open; the chip beside the number follows the run (#184). */}
+                  <input type="hidden" name="next" value="editor" />
                   {/* Set by the full-analysis and Rebuild buttons' clicks — a disabled submitter is left out of the form data. */}
                   <input type="hidden" name="mode" value="fast" />
                   <input type="hidden" name="rebuild" value="" />
@@ -655,6 +644,7 @@ export const TargetPage: FC<TargetPageProps> = ({
             Estimate <span id="bar-score">—</span>
             <span id="bar-delta" class="ml-1 text-xs font-medium"></span>
           </span>
+          <span data-ai-run hidden class="text-xs font-medium"></span>
           <div class="ml-auto flex flex-wrap items-center gap-2">
             <Button type="button" variant="ghost" size="sm" id="bar-discard">
               Discard
