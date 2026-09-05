@@ -8,6 +8,7 @@ import {
   Card,
   Code,
   FILE_INPUT_CLASS,
+  NEEDS_FILE_JS,
   Field,
   FitBadge,
   Flash,
@@ -519,14 +520,15 @@ const ProfileStep: FC<WelcomeProps> = ({ profile, steps }) => {
       ) : (
         <>
           <p class="text-sm text-ink-muted">
-            Upload your resume and we'll read the tools you use and the roles you do. Takes about
-            half a minute; the file stays on your Resumes page for later comparisons and cover letters.
+            Choose your resume — we read the tools you use and the roles you do, in about half a
+            minute.
           </p>
           <form
             method="post"
             action="/welcome/resume"
             enctype="multipart/form-data"
             class="mt-4 flex flex-wrap items-end gap-3"
+            data-needs-file
           >
             <Field label="Your resume" hint={`${ACCEPTED_EXTENSIONS.join(', ')} · up to 5 MB`} class="min-w-0 flex-1">
               <input
@@ -537,8 +539,9 @@ const ProfileStep: FC<WelcomeProps> = ({ profile, steps }) => {
                 class={`block w-full text-sm text-ink-muted ${FILE_INPUT_CLASS}`}
               />
             </Field>
-            <Button>Upload your resume</Button>
+            <Button>Upload</Button>
           </form>
+          <script dangerouslySetInnerHTML={{ __html: NEEDS_FILE_JS }} />
           {profile.resumes.length > 0 && (
             <form method="post" action="/welcome/resume" class="mt-3 flex flex-wrap items-end gap-3">
               <Field label="…or use one you already uploaded" class="min-w-0 flex-1">
