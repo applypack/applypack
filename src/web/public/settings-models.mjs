@@ -3,9 +3,10 @@
  * as-is; the settings page boots init(). Progressive: without JS the Save
  * button stays visible and the plain form POST still works.
  *
- * The trigger is `change`, not `input`, on purpose: a <select> commits the
- * moment you pick, while the free-text engine (openai_api) commits only on
- * blur or Enter — so a half-typed model id is never saved.
+ * The trigger is `change`, not `input`, on purpose: a <select> commits when
+ * you settle on a value (select-commit.mjs: a pointer pick at once, a keyboard
+ * pick on blur or Enter — #90), while the free-text engine (openai_api)
+ * commits only on blur or Enter — so a half-typed model id is never saved.
  * statusFor is pure — unit-tested from src/web/settings-models.test.ts.
  */
 

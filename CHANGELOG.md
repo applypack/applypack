@@ -4,6 +4,18 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.57.1] — 2026-09-05
+
+### Fixed
+- **A self-saving select no longer saves every option a keyboard user passes
+  through.** The keyword "Wants it" level, the watchlist row's interval and
+  policy, and the model pickers on Settings all saved on `change` — and in
+  Chrome on Windows and in Firefox, ArrowDown on a closed select fires
+  `change` per option, so arrowing from *must* to *nice* wrote three levels
+  and three flashes (#90). One shared browser module now commits a pointer
+  pick at once and a keyboard pick when the select loses focus or on Enter;
+  the keyword select posts through `requestSubmit`, so nothing else changes.
+
 ## [1.57.0] — 2026-09-05
 
 ### Added
@@ -2354,6 +2366,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[1.57.1]: https://github.com/applypack/applypack/compare/v1.57.0...v1.57.1
 [1.57.0]: https://github.com/applypack/applypack/compare/v1.56.0...v1.57.0
 [1.56.0]: https://github.com/applypack/applypack/compare/v1.55.5...v1.56.0
 [1.55.5]: https://github.com/applypack/applypack/compare/v1.55.4...v1.55.5
