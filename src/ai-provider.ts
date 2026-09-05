@@ -12,6 +12,7 @@ import {
   buildCodexCliArgs,
   buildGeminiCliArgs,
   CLI_PROVIDER_ENV_KEYS,
+  cliThinkingCap,
   describeAiFailure,
   parseClaudeCodeOutput,
   parseCodexCliOutput,
@@ -164,7 +165,19 @@ class AnthropicApiProvider implements AiProvider {
         messages,
         tools,
       });
-      logger.debug({ label: req.label, stop: resp.stop_reason, usage: resp.usage }, 'ai: reply');
+      logger.info(
+        {
+          label: req.label,
+          provider: this.name,
+          model: resp.model,
+          stop: resp.stop_reason,
+          inputTokens: resp.usage.input_tokens,
+          cacheRead: resp.usage.cache_read_input_tokens,
+          outputTokens: resp.usage.output_tokens,
+          thinkingTokens: resp.usage.output_tokens_details?.thinking_tokens,
+        },
+        'ai: reply',
+      );
       if (resp.stop_reason === 'pause_turn' && resumes < MAX_PAUSE_TURN_RESUMES) {
         messages.push({ role: 'assistant', content: resp.content });
         continue;
@@ -271,6 +284,8 @@ interface CliSpec {
   keyEnv?: string;
   /** Working directory — set to keep the CLI away from workspace context. */
   cwd?: string;
+  /** This CLI reads MAX_THINKING_TOKENS: tool-free calls get it capped (#168). */
+  thinkingCap?: boolean;
 }
 
 /** Headless-CLI backend: spawn, parse JSON stdout, one retry on rate limit. */
@@ -308,7 +323,10 @@ class CliProvider implements AiProvider {
         return null;
       }
       const out = this.spec.parse(stdout);
-      if (out.text !== null) return out.text;
+      if (out.text !== null) {
+        logger.info({ label: req.label, provider: this.name, model: req.model, ...out.usage }, 'ai: reply');
+        return out.text;
+      }
       if (out.rateLimited && attempt < MAX_ATTEMPTS - 1) {
         logger.warn({ label: req.label, provider: this.name }, 'ai: cli rate-limited, retrying');
         await sleep(RATE_LIMIT_RETRY_DELAY_MS);
@@ -330,9 +348,12 @@ class CliProvider implements AiProvider {
    * variable in the child env, still filtered by the buildCliEnv allowlist.
    */
   private envSource(req: AiRequest): NodeJS.ProcessEnv {
-    const { keyEnv } = this.spec;
-    if (!keyEnv || !req.apiKey) return process.env;
-    return { ...process.env, [keyEnv]: req.apiKey };
+    const { keyEnv, thinkingCap } = this.spec;
+    return {
+      ...process.env,
+      ...(keyEnv && req.apiKey ? { [keyEnv]: req.apiKey } : {}),
+      ...(thinkingCap ? cliThinkingCap(req.webTools) : {}),
+    };
   }
 }
 
@@ -358,6 +379,7 @@ export function getAiProviderById(id: AiProviderId): AiProvider {
         defaultModel: config.CLAUDE_MODEL,
         envKeys: CLI_PROVIDER_ENV_KEYS.claude_code ?? [],
         keyEnv: AI_KEY_ENV_VARS.claude_code,
+        thinkingCap: true,
       });
       break;
     case 'gemini_cli':
