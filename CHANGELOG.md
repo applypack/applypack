@@ -4,6 +4,16 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.57.2] — 2026-09-05
+
+### Fixed
+- **A failed scoring pass says why.** "10 could not be scored" now carries the
+  engine's own last reason — *"the AI did not answer: HTTP 401: API key is
+  invalid"*, *"no API key — paste one on /settings"* — in the wizard's flash,
+  the re-classify flash and the run's stats on /runs (`lastError`), and the
+  hourly tick keeps it as `classifyError`; before, the count was honest and
+  the reason lived only in the container logs (#97).
+
 ## [1.57.1] — 2026-09-05
 
 ### Fixed
@@ -2366,6 +2376,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[1.57.2]: https://github.com/applypack/applypack/compare/v1.57.1...v1.57.2
 [1.57.1]: https://github.com/applypack/applypack/compare/v1.57.0...v1.57.1
 [1.57.0]: https://github.com/applypack/applypack/compare/v1.56.0...v1.57.0
 [1.56.0]: https://github.com/applypack/applypack/compare/v1.55.5...v1.56.0
