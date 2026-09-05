@@ -356,6 +356,14 @@ jobsRoute.get('/jobs/:id', async (c) => {
   // preselect (Stage C).
   const appliedPick = preselectAppliedResume(resumes, selected?.resumeId ?? null, suggested);
 
+  // The letter distils the latest comparison with the resume the cover card
+  // preselects; a quick check carries no strengths to distil (#89).
+  const coverMatch = matches.find((m) => m.resumeId === (suggested?.id ?? resumes[0]?.id)) ?? null;
+  const quickCheck =
+    coverMatch && readMatchMode(coverMatch.breakdown) === 'fast'
+      ? { matchId: coverMatch.id, resumeName: coverMatch.resume.name }
+      : null;
+
   const flashCookie = parseFlashCookie(c.req.header('cookie'));
   const selectedKeywords = await orderedKeywords(selected, job.description);
   return c.html(
@@ -398,6 +406,7 @@ jobsRoute.get('/jobs/:id', async (c) => {
         selected: selectedLetter,
         hasCompanyFacts: Boolean(verifications[0]?.companySnapshot?.trim()),
         angles: readCoverAngles(settings.coverAngles),
+        quickCheck,
       }}
       flash={flashCookie}
     />,
@@ -614,7 +623,12 @@ jobsRoute.post('/jobs/:id/matches/:matchId/suggestions', async (c) => {
   if (!job || !match || match.jobId !== id) return c.text('Not found', 404);
   const resume = await getResume(match.resumeId);
   if (!resume) return c.text('Not found', 404);
-  const resultUrl = form.next === 'target' ? `/jobs/${id}/target?match=${matchId}` : `/jobs/${id}?match=${matchId}#resume-match`;
+  const resultUrl =
+    form.next === 'target'
+      ? `/jobs/${id}/target?match=${matchId}`
+      : form.next === 'cover'
+        ? `/jobs/${id}?match=${matchId}#cover-letter`
+        : `/jobs/${id}?match=${matchId}#resume-match`;
   if (readMatchMode(match.breakdown) === 'full') {
     return flashRedirect(resultUrl, 'warn', 'This analysis already has its suggestions.');
   }
