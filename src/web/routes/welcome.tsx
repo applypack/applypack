@@ -4,7 +4,11 @@ import { isRelocation } from '../../eligibility';
 import { CronRunStatus, JobStatus, type Profile } from '@prisma/client';
 import { prisma } from '../../db';
 import { getAiKeys, setAiKey, setFetchingEnabled, setSetupCompleted } from '../../settings';
-import { updateProfile, type ProfileInput } from '../../profiles';
+import { getActiveProfile, updateProfile, type ProfileInput } from '../../profiles';
+import { flagOf, placeLabel, resolveCountries } from '../../countries';
+import { searchPlaces } from '../../fetchers/fetch-context';
+import { isAggregator } from '../source-groups';
+import { beginFetchNow } from '../fetch-now';
 import { passesBaseFilter } from '../../filter';
 import { parsePriorityRules } from '../../priority-rules';
 import { hashShortId, parseTagList, toStringArray } from '../../text-utils';
@@ -43,6 +47,7 @@ import {
 
 const TOP_MATCHES = 5;
 const AI_STEP = '/welcome?step=ai';
+const SEARCH_STEP = '/welcome?step=search';
 const PROFILE_STEP = '/welcome?step=profile';
 const MATCHES_STEP = '/welcome?step=matches';
 
@@ -56,9 +61,10 @@ welcomeRoute.get('/welcome', async (c) => {
   const requested = c.req.query('step');
   const current = isWelcomeStep(requested) ? requested : currentStep(facts);
 
-  const [resumes, lastSearch, matchCount, top, waiting] = await Promise.all([
+  const [resumes, lastSearch, aggregators, matchCount, top, waiting] = await Promise.all([
     listResumes(),
     findLastSearch(),
+    countAggregators(),
     profile
       ? prisma.job.count({
           where: { fitScore: { gte: profile.minFitScore }, status: { not: JobStatus.DISMISSED } },
@@ -93,7 +99,13 @@ welcomeRoute.get('/welcome', async (c) => {
           ...statuses[id],
         })),
       }}
-      search={{ jobCount: facts.jobCount, last: lastSearch, runningRunId: activeFetchRun()?.id ?? null }}
+      search={{
+        jobCount: facts.jobCount,
+        last: lastSearch,
+        runningRunId: activeFetchRun()?.id ?? null,
+        aggregators,
+        countries: profile?.countries.map((code) => `${flagOf(code)} ${placeLabel(code)}`) ?? [],
+      }}
       profile={{
         id: profile?.id ?? 0,
         name: profile?.name ?? '',
@@ -289,6 +301,32 @@ welcomeRoute.post('/welcome/profile', async (c) => {
 });
 
 /** Step 5: score the stored-unscored jobs on the progress page; one pass at a time. */
+/**
+ * Step 2's test search: the aggregators alone — they need no company row and
+ * answer with hundreds of postings each, while the company boards cost most
+ * of the requests and add little to a first impression (measured in
+ * docs/onboarding-sources.md; Decision B). A country typed here lands on the
+ * primary search before the walk, so the boards that narrow by place do, the
+ * profile step starts from it, and the sources step can offer for it.
+ */
+welcomeRoute.post('/welcome/search', async (c) => {
+  const form = await c.req.parseBody({ all: true });
+  const typed = resolveCountries(toStringArray(form.countries).flatMap(parseTagList));
+  if (typed.unknown.length > 0) {
+    return flashRedirect(SEARCH_STEP, 'err', `Country not recognised: ${typed.unknown.join(', ')} — pick one from the list.`);
+  }
+  let profile = await getActiveProfile();
+  if (profile && typed.codes.length > 0) {
+    profile = await updateProfile(profile.id, { ...profileInput(profile), countries: typed.codes });
+  }
+  const run = await beginFetchNow({
+    backUrl: '/welcome',
+    scope: 'aggregators',
+    places: profile ? searchPlaces([profile]) : undefined,
+  });
+  return c.redirect(`/runs/fetch-now/${run.id}`, 303);
+});
+
 welcomeRoute.post('/welcome/score', async (c) => {
   const { facts } = await loadWelcomeContext();
   if (!facts.profileReady) {
@@ -330,6 +368,12 @@ welcomeRoute.post('/welcome/score', async (c) => {
 });
 
 /* ---------- helpers ---------- */
+
+/** The aggregators switched on — what step 2 asks. */
+async function countAggregators(): Promise<number> {
+  const rows = await prisma.company.findMany({ where: { active: true }, select: { atsType: true } });
+  return rows.filter(isAggregator).length;
+}
 
 /** The last search that actually ran — a paused-skip row carries no counts. */
 async function findLastSearch(): Promise<LastSearch | null> {

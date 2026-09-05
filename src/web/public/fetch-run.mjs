@@ -24,12 +24,16 @@ function jobs(n) {
   return `${n} job${n === 1 ? '' : 's'}`;
 }
 
-/** "14 of 71 sources · 312 jobs so far · RemoteOK: 120 jobs" */
+function took(ms) {
+  return ms < 1000 ? `${ms}ms` : `${(ms / 1000).toFixed(1)}s`;
+}
+
+/** "14 of 71 sources · 312 jobs so far · RemoteOK: 120 jobs in 1.2s" */
 export function sourceLine(state) {
   if (state.sourcesTotal == null) return 'Contacting the first source…';
   const last = state.lastSource;
   const tail = last
-    ? ` · ${last.name}: ${last.failed ? 'failed' : last.count === 0 ? 'no jobs' : jobs(last.count)}`
+    ? ` · ${last.name}: ${last.failed ? 'failed' : last.count === 0 ? 'no jobs' : jobs(last.count)}${last.durationMs == null ? '' : ` in ${took(last.durationMs)}`}`
     : '';
   return `${state.sourcesDone} of ${state.sourcesTotal} sources · ${jobs(state.jobsFetched)} so far${tail}`;
 }

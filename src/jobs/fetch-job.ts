@@ -1,6 +1,6 @@
 import { logger } from '../logger';
 import { prisma } from '../db';
-import { runAllFetchers, type SourceProgress } from '../fetchers';
+import { runAllFetchers, type FetchWalkOptions, type SourceProgress } from '../fetchers';
 import { beginConditionalTick, commitConditionalCache, tickStoredEverything } from '../fetchers/conditional';
 import { beginPageChangeTick } from '../watchlist/page-changes';
 import { deliverPageChanges } from './page-change-alerts';
@@ -14,7 +14,7 @@ import { deliverHeldAlerts } from './alert-delivery';
 import { recordCandidatesFromText } from '../discovery';
 import { makeFetchPauseProbe } from './fetch-pause';
 import { processNormalizedJobs, type ProcessStats } from './process-jobs';
-import type { CronStats } from './cron-run';
+import type { CronStats, SourceStat } from './cron-run';
 
 export interface FetchJobOptions {
   /**
@@ -26,6 +26,9 @@ export interface FetchJobOptions {
   /** Live progress for the dashboard's run page. */
   onSource?: (progress: SourceProgress) => void;
   onProcessing?: () => void;
+  /** The wizard's test search: a subset of the sources, a place typed before any search exists. */
+  only?: FetchWalkOptions['only'];
+  places?: FetchWalkOptions['places'];
 }
 
 export async function runFetchJob(opts: FetchJobOptions = {}): Promise<{ stats: CronStats }> {
@@ -90,6 +93,9 @@ export async function runFetchJob(opts: FetchJobOptions = {}): Promise<{ stats: 
   let sources = 0;
   let sourcesFailed = 0;
   let sourcesUnchanged = 0;
+  // Every source's answer and its time, on the row — which boards took the
+  // minute and which failed is otherwise recorded nowhere.
+  const bySource: SourceStat[] = [];
   // Validators learned below are staged, not live, until the jobs they came
   // with are stored (docs/scale-plan.md §4).
   beginConditionalTick();
@@ -101,8 +107,9 @@ export async function runFetchJob(opts: FetchJobOptions = {}): Promise<{ stats: 
     sources = progress.done;
     if (isFailureStatus(progress.status)) sourcesFailed++;
     if (progress.status === 'not_modified') sourcesUnchanged++;
+    bySource.push({ name: progress.company, status: progress.status, count: progress.count, ms: progress.durationMs });
     opts.onSource?.(progress);
-  }, { manual: opts.manual === true });
+  }, { manual: opts.manual === true, only: opts.only, places: opts.places });
   logger.info(
     { count: fetched.length, sources, sourcesFailed, sourcesUnchanged },
     'fetch-job: total fetched',
@@ -157,6 +164,7 @@ export async function runFetchJob(opts: FetchJobOptions = {}): Promise<{ stats: 
         ...licence,
         ...delivery,
         durationMs,
+        bySource,
       },
     };
   }
@@ -208,8 +216,9 @@ export async function runFetchJob(opts: FetchJobOptions = {}): Promise<{ stats: 
     ...delivery,
     ...inner,
     durationMs,
+    bySource,
   };
-  logger.info(stats, 'fetch-job: done');
+  logger.info({ ...stats, bySource: bySource.length }, 'fetch-job: done');
   return { stats };
 }
 

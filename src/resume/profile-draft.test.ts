@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildProfileDraft, NICE_TO_HAVE_MAX, type ProfileForDraft, type ScanForDraft } from './profile-draft';
+import { buildProfileDraft, NICE_TO_HAVE_MAX, readsAsNonEngineering, type ProfileForDraft, type ScanForDraft } from './profile-draft';
 
 const PROFILE: ProfileForDraft = {
   name: 'PHP hunt',
@@ -104,4 +104,15 @@ test('the drafted nice-to-have list is capped, and the draft says so', () => {
   assert.equal(d.changes.stackNiceToHave?.[0], 'tool-2');
   assert.equal(d.warnings.length, 1);
   assert.match(d.warnings[0] ?? '', /90 skills/);
+});
+
+test('a resume from outside software engineering keeps the stack and says why (#154)', () => {
+  const pm = { ...SCAN, title: 'Senior Product Manager', primarySkills: ['sql'], roleTypes: ['product'] };
+  const d = buildProfileDraft({ ...PROFILE, stackRequired: [] }, pm);
+  assert.equal(d.changes.stackRequired, undefined);
+  assert.equal(d.warnings.length, 1);
+  assert.match(d.warnings[0] ?? '', /^this resume reads as a product manager role/);
+  assert.equal(readsAsNonEngineering({ title: 'Engineering Manager', roleTypes: ['backend'] }), null);
+  assert.equal(readsAsNonEngineering({ title: null, roleTypes: ['product owner'] }), 'product owner');
+  assert.equal(readsAsNonEngineering({ title: 'UX Engineer', roleTypes: [] }), null);
 });

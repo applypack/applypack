@@ -31,7 +31,9 @@ Half the postings are noise on top: the wrong stack in paragraph four,
 ApplyPack watches 33 kinds of job source around the clock, drops the fake
 and wrong-fit postings, shows exactly which words a posting wants and your
 resume lacks, helps you fix it in place, and writes a cover letter that
-cannot invent. Then it tracks the application.
+cannot invent. Then it tracks the application. It is built for software
+engineers: the sources are engineering boards, the resume scan reads for a
+tech stack, and the scoring gates on one.
 
 - **Find real jobs.** 33 kinds of job source hourly, a classifier with strict stack
   and location rules, a ghost-job check with evidence links, Telegram only
@@ -107,19 +109,23 @@ machine and where its credential came from.
 
 ### Your first fifteen minutes
 
-The dashboard opens on a four-step setup (`/welcome`) and walks you
-through it — about four clicks and one file pick:
+The dashboard opens on a five-step setup (`/welcome`) and walks you
+through it — about five clicks and one file pick:
 
 1. **Connect an AI** — paste a key straight into the page, or let it
    detect the engine already configured in `.env` or logged in on this
    machine. A Test button proves the connection before you move on.
-2. **Test the search** — one button asks every job board and stores what
-   it finds, no AI spent. You watch the sources answer.
+2. **Test the search** — one button asks the aggregator boards, the ones
+   that publish every posting they have, and stores what it finds: no AI
+   spent, about twenty seconds. Say where you work and the boards that can
+   narrow by place will.
 3. **Tell us about you** — upload your resume; the summary it comes back
    with ("looks like you're a senior backend engineer — PHP, Laravel…")
    becomes your search profile with one click. No resume handy: three
    questions instead.
-4. **See your first matches** — score the jobs found, read the top five,
+4. **Turn on the boards for your countries** — DOU and Djinni for Ukraine,
+   solid.jobs for Poland, Arbeitnow for Germany …, one press.
+5. **See your first matches** — score the jobs found, read the top five,
    then **Start the hourly watch**.
 
 Fetching starts **paused** until that last click, on purpose: a blank

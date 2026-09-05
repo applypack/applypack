@@ -589,3 +589,28 @@ export const ToggleRow: FC<
     </div>
   </div>
 );
+
+/**
+ * Newline-joined list in a textarea — the transport the backend already
+ * parses. chips.mjs upgrades it into a chip editor; without JS the plain
+ * textarea still works.
+ */
+export const TagListInput: FC<{
+  label: string;
+  hint: string;
+  name: string;
+  values: string[];
+  rows?: number;
+  /** Real example values — shown in the textarea and the chip input alike. */
+  placeholder?: string;
+  /** "countries": countries.mjs adds gazetteer suggestions to the chip input (ADR 0032). */
+  picker?: 'countries';
+}> = ({ label, hint, name, values, rows = 3, placeholder, picker }) => (
+  <Field label={label} hint={hint}>
+    <div data-chips data-label={label} data-placeholder={placeholder} data-picker={picker}>
+      <Textarea name={name} rows={rows} mono placeholder={placeholder}>
+        {values.join('\n')}
+      </Textarea>
+    </div>
+  </Field>
+);

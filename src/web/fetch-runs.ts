@@ -14,6 +14,8 @@ import { isFailureStatus } from '../fetchers/source-health';
  */
 
 export type FetchRunStage = 'fetch' | 'store' | 'done' | 'error';
+/** What the walk asks: every due source, or the aggregators alone (the wizard's test search). */
+export type FetchScope = 'every' | 'aggregators';
 
 export const FETCH_RUN_STEPS: FetchRunStage[] = ['fetch', 'store'];
 
@@ -27,12 +29,13 @@ export interface FetchRun {
   classify: boolean;
   /** Where the verdict lands: /runs, or /welcome for the wizard's test search. */
   backUrl: string;
+  scope: FetchScope;
   sourcesDone: number;
   /** Unknown until the first source answers. */
   sourcesTotal: number | null;
   jobsFetched: number;
   /** The last source that answered, for the activity line. */
-  lastSource: { name: string; count: number; failed: boolean } | null;
+  lastSource: { name: string; count: number; failed: boolean; durationMs: number } | null;
   stats?: CronStats;
   error?: string;
 }
@@ -40,7 +43,7 @@ export interface FetchRun {
 const RUN_TTL_MS = 30 * 60_000;
 const runs = new Map<string, FetchRun>();
 
-export function createFetchRun(fields: Pick<FetchRun, 'classify' | 'backUrl'>): FetchRun {
+export function createFetchRun(fields: Pick<FetchRun, 'classify' | 'backUrl' | 'scope'>): FetchRun {
   prune();
   const run: FetchRun = {
     id: randomUUID(),
@@ -70,7 +73,7 @@ export function recordSource(id: string, p: SourceProgress): void {
   run.sourcesDone = p.done;
   run.sourcesTotal = p.total;
   run.jobsFetched += p.count;
-  run.lastSource = { name: p.company, count: p.count, failed: isFailureStatus(p.status) };
+  run.lastSource = { name: p.company, count: p.count, failed: isFailureStatus(p.status), durationMs: p.durationMs };
 }
 
 export function getFetchRun(id: string): FetchRun | null {

@@ -23,6 +23,11 @@ export function sourceFamily(atsType: string): SourceFamily {
   return 'aggregator';
 }
 
+/** Needs no company row and publishes every posting it has — what the wizard's test search asks. */
+export function isAggregator(source: { atsType: string }): boolean {
+  return sourceFamily(source.atsType) === 'aggregator';
+}
+
 export interface SourceCount {
   companies: number;
   active: number;
