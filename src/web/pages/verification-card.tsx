@@ -15,9 +15,13 @@ export interface JobLivenessView {
 
 export interface VerificationCardProps {
   jobId: number;
+  /** Empty for a pasted posting — the free checks have nothing to ask then (#161). */
+  url: string;
   liveness: JobLivenessView | null;
   verification: JobVerification | null;
   verificationCount: number;
+  /** A run in flight: the buttons give way to a link to its progress page. */
+  run: { id: string; startedAt: number } | null;
 }
 
 const LIVENESS_VIEW: Record<string, { label: string; tone: Tone }> = {
@@ -55,9 +59,11 @@ const CHECK_LABEL: Record<VerificationEvidence['check'], string> = {
 
 export const VerificationCard: FC<VerificationCardProps> = ({
   jobId,
+  url,
   liveness,
   verification,
   verificationCount,
+  run,
 }) => (
   <div id="verification">
     <Card>
@@ -101,17 +107,25 @@ export const VerificationCard: FC<VerificationCardProps> = ({
           )}
         </div>
         <div class="flex shrink-0 flex-wrap items-center gap-2">
-          <ActionForm action={`/jobs/${jobId}/verify`}>
-            <Button variant={liveness || verification ? 'secondary' : 'violet'} size="sm">
-              {liveness || verification ? 'Re-check' : 'Verify'}
+          {run ? (
+            <Button href={`/target/runs/${run.id}`} variant="secondary" size="sm">
+              Checking… started {formatRelative(new Date(run.startedAt))} — open the progress page
             </Button>
-          </ActionForm>
-          {liveness && liveness.liveness !== 'uncertain' && (
-            <ActionForm action={`/jobs/${jobId}/verify`} hidden={{ deep: 1 }}>
-              <Button variant="violet" size="sm">
-                Deep check (AI)
-              </Button>
-            </ActionForm>
+          ) : (
+            <>
+              <ActionForm action={`/jobs/${jobId}/verify`}>
+                <Button variant={liveness || verification ? 'secondary' : 'violet'} size="sm">
+                  {liveness || verification ? 'Re-check' : 'Verify'}
+                </Button>
+              </ActionForm>
+              {liveness && liveness.liveness !== 'uncertain' && (
+                <ActionForm action={`/jobs/${jobId}/verify`} hidden={{ deep: 1 }}>
+                  <Button variant="violet" size="sm">
+                    Deep check (AI)
+                  </Button>
+                </ActionForm>
+              )}
+            </>
           )}
         </div>
       </div>
@@ -150,8 +164,9 @@ export const VerificationCard: FC<VerificationCardProps> = ({
       )}
       {!verification && (
         <Hint class="mt-3">
-          The free checks answer in seconds; the AI deep check searches and reads pages for 2-4
-          minutes before answering.
+          {url
+            ? 'The free checks answer in seconds; the AI deep check searches and reads pages for 2-4 minutes before answering. Either way it runs on a progress page you can leave.'
+            : 'This posting has no URL, so the free checks have nothing to ask — Verify goes straight to the AI research, 2-4 minutes on a progress page you can leave.'}
         </Hint>
       )}
     </Card>

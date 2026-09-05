@@ -11,6 +11,7 @@ import type { MatchMode } from '../resume/match-mode';
  */
 
 export type RunStep =
+  | 'liveness'
   | 'fetch'
   | 'extract'
   | 'scan'
@@ -47,6 +48,10 @@ export interface TargetRun {
   /** Page copy for runs that are not a comparison (the wizard's scan / score). */
   heading?: { running: string; failed: string };
   subtitle?: string;
+  /** One line under a finished step — what the free rungs found, in words (#161). */
+  results?: Partial<Record<RunStep, string>>;
+  /** The tone of the done-flash; 'ok' unless the run says otherwise ("posting looks closed"). */
+  flashKind?: 'ok' | 'warn';
   /** Data-driven progress of the active step, when the job reports it. */
   progress?: { done: number; total: number };
   /** Set on done: where to send the user, with the flash to show there. */
