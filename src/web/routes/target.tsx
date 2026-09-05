@@ -21,6 +21,7 @@ import { suggestForMatch } from '../../resume/suggestions';
 import { suggestionsKey } from '../suggestions-run';
 import { draftStash } from '../draft-stash';
 import { decideInstantCheck, instantCheckNotice } from '../instant-check';
+import { startDraftCheck } from '../draft-check';
 import { TargetStartPage } from '../pages/target-start';
 import { TargetRunPage } from '../pages/target-run';
 import { clearFlashCookie, flashRedirect, parseFlashCookie } from '../flash';
@@ -83,6 +84,8 @@ targetRoute.get('/target/runs/:id/state', (c) => {
     jobTitle: run.jobTitle,
     progress: run.progress ?? null,
     results: run.results ?? {},
+    resultUrl: run.resultUrl ?? null,
+    error: run.error ?? null,
     stepMs: run.stepMs,
     stageElapsedMs: Date.now() - run.stageAt,
     elapsedMs: Date.now() - run.startedAt,
@@ -262,10 +265,12 @@ targetRoute.post('/target', resumeUploadLimit('/target'), async (c) => {
       const decision = decideInstantCheck(await getLatestMatchForResumeAndJob(job.id, resume.id), resume.text);
       if (decision.kind === 'draft') {
         const key = draftStash.put({ matchId: decision.frame.id, text: resume.text });
+        // The AI check of the new text runs behind the draft; the editor follows it (#184).
+        const check = startDraftCheck({ job: jobInput, resume, text: resume.text });
         updateRun(run.id, {
           stage: 'done',
-          resultUrl: `/jobs/${job.id}/target?match=${decision.frame.id}&draft=${key}`,
-          flash: instantCheckNotice(resume.name, formatRelative(decision.frame.createdAt), Date.now() - checkStarted),
+          resultUrl: `/jobs/${job.id}/target?match=${decision.frame.id}&draft=${key}&run=${check.id}`,
+          flash: instantCheckNotice(resume.name, Date.now() - checkStarted),
         });
         return;
       }

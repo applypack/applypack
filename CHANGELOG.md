@@ -4,6 +4,24 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.64.0] — 2026-09-05
+
+### Changed
+- **One upload button, and the AI check runs behind it.** The editor's
+  re-upload popover had two buttons — *Upload & check (seconds)*, which
+  opened the file as a draft and moved the number by a point or two, and
+  *Upload as vN & check with AI*, which took minutes on a progress page —
+  and read as "nothing happened" or "too slow" (#184). One **Upload & check**
+  now: the text opens in the editor within a second with the live estimate,
+  the quick AI check of that text starts in the background, and a chip
+  beside the score follows it — *AI check running · 22 s*, then *AI check
+  ready: AI match 91/100 — Use it*. Nothing is saved until Save as vN or
+  Save as a tailored copy on the bar; the check lands as a draft analysis.
+  **Re-check with AI** and **Full analysis** from the editor behave the
+  same way — the editor stays open, the chip follows the run, and text
+  typed meanwhile travels along as the next page's draft. The Compare page
+  does the same when a known resume's text changed.
+
 ## [1.63.0] — 2026-09-05
 
 ### Added
@@ -2569,6 +2587,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[1.64.0]: https://github.com/applypack/applypack/compare/v1.63.0...v1.64.0
 [1.63.0]: https://github.com/applypack/applypack/compare/v1.62.1...v1.63.0
 [1.62.1]: https://github.com/applypack/applypack/compare/v1.62.0...v1.62.1
 [1.62.0]: https://github.com/applypack/applypack/compare/v1.61.0...v1.62.0

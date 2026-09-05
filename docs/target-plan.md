@@ -506,6 +506,10 @@ Sources: [jobscan.co](https://www.jobscan.co/blog/top-resume-keywords-boost-resu
   or instant check + full analysis auto-started in the background?~~ Decided
   2026-09-02 (block 3): instant check by default, nothing auto-runs — every
   auto-started analysis is 78–109 s of Opus on the CLI engine and the memo
-  only saves repeats. The background variant stays a separate branch if
-  ever wanted.
+  only saves repeats. **Revisited 2026-09-05 (#184, v1.64.0):** with the CLI
+  thinking cap a quick check is 19–26 s, and a user who uploads a file reads
+  a number that does not move as "nothing happened". One button now: the
+  draft opens at once, the quick check runs behind it (`web/draft-check.ts`),
+  a chip beside the score follows the run and offers the result; the memo
+  still makes a repeat free. The full analysis stays an explicit button.
 - Is the F8 curated lexicon worth its maintenance, or are F1-F7 enough?

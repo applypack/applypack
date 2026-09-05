@@ -1,11 +1,12 @@
 /*
- * Instant check (docs/target-plan.md §3.2 item 5): a re-uploaded resume is
- * parsed and shown as an unsaved draft over the latest analysis of the
- * posting — no AI call, no new version, nothing saved. The live estimate on
- * the page reads that analysis as its frame: the text confirms what is
- * `present`, while `add` / `ask_user` / `cannot_claim` stay the AI's verdict
- * on the resume it analysed, until "Re-check with AI" makes the draft
- * official. Pure — the routes decide what to fetch and where to redirect.
+ * Instant check (docs/target-plan.md §3.2 item 5, revisited by #184): a
+ * re-uploaded resume is parsed and shown as an unsaved draft over the latest
+ * analysis of the posting within a second — no new version, nothing saved —
+ * while the quick AI check of the same text runs behind it (draft-check.ts)
+ * and lands beside the score. Until then the live estimate reads the frame
+ * analysis: the text confirms what is `present`, while `add` / `ask_user` /
+ * `cannot_claim` stay the AI's verdict on the resume it analysed. Pure — the
+ * routes decide what to fetch and where to redirect.
  */
 
 /** The stored analysis a draft is checked against. */
@@ -28,12 +29,11 @@ export function decideInstantCheck(frame: Frame | null, text: string): InstantDe
   return frame.resumeText === text ? { kind: 'unchanged', frame } : { kind: 'draft', frame };
 }
 
-/** The flash over a checked draft; `when` is the frame's age ("2h ago"). */
-export function instantCheckNotice(filename: string, when: string, ms: number): string {
+/** The flash over the draft while its AI check runs behind it (#184). */
+export function instantCheckNotice(filename: string, ms: number): string {
   return (
-    `"${filename}" checked in ${ms} ms — no AI call. The estimate is measured against the analysis ` +
-    `from ${when}: the text confirms what is present; add / confirm / can't-claim keep the AI's ` +
-    `verdict on the analysed version until you re-check.`
+    `"${filename}" opened in the editor in ${ms} ms. The estimate below is measured against the last ` +
+    `analysis; the AI check of this text runs in the background and its number lands beside the score.`
   );
 }
 

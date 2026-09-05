@@ -14,12 +14,10 @@ test('the analysed text is unchanged, anything else is a draft', () => {
   assert.equal(decideInstantCheck(frame, frame.resumeText + '\n').kind, 'draft', 'a whitespace edit is a draft');
 });
 
-test('the draft notice names the file, the frame and the inherited statuses', () => {
-  const text = instantCheckNotice('cv-v3.pdf', '2h ago', 24);
-  assert.match(text, /"cv-v3\.pdf" checked in 24 ms — no AI call/);
-  assert.match(text, /analysis from 2h ago/);
-  assert.match(text, /confirms what is present/);
-  assert.match(text, /add \/ confirm \/ can't-claim keep the AI's verdict/);
+test('the draft notice names the file and says the AI check follows', () => {
+  const text = instantCheckNotice('cv-v3.pdf', 24);
+  assert.match(text, /"cv-v3\.pdf" opened in the editor in 24 ms/);
+  assert.match(text, /runs in the background/);
   assert.match(unchangedNotice('cv.pdf', '3m ago'), /"cv\.pdf" has the same text .* \(3m ago\)/);
 });
 

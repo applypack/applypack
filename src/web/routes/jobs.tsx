@@ -3,6 +3,7 @@ import { Hono } from 'hono';
 import { JobStatus, type Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { prisma } from '../../db';
+import { startDraftCheck } from '../draft-check';
 import { logger } from '../../logger';
 import { hashShortId } from '../../text-utils';
 import { appliedResumeColumns } from '../applied-resume';
@@ -35,7 +36,7 @@ import { draftStash } from '../draft-stash';
 import { scanInBackground } from '../../resume/scan';
 import { clearFlashCookie, flashRedirect, parseFlashCookie } from '../flash';
 import { formatRelative } from '../format';
-import { claimRun, findLiveRun, matchStep, startRun, updateRun } from '../target-runs';
+import { claimRun, findLiveRun, getRun, matchStep, startRun, updateRun } from '../target-runs';
 import { startSuggestionsRun } from '../suggestions-run';
 import {
   deleteCoverLettersForResume,
@@ -609,9 +610,16 @@ jobsRoute.post('/jobs/:id/match', async (c) => {
   // "Rebuild keywords": read the terms out of the posting again instead of
   // inheriting the frame this posting has been carrying (issue #79).
   const rebuild = form.rebuild === '1';
-  const toTarget = form.next === 'target';
+  // The editor's Re-check keeps the editor open and follows the run from there (#184).
+  const inline = form.next === 'editor';
+  const toTarget = form.next === 'target' || inline;
   const resultUrl = (matchId: number) =>
     toTarget ? `/jobs/${id}/target?match=${matchId}` : `/jobs/${id}?match=${matchId}#resume-match`;
+  const editorUrl = (runId: string) => `/jobs/${id}/target?match=${Number(form.matchId) || ''}&run=${runId}`;
+  const follow = (runUrl: string) =>
+    inline
+      ? flashRedirect(editorUrl(runUrl.slice(runUrl.lastIndexOf('/') + 1)), 'ok', BACKGROUND_CHECK_NOTICE)
+      : c.redirect(runUrl, 303);
 
   // The same text was already judged: show that analysis instead of paying
   // for it again — unless "Re-run anyway" or a rebuild asked for a fresh call.
@@ -627,7 +635,7 @@ jobsRoute.post('/jobs/:id/match', async (c) => {
       });
     }
     if (reused) {
-      return c.redirect(startSuggestionsRun({ match: reused.row, job: jobInput, resumeName: resume.name, resultUrl: resultUrl(reused.row.id) }), 303);
+      return follow(startSuggestionsRun({ match: reused.row, job: jobInput, resumeName: resume.name, resultUrl: resultUrl(reused.row.id) }));
     }
   }
 
@@ -637,10 +645,11 @@ jobsRoute.post('/jobs/:id/match', async (c) => {
     `match:${id}:${resume.id}:${mode}:${rebuild ? 'rebuild' : 'frame'}:${hashShortId(text)}`,
     { steps: [matchStep(mode)], jobTitle: job.title, resumeName: resume.name, jobId: id },
   );
-  if (joined) return c.redirect(`/target/runs/${run.id}`, 303);
+  if (joined) return follow(`/target/runs/${run.id}`);
   startRun(run.id, async () => {
-    // Ephemeral (scratch) compares keep only the current analysis.
-    if (resume.hidden) await deleteMatchesForResume(resume.id);
+    // Ephemeral (scratch) compares keep only the current analysis — unless the
+    // editor is watching one of them, in which case the row it shows must stay.
+    if (resume.hidden && !inline) await deleteMatchesForResume(resume.id);
     const row = await matchResumeToJob({ id: resume.id, version: resume.version, text }, jobInput, { draft, mode, rebuild });
     if (!row) {
       updateRun(run.id, { stage: 'error', error: 'Comparison failed — see the web logs.' });
@@ -650,13 +659,16 @@ jobsRoute.post('/jobs/:id/match', async (c) => {
       stage: 'done',
       resultUrl: resultUrl(row.id),
       tailorUrl: `/jobs/${id}/target?match=${row.id}`,
+      results: { [matchStep(mode)]: `AI match ${row.matchScore}/100` },
       flash: rebuild
         ? `Keywords rebuilt from the posting — AI match ${row.matchScore}/100, counted over a fresh set of terms.`
         : `${draft ? 'Draft' : `"${resume.name}"`} ${mode === 'fast' ? 'checked' : 'compared'} — AI match ${row.matchScore}/100.`,
     });
   });
-  return c.redirect(`/target/runs/${run.id}`, 303);
+  return follow(`/target/runs/${run.id}`);
 });
+
+const BACKGROUND_CHECK_NOTICE = 'The AI check runs in the background — its number lands beside the score when it is done.';
 
 /** "Get suggestions" on a quick check: the lazy second call, the verdicts and the score untouched (ADR 0029). */
 jobsRoute.post('/jobs/:id/matches/:matchId/suggestions', async (c) => {
@@ -852,6 +864,9 @@ jobsRoute.get('/jobs/:id/target', async (c) => {
   // An instant check arrives with its parsed upload — taken once; from then on the browser holds it.
   const draftKey = c.req.query('draft');
   const draftText = draftTextForPage(draftKey ? draftStash.take(draftKey) : null, match.id);
+  // A background AI check the page follows (#184); a run that is gone is simply not shown.
+  const runId = c.req.query('run');
+  const watched = runId ? getRun(runId) : null;
   return c.html(
     <TargetPage
       job={{ id: job.id, title: job.title, companyName: job.company.name, location: job.location, description: job.description }}
@@ -862,6 +877,7 @@ jobsRoute.get('/jobs/:id/target', async (c) => {
       previous={previousFor(match, matches)}
       resumeText={match.resumeText || resume.text}
       draftText={draftText}
+      runId={watched?.id ?? null}
       verification={verifications[0] ?? null}
       fileVerdict={fileVerdict}
       cleanHref={file.clean ? `/resumes/${resume.id}/render` : null}
@@ -879,98 +895,41 @@ jobsRoute.post('/jobs/:id/target/reupload', async (c, next) => resumeUploadLimit
   const form = await c.req.parseBody();
   const resumeId = Number(form.resumeId);
   if (!Number.isFinite(resumeId)) return c.text('Bad resume id', 400);
-  const [job, existing] = await Promise.all([
+  const [job, resume] = await Promise.all([
     prisma.job.findUnique({ where: { id }, include: { company: { select: { name: true } } } }),
     getResume(resumeId),
   ]);
-  if (!job || !existing) return c.text('Not found', 404);
+  if (!job || !resume) return c.text('Not found', 404);
   const upload = await readResumeUpload(form);
   if ('error' in upload) return flashRedirect(`/jobs/${id}/target`, 'err', upload.error);
 
-  // The default is the instant check: the new text becomes an unsaved draft
-  // over the analysis the page showed — no AI call, no new version, nothing
-  // written (docs/target-plan.md §3.2 item 5). "Upload & analyze" opts into
-  // the full run below.
-  if (form.uploadMode !== 'analyze') {
-    const decision = decideInstantCheck(await frameFor(id, resumeId, Number(form.matchId)), upload.text);
-    if (decision.kind !== 'analyze') {
-      const when = formatRelative(decision.frame.createdAt);
-      const page = `/jobs/${id}/target?match=${decision.frame.id}`;
-      if (decision.kind === 'unchanged') {
-        return flashRedirect(page, 'warn', unchangedNotice(upload.sourceFilename, when));
-      }
-      const key = draftStash.put({ matchId: decision.frame.id, text: upload.text });
-      const ms = Date.now() - started;
-      logger.info(
-        { jobId: id, matchId: decision.frame.id, resumeId, file: upload.sourceFilename, chars: upload.text.length, ms },
-        'resume: instant check',
-      );
-      return flashRedirect(`${page}&draft=${key}`, 'ok', instantCheckNotice(upload.sourceFilename, when, ms));
-    }
+  // One button (#184): the file opens in the editor at once as an unsaved
+  // draft over the analysis the page showed, and the quick AI check of that
+  // text runs behind it — the page follows the run and offers the result when
+  // it lands. Nothing is saved; a version is the sticky bar's decision. With
+  // no analysis to show the draft against, the check runs on the progress page.
+  const decision = decideInstantCheck(await frameFor(id, resumeId, Number(form.matchId)), upload.text);
+  if (decision.kind === 'unchanged') {
+    const page = `/jobs/${id}/target?match=${decision.frame.id}`;
+    return flashRedirect(page, 'warn', unchangedNotice(upload.sourceFilename, formatRelative(decision.frame.createdAt)));
   }
-
-  // Scratch (ephemeral) resumes are replaced in place with no scan and no
-  // history — a fresh upload means a fresh analysis, nothing saved.
-  const ephemeral = existing.hidden;
-  const newName = ephemeral ? nameFromFilename(upload.sourceFilename) : existing.name;
-  const { run, joined } = claimRun(`reupload:${id}:${resumeId}:${hashShortId(upload.text)}`, {
-    steps: ['keywords'],
-    jobTitle: job.title,
-    resumeName: newName,
-    jobId: id,
+  const run = startDraftCheck({
+    job: { id: job.id, title: job.title, companyName: job.company.name, location: job.location, description: job.description },
+    resume,
+    text: upload.text,
   });
-  if (joined) return c.redirect(`/target/runs/${run.id}`, 303);
-  startRun(run.id, async () => {
-    let resume;
-    if (ephemeral) {
-      resume = await upsertScratchResume({ name: newName, ...upload });
-    } else {
-      resume = await replaceResumeFile(resumeId, upload);
-      // The match never reads the scan, so the new version's scan runs
-      // alongside it instead of ahead of it — a whole resume-model call off
-      // the wait. Cost: Resume.skills stay one version stale until it lands.
-      scanInBackground(resume);
-    }
-    // A file whose text did not change is already answered.
-    const reused = await findReusableMatch(job.id, resume.id, resume.text, 'fast');
-    if (reused) {
-      updateRun(run.id, {
-        stage: 'done',
-        resultUrl: `/jobs/${id}/target?match=${reused.row.id}`,
-        flash: `${ephemeral ? `"${newName}"` : `v${resume.version}`} uploaded. ${reuseNotice(formatRelative(reused.row.createdAt))}`,
-        reused: true,
-      });
-      return;
-    }
-    if (ephemeral) {
-      await deleteMatchesForResume(resume.id);
-      await deleteCoverLettersForResume(resume.id);
-    }
-    const row = await matchResumeToJob(resume, {
-      id: job.id,
-      title: job.title,
-      companyName: job.company.name,
-      location: job.location,
-      description: job.description,
-    });
-    if (!row) {
-      updateRun(run.id, {
-        stage: 'error',
-        error: ephemeral
-          ? 'Upload worked, but the comparison failed — see the web logs.'
-          : `v${resume.version} uploaded, but the comparison failed — see the web logs.`,
-      });
-      return;
-    }
-    updateRun(run.id, {
-      stage: 'done',
-      resultUrl: `/jobs/${id}/target?match=${row.id}`,
-      flash: ephemeral
-        ? `"${newName}" checked — AI match ${row.matchScore}/100.`
-        : `v${resume.version} uploaded and checked — AI match ${row.matchScore}/100.`,
-    });
-  });
-  return c.redirect(`/target/runs/${run.id}`, 303);
+  if (decision.kind === 'analyze') return c.redirect(`/target/runs/${run.id}`, 303);
+  const key = draftStash.put({ matchId: decision.frame.id, text: upload.text });
+  const ms = Date.now() - started;
+  logger.info(
+    { jobId: id, matchId: decision.frame.id, resumeId, file: upload.sourceFilename, chars: upload.text.length, ms, runId: run.id },
+    'resume: instant check',
+  );
+  return flashRedirect(
+    `/jobs/${id}/target?match=${decision.frame.id}&draft=${key}&run=${run.id}`,
+    'ok',
+    instantCheckNotice(upload.sourceFilename, ms),
+  );
 });
 
 /** The analysis a re-upload is checked against: the one the page showed, else the resume's latest for the job. */
