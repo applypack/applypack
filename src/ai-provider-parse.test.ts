@@ -1,6 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  ANTHROPIC_THINKING_HEADROOM_TOKENS,
+  anthropicMaxTokens,
   buildClaudeCodeArgs,
   buildCliEnv,
   buildCodexCliArgs,
@@ -12,6 +14,7 @@ import {
   parseGeminiCliOutput,
   parseOpenAiChatResponse,
 } from './ai-provider-parse';
+import { SCAN_MAX_TOKENS } from './resume/prompts';
 
 const ok = (result: string) =>
   JSON.stringify({ type: 'result', subtype: 'success', is_error: false, result });
@@ -247,4 +250,16 @@ test('describeAiFailure caps a runaway stderr dump', () => {
 
 test('describeAiFailure never renders an empty message', () => {
   assert.equal(describeAiFailure('   \n  '), 'no reason reported');
+});
+
+test('anthropicMaxTokens adds the thinking headroom to the answer budget', () => {
+  assert.equal(anthropicMaxTokens(8_000), 8_000 + ANTHROPIC_THINKING_HEADROOM_TOKENS);
+});
+
+test('the largest answer budget keeps its full headroom under the SDK non-streaming cap', () => {
+  assert.equal(anthropicMaxTokens(SCAN_MAX_TOKENS), SCAN_MAX_TOKENS + ANTHROPIC_THINKING_HEADROOM_TOKENS);
+});
+
+test('anthropicMaxTokens never asks for more than a non-streaming request may carry', () => {
+  assert.ok(anthropicMaxTokens(100_000) <= 21_333);
 });

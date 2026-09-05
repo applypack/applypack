@@ -6,6 +6,7 @@ import { config } from './config';
 import { logger } from './logger';
 import { sleep } from './http';
 import {
+  anthropicMaxTokens,
   buildClaudeCodeArgs,
   buildCliEnv,
   buildCodexCliArgs,
@@ -158,14 +159,26 @@ class AnthropicApiProvider implements AiProvider {
     for (let resumes = 0; ; resumes++) {
       const resp = await client.messages.create({
         model: req.model ?? config.CLAUDE_MODEL,
-        max_tokens: req.maxTokens,
+        max_tokens: anthropicMaxTokens(req.maxTokens),
         system: [{ type: 'text', text: req.system, cache_control: { type: 'ephemeral' } }],
         messages,
         tools,
       });
+      logger.debug({ label: req.label, stop: resp.stop_reason, usage: resp.usage }, 'ai: reply');
       if (resp.stop_reason === 'pause_turn' && resumes < MAX_PAUSE_TURN_RESUMES) {
         messages.push({ role: 'assistant', content: resp.content });
         continue;
+      }
+      // An incomplete reply is a failure, not an answer: every caller parses
+      // JSON, and a cut-off one used to come back as "no JSON object" (#159).
+      if (resp.stop_reason === 'max_tokens') {
+        const { output_tokens, output_tokens_details } = resp.usage;
+        throw new Error(
+          `reply cut off at ${output_tokens} output tokens (${output_tokens_details?.thinking_tokens ?? 0} of them thinking)`,
+        );
+      }
+      if (resp.stop_reason === 'refusal') {
+        throw new Error(`the model declined this request (${resp.stop_details?.category ?? 'no category given'})`);
       }
       return resp.content
         .filter((b): b is Anthropic.TextBlock => b.type === 'text')
