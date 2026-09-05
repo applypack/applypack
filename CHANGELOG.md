@@ -4,6 +4,20 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.66.0] — 2026-09-05
+
+### Changed
+- **The resume scan is short again; the shape is read on demand.** The scan
+  used to copy the whole resume into the JSON Resume shape (ADR 0039) —
+  most of its output, 12 000 tokens of budget, and one page reads the
+  result — so the wizard's resume step and every "Save as vN" carried it
+  (#184, #168). The shape is its own call now (`resume/structure.ts`),
+  started by the clean-version page on its first visit for a resume that
+  has none, with a progress page and the engine's reason on failure; a
+  failed reading lands on the built-in reader's shape with **Read the shape
+  with AI** to try again. A resume already read keeps its shape; a new
+  version clears it as before. The scan's budget is 4 000 tokens.
+
 ## [1.65.0] — 2026-09-05
 
 ### Changed
@@ -2611,6 +2625,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[1.66.0]: https://github.com/applypack/applypack/compare/v1.65.0...v1.66.0
 [1.65.0]: https://github.com/applypack/applypack/compare/v1.64.0...v1.65.0
 [1.64.0]: https://github.com/applypack/applypack/compare/v1.63.0...v1.64.0
 [1.63.0]: https://github.com/applypack/applypack/compare/v1.62.1...v1.63.0

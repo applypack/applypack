@@ -117,6 +117,17 @@ the image, for a feature a user with a flow `.docx` never needs.
 resume in a script the bundled face does not cover would render empty, and
 nothing warns the user beyond the preview showing it.
 
+## Addendum 2026-09-05 — the shape is read on demand (v1.66.0)
+
+The structure block was most of the scan's output — the whole resume copied
+into JSON under a 12 000-token budget — and one page reads it, so the
+wizard's resume step and every "Save as vN" paid for it (#184, #168). It is
+its own call now (`resume/structure.ts`, `buildStructurePrompt` with the
+same copy-never-write rules), started by `/resumes/:id/render` on the first
+visit for a resume that has none and by the page's "Read the shape with
+AI"; the anchor guard, the drop-count metric and the deterministic fallback
+are unchanged. The scan's budget went from 12 000 to 4 000 tokens.
+
 ## When to revisit
 
 - A resume arrives in a script Liberation Sans does not cover (CJK, Arabic,
