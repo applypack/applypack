@@ -4,6 +4,18 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.55.3] — 2026-09-04
+
+### Fixed
+- **The AI no longer tells you to remove formatting you never wrote.** The
+  text every resume prompt reads is a rendering made by the app — `## ` for
+  a heading, `- ` for a list item, `a | b` for a table row — and the scan
+  was advising candidates to "drop the '##' markers" from a `.docx` that
+  contains none (#156). All five prompts that read a resume (scan, match,
+  suggestions, strength review, cover letter) now say the markers are ours:
+  judge the words, the heading names and the order, and treat a ` | ` line
+  as the layout fact it is (a table, which ATS parsers split badly).
+
 ## [1.55.2] — 2026-09-04
 
 ### Fixed
@@ -2283,6 +2295,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[1.55.3]: https://github.com/applypack/applypack/compare/v1.55.2...v1.55.3
 [1.55.2]: https://github.com/applypack/applypack/compare/v1.55.1...v1.55.2
 [1.55.1]: https://github.com/applypack/applypack/compare/v1.55.0...v1.55.1
 [1.55.0]: https://github.com/applypack/applypack/compare/v1.54.1...v1.55.0
