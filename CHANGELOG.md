@@ -4,6 +4,20 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.58.0] — 2026-09-05
+
+### Changed
+- **The way into the resume editor is a button called "Tailor resume →".**
+  It was a text link at the far end of the score row's meta ("Open targeted
+  view →"), and the page it opened was titled "Resume match" — the owner's
+  own walk took ten seconds to find it (#164). Now the comparison's primary
+  action is that button (emerald: it spends no AI), full-width under the
+  score on a phone; the flash after a comparison offers it at the moment of
+  highest intent; the page's title, breadcrumb and heading all say **Tailor
+  resume**; the three-line hint under Compare / Full analysis shows only
+  while no comparison exists. "Targeted" is gone from user-facing copy — the
+  route `/jobs/:id/target` stays for deep links.
+
 ## [1.57.3] — 2026-09-05
 
 ### Fixed
@@ -2387,6 +2401,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[1.58.0]: https://github.com/applypack/applypack/compare/v1.57.3...v1.58.0
 [1.57.3]: https://github.com/applypack/applypack/compare/v1.57.2...v1.57.3
 [1.57.2]: https://github.com/applypack/applypack/compare/v1.57.1...v1.57.2
 [1.57.1]: https://github.com/applypack/applypack/compare/v1.57.0...v1.57.1

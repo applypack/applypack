@@ -17,7 +17,7 @@
 
 <img src="docs/screenshots/target.png" alt="Resume match: deterministic 82/100 score with primary-stack verdict, experience confirmations, and the side-by-side editor with keyword highlights" width="900">
 
-<sub>The targeted editor: an honest, deterministic resume-vs-posting score,
+<sub>Tailor resume: an honest, deterministic resume-vs-posting score,
 one-click experience confirmations, live keyword highlights.</sub>
 
 </div>
@@ -66,7 +66,7 @@ roadmap item.
 | 📲 **Telegram instead of tab-refreshing** | alerts above your fit threshold, a daily digest, and a nudge when an application goes quiet for two weeks |
 | 🕵️ **Ghost-job verification** | a live web-search checklist (careers page, company footprint, posting age, named humans) returns `legit` / `suspicious` / `fake` with evidence URLs |
 | 📄 **Resume scores that can't flatter** | the model marks facts, application code computes the score. A Laravel resume cannot sweet-talk its way to 85 against a Node.js posting, and v2 is honestly comparable to v1 |
-| ✍️ **Targeted resume editor** | posting and resume side by side, every keyword highlighted, coverage recomputed on each keystroke without spending a single AI call. Save writes the accepted edits back into your own `.docx`, formatting intact ([ADR 0038](./docs/adr/0038-save-patches-the-users-docx-in-place.md)) |
+| ✍️ **Tailor resume** | posting and resume side by side, every keyword highlighted, coverage recomputed on each keystroke without spending a single AI call. Save writes the accepted edits back into your own `.docx`, formatting intact ([ADR 0038](./docs/adr/0038-save-patches-the-users-docx-in-place.md)) |
 | 🖨 **A clean version of a resume that cannot be edited** | a PDF has no paragraphs to patch. One press re-typesets it as a single-column `.docx` and `.pdf` in your own font, sizes, accent and margins — and the `.docx` it saves is one the editor can write into ([ADR 0039](./docs/adr/0039-clean-render-from-json-resume.md)) |
 | 💌 **Cover letters that can't invent facts** | drafted from the posting, your resume and your own angle notes; every claim passes a fact gate against stored evidence, and the letter exports to PDF / DOCX |
 | 🗂 **Application tracking** | a kanban with columns you name yourself, the resume each application went out with, and reminders for the ones gone quiet |
@@ -300,7 +300,7 @@ on the AI tab shows exactly which engine your calls went to.
 | Jobs | `/jobs` | Filterable, sortable list of everything fetched |
 | Paste a job | `/jobs/new` | Save a posting by hand (LinkedIn, email, referral); it gets classified like any other |
 | Job detail | `/jobs/:id` | Full description, AI verdict, status actions, verification, resume match, tracking |
-| Targeted editor | `/jobs/:id/target` | Posting ↔ resume side by side, live keyword score, edit in place |
+| Tailor resume | `/jobs/:id/target` | Posting ↔ resume side by side, live keyword score, edit in place |
 | Compare | `/target` | One-shot comparison: paste any posting, pick / upload / paste any resume |
 | Cover letter | `/letter` | Write a letter for a posting that isn't stored yet: pick, paste or link it, then draft |
 | Applications | `/applications` | Kanban with drag-and-drop. Applied and Rejected/Ghosted are fixed; every column between them is yours to name, add and reorder ([ADR 0025](./docs/adr/0025-custom-work-stages.md)) |
@@ -320,7 +320,7 @@ on `/resumes`; each gets one AI scan (headline, seniority, skill tags,
 job-agnostic ATS issues). On any job page, **Compare** runs the match and
 stores the report: a quick check by default (every keyword graded and
 marked, the gates, the score), the edit suggestions one click later. On
-the targeted editor you fix the resume in place, watching keyword coverage
+the resume editor you fix the resume in place, watching keyword coverage
 update as you type, free of AI calls; re-upload a file and it is scored
 in the editor before the AI is asked. Disagree with the model? Re-level a
 keyword, ignore it, add the one it missed, or rebuild the whole list; your
