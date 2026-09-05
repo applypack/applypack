@@ -7,6 +7,7 @@ const fresh: WelcomeFacts = {
   jobCount: 0,
   profileReady: false,
   scoredCount: 0,
+  sourcesWaiting: 0,
   setupCompletedAt: null,
 };
 
@@ -15,6 +16,16 @@ test('the wizard walks the steps in order, each derived from data', () => {
   assert.equal(currentStep({ ...fresh, aiReady: true }), 'search');
   assert.equal(currentStep({ ...fresh, aiReady: true, jobCount: 312 }), 'profile');
   assert.equal(currentStep({ ...fresh, aiReady: true, jobCount: 312, profileReady: true }), 'matches');
+  assert.equal(
+    currentStep({ ...fresh, aiReady: true, jobCount: 312, profileReady: true, sourcesWaiting: 3 }),
+    'sources',
+    'the boards for the search\'s countries come before the first matches',
+  );
+  assert.equal(
+    currentStep({ ...fresh, aiReady: true, jobCount: 312, profileReady: true, sourcesWaiting: 3, scoredCount: 18 }),
+    null,
+    'a user who skipped the sources step and scored matches is not nagged',
+  );
   assert.equal(
     currentStep({ ...fresh, aiReady: true, jobCount: 312, profileReady: true, scoredCount: 18 }),
     null,

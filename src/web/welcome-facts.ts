@@ -5,6 +5,8 @@ import type { AiProviderId } from '../ai-engine';
 import { getSettings, type AppSettingsView } from '../settings';
 import { getActiveProfile } from '../profiles';
 import { isBlankProfile } from '../profile-guards';
+import type { SourceSuggestion } from '../starter-packs/suggest';
+import { currentSuggestions, waitingSuggestions } from './source-suggestions';
 import type { WelcomeFacts } from './welcome-steps';
 
 /*
@@ -19,25 +21,30 @@ export interface WelcomeContext {
   settings: AppSettingsView;
   statuses: Record<AiProviderId, AiProviderStatus>;
   profile: Profile | null;
+  /** What the sources step lists (#148). */
+  suggestions: SourceSuggestion[];
 }
 
 export async function loadWelcomeContext(): Promise<WelcomeContext> {
-  const [settings, statuses, profile, jobCount, scoredCount] = await Promise.all([
+  const [settings, statuses, profile, jobCount, scoredCount, suggestions] = await Promise.all([
     getSettings(),
     probeAiProviders(),
     getActiveProfile(),
     prisma.job.count(),
     prisma.job.count({ where: { fitScore: { not: null } } }),
+    currentSuggestions(),
   ]);
   return {
     settings,
     statuses,
     profile,
+    suggestions,
     facts: {
       aiReady: Object.values(statuses).some((s) => s.ok),
       jobCount,
       profileReady: profile !== null && !isBlankProfile(profile),
       scoredCount,
+      sourcesWaiting: waitingSuggestions(suggestions).length,
       setupCompletedAt: settings.setupCompletedAt,
     },
   };

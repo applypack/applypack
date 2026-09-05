@@ -5,7 +5,7 @@
  * the first undone step. Tested in welcome-steps.test.ts.
  */
 
-export const WELCOME_STEPS = ['ai', 'search', 'profile', 'matches'] as const;
+export const WELCOME_STEPS = ['ai', 'search', 'profile', 'sources', 'matches'] as const;
 export type WelcomeStep = (typeof WELCOME_STEPS)[number];
 
 export interface WelcomeFacts {
@@ -16,6 +16,8 @@ export interface WelcomeFacts {
   profileReady: boolean;
   /** Jobs that carry a match score. */
   scoredCount: number;
+  /** Sources that fit the running searches and are not on yet (#148). */
+  sourcesWaiting: number;
   setupCompletedAt: Date | null;
 }
 
@@ -27,6 +29,10 @@ export function stepDone(step: WelcomeStep, f: WelcomeFacts): boolean {
       return f.jobCount > 0;
     case 'profile':
       return f.profileReady;
+    case 'sources':
+      // Skippable: a US search has nothing to add, and a user who went on to
+      // score matches has passed it — neither should be nagged about it.
+      return f.sourcesWaiting === 0 || f.scoredCount > 0;
     case 'matches':
       return f.scoredCount > 0;
   }
