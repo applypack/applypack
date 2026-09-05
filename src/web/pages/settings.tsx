@@ -5,7 +5,7 @@ import { Layout } from '../layout';
 import { ActionForm, Badge, Button, Card, Code, Empty, Field, FILE_INPUT_CLASS, Flash, Hint, Input, PageHeader, PillCheckbox, Radio, SectionTitle, Select, Table, Tag, Td, Textarea, ToggleRow, Tr } from '../ui';
 import { formatRelative } from '../format';
 import type { FlashMessage } from '../flash';
-import { sourceLabel } from '../source-names';
+import { describeCount, type SourceGroup } from '../source-groups';
 import { dotClassFor, MAX_WORK_STAGES } from '../stage-config';
 import { formatPriorityRulesText, parsePriorityRules } from '../../priority-rules';
 import { COUNTRIES, REGIONS, flagOf, placeLabel } from '../../countries';
@@ -134,7 +134,7 @@ export interface SettingsProps {
   disabledSources: string[];
   /** ADR 0034: the keyed sources' credential rows — origins and masks only, never a value. */
   sourceKeyRows: SourceKeyRow[];
-  allSources: string[];
+  sourceGroups: SourceGroup[];
   fetchingEnabled: boolean;
   schedule: ScheduleView;
   aiEngines: AiEngineRow[];
@@ -320,7 +320,7 @@ export const SettingsPage: FC<SettingsProps> = ({
   sourceHealthAlerts,
   disabledSources,
   sourceKeyRows,
-  allSources,
+  sourceGroups,
   fetchingEnabled,
   schedule,
   aiEngines,
@@ -899,13 +899,28 @@ export const SettingsPage: FC<SettingsProps> = ({
       >
         <Card>
           <form method="post" action="/settings/sources" class="space-y-4">
-            <div class="flex flex-wrap gap-1.5">
-              {allSources.map((s) => (
-                <PillCheckbox name="enabled" value={s} checked={!disabledSources.includes(s)}>
-                  {sourceLabel(s)}
-                </PillCheckbox>
-              ))}
-            </div>
+            {sourceGroups.map((g) => (
+              <div>
+                <div class="text-[13px] font-medium text-ink">{g.title}</div>
+                <p class="mb-2 text-xs leading-5 text-ink-faint">{g.caption}</p>
+                <div class="flex flex-wrap gap-1.5">
+                  {g.pills.map((p) => (
+                    <PillCheckbox name="enabled" value={p.atsType} checked={!disabledSources.includes(p.atsType)}>
+                      {p.label}
+                      <span class="text-xs text-ink-faint">
+                        {p.locked ? (
+                          <a href="#source-keys" class="text-warn hover:underline">
+                            needs a key
+                          </a>
+                        ) : (
+                          describeCount(p, g.family)
+                        )}
+                      </span>
+                    </PillCheckbox>
+                  ))}
+                </div>
+              </div>
+            ))}
             <Hint>
               Keep the aggregators on — they carry the long tail of companies not tracked on the
               Companies page. The profile filter and classifier do the narrowing; turning
@@ -977,7 +992,7 @@ export interface SourceKeyRow {
 }
 
 const SourceKeysCard: FC<{ rows: SourceKeyRow[] }> = ({ rows }) => (
-  <Card class="mt-4">
+  <Card class="mt-4" id="source-keys">
     <SectionTitle>Extra sources — a free account of your own</SectionTitle>
     <Hint class="mb-3">
       Everything above works without any account. These two search wider, and each needs a free

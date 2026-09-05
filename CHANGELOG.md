@@ -4,6 +4,18 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.56.0] — 2026-09-04
+
+### Changed
+- **The Job sources grid shows your install, not the enum.** Three groups —
+  ATS vendors, aggregators, your own sources (the feeds you pasted and the
+  careers pages you watch, with a caption saying that unticking them switches
+  your watchlist off) — sorted by name inside each, and every pill says what
+  runs here: `14 companies · 14 active`, `1 feed · 0 active`, `no companies
+  yet`. Adzuna and France Travail say `needs a key` and link to the card that
+  takes it, instead of a plain tick identical to Greenhouse's (#147). Same
+  form, same toggles, no schema change.
+
 ## [1.55.5] — 2026-09-04
 
 ### Changed
@@ -2328,6 +2340,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[1.56.0]: https://github.com/applypack/applypack/compare/v1.55.5...v1.56.0
 [1.55.5]: https://github.com/applypack/applypack/compare/v1.55.4...v1.55.5
 [1.55.4]: https://github.com/applypack/applypack/compare/v1.55.3...v1.55.4
 [1.55.3]: https://github.com/applypack/applypack/compare/v1.55.2...v1.55.3
