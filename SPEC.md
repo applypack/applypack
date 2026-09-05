@@ -8,7 +8,7 @@
 Single-user, locally hosted job-search assistant. Pulls listings from a
 dozen public ATS / aggregator sources, classifies each through Claude
 against a **profile** that the user edits in a small dashboard, and
-fires Telegram alerts for matches. Designed to run continuously on a
+fires Telegram or Discord alerts for matches. Designed to run continuously on a
 laptop or VPS without babysitting, with all configuration editable
 from the web UI (no SSH-and-restart).
 

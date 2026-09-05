@@ -387,22 +387,32 @@ model CompanyCandidate {
   @@map("company_candidate")
 }
 
-model TelegramTarget {
-  id        Int       @id @default(autoincrement())
-  name      String
-  botToken  String
-  chatId    String
-  active    Boolean   @default(true)
-  createdAt DateTime  @default(now())
-  lastUsed  DateTime?
-  profiles  Profile[]
+/// Where alerts go (ADR 0041): a Telegram bot + chat, or a Discord webhook.
+enum NotificationKind {
+  TELEGRAM
+  DISCORD
+}
 
-  @@map("telegram_target")
+model NotificationTarget {
+  id         Int              @id @default(autoincrement())
+  kind       NotificationKind @default(TELEGRAM)
+  name       String
+  /// Telegram only.
+  botToken   String?
+  chatId     String?
+  /// Discord only — a secret: anyone holding it can post to the channel.
+  webhookUrl String?
+  active     Boolean          @default(true)
+  createdAt  DateTime         @default(now())
+  lastUsed   DateTime?
+  profiles   Profile[]
+
+  @@map("notification_target")
 }
 
 model Profile {
-  id               Int             @id @default(autoincrement())
-  name             String
+  id                   Int                 @id @default(autoincrement())
+  name                 String
   // Stack tags — case-insensitive substring match on title/description.
   // stackRequired = REAL TECH (programming languages, frameworks, runtimes).
   //   The role MUST actually use one of these.
@@ -410,31 +420,31 @@ model Profile {
   //   Used for the base filter so we don't drop "Senior Full-Stack" jobs
   //   on title alone — but Claude is told explicitly that a role-type
   //   keyword by itself is NOT a tech match.
-  stackRequired    String[]
-  roleTypes        String[]        @default([])
-  stackNiceToHave  String[]
-  stackExclude     String[]
+  stackRequired        String[]
+  roleTypes            String[]            @default([])
+  stackNiceToHave      String[]
+  stackExclude         String[]
   // Free-form context appended to Claude prompt
-  notes            String?         @db.Text
+  notes                String?             @db.Text
   // Seniority tags: senior, staff, lead, principal, mid, junior, etc.
-  seniority        String[]
+  seniority            String[]
   // Where this search hunts (ADR 0032). `countries` are ISO-2 codes and
   // `regions` group codes from src/countries.json, stored as the user picked
   // them (a group stays a group, never 27 codes); both empty = anywhere.
   // `workplace` lists the arrangements the search accepts; empty = any.
   // `onsiteCities` keeps city-level precision for hybrid / on-site roles.
-  countries        String[]        @default([])
-  regions          String[]        @default([])
-  workplace        Workplace[]     @default([REMOTE])
-  onsiteCities     String[] // e.g. ["Austin, TX","Berlin"]
+  countries            String[]            @default([])
+  regions              String[]            @default([])
+  workplace            Workplace[]         @default([REMOTE])
+  onsiteCities         String[] // e.g. ["Austin, TX","Berlin"]
   // Stage 4 (ADR 0033): where the candidate LIVES (ISO-2, null = not said)
   // and whether they would move — no | yes | sponsorship. `countries` is a
   // wish, `residence` is a fact; the classifier weighs them separately.
-  residence        String?
-  relocation       String          @default("no")
+  residence            String?
+  relocation           String              @default("no")
   // Thresholds
-  minSalaryUsd     Int             @default(0) // 0 = don't filter on salary
-  minFitScore      Int             @default(70)
+  minSalaryUsd         Int                 @default(0) // 0 = don't filter on salary
+  minFitScore          Int                 @default(70)
   // Phase 7.1: opinionated post-Claude overrides — array of
   // { label, techsAny[], regionsAny[], minFitFloor } objects validated
   // by `parsePriorityRules` in src/priority-rules.ts. When a job matches
@@ -442,24 +452,24 @@ model Profile {
   // fitScore is clamped up to the rule's floor and location_match is
   // forced true. Lets you say "PHP roles posted as remote-US must score
   // ≥90 even if the JD is bare-bones" without trying to convince Claude.
-  priorityRules    Json            @default("[]")
+  priorityRules        Json                @default("[]")
   // ADR 0028: several searches run at once. `active` is the switch — a job is
   // scored against every active profile in ONE classifier call, and each row
   // gates its own alerts with its own minFitScore. AppSettings.activeProfileId
   // stays as the PRIMARY (defaults, preselects); the primary is always active.
-  active           Boolean         @default(false)
+  active               Boolean             @default(false)
   // Where alerts for this profile go. null → broadcast to all active targets.
-  telegramTargetId Int?
-  telegramTarget   TelegramTarget? @relation(fields: [telegramTargetId], references: [id], onDelete: SetNull)
+  notificationTargetId Int?
+  notificationTarget   NotificationTarget? @relation(fields: [notificationTargetId], references: [id], onDelete: SetNull)
   // The resume this search hunts with: "jobs I'd apply to with THIS CV".
   // Preselects the resume on a job page (src/resume/pick.ts). SetNull, not
   // Cascade — a profile owns regions, thresholds, rules and alert routing
   // that no resume can speak for, so deleting the file must not delete the
   // search; the preselect falls back to skill overlap, as before the link.
-  resumeId         Int?
-  resume           Resume?         @relation(fields: [resumeId], references: [id], onDelete: SetNull)
-  createdAt        DateTime        @default(now())
-  updatedAt        DateTime        @updatedAt
+  resumeId             Int?
+  resume               Resume?             @relation(fields: [resumeId], references: [id], onDelete: SetNull)
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
 
   // Back-relation for AppSettings.activeProfileId
   activeFor AppSettings[]

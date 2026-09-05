@@ -49,6 +49,7 @@ consequences (what we accept). Aim for 15–30 lines each.
 - [0038 — Save patches the user's .docx in place; text-only versions are the fallback](./0038-save-patches-the-users-docx-in-place.md) *(supersedes the text-only consequence of 0010)*
 - [0039 — A resume that cannot be patched is re-typeset from JSON Resume, in the user's own typography](./0039-clean-render-from-json-resume.md) *(extends 0038)*
 - [0040 — The default source set is the aggregators; employer boards are starter packs](./0040-default-sources-are-the-aggregators.md) *(extends 0017)*
+- [0041 — Alerts go through a channel seam; Telegram and Discord are its first two channels](./0041-notification-channels.md)
 
 ## When to write a new one
 

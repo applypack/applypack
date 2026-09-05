@@ -16,12 +16,14 @@ import { SENIORITY_LEVELS } from '../../resume/profile-draft';
 import { ACCEPTED_EXTENSIONS } from '../../resume/resume-text';
 import { MAX_UPLOAD_MB } from '../upload';
 import { ALERT_MODES, ALL_DAYS, DAY_LABELS, FETCH_EVERY, MAX_DIGEST_HOURS, describeSchedule, type Schedule } from '../../user-schedule';
+import { KIND_LABEL } from '../../notify/targets';
 
 interface MaskedTarget {
   id: number;
   name: string;
-  maskedToken: string;
-  chatId: string;
+  kind: TargetKind;
+  /** The token / chat or the webhook, its secret masked (notify/targets.ts). */
+  destination: string;
   active: boolean;
   createdAt: Date;
   lastUsed: Date | null;
@@ -38,9 +40,12 @@ interface ProfileListItem {
   blank: boolean;
 }
 
+type TargetKind = keyof typeof KIND_LABEL;
+
 interface AvailableTarget {
   id: number;
   name: string;
+  kind: TargetKind;
   active: boolean;
 }
 
@@ -652,8 +657,8 @@ export const SettingsPage: FC<SettingsProps> = ({
                 enabled={staleApplicationsDigestEnabled}
                 action="/settings/stale-digest-toggle"
               >
-                Daily Telegram nudge for jobs stuck in "applied" with no recruiter contact for
-                14+ days. Honours the Telegram master switch.
+                A daily nudge for jobs stuck in "applied" with no recruiter contact for 14+
+                days. Honours the alerts master switch.
               </ToggleRow>
             </div>
           </div>
@@ -780,20 +785,15 @@ export const SettingsPage: FC<SettingsProps> = ({
       {activeTab === 'notifications' && (
       <Section
         title="Notifications"
-        desc="Telegram bots and chats that receive job alerts."
+        desc="Telegram chats and Discord webhooks that receive job alerts."
       >
         <Card>
           {/* Same spacing and rule as the General tab's toggle pair: bare
               siblings here had the two rows touching, so the second row's
               button looked like it belonged to the first. */}
           <div class="space-y-5">
-            <ToggleRow
-              label="Telegram alerts"
-              enabled={telegramEnabled}
-              action="/settings/telegram-toggle"
-            >
-              When off, nothing is sent regardless of targets. Jobs are still classified and
-              stored.
+            <ToggleRow label="Alerts" enabled={telegramEnabled} action="/settings/telegram-toggle">
+              When off, nothing is sent to any target. Jobs are still classified and stored.
             </ToggleRow>
             <div class="border-t border-line pt-5">
               <ToggleRow
@@ -815,8 +815,8 @@ export const SettingsPage: FC<SettingsProps> = ({
             <Table
               columns={[
                 'Name',
-                'Bot token',
-                'Chat id',
+                'Channel',
+                'Destination',
                 'Last used',
                 'Active',
                 <span class="block text-right">Actions</span>,
@@ -825,8 +825,10 @@ export const SettingsPage: FC<SettingsProps> = ({
               {targets.map((t) => (
                 <Tr>
                   <Td class="font-medium text-ink">{t.name}</Td>
-                  <Td class="font-mono text-xs text-ink-muted">{t.maskedToken}</Td>
-                  <Td class="font-mono text-xs text-ink-muted">{t.chatId}</Td>
+                  <Td>
+                    <Badge tone="neutral">{KIND_LABEL[t.kind]}</Badge>
+                  </Td>
+                  <Td class="font-mono text-xs text-ink-muted">{t.destination}</Td>
                   <Td class="whitespace-nowrap text-[13px] text-ink-faint">
                     {formatRelative(t.lastUsed)}
                   </Td>
@@ -862,33 +864,62 @@ export const SettingsPage: FC<SettingsProps> = ({
           </Card>
         )}
 
-        <Card>
-          <div class="mb-3 text-[13px] font-medium text-ink">Add target</div>
-          <form method="post" action="/settings/targets" class="grid gap-3 sm:grid-cols-2">
-            <Field label="Name">
-              <Input type="text" name="name" required placeholder="My phone" />
-            </Field>
-            <Field label="Chat id">
-              <Input type="text" name="chatId" required placeholder="-100…" mono />
-            </Field>
-            <Field label="Bot token" class="sm:col-span-2">
-              <Input
-                type="password"
-                name="botToken"
-                required
-                autocomplete="off"
-                placeholder="123456789:ABC…"
-                mono
-              />
-            </Field>
-            <div class="sm:col-span-2">
-              <Button>Add target</Button>
-            </div>
-          </form>
-          <Hint class="mt-3">
-            The token is checked and a test message is sent before saving.
-          </Hint>
-        </Card>
+        <div class="grid gap-4 lg:grid-cols-2">
+          <Card>
+            <div class="mb-3 text-[13px] font-medium text-ink">Add a Telegram target</div>
+            <form method="post" action="/settings/targets" class="grid gap-3 sm:grid-cols-2">
+              <input type="hidden" name="kind" value="telegram" />
+              <Field label="Name">
+                <Input type="text" name="name" required placeholder="My phone" />
+              </Field>
+              <Field label="Chat id">
+                <Input type="text" name="chatId" required placeholder="-100…" mono />
+              </Field>
+              <Field label="Bot token" class="sm:col-span-2">
+                <Input
+                  type="password"
+                  name="botToken"
+                  required
+                  autocomplete="off"
+                  placeholder="123456789:ABC…"
+                  mono
+                />
+              </Field>
+              <div class="sm:col-span-2">
+                <Button>Add target</Button>
+              </div>
+            </form>
+            <Hint class="mt-3">
+              The token is checked and a test message is sent before saving.
+            </Hint>
+          </Card>
+          <Card>
+            <div class="mb-3 text-[13px] font-medium text-ink">Add a Discord webhook</div>
+            <form method="post" action="/settings/targets" class="grid gap-3">
+              <input type="hidden" name="kind" value="discord" />
+              <Field label="Name">
+                <Input type="text" name="name" required placeholder="#job-alerts" />
+              </Field>
+              <Field label="Webhook URL" hint="Server settings → Integrations → Webhooks → New webhook → Copy URL.">
+                <Input
+                  type="password"
+                  name="webhookUrl"
+                  required
+                  autocomplete="off"
+                  placeholder="https://discord.com/api/webhooks/…"
+                  mono
+                />
+              </Field>
+              <div>
+                <Button>Add webhook</Button>
+              </div>
+            </form>
+            <Hint class="mt-3">
+              A test message is posted before saving. The URL is a secret — anyone holding it can
+              post to the channel — and is stored like a bot token, never shown in full.
+            </Hint>
+          </Card>
+        </div>
       </Section>
       )}
 
@@ -1455,14 +1486,14 @@ const ProfileEditor: FC<{
           <Field label="Min fit score (0-100)" hint="Jobs below it are stored, not alerted.">
             <Input type="number" name="minFitScore" min="0" max="100" value={profile.minFitScore} />
           </Field>
-          <Field label="Telegram target">
-            <Select name="telegramTargetId">
-              <option value="" selected={profile.telegramTargetId === null}>
+          <Field label="Alert target">
+            <Select name="notificationTargetId">
+              <option value="" selected={profile.notificationTargetId === null}>
                 (broadcast to all active)
               </option>
               {availableTargets.map((t) => (
-                <option value={t.id} selected={profile.telegramTargetId === t.id}>
-                  {t.name}
+                <option value={t.id} selected={profile.notificationTargetId === t.id}>
+                  {t.name} · {KIND_LABEL[t.kind]}
                   {t.active ? '' : ' (inactive)'}
                 </option>
               ))}

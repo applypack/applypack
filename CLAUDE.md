@@ -148,7 +148,7 @@
 - Do not add Express, Next.js, or any HTTP server to the worker process.
 - Do not add Redis, BullMQ, or other queues — node-cron is sufficient.
 - Do not expose the dashboard on a public interface by default — bind to `127.0.0.1` in compose.
-- Do not store secrets anywhere except `.env` (gitignored). Two carve-outs, both deliberate: Telegram tokens belong in `TelegramTarget` rows once `init.ts` has bootstrapped them, and per-engine AI keys belong in `AppSettings.aiKeys` (ADR 0027) — in both cases `.env` becomes optional after first boot. A secret in the DB is read only through its own accessor, never rendered in full, never logged.
+- Do not store secrets anywhere except `.env` (gitignored). Two carve-outs, both deliberate: Telegram tokens and Discord webhook URLs belong in `NotificationTarget` rows once `init.ts` has bootstrapped them (ADR 0041), and per-engine AI keys belong in `AppSettings.aiKeys` (ADR 0027) — in both cases `.env` becomes optional after first boot. A secret in the DB is read only through its own accessor, never rendered in full, never logged.
 - Do not commit `node_modules`, `dist`, or `.env`.
 - Do not use any `--save-dev` that isn't necessary.
 - Do not scrape LinkedIn / Indeed / Glassdoor / Workday / Wellfound — see [ADR 0005](./docs/adr/0005-no-linkedin-indeed-workday.md).
@@ -239,7 +239,7 @@ When the question is **"where does X live?"**, save yourself a `find`:
 | One posting → a verdict per running search (winner, score line, thresholds) | `src/jobs/verdict-merge.ts` (pure, ADR 0028); parser `classifier.ts:parseClassifications`; write path `src/jobs/score-store.ts` |
 | Which searches are running, and the ceiling on them | `src/profiles.ts:listActiveProfiles` / `setProfileActive`; `MAX_ACTIVE_PROFILES` in `src/profile-guards.ts` |
 | Blank-profile guards (skip tick, fit ≤ 50 cap, activation gate) | `src/profile-guards.ts` (pure, issue #50) — wired in `process-jobs.ts`, `classifier.ts`, `routes/settings.tsx` |
-| Telegram MarkdownV2 escape | `src/notifier.ts:escapeMarkdownV2` |
+| Telegram MarkdownV2 escape, Discord markdown escape, and the channel switch between them | `src/notifier.ts:escapeMarkdownV2` (the Telegram channel) · `src/notify/discord.ts:escapeDiscord` · `notifier.ts:deliverToTarget` hands a row to its channel by `kind`; the words both share are `notify/lines.ts` (ADR 0041) |
 | Profile-to-prompt translation | `src/classifier.ts:buildSystemPrompt` (stack/role/location/notes lines) |
 | Discovery candidate extraction | `src/discovery.ts:recordCandidatesFromText` (calls `extractAtsToken`) |
 | URL → ATS recognition (greenhouse/lever/ashby/workable/SR) | `src/text-utils.ts:extractAtsToken` |
@@ -335,8 +335,8 @@ When the question is **"how does the user toggle / configure X?"**:
 | Fill the country columns on jobs stored before v1.24 | `docker compose exec app node dist/scripts/backfill-locations.js --dry-run`, read the distribution, then without the flag (no AI call; `location` and `description` untouched) |
 | What each search made of one posting | `/jobs/:id` → Classifier card → "By search" |
 | Re-classify all jobs against new profile | `/settings` Profile tab → "Save & re-classify" in the editor (async, watch /runs) |
-| Telegram on/off | `/settings` Notifications tab |
-| Add Telegram bot or chat | `/settings` Notifications tab → "Add target" (validates with getMe + sendMessage) |
+| Alerts on/off (every channel) | `/settings` Notifications tab → "Alerts" |
+| Add a Telegram bot + chat, or a Discord webhook | `/settings` Notifications tab → "Add a Telegram target" (getMe + a test message) / "Add a Discord webhook" (a test post; only Discord's own hosts) — the row says which channel, its secret masked |
 | Pipeline stage on a job | `/jobs/:id` → "Application tracking" card; on `/applications` drag the card between columns (`public/board.mjs`) or use its quick-move select — both hit the stage-only endpoint that never touches appliedAt/notes |
 | Add / rename / reorder board columns | `/settings` General tab → "Board columns" (ADR 0025: Applied + Rejected/Ghosted fixed, delete needs an empty column; keys never change, labels do) |
 | Review newly discovered companies | `/discovery` (sorted by jobsSeen DESC) |

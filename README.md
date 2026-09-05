@@ -65,7 +65,7 @@ roadmap item.
 | 🚀 **A guided first run** | `/welcome` walks a first install through connecting an AI, proving the search works, turning a resume into a profile, and scoring the first matches — four clicks and one file pick |
 | 🎯 **Several searches at once** | Backend and QA, or contract and full-time: each search has its own stack, thresholds, resume and Telegram chat, and up to eight run in parallel. One AI call per posting scores all of them, so a second direction costs almost nothing |
 | 🧠 **A classifier with strict rules** | AI reads the full description against your stack, role types, seniority, regions and salary floor. "Full-stack" in a title is not a tech match, and "Remote · Germany" is not a US-remote job |
-| 📲 **Telegram instead of tab-refreshing** | alerts above your fit threshold, a daily digest, and a nudge when an application goes quiet for two weeks |
+| 📲 **Telegram or Discord instead of tab-refreshing** | alerts above your fit threshold, a daily digest, and a nudge when an application goes quiet for two weeks |
 | 🕵️ **Ghost-job verification** | a live web-search checklist (careers page, company footprint, posting age, named humans) returns `legit` / `suspicious` / `fake` with evidence URLs |
 | 📄 **Resume scores that can't flatter** | the model marks facts, application code computes the score. A Laravel resume cannot sweet-talk its way to 85 against a Node.js posting, and v2 is honestly comparable to v1 |
 | ✍️ **Tailor resume** | posting and resume side by side, every keyword highlighted, coverage recomputed on each keystroke without spending a single AI call. Save writes the accepted edits back into your own `.docx`, formatting intact ([ADR 0038](./docs/adr/0038-save-patches-the-users-docx-in-place.md)) |
@@ -130,8 +130,8 @@ through it — about five clicks and one file pick:
 
 Fetching starts **paused** until that last click, on purpose: a blank
 profile would classify everything as a miss and waste your AI quota.
-Telegram alerts are optional — **Settings → Notifications** whenever you
-like. Skipped the wizard? The Overview keeps a "Finish setup" link.
+Telegram or Discord alerts are optional — **Settings → Notifications**
+whenever you like. Skipped the wizard? The Overview keeps a "Finish setup" link.
 
 From then on it runs itself. Every settings change saves to Postgres on
 click: no restarts, no `.env` edits. The worker picks changes up within
@@ -465,7 +465,7 @@ policy can land here: open an issue with the
 [feature template](https://github.com/applypack/applypack/issues/new/choose)
 and it gets scoped in the open. The roadmap is the issue tracker, on
 purpose; [#24](https://github.com/applypack/applypack/issues/24) (a Discord
-channel next to Telegram) is the kind of task that is waiting for someone.
+channel next to Telegram and Discord) is the kind of task that is waiting for someone.
 
 Three good entry points:
 

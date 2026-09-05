@@ -27,7 +27,7 @@ export interface ProfileInput {
   onsiteCities: string[];
   minSalaryUsd: number;
   minFitScore: number;
-  telegramTargetId: number | null;
+  notificationTargetId: number | null;
   /** The resume this search hunts with; null = pick by skill overlap. */
   resumeId: number | null;
   priorityRules: PriorityRule[];
@@ -55,7 +55,7 @@ export function blankProfileInput(): ProfileInput {
     onsiteCities: [],
     minSalaryUsd: 0,
     minFitScore: 70,
-    telegramTargetId: null,
+    notificationTargetId: null,
     resumeId: null,
     priorityRules: [],
   };

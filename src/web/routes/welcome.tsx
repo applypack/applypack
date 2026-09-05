@@ -468,7 +468,7 @@ function profileInput(p: Profile): ProfileInput {
     onsiteCities: p.onsiteCities,
     minSalaryUsd: p.minSalaryUsd,
     minFitScore: p.minFitScore,
-    telegramTargetId: p.telegramTargetId,
+    notificationTargetId: p.notificationTargetId,
     resumeId: p.resumeId,
     priorityRules: parsePriorityRules(p.priorityRules),
   };

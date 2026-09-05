@@ -33,6 +33,8 @@ export const ConfigSchema = z.object({
   AI_CONCURRENCY: z.coerce.number().int().min(1).max(8).default(3),
   TELEGRAM_BOT_TOKEN: z.string().optional(),
   TELEGRAM_CHAT_ID: z.string().optional(),
+  /** A Discord incoming webhook — the same first-boot bootstrap as the Telegram pair (ADR 0041). */
+  DISCORD_WEBHOOK_URL: z.string().optional(),
   LOG_LEVEL: z
     .enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'])
     .default('info'),

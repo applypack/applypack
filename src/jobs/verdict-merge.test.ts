@@ -32,7 +32,7 @@ const verdict = (
   classification: classification(fit),
   dismissReason,
   priorityRulesApplied: [],
-  telegramTargetId: null,
+  notificationTargetId: null,
   ...over,
 });
 
@@ -85,10 +85,10 @@ test('ties break on profile id, so a re-classify is stable', () => {
 
 test('the winner carries the routing for the alert', () => {
   const merged = mergeVerdicts([
-    verdict(1, 'Backend', 55, null, { telegramTargetId: 10 }),
-    verdict(2, 'QA', 90, null, { telegramTargetId: 20 }),
+    verdict(1, 'Backend', 55, null, { notificationTargetId: 10 }),
+    verdict(2, 'QA', 90, null, { notificationTargetId: 20 }),
   ]);
-  assert.equal(merged?.winner.telegramTargetId, 20);
+  assert.equal(merged?.winner.notificationTargetId, 20);
 });
 
 test('no verdicts means no merge — never a fabricated zero', () => {
@@ -104,7 +104,7 @@ const profile = (id: number, over: Partial<Profile> = {}): Profile =>
     minFitScore: 70,
     minSalaryUsd: 0,
     priorityRules: [],
-    telegramTargetId: null,
+    notificationTargetId: null,
     ...over,
   }) as unknown as Profile;
 

@@ -36,7 +36,7 @@ export async function deliverHeldAlerts(now: Date, schedule: Schedule): Promise<
     include: {
       company: { select: { name: true, atsType: true, atsToken: true, watched: true, alertPolicy: true } },
       scores: {
-        include: { profile: { select: { name: true, telegramTargetId: true } } },
+        include: { profile: { select: { name: true, notificationTargetId: true } } },
         orderBy: { fitScore: 'desc' },
         take: 2,
       },
@@ -47,7 +47,7 @@ export async function deliverHeldAlerts(now: Date, schedule: Schedule): Promise<
 
   const held: HeldRow[] = rows.map((j) => ({
     id: j.id,
-    targetId: j.scores[0]?.profile.telegramTargetId ?? null,
+    targetId: j.scores[0]?.profile.notificationTargetId ?? null,
     alert: {
       title: j.title,
       // The ★ is on the row, not on the send: a held posting from a watched

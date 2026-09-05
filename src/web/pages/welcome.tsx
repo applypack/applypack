@@ -797,7 +797,7 @@ const ScoreOrWatch: FC<WelcomeProps> = ({ matches, fetchingEnabled, telegramEnab
       </ActionForm>
       {!telegramEnabled && (
         <Hint>
-          Want new matches on your phone? Set up Telegram later in{' '}
+          Want new matches on your phone? Set up Telegram or Discord later in{' '}
           <a href="/settings?tab=notifications" class="font-medium text-accent-strong hover:text-accent-deep">
             Settings → Notifications
           </a>

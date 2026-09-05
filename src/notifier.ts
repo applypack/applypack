@@ -1,43 +1,47 @@
 import { logger } from './logger';
-import { flagOf } from './countries';
-import { formatSalaryRange } from './currency';
-import { WORKPLACE_LABEL } from './location';
-import {
-  getSettings,
-  listActiveTelegramTargets,
-  markTargetUsed,
-} from './settings';
+import { getSettings, listActiveNotificationTargets, markTargetUsed } from './settings';
 import { prisma } from './db';
-import type { TelegramTarget } from '@prisma/client';
-import { describeStatus } from './fetchers/source-health';
+import type { NotificationTarget } from '@prisma/client';
 import type { AlertJob } from './types';
+import {
+  formatPlaceLine,
+  formatSalary,
+  quietSourceItems,
+  type PageChangeNotice,
+  type QuietSourceAlert,
+} from './notify/lines';
+import { deliverDiscord, formatDiscordAlert, formatDiscordDigest, formatDiscordPageChanges } from './notify/discord';
+import { packMessages } from './notify/pack';
 
-/** Arrangement words a location string may already carry. */
-const WORKPLACE_WORDS = '\\b(remote|hybrid|on-?site|in-office)\\b';
+/*
+ * Alerts, digests and notices go out through here to every active target,
+ * each in its channel's own markup (ADR 0041): this file is the Telegram
+ * channel — MarkdownV2, the 4096-char limit, the bot API — and the switch
+ * that hands a Discord row to notify/discord.ts. The words both channels
+ * share are in notify/lines.ts.
+ */
+
+export { formatPlaceLine, formatSalary } from './notify/lines';
+export type { PageChangeNotice, QuietSourceAlert } from './notify/lines';
 
 const TELEGRAM_API = 'https://api.telegram.org';
 const TELEGRAM_TIMEOUT_MS = 10_000;
 const MAX_MESSAGE_LENGTH = 4096;
-/**
- * Quiet sources named in full before the line collapses to a count. A total
- * outage marks every source at once, and an uncapped list would push the
- * digest header past MAX_MESSAGE_LENGTH — Telegram then rejects the whole
- * message, losing the alert exactly when it matters most.
- */
-const MAX_QUIET_NAMED = 8;
+
+/** What one broadcast says, in each channel's own markup (ADR 0041). */
+interface Outgoing {
+  telegram: string[];
+  discord: string[];
+}
 
 /**
  * One alert per posting (ADR 0028). `targetId` is the winning search's
- * `Profile.telegramTargetId` — a number, not the whole row, because routing is
- * the only thing the notifier ever wanted from a profile, and passing the row
- * invited callers to think the message was per-profile.
+ * `Profile.notificationTargetId` — a number, not the whole row, because
+ * routing is the only thing the notifier ever wanted from a profile, and
+ * passing the row invited callers to think the message was per-profile.
  */
-export async function sendTelegramAlert(
-  job: AlertJob,
-  targetId?: number | null,
-): Promise<void> {
-  const text = formatJobMessage(job);
-  await broadcast(text, targetId);
+export async function sendAlert(job: AlertJob, targetId?: number | null): Promise<void> {
+  await broadcast({ telegram: [formatJobMessage(job)], discord: [formatDiscordAlert(job)] }, targetId);
 }
 
 export async function sendDigest(
@@ -47,40 +51,29 @@ export async function sendDigest(
   /** What the header calls this batch — the daily recap, or a held delivery (TASKS §16). */
   title = 'Daily digest',
 ): Promise<void> {
-  const healthLine = formatSourceHealthLine(quiet);
-  if (jobs.length === 0) {
-    const empty = escapeMarkdownV2('No new matches since the last digest.');
-    await broadcast(healthLine ? `${empty}\n\n${healthLine}` : empty, targetId);
-    return;
-  }
-  const header = `*${title} — ${jobs.length} match${jobs.length === 1 ? '' : 'es'}*${
-    healthLine ? `\n${healthLine}` : ''
-  }`;
-  const blocks = jobs.map(formatJobMessage);
-  const separator = '\n\n———\n\n';
-
-  // Pack into chunks under Telegram's 4096-char message limit.
-  let buf = header;
-  for (const block of blocks) {
-    const candidate = buf.length === 0 ? block : `${buf}${separator}${block}`;
-    if (candidate.length > MAX_MESSAGE_LENGTH) {
-      await broadcast(buf, targetId);
-      buf = block;
-    } else {
-      buf = candidate;
-    }
-  }
-  if (buf.length > 0) {
-    await broadcast(buf, targetId);
-  }
+  await broadcast(
+    { telegram: formatTelegramDigest(jobs, quiet, title), discord: formatDiscordDigest(jobs, quiet, title) },
+    targetId,
+  );
 }
 
-async function broadcast(text: string, targetId?: number | null): Promise<void> {
+/** The Telegram digest, packed under the 4096-char message limit. Pure — exported for the test. */
+export function formatTelegramDigest(jobs: readonly AlertJob[], quiet: readonly QuietSourceAlert[], title: string): string[] {
+  const healthLine = formatSourceHealthLine([...quiet]);
+  if (jobs.length === 0) {
+    const empty = escapeMarkdownV2('No new matches since the last digest.');
+    return [healthLine ? `${empty}\n\n${healthLine}` : empty];
+  }
+  const header = `*${title} — ${jobs.length} match${jobs.length === 1 ? '' : 'es'}*${healthLine ? `\n${healthLine}` : ''}`;
+  return packMessages(header, jobs.map(formatJobMessage), '\n\n———\n\n', MAX_MESSAGE_LENGTH);
+}
+
+async function broadcast(out: Outgoing, targetId?: number | null): Promise<void> {
   const settings = await getSettings();
   if (!settings.telegramEnabled) {
     logger.info(
-      { telegram: 'disabled', preview: text.slice(0, 200) },
-      'telegram: alerts disabled in settings; skipping',
+      { alerts: 'disabled', preview: out.telegram[0]?.slice(0, 200) },
+      'notify: alerts disabled in settings; skipping',
     );
     return;
   }
@@ -88,35 +81,21 @@ async function broadcast(text: string, targetId?: number | null): Promise<void> 
   const targets = await resolveTargets(targetId);
   if (targets.length === 0) {
     logger.info(
-      {
-        telegram: 'no-targets',
-        targetId,
-        preview: text.slice(0, 200),
-      },
-      'telegram: no eligible targets; skipping',
+      { alerts: 'no-targets', targetId, preview: out.telegram[0]?.slice(0, 200) },
+      'notify: no eligible targets; skipping',
     );
     return;
   }
 
-  const results = await Promise.allSettled(
-    targets.map((t) => deliverToTarget(t, text)),
-  );
+  const results = await Promise.allSettled(targets.map((t) => deliverToTarget(t, out)));
   const okCount = results.filter((r) => r.status === 'fulfilled').length;
   const failed = results
-    .map((r, i) => ({ r, name: targets[i]?.name ?? 'unknown' }))
-    .filter((x): x is { r: PromiseRejectedResult; name: string } =>
-      x.r.status === 'rejected',
-    );
+    .map((r, i) => ({ r, name: targets[i]?.name ?? 'unknown', kind: targets[i]?.kind }))
+    .filter((x): x is { r: PromiseRejectedResult; name: string; kind: NotificationTarget['kind'] } => x.r.status === 'rejected');
   for (const f of failed) {
-    logger.error(
-      { err: f.r.reason, target: f.name },
-      'telegram: delivery failed for target',
-    );
+    logger.error({ err: f.r.reason, target: f.name, kind: f.kind }, 'notify: delivery failed for target');
   }
-  logger.info(
-    { ok: okCount, failed: failed.length, total: targets.length },
-    'telegram: broadcast complete',
-  );
+  logger.info({ ok: okCount, failed: failed.length, total: targets.length }, 'notify: broadcast complete');
 }
 
 /**
@@ -124,22 +103,27 @@ async function broadcast(text: string, targetId?: number | null): Promise<void> 
  * - If the search named a target and that target is active, send only there.
  * - Otherwise broadcast to all active targets.
  */
-async function resolveTargets(targetId?: number | null): Promise<TelegramTarget[]> {
+async function resolveTargets(targetId?: number | null): Promise<NotificationTarget[]> {
   if (targetId) {
-    const t = await prisma.telegramTarget.findUnique({ where: { id: targetId } });
+    const t = await prisma.notificationTarget.findUnique({ where: { id: targetId } });
     if (t && t.active) return [t];
-    logger.warn(
-      { targetId },
-      'telegram: search target inactive or missing; falling back to all active',
-    );
+    logger.warn({ targetId }, 'notify: search target inactive or missing; falling back to all active');
   }
-  return listActiveTelegramTargets();
+  return listActiveNotificationTargets();
 }
 
-async function deliverToTarget(
-  target: TelegramTarget,
-  text: string,
-): Promise<void> {
+/** Each target gets the messages in its own channel's markup; the row's kind decides. */
+async function deliverToTarget(target: NotificationTarget, out: Outgoing): Promise<void> {
+  if (target.kind === 'DISCORD') {
+    for (const text of out.discord) await deliverDiscord(target, text);
+  } else {
+    for (const text of out.telegram) await deliverTelegram(target, text);
+  }
+  await markTargetUsed(target.id);
+}
+
+async function deliverTelegram(target: NotificationTarget, text: string): Promise<void> {
+  if (!target.botToken || !target.chatId) throw new Error(`Telegram target [${target.name}] has no token or chat id`);
   const url = `${TELEGRAM_API}/bot${target.botToken}/sendMessage`;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TELEGRAM_TIMEOUT_MS);
@@ -157,29 +141,11 @@ async function deliverToTarget(
     });
     if (!resp.ok) {
       const body = await resp.text().catch(() => '');
-      throw new Error(
-        `Telegram sendMessage [${target.name}]: ${resp.status} ${body.slice(0, 300)}`,
-      );
+      throw new Error(`Telegram sendMessage [${target.name}]: ${resp.status} ${body.slice(0, 300)}`);
     }
-    await markTargetUsed(target.id);
   } finally {
     clearTimeout(timer);
   }
-}
-
-/**
- * The place line: the posting's own words, the flags of the countries the
- * stage-1 columns hold, and the arrangement when the words do not already
- * say it (ADR 0033). "🇩🇪 Remote · Berlin, Germany", "🇺🇦 Kyiv · hybrid".
- */
-export function formatPlaceLine(job: AlertJob): string {
-  const flags = (job.countries ?? []).map(flagOf).filter((f) => f.length > 0).join('');
-  const workplace = job.workplace && job.workplace !== 'UNKNOWN' ? WORKPLACE_LABEL[job.workplace] : '';
-  const words = job.location.trim();
-  const said = words.length > 0 && new RegExp(WORKPLACE_WORDS, 'i').test(words);
-  const place = words.length > 0 ? words : workplace || 'Remote';
-  const tail = workplace && !said && words.length > 0 ? ` · ${workplace.toLowerCase()}` : '';
-  return `${flags ? `${flags} ` : ''}${place}${tail}`;
 }
 
 /** Pure — exported so the MarkdownV2 escaping can be unit-tested; Telegram
@@ -226,24 +192,6 @@ export function formatJobMessage(job: AlertJob): string {
   return lines.join('\n');
 }
 
-/** The posting's own money and period (src/currency.ts); null columns read as USD a year. */
-export function formatSalary(
-  min: number | null,
-  max: number | null,
-  currency?: string | null,
-  period?: string | null,
-): string {
-  return formatSalaryRange(min, max, currency, period);
-}
-
-export interface QuietSourceAlert {
-  name: string;
-  atsType: string;
-  /** Raw FetchStatus — rendered through describeStatus for the label. */
-  status: string | null;
-  streak: number;
-}
-
 /**
  * One digest line for sources that crossed the failure streak (ADR 0019).
  * Failing sources only: a silent board is a judgement call that belongs on
@@ -252,23 +200,11 @@ export interface QuietSourceAlert {
  */
 export function formatSourceHealthLine(sources: QuietSourceAlert[]): string {
   if (sources.length === 0) return '';
-  const items = sources
-    .slice(0, MAX_QUIET_NAMED)
-    .map(
-      (s) =>
-        `${escapeMarkdownV2(s.name)} ${escapeMarkdownV2(
-          `(${s.atsType}, ${describeStatus(s.status).label.toLowerCase()} ×${s.streak})`,
-        )}`,
-    );
-  const hidden = sources.length - items.length;
+  const { named, hidden } = quietSourceItems(sources);
+  const items = named.map(escapeMarkdownV2);
   if (hidden > 0) items.push(escapeMarkdownV2(`and ${hidden} more`));
   const header = `⚠️ *${sources.length} quiet source${sources.length === 1 ? '' : 's'}*`;
   return `${header} — ${items.join(', ')}`;
-}
-
-export interface PageChangeNotice {
-  companyName: string;
-  url: string;
 }
 
 /**
@@ -293,7 +229,7 @@ export function formatPageChangeMessage(pages: readonly PageChangeNotice[]): str
 
 export async function sendPageChangeAlert(pages: readonly PageChangeNotice[]): Promise<void> {
   if (pages.length === 0) return;
-  await broadcast(formatPageChangeMessage(pages), null);
+  await broadcast({ telegram: [formatPageChangeMessage(pages)], discord: [formatDiscordPageChanges(pages)] }, null);
 }
 
 export function escapeMarkdownV2(text: string): string {
