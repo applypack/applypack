@@ -138,6 +138,27 @@ export function extractJson(text: string): unknown | null {
   }
 }
 
+export interface ParseFailure {
+  ok: false;
+  error: string;
+  /** The reply stopped inside the JSON — the same call would stop the same way, so it is not retried. */
+  cutOff?: boolean;
+}
+export type ParseResult<T> = { ok: true; data: T } | ParseFailure;
+
+/**
+ * Why extractJson returned null. A reply cut off inside the JSON used to be
+ * reported as "no JSON object" about text that was 96% a JSON object (#159);
+ * unbalanced braces tell the two apart well enough.
+ */
+export function jsonFailure(text: string): ParseFailure {
+  if (!text.includes('{')) return { ok: false, error: 'no JSON object in reply' };
+  const open = text.split('{').length;
+  const close = text.split('}').length;
+  if (open > close) return { ok: false, error: 'reply cut off inside the JSON', cutOff: true };
+  return { ok: false, error: 'malformed JSON in reply' };
+}
+
 /**
  * Maps a classifier mode to the stage-1 decision. Trivial but explicit so
  * we can unit-test the toggle semantics in isolation from the API client.

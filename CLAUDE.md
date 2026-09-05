@@ -227,6 +227,7 @@ When the question is **"where does X live?"**, save yourself a `find`:
 | Fence markers, the untrusted directive, the forged-marker sanitiser | `src/prompt-fence.ts` (pure, ADR 0022); guard `src/prompt-fence-registry.test.ts` |
 | Which AI engines run (priority chain + per-engine models, auto-failover) | `src/ai-runtime.ts:getAiRuntime().complete({role})` + pure chain merge in `src/ai-engine.ts` (ADR 0013/0014); UI on `/settings` → "AI engine" tab |
 | Adding a new AI backend | `src/ai-provider.ts` (`CliProvider` spec or fetch class) + `AI_PROVIDER_IDS`/labels/options in `src/ai-engine.ts` + probe in `src/ai-runtime.ts` + `AI_KEY_ENV_VARS` in `src/ai-keys.ts` if it takes a key |
+| Why a `max_tokens` budget is the ANSWER's size (thinking headroom), and why a cut-off reply is not retried | `src/ai-provider-parse.ts:anthropicMaxTokens` (pure, gotcha 16) + the `stop_reason` branch in `ai-provider.ts`; `src/ai-json.ts:askForJson` is the one parse-and-retry loop every resume call and the ghost-job check go through, and `text-utils.ts:jsonFailure` tells "cut off" from "not JSON" |
 | Per-engine API keys (DB-first, `.env` fallback, masking) | `src/ai-keys.ts` (pure, ADR 0027) + `settings.ts:getAiKeys/setAiKey`; resolved in `ai-runtime.ts`, spent as `AiRequest.apiKey` |
 | How users set up each engine (local + Docker) | `docs/ai-engines.md` |
 | AI usage counters (runs per engine × role) | `AppSettings.aiUsage` — incremented in `ai-runtime.ts:recordUsage`, 7-day summary on `/settings` AI tab, 60-day trim in `cleanup-job.ts` |
@@ -544,6 +545,27 @@ different ETags. Its `Vary: Accept-Encoding, Origin` and a 304 on a lucky
 pair of requests make it look like a revalidating source; it is not. A
 vendor that "supports ETag" is not the same as a vendor whose feed is stable
 enough for it to fire.
+
+### 16. `max_tokens` counts the thinking, and the default resume model thinks
+
+Found on a fresh install with four resumes (#159, 2026-09-04): every
+comparison failed in both modes, and the log said *"no JSON object in
+reply"* about a reply that was 96 % a JSON object. `stop_reason` was
+`max_tokens` — 6 078 of the 8 000 output tokens had gone to thinking and
+the JSON was cut off mid-string. Claude Opus 5 (the `CLAUDE_MODEL_RESUME`
+default) thinks by default, `max_tokens` includes the thinking, and every
+budget in `prompts.ts` was sized against a non-thinking answer. It surfaced
+with the fourth resume because the prompt grew (122 "other resume" hints),
+and the thinking grew with it.
+
+Three rules, all in code now:
+- A budget constant is the ANSWER's size. `anthropicMaxTokens` adds the
+  headroom on the Anthropic path, as the OpenAI path already did for gpt-5 /
+  o-series; the sum stays under the SDK's non-streaming ceiling (~21 300).
+- The provider reads `stop_reason`: `max_tokens` and `refusal` are failures
+  with a reason, never text handed to a parser.
+- A reply that stopped inside the JSON is not retried (`ai-json.ts`) — the
+  identical call stops in the identical place, so the retry was pure cost.
 
 ### 12. stripHtml: decode entities FIRST, and never re-run it on its own output
 

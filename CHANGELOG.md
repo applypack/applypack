@@ -4,6 +4,31 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.55.1] — 2026-09-04
+
+### Fixed
+- **Comparisons no longer fail on the default resume model.** `max_tokens`
+  on the Messages API counts the model's thinking, and Claude Opus 5 thinks
+  by default: one full comparison measured 6 078 thinking tokens inside the
+  8 000-token budget, the JSON was cut off mid-string, and with three or more
+  resumes stored every comparison failed in both modes (#159). The Anthropic
+  path now adds 8 000 tokens of headroom to every answer budget, the way the
+  OpenAI path already did for its reasoning models.
+- **A cut-off reply is reported as cut off, not as "no JSON object in
+  reply".** The provider reads `stop_reason` and refuses an incomplete or
+  declined reply with the reason, and a reply that stopped inside the JSON
+  is not retried — the identical call stops in the identical place, which
+  cost two full-price calls per attempt.
+- **The "other resumes mention" hints are filtered to the posting.** With
+  four resumes stored the list ran to 122 fenced lines on every comparison;
+  a skill the posting never names cannot become one of its keywords, so only
+  the ones it names (aliases included) go into the prompt.
+
+### Notes
+- The five resume calls and the ghost-job check share one parse-and-retry
+  wrapper (`src/ai-json.ts`) instead of five copies of the same loop.
+- Every reply's `stop_reason` and `usage` are logged at debug level.
+
 ## [1.55.0] — 2026-09-04
 
 ### Added
@@ -2241,6 +2266,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[1.55.1]: https://github.com/applypack/applypack/compare/v1.55.0...v1.55.1
 [1.55.0]: https://github.com/applypack/applypack/compare/v1.54.1...v1.55.0
 [1.54.1]: https://github.com/applypack/applypack/compare/v1.54.0...v1.54.1
 [1.54.0]: https://github.com/applypack/applypack/compare/v1.53.0...v1.54.0

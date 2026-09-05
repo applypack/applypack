@@ -31,6 +31,22 @@ const MAX_FAILURE_REASON = 200;
 const KEY_SHAPED = /\b(?:sk-[A-Za-z0-9._-]{8,}|AIza[A-Za-z0-9._-]{10,})\b/g;
 
 /**
+ * `max_tokens` on the Messages API counts the thinking too, and the current
+ * Claude models think by default — one comparison measured 6 078 thinking
+ * tokens inside an 8 000 budget, and the JSON was cut off mid-string (#159).
+ * The callers' budgets size the ANSWER; this adds the room the thinking
+ * takes. A ceiling, not a spend: a model that does not think stops where it
+ * always did. The cap is the SDK's own — above ~21 300 tokens a non-streaming
+ * request is refused outright (10 minutes at 128k tokens/hour).
+ */
+export const ANTHROPIC_THINKING_HEADROOM_TOKENS = 8_000;
+const ANTHROPIC_NONSTREAMING_MAX_TOKENS = 21_000;
+
+export function anthropicMaxTokens(answerTokens: number): number {
+  return Math.min(answerTokens + ANTHROPIC_THINKING_HEADROOM_TOKENS, ANTHROPIC_NONSTREAMING_MAX_TOKENS);
+}
+
+/**
  * One-line, browser-safe rendering of a provider failure: masks credentials,
  * collapses whitespace and caps the length. ADR 0027 keeps keys out of the
  * browser, and that must not depend on what a CLI happened to print.

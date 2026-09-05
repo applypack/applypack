@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { anchorKeywords } from './keyword-anchor';
+import { anchorKeywords, elsewhereForPosting } from './keyword-anchor';
 import { loadKeywordMatcher } from './keyword-matcher';
 import type { MatchKeyword } from './prompts';
 
@@ -55,4 +55,15 @@ test('anchorKeywords leaves a row unanchored when its phrase is another row alre
   const matcher = await loadKeywordMatcher();
   const r = anchorKeywords([keyword('unit tests'), keyword('Testing (unit tests)')], POSTING, matcher);
   assert.deepEqual(r.keywords.map((k) => [k.term, k.unanchored ?? false]), [['unit tests', false], ['Testing (unit tests)', true]]);
+});
+
+test('elsewhereForPosting keeps only the other-resume skills the posting names, aliases included', async () => {
+  const matcher = await loadKeywordMatcher();
+  const skills = [
+    { skill: 'php', resumeName: 'A' },
+    { skill: 'golang', resumeName: 'A' },
+    { skill: 'kubernetes', resumeName: 'B' },
+    { skill: 'react', resumeName: 'B' },
+  ];
+  assert.deepEqual(elsewhereForPosting(skills, POSTING, matcher).map((s) => s.skill), ['php', 'golang']);
 });
