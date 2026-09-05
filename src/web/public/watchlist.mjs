@@ -12,6 +12,8 @@
  * `resolveLine` is pure — unit-tested from src/web/watchlist.test.ts.
  */
 
+import { wireSelectCommit } from './select-commit.mjs';
+
 const POLL_MS = 1500;
 
 /** "7 of 20 resolved · linear.app/careers" */
@@ -61,7 +63,9 @@ async function poll(box) {
 
 function wireSelfSubmit() {
   for (const form of document.querySelectorAll('form[action$="/watch"]')) {
-    form.addEventListener('change', () => form.submit());
+    for (const select of form.querySelectorAll('select')) {
+      wireSelectCommit(select, () => form.requestSubmit());
+    }
   }
 }
 

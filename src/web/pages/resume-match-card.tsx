@@ -911,7 +911,7 @@ const LevelControls: FC<{ k: CountedKeyword; edit: KeywordEditTarget }> = ({ k, 
       <Select
         name="requirement"
         class="!w-auto py-1 text-xs"
-        onchange="this.form.submit()"
+        data-commit="submit"
         aria-label={`How much the posting wants ${k.term}`}
         title={
           !overridden

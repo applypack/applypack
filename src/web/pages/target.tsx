@@ -799,5 +799,7 @@ const TARGET_CSS = `
  * importable from node:test; this inline snippet only boots it with the data. */
 const TARGET_BOOT = `
 import { init } from '/static/target-page.mjs';
+import { wireSelectCommits } from '/static/select-commit.mjs';
 init(JSON.parse(document.getElementById('target-data').textContent));
+wireSelectCommits(document);
 `;
