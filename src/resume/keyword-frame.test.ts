@@ -66,3 +66,12 @@ test('the notice says the terms differ, never that the score got worse', () => {
   assert.doesNotMatch(rebuilt, /lower|worse|dropped/);
   assert.match(freshFrameNotice('prompt-bump'), /prompt changed/);
 });
+
+test('a replaced description drops the frame read from the old text, and the card says so (ADR 0043)', () => {
+  assert.deepEqual(planKeywordFrame(stored, 6, false, true), { carry: false, reason: 'posting-changed' });
+  assert.deepEqual(planKeywordFrame(null, 6, false, true), { carry: false, reason: 'first-run' }, 'nothing stored: a first run, whatever the posting did');
+  assert.deepEqual(planKeywordFrame(stored, 6, true, true), { carry: false, reason: 'rebuild' }, 'an explicit rebuild names itself');
+  assert.equal(readFrameReason({ frame: 'posting-changed' }), 'posting-changed');
+  assert.equal(freshFrame({ frame: 'posting-changed' }), 'posting-changed');
+  assert.match(freshFrameNotice('posting-changed'), /description was replaced after the earlier analysis, so its keywords were read afresh, so this analysis counts a different set of terms/);
+});

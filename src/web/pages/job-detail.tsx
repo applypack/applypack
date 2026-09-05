@@ -19,7 +19,7 @@ import {
   Hint,
 } from '../ui';
 import { intervalLabel } from '../../watchlist/interval';
-import { formatDate, formatSalary } from '../format';
+import { formatDate, formatRelative, formatSalary } from '../format';
 import { AdzunaLabel, FranceTravailLine, JsonTree } from './attribution';
 import { formatUsdPerYear } from '../../currency';
 import { flagOf, placeLabel } from '../../countries';
@@ -41,6 +41,9 @@ interface JobDetail {
   countries: string[];
   regions: string[];
   description: string;
+  /** ADR 0043: set when the description was replaced with the company's own listing (the original kept) or restored. */
+  descriptionOriginal: string | null;
+  descriptionRefreshedAt: Date | null;
   fitScore: number | null;
   salaryMin: number | null;
   salaryMax: number | null;
@@ -303,6 +306,22 @@ export const JobDetailPage: FC<JobDetailProps> = ({
 
         <Card>
           <SectionTitle>Description</SectionTitle>
+          {job.descriptionRefreshedAt && (
+            <div class="mb-3 flex flex-wrap items-center gap-2 text-[13px] text-ink-muted">
+              <span>
+                {job.descriptionOriginal !== null
+                  ? `Replaced with the company's own listing ${formatRelative(job.descriptionRefreshedAt)}; the original (${job.descriptionOriginal.length.toLocaleString('en-US')} characters) is kept.`
+                  : `Original text restored ${formatRelative(job.descriptionRefreshedAt)}.`}
+              </span>
+              {job.descriptionOriginal !== null && (
+                <ActionForm action={`/jobs/${job.id}/description/restore`}>
+                  <Button variant="secondary" size="sm">
+                    Restore the original
+                  </Button>
+                </ActionForm>
+              )}
+            </div>
+          )}
           <div class="whitespace-pre-line break-words text-sm leading-6 text-ink-muted">
             {job.description || '(empty)'}
           </div>

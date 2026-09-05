@@ -27,6 +27,7 @@ import {
   createMatch,
   getLatestMatchForJob,
   getLatestVerificationContext,
+  getPostingRefreshedAt,
   listFacts,
   listMatchesForText,
   listOtherResumeSkills,
@@ -57,7 +58,7 @@ export async function matchResumeToJob(
   opts: { draft?: boolean; mode?: MatchMode; rebuild?: boolean; onError?: (reason: string) => void } = {},
 ): Promise<ResumeMatch | null> {
   const mode = opts.mode ?? 'fast';
-  const [facts, otherSkills, previousMatch, matcher, verification] = await Promise.all([
+  const [facts, otherSkills, previousMatch, matcher, verification, refreshedAt] = await Promise.all([
     listFacts(),
     listOtherResumeSkills(resume.id),
     getLatestMatchForJob(job.id),
@@ -65,7 +66,11 @@ export async function matchResumeToJob(
     // The full analysis reads what the verifier learned about the company as
     // context; the quick check never does (ADR 0042).
     mode === 'full' ? getLatestVerificationContext(job.id) : null,
+    getPostingRefreshedAt(job.id),
   ]);
+  // A frame read from a description this posting no longer shows is not
+  // inherited (ADR 0043); the user's own keyword edits still are.
+  const postingChanged = previousMatch !== null && refreshedAt !== null && previousMatch.createdAt <= refreshedAt;
   // The user's own edits to the last frame for this posting: the levels they
   // set go into the prompt, and carryOverrides puts every override back on the
   // fresh reply below, so an override sticks to the posting (§5) — including
@@ -77,6 +82,7 @@ export async function matchResumeToJob(
       : null,
     PROMPT_VERSION,
     opts.rebuild ?? false,
+    postingChanged,
   );
   const posting = `${job.title}\n${job.description}`;
   const context: MatchContext = {
@@ -179,8 +185,9 @@ export async function findReusableMatch(
   text: string,
   mode: MatchMode,
 ): Promise<{ row: ResumeMatch; decision: 'reuse' | 'suggest' } | null> {
+  const refreshedAt = await getPostingRefreshedAt(jobId);
   const [rows, verification] = await Promise.all([
-    listMatchesForText(jobId, resumeId, text, REUSE_CANDIDATES),
+    listMatchesForText(jobId, resumeId, text, REUSE_CANDIDATES, refreshedAt),
     mode === 'full' ? getLatestVerificationContext(jobId) : null,
   ]);
   const stored = rows.map((match) => ({
