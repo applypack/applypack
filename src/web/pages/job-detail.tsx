@@ -179,11 +179,6 @@ export const JobDetailPage: FC<JobDetailProps> = ({
                 </Button>
               </ActionForm>
             ))}
-            <ActionForm action={`/jobs/${job.id}/reclassify`}>
-              <Button variant="ghost" size="sm">
-                Re-classify
-              </Button>
-            </ActionForm>
           </div>
         </Card>
 
@@ -264,23 +259,7 @@ export const JobDetailPage: FC<JobDetailProps> = ({
       </div>
 
       <div class="min-w-0 space-y-4 xl:order-1">
-        {(job.techMatch.length > 0 ||
-          job.redFlags.length > 0 ||
-          job.summary ||
-          job.priorityRulesApplied.length > 0) && (
-          <Card>
-            <SectionTitle>Classifier</SectionTitle>
-            {job.summary && (
-              <p class="mb-3 text-sm leading-6 text-ink">{job.summary}</p>
-            )}
-            <dl class="space-y-2">
-              <TagRow label="Tech" items={job.techMatch} tone="ok" />
-              <TagRow label="Flags" items={job.redFlags} tone="danger" />
-              <TagRow label="Priority rules" items={job.priorityRulesApplied} tone="violet" />
-            </dl>
-            <ProfileScoreRow scores={profileScores} />
-          </Card>
-        )}
+        <ClassifierCard job={job} scores={profileScores} />
 
         <VerificationCard
           jobId={job.id}
@@ -337,6 +316,43 @@ wireCopy(document);
  * already shows that. The top row is the search the page speaks for: it names
  * the winner and picks the resume the Compare card preselects.
  */
+/**
+ * The verdict and the button that replaces it, on one card (#100). Rendered
+ * for an unscored posting too — that is when Re-classify matters most.
+ */
+const ClassifierCard: FC<{ job: JobDetail; scores: ProfileScore[] }> = ({ job, scores }) => {
+  const scored =
+    job.techMatch.length > 0 ||
+    job.redFlags.length > 0 ||
+    Boolean(job.summary) ||
+    job.priorityRulesApplied.length > 0;
+  return (
+    <Card>
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <SectionTitle>Classifier</SectionTitle>
+        <ActionForm action={`/jobs/${job.id}/reclassify`}>
+          <Button variant="ghost" size="sm">
+            Re-classify
+          </Button>
+        </ActionForm>
+      </div>
+      {scored ? (
+        <>
+          {job.summary && <p class="mb-3 text-sm leading-6 text-ink">{job.summary}</p>}
+          <dl class="space-y-2">
+            <TagRow label="Tech" items={job.techMatch} tone="ok" />
+            <TagRow label="Flags" items={job.redFlags} tone="danger" />
+            <TagRow label="Priority rules" items={job.priorityRulesApplied} tone="violet" />
+          </dl>
+          <ProfileScoreRow scores={scores} />
+        </>
+      ) : (
+        <p class="text-sm text-ink-muted">Not scored yet — Re-classify runs the AI on this posting.</p>
+      )}
+    </Card>
+  );
+};
+
 const ProfileScoreRow: FC<{ scores: ProfileScore[] }> = ({ scores }) => {
   if (scores.length < 2) return null;
   return (
@@ -541,10 +557,13 @@ const MarkAppliedPicker: FC<{
 /**
  * "Which resume did I send?" on the card that records the application (#75).
  *
- * Never preselected when nothing is stored: a card dragged into Applied on the
- * board carries no picker, and filling this in on the user's behalf would turn
- * a guess into a recorded fact. The hint says which one the page would have
- * suggested; choosing it stays the user's move.
+ * Shown once the job is applied — before that the Actions card asks the same
+ * question with "Mark applied", and asking twice with two different answers
+ * preselected was the bug (#101). Never preselected when nothing is stored: a
+ * card dragged into Applied on the board carries no picker, and filling this
+ * in on the user's behalf would turn a guess into a recorded fact. The hint
+ * says which one the page would have suggested; choosing it stays the user's
+ * move.
  */
 const AppliedWithField: FC<{ job: JobDetail; picker: JobDetailProps['appliedResumePicker'] }> = ({
   job,
