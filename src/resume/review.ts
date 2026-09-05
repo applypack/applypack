@@ -9,11 +9,11 @@ import {
   parseReviewResponse,
   REVIEW_MAX_TOKENS,
   REVIEW_PROMPT_VERSION,
+  RESUME_TIMEOUT_MS,
 } from './prompts';
 import { scoreReview } from './review-score';
 import { createReview } from './store';
 
-const REVIEW_TIMEOUT_MS = 5 * 60_000;
 
 /**
  * One strength review of one resume, judged on its own — no posting, no
@@ -32,7 +32,7 @@ export async function reviewResume(resume: {
   roleTypes: string[];
   /** Raw Resume.answers JSON — the figures an earlier run asked for (ADR 0030 phase 3). */
   answers?: unknown;
-}): Promise<ResumeReview | null> {
+}, onError?: (reason: string) => void): Promise<ResumeReview | null> {
   const answers = readAnswers(resume.answers);
   const prompt = buildReviewPrompt(resume.text, {
     atsChecks: parseWarnings(resume.text).map((w) => w.message),
@@ -41,7 +41,7 @@ export async function reviewResume(resume: {
   });
   const answer = await askForJson(
     await getAiRuntime(),
-    { ...prompt, maxTokens: REVIEW_MAX_TOKENS, label: 'resume-review', role: 'resume', timeoutMs: REVIEW_TIMEOUT_MS },
+    { ...prompt, maxTokens: REVIEW_MAX_TOKENS, label: 'resume-review', role: 'resume', timeoutMs: RESUME_TIMEOUT_MS.review, onError },
     parseReviewResponse,
     { resumeId: resume.id },
   );

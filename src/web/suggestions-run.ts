@@ -33,7 +33,10 @@ export function startSuggestionsRun(input: {
   });
   if (joined) return `/target/runs/${run.id}`;
   startRun(run.id, async () => {
-    const row = await suggestForMatch(match, job);
+    let reason = '';
+    const row = await suggestForMatch(match, job, (r) => {
+      reason = r;
+    });
     updateRun(
       run.id,
       row
@@ -42,7 +45,7 @@ export function startSuggestionsRun(input: {
             resultUrl: input.resultUrl,
             flash: suggestionsFlash({ actions: readActions(row.actions).length, removals: readRemovals(row.removals).length }),
           }
-        : { stage: 'error', error: SUGGESTIONS_FAILED },
+        : { stage: 'error', error: reason ? `${SUGGESTIONS_FAILED.replace(/\.$/, '')}: ${reason}.` : SUGGESTIONS_FAILED },
     );
   });
   return `/target/runs/${run.id}`;

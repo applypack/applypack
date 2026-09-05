@@ -115,6 +115,38 @@ file again 117 → 2 s. §2.2's "~150-300 s" first-compare estimate was right
 for the CLI engine; the API-engine column stays unmeasured (not in the
 owner's chain).
 
+**Measured 2026-09-05** (#184; the reference pair — resume 6, 5 983 chars,
+against job 2094, a 7 721-char posting — through each engine directly with
+the prompts and budgets the call sites send; wall seconds, one call each;
+the CLI with the thinking cap of v1.59.1, the API as it ships):
+
+| Call | CLI Haiku 4.5 | CLI Sonnet 5 | CLI Opus 5 | API Haiku 4.5 | API Sonnet 5 | API Opus 5 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| scan | 50 | 44 | 54 | 35 | 75 | 72 |
+| quick check | 21, 26 (one reply unparseable) | **19** | 26 | **18** | 64 (thinks) | 39 |
+| full analysis | 75 (unparseable) | **34** | 58 | 44 | cut off at 16 000 output tokens, 13 808 of them thinking | 111 |
+| suggestions | 36 | 28 | 43 | — | — | — |
+| review | 54 | 39 | 51 | — | — | — |
+
+- Haiku on the CLI returned JSON that could not be parsed in 2 of 3
+  match calls; the app retries once, which doubles the wait. Sonnet and
+  Opus: 0 of 10.
+- The same pair scored 97–100 on Haiku, 75–79 on Sonnet, 65–83 on Opus
+  (69–72 through the CLI): Haiku is the generous one. The gold bench
+  (`npm run bench:resume`, fast and full) passes on all three; term
+  overlap with Haiku's frame is 77 % on Sonnet and 63–66 % on Opus.
+- The API's suggestions and review went unmeasured: this install's
+  Anthropic key was gone from `.env` and the database by the second pass.
+- Where the quick-check prompt goes (24 887 chars ≈ 6 200 tokens): the
+  rules 9 442, the resume 5 983, the posting 7 721, the context — two
+  confirmed facts, the 7 of 128 other-resume hints that name a posting
+  term, 15 previous keywords — 1 741. A smaller prompt is not where the
+  time is; the reply's 1.7–2.7 k tokens and the model's speed are.
+- Hence v1.65.0: an empty resume slot resolves to Sonnet 5 on the CLI and
+  Haiku 4.5 on the API, the cover slot to Opus 5; the budgets in
+  `prompts.ts:RESUME_TIMEOUT_MS`; the bands on the run page
+  (`web/lane.ts`).
+
 ---
 
 ## 3. Speed plan

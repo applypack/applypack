@@ -43,7 +43,7 @@ import { createProfileFromResume, newProfileDraft } from '../profile-from-resume
 import { ResumeDetailPage } from '../pages/resume-detail';
 import { ResumesPage } from '../pages/resumes';
 import { clearFlashCookie, flashRedirect, parseFlashCookie } from '../flash';
-import { claimRun, startRun, updateRun } from '../target-runs';
+import { claimRun, startRun, updateRun, runFailure } from '../target-runs';
 import { hashShortId } from '../../text-utils';
 import {
   MAX_RESUME_NAME_CHARS,
@@ -215,24 +215,26 @@ resumesRoute.post('/resumes/:id/draft', async (c) => {
       resumeName: resume.name,
       subtitle: `${saved}.${job ? ' Scoring it against the posting.' : ''}`,
     });
+    let reason = '';
+    const noteReason = (r: string) => {
+      reason = r;
+    };
     if (!job) {
-      const scan = await scanResume(resume);
+      const scan = await scanResume(resume, noteReason);
       updateRun(run.id, scan
         ? { stage: 'done', resultUrl: `/resumes/${resume.id}`, flash: `${saved}.` }
-        : { stage: 'error', error: `${saved}, but the scan failed — try "Scan".` });
+        : { stage: 'error', error: runFailure(`${saved}, but the scan failed`, reason) });
       return;
     }
     // The match reads the text, never the scan (target-plan §3.1 item 2), so
     // the scan runs behind it as the re-upload route's does — it was 63 % of
     // a six-minute wait on a CLI engine (#168).
     scanInBackground(resume);
-    const match = await matchResumeToJob(resume, {
-      id: job.id,
-      title: job.title,
-      companyName: job.company.name,
-      location: job.location,
-      description: job.description,
-    });
+    const match = await matchResumeToJob(
+      resume,
+      { id: job.id, title: job.title, companyName: job.company.name, location: job.location, description: job.description },
+      { onError: noteReason },
+    );
     updateRun(run.id, match
       ? {
           stage: 'done',
@@ -241,7 +243,7 @@ resumesRoute.post('/resumes/:id/draft', async (c) => {
         }
       : {
           stage: 'error',
-          error: `${saved}, but the comparison failed — see the web logs.`,
+          error: runFailure(`${saved}, but the comparison failed`, reason),
         });
   });
   return c.redirect(`/target/runs/${run.id}`, 303);

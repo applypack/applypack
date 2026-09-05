@@ -356,7 +356,7 @@ async function main(): Promise<void> {
       model: defaultModelFor(engineArg, 'resume', getAiEngineEnv()),
     }];
   } else {
-    targets = [{ tag: config.AI_PROVIDER, provider: getAiProvider(), model: config.CLAUDE_MODEL_RESUME }];
+    targets = [{ tag: config.AI_PROVIDER, provider: getAiProvider(), model: defaultModelFor(config.AI_PROVIDER, 'resume', getAiEngineEnv()) }];
   }
 
   if (modelArg !== undefined && !targets.some((t) => modelFitsProvider(modelArg, t.tag))) {

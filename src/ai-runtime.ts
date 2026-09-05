@@ -48,6 +48,7 @@ export function getAiEngineEnv(keys: AiKeys = {}): AiEngineEnv {
     codexUsable: codexAuthConfigured(),
     classifierModel: config.CLAUDE_MODEL,
     resumeModel: config.CLAUDE_MODEL_RESUME,
+    coverModel: config.CLAUDE_MODEL_COVER,
     openAiModel: config.OPENAI_MODEL,
   };
 }

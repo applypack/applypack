@@ -1,5 +1,7 @@
 /** @jsxImportSource hono/jsx */
 import { Hono } from 'hono';
+import { getAiRuntime } from '../../ai-runtime';
+import { laneOf, type Lane } from '../lane';
 import { z } from 'zod';
 import { hashShortId } from '../../text-utils';
 import { classifyInBackground } from '../../jobs/classify-existing';
@@ -26,7 +28,7 @@ import { TargetStartPage } from '../pages/target-start';
 import { TargetRunPage } from '../pages/target-run';
 import { clearFlashCookie, flashRedirect, parseFlashCookie } from '../flash';
 import { formatRelative } from '../format';
-import { alsoClaims, claimRun, getRun, matchStep, startRun, updateRun, type RunStep } from '../target-runs';
+import { alsoClaims, claimRun, getRun, matchStep, startRun, updateRun, type RunStep, runFailure } from '../target-runs';
 import {
   MAX_RESUME_NAME_CHARS,
   nameFromFilename,
@@ -93,7 +95,7 @@ targetRoute.get('/target/runs/:id/state', (c) => {
 });
 
 /** The progress page: target-run.mjs polls the state route until the chain resolves. */
-targetRoute.get('/target/runs/:id', (c) => {
+targetRoute.get('/target/runs/:id', async (c) => {
   const run = getRun(c.req.param('id'));
   if (!run) {
     return flashRedirect('/target', 'err', 'That comparison run is gone (runs live ~30 min). Start again.');
@@ -104,8 +106,15 @@ targetRoute.get('/target/runs/:id', (c) => {
       tailor: run.tailorUrl,
     });
   }
-  return c.html(<TargetRunPage run={run} />);
+  return c.html(<TargetRunPage run={run} lane={await resumeLane()} />);
 });
+
+/** Engine × model the resume calls run on — the run page states its measured band (#184). */
+async function resumeLane(): Promise<Lane> {
+  const runtime = await getAiRuntime();
+  const id = runtime.chain[0];
+  return id ? laneOf(id, runtime.modelFor(id, 'resume')) : 'other';
+}
 
 targetRoute.post('/target', resumeUploadLimit('/target'), async (c) => {
   const form = await c.req.parseBody();
@@ -237,9 +246,12 @@ targetRoute.post('/target', resumeUploadLimit('/target'), async (c) => {
         steps: needExtract ? ['extract', 'suggestions'] : ['suggestions'],
         stage: 'suggestions',
       });
-      const row = await suggestForMatch(reused.row, jobInput);
+      let reason = '';
+      const row = await suggestForMatch(reused.row, jobInput, (r) => {
+        reason = r;
+      });
       if (!row) {
-        updateRun(run.id, { stage: 'error', error: SUGGESTIONS_FAILED });
+        updateRun(run.id, { stage: 'error', error: reason ? `${SUGGESTIONS_FAILED.replace(/\.$/, '')}: ${reason}.` : SUGGESTIONS_FAILED });
         return;
       }
       updateRun(run.id, {
@@ -283,16 +295,15 @@ targetRoute.post('/target', resumeUploadLimit('/target'), async (c) => {
     }
 
     // 4. One resume-model call, then straight into the targeted workspace.
-    const row = await matchResumeToJob(
-      { id: resume.id, version: resume.version, text: resume.text },
-      jobInput,
-      { mode: f.mode },
-    );
+    let reason = '';
+    const row = await matchResumeToJob({ id: resume.id, version: resume.version, text: resume.text }, jobInput, {
+      mode: f.mode,
+      onError: (r) => {
+        reason = r;
+      },
+    });
     if (!row) {
-      updateRun(run.id, {
-        stage: 'error',
-        error: 'The posting was saved, but the AI comparison failed — see the web logs.',
-      });
+      updateRun(run.id, { stage: 'error', error: runFailure('The posting was saved, but the AI comparison failed', reason) });
       return;
     }
     updateRun(run.id, {

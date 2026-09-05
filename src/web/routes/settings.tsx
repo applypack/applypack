@@ -226,7 +226,7 @@ async function loadSettingsProps() {
       classifierDefault,
       resumeDefault,
       // An empty cover slot follows the resume model, so that is the default shown.
-      coverDefault: aiConfig.models[id]?.resume?.trim() || resumeDefault,
+      coverDefault: defaultModelFor(id, 'cover', aiEnv) || 'CLI default',
       options: PROVIDER_MODEL_OPTIONS[id],
       freeTextModels: id === 'openai_api',
       paid: PROVIDER_PAID[id],

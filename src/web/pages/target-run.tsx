@@ -4,6 +4,7 @@ import { Layout } from '../layout';
 import { Button, Card, Hint } from '../ui';
 import { RunSteps, type StepView } from './run-steps';
 import type { RunStep, TargetRun } from '../target-runs';
+import { bandFor, laneLabel, type Lane } from '../lane';
 
 const STEP_VIEW: Record<RunStep, StepView> = {
   liveness: {
@@ -22,19 +23,19 @@ const STEP_VIEW: Record<RunStep, StepView> = {
     // Also reached by a plain re-scan and a first upload, where there is no
     // "new version" to speak of.
     label: 'Read the resume',
-    detail: 'headline, skills, ATS issues, the resume as a shape — half a minute to a minute',
+    detail: 'headline, skills, ATS issues, the resume as a shape',
   },
   keywords: {
     label: 'Quick AI check',
-    detail: 'the resume model judges every keyword, the gates and the score — no edit suggestions — half a minute to a minute',
+    detail: 'the resume model judges every keyword, the gates and the score — no edit suggestions',
   },
   match: {
     label: 'Full AI analysis',
-    detail: 'the resume model reads both texts and writes the full report with edit suggestions — 1½ to 2 minutes on Opus',
+    detail: 'the resume model reads both texts and writes the full report with edit suggestions',
   },
   suggestions: {
     label: 'Edit suggestions',
-    detail: 'what to change and what to remove, written from the stored keyword verdicts — the score stays — about a minute on Opus',
+    detail: 'what to change and what to remove, written from the stored keyword verdicts — the score stays',
   },
   verify: {
     label: 'Research the company',
@@ -46,7 +47,7 @@ const STEP_VIEW: Record<RunStep, StepView> = {
   },
   review: {
     label: 'Review the resume',
-    detail: 'six dimensions graded with quotes from your own text, then the advice — about a minute on Opus',
+    detail: 'six dimensions graded with quotes from your own text, then the advice',
   },
   score: {
     label: 'Score the best matches',
@@ -54,12 +55,32 @@ const STEP_VIEW: Record<RunStep, StepView> = {
   },
 };
 
+/** What the timed steps cost when the lane is not one we measured. */
+const GENERIC_BAND: Partial<Record<RunStep, string>> = {
+  scan: 'half a minute to a minute',
+  keywords: 'half a minute to a minute',
+  match: '1½ to 2 minutes on Opus',
+  suggestions: 'about a minute on Opus',
+  review: 'about a minute on Opus',
+};
+
+/** The step copy with this install's measured band appended — "about 20 s on Sonnet 5 through the Claude CLI" (#184). */
+function stepView(lane: Lane): Record<RunStep, StepView> {
+  const out = { ...STEP_VIEW };
+  for (const step of Object.keys(GENERIC_BAND) as RunStep[]) {
+    const band = bandFor(step, lane);
+    const when = band ? `about ${band} on ${laneLabel(lane)}` : GENERIC_BAND[step];
+    out[step] = { ...STEP_VIEW[step], detail: `${STEP_VIEW[step].detail} — ${when}` };
+  }
+  return out;
+}
+
 /**
  * Live progress: /static/target-run.mjs polls the state route, advances the
  * step icons and fades a "what the analysis is doing right now" line under
  * the active step. Terminal states reload into the server-side redirect.
  */
-export const TargetRunPage: FC<{ run: TargetRun }> = ({ run }) => {
+export const TargetRunPage: FC<{ run: TargetRun; lane: Lane }> = ({ run, lane }) => {
   const failed = run.stage === 'error';
   const currentIdx = run.steps.indexOf(run.stage as RunStep);
   const elapsed = Math.max(0, Math.round((Date.now() - run.startedAt) / 1000));
@@ -101,7 +122,7 @@ export const TargetRunPage: FC<{ run: TargetRun }> = ({ run }) => {
               <RunSteps
                 steps={run.steps}
                 currentIdx={currentIdx}
-                view={STEP_VIEW}
+                view={stepView(lane)}
                 stepMs={run.stepMs}
                 activeMs={Date.now() - run.stageAt}
                 results={run.results}

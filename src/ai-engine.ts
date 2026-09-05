@@ -155,10 +155,25 @@ export interface AiEngineEnv {
   geminiUsable: boolean;
   codexUsable: boolean;
   classifierModel: string;
+  /** CLAUDE_MODEL_RESUME / CLAUDE_MODEL_COVER from .env; '' = the backend's default for the role. */
   resumeModel: string;
+  coverModel: string;
   /** OPENAI_MODEL from .env, used when the openai_api slot is empty. */
   openAiModel: string;
 }
+
+/**
+ * The resume role's default per Claude backend, measured 2026-09-05 on the
+ * reference pair (docs/target-plan.md §2.3): the CLI caps thinking, so
+ * Sonnet 5 answers a quick check there in 19 s and never broke its JSON
+ * (Haiku did, twice in three calls); on the API Haiku 4.5 is the fast one
+ * at 18 s while Sonnet and Opus think for a minute. Letters want the writer.
+ */
+const RESUME_MODEL_DEFAULT: Record<'anthropic_api' | 'claude_code', string> = {
+  claude_code: 'claude-sonnet-5',
+  anthropic_api: 'claude-haiku-4-5-20251001',
+};
+const COVER_MODEL_DEFAULT = 'claude-opus-5';
 
 /** Engines that certainly cannot complete a call on this host right now. */
 export function providerUnusable(id: AiProviderId, env: AiEngineEnv): boolean {
@@ -184,7 +199,9 @@ export function defaultModelFor(id: AiProviderId, role: AiRole, env: AiEngineEnv
   switch (id) {
     case 'anthropic_api':
     case 'claude_code':
-      return role === 'classifier' ? env.classifierModel : env.resumeModel;
+      if (role === 'classifier') return env.classifierModel;
+      if (role === 'cover') return env.coverModel || COVER_MODEL_DEFAULT;
+      return env.resumeModel || RESUME_MODEL_DEFAULT[id];
     case 'gemini_cli':
       return role === 'classifier' ? 'gemini-2.5-flash' : 'gemini-2.5-pro';
     case 'openai_api':
@@ -259,14 +276,11 @@ export function resolveAiEngine(raw: unknown, env: AiEngineEnv): ResolvedAiEngin
     chain,
     skipped,
     modelFor(id, role) {
-      // An empty "cover" slot inherits the resume one: the extra role costs
-      // nothing until someone deliberately points it at another model.
-      const slots: AiRole[] = role === 'cover' ? ['cover', 'resume'] : [role];
-      for (const slot of slots) {
-        const stored = config.models[id]?.[slot]?.trim();
-        if (stored && modelFitsProvider(stored, id)) return stored;
-      }
-      return defaultModelFor(id, role === 'cover' ? 'resume' : role, env);
+      // An empty slot takes the backend's default for THAT role — the cover's
+      // is the strongest writer whatever the resume slot says (#184).
+      const stored = config.models[id]?.[role]?.trim();
+      if (stored && modelFitsProvider(stored, id)) return stored;
+      return defaultModelFor(id, role, env);
     },
   };
 }

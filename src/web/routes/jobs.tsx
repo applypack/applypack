@@ -36,7 +36,7 @@ import { draftStash } from '../draft-stash';
 import { scanInBackground } from '../../resume/scan';
 import { clearFlashCookie, flashRedirect, parseFlashCookie } from '../flash';
 import { formatRelative } from '../format';
-import { claimRun, findLiveRun, getRun, matchStep, startRun, updateRun } from '../target-runs';
+import { claimRun, findLiveRun, getRun, matchStep, runFailure, startRun, updateRun } from '../target-runs';
 import { startSuggestionsRun } from '../suggestions-run';
 import {
   deleteCoverLettersForResume,
@@ -650,9 +650,17 @@ jobsRoute.post('/jobs/:id/match', async (c) => {
     // Ephemeral (scratch) compares keep only the current analysis — unless the
     // editor is watching one of them, in which case the row it shows must stay.
     if (resume.hidden && !inline) await deleteMatchesForResume(resume.id);
-    const row = await matchResumeToJob({ id: resume.id, version: resume.version, text }, jobInput, { draft, mode, rebuild });
+    let reason = '';
+    const row = await matchResumeToJob({ id: resume.id, version: resume.version, text }, jobInput, {
+      draft,
+      mode,
+      rebuild,
+      onError: (r) => {
+        reason = r;
+      },
+    });
     if (!row) {
-      updateRun(run.id, { stage: 'error', error: 'Comparison failed — see the web logs.' });
+      updateRun(run.id, { stage: 'error', error: runFailure('Comparison failed', reason) });
       return;
     }
     updateRun(run.id, {
