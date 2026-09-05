@@ -23,6 +23,8 @@ export function statusFor(state, error) {
   }
 }
 
+import { wireSelectCommit } from './select-commit.mjs';
+
 const SAVED_CLEAR_MS = 2500;
 
 function wireForm(form) {
@@ -42,7 +44,7 @@ function wireForm(form) {
     if (state === 'saved') clearTimer = setTimeout(() => (status.textContent = ''), SAVED_CLEAR_MS);
   };
 
-  form.addEventListener('change', async () => {
+  const save = async () => {
     show('saving');
     try {
       const res = await fetch(form.action, {
@@ -62,6 +64,12 @@ function wireForm(form) {
       show('failed');
       showButton(true);
     }
+  };
+  // A select commits through the keyboard-aware rule; the free-text model id
+  // keeps its native change (blur or Enter), which already waits for the user.
+  for (const select of form.querySelectorAll('select')) wireSelectCommit(select, save);
+  form.addEventListener('change', (e) => {
+    if (e.target.tagName !== 'SELECT') void save();
   });
 }
 

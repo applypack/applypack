@@ -307,7 +307,9 @@ export const JobDetailPage: FC<JobDetailProps> = ({
 
 const COPY_BOOT = `
 import { wireCopy } from '/static/copy.mjs';
+import { wireSelectCommits } from '/static/select-commit.mjs';
 wireCopy(document);
+wireSelectCommits(document);
 `;
 
 /**
