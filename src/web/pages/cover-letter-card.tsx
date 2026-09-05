@@ -1,6 +1,7 @@
 /** @jsxImportSource hono/jsx */
 import type { FC } from 'hono/jsx';
 import { ActionForm, Badge, Button, Card, Hint, Input, SectionTitle, Select, Tag, Textarea } from '../ui';
+import { greetingOf } from '../../resume/addressee';
 import type { Tone } from '../format';
 import { formatRelative } from '../format';
 import type { CoverLetterWithResume } from '../../resume/store';
@@ -25,6 +26,8 @@ export interface CoverLetterCardProps {
   hasCompanyFacts: boolean;
   /** Saved on every generation, prefilled here — typed once, remembered (F8.1). */
   angles: CoverAngles;
+  /** Who the letter greets: the person the verifier found, editable; the finding shown beside it (#162 stage 4). */
+  addressee: { suggested: string | null; finding: string | null };
   /**
    * The latest comparison with the preselected resume is a quick check — no
    * strengths for the letter to draw on (ADR 0029, #89). Null when it is a
@@ -55,6 +58,7 @@ export const CoverLetterCard: FC<CoverLetterCardProps> = ({
   hasCompanyFacts,
   angles,
   quickCheck,
+  addressee,
 }) => (
   <div id="cover-letter">
     <Card>
@@ -97,8 +101,25 @@ export const CoverLetterCard: FC<CoverLetterCardProps> = ({
                 ))}
               </Select>
             </label>
+            <label class="block">
+              <span class="block text-[13px] font-medium text-ink">Addressed to</span>
+              <Input
+                name="addressee"
+                maxlength="80"
+                class="mt-1.5 !w-auto"
+                value={addressee.suggested ?? ''}
+                placeholder="the team"
+                title="A person's name greets them by name; empty greets the company's team"
+              />
+            </label>
             <Button variant="violet">Generate letter</Button>
           </div>
+          {addressee.finding && (
+            <Hint>
+              Named by the verification: {addressee.finding.length > 200 ? `${addressee.finding.slice(0, 200)}…` : addressee.finding}{' '}
+              {addressee.suggested ? '— prefilled above; edit or clear it.' : '— no clear name to prefill; type one if you see it.'}
+            </Hint>
+          )}
           {quickCheck && (
             <Hint>
               The latest comparison with "{quickCheck.resumeName}" is a quick check — verdicts and
@@ -224,7 +245,7 @@ const LetterReport: FC<{ jobId: number; letter: CoverLetterWithResume }> = ({ jo
         </span>
         <ActionForm
           action={`/jobs/${jobId}/cover`}
-          hidden={{ resumeId: letter.resumeId, tone: letter.tone }}
+          hidden={{ resumeId: letter.resumeId, tone: letter.tone, addressee: greetingOf(letter.text) ?? '' }}
           class="ml-auto"
         >
           <Button
