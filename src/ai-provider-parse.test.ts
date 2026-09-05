@@ -12,6 +12,7 @@ import {
   cliThinkingCap,
   describeAiFailure,
   parseClaudeCodeOutput,
+  webToolsDirectOnly,
   parseCodexCliOutput,
   parseGeminiCliOutput,
   parseOpenAiChatResponse,
@@ -283,4 +284,13 @@ test('tool-free CLI calls get the thinking cap; the verify call keeps the CLI de
   assert.ok(CLI_PROVIDER_ENV_KEYS.claude_code?.includes(CLI_THINKING_CAP_ENV), 'the allowlist must let the cap through');
   const env = buildCliEnv(CLI_PROVIDER_ENV_KEYS.claude_code ?? [], { PATH: '/bin', ...cliThinkingCap(false) });
   assert.equal(env.MAX_THINKING_TOKENS, '0');
+});
+
+test('the web tools filter through code execution only where the model can call tools programmatically (#161)', () => {
+  for (const m of ['claude-opus-5', 'claude-opus-4-6', 'claude-opus-4-8', 'claude-sonnet-5', 'claude-sonnet-4-6', 'claude-fable-5-1']) {
+    assert.equal(webToolsDirectOnly(m), false, m);
+  }
+  for (const m of ['claude-haiku-4-5-20251001', 'claude-haiku-4-5', 'claude-opus-4-1-20250805', 'claude-sonnet-4-5', 'gpt-5-mini']) {
+    assert.equal(webToolsDirectOnly(m), true, m);
+  }
 });

@@ -6,6 +6,7 @@ import {
   isFetchableJobUrl,
   postingIdFromUrl,
   resolveLivenessProbe,
+  runLivenessLadder,
   type LivenessJobInput,
 } from './liveness';
 
@@ -374,4 +375,9 @@ describe('isFetchableJobUrl', () => {
       { liveness: 'uncertain', code: 'redirected_off_posting' },
     );
   });
+});
+
+it('a pasted posting with no URL gets its own code, not "unsafe link" (#161)', async () => {
+  // MANUAL has no board API to ask, so the ladder needs no network to answer.
+  assert.deepEqual(await runLivenessLadder(job({ url: '', atsType: 'MANUAL' })), { liveness: 'uncertain', code: 'no_url', rung: 2 });
 });

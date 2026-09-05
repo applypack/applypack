@@ -18,6 +18,7 @@ import {
   parseCodexCliOutput,
   parseGeminiCliOutput,
   parseOpenAiChatResponse,
+  webToolsDirectOnly,
   type CliOutcome,
 } from './ai-provider-parse';
 import type { AiProviderId } from './ai-engine';
@@ -151,15 +152,17 @@ class AnthropicApiProvider implements AiProvider {
 
   private async run(req: AiRequest, client: Anthropic): Promise<string> {
     const messages: Anthropic.MessageParam[] = [{ role: 'user', content: req.user }];
+    const model = req.model ?? config.CLAUDE_MODEL;
+    const callers = webToolsDirectOnly(model) ? { allowed_callers: ['direct' as const] } : {};
     const tools = req.webTools
       ? [
-          { type: 'web_search_20260209' as const, name: 'web_search' as const, max_uses: WEB_SEARCH_MAX_USES },
-          { type: 'web_fetch_20260209' as const, name: 'web_fetch' as const, max_uses: WEB_FETCH_MAX_USES },
+          { type: 'web_search_20260209' as const, name: 'web_search' as const, max_uses: WEB_SEARCH_MAX_USES, ...callers },
+          { type: 'web_fetch_20260209' as const, name: 'web_fetch' as const, max_uses: WEB_FETCH_MAX_USES, ...callers },
         ]
       : undefined;
     for (let resumes = 0; ; resumes++) {
       const resp = await client.messages.create({
-        model: req.model ?? config.CLAUDE_MODEL,
+        model,
         max_tokens: anthropicMaxTokens(req.maxTokens),
         system: [{ type: 'text', text: req.system, cache_control: { type: 'ephemeral' } }],
         messages,

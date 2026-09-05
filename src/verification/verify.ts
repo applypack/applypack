@@ -21,10 +21,13 @@ export async function checkLiveness(job: LivenessJobInput & { id: number }): Pro
 }
 
 /** Runs the ghost-job check with web tools and stores the verdict. Null on AI failure. */
-export async function verifyJob(job: VerifyJobInput & { id: number }): Promise<JobVerification | null> {
+export async function verifyJob(
+  job: VerifyJobInput & { id: number },
+  onError?: (reason: string) => void,
+): Promise<JobVerification | null> {
   const answer = await askForJson(
     await getAiRuntime(),
-    { ...buildVerifyPrompt(job), maxTokens: VERIFY_MAX_TOKENS, label: 'job-verify', role: 'resume', timeoutMs: VERIFY_TIMEOUT_MS, webTools: true },
+    { ...buildVerifyPrompt(job), maxTokens: VERIFY_MAX_TOKENS, label: 'job-verify', role: 'resume', timeoutMs: VERIFY_TIMEOUT_MS, webTools: true, onError },
     parseVerifyResponse,
     { jobId: job.id },
   );
