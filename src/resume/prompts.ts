@@ -241,6 +241,26 @@ export type CoverResult = z.infer<typeof CoverSchema>;
 export const REVIEW_MAX_TOKENS = 6_000;
 
 /**
+ * How long each tool-free resume call may take before it fails with a
+ * reason (#184): about twice the slowest lane measured 2026-09-05
+ * (docs/target-plan.md §2.3). A call still running past this is not going
+ * to answer in time, and a five-minute wait for a killed process was the
+ * worst thing on the site.
+ */
+export const RESUME_TIMEOUT_MS = {
+  /** measured 35–75 s */
+  scan: 120_000,
+  /** 18–39 s; 64 s on Sonnet through the API, which thinks */
+  fast: 90_000,
+  /** 34–111 s */
+  full: 180_000,
+  /** 28–43 s */
+  suggestions: 120_000,
+  /** 39–54 s */
+  review: 120_000,
+} as const;
+
+/**
  * Bumped when the rubric or its rules change materially; stored with the score.
  * v2: the candidate's answers to earlier asks ride into the prompt, and the
  * rules say to write the figure into the rewrite instead of asking again.

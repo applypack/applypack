@@ -1207,7 +1207,7 @@ const AiEngineCard: FC<{ engine: AiEngineRow }> = ({ engine: e }) => (
             freeText={e.freeTextModels}
           />
         </Field>
-        <Field label="Resume model" hint="Resume scan, match, verification — judgment calls.">
+        <Field label="Resume model" hint="Resume scan, match, verification — judgment calls. Empty = Sonnet 5 on the Claude CLI, Haiku 4.5 on the API (measured 2026-09-05).">
           <ModelPicker
             name="resume"
             value={e.resumeModel}
@@ -1216,7 +1216,7 @@ const AiEngineCard: FC<{ engine: AiEngineRow }> = ({ engine: e }) => (
             freeText={e.freeTextModels}
           />
         </Field>
-        <Field label="Cover letter model" hint="Writing quality, not analysis. Empty follows the resume model.">
+        <Field label="Cover letter model" hint="Writing quality, not analysis. Empty = Opus 5, the strongest writer.">
           <ModelPicker
             name="cover"
             value={e.coverModel}
@@ -1225,6 +1225,13 @@ const AiEngineCard: FC<{ engine: AiEngineRow }> = ({ engine: e }) => (
             freeText={e.freeTextModels}
           />
         </Field>
+        {e.id === 'claude_code' && /haiku/.test(e.resumeModel || e.resumeDefault) && (
+          <Hint class="sm:col-span-3">
+            Measured 2026-09-05 on this lane: Haiku 4.5 answers a quick check in 21–26 s but returned
+            JSON that could not be parsed in 2 of 3 calls, and each costs a retry. Sonnet 5 answered
+            in 19 s with none — it is the default when this slot is empty.
+          </Hint>
+        )}
         </div>
         <div class="mt-3 flex items-center gap-3">
           {/* The no-JS path: settings-models.mjs hides this and saves on change. */}

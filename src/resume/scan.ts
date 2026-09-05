@@ -1,18 +1,20 @@
 import { logger } from '../logger';
 import { getAiRuntime } from '../ai-runtime';
 import { askForJson } from '../ai-json';
-import { buildScanPrompt, parseScanResponse, SCAN_MAX_TOKENS, type ResumeScan } from './prompts';
+import { buildScanPrompt, parseScanResponse, RESUME_TIMEOUT_MS, SCAN_MAX_TOKENS, type ResumeScan } from './prompts';
 import type { JsonResume } from './json-resume';
 import { anchorStructure, structureIsUsable } from './structure-anchor';
 import { saveResumeScan } from './store';
 
-const SCAN_TIMEOUT_MS = 5 * 60_000;
 
 /** Extracts the structured profile of a resume and stores it. Null on AI failure. */
-export async function scanResume(resume: { id: number; text: string }): Promise<ResumeScan | null> {
+export async function scanResume(
+  resume: { id: number; text: string },
+  onError?: (reason: string) => void,
+): Promise<ResumeScan | null> {
   const answer = await askForJson(
     await getAiRuntime(),
-    { ...buildScanPrompt(resume.text), maxTokens: SCAN_MAX_TOKENS, label: 'resume-scan', role: 'resume', timeoutMs: SCAN_TIMEOUT_MS },
+    { ...buildScanPrompt(resume.text), maxTokens: SCAN_MAX_TOKENS, label: 'resume-scan', role: 'resume', timeoutMs: RESUME_TIMEOUT_MS.scan, onError },
     parseScanResponse,
     { id: resume.id },
   );

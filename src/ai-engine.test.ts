@@ -18,10 +18,19 @@ const ENV: AiEngineEnv = {
   codexUsable: false,
   classifierModel: 'claude-haiku-4-5-20251001',
   resumeModel: 'claude-opus-5',
+  coverModel: '',
   openAiModel: '',
 };
 
 describe('resolveAiEngine', () => {
+  it('an empty .env resume model takes the backend default: Sonnet on the CLI, Haiku on the API; cover Opus', () => {
+    const out = resolveAiEngine({ order: ['claude_code', 'anthropic_api'], models: {} }, { ...ENV, resumeModel: '', hasAnthropicKey: true });
+    assert.equal(out.modelFor('claude_code', 'resume'), 'claude-sonnet-5');
+    assert.equal(out.modelFor('anthropic_api', 'resume'), 'claude-haiku-4-5-20251001');
+    assert.equal(out.modelFor('claude_code', 'cover'), 'claude-opus-5');
+    assert.equal(out.modelFor('anthropic_api', 'classifier'), ENV.classifierModel);
+  });
+
   it('seeds a one-engine chain from .env when nothing is stored', () => {
     const out = resolveAiEngine(null, ENV);
     assert.deepEqual(out.chain, ['claude_code']);
@@ -170,10 +179,11 @@ describe('cover role', () => {
     codexUsable: false,
     classifierModel: 'claude-haiku-4-5-20251001',
     resumeModel: 'claude-opus-5',
+    coverModel: '',
     openAiModel: '',
   };
 
-  it('follows the resume slot until it is set explicitly', () => {
+  it('takes the writer by default, whatever the resume slot says, until it is set explicitly', () => {
     const bare = resolveAiEngine({ order: ['claude_code'], models: {} }, env);
     assert.equal(bare.modelFor('claude_code', 'cover'), 'claude-opus-5');
 
@@ -181,7 +191,7 @@ describe('cover role', () => {
       { order: ['claude_code'], models: { claude_code: { resume: 'claude-sonnet-5' } } },
       env,
     );
-    assert.equal(viaResume.modelFor('claude_code', 'cover'), 'claude-sonnet-5');
+    assert.equal(viaResume.modelFor('claude_code', 'cover'), 'claude-opus-5');
 
     const explicit = resolveAiEngine(
       { order: ['claude_code'], models: { claude_code: { resume: 'claude-sonnet-5', cover: 'claude-opus-5' } } },

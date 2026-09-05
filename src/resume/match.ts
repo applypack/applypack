@@ -6,6 +6,7 @@ import {
   buildMatchPrompt,
   MATCH_FAST_MAX_TOKENS,
   MATCH_MAX_TOKENS,
+  RESUME_TIMEOUT_MS,
   parseMatchResponse,
   PROMPT_VERSION,
   readKeywords,
@@ -32,7 +33,6 @@ import {
 
 const PREVIOUS_KEYWORDS_MAX = 40;
 
-const MATCH_TIMEOUT_MS = 5 * 60_000;
 
 /**
  * One resume-vs-posting comparison, persisted as a ResumeMatch row. `resume.text`
@@ -51,7 +51,7 @@ const MATCH_TIMEOUT_MS = 5 * 60_000;
 export async function matchResumeToJob(
   resume: { id: number; text: string; version: number },
   job: MatchJobInput & { id: number },
-  opts: { draft?: boolean; mode?: MatchMode; rebuild?: boolean } = {},
+  opts: { draft?: boolean; mode?: MatchMode; rebuild?: boolean; onError?: (reason: string) => void } = {},
 ): Promise<ResumeMatch | null> {
   const mode = opts.mode ?? 'fast';
   const [facts, otherSkills, previousMatch, matcher] = await Promise.all([
@@ -93,7 +93,8 @@ export async function matchResumeToJob(
       maxTokens: mode === 'fast' ? MATCH_FAST_MAX_TOKENS : MATCH_MAX_TOKENS,
       label: mode === 'fast' ? 'resume-match-fast' : 'resume-match',
       role: 'resume',
-      timeoutMs: MATCH_TIMEOUT_MS,
+      timeoutMs: mode === 'fast' ? RESUME_TIMEOUT_MS.fast : RESUME_TIMEOUT_MS.full,
+      onError: opts.onError,
     },
     parseMatchResponse,
     { jobId: job.id, resumeId: resume.id },

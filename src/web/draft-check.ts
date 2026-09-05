@@ -4,7 +4,7 @@ import { reuseNotice } from '../resume/match-reuse';
 import type { MatchJobInput } from '../resume/prompts';
 import { hashShortId } from '../text-utils';
 import { formatRelative } from './format';
-import { claimRun, startRun, updateRun, type TargetRun } from './target-runs';
+import { claimRun, runFailure, startRun, updateRun, type TargetRun } from './target-runs';
 
 /**
  * The quick AI check of a text that just landed in the editor as a draft
@@ -41,7 +41,13 @@ export function startDraftCheck(input: {
       });
       return;
     }
-    const row = await matchResumeToJob({ id: resume.id, text, version: resume.version }, job, { draft: text !== resume.text });
+    let reason = '';
+    const row = await matchResumeToJob({ id: resume.id, text, version: resume.version }, job, {
+      draft: text !== resume.text,
+      onError: (r) => {
+        reason = r;
+      },
+    });
     updateRun(
       run.id,
       row
@@ -51,7 +57,7 @@ export function startDraftCheck(input: {
             results: { keywords: `AI match ${row.matchScore}/100` },
             flash: `Checked — AI match ${row.matchScore}/100.`,
           }
-        : { stage: 'error', error: 'The AI check failed — see the web logs.' },
+        : { stage: 'error', error: runFailure('The AI check failed', reason) },
     );
   });
   return run;

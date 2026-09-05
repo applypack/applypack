@@ -171,6 +171,11 @@ export function getRun(id: string): TargetRun | null {
 }
 
 /** Runs the async chain; any uncaught failure flips the run to error. */
+/** The run's error line: the provider's one-line reason when there is one, else where to look (#184). */
+export function runFailure(what: string, reason: string): string {
+  return reason ? `${what}: ${reason}.` : `${what} — see the web logs.`;
+}
+
 export function startRun(id: string, fn: () => Promise<void>): void {
   void fn().catch((err) => {
     logger.error({ err, runId: id }, 'web: compare run failed');

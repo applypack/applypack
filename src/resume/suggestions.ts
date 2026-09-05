@@ -10,13 +10,13 @@ import {
   SUGGESTIONS_MAX_TOKENS,
   type MatchJobInput,
   type MatchSuggestions,
+  RESUME_TIMEOUT_MS,
 } from './prompts';
 import { readBreakdown } from './score';
 import { loadKeywordMatcher } from './keyword-matcher';
 import { gateActions } from './replacement-gate';
 import { listFacts, updateMatchSuggestions } from './store';
 
-const SUGGESTIONS_TIMEOUT_MS = 5 * 60_000;
 
 /**
  * The lazy second half of a quick check (ADR 0029): the stored verdicts —
@@ -25,7 +25,11 @@ const SUGGESTIONS_TIMEOUT_MS = 5 * 60_000;
  * analysis with the same score. Judged against the text the row analysed,
  * never the resume's current one. Null on AI failure.
  */
-export async function suggestForMatch(match: ResumeMatch, job: MatchJobInput): Promise<ResumeMatch | null> {
+export async function suggestForMatch(
+  match: ResumeMatch,
+  job: MatchJobInput,
+  onError?: (reason: string) => void,
+): Promise<ResumeMatch | null> {
   const facts = await listFacts();
   const prompt = buildSuggestionsPrompt(match.resumeText, job, {
     summary: match.summary,
@@ -37,7 +41,7 @@ export async function suggestForMatch(match: ResumeMatch, job: MatchJobInput): P
   });
   const answer = await askForJson(
     await getAiRuntime(),
-    { ...prompt, maxTokens: SUGGESTIONS_MAX_TOKENS, label: 'resume-suggestions', role: 'resume', timeoutMs: SUGGESTIONS_TIMEOUT_MS },
+    { ...prompt, maxTokens: SUGGESTIONS_MAX_TOKENS, label: 'resume-suggestions', role: 'resume', timeoutMs: RESUME_TIMEOUT_MS.suggestions, onError },
     // Every array defaults to empty, so "{}" parses — but a reply with nothing
     // in it would flip the row to "full" and lock the button out for good.
     (text) => {

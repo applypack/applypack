@@ -16,7 +16,9 @@ export const ConfigSchema = z.object({
   CLAUDE_MODEL: z.string().default('claude-haiku-4-5-20251001'),
   // Resume scan + resume-vs-job comparison: a few calls a day where judgment
   // matters more than cost, so a stronger model than the classifier's.
-  CLAUDE_MODEL_RESUME: z.string().default('claude-opus-5'),
+  /** Empty = the backend's own default for the role (ai-engine.ts:defaultModelFor). */
+  CLAUDE_MODEL_RESUME: z.string().default(''),
+  CLAUDE_MODEL_COVER: z.string().default(''),
   // Path to the Claude Code CLI when AI_PROVIDER=claude_code.
   CLAUDE_CODE_BIN: z.string().default('claude'),
   // Path to the Gemini CLI when the gemini_cli engine is selected.
