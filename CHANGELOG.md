@@ -4,6 +4,20 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.57.0] — 2026-09-05
+
+### Added
+- **The boards for your countries, one press, on the way in.** The first-run
+  wizard has a fourth step between the profile and the first matches: the
+  job boards that fit where the searches hunt (DOU and Djinni for Ukraine,
+  solid.jobs for Poland, Arbeitnow for Germany …), listed with their state
+  here and an **Enable all N** button — "Skip for now" moves on, and a user
+  who scores matches without it is never nagged about it (#148). The same
+  button sits on the Companies page's "Sources for your searches" card, so
+  five feeds no longer cost two clicks each; the profile-save flash names
+  it. The three readers of that list — the card, the wizard, the flash —
+  share one loader now.
+
 ## [1.56.0] — 2026-09-04
 
 ### Changed
@@ -2340,6 +2354,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[1.57.0]: https://github.com/applypack/applypack/compare/v1.56.0...v1.57.0
 [1.56.0]: https://github.com/applypack/applypack/compare/v1.55.5...v1.56.0
 [1.55.5]: https://github.com/applypack/applypack/compare/v1.55.4...v1.55.5
 [1.55.4]: https://github.com/applypack/applypack/compare/v1.55.3...v1.55.4
