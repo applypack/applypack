@@ -569,7 +569,7 @@ const AppliedWithField: FC<{ job: JobDetail; picker: JobDetailProps['appliedResu
   job,
   picker,
 }) => {
-  if (picker.resumes.length === 0) return null;
+  if (picker.resumes.length === 0 || job.status !== 'APPLIED') return null;
   const asking = needsAppliedResume(job);
   const suggestion = picker.resumes.find((r) => r.id === picker.suggestedId);
   return (
