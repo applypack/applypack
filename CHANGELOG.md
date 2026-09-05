@@ -4,6 +4,42 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.61.0] — 2026-09-05
+
+### Changed
+- **The wizard's test search asks the aggregators alone, and asks where you
+  work.** Step 2 walked all 32 default sources — 2 618 postings in 83 s on a
+  fresh install, 23 of them US company boards nobody had asked for, one of
+  them alone 32 s (#154). It now walks the nine boards that publish every
+  posting they have: 591 postings in 17 s, measured on the same fresh
+  install. An optional "Where do you work?" chip field lands on the primary
+  search before the walk, so the boards that narrow by place do and the
+  profile step starts from it. The company boards join the hourly watch once
+  the profile exists; "Fetch now" on the Overview and /runs still asks every
+  due source.
+- **Every fetch run records what each source cost.** The `fetch` /
+  `fetch-now` row on /runs folds a per-source list under its stats — slowest
+  first: time, status, count — the progress page's activity line says how
+  long the last board took, and the worker's log line carries the same
+  number. Which boards took the minute and which failed was recorded nowhere
+  before.
+- **Said out loud: built for software engineers.** The README, the wizard's
+  resume step and "Fill from a resume" say so, and a resume whose title or
+  role words read as a product / project / delivery manager, recruiter,
+  marketing, sales, designer, HR or business-analyst role keeps the required
+  stack and says why — a product manager's resume once became a required
+  stack of `sql`, and every posting without the word scored 35 at most.
+
+### Fixed
+- **"Fetch now" within the hour after a tick asked nothing.** Every attempt
+  stamps a source's next check an interval ahead (ADR 0036), and the manual
+  run honoured that pacing — so the button that promises the hourly tick
+  answered "no jobs from 0 sources" until the hour was up, and the wizard's
+  "Search again" with it. A manual run asks every selected source now; the
+  polite delay and the conditional requests still apply.
+- The README's setup walk described four steps; the wizard has had five
+  since v1.57.0.
+
 ## [1.60.0] — 2026-09-05
 
 ### Added
@@ -2477,6 +2513,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[1.61.0]: https://github.com/applypack/applypack/compare/v1.60.0...v1.61.0
 [1.60.0]: https://github.com/applypack/applypack/compare/v1.59.2...v1.60.0
 [1.59.2]: https://github.com/applypack/applypack/compare/v1.59.1...v1.59.2
 [1.59.1]: https://github.com/applypack/applypack/compare/v1.59.0...v1.59.1

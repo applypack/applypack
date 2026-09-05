@@ -24,7 +24,7 @@ runsRoute.get('/runs', async (c) => {
   );
 });
 
-/** "Fetch now" from the Overview or /runs — every source that is due (fetch-now.ts). */
+/** "Fetch now" from the Overview or /runs — every source, due or not (fetch-now.ts). */
 runsRoute.post('/runs/fetch-now', async (c) => {
   const run = await beginFetchNow({ backUrl: '/runs' });
   return c.redirect(`/runs/fetch-now/${run.id}`, 303);
