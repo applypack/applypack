@@ -16,10 +16,9 @@ import {
   segments as packSegments,
 } from '../../starter-packs/catalog';
 import { resolvePack } from '../../starter-packs/probe';
-import { suggestSources, type SourceSuggestion } from '../../starter-packs/suggest';
 import { activeWatchlistRun } from '../watchlist-runs';
-import { listActiveProfiles } from '../../profiles';
-import { isBlankProfile } from '../../profile-guards';
+import { currentSuggestions, waitingSuggestions } from '../source-suggestions';
+import { flashRedirect } from '../flash';
 import {
   boardUrl,
   buildPreview,
@@ -169,7 +168,7 @@ companiesRoute.get('/companies', async (c) => {
       watchlist={watchedRows(companies, freshMap)}
       watchlistRun={activeWatchlistRun()}
       packs={packs}
-      suggestions={await suggestedSources(companies)}
+      suggestions={await currentSuggestions()}
       keyedUnlocked={unlockedSources(await getSourceKeys())}
       flash={flash}
       fetchingEnabled={settings.fetchingEnabled}
@@ -228,13 +227,6 @@ function watchedRows(
 // --- sources for the searches' countries (plan §4.3) -----------------------
 
 /** What the running searches' places and stacks call for, against the rows tracked. */
-async function suggestedSources(
-  tracked: readonly { id: number; atsType: string; atsToken: string; active: boolean }[],
-): Promise<SourceSuggestion[]> {
-  const searches = (await listActiveProfiles()).filter((p) => !isBlankProfile(p));
-  return suggestSources(searches, tracked, { unlocked: unlockedSources(await getSourceKeys()) });
-}
-
 const SuggestedAddSchema = z.object({ atsType: z.string(), atsToken: z.string().min(1).max(120) });
 
 /**
@@ -247,8 +239,7 @@ companiesRoute.post('/companies/suggested', async (c) => {
   const form = await c.req.parseBody();
   const parsed = SuggestedAddSchema.safeParse({ atsType: form.atsType, atsToken: form.atsToken });
   if (!parsed.success) return redirectWithFlash(c, 'err', 'Invalid form values.');
-  const tracked = await prisma.company.findMany({ select: { id: true, atsType: true, atsToken: true, active: true } });
-  const wanted = (await suggestedSources(tracked)).find(
+  const wanted = (await currentSuggestions()).find(
     (s) => s.atsType === parsed.data.atsType && s.atsToken === parsed.data.atsToken && s.state === 'missing',
   );
   if (!wanted) return redirectWithFlash(c, 'err', 'That source is not among today\'s suggestions.');
@@ -261,6 +252,42 @@ companiesRoute.post('/companies/suggested', async (c) => {
   });
   logger.info({ name: wanted.name, atsToken: wanted.atsToken, jobs: probe.jobsCount }, 'companies: suggested source added');
   return redirectWithFlash(c, 'ok', `Added "${wanted.name}" (${probe.jobsCount ?? 0} postings), switched off — enable it when ready.`);
+});
+
+/**
+ * Every fitting source in one press (#148): the missing ones are probed and
+ * added ON, the switched-off ones are switched on. A feed that fails its probe
+ * is named in the flash and left out — never a silent empty source.
+ */
+companiesRoute.post('/companies/suggested/all', async (c) => {
+  const form = await c.req.parseBody();
+  const back = form.next === 'welcome' ? '/welcome?step=sources' : '/companies';
+  const keys = await getSourceKeys();
+  const enabled: string[] = [];
+  const failed: string[] = [];
+  for (const s of waitingSuggestions(await currentSuggestions())) {
+    if (s.state === 'off' && s.companyId !== null) {
+      await prisma.company.update({ where: { id: s.companyId }, data: { active: true } });
+      enabled.push(s.name);
+      continue;
+    }
+    const probe = await probeAts(s.atsType, s.atsToken, { keys });
+    if (!probe.ok) {
+      failed.push(s.name);
+      continue;
+    }
+    await prisma.company.create({
+      data: { name: s.name, atsType: s.atsType, atsToken: s.atsToken, careerUrl: s.careerUrl, active: true },
+    });
+    enabled.push(s.name);
+  }
+  logger.info({ enabled, failed }, 'companies: suggested sources enabled');
+  const note = failed.length > 0 ? ` ${failed.length} could not be probed and were left out: ${failed.join(', ')}.` : '';
+  return flashRedirect(
+    back,
+    enabled.length === 0 && failed.length > 0 ? 'err' : 'ok',
+    enabled.length === 0 ? `Nothing to enable.${note}` : `Enabled ${enabled.length} source${enabled.length === 1 ? '' : 's'}: ${enabled.join(', ')}.${note}`,
+  );
 });
 
 // --- starter packs ----------------------------------------------------------

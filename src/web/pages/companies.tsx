@@ -187,13 +187,19 @@ const KEYED_ATS: string[] = [AtsType.ADZUNA, AtsType.FRANCETRAVAIL];
  */
 const SuggestedSources: FC<{ suggestions: SourceSuggestion[] }> = ({ suggestions }) => {
   if (suggestions.length === 0) return null;
+  const waiting = suggestions.filter((s) => s.state !== 'on').length;
   return (
     <Card class="mb-4">
       <SectionTitle>Sources for your searches</SectionTitle>
       <Hint class="mb-3">
-        Feeds that fit where your running searches hunt, built from their stack. Added switched off;
-        enable each one when you want it in the hourly tick.
+        Feeds that fit where your running searches hunt, built from their stack. Add (off) probes a
+        feed and adds it switched off; Enable puts it in the hourly tick.
       </Hint>
+      {waiting > 1 && (
+        <ActionForm action="/companies/suggested/all" class="mb-3" once>
+          <Button size="sm">Enable all {waiting}</Button>
+        </ActionForm>
+      )}
       <ul class="divide-y divide-line">
         {suggestions.map((s) => (
           <li class="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 py-2">
