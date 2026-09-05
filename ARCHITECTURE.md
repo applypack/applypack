@@ -196,7 +196,7 @@ src/
   notifier.ts                  ← Telegram MarkdownV2 send, multi-target broadcast
   ats-probe.ts                 ← liveness probe for manual /companies add
   profiles.ts                  ← Profile CRUD + getActiveProfile + setActiveProfile
-  settings.ts                  ← AppSettings + TelegramTarget CRUD + maskToken re-export
+  settings.ts                  ← AppSettings + NotificationTarget CRUD + maskToken re-export
   discovery.ts                 ← CompanyCandidate CRUD + recordCandidatesFromText + promote
   seed.ts                      ← SEED_COMPANIES list + OBSOLETE_TOKENS cleanup
 
@@ -346,7 +346,7 @@ src/
 
 prisma/
   schema.prisma                 ← Company, Job, CronRun, AppSettings, Profile,
-                                  TelegramTarget, CompanyCandidate, Resume,
+                                  NotificationTarget, CompanyCandidate, Resume,
                                   ResumeMatch, JobVerification, CoverLetter, 4 enums
   migrations/                   ← real Prisma migrations from phase-3.0 baseline
 ```
@@ -391,7 +391,7 @@ prisma/
 ```mermaid
 erDiagram
   AppSettings ||--o| Profile : "activeProfileId (primary)"
-  Profile ||--o| TelegramTarget : "telegramTargetId"
+  Profile ||--o| NotificationTarget : "notificationTargetId"
   Profile ||--o{ AppSettings : "back-relation"
   Profile ||--o{ JobScore : "1..N onDelete:Cascade"
   Job ||--o{ JobScore : "1..N onDelete:Cascade"
@@ -478,11 +478,13 @@ erDiagram
     text appliedResumeText "snapshot — resume bytes are replaced in place"
   }
 
-  TelegramTarget {
+  NotificationTarget {
     int id PK
+    enum kind "TELEGRAM | DISCORD"
     string name
-    string botToken
-    string chatId
+    string botToken "Telegram"
+    string chatId "Telegram"
+    string webhookUrl "Discord"
     bool active
     datetime lastUsed
   }

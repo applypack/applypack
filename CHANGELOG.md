@@ -4,6 +4,28 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.63.0] — 2026-09-05
+
+### Added
+- **Discord as a second alert channel.** Settings → Notifications takes a
+  Discord incoming webhook next to a Telegram bot + chat: paste the URL,
+  a test message is posted before the row is saved, and every alert,
+  digest, held delivery, stale-application nudge and careers-page notice
+  reaches it in Discord's own markdown, packed under Discord's 2000
+  characters, with mentions disabled so a posting's text cannot page
+  @everyone (#24, ADR 0041). A search profile can route its alerts to
+  either kind; `DISCORD_WEBHOOK_URL` in `.env` bootstraps one on first
+  boot like the Telegram pair. The webhook URL is a secret and is treated
+  like a bot token: masked on the page, never logged.
+
+### Changed
+- **One table for every notification channel.** `telegram_target` is
+  `notification_target` with a `kind`; `Profile.telegramTargetId` is
+  `notificationTargetId`. The migration renames in place — rows, ids and
+  the links from searches survive, and the Telegram row shows under
+  *Channel · Telegram*. The master switch reads "Alerts" and covers every
+  channel.
+
 ## [1.62.1] — 2026-09-05
 
 ### Changed
@@ -2547,6 +2569,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[1.63.0]: https://github.com/applypack/applypack/compare/v1.62.1...v1.63.0
 [1.62.1]: https://github.com/applypack/applypack/compare/v1.62.0...v1.62.1
 [1.62.0]: https://github.com/applypack/applypack/compare/v1.61.0...v1.62.0
 [1.61.0]: https://github.com/applypack/applypack/compare/v1.60.0...v1.61.0
