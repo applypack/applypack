@@ -76,6 +76,12 @@ invariant the resume module already rests on:
   which capped a 91 to 70 and failed a gold check. The rule now names every
   scored field, and the suggestions call — which outputs none of them — has
   its own shorter variant.
+- A direct probe (a Laravel resume against a Laravel posting, with and
+  without a snapshot that adds "hiring for the payments team" and
+  "AI-forward"): the nine keywords identical, statuses and primary flags
+  alike; with the snapshot the strengths lead with the Stripe / Adyen
+  payments bullet, and the AI-tooling bullet appears as a caution that says
+  in so many words it is "not a scored requirement".
 
 ## Alternatives considered
 
