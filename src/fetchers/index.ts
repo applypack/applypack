@@ -111,8 +111,12 @@ export async function runAllFetchers(
   // The watchlist's intervals ride on this tick, they do not replace it
   // (ADR 0036): the heartbeat still fires, the interval decides which rows it
   // asks. A row with no `nextCheckAt` is due, so every source behaves exactly
-  // as it did before the column existed until the user changes one.
-  const due = companies.filter((c) => isDue(c, now) && (opts.only?.(c) ?? true));
+  // as it did before the column existed until the user changes one. A manual
+  // run asks regardless: "Fetch now" and the wizard's test search are the
+  // user at the screen asking now, and every attempt stamps the next check
+  // an interval ahead — so within the hour after a tick the pacing would
+  // otherwise answer "0 sources" to the very button that promises the tick.
+  const due = companies.filter((c) => (opts.manual || isDue(c, now)) && (opts.only?.(c) ?? true));
   const waiting = companies.length - due.length;
   if (waiting > 0) {
     logger.info({ due: due.length, waiting }, 'fetchers: some sources are not due yet');
