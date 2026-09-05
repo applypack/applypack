@@ -350,9 +350,25 @@ export const Td: FC<PropsWithChildren<{ class?: string; title?: string }>> = ({
 
 /* ---------- forms ---------- */
 
-/** Native file input styled to match the controls (shared by every upload form). */
+/**
+ * Native file input styled to match the controls (shared by every upload form).
+ * The button half is the FIRST action of any upload — the submit next to it
+ * does nothing until a file is chosen — so it carries the accent and the
+ * same size as a Button, not a 12 px grey chip (#155).
+ */
 export const FILE_INPUT_CLASS =
-  'file:mr-3 file:cursor-pointer file:rounded-md file:border-0 file:bg-surface-overlay file:px-2.5 file:py-1 file:text-xs file:font-medium file:text-ink';
+  'file:mr-3 file:cursor-pointer file:rounded-md file:border file:border-accent/40 file:bg-accent/10 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-accent-strong hover:file:bg-accent/15';
+
+/**
+ * Progressive enhancement for `form[data-needs-file]`: the submit waits,
+ * disabled, until a file is chosen — it does nothing before that, and a solid
+ * button that does nothing is what the eye went to first (#155). Inline in
+ * the page, after the form; with JS off the button is simply enabled.
+ */
+export const NEEDS_FILE_JS =
+  "document.querySelectorAll('form[data-needs-file]').forEach(function(f){" +
+  "var b=f.querySelector('button:not([type]),button[type=submit]'),i=f.querySelector('input[type=file]');" +
+  "if(!b||!i)return;b.disabled=!i.files.length;i.addEventListener('change',function(){b.disabled=!i.files.length})})";
 
 export const Field: FC<PropsWithChildren<{ label: string; hint?: string; class?: string }>> = ({
   label,
