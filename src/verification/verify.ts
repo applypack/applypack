@@ -44,6 +44,7 @@ export async function verifyJob(
       evidence: r.evidence as Prisma.InputJsonValue,
       redFlags: r.red_flags,
       companySnapshot: r.company_snapshot,
+      postingUrl: r.posting_url,
     },
   });
   logger.info({ jobId: job.id, verdict: r.verdict, recommendation: r.recommendation }, 'verify: done');

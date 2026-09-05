@@ -4,6 +4,32 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.69.0] — 2026-09-05
+
+### Added
+- **Refresh a truncated posting from the company's own listing.** "Is this
+  job real?" now records the company's own page for the role when its
+  careers-page check finds one; the verification card shows it with
+  **Refresh the description from it**. That reads the page (the same
+  blocklist and private-host guard as the letter page's URL field), shows
+  the stored text against it line by line with the sizes, warns when the
+  page does not even mention the posting's title, and only on **Replace the
+  description and re-classify** writes it — keeping the original (**Restore
+  the original** on the job page swaps back), re-classifying the posting
+  against the running searches, and making the next comparison read its
+  keywords afresh, which the match card says in place of the version delta
+  (#162 stage 3, ADR 0043). An Ashby listing — a page drawn in the browser,
+  which a plain fetch cannot read — is taken from Ashby's board API instead,
+  by id or, for a board root, by the posting's title; the letter page's URL
+  field gains the same. Five Jobicy teasers of 219–263 characters became
+  their 4 170–10 772-character listings on a copy of the live database, and
+  the quick check's 2–3 keywords became 11–19.
+
+### Schema
+- `job_verification.postingUrl`, `job.descriptionOriginal`,
+  `job.descriptionRefreshedAt` — nullable, no backfill (migration
+  `20260905210000_posting_refresh`).
+
 ## [1.68.0] — 2026-09-05
 
 ### Added

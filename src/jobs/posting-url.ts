@@ -1,3 +1,4 @@
+import { z } from 'zod';
 import { fetchWithRetry, HttpError, stripHtml } from '../http';
 import { MIN_DESCRIPTION_CHARS } from './manual-job';
 
@@ -26,6 +27,69 @@ export const BLOCKED_POSTING_HOSTS = [
 
 const CHALLENGE_MARKERS =
   /just a moment|checking your browser|cloudflare|are you a (?:robot|human)|captcha|access denied|enable javascript and cookies/i;
+
+/*
+ * Ashby draws its job pages in the browser, so a GET returns a shell with no
+ * posting in it. Its public board API — the one fetchers/ashby.ts reads every
+ * tick — carries the same listing as JSON, so an Ashby URL is answered from
+ * there: a job page by its id, a board root by the title the caller is after.
+ */
+const ASHBY_HOST = 'jobs.ashbyhq.com';
+const ASHBY_API = 'https://api.ashbyhq.com/posting-api/job-board/';
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+const AshbyPostingSchema = z.object({
+  jobs: z.array(
+    z.object({
+      id: z.string(),
+      title: z.string(),
+      location: z.string().nullable().optional(),
+      descriptionHtml: z.string().nullable().optional(),
+    }),
+  ),
+});
+type AshbyPosting = z.infer<typeof AshbyPostingSchema>['jobs'][number];
+
+export interface AshbyRef {
+  org: string;
+  /** Null for the board's root, which lists every role. */
+  jobId: string | null;
+}
+
+export function parseAshbyUrl(url: URL): AshbyRef | null {
+  if (url.hostname.toLowerCase() !== ASHBY_HOST) return null;
+  const [org, second] = url.pathname.split('/').filter(Boolean);
+  if (!org) return null;
+  return { org, jobId: second && UUID_RE.test(second) ? second : null };
+}
+
+/** Which listing the URL means: the job by id, else the one titled like the posting; an honest error otherwise. */
+export function pickAshbyJob<T extends { id: string; title: string }>(
+  jobs: T[],
+  ref: AshbyRef,
+  title: string | undefined,
+): { ok: true; job: T } | { ok: false; error: string } {
+  if (ref.jobId) {
+    const job = jobs.find((j) => j.id === ref.jobId);
+    return job ? { ok: true, job } : { ok: false, error: "That listing is no longer on the company's Ashby board — it may have closed." };
+  }
+  const wanted = title?.trim().toLowerCase();
+  const byTitle = wanted ? jobs.filter((j) => j.title.trim().toLowerCase() === wanted) : [];
+  const [only] = byTitle;
+  if (byTitle.length === 1 && only) return { ok: true, job: only };
+  return {
+    ok: false,
+    error:
+      byTitle.length > 1
+        ? `The board lists ${byTitle.length} roles titled "${title}" — paste the job page URL instead.`
+        : `That is the board's index (${jobs.length} roles), not a job page — paste the job page URL instead.`,
+  };
+}
+
+/** The listing as the text a posting page would have given: title, place, body. */
+export function ashbyPostingText(job: Pick<AshbyPosting, 'title' | 'location' | 'descriptionHtml'>): PostingUrlResult {
+  return postingText([job.title, job.location ?? '', '', stripHtml(job.descriptionHtml ?? '').trim()].join('\n').trim());
+}
 
 /**
  * SSRF guard. ADR 0016 keeps the liveness ladder on fixed hosts; this flow
@@ -79,7 +143,10 @@ export function checkPostingUrl(raw: string): { ok: true; url: URL } | { ok: fal
 }
 
 export function postingTextFromHtml(html: string): PostingUrlResult {
-  const text = stripHtml(html).trim();
+  return postingText(stripHtml(html).trim());
+}
+
+function postingText(text: string): PostingUrlResult {
   if (CHALLENGE_MARKERS.test(text.slice(0, 600))) {
     return { ok: false, error: 'The page answered with a bot check — paste the posting text instead.' };
   }
@@ -93,9 +160,11 @@ export function postingTextFromHtml(html: string): PostingUrlResult {
   return { ok: true, text: text.slice(0, MAX_TEXT_CHARS) };
 }
 
-export async function fetchPostingText(raw: string): Promise<PostingUrlResult> {
+export async function fetchPostingText(raw: string, opts: { title?: string } = {}): Promise<PostingUrlResult> {
   const checked = checkPostingUrl(raw);
   if (!checked.ok) return checked;
+  const ashby = parseAshbyUrl(checked.url);
+  if (ashby) return fetchAshbyPosting(ashby, opts.title);
   try {
     const res = await fetchWithRetry(checked.url.toString(), { timeoutMs: FETCH_TIMEOUT_MS });
     // Redirects are followed, so the host that actually answered is re-checked.
@@ -109,6 +178,23 @@ export async function fetchPostingText(raw: string): Promise<PostingUrlResult> {
     return {
       ok: false,
       error: `Could not fetch that URL (${err instanceof Error ? err.message : 'unknown error'}) — paste the text instead.`,
+    };
+  }
+}
+
+async function fetchAshbyPosting(ref: AshbyRef, title: string | undefined): Promise<PostingUrlResult> {
+  try {
+    const res = await fetchWithRetry(`${ASHBY_API}${encodeURIComponent(ref.org)}`, { timeoutMs: FETCH_TIMEOUT_MS });
+    const parsed = AshbyPostingSchema.safeParse(await res.json());
+    if (!parsed.success) {
+      return { ok: false, error: 'The Ashby board answered with something other than its listings — paste the text instead.' };
+    }
+    const pick = pickAshbyJob(parsed.data.jobs, ref, title);
+    return pick.ok ? ashbyPostingText(pick.job) : pick;
+  } catch (err) {
+    return {
+      ok: false,
+      error: `Could not read the Ashby board (${err instanceof Error ? err.message : 'unknown error'}) — paste the text instead.`,
     };
   }
 }

@@ -10,6 +10,9 @@
  * - A prompt bump — a frame extracted under rules the current prompt no
  *   longer follows is never inherited, or the bump would keep re-deriving the
  *   old prompt's list.
+ * - A changed posting — the description was replaced with the company's own
+ *   listing (or restored) after the frame was read (ADR 0043): the terms came
+ *   from text this posting no longer shows.
  *
  * Only the MODEL's frame is dropped. The user's overrides — re-levelled,
  * ignored and hand-added terms — are re-applied by carryOverrides from the
@@ -21,7 +24,7 @@
  * ADR 0029) so the card can say why a score stands on its own.
  */
 
-export const FRAME_REASONS = ['carried', 'first-run', 'rebuild', 'prompt-bump'] as const;
+export const FRAME_REASONS = ['carried', 'first-run', 'rebuild', 'prompt-bump', 'posting-changed'] as const;
 export type FrameReason = (typeof FRAME_REASONS)[number];
 
 /** The latest stored analysis of this posting, as the frame decision reads it. */
@@ -38,9 +41,16 @@ export interface FramePlan {
   reason: FrameReason;
 }
 
-export function planKeywordFrame(stored: StoredFrame | null, promptVersion: number, rebuild: boolean): FramePlan {
+export function planKeywordFrame(
+  stored: StoredFrame | null,
+  promptVersion: number,
+  rebuild: boolean,
+  /** The stored frame was read from a description this posting has since replaced (ADR 0043). */
+  postingChanged = false,
+): FramePlan {
   if (stored === null || stored.terms === 0) return { carry: false, reason: 'first-run' };
   if (rebuild) return { carry: false, reason: 'rebuild' };
+  if (postingChanged) return { carry: false, reason: 'posting-changed' };
   // Any other version, not just an older one: a downgrade inherits a frame
   // written by rules this prompt does not have either, and a pre-marker row
   // (null) cannot say which rules it followed at all.
@@ -61,16 +71,20 @@ export function readFrameReason(breakdown: unknown): FrameReason | null {
  * nothing to be compared with, and a carried frame is what makes the comparison
  * fair in the first place — neither says anything here.
  */
-export function freshFrame(breakdown: unknown): 'rebuild' | 'prompt-bump' | null {
+export type FreshFrameReason = Exclude<FrameReason, 'carried' | 'first-run'>;
+
+export function freshFrame(breakdown: unknown): FreshFrameReason | null {
   const reason = readFrameReason(breakdown);
-  return reason === 'rebuild' || reason === 'prompt-bump' ? reason : null;
+  return reason === 'carried' || reason === 'first-run' || reason === null ? null : reason;
 }
 
 /** What the card says in place of the version delta. */
-export function freshFrameNotice(reason: 'rebuild' | 'prompt-bump'): string {
+export function freshFrameNotice(reason: FreshFrameReason): string {
   const why =
     reason === 'rebuild'
       ? 'Keywords were rebuilt from the posting for this run'
-      : 'The analysis prompt changed, so the earlier keywords were not reused';
+      : reason === 'posting-changed'
+        ? "The posting's description was replaced after the earlier analysis, so its keywords were read afresh"
+        : 'The analysis prompt changed, so the earlier keywords were not reused';
   return `${why}, so this analysis counts a different set of terms. Read the score on its own — the earlier ones judged another list.`;
 }

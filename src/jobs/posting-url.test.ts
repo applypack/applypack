@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { checkPostingUrl, isPrivateHost, postingTextFromHtml } from './posting-url';
+import { ashbyPostingText, checkPostingUrl, isPrivateHost, parseAshbyUrl, pickAshbyJob, postingTextFromHtml } from './posting-url';
 
 test('checkPostingUrl refuses junk, wrong protocols and ADR 0005 hosts', () => {
   assert.equal(checkPostingUrl('not a url').ok, false);
@@ -50,4 +50,36 @@ test('checkPostingUrl refuses the private address space', () => {
   assert.equal(checkPostingUrl('http://169.254.169.254/latest/meta-data/').ok, false);
   assert.equal(checkPostingUrl('http://192.168.0.10/careers').ok, false);
   assert.equal(checkPostingUrl('https://jobs.example.com/careers/1').ok, true);
+});
+
+test('an Ashby URL is a board and maybe a job id; anything else is a page (ADR 0043)', () => {
+  assert.deepEqual(parseAshbyUrl(new URL('https://jobs.ashbyhq.com/sierra/9ebc3a79-82bf-478d-bd98-d473d41bdeaf')), { org: 'sierra', jobId: '9ebc3a79-82bf-478d-bd98-d473d41bdeaf' });
+  assert.deepEqual(parseAshbyUrl(new URL('https://JOBS.ashbyhq.com/sierra/9EBC3A79-82BF-478D-BD98-D473D41BDEAF/application')), { org: 'sierra', jobId: '9EBC3A79-82BF-478D-BD98-D473D41BDEAF' });
+  assert.deepEqual(parseAshbyUrl(new URL('https://jobs.ashbyhq.com/fieldguide')), { org: 'fieldguide', jobId: null });
+  assert.deepEqual(parseAshbyUrl(new URL('https://jobs.ashbyhq.com/fieldguide/jobs?x=1')), { org: 'fieldguide', jobId: null }, 'a non-uuid second segment is still the board');
+  assert.equal(parseAshbyUrl(new URL('https://jobs.ashbyhq.com/')), null);
+  assert.equal(parseAshbyUrl(new URL('https://boards.greenhouse.io/acme/jobs/1')), null);
+});
+
+test('pickAshbyJob: the id wins, a board root needs exactly one role with the posting title', () => {
+  const jobs = [
+    { id: 'a', title: 'Engineering Manager, Core' },
+    { id: 'b', title: 'Software Engineer' },
+    { id: 'c', title: 'software engineer ' },
+  ];
+  assert.deepEqual(pickAshbyJob(jobs, { org: 'x', jobId: 'b' }, 'whatever'), { ok: true, job: jobs[1] });
+  assert.match((pickAshbyJob(jobs, { org: 'x', jobId: 'zzz' }, 'whatever') as { error: string }).error, /no longer on the company's Ashby board/);
+  assert.deepEqual(pickAshbyJob(jobs, { org: 'x', jobId: null }, 'engineering manager, core'), { ok: true, job: jobs[0] }, 'case and outer spaces do not matter');
+  assert.match((pickAshbyJob(jobs, { org: 'x', jobId: null }, 'Software Engineer') as { error: string }).error, /lists 2 roles titled "Software Engineer" — paste the job page URL/);
+  assert.match((pickAshbyJob(jobs, { org: 'x', jobId: null }, 'Designer') as { error: string }).error, /board's index \(3 roles\), not a job page/);
+  assert.match((pickAshbyJob(jobs, { org: 'x', jobId: null }, undefined) as { error: string }).error, /board's index/);
+});
+
+test('ashbyPostingText reads like a page: title, place, then the body as text — and a thin body is refused', () => {
+  const body = `<p>${'We build things. '.repeat(20)}</p><ul><li>Go</li><li>Kubernetes</li></ul>`;
+  const r = ashbyPostingText({ title: 'Staff Engineer', location: 'Remote (US)', descriptionHtml: body });
+  assert.ok(r.ok);
+  assert.match(r.text, /^Staff Engineer\nRemote \(US\)\n\nWe build things\./);
+  assert.match(r.text, /• Go\n• Kubernetes/);
+  assert.equal(ashbyPostingText({ title: 'Staff Engineer', location: null, descriptionHtml: '<p>short</p>' }).ok, false);
 });

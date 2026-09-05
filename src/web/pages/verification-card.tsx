@@ -160,6 +160,33 @@ export const VerificationCard: FC<VerificationCardProps> = ({
               </p>
             </div>
           )}
+
+          {verification.postingUrl && (
+            <div>
+              <div class="mb-1.5 text-[13px] font-medium text-ink-muted">Company's own listing</div>
+              <div class="flex flex-wrap items-center gap-2">
+                <a
+                  href={verification.postingUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="break-all font-mono text-xs text-accent-strong transition-colors duration-150 hover:text-accent-deep"
+                >
+                  {verification.postingUrl.replace(/^https?:\/\//, '').slice(0, 80)}
+                </a>
+                {!run && (
+                  <ActionForm action={`/jobs/${jobId}/description/refresh`}>
+                    <Button variant="secondary" size="sm">
+                      Refresh the description from it
+                    </Button>
+                  </ActionForm>
+                )}
+              </div>
+              <Hint class="mt-1.5">
+                Reads that page and shows the difference before anything is replaced — for a posting that arrived
+                truncated from an aggregator or was pasted in part. The stored text is kept.
+              </Hint>
+            </div>
+          )}
         </div>
       )}
       {!verification && (

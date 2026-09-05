@@ -134,16 +134,21 @@ model Company {
 }
 
 model Job {
-  id          Int      @id @default(autoincrement())
-  companyId   Int
-  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  externalId  String
-  title       String
-  url         String
-  location    String
-  description String   @db.Text
-  postedAt    DateTime
-  fetchedAt   DateTime @default(now())
+  id                     Int       @id @default(autoincrement())
+  companyId              Int
+  company                Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  externalId             String
+  title                  String
+  url                    String
+  location               String
+  description            String    @db.Text
+  // #162 stage 3 (ADR 0043): when the description was replaced with the
+  // company's own listing, the text it was stored with stays here and the
+  // swap is dated. NULL = never refreshed; "Restore the original" swaps back.
+  descriptionOriginal    String?   @db.Text
+  descriptionRefreshedAt DateTime?
+  postedAt               DateTime
+  fetchedAt              DateTime  @default(now())
 
   // ADR 0031: the structured reading of `location`, which itself is never
   // rewritten. REMOTE → countries are where the candidate may live;
@@ -679,6 +684,9 @@ model JobVerification {
   evidence        Json
   redFlags        String[] @default([])
   companySnapshot String?  @db.Text
+  // #162 stage 3 (ADR 0043): the company's OWN listing for this role when the
+  // careers-page check found one — the page "Refresh the description" reads.
+  postingUrl      String?
   createdAt       DateTime @default(now())
 
   @@index([jobId, createdAt])

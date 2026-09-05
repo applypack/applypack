@@ -274,7 +274,9 @@ src/
     reclassify-job.ts           ← runReclassifyAll + runScoreUnscored (web-triggered, async)
     score-pick.ts               ← pure ranking of unscored jobs by profile mentions (wizard step 4)
     classify-existing.ts        ← classify one stored job (Re-classify button, manual entry)
-    posting-url.ts              ← one user-requested posting-page GET → plain text (ADR 0005 blocklist, honest bot-check failure)
+    posting-url.ts              ← one user-requested posting-page GET → plain text (ADR 0005 blocklist, honest bot-check failure; an Ashby URL is read from its board API)
+    description-diff.ts         ← pure: what "Refresh the description" is about to do (sizes, folded diff rows, the flashes — ADR 0043)
+    description-refresh.ts      ← the swap: replace / restore Job.description, keep the original, re-fingerprint, re-classify
     manual-job.ts               ← pasted posting → MANUAL company + Job + classify (used by /jobs/new and /target)
     cron-run.ts                 ← recordCronRun(name, fn) wrapper
 
@@ -324,6 +326,7 @@ src/
       resume-match-card.tsx     ← "Resume match" card on /jobs/:id
       cover-letter-card.tsx     ← "Cover letter" card on /jobs/:id (F8, ADR 0021)
       verification-card.tsx     ← "Is this job real?" card on /jobs/:id
+      description-refresh.tsx   ← the line-by-line preview before a description is replaced with the company's listing (ADR 0043)
       job-new.tsx               ← /jobs/new (paste a posting)
       target-start.tsx          ← /target (paste posting + pick/upload/paste resume → one run)
       letter-start.tsx          ← /letter (job by pick/URL/paste + resume + optional match/verify → letter)

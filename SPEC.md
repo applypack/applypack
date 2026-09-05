@@ -451,7 +451,12 @@ search (`AiRequest.webTools`, ADR 0009) and stores a `JobVerification`:
 `verdict` legit | suspicious | fake, `recommendation` apply | caution |
 skip, confidence, evidence rows with URLs, red flags, company snapshot.
 The snapshot feeds the cover letter (ADR 0021) and, since 1.68.0, the full
-analysis and the suggestions as context — never evidence (ADR 0042).
+analysis and the suggestions as context — never evidence (ADR 0042). Since
+1.69.0 the verdict also records the company's own listing for the role
+(`postingUrl`), which "Refresh the description from it" reads: a diff, then
+on confirmation the stored text is replaced, the original kept next to it
+(`descriptionOriginal`, `descriptionRefreshedAt`), the posting re-classified
+and the next comparison's keyword frame read afresh (ADR 0043).
 
 ## Cover letters (F8, ADR 0021)
 

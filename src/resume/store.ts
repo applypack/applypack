@@ -545,13 +545,29 @@ export async function getLatestMatchForResumeAndJob(
   });
 }
 
-/** The newest rows that judged exactly this text for (job, resume) — the memo's candidates (match-reuse.ts:pickReusable). */
-export async function listMatchesForText(jobId: number, resumeId: number, text: string, take: number): Promise<ResumeMatch[]> {
+/**
+ * The newest rows that judged exactly this text for (job, resume) — the memo's
+ * candidates (match-reuse.ts:pickReusable). Rows from before `since` are left
+ * out: they judged a description the posting has since replaced (ADR 0043).
+ */
+export async function listMatchesForText(
+  jobId: number,
+  resumeId: number,
+  text: string,
+  take: number,
+  since: Date | null,
+): Promise<ResumeMatch[]> {
   return prisma.resumeMatch.findMany({
-    where: { jobId, resumeId, resumeText: text },
+    where: { jobId, resumeId, resumeText: text, ...(since ? { createdAt: { gt: since } } : {}) },
     orderBy: { createdAt: 'desc' },
     take,
   });
+}
+
+/** When the posting's description was last replaced with the company's listing or restored (ADR 0043); null = never. */
+export async function getPostingRefreshedAt(jobId: number): Promise<Date | null> {
+  const row = await prisma.job.findUnique({ where: { id: jobId }, select: { descriptionRefreshedAt: true } });
+  return row?.descriptionRefreshedAt ?? null;
 }
 
 /** Company facts researched by "Is this job real?" — the letter's only company source beyond the posting. */

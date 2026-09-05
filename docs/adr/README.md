@@ -51,6 +51,7 @@ consequences (what we accept). Aim for 15–30 lines each.
 - [0040 — The default source set is the aggregators; employer boards are starter packs](./0040-default-sources-are-the-aggregators.md) *(extends 0017)*
 - [0041 — Alerts go through a channel seam; Telegram and Discord are its first two channels](./0041-notification-channels.md)
 - [0042 — The verifier's company facts are context for the match, never evidence](./0042-company-facts-are-context-never-evidence.md) *(extends 0021 and 0037)*
+- [0043 — A posting refreshed from the company's own listing keeps its original and is re-judged](./0043-refresh-the-posting-from-the-companys-own-listing.md)
 
 ## When to write a new one
 

@@ -22,6 +22,11 @@ import { locationMismatchReason } from '../../jobs/location-reason';
 import { getActiveProfile, listActiveProfiles } from '../../profiles';
 import { isBlankProfile } from '../../profile-guards';
 import { createManualJob, ManualJobSchema, MIN_DESCRIPTION_CHARS } from '../../jobs/manual-job';
+import { fetchPostingText } from '../../jobs/posting-url';
+import { describeRefresh, foldOps, normaliseDescription, planRefresh, refreshFlash, restoreFlash } from '../../jobs/description-diff';
+import { refreshDescription, restoreDescription } from '../../jobs/description-refresh';
+import { loadLineDiff } from '../../resume/line-diff';
+import { DescriptionRefreshPage } from '../pages/description-refresh';
 import { checkLiveness, listVerificationsForJob, verifyJob } from '../../verification/verify';
 import { readEvidence } from '../../verification/prompts';
 import { addresseeFromFinding } from '../../resume/addressee';
@@ -494,6 +499,64 @@ jobsRoute.post('/jobs/:id/reclassify', async (c) => {
     logger.error({ err, jobId: id }, 'web: reclassify failed');
   }
   return c.redirect(`/jobs/${id}`, 303);
+});
+
+/**
+ * #162 stage 3 (ADR 0043): read the company's own listing the verifier
+ * found, show the difference, and only on the second POST replace the
+ * stored text — keeping it — and re-classify.
+ */
+jobsRoute.post('/jobs/:id/description/refresh', async (c) => {
+  const id = Number(c.req.param('id'));
+  if (!Number.isFinite(id)) return c.text('Bad id', 400);
+  const job = await prisma.job.findUnique({ where: { id }, include: { company: { select: { name: true } } } });
+  if (!job) return c.text('Not found', 404);
+  const back = `/jobs/${id}#verification`;
+  const [latest] = await listVerificationsForJob(id);
+  const url = latest?.postingUrl ?? null;
+  if (!url) {
+    return flashRedirect(back, 'warn', "The verification recorded no listing on the company's own site — run Verify (deep check) first.");
+  }
+  const fetched = await fetchPostingText(url, { title: job.title });
+  if (!fetched.ok) return flashRedirect(back, 'warn', `Could not read the company's listing: ${fetched.error}`);
+  const text = normaliseDescription(fetched.text);
+  const { diffLines } = await loadLineDiff();
+  const ops = diffLines(normaliseDescription(job.description), text);
+  const plan = planRefresh(job.description, text, ops, job.title);
+  if (plan.unchanged) return flashRedirect(back, 'ok', describeRefresh(plan));
+  return c.html(
+    <DescriptionRefreshPage
+      job={{ id, title: job.title, companyName: job.company.name }}
+      url={url}
+      plan={plan}
+      rows={foldOps(ops)}
+      text={text}
+    />,
+  );
+});
+
+jobsRoute.post('/jobs/:id/description', async (c) => {
+  const id = Number(c.req.param('id'));
+  if (!Number.isFinite(id)) return c.text('Bad id', 400);
+  const job = await prisma.job.findUnique({ where: { id }, include: { company: { select: { name: true, atsType: true } } } });
+  if (!job) return c.text('Not found', 404);
+  const form = await c.req.parseBody();
+  const text = typeof form.text === 'string' ? normaliseDescription(form.text) : '';
+  if (text.length < MIN_DESCRIPTION_CHARS) {
+    return flashRedirect(`/jobs/${id}#verification`, 'warn', 'The listing text is too short to be a posting — nothing was replaced.');
+  }
+  const swap = await refreshDescription(job, text);
+  return flashRedirect(`/jobs/${id}`, 'ok', refreshFlash(job.description.length, swap.job.description.length, swap.reclassified));
+});
+
+jobsRoute.post('/jobs/:id/description/restore', async (c) => {
+  const id = Number(c.req.param('id'));
+  if (!Number.isFinite(id)) return c.text('Bad id', 400);
+  const job = await prisma.job.findUnique({ where: { id }, include: { company: { select: { name: true, atsType: true } } } });
+  if (!job) return c.text('Not found', 404);
+  const swap = await restoreDescription(job);
+  if (!swap) return flashRedirect(`/jobs/${id}`, 'warn', 'Nothing to restore — the stored text is the original.');
+  return flashRedirect(`/jobs/${id}`, 'ok', restoreFlash(swap.job.description.length, swap.reclassified));
 });
 
 jobsRoute.post('/jobs/:id/verify', async (c) => {
