@@ -207,20 +207,36 @@ export function carryOverrides(
   previous: MatchKeyword[],
   ctx: KeywordEditContext,
 ): CarryReport {
-  const stored = new Map<string, MatchKeyword>();
+  // A stored override lands on ONE fresh row (#85): the row that spells its
+  // term exactly, or — only when none does — the first row it reaches through
+  // an alias. A rebuilt frame may split one concept into three rows, and one
+  // decision must not move the score three times.
+  const byTerm = new Map<string, MatchKeyword>();
+  const byAlias = new Map<string, MatchKeyword>();
   for (const k of previous) {
     if (!k.override) continue;
-    for (const name of names(k)) if (!stored.has(name)) stored.set(name, k);
+    const term = canonicalTerm(k.term);
+    if (!byTerm.has(term)) byTerm.set(term, k);
+    for (const alias of k.aliases) if (!byAlias.has(alias)) byAlias.set(alias, k);
   }
+  const bare = fresh.map(withoutOverride);
+  const used = new Set<MatchKeyword>();
+  const hits: (MatchKeyword | undefined)[] = bare.map(() => undefined);
+  const claim = (i: number, hit: MatchKeyword | undefined) => {
+    if (hit && !used.has(hit)) {
+      used.add(hit);
+      hits[i] = hit;
+    }
+  };
+  bare.forEach((k, i) => claim(i, byTerm.get(canonicalTerm(k.term))));
+  bare.forEach((k, i) => {
+    if (hits[i]) return;
+    claim(i, names(k).map((n) => byTerm.get(n) ?? byAlias.get(n)).find((s) => s !== undefined && !used.has(s)));
+  });
   let carried = 0;
-  const seen = new Set<MatchKeyword>();
-  const keywords = fresh.map((raw) => {
-    const k = withoutOverride(raw);
-    const hit = names(k)
-      .map((n) => stored.get(n))
-      .find((s) => s !== undefined);
+  const keywords = bare.map((k, i) => {
+    const hit = hits[i];
     if (!hit) return k;
-    seen.add(hit);
     // The model judged this one itself now, so "added" retires — but the level
     // the user picked for it is still theirs and rides on as an override. It
     // is kept even when this reply happens to agree: the point of an override
@@ -235,7 +251,7 @@ export function carryOverrides(
   });
   let readded = 0;
   for (const k of previous) {
-    if (!k.override?.added || seen.has(k)) continue;
+    if (!k.override?.added || used.has(k)) continue;
     readded++;
     const found = ctx.matcher.findTerm(ctx.resumeText, k.term, k.aliases).length > 0;
     keywords.push({
