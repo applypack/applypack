@@ -846,3 +846,12 @@ test('a malformed structure costs the block, never the scan', () => {
   assert.equal(parsed.data.structure, undefined);
   assert.equal(parsed.data.title, 'Senior');
 });
+
+test('the letter greets the addressee the card names, and the rule says how (#162 stage 4)', () => {
+  const job = { title: 'Backend Engineer', companyName: 'Acme', location: 'Remote', description: 'PHP.' };
+  const { system, user } = buildCoverPrompt('RESUME BODY', job, { tone: 'warm', addressee: 'Ben Davies' });
+  assert.match(system, /Greeting: "Hi \{name\}," when an ADDRESSEE line names a person below — the first name alone is fine/);
+  assert.match(user, /ADDRESSEE \(greet this person by name; say nothing else about them\): Ben Davies/);
+  const { user: without } = buildCoverPrompt('RESUME BODY', job, { tone: 'warm' });
+  assert.doesNotMatch(without, /ADDRESSEE/);
+});

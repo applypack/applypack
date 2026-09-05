@@ -46,7 +46,7 @@ export type CoverOutcome =
 export async function generateCoverLetter(
   resume: { id: number; text: string; version: number },
   job: MatchJobInput & { id: number },
-  opts: { tone: CoverTone; angles?: CoverAngles },
+  opts: { tone: CoverTone; angles?: CoverAngles; addressee?: string },
 ): Promise<CoverOutcome> {
   const started = Date.now();
   const [facts, match, companySnapshot] = await Promise.all([
@@ -57,6 +57,7 @@ export async function generateCoverLetter(
   const context: CoverContext = {
     tone: opts.tone,
     angles: opts.angles,
+    addressee: opts.addressee,
     confirmedFacts: facts
       .filter((f) => f.status === 'confirmed')
       .map((f) => ({ term: f.term, note: f.note })),
@@ -86,7 +87,8 @@ export async function generateCoverLetter(
       text: letter,
       sources,
       facts,
-      addressee: job.companyName,
+      // The greeting's words are not claims about the writer (#162 stage 4).
+      addressee: [opts.addressee, job.companyName].filter(Boolean).join(' '),
     });
     const words = countWords(letter);
     const violations = [

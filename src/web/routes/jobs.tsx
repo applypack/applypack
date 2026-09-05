@@ -23,6 +23,8 @@ import { getActiveProfile, listActiveProfiles } from '../../profiles';
 import { isBlankProfile } from '../../profile-guards';
 import { createManualJob, ManualJobSchema, MIN_DESCRIPTION_CHARS } from '../../jobs/manual-job';
 import { checkLiveness, listVerificationsForJob, verifyJob } from '../../verification/verify';
+import { readEvidence } from '../../verification/prompts';
+import { addresseeFromFinding } from '../../resume/addressee';
 import { LIVENESS_CODE_LABEL } from '../../verification/liveness';
 import { JobsListPage } from '../pages/jobs-list';
 import { JobDetailPage } from '../pages/job-detail';
@@ -409,6 +411,7 @@ jobsRoute.get('/jobs/:id', async (c) => {
         selected: selectedLetter,
         hasCompanyFacts: Boolean(verifications[0]?.companySnapshot?.trim()),
         angles: readCoverAngles(settings.coverAngles),
+        addressee: addresseeFromVerification(verifications[0]?.evidence, job.company.name),
         quickCheck,
       }}
       flash={flashCookie}
@@ -720,6 +723,8 @@ jobsRoute.post('/jobs/:id/cover', async (c) => {
   // form omits it and REUSES the saved values, so a bare regenerate never
   // wipes them.
   const fromForm = form.saveAngles === '1';
+  // Per letter, never saved with the angles: a regenerate carries the name its letter greeted.
+  const addressee = angle(form.addressee, 80);
   const angles = fromForm
     ? {
         whyCompany: angle(form.whyCompany),
@@ -739,7 +744,7 @@ jobsRoute.post('/jobs/:id/cover', async (c) => {
 
   // Tone and angles are part of the request: a second Generate with a
   // different tone is different work, not the same work twice.
-  const { run, joined } = claimRun(`cover:${id}:${resume.id}:${tone}:${hashShortId(JSON.stringify(angles))}`, {
+  const { run, joined } = claimRun(`cover:${id}:${resume.id}:${tone}:${hashShortId(JSON.stringify({ angles, addressee }))}`, {
     steps: ['letter'],
     jobTitle: job.title,
     resumeName: resume.name,
@@ -750,7 +755,7 @@ jobsRoute.post('/jobs/:id/cover', async (c) => {
     const outcome = await generateCoverLetter(
       { id: resume.id, text: resume.text, version: resume.version },
       { id: job.id, title: job.title, companyName: job.company.name, location: job.location, description: job.description },
-      { tone, angles },
+      { tone, angles, addressee },
     );
     if (outcome.kind === 'ok') {
       updateRun(run.id, {
@@ -939,6 +944,12 @@ jobsRoute.post('/jobs/:id/target/reupload', async (c, next) => resumeUploadLimit
     instantCheckNotice(upload.sourceFilename, ms),
   );
 });
+
+/** The person the verifier found, as the letter's prefilled greeting, with the finding beside it (#162 stage 4). */
+function addresseeFromVerification(evidence: unknown, companyName: string): { suggested: string | null; finding: string | null } {
+  const finding = readEvidence(evidence).find((e) => e.check === 'named_humans' && e.signal === 'legit')?.finding.trim() ?? null;
+  return { suggested: finding ? addresseeFromFinding(finding, companyName) : null, finding };
+}
 
 /** The analysis a re-upload is checked against: the one the page showed, else the resume's latest for the job. */
 async function frameFor(jobId: number, resumeId: number, matchId: number) {

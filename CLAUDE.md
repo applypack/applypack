@@ -355,7 +355,7 @@ When the question is **"how does the user toggle / configure X?"**:
 | Paste a posting the fetchers don't see | `/jobs` → "+ Paste a job" (`/jobs/new`) |
 | Compare a pasted posting with any resume in one step | menu → Compare (`/target`): paste posting, pick / upload / paste resume, Compare |
 | Check whether a posting is real | `/jobs/:id` → "Is this job real?" → Verify (web search, 2-4 min) |
-| Draft / edit / copy a cover letter | `/jobs/:id` → "Cover letter" card (Generate / Regenerate; edits autosave and re-check facts) |
+| Draft / edit / copy a cover letter | `/jobs/:id` → "Cover letter" card (Generate / Regenerate; edits autosave and re-check facts); **Addressed to** greets a person by name — prefilled from the verification's `named_humans` finding (`resume/addressee.ts`, pure), editable, the finding shown beside it |
 | Standing angle inputs for letters (typed once, remembered) | `/jobs/:id` → Cover letter card → "Angle" — saved to `AppSettings.coverAngles` on every Generate |
 | Write a letter for a NEW posting (searchable picker / URL / paste; match & research opt-in) | menu → Cover letter (`/letter`) |
 | Download a letter as .pdf / .docx | `/jobs/:id` → Cover letter card → PDF / DOCX buttons |

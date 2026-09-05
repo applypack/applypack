@@ -213,7 +213,7 @@ export type { MatchAlignment };
 
 export const COVER_MAX_TOKENS = 2_000;
 /** Bumped whenever COVER_SYSTEM changes materially; stored on every letter. */
-export const COVER_PROMPT_VERSION = 3;
+export const COVER_PROMPT_VERSION = 4;
 
 export const COVER_TONES = ['neutral', 'warm', 'direct'] as const;
 export type CoverTone = (typeof COVER_TONES)[number];
@@ -569,7 +569,7 @@ NOTHING INVENTED — the one rule everything else serves. A deterministic fact c
 - ANGLE input from the candidate steers which TRUE story to emphasise; it is NOT evidence. A number or achievement that appears only in the angle text stays out of the letter. When the angle asks for specific points to be mentioned, work them in where they fit naturally — but numbers, employers, titles and tools still need the resume or confirmed facts behind them.
 
 SHAPE — modeled on the candidate's real letters. 120-180 words of body text; NEVER exceed 200.
-1. Greeting: "Hi {company} team," using the company's real name.
+1. Greeting: "Hi {name}," when an ADDRESSEE line names a person below — the first name alone is fine, no title invented for them — else "Hi {company} team," using the company's real name.
 2. Opening paragraph: name the exact role, then who the candidate is in one or two sentences — seniority, core stack, the kind of systems they build — anchored by the single sharpest matching fact from the resume. The first two sentences must hand the reader one concrete reason to keep reading.
 3. Middle paragraph: why this company or this role — one specific thing from the posting or the verified facts — and what the candidate would bring, using the posting's own vocabulary for technologies the resume genuinely evidences.
 4. Closing: one sentence — thanks plus availability to talk.
@@ -857,6 +857,8 @@ export interface CoverContext {
   /** JobVerification.companySnapshot — the only company-facts source beyond the posting. */
   companySnapshot?: string | null;
   angles?: CoverAngles;
+  /** The person the letter greets — typed on the card, prefilled from the verification (#162 stage 4). */
+  addressee?: string;
   /** Fact-gate reasons from a rejected draft — present only on the one regeneration. */
   violations?: string[];
 }
@@ -926,6 +928,10 @@ export function buildCoverPrompt(
       ...angles.map((a) => `- ${a.label}: ${a.text}`),
       '',
     );
+  }
+  // The candidate's own choice, like the angles — outside every fence.
+  if (ctx.addressee?.trim()) {
+    lines.push(`ADDRESSEE (greet this person by name; say nothing else about them): ${ctx.addressee.trim()}`, '');
   }
   lines.push(
     `TONE: ${ctx.tone}`,

@@ -4,6 +4,18 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.67.0] — 2026-09-05
+
+### Added
+- **The cover letter greets the person the verifier found.** "Is this job
+  real?" records a named recruiter or hiring manager under `named_humans`;
+  the Cover letter card's new **Addressed to** field is prefilled with that
+  name (read out of the finding by shape, the finding shown beside it, the
+  field editable) and the letter opens "Hi Ben Davies," instead of "Hi
+  Hospitable team," (#162 stage 4). The name is a greeting, never a claim:
+  the fact gate skips it as it skips the company's name. Regenerate keeps
+  the name the letter greeted. Cover prompt v4.
+
 ## [1.66.0] — 2026-09-05
 
 ### Changed
@@ -2625,6 +2637,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[1.67.0]: https://github.com/applypack/applypack/compare/v1.66.0...v1.67.0
 [1.66.0]: https://github.com/applypack/applypack/compare/v1.65.0...v1.66.0
 [1.65.0]: https://github.com/applypack/applypack/compare/v1.64.0...v1.65.0
 [1.64.0]: https://github.com/applypack/applypack/compare/v1.63.0...v1.64.0
