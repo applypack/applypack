@@ -74,6 +74,7 @@ import {
   type SourceKeyField,
   type SourceKeys,
 } from '../../source-keys';
+import { groupSources, type SourceCount } from '../source-groups';
 import { testAiEngine } from '../ai-test';
 import {
   blankProfileInput,
@@ -233,6 +234,15 @@ async function loadSettingsProps() {
     return a.enabled ? a.position - b.position : 0;
   });
   const primary = engine.chain[0]!;
+  // What actually runs on this install, per family (#147): the enum is the
+  // menu, the Company rows are the order.
+  const sourceCounts: Record<string, SourceCount> = {};
+  for (const row of await prisma.company.groupBy({ by: ['atsType', 'active'], _count: { _all: true } })) {
+    const c = (sourceCounts[row.atsType] ??= { companies: 0, active: 0 });
+    c.companies += row._count._all;
+    if (row.active) c.active += row._count._all;
+  }
+  const keys = await getSourceKeys();
   const aiStatus = {
     active: AI_PROVIDER_LABELS[primary],
     chain: engine.chain.map((id) => AI_PROVIDER_LABELS[id]),
@@ -256,8 +266,12 @@ async function loadSettingsProps() {
     staleApplicationsDigestEnabled: settings.staleApplicationsDigestEnabled,
     sourceHealthAlerts: settings.sourceHealthAlerts,
     disabledSources: settings.disabledSources,
-    allSources: Object.values(AtsType).filter((t) => t !== AtsType.MANUAL),
-    sourceKeyRows: sourceKeyRows(await getSourceKeys()),
+    sourceGroups: groupSources(
+      Object.values(AtsType).filter((t) => t !== AtsType.MANUAL),
+      sourceCounts,
+      KEYED_SOURCES.filter((s) => !sourceUnlocked(s, keys)),
+    ),
+    sourceKeyRows: sourceKeyRows(keys),
     fetchingEnabled: settings.fetchingEnabled,
     schedule: scheduleView,
     aiEngines,
