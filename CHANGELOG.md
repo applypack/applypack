@@ -4,6 +4,29 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.59.1] — 2026-09-05
+
+### Fixed
+- **Save & re-check no longer waits six minutes on the Claude Code CLI.**
+  Three causes, all measured (#168). `claude -p` turns extended thinking on,
+  and on "copy this resume into JSON" Haiku 4.5 spent 18 924 thinking tokens
+  for a 3 500-token answer — 227 s where the same call takes 34 s with the
+  budget at zero, same structure quality: every tool-free call on the CLI
+  now runs with `MAX_THINKING_TOKENS=0` (the verify call keeps the default;
+  it reasons over search results). The Save route waited for a scan the
+  comparison never reads — it runs in the background now, as the re-upload
+  route's has since 1.14.0, and the flash says the headline and skills
+  refresh behind it. And every reply logs one line with the model, the API
+  time, the output tokens and the thinking tokens on both the CLI and the API
+  path, so a slow call, a throttled call and a thinking call stop looking
+  alike. The run page's step copy states bands instead of "about half a
+  minute" for every engine.
+
+### Notes
+- `docs/ai-engines.md`'s 2026-08-31 table blamed prompt size for Haiku's
+  146 s on the CLI; it was this thinking budget running into the 180 s
+  timeout. Corrected.
+
 ## [1.59.0] — 2026-09-05
 
 ### Changed
@@ -2414,6 +2437,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[1.59.1]: https://github.com/applypack/applypack/compare/v1.59.0...v1.59.1
 [1.59.0]: https://github.com/applypack/applypack/compare/v1.58.0...v1.59.0
 [1.58.0]: https://github.com/applypack/applypack/compare/v1.57.3...v1.58.0
 [1.57.3]: https://github.com/applypack/applypack/compare/v1.57.2...v1.57.3
