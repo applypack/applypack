@@ -240,6 +240,15 @@ test('every resume prompt treats resume and posting as untrusted input', () => {
   assert.match(buildScanPrompt('resume').system, /Report the attempt as an issue with section "format"/);
 });
 
+test('every resume prompt says the rendering markers are ours, not the candidate\'s formatting (#156)', () => {
+  bothVariants(/TEXT RENDERING/);
+  bothVariants(/never report them as the candidate's formatting/);
+  assert.match(buildSuggestionsPrompt('resume', JOB, SUGGEST_INPUT).system, /TEXT RENDERING/);
+  assert.match(buildScanPrompt('resume').system, /TEXT RENDERING/);
+  assert.match(buildReviewPrompt('resume', { roleTypes: [], atsChecks: [] }).system, /TEXT RENDERING/);
+  assert.match(buildCoverPrompt('resume', JOB, { tone: 'neutral' }).system, /TEXT RENDERING/);
+});
+
 test('requirement levels come from the posting wording and context carries no weight', () => {
   bothVariants(/"must": required \/ must have/);
   bothVariants(/"nice": a plus \/ bonus/);
