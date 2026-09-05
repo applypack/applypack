@@ -341,7 +341,8 @@ export const WatchlistSection: FC<{ rows: WatchedRow[] }> = ({ rows }) => {
       <Table
         columns={['Company', 'Checked', 'Alerts', 'Next check', 'New', '']}
         widths={['w-[24%]', 'w-[16%]', 'w-[16%]', 'w-[13%]', 'w-[7%]', 'w-[24%]']}
-        thClasses={['', '', '', 'hidden sm:table-cell', '', 'text-right']}
+        hideBelow={['', '', '', 'sm', '', '']}
+        thClasses={['', '', '', '', '', 'text-right']}
       >
         {rows.map((r) => (
           <Tr>
@@ -378,7 +379,7 @@ export const WatchlistSection: FC<{ rows: WatchedRow[] }> = ({ rows }) => {
                 </form>
               )}
             </Td>
-            <Td class="hidden whitespace-nowrap text-ink-muted sm:table-cell">
+            <Td class="whitespace-nowrap text-ink-muted">
               {r.nextCheckAt === null ? 'next tick' : formatUntil(r.nextCheckAt)}
             </Td>
             <Td class="whitespace-nowrap">

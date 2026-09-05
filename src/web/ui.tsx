@@ -3,6 +3,7 @@ import type { Child, FC, PropsWithChildren } from 'hono/jsx';
 import type { JobStatus } from '@prisma/client';
 import { fitTone, statusLabel, statusTone, type Tone } from './format';
 import type { FlashKind, FlashMessage } from './flash';
+import { hideCellsClass, hideHeaderClass, type HideBelow } from './table-hide';
 
 /*
  * Shared primitives. Every page composes these instead of writing raw
@@ -295,16 +296,17 @@ export const Table: FC<
     /** Proportional column widths (`w-[34%]`, …) with table-fixed layout. */
     widths?: string[];
     /**
-     * Per-column classes on the `th` itself — the only place a responsive
-     * `hidden sm:table-cell` can live, since a class on the label inside
-     * still leaves the cell occupying its column. Pair each entry with the
-     * same class on that column's `Td`.
+     * Per column, the breakpoint below which it leaves the table — header and
+     * cells alike, from this one declaration (table-hide.ts, #77). '' keeps
+     * a column always on.
      */
+    hideBelow?: HideBelow;
+    /** Per-column classes on the `th` itself (alignment and the like). */
     thClasses?: string[];
   }>
-> = ({ columns, stickyHeader = false, widths, thClasses, children }) => {
+> = ({ columns, stickyHeader = false, widths, hideBelow, thClasses, children }) => {
   const table = (
-    <table class={`w-full text-sm ${widths ? 'table-fixed' : ''}`}>
+    <table class={`w-full text-sm ${widths ? 'table-fixed' : ''} ${hideCellsClass(hideBelow)}`}>
       <thead>
         <tr class="text-left text-xs font-medium text-ink-muted">
           {columns.map((c, i) => (
@@ -312,7 +314,7 @@ export const Table: FC<
               scope="col"
               class={`bg-surface-overlay px-2.5 py-2.5 font-medium first:rounded-tl-none first:pl-3.5 last:pr-3.5 sm:px-4 sm:first:pl-5 sm:last:pr-5 ${
                 widths?.[i] ?? ''
-              } ${thClasses?.[i] ?? ''} ${
+              } ${hideHeaderClass(hideBelow, i)} ${thClasses?.[i] ?? ''} ${
                 stickyHeader
                   ? 'sticky top-0 z-10 shadow-[inset_0_-1px_0_rgb(var(--line))]'
                   : 'border-b border-line'
