@@ -236,12 +236,15 @@ welcomeRoute.post('/welcome/profile/apply', async (c) => {
   if (!profile) return flashRedirect(PROFILE_STEP, 'err', 'No primary search — create one in Settings → Profile.');
   if (!resume || !resume.scannedAt) return flashRedirect(PROFILE_STEP, 'err', 'That resume has not been read yet.');
   const draft = buildProfileDraft(profile, scanFields(resume));
-  await updateProfile(profile.id, { ...profileInput(profile), ...draft.changes });
+  // The search is built from this resume, so it hunts with it (#158) — the
+  // same link the settings route proposes when it fills from a resume.
+  await updateProfile(profile.id, { ...profileInput(profile), ...draft.changes, resumeId: resume.id });
+  const changed = profile.resumeId === resume.id ? draft.changed : [...draft.changed, 'resume for this search'];
   return flashRedirect(
     MATCHES_STEP,
     'ok',
-    draft.changed.length > 0
-      ? `Profile filled from "${resume.name}" — ${draft.changed.join(', ')}. Adjust it any time in Settings → Profile.`
+    changed.length > 0
+      ? `Profile filled from "${resume.name}" — ${changed.join(', ')}. Adjust it any time in Settings → Profile.`
       : `Profile already matched "${resume.name}".`,
   );
 });
