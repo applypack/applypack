@@ -20,7 +20,7 @@ export async function scanResume(resume: { id: number; text: string }): Promise<
   const scan = answer.data;
   await saveResumeScan(resume.id, scan, guardStructure(resume, scan));
   logger.info(
-    { id: resume.id, skills: scan.skills.length, issues: scan.issues.length, attempt: answer.attempt, ms: answer.ms },
+    { id: resume.id, skills: scan.skills.length, issues: scan.issues.length, attempt: answer.attempt, chars: answer.chars, ms: answer.ms },
     'resume: scanned',
   );
   return scan;

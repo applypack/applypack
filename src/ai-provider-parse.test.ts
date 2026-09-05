@@ -8,6 +8,8 @@ import {
   buildCodexCliArgs,
   buildGeminiCliArgs,
   CLI_PROVIDER_ENV_KEYS,
+  CLI_THINKING_CAP_ENV,
+  cliThinkingCap,
   describeAiFailure,
   parseClaudeCodeOutput,
   parseCodexCliOutput,
@@ -262,4 +264,23 @@ test('the largest answer budget keeps its full headroom under the SDK non-stream
 
 test('anthropicMaxTokens never asks for more than a non-streaming request may carry', () => {
   assert.ok(anthropicMaxTokens(100_000) <= 21_333);
+});
+
+test('the CLI reply keeps what the call spent — API time, output and thinking tokens, turns (#168)', () => {
+  const raw = JSON.stringify({
+    type: 'result', subtype: 'success', is_error: false, result: '{}',
+    duration_api_ms: 33_812, num_turns: 1,
+    usage: { output_tokens: 3_512, output_tokens_details: { thinking_tokens: 0 } },
+  });
+  assert.deepEqual(parseClaudeCodeOutput(raw).usage, { apiMs: 33_812, outputTokens: 3_512, thinkingTokens: 0, turns: 1 });
+  assert.deepEqual(parseClaudeCodeOutput(ok('{}')).usage, { apiMs: undefined, outputTokens: undefined, thinkingTokens: undefined, turns: undefined });
+});
+
+test('tool-free CLI calls get the thinking cap; the verify call keeps the CLI default', () => {
+  assert.deepEqual(cliThinkingCap(false), { MAX_THINKING_TOKENS: '0' });
+  assert.deepEqual(cliThinkingCap(undefined), { MAX_THINKING_TOKENS: '0' });
+  assert.deepEqual(cliThinkingCap(true), {});
+  assert.ok(CLI_PROVIDER_ENV_KEYS.claude_code?.includes(CLI_THINKING_CAP_ENV), 'the allowlist must let the cap through');
+  const env = buildCliEnv(CLI_PROVIDER_ENV_KEYS.claude_code ?? [], { PATH: '/bin', ...cliThinkingCap(false) });
+  assert.equal(env.MAX_THINKING_TOKENS, '0');
 });

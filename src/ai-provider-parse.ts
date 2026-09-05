@@ -13,13 +13,30 @@ const ClaudeCodeResultSchema = z.object({
   is_error: z.boolean(),
   result: z.string().optional(),
   api_error_status: z.number().nullable().optional(),
+  duration_api_ms: z.number().optional(),
+  num_turns: z.number().optional(),
+  usage: z
+    .object({
+      output_tokens: z.number().optional(),
+      output_tokens_details: z.object({ thinking_tokens: z.number().optional() }).optional(),
+    })
+    .optional(),
 });
+
+/** What one CLI call spent — logged per call, so a slow call, a throttled call and a thinking call stop looking alike (#168). */
+export interface CliUsage {
+  apiMs?: number;
+  outputTokens?: number;
+  thinkingTokens?: number;
+  turns?: number;
+}
 
 export interface CliOutcome {
   text: string | null;
   /** True for 429 / overloaded / quota — the caller may retry later. */
   rateLimited: boolean;
   error: string | null;
+  usage?: CliUsage;
 }
 
 const RATE_LIMIT_STATUS = 429;
@@ -82,7 +99,17 @@ export function parseClaudeCodeOutput(raw: string): CliOutcome {
       r.api_error_status === RATE_LIMIT_STATUS || RATE_LIMIT_PATTERN.test(message);
     return { text: null, rateLimited, error: `claude-code: ${message}` };
   }
-  return { text: r.result ?? '', rateLimited: false, error: null };
+  return {
+    text: r.result ?? '',
+    rateLimited: false,
+    error: null,
+    usage: {
+      apiMs: r.duration_api_ms,
+      outputTokens: r.usage?.output_tokens,
+      thinkingTokens: r.usage?.output_tokens_details?.thinking_tokens,
+      turns: r.num_turns,
+    },
+  };
 }
 
 /**
@@ -97,8 +124,21 @@ const CLI_BASE_ENV_KEYS = [
   'PATH', 'HOME', 'SHELL', 'TERM', 'USER', 'LOGNAME', 'TMPDIR', 'LANG', 'LC_ALL', 'TZ',
 ] as const;
 
+/**
+ * `claude -p` turns extended thinking on, and on "copy this resume into JSON"
+ * Haiku 4.5 spent ~19 000 thinking tokens for a 3 500-token answer — 227 s
+ * where the same call answers in 34 s with the budget at zero, same structure
+ * quality (#168). Every tool-free call gets the cap; the verify call keeps
+ * the CLI's default, it reasons over search results.
+ */
+export const CLI_THINKING_CAP_ENV = 'MAX_THINKING_TOKENS';
+
+export function cliThinkingCap(webTools: boolean | undefined): Record<string, string> {
+  return webTools ? {} : { [CLI_THINKING_CAP_ENV]: '0' };
+}
+
 export const CLI_PROVIDER_ENV_KEYS: Partial<Record<AiProviderId, readonly string[]>> = {
-  claude_code: ['CLAUDE_CODE_OAUTH_TOKEN', 'CLAUDE_CONFIG_DIR'],
+  claude_code: ['CLAUDE_CODE_OAUTH_TOKEN', 'CLAUDE_CONFIG_DIR', CLI_THINKING_CAP_ENV],
   gemini_cli: [
     'GEMINI_API_KEY',
     'GOOGLE_GENAI_USE_VERTEXAI',

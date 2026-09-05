@@ -180,7 +180,7 @@ works on macOS too.)
   failed` lists the chain that was tried. Jobs are retried on the next
   cron tick; nothing is lost.
 
-## Measured: Haiku through the Claude Code CLI cannot hold the cover-letter prompt
+## Measured: the Claude Code CLI thinks before it answers — and Haiku thinks a lot
 
 Benchmarked 2026-08-31 on one job + one resume, cover-letter role only:
 
@@ -193,14 +193,31 @@ Benchmarked 2026-08-31 on one job + one resume, cover-letter role only:
 | claude_code | haiku-4.5 | 146 s / timeout | unreliable |
 | claude_code | `haiku` alias | 2 x 180 s timeout | **failed, no letter** |
 
-The CLI is killed by our own 180 s per-attempt timeout (`code: 143,
-killed: true`), and the alias behaves the same as the dated id, so this is
-not a model-id problem. The classifier runs haiku through the same CLI all
-day without trouble — the difference is prompt size: the letter sends ~10 KB
-of system prompt plus the whole resume, the classifier sends a fraction of
-that.
+The 2026-08-31 reading of this table — "the difference is prompt size" — was
+wrong, and #168 measured the real cause on 2026-09-05 with the resume-scan
+prompt (6.2 KB system + 5.8 KB user), one call at a time:
 
-**Practical rule:** for the cover-letter role pick opus or sonnet on
-`claude_code`, or use `anthropic_api` (fastest of all). Leaving the Cover
-letter slot empty is safe — it inherits the resume model, which is opus by
-default.
+| Lane | Wall | Output tokens | of which thinking |
+|---|---:|---:|---:|
+| claude_code + haiku-4.5, CLI defaults | **227 s** | 22 515 | **18 924** |
+| claude_code + haiku-4.5, `MAX_THINKING_TOKENS=0` | **34 s** | 3 512 | 0 |
+| claude_code + opus-5, CLI defaults | 69 s | 6 975 | 2 020 |
+| anthropic_api + haiku-4.5 | 41 s | 4 106 | 0 |
+
+Every lane generates at ~100 tokens/s; `claude -p` turns extended thinking
+on, and on "copy this resume into JSON" Haiku spends ~19 000 tokens thinking
+for a 3 500-token answer. The 146 s / timeout row above was the same thing
+running into our own 180 s per-attempt timeout.
+
+**What the app does now (v1.59.1):** every tool-free call on `claude_code`
+runs the child with `MAX_THINKING_TOKENS=0` (`src/ai-provider-parse.ts:
+cliThinkingCap`); the verify call keeps the CLI's default, because it
+reasons over search results. One `ai: reply` line per call names the model,
+the API time, the output tokens and the thinking tokens on both the CLI and
+the API path, so a slow call, a throttled call and a thinking call no longer
+look alike in `docker compose logs web`.
+
+**Practical rule:** Opus or Sonnet still judge resumes better than Haiku;
+pick them for the resume and cover-letter roles on `claude_code`, or use
+`anthropic_api` (fastest of all). Leaving the Cover letter slot empty is
+safe — it inherits the resume model, which is opus by default.
