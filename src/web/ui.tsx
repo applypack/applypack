@@ -132,12 +132,14 @@ export const Flash: FC<PropsWithChildren<{ flash?: FlashMessage | null }>> = ({ 
     </div>
   ) : null;
 
-export const Card: FC<PropsWithChildren<{ class?: string; flush?: boolean }>> = ({
+export const Card: FC<PropsWithChildren<{ class?: string; flush?: boolean; id?: string }>> = ({
   children,
   class: className = '',
   flush = false,
+  id,
 }) => (
   <section
+    id={id}
     class={`rounded-lg border border-line bg-surface-raised shadow-sm ${
       flush ? 'overflow-hidden' : 'p-5'
     } ${className}`}
