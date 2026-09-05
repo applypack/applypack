@@ -4,6 +4,23 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.55.2] — 2026-09-04
+
+### Fixed
+- **The wizard's search now hunts with the resume it was built from.** Step 3
+  filled the primary search from the uploaded resume and left
+  `Profile.resumeId` empty, so every Compare afterwards guessed the resume
+  by skill overlap — right by luck with one resume, a coin toss with three
+  (#158). The apply step links it, as filling from a resume on Settings
+  already did.
+- **"Fill from a resume" no longer drafts an 86-chip nice-to-have list.**
+  Every skill the scan found went into the list the classifier is told to
+  raise the score for — `git`, `jira`, `agile`, `scrum` included — and cost
+  717 characters of prompt per search on every classification (#157). The
+  draft keeps the first 20 skills after the required stack, drops universal
+  tooling, and says so above the chips. Measured on the four stored resumes:
+  86 → 20, 19 → 19, 15 → 14, 19 → 18.
+
 ## [1.55.1] — 2026-09-04
 
 ### Fixed
@@ -2266,6 +2283,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[1.55.2]: https://github.com/applypack/applypack/compare/v1.55.1...v1.55.2
 [1.55.1]: https://github.com/applypack/applypack/compare/v1.55.0...v1.55.1
 [1.55.0]: https://github.com/applypack/applypack/compare/v1.54.1...v1.55.0
 [1.54.1]: https://github.com/applypack/applypack/compare/v1.54.0...v1.54.1
