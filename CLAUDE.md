@@ -268,6 +268,7 @@ When the question is **"where does X live?"**, save yourself a `find`:
 | The match-score formula (weights, alignment points, primary-stack cap) | `src/resume/score.ts` (ADR 0012) — mirrored in `src/web/public/score.mjs`, parity test `src/web/score.test.ts` |
 | Quick check vs full analysis (which prompt variant runs, what a stored row holds) | `src/resume/match-mode.ts` (pure) + the `MATCH_STEPS` / `MATCH_OUTPUT` tables in `src/resume/prompts.ts` (ADR 0029) |
 | "Get suggestions" on a quick check (the lazy second call) | `src/resume/suggestions.ts` + `buildSuggestionsPrompt`; run wiring `src/web/suggestions-run.ts`, route `POST /jobs/:id/matches/:matchId/suggestions` |
+| Running the whole compare pipeline against a real stored row (brief, frame, every action's wording, every removal's quote) | `npm run verify:compare -- <jobId> <resumeId> [fast\|full]` → `src/scripts/verify-brief-once.ts`; spends AI and writes rows, so it is a hand-run check, never CI |
 | Comparing models / modes on the gold fixtures | `npm run bench:resume -- --model <id> --mode fast\|full --out f.json`, then `--table a.json b.json` (pure renderer `src/resume/bench-report.ts`) |
 | What counts as primary stack / sibling-tech rules (prompt side) | `src/resume/prompts.ts:MATCH_SYSTEM` steps 3-4 — guard-tested in `prompts.test.ts` |
 | ask_user confirmations (CandidateFact rows, instant re-score) | `src/resume/facts.ts` (pure) + `src/web/routes/facts.ts` (POST /facts), managed on `/resumes` |

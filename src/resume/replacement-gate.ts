@@ -20,7 +20,10 @@
  *  - KEEP WANTED KEYWORDS in code: a replacement that loses a must-have or
  *    primary keyword the quote had is blocked (the score reads exactly those);
  *    a lost nice-to-have or a paraphrased phrase keeps the wording and gets a
- *    note, because 11 of the 21 as-specified drops were wrong.
+ *    note, because 11 of the 21 as-specified drops were wrong. A term the
+ *    resume still carries OUTSIDE the quoted span is not lost at all and only
+ *    warns — the rule as written blocked a good rewrite of a bullet whose one
+ *    "SQL" was the phrase "SQL injection".
  *
  * A blocked action keeps everything but its replacement, which becomes an
  * explicit null — proposalOf reads that as "judged, do not parse `what`".
@@ -84,7 +87,10 @@ function factLines(facts: FactLike[]): string[] {
 export function gateActions(actions: MatchAction[], sources: GateSources): GateReport {
   let blocked = 0;
   let warned = 0;
-  const has = (text: string, k: MatchKeyword) => sources.matcher.findTerm(text, k.term, k.aliases ?? []).length > 0;
+  const hits = (text: string, k: MatchKeyword) => sources.matcher.findTerm(text, k.term, k.aliases ?? []).length;
+  const has = (text: string, k: MatchKeyword) => hits(text, k) > 0;
+  /** Does this term still stand somewhere in the resume outside the span being rewritten? */
+  const elsewhereInResume = (quote: string, k: MatchKeyword) => hits(sources.resumeText, k) > hits(quote, k);
 
   const gated = actions.map((action) => {
     if (typeof action.replacement !== 'string' || action.replacement.trim() === '') return action;
@@ -103,16 +109,21 @@ export function gateActions(actions: MatchAction[], sources: GateSources): GateR
 
     for (const k of sources.keywords) {
       const introduced = !has(quote, k) && has(text, k);
-      // The posted job title (priority 2) on the resume's OWN title line is the
-      // role being applied for, not a claim of having held it — and it is the
-      // single highest-leverage edit there is. Everywhere else, and for every
-      // other keyword, an unevidenced term still blocks.
-      const targetTitle = action.section === 'title' && k.priority === 2;
+      // The posted job title (priority 2) on the resume's OWN title line or in
+      // its summary is the role being applied for, not a claim of having held
+      // it — and the retitle is the single highest-leverage edit there is. In a
+      // bullet ("Web Developer at Acme") it would be a claim, so the exemption
+      // stops at those two sections; every other keyword blocks everywhere.
+      const targetTitle = (action.section === 'title' || action.section === 'summary') && k.priority === 2;
       if (introduced && k.status === 'cannot_claim' && !targetTitle) blocks.push(`claims "${k.term}", which this resume has no evidence for`);
       else if (introduced && k.status === 'ask_user' && !targetTitle) warns.push(`says "${k.term}" — confirm you have it first`);
-      // KEEP WANTED KEYWORDS: only a change can lose a keyword; an addition replaces nothing.
+      // KEEP WANTED KEYWORDS: only a change can lose a keyword; an addition
+      // replaces nothing. And a term the resume still carries somewhere else is
+      // not lost — blocking on that killed a good rewrite of a bullet whose
+      // only "SQL" was the phrase "SQL injection".
       if (quote && k.status === 'present' && has(quote, k) && !has(text, k)) {
-        if (k.primary || effectiveRequirement(k) === 'must') blocks.push(`drops "${k.term}", a must-have this posting wants`);
+        if (elsewhereInResume(quote, k)) warns.push(`drops "${k.term}" from this line; the resume still has it elsewhere`);
+        else if (k.primary || effectiveRequirement(k) === 'must') blocks.push(`drops "${k.term}", a must-have this posting wants`);
         else warns.push(`drops "${k.term}"`);
       }
     }

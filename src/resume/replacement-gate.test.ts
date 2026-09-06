@@ -182,3 +182,47 @@ test('a removal of genuine noise passes untouched', async () => {
   assert.equal(out.warned, 0);
   assert.deepEqual(out.removals, [clean, removal({ quote: null })]);
 });
+
+test('a keyword the resume still carries elsewhere is not lost, so the rewrite stands', async () => {
+  // The live case: the bullet's only "SQL" was the phrase "SQL injection", and
+  // the skills line carries SQL too — blocking the rewrite protected nothing.
+  const src = await sources({
+    resumeText: ['Skills: PHP, SQL, PGSQL', '- Combined Snyk with static analysis to prevent SQL injection.'].join('\n'),
+    keywords: [keyword({ term: 'SQL', requirement: 'must', primary: true })],
+  });
+  const out = gateActions(
+    [action({ quote: 'Combined Snyk with static analysis to prevent SQL injection.', replacement: 'Hardened the checkout flow against injection and input-handling flaws.' })],
+    src,
+  );
+  assert.equal(out.blocked, 0);
+  assert.equal(out.warned, 1);
+  assert.match(out.actions[0]!.why, /the resume still has it elsewhere/);
+  assert.equal(out.actions[0]!.replacement, 'Hardened the checkout flow against injection and input-handling flaws.');
+});
+
+test('the last occurrence of a must-have still blocks', async () => {
+  const src = await sources({
+    resumeText: '- Built Laravel payment workflows on MySQL.',
+    keywords: [keyword({ term: 'MySQL', requirement: 'must', primary: true })],
+  });
+  const out = gateActions(
+    [action({ quote: 'Built Laravel payment workflows on MySQL.', replacement: 'Built Laravel payment workflows.' })],
+    src,
+  );
+  assert.equal(out.blocked, 1);
+  assert.match(out.actions[0]!.why, /drops "MySQL", a must-have/);
+});
+
+test('the posted title may be written on the headline and in the summary, nowhere else', async () => {
+  const src = await sources({
+    resumeText: 'Alex Example — Senior Backend Engineer',
+    // Priority 2 is the posted job title (RULE_KEYWORDS); it is a label, not a skill.
+    keywords: [keyword({ term: 'Web Developer', priority: 2, requirement: 'context', status: 'cannot_claim' })],
+  });
+  const retitle = { quote: 'Senior Backend Engineer', replacement: 'Web Developer — Full-Stack (PHP, Laravel)' };
+  assert.equal(gateActions([action({ section: 'title', ...retitle })], src).blocked, 0);
+  assert.equal(gateActions([action({ section: 'summary', ...retitle })], src).blocked, 0);
+  const inABullet = gateActions([action({ section: 'experience', ...retitle })], src);
+  assert.equal(inABullet.blocked, 1, 'claiming the title inside a role is a different thing');
+  assert.match(inABullet.actions[0]!.why, /claims "Web Developer"/);
+});

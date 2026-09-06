@@ -923,6 +923,27 @@ test('the brief prompt reads the posting alone and asks for the reader behind it
   assert.doesNotMatch(user, /BEGIN UNTRUSTED RESUME/);
 });
 
+test('a satisfy-all group is not an alternative and never reaches the score', () => {
+  const b = BriefSchema.parse({
+    role: { posted_title: 'Dev', family: 'web' },
+    requirement_groups: [
+      { label: 'core front-end languages', level: 'must', satisfy: 'all', options: ['HTML', 'CSS', 'JavaScript'] },
+      { label: 'front-end framework', level: 'must', satisfy: 'any', options: ['React', 'Vue.js'] },
+    ],
+    keywords: [
+      { term: 'HTML', priority: 1, requirement: 'must', primary: true, group: 'core front-end languages' },
+      { term: 'React', priority: 1, requirement: 'must', primary: true, group: 'front-end framework' },
+      { term: 'SEO', priority: 3, requirement: 'preferred', primary: false, group: 'invented label' },
+    ],
+  });
+  assert.deepEqual(b.requirement_groups.map((g) => g.label), ['front-end framework']);
+  // HTML, CSS and JavaScript are three demands that share a sentence; folding
+  // them would charge one must-weight for all three.
+  assert.equal(b.keywords[0]?.group, null);
+  assert.equal(b.keywords[1]?.group, 'front-end framework');
+  assert.equal(b.keywords[2]?.group, null, 'a label pointing at no group is dropped');
+});
+
 test('an either/or list is one requirement, and a group of one is not a group', () => {
   const { system } = buildBriefPrompt({ title: 'x', companyName: 'x', location: '', description: 'x' });
   assert.match(system, /frameworks like React, Next\.js, or Vue\.js" is ONE group/);
@@ -989,4 +1010,13 @@ test('the impress shapes are patterns to fill, never facts to copy', () => {
   assert.match(system, /AIM AT THE READER/);
   assert.match(system, /PATTERNS with placeholder letters, never facts/);
   assert.match(system, /numbers that exist in this resume or in a candidate-confirmed fact/);
+});
+
+test('exceeding a posting minimum is never a red flag, in either variant', () => {
+  // A senior resume against a "minimum of two years" posting lost 10 points to
+  // a flag called "seniority mismatch" — the rule already said over-qualification
+  // is a caution, so it had to say it about every name for the same worry.
+  bothVariants(/A MINIMUM THE CANDIDATE EXCEEDS IS MET/);
+  bothVariants(/a posting's floor is never a ceiling/);
+  bothVariants(/Only wording that EXCLUDES the candidate's level/);
 });
