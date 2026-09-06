@@ -1810,3 +1810,130 @@ Pages" acceptable for v1, or is the LibreOffice profile required? (5)
 Tables in the patcher's v1: cell text edits or refuse? (6) Reordering:
 "make this the first bullet" only, or free line moves? (7) Ship stages 1
 and 2 as one branch or two?
+
+## 19. HR screening: rank a folder of resumes against one position (analysis 2026-09-04, nothing built)
+
+Owner's ask: let an HR person or a hiring manager take a folder of resumes,
+pick a position (pasted, from a file, or one of the manually added jobs)
+and see who fits and whom to interview first — by the content of each
+resume, not by keywords; which criteria companies actually use; a score
+across them; and whether this belongs in the project at all. The full
+analysis is [hr-screening-plan.md](./hr-screening-plan.md); this section
+holds the facts, the decisions and the order.
+
+### 19.1 Facts established (don't re-derive)
+
+- About two thirds of the primitives exist: `extractResumeText` (four
+  formats, no OCR), `hard_requirements` gates with pass / unknown / fail
+  and "silence is NEVER fail", the code-computed score (ADR 0012 / 0030),
+  the JSON Resume `structure` with dates as verbatim strings, `fact-check.ts`,
+  `keyword-frame.ts` (one frame extracted per posting and inherited by later
+  runs — exactly the batch mechanism), `createLimiter(AI_CONCURRENCY)`,
+  the in-memory run registry, `zip.ts`, SimHash dedupe, a local model via
+  the OpenAI-compatible URL.
+- `score.ts` is the wrong instrument for an employer: 60 points for term
+  presence plus 40 for alignment measure the document's presentation, not
+  the person. A skills list with no evidence in any role earns the same 60,
+  and a screen that counts words loses to this product's own tailoring loop
+  (§18). The employer rubric must score evidence levels (the blueprint §10
+  ladder), which tailoring without new facts cannot raise.
+- Applicants' resumes must NOT be `Resume` rows: `listOtherResumeSkills`
+  reads every row and would "prove" the owner's skills with quotes from an
+  applicant. Own tables (`Screening` / `Applicant` / `ScreeningVerdict`),
+  scoped to one screening, cascade on delete. "Candidate" is taken
+  (`CandidateFact`, `CompanyCandidate`).
+- A resume is a weak predictor of job performance (years of experience
+  r ≈ .16–.18, education ≈ .10 in the Schmidt & Hunter / Sackett
+  meta-analyses) — the product promises prioritisation ("whom to call
+  first"), never prediction. Half the gates a company needs (authorisation,
+  salary, notice period) are not in a resume: "unknown" becomes interview
+  questions, never points.
+- Legal surface, none of which the candidate side has: EU AI Act Annex III
+  4(a) high-risk (the open-source exemption in art. 2(12) does not cover
+  high-risk), GDPR art. 22 / 5 / 13–14 / 35, NYC Local Law 144, Colorado
+  SB 24-205, Illinois HB 3773, Mobley v. Workday (collective action
+  certified May 2025). The CLI engines run on a personal subscription — for
+  other people's data the defensible path is an API with a DPA or a local
+  model.
+- Ukrainian and European CVs carry a photo, a date of birth and marital
+  status in the header: redaction before the model call is mandatory.
+- Cost estimate per resume ≈ $0.03 on Sonnet 5 / $0.07 on Opus 5 via the
+  API (about 6 k input + 1.5 k output tokens); the CLI at 78–109 s per call
+  (§13) does 100 resumes in ≈ 50 min at concurrency 3. The shared
+  rubric-and-posting prefix would make prompt caching pay for the first
+  time in this project — verify against the model's floor (gotcha 3).
+
+### 19.2 Decisions
+
+The model marks facts and quotes, the code scores (`screen-score.ts`, a
+successor to `score.ts` / `review-score.ts`); two layers — tri-state gates
+HR edits before the run, then a weighted 0–100 over must-have evidence
+levels (35), relevant years and recency (15), level and scope (15), impact
+evidence (15), domain (10), nice-to-have (5), education when required (5),
+with caps (primary stack 0/N → 30, two levels under → 50, no impact
+evidence → 60); confidence shown beside the score, never folded into it;
+independent pointwise scoring per resume against one posting frame (never
+all resumes in one prompt); a per-applicant scorecard with quotes and
+screening questions; own tables, `Job` reused; redaction to "Applicant №N"
+that cannot be switched off; no automatic rejections; a person decides;
+lives as an opt-in `employerMode` (option C), never as a card on the
+candidate pages, never in the worker; three ADRs (evidence not keywords,
+redaction and retention, mode not product).
+
+Guardrails before any bulk screen ships: no auto-reject; blind by default;
+every score explainable from a table with rubric and model versions on the
+verdict; `retainUntil` + auto-cleanup + "delete with files"; a warning when
+the active engine is a subscription CLI; a notice template for applicants;
+"priority to talk to" wording, never "best candidate".
+
+### 19.3 Implementation order (stages 0 and 1 stand on their own; 2–5 decided with stage 0's numbers)
+
+**Stage 0 — `screen-bench` (no UI)**
+- [ ] A gold set of 3 postings × ~30 resumes ranked by a human; `npm run bench:screen`.
+- [ ] Metrics: Kendall τ to the human order, precision@5, gate confusion
+      matrix, run-to-run stability, redaction-leak test, the tailoring test
+      (a resume tailored with §18's loop and no new facts scores the same).
+
+**Stage 1 — `employer-view` (one resume, one posting)**
+- [ ] `SCREEN_SYSTEM` in `prompts.ts` (registered in the fence registry):
+      gates, evidence level per term with a verbatim quote, level, impact,
+      domain, 3–5 screening questions; no actions, no removals.
+- [ ] `screen-score.ts` (pure, tested) with the caps above; ADR "screening
+      scores evidence, not keywords".
+- [ ] A third button next to Compare / Full analysis on `/jobs/:id` and
+      `/target`; a scorecard card. Works for the candidate ("how a screener
+      reads me") and for HR alike.
+
+**Stage 2 — `employer-mode`**
+- [ ] `AppSettings.employerMode`, the `/screen` section, `Screening` with
+      a rubric draft (one call per posting) and the existing keyword editor;
+      `Applicant` with multi-file / zip intake, dedupe, unreadable bucket.
+- [ ] `redact-applicant.ts` (pure, tested; the leak test from stage 0);
+      ADRs "redaction and retention", "a mode, not a product".
+
+**Stage 3 — `screen-batch`**
+- [ ] N independent calls under the limiter with a shared prefix; every
+      verdict persisted at once; resume after restart; progress page.
+- [ ] The table (gate buckets, score, confidence, coverage, years, level,
+      flags), the scorecard, CSV / Markdown export.
+- [ ] Measure 100 resumes end to end on an API engine and on the CLI.
+
+**Stage 4 — `screen-guardrails`**
+- [ ] `retainUntil`, cleanup in `cleanup-job.ts`, delete-with-files, the
+      engine warning, the applicant notice template, the README section.
+
+**Stage 5 — optional**
+- [ ] Top-10 comparative tie-break with shuffled order; calibration
+      report; Batch API for the API engines.
+
+### 19.4 Open questions for the owner
+
+1. Who is the v1 user — one HR / manager without an ATS (single-user), or
+   a team (multi-user is hard out-of-scope in SPEC.md)?
+2. Is the product ready to carry the "high-risk AI" label in its README,
+   and does that hurt the candidate side?
+3. May other people's resumes go to a cloud engine under a DPA, or is v1
+   local-model only?
+4. Accept Ukrainian CVs with photo and date of birth and redact, or demand
+   clean files?
+5. Where do 90 human-ranked resumes for stage 0 come from?
