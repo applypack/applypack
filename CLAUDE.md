@@ -263,6 +263,8 @@ When the question is **"where does X live?"**, save yourself a `find`:
 | Resume upload → text (.pdf/.docx/.md/.txt) | `src/resume/resume-text.ts:extractResumeText` (docx via `zip.ts` + `docx-text.ts`, pdf via `pdf-text.ts` / unpdf — ADR 0011) |
 | Paste posting + resume → one-shot targeted analysis | `/target` — `src/web/routes/target.tsx` (composes `jobs/manual-job.ts` + `resume/match.ts`; upload/paste land on the hidden scratch resume, old scratch matches auto-deleted) |
 | Resume scan + resume-vs-job prompts and their zod schemas | `src/resume/prompts.ts` (`PROMPT_VERSION` bump on material change) |
+| The posting read on its own — role, seniority, industry, who screens it, what impresses them, the requirement groups and the keyword frame | `src/resume/brief.ts:briefForPosting` over `prompts.ts:buildBriefPrompt` / `BriefSchema` (ADR 0044); stored in `posting_brief` keyed by `jobId + postingHash + BRIEF_PROMPT_VERSION`, so editing a resume never pays for it twice. `briefLine` is the one-liner the progress page shows. A null brief degrades to the old behaviour everywhere |
+| Why "React, Next.js, or Vue.js" costs one must-weight and not three | `src/resume/score.ts:foldGroups` (pure, ADR 0044) over the `group` label the brief put on each keyword — mirrored in `score.mjs`, parity fixture in `src/web/score.test.ts` |
 | The match-score formula (weights, alignment points, primary-stack cap) | `src/resume/score.ts` (ADR 0012) — mirrored in `src/web/public/score.mjs`, parity test `src/web/score.test.ts` |
 | Quick check vs full analysis (which prompt variant runs, what a stored row holds) | `src/resume/match-mode.ts` (pure) + the `MATCH_STEPS` / `MATCH_OUTPUT` tables in `src/resume/prompts.ts` (ADR 0029) |
 | "Get suggestions" on a quick check (the lazy second call) | `src/resume/suggestions.ts` + `buildSuggestionsPrompt`; run wiring `src/web/suggestions-run.ts`, route `POST /jobs/:id/matches/:matchId/suggestions` |
@@ -297,7 +299,8 @@ When the question is **"where does X live?"**, save yourself a `find`:
 | Live keyword score + highlights in the browser | `src/web/public/target.mjs` (served at `/static/`, tested from `src/web/target.test.ts`) |
 | The wording a suggestion proposes, pulled out of its `what` sentence | `src/resume/change-sheet.ts:proposalOf` (pure) — reads `'…'` and `"…"`, guards the apostrophe, takes the span after a `to`/`with` connective, refuses a run under 12 chars; `suggestionSheet` renders the whole list as the Markdown behind "Copy all suggestions" |
 | What the user changed in the editor, as Markdown ("Copy my changes") | `src/web/public/line-diff.mjs:diffLines` (LCS over normalised lines; a delete/insert pair becomes a `change` only when 30 % of the wording survives) + `public/change-sheet.mjs:formatEditSheet` |
-| Whether a suggestion's wording may be applied with one press, and why a card says "not applied — …" | `src/resume/replacement-gate.ts:gateActions` (pure, ADR 0037): runs at persist time in `match.ts` and `suggestions.ts` over the model's `replacement` — `factCheck` with resume + posting + confirmed facts as sources, a replacement may not introduce a `cannot_claim` keyword, KEEP WANTED KEYWORDS blocks on a lost must/primary and warns otherwise; a block nulls `replacement` and writes the reason onto `why`. `change-sheet.ts:proposalOf` reads an explicit `null` as "judged" and never falls back to parsing `what` for it |
+| Whether a suggestion's wording may be applied with one press, and why a card says "not applied — …" | `src/resume/replacement-gate.ts:gateActions` (pure, ADR 0037): runs at persist time in `match.ts` and `suggestions.ts` over the model's `replacement` — `factCheck` with resume + posting + confirmed facts as sources, a replacement may not introduce a `cannot_claim` keyword (one exemption: the posted job title on a `title` action, ADR 0044), KEEP WANTED KEYWORDS blocks on a lost must/primary and warns otherwise; a block nulls `replacement` and writes the reason onto `why`. `change-sheet.ts:proposalOf` reads an explicit `null` as "judged" and never falls back to parsing `what` for it |
+| Why a removal is shown without a struck-through span | `src/resume/replacement-gate.ts:gateRemovals` (pure, ADR 0044), same two call sites: a `quote` covering contact details or a keyword marked present/add loses the quote and keeps the advice — gotcha 11's prompt rule as a code path |
 | The paste-ready wording itself, and where an addition goes | `MatchSchema` actions `replacement` / `insert_after` (`judgedText`: absent = v6 row, null = judged), asked for by `RULE_ACTIONS` (v7) and rendered by `OUTPUT_ACTIONS`; one `RULE_BULLET_STYLE` governs match suggestions and the review's "example" line; `text-edits.mjs:insertAfterLine` applies an addition after its anchor |
 | Applying a suggestion to the resume text (replace / cut / add a term) | `src/web/public/text-edits.mjs` (pure): `applyReplacement` (keeps a bullet marker), `removeSpan` (whole line + its newline when the quote IS the line; refuses the email/phone line — gotcha 11), `insertIntoSkills` (only inside a skills section, only onto a line that is a term list, never the contact line), `inverseEdit` / `undoEdit` (Undo stores the changed sentence, not a copy of the resume) |
 | What each suggestion card did, and how it survives a reload | `target-edits:<matchId>` in localStorage = `{ applied: { <card key>: inverse edit }, skipped: [key] }`; the key is `hashShortId(section\|where\|quote)` rendered into `data-card`; painted by `target-page.mjs:paintCards`, thrown away with the draft by "reset edits" / Discard |
@@ -466,9 +469,18 @@ the gate is now a unit-tested code path (`score.test.ts`), not a prompt rule.
 Same prompt, second lesson: removal "quote" spans leaked into protected
 text — one highlighted the contact line (with the email) to advise dropping
 a ZIP code, another highlighted a whole skills line containing Docker and
-GitLab CI/CD the posting wanted. Removals now carry two hard rules
-(PROTECTED contact line; KEEP WANTED KEYWORDS with itemised drop/keep
-lists) — guard test "removals rules protect the contact line".
+GitLab CI/CD the posting wanted. Removals carry two hard rules (PROTECTED
+contact line; KEEP WANTED KEYWORDS with itemised drop/keep lists) — guard
+test "removals rules protect the contact line".
+
+Third lesson, 2026-09-06: **the prompt rule alone did not hold.** The same
+model quoted `"Symfony, React, Vue, Laravel, Lumen, Phalcon"` whole to
+advise dropping three of the six, with React (must, primary) and Vue.js
+(must) inside the span the editor strikes through and deletes in one press.
+Both rules are `replacement-gate.ts:gateRemovals` now (ADR 0044) — a quote
+covering contact details or a wanted keyword loses its `quote` and keeps its
+advice. Rule of thumb, third time: a rule the user can lose data to belongs
+in code, and the prompt keeps it only as an explanation.
 
 ### 13. `empty` from a fetcher is not proof the board is alive
 

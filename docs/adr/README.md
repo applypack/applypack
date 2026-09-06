@@ -52,6 +52,7 @@ consequences (what we accept). Aim for 15–30 lines each.
 - [0041 — Alerts go through a channel seam; Telegram and Discord are its first two channels](./0041-notification-channels.md)
 - [0042 — The verifier's company facts are context for the match, never evidence](./0042-company-facts-are-context-never-evidence.md) *(extends 0021 and 0037)*
 - [0043 — A posting refreshed from the company's own listing keeps its original and is re-judged](./0043-refresh-the-posting-from-the-companys-own-listing.md)
+- [0044 — The posting is read once, on its own, and the reading is kept](./0044-the-posting-is-read-once-on-its-own.md)
 
 ## When to write a new one
 

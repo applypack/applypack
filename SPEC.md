@@ -334,6 +334,25 @@ cannot_claim`, where, note) and `actions` (section, where, what, why,
 priority). Nothing edits the resume — the report is the to-do list. See
 ADR 0008.
 
+Before any resume is judged, the posting is read on its own (ADR 0044). One
+call with no resume in the prompt returns what the posting IS — the
+discipline, the seniority band, the minimum years, the industry, the product
+and its audience, who reads the resume first and what that reader scans for
+in six seconds — together with the keyword frame, the either/or requirement
+groups and the gates. It is stored in `posting_brief` against a hash of the
+title and description, so editing a resume and comparing again reuses the
+reading instead of paying for it; the progress page shows it as its own step
+and says when it was reused. The comparison copies the frame and judges only
+what the resume shows; the suggestions aim at the screening block. A missing
+brief costs context, never the comparison: both callers fall back to deriving
+the frame themselves.
+
+An either/or list in the posting — "React, Next.js, or Vue.js", "PHP,
+Python, or Node.js", "WordPress, Drupal, Shopify" — is ONE requirement, and
+`score.ts:foldGroups` counts it once at the best member's credit. Before this
+each alternative cost a separate must-weight, so a resume that met the
+requirement outright was charged for the options it did not have.
+
 A comparison has two shapes (ADR 0029). **Compare** runs the quick check:
 one call that returns the keywords, alignment grades, hard-requirement gates
 and red flags — everything the score is computed from — and no edit
