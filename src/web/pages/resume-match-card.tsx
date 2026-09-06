@@ -38,6 +38,7 @@ import type { CountedKeyword } from '../../resume/keyword-matcher';
 import { effectiveRequirement, isIgnored } from '../../resume/keyword-overrides';
 import { REQUIREMENT_LEVELS, type RequirementLevel } from '../../resume/score';
 import { readBreakdown, type ScoreBreakdown } from '../../resume/score';
+import { noEditsLine, type Reach } from '../no-edits';
 import { diffMatches } from '../../resume/diff';
 
 export interface ResumeMatchCardProps {
@@ -269,6 +270,11 @@ export const ScoreBreakdownChips: FC<{ bd: ScoreBreakdown }> = ({ bd }) => (
   </div>
 );
 
+/** The pair the empty state reads: today's score and what editing could reach. */
+export function reachOf(bd: ScoreBreakdown | null, score: number): Reach | null {
+  return bd?.ceiling === undefined ? null : { score, ceiling: bd.ceiling };
+}
+
 /** Hard-requirement gates as one compact line — for the targeted view's score card. */
 export const HardRequirementsDigest: FC<{ hard: MatchHardRequirement[] }> = ({ hard }) => {
   if (hard.length === 0) return null;
@@ -411,7 +417,7 @@ export const MatchReport: FC<{
             />
             <Hint class="!mt-0">as Markdown, for the document your resume really lives in</Hint>
           </div>
-          <ActionsBlock actions={readActions(match.actions)} />
+          <ActionsBlock actions={readActions(match.actions)} reach={reachOf(bd, match.matchScore)} />
           <RemovalsBlock removals={readRemovals(match.removals)} />
         </>
       )}
@@ -735,12 +741,32 @@ const SuggestionCard: FC<{
 };
 
 /** "What to change" — one card per edit, with Copy and (on the targeted view) Locate. */
+/**
+ * An empty list is an answer, and it has two meanings the user cannot tell
+ * apart without help: the resume is already as close as it gets, or the
+ * posting is for a different profession and no wording bridges it. The
+ * ceiling separates them — it is what honest editing could reach — so the
+ * empty state says which one this is instead of "No edits suggested."
+ */
+const NoEdits: FC<{ reach: Reach | null }> = ({ reach }) => {
+  const line = noEditsLine(reach);
+  return (
+    <Hint>
+      {line.text}
+      {line.offerRewrite && <span class="font-medium text-ink"> Rewrite all</span>}
+      {line.offerRewrite && '.'}
+    </Hint>
+  );
+};
+
 export const ActionsBlock: FC<{
   actions: MatchAction[];
   interactive?: boolean;
   /** Enables "Rewrite" on each card; the index is the action's place in the stored row. */
   rewrite?: { jobId: number; matchId: number; next?: 'target' };
-}> = ({ actions, interactive = false, rewrite }) => {
+  /** The score and its ceiling — what an empty list is allowed to say about itself. */
+  reach?: Reach | null;
+}> = ({ actions, interactive = false, rewrite, reach = null }) => {
   // The index is taken before the per-section filter: it addresses the action
   // in the stored row, which is what the rewrite route updates.
   const numbered = actions.map((a, index) => ({ a, index }));
@@ -749,7 +775,7 @@ export const ActionsBlock: FC<{
     <div>
       <div class={SUBHEAD}>What to change — {actions.length} edits</div>
       {actions.length === 0 ? (
-        <Hint>No edits suggested.</Hint>
+        <NoEdits reach={reach} />
       ) : (
         <div class="space-y-4">
           {sections.map((section) => (

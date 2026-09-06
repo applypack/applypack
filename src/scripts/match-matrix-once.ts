@@ -154,10 +154,15 @@ async function main(): Promise<void> {
     // engineer posting correctly gets no actions; a front-end resume with React
     // and TypeScript present, against a full-stack React posting, must not.
     const covered = keywords.filter((k) => k.status === 'present' || k.status === 'add');
-    const workable =
+    const hasCore =
       (bd?.primaryTotal ?? 0) > 0
         ? (bd?.primaryPresent ?? 0) > 0
         : covered.filter((k) => k.requirement === 'must').length >= 2;
+    // And the advice has to be worth writing: when even perfect editing lands
+    // below a score anyone would apply on, a retitle is theatre. The page says
+    // so in the empty state rather than pretending there was nothing to find.
+    const worthIt = (bd?.ceiling ?? 0) >= 50;
+    const workable = hasCore && worthIt;
     const highIn = (section: string) => actions.some((a) => a.section === section && a.priority === 'high');
     if (bd?.alignment && workable) {
       if (bd.alignment.title !== 'strong' && !highIn('title')) at('floor', 'title is not strong and got no high-priority action');

@@ -19,6 +19,7 @@ import {
   HardRequirementsDigest,
   KeywordTable,
   MatchSignals,
+  reachOf,
   VerificationLine,
   RemovalsBlock,
   ScoreBreakdownChips,
@@ -595,7 +596,12 @@ export const TargetPage: FC<TargetPageProps> = ({
                       diff of your own edits and turns on once you change the text.
                     </Hint>
                   </div>
-                  <ActionsBlock actions={actions} interactive rewrite={{ jobId: job.id, matchId: match.id, next: 'target' }} />
+                  <ActionsBlock
+                    actions={actions}
+                    interactive
+                    rewrite={{ jobId: job.id, matchId: match.id, next: 'target' }}
+                    reach={reachOf(breakdown, match.matchScore)}
+                  />
                   <RemovalsBlock removals={removals} interactive />
                 </>
               )}
