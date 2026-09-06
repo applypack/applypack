@@ -8,7 +8,7 @@
  */
 
 export const SCORING = {
-  version: 3,
+  version: 4,
   keywordMax: 60,
   requirementWeight: { must: 3, preferred: 2, nice: 1, context: 0 },
   statusCredit: { present: 1, add: 0.5, ask_user: 0, cannot_claim: 0 },
@@ -31,15 +31,54 @@ export function primaryCap(present, total) {
 }
 
 /**
+ * Either/or requirements folded to one entry each — mirror of score.ts:foldGroups
+ * (ADR 0044). Entries sharing a `group` label are alternatives the posting
+ * itself offered, so the score asks the question once.
+ */
+export function foldGroups(entries) {
+  const out = [];
+  const at = new Map();
+  for (const e of entries) {
+    const key = e.group ? String(e.group).trim().toLowerCase() : '';
+    if (!key) {
+      out.push(e);
+      continue;
+    }
+    const seen = at.get(key);
+    if (seen === undefined) {
+      at.set(key, out.length);
+      out.push(e);
+      continue;
+    }
+    const held = out[seen];
+    out[seen] = {
+      ...held,
+      requirement: strongerLevel(held.requirement, e.requirement),
+      credit: Math.max(held.credit, e.credit),
+      ceilCredit: Math.max(held.ceilCredit, e.ceilCredit),
+      primary: held.primary || e.primary,
+      primaryHit: held.primaryHit || e.primaryHit,
+      ceilPrimaryHit: held.ceilPrimaryHit || e.ceilPrimaryHit,
+    };
+  }
+  return out;
+}
+
+function strongerLevel(a, b) {
+  return (SCORING.requirementWeight[a] ?? 0) >= (SCORING.requirementWeight[b] ?? 0) ? a : b;
+}
+
+/**
  * entries: [{ requirement, primary, credit, primaryHit, ceilCredit,
- * ceilPrimaryHit }] — see score.ts. Flags duplicating missing primaries are
+ * ceilPrimaryHit, group }] — see score.ts. Flags duplicating missing primaries are
  * not counted and the penalty is bounded (v3); `ceiling` is the honest
  * maximum this resume can reach on this posting by editing alone.
  * Live estimates pass `fixedPenalty` (the analysis-time penalty): flag texts
  * were judged against the analysed snapshot, so typing a missing primary
  * into the editor must not re-inflate them.
  */
-export function computeScore(entries, alignment, redFlagCount, fixedPenalty = null) {
+export function computeScore(rawEntries, alignment, redFlagCount, fixedPenalty = null) {
+  const entries = foldGroups(rawEntries);
   let earned = 0;
   let ceilEarned = 0;
   let total = 0;
@@ -121,6 +160,7 @@ export function entriesFromLive(rows) {
       primaryHit: primary && claimable && r.found === true,
       ceilCredit: writable ? 1 : 0,
       ceilPrimaryHit: primary && writable,
+      group: r.group ?? null,
     };
   });
 }

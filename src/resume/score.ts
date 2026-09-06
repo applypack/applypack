@@ -26,7 +26,8 @@ export interface MatchAlignment {
 }
 
 export const SCORING = {
-  version: 3,
+  /** v4: either/or requirement groups count once (ADR 0044). */
+  version: 4,
   /** Keyword coverage: up to 60 points, weighted by how hard the posting wants each term. */
   keywordMax: 60,
   requirementWeight: { must: 3, preferred: 2, nice: 1, context: 0 } as Record<RequirementLevel, number>,
@@ -62,6 +63,13 @@ export interface ScoreEntry {
   primaryHit: boolean;
   ceilCredit: number;
   ceilPrimaryHit: boolean;
+  /**
+   * Requirement-group label (ADR 0044). Entries sharing one are alternatives
+   * the posting itself offered — "frameworks like React, Next.js, or Vue.js" —
+   * and `foldGroups` counts them ONCE. Absent means the term stands alone,
+   * which is every entry on a row written before v8.
+   */
+  group?: string | null;
 }
 
 export interface ScoreBreakdown {
@@ -102,17 +110,67 @@ export function primaryCap(present: number, total: number): number | null {
 }
 
 /**
+ * Either/or requirements, folded to one entry each (ADR 0044).
+ *
+ * A posting that says "React, Next.js, or Vue.js" asks ONE question, and
+ * before this the model answered it three times: a candidate who had React
+ * and lacked the other two lost two must-weights for a requirement they meet.
+ * The same arithmetic made "PHP, Python, or Node.js" and "WordPress, Drupal,
+ * Shopify" cost 12 of 66 weighted units on a resume that satisfied the first
+ * of them outright.
+ *
+ * The fold takes the best member on every axis: the strongest requirement
+ * level among them (they should agree — the brief puts the group's level on
+ * each — and the strongest is the safe reconciliation when they do not), the
+ * best credit, and primary if any member is primary. Order is preserved so a
+ * breakdown still reads in the posting's order.
+ */
+export function foldGroups(entries: ScoreEntry[]): ScoreEntry[] {
+  const out: ScoreEntry[] = [];
+  const at = new Map<string, number>();
+  for (const e of entries) {
+    const key = e.group?.trim().toLowerCase();
+    if (!key) {
+      out.push(e);
+      continue;
+    }
+    const seen = at.get(key);
+    if (seen === undefined) {
+      at.set(key, out.length);
+      out.push(e);
+      continue;
+    }
+    const held = out[seen]!;
+    out[seen] = {
+      ...held,
+      requirement: strongerLevel(held.requirement, e.requirement),
+      credit: Math.max(held.credit, e.credit),
+      ceilCredit: Math.max(held.ceilCredit, e.ceilCredit),
+      primary: held.primary || e.primary,
+      primaryHit: held.primaryHit || e.primaryHit,
+      ceilPrimaryHit: held.ceilPrimaryHit || e.ceilPrimaryHit,
+    };
+  }
+  return out;
+}
+
+function strongerLevel(a: RequirementLevel, b: RequirementLevel): RequirementLevel {
+  return SCORING.requirementWeight[a] >= SCORING.requirementWeight[b] ? a : b;
+}
+
+/**
  * The formula. Shared shape with score.mjs: callers precompute `credit` and
  * `primaryHit` (server: from AI status via entriesFromKeywords; browser: from
  * live textual presence), the composition below is identical on both sides.
  */
 export function computeScore(
-  entries: ScoreEntry[],
+  rawEntries: ScoreEntry[],
   alignment: MatchAlignment | null,
   redFlagCount: number,
   /** Live estimates pass the analysis-time penalty — see the comment below. */
   fixedPenalty: number | null = null,
 ): ScoreBreakdown {
+  const entries = foldGroups(rawEntries);
   let earned = 0;
   let ceilEarned = 0;
   let total = 0;
@@ -188,7 +246,7 @@ export function computeScore(
  * a preferred technology must never cap the score (v3).
  */
 export function entriesFromKeywords(
-  keywords: { requirement: RequirementLevel; primary: boolean; status: KeywordStatus }[],
+  keywords: { requirement: RequirementLevel; primary: boolean; status: KeywordStatus; group?: string | null }[],
 ): ScoreEntry[] {
   return keywords.map((k) => {
     const primary = k.primary && k.requirement === 'must';
@@ -200,12 +258,13 @@ export function entriesFromKeywords(
       primaryHit: k.status === 'present',
       ceilCredit: claimable ? 1 : 0,
       ceilPrimaryHit: primary && claimable,
+      group: k.group ?? null,
     };
   });
 }
 
 export function scoreMatch(
-  keywords: { requirement: RequirementLevel; primary: boolean; status: KeywordStatus }[],
+  keywords: { requirement: RequirementLevel; primary: boolean; status: KeywordStatus; group?: string | null }[],
   alignment: MatchAlignment | null,
   redFlagCount: number,
 ): ScoreBreakdown {

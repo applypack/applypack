@@ -46,6 +46,14 @@ const ENTRY_SETS: ScoreEntry[][] = [
     { requirement: 'must', primary: true, credit: 0.5, primaryHit: false, ceilCredit: 1, ceilPrimaryHit: true },
     { requirement: 'must', primary: true, credit: 0, primaryHit: false, ceilCredit: 0, ceilPrimaryHit: false },
   ],
+  // An either/or group (ADR 0044): three alternatives, one of them met. Both
+  // sides must fold it to one must-weight and one primary slot.
+  [
+    { requirement: 'must', primary: true, credit: 1, primaryHit: true, ceilCredit: 1, ceilPrimaryHit: true, group: 'front-end framework' },
+    { requirement: 'must', primary: true, credit: 0, primaryHit: false, ceilCredit: 0, ceilPrimaryHit: false, group: 'front-end framework' },
+    { requirement: 'must', primary: false, credit: 0, primaryHit: false, ceilCredit: 0, ceilPrimaryHit: false, group: 'Front-End Framework ' },
+    { requirement: 'preferred', primary: false, credit: 0, primaryHit: false, ceilCredit: 1, ceilPrimaryHit: false, group: null },
+  ],
 ];
 
 test('score.mjs computeScore agrees with score.ts on every fixture', async () => {
@@ -129,4 +137,56 @@ test('live credit: typing a cannot_claim term never counts, typing an add term e
     ],
   );
   assert.equal(entries[4]?.primary, false);
+});
+
+test('an either/or group is one requirement, not three (ADR 0044)', () => {
+  // The live case: "frameworks like React, Next.js, or Vue.js" — the candidate
+  // has React. Split into three musts it reads as one of three; as one group
+  // it reads as the requirement met, which is what the posting asked.
+  const grouped = entriesFromKeywords([
+    { requirement: 'must', primary: true, status: 'present', group: 'front-end framework' },
+    { requirement: 'must', primary: true, status: 'cannot_claim', group: 'front-end framework' },
+    { requirement: 'must', primary: true, status: 'cannot_claim', group: 'front-end framework' },
+  ]);
+  const split = entriesFromKeywords([
+    { requirement: 'must', primary: true, status: 'present' },
+    { requirement: 'must', primary: true, status: 'cannot_claim' },
+    { requirement: 'must', primary: true, status: 'cannot_claim' },
+  ]);
+  const alignment: MatchAlignment = { title: 'strong', summary: 'strong', recent_role: 'strong' };
+  const one = computeScoreTs(grouped, alignment, 0);
+  const three = computeScoreTs(split, alignment, 0);
+
+  assert.equal(one.keywordTotal, 3, 'one must-weight, not three');
+  assert.equal(one.primaryTotal, 1);
+  assert.equal(one.primaryPresent, 1);
+  assert.equal(one.cap, null, 'the primary stack is covered, so no cap');
+  assert.equal(one.score, 100);
+
+  assert.equal(three.keywordTotal, 9);
+  assert.equal(three.primaryPresent, 1);
+  assert.equal(three.cap, SCORING_TS.caps.underHalf, 'ungrouped, the same resume is capped at 45');
+  assert.equal(three.score, 45);
+});
+
+test('a group takes the best member on every axis, and its strongest level', () => {
+  const bd = computeScoreTs(
+    [
+      { requirement: 'nice', primary: false, credit: 0, primaryHit: false, ceilCredit: 0, ceilPrimaryHit: false, group: 'cms' },
+      { requirement: 'must', primary: true, credit: 0.5, primaryHit: false, ceilCredit: 1, ceilPrimaryHit: true, group: 'cms' },
+    ],
+    null,
+    0,
+  );
+  assert.equal(bd.keywordTotal, 3, 'weighted as a must — the strongest level among its members');
+  assert.equal(bd.keywordEarned, 1.5, 'credited by the best member');
+  assert.equal(bd.primaryTotal, 1, 'one primary slot, not two');
+});
+
+test('a keyword with no group is untouched, as every pre-v8 row is', () => {
+  const rows = [
+    { requirement: 'must' as const, primary: true, status: 'present' as const },
+    { requirement: 'must' as const, primary: true, status: 'cannot_claim' as const },
+  ];
+  assert.deepEqual(computeScoreTs(entriesFromKeywords(rows), null, 0).keywordTotal, 6);
 });
