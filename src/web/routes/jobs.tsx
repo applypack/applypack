@@ -1021,8 +1021,7 @@ jobsRoute.get('/jobs/:id/target', async (c) => {
   const file = await describeResumeFile(resume);
   // A one-off check keeps nothing: the comparison holds the text, and Resumes
   // is where a file the user wants to keep is uploaded.
-  const fileVerdict =
-    (resume.hidden ? 'A one-off check from the Compare page — nothing here is saved to Resumes. ' : '') + file.verdict;
+  const fileVerdict = (resume.hidden ? 'A one-off check from the Compare page. ' : '') + file.verdict;
   return c.html(
     <TargetPage
       job={{ id: job.id, title: job.title, companyName: job.company.name, location: job.location, description: job.description }}
@@ -1108,18 +1107,23 @@ function sortToOrderBy(sort: string): Prisma.JobOrderByWithRelationInput[] {
  * patcher only partly reaches.
  */
 async function describeResumeFile(resume: { id: number; sourceFilename: string; hidden: boolean }): Promise<{ verdict: string; clean: boolean }> {
+  // A one-off check has no Save, so it is not told what one would keep: the
+  // whole sentence below is about a save that is not offered here.
+  if (resume.hidden) {
+    return { verdict: 'Edits stay in this browser tab — copy them out, or upload the file on Resumes to keep versions of it.', clean: false };
+  }
   if (/\.docx$/i.test(resume.sourceFilename)) {
     const row = await getResumeOriginal(resume.id);
     if (row) {
       const structure = docxStructure(Buffer.from(row.original));
-      return { verdict: describeStructure(structure), clean: !resume.hidden && structure.kind !== 'flow' };
+      return { verdict: describeStructure(structure), clean: structure.kind !== 'flow' };
     }
   }
   if (/\.pdf$/i.test(resume.sourceFilename)) {
     return {
       verdict: 'This file is a PDF: Save keeps a text version; upload the .docx it was printed from to get a styled file back.',
-      clean: !resume.hidden,
+      clean: true,
     };
   }
-  return { verdict: 'This file is plain text: Save keeps a text version.', clean: !resume.hidden };
+  return { verdict: 'This file is plain text: Save keeps a text version.', clean: true };
 }
