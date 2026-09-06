@@ -44,7 +44,10 @@ test('a half-written posting says where the rest of the advice came from', () =>
   assert.match(d.notice ?? '', /not as things the employer demanded/);
 });
 
-test('no brief at all is the thinnest case, never a crash', () => {
+test('no brief says nothing: unread is not the same as thin', () => {
+  // A stale brief version or a failed call must not put a warning about the
+  // employer's posting on a page that simply has not read it yet.
+  assert.equal(postingDepth(null).notice, null);
   assert.equal(postingDepth(null).depth, 'low');
   assert.equal(postingDepth(undefined).signals, 0);
 });

@@ -33,7 +33,11 @@ const MANY_REQUIREMENTS = 8;
 const SOME_REQUIREMENTS = 4;
 
 export function postingDepth(brief: PostingBrief | null | undefined): DepthReport {
-  if (!brief) return { depth: 'low', signals: 0, notice: NOTICE.low };
+  // No brief is "we have not read this posting yet", not "this posting is
+  // thin" — a stale brief version or a failed call would otherwise put a
+  // warning about the employer's posting on a page that simply lacks data.
+  // The depth stays the conservative default; the user is told nothing.
+  if (!brief) return { depth: 'low', signals: 0, notice: null };
   const wanted = brief.keywords.filter((k) => k.requirement === 'must' || k.requirement === 'preferred');
   const signals = [
     wanted.length >= MANY_REQUIREMENTS,
