@@ -16,6 +16,8 @@ import {
 import { briefForPosting, type BriefResult } from './brief';
 import { annotateElsewhere, applyFacts } from './facts';
 import { gateActions, gateRemovals } from './replacement-gate';
+import { floorDemand, floorGaps } from './suggestion-floor';
+import { suggestForMatch } from './suggestions';
 import { withTableAliases } from './keyword-aliases';
 import { carryOverrides, effectiveKeywords } from './keyword-overrides';
 import { anchorKeywords, anchorStatuses, elsewhereForPosting } from './keyword-anchor';
@@ -180,6 +182,20 @@ export async function matchResumeToJob(
   if (shaped.dropped.length > 0) {
     logger.info({ jobId: job.id, dropped: shaped.dropped }, 'resume: keywords that were not terms');
   }
+  // REQUIRED COVERAGE, checked rather than hoped for (suggestion-floor.ts). A
+  // full report that met every condition and came back with no actions is the
+  // one failure three rewordings of the rule did not fix, so the dedicated
+  // advice call gets one corrected go at it — the verdicts are already stored,
+  // so the score cannot move.
+  let filled = row;
+  if (mode === 'full') {
+    const gaps = floorGaps({ keywords, alignment: reply.alignment, actions: gate.actions, breakdown });
+    if (gaps.length > 0) {
+      logger.info({ matchId: row.id, jobId: job.id, gaps }, 'resume: suggestions missed the floor, asking again');
+      filled = (await suggestForMatch(row, job, undefined, floorDemand(gaps))) ?? row;
+    }
+  }
+
   logger.info(
     {
       matchId: row.id,
@@ -214,7 +230,7 @@ export async function matchResumeToJob(
     },
     'resume: matched',
   );
-  return row;
+  return filled;
 }
 
 /**

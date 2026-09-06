@@ -30,6 +30,8 @@ export async function suggestForMatch(
   match: ResumeMatch,
   job: MatchJobInput & { id: number },
   onError?: (reason: string) => void,
+  /** What a first reply owed and did not deliver (suggestion-floor.ts). */
+  owed?: string | null,
 ): Promise<ResumeMatch | null> {
   const [facts, verification, briefed] = await Promise.all([
     listFacts(),
@@ -39,6 +41,7 @@ export async function suggestForMatch(
     briefForPosting(job),
   ]);
   const prompt = buildSuggestionsPrompt(match.resumeText, job, {
+    owed: owed ?? null,
     summary: match.summary,
     alignment: readBreakdown(match.breakdown)?.alignment ?? null,
     // Carries `evidence` (evidence.ts) — the "listed only" gap the floor asks about.

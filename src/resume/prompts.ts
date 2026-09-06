@@ -1172,6 +1172,8 @@ function companyContextLines(snapshot: string | null | undefined): string[] {
 
 /** What the suggestions call reads from a stored quick check — verdicts only, never the score. */
 export interface SuggestionsInput extends Pick<MatchContext, 'confirmedFacts' | 'deniedTerms' | 'companySnapshot' | 'brief'> {
+  /** Set when a first reply missed REQUIRED COVERAGE — the one thing this call is asked to fix. */
+  owed?: string | null;
   summary: string;
   alignment: MatchAlignment | null;
   keywords: Pick<MatchKeyword, 'term' | 'requirement' | 'primary' | 'status' | 'where' | 'evidence'>[];
@@ -1202,6 +1204,8 @@ export function buildSuggestionsPrompt(
   return {
     system: SUGGEST_SYSTEM,
     user: [
+      // Our own instruction about our own rules, so it sits outside every fence.
+      ...(input.owed ? [input.owed, ''] : []),
       fence('RESUME', clip(resumeText, MAX_RESUME_CHARS)),
       '',
       ...briefLines(input.brief, { frame: false }),
