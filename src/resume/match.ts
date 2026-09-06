@@ -144,8 +144,9 @@ export async function matchResumeToJob(
   // The score folds on `group`, so the brief — not the reply — decides what a
   // group is: an invented label would charge one weight for two requirements.
   const grouped = reconcileGroups(annotateElsewhere(withFacts, otherSkills), briefed?.brief);
-  // "present" is the one status the browser re-checks on every keystroke, so a
-  // present the matcher cannot find would make the table and the chips disagree.
+  // present vs add is one question about the TEXT, and the matcher answers it
+  // more consistently than the model does — that flip is what made one pair
+  // score 79 and then 30.
   const anchoredStatuses = anchorStatuses(grouped.keywords, resume.text, matcher);
   // How strongly the text shows each term — read off the resume, never asked
   // of the model (§23 of the intelligence analysis): a skills line, a sentence
@@ -201,6 +202,7 @@ export async function matchResumeToJob(
       groupsDropped: grouped.dropped,
       malformed: shaped.dropped.length,
       unwritten: anchoredStatuses.downgraded,
+      written: anchoredStatuses.upgraded,
       listedOnly: evidence.listedOnly,
       frame: frame.reason,
       brief: briefed ? (briefed.reused ? 'reused' : 'fresh') : 'none',

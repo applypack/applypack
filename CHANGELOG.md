@@ -122,11 +122,14 @@ All notable changes to this project are documented here. The format follows
   quantities, anything over five words. The same posting went from 15 keywords
   to 11, with the years-and-ownership signals moved to the brief's screening
   block where they belong.
-- **"Matched" now always agrees with the missing-keyword chips.** A `present`
-  the browser matcher cannot find in the resume becomes `add` at persist time
-  (4% of them — paraphrases like "automated testing" against "Unit, integration
-  & E2E testing"), so the table, the chips and the live estimate cannot
-  contradict each other.
+- **`present` vs `add` is decided by the text, not by the model's mood.** The
+  two statuses differ on one question — is the word written? — and the model's
+  answer drifted between runs on identical input. The matcher settles it both
+  ways now: a `present` it cannot find becomes `add` (a paraphrase, like
+  "automated testing" against "Unit, integration & E2E testing"), an `add` it
+  can find becomes `present`. `ask_user` and `cannot_claim` are untouched —
+  typing a word does not make a claim true. Six runs of one live pair, before
+  and after all of today's fixes: the spread went from **49 points to 4**.
 - **A removal can no longer strike through what the posting asks for.** The
   model quoted `Symfony, React, Vue, Laravel, Lumen, Phalcon` whole to advise
   dropping three of the six, with React (must, primary) and Vue.js (must)
