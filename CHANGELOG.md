@@ -30,6 +30,24 @@ All notable changes to this project are documented here. The format follows
   not comparable.
 
 ### Changed
+- **The compare page compares; it no longer makes resumes.** *Save as a
+  tailored copy* and *Save as a new resume* are gone: every comparison used to
+  be able to mint one more row on Resumes, named after the company, and a user
+  with four applications ended up with eight resumes and no idea which was
+  theirs. What is left is one save, **Save as v{n+1}**, offered only for a
+  resume the user already has; a one-off check from the Compare page saves
+  nothing and says so. `POST /resumes/:id/draft` refuses a hidden resume.
+- **One AI action on the compare page, and a new file is a comparison.**
+  *Re-check with AI* and *Full analysis with suggestions* were two buttons
+  whose difference lived in their tooltips; there is now one, and it writes the
+  full report. Uploading a file used to open it as a draft over the OLD
+  analysis while a quick check ran in the background and reported itself as a
+  chip the user had to notice and click — measured on a real session, nobody
+  did. **Compare this file** now runs the same comparison as everything else,
+  on the progress page, and lands on the analysis it wrote. The instant-check
+  machinery (`draft-check.ts`, `draft-stash.ts`, `instant-check.ts`,
+  `run-chip.mjs`) is deleted, and older comparisons of a one-off resume are
+  kept instead of thrown away, so "did the number move?" has an answer.
 - **The advice has a floor, not only a ceiling.** An alignment grade below
   *strong* on the title, the summary or the most recent role must now produce
   a high-priority action *with the wording to paste*, and a must-level keyword
@@ -48,6 +66,12 @@ All notable changes to this project are documented here. The format follows
 - **Exceeding a posting's minimum is not a red flag.** "At least 2 years"
   satisfied by ten is met, whatever the model calls the worry; over-levelling
   is a caution, and it was costing 10 points.
+
+- **Another wording, on request.** **Rewrite** on a suggestion card writes that
+  one suggestion again — same section, same line, same requirement, a different
+  sentence — and the new wording goes through the same gate as the first, so a
+  rewrite cannot claim what the original was refused for. **Rewrite all**
+  re-runs the suggestions call over the same verdicts; the score never moves.
 
 ### Fixed
 - **A removal can no longer strike through what the posting asks for.** The
