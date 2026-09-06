@@ -29,6 +29,7 @@
     "priority:dryrun": "tsx src/scripts/priority-rules-dryrun.ts",
     "bench:resume": "tsx src/scripts/resume-bench-once.ts",
     "verify:compare": "tsx src/scripts/verify-brief-once.ts",
+    "matrix:compare": "tsx src/scripts/match-matrix-once.ts",
     "keywords:audit": "tsx src/scripts/keyword-audit.ts",
     "test:telegram": "tsx src/scripts/test-telegram.ts",
     "prisma:generate": "prisma generate",

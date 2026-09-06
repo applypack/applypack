@@ -41,9 +41,19 @@ export interface AnchorReport {
  *    present keywords on the live corpus.
  *  - `add` the matcher CAN find becomes `present`. `add` means "evidenced but
  *    unwritten"; if the word is written, it is not that.
+ *  - `ask_user` the matcher CAN find becomes `present` too. `ask_user` means
+ *    "this resume does not evidence it, but the candidate might" — a premise
+ *    the text refutes. Left alone it cost a live comparison 49 points: the
+ *    resume says TypeScript in its skills line, one run called it `present`
+ *    (score 53) and the next `ask_user` (score 30, the whole primary stack
+ *    reading as absent), and the confirm card asked the candidate about a word
+ *    they had already written.
  *
- * `ask_user` and `cannot_claim` are never touched: those are claims about what
- * the candidate HAS, and no amount of typing makes one true.
+ * `cannot_claim` is NEVER upgraded, whatever the text says. It is the status a
+ * user's own denial produces (facts.ts runs before this), and a denial outranks
+ * a word on a page. It is also the honest answer when a term is named but the
+ * model judged the resume cannot stand behind it — `evidence: listed` is where
+ * that shows now.
  *
  * Without this, the table said matched while the chip above the editor offered
  * to add the same term, and the live estimate scored it zero.
@@ -56,13 +66,16 @@ export function anchorStatuses(
   let downgraded = 0;
   let upgraded = 0;
   const next = keywords.map((k) => {
-    if (k.status !== 'present' && k.status !== 'add') return k;
+    if (k.status === 'cannot_claim') return k;
     const written = matcher.findTerm(resumeText, k.term, k.aliases).length > 0;
     if (written === (k.status === 'present')) return k;
     if (written) {
       upgraded++;
       return { ...k, status: 'present' as const };
     }
+    // Only a `present` can be wrong in the other direction: an `ask_user` the
+    // text does not carry is exactly what `ask_user` is for.
+    if (k.status !== 'present') return k;
     downgraded++;
     return { ...k, status: 'add' as const };
   });

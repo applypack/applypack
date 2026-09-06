@@ -1,3 +1,5 @@
+import { canonicalTerm } from './facts';
+import { effectiveRequirement } from './keyword-overrides';
 import type { MatchKeyword } from './prompts';
 
 /*
@@ -24,6 +26,24 @@ export interface ShapeReport {
   keywords: MatchKeyword[];
   /** Terms dropped, with the rule that dropped each — the regression metric. */
   dropped: { term: string; reason: string }[];
+}
+
+/** must > preferred > nice > context, for deciding which duplicate survives. */
+const LEVEL_RANK: Record<string, number> = { must: 3, preferred: 2, nice: 1, context: 0 };
+
+/**
+ * One name for one thing. Case, separators and a trailing plural are noise
+ * ("301 redirects" / "301 redirect", "Node.js" / "node js"), and the alias
+ * table already says which spellings mean the same technology — so the key is
+ * the first name in that whole set, and two keywords sharing one collapse.
+ * `#` and `+` survive, because they are the difference between C, C# and C++.
+ */
+function dedupeKey(k: MatchKeyword): string {
+  const fold = (s: string) =>
+    canonicalTerm(s)
+      .replace(/[^a-z0-9#+]/g, '')
+      .replace(/(?<=[a-z]{3})s$/, '');
+  return [fold(k.term), ...k.aliases.map(fold)].filter(Boolean).sort()[0] ?? canonicalTerm(k.term);
 }
 
 /** "5+ years", "at least 3 yrs" — a requirement about the person, not a skill. */
@@ -53,16 +73,49 @@ function reject(term: string): string | null {
 }
 
 /**
- * Drops the rows that are not terms. Pure. A keyword the user added themselves
- * is never dropped: they typed it, they meant it (keyword-overrides.ts §5).
+ * Drops the rows that are not terms, then the rows that are the same term
+ * twice. Pure. A keyword the user added themselves is never dropped: they
+ * typed it, they meant it (keyword-overrides.ts §5).
+ *
+ * The duplicate pass is not cosmetic. A live Drupal posting produced both
+ * "301 redirects" and "301 redirect" in one list, and every keyword carries
+ * weight — the same requirement counted twice moves the denominator and the
+ * user is offered the same chip twice. `dedupeKey` folds case, separators, a
+ * trailing plural and every spelling the alias table knows; the survivor is the
+ * one the posting asks harder for.
  */
 export function dropMalformedKeywords(keywords: MatchKeyword[]): ShapeReport {
   const dropped: { term: string; reason: string }[] = [];
-  const kept = keywords.filter((k) => {
+  const shaped = keywords.filter((k) => {
     if (k.override?.added) return true;
     const reason = reject(k.term);
     if (reason) dropped.push({ term: k.term, reason });
     return reason === null;
   });
-  return { keywords: kept, dropped };
+
+  const strongest = new Map<string, MatchKeyword>();
+  for (const k of shaped) {
+    const key = dedupeKey(k);
+    const held = strongest.get(key);
+    if (!held) {
+      strongest.set(key, k);
+      continue;
+    }
+    const better =
+      (LEVEL_RANK[effectiveRequirement(k)] ?? 0) > (LEVEL_RANK[effectiveRequirement(held)] ?? 0) ||
+      (k.primary && !held.primary);
+    dropped.push({ term: better ? held.term : k.term, reason: `the same term as "${better ? k.term : held.term}"` });
+    if (better) strongest.set(key, { ...k, primary: k.primary || held.primary });
+    else strongest.set(key, { ...held, primary: held.primary || k.primary });
+  }
+  // Order is the posting's, not the map's: the panes read it top to bottom.
+  const seen = new Set<string>();
+  const out: MatchKeyword[] = [];
+  for (const k of shaped) {
+    const key = dedupeKey(k);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(strongest.get(key) ?? k);
+  }
+  return { keywords: out, dropped };
 }

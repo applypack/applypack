@@ -209,6 +209,36 @@ export function aliasesFor(term: string): string[] {
   return group ? group.filter((s) => s !== key) : [];
 }
 
+/*
+ * Technologies a posting pins a major version of. "PHP 8" and "PHP" are the
+ * same skill; "SOC 2", "Web 3" and "ISO 27001" are names that happen to end in
+ * a number, and nothing structural tells the two apart — so this is a list, the
+ * same way the spellings above are a list. Add a name when a posting asks for
+ * a version of it.
+ */
+const VERSIONED = new Set([
+  'php', 'java', 'python', 'node', 'node.js', 'vue', 'vue.js', 'angular', 'react', 'react.js',
+  '.net', 'c#', 'rails', 'ruby on rails', 'django', 'laravel', 'symfony', 'spring', 'spring boot',
+  'ruby', 'go', 'swift', 'kotlin', 'scala', 'postgresql', 'mysql', 'redis', 'kafka', 'elasticsearch',
+  'kubernetes', 'terraform', 'next.js', 'nuxt', 'ios', 'android', 'typescript', 'drupal', 'wordpress',
+]);
+
+/**
+ * A posting's version-pinned name for a technology, without the version:
+ * "PHP 8" → "php", "Java 17" → "java", ".NET 8" → ".net". Null for anything
+ * whose base is not a technology this list knows.
+ *
+ * A posting asking for "PHP 8" against a resume that says "PHP" was scored
+ * cannot_claim, and cannot_claim on a primary term caps the whole comparison
+ * at 30. A major version is a related skill with the highest transferability
+ * there is; treating it as a different technology is wrong by a mile.
+ */
+export function versionlessAlias(term: string): string | null {
+  const m = /^(.+?)\s+v?\d+(?:\.\d+)*$/.exec(canonicalTerm(term));
+  const base = m?.[1]?.trim();
+  return base && VERSIONED.has(base) ? base : null;
+}
+
 /**
  * The keyword with every table spelling of its term and aliases merged into
  * `aliases`. Returns the same object when the table adds nothing.
@@ -216,7 +246,9 @@ export function aliasesFor(term: string): string[] {
 export function withTableAliases<K extends { term: string; aliases: string[] }>(k: K): K {
   const key = canonicalTerm(k.term);
   const merged = new Set(k.aliases);
-  for (const name of [key, ...k.aliases]) {
+  const base = versionlessAlias(k.term);
+  if (base) merged.add(base);
+  for (const name of [key, ...k.aliases, ...(base ? [base] : [])]) {
     for (const alias of aliasesFor(name)) {
       if (alias !== key) merged.add(alias);
     }

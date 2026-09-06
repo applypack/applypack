@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { aliasesFor, withTableAliases } from './keyword-aliases';
+import { aliasesFor, versionlessAlias, withTableAliases } from './keyword-aliases';
 import { readKeywords, type MatchKeyword } from './prompts';
 import type { KeywordMatcher } from './keyword-matcher';
 
@@ -76,4 +76,26 @@ test('the alias table never groups two different things', () => {
     assert.equal(aliasesFor(a).includes(b), false, `"${a}" must not alias "${b}"`);
     assert.equal(aliasesFor(b).includes(a), false, `"${b}" must not alias "${a}"`);
   }
+});
+
+test('a version-pinned requirement is the same technology (§11: highest transferability)', async () => {
+  // A live Drupal posting asked for "PHP 8" and the model called a PHP resume
+  // cannot_claim — on a primary term, which caps the whole comparison at 30.
+  for (const [term, text] of [
+    ['PHP 8', 'Languages: PHP, SQL, Bash'],
+    ['Java 17', 'Backend in Java and Kotlin'],
+    ['Vue 3', 'Front end in Vue and Nuxt'],
+    ['Python 3.11', 'Data pipelines in Python'],
+  ] as const) {
+    assert.equal(await finds(term, text), true, `${term} should be satisfied by "${text}"`);
+  }
+});
+
+test('a name that merely ends in a number is not a version', () => {
+  // These are the names of things, not versions of anything.
+  for (const term of ['SOC 2', 'Web 3', 'ISO 27001', 'S3', 'EC2']) {
+    assert.equal(versionlessAlias(term), null, `${term} must keep its number`);
+  }
+  assert.equal(versionlessAlias('PHP 8'), 'php');
+  assert.equal(versionlessAlias('.NET 8'), '.net');
 });

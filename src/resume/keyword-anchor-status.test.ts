@@ -34,12 +34,22 @@ test('present vs add is settled by the text, both ways', async () => {
   assert.equal(out.downgraded, 1);
 });
 
-test('what the candidate HAS is never decided by typing', async () => {
+test('a denial outranks a word on the page; a question the text answers does not', async () => {
   const m = await matcher();
-  // Both words are in the text; neither status is a claim about the text.
-  const out = anchorStatuses([kw('Go', 'cannot_claim'), kw('React', 'ask_user')], RESUME, m);
-  assert.deepEqual(out.keywords.map((k) => k.status), ['cannot_claim', 'ask_user']);
-  assert.equal(out.upgraded, 0);
+  const out = anchorStatuses(
+    [
+      // The user said they do not have it (facts.ts). The text cannot overrule that.
+      kw('Go', 'cannot_claim'),
+      // "the resume does not evidence it, but they might" — the resume does.
+      kw('React', 'ask_user'),
+      // Nothing in the text, so the question stands.
+      kw('Kubernetes', 'ask_user'),
+    ],
+    RESUME,
+    m,
+  );
+  assert.deepEqual(out.keywords.map((k) => k.status), ['cannot_claim', 'present', 'ask_user']);
+  assert.equal(out.upgraded, 1);
   assert.equal(out.downgraded, 0);
 });
 

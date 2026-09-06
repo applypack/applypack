@@ -46,7 +46,6 @@ import {
   deleteCoverLettersForResume,
   getCoverLetter,
   getLatestCompanySnapshot,
-  getLatestMatchForResumeAndJob,
   getMatch,
   getResume,
   listCoverLettersForJob,

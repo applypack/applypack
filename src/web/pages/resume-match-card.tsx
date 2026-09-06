@@ -143,9 +143,11 @@ export const ResumeMatchCard: FC<ResumeMatchCardProps> = ({
         </Hint>
       ) : (
         <form method="post" action={`/jobs/${jobId}/match`} class="flex flex-wrap items-end gap-3" onsubmit={SUBMIT_ONCE}>
-          {/* Set by the second button's click: SUBMIT_ONCE disables the buttons in the
-              submit event, and a disabled submitter is left out of the form data. */}
-          <input type="hidden" name="mode" value="fast" />
+          {/* One comparison, everywhere. The quick check still exists in the
+              code (ADR 0029) — the memo and the suggestions call are built on
+              it — but a user choosing between "Compare" and "Full analysis"
+              was choosing between two tooltips. */}
+          <input type="hidden" name="mode" value="full" />
           <label class="block min-w-0 max-w-full">
             <span class="block text-[13px] font-medium text-ink">Resume</span>
             <Select name="resumeId" class="mt-1.5 !w-auto max-w-full">
@@ -162,22 +164,15 @@ export const ResumeMatchCard: FC<ResumeMatchCardProps> = ({
               ))}
             </Select>
           </label>
-          <Button variant="violet" title="Keywords, hard requirements and the score — no edit suggestions">
+          <Button variant="violet" title="Judges this resume against the posting and writes what to change">
             Compare
-          </Button>
-          <Button
-            variant="secondary"
-            onclick="this.form.elements.mode.value='full'"
-            title="The same check plus what to change and what to remove"
-          >
-            Full analysis
           </Button>
           {!selected && (
             <Hint class="basis-full">
-              Compare is the quick check — one call to the resume model, about half a minute on
-              Opus, and you can ask for the suggestions afterwards. Full analysis writes them
-              right away and takes 1½ to 2 minutes. The score itself is computed
-              deterministically from the reply — same facts, same number, every time.
+              One call to the resume model — keywords, hard requirements, the score and what to
+              change — about one to two minutes. The posting itself is read once and kept, so
+              comparing a second resume against it is quicker. The score is computed
+              deterministically from the reply: same facts, same number, every time.
             </Hint>
           )}
         </form>

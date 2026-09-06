@@ -38,3 +38,32 @@ test("a keyword the user typed themselves is never second-guessed", () => {
   const mine = kw({ term: '0 to 1', override: { added: true } });
   assert.deepEqual(dropMalformedKeywords([mine]).keywords, [mine]);
 });
+
+test('the same term twice is counted once, at its strongest level', () => {
+  // The live Drupal posting returned both of these; every keyword carries
+  // weight, so the requirement was charged twice.
+  const out = dropMalformedKeywords([
+    kw({ term: '301 redirects', requirement: 'nice' }),
+    kw({ term: '301 redirect', requirement: 'must', primary: true }),
+    kw({ term: 'Drupal' }),
+  ]);
+  assert.deepEqual(out.keywords.map((k) => k.term), ['301 redirect', 'Drupal']);
+  assert.equal(out.keywords[0]?.requirement, 'must');
+  assert.equal(out.keywords[0]?.primary, true);
+  assert.match(out.dropped[0]!.reason, /the same term as/);
+});
+
+test('a primary mark survives even when the weaker spelling came first', () => {
+  const out = dropMalformedKeywords([
+    kw({ term: 'React', requirement: 'must', primary: true }),
+    kw({ term: 'react', requirement: 'nice' }),
+  ]);
+  assert.equal(out.keywords.length, 1);
+  assert.equal(out.keywords[0]?.term, 'React');
+  assert.equal(out.keywords[0]?.primary, true);
+});
+
+test('terms that merely share a word are not duplicates', () => {
+  const terms = ['Drupal', 'Drupal core', 'Drupal Migrate API'];
+  assert.deepEqual(dropMalformedKeywords(terms.map((term) => kw({ term }))).keywords.map((k) => k.term), terms);
+});
