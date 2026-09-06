@@ -4,7 +4,7 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [1.70.0] — 2026-09-06
 
 ### Added
 - **The posting is read once, on its own, and the reading is kept.** Before
@@ -94,6 +94,15 @@ All notable changes to this project are documented here. The format follows
   "what this kind of role usually asks for" is never mistaken for what this
   employer demanded.
 
+- **A matrix harness for the comparison itself.** `npm run matrix:compare` runs
+  a spread of real resumes against real postings — PHP backend, front-end,
+  product manager, senior full-stack against backend, full-stack, web, mobile,
+  paid-media, lead-generation and clinical-trial roles — and checks every
+  invariant against the row it wrote: keyword shape, both status anchors,
+  measured evidence, group labels, the cap arithmetic, every quote the editor
+  has to locate, the removal gate and the suggestion floor. It found four of
+  the fixes below.
+
 ### Fixed
 - **A red flag that restates an unwritten primary is free again.** The cap and
   the red-flag exemption were reading one number for two different questions:
@@ -130,6 +139,27 @@ All notable changes to this project are documented here. The format follows
   can find becomes `present`. `ask_user` and `cannot_claim` are untouched —
   typing a word does not make a claim true. Six runs of one live pair, before
   and after all of today's fixes: the spread went from **49 points to 4**.
+- **An `ask_user` on a word the resume already spells cost 49 points.** The
+  same cliff as `add`, through a different door: one live pair scored 53 with
+  TypeScript called `present` and 30 with it called `ask_user`, on a resume
+  whose skills line says TypeScript. The matcher settles that too now; only a
+  `cannot_claim` is left alone, because it is what a user's own denial produces.
+- **The same requirement counted twice.** A live Drupal posting returned both
+  "301 redirects" and "301 redirect"; every keyword carries weight, so one
+  requirement moved the denominator twice and the user was offered the same
+  chip twice. Terms now fold by every spelling the alias table knows.
+- **A pinned version read as a different technology.** "PHP 8" against a resume
+  that says "PHP" was scored `cannot_claim` — on a primary term, which caps the
+  whole comparison at 30. A curated list of the technologies postings pin
+  versions of derives the version-less alias; "SOC 2" and "ISO 27001" keep
+  their numbers.
+- **A report with nothing in it, on a resume there was plenty to do for.**
+  REQUIRED COVERAGE survived three rewordings and still lost the whole list on
+  a front-end resume with React and TypeScript present, judged against a
+  full-stack React posting with a ceiling of 70. `suggestion-floor.ts` checks
+  the rule in code and spends one suggestions call — verdicts frozen, score
+  untouched — naming what was owed. A resume for a different profession, or one
+  whose honest ceiling nobody would apply on, is still owed nothing and says so.
 - **A removal can no longer strike through what the posting asks for.** The
   model quoted `Symfony, React, Vue, Laravel, Lumen, Phalcon` whole to advise
   dropping three of the six, with React (must, primary) and Vue.js (must)
@@ -2824,6 +2854,9 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[1.70.0]: https://github.com/applypack/applypack/compare/v1.69.0...v1.70.0
+[1.69.0]: https://github.com/applypack/applypack/compare/v1.68.0...v1.69.0
+[1.68.0]: https://github.com/applypack/applypack/compare/v1.67.0...v1.68.0
 [1.67.0]: https://github.com/applypack/applypack/compare/v1.66.0...v1.67.0
 [1.66.0]: https://github.com/applypack/applypack/compare/v1.65.0...v1.66.0
 [1.65.0]: https://github.com/applypack/applypack/compare/v1.64.0...v1.65.0
