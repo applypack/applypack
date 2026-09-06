@@ -62,11 +62,13 @@ const KEYWORDS_MAX = 80;
  *     slip through are dropped in code (keyword-shape.ts).
  * v10: keywords carry measured `evidence` (evidence.ts), and the suggestion
  *     floor reads it instead of inferring "only in a skills list".
+ * v12: the profession exemption is about professions, not stacks or levels,
+ *     and it has a test the model can check against its own keyword list.
  * v11: the floor does not apply to a resume aimed at another job function;
  *     duplicate terms fold, a pinned version matches its technology, and an
  *     `ask_user` the resume already spells becomes `present`.
  */
-export const PROMPT_VERSION = 11;
+export const PROMPT_VERSION = 12;
 
 /**
  * The posting brief's own version (ADR 0044). Separate from PROMPT_VERSION so
@@ -627,7 +629,9 @@ const RULE_ACTIONS = `"actions" is the to-do list of ADDITIONS and CHANGES: conc
    - a must-level or primary keyword whose evidence is "listed" → one action putting it inside a bullet where the work is described. "listed" is measured, not guessed: the term is named on a line of terms and shown nowhere else, which proves nothing to a human reader. A term already "described" or "measured" needs no such action.
    - a must-level keyword marked "add" → one action writing it into the text whose facts already evidence it.
    When all three grades are strong and no must-level keyword is buried, the short list IS the answer — say what already works in "strengths".
-   NONE OF THE ABOVE APPLIES to a resume aimed at a different job function — a backend engineer against a paid-media role, a product manager against a principal engineer. There is no wording that bridges those, and inventing one wastes the candidate's time: write NO actions, say plainly in "summary" and "cautions" what the resume is and what the posting wants, and leave it there.
+   THE ONE EXEMPTION is a different PROFESSION — a backend engineer against a paid-media role, a product manager against a principal engineer, a software engineer against clinical trial management. No wording bridges those: write NO actions and say plainly in "summary" and "cautions" what the resume is and what the posting wants.
+   THE TEST FOR IT, so it is not a feeling: the exemption applies only when NOT ONE item of the posting's primary stack is "present" or "add" (and, for a posting with no primary stack, when fewer than two of its must-level keywords are). If even one is, this candidate already has part of the core of this job, and the actions above are owed however wide the rest of the gap looks.
+   It is about professions, NOT about stacks or levels. A PHP engineer against a Java posting, a front-end engineer against a full-stack posting, a mid engineer against a senior one: same profession, and REQUIRED COVERAGE applies in full. Those are exactly the resumes tailoring helps most — a front-end resume with React and TypeScript already present, judged against a full-stack React posting, and given no actions at all, is a failed report.
    ${RULE_BULLET_STYLE}`;
 
 const RULE_REMOVALS = `"removals" is the list of what to DELETE or SHORTEN so the resume reads cleaner for this posting: skills listed but never evidenced in a role; bullets with no number or no relevance to this posting (especially in roles older than two years); roles older than ~10 years condensed to one line — but age alone is not a reason, and an old role holding this posting's most relevant evidence (its own discipline, its CMS, its industry, the volume of work it names) is the LAST line to cut: condense the rest of that role around it; duplicated tech lists; filler sentences; anything a US recruiter does not want (photo, age, marital status, street-level home address); sections that add nothing (objective, references available on request). Each item: section, where, what to remove, why, and "quote" — the exact text to delete, copied verbatim (at most ~200 characters). Two hard rules:

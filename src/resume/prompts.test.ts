@@ -227,6 +227,12 @@ test('actions carry a floor as well as a ceiling', () => {
   assert.match(system, /"recent_role" graded below strong → rewrite/);
   assert.match(system, /whose evidence is "listed"/);
   assert.doesNotMatch(system, /one or two actions \(or none\) is the correct answer/);
+  // The exemption that suppressed the whole list on ten live pairs when it was
+  // written loosely: it is about professions, not about stacks or levels.
+  assert.match(system, /THE ONE EXEMPTION is a different PROFESSION/);
+  assert.match(system, /It is about professions, NOT about stacks or levels/);
+  assert.match(system, /THE TEST FOR IT, so it is not a feeling/);
+  assert.match(system, /given no actions at all, is a failed report/);
 });
 
 test('previous keywords keep re-runs comparable', () => {

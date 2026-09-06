@@ -149,10 +149,15 @@ async function main(): Promise<void> {
     }
 
     // ---- the advice has the floor the rules promise ------------------------
-    // The floor only binds when there is something to work with. A resume aimed
-    // at a different job function correctly gets no actions at all — inventing
-    // a path from product management to paid media would be the bug.
-    const workable = keywords.some((k) => k.requirement === 'must' && (k.status === 'present' || k.status === 'add'));
+    // The floor only binds when the candidate has part of the core of the job —
+    // the same test the prompt states. A product manager against a principal
+    // engineer posting correctly gets no actions; a front-end resume with React
+    // and TypeScript present, against a full-stack React posting, must not.
+    const covered = keywords.filter((k) => k.status === 'present' || k.status === 'add');
+    const workable =
+      (bd?.primaryTotal ?? 0) > 0
+        ? (bd?.primaryPresent ?? 0) > 0
+        : covered.filter((k) => k.requirement === 'must').length >= 2;
     const highIn = (section: string) => actions.some((a) => a.section === section && a.priority === 'high');
     if (bd?.alignment && workable) {
       if (bd.alignment.title !== 'strong' && !highIn('title')) at('floor', 'title is not strong and got no high-priority action');
