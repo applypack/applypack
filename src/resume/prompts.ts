@@ -6,6 +6,7 @@ import {
   REQUIREMENT_LEVELS,
   type MatchAlignment,
 } from './score';
+import { EVIDENCE_LEVELS } from './evidence';
 import { REVIEW_DIMENSIONS, REVIEW_GRADES } from './review-score';
 import { JsonResumeSchema, type JsonResume } from './json-resume';
 import { INJECTION_FLAG, fence, untrustedDirective } from '../prompt-fence';
@@ -59,8 +60,10 @@ const KEYWORDS_MAX = 80;
  * v9: a keyword is a thing a recruiter would search for — duties, qualities,
  *     quantities and person-requirements are not keywords, and the ones that
  *     slip through are dropped in code (keyword-shape.ts).
+ * v10: keywords carry measured `evidence` (evidence.ts), and the suggestion
+ *     floor reads it instead of inferring "only in a skills list".
  */
-export const PROMPT_VERSION = 9;
+export const PROMPT_VERSION = 10;
 
 /**
  * The posting brief's own version (ADR 0044). Separate from PROMPT_VERSION so
@@ -259,6 +262,11 @@ export const MatchSchema = z.object({
         // Optional, not nullable: rows written before v8 carry no groups at all,
         // and the score reads an absent group as "this term stands alone".
         group: nullableText.optional(),
+        // Set by post-processing from the resume text (evidence.ts, §23 of the
+        // intelligence analysis): listed on a skills line, described inside a
+        // sentence about work, or described with a number. Never asked of the
+        // model — it is a property of the text.
+        evidence: z.enum(EVIDENCE_LEVELS).optional(),
         // Set by post-processing when another stored resume evidences the term.
         elsewhere: nullableText,
         // Set by post-processing when the posting contains the term in no
@@ -613,7 +621,7 @@ const RULE_ACTIONS = `"actions" is the to-do list of ADDITIONS and CHANGES: conc
    - "title" graded below strong → ONE high-priority action on the title line WITH a replacement: the headline this recruiter should read, in the posting's own words. Writing the role being applied for on one's own headline is ordinary tailoring, not a claim of past employment.
    - "summary" graded below strong → ONE high-priority action rewriting the summary WITH a replacement, naming at least two of the posting's must requirements this resume can honestly support.
    - "recent_role" graded below strong → rewrite the most recent role's leading bullets, up to 4, one action each WITH a replacement, so each opens with an outcome this employer scans for, in this posting's vocabulary.
-   - a must-level or primary keyword marked "present" that appears ONLY in a skills list → one action putting it inside a bullet where the work is described; a skills line proves nothing to a human reader.
+   - a must-level or primary keyword whose evidence is "listed" → one action putting it inside a bullet where the work is described. "listed" is measured, not guessed: the term is named on a line of terms and shown nowhere else, which proves nothing to a human reader. A term already "described" or "measured" needs no such action.
    - a must-level keyword marked "add" → one action writing it into the text whose facts already evidence it.
    When all three grades are strong and no must-level keyword is buried, the short list IS the answer — say what already works in "strengths".
    ${RULE_BULLET_STYLE}`;
@@ -1158,7 +1166,7 @@ function companyContextLines(snapshot: string | null | undefined): string[] {
 export interface SuggestionsInput extends Pick<MatchContext, 'confirmedFacts' | 'deniedTerms' | 'companySnapshot' | 'brief'> {
   summary: string;
   alignment: MatchAlignment | null;
-  keywords: Pick<MatchKeyword, 'term' | 'requirement' | 'primary' | 'status' | 'where'>[];
+  keywords: Pick<MatchKeyword, 'term' | 'requirement' | 'primary' | 'status' | 'where' | 'evidence'>[];
   hardRequirements: Pick<MatchHardRequirement, 'requirement' | 'status'>[];
 }
 
@@ -1174,9 +1182,13 @@ export function buildSuggestionsPrompt(
     `Verdict: ${input.summary}`,
     a ? `Alignment: title ${a.title}, summary ${a.summary}, recent role ${a.recent_role}` : 'Alignment: not graded',
     ...input.hardRequirements.map((h) => `Gate: ${h.requirement} — ${h.status}`),
-    'Keywords (term | requirement | status | where):',
+    // "evidence" is measured off the resume, not judged (evidence.ts): a term
+    // that is only "listed" is named on a skills line and shown nowhere, which
+    // is the gap REQUIRED COVERAGE asks for an action about.
+    'Keywords (term | requirement | status | evidence | where):',
     ...input.keywords.map(
-      (k) => `- ${k.term} | ${k.requirement}${k.primary ? ' | primary' : ''} | ${k.status}${k.where ? ` | ${k.where}` : ''}`,
+      (k) =>
+        `- ${k.term} | ${k.requirement}${k.primary ? ' | primary' : ''} | ${k.status} | ${k.evidence ?? 'unmeasured'}${k.where ? ` | ${k.where}` : ''}`,
     ),
   ].join('\n');
   return {

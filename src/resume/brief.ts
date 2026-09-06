@@ -29,6 +29,18 @@ export function postingHashOf(job: Pick<MatchJobInput, 'title' | 'description'>)
   return hashShortId(`${job.title}\n${job.description}`);
 }
 
+/**
+ * The stored brief for this posting, or null — never a model call. Pages read
+ * it to say what the posting itself carried (brief-depth.ts); rendering a page
+ * must not spend a comparison's worth of tokens.
+ */
+export async function storedBriefFor(job: MatchJobInput & { id: number }): Promise<PostingBrief | null> {
+  const stored = await getPostingBrief(job.id, postingHashOf(job), BRIEF_PROMPT_VERSION);
+  if (!stored) return null;
+  const parsed = parseBriefResponse(JSON.stringify(stored.brief));
+  return parsed.ok ? parsed.data : null;
+}
+
 export interface BriefResult {
   brief: PostingBrief;
   /** True when the brief came from the store — no model call was made. */

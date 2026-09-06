@@ -75,6 +75,8 @@ export interface ScoreEntry {
   primaryHit: boolean;
   ceilCredit: number;
   ceilPrimaryHit: boolean;
+  /** The term is spelled in the text, not merely evidenced by it. */
+  primaryWritten?: boolean;
   /**
    * Requirement-group label (ADR 0044). Entries sharing one are alternatives
    * the posting itself offered — "frameworks like React, Next.js, or Vue.js" —
@@ -98,7 +100,10 @@ export interface ScoreBreakdown {
   /** Red flags the penalty actually counted (excess over missing primaries, bounded). */
   flagsCounted?: number;
   primaryTotal: number;
+  /** Primary items the candidate HAS — the cap's question (present or add). */
   primaryPresent: number;
+  /** Primary items the resume actually SPELLS — the flag exemption's question. */
+  primaryWritten?: number;
   /** The cap that applied, or null when the primary stack is fully present (or absent). */
   cap: number | null;
   score: number;
@@ -160,6 +165,7 @@ export function foldGroups(entries: ScoreEntry[]): ScoreEntry[] {
       ceilCredit: Math.max(held.ceilCredit, e.ceilCredit),
       primary: held.primary || e.primary,
       primaryHit: held.primaryHit || e.primaryHit,
+      primaryWritten: held.primaryWritten || e.primaryWritten,
       ceilPrimaryHit: held.ceilPrimaryHit || e.ceilPrimaryHit,
     };
   }
@@ -188,6 +194,7 @@ export function computeScore(
   let total = 0;
   let primaryTotal = 0;
   let primaryPresent = 0;
+  let primaryWritten = 0;
   let ceilPrimaryPresent = 0;
   for (const e of entries) {
     const weight = SCORING.requirementWeight[e.requirement] ?? 0;
@@ -197,6 +204,7 @@ export function computeScore(
     if (e.primary) {
       primaryTotal++;
       if (e.primaryHit) primaryPresent++;
+      if (e.primaryWritten) primaryWritten++;
       if (e.ceilPrimaryHit) ceilPrimaryPresent++;
     }
   }
@@ -210,12 +218,17 @@ export function computeScore(
           SCORING.recentRoleMax * SCORING.alignmentCredit[a.recent_role],
       )
     : 0;
-  // Flags that merely restate a missing primary item are already punished by
-  // the cap; count only the excess, and bound the total (v3). Live estimates
-  // pass the analysis-time penalty instead: the flag texts were judged against
-  // the analysed snapshot, so typing a missing primary into the editor must
-  // not re-inflate them (42 → 29 on the cover-letter fixture was this bug).
-  const missingPrimary = primaryTotal - primaryPresent;
+  // Flags that merely restate a primary item the resume does not spell out are
+  // already punished — by the cap when the candidate does not have it, by half
+  // the keyword credit when they have it but never wrote the word. The
+  // exemption therefore counts what is WRITTEN, not what is covered: with only
+  // the covered count, a model that marked the primary `add` and then flagged
+  // it as "not demonstrated" was charged 10 points for saying the same thing
+  // twice, and two runs of one live pair differed by exactly that.
+  // Live estimates pass the analysis-time penalty instead: the flag texts were
+  // judged against the analysed snapshot, so typing a missing primary into the
+  // editor must not re-inflate them (42 → 29 on the cover-letter fixture).
+  const missingPrimary = primaryTotal - primaryWritten;
   const flagsCounted = Math.max(0, redFlagCount - missingPrimary);
   const penalty =
     fixedPenalty ?? Math.min(flagsCounted * SCORING.redFlagPenalty, SCORING.penaltyMax);
@@ -245,6 +258,7 @@ export function computeScore(
     flagsCounted,
     primaryTotal,
     primaryPresent,
+    primaryWritten,
     cap,
     score,
     ceiling,
@@ -268,6 +282,7 @@ export function entriesFromKeywords(
       primary,
       credit: SCORING.statusCredit[k.status] ?? 0,
       primaryHit: SCORING.primaryCovered.includes(k.status),
+      primaryWritten: k.status === 'present',
       ceilCredit: claimable ? 1 : 0,
       ceilPrimaryHit: primary && claimable,
       group: k.group ?? null,
@@ -298,6 +313,8 @@ const BreakdownSchema = z.object({
   flagsCounted: z.number().int().optional(),
   primaryTotal: z.number().int(),
   primaryPresent: z.number().int(),
+  // v4 addition — absent on rows written before the covered/written split.
+  primaryWritten: z.number().int().optional(),
   cap: z.number().nullable(),
   score: z.number(),
   ceiling: z.number().optional(),

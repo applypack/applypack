@@ -225,7 +225,7 @@ test('actions carry a floor as well as a ceiling', () => {
   assert.match(system, /"title" graded below strong → ONE high-priority action/);
   assert.match(system, /"summary" graded below strong → ONE high-priority action/);
   assert.match(system, /"recent_role" graded below strong → rewrite/);
-  assert.match(system, /appears ONLY in a skills list/);
+  assert.match(system, /whose evidence is "listed"/);
   assert.doesNotMatch(system, /one or two actions \(or none\) is the correct answer/);
 });
 
@@ -348,7 +348,7 @@ const SUGGEST_INPUT = {
   alignment: { title: 'partial', summary: 'strong', recent_role: 'off' } as const,
   keywords: [
     { term: 'Node.js', requirement: 'must' as const, primary: true, status: 'cannot_claim' as const, where: null },
-    { term: 'Docker', requirement: 'preferred' as const, primary: false, status: 'present' as const, where: 'Skills line' },
+    { term: 'Docker', requirement: 'preferred' as const, primary: false, status: 'present' as const, where: 'Skills line', evidence: 'listed' as const },
   ],
   hardRequirements: [{ requirement: 'US work authorization', status: 'unknown' as const }],
 };
@@ -361,7 +361,7 @@ test('suggestions prompt carries the stored verdicts and forbids re-judging them
   // It may still be the REASON for an honest edit — the retitle case (ADR 0044).
   assert.match(system, /It may still be the REASON for an action over honest material/);
   assert.match(user, /- Node\.js \| must \| primary \| cannot_claim/);
-  assert.match(user, /- Docker \| preferred \| present \| Skills line/);
+  assert.match(user, /- Docker \| preferred \| present \| listed \| Skills line/);
   assert.match(user, /Alignment: title partial, summary strong, recent role off/);
   assert.match(user, /Gate: US work authorization — unknown/);
   assert.match(user, /RESUME BODY/);
@@ -1070,4 +1070,10 @@ test('parseRewriteResponse needs all three fields and a wording that exists', ()
   assert.equal(ok.data.replacement, 'Built responsive storefronts.');
   assert.equal(parseRewriteResponse('{"what":"x","why":"y","replacement":""}').ok, false);
   assert.equal(parseRewriteResponse('{"what":"x","why":"y"}').ok, false);
+});
+
+test('a keyword with no measured evidence says so rather than pretending', () => {
+  const { user } = buildSuggestionsPrompt('resume', JOB, SUGGEST_INPUT);
+  // Node.js carries no evidence field (it is cannot_claim, nothing to measure).
+  assert.match(user, /- Node\.js \| must \| primary \| cannot_claim \| unmeasured/);
 });

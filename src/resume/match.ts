@@ -21,6 +21,7 @@ import { carryOverrides, effectiveKeywords } from './keyword-overrides';
 import { anchorKeywords, anchorStatuses, elsewhereForPosting } from './keyword-anchor';
 import { reconcileGroups } from './keyword-group';
 import { dropMalformedKeywords } from './keyword-shape';
+import { annotateEvidence } from './evidence';
 import { planKeywordFrame } from './keyword-frame';
 import { loadKeywordMatcher } from './keyword-matcher';
 import { readMatchMode, type MatchMode } from './match-mode';
@@ -146,7 +147,11 @@ export async function matchResumeToJob(
   // "present" is the one status the browser re-checks on every keystroke, so a
   // present the matcher cannot find would make the table and the chips disagree.
   const anchoredStatuses = anchorStatuses(grouped.keywords, resume.text, matcher);
-  const keywords = anchoredStatuses.keywords;
+  // How strongly the text shows each term — read off the resume, never asked
+  // of the model (§23 of the intelligence analysis): a skills line, a sentence
+  // about work, or a sentence with a number in it.
+  const evidence = annotateEvidence(anchoredStatuses.keywords, resume.text, matcher);
+  const keywords = evidence.keywords;
   // What may be applied with one press is decided here, in code, against
   // the resume, the posting and the facts — never by the model (ADR 0037).
   const gateSources = { resumeText: resume.text, posting, facts, keywords, matcher };
@@ -196,6 +201,7 @@ export async function matchResumeToJob(
       groupsDropped: grouped.dropped,
       malformed: shaped.dropped.length,
       unwritten: anchoredStatuses.downgraded,
+      listedOnly: evidence.listedOnly,
       frame: frame.reason,
       brief: briefed ? (briefed.reused ? 'reused' : 'fresh') : 'none',
       promptVersion: PROMPT_VERSION,

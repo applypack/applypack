@@ -61,6 +61,7 @@ export function foldGroups(entries) {
       ceilCredit: Math.max(held.ceilCredit, e.ceilCredit),
       primary: held.primary || e.primary,
       primaryHit: held.primaryHit || e.primaryHit,
+      primaryWritten: held.primaryWritten || e.primaryWritten,
       ceilPrimaryHit: held.ceilPrimaryHit || e.ceilPrimaryHit,
     };
   }
@@ -87,6 +88,7 @@ export function computeScore(rawEntries, alignment, redFlagCount, fixedPenalty =
   let total = 0;
   let primaryTotal = 0;
   let primaryPresent = 0;
+  let primaryWritten = 0;
   let ceilPrimaryPresent = 0;
   for (const e of entries) {
     const weight = SCORING.requirementWeight[e.requirement] ?? 0;
@@ -96,6 +98,7 @@ export function computeScore(rawEntries, alignment, redFlagCount, fixedPenalty =
     if (e.primary) {
       primaryTotal++;
       if (e.primaryHit) primaryPresent++;
+      if (e.primaryWritten) primaryWritten++;
       if (e.ceilPrimaryHit) ceilPrimaryPresent++;
     }
   }
@@ -109,7 +112,8 @@ export function computeScore(rawEntries, alignment, redFlagCount, fixedPenalty =
           SCORING.recentRoleMax * SCORING.alignmentCredit[a.recent_role],
       )
     : 0;
-  const missingPrimary = primaryTotal - primaryPresent;
+  // What is WRITTEN, not what is covered — see score.ts.
+  const missingPrimary = primaryTotal - primaryWritten;
   const flagsCounted = Math.max(0, redFlagCount - missingPrimary);
   const penalty =
     fixedPenalty ?? Math.min(flagsCounted * SCORING.redFlagPenalty, SCORING.penaltyMax);
@@ -137,6 +141,7 @@ export function computeScore(rawEntries, alignment, redFlagCount, fixedPenalty =
     flagsCounted,
     primaryTotal,
     primaryPresent,
+    primaryWritten,
     cap,
     score,
     ceiling,
@@ -164,6 +169,7 @@ export function entriesFromLive(rows) {
       // the word has been typed yet, so the estimate does not jump 49 points
       // the moment the user deletes it.
       primaryHit: primary && claimable && (r.found === true || r.status === 'add'),
+      primaryWritten: primary && claimable && r.found === true,
       ceilCredit: writable ? 1 : 0,
       ceilPrimaryHit: primary && writable,
       group: r.group ?? null,

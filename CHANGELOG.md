@@ -80,7 +80,28 @@ All notable changes to this project are documented here. The format follows
   rewrite cannot claim what the original was refused for. **Rewrite all**
   re-runs the suggestions call over the same verdicts; the score never moves.
 
+- **How strongly the resume shows a keyword, measured rather than guessed.**
+  A term named on a skills line and a term shown inside a bullet with a number
+  in it are read completely differently by a recruiter, and the product could
+  not tell them apart — `present` covered both. `evidence.ts` reads the line
+  each term actually sits on and marks it *listed*, *described* or *measured*.
+  The table shows "skills line only" and "with a number", and the suggestions
+  call is handed the fact instead of being asked to infer it.
+- **A thin posting says it is thin.** Six signals off the stored brief —
+  requirement count, seniority or years, industry, gates, screening lines —
+  classify a posting `high`, `medium` or `low`. When it is not `high`, the
+  target page says so and names where the rest of the advice came from, so
+  "what this kind of role usually asks for" is never mistaken for what this
+  employer demanded.
+
 ### Fixed
+- **A red flag that restates an unwritten primary is free again.** The cap and
+  the red-flag exemption were reading one number for two different questions:
+  the cap asks whether the candidate HAS the core stack (`present` or `add`),
+  the exemption asks whether the resume SPELLS it (`present` only). With one
+  count, a model that marked the primary `add` and then flagged it as "not
+  demonstrated" was charged ten points for saying the same thing twice — which
+  is most of what separated two runs of one live pair.
 - **One word-choice no longer moves the score 49 points.** After either/or
   groups fold, a posting whose primary stack is "TypeScript, Rust or Java" has
   one primary slot — and `primaryCap(0, 1)` is 30, so the whole score rode on

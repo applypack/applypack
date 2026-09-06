@@ -254,16 +254,20 @@ export const ScoreBreakdownChips: FC<{ bd: ScoreBreakdown }> = ({ bd }) => (
         capped at {bd.cap} — primary stack {bd.primaryPresent}/{bd.primaryTotal}
       </span>
     )}
+    {/* Two different questions, and mixing them is what makes one number feel
+        arbitrary (§4 of the intelligence analysis): the score is how well this
+        RESUME shows the fit, the ceiling is how well the CANDIDATE fits. A wide
+        gap between them is good news — all of it is editing. */}
     {bd.ceiling !== undefined && (
       <span
-        title="The honest maximum for this resume on this posting: every claimable keyword written in, alignment perfect. Going higher needs experience this resume doesn't show."
+        title="How well you fit, if the resume said everything it honestly could: every claimable keyword written in, alignment perfect. The score is how much of that the resume shows today; going above the ceiling would need experience this resume does not have."
       >
         {bd.ceiling > bd.score ? (
           <>
-            max reachable <span class="font-medium tabular-nums text-ink">{bd.ceiling}</span>
+            you fit <span class="font-medium tabular-nums text-ink">{bd.ceiling}</span> — editing can reach it
           </>
         ) : (
-          <span class="font-medium text-ok">at its ceiling — nothing left to squeeze</span>
+          <span class="font-medium text-ok">the resume already shows everything it can</span>
         )}
       </span>
     )}
@@ -961,6 +965,19 @@ const KeywordRow: FC<{ k: CountedKeyword; edit?: KeywordEditTarget }> = ({ k, ed
     <Td>
       <span class="inline-flex flex-wrap items-center gap-1">
         <Badge tone={STATUS_VIEW[k.status].tone}>{STATUS_VIEW[k.status].label}</Badge>
+        {/* Measured off the text, never judged (evidence.ts, §23): "listed" is a
+            name on a skills line and nothing more, which is what a recruiter
+            discounts fastest. */}
+        {k.evidence === 'listed' && (
+          <span title="Named on a skills line and shown nowhere else. Put it inside a bullet that describes the work.">
+            <Badge tone="warn">skills line only</Badge>
+          </span>
+        )}
+        {k.evidence === 'measured' && (
+          <span title="Shown inside a bullet that carries a number — the strongest form of evidence a resume has.">
+            <Badge tone="ok">with a number</Badge>
+          </span>
+        )}
         {k.elsewhere && <Badge tone="violet">in "{k.elsewhere}"</Badge>}
         {k.unanchored && (
           <span

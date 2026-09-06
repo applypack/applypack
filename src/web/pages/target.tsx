@@ -53,6 +53,8 @@ export interface TargetPageProps {
   previous: MatchWithResume | null;
   /** The text the selected match analysed (not necessarily the resume's current text). */
   resumeText: string;
+  /** What the posting itself said, when it did not say much (§17) — null when it did. */
+  postingNotice?: string | null;
   /** The latest "Is this job real?" verdict — one line under the title, findings among the cautions (#162). */
   verification: VerificationForHint | null;
   flash?: FlashMessage | null;
@@ -112,6 +114,7 @@ export const TargetPage: FC<TargetPageProps> = ({
   matches,
   previous,
   resumeText,
+  postingNotice,
   verification,
   fileVerdict,
   cleanHref,
@@ -421,6 +424,13 @@ export const TargetPage: FC<TargetPageProps> = ({
             </div>
           </div>
 
+          {postingNotice && (
+            <div class="border-t border-line pt-3 lg:col-span-3">
+              <p class="text-[13px] leading-6 text-ink-muted">
+                <span class="font-medium text-warn">Thin posting.</span> {postingNotice}
+              </p>
+            </div>
+          )}
           {hard.length > 0 && (
             <div class="border-t border-line pt-3 lg:col-span-3">
               <HardRequirementsDigest hard={hard} />

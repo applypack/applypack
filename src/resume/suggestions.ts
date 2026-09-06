@@ -41,6 +41,7 @@ export async function suggestForMatch(
   const prompt = buildSuggestionsPrompt(match.resumeText, job, {
     summary: match.summary,
     alignment: readBreakdown(match.breakdown)?.alignment ?? null,
+    // Carries `evidence` (evidence.ts) — the "listed only" gap the floor asks about.
     keywords: readKeywords(match.keywords),
     hardRequirements: readHardRequirements(match.hardRequirements),
     confirmedFacts: facts.filter((f) => f.status === 'confirmed').map((f) => ({ term: f.term, note: f.note })),
@@ -66,6 +67,7 @@ export async function suggestForMatch(
     resumeText: match.resumeText,
     posting: `${job.title}\n${job.description}`,
     facts,
+    // Carries `evidence` (evidence.ts) — the "listed only" gap the floor asks about.
     keywords: readKeywords(match.keywords),
     matcher: await loadKeywordMatcher(),
   };

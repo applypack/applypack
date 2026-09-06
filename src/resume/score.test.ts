@@ -194,3 +194,20 @@ test('readBreakdown roundtrips and rejects the legacy empty object', () => {
   assert.equal(readBreakdown({}), null);
   assert.equal(readBreakdown(undefined), null);
 });
+
+test('a flag restating a primary the resume never spells is still free', () => {
+  // The live pair that exposed it: TypeScript judged `add`, and the model then
+  // wrote a red flag saying the language group "is not demonstrated". Both say
+  // the same thing, and the keyword credit already docked it to a half — so
+  // charging 10 points on top made two runs of one pair differ by that much.
+  const bd = scoreMatch([kw('add', 'must', true)], STRONG, 1);
+  assert.equal(bd.primaryPresent, 1, 'the candidate has it: the cap does not bite');
+  assert.equal(bd.primaryWritten, 0, 'but the word is not in the text');
+  assert.equal(bd.flagsCounted, 0);
+  assert.equal(bd.penalty, 0);
+
+  // A flag about anything else still costs, and a written primary exempts nothing.
+  const other = scoreMatch([kw('present', 'must', true)], STRONG, 1);
+  assert.equal(other.primaryWritten, 1);
+  assert.equal(other.penalty, SCORING.redFlagPenalty);
+});
