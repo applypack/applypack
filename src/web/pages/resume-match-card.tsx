@@ -917,6 +917,13 @@ const KeywordRow: FC<{ k: CountedKeyword; edit?: KeywordEditTarget }> = ({ k, ed
           </span>
         )}
         {k.override?.added && <Badge tone="violet">yours</Badge>}
+        {k.group && (
+          <span
+            title={`The posting offers this as one of several — "${k.group}". Any one of them satisfies it, so the score counts the group once, not each option.`}
+          >
+            <Badge>or {k.group}</Badge>
+          </span>
+        )}
       </span>
     </Td>
     <Td class="text-xs text-ink-faint">

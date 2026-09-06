@@ -4,6 +4,65 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+- **The posting is read once, on its own, and the reading is kept.** Before
+  any resume is judged, one call with no resume in the prompt writes a brief
+  of the posting: the discipline and seniority band, the minimum years, the
+  industry, the product and its audience, who reads the resume first, what
+  that reader scans for in six seconds, and what a bullet that would impress
+  them looks like — plus the keyword frame, the either/or requirement groups
+  and the gates. It is stored against a hash of the title and description, so
+  editing a resume and comparing again reuses it (3 ms on the live row
+  instead of 22 s) and a description refreshed from the company's own listing
+  asks for a new one. The comparison copies the frame and judges only what
+  the resume shows; the suggestions aim at the screening block. The progress
+  page shows it as its own step and says when it was reused (ADR 0044).
+- **Either/or requirements count once.** "Frameworks like React, Next.js, or
+  Vue.js" is one requirement, not three. Keywords carry the group the brief
+  put them in and `foldGroups` collapses them to the best member before the
+  formula runs — a satisfy-*all* list ("HTML, CSS and JavaScript") stays three
+  demands. On the live row this moved the keyword half from 35.5 to 40.7 of
+  60: the resume had been charged a must-weight for Python, WordPress, Drupal
+  and Shopify on requirements it either met outright or failed once.
+  `SCORING.version` is 4, mirrored in `score.mjs`; scores from before it are
+  not comparable.
+
+### Changed
+- **The advice has a floor, not only a ceiling.** An alignment grade below
+  *strong* on the title, the summary or the most recent role must now produce
+  a high-priority action *with the wording to paste*, and a must-level keyword
+  living only in a skills list must produce an action that puts it in a
+  bullet. The anti-padding rule survives: on the gold fixtures the
+  well-tailored resume still gets one action, while the live row went from 2
+  hedged suggestions to 8 concrete ones. Budgets rose to 12 000 / 10 000
+  answer tokens and the suggestions timeout to 180 s.
+- **The posted job title may be written on the headline and in the summary.**
+  It is the role being applied for, not a claim of having held it; blocking it
+  as unevidenced experience made the highest-leverage edit on any resume
+  unreachable. In a bullet it is still a claim, and still blocked.
+- **A rewrite that drops a keyword the resume carries elsewhere now warns
+  instead of blocking** — the rule as written killed a good bullet rewrite
+  whose only "SQL" was the phrase "SQL injection".
+- **Exceeding a posting's minimum is not a red flag.** "At least 2 years"
+  satisfied by ten is met, whatever the model calls the worry; over-levelling
+  is a caution, and it was costing 10 points.
+
+### Fixed
+- **A removal can no longer strike through what the posting asks for.** The
+  model quoted `Symfony, React, Vue, Laravel, Lumen, Phalcon` whole to advise
+  dropping three of the six, with React (must, primary) and Vue.js (must)
+  inside the span the editor deletes in one press. `gateRemovals` mirrors
+  `gateActions` at persist time: a quote covering contact details or a wanted
+  keyword loses its quote and keeps its advice. Gotcha 11's rule had been
+  prompt-only since it was first paid for; it is a unit-tested code path now.
+
+### Schema
+- `posting_brief` — one reading per posting text, keyed by
+  `jobId + postingHash + promptVersion` (migration
+  `20260906120000_posting_brief`).
+
 ## [1.69.0] — 2026-09-05
 
 ### Added
