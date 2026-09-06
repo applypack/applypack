@@ -74,11 +74,11 @@ the part being repeated every time.
    the fold is the one place a model-written string moves the number,
    `reconcileGroups` checks every label against the brief at persist time: a
    label the brief did not write, or one on a term its group does not name, is
-   dropped, and a comparison with no brief carries no groups at all. `SCORING.version` goes to 4 and the fold is
-   mirrored in `score.mjs` (parity test as ADR 0012 requires). Scores from
-   before this are not comparable with scores after it, and that is the
-   point: the old ones were wrong in a direction that punished honest
-   resumes.
+   dropped, and a comparison with no brief carries no groups at all.
+   `SCORING.version` goes to 4 and the fold is mirrored in `score.mjs`
+   (parity test as ADR 0012 requires). Scores from before this are not
+   comparable with scores after it, and that is the point: the old ones were
+   wrong in a direction that punished honest resumes.
 
 5. **The advice has a floor, not only a ceiling.** "NO TREADMILL" is
    replaced by REQUIRED COVERAGE: an alignment grade below `strong` on the
@@ -90,13 +90,15 @@ the part being repeated every time.
    experience, but it may be the *reason* for an honest edit; the retitle
    case below is why that distinction had to be drawn.
 
-6. **The posted title on the title line is not a fabricated claim.**
+6. **The posted title on the headline is not a fabricated claim.**
    `gateActions` exempts a priority-2 keyword (the posted job title) on an
-   action whose section is `title`. Writing the role one is applying for on
-   one's own headline is ordinary tailoring; blocking it made the single
-   highest-leverage edit on any resume unreachable, which is how match 13
-   ended up with a hedge instead of a rewrite. Every other keyword, and
-   that keyword everywhere else, still blocks.
+   action whose section is `title` or `summary`. Writing the role one is
+   applying for on one's own headline is ordinary tailoring; blocking it made
+   the single highest-leverage edit on any resume unreachable, which is how
+   match 13 ended up with a hedge instead of a rewrite. Inside a bullet
+   ("Web Developer at Acme") it would be a claim about the past, so the
+   exemption stops at those two sections — and every other keyword blocks
+   everywhere, as before.
 
 7. **Removal quotes are gated in code.** Gotcha 11's second lesson was
    paid for once with prompt text and broke again: the model quoted
@@ -128,6 +130,10 @@ the part being repeated every time.
 - **Stored scores shifted.** A resume that met an either/or requirement
   now keeps the weight it always deserved. Rows written before v8 carry no
   groups, fold to themselves, and score exactly as they did.
+- **The KEEP WANTED KEYWORDS block got narrower.** A rewrite that drops a
+  term the resume still carries outside the quoted span now warns instead of
+  blocking: nothing is lost, and the rule as written killed a good rewrite of
+  a bullet whose one "SQL" was the phrase "SQL injection".
 - **A bad brief degrades, it does not break.** Every consumer treats a null
   brief as "no brief": the match derives the frame itself as before, the
   suggestions aim at the posting's requirements as before. A stored brief
