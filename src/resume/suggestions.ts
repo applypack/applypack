@@ -12,6 +12,7 @@ import {
   type MatchSuggestions,
   RESUME_TIMEOUT_MS,
 } from './prompts';
+import { briefForPosting } from './brief';
 import { readBreakdown } from './score';
 import { loadKeywordMatcher } from './keyword-matcher';
 import { gateActions, gateRemovals } from './replacement-gate';
@@ -30,7 +31,13 @@ export async function suggestForMatch(
   job: MatchJobInput & { id: number },
   onError?: (reason: string) => void,
 ): Promise<ResumeMatch | null> {
-  const [facts, verification] = await Promise.all([listFacts(), getLatestVerificationContext(job.id)]);
+  const [facts, verification, briefed] = await Promise.all([
+    listFacts(),
+    getLatestVerificationContext(job.id),
+    // Written by the comparison this row came from, so this is normally a
+    // stored read: who this employer is and what its first reader scans for.
+    briefForPosting(job),
+  ]);
   const prompt = buildSuggestionsPrompt(match.resumeText, job, {
     summary: match.summary,
     alignment: readBreakdown(match.breakdown)?.alignment ?? null,
@@ -40,6 +47,7 @@ export async function suggestForMatch(
     deniedTerms: facts.filter((f) => f.status === 'denied').map((f) => f.term),
     // Context for the "why" lines, never evidence (ADR 0042).
     companySnapshot: verification?.snapshot ?? null,
+    brief: briefed?.brief ?? null,
   });
   const answer = await askForJson(
     await getAiRuntime(),

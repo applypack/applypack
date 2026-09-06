@@ -44,6 +44,7 @@ const KNOWN_CALL_SITES: Record<string, string> = {
   'classifier.ts': 'buildClassifyPrompt',
   'classifier-prefilter.ts': 'buildPrefilterPrompt',
   'jobs/posting-extract.ts': 'buildExtractPrompt',
+  'resume/brief.ts': 'buildBriefPrompt',
   'resume/match.ts': 'buildMatchPrompt',
   'resume/suggestions.ts': 'buildSuggestionsPrompt',
   'resume/scan.ts': 'buildScanPrompt',
@@ -78,6 +79,15 @@ const PROFILE_2 = { ...PROFILE, id: 7, name: 'QA', stackRequired: ['playwright']
 const RESUME = 'RESUME-NEEDLE';
 const DESC = 'POSTING-NEEDLE';
 const JOB = { title: 'TITLE-NEEDLE', companyName: 'COMPANY-NEEDLE', location: 'LOC-NEEDLE', description: DESC };
+/* Through the schema, the way a stored brief reaches the builders (ADR 0044). */
+const BRIEF = resumeMod.BriefSchema.parse({
+  role: { posted_title: 'ROLENAME-NEEDLE', family: 'FAMILY-NEEDLE', seniority: null, years_min: null, focus: 'FOCUS-NEEDLE' },
+  company: { industry: 'INDUSTRY-NEEDLE', product: null, audience: null, stage: null },
+  screening: { reader: 'READER-NEEDLE', scan_for: ['SCANFOR-NEEDLE'], wow: ['WOW-NEEDLE'], dealbreakers: [] },
+  requirement_groups: [{ label: 'GROUP-NEEDLE', level: 'must', satisfy: 'any', options: ['BRIEFKW-NEEDLE', 'OTHER-NEEDLE'] }],
+  keywords: [{ term: 'BRIEFKW-NEEDLE', priority: 1, requirement: 'must', primary: true, aliases: [], group: 'GROUP-NEEDLE' }],
+  gates: ['HURDLE-NEEDLE'],
+});
 const CLASSIFY_INPUT = { ...JOB, postedAt: new Date('2026-08-31T00:00:00.000Z') };
 
 interface Case {
@@ -129,12 +139,24 @@ const CASES: Record<string, Case> = {
       ['CLAIMED ROLES', 'ROLETYPE-NEEDLE'],
     ],
   },
+  /* A brief suppresses PREVIOUS KEYWORDS (it IS the frame), so the two blocks
+     never share a prompt; the fallback path's fence is guarded in
+     prompts.test.ts, "the previous keyword frame stays fenced without a brief". */
+  buildBriefPrompt: {
+    build: () => resumeMod.buildBriefPrompt(JOB),
+    fenced: [
+      ['JOB POSTING', DESC],
+      ['JOB POSTING', 'TITLE-NEEDLE'],
+      ['JOB POSTING', 'COMPANY-NEEDLE'],
+      ['JOB POSTING', 'LOC-NEEDLE'],
+    ],
+  },
   buildMatchPrompt: {
     build: () =>
       resumeMod.buildMatchPrompt(RESUME, JOB, 'full', {
         otherResumeSkills: [{ skill: 'ELSEWHERE-NEEDLE', resumeName: 'Old CV' }],
-        previousKeywords: [{ term: 'PREVKW-NEEDLE', priority: 1, requirement: 'must', primary: true }],
         companySnapshot: 'SNAPSHOT-NEEDLE',
+        brief: BRIEF,
       }),
     fenced: [
       ['RESUME', RESUME],
@@ -143,9 +165,12 @@ const CASES: Record<string, Case> = {
       ['JOB POSTING', 'COMPANY-NEEDLE'],
       // Tier 2: text of ours that was derived from an untrusted posting.
       ['OTHER RESUME SKILLS', 'ELSEWHERE-NEEDLE'],
-      ['PREVIOUS KEYWORDS', 'PREVKW-NEEDLE'],
       // Tier 2: the verifier's reading of the company, laundered from the web (ADR 0042).
       ['COMPANY CONTEXT', 'SNAPSHOT-NEEDLE'],
+      // Tier 2: a model's reading of the same untrusted posting (ADR 0044).
+      ['POSTING BRIEF', 'FAMILY-NEEDLE'],
+      ['POSTING BRIEF', 'BRIEFKW-NEEDLE'],
+      ['POSTING BRIEF', 'SCANFOR-NEEDLE'],
     ],
   },
   buildSuggestionsPrompt: {
@@ -156,11 +181,14 @@ const CASES: Record<string, Case> = {
         keywords: [{ term: 'VERDICT-NEEDLE', requirement: 'must', primary: true, status: 'present', where: 'WHERE-NEEDLE' }],
         hardRequirements: [{ requirement: 'GATE-NEEDLE', status: 'unknown' }],
         companySnapshot: 'SNAPSHOT-NEEDLE',
+        brief: BRIEF,
       }),
     fenced: [
       ['RESUME', RESUME],
       ['JOB POSTING', DESC],
       ['JOB POSTING', 'TITLE-NEEDLE'],
+      ['POSTING BRIEF', 'READER-NEEDLE'],
+      ['POSTING BRIEF', 'WOW-NEEDLE'],
       // Tier 2: the stored verdicts are model output over the untrusted texts.
       ['KEYWORD VERDICTS', 'SUMMARY-NEEDLE'],
       ['KEYWORD VERDICTS', 'VERDICT-NEEDLE'],

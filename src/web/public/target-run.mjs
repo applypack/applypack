@@ -58,6 +58,14 @@ const ACTIVITIES = {
     "Weighing the posting's own quality…",
     'Writing the verdict and the company snapshot…',
   ],
+  brief: [
+    'Reading the posting on its own…',
+    'Naming the discipline, the level and the industry…',
+    'Working out who reads your resume first…',
+    'Listing what they scan for in their first ten seconds…',
+    'Grouping the either/or requirements…',
+    'Writing the keyword frame the comparison will use…',
+  ],
   letter: [
     'Reading the posting and the resume…',
     'Choosing which true facts serve this role…',

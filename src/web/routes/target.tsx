@@ -7,6 +7,7 @@ import { hashShortId } from '../../text-utils';
 import { classifyInBackground } from '../../jobs/classify-existing';
 import { createManualJob, ManualJobSchema, MAX_FIELD_CHARS, MIN_DESCRIPTION_CHARS } from '../../jobs/manual-job';
 import { extractPostingFacts, fallbackTitle } from '../../jobs/posting-extract';
+import { briefForPosting, briefLine } from '../../resume/brief';
 import { findReusableMatch, matchResumeToJob } from '../../resume/match';
 import { parseMatchMode } from '../../resume/match-mode';
 import { reuseNotice, SUGGESTIONS_FAILED, suggestionsFlash } from '../../resume/match-reuse';
@@ -172,7 +173,9 @@ targetRoute.post('/target', resumeUploadLimit('/target'), async (c) => {
     };
   }
 
-  const steps: RunStep[] = needExtract ? ['extract', matchStep(f.mode)] : [matchStep(f.mode)];
+  // The posting is read as its own visible step (ADR 0044) — it is what the
+  // comparison is judged against, and on a second run it finishes instantly.
+  const steps: RunStep[] = needExtract ? ['extract', 'brief', matchStep(f.mode)] : ['brief', matchStep(f.mode)];
   // The posting text and the resolved resume are what was submitted; a second
   // POST of the same pair joins the run instead of paying twice (issue #76).
   const { run, joined } = claimRun(
@@ -265,10 +268,6 @@ targetRoute.post('/target', resumeUploadLimit('/target'), async (c) => {
       return;
     }
 
-    if (needExtract) {
-      updateRun(run.id, { stage: matchStep(f.mode) });
-    }
-
     // 2b. This resume was analysed against the posting before and its text
     //     changed since (a new version, another file on the scratch row):
     //     the instant check — the new text as a draft over that analysis,
@@ -288,6 +287,20 @@ targetRoute.post('/target', resumeUploadLimit('/target'), async (c) => {
       }
     }
 
+    // 2c. The posting read on its own, cached against its text. Shown as a
+    //     step because it is the analysis the user asked to see, and because a
+    //     reused reading is the visible reason the second run is faster.
+    updateRun(run.id, { stage: 'brief' });
+    const briefed = await briefForPosting(jobInput);
+    if (briefed) {
+      updateRun(run.id, {
+        results: {
+          brief: briefed.reused ? `Reused this posting's analysis — ${briefLine(briefed.brief)}` : briefLine(briefed.brief),
+        },
+      });
+    }
+    updateRun(run.id, { stage: matchStep(f.mode) });
+
     // 3. Ephemeral compares keep only the current analysis.
     if (resume.ephemeral) {
       await deleteMatchesForResume(resume.id);
@@ -298,6 +311,7 @@ targetRoute.post('/target', resumeUploadLimit('/target'), async (c) => {
     let reason = '';
     const row = await matchResumeToJob({ id: resume.id, version: resume.version, text: resume.text }, jobInput, {
       mode: f.mode,
+      brief: briefed,
       onError: (r) => {
         reason = r;
       },

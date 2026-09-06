@@ -13,6 +13,7 @@ import {
   type MatchContext,
   type MatchJobInput,
 } from './prompts';
+import { briefForPosting, type BriefResult } from './brief';
 import { annotateElsewhere, applyFacts } from './facts';
 import { gateActions, gateRemovals } from './replacement-gate';
 import { withTableAliases } from './keyword-aliases';
@@ -55,9 +56,21 @@ const REUSE_CANDIDATES = 4;
 export async function matchResumeToJob(
   resume: { id: number; text: string; version: number },
   job: MatchJobInput & { id: number },
-  opts: { draft?: boolean; mode?: MatchMode; rebuild?: boolean; onError?: (reason: string) => void } = {},
+  opts: {
+    draft?: boolean;
+    mode?: MatchMode;
+    rebuild?: boolean;
+    /** Already read by the caller, so it can show the reading as its own step. */
+    brief?: BriefResult | null;
+    onError?: (reason: string) => void;
+  } = {},
 ): Promise<ResumeMatch | null> {
   const mode = opts.mode ?? 'fast';
+  // The posting read on its own (ADR 0044): the keyword frame and the
+  // requirement groups come from here, and the second comparison of an edited
+  // resume reuses the stored reading instead of paying for it again. A failure
+  // is not fatal — without it the call derives the frame itself, as before.
+  const briefed = opts.brief !== undefined ? opts.brief : await briefForPosting(job, { onError: opts.onError });
   const [facts, otherSkills, previousMatch, matcher, verification, refreshedAt] = await Promise.all([
     listFacts(),
     listOtherResumeSkills(resume.id),
@@ -98,6 +111,7 @@ export async function matchResumeToJob(
           .map((k) => ({ term: k.term, priority: k.priority, requirement: k.requirement, primary: k.primary }))
       : undefined,
     companySnapshot: verification?.snapshot ?? null,
+    brief: briefed?.brief ?? null,
   };
   const answer = await askForJson(
     await getAiRuntime(),
@@ -166,6 +180,7 @@ export async function matchResumeToJob(
       overrides: carry.carried,
       readded: carry.readded,
       frame: frame.reason,
+      brief: briefed ? (briefed.reused ? 'reused' : 'fresh') : 'none',
       promptVersion: PROMPT_VERSION,
       verificationId: verification?.id ?? null,
       elsewhere: context.otherResumeSkills?.length,

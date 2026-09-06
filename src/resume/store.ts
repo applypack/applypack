@@ -570,6 +570,36 @@ export async function getPostingRefreshedAt(jobId: number): Promise<Date | null>
   return row?.descriptionRefreshedAt ?? null;
 }
 
+/**
+ * The stored reading of this exact posting text under this brief version
+ * (ADR 0044), newest first. A miss means the brief has to be written; a hit
+ * costs one indexed lookup and no AI at all.
+ */
+export async function getPostingBrief(
+  jobId: number,
+  postingHash: string,
+  promptVersion: number,
+): Promise<{ id: number; brief: unknown; model: string; createdAt: Date } | null> {
+  return prisma.postingBrief.findFirst({
+    where: { jobId, postingHash, promptVersion },
+    orderBy: { createdAt: 'desc' },
+    select: { id: true, brief: true, model: true, createdAt: true },
+  });
+}
+
+export async function createPostingBrief(input: {
+  jobId: number;
+  model: string;
+  promptVersion: number;
+  postingHash: string;
+  brief: unknown;
+}): Promise<{ id: number }> {
+  return prisma.postingBrief.create({
+    data: { ...input, brief: input.brief as Prisma.InputJsonValue },
+    select: { id: true },
+  });
+}
+
 /** Company facts researched by "Is this job real?" — the letter's only company source beyond the posting. */
 export async function getLatestCompanySnapshot(jobId: number): Promise<string | null> {
   return (await getLatestVerificationContext(jobId))?.snapshot ?? null;

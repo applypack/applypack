@@ -14,6 +14,7 @@ export type RunStep =
   | 'liveness'
   | 'fetch'
   | 'extract'
+  | 'brief'
   | 'scan'
   | 'structure'
   | 'keywords'

@@ -13,7 +13,10 @@
  *  - a replacement may not INTRODUCE a keyword marked cannot_claim for this
  *    posting. factCheck reads tool claims only against CandidateFacts, so a
  *    PHP resume proposing "Node.js services" passes it; this is the honest rule
- *    for that case.
+ *    for that case. One exemption, added with ADR 0044: the posted job title
+ *    (priority 2) on the resume's own title line, which names the role being
+ *    applied for rather than one already held — blocking it made the single
+ *    highest-leverage edit unreachable on every retitle.
  *  - KEEP WANTED KEYWORDS in code: a replacement that loses a must-have or
  *    primary keyword the quote had is blocked (the score reads exactly those);
  *    a lost nice-to-have or a paraphrased phrase keeps the wording and gets a
@@ -100,8 +103,13 @@ export function gateActions(actions: MatchAction[], sources: GateSources): GateR
 
     for (const k of sources.keywords) {
       const introduced = !has(quote, k) && has(text, k);
-      if (introduced && k.status === 'cannot_claim') blocks.push(`claims "${k.term}", which this resume has no evidence for`);
-      else if (introduced && k.status === 'ask_user') warns.push(`says "${k.term}" — confirm you have it first`);
+      // The posted job title (priority 2) on the resume's OWN title line is the
+      // role being applied for, not a claim of having held it — and it is the
+      // single highest-leverage edit there is. Everywhere else, and for every
+      // other keyword, an unevidenced term still blocks.
+      const targetTitle = action.section === 'title' && k.priority === 2;
+      if (introduced && k.status === 'cannot_claim' && !targetTitle) blocks.push(`claims "${k.term}", which this resume has no evidence for`);
+      else if (introduced && k.status === 'ask_user' && !targetTitle) warns.push(`says "${k.term}" — confirm you have it first`);
       // KEEP WANTED KEYWORDS: only a change can lose a keyword; an addition replaces nothing.
       if (quote && k.status === 'present' && has(quote, k) && !has(text, k)) {
         if (k.primary || effectiveRequirement(k) === 'must') blocks.push(`drops "${k.term}", a must-have this posting wants`);

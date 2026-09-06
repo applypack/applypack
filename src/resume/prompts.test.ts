@@ -1,6 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  BriefSchema,
+  buildBriefPrompt,
   buildCoverPrompt,
   buildMatchPrompt,
   buildReviewPrompt,
@@ -18,6 +20,7 @@ import {
   toPlainPunctuation,
   buildStructurePrompt,
   parseStructureResponse,
+  parseBriefResponse,
 } from './prompts';
 import { MATCH_MODES } from './match-mode';
 import { REVIEW_DIMENSIONS } from './review-score';
@@ -209,11 +212,19 @@ test('alignment grades follow objective criteria, no hedging', () => {
   bothVariants(/names at least two of the posting's must requirements/);
 });
 
-test('actions must not become a treadmill', () => {
+test('actions carry a floor as well as a ceiling', () => {
   const { system } = buildMatchPrompt('resume', JOB, 'full');
-  assert.match(system, /NO TREADMILL/);
-  assert.match(system, /Never re-suggest something the resume already does/);
-  assert.match(system, /one or two actions \(or none\) is the correct answer/);
+  // The ceiling: no padding, no re-suggesting what the resume already does.
+  assert.match(system, /EVERY ACTION EARNS ITS PLACE/);
+  assert.match(system, /Never re-suggest what the resume already does/);
+  // The floor (ADR 0044): the blanket "one or two actions is correct" answer
+  // left a resume graded off/partial with nothing to do about it.
+  assert.match(system, /REQUIRED COVERAGE/);
+  assert.match(system, /"title" graded below strong → ONE high-priority action/);
+  assert.match(system, /"summary" graded below strong → ONE high-priority action/);
+  assert.match(system, /"recent_role" graded below strong → rewrite/);
+  assert.match(system, /appears ONLY in a skills list/);
+  assert.doesNotMatch(system, /one or two actions \(or none\) is the correct answer/);
 });
 
 test('previous keywords keep re-runs comparable', () => {
@@ -344,7 +355,9 @@ test('suggestions prompt carries the stored verdicts and forbids re-judging them
   const { system, user } = buildSuggestionsPrompt('RESUME BODY', JOB, SUGGEST_INPUT);
   assert.match(system, /THE VERDICTS ARE FIXED/);
   assert.match(system, /Do not re-judge them and do not invent keywords/);
-  assert.match(system, /"cannot_claim" keyword gets no action at all/);
+  assert.match(system, /A "cannot_claim" keyword never enters a replacement as experience/);
+  // It may still be the REASON for an honest edit — the retitle case (ADR 0044).
+  assert.match(system, /It may still be the REASON for an action over honest material/);
   assert.match(user, /- Node\.js \| must \| primary \| cannot_claim/);
   assert.match(user, /- Docker \| preferred \| present \| Skills line/);
   assert.match(user, /Alignment: title partial, summary strong, recent role off/);
@@ -354,7 +367,8 @@ test('suggestions prompt carries the stored verdicts and forbids re-judging them
 
 test('suggestions prompt keeps the action and removal rules verbatim (gotcha 11)', () => {
   const { system } = buildSuggestionsPrompt('resume', JOB, SUGGEST_INPUT);
-  assert.match(system, /NO TREADMILL/);
+  assert.match(system, /EVERY ACTION EARNS ITS PLACE/);
+  assert.match(system, /REQUIRED COVERAGE/);
   assert.match(system, /BULLET RULES/);
   assert.match(system, /NEVER invent a metric/);
   assert.match(system, /never remove the contact line/);
@@ -872,4 +886,107 @@ test('the company snapshot reaches the full analysis and the suggestions as cont
   assert.match(suggestions.system, /The verdicts are fixed and it changes none of them/);
   assert.doesNotMatch(suggestions.system, /"red_flags"/, 'the suggestions call outputs no scored field, so its rule names none');
   assert.doesNotMatch(buildSuggestionsPrompt('RESUME BODY', job, { summary: 'ok', alignment: null, keywords: [], hardRequirements: [] }).user, /COMPANY CONTEXT/);
+});
+
+/* ---- The posting brief (ADR 0044) ------------------------------------- */
+
+const BRIEF = BriefSchema.parse({
+  role: { posted_title: 'Web Development Specialist', family: 'front-end web development', seniority: 'mid', years_min: 2, focus: 'Builds and maintains marketing sites.' },
+  company: { industry: 'digital agency', product: 'client websites', audience: 'small retailers', stage: 'agency' },
+  screening: {
+    reader: 'agency recruiter — the posting lists no engineers',
+    scan_for: ['a portfolio of shipped sites', 'page-speed numbers'],
+    wow: ['cut largest-contentful-paint from Xs to Ys on a storefront doing Z sessions a month'],
+    dealbreakers: ['on-site in San Diego'],
+  },
+  requirement_groups: [
+    { label: 'front-end framework', level: 'must', satisfy: 'any', options: ['React', 'Next.js', 'Vue.js'] },
+    // A group of one is not an alternative — the schema drops it.
+    { label: 'accessibility', level: 'preferred', satisfy: 'any', options: ['WCAG'] },
+  ],
+  keywords: [
+    { term: 'React', priority: 1, requirement: 'must', primary: true, aliases: ['reactjs'], group: 'front-end framework' },
+    { term: 'SEO', priority: 3, requirement: 'preferred', primary: false, aliases: [], group: null },
+  ],
+  gates: ['On-site in San Diego, CA'],
+});
+
+test('the brief prompt reads the posting alone and asks for the reader behind it', () => {
+  const { system, user } = buildBriefPrompt({ title: 'Web Dev', companyName: 'Acme', location: 'San Diego', description: 'BODY' });
+  assert.match(system, /You read ONE job posting — no resume, no candidate/);
+  assert.match(system, /"requirement_groups"/);
+  assert.match(system, /"screening"/);
+  assert.match(system, /"role\.family"/);
+  assert.match(system, /Nothing here is about a candidate/);
+  assert.match(user, /BODY/);
+  // No resume block: that is the whole point — the answer is cacheable.
+  assert.doesNotMatch(user, /BEGIN UNTRUSTED RESUME/);
+});
+
+test('an either/or list is one requirement, and a group of one is not a group', () => {
+  const { system } = buildBriefPrompt({ title: 'x', companyName: 'x', location: '', description: 'x' });
+  assert.match(system, /frameworks like React, Next\.js, or Vue\.js" is ONE group/);
+  assert.match(system, /satisfied by ANY option — not one requirement per item/);
+  assert.match(system, /counts an "any" group ONCE/);
+  assert.equal(BRIEF.requirement_groups.length, 1, 'the single-option group is dropped');
+  assert.equal(BRIEF.requirement_groups[0]?.label, 'front-end framework');
+});
+
+test('parseBriefResponse fills what a thin reply left out', () => {
+  const r = parseBriefResponse('{"role": {"posted_title": "Dev", "family": "web"}}');
+  assert.ok(r.ok);
+  assert.equal(r.data.role.seniority, null);
+  assert.equal(r.data.role.years_min, null);
+  assert.equal(r.data.company.industry, null);
+  assert.deepEqual(r.data.screening.scan_for, []);
+  assert.deepEqual(r.data.keywords, []);
+  assert.equal(parseBriefResponse('{"company": {}}').ok, false, 'the role is not optional');
+});
+
+test('the match prompt states the brief as the frame and suppresses the older carry', () => {
+  const { system, user } = buildMatchPrompt('resume', JOB, 'full', {
+    brief: BRIEF,
+    previousKeywords: [{ term: 'Azure', priority: 3, requirement: 'preferred', primary: false }],
+  });
+  assert.match(system, /THE POSTING BRIEF/);
+  assert.match(system, /judge only "status", "where", "aliases" and "note"/);
+  assert.match(system, /the score counts the group once/);
+  assert.match(user, /Role: Web Development Specialist — front-end web development, mid level, from 2 years/);
+  assert.match(user, /Employer: industry digital agency/);
+  assert.match(user, /First reader: agency recruiter/);
+  assert.match(user, /- front-end framework \| must \| any \| React \/ Next\.js \/ Vue\.js/);
+  assert.match(user, /- React \| P1 \| must \| primary \| front-end framework/);
+  assert.match(user, /- SEO \| P3 \| preferred \| - \| -/);
+  assert.match(user, /Gates to judge against the resume:/);
+  // The brief IS the frame; carrying the last run's terms as well would only
+  // give the model two answers to the same question.
+  assert.doesNotMatch(user, /PREVIOUS KEYWORDS/);
+});
+
+test('the previous keyword frame stays fenced without a brief', () => {
+  const { user } = buildMatchPrompt('resume', JOB, 'full', {
+    previousKeywords: [{ term: 'PREVKW', priority: 1, requirement: 'must', primary: true }],
+  });
+  const open = user.indexOf(fenceOpen('PREVIOUS KEYWORDS'));
+  const close = user.indexOf(fenceClose('PREVIOUS KEYWORDS'), open);
+  const at = user.indexOf('PREVKW |');
+  assert.ok(open !== -1 && close > open);
+  assert.ok(at > open && at < close, 'the fallback frame is untrusted text too');
+});
+
+test('the suggestions prompt gets who reads the resume, not the frame to re-judge', () => {
+  const { user } = buildSuggestionsPrompt('resume', JOB, { ...SUGGEST_INPUT, brief: BRIEF });
+  assert.match(user, /First reader: agency recruiter/);
+  assert.match(user, /A bullet that would impress them looks like:/);
+  assert.match(user, /cut largest-contentful-paint/);
+  // Re-stating the frame would invite a re-judgment the call is forbidden to make.
+  assert.doesNotMatch(user, /Keyword frame \(term/);
+  assert.doesNotMatch(user, /Requirement groups/);
+});
+
+test('the impress shapes are patterns to fill, never facts to copy', () => {
+  const { system } = buildSuggestionsPrompt('resume', JOB, SUGGEST_INPUT);
+  assert.match(system, /AIM AT THE READER/);
+  assert.match(system, /PATTERNS with placeholder letters, never facts/);
+  assert.match(system, /numbers that exist in this resume or in a candidate-confirmed fact/);
 });
