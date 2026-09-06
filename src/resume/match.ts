@@ -19,6 +19,7 @@ import { gateActions, gateRemovals } from './replacement-gate';
 import { withTableAliases } from './keyword-aliases';
 import { carryOverrides, effectiveKeywords } from './keyword-overrides';
 import { anchorKeywords, elsewhereForPosting } from './keyword-anchor';
+import { reconcileGroups } from './keyword-group';
 import { planKeywordFrame } from './keyword-frame';
 import { loadKeywordMatcher } from './keyword-matcher';
 import { readMatchMode, type MatchMode } from './match-mode';
@@ -135,7 +136,10 @@ export async function matchResumeToJob(
   const anchor = anchorKeywords(reply.keywords.map(withTableAliases), posting, matcher);
   const carry = carryOverrides(anchor.keywords, storedKeywords, { resumeText: resume.text, posting, matcher });
   const withFacts = applyFacts(carry.keywords, facts).keywords;
-  const keywords = annotateElsewhere(withFacts, otherSkills);
+  // The score folds on `group`, so the brief — not the reply — decides what a
+  // group is: an invented label would charge one weight for two requirements.
+  const grouped = reconcileGroups(annotateElsewhere(withFacts, otherSkills), briefed?.brief);
+  const keywords = grouped.keywords;
   // What may be applied with one press is decided here, in code, against
   // the resume, the posting and the facts — never by the model (ADR 0037).
   const gateSources = { resumeText: resume.text, posting, facts, keywords, matcher };
@@ -179,6 +183,7 @@ export async function matchResumeToJob(
       unanchored: anchor.unanchored,
       overrides: carry.carried,
       readded: carry.readded,
+      groupsDropped: grouped.dropped,
       frame: frame.reason,
       brief: briefed ? (briefed.reused ? 'reused' : 'fresh') : 'none',
       promptVersion: PROMPT_VERSION,

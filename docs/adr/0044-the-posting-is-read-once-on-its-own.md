@@ -69,7 +69,12 @@ the part being repeated every time.
 4. **An either/or group is one requirement.** Keywords carry the group
    label the brief gave them, and `foldGroups` collapses same-label entries
    to one before the formula runs: the strongest level among them, the best
-   credit, one primary slot. `SCORING.version` goes to 4 and the fold is
+   credit, one primary slot. Only a `satisfy: "any"` list is a group — "HTML,
+   CSS and JavaScript" arrives as `all` and stays three demands. And because
+   the fold is the one place a model-written string moves the number,
+   `reconcileGroups` checks every label against the brief at persist time: a
+   label the brief did not write, or one on a term its group does not name, is
+   dropped, and a comparison with no brief carries no groups at all. `SCORING.version` goes to 4 and the fold is
    mirrored in `score.mjs` (parity test as ADR 0012 requires). Scores from
    before this are not comparable with scores after it, and that is the
    point: the old ones were wrong in a direction that punished honest
@@ -105,11 +110,15 @@ the part being repeated every time.
 
 ## Consequences
 
-- **One more call on a posting's first comparison.** The brief is the
-  shortest prompt of the family and the only one with no resume in it, but
-  it is not free. It is paid once per posting text; the run shows it as its
-  own step, and a reused reading finishes instantly with the line that says
-  so. The tradeoff was taken deliberately: a comparison that takes longer
+- **One more call on a posting's first comparison — in both modes.** The
+  brief is the shortest prompt of the family and the only one with no resume
+  in it, but it is not free, and the quick check is the path the user waits on
+  (ADR 0029). It runs there anyway: the groups are what make the quick check's
+  score honest, and a `fast` row that scored a posting differently from a
+  `full` one would be worse than a slower first run. It is paid once per
+  posting text; the run shows it as its own step, and a reused reading
+  finishes instantly with the line that says so (22 s, then 3 ms, on the live
+  row). The tradeoff was taken deliberately: a comparison that takes longer
   and reads the posting properly beats a fast one that does not.
 - **The full report and the suggestions call got longer.** Their budgets
   went to 12 000 and 10 000 answer tokens (still inside the headroom rule
