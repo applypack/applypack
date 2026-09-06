@@ -141,3 +141,55 @@ the part being repeated every time.
 - **The brief is untrusted text.** It is a model's reading of an
   outsider's posting — ADR 0022 tier 2 — so it is fenced in both prompts
   that read it, and the fence registry guards it.
+
+---
+
+## Addendum, 2026-09-06: what a keyword is, and what the cap asks
+
+Two defects surfaced together on a live session, and both come from the same
+place: the keyword list is not just displayed, it is **scored**, and it is
+turned into "+ add" chips that offer to type a term into the user's skills
+line. A row that is not a term is bad advice with a number attached.
+
+**A keyword is a thing a recruiter would search for.** Measured over six
+comparisons, 12 of 42 distinct keywords were not terms: two were gates in
+disguise (`5+ years of experience`, `Bachelor's Degree` — both `must`, both
+worth three weighted units, both offered as something to add), and the rest
+were fragments cut out of a responsibility line (`0 to 1`, `troubleshoot`,
+`landing pages`, `product sense`). The old rule invited exactly this: it told
+the model to reduce a long requirement to "its shortest distinctive verbatim
+phrase", which is how a duty becomes a keyword. `RULE_KEYWORDS` now states the
+test — *would a recruiter type this into a search box?* — and lists what is
+never a keyword: a duty, a quality, a quantity, a requirement about the person
+rather than their skills. `keyword-shape.ts:dropMalformedKeywords` is the floor
+under it, in code where the score can see it: a years-of-experience or degree
+shape, a bare quantity, or more than five words is dropped. A keyword the user
+typed themselves is never dropped.
+
+**`present` has to be findable.** The browser re-checks that status on every
+keystroke — the live estimate credits a term by finding it in the text, and the
+missing-keyword chips are exactly the terms it could not find. A `present` the
+matcher cannot see makes the page contradict itself. 5 of 137 present keywords
+were paraphrases ("automated testing" against "Unit, integration & E2E
+testing"); `keyword-anchor.ts:anchorStatuses` turns those into `add`, which is
+what they are, and the chip they now get is correct advice.
+
+**The primary cap asks whether the candidate HAS the stack.** Folding an
+either/or group (§4) can leave a primary stack of one, and `primaryCap(0, 1)`
+is 30 — so the whole score rode on whether one keyword was called `present` or
+`add`. A live pair scored **79 with TypeScript `present` and 30 with the same
+resume and the same TypeScript called `add`**; a second independent judgment of
+that pair produced the same flip. `SCORING.primaryCovered` now counts `add` as
+coverage. Sibling technology is forbidden from `add` by the rules gotcha 11 put
+in the prompt, so this does not re-open that hole — the gold bench's
+"stack mismatch stays capped ≤30" and "Node.js not claimable from PHP" both
+still pass. Half the keyword credit stays the penalty for a word that is not
+written down, which is the right size of penalty for a word that is not
+written down.
+
+**And the words on screen.** `no evidence` read as a verdict on the person and
+told them nothing to do; `add` was labelled `missing`, which hid the easiest win
+on the page. The four statuses now describe the candidate's side of each term —
+*in your resume · add the word · do you have it? · missing* — with the
+requirement level in the column beside them, so "missing" next to "must" says
+the thing the user needs to hear.

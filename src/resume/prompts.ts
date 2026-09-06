@@ -56,8 +56,11 @@ const KEYWORDS_MAX = 80;
  * v7: actions carry "replacement" / "insert_after" — paste-ready wording (ADR 0037).
  * v8: the posting brief supplies the frame, keywords carry "group", and the
  *     suggestion floor replaced the blanket no-treadmill rule (ADR 0044).
+ * v9: a keyword is a thing a recruiter would search for — duties, qualities,
+ *     quantities and person-requirements are not keywords, and the ones that
+ *     slip through are dropped in code (keyword-shape.ts).
  */
-export const PROMPT_VERSION = 8;
+export const PROMPT_VERSION = 9;
 
 /**
  * The posting brief's own version (ADR 0044). Separate from PROMPT_VERSION so
@@ -66,8 +69,9 @@ export const PROMPT_VERSION = 8;
  * own version.
  * v1: role, company, screening, requirement groups, the keyword frame.
  * v2: only "any" groups are groups — a satisfy-"all" list is separate demands.
+ * v3: the keyword test ("would a recruiter search for this?") and its exclusions.
  */
-export const BRIEF_PROMPT_VERSION = 2;
+export const BRIEF_PROMPT_VERSION = 3;
 
 export { KEYWORD_STATUSES };
 

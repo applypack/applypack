@@ -67,6 +67,13 @@ All notable changes to this project are documented here. The format follows
   satisfied by ten is met, whatever the model calls the worry; over-levelling
   is a caution, and it was costing 10 points.
 
+- **The keyword statuses say what to do about them.** *no evidence* read as a
+  verdict on the person, and `add` was labelled *missing*, which hid the easiest
+  win on the page. They are now *in your resume · add the word · do you have
+  it? · missing*, with the requirement level in the column beside them. The
+  editor's AI action is called **Analyse my resume again**, and the live
+  estimate says in as many words that the big number stays on the last analysis
+  until another one runs.
 - **Another wording, on request.** **Rewrite** on a suggestion card writes that
   one suggestion again — same section, same line, same requirement, a different
   sentence — and the new wording goes through the same gate as the first, so a
@@ -74,6 +81,31 @@ All notable changes to this project are documented here. The format follows
   re-runs the suggestions call over the same verdicts; the score never moves.
 
 ### Fixed
+- **One word-choice no longer moves the score 49 points.** After either/or
+  groups fold, a posting whose primary stack is "TypeScript, Rust or Java" has
+  one primary slot — and `primaryCap(0, 1)` is 30, so the whole score rode on
+  whether the model called that one keyword `present` or `add`. A live pair
+  scored 79 and then 30 on the same resume, and a second independent judgment
+  reproduced the flip. `add` now counts as coverage for the cap: it means the
+  resume's own facts evidence the term and only the word is missing, and
+  sibling technology is forbidden from `add`. Half the keyword credit stays the
+  penalty for the unwritten word. The gold bench's stack-mismatch and
+  sibling-tech guards both still pass.
+- **A keyword is a thing a recruiter would search for.** 12 of 42 distinct
+  keywords on the live corpus were not terms: `5+ years of experience` and
+  `Bachelor's Degree` were scored as must-level skills and offered as something
+  to add to the skills line, and `0 to 1`, `troubleshoot`, `landing pages` and
+  `product sense` were fragments cut out of responsibility sentences — the old
+  rule asked for exactly that. The rule now states the test and its exclusions,
+  and `keyword-shape.ts` drops what slips through: gate shapes, bare
+  quantities, anything over five words. The same posting went from 15 keywords
+  to 11, with the years-and-ownership signals moved to the brief's screening
+  block where they belong.
+- **"Matched" now always agrees with the missing-keyword chips.** A `present`
+  the browser matcher cannot find in the resume becomes `add` at persist time
+  (4% of them — paraphrases like "automated testing" against "Unit, integration
+  & E2E testing"), so the table, the chips and the live estimate cannot
+  contradict each other.
 - **A removal can no longer strike through what the posting asks for.** The
   model quoted `Symfony, React, Vue, Laravel, Lumen, Phalcon` whole to advise
   dropping three of the six, with React (must, primary) and Vue.js (must)
