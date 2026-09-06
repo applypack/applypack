@@ -12,6 +12,9 @@ export const SCORING = {
   keywordMax: 60,
   requirementWeight: { must: 3, preferred: 2, nice: 1, context: 0 },
   statusCredit: { present: 1, add: 0.5, ask_user: 0, cannot_claim: 0 },
+  // "Has it" for the primary cap — see score.ts. `add` counts: the cap asks
+  // whether the candidate has the core stack, not whether the word is typed.
+  primaryCovered: ['present', 'add'],
   titleMax: 10,
   summaryMax: 10,
   recentRoleMax: 20,
@@ -157,7 +160,10 @@ export function entriesFromLive(rows) {
       requirement: r.requirement ?? 'preferred',
       primary,
       credit: !claimable ? 0 : r.found ? 1 : r.status === 'add' ? 0.5 : 0,
-      primaryHit: primary && claimable && r.found === true,
+      // Same rule as the server's: an `add` primary is covered whether or not
+      // the word has been typed yet, so the estimate does not jump 49 points
+      // the moment the user deletes it.
+      primaryHit: primary && claimable && (r.found === true || r.status === 'add'),
       ceilCredit: writable ? 1 : 0,
       ceilPrimaryHit: primary && writable,
       group: r.group ?? null,

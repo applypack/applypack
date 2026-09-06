@@ -64,11 +64,20 @@ const PRIORITY_TONE: Record<MatchAction['priority'], Tone> = {
 };
 
 /** One status vocabulary everywhere: table badges, pane legends and tooltips agree. */
+/*
+ * Four words about the CANDIDATE, not about the model's confidence. The old
+ * set said "matched / missing / confirm / no evidence", which got two of them
+ * wrong: `add` means the resume already evidences the term and only the word is
+ * absent — calling that "missing" hides the easiest win on the page — and
+ * "no evidence" reads as a verdict on the person rather than a requirement they
+ * do not meet. The requirement level sits in the next column, so "missing"
+ * beside "must" now says the thing the user needs to hear.
+ */
 const STATUS_VIEW: Record<MatchKeyword['status'], { label: string; tone: Tone }> = {
-  present: { label: 'matched', tone: 'ok' },
-  add: { label: 'missing', tone: 'warn' },
-  ask_user: { label: 'confirm', tone: 'violet' },
-  cannot_claim: { label: 'no evidence', tone: 'danger' },
+  present: { label: 'in your resume', tone: 'ok' },
+  add: { label: 'add the word', tone: 'warn' },
+  ask_user: { label: 'do you have it?', tone: 'violet' },
+  cannot_claim: { label: 'missing', tone: 'danger' },
 };
 
 const KEYWORD_COLUMNS = ['Keyword', 'Wants it', 'Status', 'Where', 'Note'];

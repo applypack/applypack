@@ -26,6 +26,37 @@ export interface AnchorReport {
   unanchored: number;
 }
 
+/**
+ * The other half of the same idea, pointed at the RESUME (ADR 0044 addendum).
+ * "present" is the one status the browser re-checks on every keystroke: the
+ * live estimate credits a term by finding it in the text, and the missing-chips
+ * row is exactly the terms it could not find. So a keyword the model called
+ * present and the matcher cannot see makes the page contradict itself — the
+ * table says matched, the chip above the editor offers to add it, and the two
+ * scores drift apart for a reason no user can discover.
+ *
+ * Measured on the live corpus: 5 of 137 present keywords (4%). Each one was a
+ * paraphrase — "automated testing" against a resume that says "Unit,
+ * integration & E2E testing", "5+ years of experience" against "12+ years".
+ * The claim behind them is fine; the word is not there. That is exactly what
+ * `add` means, so they become `add`, keep their half credit and their note, and
+ * the "+ add" chip they now get is the correct advice.
+ */
+export function anchorStatuses(
+  keywords: MatchKeyword[],
+  resumeText: string,
+  matcher: KeywordMatcher,
+): { keywords: MatchKeyword[]; downgraded: number } {
+  let downgraded = 0;
+  const next = keywords.map((k) => {
+    if (k.status !== 'present') return k;
+    if (matcher.findTerm(resumeText, k.term, k.aliases).length > 0) return k;
+    downgraded++;
+    return { ...k, status: 'add' as const };
+  });
+  return { keywords: next, downgraded };
+}
+
 export function anchorKeywords(
   keywords: MatchKeyword[],
   posting: string,

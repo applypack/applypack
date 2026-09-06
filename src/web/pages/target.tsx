@@ -32,7 +32,7 @@ import { ACCEPTED_EXTENSIONS } from '../../resume/resume-text';
  * (nothing is saved until "Save as new version"); highlights and the live
  * estimate re-render on every keystroke from /static/target-page.mjs. The AI
  * match (keywords, actions, removals) is the fixed frame the live score works
- * within — "Re-check with AI" sends the edited text back to Claude.
+ * within — "Analyse my resume again" sends the edited text back to Claude.
  *
  * Layout rule (external UX audit, docs/archive/applypack-resume-match-ux-refactor.md):
  * everything needed for a decision — score, hard-requirement gates, confirm
@@ -298,7 +298,7 @@ export const TargetPage: FC<TargetPageProps> = ({
           <div class="flex flex-col gap-3 lg:items-end">
             <div class="flex flex-wrap items-center gap-2">
             {/* One visible action — a fresh file is how a better match usually happens.
-                Re-check and Save live in the ⋯ menu; the sticky bar resurfaces them while editing.
+                Analyse and Save live in the ⋯ menu; the sticky bar resurfaces them while editing.
                 data-menu opts into light dismiss (outside click / Escape) in target-page.mjs. */}
             <details class="relative" data-menu>
               <summary class={`${SUMMARY_BUTTON} bg-accent-strong px-3 text-white shadow-sm hover:bg-accent-deep`}>
@@ -361,7 +361,7 @@ export const TargetPage: FC<TargetPageProps> = ({
                   {/* Set by the Rebuild button's click — a disabled submitter is left out of the form data. */}
                   <input type="hidden" name="rebuild" value="" />
                   <Button variant="violet" class="w-full" title="Judges the text in the editor against this posting and rewrites the suggestions">
-                    Re-check with AI
+                    Analyse my resume again
                   </Button>
                 </form>
                 {/* One save, and only for a resume of the user's own: the next
@@ -415,8 +415,8 @@ export const TargetPage: FC<TargetPageProps> = ({
               </div>
               <Hint class="mt-1">
                 {breakdown
-                  ? "Same formula as the AI score, live as you type — the text confirms what is present; add / confirm / can't-claim keep the AI's verdict on the analysed version. Re-check to make it official."
-                  : 'Keywords only, live as you type. Re-check to get the full score.'}
+                  ? "An estimate, not the score. It counts the words in the text as you type; the big number above stays on the last analysis until you run another one, because only the AI judges the parts a word search cannot see."
+                  : 'Keywords only, live as you type. Analyse again to get the full score.'}
               </Hint>
             </div>
           </div>
@@ -464,10 +464,14 @@ export const TargetPage: FC<TargetPageProps> = ({
           <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
             <div class="text-[13px] font-medium text-ink">Job description</div>
             <div class="flex flex-wrap items-center gap-3 text-xs text-ink-faint">
-              <span><mark class="kw-found rounded px-1">matched</mark></span>
-              <span><mark class="kw-missing rounded px-1">missing</mark></span>
-              <span><mark class="kw-ask rounded px-1">confirm</mark></span>
-              <span><mark class="kw-cannot rounded px-1">no evidence</mark></span>
+              {/* Four words about the CANDIDATE's side of each term. "no evidence"
+                  read as a verdict on the person and told them nothing to do;
+                  what they need to know is whether the posting's requirement is
+                  met, nearly met, or not met at all. */}
+              <span><mark class="kw-found rounded px-1">in your resume</mark></span>
+              <span><mark class="kw-missing rounded px-1">add the word</mark></span>
+              <span><mark class="kw-ask rounded px-1">do you have it?</mark></span>
+              <span><mark class="kw-cannot rounded px-1">missing</mark></span>
               {/* The intensity key: same colour, graded by how hard the posting asks. */}
               <span class="inline-flex items-center gap-1">
                 weight
@@ -601,7 +605,7 @@ export const TargetPage: FC<TargetPageProps> = ({
                     : undefined
                 }
                 // Through the editor's own form, so a rebuild judges the text on
-                // screen — the same call Re-check makes, minus the stored frame.
+                // screen — the same call the analyse button makes, minus the stored frame.
                 rebuild={{ jobId: job.id, resumeId: resume.id, mode: fast ? 'fast' : 'full', formId: 'reanalyze-form' }}
               />
                 </div>
@@ -629,8 +633,8 @@ export const TargetPage: FC<TargetPageProps> = ({
             <Button type="button" variant="ghost" size="sm" id="bar-discard">
               Discard
             </Button>
-            <Button variant="violet" size="sm" form="reanalyze-form">
-              Re-check with AI
+            <Button variant="violet" size="sm" form="reanalyze-form" title="Runs the whole analysis on the text as it stands now">
+              Analyse my resume again
             </Button>
             {!resume.ephemeral && (
               <Button

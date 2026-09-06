@@ -542,9 +542,17 @@ ${STRUCTURE_SHAPE}`;
 
 /* ---------- resume vs posting: the shared rulebook, two variants (ADR 0029) ---------- */
 
-const RULE_KEYWORDS = `Extract the posting's keywords in priority order: 1 = required technical skills (requirements / qualifications), 2 = the exact job title as posted, 3 = methodology and process terms (CI/CD, code review, agile, on-call, testing), 4 = domain terms (fintech, marketplace, healthcare). Two hard rules for "term":
+const RULE_KEYWORDS = `Extract the posting's keywords in priority order: 1 = required technical skills (requirements / qualifications), 2 = the exact job title as posted, 3 = methodology and process terms (CI/CD, code review, agile, on-call, testing), 4 = domain terms (fintech, marketplace, healthcare).
+   THE TEST FOR A KEYWORD: would a recruiter type this into a search box to find candidates? A keyword is a NAMED THING — a language, framework, library, database, cloud, tool, platform; a named practice (CI/CD, TDD, code review, pair programming); a named standard or certification (WCAG, SOC 2); a named domain (fintech, e-commerce); or the job title exactly as posted. Nothing else is a keyword.
+   NOT KEYWORDS, however loudly the posting says them:
+   - a duty or a verb phrase — "troubleshoot", "build and maintain", "collaborate with design", "monitor performance". The work is judged in "alignment", not counted here.
+   - a quality — "product sense", "technical leadership", "attention to detail", "fast-paced", "self-starter". No search finds these and no resume line proves them.
+   - a quantity or a range lifted out of a sentence — "0 to 1", "10x", "5+ years". A number is not a skill.
+   - a requirement about the PERSON rather than their skills: years of experience, a degree, work authorization, a location, a clearance. Every one of these belongs in the gates, and the application drops them from this list.
+   - a noun phrase you assembled from the sentence around a real term — "website performance", "landing pages", "domain configurations". Keep the term the posting names, not the sentence it sits in.
+   Two hard rules for "term":
    - VERBATIM: "term" must be a contiguous phrase copied character-for-character from the posting's title or description — the UI highlights it by literal search, so a paraphrase renders nowhere. If it says "Golang", the keyword is "Golang".
-   - SHORT: 1-4 words. A long requirement sentence gets its shortest distinctive verbatim phrase ("troubleshoot and resolve issues in existing codebases" → "troubleshoot"), never a restatement.
+   - SHORT: 1-4 words, and the shortest form that is still the name of the thing.
    NOISE: ignore company marketing, benefits, perks, EEO and legal boilerplate, salary text and culture statements — a term that appears only there is never a keyword. Skip non-skill fluff (telecommute wording); location fit belongs in red_flags, not keywords.`;
 
 const RULE_REQUIREMENT = `For every keyword set "requirement" — how hard the posting asks for it, from its own wording:

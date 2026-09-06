@@ -237,8 +237,8 @@ export function highlightHtml(text, spans) {
 /** Spans for the job-description pane: every keyword occurrence, classed by whether the resume has it. */
 export function jobSpans(keywords, jobText, scored) {
   const byTerm = new Map(scored.rows.map((r) => [r.term, r]));
-  // Same vocabulary as the keyword table and pane legends: matched / missing / confirm / no evidence.
-  const LABEL = { 'kw-found': 'matched — in your resume', 'kw-cannot': "no evidence — can't claim", 'kw-ask': 'confirm — do you have it?', 'kw-missing': 'missing' };
+  // Same vocabulary as the keyword table and the pane legends.
+  const LABEL = { 'kw-found': 'in your resume', 'kw-cannot': "missing — the resume shows nothing for it", 'kw-ask': 'do you have it?', 'kw-missing': 'add the word — your resume evidences it' };
   const spans = [];
   for (const k of keywords) {
     const row = byTerm.get(k.term);

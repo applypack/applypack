@@ -18,8 +18,9 @@ import { annotateElsewhere, applyFacts } from './facts';
 import { gateActions, gateRemovals } from './replacement-gate';
 import { withTableAliases } from './keyword-aliases';
 import { carryOverrides, effectiveKeywords } from './keyword-overrides';
-import { anchorKeywords, elsewhereForPosting } from './keyword-anchor';
+import { anchorKeywords, anchorStatuses, elsewhereForPosting } from './keyword-anchor';
 import { reconcileGroups } from './keyword-group';
+import { dropMalformedKeywords } from './keyword-shape';
 import { planKeywordFrame } from './keyword-frame';
 import { loadKeywordMatcher } from './keyword-matcher';
 import { readMatchMode, type MatchMode } from './match-mode';
@@ -133,13 +134,19 @@ export async function matchResumeToJob(
   // table joins the model's spellings, every term is anchored to the
   // posting (or flagged), stored facts always win, and unclaimable terms
   // point at the resume that has them.
-  const anchor = anchorKeywords(reply.keywords.map(withTableAliases), posting, matcher);
+  // A row that is not a term is scored, highlighted and offered as something to
+  // type into the skills line, so shapes no wording can rescue go first.
+  const shaped = dropMalformedKeywords(reply.keywords.map(withTableAliases));
+  const anchor = anchorKeywords(shaped.keywords, posting, matcher);
   const carry = carryOverrides(anchor.keywords, storedKeywords, { resumeText: resume.text, posting, matcher });
   const withFacts = applyFacts(carry.keywords, facts).keywords;
   // The score folds on `group`, so the brief — not the reply — decides what a
   // group is: an invented label would charge one weight for two requirements.
   const grouped = reconcileGroups(annotateElsewhere(withFacts, otherSkills), briefed?.brief);
-  const keywords = grouped.keywords;
+  // "present" is the one status the browser re-checks on every keystroke, so a
+  // present the matcher cannot find would make the table and the chips disagree.
+  const anchoredStatuses = anchorStatuses(grouped.keywords, resume.text, matcher);
+  const keywords = anchoredStatuses.keywords;
   // What may be applied with one press is decided here, in code, against
   // the resume, the posting and the facts — never by the model (ADR 0037).
   const gateSources = { resumeText: resume.text, posting, facts, keywords, matcher };
@@ -164,6 +171,9 @@ export async function matchResumeToJob(
     frame: frame.reason,
     verificationId: verification?.id ?? null,
   });
+  if (shaped.dropped.length > 0) {
+    logger.info({ jobId: job.id, dropped: shaped.dropped }, 'resume: keywords that were not terms');
+  }
   logger.info(
     {
       matchId: row.id,
@@ -184,6 +194,8 @@ export async function matchResumeToJob(
       overrides: carry.carried,
       readded: carry.readded,
       groupsDropped: grouped.dropped,
+      malformed: shaped.dropped.length,
+      unwritten: anchoredStatuses.downgraded,
       frame: frame.reason,
       brief: briefed ? (briefed.reused ? 'reused' : 'fresh') : 'none',
       promptVersion: PROMPT_VERSION,

@@ -30,13 +30,14 @@ test('gained and lost track present transitions for terms both versions know', (
 
 test('component deltas come from the two breakdowns', () => {
   const align = { title: 'strong', summary: 'strong', recent_role: 'strong' } as const;
-  // prev: primary missing (flag restating it is free) + one real flag → penalty 10.
-  const prev = { keywords: [kw('Node.js', 'add')], breakdown: scoreMatch([{ status: 'add', requirement: 'must', primary: true }], align, 2) };
+  // prev: the primary stack is absent (a flag restating it is free) + one real
+  // flag → penalty 10. `add` would no longer do here: it covers the stack now.
+  const prev = { keywords: [kw('Node.js', 'cannot_claim')], breakdown: scoreMatch([{ status: 'cannot_claim', requirement: 'must', primary: true }], align, 2) };
   const next = { keywords: [kw('Node.js', 'present')], breakdown: scoreMatch([{ status: 'present', requirement: 'must', primary: true }], align, 0) };
   const d = diffMatches(prev, next);
   assert.ok(d.components);
   assert.equal(prev.breakdown.penalty, 10);
-  assert.equal(d.components.keywordPts, 30);
+  assert.equal(d.components.keywordPts, 60);
   assert.equal(d.components.penalty, -10);
   assert.equal(d.components.capBefore, 30);
   assert.equal(d.components.capAfter, null);

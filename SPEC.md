@@ -369,7 +369,7 @@ editor. `src/web/public/target.mjs` scores keyword coverage in the browser
 on every edit (P1 = 3, P2 = 2, P3/P4 = 1, `cannot_claim` excluded by
 default) and renders both panes' highlights from the match's `keywords`
 (with `aliases`), `actions` and `removals` (with verbatim `quote`s).
-The page has one AI action, **Re-check with AI**: it posts the edited text
+The page has one AI action, **Analyse my resume again**: it posts the edited text
 (`draftText`) and runs the full report on it — same rules, same suggestions,
 same progress page as any other comparison — writing a `ResumeMatch` with
 `draft = true`. **Compare this file** does the same for a freshly uploaded

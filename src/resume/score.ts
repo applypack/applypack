@@ -33,6 +33,18 @@ export const SCORING = {
   requirementWeight: { must: 3, preferred: 2, nice: 1, context: 0 } as Record<RequirementLevel, number>,
   /** Credit per AI status: evidenced-but-unwritten counts half, unverified counts zero. */
   statusCredit: { present: 1, add: 0.5, ask_user: 0, cannot_claim: 0 } as Record<KeywordStatus, number>,
+  /**
+   * Statuses that mean "this candidate HAS it", which is the only question the
+   * primary-stack cap asks. `add` is in it because `add` is defined as the
+   * resume's own facts already evidencing the term — sibling technology is
+   * forbidden from `add` by the rules gotcha 11 put there, so this does not
+   * re-open that hole. Docking an unwritten word half its keyword credit is the
+   * right penalty; capping the whole score at 30 on top of it is not, and after
+   * either/or groups fold (ADR 0044) a one-item primary stack made that cap a
+   * coin flip: one live comparison scored 79 with TypeScript `present` and 30
+   * with the same resume and the same TypeScript called `add`.
+   */
+  primaryCovered: ['present', 'add'] as readonly KeywordStatus[],
   /** Alignment: title 10 + summary 10 + most recent role 20. */
   titleMax: 10,
   summaryMax: 10,
@@ -255,7 +267,7 @@ export function entriesFromKeywords(
       requirement: k.requirement,
       primary,
       credit: SCORING.statusCredit[k.status] ?? 0,
-      primaryHit: k.status === 'present',
+      primaryHit: SCORING.primaryCovered.includes(k.status),
       ceilCredit: claimable ? 1 : 0,
       ceilPrimaryHit: primary && claimable,
       group: k.group ?? null,

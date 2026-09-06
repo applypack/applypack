@@ -96,11 +96,12 @@ test('ceiling: what honest editing can reach on this posting', () => {
   const done = scoreMatch([kw('present', 'must', true)], STRONG, 0);
   assert.equal(done.ceiling, done.score);
 
-  // "add" primaries lift the reachable cap: today 0/2 present (cap 30), but
-  // both are claimable — write them in and the cap is gone.
-  const addable = scoreMatch([kw('add', 'must', true), kw('add', 'must', true)], OFF, 2);
-  assert.equal(addable.cap, 30);
-  assert.equal(addable.flagsCounted, 0); // both flags restate the missing primaries
+  // An "add" primary is a stack the candidate HAS, so the cap does not bite;
+  // writing the word in is worth the other half of its keyword credit, which
+  // is what separates the score from the ceiling here.
+  const addable = scoreMatch([kw('add', 'must', true), kw('add', 'must', true)], OFF, 0);
+  assert.equal(addable.cap, null);
+  assert.equal(addable.keywordPts, 30); // half credit each, until the word is written
   assert.equal(addable.ceiling, 100);
 
   // cannot_claim keeps the ceiling down — no edit invents experience.
@@ -147,10 +148,20 @@ test('primary-stack gate: the cap is absolute and comes last', () => {
   assert.equal(b.cap, 30);
   assert.equal(b.score, 30);
 
-  // "add" on a primary item does not lift the cap — only "present" counts.
+  // "add" covers a primary item: it means the resume's own facts evidence the
+  // term and only the word is missing, and sibling technology is forbidden from
+  // "add" by the rules gotcha 11 put in the prompt. Before this, one model
+  // word-choice on a single-item primary stack was worth 49 points.
   const c = scoreMatch([kw('add', 'must', true), kw('present', 'must', true)], STRONG, 0);
-  assert.equal(c.primaryPresent, 1);
-  assert.equal(c.cap, SCORING.caps.halfOrMore);
+  assert.equal(c.primaryPresent, 2);
+  assert.equal(c.cap, null);
+
+  // What the cap still catches: a stack the resume has nothing for.
+  const d = scoreMatch([kw('cannot_claim', 'must', true), kw('present', 'must', true)], STRONG, 0);
+  assert.equal(d.primaryPresent, 1);
+  assert.equal(d.cap, SCORING.caps.halfOrMore);
+  const e = scoreMatch([kw('ask_user', 'must', true)], STRONG, 0);
+  assert.equal(e.cap, SCORING.caps.none, 'a term the candidate has not confirmed is not coverage');
 });
 
 test('no keywords means no keyword points, not free points', () => {
@@ -168,7 +179,8 @@ test('entriesFromKeywords mirrors status credit, primary hits and reachable cred
   assert.deepEqual(
     entries.map((e) => [e.credit, e.primary, e.primaryHit, e.ceilCredit]),
     [
-      [0.5, true, false, 1],
+      // add: half the keyword credit, but the primary stack counts as covered.
+      [0.5, true, true, 1],
       [1, false, true, 1],
       [0, false, false, 0],
     ],
