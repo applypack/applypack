@@ -286,7 +286,7 @@ When the question is **"where does X live?"**, save yourself a `find`:
 | The strength formula (six dimensions, weights, the duties-only cap) | `src/resume/review-score.ts` (pure) — the model grades, the code scores, exactly as ADR 0012 does for the match |
 | Version delta (gained/lost keywords, component moves) | `src/resume/diff.ts:diffMatches`, rendered in `resume-match-card.tsx` |
 | Live smoke bench of the match prompt (3 gold fixtures) | `npm run bench:resume` — `src/scripts/resume-bench-once.ts` |
-| Compare-run progress pages (async classify/scan/match) | `src/web/target-runs.ts` (in-memory registry) + `src/web/pages/target-run.tsx`; started by `/target`, `/jobs/:id/match`, `/jobs/:id/target/reupload` |
+| Compare-run progress pages (async classify/scan/match) | `src/web/target-runs.ts` (in-memory registry) + `src/web/pages/target-run.tsx`; started by `/target`, and by `routes/jobs.tsx:startComparison` — the one path `/jobs/:id/match` and `/jobs/:id/target/reupload` both go through, so Compare, Re-check and a fresh file behave identically |
 | Which resume a job page preselects | `src/resume/pick.ts:preselectResume` — the active profile's `resumeId` first, then `pickResumeForJob` (skill-tag overlap) |
 | Creating a search profile from a resume (both entry points) | `src/web/profile-from-resume.ts` → `POST /resumes/:id/profile` and `POST /welcome/profile/create`; born inactive |
 | Prefill the profile from a resume scan | `src/resume/profile-draft.ts:buildProfileDraft` (pure) + `POST /settings/profiles/:id/fill-from-resume` (renders a draft, saves nothing — ADR 0015) |
@@ -372,11 +372,11 @@ When the question is **"how does the user toggle / configure X?"**:
 | Standing angle inputs for letters (typed once, remembered) | `/jobs/:id` → Cover letter card → "Angle" — saved to `AppSettings.coverAngles` on every Generate |
 | Write a letter for a NEW posting (searchable picker / URL / paste; match & research opt-in) | menu → Cover letter (`/letter`) |
 | Download a letter as .pdf / .docx | `/jobs/:id` → Cover letter card → PDF / DOCX buttons |
-| Save the edits into my own .docx | `/jobs/:id/target` → **Save as a tailored copy** (a new resume named after the company; the master untouched) or **Save as vN**. When the file is a .docx the template check allows, the file itself is patched with the edits and Download hands it back; otherwise the version is text and the flash says why. The sentence above the editor says which it will be |
+| Save the edits into my own .docx | `/jobs/:id/target` → **Save as vN** — the only save the page has. When the file is a .docx the template check allows, the file itself is patched with the edits and Download hands it back; otherwise the version is text and the flash says why. The sentence above the editor says which it will be. A one-off check from the Compare page saves nothing: the comparison holds its own text snapshot, and `POST /resumes/:id/draft` refuses a hidden resume |
 | See what a Save can do with this file, and fix a downloaded template's author name | `/resumes/:id` → "Template check": Editable in place / Partly editable / Text only, the parts it cannot write into, and **Fix document properties** when the file names someone else (current values shown; bytes only, no new version) |
 | Get a resume that cannot be edited in place into the loop (a PDF, a table layout) | `/resumes/:id` → **Clean version in your typeface** (`/resumes/:id/render`, also linked from the targeted view's file line): the knobs come from your own file, the preview is the rendered .docx read back, and the four buttons are Update the preview / Download .docx / Download .pdf / **Save as a new resume** — which lands a .docx the template check calls *Editable in place*. Nothing touches the original |
 | Re-check an edited resume | `/resumes/:id` → "Upload a new version", then Compare again |
-| Edit in place with a live score | comparison → "Open targeted view →" (`/jobs/:id/target`); "Re-check with AI" for the rubric score (or "Full analysis with suggestions"), "Save as vN" to keep the draft |
+| Edit in place with a live score | comparison → "Open targeted view →" (`/jobs/:id/target`); **Re-check with AI** is the one AI action there (always the full report), **Compare this file** runs the same thing on a freshly uploaded file, "Save as vN" keeps the draft |
 
 ---
 

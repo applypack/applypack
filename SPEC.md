@@ -369,9 +369,14 @@ editor. `src/web/public/target.mjs` scores keyword coverage in the browser
 on every edit (P1 = 3, P2 = 2, P3/P4 = 1, `cannot_claim` excluded by
 default) and renders both panes' highlights from the match's `keywords`
 (with `aliases`), `actions` and `removals` (with verbatim `quote`s).
-"Re-check with AI" posts the draft (`draftText`) → a `ResumeMatch` with
-`draft = true`; `resumeText` snapshots the judged text on every match.
-"Save as vN" turns the draft into a `.md` resume version.
+The page has one AI action, **Re-check with AI**: it posts the edited text
+(`draftText`) and runs the full report on it — same rules, same suggestions,
+same progress page as any other comparison — writing a `ResumeMatch` with
+`draft = true`. **Compare this file** does the same for a freshly uploaded
+file, and neither touches the resume row: `resumeText` snapshots the judged
+text on every match, so an older run still shows the resume it actually
+judged. Older runs stay listed; the one save, **Save as vN**, is offered only
+for a resume of the user's own.
 
 Each suggestion is a card showing **Now** (the resume's own words) and
 **Proposed** (the wording the model quoted inside its `what` sentence, pulled
@@ -418,10 +423,11 @@ that rendered each line, rewrites only the changed window of a line's runs,
 removes deleted paragraphs, clones the paragraph above for an inserted line,
 and passes four gates before the bytes leave (the analysed text matches the
 file, the result reads back as the edit, no math / drawing / text-box /
-hidden-run count moved, nothing skipped). **Save as a tailored copy** is the
-primary action — a new resume beside the master, named after the company;
-**Save as vN** bumps the master. Either way a refused patch is a text version
-whose flash says why. PDFs keep text versions; the line above the editor says
+hidden-run count moved, nothing skipped). **Save as vN** is the only save the
+page offers, and a refused patch is a text version whose flash says why. There
+is no "save as a tailored copy": one comparison per posting used to mint one
+more row on Resumes, named after the company, and the page a user opens to
+compare should not quietly fill their library. PDFs keep text versions; the line above the editor says
 so and suggests uploading the `.docx` they were printed from. The document
 properties of a downloaded template (its author's name) are fixed on click
 only, bytes only, current values shown.
