@@ -237,6 +237,7 @@ src/
     brief.ts                   ← one AI call over the POSTING alone → PostingBrief row, cached by posting text (ADR 0044)
     match.ts                   ← one AI call (fast | full) → brief + facts context in, statuses out, score.ts computes → ResumeMatch row
     suggestions.ts             ← the lazy second call: stored verdicts in, actions/removals out → same row (ADR 0029)
+    rewrite.ts                 ← one suggestion written again: target kept, wording re-gated → actions column only
     cover-letter.ts            ← one gated AI call → CoverLetter row; gate block → regen once → refuse (ADR 0021)
 
   verification/                ← ghost-job check (ADR 0009) + liveness ladder (ADR 0016)

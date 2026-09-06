@@ -46,6 +46,7 @@ const KNOWN_CALL_SITES: Record<string, string> = {
   'jobs/posting-extract.ts': 'buildExtractPrompt',
   'resume/brief.ts': 'buildBriefPrompt',
   'resume/match.ts': 'buildMatchPrompt',
+  'resume/rewrite.ts': 'buildRewritePrompt',
   'resume/suggestions.ts': 'buildSuggestionsPrompt',
   'resume/scan.ts': 'buildScanPrompt',
   'resume/structure.ts': 'buildStructurePrompt',
@@ -195,6 +196,33 @@ const CASES: Record<string, Case> = {
       ['KEYWORD VERDICTS', 'WHERE-NEEDLE'],
       ['KEYWORD VERDICTS', 'GATE-NEEDLE'],
       ['COMPANY CONTEXT', 'SNAPSHOT-NEEDLE'],
+    ],
+  },
+  buildRewritePrompt: {
+    build: () =>
+      resumeMod.buildRewritePrompt(RESUME, JOB, {
+        action: {
+          section: 'experience',
+          where: 'WHERE-NEEDLE',
+          what: 'WHAT-NEEDLE',
+          why: 'WHY-NEEDLE',
+          priority: 'high',
+          quote: 'QUOTE-NEEDLE',
+          replacement: 'REJECTED-NEEDLE',
+          insert_after: null,
+        },
+        keywords: [{ term: 'VERDICT-NEEDLE', requirement: 'must', primary: true, status: 'present' }],
+        brief: BRIEF,
+      }),
+    fenced: [
+      ['RESUME', RESUME],
+      ['JOB POSTING', DESC],
+      ['POSTING BRIEF', 'READER-NEEDLE'],
+      // Tier 2: the action and the verdicts are model output over both texts.
+      ['CURRENT SUGGESTION', 'WHERE-NEEDLE'],
+      ['CURRENT SUGGESTION', 'QUOTE-NEEDLE'],
+      ['CURRENT SUGGESTION', 'REJECTED-NEEDLE'],
+      ['KEYWORD VERDICTS', 'VERDICT-NEEDLE'],
     ],
   },
   buildCoverPrompt: {

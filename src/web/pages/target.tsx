@@ -562,13 +562,26 @@ export const TargetPage: FC<TargetPageProps> = ({
                       <Button type="button" variant="secondary" size="sm" id="copy-edits" disabled>
                         Copy my changes
                       </Button>
+                      {/* The same call that wrote them, over the same verdicts:
+                          the advice changes, the score does not. */}
+                      <form
+                        method="post"
+                        action={`/jobs/${job.id}/matches/${match.id}/suggestions`}
+                        onsubmit={SUBMIT_ONCE}
+                      >
+                        <input type="hidden" name="next" value="target" />
+                        <input type="hidden" name="rewrite" value="1" />
+                        <Button variant="ghost" size="sm" title="Writes the whole list again from the same verdicts — the score stays (~1 min)">
+                          Rewrite all
+                        </Button>
+                      </form>
                     </div>
                     <Hint class="mt-1.5">
                       Markdown, for the document your resume really lives in. The second one is the
                       diff of your own edits and turns on once you change the text.
                     </Hint>
                   </div>
-                  <ActionsBlock actions={actions} interactive />
+                  <ActionsBlock actions={actions} interactive rewrite={{ jobId: job.id, matchId: match.id, next: 'target' }} />
                   <RemovalsBlock removals={removals} interactive />
                 </>
               )}

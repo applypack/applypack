@@ -4,6 +4,7 @@ import {
   BriefSchema,
   buildBriefPrompt,
   buildCoverPrompt,
+  buildRewritePrompt,
   buildMatchPrompt,
   buildReviewPrompt,
   parseReviewResponse,
@@ -21,6 +22,7 @@ import {
   buildStructurePrompt,
   parseStructureResponse,
   parseBriefResponse,
+  parseRewriteResponse,
 } from './prompts';
 import { MATCH_MODES } from './match-mode';
 import { REVIEW_DIMENSIONS } from './review-score';
@@ -1019,4 +1021,53 @@ test('exceeding a posting minimum is never a red flag, in either variant', () =>
   bothVariants(/A MINIMUM THE CANDIDATE EXCEEDS IS MET/);
   bothVariants(/a posting's floor is never a ceiling/);
   bothVariants(/Only wording that EXCLUDES the candidate's level/);
+});
+
+/* ---- Rewriting one suggestion ------------------------------------------ */
+
+const ACTION = {
+  section: 'experience' as const,
+  where: 'V Shred, first bullet',
+  what: 'Lead with the web outcome.',
+  why: 'recent role graded partial',
+  priority: 'high' as const,
+  quote: 'Combined Snyk with static analysis.',
+  replacement: 'Hardened the checkout flow.',
+  insert_after: null,
+};
+
+test('the rewrite prompt keeps the target and asks only for another sentence', () => {
+  const { system, user } = buildRewritePrompt('RESUME BODY', JOB, {
+    action: ACTION,
+    keywords: [{ term: 'WordPress', requirement: 'must', primary: false, status: 'cannot_claim' }],
+  });
+  assert.match(system, /only the WORDING is yours to write again/);
+  assert.match(system, /WHAT IS FIXED/);
+  assert.match(system, /do not move the edit somewhere else/);
+  assert.match(system, /must be materially different/);
+  // The gate would refuse an invented claim anyway; the prompt says so, so the
+  // user does not spend a rewrite on a wording that cannot be applied.
+  assert.match(system, /never invent a number/);
+  assert.match(system, /BULLET RULES/);
+  assert.match(user, /Where: V Shred, first bullet/);
+  assert.match(user, /Wording the user rejected: Hardened the checkout flow\./);
+  assert.match(user, /- WordPress \| must \| cannot_claim/);
+  assert.match(user, /RESUME BODY/);
+});
+
+test('an addition states its anchor instead of a span to replace', () => {
+  const { user } = buildRewritePrompt('resume', JOB, {
+    action: { ...ACTION, quote: null, insert_after: 'KEY SKILLS' },
+    keywords: [],
+  });
+  assert.match(user, /Adds a new line after: KEY SKILLS/);
+  assert.doesNotMatch(user, /Resume text it replaces/);
+});
+
+test('parseRewriteResponse needs all three fields and a wording that exists', () => {
+  const ok = parseRewriteResponse('{"what":"x","why":"y","replacement":"Built responsive storefronts."}');
+  assert.ok(ok.ok);
+  assert.equal(ok.data.replacement, 'Built responsive storefronts.');
+  assert.equal(parseRewriteResponse('{"what":"x","why":"y","replacement":""}').ok, false);
+  assert.equal(parseRewriteResponse('{"what":"x","why":"y"}').ok, false);
 });

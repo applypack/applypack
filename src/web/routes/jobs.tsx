@@ -60,6 +60,7 @@ import {
 } from '../../resume/store';
 import { preselectAppliedResume, preselectResume } from '../../resume/pick';
 import { briefForPosting, briefLine } from '../../resume/brief';
+import { rewriteAction } from '../../resume/rewrite';
 import { findReusableMatch, matchResumeToJob } from '../../resume/match';
 import { parseMatchMode, readMatchMode, type MatchMode } from '../../resume/match-mode';
 import { reuseNotice } from '../../resume/match-reuse';
@@ -69,6 +70,7 @@ import {
   COVER_TONES,
   coverGateSources,
   readCoverAngles,
+  readActions,
   readKeywords,
   type CoverTone,
   type MatchJobInput,
@@ -799,11 +801,57 @@ jobsRoute.post('/jobs/:id/matches/:matchId/suggestions', async (c) => {
       : form.next === 'cover'
         ? `/jobs/${id}?match=${matchId}#cover-letter`
         : `/jobs/${id}?match=${matchId}#resume-match`;
-  if (readMatchMode(match.breakdown) === 'full') {
+  // "Rewrite them all" asks for the same call over the same verdicts — the
+  // score does not move, only the advice — so the already-has-them guard is
+  // the default, not the rule.
+  if (form.rewrite !== '1' && readMatchMode(match.breakdown) === 'full') {
     return flashRedirect(resultUrl, 'warn', 'This analysis already has its suggestions.');
   }
   const jobInput = { id: job.id, title: job.title, companyName: job.company.name, location: job.location, description: job.description };
   return c.redirect(startSuggestionsRun({ match, job: jobInput, resumeName: resume.name, resultUrl }), 303);
+});
+
+/**
+ * "Rewrite" on one suggestion card. Nothing the comparison decided moves — the
+ * keyword verdicts, the score and the edit's target all stay — and the new
+ * wording goes through the same gate as the old one, so a rewrite cannot claim
+ * what the first wording was refused for.
+ */
+jobsRoute.post('/jobs/:id/matches/:matchId/actions/:index/rewrite', async (c) => {
+  const id = Number(c.req.param('id'));
+  const matchId = Number(c.req.param('matchId'));
+  const index = Number(c.req.param('index'));
+  if (!Number.isFinite(id) || !Number.isFinite(matchId) || !Number.isInteger(index) || index < 0) {
+    return c.text('Bad id', 400);
+  }
+  const [job, match] = await Promise.all([
+    prisma.job.findUnique({ where: { id }, include: { company: { select: { name: true } } } }),
+    getMatch(matchId),
+  ]);
+  if (!job || !match || match.jobId !== id) return c.text('Not found', 404);
+  const form = await c.req.parseBody();
+  const back = form.next === 'target' ? `/jobs/${id}/target?match=${matchId}` : `/jobs/${id}?match=${matchId}#resume-match`;
+
+  let reason = '';
+  const row = await rewriteAction(
+    match,
+    { id: job.id, title: job.title, companyName: job.company.name, location: job.location, description: job.description },
+    index,
+    (r) => {
+      reason = r;
+    },
+  );
+  if (!row) {
+    return flashRedirect(back, 'err', runFailure('Could not rewrite that suggestion', reason));
+  }
+  const written = readActions(row.actions)[index];
+  return flashRedirect(
+    back,
+    written?.replacement ? 'ok' : 'warn',
+    written?.replacement
+      ? 'Rewritten — the new wording is on the card.'
+      : `Rewritten, but the new wording was refused: ${written?.why ?? 'it claimed something this resume does not show'}.`,
+  );
 });
 
 jobsRoute.post('/jobs/:id/cover', async (c) => {

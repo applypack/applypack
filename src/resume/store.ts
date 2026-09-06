@@ -8,7 +8,7 @@ import { effectiveKeywords } from './keyword-overrides';
 import type { JsonResume } from './json-resume';
 import { readMatchMode, storedBreakdown, withSuggestionsMode, type MatchMode } from './match-mode';
 import { readPromptVersion, readVerificationId } from './match-reuse';
-import type { MatchKeyword, MatchSuggestions, ResumeMatchResult, ResumeReviewResult, ResumeScan } from './prompts';
+import type { MatchAction, MatchKeyword, MatchSuggestions, ResumeMatchResult, ResumeReviewResult, ResumeScan } from './prompts';
 import { storedReviewBreakdown, type ReviewBreakdown } from './review-score';
 import { readBreakdown, scoreMatch, type ScoreBreakdown } from './score';
 
@@ -477,6 +477,15 @@ export async function rescoreMatchKeywords<T>(
  * taken from the caller: a fact confirmation during the ~40 s call rewrites
  * that JSON, and writing back a snapshot would silently undo it.
  */
+/**
+ * One suggestion's wording replaced in place (rewrite.ts). Only `actions`
+ * moves: the score, the keywords and the mode marker are the comparison's, and
+ * a rewrite of one sentence changes none of them.
+ */
+export async function updateMatchActions(id: number, actions: MatchAction[]): Promise<ResumeMatch> {
+  return prisma.resumeMatch.update({ where: { id }, data: { actions: actions as unknown as Prisma.InputJsonValue } });
+}
+
 export async function updateMatchSuggestions(
   id: number,
   suggestions: MatchSuggestions,

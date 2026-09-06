@@ -609,7 +609,9 @@ const SuggestionCard: FC<{
   removal?: boolean;
   /** Priority badges are one word, section badges are up to four syllables. */
   badgeWidth?: string;
-}> = ({ item, badge, proposal, interactive, removal = false, badgeWidth = 'w-16' }) => {
+  /** Where "Rewrite" posts: the same edit, a different sentence. Actions only. */
+  rewrite?: { jobId: number; matchId: number; index: number; next?: 'target' };
+}> = ({ item, badge, proposal, interactive, removal = false, badgeWidth = 'w-16', rewrite }) => {
   const copyable = proposal?.text ?? item.quote ?? item.what;
   // Stable across re-runs of the same comparison, so applied/skipped marks survive a reload.
   const key = hashShortId(`${item.section}|${item.where}|${item.quote ?? ''}`);
@@ -667,6 +669,18 @@ const SuggestionCard: FC<{
           <Button type="button" variant="secondary" size="sm" data-copy={copyable}>
             Copy
           </Button>
+          {rewrite && (
+            <form method="post" action={`/jobs/${rewrite.jobId}/matches/${rewrite.matchId}/actions/${rewrite.index}/rewrite`} onsubmit={SUBMIT_ONCE}>
+              {rewrite.next && <input type="hidden" name="next" value={rewrite.next} />}
+              <Button
+                variant="ghost"
+                size="sm"
+                title="Writes this one suggestion again — same target, a different sentence (~½ min)"
+              >
+                Rewrite
+              </Button>
+            </form>
+          )}
           {interactive && item.quote && (
             <Button type="button" variant="ghost" size="sm" data-locate={item.quote}>
               Locate
@@ -713,10 +727,15 @@ const SuggestionCard: FC<{
 };
 
 /** "What to change" — one card per edit, with Copy and (on the targeted view) Locate. */
-export const ActionsBlock: FC<{ actions: MatchAction[]; interactive?: boolean }> = ({
-  actions,
-  interactive = false,
-}) => {
+export const ActionsBlock: FC<{
+  actions: MatchAction[];
+  interactive?: boolean;
+  /** Enables "Rewrite" on each card; the index is the action's place in the stored row. */
+  rewrite?: { jobId: number; matchId: number; next?: 'target' };
+}> = ({ actions, interactive = false, rewrite }) => {
+  // The index is taken before the per-section filter: it addresses the action
+  // in the stored row, which is what the rewrite route updates.
+  const numbered = actions.map((a, index) => ({ a, index }));
   const sections = ACTION_SECTIONS.filter((s) => actions.some((a) => a.section === s));
   return (
     <div>
@@ -729,14 +748,15 @@ export const ActionsBlock: FC<{ actions: MatchAction[]; interactive?: boolean }>
             <div>
               <div class="mb-1.5 text-xs font-semibold text-ink">{section}</div>
               <ol class="divide-y divide-line rounded-md border border-line">
-                {actions
-                  .filter((a) => a.section === section)
-                  .map((a) => (
+                {numbered
+                  .filter(({ a }) => a.section === section)
+                  .map(({ a, index }) => (
                     <SuggestionCard
                       item={a}
                       badge={<Badge tone={PRIORITY_TONE[a.priority]}>{a.priority}</Badge>}
                       proposal={proposalOf(a)}
                       interactive={interactive}
+                      rewrite={rewrite ? { ...rewrite, index } : undefined}
                     />
                   ))}
               </ol>

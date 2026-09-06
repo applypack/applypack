@@ -40,6 +40,8 @@ export const MATCH_FAST_MAX_TOKENS = 4_000;
 export const SUGGESTIONS_MAX_TOKENS = 10_000;
 /** The posting brief: the keyword frame plus a page of prose about the role. */
 export const BRIEF_MAX_TOKENS = 6_000;
+/** One suggestion rewritten: a sentence, its reason and where it goes. */
+export const REWRITE_MAX_TOKENS = 2_000;
 const MAX_RESUME_CHARS = 30_000;
 /** A verification snapshot is a few hundred characters (ADR 0042); this is a guard, not a budget. */
 const MAX_SNAPSHOT_CHARS = 2_000;
@@ -318,6 +320,58 @@ export type MatchRemoval = ResumeMatchResult['removals'][number];
 export type MatchHardRequirement = ResumeMatchResult['hard_requirements'][number];
 export type { MatchAlignment };
 
+/** One rewritten suggestion: the wording, and the two lines that describe it. */
+export const RewriteSchema = z.object({
+  what: z.string(),
+  why: z.string(),
+  replacement: z.string().min(1),
+});
+export type ActionRewrite = z.infer<typeof RewriteSchema>;
+
+export function parseRewriteResponse(text: string): ParseResult<ActionRewrite> {
+  return parseWith(RewriteSchema, text);
+}
+
+/** What the rewrite call reads: the one action, and the verdicts around it. */
+export interface RewriteInput extends Pick<MatchContext, 'confirmedFacts' | 'deniedTerms' | 'brief'> {
+  action: MatchAction;
+  keywords: Pick<MatchKeyword, 'term' | 'requirement' | 'primary' | 'status'>[];
+}
+
+export function buildRewritePrompt(resumeText: string, job: MatchJobInput, input: RewriteInput): Prompt {
+  const a = input.action;
+  // Model output over two untrusted texts — laundered, so fenced (ADR 0022 tier 2).
+  const current = [
+    `Section: ${a.section}`,
+    `Where: ${a.where}`,
+    `What it says to do: ${a.what}`,
+    `Why: ${a.why}`,
+    a.quote ? `Resume text it replaces: ${a.quote}` : `Adds a new line after: ${a.insert_after ?? '(the section it names)'}`,
+    `Wording the user rejected: ${a.replacement ?? '(none was written)'}`,
+  ].join('\n');
+  return {
+    system: REWRITE_SYSTEM,
+    user: [
+      fence('RESUME', clip(resumeText, MAX_RESUME_CHARS)),
+      '',
+      ...briefLines(input.brief, { frame: false }),
+      ...factLines(input),
+      'KEYWORD VERDICTS for this comparison (fixed — a "cannot_claim" term may not appear in your wording):',
+      fence(
+        'KEYWORD VERDICTS',
+        input.keywords.map((k) => `- ${k.term} | ${k.requirement}${k.primary ? ' | primary' : ''} | ${k.status}`).join('\n'),
+      ),
+      '',
+      'CURRENT SUGGESTION — rewrite its wording, keep its target:',
+      fence('CURRENT SUGGESTION', current),
+      '',
+      postingBlock(job),
+      '',
+      'Return raw JSON only.',
+    ].join('\n'),
+  };
+}
+
 export const COVER_MAX_TOKENS = 2_000;
 /** Bumped whenever COVER_SYSTEM changes materially; stored on every letter. */
 export const COVER_PROMPT_VERSION = 4;
@@ -372,6 +426,8 @@ export const RESUME_TIMEOUT_MS = {
   structure: 120_000,
   /** the posting alone, no resume — the shortest prompt of the family (ADR 0044) */
   brief: 120_000,
+  /** one suggestion written again: the shortest answer of the family */
+  rewrite: 90_000,
 } as const;
 
 /**
@@ -765,6 +821,37 @@ OUTPUT (exactly this shape):
   ${OUTPUT_ACTIONS},
   ${OUTPUT_REMOVALS}
 }`;
+
+/**
+ * One suggestion, written again. The card already carries a verdict the user
+ * disagrees with only in its WORDING — everything around it (which keyword it
+ * serves, which line it points at, whether the resume can support it) was
+ * settled by the comparison and must not move. So this call is given the one
+ * action and told to write a different sentence for the same job; the same
+ * gate then judges the new wording exactly as it judged the old one.
+ */
+const REWRITE_SYSTEM = `You rewrite ONE suggested edit to ONE resume, for ONE job posting. The edit's target is fixed — the same section, the same line, the same requirement it serves — and only the WORDING is yours to write again. Return JSON only — no prose, no code fences.
+
+${untrustedDirective()}
+
+${RENDERING_NOTE}
+
+WHAT IS FIXED. "section" and "where" name the place; do not move the edit somewhere else. "why" may be re-worded but must still name the same requirement of this posting. If the CURRENT SUGGESTION quotes resume text, your "replacement" replaces exactly that span; if it quotes nothing, your "replacement" is a new line to add after the anchor the current suggestion names.
+
+WHAT MUST CHANGE. The new wording must be materially different from the current one — a different verb, a different angle on the same fact, a different order — not the same sentence with a synonym swapped. The user asked for another version because the one they have does not work for them.
+
+WHAT YOU MAY NOT DO. Never claim work this resume does not show, and never invent a number: every figure must already exist in the resume or in a candidate-confirmed fact. The application re-checks the new wording against both and refuses it otherwise, so an invented one costs the user their rewrite.
+
+${RULE_AUDIENCE}
+
+${bulletRules(
+  'the wording you return',
+  '("why" names it).',
+  'end "why" with "ask the candidate for the real number"',
+)}
+
+OUTPUT (exactly this shape):
+{"what": "what changes, one clause", "why": "the posting requirement it serves, 12 words or fewer", "replacement": "the complete new text"}`;
 
 const COVER_SYSTEM = `You write a short cover letter for ONE job application, grounded in ONE resume. Return JSON only — no prose, no code fences.
 
