@@ -14,7 +14,7 @@ import {
   type MatchJobInput,
 } from './prompts';
 import { annotateElsewhere, applyFacts } from './facts';
-import { gateActions } from './replacement-gate';
+import { gateActions, gateRemovals } from './replacement-gate';
 import { withTableAliases } from './keyword-aliases';
 import { carryOverrides, effectiveKeywords } from './keyword-overrides';
 import { anchorKeywords, elsewhereForPosting } from './keyword-anchor';
@@ -124,7 +124,9 @@ export async function matchResumeToJob(
   const keywords = annotateElsewhere(withFacts, otherSkills);
   // What may be applied with one press is decided here, in code, against
   // the resume, the posting and the facts — never by the model (ADR 0037).
-  const gate = gateActions(reply.actions, { resumeText: resume.text, posting, facts, keywords, matcher });
+  const gateSources = { resumeText: resume.text, posting, facts, keywords, matcher };
+  const gate = gateActions(reply.actions, gateSources);
+  const cuts = gateRemovals(reply.removals, gateSources);
   // The row stores what the user sees; the score reads what they decided:
   // their levels, without the terms they ignored (§5).
   const breakdown = scoreMatch(effectiveKeywords(keywords), reply.alignment, reply.red_flags.length);
@@ -137,7 +139,7 @@ export async function matchResumeToJob(
     // The marker surfaces on the match card's meta line — the user can see
     // that a fallback engine (not chain #1) produced this analysis.
     model: answer.model,
-    result: { ...reply, keywords, actions: gate.actions },
+    result: { ...reply, keywords, actions: gate.actions, removals: cuts.removals },
     breakdown,
     promptVersion: PROMPT_VERSION,
     mode,
@@ -155,6 +157,8 @@ export async function matchResumeToJob(
       score: row.matchScore,
       replacementsBlocked: gate.blocked,
       replacementsWarned: gate.warned,
+      removalsBlocked: cuts.blocked,
+      removalsWarned: cuts.warned,
       cap: breakdown.cap,
       keywords: keywords.length,
       anchored: anchor.anchored,

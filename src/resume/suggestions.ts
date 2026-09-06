@@ -14,7 +14,7 @@ import {
 } from './prompts';
 import { readBreakdown } from './score';
 import { loadKeywordMatcher } from './keyword-matcher';
-import { gateActions } from './replacement-gate';
+import { gateActions, gateRemovals } from './replacement-gate';
 import { getLatestVerificationContext, listFacts, updateMatchSuggestions } from './store';
 
 
@@ -53,15 +53,21 @@ export async function suggestForMatch(
     { matchId: match.id },
   );
   if (!answer) return null;
-  // The same gate the full report runs before it stores (ADR 0037).
-  const gate = gateActions(answer.data.actions, {
+  // The same gates the full report runs before it stores (ADR 0037).
+  const gateSources = {
     resumeText: match.resumeText,
     posting: `${job.title}\n${job.description}`,
     facts,
     keywords: readKeywords(match.keywords),
     matcher: await loadKeywordMatcher(),
-  });
-  const row = await updateMatchSuggestions(match.id, { ...answer.data, actions: gate.actions }, verification?.id ?? null);
+  };
+  const gate = gateActions(answer.data.actions, gateSources);
+  const cuts = gateRemovals(answer.data.removals, gateSources);
+  const row = await updateMatchSuggestions(
+    match.id,
+    { ...answer.data, actions: gate.actions, removals: cuts.removals },
+    verification?.id ?? null,
+  );
   logger.info(
     {
       matchId: match.id,
@@ -71,6 +77,8 @@ export async function suggestForMatch(
       removals: answer.data.removals.length,
       replacementsBlocked: gate.blocked,
       replacementsWarned: gate.warned,
+      removalsBlocked: cuts.blocked,
+      removalsWarned: cuts.warned,
       model: answer.model,
       chars: answer.chars,
       ms: answer.ms,

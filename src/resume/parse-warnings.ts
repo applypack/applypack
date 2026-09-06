@@ -23,6 +23,20 @@ const PHONE_MIN_DIGITS = 9;
 // C0 controls except \t \n \r — leftovers from broken PDF extraction.
 const CONTROL_RE = /[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g;
 
+function hasPhone(text: string): boolean {
+  return (text.match(PHONE_RUN_RE) ?? []).some((run) => (run.match(/\d/g) ?? []).length >= PHONE_MIN_DIGITS);
+}
+
+/**
+ * Whether a span carries an email address or a phone number — the two things
+ * gotcha 11 keeps losing to a removal quote. Exported so the removal gate
+ * (replacement-gate.ts) protects the contact line with the same test the
+ * warnings and the browser's `removeSpan` use.
+ */
+export function hasContactDetail(text: string): boolean {
+  return EMAIL_RE.test(text) || hasPhone(text);
+}
+
 export function parseWarnings(text: string): ParseWarning[] {
   const warnings: ParseWarning[] = [];
   const len = text.length;
@@ -58,10 +72,7 @@ export function parseWarnings(text: string): ParseWarning[] {
     });
   }
 
-  const hasPhone = (text.match(PHONE_RUN_RE) ?? []).some(
-    (run) => (run.match(/\d/g) ?? []).length >= PHONE_MIN_DIGITS,
-  );
-  if (!hasPhone) {
+  if (!hasPhone(text)) {
     warnings.push({
       code: 'no_phone',
       message: 'No phone number in the extracted text — same header/graphic risk as the email.',

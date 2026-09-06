@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { gateActions, type GateSources } from './replacement-gate';
-import { readKeywords, type MatchAction, type MatchKeyword } from './prompts';
+import { gateActions, gateRemovals, type GateSources } from './replacement-gate';
+import { readKeywords, readRemovals, type MatchAction, type MatchKeyword, type MatchRemoval } from './prompts';
 
 const RESUME = [
   'Alex Example — Senior Backend Engineer',
@@ -27,6 +27,10 @@ const action = (over: Partial<MatchAction>): MatchAction => ({
   insert_after: null,
   ...over,
 });
+
+/** Through the schema, the way every removal reaches the gate in production. */
+const removal = (over: Partial<MatchRemoval>): MatchRemoval =>
+  readRemovals([{ section: 'skills', where: 'Skills line', what: 'Drop the noise.', why: 'reads cleaner', quote: null, ...over }])[0]!;
 
 async function sources(over: Partial<GateSources> = {}): Promise<GateSources> {
   // The real browser matcher, loaded the way keyword-matcher.ts loads it.
@@ -128,4 +132,53 @@ test('actions without a replacement pass through untouched, and the wording is p
   const out = gateActions([bare, curly], src);
   assert.deepEqual(out.actions[0], bare);
   assert.equal(out.actions[1]!.replacement, 'Senior Backend Engineer - "payments"');
+});
+
+test('a removal quote covering a wanted keyword loses its quote, keeps its advice', async () => {
+  // The live failure (match 13): the model advised dropping three of six
+  // frameworks and quoted the whole line, React and Vue.js inside it.
+  const src = await sources({
+    resumeText: 'Skills: Symfony, React, Vue, Laravel, Lumen, Phalcon',
+    keywords: [
+      keyword({ term: 'React', requirement: 'must', primary: true }),
+      keyword({ term: 'Vue.js', requirement: 'must', aliases: ['Vue'] }),
+    ],
+  });
+  const out = gateRemovals([removal({ quote: 'Symfony, React, Vue, Laravel, Lumen, Phalcon' })], src);
+  assert.equal(out.blocked, 1);
+  assert.equal(out.removals[0]!.quote, null, 'nothing is struck through or deletable in one press');
+  assert.match(out.removals[0]!.why, /not applied — .*"React"/);
+  assert.match(out.removals[0]!.what, /Drop the noise/, 'the advice survives');
+});
+
+test('a removal quote covering a lighter wanted keyword warns but stays applicable', async () => {
+  const src = await sources({
+    resumeText: 'Skills: Symfony, Phalcon, Memcached',
+    keywords: [keyword({ term: 'Memcached', requirement: 'nice' })],
+  });
+  const out = gateRemovals([removal({ quote: 'Symfony, Phalcon, Memcached' })], src);
+  assert.equal(out.blocked, 0);
+  assert.equal(out.warned, 1);
+  assert.equal(out.removals[0]!.quote, 'Symfony, Phalcon, Memcached');
+  assert.match(out.removals[0]!.why, /check: .*"Memcached"/);
+});
+
+test('a removal quote reaching the contact line is blocked whatever it aimed at', async () => {
+  const src = await sources({ keywords: [] });
+  const out = gateRemovals(
+    [removal({ section: 'format', quote: 'Austin, TX 78701 · alex@example.com · +1 512 555 0134' })],
+    src,
+  );
+  assert.equal(out.blocked, 1);
+  assert.equal(out.removals[0]!.quote, null);
+  assert.match(out.removals[0]!.why, /keep the email and phone/);
+});
+
+test('a removal of genuine noise passes untouched', async () => {
+  const src = await sources({ keywords: [keyword({ term: 'React', requirement: 'must', primary: true })] });
+  const clean = removal({ section: 'summary', quote: 'References available on request', what: 'Delete it.' });
+  const out = gateRemovals([clean, removal({ quote: null })], src);
+  assert.equal(out.blocked, 0);
+  assert.equal(out.warned, 0);
+  assert.deepEqual(out.removals, [clean, removal({ quote: null })]);
 });

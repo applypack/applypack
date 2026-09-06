@@ -21,13 +21,28 @@
  *
  * A blocked action keeps everything but its replacement, which becomes an
  * explicit null — proposalOf reads that as "judged, do not parse `what`".
+ *
+ * `gateRemovals` is the same idea over the delete list, and it exists because
+ * the prompt rule alone did not hold: gotcha 11's second lesson was paid for
+ * once with prompt text ("PROTECTED contact line", "KEEP WANTED KEYWORDS"),
+ * and the model broke it again — a skills line quoted whole to advise dropping
+ * three of its six frameworks, with React (must, primary) and Vue.js (must)
+ * inside the struck-through span. A removal quote is what the editor deletes
+ * with one press, so the two rules are code now:
+ *  - the quote may not carry the contact line's email or phone;
+ *  - the quote may not carry a keyword this posting wants and this resume has
+ *    — a must or primary one blocks, anything lighter warns, exactly as a
+ *    replacement that drops the same keyword does.
+ * A blocked removal keeps its advice and loses its `quote`: nothing is
+ * highlighted, nothing is deletable in one press, and `why` says why.
  */
 
 import { factCheck } from './fact-check';
 import type { FactLike } from './facts';
 import { effectiveRequirement } from './keyword-overrides';
 import type { KeywordMatcher } from './keyword-matcher';
-import { toPlainPunctuation, type MatchAction, type MatchKeyword } from './prompts';
+import { hasContactDetail } from './parse-warnings';
+import { toPlainPunctuation, type MatchAction, type MatchKeyword, type MatchRemoval } from './prompts';
 
 export interface GateSources {
   resumeText: string;
@@ -42,6 +57,13 @@ export interface GateSources {
 
 export interface GateReport {
   actions: MatchAction[];
+  blocked: number;
+  warned: number;
+}
+
+export interface RemovalGateReport {
+  removals: MatchRemoval[];
+  /** Quotes nulled: the advice stayed, the one-press delete did not. */
   blocked: number;
   warned: number;
 }
@@ -99,4 +121,46 @@ export function gateActions(actions: MatchAction[], sources: GateSources): GateR
   });
 
   return { actions: gated, blocked, warned };
+}
+
+/**
+ * The same judgment over the delete list. A removal has no wording to check,
+ * so only the two span rules apply — and both are about what the quote covers,
+ * never about whether the advice is good.
+ */
+export function gateRemovals(removals: MatchRemoval[], sources: GateSources): RemovalGateReport {
+  let blocked = 0;
+  let warned = 0;
+  const has = (text: string, k: MatchKeyword) => sources.matcher.findTerm(text, k.term, k.aliases ?? []).length > 0;
+
+  const gated = removals.map((removal) => {
+    const quote = removal.quote?.trim() ?? '';
+    if (quote === '') return removal;
+    const blocks: string[] = [];
+    const warns: string[] = [];
+
+    // PROTECTED: a quote that reaches the email or the phone is never applied,
+    // whatever it was aiming at (gotcha 11 — a ZIP code took the email with it).
+    if (hasContactDetail(quote)) blocks.push('the span covers contact details — keep the email and phone');
+
+    // KEEP WANTED KEYWORDS: deleting the span deletes the evidence with it.
+    for (const k of sources.keywords) {
+      if (k.status !== 'present' && k.status !== 'add') continue;
+      if (!has(quote, k)) continue;
+      if (k.primary || effectiveRequirement(k) === 'must') blocks.push(`the span covers "${k.term}", a must-have this posting wants`);
+      else warns.push(`the span covers "${k.term}", which this posting asks for`);
+    }
+
+    if (blocks.length > 0) {
+      blocked++;
+      return { ...removal, quote: null, why: `${removal.why}${BLOCK_NOTE}${blocks[0]}` };
+    }
+    if (warns.length > 0) {
+      warned++;
+      return { ...removal, why: `${removal.why}${WARN_NOTE}${warns[0]}` };
+    }
+    return removal;
+  });
+
+  return { removals: gated, blocked, warned };
 }
