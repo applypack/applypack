@@ -24,7 +24,7 @@ const matcher = import('./public/target.mjs') as Promise<{
     text: string,
   ) => { start: number; end: number; cls: string }[];
   keywordRank: (k: { requirement?: string; priority?: number; primary?: boolean }) => number;
-  weightClass: (k: { requirement?: string; priority?: number; primary?: boolean }) => string;
+  markClass: (k: { requirement?: string; status?: string; primary?: boolean }, found: boolean) => string;
   orderKeywords: <T extends { term: string; aliases?: string[] }>(
     keywords: T[],
     jobText: string,
@@ -80,7 +80,7 @@ test('scoreKeywords weights requirement levels and excludes cannot_claim and con
   assert.equal(scoreKeywords([{ term: 'PHP', priority: 1, status: 'present' }], RESUME).rows[0]?.weight, 3);
 });
 
-test('jobSpans classes: found, missing, ask_user and cannot_claim', async () => {
+test('jobSpans colours by the level the posting asks at, not by AI status', async () => {
   const { jobSpans, scoreKeywords } = await matcher;
   const jobText = 'We need PHP, Angular, Docker and Terraform.';
   const keywords = [
@@ -90,9 +90,23 @@ test('jobSpans classes: found, missing, ask_user and cannot_claim', async () => 
     { term: 'Terraform', priority: 2, requirement: 'preferred', status: 'ask_user' },
   ];
   const scored = scoreKeywords(keywords, RESUME);
-  // The status class comes first, the §5 weight class second.
   const byCls = jobSpans(keywords, jobText, scored).map((s) => s.cls);
-  assert.deepEqual(byCls, ['kw-found kw-w3', 'kw-cannot kw-w3', 'kw-missing kw-w2', 'kw-ask kw-w2']);
+  assert.deepEqual(byCls, [
+    'kw-have',
+    // A must the resume cannot claim is the loudest gap on the page, never a
+    // struck-out grey word: it is exactly what the posting is asking for.
+    'kw-gap kw-must kw-unproven',
+    'kw-gap kw-preferred',
+    'kw-gap kw-preferred kw-unproven',
+  ]);
+});
+
+test('markClass: a cannot_claim term stays a gap even when the word is typed in', async () => {
+  const { markClass } = await matcher;
+  const k = { requirement: 'must', status: 'cannot_claim', primary: true };
+  assert.equal(markClass(k, true), 'kw-gap kw-must kw-core kw-unproven');
+  assert.equal(markClass({ requirement: 'must', status: 'add', primary: false }, true), 'kw-have');
+  assert.equal(markClass({ requirement: 'context', status: 'add', primary: false }, false), 'kw-gap kw-nice');
 });
 
 test('locateQuote finds exact text, then tolerates punctuation and spacing drift', async () => {
@@ -218,11 +232,10 @@ const RANKS: [Record<string, unknown>, number][] = [
   [{ priority: 4 }, 1],
 ];
 
-test('keywordRank grades how hard the posting asks, and the class follows it', async () => {
-  const { keywordRank, weightClass } = await matcher;
+test('keywordRank grades how hard the posting asks', async () => {
+  const { keywordRank } = await matcher;
   for (const [k, rank] of RANKS) {
     assert.equal(keywordRank(k), rank, JSON.stringify(k));
-    assert.equal(weightClass(k), `kw-w${rank}`);
   }
 });
 
@@ -266,17 +279,17 @@ test('orderKeywords counts aliases and plurals as the same term', async () => {
   assert.equal(row?.count, 2);
 });
 
-test('jobSpans carries the weight class and says how often the posting repeats a term', async () => {
+test('jobSpans carries the level class and says how often the posting repeats a term', async () => {
   const { jobSpans, scoreKeywords } = await matcher;
   const keywords = [
     { term: 'Kafka', priority: 1, requirement: 'must', primary: true, status: 'add', aliases: [] },
     { term: 'Helm', priority: 3, requirement: 'nice', primary: false, status: 'add', aliases: [] },
   ];
   const spans = jobSpans(keywords, POSTING, scoreKeywords(keywords, 'a resume with neither'));
-  const kafka = spans.filter((s) => s.cls.startsWith('kw-missing kw-w4'));
-  const helm = spans.filter((s) => s.cls === 'kw-missing kw-w1');
-  assert.equal(kafka.length, 4, 'every occurrence is marked at the primary-must intensity');
+  const kafka = spans.filter((s) => s.cls === 'kw-gap kw-must kw-core');
+  const helm = spans.filter((s) => s.cls === 'kw-gap kw-nice');
+  assert.equal(kafka.length, 4, 'every occurrence is marked as a primary-stack must');
   assert.equal(helm.length, 1);
-  assert.equal(kafka[0]?.title, 'Kafka · must · primary stack · add the word — your resume evidences it · ×4 in the posting');
-  assert.equal(helm[0]?.title, 'Helm · nice · add the word — your resume evidences it', 'a single mention says nothing extra');
+  assert.equal(kafka[0]?.title, 'Kafka · must · primary stack · not written — your resume evidences it, add the word · ×4 in the posting');
+  assert.equal(helm[0]?.title, 'Helm · nice · not written — your resume evidences it, add the word', 'a single mention says nothing extra');
 });

@@ -400,14 +400,19 @@ export const TargetPage: FC<TargetPageProps> = ({
             </details>
             </div>
 
-            {/* Appears only while the text differs from the analyzed version. */}
-            <div id="live-est" hidden class="lg:max-w-[280px] lg:text-right">
+            {/* Always on — this is the number that moves. It used to appear
+                only once the text was dirty, so a user who re-levelled a
+                keyword, ignored one or added one saw the big AI number and
+                nothing else, and reported that the score never reacts. It
+                re-counts on every keystroke and again on every page render,
+                which is what a keyword edit produces. */}
+            <div id="live-est" class="lg:max-w-[280px] lg:text-right">
               <div class="flex flex-wrap items-center gap-x-2 text-[13px] font-medium text-ink-muted lg:justify-end">
-                {breakdown ? `Estimate vs the analysis from ${formatRelative(match.createdAt)}` : 'Keyword coverage after edits'}
+                Live estimate
                 <span id="live-delta" class="text-xs font-medium"></span>
               </div>
               <div class="mt-1 flex items-center gap-2.5 lg:justify-end">
-                <span id="score-value" class="text-lg font-semibold tabular-nums text-warn">
+                <span id="score-value" class="text-2xl font-semibold tabular-nums text-ink-faint">
                   —
                 </span>
                 <span class="h-1.5 w-24 overflow-hidden rounded-full bg-line" aria-hidden="true">
@@ -419,7 +424,7 @@ export const TargetPage: FC<TargetPageProps> = ({
               </div>
               <Hint class="mt-1">
                 {breakdown
-                  ? "An estimate, not the score. It counts the words in the text as you type; the big number above stays on the last analysis until you run another one, because only the AI judges the parts a word search cannot see."
+                  ? `Counts the words a scanner would find, live: it moves as you edit the text and again whenever you re-level, ignore or add a keyword. The big number keeps the analysis from ${formatRelative(match.createdAt)}, because only the AI judges the parts a word search cannot see.`
                   : 'Keywords only, live as you type. Analyse again to get the full score.'}
               </Hint>
             </div>
@@ -474,22 +479,18 @@ export const TargetPage: FC<TargetPageProps> = ({
         <Card class="pane-job">
           <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
             <div class="text-[13px] font-medium text-ink">Job description</div>
-            <div class="flex flex-wrap items-center gap-3 text-xs text-ink-faint">
-              {/* Four words about the CANDIDATE's side of each term. "no evidence"
-                  read as a verdict on the person and told them nothing to do;
-                  what they need to know is whether the posting's requirement is
-                  met, nearly met, or not met at all. */}
-              <span><mark class="kw-found rounded px-1">in your resume</mark></span>
-              <span><mark class="kw-missing rounded px-1">add the word</mark></span>
-              <span><mark class="kw-ask rounded px-1">do you have it?</mark></span>
-              <span><mark class="kw-cannot rounded px-1">missing</mark></span>
-              {/* The intensity key: same colour, graded by how hard the posting asks. */}
-              <span class="inline-flex items-center gap-1">
-                weight
-                <mark class="kw-missing kw-w4 rounded px-1">must</mark>
-                <mark class="kw-missing kw-w2 rounded px-1">preferred</mark>
-                <mark class="kw-missing kw-w1 rounded px-1">nice</mark>
-              </span>
+            <div class="flex flex-wrap items-center gap-2 text-xs text-ink-faint">
+              {/* One axis, four colours: green is a word you already have, and
+                  every other colour is a gap graded by how hard the posting
+                  asks for it. The old legend named four AI statuses and then
+                  graded a fifth key by weight in the same hue — "add the word"
+                  and "missing" were the same news to a reader, and the grey
+                  strikethrough on a required term read as "ignore this". */}
+              <mark class="kw-have rounded px-1">in your resume</mark>
+              <mark class="kw-gap kw-must rounded px-1">must add</mark>
+              <mark class="kw-gap kw-preferred rounded px-1">preferred</mark>
+              <mark class="kw-gap kw-nice rounded px-1">nice to have</mark>
+              <mark class="kw-gap kw-preferred kw-unproven rounded px-1">no evidence yet</mark>
             </div>
           </div>
           <div
@@ -497,9 +498,11 @@ export const TargetPage: FC<TargetPageProps> = ({
             class="max-h-[70vh] overflow-auto whitespace-pre-wrap break-words font-sans text-sm leading-7 text-ink-muted"
           ></div>
           <Hint class="mt-2">
-            Highlights follow the AI's keyword list — benefits, perks and legal boilerplate are
-            deliberately never keywords. The stronger a mark, the harder the posting asks; hover one
-            to see how often it says the word. Re-level or ignore any of them in the keyword table.
+            Green is already in your resume; red is what this posting requires and yours does not
+            say. A dashed underline means nothing in your resume backs the word yet — confirm it or
+            treat it as a real gap, because typing it in would be a claim. Benefits, perks and legal
+            boilerplate are deliberately never keywords; hover a mark to see how often the posting
+            says the word, and re-level or ignore any of them in the keyword table.
           </Hint>
         </Card>
 
@@ -705,26 +708,29 @@ function safeJson(value: unknown): string {
 
 const TARGET_CSS = `
   mark { color: inherit; border-radius: 4px; }
-  .kw-found, .kw-present { background: rgb(var(--ok) / 0.18); }
-  .kw-missing { background: rgb(var(--warn) / 0.22); }
-  .kw-ask { background: rgb(var(--violet) / 0.16); box-shadow: inset 0 0 0 1px rgb(var(--violet) / 0.4); }
-  .kw-cannot { background: rgb(var(--ink-faint) / 0.2); text-decoration: line-through; }
-  /* Visual weight (target-plan.md §5). jobSpans tags every mark kw-w0 (context)
-     … kw-w4 (a primary-stack must), so a gap the posting insists on can never
-     look like a gap it merely mentions. The base rules above are the preferred
-     tier; only the problem marks are graded — a matched word is matched. */
-  .kw-missing.kw-w3 { background: rgb(var(--warn) / 0.34); box-shadow: inset 0 0 0 1px rgb(var(--warn) / 0.6); }
-  .kw-missing.kw-w4 { background: rgb(var(--warn) / 0.42); box-shadow: inset 0 0 0 1.5px rgb(var(--warn) / 0.85); font-weight: 600; }
-  .kw-missing.kw-w1, .kw-missing.kw-w0 { background: rgb(var(--warn) / 0.1); }
-  .kw-ask.kw-w3, .kw-ask.kw-w4 { background: rgb(var(--violet) / 0.24); box-shadow: inset 0 0 0 1.5px rgb(var(--violet) / 0.7); }
-  .kw-ask.kw-w1, .kw-ask.kw-w0 { background: rgb(var(--violet) / 0.1); box-shadow: none; }
-  .kw-cannot.kw-w1, .kw-cannot.kw-w0 { background: rgb(var(--ink-faint) / 0.12); text-decoration-color: rgb(var(--ink-faint) / 0.5); }
+  /* Keyword marks answer ONE question by colour: what does this word mean for
+     me? Green — already in the resume. Red — the posting requires it and the
+     resume has not got it. Amber — preferred. Slate — nice to have, or just
+     context. Nothing in the posting is ever struck through: the previous
+     scheme greyed out and crossed off the terms the resume showed no evidence
+     for, which on a WordPress posting struck through the word "WordPress". */
+  .kw-have, .kw-present { background: rgb(var(--ok) / 0.25); }
+  .kw-gap.kw-must { background: rgb(var(--danger) / 0.16); color: rgb(var(--danger)); font-weight: 600; }
+  /* The primary stack — the terms the score's cap is counting. Same red, louder. */
+  .kw-gap.kw-must.kw-core { background: rgb(var(--danger) / 0.26); box-shadow: inset 0 0 0 1.5px rgb(var(--danger) / 0.7); }
+  .kw-gap.kw-preferred { background: rgb(var(--warn) / 0.2); color: rgb(var(--warn)); }
+  .kw-gap.kw-nice { background: rgb(var(--ink-faint) / 0.16); }
+  /* The one modifier: nothing in the resume backs this word, so writing it in
+     would be a claim rather than an edit. It rides on top of the level colour
+     instead of replacing it — the posting still wants the term as hard as it
+     ever did, whether or not the candidate can offer it. */
+  .kw-unproven { text-decoration: underline dashed; text-decoration-thickness: 1px; text-underline-offset: 3px; }
   .edit-remove { background: rgb(var(--danger) / 0.15); text-decoration: line-through; }
   .edit-change { background: rgb(var(--warn) / 0.1); box-shadow: inset 0 0 0 1px rgb(var(--warn) / 0.55); }
   /* Matched highlights are opt-in inside the panes; issue marks always show.
      The legend samples above the panes keep their colour either way. */
-  #jd .kw-found, #backdrop .kw-present { background: transparent; }
-  #panes.show-matched #jd .kw-found, #panes.show-matched #backdrop .kw-present { background: rgb(var(--ok) / 0.18); }
+  #jd .kw-have, #backdrop .kw-present { background: transparent; }
+  #panes.show-matched #jd .kw-have, #panes.show-matched #backdrop .kw-present { background: rgb(var(--ok) / 0.25); }
   .editor-layer {
     position: absolute; inset: 0; margin: 0; padding: 16px; overflow: auto;
     font-family: Inter, ui-sans-serif, system-ui, sans-serif; font-size: 14px; line-height: 1.6;

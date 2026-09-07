@@ -43,9 +43,43 @@ export function keywordRank(k) {
   return k.primary === true && levelOf(k) === 'must' ? weight + 1 : weight;
 }
 
-/** Intensity class for a mark or a chip: kw-w0 (context) … kw-w4 (primary must). */
-export function weightClass(k) {
-  return 'kw-w' + keywordRank(k);
+/*
+ * Colour classes for a keyword mark or chip. ONE axis: what this word means
+ * for the reader. Green when the resume already has it, and otherwise the
+ * level the posting asks at — red for a must, amber for a preferred, slate
+ * for a nice-to-have or a passing mention. The old scheme coloured by the
+ * model's status and graded the same hue by weight on top, so a required word
+ * the resume lacked and a footnote it lacked were both yellow, and the one
+ * word a WordPress posting cannot do without came out grey and struck
+ * through.
+ */
+const GAP_CLASS = {
+  must: 'kw-gap kw-must',
+  preferred: 'kw-gap kw-preferred',
+  nice: 'kw-gap kw-nice',
+  context: 'kw-gap kw-nice',
+};
+
+/** True when writing the word in would be honest: the resume backs it, or is being asked. */
+function claimable(k) {
+  return k.status !== 'cannot_claim';
+}
+
+/**
+ * The class string for one keyword's marks. `found` is textual presence in the
+ * resume — it only earns green where the claim is honest, mirroring the score,
+ * which gives a cannot_claim term zero credit however often the word is typed.
+ */
+export function markClass(k, found) {
+  if (found && claimable(k)) return 'kw-have';
+  const gap = GAP_CLASS[levelOf(k)] ?? GAP_CLASS.preferred;
+  // The stack the score caps on: the same red, louder.
+  const core = k.primary === true && levelOf(k) === 'must' ? ' kw-core' : '';
+  // Nothing in the resume backs this word yet, so it cannot simply be typed
+  // in. A dashed underline, never a strikethrough — struck-through text on the
+  // posting's own must-have read as "ignore this", which is the opposite.
+  const unproven = claimable(k) && k.status !== 'ask_user' ? '' : ' kw-unproven';
+  return gap + core + unproven;
 }
 
 /** The requirement in words — one vocabulary for the pane tooltips and the chips. */
@@ -234,26 +268,35 @@ export function highlightHtml(text, spans) {
   return out + escapeHtml(text.slice(cursor));
 }
 
+/**
+ * What the mark says about the candidate's side of the term — the same
+ * vocabulary the legend and the keyword table use, in the second person.
+ */
+export function gapLabel(k, found) {
+  if (k.status === 'cannot_claim') {
+    return found
+      ? 'the word is there, but nothing in your resume backs it'
+      : 'not in your resume, and nothing here evidences it';
+  }
+  if (found) return 'in your resume';
+  if (k.status === 'ask_user') return 'not written — confirm whether you have it';
+  return 'not written — your resume evidences it, add the word';
+}
+
 /** Spans for the job-description pane: every keyword occurrence, classed by whether the resume has it. */
 export function jobSpans(keywords, jobText, scored) {
   const byTerm = new Map(scored.rows.map((r) => [r.term, r]));
-  // Same vocabulary as the keyword table and the pane legends.
-  const LABEL = { 'kw-found': 'in your resume', 'kw-cannot': "missing — the resume shows nothing for it", 'kw-ask': 'do you have it?', 'kw-missing': 'add the word — your resume evidences it' };
   const spans = [];
   for (const k of keywords) {
     const row = byTerm.get(k.term);
-    const found = row && row.found;
-    const cls =
-      k.status === 'cannot_claim' ? 'kw-cannot'
-      : found ? 'kw-found'
-      : k.status === 'ask_user' ? 'kw-ask'
-      : 'kw-missing';
+    const found = Boolean(row && row.found);
+    const cls = markClass(k, found);
     // Every occurrence is already in hand, so the frequency costs nothing.
     const hits = findTerm(jobText, k.term, k.aliases ?? []);
     const often = hits.length > 1 ? ` · ×${hits.length} in the posting` : '';
-    const title = `${k.term} · ${wantsLabel(k)} · ${LABEL[cls]}${often}`;
+    const title = `${k.term} · ${wantsLabel(k)} · ${gapLabel(k, found)}${often}`;
     for (const s of hits) {
-      spans.push({ ...s, cls: `${cls} ${weightClass(k)}`, title });
+      spans.push({ ...s, cls, title });
     }
   }
   return spans;
@@ -262,11 +305,16 @@ export function jobSpans(keywords, jobText, scored) {
 /** Spans for the resume pane: present keywords, quoted removals, quoted actions. */
 export function resumeSpans(keywords, actions, removals, resumeText) {
   const spans = [];
-  // No weight class here: everything marked in the resume is a keyword the
-  // resume HAS, and the sort below keys off a single class per span.
+  // No level class here: a word the resume already spells is simply matched,
+  // whatever the posting thinks of it. The one exception is a term the resume
+  // cannot claim — the score gives it zero however often it is typed, so a
+  // plain green mark would promise points that never arrive.
   for (const k of keywords) {
+    const unproven = k.status === 'cannot_claim';
+    const cls = unproven ? 'kw-present kw-unproven' : 'kw-present';
+    const note = unproven ? ' · nothing in this resume backs it — it earns nothing' : '';
     for (const s of findTerm(resumeText, k.term, k.aliases ?? [])) {
-      spans.push({ ...s, cls: 'kw-present', title: `${k.term} · ${wantsLabel(k)}` });
+      spans.push({ ...s, cls, title: `${k.term} · ${wantsLabel(k)}${note}` });
     }
   }
   for (const r of removals) {
@@ -277,7 +325,9 @@ export function resumeSpans(keywords, actions, removals, resumeText) {
     const loc = locateQuote(resumeText, a.quote);
     if (loc) spans.push({ ...loc, cls: 'edit-change', title: `Change: ${a.what}` });
   }
-  // Edits outrank keyword marks when they overlap: sort edits first at equal starts.
+  // Edits outrank keyword marks when they overlap: sort edits first at equal
+  // starts. Keyed off the first class, since a mark may carry a modifier too.
   const rank = { 'edit-remove': 0, 'edit-change': 1, 'kw-present': 2 };
-  return spans.sort((a, b) => a.start - b.start || rank[a.cls] - rank[b.cls]);
+  const rankOf = (s) => rank[s.cls.split(' ')[0]] ?? 3;
+  return spans.sort((a, b) => a.start - b.start || rankOf(a) - rankOf(b));
 }

@@ -30,6 +30,23 @@ All notable changes to this project are documented here. The format follows
   not comparable.
 
 ### Changed
+- **The posting is highlighted by what each word means for you, not by what
+  the model called it.** One axis and four colours: green is a word already in
+  the resume, red is a `must` the resume has not got, amber a `preferred`,
+  slate a `nice`/context mention. The old scheme coloured by AI status and
+  then graded the same hue by weight on top, so "add the word" and "missing"
+  were the same news to a reader, and a term the resume showed no evidence for
+  was greyed out and struck through — on a WordPress posting compared against
+  a Laravel resume, the word *WordPress* came out crossed off, which reads as
+  "ignore this" for the one requirement the job is built on. A strikethrough
+  now appears only where text is being cut; a term nothing in the resume backs
+  keeps its level colour and takes a dashed underline. The keyword table says
+  `no evidence in your resume` where it used to say `missing`.
+- **The live estimate is always on.** It used to appear only once the editor
+  text differed from the analysed snapshot, so re-levelling, ignoring or
+  adding a keyword moved a number that was not on screen and the page looked
+  frozen. It now renders from the first paint — "same as AI" until something
+  changes it — and moves on every keystroke and on every keyword edit.
 - **The compare page compares; it no longer makes resumes.** *Save as a
   tailored copy* and *Save as a new resume* are gone: every comparison used to
   be able to mint one more row on Resumes, named after the company, and a user
@@ -111,6 +128,14 @@ All notable changes to this project are documented here. The format follows
   the fixes below.
 
 ### Fixed
+- **A keyword edit no longer drags the score down.** `rescoreMatchKeywords` —
+  the free, instant path behind a keyword override and an answered `ask_user`
+  question — recomputed the penalty from the raw `redFlags.length` instead of
+  the flags `countableFlags` lets through, so it charged ten points the
+  analysis itself never charged. Every override lost them, and a `reset` never
+  came back to where it started: on the live WordPress row, ignoring one
+  keyword read 33 → 26 and restoring it 26 → 23. Both routes now score with
+  exactly the pair `match.ts` uses, and the same round trip reads 33 → 36 → 33.
 - **One fact is no longer billed twice.** Reading those flags explained the
   spread: every run wrote "the primary language group is not evidenced", some
   added "React appears nowhere either", and the keyword pool had already charged
