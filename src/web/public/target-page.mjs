@@ -18,7 +18,6 @@ import {
 import { computeScore, entriesFromLive } from './score.mjs';
 import { formatEditSheet } from './change-sheet.mjs';
 import { wireCopy, copyFrom, announce } from './copy.mjs';
-import { runChip, runLive } from './run-chip.mjs';
 import { applyReplacement, insertAfterLine, removeSpan, insertIntoSkills, inverseEdit, undoEdit } from './text-edits.mjs';
 
 // Full literal class names — the Tailwind CDN JIT only generates what it can
@@ -452,57 +451,7 @@ export function init(data) {
   const fold = document.querySelector('details.kw-fold');
   if (fold) fold.open = window.matchMedia('(min-width: 1024px)').matches;
 
-  // An instant check hands over its parsed upload: it becomes this tab's draft
-  // in place of whatever the tab held, and lives in localStorage from here on.
-  editor.value = typeof data.draftText === 'string' ? data.draftText : (load() ?? data.resumeText);
-  // An instant check replaces the tab's text, so its marks no longer describe it.
-  if (typeof data.draftText === 'string') storeEdits();
-  else loadEdits();
+  editor.value = load() ?? data.resumeText;
+  loadEdits();
   render();
-
-  // A background AI check — started by the upload or by Re-check (#184): the
-  // chips beside the number and on the bar follow it and offer the result.
-  // The editor is never replaced under the user's hands: "Use it" navigates,
-  // and the text typed meanwhile travels along as the next page's draft.
-  if (data.runId) watchRun(data.runId);
-
-  function watchRun(id) {
-    const slots = [...document.querySelectorAll('[data-ai-run]')];
-    if (slots.length === 0) return;
-    const runUrl = '/target/runs/' + id;
-    const paint = (chip) => {
-      for (const el of slots) {
-        el.textContent = '';
-        el.hidden = !chip;
-        if (!chip) continue;
-        el.className = el.className.replace(/\btext-(ink-muted|ok|danger)\b/g, '').trim() + ' ' + chip.tone;
-        el.append(chip.text + (chip.link ? ' — ' : ''));
-        if (!chip.link) continue;
-        const a = document.createElement('a');
-        a.href = chip.link.href;
-        a.className = 'underline decoration-dotted underline-offset-2 hover:text-accent-deep';
-        a.textContent = chip.link.label;
-        if (chip.kind === 'done') a.addEventListener('click', carryDraft);
-        el.append(a);
-      }
-    };
-    const carryDraft = (e) => {
-      const to = new URL(e.currentTarget.href, location.href).searchParams.get('match');
-      if (!to || editor.value === data.resumeText) return;
-      try { localStorage.setItem('target-draft:' + to, editor.value); } catch {}
-    };
-    const tick = async () => {
-      let state = null;
-      try {
-        const res = await fetch(runUrl + '/state');
-        state = res.status === 404 ? { gone: true } : await res.json();
-      } catch {
-        setTimeout(tick, 3000);
-        return;
-      }
-      paint(runChip(state, runUrl));
-      if (runLive(state)) setTimeout(tick, 2000);
-    };
-    tick();
-  }
 }

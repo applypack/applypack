@@ -19,6 +19,7 @@ import {
   HardRequirementsDigest,
   KeywordTable,
   MatchSignals,
+  reachOf,
   VerificationLine,
   RemovalsBlock,
   ScoreBreakdownChips,
@@ -32,7 +33,7 @@ import { ACCEPTED_EXTENSIONS } from '../../resume/resume-text';
  * (nothing is saved until "Save as new version"); highlights and the live
  * estimate re-render on every keystroke from /static/target-page.mjs. The AI
  * match (keywords, actions, removals) is the fixed frame the live score works
- * within — "Re-check with AI" sends the edited text back to Claude.
+ * within — "Analyse my resume again" sends the edited text back to Claude.
  *
  * Layout rule (external UX audit, docs/archive/applypack-resume-match-ux-refactor.md):
  * everything needed for a decision — score, hard-requirement gates, confirm
@@ -53,10 +54,8 @@ export interface TargetPageProps {
   previous: MatchWithResume | null;
   /** The text the selected match analysed (not necessarily the resume's current text). */
   resumeText: string;
-  /** An instant check's parsed upload — opens in the editor as the unsaved draft (target-page.mjs). */
-  draftText?: string | null;
-  /** A background AI check the page follows: the chip beside the number polls it (#184). */
-  runId?: string | null;
+  /** What the posting itself said, when it did not say much (§17) — null when it did. */
+  postingNotice?: string | null;
   /** The latest "Is this job real?" verdict — one line under the title, findings among the cautions (#162). */
   verification: VerificationForHint | null;
   flash?: FlashMessage | null;
@@ -116,8 +115,7 @@ export const TargetPage: FC<TargetPageProps> = ({
   matches,
   previous,
   resumeText,
-  draftText,
-  runId,
+  postingNotice,
   verification,
   fileVerdict,
   cleanHref,
@@ -144,8 +142,6 @@ export const TargetPage: FC<TargetPageProps> = ({
     matchId: match.id,
     aiScore: match.matchScore,
     resumeText,
-    draftText: draftText ?? null,
-    runId: runId ?? null,
     jobText: job.description,
     keywords: scored,
     actions,
@@ -187,8 +183,6 @@ export const TargetPage: FC<TargetPageProps> = ({
             value="1"
             variant="secondary"
             size="sm"
-            // Repeats the comparison the user asked for, not the form's default.
-            onclick={`document.getElementById('reanalyze-form').elements.mode.value='${flash.mode === 'full' ? 'full' : 'fast'}'`}
             title="Spend a fresh resume-model call on the text in the editor"
           >
             Re-run anyway
@@ -265,7 +259,6 @@ export const TargetPage: FC<TargetPageProps> = ({
                   edited — re-check to refresh
                 </span>
                 {/* The background AI check, when one is running (#184): running · ready with "Use it" · failed. */}
-                <span data-ai-run hidden class="font-medium"></span>
               </div>
               {/* Which resume/version is named by the pane header and the run chips —
                   repeating it here was pure duplication. */}
@@ -309,7 +302,7 @@ export const TargetPage: FC<TargetPageProps> = ({
           <div class="flex flex-col gap-3 lg:items-end">
             <div class="flex flex-wrap items-center gap-2">
             {/* One visible action — a fresh file is how a better match usually happens.
-                Re-check and Save live in the ⋯ menu; the sticky bar resurfaces them while editing.
+                Analyse and Save live in the ⋯ menu; the sticky bar resurfaces them while editing.
                 data-menu opts into light dismiss (outside click / Escape) in target-page.mjs. */}
             <details class="relative" data-menu>
               <summary class={`${SUMMARY_BUTTON} bg-accent-strong px-3 text-white shadow-sm hover:bg-accent-deep`}>
@@ -335,14 +328,14 @@ export const TargetPage: FC<TargetPageProps> = ({
                     accept={ACCEPTED_EXTENSIONS.join(',')}
                     class="block w-full text-xs text-ink file:mr-2 file:cursor-pointer file:rounded-md file:border-0 file:bg-surface-overlay file:px-2.5 file:py-1 file:text-xs file:font-medium file:text-ink"
                   />
-                  <Button size="sm" class="w-full" title="Opens the file in the editor at once; the quick AI check runs behind it">
-                    Upload & check
+                  <Button size="sm" class="w-full" title="Compares this file against the posting and opens the result here">
+                    Compare this file
                   </Button>
                   <Hint>
-                    The text opens here within a second with the live estimate; the AI check of it runs in the
-                    background and its number lands beside the score — about half a minute. Nothing is saved
-                    until you {resume.ephemeral ? 'Save as a new resume' : `Save as v${resume.version + 1} or as a tailored copy`} on the bar
-                    below.
+                    A new comparison against this posting, with fresh suggestions — the posting itself is already
+                    analysed, so only the resume is judged. The result opens here with its own score; this one stays
+                    under "older runs".
+                    {resume.ephemeral ? ' Nothing is added to your Resumes.' : ` Your resume is untouched until you Save as v${resume.version + 1}.`}
                   </Hint>
                 </form>
               </div>
@@ -359,71 +352,50 @@ export const TargetPage: FC<TargetPageProps> = ({
                 </svg>
               </summary>
               <div class={`${MENU_PANEL} space-y-2`}>
+                {/* One AI action. There used to be two — a quick check and a full
+                    analysis — and the only reliable way to tell them apart was to
+                    read both tooltips. The editor's job is "judge this text and
+                    tell me what to change", which is the full one. */}
                 <form method="post" action={`/jobs/${job.id}/match`} id="reanalyze-form" onsubmit={SUBMIT_ONCE}>
                   <input type="hidden" name="resumeId" value={resume.id} />
                   <input type="hidden" name="matchId" value={match.id} />
                   <input type="hidden" name="draftText" id="reanalyze-text" value="" />
-                  {/* The editor stays open; the chip beside the number follows the run (#184). */}
-                  <input type="hidden" name="next" value="editor" />
-                  {/* Set by the full-analysis and Rebuild buttons' clicks — a disabled submitter is left out of the form data. */}
-                  <input type="hidden" name="mode" value="fast" />
+                  <input type="hidden" name="next" value="target" />
+                  <input type="hidden" name="mode" value="full" />
+                  {/* Set by the Rebuild button's click — a disabled submitter is left out of the form data. */}
                   <input type="hidden" name="rebuild" value="" />
-                  <Button variant="violet" class="w-full" title="Re-scores the text in the editor: keywords, gates and the number (~½ min on Opus)">
-                    Re-check with AI
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    class="mt-2 w-full"
-                    onclick="this.form.elements.mode.value='full'"
-                    title="The same check plus fresh edit suggestions (~2 min on Opus)"
-                  >
-                    Full analysis with suggestions
+                  <Button variant="violet" class="w-full" title="Judges the text in the editor against this posting and rewrites the suggestions">
+                    Analyse my resume again
                   </Button>
                 </form>
-                {/* The Compare page's scratch resume has no versions, so it saves one
-                    way only: as a resume of its own (issue: a pasted posting, an
-                    uploaded resume, an hour of edits and nowhere to put them). */}
-                <form
-                  method="post"
-                  action={`/resumes/${resume.id}/draft`}
-                  id="save-form"
-                  onsubmit={SUBMIT_ONCE}
-                >
+                {/* One save, and only for a resume of the user's own: the next
+                    version of it. This page compares — it does not manage
+                    resumes, and every extra "save as…" here ended up as another
+                    row on /resumes that nobody asked for. A one-off check from
+                    the Compare page saves nothing at all: its text belongs to
+                    this comparison, which keeps its own snapshot. */}
+                {!resume.ephemeral && (
+                  <form
+                    method="post"
+                    action={`/resumes/${resume.id}/draft`}
+                    id="save-form"
+                    onsubmit={SUBMIT_ONCE}
+                  >
                     <input type="hidden" name="text" id="save-text" value="" />
                     <input type="hidden" name="jobId" value={job.id} />
                     {/* The text the edits started from: the patcher diffs against it (ADR 0038). */}
                     <input type="hidden" name="baseText" value={resumeText} />
-                    {/* Set by the copy buttons' click: SUBMIT_ONCE disables the submitter in the
-                        submit event, and a disabled submitter is left out of the form data. */}
-                    <input type="hidden" name="as" value="" />
                     <Button
                       variant="primary"
                       class="w-full"
-                      onclick="this.form.elements.as.value='copy'"
                       data-save-button
                       disabled
-                      title={
-                        resume.ephemeral
-                          ? 'Enabled once you edit the text — keeps this one-off check as a resume of its own, named after the company, on /resumes (~1 min)'
-                          : 'Enabled once you edit the text — saves a new resume beside this one, named after the company, and leaves this one as it is; a .docx is patched in place when its layout allows (~1 min)'
-                      }
-                    >
-                      {resume.ephemeral ? 'Save as a new resume' : 'Save as a tailored copy'}
-                    </Button>
-                    {!resume.ephemeral && (
-                    <Button
-                      variant="secondary"
-                      class="mt-2 w-full"
-                      id="save-button"
-                      onclick="this.form.elements.as.value=''"
-                      data-save-button
-                      disabled
-                      title={`Enabled once you edit the text — saves it as v${resume.version + 1} of this resume, re-scans and re-checks (~1 min)`}
+                      title={`Enabled once you edit the text — saves it as v${resume.version + 1} of this resume; a .docx is patched in place when its layout allows (~1 min)`}
                     >
                       Save as v{resume.version + 1}
                     </Button>
-                    )}
                   </form>
+                )}
               </div>
             </details>
             </div>
@@ -447,12 +419,19 @@ export const TargetPage: FC<TargetPageProps> = ({
               </div>
               <Hint class="mt-1">
                 {breakdown
-                  ? "Same formula as the AI score, live as you type — the text confirms what is present; add / confirm / can't-claim keep the AI's verdict on the analysed version. Re-check to make it official."
-                  : 'Keywords only, live as you type. Re-check to get the full score.'}
+                  ? "An estimate, not the score. It counts the words in the text as you type; the big number above stays on the last analysis until you run another one, because only the AI judges the parts a word search cannot see."
+                  : 'Keywords only, live as you type. Analyse again to get the full score.'}
               </Hint>
             </div>
           </div>
 
+          {postingNotice && (
+            <div class="border-t border-line pt-3 lg:col-span-3">
+              <p class="text-[13px] leading-6 text-ink-muted">
+                <span class="font-medium text-warn">Thin posting.</span> {postingNotice}
+              </p>
+            </div>
+          )}
           {hard.length > 0 && (
             <div class="border-t border-line pt-3 lg:col-span-3">
               <HardRequirementsDigest hard={hard} />
@@ -496,10 +475,14 @@ export const TargetPage: FC<TargetPageProps> = ({
           <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
             <div class="text-[13px] font-medium text-ink">Job description</div>
             <div class="flex flex-wrap items-center gap-3 text-xs text-ink-faint">
-              <span><mark class="kw-found rounded px-1">matched</mark></span>
-              <span><mark class="kw-missing rounded px-1">missing</mark></span>
-              <span><mark class="kw-ask rounded px-1">confirm</mark></span>
-              <span><mark class="kw-cannot rounded px-1">no evidence</mark></span>
+              {/* Four words about the CANDIDATE's side of each term. "no evidence"
+                  read as a verdict on the person and told them nothing to do;
+                  what they need to know is whether the posting's requirement is
+                  met, nearly met, or not met at all. */}
+              <span><mark class="kw-found rounded px-1">in your resume</mark></span>
+              <span><mark class="kw-missing rounded px-1">add the word</mark></span>
+              <span><mark class="kw-ask rounded px-1">do you have it?</mark></span>
+              <span><mark class="kw-cannot rounded px-1">missing</mark></span>
               {/* The intensity key: same colour, graded by how hard the posting asks. */}
               <span class="inline-flex items-center gap-1">
                 weight
@@ -594,13 +577,31 @@ export const TargetPage: FC<TargetPageProps> = ({
                       <Button type="button" variant="secondary" size="sm" id="copy-edits" disabled>
                         Copy my changes
                       </Button>
+                      {/* The same call that wrote them, over the same verdicts:
+                          the advice changes, the score does not. */}
+                      <form
+                        method="post"
+                        action={`/jobs/${job.id}/matches/${match.id}/suggestions`}
+                        onsubmit={SUBMIT_ONCE}
+                      >
+                        <input type="hidden" name="next" value="target" />
+                        <input type="hidden" name="rewrite" value="1" />
+                        <Button variant="ghost" size="sm" title="Writes the whole list again from the same verdicts — the score stays (~1 min)">
+                          Rewrite all
+                        </Button>
+                      </form>
                     </div>
                     <Hint class="mt-1.5">
                       Markdown, for the document your resume really lives in. The second one is the
                       diff of your own edits and turns on once you change the text.
                     </Hint>
                   </div>
-                  <ActionsBlock actions={actions} interactive />
+                  <ActionsBlock
+                    actions={actions}
+                    interactive
+                    rewrite={{ jobId: job.id, matchId: match.id, next: 'target' }}
+                    reach={reachOf(breakdown, match.matchScore)}
+                  />
                   <RemovalsBlock removals={removals} interactive />
                 </>
               )}
@@ -620,7 +621,7 @@ export const TargetPage: FC<TargetPageProps> = ({
                     : undefined
                 }
                 // Through the editor's own form, so a rebuild judges the text on
-                // screen — the same call Re-check makes, minus the stored frame.
+                // screen — the same call the analyse button makes, minus the stored frame.
                 rebuild={{ jobId: job.id, resumeId: resume.id, mode: fast ? 'fast' : 'full', formId: 'reanalyze-form' }}
               />
                 </div>
@@ -637,42 +638,29 @@ export const TargetPage: FC<TargetPageProps> = ({
               Unsaved changes
             </span>
             <span class="ml-2 text-xs text-ink-faint">
-              kept in this browser tab{resume.ephemeral ? '' : ' until you save'}
+              kept in this browser tab{resume.ephemeral ? ' — copy them out before you leave' : ' until you save'}
             </span>
           </div>
           <span class="text-sm font-medium tabular-nums text-ink">
             Estimate <span id="bar-score">—</span>
             <span id="bar-delta" class="ml-1 text-xs font-medium"></span>
           </span>
-          <span data-ai-run hidden class="text-xs font-medium"></span>
           <div class="ml-auto flex flex-wrap items-center gap-2">
             <Button type="button" variant="ghost" size="sm" id="bar-discard">
               Discard
             </Button>
-            <Button variant="violet" size="sm" form="reanalyze-form">
-              Re-check with AI
-            </Button>
-            <Button
-              variant="primary"
-              size="sm"
-              form="save-form"
-              onclick="document.getElementById('save-form').elements.as.value='copy'"
-              title={resume.ephemeral ? 'Keeps this one-off check as a resume of its own on /resumes' : 'A new resume beside this one, named after the company; this one stays as it is'}
-            >
-              {resume.ephemeral ? 'Save as a new resume' : 'Save as a tailored copy'}
+            <Button variant="violet" size="sm" form="reanalyze-form" title="Runs the whole analysis on the text as it stands now">
+              Analyse my resume again
             </Button>
             {!resume.ephemeral && (
-              <>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  form="save-form"
-                  onclick="document.getElementById('save-form').elements.as.value=''"
-                  title={`Saves the text as v${resume.version + 1} of this resume, re-scans and re-checks (~1 min)`}
-                >
-                  Save as v{resume.version + 1}
-                </Button>
-              </>
+              <Button
+                variant="primary"
+                size="sm"
+                form="save-form"
+                title={`Saves the text as v${resume.version + 1} of this resume, re-scans and re-checks (~1 min)`}
+              >
+                Save as v{resume.version + 1}
+              </Button>
             )}
           </div>
         </div>

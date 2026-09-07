@@ -4,6 +4,194 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.70.0] — 2026-09-06
+
+### Added
+- **The posting is read once, on its own, and the reading is kept.** Before
+  any resume is judged, one call with no resume in the prompt writes a brief
+  of the posting: the discipline and seniority band, the minimum years, the
+  industry, the product and its audience, who reads the resume first, what
+  that reader scans for in six seconds, and what a bullet that would impress
+  them looks like — plus the keyword frame, the either/or requirement groups
+  and the gates. It is stored against a hash of the title and description, so
+  editing a resume and comparing again reuses it (3 ms on the live row
+  instead of 22 s) and a description refreshed from the company's own listing
+  asks for a new one. The comparison copies the frame and judges only what
+  the resume shows; the suggestions aim at the screening block. The progress
+  page shows it as its own step and says when it was reused (ADR 0044).
+- **Either/or requirements count once.** "Frameworks like React, Next.js, or
+  Vue.js" is one requirement, not three. Keywords carry the group the brief
+  put them in and `foldGroups` collapses them to the best member before the
+  formula runs — a satisfy-*all* list ("HTML, CSS and JavaScript") stays three
+  demands. On the live row this moved the keyword half from 35.5 to 40.7 of
+  60: the resume had been charged a must-weight for Python, WordPress, Drupal
+  and Shopify on requirements it either met outright or failed once.
+  `SCORING.version` is 4, mirrored in `score.mjs`; scores from before it are
+  not comparable.
+
+### Changed
+- **The compare page compares; it no longer makes resumes.** *Save as a
+  tailored copy* and *Save as a new resume* are gone: every comparison used to
+  be able to mint one more row on Resumes, named after the company, and a user
+  with four applications ended up with eight resumes and no idea which was
+  theirs. What is left is one save, **Save as v{n+1}**, offered only for a
+  resume the user already has; a one-off check from the Compare page saves
+  nothing and says so. `POST /resumes/:id/draft` refuses a hidden resume.
+- **One AI action on the compare page, and a new file is a comparison.**
+  *Re-check with AI* and *Full analysis with suggestions* were two buttons
+  whose difference lived in their tooltips; there is now one, and it writes the
+  full report. Uploading a file used to open it as a draft over the OLD
+  analysis while a quick check ran in the background and reported itself as a
+  chip the user had to notice and click — measured on a real session, nobody
+  did. **Compare this file** now runs the same comparison as everything else,
+  on the progress page, and lands on the analysis it wrote. The instant-check
+  machinery (`draft-check.ts`, `draft-stash.ts`, `instant-check.ts`,
+  `run-chip.mjs`) is deleted, and older comparisons of a one-off resume are
+  kept instead of thrown away, so "did the number move?" has an answer.
+- **The advice has a floor, not only a ceiling.** An alignment grade below
+  *strong* on the title, the summary or the most recent role must now produce
+  a high-priority action *with the wording to paste*, and a must-level keyword
+  living only in a skills list must produce an action that puts it in a
+  bullet. The anti-padding rule survives: on the gold fixtures the
+  well-tailored resume still gets one action, while the live row went from 2
+  hedged suggestions to 8 concrete ones. Budgets rose to 12 000 / 10 000
+  answer tokens and the suggestions timeout to 180 s.
+- **The posted job title may be written on the headline and in the summary.**
+  It is the role being applied for, not a claim of having held it; blocking it
+  as unevidenced experience made the highest-leverage edit on any resume
+  unreachable. In a bullet it is still a claim, and still blocked.
+- **A rewrite that drops a keyword the resume carries elsewhere now warns
+  instead of blocking** — the rule as written killed a good bullet rewrite
+  whose only "SQL" was the phrase "SQL injection".
+- **Exceeding a posting's minimum is not a red flag.** "At least 2 years"
+  satisfied by ten is met, whatever the model calls the worry; over-levelling
+  is a caution, and it was costing 10 points.
+
+- **The keyword statuses say what to do about them.** *no evidence* read as a
+  verdict on the person, and `add` was labelled *missing*, which hid the easiest
+  win on the page. They are now *in your resume · add the word · do you have
+  it? · missing*, with the requirement level in the column beside them. The
+  editor's AI action is called **Analyse my resume again**, and the live
+  estimate says in as many words that the big number stays on the last analysis
+  until another one runs.
+- **Another wording, on request.** **Rewrite** on a suggestion card writes that
+  one suggestion again — same section, same line, same requirement, a different
+  sentence — and the new wording goes through the same gate as the first, so a
+  rewrite cannot claim what the original was refused for. **Rewrite all**
+  re-runs the suggestions call over the same verdicts; the score never moves.
+
+- **How strongly the resume shows a keyword, measured rather than guessed.**
+  A term named on a skills line and a term shown inside a bullet with a number
+  in it are read completely differently by a recruiter, and the product could
+  not tell them apart — `present` covered both. `evidence.ts` reads the line
+  each term actually sits on and marks it *listed*, *described* or *measured*.
+  The table shows "skills line only" and "with a number", and the suggestions
+  call is handed the fact instead of being asked to infer it.
+- **A thin posting says it is thin.** Six signals off the stored brief —
+  requirement count, seniority or years, industry, gates, screening lines —
+  classify a posting `high`, `medium` or `low`. When it is not `high`, the
+  target page says so and names where the rest of the advice came from, so
+  "what this kind of role usually asks for" is never mistaken for what this
+  employer demanded.
+
+- **A variance fixture, and what it measured.** `npm run variance:compare` runs
+  one pair N times and says which part of the formula the spread came from, by
+  holding each part at its modal value and reporting what survives. `--rebuild`
+  withholds the keyword frame (raw judgment), `--stored` re-reads the last N
+  rows and spends nothing. On five runs of one pair it found the answer
+  immediately: **80% of a ten-point spread was one red flag** the model wrote in
+  three runs of five.
+- **A matrix harness for the comparison itself.** `npm run matrix:compare` runs
+  a spread of real resumes against real postings — PHP backend, front-end,
+  product manager, senior full-stack against backend, full-stack, web, mobile,
+  paid-media, lead-generation and clinical-trial roles — and checks every
+  invariant against the row it wrote: keyword shape, both status anchors,
+  measured evidence, group labels, the cap arithmetic, every quote the editor
+  has to locate, the removal gate and the suggestion floor. It found four of
+  the fixes below.
+
+### Fixed
+- **One fact is no longer billed twice.** Reading those flags explained the
+  spread: every run wrote "the primary language group is not evidenced", some
+  added "React appears nowhere either", and the keyword pool had already charged
+  for both — a term the resume cannot claim earns zero out of its weight, and
+  ten more points for saying so depended on the model's mood. `countableFlags`
+  drops a flag that names a keyword the resume does not have, or one it shows
+  only on a skills line (which the rules already said is never a red flag, and
+  which `evidence` now measures). It replaces scoring v3's narrower rule — one
+  mechanism instead of two. Same pair, before and after: spread **10 → 5**,
+  sd **4.3 → 1.6**, penalty perfectly stable at 0 across five runs. What still
+  costs ten points is what no edit can fix: location, work authorization, a
+  minimum missed, an excluded seniority, an injection attempt.
+- **A red flag that restates an unwritten primary is free again.** The cap and
+  the red-flag exemption were reading one number for two different questions:
+  the cap asks whether the candidate HAS the core stack (`present` or `add`),
+  the exemption asks whether the resume SPELLS it (`present` only). With one
+  count, a model that marked the primary `add` and then flagged it as "not
+  demonstrated" was charged ten points for saying the same thing twice — which
+  is most of what separated two runs of one live pair.
+- **One word-choice no longer moves the score 49 points.** After either/or
+  groups fold, a posting whose primary stack is "TypeScript, Rust or Java" has
+  one primary slot — and `primaryCap(0, 1)` is 30, so the whole score rode on
+  whether the model called that one keyword `present` or `add`. A live pair
+  scored 79 and then 30 on the same resume, and a second independent judgment
+  reproduced the flip. `add` now counts as coverage for the cap: it means the
+  resume's own facts evidence the term and only the word is missing, and
+  sibling technology is forbidden from `add`. Half the keyword credit stays the
+  penalty for the unwritten word. The gold bench's stack-mismatch and
+  sibling-tech guards both still pass.
+- **A keyword is a thing a recruiter would search for.** 12 of 42 distinct
+  keywords on the live corpus were not terms: `5+ years of experience` and
+  `Bachelor's Degree` were scored as must-level skills and offered as something
+  to add to the skills line, and `0 to 1`, `troubleshoot`, `landing pages` and
+  `product sense` were fragments cut out of responsibility sentences — the old
+  rule asked for exactly that. The rule now states the test and its exclusions,
+  and `keyword-shape.ts` drops what slips through: gate shapes, bare
+  quantities, anything over five words. The same posting went from 15 keywords
+  to 11, with the years-and-ownership signals moved to the brief's screening
+  block where they belong.
+- **`present` vs `add` is decided by the text, not by the model's mood.** The
+  two statuses differ on one question — is the word written? — and the model's
+  answer drifted between runs on identical input. The matcher settles it both
+  ways now: a `present` it cannot find becomes `add` (a paraphrase, like
+  "automated testing" against "Unit, integration & E2E testing"), an `add` it
+  can find becomes `present`. `ask_user` and `cannot_claim` are untouched —
+  typing a word does not make a claim true. Six runs of one live pair, before
+  and after all of today's fixes: the spread went from **49 points to 4**.
+- **An `ask_user` on a word the resume already spells cost 49 points.** The
+  same cliff as `add`, through a different door: one live pair scored 53 with
+  TypeScript called `present` and 30 with it called `ask_user`, on a resume
+  whose skills line says TypeScript. The matcher settles that too now; only a
+  `cannot_claim` is left alone, because it is what a user's own denial produces.
+- **The same requirement counted twice.** A live Drupal posting returned both
+  "301 redirects" and "301 redirect"; every keyword carries weight, so one
+  requirement moved the denominator twice and the user was offered the same
+  chip twice. Terms now fold by every spelling the alias table knows.
+- **A pinned version read as a different technology.** "PHP 8" against a resume
+  that says "PHP" was scored `cannot_claim` — on a primary term, which caps the
+  whole comparison at 30. A curated list of the technologies postings pin
+  versions of derives the version-less alias; "SOC 2" and "ISO 27001" keep
+  their numbers.
+- **A report with nothing in it, on a resume there was plenty to do for.**
+  REQUIRED COVERAGE survived three rewordings and still lost the whole list on
+  a front-end resume with React and TypeScript present, judged against a
+  full-stack React posting with a ceiling of 70. `suggestion-floor.ts` checks
+  the rule in code and spends one suggestions call — verdicts frozen, score
+  untouched — naming what was owed. A resume for a different profession, or one
+  whose honest ceiling nobody would apply on, is still owed nothing and says so.
+- **A removal can no longer strike through what the posting asks for.** The
+  model quoted `Symfony, React, Vue, Laravel, Lumen, Phalcon` whole to advise
+  dropping three of the six, with React (must, primary) and Vue.js (must)
+  inside the span the editor deletes in one press. `gateRemovals` mirrors
+  `gateActions` at persist time: a quote covering contact details or a wanted
+  keyword loses its quote and keeps its advice. Gotcha 11's rule had been
+  prompt-only since it was first paid for; it is a unit-tested code path now.
+
+### Schema
+- `posting_brief` — one reading per posting text, keyed by
+  `jobId + postingHash + promptVersion` (migration
+  `20260906120000_posting_brief`).
+
 ## [1.69.0] — 2026-09-05
 
 ### Added
@@ -2685,6 +2873,9 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[1.70.0]: https://github.com/applypack/applypack/compare/v1.69.0...v1.70.0
+[1.69.0]: https://github.com/applypack/applypack/compare/v1.68.0...v1.69.0
+[1.68.0]: https://github.com/applypack/applypack/compare/v1.67.0...v1.68.0
 [1.67.0]: https://github.com/applypack/applypack/compare/v1.66.0...v1.67.0
 [1.66.0]: https://github.com/applypack/applypack/compare/v1.65.0...v1.66.0
 [1.65.0]: https://github.com/applypack/applypack/compare/v1.64.0...v1.65.0

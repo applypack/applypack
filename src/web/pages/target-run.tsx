@@ -19,6 +19,11 @@ const STEP_VIEW: Record<RunStep, StepView> = {
     label: 'Detect posting facts',
     detail: 'company, title, location, salary from the description — 10 to 40 s on a CLI engine, seconds on an API one',
   },
+  brief: {
+    label: 'Read the posting',
+    detail:
+      'the role, the seniority, the industry, who reads your resume first and what impresses them — written once per posting and reused while you edit',
+  },
   scan: {
     // Also reached by a plain re-scan and a first upload, where there is no
     // "new version" to speak of.
@@ -61,6 +66,9 @@ const STEP_VIEW: Record<RunStep, StepView> = {
 
 /** What the timed steps cost when the lane is not one we measured. */
 const GENERIC_BAND: Partial<Record<RunStep, string>> = {
+  // No measured band yet: the posting is the shortest prompt of the family,
+  // and on the second comparison of the same posting it costs nothing at all.
+  brief: 'half a minute the first time, instant afterwards',
   scan: 'half a minute to a minute',
   structure: 'half a minute to a minute',
   keywords: 'half a minute to a minute',

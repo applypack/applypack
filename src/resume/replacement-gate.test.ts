@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { gateActions, type GateSources } from './replacement-gate';
-import { readKeywords, type MatchAction, type MatchKeyword } from './prompts';
+import { gateActions, gateRemovals, type GateSources } from './replacement-gate';
+import { readKeywords, readRemovals, type MatchAction, type MatchKeyword, type MatchRemoval } from './prompts';
 
 const RESUME = [
   'Alex Example — Senior Backend Engineer',
@@ -27,6 +27,10 @@ const action = (over: Partial<MatchAction>): MatchAction => ({
   insert_after: null,
   ...over,
 });
+
+/** Through the schema, the way every removal reaches the gate in production. */
+const removal = (over: Partial<MatchRemoval>): MatchRemoval =>
+  readRemovals([{ section: 'skills', where: 'Skills line', what: 'Drop the noise.', why: 'reads cleaner', quote: null, ...over }])[0]!;
 
 async function sources(over: Partial<GateSources> = {}): Promise<GateSources> {
   // The real browser matcher, loaded the way keyword-matcher.ts loads it.
@@ -128,4 +132,97 @@ test('actions without a replacement pass through untouched, and the wording is p
   const out = gateActions([bare, curly], src);
   assert.deepEqual(out.actions[0], bare);
   assert.equal(out.actions[1]!.replacement, 'Senior Backend Engineer - "payments"');
+});
+
+test('a removal quote covering a wanted keyword loses its quote, keeps its advice', async () => {
+  // The live failure (match 13): the model advised dropping three of six
+  // frameworks and quoted the whole line, React and Vue.js inside it.
+  const src = await sources({
+    resumeText: 'Skills: Symfony, React, Vue, Laravel, Lumen, Phalcon',
+    keywords: [
+      keyword({ term: 'React', requirement: 'must', primary: true }),
+      keyword({ term: 'Vue.js', requirement: 'must', aliases: ['Vue'] }),
+    ],
+  });
+  const out = gateRemovals([removal({ quote: 'Symfony, React, Vue, Laravel, Lumen, Phalcon' })], src);
+  assert.equal(out.blocked, 1);
+  assert.equal(out.removals[0]!.quote, null, 'nothing is struck through or deletable in one press');
+  assert.match(out.removals[0]!.why, /not applied — .*"React"/);
+  assert.match(out.removals[0]!.what, /Drop the noise/, 'the advice survives');
+});
+
+test('a removal quote covering a lighter wanted keyword warns but stays applicable', async () => {
+  const src = await sources({
+    resumeText: 'Skills: Symfony, Phalcon, Memcached',
+    keywords: [keyword({ term: 'Memcached', requirement: 'nice' })],
+  });
+  const out = gateRemovals([removal({ quote: 'Symfony, Phalcon, Memcached' })], src);
+  assert.equal(out.blocked, 0);
+  assert.equal(out.warned, 1);
+  assert.equal(out.removals[0]!.quote, 'Symfony, Phalcon, Memcached');
+  assert.match(out.removals[0]!.why, /check: .*"Memcached"/);
+});
+
+test('a removal quote reaching the contact line is blocked whatever it aimed at', async () => {
+  const src = await sources({ keywords: [] });
+  const out = gateRemovals(
+    [removal({ section: 'format', quote: 'Austin, TX 78701 · alex@example.com · +1 512 555 0134' })],
+    src,
+  );
+  assert.equal(out.blocked, 1);
+  assert.equal(out.removals[0]!.quote, null);
+  assert.match(out.removals[0]!.why, /keep the email and phone/);
+});
+
+test('a removal of genuine noise passes untouched', async () => {
+  const src = await sources({ keywords: [keyword({ term: 'React', requirement: 'must', primary: true })] });
+  const clean = removal({ section: 'summary', quote: 'References available on request', what: 'Delete it.' });
+  const out = gateRemovals([clean, removal({ quote: null })], src);
+  assert.equal(out.blocked, 0);
+  assert.equal(out.warned, 0);
+  assert.deepEqual(out.removals, [clean, removal({ quote: null })]);
+});
+
+test('a keyword the resume still carries elsewhere is not lost, so the rewrite stands', async () => {
+  // The live case: the bullet's only "SQL" was the phrase "SQL injection", and
+  // the skills line carries SQL too — blocking the rewrite protected nothing.
+  const src = await sources({
+    resumeText: ['Skills: PHP, SQL, PGSQL', '- Combined Snyk with static analysis to prevent SQL injection.'].join('\n'),
+    keywords: [keyword({ term: 'SQL', requirement: 'must', primary: true })],
+  });
+  const out = gateActions(
+    [action({ quote: 'Combined Snyk with static analysis to prevent SQL injection.', replacement: 'Hardened the checkout flow against injection and input-handling flaws.' })],
+    src,
+  );
+  assert.equal(out.blocked, 0);
+  assert.equal(out.warned, 1);
+  assert.match(out.actions[0]!.why, /the resume still has it elsewhere/);
+  assert.equal(out.actions[0]!.replacement, 'Hardened the checkout flow against injection and input-handling flaws.');
+});
+
+test('the last occurrence of a must-have still blocks', async () => {
+  const src = await sources({
+    resumeText: '- Built Laravel payment workflows on MySQL.',
+    keywords: [keyword({ term: 'MySQL', requirement: 'must', primary: true })],
+  });
+  const out = gateActions(
+    [action({ quote: 'Built Laravel payment workflows on MySQL.', replacement: 'Built Laravel payment workflows.' })],
+    src,
+  );
+  assert.equal(out.blocked, 1);
+  assert.match(out.actions[0]!.why, /drops "MySQL", a must-have/);
+});
+
+test('the posted title may be written on the headline and in the summary, nowhere else', async () => {
+  const src = await sources({
+    resumeText: 'Alex Example — Senior Backend Engineer',
+    // Priority 2 is the posted job title (RULE_KEYWORDS); it is a label, not a skill.
+    keywords: [keyword({ term: 'Web Developer', priority: 2, requirement: 'context', status: 'cannot_claim' })],
+  });
+  const retitle = { quote: 'Senior Backend Engineer', replacement: 'Web Developer — Full-Stack (PHP, Laravel)' };
+  assert.equal(gateActions([action({ section: 'title', ...retitle })], src).blocked, 0);
+  assert.equal(gateActions([action({ section: 'summary', ...retitle })], src).blocked, 0);
+  const inABullet = gateActions([action({ section: 'experience', ...retitle })], src);
+  assert.equal(inABullet.blocked, 1, 'claiming the title inside a role is a different thing');
+  assert.match(inABullet.actions[0]!.why, /claims "Web Developer"/);
 });

@@ -334,6 +334,25 @@ cannot_claim`, where, note) and `actions` (section, where, what, why,
 priority). Nothing edits the resume — the report is the to-do list. See
 ADR 0008.
 
+Before any resume is judged, the posting is read on its own (ADR 0044). One
+call with no resume in the prompt returns what the posting IS — the
+discipline, the seniority band, the minimum years, the industry, the product
+and its audience, who reads the resume first and what that reader scans for
+in six seconds — together with the keyword frame, the either/or requirement
+groups and the gates. It is stored in `posting_brief` against a hash of the
+title and description, so editing a resume and comparing again reuses the
+reading instead of paying for it; the progress page shows it as its own step
+and says when it was reused. The comparison copies the frame and judges only
+what the resume shows; the suggestions aim at the screening block. A missing
+brief costs context, never the comparison: both callers fall back to deriving
+the frame themselves.
+
+An either/or list in the posting — "React, Next.js, or Vue.js", "PHP,
+Python, or Node.js", "WordPress, Drupal, Shopify" — is ONE requirement, and
+`score.ts:foldGroups` counts it once at the best member's credit. Before this
+each alternative cost a separate must-weight, so a resume that met the
+requirement outright was charged for the options it did not have.
+
 A comparison has two shapes (ADR 0029). **Compare** runs the quick check:
 one call that returns the keywords, alignment grades, hard-requirement gates
 and red flags — everything the score is computed from — and no edit
@@ -350,9 +369,14 @@ editor. `src/web/public/target.mjs` scores keyword coverage in the browser
 on every edit (P1 = 3, P2 = 2, P3/P4 = 1, `cannot_claim` excluded by
 default) and renders both panes' highlights from the match's `keywords`
 (with `aliases`), `actions` and `removals` (with verbatim `quote`s).
-"Re-check with AI" posts the draft (`draftText`) → a `ResumeMatch` with
-`draft = true`; `resumeText` snapshots the judged text on every match.
-"Save as vN" turns the draft into a `.md` resume version.
+The page has one AI action, **Analyse my resume again**: it posts the edited text
+(`draftText`) and runs the full report on it — same rules, same suggestions,
+same progress page as any other comparison — writing a `ResumeMatch` with
+`draft = true`. **Compare this file** does the same for a freshly uploaded
+file, and neither touches the resume row: `resumeText` snapshots the judged
+text on every match, so an older run still shows the resume it actually
+judged. Older runs stay listed; the one save, **Save as vN**, is offered only
+for a resume of the user's own.
 
 Each suggestion is a card showing **Now** (the resume's own words) and
 **Proposed** (the wording the model quoted inside its `what` sentence, pulled
@@ -399,10 +423,11 @@ that rendered each line, rewrites only the changed window of a line's runs,
 removes deleted paragraphs, clones the paragraph above for an inserted line,
 and passes four gates before the bytes leave (the analysed text matches the
 file, the result reads back as the edit, no math / drawing / text-box /
-hidden-run count moved, nothing skipped). **Save as a tailored copy** is the
-primary action — a new resume beside the master, named after the company;
-**Save as vN** bumps the master. Either way a refused patch is a text version
-whose flash says why. PDFs keep text versions; the line above the editor says
+hidden-run count moved, nothing skipped). **Save as vN** is the only save the
+page offers, and a refused patch is a text version whose flash says why. There
+is no "save as a tailored copy": one comparison per posting used to mint one
+more row on Resumes, named after the company, and the page a user opens to
+compare should not quietly fill their library. PDFs keep text versions; the line above the editor says
 so and suggests uploading the `.docx` they were printed from. The document
 properties of a downloaded template (its author's name) are fixed on click
 only, bytes only, current values shown.

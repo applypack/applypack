@@ -157,26 +157,17 @@ export const TargetStartPage: FC<TargetStartProps> = ({ resumes, flash }) => {
         </div>
 
         <div class="mt-4 flex flex-wrap items-center gap-3">
-          {/* Set by the second button's click: SUBMIT_ONCE disables the buttons in the
-              submit event, and a disabled submitter is left out of the form data. */}
-          <input type="hidden" name="mode" value="fast" />
-          <Button size="lg" variant="violet" title="Keywords, hard requirements and the score — no edit suggestions">
+          {/* One button. The pair before it — "Compare" and "Full analysis" —
+              differed only in whether the advice was written now or on a second
+              press, and the only way to tell was to read both tooltips. */}
+          <input type="hidden" name="mode" value="full" />
+          <Button size="lg" variant="violet" title="Reads the posting, judges your resume against it and writes what to change">
             Compare
           </Button>
-          <Button
-            size="lg"
-            variant="secondary"
-            onclick="this.form.elements.mode.value='full'"
-            title="The same check plus what to change and what to remove"
-          >
-            Full analysis
-          </Button>
           <Hint>
-            Detects missing fields (seconds), classifies the posting, then one resume-model call
-            and the resume editor opens. Compare is the quick check — keywords, gates and the
-            score, about half a minute on Opus; Full analysis also writes the edit suggestions and
-            takes 1½ to 2 minutes. Either way you can ask for the suggestions later.
-            Re-pasting the same posting reuses its job.
+            Detects the missing fields, reads the posting once (it is kept, so comparing another
+            resume against it is quick), then judges your resume and writes what to change — one
+            to two minutes, with the steps on screen. Re-pasting the same posting reuses its job.
           </Hint>
         </div>
       </form>

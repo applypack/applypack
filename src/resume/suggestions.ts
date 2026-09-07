@@ -12,9 +12,10 @@ import {
   type MatchSuggestions,
   RESUME_TIMEOUT_MS,
 } from './prompts';
+import { briefForPosting } from './brief';
 import { readBreakdown } from './score';
 import { loadKeywordMatcher } from './keyword-matcher';
-import { gateActions } from './replacement-gate';
+import { gateActions, gateRemovals } from './replacement-gate';
 import { getLatestVerificationContext, listFacts, updateMatchSuggestions } from './store';
 
 
@@ -29,17 +30,28 @@ export async function suggestForMatch(
   match: ResumeMatch,
   job: MatchJobInput & { id: number },
   onError?: (reason: string) => void,
+  /** What a first reply owed and did not deliver (suggestion-floor.ts). */
+  owed?: string | null,
 ): Promise<ResumeMatch | null> {
-  const [facts, verification] = await Promise.all([listFacts(), getLatestVerificationContext(job.id)]);
+  const [facts, verification, briefed] = await Promise.all([
+    listFacts(),
+    getLatestVerificationContext(job.id),
+    // Written by the comparison this row came from, so this is normally a
+    // stored read: who this employer is and what its first reader scans for.
+    briefForPosting(job),
+  ]);
   const prompt = buildSuggestionsPrompt(match.resumeText, job, {
+    owed: owed ?? null,
     summary: match.summary,
     alignment: readBreakdown(match.breakdown)?.alignment ?? null,
+    // Carries `evidence` (evidence.ts) — the "listed only" gap the floor asks about.
     keywords: readKeywords(match.keywords),
     hardRequirements: readHardRequirements(match.hardRequirements),
     confirmedFacts: facts.filter((f) => f.status === 'confirmed').map((f) => ({ term: f.term, note: f.note })),
     deniedTerms: facts.filter((f) => f.status === 'denied').map((f) => f.term),
     // Context for the "why" lines, never evidence (ADR 0042).
     companySnapshot: verification?.snapshot ?? null,
+    brief: briefed?.brief ?? null,
   });
   const answer = await askForJson(
     await getAiRuntime(),
@@ -53,15 +65,22 @@ export async function suggestForMatch(
     { matchId: match.id },
   );
   if (!answer) return null;
-  // The same gate the full report runs before it stores (ADR 0037).
-  const gate = gateActions(answer.data.actions, {
+  // The same gates the full report runs before it stores (ADR 0037).
+  const gateSources = {
     resumeText: match.resumeText,
     posting: `${job.title}\n${job.description}`,
     facts,
+    // Carries `evidence` (evidence.ts) — the "listed only" gap the floor asks about.
     keywords: readKeywords(match.keywords),
     matcher: await loadKeywordMatcher(),
-  });
-  const row = await updateMatchSuggestions(match.id, { ...answer.data, actions: gate.actions }, verification?.id ?? null);
+  };
+  const gate = gateActions(answer.data.actions, gateSources);
+  const cuts = gateRemovals(answer.data.removals, gateSources);
+  const row = await updateMatchSuggestions(
+    match.id,
+    { ...answer.data, actions: gate.actions, removals: cuts.removals },
+    verification?.id ?? null,
+  );
   logger.info(
     {
       matchId: match.id,
@@ -71,6 +90,8 @@ export async function suggestForMatch(
       removals: answer.data.removals.length,
       replacementsBlocked: gate.blocked,
       replacementsWarned: gate.warned,
+      removalsBlocked: cuts.blocked,
+      removalsWarned: cuts.warned,
       model: answer.model,
       chars: answer.chars,
       ms: answer.ms,

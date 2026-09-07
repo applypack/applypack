@@ -216,7 +216,7 @@ src/
     fixtures/*.docx            ← flow-fragmented (resume 1's structural twin), flow-simple, structural-table-layout
     pdf-text.ts                ← PDF → plain text via unpdf (ADR 0011), tested
     resume-text.ts             ← upload dispatch by extension, pure
-    prompts.ts                 ← scan + match (two variants) + suggestions + cover prompts, zod schemas, Json readers, pure
+    prompts.ts                 ← brief + scan + match (two variants) + suggestions + cover prompts, zod schemas, Json readers, pure
     match-mode.ts              ← quick check vs full report: the marker inside breakdown JSON (ADR 0029), pure
     match-reuse.ts             ← is a stored row the answer? reuse / suggestions-only / new run, pure
     bench-report.ts            ← saved bench runs → latency + status-agreement table, pure
@@ -226,7 +226,7 @@ src/
     fact-check.ts              ← deterministic fabrication gate for generated prose (ADR 0020), pure
     diff.ts                    ← version delta from two matches (gained/lost, components), pure
     change-sheet.ts            ← the wording a suggestion proposes + the whole list as Markdown, pure
-    replacement-gate.ts        ← may this replacement be applied? fact check + keyword rules at persist time (ADR 0037), pure
+    replacement-gate.ts        ← may this replacement be applied, may this span be deleted? fact check + keyword rules at persist time (ADR 0037/0044), pure
     parse-warnings.ts          ← ATS parseability checks over extracted text, pure
     pick.ts                    ← preselect: profile link first, then skill-tag overlap, pure
     store.ts                   ← Resume / ResumeMatch / CandidateFact / CoverLetter CRUD (Prisma)
@@ -234,8 +234,10 @@ src/
     docx-write.ts              ← letter → .docx, round-trip-tested against zip.ts + docx-text.ts, pure
     pdf-write.ts               ← letter → minimal Helvetica PDF, pure
     scan.ts                    ← one AI call → Resume scan fields
-    match.ts                   ← one AI call (fast | full) → facts context in, statuses out, score.ts computes → ResumeMatch row
+    brief.ts                   ← one AI call over the POSTING alone → PostingBrief row, cached by posting text (ADR 0044)
+    match.ts                   ← one AI call (fast | full) → brief + facts context in, statuses out, score.ts computes → ResumeMatch row
     suggestions.ts             ← the lazy second call: stored verdicts in, actions/removals out → same row (ADR 0029)
+    rewrite.ts                 ← one suggestion written again: target kept, wording re-gated → actions column only
     cover-letter.ts            ← one gated AI call → CoverLetter row; gate block → regen once → refuse (ADR 0021)
 
   verification/                ← ghost-job check (ADR 0009) + liveness ladder (ADR 0016)
@@ -350,7 +352,7 @@ src/
 prisma/
   schema.prisma                 ← Company, Job, CronRun, AppSettings, Profile,
                                   NotificationTarget, CompanyCandidate, Resume,
-                                  ResumeMatch, JobVerification, CoverLetter, 4 enums
+                                  ResumeMatch, JobVerification, PostingBrief, CoverLetter, 4 enums
   migrations/                   ← real Prisma migrations from phase-3.0 baseline
 ```
 
@@ -405,6 +407,7 @@ erDiagram
   Resume ||--o{ ResumeMatch : "1..N onDelete:Cascade"
   Job ||--o{ ResumeMatch : "1..N onDelete:Cascade"
   Job ||--o{ JobVerification : "1..N onDelete:Cascade"
+  Job ||--o{ PostingBrief : "1..N onDelete:Cascade"
   Resume ||--o{ CoverLetter : "1..N onDelete:Cascade"
   Job ||--o{ CoverLetter : "1..N onDelete:Cascade"
 

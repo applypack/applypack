@@ -26,6 +26,62 @@ export interface AnchorReport {
   unanchored: number;
 }
 
+/**
+ * The other half of the same idea, pointed at the RESUME (ADR 0044 addendum).
+ *
+ * `present` and `add` differ on ONE question — is the word in the text? — and
+ * that question has an answer the matcher can give. The model's answer to it
+ * drifts: the same TypeScript in the same resume was called `present` in one
+ * run and `add` in the next, which is how a comparison ended up scoring 79 and
+ * then 30. The two statuses are therefore settled here, both ways:
+ *
+ *  - `present` the matcher cannot find becomes `add`. It is a paraphrase —
+ *    "automated testing" against a resume that says "Unit, integration & E2E
+ *    testing" — so the claim behind it stands and the word does not. 5 of 137
+ *    present keywords on the live corpus.
+ *  - `add` the matcher CAN find becomes `present`. `add` means "evidenced but
+ *    unwritten"; if the word is written, it is not that.
+ *  - `ask_user` the matcher CAN find becomes `present` too. `ask_user` means
+ *    "this resume does not evidence it, but the candidate might" — a premise
+ *    the text refutes. Left alone it cost a live comparison 49 points: the
+ *    resume says TypeScript in its skills line, one run called it `present`
+ *    (score 53) and the next `ask_user` (score 30, the whole primary stack
+ *    reading as absent), and the confirm card asked the candidate about a word
+ *    they had already written.
+ *
+ * `cannot_claim` is NEVER upgraded, whatever the text says. It is the status a
+ * user's own denial produces (facts.ts runs before this), and a denial outranks
+ * a word on a page. It is also the honest answer when a term is named but the
+ * model judged the resume cannot stand behind it — `evidence: listed` is where
+ * that shows now.
+ *
+ * Without this, the table said matched while the chip above the editor offered
+ * to add the same term, and the live estimate scored it zero.
+ */
+export function anchorStatuses(
+  keywords: MatchKeyword[],
+  resumeText: string,
+  matcher: KeywordMatcher,
+): { keywords: MatchKeyword[]; downgraded: number; upgraded: number } {
+  let downgraded = 0;
+  let upgraded = 0;
+  const next = keywords.map((k) => {
+    if (k.status === 'cannot_claim') return k;
+    const written = matcher.findTerm(resumeText, k.term, k.aliases).length > 0;
+    if (written === (k.status === 'present')) return k;
+    if (written) {
+      upgraded++;
+      return { ...k, status: 'present' as const };
+    }
+    // Only a `present` can be wrong in the other direction: an `ask_user` the
+    // text does not carry is exactly what `ask_user` is for.
+    if (k.status !== 'present') return k;
+    downgraded++;
+    return { ...k, status: 'add' as const };
+  });
+  return { keywords: next, downgraded, upgraded };
+}
+
 export function anchorKeywords(
   keywords: MatchKeyword[],
   posting: string,

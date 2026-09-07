@@ -26,22 +26,38 @@ export interface MatchAlignment {
 }
 
 export const SCORING = {
-  version: 3,
+  /** v4: either/or requirement groups count once (ADR 0044). */
+  version: 4,
   /** Keyword coverage: up to 60 points, weighted by how hard the posting wants each term. */
   keywordMax: 60,
   requirementWeight: { must: 3, preferred: 2, nice: 1, context: 0 } as Record<RequirementLevel, number>,
   /** Credit per AI status: evidenced-but-unwritten counts half, unverified counts zero. */
   statusCredit: { present: 1, add: 0.5, ask_user: 0, cannot_claim: 0 } as Record<KeywordStatus, number>,
+  /**
+   * Statuses that mean "this candidate HAS it", which is the only question the
+   * primary-stack cap asks. `add` is in it because `add` is defined as the
+   * resume's own facts already evidencing the term — sibling technology is
+   * forbidden from `add` by the rules gotcha 11 put there, so this does not
+   * re-open that hole. Docking an unwritten word half its keyword credit is the
+   * right penalty; capping the whole score at 30 on top of it is not, and after
+   * either/or groups fold (ADR 0044) a one-item primary stack made that cap a
+   * coin flip: one live comparison scored 79 with TypeScript `present` and 30
+   * with the same resume and the same TypeScript called `add`.
+   */
+  primaryCovered: ['present', 'add'] as readonly KeywordStatus[],
   /** Alignment: title 10 + summary 10 + most recent role 20. */
   titleMax: 10,
   summaryMax: 10,
   recentRoleMax: 20,
   alignmentCredit: { strong: 1, partial: 0.5, off: 0 } as Record<AlignmentGrade, number>,
   /**
-   * Each red flag subtracts 10, BUT (v3): flags duplicating missing primary
-   * items are not counted (the cap already punishes the stack), and the total
-   * penalty is bounded — soft nitpicks must never build an unbeatable ceiling
-   * (a real 97.9-point resume was stuck at 68 by three style "flags").
+   * Each red flag subtracts 10, and the total is bounded — soft nitpicks must
+   * never build an unbeatable ceiling (a real 97.9-point resume was stuck at 68
+   * by three style "flags"). WHICH flags reach this is decided before the
+   * formula: `red-flags.ts:countableFlags` drops the ones that merely restate a
+   * keyword the resume does not have, because the keyword pool already charged
+   * for it. v3 did a narrower version of that here, keyed on missing primaries;
+   * one mechanism, in one place, replaced it.
    */
   redFlagPenalty: 10,
   penaltyMax: 20,
@@ -62,6 +78,15 @@ export interface ScoreEntry {
   primaryHit: boolean;
   ceilCredit: number;
   ceilPrimaryHit: boolean;
+  /** The term is spelled in the text, not merely evidenced by it. */
+  primaryWritten?: boolean;
+  /**
+   * Requirement-group label (ADR 0044). Entries sharing one are alternatives
+   * the posting itself offered — "frameworks like React, Next.js, or Vue.js" —
+   * and `foldGroups` counts them ONCE. Absent means the term stands alone,
+   * which is every entry on a row written before v8.
+   */
+  group?: string | null;
 }
 
 export interface ScoreBreakdown {
@@ -78,7 +103,10 @@ export interface ScoreBreakdown {
   /** Red flags the penalty actually counted (excess over missing primaries, bounded). */
   flagsCounted?: number;
   primaryTotal: number;
+  /** Primary items the candidate HAS — the cap's question (present or add). */
   primaryPresent: number;
+  /** Primary items the resume actually SPELLS — the flag exemption's question. */
+  primaryWritten?: number;
   /** The cap that applied, or null when the primary stack is fully present (or absent). */
   cap: number | null;
   score: number;
@@ -94,6 +122,22 @@ export interface ScoreBreakdown {
 
 const round1 = (n: number): number => Math.round(n * 10) / 10;
 
+/**
+ * The last step of the formula, on its own so nothing has to reimplement it:
+ * the two point pools, minus the penalty, held under the primary-stack cap.
+ * `match-variance-once.ts` recomposes stored breakdowns with one part held
+ * still, to see which part a spread came from.
+ */
+export function composeScore(
+  keywordPts: number,
+  alignmentPts: number,
+  penalty: number,
+  cap: number | null,
+): number {
+  const raw = Math.round(Math.max(0, keywordPts + alignmentPts - penalty));
+  return Math.max(0, Math.min(100, cap === null ? raw : Math.min(raw, cap)));
+}
+
 export function primaryCap(present: number, total: number): number | null {
   if (total === 0 || present >= total) return null;
   if (present === 0) return SCORING.caps.none;
@@ -102,22 +146,75 @@ export function primaryCap(present: number, total: number): number | null {
 }
 
 /**
+ * Either/or requirements, folded to one entry each (ADR 0044).
+ *
+ * A posting that says "React, Next.js, or Vue.js" asks ONE question, and
+ * before this the model answered it three times: a candidate who had React
+ * and lacked the other two lost two must-weights for a requirement they meet.
+ * The same arithmetic made "PHP, Python, or Node.js" and "WordPress, Drupal,
+ * Shopify" cost 12 of 66 weighted units on a resume that satisfied the first
+ * of them outright.
+ *
+ * The fold takes the best member on every axis: the strongest requirement
+ * level among them (they should agree — the brief puts the group's level on
+ * each — and the strongest is the safe reconciliation when they do not), the
+ * best credit, and primary if any member is primary. Order is preserved so a
+ * breakdown still reads in the posting's order.
+ */
+export function foldGroups(entries: ScoreEntry[]): ScoreEntry[] {
+  const out: ScoreEntry[] = [];
+  const at = new Map<string, number>();
+  for (const e of entries) {
+    const key = e.group?.trim().toLowerCase();
+    if (!key) {
+      out.push(e);
+      continue;
+    }
+    const seen = at.get(key);
+    if (seen === undefined) {
+      at.set(key, out.length);
+      out.push(e);
+      continue;
+    }
+    const held = out[seen]!;
+    out[seen] = {
+      ...held,
+      requirement: strongerLevel(held.requirement, e.requirement),
+      credit: Math.max(held.credit, e.credit),
+      ceilCredit: Math.max(held.ceilCredit, e.ceilCredit),
+      primary: held.primary || e.primary,
+      primaryHit: held.primaryHit || e.primaryHit,
+      primaryWritten: held.primaryWritten || e.primaryWritten,
+      ceilPrimaryHit: held.ceilPrimaryHit || e.ceilPrimaryHit,
+    };
+  }
+  return out;
+}
+
+function strongerLevel(a: RequirementLevel, b: RequirementLevel): RequirementLevel {
+  return SCORING.requirementWeight[a] >= SCORING.requirementWeight[b] ? a : b;
+}
+
+/**
  * The formula. Shared shape with score.mjs: callers precompute `credit` and
  * `primaryHit` (server: from AI status via entriesFromKeywords; browser: from
  * live textual presence), the composition below is identical on both sides.
  */
 export function computeScore(
-  entries: ScoreEntry[],
+  rawEntries: ScoreEntry[],
   alignment: MatchAlignment | null,
-  redFlagCount: number,
+  /** Flags that survived `countableFlags` — never the raw reply's array. */
+  countedFlags: number,
   /** Live estimates pass the analysis-time penalty — see the comment below. */
   fixedPenalty: number | null = null,
 ): ScoreBreakdown {
+  const entries = foldGroups(rawEntries);
   let earned = 0;
   let ceilEarned = 0;
   let total = 0;
   let primaryTotal = 0;
   let primaryPresent = 0;
+  let primaryWritten = 0;
   let ceilPrimaryPresent = 0;
   for (const e of entries) {
     const weight = SCORING.requirementWeight[e.requirement] ?? 0;
@@ -127,6 +224,7 @@ export function computeScore(
     if (e.primary) {
       primaryTotal++;
       if (e.primaryHit) primaryPresent++;
+      if (e.primaryWritten) primaryWritten++;
       if (e.ceilPrimaryHit) ceilPrimaryPresent++;
     }
   }
@@ -140,28 +238,22 @@ export function computeScore(
           SCORING.recentRoleMax * SCORING.alignmentCredit[a.recent_role],
       )
     : 0;
-  // Flags that merely restate a missing primary item are already punished by
-  // the cap; count only the excess, and bound the total (v3). Live estimates
-  // pass the analysis-time penalty instead: the flag texts were judged against
-  // the analysed snapshot, so typing a missing primary into the editor must
-  // not re-inflate them (42 → 29 on the cover-letter fixture was this bug).
-  const missingPrimary = primaryTotal - primaryPresent;
-  const flagsCounted = Math.max(0, redFlagCount - missingPrimary);
+  // Which flags got this far is `countableFlags`'s decision, made where the
+  // matcher is. Live estimates pass the analysis-time penalty instead: the flag
+  // texts were judged against the analysed snapshot, so typing a missing
+  // primary into the editor must not re-inflate them (42 → 29 on the
+  // cover-letter fixture was that bug).
+  const flagsCounted = Math.max(0, countedFlags);
   const penalty =
     fixedPenalty ?? Math.min(flagsCounted * SCORING.redFlagPenalty, SCORING.penaltyMax);
   const cap = primaryCap(primaryPresent, primaryTotal);
-  const raw = Math.round(Math.max(0, keywordPts + alignmentPts - penalty));
-  const score = Math.max(0, Math.min(100, cap === null ? raw : Math.min(raw, cap)));
+  const score = composeScore(keywordPts, alignmentPts, penalty, cap);
 
   // The reachable maximum: claimable keywords written in, alignment perfect,
   // the same non-primary flags still standing, cap from claimable primaries.
   const ceilKeywordPts = total === 0 ? 0 : round1((SCORING.keywordMax * ceilEarned) / total);
   const ceilCap = primaryCap(ceilPrimaryPresent, primaryTotal);
-  const ceilRaw = Math.round(Math.max(0, ceilKeywordPts + alignmentMax - penalty));
-  const ceiling = Math.max(
-    score,
-    Math.min(100, ceilCap === null ? ceilRaw : Math.min(ceilRaw, ceilCap)),
-  );
+  const ceiling = Math.max(score, composeScore(ceilKeywordPts, alignmentMax, penalty, ceilCap));
 
   return {
     v: SCORING.version,
@@ -175,6 +267,7 @@ export function computeScore(
     flagsCounted,
     primaryTotal,
     primaryPresent,
+    primaryWritten,
     cap,
     score,
     ceiling,
@@ -188,7 +281,7 @@ export function computeScore(
  * a preferred technology must never cap the score (v3).
  */
 export function entriesFromKeywords(
-  keywords: { requirement: RequirementLevel; primary: boolean; status: KeywordStatus }[],
+  keywords: { requirement: RequirementLevel; primary: boolean; status: KeywordStatus; group?: string | null }[],
 ): ScoreEntry[] {
   return keywords.map((k) => {
     const primary = k.primary && k.requirement === 'must';
@@ -197,19 +290,22 @@ export function entriesFromKeywords(
       requirement: k.requirement,
       primary,
       credit: SCORING.statusCredit[k.status] ?? 0,
-      primaryHit: k.status === 'present',
+      primaryHit: SCORING.primaryCovered.includes(k.status),
+      primaryWritten: k.status === 'present',
       ceilCredit: claimable ? 1 : 0,
       ceilPrimaryHit: primary && claimable,
+      group: k.group ?? null,
     };
   });
 }
 
 export function scoreMatch(
-  keywords: { requirement: RequirementLevel; primary: boolean; status: KeywordStatus }[],
+  keywords: { requirement: RequirementLevel; primary: boolean; status: KeywordStatus; group?: string | null }[],
   alignment: MatchAlignment | null,
-  redFlagCount: number,
+  /** Flags that survived `red-flags.ts:countableFlags`. */
+  countedFlags: number,
 ): ScoreBreakdown {
-  return computeScore(entriesFromKeywords(keywords), alignment, redFlagCount);
+  return computeScore(entriesFromKeywords(keywords), alignment, countedFlags);
 }
 
 /* Reader for the stored Json column — {} on rows written before ADR 0012. */
@@ -227,6 +323,8 @@ const BreakdownSchema = z.object({
   flagsCounted: z.number().int().optional(),
   primaryTotal: z.number().int(),
   primaryPresent: z.number().int(),
+  // v4 addition — absent on rows written before the covered/written split.
+  primaryWritten: z.number().int().optional(),
   cap: z.number().nullable(),
   score: z.number(),
   ceiling: z.number().optional(),

@@ -277,6 +277,6 @@ test('jobSpans carries the weight class and says how often the posting repeats a
   const helm = spans.filter((s) => s.cls === 'kw-missing kw-w1');
   assert.equal(kafka.length, 4, 'every occurrence is marked at the primary-must intensity');
   assert.equal(helm.length, 1);
-  assert.equal(kafka[0]?.title, 'Kafka · must · primary stack · missing · ×4 in the posting');
-  assert.equal(helm[0]?.title, 'Helm · nice · missing', 'a single mention says nothing extra');
+  assert.equal(kafka[0]?.title, 'Kafka · must · primary stack · add the word — your resume evidences it · ×4 in the posting');
+  assert.equal(helm[0]?.title, 'Helm · nice · add the word — your resume evidences it', 'a single mention says nothing extra');
 });

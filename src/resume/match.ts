@@ -13,11 +13,18 @@ import {
   type MatchContext,
   type MatchJobInput,
 } from './prompts';
+import { briefForPosting, type BriefResult } from './brief';
 import { annotateElsewhere, applyFacts } from './facts';
-import { gateActions } from './replacement-gate';
+import { countableFlags } from './red-flags';
+import { gateActions, gateRemovals } from './replacement-gate';
+import { floorDemand, floorGaps } from './suggestion-floor';
+import { suggestForMatch } from './suggestions';
 import { withTableAliases } from './keyword-aliases';
 import { carryOverrides, effectiveKeywords } from './keyword-overrides';
-import { anchorKeywords, elsewhereForPosting } from './keyword-anchor';
+import { anchorKeywords, anchorStatuses, elsewhereForPosting } from './keyword-anchor';
+import { reconcileGroups } from './keyword-group';
+import { dropMalformedKeywords } from './keyword-shape';
+import { annotateEvidence } from './evidence';
 import { planKeywordFrame } from './keyword-frame';
 import { loadKeywordMatcher } from './keyword-matcher';
 import { readMatchMode, type MatchMode } from './match-mode';
@@ -55,9 +62,21 @@ const REUSE_CANDIDATES = 4;
 export async function matchResumeToJob(
   resume: { id: number; text: string; version: number },
   job: MatchJobInput & { id: number },
-  opts: { draft?: boolean; mode?: MatchMode; rebuild?: boolean; onError?: (reason: string) => void } = {},
+  opts: {
+    draft?: boolean;
+    mode?: MatchMode;
+    rebuild?: boolean;
+    /** Already read by the caller, so it can show the reading as its own step. */
+    brief?: BriefResult | null;
+    onError?: (reason: string) => void;
+  } = {},
 ): Promise<ResumeMatch | null> {
   const mode = opts.mode ?? 'fast';
+  // The posting read on its own (ADR 0044): the keyword frame and the
+  // requirement groups come from here, and the second comparison of an edited
+  // resume reuses the stored reading instead of paying for it again. A failure
+  // is not fatal — without it the call derives the frame itself, as before.
+  const briefed = opts.brief !== undefined ? opts.brief : await briefForPosting(job, { onError: opts.onError });
   const [facts, otherSkills, previousMatch, matcher, verification, refreshedAt] = await Promise.all([
     listFacts(),
     listOtherResumeSkills(resume.id),
@@ -98,6 +117,7 @@ export async function matchResumeToJob(
           .map((k) => ({ term: k.term, priority: k.priority, requirement: k.requirement, primary: k.primary }))
       : undefined,
     companySnapshot: verification?.snapshot ?? null,
+    brief: briefed?.brief ?? null,
   };
   const answer = await askForJson(
     await getAiRuntime(),
@@ -118,16 +138,37 @@ export async function matchResumeToJob(
   // table joins the model's spellings, every term is anchored to the
   // posting (or flagged), stored facts always win, and unclaimable terms
   // point at the resume that has them.
-  const anchor = anchorKeywords(reply.keywords.map(withTableAliases), posting, matcher);
+  // A row that is not a term is scored, highlighted and offered as something to
+  // type into the skills line, so shapes no wording can rescue go first.
+  const shaped = dropMalformedKeywords(reply.keywords.map(withTableAliases));
+  const anchor = anchorKeywords(shaped.keywords, posting, matcher);
   const carry = carryOverrides(anchor.keywords, storedKeywords, { resumeText: resume.text, posting, matcher });
   const withFacts = applyFacts(carry.keywords, facts).keywords;
-  const keywords = annotateElsewhere(withFacts, otherSkills);
+  // The score folds on `group`, so the brief — not the reply — decides what a
+  // group is: an invented label would charge one weight for two requirements.
+  const grouped = reconcileGroups(annotateElsewhere(withFacts, otherSkills), briefed?.brief);
+  // present vs add is one question about the TEXT, and the matcher answers it
+  // more consistently than the model does — that flip is what made one pair
+  // score 79 and then 30.
+  const anchoredStatuses = anchorStatuses(grouped.keywords, resume.text, matcher);
+  // How strongly the text shows each term — read off the resume, never asked
+  // of the model (§23 of the intelligence analysis): a skills line, a sentence
+  // about work, or a sentence with a number in it.
+  const evidence = annotateEvidence(anchoredStatuses.keywords, resume.text, matcher);
+  const keywords = evidence.keywords;
   // What may be applied with one press is decided here, in code, against
   // the resume, the posting and the facts — never by the model (ADR 0037).
-  const gate = gateActions(reply.actions, { resumeText: resume.text, posting, facts, keywords, matcher });
+  const gateSources = { resumeText: resume.text, posting, facts, keywords, matcher };
+  const gate = gateActions(reply.actions, gateSources);
+  const cuts = gateRemovals(reply.removals, gateSources);
+  // A flag that only restates a keyword the resume does not have is the same
+  // fact billed twice: the keyword pool already charged for it, and whether the
+  // model bothers to write the sentence was 80% of a ten-point spread across
+  // five runs of one pair (red-flags.ts).
+  const flags = countableFlags(reply.red_flags, keywords, matcher);
   // The row stores what the user sees; the score reads what they decided:
   // their levels, without the terms they ignored (§5).
-  const breakdown = scoreMatch(effectiveKeywords(keywords), reply.alignment, reply.red_flags.length);
+  const breakdown = scoreMatch(effectiveKeywords(keywords), reply.alignment, flags.counted.length);
   const row = await createMatch({
     jobId: job.id,
     resumeId: resume.id,
@@ -137,13 +178,30 @@ export async function matchResumeToJob(
     // The marker surfaces on the match card's meta line — the user can see
     // that a fallback engine (not chain #1) produced this analysis.
     model: answer.model,
-    result: { ...reply, keywords, actions: gate.actions },
+    result: { ...reply, keywords, actions: gate.actions, removals: cuts.removals },
     breakdown,
     promptVersion: PROMPT_VERSION,
     mode,
     frame: frame.reason,
     verificationId: verification?.id ?? null,
   });
+  if (shaped.dropped.length > 0) {
+    logger.info({ jobId: job.id, dropped: shaped.dropped }, 'resume: keywords that were not terms');
+  }
+  // REQUIRED COVERAGE, checked rather than hoped for (suggestion-floor.ts). A
+  // full report that met every condition and came back with no actions is the
+  // one failure three rewordings of the rule did not fix, so the dedicated
+  // advice call gets one corrected go at it — the verdicts are already stored,
+  // so the score cannot move.
+  let filled = row;
+  if (mode === 'full') {
+    const gaps = floorGaps({ keywords, alignment: reply.alignment, actions: gate.actions, breakdown });
+    if (gaps.length > 0) {
+      logger.info({ matchId: row.id, jobId: job.id, gaps }, 'resume: suggestions missed the floor, asking again');
+      filled = (await suggestForMatch(row, job, undefined, floorDemand(gaps))) ?? row;
+    }
+  }
+
   logger.info(
     {
       matchId: row.id,
@@ -155,13 +213,22 @@ export async function matchResumeToJob(
       score: row.matchScore,
       replacementsBlocked: gate.blocked,
       replacementsWarned: gate.warned,
+      removalsBlocked: cuts.blocked,
+      removalsWarned: cuts.warned,
       cap: breakdown.cap,
       keywords: keywords.length,
       anchored: anchor.anchored,
       unanchored: anchor.unanchored,
       overrides: carry.carried,
       readded: carry.readded,
+      groupsDropped: grouped.dropped,
+      flagsExempt: flags.exempt.length,
+      malformed: shaped.dropped.length,
+      unwritten: anchoredStatuses.downgraded,
+      written: anchoredStatuses.upgraded,
+      listedOnly: evidence.listedOnly,
       frame: frame.reason,
+      brief: briefed ? (briefed.reused ? 'reused' : 'fresh') : 'none',
       promptVersion: PROMPT_VERSION,
       verificationId: verification?.id ?? null,
       elsewhere: context.otherResumeSkills?.length,
@@ -170,7 +237,7 @@ export async function matchResumeToJob(
     },
     'resume: matched',
   );
-  return row;
+  return filled;
 }
 
 /**

@@ -8,10 +8,13 @@
  */
 
 export const SCORING = {
-  version: 3,
+  version: 4,
   keywordMax: 60,
   requirementWeight: { must: 3, preferred: 2, nice: 1, context: 0 },
   statusCredit: { present: 1, add: 0.5, ask_user: 0, cannot_claim: 0 },
+  // "Has it" for the primary cap — see score.ts. `add` counts: the cap asks
+  // whether the candidate has the core stack, not whether the word is typed.
+  primaryCovered: ['present', 'add'],
   titleMax: 10,
   summaryMax: 10,
   recentRoleMax: 20,
@@ -31,20 +34,61 @@ export function primaryCap(present, total) {
 }
 
 /**
+ * Either/or requirements folded to one entry each — mirror of score.ts:foldGroups
+ * (ADR 0044). Entries sharing a `group` label are alternatives the posting
+ * itself offered, so the score asks the question once.
+ */
+export function foldGroups(entries) {
+  const out = [];
+  const at = new Map();
+  for (const e of entries) {
+    const key = e.group ? String(e.group).trim().toLowerCase() : '';
+    if (!key) {
+      out.push(e);
+      continue;
+    }
+    const seen = at.get(key);
+    if (seen === undefined) {
+      at.set(key, out.length);
+      out.push(e);
+      continue;
+    }
+    const held = out[seen];
+    out[seen] = {
+      ...held,
+      requirement: strongerLevel(held.requirement, e.requirement),
+      credit: Math.max(held.credit, e.credit),
+      ceilCredit: Math.max(held.ceilCredit, e.ceilCredit),
+      primary: held.primary || e.primary,
+      primaryHit: held.primaryHit || e.primaryHit,
+      primaryWritten: held.primaryWritten || e.primaryWritten,
+      ceilPrimaryHit: held.ceilPrimaryHit || e.ceilPrimaryHit,
+    };
+  }
+  return out;
+}
+
+function strongerLevel(a, b) {
+  return (SCORING.requirementWeight[a] ?? 0) >= (SCORING.requirementWeight[b] ?? 0) ? a : b;
+}
+
+/**
  * entries: [{ requirement, primary, credit, primaryHit, ceilCredit,
- * ceilPrimaryHit }] — see score.ts. Flags duplicating missing primaries are
+ * ceilPrimaryHit, group }] — see score.ts. Flags duplicating missing primaries are
  * not counted and the penalty is bounded (v3); `ceiling` is the honest
  * maximum this resume can reach on this posting by editing alone.
  * Live estimates pass `fixedPenalty` (the analysis-time penalty): flag texts
  * were judged against the analysed snapshot, so typing a missing primary
  * into the editor must not re-inflate them.
  */
-export function computeScore(entries, alignment, redFlagCount, fixedPenalty = null) {
+export function computeScore(rawEntries, alignment, countedFlags, fixedPenalty = null) {
+  const entries = foldGroups(rawEntries);
   let earned = 0;
   let ceilEarned = 0;
   let total = 0;
   let primaryTotal = 0;
   let primaryPresent = 0;
+  let primaryWritten = 0;
   let ceilPrimaryPresent = 0;
   for (const e of entries) {
     const weight = SCORING.requirementWeight[e.requirement] ?? 0;
@@ -54,6 +98,7 @@ export function computeScore(entries, alignment, redFlagCount, fixedPenalty = nu
     if (e.primary) {
       primaryTotal++;
       if (e.primaryHit) primaryPresent++;
+      if (e.primaryWritten) primaryWritten++;
       if (e.ceilPrimaryHit) ceilPrimaryPresent++;
     }
   }
@@ -67,8 +112,9 @@ export function computeScore(entries, alignment, redFlagCount, fixedPenalty = nu
           SCORING.recentRoleMax * SCORING.alignmentCredit[a.recent_role],
       )
     : 0;
-  const missingPrimary = primaryTotal - primaryPresent;
-  const flagsCounted = Math.max(0, redFlagCount - missingPrimary);
+  // Which flags reach the formula is decided by red-flags.ts before it — see
+  // score.ts. The live estimate passes the analysis-time penalty anyway.
+  const flagsCounted = Math.max(0, countedFlags);
   const penalty =
     fixedPenalty ?? Math.min(flagsCounted * SCORING.redFlagPenalty, SCORING.penaltyMax);
   const cap = primaryCap(primaryPresent, primaryTotal);
@@ -95,6 +141,7 @@ export function computeScore(entries, alignment, redFlagCount, fixedPenalty = nu
     flagsCounted,
     primaryTotal,
     primaryPresent,
+    primaryWritten,
     cap,
     score,
     ceiling,
@@ -118,9 +165,14 @@ export function entriesFromLive(rows) {
       requirement: r.requirement ?? 'preferred',
       primary,
       credit: !claimable ? 0 : r.found ? 1 : r.status === 'add' ? 0.5 : 0,
-      primaryHit: primary && claimable && r.found === true,
+      // Same rule as the server's: an `add` primary is covered whether or not
+      // the word has been typed yet, so the estimate does not jump 49 points
+      // the moment the user deletes it.
+      primaryHit: primary && claimable && (r.found === true || r.status === 'add'),
+      primaryWritten: primary && claimable && r.found === true,
       ceilCredit: writable ? 1 : 0,
       ceilPrimaryHit: primary && writable,
+      group: r.group ?? null,
     };
   });
 }

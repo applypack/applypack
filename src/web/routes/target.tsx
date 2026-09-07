@@ -7,23 +7,19 @@ import { hashShortId } from '../../text-utils';
 import { classifyInBackground } from '../../jobs/classify-existing';
 import { createManualJob, ManualJobSchema, MAX_FIELD_CHARS, MIN_DESCRIPTION_CHARS } from '../../jobs/manual-job';
 import { extractPostingFacts, fallbackTitle } from '../../jobs/posting-extract';
+import { briefForPosting, briefLine } from '../../resume/brief';
 import { findReusableMatch, matchResumeToJob } from '../../resume/match';
 import { parseMatchMode } from '../../resume/match-mode';
 import { reuseNotice, SUGGESTIONS_FAILED, suggestionsFlash } from '../../resume/match-reuse';
 import { readActions, readRemovals } from '../../resume/prompts';
 import {
   deleteCoverLettersForResume,
-  deleteMatchesForResume,
-  getLatestMatchForResumeAndJob,
   getResume,
   listResumes,
   upsertScratchResume,
 } from '../../resume/store';
 import { suggestForMatch } from '../../resume/suggestions';
 import { suggestionsKey } from '../suggestions-run';
-import { draftStash } from '../draft-stash';
-import { decideInstantCheck, instantCheckNotice } from '../instant-check';
-import { startDraftCheck } from '../draft-check';
 import { TargetStartPage } from '../pages/target-start';
 import { TargetRunPage } from '../pages/target-run';
 import { clearFlashCookie, flashRedirect, parseFlashCookie } from '../flash';
@@ -172,7 +168,9 @@ targetRoute.post('/target', resumeUploadLimit('/target'), async (c) => {
     };
   }
 
-  const steps: RunStep[] = needExtract ? ['extract', matchStep(f.mode)] : [matchStep(f.mode)];
+  // The posting is read as its own visible step (ADR 0044) — it is what the
+  // comparison is judged against, and on a second run it finishes instantly.
+  const steps: RunStep[] = needExtract ? ['extract', 'brief', matchStep(f.mode)] : ['brief', matchStep(f.mode)];
   // The posting text and the resolved resume are what was submitted; a second
   // POST of the same pair joins the run instead of paying twice (issue #76).
   const { run, joined } = claimRun(
@@ -205,7 +203,6 @@ targetRoute.post('/target', resumeUploadLimit('/target'), async (c) => {
     //    classified in the background: the comparison never reads the fit
     //    score, and that leg alone was ~50 s on a CLI engine
     //    (docs/target-plan.md §3.1).
-    const checkStarted = Date.now();
     const result = await createManualJob(
       {
         companyName,
@@ -265,39 +262,33 @@ targetRoute.post('/target', resumeUploadLimit('/target'), async (c) => {
       return;
     }
 
-    if (needExtract) {
-      updateRun(run.id, { stage: matchStep(f.mode) });
+    // 2c. The posting read on its own, cached against its text. Shown as a
+    //     step because it is the analysis the user asked to see, and because a
+    //     reused reading is the visible reason the second run is faster.
+    updateRun(run.id, { stage: 'brief' });
+    const briefed = await briefForPosting(jobInput);
+    if (briefed) {
+      updateRun(run.id, {
+        results: {
+          brief: briefed.reused ? `Reused this posting's analysis — ${briefLine(briefed.brief)}` : briefLine(briefed.brief),
+        },
+      });
     }
+    updateRun(run.id, { stage: matchStep(f.mode) });
 
-    // 2b. This resume was analysed against the posting before and its text
-    //     changed since (a new version, another file on the scratch row):
-    //     the instant check — the new text as a draft over that analysis,
-    //     the AI on demand (docs/target-plan.md §3.2 item 5).
-    if (result.kind === 'existing') {
-      const decision = decideInstantCheck(await getLatestMatchForResumeAndJob(job.id, resume.id), resume.text);
-      if (decision.kind === 'draft') {
-        const key = draftStash.put({ matchId: decision.frame.id, text: resume.text });
-        // The AI check of the new text runs behind the draft; the editor follows it (#184).
-        const check = startDraftCheck({ job: jobInput, resume, text: resume.text });
-        updateRun(run.id, {
-          stage: 'done',
-          resultUrl: `/jobs/${job.id}/target?match=${decision.frame.id}&draft=${key}&run=${check.id}`,
-          flash: instantCheckNotice(resume.name, Date.now() - checkStarted),
-        });
-        return;
-      }
-    }
-
-    // 3. Ephemeral compares keep only the current analysis.
-    if (resume.ephemeral) {
-      await deleteMatchesForResume(resume.id);
-      await deleteCoverLettersForResume(resume.id);
-    }
+    // 3. Older comparisons stay. A one-off check used to keep only its latest
+    //    analysis, which meant comparing the same posting again threw away the
+    //    run the user was about to compare against — and the whole point of
+    //    re-uploading a resume is seeing whether the number moved. The job page
+    //    lists them under "older runs"; each one carries its own text snapshot,
+    //    so an old row still shows the resume it actually judged.
+    if (resume.ephemeral) await deleteCoverLettersForResume(resume.id);
 
     // 4. One resume-model call, then straight into the targeted workspace.
     let reason = '';
     const row = await matchResumeToJob({ id: resume.id, version: resume.version, text: resume.text }, jobInput, {
       mode: f.mode,
+      brief: briefed,
       onError: (r) => {
         reason = r;
       },

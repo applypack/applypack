@@ -1,9 +1,8 @@
 /** @jsxImportSource hono/jsx */
-import { Hono } from 'hono';
+import { Hono, type Context } from 'hono';
 import { JobStatus, type Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { prisma } from '../../db';
-import { startDraftCheck } from '../draft-check';
 import { logger } from '../../logger';
 import { hashShortId } from '../../text-utils';
 import { appliedResumeColumns } from '../applied-resume';
@@ -38,19 +37,15 @@ import { TargetPage } from '../pages/target';
 import { describeStructure, docxStructure } from '../../resume/docx-structure';
 import { previousFor } from '../pages/resume-match-card';
 import { nameFromFilename, readResumeUpload, resumeUploadLimit } from '../upload';
-import { decideInstantCheck, draftTextForPage, instantCheckNotice, unchangedNotice } from '../instant-check';
-import { draftStash } from '../draft-stash';
 import { scanInBackground } from '../../resume/scan';
 import { clearFlashCookie, flashRedirect, parseFlashCookie } from '../flash';
 import { formatRelative } from '../format';
-import { claimRun, findLiveRun, getRun, matchStep, runFailure, startRun, updateRun } from '../target-runs';
+import { claimRun, findLiveRun, matchStep, runFailure, startRun, updateRun } from '../target-runs';
 import { startSuggestionsRun } from '../suggestions-run';
 import {
   deleteCoverLettersForResume,
-  deleteMatchesForResume,
   getCoverLetter,
   getLatestCompanySnapshot,
-  getLatestMatchForResumeAndJob,
   getMatch,
   getResume,
   listCoverLettersForJob,
@@ -63,8 +58,11 @@ import {
   getResumeOriginal,
 } from '../../resume/store';
 import { preselectAppliedResume, preselectResume } from '../../resume/pick';
+import { briefForPosting, briefLine, storedBriefFor } from '../../resume/brief';
+import { postingDepth } from '../../resume/brief-depth';
+import { rewriteAction } from '../../resume/rewrite';
 import { findReusableMatch, matchResumeToJob } from '../../resume/match';
-import { parseMatchMode, readMatchMode } from '../../resume/match-mode';
+import { parseMatchMode, readMatchMode, type MatchMode } from '../../resume/match-mode';
 import { reuseNotice } from '../../resume/match-reuse';
 import { generateCoverLetter } from '../../resume/cover-letter';
 import {
@@ -72,8 +70,10 @@ import {
   COVER_TONES,
   coverGateSources,
   readCoverAngles,
+  readActions,
   readKeywords,
   type CoverTone,
+  type MatchJobInput,
 } from '../../resume/prompts';
 import { withTableAliases } from '../../resume/keyword-aliases';
 import { loadKeywordMatcher, type CountedKeyword } from '../../resume/keyword-matcher';
@@ -653,6 +653,101 @@ function verifyRunView(jobId: number): { id: string; startedAt: number } | null 
   return run ? { id: run.id, startedAt: run.startedAt } : null;
 }
 
+/**
+ * One comparison of one text against one posting, run on the progress page.
+ * Shared by the job page's Compare, the editor's Re-check and the editor's
+ * re-upload, so all three behave the same: the memo answers a repeat for free,
+ * a second submit of the same thing joins the run in flight, and the finished
+ * run lands the user on the analysis it just wrote.
+ */
+interface ComparisonRequest {
+  jobId: number;
+  job: MatchJobInput & { id: number };
+  resume: { id: number; name: string; version: number; text: string };
+  /** The text to judge: the stored version, the editor's draft, or a fresh upload. */
+  text: string;
+  mode: MatchMode;
+  rebuild: boolean;
+  force: boolean;
+  /** Where a finished run sends the user. */
+  resultUrl: (matchId: number) => string;
+  /** What the done-flash calls the text — a filename, "Draft", the resume's name. */
+  label: string;
+}
+
+async function startComparison(c: Context, req: ComparisonRequest): Promise<Response> {
+  const { jobId, job, resume, text, mode, rebuild, force } = req;
+  const draft = text !== resume.text;
+
+  // The same text was already judged: show that analysis instead of paying for
+  // it again — unless "Re-run anyway" or a rebuild asked for a fresh call. A
+  // rebuild that hit the memo would hand back the very frame it was asked to
+  // replace. A full report asked of a stored quick check needs only the
+  // suggestions call.
+  if (!force && !rebuild) {
+    const reused = await findReusableMatch(jobId, resume.id, text, mode);
+    if (reused?.decision === 'reuse') {
+      return flashRedirect(req.resultUrl(reused.row.id), 'warn', reuseNotice(formatRelative(reused.row.createdAt)), {
+        rerun: true,
+        mode,
+      });
+    }
+    if (reused) {
+      return c.redirect(
+        startSuggestionsRun({ match: reused.row, job, resumeName: resume.name, resultUrl: req.resultUrl(reused.row.id) }),
+        303,
+      );
+    }
+  }
+
+  // Same job, same resume, same text, same mode is the same comparison, so a
+  // second submit joins the run in flight rather than paying for it twice.
+  const { run, joined } = claimRun(
+    `match:${jobId}:${resume.id}:${mode}:${rebuild ? 'rebuild' : 'frame'}:${hashShortId(text)}`,
+    { steps: ['brief', matchStep(mode)], jobTitle: job.title, resumeName: resume.name, jobId },
+  );
+  if (joined) return c.redirect(`/target/runs/${run.id}`, 303);
+  startRun(run.id, async () => {
+    // The posting read on its own, cached against its text (ADR 0044): on every
+    // run but the first for this posting this step costs a lookup, which is what
+    // makes re-checking an edited resume quick.
+    updateRun(run.id, { stage: 'brief' });
+    const briefed = await briefForPosting(job);
+    if (briefed) {
+      updateRun(run.id, {
+        results: {
+          brief: briefed.reused ? `Reused this posting's analysis — ${briefLine(briefed.brief)}` : briefLine(briefed.brief),
+        },
+      });
+    }
+    updateRun(run.id, { stage: matchStep(mode) });
+    let reason = '';
+    const row = await matchResumeToJob({ id: resume.id, version: resume.version, text }, job, {
+      draft,
+      mode,
+      rebuild,
+      brief: briefed,
+      onError: (r) => {
+        reason = r;
+      },
+    });
+    if (!row) {
+      updateRun(run.id, { stage: 'error', error: runFailure('Comparison failed', reason) });
+      return;
+    }
+    updateRun(run.id, {
+      stage: 'done',
+      resultUrl: req.resultUrl(row.id),
+      tailorUrl: `/jobs/${jobId}/target?match=${row.id}`,
+      results: { [matchStep(mode)]: `AI match ${row.matchScore}/100` },
+      flash: rebuild
+        ? `Keywords rebuilt from the posting — AI match ${row.matchScore}/100, counted over a fresh set of terms.`
+        : `${req.label} ${mode === 'fast' ? 'checked' : 'compared'} — AI match ${row.matchScore}/100.`,
+    });
+  });
+  return c.redirect(`/target/runs/${run.id}`, 303);
+}
+
 jobsRoute.post('/jobs/:id/match', async (c) => {
   const id = Number(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text('Bad id', 400);
@@ -665,84 +760,27 @@ jobsRoute.post('/jobs/:id/match', async (c) => {
     getResume(resumeId),
   ]);
   if (!job || !resume) return c.text('Not found', 404);
-  const jobInput = { id: job.id, title: job.title, companyName: job.company.name, location: job.location, description: job.description };
 
   // The targeted view posts its edited text; a non-empty draft is judged instead of the stored version.
   const draftText = typeof form.draftText === 'string' ? form.draftText.replace(/\r\n/g, '\n').trim() : '';
-  const draft = draftText.length > 0 && draftText !== resume.text;
-  const text = draft ? draftText : resume.text;
-  // The quick check unless the form asked for the full report (ADR 0029).
-  const mode = parseMatchMode(form.mode);
-  // "Rebuild keywords": read the terms out of the posting again instead of
-  // inheriting the frame this posting has been carrying (issue #79).
-  const rebuild = form.rebuild === '1';
-  // The editor's Re-check keeps the editor open and follows the run from there (#184).
-  const inline = form.next === 'editor';
-  const toTarget = form.next === 'target' || inline;
-  const resultUrl = (matchId: number) =>
-    toTarget ? `/jobs/${id}/target?match=${matchId}` : `/jobs/${id}?match=${matchId}#resume-match`;
-  const editorUrl = (runId: string) => `/jobs/${id}/target?match=${Number(form.matchId) || ''}&run=${runId}`;
-  const follow = (runUrl: string) =>
-    inline
-      ? flashRedirect(editorUrl(runUrl.slice(runUrl.lastIndexOf('/') + 1)), 'ok', BACKGROUND_CHECK_NOTICE)
-      : c.redirect(runUrl, 303);
-
-  // The same text was already judged: show that analysis instead of paying
-  // for it again — unless "Re-run anyway" or a rebuild asked for a fresh call.
-  // A rebuild that hit the memo would silently hand back the very frame it was
-  // asked to replace. A full report asked of a stored quick check needs only
-  // the suggestions call.
-  if (form.force !== '1' && !rebuild) {
-    const reused = await findReusableMatch(job.id, resume.id, text, mode);
-    if (reused?.decision === 'reuse') {
-      return flashRedirect(resultUrl(reused.row.id), 'warn', reuseNotice(formatRelative(reused.row.createdAt)), {
-        rerun: true,
-        mode,
-      });
-    }
-    if (reused) {
-      return follow(startSuggestionsRun({ match: reused.row, job: jobInput, resumeName: resume.name, resultUrl: resultUrl(reused.row.id) }));
-    }
-  }
-
-  // Same job, same resume, same text, same mode is the same comparison, so a
-  // second submit joins the run in flight rather than paying for it twice.
-  const { run, joined } = claimRun(
-    `match:${id}:${resume.id}:${mode}:${rebuild ? 'rebuild' : 'frame'}:${hashShortId(text)}`,
-    { steps: [matchStep(mode)], jobTitle: job.title, resumeName: resume.name, jobId: id },
-  );
-  if (joined) return follow(`/target/runs/${run.id}`);
-  startRun(run.id, async () => {
-    // Ephemeral (scratch) compares keep only the current analysis — unless the
-    // editor is watching one of them, in which case the row it shows must stay.
-    if (resume.hidden && !inline) await deleteMatchesForResume(resume.id);
-    let reason = '';
-    const row = await matchResumeToJob({ id: resume.id, version: resume.version, text }, jobInput, {
-      draft,
-      mode,
-      rebuild,
-      onError: (r) => {
-        reason = r;
-      },
-    });
-    if (!row) {
-      updateRun(run.id, { stage: 'error', error: runFailure('Comparison failed', reason) });
-      return;
-    }
-    updateRun(run.id, {
-      stage: 'done',
-      resultUrl: resultUrl(row.id),
-      tailorUrl: `/jobs/${id}/target?match=${row.id}`,
-      results: { [matchStep(mode)]: `AI match ${row.matchScore}/100` },
-      flash: rebuild
-        ? `Keywords rebuilt from the posting — AI match ${row.matchScore}/100, counted over a fresh set of terms.`
-        : `${draft ? 'Draft' : `"${resume.name}"`} ${mode === 'fast' ? 'checked' : 'compared'} — AI match ${row.matchScore}/100.`,
-    });
+  const text = draftText.length > 0 ? draftText : resume.text;
+  const toTarget = form.next === 'target' || form.next === 'editor';
+  return startComparison(c, {
+    jobId: id,
+    job: { id: job.id, title: job.title, companyName: job.company.name, location: job.location, description: job.description },
+    resume,
+    text,
+    // The quick check unless the form asked for the full report (ADR 0029).
+    mode: parseMatchMode(form.mode),
+    // "Rebuild keywords": read the terms out of the posting again instead of
+    // inheriting the frame this posting has been carrying (issue #79).
+    rebuild: form.rebuild === '1',
+    force: form.force === '1',
+    resultUrl: (matchId) => (toTarget ? `/jobs/${id}/target?match=${matchId}` : `/jobs/${id}?match=${matchId}#resume-match`),
+    label: text === resume.text ? `"${resume.name}"` : 'Draft',
   });
-  return follow(`/target/runs/${run.id}`);
 });
 
-const BACKGROUND_CHECK_NOTICE = 'The AI check runs in the background — its number lands beside the score when it is done.';
 
 /** "Get suggestions" on a quick check: the lazy second call, the verdicts and the score untouched (ADR 0029). */
 jobsRoute.post('/jobs/:id/matches/:matchId/suggestions', async (c) => {
@@ -763,11 +801,57 @@ jobsRoute.post('/jobs/:id/matches/:matchId/suggestions', async (c) => {
       : form.next === 'cover'
         ? `/jobs/${id}?match=${matchId}#cover-letter`
         : `/jobs/${id}?match=${matchId}#resume-match`;
-  if (readMatchMode(match.breakdown) === 'full') {
+  // "Rewrite them all" asks for the same call over the same verdicts — the
+  // score does not move, only the advice — so the already-has-them guard is
+  // the default, not the rule.
+  if (form.rewrite !== '1' && readMatchMode(match.breakdown) === 'full') {
     return flashRedirect(resultUrl, 'warn', 'This analysis already has its suggestions.');
   }
   const jobInput = { id: job.id, title: job.title, companyName: job.company.name, location: job.location, description: job.description };
   return c.redirect(startSuggestionsRun({ match, job: jobInput, resumeName: resume.name, resultUrl }), 303);
+});
+
+/**
+ * "Rewrite" on one suggestion card. Nothing the comparison decided moves — the
+ * keyword verdicts, the score and the edit's target all stay — and the new
+ * wording goes through the same gate as the old one, so a rewrite cannot claim
+ * what the first wording was refused for.
+ */
+jobsRoute.post('/jobs/:id/matches/:matchId/actions/:index/rewrite', async (c) => {
+  const id = Number(c.req.param('id'));
+  const matchId = Number(c.req.param('matchId'));
+  const index = Number(c.req.param('index'));
+  if (!Number.isFinite(id) || !Number.isFinite(matchId) || !Number.isInteger(index) || index < 0) {
+    return c.text('Bad id', 400);
+  }
+  const [job, match] = await Promise.all([
+    prisma.job.findUnique({ where: { id }, include: { company: { select: { name: true } } } }),
+    getMatch(matchId),
+  ]);
+  if (!job || !match || match.jobId !== id) return c.text('Not found', 404);
+  const form = await c.req.parseBody();
+  const back = form.next === 'target' ? `/jobs/${id}/target?match=${matchId}` : `/jobs/${id}?match=${matchId}#resume-match`;
+
+  let reason = '';
+  const row = await rewriteAction(
+    match,
+    { id: job.id, title: job.title, companyName: job.company.name, location: job.location, description: job.description },
+    index,
+    (r) => {
+      reason = r;
+    },
+  );
+  if (!row) {
+    return flashRedirect(back, 'err', runFailure('Could not rewrite that suggestion', reason));
+  }
+  const written = readActions(row.actions)[index];
+  return flashRedirect(
+    back,
+    written?.replacement ? 'ok' : 'warn',
+    written?.replacement
+      ? 'Rewritten — the new wording is on the card.'
+      : `Rewritten, but the new wording was refused: ${written?.why ?? 'it claimed something this resume does not show'}.`,
+  );
 });
 
 jobsRoute.post('/jobs/:id/cover', async (c) => {
@@ -934,15 +1018,14 @@ jobsRoute.get('/jobs/:id/target', async (c) => {
   }
   const resume = await getResume(match.resumeId);
   if (!resume) return c.text('Not found', 404);
-  // The scratch resume from /target has no versions: its one save is a resume of its own.
+  const jobInput = { id: job.id, title: job.title, companyName: job.company.name, location: job.location, description: job.description };
+  // What the posting itself carried (§17): with little to go on, the page says
+  // so rather than letting inferred advice read like the employer's demands.
+  const depth = postingDepth(await storedBriefFor(jobInput));
   const file = await describeResumeFile(resume);
-  const fileVerdict = (resume.hidden ? 'This is a one-off check from the Compare page — Save keeps it as a resume of its own. ' : '') + file.verdict;
-  // An instant check arrives with its parsed upload — taken once; from then on the browser holds it.
-  const draftKey = c.req.query('draft');
-  const draftText = draftTextForPage(draftKey ? draftStash.take(draftKey) : null, match.id);
-  // A background AI check the page follows (#184); a run that is gone is simply not shown.
-  const runId = c.req.query('run');
-  const watched = runId ? getRun(runId) : null;
+  // A one-off check keeps nothing: the comparison holds the text, and Resumes
+  // is where a file the user wants to keep is uploaded.
+  const fileVerdict = (resume.hidden ? 'A one-off check from the Compare page. ' : '') + file.verdict;
   return c.html(
     <TargetPage
       job={{ id: job.id, title: job.title, companyName: job.company.name, location: job.location, description: job.description }}
@@ -952,8 +1035,7 @@ jobsRoute.get('/jobs/:id/target', async (c) => {
       matches={matches}
       previous={previousFor(match, matches)}
       resumeText={match.resumeText || resume.text}
-      draftText={draftText}
-      runId={watched?.id ?? null}
+      postingNotice={depth.notice}
       verification={verifications[0] ?? null}
       fileVerdict={fileVerdict}
       cleanHref={file.clean ? `/resumes/${resume.id}/render` : null}
@@ -965,7 +1047,6 @@ jobsRoute.get('/jobs/:id/target', async (c) => {
 });
 
 jobsRoute.post('/jobs/:id/target/reupload', async (c, next) => resumeUploadLimit(`/jobs/${c.req.param('id')}/target`)(c, next), async (c) => {
-  const started = Date.now();
   const id = Number(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text('Bad id', 400);
   const form = await c.req.parseBody();
@@ -979,46 +1060,34 @@ jobsRoute.post('/jobs/:id/target/reupload', async (c, next) => resumeUploadLimit
   const upload = await readResumeUpload(form);
   if ('error' in upload) return flashRedirect(`/jobs/${id}/target`, 'err', upload.error);
 
-  // One button (#184): the file opens in the editor at once as an unsaved
-  // draft over the analysis the page showed, and the quick AI check of that
-  // text runs behind it — the page follows the run and offers the result when
-  // it lands. Nothing is saved; a version is the sticky bar's decision. With
-  // no analysis to show the draft against, the check runs on the progress page.
-  const decision = decideInstantCheck(await frameFor(id, resumeId, Number(form.matchId)), upload.text);
-  if (decision.kind === 'unchanged') {
-    const page = `/jobs/${id}/target?match=${decision.frame.id}`;
-    return flashRedirect(page, 'warn', unchangedNotice(upload.sourceFilename, formatRelative(decision.frame.createdAt)));
-  }
-  const run = startDraftCheck({
+  // A new file is a new comparison, full stop. It used to open in the editor
+  // within a second as a draft over the OLD analysis while a quick check ran
+  // behind it — and the result of that check reached the user as a chip they
+  // had to notice and click. Nobody did. Now the file goes through the same
+  // progress page as any other comparison, the posting's brief is already
+  // stored so only the resume is judged, and the page it lands on shows the
+  // new score beside the new text. Nothing is saved: the comparison keeps its
+  // own snapshot of the text (`draft`), and the resume row is untouched.
+  return startComparison(c, {
+    jobId: id,
     job: { id: job.id, title: job.title, companyName: job.company.name, location: job.location, description: job.description },
     resume,
     text: upload.text,
+    // The editor's own action always writes the suggestions: a second button
+    // for "the same check without the advice" only ever raised the question of
+    // which one to press.
+    mode: 'full',
+    rebuild: false,
+    force: false,
+    resultUrl: (matchId) => `/jobs/${id}/target?match=${matchId}`,
+    label: `"${upload.sourceFilename}"`,
   });
-  if (decision.kind === 'analyze') return c.redirect(`/target/runs/${run.id}`, 303);
-  const key = draftStash.put({ matchId: decision.frame.id, text: upload.text });
-  const ms = Date.now() - started;
-  logger.info(
-    { jobId: id, matchId: decision.frame.id, resumeId, file: upload.sourceFilename, chars: upload.text.length, ms, runId: run.id },
-    'resume: instant check',
-  );
-  return flashRedirect(
-    `/jobs/${id}/target?match=${decision.frame.id}&draft=${key}&run=${run.id}`,
-    'ok',
-    instantCheckNotice(upload.sourceFilename, ms),
-  );
 });
 
 /** The person the verifier found, as the letter's prefilled greeting, with the finding beside it (#162 stage 4). */
 function addresseeFromVerification(evidence: unknown, companyName: string): { suggested: string | null; finding: string | null } {
   const finding = readEvidence(evidence).find((e) => e.check === 'named_humans' && e.signal === 'legit')?.finding.trim() ?? null;
   return { suggested: finding ? addresseeFromFinding(finding, companyName) : null, finding };
-}
-
-/** The analysis a re-upload is checked against: the one the page showed, else the resume's latest for the job. */
-async function frameFor(jobId: number, resumeId: number, matchId: number) {
-  const shown = Number.isFinite(matchId) ? await getMatch(matchId) : null;
-  if (shown && shown.jobId === jobId && shown.resumeId === resumeId) return shown;
-  return getLatestMatchForResumeAndJob(jobId, resumeId);
 }
 
 function sortToOrderBy(sort: string): Prisma.JobOrderByWithRelationInput[] {
@@ -1043,18 +1112,23 @@ function sortToOrderBy(sort: string): Prisma.JobOrderByWithRelationInput[] {
  * patcher only partly reaches.
  */
 async function describeResumeFile(resume: { id: number; sourceFilename: string; hidden: boolean }): Promise<{ verdict: string; clean: boolean }> {
+  // A one-off check has no Save, so it is not told what one would keep: the
+  // whole sentence below is about a save that is not offered here.
+  if (resume.hidden) {
+    return { verdict: 'Edits stay in this browser tab — copy them out, or upload the file on Resumes to keep versions of it.', clean: false };
+  }
   if (/\.docx$/i.test(resume.sourceFilename)) {
     const row = await getResumeOriginal(resume.id);
     if (row) {
       const structure = docxStructure(Buffer.from(row.original));
-      return { verdict: describeStructure(structure), clean: !resume.hidden && structure.kind !== 'flow' };
+      return { verdict: describeStructure(structure), clean: structure.kind !== 'flow' };
     }
   }
   if (/\.pdf$/i.test(resume.sourceFilename)) {
     return {
       verdict: 'This file is a PDF: Save keeps a text version; upload the .docx it was printed from to get a styled file back.',
-      clean: !resume.hidden,
+      clean: true,
     };
   }
-  return { verdict: 'This file is plain text: Save keeps a text version.', clean: !resume.hidden };
+  return { verdict: 'This file is plain text: Save keeps a text version.', clean: true };
 }

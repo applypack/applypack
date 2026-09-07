@@ -38,6 +38,7 @@ import type { CountedKeyword } from '../../resume/keyword-matcher';
 import { effectiveRequirement, isIgnored } from '../../resume/keyword-overrides';
 import { REQUIREMENT_LEVELS, type RequirementLevel } from '../../resume/score';
 import { readBreakdown, type ScoreBreakdown } from '../../resume/score';
+import { noEditsLine, type Reach } from '../no-edits';
 import { diffMatches } from '../../resume/diff';
 
 export interface ResumeMatchCardProps {
@@ -64,11 +65,20 @@ const PRIORITY_TONE: Record<MatchAction['priority'], Tone> = {
 };
 
 /** One status vocabulary everywhere: table badges, pane legends and tooltips agree. */
+/*
+ * Four words about the CANDIDATE, not about the model's confidence. The old
+ * set said "matched / missing / confirm / no evidence", which got two of them
+ * wrong: `add` means the resume already evidences the term and only the word is
+ * absent — calling that "missing" hides the easiest win on the page — and
+ * "no evidence" reads as a verdict on the person rather than a requirement they
+ * do not meet. The requirement level sits in the next column, so "missing"
+ * beside "must" now says the thing the user needs to hear.
+ */
 const STATUS_VIEW: Record<MatchKeyword['status'], { label: string; tone: Tone }> = {
-  present: { label: 'matched', tone: 'ok' },
-  add: { label: 'missing', tone: 'warn' },
-  ask_user: { label: 'confirm', tone: 'violet' },
-  cannot_claim: { label: 'no evidence', tone: 'danger' },
+  present: { label: 'in your resume', tone: 'ok' },
+  add: { label: 'add the word', tone: 'warn' },
+  ask_user: { label: 'do you have it?', tone: 'violet' },
+  cannot_claim: { label: 'missing', tone: 'danger' },
 };
 
 const KEYWORD_COLUMNS = ['Keyword', 'Wants it', 'Status', 'Where', 'Note'];
@@ -134,9 +144,11 @@ export const ResumeMatchCard: FC<ResumeMatchCardProps> = ({
         </Hint>
       ) : (
         <form method="post" action={`/jobs/${jobId}/match`} class="flex flex-wrap items-end gap-3" onsubmit={SUBMIT_ONCE}>
-          {/* Set by the second button's click: SUBMIT_ONCE disables the buttons in the
-              submit event, and a disabled submitter is left out of the form data. */}
-          <input type="hidden" name="mode" value="fast" />
+          {/* One comparison, everywhere. The quick check still exists in the
+              code (ADR 0029) — the memo and the suggestions call are built on
+              it — but a user choosing between "Compare" and "Full analysis"
+              was choosing between two tooltips. */}
+          <input type="hidden" name="mode" value="full" />
           <label class="block min-w-0 max-w-full">
             <span class="block text-[13px] font-medium text-ink">Resume</span>
             <Select name="resumeId" class="mt-1.5 !w-auto max-w-full">
@@ -153,22 +165,15 @@ export const ResumeMatchCard: FC<ResumeMatchCardProps> = ({
               ))}
             </Select>
           </label>
-          <Button variant="violet" title="Keywords, hard requirements and the score — no edit suggestions">
+          <Button variant="violet" title="Judges this resume against the posting and writes what to change">
             Compare
-          </Button>
-          <Button
-            variant="secondary"
-            onclick="this.form.elements.mode.value='full'"
-            title="The same check plus what to change and what to remove"
-          >
-            Full analysis
           </Button>
           {!selected && (
             <Hint class="basis-full">
-              Compare is the quick check — one call to the resume model, about half a minute on
-              Opus, and you can ask for the suggestions afterwards. Full analysis writes them
-              right away and takes 1½ to 2 minutes. The score itself is computed
-              deterministically from the reply — same facts, same number, every time.
+              One call to the resume model — keywords, hard requirements, the score and what to
+              change — about one to two minutes. The posting itself is read once and kept, so
+              comparing a second resume against it is quicker. The score is computed
+              deterministically from the reply: same facts, same number, every time.
             </Hint>
           )}
         </form>
@@ -245,21 +250,30 @@ export const ScoreBreakdownChips: FC<{ bd: ScoreBreakdown }> = ({ bd }) => (
         capped at {bd.cap} — primary stack {bd.primaryPresent}/{bd.primaryTotal}
       </span>
     )}
+    {/* Two different questions, and mixing them is what makes one number feel
+        arbitrary (§4 of the intelligence analysis): the score is how well this
+        RESUME shows the fit, the ceiling is how well the CANDIDATE fits. A wide
+        gap between them is good news — all of it is editing. */}
     {bd.ceiling !== undefined && (
       <span
-        title="The honest maximum for this resume on this posting: every claimable keyword written in, alignment perfect. Going higher needs experience this resume doesn't show."
+        title="How well you fit, if the resume said everything it honestly could: every claimable keyword written in, alignment perfect. The score is how much of that the resume shows today; going above the ceiling would need experience this resume does not have."
       >
         {bd.ceiling > bd.score ? (
           <>
-            max reachable <span class="font-medium tabular-nums text-ink">{bd.ceiling}</span>
+            you fit <span class="font-medium tabular-nums text-ink">{bd.ceiling}</span> — editing can reach it
           </>
         ) : (
-          <span class="font-medium text-ok">at its ceiling — nothing left to squeeze</span>
+          <span class="font-medium text-ok">the resume already shows everything it can</span>
         )}
       </span>
     )}
   </div>
 );
+
+/** The pair the empty state reads: today's score and what editing could reach. */
+export function reachOf(bd: ScoreBreakdown | null, score: number): Reach | null {
+  return bd?.ceiling === undefined ? null : { score, ceiling: bd.ceiling };
+}
 
 /** Hard-requirement gates as one compact line — for the targeted view's score card. */
 export const HardRequirementsDigest: FC<{ hard: MatchHardRequirement[] }> = ({ hard }) => {
@@ -403,7 +417,7 @@ export const MatchReport: FC<{
             />
             <Hint class="!mt-0">as Markdown, for the document your resume really lives in</Hint>
           </div>
-          <ActionsBlock actions={readActions(match.actions)} />
+          <ActionsBlock actions={readActions(match.actions)} reach={reachOf(bd, match.matchScore)} />
           <RemovalsBlock removals={readRemovals(match.removals)} />
         </>
       )}
@@ -609,7 +623,9 @@ const SuggestionCard: FC<{
   removal?: boolean;
   /** Priority badges are one word, section badges are up to four syllables. */
   badgeWidth?: string;
-}> = ({ item, badge, proposal, interactive, removal = false, badgeWidth = 'w-16' }) => {
+  /** Where "Rewrite" posts: the same edit, a different sentence. Actions only. */
+  rewrite?: { jobId: number; matchId: number; index: number; next?: 'target' };
+}> = ({ item, badge, proposal, interactive, removal = false, badgeWidth = 'w-16', rewrite }) => {
   const copyable = proposal?.text ?? item.quote ?? item.what;
   // Stable across re-runs of the same comparison, so applied/skipped marks survive a reload.
   const key = hashShortId(`${item.section}|${item.where}|${item.quote ?? ''}`);
@@ -667,6 +683,18 @@ const SuggestionCard: FC<{
           <Button type="button" variant="secondary" size="sm" data-copy={copyable}>
             Copy
           </Button>
+          {rewrite && (
+            <form method="post" action={`/jobs/${rewrite.jobId}/matches/${rewrite.matchId}/actions/${rewrite.index}/rewrite`} onsubmit={SUBMIT_ONCE}>
+              {rewrite.next && <input type="hidden" name="next" value={rewrite.next} />}
+              <Button
+                variant="ghost"
+                size="sm"
+                title="Writes this one suggestion again — same target, a different sentence (~½ min)"
+              >
+                Rewrite
+              </Button>
+            </form>
+          )}
           {interactive && item.quote && (
             <Button type="button" variant="ghost" size="sm" data-locate={item.quote}>
               Locate
@@ -713,30 +741,56 @@ const SuggestionCard: FC<{
 };
 
 /** "What to change" — one card per edit, with Copy and (on the targeted view) Locate. */
-export const ActionsBlock: FC<{ actions: MatchAction[]; interactive?: boolean }> = ({
-  actions,
-  interactive = false,
-}) => {
+/**
+ * An empty list is an answer, and it has two meanings the user cannot tell
+ * apart without help: the resume is already as close as it gets, or the
+ * posting is for a different profession and no wording bridges it. The
+ * ceiling separates them — it is what honest editing could reach — so the
+ * empty state says which one this is instead of "No edits suggested."
+ */
+const NoEdits: FC<{ reach: Reach | null }> = ({ reach }) => {
+  const line = noEditsLine(reach);
+  return (
+    <Hint>
+      {line.text}
+      {line.offerRewrite && <span class="font-medium text-ink"> Rewrite all</span>}
+      {line.offerRewrite && '.'}
+    </Hint>
+  );
+};
+
+export const ActionsBlock: FC<{
+  actions: MatchAction[];
+  interactive?: boolean;
+  /** Enables "Rewrite" on each card; the index is the action's place in the stored row. */
+  rewrite?: { jobId: number; matchId: number; next?: 'target' };
+  /** The score and its ceiling — what an empty list is allowed to say about itself. */
+  reach?: Reach | null;
+}> = ({ actions, interactive = false, rewrite, reach = null }) => {
+  // The index is taken before the per-section filter: it addresses the action
+  // in the stored row, which is what the rewrite route updates.
+  const numbered = actions.map((a, index) => ({ a, index }));
   const sections = ACTION_SECTIONS.filter((s) => actions.some((a) => a.section === s));
   return (
     <div>
       <div class={SUBHEAD}>What to change — {actions.length} edits</div>
       {actions.length === 0 ? (
-        <Hint>No edits suggested.</Hint>
+        <NoEdits reach={reach} />
       ) : (
         <div class="space-y-4">
           {sections.map((section) => (
             <div>
               <div class="mb-1.5 text-xs font-semibold text-ink">{section}</div>
               <ol class="divide-y divide-line rounded-md border border-line">
-                {actions
-                  .filter((a) => a.section === section)
-                  .map((a) => (
+                {numbered
+                  .filter(({ a }) => a.section === section)
+                  .map(({ a, index }) => (
                     <SuggestionCard
                       item={a}
                       badge={<Badge tone={PRIORITY_TONE[a.priority]}>{a.priority}</Badge>}
                       proposal={proposalOf(a)}
                       interactive={interactive}
+                      rewrite={rewrite ? { ...rewrite, index } : undefined}
                     />
                   ))}
               </ol>
@@ -917,6 +971,13 @@ const KeywordRow: FC<{ k: CountedKeyword; edit?: KeywordEditTarget }> = ({ k, ed
           </span>
         )}
         {k.override?.added && <Badge tone="violet">yours</Badge>}
+        {k.group && (
+          <span
+            title={`The posting offers this as one of several — "${k.group}". Any one of them satisfies it, so the score counts the group once, not each option.`}
+          >
+            <Badge>or {k.group}</Badge>
+          </span>
+        )}
       </span>
     </Td>
     <Td class="text-xs text-ink-faint">
@@ -925,6 +986,19 @@ const KeywordRow: FC<{ k: CountedKeyword; edit?: KeywordEditTarget }> = ({ k, ed
     <Td>
       <span class="inline-flex flex-wrap items-center gap-1">
         <Badge tone={STATUS_VIEW[k.status].tone}>{STATUS_VIEW[k.status].label}</Badge>
+        {/* Measured off the text, never judged (evidence.ts, §23): "listed" is a
+            name on a skills line and nothing more, which is what a recruiter
+            discounts fastest. */}
+        {k.evidence === 'listed' && (
+          <span title="Named on a skills line and shown nowhere else. Put it inside a bullet that describes the work.">
+            <Badge tone="warn">skills line only</Badge>
+          </span>
+        )}
+        {k.evidence === 'measured' && (
+          <span title="Shown inside a bullet that carries a number — the strongest form of evidence a resume has.">
+            <Badge tone="ok">with a number</Badge>
+          </span>
+        )}
         {k.elsewhere && <Badge tone="violet">in "{k.elsewhere}"</Badge>}
         {k.unanchored && (
           <span

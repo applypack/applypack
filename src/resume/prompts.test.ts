@@ -1,7 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  BriefSchema,
+  buildBriefPrompt,
   buildCoverPrompt,
+  buildRewritePrompt,
   buildMatchPrompt,
   buildReviewPrompt,
   parseReviewResponse,
@@ -18,6 +21,8 @@ import {
   toPlainPunctuation,
   buildStructurePrompt,
   parseStructureResponse,
+  parseBriefResponse,
+  parseRewriteResponse,
 } from './prompts';
 import { MATCH_MODES } from './match-mode';
 import { REVIEW_DIMENSIONS } from './review-score';
@@ -209,11 +214,25 @@ test('alignment grades follow objective criteria, no hedging', () => {
   bothVariants(/names at least two of the posting's must requirements/);
 });
 
-test('actions must not become a treadmill', () => {
+test('actions carry a floor as well as a ceiling', () => {
   const { system } = buildMatchPrompt('resume', JOB, 'full');
-  assert.match(system, /NO TREADMILL/);
-  assert.match(system, /Never re-suggest something the resume already does/);
-  assert.match(system, /one or two actions \(or none\) is the correct answer/);
+  // The ceiling: no padding, no re-suggesting what the resume already does.
+  assert.match(system, /EVERY ACTION EARNS ITS PLACE/);
+  assert.match(system, /Never re-suggest what the resume already does/);
+  // The floor (ADR 0044): the blanket "one or two actions is correct" answer
+  // left a resume graded off/partial with nothing to do about it.
+  assert.match(system, /REQUIRED COVERAGE/);
+  assert.match(system, /"title" graded below strong → ONE high-priority action/);
+  assert.match(system, /"summary" graded below strong → ONE high-priority action/);
+  assert.match(system, /"recent_role" graded below strong → rewrite/);
+  assert.match(system, /whose evidence is "listed"/);
+  assert.doesNotMatch(system, /one or two actions \(or none\) is the correct answer/);
+  // The exemption that suppressed the whole list on ten live pairs when it was
+  // written loosely: it is about professions, not about stacks or levels.
+  assert.match(system, /THE ONE EXEMPTION is a different PROFESSION/);
+  assert.match(system, /It is about professions, NOT about stacks or levels/);
+  assert.match(system, /THE TEST FOR IT, so it is not a feeling/);
+  assert.match(system, /given no actions at all, is a failed report/);
 });
 
 test('previous keywords keep re-runs comparable', () => {
@@ -335,7 +354,7 @@ const SUGGEST_INPUT = {
   alignment: { title: 'partial', summary: 'strong', recent_role: 'off' } as const,
   keywords: [
     { term: 'Node.js', requirement: 'must' as const, primary: true, status: 'cannot_claim' as const, where: null },
-    { term: 'Docker', requirement: 'preferred' as const, primary: false, status: 'present' as const, where: 'Skills line' },
+    { term: 'Docker', requirement: 'preferred' as const, primary: false, status: 'present' as const, where: 'Skills line', evidence: 'listed' as const },
   ],
   hardRequirements: [{ requirement: 'US work authorization', status: 'unknown' as const }],
 };
@@ -344,9 +363,11 @@ test('suggestions prompt carries the stored verdicts and forbids re-judging them
   const { system, user } = buildSuggestionsPrompt('RESUME BODY', JOB, SUGGEST_INPUT);
   assert.match(system, /THE VERDICTS ARE FIXED/);
   assert.match(system, /Do not re-judge them and do not invent keywords/);
-  assert.match(system, /"cannot_claim" keyword gets no action at all/);
+  assert.match(system, /A "cannot_claim" keyword never enters a replacement as experience/);
+  // It may still be the REASON for an honest edit — the retitle case (ADR 0044).
+  assert.match(system, /It may still be the REASON for an action over honest material/);
   assert.match(user, /- Node\.js \| must \| primary \| cannot_claim/);
-  assert.match(user, /- Docker \| preferred \| present \| Skills line/);
+  assert.match(user, /- Docker \| preferred \| present \| listed \| Skills line/);
   assert.match(user, /Alignment: title partial, summary strong, recent role off/);
   assert.match(user, /Gate: US work authorization — unknown/);
   assert.match(user, /RESUME BODY/);
@@ -354,7 +375,8 @@ test('suggestions prompt carries the stored verdicts and forbids re-judging them
 
 test('suggestions prompt keeps the action and removal rules verbatim (gotcha 11)', () => {
   const { system } = buildSuggestionsPrompt('resume', JOB, SUGGEST_INPUT);
-  assert.match(system, /NO TREADMILL/);
+  assert.match(system, /EVERY ACTION EARNS ITS PLACE/);
+  assert.match(system, /REQUIRED COVERAGE/);
   assert.match(system, /BULLET RULES/);
   assert.match(system, /NEVER invent a metric/);
   assert.match(system, /never remove the contact line/);
@@ -872,4 +894,192 @@ test('the company snapshot reaches the full analysis and the suggestions as cont
   assert.match(suggestions.system, /The verdicts are fixed and it changes none of them/);
   assert.doesNotMatch(suggestions.system, /"red_flags"/, 'the suggestions call outputs no scored field, so its rule names none');
   assert.doesNotMatch(buildSuggestionsPrompt('RESUME BODY', job, { summary: 'ok', alignment: null, keywords: [], hardRequirements: [] }).user, /COMPANY CONTEXT/);
+});
+
+/* ---- The posting brief (ADR 0044) ------------------------------------- */
+
+const BRIEF = BriefSchema.parse({
+  role: { posted_title: 'Web Development Specialist', family: 'front-end web development', seniority: 'mid', years_min: 2, focus: 'Builds and maintains marketing sites.' },
+  company: { industry: 'digital agency', product: 'client websites', audience: 'small retailers', stage: 'agency' },
+  screening: {
+    reader: 'agency recruiter — the posting lists no engineers',
+    scan_for: ['a portfolio of shipped sites', 'page-speed numbers'],
+    wow: ['cut largest-contentful-paint from Xs to Ys on a storefront doing Z sessions a month'],
+    dealbreakers: ['on-site in San Diego'],
+  },
+  requirement_groups: [
+    { label: 'front-end framework', level: 'must', satisfy: 'any', options: ['React', 'Next.js', 'Vue.js'] },
+    // A group of one is not an alternative — the schema drops it.
+    { label: 'accessibility', level: 'preferred', satisfy: 'any', options: ['WCAG'] },
+  ],
+  keywords: [
+    { term: 'React', priority: 1, requirement: 'must', primary: true, aliases: ['reactjs'], group: 'front-end framework' },
+    { term: 'SEO', priority: 3, requirement: 'preferred', primary: false, aliases: [], group: null },
+  ],
+  gates: ['On-site in San Diego, CA'],
+});
+
+test('the brief prompt reads the posting alone and asks for the reader behind it', () => {
+  const { system, user } = buildBriefPrompt({ title: 'Web Dev', companyName: 'Acme', location: 'San Diego', description: 'BODY' });
+  assert.match(system, /You read ONE job posting — no resume, no candidate/);
+  assert.match(system, /"requirement_groups"/);
+  assert.match(system, /"screening"/);
+  assert.match(system, /"role\.family"/);
+  assert.match(system, /Nothing here is about a candidate/);
+  assert.match(user, /BODY/);
+  // No resume block: that is the whole point — the answer is cacheable.
+  assert.doesNotMatch(user, /BEGIN UNTRUSTED RESUME/);
+});
+
+test('a satisfy-all group is not an alternative and never reaches the score', () => {
+  const b = BriefSchema.parse({
+    role: { posted_title: 'Dev', family: 'web' },
+    requirement_groups: [
+      { label: 'core front-end languages', level: 'must', satisfy: 'all', options: ['HTML', 'CSS', 'JavaScript'] },
+      { label: 'front-end framework', level: 'must', satisfy: 'any', options: ['React', 'Vue.js'] },
+    ],
+    keywords: [
+      { term: 'HTML', priority: 1, requirement: 'must', primary: true, group: 'core front-end languages' },
+      { term: 'React', priority: 1, requirement: 'must', primary: true, group: 'front-end framework' },
+      { term: 'SEO', priority: 3, requirement: 'preferred', primary: false, group: 'invented label' },
+    ],
+  });
+  assert.deepEqual(b.requirement_groups.map((g) => g.label), ['front-end framework']);
+  // HTML, CSS and JavaScript are three demands that share a sentence; folding
+  // them would charge one must-weight for all three.
+  assert.equal(b.keywords[0]?.group, null);
+  assert.equal(b.keywords[1]?.group, 'front-end framework');
+  assert.equal(b.keywords[2]?.group, null, 'a label pointing at no group is dropped');
+});
+
+test('an either/or list is one requirement, and a group of one is not a group', () => {
+  const { system } = buildBriefPrompt({ title: 'x', companyName: 'x', location: '', description: 'x' });
+  assert.match(system, /frameworks like React, Next\.js, or Vue\.js" is ONE group/);
+  assert.match(system, /satisfied by ANY option — not one requirement per item/);
+  assert.match(system, /counts an "any" group ONCE/);
+  assert.equal(BRIEF.requirement_groups.length, 1, 'the single-option group is dropped');
+  assert.equal(BRIEF.requirement_groups[0]?.label, 'front-end framework');
+});
+
+test('parseBriefResponse fills what a thin reply left out', () => {
+  const r = parseBriefResponse('{"role": {"posted_title": "Dev", "family": "web"}}');
+  assert.ok(r.ok);
+  assert.equal(r.data.role.seniority, null);
+  assert.equal(r.data.role.years_min, null);
+  assert.equal(r.data.company.industry, null);
+  assert.deepEqual(r.data.screening.scan_for, []);
+  assert.deepEqual(r.data.keywords, []);
+  assert.equal(parseBriefResponse('{"company": {}}').ok, false, 'the role is not optional');
+});
+
+test('the match prompt states the brief as the frame and suppresses the older carry', () => {
+  const { system, user } = buildMatchPrompt('resume', JOB, 'full', {
+    brief: BRIEF,
+    previousKeywords: [{ term: 'Azure', priority: 3, requirement: 'preferred', primary: false }],
+  });
+  assert.match(system, /THE POSTING BRIEF/);
+  assert.match(system, /judge only "status", "where", "aliases" and "note"/);
+  assert.match(system, /the score counts the group once/);
+  assert.match(user, /Role: Web Development Specialist — front-end web development, mid level, from 2 years/);
+  assert.match(user, /Employer: industry digital agency/);
+  assert.match(user, /First reader: agency recruiter/);
+  assert.match(user, /- front-end framework \| must \| any \| React \/ Next\.js \/ Vue\.js/);
+  assert.match(user, /- React \| P1 \| must \| primary \| front-end framework/);
+  assert.match(user, /- SEO \| P3 \| preferred \| - \| -/);
+  assert.match(user, /Gates to judge against the resume:/);
+  // The brief IS the frame; carrying the last run's terms as well would only
+  // give the model two answers to the same question.
+  assert.doesNotMatch(user, /PREVIOUS KEYWORDS/);
+});
+
+test('the previous keyword frame stays fenced without a brief', () => {
+  const { user } = buildMatchPrompt('resume', JOB, 'full', {
+    previousKeywords: [{ term: 'PREVKW', priority: 1, requirement: 'must', primary: true }],
+  });
+  const open = user.indexOf(fenceOpen('PREVIOUS KEYWORDS'));
+  const close = user.indexOf(fenceClose('PREVIOUS KEYWORDS'), open);
+  const at = user.indexOf('PREVKW |');
+  assert.ok(open !== -1 && close > open);
+  assert.ok(at > open && at < close, 'the fallback frame is untrusted text too');
+});
+
+test('the suggestions prompt gets who reads the resume, not the frame to re-judge', () => {
+  const { user } = buildSuggestionsPrompt('resume', JOB, { ...SUGGEST_INPUT, brief: BRIEF });
+  assert.match(user, /First reader: agency recruiter/);
+  assert.match(user, /A bullet that would impress them looks like:/);
+  assert.match(user, /cut largest-contentful-paint/);
+  // Re-stating the frame would invite a re-judgment the call is forbidden to make.
+  assert.doesNotMatch(user, /Keyword frame \(term/);
+  assert.doesNotMatch(user, /Requirement groups/);
+});
+
+test('the impress shapes are patterns to fill, never facts to copy', () => {
+  const { system } = buildSuggestionsPrompt('resume', JOB, SUGGEST_INPUT);
+  assert.match(system, /AIM AT THE READER/);
+  assert.match(system, /PATTERNS with placeholder letters, never facts/);
+  assert.match(system, /numbers that exist in this resume or in a candidate-confirmed fact/);
+});
+
+test('exceeding a posting minimum is never a red flag, in either variant', () => {
+  // A senior resume against a "minimum of two years" posting lost 10 points to
+  // a flag called "seniority mismatch" — the rule already said over-qualification
+  // is a caution, so it had to say it about every name for the same worry.
+  bothVariants(/A MINIMUM THE CANDIDATE EXCEEDS IS MET/);
+  bothVariants(/a posting's floor is never a ceiling/);
+  bothVariants(/Only wording that EXCLUDES the candidate's level/);
+});
+
+/* ---- Rewriting one suggestion ------------------------------------------ */
+
+const ACTION = {
+  section: 'experience' as const,
+  where: 'V Shred, first bullet',
+  what: 'Lead with the web outcome.',
+  why: 'recent role graded partial',
+  priority: 'high' as const,
+  quote: 'Combined Snyk with static analysis.',
+  replacement: 'Hardened the checkout flow.',
+  insert_after: null,
+};
+
+test('the rewrite prompt keeps the target and asks only for another sentence', () => {
+  const { system, user } = buildRewritePrompt('RESUME BODY', JOB, {
+    action: ACTION,
+    keywords: [{ term: 'WordPress', requirement: 'must', primary: false, status: 'cannot_claim' }],
+  });
+  assert.match(system, /only the WORDING is yours to write again/);
+  assert.match(system, /WHAT IS FIXED/);
+  assert.match(system, /do not move the edit somewhere else/);
+  assert.match(system, /must be materially different/);
+  // The gate would refuse an invented claim anyway; the prompt says so, so the
+  // user does not spend a rewrite on a wording that cannot be applied.
+  assert.match(system, /never invent a number/);
+  assert.match(system, /BULLET RULES/);
+  assert.match(user, /Where: V Shred, first bullet/);
+  assert.match(user, /Wording the user rejected: Hardened the checkout flow\./);
+  assert.match(user, /- WordPress \| must \| cannot_claim/);
+  assert.match(user, /RESUME BODY/);
+});
+
+test('an addition states its anchor instead of a span to replace', () => {
+  const { user } = buildRewritePrompt('resume', JOB, {
+    action: { ...ACTION, quote: null, insert_after: 'KEY SKILLS' },
+    keywords: [],
+  });
+  assert.match(user, /Adds a new line after: KEY SKILLS/);
+  assert.doesNotMatch(user, /Resume text it replaces/);
+});
+
+test('parseRewriteResponse needs all three fields and a wording that exists', () => {
+  const ok = parseRewriteResponse('{"what":"x","why":"y","replacement":"Built responsive storefronts."}');
+  assert.ok(ok.ok);
+  assert.equal(ok.data.replacement, 'Built responsive storefronts.');
+  assert.equal(parseRewriteResponse('{"what":"x","why":"y","replacement":""}').ok, false);
+  assert.equal(parseRewriteResponse('{"what":"x","why":"y"}').ok, false);
+});
+
+test('a keyword with no measured evidence says so rather than pretending', () => {
+  const { user } = buildSuggestionsPrompt('resume', JOB, SUGGEST_INPUT);
+  // Node.js carries no evidence field (it is cannot_claim, nothing to measure).
+  assert.match(user, /- Node\.js \| must \| primary \| cannot_claim \| unmeasured/);
 });

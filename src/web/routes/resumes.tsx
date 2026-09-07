@@ -177,12 +177,17 @@ resumesRoute.post('/resumes/:id/draft', async (c) => {
   if (text.length < MIN_DRAFT_CHARS) {
     return flashRedirect(`/resumes/${id}`, 'err', 'The draft is too short to be a resume.');
   }
+  // A one-off check from the Compare page is not a resume: its text belongs to
+  // the comparison, which keeps its own snapshot of it. Saving one used to mint
+  // a row on /resumes named after the company — the surest way to end up with
+  // six resumes and no idea which is the real one.
+  if (current.hidden) {
+    return flashRedirect(`/resumes`, 'err', 'A one-off check from the Compare page is not saved as a resume — upload the file on Resumes to keep it.');
+  }
   // What the edits are relative to — the text the editor started from. Without
   // it a .docx cannot be patched (the diff would be against nothing) and the
   // save is a text version, as before ADR 0038.
   const baseText = typeof form.baseText === 'string' ? form.baseText.replace(/\r\n/g, '\n').trim() : '';
-  // The /target scratch resume has no versions of its own: it is only ever saved as a new resume.
-  const asCopy = form.as === 'copy' || current.hidden;
   const jobId = Number(form.jobId);
   const job = Number.isFinite(jobId)
     ? await prisma.job.findUnique({ where: { id: jobId }, include: { company: { select: { name: true } } } })
@@ -192,7 +197,7 @@ resumesRoute.post('/resumes/:id/draft', async (c) => {
   // resume version, so a second submit that got as far as saving would leave
   // a duplicate version behind whatever the run registry then did. Keyed on
   // the text, because that is what the user submitted (issue #76).
-  const { run, joined } = claimRun(`draft:${id}:${hashShortId(text)}:${job?.id ?? ''}:${asCopy ? 'copy' : 'version'}`, {
+  const { run, joined } = claimRun(`draft:${id}:${hashShortId(text)}:${job?.id ?? ''}`, {
     steps: job ? ['keywords'] : ['scan'],
     jobTitle: job?.title ?? '',
     resumeName: '',
@@ -209,8 +214,8 @@ resumesRoute.post('/resumes/:id/draft', async (c) => {
   // Scan and match are the slow part after it: two AI calls back to back is
   // the worst wait on the site, which is why this gets a run at all.
   startRun(run.id, async () => {
-    const { resume, note } = await saveEdited(id, text, baseText, asCopy, job?.company.name ?? null);
-    const saved = asCopy ? `Saved as a new resume "${resume.name}" (${note})` : `Saved as v${resume.version} (${note})`;
+    const { resume, note } = await saveEdited(id, text, baseText);
+    const saved = `Saved as v${resume.version} (${note})`;
     updateRun(run.id, {
       resumeName: resume.name,
       subtitle: `${saved}.${job ? ' Scoring it against the posting.' : ''}`,
@@ -254,23 +259,24 @@ function isDocx(filename: string): boolean {
 }
 
 /**
- * Save the editor's text as the next version of the resume, or as a new
- * resume beside it ("tailored copy", the master untouched). When the file is a
+ * Save the editor's text as the next version of the resume. When the file is a
  * .docx the template check allows, the user's own file is patched with the
  * edits (ADR 0038); otherwise, or when the patch is refused, the version is
  * plain text and `note` says why.
+ *
+ * There is no "save as a tailored copy" any more: one comparison per posting
+ * used to mint one more row on /resumes, named after the company, and a user
+ * with four applications had eight resumes and no idea which was theirs.
  */
 async function saveEdited(
   id: number,
   text: string,
   baseText: string,
-  asCopy: boolean,
-  companyName: string | null,
 ): Promise<{ resume: ResumeSummary; note: string }> {
   const [current, row] = await Promise.all([getResume(id), getResumeOriginal(id)]);
   if (!current) throw new Error(`resume ${id} is gone`);
-  const nextVersion = asCopy ? 1 : current.version + 1;
-  const name = asCopy ? `${current.name} · ${companyName ?? 'tailored'}` : current.name;
+  const nextVersion = current.version + 1;
+  const name = current.name;
   let file: { sourceFilename: string; mimeType: string; original: Buffer; text: string } | null = null;
   let note = 'text version';
   if (row && isDocx(row.sourceFilename)) {
@@ -296,8 +302,7 @@ async function saveEdited(
     original: Buffer.from(text, 'utf8'),
     text,
   };
-  const resume = asCopy ? await createResume({ name, ...payload }) : await replaceResumeFile(id, payload);
-  return { resume, note };
+  return { resume: await replaceResumeFile(id, payload), note };
 }
 
 /**

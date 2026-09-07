@@ -133,3 +133,4 @@ test('copyToClipboard refuses empty text rather than clearing the clipboard', as
   const { copyToClipboard } = (await copy) as { copyToClipboard: (t: string) => Promise<boolean> };
   assert.equal(await copyToClipboard(''), false);
 });
+

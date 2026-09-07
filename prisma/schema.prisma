@@ -227,6 +227,7 @@ model Job {
 
   resumeMatches ResumeMatch[]
   verifications JobVerification[]
+  briefs        PostingBrief[]
   coverLetters  CoverLetter[]
   stageEvents   JobStageEvent[]
   scores        JobScore[]
@@ -672,6 +673,24 @@ model JobStageEvent {
 
 // Phase 8.2: ghost-job / scam check of one posting, done with web search.
 // evidence = [{ check, finding, url, signal legit|ghost|scam|neutral|unverified }]
+// ADR 0044: the posting read once, on its own — no resume in the prompt, so
+// the reply is a property of the posting and survives every resume edit.
+// `postingHash` covers title + description, so a refreshed description
+// (ADR 0043) asks for a new brief instead of reusing a stale one.
+model PostingBrief {
+  id            Int      @id @default(autoincrement())
+  jobId         Int
+  job           Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  model         String
+  promptVersion Int
+  postingHash   String
+  brief         Json
+  createdAt     DateTime @default(now())
+
+  @@index([jobId, postingHash, promptVersion])
+  @@map("posting_brief")
+}
+
 model JobVerification {
   id              Int      @id @default(autoincrement())
   jobId           Int

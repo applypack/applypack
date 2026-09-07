@@ -8,7 +8,7 @@ import { effectiveKeywords } from './keyword-overrides';
 import type { JsonResume } from './json-resume';
 import { readMatchMode, storedBreakdown, withSuggestionsMode, type MatchMode } from './match-mode';
 import { readPromptVersion, readVerificationId } from './match-reuse';
-import type { MatchKeyword, MatchSuggestions, ResumeMatchResult, ResumeReviewResult, ResumeScan } from './prompts';
+import type { MatchAction, MatchKeyword, MatchSuggestions, ResumeMatchResult, ResumeReviewResult, ResumeScan } from './prompts';
 import { storedReviewBreakdown, type ReviewBreakdown } from './review-score';
 import { readBreakdown, scoreMatch, type ScoreBreakdown } from './score';
 
@@ -477,6 +477,15 @@ export async function rescoreMatchKeywords<T>(
  * taken from the caller: a fact confirmation during the ~40 s call rewrites
  * that JSON, and writing back a snapshot would silently undo it.
  */
+/**
+ * One suggestion's wording replaced in place (rewrite.ts). Only `actions`
+ * moves: the score, the keywords and the mode marker are the comparison's, and
+ * a rewrite of one sentence changes none of them.
+ */
+export async function updateMatchActions(id: number, actions: MatchAction[]): Promise<ResumeMatch> {
+  return prisma.resumeMatch.update({ where: { id }, data: { actions: actions as unknown as Prisma.InputJsonValue } });
+}
+
 export async function updateMatchSuggestions(
   id: number,
   suggestions: MatchSuggestions,
@@ -568,6 +577,36 @@ export async function listMatchesForText(
 export async function getPostingRefreshedAt(jobId: number): Promise<Date | null> {
   const row = await prisma.job.findUnique({ where: { id: jobId }, select: { descriptionRefreshedAt: true } });
   return row?.descriptionRefreshedAt ?? null;
+}
+
+/**
+ * The stored reading of this exact posting text under this brief version
+ * (ADR 0044), newest first. A miss means the brief has to be written; a hit
+ * costs one indexed lookup and no AI at all.
+ */
+export async function getPostingBrief(
+  jobId: number,
+  postingHash: string,
+  promptVersion: number,
+): Promise<{ id: number; brief: unknown; model: string; createdAt: Date } | null> {
+  return prisma.postingBrief.findFirst({
+    where: { jobId, postingHash, promptVersion },
+    orderBy: { createdAt: 'desc' },
+    select: { id: true, brief: true, model: true, createdAt: true },
+  });
+}
+
+export async function createPostingBrief(input: {
+  jobId: number;
+  model: string;
+  promptVersion: number;
+  postingHash: string;
+  brief: unknown;
+}): Promise<{ id: number }> {
+  return prisma.postingBrief.create({
+    data: { ...input, brief: input.brief as Prisma.InputJsonValue },
+    select: { id: true },
+  });
 }
 
 /** Company facts researched by "Is this job real?" — the letter's only company source beyond the posting. */
