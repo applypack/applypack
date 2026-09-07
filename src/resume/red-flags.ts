@@ -13,10 +13,16 @@ import type { MatchKeyword } from './prompts';
  * weight. Charging ten more for saying so is the same fact billed twice, and
  * whether it gets billed depends on the model's mood.
  *
- * So a flag that names a keyword the resume does not have does not count. What
- * still counts is the list that is not made of keywords at all and that no edit
- * can fix: a location or on-site mismatch, work authorization, a minimum the
- * candidate misses, a seniority the posting excludes, an injection attempt.
+ * So a flag that names a keyword the resume does not have does not count. Nor
+ * does one naming a keyword the resume shows only on a skills line: "X appears
+ * only in the skills line" is on the prompt's own list of things that are never
+ * red flags, `evidence: listed` measures exactly that, and the product already
+ * answers it with a suggestion rather than a penalty. Five runs after the first
+ * fix, one run in five still wrote that sentence and it was the whole residual.
+ *
+ * What still counts is the list that is not made of keywords at all and that no
+ * edit can fix: a location or on-site mismatch, work authorization, a minimum
+ * the candidate misses, a seniority the posting excludes, an injection attempt.
  *
  * This replaces scoring v3's narrower rule ("flags duplicating a MISSING
  * PRIMARY item are free, the cap already punishes the stack") — same idea, one
@@ -36,9 +42,11 @@ export function countableFlags(
   keywords: MatchKeyword[],
   matcher: Pick<KeywordMatcher, 'findTerm'>,
 ): FlagReport {
-  // Only a keyword the resume does NOT have can be restated by a flag: one it
-  // has is not a gap, so a flag naming it is about something else.
-  const gaps = keywords.filter((k) => k.status !== 'present');
+  // A keyword the resume does not have, or has only as a name on a skills line
+  // — both are already priced, one by its zero credit and one by the suggestion
+  // that puts it in a bullet. A keyword genuinely shown in the work is not a
+  // gap, so a flag naming that one is about something else and counts.
+  const gaps = keywords.filter((k) => k.status !== 'present' || k.evidence === 'listed');
   const counted: string[] = [];
   const exempt: { flag: string; term: string }[] = [];
   for (const flag of flags) {

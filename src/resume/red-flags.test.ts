@@ -61,3 +61,24 @@ test('an injection attempt is never a keyword and always counts', async () => {
   );
   assert.equal(out.counted.length, 1);
 });
+
+test('"only in the skills line" is an evidence level, not a blocker', async () => {
+  // The prompt's own list says this is never a red flag; `evidence` measures it,
+  // and the page answers it with an action. One run in five wrote it anyway and
+  // it was the entire residual spread after the first fix.
+  const out = countableFlags(
+    ['TypeScript listed only in skills/stack lines, never shown as hands-on work'],
+    [kw({ term: 'TypeScript', status: 'present', evidence: 'listed' })],
+    await matcher(),
+  );
+  assert.deepEqual(out.counted, []);
+  assert.equal(out.exempt[0]?.term, 'TypeScript');
+
+  // Shown inside the work: a flag naming it is about something else.
+  const shown = countableFlags(
+    ['TypeScript listed only in skills/stack lines, never shown as hands-on work'],
+    [kw({ term: 'TypeScript', status: 'present', evidence: 'measured' })],
+    await matcher(),
+  );
+  assert.equal(shown.counted.length, 1);
+});
