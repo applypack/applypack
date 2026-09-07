@@ -15,6 +15,7 @@ import {
 } from './prompts';
 import { briefForPosting, type BriefResult } from './brief';
 import { annotateElsewhere, applyFacts } from './facts';
+import { countableFlags } from './red-flags';
 import { gateActions, gateRemovals } from './replacement-gate';
 import { floorDemand, floorGaps } from './suggestion-floor';
 import { suggestForMatch } from './suggestions';
@@ -160,9 +161,14 @@ export async function matchResumeToJob(
   const gateSources = { resumeText: resume.text, posting, facts, keywords, matcher };
   const gate = gateActions(reply.actions, gateSources);
   const cuts = gateRemovals(reply.removals, gateSources);
+  // A flag that only restates a keyword the resume does not have is the same
+  // fact billed twice: the keyword pool already charged for it, and whether the
+  // model bothers to write the sentence was 80% of a ten-point spread across
+  // five runs of one pair (red-flags.ts).
+  const flags = countableFlags(reply.red_flags, keywords, matcher);
   // The row stores what the user sees; the score reads what they decided:
   // their levels, without the terms they ignored (§5).
-  const breakdown = scoreMatch(effectiveKeywords(keywords), reply.alignment, reply.red_flags.length);
+  const breakdown = scoreMatch(effectiveKeywords(keywords), reply.alignment, flags.counted.length);
   const row = await createMatch({
     jobId: job.id,
     resumeId: resume.id,
@@ -216,6 +222,7 @@ export async function matchResumeToJob(
       overrides: carry.carried,
       readded: carry.readded,
       groupsDropped: grouped.dropped,
+      flagsExempt: flags.exempt.length,
       malformed: shaped.dropped.length,
       unwritten: anchoredStatuses.downgraded,
       written: anchoredStatuses.upgraded,

@@ -30,9 +30,9 @@ test('gained and lost track present transitions for terms both versions know', (
 
 test('component deltas come from the two breakdowns', () => {
   const align = { title: 'strong', summary: 'strong', recent_role: 'strong' } as const;
-  // prev: the primary stack is absent (a flag restating it is free) + one real
-  // flag → penalty 10. `add` would no longer do here: it covers the stack now.
-  const prev = { keywords: [kw('Node.js', 'cannot_claim')], breakdown: scoreMatch([{ status: 'cannot_claim', requirement: 'must', primary: true }], align, 2) };
+  // prev: one countable flag → penalty 10 (red-flags.ts decides which flags
+  // reach the formula; here it is told there was one).
+  const prev = { keywords: [kw('Node.js', 'cannot_claim')], breakdown: scoreMatch([{ status: 'cannot_claim', requirement: 'must', primary: true }], align, 1) };
   const next = { keywords: [kw('Node.js', 'present')], breakdown: scoreMatch([{ status: 'present', requirement: 'must', primary: true }], align, 0) };
   const d = diffMatches(prev, next);
   assert.ok(d.components);

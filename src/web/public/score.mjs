@@ -81,7 +81,7 @@ function strongerLevel(a, b) {
  * were judged against the analysed snapshot, so typing a missing primary
  * into the editor must not re-inflate them.
  */
-export function computeScore(rawEntries, alignment, redFlagCount, fixedPenalty = null) {
+export function computeScore(rawEntries, alignment, countedFlags, fixedPenalty = null) {
   const entries = foldGroups(rawEntries);
   let earned = 0;
   let ceilEarned = 0;
@@ -112,9 +112,9 @@ export function computeScore(rawEntries, alignment, redFlagCount, fixedPenalty =
           SCORING.recentRoleMax * SCORING.alignmentCredit[a.recent_role],
       )
     : 0;
-  // What is WRITTEN, not what is covered — see score.ts.
-  const missingPrimary = primaryTotal - primaryWritten;
-  const flagsCounted = Math.max(0, redFlagCount - missingPrimary);
+  // Which flags reach the formula is decided by red-flags.ts before it — see
+  // score.ts. The live estimate passes the analysis-time penalty anyway.
+  const flagsCounted = Math.max(0, countedFlags);
   const penalty =
     fixedPenalty ?? Math.min(flagsCounted * SCORING.redFlagPenalty, SCORING.penaltyMax);
   const cap = primaryCap(primaryPresent, primaryTotal);

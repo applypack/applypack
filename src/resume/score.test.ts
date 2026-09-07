@@ -66,16 +66,16 @@ test('each counted red flag subtracts 10, bounded at 20, floor 0', () => {
   assert.equal(many.score, 80);
 });
 
-test('flags that restate missing primaries are not double-counted', () => {
-  // 2 missing primary items, 3 flags → only the 1 extra flag costs points.
-  const b = scoreMatch(
-    [kw('cannot_claim', 'must', true), kw('cannot_claim', 'must', true), kw('present')],
-    STRONG,
-    3,
-  );
+test('the formula charges for the flags it is given, and no more', () => {
+  // Which flags get this far is red-flags.ts:countableFlags — one mechanism, in
+  // the one place the matcher lives. The formula only bounds the total.
+  const b = scoreMatch([kw('cannot_claim', 'must', true), kw('present')], STRONG, 1);
   assert.equal(b.flagsCounted, 1);
   assert.equal(b.penalty, 10);
   assert.equal(b.cap, 30); // the cap still owns the stack punishment
+  assert.equal(scoreMatch([kw('present')], STRONG, 0).penalty, 0);
+  // Soft nitpicks must never build an unbeatable ceiling.
+  assert.equal(scoreMatch([kw('present')], STRONG, 5).penalty, SCORING.penaltyMax);
 });
 
 test('a preferred technology never caps the score even when marked primary', () => {
@@ -195,19 +195,11 @@ test('readBreakdown roundtrips and rejects the legacy empty object', () => {
   assert.equal(readBreakdown(undefined), null);
 });
 
-test('a flag restating a primary the resume never spells is still free', () => {
-  // The live pair that exposed it: TypeScript judged `add`, and the model then
-  // wrote a red flag saying the language group "is not demonstrated". Both say
-  // the same thing, and the keyword credit already docked it to a half — so
-  // charging 10 points on top made two runs of one pair differ by that much.
-  const bd = scoreMatch([kw('add', 'must', true)], STRONG, 1);
+test('the breakdown reports covered and written primaries separately', () => {
+  // Two different questions: the cap asks what the candidate HAS, and the page
+  // explains a low score with what the resume actually SPELLS.
+  const bd = scoreMatch([kw('add', 'must', true)], STRONG, 0);
   assert.equal(bd.primaryPresent, 1, 'the candidate has it: the cap does not bite');
   assert.equal(bd.primaryWritten, 0, 'but the word is not in the text');
-  assert.equal(bd.flagsCounted, 0);
-  assert.equal(bd.penalty, 0);
-
-  // A flag about anything else still costs, and a written primary exempts nothing.
-  const other = scoreMatch([kw('present', 'must', true)], STRONG, 1);
-  assert.equal(other.primaryWritten, 1);
-  assert.equal(other.penalty, SCORING.redFlagPenalty);
+  assert.equal(bd.cap, null);
 });

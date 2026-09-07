@@ -51,10 +51,13 @@ export const SCORING = {
   recentRoleMax: 20,
   alignmentCredit: { strong: 1, partial: 0.5, off: 0 } as Record<AlignmentGrade, number>,
   /**
-   * Each red flag subtracts 10, BUT (v3): flags duplicating missing primary
-   * items are not counted (the cap already punishes the stack), and the total
-   * penalty is bounded — soft nitpicks must never build an unbeatable ceiling
-   * (a real 97.9-point resume was stuck at 68 by three style "flags").
+   * Each red flag subtracts 10, and the total is bounded — soft nitpicks must
+   * never build an unbeatable ceiling (a real 97.9-point resume was stuck at 68
+   * by three style "flags"). WHICH flags reach this is decided before the
+   * formula: `red-flags.ts:countableFlags` drops the ones that merely restate a
+   * keyword the resume does not have, because the keyword pool already charged
+   * for it. v3 did a narrower version of that here, keyed on missing primaries;
+   * one mechanism, in one place, replaced it.
    */
   redFlagPenalty: 10,
   penaltyMax: 20,
@@ -118,6 +121,22 @@ export interface ScoreBreakdown {
 }
 
 const round1 = (n: number): number => Math.round(n * 10) / 10;
+
+/**
+ * The last step of the formula, on its own so nothing has to reimplement it:
+ * the two point pools, minus the penalty, held under the primary-stack cap.
+ * `match-variance-once.ts` recomposes stored breakdowns with one part held
+ * still, to see which part a spread came from.
+ */
+export function composeScore(
+  keywordPts: number,
+  alignmentPts: number,
+  penalty: number,
+  cap: number | null,
+): number {
+  const raw = Math.round(Math.max(0, keywordPts + alignmentPts - penalty));
+  return Math.max(0, Math.min(100, cap === null ? raw : Math.min(raw, cap)));
+}
 
 export function primaryCap(present: number, total: number): number | null {
   if (total === 0 || present >= total) return null;
@@ -184,7 +203,8 @@ function strongerLevel(a: RequirementLevel, b: RequirementLevel): RequirementLev
 export function computeScore(
   rawEntries: ScoreEntry[],
   alignment: MatchAlignment | null,
-  redFlagCount: number,
+  /** Flags that survived `countableFlags` — never the raw reply's array. */
+  countedFlags: number,
   /** Live estimates pass the analysis-time penalty — see the comment below. */
   fixedPenalty: number | null = null,
 ): ScoreBreakdown {
@@ -218,33 +238,22 @@ export function computeScore(
           SCORING.recentRoleMax * SCORING.alignmentCredit[a.recent_role],
       )
     : 0;
-  // Flags that merely restate a primary item the resume does not spell out are
-  // already punished — by the cap when the candidate does not have it, by half
-  // the keyword credit when they have it but never wrote the word. The
-  // exemption therefore counts what is WRITTEN, not what is covered: with only
-  // the covered count, a model that marked the primary `add` and then flagged
-  // it as "not demonstrated" was charged 10 points for saying the same thing
-  // twice, and two runs of one live pair differed by exactly that.
-  // Live estimates pass the analysis-time penalty instead: the flag texts were
-  // judged against the analysed snapshot, so typing a missing primary into the
-  // editor must not re-inflate them (42 → 29 on the cover-letter fixture).
-  const missingPrimary = primaryTotal - primaryWritten;
-  const flagsCounted = Math.max(0, redFlagCount - missingPrimary);
+  // Which flags got this far is `countableFlags`'s decision, made where the
+  // matcher is. Live estimates pass the analysis-time penalty instead: the flag
+  // texts were judged against the analysed snapshot, so typing a missing
+  // primary into the editor must not re-inflate them (42 → 29 on the
+  // cover-letter fixture was that bug).
+  const flagsCounted = Math.max(0, countedFlags);
   const penalty =
     fixedPenalty ?? Math.min(flagsCounted * SCORING.redFlagPenalty, SCORING.penaltyMax);
   const cap = primaryCap(primaryPresent, primaryTotal);
-  const raw = Math.round(Math.max(0, keywordPts + alignmentPts - penalty));
-  const score = Math.max(0, Math.min(100, cap === null ? raw : Math.min(raw, cap)));
+  const score = composeScore(keywordPts, alignmentPts, penalty, cap);
 
   // The reachable maximum: claimable keywords written in, alignment perfect,
   // the same non-primary flags still standing, cap from claimable primaries.
   const ceilKeywordPts = total === 0 ? 0 : round1((SCORING.keywordMax * ceilEarned) / total);
   const ceilCap = primaryCap(ceilPrimaryPresent, primaryTotal);
-  const ceilRaw = Math.round(Math.max(0, ceilKeywordPts + alignmentMax - penalty));
-  const ceiling = Math.max(
-    score,
-    Math.min(100, ceilCap === null ? ceilRaw : Math.min(ceilRaw, ceilCap)),
-  );
+  const ceiling = Math.max(score, composeScore(ceilKeywordPts, alignmentMax, penalty, ceilCap));
 
   return {
     v: SCORING.version,
@@ -293,9 +302,10 @@ export function entriesFromKeywords(
 export function scoreMatch(
   keywords: { requirement: RequirementLevel; primary: boolean; status: KeywordStatus; group?: string | null }[],
   alignment: MatchAlignment | null,
-  redFlagCount: number,
+  /** Flags that survived `red-flags.ts:countableFlags`. */
+  countedFlags: number,
 ): ScoreBreakdown {
-  return computeScore(entriesFromKeywords(keywords), alignment, redFlagCount);
+  return computeScore(entriesFromKeywords(keywords), alignment, countedFlags);
 }
 
 /* Reader for the stored Json column — {} on rows written before ADR 0012. */
