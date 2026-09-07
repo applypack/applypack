@@ -94,6 +94,13 @@ All notable changes to this project are documented here. The format follows
   "what this kind of role usually asks for" is never mistaken for what this
   employer demanded.
 
+- **A variance fixture, and what it measured.** `npm run variance:compare` runs
+  one pair N times and says which part of the formula the spread came from, by
+  holding each part at its modal value and reporting what survives. `--rebuild`
+  withholds the keyword frame (raw judgment), `--stored` re-reads the last N
+  rows and spends nothing. On five runs of one pair it found the answer
+  immediately: **80% of a ten-point spread was one red flag** the model wrote in
+  three runs of five.
 - **A matrix harness for the comparison itself.** `npm run matrix:compare` runs
   a spread of real resumes against real postings — PHP backend, front-end,
   product manager, senior full-stack against backend, full-stack, web, mobile,
@@ -104,6 +111,18 @@ All notable changes to this project are documented here. The format follows
   the fixes below.
 
 ### Fixed
+- **One fact is no longer billed twice.** Reading those flags explained the
+  spread: every run wrote "the primary language group is not evidenced", some
+  added "React appears nowhere either", and the keyword pool had already charged
+  for both — a term the resume cannot claim earns zero out of its weight, and
+  ten more points for saying so depended on the model's mood. `countableFlags`
+  drops a flag that names a keyword the resume does not have, or one it shows
+  only on a skills line (which the rules already said is never a red flag, and
+  which `evidence` now measures). It replaces scoring v3's narrower rule — one
+  mechanism instead of two. Same pair, before and after: spread **10 → 5**,
+  sd **4.3 → 1.6**, penalty perfectly stable at 0 across five runs. What still
+  costs ten points is what no edit can fix: location, work authorization, a
+  minimum missed, an excluded seniority, an injection attempt.
 - **A red flag that restates an unwritten primary is free again.** The cap and
   the red-flag exemption were reading one number for two different questions:
   the cap asks whether the candidate HAS the core stack (`present` or `add`),
