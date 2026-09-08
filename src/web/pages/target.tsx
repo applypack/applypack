@@ -222,77 +222,61 @@ export const TargetPage: FC<TargetPageProps> = ({
             the middle, never under 14rem — the rail grows while editing) | actions
             rail. The gates line spans the full width below. */}
         <div class="grid grid-cols-1 items-start gap-x-8 gap-y-4 lg:grid-cols-[auto_minmax(14rem,1fr)_auto]">
-          {/* Primary: the honest score — the AI rubric verdict. Static until a
-              re-check. The ring and one line: everything that used to label it
-              ("AI match", the quality word, the draft marker) either repeated
-              the run chips above or named a rubric the reader never asked
-              about. Hovering the ring says what the number is. */}
-          <div class="w-36">
-            {/* The number sits inside the ring: one object to read instead of a
-                dial next to a figure it was already drawing. The button is the
-                hover target for the explanation, and a button because nothing
-                may depend on hover — the same panel opens on keyboard focus and
-                on a tap. */}
-            <div class="group relative mx-auto w-28">
-              <button
-                type="button"
-                aria-describedby="score-help"
-                aria-label={`Match score ${match.matchScore} of 100 — what this number is`}
-                class="relative block cursor-help rounded-full"
+          {/* Primary: the honest score — the AI rubric verdict. The ring and
+              nothing else. Everything that used to label it said something the
+              page already said: "AI match" and the quality word restated the
+              number, the draft marker and the age are on this run's own chip
+              above, and "edited — analyse again" is what the sticky bar says
+              in full the moment the text is dirty. Hovering the ring says what
+              the number is. */}
+          <div class="group relative w-28">
+            <button
+              type="button"
+              aria-describedby="score-help"
+              aria-label={`Match score ${match.matchScore} of 100 — what this number is`}
+              class="relative block cursor-help rounded-full"
+            >
+              <svg viewBox="0 0 96 96" class="h-28 w-28 -rotate-90" aria-hidden="true">
+                <circle cx="48" cy="48" r="42" fill="none" stroke="rgb(var(--line))" stroke-width="7" />
+                <circle
+                  cx="48"
+                  cy="48"
+                  r="42"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="7"
+                  stroke-linecap="round"
+                  stroke-dasharray="263.9"
+                  stroke-dashoffset={String(263.9 - (263.9 * match.matchScore) / 100)}
+                  class={AI_TONE[fitTone(match.matchScore)]}
+                />
+              </svg>
+              {/* The number alone. "/100" is in the sentence the ring shows
+                  on hover, and in the button's own label for a screen reader —
+                  it does not need to sit inside the dial as well. */}
+              <span
+                class="absolute inset-0 flex items-center justify-center text-[32px] font-semibold leading-none tabular-nums tracking-tight text-ink"
+                aria-hidden="true"
               >
-                <svg viewBox="0 0 96 96" class="h-28 w-28 -rotate-90" aria-hidden="true">
-                  <circle cx="48" cy="48" r="42" fill="none" stroke="rgb(var(--line))" stroke-width="7" />
-                  <circle
-                    cx="48"
-                    cy="48"
-                    r="42"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="7"
-                    stroke-linecap="round"
-                    stroke-dasharray="263.9"
-                    stroke-dashoffset={String(263.9 - (263.9 * match.matchScore) / 100)}
-                    class={AI_TONE[fitTone(match.matchScore)]}
-                  />
-                </svg>
-                {/* The number alone. "/100" is in the sentence the ring shows
-                    on hover, and in the button's own label for a screen reader —
-                    it does not need to sit inside the dial as well. */}
-                <span
-                  class="absolute inset-0 flex items-center justify-center text-[32px] font-semibold leading-none tabular-nums tracking-tight text-ink"
-                  aria-hidden="true"
-                >
-                  {match.matchScore}
-                </span>
-              </button>
-              {/* Kept in the accessibility tree (opacity, not `hidden`) so
-                  aria-describedby has something to read on focus. */}
-              <div
-                id="score-help"
-                role="tooltip"
-                class="pointer-events-none absolute left-0 top-full z-30 mt-2 w-72 max-w-[calc(100vw-3rem)] space-y-1.5 rounded-lg border border-line bg-surface-raised p-3 text-xs leading-5 text-ink-muted opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100"
-              >
-                <p>
-                  <span class="font-medium text-ink">AI match, 0–100.</span> How well this resume answers
-                  this posting: the words it asks for, whether you have its core stack, and how your title,
-                  summary and most recent role read at a glance.
-                </p>
-                <p class="text-ink-faint">
-                  Re-levelling, ignoring or adding a keyword moves it at once. Editing the text does not —
-                  that needs “Analyse my resume again”.
-                </p>
-              </div>
-            </div>
-            {/* How old the number is, and — the moment the text is edited — that
-                it no longer describes it. One slot, so the column never widens
-                under the typing and squeezes the summary beside it. */}
-            <div class="mt-2 text-center text-xs text-ink-faint">
-              <span id="ai-fresh">
-                {fast ? 'quick check' : 'full analysis'} {formatRelative(match.createdAt)}
+                {match.matchScore}
               </span>
-              <span id="ai-stale" hidden class="font-medium text-warn">
-                edited — analyse again
-              </span>
+            </button>
+            {/* Kept in the accessibility tree (opacity, not `hidden`) so
+                aria-describedby has something to read on focus. */}
+            <div
+              id="score-help"
+              role="tooltip"
+              class="pointer-events-none absolute left-0 top-full z-30 mt-2 w-72 max-w-[calc(100vw-3rem)] space-y-1.5 rounded-lg border border-line bg-surface-raised p-3 text-xs leading-5 text-ink-muted opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100"
+            >
+              <p>
+                <span class="font-medium text-ink">AI match, 0–100.</span> How well this resume answers
+                this posting: the words it asks for, whether you have its core stack, and how your title,
+                summary and most recent role read at a glance.
+              </p>
+              <p class="text-ink-faint">
+                Re-levelling, ignoring or adding a keyword moves it at once. Editing the text does not —
+                that needs “Analyse my resume again”.
+              </p>
             </div>
           </div>
 
