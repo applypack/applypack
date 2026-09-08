@@ -7,6 +7,9 @@ import {
   type MatchAlignment,
   type ScoreEntry,
 } from '../resume/score';
+import { anchorStatuses } from '../resume/keyword-anchor';
+import type { KeywordMatcher } from '../resume/keyword-matcher';
+import { readKeywords, type MatchKeyword } from '../resume/prompts';
 
 // The browser copy ships as a static ES module; node loads it the same way.
 // @ts-expect-error — plain JS with no declaration file; parity is asserted below.
@@ -116,27 +119,87 @@ test('live entries equal server entries when the text matches the analysed snaps
   );
 });
 
-test('live credit: typing a cannot_claim term never counts, typing an add term earns full credit', async () => {
+test('live credit: a written word earns in full whatever the analysis called it (ADR 0045)', async () => {
   const { entriesFromLive } = await browser;
   const rows = [
     { requirement: 'must', primary: true, status: 'cannot_claim', found: true },
+    { requirement: 'must', primary: true, status: 'cannot_claim', found: false },
     { requirement: 'must', primary: true, status: 'add', found: true },
     { requirement: 'must', primary: false, status: 'add', found: false },
+    { requirement: 'must', primary: true, status: 'present', found: false },
     { requirement: 'must', primary: false, status: 'ask_user', found: true },
+    { requirement: 'must', primary: false, status: 'ask_user', found: false },
     { requirement: 'preferred', primary: true, status: 'present', found: true },
   ];
   const entries = entriesFromLive(rows);
   assert.deepEqual(
-    entries.map((e) => [e.credit, e.primaryHit, e.ceilCredit]),
+    entries.map((e) => [e.credit, e.primaryHit, e.primaryWritten, e.ceilCredit]),
     [
-      [0, false, 0], // cannot_claim: claim safety, even when typed
-      [1, true, 1], // add + found: written in, counts fully and lifts the cap
-      [0.5, false, 1], // add not yet written: keeps its half credit, reachable 1
-      [1, false, 0], // ask_user typed: counts in text, ceiling waits for confirmation
-      [1, false, 1], // preferred marked primary: demoted — never caps (v3)
+      [1, true, true, 1], // cannot_claim typed in: the resume now says it, and it lifts the cap
+      [0, false, false, 0], // cannot_claim unwritten: earns nothing until written or confirmed
+      [1, true, true, 1], // add + found: written in, counts fully and lifts the cap
+      [0.5, false, false, 1], // add not yet written: keeps its half credit, reachable 1
+      [0.5, true, false, 1], // present deleted from the text: the facts stand, the word does not
+      [1, false, false, 1], // ask_user typed: the text answers the question
+      [0, false, false, 0], // ask_user unwritten: the question stands
+      [1, false, false, 1], // preferred marked primary: demoted — never caps (v3)
     ],
   );
-  assert.equal(entries[4]?.primary, false);
+  assert.equal(entries[7]?.primary, false);
+});
+
+/*
+ * The invariant the ring promises: the number under the editor is the score
+ * the next analysis would store for the same text, for every part of the
+ * formula a word search can read. Both sides are real — the browser counts the
+ * text, the server anchors the statuses to it (keyword-anchor.ts) and scores
+ * them — and the fixture is a live comparison (match 139, 2026-09-08): PHP and
+ * WordPress primary, WordPress and BEM called cannot_claim, Ajax evidenced but
+ * unwritten. With WordPress on the resume's own title line the stored score
+ * was 41, capped at 70; typing BEM moved nothing, typing Ajax moved +3.
+ */
+test('the live number is the server score of the same text, edit by edit', async () => {
+  const { entriesFromLive, computeScore } = await browser;
+  // @ts-expect-error — plain JS with no declaration file.
+  const matcher = (await import('./public/target.mjs')) as KeywordMatcher & {
+    scoreKeywords: (keywords: MatchKeyword[], text: string) => { rows: Record<string, unknown>[] };
+  };
+  const row = (term: string, status: MatchKeyword['status'], requirement = 'must', primary = false) => ({
+    term,
+    priority: 1,
+    requirement,
+    primary,
+    status,
+    aliases: [],
+  });
+  const keywords = readKeywords([
+    row('PHP', 'present', 'must', true),
+    row('WordPress', 'cannot_claim', 'must', true),
+    row('WordPress Developer', 'cannot_claim'),
+    row('BEM', 'cannot_claim'),
+    row('Ajax', 'add'),
+    ...['Git', 'HTML5', 'JS', 'MySQL', 'SASS', 'jQuery'].map((t) => row(t, 'present')),
+    row('JIRA', 'present', 'context'),
+    row('e-commerce', 'add', 'context'),
+  ]);
+  const OFF: MatchAlignment = { title: 'off', summary: 'off', recent_role: 'off' };
+  const body = 'Skills: PHP, MySQL, HTML5, SASS, JS, jQuery, Git, JIRA\nBuilt e-commerce checkouts in PHP.';
+  const judged = `WordPress Developer | Go & React\n${body}`;
+  const texts: [string, string, number, number | null][] = [
+    ['without the title line', body, 41, SCORING_TS.caps.halfOrMore],
+    ['as the model judged it', judged, 52, null],
+    ['BEM typed in', `${judged}\nBEM`, 57, null],
+    ['Ajax typed in too', `${judged}\nBEM, Ajax`, 60, null],
+    ['PHP deleted', `${judged}\nBEM, Ajax`.replace(/PHP/g, 'Python'), 57, null],
+  ];
+  for (const [label, text, expected, cap] of texts) {
+    const live = computeScore(entriesFromLive(matcher.scoreKeywords(keywords, text).rows), OFF, 0);
+    const anchored = anchorStatuses(keywords, text, matcher).keywords;
+    const server = computeScoreTs(entriesFromKeywords(anchored), OFF, 0);
+    assert.deepEqual(live, server, label);
+    assert.equal(live.score, expected, label);
+    assert.equal(live.cap, cap, label);
+  }
 });
 
 test('an either/or group is one requirement, not three (ADR 0044)', () => {

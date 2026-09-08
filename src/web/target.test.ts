@@ -57,7 +57,7 @@ test('findTerm spans index the original text even with tabs, double spaces and c
   assert.equal(findTerm('continuous   delivery pipeline', 'continuous delivery').length, 1);
 });
 
-test('scoreKeywords weights requirement levels and excludes cannot_claim and context', async () => {
+test('scoreKeywords weights requirement levels; every weighted term is in the denominator', async () => {
   const { scoreKeywords } = await matcher;
   const keywords = [
     { term: 'PHP', priority: 1, requirement: 'must', status: 'present' },
@@ -66,15 +66,17 @@ test('scoreKeywords weights requirement levels and excludes cannot_claim and con
     { term: 'Laravel', priority: 2, requirement: 'preferred', status: 'present' },
   ];
   const r = scoreKeywords(keywords, RESUME);
-  // PHP 3 + Laravel 2 earned of 3 + 1 + 2 = 6 → 83
-  assert.equal(r.score, 83);
-  assert.equal(r.rows.find((x) => x.term === 'Angular')?.excluded, true);
-  assert.equal(scoreKeywords(keywords, RESUME, { includeCannotClaim: true }).score, 56);
+  // PHP 3 + Laravel 2 earned of 3 + 3 + 1 + 2 = 9 → 56. Angular counts against
+  // the resume although nothing backs it: the posting's demand is what it is.
+  assert.equal(r.score, 56);
+  assert.equal(r.rows.find((x) => x.term === 'Angular')?.excluded, false);
+  // Written in, it earns its weight like any other term (ADR 0045): 8 of 9.
+  assert.equal(scoreKeywords(keywords, `${RESUME}\nAngular`).score, 89);
   assert.equal(scoreKeywords([], RESUME).score, 0);
 
   // "context" keywords carry no weight and never count either way.
   const withContext = [...keywords, { term: 'PostgreSQL', priority: 4, requirement: 'context', status: 'present' }];
-  assert.equal(scoreKeywords(withContext, RESUME).score, 83);
+  assert.equal(scoreKeywords(withContext, RESUME).score, 56);
   assert.equal(scoreKeywords(withContext, RESUME).rows.find((x) => x.term === 'PostgreSQL')?.excluded, true);
 
   // Rows without a requirement level (pre-ADR-0012 matches) fall back to priority weights.
@@ -102,10 +104,13 @@ test('jobSpans colours by the level the posting asks at, not by AI status', asyn
   ]);
 });
 
-test('markClass: a cannot_claim term stays a gap even when the word is typed in', async () => {
+test('markClass: a word the resume spells is green, whatever the analysis called it', async () => {
   const { markClass } = await matcher;
   const k = { requirement: 'must', status: 'cannot_claim', primary: true };
-  assert.equal(markClass(k, true), 'kw-gap kw-must kw-core kw-unproven');
+  assert.equal(markClass(k, true), 'kw-have');
+  // Unwritten, it is the loudest gap on the page — dashed, since nothing backs it yet.
+  assert.equal(markClass(k, false), 'kw-gap kw-must kw-core kw-unproven');
+  assert.equal(markClass({ requirement: 'must', status: 'ask_user', primary: false }, false), 'kw-gap kw-must kw-unproven');
   assert.equal(markClass({ requirement: 'must', status: 'add', primary: false }, true), 'kw-have');
   assert.equal(markClass({ requirement: 'context', status: 'add', primary: false }, false), 'kw-gap kw-nice');
 });
@@ -152,11 +157,10 @@ test('the ring\'s live tone agrees with the server\'s fitTone at every cut-off',
   }
 });
 
-test('the gap chips keep an unbackable term, typed in or not', async () => {
-  // The chips answer "what is between me and a higher score". A cannot_claim
-  // term earns nothing however often the word appears, so scoreKeywords marks
-  // it `excluded` — and filtering the chips on `excluded` hid exactly the
-  // hardest gaps, including the primary must that caps the score.
+test('the gap chips are the weighted terms the text does not spell', async () => {
+  // The chips answer "what is between me and a higher score". A word the text
+  // carries is earned whatever the last analysis called it (ADR 0045); the
+  // row once kept a typed cannot_claim term, and offered a "yes" for it.
   // @ts-expect-error — plain JS with no declaration file.
   const { keywordGaps } = (await import('./public/target-page.mjs')) as {
     keywordGaps: (rows: { term: string; weight: number; found: boolean; status: string }[]) => { term: string }[];
@@ -170,8 +174,8 @@ test('the gap chips keep an unbackable term, typed in or not', async () => {
   ];
   assert.deepEqual(
     keywordGaps(rows).map((r) => r.term),
-    // SASS stays although the word is in the text; PHP is earned, JIRA is context.
-    ['WordPress', 'SASS', 'Ajax'],
+    // SASS is in the text, PHP is earned, JIRA is context.
+    ['WordPress', 'Ajax'],
   );
 });
 

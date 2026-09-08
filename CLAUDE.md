@@ -267,7 +267,7 @@ When the question is **"where does X live?"**, save yourself a `find`:
 | Why a keyword the model returned is not in the table at all | `src/resume/keyword-shape.ts:dropMalformedKeywords` (pure, ADR 0044 addendum) — a years-of-experience or degree requirement is a gate, a bare quantity ("0 to 1", "10x") is not a thing to search for, and nothing over five words is a term. Runs first in `match.ts`, before anchoring; a keyword the user added themselves is never dropped |
 | How strongly the resume shows a keyword (a skills line, a sentence, a sentence with a number) | `src/resume/evidence.ts:annotateEvidence` (pure) — measured off the text, never asked of the model; stamped in `match.ts`, shown as the "skills line only" / "with a number" badge, and handed to the suggestions call so REQUIRED COVERAGE reads a fact instead of guessing |
 | Whether a posting said enough to be trusted as a checklist | `src/resume/brief-depth.ts:postingDepth` (pure) over the stored brief — six signals, `high\|medium\|low`, and the sentence the target page shows when the posting is thin. Read-only: `brief.ts:storedBriefFor` never spends a call to render a page |
-| Why "matched" always agrees with the missing-keyword chips | `src/resume/keyword-anchor.ts:anchorStatuses` (pure) — `present` vs `add` is one question about the TEXT, so the matcher settles it both ways: a `present` it cannot find becomes `add`, an `add` it can find becomes `present`. `ask_user` and `cannot_claim` are never touched (typing a word does not make a claim true). This flip on one keyword is what made one live pair score 79 and then 30 |
+| Why "matched" always agrees with the missing-keyword chips, and why a typed word counts | `src/resume/keyword-anchor.ts:anchorStatuses` (pure, ADR 0045) — whether the word is in the TEXT is one question, so the matcher settles the status for every verdict: a term it can find is `present` whatever the model said (a `cannot_claim` on the resume's own title line held one pair at 41 for a 52), an unwritten `present` becomes `add`, an unwritten `ask_user` / `cannot_claim` stays. `score.mjs:entriesFromLive` is the same rule per keystroke, and `src/web/score.test.ts` holds the two equal on every text. "Named, but nothing behind it" is the `evidence` grade, never the status. Stored rows from before the rule: `node dist/scripts/reanchor-matches.js --dry-run` |
 | Whether a keyword's group label is one the brief actually wrote | `src/resume/keyword-group.ts:reconcileGroups` (pure, ADR 0044) — runs at persist time in `match.ts` between `annotateElsewhere` and the score; an unbacked label is dropped (an invented one would charge one weight for two requirements), and no brief means no groups at all |
 | Why "React, Next.js, or Vue.js" costs one must-weight and not three | `src/resume/score.ts:foldGroups` (pure, ADR 0044) over the `group` label the brief put on each keyword — mirrored in `score.mjs`, parity fixture in `src/web/score.test.ts` |
 | Why a red flag sometimes costs nothing | `src/resume/red-flags.ts:countableFlags` (pure) — a flag that names a keyword the resume does not have restates something the keyword pool already charged for, so it is dropped before the formula sees it. What still costs: location, work authorization, a minimum missed, an excluded seniority, an injection attempt. Measured cause: one such sentence, written in three runs of five, was 80% of a ten-point spread on one pair (`npm run variance:compare`) |
@@ -601,6 +601,23 @@ Three rules, all in code now:
   with a reason, never text handed to a parser.
 - A reply that stopped inside the JSON is not retried (`ai-json.ts`) — the
   identical call stops in the identical place, so the retry was pure cost.
+
+### 17. A status is the model's verdict on the analysed text — the text outranks it
+
+Found 2026-09-08 on the targeted view: typing `Ajax` moved the ring +3,
+typing `WordPress` or `BEM` moved nothing — and that WordPress already sat on
+the resume's own title line while the stored row called it `cannot_claim`
+("no WordPress work anywhere in resume") and capped the score at 70 as a
+missing primary. `entriesFromLive` gave a typed `cannot_claim` zero "for
+claim safety" and `anchorStatuses` never revisited one, so the number under
+the editor and the number the next analysis stored disagreed about the same
+text; the first fix that morning (a confirm tier, "I have it") asked the
+candidate to restate what their resume already said. ADR 0045: presence is
+read off the text on both sides, for every status, and the model's "named,
+nothing behind it" is the `evidence` grade, never the status. Measured before
+deciding: 29 of 1 215 stored `cannot_claim` rows were written, and the 8
+homonyms among them (GCP = Good Clinical Practice) all sat on comparisons
+scoring 0.
 
 ### 12. stripHtml: decode entities FIRST, and never re-run it on its own output
 

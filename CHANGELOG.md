@@ -4,6 +4,32 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.74.0] — 2026-09-08
+
+### Changed
+- **A word in your resume counts, whatever the last analysis called it.**
+  Typing `WordPress` or `BEM` into the editor moved nothing while `Ajax`
+  moved +3: the live count gave a term the AI had marked `cannot_claim` zero
+  credit however often it appeared, and the persist-time anchoring pass never
+  revisited that verdict — so a WordPress on the resume's own title line held
+  one comparison at 41, capped at 70 as a missing primary. Both sides now read
+  presence off the text (ADR 0045): a written term is `present`, an unwritten
+  `present` or `add` is `add` (half credit, and it still covers the primary
+  cap), an unwritten `ask_user` or `cannot_claim` earns nothing until it is
+  written or confirmed. The ring is the score the next analysis stores for the
+  same text, and a test holds the two equal edit by edit. The thin-evidence
+  signal stays where it was: the "skills line only" badge, not the number.
+- The gap chips, the pane marks and the plain coverage percentage follow: a
+  typed word is green and no longer a chip, every weighted term is in the
+  denominator, and the confirm tier says it is the other way in, not the only.
+
+### Added
+- `node dist/scripts/reanchor-matches.js [--dry-run]` lifts a stored
+  `cannot_claim` the comparison's own text snapshot spells — 29 keywords on 27
+  comparisons of the live corpus — through the write path a keyword edit
+  already uses. Only that flip: rows from before the 0044 addendum keep the
+  statuses they were scored under.
+
 ## [1.73.0] — 2026-09-08
 
 ### Changed
