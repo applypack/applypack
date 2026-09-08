@@ -35,7 +35,7 @@ import { hashShortId } from '../../text-utils';
 import { readMatchMode, type MatchMode } from '../../resume/match-mode';
 import { verificationCautions, verificationHint, type VerificationForHint, type VerificationHint } from '../../resume/verification-hint';
 import type { CountedKeyword } from '../../resume/keyword-matcher';
-import { effectiveRequirement, isIgnored } from '../../resume/keyword-overrides';
+import { effectiveRequirement, isIgnored, confirmable } from '../../resume/keyword-overrides';
 import { REQUIREMENT_LEVELS, type RequirementLevel } from '../../resume/score';
 import { readBreakdown, type ScoreBreakdown } from '../../resume/score';
 import { noEditsLine, type Reach } from '../no-edits';
@@ -329,56 +329,79 @@ export const HardRequirementsDigest: FC<{ hard: MatchHardRequirement[] }> = ({ h
   );
 };
 
-/** ask_user keywords → confirm/deny forms. Answers persist as CandidateFact rows. */
-export const ConfirmFacts: FC<{ asks: MatchKeyword[]; matchId: number; back: string }> = ({
+/** One term the user can answer for. Answers persist as CandidateFact rows. */
+const FactRow: FC<{ k: MatchKeyword; matchId: number; back: string }> = ({ k, matchId, back }) => (
+  <li class="flex flex-col gap-2 p-3 sm:flex-row sm:items-center sm:gap-3">
+    <div class="min-w-0 flex-1 text-sm">
+      <span class="font-medium text-ink">{k.term}</span>
+      {k.note && <span class="ml-2 text-xs text-ink-faint">{k.note}</span>}
+      {k.elsewhere && (
+        <Badge tone="violet" class="ml-2">
+          in "{k.elsewhere}"
+        </Badge>
+      )}
+    </div>
+    <div class="flex shrink-0 flex-wrap items-center gap-1.5">
+      <form method="post" action="/facts" class="flex items-center gap-1.5">
+        <input type="hidden" name="term" value={k.term} />
+        <input type="hidden" name="decision" value="confirmed" />
+        <input type="hidden" name="matchId" value={String(matchId)} />
+        <input type="hidden" name="back" value={back} />
+        <Input
+          name="note"
+          maxlength="300"
+          placeholder="where / when? (optional)"
+          aria-label={`Where or when did you use ${k.term}?`}
+          class="!w-44 !px-2 !py-1 !text-xs"
+        />
+        <Button size="sm" variant="violet">
+          I have it
+        </Button>
+      </form>
+      <ActionForm action="/facts" hidden={{ term: k.term, decision: 'denied', matchId, back }}>
+        <Button size="sm" variant="ghost">
+          I don't
+        </Button>
+      </ActionForm>
+    </div>
+  </li>
+);
+
+/**
+ * The card takes both tiers of `facts.ts:confirmable`. The asks are open; the
+ * terms the model could not back sit behind a summary, because on a resume
+ * from another profession there are twenty-five of them and a wall of forms
+ * is not an offer. The dashed chips above the editor open it (target-page.mjs).
+ */
+export const ConfirmFacts: FC<{ asks: MatchKeyword[]; unproven: MatchKeyword[]; matchId: number; back: string }> = ({
   asks,
+  unproven,
   matchId,
   back,
 }) =>
-  asks.length === 0 ? null : (
+  asks.length === 0 && unproven.length === 0 ? null : (
     <div>
       <div class={SUBHEAD}>Confirm your experience — the posting wants these</div>
-      <ul class="divide-y divide-line rounded-md border border-violet/30">
-        {asks.map((k) => (
-          <li class="flex flex-col gap-2 p-3 sm:flex-row sm:items-center sm:gap-3">
-            <div class="min-w-0 flex-1 text-sm">
-              <span class="font-medium text-ink">{k.term}</span>
-              {k.note && <span class="ml-2 text-xs text-ink-faint">{k.note}</span>}
-              {k.elsewhere && (
-                <Badge tone="violet" class="ml-2">
-                  in "{k.elsewhere}"
-                </Badge>
-              )}
-            </div>
-            <div class="flex shrink-0 flex-wrap items-center gap-1.5">
-              <form method="post" action="/facts" class="flex items-center gap-1.5">
-                <input type="hidden" name="term" value={k.term} />
-                <input type="hidden" name="decision" value="confirmed" />
-                <input type="hidden" name="matchId" value={String(matchId)} />
-                <input type="hidden" name="back" value={back} />
-                <Input
-                  name="note"
-                  maxlength="300"
-                  placeholder="where / when? (optional)"
-                  aria-label={`Where or when did you use ${k.term}?`}
-                  class="!w-44 !px-2 !py-1 !text-xs"
-                />
-                <Button size="sm" variant="violet">
-                  I have it
-                </Button>
-              </form>
-              <ActionForm
-                action="/facts"
-                hidden={{ term: k.term, decision: 'denied', matchId, back }}
-              >
-                <Button size="sm" variant="ghost">
-                  I don't
-                </Button>
-              </ActionForm>
-            </div>
-          </li>
-        ))}
-      </ul>
+      {asks.length > 0 && (
+        <ul class="divide-y divide-line rounded-md border border-violet/30">
+          {asks.map((k) => (
+            <FactRow k={k} matchId={matchId} back={back} />
+          ))}
+        </ul>
+      )}
+      {unproven.length > 0 && (
+        <details id="confirm-unproven" class={`${asks.length > 0 ? 'mt-2 ' : ''}rounded-md border border-line`}>
+          <summary class="cursor-pointer px-3 py-2 text-[13px] text-ink-muted transition-colors duration-150 hover:text-ink">
+            <span class="font-medium text-ink">{unproven.length} more</span> the AI found no evidence for —
+            typing the word earns nothing, but if you have the experience, say so here and it counts
+          </summary>
+          <ul class="divide-y divide-line border-t border-line">
+            {unproven.map((k) => (
+              <FactRow k={k} matchId={matchId} back={back} />
+            ))}
+          </ul>
+        </details>
+      )}
       <Hint class="mt-1.5">
         Answers are stored once and reused in every future comparison. Confirming updates this
         score instantly — no AI call.
@@ -433,11 +456,7 @@ export const MatchReport: FC<{
       <DeltaBox match={match} previous={previous} />
       <HardRequirementsBlock hard={readHardRequirements(match.hardRequirements)} />
       <MatchSignals match={match} verification={verification} />
-      <ConfirmFacts
-        asks={keywords.filter((k) => k.status === 'ask_user')}
-        matchId={match.id}
-        back={factsBack}
-      />
+      <ConfirmFacts {...confirmable(keywords)} matchId={match.id} back={factsBack} />
 
       {readMatchMode(match.breakdown) === 'fast' ? (
         <SuggestionsPrompt matchId={match.id} jobId={match.jobId} />

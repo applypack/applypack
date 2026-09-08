@@ -174,10 +174,12 @@ export function init(data) {
         // to say "not in your resume" about a word the user had just typed.
         gapLabel(r, r.found),
         r.count > 1 ? '×' + r.count + ' in the posting' : null,
-        r.where ? 'add in: ' + r.where : null,
+        unproven ? 'click to say you have it — then it counts' : r.where ? 'add in: ' + r.where : null,
         r.note,
       ].filter(Boolean).join(' · ');
-      b.addEventListener('click', () => jumpToSection(r.where));
+      // A dashed chip has nowhere in the text to send you — typing the word is
+      // exactly what does not help. It opens the one control that does.
+      b.addEventListener('click', () => (unproven ? openConfirm() : jumpToSection(r.where)));
       chips.appendChild(b);
       // "Add to Skills" only where it can honestly work: the model (or a fact the
       // user confirmed — applyFacts flips confirmed to `add` before this page
@@ -218,6 +220,17 @@ export function init(data) {
     if (copyEdits) copyEdits.disabled = !dirty;
     paintCards();
     store(text);
+  }
+
+  /** Open the "no evidence" tier of the confirm card and bring it into view. */
+  function openConfirm() {
+    const box = document.getElementById('confirm-unproven');
+    if (!box) return;
+    box.open = true;
+    box.scrollIntoView({ block: 'center' });
+    box.classList.remove('flash-target');
+    void box.offsetWidth; // restart the animation when clicked twice
+    box.classList.add('flash-target');
   }
 
   function jumpToSection(where) {

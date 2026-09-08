@@ -7,7 +7,7 @@ import { fitTone, formatRelative, type Tone } from '../format';
 import type { MatchWithResume } from '../../resume/store';
 import type { CountedKeyword } from '../../resume/keyword-matcher';
 import type { VerificationForHint } from '../../resume/verification-hint';
-import { effectiveKeywords } from '../../resume/keyword-overrides';
+import { effectiveKeywords, confirmable } from '../../resume/keyword-overrides';
 import { readActions, readHardRequirements, readRemovals } from '../../resume/prompts';
 import { readMatchMode } from '../../resume/match-mode';
 import { readBreakdown } from '../../resume/score';
@@ -124,7 +124,7 @@ export const TargetPage: FC<TargetPageProps> = ({
   const actions = readActions(match.actions);
   const removals = readRemovals(match.removals);
   const hard = readHardRequirements(match.hardRequirements);
-  const asks = scored.filter((k) => k.status === 'ask_user');
+  const { asks, unproven } = confirmable(scored);
   const highActions = actions.filter((a) => a.priority === 'high').length;
   // A quick check has no suggestions yet — the tab offers the second call instead (ADR 0029).
   const fast = readMatchMode(match.breakdown) === 'fast';
@@ -455,9 +455,14 @@ export const TargetPage: FC<TargetPageProps> = ({
         </div>
       </Card>
 
-      {asks.length > 0 && (
+      {(asks.length > 0 || unproven.length > 0) && (
         <Card class="mb-4">
-          <ConfirmFacts asks={asks} matchId={match.id} back={`/jobs/${job.id}/target?match=${match.id}`} />
+          <ConfirmFacts
+            asks={asks}
+            unproven={unproven}
+            matchId={match.id}
+            back={`/jobs/${job.id}/target?match=${match.id}`}
+          />
         </Card>
       )}
 

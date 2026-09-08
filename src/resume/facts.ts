@@ -25,6 +25,9 @@ function names(k: MatchKeyword): string[] {
   return [canonicalTerm(k.term), ...k.aliases];
 }
 
+/** The note a denial leaves on a keyword — read back by keyword-overrides.ts:confirmable, so it is not re-asked. */
+export const DENIED_NOTE = 'user: does not have it';
+
 /**
  * Flip keyword statuses from stored facts. Confirmed → "add" (the user's
  * context lands in the note); denied → "cannot_claim". Text evidence outranks
@@ -50,7 +53,7 @@ export function applyFacts(
     }
     if (fact.status === 'denied' && k.status === 'ask_user') {
       changed++;
-      return { ...k, status: 'cannot_claim' as const, note: 'user: does not have it' };
+      return { ...k, status: 'cannot_claim' as const, note: DENIED_NOTE };
     }
     return k;
   });
