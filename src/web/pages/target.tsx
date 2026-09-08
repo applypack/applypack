@@ -11,6 +11,7 @@ import { effectiveKeywords } from '../../resume/keyword-overrides';
 import { readActions, readHardRequirements, readRemovals } from '../../resume/prompts';
 import { readMatchMode } from '../../resume/match-mode';
 import { readBreakdown } from '../../resume/score';
+import { readyToApply } from '../score-lines';
 import {
   ActionsBlock,
   ChangeSheetButton,
@@ -266,18 +267,30 @@ export const TargetPage: FC<TargetPageProps> = ({
                 {match.draft ? 'draft · ' : ''}
                 {fast ? 'quick check' : 'full analysis'} {formatRelative(match.createdAt)}
               </div>
-              {match.matchScore >= READY_TO_APPLY && (
-                <div class="mt-1 text-[13px] font-medium text-ok">
-                  Ready to apply — stop polishing, send it.
-                </div>
-              )}
+              {/* The number alone used to decide this, so "stop polishing" sat
+                  above three suggested edits, five removals and an unconfirmed
+                  hard requirement on a live 100/100. A score is not a verdict
+                  while something is still open (web/score-lines.ts). */}
+              {breakdown &&
+                readyToApply({
+                  breakdown,
+                  keywords: scored,
+                  hard,
+                  score: match.matchScore,
+                  threshold: READY_TO_APPLY,
+                  edits: actions.length + removals.length,
+                }) && (
+                  <div class="mt-1 text-[13px] font-medium text-ok">
+                    Ready to apply — stop polishing, send it.
+                  </div>
+                )}
             </div>
           </div>
 
           {/* Why this score: the stack verdict + the deterministic components. */}
           <div class="min-w-0 space-y-1.5">
             <p class="text-sm leading-6 text-ink">{match.summary}</p>
-            {breakdown && <ScoreBreakdownChips bd={breakdown} />}
+            {breakdown && <ScoreBreakdownChips bd={breakdown} keywords={scored} hard={hard} />}
             {(fast || actions.length > 0 || removals.length > 0) && (
               <button
                 type="button"

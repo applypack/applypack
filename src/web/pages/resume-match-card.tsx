@@ -39,6 +39,7 @@ import { effectiveRequirement, isIgnored } from '../../resume/keyword-overrides'
 import { REQUIREMENT_LEVELS, type RequirementLevel } from '../../resume/score';
 import { readBreakdown, type ScoreBreakdown } from '../../resume/score';
 import { noEditsLine, type Reach } from '../no-edits';
+import { readyToApply, scoreLines, type ScoreLine } from '../score-lines';
 import { diffMatches } from '../../resume/diff';
 
 export interface ResumeMatchCardProps {
@@ -230,45 +231,69 @@ export function previousFor(selected: MatchWithResume, matches: MatchWithResume[
 }
 
 /** "Why this score" — component chips under the number. Shared with the targeted view. */
-export const ScoreBreakdownChips: FC<{ bd: ScoreBreakdown }> = ({ bd }) => (
-  <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-ink-muted">
-    <span>
-      Keywords <span class="font-medium tabular-nums text-ink">{bd.keywordPts}</span>/{bd.keywordMax}
-    </span>
-    <span title="title + summary + most recent role">
-      Alignment <span class="font-medium tabular-nums text-ink">{bd.alignmentPts}</span>/{bd.alignmentMax}
-      {bd.alignment && (
-        <span class="text-ink-faint">
-          {' '}
-          ({bd.alignment.title} · {bd.alignment.summary} · {bd.alignment.recent_role})
-        </span>
+/*
+ * What the number was made of, in sentences (docs/score-lines-plan.md). This
+ * replaced a row of the formula's own parts — "Keywords 60/60 · Alignment
+ * 40/40" — which said how the sum was done rather than what it decided. Same
+ * place on the page, same amount of it, and the arithmetic moves into the
+ * tooltips where it is still there for anyone who wants it.
+ */
+export const ScoreBreakdownChips: FC<{ bd: ScoreBreakdown; keywords: MatchKeyword[]; hard: MatchHardRequirement[] }> = ({
+  bd,
+  keywords,
+  hard,
+}) => {
+  const lines = scoreLines({ breakdown: bd, keywords, hard });
+  return (
+    <div class="space-y-1.5 text-xs">
+      <LineGroup heading="what made the number" lines={lines.scored} />
+      {/* The split is stated, not implied: a reader who sees "2 of 3 in a
+          bullet" under a 100 asks why the 100 is a 100, and the heading
+          answers before they ask. */}
+      <LineGroup heading="what it does not count" lines={lines.diagnostic} />
+      {/* Two different questions (§4 of the intelligence analysis): the score is
+          how well this RESUME shows the fit, the ceiling is how well the
+          CANDIDATE fits. A wide gap is good news — all of it is editing. */}
+      {bd.ceiling !== undefined && (
+        <p
+          class="border-t border-line pt-1.5 text-ink-muted"
+          title="How well you fit, if the resume said everything it honestly could: every claimable keyword written in, alignment perfect. Going above the ceiling would need experience this resume does not have."
+        >
+          {bd.ceiling > bd.score ? (
+            <>
+              you fit <span class="font-medium tabular-nums text-ink">{bd.ceiling}</span> — editing can reach it
+            </>
+          ) : (
+            <span class="font-medium text-ok">the resume already shows everything it can</span>
+          )}
+        </p>
       )}
-    </span>
-    {bd.penalty > 0 && <span class="text-danger">−{bd.penalty} red flags</span>}
-    {bd.cap !== null && (
-      <span class="font-medium text-warn">
-        capped at {bd.cap} — primary stack {bd.primaryPresent}/{bd.primaryTotal}
-      </span>
-    )}
-    {/* Two different questions, and mixing them is what makes one number feel
-        arbitrary (§4 of the intelligence analysis): the score is how well this
-        RESUME shows the fit, the ceiling is how well the CANDIDATE fits. A wide
-        gap between them is good news — all of it is editing. */}
-    {bd.ceiling !== undefined && (
-      <span
-        title="How well you fit, if the resume said everything it honestly could: every claimable keyword written in, alignment perfect. The score is how much of that the resume shows today; going above the ceiling would need experience this resume does not have."
-      >
-        {bd.ceiling > bd.score ? (
+    </div>
+  );
+};
+
+const LINE_TONE: Record<NonNullable<ScoreLine['tone']>, string> = {
+  ok: 'text-ok',
+  warn: 'text-warn',
+  danger: 'text-danger',
+};
+
+const LineGroup: FC<{ heading: string; lines: ScoreLine[] }> = ({ heading, lines }) =>
+  lines.length === 0 ? null : (
+    <div>
+      <div class="text-[11px] uppercase tracking-wide text-ink-faint">{heading}</div>
+      <dl class="mt-0.5 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5">
+        {lines.map((l) => (
           <>
-            you fit <span class="font-medium tabular-nums text-ink">{bd.ceiling}</span> — editing can reach it
+            <dt class="text-ink-faint">{l.label}</dt>
+            <dd class={`min-w-0 ${l.tone ? LINE_TONE[l.tone] : 'text-ink'}`} title={l.title}>
+              {l.text}
+            </dd>
           </>
-        ) : (
-          <span class="font-medium text-ok">the resume already shows everything it can</span>
-        )}
-      </span>
-    )}
-  </div>
-);
+        ))}
+      </dl>
+    </div>
+  );
 
 /** The pair the empty state reads: today's score and what editing could reach. */
 export function reachOf(bd: ScoreBreakdown | null, score: number): Reach | null {
@@ -393,7 +418,9 @@ export const MatchReport: FC<{
         </Button>
       </div>
       <p class="text-sm leading-6 text-ink">{match.summary}</p>
-      {bd && <ScoreBreakdownChips bd={bd} />}
+      {bd && (
+        <ScoreBreakdownChips bd={bd} keywords={keywords} hard={readHardRequirements(match.hardRequirements)} />
+      )}
 
       <DeltaBox match={match} previous={previous} />
       <HardRequirementsBlock hard={readHardRequirements(match.hardRequirements)} />
