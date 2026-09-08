@@ -231,35 +231,69 @@ export const TargetPage: FC<TargetPageProps> = ({
             rail. The gates line spans the full width below. */}
         <div class="grid grid-cols-1 items-start gap-x-8 gap-y-4 lg:grid-cols-[auto_minmax(14rem,1fr)_auto]">
           {/* Primary: the honest score — the AI rubric verdict. Static until a re-check. */}
-          <div class="flex items-center gap-4">
-            <svg viewBox="0 0 96 96" class="h-20 w-20 -rotate-90" aria-hidden="true">
-              <circle cx="48" cy="48" r="40" fill="none" stroke="rgb(var(--line))" stroke-width="8" />
-              <circle
-                cx="48"
-                cy="48"
-                r="40"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="8"
-                stroke-linecap="round"
-                stroke-dasharray="251.3"
-                stroke-dashoffset={String(251.3 - (251.3 * match.matchScore) / 100)}
-                class={AI_TONE[fitTone(match.matchScore)]}
-              />
-            </svg>
-            <div>
-              <div class="text-3xl font-semibold tabular-nums tracking-tight text-ink">
-                {match.matchScore}
-                <span class="text-base font-normal text-ink-faint">/100</span>
+          <div class="flex items-center gap-5">
+            {/* The number sits inside the ring: one object to read instead of a
+                dial next to a figure it was already drawing. The button is the
+                hover target for the explanation, and a button because nothing
+                may depend on hover — the same panel opens on keyboard focus and
+                on a tap. */}
+            <div class="group relative shrink-0">
+              <button
+                type="button"
+                aria-describedby="score-help"
+                aria-label={`Match score ${match.matchScore} of 100 — what this number is`}
+                class="relative block cursor-help rounded-full"
+              >
+                <svg viewBox="0 0 96 96" class="h-28 w-28 -rotate-90" aria-hidden="true">
+                  <circle cx="48" cy="48" r="42" fill="none" stroke="rgb(var(--line))" stroke-width="7" />
+                  <circle
+                    cx="48"
+                    cy="48"
+                    r="42"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="7"
+                    stroke-linecap="round"
+                    stroke-dasharray="263.9"
+                    stroke-dashoffset={String(263.9 - (263.9 * match.matchScore) / 100)}
+                    class={AI_TONE[fitTone(match.matchScore)]}
+                  />
+                </svg>
+                <span class="absolute inset-0 flex flex-col items-center justify-center leading-none" aria-hidden="true">
+                  <span class="text-[30px] font-semibold tabular-nums tracking-tight text-ink">
+                    {match.matchScore}
+                  </span>
+                  <span class="mt-1.5 text-[11px] font-medium text-ink-faint">/ 100</span>
+                </span>
+              </button>
+              {/* Kept in the accessibility tree (opacity, not `hidden`) so
+                  aria-describedby has something to read on focus. */}
+              <div
+                id="score-help"
+                role="tooltip"
+                class="pointer-events-none absolute left-0 top-full z-30 mt-2 w-72 max-w-[calc(100vw-3rem)] space-y-1.5 rounded-lg border border-line bg-surface-raised p-3 text-xs leading-5 text-ink-muted opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100"
+              >
+                <p>
+                  <span class="font-medium text-ink">AI match, 0–100.</span> How well this resume answers
+                  this posting: the words it asks for, whether you have its core stack, and how your title,
+                  summary and most recent role read at a glance. The lines beside it are what made it.
+                </p>
+                <p class="text-ink-faint">
+                  Re-levelling, ignoring or adding a keyword moves it at once. Editing the text does not —
+                  that needs “Analyse my resume again”.
+                </p>
               </div>
-              {/* Wraps: the stale marker must not widen this auto column and squeeze the summary. */}
-              <div class="flex flex-wrap items-center gap-x-2 text-[13px] font-medium text-ink-muted">
+            </div>
+            <div>
+              <div class="text-[13px] font-medium text-ink-muted">
                 AI match ·{' '}
                 <span class={AI_TONE[fitTone(match.matchScore)]}>{matchQuality(match.matchScore)}</span>
-                <span id="ai-stale" hidden class="font-medium text-warn">
-                  edited — re-check to refresh
-                </span>
-                {/* The background AI check, when one is running (#184): running · ready with "Use it" · failed. */}
+              </div>
+              {/* Its own line, and shorter than the run line below it: inline, the
+                  marker widened this auto column the moment the user typed, and the
+                  summary beside it jumped narrower. It names the button it wants. */}
+              <div id="ai-stale" hidden class="mt-0.5 text-[13px] font-medium text-warn">
+                edited — analyse again
               </div>
               {/* Which resume/version is named by the pane header and the run chips —
                   repeating it here was pure duplication. */}
@@ -413,34 +447,9 @@ export const TargetPage: FC<TargetPageProps> = ({
             </details>
             </div>
 
-            {/* Always on — this is the number that moves. It used to appear
-                only once the text was dirty, so a user who re-levelled a
-                keyword, ignored one or added one saw the big AI number and
-                nothing else, and reported that the score never reacts. It
-                re-counts on every keystroke and again on every page render,
-                which is what a keyword edit produces. */}
-            <div id="live-est" class="lg:max-w-[280px] lg:text-right">
-              <div class="flex flex-wrap items-center gap-x-2 text-[13px] font-medium text-ink-muted lg:justify-end">
-                Live estimate
-                <span id="live-delta" class="text-xs font-medium"></span>
-              </div>
-              <div class="mt-1 flex items-center gap-2.5 lg:justify-end">
-                <span id="score-value" class="text-2xl font-semibold tabular-nums text-ink-faint">
-                  —
-                </span>
-                <span class="h-1.5 w-24 overflow-hidden rounded-full bg-line" aria-hidden="true">
-                  <span id="score-bar" class="block h-full rounded-full bg-warn" style="width:0%"></span>
-                </span>
-              </div>
-              <div id="score-detail" class="mt-0.5 text-xs text-ink-faint">
-                {scored.length} keywords from the AI match
-              </div>
-              <Hint class="mt-1">
-                {breakdown
-                  ? `Counts the words a scanner would find, live: it moves as you edit the text and again whenever you re-level, ignore or add a keyword. The big number keeps the analysis from ${formatRelative(match.createdAt)}, because only the AI judges the parts a word search cannot see.`
-                  : 'Keywords only, live as you type. Analyse again to get the full score.'}
-              </Hint>
-            </div>
+            {/* No second score here: a keyword edit re-scores the stored row
+                server-side (routes/keywords.ts), so the ring itself moves, and
+                the sticky bar carries the estimate while the text is dirty. */}
           </div>
 
           {postingNotice && (
@@ -657,7 +666,12 @@ export const TargetPage: FC<TargetPageProps> = ({
               kept in this browser tab{resume.ephemeral ? ' — copy them out before you leave' : ' until you save'}
             </span>
           </div>
-          <span class="text-sm font-medium tabular-nums text-ink">
+          {/* The only live number on the page now, and only while the text is
+              dirty — which is the one moment the ring cannot answer. */}
+          <span
+            class="text-sm font-medium tabular-nums text-ink"
+            title="Counts the keywords a scanner would find in the text as it stands. The ring keeps the AI's verdict until you analyse again."
+          >
             Estimate <span id="bar-score">—</span>
             <span id="bar-delta" class="ml-1 text-xs font-medium"></span>
           </span>
