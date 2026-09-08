@@ -97,8 +97,8 @@ export function init(data) {
     // The live number, for the sticky bar alone: the full score formula when
     // the match carries a breakdown (alignment fixed from the last AI run,
     // keywords + cap live), else the plain coverage percentage for
-    // pre-ADR-0012 matches. The ring above keeps the AI's own verdict — a
-    // keyword edit re-scores it server-side, a text edit marks it stale.
+    // pre-ADR-0012 matches. The ring above keeps the AI's own verdict, which
+    // only a re-run moves; a keyword edit re-scores it server-side instead.
     let display = scored.score;
     if (data.scoring) {
       display = computeScore(entriesFromLive(scored.rows), data.scoring.alignment, data.scoring.redFlagCount, data.scoring.penalty ?? null).score;

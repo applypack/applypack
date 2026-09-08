@@ -230,7 +230,7 @@ export function previousFor(selected: MatchWithResume, matches: MatchWithResume[
   );
 }
 
-/** "Why this score" — component chips under the number. Shared with the targeted view. */
+/** "Why this score" — the lines under the number on the /jobs match card. */
 /*
  * What the number was made of, in sentences (docs/score-lines-plan.md). This
  * replaced a row of the formula's own parts — "Keywords 60/60 · Alignment
@@ -238,7 +238,7 @@ export function previousFor(selected: MatchWithResume, matches: MatchWithResume[
  * place on the page, same amount of it, and the arithmetic moves into the
  * tooltips where it is still there for anyone who wants it.
  */
-export const ScoreBreakdownChips: FC<{ bd: ScoreBreakdown; keywords: MatchKeyword[]; hard: MatchHardRequirement[] }> = ({
+const ScoreBreakdownChips: FC<{ bd: ScoreBreakdown; keywords: MatchKeyword[]; hard: MatchHardRequirement[] }> = ({
   bd,
   keywords,
   hard,
