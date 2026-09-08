@@ -74,9 +74,9 @@ function wire(data) {
     jd.innerHTML = highlightHtml(data.jobText, jobSpans(data.keywords, data.jobText, scored));
 
     chips.innerHTML = '';
-    // The dashboard's order and weight (target-page.mjs): the hardest
-    // requirement first, then the words the posting keeps repeating; a
-    // primary-stack must shouts, a nice-to-have whispers.
+    // The dashboard's order and colour (target-page.mjs): the hardest
+    // requirement first, then the words the posting keeps repeating; red for a
+    // must the resume lacks, amber for a preferred, slate for a nice-to-have.
     for (const r of orderKeywords(missing, data.jobText)) {
       const chip = document.createElement('span');
       chip.className = 'chip-missing kw-w' + keywordRank(r);

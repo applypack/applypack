@@ -440,9 +440,19 @@ Worth adding (all deterministic, no AI):
   user's, and a posting cannot talk the model into dropping a must-have.
 - Weight and frequency come from `keywordRank()` / `orderKeywords()` in
   `target.mjs` — the module the panes, the chips and the server-rendered table
-  all share, so there is nothing to mirror. Marks are graded `kw-w0`…`kw-w4`
-  (a primary-stack must), the legend shows three of the tiers, and a tooltip
-  reads `system scalability · nice · missing · ×5 in the posting`.
+  all share, so there is nothing to mirror. Marks were graded `kw-w0`…`kw-w4`
+  (a primary-stack must), the legend showed three of the tiers, and a tooltip
+  read `system scalability · nice · missing · ×5 in the posting`.
+
+  **Superseded 2026-09-07.** Two axes at once — a hue per AI status, an
+  intensity per weight — could not be read: "add the word" and "missing" were
+  the same news, and `cannot_claim` was grey and struck through, which on a
+  WordPress posting struck out the word *WordPress*. `markClass()` replaces
+  `weightClass()` with one axis: green for a term the resume has, and
+  otherwise the level colour — red `must`, amber `preferred`, slate
+  `nice`/context — with `kw-core` for a primary-stack must and one modifier,
+  `kw-unproven`, for a term the resume shows no evidence of. `keywordRank()`
+  and `orderKeywords()` are unchanged; order was never the problem.
 
 ## 6. Best-practice cross-check
 

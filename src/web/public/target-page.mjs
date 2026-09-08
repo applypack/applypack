@@ -14,6 +14,7 @@ import {
   keywordRank,
   orderKeywords,
   wantsLabel,
+  gapLabel,
 } from './target.mjs';
 import { computeScore, entriesFromLive } from './score.mjs';
 import { formatEditSheet } from './change-sheet.mjs';
@@ -25,17 +26,18 @@ import { applyReplacement, insertAfterLine, removeSpan, insertIntoSkills, invers
 const TONE_TEXT = { ok: 'text-ok', info: 'text-info', warn: 'text-warn', danger: 'text-danger' };
 const TONE_BG = { ok: 'bg-ok', info: 'bg-info', warn: 'bg-warn', danger: 'bg-danger' };
 
-// A missing chip carries the same weight the pane marks do (target-plan.md §5):
-// a primary-stack must shouts, a nice-to-have whispers.
+// A missing chip wears the colour its mark wears in the posting (target.mjs):
+// red for a must, amber for a preferred, slate for a nice-to-have. Keyed by
+// keywordRank — 4 a primary-stack must … 0 context.
 const CHIP_BASE = 'chip inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-medium ring-1 ring-inset';
 // The add control beside a missing chip: an action, so it reads as the accent, not the warning.
 const CHIP_ADD = 'border border-accent/40 bg-accent/5 text-accent-strong hover:bg-accent/10';
-const CHIP_WEIGHT = {
-  4: 'bg-warn/25 text-warn ring-warn/60 font-semibold',
-  3: 'bg-warn/15 text-warn ring-warn/40',
-  2: 'bg-warn/10 text-warn ring-warn/25',
-  1: 'bg-warn/5 text-ink-muted ring-line',
-  0: 'bg-warn/5 text-ink-muted ring-line',
+const CHIP_LEVEL = {
+  4: 'bg-danger/20 text-danger ring-danger/60 font-semibold',
+  3: 'bg-danger/10 text-danger ring-danger/40 font-semibold',
+  2: 'bg-warn/10 text-warn ring-warn/40',
+  1: 'bg-surface-overlay text-ink-muted ring-line',
+  0: 'bg-surface-overlay text-ink-muted ring-line',
 };
 
 function tone(score) {
@@ -63,7 +65,6 @@ export function init(data) {
   const chips = document.getElementById('missing-chips');
   const saveButtons = document.querySelectorAll('[data-save-button]');
   const aiStale = document.getElementById('ai-stale');
-  const liveEst = document.getElementById('live-est');
   const liveDelta = document.getElementById('live-delta');
   const dirtyBar = document.getElementById('dirty-bar');
   const barScore = document.getElementById('bar-score');
@@ -117,7 +118,7 @@ export function init(data) {
       if (est.ceiling !== undefined) maxNote = ' · max ' + est.ceiling;
     }
     scoreValue.textContent = String(display);
-    scoreValue.className = 'text-lg font-semibold tabular-nums ' + TONE_TEXT[tone(display)];
+    scoreValue.className = 'text-2xl font-semibold tabular-nums ' + TONE_TEXT[tone(display)];
     scoreBar.style.width = display + '%';
     scoreBar.className = 'block h-full rounded-full transition-[width] duration-300 ' + TONE_BG[tone(display)];
     barScore.textContent = String(display);
@@ -156,10 +157,11 @@ export function init(data) {
     for (const r of orderKeywords(scored.rows.filter((r) => !r.found && !r.excluded), data.jobText)) {
       const b = document.createElement('button');
       b.type = 'button';
-      b.className = CHIP_BASE + ' ' + (CHIP_WEIGHT[keywordRank(r)] ?? CHIP_WEIGHT[2]);
+      b.className = CHIP_BASE + ' ' + (CHIP_LEVEL[keywordRank(r)] ?? CHIP_LEVEL[2]);
       b.textContent = r.count > 1 ? r.term + ' ×' + r.count : r.term;
       b.title = [
         wantsLabel(r),
+        gapLabel(r, false),
         r.count > 1 ? '×' + r.count + ' in the posting' : null,
         r.where ? 'add in: ' + r.where : null,
         r.note,
@@ -194,7 +196,6 @@ export function init(data) {
 
     const dirty = text !== data.resumeText;
     aiStale.hidden = !dirty;
-    liveEst.hidden = !dirty;
     dirtyBar.hidden = !dirty;
     for (const b of saveButtons) b.disabled = !dirty;
     const saveText = document.getElementById('save-text');

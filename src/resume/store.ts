@@ -4,11 +4,13 @@ import { prisma } from '../db';
 import { logger } from '../logger';
 import { readAnswers, upsertAnswer, type ReviewAnswer } from './answers';
 import { readFrameReason, type FrameReason } from './keyword-frame';
+import { loadKeywordMatcher } from './keyword-matcher';
 import { effectiveKeywords } from './keyword-overrides';
 import type { JsonResume } from './json-resume';
 import { readMatchMode, storedBreakdown, withSuggestionsMode, type MatchMode } from './match-mode';
 import { readPromptVersion, readVerificationId } from './match-reuse';
 import type { MatchAction, MatchKeyword, MatchSuggestions, ResumeMatchResult, ResumeReviewResult, ResumeScan } from './prompts';
+import { countableFlags } from './red-flags';
 import { storedReviewBreakdown, type ReviewBreakdown } from './review-score';
 import { readBreakdown, scoreMatch, type ScoreBreakdown } from './score';
 
@@ -441,6 +443,10 @@ export async function rescoreMatchKeywords<T>(
   id: number,
   edit: (match: ResumeMatch) => KeywordRescore<T>,
 ): Promise<RescoreOutcome<T> | null> {
+  // Loaded before the lock (it is cached after the first call): the penalty
+  // below has to be recomputed the way match.ts computed it, and that needs
+  // the matcher.
+  const matcher = await loadKeywordMatcher();
   return prisma.$transaction(async (tx) => {
     const locked = await tx.$queryRaw<{ id: number }[]>`SELECT id FROM resume_match WHERE id = ${id} FOR UPDATE`;
     if (locked.length === 0) return null;
@@ -451,7 +457,14 @@ export async function rescoreMatchKeywords<T>(
     if (keywords === null || !breakdown) {
       return { detail, before, after: before, scored: breakdown !== null };
     }
-    const next = scoreMatch(effectiveKeywords(keywords), breakdown.alignment, match.redFlags.length);
+    // Exactly the pair match.ts scores with: countable flags over the FULL
+    // list (a flag restating a keyword gap is already priced by that keyword's
+    // zero credit), points over the effective one. Passing the raw
+    // `redFlags.length` here charged ten points the analysis never charged, so
+    // every keyword edit dragged the score down and "reset" never came back to
+    // where it started.
+    const flags = countableFlags(match.redFlags, keywords, matcher);
+    const next = scoreMatch(effectiveKeywords(keywords), breakdown.alignment, flags.counted.length);
     await tx.resumeMatch.update({
       where: { id },
       data: {
