@@ -402,8 +402,12 @@ export async function getMatch(id: number): Promise<ResumeMatch | null> {
 }
 
 /** Latest analysis of a posting, any resume — its keyword frame keeps re-runs comparable. */
-export async function getLatestMatchForJob(jobId: number): Promise<ResumeMatch | null> {
-  return prisma.resumeMatch.findFirst({ where: { jobId }, orderBy: { createdAt: 'desc' } });
+/** The newest comparison of this posting — or, with `before`, the newest one older than that row. */
+export async function getLatestMatchForJob(jobId: number, before?: number): Promise<ResumeMatch | null> {
+  return prisma.resumeMatch.findFirst({
+    where: { jobId, ...(before === undefined ? {} : { id: { lt: before } }) },
+    orderBy: { createdAt: 'desc' },
+  });
 }
 
 export interface KeywordRescore<T> {

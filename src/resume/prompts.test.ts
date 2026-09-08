@@ -1083,3 +1083,20 @@ test('a keyword with no measured evidence says so rather than pretending', () =>
   // Node.js carries no evidence field (it is cannot_claim, nothing to measure).
   assert.match(user, /- Node\.js \| must \| primary \| cannot_claim \| unmeasured/);
 });
+
+test('wording the candidate took from the last report is done, not raw material', () => {
+  const full = buildMatchPrompt('resume', JOB, 'full');
+  assert.match(full.system, /APPLIED FROM THE LAST RUN/);
+  assert.match(full.system, /when it already does, leave that bullet alone/);
+  assert.match(buildSuggestionsPrompt('resume', JOB, SUGGEST_INPUT).system, /APPLIED FROM THE LAST RUN/);
+  // The quick check writes no actions, so it is told nothing about them.
+  assert.doesNotMatch(buildMatchPrompt('resume', JOB, 'fast').system, /APPLIED FROM THE LAST RUN/);
+
+  const lines = ['Built and maintained WordPress-based e-commerce solutions using PHP and MySQL.'];
+  const withApplied = buildMatchPrompt('resume', JOB, 'full', { appliedFromLastRun: lines }).user;
+  assert.match(withApplied, /BEGIN UNTRUSTED APPLIED FROM THE LAST RUN/, 'resume text, so fenced');
+  assert.match(withApplied, /- Built and maintained WordPress-based/);
+  assert.doesNotMatch(buildMatchPrompt('resume', JOB, 'fast', { appliedFromLastRun: lines }).user, /APPLIED FROM THE LAST RUN/);
+  assert.doesNotMatch(buildMatchPrompt('resume', JOB, 'full', { appliedFromLastRun: [] }).user, /APPLIED FROM THE LAST RUN/);
+  assert.match(buildSuggestionsPrompt('resume', JOB, { ...SUGGEST_INPUT, appliedFromLastRun: lines }).user, /BEGIN UNTRUSTED APPLIED FROM THE LAST RUN/);
+});

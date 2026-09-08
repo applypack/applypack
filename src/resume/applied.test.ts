@@ -1,11 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { appliedWording, rewritesOfApplied, type Locate } from './applied';
+import { appliedWording, freshActions, rewritesOfApplied, type Locate } from './applied';
 import { readActions, type MatchAction } from './prompts';
 
 // The real locator: exact, then whitespace- and punctuation-insensitive.
 // @ts-expect-error — plain JS with no declaration file.
-const matcher = import('../web/public/target.mjs') as Promise<{ locateQuote: Locate }>;
+const matcher = import('../web/public/target.mjs') as Promise<{ locateQuote: Locate; findTerm: (text: string, term: string, aliases?: string[]) => { start: number; end: number }[] }>;
 
 function action(partial: Partial<MatchAction> & Pick<MatchAction, 'what'>): MatchAction {
   return readActions([
@@ -59,4 +59,31 @@ test('rewritesOfApplied counts the next actions that quote applied wording, and 
   ];
   assert.deepEqual(rewritesOfApplied(applied, next, RESUME, locateQuote).map((a) => a.what), ['reword the opening bullet', 'tighten']);
   assert.deepEqual(rewritesOfApplied([], next, RESUME, locateQuote), []);
+});
+
+test('freshActions drops a rework of applied wording unless it names a keyword the text lacks', async () => {
+  const m = await matcher;
+  const applied = appliedWording(
+    [action({ what: 'lead with WordPress', replacement: 'Built and maintained WordPress-based e-commerce solutions using PHP and MySQL, powering checkout and payment flows.' })],
+    RESUME,
+    m.locateQuote,
+  );
+  const keywords = [
+    { term: 'WordPress', aliases: [], status: 'present' as const },
+    { term: 'MySQL', aliases: ['mysql'], status: 'present' as const },
+    { term: 'Git', aliases: ['github'], status: 'add' as const },
+  ];
+  const actions = [
+    // The churn: the same bullet again, for a keyword it already carries.
+    action({ what: 'open the role with WordPress instead of burying it', why: 'WordPress, primary must', quote: 'Built and maintained WordPress-based e-commerce solutions', replacement: 'Delivered WordPress e-commerce…' }),
+    // A rework that names a gap the wording lost — kept.
+    action({ what: 'name the Git workflow in the opening bullet', why: 'Git is a must the resume never shows', quote: 'powering checkout and payment flows', replacement: 'powering checkout and payment flows in a Git-based workflow' }),
+    // Not a rework at all — kept.
+    action({ what: 'name MySQL in the funnel bullet', why: 'MySQL', quote: 'Optimized sales-funnel APIs', replacement: 'Optimized MySQL-backed sales-funnel APIs' }),
+  ];
+  const fresh = freshActions(actions, applied, keywords, RESUME, m);
+  assert.deepEqual(fresh.kept.map((a) => a.what), ['name the Git workflow in the opening bullet', 'name MySQL in the funnel bullet']);
+  assert.deepEqual(fresh.dropped.map((a) => a.what), ['open the role with WordPress instead of burying it']);
+  // Nothing applied yet: nothing is a rework, and the list is untouched.
+  assert.equal(freshActions(actions, [], keywords, RESUME, m).kept.length, 3);
 });

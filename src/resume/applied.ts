@@ -1,5 +1,5 @@
-import type { Span } from './keyword-matcher';
-import type { MatchAction } from './prompts';
+import type { KeywordMatcher, Span } from './keyword-matcher';
+import type { MatchAction, MatchKeyword } from './prompts';
 
 /*
  * What the candidate took from the last report, read off the text.
@@ -18,6 +18,14 @@ import type { MatchAction } from './prompts';
  * report's actions quote one of them: the churn metric, logged on every
  * analysis and the regression number for the prompt rule. The locator arrives
  * as an argument (target.mjs:locateQuote through the matcher).
+ *
+ * The prompt rule alone did not hold — measured with `npm run churn:compare`
+ * on two pairs, two rounds each: rewrites of applied lines went from 11 of 18
+ * actions to 6 of 12, and every survivor was "open the role with X instead"
+ * about a bullet the model had written the round before. So `freshActions`
+ * is the rule as code (the same move as gateRemovals, gotcha 11): a rework of
+ * an applied line reaches the user only when it names a keyword the text does
+ * not carry — a real gap the last wording lost — and is dropped otherwise.
  */
 
 export type Locate = (text: string, quote: string | null | undefined) => Span | null;
@@ -57,4 +65,36 @@ export function rewritesOfApplied(
     const span = locate(text, a.quote);
     return span !== null && applied.some((p) => p.span.start < span.end && span.start < p.span.end);
   });
+}
+
+export interface FreshReport {
+  /** What reaches the user. */
+  kept: MatchAction[];
+  /** Reworks of applied wording that named no missing keyword. */
+  dropped: MatchAction[];
+}
+
+/**
+ * The actions minus the reworks of applied wording — unless a rework names a
+ * keyword the text does not carry (status other than `present`), which is the
+ * one reason to touch a line the candidate just took. The keywords arrive
+ * anchored to this text (keyword-anchor.ts), so `present` means written.
+ */
+export function freshActions(
+  actions: MatchAction[],
+  applied: AppliedAction[],
+  keywords: Pick<MatchKeyword, 'term' | 'aliases' | 'status'>[],
+  text: string,
+  matcher: Pick<KeywordMatcher, 'findTerm' | 'locateQuote'>,
+): FreshReport {
+  const reworks = new Set(rewritesOfApplied(applied, actions, text, matcher.locateQuote));
+  const missing = keywords.filter((k) => k.status !== 'present');
+  const kept: MatchAction[] = [];
+  const dropped: MatchAction[] = [];
+  for (const a of actions) {
+    const reason = `${a.why}\n${a.what}`;
+    const namesGap = missing.some((k) => matcher.findTerm(reason, k.term, k.aliases ?? []).length > 0);
+    (reworks.has(a) && !namesGap ? dropped : kept).push(a);
+  }
+  return { kept, dropped };
 }

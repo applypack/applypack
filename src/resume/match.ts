@@ -9,6 +9,7 @@ import {
   RESUME_TIMEOUT_MS,
   parseMatchResponse,
   PROMPT_VERSION,
+  readActions,
   readKeywords,
   type MatchContext,
   type MatchJobInput,
@@ -22,6 +23,7 @@ import { suggestForMatch } from './suggestions';
 import { withTableAliases } from './keyword-aliases';
 import { carryOverrides, effectiveKeywords } from './keyword-overrides';
 import { anchorKeywords, anchorStatuses, elsewhereForPosting } from './keyword-anchor';
+import { appliedWording, freshActions, rewritesOfApplied } from './applied';
 import { reconcileGroups } from './keyword-group';
 import { dropMalformedKeywords } from './keyword-shape';
 import { annotateEvidence } from './evidence';
@@ -104,6 +106,13 @@ export async function matchResumeToJob(
     postingChanged,
   );
   const posting = `${job.title}\n${job.description}`;
+  // What the candidate took from the last report is done (applied.ts): the
+  // full analysis is told so, and how many of its actions reword those lines
+  // anyway is the churn metric logged below.
+  const applied =
+    mode === 'full' && previousMatch
+      ? appliedWording(readActions(previousMatch.actions), resume.text, matcher.locateQuote)
+      : [];
   const context: MatchContext = {
     confirmedFacts: facts.filter((f) => f.status === 'confirmed').map((f) => ({ term: f.term, note: f.note })),
     deniedTerms: facts.filter((f) => f.status === 'denied').map((f) => f.term),
@@ -118,6 +127,7 @@ export async function matchResumeToJob(
       : undefined,
     companySnapshot: verification?.snapshot ?? null,
     brief: briefed?.brief ?? null,
+    appliedFromLastRun: applied.map((a) => a.wording),
   };
   const answer = await askForJson(
     await getAiRuntime(),
@@ -161,6 +171,10 @@ export async function matchResumeToJob(
   const gateSources = { resumeText: resume.text, posting, facts, keywords, matcher };
   const gate = gateActions(reply.actions, gateSources);
   const cuts = gateRemovals(reply.removals, gateSources);
+  // How many reworks of applied wording the model wrote (the metric), and
+  // then the rule as code: only one naming a keyword the text lacks stays.
+  const churn = rewritesOfApplied(applied, gate.actions, resume.text, matcher.locateQuote);
+  const fresh = freshActions(gate.actions, applied, keywords, resume.text, matcher);
   // A flag that only restates a keyword the resume does not have is the same
   // fact billed twice: the keyword pool already charged for it, and whether the
   // model bothers to write the sentence was 80% of a ten-point spread across
@@ -178,7 +192,7 @@ export async function matchResumeToJob(
     // The marker surfaces on the match card's meta line — the user can see
     // that a fallback engine (not chain #1) produced this analysis.
     model: answer.model,
-    result: { ...reply, keywords, actions: gate.actions, removals: cuts.removals },
+    result: { ...reply, keywords, actions: fresh.kept, removals: cuts.removals },
     breakdown,
     promptVersion: PROMPT_VERSION,
     mode,
@@ -195,6 +209,9 @@ export async function matchResumeToJob(
   // so the score cannot move.
   let filled = row;
   if (mode === 'full') {
+    // A dropped rework still counts as cover for its section: the candidate
+    // already holds the model's best wording there, so asking again would only
+    // buy the same rework back.
     const gaps = floorGaps({ keywords, alignment: reply.alignment, actions: gate.actions, breakdown });
     if (gaps.length > 0) {
       logger.info({ matchId: row.id, jobId: job.id, gaps }, 'resume: suggestions missed the floor, asking again');
@@ -227,6 +244,9 @@ export async function matchResumeToJob(
       unwritten: anchoredStatuses.downgraded,
       written: anchoredStatuses.upgraded,
       listedOnly: evidence.listedOnly,
+      applied: applied.length,
+      rewritesOfApplied: churn.length,
+      reworksDropped: fresh.dropped.length,
       frame: frame.reason,
       brief: briefed ? (briefed.reused ? 'reused' : 'fresh') : 'none',
       promptVersion: PROMPT_VERSION,
