@@ -1,6 +1,6 @@
 {
   "name": "applypack",
-  "version": "1.74.0",
+  "version": "1.75.0",
   "private": true,
   "description": "Self-hosted AI console for the whole job search: finds the postings, checks they're real, scores your resume without flattering it, drafts the cover letter, tracks the application. 24 sources, 5 swappable AI backends, your data in your own Postgres.",
   "license": "MIT",
@@ -31,6 +31,7 @@
     "verify:compare": "tsx src/scripts/verify-brief-once.ts",
     "matrix:compare": "tsx src/scripts/match-matrix-once.ts",
     "variance:compare": "tsx src/scripts/match-variance-once.ts",
+    "churn:compare": "tsx src/scripts/churn-once.ts",
     "keywords:audit": "tsx src/scripts/keyword-audit.ts",
     "test:telegram": "tsx src/scripts/test-telegram.ts",
     "prisma:generate": "prisma generate",

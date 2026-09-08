@@ -5,6 +5,7 @@ import { askForJson } from '../ai-json';
 import {
   buildSuggestionsPrompt,
   parseSuggestionsResponse,
+  readActions,
   readHardRequirements,
   readKeywords,
   SUGGESTIONS_MAX_TOKENS,
@@ -16,7 +17,8 @@ import { briefForPosting } from './brief';
 import { readBreakdown } from './score';
 import { loadKeywordMatcher } from './keyword-matcher';
 import { gateActions, gateRemovals } from './replacement-gate';
-import { getLatestVerificationContext, listFacts, updateMatchSuggestions } from './store';
+import { appliedWording, freshActions, rewritesOfApplied } from './applied';
+import { getLatestMatchForJob, getLatestVerificationContext, listFacts, updateMatchSuggestions } from './store';
 
 
 /**
@@ -33,13 +35,17 @@ export async function suggestForMatch(
   /** What a first reply owed and did not deliver (suggestion-floor.ts). */
   owed?: string | null,
 ): Promise<ResumeMatch | null> {
-  const [facts, verification, briefed] = await Promise.all([
+  const [facts, verification, briefed, previous, matcher] = await Promise.all([
     listFacts(),
     getLatestVerificationContext(job.id),
     // Written by the comparison this row came from, so this is normally a
     // stored read: who this employer is and what its first reader scans for.
     briefForPosting(job),
+    // The report before this row: what it proposed and the text took is done (applied.ts).
+    getLatestMatchForJob(job.id, match.id),
+    loadKeywordMatcher(),
   ]);
+  const applied = previous ? appliedWording(readActions(previous.actions), match.resumeText, matcher.locateQuote) : [];
   const prompt = buildSuggestionsPrompt(match.resumeText, job, {
     owed: owed ?? null,
     summary: match.summary,
@@ -52,6 +58,7 @@ export async function suggestForMatch(
     // Context for the "why" lines, never evidence (ADR 0042).
     companySnapshot: verification?.snapshot ?? null,
     brief: briefed?.brief ?? null,
+    appliedFromLastRun: applied.map((a) => a.wording),
   });
   const answer = await askForJson(
     await getAiRuntime(),
@@ -72,13 +79,15 @@ export async function suggestForMatch(
     facts,
     // Carries `evidence` (evidence.ts) — the "listed only" gap the floor asks about.
     keywords: readKeywords(match.keywords),
-    matcher: await loadKeywordMatcher(),
+    matcher,
   };
   const gate = gateActions(answer.data.actions, gateSources);
   const cuts = gateRemovals(answer.data.removals, gateSources);
+  const churn = rewritesOfApplied(applied, gate.actions, match.resumeText, matcher.locateQuote);
+  const fresh = freshActions(gate.actions, applied, gateSources.keywords, match.resumeText, matcher);
   const row = await updateMatchSuggestions(
     match.id,
-    { ...answer.data, actions: gate.actions, removals: cuts.removals },
+    { ...answer.data, actions: fresh.kept, removals: cuts.removals },
     verification?.id ?? null,
   );
   logger.info(
@@ -92,6 +101,9 @@ export async function suggestForMatch(
       replacementsWarned: gate.warned,
       removalsBlocked: cuts.blocked,
       removalsWarned: cuts.warned,
+      applied: applied.length,
+      rewritesOfApplied: churn.length,
+      reworksDropped: fresh.dropped.length,
       model: answer.model,
       chars: answer.chars,
       ms: answer.ms,

@@ -67,8 +67,11 @@ const KEYWORDS_MAX = 80;
  * v11: the floor does not apply to a resume aimed at another job function;
  *     duplicate terms fold, a pinned version matches its technology, and an
  *     `ask_user` the resume already spells becomes `present`.
+ * v13: APPLIED FROM THE LAST RUN — wording the candidate took from the previous
+ *     report is done, not raw material (applied.ts); a first bullet that already
+ *     opens the role right is left alone.
  */
-export const PROMPT_VERSION = 12;
+export const PROMPT_VERSION = 13;
 
 /**
  * The posting brief's own version (ADR 0044). Separate from PROMPT_VERSION so
@@ -620,7 +623,9 @@ const RULE_BULLET_STYLE = bulletRules(
   'end "why" with "ask the candidate for the real number"',
 );
 
-const RULE_ACTIONS = `"actions" is the to-do list of ADDITIONS and CHANGES: concrete edits, each pointing at one place ("where") with the exact change ("what") and the posting requirement it serves ("why"). When the edit changes existing text, put that text in "quote" — copied VERBATIM from the resume, at most ~200 characters, so it can be highlighted; "quote" is null for additions. Put the COMPLETE new text in "replacement", ready to paste in place of "quote"; for an addition put the resume line it follows in "insert_after" (copied VERBATIM) and the new text in "replacement"; "what" says what changes in one clause. "replacement" is null only for an instruction with no wording (a reorder, a cut). Concentrate on the title, summary, skills and the most recent role: the title and the top required skills must be visible in the top third of page one, and the current role must open with its strongest, most relevant accomplishment. Bullets of the two most recent roles may be reworded or reordered; older roles get trims only. Max 4 bullets per role. Priority "high" = a must-requirement keyword, the title, or the first bullet of the current role; "medium" = preferred keywords or another recent-role bullet; "low" = polish.
+const RULE_APPLIED = `APPLIED FROM THE LAST RUN. When the user prompt carries this block, each line is wording the candidate took from the previous report and put into the resume. It is DONE: do not quote any part of it for a rewrite, a reorder or a trim, and do not propose it again — unless it now fails a keyword verdict, a gate or a line of the brief's screening block, and then "why" names which. Spend the list on what is still uncovered. When nothing is, return fewer actions, not new words for the same lines: a short list is the right report for a resume that already says what the posting screens for.`;
+
+const RULE_ACTIONS = `"actions" is the to-do list of ADDITIONS and CHANGES: concrete edits, each pointing at one place ("where") with the exact change ("what") and the posting requirement it serves ("why"). When the edit changes existing text, put that text in "quote" — copied VERBATIM from the resume, at most ~200 characters, so it can be highlighted; "quote" is null for additions. Put the COMPLETE new text in "replacement", ready to paste in place of "quote"; for an addition put the resume line it follows in "insert_after" (copied VERBATIM) and the new text in "replacement"; "what" says what changes in one clause. "replacement" is null only for an instruction with no wording (a reorder, a cut). Concentrate on the title, summary, skills and the most recent role: the title and the top required skills must be visible in the top third of page one, and the current role must open with its strongest, most relevant accomplishment — when it already does, leave that bullet alone. Bullets of the two most recent roles may be reworded or reordered; older roles get trims only. Max 4 bullets per role. Priority "high" = a must-requirement keyword, the title, or the first bullet of the current role; "medium" = preferred keywords or another recent-role bullet; "low" = polish.
    EVERY ACTION EARNS ITS PLACE: an edit must flip a keyword status, raise an alignment grade, resolve a gate, answer something the first reader scans for, or remove a caution. Never re-suggest what the resume already does, and never add polish to make the list look longer.
    REQUIRED COVERAGE — a resume that needs one of these and gets none is a failed report:
    - "title" graded below strong → ONE high-priority action on the title line WITH a replacement: the headline this recruiter should read, in the posting's own words. Writing the role being applied for on one's own headline is ordinary tailoring, not a claim of past employment.
@@ -743,7 +748,7 @@ const MATCH_INTRO: Record<MatchMode, string> = {
 };
 
 const MATCH_STEPS: Record<MatchMode, string[]> = {
-  full: [RULE_KEYWORDS, RULE_REQUIREMENT, RULE_STATUS, RULE_PRIMARY, RULE_ALIGNMENT, RULE_GATES, RULE_ACTIONS, RULE_AUDIENCE, RULE_REMOVALS, redFlagsRule('full'), RULE_CAUTIONS, RULE_COMPANY_CONTEXT, RULE_SUMMARY],
+  full: [RULE_KEYWORDS, RULE_REQUIREMENT, RULE_STATUS, RULE_PRIMARY, RULE_ALIGNMENT, RULE_GATES, RULE_ACTIONS, RULE_APPLIED, RULE_AUDIENCE, RULE_REMOVALS, redFlagsRule('full'), RULE_CAUTIONS, RULE_COMPANY_CONTEXT, RULE_SUMMARY],
   fast: [RULE_KEYWORDS, RULE_REQUIREMENT, RULE_STATUS, RULE_PRIMARY, RULE_ALIGNMENT, RULE_GATES, redFlagsRule('fast'), RULE_SUMMARY],
 };
 
@@ -834,6 +839,7 @@ A "cannot_claim" keyword never enters a replacement as experience — never sugg
 METHOD
 ${numbered([
   RULE_ACTIONS,
+  RULE_APPLIED,
   RULE_AUDIENCE,
   RULE_REMOVALS,
   `"strengths": what already sells this candidate for this role — the strongest matching facts, one short line each, at most 6.`,
@@ -1013,6 +1019,22 @@ export interface MatchContext {
    * employer is and who reads the resume first.
    */
   brief?: PostingBrief | null;
+  /**
+   * Wording the candidate took from the previous report and put into this
+   * text (applied.ts) — the full analysis and the suggestions call are told
+   * it is done, so a re-run stops rewording its own last advice.
+   */
+  appliedFromLastRun?: string[];
+}
+
+/** The applied lines as both prompts state them — resume text, so fenced (ADR 0022). */
+function appliedLines(lines: string[] | undefined): string[] {
+  if (!lines || lines.length === 0) return [];
+  return [
+    'APPLIED FROM THE LAST RUN — wording the candidate took from the previous report; it is done (see APPLIED FROM THE LAST RUN):',
+    fence('APPLIED FROM THE LAST RUN', lines.map((l) => `- ${l}`).join('\n')),
+    '',
+  ];
 }
 
 /**
@@ -1149,6 +1171,9 @@ export function buildMatchPrompt(
       '',
       ...briefLines(context.brief, { frame: true }),
       ...contextLines,
+      // The full analysis only: the quick check writes no actions, so it has
+      // nothing to keep its hands off.
+      ...(mode === 'full' ? appliedLines(context.appliedFromLastRun) : []),
       postingBlock(job),
       '',
       // The full analysis only: the quick check judges keywords, and this is
@@ -1171,7 +1196,8 @@ function companyContextLines(snapshot: string | null | undefined): string[] {
 }
 
 /** What the suggestions call reads from a stored quick check — verdicts only, never the score. */
-export interface SuggestionsInput extends Pick<MatchContext, 'confirmedFacts' | 'deniedTerms' | 'companySnapshot' | 'brief'> {
+export interface SuggestionsInput
+  extends Pick<MatchContext, 'confirmedFacts' | 'deniedTerms' | 'companySnapshot' | 'brief' | 'appliedFromLastRun'> {
   /** Set when a first reply missed REQUIRED COVERAGE — the one thing this call is asked to fix. */
   owed?: string | null;
   summary: string;
@@ -1210,6 +1236,7 @@ export function buildSuggestionsPrompt(
       '',
       ...briefLines(input.brief, { frame: false }),
       ...factLines(input),
+      ...appliedLines(input.appliedFromLastRun),
       'KEYWORD VERDICTS from the quick check of this resume against this posting (fixed — do not re-judge):',
       fence('KEYWORD VERDICTS', verdicts),
       '',
