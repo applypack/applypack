@@ -23,7 +23,16 @@ import { applyReplacement, insertAfterLine, removeSpan, insertIntoSkills, invers
 
 // Full literal class names — the Tailwind CDN JIT only generates what it can
 // see verbatim in the document, composed strings would come out unstyled.
-//
+
+// The ring's stroke, by score. Same four steps and the same cut-offs as the
+// server's format.ts:fitTone, so the colour does not change under the user
+// when an analysis lands on a score the live count already showed.
+const RING_TONE = { ok: 'text-ok', info: 'text-info', warn: 'text-warn', neutral: 'text-ink-faint' };
+
+export function ringTone(score) {
+  return score >= 85 ? 'ok' : score >= 70 ? 'info' : score >= 50 ? 'warn' : 'neutral';
+}
+
 // A missing chip wears the colour its mark wears in the posting (target.mjs):
 // red for a must, amber for a preferred, slate for a nice-to-have. Keyed by
 // keywordRank — 4 a primary-stack must … 0 context.
@@ -56,8 +65,11 @@ export function init(data) {
   const chips = document.getElementById('missing-chips');
   const saveButtons = document.querySelectorAll('[data-save-button]');
   const dirtyBar = document.getElementById('dirty-bar');
-  const barScore = document.getElementById('bar-score');
-  const barDelta = document.getElementById('bar-delta');
+  const ringButton = document.getElementById('score-ring');
+  const ringArc = document.getElementById('score-arc');
+  const ringNumber = document.getElementById('score-number');
+  // 2πr, straight off the element the server drew, so the two cannot drift.
+  const ringLength = Number(ringArc.getAttribute('stroke-dasharray'));
   const panes = document.getElementById('panes');
   const storageKey = 'target-draft:' + data.matchId;
   const editsKey = 'target-edits:' + data.matchId;
@@ -91,24 +103,35 @@ export function init(data) {
     } catch {}
   }
 
+  /** The ring: the number, the arc and the label a screen reader reads. */
+  function paintRing(score) {
+    ringNumber.textContent = String(score);
+    ringArc.style.strokeDashoffset = String(ringLength - (ringLength * score) / 100);
+    ringArc.setAttribute(
+      'class',
+      'transition-[stroke-dashoffset] duration-300 ' + RING_TONE[ringTone(score)],
+    );
+    ringButton.setAttribute('aria-label', 'Match score ' + score + ' of 100 — what this number is');
+  }
+
   function render() {
     const text = editor.value;
     const scored = scoreKeywords(data.keywords, text);
-    // The live number, for the sticky bar alone: the full score formula when
-    // the match carries a breakdown (alignment fixed from the last AI run,
-    // keywords + cap live), else the plain coverage percentage for
-    // pre-ADR-0012 matches. The ring above keeps the AI's own verdict, which
-    // only a re-run moves; a keyword edit re-scores it server-side instead.
+    // The number in the ring, recomputed on every keystroke and on every page
+    // render — which is what a keyword override produces. The full score
+    // formula when the match carries a breakdown (alignment and the red-flag
+    // penalty held at what the last analysis judged, keywords and the
+    // primary-stack cap live), else the plain coverage percentage for
+    // pre-ADR-0012 matches.
+    //
+    // The same arithmetic the server runs (score.mjs mirrors score.ts), so
+    // this is the score, not a second opinion about it: only the parts a word
+    // search cannot read wait for the next analysis.
     let display = scored.score;
     if (data.scoring) {
       display = computeScore(entriesFromLive(scored.rows), data.scoring.alignment, data.scoring.redFlagCount, data.scoring.penalty ?? null).score;
     }
-    barScore.textContent = String(display);
-    if (data.scoring) {
-      const d = display - data.aiScore;
-      barDelta.textContent = d === 0 ? 'same as the last analysis' : (d > 0 ? '+' : '') + d + ' vs the last analysis';
-      barDelta.className = 'ml-1 text-xs font-medium ' + (d > 0 ? 'text-ok' : d < 0 ? 'text-danger' : 'text-ink-faint');
-    }
+    paintRing(display);
 
     const spans = resumeSpans(data.keywords, data.actions, data.removals, text);
     if (located) {

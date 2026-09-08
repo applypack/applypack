@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { fitTone } from './format';
 
 // The matcher ships to the browser as a static ES module; node loads it the same way.
 // @ts-expect-error — plain JS with no declaration file; the shape is asserted below.
@@ -135,6 +136,20 @@ test('target-page module imports without a DOM and exposes init', async () => {
   // @ts-expect-error — plain JS with no declaration file.
   const page = (await import('./public/target-page.mjs')) as { init: unknown };
   assert.equal(typeof page.init, 'function');
+});
+
+test('the ring\'s live tone agrees with the server\'s fitTone at every cut-off', async () => {
+  // The ring is drawn by the server at the stored score and then repainted by
+  // target-page.mjs on every edit. Two implementations of the same four steps:
+  // if they drift, the colour changes under the user when an analysis lands on
+  // a number the live count already showed.
+  // @ts-expect-error — plain JS with no declaration file.
+  const { ringTone } = (await import('./public/target-page.mjs')) as {
+    ringTone: (score: number) => string;
+  };
+  for (const score of [0, 1, 49, 50, 51, 69, 70, 71, 84, 85, 86, 99, 100]) {
+    assert.equal(ringTone(score), fitTone(score), `score ${score}`);
+  }
 });
 
 test('resumeSpans marks keywords and quoted edits, edits first on ties', async () => {
