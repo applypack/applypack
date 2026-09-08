@@ -24,6 +24,7 @@ import { withTableAliases } from './keyword-aliases';
 import { carryOverrides, effectiveKeywords } from './keyword-overrides';
 import { anchorKeywords, anchorStatuses, elsewhereForPosting } from './keyword-anchor';
 import { appliedWording, freshActions, rewritesOfApplied } from './applied';
+import { domainMismatch } from './domain';
 import { reconcileGroups } from './keyword-group';
 import { dropMalformedKeywords } from './keyword-shape';
 import { annotateEvidence } from './evidence';
@@ -37,6 +38,7 @@ import {
   getLatestMatchForJob,
   getLatestVerificationContext,
   getPostingRefreshedAt,
+  getResumeIndustries,
   listFacts,
   listMatchesForText,
   listOtherResumeSkills,
@@ -79,7 +81,7 @@ export async function matchResumeToJob(
   // resume reuses the stored reading instead of paying for it again. A failure
   // is not fatal — without it the call derives the frame itself, as before.
   const briefed = opts.brief !== undefined ? opts.brief : await briefForPosting(job, { onError: opts.onError });
-  const [facts, otherSkills, previousMatch, matcher, verification, refreshedAt] = await Promise.all([
+  const [facts, otherSkills, previousMatch, matcher, verification, refreshedAt, industries] = await Promise.all([
     listFacts(),
     listOtherResumeSkills(resume.id),
     getLatestMatchForJob(job.id),
@@ -88,6 +90,8 @@ export async function matchResumeToJob(
     // context; the quick check never does (ADR 0042).
     mode === 'full' ? getLatestVerificationContext(job.id) : null,
     getPostingRefreshedAt(job.id),
+    // The sectors the scan read off this resume, for the domain verdict (ADR 0046).
+    getResumeIndustries(resume.id),
   ]);
   // A frame read from a description this posting no longer shows is not
   // inherited (ADR 0043); the user's own keyword edits still are.
@@ -128,6 +132,7 @@ export async function matchResumeToJob(
     companySnapshot: verification?.snapshot ?? null,
     brief: briefed?.brief ?? null,
     appliedFromLastRun: applied.map((a) => a.wording),
+    candidateDomains: domainMismatch(industries, briefed?.brief),
   };
   const answer = await askForJson(
     await getAiRuntime(),
@@ -247,6 +252,7 @@ export async function matchResumeToJob(
       applied: applied.length,
       rewritesOfApplied: churn.length,
       reworksDropped: fresh.dropped.length,
+      domain: context.candidateDomains?.verdict,
       frame: frame.reason,
       brief: briefed ? (briefed.reused ? 'reused' : 'fresh') : 'none',
       promptVersion: PROMPT_VERSION,

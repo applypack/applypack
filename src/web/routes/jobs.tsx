@@ -60,6 +60,7 @@ import {
 import { preselectAppliedResume, preselectResume } from '../../resume/pick';
 import { briefForPosting, briefLine, storedBriefFor } from '../../resume/brief';
 import { postingDepth } from '../../resume/brief-depth';
+import { domainMismatch, domainNotice } from '../../resume/domain';
 import { rewriteAction } from '../../resume/rewrite';
 import { findReusableMatch, matchResumeToJob } from '../../resume/match';
 import { parseMatchMode, readMatchMode, type MatchMode } from '../../resume/match-mode';
@@ -1020,8 +1021,12 @@ jobsRoute.get('/jobs/:id/target', async (c) => {
   if (!resume) return c.text('Not found', 404);
   const jobInput = { id: job.id, title: job.title, companyName: job.company.name, location: job.location, description: job.description };
   // What the posting itself carried (§17): with little to go on, the page says
-  // so rather than letting inferred advice read like the employer's demands.
-  const depth = postingDepth(await storedBriefFor(jobInput));
+  // so rather than letting inferred advice read like the employer's demands —
+  // and, from the same stored reading, whether its sector is one this resume
+  // shows (ADR 0046).
+  const storedBrief = await storedBriefFor(jobInput);
+  const depth = postingDepth(storedBrief);
+  const domain = domainNotice(domainMismatch(resume.industries, storedBrief));
   const file = await describeResumeFile(resume);
   // A one-off check keeps nothing: the comparison holds the text, and Resumes
   // is where a file the user wants to keep is uploaded.
@@ -1036,6 +1041,7 @@ jobsRoute.get('/jobs/:id/target', async (c) => {
       previous={previousFor(match, matches)}
       resumeText={match.resumeText || resume.text}
       postingNotice={depth.notice}
+      domainNotice={domain}
       verification={verifications[0] ?? null}
       fileVerdict={fileVerdict}
       cleanHref={file.clean ? `/resumes/${resume.id}/render` : null}

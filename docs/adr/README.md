@@ -54,6 +54,7 @@ consequences (what we accept). Aim for 15–30 lines each.
 - [0043 — A posting refreshed from the company's own listing keeps its original and is re-judged](./0043-refresh-the-posting-from-the-companys-own-listing.md)
 - [0044 — The posting is read once, on its own, and the reading is kept](./0044-the-posting-is-read-once-on-its-own.md)
 - [0045 — The resume text decides whether a keyword is present](./0045-the-resume-text-decides-presence.md)
+- [0046 — The resume's domains are read at scan time and compared with the posting's](./0046-the-resumes-domains-are-read-at-scan-time.md)
 
 ## When to write a new one
 

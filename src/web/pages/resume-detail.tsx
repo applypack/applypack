@@ -158,6 +158,7 @@ export const ResumeDetailPage: FC<ResumeDetailProps> = ({
               {resume.summary && (
                 <p class="text-sm leading-6 text-ink">{resume.summary}</p>
               )}
+              <TagRow label="Domains" items={resume.industries} tone="info" />
               <TagRow label="Roles" items={resume.roleTypes} tone="info" />
               <TagRow label="Skills" items={resume.skills} tone="ok" />
             </div>

@@ -150,6 +150,12 @@ export async function setDefaultResume(id: number): Promise<void> {
  * caller has the resume text and the log line — and null leaves the column
  * alone rather than clearing a structure an earlier scan earned.
  */
+/** The sectors the scan read off a resume — empty before it is scanned again (ADR 0046). */
+export async function getResumeIndustries(id: number): Promise<string[]> {
+  const row = await prisma.resume.findUnique({ where: { id }, select: { industries: true } });
+  return row?.industries ?? [];
+}
+
 export async function saveResumeScan(id: number, scan: ResumeScan): Promise<void> {
   await prisma.resume.update({
     where: { id },
@@ -161,6 +167,7 @@ export async function saveResumeScan(id: number, scan: ResumeScan): Promise<void
       skills: scan.skills,
       primarySkills: scan.primary_skills,
       roleTypes: scan.role_types,
+      industries: scan.industries,
       summary: scan.summary,
       issues: scan.issues as Prisma.InputJsonValue,
     },
