@@ -5,6 +5,7 @@
  *   npm run variance:compare -- 1:2117 --runs 8
  *   npm run variance:compare -- 1:2117 --rebuild  # frame withheld each time
  *   npm run variance:compare -- 1:2117 --stored    # re-read the last N rows, no AI
+ *   npm run variance:compare -- 1:2117 --discard   # delete the rows it wrote
  *
  * The rubric's own cliffs are fixed (ADR 0044 and its addendum); what is left
  * is the model's judgment, and "the score moved 20 points" is not something a
@@ -23,6 +24,7 @@
  */
 import { prisma } from '../db';
 import { briefForPosting } from '../resume/brief';
+import { domainLean } from '../resume/domain';
 import { matchResumeToJob } from '../resume/match';
 import { readActions, readKeywords } from '../resume/prompts';
 import { readBreakdown } from '../resume/score';
@@ -48,6 +50,8 @@ async function main(): Promise<void> {
   const rebuild = process.argv.includes('--rebuild');
   // Re-reading is free, and a measurement worth making is worth looking at twice.
   const stored = process.argv.includes('--stored');
+  // A measurement of the prompt, not a comparison the user asked for.
+  const discard = process.argv.includes('--discard') && !stored;
 
   const job = await prisma.job.findUniqueOrThrow({
     where: { id: jobId },
@@ -73,6 +77,8 @@ async function main(): Promise<void> {
     ? (await prisma.resumeMatch.findMany({ where: { jobId, resumeId }, orderBy: { id: 'desc' }, take: times })).reverse()
     : [];
   const runs: VarianceRun[] = [];
+  const written: number[] = [];
+  const leans: string[] = [];
   for (let i = 0; i < times; i++) {
     const started = Date.now();
     const row = stored ? previous[i] : await matchResumeToJob(resume, jobInput, { mode: 'full', brief: briefed, rebuild });
@@ -80,11 +86,15 @@ async function main(): Promise<void> {
       console.log(`run ${i + 1}: ${stored ? 'no stored row' : 'failed'}`);
       continue;
     }
+    if (!stored) written.push(row.id);
     const breakdown = readBreakdown(row.breakdown);
     if (!breakdown) {
       console.log(`run ${i + 1}: no readable breakdown`);
       continue;
     }
+    // Whether the advice is written in the employer's domain (domain.ts).
+    const lean = domainLean(readActions(row.actions), briefed?.brief);
+    leans.push(`${lean.high.hits}/${lean.high.total}`);
     runs.push({
       score: row.matchScore,
       breakdown,
@@ -96,7 +106,7 @@ async function main(): Promise<void> {
       `run ${i + 1}: ${String(row.matchScore).padStart(3)}/100  ` +
         `kw ${String(breakdown.keywordPts).padStart(4)}  align ${String(breakdown.alignmentPts).padStart(3)}  ` +
         `pen ${String(breakdown.penalty).padStart(2)}  cap ${String(breakdown.cap ?? '-').padStart(4)}  ` +
-        `flags ${row.redFlags.length}  actions ${readActions(row.actions).length}  ${Math.round((Date.now() - started) / 1000)}s`,
+        `flags ${row.redFlags.length}  actions ${readActions(row.actions).length}  domain ${lean.high.hits}/${lean.high.total}  ${Math.round((Date.now() - started) / 1000)}s`,
     );
   }
   if (runs.length < 2) {
@@ -137,6 +147,14 @@ async function main(): Promise<void> {
   const unstable = drift.filter((d) => !d.stable);
   console.log(`\nkeyword statuses: ${drift.length - unstable.length} of ${drift.length} stable across all runs`);
   for (const d of unstable) console.log(`  ${d.term.padEnd(28)} ${d.statuses.join(' → ')}`);
+
+  const vocabulary = domainLean([], briefed?.brief).vocabulary;
+  console.log(`\nhigh actions in the employer's domain: ${leans.join('  ')}   (${vocabulary.join(', ') || 'no domain words in the brief'})`);
+
+  if (discard && written.length > 0) {
+    await prisma.resumeMatch.deleteMany({ where: { id: { in: written } } });
+    console.log(`\ndeleted ${written.length} rows`);
+  }
 }
 
 main()
