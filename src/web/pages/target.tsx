@@ -58,6 +58,8 @@ export interface TargetPageProps {
   resumeText: string;
   /** What the posting itself said, when it did not say much (§17) — null when it did. */
   postingNotice?: string | null;
+  /** The sectors differ (domain.ts) — one sentence, or nothing. */
+  domainNotice?: string | null;
   /** The latest "Is this job real?" verdict — one line under the title, findings among the cautions (#162). */
   verification: VerificationForHint | null;
   flash?: FlashMessage | null;
@@ -113,6 +115,7 @@ export const TargetPage: FC<TargetPageProps> = ({
   previous,
   resumeText,
   postingNotice,
+  domainNotice,
   verification,
   fileVerdict,
   cleanHref,
@@ -446,6 +449,13 @@ export const TargetPage: FC<TargetPageProps> = ({
             <div class="border-t border-line pt-3 lg:col-span-3">
               <p class="text-[13px] leading-6 text-ink-muted">
                 <span class="font-medium text-warn">Thin posting.</span> {postingNotice}
+              </p>
+            </div>
+          )}
+          {domainNotice && (
+            <div class="border-t border-line pt-3 lg:col-span-3">
+              <p class="text-[13px] leading-6 text-ink-muted">
+                <span class="font-medium text-info">Another sector.</span> {domainNotice}
               </p>
             </div>
           )}

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { domainLean, domainVocabulary, inDomain } from './domain';
+import { domainLean, domainMismatch, domainNotice, domainVocabulary, inDomain } from './domain';
 import { readActions, type MatchAction } from './prompts';
 
 const BRIEF = {
@@ -46,4 +46,29 @@ test('domainLean counts the worded actions, high-priority ones on their own', ()
   assert.deepEqual(lean.high, { hits: 1, total: 2 });
   assert.deepEqual(lean.all, { hits: 2, total: 4 });
   assert.deepEqual(lean.vocabulary, ['e-commerce', 'integration', 'poland']);
+});
+
+test('domainMismatch says "different" only when both sides are known and share no sector word', () => {
+  const restaurants = { company: { industry: 'restaurant technology', product: 'AI-enabled order taking for restaurants', audience: 'small brick-and-mortar restaurant owners', stage: null } };
+  const mine = ['fitness e-commerce', 'ai tooling', 'public sector'];
+  assert.equal(domainMismatch(mine, restaurants).verdict, 'different');
+  assert.equal(domainMismatch(['restaurant delivery apps'], restaurants).verdict, 'match', 'a shared sector word, plural or not');
+  // An agency serves every sector: nothing for the candidate to lack.
+  assert.equal(domainMismatch(mine, BRIEF).verdict, 'match');
+  assert.equal(domainMismatch(['fintech'], { company: { industry: 'IT staffing / consulting', product: null, audience: null, stage: null } }).verdict, 'match');
+  // Either side unknown: nothing is said.
+  assert.equal(domainMismatch([], restaurants).verdict, 'unknown');
+  assert.equal(domainMismatch(mine, { company: { industry: null, product: 'something', audience: null, stage: null } }).verdict, 'unknown');
+  assert.equal(domainMismatch(mine, null).verdict, 'unknown');
+});
+
+test('domainNotice is one sentence for a different sector, and nothing otherwise', () => {
+  const restaurants = { company: { industry: 'restaurant technology', product: null, audience: null, stage: null } };
+  const report = domainMismatch(['fitness e-commerce', 'ai tooling', 'public sector', 'media'], restaurants);
+  assert.equal(
+    domainNotice(report),
+    'This posting is in restaurant technology; your resume shows fitness e-commerce, ai tooling, public sector. The suggestions reframe transferable work in the employer\'s terms — they do not claim experience in restaurant technology.',
+  );
+  assert.equal(domainNotice(domainMismatch(['restaurant delivery'], restaurants)), null);
+  assert.equal(domainNotice(domainMismatch([], restaurants)), null);
 });

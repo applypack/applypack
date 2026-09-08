@@ -76,3 +76,49 @@ export function domainLean(actions: MatchAction[], brief: Pick<PostingBrief, 'co
   };
   return { vocabulary, high: count(actions.filter((a) => a.priority === 'high')), all: count(actions) };
 }
+
+/*
+ * The candidate's sectors against the posting's (ADR 0046). "different" is
+ * the one verdict that does anything: the target page says it in a sentence,
+ * and both prompts are told to reframe transferable work rather than claim
+ * the sector. "unknown" when either side is empty — a resume not scanned
+ * since the field existed, a posting whose brief names no industry — and
+ * nothing is said. An employer that serves every sector (an agency, a
+ * consultancy, a software house) has no sector for the candidate to lack.
+ */
+
+export type DomainVerdict = 'match' | 'different' | 'unknown';
+
+export interface DomainReport {
+  verdict: DomainVerdict;
+  /** The scan's sectors, as stored. */
+  resume: string[];
+  /** The brief's industry, as stored. */
+  posting: string | null;
+}
+
+const SERVES_ANY_SECTOR = /\b(agenc(?:y|ies)|consultanc(?:y|ies)|consulting|software house|staffing|outsourc\w*|freelanc\w*|studio)\b/i;
+
+/** The domain words of one side, comparable with the other's — a plural folded to its stem. */
+function stems(text: string): string[] {
+  return domainVocabulary({ company: { industry: text, product: null, audience: null, stage: null } }).map((w) =>
+    w.replace(/s$/, ''),
+  );
+}
+
+export function domainMismatch(industries: string[], brief: Pick<PostingBrief, 'company'> | null | undefined): DomainReport {
+  const resume = industries.map((s) => s.trim()).filter(Boolean);
+  const posting = brief?.company.industry?.trim() || null;
+  if (resume.length === 0 || posting === null) return { verdict: 'unknown', resume, posting };
+  if (SERVES_ANY_SECTOR.test(posting)) return { verdict: 'match', resume, posting };
+  const theirs = new Set(domainVocabulary(brief).map((w) => w.replace(/s$/, '')));
+  const overlap = resume.some((sector) => stems(sector).some((w) => theirs.has(w)));
+  return { verdict: overlap ? 'match' : 'different', resume, posting };
+}
+
+/** The sentence the target page shows — null unless the sectors differ. */
+export function domainNotice(report: DomainReport): string | null {
+  if (report.verdict !== 'different' || report.posting === null) return null;
+  const shown = report.resume.slice(0, 3).join(', ');
+  return `This posting is in ${report.posting}; your resume shows ${shown}. The suggestions reframe transferable work in the employer's terms — they do not claim experience in ${report.posting}.`;
+}

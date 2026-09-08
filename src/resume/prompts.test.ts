@@ -1100,3 +1100,18 @@ test('wording the candidate took from the last report is done, not raw material'
   assert.doesNotMatch(buildMatchPrompt('resume', JOB, 'full', { appliedFromLastRun: [] }).user, /APPLIED FROM THE LAST RUN/);
   assert.match(buildSuggestionsPrompt('resume', JOB, { ...SUGGEST_INPUT, appliedFromLastRun: lines }).user, /BEGIN UNTRUSTED APPLIED FROM THE LAST RUN/);
 });
+
+test("the candidate's domains reach the full analysis and the suggestions, fenced; the gap sentence only when they differ", () => {
+  const different = { verdict: 'different' as const, resume: ['fitness e-commerce', 'ai tooling'], posting: 'restaurant technology' };
+  const full = buildMatchPrompt('resume', JOB, 'full', { candidateDomains: different }).user;
+  assert.match(full, /BEGIN UNTRUSTED CANDIDATE DOMAINS/);
+  assert.match(full, /- fitness e-commerce/);
+  assert.match(full, /never claim experience in that sector/);
+  const same = buildMatchPrompt('resume', JOB, 'full', { candidateDomains: { ...different, verdict: 'match' } }).user;
+  assert.match(same, /BEGIN UNTRUSTED CANDIDATE DOMAINS/);
+  assert.doesNotMatch(same, /never claim experience in that sector/);
+  // Unknown on either side: nothing is said. The quick check writes no advice, so nothing either.
+  assert.doesNotMatch(buildMatchPrompt('resume', JOB, 'full', { candidateDomains: { verdict: 'unknown', resume: [], posting: null } }).user, /CANDIDATE DOMAINS/);
+  assert.doesNotMatch(buildMatchPrompt('resume', JOB, 'fast', { candidateDomains: different }).user, /CANDIDATE DOMAINS/);
+  assert.match(buildSuggestionsPrompt('resume', JOB, { ...SUGGEST_INPUT, candidateDomains: different }).user, /never claim experience in that sector/);
+});

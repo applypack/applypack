@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { DomainReport } from './domain';
 import { extractJson, jsonFailure, type ParseResult } from '../text-utils';
 import {
   ALIGNMENT_GRADES,
@@ -70,8 +71,11 @@ const KEYWORDS_MAX = 80;
  * v13: APPLIED FROM THE LAST RUN — wording the candidate took from the previous
  *     report is done, not raw material (applied.ts); a first bullet that already
  *     opens the role right is left alone.
+ * v14: CANDIDATE'S DOMAINS — the sectors the resume's roles were in (the scan's
+ *     "industries"), and, when the posting's sector is not among them, the
+ *     instruction to reframe transferable work rather than claim the sector.
  */
-export const PROMPT_VERSION = 13;
+export const PROMPT_VERSION = 14;
 
 /**
  * The posting brief's own version (ADR 0044). Separate from PROMPT_VERSION so
@@ -120,6 +124,8 @@ export const ScanSchema = z.object({
   skills: tagList,
   primary_skills: tagList,
   role_types: tagList,
+  /** The sectors the roles were in — compared with the posting's (domain.ts). */
+  industries: tagList,
   summary: z.string(),
   issues: z
     .array(z.object({ section: z.string(), issue: z.string(), fix: z.string() }))
@@ -540,12 +546,13 @@ Fields:
 - "skills": lowercase canonical tags for technologies the resume actually names — languages, frameworks, databases, cloud, infra, tools, methodologies. Use the common short form ("php", "laravel", "postgresql", "aws", "ci/cd", "docker"). No duplicates, no soft skills.
 - "primary_skills": the subset of "skills" that is the candidate's PRIMARY STACK — the 2-5 languages, runtimes and core frameworks their day-to-day code is written in, judged from the most recent roles and the headline. Databases, clouds, containers and tooling are NEVER primary. Same spelling as in "skills".
 - "role_types": job categories the resume supports, e.g. "backend", "full-stack", "platform", "ai-engineer"
+- "industries": the sectors the candidate's roles were in, read from the employers and the work the bullets describe — "fintech", "e-commerce", "healthtech", "fitness", "public sector", "digital agency" — lowercase, most recent first, at most 6. An employer the resume does not describe gets no sector: never guess one from a company name
 - "summary": two plain sentences describing the candidate the way a recruiter would after a 10-second scan
 - "issues": job-agnostic problems an ATS parser or recruiter would flag, each {"section", "issue", "fix"}. Check: non-standard section headings or order (expected Summary → Skills → Experience → Education); mixed date formats; bullets that state an activity but no outcome for the company (what improved: revenue, cost, speed, reliability, users, time saved); more than 4 bullets in one role; skills listed but never evidenced in experience; buzzwords and filler; missing contact line; photo / age / marital status (US market); likely length over 2 pages; tables, columns or text boxes that break parsers. Include what can simply be REMOVED to make the resume cleaner (unevidenced skills, empty sections, decorative lines, roles too old to matter). Concrete and short. Empty array if clean.
 
 
 Output exactly:
-{"title": string|null, "seniority": string|null, "years_experience": integer|null, "skills": string[], "primary_skills": string[], "role_types": string[], "summary": string, "issues": [{"section": string, "issue": string, "fix": string}]}`;
+{"title": string|null, "seniority": string|null, "years_experience": integer|null, "skills": string[], "primary_skills": string[], "role_types": string[], "industries": string[], "summary": string, "issues": [{"section": string, "issue": string, "fix": string}]}`;
 
 const STRUCTURE_SHAPE = `{"basics": {"name": string|null, "label": string|null, "email": string|null, "phone": string|null, "url": string|null, "location": string|null, "summary": string|null, "profiles": string[]}, "work": [{"name": string|null, "position": string|null, "location": string|null, "startDate": string|null, "endDate": string|null, "summary": string|null, "highlights": string[]}], "education": [{"institution": string|null, "area": string|null, "studyType": string|null, "startDate": string|null, "endDate": string|null, "score": string|null}], "skills": [{"name": string|null, "keywords": string[]}], "languages": [{"language": string|null, "fluency": string|null}], "certificates": [{"name": string|null, "issuer": string|null, "date": string|null}], "projects": [{"name": string|null, "description": string|null, "url": string|null, "highlights": string[]}], "extras": [{"heading": string, "lines": string[]}]}`;
 
@@ -1025,6 +1032,28 @@ export interface MatchContext {
    * it is done, so a re-run stops rewording its own last advice.
    */
   appliedFromLastRun?: string[];
+  /** The candidate's sectors against the posting's (domain.ts) — ADR 0046. */
+  candidateDomains?: DomainReport | null;
+}
+
+/**
+ * The candidate's domains as both prompts state them: the scan's list is a
+ * model's reading of the resume, so it is fenced; the sentence about the gap
+ * is our own instruction and sits outside.
+ */
+function domainLines(report: DomainReport | null | undefined): string[] {
+  if (!report || report.resume.length === 0) return [];
+  const lines = [
+    "CANDIDATE'S DOMAINS (the sectors this resume's roles were in, most recent first):",
+    fence('CANDIDATE DOMAINS', report.resume.map((d) => `- ${d}`).join('\n')),
+  ];
+  if (report.verdict === 'different') {
+    lines.push(
+      "The posting's sector is not one this resume shows. Write transferable work in the employer's terms and never claim experience in that sector; the gap itself is said once, in \"cautions\".",
+    );
+  }
+  lines.push('');
+  return lines;
 }
 
 /** The applied lines as both prompts state them — resume text, so fenced (ADR 0022). */
@@ -1172,8 +1201,9 @@ export function buildMatchPrompt(
       ...briefLines(context.brief, { frame: true }),
       ...contextLines,
       // The full analysis only: the quick check writes no actions, so it has
-      // nothing to keep its hands off.
+      // nothing to keep its hands off — and nothing to write in a sector's terms.
       ...(mode === 'full' ? appliedLines(context.appliedFromLastRun) : []),
+      ...(mode === 'full' ? domainLines(context.candidateDomains) : []),
       postingBlock(job),
       '',
       // The full analysis only: the quick check judges keywords, and this is
@@ -1197,7 +1227,7 @@ function companyContextLines(snapshot: string | null | undefined): string[] {
 
 /** What the suggestions call reads from a stored quick check — verdicts only, never the score. */
 export interface SuggestionsInput
-  extends Pick<MatchContext, 'confirmedFacts' | 'deniedTerms' | 'companySnapshot' | 'brief' | 'appliedFromLastRun'> {
+  extends Pick<MatchContext, 'confirmedFacts' | 'deniedTerms' | 'companySnapshot' | 'brief' | 'appliedFromLastRun' | 'candidateDomains'> {
   /** Set when a first reply missed REQUIRED COVERAGE — the one thing this call is asked to fix. */
   owed?: string | null;
   summary: string;
@@ -1237,6 +1267,7 @@ export function buildSuggestionsPrompt(
       ...briefLines(input.brief, { frame: false }),
       ...factLines(input),
       ...appliedLines(input.appliedFromLastRun),
+      ...domainLines(input.candidateDomains),
       'KEYWORD VERDICTS from the quick check of this resume against this posting (fixed — do not re-judge):',
       fence('KEYWORD VERDICTS', verdicts),
       '',

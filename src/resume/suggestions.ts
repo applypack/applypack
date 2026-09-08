@@ -18,7 +18,8 @@ import { readBreakdown } from './score';
 import { loadKeywordMatcher } from './keyword-matcher';
 import { gateActions, gateRemovals } from './replacement-gate';
 import { appliedWording, freshActions, rewritesOfApplied } from './applied';
-import { getLatestMatchForJob, getLatestVerificationContext, listFacts, updateMatchSuggestions } from './store';
+import { domainMismatch } from './domain';
+import { getLatestMatchForJob, getLatestVerificationContext, getResumeIndustries, listFacts, updateMatchSuggestions } from './store';
 
 
 /**
@@ -35,7 +36,7 @@ export async function suggestForMatch(
   /** What a first reply owed and did not deliver (suggestion-floor.ts). */
   owed?: string | null,
 ): Promise<ResumeMatch | null> {
-  const [facts, verification, briefed, previous, matcher] = await Promise.all([
+  const [facts, verification, briefed, previous, matcher, industries] = await Promise.all([
     listFacts(),
     getLatestVerificationContext(job.id),
     // Written by the comparison this row came from, so this is normally a
@@ -44,6 +45,7 @@ export async function suggestForMatch(
     // The report before this row: what it proposed and the text took is done (applied.ts).
     getLatestMatchForJob(job.id, match.id),
     loadKeywordMatcher(),
+    getResumeIndustries(match.resumeId),
   ]);
   const applied = previous ? appliedWording(readActions(previous.actions), match.resumeText, matcher.locateQuote) : [];
   const prompt = buildSuggestionsPrompt(match.resumeText, job, {
@@ -59,6 +61,7 @@ export async function suggestForMatch(
     companySnapshot: verification?.snapshot ?? null,
     brief: briefed?.brief ?? null,
     appliedFromLastRun: applied.map((a) => a.wording),
+    candidateDomains: domainMismatch(industries, briefed?.brief),
   });
   const answer = await askForJson(
     await getAiRuntime(),

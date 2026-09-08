@@ -511,6 +511,10 @@ model Resume {
   // day-to-day work. Feeds Profile.stackRequired via "Fill from resume".
   primarySkills   String[]       @default([])
   roleTypes       String[]       @default([])
+  // The sectors the roles were in ("fintech", "e-commerce", "healthtech"),
+  // read by the scan and compared with the posting brief's industry
+  // (resume/domain.ts, ADR 0046). Empty until the resume is scanned again.
+  industries      String[]       @default([])
   summary         String?        @db.Text
   // [{ section, issue, fix }] — job-agnostic ATS / recruiter problems.
   issues          Json           @default("[]")
