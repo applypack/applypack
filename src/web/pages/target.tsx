@@ -7,7 +7,8 @@ import { fitTone, formatRelative, type Tone } from '../format';
 import type { MatchWithResume } from '../../resume/store';
 import type { CountedKeyword } from '../../resume/keyword-matcher';
 import type { VerificationForHint } from '../../resume/verification-hint';
-import { effectiveKeywords } from '../../resume/keyword-overrides';
+import { effectiveKeywords, confirmable } from '../../resume/keyword-overrides';
+import { DENIED_NOTE } from '../../resume/facts';
 import { readActions, readHardRequirements, readRemovals } from '../../resume/prompts';
 import { readMatchMode } from '../../resume/match-mode';
 import { readBreakdown } from '../../resume/score';
@@ -100,6 +101,9 @@ const AI_TONE: Record<Tone, string> = {
 /** Score at which the card tells the user to stop polishing and apply. */
 const READY_TO_APPLY = 85;
 
+/** The ring's circumference, 2πr for r=42 — the dash length the arc is cut from. */
+const RING_LENGTH = 263.9;
+
 export const TargetPage: FC<TargetPageProps> = ({
   job,
   resume,
@@ -121,7 +125,7 @@ export const TargetPage: FC<TargetPageProps> = ({
   const actions = readActions(match.actions);
   const removals = readRemovals(match.removals);
   const hard = readHardRequirements(match.hardRequirements);
-  const asks = scored.filter((k) => k.status === 'ask_user');
+  const { asks, unproven } = confirmable(scored);
   const highActions = actions.filter((a) => a.priority === 'high').length;
   // A quick check has no suggestions yet — the tab offers the second call instead (ADR 0029).
   const fast = readMatchMode(match.breakdown) === 'fast';
@@ -133,15 +137,16 @@ export const TargetPage: FC<TargetPageProps> = ({
   const olderRuns = matches.filter((m) => !shownRuns.some((s) => s.id === m.id));
   const clientData = {
     matchId: match.id,
-    aiScore: match.matchScore,
     resumeText,
     jobText: job.description,
     keywords: scored,
+    // So a chip can tell the user's own "I don't" from a term the model could not back.
+    deniedNote: DENIED_NOTE,
     actions,
     removals,
-    // Fixed score parts for the live estimate; null on pre-ADR-0012 matches.
-    // penalty rides along frozen: the flag texts were judged against the
-    // analysed snapshot, so live typing must not re-derive the offset.
+    // The score parts the live count holds fixed; null on pre-ADR-0012
+    // matches. penalty rides along frozen: the flag texts were judged against
+    // the analysed snapshot, so live typing must not re-derive the offset.
     scoring: breakdown
       ? { alignment: breakdown.alignment, redFlagCount: match.redFlags.length, penalty: breakdown.penalty }
       : null,
@@ -232,13 +237,18 @@ export const TargetPage: FC<TargetPageProps> = ({
           <div class="group relative w-28">
             <button
               type="button"
+              id="score-ring"
               aria-describedby="score-help"
               aria-label={`Match score ${match.matchScore} of 100 — what this number is`}
               class="relative block cursor-help rounded-full"
             >
               <svg viewBox="0 0 96 96" class="h-28 w-28 -rotate-90" aria-hidden="true">
                 <circle cx="48" cy="48" r="42" fill="none" stroke="rgb(var(--line))" stroke-width="7" />
+                {/* Server-rendered at the stored score, then moved by
+                    target-page.mjs on every edit — the script reads the dash
+                    length off this attribute rather than repeating 2πr. */}
                 <circle
+                  id="score-arc"
                   cx="48"
                   cy="48"
                   r="42"
@@ -246,15 +256,16 @@ export const TargetPage: FC<TargetPageProps> = ({
                   stroke="currentColor"
                   stroke-width="7"
                   stroke-linecap="round"
-                  stroke-dasharray="263.9"
-                  stroke-dashoffset={String(263.9 - (263.9 * match.matchScore) / 100)}
-                  class={AI_TONE[fitTone(match.matchScore)]}
+                  stroke-dasharray={RING_LENGTH}
+                  stroke-dashoffset={String(RING_LENGTH - (RING_LENGTH * match.matchScore) / 100)}
+                  class={`transition-[stroke-dashoffset] duration-300 ${AI_TONE[fitTone(match.matchScore)]}`}
                 />
               </svg>
               {/* The number alone. "/100" is in the sentence the ring shows
                   on hover, and in the button's own label for a screen reader —
                   it does not need to sit inside the dial as well. */}
               <span
+                id="score-number"
                 class="absolute inset-0 flex items-center justify-center text-[32px] font-semibold leading-none tabular-nums tracking-tight text-ink"
                 aria-hidden="true"
               >
@@ -269,13 +280,15 @@ export const TargetPage: FC<TargetPageProps> = ({
               class="pointer-events-none absolute left-0 top-full z-30 mt-2 w-72 max-w-[calc(100vw-3rem)] space-y-1.5 rounded-lg border border-line bg-surface-raised p-3 text-xs leading-5 text-ink-muted opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100"
             >
               <p>
-                <span class="font-medium text-ink">AI match, 0–100.</span> How well this resume answers
+                <span class="font-medium text-ink">Match score, 0–100.</span> How well this resume answers
                 this posting: the words it asks for, whether you have its core stack, and how your title,
                 summary and most recent role read at a glance.
               </p>
               <p class="text-ink-faint">
-                Re-levelling, ignoring or adding a keyword moves it at once. Editing the text does not —
-                that needs “Analyse my resume again”.
+                It moves as you edit: the words are counted live — except one marked{' '}
+                <span class="font-medium">no evidence yet</span>, which earns nothing until you confirm it.
+                What a word search cannot read stays as the last analysis judged it, so run “Analyse my
+                resume again” once the text is settled.
               </p>
             </div>
           </div>
@@ -445,9 +458,14 @@ export const TargetPage: FC<TargetPageProps> = ({
         </div>
       </Card>
 
-      {asks.length > 0 && (
+      {(asks.length > 0 || unproven.length > 0) && (
         <Card class="mb-4">
-          <ConfirmFacts asks={asks} matchId={match.id} back={`/jobs/${job.id}/target?match=${match.id}`} />
+          <ConfirmFacts
+            asks={asks}
+            unproven={unproven}
+            matchId={match.id}
+            back={`/jobs/${job.id}/target?match=${match.id}`}
+          />
         </Card>
       )}
 
@@ -644,15 +662,6 @@ export const TargetPage: FC<TargetPageProps> = ({
               kept in this browser tab{resume.ephemeral ? ' — copy them out before you leave' : ' until you save'}
             </span>
           </div>
-          {/* The only live number on the page now, and only while the text is
-              dirty — which is the one moment the ring cannot answer. */}
-          <span
-            class="text-sm font-medium tabular-nums text-ink"
-            title="Counts the keywords a scanner would find in the text as it stands. The ring keeps the AI's verdict until you analyse again."
-          >
-            Estimate <span id="bar-score">—</span>
-            <span id="bar-delta" class="ml-1 text-xs font-medium"></span>
-          </span>
           <div class="ml-auto flex flex-wrap items-center gap-2">
             <Button type="button" variant="ghost" size="sm" id="bar-discard">
               Discard
@@ -785,6 +794,10 @@ const TARGET_CSS = `
   .card-done { opacity: 0.55; }
   .card-done:hover, .card-done:focus-within { opacity: 1; }
   .chip { cursor: pointer; }
+  /* A gap the resume cannot back yet — the same dashed underline the panes use
+     for 'no evidence yet', so the chip and the mark read as one thing. Typing
+     the word does not clear it; writing the evidence does. */
+  .chip-unproven { text-decoration: underline dashed; text-decoration-thickness: 1px; text-underline-offset: 3px; }
   .runs-toggle::-webkit-details-marker { display: none; }
   .runs-toggle::before { content: '▸ '; }
   details[open] > .runs-toggle::before { content: '▾ '; }

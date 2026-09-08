@@ -4,6 +4,46 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.73.0] — 2026-09-08
+
+### Changed
+- **The ring is the live number.** The score in the targeted view now
+  recounts on every keystroke — the number, the arc and its colour — with the
+  same formula the server runs (`score.mjs` mirrors `score.ts`): keywords and
+  the primary-stack cap live, alignment and the red-flag penalty held at what
+  the last analysis judged. The sticky bar's own "Estimate" is gone; it had
+  become the second copy of the same number. A parity test pins the ring's four
+  colour steps to `fitTone`.
+- **The gap chips show every gap.** The row above the editor filtered on the
+  matcher's `excluded` flag, which is set for a term the resume cannot back —
+  so it hid exactly the hardest gaps. On one live pair it showed one chip for
+  the only addable keyword and left out WordPress, the primary must capping
+  that score at 70, along with SASS and BEM. Those now appear, dashed, hardest
+  first, with no "+ add" — typing the word is what does not help.
+
+### Added
+- **"Confirm your experience" offers the terms the AI could not back.** A
+  `cannot_claim` verdict was a dead end: `applyFacts` already flipped a
+  confirmed one to `add`, but neither page ever offered it, and the prompt
+  tells the model to choose the lower status when unsure. The card now has a
+  second tier behind a summary ("N more the AI found no evidence for"), on both
+  the targeted view and the `/jobs/:id` match card; a dashed chip opens it and
+  moves focus to it. Measured on the live pair: "I have it" on WordPress took
+  the score 56 → 58 and the ceiling 70 → 84 with no AI call, and typing the
+  word then took it to 61 and turned it green in the posting. A term the user
+  answered "I don't" to stays a chip but is not re-asked.
+
+### Fixed
+- A gap chip's tooltip said "not in your resume" about a word the user had just
+  typed; it now says the word is there and nothing backs it.
+
+### Verification
+- `npm run lint:types` + 2108 tests green (three new: ring colour parity, the
+  gap rule, the two confirm tiers); browser console clean on both pages.
+- The confirm loop run end to end against a snapshot of a real row, then the
+  row and the fact restored. 1440 px and 375 px: no horizontal scroll, the new
+  card wraps.
+
 ## [1.72.0] — 2026-09-07
 
 ### Changed
@@ -2957,6 +2997,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[1.73.0]: https://github.com/applypack/applypack/compare/v1.72.0...v1.73.0
 [1.72.0]: https://github.com/applypack/applypack/compare/v1.71.0...v1.72.0
 [1.71.0]: https://github.com/applypack/applypack/compare/v1.70.0...v1.71.0
 [1.70.0]: https://github.com/applypack/applypack/compare/v1.69.0...v1.70.0

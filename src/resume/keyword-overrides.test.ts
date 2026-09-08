@@ -7,8 +7,10 @@ import {
   effectiveKeywords,
   effectiveRequirement,
   isIgnored,
+  confirmable,
 } from './keyword-overrides';
 import type { MatchKeyword } from './prompts';
+import { DENIED_NOTE } from './facts';
 import { scoreMatch } from './score';
 import { loadKeywordMatcher } from './keyword-matcher';
 
@@ -257,4 +259,24 @@ test('a rebuilt frame keeps every override — the machine guess resets, the hum
     undefined,
     'a term only the rebuild found arrives clean',
   );
+});
+
+test('confirmable offers what the model asked and what it could not back, minus denials and context', () => {
+  const k = (term: string, status: MatchKeyword['status'], extra: Partial<MatchKeyword> = {}): MatchKeyword =>
+    ({ term, priority: 1, requirement: 'must', primary: false, status, aliases: [], where: null, note: null, ...extra }) as MatchKeyword;
+  const { asks, unproven } = confirmable([
+    k('Docker', 'ask_user'),
+    k('WordPress', 'cannot_claim'),
+    k('SASS', 'cannot_claim'),
+    // The user already said no — that IS the answer, not a question to repeat.
+    k('Oracle', 'cannot_claim', { note: DENIED_NOTE }),
+    // Context is not scored either way, so a yes changes nothing.
+    k('JIRA', 'cannot_claim', { requirement: 'context' }),
+    // An override to context counts the same as the model saying it.
+    k('Kafka', 'cannot_claim', { override: { requirement: 'context' } }),
+    k('PHP', 'present'),
+    k('Ajax', 'add'),
+  ]);
+  assert.deepEqual(asks.map((x) => x.term), ['Docker']);
+  assert.deepEqual(unproven.map((x) => x.term), ['WordPress', 'SASS']);
 });

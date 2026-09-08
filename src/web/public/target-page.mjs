@@ -23,7 +23,16 @@ import { applyReplacement, insertAfterLine, removeSpan, insertIntoSkills, invers
 
 // Full literal class names — the Tailwind CDN JIT only generates what it can
 // see verbatim in the document, composed strings would come out unstyled.
-//
+
+// The ring's stroke, by score. Same four steps and the same cut-offs as the
+// server's format.ts:fitTone, so the colour does not change under the user
+// when an analysis lands on a score the live count already showed.
+const RING_TONE = { ok: 'text-ok', info: 'text-info', warn: 'text-warn', neutral: 'text-ink-faint' };
+
+export function ringTone(score) {
+  return score >= 85 ? 'ok' : score >= 70 ? 'info' : score >= 50 ? 'warn' : 'neutral';
+}
+
 // A missing chip wears the colour its mark wears in the posting (target.mjs):
 // red for a must, amber for a preferred, slate for a nice-to-have. Keyed by
 // keywordRank — 4 a primary-stack must … 0 context.
@@ -37,6 +46,21 @@ const CHIP_LEVEL = {
   1: 'bg-surface-overlay text-ink-muted ring-line',
   0: 'bg-surface-overlay text-ink-muted ring-line',
 };
+
+/**
+ * What stands between this resume and a higher score, for the chips above the
+ * editor. Two kinds, and the second used to be missing from the row entirely:
+ * a term the resume evidences but does not spell (type it and the score moves),
+ * and one the resume cannot back at all — which `scoreKeywords` marks
+ * `excluded`, because it earns nothing however often the word appears.
+ * Filtering on `excluded` therefore hid the hardest gaps: on one live pair the
+ * row showed a single chip for the one addable keyword, and left out
+ * WordPress — the primary must that capped that score at 70 — along with SASS
+ * and BEM. A weight-0 context term is still no gap at all.
+ */
+export function keywordGaps(rows) {
+  return rows.filter((r) => r.weight > 0 && (r.status === 'cannot_claim' || !r.found));
+}
 
 /** Why an edit did not happen — every error the text operations can return. */
 const REASON = {
@@ -56,8 +80,11 @@ export function init(data) {
   const chips = document.getElementById('missing-chips');
   const saveButtons = document.querySelectorAll('[data-save-button]');
   const dirtyBar = document.getElementById('dirty-bar');
-  const barScore = document.getElementById('bar-score');
-  const barDelta = document.getElementById('bar-delta');
+  const ringButton = document.getElementById('score-ring');
+  const ringArc = document.getElementById('score-arc');
+  const ringNumber = document.getElementById('score-number');
+  // 2πr, straight off the element the server drew, so the two cannot drift.
+  const ringLength = Number(ringArc.getAttribute('stroke-dasharray'));
   const panes = document.getElementById('panes');
   const storageKey = 'target-draft:' + data.matchId;
   const editsKey = 'target-edits:' + data.matchId;
@@ -91,24 +118,35 @@ export function init(data) {
     } catch {}
   }
 
+  /** The ring: the number, the arc and the label a screen reader reads. */
+  function paintRing(score) {
+    ringNumber.textContent = String(score);
+    ringArc.style.strokeDashoffset = String(ringLength - (ringLength * score) / 100);
+    ringArc.setAttribute(
+      'class',
+      'transition-[stroke-dashoffset] duration-300 ' + RING_TONE[ringTone(score)],
+    );
+    ringButton.setAttribute('aria-label', 'Match score ' + score + ' of 100 — what this number is');
+  }
+
   function render() {
     const text = editor.value;
     const scored = scoreKeywords(data.keywords, text);
-    // The live number, for the sticky bar alone: the full score formula when
-    // the match carries a breakdown (alignment fixed from the last AI run,
-    // keywords + cap live), else the plain coverage percentage for
-    // pre-ADR-0012 matches. The ring above keeps the AI's own verdict, which
-    // only a re-run moves; a keyword edit re-scores it server-side instead.
+    // The number in the ring, recomputed on every keystroke and on every page
+    // render — which is what a keyword override produces. The full score
+    // formula when the match carries a breakdown (alignment and the red-flag
+    // penalty held at what the last analysis judged, keywords and the
+    // primary-stack cap live), else the plain coverage percentage for
+    // pre-ADR-0012 matches.
+    //
+    // The same arithmetic the server runs (score.mjs mirrors score.ts), so
+    // this is the score, not a second opinion about it: only the parts a word
+    // search cannot read wait for the next analysis.
     let display = scored.score;
     if (data.scoring) {
       display = computeScore(entriesFromLive(scored.rows), data.scoring.alignment, data.scoring.redFlagCount, data.scoring.penalty ?? null).score;
     }
-    barScore.textContent = String(display);
-    if (data.scoring) {
-      const d = display - data.aiScore;
-      barDelta.textContent = d === 0 ? 'same as the last analysis' : (d > 0 ? '+' : '') + d + ' vs the last analysis';
-      barDelta.className = 'ml-1 text-xs font-medium ' + (d > 0 ? 'text-ok' : d < 0 ? 'text-danger' : 'text-ink-faint');
-    }
+    paintRing(display);
 
     const spans = resumeSpans(data.keywords, data.actions, data.removals, text);
     if (located) {
@@ -123,19 +161,28 @@ export function init(data) {
 
     chips.innerHTML = '';
     // Hardest requirement first, then the words the posting keeps repeating.
-    for (const r of orderKeywords(scored.rows.filter((r) => !r.found && !r.excluded), data.jobText)) {
+    for (const r of orderKeywords(keywordGaps(scored.rows), data.jobText)) {
+      const unproven = r.status === 'cannot_claim';
+      // The user's own "I don't" is a cannot_claim too, carrying the note the
+      // denial left. Still a gap, so still a chip — but not an offer to confirm.
+      const denied = unproven && r.note === data.deniedNote;
       const b = document.createElement('button');
       b.type = 'button';
-      b.className = CHIP_BASE + ' ' + (CHIP_LEVEL[keywordRank(r)] ?? CHIP_LEVEL[2]);
+      b.className =
+        CHIP_BASE + ' ' + (CHIP_LEVEL[keywordRank(r)] ?? CHIP_LEVEL[2]) + (unproven ? ' chip-unproven' : '');
       b.textContent = r.count > 1 ? r.term + ' ×' + r.count : r.term;
       b.title = [
         wantsLabel(r),
-        gapLabel(r, false),
+        // The honest sentence differs once the word IS in the text: this used
+        // to say "not in your resume" about a word the user had just typed.
+        gapLabel(r, r.found),
         r.count > 1 ? '×' + r.count + ' in the posting' : null,
-        r.where ? 'add in: ' + r.where : null,
-        r.note,
+        denied ? 'you said you do not have it' : unproven ? 'click to say you have it — then it counts' : r.where ? 'add in: ' + r.where : null,
+        denied ? null : r.note,
       ].filter(Boolean).join(' · ');
-      b.addEventListener('click', () => jumpToSection(r.where));
+      // A dashed chip has nowhere in the text to send you — typing the word is
+      // exactly what does not help. It opens the one control that does.
+      b.addEventListener('click', () => (unproven && !denied ? openConfirm() : jumpToSection(r.where)));
       chips.appendChild(b);
       // "Add to Skills" only where it can honestly work: the model (or a fact the
       // user confirmed — applyFacts flips confirmed to `add` before this page
@@ -176,6 +223,19 @@ export function init(data) {
     if (copyEdits) copyEdits.disabled = !dirty;
     paintCards();
     store(text);
+  }
+
+  /** Open the "no evidence" tier of the confirm card and bring it into view. */
+  function openConfirm() {
+    const box = document.getElementById('confirm-unproven');
+    if (!box) return;
+    box.open = true;
+    box.scrollIntoView({ block: 'center' });
+    // Focus follows the disclosure, as it does when the summary itself is pressed.
+    box.querySelector('summary')?.focus({ preventScroll: true });
+    box.classList.remove('flash-target');
+    void box.offsetWidth; // restart the animation when clicked twice
+    box.classList.add('flash-target');
   }
 
   function jumpToSection(where) {

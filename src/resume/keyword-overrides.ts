@@ -1,4 +1,4 @@
-import { canonicalTerm } from './facts';
+import { canonicalTerm, DENIED_NOTE } from './facts';
 import { withTableAliases } from './keyword-aliases';
 import type { KeywordMatcher } from './keyword-matcher';
 import type { MatchKeyword } from './prompts';
@@ -261,4 +261,28 @@ export function carryOverrides(
     });
   }
   return { keywords, carried, readded };
+}
+
+/**
+ * What the "Confirm your experience" card offers, in two tiers.
+ *
+ * `asks` is what the model chose to ask. `unproven` is every other term it
+ * could not back — offered too, because "cannot_claim" is a verdict on the
+ * RESUME TEXT, not on the person, and the prompt tells the model to pick the
+ * lower status when unsure. Left un-offered, that verdict was a dead end: on
+ * one live pair the model marked SASS and BEM cannot_claim for a twelve-year
+ * CSS developer and WordPress for a twelve-year PHP developer, the candidate
+ * typed all three in, the score did not move, and nothing on the page could
+ * take a "yes". A confirmed fact flips the term to "add" (facts.ts:applyFacts),
+ * so the same answer that unblocks an ask unblocks these.
+ *
+ * Out: a term the user already denied (that IS their answer), and a context
+ * term, which the score does not count either way.
+ */
+export function confirmable(keywords: MatchKeyword[]): { asks: MatchKeyword[]; unproven: MatchKeyword[] } {
+  const asks = keywords.filter((k) => k.status === 'ask_user');
+  const unproven = keywords.filter(
+    (k) => k.status === 'cannot_claim' && k.note !== DENIED_NOTE && effectiveRequirement(k) !== 'context',
+  );
+  return { asks, unproven };
 }
