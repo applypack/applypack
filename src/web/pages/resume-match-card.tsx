@@ -230,7 +230,7 @@ export function previousFor(selected: MatchWithResume, matches: MatchWithResume[
   );
 }
 
-/** "Why this score" — component chips under the number. Shared with the targeted view. */
+/** "Why this score" — the lines under the number on the /jobs match card. */
 /*
  * What the number was made of, in sentences (docs/score-lines-plan.md). This
  * replaced a row of the formula's own parts — "Keywords 60/60 · Alignment
@@ -238,7 +238,7 @@ export function previousFor(selected: MatchWithResume, matches: MatchWithResume[
  * place on the page, same amount of it, and the arithmetic moves into the
  * tooltips where it is still there for anyone who wants it.
  */
-export const ScoreBreakdownChips: FC<{ bd: ScoreBreakdown; keywords: MatchKeyword[]; hard: MatchHardRequirement[] }> = ({
+const ScoreBreakdownChips: FC<{ bd: ScoreBreakdown; keywords: MatchKeyword[]; hard: MatchHardRequirement[] }> = ({
   bd,
   keywords,
   hard,
@@ -251,26 +251,34 @@ export const ScoreBreakdownChips: FC<{ bd: ScoreBreakdown; keywords: MatchKeywor
           bullet" under a 100 asks why the 100 is a 100, and the heading
           answers before they ask. */}
       <LineGroup heading="what it does not count" lines={lines.diagnostic} />
-      {/* Two different questions (§4 of the intelligence analysis): the score is
-          how well this RESUME shows the fit, the ceiling is how well the
-          CANDIDATE fits. A wide gap is good news — all of it is editing. */}
-      {bd.ceiling !== undefined && (
-        <p
-          class="border-t border-line pt-1.5 text-ink-muted"
-          title="How well you fit, if the resume said everything it honestly could: every claimable keyword written in, alignment perfect. Going above the ceiling would need experience this resume does not have."
-        >
-          {bd.ceiling > bd.score ? (
-            <>
-              you fit <span class="font-medium tabular-nums text-ink">{bd.ceiling}</span> — editing can reach it
-            </>
-          ) : (
-            <span class="font-medium text-ok">the resume already shows everything it can</span>
-          )}
-        </p>
-      )}
+      <ScoreCeilingLine bd={bd} class="border-t border-line pt-1.5" />
     </div>
   );
 };
+
+/*
+ * Two different questions (§4 of the intelligence analysis): the score is how
+ * well this RESUME shows the fit, the ceiling is how well the CANDIDATE fits.
+ * A wide gap is good news — all of it is editing.
+ *
+ * Its own component because the targeted view keeps this sentence and shows
+ * none of the lines above it.
+ */
+export const ScoreCeilingLine: FC<{ bd: ScoreBreakdown; class?: string }> = ({ bd, class: className = '' }) =>
+  bd.ceiling === undefined ? null : (
+    <p
+      class={`text-xs text-ink-muted ${className}`}
+      title="How well you fit, if the resume said everything it honestly could: every claimable keyword written in, alignment perfect. Going above the ceiling would need experience this resume does not have."
+    >
+      {bd.ceiling > bd.score ? (
+        <>
+          you fit <span class="font-medium tabular-nums text-ink">{bd.ceiling}</span> — editing can reach it
+        </>
+      ) : (
+        <span class="font-medium text-ok">the resume already shows everything it can</span>
+      )}
+    </p>
+  );
 
 const LINE_TONE: Record<NonNullable<ScoreLine['tone']>, string> = {
   ok: 'text-ok',

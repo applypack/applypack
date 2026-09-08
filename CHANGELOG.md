@@ -4,6 +4,40 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.72.0] — 2026-09-07
+
+### Changed
+- **The targeted view leads with one ring.** The score used to be a small dial
+  beside its own number, with a second live score — number, bar and delta —
+  in the right rail. That rail is gone: a keyword edit re-scores the stored row
+  server-side, so the ring itself moves, and while the text is dirty the sticky
+  bar already carries the estimate and its difference from the last analysis.
+  One number on the card instead of two, neither of which was labelled in a way
+  a reader could act on.
+- **The ring says what it is on hover.** The number now sits inside a larger
+  ring, and hovering or focusing it opens a two-sentence explanation: what the
+  0–100 measures, and which edits move it. Keyboard and touch open the same
+  panel — nothing on the card depends on hover.
+
+### Removed
+- **The labels around the score.** "AI match · moderate" restated the number,
+  and the draft marker and the run's age are already on that run's own chip
+  above. "edited — analyse again" is what the sticky bar says in full, with the
+  button next to it. `/100` moved into the hover text and the button's screen
+  reader label.
+- **"What made the number" / "what it does not count" on the targeted view.**
+  The five lines added in 1.71.0 stay on the `/jobs/:id` match card; the editor
+  page keeps the model's own sentence, the ceiling and the edit counts. The
+  component is unchanged — the targeted view simply no longer renders it.
+
+### Verification
+- `npm run lint:types` + 2105 tests green; browser console clean.
+- Checked at 1440 px and 375 px: no horizontal scroll, and the ring column
+  measures 112 px whether or not the editor is dirty (the old stale marker
+  widened it under the first keystroke and squeezed the summary).
+- Rings drawn at 27, 56 and 100; hover and keyboard focus both open the panel,
+  and the focus ring is a circle, not a rounded box.
+
 ## [1.71.0] — 2026-09-07
 
 ### Added
@@ -2923,6 +2957,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[1.72.0]: https://github.com/applypack/applypack/compare/v1.71.0...v1.72.0
 [1.71.0]: https://github.com/applypack/applypack/compare/v1.70.0...v1.71.0
 [1.70.0]: https://github.com/applypack/applypack/compare/v1.69.0...v1.70.0
 [1.69.0]: https://github.com/applypack/applypack/compare/v1.68.0...v1.69.0

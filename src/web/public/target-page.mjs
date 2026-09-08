@@ -23,9 +23,7 @@ import { applyReplacement, insertAfterLine, removeSpan, insertIntoSkills, invers
 
 // Full literal class names — the Tailwind CDN JIT only generates what it can
 // see verbatim in the document, composed strings would come out unstyled.
-const TONE_TEXT = { ok: 'text-ok', info: 'text-info', warn: 'text-warn', danger: 'text-danger' };
-const TONE_BG = { ok: 'bg-ok', info: 'bg-info', warn: 'bg-warn', danger: 'bg-danger' };
-
+//
 // A missing chip wears the colour its mark wears in the posting (target.mjs):
 // red for a must, amber for a preferred, slate for a nice-to-have. Keyed by
 // keywordRank — 4 a primary-stack must … 0 context.
@@ -39,10 +37,6 @@ const CHIP_LEVEL = {
   1: 'bg-surface-overlay text-ink-muted ring-line',
   0: 'bg-surface-overlay text-ink-muted ring-line',
 };
-
-function tone(score) {
-  return score >= 85 ? 'ok' : score >= 70 ? 'info' : score >= 50 ? 'warn' : 'danger';
-}
 
 /** Why an edit did not happen — every error the text operations can return. */
 const REASON = {
@@ -59,13 +53,8 @@ export function init(data) {
   const editor = document.getElementById('editor');
   const backdrop = document.getElementById('backdrop');
   const jd = document.getElementById('jd');
-  const scoreBar = document.getElementById('score-bar');
-  const scoreValue = document.getElementById('score-value');
-  const scoreDetail = document.getElementById('score-detail');
   const chips = document.getElementById('missing-chips');
   const saveButtons = document.querySelectorAll('[data-save-button]');
-  const aiStale = document.getElementById('ai-stale');
-  const liveDelta = document.getElementById('live-delta');
   const dirtyBar = document.getElementById('dirty-bar');
   const barScore = document.getElementById('bar-score');
   const barDelta = document.getElementById('bar-delta');
@@ -105,41 +94,21 @@ export function init(data) {
   function render() {
     const text = editor.value;
     const scored = scoreKeywords(data.keywords, text);
-    // Live number: full score formula when the match carries a breakdown
-    // (alignment fixed from the last AI run, keywords + cap live), else the
-    // plain coverage percentage for pre-ADR-0012 matches.
+    // The live number, for the sticky bar alone: the full score formula when
+    // the match carries a breakdown (alignment fixed from the last AI run,
+    // keywords + cap live), else the plain coverage percentage for
+    // pre-ADR-0012 matches. The ring above keeps the AI's own verdict, which
+    // only a re-run moves; a keyword edit re-scores it server-side instead.
     let display = scored.score;
-    let capNote = '';
-    let maxNote = '';
     if (data.scoring) {
-      const est = computeScore(entriesFromLive(scored.rows), data.scoring.alignment, data.scoring.redFlagCount, data.scoring.penalty ?? null);
-      display = est.score;
-      if (est.cap !== null) capNote = ' · capped ' + est.cap + ' — primary ' + est.primaryPresent + '/' + est.primaryTotal;
-      if (est.ceiling !== undefined) maxNote = ' · max ' + est.ceiling;
+      display = computeScore(entriesFromLive(scored.rows), data.scoring.alignment, data.scoring.redFlagCount, data.scoring.penalty ?? null).score;
     }
-    scoreValue.textContent = String(display);
-    scoreValue.className = 'text-2xl font-semibold tabular-nums ' + TONE_TEXT[tone(display)];
-    scoreBar.style.width = display + '%';
-    scoreBar.className = 'block h-full rounded-full transition-[width] duration-300 ' + TONE_BG[tone(display)];
     barScore.textContent = String(display);
     if (data.scoring) {
       const d = display - data.aiScore;
-      const deltaText = d === 0 ? 'same as AI' : (d > 0 ? '+' : '') + d + ' vs AI';
-      const deltaTone = d > 0 ? 'text-ok' : d < 0 ? 'text-danger' : 'text-ink-faint';
-      liveDelta.textContent = deltaText;
-      liveDelta.className = 'text-xs font-medium ' + deltaTone;
-      barDelta.textContent = deltaText;
-      barDelta.className = 'ml-1 text-xs font-medium ' + deltaTone;
+      barDelta.textContent = d === 0 ? 'same as the last analysis' : (d > 0 ? '+' : '') + d + ' vs the last analysis';
+      barDelta.className = 'ml-1 text-xs font-medium ' + (d > 0 ? 'text-ok' : d < 0 ? 'text-danger' : 'text-ink-faint');
     }
-    const counted = scored.rows.filter((r) => !r.excluded);
-    const missing = counted.filter((r) => !r.found);
-    const missingNames = missing
-      .slice(0, 3)
-      .map((r) => (r.term.length > 26 ? r.term.slice(0, 24) + '…' : r.term))
-      .join(', ');
-    scoreDetail.textContent = counted.filter((r) => r.found).length + ' of ' + counted.length + ' keywords present'
-      + (missing.length ? ' · missing: ' + missingNames + (missing.length > 3 ? ' +' + (missing.length - 3) : '') : '')
-      + capNote + maxNote;
 
     const spans = resumeSpans(data.keywords, data.actions, data.removals, text);
     if (located) {
@@ -194,8 +163,9 @@ export function init(data) {
     }
     if (chips.children.length === 0) chips.innerHTML = '<span class="text-xs text-ink-faint">Every countable keyword is present.</span>';
 
+    // Nothing marks the ring as stale: the sticky bar says it in full while
+    // the text is dirty — the estimate, the delta and the button to re-run.
     const dirty = text !== data.resumeText;
-    aiStale.hidden = !dirty;
     dirtyBar.hidden = !dirty;
     for (const b of saveButtons) b.disabled = !dirty;
     const saveText = document.getElementById('save-text');
