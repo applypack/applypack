@@ -28,10 +28,11 @@ import { applyReplacement, insertAfterLine } from '../web/public/text-edits.mjs'
 
 const DEFAULT_ROUNDS = 2;
 
+/** `--rounds 0` is one analysis and no loop — a real request, not an unset flag. */
 function flagNumber(name: string, fallback: number): number {
   const i = process.argv.indexOf(`--${name}`);
   const v = i === -1 ? NaN : Number(process.argv[i + 1]);
-  return Number.isFinite(v) && v > 0 ? Math.floor(v) : fallback;
+  return Number.isFinite(v) && v >= 0 ? Math.floor(v) : fallback;
 }
 
 /** Every action with wording, applied in order; the ones the text no longer holds are skipped. */
