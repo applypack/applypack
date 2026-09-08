@@ -27,36 +27,38 @@ export interface AnchorReport {
 }
 
 /**
- * The other half of the same idea, pointed at the RESUME (ADR 0044 addendum).
+ * The other half of the same idea, pointed at the RESUME (ADR 0045; the
+ * present/add half came with the ADR 0044 addendum).
  *
- * `present` and `add` differ on ONE question — is the word in the text? — and
- * that question has an answer the matcher can give. The model's answer to it
- * drifts: the same TypeScript in the same resume was called `present` in one
- * run and `add` in the next, which is how a comparison ended up scoring 79 and
- * then 30. The two statuses are therefore settled here, both ways:
+ * Whether a word is in the text is a question the matcher can answer, and the
+ * model's answer to it drifts: the same TypeScript in the same resume was
+ * called `present` in one run and `add` in the next, which is how a comparison
+ * scored 79 and then 30; the same WordPress, on the resume's own title line,
+ * was called `cannot_claim` ("no WordPress work anywhere in resume"), and the
+ * primary-stack cap held that comparison at 41 while a count of the same text
+ * says 52. So the text settles the status, for every verdict:
  *
- *  - `present` the matcher cannot find becomes `add`. It is a paraphrase —
- *    "automated testing" against a resume that says "Unit, integration & E2E
- *    testing" — so the claim behind it stands and the word does not. 5 of 137
- *    present keywords on the live corpus.
- *  - `add` the matcher CAN find becomes `present`. `add` means "evidenced but
- *    unwritten"; if the word is written, it is not that.
- *  - `ask_user` the matcher CAN find becomes `present` too. `ask_user` means
- *    "this resume does not evidence it, but the candidate might" — a premise
- *    the text refutes. Left alone it cost a live comparison 49 points: the
- *    resume says TypeScript in its skills line, one run called it `present`
- *    (score 53) and the next `ask_user` (score 30, the whole primary stack
- *    reading as absent), and the confirm card asked the candidate about a word
- *    they had already written.
+ *  - a term the matcher CAN find is `present`, whatever the model said. An
+ *    `add` that is written is not "unwritten"; an `ask_user` the text answers
+ *    is not a question (left alone, that one cost a live comparison 49
+ *    points, and the confirm card asked about a word already on the page);
+ *    and a `cannot_claim` the resume spells is a claim the resume makes —
+ *    how thinly is `evidence`'s answer (listed / described / measured), which
+ *    is where "named, but nothing behind it" belongs. A stored denial does not
+ *    outrank the text either: facts.ts already lets a written word stand over
+ *    a stale "no". The known cost is a homonym — on the live corpus 29 of the
+ *    1 215 `cannot_claim` rows were written, 8 of them "GCP" meaning Good
+ *    Clinical Practice on an engineer's resume, every one on a comparison
+ *    scoring 0 anyway.
+ *  - a `present` the matcher cannot find is `add`: a paraphrase — "automated
+ *    testing" against "Unit, integration & E2E testing" — so the claim behind
+ *    it stands and the word does not. 5 of 137 present keywords on the corpus.
+ *  - an unwritten `add`, `ask_user` or `cannot_claim` stays what it is.
  *
- * `cannot_claim` is NEVER upgraded, whatever the text says. It is the status a
- * user's own denial produces (facts.ts runs before this), and a denial outranks
- * a word on a page. It is also the honest answer when a term is named but the
- * model judged the resume cannot stand behind it — `evidence: listed` is where
- * that shows now.
- *
- * Without this, the table said matched while the chip above the editor offered
- * to add the same term, and the live estimate scored it zero.
+ * `score.mjs:entriesFromLive` applies the same rules in the browser, so the
+ * number under the editor is this score on the text as typed — before this,
+ * the table said matched while the chip offered to add the same term, and a
+ * typed word the model had not backed moved nothing until the next analysis.
  */
 export function anchorStatuses(
   keywords: MatchKeyword[],
@@ -66,7 +68,6 @@ export function anchorStatuses(
   let downgraded = 0;
   let upgraded = 0;
   const next = keywords.map((k) => {
-    if (k.status === 'cannot_claim') return k;
     const written = matcher.findTerm(resumeText, k.term, k.aliases).length > 0;
     if (written === (k.status === 'present')) return k;
     if (written) {

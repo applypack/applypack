@@ -34,22 +34,26 @@ test('present vs add is settled by the text, both ways', async () => {
   assert.equal(out.downgraded, 1);
 });
 
-test('a denial outranks a word on the page; a question the text answers does not', async () => {
+test('a written word is present whatever the model called it; an unwritten verdict stands', async () => {
   const m = await matcher();
   const out = anchorStatuses(
     [
-      // The user said they do not have it (facts.ts). The text cannot overrule that.
+      // The model could not back it ("no Go work anywhere") — but the resume
+      // spells it, and that is the resume's claim to make (ADR 0045). How thin
+      // the claim is, `evidence` says.
       kw('Go', 'cannot_claim'),
       // "the resume does not evidence it, but they might" — the resume does.
       kw('React', 'ask_user'),
-      // Nothing in the text, so the question stands.
+      // Nothing in the text, so the question stands…
       kw('Kubernetes', 'ask_user'),
+      // …and so does the verdict.
+      kw('Angular', 'cannot_claim'),
     ],
     RESUME,
     m,
   );
-  assert.deepEqual(out.keywords.map((k) => k.status), ['cannot_claim', 'present', 'ask_user']);
-  assert.equal(out.upgraded, 1);
+  assert.deepEqual(out.keywords.map((k) => k.status), ['present', 'present', 'ask_user', 'cannot_claim']);
+  assert.equal(out.upgraded, 2);
   assert.equal(out.downgraded, 0);
 });
 

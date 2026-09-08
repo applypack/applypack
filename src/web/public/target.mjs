@@ -60,25 +60,21 @@ const GAP_CLASS = {
   context: 'kw-gap kw-nice',
 };
 
-/** True when writing the word in would be honest: the resume backs it, or is being asked. */
-function claimable(k) {
-  return k.status !== 'cannot_claim';
-}
-
 /**
  * The class string for one keyword's marks. `found` is textual presence in the
- * resume — it only earns green where the claim is honest, mirroring the score,
- * which gives a cannot_claim term zero credit however often the word is typed.
+ * resume, and a word the resume spells is simply green — the score reads the
+ * text the same way, whatever the last analysis called the term (ADR 0045).
  */
 export function markClass(k, found) {
-  if (found && claimable(k)) return 'kw-have';
+  if (found) return 'kw-have';
   const gap = GAP_CLASS[levelOf(k)] ?? GAP_CLASS.preferred;
   // The stack the score caps on: the same red, louder.
   const core = k.primary === true && levelOf(k) === 'must' ? ' kw-core' : '';
-  // Nothing in the resume backs this word yet, so it cannot simply be typed
-  // in. A dashed underline, never a strikethrough — struck-through text on the
-  // posting's own must-have read as "ignore this", which is the opposite.
-  const unproven = claimable(k) && k.status !== 'ask_user' ? '' : ' kw-unproven';
+  // Nothing in the resume backs this word yet: writing it in counts, and so
+  // does confirming it. A dashed underline, never a strikethrough —
+  // struck-through text on the posting's own must-have read as "ignore this",
+  // which is the opposite.
+  const unproven = k.status === 'ask_user' || k.status === 'cannot_claim' ? ' kw-unproven' : '';
   return gap + core + unproven;
 }
 
@@ -203,19 +199,21 @@ export function findTerm(text, term, aliases = []) {
 
 /**
  * Weighted coverage of the keyword list in `text`.
- * keywords: [{ term, priority, requirement?, status, aliases? }]. Excluded
- * from the coverage percentage: cannot_claim keywords (you cannot honestly
- * add them — unless includeCannotClaim is set) and zero-weight "context"
- * keywords. Every row still carries found/count for highlighting, and the
- * full rows feed entriesFromLive() in score.mjs for the live score estimate.
+ * keywords: [{ term, priority, requirement?, status, aliases? }]. Every
+ * weighted term is in the denominator whatever the last analysis made of it —
+ * the posting's demand does not shrink because the resume cannot meet part of
+ * it — and a term earns its weight when the text spells it (ADR 0045). Only a
+ * zero-weight "context" term is `excluded`. Every row still carries
+ * found/count for highlighting, and the full rows feed entriesFromLive() in
+ * score.mjs for the live score.
  */
-export function scoreKeywords(keywords, text, { includeCannotClaim = false } = {}) {
+export function scoreKeywords(keywords, text) {
   const rows = [];
   let earned = 0;
   let total = 0;
   for (const k of keywords) {
     const weight = keywordWeight(k);
-    const excluded = (k.status === 'cannot_claim' && !includeCannotClaim) || weight === 0;
+    const excluded = weight === 0;
     const spans = findTerm(text, k.term, k.aliases ?? []);
     const found = spans.length > 0;
     if (!excluded) {
@@ -273,12 +271,8 @@ export function highlightHtml(text, spans) {
  * vocabulary the legend and the keyword table use, in the second person.
  */
 export function gapLabel(k, found) {
-  if (k.status === 'cannot_claim') {
-    return found
-      ? 'the word is there, but nothing in your resume backs it'
-      : 'not in your resume, and nothing here evidences it';
-  }
   if (found) return 'in your resume';
+  if (k.status === 'cannot_claim') return 'not in your resume, and nothing here evidences it';
   if (k.status === 'ask_user') return 'not written — confirm whether you have it';
   return 'not written — your resume evidences it, add the word';
 }
@@ -306,15 +300,11 @@ export function jobSpans(keywords, jobText, scored) {
 export function resumeSpans(keywords, actions, removals, resumeText) {
   const spans = [];
   // No level class here: a word the resume already spells is simply matched,
-  // whatever the posting thinks of it. The one exception is a term the resume
-  // cannot claim — the score gives it zero however often it is typed, so a
-  // plain green mark would promise points that never arrive.
+  // whatever the posting thinks of it — and whatever the last analysis made
+  // of it, since the score reads the text the same way (ADR 0045).
   for (const k of keywords) {
-    const unproven = k.status === 'cannot_claim';
-    const cls = unproven ? 'kw-present kw-unproven' : 'kw-present';
-    const note = unproven ? ' · nothing in this resume backs it — it earns nothing' : '';
     for (const s of findTerm(resumeText, k.term, k.aliases ?? [])) {
-      spans.push({ ...s, cls, title: `${k.term} · ${wantsLabel(k)}${note}` });
+      spans.push({ ...s, cls: 'kw-present', title: `${k.term} · ${wantsLabel(k)}` });
     }
   }
   for (const r of removals) {

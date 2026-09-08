@@ -269,12 +269,12 @@ export function carryOverrides(
  * `asks` is what the model chose to ask. `unproven` is every other term it
  * could not back — offered too, because "cannot_claim" is a verdict on the
  * RESUME TEXT, not on the person, and the prompt tells the model to pick the
- * lower status when unsure. Left un-offered, that verdict was a dead end: on
- * one live pair the model marked SASS and BEM cannot_claim for a twelve-year
- * CSS developer and WordPress for a twelve-year PHP developer, the candidate
- * typed all three in, the score did not move, and nothing on the page could
- * take a "yes". A confirmed fact flips the term to "add" (facts.ts:applyFacts),
- * so the same answer that unblocks an ask unblocks these.
+ * lower status when unsure. Writing the word into the resume counts on its own
+ * (ADR 0045); this tier is the other way in — a "yes" stored once and reused
+ * in every later comparison, which flips the term to "add"
+ * (facts.ts:applyFacts) and puts a "+ add" beside its chip. On one live pair
+ * the model marked SASS and BEM cannot_claim for a twelve-year CSS developer
+ * and WordPress for a twelve-year PHP developer.
  *
  * Out: a term the user already denied (that IS their answer), and a context
  * term, which the score does not count either way.

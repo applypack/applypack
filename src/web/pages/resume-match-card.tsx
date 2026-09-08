@@ -393,7 +393,7 @@ export const ConfirmFacts: FC<{ asks: MatchKeyword[]; unproven: MatchKeyword[]; 
         <details id="confirm-unproven" class={`${asks.length > 0 ? 'mt-2 ' : ''}rounded-md border border-line`}>
           <summary class="cursor-pointer px-3 py-2 text-[13px] text-ink-muted transition-colors duration-150 hover:text-ink">
             <span class="font-medium text-ink">{unproven.length} more</span> the AI found no evidence for —
-            typing the word earns nothing, but if you have the experience, say so here and it counts
+            write the word into your resume where it is true, or say so here, and it counts
           </summary>
           <ul class="divide-y divide-line border-t border-line">
             {unproven.map((k) => (

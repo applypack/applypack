@@ -285,10 +285,9 @@ export const TargetPage: FC<TargetPageProps> = ({
                 summary and most recent role read at a glance.
               </p>
               <p class="text-ink-faint">
-                It moves as you edit: the words are counted live — except one marked{' '}
-                <span class="font-medium">no evidence yet</span>, which earns nothing until you confirm it.
-                What a word search cannot read stays as the last analysis judged it, so run “Analyse my
-                resume again” once the text is settled.
+                It moves as you edit: every word is counted live, whatever the last analysis called it.
+                What a word search cannot read — how your title and summary read, the red flags — stays as
+                the last analysis judged it, so run “Analyse my resume again” once the text is settled.
               </p>
             </div>
           </div>
@@ -517,8 +516,9 @@ export const TargetPage: FC<TargetPageProps> = ({
           ></div>
           <Hint class="mt-2">
             Green is already in your resume; red is what this posting requires and yours does not
-            say. A dashed underline means nothing in your resume backs the word yet — confirm it or
-            treat it as a real gap, because typing it in would be a claim. Benefits, perks and legal
+            say. A dashed underline means nothing in your resume backs the word yet — write it in
+            where it is true and it counts, or confirm it below; the number reads your text, not our
+            guess about you. Benefits, perks and legal
             boilerplate are deliberately never keywords; hover a mark to see how often the posting
             says the word, and re-level or ignore any of them in the keyword table.
           </Hint>

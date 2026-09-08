@@ -151,27 +151,29 @@ export function computeScore(rawEntries, alignment, countedFlags, fixedPenalty =
 
 /**
  * Live entries from scoreKeywords() rows ({ requirement, primary, status, found }).
- * Textual presence earns full credit — except cannot_claim, which never counts
- * even when the user types the word (claim safety). An "add" keyword keeps its
- * half credit until the user actually writes it in. A "primary" mark only
- * counts on must requirements, mirroring entriesFromKeywords.
+ * The server's own entries for the statuses THIS text implies — the rule
+ * keyword-anchor.ts:anchorStatuses applies before every stored score (ADR
+ * 0045): a word the text spells is `present`, whatever the last analysis
+ * called it; a `present` or `add` the text does not spell is `add` (the facts
+ * behind it stand, the word does not — half credit, and it still covers the
+ * primary cap, so deleting a word never costs 49 points); an unwritten
+ * `ask_user` or `cannot_claim` earns nothing until it is written or confirmed.
+ * A "primary" mark only counts on must requirements, mirroring
+ * entriesFromKeywords. score.test.ts holds the two sides equal on every text.
  */
 export function entriesFromLive(rows) {
   return rows.map((r) => {
     const primary = r.primary === true && r.requirement === 'must';
-    const claimable = r.status !== 'cannot_claim';
-    const writable = r.status === 'present' || r.status === 'add';
+    const written = r.found === true;
+    const has = written || r.status === 'present' || r.status === 'add';
     return {
       requirement: r.requirement ?? 'preferred',
       primary,
-      credit: !claimable ? 0 : r.found ? 1 : r.status === 'add' ? 0.5 : 0,
-      // Same rule as the server's: an `add` primary is covered whether or not
-      // the word has been typed yet, so the estimate does not jump 49 points
-      // the moment the user deletes it.
-      primaryHit: primary && claimable && (r.found === true || r.status === 'add'),
-      primaryWritten: primary && claimable && r.found === true,
-      ceilCredit: writable ? 1 : 0,
-      ceilPrimaryHit: primary && writable,
+      credit: written ? 1 : has ? 0.5 : 0,
+      primaryHit: primary && has,
+      primaryWritten: primary && written,
+      ceilCredit: has ? 1 : 0,
+      ceilPrimaryHit: primary && has,
       group: r.group ?? null,
     };
   });

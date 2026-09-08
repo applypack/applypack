@@ -49,17 +49,16 @@ const CHIP_LEVEL = {
 
 /**
  * What stands between this resume and a higher score, for the chips above the
- * editor. Two kinds, and the second used to be missing from the row entirely:
- * a term the resume evidences but does not spell (type it and the score moves),
- * and one the resume cannot back at all — which `scoreKeywords` marks
- * `excluded`, because it earns nothing however often the word appears.
- * Filtering on `excluded` therefore hid the hardest gaps: on one live pair the
- * row showed a single chip for the one addable keyword, and left out
- * WordPress — the primary must that capped that score at 70 — along with SASS
- * and BEM. A weight-0 context term is still no gap at all.
+ * editor: every weighted term the text does not spell. Two kinds, coloured
+ * alike by level and told apart by the dash — a term the resume evidences but
+ * does not say (type it and the score moves), and one nothing in the resume
+ * backs yet, which typing moves too (ADR 0045) and confirming is the other
+ * way into. A weight-0 context term is no gap at all, and neither is a word
+ * the text already carries, whatever the last analysis called it — the row
+ * once kept those, and offered a "yes" for a word the user had just typed.
  */
 export function keywordGaps(rows) {
-  return rows.filter((r) => r.weight > 0 && (r.status === 'cannot_claim' || !r.found));
+  return rows.filter((r) => r.weight > 0 && !r.found);
 }
 
 /** Why an edit did not happen — every error the text operations can return. */
@@ -173,15 +172,13 @@ export function init(data) {
       b.textContent = r.count > 1 ? r.term + ' ×' + r.count : r.term;
       b.title = [
         wantsLabel(r),
-        // The honest sentence differs once the word IS in the text: this used
-        // to say "not in your resume" about a word the user had just typed.
-        gapLabel(r, r.found),
+        gapLabel(r, false),
         r.count > 1 ? '×' + r.count + ' in the posting' : null,
-        denied ? 'you said you do not have it' : unproven ? 'click to say you have it — then it counts' : r.where ? 'add in: ' + r.where : null,
+        denied ? 'you said you do not have it' : unproven ? 'type it in where it is true, or click to say you have it' : r.where ? 'add in: ' + r.where : null,
         denied ? null : r.note,
       ].filter(Boolean).join(' · ');
-      // A dashed chip has nowhere in the text to send you — typing the word is
-      // exactly what does not help. It opens the one control that does.
+      // A dashed chip has no section to send you to — the resume never mentions
+      // the word. It opens the confirm card, the other way to make it count.
       b.addEventListener('click', () => (unproven && !denied ? openConfirm() : jumpToSection(r.where)));
       chips.appendChild(b);
       // "Add to Skills" only where it can honestly work: the model (or a fact the
