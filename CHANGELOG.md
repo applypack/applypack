@@ -4,6 +4,28 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.76.0] — 2026-09-08
+
+### Added
+- **A posting from another sector says so.** The scan now reads the sectors
+  a resume's roles were in (`Resume.industries`; existing resumes are filled
+  by `node dist/scripts/rescan-resumes.js`), and `domain.ts` compares them
+  with the posting brief's industry (ADR 0046). When they share no sector
+  word — and the employer is not an agency, a consultancy or a software
+  house, which serve every sector — the targeted view says it in one
+  sentence beside the thin-posting notice, and the full analysis and the
+  suggestions call are handed the candidate's domains with the instruction
+  to reframe transferable work and never claim the sector (prompt v14).
+  Either side unknown: nothing is said. `/resumes/:id` lists the domains.
+- `variance:compare` prints how many high-priority actions are written in
+  the employer's domain, and `--discard` deletes the rows it wrote.
+
+### Measured, not changed
+- A sentence asking for the domain lean in the audience rule moved that
+  share from 15 of 43 to 14 of 47 over three pairs, three runs each; the
+  model already writes in the sector where the resume's facts allow and
+  nothing sector-shaped where they do not. The sentence was withdrawn.
+
 ## [1.75.0] — 2026-09-08
 
 ### Changed
