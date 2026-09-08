@@ -47,6 +47,21 @@ const CHIP_LEVEL = {
   0: 'bg-surface-overlay text-ink-muted ring-line',
 };
 
+/**
+ * What stands between this resume and a higher score, for the chips above the
+ * editor. Two kinds, and the second used to be missing from the row entirely:
+ * a term the resume evidences but does not spell (type it and the score moves),
+ * and one the resume cannot back at all — which `scoreKeywords` marks
+ * `excluded`, because it earns nothing however often the word appears.
+ * Filtering on `excluded` therefore hid the hardest gaps: on one live pair the
+ * row showed a single chip for the one addable keyword, and left out
+ * WordPress — the primary must that capped that score at 70 — along with SASS
+ * and BEM. A weight-0 context term is still no gap at all.
+ */
+export function keywordGaps(rows) {
+  return rows.filter((r) => r.weight > 0 && (r.status === 'cannot_claim' || !r.found));
+}
+
 /** Why an edit did not happen — every error the text operations can return. */
 const REASON = {
   'not-found': "Couldn't find this text in the editor, it may already be edited",
@@ -146,14 +161,18 @@ export function init(data) {
 
     chips.innerHTML = '';
     // Hardest requirement first, then the words the posting keeps repeating.
-    for (const r of orderKeywords(scored.rows.filter((r) => !r.found && !r.excluded), data.jobText)) {
+    for (const r of orderKeywords(keywordGaps(scored.rows), data.jobText)) {
+      const unproven = r.status === 'cannot_claim';
       const b = document.createElement('button');
       b.type = 'button';
-      b.className = CHIP_BASE + ' ' + (CHIP_LEVEL[keywordRank(r)] ?? CHIP_LEVEL[2]);
+      b.className =
+        CHIP_BASE + ' ' + (CHIP_LEVEL[keywordRank(r)] ?? CHIP_LEVEL[2]) + (unproven ? ' chip-unproven' : '');
       b.textContent = r.count > 1 ? r.term + ' ×' + r.count : r.term;
       b.title = [
         wantsLabel(r),
-        gapLabel(r, false),
+        // The honest sentence differs once the word IS in the text: this used
+        // to say "not in your resume" about a word the user had just typed.
+        gapLabel(r, r.found),
         r.count > 1 ? '×' + r.count + ' in the posting' : null,
         r.where ? 'add in: ' + r.where : null,
         r.note,

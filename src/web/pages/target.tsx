@@ -786,6 +786,10 @@ const TARGET_CSS = `
   .card-done { opacity: 0.55; }
   .card-done:hover, .card-done:focus-within { opacity: 1; }
   .chip { cursor: pointer; }
+  /* A gap the resume cannot back yet — the same dashed underline the panes use
+     for 'no evidence yet', so the chip and the mark read as one thing. Typing
+     the word does not clear it; writing the evidence does. */
+  .chip-unproven { text-decoration: underline dashed; text-decoration-thickness: 1px; text-underline-offset: 3px; }
   .runs-toggle::-webkit-details-marker { display: none; }
   .runs-toggle::before { content: '▸ '; }
   details[open] > .runs-toggle::before { content: '▾ '; }

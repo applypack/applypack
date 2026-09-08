@@ -152,6 +152,29 @@ test('the ring\'s live tone agrees with the server\'s fitTone at every cut-off',
   }
 });
 
+test('the gap chips keep an unbackable term, typed in or not', async () => {
+  // The chips answer "what is between me and a higher score". A cannot_claim
+  // term earns nothing however often the word appears, so scoreKeywords marks
+  // it `excluded` — and filtering the chips on `excluded` hid exactly the
+  // hardest gaps, including the primary must that caps the score.
+  // @ts-expect-error — plain JS with no declaration file.
+  const { keywordGaps } = (await import('./public/target-page.mjs')) as {
+    keywordGaps: (rows: { term: string; weight: number; found: boolean; status: string }[]) => { term: string }[];
+  };
+  const rows = [
+    { term: 'WordPress', weight: 3, found: false, status: 'cannot_claim' },
+    { term: 'SASS', weight: 3, found: true, status: 'cannot_claim' },
+    { term: 'Ajax', weight: 3, found: false, status: 'add' },
+    { term: 'PHP', weight: 3, found: true, status: 'present' },
+    { term: 'JIRA', weight: 0, found: false, status: 'present' },
+  ];
+  assert.deepEqual(
+    keywordGaps(rows).map((r) => r.term),
+    // SASS stays although the word is in the text; PHP is earned, JIRA is context.
+    ['WordPress', 'SASS', 'Ajax'],
+  );
+});
+
 test('resumeSpans marks keywords and quoted edits, edits first on ties', async () => {
   const { resumeSpans } = await matcher;
   const spans = resumeSpans(
