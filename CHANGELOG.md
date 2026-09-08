@@ -4,6 +4,31 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.75.0] — 2026-09-08
+
+### Changed
+- **A re-run no longer rewrites the bullet you just took from it.** Measured
+  on one live pair over seven consecutive analyses: eleven of the later runs'
+  quotes were the previous run's own proposed wording, and the current role's
+  first bullet was rewritten in every run, at 90 and at 100. The prompt had
+  PREVIOUS KEYWORDS but no memory of its own advice. Now the wording the text
+  carries from the last report goes in as a fenced APPLIED FROM THE LAST RUN
+  block (prompt v13, `applied.ts:appliedWording`) with the rule that it is
+  done, the "must open with its strongest accomplishment" clause leaves a
+  bullet alone when it already does — and, because the prompt rule alone took
+  rewrites of applied lines only from 11 of 18 actions to 6 of 12
+  (`npm run churn:compare`, two pairs, two rounds each), `freshActions` is
+  the rule as code: a rework of an applied line reaches the user only when it
+  names a keyword the text does not carry. `applied` / `rewritesOfApplied` /
+  `reworksDropped` ride on the `resume: matched` log line.
+
+### Added
+- `npm run churn:compare -- <resumeId>:<jobId> [--rounds N] [--keep]` runs the
+  loop a user runs — analyse, apply every suggestion the way the editor does,
+  analyse again — and prints, per round, how many of the last report's lines
+  the text carries and how many new actions rewrite them. Spends AI; deletes
+  its draft rows.
+
 ## [1.74.0] — 2026-09-08
 
 ### Changed
