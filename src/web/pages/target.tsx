@@ -8,6 +8,7 @@ import type { MatchWithResume } from '../../resume/store';
 import type { CountedKeyword } from '../../resume/keyword-matcher';
 import type { VerificationForHint } from '../../resume/verification-hint';
 import { effectiveKeywords, confirmable } from '../../resume/keyword-overrides';
+import { DENIED_NOTE } from '../../resume/facts';
 import { readActions, readHardRequirements, readRemovals } from '../../resume/prompts';
 import { readMatchMode } from '../../resume/match-mode';
 import { readBreakdown } from '../../resume/score';
@@ -139,6 +140,8 @@ export const TargetPage: FC<TargetPageProps> = ({
     resumeText,
     jobText: job.description,
     keywords: scored,
+    // So a chip can tell the user's own "I don't" from a term the model could not back.
+    deniedNote: DENIED_NOTE,
     actions,
     removals,
     // The score parts the live count holds fixed; null on pre-ADR-0012

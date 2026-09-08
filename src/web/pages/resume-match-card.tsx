@@ -368,7 +368,7 @@ const FactRow: FC<{ k: MatchKeyword; matchId: number; back: string }> = ({ k, ma
 );
 
 /**
- * The card takes both tiers of `facts.ts:confirmable`. The asks are open; the
+ * The card takes both tiers of `keyword-overrides.ts:confirmable`. The asks are open; the
  * terms the model could not back sit behind a summary, because on a resume
  * from another profession there are twenty-five of them and a wall of forms
  * is not an offer. The dashed chips above the editor open it (target-page.mjs).

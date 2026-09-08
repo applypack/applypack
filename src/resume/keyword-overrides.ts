@@ -273,7 +273,7 @@ export function carryOverrides(
  * one live pair the model marked SASS and BEM cannot_claim for a twelve-year
  * CSS developer and WordPress for a twelve-year PHP developer, the candidate
  * typed all three in, the score did not move, and nothing on the page could
- * take a "yes". A confirmed fact flips the term to "add" (applyFacts above),
+ * take a "yes". A confirmed fact flips the term to "add" (facts.ts:applyFacts),
  * so the same answer that unblocks an ask unblocks these.
  *
  * Out: a term the user already denied (that IS their answer), and a context

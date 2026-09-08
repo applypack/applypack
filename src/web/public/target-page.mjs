@@ -163,6 +163,9 @@ export function init(data) {
     // Hardest requirement first, then the words the posting keeps repeating.
     for (const r of orderKeywords(keywordGaps(scored.rows), data.jobText)) {
       const unproven = r.status === 'cannot_claim';
+      // The user's own "I don't" is a cannot_claim too, carrying the note the
+      // denial left. Still a gap, so still a chip — but not an offer to confirm.
+      const denied = unproven && r.note === data.deniedNote;
       const b = document.createElement('button');
       b.type = 'button';
       b.className =
@@ -174,12 +177,12 @@ export function init(data) {
         // to say "not in your resume" about a word the user had just typed.
         gapLabel(r, r.found),
         r.count > 1 ? '×' + r.count + ' in the posting' : null,
-        unproven ? 'click to say you have it — then it counts' : r.where ? 'add in: ' + r.where : null,
-        r.note,
+        denied ? 'you said you do not have it' : unproven ? 'click to say you have it — then it counts' : r.where ? 'add in: ' + r.where : null,
+        denied ? null : r.note,
       ].filter(Boolean).join(' · ');
       // A dashed chip has nowhere in the text to send you — typing the word is
       // exactly what does not help. It opens the one control that does.
-      b.addEventListener('click', () => (unproven ? openConfirm() : jumpToSection(r.where)));
+      b.addEventListener('click', () => (unproven && !denied ? openConfirm() : jumpToSection(r.where)));
       chips.appendChild(b);
       // "Add to Skills" only where it can honestly work: the model (or a fact the
       // user confirmed — applyFacts flips confirmed to `add` before this page
@@ -228,6 +231,8 @@ export function init(data) {
     if (!box) return;
     box.open = true;
     box.scrollIntoView({ block: 'center' });
+    // Focus follows the disclosure, as it does when the summary itself is pressed.
+    box.querySelector('summary')?.focus({ preventScroll: true });
     box.classList.remove('flash-target');
     void box.offsetWidth; // restart the animation when clicked twice
     box.classList.add('flash-target');

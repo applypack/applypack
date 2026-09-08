@@ -25,7 +25,7 @@ function names(k: MatchKeyword): string[] {
   return [canonicalTerm(k.term), ...k.aliases];
 }
 
-/** The note a denial leaves on a keyword — read back by keyword-overrides.ts:confirmable, so it is not re-asked. */
+/** The note a denial leaves on a keyword. keyword-overrides.ts:confirmable reads it back, so a "no" is not re-asked. */
 export const DENIED_NOTE = 'user: does not have it';
 
 /**
