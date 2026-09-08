@@ -55,6 +55,7 @@ export function init(data) {
   const jd = document.getElementById('jd');
   const chips = document.getElementById('missing-chips');
   const saveButtons = document.querySelectorAll('[data-save-button]');
+  const aiFresh = document.getElementById('ai-fresh');
   const aiStale = document.getElementById('ai-stale');
   const dirtyBar = document.getElementById('dirty-bar');
   const barScore = document.getElementById('bar-score');
@@ -165,6 +166,9 @@ export function init(data) {
     if (chips.children.length === 0) chips.innerHTML = '<span class="text-xs text-ink-faint">Every countable keyword is present.</span>';
 
     const dirty = text !== data.resumeText;
+    // One line under the ring, two things it can say: how old the number is,
+    // or that the text moved on since it was made.
+    aiFresh.hidden = dirty;
     aiStale.hidden = !dirty;
     dirtyBar.hidden = !dirty;
     for (const b of saveButtons) b.disabled = !dirty;

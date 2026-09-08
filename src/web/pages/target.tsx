@@ -23,7 +23,7 @@ import {
   reachOf,
   VerificationLine,
   RemovalsBlock,
-  ScoreBreakdownChips,
+  ScoreCeilingLine,
   SuggestionsPrompt,
 } from './resume-match-card';
 import { ACCEPTED_EXTENSIONS } from '../../resume/resume-text';
@@ -99,14 +99,6 @@ const AI_TONE: Record<Tone, string> = {
 
 /** Score at which the card tells the user to stop polishing and apply. */
 const READY_TO_APPLY = 85;
-
-/** Same cutoffs as fitTone — the word next to the number, so colour never stands alone. */
-function matchQuality(score: number): string {
-  if (score >= READY_TO_APPLY) return 'excellent';
-  if (score >= 70) return 'strong';
-  if (score >= 50) return 'moderate';
-  return 'weak';
-}
 
 export const TargetPage: FC<TargetPageProps> = ({
   job,
@@ -230,14 +222,18 @@ export const TargetPage: FC<TargetPageProps> = ({
             the middle, never under 14rem — the rail grows while editing) | actions
             rail. The gates line spans the full width below. */}
         <div class="grid grid-cols-1 items-start gap-x-8 gap-y-4 lg:grid-cols-[auto_minmax(14rem,1fr)_auto]">
-          {/* Primary: the honest score — the AI rubric verdict. Static until a re-check. */}
-          <div class="flex items-center gap-5">
+          {/* Primary: the honest score — the AI rubric verdict. Static until a
+              re-check. The ring and one line: everything that used to label it
+              ("AI match", the quality word, the draft marker) either repeated
+              the run chips above or named a rubric the reader never asked
+              about. Hovering the ring says what the number is. */}
+          <div class="w-36">
             {/* The number sits inside the ring: one object to read instead of a
                 dial next to a figure it was already drawing. The button is the
                 hover target for the explanation, and a button because nothing
                 may depend on hover — the same panel opens on keyboard focus and
                 on a tap. */}
-            <div class="group relative shrink-0">
+            <div class="group relative mx-auto w-28">
               <button
                 type="button"
                 aria-describedby="score-help"
@@ -259,11 +255,14 @@ export const TargetPage: FC<TargetPageProps> = ({
                     class={AI_TONE[fitTone(match.matchScore)]}
                   />
                 </svg>
-                <span class="absolute inset-0 flex flex-col items-center justify-center leading-none" aria-hidden="true">
-                  <span class="text-[30px] font-semibold tabular-nums tracking-tight text-ink">
-                    {match.matchScore}
-                  </span>
-                  <span class="mt-1.5 text-[11px] font-medium text-ink-faint">/ 100</span>
+                {/* The number alone. "/100" is in the sentence the ring shows
+                    on hover, and in the button's own label for a screen reader —
+                    it does not need to sit inside the dial as well. */}
+                <span
+                  class="absolute inset-0 flex items-center justify-center text-[32px] font-semibold leading-none tabular-nums tracking-tight text-ink"
+                  aria-hidden="true"
+                >
+                  {match.matchScore}
                 </span>
               </button>
               {/* Kept in the accessibility tree (opacity, not `hidden`) so
@@ -276,7 +275,7 @@ export const TargetPage: FC<TargetPageProps> = ({
                 <p>
                   <span class="font-medium text-ink">AI match, 0–100.</span> How well this resume answers
                   this posting: the words it asks for, whether you have its core stack, and how your title,
-                  summary and most recent role read at a glance. The lines beside it are what made it.
+                  summary and most recent role read at a glance.
                 </p>
                 <p class="text-ink-faint">
                   Re-levelling, ignoring or adding a keyword moves it at once. Editing the text does not —
@@ -284,47 +283,42 @@ export const TargetPage: FC<TargetPageProps> = ({
                 </p>
               </div>
             </div>
-            <div>
-              <div class="text-[13px] font-medium text-ink-muted">
-                AI match ·{' '}
-                <span class={AI_TONE[fitTone(match.matchScore)]}>{matchQuality(match.matchScore)}</span>
-              </div>
-              {/* Its own line, and shorter than the run line below it: inline, the
-                  marker widened this auto column the moment the user typed, and the
-                  summary beside it jumped narrower. It names the button it wants. */}
-              <div id="ai-stale" hidden class="mt-0.5 text-[13px] font-medium text-warn">
-                edited — analyse again
-              </div>
-              {/* Which resume/version is named by the pane header and the run chips —
-                  repeating it here was pure duplication. */}
-              <div class="mt-0.5 text-xs text-ink-faint">
-                {match.draft ? 'draft · ' : ''}
+            {/* How old the number is, and — the moment the text is edited — that
+                it no longer describes it. One slot, so the column never widens
+                under the typing and squeezes the summary beside it. */}
+            <div class="mt-2 text-center text-xs text-ink-faint">
+              <span id="ai-fresh">
                 {fast ? 'quick check' : 'full analysis'} {formatRelative(match.createdAt)}
-              </div>
-              {/* The number alone used to decide this, so "stop polishing" sat
-                  above three suggested edits, five removals and an unconfirmed
-                  hard requirement on a live 100/100. A score is not a verdict
-                  while something is still open (web/score-lines.ts). */}
-              {breakdown &&
-                readyToApply({
-                  breakdown,
-                  keywords: scored,
-                  hard,
-                  score: match.matchScore,
-                  threshold: READY_TO_APPLY,
-                  edits: actions.length + removals.length,
-                }) && (
-                  <div class="mt-1 text-[13px] font-medium text-ok">
-                    Ready to apply — stop polishing, send it.
-                  </div>
-                )}
+              </span>
+              <span id="ai-stale" hidden class="font-medium text-warn">
+                edited — analyse again
+              </span>
             </div>
           </div>
 
-          {/* Why this score: the stack verdict + the deterministic components. */}
+          {/* The verdict in the model's own sentence, then the two things a
+              reader does something with: how high editing can take this, and
+              whether it is already there. The rubric's own breakdown — what
+              made the number, what it does not count — is off this page for
+              now; it is still on the /jobs match card. */}
           <div class="min-w-0 space-y-1.5">
             <p class="text-sm leading-6 text-ink">{match.summary}</p>
-            {breakdown && <ScoreBreakdownChips bd={breakdown} keywords={scored} hard={hard} />}
+            {breakdown && <ScoreCeilingLine bd={breakdown} />}
+            {/* The number alone used to decide this, so "stop polishing" sat
+                above three suggested edits, five removals and an unconfirmed
+                hard requirement on a live 100/100. A score is not a verdict
+                while something is still open (web/score-lines.ts). */}
+            {breakdown &&
+              readyToApply({
+                breakdown,
+                keywords: scored,
+                hard,
+                score: match.matchScore,
+                threshold: READY_TO_APPLY,
+                edits: actions.length + removals.length,
+              }) && (
+                <p class="text-[13px] font-medium text-ok">Ready to apply — stop polishing, send it.</p>
+              )}
             {(fast || actions.length > 0 || removals.length > 0) && (
               <button
                 type="button"
