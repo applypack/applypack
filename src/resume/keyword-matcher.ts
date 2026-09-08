@@ -19,6 +19,8 @@ export type CountedKeyword = MatchKeyword & { count: number };
 export interface KeywordMatcher {
   /** Every occurrence of term + aliases in text as whole tokens (see target.mjs). */
   findTerm(text: string, term: string, aliases?: string[]): Span[];
+  /** Where a quoted sentence sits in the text — exact, then whitespace- and punctuation-insensitive; null when it is not there. */
+  locateQuote(text: string, quote: string | null | undefined): Span | null;
   /**
    * Keyword rows in display order — hardest requirement first, ties broken by
    * how often the posting repeats the term — each carrying that `count`
