@@ -68,8 +68,9 @@ export function rowView(a: ApplicantWithVerdict & { sameAsNumber?: number | null
   const status = a.parseStatus === 'unreadable' ? 'unreadable' : 'ok';
   const reply = a.verdict ? readScreenReply(a.verdict.facts) : null;
   const bd = a.verdict ? readScreenBreakdown(a.verdict.breakdown) : null;
+  const career = reply ? trajectoryOf(reply.roles, now) : null;
   const verdict: VerdictView | null =
-    a.verdict && reply && bd
+    a.verdict && reply && bd && career
       ? {
           score: bd.score,
           confidence: bd.confidence.band,
@@ -86,8 +87,8 @@ export function rowView(a: ApplicantWithVerdict & { sameAsNumber?: number | null
           verdictLine: reply.summary.verdict,
           questions: reply.questions,
           standout: reply.standout,
-          career: trajectoryOf(reply.roles, now),
-          careerLine: trajectoryLine(trajectoryOf(reply.roles, now)),
+          career,
+          careerLine: trajectoryLine(career),
         }
       : null;
   return {

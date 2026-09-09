@@ -17,14 +17,19 @@ test('trajectoryOf reads the career off the dated roles', () => {
     NOW,
   );
   assert.equal(t.roles, 3, 'undated roles do not count');
-  assert.equal(t.employers, 4, 'employers are counted by name, dated or not');
+  assert.equal(t.employers, 3, 'employers are counted by name over the dated roles');
   assert.equal(t.yearsTotal, 10.8);
   assert.equal(t.yearsRelevant, 9.8);
   assert.equal(t.averageTenure, 4.2);
   assert.equal(t.inRoleNow, true);
   assert.deepEqual(t.sectors, ['IT outsourcing', 'banking', 'e-commerce']);
   assert.deepEqual(t.companyTypes, ['consultancy', 'agency']);
-  assert.equal(trajectoryLine(t), '10.8 years across 4 employers · average stay 4.2 years · in a role now · IT outsourcing, banking, e-commerce');
+  assert.equal(trajectoryLine(t), '10.8 years across 3 employers · average stay 4.2 years · in a role now · IT outsourcing, banking, e-commerce');
+});
+
+test('trajectoryLine with dated roles that name no employer counts roles', () => {
+  const t = trajectoryOf([role({ start: '2020', end: '2021' }), role({ start: '2022', end: 'now' })], NOW);
+  assert.equal(trajectoryLine(t), '6.8 years across 2 roles · average stay 3.4 years · in a role now');
 });
 
 test('trajectoryOf with nothing dated', () => {

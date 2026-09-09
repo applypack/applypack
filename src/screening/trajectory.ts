@@ -32,7 +32,8 @@ export function trajectoryOf(roles: ScreenRole[], now: Date): Trajectory {
     if (range) dated.push({ range, role });
   }
   const nowIndex = now.getUTCFullYear() * 12 + now.getUTCMonth();
-  const employers = new Set(roles.map((r) => r.employer?.trim().toLowerCase()).filter((e): e is string => !!e));
+  // The same roles the years are counted over — one sentence about one set.
+  const employers = new Set(dated.map((d) => d.role.employer?.trim().toLowerCase()).filter((e): e is string => !!e));
   const distinct = (values: (string | null)[]): string[] => {
     const seen = new Set<string>();
     const out: string[] = [];
@@ -61,8 +62,9 @@ export function trajectoryOf(roles: ScreenRole[], now: Date): Trajectory {
 /** "9.8 years across 3 employers · average stay 3.3 years · in a role now · fintech, e-commerce" */
 export function trajectoryLine(t: Trajectory): string {
   if (t.roles === 0) return 'no dated roles in the text';
+  const across = t.employers > 0 ? `${t.employers} employer${t.employers === 1 ? '' : 's'}` : `${t.roles} role${t.roles === 1 ? '' : 's'}`;
   const parts = [
-    `${t.yearsTotal} year${t.yearsTotal === 1 ? '' : 's'} across ${t.employers || t.roles} employer${(t.employers || t.roles) === 1 ? '' : 's'}`,
+    `${t.yearsTotal} year${t.yearsTotal === 1 ? '' : 's'} across ${across}`,
     t.averageTenure !== null ? `average stay ${t.averageTenure} year${t.averageTenure === 1 ? '' : 's'}` : '',
     t.inRoleNow ? 'in a role now' : 'not in a role now',
     t.sectors.length > 0 ? t.sectors.slice(0, 4).join(', ') : '',
