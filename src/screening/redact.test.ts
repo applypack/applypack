@@ -66,6 +66,7 @@ test('redactApplicant — English header, hyphenated surname, markdown title', (
   assert.equal(r.name, 'Marcus Ade-Williams');
   assert.ok(!/Marcus|Ade-Williams|Williams/.test(r.text), 'the surname is also an employer name — it goes too');
   assert.ok(!/example\.co\.uk|github|7700 900123|Born|1988|Married|British/.test(r.text));
+  assert.ok(r.text.startsWith('# Applicant №12\n'), 'a markdown name heading is the label line, not doubled');
   assert.ok(r.text.includes('Backend Engineer | London, UK'));
   assert.ok(r.text.includes('Jan 2020 – Present'));
   assert.ok(!/2009 – 2012/.test(r.text));
@@ -79,13 +80,32 @@ Engineer
 Kyiv
 - 5 років досвіду в single-page applications; married the API to a new queue in 2 days
 - Age of the codebase: 12 years; reduced p99 latency from 900 ms to 120 ms
+- Built the Playwright end-to-end suite for 40 microservices; cut the regression cycle from 3 days to 4 hours
+- Paved the road to 5 nines with a lane-based deploy
 `;
   const r = redactApplicant(text, 1);
+  assert.ok(r.text.includes('end-to-end suite for 40 microservices'), '"suite for 40" is a test suite, not an address');
+  assert.ok(r.text.includes('road to 5 nines'), 'a road with no number next to it is a metaphor');
   assert.ok(r.text.includes('5 років досвіду'), '"5 years of experience" is not an age');
   assert.ok(r.text.includes('single-page applications'), '"single" inside a sentence is not a marital status');
   assert.ok(r.text.includes('married the API'), 'a verb, not a field');
   assert.ok(r.text.includes('120 ms'), 'a metric is not a phone number');
   assert.ok(!/Koval/.test(r.text));
+});
+
+test('redactApplicant removes street lines in the shapes headers write them', () => {
+  const text = `Jane Doe
+Engineer
+22 Baker Street, London NW1 · Suite 200
+вул. Хрещатик 22, кв. 14, Київ
+Musterstraße 5, 10115 Berlin
+ul. Długa 12/3, Kraków
+`;
+  const r = redactApplicant(text, 2);
+  assert.ok(!/Baker Street|Suite 200|Хрещатик|кв\. 14|Musterstraße|Długa/.test(r.text), r.text);
+  assert.ok(r.text.includes('London NW1'), 'the city segment stays');
+  assert.ok(r.text.includes('Київ'));
+  assert.equal(r.redactions.find((x) => x.kind === 'address')?.count, 6);
 });
 
 test('redactApplicant with no detectable name still strips contacts', () => {

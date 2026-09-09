@@ -95,9 +95,24 @@ const CITIZENSHIP = word('citizenship|nationality|громадянство|на�
 /** A bare demonym next to a birth / family field is the citizenship line; alone it may be a language, and stays. */
 const DEMONYM =
   /^(?:british|american|german|ukrainian|polish|french|italian|spanish|dutch|indian|canadian|irish|swiss|austrian|czech|romanian|turkish|georgian|belarusian|kazakh|moldovan|lithuanian|latvian|estonian|portuguese|brazilian|nigerian|pakistani|chinese|japanese|korean|vietnamese|filipino|mexican|australian|swedish|norwegian|danish|finnish|greek|hungarian|bulgarian|serbian|croatian|slovak|slovenian|belgian|eu citizen|українець|українка|поляк|полька|німець|громадянин \S+)$/iu;
-const STREET = word(
-  '(?:вул\\.?|вулиця|просп\\.?|проспект|бульв\\.?|бульвар|пров\\.?|провулок|кв\\.?|ул\\.?|улица|пр-т|straße|strasse|str\\.|ulica|ul\\.|street|st\\.|avenue|ave\\.|road|rd\\.|lane|ln\\.|boulevard|blvd\\.?|apt\\.?|apartment|suite)\\s*(?:\\S+\\s*){0,4}\\d',
+/**
+ * A street needs its number next to it — "22 Baker Street", "вул. Хрещатик 22"
+ * — and a unit its number right after: "Suite 200", "кв. 14". Measured on the
+ * first live batch: a looser "street word, then a number within four words"
+ * took "Built the Playwright end-to-end suite for 40 microservices" for an
+ * address and removed the applicant's best bullet.
+ */
+const STREET_WORDS =
+  'вул\\.?|вулиця|просп\\.?|проспект|бульв\\.?|бульвар|пров\\.?|провулок|ул\\.?|улица|пр-т|ulica|ul\\.|street|st\\.|avenue|ave\\.|road|rd\\.|lane|ln\\.|boulevard|blvd\\.?';
+/** A street word on its own, or the German suffix form ("Musterstraße", "Hauptstr."). */
+const STREET_TOKEN = `(?:${B}(?:${STREET_WORDS})${E}|\\p{L}+(?:straße|strasse|str\\.))`;
+/** A house number: then a separator or the end of the segment — "road to 5 nines" has neither. */
+const HOUSE_NUMBER = `\\d{1,4}[a-z]?(?=\\s*(?:[,;·•|/]|$))`;
+const STREET = new RegExp(
+  `(?:^\\d{1,4}[a-z]?,?\\s+(?:[\\p{L}'’.-]+\\s+){0,2}${STREET_TOKEN})|(?:${STREET_TOKEN}\\s*(?:[\\p{L}'’.-]+\\s+){0,2}${HOUSE_NUMBER})`,
+  'iu',
 );
+const UNIT = word('(?:apt\\.?|apartment|suite|ste\\.?|кв\\.?|квартира|буд\\.?|д\\.)\\s*#?\\s*\\d{1,5}[a-z]?');
 const BARE_YEAR = /(?<![\d.])(?:19[6-9]\d|20[0-4]\d)(?![\d.])/g;
 const DATE_RANGE = /((?:\p{L}{3,10}\.?\s*)?(?:19|20)\d\d)\s*[–—-]\s*((?:\p{L}{3,10}\.?\s*)?(?:19|20)\d\d|present|current|дотепер|зараз|heute|obecnie)/giu;
 /** An education heading, in the languages the corpus writes them. */
@@ -183,7 +198,7 @@ export function redactApplicant(text: string, number: number): RedactedApplicant
   out = out.replace(/\n{3,}/g, '\n\n').trim();
   return {
     // The name line, once replaced, already opens the text with the label.
-    text: out.startsWith(label) ? out : `${label}\n\n${out}`,
+    text: out.replace(/^#+\s*/, '').startsWith(label) ? out : `${label}\n\n${out}`,
     name,
     email,
     phone,
@@ -230,7 +245,7 @@ function fieldKind(segment: string): RedactionKind | null {
   if (MARITAL_FIELD.test(s) || MARITAL_WORD.test(s) || CHILDREN.test(s)) return 'marital';
   if (GENDER_FIELD.test(s) || GENDER_WORD.test(s)) return 'gender';
   if (CITIZENSHIP.test(s)) return 'citizenship';
-  if (STREET.test(s)) return 'address';
+  if (STREET.test(s) || UNIT.test(s)) return 'address';
   return null;
 }
 

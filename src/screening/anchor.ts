@@ -1,5 +1,5 @@
 import { normaliseForAnchor } from '../resume/structure-anchor';
-import { evidenceFor } from '../resume/evidence';
+import { isTermList } from '../resume/evidence';
 import type { KeywordMatcher } from '../resume/keyword-matcher';
 import type { Rubric, RubricTerm } from './rubric';
 import { EVIDENCE_RUNGS, type EvidenceRung, type ScreenReply, type ScreenTermRow } from './prompts';
@@ -16,8 +16,12 @@ import { EVIDENCE_RUNGS, type EvidenceRung, type ScreenReply, type ScreenTermRow
  * - the RUBRIC is the frame: a term the model skipped gets a row from the
  *   text alone, a term the model invented is dropped;
  * - a rung above "listed" needs a located quote; without one the rung falls
- *   to what evidence.ts reads off the text (a skills line → listed, a work
- *   sentence → role), and a term the matcher cannot find at all is absent;
+ *   to what the text shows (a skills line → listed, a work sentence → role),
+ *   and a term the matcher cannot find at all is absent;
+ * - the text also RAISES: a term the model left at "listed" or "absent" that
+ *   the matcher finds inside a sentence about work is "role", quoting that
+ *   line — measured on the first live batch, the model quoted the skills
+ *   line for Playwright under a bullet that shipped a Playwright suite;
  * - a gate's pass or fail needs a located quote, else it is unknown — the
  *   table shows the quote next to the mark, and a mark with no quote is a
  *   claim the person cannot check;
@@ -32,6 +36,8 @@ export interface AnchorReport {
   quotesDropped: number;
   /** Term rungs lowered because their evidence was not in the text. */
   rungsLowered: number;
+  /** Term rungs raised because the text shows the term in a work sentence the model did not credit. */
+  rungsRaised: number;
   /** Rubric terms the model skipped, filled from the text alone. */
   termsFilled: number;
   /** Reply rows for terms the rubric never named. */
@@ -59,7 +65,7 @@ export function anchorScreenReply(
   rubric: Rubric,
   matcher: Matcher,
 ): { reply: ScreenReply; report: AnchorReport } {
-  const report: AnchorReport = { quotesDropped: 0, rungsLowered: 0, termsFilled: 0, termsDropped: 0, gatesUnproven: 0, rolesDropped: 0 };
+  const report: AnchorReport = { quotesDropped: 0, rungsLowered: 0, rungsRaised: 0, termsFilled: 0, termsDropped: 0, gatesUnproven: 0, rolesDropped: 0 };
   const hay = normaliseForAnchor(text);
 
   const located = (quote: string | null): string | null => {
@@ -68,10 +74,7 @@ export function anchorScreenReply(
     report.quotesDropped++;
     return null;
   };
-  const rungFromText = (t: RubricTerm): EvidenceRung => {
-    const evidence = evidenceFor({ term: t.term, aliases: t.aliases }, text, matcher);
-    return evidence === 'absent' ? 'absent' : evidence === 'listed' ? 'listed' : 'role';
-  };
+  const fromText = (t: RubricTerm): { rung: EvidenceRung; quote: string | null } => textEvidence(t, text, matcher);
   const anchorTerms = (rows: ScreenTermRow[], terms: RubricTerm[]): ScreenTermRow[] => {
     const byTerm = new Map<string, ScreenTermRow>();
     for (const r of rows) byTerm.set(canonical(r.term), r);
@@ -79,23 +82,27 @@ export function anchorScreenReply(
     report.termsDropped += rows.filter((r) => !wanted.has(canonical(r.term))).length;
     return terms.map((t) => {
       const row = byTerm.get(canonical(t.term));
-      const floor = rungFromText(t);
+      const floor = fromText(t);
       if (!row) {
         report.termsFilled++;
-        return { term: t.term, level: floor, quote: null, last_used: null };
+        return { term: t.term, level: floor.rung, quote: floor.quote, last_used: null };
       }
-      const quote = located(row.quote);
+      let quote = located(row.quote);
       let level = row.level;
-      // Above "listed" the rung is the quote's; below it the text decides.
       if (rank(level) > rank('listed') && quote === null) {
-        level = floor;
+        // Above "listed" the rung is the quote's; without one the text decides.
+        level = floor.rung;
+        quote = floor.quote;
         report.rungsLowered++;
-      } else if (level !== 'absent' && floor === 'absent' && quote === null) {
+      } else if (level !== 'absent' && floor.rung === 'absent' && quote === null) {
         level = 'absent';
         report.rungsLowered++;
-      } else if (level === 'absent' && floor !== 'absent') {
-        // The model missed a spelling the alias table knows.
-        level = floor;
+      } else if (rank(level) < rank(floor.rung)) {
+        // The text shows more than the model marked: a spelling the alias
+        // table knows, or a work sentence it quoted the skills line over.
+        level = floor.rung;
+        quote = floor.quote ?? quote;
+        report.rungsRaised++;
       }
       return { term: t.term, level, quote, last_used: inText(hay, row.last_used) ? row.last_used : null };
     });
@@ -141,4 +148,26 @@ export function anchorScreenReply(
 
 export function rank(rung: EvidenceRung): number {
   return EVIDENCE_RUNGS.indexOf(rung);
+}
+
+/**
+ * What the text alone says about a term: absent, on a list of terms, or
+ * inside a sentence — and that sentence, as the quote. "production" is the
+ * model's call (ownership, outcome), never read off the text.
+ */
+export function textEvidence(
+  term: Pick<RubricTerm, 'term' | 'aliases'>,
+  text: string,
+  matcher: Pick<KeywordMatcher, 'findTerm'>,
+): { rung: EvidenceRung; quote: string | null } {
+  const spans = matcher.findTerm(text, term.term, term.aliases);
+  let listed: string | null = null;
+  for (const span of spans) {
+    const start = text.lastIndexOf('\n', span.start - 1) + 1;
+    const end = text.indexOf('\n', span.start);
+    const line = text.slice(start, end === -1 ? text.length : end).trim();
+    if (!isTermList(line)) return { rung: 'role', quote: line.replace(/^[-•*]\s*/, '') };
+    listed ??= line;
+  }
+  return listed === null ? { rung: 'absent', quote: null } : { rung: 'listed', quote: listed };
 }

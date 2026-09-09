@@ -71,9 +71,10 @@ test('anchorScreenReply: quotes must be in the text, rungs fall to what the text
   assert.equal(byTerm.Java!.level, 'production', 'a located quote keeps the rung');
   assert.equal(byTerm.Java!.last_used, 'Present');
   assert.equal(byTerm.Kafka!.level, 'listed', 'a paraphrased quote falls to the skills line the text has');
-  assert.equal(byTerm.Kafka!.quote, null);
+  assert.equal(byTerm.Kafka!.quote, 'Java, Spring Boot, PostgreSQL, Kafka, Docker', 'and quotes that line');
   assert.equal(byTerm.Kubernetes!.level, 'absent', 'a term the text never spells is absent whatever the model said');
   assert.equal(byTerm.PostgreSQL!.level, 'role', 'a term the model skipped is filled from the text: it sits in a work sentence');
+  assert.equal(byTerm.PostgreSQL!.quote, 'Ran the PostgreSQL migration for 30 services');
   assert.ok(!('Terraform' in byTerm), 'a term the rubric never named is dropped');
   assert.equal(report.termsDropped, 1);
   assert.equal(report.termsFilled, 1);
@@ -83,6 +84,18 @@ test('anchorScreenReply: quotes must be in the text, rungs fall to what the text
   assert.equal(report.rolesDropped, 1);
   assert.deepEqual(out.level.signals, ['Owned the payments ledger on Java 17']);
   assert.equal(out.impact.grade, 'strong');
+});
+
+test('anchorScreenReply raises a rung the text shows more of than the model marked', async () => {
+  const matcher = await loadKeywordMatcher();
+  const reply = ScreenReplySchema.parse({
+    summary: { who: '', did: '', verdict: '' },
+    must: [{ term: 'Java', level: 'listed', quote: 'Java, Spring Boot, PostgreSQL, Kafka, Docker', last_used: null }],
+  });
+  const { reply: out, report } = anchorScreenReply(reply, TEXT, { ...RUBRIC, gates: [], must: [RUBRIC.must[0]!] }, matcher);
+  assert.equal(out.must[0]!.level, 'role', 'the skills line was quoted over a bullet that shipped it');
+  assert.equal(out.must[0]!.quote, 'Owned the payments ledger on Java 17 and Spring Boot, 12k rps, cut p99 latency 40%');
+  assert.equal(report.rungsRaised, 1);
 });
 
 test('anchorScreenReply lowers a strong impact with no surviving quote', async () => {
