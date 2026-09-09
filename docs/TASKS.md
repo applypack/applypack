@@ -1945,7 +1945,7 @@ checks became unit tests and the calibration stays open.
 - [ ] Top-10 comparative tie-break with shuffled order; calibration
       report; Batch API for the API engines.
 
-### 19.5 Criteria HR chooses, the posting in the loop (analysis 2026-09-09; A, B, C shipped)
+### 19.5 Criteria HR chooses, the posting in the loop (analysis 2026-09-09; A–D shipped, E open)
 
 The first real use (22 versions of one resume against one posting; 21 of
 them with the same vocabulary) asked for three things. The analysis is
@@ -1980,11 +1980,14 @@ A → B1+B2 → C → D → E.
       penalty); sectors and company type per role were already on the
       scorecard from B2. Columns stayed put: the facts ride in the row's
       expandable line and the Years tooltip, not in new columns.
-- [ ] **D — Compare 2–3 ticked applicants side by side**, one row per
-      criterion with the quotes; and **Compare with AI** on a shortlist of
-      2–5: two shuffled readings, per-criterion winners with quotes, an
-      order with reasons, stored as `ScreeningComparison`, never folded into
-      a score (plan §5.1).
+- [x] **D — Compare** (v2.4.0, ADR 0051): tick 2–5 scored applicants →
+      side by side (columns, one row per criterion with the quotes, no
+      call); **Compare with AI** = two readings at once, the second in the
+      reverse order, per-criterion rankings with each applicant's own line,
+      an order with reasons, the deciding question, disagreements marked;
+      stored as `ScreeningComparison`, exported as Markdown, never folded
+      into a score. "Shuffled" became "reversed": with two readings the
+      reverse is the one permutation that swaps both slots the bias lives in.
 - [ ] **E — calibration**: HR's decisions versus the order per screening;
       the stage-0 gold set when a human ranking exists.
 

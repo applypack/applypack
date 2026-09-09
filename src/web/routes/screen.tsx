@@ -633,7 +633,7 @@ screenRoute.post('/screen/:id/compare/ai', async (c) => {
       updateRun(run.id, { stage: 'error', error: 'The screening was deleted meanwhile.' });
       return;
     }
-    const outcome = await compareApplicants(fresh, rubricOf(fresh), pick.applicants, getAiRuntime(), await loadKeywordMatcher());
+    const outcome = await compareApplicants(fresh, rubricOf(fresh), pick.applicants, await getAiRuntime(), await loadKeywordMatcher());
     updateRun(
       run.id,
       outcome.ok

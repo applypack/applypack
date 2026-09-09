@@ -105,10 +105,11 @@
   is the RFC 9309 reader it calls first: it is stricter than the protocol in
   two places, and both are deliberate (an AI-agent group binds us; a 5xx on
   robots.txt means "not allowed").
-- `src/screening/` is employer mode (TASKS §19, ADR 0047–0049): `rubric.ts`,
+- `src/screening/` is employer mode (TASKS §19, ADR 0047–0051): `rubric.ts`,
   `redact.ts`, `dates.ts`, `prompts.ts`, `anchor.ts`, `score.ts`,
-  `trajectory.ts`, `intake.ts`, `export.ts`, `notice.ts` are pure (tested); `store.ts` is the only file
-  that touches Prisma; `batch.ts` runs the calls. Web-only behind
+  `trajectory.ts`, `comparison.ts`, `intake.ts`, `export.ts`, `notice.ts`
+  are pure (tested); `store.ts` is the only file that touches Prisma;
+  `batch.ts` and `compare.ts` run the calls. Web-only behind
   `AppSettings.employerMode` — the worker never imports it, and nothing in
   `src/resume/` reads an `Applicant`. Redaction (`redactApplicant`) runs at
   intake and cannot be switched off; the model sees "Applicant №N" only.
@@ -334,6 +335,7 @@ When the question is **"where does X live?"**, save yourself a `find`:
 | What is removed from an applicant's resume before a model reads it, and the leak check | `src/screening/redact.ts:redactApplicant` / `findLeaks` (pure, ADR 0048) — name and its parts, contacts, links, date of birth, age, family, gender, citizenship, street, graduation years; the city stays |
 | The screening prompt, one answer per criterion, the reply shape | `src/screening/prompts.ts:buildScreenPrompt` / `ScreenReplySchema` (v3): `answerShape(criterion)` says whether a criterion is answered as a rung (`EVIDENCE_RUNGS`: absent · listed · project · role · production), a status (pass / partial / unknown / fail), a level, an impact grade, the overall read, or read off the roles; `standout` is up to `MAX_STANDOUT` facts no criterion asked for, each with its line; in the fence registry |
 | What stands out beyond the criteria, and why a fact is missing | `ScreenReply.standout` — written by the model, kept by `anchor.ts` only with a located quote (`standoutDropped` on the log line), never scored; the scorecard's "Stands out" card, the row's expandable line on `/screen/:id`, the "Stands out" column of the CSV. A verdict from prompt v2 has none until the next Score |
+| Two to five ticked applicants side by side, and the shortlist read head to head by the model | `src/web/screen-compare.ts:sideBySide` (pure: the stored scorecards as columns, one row per criterion) → `GET /screen/:id/compare?ids=`; **Compare with AI** = `src/screening/compare.ts:compareApplicants` over `prompts.ts:buildComparePrompt` (ADR 0051): two calls at once, the second with the resumes reversed (`comparison.ts:secondOrder`), each reply anchored so a quote stays only in the resume it came from (`anchorCompareReply`), both stored as one `ScreeningComparison`; `comparisonView` marks where the readings differ, `comparisonMarkdown` is the Copy button. A ceiling of `MAX_COMPARE` (5); never a score |
 | The career as the dated roles give it — years in total, employers, average stay, in a role now, sectors in order | `src/screening/trajectory.ts:trajectoryOf` / `trajectoryLine` (pure, plan §5), computed on read from `reply.roles` — never stored, never a point (ADR 0047: a gap or an employer count is never a criterion); under the roles on the scorecard, the Years cell's tooltip, the "Career" export column |
 | Why an answer on a scorecard is lower than the model wrote | `src/screening/anchor.ts:anchorScreenReply` (pure): every quote must be a span of the redacted text; an unquoted rung falls to `textEvidence` (and rises when the text shows a work sentence), an unquoted pass / partial / fail is unknown, an unquoted strong impact is ok, unanchored roles are dropped, an answer for an unknown id is dropped, a skipped skill is read off the text |
 | The employer score, its caps, the bucket, the confidence | `src/screening/score.ts:scoreScreening` (pure, ADR 0050) — one `ScoreRow` per criterion (credit × stars), gates bucket, caps 30 / 50 / 60 (`coreNone` / `twoLevelsUnder` / `impactWeak`), years / industry years / company type from the dated roles, `levelCredit` by tolerance, unknown leaves the denominator; `orderVerdicts` is the table's order |
