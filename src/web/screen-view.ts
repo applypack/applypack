@@ -20,8 +20,6 @@ export interface VerdictView {
   mustTotal: number;
   years: number | null;
   level: string | null;
-  /** Facts to discuss + consistency lines — the "flags" count. */
-  flags: number;
   injection: boolean;
   verdictLine: string;
   questions: string[];
@@ -57,7 +55,6 @@ export function rowView(a: ApplicantWithVerdict): ApplicantRowView {
           mustTotal: bd.mustTotal,
           years: bd.years,
           level: reply.level.observed,
-          flags: reply.risks.length + reply.consistency.length,
           injection: reply.injection,
           verdictLine: reply.summary.verdict,
           questions: reply.questions,

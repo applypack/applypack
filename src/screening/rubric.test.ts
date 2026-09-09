@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { BriefSchema } from '../resume/prompts';
-import { activeWeights, draftRubric, emptyRubric, levelFromBrief, linesOf, readRubric, rubricEquals, rubricFromForm, rubricSummary, termsOf } from './rubric';
+import { activeWeights, draftRubric, emptyRubric, levelFromBrief, linesOf, readRubric, rubricEquals, rubricFromForm, rubricSummary, termsOf, termsToLines } from './rubric';
 
 const BRIEF = BriefSchema.parse({
   role: { posted_title: 'Senior Java Developer', family: 'backend engineering', seniority: 'senior', years_min: 5, focus: '' },
@@ -15,6 +15,8 @@ const BRIEF = BriefSchema.parse({
     { term: 'Kafka', priority: 3, requirement: 'preferred', primary: false, aliases: [], group: 'message broker' },
     { term: 'RabbitMQ', priority: 3, requirement: 'preferred', primary: false, aliases: [], group: 'message broker' },
     { term: 'agile', priority: 4, requirement: 'context', primary: false, aliases: [], group: null },
+    { term: 'Senior Java Developer', priority: 2, requirement: 'must', primary: false, aliases: [], group: null },
+    { term: 'fintech', priority: 4, requirement: 'nice', primary: false, aliases: [], group: null },
   ],
   gates: ['at least 5 years of backend development', 'EU work authorisation', 'BSc in Computer Science or equivalent'],
 });
@@ -27,7 +29,7 @@ test('draftRubric takes the frame from the brief', () => {
   assert.deepEqual(r.gates, BRIEF.gates);
   assert.deepEqual(r.must.map((t) => t.term), ['Java', 'Spring Boot', 'PostgreSQL']);
   assert.deepEqual(r.must.map((t) => t.primary), [true, true, false]);
-  assert.deepEqual(r.nice.map((t) => t.term), ['Kafka', 'RabbitMQ'], 'context terms are not requirements');
+  assert.deepEqual(r.nice.map((t) => t.term), ['Kafka', 'RabbitMQ'], 'context terms, the posted title and the sector are not skills');
   assert.equal(r.nice[0]?.group, 'message broker');
   assert.equal(r.educationRequired, true, 'a degree gate makes education count');
   assert.deepEqual(draftRubric(null), emptyRubric());
@@ -51,7 +53,7 @@ test('rubricFromForm reads the editor and keeps aliases of unchanged terms', () 
       gates: 'EU work authorisation\n\nGerman B2\nEU work authorisation',
       must: 'Java\nKotlin, PostgreSQL',
       core: 'java',
-      nice: 'Kafka',
+      nice: 'Kafka / RabbitMQ\nRedis',
       domain: '',
       educationRequired: 'on',
       weight_must: '40',
@@ -66,7 +68,7 @@ test('rubricFromForm reads the editor and keeps aliases of unchanged terms', () 
   assert.deepEqual(r.must.map((t) => t.primary), [true, false, false], 'core stack from its own field');
   assert.deepEqual(r.must[0]?.aliases, ['java 17'], 'aliases survive when the spelling matches');
   assert.deepEqual(r.must[1]?.aliases, [], 'a new term has none');
-  assert.equal(r.nice[0]?.group, 'message broker');
+  assert.deepEqual(r.nice.map((t) => [t.term, t.group]), [['Kafka', 'Kafka / RabbitMQ'], ['RabbitMQ', 'Kafka / RabbitMQ'], ['Redis', null]], 'an A / B line is one group');
   assert.equal(r.domain, null);
   assert.equal(r.educationRequired, true);
   assert.equal(r.weights.must, 40);
@@ -87,6 +89,16 @@ test('activeWeights zeroes what the rubric cannot compare', () => {
   assert.equal(w.education, 0);
   assert.equal(w.must, 0, 'no terms, no must-have part');
   assert.equal(w.impact, 15);
+});
+
+test('termsToLines writes a group on one line and rubricFromForm reads it back', () => {
+  const drafted = draftRubric(BRIEF);
+  assert.equal(termsToLines(drafted.nice), 'Kafka / RabbitMQ');
+  const back = rubricFromForm(
+    { gates: drafted.gates.join('\n'), must: termsToLines(drafted.must), nice: termsToLines(drafted.nice), core: 'Java, Spring Boot', level: 'senior', yearsMin: '5', domain: 'fintech', educationRequired: 'on' },
+    drafted,
+  );
+  assert.ok(rubricEquals(back, { ...drafted, nice: drafted.nice.map((t) => ({ ...t, group: 'Kafka / RabbitMQ' })) }), 'a round trip keeps everything but renames the group to its line');
 });
 
 test('rubricSummary, linesOf, termsOf', () => {

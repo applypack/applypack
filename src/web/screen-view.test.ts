@@ -86,7 +86,6 @@ test('rowView reads the stored verdict; groupRows orders and separates', () => {
     applicant({ id: 5, number: 5, parseStatus: 'unreadable', parseNote: 'scan' }),
     applicant({ id: 6, number: 6 }),
   ].map(rowView);
-  assert.equal(rows[0]!.verdict?.flags, 1);
   assert.equal(rows[0]!.verdict?.level, 'senior');
   const g = groupRows(rows);
   assert.deepEqual(g.scored.map((r) => r.number), [3, 1, 2], 'pass bucket by score, then ask');

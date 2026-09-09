@@ -126,8 +126,13 @@ export function draftRubric(brief: PostingBrief | null): Rubric {
     aliases: k.aliases.slice(0, 8),
     group: k.group,
   });
-  const must = brief.keywords.filter((k) => k.requirement === 'must').map(term);
-  const nice = brief.keywords.filter((k) => k.requirement === 'preferred' || k.requirement === 'nice').map(term);
+  // The brief's frame carries the posted title and the sector as keywords —
+  // a recruiter searches for them, but neither is a skill: the title is what
+  // the rubric is FOR and the sector is the domain part.
+  const notSkills = new Set([brief.role.posted_title, brief.company.industry ?? ''].map((t) => t.trim().toLowerCase()));
+  const skills = brief.keywords.filter((k) => !notSkills.has(k.term.trim().toLowerCase()));
+  const must = skills.filter((k) => k.requirement === 'must').map(term);
+  const nice = skills.filter((k) => k.requirement === 'preferred' || k.requirement === 'nice').map(term);
   return RubricSchema.parse({
     level: levelFromBrief(brief.role.seniority),
     yearsMin: brief.role.years_min,
@@ -160,6 +165,46 @@ export function termsOf(input: unknown): string[] {
   return linesOf(input.replace(/[,;]/g, '\n'));
 }
 
+/** Members of one either/or group sit on one line, joined by this. */
+const GROUP_JOIN = ' / ';
+
+/**
+ * The editor's lines: an either/or group ("Playwright / Cypress") on one
+ * line, everything else one term per line — what `termsFromLines` reads back.
+ */
+export function termsToLines(terms: RubricTerm[]): string {
+  const lines: string[] = [];
+  const seen = new Set<string>();
+  for (const t of terms) {
+    if (!t.group) {
+      lines.push(t.term);
+      continue;
+    }
+    const key = t.group.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    lines.push(terms.filter((x) => x.group?.toLowerCase() === key).map((x) => x.term).join(GROUP_JOIN));
+  }
+  return lines.join('\n');
+}
+
+/** The lines back into terms: a " / " line is one either/or group, whose members the score counts once (ADR 0044). */
+function termsFromLines(input: unknown, toTerm: (term: string, group: string | null) => RubricTerm): RubricTerm[] {
+  const out: RubricTerm[] = [];
+  const seen = new Set<string>();
+  for (const line of linesOf(input)) {
+    const members = line.includes(GROUP_JOIN) ? line.split(GROUP_JOIN).map((m) => m.trim()).filter(Boolean) : [];
+    const group = members.length > 1 ? members.join(GROUP_JOIN) : null;
+    for (const term of members.length > 1 ? members : termsOf(line)) {
+      const key = term.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(toTerm(term.slice(0, MAX_TERM_CHARS), group));
+    }
+  }
+  return out.slice(0, MAX_TERMS);
+}
+
 /**
  * The editor's fields → a rubric. Terms typed by the person keep the
  * aliases and group of the term they replace when the spelling matches, so
@@ -169,9 +214,9 @@ export function rubricFromForm(form: Record<string, unknown>, previous: Rubric):
   const known = new Map<string, RubricTerm>();
   for (const t of [...previous.must, ...previous.nice]) known.set(t.term.toLowerCase(), t);
   const core = new Set(termsOf(form.core).map((t) => t.toLowerCase()));
-  const toTerm = (term: string): RubricTerm => {
+  const toTerm = (term: string, group: string | null): RubricTerm => {
     const old = known.get(term.toLowerCase());
-    return { term, primary: core.has(term.toLowerCase()), aliases: old?.aliases ?? [], group: old?.group ?? null };
+    return { term, primary: core.has(term.toLowerCase()), aliases: old?.aliases ?? [], group };
   };
   const level = typeof form.level === 'string' && (SCREEN_LEVELS as readonly string[]).includes(form.level) ? form.level : null;
   const years = typeof form.yearsMin === 'string' && form.yearsMin.trim() !== '' ? Number(form.yearsMin) : null;
@@ -186,8 +231,8 @@ export function rubricFromForm(form: Record<string, unknown>, previous: Rubric):
     level,
     yearsMin: years !== null && Number.isFinite(years) ? Math.max(0, Math.min(40, Math.round(years))) : null,
     gates: linesOf(form.gates).slice(0, MAX_GATES).map((g) => g.slice(0, MAX_GATE_CHARS)),
-    must: termsOf(form.must).slice(0, MAX_TERMS).map((t) => toTerm(t.slice(0, MAX_TERM_CHARS))),
-    nice: termsOf(form.nice).slice(0, MAX_TERMS).map((t) => toTerm(t.slice(0, MAX_TERM_CHARS))),
+    must: termsFromLines(form.must, toTerm),
+    nice: termsFromLines(form.nice, toTerm),
     domain: typeof form.domain === 'string' && form.domain.trim() !== '' ? form.domain.trim().slice(0, 120) : null,
     educationRequired: form.educationRequired === 'on' || form.educationRequired === '1' || form.educationRequired === 'true',
     weights,

@@ -4,7 +4,7 @@ import { Layout } from '../layout';
 import { ActionForm, Badge, Button, Card, Checkbox, Empty, Field, FILE_INPUT_CLASS, Flash, Hint, Input, PageHeader, SectionTitle, Select, SUBMIT_ONCE, Table, Td, Textarea, Tr } from '../ui';
 import type { FlashMessage } from '../flash';
 import { formatDateShort, formatRelative } from '../format';
-import { DEFAULT_WEIGHTS, RUBRIC_PART_LABELS, RUBRIC_PARTS, SCREEN_LEVEL_LABELS, SCREEN_LEVELS, rubricSummary, type Rubric } from '../../screening/rubric';
+import { DEFAULT_WEIGHTS, RUBRIC_PART_LABELS, RUBRIC_PARTS, SCREEN_LEVEL_LABELS, SCREEN_LEVELS, rubricSummary, termsToLines, type Rubric } from '../../screening/rubric';
 import { GATE_BUCKET_LABELS, type ConfidenceBand, type GateBucket } from '../../screening/score';
 import { GATE_MARK, DECISION_LABELS } from '../../screening/export';
 import { MAX_APPLICANTS_PER_SCREENING, MAX_BATCH_UPLOAD_MB, MAX_FILES_PER_UPLOAD } from '../../screening/intake';
@@ -147,9 +147,9 @@ export const ScreenDetailPage: FC<ScreenDetailProps> = ({ screening, rubric, row
               </div>
             </div>
             <div class="grid gap-4 lg:grid-cols-3">
-              <Field label="Must-have skills" hint="Comma- or line-separated. Each is read at an evidence level: production, in a role, a project, a skills line, absent.">
+              <Field label="Must-have skills" hint="One per line. Either/or alternatives on one line as A / B — counted once. Each is read at an evidence level: production, in a role, a project, a skills line, absent.">
                 <Textarea name="must" rows={6}>
-                  {rubric.must.map((t) => t.term).join('\n')}
+                  {termsToLines(rubric.must)}
                 </Textarea>
               </Field>
               <Field label="Core stack" hint="The 2–5 must-haves the day-to-day code is written in. None of them anywhere in a resume caps its score at 30.">
@@ -157,9 +157,9 @@ export const ScreenDetailPage: FC<ScreenDetailProps> = ({ screening, rubric, row
                   {rubric.must.filter((t) => t.primary).map((t) => t.term).join('\n')}
                 </Textarea>
               </Field>
-              <Field label="Nice-to-have skills" hint="Worth 5 points together by default.">
+              <Field label="Nice-to-have skills" hint="Worth 5 points together by default; A / B is one either/or line here too.">
                 <Textarea name="nice" rows={6}>
-                  {rubric.nice.map((t) => t.term).join('\n')}
+                  {termsToLines(rubric.nice)}
                 </Textarea>
               </Field>
             </div>
@@ -249,9 +249,10 @@ export const ScreenDetailPage: FC<ScreenDetailProps> = ({ screening, rubric, row
           </div>
         ) : (
           <Table
-            columns={['#', 'Name', 'Gates', 'Score', 'Confidence', 'Must-have', 'Years', 'Level', 'Flags', 'Decision']}
-            hideBelow={['', '', 'sm', '', 'md', 'lg', 'lg', 'lg', 'xl', '']}
-            thClasses={['', '', '', 'text-right', '', 'text-right', 'text-right', '', 'text-right', '']}
+            columns={['#', 'Name', 'Gates', 'Score', 'Confidence', 'Must-have', 'Years', 'Level', 'Decision']}
+            widths={['w-[4%]', 'w-[26%]', 'w-[12%]', 'w-[7%]', 'w-[10%]', 'w-[9%]', 'w-[7%]', 'w-[7%]', 'w-[18%]']}
+            hideBelow={['', '', 'sm', '', 'md', 'lg', 'lg', 'lg', '']}
+            thClasses={['', '', '', 'text-right', '', 'text-right', 'text-right', '', '']}
           >
             {(['pass', 'ask', 'fail'] as GateBucket[]).map((bucket) => {
               const group = groups.scored.filter((r) => r.verdict!.bucket === bucket);
@@ -299,7 +300,7 @@ export const ScreenDetailPage: FC<ScreenDetailProps> = ({ screening, rubric, row
 
 const GroupRow: FC<{ tone: 'ok' | 'warn' | 'danger' | 'neutral'; label: string; count: number }> = ({ tone, label, count }) => (
   <tr class="bg-surface-overlay/60">
-    <td colspan={10} class="px-3.5 py-1.5 text-xs font-medium sm:px-5">
+    <td colspan={9} class="px-3.5 py-1.5 text-xs font-medium sm:px-5">
       <Badge tone={tone}>{label}</Badge>
       <span class="ml-2 text-ink-faint">{count}</span>
     </td>
@@ -312,10 +313,17 @@ const ApplicantRow: FC<{ r: ApplicantRowView; screeningId: number; gates: string
   return (
     <Tr>
       <Td class="tabular-nums text-ink-faint">№{r.number}</Td>
-      <Td>
+      <Td class="min-w-0">
         <a href={href} class="font-medium text-ink hover:underline">
           {r.name ?? <span class="text-ink-muted">(no name found)</span>}
         </a>
+        {v?.injection && (
+          <span title="The resume carried text addressed to an AI reader — see the scorecard">
+            <Badge tone="danger" class="ml-1.5">
+              steering text
+            </Badge>
+          </span>
+        )}
         <div class="truncate text-xs text-ink-faint" title={r.file}>
           {r.file}
           {r.status !== 'ok' && r.note ? ` — ${r.note}` : ''}
@@ -352,22 +360,14 @@ const ApplicantRow: FC<{ r: ApplicantRowView; screeningId: number; gates: string
         )}
       </Td>
       <Td>{v ? <Badge tone={CONFIDENCE_TONE[v.confidence]}>{v.confidence}</Badge> : ''}</Td>
-      <Td class="text-right tabular-nums">{v ? `${v.mustCovered} / ${v.mustTotal}` : ''}</Td>
+      <Td class="whitespace-nowrap text-right tabular-nums">{v ? `${v.mustCovered} / ${v.mustTotal}` : ''}</Td>
       <Td class="text-right tabular-nums">{v ? (v.years ?? '?') : ''}</Td>
       <Td class="text-ink-muted">{v ? (v.level ?? '?') : ''}</Td>
-      <Td class="text-right tabular-nums">
-        {v && v.injection && (
-          <Badge tone="danger" class="mr-1">
-            steering text
-          </Badge>
-        )}
-        {v ? v.flags : ''}
-      </Td>
       <Td>
         {r.status === 'ok' ? (
           <form method="post" action={`${href}/decision`} class="flex items-center gap-2">
             <input type="hidden" name="back" value={`/screen/${screeningId}#results`} />
-            <Select name="decision" data-commit="submit" aria-label={`Decision for applicant ${r.number}`} class="!py-1 text-[13px]">
+            <Select name="decision" data-commit="submit" aria-label={`Decision for applicant ${r.number}`} class="min-w-[7.5rem] !py-1 text-[13px]">
               <option value="" selected={r.decision === null}>
                 —
               </option>
