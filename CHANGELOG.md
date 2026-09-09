@@ -32,12 +32,19 @@ All notable changes to this project are documented here. The format follows
   lines "production" in one run and "role" in the other. Three rules in
   the anchor now (`screening/anchor.ts`, `resume/evidence.ts`): a
   flattened table row is judged cell by cell; a quote that is a list of
-  terms supports at most "listed", or "role" on a job's own stack line —
-  "production" needs a work bullet with an outcome; and a term the text
-  never spells is "absent" whatever line the model quoted (Datadog is not
-  Sentry). Prompt v4 says the same. `node dist/scripts/rescore-screenings.js`
+  terms supports at most "listed", or exactly "role" on a job's own
+  "Technology Stack:" line (its label found through a PDF's wrapped run) —
+  "production" needs a work bullet with an outcome; a quote that never
+  names the term supports nothing above the text's own line (the PostgreSQL
+  bullet offered for MySQL); and a term the text never spells is "absent"
+  whatever line the model quoted (Datadog is not Sentry). Prompt v4 says
+  the same. A PDF's page-width wraps are joined at extraction
+  (`resume/pdf-text.ts:normalizePdfText`), so a wrapped bullet or stack
+  line reads as it does in the .docx. `node dist/scripts/rescore-screenings.js`
   re-anchors and re-scores stored verdicts without a call (`--write` to
-  apply); "Score again" is the other way.
+  apply); "Score again" is the other way. Re-scored live after the rules:
+  the .docx / .pdf pairs moved from 78 / 69 and 80 / 72 to within
+  run-to-run variance of each other.
 - **The screening page reads top to bottom.** Four numbered cards; the
   criteria card shows every criterion as a chip while closed and opens the
   editor with a button instead of a bare disclosure marker; "Read the

@@ -18,7 +18,9 @@ import { answerShape, type ScreenAnswer, type ScreenReply } from './prompts';
  *   listed, a work sentence → role); a term the matcher finds in a work
  *   sentence is at least "role" whatever the model marked; a term the
  *   matcher cannot find at all is absent, whatever line the model quoted
- *   (ADR 0045: presence is read off the text); and a quote that is a LIST
+ *   (ADR 0045: presence is read off the text); a quote that does not carry
+ *   the term or an alias supports nothing above the text's own line (the
+ *   PostgreSQL bullet offered for MySQL); and a quote that is a LIST
  *   of terms supports at most "listed" — or "role" when the list is a
  *   job's own "Technology Stack:" line — because "production" is a work
  *   bullet with an outcome, never a word in a list. Measured 2026-09-09:
@@ -76,20 +78,42 @@ export function textEvidence(
   matcher: Pick<KeywordMatcher, 'findTerm'>,
 ): { rung: EvidenceRung; quote: string | null } {
   let listed: string | null = null;
+  let stack: string | null = null;
   for (const t of terms) {
     for (const span of matcher.findTerm(text, t.term, t.aliases)) {
       const at = lineAt(text, span.start);
       // A flattened table row is judged cell by cell — the cell is also the quote.
       const line = segmentAt(at.line, at.column).trim();
       if (!isTermList(line)) return { rung: 'role', quote: line.replace(/^[-•*]\s*/, '') };
-      listed ??= line;
+      // A job's own stack line says the term was used there: "role", whether the model wrote listed or production.
+      if (STACK_LABEL.test(listHead(text, span.start))) stack ??= line;
+      else listed ??= line;
     }
   }
+  if (stack !== null) return { rung: 'role', quote: stack };
   return listed === null ? { rung: 'absent', quote: null } : { rung: 'listed', quote: listed };
 }
 
 /** A job's own stack line — evidence the term was used there, and no more. */
 const STACK_LABEL = /^\s*(?:[-•*]\s*)?(?:tech(?:nology|nologies)?(?:\s+stack)?|stack|tools|environment|technologies used|tech used)\s*:/i;
+
+/**
+ * The first line of the list a position sits on. A PDF's text layer breaks
+ * "Technology Stack: a, b," / "c, d." at the page width, and only the first
+ * line carries the label — so the label is looked for up the wrapped run.
+ */
+export function listHead(text: string, index: number): string {
+  let start = text.lastIndexOf('\n', index - 1) + 1;
+  let line = lineAt(text, index).line;
+  while (start > 0) {
+    const prevStart = text.lastIndexOf('\n', start - 2) + 1;
+    const prev = text.slice(prevStart, start - 1).trim();
+    if (!/[,;]$/.test(prev) || !isTermList(prev)) break;
+    line = prev;
+    start = prevStart;
+  }
+  return line;
+}
 
 /**
  * What a quote can support when it is a list of terms rather than a
@@ -103,7 +127,7 @@ export function listCap(text: string, quote: string, terms: { term: string; alia
   const inQuote = terms.flatMap((t) => matcher.findTerm(quote, t.term, t.aliases))[0]?.start ?? 0;
   const at = start === null ? { line: quote, column: inQuote } : lineAt(text, start + inQuote);
   if (!isTermList(segmentAt(at.line, at.column))) return null;
-  return STACK_LABEL.test(at.line) ? 'role' : 'listed';
+  return STACK_LABEL.test(start === null ? quote : listHead(text, start + inQuote)) ? 'role' : 'listed';
 }
 
 const blank = (id: string): ScreenAnswer => ({
@@ -200,6 +224,12 @@ function anchorAnswer(
           rung = floor.rung;
           q = floor.quote ?? q;
           report.rungsRaised++;
+        }
+        if (q !== null && rank(rung) > rank(floor.rung) && !terms.some((t) => matcher.findTerm(q!, t.term, t.aliases).length > 0)) {
+          // The quote is about something else (the PostgreSQL bullet offered for MySQL): the text's own line answers.
+          rung = floor.rung;
+          q = floor.quote;
+          report.rungsLowered++;
         }
         if (q !== null) {
           const cap = listCap(text, q, terms, matcher);

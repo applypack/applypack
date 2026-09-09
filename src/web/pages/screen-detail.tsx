@@ -479,14 +479,14 @@ const CriterionChip: FC<{ c: Criterion }> = ({ c }) => {
   const words = c.kind === 'impact' || c.kind === 'overall' ? c.label : criterionText(c) || c.label;
   return (
     <span
-      class={`inline-flex max-w-full items-center gap-1 rounded-full px-2 py-0.5 text-xs ring-1 ring-inset ${
+      class={`inline-flex min-w-0 max-w-[32rem] items-center gap-1 rounded-full px-2 py-0.5 text-xs ring-1 ring-inset ${
         c.mode === 'gate' ? 'bg-warn/5 text-ink ring-warn/25' : c.mode === 'note' ? 'bg-surface-overlay text-ink-muted ring-line' : 'bg-surface-raised text-ink ring-line'
       }`}
       title={`${CRITERION_KIND_LABELS[c.kind]} · ${CRITERION_MODE_LABELS[c.mode].split(' — ')[0]}${c.source === 'you' ? ' · yours' : ''}`}
     >
       {c.mode === 'gate' && <span class="text-warn">gate</span>}
-      <span class="truncate">{words}</span>
-      {c.mode === 'scored' && <span class="text-ink-faint">{'★'.repeat(c.weight)}</span>}
+      <span class="min-w-0 truncate">{words}</span>
+      {c.mode === 'scored' && <span class="shrink-0 text-ink-faint">{'★'.repeat(c.weight)}</span>}
       {c.mode === 'note' && <span class="text-ink-faint">note</span>}
     </span>
   );
