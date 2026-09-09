@@ -575,6 +575,7 @@ screenRoute.get('/screen/:id/applicants/:aid', async (c) => {
       breakdown={breakdown}
       stale={applicant.stale}
       model={applicant.verdict?.model ?? null}
+      promptVersion={applicant.verdict?.promptVersion ?? null}
       scoredAt={applicant.verdict?.createdAt ?? null}
       now={new Date()}
       flash={flash(c)}

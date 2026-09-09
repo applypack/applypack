@@ -30,6 +30,9 @@ export interface ExportRow {
   level: string | null;
   verdict: string | null;
   questions: string[];
+  /** Facts no criterion asked for (plan §5); the career line read off the dated roles. Neither is scored. */
+  standout: string[];
+  career: string | null;
   decision: string | null;
 }
 
@@ -73,8 +76,10 @@ export function toCsv(screening: ExportScreening, rows: ExportRow[]): string {
     'Must-have covered',
     'Relevant years',
     'Level',
+    'Career',
     'Decision',
     'Verdict',
+    'Stands out',
     'Questions',
     'Note',
   ];
@@ -96,8 +101,10 @@ export function toCsv(screening: ExportScreening, rows: ExportRow[]): string {
       r.mustTotal !== null ? `${r.mustCovered ?? 0}/${r.mustTotal}` : '',
       r.years ?? '',
       r.level ?? '',
+      r.career ?? '',
       r.decision ? (DECISION_LABELS[r.decision] ?? r.decision) : '',
       r.verdict ?? '',
+      r.standout.join(' | '),
       r.questions.join(' | '),
       [r.sameAs !== null ? `another document of №${r.sameAs}` : '', r.note ?? ''].filter(Boolean).join('; '),
     ]
@@ -138,9 +145,11 @@ export function toMarkdown(screening: ExportScreening, rows: ExportRow[]): strin
     }
     out.push('');
     for (const r of group) {
-      if (!r.verdict && r.questions.length === 0 && r.adjustment === 0) continue;
+      if (!r.verdict && r.questions.length === 0 && r.adjustment === 0 && r.standout.length === 0) continue;
       out.push(`**№${r.number}${r.name ? ` — ${escapePipe(r.name)}` : ''}.** ${r.verdict ?? ''}`);
       if (r.adjustment !== 0) out.push(`- Your adjustment: ${r.adjustment > 0 ? '+' : ''}${r.adjustment}${r.adjustmentNote ? ` — ${r.adjustmentNote}` : ''}`);
+      if (r.standout.length > 0) out.push(`- Stands out: ${r.standout.join('; ')}`);
+      if (r.career) out.push(`- Career: ${r.career}`);
       for (const q of r.questions) out.push(`- ${q}`);
       out.push('');
     }

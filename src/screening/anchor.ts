@@ -23,7 +23,8 @@ import { answerShape, type ScreenAnswer, type ScreenReply } from './prompts';
  *   check;
  * - level, impact, overall: the quote is located or dropped; an impact
  *   "strong" with no quote becomes "ok";
- * - a role whose position or dates the text does not carry is dropped;
+ * - a role whose position or dates the text does not carry is dropped, and
+ *   so is a stand-out fact whose quote is not in the text;
  * - the RUBRIC is the frame: a criterion the model skipped gets an answer
  *   from the text alone (a skill) or "unknown" (anything else), an answer
  *   for an id the rubric never named is dropped.
@@ -39,6 +40,8 @@ export interface AnchorReport {
   answersDropped: number;
   statusesUnproven: number;
   rolesDropped: number;
+  /** Stand-out facts whose quote the text does not carry. */
+  standoutDropped: number;
 }
 
 type Matcher = Pick<KeywordMatcher, 'findTerm' | 'locateQuote'>;
@@ -94,7 +97,7 @@ const blank = (id: string): ScreenAnswer => ({
 });
 
 export function anchorScreenReply(reply: ScreenReply, text: string, rubric: Rubric, matcher: Matcher): { reply: ScreenReply; report: AnchorReport } {
-  const report: AnchorReport = { quotesDropped: 0, rungsLowered: 0, rungsRaised: 0, answersFilled: 0, answersDropped: 0, statusesUnproven: 0, rolesDropped: 0 };
+  const report: AnchorReport = { quotesDropped: 0, rungsLowered: 0, rungsRaised: 0, answersFilled: 0, answersDropped: 0, statusesUnproven: 0, rolesDropped: 0, standoutDropped: 0 };
   const hay = normaliseForAnchor(text);
   const located = (quote: string | null): string | null => {
     if (quote === null) return null;
@@ -125,7 +128,14 @@ export function anchorScreenReply(reply: ScreenReply, text: string, rubric: Rubr
     return ok;
   });
 
-  return { reply: { ...reply, answers, roles }, report };
+  // A stand-out fact is only as good as its line: no located quote, no fact (it was never scored, so nothing else moves).
+  const standout = reply.standout.filter((f) => {
+    const ok = f.quote !== null && (matcher.locateQuote(text, f.quote) !== null || inText(hay, f.quote));
+    if (!ok) report.standoutDropped++;
+    return ok;
+  });
+
+  return { reply: { ...reply, answers, roles, standout }, report };
 }
 
 function anchorAnswer(

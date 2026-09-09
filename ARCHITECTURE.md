@@ -190,9 +190,10 @@ src/
     rubric.ts                  ← pure: what a screening checks, drafted from the posting brief, edited by the person
     redact.ts                  ← pure: the applicant taken out of the text before any model reads it (ADR 0048)
     dates.ts                   ← pure: resume dates in five languages → years covered, months since
-    prompts.ts                 ← buildScreenPrompt + ScreenReplySchema (evidence rungs, gates, roles, questions)
+    prompts.ts                 ← buildScreenPrompt + ScreenReplySchema (one answer per criterion, roles, stand-out facts, questions)
     anchor.ts                  ← pure: every quote checked against the redacted text; unproven rungs lowered
     score.ts                   ← pure: the employer score, its caps, the bucket, the confidence (ADR 0047)
+    trajectory.ts              ← pure: the career read off the dated roles (years, employers, average stay, sectors) — a fact, never points
     intake.ts                  ← pure: zip expansion, duplicate detection, the caps
     export.ts                  ← pure: CSV / Markdown of the table
     notice.ts                  ← the applicant notice and the legal note, as text

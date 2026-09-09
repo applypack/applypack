@@ -14,19 +14,23 @@ import {
 } from './rubric';
 
 /*
- * The screening prompt, version 2 (TASKS §19.5, ADR 0050): ONE anonymised
+ * The screening prompt, version 3 (TASKS §19.5, ADR 0050): ONE anonymised
  * applicant against the CRITERIA a person chose for ONE position. The
  * model answers every criterion in the shape its kind asks for — a rung on
  * the evidence ladder, a pass / partial / unknown / fail, a level, an
  * impact grade, the overall read — each with a verbatim quote; anchor.ts
  * checks every quote against the text and score.ts turns the answers into
- * the number with the person's weights. Pure: no I/O.
+ * the number with the person's weights. Beside the answers, up to three
+ * "standout" facts no criterion asked for (plan §5) — read, never scored.
+ * Pure: no I/O.
  */
 
-/** v2: criterion-driven; the reply is one answer per criterion id. */
-export const SCREEN_PROMPT_VERSION = 2;
-/** The answer: one entry per criterion, the roles with dates, a few quotes and five questions. */
-export const SCREEN_MAX_TOKENS = 7_000;
+/** v3: v2's criterion answers plus "standout" — facts the criteria did not ask for, each with a quote. */
+export const SCREEN_PROMPT_VERSION = 3;
+/** The answer: one entry per criterion, the roles with dates, three stand-out facts, a few quotes and five questions. */
+export const SCREEN_MAX_TOKENS = 7_500;
+/** Stand-out facts per applicant — enough to say what the criteria missed, few enough to read in a row. */
+export const MAX_STANDOUT = 3;
 /** About the full report's budget (RESUME_TIMEOUT_MS.full): the prompt is a rubric, a posting and a resume. */
 export const SCREEN_TIMEOUT_MS = 180_000;
 const MAX_RESUME_CHARS = 30_000;
@@ -89,12 +93,21 @@ export const RoleSchema = z.object({
 });
 export type ScreenRole = z.infer<typeof RoleSchema>;
 
+/** A fact worth knowing that no criterion asked for, with the line that carries it (plan §5). Never scored. */
+export const StandoutSchema = z.object({
+  fact: z.string().trim().min(1),
+  quote: nullableText,
+});
+export type Standout = z.infer<typeof StandoutSchema>;
+
 export const ScreenReplySchema = z.object({
   summary: z
     .object({ who: z.string().default(''), did: z.string().default(''), verdict: z.string().default('') })
     .default({ who: '', did: '', verdict: '' }),
   roles: z.array(RoleSchema).max(30).default([]),
   answers: z.array(AnswerSchema).max(60).default([]),
+  /** v3; an older stored reply reads as []. */
+  standout: z.array(StandoutSchema).default([]).transform((arr) => arr.slice(0, MAX_STANDOUT)),
   questions: lines(6),
   risks: lines(6),
   consistency: lines(6),
@@ -113,6 +126,8 @@ const RULE_ANSWERS = `"answers" — one entry per criterion in the SCREENING RUB
 
 const RULE_ROLES = `"roles" — every job in the resume, most recent first: "position", "employer", "start" and "end" copied CHARACTER FOR CHARACTER (the application parses the dates and drops any string it cannot find); "relevant" true when the role is the kind of work the position asks for, "why" in one clause; "sector" the employer's sector in two or three words as the text gives it (null when it does not); "companyType" one of product | agency | consultancy | startup | enterprise | public sector | non-profit, or null. Internships and study projects are roles too, marked as such in "why".`;
 
+const RULE_STANDOUT = `"standout" — up to ${MAX_STANDOUT} facts a hiring manager would want to know that NO criterion asked about, most notable first: a technology or a domain beyond the rubric, a number the person quotes (users, revenue, scale, savings), a publication, a patent, open source, a conference talk, a language, an award. "fact" in eight words or fewer, "quote" the line that carries it, copied character for character — a fact without a located quote is dropped. These are never scored; they are what the person reads before deciding.`;
+
 const RULE_QUESTIONS = `"questions" — 3 to 5 for the interviewer, in the interviewer's voice, most valuable first: every "unknown" gate, every skill at "listed" or "project", the thin spot behind a title. Concrete ("Which part of the payment flow did you own at Acme, and what was its volume?"), never generic.`;
 
 const RULE_RISKS = `"risks" — FACTS to discuss, never judgments: two levels above the posting (over-qualification), several roles under a year, a title the bullets do not support, two employers with overlapping dates, a stack the person has not used in years. NEVER: a gap between dates, age, family, origin, health, or anything you can only guess at.`;
@@ -130,7 +145,7 @@ BLIND SCREENING. The applicant is anonymised as "Applicant №N": name, contacts
 WHAT COUNTS. Evidence, not words: a term on a skills line is worth less than the same term inside a bullet about work done, and less again than a bullet with the outcome. A synonym counts; a sibling technology never does. "Unknown" is a question for the interview, never a failure.
 
 METHOD
-${numbered([RULE_ANSWERS, RULE_ROLES, RULE_QUESTIONS, RULE_RISKS, RULE_CONSISTENCY, RULE_SUMMARY])}
+${numbered([RULE_ANSWERS, RULE_ROLES, RULE_STANDOUT, RULE_QUESTIONS, RULE_RISKS, RULE_CONSISTENCY, RULE_SUMMARY])}
 
 Every "quote", role field and "last_used" is copied character for character from the resume. A paraphrase is dropped by a checker and the answer it supported goes with it. "note", "question", "why" and each reason are 12 words or fewer. No filler anywhere.
 
@@ -139,6 +154,7 @@ OUTPUT (exactly this shape):
   "summary": {"who": string, "did": string, "verdict": string},
   "roles": [{"position": string, "employer": string|null, "start": string|null, "end": string|null, "relevant": boolean, "why": string, "sector": string|null, "companyType": "product"|"agency"|"consultancy"|"startup"|"enterprise"|"public sector"|"non-profit"|null}],
   "answers": [{"id": string, "status": "pass"|"partial"|"unknown"|"fail"|null, "rung": "absent"|"listed"|"project"|"role"|"production"|null, "level": "junior"|"mid"|"senior"|"lead"|null, "impact": "strong"|"ok"|"weak"|null, "overall": "exceptional"|"strong"|"partial"|"weak"|"none"|null, "quote": string|null, "note": string|null, "question": string|null, "last_used": string|null, "reasons": [string], "concerns": [string]}],
+  "standout": [{"fact": string, "quote": string}],
   "questions": [string],
   "risks": [string],
   "consistency": [string],

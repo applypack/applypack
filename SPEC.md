@@ -573,7 +573,11 @@ a quote; years, sectors and company types from the dated roles); every
 row per criterion, `score`, `confidence`, `gateBucket`, model and prompt
 version), so a restart resumes. `screening/anchor.ts` checks every quote
 against the redacted text before `screening/score.ts` sums stars × answer
-(ADR 0050). The table orders bucket → score →
+(ADR 0050). Beside the answers the reply carries up to three "stands out"
+facts no criterion asked for, each kept only with its line, and the
+career (`screening/trajectory.ts`: years, employers, average stay, in a
+role now, sectors) is read off the dated roles on every view — both are
+read, never scored. The table orders bucket → score →
 confidence; CSV and Markdown export the same rows. A screening is deleted
 with its files on `retainUntil` (`screeningRetentionDays`, default 90) by
 the cleanup cron, or at once from its page.
