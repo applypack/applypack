@@ -15,6 +15,8 @@ export const MAX_APPLICANTS_PER_SCREENING = 300;
 export const MAX_FILES_PER_UPLOAD = 100;
 /** A zip of a hundred resumes. */
 export const MAX_BATCH_UPLOAD_MB = 60;
+/** One resume, inflated — the same ceiling as a single upload (upload.ts); a zip entry past it is not read. */
+export const MAX_ENTRY_BYTES = 5 * 1024 * 1024;
 
 export interface UploadFile {
   name: string;
@@ -39,16 +41,21 @@ export function isAcceptedResume(filename: string): boolean {
  * a type the extractor cannot read are kept — the intake records them as
  * unreadable, so the table can say which file it was.
  */
-export function expandUploads(files: UploadFile[]): { files: ExpandedFile[]; badArchives: string[] } {
+export function expandUploads(files: UploadFile[]): { files: ExpandedFile[]; badArchives: string[]; oversized: string[] } {
   const out: ExpandedFile[] = [];
   const badArchives: string[] = [];
+  const oversized: string[] = [];
   for (const f of files) {
+    if (out.length >= MAX_FILES_PER_UPLOAD) break;
     if (extname(f.name).toLowerCase() !== ZIP_EXTENSION) {
       out.push({ ...f, archive: null });
       continue;
     }
     try {
-      for (const entry of readZipEntries(f.bytes)) {
+      const { entries, skipped } = readZipEntries(f.bytes, MAX_ENTRY_BYTES);
+      oversized.push(...skipped);
+      for (const entry of entries) {
+        if (out.length >= MAX_FILES_PER_UPLOAD) break;
         if (SKIPPED_ENTRY.test(entry.name) || entry.data.length === 0) continue;
         out.push({ name: entry.name.split('/').pop() ?? entry.name, bytes: entry.data, archive: f.name });
       }
@@ -57,7 +64,7 @@ export function expandUploads(files: UploadFile[]): { files: ExpandedFile[]; bad
       else throw err;
     }
   }
-  return { files: out, badArchives };
+  return { files: out, badArchives, oversized };
 }
 
 export interface TextFingerprint {

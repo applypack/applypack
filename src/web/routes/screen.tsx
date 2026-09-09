@@ -214,8 +214,17 @@ async function startRubricDraft(
   return c.redirect(`/target/runs/${run.id}`, 303);
 }
 
+/** A path id, or NaN — Prisma throws on a NaN where clause, so every route reads ids through this. */
+function idParam(raw: string): number {
+  return /^\d{1,9}$/.test(raw) ? Number(raw) : NaN;
+}
+
 async function loadScreening(id: number) {
   return Number.isInteger(id) ? getScreening(id) : null;
+}
+
+async function loadApplicant(id: number) {
+  return Number.isInteger(id) ? getApplicant(id) : null;
 }
 
 /** Which engine the calls go to — and the warning when it is a personal-subscription CLI (guardrail 5). */
@@ -232,7 +241,7 @@ async function engineNote(): Promise<{ label: string; warn: string | null }> {
 }
 
 screenRoute.get('/screen/:id', async (c) => {
-  const screening = await loadScreening(Number(c.req.param('id')));
+  const screening = await loadScreening(idParam(c.req.param('id')));
   if (!screening) return flashRedirect('/screen', 'err', 'That screening no longer exists.');
   const [applicants, settings, engine] = await Promise.all([listApplicants(screening.id, screening.rubricVersion), getSettings(), engineNote()]);
   const rows = applicants.map(rowView);
@@ -261,14 +270,14 @@ screenRoute.get('/screen/:id', async (c) => {
 });
 
 screenRoute.get('/screen/:id/state', async (c) => {
-  const id = Number(c.req.param('id'));
+  const id = idParam(c.req.param('id'));
   const run = screeningRun(id);
   if (!run) return c.json({ running: false, done: 0, failed: 0, total: 0 });
   return c.json({ running: run.running, done: run.done, failed: run.failed, total: run.total, lastError: run.lastError });
 });
 
 screenRoute.post('/screen/:id/rubric', async (c) => {
-  const screening = await loadScreening(Number(c.req.param('id')));
+  const screening = await loadScreening(idParam(c.req.param('id')));
   if (!screening) return flashRedirect('/screen', 'err', 'That screening no longer exists.');
   const previous = rubricOf(screening);
   const next = rubricFromForm(await c.req.parseBody(), previous);
@@ -284,7 +293,7 @@ screenRoute.post('/screen/:id/rubric', async (c) => {
 });
 
 screenRoute.post('/screen/:id/rubric/redraft', async (c) => {
-  const screening = await loadScreening(Number(c.req.param('id')));
+  const screening = await loadScreening(idParam(c.req.param('id')));
   if (!screening) return flashRedirect('/screen', 'err', 'That screening no longer exists.');
   return startRubricDraft(c, screening.id, screening.job.id, screening.job.title, 'Reading the posting again');
 });
@@ -296,7 +305,7 @@ const batchUploadLimit = (id: string) =>
   });
 
 screenRoute.post('/screen/:id/applicants', (c, next) => batchUploadLimit(c.req.param('id'))(c, next), async (c) => {
-  const screening = await loadScreening(Number(c.req.param('id')));
+  const screening = await loadScreening(idParam(c.req.param('id')));
   if (!screening) return flashRedirect('/screen', 'err', 'That screening no longer exists.');
   const back = `/screen/${screening.id}`;
   // Multi-value field: gotcha 1 — without `all` only the last file survives.
@@ -307,7 +316,7 @@ screenRoute.post('/screen/:id/applicants', (c, next) => batchUploadLimit(c.req.p
   if (picked.length > MAX_FILES_PER_UPLOAD) return flashRedirect(back, 'err', `At most ${MAX_FILES_PER_UPLOAD} files per upload.`);
 
   const uploads = await Promise.all(picked.map(async (f) => ({ name: f.name, bytes: Buffer.from(await f.arrayBuffer()) })));
-  const { files, badArchives } = expandUploads(uploads);
+  const { files, badArchives, oversized } = expandUploads(uploads);
   const room = MAX_APPLICANTS_PER_SCREENING - (await countApplicants(screening.id));
   if (room <= 0) return flashRedirect(back, 'err', `This screening already holds ${MAX_APPLICANTS_PER_SCREENING} applicants.`);
   const batch = files.slice(0, room);
@@ -359,8 +368,9 @@ screenRoute.post('/screen/:id/applicants', (c, next) => batchUploadLimit(c.req.p
       ok++;
       known.push({ id: row.id, number: row.number, email: redacted?.email ?? null, hash: print.hash, simhash: print.simhash });
     }
+    // Counts only: a leak entry names a part of the person, and a log line is not the place for it.
     logger.info(
-      { screeningId: screening.id, applicantId: row.id, number: row.number, status: row.parseStatus, chars: text?.length ?? 0, redactions: redacted?.redactions, leaks },
+      { screeningId: screening.id, applicantId: row.id, number: row.number, status: row.parseStatus, chars: text?.length ?? 0, redactions: redacted?.redactions, leaks: leaks.length },
       'screening: applicant added',
     );
   }
@@ -368,6 +378,7 @@ screenRoute.post('/screen/:id/applicants', (c, next) => batchUploadLimit(c.req.p
   if (duplicates > 0) parts.push(`${duplicates} duplicate${duplicates === 1 ? '' : 's'} kept unscored`);
   if (unreadable > 0) parts.push(`${unreadable} file${unreadable === 1 ? '' : 's'} could not be read`);
   if (badArchives.length > 0) parts.push(`${badArchives.length} archive${badArchives.length === 1 ? '' : 's'} could not be opened`);
+  if (oversized.length > 0) parts.push(`${oversized.length} zip entr${oversized.length === 1 ? 'y' : 'ies'} over ${MAX_UPLOAD_MB} MB left out`);
   if (files.length > room) parts.push(`${files.length - room} left out — the screening holds ${MAX_APPLICANTS_PER_SCREENING} at most`);
   if (leaked > 0) parts.push(`${leaked} may still carry something identifying — check their scorecards`);
   return flashRedirect(`${back}#results`, leaked > 0 || unreadable > 0 ? 'warn' : 'ok', `${parts.join('; ')}. Names and contacts were removed from what the model will read.`);
@@ -383,7 +394,7 @@ function mimeOf(filename: string): string {
 }
 
 screenRoute.post('/screen/:id/run', async (c) => {
-  const id = Number(c.req.param('id'));
+  const id = idParam(c.req.param('id'));
   const outcome = await startScreeningRun(id);
   const back = `/screen/${id}#results`;
   switch (outcome.kind) {
@@ -403,8 +414,8 @@ screenRoute.post('/screen/:id/run', async (c) => {
 });
 
 screenRoute.get('/screen/:id/applicants/:aid', async (c) => {
-  const applicant = await getApplicant(Number(c.req.param('aid')));
-  if (!applicant || applicant.screeningId !== Number(c.req.param('id'))) return flashRedirect('/screen', 'err', 'That applicant no longer exists.');
+  const applicant = await loadApplicant(idParam(c.req.param('aid')));
+  if (!applicant || applicant.screeningId !== idParam(c.req.param('id'))) return flashRedirect('/screen', 'err', 'That applicant no longer exists.');
   const s = applicant.screening;
   const reply = applicant.verdict ? readScreenReply(applicant.verdict.facts) : null;
   const breakdown = applicant.verdict ? readScreenBreakdown(applicant.verdict.breakdown) : null;
@@ -442,7 +453,8 @@ screenRoute.get('/screen/:id/applicants/:aid', async (c) => {
 });
 
 screenRoute.get('/screen/:id/applicants/:aid/file', async (c) => {
-  const file = await getApplicantFile(Number(c.req.param('aid')));
+  const aid = idParam(c.req.param('aid'));
+  const file = Number.isInteger(aid) ? await getApplicantFile(aid) : null;
   if (!file) return c.text('Not found', 404);
   const filename = file.sourceFilename.replace(/ \(from .*\)$/, '').replace(/["\r\n]/g, '');
   return c.body(new Uint8Array(file.original), 200, {
@@ -453,12 +465,12 @@ screenRoute.get('/screen/:id/applicants/:aid/file', async (c) => {
 
 screenRoute.post('/screen/:id/applicants/:aid/decision', async (c) => {
   const form = await c.req.parseBody();
-  const id = Number(c.req.param('id'));
-  const aid = Number(c.req.param('aid'));
+  const id = idParam(c.req.param('id'));
+  const aid = idParam(c.req.param('aid'));
   const back = safeBack(form.back, `/screen/${id}`);
   const raw = typeof form.decision === 'string' ? form.decision : '';
   const decision = (DECISIONS as readonly string[]).includes(raw) ? (raw as Decision) : null;
-  const applicant = await getApplicant(aid);
+  const applicant = await loadApplicant(aid);
   if (!applicant || applicant.screeningId !== id) return flashRedirect('/screen', 'err', 'That applicant no longer exists.');
   await setDecision(aid, decision);
   // Guardrail 1: the person's decision is the one write the tool never makes, and it is logged.
@@ -467,8 +479,8 @@ screenRoute.post('/screen/:id/applicants/:aid/decision', async (c) => {
 });
 
 screenRoute.post('/screen/:id/applicants/:aid/delete', async (c) => {
-  const id = Number(c.req.param('id'));
-  const applicant = await getApplicant(Number(c.req.param('aid')));
+  const id = idParam(c.req.param('id'));
+  const applicant = await loadApplicant(idParam(c.req.param('aid')));
   if (!applicant || applicant.screeningId !== id) return flashRedirect('/screen', 'err', 'That applicant no longer exists.');
   await deleteApplicant(applicant.id);
   logger.info({ screeningId: id, applicantId: applicant.id }, 'screening: applicant removed');
@@ -490,7 +502,7 @@ async function exportData(id: number) {
 }
 
 screenRoute.get('/screen/:id/export.csv', async (c) => {
-  const data = await exportData(Number(c.req.param('id')));
+  const data = await exportData(idParam(c.req.param('id')));
   if (!data) return c.text('Not found', 404);
   return c.body(toCsv(data.meta, data.rows), 200, {
     'Content-Type': 'text/csv; charset=utf-8',
@@ -499,7 +511,7 @@ screenRoute.get('/screen/:id/export.csv', async (c) => {
 });
 
 screenRoute.get('/screen/:id/export.md', async (c) => {
-  const data = await exportData(Number(c.req.param('id')));
+  const data = await exportData(idParam(c.req.param('id')));
   if (!data) return c.text('Not found', 404);
   return c.body(toMarkdown(data.meta, data.rows), 200, {
     'Content-Type': 'text/markdown; charset=utf-8',
@@ -508,7 +520,7 @@ screenRoute.get('/screen/:id/export.md', async (c) => {
 });
 
 screenRoute.post('/screen/:id/retain', async (c) => {
-  const screening = await loadScreening(Number(c.req.param('id')));
+  const screening = await loadScreening(idParam(c.req.param('id')));
   if (!screening) return flashRedirect('/screen', 'err', 'That screening no longer exists.');
   const settings = await getSettings();
   const until = new Date(Date.now() + settings.screeningRetentionDays * DAY_MS);
@@ -517,7 +529,7 @@ screenRoute.post('/screen/:id/retain', async (c) => {
 });
 
 screenRoute.post('/screen/:id/delete', async (c) => {
-  const screening = await loadScreening(Number(c.req.param('id')));
+  const screening = await loadScreening(idParam(c.req.param('id')));
   if (!screening) return flashRedirect('/screen', 'err', 'That screening no longer exists.');
   const n = await countApplicants(screening.id);
   await deleteScreening(screening.id);

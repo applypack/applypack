@@ -49,7 +49,7 @@ test('expandUploads opens zips, skips OS litter, passes files through', () => {
     { name: 'batch/~$draft.docx', data: Buffer.from('lock') },
     { name: 'batch/notes.xlsx', data: Buffer.from('xlsx') },
   ]);
-  const { files, badArchives } = expandUploads([
+  const { files, badArchives, oversized } = expandUploads([
     { name: 'batch.zip', bytes: zip },
     { name: 'bob.docx', bytes: Buffer.from('docx') },
     { name: 'broken.zip', bytes: Buffer.from('not a zip at all, sorry') },
@@ -63,6 +63,7 @@ test('expandUploads opens zips, skips OS litter, passes files through', () => {
     ],
   );
   assert.deepEqual(badArchives, ['broken.zip']);
+  assert.deepEqual(oversized, []);
   assert.ok(isAcceptedResume('anna.PDF'));
   assert.ok(!isAcceptedResume('notes.xlsx'));
 });

@@ -131,6 +131,9 @@ export interface NewApplicant {
 /** Numbers are handed out in one transaction per row, so two uploads never share a №. */
 export async function createApplicant(input: NewApplicant): Promise<ApplicantSummary> {
   return prisma.$transaction(async (tx) => {
+    // Two uploads to one screening at once would read the same max: the row
+    // lock serialises them, so a № is handed out exactly once.
+    await tx.$executeRaw`SELECT id FROM screening WHERE id = ${input.screeningId} FOR UPDATE`;
     const last = await tx.applicant.aggregate({ where: { screeningId: input.screeningId }, _max: { number: true } });
     const number = (last._max.number ?? 0) + 1;
     const { redactedTextFor, ...fields } = input;

@@ -59,14 +59,12 @@ export type StartOutcome =
 export async function startScreeningRun(screeningId: number): Promise<StartOutcome> {
   const live = runs.get(screeningId);
   if (live?.running) return { kind: 'joined', state: live };
-  const screening = await getScreening(screeningId);
-  if (!screening) return { kind: 'missing' };
-  const pending = await listPending(screeningId, screening.rubricVersion);
-  if (pending.length === 0) return { kind: 'nothing' };
-
+  // Claimed before the first await (the same guarantee target-runs.ts
+  // relies on): a second POST landing while the queue is being read joins
+  // this run instead of scoring everyone twice.
   const state: ScreenRunState = {
     screeningId,
-    total: pending.length,
+    total: 0,
     done: 0,
     failed: 0,
     running: true,
@@ -75,6 +73,13 @@ export async function startScreeningRun(screeningId: number): Promise<StartOutco
     lastError: null,
   };
   runs.set(screeningId, state);
+  const screening = await getScreening(screeningId);
+  const pending = screening ? await listPending(screeningId, screening.rubricVersion) : [];
+  if (!screening || pending.length === 0) {
+    runs.delete(screeningId);
+    return screening ? { kind: 'nothing' } : { kind: 'missing' };
+  }
+  state.total = pending.length;
   logger.info({ screeningId, applicants: pending.length, concurrency: config.AI_CONCURRENCY }, 'screening: run started');
 
   void (async () => {
