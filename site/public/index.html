@@ -36,6 +36,7 @@
     <div class="links">
       <a href="#demo">Demo</a>
       <a href="#what">What it does</a>
+      <a href="#employer">Employers</a>
       <a class="open key" href="#open">Open source</a>
       <a href="#install">Install</a>
     </div>
@@ -223,6 +224,74 @@
         <a class="btn" href="demo/">Open the full demo</a>
         <a class="btn" href="https://github.com/applypack/applypack/blob/main/docs/adr/0012-deterministic-match-score.md">Read the scoring decision record</a>
       </div>
+    </div>
+  </section>
+
+  <section id="employer" aria-labelledby="employer-h">
+    <div class="wrap">
+      <h2 id="employer-h">The other side of the table: screen a folder of resumes</h2>
+      <p class="lead">Off by default, one switch in Settings. The same idea as the candidate side, turned around: the criteria are yours, every answer carries its quote, the score is arithmetic, and a person decides.</p>
+
+      <div class="row">
+        <div class="row-text">
+          <h3>Criteria in your own words</h3>
+          <ul role="list">
+            <li><b>One position, drafted into a list you edit.</b> A gate that buckets, stars that score, a note that only shows. "Playwright / Cypress !", "0–2 years", "fintech, payments: 3+", "has led a team of three or more".</li>
+            <li><b>Presets bend the draft</b> — Junior hire, Senior / lead, Regulated, Agency work. A criterion naming age, gender, family, origin or health is refused, with the lawful one offered instead.</li>
+            <li><b>Blind by construction.</b> Name, contacts, links, date of birth, age, family, gender, citizenship, street and graduation years are removed before any model reads a word. You see the name; the model sees "Applicant №7". It cannot be switched off.</li>
+            <li><b>Files, a zip, or a whole folder.</b> Scoring starts as the files land, one independent call each, and every row says where it is.</li>
+          </ul>
+        </div>
+        <figure class="shot">
+          <img src="img/screening-criteria.webp" srcset="img/screening-criteria-720.webp 720w, img/screening-criteria.webp 1440w" sizes="(max-width: 900px) calc(100vw - 48px), 600px" width="1440" height="900" alt="A screening page: the position card and the criteria card with every criterion as a chip — gates, skills with stars, level, sector — and a button that opens the editor" loading="lazy" decoding="async">
+        </figure>
+      </div>
+
+      <div class="row flip">
+        <div class="row-text">
+          <h3>Every answer with its quote. The score in code.</h3>
+          <ul role="list">
+            <li><b>A rung on the evidence ladder per skill</b> — absent, skills list, project, in a role, production — each with the verbatim line that earns it. A list of terms can carry "listed" at most; production is a work bullet with an outcome.</li>
+            <li><b>Stars × answer, in code,</b> with caps a rubric cannot say: none of the core stack anywhere is 30 at most. Years, sectors and company types are read off the dated roles.</li>
+            <li><b>Beside the score:</b> the facts no criterion asked for, the career read off the dates, three to five interview questions, the facts to discuss — and your own ±30 with its reason, which the export keeps.</li>
+            <li><b>The same resume as .docx and .pdf scores the same.</b> It did not, once; the rule that fixed it is a unit test now.</li>
+          </ul>
+        </div>
+        <figure class="shot">
+          <img src="img/screening-scorecard.webp" srcset="img/screening-scorecard-720.webp 720w, img/screening-scorecard.webp 1440w" sizes="(max-width: 900px) calc(100vw - 48px), 600px" width="1440" height="900" alt="A scorecard: who, did, verdict; the stands-out facts with their lines; one row per criterion with the answer, the quote from the resume and the points" loading="lazy" decoding="async">
+        </figure>
+      </div>
+
+      <div class="row">
+        <div class="row-text">
+          <h3>Argue the shortlist on one page</h3>
+          <ul role="list">
+            <li><b>Tick two to five → Compare.</b> One column each, one row per criterion with the quotes. The stored scorecards, no new call.</li>
+            <li><b>Compare with AI</b> reads the same shortlist head to head, twice with the order reversed, and says who is stronger on each criterion and why, whom to talk to first, and the one question that would decide between the first two.</li>
+            <li><b>Where the two readings disagree is marked.</b> That is information, not a bug. Never a score: the table keeps its order. Copy as Markdown for the meeting.</li>
+          </ul>
+        </div>
+        <figure class="shot">
+          <img src="img/screening-compare.webp" srcset="img/screening-compare-720.webp 720w, img/screening-compare.webp 1440w" sizes="(max-width: 900px) calc(100vw - 48px), 600px" width="1440" height="900" alt="Compare with AI: three applicants read head to head, the order to talk to from two readings, and per criterion whether the readings agree" loading="lazy" decoding="async">
+        </figure>
+      </div>
+
+      <div class="row flip">
+        <div class="row-text">
+          <h3>Does it rank the way you do?</h3>
+          <ul role="list">
+            <li><b>The decision column is yours alone;</b> the tool never writes it.</li>
+            <li><b>Three decisions in, the calibration card reads them against the order:</b> how many of your picks sit in the top k, what share of your pairs the table orders your way, the surprises with the criteria behind each, and which criteria tell your picks from the rest.</li>
+            <li><b>It never re-weights a criterion by itself.</b> A gap on the card is an argument for the editor, not a knob that turns on its own.</li>
+            <li><b><code>npm run bench:screen</code></b> runs a ranked gold folder through the same path and prints τ, precision@5 and the score movement between runs.</li>
+          </ul>
+        </div>
+        <figure class="shot">
+          <img src="img/screening-calibration.webp" srcset="img/screening-calibration-720.webp 720w, img/screening-calibration.webp 1440w" sizes="(max-width: 900px) calc(100vw - 48px), 600px" width="1440" height="900" alt="Calibration: one of two interview picks in the table's top two, three quarters of the decided pairs ordered the way you did, the one surprise with the gates behind it, and per-criterion gaps between the interviewed and the declined" loading="lazy" decoding="async">
+        </figure>
+      </div>
+
+      <p class="note">Read this before turning it on: screening other people's resumes with an AI tool is high-risk under the EU AI Act, GDPR forbids a decision made solely by automated means and requires applicants to be told, and several US jurisdictions add audit and notice duties. The mode is built to be the tool and not the decision; telling applicants (a copy-ready notice is in the settings tab) and running it on an engine under a data-processing agreement or on a local model are yours. <a href="https://github.com/applypack/applypack#employer-mode-screening-a-folder-of-resumes">The README says the rest</a>; this is not legal advice.</p>
     </div>
   </section>
 
