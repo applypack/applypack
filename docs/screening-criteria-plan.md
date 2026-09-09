@@ -483,6 +483,46 @@ reads.
    resume as context? The second is better and one call cheaper; it
    needs a "this is not a resume" classifier that is a heuristic today.
 
+## 8. Why the number is a sum and not the model's — measured
+
+The question behind "use AI for the comparison, scripts do not matter" is
+whether the model should produce the score. It was measured on this
+branch, 2026-09-09, on one redacted resume against one posting, Sonnet 5
+through the Claude CLI, three identical calls each:
+
+| Three identical calls (thinking off) | Result |
+|---|---|
+| The screening prompt → the model's marks → the score computed in code | 82, 82, 82 |
+| Must-have part alone, computed (9 terms, 5 on the skills line only) | 22.5 / 35 each time |
+| A holistic prompt: "read everything, return fit 0–100" | 92, 93, 92 |
+| The same holistic prompt's five-step grade | exceptional, exceptional, exceptional |
+
+Read honestly: on this pair the model's own number was nearly as stable
+as the computed one — one point of spread, not ten. The candidate side's
+history is the other case (gotcha 11: a Laravel resume at 82 against a
+Node posting until the code took the arithmetic; `variance:compare`: one
+sentence the model wrote or did not write was 80 % of a ten-point spread
+on one pair), and thinking was off here; with it on, the number moves
+more. What the measurement does show is the reason that matters more
+than jitter: the holistic number sat **ten points above** the computed one
+and called the resume *exceptional* — for a Playwright role, a resume
+with Playwright, contract tests and an 8-year record, but with five of
+nine must-haves on a skills line only and the "legally able to work in
+Ukraine" gate unanswered. That is the flattering average gotcha 11
+names, and no HR weight went into it: the model decided that Cypress
+mattered less than Playwright, that recency mattered, that the gate did
+not — decisions that belong to the person running the vacancy.
+
+What it means for an HR table: a number the model produces cannot say
+which criterion earned what, cannot take HR's stars, and grades on the
+generous side; a number computed from the model's marks changes only
+when a mark changes, and every mark carries its quote. That is why the
+holistic read enters the table as a five-step *criterion* with HR's
+weight (§3.7) — its grade was the most stable thing in the measurement —
+and the head-to-head comparison lives on the shortlist (§5.1), and why
+free-text criteria are answered one by one with quotes rather than folded
+into one judgment.
+
 ## 9. Stage E — calibration, as built (2026-09-09)
 
 **The question.** Stages B–D made every point a criterion's and every
@@ -537,46 +577,6 @@ watch), the redaction leak check, the tailoring pairs and, with an
 qa-automation` is a starter of six synthetic resumes ranked by the author
 of the fixtures; its τ says nothing until a recruiter ranks a set, which
 is §19.4 question 5 and stays with the owner.
-
-## 8. Why the number is a sum and not the model's — measured
-
-The question behind "use AI for the comparison, scripts do not matter" is
-whether the model should produce the score. It was measured on this
-branch, 2026-09-09, on one redacted resume against one posting, Sonnet 5
-through the Claude CLI, three identical calls each:
-
-| Three identical calls (thinking off) | Result |
-|---|---|
-| The screening prompt → the model's marks → the score computed in code | 82, 82, 82 |
-| Must-have part alone, computed (9 terms, 5 on the skills line only) | 22.5 / 35 each time |
-| A holistic prompt: "read everything, return fit 0–100" | 92, 93, 92 |
-| The same holistic prompt's five-step grade | exceptional, exceptional, exceptional |
-
-Read honestly: on this pair the model's own number was nearly as stable
-as the computed one — one point of spread, not ten. The candidate side's
-history is the other case (gotcha 11: a Laravel resume at 82 against a
-Node posting until the code took the arithmetic; `variance:compare`: one
-sentence the model wrote or did not write was 80 % of a ten-point spread
-on one pair), and thinking was off here; with it on, the number moves
-more. What the measurement does show is the reason that matters more
-than jitter: the holistic number sat **ten points above** the computed one
-and called the resume *exceptional* — for a Playwright role, a resume
-with Playwright, contract tests and an 8-year record, but with five of
-nine must-haves on a skills line only and the "legally able to work in
-Ukraine" gate unanswered. That is the flattering average gotcha 11
-names, and no HR weight went into it: the model decided that Cypress
-mattered less than Playwright, that recency mattered, that the gate did
-not — decisions that belong to the person running the vacancy.
-
-What it means for an HR table: a number the model produces cannot say
-which criterion earned what, cannot take HR's stars, and grades on the
-generous side; a number computed from the model's marks changes only
-when a mark changes, and every mark carries its quote. That is why the
-holistic read enters the table as a five-step *criterion* with HR's
-weight (§3.7) — its grade was the most stable thing in the measurement —
-and the head-to-head comparison lives on the shortlist (§5.1), and why
-free-text criteria are answered one by one with quotes rather than folded
-into one judgment.
 
 ## Sources
 

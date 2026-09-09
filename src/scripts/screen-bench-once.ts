@@ -2,6 +2,8 @@ import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, extname, join } from 'node:path';
 import { getAiRuntime } from '../ai-runtime';
 import { askForJson } from '../ai-json';
+import { config } from '../config';
+import { createLimiter } from '../concurrency';
 import { logger } from '../logger';
 import { loadKeywordMatcher } from '../resume/keyword-matcher';
 import { extractResumeText } from '../resume/resume-text';
@@ -52,6 +54,8 @@ async function runSet(dir: string, runs: number): Promise<{ name: string; runs: 
     .sort();
   const runtime = await getAiRuntime();
   const matcher = await loadKeywordMatcher();
+  // The same pacing as the screening's batch — thirty resumes are thirty calls, AI_CONCURRENCY at a time.
+  const limit = createLimiter(config.AI_CONCURRENCY);
   const job = { id: 0, title: posting.split('\n')[0] ?? name, companyName: name, location: '', description: posting };
   const texts: { file: string; number: number; redacted: string; identity: { name: string | null; email: string | null; phone: string | null } }[] = [];
   for (const [i, file] of files.entries()) {
@@ -64,7 +68,7 @@ async function runSet(dir: string, runs: number): Promise<{ name: string; runs: 
     const run: Run = { scores: {}, order: [], gates: {}, leaks: {} };
     const verdicts: { number: number; file: string; gateBucket: 'pass' | 'ask' | 'fail'; score: number; confidence: 'high' | 'medium' | 'low' }[] = [];
     await Promise.all(
-      texts.map(async (t) => {
+      texts.map((t) => limit(async () => {
         const started = Date.now();
         const answer = await askForJson(
           runtime,
@@ -83,7 +87,7 @@ async function runSet(dir: string, runs: number): Promise<{ name: string; runs: 
         run.leaks[t.file] = findLeaks(t.redacted, t.identity);
         verdicts.push({ number: t.number, file: t.file, gateBucket: bd.gateBucket, score: bd.score, confidence: bd.confidence.band });
         process.stdout.write(`  run ${r + 1} ${t.file}: ${bd.score} ${bd.gateBucket} (${Math.round((Date.now() - started) / 1000)} s, ${answer.model})\n`);
-      }),
+      })),
     );
     run.order = orderVerdicts(verdicts).map((v) => v.file);
     out.push(run);

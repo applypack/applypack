@@ -70,6 +70,20 @@ test('pairs, the top, the surprises and the separations', () => {
   assert.equal(calibrationLine(cal), "1 of your 2 To interview sit in the table's top 2; the table orders 63% of your pairs the way you decided (5 of 8).");
 });
 
+test('the why of a low pick names the heaviest missing criterion first', () => {
+  const rubric: Rubric = RubricSchema.parse({
+    criteria: [c('a', 'skill', 'A', 'scored', 5, { terms: [{ term: 'A', aliases: [] }] }), c('b', 'skill', 'B', 'scored', 2, { terms: [{ term: 'B', aliases: [] }] }), c('d', 'skill', 'D', 'scored', 3, { terms: [{ term: 'D', aliases: [] }] })],
+  });
+  const rows = [
+    row(1, 1, 'interview', { a: 1, b: 1, d: 1 }),
+    row(2, 2, 'declined', { a: 1, b: 1, d: 1 }),
+    // a: 5 stars × 0.7 missing = 3.5; d: 3 × 1 = 3; b: 2 × 1 = 2 — a first, whatever the credits alone say.
+    row(3, 3, 'interview', { a: 0.3, b: 0, d: 0 }),
+  ];
+  const cal = calibrate(rows, rubric);
+  assert.deepEqual(cal.surprises.map((s) => [s.number, s.why]), [[3, ['A: skills list', 'D: skills list', 'B: skills list']]]);
+});
+
 test('an adjustment that moved a pick into order is counted', () => {
   const rows = [
     row(1, 1, 'interview', { php: 1 }, { computedPosition: 2 }),

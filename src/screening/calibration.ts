@@ -144,10 +144,11 @@ function whyLow(r: CalibrationRow, scored: Criterion[], gates: Criterion[]): str
     if (status === 'fail') out.push(`${g.label}: failed`);
     else if (status === 'unknown') out.push(`${g.label}: unknown`);
   }
+  // The heaviest criterion with the most credit missing first: stars × (1 − credit).
   const weak = scored
     .map((c) => ({ c, credit: r.credits[c.id] ?? null }))
     .filter((x) => x.credit !== null && x.credit < 0.5)
-    .sort((a, b) => b.c.weight * (1 - a.credit!) - a.c.weight * (1 - b.credit!) || b.c.weight - a.c.weight);
+    .sort((a, b) => b.c.weight * (1 - b.credit!) - a.c.weight * (1 - a.credit!) || b.c.weight - a.c.weight);
   for (const x of weak) out.push(`${x.c.label}: ${r.answers[x.c.id] ?? 'low'}`);
   return out.slice(0, WHY_LIMIT);
 }
