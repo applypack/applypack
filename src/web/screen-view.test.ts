@@ -42,7 +42,11 @@ function verdict(score: number, bucket: 'pass' | 'ask' | 'fail', rubricVersion =
     model: 'm',
     facts: {
       summary: { who: 'w', did: 'd', verdict: 'talk first' },
-      roles: [],
+      roles: [
+        { position: 'Dev', employer: 'Acme', start: '2021', end: 'Present', relevant: true, why: '', sector: 'fintech', companyType: 'product' },
+        { position: 'Dev', employer: 'Beta', start: '2018', end: '2020', relevant: true, why: '', sector: 'retail', companyType: null },
+      ],
+      standout: [{ fact: 'Speaks Polish', quote: 'Polish C1' }],
       answers: [
         { id: 'g', status: gate, quote: null, question: null },
         { id: 'php', rung: 'production' },
@@ -99,8 +103,10 @@ test('rowView reads the stored verdict; groupRows orders by the adjusted score a
     applicant({ id: 4, number: 4, verdict: verdict(60, 'pass', 1), stale: true }),
     applicant({ id: 5, number: 5, parseStatus: 'unreadable', parseNote: 'scan' }),
     applicant({ id: 6, number: 6 }),
-  ].map(rowView);
+  ].map((a) => rowView(a, new Date('2026-09-09T00:00:00Z')));
   assert.equal(rows[0]!.verdict?.level, 'senior');
+  assert.deepEqual(rows[0]!.verdict?.standout, [{ fact: 'Speaks Polish', quote: 'Polish C1' }]);
+  assert.equal(rows[0]!.verdict?.careerLine, '8.8 years across 2 employers · average stay 4.4 years · in a role now · fintech, retail');
   assert.equal(rows[0]!.verdict?.mustStrong, 2, 'the breakdown counts the skills in a role or in production');
   assert.deepEqual(rows[0]!.verdict?.gates, [{ gate: 'EU', status: 'pass' }], 'gates are the gate-mode rows');
   const g = groupRows(rows);
@@ -118,4 +124,7 @@ test('rowView reads the stored verdict; groupRows orders by the adjusted score a
     [6, null, 'not scored yet'],
     [5, null, 'scan'],
   ]);
+  assert.deepEqual(ex[0]!.standout, ['Speaks Polish']);
+  assert.equal(ex[0]!.career, rows[0]!.verdict?.careerLine);
+  assert.deepEqual([ex[3]!.standout, ex[3]!.career], [[], null], 'a stale verdict exports neither');
 });

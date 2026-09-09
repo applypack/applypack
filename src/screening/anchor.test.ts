@@ -58,6 +58,11 @@ test('anchorScreenReply: quotes must be in the text; answers fall to what the te
       { id: 'ov', overall: 'exceptional', quote: 'a made-up line', reasons: ['a'], concerns: [] },
       { id: 'y', status: 'pass', quote: 'Jan 2020 – Present' },
     ],
+    standout: [
+      { fact: 'Led four engineers through a migration', quote: 'Led a team of four engineers through the migration' },
+      { fact: 'Nobel laureate', quote: 'won the Nobel prize' },
+      { fact: 'Speaks Polish', quote: null },
+    ],
   });
   const { reply: out, report } = anchorScreenReply(reply, TEXT, RUBRIC, matcher);
   const by = Object.fromEntries(out.answers.map((a) => [a.id, a]));
@@ -81,6 +86,12 @@ test('anchorScreenReply: quotes must be in the text; answers fall to what the te
   assert.deepEqual([report.answersDropped, report.answersFilled, report.rungsLowered, report.quotesDropped], [1, 1, 3, 5], 'lowered: Kafka, Kubernetes, the unquoted how-much');
   assert.equal(out.roles.length, 1, 'a role the text does not carry is dropped');
   assert.equal(report.rolesDropped, 1);
+  assert.deepEqual(
+    out.standout.map((f) => f.fact),
+    ['Led four engineers through a migration'],
+    'a stand-out fact keeps only with a located quote',
+  );
+  assert.equal(report.standoutDropped, 2);
 });
 
 test('anchorScreenReply raises a rung the text shows more of, and lowers a strong impact with no quote', async () => {

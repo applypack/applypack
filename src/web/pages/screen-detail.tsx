@@ -570,6 +570,27 @@ const ApplicantRow: FC<{ r: ApplicantRowView; screeningId: number; gates: string
           {r.status !== 'ok' && r.note ? ` — ${r.note}` : ''}
           {r.stale && r.verdict ? ` — scored ${r.verdict.score} under an earlier rubric` : ''}
         </div>
+        {v && (v.standout.length > 0 || v.career.roles > 0) && (
+          <details class="mt-0.5 text-xs">
+            <summary class="cursor-pointer truncate text-ink-muted" title={v.standout.length > 0 ? v.standout.map((f) => f.fact).join(' · ') : v.careerLine}>
+              {v.standout.length > 0 ? v.standout.map((f) => f.fact).join(' · ') : `Career: ${v.careerLine}`}
+            </summary>
+            <ul class="mt-1 space-y-0.5 whitespace-normal text-ink-muted">
+              {v.standout.map((f) => (
+                <li>
+                  {f.fact}
+                  {f.quote && (
+                    <>
+                      {' — '}
+                      <q class="text-ink-faint">{f.quote}</q>
+                    </>
+                  )}
+                </li>
+              ))}
+              {v.career.roles > 0 && <li class="text-ink-faint">Career: {v.careerLine}. Read off the dates, never scored.</li>}
+            </ul>
+          </details>
+        )}
       </Td>
       <Td class="whitespace-nowrap">
         {v ? (
@@ -623,7 +644,9 @@ const ApplicantRow: FC<{ r: ApplicantRowView; screeningId: number; gates: string
           ''
         )}
       </Td>
-      <Td class="text-right tabular-nums">{v ? (v.years ?? '?') : ''}</Td>
+      <Td class="text-right tabular-nums" title={v && v.career.roles > 0 ? `Relevant years. Career: ${v.careerLine}` : undefined}>
+        {v ? (v.years ?? '?') : ''}
+      </Td>
       <Td class="text-ink-muted">{v ? (v.level ?? '?') : ''}</Td>
       <Td class="whitespace-nowrap">
         {r.status === 'ok' ? (

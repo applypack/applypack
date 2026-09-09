@@ -2,6 +2,7 @@ import type { ApplicantWithVerdict } from '../screening/store';
 import { readScreenReply, type GateStatus } from '../screening/prompts';
 import { orderVerdicts, readScreenBreakdown, type CapReason, type ConfidenceBand, type GateBucket } from '../screening/score';
 import type { ExportRow } from '../screening/export';
+import { trajectoryLine, trajectoryOf, type Trajectory } from '../screening/trajectory';
 
 /*
  * The screening table's rows, read off stored applicants and verdicts — one
@@ -25,6 +26,11 @@ export interface VerdictView {
   injection: boolean;
   verdictLine: string;
   questions: string[];
+  /** Facts no criterion asked for, each with its line (plan §5) — read, never scored. */
+  standout: { fact: string; quote: string | null }[];
+  /** The career as the dated roles give it — a fact, never a penalty (ADR 0047). */
+  career: Trajectory;
+  careerLine: string;
 }
 
 /** How many current verdicts predate an edit to the posting — the "posting changed" line. */
@@ -58,7 +64,7 @@ export function adjustedScore(score: number, adjustment: number): number {
   return Math.max(0, Math.min(100, score + adjustment));
 }
 
-export function rowView(a: ApplicantWithVerdict & { sameAsNumber?: number | null }): ApplicantRowView {
+export function rowView(a: ApplicantWithVerdict & { sameAsNumber?: number | null }, now = new Date()): ApplicantRowView {
   const status = a.parseStatus === 'unreadable' ? 'unreadable' : 'ok';
   const reply = a.verdict ? readScreenReply(a.verdict.facts) : null;
   const bd = a.verdict ? readScreenBreakdown(a.verdict.breakdown) : null;
@@ -79,6 +85,9 @@ export function rowView(a: ApplicantWithVerdict & { sameAsNumber?: number | null
           injection: reply.injection,
           verdictLine: reply.summary.verdict,
           questions: reply.questions,
+          standout: reply.standout,
+          career: trajectoryOf(reply.roles, now),
+          careerLine: trajectoryLine(trajectoryOf(reply.roles, now)),
         }
       : null;
   return {
@@ -148,6 +157,8 @@ export function exportRows(rows: ApplicantRowView[]): ExportRow[] {
     level: r.verdict && !r.stale ? r.verdict.level : null,
     verdict: r.verdict && !r.stale ? r.verdict.verdictLine : null,
     questions: r.verdict && !r.stale ? r.verdict.questions : [],
+    standout: r.verdict && !r.stale ? r.verdict.standout.map((f) => f.fact) : [],
+    career: r.verdict && !r.stale && r.verdict.career.roles > 0 ? r.verdict.careerLine : null,
     decision: r.decision,
   });
   return [...groups.scored, ...groups.pending, ...groups.unread].map(toRow);

@@ -5,6 +5,8 @@ import { ActionForm, Badge, Button, Card, Flash, Hint, Input, PageHeader, Select
 import type { FlashMessage } from '../flash';
 import { formatDate } from '../format';
 import { formatRange, parseRange } from '../../screening/dates';
+import { trajectoryLine, trajectoryOf } from '../../screening/trajectory';
+import { SCREEN_PROMPT_VERSION } from '../../screening/prompts';
 import { CRITERION_KIND_LABELS, EVIDENCE_RUNG_LABELS, type EvidenceRung, type Rubric } from '../../screening/rubric';
 import type { ScreenReply } from '../../screening/prompts';
 import { capExplanation, GATE_BUCKET_LABELS, type ScoreRow, type ScreenBreakdown } from '../../screening/score';
@@ -48,6 +50,8 @@ export interface ScreenApplicantProps {
   /** The verdict is about an earlier rubric version. */
   stale: boolean;
   model: string | null;
+  /** Which prompt wrote the verdict — an older one has no stand-out block. */
+  promptVersion: number | null;
   scoredAt: Date | null;
   now: Date;
   flash?: FlashMessage | null;
@@ -87,9 +91,10 @@ const CriterionAnswerRow: FC<{ r: ScoreRow }> = ({ r }) => {
   );
 };
 
-export const ScreenApplicantPage: FC<ScreenApplicantProps> = ({ screening, applicant, rubric, reply, breakdown, stale, model, scoredAt, now, flash }) => {
+export const ScreenApplicantPage: FC<ScreenApplicantProps> = ({ screening, applicant, rubric, reply, breakdown, stale, model, promptVersion, scoredAt, now, flash }) => {
   const title = `№${applicant.number}${applicant.name ? ` — ${applicant.name}` : ''}`;
   const back = `/screen/${screening.id}`;
+  const career = reply ? trajectoryOf(reply.roles, now) : null;
   return (
     <Layout title={title} active="screen">
       <PageHeader
@@ -166,6 +171,32 @@ export const ScreenApplicantPage: FC<ScreenApplicantProps> = ({ screening, appli
               )}
             </Card>
 
+            <Card>
+              <h2 class="text-sm font-semibold text-ink">Stands out — what no criterion asked</h2>
+              {reply.standout.length === 0 ? (
+                <Hint class="mt-1">
+                  {promptVersion !== null && promptVersion < SCREEN_PROMPT_VERSION
+                    ? 'Scored before stand-out facts were read; Score again on the screening page to get them.'
+                    : 'Nothing beyond the criteria stood out in the text.'}
+                </Hint>
+              ) : (
+                <ul class="mt-2 space-y-1.5 text-sm">
+                  {reply.standout.map((f) => (
+                    <li>
+                      <span class="text-ink">{f.fact}</span>
+                      {f.quote && (
+                        <>
+                          {' — '}
+                          <q class="text-ink-muted">{f.quote}</q>
+                        </>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <Hint class="mt-2">Read, never scored: a technology beyond the rubric, a number, a talk, a language. Each line is in the text.</Hint>
+            </Card>
+
             <Card flush>
               <Table
                 columns={['Criterion', 'Answer', 'What the resume says', 'Points']}
@@ -181,6 +212,11 @@ export const ScreenApplicantPage: FC<ScreenApplicantProps> = ({ screening, appli
 
             <Card>
               <h2 class="text-sm font-semibold text-ink">Roles as the text gives them</h2>
+              {career && career.roles > 0 && (
+                <p class="mt-1 text-[13px] text-ink-muted">
+                  Career, read off the dates: {trajectoryLine(career)}. Employer count and tenure are facts to ask about, never points.
+                </p>
+              )}
               {reply.roles.length === 0 ? (
                 <Hint class="mt-1">No roles with dates the text carries — years, sectors and company types were left out of the score.</Hint>
               ) : (

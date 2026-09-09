@@ -34,6 +34,8 @@ const ROWS: ExportRow[] = [
     level: 'senior',
     verdict: 'Priority to talk to; ask about German.',
     questions: ['Which level of German?', 'Who owned the ledger?'],
+    standout: ['Speaks Polish', 'Spoke at JavaDay 2024'],
+    career: '9.8 years across 3 employers · in a role now',
     decision: 'interview',
   },
   {
@@ -56,6 +58,8 @@ const ROWS: ExportRow[] = [
     level: null,
     verdict: null,
     questions: [],
+    standout: [],
+    career: null,
     decision: null,
   },
 ];
@@ -66,8 +70,8 @@ test('toCsv quotes what needs quoting and marks the gates', () => {
   assert.ok(lines[0]!.startsWith('﻿Applicant,Name,File,Status,Bucket,Score,Your adjustment,Adjusted score,Confidence,Gate: EU work authorisation,Gate: German B2,'));
   assert.ok(lines[1]!.includes(',81,+10 (referral from Ivan),91,high,'), 'the computed score, the correction and its reason, the adjusted number');
   assert.ok(lines[1]!.includes('"Олена, ""QA"""'), 'a comma and quotes inside a cell are escaped');
-  assert.ok(lines[1]!.includes(',✓,?,6/7,9,senior,To interview,'));
-  assert.ok(lines[1]!.includes('Which level of German? | Who owned the ledger?'));
+  assert.ok(lines[1]!.includes(',✓,?,6/7,9,senior,9.8 years across 3 employers · in a role now,To interview,'), 'the career line sits after the level');
+  assert.ok(lines[1]!.includes(',Speaks Polish | Spoke at JavaDay 2024,Which level of German? | Who owned the ledger?'), 'stand-out facts before the questions');
   assert.ok(lines[2]!.startsWith('№5,,scan.pdf,unreadable,,,,,,,,'));
   assert.ok(lines[2]!.endsWith('another document of №2; no text layer'));
 });
@@ -78,6 +82,7 @@ test('toMarkdown groups by bucket and lists the unread files', () => {
   assert.match(md, /## Priority to talk to \(1\)/);
   assert.match(md, /\| №2 \| Олена, "QA" \| 91 \(81 \+10\) \| high \| ✓ \| \? \| 6\/7 \| 9 \| senior \| To interview \|/);
   assert.match(md, /- Your adjustment: \+10 — referral from Ivan/);
+  assert.match(md, /- Stands out: Speaks Polish; Spoke at JavaDay 2024\n- Career: 9\.8 years across 3 employers · in a role now/);
   assert.match(md, /\*\*№2 — Олена, "QA"\.\*\* Priority to talk to; ask about German\./);
   assert.match(md, /- Which level of German\?/);
   assert.match(md, /## Not screened \(1\)\n\n- №5 scan\.pdf: no text layer/);
