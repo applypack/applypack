@@ -4,6 +4,58 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.0.0] — 2026-09-09
+
+The other side of the table: a major because the product now has two users
+— the candidate it was built for, and, behind one switch, the employer.
+
+### Added
+- **Employer mode — screening a folder of resumes against one position**
+  (TASKS §19, ADR 0047–0049). Off by default; `/settings` → Screening turns
+  it on and adds "Screening" to the menu. A screening is a position (one of
+  your jobs, or a pasted / uploaded posting) whose brief (ADR 0044) is read
+  into a rubric — gates, must-have and nice-to-have terms, core stack,
+  level, years, sector, weights — that you edit before anything is scored;
+  a changed rubric makes every stored score stale. Applicants go in as
+  files or a zip (up to 100 a time, 300 a screening); the name, contacts,
+  links, date of birth, age, family, gender, citizenship, street address
+  and graduation years are removed before any model reads a word, the
+  leak check runs on every file, and copies of the same person (text hash,
+  email or SimHash) stay in the list unscored. Scoring is one independent
+  call per applicant, `AI_CONCURRENCY` at a time, verdicts written as they
+  arrive so a restart resumes; every quote is checked against the redacted
+  text and an unproven rung is lowered before `screening/score.ts`
+  computes the number (must-have 35, years and recency 15, level 15,
+  impact 15, domain 10, nice 5, education 5; caps 30 / 50 / 60; unknown
+  parts leave the denominator and lower the confidence shown beside the
+  score). The table orders gate bucket → score → confidence; a scorecard
+  per applicant shows every gate and term with its quote, the score table,
+  the questions, the facts to discuss, and what the model did not see;
+  CSV and Markdown export; a Decision column the tool never writes; a
+  retention date (90 days by default) the weekly cleanup enforces; a
+  warning when the first engine is a personal-subscription CLI; a
+  copy-ready applicant notice and the legal note on the settings tab.
+- **Screening, after the first real batch.** A folder can be dropped whole,
+  subfolders and all (each file keeps its folder path in the table; photos
+  and spreadsheets are left out, not listed as unreadable). Scoring starts
+  the moment files are in and the run drains, so files added while it works
+  join it. The same person's second document is scored and labelled "also
+  №N" instead of parked as a duplicate — only a byte-for-byte repeat of a
+  file is skipped. A header checkbox ticks every row; the bar above the
+  table sets a decision, scores again or deletes the ticked ones. On the
+  scorecard, **Your adjustment** moves an applicant by up to ±30 points with
+  a reason: the computed score stays visible beside it and both go into the
+  export (ADR 0047 addendum). While a run works, every row says where it is
+  — queued, scoring…, scored — and the results line names who is being read
+  right now; a "Score again" during a run queues behind it instead of being
+  refused. The must-have cell says how many terms are shown in a role or in
+  production, which is where two documents of one person differ. The engine
+  warning is one line under Results with a link to the settings tab.
+
+### Changed
+- `resume/zip.ts` can list every file in an archive (`readZipEntries`),
+  which is what a zip of resumes needs; `readZipEntry` is unchanged.
+
 ## [1.76.0] — 2026-09-08
 
 ### Added
@@ -3070,6 +3122,10 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.0.0]: https://github.com/applypack/applypack/compare/v1.76.0...v2.0.0
+[1.76.0]: https://github.com/applypack/applypack/compare/v1.75.0...v1.76.0
+[1.75.0]: https://github.com/applypack/applypack/compare/v1.74.0...v1.75.0
+[1.74.0]: https://github.com/applypack/applypack/compare/v1.73.0...v1.74.0
 [1.73.0]: https://github.com/applypack/applypack/compare/v1.72.0...v1.73.0
 [1.72.0]: https://github.com/applypack/applypack/compare/v1.71.0...v1.72.0
 [1.71.0]: https://github.com/applypack/applypack/compare/v1.70.0...v1.71.0

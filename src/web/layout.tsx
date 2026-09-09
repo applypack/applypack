@@ -1,4 +1,5 @@
 /** @jsxImportSource hono/jsx */
+import { isEmployerMode } from './employer-mode';
 import type { FC, PropsWithChildren } from 'hono/jsx';
 import { raw } from 'hono/html';
 
@@ -12,6 +13,7 @@ export type NavKey =
   | 'companies'
   | 'discovery'
   | 'runs'
+  | 'screen'
   | 'settings';
 
 interface LayoutProps {
@@ -39,6 +41,8 @@ const NAV: { key: NavKey; href: string; label: string }[] = [
 ];
 
 const SETTINGS_ITEM = { key: 'settings' as NavKey, href: '/settings', label: 'Settings' };
+/** Employer mode (ADR 0049): in the menu only while the switch is on. */
+const SCREEN_ITEM = { key: 'screen' as NavKey, href: '/screen', label: 'Screening' };
 
 /**
  * Design tokens — light theme. Semantic names only (surface / line / ink /
@@ -262,6 +266,8 @@ const ICON_PATHS: Record<NavKey, string> = {
   discovery:
     '<path d="M19.07 4.93A10 10 0 0 0 6.99 3.34"/><path d="M4 6h.01"/><path d="M2.29 9.62a10 10 0 1 0 19.02-1.27"/><path d="M16.24 7.76a6 6 0 1 0-8.01 8.91"/><path d="M12 18h.01"/><path d="M17.99 11.66a6 6 0 0 1-2.22 4.75"/><circle cx="12" cy="12" r="2"/><path d="m13.41 10.59 5.66-5.66"/>',
   runs: '<path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2"/>',
+  screen:
+    '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
   settings:
     '<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/>',
 };
@@ -319,6 +325,7 @@ const Sidebar: FC<{ active?: NavKey }> = ({ active }) => (
       {NAV.map((n) => (
         <NavLink item={n} active={active} />
       ))}
+      {isEmployerMode() && <NavLink item={SCREEN_ITEM} active={active} />}
     </nav>
     <div class="shrink-0 space-y-2 border-t border-line px-3 py-3 md:px-2.5 lg:px-3">
       <NavLink item={SETTINGS_ITEM} active={active} />

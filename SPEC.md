@@ -205,6 +205,8 @@ clause at the start of the affected job/handler.
 | `discoveryEnabled`               | false    | HN parser does not record CompanyCandidates  |
 | `fetchingEnabled`                | false    | Master pause: hourly fetch + monthly HN pull exit early (`fetching-paused`); digest/cleanup/discovery/dashboard unaffected. Deployments start PAUSED — enable via `/settings` → "Job fetching" |
 | `disabledSources` (String[])     | `[]`     | Skip whole AtsType families in runAllFetchers |
+| `employerMode`                   | false    | Employer mode (ADR 0049): the Screening menu item and every `/screen` route exist only while on; the worker never reads it |
+| `screeningRetentionDays`         | 90       | How long a screening keeps its applicant files and verdicts before the weekly cleanup deletes it (ADR 0048) |
 
 ## Application tracking
 
@@ -536,9 +538,45 @@ editing. Manual edits are re-checked warn-only — the gate polices the
 model, not the user. The generation call is tool-free (`webTools` stays
 exclusive to verification, ADR 0009).
 
+## Employer mode (TASKS §19, ADR 0047–0049)
+
+Off by default. `/settings` → Screening turns it on; the menu then has
+"Screening". A `Screening` is one position (`jobId`, any Job — a pasted
+posting becomes a MANUAL job as on `/target`) with a `rubric` (JSON,
+`screening/rubric.ts`): gates, must-have and nice-to-have terms with a
+core-stack flag, level, minimum years, sector, education, weights. The
+draft is the posting brief (ADR 0044), edited by the person; a save that
+changes it bumps `rubricVersion`.
+
+`Applicant` rows belong to one screening and cascade with it: the file,
+the extracted `text`, the `redactedText` the model reads (name, contacts,
+links, date of birth, age, family, gender, citizenship, street and
+graduation years removed — `screening/redact.ts`, cannot be switched off),
+name / email / phone in columns shown to the person only, `parseStatus`
+(ok / unreadable), `sameAsId` when the same person (email, phone, SimHash)
+already has a document in the list — scored all the same, labelled — and
+the person's `decision` and `scoreAdjustment` + `adjustmentNote` (±30, a
+reason required; the table orders by the adjusted number, the computed one
+stays visible). A byte-for-byte repeat of a file is never added. Intake
+takes files, a zip, or a folder with its subfolders (the path stays on the
+file name; other file types are left out), up to 300 applicants per
+screening; scoring starts on upload and the run drains whoever is added
+meanwhile. Ticked rows take one bulk action: a decision, score again, delete.
+
+Scoring is one independent call per readable applicant without a verdict
+under the current rubric version, `AI_CONCURRENCY` at a time, through
+`askForJson` with `buildScreenPrompt`; every `ScreeningVerdict` is written
+as it arrives (`facts`, `breakdown`, `score`, `confidence`, `gateBucket`,
+model and prompt version), so a restart resumes. `screening/anchor.ts`
+checks every quote against the redacted text before `screening/score.ts`
+computes the number (ADR 0047). The table orders bucket → score →
+confidence; CSV and Markdown export the same rows. A screening is deleted
+with its files on `retainUntil` (`screeningRetentionDays`, default 90) by
+the cleanup cron, or at once from its page.
+
 ## Hard out-of-scope (Phase 7+)
 
-- Multi-user / per-user views (auth, sessions). Single-deployment-per-friend stays the answer.
+- Multi-user / per-user views (auth, sessions). Single-deployment-per-friend stays the answer — employer mode included: one HR person or hiring manager per install.
 - Adzuna / Jooble / The Muse paid aggregators (have free tiers, just not added)
 - Built In, Wellfound, YC WAAS — fragile or behind anti-bot
 - Workday — see exclusions above

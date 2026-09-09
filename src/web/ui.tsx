@@ -331,11 +331,12 @@ export const Table: FC<
   return stickyHeader ? table : <div class="overflow-x-auto">{table}</div>;
 };
 
-export const Tr: FC<PropsWithChildren<{ class?: string }>> = ({
+export const Tr: FC<PropsWithChildren<Record<string, unknown> & { class?: string }>> = ({
   children,
   class: className = '',
+  ...rest
 }) => (
-  <tr class={`transition-colors duration-150 hover:bg-surface-overlay/50 ${className}`}>
+  <tr class={`transition-colors duration-150 hover:bg-surface-overlay/50 ${className}`} {...rest}>
     {children}
   </tr>
 );

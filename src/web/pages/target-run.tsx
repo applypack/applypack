@@ -143,7 +143,7 @@ export const TargetRunPage: FC<{ run: TargetRun; lane: Lane }> = ({ run, lane })
               <div class="mt-5 flex items-center justify-between gap-3 border-t border-line pt-3">
                 <Hint>
                   You can close this page — the run keeps going and the result lands{' '}
-                  {run.heading ? 'back in setup' : 'on the job page'}.
+                  {run.backUrl.startsWith('/screen') ? 'on the screening page' : run.heading ? 'back in setup' : 'on the job page'}.
                 </Hint>
                 <span id="run-elapsed" class="shrink-0 text-xs tabular-nums text-ink-faint">
                   {elapsed}s

@@ -55,6 +55,9 @@ consequences (what we accept). Aim for 15–30 lines each.
 - [0044 — The posting is read once, on its own, and the reading is kept](./0044-the-posting-is-read-once-on-its-own.md)
 - [0045 — The resume text decides whether a keyword is present](./0045-the-resume-text-decides-presence.md)
 - [0046 — The resume's domains are read at scan time and compared with the posting's](./0046-the-resumes-domains-are-read-at-scan-time.md)
+- [0047 — A screening scores evidence, not keywords, and a person decides](./0047-screening-scores-evidence-not-keywords.md)
+- [0048 — Applicants' resumes are redacted before any model reads them, and they expire](./0048-applicant-data-is-redacted-and-expires.md)
+- [0049 — Employer mode is a switchable mode, not a second product and not a card](./0049-employer-mode-is-a-mode-not-a-product.md)
 
 ## When to write a new one
 

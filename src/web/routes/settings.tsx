@@ -25,7 +25,12 @@ import {
   getSourceKeys,
   setSourceKey,
   setSchedule,
+  setEmployerMode,
+  setScreeningRetentionDays,
+  SCREENING_RETENTION_DAYS,
 } from '../../settings';
+import { setEmployerModeCache } from '../employer-mode';
+import { applicantNotice, LEGAL_NOTE } from '../../screening/notice';
 import { config } from '../../config';
 import { ALL_DAYS, MAX_DIGEST_HOURS, ScheduleSchema, describeSchedule, parseSchedule } from '../../user-schedule';
 import { countHeldAlerts } from '../../jobs/alert-delivery';
@@ -250,6 +255,7 @@ async function loadSettingsProps() {
     if (row.active) c.active += row._count._all;
   }
   const keys = await getSourceKeys();
+  const screeningCount = await prisma.screening.count();
   const aiStatus = {
     active: AI_PROVIDER_LABELS[primary],
     chain: engine.chain.map((id) => AI_PROVIDER_LABELS[id]),
@@ -312,6 +318,17 @@ async function loadSettingsProps() {
       isDefault: r.isDefault,
       scannedAt: r.scannedAt,
     })),
+    screening: {
+      enabled: settings.employerMode,
+      retentionDays: settings.screeningRetentionDays,
+      retentionMin: SCREENING_RETENTION_DAYS.min,
+      retentionMax: SCREENING_RETENTION_DAYS.max,
+      engineLabel: AI_PROVIDER_LABELS[primary],
+      engineSubscription: !PROVIDER_PAID[primary],
+      screenings: screeningCount,
+      notice: applicantNotice(),
+      legalNote: LEGAL_NOTE,
+    },
   };
 }
 
@@ -749,6 +766,27 @@ settingsRoute.post('/settings/stale-digest-toggle', async (c) => {
       !settings.staleApplicationsDigestEnabled ? 'enabled' : 'disabled'
     }.`,
   );
+});
+
+settingsRoute.post('/settings/employer-mode-toggle', async (c) => {
+  const settings = await getSettings();
+  const next = !settings.employerMode;
+  await setEmployerMode(next);
+  setEmployerModeCache(next);
+  return flashRedirect(
+    '/settings?tab=screening',
+    'ok',
+    next ? 'Employer mode on — Screening is in the menu.' : 'Employer mode off — Screening is hidden; stored screenings keep their retention dates.',
+  );
+});
+
+settingsRoute.post('/settings/screening-retention', async (c) => {
+  const form = await c.req.parseBody();
+  const days = Number(form.days);
+  if (!Number.isFinite(days)) return flashRedirect('/settings?tab=screening', 'err', 'Enter a number of days.');
+  await setScreeningRetentionDays(days);
+  const saved = (await getSettings()).screeningRetentionDays;
+  return flashRedirect('/settings?tab=screening', 'ok', `New screenings are kept for ${saved} days.`);
 });
 
 settingsRoute.post('/settings/source-health-toggle', async (c) => {

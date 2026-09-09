@@ -105,6 +105,13 @@
   is the RFC 9309 reader it calls first: it is stricter than the protocol in
   two places, and both are deliberate (an AI-agent group binds us; a 5xx on
   robots.txt means "not allowed").
+- `src/screening/` is employer mode (TASKS §19, ADR 0047–0049): `rubric.ts`,
+  `redact.ts`, `dates.ts`, `prompts.ts`, `anchor.ts`, `score.ts`, `intake.ts`,
+  `export.ts`, `notice.ts` are pure (tested); `store.ts` is the only file
+  that touches Prisma; `batch.ts` runs the calls. Web-only behind
+  `AppSettings.employerMode` — the worker never imports it, and nothing in
+  `src/resume/` reads an `Applicant`. Redaction (`redactApplicant`) runs at
+  intake and cannot be switched off; the model sees "Applicant №N" only.
 - `src/starter-packs/` is the curated-pack module: `catalog.json` (data),
   `catalog.ts` and `resolve.ts` are pure (tested), `probe.ts` calls
   `probeAts`. Web-only — the worker never imports it. Every catalog entry
@@ -322,6 +329,20 @@ When the question is **"where does X live?"**, save yourself a `find`:
 | What each suggestion card did, and how it survives a reload | `target-edits:<matchId>` in localStorage = `{ applied: { <card key>: inverse edit }, skipped: [key] }`; the key is `hashShortId(section\|where\|quote)` rendered into `data-card`; painted by `target-page.mjs:paintCards`, thrown away with the draft by "reset edits" / Discard |
 | Copy-to-clipboard anywhere in the dashboard | `src/web/public/copy.mjs:wireCopy` — delegates `[data-copy]` (literal text) and `[data-copy-target]` (an element's value), falls back to `execCommand`, announces in one `aria-live` region it creates itself |
 | The targeted-resume page (editor, tabs, score ring) | `src/web/pages/target.tsx` (`TARGET_JS` wires the DOM) |
+| Employer mode — the switch, the menu item, the redirect when off | `AppSettings.employerMode` → `src/web/employer-mode.ts` (`isEmployerMode` for the sidebar, `requireEmployerMode` on every `/screen` route); toggle on `/settings` → Screening (ADR 0049) |
+| What a screening checks (gates, must / nice terms, core stack, level, years, sector, weights) and where the draft comes from | `src/screening/rubric.ts` (pure): `draftRubric(brief)` reads the posting brief (ADR 0044), `rubricFromForm` reads the editor, a changed rubric bumps `Screening.rubricVersion` and every verdict reads as stale |
+| What is removed from an applicant's resume before a model reads it, and the leak check | `src/screening/redact.ts:redactApplicant` / `findLeaks` (pure, ADR 0048) — name and its parts, contacts, links, date of birth, age, family, gender, citizenship, street, graduation years; the city stays |
+| The screening prompt, the evidence rungs, the reply shape | `src/screening/prompts.ts:buildScreenPrompt` / `ScreenReplySchema` (`EVIDENCE_RUNGS`: absent · listed · project · role · production); in the fence registry |
+| Why a rung or a gate on a scorecard is lower than the model wrote | `src/screening/anchor.ts:anchorScreenReply` (pure): every quote must be a span of the redacted text; unquoted rungs fall to `evidence.ts`'s reading, unquoted gates to unknown, unanchored roles are dropped |
+| The employer score, its caps, the bucket, the confidence | `src/screening/score.ts:scoreScreening` (pure, ADR 0047) — weights from the rubric, caps 30 / 50 / 60, unknown parts leave the denominator; `orderVerdicts` is the table's order |
+| Dates as resumes write them → years covered, months since | `src/screening/dates.ts` (pure): five languages of month names and "present" words; overlaps merged |
+| Bulk intake: zip, a folder with subfolders, what repeats, the caps | `src/screening/intake.ts` (pure) over `resume/zip.ts:readZipEntries`; `findDuplicate` tells `same-text` (a repeat of a file — never added) from `same-person` (same email, phone or SimHash within `MAX_HAMMING_DISTANCE` — scored, labelled "also №N", `Applicant.sameAsId`); non-resume types in a folder are `notResumes`, not rows; the folder path rides on the file name (`public/screen.mjs:pathedFiles`) |
+| The batch: one call per applicant, resumable, a live queue | `src/screening/batch.ts:startScreeningRun` — `AI_CONCURRENCY` workers pull from one queue that `listPending` refills (an upload starts it, a second upload lengthens it, `{ again: ids }` joins at the back even mid-run); every verdict is written as it arrives; the in-memory state is what the page shows — `queued` / `inFlight` / `finished` applicant numbers, painted per row by `public/screen.mjs:rowRunState` off `GET /screen/:id/state` |
+| The person's correction to a computed score, and why the table orders by it | `Applicant.scoreAdjustment` + `adjustmentNote` (±`export.ts:MAX_ADJUSTMENT`, a reason required) → `web/screen-view.ts:adjustedScore`; the computed score stays on the row's tooltip, the scorecard header and both exports (ADR 0047 addendum) |
+| Ticked rows → one action (decision, score again, delete) | `POST /screen/:id/applicants/bulk` (`ids[]` + `do`), the header checkbox and the count in `public/screen.mjs:wireSelection`; per-row decision selects post through their own hidden forms via the `form` attribute, so they never ride inside the bulk form |
+| CSV / Markdown of a screening | `src/screening/export.ts` (pure) over `src/web/screen-view.ts:exportRows` |
+| Retention of applicant data | `Screening.retainUntil` from `AppSettings.screeningRetentionDays`; deleted by `jobs/cleanup-job.ts`; "Delete with files" / "Keep N more days" on `/screen/:id` |
+| The notice an employer owes applicants, and the legal note | `src/screening/notice.ts` — shown with a Copy button on `/settings` → Screening |
 | Each cron's once-script (manual trigger) | `src/scripts/{fetch,digest,cleanup,stale,hn,discovery}-once.ts` |
 
 When the question is **"how does the user toggle / configure X?"**:
@@ -390,6 +411,17 @@ When the question is **"how does the user toggle / configure X?"**:
 | See what a Save can do with this file, and fix a downloaded template's author name | `/resumes/:id` → "Template check": Editable in place / Partly editable / Text only, the parts it cannot write into, and **Fix document properties** when the file names someone else (current values shown; bytes only, no new version) |
 | Get a resume that cannot be edited in place into the loop (a PDF, a table layout) | `/resumes/:id` → **Clean version in your typeface** (`/resumes/:id/render`, also linked from the targeted view's file line): the knobs come from your own file, the preview is the rendered .docx read back, and the four buttons are Update the preview / Download .docx / Download .pdf / **Save as a new resume** — which lands a .docx the template check calls *Editable in place*. Nothing touches the original |
 | Re-check an edited resume | `/resumes/:id` → "Upload a new version", then Compare again |
+| Turn on employer mode (screen a folder of resumes against a position) | `/settings` → Screening → "Employer mode" → Turn on. Read the legal note on that tab first; copy the applicant notice from it. Off by default, and the Screening item leaves the menu when it is off |
+| Start a screening | menu → Screening → New screening: pick one of your jobs, or paste / upload the posting → the posting is read into a rubric (about a minute; instant if it was compared with a resume before) |
+| Edit what the screen checks | `/screen/:id` → "What this screen checks": gates (one per line), must-have / core stack / nice-to-have, level, minimum years, sector, education, and the weights under "Weights". Save bumps the rubric version; stored scores read as stale until Score runs again |
+| Add applicants | `/screen/:id` → Applicants → files, a .zip, or "…or a whole folder" (subfolders included; other file types are left out) → Add and score. Scoring starts by itself; files added during a run join it. A second document of someone already listed is scored and carries "also №N"; the same file twice is skipped; an unreadable file stays in the list |
+| Score them, see the order | automatic after an upload; the Score button reads whoever is still pending (one call each, `AI_CONCURRENCY` at a time; the page updates itself, a restart resumes from what is missing). Buckets: Priority to talk to / Ask first / Did not pass a gate; then the score (with your adjustment), then confidence. `*` after a score = capped, the scorecard says why |
+| Act on many at once | tick the rows (the header box ticks all) → the bar above the table: To interview / On hold / Declined / Clear decision / Score again / Delete |
+| Move a known person up or down, with the reason on record | the scorecard → "Your adjustment": ±30 points and why; the table shows 85 → 95 with a small +10, the tooltip and the export keep the computed number |
+| Read one applicant's reasoning | the row's name → the scorecard: who / did / verdict, every gate and term with its quote, the score table, the questions (Copy), the facts to discuss, what was removed before the model read it, the redacted and the full text |
+| Record a decision | the Decision select on the row, or the scorecard's "Your decision" — the one write the tool never makes |
+| Hand the table to a hiring manager | `/screen/:id` → CSV / Markdown |
+| Delete a screening, or keep it longer | `/screen/:id` → "Delete with files" / "Keep N more days"; the default is `/settings` → Screening → Retention |
 | Edit in place with a live score | comparison → "Open targeted view →" (`/jobs/:id/target`); **Analyse my resume again** is the one AI action there (always the full report), **Compare this file** runs the same thing on a freshly uploaded file, "Save as vN" keeps the draft |
 
 ---

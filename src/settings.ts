@@ -37,6 +37,10 @@ export interface AppSettingsView {
   schedule: unknown;
   /** NULL until the first-run wizard finishes or is skipped — `/` redirects to /welcome meanwhile. */
   setupCompletedAt: Date | null;
+  /** TASKS §19 (ADR 0049): the Screening section exists only while this is on. */
+  employerMode: boolean;
+  /** How long a screening and its applicant files are kept (ADR 0048). */
+  screeningRetentionDays: number;
   updatedAt: Date;
 }
 
@@ -78,6 +82,8 @@ export async function getSettings(): Promise<AppSettingsView> {
     pipelineStages: row.pipelineStages,
     schedule: row.schedule,
     setupCompletedAt: row.setupCompletedAt,
+    employerMode: row.employerMode,
+    screeningRetentionDays: row.screeningRetentionDays,
     updatedAt: row.updatedAt,
   };
 }
@@ -327,6 +333,26 @@ export async function setSourceHealthAlerts(enabled: boolean): Promise<void> {
     where: { id: SETTINGS_ID },
     update: { sourceHealthAlerts: enabled },
     create: { id: SETTINGS_ID, sourceHealthAlerts: enabled },
+  });
+}
+
+export async function setEmployerMode(enabled: boolean): Promise<void> {
+  await prisma.appSettings.upsert({
+    where: { id: SETTINGS_ID },
+    update: { employerMode: enabled },
+    create: { id: SETTINGS_ID, employerMode: enabled },
+  });
+  logger.info({ enabled }, 'settings: employer mode');
+}
+
+export const SCREENING_RETENTION_DAYS = { min: 7, max: 365, default: 90 } as const;
+
+export async function setScreeningRetentionDays(days: number): Promise<void> {
+  const value = Math.max(SCREENING_RETENTION_DAYS.min, Math.min(SCREENING_RETENTION_DAYS.max, Math.round(days)));
+  await prisma.appSettings.upsert({
+    where: { id: SETTINGS_ID },
+    update: { screeningRetentionDays: value },
+    create: { id: SETTINGS_ID, screeningRetentionDays: value },
   });
 }
 

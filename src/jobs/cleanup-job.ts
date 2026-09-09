@@ -34,7 +34,11 @@ export async function runCleanupJob(): Promise<{ stats: CronStats }> {
       WHERE key >= ${usageCutoff}
     ) WHERE id = 1`;
 
+  // Employer mode (ADR 0048): a screening past its date goes with every
+  // applicant file and verdict — the cascade is the retention policy.
+  const screenings = await prisma.screening.deleteMany({ where: { retainUntil: { lt: new Date() } } });
+
   const durationMs = Date.now() - started;
-  logger.info({ deleted: result.count, durationMs }, 'cleanup-job: done');
-  return { stats: { deleted: result.count, durationMs } };
+  logger.info({ deleted: result.count, screeningsDeleted: screenings.count, durationMs }, 'cleanup-job: done');
+  return { stats: { deleted: result.count, screeningsDeleted: screenings.count, durationMs } };
 }
