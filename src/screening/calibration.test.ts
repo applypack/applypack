@@ -81,7 +81,10 @@ test('the why of a low pick names the heaviest missing criterion first', () => {
     row(3, 3, 'interview', { a: 0.3, b: 0, d: 0 }),
   ];
   const cal = calibrate(rows, rubric);
-  assert.deepEqual(cal.surprises.map((s) => [s.number, s.why]), [[3, ['A: skills list', 'D: skills list', 'B: skills list']]]);
+  assert.deepEqual(cal.surprises.map((s) => [s.number, s.decision, s.why]), [
+    [2, 'declined', ['A: production', 'D: production', 'B: production']],
+    [3, 'interview', ['A: skills list', 'D: skills list', 'B: skills list']],
+  ], 'the declined №2 sits inside the top 2 as well; the heaviest criterion leads both lists');
 });
 
 test('an adjustment that moved a pick into order is counted', () => {
