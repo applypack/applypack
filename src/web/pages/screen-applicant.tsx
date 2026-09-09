@@ -304,7 +304,7 @@ export const ScreenApplicantPage: FC<ScreenApplicantProps> = ({ screening, appli
                             {r.max === 0 ? ' — not counted' : ''}
                           </div>
                         </td>
-                        <td class="py-1.5 text-right align-top tabular-nums">{r.max === 0 ? '—' : `${r.pts} / ${r.max}`}</td>
+                        <td class="whitespace-nowrap py-1.5 text-right align-top tabular-nums">{r.max === 0 ? '—' : `${r.pts} / ${r.max}`}</td>
                       </tr>
                     ))}
                   <tr class="font-medium text-ink">
