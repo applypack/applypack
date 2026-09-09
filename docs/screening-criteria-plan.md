@@ -483,6 +483,61 @@ reads.
    resume as context? The second is better and one call cheaper; it
    needs a "this is not a resume" classifier that is a heuristic today.
 
+## 9. Stage E — calibration, as built (2026-09-09)
+
+**The question.** Stages B–D made every point a criterion's and every
+mark a quote. What none of them can say is whether the criteria rank the
+way the *person* does. The tool never writes a decision (ADR 0047), so the
+person's decisions — To interview, On hold, Declined — are the one signal
+about that, and they arrive for free as the screening is worked. Stage E
+reads that signal and never acts on it: it says where the person and the
+table part ways and which criteria tell the picks from the rest; changing
+a weight or a row stays in card 2, by hand (ADR 0052).
+
+**Three readings, all honest with small numbers.** A screening has four
+to three hundred rows and decisions on a handful; any single number over
+that would be noise dressed up. So:
+
+1. *Pairs.* Every pair of applicants the person decided differently
+   (interview above hold above declined): does the table order them the
+   same way? Concordant against discordant, as Kendall's τ counts pairs —
+   a percentage that means the same at 8 pairs as at 800, shown with its
+   counts. A pair the person's ±30 adjustment turned concordant is counted
+   separately: "3 of those only after your adjustments" says the rubric
+   did not rank the way the person did and the correction carried it.
+2. *The top.* Of k applicants marked To interview, how many sit in the
+   table's top k — precision@k with k the person's own.
+3. *The surprises.* An interview pick the table put below the top k, a
+   declined applicant it put inside — each with the criteria behind the
+   placing (a gate not passed, the heaviest criteria with the least
+   credit; for a declined-high row, the criteria it scored on). This is
+   the part a person can act on: the surprise names a criterion or a
+   weight, and card 2 is where it is changed.
+
+And per scored criterion, the mean credit among the interviewed against
+the mean among the declined: a gap near zero means the criterion does not
+tell the picks from the rest (a weight to lighten), a negative gap means
+the declined scored higher on it (a criterion to question). Listed the
+widest gap first, flat ones greyed.
+
+**What is deliberately not done.** No automatic re-weighting: a rubric
+that tunes itself to the decisions would learn the person's biases along
+with their judgement, and the whole design of §2.4 rests on the criteria
+being written, visible and defensible. No single "agreement score" on the
+list page: a number with no counts beside it would be read as a grade. No
+measurement below three decisions with both sides present.
+
+**The gold set.** `npm run bench:screen` runs a folder — posting,
+`rubric.json`, resumes, `ranking.txt` — through the exact redact → prompt
+→ anchor → score path with nothing written, and prints Kendall τ and
+precision@5 against the human's order, the score movement between two
+runs (stability — the .docx / .pdf episode of §8 made this the number to
+watch), the redaction leak check, the tailoring pairs and, with an
+`expected.json`, the gate confusion. `src/screening/fixtures/gold/
+qa-automation` is a starter of six synthetic resumes ranked by the author
+of the fixtures; its τ says nothing until a recruiter ranks a set, which
+is §19.4 question 5 and stays with the owner.
+
 ## 8. Why the number is a sum and not the model's — measured
 
 The question behind "use AI for the comparison, scripts do not matter" is

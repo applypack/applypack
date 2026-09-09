@@ -1,5 +1,6 @@
 import { GATE_BUCKET_LABELS, type ConfidenceBand, type GateBucket } from './score';
 import type { GateStatus } from './prompts';
+import { calibrationLine, type Calibration } from './calibration';
 
 /*
  * The table as a file for the hiring manager (TASKS §19 stage 3): CSV for
@@ -114,8 +115,8 @@ export function toCsv(screening: ExportScreening, rows: ExportRow[]): string {
   return `﻿${[head.map(csvCell).join(','), ...lines].join('\r\n')}\r\n`;
 }
 
-/** The same table as Markdown, one section per bucket, then the unread files. */
-export function toMarkdown(screening: ExportScreening, rows: ExportRow[]): string {
+/** The same table as Markdown, one section per bucket, then the unread files, then how the decisions sit against the order. */
+export function toMarkdown(screening: ExportScreening, rows: ExportRow[], calibration: Calibration | null = null): string {
   const out: string[] = [
     `# ${screening.title}`,
     '',
@@ -160,7 +161,20 @@ export function toMarkdown(screening: ExportScreening, rows: ExportRow[]): strin
     for (const r of unread) out.push(`- №${r.number} ${r.file}: ${r.note ?? r.status}`);
     out.push('');
   }
+  if (calibration && calibration.enough) {
+    out.push('## Your decisions against the order', '', calibrationLine(calibration), '');
+    for (const s of calibration.surprises) {
+      out.push(`- №${s.number}: ${s.decision === 'interview' ? 'To interview' : 'Declined'}, ${s.position}${ordinal(s.position)} of ${s.total} in the table${s.why.length > 0 ? ` — ${s.why.join(' · ')}` : ''}`);
+    }
+    if (calibration.surprises.length > 0) out.push('');
+  }
   return out.join('\n');
+}
+
+export function ordinal(n: number): string {
+  const r = n % 100;
+  if (r >= 11 && r <= 13) return 'th';
+  return ['th', 'st', 'nd', 'rd'][n % 10 < 4 ? n % 10 : 0]!;
 }
 
 function escapePipe(s: string): string {

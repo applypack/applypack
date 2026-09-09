@@ -60,6 +60,7 @@ consequences (what we accept). Aim for 15–30 lines each.
 - [0049 — Employer mode is a switchable mode, not a second product and not a card](./0049-employer-mode-is-a-mode-not-a-product.md)
 - [0050 — The rubric is a list of criteria the person chooses, answered one by one with a quote](./0050-the-rubric-is-a-list-of-criteria-the-person-chooses.md)
 - [0051 — A shortlist is compared head to head, twice, and the comparison is never a score](./0051-a-shortlist-is-compared-head-to-head-twice.md)
+- [0052 — Calibration reports agreement with the person's decisions and never tunes the rubric by itself](./0052-calibration-reports-agreement-and-never-tunes-the-rubric.md)
 
 ## When to write a new one
 

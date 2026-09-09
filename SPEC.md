@@ -583,7 +583,12 @@ rows open side by side (columns, one row per criterion with the quotes);
 **Compare with AI** there is one call with the shortlist's redacted texts,
 run twice with the order reversed, stored as a `ScreeningComparison` with
 both anchored readings and shown with its disagreements marked — never
-folded into a score (ADR 0051). A screening is deleted
+folded into a score (ADR 0051). Once three decisions with both an
+interview and a declined exist, a calibration card reads them against the
+order — concordant pairs, the person's top k, the surprises with the
+criteria behind them, per-criterion gaps — and never re-weights
+(ADR 0052); `npm run bench:screen` does the same over a ranked gold
+folder, writing nothing. A screening is deleted
 with its files on `retainUntil` (`screeningRetentionDays`, default 90) by
 the cleanup cron, or at once from its page.
 

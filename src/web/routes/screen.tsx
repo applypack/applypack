@@ -57,7 +57,8 @@ import { ScreenDetailPage } from '../pages/screen-detail';
 import { ScreenApplicantPage } from '../pages/screen-applicant';
 import { ScreenComparePage } from '../pages/screen-compare';
 import { sideBySide } from '../screen-compare';
-import { exportRows, rowView, scoredBeforePosting } from '../screen-view';
+import { calibrationRows, exportRows, rowView, scoredBeforePosting } from '../screen-view';
+import { calibrate } from '../../screening/calibration';
 import { claimRun, startRun, updateRun } from '../target-runs';
 import { MAX_UPLOAD_MB } from '../upload';
 
@@ -257,6 +258,7 @@ screenRoute.get('/screen/:id', async (c) => {
   const [applicants, settings, engine] = await Promise.all([listApplicants(screening.id, screening.rubricVersion), getSettings(), engineNote()]);
   const numberOf = new Map(applicants.map((a) => [a.id, a.number]));
   const rows = applicants.map((a) => rowView({ ...a, sameAsNumber: a.sameAsId !== null ? (numberOf.get(a.sameAsId) ?? null) : null }));
+  const calibration = calibrate(calibrationRows(applicants), rubricOf(screening));
   const pending = rows.filter((r) => r.status === 'ok' && (r.verdict === null || r.stale)).length;
   return c.html(
     <ScreenDetailPage
@@ -276,6 +278,7 @@ screenRoute.get('/screen/:id', async (c) => {
       run={screeningRun(screening.id)}
       pending={pending}
       engine={engine}
+      calibration={calibration}
       retentionDays={settings.screeningRetentionDays}
       flash={flash(c)}
     />,
@@ -736,7 +739,12 @@ async function exportData(id: number) {
     gates: rubricOf(screening).criteria.filter((x) => x.mode === 'gate').map((x) => x.label),
     createdAt: screening.createdAt,
   };
-  return { meta, rows, slug: screening.title.replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-|-$/g, '').slice(0, 60) || 'screening' };
+  return {
+    meta,
+    rows,
+    calibration: calibrate(calibrationRows(applicants), rubricOf(screening)),
+    slug: screening.title.replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-|-$/g, '').slice(0, 60) || 'screening',
+  };
 }
 
 screenRoute.get('/screen/:id/export.csv', async (c) => {
@@ -751,7 +759,7 @@ screenRoute.get('/screen/:id/export.csv', async (c) => {
 screenRoute.get('/screen/:id/export.md', async (c) => {
   const data = await exportData(idParam(c.req.param('id')));
   if (!data) return c.text('Not found', 404);
-  return c.body(toMarkdown(data.meta, data.rows), 200, {
+  return c.body(toMarkdown(data.meta, data.rows, data.calibration), 200, {
     'Content-Type': 'text/markdown; charset=utf-8',
     'Content-Disposition': `attachment; filename="${data.slug}.md"`,
   });

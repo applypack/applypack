@@ -25,6 +25,8 @@ import { adjustedScore } from '../screen-view';
 import { MAX_APPLICANTS_PER_SCREENING, MAX_BATCH_UPLOAD_MB } from '../../screening/intake';
 import { ACCEPTED_EXTENSIONS } from '../../resume/resume-text';
 import type { ScreenRunState } from '../../screening/batch';
+import { calibrationLine, MIN_DECISIONS, type Calibration } from '../../screening/calibration';
+import { ordinal } from '../../screening/export';
 import { DECISIONS } from '../../screening/store';
 import { groupRows, type ApplicantRowView } from '../screen-view';
 
@@ -50,13 +52,15 @@ export interface ScreenDetailProps {
   /** Which engine the calls go to, and the warning when it is not one fit for other people's data. */
   engine: { label: string; warn: string | null };
   retentionDays: number;
+  /** The person's decisions held against the table's order (plan §6 stage E). */
+  calibration: Calibration;
   flash?: FlashMessage | null;
 }
 
 const CONFIDENCE_TONE: Record<ConfidenceBand, 'ok' | 'warn' | 'neutral'> = { high: 'ok', medium: 'neutral', low: 'warn' };
 const BUCKET_TONE: Record<GateBucket, 'ok' | 'warn' | 'danger'> = { pass: 'ok', ask: 'warn', fail: 'danger' };
 
-export const ScreenDetailPage: FC<ScreenDetailProps> = ({ screening, rubric, rows, run, pending, engine, retentionDays, flash }) => {
+export const ScreenDetailPage: FC<ScreenDetailProps> = ({ screening, rubric, rows, run, pending, engine, retentionDays, calibration, flash }) => {
   const groups = groupRows(rows);
   const readable = rows.filter((r) => r.status === 'ok').length;
   const running = run?.running ?? false;
@@ -93,9 +97,9 @@ export const ScreenDetailPage: FC<ScreenDetailProps> = ({ screening, rubric, row
           </div>
         }
       >
-        Four cards, top to bottom: the position, the criteria it is screened against, the applicants, the results.
-        The order in the results is a priority to talk to; every mark has its quote on the scorecard, and the
-        decision column is yours alone.
+        Five cards, top to bottom: the position, the criteria it is screened against, the applicants, the results,
+        and how your decisions sit against the order. The order in the results is a priority to talk to; every mark
+        has its quote on the scorecard, and the decision column is yours alone.
       </PageHeader>
       <Flash flash={flash} />
 
@@ -456,6 +460,88 @@ export const ScreenDetailPage: FC<ScreenDetailProps> = ({ screening, rubric, row
             </form>
           ))}
       </Card>
+      {/* 5. The person's decisions against the order — measured, never acted on by the tool (ADR 0052). */}
+      <Card class="mt-4" id="calibration">
+        <div class="flex flex-wrap items-baseline justify-between gap-2">
+          <SectionTitle>
+            <Step n={5} />
+            Calibration — your decisions against the order
+          </SectionTitle>
+          {calibration.enough && (
+            <span class="text-[13px] text-ink-faint">
+              {calibration.decided.interview} to interview · {calibration.decided.hold} on hold · {calibration.decided.declined} declined
+            </span>
+          )}
+        </div>
+        <p class={`text-sm ${calibration.enough ? 'text-ink' : 'text-ink-muted'}`}>{calibrationLine(calibration)}</p>
+        {calibration.enough && (
+          <div class="mt-3 grid gap-4 lg:grid-cols-2">
+            <div>
+              <h3 class="text-[13px] font-medium text-ink">Where you and the table part ways</h3>
+              {calibration.surprises.length === 0 ? (
+                <Hint class="mt-1">Nowhere: every To interview sits in the top {calibration.top?.k ?? 0}, no Declined does.</Hint>
+              ) : (
+                <ul class="mt-1 space-y-1.5 text-sm">
+                  {calibration.surprises.map((sp) => (
+                    <li>
+                      <span class="font-medium text-ink">№{sp.number}</span>
+                      <span class="text-ink-muted">
+                        {' — '}
+                        {sp.decision === 'interview' ? 'To interview' : 'Declined'}, {sp.position}
+                        {ordinal(sp.position)} of {sp.total} in the table
+                      </span>
+                      {sp.why.length > 0 && <div class="text-[13px] text-ink-faint">{sp.why.join(' · ')}</div>}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+            <div>
+              <h3 class="text-[13px] font-medium text-ink">Which criteria tell your picks from the rest</h3>
+              <table class="mt-1 w-full text-sm">
+                <thead>
+                  <tr class="text-left text-xs font-medium text-ink-muted">
+                    <th class="py-1 pr-2">Criterion</th>
+                    <th class="py-1 pr-2 text-right">To interview</th>
+                    <th class="py-1 pr-2 text-right">Declined</th>
+                    <th class="py-1 text-right">Gap</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-line">
+                  {calibration.separations
+                    .filter((sep) => sep.gap !== null)
+                    .slice(0, MAX_SEPARATIONS)
+                    .map((sep) => (
+                      <tr class={Math.abs(sep.gap!) < FLAT_GAP ? 'text-ink-faint' : ''}>
+                        <td class="py-1 pr-2">
+                          {sep.label} <span class="text-ink-faint">{'★'.repeat(sep.weight)}</span>
+                        </td>
+                        <td class="py-1 pr-2 text-right tabular-nums">{sep.interviewed}</td>
+                        <td class="py-1 pr-2 text-right tabular-nums">{sep.declined}</td>
+                        <td class={`py-1 text-right tabular-nums ${sep.gap! > 0 ? 'text-ok' : sep.gap! < 0 ? 'text-warn' : ''}`}>
+                          {sep.gap! > 0 ? '+' : ''}
+                          {sep.gap}
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+              <Hint class="mt-2">
+                Mean credit per criterion (0–1) among the applicants you chose to interview and among those you
+                declined. A gap near zero means the criterion does not tell your picks from the rest; a negative gap
+                means the ones you declined scored higher on it. The tool never changes a criterion or a weight from
+                this — that is card 2, and yours.
+              </Hint>
+            </div>
+          </div>
+        )}
+        {!calibration.enough && (
+          <Hint class="mt-1">
+            Decisions are the one thing the tool never writes (ADR 0047); {MIN_DECISIONS} of them, with a To interview and a
+            Declined among them, are enough for the first reading. The CSV and Markdown carry it too.
+          </Hint>
+        )}
+      </Card>
       <Hint class="mt-3">
         Created {formatRelative(screening.createdAt)}. Names are shown to you only — the model saw "Applicant №N".
         "Priority to talk to" means every gate passed; "Ask first" means one is unknown and the scorecard has the
@@ -473,6 +559,9 @@ export const ScreenDetailPage: FC<ScreenDetailProps> = ({ screening, rubric, row
 };
 
 const MAX_CRITERION_CHIPS = 40;
+/** Separation rows the calibration card lists, the widest gap first; and the gap below which a criterion reads as flat. */
+const MAX_SEPARATIONS = 8;
+const FLAT_GAP = 0.1;
 
 /** One criterion as a chip in the closed card: its words, and whether it gates, scores (with the stars) or only notes. */
 const CriterionChip: FC<{ c: Criterion }> = ({ c }) => {

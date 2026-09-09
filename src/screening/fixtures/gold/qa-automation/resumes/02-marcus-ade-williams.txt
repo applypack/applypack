@@ -1,0 +1,21 @@
+Marcus Ade-Williams
+QA Engineer | London, UK
+marcus@example.co.uk | (+44) 7700 900123 | https://github.com/madewilliams
+Born 3 March 1988 · Married · British
+
+SUMMARY
+Test engineer with three years across manual and automated testing for SaaS products.
+
+SKILLS
+Cypress, JavaScript, Postman, Jira, TestRail, SQL, Git
+
+EXPERIENCE
+QA Engineer, Monzo (Jan 2023 – Present)
+- Wrote Cypress tests for the onboarding flow
+- Triaged bugs and worked with developers on fixes
+- Ran manual regression before each release
+Junior QA, Fintech Startup Ltd (2022 – 2022)
+- Manual testing of the mobile app
+
+EDUCATION
+BSc Computer Science, University of Leeds, 2009 – 2012

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { adjustedScore, exportRows, groupRows, rowView, scoredBeforePosting } from './screen-view';
+import { adjustedScore, calibrationRows, exportRows, groupRows, rowView, scoredBeforePosting } from './screen-view';
 import type { ApplicantWithVerdict } from '../screening/store';
 
 function applicant(over: Partial<ApplicantWithVerdict> & { verdict?: ApplicantWithVerdict['verdict'] }): ApplicantWithVerdict {
@@ -127,4 +127,23 @@ test('rowView reads the stored verdict; groupRows orders by the adjusted score a
   assert.deepEqual(ex[0]!.standout, ['Speaks Polish']);
   assert.equal(ex[0]!.career, rows[0]!.verdict?.careerLine);
   assert.deepEqual([ex[3]!.standout, ex[3]!.career], [[], null], 'a stale verdict exports neither');
+});
+
+test('calibrationRows carries the table order, the computed order and every criterion', () => {
+  const rows = calibrationRows(
+    [
+      applicant({ id: 1, number: 1, verdict: verdict(70, 'pass'), scoreAdjustment: 30, decision: 'interview' }),
+      applicant({ id: 2, number: 2, verdict: verdict(90, 'pass'), decision: 'declined' }),
+      applicant({ id: 3, number: 3 }),
+    ],
+    new Date('2026-09-09T00:00:00Z'),
+  );
+  assert.deepEqual(
+    rows.map((r) => [r.number, r.position, r.computedPosition, r.decision, r.score, r.adjusted, r.credits, r.gates, r.answers.php]),
+    [
+      [1, 1, 2, 'interview', 70, 100, { php: 1 }, { g: 'pass' }, 'production'],
+      [2, 2, 1, 'declined', 90, 90, { php: 1 }, { g: 'pass' }, 'production'],
+    ],
+    'the adjusted order puts №1 first, the computed order №2; the unscored row is left out',
+  );
 });
