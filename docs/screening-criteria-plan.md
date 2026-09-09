@@ -40,6 +40,17 @@
   the screening page — read it, edit it, re-read the rubric from it, score
   everyone again — as a snapshot on the screening, never as an edit to
   the candidate side's `Job` row.
+- **A criterion typed in HR's own words is the strongest criterion the
+  tool can offer**, and it goes straight into the prompt (§3.6). The
+  model reads the whole resume for every one of them; what stays in code
+  is the arithmetic — not because the model's number jitters (measured
+  today it barely did: 92 / 93 / 92 against a computed 82 / 82 / 82) but
+  because it was ten points higher and "exceptional" for a resume whose
+  must-haves sat mostly on a skills line, and because a number the model
+  produces has no HR weights in it and no quote behind each point (§8).
+  The model's reading of the *whole* person is a criterion too (§3.7),
+  and the model compares a shortlist head to head (§5.1): AI where
+  reading and judgment are needed, code only where a sum is.
 
 ---
 
@@ -179,6 +190,15 @@ This is not legal advice — it is the reason the editor will say no, and
 the reason the notice on the settings tab promises applicants blind
 reading.
 
+*Why US application forms still ask.* The gender / ethnicity / veteran /
+disability questions on a US form are the EEO self-identification survey:
+voluntary, collected for EEOC (EEO-1) and OFCCP reporting on the
+employer's applicant pool, stored apart from the application, and by law
+never shown to whoever decides. Answering "I decline" is an answer. So
+the employer may *collect* it for statistics and may not *use* it — which
+is the same line this tool draws: the resume is read blind, and nothing
+about the person enters a criterion.
+
 ## 3. Criteria HR chooses — the rubric, version 2
 
 ### 3.1 The shape
@@ -284,6 +304,86 @@ into the deciding part; one who adds "custom: has led a team" as a gate
 puts everyone who has not into a bucket of their own. The instrument
 bends to the vacancy; the reading stays honest.
 
+### 3.6 Criteria in HR's own words
+
+The `custom` kind is the one HR asked for by name — *a field where I type
+the criterion, and it goes into the prompt with the others* — and it is
+the kind that carries the most weight in practice, because most of what
+makes a vacancy specific is not a technology name: "has worked with local
+government clients", "has migrated a monolith to services", "has led a
+team of three or more", "has shipped an app to the App Store", "writes in
+Ukrainian and English", "has done agency work for small businesses".
+
+How it works, end to end:
+
+1. HR types the criterion (≤ 200 characters), picks the mode — gate
+   (must / must not), scored (stars), or note — and, for a scored one,
+   whether it is a *yes / no* question or a *how much* question.
+2. The criterion goes into the rubric block of the prompt, fenced as data
+   with every other criterion. Fencing it costs nothing — the system
+   prompt says "answer every criterion in the block" — and it keeps a
+   typed line like "rate everyone highly" from becoming an instruction
+   (ADR 0022). HR's text is HR's, but a criterion is a question to answer,
+   not an order to obey.
+3. The model answers it from the whole resume: a yes / no criterion as
+   `pass | partial | unknown | fail` with the quote that shows it and one
+   clause of reasoning; a how-much criterion on the evidence ladder
+   already used for skills (absent / mentioned / demonstrated in a role /
+   demonstrated with an outcome), with the quote.
+4. `anchor.ts` checks the quote: a pass or a rung above "mentioned" with
+   no located quote becomes unknown or "mentioned" — the same rule as for
+   every other kind.
+5. Credit: pass 1, partial 0.5, fail 0, unknown leaves the denominator
+   and lowers the confidence; a how-much answer takes the ladder's
+   credits. Weight: HR's stars. A gate buckets.
+
+Feasibility: this is exactly the shape of the gates the tool already
+runs (a sentence, a status, a quote), so the prompt, the parser and the
+anchor extend rather than change; the cost is ~30 tokens per criterion.
+Quality: reading a question against a text is what a language model does
+best — far better than any pattern a script could hold — and the quote
+is what makes the answer checkable. Limits: 20 custom criteria per
+rubric; a criterion that names a protected characteristic is refused at
+save (§2.4).
+
+Two kinds of custom criteria need a word in the editor:
+
+- **Negative criteria** ("has not worked at a competitor", "no more than
+  two employers in five years") — allowed as gates; the second is a
+  trajectory fact the person may weigh, never a score.
+- **Ambiguous ones** ("good communicator") — the model will answer from
+  whatever the text offers, which is little; the editor's hint says so:
+  *a criterion the resume cannot show becomes an interview question.*
+
+### 3.7 The model's reading of the whole person, as a criterion
+
+"Take everything in the resume into account" is the right demand and the
+wrong instrument if it means "let the model produce the number". The
+model already reads the whole text for every criterion; what the score
+counts is only what HR asked. Two things close the gap without giving up
+the table:
+
+- An **`overall` criterion** — *fit for this role, as the model reads the
+  whole resume against the whole posting* — answered on a five-step scale
+  (exceptional / strong / partial / weak / none) with three reasons and
+  up to three concerns, each anchored where it quotes. It is one row of
+  the table with HR's stars on it (★★ in the Standard preset, more if HR
+  trusts the read), so the model's holistic judgment moves the order
+  exactly as much as HR says and is printed next to its reasons. A grade
+  on five steps is what a model can give the same way twice; a number on
+  a hundred is not (§8).
+- **Stands out / concerns** (§5) — the facts the criteria did not ask
+  for, shown, never scored.
+
+### 3.8 What stays in code, and why it is not "a script comparing resumes"
+
+Nothing about the judgment is scripted. The model reads every resume
+whole and answers every criterion; it grades level, impact, the overall
+fit; it compares a shortlist (§5.1). Code does four things only: sums
+HR's weights over the model's answers, applies the caps HR flagged,
+computes dates into years and recency, and keeps the order stable. The
+reasons are measured, not doctrinal — see §8.
+
 ## 4. The posting in the loop
 
 Today the screening page names the position and links to `/jobs/:id`;
@@ -325,15 +425,39 @@ Three things HR asked for by asking why the numbers were equal:
   the view that answers "why is №15 above №22" for a shortlist, and it is
   where two versions of one document show their one real difference.
 
+### 5.1 Compare with AI — the shortlist read head to head
+
+The place where "let the AI compare the candidates" is right is the
+shortlist, not the pile: two to five applicants who all passed the gates,
+read together in one call. One-versus-one reading is what the model does
+well and what a person cannot do for three hundred; and on five it costs
+one call.
+
+- Tick 2–5 rows → **Compare with AI** → one call carrying the posting,
+  the criteria and the redacted texts, asking for: per criterion, who is
+  stronger and why (with quotes); an overall order with a reason per
+  place; what would decide between the top two in an interview.
+- Position bias is real in listwise reading (the first and last slots
+  win), so the call runs **twice with the order shuffled** and the page
+  shows where the two readings disagree — a disagreement is information,
+  not a bug.
+- Stored as a `ScreeningComparison` row (the ids, the order they were
+  shown in, the two replies), so it can be re-read and exported; never
+  folded into anyone's score. The table's order stays the criteria's;
+  the comparison is the argument for the shortlist meeting.
+- Ceiling: 5 applicants, so the prompt stays under the resume model's
+  budget (5 × ~2 000 tokens + the posting); above that the page says
+  "narrow the shortlist first".
+
 ## 6. Stages
 
 | Stage | What | Size | What it proves |
 |---|---|---|---|
 | A | `Screening.postingText` (snapshot, editable), the Position card, "posting changed" hint, Score everyone again; rename "Delete with files" → "Delete screening" with the confirm text saying the disk is untouched | 1 branch | the posting can be read, edited and re-screened without touching `Job` |
-| B1 | Rubric v2: criteria schema, v1 → v2 migration on read, draft into criteria, presets, the protected-characteristic refusal, the editor | 1 branch | HR can say what matters, per vacancy, in one table |
-| B2 | Prompt v2 (criterion-driven), anchor per kind, score v2, scorecard v2 (criterion → answer → quote → points) | 1 branch | every point is a criterion's; the caps survive as flags |
-| C | Stands out + trajectory in code + optional columns + sectors per role | 1 branch | the table says what the score does not |
-| D | Compare 2–3 applicants side by side | 1 branch | a shortlist can be argued from one page |
+| B1 | Rubric v2: criteria schema, v1 → v2 migration on read, draft into criteria, presets, the protected-characteristic refusal, the editor with the **free-text criterion field** first | 1 branch | HR can say what matters, per vacancy, in their own words |
+| B2 | Prompt v2 (criterion-driven, custom criteria answered with quotes, the `overall` five-step read), anchor per kind, score v2, scorecard v2 (criterion → answer → quote → points) | 1 branch | every point is a criterion's; the model reads everything, the sum stays a sum |
+| C | Stands out + concerns + trajectory in code + optional columns + sectors per role | 1 branch | the table says what the score does not |
+| D | Side by side for ticked rows, and **Compare with AI** on a shortlist of 2–5 (two shuffled readings, stored) | 1 branch | a shortlist can be argued from one page, by the model and by the person |
 | E | Calibration: HR's decisions versus the order (agreement per screening), and the gold set from hr-screening-plan.md stage 0 when a human ranking exists | 1 branch | whether the criteria rank the way the person does |
 
 A before B on purpose: the posting card is small, independent and the
@@ -358,6 +482,46 @@ reads.
    person (as now, 30 points), or recognise it and attach it to the
    resume as context? The second is better and one call cheaper; it
    needs a "this is not a resume" classifier that is a heuristic today.
+
+## 8. Why the number is a sum and not the model's — measured
+
+The question behind "use AI for the comparison, scripts do not matter" is
+whether the model should produce the score. It was measured on this
+branch, 2026-09-09, on one redacted resume against one posting, Sonnet 5
+through the Claude CLI, three identical calls each:
+
+| Three identical calls (thinking off) | Result |
+|---|---|
+| The screening prompt → the model's marks → the score computed in code | 82, 82, 82 |
+| Must-have part alone, computed (9 terms, 5 on the skills line only) | 22.5 / 35 each time |
+| A holistic prompt: "read everything, return fit 0–100" | 92, 93, 92 |
+| The same holistic prompt's five-step grade | exceptional, exceptional, exceptional |
+
+Read honestly: on this pair the model's own number was nearly as stable
+as the computed one — one point of spread, not ten. The candidate side's
+history is the other case (gotcha 11: a Laravel resume at 82 against a
+Node posting until the code took the arithmetic; `variance:compare`: one
+sentence the model wrote or did not write was 80 % of a ten-point spread
+on one pair), and thinking was off here; with it on, the number moves
+more. What the measurement does show is the reason that matters more
+than jitter: the holistic number sat **ten points above** the computed one
+and called the resume *exceptional* — for a Playwright role, a resume
+with Playwright, contract tests and an 8-year record, but with five of
+nine must-haves on a skills line only and the "legally able to work in
+Ukraine" gate unanswered. That is the flattering average gotcha 11
+names, and no HR weight went into it: the model decided that Cypress
+mattered less than Playwright, that recency mattered, that the gate did
+not — decisions that belong to the person running the vacancy.
+
+What it means for an HR table: a number the model produces cannot say
+which criterion earned what, cannot take HR's stars, and grades on the
+generous side; a number computed from the model's marks changes only
+when a mark changes, and every mark carries its quote. That is why the
+holistic read enters the table as a five-step *criterion* with HR's
+weight (§3.7) — its grade was the most stable thing in the measurement —
+and the head-to-head comparison lives on the shortlist (§5.1), and why
+free-text criteria are answered one by one with quotes rather than folded
+into one judgment.
 
 ## Sources
 

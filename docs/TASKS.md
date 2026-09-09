@@ -1957,21 +1957,29 @@ A → B1+B2 → C → D → E.
       `Job`), a Position card with the text folded, Edit → "posting changed
       — re-read the rubric or Score everyone again"; "Delete with files" →
       "Delete screening" with a confirm that says the disk is untouched.
-- [ ] **B1 — rubric v2 = criteria**: kinds (skill, skillGroup, years with a
-      max, level with tolerance, industry, companyType, scale, language,
+- [ ] **B1 — rubric v2 = criteria**: a free-text criterion field first
+      (HR's own words, ≤ 200 chars, yes/no or how-much, gate / scored /
+      note, stars), then the kinds (skill, skillGroup, years with a max,
+      level with tolerance, industry, companyType, scale, language,
       location, authorization, availability, education, certification,
-      impact, custom), mode gate / scored / note, stars as weights, presets
-      (Standard, Junior hire, Senior/lead, Regulated, Agency work), the draft
-      into criteria, v1 read as v2, a refusal for protected characteristics
-      with the lawful criterion offered instead.
+      impact, overall, custom), presets (Standard, Junior hire, Senior/lead,
+      Regulated, Agency work), the draft into criteria, v1 read as v2, a
+      refusal for protected characteristics with the lawful criterion
+      offered instead (plan §3.6).
 - [ ] **B2 — prompt v2, anchor per kind, score v2, scorecard v2**: one
-      reply entry per criterion id; the three caps as flags; recency decay
-      for skills (`last_used`); verdicts from v1 read as stale.
+      reply entry per criterion id, custom criteria answered with a quote,
+      the `overall` five-step read with reasons and concerns as one weighted
+      row (plan §3.7); the three caps as flags; recency decay for skills
+      (`last_used`); verdicts from v1 read as stale. The sum stays in code
+      for the measured reason in plan §8.
 - [ ] **C — beyond the score**: "Stands out" (anchored, never scored),
       trajectory from dates in code (a fact, never a penalty), sectors and
       company type per role, optional columns.
 - [ ] **D — Compare 2–3 ticked applicants side by side**, one row per
-      criterion with the quotes.
+      criterion with the quotes; and **Compare with AI** on a shortlist of
+      2–5: two shuffled readings, per-criterion winners with quotes, an
+      order with reasons, stored as `ScreeningComparison`, never folded into
+      a score (plan §5.1).
 - [ ] **E — calibration**: HR's decisions versus the order per screening;
       the stage-0 gold set when a human ranking exists.
 
