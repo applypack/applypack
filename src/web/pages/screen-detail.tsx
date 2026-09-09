@@ -1,10 +1,24 @@
 /** @jsxImportSource hono/jsx */
 import type { FC } from 'hono/jsx';
 import { Layout } from '../layout';
-import { ActionForm, Badge, Button, Card, Checkbox, Empty, Field, FILE_INPUT_CLASS, Flash, Hint, Input, PageHeader, SectionTitle, Select, SUBMIT_ONCE, Table, Td, Textarea, Tr } from '../ui';
+import { ActionForm, Badge, Button, Card, Empty, FILE_INPUT_CLASS, Flash, Hint, Input, PageHeader, SectionTitle, Select, SUBMIT_ONCE, Table, Td, Textarea, Tr } from '../ui';
 import type { FlashMessage } from '../flash';
 import { formatDateShort, formatRelative } from '../format';
-import { DEFAULT_WEIGHTS, RUBRIC_PART_LABELS, RUBRIC_PARTS, SCREEN_LEVEL_LABELS, SCREEN_LEVELS, rubricSummary, termsToLines, type Rubric } from '../../screening/rubric';
+import {
+  criterionText,
+  CRITERION_KIND_HINTS,
+  CRITERION_KIND_LABELS,
+  CRITERION_KINDS,
+  CRITERION_MODE_LABELS,
+  CRITERION_MODES,
+  MAX_WEIGHT,
+  PRESET_HINTS,
+  PRESET_LABELS,
+  PRESETS,
+  rubricSummary,
+  type Criterion,
+  type Rubric,
+} from '../../screening/rubric';
 import { GATE_BUCKET_LABELS, type ConfidenceBand, type GateBucket } from '../../screening/score';
 import { GATE_MARK, DECISION_LABELS } from '../../screening/export';
 import { adjustedScore } from '../screen-view';
@@ -46,7 +60,8 @@ export const ScreenDetailPage: FC<ScreenDetailProps> = ({ screening, rubric, row
   const groups = groupRows(rows);
   const readable = rows.filter((r) => r.status === 'ok').length;
   const running = run?.running ?? false;
-  const rubricEmpty = rubric.gates.length === 0 && rubric.must.length === 0 && rubric.nice.length === 0;
+  const rubricEmpty = rubric.criteria.length === 0;
+  const gateLabels = rubric.criteria.filter((c) => c.mode === 'gate').map((c) => c.label);
   const scoredAny = groups.scored.length > 0;
   return (
     <Layout title={screening.title} active="screen">
@@ -141,20 +156,26 @@ export const ScreenDetailPage: FC<ScreenDetailProps> = ({ screening, rubric, row
       </Card>
 
 
-      {/* 1. The rubric — open until the first run, a one-line summary after. */}
-      <Card class="mb-4">
+      {/* 1. The criteria — open until the first run, a one-line summary after. */}
+      <Card class="mb-4" id="rubric">
         <details open={!scoredAny || rubricEmpty}>
           <summary class="cursor-pointer list-none">
             <div class="flex flex-wrap items-baseline justify-between gap-2">
               <SectionTitle>What this screen checks</SectionTitle>
               <span class="text-[13px] text-ink-faint">
-                {rubricEmpty ? 'empty — write it below' : rubricSummary(rubric)} · rubric v{screening.rubricVersion}
+                {rubricEmpty ? 'no criteria yet' : rubricSummary(rubric)} · rubric v{screening.rubricVersion}
               </span>
             </div>
           </summary>
+          <Hint class="mt-2">
+            One row per criterion. A <span class="text-ink">gate</span> buckets (pass / unknown / fail, never points), the
+            <span class="text-ink"> stars</span> weigh a scored criterion, a <span class="text-ink">note</span> is shown and
+            not counted. Rows the posting wrote say so; edit the words, change the mode, tick Remove — and add your own in
+            the last row, in your own words.
+          </Hint>
           {rubricEmpty && (
-            <div class="mt-4 flex flex-wrap items-center gap-3">
-              <Hint>The posting could not be read into a draft. Write the gates and the must-have terms yourself, or read the posting again.</Hint>
+            <div class="mt-3 flex flex-wrap items-center gap-3">
+              <Hint>The posting could not be read into a draft. Add criteria below, or read the posting again.</Hint>
               <ActionForm action={`/screen/${screening.id}/rubric/redraft`} once>
                 <Button variant="secondary" size="sm">
                   Read the posting again
@@ -162,82 +183,78 @@ export const ScreenDetailPage: FC<ScreenDetailProps> = ({ screening, rubric, row
               </ActionForm>
             </div>
           )}
-          <form method="post" action={`/screen/${screening.id}/rubric`} class="mt-4 space-y-4">
-            <div class="grid gap-4 lg:grid-cols-2">
-              <Field
-                label="Gates — pass / unknown / fail, never points"
-                hint="One per line. A failed gate puts the applicant in its own bucket; an unknown one becomes an interview question."
-              >
-                <Textarea name="gates" rows={5}>
-                  {rubric.gates.join('\n')}
-                </Textarea>
-              </Field>
-              <div class="grid gap-4 sm:grid-cols-2">
-                <Field label="Level the posting hires at">
-                  <Select name="level">
-                    <option value="" selected={rubric.level === null}>
-                      Not stated
-                    </option>
-                    {SCREEN_LEVELS.map((l) => (
-                      <option value={l} selected={rubric.level === l}>
-                        {SCREEN_LEVEL_LABELS[l]}
-                      </option>
-                    ))}
-                  </Select>
-                </Field>
-                <Field label="Minimum relevant years">
-                  <Input type="number" name="yearsMin" min="0" max="40" value={rubric.yearsMin ?? ''} placeholder="none" />
-                </Field>
-                <Field label="Sector" hint="Empty = not scored.">
-                  <Input type="text" name="domain" maxlength="120" value={rubric.domain ?? ''} placeholder="fintech, e-commerce, healthtech…" />
-                </Field>
-                <div class="flex items-end pb-1.5">
-                  <Checkbox name="educationRequired" checked={rubric.educationRequired}>
-                    A degree or certificate is required
-                  </Checkbox>
-                </div>
-              </div>
+          <form method="post" action={`/screen/${screening.id}/rubric`} class="mt-3">
+            <div class="overflow-x-auto">
+              <table class="w-full text-sm">
+                <thead>
+                  <tr class="text-left text-xs font-medium text-ink-muted">
+                    <th class="py-2 pr-2">Kind</th>
+                    <th class="py-2 pr-2">What</th>
+                    <th class="py-2 pr-2">Mode</th>
+                    <th class="py-2 pr-2">Weight</th>
+                    <th class="py-2 pr-2">From</th>
+                    <th class="py-2 text-right">Remove</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-line">
+                  {rubric.criteria.map((c) => (
+                    <CriterionRow c={c} />
+                  ))}
+                  <tr class="bg-surface-overlay/40">
+                    <td class="py-2 pr-2 align-top">
+                      <Select name="add_kind" aria-label="Kind of the new criterion" class="!py-1 text-[13px]">
+                        {CRITERION_KINDS.map((k) => (
+                          <option value={k} selected={k === 'custom'}>
+                            {CRITERION_KIND_LABELS[k]}
+                          </option>
+                        ))}
+                      </Select>
+                    </td>
+                    <td class="py-2 pr-2 align-top">
+                      <Input type="text" name="add_text" maxlength="200" placeholder="In your own words: a question the resume can answer — or a term, a band of years, a sector…" aria-label="The new criterion" class="!py-1 text-[13px]" />
+                      <div class="mt-1 text-xs text-ink-faint" id="add-hint">
+                        {CRITERION_KIND_HINTS.custom}
+                      </div>
+                      <label class="mt-1 inline-flex items-center gap-2 text-xs text-ink-muted">
+                        answered as
+                        <Select name="add_answer" aria-label="How a question in your own words is answered" class="!py-0.5 !text-xs">
+                          <option value="yesno">yes / no (pass, partial, unknown, fail)</option>
+                          <option value="howmuch">how much (the evidence ladder)</option>
+                        </Select>
+                      </label>
+                    </td>
+                    <td class="py-2 pr-2 align-top">
+                      <ModeSelect name="add_mode" value="scored" />
+                    </td>
+                    <td class="py-2 pr-2 align-top">
+                      <WeightSelect name="add_weight" value={3} />
+                    </td>
+                    <td class="py-2 pr-2 align-top text-xs text-ink-faint">you</td>
+                    <td></td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
-            <div class="grid gap-4 lg:grid-cols-3">
-              <Field label="Must-have skills" hint="One per line. Either/or alternatives on one line as A / B — counted once. Each is read at an evidence level: production, in a role, a project, a skills line, absent.">
-                <Textarea name="must" rows={6}>
-                  {termsToLines(rubric.must)}
-                </Textarea>
-              </Field>
-              <Field label="Core stack" hint="The 2–5 must-haves the day-to-day code is written in. None of them anywhere in a resume caps its score at 30.">
-                <Textarea name="core" rows={6}>
-                  {rubric.must.filter((t) => t.primary).map((t) => t.term).join('\n')}
-                </Textarea>
-              </Field>
-              <Field label="Nice-to-have skills" hint="Worth 5 points together by default; A / B is one either/or line here too.">
-                <Textarea name="nice" rows={6}>
-                  {termsToLines(rubric.nice)}
-                </Textarea>
-              </Field>
-            </div>
-            <details class="rounded-md border border-line bg-surface-overlay/50 px-3.5 py-2.5">
-              <summary class="cursor-pointer text-[13px] font-medium text-ink">Weights — how the 100 points split</summary>
-              <div class="mt-3 grid gap-3 sm:grid-cols-4 lg:grid-cols-7">
-                {RUBRIC_PARTS.map((p) => (
-                  <Field label={RUBRIC_PART_LABELS[p]}>
-                    <Input type="number" name={`weight_${p}`} min="0" max="100" value={rubric.weights[p]} />
-                  </Field>
-                ))}
-              </div>
-              <Hint class="mt-2">
-                Relative, so they need not sum to 100 (the defaults do: {RUBRIC_PARTS.map((p) => DEFAULT_WEIGHTS[p]).join(' / ')}).
-                A part the posting gives nothing to compare — no level, no sector, no education — weighs nothing,
-                whatever its number.
-              </Hint>
-            </details>
-            <div class="flex flex-wrap items-center gap-3">
-              <Button>Save the rubric</Button>
+            <div class="mt-3 flex flex-wrap items-center gap-3">
+              <Button>Save the criteria</Button>
               <Hint>
                 A change to the yardstick makes every stored score stale — the table says so and "Score" reads
-                everyone again.
+                everyone again. A criterion naming age, gender, family, origin or health is refused, with the lawful
+                criterion offered instead.
               </Hint>
             </div>
           </form>
+          <div class="mt-4 flex flex-wrap items-center gap-2 border-t border-line pt-3">
+            <span class="text-[13px] text-ink-faint">Start over from a shape of hiring:</span>
+            {PRESETS.map((p) => (
+              <ActionForm action={`/screen/${screening.id}/rubric/preset`} hidden={{ preset: p }} once>
+                <Button variant="secondary" size="sm" title={PRESET_HINTS[p]}>
+                  {PRESET_LABELS[p]}
+                </Button>
+              </ActionForm>
+            ))}
+            <Hint>Re-reads the posting, applies the shape, keeps your own rows; every stored score turns stale.</Hint>
+          </div>
         </details>
       </Card>
 
@@ -369,7 +386,7 @@ export const ScreenDetailPage: FC<ScreenDetailProps> = ({ screening, rubric, row
                 <>
                   <GroupRow tone={BUCKET_TONE[bucket]} label={GATE_BUCKET_LABELS[bucket]} count={group.length} />
                   {group.map((r) => (
-                    <ApplicantRow r={r} screeningId={screening.id} gates={rubric.gates} run={run} />
+                    <ApplicantRow r={r} screeningId={screening.id} gates={gateLabels} run={run} />
                   ))}
                 </>
               );
@@ -378,7 +395,7 @@ export const ScreenDetailPage: FC<ScreenDetailProps> = ({ screening, rubric, row
               <>
                 <GroupRow tone="neutral" label={running ? 'Being scored' : 'Not scored yet'} count={groups.pending.length} />
                 {groups.pending.map((r) => (
-                  <ApplicantRow r={r} screeningId={screening.id} gates={rubric.gates} run={run} />
+                  <ApplicantRow r={r} screeningId={screening.id} gates={gateLabels} run={run} />
                 ))}
               </>
             )}
@@ -386,7 +403,7 @@ export const ScreenDetailPage: FC<ScreenDetailProps> = ({ screening, rubric, row
               <>
                 <GroupRow tone="neutral" label="Could not be screened" count={groups.unread.length} />
                 {groups.unread.map((r) => (
-                  <ApplicantRow r={r} screeningId={screening.id} gates={rubric.gates} run={run} />
+                  <ApplicantRow r={r} screeningId={screening.id} gates={gateLabels} run={run} />
                 ))}
               </>
             )}
@@ -415,6 +432,67 @@ export const ScreenDetailPage: FC<ScreenDetailProps> = ({ screening, rubric, row
         dangerouslySetInnerHTML={{ __html: "import { init } from '/static/screen.mjs'; init();" }}
       />
     </Layout>
+  );
+};
+
+const ModeSelect: FC<{ name: string; value: Criterion['mode'] }> = ({ name, value }) => (
+  <Select name={name} aria-label="Mode" class="!py-1 text-[13px]">
+    {CRITERION_MODES.map((m) => (
+      <option value={m} selected={m === value}>
+        {CRITERION_MODE_LABELS[m].split(' — ')[0]}
+      </option>
+    ))}
+  </Select>
+);
+
+const WeightSelect: FC<{ name: string; value: number }> = ({ name, value }) => (
+  <Select name={name} aria-label="Weight" class="!py-1 text-[13px]">
+    {Array.from({ length: MAX_WEIGHT }, (_, i) => i + 1).map((w) => (
+      <option value={w} selected={w === value}>
+        {'★'.repeat(w)}
+        {'☆'.repeat(MAX_WEIGHT - w)}
+      </option>
+    ))}
+  </Select>
+);
+
+/** One criterion as the editor shows it: the kind, the words, the mode, the stars, where it came from. */
+const CriterionRow: FC<{ c: Criterion }> = ({ c }) => {
+  const fixed = c.kind === 'impact' || c.kind === 'overall';
+  return (
+    <tr>
+      <td class="py-2 pr-2 align-top whitespace-nowrap text-[13px] text-ink">{CRITERION_KIND_LABELS[c.kind]}</td>
+      <td class="py-2 pr-2 align-top">
+        {fixed ? (
+          <span class="text-[13px] text-ink-muted">{c.label}</span>
+        ) : (
+          <Input type="text" name={`text_${c.id}`} value={criterionText(c)} maxlength="200" aria-label={`${CRITERION_KIND_LABELS[c.kind]} criterion`} title={CRITERION_KIND_HINTS[c.kind]} class="!py-1 text-[13px]" />
+        )}
+        {c.kind === 'custom' && (
+          <label class="mt-1 inline-flex items-center gap-2 text-xs text-ink-muted">
+            answered as
+            <Select name={`answer_${c.id}`} aria-label="How this question is answered" class="!py-0.5 !text-xs">
+              <option value="yesno" selected={c.spec.answer === 'yesno'}>
+                yes / no
+              </option>
+              <option value="howmuch" selected={c.spec.answer === 'howmuch'}>
+                how much
+              </option>
+            </Select>
+          </label>
+        )}
+      </td>
+      <td class="py-2 pr-2 align-top">
+        <ModeSelect name={`mode_${c.id}`} value={c.mode} />
+      </td>
+      <td class="py-2 pr-2 align-top">
+        <WeightSelect name={`weight_${c.id}`} value={c.weight} />
+      </td>
+      <td class="py-2 pr-2 align-top text-xs text-ink-faint">{c.source === 'posting' ? 'the posting' : 'you'}</td>
+      <td class="py-2 text-right align-top">
+        <input type="checkbox" name={`remove_${c.id}`} value="1" aria-label={`Remove ${c.label}`} class="h-4 w-4 accent-accent" />
+      </td>
+    </tr>
   );
 };
 

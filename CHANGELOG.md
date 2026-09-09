@@ -4,6 +4,39 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.2.0] — 2026-09-09
+
+### Added
+- **Criteria in your own words** (ADR 0050, stages B1 + B2 of
+  docs/screening-criteria-plan.md). The screening rubric is now a list of
+  criteria: a kind (skill, years, level, industry, company type, language,
+  location, work permit, availability, education, certification, scale,
+  impact, the overall read, or *in my own words*), a mode (a gate that
+  buckets, stars that score, a note that only shows) and one text field
+  per row — "Playwright / Cypress !", "0–2 years", "fintech, payments: 3+",
+  "has led a team of three or more". The posting drafts the first list;
+  five presets (Standard, Junior hire, Senior / lead, Regulated, Agency
+  work) bend it; your own rows survive a redraft, and a row you removed
+  stays removed. A criterion naming age, gender, family, origin or health
+  is refused with the lawful criterion offered instead.
+- **One answer per criterion, with its quote.** The model answers each
+  criterion in the shape its kind asks — a rung on the evidence ladder, a
+  pass / partial / unknown / fail, a level, an impact grade, the overall
+  five-step read with reasons and concerns — and the anchor guard checks
+  every quote. Years, years in a sector and company type are read off the
+  dated roles in code; a skill's `last_used` beyond the row's window earns
+  half. The scorecard is one row per criterion: what was asked, how the
+  text answered, the quote, the points.
+- The score is Σ stars × answer over the criteria the text could answer;
+  the caps stay (no core skill → 30, two levels under → 50, duties only →
+  60). Measured before this: the model's own 0–100 fit was 92 / 93 / 92
+  against a computed 82 / 82 / 82 — stable, ten points more generous —
+  which is why the overall read is one weighted row and not the number.
+
+### Changed
+- A v1 rubric (2.0.0 / 2.1.0) is converted to criteria on read; verdicts
+  from before read as stale and are scored again on the next run.
+
 ## [2.1.0] — 2026-09-09
 
 ### Added
@@ -3140,6 +3173,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.2.0]: https://github.com/applypack/applypack/compare/v2.1.0...v2.2.0
 [2.1.0]: https://github.com/applypack/applypack/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/applypack/applypack/compare/v1.76.0...v2.0.0
 [1.76.0]: https://github.com/applypack/applypack/compare/v1.75.0...v1.76.0

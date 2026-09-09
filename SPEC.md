@@ -566,12 +566,14 @@ screening; scoring starts on upload and the run drains whoever is added
 meanwhile. Ticked rows take one bulk action: a decision, score again, delete.
 
 Scoring is one independent call per readable applicant without a verdict
-under the current rubric version, `AI_CONCURRENCY` at a time, through
-`askForJson` with `buildScreenPrompt`; every `ScreeningVerdict` is written
-as it arrives (`facts`, `breakdown`, `score`, `confidence`, `gateBucket`,
-model and prompt version), so a restart resumes. `screening/anchor.ts`
-checks every quote against the redacted text before `screening/score.ts`
-computes the number (ADR 0047). The table orders bucket → score →
+under the current rubric version, `AI_CONCURRENCY` at a time, through `askForJson` with `buildScreenPrompt` (one answer per criterion:
+a rung, a status, a level, an impact grade or the overall read, each with
+a quote; years, sectors and company types from the dated roles); every
+`ScreeningVerdict` is written as it arrives (`facts`, `breakdown` with one
+row per criterion, `score`, `confidence`, `gateBucket`, model and prompt
+version), so a restart resumes. `screening/anchor.ts` checks every quote
+against the redacted text before `screening/score.ts` sums stars × answer
+(ADR 0050). The table orders bucket → score →
 confidence; CSV and Markdown export the same rows. A screening is deleted
 with its files on `retainUntil` (`screeningRetentionDays`, default 90) by
 the cleanup cron, or at once from its page.

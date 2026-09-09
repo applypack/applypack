@@ -5,9 +5,9 @@ import { ActionForm, Badge, Button, Card, Flash, Hint, Input, PageHeader, Select
 import type { FlashMessage } from '../flash';
 import { formatDate } from '../format';
 import { formatRange, parseRange } from '../../screening/dates';
-import { RUBRIC_PART_LABELS, RUBRIC_PARTS, type Rubric } from '../../screening/rubric';
-import { EVIDENCE_RUNG_LABELS, type ScreenReply } from '../../screening/prompts';
-import { capExplanation, GATE_BUCKET_LABELS, type ScreenBreakdown } from '../../screening/score';
+import { CRITERION_KIND_LABELS, EVIDENCE_RUNG_LABELS, type EvidenceRung, type Rubric } from '../../screening/rubric';
+import type { ScreenReply } from '../../screening/prompts';
+import { capExplanation, GATE_BUCKET_LABELS, type ScoreRow, type ScreenBreakdown } from '../../screening/score';
 import { describeRedactions, type Redaction } from '../../screening/redact';
 import { DECISION_LABELS, GATE_MARK, MAX_ADJUSTMENT } from '../../screening/export';
 import { adjustedScore } from '../screen-view';
@@ -53,7 +53,39 @@ export interface ScreenApplicantProps {
   flash?: FlashMessage | null;
 }
 
-const RUNG_TONE = { absent: 'danger', listed: 'warn', project: 'neutral', role: 'ok', production: 'ok' } as const;
+const RUNG_TONE: Record<EvidenceRung, 'danger' | 'warn' | 'neutral' | 'ok'> = { absent: 'danger', listed: 'warn', project: 'neutral', role: 'ok', production: 'ok' };
+const STATUS_TONE: Record<string, 'danger' | 'warn' | 'neutral' | 'ok'> = { pass: 'ok', partial: 'neutral', unknown: 'warn', fail: 'danger', strong: 'ok', ok: 'neutral', weak: 'danger', exceptional: 'ok', none: 'danger' };
+
+/** One criterion on the scorecard: what was asked, how the text answered, the quote, the points. */
+/** The badge's word for a rung — the long label is the tooltip. */
+const RUNG_SHORT: Record<EvidenceRung, string> = { absent: 'absent', listed: 'skills list', project: 'project', role: 'in a role', production: 'production' };
+
+const CriterionAnswerRow: FC<{ r: ScoreRow }> = ({ r }) => {
+  const answerLabel = (RUNG_SHORT as Record<string, string>)[r.answer] ?? r.answer;
+  const answerTitle = (EVIDENCE_RUNG_LABELS as Record<string, string>)[r.answer];
+  const tone = r.mode === 'gate' && r.gate ? STATUS_TONE[r.gate] : (STATUS_TONE[r.answer] ?? 'neutral');
+  return (
+    <Tr>
+      <Td class="align-top">
+        <div class="text-ink">{r.label}</div>
+        <div class="text-xs text-ink-faint">
+          {CRITERION_KIND_LABELS[r.kind as keyof typeof CRITERION_KIND_LABELS] ?? r.kind} · {r.mode === 'gate' ? 'gate' : r.mode === 'note' ? 'note' : `${'★'.repeat(r.weight)}`}
+        </div>
+      </Td>
+      <Td class="align-top">
+        <span title={answerTitle}>
+          <Badge tone={tone ?? 'neutral'}>{r.mode === 'gate' ? `${GATE_MARK[r.gate ?? 'unknown']} ${r.gate ?? 'unknown'}` : answerLabel}</Badge>
+        </span>
+      </Td>
+      <Td class="align-top text-ink-muted">
+        {r.quote ? <q class="text-ink">{r.quote}</q> : null}
+        {r.detail && <div class={`text-xs ${r.quote ? 'mt-1' : ''} text-ink-faint`}>{r.detail}</div>}
+        {!r.quote && !r.detail && '—'}
+      </Td>
+      <Td class="whitespace-nowrap text-right align-top tabular-nums">{r.mode === 'scored' ? (r.max === 0 ? '—' : `${r.pts} / ${r.max}`) : ''}</Td>
+    </Tr>
+  );
+};
 
 export const ScreenApplicantPage: FC<ScreenApplicantProps> = ({ screening, applicant, rubric, reply, breakdown, stale, model, scoredAt, now, flash }) => {
   const title = `№${applicant.number}${applicant.name ? ` — ${applicant.name}` : ''}`;
@@ -134,63 +166,23 @@ export const ScreenApplicantPage: FC<ScreenApplicantProps> = ({ screening, appli
               )}
             </Card>
 
-            {rubric.gates.length > 0 && (
-              <Card flush>
-                <Table columns={['Gate', 'Status', 'Evidence or question']} widths={['w-[32%]', 'w-[12%]', 'w-[56%]']}>
-                  {reply.gates.map((g) => (
-                    <Tr>
-                      <Td class="text-ink">{g.gate}</Td>
-                      <Td>
-                        <span class={`font-mono ${g.status === 'pass' ? 'text-ok' : g.status === 'fail' ? 'text-danger' : 'text-warn'}`}>
-                          {GATE_MARK[g.status]} {g.status}
-                        </span>
-                      </Td>
-                      <Td class="text-ink-muted">
-                        {g.quote ? <q class="text-ink">{g.quote}</q> : g.question ? `Ask: ${g.question}` : '—'}
-                      </Td>
-                    </Tr>
-                  ))}
-                </Table>
-              </Card>
-            )}
-
-            {(['must', 'nice'] as const).map((kind) =>
-              reply[kind].length === 0 ? null : (
-                <Card flush>
-                  <Table
-                    columns={[kind === 'must' ? 'Must-have' : 'Nice-to-have', 'Evidence', 'Where it shows', 'Last used']}
-                    widths={['w-[22%]', 'w-[18%]', 'w-[44%]', 'w-[16%]']}
-                    hideBelow={['', '', 'sm', 'md']}
-                  >
-                    {reply[kind].map((t) => {
-                      const term = rubric[kind].find((x) => x.term.toLowerCase() === t.term.toLowerCase());
-                      return (
-                        <Tr>
-                          <Td class="text-ink">
-                            {t.term}
-                            {term?.primary && (
-                              <Badge tone="info" class="ml-1.5">
-                                core
-                              </Badge>
-                            )}
-                          </Td>
-                          <Td>
-                            <Badge tone={RUNG_TONE[t.level]}>{EVIDENCE_RUNG_LABELS[t.level]}</Badge>
-                          </Td>
-                          <Td class="text-ink-muted">{t.quote ? <q class="text-ink">{t.quote}</q> : '—'}</Td>
-                          <Td class="text-ink-faint">{t.last_used ?? ''}</Td>
-                        </Tr>
-                      );
-                    })}
-                  </Table>
-                </Card>
-              ),
-            )}
+            <Card flush>
+              <Table
+                columns={['Criterion', 'Answer', 'What the resume says', 'Points']}
+                widths={['w-[24%]', 'w-[17%]', 'w-[47%]', 'w-[12%]']}
+                hideBelow={['', '', 'sm', '']}
+                thClasses={['', '', '', 'text-right']}
+              >
+                {breakdown.rows.map((r) => (
+                  <CriterionAnswerRow r={r} />
+                ))}
+              </Table>
+            </Card>
 
             <Card>
-              <h2 class="text-sm font-semibold text-ink">Relevant experience</h2>
+              <h2 class="text-sm font-semibold text-ink">Roles as the text gives them</h2>
               {reply.roles.length === 0 ? (
-                <Hint class="mt-1">No roles with dates the text carries — the years part was left out of the score.</Hint>
+                <Hint class="mt-1">No roles with dates the text carries — years, sectors and company types were left out of the score.</Hint>
               ) : (
                 <ul class="mt-2 space-y-1.5 text-sm">
                   {reply.roles.map((r) => {
@@ -202,45 +194,17 @@ export const ScreenApplicantPage: FC<ScreenApplicantProps> = ({ screening, appli
                         <span class="tabular-nums text-ink-faint">
                           {range ? formatRange(range, now) : [r.start, r.end].filter(Boolean).join(' – ') || 'no dates'}
                         </span>
+                        {(r.sector || r.companyType) && (
+                          <span class="text-ink-faint">
+                            · {[r.sector, r.companyType].filter(Boolean).join(', ')}
+                          </span>
+                        )}
                         <span class="text-ink-faint">— {r.relevant ? r.why : `not counted: ${r.why}`}</span>
                       </li>
                     );
                   })}
                 </ul>
               )}
-              <dl class="mt-4 grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
-                <div>
-                  <dt class="text-ink-faint">Level the text shows</dt>
-                  <dd class="text-ink">
-                    {reply.level.observed ?? 'too little to say'}
-                    {reply.level.signals.map((s) => (
-                      <q class="block text-ink-muted">{s}</q>
-                    ))}
-                  </dd>
-                </div>
-                <div>
-                  <dt class="text-ink-faint">Impact evidence</dt>
-                  <dd class="text-ink">
-                    {reply.impact.grade}
-                    {reply.impact.quotes.map((s) => (
-                      <q class="block text-ink-muted">{s}</q>
-                    ))}
-                  </dd>
-                </div>
-                <div>
-                  <dt class="text-ink-faint">Sector</dt>
-                  <dd class="text-ink">
-                    {reply.domain.grade}
-                    {reply.domain.why ? ` — ${reply.domain.why}` : ''}
-                  </dd>
-                </div>
-                <div>
-                  <dt class="text-ink-faint">Education</dt>
-                  <dd class="text-ink">
-                    {rubric.educationRequired ? `${reply.education.status}${reply.education.note ? ` — ${reply.education.note}` : ''}` : 'not required by the posting'}
-                  </dd>
-                </div>
-              </dl>
             </Card>
 
             <Card>
@@ -293,20 +257,20 @@ export const ScreenApplicantPage: FC<ScreenApplicantProps> = ({ screening, appli
               <h2 class="text-sm font-semibold text-ink">How the score was made</h2>
               <table class="mt-2 w-full text-sm">
                 <tbody class="divide-y divide-line">
-                  {RUBRIC_PARTS.map((p) => {
-                    const part = breakdown.parts[p];
-                    return (
-                      <tr class={part.max === 0 ? 'text-ink-faint' : ''}>
+                  {breakdown.rows
+                    .filter((r) => r.mode === 'scored')
+                    .map((r) => (
+                      <tr class={r.max === 0 ? 'text-ink-faint' : ''}>
                         <td class="py-1.5 pr-2 align-top">
-                          <div class="text-ink">{RUBRIC_PART_LABELS[p]}</div>
-                          <div class="text-xs text-ink-faint">{part.detail}</div>
+                          <div class="text-ink">{r.label}</div>
+                          <div class="text-xs text-ink-faint">
+                            {r.answer}
+                            {r.max === 0 ? ' — not counted' : ''}
+                          </div>
                         </td>
-                        <td class="py-1.5 text-right align-top tabular-nums">
-                          {part.max === 0 ? '—' : `${part.pts} / ${part.max}`}
-                        </td>
+                        <td class="py-1.5 text-right align-top tabular-nums">{r.max === 0 ? '—' : `${r.pts} / ${r.max}`}</td>
                       </tr>
-                    );
-                  })}
+                    ))}
                   <tr class="font-medium text-ink">
                     <td class="py-1.5 pr-2">Score{breakdown.cap !== null ? ' (capped)' : ''}</td>
                     <td class="py-1.5 text-right tabular-nums">{breakdown.score}</td>
@@ -315,8 +279,8 @@ export const ScreenApplicantPage: FC<ScreenApplicantProps> = ({ screening, appli
               </table>
               {capExplanation(breakdown) && <p class="mt-2 text-[13px] text-warn">{capExplanation(breakdown)}</p>}
               <Hint class="mt-2">
-                Points are the model's marks × the rubric's weights, normalised over the parts the text could answer
-                ({breakdown.weightTotal} of the weight counted). Confidence {breakdown.confidence.band}:{' '}
+                Points are the answers × your stars, over the criteria the text could answer ({breakdown.weightTotal}{' '}
+                star{breakdown.weightTotal === 1 ? '' : 's'} counted). Confidence {breakdown.confidence.band}:{' '}
                 {breakdown.confidence.answered} of {breakdown.confidence.total} criteria answered
                 {breakdown.confidence.thin ? ', and the text is short' : ''}.
               </Hint>

@@ -1,7 +1,23 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { BriefSchema } from '../resume/prompts';
-import { activeWeights, draftRubric, emptyRubric, levelFromBrief, linesOf, readRubric, rubricEquals, rubricFromForm, rubricSummary, termsOf, termsToLines } from './rubric';
+import {
+  applyPreset,
+  coreCriteria,
+  criterionText,
+  draftRubric,
+  emptyRubric,
+  levelFromBrief,
+  parseCriterionText,
+  protectedCharacteristic,
+  readRubric,
+  rubricEquals,
+  rubricFromForm,
+  rubricSummary,
+  RUBRIC_VERSION,
+  type Criterion,
+  type CriterionKind,
+} from './rubric';
 
 const BRIEF = BriefSchema.parse({
   role: { posted_title: 'Senior Java Developer', family: 'backend engineering', seniority: 'senior', years_min: 5, focus: '' },
@@ -16,94 +32,162 @@ const BRIEF = BriefSchema.parse({
     { term: 'RabbitMQ', priority: 3, requirement: 'preferred', primary: false, aliases: [], group: 'message broker' },
     { term: 'agile', priority: 4, requirement: 'context', primary: false, aliases: [], group: null },
     { term: 'Senior Java Developer', priority: 2, requirement: 'must', primary: false, aliases: [], group: null },
+    { term: 'Java Developer', priority: 2, requirement: 'must', primary: false, aliases: [], group: null },
     { term: 'fintech', priority: 4, requirement: 'nice', primary: false, aliases: [], group: null },
   ],
-  gates: ['at least 5 years of backend development', 'EU work authorisation', 'BSc in Computer Science or equivalent'],
+  gates: ['at least 5 years of backend development', 'EU work authorisation', "Bachelor's degree in Computer Science or equivalent", 'German at B2 or higher', 'on-site in Berlin or remote within Germany'],
 });
 
-test('draftRubric takes the frame from the brief', () => {
+const byKind = (r: { criteria: Criterion[] }, kind: CriterionKind) => r.criteria.filter((c) => c.kind === kind);
+
+test('draftRubric turns the brief into criteria under the kinds their wording names', () => {
   const r = draftRubric(BRIEF);
-  assert.equal(r.level, 'senior');
-  assert.equal(r.yearsMin, 5);
-  assert.equal(r.domain, 'fintech');
-  assert.deepEqual(r.gates, BRIEF.gates);
-  assert.deepEqual(r.must.map((t) => t.term), ['Java', 'Spring Boot', 'PostgreSQL']);
-  assert.deepEqual(r.must.map((t) => t.primary), [true, true, false]);
-  assert.deepEqual(r.nice.map((t) => t.term), ['Kafka', 'RabbitMQ'], 'context terms, the posted title and the sector are not skills');
-  assert.equal(r.nice[0]?.group, 'message broker');
-  assert.equal(r.educationRequired, true, 'a degree gate makes education count');
+  assert.equal(r.version, RUBRIC_VERSION);
+  assert.deepEqual(byKind(r, 'years').map((c) => [c.label, c.mode, c.spec.min, c.spec.max]), [['at least 5 years of backend development', 'gate', 5, null]], 'the years gate, once — the brief\'s years_min is not repeated');
+  assert.deepEqual(byKind(r, 'authorization').map((c) => c.mode), ['gate']);
+  assert.deepEqual(byKind(r, 'education').map((c) => c.mode), ['gate']);
+  assert.deepEqual(byKind(r, 'language').map((c) => c.label), ['German at B2 or higher']);
+  assert.deepEqual(byKind(r, 'location').map((c) => [c.label, c.spec.remoteOk]), [['on-site in Berlin or remote within Germany', true]]);
+  const skills = byKind(r, 'skill');
+  assert.deepEqual(skills.map((c) => [criterionText(c), c.weight, c.spec.core]), [
+    ['Java !', 3, true],
+    ['Spring Boot !', 3, true],
+    ['PostgreSQL', 3, false],
+    ['Kafka / RabbitMQ', 1, false],
+  ], 'the posted title, a fragment of it and the sector are not skills; an either/or group is one criterion; "Java" inside the title is');
+  assert.deepEqual(skills[0]!.spec.terms[0]!.aliases, ['java 17']);
+  assert.deepEqual(byKind(r, 'level').map((c) => [c.spec.wanted, c.spec.tolerance]), [['senior', 'one']]);
+  assert.deepEqual(byKind(r, 'industry').map((c) => c.spec.items), [['fintech']]);
+  assert.equal(byKind(r, 'impact').length, 1);
+  assert.equal(byKind(r, 'overall').length, 1);
+  assert.ok(r.criteria.every((c) => c.source === 'posting'));
   assert.deepEqual(draftRubric(null), emptyRubric());
 });
 
-test('levelFromBrief folds the brief vocabulary to four rungs', () => {
+test('a redraft keeps the person\'s own criteria and does not resurrect what they removed', () => {
+  const first = draftRubric(BRIEF);
+  const form: Record<string, string> = {};
+  for (const c of first.criteria) {
+    form[`text_${c.id}`] = criterionText(c);
+    form[`mode_${c.id}`] = c.mode;
+    form[`weight_${c.id}`] = String(c.weight);
+  }
+  form[`remove_${byKind(first, 'language')[0]!.id}`] = '1';
+  form.add_kind = 'custom';
+  form.add_text = 'has led a team of three or more';
+  form.add_mode = 'gate';
+  const edited = rubricFromForm(form, first);
+  assert.ok('rubric' in edited, JSON.stringify(edited));
+  const r = edited.rubric;
+  assert.deepEqual(r.removed, ['German at B2 or higher']);
+  assert.equal(byKind(r, 'language').length, 0);
+  const mine = byKind(r, 'custom').find((c) => c.source === 'you')!;
+  assert.equal(mine.label, 'has led a team of three or more');
+  assert.equal(mine.mode, 'gate');
+  const again = draftRubric(BRIEF, r);
+  assert.equal(byKind(again, 'language').length, 0, 'removed stays removed');
+  assert.ok(again.criteria.some((c) => c.id === mine.id), 'my own criterion survives the redraft');
+});
+
+test('the text grammar round-trips every kind', () => {
+  const cases: [CriterionKind, string, string][] = [
+    ['skill', 'Playwright / Cypress !', 'Playwright / Cypress !'],
+    ['skill', 'TypeScript', 'TypeScript'],
+    ['years', '5+: test automation', '5+: test automation'],
+    ['years', '0–2', '0–2'],
+    ['years', '3-5', '3–5'],
+    ['level', 'junior or below', 'junior or below'],
+    ['level', 'senior or above', 'senior or above'],
+    ['level', 'mid exactly', 'mid exactly'],
+    ['level', 'lead', 'lead'],
+    ['industry', 'fintech, payments: 3+', 'fintech, payments: 3+'],
+    ['industry', 'e-commerce', 'e-commerce'],
+    ['companyType', 'agency, consultancy', 'agency, consultancy'],
+    ['language', 'English B2', 'English B2'],
+    ['location', 'Kyiv or remote', 'Kyiv or remote'],
+    ['authorization', 'Ukraine', 'Ukraine'],
+    ['availability', 'within 4 weeks', 'within 4 weeks'],
+    ['education', 'bachelor: computer science, software engineering', 'bachelor: computer science, software engineering'],
+    ['certification', 'ISTQB, AWS SAA', 'ISTQB, AWS SAA'],
+    ['scale', 'team of 5+', 'team of 5+'],
+    ['custom', 'has shipped an app to a store', 'has shipped an app to a store'],
+    ['impact', '', ''],
+    ['overall', '', ''],
+  ];
+  for (const [kind, input, expected] of cases) {
+    const parsed = parseCriterionText(kind, input);
+    assert.ok(parsed, `${kind}: ${input}`);
+    const c: Criterion = { id: 'x', kind, label: parsed.label, mode: 'scored', weight: 3, source: 'you', spec: parsed.spec };
+    assert.equal(criterionText(c), expected, `${kind}: ${input}`);
+  }
+  assert.equal(parseCriterionText('years', 'five'), null);
+  assert.equal(parseCriterionText('level', 'guru'), null);
+  assert.equal(parseCriterionText('skill', '  '), null);
+  const band = parseCriterionText('years', '8–3')!;
+  assert.deepEqual([band.spec.min, band.spec.max], [3, 3], 'a band upside down is clamped');
+});
+
+test('protectedCharacteristic refuses the wish and names the lawful criterion', () => {
+  assert.match(protectedCharacteristic({ kind: 'custom', label: 'under 30 years old' })!, /0–2 years/);
+  assert.match(protectedCharacteristic({ kind: 'custom', label: 'дівчина' })!, /read blind/);
+  assert.match(protectedCharacteristic({ kind: 'custom', label: 'no children' })!, /availability/);
+  assert.match(protectedCharacteristic({ kind: 'custom', label: 'Ukrainian citizen' })!, /work permit/);
+  assert.equal(protectedCharacteristic({ kind: 'custom', label: 'has led a team of three or more' }), null);
+  assert.equal(protectedCharacteristic({ kind: 'authorization', label: 'Ukrainian citizenship or a work permit' }), null, 'the kind is lawful by construction');
+  assert.equal(protectedCharacteristic({ kind: 'custom', label: 'a healthy test pyramid' }), null, 'a word inside a phrase is not the person');
+  const refused = rubricFromForm({ add_kind: 'custom', add_text: 'must be a woman' }, emptyRubric());
+  assert.ok('error' in refused && /read blind/.test(refused.error));
+});
+
+test('presets bend the draft to a shape of hiring', () => {
+  const base = draftRubric(BRIEF);
+  const junior = applyPreset(base, 'junior');
+  assert.deepEqual(byKind(junior, 'years').map((c) => [c.mode, c.spec.min, c.spec.max]), [['gate', 0, 2]]);
+  assert.deepEqual(byKind(junior, 'level').map((c) => [c.spec.wanted, c.spec.tolerance]), [['junior', 'atMost']]);
+  assert.ok(byKind(junior, 'skill').every((c) => c.spec.minRung === 'project'));
+  assert.equal(byKind(junior, 'impact')[0]!.weight, 1);
+  const senior = applyPreset(base, 'senior');
+  assert.deepEqual(byKind(senior, 'level').map((c) => [c.spec.wanted, c.spec.tolerance]), [['senior', 'atLeast']]);
+  assert.equal(byKind(senior, 'impact')[0]!.weight, 3);
+  assert.equal(byKind(senior, 'scale').length, 1);
+  const regulated = applyPreset(base, 'regulated');
+  assert.ok(byKind(regulated, 'education').every((c) => c.mode === 'gate'));
+  assert.equal(byKind(regulated, 'certification').length, 1);
+  const agency = applyPreset(base, 'agency');
+  assert.deepEqual(byKind(agency, 'companyType').map((c) => [c.weight, c.spec.items]), [[4, ['agency', 'consultancy']]]);
+  assert.equal(byKind(agency, 'industry')[0]!.weight, 4);
+  assert.ok(rubricEquals(applyPreset(base, 'standard'), base));
+});
+
+test('readRubric converts a v1 rubric on read', () => {
+  const v1 = {
+    level: 'senior',
+    yearsMin: 5,
+    gates: ['Legally able to work in Ukraine'],
+    must: [{ term: 'Playwright', primary: true, aliases: [], group: 'E2E' }, { term: 'Cypress', primary: true, aliases: [], group: 'E2E' }, { term: 'SQL', primary: false, aliases: [], group: null }],
+    nice: [{ term: 'k6', primary: false, aliases: [], group: null }],
+    domain: 'fintech',
+    educationRequired: true,
+    weights: { must: 35, years: 15, level: 15, impact: 15, domain: 10, nice: 5, education: 5 },
+  };
+  const r = readRubric(v1);
+  assert.equal(r.version, RUBRIC_VERSION);
+  assert.deepEqual(byKind(r, 'custom').map((c) => [c.label, c.mode]), [['Legally able to work in Ukraine', 'gate']]);
+  assert.deepEqual(byKind(r, 'skill').map((c) => [criterionText(c), c.weight]), [['Playwright / Cypress !', 3], ['SQL', 3], ['k6', 1]]);
+  assert.equal(byKind(r, 'education')[0]!.mode, 'gate');
+  assert.deepEqual(coreCriteria(r).map((c) => criterionText(c)), ['Playwright / Cypress !']);
+  assert.deepEqual(readRubric({ nonsense: true }), emptyRubric());
+  assert.deepEqual(readRubric(r), r, 'a v2 rubric reads back as itself');
+});
+
+test('rubricEquals, rubricSummary, levelFromBrief', () => {
+  const r = draftRubric(BRIEF);
+  assert.ok(rubricEquals(r, readRubric(JSON.parse(JSON.stringify(r)))));
+  const heavier = { ...r, criteria: r.criteria.map((c) => (c.kind === 'industry' ? { ...c, weight: 5 } : c)) };
+  assert.ok(!rubricEquals(r, heavier), 'a weight is part of the yardstick');
+  const renamed = { ...r, criteria: r.criteria.map((c) => ({ ...c, id: `${c.id}x` })) };
+  assert.ok(rubricEquals(r, renamed), 'ids are not');
+  assert.equal(rubricSummary(r), '5 gates · 8 scored');
   assert.equal(levelFromBrief('staff'), 'lead');
-  assert.equal(levelFromBrief('Senior'), 'senior');
-  assert.equal(levelFromBrief('mid-level'), 'mid');
-  assert.equal(levelFromBrief('entry'), 'junior');
   assert.equal(levelFromBrief(null), null);
-  assert.equal(levelFromBrief('experienced'), null);
-});
-
-test('rubricFromForm reads the editor and keeps aliases of unchanged terms', () => {
-  const previous = draftRubric(BRIEF);
-  const r = rubricFromForm(
-    {
-      level: 'mid',
-      yearsMin: '3',
-      gates: 'EU work authorisation\n\nGerman B2\nEU work authorisation',
-      must: 'Java\nKotlin, PostgreSQL',
-      core: 'java',
-      nice: 'Kafka / RabbitMQ\nRedis',
-      domain: '',
-      educationRequired: 'on',
-      weight_must: '40',
-      weight_years: 'abc',
-    },
-    previous,
-  );
-  assert.equal(r.level, 'mid');
-  assert.equal(r.yearsMin, 3);
-  assert.deepEqual(r.gates, ['EU work authorisation', 'German B2'], 'blank and duplicate lines dropped');
-  assert.deepEqual(r.must.map((t) => t.term), ['Java', 'Kotlin', 'PostgreSQL']);
-  assert.deepEqual(r.must.map((t) => t.primary), [true, false, false], 'core stack from its own field');
-  assert.deepEqual(r.must[0]?.aliases, ['java 17'], 'aliases survive when the spelling matches');
-  assert.deepEqual(r.must[1]?.aliases, [], 'a new term has none');
-  assert.deepEqual(r.nice.map((t) => [t.term, t.group]), [['Kafka', 'Kafka / RabbitMQ'], ['RabbitMQ', 'Kafka / RabbitMQ'], ['Redis', null]], 'an A / B line is one group');
-  assert.equal(r.domain, null);
-  assert.equal(r.educationRequired, true);
-  assert.equal(r.weights.must, 40);
-  assert.equal(r.weights.years, 15, 'a non-number keeps the previous weight');
-});
-
-test('rubricEquals ignores nothing that changes the yardstick', () => {
-  const a = draftRubric(BRIEF);
-  assert.ok(rubricEquals(a, readRubric(JSON.parse(JSON.stringify(a)))));
-  assert.ok(!rubricEquals(a, { ...a, yearsMin: 4 }));
-  assert.ok(!rubricEquals(a, { ...a, gates: a.gates.slice(1) }));
-});
-
-test('activeWeights zeroes what the rubric cannot compare', () => {
-  const w = activeWeights({ ...emptyRubric(), level: null, domain: null, educationRequired: false });
-  assert.equal(w.level, 0);
-  assert.equal(w.domain, 0);
-  assert.equal(w.education, 0);
-  assert.equal(w.must, 0, 'no terms, no must-have part');
-  assert.equal(w.impact, 15);
-});
-
-test('termsToLines writes a group on one line and rubricFromForm reads it back', () => {
-  const drafted = draftRubric(BRIEF);
-  assert.equal(termsToLines(drafted.nice), 'Kafka / RabbitMQ');
-  const back = rubricFromForm(
-    { gates: drafted.gates.join('\n'), must: termsToLines(drafted.must), nice: termsToLines(drafted.nice), core: 'Java, Spring Boot', level: 'senior', yearsMin: '5', domain: 'fintech', educationRequired: 'on' },
-    drafted,
-  );
-  assert.ok(rubricEquals(back, { ...drafted, nice: drafted.nice.map((t) => ({ ...t, group: 'Kafka / RabbitMQ' })) }), 'a round trip keeps everything but renames the group to its line');
-});
-
-test('rubricSummary, linesOf, termsOf', () => {
-  assert.equal(rubricSummary(draftRubric(BRIEF)), '3 gates · 3 must-have · 2 nice-to-have · senior · 5+ years · fintech · education required');
-  assert.deepEqual(linesOf(' a \nA\n\nb'), ['a', 'b']);
-  assert.deepEqual(termsOf('React, Vue; Node.js\nTypeScript'), ['React', 'Vue', 'Node.js', 'TypeScript']);
-  assert.deepEqual(termsOf(42), []);
 });

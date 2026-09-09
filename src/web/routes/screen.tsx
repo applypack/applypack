@@ -12,7 +12,7 @@ import { createManualJob, MAX_FIELD_CHARS, MIN_DESCRIPTION_CHARS } from '../../j
 import { briefForPosting, briefLine } from '../../resume/brief';
 import { ResumeTextError } from '../../resume/docx-text';
 import { extractResumeText } from '../../resume/resume-text';
-import { draftRubric, readRubric, rubricEquals, rubricFromForm, rubricSummary } from '../../screening/rubric';
+import { applyPreset, draftRubric, PRESETS, rubricEquals, rubricFromForm, rubricSummary, type Preset } from '../../screening/rubric';
 import { displayName, expandUploads, findDuplicate, fingerprintText, MAX_APPLICANTS_PER_SCREENING, MAX_BATCH_UPLOAD_MB } from '../../screening/intake';
 import { findLeaks, readRedactions, redactApplicant } from '../../screening/redact';
 import { readScreenReply } from '../../screening/prompts';
@@ -173,6 +173,7 @@ async function startRubricDraft(
   jobId: number,
   jobTitle: string,
   heading: string,
+  preset: Preset = 'standard',
 ): Promise<Response> {
   const { run, joined } = claimRun(`screen-rubric:${screeningId}`, {
     steps: ['brief'],
@@ -202,15 +203,15 @@ async function startRubricDraft(
       });
       return;
     }
-    const rubric = draftRubric(briefed.brief);
     const current = rubricOf(screening);
+    const rubric = applyPreset(draftRubric(briefed.brief, current), preset);
     // The first draft keeps version 1; a redraft over an edited rubric is a new yardstick.
-    await saveRubric(screeningId, rubric, !rubricEquals(current, draftRubric(null)) && !rubricEquals(current, rubric));
+    await saveRubric(screeningId, rubric, current.criteria.length > 0 && !rubricEquals(current, rubric));
     updateRun(run.id, {
       results: { brief: briefed.reused ? `Reused this posting's reading — ${briefLine(briefed.brief)}` : briefLine(briefed.brief) },
       stage: 'done',
       resultUrl: `/screen/${screeningId}`,
-      flash: `Rubric drafted from the posting: ${rubricSummary(rubric)}. Check it, then add the applicants.`,
+      flash: `Criteria drafted from the posting${preset === 'standard' ? '' : ` as a ${preset} hire`}: ${rubricSummary(rubric)}. Check them, then add the applicants.`,
     });
   });
   return c.redirect(`/target/runs/${run.id}`, 303);
@@ -319,15 +320,17 @@ screenRoute.post('/screen/:id/rubric', async (c) => {
   const screening = await loadScreening(idParam(c.req.param('id')));
   if (!screening) return flashRedirect('/screen', 'err', 'That screening no longer exists.');
   const previous = rubricOf(screening);
-  const next = rubricFromForm(await c.req.parseBody(), previous);
+  const parsed = rubricFromForm(await c.req.parseBody(), previous);
+  if ('error' in parsed) return flashRedirect(`/screen/${screening.id}#rubric`, 'err', parsed.error);
+  const next = parsed.rubric;
   const changed = !rubricEquals(previous, next);
   await saveRubric(screening.id, next, changed);
   return flashRedirect(
-    `/screen/${screening.id}`,
+    `/screen/${screening.id}#rubric`,
     'ok',
     changed
-      ? `Rubric saved as v${screening.rubricVersion + 1}: ${rubricSummary(next)}. Stored scores are about the old yardstick — press Score to read everyone again.`
-      : 'Rubric unchanged.',
+      ? `Criteria saved as rubric v${screening.rubricVersion + 1}: ${rubricSummary(next)}. Stored scores are about the old yardstick — press Score to read everyone again.`
+      : 'Criteria unchanged.',
   );
 });
 
@@ -335,6 +338,15 @@ screenRoute.post('/screen/:id/rubric/redraft', async (c) => {
   const screening = await loadScreening(idParam(c.req.param('id')));
   if (!screening) return flashRedirect('/screen', 'err', 'That screening no longer exists.');
   return startRubricDraft(c, screening.id, screening.job.id, screening.job.title, 'Reading the posting again');
+});
+
+/** A preset: the posting read again, bent to a shape of hiring; the person's own rows survive. */
+screenRoute.post('/screen/:id/rubric/preset', async (c) => {
+  const screening = await loadScreening(idParam(c.req.param('id')));
+  if (!screening) return flashRedirect('/screen', 'err', 'That screening no longer exists.');
+  const form = await c.req.parseBody();
+  const preset = typeof form.preset === 'string' && (PRESETS as readonly string[]).includes(form.preset) ? (form.preset as Preset) : 'standard';
+  return startRubricDraft(c, screening.id, screening.job.id, screening.job.title, 'Reading the posting again', preset);
 });
 
 const batchUploadLimit = (id: string) =>
@@ -418,7 +430,7 @@ screenRoute.post('/screen/:id/applicants', (c, next) => batchUploadLimit(c.req.p
 
   // Scoring starts by itself: the person picked the files, and the run
   // drains, so files added while it works join the same run.
-  const rubricEmpty = rubricOf(screening).must.length === 0 && rubricOf(screening).gates.length === 0;
+  const rubricEmpty = rubricOf(screening).criteria.length === 0;
   const started = ok > 0 && !rubricEmpty ? await startScreeningRun(screening.id) : null;
 
   const parts = [`${ok} applicant${ok === 1 ? '' : 's'} added`];
@@ -434,7 +446,7 @@ screenRoute.post('/screen/:id/applicants', (c, next) => batchUploadLimit(c.req.p
     started?.kind === 'started' || started?.kind === 'joined'
       ? ' Scoring has started; the page updates itself.'
       : ok > 0 && rubricEmpty
-        ? ' Write the rubric above, then press Score.'
+        ? ' Add criteria above, then press Score.'
         : '';
   return flashRedirect(`${back}#results`, leaked > 0 || unreadable > 0 ? 'warn' : 'ok', `${parts.join('; ')}.${tail}`);
 });
@@ -617,7 +629,7 @@ async function exportData(id: number) {
     title: screening.title,
     jobTitle: screening.job.title,
     companyName: screening.job.company.name,
-    gates: rubricOf(screening).gates,
+    gates: rubricOf(screening).criteria.filter((x) => x.mode === 'gate').map((x) => x.label),
     createdAt: screening.createdAt,
   };
   return { meta, rows, slug: screening.title.replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-|-$/g, '').slice(0, 60) || 'screening' };
