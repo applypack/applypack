@@ -57,8 +57,12 @@ const RUNG_TONE: Record<EvidenceRung, 'danger' | 'warn' | 'neutral' | 'ok'> = { 
 const STATUS_TONE: Record<string, 'danger' | 'warn' | 'neutral' | 'ok'> = { pass: 'ok', partial: 'neutral', unknown: 'warn', fail: 'danger', strong: 'ok', ok: 'neutral', weak: 'danger', exceptional: 'ok', none: 'danger' };
 
 /** One criterion on the scorecard: what was asked, how the text answered, the quote, the points. */
+/** The badge's word for a rung — the long label is the tooltip. */
+const RUNG_SHORT: Record<EvidenceRung, string> = { absent: 'absent', listed: 'skills list', project: 'project', role: 'in a role', production: 'production' };
+
 const CriterionAnswerRow: FC<{ r: ScoreRow }> = ({ r }) => {
-  const answerLabel = (EVIDENCE_RUNG_LABELS as Record<string, string>)[r.answer] ?? r.answer;
+  const answerLabel = (RUNG_SHORT as Record<string, string>)[r.answer] ?? r.answer;
+  const answerTitle = (EVIDENCE_RUNG_LABELS as Record<string, string>)[r.answer];
   const tone = r.mode === 'gate' && r.gate ? STATUS_TONE[r.gate] : (STATUS_TONE[r.answer] ?? 'neutral');
   return (
     <Tr>
@@ -69,7 +73,9 @@ const CriterionAnswerRow: FC<{ r: ScoreRow }> = ({ r }) => {
         </div>
       </Td>
       <Td class="align-top">
-        <Badge tone={tone ?? 'neutral'}>{r.mode === 'gate' ? `${GATE_MARK[r.gate ?? 'unknown']} ${r.gate ?? 'unknown'}` : answerLabel}</Badge>
+        <span title={answerTitle}>
+          <Badge tone={tone ?? 'neutral'}>{r.mode === 'gate' ? `${GATE_MARK[r.gate ?? 'unknown']} ${r.gate ?? 'unknown'}` : answerLabel}</Badge>
+        </span>
       </Td>
       <Td class="align-top text-ink-muted">
         {r.quote ? <q class="text-ink">{r.quote}</q> : null}
@@ -163,7 +169,7 @@ export const ScreenApplicantPage: FC<ScreenApplicantProps> = ({ screening, appli
             <Card flush>
               <Table
                 columns={['Criterion', 'Answer', 'What the resume says', 'Points']}
-                widths={['w-[26%]', 'w-[14%]', 'w-[48%]', 'w-[12%]']}
+                widths={['w-[24%]', 'w-[17%]', 'w-[47%]', 'w-[12%]']}
                 hideBelow={['', '', 'sm', '']}
                 thClasses={['', '', '', 'text-right']}
               >
