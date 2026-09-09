@@ -1,0 +1,396 @@
+{
+  "version": 2,
+  "criteria": [
+    {
+      "id": "auth-gold0",
+      "kind": "authorization",
+      "label": "Legally able to work in Ukraine",
+      "mode": "gate",
+      "weight": 3,
+      "source": "posting",
+      "spec": {
+        "terms": [],
+        "core": false,
+        "minRung": "listed",
+        "recentWithinMonths": null,
+        "of": null,
+        "min": null,
+        "max": null,
+        "wanted": null,
+        "tolerance": "one",
+        "items": [
+          "Legally able to work in Ukraine"
+        ],
+        "remoteOk": false,
+        "level": "Legally able to work in Ukraine",
+        "question": null,
+        "answer": "yesno"
+      }
+    },
+    {
+      "id": "lang-gold1",
+      "kind": "language",
+      "label": "English B2",
+      "mode": "gate",
+      "weight": 3,
+      "source": "posting",
+      "spec": {
+        "terms": [],
+        "core": false,
+        "minRung": "listed",
+        "recentWithinMonths": null,
+        "of": null,
+        "min": null,
+        "max": null,
+        "wanted": null,
+        "tolerance": "one",
+        "items": [
+          "English B2"
+        ],
+        "remoteOk": false,
+        "level": "English B2",
+        "question": null,
+        "answer": "yesno"
+      }
+    },
+    {
+      "id": "year-gold2",
+      "kind": "years",
+      "label": "5+",
+      "mode": "gate",
+      "weight": 3,
+      "source": "posting",
+      "spec": {
+        "terms": [],
+        "core": false,
+        "minRung": "listed",
+        "recentWithinMonths": null,
+        "of": null,
+        "min": 5,
+        "max": null,
+        "wanted": null,
+        "tolerance": "one",
+        "items": [],
+        "remoteOk": false,
+        "level": null,
+        "question": null,
+        "answer": "yesno"
+      }
+    },
+    {
+      "id": "skil-gold3",
+      "kind": "skill",
+      "label": "Playwright / Cypress !",
+      "mode": "scored",
+      "weight": 5,
+      "source": "posting",
+      "spec": {
+        "terms": [
+          {
+            "term": "Playwright",
+            "aliases": []
+          },
+          {
+            "term": "Cypress",
+            "aliases": []
+          }
+        ],
+        "core": true,
+        "minRung": "listed",
+        "recentWithinMonths": null,
+        "of": null,
+        "min": null,
+        "max": null,
+        "wanted": null,
+        "tolerance": "one",
+        "items": [],
+        "remoteOk": false,
+        "level": null,
+        "question": null,
+        "answer": "yesno"
+      }
+    },
+    {
+      "id": "skil-gold4",
+      "kind": "skill",
+      "label": "TypeScript !",
+      "mode": "scored",
+      "weight": 5,
+      "source": "posting",
+      "spec": {
+        "terms": [
+          {
+            "term": "TypeScript",
+            "aliases": []
+          }
+        ],
+        "core": true,
+        "minRung": "listed",
+        "recentWithinMonths": null,
+        "of": null,
+        "min": null,
+        "max": null,
+        "wanted": null,
+        "tolerance": "one",
+        "items": [],
+        "remoteOk": false,
+        "level": null,
+        "question": null,
+        "answer": "yesno"
+      }
+    },
+    {
+      "id": "skil-gold5",
+      "kind": "skill",
+      "label": "REST APIs",
+      "mode": "scored",
+      "weight": 3,
+      "source": "posting",
+      "spec": {
+        "terms": [
+          {
+            "term": "REST APIs",
+            "aliases": []
+          }
+        ],
+        "core": false,
+        "minRung": "listed",
+        "recentWithinMonths": null,
+        "of": null,
+        "min": null,
+        "max": null,
+        "wanted": null,
+        "tolerance": "one",
+        "items": [],
+        "remoteOk": false,
+        "level": null,
+        "question": null,
+        "answer": "yesno"
+      }
+    },
+    {
+      "id": "skil-gold6",
+      "kind": "skill",
+      "label": "contract tests",
+      "mode": "scored",
+      "weight": 3,
+      "source": "posting",
+      "spec": {
+        "terms": [
+          {
+            "term": "contract tests",
+            "aliases": []
+          }
+        ],
+        "core": false,
+        "minRung": "listed",
+        "recentWithinMonths": null,
+        "of": null,
+        "min": null,
+        "max": null,
+        "wanted": null,
+        "tolerance": "one",
+        "items": [],
+        "remoteOk": false,
+        "level": null,
+        "question": null,
+        "answer": "yesno"
+      }
+    },
+    {
+      "id": "skil-gold7",
+      "kind": "skill",
+      "label": "GitLab CI / Jenkins",
+      "mode": "scored",
+      "weight": 2,
+      "source": "posting",
+      "spec": {
+        "terms": [
+          {
+            "term": "GitLab CI",
+            "aliases": []
+          },
+          {
+            "term": "Jenkins",
+            "aliases": []
+          }
+        ],
+        "core": false,
+        "minRung": "listed",
+        "recentWithinMonths": null,
+        "of": null,
+        "min": null,
+        "max": null,
+        "wanted": null,
+        "tolerance": "one",
+        "items": [],
+        "remoteOk": false,
+        "level": null,
+        "question": null,
+        "answer": "yesno"
+      }
+    },
+    {
+      "id": "skil-gold8",
+      "kind": "skill",
+      "label": "k6 / JMeter",
+      "mode": "scored",
+      "weight": 2,
+      "source": "posting",
+      "spec": {
+        "terms": [
+          {
+            "term": "k6",
+            "aliases": []
+          },
+          {
+            "term": "JMeter",
+            "aliases": []
+          }
+        ],
+        "core": false,
+        "minRung": "listed",
+        "recentWithinMonths": null,
+        "of": null,
+        "min": null,
+        "max": null,
+        "wanted": null,
+        "tolerance": "one",
+        "items": [],
+        "remoteOk": false,
+        "level": null,
+        "question": null,
+        "answer": "yesno"
+      }
+    },
+    {
+      "id": "skil-gold9",
+      "kind": "skill",
+      "label": "Docker",
+      "mode": "scored",
+      "weight": 1,
+      "source": "posting",
+      "spec": {
+        "terms": [
+          {
+            "term": "Docker",
+            "aliases": []
+          }
+        ],
+        "core": false,
+        "minRung": "listed",
+        "recentWithinMonths": null,
+        "of": null,
+        "min": null,
+        "max": null,
+        "wanted": null,
+        "tolerance": "one",
+        "items": [],
+        "remoteOk": false,
+        "level": null,
+        "question": null,
+        "answer": "yesno"
+      }
+    },
+    {
+      "id": "leve-gold10",
+      "kind": "level",
+      "label": "senior",
+      "mode": "scored",
+      "weight": 2,
+      "source": "posting",
+      "spec": {
+        "terms": [],
+        "core": false,
+        "minRung": "listed",
+        "recentWithinMonths": null,
+        "of": null,
+        "min": null,
+        "max": null,
+        "wanted": "senior",
+        "tolerance": "one",
+        "items": [],
+        "remoteOk": false,
+        "level": null,
+        "question": null,
+        "answer": "yesno"
+      }
+    },
+    {
+      "id": "indu-gold11",
+      "kind": "industry",
+      "label": "fintech, payments",
+      "mode": "scored",
+      "weight": 2,
+      "source": "posting",
+      "spec": {
+        "terms": [],
+        "core": false,
+        "minRung": "listed",
+        "recentWithinMonths": null,
+        "of": null,
+        "min": null,
+        "max": null,
+        "wanted": null,
+        "tolerance": "one",
+        "items": [
+          "fintech",
+          "payments"
+        ],
+        "remoteOk": false,
+        "level": null,
+        "question": null,
+        "answer": "yesno"
+      }
+    },
+    {
+      "id": "impa-gold12",
+      "kind": "impact",
+      "label": "outcomes, not duties",
+      "mode": "scored",
+      "weight": 2,
+      "source": "posting",
+      "spec": {
+        "terms": [],
+        "core": false,
+        "minRung": "listed",
+        "recentWithinMonths": null,
+        "of": null,
+        "min": null,
+        "max": null,
+        "wanted": null,
+        "tolerance": "one",
+        "items": [],
+        "remoteOk": false,
+        "level": null,
+        "question": null,
+        "answer": "yesno"
+      }
+    },
+    {
+      "id": "over-gold13",
+      "kind": "overall",
+      "label": "the whole resume against the whole posting",
+      "mode": "scored",
+      "weight": 2,
+      "source": "posting",
+      "spec": {
+        "terms": [],
+        "core": false,
+        "minRung": "listed",
+        "recentWithinMonths": null,
+        "of": null,
+        "min": null,
+        "max": null,
+        "wanted": null,
+        "tolerance": "one",
+        "items": [],
+        "remoteOk": false,
+        "level": null,
+        "question": null,
+        "answer": "yesno"
+      }
+    }
+  ],
+  "removed": []
+}

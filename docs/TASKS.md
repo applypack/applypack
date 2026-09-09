@@ -1895,8 +1895,10 @@ needs a human-ranked set nobody has yet, so its leak test and stability
 checks became unit tests and the calibration stays open.
 
 **Stage 0 — `screen-bench` (no UI)**
-- [ ] A gold set of 3 postings × ~30 resumes ranked by a human; `npm run bench:screen`.
-- [ ] Metrics: Kendall τ to the human order, precision@5, gate confusion
+- [ ] A gold set of 3 postings × ~30 resumes ranked by a human — the harness
+      exists (`npm run bench:screen`, v2.5.0, a synthetic starter set); the
+      ranked resumes do not.
+- [x] Metrics: Kendall τ to the human order, precision@5, gate confusion
       matrix, run-to-run stability, the tailoring test (a resume tailored
       with §18's loop and no new facts scores the same).
 - [x] The redaction-leak test — `screening/redact.test.ts` over a Ukrainian,
@@ -1945,7 +1947,7 @@ checks became unit tests and the calibration stays open.
 - [ ] Top-10 comparative tie-break with shuffled order; calibration
       report; Batch API for the API engines.
 
-### 19.5 Criteria HR chooses, the posting in the loop (analysis 2026-09-09; A–D shipped, E open)
+### 19.5 Criteria HR chooses, the posting in the loop (analysis 2026-09-09; A–E shipped)
 
 The first real use (22 versions of one resume against one posting; 21 of
 them with the same vocabulary) asked for three things. The analysis is
@@ -1988,8 +1990,13 @@ A → B1+B2 → C → D → E.
       stored as `ScreeningComparison`, exported as Markdown, never folded
       into a score. "Shuffled" became "reversed": with two readings the
       reverse is the one permutation that swaps both slots the bias lives in.
-- [ ] **E — calibration**: HR's decisions versus the order per screening;
-      the stage-0 gold set when a human ranking exists.
+- [x] **E — calibration** (v2.5.0, ADR 0052): the person's decisions held
+      against the table's order per screening — concordant pairs, the top k,
+      the surprises with the criteria behind them, per-criterion gaps — on
+      the screening page and in the Markdown; `npm run bench:screen` over a
+      gold folder (τ, precision@5, stability between runs, leaks, tailoring
+      pairs, gate confusion). Never re-weights by itself. The recruiter-ranked
+      set (§19.4 q5) is still the owner's.
 
 ### 19.4 Open questions for the owner
 

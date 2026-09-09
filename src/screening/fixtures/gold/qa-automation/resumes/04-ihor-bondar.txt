@@ -1,0 +1,16 @@
+Ігор Бондар
+Full Stack Developer
+Львів · +380 50 987 65 43 · ihor.bondar@ukr.net · t.me/ihorb · Вік: 27
+
+НАВИЧКИ
+React, Node.js, TypeScript, PostgreSQL, Docker, Jest, Playwright
+
+ДОСВІД
+Full Stack Developer, N-iX — 2022 – по теперішній час
+- Розробка React-інтерфейсів і Node.js API для e-commerce клієнта
+- Написав e2e-тести на Playwright для основних сценаріїв оформлення замовлення
+Junior Developer, SoftServe — 2020 – 2022
+- Підтримка React-компонентів
+
+ОСВІТА
+ЛНУ ім. Франка, бакалавр прикладної математики, 2016 – 2020

@@ -1,0 +1,28 @@
+Senior QA Automation Engineer (Playwright / TypeScript)
+
+Kyiv or remote within Ukraine. Full-time.
+
+We are a fintech company building a payments platform used by 300 merchants. The QA team owns the end-to-end and API test suites for a 40-service backend and a React front end.
+
+What you will do
+- Own the Playwright end-to-end suite and the API test layer for the payments platform
+- Design the test strategy for new features with the engineering leads
+- Keep the CI pipeline (GitLab CI) fast and reliable
+- Mentor two mid-level QA engineers
+
+Requirements
+- 5+ years in test automation for web applications
+- Strong Playwright or Cypress with TypeScript
+- Experience testing REST APIs (Postman, contract tests)
+- CI/CD experience with GitLab CI or Jenkins
+- SQL for test data and verification
+- English B2 or higher; Ukrainian
+- Must be legally able to work in Ukraine
+
+Nice to have
+- Performance testing (k6, JMeter)
+- Docker and Kubernetes basics
+- Experience in fintech or payments
+- ISTQB certification
+
+We offer a senior role with ownership of quality across the platform, 24 days of paid leave and a learning budget.

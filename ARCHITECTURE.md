@@ -196,6 +196,8 @@ src/
     trajectory.ts              ← pure: the career read off the dated roles (years, employers, average stay, sectors) — a fact, never points
     comparison.ts              ← pure: a shortlist's two readings — stored shape, the anchor, where they differ, the Markdown (ADR 0051)
     compare.ts                 ← Compare with AI: two calls at once (the second reversed), both stored as one ScreeningComparison
+    calibration.ts             ← pure: the person's decisions against the table's order — pairs, top k, surprises, per-criterion gaps (ADR 0052)
+    bench.ts                   ← pure: Kendall τ, precision@k, stability, gate confusion for the gold-set bench (scripts/screen-bench-once.ts)
     intake.ts                  ← pure: zip expansion, duplicate detection, the caps
     export.ts                  ← pure: CSV / Markdown of the table
     notice.ts                  ← the applicant notice and the legal note, as text

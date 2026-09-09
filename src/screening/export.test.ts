@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { toCsv, toMarkdown, type ExportRow, type ExportScreening } from './export';
+import { ordinal, toCsv, toMarkdown, type ExportRow, type ExportScreening } from './export';
+import type { Calibration } from './calibration';
 
 const SCREENING: ExportScreening = {
   title: 'Senior Java — September',
@@ -87,4 +88,21 @@ test('toMarkdown groups by bucket and lists the unread files', () => {
   assert.match(md, /- Which level of German\?/);
   assert.match(md, /## Not screened \(1\)\n\n- №5 scan\.pdf: no text layer/);
   assert.ok(!md.includes('## Ask first'), 'an empty bucket has no section');
+});
+
+test('toMarkdown adds the decisions section only when the calibration has enough to say', () => {
+  const cal: Calibration = {
+    total: 6,
+    decided: { interview: 2, hold: 1, declined: 2 },
+    enough: true,
+    pairs: { concordant: 5, discordant: 3, fixedByAdjustment: 0 },
+    agreement: 0.63,
+    top: { k: 2, hit: 1 },
+    surprises: [{ number: 4, position: 4, total: 6, decision: 'interview', why: ['EU work permit: unknown', 'PHP: skills list'] }],
+    separations: [],
+  };
+  const md = toMarkdown(SCREENING, ROWS, cal);
+  assert.match(md, /## Your decisions against the order\n\n1 of your 2 To interview sit in the table's top 2; the table orders 63% of your pairs the way you decided \(5 of 8\)\.\n\n- №4: To interview, 4th of 6 in the table — EU work permit: unknown · PHP: skills list/);
+  assert.ok(!toMarkdown(SCREENING, ROWS, { ...cal, enough: false }).includes('## Your decisions'));
+  assert.deepEqual([1, 2, 3, 4, 11, 12, 13, 21, 22, 101].map(ordinal), ['st', 'nd', 'rd', 'th', 'th', 'th', 'th', 'st', 'nd', 'st']);
 });

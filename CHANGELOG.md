@@ -4,6 +4,27 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.5.0] — 2026-09-09
+
+### Added
+- **Calibration — your decisions against the order** (stage E of
+  docs/screening-criteria-plan.md §9, ADR 0052). A fifth card on the
+  screening page, once three decisions with a To interview and a Declined
+  among them exist: how many of your k interview picks sit in the table's
+  top k; what share of the pairs you decided differently the table orders
+  the same way, with the counts, and how many only after your adjustments;
+  the surprises — an interview pick the table put low, a declined
+  applicant it put high — each with the criteria behind the placing; and
+  per scored criterion the mean credit among the interviewed against the
+  declined, the widest gap first, flat ones greyed. The Markdown export
+  carries the same section. The tool never re-weights from it.
+- **`npm run bench:screen`**: a gold folder (posting, `rubric.json`,
+  resumes, `ranking.txt`) through the exact redact → prompt → anchor →
+  score path with nothing written — Kendall τ and precision@5 against the
+  human's order, score movement between runs, the redaction leak check,
+  tailoring pairs, gate confusion from an `expected.json`.
+  `src/screening/fixtures/gold/qa-automation` is a synthetic starter set.
+
 ## [2.4.0] — 2026-09-09
 
 ### Added
@@ -3244,6 +3265,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.5.0]: https://github.com/applypack/applypack/compare/v2.4.0...v2.5.0
 [2.4.0]: https://github.com/applypack/applypack/compare/v2.3.0...v2.4.0
 [2.3.0]: https://github.com/applypack/applypack/compare/v2.2.0...v2.3.0
 [2.2.0]: https://github.com/applypack/applypack/compare/v2.1.0...v2.2.0

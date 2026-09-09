@@ -59,6 +59,7 @@ const KNOWN_CALL_SITES: Record<string, string> = {
   'screening/batch.ts': 'buildScreenPrompt',
   'screening/compare.ts': 'buildComparePrompt',
   'scripts/resume-bench-once.ts': 'bench harness, reuses buildMatchPrompt',
+  'scripts/screen-bench-once.ts': 'bench harness, reuses buildScreenPrompt',
   'web/ai-test.ts': 'engine connectivity test — a fixed literal, no outside text',
 };
 
