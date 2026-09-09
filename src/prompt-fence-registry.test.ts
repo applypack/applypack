@@ -9,6 +9,7 @@ import * as prefilterMod from './classifier-prefilter';
 import * as extractMod from './jobs/posting-extract';
 import * as resumeMod from './resume/prompts';
 import * as verifyMod from './verification/prompts';
+import * as screenMod from './screening/prompts';
 import { fenceClose, fenceOpen } from './prompt-fence';
 
 /*
@@ -30,6 +31,7 @@ const PROMPT_MODULES: Record<string, Record<string, unknown>> = {
   'jobs/posting-extract.ts': extractMod,
   'resume/prompts.ts': resumeMod,
   'verification/prompts.ts': verifyMod,
+  'screening/prompts.ts': screenMod,
 };
 
 /**
@@ -53,6 +55,7 @@ const KNOWN_CALL_SITES: Record<string, string> = {
   'resume/review.ts': 'buildReviewPrompt',
   'resume/cover-letter.ts': 'buildCoverPrompt',
   'verification/verify.ts': 'buildVerifyPrompt',
+  'screening/batch.ts': 'buildScreenPrompt',
   'scripts/resume-bench-once.ts': 'bench harness, reuses buildMatchPrompt',
   'web/ai-test.ts': 'engine connectivity test — a fixed literal, no outside text',
 };
@@ -237,6 +240,35 @@ const CASES: Record<string, Case> = {
       ['JOB POSTING', DESC],
       ['MATCH ANALYSIS', 'MATCH-NEEDLE'],
       ['COMPANY FACTS', 'SNAPSHOT-NEEDLE'],
+    ],
+  },
+  buildScreenPrompt: {
+    build: () =>
+      screenMod.buildScreenPrompt({
+        rubric: {
+          level: 'senior',
+          yearsMin: 5,
+          gates: ['GATE-NEEDLE'],
+          must: [{ term: 'RUBRICKW-NEEDLE', primary: true, aliases: ['ALIAS-NEEDLE'], group: null }],
+          nice: [],
+          domain: 'DOMAIN-NEEDLE',
+          educationRequired: false,
+          weights: { must: 35, years: 15, level: 15, impact: 15, domain: 10, nice: 5, education: 5 },
+        },
+        job: JOB,
+        applicantText: RESUME,
+        number: 7,
+      }),
+    fenced: [
+      ['APPLICANT RESUME', RESUME],
+      ['JOB POSTING', DESC],
+      ['JOB POSTING', 'TITLE-NEEDLE'],
+      ['JOB POSTING', 'COMPANY-NEEDLE'],
+      // Tier 2: drafted from the posting's brief, edited by the person — still fenced as data.
+      ['SCREENING RUBRIC', 'GATE-NEEDLE'],
+      ['SCREENING RUBRIC', 'RUBRICKW-NEEDLE'],
+      ['SCREENING RUBRIC', 'ALIAS-NEEDLE'],
+      ['SCREENING RUBRIC', 'DOMAIN-NEEDLE'],
     ],
   },
   buildVerifyPrompt: {
