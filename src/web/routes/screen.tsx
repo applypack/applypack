@@ -276,8 +276,9 @@ screenRoute.get('/screen/:id', async (c) => {
 screenRoute.get('/screen/:id/state', async (c) => {
   const id = idParam(c.req.param('id'));
   const run = screeningRun(id);
-  if (!run) return c.json({ running: false, done: 0, failed: 0, total: 0 });
-  return c.json({ running: run.running, done: run.done, failed: run.failed, total: run.total, lastError: run.lastError });
+  if (!run) return c.json({ running: false, done: 0, failed: 0, total: 0, queued: [], inFlight: [], finished: [] });
+  const { screeningId: _id, startedAt: _s, finishedAt: _f, ...view } = run;
+  return c.json(view);
 });
 
 screenRoute.post('/screen/:id/rubric', async (c) => {
@@ -431,12 +432,14 @@ screenRoute.post('/screen/:id/applicants/bulk', async (c) => {
       const outcome = await startScreeningRun(screening.id, { again: ids });
       return flashRedirect(
         back,
-        outcome.kind === 'joined' ? 'warn' : 'ok',
+        'ok',
         outcome.kind === 'joined'
-          ? 'A run is already in flight — press Score again when it ends.'
+          ? outcome.queued === 0
+            ? 'The checked applicants are already in the running scoring — each row says where it is.'
+            : `${outcome.queued} applicant${outcome.queued === 1 ? '' : 's'} queued behind the scoring already running; each row says where it is.`
           : outcome.kind === 'nothing'
             ? 'None of the checked applicants can be scored (unreadable files).'
-            : `Scoring ${plural} again; the page updates itself.`,
+            : `Scoring ${plural} again — each row says where it is, and the page updates itself.`,
       );
     }
     default: {
@@ -482,7 +485,7 @@ screenRoute.post('/screen/:id/run', async (c) => {
     case 'nothing':
       return flashRedirect(back, 'ok', 'Everyone readable is already scored under this rubric.');
     case 'joined':
-      return flashRedirect(back, 'ok', `Already scoring — ${outcome.state.done + outcome.state.failed} of ${outcome.state.total} done.`);
+      return flashRedirect(back, 'ok', `Already scoring — ${outcome.state.done + outcome.state.failed} of ${outcome.state.total} done; each row says where it is.`);
     case 'started':
       return flashRedirect(
         back,

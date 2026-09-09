@@ -12,11 +12,34 @@ import { wireSelectCommits } from './select-commit.mjs';
 
 const POLL_MS = 2000;
 
-/** "Scoring… 12 of 40 (2 failed)" — pure, tested from src/web/screen.test.ts. */
+/** "Scoring… 2 of 5 — now reading №3, №4; 1 queued" — pure, tested from src/web/screen.test.ts; the server renders the same words. */
 export function progressLine(state) {
   const done = state.done + state.failed;
   const failed = state.failed > 0 ? ` (${state.failed} failed)` : '';
-  return `Scoring… ${done} of ${state.total}${failed} — one call per applicant, three at a time; the page updates itself.`;
+  const reading = state.inFlight?.length > 0 ? ` — now reading ${state.inFlight.map((n) => `№${n}`).join(', ')}` : '';
+  const queued = state.queued?.length > 0 ? `; ${state.queued.length} queued` : '';
+  return `Scoring… ${done} of ${state.total}${failed}${reading}${queued}. Each row says where it is; scored rows appear on refresh.`;
+}
+
+/** Where one applicant is in the run: queued, scoring, scored, or nowhere. Pure. */
+export function rowRunState(number, state) {
+  if (!state || !state.running) return null;
+  if (state.inFlight?.includes(number)) return 'scoring';
+  if (state.queued?.includes(number)) return 'queued';
+  if (state.finished?.includes(number)) return 'scored';
+  return null;
+}
+
+const RUN_BADGE = { queued: 'queued', scoring: 'scoring…', scored: 'scored — refresh' };
+
+function paintRows(state) {
+  for (const tr of document.querySelectorAll('tr[data-applicant]')) {
+    const s = rowRunState(Number(tr.dataset.applicant), state);
+    if (s) tr.dataset.runState = s;
+    else delete tr.dataset.runState;
+    const badge = tr.querySelector('[data-run-badge]');
+    if (badge) badge.textContent = s ? RUN_BADGE[s] : '';
+  }
 }
 
 /** "3 of 12 selected" — pure. */
@@ -41,6 +64,7 @@ function pollProgress(el) {
       const state = await res.json();
       if (!state.running) return location.reload();
       el.textContent = progressLine(state);
+      paintRows(state);
     } catch {
       /* transient — the next tick retries */
     }

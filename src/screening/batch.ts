@@ -1,57 +1,84 @@
+import type { Applicant } from '@prisma/client';
 import { config } from '../config';
 import { logger } from '../logger';
-import { createLimiter } from '../concurrency';
 import { getAiRuntime, type AiRuntime } from '../ai-runtime';
 import { askForJson } from '../ai-json';
 import { loadKeywordMatcher, type KeywordMatcher } from '../resume/keyword-matcher';
 import { anchorScreenReply } from './anchor';
 import { buildScreenPrompt, parseScreenResponse, SCREEN_MAX_TOKENS, SCREEN_PROMPT_VERSION, SCREEN_TIMEOUT_MS } from './prompts';
 import { scoreScreening } from './score';
-import type { Applicant } from '@prisma/client';
 import { createVerdict, getScreening, listPending, listReadable, rubricOf, type ScreeningWithJob } from './store';
 import type { Rubric } from './rubric';
 
 /*
- * The batch (TASKS §19 stage 3): N independent calls under the limiter,
- * every verdict written the moment it arrives, so a restart resumes from
- * what is missing — `listPending` is the queue and the database is the
- * state. Only this in-memory map is lost with the web process, and it
- * holds nothing but the progress counter.
+ * The batch (TASKS §19 stage 3): `AI_CONCURRENCY` workers pull applicants
+ * off one queue and write every verdict the moment it arrives, so a
+ * restart resumes from what is missing — `listPending` refills the queue
+ * and the database is the state. Only this in-memory map is lost with the
+ * web process, and it holds nothing but what the page shows: who is
+ * queued, who is being read right now, how many are done.
  *
- * The run DRAINS: when its batch is done it asks the queue again, so
- * applicants added while it was scoring are scored too — an upload starts
- * a run, and a second upload during it simply lengthens the same run.
+ * The queue is LIVE: an upload during a run refills it, and a "score again"
+ * during a run joins it at the back instead of being refused — the person
+ * pressed a button and sees the rows change state, never a "come back
+ * later".
  *
  * Web-only: the worker never imports this (ADR 0008 / 0049).
  */
 
+interface Queued {
+  id: number;
+  number: number;
+  redactedText: string;
+}
+
 export interface ScreenRunState {
   screeningId: number;
+  /** Everyone this run has taken on: done + failed + in flight + queued. */
   total: number;
   done: number;
   failed: number;
   running: boolean;
   startedAt: number;
   finishedAt: number | null;
+  /** Applicant numbers waiting, in order. */
+  queued: number[];
+  /** Applicant numbers a worker is reading right now. */
+  inFlight: number[];
+  /** Applicant numbers scored (or failed) since the page could last have shown them. */
+  finished: number[];
   /** The last engine reason, for the page's error line. */
   lastError: string | null;
 }
 
-const runs = new Map<number, ScreenRunState>();
+interface Run {
+  state: ScreenRunState;
+  queue: Queued[];
+  /** Ids this run has taken on, so a refill never queues someone twice. */
+  taken: Set<number>;
+  /** Ids pushed by "score again" that must be read whatever verdict they hold. */
+  again: Set<number>;
+}
+
+const runs = new Map<number, Run>();
 const STATE_TTL_MS = 60 * 60_000;
 
+/** What the page polls — never the queue itself. */
 export function screeningRun(screeningId: number): ScreenRunState | null {
-  const state = runs.get(screeningId);
-  if (state && !state.running && state.finishedAt !== null && Date.now() - state.finishedAt > STATE_TTL_MS) {
+  const run = runs.get(screeningId);
+  if (!run) return null;
+  const s = run.state;
+  if (!s.running && s.finishedAt !== null && Date.now() - s.finishedAt > STATE_TTL_MS) {
     runs.delete(screeningId);
     return null;
   }
-  return state ?? null;
+  return s;
 }
 
 export type StartOutcome =
   | { kind: 'started'; state: ScreenRunState }
-  | { kind: 'joined'; state: ScreenRunState }
+  /** A run was in flight; `queued` says how many this press added to it. */
+  | { kind: 'joined'; state: ScreenRunState; queued: number }
   | { kind: 'nothing' }
   | { kind: 'missing' };
 
@@ -62,84 +89,116 @@ export interface RunOptions {
 
 /**
  * Scores every readable applicant with no verdict under the current
- * rubric, then anyone added meanwhile. A second press while a run is in
- * flight joins it; a press after a rubric change scores everyone again,
- * because every stored verdict is about the old yardstick.
+ * rubric, then anyone added meanwhile. A press during a run adds to its
+ * queue; a press after a rubric change scores everyone again, because
+ * every stored verdict is about the old yardstick.
  */
 export async function startScreeningRun(screeningId: number, opts: RunOptions = {}): Promise<StartOutcome> {
   const live = runs.get(screeningId);
-  if (live?.running) return { kind: 'joined', state: live };
+  if (live?.state.running) {
+    const added = opts.again ? await enqueue(live, await listReadable(screeningId, opts.again), true) : 0;
+    return { kind: 'joined', state: live.state, queued: added };
+  }
   // Claimed before the first await (the same guarantee target-runs.ts
   // relies on): a second POST landing while the queue is being read joins
   // this run instead of scoring everyone twice.
-  const state: ScreenRunState = {
-    screeningId,
-    total: 0,
-    done: 0,
-    failed: 0,
-    running: true,
-    startedAt: Date.now(),
-    finishedAt: null,
-    lastError: null,
+  const run: Run = {
+    state: {
+      screeningId,
+      total: 0,
+      done: 0,
+      failed: 0,
+      running: true,
+      startedAt: Date.now(),
+      finishedAt: null,
+      queued: [],
+      inFlight: [],
+      finished: [],
+      lastError: null,
+    },
+    queue: [],
+    taken: new Set(),
+    again: new Set(),
   };
-  runs.set(screeningId, state);
+  runs.set(screeningId, run);
   const screening = await getScreening(screeningId);
-  const first = screening ? await queue(screening, opts.again) : [];
-  if (!screening || first.length === 0) {
+  if (screening) {
+    if (opts.again) await enqueue(run, await listReadable(screeningId, opts.again), true);
+    await refill(run, screening);
+  }
+  if (!screening || run.queue.length === 0) {
     runs.delete(screeningId);
     return screening ? { kind: 'nothing' } : { kind: 'missing' };
   }
-  logger.info({ screeningId, applicants: first.length, again: opts.again?.length ?? 0, concurrency: config.AI_CONCURRENCY }, 'screening: run started');
+  logger.info({ screeningId, applicants: run.queue.length, again: opts.again?.length ?? 0, concurrency: config.AI_CONCURRENCY }, 'screening: run started');
 
   void (async () => {
     const [runtime, matcher] = await Promise.all([getAiRuntime(), loadKeywordMatcher()]);
-    const limit = createLimiter(config.AI_CONCURRENCY);
-    let batch = first;
-    while (batch.length > 0) {
-      state.total += batch.length;
-      // The rubric is read per batch: a save mid-run is a new yardstick for
-      // whoever is still in the queue, and their verdicts carry its version.
-      const current = (await getScreening(screeningId)) ?? screening;
-      const rubric = rubricOf(current);
-      await Promise.all(
-        batch.map((a) =>
-          limit(async () => {
-            const outcome = await screenApplicant(current, rubric, a, runtime, matcher);
-            if (outcome.ok) state.done++;
-            else {
-              state.failed++;
-              state.lastError = outcome.reason;
-            }
-          }),
-        ),
-      );
-      batch = await queue(current);
-    }
-    state.running = false;
-    state.finishedAt = Date.now();
-    logger.info(
-      { screeningId, done: state.done, failed: state.failed, ms: state.finishedAt - state.startedAt },
-      'screening: run finished',
-    );
+    await Promise.all(Array.from({ length: config.AI_CONCURRENCY }, () => worker(run, screening, runtime, matcher)));
+    run.state.running = false;
+    run.state.finishedAt = Date.now();
+    logger.info({ screeningId, done: run.state.done, failed: run.state.failed, ms: run.state.finishedAt - run.state.startedAt }, 'screening: run finished');
   })().catch((err) => {
     logger.error({ err, screeningId }, 'screening: run crashed');
-    state.running = false;
-    state.finishedAt = Date.now();
-    state.lastError = 'Unexpected failure — see the web logs.';
+    run.state.running = false;
+    run.state.finishedAt = Date.now();
+    run.state.lastError = 'Unexpected failure — see the web logs.';
   });
 
-  return { kind: 'started', state };
+  return { kind: 'started', state: run.state };
 }
 
-/** The next batch: the named applicants when asked to score them again, else whoever has no verdict under this rubric. */
-async function queue(screening: ScreeningWithJob, again?: number[]): Promise<Pick<Applicant, 'id' | 'number' | 'redactedText'>[]> {
+/** Adds applicants to the back of the queue; a "score again" may re-add someone this run already read. */
+async function enqueue(run: Run, rows: Queued[], again: boolean): Promise<number> {
+  let added = 0;
+  for (const row of rows) {
+    if (run.queue.some((q) => q.id === row.id) || run.state.inFlight.includes(row.number)) continue;
+    if (!again && run.taken.has(row.id)) continue;
+    run.taken.add(row.id);
+    if (again) run.again.add(row.id);
+    run.queue.push(row);
+    run.state.queued.push(row.number);
+    run.state.total++;
+    added++;
+  }
+  return added;
+}
+
+/** Whoever has no verdict under the current rubric and is not already this run's. */
+async function refill(run: Run, screening: ScreeningWithJob): Promise<number> {
   const pending = await listPending(screening.id, screening.rubricVersion);
-  if (!again || again.length === 0) return pending;
-  const wanted = new Set(again);
-  const named = await listReadable(screening.id, again);
-  // Whoever is pending comes along — a "score again" should never leave a
-  // never-scored applicant behind it.
-  return [...named, ...pending.filter((p) => !wanted.has(p.id))];
+  return enqueue(
+    run,
+    pending.filter((p) => !run.taken.has(p.id)),
+    false,
+  );
+}
+
+/** One worker: take the next applicant, score, repeat; refill from the database when the queue runs dry. */
+async function worker(run: Run, screening: ScreeningWithJob, runtime: Pick<AiRuntime, 'complete'>, matcher: Pick<KeywordMatcher, 'findTerm' | 'locateQuote'>): Promise<void> {
+  for (;;) {
+    let next = run.queue.shift();
+    if (!next) {
+      // The rubric may have been saved mid-run: the queue is read against the current version.
+      const current = (await getScreening(screening.id)) ?? screening;
+      if ((await refill(run, current)) === 0) return;
+      next = run.queue.shift();
+      if (!next) return;
+      screening = current;
+    }
+    run.state.queued = run.state.queued.filter((n) => n !== next!.number);
+    run.state.inFlight.push(next.number);
+    const current = (await getScreening(screening.id)) ?? screening;
+    const outcome = await screenApplicant(current, rubricOf(current), next, runtime, matcher);
+    run.state.inFlight = run.state.inFlight.filter((n) => n !== next!.number);
+    run.state.finished.push(next.number);
+    run.again.delete(next.id);
+    if (outcome.ok) run.state.done++;
+    else {
+      run.state.failed++;
+      run.state.lastError = outcome.reason;
+    }
+  }
 }
 
 /**
@@ -150,7 +209,7 @@ async function queue(screening: ScreeningWithJob, again?: number[]): Promise<Pic
 export async function screenApplicant(
   screening: ScreeningWithJob,
   rubric: Rubric,
-  applicant: { id: number; number: number; redactedText: string },
+  applicant: Pick<Applicant, 'id' | 'number' | 'redactedText'>,
   runtime: Pick<AiRuntime, 'complete'>,
   matcher: Pick<KeywordMatcher, 'findTerm' | 'locateQuote'>,
   now = new Date(),

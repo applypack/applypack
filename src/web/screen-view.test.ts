@@ -42,7 +42,11 @@ function verdict(score: number, bucket: 'pass' | 'ask' | 'fail', rubricVersion =
     facts: {
       summary: { who: 'w', did: 'd', verdict: 'talk first' },
       gates: [{ gate: 'EU', status: bucket === 'fail' ? 'fail' : bucket === 'ask' ? 'unknown' : 'pass', quote: null, question: null }],
-      must: [],
+      must: [
+        { term: 'PHP', level: 'production', quote: null, last_used: null },
+        { term: 'MySQL', level: 'listed', quote: null, last_used: null },
+        { term: 'Node.js', level: 'role', quote: null, last_used: null },
+      ],
       nice: [],
       roles: [],
       level: { observed: 'senior', signals: [] },
@@ -89,6 +93,7 @@ test('rowView reads the stored verdict; groupRows orders by the adjusted score a
     applicant({ id: 6, number: 6 }),
   ].map(rowView);
   assert.equal(rows[0]!.verdict?.level, 'senior');
+  assert.equal(rows[0]!.verdict?.mustStrong, 2, 'role and production count as strong, a skills line does not');
   const g = groupRows(rows);
   assert.deepEqual(g.scored.map((r) => r.number), [1, 3, 2], 'pass bucket by the adjusted score (70 + 30 = 100), then ask');
   assert.equal(adjustedScore(95, 30), 100, 'held to 100');

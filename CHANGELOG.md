@@ -42,7 +42,12 @@ All notable changes to this project are documented here. The format follows
   table sets a decision, scores again or deletes the ticked ones. On the
   scorecard, **Your adjustment** moves an applicant by up to ±30 points with
   a reason: the computed score stays visible beside it and both go into the
-  export (ADR 0047 addendum).
+  export (ADR 0047 addendum). While a run works, every row says where it is
+  — queued, scoring…, scored — and the results line names who is being read
+  right now; a "Score again" during a run queues behind it instead of being
+  refused. The must-have cell says how many terms are shown in a role or in
+  production, which is where two documents of one person differ. The engine
+  warning is one line under Results with a link to the settings tab.
 
 ### Changed
 - `resume/zip.ts` can list every file in an archive (`readZipEntries`),

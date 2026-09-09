@@ -84,11 +84,6 @@ export const ScreenDetailPage: FC<ScreenDetailProps> = ({ screening, rubric, row
       </PageHeader>
       <Flash flash={flash} />
 
-      {engine.warn && (
-        <div class="mb-4 rounded-md border border-warn/25 bg-warn/5 px-3.5 py-2.5 text-[13px] leading-5 text-warn" role="status">
-          {engine.warn}
-        </div>
-      )}
 
       {/* 1. The rubric — open until the first run, a one-line summary after. */}
       <Card class="mb-4">
@@ -237,7 +232,7 @@ export const ScreenDetailPage: FC<ScreenDetailProps> = ({ screening, rubric, row
             <SectionTitle>Results</SectionTitle>
             <div class="text-[13px] text-ink-faint" id="run-progress" data-screening={screening.id} data-running={running ? '1' : undefined}>
               {running
-                ? `Scoring… ${run!.done + run!.failed} of ${run!.total}${run!.failed > 0 ? ` (${run!.failed} failed)` : ''} — one call per applicant, three at a time; the page updates itself.`
+                ? progressText(run!)
                 : run && run.finishedAt !== null && run.failed > 0
                   ? `Last run: ${run.done} scored, ${run.failed} failed${run.lastError ? ` — ${run.lastError}` : ''}. Failed ones stay pending; press Score again.`
                   : pending > 0
@@ -245,6 +240,20 @@ export const ScreenDetailPage: FC<ScreenDetailProps> = ({ screening, rubric, row
                     : readable > 0
                       ? `All ${readable} readable applicant${readable === 1 ? '' : 's'} scored under rubric v${screening.rubricVersion} on ${engine.label}.`
                       : 'Add applicants above.'}
+            </div>
+            <div class="mt-1 text-[13px] text-ink-faint">
+              Runs on {engine.label}
+              {engine.warn ? (
+                <>
+                  , a personal subscription —{' '}
+                  <a href="/settings?tab=screening" class="text-warn hover:underline">
+                    read why that matters for other people's resumes
+                  </a>
+                  .
+                </>
+              ) : (
+                '.'
+              )}
             </div>
           </div>
           <ActionForm action={`/screen/${screening.id}/run`} once>
@@ -302,7 +311,7 @@ export const ScreenDetailPage: FC<ScreenDetailProps> = ({ screening, rubric, row
                 <>
                   <GroupRow tone={BUCKET_TONE[bucket]} label={GATE_BUCKET_LABELS[bucket]} count={group.length} />
                   {group.map((r) => (
-                    <ApplicantRow r={r} screeningId={screening.id} gates={rubric.gates} />
+                    <ApplicantRow r={r} screeningId={screening.id} gates={rubric.gates} run={run} />
                   ))}
                 </>
               );
@@ -311,7 +320,7 @@ export const ScreenDetailPage: FC<ScreenDetailProps> = ({ screening, rubric, row
               <>
                 <GroupRow tone="neutral" label={running ? 'Being scored' : 'Not scored yet'} count={groups.pending.length} />
                 {groups.pending.map((r) => (
-                  <ApplicantRow r={r} screeningId={screening.id} gates={rubric.gates} />
+                  <ApplicantRow r={r} screeningId={screening.id} gates={rubric.gates} run={run} />
                 ))}
               </>
             )}
@@ -319,7 +328,7 @@ export const ScreenDetailPage: FC<ScreenDetailProps> = ({ screening, rubric, row
               <>
                 <GroupRow tone="neutral" label="Could not be screened" count={groups.unread.length} />
                 {groups.unread.map((r) => (
-                  <ApplicantRow r={r} screeningId={screening.id} gates={rubric.gates} />
+                  <ApplicantRow r={r} screeningId={screening.id} gates={rubric.gates} run={run} />
                 ))}
               </>
             )}
@@ -342,6 +351,7 @@ export const ScreenDetailPage: FC<ScreenDetailProps> = ({ screening, rubric, row
         with a small +N or −N beside it carries your own adjustment from the scorecard; the computed number is in
         its tooltip and in the export.
       </Hint>
+      <style dangerouslySetInnerHTML={{ __html: RUN_BADGE_CSS }} />
       <script
         type="module"
         dangerouslySetInnerHTML={{ __html: "import { init } from '/static/screen.mjs'; init();" }}
@@ -349,6 +359,15 @@ export const ScreenDetailPage: FC<ScreenDetailProps> = ({ screening, rubric, row
     </Layout>
   );
 };
+
+/* The Score cell's run badge, keyed on the row's data-run-state so the poller only flips attributes. */
+const RUN_BADGE_CSS = `
+  .run-badge { display: none; margin-right: .5rem; font-size: 11px; font-weight: 500; border-radius: 9999px; padding: 1px 8px; vertical-align: middle; }
+  tr[data-run-state] .run-badge { display: inline-block; }
+  tr[data-run-state="queued"] .run-badge { background: rgb(var(--surface-overlay)); color: rgb(var(--ink-muted)); }
+  tr[data-run-state="scoring"] .run-badge { background: rgb(var(--violet) / .12); color: rgb(var(--violet)); }
+  tr[data-run-state="scored"] .run-badge { background: rgb(var(--ok) / .12); color: rgb(var(--ok)); }
+`;
 
 const GroupRow: FC<{ tone: 'ok' | 'warn' | 'danger' | 'neutral'; label: string; count: number }> = ({ tone, label, count }) => (
   <tr class="bg-surface-overlay/60">
@@ -359,12 +378,35 @@ const GroupRow: FC<{ tone: 'ok' | 'warn' | 'danger' | 'neutral'; label: string; 
   </tr>
 );
 
-const ApplicantRow: FC<{ r: ApplicantRowView; screeningId: number; gates: string[] }> = ({ r, screeningId, gates }) => {
+/** "Scoring… 2 of 5 — now reading №3, №4; 1 queued" — the same words screen.mjs paints on every poll. */
+function progressText(run: ScreenRunState): string {
+  const done = run.done + run.failed;
+  const failed = run.failed > 0 ? ` (${run.failed} failed)` : '';
+  const reading = run.inFlight.length > 0 ? ` — now reading ${run.inFlight.map((n) => `№${n}`).join(', ')}` : '';
+  const queued = run.queued.length > 0 ? `; ${run.queued.length} queued` : '';
+  return `Scoring… ${done} of ${run.total}${failed}${reading}${queued}. Each row says where it is; scored rows appear on refresh.`;
+}
+
+type RowRunState = 'queued' | 'scoring' | 'scored' | null;
+
+/** Where this applicant is in the run right now — the badge in the Score cell. */
+function rowRunState(number: number, run: ScreenRunState | null): RowRunState {
+  if (!run || !run.running) return null;
+  if (run.inFlight.includes(number)) return 'scoring';
+  if (run.queued.includes(number)) return 'queued';
+  if (run.finished.includes(number)) return 'scored';
+  return null;
+}
+
+const RUN_BADGE: Record<Exclude<RowRunState, null>, string> = { queued: 'queued', scoring: 'scoring…', scored: 'scored — refresh' };
+
+const ApplicantRow: FC<{ r: ApplicantRowView; screeningId: number; gates: string[]; run: ScreenRunState | null }> = ({ r, screeningId, gates, run }) => {
   const v = r.verdict && !r.stale ? r.verdict : null;
   const href = `/screen/${screeningId}/applicants/${r.id}`;
   const adjusted = v ? adjustedScore(v.score, r.adjustment) : null;
+  const state = rowRunState(r.number, run);
   return (
-    <Tr>
+    <Tr data-applicant={r.number} data-run-state={state ?? undefined}>
       <Td class="w-8 pr-0">
         <input type="checkbox" name="ids" value={r.id} aria-label={`Select applicant ${r.number}`} class="h-4 w-4 accent-accent" />
       </Td>
@@ -413,6 +455,9 @@ const ApplicantRow: FC<{ r: ApplicantRowView; screeningId: number; gates: string
         )}
       </Td>
       <Td class="whitespace-nowrap text-right tabular-nums">
+        <span class="run-badge" data-run-badge>
+          {state ? RUN_BADGE[state] : ''}
+        </span>
         {v ? (
           <span class="font-semibold text-ink" title={v.cap !== null ? `capped at ${v.cap}` : undefined}>
             {adjusted}
@@ -432,7 +477,16 @@ const ApplicantRow: FC<{ r: ApplicantRowView; screeningId: number; gates: string
         )}
       </Td>
       <Td>{v ? <Badge tone={CONFIDENCE_TONE[v.confidence]}>{v.confidence}</Badge> : ''}</Td>
-      <Td class="whitespace-nowrap text-right tabular-nums">{v ? `${v.mustCovered} / ${v.mustTotal}` : ''}</Td>
+      <Td class="whitespace-nowrap text-right tabular-nums" title={v ? `${v.mustStrong} of ${v.mustTotal} shown in a role or in production — the rest on a skills line only` : undefined}>
+        {v ? (
+          <>
+            {v.mustCovered} / {v.mustTotal}
+            <span class="block text-xs text-ink-faint">{v.mustStrong} strong</span>
+          </>
+        ) : (
+          ''
+        )}
+      </Td>
       <Td class="text-right tabular-nums">{v ? (v.years ?? '?') : ''}</Td>
       <Td class="text-ink-muted">{v ? (v.level ?? '?') : ''}</Td>
       <Td class="whitespace-nowrap">

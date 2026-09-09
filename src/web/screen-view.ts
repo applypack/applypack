@@ -18,6 +18,8 @@ export interface VerdictView {
   gates: { gate: string; status: GateStatus }[];
   mustCovered: number;
   mustTotal: number;
+  /** Must-have terms evidenced in a role or in production — where two documents of one person differ. */
+  mustStrong: number;
   years: number | null;
   level: string | null;
   injection: boolean;
@@ -63,6 +65,7 @@ export function rowView(a: ApplicantWithVerdict & { sameAsNumber?: number | null
           gates: reply.gates.map((g) => ({ gate: g.gate, status: g.status })),
           mustCovered: bd.mustCovered,
           mustTotal: bd.mustTotal,
+          mustStrong: reply.must.filter((m) => m.level === 'role' || m.level === 'production').length,
           years: bd.years,
           level: reply.level.observed,
           injection: reply.injection,
