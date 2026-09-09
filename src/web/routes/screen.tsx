@@ -306,7 +306,8 @@ screenRoute.post('/screen/:id/posting', async (c) => {
 screenRoute.post('/screen/:id/run-all', async (c) => {
   const screening = await loadScreening(idParam(c.req.param('id')));
   if (!screening) return flashRedirect('/screen', 'err', 'That screening no longer exists.');
-  const ids = (await listApplicants(screening.id, screening.rubricVersion)).filter((a) => a.parseStatus === 'ok').map((a) => a.id);
+  // The readable rows' ids only — never the texts of three hundred applicants for a button press.
+  const ids = (await listKnownApplicants(screening.id)).map((a) => a.id);
   const outcome = await startScreeningRun(screening.id, { again: ids });
   const back = `/screen/${screening.id}#results`;
   if (outcome.kind === 'nothing') return flashRedirect(back, 'warn', 'No readable applicants to score.');
