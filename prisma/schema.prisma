@@ -756,7 +756,8 @@ model Screening {
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
-  applicants Applicant[]
+  applicants  Applicant[]
+  comparisons ScreeningComparison[]
 
   @@index([retainUntil])
   @@map("screening")
@@ -815,6 +816,28 @@ model Applicant {
   @@unique([screeningId, number])
   @@index([screeningId, parseStatus])
   @@map("applicant")
+}
+
+// A shortlist read head to head (plan §5.1): two to five applicants in one
+// call, run twice with the order reversed, so the person sees where the
+// readings differ. Never folded into a score; the table keeps the criteria's
+// order. Cascades with the screening; an applicant deleted meanwhile leaves
+// a comparison the page no longer shows.
+model ScreeningComparison {
+  id            Int       @id @default(autoincrement())
+  screeningId   Int
+  screening     Screening @relation(fields: [screeningId], references: [id], onDelete: Cascade)
+  // The applicants compared, by id, in the table's order.
+  applicantIds  Int[]
+  rubricVersion Int
+  promptVersion Int
+  model         String
+  // screening/comparison.ts:StoredComparison — the two anchored readings, each with the order it was shown in.
+  readings      Json
+  createdAt     DateTime  @default(now())
+
+  @@index([screeningId, createdAt])
+  @@map("screening_comparison")
 }
 
 model ScreeningVerdict {

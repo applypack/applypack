@@ -356,6 +356,9 @@ export const ScreenDetailPage: FC<ScreenDetailProps> = ({ screening, rubric, row
             <Button variant="ghost" size="sm" name="do" value="clear">
               Clear decision
             </Button>
+            <Button variant="secondary" size="sm" name="do" value="compare" data-min="2" title="Two to five scored applicants, side by side">
+              Compare
+            </Button>
             <Button variant="violet" size="sm" name="do" value="again" disabled={running}>
               Score again
             </Button>

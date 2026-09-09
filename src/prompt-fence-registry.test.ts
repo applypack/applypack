@@ -57,6 +57,7 @@ const KNOWN_CALL_SITES: Record<string, string> = {
   'resume/cover-letter.ts': 'buildCoverPrompt',
   'verification/verify.ts': 'buildVerifyPrompt',
   'screening/batch.ts': 'buildScreenPrompt',
+  'screening/compare.ts': 'buildComparePrompt',
   'scripts/resume-bench-once.ts': 'bench harness, reuses buildMatchPrompt',
   'web/ai-test.ts': 'engine connectivity test — a fixed literal, no outside text',
 };
@@ -94,6 +95,14 @@ const BRIEF = resumeMod.BriefSchema.parse({
   gates: ['HURDLE-NEEDLE'],
 });
 const CLASSIFY_INPUT = { ...JOB, postedAt: new Date('2026-08-31T00:00:00.000Z') };
+/* Tier 2: drafted from the posting's brief, edited by the person — still fenced as data. */
+const SCREEN_RUBRIC = rubricMod.RubricSchema.parse({
+  criteria: [
+    { id: 'g1', kind: 'custom', label: 'GATE-NEEDLE', mode: 'gate', weight: 3, source: 'posting', spec: { question: 'GATE-NEEDLE' } },
+    { id: 's1', kind: 'skill', label: 'RUBRICKW-NEEDLE !', mode: 'scored', weight: 5, source: 'posting', spec: { terms: [{ term: 'RUBRICKW-NEEDLE', aliases: ['ALIAS-NEEDLE'] }], core: true } },
+    { id: 'i1', kind: 'industry', label: 'DOMAIN-NEEDLE', mode: 'scored', weight: 2, source: 'you', spec: { items: ['DOMAIN-NEEDLE'] } },
+  ],
+});
 
 interface Case {
   build: () => { system: string; user: string };
@@ -244,19 +253,7 @@ const CASES: Record<string, Case> = {
     ],
   },
   buildScreenPrompt: {
-    build: () =>
-      screenMod.buildScreenPrompt({
-        rubric: rubricMod.RubricSchema.parse({
-          criteria: [
-            { id: 'g1', kind: 'custom', label: 'GATE-NEEDLE', mode: 'gate', weight: 3, source: 'posting', spec: { question: 'GATE-NEEDLE' } },
-            { id: 's1', kind: 'skill', label: 'RUBRICKW-NEEDLE !', mode: 'scored', weight: 5, source: 'posting', spec: { terms: [{ term: 'RUBRICKW-NEEDLE', aliases: ['ALIAS-NEEDLE'] }], core: true } },
-            { id: 'i1', kind: 'industry', label: 'DOMAIN-NEEDLE', mode: 'scored', weight: 2, source: 'you', spec: { items: ['DOMAIN-NEEDLE'] } },
-          ],
-        }),
-        job: JOB,
-        applicantText: RESUME,
-        number: 7,
-      }),
+    build: () => screenMod.buildScreenPrompt({ rubric: SCREEN_RUBRIC, job: JOB, applicantText: RESUME, number: 7 }),
     fenced: [
       ['APPLICANT RESUME', RESUME],
       ['JOB POSTING', DESC],
@@ -266,6 +263,27 @@ const CASES: Record<string, Case> = {
       ['SCREENING RUBRIC', 'GATE-NEEDLE'],
       ['SCREENING RUBRIC', 'RUBRICKW-NEEDLE'],
       ['SCREENING RUBRIC', 'ALIAS-NEEDLE'],
+      ['SCREENING RUBRIC', 'DOMAIN-NEEDLE'],
+    ],
+  },
+  buildComparePrompt: {
+    build: () =>
+      screenMod.buildComparePrompt({
+        rubric: SCREEN_RUBRIC,
+        job: JOB,
+        applicants: [
+          { number: 1, text: RESUME },
+          { number: 3, text: 'SECOND-NEEDLE' },
+        ],
+      }),
+    fenced: [
+      ['APPLICANT 1 RESUME', RESUME],
+      ['APPLICANT 3 RESUME', 'SECOND-NEEDLE'],
+      ['JOB POSTING', DESC],
+      ['JOB POSTING', 'TITLE-NEEDLE'],
+      ['JOB POSTING', 'COMPANY-NEEDLE'],
+      ['SCREENING RUBRIC', 'GATE-NEEDLE'],
+      ['SCREENING RUBRIC', 'RUBRICKW-NEEDLE'],
       ['SCREENING RUBRIC', 'DOMAIN-NEEDLE'],
     ],
   },

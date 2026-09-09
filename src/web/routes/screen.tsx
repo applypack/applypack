@@ -15,7 +15,10 @@ import { extractResumeText } from '../../resume/resume-text';
 import { applyPreset, draftRubric, PRESETS, rubricEquals, rubricFromForm, rubricSummary, type Preset } from '../../screening/rubric';
 import { displayName, expandUploads, findDuplicate, fingerprintText, MAX_APPLICANTS_PER_SCREENING, MAX_BATCH_UPLOAD_MB } from '../../screening/intake';
 import { findLeaks, readRedactions, redactApplicant } from '../../screening/redact';
-import { readScreenReply } from '../../screening/prompts';
+import { MAX_COMPARE, MIN_COMPARE, readScreenReply } from '../../screening/prompts';
+import { comparisonMarkdown, comparisonView, readStoredComparison } from '../../screening/comparison';
+import { compareApplicants } from '../../screening/compare';
+import { loadKeywordMatcher } from '../../resume/keyword-matcher';
 import { readScreenBreakdown } from '../../screening/score';
 import { DECISION_LABELS, MAX_ADJUSTMENT, toCsv, toMarkdown } from '../../screening/export';
 import { screeningRun, startScreeningRun } from '../../screening/batch';
@@ -31,6 +34,7 @@ import {
   getApplicant,
   getApplicantFile,
   getScreening,
+  latestComparison,
   listApplicants,
   listKnownApplicants,
   listScreenings,
@@ -41,7 +45,9 @@ import {
   setAdjustment,
   setDecision,
   setDecisionMany,
+  type ApplicantWithVerdict,
   type Decision,
+  type ScreeningWithJob,
 } from '../../screening/store';
 import { requireEmployerMode } from '../employer-mode';
 import { clearFlashCookie, flashRedirect, parseFlashCookie, safeBack } from '../flash';
@@ -49,6 +55,8 @@ import { ScreenListPage } from '../pages/screen-list';
 import { ScreenNewPage } from '../pages/screen-new';
 import { ScreenDetailPage } from '../pages/screen-detail';
 import { ScreenApplicantPage } from '../pages/screen-applicant';
+import { ScreenComparePage } from '../pages/screen-compare';
+import { sideBySide } from '../screen-compare';
 import { exportRows, rowView, scoredBeforePosting } from '../screen-view';
 import { claimRun, startRun, updateRun } from '../target-runs';
 import { MAX_UPLOAD_MB } from '../upload';
@@ -451,7 +459,7 @@ screenRoute.post('/screen/:id/applicants', (c, next) => batchUploadLimit(c.req.p
   return flashRedirect(`${back}#results`, leaked > 0 || unreadable > 0 ? 'warn' : 'ok', `${parts.join('; ')}.${tail}`);
 });
 
-const BULK_ACTIONS = ['interview', 'hold', 'declined', 'clear', 'again', 'delete'] as const;
+const BULK_ACTIONS = ['interview', 'hold', 'declined', 'clear', 'again', 'compare', 'delete'] as const;
 
 /** The checked rows, one action (guardrail 1: every decision here is the person's, and logged). */
 screenRoute.post('/screen/:id/applicants/bulk', async (c) => {
@@ -469,6 +477,9 @@ screenRoute.post('/screen/:id/applicants/bulk', async (c) => {
   const n = ids.length;
   const plural = `${n} applicant${n === 1 ? '' : 's'}`;
   switch (action) {
+    case 'compare':
+      // The ticked rows in the table's order; the compare page says what is wrong with the pick.
+      return c.redirect(`/screen/${screening.id}/compare?ids=${ids.join(',')}`, 303);
     case 'delete': {
       const count = await deleteApplicants(screening.id, ids);
       logger.info({ screeningId: screening.id, ids, count }, 'screening: applicants removed by the user');
@@ -539,6 +550,98 @@ screenRoute.post('/screen/:id/run', async (c) => {
         `Scoring started, ${config.AI_CONCURRENCY} at a time. Each applicant is one independent call; verdicts land as they arrive, survive a restart, and anyone added meanwhile joins the run.`,
       );
   }
+});
+
+/** "12,7,3" → [12, 7, 3], each once, in the order given. */
+function parseIdList(raw: string | undefined): number[] {
+  const out: number[] = [];
+  for (const part of (raw ?? '').split(',')) {
+    const n = idParam(part.trim());
+    if (Number.isInteger(n) && !out.includes(n)) out.push(n);
+  }
+  return out;
+}
+
+type Shortlist = { ok: true; applicants: ApplicantWithVerdict[] } | { ok: false; flash: string };
+
+/** The ticked rows as a shortlist (plan §5.1): two to five, each scored under the current rubric. */
+async function shortlistOf(screening: ScreeningWithJob, ids: number[]): Promise<Shortlist> {
+  if (ids.length < MIN_COMPARE) return { ok: false, flash: `Tick ${MIN_COMPARE} to ${MAX_COMPARE} applicants to compare${ids.length === 1 ? ' — one on its own is a scorecard' : ''}.` };
+  if (ids.length > MAX_COMPARE) return { ok: false, flash: `Narrow the shortlist first: at most ${MAX_COMPARE} applicants side by side, and you ticked ${ids.length}.` };
+  const byId = new Map((await listApplicants(screening.id, screening.rubricVersion)).map((a) => [a.id, a]));
+  const applicants: ApplicantWithVerdict[] = [];
+  for (const id of ids) {
+    const a = byId.get(id);
+    if (!a) return { ok: false, flash: 'One of the ticked applicants no longer exists.' };
+    if (a.parseStatus !== 'ok') return { ok: false, flash: `№${a.number} could not be read, so there is nothing to compare.` };
+    if (!a.verdict || a.stale) return { ok: false, flash: `№${a.number} is not scored under rubric v${screening.rubricVersion} — Score first, then compare.` };
+    applicants.push(a);
+  }
+  return { ok: true, applicants };
+}
+
+screenRoute.get('/screen/:id/compare', async (c) => {
+  const screening = await loadScreening(idParam(c.req.param('id')));
+  if (!screening) return flashRedirect('/screen', 'err', 'That screening no longer exists.');
+  const ids = parseIdList(c.req.query('ids'));
+  const pick = await shortlistOf(screening, ids);
+  if (!pick.ok) return flashRedirect(`/screen/${screening.id}#results`, 'warn', pick.flash);
+  const rubric = rubricOf(screening);
+  const side = sideBySide(rubric, pick.applicants, new Date());
+  const stored = await latestComparison(screening.id, ids);
+  const readings = stored ? readStoredComparison(stored.readings) : null;
+  const view = readings ? comparisonView(readings, rubric) : null;
+  const names = new Map(side.columns.map((col) => [col.number, col.name]));
+  return c.html(
+    <ScreenComparePage
+      screening={{ id: screening.id, title: screening.title, rubricVersion: screening.rubricVersion }}
+      side={side}
+      comparison={stored && view ? { view, model: stored.model, createdAt: stored.createdAt, rubricVersion: stored.rubricVersion, markdown: comparisonMarkdown(view, names, screening.title) } : null}
+      ids={ids.join(',')}
+      engine={await engineNote()}
+      flash={flash(c)}
+    />,
+    200,
+    CLEAR,
+  );
+});
+
+screenRoute.post('/screen/:id/compare/ai', async (c) => {
+  const screening = await loadScreening(idParam(c.req.param('id')));
+  if (!screening) return flashRedirect('/screen', 'err', 'That screening no longer exists.');
+  const form = await c.req.parseBody();
+  const ids = parseIdList(typeof form.ids === 'string' ? form.ids : undefined);
+  const compareUrl = `/screen/${screening.id}/compare?ids=${ids.join(',')}`;
+  const pick = await shortlistOf(screening, ids);
+  if (!pick.ok) return flashRedirect(`/screen/${screening.id}#results`, 'warn', pick.flash);
+  if (rubricOf(screening).criteria.length === 0) return flashRedirect(compareUrl, 'warn', 'Write the criteria first — the shortlist is read against them.');
+  const n = pick.applicants.length;
+  const { run, joined } = claimRun(`screen-compare:${screening.id}:${[...ids].sort((a, b) => a - b).join(',')}`, {
+    steps: ['compare'],
+    jobTitle: screening.job.title,
+    resumeName: '',
+    jobId: screening.jobId,
+    backUrl: compareUrl,
+    backLabel: 'Back to the comparison',
+    heading: { running: `Reading ${n} applicants head to head`, failed: 'The shortlist could not be read' },
+    subtitle: `${pick.applicants.map((a) => `№${a.number}`).join(', ')} — two readings at once, the second with the resumes in the reverse order`,
+  });
+  if (joined) return c.redirect(`/target/runs/${run.id}`, 303);
+  startRun(run.id, async () => {
+    const fresh = await getScreening(screening.id);
+    if (!fresh) {
+      updateRun(run.id, { stage: 'error', error: 'The screening was deleted meanwhile.' });
+      return;
+    }
+    const outcome = await compareApplicants(fresh, rubricOf(fresh), pick.applicants, getAiRuntime(), await loadKeywordMatcher());
+    updateRun(
+      run.id,
+      outcome.ok
+        ? { stage: 'done', resultUrl: `${compareUrl}#ai`, flash: `Read ${n} applicants head to head, twice. Where the two readings differ is marked.` }
+        : { stage: 'done', resultUrl: `${compareUrl}#ai`, flashKind: 'warn', flash: `The shortlist could not be read (${outcome.reason}). Nothing was stored — try again.` },
+    );
+  });
+  return c.redirect(`/target/runs/${run.id}`, 303);
 });
 
 screenRoute.get('/screen/:id/applicants/:aid', async (c) => {

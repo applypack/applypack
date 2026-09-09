@@ -1,4 +1,4 @@
-import type { Applicant, Prisma, Screening, ScreeningVerdict } from '@prisma/client';
+import type { Applicant, Prisma, Screening, ScreeningComparison, ScreeningVerdict } from '@prisma/client';
 import { prisma } from '../db';
 import { readRubric, type Rubric } from './rubric';
 import { toDbBigInt } from '../fingerprint';
@@ -276,6 +276,28 @@ export async function createVerdict(input: {
 }
 
 /** The cleanup cron's one call (ADR 0048): screenings past their date go with every file and verdict. */
+/** A shortlist read head to head (plan §5.1): the two anchored readings, never a score. */
+export async function createComparison(input: {
+  screeningId: number;
+  applicantIds: number[];
+  rubricVersion: number;
+  promptVersion: number;
+  model: string;
+  readings: unknown;
+}): Promise<ScreeningComparison> {
+  return prisma.screeningComparison.create({ data: { ...input, readings: input.readings as Prisma.InputJsonValue } });
+}
+
+/** The newest comparison of exactly these applicants, in any order; null when they were never compared. */
+export async function latestComparison(screeningId: number, applicantIds: number[]): Promise<ScreeningComparison | null> {
+  const rows = await prisma.screeningComparison.findMany({
+    where: { screeningId, applicantIds: { hasEvery: applicantIds } },
+    orderBy: { createdAt: 'desc' },
+    take: 10,
+  });
+  return rows.find((r) => r.applicantIds.length === applicantIds.length) ?? null;
+}
+
 export async function deleteExpiredScreenings(now: Date): Promise<number> {
   const r = await prisma.screening.deleteMany({ where: { retainUntil: { lt: now } } });
   return r.count;
