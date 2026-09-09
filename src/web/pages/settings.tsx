@@ -112,6 +112,7 @@ export const SETTINGS_TABS = [
   { id: 'ai', label: 'AI engine' },
   { id: 'notifications', label: 'Notifications' },
   { id: 'sources', label: 'Sources' },
+  { id: 'screening', label: 'Screening' },
 ] as const;
 
 export type SettingsTab = (typeof SETTINGS_TABS)[number]['id'];
@@ -149,10 +150,25 @@ export interface SettingsProps {
   activeProfile: Profile | null;
   availableTargets: AvailableTarget[];
   resumes: ResumeListItem[];
+  /** Employer mode (ADR 0049) and its guardrails (ADR 0048). */
+  screening: ScreeningSettings;
   activeTab: SettingsTab;
   flash?: FlashMessage | null;
   /** Set by the fill-from-resume POST: the editor shows draft values. */
   profileDraft?: ProfileDraftNotice | null;
+}
+
+export interface ScreeningSettings {
+  enabled: boolean;
+  retentionDays: number;
+  retentionMin: number;
+  retentionMax: number;
+  /** The engine the calls would go to, and whether it is a personal subscription (guardrail 5). */
+  engineLabel: string;
+  engineSubscription: boolean;
+  screenings: number;
+  notice: string;
+  legalNote: string;
 }
 
 /** Stripe-style settings section: title + description left, controls right. */
@@ -335,6 +351,7 @@ export const SettingsPage: FC<SettingsProps> = ({
   activeProfile,
   availableTargets,
   resumes,
+  screening,
   activeTab,
   flash,
   profileDraft,
@@ -996,8 +1013,110 @@ export const SettingsPage: FC<SettingsProps> = ({
         </Card>
       </Section>
       )}
+
+      {activeTab === 'screening' && (
+      <Section
+        title="Employer mode"
+        desc="The other side of the table: rank a folder of resumes against one position. Off by default, because it reads other people's data."
+      >
+        <Card>
+          <ToggleRow
+            label="Employer mode"
+            enabled={screening.enabled}
+            action="/settings/employer-mode-toggle"
+            onLabel="On"
+            offLabel="Off"
+            enableText="Turn on"
+            disableText="Turn off"
+            extra={
+              screening.enabled ? (
+                <Button href="/screen" variant="secondary">
+                  Open Screening
+                </Button>
+              ) : undefined
+            }
+          >
+            Adds a Screening section to the menu. A screening is one position and its applicants: the posting is
+            read into a rubric you edit, every resume is stripped of the person before a model reads it, one
+            independent call per applicant marks the evidence with quotes, and the code computes the score. Nothing
+            is decided for you — the table is an order to talk to people in.
+            {screening.screenings > 0 && !screening.enabled && (
+              <> Turning it off hides {screening.screenings} stored screening{screening.screenings === 1 ? '' : 's'}; the files stay until their retention date.</>
+            )}
+          </ToggleRow>
+        </Card>
+      </Section>
+      )}
+
+      {activeTab === 'screening' && (
+      <Section title="Retention" desc="Applicants' files and every verdict are deleted with the screening on its date. A hiring round, not a talent pool.">
+        <Card>
+          <form method="post" action="/settings/screening-retention" class="flex flex-wrap items-end gap-3">
+            <Field label="Keep a screening for" hint={`${screening.retentionMin}–${screening.retentionMax} days; each screening's page can extend its own date.`}>
+              <div class="flex items-center gap-2">
+                <Input type="number" name="days" min={screening.retentionMin} max={screening.retentionMax} value={screening.retentionDays} class="w-28" />
+                <span class="text-sm text-ink-muted">days</span>
+              </div>
+            </Field>
+            <Button variant="secondary">Save</Button>
+          </form>
+          <Hint class="mt-3">
+            The weekly cleanup deletes what has passed its date. Deleting a screening yourself removes the files at
+            once.
+          </Hint>
+        </Card>
+      </Section>
+      )}
+
+      {activeTab === 'screening' && (
+      <Section title="Which engine reads applicants" desc="Every screening call uses the first engine in your chain, with its resume model.">
+        <Card>
+          <p class="text-sm text-ink">
+            First in the chain: <span class="font-medium">{screening.engineLabel}</span>
+            {screening.engineSubscription ? (
+              <Badge tone="warn" class="ml-2">
+                personal subscription
+              </Badge>
+            ) : (
+              <Badge tone="ok" class="ml-2">
+                API or local
+              </Badge>
+            )}
+          </p>
+          <Hint class="mt-2">
+            {screening.engineSubscription
+              ? 'A CLI on a personal subscription runs under terms and data settings the subscriber controls, not the employer. For applicants’ data the defensible path is an API engine under a data-processing agreement, or a local model through the OpenAI-compatible engine (a localhost base URL). The screening page warns about this too; it does not block.'
+              : 'An API or a local model is what other people’s data should go through — check the vendor’s data-processing terms, or keep the model on your own machine.'}{' '}
+            Change the order on the AI engine tab.
+          </Hint>
+        </Card>
+      </Section>
+      )}
+
+      {activeTab === 'screening' && (
+      <Section title="What this means legally" desc="Not legal advice — the facts to check with whoever gives you that.">
+        <Card>
+          <p class="text-sm leading-6 text-ink-muted">{screening.legalNote}</p>
+        </Card>
+        <Card>
+          <div class="flex flex-wrap items-baseline justify-between gap-3">
+            <SectionTitle>Notice for applicants</SectionTitle>
+            <Button variant="secondary" size="sm" type="button" data-copy={screening.notice}>
+              Copy
+            </Button>
+          </div>
+          <Hint>
+            Paste it into the posting or the reply applicants get. It says what reads the application, that no
+            decision is automatic, what the tool never sees, and how to ask for a human review — the duties GDPR
+            art. 13–14 and the AI Act's transparency rule put on the employer.
+          </Hint>
+          <pre class="mt-3 whitespace-pre-wrap rounded-md bg-surface-overlay p-3 font-sans text-[13px] leading-5 text-ink">{screening.notice}</pre>
+        </Card>
+      </Section>
+      )}
     </div>
     <script dangerouslySetInnerHTML={{ __html: SETTINGS_JS }} />
+    <script type="module" dangerouslySetInnerHTML={{ __html: "import { wireCopy } from '/static/copy.mjs'; wireCopy(document);" }} />
     <script type="module" dangerouslySetInnerHTML={{ __html: MODELS_BOOT }} />
   </Layout>
 );

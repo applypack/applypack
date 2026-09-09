@@ -24,6 +24,8 @@ import { keywordsRoute } from './routes/keywords';
 import { healthRoute } from './routes/health';
 import { welcomeRoute } from './routes/welcome';
 import { countriesRoute } from './routes/countries';
+import { screenRoute } from './routes/screen';
+import { ensureEmployerMode } from './employer-mode';
 
 const app = new Hono();
 
@@ -72,8 +74,9 @@ if (config.WEB_BASIC_AUTH) {
  */
 app.use('*', originGuard());
 
-// Tiny request log.
+// Tiny request log; also loads the employer-mode switch once, for the sidebar (ADR 0049).
 app.use('*', async (c, next) => {
+  await ensureEmployerMode();
   const started = Date.now();
   await next();
   logger.info(
@@ -105,6 +108,7 @@ app.route('/', watchlistRoute);
 app.route('/', companiesRoute);
 app.route('/', discoveryRoute);
 app.route('/', runsRoute);
+app.route('/', screenRoute);
 app.route('/', settingsRoute);
 app.route('/', healthRoute);
 
