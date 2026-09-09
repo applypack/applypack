@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { adjustedScore, exportRows, groupRows, rowView } from './screen-view';
+import { adjustedScore, exportRows, groupRows, rowView, scoredBeforePosting } from './screen-view';
 import type { ApplicantWithVerdict } from '../screening/store';
 
 function applicant(over: Partial<ApplicantWithVerdict> & { verdict?: ApplicantWithVerdict['verdict'] }): ApplicantWithVerdict {
@@ -82,6 +82,13 @@ function verdict(score: number, bucket: 'pass' | 'ask' | 'fail', rubricVersion =
     createdAt: new Date(0),
   };
 }
+
+test('scoredBeforePosting counts verdicts older than the posting edit', () => {
+  const rows = [{ scoredAt: new Date('2026-09-09T10:00:00Z') }, { scoredAt: new Date('2026-09-09T12:00:00Z') }, { scoredAt: null }];
+  assert.equal(scoredBeforePosting(rows, null), 0, 'no edit, nothing stale');
+  assert.equal(scoredBeforePosting(rows, new Date('2026-09-09T11:00:00Z')), 1);
+  assert.equal(scoredBeforePosting(rows, new Date('2026-09-09T13:00:00Z')), 2);
+});
 
 test('rowView reads the stored verdict; groupRows orders by the adjusted score and separates', () => {
   const rows = [

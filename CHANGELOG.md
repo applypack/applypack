@@ -4,6 +4,24 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.1.0] — 2026-09-09
+
+### Added
+- **The posting belongs to the screening.** `Screening.postingText` is a
+  snapshot of the job's description taken when the screening is created;
+  the screening page shows it under "Read the posting", edits it under
+  "Edit the posting for this screening" (never on the Job — the candidate
+  side keeps its own text), and every rubric draft and scoring call reads
+  the snapshot. After an edit the page says how many current scores
+  predate it and offers **Re-read the rubric** (a new yardstick) or
+  **Score everyone again** (the rubric as it is, against the new text).
+  Plan §4 of docs/screening-criteria-plan.md, stage A.
+
+### Changed
+- "Delete with files" is **Delete screening**, and the confirmation says
+  what goes (the screening, the uploaded copies, every verdict — from the
+  database) and what stays (your files on disk).
+
 ## [2.0.0] — 2026-09-09
 
 The other side of the table: a major because the product now has two users
@@ -3122,6 +3140,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.1.0]: https://github.com/applypack/applypack/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/applypack/applypack/compare/v1.76.0...v2.0.0
 [1.76.0]: https://github.com/applypack/applypack/compare/v1.75.0...v1.76.0
 [1.75.0]: https://github.com/applypack/applypack/compare/v1.74.0...v1.75.0

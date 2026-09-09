@@ -7,7 +7,7 @@ import { loadKeywordMatcher, type KeywordMatcher } from '../resume/keyword-match
 import { anchorScreenReply } from './anchor';
 import { buildScreenPrompt, parseScreenResponse, SCREEN_MAX_TOKENS, SCREEN_PROMPT_VERSION, SCREEN_TIMEOUT_MS } from './prompts';
 import { scoreScreening } from './score';
-import { createVerdict, getScreening, listPending, listReadable, rubricOf, type ScreeningWithJob } from './store';
+import { createVerdict, getScreening, listPending, listReadable, postingOf, rubricOf, type ScreeningWithJob } from './store';
 import type { Rubric } from './rubric';
 
 /*
@@ -221,12 +221,7 @@ export async function screenApplicant(
       {
         ...buildScreenPrompt({
           rubric,
-          job: {
-            title: screening.job.title,
-            companyName: screening.job.company.name,
-            location: screening.job.location,
-            description: screening.job.description,
-          },
+          job: postingOf(screening),
           applicantText: applicant.redactedText,
           number: applicant.number,
         }),

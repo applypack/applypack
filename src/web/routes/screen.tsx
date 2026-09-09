@@ -34,7 +34,9 @@ import {
   listApplicants,
   listKnownApplicants,
   listScreenings,
+  postingOf,
   rubricOf,
+  savePosting,
   saveRubric,
   setAdjustment,
   setDecision,
@@ -47,7 +49,7 @@ import { ScreenListPage } from '../pages/screen-list';
 import { ScreenNewPage } from '../pages/screen-new';
 import { ScreenDetailPage } from '../pages/screen-detail';
 import { ScreenApplicantPage } from '../pages/screen-applicant';
-import { exportRows, rowView } from '../screen-view';
+import { exportRows, rowView, scoredBeforePosting } from '../screen-view';
 import { claimRun, startRun, updateRun } from '../target-runs';
 import { MAX_UPLOAD_MB } from '../upload';
 
@@ -117,11 +119,13 @@ screenRoute.post('/screen', postingUploadLimit, async (c) => {
 
   let jobId: number;
   let jobTitle: string;
+  let postingText: string;
   if (f.jobMode === 'existing') {
-    const job = f.jobId ? await prisma.job.findUnique({ where: { id: f.jobId }, select: { id: true, title: true } }) : null;
+    const job = f.jobId ? await prisma.job.findUnique({ where: { id: f.jobId }, select: { id: true, title: true, description: true } }) : null;
     if (!job) return flashRedirect('/screen/new', 'err', 'Pick a job from the list, or paste the posting.');
     jobId = job.id;
     jobTitle = job.title;
+    postingText = job.description;
   } else {
     let description = f.description.replace(/\r\n/g, '\n').trim();
     const file = form.file;
@@ -143,12 +147,14 @@ screenRoute.post('/screen', postingUploadLimit, async (c) => {
     );
     jobId = result.job.id;
     jobTitle = result.job.title;
+    postingText = result.job.description;
   }
 
   const settings = await getSettings();
   const screening = await createScreening({
     jobId,
     title: `${jobTitle} — ${new Date().toISOString().slice(0, 10)}`,
+    postingText,
     rubric: draftRubric(null),
     retainUntil: new Date(Date.now() + settings.screeningRetentionDays * DAY_MS),
   });
@@ -185,15 +191,8 @@ async function startRubricDraft(
       updateRun(run.id, { stage: 'error', error: 'The screening was deleted meanwhile.' });
       return;
     }
-    const jobInput = {
-      id: screening.job.id,
-      title: screening.job.title,
-      companyName: screening.job.company.name,
-      location: screening.job.location,
-      description: screening.job.description,
-    };
     let reason = '';
-    const briefed = await briefForPosting(jobInput, { onError: (r) => (reason = r) });
+    const briefed = await briefForPosting(postingOf(screening), { onError: (r) => (reason = r) });
     if (!briefed) {
       updateRun(run.id, {
         stage: 'done',
@@ -259,6 +258,9 @@ screenRoute.get('/screen/:id', async (c) => {
         retainUntil: screening.retainUntil,
         createdAt: screening.createdAt,
         job: { id: screening.job.id, title: screening.job.title, companyName: screening.job.company.name, location: screening.job.location },
+        postingText: screening.postingText,
+        postingUpdatedAt: screening.postingUpdatedAt,
+        scoredBeforePosting: scoredBeforePosting(rows, screening.postingUpdatedAt),
       }}
       rubric={rubricOf(screening)}
       rows={rows}
@@ -279,6 +281,37 @@ screenRoute.get('/screen/:id/state', async (c) => {
   if (!run) return c.json({ running: false, done: 0, failed: 0, total: 0, queued: [], inFlight: [], finished: [] });
   const { screeningId: _id, startedAt: _s, finishedAt: _f, ...view } = run;
   return c.json(view);
+});
+
+/** The posting as this screening reads it — edited here, never on the Job (plan §4). */
+screenRoute.post('/screen/:id/posting', async (c) => {
+  const screening = await loadScreening(idParam(c.req.param('id')));
+  if (!screening) return flashRedirect('/screen', 'err', 'That screening no longer exists.');
+  const form = await c.req.parseBody();
+  const text = typeof form.postingText === 'string' ? form.postingText.replace(/\r\n/g, '\n').trim() : '';
+  if (text.length < MIN_DESCRIPTION_CHARS) {
+    return flashRedirect(`/screen/${screening.id}#position`, 'err', `The posting needs at least ${MIN_DESCRIPTION_CHARS} characters.`);
+  }
+  if (text === screening.postingText) return flashRedirect(`/screen/${screening.id}#position`, 'ok', 'Posting unchanged.');
+  await savePosting(screening.id, text);
+  logger.info({ screeningId: screening.id, chars: text.length }, 'screening: posting edited');
+  return flashRedirect(
+    `/screen/${screening.id}#position`,
+    'ok',
+    'Posting saved for this screening. Stored scores were read against the old text — re-read the rubric from it, or score everyone again.',
+  );
+});
+
+/** "Score everyone again": every readable applicant back through the current rubric and posting. */
+screenRoute.post('/screen/:id/run-all', async (c) => {
+  const screening = await loadScreening(idParam(c.req.param('id')));
+  if (!screening) return flashRedirect('/screen', 'err', 'That screening no longer exists.');
+  const ids = (await listApplicants(screening.id, screening.rubricVersion)).filter((a) => a.parseStatus === 'ok').map((a) => a.id);
+  const outcome = await startScreeningRun(screening.id, { again: ids });
+  const back = `/screen/${screening.id}#results`;
+  if (outcome.kind === 'nothing') return flashRedirect(back, 'warn', 'No readable applicants to score.');
+  if (outcome.kind === 'missing') return flashRedirect('/screen', 'err', 'That screening no longer exists.');
+  return flashRedirect(back, 'ok', `Scoring all ${ids.length} readable applicant${ids.length === 1 ? '' : 's'} again — each row says where it is.`);
 });
 
 screenRoute.post('/screen/:id/rubric', async (c) => {

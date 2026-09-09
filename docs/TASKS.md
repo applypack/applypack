@@ -1952,7 +1952,7 @@ them with the same vocabulary) asked for three things. The analysis is
 [screening-criteria-plan.md](./screening-criteria-plan.md); the order is
 A → B1+B2 → C → D → E.
 
-- [ ] **A — the posting on the screening**: `Screening.postingText`
+- [x] **A — the posting on the screening** (v2.1.0): `Screening.postingText`
       (snapshot at creation, editable on the page, never written back to
       `Job`), a Position card with the text folded, Edit → "posting changed
       — re-read the rubric or Score everyone again"; "Delete with files" →
