@@ -22,6 +22,11 @@ export interface ScreenDetailProps {
     retainUntil: Date;
     createdAt: Date;
     job: { id: number; title: string; companyName: string; location: string };
+    /** The posting as this screening reads it — a snapshot, edited here, never on the Job (plan §4). */
+    postingText: string;
+    postingUpdatedAt: Date | null;
+    /** Current verdicts written before the last posting edit. */
+    scoredBeforePosting: number;
   };
   rubric: Rubric;
   rows: ApplicantRowView[];
@@ -64,25 +69,76 @@ export const ScreenDetailPage: FC<ScreenDetailProps> = ({ screening, rubric, row
             </ActionForm>
             <ActionForm
               action={`/screen/${screening.id}/delete`}
-              confirm="Delete this screening with every applicant file and verdict? This cannot be undone."
+              confirm="Delete this screening? It removes the screening, the uploaded copies of the resumes and every verdict from the database. Your files on disk are not touched. This cannot be undone."
             >
               <Button variant="danger" size="sm">
-                Delete with files
+                Delete screening
               </Button>
             </ActionForm>
           </div>
         }
       >
-        Position:{' '}
-        <a href={`/jobs/${screening.job.id}`} class="text-ink hover:underline">
-          {screening.job.title}
-        </a>{' '}
-        · {screening.job.companyName}
-        {screening.job.location ? ` · ${screening.job.location}` : ''}. The order below is a priority to talk to,
-        read off each resume against the rubric; every mark has its quote on the scorecard, and the decision column
-        is yours alone.
+        The order below is a priority to talk to, read off each resume against the rubric; every mark has its quote
+        on the scorecard, and the decision column is yours alone.
       </PageHeader>
       <Flash flash={flash} />
+
+      {/* 0. The posting, as this screening reads it. */}
+      <Card class="mb-4" id="position">
+        <div class="flex flex-wrap items-baseline justify-between gap-2">
+          <SectionTitle>Position</SectionTitle>
+          <span class="text-[13px] text-ink-faint">
+            {screening.postingUpdatedAt
+              ? `edited here ${formatRelative(screening.postingUpdatedAt)}`
+              : 'as stored on the job'}{' '}
+            ·{' '}
+            <a href={`/jobs/${screening.job.id}`} class="hover:underline">
+              the job page
+            </a>
+          </span>
+        </div>
+        <p class="mt-1 text-sm text-ink">
+          <span class="font-medium">{screening.job.title}</span> · {screening.job.companyName}
+          {screening.job.location ? ` · ${screening.job.location}` : ''}
+        </p>
+        {screening.scoredBeforePosting > 0 && (
+          <div class="mt-3 flex flex-wrap items-center gap-3 rounded-md border border-warn/25 bg-warn/5 px-3.5 py-2.5 text-[13px] leading-5 text-warn" role="status">
+            <span>
+              The posting changed after {screening.scoredBeforePosting} of the current scores were written. Re-read the
+              rubric from it (a new yardstick), or score everyone again against the new text with the rubric as it is.
+            </span>
+            <ActionForm action={`/screen/${screening.id}/rubric/redraft`} once>
+              <Button variant="secondary" size="sm">
+                Re-read the rubric
+              </Button>
+            </ActionForm>
+            <ActionForm action={`/screen/${screening.id}/run-all`} once>
+              <Button variant="violet" size="sm" disabled={running}>
+                Score everyone again
+              </Button>
+            </ActionForm>
+          </div>
+        )}
+        <details class="mt-3">
+          <summary class="cursor-pointer text-[13px] font-medium text-ink">Read the posting</summary>
+          <pre class="mt-2 max-h-[28rem] overflow-auto whitespace-pre-wrap rounded-md bg-surface-overlay p-3 font-sans text-[13px] leading-5 text-ink">{screening.postingText}</pre>
+        </details>
+        <details class="mt-2">
+          <summary class="cursor-pointer text-[13px] font-medium text-ink">Edit the posting for this screening</summary>
+          <form method="post" action={`/screen/${screening.id}/posting`} class="mt-2 space-y-2">
+            <Textarea name="postingText" rows={14} aria-label="Posting text">
+              {screening.postingText}
+            </Textarea>
+            <div class="flex flex-wrap items-center gap-3">
+              <Button variant="secondary">Save the posting</Button>
+              <Hint>
+                Edits stay on this screening — the job page keeps its own text. After saving, re-read the rubric or
+                score everyone again; the page will say which scores predate the edit.
+              </Hint>
+            </div>
+          </form>
+        </details>
+      </Card>
 
 
       {/* 1. The rubric — open until the first run, a one-line summary after. */}
@@ -238,7 +294,9 @@ export const ScreenDetailPage: FC<ScreenDetailProps> = ({ screening, rubric, row
                   : pending > 0
                     ? `${pending} of ${readable} readable applicant${readable === 1 ? '' : 's'} not scored under rubric v${screening.rubricVersion}.`
                     : readable > 0
-                      ? `All ${readable} readable applicant${readable === 1 ? '' : 's'} scored under rubric v${screening.rubricVersion} on ${engine.label}.`
+                      ? `All ${readable} readable applicant${readable === 1 ? '' : 's'} scored under rubric v${screening.rubricVersion} on ${engine.label}.${
+                          screening.scoredBeforePosting > 0 ? ` ${screening.scoredBeforePosting} of them before the posting was edited — see Position above.` : ''
+                        }`
                       : 'Add applicants above.'}
             </div>
             <div class="mt-1 text-[13px] text-ink-faint">

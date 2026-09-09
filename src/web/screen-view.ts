@@ -27,6 +27,12 @@ export interface VerdictView {
   questions: string[];
 }
 
+/** How many current verdicts predate an edit to the posting — the "posting changed" line. */
+export function scoredBeforePosting(rows: { scoredAt: Date | null }[], postingUpdatedAt: Date | null): number {
+  if (!postingUpdatedAt) return 0;
+  return rows.filter((r) => r.scoredAt !== null && r.scoredAt < postingUpdatedAt).length;
+}
+
 export interface ApplicantRowView {
   id: number;
   number: number;
@@ -42,6 +48,8 @@ export interface ApplicantRowView {
   adjustmentNote: string | null;
   /** Scored under an earlier rubric — the number is about a different yardstick. */
   stale: boolean;
+  /** When the current verdict was written; null without one. */
+  scoredAt: Date | null;
   verdict: VerdictView | null;
 }
 
@@ -85,6 +93,7 @@ export function rowView(a: ApplicantWithVerdict & { sameAsNumber?: number | null
     adjustment: a.scoreAdjustment,
     adjustmentNote: a.adjustmentNote,
     stale: a.stale,
+    scoredAt: a.verdict?.createdAt ?? null,
     verdict,
   };
 }

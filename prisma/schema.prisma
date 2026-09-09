@@ -733,22 +733,28 @@ model JobVerification {
 // ---------------------------------------------------------------------------
 
 model Screening {
-  id            Int      @id @default(autoincrement())
-  jobId         Int
-  job           Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
-  title         String
+  id               Int       @id @default(autoincrement())
+  jobId            Int
+  job              Job       @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  title            String
   // What the screen checks (screening/rubric.ts:RubricSchema): the gates,
   // the must-have and nice-to-have terms, the level, the years, the domain
   // and the weights. Drafted from the posting brief, edited by the person.
-  rubric        Json
+  rubric           Json
   // Bumped on every rubric save that changes it; a verdict records the
   // version it was scored under, and an older one is shown as stale.
-  rubricVersion Int      @default(1)
+  rubricVersion    Int       @default(1)
+  // The posting as this screening reads it: a snapshot of the Job's
+  // description at creation, editable on the screening page and never
+  // written back to the Job (plan §4). `postingUpdatedAt` is stamped on an
+  // edit, so a verdict older than it reads as scored against other text.
+  postingText      String    @db.Text
+  postingUpdatedAt DateTime?
   // When the cleanup cron deletes this screening with every applicant file
   // and verdict (ADR 0048).
-  retainUntil   DateTime
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  retainUntil      DateTime
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 
   applicants Applicant[]
 

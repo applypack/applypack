@@ -542,7 +542,9 @@ exclusive to verification, ADR 0009).
 
 Off by default. `/settings` → Screening turns it on; the menu then has
 "Screening". A `Screening` is one position (`jobId`, any Job — a pasted
-posting becomes a MANUAL job as on `/target`) with a `rubric` (JSON,
+posting becomes a MANUAL job as on `/target`; `postingText` is the
+screening's own editable snapshot of the description, `postingUpdatedAt`
+marks an edit) with a `rubric` (JSON,
 `screening/rubric.ts`): gates, must-have and nice-to-have terms with a
 core-stack flag, level, minimum years, sector, education, weights. The
 draft is the posting brief (ADR 0044), edited by the person; a save that

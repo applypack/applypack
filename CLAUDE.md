@@ -341,7 +341,8 @@ When the question is **"where does X live?"**, save yourself a `find`:
 | The person's correction to a computed score, and why the table orders by it | `Applicant.scoreAdjustment` + `adjustmentNote` (±`export.ts:MAX_ADJUSTMENT`, a reason required) → `web/screen-view.ts:adjustedScore`; the computed score stays on the row's tooltip, the scorecard header and both exports (ADR 0047 addendum) |
 | Ticked rows → one action (decision, score again, delete) | `POST /screen/:id/applicants/bulk` (`ids[]` + `do`), the header checkbox and the count in `public/screen.mjs:wireSelection`; per-row decision selects post through their own hidden forms via the `form` attribute, so they never ride inside the bulk form |
 | CSV / Markdown of a screening | `src/screening/export.ts` (pure) over `src/web/screen-view.ts:exportRows` |
-| Retention of applicant data | `Screening.retainUntil` from `AppSettings.screeningRetentionDays`; deleted by `jobs/cleanup-job.ts`; "Delete with files" / "Keep N more days" on `/screen/:id` |
+| Retention of applicant data | `Screening.retainUntil` from `AppSettings.screeningRetentionDays`; deleted by `jobs/cleanup-job.ts`; "Delete screening" / "Keep N more days" on `/screen/:id` |
+| The posting a screening reads (a snapshot, editable, never the Job's live text) | `Screening.postingText` + `postingUpdatedAt`; `store.ts:postingOf` is what the brief and every call read; `POST /screen/:id/posting` saves, `POST /screen/:id/run-all` scores everyone again; `web/screen-view.ts:scoredBeforePosting` counts the verdicts older than the edit |
 | The notice an employer owes applicants, and the legal note | `src/screening/notice.ts` — shown with a Copy button on `/settings` → Screening |
 | Each cron's once-script (manual trigger) | `src/scripts/{fetch,digest,cleanup,stale,hn,discovery}-once.ts` |
 
@@ -421,7 +422,8 @@ When the question is **"how does the user toggle / configure X?"**:
 | Read one applicant's reasoning | the row's name → the scorecard: who / did / verdict, every gate and term with its quote, the score table, the questions (Copy), the facts to discuss, what was removed before the model read it, the redacted and the full text |
 | Record a decision | the Decision select on the row, or the scorecard's "Your decision" — the one write the tool never makes |
 | Hand the table to a hiring manager | `/screen/:id` → CSV / Markdown |
-| Delete a screening, or keep it longer | `/screen/:id` → "Delete with files" / "Keep N more days"; the default is `/settings` → Screening → Retention |
+| Read or edit the posting a screening uses, then re-score | `/screen/:id` → Position → "Read the posting" / "Edit the posting for this screening" → Save; the card then offers "Re-read the rubric" or "Score everyone again" and says how many scores predate the edit. The job page's text is untouched |
+| Delete a screening, or keep it longer | `/screen/:id` → "Delete screening" (the uploaded copies and verdicts go from the database; files on disk stay) / "Keep N more days"; the default is `/settings` → Screening → Retention |
 | Edit in place with a live score | comparison → "Open targeted view →" (`/jobs/:id/target`); **Analyse my resume again** is the one AI action there (always the full report), **Compare this file** runs the same thing on a freshly uploaded file, "Save as vN" keeps the draft |
 
 ---

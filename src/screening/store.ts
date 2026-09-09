@@ -20,8 +20,19 @@ export type ApplicantWithVerdict = ApplicantSummary & {
   stale: boolean;
 };
 export type ScreeningWithJob = Screening & {
-  job: { id: number; title: string; location: string; description: string; company: { name: string } };
+  job: { id: number; title: string; location: string; company: { name: string } };
 };
+
+/** The posting as a screening reads it — its own snapshot, never the Job's live text (plan §4). */
+export function postingOf(screening: ScreeningWithJob): { id: number; title: string; companyName: string; location: string; description: string } {
+  return {
+    id: screening.job.id,
+    title: screening.job.title,
+    companyName: screening.job.company.name,
+    location: screening.job.location,
+    description: screening.postingText,
+  };
+}
 
 export interface ScreeningSummary {
   id: number;
@@ -64,16 +75,27 @@ export async function listScreenings(): Promise<ScreeningSummary[]> {
   }));
 }
 
-export async function createScreening(input: { jobId: number; title: string; rubric: Rubric; retainUntil: Date }): Promise<Screening> {
+export async function createScreening(input: { jobId: number; title: string; postingText: string; rubric: Rubric; retainUntil: Date }): Promise<Screening> {
   return prisma.screening.create({
-    data: { jobId: input.jobId, title: input.title, rubric: input.rubric as Prisma.InputJsonValue, retainUntil: input.retainUntil },
+    data: {
+      jobId: input.jobId,
+      title: input.title,
+      postingText: input.postingText,
+      rubric: input.rubric as Prisma.InputJsonValue,
+      retainUntil: input.retainUntil,
+    },
   });
+}
+
+/** The person's edit to the posting — stamped, so older verdicts read as scored against other text. */
+export async function savePosting(id: number, postingText: string): Promise<void> {
+  await prisma.screening.update({ where: { id }, data: { postingText, postingUpdatedAt: new Date() } });
 }
 
 export async function getScreening(id: number): Promise<ScreeningWithJob | null> {
   return prisma.screening.findUnique({
     where: { id },
-    include: { job: { select: { id: true, title: true, location: true, description: true, company: { select: { name: true } } } } },
+    include: { job: { select: { id: true, title: true, location: true, company: { select: { name: true } } } } },
   });
 }
 
@@ -173,7 +195,7 @@ export async function getApplicant(id: number): Promise<(ApplicantWithVerdict & 
     include: {
       verdicts: { orderBy: { createdAt: 'desc' }, take: 1 },
       screening: {
-        include: { job: { select: { id: true, title: true, location: true, description: true, company: { select: { name: true } } } } },
+        include: { job: { select: { id: true, title: true, location: true, company: { select: { name: true } } } } },
       },
     },
   });
