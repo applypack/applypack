@@ -7,12 +7,12 @@ import { formatDate } from '../format';
 import { formatRange, parseRange } from '../../screening/dates';
 import { trajectoryLine, trajectoryOf } from '../../screening/trajectory';
 import { SCREEN_PROMPT_VERSION } from '../../screening/prompts';
-import { CRITERION_KIND_LABELS, EVIDENCE_RUNG_LABELS, type EvidenceRung, type Rubric } from '../../screening/rubric';
+import { CRITERION_KIND_LABELS, EVIDENCE_RUNG_LABELS, type Rubric } from '../../screening/rubric';
 import type { ScreenReply } from '../../screening/prompts';
 import { capExplanation, GATE_BUCKET_LABELS, type ScoreRow, type ScreenBreakdown } from '../../screening/score';
 import { describeRedactions, type Redaction } from '../../screening/redact';
 import { DECISION_LABELS, GATE_MARK, MAX_ADJUSTMENT } from '../../screening/export';
-import { adjustedScore } from '../screen-view';
+import { adjustedScore, ANSWER_TONE, RUNG_SHORT } from '../screen-view';
 import { DECISIONS } from '../../screening/store';
 
 /*
@@ -57,17 +57,11 @@ export interface ScreenApplicantProps {
   flash?: FlashMessage | null;
 }
 
-const RUNG_TONE: Record<EvidenceRung, 'danger' | 'warn' | 'neutral' | 'ok'> = { absent: 'danger', listed: 'warn', project: 'neutral', role: 'ok', production: 'ok' };
-const STATUS_TONE: Record<string, 'danger' | 'warn' | 'neutral' | 'ok'> = { pass: 'ok', partial: 'neutral', unknown: 'warn', fail: 'danger', strong: 'ok', ok: 'neutral', weak: 'danger', exceptional: 'ok', none: 'danger' };
-
 /** One criterion on the scorecard: what was asked, how the text answered, the quote, the points. */
-/** The badge's word for a rung — the long label is the tooltip. */
-const RUNG_SHORT: Record<EvidenceRung, string> = { absent: 'absent', listed: 'skills list', project: 'project', role: 'in a role', production: 'production' };
-
 const CriterionAnswerRow: FC<{ r: ScoreRow }> = ({ r }) => {
   const answerLabel = (RUNG_SHORT as Record<string, string>)[r.answer] ?? r.answer;
   const answerTitle = (EVIDENCE_RUNG_LABELS as Record<string, string>)[r.answer];
-  const tone = r.mode === 'gate' && r.gate ? STATUS_TONE[r.gate] : (STATUS_TONE[r.answer] ?? 'neutral');
+  const tone = r.mode === 'gate' && r.gate ? ANSWER_TONE[r.gate] : (ANSWER_TONE[r.answer] ?? 'neutral');
   return (
     <Tr>
       <Td class="align-top">

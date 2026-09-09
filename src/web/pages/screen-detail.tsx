@@ -93,15 +93,19 @@ export const ScreenDetailPage: FC<ScreenDetailProps> = ({ screening, rubric, row
           </div>
         }
       >
-        The order below is a priority to talk to, read off each resume against the rubric; every mark has its quote
-        on the scorecard, and the decision column is yours alone.
+        Four cards, top to bottom: the position, the criteria it is screened against, the applicants, the results.
+        The order in the results is a priority to talk to; every mark has its quote on the scorecard, and the
+        decision column is yours alone.
       </PageHeader>
       <Flash flash={flash} />
 
       {/* 0. The posting, as this screening reads it. */}
       <Card class="mb-4" id="position">
         <div class="flex flex-wrap items-baseline justify-between gap-2">
-          <SectionTitle>Position</SectionTitle>
+          <SectionTitle>
+            <Step n={1} />
+            Position
+          </SectionTitle>
           <span class="text-[13px] text-ink-faint">
             {screening.postingUpdatedAt
               ? `edited here ${formatRelative(screening.postingUpdatedAt)}`
@@ -135,11 +139,19 @@ export const ScreenDetailPage: FC<ScreenDetailProps> = ({ screening, rubric, row
           </div>
         )}
         <details class="mt-3">
-          <summary class="cursor-pointer text-[13px] font-medium text-ink">Read the posting</summary>
+          <summary class={DISCLOSURE}>
+            <span class="when-closed">Read the posting</span>
+            <span class="when-open">Hide the posting</span>
+            <Chevron />
+          </summary>
           <pre class="mt-2 max-h-[28rem] overflow-auto whitespace-pre-wrap rounded-md bg-surface-overlay p-3 font-sans text-[13px] leading-5 text-ink">{screening.postingText}</pre>
         </details>
         <details class="mt-2">
-          <summary class="cursor-pointer text-[13px] font-medium text-ink">Edit the posting for this screening</summary>
+          <summary class={DISCLOSURE}>
+            <span class="when-closed">Edit the posting for this screening</span>
+            <span class="when-open">Close the editor</span>
+            <Chevron />
+          </summary>
           <form method="post" action={`/screen/${screening.id}/posting`} class="mt-2 space-y-2">
             <Textarea name="postingText" rows={14} aria-label="Posting text">
               {screening.postingText}
@@ -156,16 +168,32 @@ export const ScreenDetailPage: FC<ScreenDetailProps> = ({ screening, rubric, row
       </Card>
 
 
-      {/* 1. The criteria — open until the first run, a one-line summary after. */}
+      {/* 2. The criteria — the editor is open until the first run; after that the chips say what is checked and the button opens it. */}
       <Card class="mb-4" id="rubric">
+        <div class="flex flex-wrap items-baseline justify-between gap-2">
+          <SectionTitle>
+            <Step n={2} />
+            Criteria — what this screen checks
+          </SectionTitle>
+          <span class="text-[13px] text-ink-faint">
+            {rubricEmpty ? 'no criteria yet' : rubricSummary(rubric)} · rubric v{screening.rubricVersion}
+          </span>
+        </div>
+        {!rubricEmpty && (
+          <div class="rubric-chips mb-3 flex flex-wrap gap-1.5">
+            {rubric.criteria.slice(0, MAX_CRITERION_CHIPS).map((c) => (
+              <CriterionChip c={c} />
+            ))}
+            {rubric.criteria.length > MAX_CRITERION_CHIPS && (
+              <span class="self-center text-xs text-ink-faint">+{rubric.criteria.length - MAX_CRITERION_CHIPS} more</span>
+            )}
+          </div>
+        )}
         <details open={!scoredAny || rubricEmpty}>
-          <summary class="cursor-pointer list-none">
-            <div class="flex flex-wrap items-baseline justify-between gap-2">
-              <SectionTitle>What this screen checks</SectionTitle>
-              <span class="text-[13px] text-ink-faint">
-                {rubricEmpty ? 'no criteria yet' : rubricSummary(rubric)} · rubric v{screening.rubricVersion}
-              </span>
-            </div>
+          <summary class={DISCLOSURE}>
+            <span class="when-closed">Show and edit the criteria</span>
+            <span class="when-open">Hide the editor</span>
+            <Chevron />
           </summary>
           <Hint class="mt-2">
             One row per criterion. A <span class="text-ink">gate</span> buckets (pass / unknown / fail, never points), the
@@ -258,9 +286,12 @@ export const ScreenDetailPage: FC<ScreenDetailProps> = ({ screening, rubric, row
         </details>
       </Card>
 
-      {/* 2. Applicants in. */}
+      {/* 3. Applicants in. */}
       <Card class="mb-4">
-        <SectionTitle>Applicants</SectionTitle>
+        <SectionTitle>
+          <Step n={3} />
+          Applicants
+        </SectionTitle>
         <form
           id="upload-form"
           method="post"
@@ -302,7 +333,10 @@ export const ScreenDetailPage: FC<ScreenDetailProps> = ({ screening, rubric, row
       <Card flush id="results">
         <div class="flex flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-5">
           <div>
-            <SectionTitle>Results</SectionTitle>
+            <SectionTitle>
+              <Step n={4} />
+              Results
+            </SectionTitle>
             <div class="text-[13px] text-ink-faint" id="run-progress" data-screening={screening.id} data-running={running ? '1' : undefined}>
               {running
                 ? progressText(run!)
@@ -355,6 +389,9 @@ export const ScreenDetailPage: FC<ScreenDetailProps> = ({ screening, rubric, row
             ))}
             <Button variant="ghost" size="sm" name="do" value="clear">
               Clear decision
+            </Button>
+            <Button variant="secondary" size="sm" name="do" value="compare" data-min="2" title="Two to five scored applicants, side by side">
+              Compare
             </Button>
             <Button variant="violet" size="sm" name="do" value="again" disabled={running}>
               Score again
@@ -426,12 +463,32 @@ export const ScreenDetailPage: FC<ScreenDetailProps> = ({ screening, rubric, row
         with a small +N or −N beside it carries your own adjustment from the scorecard; the computed number is in
         its tooltip and in the export.
       </Hint>
-      <style dangerouslySetInnerHTML={{ __html: RUN_BADGE_CSS }} />
+      <style dangerouslySetInnerHTML={{ __html: RUN_BADGE_CSS + DISCLOSURE_CSS }} />
       <script
         type="module"
         dangerouslySetInnerHTML={{ __html: "import { init } from '/static/screen.mjs'; init();" }}
       />
     </Layout>
+  );
+};
+
+const MAX_CRITERION_CHIPS = 40;
+
+/** One criterion as a chip in the closed card: its words, and whether it gates, scores (with the stars) or only notes. */
+const CriterionChip: FC<{ c: Criterion }> = ({ c }) => {
+  const words = c.kind === 'impact' || c.kind === 'overall' ? c.label : criterionText(c) || c.label;
+  return (
+    <span
+      class={`inline-flex min-w-0 max-w-[32rem] items-center gap-1 rounded-full px-2 py-0.5 text-xs ring-1 ring-inset ${
+        c.mode === 'gate' ? 'bg-warn/5 text-ink ring-warn/25' : c.mode === 'note' ? 'bg-surface-overlay text-ink-muted ring-line' : 'bg-surface-raised text-ink ring-line'
+      }`}
+      title={`${CRITERION_KIND_LABELS[c.kind]} · ${CRITERION_MODE_LABELS[c.mode].split(' — ')[0]}${c.source === 'you' ? ' · yours' : ''}`}
+    >
+      {c.mode === 'gate' && <span class="text-warn">gate</span>}
+      <span class="min-w-0 truncate">{words}</span>
+      {c.mode === 'scored' && <span class="shrink-0 text-ink-faint">{'★'.repeat(c.weight)}</span>}
+      {c.mode === 'note' && <span class="text-ink-faint">note</span>}
+    </span>
   );
 };
 
@@ -495,6 +552,29 @@ const CriterionRow: FC<{ c: Criterion }> = ({ c }) => {
     </tr>
   );
 };
+
+/** The step number in a card's title — the page reads top to bottom: position, criteria, applicants, results. */
+const Step: FC<{ n: number }> = ({ n }) => (
+  <span class="mr-2 inline-flex h-5 w-5 items-center justify-center rounded-full bg-surface-overlay text-[11px] font-semibold text-ink-muted ring-1 ring-inset ring-line">
+    {n}
+  </span>
+);
+
+/** A <summary> that reads as a button, with a chevron that turns when the block is open; the bare marker was missed. */
+const DISCLOSURE =
+  'inline-flex cursor-pointer select-none items-center gap-1.5 rounded-md border border-line bg-surface-raised px-2.5 py-1 text-[13px] font-medium text-ink hover:bg-surface-overlay list-none [&::-webkit-details-marker]:hidden';
+const Chevron: FC = () => (
+  <svg class="chev h-3.5 w-3.5 text-ink-faint transition-transform" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <path d="m6 9 6 6 6-6" />
+  </svg>
+);
+
+const DISCLOSURE_CSS = `
+  details[open] > summary .chev { transform: rotate(180deg); }
+  details[open] > summary .when-closed { display: none; }
+  details:not([open]) > summary .when-open { display: none; }
+  #rubric:has(details[open]) .rubric-chips { display: none; }
+`;
 
 /* The Score cell's run badge, keyed on the row's data-run-state so the poller only flips attributes. */
 const RUN_BADGE_CSS = `

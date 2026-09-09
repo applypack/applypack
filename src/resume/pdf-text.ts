@@ -1,5 +1,6 @@
 import { extractText, getDocumentProxy } from 'unpdf';
 import { ResumeTextError } from './docx-text';
+import { joinWrapped } from './structure-from-text';
 
 /*
  * PDF → plain text via unpdf (a self-contained serverless build of pdf.js —
@@ -41,11 +42,23 @@ export async function pdfToText(bytes: Buffer): Promise<string> {
   return normalized;
 }
 
-function normalizePdfText(text: string): string {
-  return text
+/**
+ * Whitespace as a text layer leaves it, then the page-width wraps undone: a
+ * PDF breaks a bullet or a "Technology Stack: a, b," line where the page
+ * ends, and the same resume as .docx keeps them whole. Joined back the way
+ * the structure floor joins them (`joinWrapped`), so a quote, a number in
+ * a bullet or a stack line's label reads the same from either file.
+ * Blank lines still separate paragraphs.
+ */
+export function normalizePdfText(text: string): string {
+  const flat = text
     .replace(/\r\n/g, '\n')
     .replace(/[ \t]+\n/g, '\n')
     .replace(/\n{3,}/g, '\n\n')
     .replace(/[ \t]{2,}/g, ' ')
     .trim();
+  return flat
+    .split(/\n\n+/)
+    .map((paragraph) => joinWrapped(paragraph.split('\n')).join('\n'))
+    .join('\n\n');
 }

@@ -194,6 +194,8 @@ src/
     anchor.ts                  ← pure: every quote checked against the redacted text; unproven rungs lowered
     score.ts                   ← pure: the employer score, its caps, the bucket, the confidence (ADR 0047)
     trajectory.ts              ← pure: the career read off the dated roles (years, employers, average stay, sectors) — a fact, never points
+    comparison.ts              ← pure: a shortlist's two readings — stored shape, the anchor, where they differ, the Markdown (ADR 0051)
+    compare.ts                 ← Compare with AI: two calls at once (the second reversed), both stored as one ScreeningComparison
     intake.ts                  ← pure: zip expansion, duplicate detection, the caps
     export.ts                  ← pure: CSV / Markdown of the table
     notice.ts                  ← the applicant notice and the legal note, as text
@@ -201,7 +203,8 @@ src/
     batch.ts                   ← one call per applicant under the limiter; verdicts persisted as they arrive
   web/employer-mode.ts         ← the switch, cached in the web process; requireEmployerMode on every /screen route
   web/screen-view.ts           ← pure: stored applicant + verdict → table row / export row
-  web/routes/screen.tsx        ← /screen, /screen/new, /screen/:id, the scorecard, exports, decisions
+  web/screen-compare.ts        ← pure: ticked applicants as columns, one row per criterion (side by side)
+  web/routes/screen.tsx        ← /screen, /screen/new, /screen/:id, the scorecard, compare, exports, decisions
   web/public/screen.mjs        ← polls the run, saves a decision select
   ai-provider.ts               ← AiProvider seam: AnthropicApiProvider | ClaudeCodeProvider
   ai-provider-parse.ts         ← pure parser for `claude -p` JSON output (tested)

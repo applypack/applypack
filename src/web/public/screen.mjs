@@ -81,7 +81,8 @@ function wireSelection(form) {
   const paint = () => {
     const n = boxes().filter((b) => b.checked).length;
     if (line) line.textContent = selectionLine(n, boxes().length);
-    for (const b of buttons) b.disabled = n === 0;
+    // A button may need more than one row — Compare wants two.
+    for (const b of buttons) b.disabled = n < (Number(b.dataset.min) || 1);
     if (all) all.indeterminate = n > 0 && n < boxes().length;
   };
   if (all) {

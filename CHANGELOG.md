@@ -4,6 +4,56 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.4.0] — 2026-09-09
+
+### Added
+- **Compare — side by side** (stage D of docs/screening-criteria-plan.md
+  §5): tick two to five scored applicants → Compare. One column per
+  applicant, one row per criterion with the stored answers and their
+  quotes, plus years, level, career, the stand-out facts and the verdict
+  line — the stored scorecards, no new call. The bulk bar's Compare button
+  wants at least two rows.
+- **Compare with AI** (ADR 0051): on that page, one call carrying the
+  shortlist's redacted resumes, the posting and the criteria, run twice
+  at once — the second time with the resumes in the reverse order. It says
+  who is stronger on each criterion and why (each applicant's own line,
+  checked against that resume), whom to talk to first with a reason each,
+  and the one question that would decide between the first two. The page
+  marks where the two readings disagree; "Copy as Markdown" takes it to
+  the shortlist meeting. Stored as a `ScreeningComparison`, shown again
+  for the same applicants, never folded into any score — the table keeps
+  its order. Ceiling: five; above that, narrow the shortlist first.
+
+### Fixed
+- **The same resume as .docx and .pdf scored 78 and 69.** Not the PDF
+  reading badly — the .docx over-credited: a skills TABLE comes out of the
+  .docx reader as one line, which read as prose, so every term on it
+  counted as work done; and the model called the same "Technology Stack:"
+  lines "production" in one run and "role" in the other. Three rules in
+  the anchor now (`screening/anchor.ts`, `resume/evidence.ts`): a
+  flattened table row is judged cell by cell; a quote that is a list of
+  terms supports at most "listed", or exactly "role" on a job's own
+  "Technology Stack:" line (its label found through a PDF's wrapped run) —
+  "production" needs a work bullet with an outcome; a quote that never
+  names the term supports nothing above the text's own line (the PostgreSQL
+  bullet offered for MySQL); and a term the text never spells is "absent"
+  whatever line the model quoted (Datadog is not Sentry). Prompt v4 says
+  the same. A PDF's page-width wraps are joined at extraction
+  (`resume/pdf-text.ts:normalizePdfText`), so a wrapped bullet or stack
+  line reads as it does in the .docx. `node dist/scripts/rescore-screenings.js`
+  re-anchors and re-scores stored verdicts without a call (`--write` to
+  apply); "Score again" is the other way. Re-scored live after the rules:
+  the .docx / .pdf pairs moved from 78 / 69 and 80 / 72 to within
+  run-to-run variance of each other.
+- **The screening page reads top to bottom.** Four numbered cards; the
+  criteria card shows every criterion as a chip while closed and opens the
+  editor with a button instead of a bare disclosure marker; "Read the
+  posting" and "Edit the posting" are buttons too.
+
+### Schema
+- `screening_comparison` — the two anchored readings of a shortlist with
+  the order each was shown in (migration `20260909180000_screening_comparison`).
+
 ## [2.3.0] — 2026-09-09
 
 ### Added
@@ -3194,6 +3244,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.4.0]: https://github.com/applypack/applypack/compare/v2.3.0...v2.4.0
 [2.3.0]: https://github.com/applypack/applypack/compare/v2.2.0...v2.3.0
 [2.2.0]: https://github.com/applypack/applypack/compare/v2.1.0...v2.2.0
 [2.1.0]: https://github.com/applypack/applypack/compare/v2.0.0...v2.1.0

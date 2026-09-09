@@ -1,5 +1,6 @@
 import type { ApplicantWithVerdict } from '../screening/store';
 import { readScreenReply, type GateStatus } from '../screening/prompts';
+import type { EvidenceRung } from '../screening/rubric';
 import { orderVerdicts, readScreenBreakdown, type CapReason, type ConfidenceBand, type GateBucket } from '../screening/score';
 import type { ExportRow } from '../screening/export';
 import { trajectoryLine, trajectoryOf, type Trajectory } from '../screening/trajectory';
@@ -32,6 +33,26 @@ export interface VerdictView {
   career: Trajectory;
   careerLine: string;
 }
+
+/** The badge's word for a rung — the long label (`EVIDENCE_RUNG_LABELS`) is the tooltip. */
+export const RUNG_SHORT: Record<EvidenceRung, string> = { absent: 'absent', listed: 'skills list', project: 'project', role: 'in a role', production: 'production' };
+/** The badge tone for every answer word a scorecard row can carry — rungs, statuses, impact and overall grades. */
+export const ANSWER_TONE: Record<string, 'danger' | 'warn' | 'neutral' | 'ok'> = {
+  absent: 'danger',
+  listed: 'warn',
+  project: 'neutral',
+  role: 'ok',
+  production: 'ok',
+  pass: 'ok',
+  partial: 'neutral',
+  unknown: 'warn',
+  fail: 'danger',
+  strong: 'ok',
+  ok: 'neutral',
+  weak: 'danger',
+  exceptional: 'ok',
+  none: 'danger',
+};
 
 /** How many current verdicts predate an edit to the posting — the "posting changed" line. */
 export function scoredBeforePosting(rows: { scoredAt: Date | null }[], postingUpdatedAt: Date | null): number {

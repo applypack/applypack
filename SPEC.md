@@ -578,7 +578,12 @@ facts no criterion asked for, each kept only with its line, and the
 career (`screening/trajectory.ts`: years, employers, average stay, in a
 role now, sectors) is read off the dated roles on every view — both are
 read, never scored. The table orders bucket → score →
-confidence; CSV and Markdown export the same rows. A screening is deleted
+confidence; CSV and Markdown export the same rows. Two to five ticked
+rows open side by side (columns, one row per criterion with the quotes);
+**Compare with AI** there is one call with the shortlist's redacted texts,
+run twice with the order reversed, stored as a `ScreeningComparison` with
+both anchored readings and shown with its disagreements marked — never
+folded into a score (ADR 0051). A screening is deleted
 with its files on `retainUntil` (`screeningRetentionDays`, default 90) by
 the cleanup cron, or at once from its page.
 

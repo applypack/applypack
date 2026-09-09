@@ -36,12 +36,33 @@ const SEPARATORS = [',', ' · ', ' | ', ';', ' • '];
 const METRIC =
   /\d+\s*%|[$€£]\s?\d|\b\d[\d,.]*\s*(?:k|m|bn|b|x|ms|s|gb|tb|qps|rps|hrs?|hours?|days?|weeks?|months?|users?|customers?|requests?|events?|services?|engineers?|people|clients?|sites?|websites?)\b/i;
 
-/** The line a span sits on. */
-function lineAt(text: string, index: number): string {
+/** The line a span sits on, and where on it. */
+export function lineAt(text: string, index: number): { line: string; column: number } {
   const start = text.lastIndexOf('\n', index - 1) + 1;
   const end = text.indexOf('\n', index);
-  return text.slice(start, end === -1 ? text.length : end);
+  return { line: text.slice(start, end === -1 ? text.length : end), column: index - start };
 }
+
+/**
+ * The part of a line around one position. A .docx skills table comes out of
+ * the reader as ONE line — the label cell, " | ", the values cell — and a
+ * whole row read as a sentence made every term on it look like work done.
+ * Judged cell by cell, the values cell is the list of terms it is.
+ */
+export function segmentAt(line: string, column: number): string {
+  let start = 0;
+  let end = line.length;
+  for (const sep of [' | ', '\t']) {
+    const left = line.lastIndexOf(sep, column - 1);
+    const right = line.indexOf(sep, column);
+    if (left !== -1) start = Math.max(start, left + sep.length);
+    if (right !== -1) end = Math.min(end, right);
+  }
+  return line.slice(start, end);
+}
+
+/** Words a list of terms has no use for: a sentence has grammar, a skills line has none. */
+const GRAMMAR = new Set(['the', 'a', 'an', 'and', 'or', 'of', 'to', 'in', 'for', 'with', 'on', 'by', 'at', 'from', 'that', 'this', 'as', 'is', 'was', 'were', 'are']);
 
 /**
  * Is this line a list of terms rather than a sentence? Same shape the editor's
@@ -54,10 +75,16 @@ export function isTermList(line: string): boolean {
   if (body === '') return false;
   // A sentence ends somewhere. A term list does not.
   if (/[.!?](\s|$)/.test(body.slice(0, -1))) return false;
+  // And a sentence has grammar: more than one small word in five is prose ("Docker and Kubernetes" is still a list).
+  const words = body.split(/\s+/);
+  if (words.filter((w) => GRAMMAR.has(w.toLowerCase())).length * 5 > words.length) return false;
   for (const sep of SEPARATORS) {
     const parts = body.split(sep).map((p) => p.trim()).filter(Boolean);
-    // Items, not clauses: three words each at most is what a skills line looks like.
-    if (parts.length >= 2 && parts.every((p) => p.split(/\s+/).length <= 4)) return true;
+    if (parts.length < 2) continue;
+    // Items, not clauses: three words each at most is what a skills line looks like. A long list may glue a
+    // few pairs where a table's rows were flattened ("CSS3 Node.js"), so four short items in five is enough there.
+    const short = parts.filter((p) => p.split(/\s+/).length <= 4).length;
+    if (short === parts.length || (parts.length >= 6 && short * 5 >= parts.length * 4)) return true;
   }
   return false;
 }
@@ -71,7 +98,8 @@ export function evidenceFor(
   const spans = matcher.findTerm(resumeText, keyword.term, keyword.aliases ?? []);
   let best: EvidenceLevel = 'absent';
   for (const span of spans) {
-    const line = lineAt(resumeText, span.start);
+    const at = lineAt(resumeText, span.start);
+    const line = segmentAt(at.line, at.column);
     const level: EvidenceLevel = isTermList(line) ? 'listed' : METRIC.test(line) ? 'measured' : 'described';
     if (EVIDENCE_LEVELS.indexOf(level) > EVIDENCE_LEVELS.indexOf(best)) best = level;
   }

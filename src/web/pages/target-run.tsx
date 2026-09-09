@@ -62,6 +62,10 @@ const STEP_VIEW: Record<RunStep, StepView> = {
     label: 'Score the best matches',
     detail: 'the AI reads each one against your profile — seconds on an API engine, up to half a minute on a CLI one',
   },
+  compare: {
+    label: 'Read the shortlist head to head',
+    detail: 'two readings at once, the second with the resumes in the reverse order — about a minute on a CLI engine',
+  },
 };
 
 /** What the timed steps cost when the lane is not one we measured. */

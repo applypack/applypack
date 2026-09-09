@@ -94,6 +94,57 @@ test('anchorScreenReply: quotes must be in the text; answers fall to what the te
   assert.equal(report.standoutDropped, 2);
 });
 
+const FLAT = `Applicant №9
+
+## KEY SKILLS
+Programming: Frameworks: Tools: | Go, PHP, CSS3 Node.js, React Git, Docker
+
+## EXPERIENCE
+Senior Engineer | Acme | 2020 – Present
+- Shipped the checkout on Node.js, cutting p99 latency 40%
+Technology Stack: Node, TypeScript, AWS, Redis, Datadog.
+Engineer | Beta | 2016 – 2019
+- Ran the CRM
+Technology Stack: PHP, Laravel, Vue,
+Kafka, Grafana.
+`;
+const skill = (id: string, term: string, aliases: string[] = []) => c(id, 'skill', term, 'scored', { terms: [{ term, aliases }] });
+const FLAT_RUBRIC: Rubric = RubricSchema.parse({
+  criteria: [skill('css', 'CSS', ['CSS3']), skill('git', 'Git'), skill('aws', 'AWS'), skill('ts', 'TypeScript'), skill('sentry', 'Sentry', ['New Relic']), skill('node', 'Node.js', ['Node']), skill('redis', 'Redis'), skill('kafka', 'Kafka')],
+});
+
+test('a list is at most listed, a stack line at most role, a term the text never spells is absent', async () => {
+  const matcher = await loadKeywordMatcher();
+  const row = 'Programming: Frameworks: Tools: | Go, PHP, CSS3 Node.js, React Git, Docker';
+  const stack = 'Technology Stack: Node, TypeScript, AWS, Redis, Datadog.';
+  const reply = ScreenReplySchema.parse({
+    answers: [
+      { id: 'css', rung: 'production', quote: row },
+      { id: 'git', rung: 'role', quote: row },
+      { id: 'aws', rung: 'production', quote: stack },
+      { id: 'ts', rung: 'role', quote: stack },
+      { id: 'sentry', rung: 'role', quote: stack },
+      { id: 'node', rung: 'production', quote: 'Shipped the checkout on Node.js, cutting p99 latency 40%' },
+      { id: 'redis', rung: 'production', quote: 'Shipped the checkout on Node.js, cutting p99 latency 40%' },
+      { id: 'kafka', rung: 'listed', quote: 'Kafka, Grafana.' },
+    ],
+  });
+  const { reply: out, report } = anchorScreenReply(reply, FLAT, FLAT_RUBRIC, matcher);
+  const by = Object.fromEntries(out.answers.map((a) => [a.id, a]));
+  assert.equal(by.css!.rung, 'listed', 'a flattened skills table is a list, judged around the term');
+  assert.equal(by.git!.rung, 'listed');
+  assert.equal(by.aws!.rung, 'role', 'a job stack line supports role, never production');
+  assert.equal(by.ts!.rung, 'role');
+  assert.equal(by.sentry!.rung, 'absent', 'Datadog is not Sentry: the text never spells the term');
+  assert.equal(by.sentry!.quote, null);
+  assert.equal(by.node!.rung, 'production', 'a work bullet with the term keeps production');
+  assert.equal(by.redis!.rung, 'role', 'a bullet that never names Redis supports nothing above its own stack line');
+  assert.equal(by.redis!.quote, 'Technology Stack: Node, TypeScript, AWS, Redis, Datadog.');
+  assert.equal(by.kafka!.rung, 'role', 'a stack line wrapped by a PDF keeps its label for the continuation line');
+  assert.equal(report.rungsLowered, 5, 'css, git, aws, sentry, redis');
+  assert.equal(report.rungsRaised, 1, 'kafka');
+});
+
 test('anchorScreenReply raises a rung the text shows more of, and lowers a strong impact with no quote', async () => {
   const matcher = await loadKeywordMatcher();
   const reply = ScreenReplySchema.parse({

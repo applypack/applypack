@@ -1,5 +1,5 @@
 import { normaliseForAnchor } from '../resume/structure-anchor';
-import { isTermList } from '../resume/evidence';
+import { isTermList, lineAt, segmentAt } from '../resume/evidence';
 import type { KeywordMatcher } from '../resume/keyword-matcher';
 import { EVIDENCE_RUNGS, type Criterion, type EvidenceRung, type Rubric } from './rubric';
 import { answerShape, type ScreenAnswer, type ScreenReply } from './prompts';
@@ -17,7 +17,16 @@ import { answerShape, type ScreenAnswer, type ScreenReply } from './prompts';
  *   located quote, else it falls to what the text shows (a skills line →
  *   listed, a work sentence → role); a term the matcher finds in a work
  *   sentence is at least "role" whatever the model marked; a term the
- *   matcher cannot find at all is absent;
+ *   matcher cannot find at all is absent, whatever line the model quoted
+ *   (ADR 0045: presence is read off the text); a quote that does not carry
+ *   the term or an alias supports nothing above the text's own line (the
+ *   PostgreSQL bullet offered for MySQL); and a quote that is a LIST
+ *   of terms supports at most "listed" — or "role" when the list is a
+ *   job's own "Technology Stack:" line — because "production" is a work
+ *   bullet with an outcome, never a word in a list. Measured 2026-09-09:
+ *   the same resume as .docx and .pdf scored 78 and 69 because the model
+ *   called the same stack lines "production" in one run and "role" in the
+ *   other, and a .docx skills table flattened to one line read as prose;
  * - status (a gate-shaped question): pass, partial and fail need a located
  *   quote, else unknown — a mark with no quote is a claim the person cannot
  *   check;
@@ -69,16 +78,56 @@ export function textEvidence(
   matcher: Pick<KeywordMatcher, 'findTerm'>,
 ): { rung: EvidenceRung; quote: string | null } {
   let listed: string | null = null;
+  let stack: string | null = null;
   for (const t of terms) {
     for (const span of matcher.findTerm(text, t.term, t.aliases)) {
-      const start = text.lastIndexOf('\n', span.start - 1) + 1;
-      const end = text.indexOf('\n', span.start);
-      const line = text.slice(start, end === -1 ? text.length : end).trim();
+      const at = lineAt(text, span.start);
+      // A flattened table row is judged cell by cell — the cell is also the quote.
+      const line = segmentAt(at.line, at.column).trim();
       if (!isTermList(line)) return { rung: 'role', quote: line.replace(/^[-•*]\s*/, '') };
-      listed ??= line;
+      // A job's own stack line says the term was used there: "role", whether the model wrote listed or production.
+      if (STACK_LABEL.test(listHead(text, span.start))) stack ??= line;
+      else listed ??= line;
     }
   }
+  if (stack !== null) return { rung: 'role', quote: stack };
   return listed === null ? { rung: 'absent', quote: null } : { rung: 'listed', quote: listed };
+}
+
+/** A job's own stack line — evidence the term was used there, and no more. */
+const STACK_LABEL = /^\s*(?:[-•*]\s*)?(?:tech(?:nology|nologies)?(?:\s+stack)?|stack|tools|environment|technologies used|tech used)\s*:/i;
+
+/**
+ * The first line of the list a position sits on. A PDF's text layer breaks
+ * "Technology Stack: a, b," / "c, d." at the page width, and only the first
+ * line carries the label — so the label is looked for up the wrapped run.
+ */
+export function listHead(text: string, index: number): string {
+  let start = text.lastIndexOf('\n', index - 1) + 1;
+  let line = lineAt(text, index).line;
+  while (start > 0) {
+    const prevStart = text.lastIndexOf('\n', start - 2) + 1;
+    const prev = text.slice(prevStart, start - 1).trim();
+    if (!/[,;]$/.test(prev) || !isTermList(prev)) break;
+    line = prev;
+    start = prevStart;
+  }
+  return line;
+}
+
+/**
+ * What a quote can support when it is a list of terms rather than a
+ * sentence: "listed", or "role" on a job's "Technology Stack:" line; null
+ * when the quote is a sentence and the model's rung stands. The list is
+ * judged around the TERM's own cell, not the quote's first word.
+ */
+export function listCap(text: string, quote: string, terms: { term: string; aliases: string[] }[], matcher: Matcher): EvidenceRung | null {
+  const exact = text.indexOf(quote);
+  const start = exact !== -1 ? exact : (matcher.locateQuote(text, quote)?.start ?? null);
+  const inQuote = terms.flatMap((t) => matcher.findTerm(quote, t.term, t.aliases))[0]?.start ?? 0;
+  const at = start === null ? { line: quote, column: inQuote } : lineAt(text, start + inQuote);
+  if (!isTermList(segmentAt(at.line, at.column))) return null;
+  return STACK_LABEL.test(start === null ? quote : listHead(text, start + inQuote)) ? 'role' : 'listed';
 }
 
 const blank = (id: string): ScreenAnswer => ({
@@ -160,17 +209,34 @@ function anchorAnswer(
       let rung: EvidenceRung = a.rung;
       let q = quote;
       if (floor) {
-        if (rank(rung) > rank('listed') && q === null) {
+        if (floor.rung === 'absent') {
+          // The text never spells the term or an alias: whatever line the model quoted is about something else.
+          if (rung !== 'absent') {
+            rung = 'absent';
+            q = null;
+            report.rungsLowered++;
+          }
+        } else if (rank(rung) > rank('listed') && q === null) {
           rung = floor.rung;
           q = floor.quote;
-          report.rungsLowered++;
-        } else if (rung !== 'absent' && floor.rung === 'absent' && q === null) {
-          rung = 'absent';
           report.rungsLowered++;
         } else if (rank(rung) < rank(floor.rung)) {
           rung = floor.rung;
           q = floor.quote ?? q;
           report.rungsRaised++;
+        }
+        if (q !== null && rank(rung) > rank(floor.rung) && !terms.some((t) => matcher.findTerm(q!, t.term, t.aliases).length > 0)) {
+          // The quote is about something else (the PostgreSQL bullet offered for MySQL): the text's own line answers.
+          rung = floor.rung;
+          q = floor.quote;
+          report.rungsLowered++;
+        }
+        if (q !== null) {
+          const cap = listCap(text, q, terms, matcher);
+          if (cap !== null && rank(rung) > rank(cap)) {
+            rung = cap;
+            report.rungsLowered++;
+          }
         }
       } else if (rank(rung) > rank('listed') && q === null) {
         // A "how much" question in the person's words: no term to search for, so an unquoted rung is at most "listed".
