@@ -1028,13 +1028,6 @@ export const SettingsPage: FC<SettingsProps> = ({
             offLabel="Off"
             enableText="Turn on"
             disableText="Turn off"
-            extra={
-              screening.enabled ? (
-                <Button href="/screen" variant="secondary">
-                  Open Screening
-                </Button>
-              ) : undefined
-            }
           >
             Adds a Screening section to the menu. A screening is one position and its applicants: the posting is
             read into a rubric you edit, every resume is stripped of the person before a model reads it, one
@@ -1042,6 +1035,14 @@ export const SettingsPage: FC<SettingsProps> = ({
             is decided for you — the table is an order to talk to people in.
             {screening.screenings > 0 && !screening.enabled && (
               <> Turning it off hides {screening.screenings} stored screening{screening.screenings === 1 ? '' : 's'}; the files stay until their retention date.</>
+            )}
+            {screening.enabled && (
+              <>
+                {' '}
+                <a href="/screen" class="font-medium text-accent-strong hover:text-accent-deep">
+                  Open Screening →
+                </a>
+              </>
             )}
           </ToggleRow>
         </Card>

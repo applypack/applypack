@@ -250,7 +250,6 @@ export const ScreenDetailPage: FC<ScreenDetailProps> = ({ screening, rubric, row
         ) : (
           <Table
             columns={['#', 'Name', 'Gates', 'Score', 'Confidence', 'Must-have', 'Years', 'Level', 'Decision']}
-            widths={['w-[4%]', 'w-[26%]', 'w-[12%]', 'w-[7%]', 'w-[10%]', 'w-[9%]', 'w-[7%]', 'w-[7%]', 'w-[18%]']}
             hideBelow={['', '', 'sm', '', 'md', 'lg', 'lg', 'lg', '']}
             thClasses={['', '', '', 'text-right', '', 'text-right', 'text-right', '', '']}
           >
@@ -312,8 +311,8 @@ const ApplicantRow: FC<{ r: ApplicantRowView; screeningId: number; gates: string
   const href = `/screen/${screeningId}/applicants/${r.id}`;
   return (
     <Tr>
-      <Td class="tabular-nums text-ink-faint">№{r.number}</Td>
-      <Td class="min-w-0">
+      <Td class="whitespace-nowrap tabular-nums text-ink-faint">№{r.number}</Td>
+      <Td class="w-full max-w-0">
         <a href={href} class="font-medium text-ink hover:underline">
           {r.name ?? <span class="text-ink-muted">(no name found)</span>}
         </a>
@@ -330,7 +329,7 @@ const ApplicantRow: FC<{ r: ApplicantRowView; screeningId: number; gates: string
           {r.stale && r.verdict ? ` — scored ${r.verdict.score} under an earlier rubric` : ''}
         </div>
       </Td>
-      <Td>
+      <Td class="whitespace-nowrap">
         {v ? (
           <span class="inline-flex gap-1.5 font-mono text-[13px]">
             {gates.map((g) => {
@@ -363,7 +362,7 @@ const ApplicantRow: FC<{ r: ApplicantRowView; screeningId: number; gates: string
       <Td class="whitespace-nowrap text-right tabular-nums">{v ? `${v.mustCovered} / ${v.mustTotal}` : ''}</Td>
       <Td class="text-right tabular-nums">{v ? (v.years ?? '?') : ''}</Td>
       <Td class="text-ink-muted">{v ? (v.level ?? '?') : ''}</Td>
-      <Td>
+      <Td class="whitespace-nowrap">
         {r.status === 'ok' ? (
           <form method="post" action={`${href}/decision`} class="flex items-center gap-2">
             <input type="hidden" name="back" value={`/screen/${screeningId}#results`} />
