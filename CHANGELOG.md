@@ -4,6 +4,27 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.3.0] — 2026-09-09
+
+### Added
+- **Stands out** (stage C of docs/screening-criteria-plan.md §5): up to
+  three facts per applicant that no criterion asked for — a technology
+  beyond the rubric, a number the person quotes, a talk, a publication, a
+  language — each with the line that carries it, checked against the text
+  like every other quote (a fact without its line is dropped). Shown on the
+  scorecard, as the row's expandable line on the screening page, in the
+  CSV ("Stands out") and the Markdown. Never scored.
+- **The career, read off the dates** (`screening/trajectory.ts`, pure):
+  years in total across how many employers, the average stay, whether the
+  person is in a role now, the sectors in order. Under the roles on the
+  scorecard, in the Years cell's tooltip and the expandable line, exported
+  as "Career". A fact to ask about, never points (ADR 0047).
+
+### Changed
+- Screening prompt v3 (`SCREEN_PROMPT_VERSION`), answer budget 7 500
+  tokens. A verdict written by v2 stays valid; its scorecard says the
+  stand-out facts arrive with the next Score.
+
 ## [2.2.0] — 2026-09-09
 
 ### Added
@@ -3173,6 +3194,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.3.0]: https://github.com/applypack/applypack/compare/v2.2.0...v2.3.0
 [2.2.0]: https://github.com/applypack/applypack/compare/v2.1.0...v2.2.0
 [2.1.0]: https://github.com/applypack/applypack/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/applypack/applypack/compare/v1.76.0...v2.0.0

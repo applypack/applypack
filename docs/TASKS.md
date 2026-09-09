@@ -1945,7 +1945,7 @@ checks became unit tests and the calibration stays open.
 - [ ] Top-10 comparative tie-break with shuffled order; calibration
       report; Batch API for the API engines.
 
-### 19.5 Criteria HR chooses, the posting in the loop (analysis 2026-09-09, nothing built)
+### 19.5 Criteria HR chooses, the posting in the loop (analysis 2026-09-09; A, B, C shipped)
 
 The first real use (22 versions of one resume against one posting; 21 of
 them with the same vocabulary) asked for three things. The analysis is
@@ -1972,9 +1972,14 @@ A → B1+B2 → C → D → E.
       row (plan §3.7); the three caps as flags; recency decay for skills
       (`last_used`); verdicts from v1 read as stale. The sum stays in code
       for the measured reason in plan §8.
-- [ ] **C — beyond the score**: "Stands out" (anchored, never scored),
-      trajectory from dates in code (a fact, never a penalty), sectors and
-      company type per role, optional columns.
+- [x] **C — beyond the score** (v2.3.0): "Stands out" — three facts no
+      criterion asked for, each with its line, anchored, never scored — on
+      the scorecard, the row's expandable line and the exports; the career
+      read off the dated roles in code (`screening/trajectory.ts`: years,
+      employers, average stay, in a role now, sectors — a fact, never a
+      penalty); sectors and company type per role were already on the
+      scorecard from B2. Columns stayed put: the facts ride in the row's
+      expandable line and the Years tooltip, not in new columns.
 - [ ] **D — Compare 2–3 ticked applicants side by side**, one row per
       criterion with the quotes; and **Compare with AI** on a shortlist of
       2–5: two shuffled readings, per-criterion winners with quotes, an
