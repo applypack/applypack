@@ -404,7 +404,7 @@ export function applyPreset(rubric: Rubric, preset: Preset): Rubric {
   };
   switch (preset) {
     case 'junior':
-      if (has('years')) set('years', { mode: 'gate', label: '0–2 years', spec: { min: 0, max: 2 } });
+      if (has('years')) set('years', { mode: 'gate', label: '0–2 years', spec: { min: 0, max: 2, of: null } });
       else add({ kind: 'years', label: '0–2 years', mode: 'gate', weight: 3, source: 'you', spec: SpecSchema.parse({ min: 0, max: 2 }) });
       if (has('level')) set('level', { label: 'junior or below', spec: { wanted: 'junior', tolerance: 'atMost' } });
       else add({ kind: 'level', label: 'junior or below', mode: 'scored', weight: 2, source: 'you', spec: SpecSchema.parse({ wanted: 'junior', tolerance: 'atMost' }) });
