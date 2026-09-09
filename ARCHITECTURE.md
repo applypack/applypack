@@ -186,6 +186,22 @@ src/
   jobs/location-reason.ts      ← "open to Poland; this search hunts in …" for the job page (pure, ADR 0032)
   web/job-facets.ts            ← /jobs place / workplace / posted facets: params, where, chip counts (pure)
   web/public/countries.mjs     ← country picker: search over /countries.json + the suggestion list (tested via import())
+  screening/                   ← employer mode (TASKS §19, ADR 0047–0049); web-only, off by default
+    rubric.ts                  ← pure: what a screening checks, drafted from the posting brief, edited by the person
+    redact.ts                  ← pure: the applicant taken out of the text before any model reads it (ADR 0048)
+    dates.ts                   ← pure: resume dates in five languages → years covered, months since
+    prompts.ts                 ← buildScreenPrompt + ScreenReplySchema (evidence rungs, gates, roles, questions)
+    anchor.ts                  ← pure: every quote checked against the redacted text; unproven rungs lowered
+    score.ts                   ← pure: the employer score, its caps, the bucket, the confidence (ADR 0047)
+    intake.ts                  ← pure: zip expansion, duplicate detection, the caps
+    export.ts                  ← pure: CSV / Markdown of the table
+    notice.ts                  ← the applicant notice and the legal note, as text
+    store.ts                   ← the only Prisma access in the module
+    batch.ts                   ← one call per applicant under the limiter; verdicts persisted as they arrive
+  web/employer-mode.ts         ← the switch, cached in the web process; requireEmployerMode on every /screen route
+  web/screen-view.ts           ← pure: stored applicant + verdict → table row / export row
+  web/routes/screen.tsx        ← /screen, /screen/new, /screen/:id, the scorecard, exports, decisions
+  web/public/screen.mjs        ← polls the run, saves a decision select
   ai-provider.ts               ← AiProvider seam: AnthropicApiProvider | ClaudeCodeProvider
   ai-provider-parse.ts         ← pure parser for `claude -p` JSON output (tested)
   prompt-fence.ts              ← untrusted-text markers + directive (pure, tested, ADR 0022)
@@ -410,6 +426,9 @@ erDiagram
   Job ||--o{ PostingBrief : "1..N onDelete:Cascade"
   Resume ||--o{ CoverLetter : "1..N onDelete:Cascade"
   Job ||--o{ CoverLetter : "1..N onDelete:Cascade"
+  Job ||--o{ Screening : "1..N onDelete:Cascade (employer mode)"
+  Screening ||--o{ Applicant : "1..N onDelete:Cascade"
+  Applicant ||--o{ ScreeningVerdict : "1..N onDelete:Cascade"
 
   AppSettings {
     int id PK
@@ -424,6 +443,41 @@ erDiagram
     json aiKeys "per-engine API keys, DB-first (ADR 0027)"
     datetime setupCompletedAt "NULL = / redirects to /welcome"
     json pipelineStages "user-named funnel columns (ADR 0025)"
+    bool employerMode "the Screening section exists while on (ADR 0049)"
+    int screeningRetentionDays "90 by default (ADR 0048)"
+  }
+
+  Screening {
+    int id PK
+    int jobId FK "the position — any Job, usually MANUAL"
+    string title
+    json rubric "gates, must / nice terms, level, years, sector, weights"
+    int rubricVersion "bumped on a changed save; verdicts record theirs"
+    datetime retainUntil "deleted with files by the cleanup cron"
+  }
+
+  Applicant {
+    int id PK
+    int screeningId FK
+    int number "Applicant №N — the only identity the model sees"
+    string name "shown to the person only"
+    bytes original
+    text text "the full extraction"
+    text redactedText "what the model reads (ADR 0048)"
+    string parseStatus "ok | unreadable | duplicate"
+    string decision "interview | hold | declined — the person's, never the tool's"
+  }
+
+  ScreeningVerdict {
+    int id PK
+    int applicantId FK
+    int rubricVersion
+    int promptVersion
+    json facts "the anchored reply: rungs with quotes, gates, roles, questions"
+    json breakdown "screening/score.ts"
+    int score
+    string confidence "high | medium | low"
+    string gateBucket "pass | ask | fail"
   }
 
   Profile {

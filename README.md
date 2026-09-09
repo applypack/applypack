@@ -77,6 +77,7 @@ roadmap item.
 | 🧭 **Board discovery** | harvests company ATS boards from HN comments and queues them for a one-click promote |
 | 🛡 **Job posts can't hijack the prompt** | every posting, resume and web page reaches the model inside explicit untrusted-text markers, and a test fails the build if a new AI call site skips them |
 | 🏠 **Self-hosted and private** | official public APIs and RSS only, dashboard bound to `127.0.0.1`, no accounts, no telemetry |
+| 🪑 **Employer mode (off by default)** | the other side of the table: a folder of resumes against one position, read for evidence rather than words — every mark with its quote, the score computed in code, names and personal details removed before any model reads a word, a person deciding. See [Employer mode](#employer-mode-screening-a-folder-of-resumes) below before turning it on ([ADR 0047](./docs/adr/0047-screening-scores-evidence-not-keywords.md), [0048](./docs/adr/0048-applicant-data-is-redacted-and-expires.md), [0049](./docs/adr/0049-employer-mode-is-a-mode-not-a-product.md)) |
 
 </details>
 
@@ -423,6 +424,46 @@ down in [CLAUDE.md](./CLAUDE.md).
 > [docs/ai-engines.md](./docs/ai-engines.md) — AI setup, local + Docker ·
 > [docs/adr/](./docs/adr/) — every non-obvious decision, with reasons ·
 > [CHANGELOG.md](./CHANGELOG.md) — releases.
+
+## Employer mode: screening a folder of resumes
+
+ApplyPack is a candidate's tool, and this is the one feature that sits on
+the other side of the table. It is off by default; Settings → Screening
+turns it on and adds "Screening" to the menu.
+
+A screening is one position — one of your stored jobs, or a pasted or
+uploaded posting — and its applicants. The posting is read once into a
+rubric you edit before anything is scored: the gates (pass / unknown /
+fail, never points), the must-have and nice-to-have skills, the core
+stack, the level, the minimum years, the sector. Then the resumes go in,
+as files or a zip. Before any model reads a file, the name, contacts,
+links, date of birth, age, family, gender, citizenship, street address and
+graduation years are removed; you see the name, the model sees
+"Applicant №7", and that cannot be switched off. Each applicant is one
+independent call that marks the evidence for every term with a verbatim
+quote — a skills line is worth less than a bullet about work done, which
+is worth less than a bullet with the outcome — and application code
+computes the score from the marks, with caps a rubric cannot express
+(none of the core stack anywhere → 30 at most). The table orders
+applicants by gate bucket, then score, then confidence; every scorecard
+shows the quote behind every mark, three to five interview questions, and
+the facts to discuss. The decision column is yours alone, the tool never
+writes it, and the whole screening is deleted with its files on its
+retention date.
+
+**Read this before turning it on.** Screening other people's resumes with
+an AI tool is regulated in a way the rest of ApplyPack is not. Under the
+EU AI Act (Annex III, 4(a)) a system that filters job applications is
+high-risk, and the open-source exemption does not cover high-risk use;
+under GDPR art. 22 nobody may be subject to a hiring decision made solely
+by automated means, art. 13–14 require applicants to be told, and art. 35
+wants an impact assessment; NYC Local Law 144, Colorado SB 24-205 and
+Illinois HB 3773 add audit and notice duties in the US. The mode is built
+to be the tool and not the decision, but two things are yours: tell
+applicants (the settings tab has a copy-ready notice), and run it on an
+engine you have a data-processing agreement with or on a local model — a
+personal-subscription CLI is not that, and the screening page says so.
+This is not legal advice.
 
 ## Hosting this for other people
 

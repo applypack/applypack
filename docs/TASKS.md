@@ -1811,7 +1811,7 @@ Tables in the patcher's v1: cell text edits or refuse? (6) Reordering:
 "make this the first bullet" only, or free line moves? (7) Ship stages 1
 and 2 as one branch or two?
 
-## 19. HR screening: rank a folder of resumes against one position (analysis 2026-09-04, nothing built)
+## 19. HR screening: rank a folder of resumes against one position (SHIPPED 2026-09-09 as employer mode, v1.77.0; stage 0 and stage 5 open)
 
 Owner's ask: let an HR person or a hiring manager take a folder of resumes,
 pick a position (pasted, from a file, or one of the manually added jobs)
@@ -1888,39 +1888,58 @@ the active engine is a subscription CLI; a notice template for applicants;
 
 ### 19.3 Implementation order (stages 0 and 1 stand on their own; 2–5 decided with stage 0's numbers)
 
+Built 2026-09-09 on branch `employer-screening` as ONE opt-in mode (option
+C) — stages 1–4 together, because the owner asked for the whole feature
+integrated, separate from the candidate pages, and removable; stage 0
+needs a human-ranked set nobody has yet, so its leak test and stability
+checks became unit tests and the calibration stays open.
+
 **Stage 0 — `screen-bench` (no UI)**
 - [ ] A gold set of 3 postings × ~30 resumes ranked by a human; `npm run bench:screen`.
 - [ ] Metrics: Kendall τ to the human order, precision@5, gate confusion
-      matrix, run-to-run stability, redaction-leak test, the tailoring test
-      (a resume tailored with §18's loop and no new facts scores the same).
+      matrix, run-to-run stability, the tailoring test (a resume tailored
+      with §18's loop and no new facts scores the same).
+- [x] The redaction-leak test — `screening/redact.test.ts` over a Ukrainian,
+      an English and a German header; `findLeaks` also runs on every
+      applicant at intake and on the scorecard.
 
 **Stage 1 — `employer-view` (one resume, one posting)**
-- [ ] `SCREEN_SYSTEM` in `prompts.ts` (registered in the fence registry):
-      gates, evidence level per term with a verbatim quote, level, impact,
-      domain, 3–5 screening questions; no actions, no removals.
-- [ ] `screen-score.ts` (pure, tested) with the caps above; ADR "screening
-      scores evidence, not keywords".
-- [ ] A third button next to Compare / Full analysis on `/jobs/:id` and
-      `/target`; a scorecard card. Works for the candidate ("how a screener
-      reads me") and for HR alike.
+- [x] `SCREEN_SYSTEM` in `screening/prompts.ts` (in the fence registry):
+      gates, an evidence rung per term with a verbatim quote, roles with
+      dates, level, impact, domain, education, 3–5 questions, facts to
+      discuss, consistency; no actions, no removals.
+- [x] `screening/score.ts` (pure, tested) with the caps; ADR 0047.
+- [ ] ~~A third button next to Compare / Full analysis on `/jobs/:id`~~ —
+      not built: the owner asked for the feature separate from the
+      candidate pages (ADR 0049). The prompt works on one resume; a "how a
+      screener reads me" card is a follow-up if wanted.
 
 **Stage 2 — `employer-mode`**
-- [ ] `AppSettings.employerMode`, the `/screen` section, `Screening` with
-      a rubric draft (one call per posting) and the existing keyword editor;
-      `Applicant` with multi-file / zip intake, dedupe, unreadable bucket.
-- [ ] `redact-applicant.ts` (pure, tested; the leak test from stage 0);
-      ADRs "redaction and retention", "a mode, not a product".
+- [x] `AppSettings.employerMode`, the `/screen` section, `Screening` with a
+      rubric drafted from the posting brief and its own editor (the keyword
+      editor on `/jobs/:id` is per comparison, not per posting, so the
+      rubric has its own); `Applicant` with multi-file / zip intake, dedupe
+      by hash / email / SimHash, unreadable and duplicate rows kept visible.
+- [x] `screening/redact.ts` (pure, tested); ADRs 0048 and 0049.
 
 **Stage 3 — `screen-batch`**
-- [ ] N independent calls under the limiter with a shared prefix; every
-      verdict persisted at once; resume after restart; progress page.
-- [ ] The table (gate buckets, score, confidence, coverage, years, level,
-      flags), the scorecard, CSV / Markdown export.
-- [ ] Measure 100 resumes end to end on an API engine and on the CLI.
+- [x] N independent calls under `createLimiter(AI_CONCURRENCY)`; every
+      verdict persisted as it arrives; `listPending` is the queue, so a
+      restart resumes; the page polls and updates itself.
+- [ ] A shared cached prefix — not done: the CLI sets no `cache_control`
+      (gotcha 3) and the API path was not measured; open with stage 5.
+- [x] The table (gate buckets, score with a cap mark, confidence, must-have
+      coverage, years, level, flags, decision), the scorecard, CSV /
+      Markdown export.
+- [ ] Measure 100 resumes end to end on an API engine and on the CLI —
+      measured 6 on the Claude CLI (see the PR); the 100-resume number waits
+      for a real batch.
 
 **Stage 4 — `screen-guardrails`**
-- [ ] `retainUntil`, cleanup in `cleanup-job.ts`, delete-with-files, the
-      engine warning, the applicant notice template, the README section.
+- [x] `retainUntil` (90 days by default, 7–365 on the settings tab),
+      deletion in `cleanup-job.ts`, "Delete with files", "Keep N more days",
+      the engine warning, the applicant notice with a Copy button, the
+      README section and the legal note.
 
 **Stage 5 — optional**
 - [ ] Top-10 comparative tie-break with shuffled order; calibration
