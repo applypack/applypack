@@ -10,6 +10,7 @@ import * as extractMod from './jobs/posting-extract';
 import * as resumeMod from './resume/prompts';
 import * as verifyMod from './verification/prompts';
 import * as screenMod from './screening/prompts';
+import * as rubricMod from './screening/rubric';
 import { fenceClose, fenceOpen } from './prompt-fence';
 
 /*
@@ -245,16 +246,13 @@ const CASES: Record<string, Case> = {
   buildScreenPrompt: {
     build: () =>
       screenMod.buildScreenPrompt({
-        rubric: {
-          level: 'senior',
-          yearsMin: 5,
-          gates: ['GATE-NEEDLE'],
-          must: [{ term: 'RUBRICKW-NEEDLE', primary: true, aliases: ['ALIAS-NEEDLE'], group: null }],
-          nice: [],
-          domain: 'DOMAIN-NEEDLE',
-          educationRequired: false,
-          weights: { must: 35, years: 15, level: 15, impact: 15, domain: 10, nice: 5, education: 5 },
-        },
+        rubric: rubricMod.RubricSchema.parse({
+          criteria: [
+            { id: 'g1', kind: 'custom', label: 'GATE-NEEDLE', mode: 'gate', weight: 3, source: 'posting', spec: { question: 'GATE-NEEDLE' } },
+            { id: 's1', kind: 'skill', label: 'RUBRICKW-NEEDLE !', mode: 'scored', weight: 5, source: 'posting', spec: { terms: [{ term: 'RUBRICKW-NEEDLE', aliases: ['ALIAS-NEEDLE'] }], core: true } },
+            { id: 'i1', kind: 'industry', label: 'DOMAIN-NEEDLE', mode: 'scored', weight: 2, source: 'you', spec: { items: ['DOMAIN-NEEDLE'] } },
+          ],
+        }),
         job: JOB,
         applicantText: RESUME,
         number: 7,

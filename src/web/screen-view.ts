@@ -16,9 +16,9 @@ export interface VerdictView {
   cap: number | null;
   capReason: CapReason | null;
   gates: { gate: string; status: GateStatus }[];
+  /** Skill criteria evidenced at all, and in a role or in production — where two documents of one person differ. */
   mustCovered: number;
   mustTotal: number;
-  /** Must-have terms evidenced in a role or in production — where two documents of one person differ. */
   mustStrong: number;
   years: number | null;
   level: string | null;
@@ -70,12 +70,12 @@ export function rowView(a: ApplicantWithVerdict & { sameAsNumber?: number | null
           bucket: bd.gateBucket,
           cap: bd.cap,
           capReason: bd.capReason,
-          gates: reply.gates.map((g) => ({ gate: g.gate, status: g.status })),
-          mustCovered: bd.mustCovered,
-          mustTotal: bd.mustTotal,
-          mustStrong: reply.must.filter((m) => m.level === 'role' || m.level === 'production').length,
+          gates: bd.rows.filter((r) => r.mode === 'gate').map((r) => ({ gate: r.label, status: r.gate ?? 'unknown' })),
+          mustCovered: bd.skillsCovered,
+          mustTotal: bd.skillsTotal,
+          mustStrong: bd.skillsStrong,
           years: bd.years,
-          level: reply.level.observed,
+          level: bd.level,
           injection: reply.injection,
           verdictLine: reply.summary.verdict,
           questions: reply.questions,
