@@ -1811,7 +1811,7 @@ Tables in the patcher's v1: cell text edits or refuse? (6) Reordering:
 "make this the first bullet" only, or free line moves? (7) Ship stages 1
 and 2 as one branch or two?
 
-## 19. HR screening: rank a folder of resumes against one position (SHIPPED 2026-09-09 as employer mode, v1.77.0; stage 0 and stage 5 open)
+## 19. HR screening: rank a folder of resumes against one position (SHIPPED 2026-09-09 as employer mode, v2.0.0; stage 0 and stage 5 open)
 
 Owner's ask: let an HR person or a hiring manager take a folder of resumes,
 pick a position (pasted, from a file, or one of the manually added jobs)

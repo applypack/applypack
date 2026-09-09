@@ -4,7 +4,10 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
-## [1.77.0] — 2026-09-09
+## [2.0.0] — 2026-09-09
+
+The other side of the table: a major because the product now has two users
+— the candidate it was built for, and, behind one switch, the employer.
 
 ### Added
 - **Employer mode — screening a folder of resumes against one position**
