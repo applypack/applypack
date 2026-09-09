@@ -1957,7 +1957,7 @@ A → B1+B2 → C → D → E.
       `Job`), a Position card with the text folded, Edit → "posting changed
       — re-read the rubric or Score everyone again"; "Delete with files" →
       "Delete screening" with a confirm that says the disk is untouched.
-- [ ] **B1 — rubric v2 = criteria**: a free-text criterion field first
+- [x] **B1 — rubric v2 = criteria** (v2.2.0): a free-text criterion field first
       (HR's own words, ≤ 200 chars, yes/no or how-much, gate / scored /
       note, stars), then the kinds (skill, skillGroup, years with a max,
       level with tolerance, industry, companyType, scale, language,
@@ -1966,7 +1966,7 @@ A → B1+B2 → C → D → E.
       Regulated, Agency work), the draft into criteria, v1 read as v2, a
       refusal for protected characteristics with the lawful criterion
       offered instead (plan §3.6).
-- [ ] **B2 — prompt v2, anchor per kind, score v2, scorecard v2**: one
+- [x] **B2 — prompt v2, anchor per kind, score v2, scorecard v2** (v2.2.0): one
       reply entry per criterion id, custom criteria answered with a quote,
       the `overall` five-step read with reasons and concerns as one weighted
       row (plan §3.7); the three caps as flags; recency decay for skills

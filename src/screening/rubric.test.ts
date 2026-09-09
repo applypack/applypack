@@ -32,6 +32,7 @@ const BRIEF = BriefSchema.parse({
     { term: 'RabbitMQ', priority: 3, requirement: 'preferred', primary: false, aliases: [], group: 'message broker' },
     { term: 'agile', priority: 4, requirement: 'context', primary: false, aliases: [], group: null },
     { term: 'Senior Java Developer', priority: 2, requirement: 'must', primary: false, aliases: [], group: null },
+    { term: 'Java Developer', priority: 2, requirement: 'must', primary: false, aliases: [], group: null },
     { term: 'fintech', priority: 4, requirement: 'nice', primary: false, aliases: [], group: null },
   ],
   gates: ['at least 5 years of backend development', 'EU work authorisation', "Bachelor's degree in Computer Science or equivalent", 'German at B2 or higher', 'on-site in Berlin or remote within Germany'],
@@ -53,7 +54,7 @@ test('draftRubric turns the brief into criteria under the kinds their wording na
     ['Spring Boot !', 3, true],
     ['PostgreSQL', 3, false],
     ['Kafka / RabbitMQ', 1, false],
-  ], 'the posted title and the sector are not skills; an either/or group is one criterion');
+  ], 'the posted title, a fragment of it and the sector are not skills; an either/or group is one criterion; "Java" inside the title is');
   assert.deepEqual(skills[0]!.spec.terms[0]!.aliases, ['java 17']);
   assert.deepEqual(byKind(r, 'level').map((c) => [c.spec.wanted, c.spec.tolerance]), [['senior', 'one']]);
   assert.deepEqual(byKind(r, 'industry').map((c) => c.spec.items), [['fintech']]);
@@ -127,7 +128,7 @@ test('the text grammar round-trips every kind', () => {
 });
 
 test('protectedCharacteristic refuses the wish and names the lawful criterion', () => {
-  assert.match(protectedCharacteristic({ kind: 'custom', label: 'under 30 years old' })!, /years band/);
+  assert.match(protectedCharacteristic({ kind: 'custom', label: 'under 30 years old' })!, /0–2 years/);
   assert.match(protectedCharacteristic({ kind: 'custom', label: 'дівчина' })!, /read blind/);
   assert.match(protectedCharacteristic({ kind: 'custom', label: 'no children' })!, /availability/);
   assert.match(protectedCharacteristic({ kind: 'custom', label: 'Ukrainian citizen' })!, /work permit/);

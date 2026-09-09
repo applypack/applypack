@@ -303,8 +303,17 @@ export function draftRubric(brief: PostingBrief | null, previous: Rubric = empty
     taken.add(id);
     criteria.push({ ...c, id });
   };
-  const notSkills = new Set([brief.role.posted_title, brief.company.industry ?? ''].map((t) => t.trim().toLowerCase()));
-  const skills = brief.keywords.filter((k) => !notSkills.has(k.term.trim().toLowerCase()));
+  // The posted title (or a two-word fragment of it) and the sector are not
+  // skills: the title is what the rubric is FOR, the sector is the industry
+  // row. A one-word term that also sits in the title ("Playwright" in
+  // "QA Engineer (Playwright / TypeScript)") is a skill and stays.
+  const title = brief.role.posted_title.trim().toLowerCase();
+  const sector = (brief.company.industry ?? '').trim().toLowerCase();
+  const skills = brief.keywords.filter((k) => {
+    const t = k.term.trim().toLowerCase();
+    if (t === sector) return false;
+    return !(t.split(/\s+/).length >= 2 && title.includes(t));
+  });
   for (const gate of brief.gates) add(gateCriterion(gate));
   for (const group of groupTerms(skills.filter((k) => k.requirement === 'must'))) {
     const core = group.some((k) => k.primary);
@@ -529,11 +538,11 @@ const protectedRe = (words: string, stems: string): RegExp =>
   new RegExp(`(?<![\\p{L}\\p{N}])(?:${words})(?![\\p{L}\\p{N}])|(?<![\\p{L}\\p{N}])(?:${stems})`, 'iu');
 
 const PROTECTED: { re: RegExp; instead: string }[] = [
-  { re: protectedRe('age|aged|years? old|young|elderly|birth|born|date of birth', 'вік\\b|дата народження|рік народження|возраст|дата рождения'), instead: 'a level ("junior or below") or a years band ("0–2 years")' },
-  { re: protectedRe('gender|sex|male|female|man|woman|men|women|girl|boy|lady|guy', 'стать\\b|чоловік|жінк|дівчин|хлоп(?:ець|ці|ця)|мужчин|женщин|парен|девушк'), instead: 'nothing — the resume is read blind; if a job requirement is meant, say the requirement' },
-  { re: protectedRe('married|unmarried|divorced|widowed|children|kids|pregnan\\w*|family status|marital', 'одруж|неодруж|заміж|дитин|дітей|діти\\b|вагіт|сімейн|семейн|женат|замужем|дети\\b|беремен'), instead: 'an availability or travel requirement as a gate ("available for on-call")' },
-  { re: protectedRe('nationality|citizen|citizenship|ethnic\\w*|racial|religio\\w*|national origin', 'національн|громадян|релігі|национальн|гражданств|этнич|етніч'), instead: 'a work permit criterion ("Work permit: Ukraine") or a language level' },
-  { re: protectedRe('disabilit\\w*|disabled|illness|medical condition|sick leave', 'інвалід|хвороб|инвалид|болезн'), instead: 'the concrete job requirement as a gate ("able to lift 20 kg")' },
+  { re: protectedRe('age|aged|years? old|young|elderly|birth|born|date of birth', 'вік\\b|дата народження|рік народження|возраст|дата рождения'), instead: 'Say the level or the years instead: "junior or below", "0–2 years".' },
+  { re: protectedRe('gender|sex|male|female|man|woman|men|women|girl|boy|lady|guy', 'стать\\b|чоловік|жінк|дівчин|хлоп(?:ець|ці|ця)|мужчин|женщин|парен|девушк'), instead: 'There is no lawful criterion for it — the resume is read blind; if a job requirement is meant, say the requirement.' },
+  { re: protectedRe('married|unmarried|divorced|widowed|children|kids|pregnan\\w*|family status|marital', 'одруж|неодруж|заміж|дитин|дітей|діти\\b|вагіт|сімейн|семейн|женат|замужем|дети\\b|беремен'), instead: 'Say the availability or travel requirement as a gate instead: "available for on-call".' },
+  { re: protectedRe('nationality|citizen|citizenship|ethnic\\w*|racial|religio\\w*|national origin', 'національн|громадян|релігі|национальн|гражданств|этнич|етніч'), instead: 'Use a work permit criterion ("Work permit: Ukraine") or a language level instead.' },
+  { re: protectedRe('disabilit\\w*|disabled|illness|medical condition|sick leave', 'інвалід|хвороб|инвалид|болезн'), instead: 'Say the concrete job requirement as a gate instead: "able to lift 20 kg".' },
 ];
 
 /** Why a criterion is refused, or null when it may be saved (plan §2.4). */
@@ -542,7 +551,7 @@ export function protectedCharacteristic(c: Pick<Criterion, 'kind' | 'label'> & {
   if (c.kind !== 'custom' && c.kind !== 'scale') return null;
   const wording = `${c.label} ${c.spec?.question ?? ''} ${c.spec?.level ?? ''}`;
   for (const p of PROTECTED) {
-    if (p.re.test(wording)) return `"${c.label}" names a protected characteristic and cannot be a criterion. Use ${p.instead}.`;
+    if (p.re.test(wording)) return `"${c.label}" names a protected characteristic and cannot be a criterion. ${p.instead}`;
   }
   return null;
 }
