@@ -570,8 +570,9 @@ const ApplicantRow: FC<{ r: ApplicantRowView; screeningId: number; gates: string
           {r.status !== 'ok' && r.note ? ` — ${r.note}` : ''}
           {r.stale && r.verdict ? ` — scored ${r.verdict.score} under an earlier rubric` : ''}
         </div>
+        {/* Phone width leaves the name cell too narrow for a list; the scorecard has the same facts. */}
         {v && (v.standout.length > 0 || v.career.roles > 0) && (
-          <details class="mt-0.5 text-xs">
+          <details class="mt-0.5 hidden text-xs sm:block">
             <summary class="cursor-pointer truncate text-ink-muted" title={v.standout.length > 0 ? v.standout.map((f) => f.fact).join(' · ') : v.careerLine}>
               {v.standout.length > 0 ? v.standout.map((f) => f.fact).join(' · ') : `Career: ${v.careerLine}`}
             </summary>
