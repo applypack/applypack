@@ -1945,6 +1945,36 @@ checks became unit tests and the calibration stays open.
 - [ ] Top-10 comparative tie-break with shuffled order; calibration
       report; Batch API for the API engines.
 
+### 19.5 Criteria HR chooses, the posting in the loop (analysis 2026-09-09, nothing built)
+
+The first real use (22 versions of one resume against one posting; 21 of
+them with the same vocabulary) asked for three things. The analysis is
+[screening-criteria-plan.md](./screening-criteria-plan.md); the order is
+A → B1+B2 → C → D → E.
+
+- [ ] **A — the posting on the screening**: `Screening.postingText`
+      (snapshot at creation, editable on the page, never written back to
+      `Job`), a Position card with the text folded, Edit → "posting changed
+      — re-read the rubric or Score everyone again"; "Delete with files" →
+      "Delete screening" with a confirm that says the disk is untouched.
+- [ ] **B1 — rubric v2 = criteria**: kinds (skill, skillGroup, years with a
+      max, level with tolerance, industry, companyType, scale, language,
+      location, authorization, availability, education, certification,
+      impact, custom), mode gate / scored / note, stars as weights, presets
+      (Standard, Junior hire, Senior/lead, Regulated, Agency work), the draft
+      into criteria, v1 read as v2, a refusal for protected characteristics
+      with the lawful criterion offered instead.
+- [ ] **B2 — prompt v2, anchor per kind, score v2, scorecard v2**: one
+      reply entry per criterion id; the three caps as flags; recency decay
+      for skills (`last_used`); verdicts from v1 read as stale.
+- [ ] **C — beyond the score**: "Stands out" (anchored, never scored),
+      trajectory from dates in code (a fact, never a penalty), sectors and
+      company type per role, optional columns.
+- [ ] **D — Compare 2–3 ticked applicants side by side**, one row per
+      criterion with the quotes.
+- [ ] **E — calibration**: HR's decisions versus the order per screening;
+      the stage-0 gold set when a human ranking exists.
+
 ### 19.4 Open questions for the owner
 
 1. Who is the v1 user — one HR / manager without an ATS (single-user), or
