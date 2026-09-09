@@ -30,16 +30,26 @@ export interface ApplicantRowView {
   number: number;
   name: string | null;
   file: string;
-  status: 'ok' | 'unreadable' | 'duplicate';
+  status: 'ok' | 'unreadable';
   note: string | null;
   decision: string | null;
+  /** Another document of an applicant already in the list — that one's №. */
+  sameAs: number | null;
+  /** The person's correction and its reason (ADR 0047 addendum); 0 = none. */
+  adjustment: number;
+  adjustmentNote: string | null;
   /** Scored under an earlier rubric — the number is about a different yardstick. */
   stale: boolean;
   verdict: VerdictView | null;
 }
 
-export function rowView(a: ApplicantWithVerdict): ApplicantRowView {
-  const status = a.parseStatus === 'unreadable' || a.parseStatus === 'duplicate' ? a.parseStatus : 'ok';
+/** The number the table orders by: the computed score plus the person's correction, held to 0–100. */
+export function adjustedScore(score: number, adjustment: number): number {
+  return Math.max(0, Math.min(100, score + adjustment));
+}
+
+export function rowView(a: ApplicantWithVerdict & { sameAsNumber?: number | null }): ApplicantRowView {
+  const status = a.parseStatus === 'unreadable' ? 'unreadable' : 'ok';
   const reply = a.verdict ? readScreenReply(a.verdict.facts) : null;
   const bd = a.verdict ? readScreenBreakdown(a.verdict.breakdown) : null;
   const verdict: VerdictView | null =
@@ -68,6 +78,9 @@ export function rowView(a: ApplicantWithVerdict): ApplicantRowView {
     status,
     note: a.parseNote,
     decision: a.decision,
+    sameAs: a.sameAsNumber ?? null,
+    adjustment: a.scoreAdjustment,
+    adjustmentNote: a.adjustmentNote,
     stale: a.stale,
     verdict,
   };
@@ -85,7 +98,13 @@ export interface RowGroups {
 export function groupRows(rows: ApplicantRowView[]): RowGroups {
   const scored = rows.filter((r) => r.verdict !== null && !r.stale && r.status === 'ok');
   const ordered = orderVerdicts(
-    scored.map((r) => ({ row: r, number: r.number, gateBucket: r.verdict!.bucket, score: r.verdict!.score, confidence: r.verdict!.confidence })),
+    scored.map((r) => ({
+      row: r,
+      number: r.number,
+      gateBucket: r.verdict!.bucket,
+      score: adjustedScore(r.verdict!.score, r.adjustment),
+      confidence: r.verdict!.confidence,
+    })),
   ).map((x) => x.row);
   return {
     scored: ordered,
@@ -105,6 +124,10 @@ export function exportRows(rows: ApplicantRowView[]): ExportRow[] {
     note: r.note ?? (r.status === 'ok' && r.verdict === null ? 'not scored yet' : r.stale ? 'scored under an earlier rubric' : null),
     bucket: r.verdict && !r.stale ? r.verdict.bucket : null,
     score: r.verdict && !r.stale ? r.verdict.score : null,
+    adjustment: r.adjustment,
+    adjustmentNote: r.adjustmentNote,
+    adjusted: r.verdict && !r.stale ? adjustedScore(r.verdict.score, r.adjustment) : null,
+    sameAs: r.sameAs,
     confidence: r.verdict && !r.stale ? r.verdict.confidence : null,
     gates: r.verdict && !r.stale ? r.verdict.gates : [],
     mustCovered: r.verdict && !r.stale ? r.verdict.mustCovered : null,

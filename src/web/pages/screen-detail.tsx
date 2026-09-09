@@ -7,7 +7,8 @@ import { formatDateShort, formatRelative } from '../format';
 import { DEFAULT_WEIGHTS, RUBRIC_PART_LABELS, RUBRIC_PARTS, SCREEN_LEVEL_LABELS, SCREEN_LEVELS, rubricSummary, termsToLines, type Rubric } from '../../screening/rubric';
 import { GATE_BUCKET_LABELS, type ConfidenceBand, type GateBucket } from '../../screening/score';
 import { GATE_MARK, DECISION_LABELS } from '../../screening/export';
-import { MAX_APPLICANTS_PER_SCREENING, MAX_BATCH_UPLOAD_MB, MAX_FILES_PER_UPLOAD } from '../../screening/intake';
+import { adjustedScore } from '../screen-view';
+import { MAX_APPLICANTS_PER_SCREENING, MAX_BATCH_UPLOAD_MB } from '../../screening/intake';
 import { ACCEPTED_EXTENSIONS } from '../../resume/resume-text';
 import type { ScreenRunState } from '../../screening/batch';
 import { DECISIONS } from '../../screening/store';
@@ -193,29 +194,39 @@ export const ScreenDetailPage: FC<ScreenDetailProps> = ({ screening, rubric, row
       <Card class="mb-4">
         <SectionTitle>Applicants</SectionTitle>
         <form
+          id="upload-form"
           method="post"
           action={`/screen/${screening.id}/applicants`}
           enctype="multipart/form-data"
-          class="flex flex-wrap items-center gap-3"
-          data-needs-file
+          class="flex flex-wrap items-center gap-x-4 gap-y-3"
           onsubmit={SUBMIT_ONCE}
         >
-          <input
-            type="file"
-            name="files"
-            multiple
-            accept={[...ACCEPTED_EXTENSIONS, '.zip'].join(',')}
-            aria-label="Resume files or a zip"
-            class={`text-sm text-ink-muted ${FILE_INPUT_CLASS}`}
-          />
-          <Button variant="secondary">Add applicants</Button>
+          <label class="flex flex-wrap items-center gap-2 text-sm text-ink-muted">
+            <span class="text-ink">Files or a zip</span>
+            <input
+              type="file"
+              name="files"
+              multiple
+              accept={[...ACCEPTED_EXTENSIONS, '.zip'].join(',')}
+              aria-label="Resume files or a zip"
+              class={`text-sm text-ink-muted ${FILE_INPUT_CLASS}`}
+            />
+          </label>
+          <label class="flex flex-wrap items-center gap-2 text-sm text-ink-muted">
+            <span class="text-ink">…or a whole folder</span>
+            <input type="file" name="files" multiple webkitdirectory aria-label="A folder of resumes" class={`text-sm text-ink-muted ${FILE_INPUT_CLASS}`} />
+          </label>
+          <Button variant="secondary">Add and score</Button>
+          <span class="text-[13px] text-ink-faint" data-picked aria-live="polite"></span>
         </form>
         <Hint class="mt-2">
-          {ACCEPTED_EXTENSIONS.join(' / ')} files or a .zip of them — up to {MAX_FILES_PER_UPLOAD} files and{' '}
-          {MAX_BATCH_UPLOAD_MB} MB per upload, {MAX_APPLICANTS_PER_SCREENING} applicants per screening. Before any
-          model reads a file, the name, contacts, links, date of birth, age, family, gender, citizenship, street and
-          graduation years are removed; a scanned PDF with no text layer and a second copy of the same person are
-          kept in the list unscored, so you can see them.
+          {ACCEPTED_EXTENSIONS.join(' / ')} files, a .zip, or a folder with its subfolders — up to{' '}
+          {MAX_APPLICANTS_PER_SCREENING} applicants per screening, {MAX_BATCH_UPLOAD_MB} MB per upload; other file
+          types in a folder are left out. Scoring starts the moment the files are in, and files added while it runs
+          join the same run. Before any model reads a file, the name, contacts, links, date of birth, age, family,
+          gender, citizenship, street and graduation years are removed. A second document of someone already in the
+          list is scored too and labelled; the same file twice is skipped; a scanned PDF with no text layer stays in
+          the list unscored, so you can see it.
         </Hint>
       </Card>
 
@@ -248,10 +259,41 @@ export const ScreenDetailPage: FC<ScreenDetailProps> = ({ screening, rubric, row
             <Empty>No applicants yet.</Empty>
           </div>
         ) : (
+          <form id="bulk-form" method="post" action={`/screen/${screening.id}/applicants/bulk`}>
+          <div class="flex flex-wrap items-center gap-2 border-t border-line px-4 py-2.5 sm:px-5">
+            <span class="text-[13px] text-ink-faint" data-selection>
+              With the ticked applicants:
+            </span>
+            {(['interview', 'hold', 'declined'] as const).map((d) => (
+              <Button variant="secondary" size="sm" name="do" value={d}>
+                {DECISION_LABELS[d]}
+              </Button>
+            ))}
+            <Button variant="ghost" size="sm" name="do" value="clear">
+              Clear decision
+            </Button>
+            <Button variant="violet" size="sm" name="do" value="again" disabled={running}>
+              Score again
+            </Button>
+            <Button variant="danger" size="sm" name="do" value="delete">
+              Delete
+            </Button>
+          </div>
           <Table
-            columns={['#', 'Name', 'Gates', 'Score', 'Confidence', 'Must-have', 'Years', 'Level', 'Decision']}
-            hideBelow={['', '', 'sm', '', 'md', 'lg', 'lg', 'lg', '']}
-            thClasses={['', '', '', 'text-right', '', 'text-right', 'text-right', '', '']}
+            columns={[
+              <input type="checkbox" data-select-all aria-label="Select every applicant" class="h-4 w-4 accent-accent" />,
+              '#',
+              'Name',
+              'Gates',
+              'Score',
+              'Confidence',
+              'Must-have',
+              'Years',
+              'Level',
+              'Decision',
+            ]}
+            hideBelow={['', '', '', 'sm', '', 'md', 'lg', 'lg', 'lg', '']}
+            thClasses={['w-8', '', '', '', 'text-right', '', 'text-right', 'text-right', '', '']}
           >
             {(['pass', 'ask', 'fail'] as GateBucket[]).map((bucket) => {
               const group = groups.scored.filter((r) => r.verdict!.bucket === bucket);
@@ -282,12 +324,23 @@ export const ScreenDetailPage: FC<ScreenDetailProps> = ({ screening, rubric, row
               </>
             )}
           </Table>
+          </form>
         )}
+        {/* One small form per row, outside the table: a decision select inside the bulk form would post with it. */}
+        {rows
+          .filter((r) => r.status === 'ok')
+          .map((r) => (
+            <form id={`decision-${r.id}`} method="post" action={`/screen/${screening.id}/applicants/${r.id}/decision`} hidden>
+              <input type="hidden" name="back" value={`/screen/${screening.id}#results`} />
+            </form>
+          ))}
       </Card>
       <Hint class="mt-3">
         Created {formatRelative(screening.createdAt)}. Names are shown to you only — the model saw "Applicant №N".
         "Priority to talk to" means every gate passed; "Ask first" means one is unknown and the scorecard has the
-        question. A failed gate is a fact about the posting's conditions, never a verdict on the person.
+        question. A failed gate is a fact about the posting's conditions, never a verdict on the person. A score
+        with a small +N or −N beside it carries your own adjustment from the scorecard; the computed number is in
+        its tooltip and in the export.
       </Hint>
       <script
         type="module"
@@ -299,7 +352,7 @@ export const ScreenDetailPage: FC<ScreenDetailProps> = ({ screening, rubric, row
 
 const GroupRow: FC<{ tone: 'ok' | 'warn' | 'danger' | 'neutral'; label: string; count: number }> = ({ tone, label, count }) => (
   <tr class="bg-surface-overlay/60">
-    <td colspan={9} class="px-3.5 py-1.5 text-xs font-medium sm:px-5">
+    <td colspan={10} class="px-3.5 py-1.5 text-xs font-medium sm:px-5">
       <Badge tone={tone}>{label}</Badge>
       <span class="ml-2 text-ink-faint">{count}</span>
     </td>
@@ -309,13 +362,24 @@ const GroupRow: FC<{ tone: 'ok' | 'warn' | 'danger' | 'neutral'; label: string; 
 const ApplicantRow: FC<{ r: ApplicantRowView; screeningId: number; gates: string[] }> = ({ r, screeningId, gates }) => {
   const v = r.verdict && !r.stale ? r.verdict : null;
   const href = `/screen/${screeningId}/applicants/${r.id}`;
+  const adjusted = v ? adjustedScore(v.score, r.adjustment) : null;
   return (
     <Tr>
+      <Td class="w-8 pr-0">
+        <input type="checkbox" name="ids" value={r.id} aria-label={`Select applicant ${r.number}`} class="h-4 w-4 accent-accent" />
+      </Td>
       <Td class="whitespace-nowrap tabular-nums text-ink-faint">№{r.number}</Td>
       <Td class="w-full max-w-0">
         <a href={href} class="font-medium text-ink hover:underline">
           {r.name ?? <span class="text-ink-muted">(no name found)</span>}
         </a>
+        {r.sameAs !== null && (
+          <span title="Same email, phone or near-identical text as that applicant — another document of theirs, scored on its own">
+            <Badge tone="neutral" class="ml-1.5">
+              also №{r.sameAs}
+            </Badge>
+          </span>
+        )}
         {v?.injection && (
           <span title="The resume carried text addressed to an AI reader — see the scorecard">
             <Badge tone="danger" class="ml-1.5">
@@ -348,11 +412,20 @@ const ApplicantRow: FC<{ r: ApplicantRowView; screeningId: number; gates: string
           <span class="text-ink-faint">—</span>
         )}
       </Td>
-      <Td class="text-right tabular-nums">
+      <Td class="whitespace-nowrap text-right tabular-nums">
         {v ? (
           <span class="font-semibold text-ink" title={v.cap !== null ? `capped at ${v.cap}` : undefined}>
-            {v.score}
+            {adjusted}
             {v.cap !== null && <span class="text-ink-faint">*</span>}
+            {r.adjustment !== 0 && (
+              <span
+                class={`ml-1 text-xs font-normal ${r.adjustment > 0 ? 'text-ok' : 'text-warn'}`}
+                title={`Computed ${v.score}; your adjustment ${r.adjustment > 0 ? '+' : ''}${r.adjustment}${r.adjustmentNote ? ` — ${r.adjustmentNote}` : ''}`}
+              >
+                {r.adjustment > 0 ? '+' : ''}
+                {r.adjustment}
+              </span>
+            )}
           </span>
         ) : (
           <span class="text-ink-faint">—</span>
@@ -364,9 +437,8 @@ const ApplicantRow: FC<{ r: ApplicantRowView; screeningId: number; gates: string
       <Td class="text-ink-muted">{v ? (v.level ?? '?') : ''}</Td>
       <Td class="whitespace-nowrap">
         {r.status === 'ok' ? (
-          <form method="post" action={`${href}/decision`} class="flex items-center gap-2">
-            <input type="hidden" name="back" value={`/screen/${screeningId}#results`} />
-            <Select name="decision" data-commit="submit" aria-label={`Decision for applicant ${r.number}`} class="min-w-[7.5rem] !py-1 text-[13px]">
+          <span class="flex items-center gap-2">
+            <Select name="decision" form={`decision-${r.id}`} data-commit="submit" aria-label={`Decision for applicant ${r.number}`} class="min-w-[7.5rem] !py-1 text-[13px]">
               <option value="" selected={r.decision === null}>
                 —
               </option>
@@ -377,17 +449,13 @@ const ApplicantRow: FC<{ r: ApplicantRowView; screeningId: number; gates: string
               ))}
             </Select>
             <noscript>
-              <Button variant="ghost" size="sm">
+              <Button variant="ghost" size="sm" form={`decision-${r.id}`}>
                 Save
               </Button>
             </noscript>
-          </form>
+          </span>
         ) : (
-          <ActionForm action={`${href}/delete`} confirm="Remove this file from the screening?">
-            <Button variant="ghost" size="sm">
-              Remove
-            </Button>
-          </ActionForm>
+          <span class="text-[13px] text-ink-faint">tick and Delete</span>
         )}
       </Td>
     </Tr>

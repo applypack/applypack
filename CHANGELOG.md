@@ -32,6 +32,17 @@ All notable changes to this project are documented here. The format follows
   retention date (90 days by default) the weekly cleanup enforces; a
   warning when the first engine is a personal-subscription CLI; a
   copy-ready applicant notice and the legal note on the settings tab.
+- **Screening, after the first real batch.** A folder can be dropped whole,
+  subfolders and all (each file keeps its folder path in the table; photos
+  and spreadsheets are left out, not listed as unreadable). Scoring starts
+  the moment files are in and the run drains, so files added while it works
+  join it. The same person's second document is scored and labelled "also
+  №N" instead of parked as a duplicate — only a byte-for-byte repeat of a
+  file is skipped. A header checkbox ticks every row; the bar above the
+  table sets a decision, scores again or deletes the ticked ones. On the
+  scorecard, **Your adjustment** moves an applicant by up to ±30 points with
+  a reason: the computed score stays visible beside it and both go into the
+  export (ADR 0047 addendum).
 
 ### Changed
 - `resume/zip.ts` can list every file in an archive (`readZipEntries`),

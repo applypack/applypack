@@ -12,9 +12,10 @@ import { hamming64, MAX_HAMMING_DISTANCE, simhash64 } from '../fingerprint';
 
 /** A batch is a hiring round, not a talent pool (ADR 0048): the cap keeps one screening one job's applicants. */
 export const MAX_APPLICANTS_PER_SCREENING = 300;
-export const MAX_FILES_PER_UPLOAD = 100;
-/** A zip of a hundred resumes. */
-export const MAX_BATCH_UPLOAD_MB = 60;
+/** A whole folder at once — the per-screening cap is the real ceiling. */
+export const MAX_FILES_PER_UPLOAD = 300;
+/** Three hundred PDFs of a page or two. */
+export const MAX_BATCH_UPLOAD_MB = 200;
 /** One resume, inflated — the same ceiling as a single upload (upload.ts); a zip entry past it is not read. */
 export const MAX_ENTRY_BYTES = 5 * 1024 * 1024;
 
@@ -28,6 +29,15 @@ export interface ExpandedFile extends UploadFile {
   archive: string | null;
 }
 
+export interface ExpandedUploads {
+  files: ExpandedFile[];
+  badArchives: string[];
+  /** Zip entries past MAX_ENTRY_BYTES, not read. */
+  oversized: string[];
+  /** Files of a type the extractor cannot read (a photo, a spreadsheet) — a folder drop carries them; they are not applicants. */
+  notResumes: string[];
+}
+
 const ZIP_EXTENSION = '.zip';
 const SKIPPED_ENTRY = /(^|\/)(__MACOSX\/|\.|~\$|thumbs\.db$)/i;
 
@@ -37,34 +47,48 @@ export function isAcceptedResume(filename: string): boolean {
 
 /**
  * Zips opened, everything else passed through; entries an OS adds to an
- * archive (`__MACOSX`, dotfiles, Word's `~$` locks) are skipped. Files of
- * a type the extractor cannot read are kept — the intake records them as
- * unreadable, so the table can say which file it was.
+ * archive (`__MACOSX`, dotfiles, Word's `~$` locks) are skipped, and so is
+ * any file of a type the extractor cannot read — a folder dropped whole
+ * carries photos and spreadsheets, and those are not applicants. A file
+ * name may carry its folder path ("Ivan Petrenko/CV.pdf"): the page sends
+ * it that way so a folder per candidate stays readable in the table.
  */
-export function expandUploads(files: UploadFile[]): { files: ExpandedFile[]; badArchives: string[]; oversized: string[] } {
+export function expandUploads(files: UploadFile[]): ExpandedUploads {
   const out: ExpandedFile[] = [];
   const badArchives: string[] = [];
   const oversized: string[] = [];
+  const notResumes: string[] = [];
+  const take = (name: string, bytes: Buffer, archive: string | null): void => {
+    if (out.length >= MAX_FILES_PER_UPLOAD) return;
+    if (SKIPPED_ENTRY.test(name) || bytes.length === 0) return;
+    if (!isAcceptedResume(name)) {
+      notResumes.push(name);
+      return;
+    }
+    out.push({ name, bytes, archive });
+  };
   for (const f of files) {
     if (out.length >= MAX_FILES_PER_UPLOAD) break;
     if (extname(f.name).toLowerCase() !== ZIP_EXTENSION) {
-      out.push({ ...f, archive: null });
+      take(f.name, f.bytes, null);
       continue;
     }
     try {
       const { entries, skipped } = readZipEntries(f.bytes, MAX_ENTRY_BYTES);
       oversized.push(...skipped);
-      for (const entry of entries) {
-        if (out.length >= MAX_FILES_PER_UPLOAD) break;
-        if (SKIPPED_ENTRY.test(entry.name) || entry.data.length === 0) continue;
-        out.push({ name: entry.name.split('/').pop() ?? entry.name, bytes: entry.data, archive: f.name });
-      }
+      for (const entry of entries) take(entry.name, entry.data, f.name);
     } catch (err) {
       if (err instanceof ZipError) badArchives.push(f.name);
       else throw err;
     }
   }
-  return { files: out, badArchives, oversized };
+  return { files: out, badArchives, oversized, notResumes };
+}
+
+/** "Ivan Petrenko/CV.pdf (from batch.zip)" — what the table shows for a file. */
+export function displayName(file: ExpandedFile): string {
+  const name = file.name.replace(/^\.?\/+/, '');
+  return file.archive ? `${name} (from ${file.archive})` : name;
 }
 
 export interface TextFingerprint {
@@ -82,23 +106,37 @@ export interface KnownApplicant {
   id: number;
   number: number;
   email: string | null;
+  phone: string | null;
   hash: string;
   simhash: bigint | null;
 }
 
+export type DuplicateKind =
+  /** Byte for byte the same text — the file was added before; nothing to score twice. */
+  | 'same-text'
+  /** The same person (email, phone) or a near-identical text — another document of theirs, scored like any other. */
+  | 'same-person';
+
 /**
- * The earlier applicant this one is a copy of, or null. Same text, same
- * email, or a SimHash within the cross-listing distance (ADR 0018) — a
- * resume re-uploaded with a new date at the top is the same person.
+ * What an incoming resume repeats, if anything. The same text is a re-upload
+ * and is not added; the same person with a different document is a second
+ * version — a candidate who applied twice, or a folder with a CV and a
+ * cover letter — and each version is scored, labelled as №K's.
  */
 export function findDuplicate(
-  candidate: { email: string | null } & TextFingerprint,
+  candidate: { email: string | null; phone: string | null } & TextFingerprint,
   known: KnownApplicant[],
-): KnownApplicant | null {
+): { kind: DuplicateKind; match: KnownApplicant } | null {
+  const digits = (s: string | null): string => (s ?? '').replace(/\D/g, '');
   for (const k of known) {
-    if (k.hash === candidate.hash) return k;
-    if (candidate.email && k.email && candidate.email.toLowerCase() === k.email.toLowerCase()) return k;
-    if (candidate.simhash !== null && k.simhash !== null && hamming64(candidate.simhash, k.simhash) <= MAX_HAMMING_DISTANCE) return k;
+    if (k.hash === candidate.hash) return { kind: 'same-text', match: k };
+  }
+  for (const k of known) {
+    if (candidate.email && k.email && candidate.email.toLowerCase() === k.email.toLowerCase()) return { kind: 'same-person', match: k };
+    if (digits(candidate.phone).length >= 9 && digits(candidate.phone) === digits(k.phone)) return { kind: 'same-person', match: k };
+    if (candidate.simhash !== null && k.simhash !== null && hamming64(candidate.simhash, k.simhash) <= MAX_HAMMING_DISTANCE) {
+      return { kind: 'same-person', match: k };
+    }
   }
   return null;
 }

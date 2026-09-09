@@ -38,6 +38,17 @@ so an applicant stored there would start "proving" the owner's skills.
   do not block. A copy-ready notice for applicants sits on the settings
   tab (`screening/notice.ts`).
 
+## Addendum (2026-09-09): versions of one person
+
+The first live batch had one person's seven resumes, and the intake parked
+six as "duplicates", unscored. Only a byte-for-byte repeat of a file is a
+duplicate now, and it is never added; the same email, phone or a
+near-identical text is a second document of an applicant already listed
+(`sameAsId`, "also №N") and is scored like any other — which version to
+keep is the person's call, one tick away. A folder dropped whole keeps
+each file's folder path on its name, so "Ivan Petrenko/CV.pdf" stays
+readable; photos and spreadsheets in it are left out rather than listed.
+
 ## Consequences
 
 ✅ Blind screening by construction, minimisation by cascade, a retention

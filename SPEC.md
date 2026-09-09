@@ -553,9 +553,15 @@ the extracted `text`, the `redactedText` the model reads (name, contacts,
 links, date of birth, age, family, gender, citizenship, street and
 graduation years removed — `screening/redact.ts`, cannot be switched off),
 name / email / phone in columns shown to the person only, `parseStatus`
-(ok / unreadable / duplicate — by text hash, email or SimHash), and the
-person's `decision`. Intake takes files or a zip, up to 100 files per
-upload and 300 applicants per screening.
+(ok / unreadable), `sameAsId` when the same person (email, phone, SimHash)
+already has a document in the list — scored all the same, labelled — and
+the person's `decision` and `scoreAdjustment` + `adjustmentNote` (±30, a
+reason required; the table orders by the adjusted number, the computed one
+stays visible). A byte-for-byte repeat of a file is never added. Intake
+takes files, a zip, or a folder with its subfolders (the path stays on the
+file name; other file types are left out), up to 300 applicants per
+screening; scoring starts on upload and the run drains whoever is added
+meanwhile. Ticked rows take one bulk action: a decision, score again, delete.
 
 Scoring is one independent call per readable applicant without a verdict
 under the current rubric version, `AI_CONCURRENCY` at a time, through

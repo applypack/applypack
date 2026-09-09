@@ -45,6 +45,16 @@ talk to, never a prediction.
   dates, age, family, origin and health are named in the prompt as things
   that never count.
 
+## Addendum (2026-09-09): the person's own correction
+
+The first user of the mode asked to move a known applicant up ("a good
+acquaintance"). The score is not edited: `Applicant.scoreAdjustment`
+(±30) with a required `adjustmentNote` is a separate fact, shown as "85
+→ 95, +10, referral from Ivan" on the row, the scorecard and both exports,
+and the table orders by the adjusted number. The computed score stays
+visible beside it, so "why is №3 above №7" still has a table behind it —
+one row of which is now the person's, attributed and logged.
+
 ## Consequences
 
 ✅ "Why is №3 above №7" is a table on each scorecard: term → rung → quote →

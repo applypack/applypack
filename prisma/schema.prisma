@@ -781,18 +781,26 @@ model Applicant {
   redactions     Json   @default("[]")
 
   // ok | unreadable | duplicate. An unreadable file (a scanned PDF, an empty
-  // .docx) and a duplicate of an earlier applicant are kept as rows so the
-  // table can say so; neither is scored.
-  parseStatus   String
-  parseNote     String?
-  duplicateOfId Int?
-  textHash      String
-  simhash       BigInt?
+  // .docx) is kept as a row so the table can say so; a file whose text is
+  // byte for byte an earlier applicant's is never added. `sameAsId` marks
+  // another document of a person already in the list (same email or phone,
+  // or a near-identical text) — scored like any other, and labelled.
+  parseStatus String
+  parseNote   String?
+  sameAsId    Int?
+  textHash    String
+  simhash     BigInt?
 
   // The person's own decision — the tool never writes one (ADR 0047):
   // interview | hold | declined, or NULL. Stamped when it is set.
-  decision  String?
-  decidedAt DateTime?
+  decision        String?
+  decidedAt       DateTime?
+  // The person's own correction to the computed score, with its reason
+  // (ADR 0047 addendum): shown beside the computed number, never folded
+  // into it, and what the table orders by. A referral, a known colleague,
+  // a fact the resume does not carry.
+  scoreAdjustment Int       @default(0)
+  adjustmentNote  String?
 
   createdAt DateTime @default(now())
 

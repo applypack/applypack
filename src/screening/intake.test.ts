@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { deflateRawSync } from 'node:zlib';
-import { expandUploads, findDuplicate, fingerprintText, isAcceptedResume } from './intake';
+import { displayName, expandUploads, findDuplicate, fingerprintText, isAcceptedResume } from './intake';
 
 /** The same in-memory zip writer zip.test.ts uses. */
 function buildZip(entries: { name: string; data: Buffer }[]): Buffer {
@@ -40,7 +40,7 @@ function buildZip(entries: { name: string; data: Buffer }[]): Buffer {
   return Buffer.concat([...locals, ...centrals, eocd]);
 }
 
-test('expandUploads opens zips, skips OS litter, passes files through', () => {
+test('expandUploads opens zips, skips OS litter and non-resume types, passes files through', () => {
   const zip = buildZip([
     { name: 'batch/', data: Buffer.alloc(0) },
     { name: 'batch/anna.pdf', data: Buffer.from('pdf') },
@@ -49,32 +49,38 @@ test('expandUploads opens zips, skips OS litter, passes files through', () => {
     { name: 'batch/~$draft.docx', data: Buffer.from('lock') },
     { name: 'batch/notes.xlsx', data: Buffer.from('xlsx') },
   ]);
-  const { files, badArchives, oversized } = expandUploads([
+  const { files, badArchives, oversized, notResumes } = expandUploads([
     { name: 'batch.zip', bytes: zip },
-    { name: 'bob.docx', bytes: Buffer.from('docx') },
+    { name: 'Ivan Petrenko/CV.docx', bytes: Buffer.from('docx') },
+    { name: 'Ivan Petrenko/photo.jpg', bytes: Buffer.from('jpg') },
     { name: 'broken.zip', bytes: Buffer.from('not a zip at all, sorry') },
   ]);
   assert.deepEqual(
     files.map((f) => [f.name, f.archive]),
     [
-      ['anna.pdf', 'batch.zip'],
-      ['notes.xlsx', 'batch.zip'],
-      ['bob.docx', null],
+      ['batch/anna.pdf', 'batch.zip'],
+      ['Ivan Petrenko/CV.docx', null],
     ],
+    'a folder path stays on the name',
   );
   assert.deepEqual(badArchives, ['broken.zip']);
   assert.deepEqual(oversized, []);
+  assert.deepEqual(notResumes, ['batch/notes.xlsx', 'Ivan Petrenko/photo.jpg']);
+  assert.equal(displayName(files[0]!), 'batch/anna.pdf (from batch.zip)');
+  assert.equal(displayName({ name: './x/CV.pdf', bytes: Buffer.alloc(0), archive: null }), 'x/CV.pdf');
   assert.ok(isAcceptedResume('anna.PDF'));
   assert.ok(!isAcceptedResume('notes.xlsx'));
 });
 
-test('findDuplicate: same text, same email, or a near-identical body', () => {
+test('findDuplicate: the same text is a re-upload, the same person is another version', () => {
   const body = 'Backend engineer with eight years of Java and Spring Boot. Built payment systems at a bank, ran migrations, owned the on-call rotation, mentored four engineers, spoke at two conferences about resilience patterns and message brokers. '.repeat(4);
   const a = fingerprintText(body);
-  const known = [{ id: 1, number: 1, email: 'a@x.io', hash: a.hash, simhash: a.simhash }];
-  assert.equal(findDuplicate({ email: null, ...fingerprintText(body.toUpperCase()) }, known)?.number, 1, 'case does not make a new person');
-  assert.equal(findDuplicate({ email: 'A@X.IO', hash: 'other', simhash: null }, known)?.number, 1, 'same email');
+  const known = [{ id: 1, number: 1, email: 'a@x.io', phone: '+380 67 123 45 67', hash: a.hash, simhash: a.simhash }];
+  assert.equal(findDuplicate({ email: null, phone: null, ...fingerprintText(body.toUpperCase()) }, known)?.kind, 'same-text', 'case does not make a new text');
+  assert.equal(findDuplicate({ email: 'A@X.IO', phone: null, hash: 'other', simhash: null }, known)?.kind, 'same-person', 'same email, other document');
+  assert.equal(findDuplicate({ email: null, phone: '0671234567', hash: 'other', simhash: null }, known), null, 'a local number is not the international one');
+  assert.equal(findDuplicate({ email: null, phone: '380 (67) 123-45-67', hash: 'other', simhash: null }, known)?.kind, 'same-person', 'the same digits are the same phone');
   const edited = `Updated 2026\n${body}`;
-  assert.equal(findDuplicate({ email: null, ...fingerprintText(edited) }, known)?.number, 1, 'a re-upload with a new line on top');
-  assert.equal(findDuplicate({ email: 'b@y.io', ...fingerprintText('Completely different frontend resume about React and design systems. '.repeat(8)) }, known), null);
+  assert.equal(findDuplicate({ email: null, phone: null, ...fingerprintText(edited) }, known)?.kind, 'same-person', 'a re-upload with a new line on top is a version');
+  assert.equal(findDuplicate({ email: 'b@y.io', phone: null, ...fingerprintText('Completely different frontend resume about React and design systems. '.repeat(8)) }, known), null);
 });

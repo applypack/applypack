@@ -13,11 +13,11 @@ import { briefForPosting, briefLine } from '../../resume/brief';
 import { ResumeTextError } from '../../resume/docx-text';
 import { extractResumeText } from '../../resume/resume-text';
 import { draftRubric, readRubric, rubricEquals, rubricFromForm, rubricSummary } from '../../screening/rubric';
-import { expandUploads, findDuplicate, fingerprintText, isAcceptedResume, MAX_APPLICANTS_PER_SCREENING, MAX_BATCH_UPLOAD_MB, MAX_FILES_PER_UPLOAD } from '../../screening/intake';
+import { displayName, expandUploads, findDuplicate, fingerprintText, MAX_APPLICANTS_PER_SCREENING, MAX_BATCH_UPLOAD_MB } from '../../screening/intake';
 import { findLeaks, readRedactions, redactApplicant } from '../../screening/redact';
 import { readScreenReply } from '../../screening/prompts';
 import { readScreenBreakdown } from '../../screening/score';
-import { toCsv, toMarkdown } from '../../screening/export';
+import { DECISION_LABELS, MAX_ADJUSTMENT, toCsv, toMarkdown } from '../../screening/export';
 import { screeningRun, startScreeningRun } from '../../screening/batch';
 import {
   countApplicants,
@@ -25,6 +25,7 @@ import {
   createScreening,
   DECISIONS,
   deleteApplicant,
+  deleteApplicants,
   deleteScreening,
   extendRetention,
   getApplicant,
@@ -35,7 +36,9 @@ import {
   listScreenings,
   rubricOf,
   saveRubric,
+  setAdjustment,
   setDecision,
+  setDecisionMany,
   type Decision,
 } from '../../screening/store';
 import { requireEmployerMode } from '../employer-mode';
@@ -244,7 +247,8 @@ screenRoute.get('/screen/:id', async (c) => {
   const screening = await loadScreening(idParam(c.req.param('id')));
   if (!screening) return flashRedirect('/screen', 'err', 'That screening no longer exists.');
   const [applicants, settings, engine] = await Promise.all([listApplicants(screening.id, screening.rubricVersion), getSettings(), engineNote()]);
-  const rows = applicants.map(rowView);
+  const numberOf = new Map(applicants.map((a) => [a.id, a.number]));
+  const rows = applicants.map((a) => rowView({ ...a, sameAsNumber: a.sameAsId !== null ? (numberOf.get(a.sameAsId) ?? null) : null }));
   const pending = rows.filter((r) => r.status === 'ok' && (r.verdict === null || r.stale)).length;
   return c.html(
     <ScreenDetailPage
@@ -312,11 +316,10 @@ screenRoute.post('/screen/:id/applicants', (c, next) => batchUploadLimit(c.req.p
   const form = await c.req.parseBody({ all: true });
   const raw = form.files;
   const picked = (Array.isArray(raw) ? raw : [raw]).filter((f): f is File => f instanceof File && f.size > 0);
-  if (picked.length === 0) return flashRedirect(back, 'err', 'Pick the resume files or a zip first.');
-  if (picked.length > MAX_FILES_PER_UPLOAD) return flashRedirect(back, 'err', `At most ${MAX_FILES_PER_UPLOAD} files per upload.`);
+  if (picked.length === 0) return flashRedirect(back, 'err', 'Pick the resume files, a folder or a zip first.');
 
   const uploads = await Promise.all(picked.map(async (f) => ({ name: f.name, bytes: Buffer.from(await f.arrayBuffer()) })));
-  const { files, badArchives, oversized } = expandUploads(uploads);
+  const { files, badArchives, oversized, notResumes } = expandUploads(uploads);
   const room = MAX_APPLICANTS_PER_SCREENING - (await countApplicants(screening.id));
   if (room <= 0) return flashRedirect(back, 'err', `This screening already holds ${MAX_APPLICANTS_PER_SCREENING} applicants.`);
   const batch = files.slice(0, room);
@@ -324,25 +327,28 @@ screenRoute.post('/screen/:id/applicants', (c, next) => batchUploadLimit(c.req.p
   const known = await listKnownApplicants(screening.id);
   let ok = 0;
   let unreadable = 0;
-  let duplicates = 0;
+  let versions = 0;
+  let repeats = 0;
   let leaked = 0;
   for (const file of batch) {
     let text: string | null = null;
     let note: string | null = null;
-    if (!isAcceptedResume(file.name)) note = `not a resume file type (${file.name.split('.').pop() ?? '?'})`;
-    else {
-      try {
-        text = await extractResumeText(file.name, file.bytes);
-      } catch (err) {
-        if (err instanceof ResumeTextError) note = err.message;
-        else throw err;
-      }
+    try {
+      text = await extractResumeText(file.name, file.bytes);
+    } catch (err) {
+      if (err instanceof ResumeTextError) note = err.message;
+      else throw err;
     }
     // Redacted once with a placeholder number for the name and email the
     // dedupe reads; the store puts its own number on the label.
     const redacted = text ? redactApplicant(text, 0) : null;
     const print = text ? fingerprintText(text) : { hash: `unreadable:${file.name}:${file.bytes.length}`, simhash: null };
-    const dup = text ? findDuplicate({ email: redacted?.email ?? null, ...print }, known) : null;
+    const dup = text ? findDuplicate({ email: redacted?.email ?? null, phone: redacted?.phone ?? null, ...print }, known) : null;
+    if (dup?.kind === 'same-text') {
+      // The same file again: nothing new to read, and a second row would only be scored twice.
+      repeats++;
+      continue;
+    }
     const leaks = redacted ? findLeaks(redacted.text, redacted) : [];
     if (leaks.length > 0) leaked++;
     const row = await createApplicant({
@@ -350,38 +356,111 @@ screenRoute.post('/screen/:id/applicants', (c, next) => batchUploadLimit(c.req.p
       name: redacted?.name ?? null,
       email: redacted?.email ?? null,
       phone: redacted?.phone ?? null,
-      sourceFilename: file.archive ? `${file.name} (from ${file.archive})` : file.name,
+      sourceFilename: displayName(file),
       mimeType: mimeOf(file.name),
       original: file.bytes,
       text: text ?? '',
       redactedTextFor: (n) => redacted?.text.replaceAll('Applicant №0', `Applicant №${n}`) ?? '',
       redactions: redacted?.redactions ?? [],
-      parseStatus: !text ? 'unreadable' : dup ? 'duplicate' : 'ok',
-      parseNote: !text ? note : dup ? `same person as №${dup.number}` : null,
-      duplicateOfId: dup?.id ?? null,
+      parseStatus: text ? 'ok' : 'unreadable',
+      parseNote: text ? null : note,
+      sameAsId: dup?.match.id ?? null,
       textHash: print.hash,
       simhash: print.simhash,
     });
     if (!text) unreadable++;
-    else if (dup) duplicates++;
     else {
       ok++;
-      known.push({ id: row.id, number: row.number, email: redacted?.email ?? null, hash: print.hash, simhash: print.simhash });
+      if (dup) versions++;
+      known.push({ id: row.id, number: row.number, email: redacted?.email ?? null, phone: redacted?.phone ?? null, hash: print.hash, simhash: print.simhash });
     }
     // Counts only: a leak entry names a part of the person, and a log line is not the place for it.
     logger.info(
-      { screeningId: screening.id, applicantId: row.id, number: row.number, status: row.parseStatus, chars: text?.length ?? 0, redactions: redacted?.redactions, leaks: leaks.length },
+      { screeningId: screening.id, applicantId: row.id, number: row.number, status: row.parseStatus, sameAs: dup?.match.number ?? null, chars: text?.length ?? 0, redactions: redacted?.redactions, leaks: leaks.length },
       'screening: applicant added',
     );
   }
+
+  // Scoring starts by itself: the person picked the files, and the run
+  // drains, so files added while it works join the same run.
+  const rubricEmpty = rubricOf(screening).must.length === 0 && rubricOf(screening).gates.length === 0;
+  const started = ok > 0 && !rubricEmpty ? await startScreeningRun(screening.id) : null;
+
   const parts = [`${ok} applicant${ok === 1 ? '' : 's'} added`];
-  if (duplicates > 0) parts.push(`${duplicates} duplicate${duplicates === 1 ? '' : 's'} kept unscored`);
+  if (versions > 0) parts.push(`${versions} of them another document of someone already in the list`);
+  if (repeats > 0) parts.push(`${repeats} file${repeats === 1 ? '' : 's'} already added, skipped`);
   if (unreadable > 0) parts.push(`${unreadable} file${unreadable === 1 ? '' : 's'} could not be read`);
+  if (notResumes.length > 0) parts.push(`${notResumes.length} file${notResumes.length === 1 ? '' : 's'} of other types left out`);
   if (badArchives.length > 0) parts.push(`${badArchives.length} archive${badArchives.length === 1 ? '' : 's'} could not be opened`);
   if (oversized.length > 0) parts.push(`${oversized.length} zip entr${oversized.length === 1 ? 'y' : 'ies'} over ${MAX_UPLOAD_MB} MB left out`);
   if (files.length > room) parts.push(`${files.length - room} left out — the screening holds ${MAX_APPLICANTS_PER_SCREENING} at most`);
   if (leaked > 0) parts.push(`${leaked} may still carry something identifying — check their scorecards`);
-  return flashRedirect(`${back}#results`, leaked > 0 || unreadable > 0 ? 'warn' : 'ok', `${parts.join('; ')}. Names and contacts were removed from what the model will read.`);
+  const tail =
+    started?.kind === 'started' || started?.kind === 'joined'
+      ? ' Scoring has started; the page updates itself.'
+      : ok > 0 && rubricEmpty
+        ? ' Write the rubric above, then press Score.'
+        : '';
+  return flashRedirect(`${back}#results`, leaked > 0 || unreadable > 0 ? 'warn' : 'ok', `${parts.join('; ')}.${tail}`);
+});
+
+const BULK_ACTIONS = ['interview', 'hold', 'declined', 'clear', 'again', 'delete'] as const;
+
+/** The checked rows, one action (guardrail 1: every decision here is the person's, and logged). */
+screenRoute.post('/screen/:id/applicants/bulk', async (c) => {
+  const screening = await loadScreening(idParam(c.req.param('id')));
+  if (!screening) return flashRedirect('/screen', 'err', 'That screening no longer exists.');
+  const back = `/screen/${screening.id}#results`;
+  const form = await c.req.parseBody({ all: true });
+  const rawIds = form.ids;
+  const ids = (Array.isArray(rawIds) ? rawIds : [rawIds])
+    .map((v) => (typeof v === 'string' ? idParam(v) : NaN))
+    .filter((n) => Number.isInteger(n));
+  const action = typeof form.do === 'string' && (BULK_ACTIONS as readonly string[]).includes(form.do) ? (form.do as (typeof BULK_ACTIONS)[number]) : null;
+  if (!action) return flashRedirect(back, 'err', 'Pick what to do with the checked applicants.');
+  if (ids.length === 0) return flashRedirect(back, 'warn', 'Tick the applicants first.');
+  const n = ids.length;
+  const plural = `${n} applicant${n === 1 ? '' : 's'}`;
+  switch (action) {
+    case 'delete': {
+      const count = await deleteApplicants(screening.id, ids);
+      logger.info({ screeningId: screening.id, ids, count }, 'screening: applicants removed by the user');
+      return flashRedirect(back, 'ok', `${count} applicant${count === 1 ? '' : 's'} removed with the files and every verdict.`);
+    }
+    case 'again': {
+      const outcome = await startScreeningRun(screening.id, { again: ids });
+      return flashRedirect(
+        back,
+        outcome.kind === 'joined' ? 'warn' : 'ok',
+        outcome.kind === 'joined'
+          ? 'A run is already in flight — press Score again when it ends.'
+          : outcome.kind === 'nothing'
+            ? 'None of the checked applicants can be scored (unreadable files).'
+            : `Scoring ${plural} again; the page updates itself.`,
+      );
+    }
+    default: {
+      const decision: Decision | null = action === 'clear' ? null : action;
+      const count = await setDecisionMany(screening.id, ids, decision);
+      logger.info({ screeningId: screening.id, ids, decision, count }, 'screening: decisions set by the user');
+      return flashRedirect(back, 'ok', decision ? `${count} applicant${count === 1 ? '' : 's'}: ${DECISION_LABELS[decision]?.toLowerCase() ?? decision}.` : `Decision cleared on ${count}.`);
+    }
+  }
+});
+
+/** The person's correction to the computed score, with its reason (ADR 0047 addendum). */
+screenRoute.post('/screen/:id/applicants/:aid/adjust', async (c) => {
+  const id = idParam(c.req.param('id'));
+  const applicant = await loadApplicant(idParam(c.req.param('aid')));
+  if (!applicant || applicant.screeningId !== id) return flashRedirect('/screen', 'err', 'That applicant no longer exists.');
+  const form = await c.req.parseBody();
+  const back = safeBack(form.back, `/screen/${id}/applicants/${applicant.id}`);
+  const points = Math.max(-MAX_ADJUSTMENT, Math.min(MAX_ADJUSTMENT, Math.round(Number(form.points) || 0)));
+  const note = typeof form.note === 'string' ? form.note.trim().slice(0, 200) : '';
+  if (points !== 0 && note.length === 0) return flashRedirect(back, 'err', 'Say why — the reason is shown beside the number and goes into the export.');
+  await setAdjustment(applicant.id, points, note || null);
+  logger.info({ screeningId: id, applicantId: applicant.id, number: applicant.number, points, hasNote: note.length > 0 }, 'screening: score adjusted by the user');
+  return flashRedirect(back, 'ok', points === 0 ? `№${applicant.number}: adjustment removed.` : `№${applicant.number}: ${points > 0 ? '+' : ''}${points} — "${note}".`);
 });
 
 function mimeOf(filename: string): string {
@@ -408,7 +487,7 @@ screenRoute.post('/screen/:id/run', async (c) => {
       return flashRedirect(
         back,
         'ok',
-        `Scoring ${outcome.state.total} applicant${outcome.state.total === 1 ? '' : 's'}, ${config.AI_CONCURRENCY} at a time. Each is one independent call; verdicts land as they arrive and survive a restart.`,
+        `Scoring started, ${config.AI_CONCURRENCY} at a time. Each applicant is one independent call; verdicts land as they arrive, survive a restart, and anyone added meanwhile joins the run.`,
       );
   }
 });
@@ -417,6 +496,7 @@ screenRoute.get('/screen/:id/applicants/:aid', async (c) => {
   const applicant = await loadApplicant(idParam(c.req.param('aid')));
   if (!applicant || applicant.screeningId !== idParam(c.req.param('id'))) return flashRedirect('/screen', 'err', 'That applicant no longer exists.');
   const s = applicant.screening;
+  const sameAsNumber = applicant.sameAsId !== null ? ((await getApplicant(applicant.sameAsId))?.number ?? null) : null;
   const reply = applicant.verdict ? readScreenReply(applicant.verdict.facts) : null;
   const breakdown = applicant.verdict ? readScreenBreakdown(applicant.verdict.breakdown) : null;
   return c.html(
@@ -429,10 +509,13 @@ screenRoute.get('/screen/:id/applicants/:aid', async (c) => {
         email: applicant.email,
         phone: applicant.phone,
         file: applicant.sourceFilename,
-        status: applicant.parseStatus === 'unreadable' || applicant.parseStatus === 'duplicate' ? applicant.parseStatus : 'ok',
+        status: applicant.parseStatus === 'unreadable' ? 'unreadable' : 'ok',
         note: applicant.parseNote,
         decision: applicant.decision,
         decidedAt: applicant.decidedAt,
+        sameAs: sameAsNumber,
+        adjustment: applicant.scoreAdjustment,
+        adjustmentNote: applicant.adjustmentNote,
         redactions: readRedactions(applicant.redactions),
         leaks: applicant.redactedText ? findLeaks(applicant.redactedText, applicant) : [],
         text: applicant.text,
@@ -490,7 +573,9 @@ screenRoute.post('/screen/:id/applicants/:aid/delete', async (c) => {
 async function exportData(id: number) {
   const screening = await loadScreening(id);
   if (!screening) return null;
-  const rows = exportRows((await listApplicants(screening.id, screening.rubricVersion)).map(rowView));
+  const applicants = await listApplicants(screening.id, screening.rubricVersion);
+  const numberOf = new Map(applicants.map((a) => [a.id, a.number]));
+  const rows = exportRows(applicants.map((a) => rowView({ ...a, sameAsNumber: a.sameAsId !== null ? (numberOf.get(a.sameAsId) ?? null) : null })));
   const meta = {
     title: screening.title,
     jobTitle: screening.job.title,

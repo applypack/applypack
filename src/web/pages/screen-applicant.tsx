@@ -1,7 +1,7 @@
 /** @jsxImportSource hono/jsx */
 import type { FC } from 'hono/jsx';
 import { Layout } from '../layout';
-import { ActionForm, Badge, Button, Card, Flash, Hint, PageHeader, Select, Table, Td, Tr } from '../ui';
+import { ActionForm, Badge, Button, Card, Flash, Hint, Input, PageHeader, Select, Table, Td, Tr } from '../ui';
 import type { FlashMessage } from '../flash';
 import { formatDate } from '../format';
 import { formatRange, parseRange } from '../../screening/dates';
@@ -9,7 +9,8 @@ import { RUBRIC_PART_LABELS, RUBRIC_PARTS, type Rubric } from '../../screening/r
 import { EVIDENCE_RUNG_LABELS, type ScreenReply } from '../../screening/prompts';
 import { capExplanation, GATE_BUCKET_LABELS, type ScreenBreakdown } from '../../screening/score';
 import { describeRedactions, type Redaction } from '../../screening/redact';
-import { DECISION_LABELS, GATE_MARK } from '../../screening/export';
+import { DECISION_LABELS, GATE_MARK, MAX_ADJUSTMENT } from '../../screening/export';
+import { adjustedScore } from '../screen-view';
 import { DECISIONS } from '../../screening/store';
 
 /*
@@ -28,10 +29,14 @@ export interface ScreenApplicantProps {
     email: string | null;
     phone: string | null;
     file: string;
-    status: 'ok' | 'unreadable' | 'duplicate';
+    status: 'ok' | 'unreadable';
     note: string | null;
     decision: string | null;
     decidedAt: Date | null;
+    /** Another document of applicant №N. */
+    sameAs: number | null;
+    adjustment: number;
+    adjustmentNote: string | null;
     redactions: Redaction[];
     leaks: string[];
     text: string;
@@ -64,8 +69,12 @@ export const ScreenApplicantPage: FC<ScreenApplicantProps> = ({ screening, appli
               <Badge tone={breakdown.gateBucket === 'pass' ? 'ok' : breakdown.gateBucket === 'ask' ? 'warn' : 'danger'}>
                 {GATE_BUCKET_LABELS[breakdown.gateBucket]}
               </Badge>
-              <span class="text-base font-semibold text-ink">{breakdown.score}</span>
-              <span>/ 100 · confidence {breakdown.confidence.band}</span>
+              <span class="text-base font-semibold text-ink">{adjustedScore(breakdown.score, applicant.adjustment)}</span>
+              <span>
+                / 100
+                {applicant.adjustment !== 0 ? ` (computed ${breakdown.score}, your ${applicant.adjustment > 0 ? '+' : ''}${applicant.adjustment})` : ''} · confidence{' '}
+                {breakdown.confidence.band}
+              </span>
             </span>
           ) : undefined
         }
@@ -84,9 +93,19 @@ export const ScreenApplicantPage: FC<ScreenApplicantProps> = ({ screening, appli
 
       {applicant.status !== 'ok' && (
         <Card class="mb-4">
-          <Badge tone="warn">{applicant.status === 'duplicate' ? 'A copy of another applicant' : 'Could not be read'}</Badge>
+          <Badge tone="warn">Could not be read</Badge>
           <p class="mt-2 text-sm text-ink-muted">{applicant.note ?? 'The file gave no text to read.'}</p>
         </Card>
+      )}
+      {applicant.sameAs !== null && (
+        <div class="mb-4 rounded-md border border-line bg-surface-overlay px-3.5 py-2.5 text-[13px] leading-5 text-ink-muted" role="status">
+          Another document of{' '}
+          <a href={`${back}#results`} class="text-ink hover:underline">
+            applicant №{applicant.sameAs}
+          </a>{' '}
+          — same email, phone or near-identical text. Scored on its own; keep the version you want and tick the other
+          for Delete.
+        </div>
       )}
       {stale && reply && (
         <div class="mb-4 rounded-md border border-warn/25 bg-warn/5 px-3.5 py-2.5 text-[13px] leading-5 text-warn" role="status">
@@ -322,6 +341,23 @@ export const ScreenApplicantPage: FC<ScreenApplicantProps> = ({ screening, appli
               <Hint class="mt-2">
                 {applicant.decidedAt ? `Set ${formatDate(applicant.decidedAt)}. ` : ''}The tool never sets this: a
                 bucket is a fact about the resume, a decision is yours.
+              </Hint>
+            </Card>
+
+            <Card>
+              <h2 class="text-sm font-semibold text-ink">Your adjustment</h2>
+              <form method="post" action={`${back}/applicants/${applicant.id}/adjust`} class="mt-2 space-y-2">
+                <input type="hidden" name="back" value={`${back}/applicants/${applicant.id}`} />
+                <div class="flex items-center gap-2">
+                  <Input type="number" name="points" min={-MAX_ADJUSTMENT} max={MAX_ADJUSTMENT} step="1" value={applicant.adjustment} class="w-24" aria-label="Points" />
+                  <span class="text-sm text-ink-muted">points, −{MAX_ADJUSTMENT} to +{MAX_ADJUSTMENT}</span>
+                </div>
+                <Input type="text" name="note" maxlength="200" value={applicant.adjustmentNote ?? ''} placeholder="Why — a referral, a fact the resume does not carry…" aria-label="Reason" />
+                <Button variant="secondary">Save</Button>
+              </form>
+              <Hint class="mt-2">
+                Moves this applicant in the table and travels into the export with its reason. The computed score
+                stays visible beside it — your correction is a fact about the person, not a change to the rubric.
               </Hint>
             </Card>
 

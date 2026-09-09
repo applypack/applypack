@@ -11,10 +11,17 @@ export interface ExportRow {
   /** Shown to the person only; the model never saw it. */
   name: string | null;
   file: string;
-  status: 'ok' | 'unreadable' | 'duplicate';
+  status: 'ok' | 'unreadable';
   note: string | null;
   bucket: GateBucket | null;
+  /** The computed score. */
   score: number | null;
+  /** The person's correction (ADR 0047 addendum), 0 when none, and the number the table orders by. */
+  adjustment: number;
+  adjustmentNote: string | null;
+  adjusted: number | null;
+  /** Another document of applicant №N. */
+  sameAs: number | null;
   confidence: ConfidenceBand | null;
   gates: { gate: string; status: GateStatus }[];
   mustCovered: number | null;
@@ -36,6 +43,9 @@ export interface ExportScreening {
 
 export const GATE_MARK: Record<GateStatus, string> = { pass: '✓', unknown: '?', fail: '✗' };
 
+/** How far the person's correction may move a score either way — enough to lift a referral, never a rewrite of the rubric. */
+export const MAX_ADJUSTMENT = 30;
+
 export const DECISION_LABELS: Record<string, string> = {
   interview: 'To interview',
   hold: 'On hold',
@@ -56,6 +66,8 @@ export function toCsv(screening: ExportScreening, rows: ExportRow[]): string {
     'Status',
     'Bucket',
     'Score',
+    'Your adjustment',
+    'Adjusted score',
     'Confidence',
     ...screening.gates.map((g) => `Gate: ${g}`),
     'Must-have covered',
@@ -74,6 +86,8 @@ export function toCsv(screening: ExportScreening, rows: ExportRow[]): string {
       r.status,
       r.bucket ? GATE_BUCKET_LABELS[r.bucket] : '',
       r.score ?? '',
+      r.adjustment === 0 ? '' : `${r.adjustment > 0 ? '+' : ''}${r.adjustment}${r.adjustmentNote ? ` (${r.adjustmentNote})` : ''}`,
+      r.adjusted ?? '',
       r.confidence ?? '',
       ...screening.gates.map((g) => {
         const status = r.gates.find((x) => x.gate.toLowerCase() === g.toLowerCase())?.status;
@@ -85,7 +99,7 @@ export function toCsv(screening: ExportScreening, rows: ExportRow[]): string {
       r.decision ? (DECISION_LABELS[r.decision] ?? r.decision) : '',
       r.verdict ?? '',
       r.questions.join(' | '),
-      r.note ?? '',
+      [r.sameAs !== null ? `another document of №${r.sameAs}` : '', r.note ?? ''].filter(Boolean).join('; '),
     ]
       .map(csvCell)
       .join(','),
@@ -115,16 +129,18 @@ export function toMarkdown(screening: ExportScreening, rows: ExportRow[]): strin
         const status = r.gates.find((x) => x.gate.toLowerCase() === g.toLowerCase())?.status;
         return status ? GATE_MARK[status] : '';
       });
+      const score = r.adjusted !== null && r.adjustment !== 0 ? `${r.adjusted} (${r.score} ${r.adjustment > 0 ? '+' : ''}${r.adjustment})` : (r.score ?? '');
       out.push(
-        `| №${r.number} | ${escapePipe(r.name ?? '')} | ${r.score ?? ''} | ${r.confidence ?? ''} | ${marks.join(' | ')}${marks.length > 0 ? ' | ' : ''}${
+        `| №${r.number} | ${escapePipe(r.name ?? '')} | ${score} | ${r.confidence ?? ''} | ${marks.join(' | ')}${marks.length > 0 ? ' | ' : ''}${
           r.mustTotal !== null ? `${r.mustCovered ?? 0}/${r.mustTotal}` : ''
         } | ${r.years ?? ''} | ${r.level ?? ''} | ${r.decision ? (DECISION_LABELS[r.decision] ?? r.decision) : ''} |`,
       );
     }
     out.push('');
     for (const r of group) {
-      if (!r.verdict && r.questions.length === 0) continue;
+      if (!r.verdict && r.questions.length === 0 && r.adjustment === 0) continue;
       out.push(`**№${r.number}${r.name ? ` — ${escapePipe(r.name)}` : ''}.** ${r.verdict ?? ''}`);
+      if (r.adjustment !== 0) out.push(`- Your adjustment: ${r.adjustment > 0 ? '+' : ''}${r.adjustment}${r.adjustmentNote ? ` — ${r.adjustmentNote}` : ''}`);
       for (const q of r.questions) out.push(`- ${q}`);
       out.push('');
     }

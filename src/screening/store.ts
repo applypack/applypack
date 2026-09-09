@@ -99,10 +99,10 @@ export function rubricOf(screening: Pick<Screening, 'rubric'>): Rubric {
 
 export async function listKnownApplicants(screeningId: number): Promise<KnownApplicant[]> {
   const rows = await prisma.applicant.findMany({
-    where: { screeningId, parseStatus: { not: 'duplicate' } },
-    select: { id: true, number: true, email: true, textHash: true, simhash: true },
+    where: { screeningId, parseStatus: 'ok' },
+    select: { id: true, number: true, email: true, phone: true, textHash: true, simhash: true },
   });
-  return rows.map((r) => ({ id: r.id, number: r.number, email: r.email, hash: r.textHash, simhash: r.simhash }));
+  return rows.map((r) => ({ id: r.id, number: r.number, email: r.email, phone: r.phone, hash: r.textHash, simhash: r.simhash }));
 }
 
 export async function countApplicants(screeningId: number): Promise<number> {
@@ -121,9 +121,9 @@ export interface NewApplicant {
   /** The redacted text for the number the store assigns — the "Applicant №N" label has to carry the real one. */
   redactedTextFor: (number: number) => string;
   redactions: { kind: string; count: number }[];
-  parseStatus: 'ok' | 'unreadable' | 'duplicate';
+  parseStatus: 'ok' | 'unreadable';
   parseNote: string | null;
-  duplicateOfId: number | null;
+  sameAsId: number | null;
   textHash: string;
   simhash: bigint | null;
 }
@@ -192,6 +192,12 @@ export async function deleteApplicant(id: number): Promise<void> {
   await prisma.applicant.delete({ where: { id } });
 }
 
+/** The bulk delete — scoped to the screening, so a stray id from another one is ignored. */
+export async function deleteApplicants(screeningId: number, ids: number[]): Promise<number> {
+  const r = await prisma.applicant.deleteMany({ where: { screeningId, id: { in: ids } } });
+  return r.count;
+}
+
 export const DECISIONS = ['interview', 'hold', 'declined'] as const;
 export type Decision = (typeof DECISIONS)[number];
 
@@ -200,10 +206,32 @@ export async function setDecision(id: number, decision: Decision | null): Promis
   await prisma.applicant.update({ where: { id }, data: { decision, decidedAt: decision ? new Date() : null } });
 }
 
+export async function setDecisionMany(screeningId: number, ids: number[], decision: Decision | null): Promise<number> {
+  const r = await prisma.applicant.updateMany({
+    where: { screeningId, id: { in: ids } },
+    data: { decision, decidedAt: decision ? new Date() : null },
+  });
+  return r.count;
+}
+
+/** The person's correction to the computed score, with its reason (ADR 0047 addendum). */
+export async function setAdjustment(id: number, points: number, note: string | null): Promise<void> {
+  await prisma.applicant.update({ where: { id }, data: { scoreAdjustment: points, adjustmentNote: points === 0 ? null : note } });
+}
+
 /** Readable applicants with no verdict under this rubric version — what a run (or a resumed run) scores. */
 export async function listPending(screeningId: number, rubricVersion: number): Promise<Pick<Applicant, 'id' | 'number' | 'redactedText'>[]> {
   return prisma.applicant.findMany({
     where: { screeningId, parseStatus: 'ok', verdicts: { none: { rubricVersion } } },
+    orderBy: { number: 'asc' },
+    select: { id: true, number: true, redactedText: true },
+  });
+}
+
+/** The named readable applicants of one screening, for a "score again". */
+export async function listReadable(screeningId: number, ids: number[]): Promise<Pick<Applicant, 'id' | 'number' | 'redactedText'>[]> {
+  return prisma.applicant.findMany({
+    where: { screeningId, parseStatus: 'ok', id: { in: ids } },
     orderBy: { number: 'asc' },
     select: { id: true, number: true, redactedText: true },
   });

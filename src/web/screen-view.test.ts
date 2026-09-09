@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { exportRows, groupRows, rowView } from './screen-view';
+import { adjustedScore, exportRows, groupRows, rowView } from './screen-view';
 import type { ApplicantWithVerdict } from '../screening/store';
 
 function applicant(over: Partial<ApplicantWithVerdict> & { verdict?: ApplicantWithVerdict['verdict'] }): ApplicantWithVerdict {
@@ -18,11 +18,13 @@ function applicant(over: Partial<ApplicantWithVerdict> & { verdict?: ApplicantWi
     redactions: [],
     parseStatus: 'ok',
     parseNote: null,
-    duplicateOfId: null,
     textHash: 'h',
     simhash: null,
     decision: null,
     decidedAt: null,
+    sameAsId: null,
+    scoreAdjustment: 0,
+    adjustmentNote: null,
     createdAt: new Date(0),
     verdict: null,
     stale: false,
@@ -77,9 +79,9 @@ function verdict(score: number, bucket: 'pass' | 'ask' | 'fail', rubricVersion =
   };
 }
 
-test('rowView reads the stored verdict; groupRows orders and separates', () => {
+test('rowView reads the stored verdict; groupRows orders by the adjusted score and separates', () => {
   const rows = [
-    applicant({ id: 1, number: 1, verdict: verdict(70, 'pass') }),
+    applicant({ id: 1, number: 1, verdict: verdict(70, 'pass'), scoreAdjustment: 30, adjustmentNote: 'referral' }),
     applicant({ id: 2, number: 2, verdict: verdict(90, 'ask') }),
     applicant({ id: 3, number: 3, verdict: verdict(95, 'pass') }),
     applicant({ id: 4, number: 4, verdict: verdict(60, 'pass', 1), stale: true }),
@@ -88,13 +90,15 @@ test('rowView reads the stored verdict; groupRows orders and separates', () => {
   ].map(rowView);
   assert.equal(rows[0]!.verdict?.level, 'senior');
   const g = groupRows(rows);
-  assert.deepEqual(g.scored.map((r) => r.number), [3, 1, 2], 'pass bucket by score, then ask');
+  assert.deepEqual(g.scored.map((r) => r.number), [1, 3, 2], 'pass bucket by the adjusted score (70 + 30 = 100), then ask');
+  assert.equal(adjustedScore(95, 30), 100, 'held to 100');
+  assert.equal(adjustedScore(10, -30), 0);
   assert.deepEqual(g.pending.map((r) => r.number), [4, 6], 'stale and never-scored wait together');
   assert.deepEqual(g.unread.map((r) => r.number), [5]);
   const ex = exportRows(rows);
   assert.deepEqual(ex.map((r) => [r.number, r.score, r.note]), [
-    [3, 95, null],
     [1, 70, null],
+    [3, 95, null],
     [2, 90, null],
     [4, null, 'scored under an earlier rubric'],
     [6, null, 'not scored yet'],
