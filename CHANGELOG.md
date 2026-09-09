@@ -24,6 +24,25 @@ All notable changes to this project are documented here. The format follows
   for the same applicants, never folded into any score — the table keeps
   its order. Ceiling: five; above that, narrow the shortlist first.
 
+### Fixed
+- **The same resume as .docx and .pdf scored 78 and 69.** Not the PDF
+  reading badly — the .docx over-credited: a skills TABLE comes out of the
+  .docx reader as one line, which read as prose, so every term on it
+  counted as work done; and the model called the same "Technology Stack:"
+  lines "production" in one run and "role" in the other. Three rules in
+  the anchor now (`screening/anchor.ts`, `resume/evidence.ts`): a
+  flattened table row is judged cell by cell; a quote that is a list of
+  terms supports at most "listed", or "role" on a job's own stack line —
+  "production" needs a work bullet with an outcome; and a term the text
+  never spells is "absent" whatever line the model quoted (Datadog is not
+  Sentry). Prompt v4 says the same. `node dist/scripts/rescore-screenings.js`
+  re-anchors and re-scores stored verdicts without a call (`--write` to
+  apply); "Score again" is the other way.
+- **The screening page reads top to bottom.** Four numbered cards; the
+  criteria card shows every criterion as a chip while closed and opens the
+  editor with a button instead of a bare disclosure marker; "Read the
+  posting" and "Edit the posting" are buttons too.
+
 ### Schema
 - `screening_comparison` — the two anchored readings of a shortlist with
   the order each was shown in (migration `20260909180000_screening_comparison`).

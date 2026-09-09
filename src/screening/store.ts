@@ -276,6 +276,14 @@ export async function createVerdict(input: {
 }
 
 /** The cleanup cron's one call (ADR 0048): screenings past their date go with every file and verdict. */
+/** Rewrites a stored verdict after a re-anchor and re-score with the current rules (scripts/rescore-screenings.ts) — no call, same reply. */
+export async function updateVerdictScore(id: number, input: { facts: unknown; breakdown: unknown; score: number; confidence: string; gateBucket: string }): Promise<void> {
+  await prisma.screeningVerdict.update({
+    where: { id },
+    data: { ...input, facts: input.facts as Prisma.InputJsonValue, breakdown: input.breakdown as Prisma.InputJsonValue },
+  });
+}
+
 /** A shortlist read head to head (plan §5.1): the two anchored readings, never a score. */
 export async function createComparison(input: {
   screeningId: number;

@@ -337,7 +337,8 @@ When the question is **"where does X live?"**, save yourself a `find`:
 | What stands out beyond the criteria, and why a fact is missing | `ScreenReply.standout` — written by the model, kept by `anchor.ts` only with a located quote (`standoutDropped` on the log line), never scored; the scorecard's "Stands out" card, the row's expandable line on `/screen/:id`, the "Stands out" column of the CSV. A verdict from prompt v2 has none until the next Score |
 | Two to five ticked applicants side by side, and the shortlist read head to head by the model | `src/web/screen-compare.ts:sideBySide` (pure: the stored scorecards as columns, one row per criterion) → `GET /screen/:id/compare?ids=`; **Compare with AI** = `src/screening/compare.ts:compareApplicants` over `prompts.ts:buildComparePrompt` (ADR 0051): two calls at once, the second with the resumes reversed (`comparison.ts:secondOrder`), each reply anchored so a quote stays only in the resume it came from (`anchorCompareReply`), both stored as one `ScreeningComparison`; `comparisonView` marks where the readings differ, `comparisonMarkdown` is the Copy button. A ceiling of `MAX_COMPARE` (5); never a score |
 | The career as the dated roles give it — years in total, employers, average stay, in a role now, sectors in order | `src/screening/trajectory.ts:trajectoryOf` / `trajectoryLine` (pure, plan §5), computed on read from `reply.roles` — never stored, never a point (ADR 0047: a gap or an employer count is never a criterion); under the roles on the scorecard, the Years cell's tooltip, the "Career" export column |
-| Why an answer on a scorecard is lower than the model wrote | `src/screening/anchor.ts:anchorScreenReply` (pure): every quote must be a span of the redacted text; an unquoted rung falls to `textEvidence` (and rises when the text shows a work sentence), an unquoted pass / partial / fail is unknown, an unquoted strong impact is ok, unanchored roles are dropped, an answer for an unknown id is dropped, a skipped skill is read off the text |
+| Why an answer on a scorecard is lower than the model wrote | `src/screening/anchor.ts:anchorScreenReply` (pure): every quote must be a span of the redacted text; an unquoted rung falls to `textEvidence` (and rises when the text shows a work sentence); a quote that is a LIST of terms supports at most `listed`, or `role` on a job's own "Technology Stack:" line (`listCap` — gotcha 18); a term the text never spells is `absent` whatever the model quoted; an unquoted pass / partial / fail is unknown, an unquoted strong impact is ok, unanchored roles are dropped, an answer for an unknown id is dropped, a skipped skill is read off the text. `node dist/scripts/rescore-screenings.js [--write]` re-applies the rules to stored verdicts without a call |
+| Why a .docx skills table no longer counts as work done | `src/resume/evidence.ts:segmentAt` — the .docx reader flattens a table row to one line (label cell ` \| ` values cell), so a term is judged inside its own cell; `isTermList` tolerates a few glued pairs on a long list and refuses grammar. Both sides read it: the candidate's evidence grade and the screening anchor |
 | The employer score, its caps, the bucket, the confidence | `src/screening/score.ts:scoreScreening` (pure, ADR 0050) — one `ScoreRow` per criterion (credit × stars), gates bucket, caps 30 / 50 / 60 (`coreNone` / `twoLevelsUnder` / `impactWeak`), years / industry years / company type from the dated roles, `levelCredit` by tolerance, unknown leaves the denominator; `orderVerdicts` is the table's order |
 | Dates as resumes write them → years covered, months since | `src/screening/dates.ts` (pure): five languages of month names and "present" words; overlaps merged |
 | Bulk intake: zip, a folder with subfolders, what repeats, the caps | `src/screening/intake.ts` (pure) over `resume/zip.ts:readZipEntries`; `findDuplicate` tells `same-text` (a repeat of a file — never added) from `same-person` (same email, phone or SimHash within `MAX_HAMMING_DISTANCE` — scored, labelled "also №N", `Applicant.sameAsId`); non-resume types in a folder are `notResumes`, not rows; the folder path rides on the file name (`public/screen.mjs:pathedFiles`) |
@@ -658,6 +659,29 @@ nothing behind it" is the `evidence` grade, never the status. Measured before
 deciding: 29 of 1 215 stored `cannot_claim` rows were written, and the 8
 homonyms among them (GCP = Good Clinical Practice) all sat on comparisons
 scoring 0.
+
+### 18. A located quote proves the line exists, not what it says about the term
+
+Found 2026-09-09 on the first real screening: the same resume uploaded as
+.docx and as .pdf scored 78 and 69. Every difference sat on a LIST line.
+The model called the same "Technology Stack: Node, TypeScript, AWS…" line
+"production" in one run and "role" in the next; it quoted the stack line
+of one job for "Sentry / New Relic" because Datadog was on it; and the
+.docx skills table came out of the reader as one line — label cell,
+` | `, values cell — which `isTermList` read as prose, so CSS3 on it was
+"production" 3/3 in the .docx and "listed" 0.9/3 in the .pdf, where the
+same table is eight short lines. The anchor accepted all of it because the
+quote was in the text.
+
+Three rules, all in code (`anchor.ts:listCap`, `evidence.ts:segmentAt`):
+a quote that is a list of terms carries at most `listed`, or `role` when
+the list is a job's own stack line — `production` is a work bullet with an
+outcome; a flattened table row is judged around the term's own cell; and a
+term the matcher cannot find anywhere in the text is `absent` whatever the
+model quoted (ADR 0045, applied to the employer side). Rule of thumb: the
+anchor must check what the quote SAYS about the term, not only that the
+quote exists — and any evidence rule that reads "the line" has to survive a
+table row rendered as one line.
 
 ### 12. stripHtml: decode entities FIRST, and never re-run it on its own output
 

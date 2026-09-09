@@ -14,7 +14,7 @@ import {
 } from './rubric';
 
 /*
- * The screening prompt, version 3 (TASKS §19.5, ADR 0050): ONE anonymised
+ * The screening prompt, version 4 (TASKS §19.5, ADR 0050): ONE anonymised
  * applicant against the CRITERIA a person chose for ONE position. The
  * model answers every criterion in the shape its kind asks for — a rung on
  * the evidence ladder, a pass / partial / unknown / fail, a level, an
@@ -25,8 +25,8 @@ import {
  * Pure: no I/O.
  */
 
-/** v3: v2's criterion answers plus "standout" — facts the criteria did not ask for, each with a quote. */
-export const SCREEN_PROMPT_VERSION = 3;
+/** v4: v3 with the evidence ladder spelled out for lists — a stack line is at most "role"; a term the text never spells is absent. */
+export const SCREEN_PROMPT_VERSION = 4;
 /** The answer: one entry per criterion, the roles with dates, three stand-out facts, a few quotes and five questions. */
 export const SCREEN_MAX_TOKENS = 7_500;
 /** Stand-out facts per applicant — enough to say what the criteria missed, few enough to read in a row. */
@@ -134,7 +134,7 @@ export const ScreenReplySchema = z.object({
 export type ScreenReply = z.infer<typeof ScreenReplySchema>;
 
 const RULE_ANSWERS = `"answers" — one entry per criterion in the SCREENING RUBRIC, with that criterion's "id" copied exactly, in the shape its "answer as" says:
-   - rung: the strongest evidence the resume gives for the term (or any of its alternatives): "production" = owned, ran or shipped it in a job, stated in a work bullet with an outcome, a scale or a system in their care; "role" = used it in a job, described in a work bullet; "project" = a personal or study project, a course, a certification; "listed" = named only on a skills line; "absent" = nowhere. A synonym or an obvious alias counts; a sibling technology never does (Vue is not React, PHP is not Node.js, MySQL is not PostgreSQL). "quote" is the line that earns the rung, "last_used" the end date of the most recent role that used it, copied verbatim from that role's header, or null.
+   - rung: the strongest evidence the resume gives for the term (or any of its alternatives): "production" = owned, ran or shipped it in a job, stated in a work bullet with an outcome, a scale or a system in their care; "role" = used it in a job, described in a work bullet; "project" = a personal or study project, a course, a certification; "listed" = named only on a skills line; "absent" = nowhere. A synonym or an obvious alias counts; a sibling technology never does (Vue is not React, PHP is not Node.js, MySQL is not PostgreSQL, Datadog is not Sentry) — a term the resume never spells is "absent". A line that is a list of terms earns "listed" when it is a skills section and at most "role" when it is a job's own "Technology Stack:" line; "production" needs a work bullet about that term with an outcome, and the application lowers a rung a list cannot carry. "quote" is the line that earns the rung, "last_used" the end date of the most recent role that used it, copied verbatim from that role's header, or null.
    - status: "pass" = the resume shows it, with the line in "quote"; "partial" = part of it, with the line; "fail" = the resume CONTRADICTS it, with the contradicting line; "unknown" = the resume is silent, and "question" is what the interviewer should ask. Silence is NEVER "fail". A pass, partial or fail without a verbatim quote is discarded by the application.
    - level: the level the text SHOWS in "level", from scope and ownership rather than titles alone — junior (executes assigned tasks), mid (owns features end to end), senior (owns systems, makes and defends decisions, is the reference for others), lead (owns a team, a roadmap or an architecture across teams) — with the one line that shows it in "quote"; null when the resume gives too little to say.
    - impact: "strong" / "ok" / "weak" in "impact" — outcomes versus duties across the relevant roles: strong = most bullets say what changed for the business or the system, with numbers where the person had them; ok = some outcomes, mostly responsibilities; weak = activity and technology only. "quote" is the best outcome line; a strong with no quote is lowered by the application.
