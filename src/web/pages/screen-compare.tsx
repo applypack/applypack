@@ -9,6 +9,7 @@ import { GATE_BUCKET_LABELS, type ScoreRow } from '../../screening/score';
 import { GATE_MARK } from '../../screening/export';
 import { who, type ComparisonView } from '../../screening/comparison';
 import type { SideBySide } from '../screen-compare';
+import { ANSWER_TONE, RUNG_SHORT } from '../screen-view';
 
 /*
  * Side by side (plan §5) and Compare with AI (plan §5.1, ADR 0051): the
@@ -30,13 +31,11 @@ export interface ScreenCompareProps {
 }
 
 const BUCKET_TONE = { pass: 'ok', ask: 'warn', fail: 'danger' } as const;
-const TONE: Record<string, 'danger' | 'warn' | 'neutral' | 'ok'> = { absent: 'danger', listed: 'warn', project: 'neutral', role: 'ok', production: 'ok', pass: 'ok', partial: 'neutral', unknown: 'warn', fail: 'danger', strong: 'ok', ok: 'neutral', weak: 'danger', exceptional: 'ok', none: 'danger' };
-const RUNG_SHORT: Record<string, string> = { listed: 'skills list', role: 'in a role' };
 
 const Cell: FC<{ r: ScoreRow | null }> = ({ r }) => {
   if (!r) return <span class="text-ink-faint">—</span>;
-  const answer = r.mode === 'gate' ? `${GATE_MARK[r.gate ?? 'unknown']} ${r.gate ?? 'unknown'}` : (RUNG_SHORT[r.answer] ?? r.answer);
-  const tone = r.mode === 'gate' && r.gate ? TONE[r.gate] : (TONE[r.answer] ?? 'neutral');
+  const answer = r.mode === 'gate' ? `${GATE_MARK[r.gate ?? 'unknown']} ${r.gate ?? 'unknown'}` : ((RUNG_SHORT as Record<string, string>)[r.answer] ?? r.answer);
+  const tone = r.mode === 'gate' && r.gate ? ANSWER_TONE[r.gate] : (ANSWER_TONE[r.answer] ?? 'neutral');
   return (
     <>
       <span title={(EVIDENCE_RUNG_LABELS as Record<string, string>)[r.answer]}>
