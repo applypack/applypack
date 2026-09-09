@@ -231,6 +231,7 @@ model Job {
   coverLetters  CoverLetter[]
   stageEvents   JobStageEvent[]
   scores        JobScore[]
+  screenings    Screening[]
 
   @@unique([companyId, externalId])
   @@index([status, fetchedAt])
@@ -365,6 +366,13 @@ model AppSettings {
   // seed data, so without it every install would tick at the same second
   // against the same boards. Never leaves the database.
   instanceId                     String    @default(uuid())
+  // TASKS §19 (ADR 0049): employer mode — a Screening section that ranks a
+  // folder of resumes against one position. Off by default; the routes and
+  // the menu item exist only while it is on, and the worker never reads it.
+  // `screeningRetentionDays` is how long a screening and its files are kept
+  // before the cleanup cron deletes them (ADR 0048).
+  employerMode                   Boolean   @default(false)
+  screeningRetentionDays         Int       @default(90)
   updatedAt                      DateTime  @updatedAt
 
   @@map("app_settings")
@@ -714,4 +722,105 @@ model JobVerification {
 
   @@index([jobId, createdAt])
   @@map("job_verification")
+}
+
+// ---------------------------------------------------------------------------
+// Employer mode (TASKS §19, ADR 0047–0049). Applicants are NOT Resume rows:
+// the candidate side reads every Resume as the owner's own evidence
+// (store.ts:listOtherResumeSkills), so other people's resumes get tables of
+// their own, scoped to one screening and deleted with it. The worker never
+// reads these; the cleanup cron only deletes what has passed retainUntil.
+// ---------------------------------------------------------------------------
+
+model Screening {
+  id            Int      @id @default(autoincrement())
+  jobId         Int
+  job           Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  title         String
+  // What the screen checks (screening/rubric.ts:RubricSchema): the gates,
+  // the must-have and nice-to-have terms, the level, the years, the domain
+  // and the weights. Drafted from the posting brief, edited by the person.
+  rubric        Json
+  // Bumped on every rubric save that changes it; a verdict records the
+  // version it was scored under, and an older one is shown as stale.
+  rubricVersion Int      @default(1)
+  // When the cleanup cron deletes this screening with every applicant file
+  // and verdict (ADR 0048).
+  retainUntil   DateTime
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  applicants Applicant[]
+
+  @@index([retainUntil])
+  @@map("screening")
+}
+
+model Applicant {
+  id          Int       @id @default(autoincrement())
+  screeningId Int
+  screening   Screening @relation(fields: [screeningId], references: [id], onDelete: Cascade)
+  // "Applicant №N" — the only identity the model ever sees.
+  number      Int
+  // Name and contact in columns of their own, read off the text before
+  // redaction and shown to the person only. Never in `redactedText`.
+  name        String?
+  email       String?
+  phone       String?
+
+  sourceFilename String
+  mimeType       String
+  original       Bytes
+  // The full extraction — what the person sees on the scorecard.
+  text           String @db.Text
+  // What the model sees (screening/redact.ts): name, contacts, links, date
+  // of birth, age, marital status, gender, citizenship, street address and
+  // graduation years removed. Cannot be switched off.
+  redactedText   String @db.Text
+  // [{ kind, count }] — what the redaction removed, for the audit line.
+  redactions     Json   @default("[]")
+
+  // ok | unreadable | duplicate. An unreadable file (a scanned PDF, an empty
+  // .docx) and a duplicate of an earlier applicant are kept as rows so the
+  // table can say so; neither is scored.
+  parseStatus   String
+  parseNote     String?
+  duplicateOfId Int?
+  textHash      String
+  simhash       BigInt?
+
+  // The person's own decision — the tool never writes one (ADR 0047):
+  // interview | hold | declined, or NULL. Stamped when it is set.
+  decision  String?
+  decidedAt DateTime?
+
+  createdAt DateTime @default(now())
+
+  verdicts ScreeningVerdict[]
+
+  @@unique([screeningId, number])
+  @@index([screeningId, parseStatus])
+  @@map("applicant")
+}
+
+model ScreeningVerdict {
+  id            Int       @id @default(autoincrement())
+  applicantId   Int
+  applicant     Applicant @relation(fields: [applicantId], references: [id], onDelete: Cascade)
+  rubricVersion Int
+  promptVersion Int
+  model         String
+  // The model's facts, anchored to the redacted text (screening/prompts.ts:ScreenReplySchema).
+  facts         Json
+  // screening/score.ts:ScreenBreakdown — every point traceable to a fact.
+  breakdown     Json
+  score         Int
+  // high | medium | low — how much of the rubric the text answered.
+  confidence    String
+  // pass | ask | fail — every gate met / some unknown / one failed.
+  gateBucket    String
+  createdAt     DateTime  @default(now())
+
+  @@index([applicantId, createdAt])
+  @@map("screening_verdict")
 }
