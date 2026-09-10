@@ -125,7 +125,7 @@ const CandidateTable: FC<{ rows: CompanyCandidate[]; actions?: boolean }> = ({
   <Card flush>
     <div class="overflow-x-auto">
       <div class="min-w-[52rem]">
-        <Table
+        <Table caption="Discovered boards"
           columns={[
             'Name / token',
             'ATS',

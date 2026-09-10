@@ -32,7 +32,7 @@ export const ScreenListPage: FC<{ screenings: ScreeningSummary[]; flash?: FlashM
       </Empty>
     ) : (
       <Card flush>
-        <Table
+        <Table caption="Screenings"
           columns={['Screening', 'Position', 'Applicants', 'Scored', 'Created', 'Kept until', '']}
           hideBelow={['', 'md', '', '', 'lg', 'sm', '']}
         >

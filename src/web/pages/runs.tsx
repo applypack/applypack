@@ -42,7 +42,7 @@ export const RunsPage: FC<RunsProps> = ({ runs, fetchRun, flash }) => (
       <Card flush>
         <div class="overflow-x-auto">
           <div class="min-w-[56rem]">
-            <Table
+            <Table caption="Runs"
               columns={[
                 'Job',
                 'Started',

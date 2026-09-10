@@ -79,9 +79,12 @@ export function init(data) {
   const chips = document.getElementById('missing-chips');
   const saveButtons = document.querySelectorAll('[data-save-button]');
   const dirtyBar = document.getElementById('dirty-bar');
+  const dirtyLive = document.getElementById('dirty-live');
   const ringButton = document.getElementById('score-ring');
   const ringArc = document.getElementById('score-arc');
   const ringNumber = document.getElementById('score-number');
+  const scoreLive = document.getElementById('score-live');
+  let announcedScore = null;
   // 2πr, straight off the element the server drew, so the two cannot drift.
   const ringLength = Number(ringArc.getAttribute('stroke-dasharray'));
   const panes = document.getElementById('panes');
@@ -126,6 +129,11 @@ export function init(data) {
       'transition-[stroke-dashoffset] duration-300 ' + RING_TONE[ringTone(score)],
     );
     ringButton.setAttribute('aria-label', 'Match score ' + score + ' of 100 — what this number is');
+    // Announced only when the number moves — every keystroke repaints, few change it.
+    if (scoreLive && announcedScore !== score) {
+      scoreLive.textContent = 'Match score ' + score + ' of 100';
+      announcedScore = score;
+    }
   }
 
   function render() {
@@ -211,6 +219,10 @@ export function init(data) {
     // the text is dirty — the estimate, the delta and the button to re-run.
     const dirty = text !== data.resumeText;
     dirtyBar.hidden = !dirty;
+    if (dirtyLive) {
+      const said = dirty ? 'Unsaved changes' : '';
+      if (dirtyLive.textContent !== said) dirtyLive.textContent = said;
+    }
     for (const b of saveButtons) b.disabled = !dirty;
     const saveText = document.getElementById('save-text');
     if (saveText) saveText.value = text;

@@ -92,19 +92,19 @@ export const ScreenComparePage: FC<ScreenCompareProps> = ({ screening, side, com
             </thead>
             <tbody class="divide-y divide-line">
               <tr>
-                <td class={label}>Relevant years</td>
+                <th scope="row" class={label}>Relevant years</th>
                 {side.columns.map((c) => (
                   <td class={`${td} tabular-nums`}>{c.years ?? '?'}</td>
                 ))}
               </tr>
               <tr>
-                <td class={label}>Level</td>
+                <th scope="row" class={label}>Level</th>
                 {side.columns.map((c) => (
                   <td class={td}>{c.level ?? '?'}</td>
                 ))}
               </tr>
               <tr>
-                <td class={label}>Career</td>
+                <th scope="row" class={label}>Career</th>
                 {side.columns.map((c) => (
                   <td class={`${td} text-ink-muted`}>{c.career ?? '—'}</td>
                 ))}
@@ -130,7 +130,7 @@ export const ScreenComparePage: FC<ScreenCompareProps> = ({ screening, side, com
                 </tr>
               ))}
               <tr>
-                <td class={label}>Stands out</td>
+                <th scope="row" class={label}>Stands out</th>
                 {side.columns.map((c) => (
                   <td class={`${td} text-ink-muted`}>
                     {c.standout.length === 0 ? '—' : (
@@ -144,7 +144,7 @@ export const ScreenComparePage: FC<ScreenCompareProps> = ({ screening, side, com
                 ))}
               </tr>
               <tr>
-                <td class={label}>Verdict</td>
+                <th scope="row" class={label}>Verdict</th>
                 {side.columns.map((c) => (
                   <td class={`${td} text-ink`}>{c.verdictLine || '—'}</td>
                 ))}
@@ -235,10 +235,10 @@ export const ScreenComparePage: FC<ScreenCompareProps> = ({ screening, side, com
               <table class="w-full text-sm">
                 <thead class="border-b border-line bg-surface-overlay/60">
                   <tr>
-                    <th class={th}>Criterion</th>
-                    <th class={th}>Reading A</th>
-                    <th class={th}>Reading B</th>
-                    <th class={th} />
+                    <th scope="col" class={th}>Criterion</th>
+                    <th scope="col" class={th}>Reading A</th>
+                    <th scope="col" class={th}>Reading B</th>
+                    <th scope="col" class={th} />
                   </tr>
                 </thead>
                 <tbody class="divide-y divide-line">

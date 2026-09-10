@@ -303,10 +303,13 @@ export const Table: FC<
     hideBelow?: HideBelow;
     /** Per-column classes on the `th` itself (alignment and the like). */
     thClasses?: string[];
+    /** What the table lists, for a screen reader's table list — no data table had a name (audit 2026-09-10, A11Y-3). */
+    caption?: string;
   }>
-> = ({ columns, stickyHeader = false, widths, hideBelow, thClasses, children }) => {
+> = ({ columns, stickyHeader = false, widths, hideBelow, thClasses, caption, children }) => {
   const table = (
     <table class={`w-full text-sm ${widths ? 'table-fixed' : ''} ${hideCellsClass(hideBelow)}`}>
+      {caption && <caption class="sr-only">{caption}</caption>}
       <thead>
         <tr class="text-left text-xs font-medium text-ink-muted">
           {columns.map((c, i) => (

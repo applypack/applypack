@@ -327,7 +327,7 @@ export const CompaniesPage: FC<CompaniesProps> = ({
       <Card flush>
         <div class="overflow-x-auto">
           <div class="min-w-[56rem]">
-            <Table
+            <Table caption="Companies and sources"
               columns={[
                 'Name',
                 'Source',

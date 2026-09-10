@@ -275,6 +275,10 @@ export const TargetPage: FC<TargetPageProps> = ({
                 {match.matchScore}
               </span>
             </button>
+            {/* The live number for a screen reader: the button's aria-label
+                changes with the score, and a changed label on an unfocused
+                element announces nothing (audit 2026-09-10, A11Y-2). */}
+            <span id="score-live" class="sr-only" aria-live="polite"></span>
             {/* Kept in the accessibility tree (opacity, not `hidden`) so
                 aria-describedby has something to read on focus. */}
             <div
@@ -365,6 +369,7 @@ export const TargetPage: FC<TargetPageProps> = ({
                     type="file"
                     name="file"
                     required
+                    aria-label="Resume file"
                     accept={ACCEPTED_EXTENSIONS.join(',')}
                     class="block w-full text-xs text-ink file:mr-2 file:cursor-pointer file:rounded-md file:border-0 file:bg-surface-overlay file:px-2.5 file:py-1 file:text-xs file:font-medium file:text-ink"
                   />
@@ -567,7 +572,7 @@ export const TargetPage: FC<TargetPageProps> = ({
             {cleanHref && (
               <>
                 {' '}
-                <a href={cleanHref} class="text-accent underline underline-offset-2 hover:no-underline">
+                <a href={cleanHref} class="text-accent-strong underline underline-offset-2 hover:no-underline">
                   Clean version in your typeface →
                 </a>
               </>
@@ -665,9 +670,9 @@ export const TargetPage: FC<TargetPageProps> = ({
       <div id="dirty-bar" hidden class="sticky bottom-3 z-20 mt-4">
         <div class="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border border-warn/40 bg-surface-raised px-4 py-2.5 shadow-lg">
           <div class="min-w-0">
-            <span class="text-sm font-medium text-ink" aria-live="polite">
-              Unsaved changes
-            </span>
+            <span class="text-sm font-medium text-ink">Unsaved changes</span>
+            {/* A live region whose text never changed announced nothing; this one is written when the bar appears. */}
+            <span id="dirty-live" class="sr-only" aria-live="polite"></span>
             <span class="ml-2 text-xs text-ink-faint">
               kept in this browser tab{resume.ephemeral ? ' — copy them out before you leave' : ' until you save'}
             </span>
@@ -763,6 +768,10 @@ const TARGET_CSS = `
   #backdrop { color: rgb(var(--ink)); pointer-events: none; overflow: hidden; }
   #editor { background: transparent; color: transparent; caret-color: rgb(var(--ink)); border: 0; outline: none; resize: none; }
   #editor::selection { background: rgb(var(--accent) / 0.25); }
+  /* The id selector above outranks the global :focus-visible ring, and the
+     page's main control had no visible focus but its caret (audit
+     2026-09-10, A11Y-1). */
+  #editor:focus-visible { outline: 2px solid rgb(var(--accent)); outline-offset: -2px; border-radius: 4px; }
   /* A grid item defaults to min-width:auto, so it is sized by its widest
      content — which made the keyword table's own overflow-x-auto wrapper
      497px wide inside a 375px column and pushed the page sideways. */

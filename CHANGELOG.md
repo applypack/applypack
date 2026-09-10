@@ -4,6 +4,25 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.6.4] — 2026-09-10
+
+### Fixed
+- The resume editor on the tailoring page shows a focus ring; its own
+  style suppressed the one every other control has, so the page's main
+  control had no visible focus but its caret.
+- What changes on its own is announced: the live match score (when the
+  number moves, not on every keystroke), "Unsaved changes" when the bar
+  appears, and the screening's scoring progress line. The one on the
+  dirty bar was a live region whose text never changed.
+- Tables have names and headers a screen reader can use: a hidden caption
+  on the jobs, applicants, screenings, resumes, companies, runs and
+  discovery tables; `scope` on the hand-written headers of the rubric,
+  calibration and comparison tables; the comparison matrix's row labels
+  are row headers.
+- Under "reduce motion" a spinner stops instead of looping at 0.01 ms;
+  the re-upload file field has a name; one link used the accent that
+  DESIGN.md reserves for fills.
+
 ## [2.6.3] — 2026-09-10
 
 ### Fixed
@@ -3434,6 +3453,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.6.4]: https://github.com/applypack/applypack/compare/v2.6.3...v2.6.4
 [2.6.3]: https://github.com/applypack/applypack/compare/v2.6.2...v2.6.3
 [2.6.2]: https://github.com/applypack/applypack/compare/v2.6.1...v2.6.2
 [2.6.1]: https://github.com/applypack/applypack/compare/v2.6.0...v2.6.1

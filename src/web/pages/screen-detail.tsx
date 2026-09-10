@@ -220,12 +220,12 @@ export const ScreenDetailPage: FC<ScreenDetailProps> = ({ screening, rubric, row
               <table class="w-full text-sm">
                 <thead>
                   <tr class="text-left text-xs font-medium text-ink-muted">
-                    <th class="py-2 pr-2">Kind</th>
-                    <th class="py-2 pr-2">What</th>
-                    <th class="py-2 pr-2">Mode</th>
-                    <th class="py-2 pr-2">Weight</th>
-                    <th class="py-2 pr-2">From</th>
-                    <th class="py-2 text-right">Remove</th>
+                    <th scope="col" class="py-2 pr-2">Kind</th>
+                    <th scope="col" class="py-2 pr-2">What</th>
+                    <th scope="col" class="py-2 pr-2">Mode</th>
+                    <th scope="col" class="py-2 pr-2">Weight</th>
+                    <th scope="col" class="py-2 pr-2">From</th>
+                    <th scope="col" class="py-2 text-right">Remove</th>
                   </tr>
                 </thead>
                 <tbody class="divide-y divide-line">
@@ -344,7 +344,7 @@ export const ScreenDetailPage: FC<ScreenDetailProps> = ({ screening, rubric, row
               <Step n={4} />
               Results
             </SectionTitle>
-            <div class="text-[13px] text-ink-faint" id="run-progress" data-screening={screening.id} data-running={running ? '1' : undefined}>
+            <div class="text-[13px] text-ink-faint" id="run-progress" role="status" aria-live="polite" data-screening={screening.id} data-running={running ? '1' : undefined}>
               {running
                 ? progressText(run!)
                 : run && run.finishedAt !== null && run.failed > 0
@@ -407,7 +407,7 @@ export const ScreenDetailPage: FC<ScreenDetailProps> = ({ screening, rubric, row
               Delete
             </Button>
           </div>
-          <Table
+          <Table caption="Applicants"
             columns={[
               <input type="checkbox" data-select-all aria-label="Select every applicant" class="h-4 w-4 accent-accent" />,
               '#',
@@ -504,10 +504,10 @@ export const ScreenDetailPage: FC<ScreenDetailProps> = ({ screening, rubric, row
               <table class="mt-1 w-full text-sm">
                 <thead>
                   <tr class="text-left text-xs font-medium text-ink-muted">
-                    <th class="py-1 pr-2">Criterion</th>
-                    <th class="py-1 pr-2 text-right">To interview</th>
-                    <th class="py-1 pr-2 text-right">Declined</th>
-                    <th class="py-1 text-right">Gap</th>
+                    <th scope="col" class="py-1 pr-2">Criterion</th>
+                    <th scope="col" class="py-1 pr-2 text-right">To interview</th>
+                    <th scope="col" class="py-1 pr-2 text-right">Declined</th>
+                    <th scope="col" class="py-1 text-right">Gap</th>
                   </tr>
                 </thead>
                 <tbody class="divide-y divide-line">
