@@ -239,11 +239,12 @@ export class PublicUrlError extends Error {}
 /** fetchWithRetry for a user-supplied URL: the three layers, then the response that answered. */
 export async function fetchPublicUrl(raw: string, options: FetchOptions = {}): Promise<Response> {
   const got = await fetchPublicHops(raw, (url) =>
-    fetchWithRetry(url, { ...options, init: { ...options.init, redirect: 'manual' } }).then((resp) => ({
-      status: resp.status,
-      location: resp.headers.get('location'),
-      resp,
-    })),
+    fetchWithRetry(url, { ...options, init: { ...options.init, redirect: 'manual' } }).then(async (resp) => {
+      const location = resp.headers.get('location');
+      // A hop's body is never read; drained so the connection goes back to the pool.
+      if (REDIRECT_STATUSES.has(resp.status)) await resp.body?.cancel().catch(() => undefined);
+      return { status: resp.status, location, resp };
+    }),
   );
   if (!got.ok) throw new PublicUrlError(got.error);
   return got.response.resp;

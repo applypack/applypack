@@ -69,7 +69,9 @@ export function readZipEntries(
   for (const record of centralDirectory(zip)) {
     if (record.name.endsWith('/')) continue;
     const room = Math.min(maxEntryBytes, maxTotalBytes - total);
-    if (record.uncompressedSize > room) {
+    // zlib refuses a ceiling under one byte, so a full archive skips the rest
+    // outright instead of asking the inflater for nothing.
+    if (room < 1 || record.uncompressedSize > room) {
       skipped.push(record.name);
       continue;
     }

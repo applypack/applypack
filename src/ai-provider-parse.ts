@@ -100,9 +100,10 @@ export function cliFailure(
   };
   if (e.code === 'ENOENT') return { reason: 'not found on PATH', log };
   if (e.code === 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER') return { reason: 'the reply exceeded the 1 MiB output cap', log };
-  if (e.killed === true || (typeof e.signal === 'string' && typeof e.code !== 'number')) {
-    return { reason: `timed out after ${Math.round(timeoutMs / 1000)} s`, log };
-  }
+  // execFile sets `killed` when it pulled the plug itself (the timeout); a
+  // signal it did not send came from outside — the OOM killer, a shutdown.
+  if (e.killed === true) return { reason: `timed out after ${Math.round(timeoutMs / 1000)} s`, log };
+  if (typeof e.signal === 'string' && typeof e.code !== 'number') return { reason: `ended by ${e.signal}`, log };
   if (stderr) return { reason: stderr, log };
   if (typeof e.code === 'number') return { reason: `exited with code ${e.code}`, log };
   return { reason: 'failed with no output', log };

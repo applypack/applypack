@@ -108,3 +108,15 @@ test('readZipEntry refuses a part past its ceiling', () => {
   assert.throws(() => readZipEntry(zip, 'word/document.xml', 100_000), ZipLimitError);
   assert.ok(readZipEntry(zip, 'word/document.xml') instanceof Buffer, 'the default ceiling is generous');
 });
+
+test('readZipEntries at a full ceiling skips the rest instead of asking zlib for nothing', () => {
+  const chunk = Buffer.alloc(1024, 0x64);
+  const zip = buildZip([
+    { name: 'a.txt', data: chunk, deflate: true },
+    { name: 'empty.txt', data: Buffer.alloc(0), deflate: true },
+    { name: 'b.txt', data: chunk, deflate: true },
+  ]);
+  const { entries, skipped } = readZipEntries(zip, Infinity, 1024);
+  assert.deepEqual(entries.map((e) => e.name), ['a.txt']);
+  assert.deepEqual(skipped, ['empty.txt', 'b.txt']);
+});

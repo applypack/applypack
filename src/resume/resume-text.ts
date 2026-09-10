@@ -1,7 +1,7 @@
 import { extname } from 'node:path';
 import { docxToText, ResumeTextError } from './docx-text';
 import { pdfToText } from './pdf-text';
-import { ZipError } from './zip';
+import { MAX_INFLATED_PART_BYTES, ZipError, ZipLimitError } from './zip';
 
 export const ACCEPTED_EXTENSIONS = ['.pdf', '.docx', '.md', '.txt'] as const;
 const MIN_TEXT_CHARS = 200;
@@ -17,6 +17,9 @@ export async function extractResumeText(filename: string, bytes: Buffer): Promis
     try {
       text = docxToText(bytes);
     } catch (err) {
+      if (err instanceof ZipLimitError) {
+        throw new ResumeTextError(`The .docx is larger inside than this tool reads (${MAX_INFLATED_PART_BYTES / 1024 / 1024} MB in one part).`);
+      }
       if (err instanceof ZipError) throw new ResumeTextError('The file is not a valid .docx (not a zip archive).');
       throw err;
     }

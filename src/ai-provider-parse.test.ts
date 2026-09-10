@@ -307,6 +307,7 @@ test('cliFailure names the reason without the command line — which is the prom
   assert.deepEqual(exited.log, { code: 1, stderr: 'Not logged in. Run `claude login`.' });
 
   assert.equal(cliFailure({ code: 2, message: secret }, 1).reason, 'exited with code 2');
+  assert.equal(cliFailure({ code: null, signal: 'SIGKILL', killed: false, message: secret }, 1).reason, 'ended by SIGKILL');
   assert.equal(cliFailure({ code: 'ENOENT', message: secret }, 1).reason, 'not found on PATH');
   assert.equal(cliFailure({ code: 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER', message: secret }, 1).reason, 'the reply exceeded the 1 MiB output cap');
   for (const f of [timeout, exited]) {
