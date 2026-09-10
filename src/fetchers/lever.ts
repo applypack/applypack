@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { safeDate } from './dates';
 import { fetchWithRetry } from '../http';
 import { conditionalHeaders, rememberResponse } from './conditional';
 import { workplaceFromText } from '../location';
@@ -72,7 +73,7 @@ export function mapLeverPosting(
     url: p.hostedUrl,
     location: `${primary}${workplace}`.trim(),
     description: p.descriptionPlain ?? '',
-    postedAt: new Date(p.createdAt),
+    postedAt: safeDate(p.createdAt),
     locationHints: {
       countries: p.country ? [p.country] : [],
       workplace: workplaceFromText(p.workplaceType ?? ''),

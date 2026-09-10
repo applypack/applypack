@@ -2,6 +2,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   daysSince,
+  feedEntryId,
   feedItemKey,
   normalizeTextKey,
   normalizeUrlKey,
@@ -384,6 +385,13 @@ describe('url and text keys', () => {
   assert.equal(normalizeTextKey('Żółć ėė'), 'żółć ėė');
   assert.equal(normalizeTextKey('!!!'), null);
   assert.equal(normalizeTextKey(''), null);
+  });
+
+  it('feedEntryId takes a real guid and treats an empty one as absent', () => {
+    assert.equal(feedEntryId('abc-1', 'https://x/y', 'T'), 'abc-1');
+    assert.equal(feedEntryId('  ', 'https://x/y', 'T'), feedItemKey('https://x/y', 'T'));
+    assert.equal(feedEntryId(undefined, null, 'Only a title'), feedItemKey(null, 'Only a title'));
+    assert.equal(feedEntryId('', null, ''), null);
   });
 
   it('feedItemKey prefers the URL and falls back to text', () => {

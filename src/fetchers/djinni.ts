@@ -1,5 +1,7 @@
 import Parser from 'rss-parser';
+import { safeDate } from './dates';
 import { fetchWithRetry, stripHtml } from '../http';
+import { conditionalHeaders, rememberResponse } from './conditional';
 import type { LocationHints } from '../location';
 import { feedItemKey } from '../text-utils';
 import type { NormalizedJob } from '../types';
@@ -68,11 +70,14 @@ export interface DjinniCompany {
 }
 
 export async function fetchDjinni(company: DjinniCompany): Promise<NormalizedJob[]> {
-  const resp = await fetchWithRetry(djinniFeedUrl(company.atsToken), { timeoutMs: TIMEOUT_MS });
+  const url = djinniFeedUrl(company.atsToken);
+  const resp = await fetchWithRetry(url, { timeoutMs: TIMEOUT_MS, init: { headers: conditionalHeaders(company.id, url) } });
   const feed = await parser.parseString(await resp.text());
   const place = djinniPlace(company.atsToken);
   const keyword = filterParams(company.atsToken).get('primary_keyword');
-  return feed.items.flatMap((item) => mapDjinniItem(item, company.id, place, keyword) ?? []);
+  const jobs = feed.items.flatMap((item) => mapDjinniItem(item, company.id, place, keyword) ?? []);
+  rememberResponse(company.id, url, resp, jobs.length);
+  return jobs;
 }
 
 /** The token as a feed URL: known keys only, values encoded. */
@@ -134,7 +139,7 @@ export function mapDjinniItem(
     location: place.location,
     // `content` is HTML; stripHtml decodes entities first (gotcha 12).
     description: stripHtml(item.content ?? item.contentSnippet ?? ''),
-    postedAt: item.pubDate ? new Date(item.pubDate) : new Date(),
+    postedAt: safeDate(item.pubDate),
     locationHints: place.hints,
   } satisfies NormalizedJob;
 }

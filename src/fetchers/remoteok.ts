@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { fetchWithRetry, stripHtml } from '../http';
+import { conditionalHeaders, rememberResponse } from './conditional';
 import { hashShortId } from '../text-utils';
 import type { NormalizedJob } from '../types';
 
@@ -32,9 +33,11 @@ const RemoteOkJobSchema = z
 type RemoteOkJob = z.infer<typeof RemoteOkJobSchema>;
 
 export async function fetchRemoteOk(companyId: number): Promise<NormalizedJob[]> {
-  const resp = await fetchWithRetry(ENDPOINT);
+  const resp = await fetchWithRetry(ENDPOINT, { init: { headers: conditionalHeaders(companyId, ENDPOINT) } });
   const raw: unknown = await resp.json();
-  return mapRemoteokFeed(raw, companyId);
+  const jobs = mapRemoteokFeed(raw, companyId);
+  rememberResponse(companyId, ENDPOINT, resp, jobs.length);
+  return jobs;
 }
 
 /**

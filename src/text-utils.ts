@@ -77,6 +77,20 @@ export function normalizeTextKey(input: string | null | undefined): string | nul
  * yields anything — the caller must skip the row rather than hash `''`,
  * which would merge every junk row into one.
  */
+/**
+ * A feed entry's id: its `<guid>` when the element carries one, else the
+ * URL-or-text key. `guid ?? …` let an EMPTY `<guid></guid>` through as ''
+ * (audit 2026-09-10, FETCH-2), which is nullish to nobody.
+ */
+export function feedEntryId(
+  guid: string | null | undefined,
+  url: string | null | undefined,
+  ...textParts: Array<string | null | undefined>
+): string | null {
+  const g = (guid ?? '').trim();
+  return g.length > 0 ? g : feedItemKey(url, ...textParts);
+}
+
 export function feedItemKey(
   url: string | null | undefined,
   ...textParts: Array<string | null | undefined>

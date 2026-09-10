@@ -4,7 +4,7 @@ import { stripHtml } from '../http';
 import { conditionalHeaders, rememberResponse } from './conditional';
 import { fetchPublicUrl, isPrivateHost } from '../jobs/posting-url';
 import type { LocationHints, WorkplaceCode } from '../location';
-import { feedItemKey } from '../text-utils';
+import { feedEntryId } from '../text-utils';
 import type { NormalizedJob } from '../types';
 import { firstText, nested, nestedAll } from './xml-text';
 
@@ -95,7 +95,7 @@ export function teamtailorHost(token: string): string {
 /** Pure mapper; the place words are the board's, the codes the gazetteer's, the arrangement the board's. */
 export function mapTeamtailorItem(item: TeamtailorItem, companyId: number, boardTitle?: string): NormalizedJob | null {
   const link = (item.link ?? '').trim();
-  const externalId = /\/jobs\/(\d+)(?:[-/?#]|$)/.exec(link)?.[1] ?? (item.guid ?? '').trim() ?? feedItemKey(link, item.title);
+  const externalId = /\/jobs\/(\d+)(?:[-/?#]|$)/.exec(link)?.[1] ?? feedEntryId(item.guid, link, item.title);
   if (!externalId) return null;
   const places = nestedAll(item['tt:locations'], 'tt:location').map((loc) => ({
     city: firstText(nested(loc, 'tt:city')) || firstText(nested(loc, 'tt:name')),

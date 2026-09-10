@@ -5,6 +5,7 @@ import { logger } from '../logger';
 import { createLimiter } from '../concurrency';
 import { passesAnyBaseFilter } from '../filter';
 import { withApplyLinkFlags } from '../apply-link';
+import { validDate } from '../fetchers/dates';
 import { parseLocation } from '../location';
 import { classifyJob, type ClassifyOutcome } from '../classifier';
 import { buildVerdicts, mergeVerdicts, type ProfileVerdict } from './verdict-merge';
@@ -141,6 +142,13 @@ export async function processNormalizedJobs(
     // The structured reading of the location string (ADR 0031): the source's
     // hints first, the parser for the rest. The filter compares its columns
     // with each search's (ADR 0032); the insert stores them as they are here.
+    // A date that is not one would throw in the prompt and again in the
+    // insert, and the row would come back every tick (FETCH-1). Every fetcher
+    // reads dates through safeDate; this is the check for the one that forgets.
+    if (Number.isNaN(item.job.postedAt.getTime())) {
+      logger.warn({ title: item.job.title, companyName: item.companyName }, 'process-jobs: posting date unreadable, using now');
+      item.job.postedAt = validDate(item.job.postedAt);
+    }
     const place = parseLocation(item.job.location, item.job.locationHints);
     // A posting is admitted when ANY active search admits it (ADR 0028).
     // Storing unscored keeps the UNFILTERED roster on purpose: the wizard's

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { safeDate } from './dates';
 import { fetchWithRetry, stripHtml } from '../http';
 import type { NormalizedJob } from '../types';
 
@@ -80,11 +81,7 @@ export function mapHnJobHit(
     url: link,
     location: extractLocationFromTitle(title),
     description,
-    postedAt: hit.created_at_i
-      ? new Date(hit.created_at_i * 1000)
-      : hit.created_at
-        ? new Date(hit.created_at)
-        : new Date(),
+    postedAt: hit.created_at_i ? safeDate(hit.created_at_i * 1000) : safeDate(hit.created_at),
   } satisfies NormalizedJob;
 }
 
