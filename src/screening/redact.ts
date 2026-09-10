@@ -18,7 +18,7 @@
  * Unicode classes — a Cyrillic field name has no \b to match.
  */
 
-export const REDACTION_KINDS = [
+const REDACTION_KINDS = [
   'name',
   'email',
   'phone',
@@ -33,7 +33,7 @@ export const REDACTION_KINDS = [
 ] as const;
 export type RedactionKind = (typeof REDACTION_KINDS)[number];
 
-export const REDACTION_LABELS: Record<RedactionKind, string> = {
+const REDACTION_LABELS: Record<RedactionKind, string> = {
   name: 'name',
   email: 'email',
   phone: 'phone',

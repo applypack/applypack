@@ -14,7 +14,7 @@
  */
 
 /** USD per one unit. Source: exchangerate-api.com, 2026-09-04. */
-export const RATES_REVIEWED_ON = '2026-09-04';
+const RATES_REVIEWED_ON = '2026-09-04';
 
 const RATES_TO_USD: Readonly<Record<string, number>> = {
   USD: 1,
@@ -47,10 +47,8 @@ const RATES_TO_USD: Readonly<Record<string, number>> = {
   ISK: 0.00826,
 };
 
-export const CURRENCY_CODES: readonly string[] = Object.keys(RATES_TO_USD);
-
 /** How the posting quotes the number. Null in the database means a year. */
-export const SALARY_PERIODS = ['year', 'month', 'week', 'day', 'hour'] as const;
+const SALARY_PERIODS = ['year', 'month', 'week', 'day', 'hour'] as const;
 
 export type SalaryPeriod = (typeof SALARY_PERIODS)[number];
 

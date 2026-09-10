@@ -105,7 +105,7 @@ export async function fetchFranceTravail(company: FranceTravailCompany, context:
 }
 
 /** One page of the token's search: the offers and, from `Content-Range`, how many there are in all. */
-export async function searchPage(
+async function searchPage(
   token: string,
   page: number,
   creds: FranceTravailCredentials,

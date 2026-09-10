@@ -13,11 +13,11 @@ import { hamming64, MAX_HAMMING_DISTANCE, simhash64 } from '../fingerprint';
 /** A batch is a hiring round, not a talent pool (ADR 0048): the cap keeps one screening one job's applicants. */
 export const MAX_APPLICANTS_PER_SCREENING = 300;
 /** A whole folder at once — the per-screening cap is the real ceiling. */
-export const MAX_FILES_PER_UPLOAD = 300;
+const MAX_FILES_PER_UPLOAD = 300;
 /** Three hundred PDFs of a page or two. */
 export const MAX_BATCH_UPLOAD_MB = 200;
 /** One resume, inflated — the same ceiling as a single upload (upload.ts); a zip entry past it is not read. */
-export const MAX_ENTRY_BYTES = 5 * 1024 * 1024;
+const MAX_ENTRY_BYTES = 5 * 1024 * 1024;
 
 export interface UploadFile {
   name: string;

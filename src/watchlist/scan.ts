@@ -87,7 +87,7 @@ export function declaredJobFeeds(html: string, pageUrl: string): string[] {
  * WordPress every `/<anything>/feed` answers a well-formed feed and on most
  * sites `/feed` is the blog.
  */
-export const WELL_KNOWN_FEED_PATHS = ['/jobs.rss', '/jobs/feed', '/careers/feed'] as const;
+const WELL_KNOWN_FEED_PATHS = ['/jobs.rss', '/jobs/feed', '/careers/feed'] as const;
 
 export function wellKnownFeeds(pageUrl: string): string[] {
   const origin = new URL(pageUrl).origin;

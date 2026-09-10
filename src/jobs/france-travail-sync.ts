@@ -36,7 +36,7 @@ import type { FetchContext } from '../fetchers/fetch-context';
  */
 
 /** Checks per tick — at one every CALL_GAP_MS that is under a minute of calls. */
-export const MAX_CHECKS_PER_TICK = 200;
+const MAX_CHECKS_PER_TICK = 200;
 const DAY_MS = 24 * 60 * 60 * 1000;
 /**
  * How long an offer may go unverified before we withdraw it ourselves. The

@@ -204,7 +204,7 @@ export async function resolveCompanyUrl(
 
 
 /** `<item>` / `<entry>` count — the emptiness test, not a parse. */
-export function countEntries(xml: string): number {
+function countEntries(xml: string): number {
   return (xml.match(/<item[\s>]|<entry[\s>]/gi) ?? []).length;
 }
 

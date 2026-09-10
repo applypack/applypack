@@ -17,7 +17,7 @@ export interface CandidateInput {
  * known. If it exists, leave it alone (don't overwrite a PROMOTED row
  * with a fresh PENDING signal).
  */
-export async function recordCandidate(
+async function recordCandidate(
   input: CandidateInput,
 ): Promise<CompanyCandidate | null> {
   // Don't propose candidates we already track in Company — they're already

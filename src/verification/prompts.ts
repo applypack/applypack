@@ -13,7 +13,7 @@ export const VERIFY_MAX_TOKENS = 6_000;
 const MAX_JOB_CHARS = 12_000;
 
 export const VERDICTS = ['legit', 'suspicious', 'fake'] as const;
-export const RECOMMENDATIONS = ['apply', 'caution', 'skip'] as const;
+const RECOMMENDATIONS = ['apply', 'caution', 'skip'] as const;
 export const EVIDENCE_CHECKS = [
   'careers_page',
   'linkedin',
@@ -24,14 +24,14 @@ export const EVIDENCE_CHECKS = [
   'posting_quality',
   'other',
 ] as const;
-export const EVIDENCE_SIGNALS = ['legit', 'ghost', 'scam', 'neutral', 'unverified'] as const;
+const EVIDENCE_SIGNALS = ['legit', 'ghost', 'scam', 'neutral', 'unverified'] as const;
 
 const nullableText = z
   .string()
   .nullish()
   .transform((v) => (v && v.trim().length > 0 ? v.trim() : null));
 
-export const VerificationSchema = z.object({
+const VerificationSchema = z.object({
   verdict: z.enum(VERDICTS),
   recommendation: z.enum(RECOMMENDATIONS),
   confidence: z.number().int().min(0).max(100),

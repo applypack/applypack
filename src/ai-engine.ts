@@ -51,7 +51,7 @@ export const PROVIDER_WEB_TOOLS: Record<AiProviderId, boolean> = {
  * mapped to OpenAI's tokens because that is what the setting is named for,
  * and erring toward the vendor is the direction that asks for less.
  */
-export const PROVIDER_AI_TOKENS: Record<AiProviderId, readonly string[]> = {
+const PROVIDER_AI_TOKENS: Record<AiProviderId, readonly string[]> = {
   anthropic_api: ['claudebot', 'claude-web', 'anthropic-ai'],
   claude_code: ['claudebot', 'claude-web', 'anthropic-ai'],
   gemini_cli: ['google-extended'],

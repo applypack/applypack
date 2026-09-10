@@ -216,7 +216,7 @@ watchlistRoute.post('/companies/:id/unwatch', async (c) => {
 });
 
 /** The (atsType, atsToken) a confirmed resolution becomes, or null. */
-export function sourceOf(r: ResolvedCompany): { atsType: AtsType; atsToken: string } | null {
+function sourceOf(r: ResolvedCompany): { atsType: AtsType; atsToken: string } | null {
   if (r.resolution.kind === 'ats') return { atsType: r.resolution.atsType, atsToken: r.resolution.atsToken };
   if (r.resolution.kind === 'feed') return { atsType: AtsType.FEED, atsToken: r.resolution.url };
   // The last rung: no postings, just "this page changed" (ADR 0036).

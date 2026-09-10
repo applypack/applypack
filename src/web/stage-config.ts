@@ -11,7 +11,7 @@ export interface StageDef {
   label: string;
 }
 
-export const ENTRY_STAGE: StageDef = { key: 'applied', label: 'Applied' };
+const ENTRY_STAGE: StageDef = { key: 'applied', label: 'Applied' };
 export const TERMINAL_STAGES: StageDef[] = [
   { key: 'rejected', label: 'Rejected' },
   { key: 'ghosted', label: 'Ghosted' },

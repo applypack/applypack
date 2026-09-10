@@ -106,7 +106,7 @@ export interface AiStatusSummary {
  * Link-based sub-navigation (?tab=…): one route, server picks the sections.
  * POST routes redirect back to the tab their setting lives on.
  */
-export const SETTINGS_TABS = [
+const SETTINGS_TABS = [
   { id: 'general', label: 'General' },
   { id: 'profile', label: 'Profile' },
   { id: 'ai', label: 'AI engine' },
@@ -233,7 +233,7 @@ const ALERT_MODE_TITLE: Record<(typeof ALERT_MODES)[number], string> = {
   digest: 'As one digest',
 };
 
-export const ScheduleCard: FC<{ view: ScheduleView }> = ({ view }) => {
+const ScheduleCard: FC<{ view: ScheduleView }> = ({ view }) => {
   const { schedule: s, zones, nextFetch, held } = view;
   return (
     <Card>

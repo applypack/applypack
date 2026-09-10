@@ -102,7 +102,7 @@ const STACK_LABEL = /^\s*(?:[-•*]\s*)?(?:tech(?:nology|nologies)?(?:\s+stack)?
  * "Technology Stack: a, b," / "c, d." at the page width, and only the first
  * line carries the label — so the label is looked for up the wrapped run.
  */
-export function listHead(text: string, index: number): string {
+function listHead(text: string, index: number): string {
   let start = text.lastIndexOf('\n', index - 1) + 1;
   let line = lineAt(text, index).line;
   while (start > 0) {
@@ -121,7 +121,7 @@ export function listHead(text: string, index: number): string {
  * when the quote is a sentence and the model's rung stands. The list is
  * judged around the TERM's own cell, not the quote's first word.
  */
-export function listCap(text: string, quote: string, terms: { term: string; aliases: string[] }[], matcher: Matcher): EvidenceRung | null {
+function listCap(text: string, quote: string, terms: { term: string; aliases: string[] }[], matcher: Matcher): EvidenceRung | null {
   const exact = text.indexOf(quote);
   const start = exact !== -1 ? exact : (matcher.locateQuote(text, quote)?.start ?? null);
   const inQuote = terms.flatMap((t) => matcher.findTerm(quote, t.term, t.aliases))[0]?.start ?? 0;

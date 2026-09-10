@@ -13,8 +13,8 @@ export interface CooldownTracker {
   blockedUntil(id: string): number | null;
 }
 
-export const COOLDOWN_FAILURE_THRESHOLD = 3;
-export const COOLDOWN_MS = 60_000;
+const COOLDOWN_FAILURE_THRESHOLD = 3;
+const COOLDOWN_MS = 60_000;
 
 export function createCooldownTracker(
   opts: { threshold?: number; cooldownMs?: number; now?: () => number } = {},

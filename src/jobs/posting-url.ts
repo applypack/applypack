@@ -17,7 +17,7 @@ const FETCH_TIMEOUT_MS = 12_000;
 const MAX_TEXT_CHARS = 30_000;
 
 /** ADR 0005: never scraped — not even one page at a time. */
-export const BLOCKED_POSTING_HOSTS = [
+const BLOCKED_POSTING_HOSTS = [
   'linkedin.com',
   'indeed.com',
   'glassdoor.com',
@@ -165,7 +165,7 @@ export function isPrivateHost(hostname: string): boolean {
 /** The addresses a name resolves to — injected so the guard is tested without the network. */
 export type Resolver = (hostname: string) => Promise<string[]>;
 
-export const lookupAddresses: Resolver = async (hostname) =>
+const lookupAddresses: Resolver = async (hostname) =>
   (await dns.lookup(hostname, { all: true })).map((a) => a.address);
 
 const PUBLIC_ONLY = 'Only public posting URLs can be fetched.';
@@ -187,7 +187,7 @@ export async function resolvesToPublic(
   return addresses.some(isPrivateIp) ? { ok: false, error: PUBLIC_ONLY } : { ok: true };
 }
 
-export const MAX_REDIRECTS = 5;
+const MAX_REDIRECTS = 5;
 const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
 
 /** What a hop has to say about itself: the status, and where it points next. */
@@ -234,7 +234,7 @@ export async function fetchPublicHops<T extends Hop>(
 }
 
 /** The guard said no — distinct from a network or HTTP failure, which pass through unchanged. */
-export class PublicUrlError extends Error {}
+class PublicUrlError extends Error {}
 
 /** fetchWithRetry for a user-supplied URL: the three layers, then the response that answered. */
 export async function fetchPublicUrl(raw: string, options: FetchOptions = {}): Promise<Response> {

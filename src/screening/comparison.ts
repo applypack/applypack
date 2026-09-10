@@ -15,14 +15,14 @@ import type { Criterion, Rubric } from './rubric';
  * meeting.
  */
 
-export const ReadingSchema = z.object({
+const ReadingSchema = z.object({
   /** The applicant numbers in the order the resumes were shown. */
   shown: z.array(z.number().int()),
   reply: CompareReplySchema,
 });
 export type Reading = z.infer<typeof ReadingSchema>;
 
-export const StoredComparisonSchema = z.object({ v: z.literal(1), readings: z.tuple([ReadingSchema, ReadingSchema]) });
+const StoredComparisonSchema = z.object({ v: z.literal(1), readings: z.tuple([ReadingSchema, ReadingSchema]) });
 export type StoredComparison = z.infer<typeof StoredComparisonSchema>;
 
 export function readStoredComparison(value: unknown): StoredComparison | null {

@@ -16,7 +16,7 @@ import { coreCriteria, CRITERION_MODES, EVIDENCE_RUNGS, SCREEN_LEVELS, type Crit
  * is not a weak one, it is an unread one.
  */
 
-export const SCREEN_SCORING = {
+const SCREEN_SCORING = {
   version: 2,
   rungCredit: { absent: 0, listed: 0.3, project: 0.5, role: 0.8, production: 1 } as Record<EvidenceRung, number>,
   statusCredit: { pass: 1, partial: 0.5, fail: 0 } as Record<'pass' | 'partial' | 'fail', number>,
@@ -40,7 +40,6 @@ export const SCREEN_SCORING = {
 } as const;
 
 export type GateBucket = 'pass' | 'ask' | 'fail';
-export const GATE_BUCKETS: GateBucket[] = ['pass', 'ask', 'fail'];
 export const GATE_BUCKET_LABELS: Record<GateBucket, string> = {
   pass: 'Priority to talk to',
   ask: 'Ask first',

@@ -2,7 +2,7 @@ import { makeLatchingProbe } from '../cancellation';
 import { getSettings } from '../settings';
 
 /** How often a long-running tick re-reads the pause flag from the DB. */
-export const PAUSE_RECHECK_MS = 5_000;
+const PAUSE_RECHECK_MS = 5_000;
 
 /**
  * Probe for "did the user pause fetching while this tick was running?".

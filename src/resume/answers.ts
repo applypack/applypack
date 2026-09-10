@@ -25,7 +25,7 @@ export interface ReviewAnswer {
 }
 
 /** A question is a sentence; an answer is a figure with its context, not an essay. */
-export const MAX_QUESTION_CHARS = 300;
+const MAX_QUESTION_CHARS = 300;
 export const MAX_ANSWER_CHARS = 300;
 /**
  * How many answers ride into a prompt. Six dimensions ask at most a couple of

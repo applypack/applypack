@@ -12,7 +12,7 @@
 import { z } from 'zod';
 import type { ClaudeClassification } from './types';
 
-export const PriorityRuleSchema = z.object({
+const PriorityRuleSchema = z.object({
   /** Short user-facing label, shown as a badge on /jobs/:id. */
   label: z.string().min(1).max(80),
   /** ≥1 of these (case-insensitive substring) must appear in title OR description. */
@@ -25,7 +25,7 @@ export const PriorityRuleSchema = z.object({
 
 export type PriorityRule = z.infer<typeof PriorityRuleSchema>;
 
-export const PriorityRulesSchema = z.array(PriorityRuleSchema);
+const PriorityRulesSchema = z.array(PriorityRuleSchema);
 
 /**
  * Defensive parse for the JSON column on Profile. Returns [] for any
@@ -73,7 +73,7 @@ export function ruleMatches(rule: PriorityRule, job: MatchableJob): boolean {
  * boundary (any order, any positions). Empty phrase fails closed.
  * Exported for unit tests; consumers go through `ruleMatches`.
  */
-export function phraseMatches(haystack: string, phrase: string): boolean {
+function phraseMatches(haystack: string, phrase: string): boolean {
   const tokens = phrase.split(/\s+/).filter((t) => t.length > 0);
   if (tokens.length === 0) return false;
   return tokens.every((t) => tokenMatches(haystack, t));

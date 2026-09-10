@@ -277,7 +277,7 @@ const StrengthCell: FC<{ resume: ResumeRow }> = ({ resume }) =>
   );
 
 /** Shared by /resumes and the Settings card. Posts to /resumes and lands on the new resume. */
-export const ResumeUploadForm: FC = () => (
+const ResumeUploadForm: FC = () => (
   <form
     method="post"
     action="/resumes"

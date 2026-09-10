@@ -206,7 +206,7 @@ async function worker(run: Run, screening: ScreeningWithJob, runtime: Pick<AiRun
  * a verdict row. Never throws — a failure is a counted reason, and the
  * applicant stays pending for the next run.
  */
-export async function screenApplicant(
+async function screenApplicant(
   screening: ScreeningWithJob,
   rubric: Rubric,
   applicant: Pick<Applicant, 'id' | 'number' | 'redactedText'>,

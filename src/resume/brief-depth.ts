@@ -17,7 +17,7 @@ import type { PostingBrief } from './prompts';
  * scoring lever is the last thing a number this volatile needs. Pure.
  */
 
-export const POSTING_DEPTHS = ['high', 'medium', 'low'] as const;
+const POSTING_DEPTHS = ['high', 'medium', 'low'] as const;
 export type PostingDepth = (typeof POSTING_DEPTHS)[number];
 
 export interface DepthReport {

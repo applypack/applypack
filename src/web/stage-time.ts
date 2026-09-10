@@ -7,7 +7,7 @@ import { TERMINAL_KEYS } from './stage-config';
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 /** A non-terminal stage without movement for this long reads as stale. */
-export const STALE_DAYS = 14;
+const STALE_DAYS = 14;
 
 export interface StageTimeEvent {
   toStage: string | null;

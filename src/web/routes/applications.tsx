@@ -14,7 +14,7 @@ import { groupEventsByJob, stageTimeLine, type StageTimeLine } from '../stage-ti
 
 // Stage keys are validated at runtime against the configured list
 // (ADR 0025) — an enum would freeze what is now user data.
-export const ApplicationFormSchema = z.object({
+const ApplicationFormSchema = z.object({
   pipelineStage: z.string().max(40).optional(),
   appliedAt: z.string().optional(),
   recruiterContact: z.string().max(300).optional(),

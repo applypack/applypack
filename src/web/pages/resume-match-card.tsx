@@ -409,7 +409,7 @@ export const ConfirmFacts: FC<{ asks: MatchKeyword[]; unproven: MatchKeyword[]; 
     </div>
   );
 
-export const MatchReport: FC<{
+const MatchReport: FC<{
   match: MatchWithResume;
   previous: MatchWithResume | null;
   /** This match's keywords, ordered and counted by the matcher (§5). */
@@ -567,7 +567,7 @@ export const DeltaBox: FC<{ match: MatchWithResume; previous: MatchWithResume | 
 };
 
 /** Full hard-requirement list with notes — the score card shows only the digest. */
-export const HardRequirementsBlock: FC<{ hard: MatchHardRequirement[] }> = ({ hard }) =>
+const HardRequirementsBlock: FC<{ hard: MatchHardRequirement[] }> = ({ hard }) =>
   hard.length === 0 ? null : (
     <div>
       <div class={SUBHEAD}>Hard requirements — gates outside the score</div>

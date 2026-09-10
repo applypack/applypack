@@ -2177,7 +2177,7 @@ release-discipline skill, a docs/site block does not.
       `app.request()` over every GET route derived from the routers
       (2xx/3xx), the wizard's POSTs and one upload; not Playwright
       (TASKS §17.2 stands).
-- [ ] **`dead-exports`** (no tag) — DEAD-1 delete the ten (the cleanup
+- [x] **`dead-exports`** (no tag) — done 2026-09-10: the ten deleted, `export` dropped from 88, `npm run exports:audit` reruns the scan. DEAD-1 delete the ten (the cleanup
       job keeps its inline delete — the worker may not import
       `src/screening`), drop `export` from the 84, keep the 8 test seams;
       the scan script into `src/scripts/` so the next audit reruns it.

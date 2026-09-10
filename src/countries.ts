@@ -41,8 +41,6 @@ export const REGIONS: readonly Region[] = Object.entries(data.groups).map(([code
   code,
   ...g,
 }));
-export const REGION_CODES: readonly string[] = REGIONS.map((r) => r.code);
-
 /** Only these countries abbreviate subdivisions in job postings ("Austin, TX", "Toronto, ON"). */
 const ABBREVIATING_COUNTRIES = ['US', 'CA'];
 
@@ -52,20 +50,12 @@ const SHORT_ALIAS_LENGTH = 4;
 const byCode = new Map(COUNTRIES.map((c) => [c.code, c]));
 const regionByCode = new Map(REGIONS.map((r) => [r.code, r]));
 
-export function countryOf(code: string): Country | null {
-  return byCode.get(code.toUpperCase()) ?? null;
-}
-
 export function isCountryCode(s: string): boolean {
   return byCode.has(s);
 }
 
 export function isRegionCode(s: string): boolean {
   return regionByCode.has(s);
-}
-
-export function regionOf(code: string): Region | null {
-  return regionByCode.get(code) ?? null;
 }
 
 /** Members of a region; WORLDWIDE lists no members and means every country. */

@@ -26,7 +26,7 @@ export function setEmployerModeCache(value: boolean): void {
   enabled = value;
 }
 
-export const SCREENING_SETTINGS_URL = '/settings?tab=screening';
+const SCREENING_SETTINGS_URL = '/settings?tab=screening';
 
 /** Every /screen route: with the mode off the section does not exist, and the settings tab says why. */
 export const requireEmployerMode: MiddlewareHandler = async (c, next) => {
