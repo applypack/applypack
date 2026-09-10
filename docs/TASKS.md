@@ -2149,7 +2149,7 @@ release-discipline skill, a docs/site block does not.
       self-hosted from the site's woff2, the CDN and font hosts removed
       from CSP, a grep test that they never return; PRODUCT.md / DESIGN.md
       constraint line rewritten.
-- [ ] **`query-diet`** (minor; measured first) — restore a populated
+- [x] **`query-diet`** (patch; measured first) — shipped v2.7.1: DATA-1 / DATA-5 selects, DATA-4 loops, the due filter; no index added — on the 09-04 data (1 083 jobs) every named query ran under 1 ms. Left: the per-file applicant transaction, `listScreenings`' per-applicant rows, `listMatchesForJob`. Restore a populated
       database (the 09-04 dump), `EXPLAIN ANALYZE` the `/jobs` facet
       tally, the `/companies` latest-job query and the FT sync sort; then
       DATA-1 `select` on the list + the tally in SQL (or capped), DATA-5

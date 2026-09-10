@@ -7,7 +7,7 @@ import { loadKeywordMatcher, type KeywordMatcher } from '../resume/keyword-match
 import { anchorScreenReply } from './anchor';
 import { buildScreenPrompt, parseScreenResponse, SCREEN_MAX_TOKENS, SCREEN_PROMPT_VERSION, SCREEN_TIMEOUT_MS } from './prompts';
 import { scoreScreening } from './score';
-import { createVerdict, getScreening, listPending, listReadable, postingOf, rubricOf, type ScreeningWithJob } from './store';
+import { createVerdict, getScreening, listPending, listReadable, postingOf, rubricOf, screeningStamp, type ScreeningWithJob } from './store';
 import type { Rubric } from './rubric';
 
 /*
@@ -174,13 +174,24 @@ async function refill(run: Run, screening: ScreeningWithJob): Promise<number> {
   );
 }
 
+/**
+ * The screening as it stands, re-read only when its rubric version moved:
+ * the whole row — posting text, rubric, job — used to be loaded twice per
+ * applicant to compare one integer (DATA-4).
+ */
+async function freshIfChanged(screening: ScreeningWithJob): Promise<ScreeningWithJob> {
+  const stamp = await screeningStamp(screening.id);
+  if (!stamp || stamp.rubricVersion === screening.rubricVersion) return screening;
+  return (await getScreening(screening.id)) ?? screening;
+}
+
 /** One worker: take the next applicant, score, repeat; refill from the database when the queue runs dry. */
 async function worker(run: Run, screening: ScreeningWithJob, runtime: Pick<AiRuntime, 'complete'>, matcher: Pick<KeywordMatcher, 'findTerm' | 'locateQuote'>): Promise<void> {
   for (;;) {
     let next = run.queue.shift();
     if (!next) {
       // The rubric may have been saved mid-run: the queue is read against the current version.
-      const current = (await getScreening(screening.id)) ?? screening;
+      const current = await freshIfChanged(screening);
       if ((await refill(run, current)) === 0) return;
       next = run.queue.shift();
       if (!next) return;
@@ -188,7 +199,8 @@ async function worker(run: Run, screening: ScreeningWithJob, runtime: Pick<AiRun
     }
     run.state.queued = run.state.queued.filter((n) => n !== next!.number);
     run.state.inFlight.push(next.number);
-    const current = (await getScreening(screening.id)) ?? screening;
+    const current = await freshIfChanged(screening);
+    screening = current;
     const outcome = await screenApplicant(current, rubricOf(current), next, runtime, matcher);
     run.state.inFlight = run.state.inFlight.filter((n) => n !== next!.number);
     run.state.finished.push(next.number);

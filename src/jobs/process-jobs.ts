@@ -134,6 +134,10 @@ export async function processNormalizedJobs(
   // used to see it in the DB, now both copies would be classified together.
   const candidates: Candidate[] = [];
   const seen = new Set<string>();
+  // One read for the whole tick instead of one per posting: 1 600 to 5 500
+  // round trips on a cold tick were spent asking "is this stored?" one
+  // (companyId, externalId) at a time (audit 2026-09-10, DATA-4).
+  const stored = await storedKeys(items.map((i) => i.job));
   for (const item of items) {
     if (isCancelled && (await isCancelled())) {
       cancelled = true;
@@ -167,7 +171,7 @@ export async function processNormalizedJobs(
       continue;
     }
     const key = `${item.job.companyId}:${item.job.externalId}`;
-    if (seen.has(key) || (await isPersisted(item.job))) {
+    if (seen.has(key) || stored.has(pairKey(item.job))) {
       stats.duplicate++;
       continue;
     }
@@ -377,17 +381,26 @@ export async function processNormalizedJobs(
   }
 }
 
-async function isPersisted(job: NormalizedJob): Promise<boolean> {
-  const existing = await prisma.job.findUnique({
+function pairKey(job: Pick<NormalizedJob, 'companyId' | 'externalId'>): string {
+  return `${job.companyId}\u0000${job.externalId}`;
+}
+
+/**
+ * The (companyId, externalId) pairs already in the table, for a batch. The
+ * query asks for any company of the batch × any external id of the batch —
+ * a superset — and the Set holds the exact pairs, so a collision of
+ * external ids across two boards cannot mark a new posting as stored.
+ */
+async function storedKeys(jobs: Pick<NormalizedJob, 'companyId' | 'externalId'>[]): Promise<Set<string>> {
+  if (jobs.length === 0) return new Set();
+  const rows = await prisma.job.findMany({
     where: {
-      companyId_externalId: {
-        companyId: job.companyId,
-        externalId: job.externalId,
-      },
+      companyId: { in: [...new Set(jobs.map((j) => j.companyId))] },
+      externalId: { in: [...new Set(jobs.map((j) => j.externalId))] },
     },
-    select: { id: true },
+    select: { companyId: true, externalId: true },
   });
-  return existing !== null;
+  return new Set(rows.map(pairKey));
 }
 
 function buildClassifyInput(
