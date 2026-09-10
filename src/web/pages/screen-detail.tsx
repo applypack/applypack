@@ -319,14 +319,17 @@ export const ScreenDetailPage: FC<ScreenDetailProps> = ({ screening, rubric, row
             <span class="text-ink">…or a whole folder</span>
             <input type="file" name="files" multiple webkitdirectory aria-label="A folder of resumes" class={`text-sm text-ink-muted ${FILE_INPUT_CLASS}`} />
           </label>
-          <Button variant="secondary">Add and score</Button>
+          <Button variant="secondary" data-upload-button>
+            Add and score
+          </Button>
           <span class="text-[13px] text-ink-faint" data-picked aria-live="polite"></span>
         </form>
         <Hint class="mt-2">
-          {ACCEPTED_EXTENSIONS.join(' / ')} files, a .zip, or a folder with its subfolders — up to{' '}
+          Choosing is adding: the moment you pick {ACCEPTED_EXTENSIONS.join(' / ')} files, a .zip, or a folder with
+          its subfolders, they are uploaded and the scoring starts — nothing else to press. (On a folder, your
+          browser asks once whether to upload its files; that question is the browser's, not ours.) Up to{' '}
           {MAX_APPLICANTS_PER_SCREENING} applicants per screening, {MAX_BATCH_UPLOAD_MB} MB per upload; other file
-          types in a folder are left out. Scoring starts the moment the files are in, and files added while it runs
-          join the same run. Before any model reads a file, the name, contacts, links, date of birth, age, family,
+          types in a folder are left out. Files added while a run is on join the same run. Before any model reads a file, the name, contacts, links, date of birth, age, family,
           gender, citizenship, street and graduation years are removed. A second document of someone already in the
           list is scored too and labelled; the same file twice is skipped; a scanned PDF with no text layer stays in
           the list unscored, so you can see it.

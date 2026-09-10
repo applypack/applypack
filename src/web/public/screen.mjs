@@ -101,38 +101,55 @@ function wireSelection(form) {
   paint();
 }
 
-/** The upload form: a count of what was picked, and a folder pick sent with paths. */
+/**
+ * The upload form: a pick IS the upload. Choosing files, a zip or a folder
+ * sends them at once and the scoring starts on the server — there is no
+ * second press (the browser's own "upload N files to this site?" question
+ * on a folder pick is the browser's, and the only one). A folder pick is
+ * sent by fetch so each file keeps its path as its name; plain files go
+ * as the form's own POST. Without JS the button stays and posts as before.
+ */
 function wireUpload(form) {
   const inputs = [...form.querySelectorAll('input[type=file]')];
   const line = form.querySelector('[data-picked]');
-  const button = form.querySelector('button[type=submit], button:not([type])');
+  const button = form.querySelector('[data-upload-button]');
   const picked = () => inputs.flatMap((i) => [...(i.files ?? [])]);
-  const paint = () => {
+  let sending = false;
+  const send = () => {
     const files = picked();
-    if (line) line.textContent = files.length === 0 ? '' : `${files.length} file${files.length === 1 ? '' : 's'} picked`;
-    if (button) button.disabled = files.length === 0;
-  };
-  for (const i of inputs) {
-    i.addEventListener('change', () => {
-      // One pick at a time: choosing a folder clears a file pick and the other way round.
-      for (const other of inputs) if (other !== i) other.value = '';
-      paint();
-    });
-  }
-  form.addEventListener('submit', (e) => {
-    const files = picked();
-    if (!files.some((f) => f.webkitRelativePath)) return;
-    e.preventDefault();
+    if (files.length === 0 || sending) return;
+    sending = true;
+    if (line) line.textContent = `${files.length} file${files.length === 1 ? '' : 's'} picked — uploading…`;
+    for (const b of form.querySelectorAll('button')) b.disabled = true;
+    for (const i of inputs) i.disabled = true;
+    if (!files.some((f) => f.webkitRelativePath)) {
+      // Re-enable the input that holds the files, or the form posts without them.
+      for (const i of inputs) i.disabled = i.files?.length === 0;
+      form.submit();
+      return;
+    }
     const body = new FormData();
     for (const { file, name } of pathedFiles(files)) body.append('files', file, name);
-    for (const b of form.querySelectorAll('button')) b.disabled = true;
     fetch(form.action, { method: 'POST', body, credentials: 'same-origin' })
       .then((res) => {
         location.href = res.redirected ? res.url : form.action.replace(/\/applicants$/, '');
       })
       .catch(() => location.reload());
+  };
+  for (const i of inputs) {
+    i.addEventListener('change', () => {
+      // One pick at a time: choosing a folder clears a file pick and the other way round.
+      for (const other of inputs) if (other !== i) other.value = '';
+      send();
+    });
+  }
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    send();
   });
-  paint();
+  // With JS the pick sends itself; the button is the no-JS path.
+  if (button) button.hidden = true;
+  if (line) line.textContent = '';
 }
 
 export function init() {

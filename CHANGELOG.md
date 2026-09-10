@@ -4,6 +4,15 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.5.2] — 2026-09-10
+
+### Changed
+- **Choosing is adding.** On the screening page, picking files, a zip or a
+  folder uploads them at once and starts the scoring — the "Add and score"
+  press after the pick is gone (the button stays for a browser without
+  JavaScript). A folder pick still meets the browser's own "upload N files
+  to this site?" question, which no page can remove; the hint says so.
+
 ## [2.5.1] — 2026-09-10
 
 ### Fixed
@@ -3274,6 +3283,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.5.2]: https://github.com/applypack/applypack/compare/v2.5.1...v2.5.2
 [2.5.1]: https://github.com/applypack/applypack/compare/v2.5.0...v2.5.1
 [2.5.0]: https://github.com/applypack/applypack/compare/v2.4.0...v2.5.0
 [2.4.0]: https://github.com/applypack/applypack/compare/v2.3.0...v2.4.0
