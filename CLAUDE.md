@@ -119,6 +119,10 @@
   `catalog.ts` and `resolve.ts` are pure (tested), `probe.ts` calls
   `probeAts`. Web-only — the worker never imports it. Every catalog entry
   pins a hand-verified board; a probe hit is not proof of identity (ADR 0017).
+- `src/web/public/tailwind.css` is generated: `npm run css` (Tailwind CLI over
+  `tailwind.config.js` + `src/web/tailwind.css`) and committed, so the runtime
+  has no build step and no page fetches from a third party
+  (`self-contained.test.ts`). A new utility class = rerun it.
 - `src/web/public/` holds browser code served as-is (no build step). Keep it
   dependency-free ES modules with pure functions, tested through `import()`
   from `src/web/*.test.ts`. The Dockerfile copies the directory into the image.

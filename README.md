@@ -403,7 +403,8 @@ Every cron has a matching one-shot script for manual runs
 ## Under the hood
 
 TypeScript strict, Node 24, Prisma + Postgres 16, Hono for the dashboard
-(server-side JSX, no build step), node-cron for scheduling. Deliberately
+(server-side JSX; the only build is `tsc` and a committed Tailwind CSS,
+nothing fetched from a third party at runtime), node-cron for scheduling. Deliberately
 no Redis, no queues, no framework sprawl. Every external byte (env vars,
 API responses, AI output) passes through zod before it's trusted. The
 worker and the dashboard are separate processes sharing one database, so

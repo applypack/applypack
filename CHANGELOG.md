@@ -4,6 +4,19 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.7.0] — 2026-09-10
+
+### Changed
+- **Nothing on a dashboard page is fetched from a third party.** Every page
+  loaded Tailwind's Play CDN — a script with full access to the page that
+  renders your resumes and, in employer mode, applicants' — and Inter from
+  Google Fonts, so two companies saw every page view, and an install with
+  no internet rendered unstyled. The Tailwind build is now generated once
+  (`npm run css`) and committed as `src/web/public/tailwind.css`, Inter is
+  served from `/static/fonts/`, and the content-security policy names no
+  outside host. A test fails if either comes back. README's "everything
+  runs on your machine" is now true of the browser too.
+
 ## [2.6.4] — 2026-09-10
 
 ### Fixed
@@ -3453,6 +3466,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.7.0]: https://github.com/applypack/applypack/compare/v2.6.4...v2.7.0
 [2.6.4]: https://github.com/applypack/applypack/compare/v2.6.3...v2.6.4
 [2.6.3]: https://github.com/applypack/applypack/compare/v2.6.2...v2.6.3
 [2.6.2]: https://github.com/applypack/applypack/compare/v2.6.1...v2.6.2

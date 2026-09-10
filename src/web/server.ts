@@ -37,12 +37,13 @@ app.use(
   secureHeaders({
     contentSecurityPolicy: {
       defaultSrc: ["'self'"],
-      // Tailwind from CDN, Inter from Google Fonts (layout.tsx).
-      scriptSrc: ["'self'", "'unsafe-inline'", 'https://cdn.tailwindcss.com'],
-      styleSrc: ["'self'", "'unsafe-inline'", 'https://cdn.tailwindcss.com', 'https://fonts.googleapis.com'],
+      // Nothing from a third party: the Tailwind build and Inter are served
+      // from /static (layout.tsx, npm run css).
+      scriptSrc: ["'self'", "'unsafe-inline'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
       imgSrc: ["'self'", 'data:'],
       connectSrc: ["'self'"],
-      fontSrc: ["'self'", 'data:', 'https://fonts.gstatic.com'],
+      fontSrc: ["'self'", 'data:'],
     },
     xFrameOptions: 'DENY',
     referrerPolicy: 'no-referrer',
