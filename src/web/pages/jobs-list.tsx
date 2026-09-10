@@ -333,7 +333,7 @@ export const JobsListPage: FC<JobsListProps> = ({
             <>
               <div class="min-h-0 flex-1 overflow-auto">
                 <div class="min-w-[64rem]">
-                  <Table
+                  <Table caption="Jobs"
                     stickyHeader
                     widths={[
                       'w-[31%]',

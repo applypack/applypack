@@ -1,6 +1,6 @@
 {
   "name": "applypack",
-  "version": "2.6.3",
+  "version": "2.6.4",
   "private": true,
   "description": "Runs locally with Docker: an AI console for the whole job search that finds the postings, checks they're real, scores your resume without flattering it, drafts the cover letter, tracks the application. 33 sources, 5 swappable AI backends, your data in your own Postgres, self-hosted on a VPS if you like.",
   "license": "MIT",

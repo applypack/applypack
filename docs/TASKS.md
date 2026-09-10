@@ -2158,7 +2158,7 @@ release-discipline skill, a docs/site block does not.
       number reserved once per upload, two integers instead of the
       screening row per applicant, DATA-6 the due filter as a `where`
       (the index exists) and the indexes the plans show are used.
-- [ ] **`a11y-pass`** (patch) — A11Y-1 a focus ring on `#editor`;
+- [x] **`a11y-pass`** (patch) — shipped v2.6.4: A11Y-1/2/3 and four A11Y-4 items (the spinner, the file label, the link accent, captions); the rest of A11Y-4 (glyph-only weights and gate marks, the toggle buttons' names, the tabs' keyboard model, the 15 %-alpha input ring, Hint inside the label) left. A11Y-1 a focus ring on `#editor`;
       A11Y-2 `aria-live` on `#run-progress`, the score announced (a
       visually-hidden live region beside the ring), the dirty bar's live
       region carrying text that changes; A11Y-3 `scope` on the five

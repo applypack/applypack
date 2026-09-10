@@ -108,7 +108,9 @@ const TOKENS_CSS = `
     html[data-nav-open] .nav-backdrop { display: block; }
   }
   @media (prefers-reduced-motion: reduce) {
-    *, *::before, *::after { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
+    /* iteration-count too: an infinite spinner at 0.01ms is not still, it is
+       a repaint storm (audit 2026-09-10, A11Y-4). */
+    *, *::before, *::after { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; }
   }
 `;
 

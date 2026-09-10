@@ -64,7 +64,7 @@ export const ResumesPage: FC<{
       <Empty>No resumes yet. Upload one below — the first becomes the default.</Empty>
     ) : (
       <Card flush class="mb-4">
-        <Table
+        <Table caption="Resumes"
           columns={[
             'Name',
             'Headline',
