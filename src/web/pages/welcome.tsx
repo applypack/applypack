@@ -173,9 +173,7 @@ export const WelcomePage: FC<WelcomeProps> = (p) => (
         <div>
           <h1 class="text-xl font-semibold tracking-tight">Welcome to ApplyPack</h1>
           <p class="mt-1 text-[13px] leading-5 text-ink-faint">
-            Five short steps: connect an AI, prove the search works, tell us about you, turn on
-            the boards for your countries, see your first matches. Everything here can be changed
-            later in Settings.
+            Everything here can be changed later in Settings.
           </p>
         </div>
         {!p.setupCompleted && (
@@ -372,9 +370,6 @@ const SearchStep: FC<WelcomeProps> = ({ search, steps }) => {
                 {formatDuration(last.durationMs)} and stored {last.stored.toLocaleString()} new.
               </>
             )}
-          </p>
-          <p class="mt-1 text-sm text-ink-muted">
-            The search works — now let's find the ones that match <em>you</em>.
           </p>
           <div class="mt-4 flex flex-wrap items-center gap-2">
             <Button href="/welcome?step=profile">Continue →</Button>
@@ -643,8 +638,7 @@ const SourcesStep: FC<WelcomeProps> = ({ sources, steps }) => {
       ) : (
         <>
           <p class="text-sm text-ink-muted">
-            Job boards that fit where your searches hunt, built from their stack. Turn them all on
-            now; each one can be switched off on the Companies page later.
+            Turn them all on now; each one can be switched off on the Companies page later.
           </p>
           <ul class="mt-3 divide-y divide-line rounded-md border border-line">
             {sources.suggestions.map((s) => (
@@ -665,8 +659,8 @@ const SourcesStep: FC<WelcomeProps> = ({ sources, steps }) => {
         <div class="mt-4">
           <p class="text-[13px] font-medium text-ink">Starter packs for your searches</p>
           <Hint>
-            Curated employer boards, checked by hand. A preview shows what resolves, nothing is
-            added until you confirm, and the boards land switched off.
+            A preview shows what resolves, nothing is added until you confirm, and the boards land
+            switched off.
           </Hint>
           <ul class="mt-2 divide-y divide-line rounded-md border border-line">
             {sources.packs.map((p) => (
@@ -780,7 +774,7 @@ const ScoreOrWatch: FC<WelcomeProps> = ({ matches, fetchingEnabled, telegramEnab
   return (
     <>
       {matches.runningRunId ? (
-        <Button href={`/target/runs/${matches.runningRunId}`} variant="violet">
+        <Button href={`/target/runs/${matches.runningRunId}`} variant="secondary">
           Watch the scoring →
         </Button>
       ) : matches.waiting > 0 ? (
@@ -814,7 +808,7 @@ const AllDone: FC<WelcomeProps> = ({ setupCompleted, fetchingEnabled, matches })
   <Card>
     <h2 class="text-sm font-semibold text-ink">Everything is set up</h2>
     <p class="mt-1 text-sm text-ink-muted">
-      AI connected, {matches.scoredCount.toLocaleString()} jobs scored, profile filled.{' '}
+      AI connected, {matches.scoredCount.toLocaleString()} jobs scored.{' '}
       {fetchingEnabled
         ? 'The hourly watch is running — new matches land on the Overview.'
         : 'The hourly watch is paused; start it to keep the matches coming.'}

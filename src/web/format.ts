@@ -104,10 +104,15 @@ export function statusTone(status: JobStatus): Tone {
   }
 }
 
+/** The tone cut-offs — mirrored by public/target-page.mjs:ringTone; tone-parity.test.ts holds the two equal. */
+export const FIT_OK_FLOOR = 85;
+export const FIT_INFO_FLOOR = 70;
+export const FIT_WARN_FLOOR = 50;
+
 export function fitTone(score: number | null | undefined): Tone {
   if (score == null) return 'neutral';
-  if (score >= 85) return 'ok';
-  if (score >= 70) return 'info';
-  if (score >= 50) return 'warn';
+  if (score >= FIT_OK_FLOOR) return 'ok';
+  if (score >= FIT_INFO_FLOOR) return 'info';
+  if (score >= FIT_WARN_FLOOR) return 'warn';
   return 'neutral';
 }

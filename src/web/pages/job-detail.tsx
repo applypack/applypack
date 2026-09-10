@@ -356,7 +356,7 @@ const ClassifierCard: FC<{ job: JobDetail; scores: ProfileScore[] }> = ({ job, s
       <div class="flex flex-wrap items-center justify-between gap-3">
         <SectionTitle>Classifier</SectionTitle>
         <ActionForm action={`/jobs/${job.id}/reclassify`}>
-          <Button variant="ghost" size="sm">
+          <Button variant="violet" size="sm">
             Re-classify
           </Button>
         </ActionForm>
@@ -388,9 +388,7 @@ const ProfileScoreRow: FC<{ scores: ProfileScore[] }> = ({ scores }) => {
   if (scores.length < 2) return null;
   return (
     <div class="mt-3 border-t border-line pt-3">
-      <div class="mb-2 text-xs font-medium uppercase tracking-wide text-ink-faint">
-        By search
-      </div>
+      <div class="mb-2 text-xs font-medium text-ink-muted">By search</div>
       <ul class="space-y-1.5">
         {scores.map((s, i) => (
           <li class="flex items-start gap-2 text-[13px]">
@@ -569,7 +567,7 @@ const MarkAppliedPicker: FC<{
       {picker.resumes.length > 0 && (
         <Field
           label="Applied with"
-          hint="Recorded with the version you sent, for the follow-up nudge."
+          hint="Kept for the follow-up reminder."
           class="mb-3"
         >
           <Select name="appliedResumeId" form={MARK_APPLIED_FORM}>

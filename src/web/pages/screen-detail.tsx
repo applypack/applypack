@@ -97,9 +97,8 @@ export const ScreenDetailPage: FC<ScreenDetailProps> = ({ screening, rubric, row
           </div>
         }
       >
-        Five cards, top to bottom: the position, the criteria it is screened against, the applicants, the results,
-        and how your decisions sit against the order. The order in the results is a priority to talk to; every mark
-        has its quote on the scorecard, and the decision column is yours alone.
+        The order in the results is a priority to talk to; every mark has its quote on the scorecard, and the
+        decision column is yours alone.
       </PageHeader>
       <Flash flash={flash} />
 
@@ -200,7 +199,7 @@ export const ScreenDetailPage: FC<ScreenDetailProps> = ({ screening, rubric, row
             <Chevron />
           </summary>
           <Hint class="mt-2">
-            One row per criterion. A <span class="text-ink">gate</span> buckets (pass / unknown / fail, never points), the
+            A <span class="text-ink">gate</span> buckets (pass / unknown / fail, never points), the
             <span class="text-ink"> stars</span> weigh a scored criterion, a <span class="text-ink">note</span> is shown and
             not counted. Rows the posting wrote say so; edit the words, change the mode, tick Remove — and add your own in
             the last row, in your own words.
@@ -324,16 +323,25 @@ export const ScreenDetailPage: FC<ScreenDetailProps> = ({ screening, rubric, row
           </Button>
           <span class="text-[13px] text-ink-faint" data-picked aria-live="polite"></span>
         </form>
-        <Hint class="mt-2">
-          Choosing is adding: the moment you pick {ACCEPTED_EXTENSIONS.join(' / ')} files, a .zip, or a folder with
-          its subfolders, they are uploaded and the scoring starts — nothing else to press. (On a folder, your
-          browser asks once whether to upload its files; that question is the browser's, not ours.) Up to{' '}
-          {MAX_APPLICANTS_PER_SCREENING} applicants per screening, {MAX_BATCH_UPLOAD_MB} MB per upload; other file
-          types in a folder are left out. Files added while a run is on join the same run. Before any model reads a file, the name, contacts, links, date of birth, age, family,
-          gender, citizenship, street and graduation years are removed. A second document of someone already in the
-          list is scored too and labelled; the same file twice is skipped; a scanned PDF with no text layer stays in
-          the list unscored, so you can see it.
-        </Hint>
+        {/* Six facts, one line each — as one paragraph none of them was findable. */}
+        <ul class="mt-2 list-disc space-y-1 pl-4 text-[13px] leading-5 text-ink-faint">
+          <li>
+            Choosing is adding: pick {ACCEPTED_EXTENSIONS.join(' / ')} files, a .zip, or a folder with its subfolders,
+            and the scoring starts. On a folder, the browser asks once whether to upload its files.
+          </li>
+          <li>
+            Up to {MAX_APPLICANTS_PER_SCREENING} applicants per screening, {MAX_BATCH_UPLOAD_MB} MB per upload; other
+            file types in a folder are left out; files added during a run join it.
+          </li>
+          <li>
+            Before any model reads a file, the name, contacts, links, date of birth, age, family, gender, citizenship,
+            street and graduation years are removed.
+          </li>
+          <li>
+            A second document of someone already listed is scored and labelled; the same file twice is skipped; a
+            scanned PDF with no text layer stays in the list unscored, so you can see it.
+          </li>
+        </ul>
       </Card>
 
       {/* 3. Score and the table. */}
@@ -540,14 +548,13 @@ export const ScreenDetailPage: FC<ScreenDetailProps> = ({ screening, rubric, row
         )}
         {!calibration.enough && (
           <Hint class="mt-1">
-            Decisions are the one thing the tool never writes (ADR 0047); {MIN_DECISIONS} of them, with a To interview and a
+            Decisions are the one thing the tool never writes; {MIN_DECISIONS} of them, with a To interview and a
             Declined among them, are enough for the first reading. The CSV and Markdown carry it too.
           </Hint>
         )}
       </Card>
       <Hint class="mt-3">
-        Created {formatRelative(screening.createdAt)}. Names are shown to you only — the model saw "Applicant №N".
-        "Priority to talk to" means every gate passed; "Ask first" means one is unknown and the scorecard has the
+        Created {formatRelative(screening.createdAt)}. "Priority to talk to" means every gate passed; "Ask first" means one is unknown and the scorecard has the
         question. A failed gate is a fact about the posting's conditions, never a verdict on the person. A score
         with a small +N or −N beside it carries your own adjustment from the scorecard; the computed number is in
         its tooltip and in the export.
