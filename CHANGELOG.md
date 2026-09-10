@@ -4,6 +4,17 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.5.4] — 2026-09-10
+
+### Security
+- `hono` 4.12.15 → 4.13.7 and `@hono/node-server` 1.19.14 → 1.19.17: ten
+  advisories on the old version, one of them on a path this dashboard uses
+  (unbounded dot-notation nesting in `parseBody()`, GHSA-g6gw-c38x-mqfc).
+  The `package.json` floors now name the fixed versions, so a fresh install
+  cannot resolve below them. What is left in `npm audit` is `uuid` behind
+  `node-cron` 3, on a code path this project never calls; the 4.x major is
+  a separate decision (TASKS §20.4).
+
 ## [2.5.3] — 2026-09-10
 
 ### Security
