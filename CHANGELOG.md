@@ -4,6 +4,17 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.5.4] — 2026-09-10
+
+### Security
+- `hono` 4.12.15 → 4.13.7 and `@hono/node-server` 1.19.14 → 1.19.17: ten
+  advisories on the old version, one of them on a path this dashboard uses
+  (unbounded dot-notation nesting in `parseBody()`, GHSA-g6gw-c38x-mqfc).
+  The `package.json` floors now name the fixed versions, so a fresh install
+  cannot resolve below them. What is left in `npm audit` is `uuid` behind
+  `node-cron` 3, on a code path this project never calls; the 4.x major is
+  a separate decision (TASKS §20.4).
+
 ## [2.5.3] — 2026-09-10
 
 ### Security
@@ -3308,6 +3319,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.5.4]: https://github.com/applypack/applypack/compare/v2.5.3...v2.5.4
 [2.5.3]: https://github.com/applypack/applypack/compare/v2.5.2...v2.5.3
 [2.5.2]: https://github.com/applypack/applypack/compare/v2.5.1...v2.5.2
 [2.5.1]: https://github.com/applypack/applypack/compare/v2.5.0...v2.5.1
