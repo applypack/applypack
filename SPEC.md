@@ -5,9 +5,11 @@
 
 ## Goal
 
-Single-user, locally hosted job-search assistant. Pulls listings from a
-dozen public ATS / aggregator sources, classifies each through Claude
-against a **profile** that the user edits in a small dashboard, and
+Single-user, locally hosted job-search assistant. Pulls listings from
+33 kinds of public source (twelve ATS vendors, twenty aggregators, any
+RSS/Atom feed), classifies each through the AI engine chain (five
+backends, ADR 0013/0014) against every running **search profile** the
+user edits in a small dashboard, and
 fires Telegram or Discord alerts for matches. Designed to run continuously on a
 laptop or VPS without babysitting, with all configuration editable
 from the web UI (no SSH-and-restart).

@@ -374,6 +374,34 @@ null renders an em dash.
 - **ToggleRow:** label + ok/neutral dot-pill beside an Enable/Disable button —
   the settings on/off idiom.
 
+### Screening (employer mode, ADR 0047–0052)
+The other side of the table reuses every primitive above; what is new is
+vocabulary, not chrome.
+- **Gate buckets:** three, in this order and these words — *Priority to talk
+  to* (ok), *Ask first* (warn), *Did not pass a gate* (danger) — never "best
+  candidate". A gate is a fact about the posting's conditions, so the danger
+  tone marks the bucket, not the person.
+- **Score cell:** tabular number; `*` after it means capped and the scorecard
+  says why; the person's adjustment reads `85 → 95` with a small `+10`, the
+  computed number kept in the tooltip and both exports. During a run the
+  cell shows the previous verdict muted and prefixed *was*, never a number
+  that looks new.
+- **Run badges:** *queued* (neutral) · *scoring…* (info) · *scored — refresh*
+  (ok), painted per row from `/screen/:id/state`; the progress line above
+  the table is a live region.
+- **Scorecard:** who / did / verdict at the top, then one row per criterion
+  with its quote from the redacted text; a quote is the evidence, an unquoted
+  answer is shown as unknown. "Stands out" is a list of facts, never a score.
+- **Criteria editor:** one row per criterion — kind, the person's words, a
+  Gate / Scored / Note choice, stars for weight, Remove — and a last row that
+  adds one. A row naming a protected characteristic is refused with the
+  lawful criterion offered in its place.
+- **Decisions:** the one write the tool never makes; the decision select is a
+  plain control, never violet (violet means AI spend). Calibration shows
+  counts beside every ratio and changes nothing by itself.
+- **The redaction line:** what was removed before the model read a word, on
+  the scorecard and at intake; the name is shown to the person only.
+
 ### Named Rules
 **The Drawn-Icon Rule.** Every icon is a drawn SVG stroke on the 24px Lucide
 grid — including the select chevron and check/x marks. Emoji, Unicode glyphs,
