@@ -320,8 +320,29 @@ test('every exported prompt builder has a fence case', () => {
   );
 });
 
+test('every module that exports a prompt builder is on the roster', () => {
+  // Read off the source, not off the imports above: a new module with a
+  // build*Prompt that nobody added to PROMPT_MODULES used to be invisible
+  // to the first test (audit 2026-09-10, AI-5).
+  const byFile = new Map<string, string[]>();
+  for (const f of walkSrc()) {
+    const names = [...readFileSync(join(SRC, f), 'utf8').matchAll(/^export (?:async )?function (build[A-Za-z]*Prompt)\(/gm)].map((m) => m[1]!);
+    if (names.length > 0) byFile.set(f, names);
+  }
+  assert.deepEqual(
+    [...byFile.keys()].sort(),
+    Object.keys(PROMPT_MODULES).sort(),
+    `prompt modules in src and in PROMPT_MODULES differ — add the new one (and its CASES)`,
+  );
+  for (const [f, names] of byFile) {
+    for (const name of names) assert.ok(name in CASES, `${name} (${f}) has no fence case`);
+  }
+});
+
 test('every AI call site is a known one', () => {
-  const callers = walkSrc().filter((f) => /\.complete\(|askForJson\(/.test(readFileSync(join(SRC, f), 'utf8')));
+  // A renamed import (`askForJson as ask`) or a destructured `complete` used
+  // to slip past `.complete(`; the pattern reads the call, not the dot.
+  const callers = walkSrc().filter((f) => /\bcomplete\s*\(|askForJson\s*\(/.test(readFileSync(join(SRC, f), 'utf8')));
   const unknown = callers.filter((f) => !(f in KNOWN_CALL_SITES));
   assert.deepEqual(
     unknown,

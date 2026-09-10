@@ -366,7 +366,7 @@ export function parseCodexCliOutput(raw: string): CliOutcome {
  */
 const OpenAiChatResponseSchema = z.object({
   choices: z
-    .array(z.object({ message: z.object({ content: z.string().nullable() }) }))
+    .array(z.object({ message: z.object({ content: z.string().nullable() }), finish_reason: z.string().nullable().optional() }))
     .optional(),
   error: z.object({ message: z.string() }).optional(),
 });
@@ -386,7 +386,13 @@ export function parseOpenAiChatResponse(raw: string): CliOutcome {
     const message = parsed.data.error.message;
     return { text: null, rateLimited: RATE_LIMIT_PATTERN.test(message), error: `openai: ${message}` };
   }
-  const content = parsed.data.choices?.[0]?.message.content;
-  if (typeof content === 'string') return { text: content, rateLimited: false, error: null };
+  const choice = parsed.data.choices?.[0];
+  // The Anthropic path reads stop_reason (gotcha 16); this is the same read
+  // for every OpenAI-compatible server. A cut-off reply is not an answer, and
+  // a filtered one is a refusal, not "no JSON object" (audit 2026-09-10, AI-3).
+  if (choice?.finish_reason === 'length') return { text: null, rateLimited: false, error: 'openai: reply cut off at the token limit' };
+  if (choice?.finish_reason === 'content_filter') return { text: null, rateLimited: false, error: 'openai: the model declined this request' };
+  const content = choice?.message.content;
+  if (typeof content === 'string' && content.trim().length > 0) return { text: content, rateLimited: false, error: null };
   return { text: null, rateLimited: false, error: 'openai: empty completion' };
 }

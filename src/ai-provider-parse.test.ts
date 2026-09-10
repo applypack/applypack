@@ -314,3 +314,16 @@ test('cliFailure names the reason without the command line — which is the prom
     assert.doesNotMatch(JSON.stringify(f), /RESUME TEXT|posting text/);
   }
 });
+
+test('parseOpenAiChatResponse reads finish_reason and refuses an empty completion', () => {
+  const cut = parseOpenAiChatResponse(JSON.stringify({ choices: [{ message: { content: '{"a":' }, finish_reason: 'length' }] }));
+  assert.equal(cut.text, null);
+  assert.match(cut.error ?? '', /cut off/);
+  const filtered = parseOpenAiChatResponse(JSON.stringify({ choices: [{ message: { content: null }, finish_reason: 'content_filter' }] }));
+  assert.match(filtered.error ?? '', /declined/);
+  const empty = parseOpenAiChatResponse(JSON.stringify({ choices: [{ message: { content: '   ' }, finish_reason: 'stop' }] }));
+  assert.equal(empty.text, null);
+  assert.match(empty.error ?? '', /empty/);
+  const fine = parseOpenAiChatResponse(JSON.stringify({ choices: [{ message: { content: '{"ok":1}' }, finish_reason: 'stop' }] }));
+  assert.equal(fine.text, '{"ok":1}');
+});

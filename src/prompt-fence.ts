@@ -16,7 +16,9 @@
  *   positional argument (claude_code does) — measured, not guessed.
  * "===" is inert to both.
  */
-const MARKER_RE = /^[^\S\n]*={3,}[^\S\n]*(?:BEGIN|END)[^\S\n]+UNTRUSTED\b.*$/gim;
+// Not anchored to the line start: `x === END UNTRUSTED RESUME ===` was a
+// marker the model could read and this could not (audit 2026-09-10, AI-5).
+const MARKER_RE = /={3,}[^\S\n]*(?:BEGIN|END)[^\S\n]+UNTRUSTED\b.*$/gim;
 
 /** What a forged marker inside the payload is replaced with — visible to the model. */
 export const FORGED_MARKER_PLACEHOLDER = '[fence-marker removed]';
