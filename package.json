@@ -1,6 +1,6 @@
 {
   "name": "applypack",
-  "version": "2.6.4",
+  "version": "2.7.0",
   "private": true,
   "description": "Runs locally with Docker: an AI console for the whole job search that finds the postings, checks they're real, scores your resume without flattering it, drafts the cover letter, tracks the application. 33 sources, 5 swappable AI backends, your data in your own Postgres, self-hosted on a VPS if you like.",
   "license": "MIT",
@@ -14,6 +14,7 @@
   },
   "scripts": {
     "build": "tsc",
+    "css": "tailwindcss -c tailwind.config.js -i src/web/tailwind.css -o src/web/public/tailwind.css --minify",
     "start": "node dist/index.js",
     "start:web": "node dist/web/server.js",
     "dev": "tsx watch src/index.ts",
@@ -65,6 +66,7 @@
     "@types/node": "^22.10.0",
     "@types/node-cron": "^3.0.11",
     "@types/pdfkit": "^0.17.6",
+    "tailwindcss": "^3.4.19",
     "tsx": "^4.19.0",
     "typescript": "^5.6.3"
   }

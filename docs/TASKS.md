@@ -2141,7 +2141,7 @@ release-discipline skill, a docs/site block does not.
       errors, `Retry-After`, 529, the probe's real reason) and PRIV-3
       (replies logged at debug; prompts by stdin, or the trade-off
       documented in `docs/ai-engines.md`).
-- [ ] **`dashboard-self-contained`** (minor) — PRIV-1 per
+- [x] **`dashboard-self-contained`** (minor) — shipped v2.7.0. PRIV-1 per
       [07-privacy-messaging.md](./improvement-2026-09/07-privacy-messaging.md):
       a committed Tailwind build over `src/web/**` with the theme from
       `TAILWIND_CONFIG`, a test that every class token in every rendered

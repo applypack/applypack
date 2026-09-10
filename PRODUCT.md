@@ -39,8 +39,10 @@ persuades or markets; every screen serves a task.
 
 ## Constraints that shape design
 
-- Server-rendered Hono JSX, no client framework, no CSS build step (Tailwind Play
-  CDN + semantic CSS-variable tokens in `src/web/layout.tsx`).
+- Server-rendered Hono JSX, no client framework; one CSS build step, run by
+  hand (`npm run css` writes the committed `src/web/public/tailwind.css`
+  from `tailwind.config.js`) over semantic CSS-variable tokens in
+  `src/web/layout.tsx`. Nothing on a page is fetched from a third party.
 - Every color flows through semantic tokens (surface / line / ink / accent / status
   tones) so a second theme is a token swap, not a component rewrite.
 - Primitives live in `src/web/ui.tsx`; pages compose them and never hand-roll

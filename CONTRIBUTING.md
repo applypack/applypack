@@ -56,7 +56,9 @@ npm run lint:types && npm test   # must be green before every PR; CI runs the sa
 - Changes to architecture, schema or policy get an ADR in
   [docs/adr/](./docs/adr/).
 - Dashboard changes: check light and dark themes, keep it keyboard
-  reachable, no build step in `src/web/public/`.
+  reachable, no build step in `src/web/public/` — except the Tailwind
+  build: a new utility class needs `npm run css` and the regenerated
+  `tailwind.css` committed with it.
 - Be decent to each other — [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md)
   applies in issues, PRs and discussions.
 - By contributing you agree your work is licensed under the

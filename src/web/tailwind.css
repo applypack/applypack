@@ -1,0 +1,14 @@
+/* Input of `npm run css` → src/web/public/tailwind.css (committed). */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Inter, from this origin: the same file the site ships, latin subset,
+   variable weight. No third party sees a page view (audit 2026-09-10, PRIV-1). */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('/static/fonts/inter-latin.woff2') format('woff2');
+}

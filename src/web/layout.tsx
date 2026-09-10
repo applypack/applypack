@@ -114,44 +114,6 @@ const TOKENS_CSS = `
   }
 `;
 
-const TAILWIND_CONFIG = `
-  tailwind.config = {
-    theme: {
-      extend: {
-        colors: {
-          surface: {
-            DEFAULT: 'rgb(var(--surface) / <alpha-value>)',
-            raised: 'rgb(var(--surface-raised) / <alpha-value>)',
-            overlay: 'rgb(var(--surface-overlay) / <alpha-value>)',
-          },
-          line: {
-            DEFAULT: 'rgb(var(--line) / <alpha-value>)',
-            strong: 'rgb(var(--line-strong) / <alpha-value>)',
-          },
-          ink: {
-            DEFAULT: 'rgb(var(--ink) / <alpha-value>)',
-            muted: 'rgb(var(--ink-muted) / <alpha-value>)',
-            faint: 'rgb(var(--ink-faint) / <alpha-value>)',
-          },
-          accent: {
-            DEFAULT: 'rgb(var(--accent) / <alpha-value>)',
-            strong: 'rgb(var(--accent-strong) / <alpha-value>)',
-            deep: 'rgb(var(--accent-deep) / <alpha-value>)',
-          },
-          ok: 'rgb(var(--ok) / <alpha-value>)',
-          warn: 'rgb(var(--warn) / <alpha-value>)',
-          danger: 'rgb(var(--danger) / <alpha-value>)',
-          info: 'rgb(var(--info) / <alpha-value>)',
-          violet: 'rgb(var(--violet) / <alpha-value>)',
-        },
-        fontFamily: {
-          sans: ['Inter', 'ui-sans-serif', 'system-ui', '-apple-system', '"Segoe UI"', 'sans-serif'],
-          mono: ['ui-monospace', 'SFMono-Regular', '"SF Mono"', 'Menlo', 'Consolas', 'monospace'],
-        },
-      },
-    },
-  };
-`;
 
 /** Direction contract — audited at the finish review; keep in sync with DESIGN.md. */
 const DIRECTION_CONTRACT = `<!--
@@ -208,14 +170,9 @@ export const Layout: FC<PropsWithChildren<LayoutProps>> = ({
         rel="icon"
         href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23059669'/%3E%3Ctext x='16' y='21.5' font-family='system-ui,sans-serif' font-size='13' font-weight='600' fill='white' text-anchor='middle'%3EAP%3C/text%3E%3C/svg%3E"
       />
-      <link rel="preconnect" href="https://fonts.googleapis.com" />
-      <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
-      <link
-        rel="stylesheet"
-        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap"
-      />
-      <script src="https://cdn.tailwindcss.com"></script>
-      <script dangerouslySetInnerHTML={{ __html: TAILWIND_CONFIG }} />
+      {/* The committed Tailwind build and the bundled Inter (npm run css):
+          nothing on a dashboard page is fetched from a third party (2.7.0). */}
+      <link rel="stylesheet" href="/static/tailwind.css" />
       <style dangerouslySetInnerHTML={{ __html: TOKENS_CSS }} />
     </head>
     <body class="bg-surface font-sans text-sm text-ink antialiased">
