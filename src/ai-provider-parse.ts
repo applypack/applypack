@@ -81,6 +81,33 @@ export function webToolsDirectOnly(model: string): boolean {
   return !PROGRAMMATIC_TOOL_MODEL.test(model);
 }
 
+/**
+ * Why a CLI child failed, without its command line: execFile's err.message
+ * is `Command failed: <bin> <args…>` and the args ARE the prompt — a resume,
+ * an applicant's text, the posting. The reason is read off stderr (where the
+ * CLI states it), the exit code and the signal, never off the message.
+ */
+export function cliFailure(
+  err: unknown,
+  timeoutMs: number,
+): { reason: string; log: { code?: string | number; signal?: string; stderr?: string } } {
+  const e = (err ?? {}) as { code?: unknown; signal?: unknown; killed?: unknown; stderr?: unknown };
+  const stderr = typeof e.stderr === 'string' ? e.stderr.trim().slice(0, 500) : '';
+  const log = {
+    ...(typeof e.code === 'string' || typeof e.code === 'number' ? { code: e.code } : {}),
+    ...(typeof e.signal === 'string' ? { signal: e.signal } : {}),
+    ...(stderr ? { stderr } : {}),
+  };
+  if (e.code === 'ENOENT') return { reason: 'not found on PATH', log };
+  if (e.code === 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER') return { reason: 'the reply exceeded the 1 MiB output cap', log };
+  if (e.killed === true || (typeof e.signal === 'string' && typeof e.code !== 'number')) {
+    return { reason: `timed out after ${Math.round(timeoutMs / 1000)} s`, log };
+  }
+  if (stderr) return { reason: stderr, log };
+  if (typeof e.code === 'number') return { reason: `exited with code ${e.code}`, log };
+  return { reason: 'failed with no output', log };
+}
+
 export function describeAiFailure(reason: string): string {
   const oneLine = reason.replace(/\s+/g, ' ').trim();
   if (oneLine.length === 0) return 'no reason reported';

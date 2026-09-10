@@ -1,6 +1,16 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { ashbyPostingText, checkPostingUrl, isPrivateHost, parseAshbyUrl, pickAshbyJob, postingTextFromHtml } from './posting-url';
+import {
+  ashbyPostingText,
+  checkPostingUrl,
+  fetchPublicHops,
+  isPrivateHost,
+  isPrivateIp,
+  parseAshbyUrl,
+  pickAshbyJob,
+  postingTextFromHtml,
+  resolvesToPublic,
+} from './posting-url';
 
 test('checkPostingUrl refuses junk, wrong protocols and ADR 0005 hosts', () => {
   assert.equal(checkPostingUrl('not a url').ok, false);
@@ -82,4 +92,88 @@ test('ashbyPostingText reads like a page: title, place, then the body as text �
   assert.match(r.text, /^Staff Engineer\nRemote \(US\)\n\nWe build things\./);
   assert.match(r.text, /• Go\n• Kubernetes/);
   assert.equal(ashbyPostingText({ title: 'Staff Engineer', location: null, descriptionHtml: '<p>short</p>' }).ok, false);
+});
+
+test('isPrivateIp reads every spelling of a private address (audit 2026-09-10)', () => {
+  for (const ip of [
+    '127.0.0.1', '10.0.0.1', '169.254.169.254', '224.0.0.1', '::1', '::', 'fe80::1', 'fd12::1',
+    '::ffff:169.254.169.254', '::ffff:a9fe:a9fe', '::ffff:127.0.0.1', '::ffff:7f00:1', '64:ff9b::a9fe:a9fe',
+  ]) {
+    assert.equal(isPrivateIp(ip), true, `${ip} must be private`);
+  }
+  for (const ip of ['8.8.8.8', '2606:4700::1111', '::ffff:8.8.8.8', '::ffff:808:808', '172.32.0.1']) {
+    assert.equal(isPrivateIp(ip), false, `${ip} must be public`);
+  }
+});
+
+test('isPrivateHost: a trailing dot, a mapped literal, an intranet name — the three bypasses', () => {
+  for (const h of ['localhost.', '[::ffff:a9fe:a9fe]', '::ffff:169.254.169.254', 'intranet', 'db.internal', 'nas.lan', 'router.home.arpa']) {
+    assert.equal(isPrivateHost(h), true, `${h} must be private`);
+  }
+  assert.equal(isPrivateHost('jobs.example.com.'), false);
+});
+
+test('checkPostingUrl refuses the literal bypasses and a URL carrying credentials', () => {
+  assert.equal(checkPostingUrl('http://localhost./x').ok, false);
+  assert.equal(checkPostingUrl('http://[::ffff:169.254.169.254]/').ok, false);
+  assert.equal(checkPostingUrl('http://intranet/x').ok, false);
+  assert.equal(checkPostingUrl('http://user:pass@example.com/x').ok, false);
+  assert.equal(checkPostingUrl('http://2130706433/').ok, false);
+  // The name still has to resolve somewhere public — that is layer 2, not this one.
+  assert.equal(checkPostingUrl('http://127.0.0.1.nip.io/').ok, true);
+});
+
+test('resolvesToPublic refuses a name whose records point inside, and a name with none', async () => {
+  const resolving = (map: Record<string, string[]>) => async (h: string) => {
+    const a = map[h];
+    if (!a) throw new Error('ENOTFOUND');
+    return a;
+  };
+  const dnsMap = resolving({
+    'jobs.example.com': ['93.184.216.34', '2606:2800:220:1:248:1893:25c8:1946'],
+    '127.0.0.1.nip.io': ['127.0.0.1'],
+    'mixed.example.com': ['93.184.216.34', '10.0.0.1'],
+  });
+  assert.deepEqual(await resolvesToPublic(new URL('https://jobs.example.com/1'), dnsMap), { ok: true });
+  assert.equal((await resolvesToPublic(new URL('http://127.0.0.1.nip.io/'), dnsMap)).ok, false);
+  assert.equal((await resolvesToPublic(new URL('http://mixed.example.com/'), dnsMap)).ok, false, 'one private record is enough');
+  assert.equal((await resolvesToPublic(new URL('http://nope.example.com/'), dnsMap)).ok, false);
+  // A literal was judged by checkPostingUrl already; nothing to resolve.
+  assert.deepEqual(await resolvesToPublic(new URL('http://8.8.8.8/'), dnsMap), { ok: true });
+});
+
+test('fetchPublicHops guards every redirect hop before it is requested', async () => {
+  const dnsMap = async (h: string) => (h === 'evil.example' ? ['169.254.169.254'] : ['93.184.216.34']);
+  const requested: string[] = [];
+  const chain: Record<string, { status: number; location: string | null }> = {
+    'https://a.example/1': { status: 302, location: '/2' },
+    'https://a.example/2': { status: 301, location: 'https://b.example/3' },
+    'https://b.example/3': { status: 200, location: null },
+    'https://a.example/meta': { status: 302, location: 'http://169.254.169.254/latest/meta-data/' },
+    'https://a.example/evil': { status: 302, location: 'http://evil.example/' },
+    'https://a.example/loop': { status: 302, location: '/loop' },
+  };
+  const fetchOnce = async (url: string) => {
+    requested.push(url);
+    return chain[url] ?? { status: 404, location: null };
+  };
+
+  const ok = await fetchPublicHops('https://a.example/1', fetchOnce, dnsMap);
+  assert.deepEqual(ok, { ok: true, response: { status: 200, location: null }, url: 'https://b.example/3' });
+
+  requested.length = 0;
+  const meta = await fetchPublicHops('https://a.example/meta', fetchOnce, dnsMap);
+  assert.equal(meta.ok, false);
+  assert.deepEqual(requested, ['https://a.example/meta'], 'the private hop is never requested');
+
+  requested.length = 0;
+  const evil = await fetchPublicHops('https://a.example/evil', fetchOnce, dnsMap);
+  assert.equal(evil.ok, false);
+  assert.deepEqual(requested, ['https://a.example/evil'], 'a public name resolving inside is never requested either');
+
+  const loop = await fetchPublicHops('https://a.example/loop', fetchOnce, dnsMap);
+  assert.equal(loop.ok, false);
+  if (!loop.ok) assert.match(loop.error, /too many times/);
+
+  assert.equal((await fetchPublicHops('http://localhost./x', fetchOnce, dnsMap)).ok, false);
 });

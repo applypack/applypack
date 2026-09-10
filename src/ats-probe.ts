@@ -1,5 +1,6 @@
 import { AtsType } from '@prisma/client';
 import { fetchWithRetry, HttpError } from './http';
+import { fetchPublicUrl } from './jobs/posting-url';
 import { douFeedUrl } from './fetchers/dou';
 import { djinniFeedUrl } from './fetchers/djinni';
 import { jobTechProbeUrl, parseJobTechTotal } from './fetchers/jobtech';
@@ -215,7 +216,7 @@ export async function probeAts(
         } catch (err) {
           return { ok: false, error: err instanceof Error ? err.message.replace(/^feed: /, '') : 'Invalid feed URL.' };
         }
-        const answer = await fetchWithRetry(url, { timeoutMs: 8_000 });
+        const answer = await fetchPublicUrl(url, { timeoutMs: 8_000 });
         const xml = await answer.text();
         if (!looksLikeFeed(xml)) return { ok: false, error: 'That URL answered something other than an RSS or Atom feed.' };
         const items = (xml.match(/<item[\s>]|<entry[\s>]/gi) ?? []).length;
@@ -234,7 +235,7 @@ export async function probeAts(
         } catch (err) {
           return { ok: false, error: err instanceof Error ? err.message.replace(/^career-page: /, '') : 'Invalid page URL.' };
         }
-        const answer = await fetchWithRetry(url, { timeoutMs: 8_000 });
+        const answer = await fetchPublicUrl(url, { timeoutMs: 8_000 });
         const html = await answer.text();
         if (looksLikeChallenge(html)) {
           return { ok: false, error: 'That page answered with a bot check, so its text cannot be watched.' };

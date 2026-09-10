@@ -18,6 +18,13 @@ const METHOD_STORED = 0;
 const METHOD_DEFLATE = 8;
 
 export class ZipError extends Error {}
+/** An entry that would inflate past the ceiling it was given — the archive's own size field is not consulted. */
+export class ZipLimitError extends ZipError {}
+
+/** One part of a .docx; the largest document.xml in the corpus is under 2 MB. */
+export const MAX_INFLATED_PART_BYTES = 64 * 1024 * 1024;
+/** Everything an archive of resumes may inflate to, in total — the web process holds it all at once. */
+export const MAX_INFLATED_TOTAL_BYTES = 512 * 1024 * 1024;
 
 export interface ZipEntry {
   name: string;
@@ -32,30 +39,52 @@ interface CentralRecord {
   localOffset: number;
 }
 
-/** Returns the decompressed bytes of `name`, or null when the archive has no such entry. */
-export function readZipEntry(zip: Buffer, name: string): Buffer | null {
+/**
+ * Returns the decompressed bytes of `name`, or null when the archive has no
+ * such entry. A part that inflates past `maxBytes` throws ZipLimitError.
+ */
+export function readZipEntry(zip: Buffer, name: string, maxBytes = MAX_INFLATED_PART_BYTES): Buffer | null {
   for (const record of centralDirectory(zip)) {
-    if (record.name === name) return inflate(zip, record);
+    if (record.name === name) return inflate(zip, record, maxBytes);
   }
   return null;
 }
 
 /**
  * Every file in the archive (directory entries skipped), in central-directory
- * order. An entry that would inflate past `maxEntryBytes` is not read — the
- * archive's own size says nothing about what a deflate stream expands to —
- * and its name comes back in `skipped`.
+ * order. An entry that would inflate past `maxEntryBytes`, or past what is
+ * left of `maxTotalBytes`, is not read and its name comes back in `skipped`.
+ * The archive's own size field is a hint that lets a cheap skip happen first;
+ * the ceiling is enforced on the inflater, because that field is whatever the
+ * archive's author wrote (audit 2026-09-10).
  */
-export function readZipEntries(zip: Buffer, maxEntryBytes = Infinity): { entries: ZipEntry[]; skipped: string[] } {
+export function readZipEntries(
+  zip: Buffer,
+  maxEntryBytes = Infinity,
+  maxTotalBytes = MAX_INFLATED_TOTAL_BYTES,
+): { entries: ZipEntry[]; skipped: string[] } {
   const entries: ZipEntry[] = [];
   const skipped: string[] = [];
+  let total = 0;
   for (const record of centralDirectory(zip)) {
     if (record.name.endsWith('/')) continue;
-    if (record.uncompressedSize > maxEntryBytes) {
+    const room = Math.min(maxEntryBytes, maxTotalBytes - total);
+    if (record.uncompressedSize > room) {
       skipped.push(record.name);
       continue;
     }
-    entries.push({ name: record.name, data: inflate(zip, record) });
+    let data: Buffer;
+    try {
+      data = inflate(zip, record, room);
+    } catch (err) {
+      if (err instanceof ZipLimitError) {
+        skipped.push(record.name);
+        continue;
+      }
+      throw err;
+    }
+    total += data.length;
+    entries.push({ name: record.name, data });
   }
   return { entries, skipped };
 }
@@ -82,7 +111,7 @@ function* centralDirectory(zip: Buffer): Generator<CentralRecord> {
   }
 }
 
-function inflate(zip: Buffer, record: CentralRecord): Buffer {
+function inflate(zip: Buffer, record: CentralRecord, maxBytes: number): Buffer {
   const { localOffset, compressedSize, method } = record;
   if (localOffset + LOCAL_MIN_LEN > zip.length || zip.readUInt32LE(localOffset) !== LOCAL_SIG) {
     throw new ZipError('corrupt local header');
@@ -90,9 +119,19 @@ function inflate(zip: Buffer, record: CentralRecord): Buffer {
   const dataStart =
     localOffset + LOCAL_MIN_LEN + zip.readUInt16LE(localOffset + 26) + zip.readUInt16LE(localOffset + 28);
   const data = zip.subarray(dataStart, dataStart + compressedSize);
-  if (method === METHOD_STORED) return Buffer.from(data);
-  if (method === METHOD_DEFLATE) return inflateRawSync(data);
-  throw new ZipError(`unsupported compression method ${method}`);
+  if (method === METHOD_STORED) {
+    if (data.length > maxBytes) throw new ZipLimitError(`${record.name} is larger than ${maxBytes} bytes`);
+    return Buffer.from(data);
+  }
+  if (method !== METHOD_DEFLATE) throw new ZipError(`unsupported compression method ${method}`);
+  try {
+    return Number.isFinite(maxBytes) ? inflateRawSync(data, { maxOutputLength: maxBytes }) : inflateRawSync(data);
+  } catch (err) {
+    if ((err as { code?: unknown }).code === 'ERR_BUFFER_TOO_LARGE') {
+      throw new ZipLimitError(`${record.name} inflates past ${maxBytes} bytes`);
+    }
+    throw err;
+  }
 }
 
 function findEndOfCentralDirectory(zip: Buffer): number {

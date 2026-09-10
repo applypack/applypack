@@ -244,8 +244,9 @@ export function locateQuote(text, quote) {
   return m ? { start: m.index, end: m.index + m[0].length } : null;
 }
 
+// Both quotes too: the output lands in a title="…" attribute as well as in text.
 function escapeHtml(s) {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
 /**

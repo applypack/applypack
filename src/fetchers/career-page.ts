@@ -1,6 +1,5 @@
 import { logger } from '../logger';
-import { fetchWithRetry } from '../http';
-import { checkPostingUrl } from '../jobs/posting-url';
+import { checkPostingUrl, fetchPublicUrl } from '../jobs/posting-url';
 import { looksLikeChallenge } from '../watchlist/scan';
 import { decideChange } from '../watchlist/page-hash';
 import { stagePageChange } from '../watchlist/page-changes';
@@ -46,13 +45,12 @@ export interface CareerPageCompany {
 
 export async function fetchCareerPage(company: CareerPageCompany): Promise<NormalizedJob[]> {
   const url = careerPageUrl(company.atsToken);
-  const resp = await fetchWithRetry(url, {
+  // Every redirect hop is guarded before it is requested — the same rule
+  // every user-URL fetch in this project follows.
+  const resp = await fetchPublicUrl(url, {
     timeoutMs: TIMEOUT_MS,
     init: { headers: conditionalHeaders(company.id, url) },
   });
-  // Redirects are followed, so the host that answered is checked again — the
-  // same rule every user-URL fetch in this project follows.
-  careerPageUrl(resp.url || url);
   const html = await resp.text();
 
   // A bot check is not a change; hashing it would report the interstitial as

@@ -4,6 +4,31 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.5.3] — 2026-09-10
+
+### Security
+- **One SSRF guard, three layers.** The private-address check for a
+  user-supplied URL was a name check, and `localhost.`,
+  `[::ffff:169.254.169.254]` and `127.0.0.1.nip.io` all passed it. Now the
+  name is checked in every spelling, every address it resolves to must be
+  public before a connection is made, and redirects are walked one hop at a
+  time with the same two checks — a refused hop is never requested. Pasted
+  posting URLs, watched feeds and careers pages, Teamtailor custom domains
+  and the liveness ladder all go through it; the ladder's own second guard
+  is gone.
+- **The zip reader caps what an entry inflates to.** It compared against the
+  archive's own size field and inflated without a ceiling; a small archive
+  claiming small entries could take the web process down. The ceiling is on
+  the inflater now, with a total for an archive of resumes and a per-part
+  one for a .docx.
+- A quote inside a keyword term could break out of the highlight's `title`
+  attribute on the tailoring page and the demo; both quotes are escaped.
+- The screening CSV text-marks a cell that opens like a formula (`= + - @`),
+  so an applicant's file name or a quoted line cannot run in Excel.
+- A failed CLI call no longer logs the command line — which is the prompt,
+  and so the resume or the applicant's text — only stderr, the exit code and
+  the signal; the flash reads the same.
+
 ## [2.5.2] — 2026-09-10
 
 ### Changed

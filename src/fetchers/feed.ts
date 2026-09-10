@@ -1,6 +1,6 @@
 import Parser from 'rss-parser';
-import { fetchWithRetry, stripHtml } from '../http';
-import { checkPostingUrl } from '../jobs/posting-url';
+import { stripHtml } from '../http';
+import { checkPostingUrl, fetchPublicUrl } from '../jobs/posting-url';
 import { feedItemKey } from '../text-utils';
 import { conditionalHeaders, rememberResponse } from './conditional';
 import type { NormalizedJob } from '../types';
@@ -54,14 +54,13 @@ export interface FeedCompany {
 
 export async function fetchFeed(company: FeedCompany): Promise<NormalizedJob[]> {
   const url = feedUrl(company.atsToken);
-  const resp = await fetchWithRetry(url, {
+  // Every redirect hop is guarded before it is requested — a public feed URL
+  // can start redirecting into the private range, and then its "postings"
+  // would be whatever that host serves.
+  const resp = await fetchPublicUrl(url, {
     timeoutMs: TIMEOUT_MS,
     init: { headers: conditionalHeaders(company.id, url) },
   });
-  // Redirects are followed, so the host that actually answered is checked
-  // again — a public feed URL can start redirecting into the private range,
-  // and then its "postings" would be whatever that host serves.
-  feedUrl(resp.url || url);
   const feed = await parser.parseString(await resp.text());
   const jobs = feed.items.flatMap((item) => mapFeedItem(item, company.id) ?? []);
   rememberResponse(company.id, url, resp, jobs.length);
