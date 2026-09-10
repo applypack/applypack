@@ -212,7 +212,26 @@ jobsRoute.get('/jobs', async (c) => {
       orderBy,
       skip: (page - 1) * PAGE_SIZE,
       take: PAGE_SIZE,
-      include: {
+      // The columns the row renders and no more: with `include` every page
+      // carried fifty descriptions, the originals, the summaries and the
+      // applied-resume snapshots — 219 KB of text on the 09-04 data for
+      // fifteen scalars (audit 2026-09-10, DATA-1).
+      select: {
+        id: true,
+        title: true,
+        url: true,
+        location: true,
+        countries: true,
+        fitScore: true,
+        salaryMin: true,
+        salaryMax: true,
+        salaryCurrency: true,
+        salaryPeriod: true,
+        sourceUpdatedAt: true,
+        status: true,
+        fetchedAt: true,
+        postedAt: true,
+        techMatch: true,
         company: { select: { name: true, atsType: true, atsToken: true, watched: true } },
         verifications: {
           select: { verdict: true },
@@ -221,7 +240,7 @@ jobsRoute.get('/jobs', async (c) => {
         },
         // Only the selected search's row, so the list renders that search's
         // score in place of the best-of.
-        ...(profile && { scores: { where: { profileId: profile }, take: 1 } }),
+        ...(profile && { scores: { where: { profileId: profile }, take: 1, select: { fitScore: true } } }),
       },
     }),
     prisma.job.count({ where }),

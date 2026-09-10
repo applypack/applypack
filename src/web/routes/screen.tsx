@@ -39,6 +39,7 @@ import {
   getScreening,
   latestComparison,
   listApplicants,
+  listApplicantsWithText,
   listKnownApplicants,
   listScreenings,
   postingOf,
@@ -94,7 +95,8 @@ screenRoute.get('/screen/new', async (c) => {
     where: { status: { not: 'DISMISSED' } },
     orderBy: [{ fetchedAt: 'desc' }],
     take: JOB_PICK_LIMIT,
-    include: { company: { select: { name: true, atsType: true } } },
+    // A picker option, not a posting (DATA-5).
+    select: { id: true, title: true, fetchedAt: true, company: { select: { name: true, atsType: true } } },
   });
   const now = Date.now();
   const options = jobs
@@ -585,7 +587,8 @@ type Shortlist = { ok: true; applicants: ApplicantWithVerdict[] } | { ok: false;
 async function shortlistOf(screening: ScreeningWithJob, ids: number[]): Promise<Shortlist> {
   if (ids.length < MIN_COMPARE) return { ok: false, flash: `Tick ${MIN_COMPARE} to ${MAX_COMPARE} applicants to compare${ids.length === 1 ? ' — one on its own is a scorecard' : ''}.` };
   if (ids.length > MAX_COMPARE) return { ok: false, flash: `Narrow the shortlist first: at most ${MAX_COMPARE} applicants side by side, and you ticked ${ids.length}.` };
-  const byId = new Map((await listApplicants(screening.id, screening.rubricVersion)).map((a) => [a.id, a]));
+  // With their texts: a comparison reads them; the table never does.
+  const byId = new Map((await listApplicantsWithText(screening.id, screening.rubricVersion, ids)).map((a) => [a.id, a]));
   const applicants: ApplicantWithVerdict[] = [];
   for (const id of ids) {
     const a = byId.get(id);

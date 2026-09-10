@@ -51,7 +51,7 @@ import { fetchFeed } from './feed';
 import { fetchCareerPage } from './career-page';
 import { getSourceKeys } from '../settings';
 import { politeDelayMs, shuffleSources, tickSeed } from './source-order';
-import { isDue, nextCheckAfter, watchRules, type WatchRules } from '../watchlist/interval';
+import { nextCheckAfter, watchRules, type WatchRules } from '../watchlist/interval';
 import type { NormalizedJob } from '../types';
 
 export interface FetcherResult {
@@ -101,13 +101,23 @@ export async function runAllFetchers(
   }
 
   const now = new Date();
-  const companies = await prisma.company.findMany({
-    where: {
-      active: true,
-      ...(disabled.length > 0 ? { atsType: { notIn: disabled } } : {}),
-    },
-    orderBy: { id: 'asc' },
-  });
+  const rosterWhere = {
+    active: true,
+    ...(disabled.length > 0 ? { atsType: { notIn: disabled } } : {}),
+  };
+  // The due-ness is a where clause, on the index that exists for it, not a
+  // filter over every active row loaded in full (audit 2026-09-10, DATA-6).
+  // A manual run asks every row — see the note below.
+  const [companies, roster] = await Promise.all([
+    prisma.company.findMany({
+      where: {
+        ...rosterWhere,
+        ...(opts.manual ? {} : { OR: [{ nextCheckAt: null }, { nextCheckAt: { lte: now } }] }),
+      },
+      orderBy: { id: 'asc' },
+    }),
+    prisma.company.count({ where: rosterWhere }),
+  ]);
   // The watchlist's intervals ride on this tick, they do not replace it
   // (ADR 0036): the heartbeat still fires, the interval decides which rows it
   // asks. A row with no `nextCheckAt` is due, so every source behaves exactly
@@ -116,8 +126,8 @@ export async function runAllFetchers(
   // user at the screen asking now, and every attempt stamps the next check
   // an interval ahead — so within the hour after a tick the pacing would
   // otherwise answer "0 sources" to the very button that promises the tick.
-  const due = companies.filter((c) => (opts.manual || isDue(c, now)) && (opts.only?.(c) ?? true));
-  const waiting = companies.length - due.length;
+  const due = companies.filter((c) => opts.only?.(c) ?? true);
+  const waiting = roster - companies.length;
   if (waiting > 0) {
     logger.info({ due: due.length, waiting }, 'fetchers: some sources are not due yet');
   }

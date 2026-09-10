@@ -26,7 +26,7 @@ import { MAX_UPLOAD_MB } from '../upload';
 import type { FlashMessage } from '../flash';
 import { formatDate, formatRelative } from '../format';
 import type { ResumeReview } from '@prisma/client';
-import type { MatchWithJob, ResumeSummary } from '../../resume/store';
+import type { MatchRunSummary, ResumeSummary } from '../../resume/store';
 import { ResumeReviewCard } from './resume-review-card';
 import type { ReviewAnswer } from '../../resume/answers';
 import type { ReviewDelta } from '../../resume/review-delta';
@@ -44,7 +44,7 @@ export interface ResumeDetailProps {
   structure: DocxStructure | null;
   /** Its document properties; null for anything but a .docx. */
   props: DocxProps | null;
-  matches: MatchWithJob[];
+  matches: MatchRunSummary[];
   /** The latest strength review, or null when the user has never asked for one. */
   review: ResumeReview | null;
   /** The candidate's answers to the review's questions (ADR 0030 phase 3). */

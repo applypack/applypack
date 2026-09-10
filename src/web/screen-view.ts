@@ -1,4 +1,4 @@
-import type { ApplicantWithVerdict } from '../screening/store';
+import type { ApplicantRow } from '../screening/store';
 import { readScreenReply, type GateStatus } from '../screening/prompts';
 import type { EvidenceRung } from '../screening/rubric';
 import { orderVerdicts, readScreenBreakdown, type CapReason, type ConfidenceBand, type GateBucket } from '../screening/score';
@@ -86,7 +86,7 @@ export function adjustedScore(score: number, adjustment: number): number {
   return Math.max(0, Math.min(100, score + adjustment));
 }
 
-export function rowView(a: ApplicantWithVerdict & { sameAsNumber?: number | null }, now = new Date()): ApplicantRowView {
+export function rowView(a: ApplicantRow & { sameAsNumber?: number | null }, now = new Date()): ApplicantRowView {
   const status = a.parseStatus === 'unreadable' ? 'unreadable' : 'ok';
   const reply = a.verdict ? readScreenReply(a.verdict.facts) : null;
   const bd = a.verdict ? readScreenBreakdown(a.verdict.breakdown) : null;
@@ -192,7 +192,7 @@ export function exportRows(rows: ApplicantRowView[]): ExportRow[] {
  * table's order with and without the person's adjustments, and every
  * criterion's credit, answer and gate status off the stored breakdown.
  */
-export function calibrationRows(applicants: ApplicantWithVerdict[], now = new Date()): CalibrationRow[] {
+export function calibrationRows(applicants: ApplicantRow[], now = new Date()): CalibrationRow[] {
   const scored = groupRows(applicants.map((a) => rowView(a, now))).scored;
   const computed = orderVerdicts(scored.map((r) => ({ id: r.id, number: r.number, gateBucket: r.verdict!.bucket, score: r.verdict!.score, confidence: r.verdict!.confidence }))).map((x) => x.id);
   const byId = new Map(applicants.map((a) => [a.id, a]));

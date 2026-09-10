@@ -33,10 +33,26 @@ export async function deliverHeldAlerts(now: Date, schedule: Schedule): Promise<
 
   const rows = await prisma.job.findMany({
     where: { alertHeldAt: { not: null }, status: JobStatus.NEW },
-    include: {
+    // The message's fields only (DATA-5).
+    select: {
+      id: true,
+      title: true,
+      location: true,
+      countries: true,
+      workplace: true,
+      url: true,
+      fitScore: true,
+      salaryMin: true,
+      salaryMax: true,
+      salaryCurrency: true,
+      salaryPeriod: true,
+      techMatch: true,
+      redFlags: true,
+      summary: true,
+      fetchedAt: true,
       company: { select: { name: true, atsType: true, atsToken: true, watched: true, alertPolicy: true } },
       scores: {
-        include: { profile: { select: { name: true, notificationTargetId: true } } },
+        select: { profile: { select: { name: true, notificationTargetId: true } } },
         orderBy: { fitScore: 'desc' },
         take: 2,
       },

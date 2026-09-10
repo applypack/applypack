@@ -168,16 +168,17 @@ async function reclassify(opts: ReclassifyOptions): Promise<{ stats: CronStats }
         : null,
     }));
 
+    // Demotions are collected and written once per batch (DATA-4): a
+    // "Re-classify all" over thousands of rows was thousands of single-row
+    // updates, next to an updateMany the same file already uses above.
+    const demoteIds: number[] = [];
     for (const { job: j, outcome } of pending) {
       scanned++;
       opts.onProgress?.(scanned, total);
 
       if (outcome === null) {
         if (j.status !== JobStatus.DISMISSED) {
-          await prisma.job.update({
-            where: { id: j.id },
-            data: { status: JobStatus.DISMISSED },
-          });
+          demoteIds.push(j.id);
           demoted++;
         }
         filterRejected++;
@@ -190,10 +191,7 @@ async function reclassify(opts: ReclassifyOptions): Promise<{ stats: CronStats }
         // Reclassify treats pre-filtered jobs the same as base-filter rejects:
         // demote to DISMISSED so they leave the inbox.
         if (j.status !== JobStatus.DISMISSED) {
-          await prisma.job.update({
-            where: { id: j.id },
-            data: { status: JobStatus.DISMISSED },
-          });
+          demoteIds.push(j.id);
           demoted++;
         }
         continue;
@@ -234,6 +232,9 @@ async function reclassify(opts: ReclassifyOptions): Promise<{ stats: CronStats }
       } else {
         unchanged++;
       }
+    }
+    if (demoteIds.length > 0) {
+      await prisma.job.updateMany({ where: { id: { in: demoteIds } }, data: { status: JobStatus.DISMISSED } });
     }
   }
 

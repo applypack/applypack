@@ -4,6 +4,29 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.7.1] — 2026-09-10
+
+### Changed
+- **Pages read the columns they show.** The jobs list carried fifty full
+  postings per page — descriptions, originals, summaries, the applied-resume
+  snapshots, 219 KB of text on the 09-04 data — for fifteen scalars; the
+  resume page's history carried every stored snapshot and five Json columns
+  per run; the screening table carried two full texts per applicant; the
+  digest, the held-alert pass and the two job pickers the same. Each now
+  selects what it renders. Measured on 1 083 jobs: no page was slow before
+  (9–33 ms), so this is bytes moved, not milliseconds — the reason no index
+  was added: every query the audit named ran under a millisecond there.
+- **One read per tick instead of one per posting.** The tick asked "is this
+  stored?" once for each fetched posting — 1 600 to 5 500 round trips on a
+  cold tick; it asks once for the batch. Re-classify writes its demotions
+  once per batch instead of one row at a time; a screening run compares
+  the rubric version instead of re-reading the whole screening twice per
+  applicant; the sources due this tick are a where clause on the index
+  that exists for it.
+- Also in this release, untagged since 2.7.0: `src/web/app.ts` split from
+  the listener with the route smoke in CI (#235), ten dead exports gone and
+  the `export` dropped from 88 (#233), the docs brought in line (#234).
+
 ## [2.7.0] — 2026-09-10
 
 ### Changed
@@ -3466,6 +3489,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.7.1]: https://github.com/applypack/applypack/compare/v2.7.0...v2.7.1
 [2.7.0]: https://github.com/applypack/applypack/compare/v2.6.4...v2.7.0
 [2.6.4]: https://github.com/applypack/applypack/compare/v2.6.3...v2.6.4
 [2.6.3]: https://github.com/applypack/applypack/compare/v2.6.2...v2.6.3

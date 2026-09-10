@@ -63,6 +63,9 @@ const LetterFormSchema = z.object({
 
 export const letterRoute = new Hono();
 
+/** A picker option, not a posting: five columns instead of the row's forty (DATA-5). */
+const PICK_SELECT = { id: true, title: true, fitScore: true, fetchedAt: true, company: { select: { name: true } } } as const;
+
 letterRoute.get('/letter', async (c) => {
   const settings = await getSettings();
   // Newest first among the jobs that clear the primary search's threshold —
@@ -79,7 +82,7 @@ letterRoute.get('/letter', async (c) => {
       where,
       orderBy: [{ fetchedAt: 'desc' }],
       take: JOB_PICK_LIMIT,
-      include: { company: { select: { name: true } } },
+      select: PICK_SELECT,
     }),
     listResumes(),
   ]);
@@ -92,7 +95,7 @@ letterRoute.get('/letter', async (c) => {
           where: { status: { in: PICKABLE } },
           orderBy: [{ fetchedAt: 'desc' }],
           take: JOB_PICK_LIMIT,
-          include: { company: { select: { name: true } } },
+          select: PICK_SELECT,
         });
   const now = Date.now();
   return c.html(

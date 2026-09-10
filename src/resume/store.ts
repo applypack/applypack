@@ -199,10 +199,24 @@ export async function listMatchesForJob(jobId: number): Promise<MatchWithResume[
   });
 }
 
-export async function listMatchesForResume(resumeId: number): Promise<MatchWithJob[]> {
+/** One run of the resume's history: the scalars the list shows, never the snapshot or the five Json columns (DATA-5). */
+export type MatchRunSummary = Pick<ResumeMatch, 'id' | 'jobId' | 'resumeId' | 'resumeVersion' | 'draft' | 'matchScore' | 'createdAt'> & {
+  job: { id: number; title: string; company: { name: string } };
+};
+
+export async function listMatchesForResume(resumeId: number): Promise<MatchRunSummary[]> {
   return prisma.resumeMatch.findMany({
     where: { resumeId },
-    include: { job: { select: { id: true, title: true, company: { select: { name: true } } } } },
+    select: {
+      id: true,
+      jobId: true,
+      resumeId: true,
+      resumeVersion: true,
+      draft: true,
+      matchScore: true,
+      createdAt: true,
+      job: { select: { id: true, title: true, company: { select: { name: true } } } },
+    },
     orderBy: { createdAt: 'desc' },
     take: MATCH_LIST_LIMIT,
   });

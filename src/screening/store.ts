@@ -175,9 +175,26 @@ export async function createApplicant(input: NewApplicant): Promise<ApplicantSum
   });
 }
 
-export async function listApplicants(screeningId: number, rubricVersion: number): Promise<ApplicantWithVerdict[]> {
+/** A table row: everything but the file and the two texts — three hundred applicants twice over is what the page used to load (DATA-5). */
+export type ApplicantRow = Omit<ApplicantWithVerdict, 'text' | 'redactedText'>;
+
+export async function listApplicants(screeningId: number, rubricVersion: number): Promise<ApplicantRow[]> {
   const rows = await prisma.applicant.findMany({
     where: { screeningId },
+    orderBy: { number: 'asc' },
+    omit: { original: true, text: true, redactedText: true },
+    include: { verdicts: { orderBy: { createdAt: 'desc' }, take: 1 } },
+  });
+  return rows.map(({ verdicts, ...a }) => {
+    const verdict = verdicts[0] ?? null;
+    return { ...a, verdict, stale: verdict !== null && verdict.rubricVersion !== rubricVersion };
+  });
+}
+
+/** The shortlist with its redacted texts — what a comparison reads; never for the table. */
+export async function listApplicantsWithText(screeningId: number, rubricVersion: number, ids?: number[]): Promise<ApplicantWithVerdict[]> {
+  const rows = await prisma.applicant.findMany({
+    where: { screeningId, ...(ids ? { id: { in: ids } } : {}) },
     orderBy: { number: 'asc' },
     omit: { original: true },
     include: { verdicts: { orderBy: { createdAt: 'desc' }, take: 1 } },
@@ -186,6 +203,11 @@ export async function listApplicants(screeningId: number, rubricVersion: number)
     const verdict = verdicts[0] ?? null;
     return { ...a, verdict, stale: verdict !== null && verdict.rubricVersion !== rubricVersion };
   });
+}
+
+/** The rubric version alone — what a running batch checks between applicants (DATA-4). */
+export async function screeningStamp(id: number): Promise<{ rubricVersion: number } | null> {
+  return prisma.screening.findUnique({ where: { id }, select: { rubricVersion: true } });
 }
 
 export async function getApplicant(id: number): Promise<(ApplicantWithVerdict & { screening: ScreeningWithJob }) | null> {

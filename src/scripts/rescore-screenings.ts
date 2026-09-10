@@ -4,7 +4,7 @@ import { loadKeywordMatcher } from '../resume/keyword-matcher';
 import { anchorScreenReply } from '../screening/anchor';
 import { readScreenReply } from '../screening/prompts';
 import { scoreScreening } from '../screening/score';
-import { listApplicants, rubricOf, updateVerdictScore } from '../screening/store';
+import { listApplicantsWithText, rubricOf, updateVerdictScore } from '../screening/store';
 
 /*
  * Re-anchors and re-scores every current screening verdict with the rules
@@ -26,7 +26,7 @@ async function main(): Promise<void> {
   let changed = 0;
   for (const s of screenings) {
     const rubric = rubricOf(s);
-    const rows = await listApplicants(s.id, s.rubricVersion);
+    const rows = await listApplicantsWithText(s.id, s.rubricVersion);
     for (const a of rows) {
       if (!a.verdict || a.stale || a.parseStatus !== 'ok') continue;
       const reply = readScreenReply(a.verdict.facts);

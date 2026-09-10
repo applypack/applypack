@@ -31,12 +31,28 @@ export async function runDigestJob(): Promise<{ stats: CronStats }> {
       // §16); listing it here too would show the user the same posting twice.
       alertHeldAt: null,
     },
-    include: {
-      company: true,
+    // The fields the message carries — not the description, the original or
+    // the source payload the row also holds (DATA-5).
+    select: {
+      title: true,
+      location: true,
+      countries: true,
+      workplace: true,
+      url: true,
+      fitScore: true,
+      salaryMin: true,
+      salaryMax: true,
+      salaryCurrency: true,
+      salaryPeriod: true,
+      techMatch: true,
+      redFlags: true,
+      summary: true,
+      fetchedAt: true,
+      company: { select: { name: true, atsType: true, atsToken: true } },
       // The search that scored each posting best, so a reader running several
       // can tell the hunts apart in one list (ADR 0028).
       scores: {
-        include: { profile: { select: { name: true } } },
+        select: { profile: { select: { name: true } } },
         orderBy: { fitScore: 'desc' },
         take: 2,
       },
