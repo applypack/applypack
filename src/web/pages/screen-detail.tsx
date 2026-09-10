@@ -672,6 +672,9 @@ const RUN_BADGE_CSS = `
   tr[data-run-state="queued"] .run-badge { background: rgb(var(--surface-overlay)); color: rgb(var(--ink-muted)); }
   tr[data-run-state="scoring"] .run-badge { background: rgb(var(--violet) / .12); color: rgb(var(--violet)); }
   tr[data-run-state="scored"] .run-badge { background: rgb(var(--ok) / .12); color: rgb(var(--ok)); }
+  /* While a row is in the run, the number beside the badge is its previous verdict — say so, or it reads as the new one. */
+  tr[data-run-state] .score-now { color: rgb(var(--ink-faint)); font-weight: 400; }
+  tr[data-run-state] .score-now::before { content: "was "; font-size: 11px; }
 `;
 
 const GroupRow: FC<{ tone: 'ok' | 'warn' | 'danger' | 'neutral'; label: string; count: number }> = ({ tone, label, count }) => (
@@ -703,7 +706,7 @@ function rowRunState(number: number, run: ScreenRunState | null): RowRunState {
   return null;
 }
 
-const RUN_BADGE: Record<Exclude<RowRunState, null>, string> = { queued: 'queued', scoring: 'scoring…', scored: 'scored — refresh' };
+const RUN_BADGE: Record<Exclude<RowRunState, null>, string> = { queued: 'queued', scoring: 'scoring…', scored: 'scored — refresh for the new number' };
 
 const ApplicantRow: FC<{ r: ApplicantRowView; screeningId: number; gates: string[]; run: ScreenRunState | null }> = ({ r, screeningId, gates, run }) => {
   const v = r.verdict && !r.stale ? r.verdict : null;
@@ -786,7 +789,7 @@ const ApplicantRow: FC<{ r: ApplicantRowView; screeningId: number; gates: string
           {state ? RUN_BADGE[state] : ''}
         </span>
         {v ? (
-          <span class="font-semibold text-ink" title={v.cap !== null ? `capped at ${v.cap}` : undefined}>
+          <span class="score-now font-semibold text-ink" title={v.cap !== null ? `capped at ${v.cap}` : undefined}>
             {adjusted}
             {v.cap !== null && <span class="text-ink-faint">*</span>}
             {r.adjustment !== 0 && (

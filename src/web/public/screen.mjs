@@ -30,7 +30,7 @@ export function rowRunState(number, state) {
   return null;
 }
 
-const RUN_BADGE = { queued: 'queued', scoring: 'scoring…', scored: 'scored — refresh' };
+const RUN_BADGE = { queued: 'queued', scoring: 'scoring…', scored: 'scored — refresh for the new number' };
 
 function paintRows(state) {
   for (const tr of document.querySelectorAll('tr[data-applicant]')) {
