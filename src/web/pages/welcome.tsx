@@ -510,7 +510,7 @@ const ProfileStep: FC<WelcomeProps> = ({ profile, steps }) => {
             <div class="space-y-3 border-t border-line px-4 py-4">
               <Hint class="!mt-0">
                 It becomes a second search of its own, linked to that resume — one search per
-                resume. Only one runs at a time; you switch between them on Settings → Profile.
+                resume. Up to eight run at once; each is switched on or off on Settings → Profile.
               </Hint>
               <form
                 method="post"

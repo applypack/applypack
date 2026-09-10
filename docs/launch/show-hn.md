@@ -46,7 +46,7 @@ model marked it cannot-claim against the original resume, and typing a
 word is not evidence. Delete TypeScript to watch the primary-stack cap
 bite.
 
-Scoring is one corner of the console. A worker checks 22 sources hourly
+Scoring is one corner of the console. A worker checks 33 kinds of source hourly
 (Greenhouse, Lever, Ashby and seven more ATS vendors on boards you pick,
 eleven aggregators, the monthly HN "Who is hiring" thread), a classifier
 reads each posting against your profile, and Telegram pings you above
