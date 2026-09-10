@@ -69,12 +69,24 @@ test('toCsv quotes what needs quoting and marks the gates', () => {
   const csv = toCsv(SCREENING, ROWS);
   const lines = csv.split('\r\n');
   assert.ok(lines[0]!.startsWith('﻿Applicant,Name,File,Status,Bucket,Score,Your adjustment,Adjusted score,Confidence,Gate: EU work authorisation,Gate: German B2,'));
-  assert.ok(lines[1]!.includes(',81,+10 (referral from Ivan),91,high,'), 'the computed score, the correction and its reason, the adjusted number');
+  // The adjustment opens with a sign and is not a number, so it is text-marked for Excel.
+  assert.ok(lines[1]!.includes(",81,'+10 (referral from Ivan),91,high,"), 'the computed score, the correction and its reason, the adjusted number');
   assert.ok(lines[1]!.includes('"Олена, ""QA"""'), 'a comma and quotes inside a cell are escaped');
   assert.ok(lines[1]!.includes(',✓,?,6/7,9,senior,9.8 years across 3 employers · in a role now,To interview,'), 'the career line sits after the level');
   assert.ok(lines[1]!.includes(',Speaks Polish | Spoke at JavaDay 2024,Which level of German? | Who owned the ledger?'), 'stand-out facts before the questions');
   assert.ok(lines[2]!.startsWith('№5,,scan.pdf,unreadable,,,,,,,,'));
   assert.ok(lines[2]!.endsWith('another document of №2; no text layer'));
+});
+
+test('toCsv text-marks a cell that a spreadsheet would run as a formula', () => {
+  const rows: ExportRow[] = [
+    { ...ROWS[0]!, file: "=cmd|' /C calc'!A0.pdf", verdict: '@SUM(1)', questions: ['-2+3'], adjustment: 0, adjustmentNote: null },
+  ];
+  const line = toCsv(SCREENING, rows).split('\r\n')[1]!;
+  assert.ok(line.includes(",'=cmd|' /C calc'!A0.pdf,"), 'the file name an applicant chose');
+  assert.ok(line.includes(",'@SUM(1),"), 'model text');
+  assert.ok(line.includes(",'-2+3"), 'a leading minus that is not a number');
+  assert.ok(line.includes(',81,'), 'a plain number keeps its sign and stays a number');
 });
 
 test('toMarkdown groups by bucket and lists the unread files', () => {

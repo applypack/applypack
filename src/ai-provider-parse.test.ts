@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  cliFailure,
   ANTHROPIC_THINKING_HEADROOM_TOKENS,
   anthropicMaxTokens,
   buildClaudeCodeArgs,
@@ -292,5 +293,24 @@ test('the web tools filter through code execution only where the model can call 
   }
   for (const m of ['claude-haiku-4-5-20251001', 'claude-haiku-4-5', 'claude-opus-4-1-20250805', 'claude-sonnet-4-5', 'gpt-5-mini']) {
     assert.equal(webToolsDirectOnly(m), true, m);
+  }
+});
+
+test('cliFailure names the reason without the command line — which is the prompt', () => {
+  const secret = 'Command failed: claude --system-prompt RESUME TEXT -- posting text';
+  const timeout = cliFailure({ killed: true, signal: 'SIGTERM', code: null, message: secret }, 180_000);
+  assert.equal(timeout.reason, 'timed out after 180 s');
+  assert.deepEqual(timeout.log, { signal: 'SIGTERM' });
+
+  const exited = cliFailure({ code: 1, message: secret, stderr: 'Not logged in. Run `claude login`.\n' }, 1);
+  assert.equal(exited.reason, 'Not logged in. Run `claude login`.');
+  assert.deepEqual(exited.log, { code: 1, stderr: 'Not logged in. Run `claude login`.' });
+
+  assert.equal(cliFailure({ code: 2, message: secret }, 1).reason, 'exited with code 2');
+  assert.equal(cliFailure({ code: null, signal: 'SIGKILL', killed: false, message: secret }, 1).reason, 'ended by SIGKILL');
+  assert.equal(cliFailure({ code: 'ENOENT', message: secret }, 1).reason, 'not found on PATH');
+  assert.equal(cliFailure({ code: 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER', message: secret }, 1).reason, 'the reply exceeded the 1 MiB output cap');
+  for (const f of [timeout, exited]) {
+    assert.doesNotMatch(JSON.stringify(f), /RESUME TEXT|posting text/);
   }
 });

@@ -1,8 +1,8 @@
 import Parser from 'rss-parser';
 import { findCountry } from '../countries';
-import { fetchWithRetry, stripHtml } from '../http';
+import { stripHtml } from '../http';
 import { conditionalHeaders, rememberResponse } from './conditional';
-import { isPrivateHost } from '../jobs/posting-url';
+import { fetchPublicUrl, isPrivateHost } from '../jobs/posting-url';
 import type { LocationHints, WorkplaceCode } from '../location';
 import { feedItemKey } from '../text-utils';
 import type { NormalizedJob } from '../types';
@@ -63,7 +63,9 @@ export interface TeamtailorCompany {
 export async function fetchTeamtailor(company: TeamtailorCompany): Promise<NormalizedJob[]> {
   const host = teamtailorHost(company.atsToken);
   const url = teamtailorFeedUrl(host);
-  const resp = await fetchWithRetry(url, {
+  // A custom career domain is the user's host, so it goes through the same
+  // guard a pasted URL does — resolved, and every redirect hop checked.
+  const resp = await fetchPublicUrl(url, {
     timeoutMs: TIMEOUT_MS,
     init: { headers: conditionalHeaders(company.id, url) },
   });

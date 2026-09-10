@@ -1,11 +1,11 @@
 import { AtsType } from '@prisma/client';
-import { fetchWithRetry, HttpError } from '../http';
+import { HttpError } from '../http';
 import { probeAts } from '../ats-probe';
 import { getSettings, getSourceKeys } from '../settings';
 import { aiCrawlerTokens, parseAiEngineConfig, type AiProviderId } from '../ai-engine';
 import { config } from '../config';
 import { extractAtsToken } from '../text-utils';
-import { checkPostingUrl } from '../jobs/posting-url';
+import { checkPostingUrl, fetchPublicUrl } from '../jobs/posting-url';
 import { bindingTokens, robotsAllows } from '../robots';
 import { looksLikeFeed } from '../fetchers/feed';
 import { boardHints, declaredJobFeeds, looksLikeChallenge, wellKnownFeeds } from './scan';
@@ -245,10 +245,11 @@ export async function liveResolveIo(): Promise<ResolveIo> {
   return {
     async get(url) {
       try {
-        const resp = await fetchWithRetry(url, { timeoutMs: FETCH_TIMEOUT_MS });
+        const resp = await fetchPublicUrl(url, { timeoutMs: FETCH_TIMEOUT_MS });
         return { status: resp.status, url: resp.url || url, body: await resp.text() };
       } catch (err) {
-        // fetchWithRetry throws on every non-2xx; the status is the answer.
+        // fetchWithRetry throws on every non-2xx; the status is the answer. A
+        // hop the guard refused is no answer at all, like a host that is down.
         if (err instanceof HttpError) return { status: err.status, url, body: err.body ?? '' };
         return { status: 0, url, body: '' };
       }

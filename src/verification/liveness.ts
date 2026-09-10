@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { DEFAULT_USER_AGENT, stripHtml } from '../http';
+import { checkPostingUrl, fetchPublicHops, type HopResult } from '../jobs/posting-url';
 
 /**
  * F1 liveness ladder (ADR 0016): free checks before the AI verify.
@@ -345,25 +346,12 @@ function hostOf(url: string): string {
 }
 
 /**
- * Rung-2 SSRF guard for stored (possibly hand-pasted) URLs: http(s) only,
- * no credentials, no IP literals, no localhost/intranet names.
+ * Rung-2 SSRF guard for stored (possibly hand-pasted) URLs — the project's
+ * one guard (posting-url.ts), not a second reading of the same rules: two
+ * implementations had drifted apart by the 2026-09-10 audit.
  */
 export function isFetchableJobUrl(raw: string): boolean {
-  let u: URL;
-  try {
-    u = new URL(raw);
-  } catch {
-    return false;
-  }
-  if (u.protocol !== 'https:' && u.protocol !== 'http:') return false;
-  if (u.username || u.password) return false;
-  const host = u.hostname.toLowerCase();
-  if (host === 'localhost' || host.endsWith('.localhost')) return false;
-  if (host.endsWith('.local') || host.endsWith('.internal') || host.endsWith('.lan')) return false;
-  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(host)) return false;
-  if (host.includes(':') || host.startsWith('[')) return false;
-  if (!host.includes('.')) return false;
-  return true;
+  return checkPostingUrl(raw).ok;
 }
 
 // ---------------------------------------------------------------------------
@@ -398,22 +386,32 @@ async function checkPostingPage(url: string): Promise<LivenessVerdict> {
   // A pasted posting often has no URL at all — that is not a dangerous link (#161).
   if (url.trim().length === 0) return v('uncertain', 'no_url');
   if (!isFetchableJobUrl(url)) return v('uncertain', 'unfetchable_url');
-  const got = await fetchRaw(url, 'follow');
-  if (!got) return v('uncertain', 'network_error');
-  // A public host can redirect into the private range. classifyLiveness would
-  // reject the result anyway ('redirected_off_posting' fires on a host change),
-  // but that check exists to spot a bounce off the posting, not to hold a
-  // security boundary — re-run the guard so the refusal is deliberate.
-  if (!isFetchableJobUrl(got.finalUrl)) return v('uncertain', 'unfetchable_url');
-  return classifyLiveness(got.status, url, got.finalUrl, got.body);
+  // A public host can redirect into the private range, so the hops are walked
+  // one by one and each is guarded before it is requested. classifyLiveness
+  // still reads the URL that answered ('redirected_off_posting').
+  let got: HopResult<RawAnswer>;
+  try {
+    got = await fetchPublicHops(url, async (hop) => {
+      const answer = await fetchRaw(hop, 'manual');
+      if (!answer) throw new Error('network');
+      return answer;
+    });
+  } catch {
+    return v('uncertain', 'network_error');
+  }
+  if (!got.ok) return v('uncertain', 'unfetchable_url');
+  return classifyLiveness(got.response.status, url, got.url, got.response.body);
+}
+
+interface RawAnswer {
+  status: number;
+  location: string | null;
+  body: string;
 }
 
 // Not fetchWithRetry: here a 404 is a verdict, not an error to throw on,
-// and rung 1 must refuse redirects while rung 2 must follow and record them.
-async function fetchRaw(
-  url: string,
-  redirect: 'error' | 'follow',
-): Promise<{ status: number; finalUrl: string; body: string } | null> {
+// and rung 1 must refuse redirects while rung 2 walks them itself.
+async function fetchRaw(url: string, redirect: 'error' | 'manual'): Promise<RawAnswer | null> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   try {
@@ -426,7 +424,7 @@ async function fetchRaw(
       },
     });
     const body = await resp.text().catch(() => '');
-    return { status: resp.status, finalUrl: resp.url || url, body };
+    return { status: resp.status, location: resp.headers.get('location'), body };
   } catch {
     return null;
   } finally {

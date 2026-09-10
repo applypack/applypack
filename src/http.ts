@@ -36,6 +36,8 @@ export class HttpError extends Error {
   }
 }
 
+const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
+
 export async function fetchWithRetry(
   url: string,
   options: FetchOptions = {},
@@ -64,6 +66,13 @@ export async function fetchWithRetry(
           await sleep(delay);
         }
         continue;
+      }
+
+      // A caller that asked for redirects unfollowed wants the 3xx back to
+      // judge the next hop itself (posting-url.ts:fetchPublicHops); a 304 is
+      // still the conditional answer and still thrown (ADR 0035).
+      if (options.init?.redirect === 'manual' && REDIRECT_STATUSES.has(resp.status)) {
+        return resp;
       }
 
       if (!resp.ok) {

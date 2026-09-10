@@ -132,7 +132,16 @@ test('highlightHtml wraps spans, escapes html and drops overlaps', async () => {
     { start: 3, end: 7, cls: 'y' },
     { start: 6, end: 7, cls: 'z', title: 'q"t' },
   ]);
-  assert.equal(html, 'a <mark class="x">&lt;b&gt;</mark> <mark class="z" title="q&quot;t">c</mark> d'.replace('&quot;', '"'));
+  assert.equal(html, 'a <mark class="x">&lt;b&gt;</mark> <mark class="z" title="q&quot;t">c</mark> d');
+});
+
+test('highlightHtml keeps a quote in a term inside the title attribute', async () => {
+  // The title is built from a keyword term, which the model reads off the
+  // posting: a quote in it must not close the attribute (audit 2026-09-10).
+  const { highlightHtml } = await matcher;
+  const html = highlightHtml('redis', [{ start: 0, end: 5, cls: 'x', title: 'a" onmouseover="alert(1)' }]);
+  assert.equal(html, '<mark class="x" title="a&quot; onmouseover=&quot;alert(1)">redis</mark>');
+  assert.doesNotMatch(html, /onmouseover="alert/);
 });
 
 test('target-page module imports without a DOM and exposes init', async () => {

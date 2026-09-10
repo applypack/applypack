@@ -56,8 +56,18 @@ export const DECISION_LABELS: Record<string, string> = {
   declined: 'Declined',
 };
 
+/*
+ * Excel and LibreOffice run a cell that opens with = + - @ (or a tab or CR)
+ * as a formula, quoted or not; an apostrophe makes it text and stays out of
+ * sight. An applicant chooses their file name and the model quotes their
+ * resume, so both reach this table. A plain signed number is left alone.
+ */
+const FORMULA_LEADER = /^[=+\-@\t\r]/;
+const PLAIN_NUMBER = /^[-+]?\d+(?:[.,]\d+)?$/;
+
 function csvCell(v: unknown): string {
-  const s = v === null || v === undefined ? '' : String(v);
+  let s = v === null || v === undefined ? '' : String(v);
+  if (FORMULA_LEADER.test(s) && !PLAIN_NUMBER.test(s)) s = `'${s}`;
   return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 

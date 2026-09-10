@@ -1,12 +1,14 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { deflateRawSync } from 'node:zlib';
-import { readZipEntry, ZipError } from './zip';
+import { readZipEntries, readZipEntry, ZipError, ZipLimitError } from './zip';
 
 interface Entry {
   name: string;
   data: Buffer;
   deflate: boolean;
+  /** What the central directory claims the entry inflates to — a lie, when set. */
+  claimed?: number;
 }
 
 /** Builds a valid zip in memory — the writer half our reader deliberately lacks. */
@@ -31,7 +33,7 @@ function buildZip(entries: Entry[], comment = ''): Buffer {
     central.writeUInt32LE(0x02014b50, 0);
     central.writeUInt16LE(method, 10);
     central.writeUInt32LE(payload.length, 20);
-    central.writeUInt32LE(e.data.length, 24);
+    central.writeUInt32LE(e.claimed ?? e.data.length, 24);
     central.writeUInt16LE(name.length, 28);
     central.writeUInt32LE(offset, 42);
     name.copy(central, 46);
@@ -75,4 +77,46 @@ test('readZipEntry survives an archive comment', () => {
 test('readZipEntry rejects non-zip input', () => {
   assert.throws(() => readZipEntry(Buffer.from('%PDF-1.4 not a zip'), 'x'), ZipError);
   assert.throws(() => readZipEntry(Buffer.alloc(0), 'x'), ZipError);
+});
+
+test('readZipEntries caps what an entry inflates to, not what the archive claims (audit 2026-09-10)', () => {
+  const big = Buffer.alloc(3 * 1024 * 1024, 0x61); // deflates to a few KB
+  const zip = buildZip([
+    { name: 'honest.txt', data: Buffer.from('hello'), deflate: true },
+    { name: 'liar.txt', data: big, deflate: true, claimed: 100 },
+    { name: 'stored.txt', data: Buffer.alloc(2 * 1024 * 1024, 0x62), deflate: false },
+  ]);
+  const { entries, skipped } = readZipEntries(zip, 1024 * 1024);
+  assert.deepEqual(entries.map((e) => e.name), ['honest.txt']);
+  assert.deepEqual(skipped, ['liar.txt', 'stored.txt']);
+});
+
+test('readZipEntries stops at the total ceiling, entry by entry', () => {
+  const chunk = Buffer.alloc(3 * 1024 * 1024, 0x63);
+  const zip = buildZip([
+    { name: 'a.pdf', data: chunk, deflate: true },
+    { name: 'b.pdf', data: chunk, deflate: true, claimed: 10 },
+    { name: 'c.txt', data: Buffer.from('small'), deflate: true },
+  ]);
+  const { entries, skipped } = readZipEntries(zip, Infinity, 4 * 1024 * 1024);
+  assert.deepEqual(entries.map((e) => e.name), ['a.pdf', 'c.txt']);
+  assert.deepEqual(skipped, ['b.pdf']);
+});
+
+test('readZipEntry refuses a part past its ceiling', () => {
+  const zip = buildZip([{ name: 'word/document.xml', data: Buffer.alloc(200_000, 0x3c), deflate: true, claimed: 1 }]);
+  assert.throws(() => readZipEntry(zip, 'word/document.xml', 100_000), ZipLimitError);
+  assert.ok(readZipEntry(zip, 'word/document.xml') instanceof Buffer, 'the default ceiling is generous');
+});
+
+test('readZipEntries at a full ceiling skips the rest instead of asking zlib for nothing', () => {
+  const chunk = Buffer.alloc(1024, 0x64);
+  const zip = buildZip([
+    { name: 'a.txt', data: chunk, deflate: true },
+    { name: 'empty.txt', data: Buffer.alloc(0), deflate: true },
+    { name: 'b.txt', data: chunk, deflate: true },
+  ]);
+  const { entries, skipped } = readZipEntries(zip, Infinity, 1024);
+  assert.deepEqual(entries.map((e) => e.name), ['a.txt']);
+  assert.deepEqual(skipped, ['empty.txt', 'b.txt']);
 });

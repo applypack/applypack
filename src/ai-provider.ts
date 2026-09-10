@@ -13,6 +13,7 @@ import {
   buildGeminiCliArgs,
   CLI_PROVIDER_ENV_KEYS,
   cliThinkingCap,
+  cliFailure,
   describeAiFailure,
   parseClaudeCodeOutput,
   parseCodexCliOutput,
@@ -316,13 +317,12 @@ class CliProvider implements AiProvider {
           env: buildCliEnv(this.spec.envKeys, this.envSource(req)),
         }));
       } catch (err) {
-        logger.error({ err, label: req.label, provider: this.name }, 'ai: cli process failed');
         // execFile puts the whole command line — prompt included — in
-        // err.message, so prefer stderr, where the CLI states the reason.
-        const stderr = (err as { stderr?: unknown }).stderr;
-        const detail =
-          typeof stderr === 'string' && stderr.trim().length > 0 ? stderr : errorReason(err);
-        req.onError?.(describeAiFailure(`${this.bin}: ${detail}`));
+        // err.message, so neither the log line nor the flash may carry `err`:
+        // the reason is read off stderr, the exit code and the signal.
+        const failure = cliFailure(err, req.timeoutMs ?? CLI_TIMEOUT_MS);
+        logger.error({ label: req.label, provider: this.name, ...failure.log }, 'ai: cli process failed');
+        req.onError?.(describeAiFailure(`${this.bin}: ${failure.reason}`));
         return null;
       }
       const out = this.spec.parse(stdout);
