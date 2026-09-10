@@ -2124,7 +2124,7 @@ release-discipline skill, a docs/site block does not.
       polled JSON, multipart → 400) and ROUTE-5 (`/letter`, `/target`,
       profile save → pure decision modules; the reuse trichotomy in one
       place).
-- [ ] **`fetcher-dates`** (patch) — FETCH-1 a shared `safeDate` in the
+- [x] **`fetcher-dates`** (patch) — shipped v2.6.2; FETCH-5 left. FETCH-1 a shared `safeDate` in the
       seven RSS fetchers and `lever.ts`, and `classifier.ts:162` never
       throws on a date; FETCH-2 the `??` chain fixed in five fetchers
       (test: an item with an empty `<guid>`); FETCH-3 `conditionalHeaders`

@@ -4,6 +4,28 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.6.2] — 2026-09-10
+
+### Fixed
+- **A posting date that does not parse no longer poisons the tick.** Seven
+  feed fetchers (LaraJobs, We Work Remotely, Golang Projects, Jobicy, DOU,
+  Djinni, HN jobs) built `postedAt` with no check, and Lever accepted any
+  number; one unreadable `pubDate` made the classifier throw on that row,
+  the row was never stored (so it came back every tick), and the tick
+  discarded its whole ETag cache. Every fetcher reads dates through one
+  `safeDate`, and the ingest checks once more for the fetcher that forgets.
+- An empty `<guid></guid>` in a feed item counted as an id and dropped the
+  item (Teamtailor) or gave every such item the same id (four RSS
+  fetchers); an empty guid is now no guid.
+- Nine single-request sources send the validator they were owed —
+  RemoteOK, Working Nomads, Recruitee, BambooHR, Landing.jobs, DOU, Djinni
+  and Rippling's list — and LaraJobs and Jobicy fetch through the
+  project's client (its User-Agent, the retry ladder, an error the health
+  rules can read) instead of the parser's own.
+- A SmartRecruiters board whose list answers in the wrong shape is a
+  failure from the first tick, not an empty board that surfaces two weeks
+  later.
+
 ## [2.6.1] — 2026-09-10
 
 ### Fixed
@@ -3392,6 +3414,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.6.2]: https://github.com/applypack/applypack/compare/v2.6.1...v2.6.2
 [2.6.1]: https://github.com/applypack/applypack/compare/v2.6.0...v2.6.1
 [2.6.0]: https://github.com/applypack/applypack/compare/v2.5.4...v2.6.0
 [2.5.4]: https://github.com/applypack/applypack/compare/v2.5.3...v2.5.4

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { fetchWithRetry, stripHtml } from '../http';
+import { conditionalHeaders, rememberResponse } from './conditional';
 import type { WorkplaceCode } from '../location';
 import type { NormalizedJob } from '../types';
 
@@ -58,9 +59,12 @@ export interface RecruiteeCompany {
 export async function fetchRecruitee(
   company: RecruiteeCompany,
 ): Promise<NormalizedJob[]> {
-  const resp = await fetchWithRetry(ENDPOINT_TEMPLATE(company.atsToken));
+  const url = ENDPOINT_TEMPLATE(company.atsToken);
+  const resp = await fetchWithRetry(url, { init: { headers: conditionalHeaders(company.id, url) } });
   const raw: unknown = await resp.json();
-  return mapRecruiteeFeed(raw, company.id, company.atsToken);
+  const jobs = mapRecruiteeFeed(raw, company.id, company.atsToken);
+  rememberResponse(company.id, url, resp, jobs.length);
+  return jobs;
 }
 
 export function mapRecruiteeFeed(

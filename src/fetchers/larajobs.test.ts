@@ -133,3 +133,17 @@ function mustmapLarajobsItem(...args: Parameters<typeof mapLarajobsItem>): NonNu
   assert.ok(job, 'expected the fixture to map to a job');
   return job;
 }
+
+describe('mapLarajobsItem — dates and ids the feed gets wrong (audit 2026-09-10)', () => {
+  it('a pubDate that does not parse becomes a real date, not an Invalid one', () => {
+    const job = mustmapLarajobsItem({ title: 'Dev', link: 'https://larajobs.com/job/1', pubDate: 'garbage' }, COMPANY_ID);
+    assert.equal(Number.isNaN(job.postedAt.getTime()), false);
+  });
+
+  it('an empty <guid> is no guid: the id comes from the link', () => {
+    const empty = mustmapLarajobsItem({ title: 'Dev', link: 'https://larajobs.com/job/2', guid: '' }, COMPANY_ID);
+    const none = mustmapLarajobsItem({ title: 'Dev', link: 'https://larajobs.com/job/2' }, COMPANY_ID);
+    assert.notEqual(empty.externalId, '');
+    assert.equal(empty.externalId, none.externalId);
+  });
+});

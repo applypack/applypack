@@ -1,6 +1,8 @@
 import Parser from 'rss-parser';
+import { safeDate } from './dates';
 import { findCountry } from '../countries';
 import { fetchWithRetry, stripHtml } from '../http';
+import { conditionalHeaders, rememberResponse } from './conditional';
 import { feedItemKey } from '../text-utils';
 import type { NormalizedJob } from '../types';
 import { insideParens, parseDouTitle } from './dou-title';
@@ -50,9 +52,12 @@ export interface DouCompany {
 }
 
 export async function fetchDou(company: DouCompany): Promise<NormalizedJob[]> {
-  const resp = await fetchWithRetry(douFeedUrl(company.atsToken), { timeoutMs: PARSER_TIMEOUT_MS });
+  const url = douFeedUrl(company.atsToken);
+  const resp = await fetchWithRetry(url, { timeoutMs: PARSER_TIMEOUT_MS, init: { headers: conditionalHeaders(company.id, url) } });
   const feed = await parser.parseString(await resp.text());
-  return feed.items.flatMap((item) => mapDouItem(item, company.id) ?? []);
+  const jobs = feed.items.flatMap((item) => mapDouItem(item, company.id) ?? []);
+  rememberResponse(company.id, url, resp, jobs.length);
+  return jobs;
 }
 
 /** The token as a feed URL: known keys only, values encoded, `remote` kept bare as DOU writes it. */
@@ -97,7 +102,7 @@ export function mapDouItem(item: DouItem, companyId: number): NormalizedJob | nu
     url: link,
     location,
     description: header && body ? `${header}\n\n${body}` : header || body,
-    postedAt: item.pubDate ? new Date(item.pubDate) : new Date(),
+    postedAt: safeDate(item.pubDate),
     locationHints: {
       workplace: parsed.remote ? 'REMOTE' : 'UNKNOWN',
       countries: parsed.places.flatMap((p) => findCountry(p)?.code ?? findCountry(insideParens(p))?.code ?? []),

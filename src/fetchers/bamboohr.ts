@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { fetchWithRetry } from '../http';
+import { conditionalHeaders, rememberResponse } from './conditional';
 import type { NormalizedJob } from '../types';
 
 // BambooHR's public careers list: one GET, no auth, list-only by design
@@ -46,11 +47,14 @@ export interface BambooCompany {
 export async function fetchBamboo(
   company: BambooCompany,
 ): Promise<NormalizedJob[]> {
-  const resp = await fetchWithRetry(ENDPOINT_TEMPLATE(company.atsToken), {
-    init: { redirect: 'error' },
+  const url = ENDPOINT_TEMPLATE(company.atsToken);
+  const resp = await fetchWithRetry(url, {
+    init: { redirect: 'error', headers: conditionalHeaders(company.id, url) },
   });
   const raw: unknown = await resp.json();
-  return mapBambooFeed(raw, company.id, company.atsToken);
+  const jobs = mapBambooFeed(raw, company.id, company.atsToken);
+  rememberResponse(company.id, url, resp, jobs.length);
+  return jobs;
 }
 
 export function mapBambooFeed(

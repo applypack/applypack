@@ -1,6 +1,7 @@
 import Parser from 'rss-parser';
 import { findCountry } from '../countries';
 import { fetchWithRetry, stripHtml } from '../http';
+import { conditionalHeaders, rememberResponse } from './conditional';
 import type { LocationHints, WorkplaceCode } from '../location';
 import { feedItemKey } from '../text-utils';
 import type { NormalizedJob } from '../types';
@@ -50,9 +51,11 @@ const parser: Parser<unknown, LandingJobsItem> = new Parser({
 });
 
 export async function fetchLandingJobs(companyId: number): Promise<NormalizedJob[]> {
-  const resp = await fetchWithRetry(FEED_URL, { timeoutMs: TIMEOUT_MS });
+  const resp = await fetchWithRetry(FEED_URL, { timeoutMs: TIMEOUT_MS, init: { headers: conditionalHeaders(companyId, FEED_URL) } });
   const feed = await parser.parseString(await resp.text());
-  return feed.items.flatMap((item) => mapLandingJobsItem(item, companyId) ?? []);
+  const jobs = feed.items.flatMap((item) => mapLandingJobsItem(item, companyId) ?? []);
+  rememberResponse(companyId, FEED_URL, resp, jobs.length);
+  return jobs;
 }
 
 /** Pure mapper; the place and the arrangement come from the feed's own fields. */

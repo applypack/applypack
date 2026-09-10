@@ -1,6 +1,7 @@
 import Parser from 'rss-parser';
+import { safeDate } from './dates';
 import { fetchWithRetry, stripHtml } from '../http';
-import { feedItemKey } from '../text-utils';
+import { feedEntryId } from '../text-utils';
 import { conditionalHeaders, rememberResponse } from './conditional';
 import type { NormalizedJob } from '../types';
 
@@ -44,7 +45,7 @@ export function mapGolangProjectsItem(
   companyId: number,
 ): NormalizedJob | null {
   const link = item.link ?? '';
-  const externalId = item.guid ?? feedItemKey(link, item.title);
+  const externalId = feedEntryId(item.guid, link, item.title);
   // Nothing identifies this row — skip it rather than hash '' and merge
   // every such row onto one shared id.
   if (!externalId) return null;
@@ -57,7 +58,7 @@ export function mapGolangProjectsItem(
     url: link,
     location: deriveLocation(item.title ?? '', link),
     description,
-    postedAt: item.pubDate ? new Date(item.pubDate) : new Date(),
+    postedAt: safeDate(item.pubDate),
   } satisfies NormalizedJob;
 }
 

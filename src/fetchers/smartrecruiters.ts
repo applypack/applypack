@@ -92,11 +92,10 @@ export async function fetchSmartRecruiters(
   const raw: unknown = await resp.json();
   const list = SrListSchema.safeParse(raw);
   if (!list.success) {
-    logger.warn(
-      { errors: list.error.flatten().fieldErrors, atsToken: company.atsToken },
-      'smartrecruiters: list schema mismatch',
-    );
-    return [];
+    // Thrown, as Greenhouse / Lever / Ashby throw: an empty array here read
+    // as `empty` and took SILENT_DAYS to surface; a bad payload is a
+    // failure streak from the first tick (FETCH-4).
+    throw new Error(`SmartRecruiters list schema invalid for "${company.atsToken}": ${list.error.message}`);
   }
   // Normalise list rows
   const postings: z.infer<typeof SrPostingSchema>[] = [];

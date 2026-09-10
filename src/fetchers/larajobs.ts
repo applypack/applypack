@@ -1,6 +1,8 @@
 import Parser from 'rss-parser';
-import { stripHtml } from '../http';
-import { feedItemKey } from '../text-utils';
+import { safeDate } from './dates';
+import { fetchWithRetry, stripHtml } from '../http';
+import { conditionalHeaders, rememberResponse } from './conditional';
+import { feedEntryId } from '../text-utils';
 import type { NormalizedJob } from '../types';
 
 const FEED_URL = 'https://larajobs.com/feed';
@@ -51,8 +53,14 @@ const parser: Parser<unknown, LarajobsItem> = new Parser({
 export async function fetchLarajobs(
   companyId: number,
 ): Promise<NormalizedJob[]> {
-  const feed = await parser.parseURL(FEED_URL);
-  return feed.items.flatMap((item) => mapLarajobsItem(item, companyId) ?? []);
+  // Through fetchWithRetry, not parser.parseURL: the project's User-Agent
+  // (DOU answers rss-parser's own with a 403), the retry ladder, an HttpError
+  // the health rules can read, and the validator (FETCH-3).
+  const resp = await fetchWithRetry(FEED_URL, { timeoutMs: PARSER_TIMEOUT_MS, init: { headers: conditionalHeaders(companyId, FEED_URL) } });
+  const feed = await parser.parseString(await resp.text());
+  const jobs = feed.items.flatMap((item) => mapLarajobsItem(item, companyId) ?? []);
+  rememberResponse(companyId, FEED_URL, resp, jobs.length);
+  return jobs;
 }
 
 /**
@@ -66,7 +74,7 @@ export function mapLarajobsItem(
   companyId: number,
 ): NormalizedJob | null {
   const link = item.link ?? '';
-  const externalId = item.guid ?? feedItemKey(link, item.title);
+  const externalId = feedEntryId(item.guid, link, item.title);
   // Nothing identifies this row — skip it rather than hash '' and merge
   // every such row onto one shared id.
   if (!externalId) return null;
@@ -84,7 +92,7 @@ export function mapLarajobsItem(
     url: link,
     location,
     description,
-    postedAt: item.pubDate ? new Date(item.pubDate) : new Date(),
+    postedAt: safeDate(item.pubDate),
   } satisfies NormalizedJob;
 }
 

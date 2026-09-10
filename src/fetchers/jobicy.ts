@@ -1,7 +1,8 @@
 import Parser from 'rss-parser';
-import { sleep, stripHtml } from '../http';
+import { safeDate } from './dates';
+import { fetchWithRetry, sleep, stripHtml } from '../http';
 import { logger } from '../logger';
-import { feedItemKey } from '../text-utils';
+import { feedEntryId } from '../text-utils';
 import type { NormalizedJob } from '../types';
 import { type FetchContext, EMPTY_CONTEXT } from './fetch-context';
 
@@ -90,7 +91,10 @@ export async function fetchJobicy(
   const out = new Map<string, NormalizedJob>();
   for (const [i, slug] of feeds.entries()) {
     if (i > 0) await sleep(FEED_DELAY_MS);
-    const feed = await parser.parseURL(jobicyFeedUrl(category, slug));
+    // fetchWithRetry rather than parser.parseURL: the project's User-Agent and
+    // the retry ladder. No validator — one row makes several requests (ADR 0035).
+    const resp = await fetchWithRetry(jobicyFeedUrl(category, slug), { timeoutMs: PARSER_TIMEOUT_MS });
+    const feed = await parser.parseString(await resp.text());
     let added = 0;
     for (const item of feed.items) {
       const job = mapJobicyItem(item, companyId);
@@ -130,7 +134,7 @@ export function mapJobicyItem(
   companyId: number,
 ): NormalizedJob | null {
   const link = item.link ?? '';
-  const externalId = item.guid ?? feedItemKey(link, item.title);
+  const externalId = feedEntryId(item.guid, link, item.title);
   // Nothing identifies this row — skip it rather than hash '' and merge
   // every such row onto one shared id.
   if (!externalId) return null;
@@ -147,7 +151,7 @@ export function mapJobicyItem(
     url: link,
     location,
     description,
-    postedAt: item.pubDate ? new Date(item.pubDate) : new Date(),
+    postedAt: safeDate(item.pubDate),
     // <job_listing:location> is a fixed vocabulary ("USA", "Europe, Norway",
     // "Anywhere") the parser reads from the string; the board is remote-only.
     locationHints: { workplace: 'REMOTE' },

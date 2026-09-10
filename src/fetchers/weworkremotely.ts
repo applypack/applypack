@@ -1,8 +1,9 @@
 import Parser from 'rss-parser';
+import { safeDate } from './dates';
 import { fetchWithRetry, stripHtml } from '../http';
 import { conditionalHeaders, rememberResponse } from './conditional';
 import { parseLocation } from '../location';
-import { feedItemKey } from '../text-utils';
+import { feedEntryId } from '../text-utils';
 import type { NormalizedJob } from '../types';
 
 const PARSER_TIMEOUT_MS = 10_000;
@@ -68,7 +69,7 @@ export async function fetchWeWorkRemotely(
  */
 export function mapWwrItem(item: WwrItem, companyId: number): NormalizedJob | null {
   const link = item.link ?? '';
-  const externalId = item.guid ?? feedItemKey(link, item.title);
+  const externalId = feedEntryId(item.guid, link, item.title);
   // Nothing identifies this row — skip it rather than hash '' and merge
   // every such row onto one shared id.
   if (!externalId) return null;
@@ -88,7 +89,7 @@ export function mapWwrItem(item: WwrItem, companyId: number): NormalizedJob | nu
     url: link,
     location: where.length > 0 ? `Remote · ${where}` : 'Remote',
     description,
-    postedAt: item.pubDate ? new Date(item.pubDate) : new Date(),
+    postedAt: safeDate(item.pubDate),
     locationHints: { workplace: 'REMOTE', countries, regions },
   } satisfies NormalizedJob;
 }

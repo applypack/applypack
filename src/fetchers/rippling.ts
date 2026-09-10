@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { fetchWithRetry, sleep, stripHtml } from '../http';
+import { conditionalHeaders, rememberResponse } from './conditional';
 import { logger } from '../logger';
 import type { NormalizedJob } from '../types';
 
@@ -71,7 +72,10 @@ export interface RipplingCompany {
 export async function fetchRippling(
   company: RipplingCompany,
 ): Promise<NormalizedJob[]> {
-  const resp = await fetchWithRetry(LIST_URL(company.atsToken));
+  // The list is one request per tick and the details never change its
+  // validator — the same shape SmartRecruiters already revalidates.
+  const listUrl = LIST_URL(company.atsToken);
+  const resp = await fetchWithRetry(listUrl, { init: { headers: conditionalHeaders(company.id, listUrl) } });
   const raw: unknown = await resp.json();
   const rows = parseRipplingList(raw);
 
@@ -98,6 +102,7 @@ export async function fetchRippling(
     }
     out.push(toNormalized(row, detail, company.id));
   }
+  rememberResponse(company.id, listUrl, resp, out.length);
   return out;
 }
 

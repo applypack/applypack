@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { fetchWithRetry, stripHtml } from '../http';
+import { conditionalHeaders, rememberResponse } from './conditional';
 import { feedItemKey } from '../text-utils';
 import type { NormalizedJob } from '../types';
 
@@ -36,9 +37,11 @@ const WorkingNomadsResponseSchema = z.array(z.unknown());
 export async function fetchWorkingNomads(
   companyId: number,
 ): Promise<NormalizedJob[]> {
-  const resp = await fetchWithRetry(ENDPOINT);
+  const resp = await fetchWithRetry(ENDPOINT, { init: { headers: conditionalHeaders(companyId, ENDPOINT) } });
   const raw: unknown = await resp.json();
-  return mapWorkingNomadsFeed(raw, companyId);
+  const jobs = mapWorkingNomadsFeed(raw, companyId);
+  rememberResponse(companyId, ENDPOINT, resp, jobs.length);
+  return jobs;
 }
 
 export function mapWorkingNomadsFeed(
