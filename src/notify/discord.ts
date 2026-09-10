@@ -116,6 +116,10 @@ export async function postDiscord(
 
 export async function deliverDiscord(target: Pick<NotificationTarget, 'name' | 'webhookUrl'>, content: string): Promise<void> {
   if (!target.webhookUrl) throw new Error(`Discord target [${target.name}] has no webhook URL`);
+  // Checked when the row was added and again here, because a row is a row
+  // (the feed fetcher's rule): a hand-edited URL must not turn every digest
+  // into a POST to an arbitrary host.
+  if (!isDiscordWebhookUrl(target.webhookUrl)) throw new Error(`Discord target [${target.name}] does not point at Discord`);
   const result = await postDiscord(target.webhookUrl, content);
   if (!result.ok) throw new Error(`[${target.name}] ${result.error ?? 'unknown error'}`);
 }

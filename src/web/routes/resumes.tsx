@@ -1,5 +1,7 @@
 /** @jsxImportSource hono/jsx */
 import { Hono, type Context } from 'hono';
+import { idParam } from '../params';
+import { onceGuard } from '../once-guard';
 import { logger } from '../../logger';
 import type { ResumeReview } from '@prisma/client';
 import { reviewResume } from '../../resume/review';
@@ -53,6 +55,8 @@ import {
 } from '../upload';
 
 const MIN_DRAFT_CHARS = 200;
+/** A resume runs to a few thousand characters; the model reads 30 k. Past this it is not a resume. */
+const MAX_DRAFT_CHARS = 200_000;
 
 export const resumesRoute = new Hono();
 
@@ -78,7 +82,7 @@ resumesRoute.get('/resumes', async (c) => {
   );
 });
 
-resumesRoute.post('/resumes', resumeUploadLimit('/resumes'), async (c) => {
+resumesRoute.post('/resumes', resumeUploadLimit('/resumes'), onceGuard(() => 'resumes:upload', () => '/resumes'), async (c) => {
   const form = await c.req.parseBody();
   const upload = await readResumeUpload(form);
   if ('error' in upload) return flashRedirect('/resumes', 'err', upload.error);
@@ -95,8 +99,8 @@ resumesRoute.post('/resumes', resumeUploadLimit('/resumes'), async (c) => {
   });
 });
 
-resumesRoute.post('/resumes/:id/replace', resumeUploadLimit('/resumes'), async (c) => {
-  const id = Number(c.req.param('id'));
+resumesRoute.post('/resumes/:id/replace', resumeUploadLimit('/resumes'), onceGuard((c) => `resumes:replace:${c.req.param('id')}`, (c) => `/resumes/${c.req.param('id')}`), async (c) => {
+  const id = idParam(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text('Bad id', 400);
   if (!(await getResume(id))) return c.text('Not found', 404);
   const upload = await readResumeUpload(await c.req.parseBody());
@@ -110,7 +114,7 @@ resumesRoute.post('/resumes/:id/replace', resumeUploadLimit('/resumes'), async (
 });
 
 resumesRoute.get('/resumes/:id', async (c) => {
-  const id = Number(c.req.param('id'));
+  const id = idParam(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text('Bad id', 400);
   const [resume, matches, review, linkedProfiles, impact] = await Promise.all([
     getResume(id),
@@ -154,7 +158,7 @@ resumesRoute.get('/resumes/:id', async (c) => {
 });
 
 resumesRoute.get('/resumes/:id/download', async (c) => {
-  const id = Number(c.req.param('id'));
+  const id = idParam(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text('Bad id', 400);
   const row = await getResumeOriginal(id);
   if (!row) return c.text('Not found', 404);
@@ -168,7 +172,7 @@ resumesRoute.get('/resumes/:id/download', async (c) => {
 });
 
 resumesRoute.post('/resumes/:id/draft', async (c) => {
-  const id = Number(c.req.param('id'));
+  const id = idParam(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text('Bad id', 400);
   const current = await getResume(id);
   if (!current) return c.text('Not found', 404);
@@ -176,6 +180,9 @@ resumesRoute.post('/resumes/:id/draft', async (c) => {
   const text = typeof form.text === 'string' ? form.text.replace(/\r\n/g, '\n').trim() : '';
   if (text.length < MIN_DRAFT_CHARS) {
     return flashRedirect(`/resumes/${id}`, 'err', 'The draft is too short to be a resume.');
+  }
+  if (text.length > MAX_DRAFT_CHARS) {
+    return flashRedirect(`/resumes/${id}`, 'err', `The draft is longer than a resume (${MAX_DRAFT_CHARS.toLocaleString()} characters at most).`);
   }
   // A one-off check from the Compare page is not a resume: its text belongs to
   // the comparison, which keeps its own snapshot of it. Saving one used to mint
@@ -188,7 +195,7 @@ resumesRoute.post('/resumes/:id/draft', async (c) => {
   // it a .docx cannot be patched (the diff would be against nothing) and the
   // save is a text version, as before ADR 0038.
   const baseText = typeof form.baseText === 'string' ? form.baseText.replace(/\r\n/g, '\n').trim() : '';
-  const jobId = Number(form.jobId);
+  const jobId = idParam(form.jobId);
   const job = Number.isFinite(jobId)
     ? await prisma.job.findUnique({ where: { id: jobId }, include: { company: { select: { name: true } } } })
     : null;
@@ -311,7 +318,7 @@ async function saveEdited(
  * Offered on click with the current values shown, never done silently.
  */
 resumesRoute.post('/resumes/:id/props', async (c) => {
-  const id = Number(c.req.param('id'));
+  const id = idParam(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text('Bad id', 400);
   const [resume, row] = await Promise.all([getResume(id), getResumeOriginal(id)]);
   if (!resume || !row) return c.text('Not found', 404);
@@ -327,7 +334,7 @@ resumesRoute.post('/resumes/:id/props', async (c) => {
  * showed exactly what this writes, so one press is enough (ADR 0015).
  */
 resumesRoute.post('/resumes/:id/profile', async (c) => {
-  const id = Number(c.req.param('id'));
+  const id = idParam(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text('Bad id', 400);
   const resume = await getResume(id);
   if (!resume || resume.hidden) return c.text('Not found', 404);
@@ -344,7 +351,7 @@ resumesRoute.post('/resumes/:id/profile', async (c) => {
 });
 
 resumesRoute.post('/resumes/:id/rescan', async (c) => {
-  const id = Number(c.req.param('id'));
+  const id = idParam(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text('Bad id', 400);
   const resume = await getResume(id);
   if (!resume) return c.text('Not found', 404);
@@ -378,7 +385,7 @@ function deltaFor(current: ResumeReview | null, previous: ResumeReview | null): 
  * about the resume changes, so a failure costs the user nothing but the wait.
  */
 resumesRoute.post('/resumes/:id/review', async (c) => {
-  const id = Number(c.req.param('id'));
+  const id = idParam(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text('Bad id', 400);
   const resume = await getResume(id);
   if (!resume) return c.text('Not found', 404);
@@ -423,7 +430,7 @@ resumesRoute.post('/resumes/:id/review', async (c) => {
  * should know which button does.
  */
 resumesRoute.post('/resumes/:id/answers', async (c) => {
-  const id = Number(c.req.param('id'));
+  const id = idParam(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text('Bad id', 400);
   const form = await c.req.parseBody();
   const question = typeof form.question === 'string' ? form.question : '';
@@ -454,7 +461,7 @@ resumesRoute.post('/resumes/:id/answers', async (c) => {
  * produces things like "Alex Doe Senior Backend Resume (3)".
  */
 resumesRoute.post('/resumes/:id/rename', async (c) => {
-  const id = Number(c.req.param('id'));
+  const id = idParam(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text('Bad id', 400);
   const form = await c.req.parseBody();
   const name = (typeof form.name === 'string' ? form.name : '').trim().slice(0, MAX_RESUME_NAME_CHARS);
@@ -467,7 +474,7 @@ resumesRoute.post('/resumes/:id/rename', async (c) => {
 });
 
 resumesRoute.post('/resumes/:id/default', async (c) => {
-  const id = Number(c.req.param('id'));
+  const id = idParam(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text('Bad id', 400);
   if (!(await getResume(id))) return c.text('Not found', 404);
   await setDefaultResume(id);
@@ -475,7 +482,7 @@ resumesRoute.post('/resumes/:id/default', async (c) => {
 });
 
 resumesRoute.post('/resumes/:id/delete', async (c) => {
-  const id = Number(c.req.param('id'));
+  const id = idParam(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text('Bad id', 400);
   await deleteResume(id);
   logger.info({ id }, 'resume: deleted');

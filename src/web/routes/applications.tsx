@@ -1,5 +1,6 @@
 /** @jsxImportSource hono/jsx */
 import { Hono } from 'hono';
+import { idParam } from '../params';
 import { z } from 'zod';
 import { prisma } from '../../db';
 import { getSettings } from '../../settings';
@@ -16,8 +17,8 @@ import { groupEventsByJob, stageTimeLine, type StageTimeLine } from '../stage-ti
 export const ApplicationFormSchema = z.object({
   pipelineStage: z.string().max(40).optional(),
   appliedAt: z.string().optional(),
-  recruiterContact: z.string().optional(),
-  applicationNotes: z.string().optional(),
+  recruiterContact: z.string().max(300).optional(),
+  applicationNotes: z.string().max(10_000).optional(),
   // Absent when the page had no resumes to offer — "keep what is stored"
   // rather than "erase it" (applied-resume.ts).
   appliedResumeId: z.string().optional(),
@@ -108,7 +109,7 @@ const StageMoveSchema = z.object({ toStage: z.string().min(1).max(40) });
 // The full form on /jobs/:id stays the only place that edits appliedAt /
 // recruiterContact / applicationNotes — reusing it here would null them out.
 applicationsRoute.post('/jobs/:id/stage', async (c) => {
-  const id = Number(c.req.param('id'));
+  const id = idParam(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text('Bad id', 400);
   const settings = await getSettings();
   if (!settings.applicationTrackingEnabled) {
@@ -147,7 +148,7 @@ applicationsRoute.post('/jobs/:id/stage', async (c) => {
 });
 
 applicationsRoute.post('/jobs/:id/application', async (c) => {
-  const id = Number(c.req.param('id'));
+  const id = idParam(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text('Bad id', 400);
   const settings = await getSettings();
   if (!settings.applicationTrackingEnabled) {

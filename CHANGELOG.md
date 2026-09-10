@@ -4,6 +4,41 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.6.1] — 2026-09-10
+
+### Fixed
+- **Ids are read one way.** Every path, form and query id goes through one
+  reader that takes a plain integer and nothing else; `/jobs/1.5`, a form
+  without its `resumeId`, `?minFit=1.5` answered 500 from the database
+  driver and answer 400 now. A candidate that is already gone on
+  `/discovery` says so instead of failing; `/screen/:id/run` checks the
+  screening exists like every other screening route.
+- **A double press is refused, not doubled.** Re-classify, Rewrite, Fill
+  from a resume, a resume upload or replacement, the wizard's upload, a new
+  screening and a new alert target each refuse a second press while the
+  first is still running — two rows, two AI calls or two test messages
+  used to be the result.
+- **Every free text has a ceiling** — a pasted or replaced posting
+  (60 000 characters), a screening's posting, a resume draft (200 000), a
+  letter edit (20 000), application notes (10 000), a recruiter contact
+  (300), a search's notes (4 000) — and every POST that is not an upload
+  carries a 2 MB body limit; the upload routes keep their own larger ones.
+  A body past its limit answers 413 — the error handler used to flatten
+  the status into a 500 — and a status change on a job that is not there
+  answers 404.
+- With the database unreachable every route answered 500, `/health` and
+  `/static/*` included: static files are served before anything that reads
+  the database, and the sidebar's employer-mode read no longer takes the
+  request down with it — `/health` answers its 503, without the driver's
+  message (host, port, user) in the body.
+- A `WEB_BASIC_AUTH` that is not `user:password` stops the dashboard from
+  starting instead of serving open with a warning in the log.
+- A Discord webhook is checked to point at Discord when a message is sent,
+  not only when the row was added.
+- Opening the clean-render page no longer starts an AI reading of the
+  resume's shape by itself — the button on the page does. A GET that spends
+  a model call is one any page in the browser can fire with an image tag.
+
 ## [2.6.0] — 2026-09-10
 
 ### Fixed
@@ -3357,6 +3392,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.6.1]: https://github.com/applypack/applypack/compare/v2.6.0...v2.6.1
 [2.6.0]: https://github.com/applypack/applypack/compare/v2.5.4...v2.6.0
 [2.5.4]: https://github.com/applypack/applypack/compare/v2.5.3...v2.5.4
 [2.5.3]: https://github.com/applypack/applypack/compare/v2.5.2...v2.5.3

@@ -1,5 +1,6 @@
 /** @jsxImportSource hono/jsx */
 import { Hono } from 'hono';
+import { idParam } from '../params';
 import { CandidateStatus } from '@prisma/client';
 import { logger } from '../../logger';
 import {
@@ -80,7 +81,7 @@ discoveryRoute.post('/discovery/hn-run', (c) => {
 });
 
 discoveryRoute.post('/discovery/:id/promote', async (c) => {
-  const id = Number(c.req.param('id'));
+  const id = idParam(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text('Bad id', 400);
   try {
     await promoteCandidate(id);
@@ -95,16 +96,16 @@ discoveryRoute.post('/discovery/:id/promote', async (c) => {
 });
 
 discoveryRoute.post('/discovery/:id/ignore', async (c) => {
-  const id = Number(c.req.param('id'));
+  const id = idParam(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text('Bad id', 400);
-  await ignoreCandidate(id);
+  if (!(await ignoreCandidate(id))) return flashRedirect('/discovery', 'warn', 'That candidate is no longer listed.');
   return flashRedirect('/discovery', 'ok', 'Marked as ignored.');
 });
 
 discoveryRoute.post('/discovery/:id/delete', async (c) => {
-  const id = Number(c.req.param('id'));
+  const id = idParam(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text('Bad id', 400);
-  await deleteCandidate(id);
+  if (!(await deleteCandidate(id))) return flashRedirect('/discovery', 'warn', 'That candidate is no longer listed.');
   return flashRedirect('/discovery', 'ok', 'Candidate deleted.');
 });
 

@@ -2111,7 +2111,7 @@ release-discipline skill, a docs/site block does not.
       shown as "unfiled". Second pass: DATA-10 (`manual-job.ts`
       transaction + `P2002`, the scratch-row and `isDefault` races,
       `deleteProfile` under the lock).
-- [ ] **`route-hardening`** (minor) — ROUTE-2 one `idParam` (from
+- [x] **`route-hardening`** (patch) — shipped v2.6.1: ROUTE-1/2/3, SEC-7/8; ROUTE-4 (the 500s on repeat, cache headers on polled JSON, multipart → 400) and ROUTE-5 (the three handlers) left for a later pass. ROUTE-2 one `idParam` (from
       `screen.tsx:229`) for every `:id` and query id, 404 on a missing
       row (`discovery` ignore/delete, `/screen/:id/run`); ROUTE-1
       claim-before-create on `POST /resumes`, `/replace`, `/welcome/resume`,

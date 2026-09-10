@@ -15,6 +15,8 @@ import { classifyExistingJob, type ClassifiableJob } from './classify-existing';
  */
 
 export const MIN_DESCRIPTION_CHARS = 200;
+/** The most a pasted or replaced posting may run to — the model reads 30 k of it (posting-url.ts caps a fetched page there too). */
+export const MAX_POSTING_CHARS = 60_000;
 export const MAX_FIELD_CHARS = 200;
 
 /** '' and absent both mean "no salary" — hidden form fields post empty strings. */
@@ -28,7 +30,7 @@ export const ManualJobSchema = z.object({
   title: z.string().trim().min(1).max(MAX_FIELD_CHARS),
   url: z.string().trim().max(2000).default(''),
   location: z.string().trim().max(MAX_FIELD_CHARS).default(''),
-  description: z.string().trim().min(MIN_DESCRIPTION_CHARS),
+  description: z.string().trim().min(MIN_DESCRIPTION_CHARS).max(MAX_POSTING_CHARS),
   salaryMin: SalaryField,
   salaryMax: SalaryField,
 });

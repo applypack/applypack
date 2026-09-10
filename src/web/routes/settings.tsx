@@ -1,5 +1,7 @@
 /** @jsxImportSource hono/jsx */
 import { Hono } from 'hono';
+import { idParam } from '../params';
+import { onceGuard } from '../once-guard';
 import { AtsType } from '@prisma/client';
 import { z } from 'zod';
 import { logger } from '../../logger';
@@ -136,7 +138,7 @@ const ProfileFormSchema = z.object({
   roleTypes: z.string().optional().default(''),
   stackNiceToHave: z.string().optional().default(''),
   stackExclude: z.string().optional().default(''),
-  notes: z.string().optional().default(''),
+  notes: z.string().max(4_000).optional().default(''),
   seniority: z.union([z.string(), z.array(z.string())]).optional(),
   // ADR 0032: chips post one value each, the no-JS textarea posts a list.
   countries: z.union([z.string(), z.array(z.string())]).optional(),
@@ -340,7 +342,7 @@ settingsRoute.get('/settings', async (c) => {
   // ?profile= points the editor at a specific (possibly inactive) profile.
   // "+ New profile" lands here: new profiles are born inactive (issue #50)
   // and must be editable before activation.
-  const profileParam = Number(c.req.query('profile'));
+  const profileParam = idParam(c.req.query('profile'));
   if (Number.isFinite(profileParam)) {
     const editorProfile = await getProfile(profileParam);
     if (editorProfile) props.activeProfile = editorProfile;
@@ -824,7 +826,7 @@ settingsRoute.post('/settings/sources', async (c) => {
 });
 
 /** Both channels land here; `kind` says which form it was. A real test message goes out before the row is saved. */
-settingsRoute.post('/settings/targets', async (c) => {
+settingsRoute.post('/settings/targets', onceGuard(() => 'targets:add', () => '/settings?tab=notifications'), async (c) => {
   const form = await c.req.parseBody();
   const back = '/settings?tab=notifications';
   if (form.kind === 'discord') {
@@ -863,21 +865,21 @@ settingsRoute.post('/settings/targets', async (c) => {
 });
 
 settingsRoute.post('/settings/targets/:id/toggle', async (c) => {
-  const id = Number(c.req.param('id'));
+  const id = idParam(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text('Bad id', 400);
   await toggleNotificationTarget(id);
   return flashRedirect('/settings?tab=notifications', 'ok', 'Target toggled.');
 });
 
 settingsRoute.post('/settings/targets/:id/delete', async (c) => {
-  const id = Number(c.req.param('id'));
+  const id = idParam(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text('Bad id', 400);
   await deleteNotificationTarget(id);
   return flashRedirect('/settings?tab=notifications', 'ok', 'Target deleted.');
 });
 
 settingsRoute.post('/settings/targets/:id/test', async (c) => {
-  const id = Number(c.req.param('id'));
+  const id = idParam(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text('Bad id', 400);
   const t = await prisma.notificationTarget.findUnique({ where: { id } });
   if (!t) return flashRedirect('/settings?tab=notifications', 'err', 'Target not found.');
@@ -915,7 +917,7 @@ settingsRoute.post('/settings/profiles/new', async (c) => {
 // the hidden Run/Pause button is advisory only.
 settingsRoute.post('/settings/profiles/active', async (c) => {
   const form = await c.req.parseBody();
-  const id = Number(form.id);
+  const id = idParam(form.id);
   const want = form.active === '1';
   if (!Number.isFinite(id)) return flashRedirect('/settings?tab=profile', 'err', 'Invalid id.');
   // Server-side half of the gate (issue #50): a search with nothing to match
@@ -948,7 +950,7 @@ settingsRoute.post('/settings/profiles/active', async (c) => {
 
 settingsRoute.post('/settings/profiles/activate', async (c) => {
   const form = await c.req.parseBody();
-  const id = Number(form.id);
+  const id = idParam(form.id);
   if (!Number.isFinite(id)) return flashRedirect('/settings?tab=profile', 'err', 'Invalid id.');
   // Server-side half of the activation gate (issue #50) — the disabled
   // Activate button is advisory only.
@@ -978,7 +980,7 @@ settingsRoute.post('/settings/profiles/activate', async (c) => {
 
 settingsRoute.post('/settings/profiles/delete', async (c) => {
   const form = await c.req.parseBody();
-  const id = Number(form.id);
+  const id = idParam(form.id);
   if (!Number.isFinite(id)) return flashRedirect('/settings?tab=profile', 'err', 'Invalid id.');
   try {
     await deleteProfile(id);
@@ -993,7 +995,7 @@ settingsRoute.post('/settings/profiles/delete', async (c) => {
 });
 
 settingsRoute.post('/settings/profiles/:id/save', async (c) => {
-  const id = Number(c.req.param('id'));
+  const id = idParam(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text('Bad id', 400);
   const before = await getProfile(id);
   if (!before) {
@@ -1136,8 +1138,9 @@ async function sourcesWaiting(search: Profile): Promise<string> {
 settingsRoute.post(
   '/settings/profiles/:id/fill-from-resume',
   resumeUploadLimit('/settings?tab=profile'),
+  onceGuard((c) => `fill:${c.req.param('id')}`, () => '/settings?tab=profile'),
   async (c) => {
-  const id = Number(c.req.param('id'));
+  const id = idParam(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text('Bad id', 400);
   const profile = await getProfile(id);
   if (!profile) return flashRedirect('/settings?tab=profile', 'err', 'Profile not found.');
@@ -1148,7 +1151,7 @@ settingsRoute.post(
     if ('error' in upload) return flashRedirect('/settings?tab=profile', 'err', upload.error);
     resume = await createResume({ name: nameFromFilename(upload.sourceFilename), ...upload });
   } else {
-    const resumeId = Number(form.resumeId);
+    const resumeId = idParam(form.resumeId);
     if (!Number.isFinite(resumeId)) {
       return flashRedirect('/settings?tab=profile', 'err', 'Pick a resume first.');
     }

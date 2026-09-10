@@ -1,5 +1,6 @@
 /** @jsxImportSource hono/jsx */
 import { Hono } from 'hono';
+import { idParam } from '../params';
 import { bodyLimit } from 'hono/body-limit';
 import { z } from 'zod';
 import { prisma } from '../../db';
@@ -8,7 +9,8 @@ import { getAiRuntime } from '../../ai-runtime';
 import { AI_PROVIDER_LABELS, PROVIDER_PAID } from '../../ai-engine';
 import { config } from '../../config';
 import { getSettings } from '../../settings';
-import { createManualJob, MAX_FIELD_CHARS, MIN_DESCRIPTION_CHARS } from '../../jobs/manual-job';
+import { createManualJob, MAX_FIELD_CHARS, MAX_POSTING_CHARS, MIN_DESCRIPTION_CHARS } from '../../jobs/manual-job';
+import { onceGuard } from '../once-guard';
 import { briefForPosting, briefLine } from '../../resume/brief';
 import { ResumeTextError } from '../../resume/docx-text';
 import { extractResumeText } from '../../resume/resume-text';
@@ -121,7 +123,7 @@ const postingUploadLimit = bodyLimit({
   onError: () => flashRedirect('/screen/new', 'err', `File too large — the limit is ${MAX_UPLOAD_MB} MB.`),
 });
 
-screenRoute.post('/screen', postingUploadLimit, async (c) => {
+screenRoute.post('/screen', postingUploadLimit, onceGuard(() => 'screen:new', () => '/screen/new'), async (c) => {
   const form = await c.req.parseBody();
   const parsed = NewScreeningSchema.safeParse(form);
   if (!parsed.success) return flashRedirect('/screen/new', 'err', 'The form could not be read.');
@@ -227,11 +229,6 @@ async function startRubricDraft(
   return c.redirect(`/target/runs/${run.id}`, 303);
 }
 
-/** A path id, or NaN — Prisma throws on a NaN where clause, so every route reads ids through this. */
-function idParam(raw: string): number {
-  return /^\d{1,9}$/.test(raw) ? Number(raw) : NaN;
-}
-
 async function loadScreening(id: number) {
   return Number.isInteger(id) ? getScreening(id) : null;
 }
@@ -304,6 +301,9 @@ screenRoute.post('/screen/:id/posting', async (c) => {
   const text = typeof form.postingText === 'string' ? form.postingText.replace(/\r\n/g, '\n').trim() : '';
   if (text.length < MIN_DESCRIPTION_CHARS) {
     return flashRedirect(`/screen/${screening.id}#position`, 'err', `The posting needs at least ${MIN_DESCRIPTION_CHARS} characters.`);
+  }
+  if (text.length > MAX_POSTING_CHARS) {
+    return flashRedirect(`/screen/${screening.id}#position`, 'err', `A posting is at most ${MAX_POSTING_CHARS.toLocaleString()} characters.`);
   }
   if (text === screening.postingText) return flashRedirect(`/screen/${screening.id}#position`, 'ok', 'Posting unchanged.');
   await savePosting(screening.id, text);
@@ -548,7 +548,9 @@ function mimeOf(filename: string): string {
 }
 
 screenRoute.post('/screen/:id/run', async (c) => {
-  const id = idParam(c.req.param('id'));
+  const screening = await loadScreening(idParam(c.req.param('id')));
+  if (!screening) return flashRedirect('/screen', 'err', 'That screening no longer exists.');
+  const id = screening.id;
   const outcome = await startScreeningRun(id);
   const back = `/screen/${id}#results`;
   switch (outcome.kind) {

@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { idParam } from '../params';
 import { z } from 'zod';
 import { prisma } from '../../db';
 import { loadKeywordMatcher } from '../../resume/keyword-matcher';
@@ -47,8 +48,8 @@ function describe(
 export const keywordsRoute = new Hono();
 
 keywordsRoute.post('/jobs/:id/matches/:matchId/keywords', async (c) => {
-  const id = Number(c.req.param('id'));
-  const matchId = Number(c.req.param('matchId'));
+  const id = idParam(c.req.param('id'));
+  const matchId = idParam(c.req.param('matchId'));
   if (!Number.isFinite(id) || !Number.isFinite(matchId)) return c.text('Bad id', 400);
   const parsed = KeywordFormSchema.safeParse(await c.req.parseBody());
   if (!parsed.success) return c.text('Bad keyword edit', 400);
