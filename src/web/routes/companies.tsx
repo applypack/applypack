@@ -1,5 +1,6 @@
 /** @jsxImportSource hono/jsx */
 import { Hono, type Context } from 'hono';
+import { idParam } from '../params';
 import { AtsType, JobStatus } from '@prisma/client';
 import { z } from 'zod';
 import { prisma } from '../../db';
@@ -412,7 +413,7 @@ function packOrigin(value: unknown): PackOrigin {
 }
 
 companiesRoute.post('/companies/:id/toggle-active', async (c) => {
-  const id = Number(c.req.param('id'));
+  const id = idParam(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text('Bad id', 400);
 
   const current = await prisma.company.findUnique({
@@ -438,7 +439,7 @@ companiesRoute.post('/companies/:id/toggle-active', async (c) => {
  * recovered stops nagging without waiting for the next tick.
  */
 companiesRoute.post('/companies/:id/reprobe', async (c) => {
-  const id = Number(c.req.param('id'));
+  const id = idParam(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text('Bad id', 400);
   const company = await prisma.company.findUnique({
     where: { id },
@@ -472,7 +473,7 @@ companiesRoute.post('/companies/:id/reprobe', async (c) => {
 });
 
 companiesRoute.post('/companies/:id/delete', async (c) => {
-  const id = Number(c.req.param('id'));
+  const id = idParam(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text('Bad id', 400);
   const current = await prisma.company.findUnique({
     where: { id },

@@ -1,5 +1,7 @@
 /** @jsxImportSource hono/jsx */
 import { Hono } from 'hono';
+import { idParam } from '../params';
+import { onceGuard } from '../once-guard';
 import { isRelocation } from '../../eligibility';
 import { CronRunStatus, JobStatus, type Profile } from '@prisma/client';
 import { prisma } from '../../db';
@@ -84,7 +86,7 @@ welcomeRoute.get('/welcome', async (c) => {
     profile && facts.profileReady ? countWaitingUnscored(profile) : 0,
   ]);
 
-  const resumeId = Number(c.req.query('resume'));
+  const resumeId = idParam(c.req.query('resume'));
   const asNew = c.req.query('mode') === 'new';
   const draftResume = Number.isFinite(resumeId) && profile ? await getResume(resumeId) : null;
   const draft = draftResume && profile ? draftCard(profile, draftResume, asNew) : null;
@@ -198,7 +200,7 @@ welcomeRoute.post('/welcome/ai/test', async () => {
  * default), then the scan runs on the progress page and lands back here
  * with the draft. An already-scanned resume skips straight to the draft.
  */
-welcomeRoute.post('/welcome/resume', resumeUploadLimit(PROFILE_STEP), async (c) => {
+welcomeRoute.post('/welcome/resume', resumeUploadLimit(PROFILE_STEP), onceGuard(() => 'welcome:resume', () => PROFILE_STEP), async (c) => {
   const form = await c.req.parseBody();
   // "A second search" (§4 stage A) drafts a new profile instead of filling
   // the active one; the flag rides through the scan run in the result URL.
@@ -209,7 +211,7 @@ welcomeRoute.post('/welcome/resume', resumeUploadLimit(PROFILE_STEP), async (c) 
     if ('error' in upload) return flashRedirect(PROFILE_STEP, 'err', upload.error);
     resume = await createResume({ name: nameFromFilename(upload.sourceFilename), ...upload });
   } else {
-    const id = Number(form.resumeId);
+    const id = idParam(form.resumeId);
     if (Number.isFinite(id)) resume = await getResume(id);
   }
   if (!resume || resume.hidden) return flashRedirect(PROFILE_STEP, 'err', 'Pick a resume file first.');
@@ -250,7 +252,7 @@ welcomeRoute.post('/welcome/resume', resumeUploadLimit(PROFILE_STEP), async (c) 
 welcomeRoute.post('/welcome/profile/apply', async (c) => {
   const form = await c.req.parseBody();
   const { profile } = await loadWelcomeContext();
-  const resume = await getResume(Number(form.resumeId));
+  const resume = await getResume(idParam(form.resumeId));
   if (!profile) return flashRedirect(PROFILE_STEP, 'err', 'No primary search — create one in Settings → Profile.');
   if (!resume || !resume.scannedAt) return flashRedirect(PROFILE_STEP, 'err', 'That resume has not been read yet.');
   const draft = buildProfileDraft(profile, scanFields(resume));
@@ -276,7 +278,7 @@ welcomeRoute.post('/welcome/profile/apply', async (c) => {
  */
 welcomeRoute.post('/welcome/profile/create', async (c) => {
   const form = await c.req.parseBody();
-  const resume = await getResume(Number(form.resumeId));
+  const resume = await getResume(idParam(form.resumeId));
   if (!resume || resume.hidden || !resume.scannedAt) {
     return flashRedirect(PROFILE_STEP, 'err', 'That resume has not been read yet.');
   }

@@ -2,6 +2,8 @@ import { serve } from '@hono/node-server';
 import { serveStatic } from '@hono/node-server/serve-static';
 import { Hono } from 'hono';
 import { basicAuth } from 'hono/basic-auth';
+import { bodyLimit } from 'hono/body-limit';
+import { HTTPException } from 'hono/http-exception';
 import { secureHeaders } from 'hono/secure-headers';
 import { config } from '../config';
 import { logger } from '../logger';
@@ -26,6 +28,7 @@ import { welcomeRoute } from './routes/welcome';
 import { countriesRoute } from './routes/countries';
 import { screenRoute } from './routes/screen';
 import { ensureEmployerMode } from './employer-mode';
+import { DEFAULT_BODY_BYTES, hasOwnBodyLimit } from './body-limits';
 
 const app = new Hono();
 
@@ -60,7 +63,11 @@ if (config.WEB_BASIC_AUTH) {
     );
     logger.info({ user: username }, 'web: basic auth enabled');
   } else {
-    logger.warn('web: WEB_BASIC_AUTH set but malformed (expected user:password) — auth disabled');
+    // Fail closed: the operator asked for a lock and got the value wrong.
+    // Serving open with a warning in the log is how that goes unnoticed on
+    // a host bound to 0.0.0.0 (audit 2026-09-10, SEC-7).
+    logger.error('web: WEB_BASIC_AUTH is set but not user:password — refusing to start without the lock');
+    process.exit(1);
   }
 }
 
@@ -74,9 +81,27 @@ if (config.WEB_BASIC_AUTH) {
  */
 app.use('*', originGuard());
 
+// Static files (the browser modules of ADR 0010 among them) never touch the
+// database: served before anything that does, so an unreachable Postgres
+// cannot turn a stylesheet into a 500.
+app.use('/static/*', serveStatic({ root: './src/web/public', rewriteRequestPath: (p) => p.replace(/^\/static/, '') }));
+
+// Every POST carries a body ceiling; the upload routes bring their own,
+// larger one and are stepped around here (body-limits.ts).
+app.use('*', async (c, next) =>
+  hasOwnBodyLimit(c.req.method, c.req.path) ? next() : bodyLimit({ maxSize: DEFAULT_BODY_BYTES })(c, next),
+);
+
 // Tiny request log; also loads the employer-mode switch once, for the sidebar (ADR 0049).
 app.use('*', async (c, next) => {
-  await ensureEmployerMode();
+  // The sidebar's one switch. With the database down every route used to
+  // die here, /health included — the route decides what a missing database
+  // means for it (a 503 on /health), so the failure is logged and passed.
+  try {
+    await ensureEmployerMode();
+  } catch (err) {
+    logger.warn({ err, path: c.req.path }, 'web: employer mode unknown — database unreachable');
+  }
   const started = Date.now();
   await next();
   logger.info(
@@ -89,9 +114,6 @@ app.use('*', async (c, next) => {
     'web: request',
   );
 });
-
-// Browser-side keyword matcher for /jobs/:id/target (ADR 0010).
-app.use('/static/*', serveStatic({ root: './src/web/public', rewriteRequestPath: (p) => p.replace(/^\/static/, '') }));
 
 app.route('/', overviewRoute);
 app.route('/', welcomeRoute);
@@ -115,6 +137,9 @@ app.route('/', healthRoute);
 app.notFound((c) => c.text('Not found', 404));
 
 app.onError((err, c) => {
+  // A status hono itself raised — the 413 of a body past its limit — is the
+  // answer, not an accident to flatten into a 500.
+  if (err instanceof HTTPException) return err.getResponse();
   logger.error({ err, path: c.req.path }, 'web: unhandled error');
   return c.text('Internal server error', 500);
 });

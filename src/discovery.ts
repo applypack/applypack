@@ -123,13 +123,16 @@ export async function promoteCandidate(id: number): Promise<void> {
   );
 }
 
-export async function ignoreCandidate(id: number): Promise<void> {
-  await prisma.companyCandidate.update({
+/** False when no such candidate — a missing row is an answer, not a 500 (audit 2026-09-10, ROUTE-2). */
+export async function ignoreCandidate(id: number): Promise<boolean> {
+  const { count } = await prisma.companyCandidate.updateMany({
     where: { id },
     data: { status: CandidateStatus.IGNORED },
   });
+  return count > 0;
 }
 
-export async function deleteCandidate(id: number): Promise<void> {
-  await prisma.companyCandidate.delete({ where: { id } });
+export async function deleteCandidate(id: number): Promise<boolean> {
+  const { count } = await prisma.companyCandidate.deleteMany({ where: { id } });
+  return count > 0;
 }

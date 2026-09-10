@@ -1,5 +1,6 @@
 /** @jsxImportSource hono/jsx */
 import { Hono, type Context } from 'hono';
+import { idParam } from '../params';
 import { logger } from '../../logger';
 import { createResume, getResume, getResumeOriginal, versionFileName, type ResumeSummary } from '../../resume/store';
 import { readStructure, type JsonResume } from '../../resume/json-resume';
@@ -47,12 +48,10 @@ const isPdf = (filename: string) => /\.pdf$/i.test(filename);
 resumeRenderRoute.get('/resumes/:id/render', async (c) => {
   const ctx = await load(c);
   if ('response' in ctx) return ctx.response;
-  // The shape is read by its own AI call on the first visit (#184): the scan
-  // no longer carries it. `?shape=text` is where a failed reading lands — the
-  // built-in reader's shape, and a button to try the AI again.
-  if (ctx.origin === 'text' && c.req.query('shape') !== 'text') {
-    return c.redirect(`/target/runs/${startStructureRun(ctx.resume).id}`, 303);
-  }
+  // The shape is read by its own AI call (#184) — started by the button on
+  // this page, never by the visit itself: a GET that spends a model call is
+  // one any page in the browser can fire with an image tag (audit
+  // 2026-09-10, SEC-7). Until then the page shows the built-in reader's shape.
   const knobs = knobsFrom(ctx.style);
   return c.html(await page(ctx, knobs, parseFlashCookie(c.req.header('cookie'))), 200, {
     'Set-Cookie': clearFlashCookie(),
@@ -142,7 +141,7 @@ resumeRenderRoute.post('/resumes/:id/render', async (c) => {
  * the only hard failures are a bad id and a missing row.
  */
 async function load(c: Context): Promise<RenderContext | { response: Response }> {
-  const id = Number(c.req.param('id'));
+  const id = idParam(c.req.param('id'));
   if (!Number.isFinite(id)) return { response: c.text('Bad id', 400) };
   const resume = await getResume(id);
   if (!resume) return { response: c.text('Not found', 404) };

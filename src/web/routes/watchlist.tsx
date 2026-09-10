@@ -1,5 +1,6 @@
 /** @jsxImportSource hono/jsx */
 import { Hono } from 'hono';
+import { idParam } from '../params';
 import { AtsType } from '@prisma/client';
 import { z } from 'zod';
 import { prisma } from '../../db';
@@ -165,7 +166,7 @@ const WatchSchema = z.object({
 
 /** Interval / policy from the watchlist row's own selects. */
 watchlistRoute.post('/companies/:id/watch', async (c) => {
-  const id = Number(c.req.param('id'));
+  const id = idParam(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text('Bad id', 400);
   const form = await c.req.parseBody();
   const parsed = WatchSchema.safeParse({ checkEvery: form.checkEvery, alertPolicy: form.alertPolicy });
@@ -189,7 +190,7 @@ watchlistRoute.post('/companies/:id/watch', async (c) => {
 
 /** "Check now": due on the next heartbeat, whatever the interval said. */
 watchlistRoute.post('/companies/:id/check-now', async (c) => {
-  const id = Number(c.req.param('id'));
+  const id = idParam(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text('Bad id', 400);
   const company = await prisma.company.findUnique({ where: { id }, select: { name: true } });
   if (!company) return c.text('Not found', 404);
@@ -203,7 +204,7 @@ watchlistRoute.post('/companies/:id/check-now', async (c) => {
 
 /** Drop the star, keep the company: it stays a tracked source on the normal rules. */
 watchlistRoute.post('/companies/:id/unwatch', async (c) => {
-  const id = Number(c.req.param('id'));
+  const id = idParam(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text('Bad id', 400);
   const company = await prisma.company.findUnique({ where: { id }, select: { name: true } });
   if (!company) return c.text('Not found', 404);
