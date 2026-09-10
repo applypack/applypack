@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { deflateRawSync } from 'node:zlib';
-import { displayName, expandUploads, findDuplicate, fingerprintText, isAcceptedResume } from './intake';
+import { displayName, expandUploads, findDuplicate, fingerprintBytes, fingerprintText, isAcceptedResume } from './intake';
 
 /** The same in-memory zip writer zip.test.ts uses. */
 function buildZip(entries: { name: string; data: Buffer }[]): Buffer {
@@ -83,4 +83,11 @@ test('findDuplicate: the same text is a re-upload, the same person is another ve
   const edited = `Updated 2026\n${body}`;
   assert.equal(findDuplicate({ email: null, phone: null, ...fingerprintText(edited) }, known)?.kind, 'same-person', 'a re-upload with a new line on top is a version');
   assert.equal(findDuplicate({ email: 'b@y.io', phone: null, ...fingerprintText('Completely different frontend resume about React and design systems. '.repeat(8)) }, known), null);
+});
+
+test('fingerprintBytes: the same bytes are one hash, different bytes are not, and it is a 32-char hex', () => {
+  const a = fingerprintBytes(Buffer.from('%PDF-1.4 scanned'));
+  assert.equal(a, fingerprintBytes(Buffer.from('%PDF-1.4 scanned')));
+  assert.notEqual(a, fingerprintBytes(Buffer.from('%PDF-1.4 scanned ')));
+  assert.match(a, /^[0-9a-f]{32}$/);
 });

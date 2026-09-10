@@ -234,6 +234,11 @@ model Job {
   screenings    Screening[]
 
   @@unique([companyId, externalId])
+  // Postgres does not index the referencing side of a foreign key: without
+  // these, every job delete scans job for cross-listings and every resume
+  // delete scans job for applications (audit 2026-09-10, DATA-2).
+  @@index([crossListedOfJobId])
+  @@index([appliedResumeId])
   @@index([status, fetchedAt])
   // Delivery reads the held rows on every heartbeat; almost always none.
   @@index([alertHeldAt])
@@ -421,6 +426,12 @@ model NotificationTarget {
   lastUsed   DateTime?
   profiles   Profile[]
 
+  // One row per destination (ADR 0053): the same bot and chat, or the same
+  // webhook, added twice used to be two active rows and every alert twice.
+  // NULLs are distinct to Postgres, so a Telegram row never collides with a
+  // Discord one.
+  @@unique([botToken, chatId])
+  @@unique([webhookUrl])
   @@map("notification_target")
 }
 
@@ -661,6 +672,7 @@ model CoverLetter {
   createdAt        DateTime @default(now())
 
   @@index([jobId, createdAt])
+  @@index([resumeId])
   @@map("cover_letter")
 }
 
@@ -760,6 +772,7 @@ model Screening {
   comparisons ScreeningComparison[]
 
   @@index([retainUntil])
+  @@index([jobId])
   @@map("screening")
 }
 
@@ -814,6 +827,9 @@ model Applicant {
   verdicts ScreeningVerdict[]
 
   @@unique([screeningId, number])
+  // The same document twice is one row (ADR 0053): the request-time check
+  // reads a snapshot, and two uploads at once both missed it.
+  @@unique([screeningId, textHash])
   @@index([screeningId, parseStatus])
   @@map("applicant")
 }

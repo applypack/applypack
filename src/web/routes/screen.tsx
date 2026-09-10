@@ -13,7 +13,8 @@ import { briefForPosting, briefLine } from '../../resume/brief';
 import { ResumeTextError } from '../../resume/docx-text';
 import { extractResumeText } from '../../resume/resume-text';
 import { applyPreset, draftRubric, PRESETS, rubricEquals, rubricFromForm, rubricSummary, type Preset } from '../../screening/rubric';
-import { displayName, expandUploads, findDuplicate, fingerprintText, MAX_APPLICANTS_PER_SCREENING, MAX_BATCH_UPLOAD_MB } from '../../screening/intake';
+import { Prisma } from '@prisma/client';
+import { displayName, expandUploads, findDuplicate, fingerprintBytes, fingerprintText, MAX_APPLICANTS_PER_SCREENING, MAX_BATCH_UPLOAD_MB } from '../../screening/intake';
 import { findLeaks, readRedactions, redactApplicant } from '../../screening/redact';
 import { MAX_COMPARE, MIN_COMPARE, readScreenReply } from '../../screening/prompts';
 import { comparisonMarkdown, comparisonView, readStoredComparison } from '../../screening/comparison';
@@ -400,7 +401,7 @@ screenRoute.post('/screen/:id/applicants', (c, next) => batchUploadLimit(c.req.p
     // Redacted once with a placeholder number for the name and email the
     // dedupe reads; the store puts its own number on the label.
     const redacted = text ? redactApplicant(text, 0) : null;
-    const print = text ? fingerprintText(text) : { hash: `unreadable:${file.name}:${file.bytes.length}`, simhash: null };
+    const print = text ? fingerprintText(text) : { hash: fingerprintBytes(file.bytes), simhash: null };
     const dup = text ? findDuplicate({ email: redacted?.email ?? null, phone: redacted?.phone ?? null, ...print }, known) : null;
     if (dup?.kind === 'same-text') {
       // The same file again: nothing new to read, and a second row would only be scored twice.
@@ -409,23 +410,34 @@ screenRoute.post('/screen/:id/applicants', (c, next) => batchUploadLimit(c.req.p
     }
     const leaks = redacted ? findLeaks(redacted.text, redacted) : [];
     if (leaks.length > 0) leaked++;
-    const row = await createApplicant({
-      screeningId: screening.id,
-      name: redacted?.name ?? null,
-      email: redacted?.email ?? null,
-      phone: redacted?.phone ?? null,
-      sourceFilename: displayName(file),
-      mimeType: mimeOf(file.name),
-      original: file.bytes,
-      text: text ?? '',
-      redactedTextFor: (n) => redacted?.text.replaceAll('Applicant №0', `Applicant №${n}`) ?? '',
-      redactions: redacted?.redactions ?? [],
-      parseStatus: text ? 'ok' : 'unreadable',
-      parseNote: text ? null : note,
-      sameAsId: dup?.match.id ?? null,
-      textHash: print.hash,
-      simhash: print.simhash,
-    });
+    let row: Awaited<ReturnType<typeof createApplicant>>;
+    try {
+      row = await createApplicant({
+        screeningId: screening.id,
+        name: redacted?.name ?? null,
+        email: redacted?.email ?? null,
+        phone: redacted?.phone ?? null,
+        sourceFilename: displayName(file),
+        mimeType: mimeOf(file.name),
+        original: file.bytes,
+        text: text ?? '',
+        redactedTextFor: (n) => redacted?.text.replaceAll('Applicant №0', `Applicant №${n}`) ?? '',
+        redactions: redacted?.redactions ?? [],
+        parseStatus: text ? 'ok' : 'unreadable',
+        parseNote: text ? null : note,
+        sameAsId: dup?.match.id ?? null,
+        textHash: print.hash,
+        simhash: print.simhash,
+      });
+    } catch (err) {
+      // The unique on (screening, textHash) is the check `known` cannot make:
+      // another upload of the same file landed since it was read (ADR 0053).
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+        repeats++;
+        continue;
+      }
+      throw err;
+    }
     if (!text) unreadable++;
     else {
       ok++;

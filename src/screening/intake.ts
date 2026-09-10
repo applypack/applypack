@@ -97,6 +97,11 @@ export interface TextFingerprint {
 }
 
 /** Exact and near-duplicate keys of one resume's text. */
+/** A file no text came out of is known by its bytes, so the same scan twice is one row and two different scans never collide. */
+export function fingerprintBytes(bytes: Uint8Array): string {
+  return createHash('sha256').update(bytes).digest('hex').slice(0, 32);
+}
+
 export function fingerprintText(text: string): TextFingerprint {
   const canon = text.normalize('NFKC').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
   return { hash: createHash('sha256').update(canon).digest('hex').slice(0, 32), simhash: simhash64(text) };

@@ -2077,7 +2077,7 @@ then integrity, then the plan.
 Each block is one branch = one PR; a runtime block gets a tag per the
 release-discipline skill, a docs/site block does not.
 
-- [ ] **`security-p1`** (patch) — SEC-1 resolve every address before
+- [x] **`security-p1`** (patch) — shipped v2.5.3, #224. SEC-1 resolve every address before
       connecting, refuse private ranges incl. IPv4-mapped IPv6, manual
       redirects with the check per hop, never make the request on a
       refusal; SEC-3 `liveness.ts:isFetchableJobUrl` calls the same guard;
@@ -2088,11 +2088,11 @@ release-discipline skill, a docs/site block does not.
       `= + - @`; PRIV-2 the CLI failure log line carries stderr and the
       exit code, never `err`. Tests: the three bypass URLs, a crafted zip
       with a lying header, the attribute-XSS term, the formula cell.
-- [ ] **`deps-hono`** (patch) — SEC-6 `npm audit fix` → hono 4.13.7 +
+- [x] **`deps-hono`** (patch) — shipped v2.5.4, #225. SEC-6 `npm audit fix` → hono 4.13.7 +
       node-server 1.19.17; lint, tests, a smoke of `/settings` and one
       multi-value form (gotcha 1 sits on `parseBody`). `node-cron` 4 is a
       separate decision (§ needs-maintainer-review).
-- [ ] **`metadata-drift`** (docs, no tag) — DOCS-1 package.json 24 → 33
+- [x] **`metadata-drift`** (docs, no tag) — shipped with v2.5.4, #226. DOCS-1 package.json 24 → 33
       and open with "Runs locally with Docker" (§9); the three launch
       drafts 22 → 33, "ten" → "twelve"; `source-count.test.ts` `DOCS` +=
       package.json (the JSON field) and `docs/launch/*.md`; COPY-1 the two
@@ -2100,7 +2100,7 @@ release-discipline skill, a docs/site block does not.
       honestly until the label has entries. Owner: GitHub About text
       (TASKS §14), label 3–5 open issues (`#203`, `#204`, `#208` are
       scoped), the social preview.
-- [ ] **`data-integrity`** (minor) — DATA-2 one migration indexing
+- [x] **`data-integrity`** (minor) — shipped v2.6.0 (ADR 0053); DATA-9 left for a later pass, DATA-10's scratch-row / `isDefault` / `deleteProfile` races too. DATA-2 one migration indexing
       `Job.crossListedOfJobId`, `Job.appliedResumeId`, `Screening.jobId`,
       `CoverLetter.resumeId`; DATA-3 `alertHeldAt` in the create
       (`mayAlert` is known at `:107`) and the `ALERTED` write guarded as

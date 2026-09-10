@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { logger } from '../../logger';
 import {
   addNotificationTarget,
+  findSameDestination,
   deleteNotificationTarget,
   getAiKeys,
   getSettings,
@@ -831,6 +832,9 @@ settingsRoute.post('/settings/targets', async (c) => {
     if (!parsed.success) {
       return flashRedirect(back, 'err', 'Invalid input — a name and a Discord webhook URL (https://discord.com/api/webhooks/…) are required.');
     }
+    // Before the test message, so a repeat does not post twice to the channel.
+    const same = await findSameDestination({ kind: 'DISCORD', ...parsed.data });
+    if (same) return flashRedirect(back, 'err', `That webhook is already added as "${same.name}".`);
     const test = await testDiscordWebhook(parsed.data.webhookUrl);
     if (!test.ok) return flashRedirect(back, 'err', `Validation failed: ${test.error ?? 'unknown'}`);
     await addNotificationTarget({ kind: 'DISCORD', ...parsed.data });
@@ -844,6 +848,8 @@ settingsRoute.post('/settings/targets', async (c) => {
   if (!parsed.success) {
     return flashRedirect(back, 'err', 'Invalid input — name, token, chat id required.');
   }
+  const same = await findSameDestination({ kind: 'TELEGRAM', ...parsed.data });
+  if (same) return flashRedirect(back, 'err', `That bot and chat are already added as "${same.name}".`);
   const test = await testTelegramTarget(parsed.data.botToken, parsed.data.chatId);
   if (!test.ok) {
     return flashRedirect(back, 'err', `Validation failed: ${test.error ?? 'unknown'}`);

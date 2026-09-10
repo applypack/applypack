@@ -284,6 +284,13 @@ export async function processNormalizedJobs(
       continue;
     }
 
+    // Whether the alert is skipped (issue #50) or held for the window is known
+    // before the row exists, so the held stamp is written WITH the row: a
+    // second statement could leave a NEW match with no stamp, which nothing
+    // would ever send (audit 2026-09-10, DATA-3).
+    const skipsAlert =
+      finalClassification.red_flags.includes(NO_PROFILE_STACK_FLAG) && !alertsEveryPosting(item.watch);
+    const alertHeldAt = !skipsAlert && !mayAlert ? new Date() : null;
     const stored = await persistJob(
       placed,
       finalClassification,
@@ -291,6 +298,7 @@ export async function processNormalizedJobs(
       winner.priorityRulesApplied,
       batch,
       verdicts,
+      alertHeldAt,
     );
     if (!stored) continue;
     const { created, crossListing } = stored;
@@ -303,15 +311,13 @@ export async function processNormalizedJobs(
     // A watched company on "every posting" is the exception: that flag is a
     // statement about the SCORE, and this alert makes no claim about the
     // score — it says a company the user chose has put something up.
-    if (finalClassification.red_flags.includes(NO_PROFILE_STACK_FLAG) && !alertsEveryPosting(item.watch)) {
-      continue;
-    }
+    if (skipsAlert) continue;
 
-    // Outside the alert window the match is kept, not dropped: the row stays
-    // NEW with its verdicts already stored, and the next heartbeat inside the
-    // window sends it in one grouped message instead of twelve at 03:00.
-    if (!mayAlert) {
-      await prisma.job.update({ where: { id: created.id }, data: { alertHeldAt: new Date() } });
+    // Outside the alert window the match is kept, not dropped: the row is NEW
+    // with its verdicts and its held stamp already stored, and the next
+    // heartbeat inside the window sends it in one grouped message instead of
+    // twelve at 03:00.
+    if (alertHeldAt) {
       stats.alertHeld++;
       continue;
     }
@@ -433,6 +439,7 @@ async function persistJob(
   priorityRulesApplied: string[],
   { stats, recentFingerprints }: Batch,
   verdicts: ProfileVerdict[] = [],
+  alertHeldAt: Date | null = null,
 ): Promise<{ created: Job; crossListing: CrossListing } | null> {
   const fingerprint = simhash64(job.description);
   const crossListing = findCrossListing(fingerprint, job.companyId, recentFingerprints);
@@ -445,6 +452,7 @@ async function persistJob(
           descriptionSimhash: fingerprint,
           crossListedOfJobId: crossListing?.job.id ?? null,
         }),
+        alertHeldAt,
         // Every search's verdict, written with the row it belongs to — a
         // second statement could leave a scored Job with no JobScore.
         // `pasted: false` is the same invariant buildJobData relies on: a
