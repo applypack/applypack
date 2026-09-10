@@ -2009,3 +2009,211 @@ A → B1+B2 → C → D → E.
 4. Accept Ukrainian CVs with photo and date of birth and redact, or demand
    clean files?
 5. Where do 90 human-ranked resumes for stage 0 come from?
+
+---
+
+## 20. Improvement plan + full audit (analysis 2026-09-10)
+
+An outside plan ([docs/applypack-improvement-and-claude-code-audit.md](./applypack-improvement-and-claude-code-audit.md))
+was read section by section against v2.5.2 — one file per section in
+[docs/improvement-2026-09/](./improvement-2026-09/README.md) — and its
+audit prompt was run in the form that fits this repo. The findings, with
+`file:line` evidence and severities, are [docs/audit-2026-09-10.md](./audit-2026-09-10.md).
+This section is the order of work. IDs (`SEC-1`, `DATA-3`, …) are the
+report's.
+
+### 20.1 Facts established (don't re-derive)
+
+- Roll-up: 0 × P0, 2 × P1, 27 × P2. No data loss, no secret leak, no
+  auth bypass, no blind-mode PII reaching a model.
+- The two P1s: `posting-url.ts:isPrivateHost` is a name check —
+  `localhost.`, `[::ffff:169.254.169.254]` and `127.0.0.1.nip.io` pass
+  (probed through `dist/`); `zip.ts` trusts the archive's own
+  `uncompressedSize` and inflates with no `maxOutputLength` (Node 24+
+  throws `ERR_BUFFER_TOO_LARGE` with the option — verified).
+- One malformed `pubDate` in one of seven RSS fetchers makes
+  `classifier.ts:162` throw on `toISOString()`, the row is never persisted
+  (re-fetched forever) and `tickStoredEverything` discards the whole
+  tick's ETag cache.
+- The dashboard loads `cdn.tailwindcss.com` and Google Fonts on every page
+  (`layout.tsx:209–215`); PRODUCT.md calls it a constraint; README says
+  nothing leaves the machine.
+- `hono@4.12.15` has ten advisories; `npm audit fix` is a minor bump of
+  exactly two packages.
+- Source count: the enum says 33; README and the site are guarded and
+  right; `package.json` (24), GitHub About (22) and the three launch
+  drafts (22, "ten ATS vendors") are stale.
+- The `good first issue` label is empty while three surfaces promise it.
+- Two user-facing sentences are false: "press Activate" on `/resumes/:id`
+  (the buttons are Run / Make primary) and "Only one runs at a time" on
+  `/welcome` (eight run at once since v1.10.0).
+- Baselines: lint 2.6 s, build 3.2 s, 2 170 tests in 2.3 s, no flakes in
+  two runs; 145 route handlers, 0 automated requests; 10 dead exports,
+  84 over-exported.
+- The live database is a fresh baseline (1 job) — every performance
+  finding is structural, none is measured; the 2026-09-02 cold tick
+  (5 500 rows) is the reference load.
+- Analytics: every tick already stores the funnel in `CronRun.stats`
+  (30-day retention); the F5 funnel cards were removed on 2026-09-01
+  (`eddfe40`) and F19 closed on n≈3; skill demand needs the classifier to
+  return the posting's own stack (today `techMatch` is the overlap with
+  the profile).
+
+### 20.2 Decisions
+
+Adopted from the plan: the employer page split (§6), the first-run
+follow-through (§10), a per-page copy pass with a must-stay list (§11/§12),
+a demo loop for README (§13), the metadata guard extended (§15/§16), the
+search funnel as a sum over stored stats with the coverage card as its
+third stage (§19/§22). Deferred with a trigger: skill demand (§20, ≥ 500
+classified postings in one search) and application feedback (§21, the F19
+trigger). Dropped: positioning (§2), shareable reports (§23). Not pasted:
+the 25-phase master prompt (§27 — its trimmed form is in the file). The
+audit's own findings outrank the plan's product items: security first,
+then integrity, then the plan.
+
+### 20.3 Blocks, in order
+
+Each block is one branch = one PR; a runtime block gets a tag per the
+release-discipline skill, a docs/site block does not.
+
+- [ ] **`security-p1`** (patch) — SEC-1 resolve every address before
+      connecting, refuse private ranges incl. IPv4-mapped IPv6, manual
+      redirects with the check per hop, never make the request on a
+      refusal; SEC-3 `liveness.ts:isFetchableJobUrl` calls the same guard;
+      SEC-2 `inflateRawSync(…, { maxOutputLength })`, an entry-count and a
+      total-bytes ceiling in `readZipEntries`, a cap on `readZipEntry`
+      (the .docx path); SEC-4 `escapeHtml` escapes `"` and `'` in
+      `target.mjs` (+ the site's vendored copy); SEC-5 `csvCell` prefixes
+      `= + - @`; PRIV-2 the CLI failure log line carries stderr and the
+      exit code, never `err`. Tests: the three bypass URLs, a crafted zip
+      with a lying header, the attribute-XSS term, the formula cell.
+- [ ] **`deps-hono`** (patch) — SEC-6 `npm audit fix` → hono 4.13.7 +
+      node-server 1.19.17; lint, tests, a smoke of `/settings` and one
+      multi-value form (gotcha 1 sits on `parseBody`). `node-cron` 4 is a
+      separate decision (§ needs-maintainer-review).
+- [ ] **`metadata-drift`** (docs, no tag) — DOCS-1 package.json 24 → 33
+      and open with "Runs locally with Docker" (§9); the three launch
+      drafts 22 → 33, "ten" → "twelve"; `source-count.test.ts` `DOCS` +=
+      package.json (the JSON field) and `docs/launch/*.md`; COPY-1 the two
+      false sentences; DOCS-2 the site/README/CONTRIBUTING line reads
+      honestly until the label has entries. Owner: GitHub About text
+      (TASKS §14), label 3–5 open issues (`#203`, `#204`, `#208` are
+      scoped), the social preview.
+- [ ] **`data-integrity`** (minor) — DATA-2 one migration indexing
+      `Job.crossListedOfJobId`, `Job.appliedResumeId`, `Screening.jobId`,
+      `CoverLetter.resumeId`; DATA-3 `alertHeldAt` in the create
+      (`mayAlert` is known at `:107`) and the `ALERTED` write guarded as
+      `alert-delivery.ts` guards it; DATA-7 `NotificationTarget` unique on
+      `(kind, chatId)` / `webhookUrl` and a pre-check with a flash;
+      DATA-8 unique `(screeningId, textHash)` and the intake reads it;
+      DATA-9 a stranded `pipelineStage` is repaired on column removal or
+      shown as "unfiled". Second pass: DATA-10 (`manual-job.ts`
+      transaction + `P2002`, the scratch-row and `isDefault` races,
+      `deleteProfile` under the lock).
+- [ ] **`route-hardening`** (minor) — ROUTE-2 one `idParam` (from
+      `screen.tsx:229`) for every `:id` and query id, 404 on a missing
+      row (`discovery` ignore/delete, `/screen/:id/run`); ROUTE-1
+      claim-before-create on `POST /resumes`, `/replace`, `/welcome/resume`,
+      `POST /screen`, and a guard on rewrite / reclassify /
+      fill-from-resume; ROUTE-3 `.max()` on the eight free-text fields and
+      a global `bodyLimit` (SEC-8) with the upload routes keeping their
+      own; SEC-7 `/health` without the raw error, `WEB_BASIC_AUTH`
+      fails closed, the Discord host re-checked at send, the render GET
+      becomes a POST. Then ROUTE-4 (the 500s on repeat, cache headers on
+      polled JSON, multipart → 400) and ROUTE-5 (`/letter`, `/target`,
+      profile save → pure decision modules; the reuse trichotomy in one
+      place).
+- [ ] **`fetcher-dates`** (patch) — FETCH-1 a shared `safeDate` in the
+      seven RSS fetchers and `lever.ts`, and `classifier.ts:162` never
+      throws on a date; FETCH-2 the `??` chain fixed in five fetchers
+      (test: an item with an empty `<guid>`); FETCH-3 `conditionalHeaders`
+      in the nine single-request fetchers, `larajobs` and `jobicy` through
+      `fetchWithRetry` + `parseString`; FETCH-4 SmartRecruiters throws on a
+      list-schema mismatch. Second pass: FETCH-5.
+- [ ] **`ai-provider-robustness`** (minor) — AI-1 `timeout` / signal on
+      `messages.create`; AI-2 `killSignal: 'SIGKILL'` after SIGTERM;
+      AI-3 `finish_reason` in the OpenAI schema, truncation on the CLI
+      parsers where the CLI reports it; AI-5 `PROMPT_MODULES` derived from
+      `walkSrc()`, the call-site regex widened, the fence anchor
+      un-anchored with a narrower replacement (test: the mid-line marker).
+      Then AI-4 (empty output is a failure, an abort class for auth
+      errors, `Retry-After`, 529, the probe's real reason) and PRIV-3
+      (replies logged at debug; prompts by stdin, or the trade-off
+      documented in `docs/ai-engines.md`).
+- [ ] **`dashboard-self-contained`** (minor) — PRIV-1 per
+      [07-privacy-messaging.md](./improvement-2026-09/07-privacy-messaging.md):
+      a committed Tailwind build over `src/web/**` with the theme from
+      `TAILWIND_CONFIG`, a test that every class token in every rendered
+      page exists in the CSS (92 template-literal `class=` sites), Inter
+      self-hosted from the site's woff2, the CDN and font hosts removed
+      from CSP, a grep test that they never return; PRODUCT.md / DESIGN.md
+      constraint line rewritten.
+- [ ] **`query-diet`** (minor; measured first) — restore a populated
+      database (the 09-04 dump), `EXPLAIN ANALYZE` the `/jobs` facet
+      tally, the `/companies` latest-job query and the FT sync sort; then
+      DATA-1 `select` on the list + the tally in SQL (or capped), DATA-5
+      `select` on the seven wide sites, DATA-4 one `findMany … in` for
+      `isPersisted`, `updateMany` in the reclassify loop, the applicant
+      number reserved once per upload, two integers instead of the
+      screening row per applicant, DATA-6 the due filter as a `where`
+      (the index exists) and the indexes the plans show are used.
+- [ ] **`a11y-pass`** (patch) — A11Y-1 a focus ring on `#editor`;
+      A11Y-2 `aria-live` on `#run-progress`, the score announced (a
+      visually-hidden live region beside the ring), the dirty bar's live
+      region carrying text that changes; A11Y-3 `scope` on the five
+      hand-rolled tables, `<th scope="row">` in the compare matrix, a
+      `caption` prop on `Table`. Then A11Y-4.
+- [ ] **`copy-pass`** (patch; one page per PR) — COPY-1 first (two false
+      sentences — in `metadata-drift` if that ships first); then the
+      candidate tables in [11-ui-copy.md](./improvement-2026-09/11-ui-copy.md)
+      as five `good first issue`-shaped issues, each PR with word counts
+      before/after and the must-stay list; COPY-3 one name for the score
+      (`fit` on the job side, `match` on the resume side, and say which is
+      which once), one name for the flow, the four DESIGN.md violations;
+      COPY-4 the thresholds and tone maps in one module each.
+- [ ] **`route-smoke-ci`** (no tag) — TEST-1: a Postgres service in
+      `test.yml`, `migrate deploy` + seed, the Hono app in-process,
+      `app.request()` over every GET route derived from the routers
+      (2xx/3xx), the wizard's POSTs and one upload; not Playwright
+      (TASKS §17.2 stands).
+- [ ] **`dead-exports`** (no tag) — DEAD-1 delete the ten (the cleanup
+      job keeps its inline delete — the worker may not import
+      `src/screening`), drop `export` from the 84, keep the 8 test seams;
+      the scan script into `src/scripts/` so the next audit reruns it.
+- [ ] **`docs-drift`** (no tag) — DOCS-3 PRODUCT.md (the wizard, Discord,
+      employer mode, the CDN line after `dashboard-self-contained`, the §30
+      sentence under "The task"), DESIGN.md (the screening patterns),
+      SPEC.md's goal line, the CLAUDE.md file rule on `screening/store.ts`.
+- [ ] **`site-employers`** (site, no tag) — §6 per
+      [06-employer-split.md](./improvement-2026-09/06-employer-split.md):
+      `site/public/employers/`, one CTA on the candidate page, nav, OG,
+      Lighthouse re-run; optional §5 graphic.
+- [ ] **`demo-loop`** (assets, no tag) — §13: `/demo/` recorded at
+      1280×720, three moves, ≤ 20 s, `.webm` + `.gif` < 3 MB into
+      `docs/screenshots/`; README above the static screenshot; the
+      launch drafts mention it.
+- [ ] **`first-run-follow-through`** (minor) — §10: cost hints on wizard
+      steps 3 and 5; an Overview "next three things" card while
+      `scoredCount > 0 && matchCount === 0` (open the top match →
+      Compare → Tailor), derived from data like the wizard's steps.
+- [ ] **`search-funnel`** (minor) — §19 stage 1: `src/web/funnel.ts`
+      (pure) summing `CronRun.stats` over 7 / 30 days + the
+      location-mismatch share from `job_score`, a strip on `/runs` and one
+      line on the Overview; decide `filterReason` after two weeks.
+      Stage 3 (§22): `src/resume/coverage.ts` folding a resume's stored
+      keyword tables, a "Missing across postings" card on `/resumes/:id`
+      at ≥ 5 comparisons. Deferred (§20): `stack_mentioned[]` from the
+      classifier, a column, a card — trigger ≥ 500 classified postings in
+      one search; §21 stays behind the F19 trigger.
+
+### 20.4 Owner items
+
+- GitHub About → the package description; social preview from
+  `docs/brand/social-card.png` (both already in §14).
+- Label 3–5 open issues `good first issue` (or accept the honest wording
+  from `metadata-drift`).
+- Decide: prompts in `argv` (document) or stdin; hold a leaking applicant
+  or queue it; `node-cron` 4.
+- Run once: the live failover check and the four-viewport browser pass
+  with data in the database ([27-master-prompt.md](./improvement-2026-09/27-master-prompt.md)).
