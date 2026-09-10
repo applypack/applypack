@@ -4,6 +4,26 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.7.2] — 2026-09-10
+
+### Changed
+- **Less water on the six busiest pages.** Twenty-five sentences that
+  repeated a heading, explained a control the eye already reads, or
+  described the implementation are gone or shorter — on Settings, the
+  tailoring page, the screening page, the wizard, the job page and the
+  resume page. Every sentence about a cap, an AI call, privacy, a
+  destructive action or the employer legal note stays. The screening
+  upload hint, one 120-word paragraph carrying six unrelated facts, is now
+  four lines.
+- Four things DESIGN.md forbade and the pages did: Re-classify on the job
+  page is violet like every other AI spend; "Watch the scoring" in the
+  wizard is a plain link, not violet; "By search" is no longer
+  uppercase-tracked; the 0–100 number on the tailoring page's history is
+  "match", the word the rest of the resume side uses.
+- The score's tone cut-offs (85 / 70 / 50) are named once in `format.ts`;
+  the tailoring page's "ready to apply" reads the same floor, and a test
+  holds the browser's ring to the same steps on every score.
+
 ## [2.7.1] — 2026-09-10
 
 ### Changed
@@ -3489,6 +3509,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.7.2]: https://github.com/applypack/applypack/compare/v2.7.1...v2.7.2
 [2.7.1]: https://github.com/applypack/applypack/compare/v2.7.0...v2.7.1
 [2.7.0]: https://github.com/applypack/applypack/compare/v2.6.4...v2.7.0
 [2.6.4]: https://github.com/applypack/applypack/compare/v2.6.3...v2.6.4

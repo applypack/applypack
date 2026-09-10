@@ -359,9 +359,8 @@ export const SettingsPage: FC<SettingsProps> = ({
   <Layout title="Settings" active="settings">
     <div class="w-full">
       <PageHeader title="Settings">
-        Toggles apply the moment you click; forms like the profile editor save on submit. No
-        restarts needed — dashboard actions use changes immediately; the background worker
-        picks them up within the hour.
+        No restart needed: the dashboard uses a change at once, the background worker within
+        the hour.
       </PageHeader>
       <Flash flash={flash} />
 
@@ -388,7 +387,7 @@ export const SettingsPage: FC<SettingsProps> = ({
       {activeTab === 'general' && (
       <Section
         title="Job fetching"
-        desc="The master switch for new-job ingestion. Everything else keeps running while paused."
+        desc="The master switch for new-job fetching."
       >
         <Card>
           <ToggleRow
@@ -410,7 +409,7 @@ export const SettingsPage: FC<SettingsProps> = ({
       {activeTab === 'general' && (
       <Section
         title="Schedule"
-        desc="When the search runs and when alerts arrive. Defaults to what it has always done: every hour, around the clock, one message per match."
+        desc="When the search runs and when alerts arrive."
       >
         <ScheduleCard view={schedule} />
       </Section>
@@ -656,7 +655,7 @@ export const SettingsPage: FC<SettingsProps> = ({
       {activeTab === 'general' && (
       <Section
         title="Application tracking"
-        desc="The funnel board and the nudge that keeps it honest."
+        desc="The applications board, and the reminder for the ones gone quiet."
       >
         <Card>
           <div class="space-y-5">
@@ -1570,7 +1569,7 @@ const ProfileEditor: FC<{
       <summary class="cursor-pointer select-none rounded-md px-4 py-3 text-[13px] font-medium text-ink transition-colors duration-150 hover:text-accent-strong">
         Advanced — excludes, notes, priority rules, thresholds
         <span class="ml-2 font-normal text-ink-faint">
-          Defaults work for most people; open this to fine-tune.
+          Excludes, notes, priority rules, thresholds.
         </span>
       </summary>
       <div class="space-y-5 border-t border-line px-4 py-4">
@@ -1659,7 +1658,7 @@ const PriorityRulesEditor: FC<{ profile: Profile }> = ({ profile }) => {
         <span class="ml-2 font-normal text-ink-faint">
           {rules.length > 0
             ? `${rules.length} rule${rules.length === 1 ? '' : 's'} set`
-            : 'None set — most people never need these.'}
+            : 'None set.'}
         </span>
       </summary>
       <div class="border-t border-line px-4 py-4">

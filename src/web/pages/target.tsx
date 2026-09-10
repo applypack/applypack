@@ -3,7 +3,7 @@ import type { FC } from 'hono/jsx';
 import { Layout } from '../layout';
 import { Badge, Button, Card, FitBadge, Flash, Hint, SUBMIT_ONCE } from '../ui';
 import type { FlashMessage } from '../flash';
-import { fitTone, formatRelative, type Tone } from '../format';
+import { FIT_OK_FLOOR, fitTone, formatRelative, type Tone } from '../format';
 import type { MatchWithResume } from '../../resume/store';
 import type { CountedKeyword } from '../../resume/keyword-matcher';
 import type { VerificationForHint } from '../../resume/verification-hint';
@@ -100,8 +100,8 @@ const AI_TONE: Record<Tone, string> = {
   neutral: 'text-ink-faint',
 };
 
-/** Score at which the card tells the user to stop polishing and apply. */
-const READY_TO_APPLY = 85;
+/** Score at which the card tells the user to stop polishing and apply — the `ok` tone's floor, one number in one place. */
+const READY_TO_APPLY = FIT_OK_FLOOR;
 
 /** The ring's circumference, 2πr for r=42 — the dash length the arc is cut from. */
 const RING_LENGTH = 263.9;
@@ -530,12 +530,9 @@ export const TargetPage: FC<TargetPageProps> = ({
             class="max-h-[70vh] overflow-auto whitespace-pre-wrap break-words font-sans text-sm leading-7 text-ink-muted"
           ></div>
           <Hint class="mt-2">
-            Green is already in your resume; red is what this posting requires and yours does not
-            say. A dashed underline means nothing in your resume backs the word yet — write it in
-            where it is true and it counts, or confirm it below; the number reads your text, not our
-            guess about you. Benefits, perks and legal
-            boilerplate are deliberately never keywords; hover a mark to see how often the posting
-            says the word, and re-level or ignore any of them in the keyword table.
+            A dashed underline means nothing in your resume backs the word yet — write it in where
+            it is true and it counts, or confirm it below; the number reads your text, not our guess
+            about you.
           </Hint>
         </Card>
 
@@ -589,8 +586,8 @@ export const TargetPage: FC<TargetPageProps> = ({
           </div>
           <Hint class="mt-2">
             {resume.ephemeral
-              ? 'Plain text — what an ATS parser sees. Edits stay in this browser tab until you re-check. Locate on a suggestion outlines the text it targets.'
-              : 'Plain text — what an ATS parser sees. Edits stay in this browser tab until you re-check or Save. Locate on a suggestion outlines the text it targets.'}
+              ? 'Plain text — what an ATS parser sees. Edits stay in this browser tab until you re-check.'
+              : 'Plain text — what an ATS parser sees. Edits stay in this browser tab until you re-check or Save.'}
           </Hint>
         </Card>
 
@@ -628,8 +625,8 @@ export const TargetPage: FC<TargetPageProps> = ({
                       </form>
                     </div>
                     <Hint class="mt-1.5">
-                      Markdown, for the document your resume really lives in. The second one is the
-                      diff of your own edits and turns on once you change the text.
+                      Both are Markdown. The second is the diff of your own edits and turns on once
+                      you change the text.
                     </Hint>
                   </div>
                   <ActionsBlock
@@ -721,7 +718,7 @@ const RunChip: FC<{ m: MatchWithResume; currentId: number; jobId: number }> = ({
           : 'border-line bg-surface-raised text-ink-muted hover:border-line-strong hover:text-ink'
       }`}
     >
-      <FitBadge score={m.matchScore} label="AI match" />
+      <FitBadge score={m.matchScore} label="match" />
       {m.resume.name}
       <span class="font-mono text-ink-faint">v{m.resumeVersion}</span>
       {m.draft && <Badge tone="violet">draft</Badge>}

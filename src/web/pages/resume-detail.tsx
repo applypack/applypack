@@ -178,8 +178,8 @@ export const ResumeDetailPage: FC<ResumeDetailProps> = ({
           ) : reviewed ? (
             <>
               <Hint>
-                The strength review above judged this version — follow its list. These are the
-                first scan's notes, kept for reference.
+                The strength review above judged this version; these are the first scan's notes,
+                kept for reference.
               </Hint>
               <details class="mt-2">
                 <summary class="cursor-pointer text-[13px] font-medium text-ink-muted transition-colors duration-150 hover:text-ink">
@@ -219,7 +219,7 @@ export const ResumeDetailPage: FC<ResumeDetailProps> = ({
           </div>
           <Hint class="sm:col-span-2">
             Edited the resume from the comparison notes? Upload it here, then hit Compare on the
-            job again — the history below shows how the score moves between versions.
+            job again.
           </Hint>
         </form>
       </Card>
@@ -231,7 +231,7 @@ export const ResumeDetailPage: FC<ResumeDetailProps> = ({
         {matches.length === 0 ? (
           <div class="px-5 py-4">
             <Hint>
-              None yet. Open a job and use "Resume match" to compare this resume against it.
+              None yet. Open a job and press Compare to score this resume against it.
             </Hint>
           </div>
         ) : (

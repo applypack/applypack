@@ -2164,7 +2164,7 @@ release-discipline skill, a docs/site block does not.
       region carrying text that changes; A11Y-3 `scope` on the five
       hand-rolled tables, `<th scope="row">` in the compare matrix, a
       `caption` prop on `Table`. Then A11Y-4.
-- [ ] **`copy-pass`** (patch; one page per PR) — COPY-1 first (two false
+- [x] **`copy-pass`** (patch) — shipped v2.7.2 as one pass over the six pages (25 sentences cut or shortened, the six-fact upload hint split into lines, four DESIGN.md corrections, the tone floors named once with a parity test); left: the tab/flow/source naming (COPY-3's rename half). COPY-1 first (two false
       sentences — in `metadata-drift` if that ships first); then the
       candidate tables in [11-ui-copy.md](./improvement-2026-09/11-ui-copy.md)
       as five `good first issue`-shaped issues, each PR with word counts
