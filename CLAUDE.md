@@ -109,7 +109,9 @@
   `redact.ts`, `dates.ts`, `prompts.ts`, `anchor.ts`, `score.ts`,
   `trajectory.ts`, `comparison.ts`, `calibration.ts`, `bench.ts`,
   `intake.ts`, `export.ts`, `notice.ts` are pure (tested); `store.ts` is
-  the only file that touches Prisma; `batch.ts` and `compare.ts` run the
+  the only file in the module that touches Prisma (the worker's
+  `cleanup-job.ts` deletes expired screenings with its own query, because
+  the worker may not import this module); `batch.ts` and `compare.ts` run the
   calls; `scripts/screen-bench-once.ts` runs a gold folder through the
   same path without the database. Web-only behind
   `AppSettings.employerMode` — the worker never imports it, and nothing in
