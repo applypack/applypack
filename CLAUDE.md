@@ -186,7 +186,13 @@
   `decideStageStrategy`, `mapXFeed` mappers). The unit-test file lives
   next to the source as `*.test.ts`.
 - CI runs `npm run lint:types` (`tsc --noEmit`) + `npm test` on every
-  push and PR (see `.github/workflows/test.yml`).
+  push and PR, then migrates a Postgres service and runs the **route
+  smoke** (`npm run smoke:routes` after `npm run build` —
+  `src/scripts/route-smoke.ts`): fixtures in, every GET route one
+  in-process request through `app.request()`, the first run's POSTs, a
+  cross-origin POST refused. A 500 anywhere fails the build. Run it locally
+  on a throwaway database only — it inserts rows and switches employer
+  mode on (see `.github/workflows/test.yml`).
 
 ## Docker
 - Multi-stage Dockerfile: `deps → build → runtime`.

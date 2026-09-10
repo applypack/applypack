@@ -10,6 +10,22 @@ jobs:
   test:
     name: lint:types + tests + prisma validate
     runs-on: ubuntu-latest
+    # The unit tests never touch it; the route smoke at the end migrates it
+    # and sends every GET route one request (src/scripts/route-smoke.ts).
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     env:
       # Dummy values so config.ts zod parse doesn't blow up if a test
       # transitively imports it. Tests themselves never connect to any
@@ -45,3 +61,18 @@ jobs:
 
       - name: Run tests (node --test via tsx)
         run: npm test
+
+      # The wiring: every GET route and the first run's POSTs, in-process,
+      # against the migrated service database. claude_code as the engine so
+      # the one background scan the upload starts fails fast on a missing
+      # binary instead of calling out.
+      - name: Migrate the service database
+        run: npx prisma migrate deploy
+
+      - name: Build
+        run: npm run build
+
+      - name: Route smoke
+        run: npm run smoke:routes
+        env:
+          AI_PROVIDER: claude_code

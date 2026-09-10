@@ -2172,7 +2172,7 @@ release-discipline skill, a docs/site block does not.
       (`fit` on the job side, `match` on the resume side, and say which is
       which once), one name for the flow, the four DESIGN.md violations;
       COPY-4 the thresholds and tone maps in one module each.
-- [ ] **`route-smoke-ci`** (no tag) — TEST-1: a Postgres service in
+- [x] **`route-smoke-ci`** (no tag) — done 2026-09-10 (`src/web/app.ts` split from the listener, `src/scripts/route-smoke.ts`, the service in `test.yml`). TEST-1: a Postgres service in
       `test.yml`, `migrate deploy` + seed, the Hono app in-process,
       `app.request()` over every GET route derived from the routers
       (2xx/3xx), the wizard's POSTs and one upload; not Playwright
