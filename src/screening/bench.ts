@@ -34,7 +34,7 @@ export function precisionAtK(human: string[], system: string[], k: number): { hi
 }
 
 export type GateWord = 'pass' | 'unknown' | 'fail';
-export const GATE_WORDS: GateWord[] = ['pass', 'unknown', 'fail'];
+const GATE_WORDS: GateWord[] = ['pass', 'unknown', 'fail'];
 
 /** Rows = what the human said, columns = what the run said; `agree` counts the diagonal. */
 export function gateConfusion(pairs: { expected: GateWord; got: GateWord }[]): { matrix: Record<GateWord, Record<GateWord, number>>; agree: number; total: number } {

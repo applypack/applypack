@@ -22,13 +22,6 @@ export const RUBRIC_VERSION = 2;
 
 export const SCREEN_LEVELS = ['junior', 'mid', 'senior', 'lead'] as const;
 export type ScreenLevel = (typeof SCREEN_LEVELS)[number];
-export const SCREEN_LEVEL_LABELS: Record<ScreenLevel, string> = {
-  junior: 'Junior',
-  mid: 'Mid-level',
-  senior: 'Senior',
-  lead: 'Lead / staff',
-};
-
 /** How strongly a text evidences a term, lowest first — the ladder the skill kinds are answered on. */
 export const EVIDENCE_RUNGS = ['absent', 'listed', 'project', 'role', 'production'] as const;
 export type EvidenceRung = (typeof EVIDENCE_RUNGS)[number];
@@ -123,7 +116,7 @@ export const KIND_ANSWER: Record<CriterionKind, 'status' | 'rung' | 'level' | 'i
   custom: 'status',
 };
 
-export const LEVEL_TOLERANCES = ['exact', 'one', 'atLeast', 'atMost'] as const;
+const LEVEL_TOLERANCES = ['exact', 'one', 'atLeast', 'atMost'] as const;
 export type LevelTolerance = (typeof LEVEL_TOLERANCES)[number];
 
 export const COMPANY_TYPES = ['product', 'agency', 'consultancy', 'startup', 'enterprise', 'public sector', 'non-profit'] as const;
@@ -172,7 +165,7 @@ export function specOf(partial: Partial<CriterionSpec> = {}): CriterionSpec {
   return SpecSchema.parse(partial);
 }
 
-export const CriterionSchema = z.object({
+const CriterionSchema = z.object({
   id: z.string().trim().min(1).max(24),
   kind: z.enum(CRITERION_KINDS),
   /** What the row says — the "What" column, written by the person or drafted from the posting. */
@@ -198,7 +191,7 @@ export function emptyRubric(): Rubric {
 
 let seq = 0;
 /** Short, unique within a rubric, stable across saves: the reply and the verdicts key on it. */
-export function newCriterionId(kind: CriterionKind, taken: Set<string> = new Set()): string {
+function newCriterionId(kind: CriterionKind, taken: Set<string> = new Set()): string {
   for (;;) {
     seq = (seq + 1) % 100_000;
     const id = `${kind.slice(0, 4)}-${Date.now().toString(36).slice(-4)}${seq.toString(36)}`;
@@ -628,9 +621,4 @@ export function rubricSummary(r: Rubric): string {
 /** The skill criteria whose terms count as the core stack — the cap's question (score.ts). */
 export function coreCriteria(r: Rubric): Criterion[] {
   return r.criteria.filter((c) => c.kind === 'skill' && c.spec.core);
-}
-
-/** Every term the rubric names, with aliases — what anchor.ts searches the text for. */
-export function rubricTerms(r: Rubric): { term: string; aliases: string[] }[] {
-  return r.criteria.flatMap((c) => (c.kind === 'skill' ? c.spec.terms : []));
 }

@@ -61,10 +61,10 @@ export interface ParsedLocation {
 
 // Arrangement markers, shared with filter.ts. Unicode boundaries rather than
 // \b so the Ukrainian and German spellings match as whole words too.
-export const REMOTE_RE =
+const REMOTE_RE =
   /(?<![\p{L}\p{N}])(?:remote|home[- ]?based|home ?office|work from home|wfh|віддалено|дистанційно|praca zdalna|zdalnie|t[ée]l[ée]travail)(?![\p{L}\p{N}])/iu;
-export const HYBRID_RE = /(?<![\p{L}\p{N}])hybrid(?![\p{L}\p{N}])/iu;
-export const ONSITE_RE = /(?<![\p{L}\p{N}])(?:on[-_ ]?site|in[- ]?office|in[- ]?person)(?![\p{L}\p{N}])/iu;
+const HYBRID_RE = /(?<![\p{L}\p{N}])hybrid(?![\p{L}\p{N}])/iu;
+const ONSITE_RE = /(?<![\p{L}\p{N}])(?:on[-_ ]?site|in[- ]?office|in[- ]?person)(?![\p{L}\p{N}])/iu;
 
 // One office or several: a segment is one place. Spaced hyphens and the
 // words "or" / "and" separate too; a bare hyphen does not (Cluj-Napoca).

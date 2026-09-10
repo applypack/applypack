@@ -9,8 +9,8 @@ import { redactSecrets } from '../source-keys';
  * ~1 499 s. Cached per process and refreshed a minute early; the secret is
  * scrubbed from anything this module throws.
  */
-export const TOKEN_URL = 'https://entreprise.francetravail.fr/connexion/oauth2/access_token?realm=%2Fpartenaire';
-export const OFFERS_SCOPE = 'api_offresdemploiv2 o2dsoffre';
+const TOKEN_URL = 'https://entreprise.francetravail.fr/connexion/oauth2/access_token?realm=%2Fpartenaire';
+const OFFERS_SCOPE = 'api_offresdemploiv2 o2dsoffre';
 const TIMEOUT_MS = 15_000;
 /** Refresh this long before the vendor's expiry so a call never lands on a dead token. */
 const REFRESH_MARGIN_MS = 60_000;

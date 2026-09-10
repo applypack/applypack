@@ -58,7 +58,7 @@ export async function sendDigest(
 }
 
 /** The Telegram digest, packed under the 4096-char message limit. Pure — exported for the test. */
-export function formatTelegramDigest(jobs: readonly AlertJob[], quiet: readonly QuietSourceAlert[], title: string): string[] {
+function formatTelegramDigest(jobs: readonly AlertJob[], quiet: readonly QuietSourceAlert[], title: string): string[] {
   const healthLine = formatSourceHealthLine([...quiet]);
   if (jobs.length === 0) {
     const empty = escapeMarkdownV2('No new matches since the last digest.');

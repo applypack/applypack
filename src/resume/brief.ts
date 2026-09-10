@@ -25,7 +25,7 @@ import { createPostingBrief, getPostingBrief } from './store';
  */
 
 /** What a stored brief is keyed by: the posting text this reading was made from. */
-export function postingHashOf(job: Pick<MatchJobInput, 'title' | 'description'>): string {
+function postingHashOf(job: Pick<MatchJobInput, 'title' | 'description'>): string {
   return hashShortId(`${job.title}\n${job.description}`);
 }
 

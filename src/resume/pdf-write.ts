@@ -12,7 +12,7 @@ const PAGE_H = 792;
 const MARGIN = 72;
 const FONT_SIZE = 11;
 const LEADING = 16;
-export const PDF_WRAP_CHARS = 80;
+const PDF_WRAP_CHARS = 80;
 const LINES_PER_PAGE = Math.floor((PAGE_H - 2 * MARGIN) / LEADING); // 40
 
 /** Word wrap by character budget; a single overlong token is hard-broken. */

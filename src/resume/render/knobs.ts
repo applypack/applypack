@@ -12,7 +12,7 @@ export const SECTION_KEYS = ['summary', 'skills', 'work', 'projects', 'education
 export type SectionKey = (typeof SECTION_KEYS)[number];
 
 /** The order a US recruiter reads in, and the order the ATS checklist expects. */
-export const DEFAULT_SECTION_ORDER: SectionKey[] = [...SECTION_KEYS];
+const DEFAULT_SECTION_ORDER: SectionKey[] = [...SECTION_KEYS];
 
 export const SECTION_LABELS: Record<SectionKey, string> = {
   summary: 'Summary',
@@ -28,7 +28,7 @@ export const SECTION_LABELS: Record<SectionKey, string> = {
 /** The one bundled family (see fonts/README.md); anything else is the user's own. */
 export const BUNDLED_FAMILY = 'Liberation Sans';
 /** Families the bundled face is metric-compatible with — naming them is honest. */
-export const METRIC_TWINS = ['arial', 'helvetica', 'helvetica neue', 'liberation sans', 'arimo'];
+const METRIC_TWINS = ['arial', 'helvetica', 'helvetica neue', 'liberation sans', 'arimo'];
 
 export interface RenderKnobs {
   /** Named in the .docx and shown in the label; the PDF always embeds the bundled face. */

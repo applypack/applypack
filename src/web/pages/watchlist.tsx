@@ -144,7 +144,7 @@ export const WatchlistRunPage: FC<{ run: WatchlistRun }> = ({ run }) => (
  * polls, and the watchlist section's selects submit themselves. Without JS
  * the page still works — the selects keep their <noscript> Save button.
  */
-export const WatchlistScript: FC = () => (
+const WatchlistScript: FC = () => (
   <script type="module" dangerouslySetInnerHTML={{ __html: WATCHLIST_BOOT }} />
 );
 

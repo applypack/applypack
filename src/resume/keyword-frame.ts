@@ -24,7 +24,7 @@
  * ADR 0029) so the card can say why a score stands on its own.
  */
 
-export const FRAME_REASONS = ['carried', 'first-run', 'rebuild', 'prompt-bump', 'posting-changed'] as const;
+const FRAME_REASONS = ['carried', 'first-run', 'rebuild', 'prompt-bump', 'posting-changed'] as const;
 export type FrameReason = (typeof FRAME_REASONS)[number];
 
 /** The latest stored analysis of this posting, as the frame decision reads it. */

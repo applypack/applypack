@@ -22,7 +22,7 @@ const MAX_DESC_CHARS = 4000;
 // Bump on any material change to buildClassifyPrompt (rules, rubric, format,
 // fencing) — cross-engine quality comparisons are meaningless across versions.
 // v3: one call scores every active search (ADR 0028).
-export const CLASSIFIER_PROMPT_VERSION = 4;
+const CLASSIFIER_PROMPT_VERSION = 4;
 
 /**
  * Salary is hoisted out of the per-search entries on purpose: it is a fact of
@@ -226,7 +226,7 @@ export function parseClassifications(
   return out.size > 0 ? { results: out, location: parsed.data.location ?? null } : null;
 }
 
-export async function classifyWithClaude(
+async function classifyWithClaude(
   input: ClassifyInput,
   profiles: Profile[],
   onError?: (reason: string) => void,

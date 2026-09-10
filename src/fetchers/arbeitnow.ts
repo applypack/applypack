@@ -16,7 +16,7 @@ const PAGE_DELAY_MS = 1_000;
  * filter — the rows carry no visa field of their own — so it is a feed of
  * its own, keyed by this token. Any other token is the plain board.
  */
-export const VISA_TOKEN = 'visa';
+const VISA_TOKEN = 'visa';
 
 const ArbeitnowJobSchema = z
   .object({

@@ -266,7 +266,7 @@ function safeJson(body: string): unknown {
 // ---------------------------------------------------------------------------
 
 /** Markers of bot checkpoints — checked before any content heuristic. */
-export const BOT_CHALLENGE_RES: RegExp[] = [
+const BOT_CHALLENGE_RES: RegExp[] = [
   /just a moment/,
   /checking your browser/,
   /verify (?:that )?you are (?:a )?human/,
@@ -283,7 +283,7 @@ export const BOT_CHALLENGE_RES: RegExp[] = [
  * anchored on a posting noun so prose like "once the form has been filled
  * out" or "closing date: 31 Dec" can never match (guard-tested).
  */
-export const CLOSED_BANNER_RES: RegExp[] = [
+const CLOSED_BANNER_RES: RegExp[] = [
   /no longer accepting applications/,
   /(?:position|role|vacancy|opening|job) has been filled(?! out)/,
   /(?:position|posting|job|role|vacancy|opening|offer)[^.!?\n]{0,60}(?:is |are |was )?(?:no longer|not currently) (?:available|active|open|published|accepting)/,

@@ -305,8 +305,3 @@ export async function latestComparison(screeningId: number, applicantIds: number
   });
   return rows.find((r) => r.applicantIds.length === applicantIds.length) ?? null;
 }
-
-export async function deleteExpiredScreenings(now: Date): Promise<number> {
-  const r = await prisma.screening.deleteMany({ where: { retainUntil: { lt: now } } });
-  return r.count;
-}

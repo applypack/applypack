@@ -81,8 +81,6 @@ export interface Robots {
   signals: Record<string, boolean>;
 }
 
-export const ALLOW_ALL: Robots = { groups: [], signals: {} };
-
 /**
  * Parse robots.txt into groups. Consecutive `User-agent` lines share the
  * rules that follow them; a rule line starts a new group's body, so a second

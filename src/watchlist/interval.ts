@@ -95,8 +95,6 @@ export interface WatchRules {
   alertPolicy: AlertPolicy;
 }
 
-export const NOT_WATCHED: WatchRules = { watched: false, alertPolicy: 'matches' };
-
 export function watchRules(row: { watched: boolean; alertPolicy: string }): WatchRules {
   return { watched: row.watched, alertPolicy: toAlertPolicy(row.alertPolicy) };
 }

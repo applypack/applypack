@@ -17,7 +17,7 @@ export const UNKNOWN_PLACE = 'unknown';
 export const TOP_PLACES = 8;
 
 /** `posted=` values → days back. */
-export const POSTED_WINDOWS: Record<string, number> = { '24h': 1, '7d': 7, '30d': 30 };
+const POSTED_WINDOWS: Record<string, number> = { '24h': 1, '7d': 7, '30d': 30 };
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 

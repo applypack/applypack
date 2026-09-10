@@ -117,7 +117,7 @@ const tagList = z
   .default([])
   .transform((arr) => [...new Set(arr.map((s) => s.trim().toLowerCase()).filter(Boolean))]);
 
-export const ScanSchema = z.object({
+const ScanSchema = z.object({
   title: nullableText,
   seniority: nullableText,
   years_experience: z.number().int().min(0).max(60).nullish().transform((v) => v ?? null),
@@ -145,7 +145,7 @@ export type ResumeScan = z.infer<typeof ScanSchema>;
 export type ResumeIssue = ResumeScan['issues'][number];
 
 /** How a requirement group is satisfied: any one option, or every option (ADR 0044). */
-export const SATISFY_MODES = ['any', 'all'] as const;
+const SATISFY_MODES = ['any', 'all'] as const;
 export type SatisfyMode = (typeof SATISFY_MODES)[number];
 
 /**
@@ -230,8 +230,8 @@ export type BriefKeyword = PostingBrief['keywords'][number];
 export type RequirementGroup = PostingBrief['requirement_groups'][number];
 
 export const ACTION_SECTIONS = ['title', 'summary', 'skills', 'experience', 'education', 'format'] as const;
-export const ACTION_PRIORITIES = ['high', 'medium', 'low'] as const;
-export const HARD_STATUSES = ['pass', 'unknown', 'fail'] as const;
+const ACTION_PRIORITIES = ['high', 'medium', 'low'] as const;
+const HARD_STATUSES = ['pass', 'unknown', 'fail'] as const;
 
 const AlignmentSchema = z.object({
   title: z.enum(ALIGNMENT_GRADES),
@@ -239,7 +239,7 @@ const AlignmentSchema = z.object({
   recent_role: z.enum(ALIGNMENT_GRADES),
 });
 
-export const MatchSchema = z.object({
+const MatchSchema = z.object({
   summary: z.string(),
   alignment: AlignmentSchema,
   strengths: z.array(z.string()).max(20).default([]),
@@ -338,7 +338,7 @@ export const MatchSchema = z.object({
 });
 export type ResumeMatchResult = z.infer<typeof MatchSchema>;
 /** What the lazy suggestions call returns — the full report minus the verdicts. */
-export const SuggestionsSchema = MatchSchema.pick({ strengths: true, cautions: true, actions: true, removals: true });
+const SuggestionsSchema = MatchSchema.pick({ strengths: true, cautions: true, actions: true, removals: true });
 export type MatchSuggestions = z.infer<typeof SuggestionsSchema>;
 export type MatchKeyword = ResumeMatchResult['keywords'][number];
 export type MatchAction = ResumeMatchResult['actions'][number];
@@ -347,7 +347,7 @@ export type MatchHardRequirement = ResumeMatchResult['hard_requirements'][number
 export type { MatchAlignment };
 
 /** One rewritten suggestion: the wording, and the two lines that describe it. */
-export const RewriteSchema = z.object({
+const RewriteSchema = z.object({
   what: z.string(),
   why: z.string(),
   replacement: z.string().min(1),
@@ -416,7 +416,7 @@ const coverList = (max: number) =>
     .default([])
     .transform((arr) => arr.map((s) => s.trim()).filter(Boolean));
 
-export const CoverSchema = z.object({
+const CoverSchema = z.object({
   letter: z
     .string()
     .transform((s) => s.trim())
@@ -464,9 +464,9 @@ export const RESUME_TIMEOUT_MS = {
  */
 export const REVIEW_PROMPT_VERSION = 3;
 
-export const REVIEW_PRIORITIES = ACTION_PRIORITIES;
+const REVIEW_PRIORITIES = ACTION_PRIORITIES;
 
-export const ReviewSchema = z.object({
+const ReviewSchema = z.object({
   /** One recruiter-voice sentence: what this resume reads as today. */
   headline: z.string(),
   grades: z

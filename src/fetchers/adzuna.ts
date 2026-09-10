@@ -24,12 +24,12 @@ const CATEGORY = 'it-jobs';
 const TIMEOUT_MS = 15_000;
 
 /** The UTC hours a row is polled — four a day keeps ten markets under 2 500 calls a month. */
-export const ADZUNA_HOURS: readonly number[] = [0, 6, 12, 18];
+const ADZUNA_HOURS: readonly number[] = [0, 6, 12, 18];
 /** Rows beyond this are skipped with an error, whatever the user adds. */
 export const MAX_ADZUNA_ROWS = 10;
 
 /** The logo the terms name, served by the vendor's own CDN (press page, 2026-09-04). */
-export const ADZUNA_LOGO_URL = 'https://zunastatic-abf.kxcdn.com/images/global/adzuna_logo.svg';
+const ADZUNA_LOGO_URL = 'https://zunastatic-abf.kxcdn.com/images/global/adzuna_logo.svg';
 
 export interface AdzunaMarket {
   /** ISO-2 of the market, for the country hint. */

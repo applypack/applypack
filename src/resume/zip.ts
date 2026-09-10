@@ -24,7 +24,7 @@ export class ZipLimitError extends ZipError {}
 /** One part of a .docx; the largest document.xml in the corpus is under 2 MB. */
 export const MAX_INFLATED_PART_BYTES = 64 * 1024 * 1024;
 /** Everything an archive of resumes may inflate to, in total — the web process holds it all at once. */
-export const MAX_INFLATED_TOTAL_BYTES = 512 * 1024 * 1024;
+const MAX_INFLATED_TOTAL_BYTES = 512 * 1024 * 1024;
 
 export interface ZipEntry {
   name: string;

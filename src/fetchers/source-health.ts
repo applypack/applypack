@@ -146,7 +146,7 @@ export function nextStreak(status: FetchStatus, current: number): number {
  * that a page moved and stores no Job; a MANUAL row is not fetched at all.
  * Everything else has to earn `lastOkAt` the ordinary way.
  */
-export function neverPosts(atsType: string | null | undefined): boolean {
+function neverPosts(atsType: string | null | undefined): boolean {
   // Compared as strings on purpose: importing AtsType would pull the Prisma
   // client into a module whose whole point is that it unit-tests without one.
   return atsType === 'CAREER_PAGE' || atsType === 'MANUAL';

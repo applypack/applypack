@@ -30,7 +30,7 @@ export const SCREEN_PROMPT_VERSION = 4;
 /** The answer: one entry per criterion, the roles with dates, three stand-out facts, a few quotes and five questions. */
 export const SCREEN_MAX_TOKENS = 7_500;
 /** Stand-out facts per applicant — enough to say what the criteria missed, few enough to read in a row. */
-export const MAX_STANDOUT = 3;
+const MAX_STANDOUT = 3;
 /** About the full report's budget (RESUME_TIMEOUT_MS.full): the prompt is a rubric, a posting and a resume. */
 export const SCREEN_TIMEOUT_MS = 180_000;
 const MAX_RESUME_CHARS = 30_000;
@@ -57,14 +57,14 @@ export { EVIDENCE_RUNGS };
 export type { EvidenceRung } from './rubric';
 export { EVIDENCE_RUNG_LABELS } from './rubric';
 
-export const ANSWER_STATUSES = ['pass', 'partial', 'unknown', 'fail'] as const;
+const ANSWER_STATUSES = ['pass', 'partial', 'unknown', 'fail'] as const;
 export type AnswerStatus = (typeof ANSWER_STATUSES)[number];
 /** A gate is binary: "partial" reads as unknown there. */
-export const GATE_STATUSES = ['pass', 'unknown', 'fail'] as const;
+const GATE_STATUSES = ['pass', 'unknown', 'fail'] as const;
 export type GateStatus = (typeof GATE_STATUSES)[number];
-export const IMPACT_GRADES = ['strong', 'ok', 'weak'] as const;
+const IMPACT_GRADES = ['strong', 'ok', 'weak'] as const;
 export type ImpactGrade = (typeof IMPACT_GRADES)[number];
-export const OVERALL_GRADES = ['exceptional', 'strong', 'partial', 'weak', 'none'] as const;
+const OVERALL_GRADES = ['exceptional', 'strong', 'partial', 'weak', 'none'] as const;
 export type OverallGrade = (typeof OVERALL_GRADES)[number];
 
 const nullableText = z
@@ -97,7 +97,7 @@ export const AnswerSchema = z.object({
 });
 export type ScreenAnswer = z.infer<typeof AnswerSchema>;
 
-export const RoleSchema = z.object({
+const RoleSchema = z.object({
   position: z.string().trim().min(1),
   employer: nullableText,
   start: nullableText,
@@ -111,7 +111,7 @@ export const RoleSchema = z.object({
 export type ScreenRole = z.infer<typeof RoleSchema>;
 
 /** A fact worth knowing that no criterion asked for, with the line that carries it (plan §5). Never scored. */
-export const StandoutSchema = z.object({
+const StandoutSchema = z.object({
   fact: z.string().trim().min(1),
   quote: nullableText,
 });
@@ -191,7 +191,7 @@ export function answerShape(c: Criterion): string {
 }
 
 /** The rubric as the model reads it — one line per criterion, fenced because the draft came from the posting. */
-export function rubricLines(rubric: Rubric): string {
+function rubricLines(rubric: Rubric): string {
   if (rubric.criteria.length === 0) return '(no criteria)';
   return rubric.criteria
     .map((c) => {
@@ -207,7 +207,7 @@ export function rubricLines(rubric: Rubric): string {
     .join('\n');
 }
 
-export const CompareCriterionSchema = z.object({
+const CompareCriterionSchema = z.object({
   id: z.string().trim().min(1),
   /** Applicant numbers, strongest first; an applicant whose text says nothing about it is left out. */
   ranking: z.array(z.number().int()).default([]),
