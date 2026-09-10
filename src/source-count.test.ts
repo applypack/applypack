@@ -28,13 +28,32 @@ function countedSourcePhrases(text: string): number[] {
   return [...text.matchAll(/\b(\d+) (?:kinds of (?:job )?sources?|job sources?|sources?)\b/g)].map((m) => Number(m[1]));
 }
 
-const DOCS = ['README.md', 'site/public/index.html'];
+/*
+ * Every public copy of the number. package.json's description is what npm
+ * and GitHub tooling show; the launch drafts are what gets posted. The
+ * 2026-09-10 audit found 24 and 22 in those while README and the site said 33.
+ */
+const DOCS = [
+  'README.md',
+  'site/public/index.html',
+  'docs/launch/show-hn.md',
+  'docs/launch/reddit-selfhosted.md',
+  'docs/launch/awesome-selfhosted-pr.md',
+];
 
-test('the README and the landing page state the number of source kinds the enum has', () => {
+function publicCopies(): [string, string][] {
+  const pkg = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')) as { description?: string };
+  return [
+    ...DOCS.map((file): [string, string] => [file, readFileSync(join(ROOT, file), 'utf8')]),
+    ['package.json description', pkg.description ?? ''],
+  ];
+}
+
+test('every public copy states the number of source kinds the enum has', () => {
   const expected = sourceKindCount();
   assert.ok(expected >= 30, `enum parse looks wrong: ${expected}`);
-  for (const file of DOCS) {
-    const numbers = countedSourcePhrases(readFileSync(join(ROOT, file), 'utf8'));
+  for (const [file, text] of publicCopies()) {
+    const numbers = countedSourcePhrases(text);
     assert.ok(numbers.length > 0, `${file} no longer states a source count`);
     assert.deepEqual(
       numbers,

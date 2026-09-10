@@ -6,7 +6,7 @@
 > machine-generated contributions that break the rules: Nazar reviews
 > this draft and submits it by hand from his own account.
 
-ApplyPack fits the list as a job-search console that checks 22 sources
+ApplyPack fits the list as a job-search console that checks 33 kinds of source
 hourly and keeps every AI report in the user's own Postgres; the live
 scoring demo at https://applypack.dev/demo/ goes into the entry's
 `demo_url`. Format below was checked against their CONTRIBUTING.md and a

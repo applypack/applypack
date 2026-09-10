@@ -15,6 +15,15 @@ All notable changes to this project are documented here. The format follows
   `node-cron` 3, on a code path this project never calls; the 4.x major is
   a separate decision (TASKS §20.4).
 
+### Fixed
+- Two sentences that were not true: the wizard's "only one search runs at
+  a time" (up to eight have run at once since v1.10.0) and the resume
+  page's "press Activate" (the button is Run).
+- The package description said 24 sources and the launch drafts 22, against
+  the 33 kinds the code has; `source-count.test.ts` now reads those copies
+  too, so the number cannot drift there again. The description also leads
+  with "runs locally with Docker" rather than "self-hosted".
+
 ## [2.5.3] — 2026-09-10
 
 ### Security
