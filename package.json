@@ -36,6 +36,7 @@
     "churn:compare": "tsx src/scripts/churn-once.ts",
     "keywords:audit": "tsx src/scripts/keyword-audit.ts",
     "exports:audit": "tsx src/scripts/dead-exports.ts",
+    "smoke:routes": "node dist/scripts/route-smoke.js",
     "test:telegram": "tsx src/scripts/test-telegram.ts",
     "prisma:generate": "prisma generate",
     "prisma:migrate:deploy": "prisma migrate deploy",
