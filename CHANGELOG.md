@@ -4,6 +4,35 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.6.0] — 2026-09-10
+
+### Fixed
+- **A held match is stamped with its row.** Outside the alert window a
+  match was stored NEW and then stamped `alertHeldAt` in a second
+  statement; a crash between the two left a match nothing would ever send,
+  and the unique key kept it from being fetched again. The stamp is written
+  in the same insert as the verdicts (ADR 0053).
+- **One row per alert destination.** The same Telegram bot and chat, or the
+  same Discord webhook, added twice was two active rows and every alert
+  twice, forever. The database refuses the second now, the form says which
+  row already has it before it sends a test message, and the migration
+  collapses existing duplicates onto the oldest row — a search routed to a
+  later copy follows it.
+- **The same document twice in one screening is one row.** The intake read
+  its list of known files once, so two uploads at once both added the
+  file; a unique on the screening and the text's hash settles it, and a
+  file no text came out of is known by its bytes rather than by name and
+  size. Existing duplicates go with the migration, their verdicts with them.
+- A pasted posting is one transaction: the company row and the job row
+  appear together, and the same paste from two tabs is settled by the
+  unique key instead of a read the other tab can outrun.
+
+### Changed
+- Indexes on the referencing side of four foreign keys
+  (`job.crossListedOfJobId`, `job.appliedResumeId`, `screening.jobId`,
+  `cover_letter.resumeId`): a job delete no longer scans the job table for
+  cross-listings, and a resume delete no longer scans it for applications.
+
 ## [2.5.4] — 2026-09-10
 
 ### Security
@@ -3328,6 +3357,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.6.0]: https://github.com/applypack/applypack/compare/v2.5.4...v2.6.0
 [2.5.4]: https://github.com/applypack/applypack/compare/v2.5.3...v2.5.4
 [2.5.3]: https://github.com/applypack/applypack/compare/v2.5.2...v2.5.3
 [2.5.2]: https://github.com/applypack/applypack/compare/v2.5.1...v2.5.2

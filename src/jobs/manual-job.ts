@@ -1,4 +1,4 @@
-import { AtsType, JobStatus } from '@prisma/client';
+import { AtsType, JobStatus, Prisma } from '@prisma/client';
 import type { Job } from '@prisma/client';
 import { z } from 'zod';
 import { prisma } from '../db';
@@ -52,39 +52,55 @@ export async function createManualJob(
   // ("&nbsp;", "&amp;") — decode them so the stored text reads clean.
   const description = decodeHtmlEntities(f.description).trim();
   const atsToken = slugify(f.companyName);
-  const company = await prisma.company.upsert({
-    where: { atsType_atsToken: { atsType: AtsType.MANUAL, atsToken } },
-    update: {},
-    create: { name: f.companyName, atsType: AtsType.MANUAL, atsToken, active: false },
-  });
   const externalId = `manual-${hashShortId(`${f.title}\n${description}`)}`;
-  const existing = await prisma.job.findUnique({
-    where: { companyId_externalId: { companyId: company.id, externalId } },
-  });
-  if (existing) return { kind: 'existing', job: existing };
-
   // A pasted posting has no structured fields: the parser reads the string
   // the user typed (ADR 0031), and nothing here rewrites that string.
   const place = parseLocation(f.location);
-  const job = await prisma.job.create({
-    data: {
-      companyId: company.id,
-      externalId,
-      title: f.title,
-      url: f.url,
-      location: f.location,
-      workplace: place.workplace,
-      countries: place.countries,
-      regions: place.regions,
-      locationSource: place.source,
-      description,
-      salaryMin: f.salaryMin ?? null,
-      salaryMax: f.salaryMax ?? null,
-      postedAt: new Date(),
-      status: JobStatus.SAVED,
-    },
-    include: { company: { select: { name: true, atsType: true } } },
+  const jobInclude = { company: { select: { name: true, atsType: true } } } as const;
+  // One transaction: the company row and the job row appear together or not
+  // at all, and the same paste from two tabs at once (/jobs/new and
+  // /screen/new both land here) is settled by the unique key, not by a read
+  // that the other tab can outrun (audit 2026-09-10, DATA-10).
+  const found = await prisma.$transaction(async (tx) => {
+    const company = await tx.company.upsert({
+      where: { atsType_atsToken: { atsType: AtsType.MANUAL, atsToken } },
+      update: {},
+      create: { name: f.companyName, atsType: AtsType.MANUAL, atsToken, active: false },
+    });
+    const where = { companyId_externalId: { companyId: company.id, externalId } };
+    const existing = await tx.job.findUnique({ where, include: jobInclude });
+    if (existing) return { kind: 'existing' as const, job: existing, company };
+    try {
+      const job = await tx.job.create({
+        data: {
+          companyId: company.id,
+          externalId,
+          title: f.title,
+          url: f.url,
+          location: f.location,
+          workplace: place.workplace,
+          countries: place.countries,
+          regions: place.regions,
+          locationSource: place.source,
+          description,
+          salaryMin: f.salaryMin ?? null,
+          salaryMax: f.salaryMax ?? null,
+          postedAt: new Date(),
+          status: JobStatus.SAVED,
+        },
+        include: jobInclude,
+      });
+      return { kind: 'created' as const, job, company };
+    } catch (err) {
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+        const raced = await tx.job.findUnique({ where, include: jobInclude });
+        if (raced) return { kind: 'existing' as const, job: raced, company };
+      }
+      throw err;
+    }
   });
+  if (found.kind === 'existing') return { kind: 'existing', job: found.job };
+  const { job, company } = found;
   const classified =
     opts.classify === false ? false : await classifyExistingJob(job, { keepStatus: true });
   logger.info({ jobId: job.id, company: company.name, classified }, 'web: manual job saved');

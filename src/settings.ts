@@ -385,6 +385,16 @@ export async function addNotificationTarget(input: NewTarget): Promise<Notificat
   });
 }
 
+/** The row that already names this destination — the same bot and chat, or the same webhook — if any (ADR 0053). */
+export async function findSameDestination(input: NewTarget): Promise<NotificationTarget | null> {
+  return prisma.notificationTarget.findFirst({
+    where:
+      input.kind === 'DISCORD'
+        ? { kind: 'DISCORD', webhookUrl: input.webhookUrl }
+        : { kind: 'TELEGRAM', botToken: input.botToken, chatId: input.chatId },
+  });
+}
+
 export async function toggleNotificationTarget(id: number): Promise<void> {
   const t = await prisma.notificationTarget.findUnique({ where: { id } });
   if (!t) return;
