@@ -4,6 +4,26 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.6.3] — 2026-09-10
+
+### Fixed
+- The Anthropic API path now carries the same per-call ceiling every other
+  backend gets; the engine chain's deadline could not bind on it.
+- A CLI child past its budget is killed outright; `execFile` never
+  escalates past SIGTERM, and a CLI that trapped it could hold a tick past
+  every deadline.
+- An OpenAI-compatible reply that was cut off at the token limit, or
+  filtered, is a failure with that reason — as the Anthropic path has read
+  `stop_reason` since 1.60 — instead of "no JSON object in reply". An
+  empty reply on any backend fails over instead of spending a parse retry.
+- The AI engine probe says what actually went wrong with a CLI binary
+  (permission, a hang, a non-zero exit) instead of "not found on PATH" for
+  everything.
+- A forged fence marker that does not start its line was left in the
+  payload; it is removed wherever it stands. The fence registry test now
+  reads the prompt modules off the source tree and matches a call by the
+  call, so a new module or a renamed import cannot slip past it.
+
 ## [2.6.2] — 2026-09-10
 
 ### Fixed
@@ -3414,6 +3434,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.6.3]: https://github.com/applypack/applypack/compare/v2.6.2...v2.6.3
 [2.6.2]: https://github.com/applypack/applypack/compare/v2.6.1...v2.6.2
 [2.6.1]: https://github.com/applypack/applypack/compare/v2.6.0...v2.6.1
 [2.6.0]: https://github.com/applypack/applypack/compare/v2.5.4...v2.6.0

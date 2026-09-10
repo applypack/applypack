@@ -162,13 +162,19 @@ class AnthropicApiProvider implements AiProvider {
         ]
       : undefined;
     for (let resumes = 0; ; resumes++) {
-      const resp = await client.messages.create({
-        model,
-        max_tokens: anthropicMaxTokens(req.maxTokens),
-        system: [{ type: 'text', text: req.system, cache_control: { type: 'ephemeral' } }],
-        messages,
-        tools,
-      });
+      // The same ceiling the chain hands every other backend; without it the
+      // SDK's own ten minutes was the only limit and the chain's deadline
+      // could not bind on this path (audit 2026-09-10, AI-1).
+      const resp = await client.messages.create(
+        {
+          model,
+          max_tokens: anthropicMaxTokens(req.maxTokens),
+          system: [{ type: 'text', text: req.system, cache_control: { type: 'ephemeral' } }],
+          messages,
+          tools,
+        },
+        { timeout: req.timeoutMs ?? CLI_TIMEOUT_MS },
+      );
       logger.info(
         {
           label: req.label,
@@ -197,10 +203,14 @@ class AnthropicApiProvider implements AiProvider {
       if (resp.stop_reason === 'refusal') {
         throw new Error(`the model declined this request (${resp.stop_details?.category ?? 'no category given'})`);
       }
-      return resp.content
+      const text = resp.content
         .filter((b): b is Anthropic.TextBlock => b.type === 'text')
         .map((b) => b.text)
         .join('');
+      // A reply with no text is not an answer: handed on as one, it spent a
+      // parse retry instead of a failover to an engine that talks.
+      if (text.trim().length === 0) throw new Error('the model returned no text');
+      return text;
     }
   }
 }
@@ -312,6 +322,10 @@ class CliProvider implements AiProvider {
       try {
         ({ stdout } = await execFileAsync(this.bin, args, {
           timeout: req.timeoutMs ?? CLI_TIMEOUT_MS,
+          // A child past its budget is killed, not asked: execFile never
+          // escalates past SIGTERM, and a CLI that traps it would hold the
+          // tick past every deadline (AI-2). The CLIs keep no state to flush.
+          killSignal: 'SIGKILL',
           maxBuffer: CLI_MAX_BUFFER,
           cwd: this.spec.cwd,
           env: buildCliEnv(this.spec.envKeys, this.envSource(req)),
@@ -325,7 +339,12 @@ class CliProvider implements AiProvider {
         req.onError?.(describeAiFailure(`${this.bin}: ${failure.reason}`));
         return null;
       }
-      const out = this.spec.parse(stdout);
+      const parsedOut = this.spec.parse(stdout);
+      // An empty reply is a failure to fail over from, not a text to parse.
+      const out =
+        parsedOut.text !== null && parsedOut.text.trim().length === 0
+          ? { ...parsedOut, text: null, error: 'the CLI returned no text' }
+          : parsedOut;
       if (out.text !== null) {
         logger.info({ label: req.label, provider: this.name, model: req.model, ...out.usage }, 'ai: reply');
         return out.text;

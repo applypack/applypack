@@ -1,4 +1,5 @@
 import { execFile } from 'node:child_process';
+import { cliFailure } from './ai-provider-parse';
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
@@ -289,8 +290,12 @@ async function probeCliBin(bin: string): Promise<AiProviderStatus> {
   try {
     const { stdout } = await execFileAsync(bin, ['--version'], { timeout: PROBE_TIMEOUT_MS });
     return { ok: true, detail: stdout.trim().split('\n')[0] ?? '' };
-  } catch {
-    return { ok: false, detail: `${bin} not found on PATH` };
+  } catch (err) {
+    // "not found" was the only sentence this had, whatever happened — a
+    // permission bit, a hang, a non-zero exit all sent the user down the
+    // wrong path (audit 2026-09-10, AI-4).
+    const failure = cliFailure(err, PROBE_TIMEOUT_MS);
+    return { ok: false, detail: failure.reason === 'not found on PATH' ? `${bin} not found on PATH` : `${bin}: ${failure.reason}` };
   }
 }
 

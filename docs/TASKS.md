@@ -2131,7 +2131,7 @@ release-discipline skill, a docs/site block does not.
       in the nine single-request fetchers, `larajobs` and `jobicy` through
       `fetchWithRetry` + `parseString`; FETCH-4 SmartRecruiters throws on a
       list-schema mismatch. Second pass: FETCH-5.
-- [ ] **`ai-provider-robustness`** (minor) — AI-1 `timeout` / signal on
+- [x] **`ai-provider-robustness`** (patch) — shipped v2.6.3: AI-1/2/3/5, the empty reply and the probe reason from AI-4; the rest of AI-4 and PRIV-3 left. AI-1 `timeout` / signal on
       `messages.create`; AI-2 `killSignal: 'SIGKILL'` after SIGTERM;
       AI-3 `finish_reason` in the OpenAI schema, truncation on the CLI
       parsers where the CLI reports it; AI-5 `PROMPT_MODULES` derived from
