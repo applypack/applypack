@@ -1,7 +1,7 @@
 import { effectiveRequirement } from '../resume/keyword-overrides';
 import type { MatchAction, MatchHardRequirement, MatchKeyword } from '../resume/prompts';
 import { clipWords } from '../text-utils';
-import type { ScoreBreakdown } from '../resume/score';
+import type { MatchAlignment, ScoreBreakdown } from '../resume/score';
 
 /*
  * The five sentences behind the number (docs/score-lines-plan.md).
@@ -196,12 +196,36 @@ export interface AdviceInput extends LinesInput {
 /** Longest an action's own sentence may run before it stops being a glance. */
 const MAX_ADVICE_CHARS = 110;
 
+/** A gate is written by the posting and can run to a paragraph; the sentence quoting it cannot. */
+const MAX_GATE_CHARS = 70;
+
 /** How many missing core-stack terms are worth naming before the sentence stops being one. */
 const MAX_NAMED_TERMS = 2;
 
+/** How a grade below `strong` reads as words. `strong` never reaches here — it is not a gap. */
+const ALIGNMENT_GAP: Record<MatchAlignment['title'], string> = {
+  strong: 'matches',
+  partial: 'only partly matches',
+  off: 'does not match',
+};
+
+/**
+ * The model's own sentence, capitalised only where that cannot damage a name:
+ * "iOS navigation" and "eBay checkout" open lowercase on purpose and a second
+ * capital is the tell. Two lowercase letters means prose, which in practice is
+ * every action — they open with a verb. A tool spelled lowercase throughout
+ * ("npm audit") is the one case this still gets wrong, and it costs a capital,
+ * not a meaning.
+ */
+function openingCase(text: string): string {
+  return /^\p{Ll}\p{Ll}/u.test(text) ? `${text.charAt(0).toUpperCase()}${text.slice(1)}` : text;
+}
+
 export function mainAdvice({ breakdown, keywords, hard, actions }: AdviceInput): string | null {
   const failed = hard.find((h) => h.status === 'fail');
-  if (failed) return `“${failed.requirement}” is not met — a gate decides this before any wording does.`;
+  if (failed) {
+    return `“${clipWords(failed.requirement, MAX_GATE_CHARS)}” is not met — a gate decides this before any wording does.`;
+  }
 
   // The cap is the biggest lever in the formula and the only one no edit
   // moves: without a word of the core stack, every other improvement is
@@ -211,14 +235,20 @@ export function mainAdvice({ breakdown, keywords, hard, actions }: AdviceInput):
       .filter((k) => k.primary && k.status !== 'present' && k.status !== 'add')
       .map((k) => k.term);
     const named = missing.slice(0, MAX_NAMED_TERMS).join(' and ');
-    return named === ''
-      ? `Nothing you write lifts this past ${breakdown.cap} — the core stack this role is written in is missing.`
-      : `${named} is the core stack here — nothing you write lifts this past ${breakdown.cap} without it.`;
+    if (named === '') {
+      return `Nothing you write lifts this past ${breakdown.cap} — the core stack this role is written in is missing.`;
+    }
+    // Naming two of five and calling those two "the core stack" would be a
+    // false statement, so the ones that did not fit are counted, not dropped.
+    const rest = missing.length - MAX_NAMED_TERMS;
+    const many = missing.length > 1;
+    const subject = rest > 0 ? `${named} and ${rest} more` : named;
+    return `${subject} ${many ? 'are' : 'is'} the core stack here — nothing you write lifts this past ${breakdown.cap} without ${many ? 'them' : 'it'}.`;
   }
 
   const unanswered = hard.find((h) => h.status === 'unknown');
   if (unanswered) {
-    return `The resume is silent on “${unanswered.requirement}” — a gate the reader checks before the words.`;
+    return `The resume is silent on “${clipWords(unanswered.requirement, MAX_GATE_CHARS)}” — a gate the reader checks before the words.`;
   }
 
   const musts = keywords.filter((k) => effectiveRequirement(k) === 'must');
@@ -253,13 +283,15 @@ export function mainAdvice({ breakdown, keywords, hard, actions }: AdviceInput):
       { where: 'summary', grade: alignment.summary },
       { where: 'most recent role', grade: alignment.recent_role },
     ].find((g) => g.grade !== 'strong');
-    if (weak) return `Sharpen the ${weak.where} — it grades ${weak.grade} against this posting.`;
+    if (weak) return `Sharpen the ${weak.where} — it ${ALIGNMENT_GAP[weak.grade]} this posting.`;
   }
 
   const edit = actions.find((a) => a.priority === 'high') ?? actions[0];
   if (edit) {
     const what = clipWords(edit.what, MAX_ADVICE_CHARS);
-    return what === '' ? null : `${what.charAt(0).toUpperCase()}${what.slice(1)}`;
+    // Every other rung is a sentence; the model's clause becomes one here
+    // rather than sitting among them without a stop.
+    return what === '' ? null : `${openingCase(what)}${/[.!?…]$/.test(what) ? '' : '.'}`;
   }
 
   return null;

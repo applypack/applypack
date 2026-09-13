@@ -12,7 +12,8 @@ import { DENIED_NOTE } from '../../resume/facts';
 import { readActions, readHardRequirements, readRemovals } from '../../resume/prompts';
 import { readMatchMode } from '../../resume/match-mode';
 import { readBreakdown } from '../../resume/score';
-import { readyToApply } from '../score-lines';
+import { mainAdvice, readyToApply } from '../score-lines';
+import type { OrientationRow } from '../../resume/posting-orientation';
 import {
   ActionsBlock,
   ChangeSheetButton,
@@ -20,6 +21,7 @@ import {
   DeltaBox,
   HardRequirementsDigest,
   KeywordTable,
+  MainAdviceLine,
   MatchSignals,
   reachOf,
   VerificationLine,
@@ -60,6 +62,8 @@ export interface TargetPageProps {
   postingNotice?: string | null;
   /** The sectors differ (domain.ts) — one sentence, or nothing. */
   domainNotice?: string | null;
+  /** What this posting is, from its own stored reading (posting-orientation.ts) — empty when it said nothing. */
+  orientation?: OrientationRow[];
   /** The latest "Is this job real?" verdict — one line under the title, findings among the cautions (#162). */
   verification: VerificationForHint | null;
   flash?: FlashMessage | null;
@@ -116,6 +120,7 @@ export const TargetPage: FC<TargetPageProps> = ({
   resumeText,
   postingNotice,
   domainNotice,
+  orientation,
   verification,
   fileVerdict,
   cleanHref,
@@ -133,6 +138,9 @@ export const TargetPage: FC<TargetPageProps> = ({
   // A quick check has no suggestions yet — the tab offers the second call instead (ADR 0029).
   const fast = readMatchMode(match.breakdown) === 'fast';
   const breakdown = readBreakdown(match.breakdown);
+  // The one move worth making next, ranked in code from the verdicts this row
+  // already carries (score-lines.ts) — the editor is where it gets made.
+  const advice = breakdown ? mainAdvice({ breakdown, keywords: scored, hard, actions }) : null;
   const recent = matches.slice(0, RECENT_RUNS);
   const shownRuns = recent.some((m) => m.id === match.id)
     ? recent
@@ -306,6 +314,7 @@ export const TargetPage: FC<TargetPageProps> = ({
               now; it is still on the /jobs match card. */}
           <div class="min-w-0 space-y-1.5">
             <p class="text-sm leading-6 text-ink">{match.summary}</p>
+            <MainAdviceLine advice={advice} />
             {breakdown && <ScoreCeilingLine bd={breakdown} />}
             {/* The number alone used to decide this, so "stop polishing" sat
                 above three suggested edits, five removals and an unconfirmed
@@ -450,6 +459,23 @@ export const TargetPage: FC<TargetPageProps> = ({
                 the sticky bar carries the estimate while the text is dirty. */}
           </div>
 
+          {/* Who is asking, before how well the words answer. The same stack is
+              wanted by a radio network and a clinic, and the evidence each
+              wants of it is not the same — every line here is a field the
+              posting's own reading already wrote (ADR 0044). */}
+          {orientation !== undefined && orientation.length > 0 && (
+            <div class="border-t border-line pt-3 lg:col-span-3">
+              <div class="text-[11px] uppercase tracking-wide text-ink-faint">about this posting</div>
+              <dl class="mt-1 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-[13px] leading-6">
+                {orientation.map((row) => (
+                  <>
+                    <dt class="text-ink-faint">{row.label}</dt>
+                    <dd class="min-w-0 text-ink">{row.text}</dd>
+                  </>
+                ))}
+              </dl>
+            </div>
+          )}
           {postingNotice && (
             <div class="border-t border-line pt-3 lg:col-span-3">
               <p class="text-[13px] leading-6 text-ink-muted">

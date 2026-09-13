@@ -4,6 +4,34 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.8.0] — 2026-09-13
+
+### Added
+- **What the posting is, before how well your words answer it.** The
+  tailoring page opens with three lines the posting's own reading already
+  carried and no page ever showed: the sector, what the employer sells, and
+  who reads the resume first. The same stack is wanted by a radio network, a
+  clinic and an online casino, and each wants different evidence of it.
+  Every line is a stored field, so a posting that named none renders no
+  block — nothing here is inferred, and nothing is scored
+  (`resume/posting-orientation.ts`).
+- **One sentence saying what to do next**, under the score on the job page's
+  match card and on the tailoring page. A ladder in code, from what no
+  wording fixes down to what editing reaches: a failed gate, the core stack
+  and the cap it sets, an unanswered gate, a must-have the resume evidences
+  but never writes, a must-have named only on a skills line, a weak first
+  glance, then the report's own first high-priority edit. It names one
+  thing, and says nothing at all when the report is clean — "Ready to apply"
+  already speaks there (`web/score-lines.ts`).
+
+Both read the row and the brief already stored: no AI call, no new column,
+and a comparison costs exactly what it cost before.
+
+### Changed
+- `clipWords` (`text-utils.ts`) shortens on a word boundary and drops the
+  article a cut leaves dangling, so a shortened line reads as shortened
+  rather than broken.
+
 ## [2.7.2] — 2026-09-10
 
 ### Changed

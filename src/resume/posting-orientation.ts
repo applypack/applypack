@@ -29,8 +29,9 @@ export interface OrientationRow {
 /** Long enough for a sector and a product, short enough to take in at a glance. */
 const MAX_ROW_CHARS = 130;
 
+/** A nullable brief field as a string. `clipWords` collapses the whitespace. */
 function tidy(text: string | null | undefined): string {
-  return (text ?? '').replace(/\s+/g, ' ').trim();
+  return (text ?? '').trim();
 }
 
 /** What the brief has to carry for an orientation to be worth rendering. */

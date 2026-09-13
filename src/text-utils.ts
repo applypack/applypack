@@ -317,25 +317,40 @@ export function extractAtsToken(
 }
 
 /**
- * `text` shortened to `max` characters on a word boundary, with an ellipsis.
- * Whitespace is collapsed first, so a value lifted out of JSON renders as one
- * line. A boundary too early in the string is not worth keeping — a cut at 20 %
- * of the budget loses more than the partial word it saves — so below
- * `WORD_BOUNDARY_FLOOR` the hard cut stands.
+ * Below this share of the budget a word boundary keeps too little to be worth
+ * the words it drops, and the hard cut stands instead. Low on purpose: the
+ * budget is a ceiling, not a target, and a line ending mid-word reads as
+ * damaged where a short line only reads as short.
  */
-const WORD_BOUNDARY_FLOOR = 0.6;
+const WORD_BOUNDARY_FLOOR = 0.3;
 
+/**
+ * Function words that do nothing but introduce the words the cut removed.
+ * Repeated, because one cut can strand several ("systems for an …").
+ */
+const DANGLING_TAIL = /(\s+(?:a|an|and|at|by|for|in|of|on|or|the|to|with))+$/i;
+
+const TRAILING_PUNCTUATION = /[\s,;:.—-]+$/;
+
+/** The leading half of a surrogate pair: an emoji cut down the middle. */
+const ORPHAN_SURROGATE = /[\uD800-\uDBFF]$/;
+
+/**
+ * `text` shortened on a word boundary and closed with an ellipsis, so the
+ * result runs to at most `max + 1` characters. Whitespace is collapsed first,
+ * so a value lifted out of a Json column renders as one line, and a budget of
+ * zero or less returns nothing rather than a bare ellipsis.
+ *
+ * The three cuts that read as damage are handled: mid-word (the boundary,
+ * down to `WORD_BOUNDARY_FLOOR`), mid-emoji (the orphaned surrogate, which
+ * renders as �), and a trailing article whose noun was the word cut.
+ */
 export function clipWords(text: string, max: number): string {
+  if (max <= 0) return '';
   const tidy = text.replace(/\s+/g, ' ').trim();
   if (tidy.length <= max) return tidy;
-  const cut = tidy.slice(0, max);
+  const cut = tidy.slice(0, max).replace(ORPHAN_SURROGATE, '');
   const space = cut.lastIndexOf(' ');
   const kept = space > max * WORD_BOUNDARY_FLOOR ? cut.slice(0, space) : cut;
-  // "…systems supporting a…" reads as a broken sentence rather than a
-  // shortened one: the word the article introduced is the word that was cut.
-  // A closed list, so a real two-letter term at the boundary is never lost.
-  return `${kept
-    .replace(/[\s,;:.—-]+$/, '')
-    .replace(/\s+(?:a|an|and|at|by|for|in|of|on|or|the|to|with)$/i, '')
-    .replace(/[\s,;:.—-]+$/, '')}…`;
+  return `${kept.replace(TRAILING_PUNCTUATION, '').replace(DANGLING_TAIL, '').replace(TRAILING_PUNCTUATION, '')}…`;
 }

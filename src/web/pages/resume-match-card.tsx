@@ -257,6 +257,19 @@ const ScoreBreakdownChips: FC<{ bd: ScoreBreakdown; keywords: MatchKeyword[]; ha
 };
 
 /*
+ * The advice ladder's one sentence (score-lines.ts:mainAdvice), in the same
+ * place on both cards: under the model's summary, above the arithmetic. Null
+ * renders nothing — a report with nothing open has the "Ready to apply" line
+ * instead, and both at once would be two sentences saying one thing.
+ */
+export const MainAdviceLine: FC<{ advice: string | null }> = ({ advice }) =>
+  advice === null ? null : (
+    <p class="text-[13px] leading-6 text-ink">
+      <span class="font-medium text-accent-strong">Do this first.</span> {advice}
+    </p>
+  );
+
+/*
  * Two different questions (§4 of the intelligence analysis): the score is how
  * well this RESUME shows the fit, the ceiling is how well the CANDIDATE fits.
  * A wide gap is good news — all of it is editing.
@@ -449,6 +462,9 @@ const MatchReport: FC<{
         </Button>
       </div>
       <p class="text-sm leading-6 text-ink">{match.summary}</p>
+      {/* The advice line is the tailoring page's, not this card's: the five
+          lines below already carry the facts it would rank, and saying the
+          same thing twice two lines apart is what the copy pass just cut. */}
       {bd && (
         <ScoreBreakdownChips bd={bd} keywords={keywords} hard={readHardRequirements(match.hardRequirements)} />
       )}
