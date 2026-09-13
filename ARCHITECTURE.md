@@ -318,7 +318,7 @@ src/
     resume-source.ts          ← the launchers' "which resume": one of yours / file / paste → scratch row
     resume-label.ts           ← a resume as a <select> option: name · kind version · why preselected (pure)
     job-pick.ts               ← the jobs a candidate launcher offers (fit threshold, newest, ?job= kept)
-    comparison-run.ts         ← startComparison: one text × one stored job as a progress-page run
+    comparison-run.ts         ← startComparison / runComparison: one text × one stored job as a progress-page run
     target-runs.ts            ← in-memory compare-run registry (async classify/scan/match)
     fetch-runs.ts             ← in-memory "Fetch now" registry (live source progress; the 'fetch-now' CronRun is the record)
     fetch-summary.ts          ← pure one-line verdict of a finished fetch-now run
@@ -401,11 +401,11 @@ prisma/
 | `POST /companies/new`            | web     | sync `probeAts` → upsert                 |
 | `POST /companies/starter-pack`   | web     | resolve a pack live (`probeAts`, ≥1 job wins) → preview; `/import` inserts inactive, `/enable` activates |
 | `POST /resumes`                  | web     | extract text → `scanResume` (sync, ~1 min) |
-| `POST /jobs/:id/match`           | web     | async run (`comparison-run.ts:startComparison`): brief → `matchResumeToJob` (`mode` = fast \| full); a stored quick check + `mode=full` starts the suggestions run instead; redirects to `/target/runs/:id` |
+| `POST /jobs/:id/match`           | web     | async run (`comparison-run.ts:startComparison`): brief → `matchResumeToJob` (`mode` = fast \| full); a stored quick check + `mode=full` starts the suggestions run instead; `matchId` on a scratch-row comparison re-judges that comparison's text; redirects to `/target/runs/:id` |
 | `POST /jobs/:id/matches/:matchId/suggestions` | web | async run: `suggestForMatch` — actions/removals/strengths/cautions onto the stored row, score untouched |
 | `POST /jobs/:id/verify`          | web     | `checkLiveness` (free rungs, seconds) → stop on a verdict; else / `deep=1` sync `verifyJob` with web tools (2-4 min) → `JobVerification` |
 | `POST /jobs/new`                 | web     | MANUAL company upsert + Job + `classifyExistingJob` |
-| `POST /target`                   | web     | resolve resume inline (upload/paste → hidden scratch row); `jobMode=existing` → `startComparison` on the stored job (same run as `POST /jobs/:id/match`); a pasted posting → async: extract? → `createManualJob` → brief → `matchResumeToJob`; redirects to `/target/runs/:id` |
+| `POST /target`                   | web     | resolve resume inline (upload/paste → hidden scratch row); `jobMode=existing` → `startComparison` on the stored job (same run as `POST /jobs/:id/match`); a pasted posting → async: extract? → `createManualJob` → `runComparison` (memo → suggestions? → brief → `matchResumeToJob`); redirects to `/target/runs/:id` |
 | `GET /target/runs/:id`           | web     | progress page (meta-refresh 2s); done → flash + redirect into the targeted view |
 | `POST /resumes/:id/replace`      | web     | new file → `version`+1 → `scanResume`    |
 | `POST /jobs/:id/target/reupload` | web     | async run: replace (+scan for real resumes; scratch skips it) → match |
@@ -596,6 +596,7 @@ erDiagram
     int resumeId FK
     int resumeVersion
     text resumeText
+    string resumeName
     bool draft
     string model
     int matchScore
