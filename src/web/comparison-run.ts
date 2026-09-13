@@ -119,12 +119,11 @@ async function compare(runId: string, req: ComparisonRequest): Promise<void> {
   // makes re-checking an edited resume quick.
   updateRun(runId, { stage: 'brief' });
   const briefed = await briefForPosting(job);
+  // updateRun replaces `results`, so the lines are gathered here and the done step keeps the reading's.
+  const results: Record<string, string> = {};
   if (briefed) {
-    updateRun(runId, {
-      results: {
-        brief: briefed.reused ? `Reused this posting's analysis — ${briefLine(briefed.brief)}` : briefLine(briefed.brief),
-      },
-    });
+    results.brief = briefed.reused ? `Reused this posting's analysis — ${briefLine(briefed.brief)}` : briefLine(briefed.brief);
+    updateRun(runId, { results: { ...results } });
   }
   updateRun(runId, { stage: matchStep(mode) });
   let reason = '';
@@ -148,7 +147,7 @@ async function compare(runId: string, req: ComparisonRequest): Promise<void> {
     stage: 'done',
     resultUrl: req.resultUrl(row.id),
     tailorUrl: `/jobs/${jobId}/target?match=${row.id}`,
-    results: { [matchStep(mode)]: `AI match ${row.matchScore}/100` },
+    results: { ...results, [matchStep(mode)]: `AI match ${row.matchScore}/100` },
     flash: req.doneNote ? `${flash} ${req.doneNote}` : flash,
   });
 }
