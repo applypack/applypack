@@ -63,6 +63,7 @@ import { preselectAppliedResume, preselectResume } from '../../resume/pick';
 import { briefForPosting, briefLine, storedBriefFor } from '../../resume/brief';
 import { postingDepth } from '../../resume/brief-depth';
 import { domainMismatch, domainNotice } from '../../resume/domain';
+import { postingOrientation } from '../../resume/posting-orientation';
 import { rewriteAction } from '../../resume/rewrite';
 import { findReusableMatch, matchResumeToJob } from '../../resume/match';
 import { parseMatchMode, readMatchMode, type MatchMode } from '../../resume/match-mode';
@@ -1079,6 +1080,7 @@ jobsRoute.get('/jobs/:id/target', async (c) => {
       resumeText={match.resumeText || resume.text}
       postingNotice={depth.notice}
       domainNotice={domain}
+      orientation={postingOrientation(storedBrief)}
       verification={verifications[0] ?? null}
       fileVerdict={fileVerdict}
       cleanHref={file.clean ? `/resumes/${resume.id}/render` : null}

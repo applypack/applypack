@@ -4,6 +4,34 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.8.0] — 2026-09-13
+
+### Added
+- **What the posting is, before how well your words answer it.** The
+  tailoring page opens with three lines the posting's own reading already
+  carried and no page ever showed: the sector, what the employer sells, and
+  who reads the resume first. The same stack is wanted by a radio network, a
+  clinic and an online casino, and each wants different evidence of it.
+  Every line is a stored field, so a posting that named none renders no
+  block — nothing here is inferred, and nothing is scored
+  (`resume/posting-orientation.ts`).
+- **One sentence saying what to do next**, under the score on the job page's
+  match card and on the tailoring page. A ladder in code, from what no
+  wording fixes down to what editing reaches: a failed gate, the core stack
+  and the cap it sets, an unanswered gate, a must-have the resume evidences
+  but never writes, a must-have named only on a skills line, a weak first
+  glance, then the report's own first high-priority edit. It names one
+  thing, and says nothing at all when the report is clean — "Ready to apply"
+  already speaks there (`web/score-lines.ts`).
+
+Both read the row and the brief already stored: no AI call, no new column,
+and a comparison costs exactly what it cost before.
+
+### Changed
+- `clipWords` (`text-utils.ts`) shortens on a word boundary and drops the
+  article a cut leaves dangling, so a shortened line reads as shortened
+  rather than broken.
+
 ## [2.7.2] — 2026-09-10
 
 ### Changed
@@ -3509,6 +3537,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.8.0]: https://github.com/applypack/applypack/compare/v2.7.2...v2.8.0
 [2.7.2]: https://github.com/applypack/applypack/compare/v2.7.1...v2.7.2
 [2.7.1]: https://github.com/applypack/applypack/compare/v2.7.0...v2.7.1
 [2.7.0]: https://github.com/applypack/applypack/compare/v2.6.4...v2.7.0

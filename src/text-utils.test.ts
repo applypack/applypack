@@ -1,6 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  clipWords,
   daysSince,
   feedEntryId,
   feedItemKey,
@@ -425,5 +426,48 @@ describe('jsonFailure', () => {
     const bad = jsonFailure('{"a": 1, "b": }');
     assert.equal(bad.cutOff, undefined);
     assert.equal(bad.error, 'malformed JSON in reply');
+  });
+});
+
+describe('clipWords', () => {
+  it('collapses whitespace and leaves a string inside the budget alone', () => {
+    assert.equal(clipWords('  audio/media   broadcasting ', 40), 'audio/media broadcasting');
+    assert.equal(clipWords('exact', 5), 'exact');
+    assert.equal(clipWords('', 10), '');
+  });
+
+  it('cuts on a word boundary and never mid-word', () => {
+    const long = 'digital commerce platforms and internal administration systems';
+    const out = clipWords(long, 30);
+    assert.equal(out, 'digital commerce platforms…');
+    assert.ok(long.startsWith(out.slice(0, -1)), 'the kept text is a prefix of the original');
+    assert.equal(clipWords('e-commerce and go-to-market strategy', 24), 'e-commerce…');
+  });
+
+  it('drops the punctuation a cut leaves dangling', () => {
+    assert.equal(clipWords('radio, podcast, advertising business', 16), 'radio, podcast…');
+  });
+
+  it('drops every article the cut stranded, not only the last one', () => {
+    assert.equal(
+      clipWords('internal administration systems supporting a national business', 45),
+      'internal administration systems supporting…',
+    );
+    assert.equal(clipWords('systems for an carrier network', 16), 'systems…');
+  });
+
+  it('takes the hard cut when the only boundary is too early', () => {
+    assert.equal(clipWords('a supercalifragilisticexpialidocious word', 20), 'a supercalifragilist…');
+  });
+
+  it('never cuts an emoji in half', () => {
+    const out = clipWords('fintech\u{1F680}scaleup', 8);
+    assert.equal(out, 'fintech…');
+    assert.ok(!/[\uD800-\uDFFF]/.test(out), 'no orphaned surrogate survives');
+  });
+
+  it('returns nothing for a budget of zero or less', () => {
+    assert.equal(clipWords('anything at all', 0), '');
+    assert.equal(clipWords('anything at all', -5), '');
   });
 });
