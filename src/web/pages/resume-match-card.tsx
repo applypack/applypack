@@ -41,14 +41,14 @@ import { readBreakdown, type ScoreBreakdown } from '../../resume/score';
 import { noEditsLine, type Reach } from '../no-edits';
 import { readyToApply, scoreLines, type ScoreLine } from '../score-lines';
 import { diffMatches } from '../../resume/diff';
+import { earlierLabel, previousFor } from '../../resume/match-name';
 
 export interface ResumeMatchCardProps {
   jobId: number;
-  resumes: { id: number; name: string; isDefault: boolean }[];
-  /** Best skill overlap for this posting — preselected in the dropdown. */
+  /** `label` is `resume-label.ts:resumeOptionLabel`, the preselect's reason included. */
+  resumes: { id: number; label: string }[];
+  /** The search's resume, else the best skill overlap — preselected in the dropdown. */
   suggestedResumeId: number | null;
-  /** Why that one is preselected: the search names it, or it overlaps the posting most. */
-  suggestedReason: 'linked' | 'overlap';
   matches: MatchWithResume[];
   selected: MatchWithResume | null;
   /** The selected comparison's keywords, ordered and counted by the matcher. */
@@ -99,6 +99,8 @@ export interface KeywordEditTarget {
 export interface RebuildTarget {
   jobId: number;
   resumeId: number;
+  /** The comparison being rebuilt — on the scratch row it names the file whose text is judged again. */
+  matchId?: number;
   mode: MatchMode;
   /** The analysed text when it was an unsaved draft: re-judged as is, so the frame is the only thing that changes. */
   draftText?: string;
@@ -124,7 +126,6 @@ export const ResumeMatchCard: FC<ResumeMatchCardProps> = ({
   jobId,
   resumes,
   suggestedResumeId,
-  suggestedReason,
   matches,
   selected,
   selectedKeywords,
@@ -141,7 +142,11 @@ export const ResumeMatchCard: FC<ResumeMatchCardProps> = ({
           <a href="/resumes" class="font-medium text-accent-strong hover:text-accent-deep">
             Upload one
           </a>{' '}
-          to see what to change before applying here.
+          to see what to change before applying here, or{' '}
+          <a href={`/target?job=${jobId}`} class="font-medium text-accent-strong hover:text-accent-deep">
+            compare a file once
+          </a>{' '}
+          without keeping it.
         </Hint>
       ) : (
         <form method="post" action={`/jobs/${jobId}/match`} class="flex flex-wrap items-end gap-3" onsubmit={SUBMIT_ONCE}>
@@ -155,13 +160,7 @@ export const ResumeMatchCard: FC<ResumeMatchCardProps> = ({
             <Select name="resumeId" class="mt-1.5 !w-auto max-w-full">
               {resumes.map((r) => (
                 <option value={r.id} selected={r.id === (suggestedResumeId ?? resumes[0]?.id)}>
-                  {r.name}
-                  {r.id === suggestedResumeId
-                    ? suggestedReason === 'linked'
-                      ? ' · your search hunts with this'
-                      : ' · best skill overlap'
-                    : ''}
-                  {r.isDefault ? ' · default' : ''}
+                  {r.label}
                 </option>
               ))}
             </Select>
@@ -169,6 +168,15 @@ export const ResumeMatchCard: FC<ResumeMatchCardProps> = ({
           <Button variant="violet" title="Judges this resume against the posting and writes what to change">
             Compare
           </Button>
+          {/* Only the Resumes rows are listed here; a file that is not one of
+              them, or pasted text, is compared from the Compare page with this
+              job already picked. */}
+          <a
+            href={`/target?job=${jobId}`}
+            class="py-2 text-sm font-medium text-accent-strong hover:text-accent-deep"
+          >
+            Compare a file or pasted text →
+          </a>
           {!selected && (
             <Hint class="basis-full">
               One call to the resume model — keywords, hard requirements, the score and what to
@@ -209,7 +217,7 @@ export const ResumeMatchCard: FC<ResumeMatchCardProps> = ({
                   <FitBadge score={m.matchScore} label="match" />
                   {m.resume.name}
                   <span class="font-mono text-ink-faint">
-                    v{m.resumeVersion}
+                    {m.resume.hidden ? '' : `v${m.resumeVersion}`}
                     {m.draft ? ' draft' : ''}
                   </span>
                   <span class="text-ink-faint">{formatRelative(m.createdAt)}</span>
@@ -222,13 +230,6 @@ export const ResumeMatchCard: FC<ResumeMatchCardProps> = ({
     </Card>
   </div>
 );
-
-/** The most recent earlier comparison of the same resume — for the "vs last time" delta. */
-export function previousFor(selected: MatchWithResume, matches: MatchWithResume[]): MatchWithResume | null {
-  return (
-    matches.find((m) => m.resumeId === selected.resumeId && m.createdAt < selected.createdAt) ?? null
-  );
-}
 
 /** "Why this score" — the lines under the number on the /jobs match card. */
 /*
@@ -445,12 +446,12 @@ const MatchReport: FC<{
         {scoreDelta !== null && (
           <Badge tone={scoreDelta > 0 ? 'ok' : scoreDelta < 0 ? 'danger' : 'neutral'}>
             {scoreDelta > 0 ? '▲' : scoreDelta < 0 ? '▼' : '='} {scoreDelta > 0 ? '+' : ''}
-            {scoreDelta} vs v{previous?.resumeVersion}
+            {scoreDelta} vs {previous && earlierLabel(previous)}
           </Badge>
         )}
         <span class="text-sm text-ink">
           {match.resume.name}{' '}
-          <span class="font-mono text-xs text-ink-faint">v{match.resumeVersion}</span>
+          {!match.resume.hidden && <span class="font-mono text-xs text-ink-faint">v{match.resumeVersion}</span>}
         </span>
         <span class="text-xs text-ink-faint">
           {formatRelative(match.createdAt)} · <span class="font-mono">{match.model}</span>
@@ -500,6 +501,7 @@ const MatchReport: FC<{
         rebuild={{
           jobId: match.jobId,
           resumeId: match.resumeId,
+          matchId: match.id,
           mode: readMatchMode(match.breakdown),
           ...(match.draft ? { draftText: match.resumeText } : {}),
         }}
@@ -542,7 +544,7 @@ export const DeltaBox: FC<{ match: MatchWithResume; previous: MatchWithResume | 
   if (fresh) {
     return (
       <div class="rounded-md border border-line bg-surface-overlay/50 px-3 py-2 text-xs leading-5 text-ink-muted">
-        <span class="font-medium text-ink">Not comparable with v{previous.resumeVersion}: </span>
+        <span class="font-medium text-ink">Not comparable with {earlierLabel(previous)}: </span>
         {freshFrameNotice(fresh)}
       </div>
     );
@@ -554,7 +556,7 @@ export const DeltaBox: FC<{ match: MatchWithResume; previous: MatchWithResume | 
   if (delta.gained.length === 0 && delta.lost.length === 0 && !delta.components) return null;
   return (
     <div class="rounded-md border border-line bg-surface-overlay/50 px-3 py-2 text-xs leading-5 text-ink-muted">
-      <span class="font-medium text-ink">vs v{previous.resumeVersion}: </span>
+      <span class="font-medium text-ink">vs {earlierLabel(previous)}: </span>
       {delta.gained.length > 0 && (
         <span>
           gained <span class="text-ok">{delta.gained.join(', ')}</span>
@@ -1011,6 +1013,7 @@ const RebuildKeywords: FC<{ target: RebuildTarget }> = ({ target }) =>
   ) : (
     <form method="post" action={`/jobs/${target.jobId}/match`} class="ml-auto" onsubmit={SUBMIT_ONCE}>
       <input type="hidden" name="resumeId" value={String(target.resumeId)} />
+      {target.matchId !== undefined && <input type="hidden" name="matchId" value={String(target.matchId)} />}
       <input type="hidden" name="mode" value={target.mode} />
       <input type="hidden" name="rebuild" value="1" />
       {/* A draft row was judged on text no version holds — send it back, or the

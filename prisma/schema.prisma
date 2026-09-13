@@ -605,6 +605,10 @@ model ResumeMatch {
   // resume moves on. `draft` = text came from the in-browser editor, not a
   // stored version.
   resumeText       String   @default("") @db.Text
+  // The name of the file that was judged. The launchers' scratch row is
+  // renamed by every upload, so without it every one-off comparison would
+  // show the latest file's name. Real resumes show their live name instead.
+  resumeName       String   @default("")
   draft            Boolean  @default(false)
   model            String
   matchScore       Int

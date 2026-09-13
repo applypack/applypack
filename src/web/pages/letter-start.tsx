@@ -3,6 +3,9 @@ import type { FC } from 'hono/jsx';
 import { Layout } from '../layout';
 import { Button, Card, Checkbox, FILE_INPUT_CLASS, Flash, Hint, Input, PageHeader, SectionTitle, Select, Textarea } from '../ui';
 import type { FlashMessage } from '../flash';
+import type { ResumeOption } from '../resume-source';
+import type { JobPickOption } from '../job-pick';
+import { JobPicker } from './job-picker';
 import { ModeCard } from './target-start';
 import { ACCEPTED_EXTENSIONS } from '../../resume/resume-text';
 import { MAX_UPLOAD_MB } from '../upload';
@@ -15,17 +18,9 @@ import { COVER_TONES, type CoverAngles } from '../../resume/prompts';
  * match, no research — one model call and the letter.
  */
 
-export interface LetterJobOption {
-  id: number;
-  title: string;
-  companyName: string;
-  fitScore: number | null;
-  ageDays: number;
-}
-
 export interface LetterStartProps {
-  jobs: LetterJobOption[];
-  resumes: { id: number; name: string; isDefault: boolean; version: number }[];
+  jobs: JobPickOption[];
+  resumes: ResumeOption[];
   angles: CoverAngles;
   /** Prefilled after a failed fetch, so the URL survives the round trip. */
   presetUrl?: string;
@@ -65,28 +60,7 @@ export const LetterStartPage: FC<LetterStartProps> = ({
                 disabled={!hasJobs}
               >
                 {hasJobs ? (
-                  <div class="space-y-2">
-                    <Input
-                      type="search"
-                      id="job-search"
-                      placeholder="Filter by title or company…"
-                      aria-label="Filter jobs"
-                      autocomplete="off"
-                    />
-                    <Select name="jobId" id="job-select" size={8} aria-label="Job" class="!h-auto">
-                      {jobs.map((j) => (
-                        <option value={j.id}>
-                          {j.companyName} — {j.title}
-                          {j.fitScore !== null ? ` · fit ${j.fitScore}` : ''} ·{' '}
-                          {j.ageDays === 0 ? 'today' : `${j.ageDays}d old`}
-                        </option>
-                      ))}
-                    </Select>
-                    <Hint>
-                      <span id="job-count">{jobs.length}</span> newest jobs that clear your fit
-                      threshold, freshest first.
-                    </Hint>
-                  </div>
+                  <JobPicker jobs={jobs}>newest jobs that clear your fit threshold, freshest first.</JobPicker>
                 ) : (
                   <Hint>No tracked jobs yet — use the box below.</Hint>
                 )}
@@ -131,8 +105,7 @@ export const LetterStartPage: FC<LetterStartProps> = ({
                   <Select name="resumeId" aria-label="Resume">
                     {resumes.map((r) => (
                       <option value={r.id} selected={r.id === defaultResumeId}>
-                        {r.name} · v{r.version}
-                        {r.isDefault ? ' · default' : ''}
+                        {r.label}
                       </option>
                     ))}
                   </Select>

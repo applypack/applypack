@@ -64,7 +64,8 @@ const REUSE_CANDIDATES = 4;
  * lets the model read the terms out of the description again (issue #79).
  */
 export async function matchResumeToJob(
-  resume: { id: number; text: string; version: number },
+  /** `name` is stored with the row: the name of the text judged (match-name.ts). */
+  resume: { id: number; name: string; text: string; version: number },
   job: MatchJobInput & { id: number },
   opts: {
     draft?: boolean;
@@ -193,6 +194,7 @@ export async function matchResumeToJob(
     resumeId: resume.id,
     resumeVersion: resume.version,
     resumeText: resume.text,
+    resumeName: resume.name,
     draft: opts.draft ?? false,
     // The marker surfaces on the match card's meta line — the user can see
     // that a fallback engine (not chain #1) produced this analysis.

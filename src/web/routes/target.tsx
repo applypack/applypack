@@ -3,68 +3,50 @@ import { Hono } from 'hono';
 import { getAiRuntime } from '../../ai-runtime';
 import { laneOf, type Lane } from '../lane';
 import { z } from 'zod';
+import { prisma } from '../../db';
 import { hashShortId } from '../../text-utils';
 import { classifyInBackground } from '../../jobs/classify-existing';
-import { createManualJob, ManualJobSchema, MAX_FIELD_CHARS, MIN_DESCRIPTION_CHARS } from '../../jobs/manual-job';
+import { createManualJob, ManualJobSchema, MAX_FIELD_CHARS, MAX_POSTING_CHARS, MIN_DESCRIPTION_CHARS } from '../../jobs/manual-job';
 import { extractPostingFacts, fallbackTitle } from '../../jobs/posting-extract';
-import { briefForPosting, briefLine } from '../../resume/brief';
-import { findReusableMatch, matchResumeToJob } from '../../resume/match';
 import { parseMatchMode } from '../../resume/match-mode';
-import { reuseNotice, SUGGESTIONS_FAILED, suggestionsFlash } from '../../resume/match-reuse';
-import { readActions, readRemovals } from '../../resume/prompts';
-import {
-  deleteCoverLettersForResume,
-  getResume,
-  listResumes,
-  upsertScratchResume,
-} from '../../resume/store';
-import { suggestForMatch } from '../../resume/suggestions';
-import { suggestionsKey } from '../suggestions-run';
+import { runComparison, startComparison } from '../comparison-run';
+import { listPickableJobs } from '../job-pick';
+import { idParam } from '../params';
 import { TargetStartPage } from '../pages/target-start';
 import { TargetRunPage } from '../pages/target-run';
 import { clearFlashCookie, flashRedirect, parseFlashCookie } from '../flash';
-import { formatRelative } from '../format';
-import { alsoClaims, claimRun, getRun, matchStep, startRun, updateRun, type RunStep, runFailure } from '../target-runs';
-import {
-  MAX_RESUME_NAME_CHARS,
-  nameFromFilename,
-  readResumeUpload,
-  resumeUploadLimit,
-} from '../upload';
-
-const MIN_RESUME_CHARS = 200;
+import { claimRun, getRun, matchStep, startRun, updateRun, type RunStep } from '../target-runs';
+import { listResumeOptions, resolveResumeSource, ResumeSourceFields } from '../resume-source';
+import { resumeUploadLimit } from '../upload';
 
 /* zod strips unknown keys, so the multipart `file` field is read from the raw form.
- * Company and title are optional here (unlike /jobs/new): when left empty they
- * are auto-detected from the description — client-side via /target/extract,
- * and again server-side below as the no-JS fallback. */
+ * Two job sources: one of the stored jobs (`jobId`), or a pasted posting whose
+ * company and title are optional here (unlike /jobs/new) — left empty, they
+ * are detected from the description inside the run. A form without `jobMode`
+ * is a pasted posting, which is all this page used to take. */
 const TargetFormSchema = ManualJobSchema.extend({
+  jobMode: z.enum(['existing', 'new']).default('new'),
+  jobId: z.coerce.number().int().optional(),
   companyName: z.string().trim().max(MAX_FIELD_CHARS).default(''),
   title: z.string().trim().max(MAX_FIELD_CHARS).default(''),
-  resumeMode: z.enum(['existing', 'upload', 'paste']),
+  description: z.string().trim().default(''),
   /** The quick check unless "Full analysis" was pressed (ADR 0029). */
   mode: z.unknown().transform(parseMatchMode),
-  resumeId: z.coerce.number().int().optional(),
-  resumeText: z.string().optional().default(''),
-  uploadName: z.string().optional().default(''),
-  pasteName: z.string().optional().default(''),
+  ...ResumeSourceFields,
 });
 
 export const targetRoute = new Hono();
 
-async function resumeRows() {
-  return (await listResumes()).map((r) => ({
-    id: r.id,
-    name: r.name,
-    isDefault: r.isDefault,
-    version: r.version,
-  }));
-}
-
 targetRoute.get('/target', async (c) => {
+  // `?job=70` is the job page's "compare another file": the picker opens on it.
+  const wanted = idParam(c.req.query('job'));
+  const include = Number.isFinite(wanted) ? wanted : null;
+  const [jobs, resumes] = await Promise.all([listPickableJobs(include), listResumeOptions()]);
   return c.html(
     <TargetStartPage
-      resumes={await resumeRows()}
+      jobs={jobs}
+      selectedJobId={jobs.some((j) => j.id === include) ? include : null}
+      resumes={resumes}
       flash={parseFlashCookie(c.req.header('cookie'))}
     />,
     200,
@@ -115,14 +97,38 @@ async function resumeLane(): Promise<Lane> {
 targetRoute.post('/target', resumeUploadLimit('/target'), async (c) => {
   const form = await c.req.parseBody();
   const parsed = TargetFormSchema.safeParse(form);
-  if (!parsed.success) {
-    return flashRedirect(
-      '/target',
-      'err',
-      `A description of at least ${MIN_DESCRIPTION_CHARS} characters is required.`,
-    );
-  }
+  if (!parsed.success) return flashRedirect('/target', 'err', 'Pick a job source and a resume.');
   const f = parsed.data;
+
+  // One of the stored jobs: nothing to detect and nothing to create, so this is
+  // the job page's own Compare — the same memo, the same run, the same result
+  // page — with the resume chosen here, a file or a paste included.
+  if (f.jobMode === 'existing') {
+    if (!f.jobId) return flashRedirect('/target', 'err', 'Pick a job from the list.');
+    const back = `/target?job=${f.jobId}`;
+    const job = await prisma.job.findUnique({ where: { id: f.jobId }, include: { company: { select: { name: true } } } });
+    if (!job) return flashRedirect('/target', 'err', 'That job no longer exists.');
+    const resume = await resolveResumeSource(form, f);
+    if ('error' in resume) return flashRedirect(back, 'err', resume.error);
+    return startComparison(c, {
+      jobId: job.id,
+      job: { id: job.id, title: job.title, companyName: job.company.name, location: job.location, description: job.description },
+      resume,
+      text: resume.text,
+      mode: f.mode,
+      rebuild: false,
+      force: false,
+      resultUrl: (matchId) => `/jobs/${job.id}/target?match=${matchId}`,
+      label: `"${resume.name}"`,
+    });
+  }
+
+  if (f.description.length < MIN_DESCRIPTION_CHARS) {
+    return flashRedirect('/target', 'err', `A description of at least ${MIN_DESCRIPTION_CHARS} characters is required.`);
+  }
+  if (f.description.length > MAX_POSTING_CHARS) {
+    return flashRedirect('/target', 'err', `The posting is too long — at most ${MAX_POSTING_CHARS} characters.`);
+  }
 
   // Empty company / title / location are detected from the description INSIDE
   // the run — a visible "Detect posting facts" step. Detection never blocks:
@@ -133,40 +139,8 @@ targetRoute.post('/target', resumeUploadLimit('/target'), async (c) => {
   // Resolve the resume inline (fast, and bad files fail before anything runs).
   // Upload / paste land on the hidden scratch row — /target is a pure
   // comparison and never adds rows to the user's Resumes.
-  let resume: { id: number; name: string; version: number; text: string; ephemeral: boolean };
-  if (f.resumeMode === 'existing') {
-    if (!f.resumeId) return flashRedirect('/target', 'err', 'Pick a resume from the list.');
-    const row = await getResume(f.resumeId);
-    if (!row || row.hidden) return flashRedirect('/target', 'err', 'That resume no longer exists.');
-    resume = { ...row, ephemeral: false };
-  } else if (f.resumeMode === 'upload') {
-    const upload = await readResumeUpload(form);
-    if ('error' in upload) return flashRedirect('/target', 'err', upload.error);
-    const name =
-      f.uploadName.trim().slice(0, MAX_RESUME_NAME_CHARS) ||
-      nameFromFilename(upload.sourceFilename);
-    resume = { ...(await upsertScratchResume({ name, ...upload })), ephemeral: true };
-  } else {
-    const text = f.resumeText.replace(/\r\n/g, '\n').trim();
-    if (text.length < MIN_RESUME_CHARS) {
-      return flashRedirect(
-        '/target',
-        'err',
-        `The pasted resume is too short — at least ${MIN_RESUME_CHARS} characters.`,
-      );
-    }
-    const name = f.pasteName.trim().slice(0, MAX_RESUME_NAME_CHARS) || 'Pasted resume';
-    resume = {
-      ...(await upsertScratchResume({
-        name,
-        sourceFilename: 'pasted.txt',
-        mimeType: 'text/plain',
-        original: Buffer.from(text, 'utf8'),
-        text,
-      })),
-      ephemeral: true,
-    };
-  }
+  const resume = await resolveResumeSource(form, f);
+  if ('error' in resume) return flashRedirect('/target', 'err', resume.error);
 
   // The posting is read as its own visible step (ADR 0044) — it is what the
   // comparison is judged against, and on a second run it finishes instantly.
@@ -218,92 +192,27 @@ targetRoute.post('/target', resumeUploadLimit('/target'), async (c) => {
     const job = result.job;
     if (result.kind === 'created') classifyInBackground(result.job);
     updateRun(run.id, { jobId: job.id });
-    const jobInput = { id: job.id, title: job.title, companyName, location: job.location, description: job.description };
 
-    // 2. The same text against the same posting is already answered — a
-    //    double submit or a re-paste shows the stored analysis instead. A
-    //    full analysis asked of a stored quick check needs only the
-    //    suggestions call, which this run makes itself: one progress page,
-    //    not two chained ones. It answers to the suggestions key as well,
-    //    so pressing "Get suggestions" on that comparison meanwhile joins
-    //    this run instead of calling the model a second time (issue #76).
-    const reused = await findReusableMatch(job.id, resume.id, resume.text, f.mode);
-    if (reused?.decision === 'reuse') {
-      updateRun(run.id, {
-        stage: 'done',
-        resultUrl: `/jobs/${job.id}/target?match=${reused.row.id}`,
-        flash: reuseNotice(formatRelative(reused.row.createdAt)),
-        reused: true,
-      });
-      return;
-    }
-    if (reused) {
-      alsoClaims(run.id, suggestionsKey(reused.row.id));
-      updateRun(run.id, {
-        steps: needExtract ? ['extract', 'suggestions'] : ['suggestions'],
-        stage: 'suggestions',
-      });
-      let reason = '';
-      const row = await suggestForMatch(reused.row, jobInput, (r) => {
-        reason = r;
-      });
-      if (!row) {
-        updateRun(run.id, { stage: 'error', error: reason ? `${SUGGESTIONS_FAILED.replace(/\.$/, '')}: ${reason}.` : SUGGESTIONS_FAILED });
-        return;
-      }
-      updateRun(run.id, {
-        stage: 'done',
-        resultUrl: `/jobs/${job.id}/target?match=${reused.row.id}`,
-        flash: suggestionsFlash(
-          { actions: readActions(row.actions).length, removals: readRemovals(row.removals).length },
-          formatRelative(reused.row.createdAt),
-        ),
-      });
-      return;
-    }
-
-    // 2c. The posting read on its own, cached against its text. Shown as a
-    //     step because it is the analysis the user asked to see, and because a
-    //     reused reading is the visible reason the second run is faster.
-    updateRun(run.id, { stage: 'brief' });
-    const briefed = await briefForPosting(jobInput);
-    if (briefed) {
-      updateRun(run.id, {
-        results: {
-          brief: briefed.reused ? `Reused this posting's analysis — ${briefLine(briefed.brief)}` : briefLine(briefed.brief),
-        },
-      });
-    }
-    updateRun(run.id, { stage: matchStep(f.mode) });
-
-    // 3. Older comparisons stay. A one-off check used to keep only its latest
-    //    analysis, which meant comparing the same posting again threw away the
-    //    run the user was about to compare against — and the whole point of
-    //    re-uploading a resume is seeing whether the number moved. The job page
-    //    lists them under "older runs"; each one carries its own text snapshot,
-    //    so an old row still shows the resume it actually judged.
-    if (resume.ephemeral) await deleteCoverLettersForResume(resume.id);
-
-    // 4. One resume-model call, then straight into the targeted workspace.
-    let reason = '';
-    const row = await matchResumeToJob({ id: resume.id, version: resume.version, text: resume.text }, jobInput, {
-      mode: f.mode,
-      brief: briefed,
-      onError: (r) => {
-        reason = r;
+    // 2. From here it is the comparison every other page runs: the memo (a
+    //    double submit or a re-paste shows the stored analysis), the posting's
+    //    reading, the resume-model call, the targeted workspace.
+    await runComparison(
+      run.id,
+      {
+        jobId: job.id,
+        job: { id: job.id, title: job.title, companyName, location: job.location, description: job.description },
+        resume,
+        text: resume.text,
+        mode: f.mode,
+        rebuild: false,
+        force: false,
+        resultUrl: (matchId) => `/jobs/${job.id}/target?match=${matchId}`,
+        label: `"${resume.name}"`,
+        doneNote: result.kind === 'created' ? 'The fit score is still being scored; it lands on the job page in about a minute.' : undefined,
+        failure: 'The posting was saved, but the AI comparison failed',
       },
-    });
-    if (!row) {
-      updateRun(run.id, { stage: 'error', error: runFailure('The posting was saved, but the AI comparison failed', reason) });
-      return;
-    }
-    updateRun(run.id, {
-      stage: 'done',
-      resultUrl: `/jobs/${job.id}/target?match=${row.id}`,
-      flash:
-        `AI match ${row.matchScore}/100 — "${resume.name}" vs "${job.title}"${f.mode === 'fast' ? ' (quick check: keywords, gates and score).' : '.'}` +
-        (result.kind === 'created' ? ' The fit score is still being scored; it lands on the job page in about a minute.' : ''),
-    });
+      needExtract ? ['extract'] : [],
+    );
   });
 
   return c.redirect(`/target/runs/${run.id}`, 303);

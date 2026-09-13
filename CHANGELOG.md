@@ -4,6 +4,54 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.9.0] — 2026-09-13
+
+### Added
+- **Compare a found job with any resume, not only the ones in Resumes.**
+  The Compare page takes "One of your jobs" beside "A new posting" — the
+  same searchable picker the cover-letter page has — so a job the fetchers
+  found can be compared with a file you pick there, or with pasted text.
+  The job page's Resume match card links to it with the job already picked
+  ("Compare a file or pasted text →"). A stored job goes through the job
+  page's own comparison: the same memo, the same progress page, the same
+  tailoring view, and nothing is added to Resumes.
+
+### Changed
+- A resume in a dropdown says what it is: `name · PDF v1 · used by search
+  "Senior Software Engineer" · default`. "· your search hunts with this"
+  read like the name of a search rather than a note on a file.
+- A one-off file or paste no longer wipes what an earlier one-off left.
+  Its comparisons were already kept; its letters now go only when the text
+  changes, and a letter distils the comparison of its own text, so writing
+  a letter from an uploaded file no longer deletes the comparisons other
+  uploaded files made.
+- A pasted posting on the Compare page runs through the same comparison
+  code as every other page (`comparison-run.ts:runComparison`): one memo,
+  one suggestions branch, one done step. Its flash now reads like the
+  others ("… compared — AI match N/100."), and a finished run keeps the
+  posting's reading line.
+
+### Fixed
+- **A one-off comparison keeps the name of its file.** Every file compared
+  from the Compare page lives on one hidden row that each upload renames, so
+  every older one-off comparison — the chips under a job, the tailoring
+  page's header and history — showed the latest file's name. The name is
+  now stored with the comparison (`resume_match.resumeName`, migration
+  `20260913170000_match_resume_name`); rows from before it whose file has
+  since been replaced read "An earlier one-off file". Real resumes still
+  show their live name, so renaming one on Resumes renames its comparisons.
+- **Rebuilding an older one-off's keywords judges that file.** "Rebuild
+  keywords" on the job page sent only the resume id, and on the hidden row
+  that meant the text of whatever was uploaded last — a rebuild could
+  re-read another person's resume against the posting. It now names the
+  comparison, and its own text is judged; so does the editor's re-run when
+  it arrives without the editor's text.
+- A one-off's "vs v3" measured it against the previous upload, usually a
+  different resume. The delta now pairs only with an earlier check of the
+  same file and says "vs the last check of this file".
+- The Compare page said an uploaded or pasted resume "lands in Resumes".
+  It never did; the hints now say it is a one-off check.
+
 ## [2.8.0] — 2026-09-13
 
 ### Added
@@ -3537,6 +3585,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.9.0]: https://github.com/applypack/applypack/compare/v2.8.0...v2.9.0
 [2.8.0]: https://github.com/applypack/applypack/compare/v2.7.2...v2.8.0
 [2.7.2]: https://github.com/applypack/applypack/compare/v2.7.1...v2.7.2
 [2.7.1]: https://github.com/applypack/applypack/compare/v2.7.0...v2.7.1
