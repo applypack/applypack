@@ -3,9 +3,10 @@ import { Hono } from 'hono';
 import { getAiRuntime } from '../../ai-runtime';
 import { laneOf, type Lane } from '../lane';
 import { z } from 'zod';
+import { prisma } from '../../db';
 import { hashShortId } from '../../text-utils';
 import { classifyInBackground } from '../../jobs/classify-existing';
-import { createManualJob, ManualJobSchema, MAX_FIELD_CHARS, MIN_DESCRIPTION_CHARS } from '../../jobs/manual-job';
+import { createManualJob, ManualJobSchema, MAX_FIELD_CHARS, MAX_POSTING_CHARS, MIN_DESCRIPTION_CHARS } from '../../jobs/manual-job';
 import { extractPostingFacts, fallbackTitle } from '../../jobs/posting-extract';
 import { briefForPosting, briefLine } from '../../resume/brief';
 import { findReusableMatch, matchResumeToJob } from '../../resume/match';
@@ -15,6 +16,9 @@ import { readActions, readRemovals } from '../../resume/prompts';
 import { listResumes } from '../../resume/store';
 import { suggestForMatch } from '../../resume/suggestions';
 import { suggestionsKey } from '../suggestions-run';
+import { startComparison } from '../comparison-run';
+import { listPickableJobs } from '../job-pick';
+import { idParam } from '../params';
 import { TargetStartPage } from '../pages/target-start';
 import { TargetRunPage } from '../pages/target-run';
 import { clearFlashCookie, flashRedirect, parseFlashCookie } from '../flash';
@@ -24,12 +28,16 @@ import { resolveResumeSource, ResumeSourceFields } from '../resume-source';
 import { resumeUploadLimit } from '../upload';
 
 /* zod strips unknown keys, so the multipart `file` field is read from the raw form.
- * Company and title are optional here (unlike /jobs/new): when left empty they
- * are auto-detected from the description — client-side via /target/extract,
- * and again server-side below as the no-JS fallback. */
+ * Two job sources: one of the stored jobs (`jobId`), or a pasted posting whose
+ * company and title are optional here (unlike /jobs/new) — left empty, they
+ * are detected from the description inside the run. A form without `jobMode`
+ * is a pasted posting, which is all this page used to take. */
 const TargetFormSchema = ManualJobSchema.extend({
+  jobMode: z.enum(['existing', 'new']).default('new'),
+  jobId: z.coerce.number().int().optional(),
   companyName: z.string().trim().max(MAX_FIELD_CHARS).default(''),
   title: z.string().trim().max(MAX_FIELD_CHARS).default(''),
+  description: z.string().trim().max(MAX_POSTING_CHARS).default(''),
   /** The quick check unless "Full analysis" was pressed (ADR 0029). */
   mode: z.unknown().transform(parseMatchMode),
   ...ResumeSourceFields,
@@ -47,9 +55,15 @@ async function resumeRows() {
 }
 
 targetRoute.get('/target', async (c) => {
+  // `?job=70` is the job page's "compare another file": the picker opens on it.
+  const wanted = idParam(c.req.query('job'));
+  const include = Number.isFinite(wanted) ? wanted : null;
+  const [jobs, resumes] = await Promise.all([listPickableJobs(include), resumeRows()]);
   return c.html(
     <TargetStartPage
-      resumes={await resumeRows()}
+      jobs={jobs}
+      selectedJobId={jobs.some((j) => j.id === include) ? include : null}
+      resumes={resumes}
       flash={parseFlashCookie(c.req.header('cookie'))}
     />,
     200,
@@ -100,14 +114,35 @@ async function resumeLane(): Promise<Lane> {
 targetRoute.post('/target', resumeUploadLimit('/target'), async (c) => {
   const form = await c.req.parseBody();
   const parsed = TargetFormSchema.safeParse(form);
-  if (!parsed.success) {
-    return flashRedirect(
-      '/target',
-      'err',
-      `A description of at least ${MIN_DESCRIPTION_CHARS} characters is required.`,
-    );
-  }
+  if (!parsed.success) return flashRedirect('/target', 'err', 'Pick a job source and a resume.');
   const f = parsed.data;
+
+  // One of the stored jobs: nothing to detect and nothing to create, so this is
+  // the job page's own Compare — the same memo, the same run, the same result
+  // page — with the resume chosen here, a file or a paste included.
+  if (f.jobMode === 'existing') {
+    if (!f.jobId) return flashRedirect('/target', 'err', 'Pick a job from the list.');
+    const back = `/target?job=${f.jobId}`;
+    const job = await prisma.job.findUnique({ where: { id: f.jobId }, include: { company: { select: { name: true } } } });
+    if (!job) return flashRedirect('/target', 'err', 'That job no longer exists.');
+    const resume = await resolveResumeSource(form, f);
+    if ('error' in resume) return flashRedirect(back, 'err', resume.error);
+    return startComparison(c, {
+      jobId: job.id,
+      job: { id: job.id, title: job.title, companyName: job.company.name, location: job.location, description: job.description },
+      resume,
+      text: resume.text,
+      mode: f.mode,
+      rebuild: false,
+      force: false,
+      resultUrl: (matchId) => `/jobs/${job.id}/target?match=${matchId}`,
+      label: `"${resume.name}"`,
+    });
+  }
+
+  if (f.description.length < MIN_DESCRIPTION_CHARS) {
+    return flashRedirect('/target', 'err', `A description of at least ${MIN_DESCRIPTION_CHARS} characters is required.`);
+  }
 
   // Empty company / title / location are detected from the description INSIDE
   // the run — a visible "Detect posting facts" step. Detection never blocks:
