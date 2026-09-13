@@ -1,8 +1,9 @@
 /** @jsxImportSource hono/jsx */
 import type { FC } from 'hono/jsx';
 import { Layout } from '../layout';
-import { Button, Card, FILE_INPUT_CLASS, Flash, Hint, Input, PageHeader, SectionTitle, Select, SUBMIT_ONCE, Textarea } from '../ui';
+import { Button, Card, FILE_INPUT_CLASS, Flash, Hint, Input, PageHeader, SectionTitle, SUBMIT_ONCE, Textarea } from '../ui';
 import type { FlashMessage } from '../flash';
+import { JobPicker, type JobPickOption } from './job-picker';
 import { ModeCard } from './target-start';
 import { ACCEPTED_EXTENSIONS } from '../../resume/resume-text';
 import { MIN_DESCRIPTION_CHARS } from '../../jobs/manual-job';
@@ -15,15 +16,7 @@ import { MAX_UPLOAD_MB } from '../upload';
  * after the rubric has been read off the posting.
  */
 
-export interface ScreenJobOption {
-  id: number;
-  title: string;
-  companyName: string;
-  manual: boolean;
-  ageDays: number;
-}
-
-export const ScreenNewPage: FC<{ jobs: ScreenJobOption[]; flash?: FlashMessage | null }> = ({ jobs, flash }) => {
+export const ScreenNewPage: FC<{ jobs: JobPickOption[]; flash?: FlashMessage | null }> = ({ jobs, flash }) => {
   const hasJobs = jobs.length > 0;
   return (
     <Layout title="New screening" active="screen">
@@ -40,20 +33,7 @@ export const ScreenNewPage: FC<{ jobs: ScreenJobOption[]; flash?: FlashMessage |
             <div class="space-y-2">
               <ModeCard name="jobMode" value="existing" label="One of your jobs" checked={hasJobs} disabled={!hasJobs}>
                 {hasJobs ? (
-                  <div class="space-y-2">
-                    <Input type="search" id="job-search" placeholder="Filter by title or company…" aria-label="Filter jobs" autocomplete="off" />
-                    <Select name="jobId" id="job-select" size={8} aria-label="Job" class="!h-auto">
-                      {jobs.map((j) => (
-                        <option value={j.id}>
-                          {j.companyName} — {j.title}
-                          {j.manual ? ' · pasted' : ''} · {j.ageDays === 0 ? 'today' : `${j.ageDays}d old`}
-                        </option>
-                      ))}
-                    </Select>
-                    <Hint>
-                      <span id="job-count">{jobs.length}</span> jobs, the ones you pasted yourself first.
-                    </Hint>
-                  </div>
+                  <JobPicker jobs={jobs}>jobs, the ones you pasted yourself first.</JobPicker>
                 ) : (
                   <Hint>No stored jobs yet — paste the posting below.</Hint>
                 )}

@@ -12,12 +12,7 @@ import { findReusableMatch, matchResumeToJob } from '../../resume/match';
 import { parseMatchMode } from '../../resume/match-mode';
 import { reuseNotice, SUGGESTIONS_FAILED, suggestionsFlash } from '../../resume/match-reuse';
 import { readActions, readRemovals } from '../../resume/prompts';
-import {
-  deleteCoverLettersForResume,
-  getResume,
-  listResumes,
-  upsertScratchResume,
-} from '../../resume/store';
+import { deleteCoverLettersForResume, listResumes } from '../../resume/store';
 import { suggestForMatch } from '../../resume/suggestions';
 import { suggestionsKey } from '../suggestions-run';
 import { TargetStartPage } from '../pages/target-start';
@@ -25,14 +20,8 @@ import { TargetRunPage } from '../pages/target-run';
 import { clearFlashCookie, flashRedirect, parseFlashCookie } from '../flash';
 import { formatRelative } from '../format';
 import { alsoClaims, claimRun, getRun, matchStep, startRun, updateRun, type RunStep, runFailure } from '../target-runs';
-import {
-  MAX_RESUME_NAME_CHARS,
-  nameFromFilename,
-  readResumeUpload,
-  resumeUploadLimit,
-} from '../upload';
-
-const MIN_RESUME_CHARS = 200;
+import { resolveResumeSource, ResumeSourceFields } from '../resume-source';
+import { resumeUploadLimit } from '../upload';
 
 /* zod strips unknown keys, so the multipart `file` field is read from the raw form.
  * Company and title are optional here (unlike /jobs/new): when left empty they
@@ -41,13 +30,9 @@ const MIN_RESUME_CHARS = 200;
 const TargetFormSchema = ManualJobSchema.extend({
   companyName: z.string().trim().max(MAX_FIELD_CHARS).default(''),
   title: z.string().trim().max(MAX_FIELD_CHARS).default(''),
-  resumeMode: z.enum(['existing', 'upload', 'paste']),
   /** The quick check unless "Full analysis" was pressed (ADR 0029). */
   mode: z.unknown().transform(parseMatchMode),
-  resumeId: z.coerce.number().int().optional(),
-  resumeText: z.string().optional().default(''),
-  uploadName: z.string().optional().default(''),
-  pasteName: z.string().optional().default(''),
+  ...ResumeSourceFields,
 });
 
 export const targetRoute = new Hono();
@@ -133,40 +118,8 @@ targetRoute.post('/target', resumeUploadLimit('/target'), async (c) => {
   // Resolve the resume inline (fast, and bad files fail before anything runs).
   // Upload / paste land on the hidden scratch row — /target is a pure
   // comparison and never adds rows to the user's Resumes.
-  let resume: { id: number; name: string; version: number; text: string; ephemeral: boolean };
-  if (f.resumeMode === 'existing') {
-    if (!f.resumeId) return flashRedirect('/target', 'err', 'Pick a resume from the list.');
-    const row = await getResume(f.resumeId);
-    if (!row || row.hidden) return flashRedirect('/target', 'err', 'That resume no longer exists.');
-    resume = { ...row, ephemeral: false };
-  } else if (f.resumeMode === 'upload') {
-    const upload = await readResumeUpload(form);
-    if ('error' in upload) return flashRedirect('/target', 'err', upload.error);
-    const name =
-      f.uploadName.trim().slice(0, MAX_RESUME_NAME_CHARS) ||
-      nameFromFilename(upload.sourceFilename);
-    resume = { ...(await upsertScratchResume({ name, ...upload })), ephemeral: true };
-  } else {
-    const text = f.resumeText.replace(/\r\n/g, '\n').trim();
-    if (text.length < MIN_RESUME_CHARS) {
-      return flashRedirect(
-        '/target',
-        'err',
-        `The pasted resume is too short — at least ${MIN_RESUME_CHARS} characters.`,
-      );
-    }
-    const name = f.pasteName.trim().slice(0, MAX_RESUME_NAME_CHARS) || 'Pasted resume';
-    resume = {
-      ...(await upsertScratchResume({
-        name,
-        sourceFilename: 'pasted.txt',
-        mimeType: 'text/plain',
-        original: Buffer.from(text, 'utf8'),
-        text,
-      })),
-      ephemeral: true,
-    };
-  }
+  const resume = await resolveResumeSource(form, f);
+  if ('error' in resume) return flashRedirect('/target', 'err', resume.error);
 
   // The posting is read as its own visible step (ADR 0044) — it is what the
   // comparison is judged against, and on a second run it finishes instantly.

@@ -1,6 +1,5 @@
 /** @jsxImportSource hono/jsx */
 import { Hono } from 'hono';
-import { JobStatus } from '@prisma/client';
 import { z } from 'zod';
 import { prisma } from '../../db';
 import { hashShortId } from '../../text-utils';
@@ -14,22 +13,16 @@ import {
   deleteCoverLettersForResume,
   deleteMatchesForResume,
   getLatestCompanySnapshot,
-  getResume,
   listResumes,
-  upsertScratchResume,
 } from '../../resume/store';
 import { verifyJob } from '../../verification/verify';
-import { getActiveProfile } from '../../profiles';
 import { getSettings, setCoverAngles } from '../../settings';
 import { LetterStartPage } from '../pages/letter-start';
 import { clearFlashCookie, flashRedirect, parseFlashCookie } from '../flash';
 import { claimRun, startRun, updateRun, type RunStep } from '../target-runs';
-import {
-  MAX_RESUME_NAME_CHARS,
-  nameFromFilename,
-  readResumeUpload,
-  resumeUploadLimit,
-} from '../upload';
+import { listPickableJobs } from '../job-pick';
+import { resolveResumeSource, ResumeSourceFields } from '../resume-source';
+import { resumeUploadLimit } from '../upload';
 
 /*
  * The /letter launcher (F8.3): a searchable picker over tracked jobs, or one
@@ -42,11 +35,6 @@ import {
  * waiting on must not queue three analyses it never reads.
  */
 
-const MIN_RESUME_CHARS = 200;
-const JOB_PICK_LIMIT = 150;
-const PICKABLE: JobStatus[] = ['NEW', 'ALERTED', 'SAVED', 'APPLIED'];
-const DAY_MS = 86_400_000;
-
 const LetterFormSchema = z.object({
   jobMode: z.enum(['existing', 'new']),
   jobId: z.coerce.number().int().optional(),
@@ -54,60 +42,17 @@ const LetterFormSchema = z.object({
   description: z.string().default(''),
   companyName: z.string().trim().max(MAX_FIELD_CHARS).default(''),
   title: z.string().trim().max(MAX_FIELD_CHARS).default(''),
-  resumeMode: z.enum(['existing', 'upload', 'paste']),
-  resumeId: z.coerce.number().int().optional(),
-  resumeText: z.string().optional().default(''),
-  uploadName: z.string().optional().default(''),
-  pasteName: z.string().optional().default(''),
+  ...ResumeSourceFields,
 });
 
 export const letterRoute = new Hono();
 
-/** A picker option, not a posting: five columns instead of the row's forty (DATA-5). */
-const PICK_SELECT = { id: true, title: true, fitScore: true, fetchedAt: true, company: { select: { name: true } } } as const;
-
 letterRoute.get('/letter', async (c) => {
-  const settings = await getSettings();
-  // Newest first among the jobs that clear the primary search's threshold —
-  // a letter is written for something you would actually apply to, and the
-  // freshest of those is the likeliest target. The picker is searchable, so
-  // a long list costs nothing.
-  const profile = await getActiveProfile();
-  const where = {
-    status: { in: PICKABLE },
-    ...(profile ? { fitScore: { gte: profile.minFitScore } } : {}),
-  };
-  const [fitting, resumes] = await Promise.all([
-    prisma.job.findMany({
-      where,
-      orderBy: [{ fetchedAt: 'desc' }],
-      take: JOB_PICK_LIMIT,
-      select: PICK_SELECT,
-    }),
-    listResumes(),
-  ]);
-  // A brand-new install (or a strict threshold) can filter everything out;
-  // an empty picker would read as "you have no jobs", which is a lie.
-  const jobs =
-    fitting.length > 0
-      ? fitting
-      : await prisma.job.findMany({
-          where: { status: { in: PICKABLE } },
-          orderBy: [{ fetchedAt: 'desc' }],
-          take: JOB_PICK_LIMIT,
-          select: PICK_SELECT,
-        });
-  const now = Date.now();
+  const [settings, jobs, resumes] = await Promise.all([getSettings(), listPickableJobs(), listResumes()]);
   return c.html(
     <LetterStartPage
       presetUrl={(c.req.query('url') ?? '').slice(0, 2000)}
-      jobs={jobs.map((j) => ({
-        id: j.id,
-        title: j.title,
-        companyName: j.company.name,
-        fitScore: j.fitScore,
-        ageDays: Math.max(0, Math.floor((now - j.fetchedAt.getTime()) / DAY_MS)),
-      }))}
+      jobs={jobs}
       resumes={resumes.map((r) => ({
         id: r.id,
         name: r.name,
@@ -149,35 +94,8 @@ letterRoute.post('/letter', resumeUploadLimit('/letter'), async (c) => {
   if (fromForm) await setCoverAngles(angles);
 
   // Resolve the resume inline — bad input fails before anything runs.
-  let resume: { id: number; name: string; version: number; text: string; ephemeral: boolean };
-  if (f.resumeMode === 'existing') {
-    if (!f.resumeId) return flashRedirect('/letter', 'err', 'Pick a resume from the list.');
-    const row = await getResume(f.resumeId);
-    if (!row || row.hidden) return flashRedirect('/letter', 'err', 'That resume no longer exists.');
-    resume = { ...row, ephemeral: false };
-  } else if (f.resumeMode === 'upload') {
-    const upload = await readResumeUpload(form);
-    if ('error' in upload) return flashRedirect('/letter', 'err', upload.error);
-    const name =
-      f.uploadName.trim().slice(0, MAX_RESUME_NAME_CHARS) || nameFromFilename(upload.sourceFilename);
-    resume = { ...(await upsertScratchResume({ name, ...upload })), ephemeral: true };
-  } else {
-    const text = f.resumeText.replace(/\r\n/g, '\n').trim();
-    if (text.length < MIN_RESUME_CHARS) {
-      return flashRedirect('/letter', 'err', `The pasted resume is too short — at least ${MIN_RESUME_CHARS} characters.`);
-    }
-    const name = f.pasteName.trim().slice(0, MAX_RESUME_NAME_CHARS) || 'Pasted resume';
-    resume = {
-      ...(await upsertScratchResume({
-        name,
-        sourceFilename: 'pasted.txt',
-        mimeType: 'text/plain',
-        original: Buffer.from(text, 'utf8'),
-        text,
-      })),
-      ephemeral: true,
-    };
-  }
+  const resume = await resolveResumeSource(form, f);
+  if ('error' in resume) return flashRedirect('/letter', 'err', resume.error);
 
   // Resolve the job source. URL and paste both end as a description; the job
   // row itself is created inside the run (deduped, classified when new).

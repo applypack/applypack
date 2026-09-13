@@ -63,6 +63,7 @@ import { ScreenComparePage } from '../pages/screen-compare';
 import { sideBySide } from '../screen-compare';
 import { calibrationRows, exportRows, rowView, scoredBeforePosting } from '../screen-view';
 import { calibrate } from '../../screening/calibration';
+import { toPickOption } from '../job-pick';
 import { claimRun, startRun, updateRun } from '../target-runs';
 import { MAX_UPLOAD_MB } from '../upload';
 
@@ -99,15 +100,10 @@ screenRoute.get('/screen/new', async (c) => {
     select: { id: true, title: true, fetchedAt: true, company: { select: { name: true, atsType: true } } },
   });
   const now = Date.now();
+  const manual = (j: (typeof jobs)[number]): boolean => j.company.atsType === 'MANUAL';
   const options = jobs
-    .map((j) => ({
-      id: j.id,
-      title: j.title,
-      companyName: j.company.name,
-      manual: j.company.atsType === 'MANUAL',
-      ageDays: Math.max(0, Math.floor((now - j.fetchedAt.getTime()) / DAY_MS)),
-    }))
-    .sort((a, b) => Number(b.manual) - Number(a.manual));
+    .sort((a, b) => Number(manual(b)) - Number(manual(a)))
+    .map((j) => toPickOption(j, manual(j) ? 'pasted' : null, now));
   return c.html(<ScreenNewPage jobs={options} flash={flash(c)} />, 200, CLEAR);
 });
 
