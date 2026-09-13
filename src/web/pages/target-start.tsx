@@ -87,7 +87,7 @@ export const TargetStartPage: FC<TargetStartProps> = ({ jobs, selectedJobId, res
                     label="Job description"
                     hint="Paste the posting verbatim — page chrome is trimmed automatically, and empty fields below are detected from it during the run."
                   >
-                    <Textarea name="description" rows={12} placeholder="About the role…" />
+                    <Textarea name="description" rows={12} placeholder="About the role…" data-required />
                   </Field>
                   <div class="grid gap-4 sm:grid-cols-2">
                     <Field label="Company" hint="Optional — detected during the run.">
@@ -140,6 +140,7 @@ export const TargetStartPage: FC<TargetStartProps> = ({ jobs, selectedJobId, res
                     accept={ACCEPTED_EXTENSIONS.join(',')}
                     aria-label="Resume file"
                     class={FILE_INPUT_CLASS}
+                    data-required
                   />
                   <Input
                     type="text"
@@ -169,6 +170,7 @@ export const TargetStartPage: FC<TargetStartProps> = ({ jobs, selectedJobId, res
                     rows={8}
                     placeholder="Plain resume text, at least 200 characters…"
                     aria-label="Resume text"
+                    data-required
                   />
                   <Hint>A one-off check, like a file: nothing is added to your Resumes.</Hint>
                 </div>

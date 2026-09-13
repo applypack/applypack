@@ -1,14 +1,14 @@
 /*
  * Enhancements for the /target launcher. Served as a static ES module; the
  * page boots init(). The mode boxes and the job filter are the shared
- * launcher behaviour (letter-start.mjs); on top of it, a pasted description
+ * launcher behaviour (launcher.mjs); on top of it, a pasted description
  * gets page chrome trimmed in place (posting-clean.mjs — the job-header block
  * with title / company / salary survives). Empty fields are detected
  * server-side, inside the run. Importing this module touches no DOM.
  */
 
 import { cleanPostingText } from './posting-clean.mjs';
-import { init as initLauncher } from './letter-start.mjs';
+import { init as initLauncher } from './launcher.mjs';
 
 export function init() {
   initLauncher();

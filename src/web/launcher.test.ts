@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 
 // Served as a static ES module; node loads it the same way the browser does.
 // @ts-expect-error — plain JS with no declaration file; the shape is asserted below.
-const page = import('./public/letter-start.mjs') as Promise<{
+const page = import('./public/launcher.mjs') as Promise<{
   matchesQuery: (text: string, query: string) => boolean;
   filterOptions: (
     options: { value: string; text: string }[],
@@ -40,6 +40,6 @@ test('filterOptions narrows by company or title and can empty out', async () => 
   assert.deepEqual(filterOptions(OPTIONS, 'nothing here'), []);
 });
 
-test('letter-start module imports without a DOM and exposes init', async () => {
+test('launcher module imports without a DOM and exposes init', async () => {
   assert.equal(typeof (await page).init, 'function');
 });

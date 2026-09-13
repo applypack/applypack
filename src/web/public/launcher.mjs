@@ -1,10 +1,14 @@
 /*
- * Enhancements for the /letter launcher. Dependency-free ES module served
- * as-is; the page boots init(). Two behaviors, both progressive — without JS
- * the form still submits correctly:
+ * The launchers' shared behaviour — /target, /letter and /screen/new, each a
+ * form of radio-headed mode boxes. Dependency-free ES module served as-is;
+ * a page boots init(). Three behaviors, all progressive — without JS the form
+ * still submits and the server says what is missing:
  *   - touching any field inside a mode box selects that mode's radio;
+ *   - a control marked `data-required` is required only while its box is the
+ *     chosen one, so the browser stops a submit that would come back as an
+ *     error flash (and drop the file picked in the other box with it);
  *   - the job search box filters the option list in place.
- * filterOptions is pure and unit-tested from src/web/letter-start.test.ts;
+ * filterOptions is pure and unit-tested from src/web/launcher.test.ts;
  * importing this module touches no DOM.
  */
 
@@ -21,12 +25,26 @@ export function filterOptions(options, query) {
   return options.filter((o) => matchesQuery(o.text, query));
 }
 
+/** Each box's `data-required` controls follow its radio. */
+function syncRequired() {
+  document.querySelectorAll('[data-mode]').forEach((box) => {
+    const chosen = Boolean(box.querySelector('input[type=radio]')?.checked);
+    box.querySelectorAll('[data-required]').forEach((control) => {
+      control.required = chosen;
+    });
+  });
+}
+
 function wireModeBoxes() {
   document.querySelectorAll('[data-mode]').forEach((box) => {
     const radio = box.querySelector('input[type=radio]');
     if (!radio || radio.disabled) return;
+    // A click on the radio itself fires change; checking it from code does not.
+    radio.addEventListener('change', syncRequired);
     const select = () => {
-      if (!radio.checked) radio.checked = true;
+      if (radio.checked) return;
+      radio.checked = true;
+      syncRequired();
     };
     // focusin covers keyboard and mouse; pointerdown catches a click on a
     // control that swallows focus (file inputs, native select popups).
@@ -74,5 +92,6 @@ function wireJobSearch() {
 
 export function init() {
   wireModeBoxes();
+  syncRequired();
   wireJobSearch();
 }
