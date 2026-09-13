@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { comparedResumeName, earlierLabel, EARLIER_ONE_OFF, previousFor } from './match-name';
+import { comparedResumeName, earlierLabel, EARLIER_ONE_OFF, oneOffDraft, previousFor } from './match-name';
 
 test('a real resume reads its live name, whatever the comparison kept', () => {
   assert.equal(comparedResumeName('Old name', { name: 'Renamed resume', hidden: false }), 'Renamed resume');
@@ -40,4 +40,11 @@ test('previousFor pairs a one-off file only with an earlier check of the same fi
 test('earlierLabel names a version for a real resume and the file for a one-off', () => {
   assert.equal(earlierLabel(row(4, 0, 'CV', false)), 'v4');
   assert.equal(earlierLabel(row(4, 0, 'CV', true)), 'the last check of this file');
+});
+
+test('oneOffDraft: the file judged again is not a draft, an edit or an earlier draft is', () => {
+  const file = { draft: false, resumeText: 'the uploaded text' };
+  assert.equal(oneOffDraft(file, 'the uploaded text'), false);
+  assert.equal(oneOffDraft(file, 'the uploaded text, edited'), true);
+  assert.equal(oneOffDraft({ draft: true, resumeText: 'an edited text' }, 'an edited text'), true);
 });

@@ -37,7 +37,7 @@ import { JobDetailPage } from '../pages/job-detail';
 import { JobNewPage } from '../pages/job-new';
 import { TargetPage } from '../pages/target';
 import { describeStructure, docxStructure } from '../../resume/docx-structure';
-import { previousFor } from '../../resume/match-name';
+import { oneOffDraft, previousFor } from '../../resume/match-name';
 import { nameFromFilename, readResumeUpload, resumeUploadLimit } from '../upload';
 import { scanInBackground } from '../../resume/scan';
 import { clearFlashCookie, flashRedirect, parseFlashCookie } from '../flash';
@@ -704,6 +704,7 @@ jobsRoute.post('/jobs/:id/match', async (c) => {
   // The targeted view posts its edited text; a non-empty draft is judged instead of the stored version.
   const draftText = typeof form.draftText === 'string' ? form.draftText.replace(/\r\n/g, '\n').trim() : '';
   const text = draftText.length > 0 ? draftText : resume.text;
+  const draft = oneOff ? oneOffDraft(oneOff, text) : text !== resume.text;
   const toTarget = form.next === 'target' || form.next === 'editor';
   return startComparison(c, {
     jobId: id,
@@ -717,7 +718,8 @@ jobsRoute.post('/jobs/:id/match', async (c) => {
     rebuild: form.rebuild === '1',
     force: form.force === '1',
     resultUrl: (matchId) => (toTarget ? `/jobs/${id}/target?match=${matchId}` : `/jobs/${id}?match=${matchId}#resume-match`),
-    label: text === resume.text ? `"${resume.name}"` : 'Draft',
+    label: draft ? 'Draft' : `"${resume.name}"`,
+    draft,
   });
 });
 
@@ -1025,8 +1027,9 @@ jobsRoute.post('/jobs/:id/target/reupload', async (c, next) => resumeUploadLimit
   return startComparison(c, {
     jobId: id,
     job: { id: job.id, title: job.title, companyName: job.company.name, location: job.location, description: job.description },
-    // A one-off comparison is named after its file (match-name.ts).
+    // A one-off comparison is named after its file, and the file as uploaded is not a draft (match-name.ts).
     resume: resume.hidden ? { ...resume, name: nameFromFilename(upload.sourceFilename) } : resume,
+    ...(resume.hidden ? { draft: false } : {}),
     text: upload.text,
     // The editor's own action always writes the suggestions: a second button
     // for "the same check without the advice" only ever raised the question of
