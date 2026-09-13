@@ -79,7 +79,7 @@ export async function startComparison(c: Context, req: ComparisonRequest): Promi
     }
     updateRun(run.id, { stage: matchStep(mode) });
     let reason = '';
-    const row = await matchResumeToJob({ id: resume.id, version: resume.version, text }, job, {
+    const row = await matchResumeToJob({ id: resume.id, name: resume.name, version: resume.version, text }, job, {
       draft,
       mode,
       rebuild,

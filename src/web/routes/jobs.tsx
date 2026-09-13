@@ -37,7 +37,7 @@ import { JobDetailPage } from '../pages/job-detail';
 import { JobNewPage } from '../pages/job-new';
 import { TargetPage } from '../pages/target';
 import { describeStructure, docxStructure } from '../../resume/docx-structure';
-import { previousFor } from '../pages/resume-match-card';
+import { previousFor } from '../../resume/match-name';
 import { nameFromFilename, readResumeUpload, resumeUploadLimit } from '../upload';
 import { scanInBackground } from '../../resume/scan';
 import { clearFlashCookie, flashRedirect, parseFlashCookie } from '../flash';
@@ -688,11 +688,18 @@ jobsRoute.post('/jobs/:id/match', async (c) => {
   const resumeId = idParam(form.resumeId);
   if (!Number.isFinite(resumeId)) return c.text('Bad resume id', 400);
 
-  const [job, resume] = await Promise.all([
+  const baseId = idParam(form.matchId);
+  const [job, row, base] = await Promise.all([
     prisma.job.findUnique({ where: { id }, include: { company: { select: { name: true } } } }),
     getResume(resumeId),
+    Number.isFinite(baseId) ? getMatch(baseId) : null,
   ]);
-  if (!job || !resume) return c.text('Not found', 404);
+  if (!job || !row) return c.text('Not found', 404);
+  // The comparison a re-run starts from (the editor's form and Rebuild keywords
+  // send it). On the scratch row it IS the resume: the row may hold another
+  // upload by now, so its file name and text are the ones to judge again.
+  const oneOff = row.hidden && base && base.jobId === id && base.resumeId === row.id ? base : null;
+  const resume = oneOff ? { ...row, name: oneOff.resumeName || row.name, text: oneOff.resumeText } : row;
 
   // The targeted view posts its edited text; a non-empty draft is judged instead of the stored version.
   const draftText = typeof form.draftText === 'string' ? form.draftText.replace(/\r\n/g, '\n').trim() : '';
@@ -974,7 +981,7 @@ jobsRoute.get('/jobs/:id/target', async (c) => {
   return c.html(
     <TargetPage
       job={{ id: job.id, title: job.title, companyName: job.company.name, location: job.location, description: job.description }}
-      resume={{ id: resume.id, name: resume.name, version: resume.version, ephemeral: resume.hidden }}
+      resume={{ id: resume.id, name: match.resume.name, version: resume.version, ephemeral: resume.hidden }}
       match={match}
       keywords={await orderedKeywords(match, job.description)}
       matches={matches}
@@ -1018,7 +1025,8 @@ jobsRoute.post('/jobs/:id/target/reupload', async (c, next) => resumeUploadLimit
   return startComparison(c, {
     jobId: id,
     job: { id: job.id, title: job.title, companyName: job.company.name, location: job.location, description: job.description },
-    resume,
+    // A one-off comparison is named after its file (match-name.ts).
+    resume: resume.hidden ? { ...resume, name: nameFromFilename(upload.sourceFilename) } : resume,
     text: upload.text,
     // The editor's own action always writes the suggestions: a second button
     // for "the same check without the advice" only ever raised the question of

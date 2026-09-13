@@ -82,7 +82,7 @@ async function main(): Promise<void> {
     let previous: MatchAction[] = [];
     for (let round = 0; round <= rounds; round++) {
       const started = Date.now();
-      const row = await matchResumeToJob({ id: resume.id, text, version: resume.version }, jobInput, { mode: 'full', brief: briefed, draft: true });
+      const row = await matchResumeToJob({ id: resume.id, name: resume.name, text, version: resume.version }, jobInput, { mode: 'full', brief: briefed, draft: true });
       if (!row) {
         console.log(`  round ${round}: failed`);
         break;

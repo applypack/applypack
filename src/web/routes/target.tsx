@@ -259,7 +259,7 @@ targetRoute.post('/target', resumeUploadLimit('/target'), async (c) => {
 
     // 3. One resume-model call, then straight into the targeted workspace.
     let reason = '';
-    const row = await matchResumeToJob({ id: resume.id, version: resume.version, text: resume.text }, jobInput, {
+    const row = await matchResumeToJob({ id: resume.id, name: resume.name, version: resume.version, text: resume.text }, jobInput, {
       mode: f.mode,
       brief: briefed,
       onError: (r) => {

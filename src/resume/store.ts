@@ -5,6 +5,7 @@ import { logger } from '../logger';
 import { readAnswers, upsertAnswer, type ReviewAnswer } from './answers';
 import { readFrameReason, type FrameReason } from './keyword-frame';
 import { loadKeywordMatcher } from './keyword-matcher';
+import { comparedResumeName } from './match-name';
 import { effectiveKeywords } from './keyword-overrides';
 import type { JsonResume } from './json-resume';
 import { readMatchMode, storedBreakdown, withSuggestionsMode, type MatchMode } from './match-mode';
@@ -179,7 +180,8 @@ export async function saveResumeStructure(id: number, structure: JsonResume): Pr
   });
 }
 
-export type MatchWithResume = ResumeMatch & { resume: { id: number; name: string } };
+/** `resume.name` is the name the comparison shows (`match-name.ts:comparedResumeName`), not always the row's live name. */
+export type MatchWithResume = ResumeMatch & { resume: { id: number; name: string; hidden: boolean } };
 export type MatchWithJob = ResumeMatch & {
   job: { id: number; title: string; company: { name: string } };
 };
@@ -188,12 +190,13 @@ export type MatchWithJob = ResumeMatch & {
 const MATCH_LIST_LIMIT = 50;
 
 export async function listMatchesForJob(jobId: number): Promise<MatchWithResume[]> {
-  return prisma.resumeMatch.findMany({
+  const rows = await prisma.resumeMatch.findMany({
     where: { jobId },
-    include: { resume: { select: { id: true, name: true } } },
+    include: { resume: { select: { id: true, name: true, hidden: true } } },
     orderBy: { createdAt: 'desc' },
     take: MATCH_LIST_LIMIT,
   });
+  return rows.map((m) => ({ ...m, resume: { ...m.resume, name: comparedResumeName(m.resumeName, m.resume) } }));
 }
 
 /** One run of the resume's history: the scalars the list shows, never the snapshot or the five Json columns (DATA-5). */
@@ -381,6 +384,8 @@ export async function createMatch(input: {
   resumeId: number;
   resumeVersion: number;
   resumeText: string;
+  /** The name of the text judged — the file name on the scratch row (match-name.ts). */
+  resumeName: string;
   draft: boolean;
   model: string;
   result: ResumeMatchResult;
@@ -399,6 +404,7 @@ export async function createMatch(input: {
       resumeId: input.resumeId,
       resumeVersion: input.resumeVersion,
       resumeText: input.resumeText,
+      resumeName: input.resumeName,
       draft: input.draft,
       model: input.model,
       matchScore: input.breakdown.score,

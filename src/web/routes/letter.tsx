@@ -211,7 +211,7 @@ letterRoute.post('/letter', resumeUploadLimit('/letter'), async (c) => {
       updateRun(run.id, { stage: 'match' });
       // The letter leads with strengths, which only the full report writes.
       const row = await matchResumeToJob(
-        { id: resume.id, version: resume.version, text: resume.text },
+        { id: resume.id, name: resume.name, version: resume.version, text: resume.text },
         { id: job.id, title: job.title, companyName: job.companyName, location: job.location, description: job.description },
         { mode: 'full' },
       );

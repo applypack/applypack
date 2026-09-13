@@ -746,7 +746,7 @@ const RunChip: FC<{ m: MatchWithResume; currentId: number; jobId: number }> = ({
     >
       <FitBadge score={m.matchScore} label="match" />
       {m.resume.name}
-      <span class="font-mono text-ink-faint">v{m.resumeVersion}</span>
+      {!m.resume.hidden && <span class="font-mono text-ink-faint">v{m.resumeVersion}</span>}
       {m.draft && <Badge tone="violet">draft</Badge>}
       <span class="text-ink-faint">{formatRelative(m.createdAt)}</span>
     </a>
