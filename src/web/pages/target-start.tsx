@@ -17,7 +17,8 @@ import {
 } from '../ui';
 import type { FlashMessage } from '../flash';
 import type { ResumeOption } from '../resume-source';
-import { JobPicker, type JobPickOption } from './job-picker';
+import type { JobPickOption } from '../job-pick';
+import { JobPicker } from './job-picker';
 import { ACCEPTED_EXTENSIONS } from '../../resume/resume-text';
 import { MAX_UPLOAD_MB } from '../upload';
 

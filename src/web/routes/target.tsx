@@ -36,7 +36,7 @@ const TargetFormSchema = ManualJobSchema.extend({
   jobId: z.coerce.number().int().optional(),
   companyName: z.string().trim().max(MAX_FIELD_CHARS).default(''),
   title: z.string().trim().max(MAX_FIELD_CHARS).default(''),
-  description: z.string().trim().max(MAX_POSTING_CHARS).default(''),
+  description: z.string().trim().default(''),
   /** The quick check unless "Full analysis" was pressed (ADR 0029). */
   mode: z.unknown().transform(parseMatchMode),
   ...ResumeSourceFields,
@@ -132,6 +132,9 @@ targetRoute.post('/target', resumeUploadLimit('/target'), async (c) => {
 
   if (f.description.length < MIN_DESCRIPTION_CHARS) {
     return flashRedirect('/target', 'err', `A description of at least ${MIN_DESCRIPTION_CHARS} characters is required.`);
+  }
+  if (f.description.length > MAX_POSTING_CHARS) {
+    return flashRedirect('/target', 'err', `The posting is too long — at most ${MAX_POSTING_CHARS} characters.`);
   }
 
   // Empty company / title / location are detected from the description INSIDE

@@ -1,7 +1,6 @@
 import type { JobStatus } from '@prisma/client';
 import { prisma } from '../db';
 import { getActiveProfile } from '../profiles';
-import type { JobPickOption } from './pages/job-picker';
 
 /*
  * The jobs a candidate-side launcher (/target, /letter) offers in its picker:
@@ -17,9 +16,18 @@ const DAY_MS = 86_400_000;
 /** A picker option, not a posting: five columns instead of the row's forty (DATA-5). */
 const PICK_SELECT = { id: true, title: true, fitScore: true, fetchedAt: true, company: { select: { name: true } } } as const;
 
+export interface JobPickOption {
+  id: number;
+  title: string;
+  companyName: string;
+  /** Between the title and the age: "fit 72", "pasted". */
+  note: string | null;
+  ageDays: number;
+}
+
 type PickRow = { id: number; title: string; fetchedAt: Date; company: { name: string } };
 
-/** One stored job as a picker line; `note` rides between the title and the age ("fit 72", "pasted"). */
+/** One stored job as a picker line. */
 export function toPickOption(job: PickRow, note: string | null, now = Date.now()): JobPickOption {
   return {
     id: job.id,

@@ -1,5 +1,6 @@
 /** @jsxImportSource hono/jsx */
 import type { FC, PropsWithChildren } from 'hono/jsx';
+import type { JobPickOption } from '../job-pick';
 import { Hint, Input, Select } from '../ui';
 
 /*
@@ -8,15 +9,6 @@ import { Hint, Input, Select } from '../ui';
  * options in place and keeps the count in step; without JS the listbox still
  * submits `jobId`. The children finish the count's sentence.
  */
-
-export interface JobPickOption {
-  id: number;
-  title: string;
-  companyName: string;
-  /** Between the title and the age: "fit 72", "pasted". */
-  note: string | null;
-  ageDays: number;
-}
 
 export const JobPicker: FC<PropsWithChildren<{ jobs: JobPickOption[]; selectedId?: number | null }>> = ({
   jobs,
