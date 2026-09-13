@@ -111,3 +111,97 @@ test('"send it" waits for the things the score does not count', () => {
     false,
   );
 });
+
+import { mainAdvice, type AdviceInput } from './score-lines';
+import { readActions, type MatchAction } from '../resume/prompts';
+
+const act = (priority: MatchAction['priority'], what: string): MatchAction =>
+  readActions([{ section: 'summary', where: 'x', what, why: 'x', priority, quote: null, replacement: null, insert_after: null }])[0]!;
+
+/** A stored row as the advice ladder reads it: the five lines' input plus the report's edits. */
+const advice = (over: Partial<AdviceInput> & { keywords: MatchKeyword[] }): string | null =>
+  mainAdvice({ ...input(over), actions: [], ...over });
+
+test('a failed gate outranks everything the wording could fix', () => {
+  assert.equal(
+    advice({
+      keywords: [kw({ term: 'PHP', status: 'cannot_claim' })],
+      hard: [gate('fail', 'US work authorization')],
+      actions: [act('high', 'rewrite the summary')],
+    }),
+    '“US work authorization” is not met — a gate decides this before any wording does.',
+  );
+});
+
+test('with no core stack the advice names it and the ceiling it sets', () => {
+  const keywords = [kw({ term: 'Rust', primary: true, status: 'cannot_claim' }), kw({ term: 'Go', primary: true, status: 'ask_user' })];
+  assert.equal(
+    advice({ keywords }),
+    'Rust and Go is the core stack here — nothing you write lifts this past 30 without it.',
+  );
+});
+
+test('an unanswered gate comes before any keyword', () => {
+  assert.equal(
+    advice({ keywords: [kw({ term: 'PHP', primary: true })], hard: [gate('unknown', 'on-site in Atlanta, GA')] }),
+    'The resume is silent on “on-site in Atlanta, GA” — a gate the reader checks before the words.',
+  );
+});
+
+test('an evidenced but unwritten must is the cheapest move on the page', () => {
+  assert.equal(
+    advice({ keywords: [kw({ term: 'PHP', primary: true }), kw({ term: 'REST APIs', status: 'add' })] }),
+    'Write REST APIs into the text — your own experience evidences it and the word is not there.',
+  );
+});
+
+test('a must nothing backs is put to the candidate, not written for them', () => {
+  assert.equal(
+    advice({ keywords: [kw({ term: 'PHP', primary: true }), kw({ term: 'Kubernetes', status: 'cannot_claim' })] }),
+    'Kubernetes is a must here and nothing backs it yet — confirm it where it is true.',
+  );
+});
+
+test('job 71: three musts named only on a skills line, the first one named and the rest counted', () => {
+  const keywords = [
+    kw({ term: 'PHP', primary: true, evidence: 'measured' }),
+    kw({ term: 'Laravel', primary: true, evidence: 'measured' }),
+    kw({ term: 'REST APIs', evidence: 'listed' }),
+    kw({ term: 'MySQL', evidence: 'listed' }),
+    kw({ term: 'Git', evidence: 'listed' }),
+  ];
+  assert.equal(
+    advice({ keywords }),
+    'Show REST APIs in a bullet, not only on the skills line — 3 must-haves are named and never shown.',
+  );
+  assert.equal(
+    advice({ keywords: keywords.slice(0, 3) }),
+    'Show REST APIs in a bullet, not only on the skills line — a term in a list proves nothing to a reader.',
+  );
+});
+
+test('with the keywords clean the first weak glance is the advice', () => {
+  const keywords = [kw({ term: 'PHP', primary: true, evidence: 'measured' })];
+  assert.equal(
+    mainAdvice({
+      breakdown: scoreMatch(keywords, { title: 'partial', summary: 'strong', recent_role: 'strong' }, 0),
+      keywords,
+      hard: [],
+      actions: [act('high', 'rewrite the summary')],
+    }),
+    'Sharpen the title — it grades partial against this posting.',
+  );
+});
+
+test('with nothing else open the report’s own first high edit is the advice, capitalised and clipped', () => {
+  const keywords = [kw({ term: 'PHP', primary: true, evidence: 'measured' })];
+  assert.equal(
+    advice({ keywords, actions: [act('low', 'tidy the dates'), act('high', 'lead with PHP/Laravel platform leadership instead of the AI-orchestrator framing')] }),
+    'Lead with PHP/Laravel platform leadership instead of the AI-orchestrator framing',
+  );
+  assert.equal(advice({ keywords, actions: [act('low', 'tidy the dates')] }), 'Tidy the dates');
+});
+
+test('a clean report says nothing — the ready line already covers it', () => {
+  assert.equal(advice({ keywords: [kw({ term: 'PHP', primary: true, evidence: 'measured' })] }), null);
+});

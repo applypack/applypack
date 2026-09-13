@@ -315,3 +315,27 @@ export function extractAtsToken(
   }
   return null;
 }
+
+/**
+ * `text` shortened to `max` characters on a word boundary, with an ellipsis.
+ * Whitespace is collapsed first, so a value lifted out of JSON renders as one
+ * line. A boundary too early in the string is not worth keeping — a cut at 20 %
+ * of the budget loses more than the partial word it saves — so below
+ * `WORD_BOUNDARY_FLOOR` the hard cut stands.
+ */
+const WORD_BOUNDARY_FLOOR = 0.6;
+
+export function clipWords(text: string, max: number): string {
+  const tidy = text.replace(/\s+/g, ' ').trim();
+  if (tidy.length <= max) return tidy;
+  const cut = tidy.slice(0, max);
+  const space = cut.lastIndexOf(' ');
+  const kept = space > max * WORD_BOUNDARY_FLOOR ? cut.slice(0, space) : cut;
+  // "…systems supporting a…" reads as a broken sentence rather than a
+  // shortened one: the word the article introduced is the word that was cut.
+  // A closed list, so a real two-letter term at the boundary is never lost.
+  return `${kept
+    .replace(/[\s,;:.—-]+$/, '')
+    .replace(/\s+(?:a|an|and|at|by|for|in|of|on|or|the|to|with)$/i, '')
+    .replace(/[\s,;:.—-]+$/, '')}…`;
+}

@@ -427,3 +427,33 @@ describe('jsonFailure', () => {
     assert.equal(bad.error, 'malformed JSON in reply');
   });
 });
+
+import { clipWords } from './text-utils';
+
+it('clipWords collapses whitespace and leaves a short string alone', () => {
+  assert.equal(clipWords('  audio/media   broadcasting ', 40), 'audio/media broadcasting');
+  assert.equal(clipWords('exact', 5), 'exact');
+  assert.equal(clipWords('', 10), '');
+});
+
+it('clipWords cuts on a word boundary and never mid-word', () => {
+  const long = 'digital commerce platforms and internal administration systems';
+  const out = clipWords(long, 30);
+  assert.equal(out, 'digital commerce platforms…');
+  assert.ok(long.startsWith(out.slice(0, -1)), 'the kept text is a prefix of the original');
+});
+
+it('clipWords drops the punctuation a cut leaves dangling', () => {
+  assert.equal(clipWords('radio, podcast, advertising business', 16), 'radio, podcast…');
+});
+
+it('clipWords takes the hard cut when the only boundary is too early', () => {
+  assert.equal(clipWords('a supercalifragilisticexpialidocious word', 20), 'a supercalifragilist…');
+});
+
+it('clipWords drops a dangling article the cut left behind', () => {
+  assert.equal(
+    clipWords('internal administration systems supporting a national business', 45),
+    'internal administration systems supporting…',
+  );
+});

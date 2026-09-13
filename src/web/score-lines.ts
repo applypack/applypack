@@ -1,5 +1,6 @@
 import { effectiveRequirement } from '../resume/keyword-overrides';
-import type { MatchHardRequirement, MatchKeyword } from '../resume/prompts';
+import type { MatchAction, MatchHardRequirement, MatchKeyword } from '../resume/prompts';
+import { clipWords } from '../text-utils';
 import type { ScoreBreakdown } from '../resume/score';
 
 /*
@@ -163,4 +164,103 @@ export function readyToApply(input: LinesInput & { score: number; threshold: num
   if (input.edits > 0) return false;
   if (input.hard.some((h) => h.status !== 'pass')) return false;
   return !input.keywords.some((k) => k.status === 'present' && k.evidence === 'listed' && effectiveRequirement(k) === 'must');
+}
+
+/*
+ * The one thing to do next, in a sentence.
+ *
+ * The five lines above say what the number was made of. A candidate reading
+ * "Shown at work — 4 of 7 in a bullet · 3 named only in a list" still has to
+ * work out WHICH of the three to move, and whether that outranks a title
+ * grading "partial" and a gate the resume is silent on. That ranking is a
+ * judgment, it is the same judgment every time, and it is made here from the
+ * row already stored rather than left to the reader.
+ *
+ * The ladder runs from what no wording can fix down to what editing reaches:
+ * a failed gate, the core stack, an unanswered gate, a must-have term, a
+ * must-have shown only in a list, a weak first glance, and finally the
+ * report's own first high-priority edit. It names ONE thing, always something
+ * the reader can act on, and it says nothing when the report is clean —
+ * "Ready to apply" already covers that, and two sentences saying it is one
+ * too many.
+ *
+ * Nothing here re-judges anything: every rung reads a verdict the comparison
+ * already wrote. Pure, no AI call, no new column.
+ */
+
+export interface AdviceInput extends LinesInput {
+  /** The report's suggested edits, in the order it wrote them. */
+  actions: MatchAction[];
+}
+
+/** Longest an action's own sentence may run before it stops being a glance. */
+const MAX_ADVICE_CHARS = 110;
+
+/** How many missing core-stack terms are worth naming before the sentence stops being one. */
+const MAX_NAMED_TERMS = 2;
+
+export function mainAdvice({ breakdown, keywords, hard, actions }: AdviceInput): string | null {
+  const failed = hard.find((h) => h.status === 'fail');
+  if (failed) return `“${failed.requirement}” is not met — a gate decides this before any wording does.`;
+
+  // The cap is the biggest lever in the formula and the only one no edit
+  // moves: without a word of the core stack, every other improvement is
+  // arithmetic under a ceiling.
+  if (breakdown.cap !== null && breakdown.primaryPresent === 0) {
+    const missing = keywords
+      .filter((k) => k.primary && k.status !== 'present' && k.status !== 'add')
+      .map((k) => k.term);
+    const named = missing.slice(0, MAX_NAMED_TERMS).join(' and ');
+    return named === ''
+      ? `Nothing you write lifts this past ${breakdown.cap} — the core stack this role is written in is missing.`
+      : `${named} is the core stack here — nothing you write lifts this past ${breakdown.cap} without it.`;
+  }
+
+  const unanswered = hard.find((h) => h.status === 'unknown');
+  if (unanswered) {
+    return `The resume is silent on “${unanswered.requirement}” — a gate the reader checks before the words.`;
+  }
+
+  const musts = keywords.filter((k) => effectiveRequirement(k) === 'must');
+
+  // "add" means the resume's own facts already evidence the term and the word
+  // itself is missing — the cheapest points on the page, and the only rung
+  // that asks for nothing but typing.
+  const unwritten = musts.find((k) => k.status === 'add');
+  if (unwritten) {
+    return `Write ${unwritten.term} into the text — your own experience evidences it and the word is not there.`;
+  }
+
+  const unbacked = musts.find((k) => k.status === 'ask_user' || k.status === 'cannot_claim');
+  if (unbacked) return `${unbacked.term} is a must here and nothing backs it yet — confirm it where it is true.`;
+
+  // Named on a skills line and never shown at work: the score counts it in
+  // full, a human reads it as a claim with nothing behind it (evidence.ts).
+  const listed = musts.filter((k) => k.status === 'present' && k.evidence === 'listed');
+  const first = listed[0];
+  if (first) {
+    const tail =
+      listed.length === 1
+        ? 'a term in a list proves nothing to a reader.'
+        : `${listed.length} must-haves are named and never shown.`;
+    return `Show ${first.term} in a bullet, not only on the skills line — ${tail}`;
+  }
+
+  const alignment = breakdown.alignment;
+  if (alignment) {
+    const weak = [
+      { where: 'title', grade: alignment.title },
+      { where: 'summary', grade: alignment.summary },
+      { where: 'most recent role', grade: alignment.recent_role },
+    ].find((g) => g.grade !== 'strong');
+    if (weak) return `Sharpen the ${weak.where} — it grades ${weak.grade} against this posting.`;
+  }
+
+  const edit = actions.find((a) => a.priority === 'high') ?? actions[0];
+  if (edit) {
+    const what = clipWords(edit.what, MAX_ADVICE_CHARS);
+    return what === '' ? null : `${what.charAt(0).toUpperCase()}${what.slice(1)}`;
+  }
+
+  return null;
 }
