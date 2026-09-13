@@ -59,8 +59,12 @@ export async function createResume(input: {
 }
 
 /**
- * The /target scratch resume: one hidden row, replaced in place on every
- * ephemeral compare — nothing accumulates in the user's Resumes.
+ * The launchers' scratch resume (/target, /letter): one hidden row, replaced
+ * in place by every uploaded or pasted resume — nothing accumulates in the
+ * user's Resumes. Comparisons keep their own snapshot of the text, so they
+ * survive the swap; letters do not, because a letter is fact-checked against
+ * its resume's CURRENT text. A new text retires them; the same file again
+ * keeps them.
  */
 export async function upsertScratchResume(input: {
   name: string;
@@ -69,9 +73,10 @@ export async function upsertScratchResume(input: {
   original: Buffer;
   text: string;
 }): Promise<ResumeSummary> {
-  const existing = await prisma.resume.findFirst({ where: { hidden: true }, select: { id: true } });
+  const existing = await prisma.resume.findFirst({ where: { hidden: true }, select: { id: true, text: true } });
   const data = { ...input, original: new Uint8Array(input.original) };
   if (existing) {
+    if (existing.text !== input.text) await deleteCoverLettersForResume(existing.id);
     const row = await prisma.resume.update({
       where: { id: existing.id },
       data: { ...data, version: { increment: 1 }, scannedAt: null },
@@ -88,15 +93,7 @@ export async function upsertScratchResume(input: {
   return row;
 }
 
-/** Ephemeral compares keep only the latest analysis — old scratch matches go. */
-export async function deleteMatchesForResume(resumeId: number): Promise<number> {
-  const r = await prisma.resumeMatch.deleteMany({ where: { resumeId } });
-  if (r.count > 0) logger.info({ resumeId, deleted: r.count }, 'resume: old matches cleared');
-  return r.count;
-}
-
-/** Same rule for letters: replacing the scratch resume retires its letters. */
-export async function deleteCoverLettersForResume(resumeId: number): Promise<number> {
+async function deleteCoverLettersForResume(resumeId: number): Promise<number> {
   const r = await prisma.coverLetter.deleteMany({ where: { resumeId } });
   if (r.count > 0) logger.info({ resumeId, deleted: r.count }, 'resume: old letters cleared');
   return r.count;
@@ -581,13 +578,18 @@ export async function getCoverLetter(id: number): Promise<CoverLetterWithResume 
   });
 }
 
-/** Latest analysis of this posting BY THIS RESUME — the letter's shortlist. */
+/**
+ * Latest analysis of this posting of THIS TEXT — the letter's shortlist. The
+ * text is in the key because one resume row carries many texts: an editor
+ * draft, a new version, every file the scratch row has held.
+ */
 export async function getLatestMatchForResumeAndJob(
   jobId: number,
   resumeId: number,
+  text: string,
 ): Promise<ResumeMatch | null> {
   return prisma.resumeMatch.findFirst({
-    where: { jobId, resumeId },
+    where: { jobId, resumeId, resumeText: text },
     orderBy: { createdAt: 'desc' },
   });
 }

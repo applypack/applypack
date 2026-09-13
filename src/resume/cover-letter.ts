@@ -51,7 +51,7 @@ export async function generateCoverLetter(
   const started = Date.now();
   const [facts, match, companySnapshot] = await Promise.all([
     listFacts(),
-    getLatestMatchForResumeAndJob(job.id, resume.id),
+    getLatestMatchForResumeAndJob(job.id, resume.id, resume.text),
     getLatestCompanySnapshot(job.id),
   ]);
   const context: CoverContext = {

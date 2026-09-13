@@ -9,12 +9,7 @@ import { checkPostingUrl, fetchPostingText } from '../../jobs/posting-url';
 import { generateCoverLetter } from '../../resume/cover-letter';
 import { matchResumeToJob } from '../../resume/match';
 import { countWords, COVER_TONES, readCoverAngles, type CoverTone } from '../../resume/prompts';
-import {
-  deleteCoverLettersForResume,
-  deleteMatchesForResume,
-  getLatestCompanySnapshot,
-  listResumes,
-} from '../../resume/store';
+import { getLatestCompanySnapshot, listResumes } from '../../resume/store';
 import { verifyJob } from '../../verification/verify';
 import { getSettings, setCoverAngles } from '../../settings';
 import { LetterStartPage } from '../pages/letter-start';
@@ -215,11 +210,6 @@ letterRoute.post('/letter', resumeUploadLimit('/letter'), async (c) => {
         postedAt: result.job.postedAt,
       };
       updateRun(run.id, { jobId: job.id });
-    }
-
-    if (resume.ephemeral) {
-      await deleteMatchesForResume(resume.id);
-      await deleteCoverLettersForResume(resume.id);
     }
 
     if (runMatch) {

@@ -12,7 +12,7 @@ import { findReusableMatch, matchResumeToJob } from '../../resume/match';
 import { parseMatchMode } from '../../resume/match-mode';
 import { reuseNotice, SUGGESTIONS_FAILED, suggestionsFlash } from '../../resume/match-reuse';
 import { readActions, readRemovals } from '../../resume/prompts';
-import { deleteCoverLettersForResume, listResumes } from '../../resume/store';
+import { listResumes } from '../../resume/store';
 import { suggestForMatch } from '../../resume/suggestions';
 import { suggestionsKey } from '../suggestions-run';
 import { TargetStartPage } from '../pages/target-start';
@@ -229,15 +229,7 @@ targetRoute.post('/target', resumeUploadLimit('/target'), async (c) => {
     }
     updateRun(run.id, { stage: matchStep(f.mode) });
 
-    // 3. Older comparisons stay. A one-off check used to keep only its latest
-    //    analysis, which meant comparing the same posting again threw away the
-    //    run the user was about to compare against — and the whole point of
-    //    re-uploading a resume is seeing whether the number moved. The job page
-    //    lists them under "older runs"; each one carries its own text snapshot,
-    //    so an old row still shows the resume it actually judged.
-    if (resume.ephemeral) await deleteCoverLettersForResume(resume.id);
-
-    // 4. One resume-model call, then straight into the targeted workspace.
+    // 3. One resume-model call, then straight into the targeted workspace.
     let reason = '';
     const row = await matchResumeToJob({ id: resume.id, version: resume.version, text: resume.text }, jobInput, {
       mode: f.mode,

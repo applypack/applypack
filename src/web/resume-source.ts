@@ -27,8 +27,6 @@ export interface ResolvedResume {
   name: string;
   version: number;
   text: string;
-  /** True for the scratch row a file or a paste lands on. */
-  ephemeral: boolean;
 }
 
 /** Resolves the picked source to a resume row, or a user-facing error. Bad files fail here, before any run starts. */
@@ -40,25 +38,24 @@ export async function resolveResumeSource(
     if (!f.resumeId) return { error: 'Pick a resume from the list.' };
     const row = await getResume(f.resumeId);
     if (!row || row.hidden) return { error: 'That resume no longer exists.' };
-    return { ...row, ephemeral: false };
+    return row;
   }
   if (f.resumeMode === 'upload') {
     const upload = await readResumeUpload(form);
     if ('error' in upload) return upload;
     const name = f.uploadName.trim().slice(0, MAX_RESUME_NAME_CHARS) || nameFromFilename(upload.sourceFilename);
-    return { ...(await upsertScratchResume({ name, ...upload })), ephemeral: true };
+    return upsertScratchResume({ name, ...upload });
   }
   const text = f.resumeText.replace(/\r\n/g, '\n').trim();
   if (text.length < MIN_RESUME_CHARS) {
     return { error: `The pasted resume is too short — at least ${MIN_RESUME_CHARS} characters.` };
   }
   const name = f.pasteName.trim().slice(0, MAX_RESUME_NAME_CHARS) || 'Pasted resume';
-  const row = await upsertScratchResume({
+  return upsertScratchResume({
     name,
     sourceFilename: 'pasted.txt',
     mimeType: 'text/plain',
     original: Buffer.from(text, 'utf8'),
     text,
   });
-  return { ...row, ephemeral: true };
 }
