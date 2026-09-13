@@ -8,21 +8,14 @@ import { hashShortId } from '../../text-utils';
 import { classifyInBackground } from '../../jobs/classify-existing';
 import { createManualJob, ManualJobSchema, MAX_FIELD_CHARS, MAX_POSTING_CHARS, MIN_DESCRIPTION_CHARS } from '../../jobs/manual-job';
 import { extractPostingFacts, fallbackTitle } from '../../jobs/posting-extract';
-import { briefForPosting, briefLine } from '../../resume/brief';
-import { findReusableMatch, matchResumeToJob } from '../../resume/match';
 import { parseMatchMode } from '../../resume/match-mode';
-import { reuseNotice, SUGGESTIONS_FAILED, suggestionsFlash } from '../../resume/match-reuse';
-import { readActions, readRemovals } from '../../resume/prompts';
-import { suggestForMatch } from '../../resume/suggestions';
-import { suggestionsKey } from '../suggestions-run';
-import { startComparison } from '../comparison-run';
+import { runComparison, startComparison } from '../comparison-run';
 import { listPickableJobs } from '../job-pick';
 import { idParam } from '../params';
 import { TargetStartPage } from '../pages/target-start';
 import { TargetRunPage } from '../pages/target-run';
 import { clearFlashCookie, flashRedirect, parseFlashCookie } from '../flash';
-import { formatRelative } from '../format';
-import { alsoClaims, claimRun, getRun, matchStep, startRun, updateRun, type RunStep, runFailure } from '../target-runs';
+import { claimRun, getRun, matchStep, startRun, updateRun, type RunStep } from '../target-runs';
 import { listResumeOptions, resolveResumeSource, ResumeSourceFields } from '../resume-source';
 import { resumeUploadLimit } from '../upload';
 
@@ -199,84 +192,27 @@ targetRoute.post('/target', resumeUploadLimit('/target'), async (c) => {
     const job = result.job;
     if (result.kind === 'created') classifyInBackground(result.job);
     updateRun(run.id, { jobId: job.id });
-    const jobInput = { id: job.id, title: job.title, companyName, location: job.location, description: job.description };
 
-    // 2. The same text against the same posting is already answered — a
-    //    double submit or a re-paste shows the stored analysis instead. A
-    //    full analysis asked of a stored quick check needs only the
-    //    suggestions call, which this run makes itself: one progress page,
-    //    not two chained ones. It answers to the suggestions key as well,
-    //    so pressing "Get suggestions" on that comparison meanwhile joins
-    //    this run instead of calling the model a second time (issue #76).
-    const reused = await findReusableMatch(job.id, resume.id, resume.text, f.mode);
-    if (reused?.decision === 'reuse') {
-      updateRun(run.id, {
-        stage: 'done',
-        resultUrl: `/jobs/${job.id}/target?match=${reused.row.id}`,
-        flash: reuseNotice(formatRelative(reused.row.createdAt)),
-        reused: true,
-      });
-      return;
-    }
-    if (reused) {
-      alsoClaims(run.id, suggestionsKey(reused.row.id));
-      updateRun(run.id, {
-        steps: needExtract ? ['extract', 'suggestions'] : ['suggestions'],
-        stage: 'suggestions',
-      });
-      let reason = '';
-      const row = await suggestForMatch(reused.row, jobInput, (r) => {
-        reason = r;
-      });
-      if (!row) {
-        updateRun(run.id, { stage: 'error', error: reason ? `${SUGGESTIONS_FAILED.replace(/\.$/, '')}: ${reason}.` : SUGGESTIONS_FAILED });
-        return;
-      }
-      updateRun(run.id, {
-        stage: 'done',
-        resultUrl: `/jobs/${job.id}/target?match=${reused.row.id}`,
-        flash: suggestionsFlash(
-          { actions: readActions(row.actions).length, removals: readRemovals(row.removals).length },
-          formatRelative(reused.row.createdAt),
-        ),
-      });
-      return;
-    }
-
-    // 2c. The posting read on its own, cached against its text. Shown as a
-    //     step because it is the analysis the user asked to see, and because a
-    //     reused reading is the visible reason the second run is faster.
-    updateRun(run.id, { stage: 'brief' });
-    const briefed = await briefForPosting(jobInput);
-    if (briefed) {
-      updateRun(run.id, {
-        results: {
-          brief: briefed.reused ? `Reused this posting's analysis — ${briefLine(briefed.brief)}` : briefLine(briefed.brief),
-        },
-      });
-    }
-    updateRun(run.id, { stage: matchStep(f.mode) });
-
-    // 3. One resume-model call, then straight into the targeted workspace.
-    let reason = '';
-    const row = await matchResumeToJob({ id: resume.id, name: resume.name, version: resume.version, text: resume.text }, jobInput, {
-      mode: f.mode,
-      brief: briefed,
-      onError: (r) => {
-        reason = r;
+    // 2. From here it is the comparison every other page runs: the memo (a
+    //    double submit or a re-paste shows the stored analysis), the posting's
+    //    reading, the resume-model call, the targeted workspace.
+    await runComparison(
+      run.id,
+      {
+        jobId: job.id,
+        job: { id: job.id, title: job.title, companyName, location: job.location, description: job.description },
+        resume,
+        text: resume.text,
+        mode: f.mode,
+        rebuild: false,
+        force: false,
+        resultUrl: (matchId) => `/jobs/${job.id}/target?match=${matchId}`,
+        label: `"${resume.name}"`,
+        doneNote: result.kind === 'created' ? 'The fit score is still being scored; it lands on the job page in about a minute.' : undefined,
+        failure: 'The posting was saved, but the AI comparison failed',
       },
-    });
-    if (!row) {
-      updateRun(run.id, { stage: 'error', error: runFailure('The posting was saved, but the AI comparison failed', reason) });
-      return;
-    }
-    updateRun(run.id, {
-      stage: 'done',
-      resultUrl: `/jobs/${job.id}/target?match=${row.id}`,
-      flash:
-        `AI match ${row.matchScore}/100 — "${resume.name}" vs "${job.title}"${f.mode === 'fast' ? ' (quick check: keywords, gates and score).' : '.'}` +
-        (result.kind === 'created' ? ' The fit score is still being scored; it lands on the job page in about a minute.' : ''),
-    });
+      needExtract ? ['extract'] : [],
+    );
   });
 
   return c.redirect(`/target/runs/${run.id}`, 303);
