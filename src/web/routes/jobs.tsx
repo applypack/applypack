@@ -58,6 +58,7 @@ import {
   getResumeOriginal,
 } from '../../resume/store';
 import { preselectAppliedResume, preselectResume } from '../../resume/pick';
+import { preselectNote, resumeOptionLabel } from '../resume-label';
 import { storedBriefFor } from '../../resume/brief';
 import { postingDepth } from '../../resume/brief-depth';
 import { domainMismatch, domainNotice } from '../../resume/domain';
@@ -377,7 +378,9 @@ jobsRoute.get('/jobs/:id', async (c) => {
   const winning = job.scores[0]?.profile ?? null;
   const linkedResumeId = winning?.resumeId ?? activeProfile?.resumeId ?? null;
   const suggested = preselectResume(resumes, `${job.title} ${job.description}`, linkedResumeId);
-  const suggestedReason = suggested && suggested.id === linkedResumeId ? 'linked' : 'overlap';
+  const linkedSearch = winning?.resumeId ? winning : activeProfile;
+  const suggestedNote = preselectNote(suggested && suggested.id === linkedResumeId ? 'linked' : 'overlap', linkedSearch?.name ?? null);
+  const resumeOptions = resumes.map((r) => ({ id: r.id, label: resumeOptionLabel(r, r.id === suggested?.id ? suggestedNote : null) }));
   // "Mark applied" starts on the resume this posting was actually compared
   // with — the comparison on screen — and only falls back to the page's own
   // preselect (Stage C).
@@ -417,9 +420,8 @@ jobsRoute.get('/jobs/:id', async (c) => {
       verificationRun={verifyRunView(id)}
       resumeMatch={{
         jobId: id,
-        resumes: resumes.map((r) => ({ id: r.id, name: r.name, isDefault: r.isDefault })),
+        resumes: resumeOptions,
         suggestedResumeId: suggested?.id ?? null,
-        suggestedReason,
         matches,
         selected,
         selectedKeywords,
@@ -428,9 +430,8 @@ jobsRoute.get('/jobs/:id', async (c) => {
       }}
       coverLetters={{
         jobId: id,
-        resumes: resumes.map((r) => ({ id: r.id, name: r.name, isDefault: r.isDefault })),
+        resumes: resumeOptions,
         suggestedResumeId: suggested?.id ?? null,
-        suggestedReason,
         letters,
         selected: selectedLetter,
         hasCompanyFacts: Boolean(verifications[0]?.companySnapshot?.trim()),

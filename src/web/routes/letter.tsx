@@ -9,14 +9,14 @@ import { checkPostingUrl, fetchPostingText } from '../../jobs/posting-url';
 import { generateCoverLetter } from '../../resume/cover-letter';
 import { matchResumeToJob } from '../../resume/match';
 import { countWords, COVER_TONES, readCoverAngles, type CoverTone } from '../../resume/prompts';
-import { getLatestCompanySnapshot, listResumes } from '../../resume/store';
+import { getLatestCompanySnapshot } from '../../resume/store';
 import { verifyJob } from '../../verification/verify';
 import { getSettings, setCoverAngles } from '../../settings';
 import { LetterStartPage } from '../pages/letter-start';
 import { clearFlashCookie, flashRedirect, parseFlashCookie } from '../flash';
 import { claimRun, startRun, updateRun, type RunStep } from '../target-runs';
 import { listPickableJobs } from '../job-pick';
-import { resolveResumeSource, ResumeSourceFields } from '../resume-source';
+import { listResumeOptions, resolveResumeSource, ResumeSourceFields } from '../resume-source';
 import { resumeUploadLimit } from '../upload';
 
 /*
@@ -43,17 +43,12 @@ const LetterFormSchema = z.object({
 export const letterRoute = new Hono();
 
 letterRoute.get('/letter', async (c) => {
-  const [settings, jobs, resumes] = await Promise.all([getSettings(), listPickableJobs(), listResumes()]);
+  const [settings, jobs, resumes] = await Promise.all([getSettings(), listPickableJobs(), listResumeOptions()]);
   return c.html(
     <LetterStartPage
       presetUrl={(c.req.query('url') ?? '').slice(0, 2000)}
       jobs={jobs}
-      resumes={resumes.map((r) => ({
-        id: r.id,
-        name: r.name,
-        isDefault: r.isDefault,
-        version: r.version,
-      }))}
+      resumes={resumes}
       angles={readCoverAngles(settings.coverAngles)}
       flash={parseFlashCookie(c.req.header('cookie'))}
     />,

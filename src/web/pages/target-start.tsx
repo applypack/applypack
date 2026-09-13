@@ -16,6 +16,7 @@ import {
   Textarea,
 } from '../ui';
 import type { FlashMessage } from '../flash';
+import type { ResumeOption } from '../resume-source';
 import { JobPicker, type JobPickOption } from './job-picker';
 import { ACCEPTED_EXTENSIONS } from '../../resume/resume-text';
 import { MAX_UPLOAD_MB } from '../upload';
@@ -34,7 +35,7 @@ export interface TargetStartProps {
   jobs: JobPickOption[];
   /** The job the page was opened for (`?job=`), preselected in the picker. */
   selectedJobId: number | null;
-  resumes: { id: number; name: string; isDefault: boolean; version: number }[];
+  resumes: ResumeOption[];
   flash?: FlashMessage | null;
 }
 
@@ -121,8 +122,7 @@ export const TargetStartPage: FC<TargetStartProps> = ({ jobs, selectedJobId, res
                   <Select name="resumeId" aria-label="Resume">
                     {resumes.map((r) => (
                       <option value={r.id} selected={r.id === defaultResumeId}>
-                        {r.name} · v{r.version}
-                        {r.isDefault ? ' · default' : ''}
+                        {r.label}
                       </option>
                     ))}
                   </Select>

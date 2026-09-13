@@ -3,6 +3,7 @@ import type { FC } from 'hono/jsx';
 import { Layout } from '../layout';
 import { Button, Card, Checkbox, FILE_INPUT_CLASS, Flash, Hint, Input, PageHeader, SectionTitle, Select, Textarea } from '../ui';
 import type { FlashMessage } from '../flash';
+import type { ResumeOption } from '../resume-source';
 import { JobPicker, type JobPickOption } from './job-picker';
 import { ModeCard } from './target-start';
 import { ACCEPTED_EXTENSIONS } from '../../resume/resume-text';
@@ -18,7 +19,7 @@ import { COVER_TONES, type CoverAngles } from '../../resume/prompts';
 
 export interface LetterStartProps {
   jobs: JobPickOption[];
-  resumes: { id: number; name: string; isDefault: boolean; version: number }[];
+  resumes: ResumeOption[];
   angles: CoverAngles;
   /** Prefilled after a failed fetch, so the URL survives the round trip. */
   presetUrl?: string;
@@ -103,8 +104,7 @@ export const LetterStartPage: FC<LetterStartProps> = ({
                   <Select name="resumeId" aria-label="Resume">
                     {resumes.map((r) => (
                       <option value={r.id} selected={r.id === defaultResumeId}>
-                        {r.name} · v{r.version}
-                        {r.isDefault ? ' · default' : ''}
+                        {r.label}
                       </option>
                     ))}
                   </Select>

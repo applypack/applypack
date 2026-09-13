@@ -44,11 +44,10 @@ import { diffMatches } from '../../resume/diff';
 
 export interface ResumeMatchCardProps {
   jobId: number;
-  resumes: { id: number; name: string; isDefault: boolean }[];
-  /** Best skill overlap for this posting — preselected in the dropdown. */
+  /** `label` is `resume-label.ts:resumeOptionLabel`, the preselect's reason included. */
+  resumes: { id: number; label: string }[];
+  /** The search's resume, else the best skill overlap — preselected in the dropdown. */
   suggestedResumeId: number | null;
-  /** Why that one is preselected: the search names it, or it overlaps the posting most. */
-  suggestedReason: 'linked' | 'overlap';
   matches: MatchWithResume[];
   selected: MatchWithResume | null;
   /** The selected comparison's keywords, ordered and counted by the matcher. */
@@ -124,7 +123,6 @@ export const ResumeMatchCard: FC<ResumeMatchCardProps> = ({
   jobId,
   resumes,
   suggestedResumeId,
-  suggestedReason,
   matches,
   selected,
   selectedKeywords,
@@ -141,7 +139,11 @@ export const ResumeMatchCard: FC<ResumeMatchCardProps> = ({
           <a href="/resumes" class="font-medium text-accent-strong hover:text-accent-deep">
             Upload one
           </a>{' '}
-          to see what to change before applying here.
+          to see what to change before applying here, or{' '}
+          <a href={`/target?job=${jobId}`} class="font-medium text-accent-strong hover:text-accent-deep">
+            compare a file once
+          </a>{' '}
+          without keeping it.
         </Hint>
       ) : (
         <form method="post" action={`/jobs/${jobId}/match`} class="flex flex-wrap items-end gap-3" onsubmit={SUBMIT_ONCE}>
@@ -155,13 +157,7 @@ export const ResumeMatchCard: FC<ResumeMatchCardProps> = ({
             <Select name="resumeId" class="mt-1.5 !w-auto max-w-full">
               {resumes.map((r) => (
                 <option value={r.id} selected={r.id === (suggestedResumeId ?? resumes[0]?.id)}>
-                  {r.name}
-                  {r.id === suggestedResumeId
-                    ? suggestedReason === 'linked'
-                      ? ' · your search hunts with this'
-                      : ' · best skill overlap'
-                    : ''}
-                  {r.isDefault ? ' · default' : ''}
+                  {r.label}
                 </option>
               ))}
             </Select>
@@ -169,6 +165,15 @@ export const ResumeMatchCard: FC<ResumeMatchCardProps> = ({
           <Button variant="violet" title="Judges this resume against the posting and writes what to change">
             Compare
           </Button>
+          {/* Only the Resumes rows are listed here; a file that is not one of
+              them, or pasted text, is compared from the Compare page with this
+              job already picked. */}
+          <a
+            href={`/target?job=${jobId}`}
+            class="py-2 text-sm font-medium text-accent-strong hover:text-accent-deep"
+          >
+            Compare a file or pasted text →
+          </a>
           {!selected && (
             <Hint class="basis-full">
               One call to the resume model — keywords, hard requirements, the score and what to

@@ -1,5 +1,6 @@
 import { z } from 'zod';
-import { getResume, upsertScratchResume } from '../resume/store';
+import { getResume, listResumes, upsertScratchResume } from '../resume/store';
+import { resumeOptionLabel } from './resume-label';
 import { MAX_RESUME_NAME_CHARS, nameFromFilename, readResumeUpload } from './upload';
 
 /*
@@ -21,6 +22,17 @@ export const ResumeSourceFields = {
 
 const ResumeSourceSchema = z.object(ResumeSourceFields);
 export type ResumeSourceInput = z.infer<typeof ResumeSourceSchema>;
+
+export interface ResumeOption {
+  id: number;
+  isDefault: boolean;
+  label: string;
+}
+
+/** The launcher's "One of your resumes" list: the Resumes rows, the scratch row never. */
+export async function listResumeOptions(): Promise<ResumeOption[]> {
+  return (await listResumes()).map((r) => ({ id: r.id, isDefault: r.isDefault, label: resumeOptionLabel(r) }));
+}
 
 export interface ResolvedResume {
   id: number;

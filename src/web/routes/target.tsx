@@ -13,7 +13,6 @@ import { findReusableMatch, matchResumeToJob } from '../../resume/match';
 import { parseMatchMode } from '../../resume/match-mode';
 import { reuseNotice, SUGGESTIONS_FAILED, suggestionsFlash } from '../../resume/match-reuse';
 import { readActions, readRemovals } from '../../resume/prompts';
-import { listResumes } from '../../resume/store';
 import { suggestForMatch } from '../../resume/suggestions';
 import { suggestionsKey } from '../suggestions-run';
 import { startComparison } from '../comparison-run';
@@ -24,7 +23,7 @@ import { TargetRunPage } from '../pages/target-run';
 import { clearFlashCookie, flashRedirect, parseFlashCookie } from '../flash';
 import { formatRelative } from '../format';
 import { alsoClaims, claimRun, getRun, matchStep, startRun, updateRun, type RunStep, runFailure } from '../target-runs';
-import { resolveResumeSource, ResumeSourceFields } from '../resume-source';
+import { listResumeOptions, resolveResumeSource, ResumeSourceFields } from '../resume-source';
 import { resumeUploadLimit } from '../upload';
 
 /* zod strips unknown keys, so the multipart `file` field is read from the raw form.
@@ -45,20 +44,11 @@ const TargetFormSchema = ManualJobSchema.extend({
 
 export const targetRoute = new Hono();
 
-async function resumeRows() {
-  return (await listResumes()).map((r) => ({
-    id: r.id,
-    name: r.name,
-    isDefault: r.isDefault,
-    version: r.version,
-  }));
-}
-
 targetRoute.get('/target', async (c) => {
   // `?job=70` is the job page's "compare another file": the picker opens on it.
   const wanted = idParam(c.req.query('job'));
   const include = Number.isFinite(wanted) ? wanted : null;
-  const [jobs, resumes] = await Promise.all([listPickableJobs(include), resumeRows()]);
+  const [jobs, resumes] = await Promise.all([listPickableJobs(include), listResumeOptions()]);
   return c.html(
     <TargetStartPage
       jobs={jobs}
