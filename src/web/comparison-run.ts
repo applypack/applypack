@@ -32,6 +32,8 @@ export interface ComparisonRequest {
   resultUrl: (matchId: number) => string;
   /** What the done-flash calls the text — a filename, "Draft", the resume's name. */
   label: string;
+  /** Set when the caller knows better than `text !== resume.text` — a one-off's re-run or a fresh file (match-name.ts). */
+  draft?: boolean;
   /** A sentence the done-flash ends with ("the fit score is still being scored"). */
   doneNote?: string;
   /** What the run's error says went wrong before the model's reason. */
@@ -128,7 +130,7 @@ async function compare(runId: string, req: ComparisonRequest): Promise<void> {
   updateRun(runId, { stage: matchStep(mode) });
   let reason = '';
   const row = await matchResumeToJob({ id: resume.id, name: resume.name, version: resume.version, text }, job, {
-    draft: text !== resume.text,
+    draft: req.draft ?? text !== resume.text,
     mode,
     rebuild,
     brief: briefed,

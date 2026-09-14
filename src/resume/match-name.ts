@@ -43,3 +43,13 @@ export function previousFor<T extends ComparedRow>(selected: T, matches: T[]): T
 export function earlierLabel(previous: ComparedRow): string {
   return previous.resume.hidden ? 'the last check of this file' : `v${previous.resumeVersion}`;
 }
+
+/**
+ * Whether a re-run of a one-off comparison judges a draft — text that is not
+ * the file the comparison is named after. The scratch row cannot say, since it
+ * may hold another upload by now, so the comparison it starts from does: a
+ * draft stays a draft, and a file judged again unchanged is still the file.
+ */
+export function oneOffDraft(base: { draft: boolean; resumeText: string }, text: string): boolean {
+  return base.draft || text !== base.resumeText;
+}

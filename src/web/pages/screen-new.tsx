@@ -43,7 +43,7 @@ export const ScreenNewPage: FC<{ jobs: JobPickOption[]; flash?: FlashMessage | n
               <ModeCard name="jobMode" value="new" label="A new posting" checked={!hasJobs}>
                 <div class="space-y-3">
                   <div class="grid gap-3 sm:grid-cols-2">
-                    <Input type="text" name="title" maxlength="200" placeholder="Position title (required)" aria-label="Position title" />
+                    <Input type="text" name="title" maxlength="200" placeholder="Position title (required)" aria-label="Position title" data-required />
                     <Input type="text" name="companyName" maxlength="200" placeholder="Company (optional)" aria-label="Company" />
                   </div>
                   <Input type="text" name="location" maxlength="200" placeholder="Location or arrangement — Kyiv, remote, hybrid Berlin (optional)" aria-label="Location" />
@@ -95,7 +95,7 @@ export const ScreenNewPage: FC<{ jobs: JobPickOption[]; flash?: FlashMessage | n
           </Card>
         </div>
       </form>
-      <script type="module" dangerouslySetInnerHTML={{ __html: "import { init } from '/static/letter-start.mjs'; init();" }} />
+      <script type="module" dangerouslySetInnerHTML={{ __html: "import { init } from '/static/launcher.mjs'; init();" }} />
     </Layout>
   );
 };

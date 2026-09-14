@@ -4,6 +4,24 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.9.1] — 2026-09-13
+
+### Fixed
+- **A launcher no longer throws away half a form.** Choosing "One of your
+  jobs" without picking a row, "Upload a file" without a file, or "Paste
+  resume text" with an empty box used to submit, come back as an error
+  flash, and lose the file picked in the other card. The chosen card's
+  field is now required in the browser, on Compare, Cover letter and New
+  screening alike; a card that is not chosen asks for nothing.
+- A re-run of a one-off comparison carries the right "draft" mark: the
+  file judged again unchanged is not a draft, an edited text or an earlier
+  draft is — and a fresh file uploaded from the tailoring page is no longer
+  marked a draft of the file before it.
+
+### Changed
+- `public/letter-start.mjs` is `public/launcher.mjs`: it has served the
+  three launchers since 2.9.0.
+
 ## [2.9.0] — 2026-09-13
 
 ### Added
@@ -3585,6 +3603,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.9.1]: https://github.com/applypack/applypack/compare/v2.9.0...v2.9.1
 [2.9.0]: https://github.com/applypack/applypack/compare/v2.8.0...v2.9.0
 [2.8.0]: https://github.com/applypack/applypack/compare/v2.7.2...v2.8.0
 [2.7.2]: https://github.com/applypack/applypack/compare/v2.7.1...v2.7.2

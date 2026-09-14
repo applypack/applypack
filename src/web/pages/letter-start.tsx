@@ -122,6 +122,7 @@ export const LetterStartPage: FC<LetterStartProps> = ({
                     accept={ACCEPTED_EXTENSIONS.join(',')}
                     aria-label="Resume file"
                     class={FILE_INPUT_CLASS}
+                    data-required
                   />
                   <Input type="text" name="uploadName" maxlength="100" placeholder="Name (optional — taken from the file name)" aria-label="Resume name" />
                   <Hint>
@@ -134,7 +135,7 @@ export const LetterStartPage: FC<LetterStartProps> = ({
               <ModeCard value="paste" label="Paste resume text">
                 <div class="space-y-3">
                   <Input type="text" name="pasteName" maxlength="100" placeholder="Name (optional)" aria-label="Resume name" />
-                  <Textarea name="resumeText" rows={6} placeholder="Plain resume text, at least 200 characters…" aria-label="Resume text" />
+                  <Textarea name="resumeText" rows={6} placeholder="Plain resume text, at least 200 characters…" aria-label="Resume text" data-required />
                 </div>
               </ModeCard>
             </div>
@@ -213,6 +214,6 @@ export const LetterStartPage: FC<LetterStartProps> = ({
 };
 
 const BOOT_JS = `
-import { init } from '/static/letter-start.mjs';
+import { init } from '/static/launcher.mjs';
 init();
 `;
