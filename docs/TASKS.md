@@ -2241,7 +2241,10 @@ the other way. Plan, options and measurements:
   sort order included (Alpine's musl sorts by code point).
 - `kill -9` on the launcher leaves `postgres` running; the next start fails
   on `postmaster.pid` and `EmbeddedPostgres.start()` rejects with
-  `undefined`.
+  `undefined`. SIGHUP (a closed terminal) stops both through the package's
+  `async-exit-hook`, which a launcher spawning Postgres itself must replace.
+- `db.json` (the built-in database's password) would be a third secret
+  outside `.env` — ADR 0054 names the carve-out.
 - With install scripts skipped (npm announces blocking unreviewed ones):
   0 of 17 library symlinks, `dyld: Library not loaded`; re-creating them
   from `native/pg-symlinks.json` at runtime fixes it.
@@ -2263,8 +2266,8 @@ the other way. Plan, options and measurements:
       `dist/resume/fonts`; the Dockerfile `COPY` goes; the route smoke
       posts one clean render so CI builds a PDF from `dist/`.
 - [ ] **`local-start`** (minor, ADR 0054) — `src/local/` launcher behind
-      `npm start` (plan §4.2): the built-in Postgres 16 in the OS data
-      folder with the three fixes above, the worker's IPC "ready" before
+      `npm start` (plan §4.2): the built-in Postgres 16 in the data folder
+      §21.3 settles, with the three fixes above, the worker's IPC "ready" before
       the dashboard starts, restart with backoff, ordered shutdown;
       `resolveDatabaseUrl` in `config.ts`; `npm run db`; `.env.example`
       without a `DATABASE_URL`; `allowScripts`; the runtime image drops the

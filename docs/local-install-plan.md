@@ -29,9 +29,10 @@
   leaves Postgres running and the next start fails with no message
   (§3.1); `npm run build` does not copy the PDF fonts, so the clean
   render fails today for everyone who runs without Docker (§2).
-- **Rejected with measurements:** PGlite (one open transaction blocked the
-  other connection), SQLite (a rewrite of the schema and raw SQL), asking
-  users to install Postgres (harder than Docker), one process (ADR 0002).
+- **Rejected:** PGlite (measured: one open transaction blocked the other
+  connection), SQLite (counted: a rewrite of the schema and the raw SQL),
+  asking users to install Postgres (more steps than Docker), one process
+  (ADR 0002).
 - **Owner calls (§7):** the dependency size (23–51 MB download), where the
   data folder lives, the README/site lead, and publishing to npm later.
 
@@ -40,7 +41,7 @@
 | Need | Today (compose / Dockerfile) | Without Docker |
 | --- | --- | --- |
 | A Postgres 16 with a user, a database, a volume | `postgres:16-alpine`, `jobhunter/jobhunter`, volume `pgdata` | a built-in Postgres 16 in a data folder, random password (§4.3) |
-| Start in order, restart on a crash, start at login | `depends_on` + healthcheck, `restart: unless-stopped`, Docker Desktop at login | the launcher (§4.4); start-at-login is stage 2 |
+| Start in order, restart on a crash, start at login | `depends_on` + healthcheck, `restart: unless-stopped`, Docker Desktop at login | the launcher (§4.2); start-at-login is stage 2 |
 | Build | `npm install`, `prisma generate`, `tsc`, fonts and `src/web/public` copied | `npm install` (postinstall generates) + a build on start (§4.6) |
 | A pinned runtime | Node 24 + tini + three AI CLIs installed globally | the user's Node ≥ 22.12; the CLIs they already use |
 | Loopback only | dashboard on `127.0.0.1:4747`, DB on `127.0.0.1:5433` | `WEB_HOST=127.0.0.1` (already the default), Postgres on `127.0.0.1` only |
@@ -95,7 +96,8 @@ read (two read-only queries). macOS 27 arm64, Node 26.4.0, npm 11.17.0.
 (MIT, ~359 k downloads a week, last publish 2026-06-05) ships the
 PostgreSQL binaries built by zonky as one npm package per platform;
 `16.14.0-beta.17` is the current 16.x (the package tags every version
-`-beta.N`). The same major as compose, so a dump moves between the two.
+`-beta.N`). The same major as compose, so data can move between the two
+(stage 2 builds the import).
 
 | Measured | Result |
 | --- | --- |
@@ -137,10 +139,13 @@ Three failures found on the way, each with its fix measured:
    `postgres` child survives, and the next start logs
    `FATAL: lock file "postmaster.pid" already exists` while
    `EmbeddedPostgres.start()` rejects with `undefined` — no message at all.
-   Closing a terminal window does the same thing through SIGHUP, which
-   Postgres reads as "reload the config". The launcher must read
-   `postmaster.pid`, stop a live leftover with `pg_ctl stop -m fast`, and
-   print Postgres's own last log lines when a start fails.
+   A closed terminal is not this case: SIGHUP to the process group stopped
+   both, because the package's `async-exit-hook` catches SIGHUP, SIGINT and
+   SIGTERM and stops Postgres. Only a death nothing can catch (`kill -9`, a
+   crashed Node) leaves the orphan. `pg_ctl stop -D <dir> -m fast` stopped
+   it in under a second and the next start succeeded, so the launcher reads
+   `postmaster.pid`, stops a live leftover that way, and prints Postgres's
+   own last log lines when a start fails.
 3. **npm is about to skip the package's install script.** npm 11.17 lists
    `@embedded-postgres/darwin-arm64` (and `prisma`, `esbuild`) under
    `allow-scripts`, and its docs say "a future release will block
@@ -164,10 +169,11 @@ The worker and the dashboard are separate processes (ADR 0002), so PGlite
 would have to sit behind `@electric-sql/pglite-socket`, whose own README
 says "not all use cases are guaranteed to work" with more than one
 connection. Measured with `pglite@0.5.8`, `pglite-socket@0.2.11`,
-`maxConnections: 4`: connection A runs `BEGIN; INSERT`, connection B's
-`SELECT` **waits 3 s and more, until A finishes**. One session serves
-everyone, so a worker transaction would freeze the dashboard. Prisma's
-own PGlite path (`prisma dev`) is a development server.
+`maxConnections: 4`: connection A runs `BEGIN; INSERT`, and connection
+B's `SELECT` **is still waiting after 3 s** while A's transaction stays
+open. One session serves everyone, so a worker transaction would freeze
+the dashboard. Prisma's own PGlite path (`prisma dev`) is a development
+server.
 
 ### 3.3 SQLite — rejected
 
@@ -226,7 +232,8 @@ empty `DATABASE_URL` means the built-in database.
    (Linux). Print it.
 4. Start the built-in database (§4.3).
 5. Spawn the worker (`node dist/index.js`, working directory = the install
-   root, `DATABASE_URL` in its environment) and wait for its "ready"
+   root, which the three cwd-relative paths of §2 need, `DATABASE_URL` in
+   its environment) and wait for its "ready"
    message over IPC, sent after `init()` has migrated and seeded. Only then
    spawn the dashboard, so it never meets an unmigrated schema.
 6. Print one block: the URL, the data folder, "Ctrl+C to stop". Open the
@@ -261,7 +268,8 @@ empty `DATABASE_URL` means the built-in database.
   its database. The platform packages export the three binary paths;
   `embedded-postgres` itself is only needed for the initdb step, and its
   `start()` is not used — it spawns in our process group and rejects
-  without a reason.
+  without a reason. Its exit hook goes with it, so the launcher stops
+  Postgres on SIGHUP, SIGINT and SIGTERM itself (§4.2, step 8).
 - Postgres writes to `<data>/logs/postgres.log`; a failed start prints its
   last lines.
 - `embedded-postgres` and its platform packages are ESM-only while this
@@ -271,6 +279,10 @@ empty `DATABASE_URL` means the built-in database.
 
 ### 4.4 Config, scripts, contributors
 
+- Pure and unit-tested, as `src/watchlist/` splits it: the data folder per
+  platform, `db.json` (zod), the initdb flags, reading `postmaster.pid`,
+  the restart policy. The I/O stays in three files: the Postgres process,
+  the supervisor, the entry point.
 - `DATABASE_URL` stays the one variable Prisma reads. When it is empty,
   `config.ts` fills it from `<data>/db.json` through a pure
   `resolveDatabaseUrl(env, dbJson)`, so `npm run fetch:once`, `npm run dev`,
@@ -287,14 +299,14 @@ empty `DATABASE_URL` means the built-in database.
   `node dist/index.js` and `node dist/web/server.js`; the launcher never
   runs there.
 - The runtime stage deletes `node_modules/embedded-postgres` and
-  `node_modules/@embedded-postgres` (glibc binaries that cannot run on
-  Alpine anyway). The image size is measured before and after (2.08 GB
-  today).
+  `node_modules/@embedded-postgres`, which nothing in the image starts. The
+  image size is measured before and after (2.08 GB today).
 
 ### 4.6 Build
 
-- `npm start` builds first: `tsc --incremental` took 4 s from scratch and
-  1 s with nothing changed, so an update never runs a stale `dist/`.
+- `npm start` builds first: `tsc` took 4 s from scratch and
+  `tsc --incremental` 1 s with nothing changed, so an update never runs a
+  stale `dist/`.
 - `npm run build` copies `src/resume/fonts` into `dist/resume/fonts` (the
   §2 bug; the Dockerfile's separate `COPY` goes).
 - `npm start` today means "the worker"; it becomes the launcher, and
@@ -306,8 +318,19 @@ empty `DATABASE_URL` means the built-in database.
 
 At least as strict as compose, whose database has fixed credentials
 published on `127.0.0.1:5433`: a random password with scram-sha-256,
-loopback only, no Unix socket in a shared `/tmp`, the data folder 0700
-(initdb's own mode), `db.json` 0600. The dashboard binding does not change.
+loopback only, the data folder 0700 (measured: initdb's own mode),
+`db.json` 0600. No Unix socket: this build's default is
+`unix_socket_directories=/tmp`, where it made `/tmp/.s.PGSQL.5439`,
+`srwxrwxrwx`. The dashboard binding does not change.
+
+`db.json` is a secret outside `.env`, which CLAUDE.md allows in two named
+places only. ADR 0054 makes it the third, for the reason compose's
+committed `jobhunter` password never was one: it guards a loopback database
+whose files sit in the same folder, readable by exactly the same user. The
+alternative — no TCP at all, a socket in a 0700 folder and no password —
+was set aside: Prisma's engine reaches a Unix socket only on Unix systems,
+and macOS caps a socket path at 104 bytes, which a custom data folder can
+pass.
 
 ### 4.8 Every place that says "Docker" and has to change
 
@@ -315,7 +338,7 @@ loopback only, no Unix socket in a shared `/tmp`, the data folder 0700
 | --- | --- |
 | `README.md` | Quick start = §4.1; "Run it with Docker" (a server, always on) second; "Your own Postgres" third; the intro line "`docker compose up` … is the whole deployment"; "Your data" per way (the folder, a backup, restore); the one-shot scripts line; "Under the hood" |
 | `site/public/index.html` | hero button "Install with Docker" → "Install"; the install section's title, lead and commands local-first with a Docker line; JSON-LD `operatingSystem` "Docker, Node.js" → "macOS, Windows, Linux" |
-| `package.json` | `description` without "with Docker" (it must keep "33 kinds of job source": `source-count.test.ts` reads it) |
+| `package.json` | `description` without "with Docker"; its "33 sources" stays, because `source-count.test.ts` reads the field |
 | `CONTRIBUTING.md` | dev setup without Docker (`npm run db` + `npm run dev` + `npm run dev:web`) |
 | `CLAUDE.md` | the "Docker" section becomes "Running" with both ways; local commands in the operational-tasks table; a where-to-look row for `src/local/` |
 | `.claude/skills/testing-gate` | the local variant of the dashboard and worker checks |
@@ -373,7 +396,7 @@ Windows. Free on a public repository.
    engines to work and the CLI engines to need a fix (stage 2).
 5. **Linux as root** is refused: a normal user, or Docker.
 6. **Node versions drift.** Docker pins 24; a laptop has what it has. On
-   Node ≥ 25 the dashboard prints a harmless
+   Node 26 the dashboard prints a harmless
    `ExperimentalWarning: localStorage is not available`, from the `docx`
    package's bundled `util-deprecate`. CI covers 22.12 and 24.
 
