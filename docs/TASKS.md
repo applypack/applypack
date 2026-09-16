@@ -2217,3 +2217,74 @@ release-discipline skill, a docs/site block does not.
   or queue it; `node-cron` 4.
 - Run once: the live failover check and the four-viewport browser pass
   with data in the database ([27-master-prompt.md](./improvement-2026-09/27-master-prompt.md)).
+
+---
+
+## 21. Local install without Docker (analysis 2026-09-16, nothing built)
+
+Owner's ask: most people who would run ApplyPack don't use Docker; the
+default install should run straight on the computer, with Docker kept as
+the other way. Plan, options and measurements:
+[docs/local-install-plan.md](./local-install-plan.md).
+
+### 21.1 Facts established (don't re-derive)
+
+- The obstacle is Postgres, not Docker. `embedded-postgres@16.14.0-beta.17`
+  from a fresh `git archive` copy: dashboard listening 1.8 s after a cold
+  start (initdb + 77 migrations + seed), 0.8 s warm; the route smoke 39/39
+  against it; Linux arm64 as a normal user 0.6 s, as root refused.
+- Download 23.2 MB (Linux x64) / 37.3 MB (Windows) / 50.8 MB (macOS arm64);
+  58 / 100 / 134 MB on disk; `initdb`, `pg_ctl`, `postgres` only — no
+  `pg_dump`, no `psql`.
+- initdb with no `LANG` → `SQL_ASCII / C`: `'Київ' ILIKE '%КИЇВ%'` false.
+  `--encoding=UTF8 --locale=C.UTF-8` matches the compose database exactly,
+  sort order included (Alpine's musl sorts by code point).
+- `kill -9` on the launcher leaves `postgres` running; the next start fails
+  on `postmaster.pid` and `EmbeddedPostgres.start()` rejects with
+  `undefined`.
+- With install scripts skipped (npm announces blocking unreviewed ones):
+  0 of 17 library symlinks, `dyld: Library not loaded`; re-creating them
+  from `native/pg-symlinks.json` at runtime fixes it.
+- Live bug for every non-Docker run today: `tsc` does not copy
+  `src/resume/fonts`, so `renderPdf` from `dist/` throws `ENOENT`. The route
+  smoke cannot see it (the render is a POST).
+- PGlite behind `pglite-socket`: an open transaction on one connection
+  blocks the other's `SELECT`. SQLite: 6 enums, 30 scalar lists, 14 raw SQL
+  sites, 1 163 lines of Postgres migrations.
+- Three cwd-relative paths: `web/app.ts:92`, `resume/keyword-matcher.ts:36`,
+  `resume/line-diff.ts:25`. `embedded-postgres` is ESM-only, the build is
+  CommonJS → `engines.node >=22.12`.
+- Docker today: `applypack-app` image 2.08 GB + `postgres:16-alpine` 389 MB.
+  The npm name `applypack` is free.
+
+### 21.2 Order of work
+
+- [ ] **`dist-fonts`** (patch) — `npm run build` copies the fonts into
+      `dist/resume/fonts`; the Dockerfile `COPY` goes; the route smoke
+      posts one clean render so CI builds a PDF from `dist/`.
+- [ ] **`local-start`** (minor, ADR 0054) — `src/local/` launcher behind
+      `npm start` (plan §4.2): the built-in Postgres 16 in the OS data
+      folder with the three fixes above, the worker's IPC "ready" before
+      the dashboard starts, restart with backoff, ordered shutdown;
+      `resolveDatabaseUrl` in `config.ts`; `npm run db`; `.env.example`
+      without a `DATABASE_URL`; `allowScripts`; the runtime image drops the
+      embedded binaries; every file in plan §4.8 (README local-first,
+      site, CONTRIBUTING, CLAUDE.md, bug template, SPEC, ARCHITECTURE,
+      launch drafts); CI `local-start` job on Linux, macOS, Windows ×
+      Node 22.12 / 24; verification matrix plan §4.10.
+- [ ] **`local-always-on`** (minor) — `npm run autostart:on|off` (launchd,
+      `systemd --user`, Windows Startup); logs in the data folder; a dated
+      snapshot of the data folder on start (keep 7);
+      `npm run db:import <dump.sql>` from Docker (`pg_dump --inserts`);
+      the Windows CLI engines (`.cmd` shims and `execFile`).
+- [ ] **`npx-applypack`** (owner decision) — publish to npm so no clone is
+      needed; npm versions follow the tags.
+
+### 21.3 Owner items
+
+- Accept the built-in database as the default (the download above).
+- Where the data lives: the OS app-data folder (recommended) or `./data`
+  in the clone.
+- README and site lead with the local install; Docker becomes "for a
+  server, or to keep it running".
+- Stage 3 (npm publish) after stage 1 has run on real machines.
