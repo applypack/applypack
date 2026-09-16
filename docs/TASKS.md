@@ -2224,8 +2224,9 @@ release-discipline skill, a docs/site block does not.
 
 Owner's ask: most people who would run ApplyPack don't use Docker; the
 default install should run straight on the computer, with Docker kept as
-the other way. Plan, options and measurements:
-[docs/local-install-plan.md](./local-install-plan.md).
+the other way. The goal behind it: non-technical people can use ApplyPack,
+and the path depends on their system and how technical they are. Plan,
+options and measurements: [docs/local-install-plan.md](./local-install-plan.md).
 
 ### 21.1 Facts established (don't re-derive)
 
@@ -2241,8 +2242,9 @@ the other way. Plan, options and measurements:
   sort order included (Alpine's musl sorts by code point).
 - `kill -9` on the launcher leaves `postgres` running; the next start fails
   on `postmaster.pid` and `EmbeddedPostgres.start()` rejects with
-  `undefined`. SIGHUP (a closed terminal) stops both through the package's
-  `async-exit-hook`, which a launcher spawning Postgres itself must replace.
+  `undefined`; `pg_ctl stop -m fast` recovers. SIGHUP (a closed terminal)
+  stops both through the package's `async-exit-hook`, which a launcher
+  spawning Postgres itself must replace.
 - `db.json` (the built-in database's password) would be a third secret
   outside `.env` — ADR 0054 names the carve-out.
 - With install scripts skipped (npm announces blocking unreviewed ones):
@@ -2257,6 +2259,16 @@ the other way. Plan, options and measurements:
 - Three cwd-relative paths: `web/app.ts:92`, `resume/keyword-matcher.ts:36`,
   `resume/line-diff.ts:25`. `embedded-postgres` is ESM-only, the build is
   CommonJS → `engines.node >=22.12`.
+- For people new to a terminal: a `curl` download carries no
+  `com.apple.quarantine` attribute (measured), while a browser-downloaded
+  bundle would carry the ad-hoc-signed Prisma engine and an EDB `postgres`
+  that fails `syspolicy_check distribution` — so one pasted install line,
+  not a zip, until someone pays for signing. Node 24: 52.9 MB (macOS arm64)
+  / 37.6 MB (Windows) download, 199 MB on disk; dependencies 368 MB
+  (340 MB runtime only).
+- `/welcome` tells people to add `OPENAI_BASE_URL` to `.env`
+  (`welcome.tsx:158`): the free Gemini key or a local model is the one file
+  edit left on the non-technical path.
 - Docker today: `applypack-app` image 2.08 GB + `postgres:16-alpine` 389 MB.
   The npm name `applypack` is free.
 
@@ -2267,21 +2279,29 @@ the other way. Plan, options and measurements:
       posts one clean render so CI builds a PDF from `dist/`.
 - [ ] **`local-start`** (minor, ADR 0054) — `src/local/` launcher behind
       `npm start` (plan §4.2): the built-in Postgres 16 in the data folder
-      §21.3 settles, with the three fixes above, the worker's IPC "ready" before
-      the dashboard starts, restart with backoff, ordered shutdown;
+      §21.3 settles, with the three fixes above, the worker's IPC "ready"
+      before the dashboard starts, restart with backoff, ordered shutdown;
       `resolveDatabaseUrl` in `config.ts`; `npm run db`; `.env.example`
       without a `DATABASE_URL`; `allowScripts`; the runtime image drops the
-      embedded binaries; every file in plan §4.8 (README local-first,
-      site, CONTRIBUTING, CLAUDE.md, bug template, SPEC, ARCHITECTURE,
-      launch drafts); CI `local-start` job on Linux, macOS, Windows ×
-      Node 22.12 / 24; verification matrix plan §4.10.
+      embedded binaries; every file in plan §4.8 (README "which one is
+      you", `docs/install/` per system, site, CONTRIBUTING, CLAUDE.md, bug
+      template, SPEC, ARCHITECTURE, launch drafts); CI `local-start` job on
+      Linux, macOS, Windows × Node 22.12 / 24; verification matrix plan §4.10.
+- [ ] **`one-line-install`** (minor) — `site/public/install.sh` and
+      `install.ps1` (plan §3.7): private Node, latest release, build,
+      shortcut per system, first start; a CI job per system on a fresh
+      runner (`/` answers, the shortcut exists, no `Zone.Identifier` on
+      Windows); one run on a real Windows machine for the firewall; guides
+      and site lead with the line.
+- [ ] **`ai-without-env`** (patch) — the OpenAI-compatible engine's base URL
+      on its card and in `/welcome` step 1.
 - [ ] **`local-always-on`** (minor) — `npm run autostart:on|off` (launchd,
       `systemd --user`, Windows Startup); logs in the data folder; a dated
       snapshot of the data folder on start (keep 7);
       `npm run db:import <dump.sql>` from Docker (`pg_dump --inserts`);
       the Windows CLI engines (`.cmd` shims and `execFile`).
-- [ ] **`npx-applypack`** (owner decision) — publish to npm so no clone is
-      needed; npm versions follow the tags.
+- [ ] **signed installers / `npx applypack`** (owner decision) — only if
+      the pasted line still loses people.
 
 ### 21.3 Owner items
 
@@ -2290,4 +2310,5 @@ the other way. Plan, options and measurements:
   in the clone.
 - README and site lead with the local install; Docker becomes "for a
   server, or to keep it running".
-- Stage 3 (npm publish) after stage 1 has run on real machines.
+- How far down the technical ladder: the pasted line (no cost,
+  recommended) or, later, a signed installer (a yearly certificate).
