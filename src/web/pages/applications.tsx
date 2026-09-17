@@ -209,7 +209,7 @@ export const ApplicationsPage: FC<ApplicationsProps> = ({
               <section
                 id={`stage-col-${s.key}`}
                 data-drop-stage={s.key}
-                class="flex w-full scroll-mt-4 flex-col rounded-lg border border-line/70 bg-surface-overlay/60 md:min-h-[320px] md:w-72 md:shrink-0"
+                class="flex w-full scroll-mt-4 flex-col rounded-lg bg-surface-overlay md:min-h-[320px] md:w-72 md:shrink-0"
                 aria-labelledby={`stage-${s.key}`}
               >
                   <ColumnHeader
@@ -220,9 +220,8 @@ export const ApplicationsPage: FC<ApplicationsProps> = ({
                   />
                   <ul class="min-h-0 flex-1 space-y-2 overflow-y-auto px-3 pb-3">
                     {items.length === 0 ? (
-                      <li class="hidden rounded-md border border-dashed border-line-strong/70 px-3 py-6 text-center text-xs text-ink-faint md:block">
-                        No applications
-                      </li>
+                      // A quiet line, not a dashed well: the column's surface already says "a place to drop".
+                      <li class="hidden px-1 py-1 text-meta text-ink-faint md:block">No applications</li>
                     ) : (
                       items.map((c) => <StageCard card={c} stage={s.key} work={work} />)
                     )}
@@ -232,7 +231,7 @@ export const ApplicationsPage: FC<ApplicationsProps> = ({
           })}
         </div>
         {closedCount > 0 && (
-          <details id="closed" class="mt-4 scroll-mt-4 rounded-lg border border-line/70 bg-surface-overlay/40">
+          <details id="closed" class="mt-4 scroll-mt-4 rounded-lg bg-surface-overlay">
             <summary class="cursor-pointer select-none rounded-lg px-4 py-2.5 text-sm font-medium text-ink-muted transition-colors duration-150 hover:text-ink">
               Closed
               <span class="ml-2 text-xs font-normal text-ink-faint">
@@ -258,9 +257,7 @@ export const ApplicationsPage: FC<ApplicationsProps> = ({
                     </div>
                     <ul class="space-y-2">
                       {items.length === 0 ? (
-                        <li class="rounded-md border border-dashed border-line-strong/70 px-3 py-3 text-center text-xs text-ink-faint">
-                          None
-                        </li>
+                        <li class="px-1 py-1 text-meta text-ink-faint">None</li>
                       ) : (
                         items.map((c) => <StageCard card={c} stage={s.key} work={work} />)
                       )}
