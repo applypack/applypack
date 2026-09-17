@@ -1,5 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readdirSync, readFileSync } from 'node:fs';
+import { join, relative } from 'node:path';
 import {
   MAX_HAMMING_DISTANCE,
   MIN_NORMALIZED_CHARS,
@@ -127,6 +129,25 @@ test('a top-bit fingerprint survives the signed BIGINT round trip', () => {
   assert.equal(fromDbBigInt(stored), hash);
   assert.equal(toDbBigInt(null), null);
   assert.equal(fromDbBigInt(null), null);
+});
+
+test('every file that writes a fingerprint column converts it with toDbBigInt', () => {
+  // Read off the source, so the next write site cannot skip it: the
+  // description refresh stored simhash64 as-is, and Prisma refused every
+  // text whose fingerprint has the top bit set — about half of them.
+  const sources = readdirSync(__dirname, { recursive: true, withFileTypes: true })
+    .filter((e) => e.isFile() && /\.tsx?$/.test(e.name) && !e.name.includes('.test.'))
+    .map((e) => join(e.parentPath, e.name))
+    .map((path) => ({ file: relative(__dirname, path), text: readFileSync(path, 'utf8') }));
+  const writers = sources.filter(
+    (s) => /\.(?:job|applicant)\.(?:create|update|upsert)\w*\(/.test(s.text) && /\b(?:descriptionSimhash|simhash)\b/.test(s.text),
+  );
+  assert.ok(writers.length >= 3, `found only ${writers.length} fingerprint writers — the scan no longer sees them`);
+  assert.deepEqual(
+    writers.filter((s) => !s.text.includes('toDbBigInt(')).map((s) => s.file),
+    [],
+    'Postgres BIGINT is signed — store a fingerprint as toDbBigInt(simhash64(…))',
+  );
 });
 
 test('hamming64 is correct across the signed/unsigned boundary', () => {
