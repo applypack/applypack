@@ -1,9 +1,9 @@
 /*
  * Every GET route of the dashboard gets one request, in-process, against a
- * database that has just been migrated — plus the three POSTs that create
- * the rows the other pages need. No browser, no AI (the one background scan
- * it starts fails fast with no engine), no network. A route that answers
- * 500, or 4xx where 2xx/3xx is expected, fails the run.
+ * database that has just been migrated — plus the POSTs that create the rows
+ * the other pages need, and one clean PDF render. No browser, no AI (the one
+ * background scan it starts fails fast with no engine), no network. A route
+ * that answers 500, or 4xx where 2xx/3xx is expected, fails the run.
  *
  * Run it on a throwaway database only — it inserts a job, a resume, a
  * screening and an applicant, and switches employer mode on:
@@ -163,8 +163,14 @@ async function main(): Promise<void> {
       init: { method: 'POST', headers: { origin: 'http://evil.example', host: 'localhost', 'content-type': 'application/x-www-form-urlencoded' }, body: 'status=SAVED' },
       expect: (res) => res.status === 403,
     },
+    {
+      // The one route that reads files beside dist/: the PDF fonts a build must copy.
+      name: 'POST /resumes/:id/render (a clean PDF)',
+      init: form({ mode: 'pdf' }),
+      expect: (res) => res.status === 200 && res.headers.get('content-type') === 'application/pdf',
+    },
   ];
-  const postPaths = ['/jobs/new', '/resumes', '/settings/fetching-toggle', `/jobs/${f.jobId}/status`];
+  const postPaths = ['/jobs/new', '/resumes', '/settings/fetching-toggle', `/jobs/${f.jobId}/status`, `/resumes/${f.resumeId}/render`];
   for (const [i, p] of posts.entries()) {
     const res = await app.request(postPaths[i]!, p.init);
     rows.push({ route: p.name, url: postPaths[i]!, status: res.status, ok: p.expect(res) });

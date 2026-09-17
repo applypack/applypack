@@ -11,7 +11,8 @@ FROM node:24-alpine AS build
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-RUN npx prisma generate && npx tsc
+# npm run build is tsc plus the PDF fonts beside dist/ (ADR 0039).
+RUN npx prisma generate && npm run build
 
 FROM node:24-alpine AS runtime
 WORKDIR /app
@@ -22,10 +23,6 @@ COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 # Static assets served by the dashboard (keyword matcher for /jobs/:id/target).
 COPY --from=build /app/src/web/public ./src/web/public
-# Fonts embedded in the PDFs the clean renderer writes (ADR 0039). tsc does not
-# copy binaries, so they are lifted beside dist/ where clean-pdf.ts looks for
-# them; the OFL licence travels with them.
-COPY --from=build /app/src/resume/fonts ./dist/resume/fonts
 COPY --from=build /app/prisma ./prisma
 COPY --from=build /app/package.json ./package.json
 USER node
