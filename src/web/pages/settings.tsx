@@ -1316,8 +1316,8 @@ const AiEngineCard: FC<{ engine: AiEngineRow }> = ({ engine: e }) => (
     </p>
     {e.lastResort && (
       <Hint class="mt-1.5 text-warn">
-        Nothing in the list can run on this host, so this engine answers every call. Enable it to
-        keep it once one can.
+        Nothing in the list can run on this host, so this engine answers every call for now. Enable
+        it to keep it once an engine in the list works.
       </Hint>
     )}
     {!e.canToggle && (
