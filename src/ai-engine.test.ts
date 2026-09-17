@@ -1,8 +1,10 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  aiCrawlerTokens,
   aiEngineCard,
   aiEngineOrder,
+  bindingProviders,
   isAiProviderId,
   modelFitsProvider,
   parseAiEngineConfig,
@@ -248,5 +250,29 @@ describe('cover role', () => {
       env,
     );
     assert.equal(wrong.modelFor('gemini_cli', 'cover'), 'gemini-2.5-pro');
+  });
+});
+
+// ADR 0036: a robots.txt binds this install through the engine that reads what we fetch.
+describe('bindingProviders', () => {
+  it('binds the last resort: Gemini CLI in .env with no login means Claude Code CLI reads everything', () => {
+    const env: AiEngineEnv = { ...ENV, provider: 'gemini_cli', geminiUsable: false };
+    const providers = bindingProviders(resolveAiEngine(null, env), env.provider);
+    assert.deepEqual(providers, ['claude_code', 'gemini_cli']);
+    assert.ok(aiCrawlerTokens(providers).includes('claudebot'));
+
+    const stored = resolveAiEngine({ order: ['openai_api'], models: {} }, env);
+    assert.deepEqual(bindingProviders(stored, env.provider), ['claude_code', 'openai_api', 'gemini_cli']);
+  });
+
+  it('adds no last resort while the list runs, and still counts its skipped engines and the .env engine', () => {
+    const gemini: AiEngineEnv = { ...ENV, provider: 'gemini_cli' };
+    const providers = bindingProviders(resolveAiEngine(null, gemini), gemini.provider);
+    assert.deepEqual(providers, ['gemini_cli']);
+    assert.ok(!aiCrawlerTokens(providers).includes('claudebot'));
+
+    const env: AiEngineEnv = { ...ENV, provider: 'anthropic_api' };
+    const engine = resolveAiEngine({ order: ['codex_cli', 'gemini_cli'], models: {} }, env);
+    assert.deepEqual(bindingProviders(engine, env.provider), ['gemini_cli', 'codex_cli', 'anthropic_api']);
   });
 });

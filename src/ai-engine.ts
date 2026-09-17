@@ -50,10 +50,15 @@ export const PROVIDER_WEB_TOOLS: Record<AiProviderId, boolean> = {
  * local model on localhost, and nothing in the config says which. It is
  * mapped to OpenAI's tokens because that is what the setting is named for,
  * and erring toward the vendor is the direction that asks for less.
+ *
+ * Anthropic publishes three names (support.claude.com, read 2026-09-16):
+ * `ClaudeBot`, `Claude-User` and `Claude-SearchBot`. `Claude-Web` and
+ * `anthropic-ai` are older names it no longer lists. They stay, because a
+ * robots.txt that still names them is still talking about Anthropic.
  */
 const PROVIDER_AI_TOKENS: Record<AiProviderId, readonly string[]> = {
-  anthropic_api: ['claudebot', 'claude-web', 'anthropic-ai'],
-  claude_code: ['claudebot', 'claude-web', 'anthropic-ai'],
+  anthropic_api: ['claudebot', 'claude-user', 'claude-searchbot', 'claude-web', 'anthropic-ai'],
+  claude_code: ['claudebot', 'claude-user', 'claude-searchbot', 'claude-web', 'anthropic-ai'],
   gemini_cli: ['google-extended'],
   openai_api: ['gptbot', 'chatgpt-user', 'oai-searchbot'],
   codex_cli: ['gptbot', 'chatgpt-user', 'oai-searchbot'],
@@ -62,6 +67,17 @@ const PROVIDER_AI_TOKENS: Record<AiProviderId, readonly string[]> = {
 /** Every vendor token that binds an install running these engines, once each. */
 export function aiCrawlerTokens(providers: readonly AiProviderId[]): string[] {
   return [...new Set(providers.flatMap((p) => PROVIDER_AI_TOKENS[p] ?? []))];
+}
+
+/**
+ * The engines whose tokens bind this install: every one that may read what we
+ * fetch, not only what runs this minute. That is the list with its skipped
+ * engines (a login tomorrow puts them back in front), the last resort `chain`
+ * holds while nothing in the list can run, and the .env engine an emptied list
+ * falls back to.
+ */
+export function bindingProviders(engine: ResolvedAiEngine, provider: AiProviderId): AiProviderId[] {
+  return [...new Set([...engine.chain, ...engine.skipped, provider])];
 }
 
 /** Metered billing — every call spends money (vs a flat subscription). */
