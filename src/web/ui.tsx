@@ -16,14 +16,16 @@ import { TOKENS, hex } from './tokens';
  * A pill paints its 10 % tint over white whatever it is laid on (the gradient
  * is the tint, the colour under it the ground), so its text contrast is one
  * number held by tokens.test.ts — not one per surface. On the canvas alone the
- * bare tint read 4.44:1 for the Applied pill.
+ * bare tint read 4.44:1 for the Applied pill. The ground is a `pill-*` class
+ * from src/web/tailwind.css: written out as an arbitrary value it cost 80
+ * bytes a pill, 8 KB on a resume page with a hundred skill tags.
  */
 const TONE_SOFT: Record<Tone, string> = {
-  ok: 'bg-surface-raised bg-[linear-gradient(rgb(var(--ok)/0.1),rgb(var(--ok)/0.1))] text-ok ring-ok/20',
-  warn: 'bg-surface-raised bg-[linear-gradient(rgb(var(--warn)/0.1),rgb(var(--warn)/0.1))] text-warn ring-warn/20',
-  danger: 'bg-surface-raised bg-[linear-gradient(rgb(var(--danger)/0.1),rgb(var(--danger)/0.1))] text-danger ring-danger/20',
-  info: 'bg-surface-raised bg-[linear-gradient(rgb(var(--info)/0.1),rgb(var(--info)/0.1))] text-info ring-info/20',
-  violet: 'bg-surface-raised bg-[linear-gradient(rgb(var(--violet)/0.1),rgb(var(--violet)/0.1))] text-violet ring-violet/20',
+  ok: 'pill-ok text-ok ring-ok/20',
+  warn: 'pill-warn text-warn ring-warn/20',
+  danger: 'pill-danger text-danger ring-danger/20',
+  info: 'pill-info text-info ring-info/20',
+  violet: 'pill-violet text-violet ring-violet/20',
   neutral: 'bg-surface-overlay text-ink-muted ring-line',
 };
 
