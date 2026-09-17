@@ -16,14 +16,16 @@ import { TOKENS, hex } from './tokens';
  * A pill paints its 10 % tint over white whatever it is laid on (the gradient
  * is the tint, the colour under it the ground), so its text contrast is one
  * number held by tokens.test.ts — not one per surface. On the canvas alone the
- * bare tint read 4.44:1 for the Applied pill.
+ * bare tint read 4.44:1 for the Applied pill. The ground is a `pill-*` class
+ * from src/web/tailwind.css: written out as an arbitrary value it cost 80
+ * bytes a pill, 8 KB on a resume page with a hundred skill tags.
  */
 const TONE_SOFT: Record<Tone, string> = {
-  ok: 'bg-surface-raised bg-[linear-gradient(rgb(var(--ok)/0.1),rgb(var(--ok)/0.1))] text-ok ring-ok/20',
-  warn: 'bg-surface-raised bg-[linear-gradient(rgb(var(--warn)/0.1),rgb(var(--warn)/0.1))] text-warn ring-warn/20',
-  danger: 'bg-surface-raised bg-[linear-gradient(rgb(var(--danger)/0.1),rgb(var(--danger)/0.1))] text-danger ring-danger/20',
-  info: 'bg-surface-raised bg-[linear-gradient(rgb(var(--info)/0.1),rgb(var(--info)/0.1))] text-info ring-info/20',
-  violet: 'bg-surface-raised bg-[linear-gradient(rgb(var(--violet)/0.1),rgb(var(--violet)/0.1))] text-violet ring-violet/20',
+  ok: 'pill-ok text-ok ring-ok/20',
+  warn: 'pill-warn text-warn ring-warn/20',
+  danger: 'pill-danger text-danger ring-danger/20',
+  info: 'pill-info text-info ring-info/20',
+  violet: 'pill-violet text-violet ring-violet/20',
   neutral: 'bg-surface-overlay text-ink-muted ring-line',
 };
 
@@ -170,8 +172,23 @@ export const Hint: FC<PropsWithChildren<{ class?: string }>> = ({
   class: className = '',
 }) => <p data-ui="hint" class={`text-meta text-ink-faint ${className}`}>{children}</p>;
 
-export const Empty: FC<PropsWithChildren> = ({ children }) => (
-  <div class="flex flex-col items-center justify-center gap-2.5 rounded-lg border border-line bg-surface-raised px-6 py-12 text-center">
+/**
+ * An empty state answers three questions: what is missing (`title`), why that
+ * matters (the children, one sentence) and the one way forward (`action`, or
+ * the sentence itself when the control is already on the page). `bare` is the
+ * Empty inside a Card: the card is the surface, so no second outline.
+ */
+export const Empty: FC<PropsWithChildren<{ title: string; action?: Child; bare?: boolean }>> = ({
+  title,
+  action,
+  bare = false,
+  children,
+}) => (
+  <div
+    class={`flex flex-col items-center justify-center gap-2 text-center ${
+      bare ? 'px-4 py-8' : 'rounded-lg border border-line bg-surface-raised px-6 py-12'
+    }`}
+  >
     <svg
       viewBox="0 0 24 24"
       fill="none"
@@ -185,7 +202,9 @@ export const Empty: FC<PropsWithChildren> = ({ children }) => (
       <path d="M22 12h-6l-2 3h-4l-2-3H2" />
       <path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" />
     </svg>
-    <div class="max-w-md text-sm text-ink-faint">{children}</div>
+    <div class="text-entity text-ink">{title}</div>
+    <div class="max-w-md text-sm text-ink-muted">{children}</div>
+    {action && <div class="mt-1.5">{action}</div>}
   </div>
 );
 

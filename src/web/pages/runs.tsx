@@ -44,7 +44,10 @@ export const RunsPage: FC<RunsProps> = ({ runs, fetchRun, flash }) => {
       <Flash flash={flash} />
 
       {runs.length === 0 ? (
-        <Empty>No runs recorded yet. The worker has not ticked — press Fetch now to run the first one.</Empty>
+        <Empty title="No runs yet">
+          The worker writes a row here on every tick, and it has not ticked yet. Press Fetch now to run
+          the first search.
+        </Empty>
       ) : (
         <>
           <RunsTable runs={recent} caption="Runs" />

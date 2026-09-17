@@ -250,7 +250,10 @@ export const CompaniesPage: FC<CompaniesProps> = ({
     <QuietSources companies={companies} fetchingEnabled={fetchingEnabled} />
 
     {companies.length === 0 ? (
-      <Empty>No companies yet. Add one below.</Empty>
+      <Empty title="No companies yet">
+        The hourly search reads the sources on this list, so an empty list finds nothing. Start with a
+        starter pack under Add sources below.
+      </Empty>
     ) : (
       <Card flush>
         <div class="overflow-x-auto">

@@ -115,7 +115,7 @@ import { isBlankProfile } from '../../profile-guards';
 import type { Profile } from '@prisma/client';
 import { isSettingsTab, SettingsPage, type SourceKeyRow } from '../pages/settings';
 import { sourceLabel } from '../source-names';
-import { clearFlashCookie, flashRedirect, parseFlashCookie } from '../flash';
+import { clearFlashCookie, firstIssue, flashRedirect, parseFlashCookie } from '../flash';
 import { describeDestination } from '../../notify/targets';
 import { isDiscordWebhookUrl, testDiscordWebhook } from '../../notify/discord';
 import { missingLinkMessage } from '../profile-links';
@@ -123,6 +123,18 @@ import { createResume, getResume, listResumes } from '../../resume/store';
 import { scanResume } from '../../resume/scan';
 import { buildProfileDraft } from '../../resume/profile-draft';
 import { nameFromFilename, readResumeUpload, resumeUploadLimit } from '../upload';
+
+/*
+ * A flash that refuses says what it refused, what is safe and what to do next.
+ * The first two answer a request the page's own forms cannot send, the third a
+ * page gone stale — so the way forward is the page as it is now.
+ */
+const UNKNOWN_ENGINE = 'That request named an engine this version does not know, so nothing changed. Reload the page and use its buttons.';
+const UNKNOWN_SEARCH = 'That request named no search, so nothing changed. Reload the page and use its buttons.';
+const SEARCH_GONE = 'That search no longer exists, so nothing was saved. Pick one under Searches below.';
+
+const testFailed = (name: string, reason: string | undefined): string =>
+  `The test message to "${name}" did not go through (${reason ?? 'no reason given'}). The target is unchanged; check its token or URL, or delete it and add it again.`;
 
 const TelegramTargetSchema = z.object({
   name: z.string().min(1).max(100),
@@ -408,8 +420,7 @@ settingsRoute.post('/settings/schedule', async (c) => {
   };
   const parsed = ScheduleSchema.safeParse(candidate);
   if (!parsed.success) {
-    const first = parsed.error.issues[0];
-    return flashRedirect('/settings?tab=general', 'err', `Schedule not saved: ${first?.path.join('.') ?? 'input'} — ${first?.message ?? 'invalid'}.`);
+    return flashRedirect('/settings?tab=general', 'err', `Schedule not saved (${firstIssue(parsed.error.issues)}). The stored schedule is unchanged; fix that field and save again.`);
   }
   await setSchedule(parsed.data);
   const held = await countHeldAlerts();
@@ -461,7 +472,7 @@ async function readAiOrder(): Promise<{
 settingsRoute.post('/settings/ai/enable', async (c) => {
   const form = await c.req.parseBody();
   const provider = typeof form.provider === 'string' ? form.provider : '';
-  if (!isAiProviderId(provider)) return flashRedirect('/settings?tab=ai', 'err', 'Unknown engine.');
+  if (!isAiProviderId(provider)) return flashRedirect('/settings?tab=ai', 'err', UNKNOWN_ENGINE);
   const { order, config, envProvider } = await readAiOrder();
   const label = AI_PROVIDER_LABELS[provider];
   const next = toggleAiEngine(order, provider, envProvider);
@@ -506,7 +517,7 @@ settingsRoute.post('/settings/ai/enable', async (c) => {
 settingsRoute.post('/settings/ai/move', async (c) => {
   const form = await c.req.parseBody();
   const provider = typeof form.provider === 'string' ? form.provider : '';
-  if (!isAiProviderId(provider)) return flashRedirect('/settings?tab=ai', 'err', 'Unknown engine.');
+  if (!isAiProviderId(provider)) return flashRedirect('/settings?tab=ai', 'err', UNKNOWN_ENGINE);
   const { order, config } = await readAiOrder();
   const idx = order.indexOf(provider);
   if (idx <= 0) return flashRedirect('/settings?tab=ai', 'ok', 'Already at the top.');
@@ -669,7 +680,7 @@ settingsRoute.post('/settings/sources/key', async (c) => {
 settingsRoute.post('/settings/ai/test', async (c) => {
   const form = await c.req.parseBody();
   const provider = typeof form.provider === 'string' ? form.provider : '';
-  if (!isAiProviderId(provider)) return flashRedirect('/settings?tab=ai', 'err', 'Unknown engine.');
+  if (!isAiProviderId(provider)) return flashRedirect('/settings?tab=ai', 'err', UNKNOWN_ENGINE);
   const result = await testAiEngine(provider);
   return flashRedirect('/settings?tab=ai', result.ok ? 'ok' : 'err', result.text);
 });
@@ -849,7 +860,9 @@ settingsRoute.post('/settings/targets', onceGuard(() => 'targets:add', () => '/s
     const same = await findSameDestination({ kind: 'DISCORD', ...parsed.data });
     if (same) return flashRedirect(back, 'err', `That webhook is already added as "${same.name}".`);
     const test = await testDiscordWebhook(parsed.data.webhookUrl);
-    if (!test.ok) return flashRedirect(back, 'err', `Validation failed: ${test.error ?? 'unknown'}`);
+    if (!test.ok) {
+      return flashRedirect(back, 'err', `The test message did not reach Discord (${test.error ?? 'no reason given'}), so the webhook was not saved. Check the URL and add it again.`);
+    }
     await addNotificationTarget({ kind: 'DISCORD', ...parsed.data });
     return flashRedirect(back, 'ok', `Added Discord webhook "${parsed.data.name}". Test message sent.`);
   }
@@ -865,7 +878,7 @@ settingsRoute.post('/settings/targets', onceGuard(() => 'targets:add', () => '/s
   if (same) return flashRedirect(back, 'err', `That bot and chat are already added as "${same.name}".`);
   const test = await testTelegramTarget(parsed.data.botToken, parsed.data.chatId);
   if (!test.ok) {
-    return flashRedirect(back, 'err', `Validation failed: ${test.error ?? 'unknown'}`);
+    return flashRedirect(back, 'err', `The test message did not reach Telegram (${test.error ?? 'no reason given'}), so the target was not saved. Check the token and the chat id, and add it again.`);
   }
   await addNotificationTarget({ kind: 'TELEGRAM', ...parsed.data });
   return flashRedirect(
@@ -893,12 +906,12 @@ settingsRoute.post('/settings/targets/:id/test', async (c) => {
   const id = idParam(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text('Bad id', 400);
   const t = await prisma.notificationTarget.findUnique({ where: { id } });
-  if (!t) return flashRedirect('/settings?tab=notifications', 'err', 'Target not found.');
+  if (!t) return flashRedirect('/settings?tab=notifications', 'err', 'That target no longer exists, so no test was sent. The list below is current.');
   if (t.kind === 'DISCORD') {
     const result = await testDiscordWebhook(t.webhookUrl ?? '');
     return result.ok
       ? flashRedirect('/settings?tab=notifications', 'ok', `Test sent to "${t.name}".`)
-      : flashRedirect('/settings?tab=notifications', 'err', `Test failed: ${result.error ?? 'unknown'}`);
+      : flashRedirect('/settings?tab=notifications', 'err', testFailed(t.name, result.error));
   }
   const result = await testTelegramTarget(t.botToken ?? '', t.chatId ?? '');
   if (result.ok) {
@@ -908,7 +921,7 @@ settingsRoute.post('/settings/targets/:id/test', async (c) => {
       `Test sent to "${t.name}" (bot @${result.botUsername ?? '?'}).`,
     );
   }
-  return flashRedirect('/settings?tab=notifications', 'err', `Test failed: ${result.error ?? 'unknown'}`);
+  return flashRedirect('/settings?tab=notifications', 'err', testFailed(t.name, result.error));
 });
 
 // --- Profiles ---------------------------------------------------------------
@@ -930,7 +943,7 @@ settingsRoute.post('/settings/profiles/active', async (c) => {
   const form = await c.req.parseBody();
   const id = idParam(form.id);
   const want = form.active === '1';
-  if (!Number.isFinite(id)) return flashRedirect('/settings?tab=profile', 'err', 'Invalid id.');
+  if (!Number.isFinite(id)) return flashRedirect('/settings?tab=profile', 'err', UNKNOWN_SEARCH);
   // Server-side half of the gate (issue #50): a search with nothing to match
   // on would admit every posting and score it on vibes.
   const target = await getProfile(id);
@@ -947,7 +960,7 @@ settingsRoute.post('/settings/profiles/active', async (c) => {
     return flashRedirect(
       '/settings?tab=profile',
       'err',
-      err instanceof Error ? err.message : 'Failed to change the search.',
+      err instanceof Error ? err.message : 'The search did not change state, and nothing else changed. Try again.',
     );
   }
   return flashRedirect(
@@ -962,7 +975,7 @@ settingsRoute.post('/settings/profiles/active', async (c) => {
 settingsRoute.post('/settings/profiles/activate', async (c) => {
   const form = await c.req.parseBody();
   const id = idParam(form.id);
-  if (!Number.isFinite(id)) return flashRedirect('/settings?tab=profile', 'err', 'Invalid id.');
+  if (!Number.isFinite(id)) return flashRedirect('/settings?tab=profile', 'err', UNKNOWN_SEARCH);
   // Server-side half of the activation gate (issue #50) — the disabled
   // Activate button is advisory only.
   const target = await getProfile(id);
@@ -979,7 +992,7 @@ settingsRoute.post('/settings/profiles/activate', async (c) => {
     return flashRedirect(
       '/settings?tab=profile',
       'err',
-      err instanceof Error ? err.message : 'Failed to change the primary search.',
+      err instanceof Error ? err.message : 'The primary search did not change, and nothing else changed. Try again.',
     );
   }
   return flashRedirect(
@@ -992,14 +1005,14 @@ settingsRoute.post('/settings/profiles/activate', async (c) => {
 settingsRoute.post('/settings/profiles/delete', async (c) => {
   const form = await c.req.parseBody();
   const id = idParam(form.id);
-  if (!Number.isFinite(id)) return flashRedirect('/settings?tab=profile', 'err', 'Invalid id.');
+  if (!Number.isFinite(id)) return flashRedirect('/settings?tab=profile', 'err', UNKNOWN_SEARCH);
   try {
     await deleteProfile(id);
   } catch (err) {
     return flashRedirect(
       '/settings?tab=profile',
       'err',
-      err instanceof Error ? err.message : 'Delete failed.',
+      err instanceof Error ? err.message : 'The search was not deleted, and nothing else changed. Try again.',
     );
   }
   return flashRedirect('/settings?tab=profile', 'ok', 'Search deleted.');
@@ -1010,7 +1023,7 @@ settingsRoute.post('/settings/profiles/:id/save', async (c) => {
   if (!Number.isFinite(id)) return c.text('Bad id', 400);
   const before = await getProfile(id);
   if (!before) {
-    return flashRedirect('/settings?tab=profile', 'err', 'Profile not found.');
+    return flashRedirect('/settings?tab=profile', 'err', SEARCH_GONE);
   }
 
   // `all: true` is required so multi-value checkboxes (seniority,
@@ -1022,7 +1035,7 @@ settingsRoute.post('/settings/profiles/:id/save', async (c) => {
       { errors: parsed.error.flatten().fieldErrors, form },
       'profile form: validation failed',
     );
-    return flashRedirect('/settings?tab=profile', 'err', 'Invalid form values.');
+    return flashRedirect('/settings?tab=profile', 'err', `${firstIssue(parsed.error.issues)}. Profile not saved; fix that field and save again.`);
   }
   const f = parsed.data;
 
@@ -1154,7 +1167,7 @@ settingsRoute.post(
   const id = idParam(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text('Bad id', 400);
   const profile = await getProfile(id);
-  if (!profile) return flashRedirect('/settings?tab=profile', 'err', 'Profile not found.');
+  if (!profile) return flashRedirect('/settings?tab=profile', 'err', SEARCH_GONE);
   const form = await c.req.parseBody();
   let resume;
   if (form.file instanceof File && form.file.size > 0) {
@@ -1169,7 +1182,7 @@ settingsRoute.post(
     resume = await getResume(resumeId);
   }
   if (!resume || resume.hidden) {
-    return flashRedirect('/settings?tab=profile', 'err', 'Resume not found.');
+    return flashRedirect('/settings?tab=profile', 'err', 'That resume no longer exists, so no draft was made. Pick another under Fill from a resume.');
   }
 
   // Scans from before the primary-stack field (or failed ones) re-scan here.
@@ -1179,7 +1192,7 @@ settingsRoute.post(
       return flashRedirect(
         '/settings?tab=profile',
         'err',
-        `The AI scan of "${resume.name}" failed — check the web logs and try again.`,
+        `The AI scan of "${resume.name}" failed, so there is no draft and the profile is unchanged. Test the engine on the AI engine tab, then try again.`,
       );
     }
     resume = (await getResume(resume.id)) ?? resume;

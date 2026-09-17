@@ -3,6 +3,24 @@
 @tailwind components;
 @tailwind utilities;
 
+/* A status pill's ground (ui.tsx TONE_SOFT): the tone at 10 % painted over
+   white, so the pill reads the same on every surface. */
+@layer components {
+  .pill-ok,
+  .pill-warn,
+  .pill-danger,
+  .pill-info,
+  .pill-violet {
+    background-color: rgb(var(--surface-raised));
+    background-image: linear-gradient(rgb(var(--pill) / 0.1), rgb(var(--pill) / 0.1));
+  }
+  .pill-ok { --pill: var(--ok); }
+  .pill-warn { --pill: var(--warn); }
+  .pill-danger { --pill: var(--danger); }
+  .pill-info { --pill: var(--info); }
+  .pill-violet { --pill: var(--violet); }
+}
+
 /* Inter, from this origin: the same file the site ships, latin subset,
    variable weight. No third party sees a page view (audit 2026-09-10, PRIV-1). */
 @font-face {

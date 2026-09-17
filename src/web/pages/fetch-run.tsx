@@ -3,7 +3,7 @@ import type { FC } from 'hono/jsx';
 import { Layout } from '../layout';
 import { ActionForm, Button, Card, Hint } from '../ui';
 import { RunSteps, type StepView } from './run-steps';
-import { FETCH_RUN_STEPS, type FetchRun } from '../fetch-runs';
+import { FETCH_FAILED, FETCH_RUN_STEPS, type FetchRun } from '../fetch-runs';
 
 function stepView({ classify, scope }: Pick<FetchRun, 'classify' | 'scope'>): Record<string, StepView> {
   return {
@@ -72,7 +72,7 @@ export const FetchRunPage: FC<{ run: FetchRun }> = ({ run }) => {
           {failed ? (
             <div class="mt-4 space-y-4">
               <div class="rounded-md border border-danger/25 bg-danger/5 px-3.5 py-2.5 text-sm text-danger">
-                {run.error ?? 'The run failed — see the web logs.'}
+                {run.error ?? FETCH_FAILED}
               </div>
               <div class="flex flex-wrap gap-2">
                 <Button href={run.backUrl} variant="secondary">

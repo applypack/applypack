@@ -82,7 +82,7 @@ export function activeWatchlistRun(): WatchlistRun | null {
 export function startWatchlistRun(id: string, fn: () => Promise<void>): void {
   void fn().catch((err) => {
     logger.error({ err, runId: id }, 'web: watchlist resolve failed');
-    finishWatchlistRun(id, 'The run failed — see the web logs.');
+    finishWatchlistRun(id, 'The resolve run stopped on an error, so nothing was added. Paste the list again; the web log has the detail.');
   });
 }
 

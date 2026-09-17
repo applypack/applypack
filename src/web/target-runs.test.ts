@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { alsoClaims, claimRun, findLiveRun, getRun, startRun, updateRun } from './target-runs';
+import { alsoClaims, claimRun, findLiveRun, getRun, runFailure, startRun, updateRun } from './target-runs';
 
 /*
  * Issue #76 — server-side idempotency for the POSTs that start AI runs. Every
@@ -121,4 +121,17 @@ test('picking up a name twice, or on a run that is gone, changes nothing', () =>
   alsoClaims('no-such-run', `suggestions:${stamp}`);
 
   assert.deepEqual(getRun(first.run.id)?.keys, [`target:3:full:${stamp}`, `suggestions:${stamp}`]);
+});
+
+test('a failure line says what failed, why when the engine said, and what to do next', () => {
+  const next = 'The old wording stays; press Rewrite again.';
+  assert.equal(
+    runFailure('Could not rewrite that suggestion', 'the engine timed out after 180s', next),
+    'Could not rewrite that suggestion: the engine timed out after 180s. The old wording stays; press Rewrite again.',
+  );
+  // No reason from the engine: the log is where the detail lives, and the line says so.
+  assert.equal(
+    runFailure('Could not rewrite that suggestion', '', next),
+    'Could not rewrite that suggestion. The old wording stays; press Rewrite again. The web log has the detail.',
+  );
 });

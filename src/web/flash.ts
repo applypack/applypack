@@ -17,6 +17,8 @@ export interface FlashMessage {
 }
 
 const FLASH_TTL_SECONDS = 5;
+/** A schema's message can echo the value it refused; a flash rides in a cookie, so the echo is cut. */
+const MAX_ISSUE_CHARS = 160;
 
 export function flashRedirect(
   location: string,
@@ -69,6 +71,18 @@ export function parseFlashCookie(cookieHeader: string | undefined): FlashMessage
     return null;
   }
   return null;
+}
+
+/**
+ * The first thing a schema refused, as "field: reason" — so a flash can name
+ * what was wrong instead of "Invalid form values".
+ */
+export function firstIssue(issues: readonly { path: readonly PropertyKey[]; message: string }[]): string {
+  const first = issues[0];
+  if (!first) return 'the form arrived empty';
+  const field = first.path.map(String).join('.');
+  const text = field ? `${field}: ${first.message}` : first.message;
+  return text.length > MAX_ISSUE_CHARS ? `${text.slice(0, MAX_ISSUE_CHARS)}…` : text;
 }
 
 /**

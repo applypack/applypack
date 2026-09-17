@@ -3,7 +3,7 @@ import type { FC } from 'hono/jsx';
 import { Layout } from '../layout';
 import { Button, Card, Hint } from '../ui';
 import { RunSteps, type StepView } from './run-steps';
-import type { RunStep, TargetRun } from '../target-runs';
+import { UNEXPECTED_FAILURE, type RunStep, type TargetRun } from '../target-runs';
 import { bandFor, laneLabel, type Lane } from '../lane';
 
 const STEP_VIEW: Record<RunStep, StepView> = {
@@ -121,7 +121,7 @@ export const TargetRunPage: FC<{ run: TargetRun; lane: Lane }> = ({ run, lane })
           {failed ? (
             <div class="mt-4 space-y-4">
               <div class="rounded-md border border-danger/25 bg-danger/5 px-3.5 py-2.5 text-sm text-danger">
-                {run.error ?? 'Unexpected failure — see the web logs.'}
+                {run.error ?? UNEXPECTED_FAILURE}
               </div>
               <div class="flex flex-wrap gap-2">
                 <Button href={run.backUrl} variant="secondary">

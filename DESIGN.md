@@ -466,9 +466,17 @@ null renders an em dash.
 
 ### System Feedback
 - **Flash:** rounded 6px banner, 25% tone border, 5% tone fill, tone text, with
-  a drawn 16px icon; ok and danger kinds only.
-- **Empty state:** centered in a hairline 8px card, a 28px 1.5px-stroke drawn
-  icon in control-border gray over 14px faint text with an inline link.
+  a drawn 16px icon; ok, warn and danger kinds. An error says three things:
+  what failed, what is safe, the way forward. "Invalid form values" says none.
+- **Empty state (`Empty`):** a 28px 1.5px-stroke drawn icon in control-border
+  gray, then three parts, centered: the title (what is missing, entity type),
+  one muted sentence (why it matters) and at most one action (a small
+  secondary button, or the sentence names the control already on the page).
+  A hairline 8px card on the canvas; `bare` inside a card, which stays the one
+  surface.
+- **Board column:** the subtle surface, 8px corners, no outline; an empty
+  column says "No applications" in one faint meta line. No dashed wells: the
+  surface already reads as a place to drop.
 - **ToggleRow:** label + ok/neutral dot-pill beside an Enable/Disable button —
   the settings on/off idiom.
 

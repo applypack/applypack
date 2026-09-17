@@ -90,7 +90,10 @@ function startStructureRun(resume: ResumeSummary): TargetRun {
       run.id,
       structure
         ? { stage: 'done', resultUrl: back, flash: `Read as data: ${structure.work.length} roles, ${structure.work.reduce((n, w) => n + w.highlights.length, 0)} bullets.` }
-        : { stage: 'error', error: runFailure('The AI could not read the resume as data', reason) },
+        : {
+            stage: 'error',
+            error: runFailure('The AI could not read the resume as data', reason, 'The page keeps the built-in reading; press "Read the shape with AI" to try again.'),
+          },
     );
   });
   return run;

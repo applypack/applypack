@@ -6,7 +6,7 @@ import { z } from 'zod';
 import { prisma } from '../../db';
 import { logger } from '../../logger';
 import { sleep } from '../../http';
-import { flashRedirect } from '../flash';
+import { firstIssue, flashRedirect } from '../flash';
 import { ALERT_POLICIES, CHECK_INTERVALS } from '../../watchlist/interval';
 import { parseCompanyLines } from '../../watchlist/parse-input';
 import { installAiTokens, liveResolveIo, resolveCompanyUrl, type ResolvedCompany } from '../../watchlist/resolve';
@@ -99,7 +99,9 @@ watchlistRoute.post('/companies/watchlist/add', async (c) => {
     checkEvery: form.checkEvery,
     alertPolicy: form.alertPolicy,
   });
-  if (!parsed.success) return flashRedirect('/companies', 'err', 'Invalid form values.');
+  if (!parsed.success) {
+    return flashRedirect('/companies', 'err', `Nothing was added (${firstIssue(parsed.error.issues)}). Paste the list again and add from its preview.`);
+  }
   const run = getWatchlistRun(parsed.data.runId);
   if (!run) return flashRedirect('/companies', 'err', 'That resolve run has expired — paste the list again.');
 
@@ -170,7 +172,9 @@ watchlistRoute.post('/companies/:id/watch', async (c) => {
   if (!Number.isFinite(id)) return c.text('Bad id', 400);
   const form = await c.req.parseBody();
   const parsed = WatchSchema.safeParse({ checkEvery: form.checkEvery, alertPolicy: form.alertPolicy });
-  if (!parsed.success) return flashRedirect('/companies', 'err', 'Invalid form values.');
+  if (!parsed.success) {
+    return flashRedirect('/companies', 'err', `The company is unchanged (${firstIssue(parsed.error.issues)}). Pick the interval and the alert policy from the row's lists.`);
+  }
   const company = await prisma.company.findUnique({ where: { id }, select: { name: true, checkEvery: true } });
   if (!company) return c.text('Not found', 404);
 

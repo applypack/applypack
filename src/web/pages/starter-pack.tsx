@@ -154,7 +154,10 @@ export const StarterPackPreviewPage: FC<{
       <Card class="mb-4">
         <SectionTitle>New boards</SectionTitle>
         {preview.toAdd.length === 0 ? (
-          <Empty>Nothing new — every board in this pack is already tracked.</Empty>
+          <Empty bare title="Nothing new in this pack">
+            Every board in it is on your Companies list already, so there is nothing to add. Go back and
+            pick another segment.
+          </Empty>
         ) : (
           <>
             <Hint class="mb-4">
@@ -209,7 +212,17 @@ export const StarterPackResultPage: FC<{
 
     <Card>
       {added.length === 0 ? (
-        <Empty>Nothing was added.</Empty>
+        <Empty
+          bare
+          title="Nothing was added"
+          action={
+            <Button href={backFor(next).href} variant="secondary" size="sm">
+              Back to {backFor(next).label}
+            </Button>
+          }
+        >
+          Every board you ticked is on the Companies list already, so the list did not change.
+        </Empty>
       ) : (
         <>
           <SectionTitle>Added, currently disabled</SectionTitle>

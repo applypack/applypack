@@ -86,8 +86,10 @@ discoveryRoute.post('/discovery/:id/promote', async (c) => {
   try {
     await promoteCandidate(id);
   } catch (err) {
+    // The one throw is "Candidate N not found": someone reviewed it in another tab.
+    const reason = err instanceof Error ? err.message : 'no reason given';
     return flashRedirect('/discovery', 'err',
-      err instanceof Error ? err.message : 'Promote failed.',
+      `Nothing was promoted (${reason}). The list below is current; add a board by its URL on Companies if it is gone from here.`,
     );
   }
   return flashRedirect('/discovery', 'ok',

@@ -508,7 +508,9 @@ export const SettingsPage: FC<SettingsProps> = ({
             />
           </Card>
         ) : (
-          <Empty>No search selected. Pick one below or create a new one.</Empty>
+          <Empty title="No search selected">
+            The editor opens one search at a time. Pick one under Searches below, or create a new one there.
+          </Empty>
         )}
         <div class="space-y-2">
           <div class="text-entity text-ink">Searches</div>
@@ -821,7 +823,9 @@ export const SettingsPage: FC<SettingsProps> = ({
         </Card>
 
         {targets.length === 0 ? (
-          <Empty>No targets yet. Add one below to start receiving alerts.</Empty>
+          <Empty title="No targets yet">
+            An alert has nowhere to go until a target exists. Add a Telegram chat or a Discord webhook below.
+          </Empty>
         ) : (
           <Card flush>
             <Table
@@ -1005,7 +1009,9 @@ export const SettingsPage: FC<SettingsProps> = ({
               ))}
             </ul>
           ) : (
-            <Empty>No resumes yet.</Empty>
+            <Empty bare title="No resumes yet">
+              A job page compares and drafts a letter from a resume. Upload one on the Resumes page.
+            </Empty>
           )}
           <a href="/resumes" class="mt-3 inline-block text-[13px] font-medium text-accent-strong hover:text-accent-deep">
             Upload &amp; manage resumes →

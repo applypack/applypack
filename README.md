@@ -323,7 +323,7 @@ on the AI tab shows exactly which engine your calls went to.
 
 | Page | URL | What it's for |
 | --- | --- | --- |
-| First run | `/welcome` | The four setup steps; `/` redirects here until you finish or skip |
+| First run | `/welcome` | The five setup steps; `/` redirects here until you finish or skip |
 | Overview | `/` | Four counters by status (each opens its jobs), recent alerts, pipeline health, pause/resume, Fetch now |
 | Jobs | `/jobs` | Filterable, sortable list of everything fetched |
 | Paste a job | `/jobs/new` | Save a posting by hand (LinkedIn, email, referral); it gets classified like any other |
@@ -337,7 +337,7 @@ on the AI tab shows exactly which engine your calls went to.
 | Companies | `/companies` | Tracked boards; add new ones with a live probe that refuses bad slugs. **Watch specific companies** takes a pasted list of career-page URLs and resolves each to the board or feed behind it |
 | Discovery | `/discovery` | Board candidates harvested from HN, with the discovery toggles |
 | Runs | `/runs` | The last 100 runs, each as a sentence ("594 fetched · 3 new · 0 alerted"), errors in full, raw output one press away |
-| Settings | `/settings` | Five tabs: General · Profile · AI engine · Notifications · Sources |
+| Settings | `/settings` | Six tabs: General · Profile · AI engine · Notifications · Sources · Screening |
 
 <div align="center">
 <img src="docs/screenshots/jobs.png" alt="Jobs: full-width table with fit scores, status filters and sticky header" width="900">
@@ -352,8 +352,8 @@ the resume editor you fix the resume in place, watching keyword coverage
 update as you type, free of AI calls; re-upload a file and it is scored
 in the editor before the AI is asked. Disagree with the model? Re-level a
 keyword, ignore it, add the one it missed, or rebuild the whole list; your
-edits survive every re-run. When the draft feels right, "Re-check with
-AI" gives the honest rubric score and "Save as vN" keeps the version. The
+edits survive every re-run. When the draft feels right, "Analyse my resume
+again" gives the honest rubric score and "Save as vN" keeps the version. The
 next report shows "▲ +16 vs v1", and the delta is real because the
 scoring is deterministic.
 

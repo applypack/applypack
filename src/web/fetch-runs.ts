@@ -19,6 +19,10 @@ export type FetchScope = 'every' | 'aggregators';
 
 export const FETCH_RUN_STEPS: FetchRunStage[] = ['fetch', 'store'];
 
+/** The tick threw: what is safe (stored jobs stay) and where to look, then the way forward. */
+export const FETCH_FAILED =
+  'The fetch stopped on an error. Jobs it stored before that stay, and its row on Runs carries the error. Press Fetch now to try again.';
+
 export interface FetchRun {
   id: string;
   stage: FetchRunStage;
@@ -92,7 +96,7 @@ export function activeFetchRun(): FetchRun | null {
 export function startFetchRun(id: string, fn: () => Promise<void>): void {
   void fn().catch((err) => {
     logger.error({ err, runId: id }, 'web: fetch-now run failed');
-    updateFetchRun(id, { stage: 'error', error: 'The run failed — see the web logs and the row on /runs.' });
+    updateFetchRun(id, { stage: 'error', error: FETCH_FAILED });
   });
 }
 

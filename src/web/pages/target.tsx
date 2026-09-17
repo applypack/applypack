@@ -466,7 +466,7 @@ export const TargetPage: FC<TargetPageProps> = ({
               posting's own reading already wrote (ADR 0044). */}
           {orientation !== undefined && orientation.length > 0 && (
             <div class="border-t border-line pt-3 lg:col-span-3">
-              <div class="text-[11px] uppercase tracking-wide text-ink-faint">about this posting</div>
+              <div class="text-label text-ink-muted">About this posting</div>
               <dl class="mt-1 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-[13px] leading-6">
                 {orientation.map((row) => (
                   <>
