@@ -75,13 +75,13 @@ export const PageHeader: FC<
       </h1>
       {(meta || actions) && (
         <div class="flex min-w-0 flex-wrap items-center gap-3">
-          {meta && <div class="text-[13px] text-ink-faint tabular-nums">{meta}</div>}
+          {meta && <div data-ui="hint" class="text-[13px] text-ink-faint tabular-nums">{meta}</div>}
           {actions}
         </div>
       )}
     </div>
     {children && (
-      <div class="mt-1.5 text-[13px] leading-5 text-ink-faint">{children}</div>
+      <div data-ui="hint" class="mt-1.5 text-[13px] leading-5 text-ink-faint">{children}</div>
     )}
   </header>
 );
@@ -156,7 +156,7 @@ export const SectionTitle: FC<PropsWithChildren> = ({ children }) => (
 export const Hint: FC<PropsWithChildren<{ class?: string }>> = ({
   children,
   class: className = '',
-}) => <p class={`text-[13px] leading-5 text-ink-faint ${className}`}>{children}</p>;
+}) => <p data-ui="hint" class={`text-[13px] leading-5 text-ink-faint ${className}`}>{children}</p>;
 
 export const Empty: FC<PropsWithChildren> = ({ children }) => (
   <div class="flex flex-col items-center justify-center gap-2.5 rounded-lg border border-line bg-surface-raised px-6 py-12 text-center">
@@ -456,7 +456,7 @@ export const Radio: FC<PropsWithChildren<Record<string, unknown> & { title: Chil
     <input type="radio" class="mt-1 h-4 w-4 accent-accent" {...rest} />
     <span>
       <span class="font-medium">{title}</span>
-      <span class="block text-[13px] leading-5 text-ink-faint">{children}</span>
+      <span data-ui="hint" class="block text-[13px] leading-5 text-ink-faint">{children}</span>
     </span>
   </label>
 );

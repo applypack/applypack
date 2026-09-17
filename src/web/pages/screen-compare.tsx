@@ -183,7 +183,7 @@ export const ScreenComparePage: FC<ScreenCompareProps> = ({ screening, side, com
 
         {comparison && view && (
           <div class="mt-4 space-y-4">
-            <p class="text-[13px] text-ink-faint">
+            <p data-ui="hint" class="text-[13px] text-ink-faint">
               Read {formatDate(comparison.createdAt)} on {comparison.model}, rubric v{comparison.rubricVersion}
               {comparison.rubricVersion !== screening.rubricVersion ? ' — the criteria changed since; read again for the current ones' : ''}. Shown as{' '}
               {view.shown[0].map((x) => `№${x}`).join(', ')} and then as {view.shown[1].map((x) => `№${x}`).join(', ')}.

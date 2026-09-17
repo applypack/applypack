@@ -299,7 +299,7 @@ export const TargetPage: FC<TargetPageProps> = ({
                 this posting: the words it asks for, whether you have its core stack, and how your title,
                 summary and most recent role read at a glance.
               </p>
-              <p class="text-ink-faint">
+              <p data-ui="hint" class="text-ink-faint">
                 It moves as you edit: every word is counted live, whatever the last analysis called it.
                 What a word search cannot read — how your title and summary read, the red flags — stays as
                 the last analysis judged it, so run “Analyse my resume again” once the text is settled.

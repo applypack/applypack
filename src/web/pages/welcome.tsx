@@ -172,7 +172,7 @@ export const WelcomePage: FC<WelcomeProps> = (p) => (
       <div class="flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
         <div>
           <h1 class="text-xl font-semibold tracking-tight">Welcome to ApplyPack</h1>
-          <p class="mt-1 text-[13px] leading-5 text-ink-faint">
+          <p data-ui="hint" class="mt-1 text-[13px] leading-5 text-ink-faint">
             Everything here can be changed later in Settings.
           </p>
         </div>
@@ -294,7 +294,7 @@ const AiStep: FC<WelcomeProps> = ({ ai, steps }) => {
               return (
                 <li class="rounded-md border border-line px-4 py-3">
                   <div class="text-sm font-medium text-ink">{card.title}</div>
-                  <p class="mt-1 text-[13px] leading-5 text-ink-faint">{card.how}</p>
+                  <p data-ui="hint" class="mt-1 text-[13px] leading-5 text-ink-faint">{card.how}</p>
                   {status?.keyEnvVar && (
                     <form
                       method="post"
@@ -319,10 +319,10 @@ const AiStep: FC<WelcomeProps> = ({ ai, steps }) => {
                     </form>
                   )}
                   {status && (
-                    <p class="mt-2 text-xs text-ink-faint">Right now: {status.detail}</p>
+                    <p data-ui="hint" class="mt-2 text-xs text-ink-faint">Right now: {status.detail}</p>
                   )}
                   {card.env && (
-                    <p class="mt-1 text-xs text-ink-faint">
+                    <p data-ui="hint" class="mt-1 text-xs text-ink-faint">
                       Prefer a file? <Code>{card.env}</Code> in <Code>.env</Code> works too.
                     </p>
                   )}
@@ -735,7 +735,7 @@ const MatchesStep: FC<WelcomeProps> = (p) => {
             </ul>
           )}
           {matches.waiting > 0 && (
-            <p class="mt-3 text-[13px] leading-5 text-ink-faint">
+            <p data-ui="hint" class="mt-3 text-[13px] leading-5 text-ink-faint">
               {matches.waiting.toLocaleString()} more stored jobs mention your words and are still
               unscored — score the next {SCORE_BATCH} whenever you like, or let the hourly watch
               score new ones as they arrive.

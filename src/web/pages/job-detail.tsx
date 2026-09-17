@@ -485,7 +485,7 @@ const PageHeaderBlock: FC<{ job: JobDetail }> = ({ job }) => (
           {job.company.name} · {job.location || 'Remote'}
         </div>
         {job.company.watched && (
-          <div class="mt-1 text-xs text-ink-faint">
+          <div data-ui="hint" class="mt-1 text-xs text-ink-faint">
             Watched company · {intervalLabel(job.company.checkEvery).toLowerCase()}, with your search&rsquo;s schedule ·{' '}
             {job.company.alertPolicy === 'all' ? 'alerts on every posting' : 'alerts on matches only'} ·{' '}
             <a href="/companies" class="underline">

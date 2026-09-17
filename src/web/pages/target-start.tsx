@@ -211,6 +211,7 @@ export const ModeCard: FC<
   }>
 > = ({ value, label, checked = false, disabled = false, name = 'resumeMode', children }) => (
   <fieldset
+    data-ui="mode-card"
     data-mode={value}
     class={`rounded-md border border-line bg-surface-raised p-3 transition-colors duration-150 has-[:checked]:border-accent/50 has-[:checked]:bg-accent/5 ${
       disabled ? 'opacity-60' : ''
@@ -227,7 +228,7 @@ export const ModeCard: FC<
       />
       {label}
     </label>
-    <div class="mt-2.5">{children}</div>
+    <div data-ui="mode-body" class="mt-2.5">{children}</div>
   </fieldset>
 );
 

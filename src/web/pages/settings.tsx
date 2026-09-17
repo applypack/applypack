@@ -184,7 +184,7 @@ const Section: FC<PropsWithChildren<{ title: string; desc?: string | Child }>> =
   <section class="grid gap-3 border-t border-line py-7 first:border-t-0 first:pt-0 lg:grid-cols-[220px_1fr] lg:gap-8">
     <div>
       <h2 class="text-sm font-semibold text-ink">{title}</h2>
-      {desc && <p class="mt-1 text-[13px] leading-5 text-ink-faint">{desc}</p>}
+      {desc && <p data-ui="hint" class="mt-1 text-[13px] leading-5 text-ink-faint">{desc}</p>}
     </div>
     <div class="min-w-0 space-y-4">{children}</div>
   </section>
@@ -953,12 +953,12 @@ export const SettingsPage: FC<SettingsProps> = ({
             {sourceGroups.map((g) => (
               <div>
                 <div class="text-[13px] font-medium text-ink">{g.title}</div>
-                <p class="mb-2 text-xs leading-5 text-ink-faint">{g.caption}</p>
+                <p data-ui="hint" class="mb-2 text-xs leading-5 text-ink-faint">{g.caption}</p>
                 <div class="flex flex-wrap gap-1.5">
                   {g.pills.map((p) => (
                     <PillCheckbox name="enabled" value={p.atsType} checked={!disabledSources.includes(p.atsType)}>
                       {p.label}
-                      <span class="text-xs text-ink-faint">
+                      <span data-ui="hint" class="text-xs text-ink-faint">
                         {p.locked ? (
                           <a href="#source-keys" class="text-warn hover:underline">
                             needs a key
@@ -1162,10 +1162,10 @@ const SourceKeysCard: FC<{ rows: SourceKeyRow[] }> = ({ rows }) => (
             <Badge tone={r.ready ? 'ok' : 'neutral'}>{r.ready ? 'ready' : 'not set up'}</Badge>
           </div>
           <p class="mt-1.5 text-[13px] leading-5 text-ink-muted">{r.what}</p>
-          <p class="mt-1 text-[13px] leading-5 text-ink-faint">
+          <p data-ui="hint" class="mt-1 text-[13px] leading-5 text-ink-faint">
             <span class="font-medium text-ink-muted">Worth it if:</span> {r.worthIt}
           </p>
-          <p class="mt-1 text-[13px] leading-5 text-ink-faint">
+          <p data-ui="hint" class="mt-1 text-[13px] leading-5 text-ink-faint">
             <span class="font-medium text-ink-muted">In exchange:</span> {r.cost}
           </p>
           <p class="mt-1.5 text-[13px] leading-5">
@@ -1311,7 +1311,7 @@ const AiEngineCard: FC<{ engine: AiEngineRow }> = ({ engine: e }) => (
         )}
       </div>
     </div>
-    <p class="mt-1.5 text-[13px] leading-5 text-ink-faint">
+    <p data-ui="hint" class="mt-1.5 text-[13px] leading-5 text-ink-faint">
       {e.desc} ({e.detail})
     </p>
     {e.lastResort && (
