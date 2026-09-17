@@ -4,6 +4,41 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.10.0] — 2026-09-16
+
+### Added
+- **`npm start` runs ApplyPack without Docker.** Node.js 22 or newer is the
+  only thing to install: `npm install && npm start` creates a built-in
+  PostgreSQL 16 on the first run, starts it, the worker and the dashboard,
+  and opens the setup wizard. Ctrl+C, or `npm run stop` from another
+  terminal, stops them in reverse order. The data lives outside the
+  repository — `~/Library/Application Support/ApplyPack` on macOS,
+  `%APPDATA%\ApplyPack` on Windows, `~/.local/share/applypack` on Linux — so
+  an update or a fresh download keeps it; `APPLYPACK_DATA_DIR` moves it. A
+  second `npm start` says it is already running, a crashed process starts
+  again, and a database a killed run left behind is stopped before the next
+  start. `DATABASE_URL` still points ApplyPack at a Postgres of your own, and
+  Docker is unchanged ([ADR 0054](./docs/adr/0054-npm-start-runs-a-built-in-database.md)).
+- [docs/install.md](./docs/install.md): what to install on macOS, Windows
+  and Linux, the everyday commands, and what the common errors mean.
+- `npm run db` runs the built-in database alone for `npm run dev` and
+  `npm run dev:web`; they and the once-scripts find it with no `DATABASE_URL`.
+- CI runs `npm start`, the route smoke against its database and
+  `npm run stop` on Linux (Node 22 and 24), macOS and Windows.
+
+### Fixed
+- The clean PDF (`/resumes/:id/render`) failed with `ENOENT` in every run
+  outside Docker: `npm run build` now copies the fonts beside `dist/`, and
+  the route smoke renders one PDF.
+
+### Changed
+- `npm start` starts everything; the worker alone is `npm run start:worker`.
+- `.env.example` no longer sets `DATABASE_URL`. README and the site lead
+  with the local install; Docker is the option for a server. A `.env` whose
+  `DATABASE_URL` answers nowhere — every one copied from the old example
+  points at `localhost:5432` — stops `npm start` with a sentence saying to
+  delete the line, instead of a worker that fails to start.
+
 ## [2.9.1] — 2026-09-13
 
 ### Fixed
@@ -3603,6 +3638,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.10.0]: https://github.com/applypack/applypack/compare/v2.9.1...v2.10.0
 [2.9.1]: https://github.com/applypack/applypack/compare/v2.9.0...v2.9.1
 [2.9.0]: https://github.com/applypack/applypack/compare/v2.8.0...v2.9.0
 [2.8.0]: https://github.com/applypack/applypack/compare/v2.7.2...v2.8.0

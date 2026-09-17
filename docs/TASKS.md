@@ -2275,7 +2275,7 @@ options and measurements: [docs/local-install-plan.md](./local-install-plan.md).
 
 ### 21.2 Order of work
 
-- [ ] **`local-start`** (minor, ADR 0054) — plan §4 and §6: the fonts copied
+- [x] **`local-start`** (minor, ADR 0054) — shipped v2.10.0. Plan §4 and §6: the fonts copied
       by `npm run build`; `src/local/` launcher behind `npm start`: the
       built-in Postgres 16 under `pg_ctl` in the OS data folder (UTF-8
       locale, UTC, loopback, no socket, symlink repair, stale-lock rules,
