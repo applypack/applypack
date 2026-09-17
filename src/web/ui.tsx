@@ -209,6 +209,112 @@ export const MarkIcon: FC<{ kind: 'check' | 'x'; class?: string }> = ({
   </svg>
 );
 
+/* ---------- disclosure, tabs, active filters ---------- */
+
+const ChevronDown: FC = () => (
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="2"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    class="h-3.5 w-3.5 shrink-0 text-ink-faint transition-transform duration-150 group-open:rotate-180"
+    aria-hidden="true"
+  >
+    <path d="m6 9 6 6 6-6" />
+  </svg>
+);
+
+const DISCLOSURE_SUMMARY = {
+  button:
+    'inline-flex min-h-[32px] items-center gap-1.5 whitespace-nowrap rounded-md border border-line-strong bg-surface-raised px-3 py-1.5 text-sm font-medium text-ink shadow-sm hover:bg-surface-overlay group-open:bg-surface-overlay',
+  quiet: 'inline-flex items-center gap-1 text-[13px] text-ink-muted hover:text-ink',
+} as const;
+
+/**
+ * Native <details>: what is not needed at first glance folds away with no
+ * JavaScript, and Enter / Space toggle it. `button` reads as a secondary
+ * button (a toolbar's "Filters"); `quiet` is the muted line under a control
+ * ("How this works"). `count` says how much is set inside while it is closed.
+ * The children are the body — the caller lays them out, so a `contents`
+ * disclosure can hand its body to the row it sits in.
+ */
+export const Disclosure: FC<
+  PropsWithChildren<{
+    summary: string;
+    variant?: keyof typeof DISCLOSURE_SUMMARY;
+    count?: number;
+    open?: boolean;
+    id?: string;
+    class?: string;
+  }>
+> = ({ summary, variant = 'quiet', count = 0, open = false, id, class: className = '', children }) => (
+  <details id={id} open={open} class={`group ${className}`}>
+    <summary
+      class={`cursor-pointer select-none list-none transition-colors duration-150 [&::-webkit-details-marker]:hidden ${DISCLOSURE_SUMMARY[variant]}`}
+    >
+      {summary}
+      {count > 0 && (
+        <span class="rounded bg-accent/10 px-1.5 text-xs font-medium tabular-nums text-accent-strong">
+          {count}
+          <span class="sr-only"> active</span>
+        </span>
+      )}
+      <ChevronDown />
+    </summary>
+    {children}
+  </details>
+);
+
+/**
+ * A row of links to views of the same list, the current one underlined —
+ * never a pill, so a tab does not read as a filter chip or a status badge.
+ * A count is what the tab would show.
+ */
+export const Tabs: FC<{
+  label: string;
+  tabs: { href: string; label: string; count?: number; current: boolean }[];
+  class?: string;
+}> = ({ label, tabs, class: className = '' }) => (
+  <nav aria-label={label} class={`flex flex-wrap gap-x-1 border-b border-line ${className}`}>
+    {tabs.map((t) => (
+      <a
+        href={t.href}
+        aria-current={t.current ? 'page' : undefined}
+        class={`-mb-px inline-flex items-center gap-1.5 border-b-2 px-2.5 py-2 text-[13px] transition-colors duration-150 ${
+          t.current
+            ? 'border-accent-strong font-medium text-ink'
+            : 'border-transparent text-ink-muted hover:border-line-strong hover:text-ink'
+        }`}
+      >
+        {t.label}
+        {t.count !== undefined && (
+          <span class={`tabular-nums ${t.current ? 'text-ink-muted' : 'text-ink-faint'}`}>
+            {t.count.toLocaleString()}
+          </span>
+        )}
+      </a>
+    ))}
+  </nav>
+);
+
+/**
+ * One criterion in force, as a link that lifts it. Square-cornered and
+ * emerald-tinted: not a status pill, not a tag, not an option to pick.
+ */
+export const FilterChip: FC<{ label: string; href: string; flag?: string }> = ({ label, href, flag }) => (
+  <a
+    href={href}
+    aria-label={`Remove filter: ${label}`}
+    class="inline-flex min-h-[28px] items-center gap-1.5 rounded-md border border-accent/30 bg-accent/10 py-0.5 pl-2 pr-1.5 text-[13px] font-medium text-accent-strong transition-colors duration-150 hover:border-accent-strong"
+  >
+    {flag && <span aria-hidden="true">{flag}</span>}
+    {label}
+    <MarkIcon kind="x" class="!h-3 !w-3 opacity-70" />
+  </a>
+);
+
 /* ---------- data display ---------- */
 
 export const Stat: FC<{

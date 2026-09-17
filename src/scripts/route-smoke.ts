@@ -33,6 +33,11 @@ const MAY_404 = new Set([
   '/companies/watchlist/:id/state',
   '/jobs/:id/cover/:letterId/file/:fmt',
 ]);
+/** GETs the route patterns do not reach: a page under its query parameters. */
+const QUERY_VARIANTS = [
+  // Every /jobs filter at once, the panel open: the where-clause, the facet tally and the status counts together.
+  '/jobs?panel=1&status=NEW&q=node&minFit=10&sort=fitScore_desc&verified=1&watched=1&open=1&country=DE,EU,unknown&workplace=remote,unknown&posted=30d',
+];
 // app.request() builds no Host header of its own, and the origin guard
 // compares Origin's host with it (same-origin.ts) — so the request says both.
 const ORIGIN = { origin: 'http://localhost', host: 'localhost' };
@@ -134,6 +139,10 @@ async function main(): Promise<void> {
     const res = await app.request(url, { headers: ORIGIN });
     const ok = ACCEPT.has(res.status) || (res.status === 404 && MAY_404.has(route));
     rows.push({ route, url, status: res.status, ok });
+  }
+  for (const url of QUERY_VARIANTS) {
+    const res = await app.request(url, { headers: ORIGIN });
+    rows.push({ route: url, url, status: res.status, ok: res.status === 200 });
   }
 
   // The writes a first run makes, through the same guard a browser meets.
