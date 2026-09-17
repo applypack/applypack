@@ -317,3 +317,22 @@ export function resolveAiEngine(raw: unknown, env: AiEngineEnv): ResolvedAiEngin
     },
   };
 }
+
+/**
+ * An engine card on /settings → AI engine, read off the list its button
+ * edits — never off `chain`, which drops a skipped engine and holds a last
+ * resort nobody enabled.
+ */
+export function aiEngineCard(
+  engine: ResolvedAiEngine,
+  id: AiProviderId,
+  provider: AiProviderId,
+): { enabled: boolean; position: number; lastResort: boolean; canToggle: boolean } {
+  const position = engine.order.indexOf(id);
+  return {
+    enabled: position !== -1,
+    position,
+    lastResort: engine.lastResort === id,
+    canToggle: toggleAiEngine(engine.order, id, provider) !== null,
+  };
+}

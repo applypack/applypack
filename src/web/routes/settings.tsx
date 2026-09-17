@@ -53,6 +53,7 @@ import {
   AI_PROVIDER_LABELS,
   PROVIDER_MODEL_OPTIONS,
   PROVIDER_PAID,
+  aiEngineCard,
   aiEngineOrder,
   defaultModelFor,
   isAiProviderId,
@@ -222,9 +223,6 @@ async function loadSettingsProps() {
   const engine = resolveAiEngine(settings.aiEngine, aiEnv);
   const aiConfig = parseAiEngineConfig(settings.aiEngine);
   const aiEngines = AI_PROVIDER_IDS.map((id) => {
-    // The list the Enable / Disable routes edit — never the chain, which
-    // holds a last resort nobody enabled and leaves out a skipped engine.
-    const position = engine.order.indexOf(id);
     const classifierDefault = defaultModelFor(id, 'classifier', aiEnv) || 'CLI default';
     const resumeDefault = defaultModelFor(id, 'resume', aiEnv) || 'CLI default';
     const storedKey = providerTakesKey(id) ? aiKeys[id] : undefined;
@@ -234,10 +232,7 @@ async function loadSettingsProps() {
       desc: AI_PROVIDER_DESCS[id],
       ok: aiStatuses[id].ok,
       detail: aiStatuses[id].detail,
-      enabled: position !== -1,
-      position,
-      lastResort: engine.lastResort === id,
-      canToggle: toggleAiEngine(engine.order, id, aiEnv.provider) !== null,
+      ...aiEngineCard(engine, id, aiEnv.provider),
       classifierModel: aiConfig.models[id]?.classifier ?? '',
       resumeModel: aiConfig.models[id]?.resume ?? '',
       coverModel: aiConfig.models[id]?.cover ?? '',

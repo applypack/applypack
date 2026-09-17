@@ -1,6 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  aiEngineCard,
   aiEngineOrder,
   isAiProviderId,
   modelFitsProvider,
@@ -115,15 +116,17 @@ describe('resolveAiEngine', () => {
   });
 });
 
-describe('aiEngineOrder / toggleAiEngine', () => {
+describe('aiEngineOrder / aiEngineCard / toggleAiEngine', () => {
   it('is the stored order, or the .env engine alone while nothing is stored', () => {
     assert.deepEqual(aiEngineOrder({ order: ['gemini_cli', 'claude_code'], models: {} }, 'anthropic_api'), ['gemini_cli', 'claude_code']);
     assert.deepEqual(aiEngineOrder({ order: [], models: {} }, 'anthropic_api'), ['anthropic_api']);
   });
 
-  it('pressing the last resort adds it behind the list, not removes it', () => {
-    const { order, lastResort } = resolveAiEngine(null, { ...ENV, provider: 'anthropic_api' });
-    assert.deepEqual(toggleAiEngine(order, lastResort!, 'anthropic_api'), ['anthropic_api', 'claude_code']);
+  it('a card reads the list its button edits: the last resort says Enable, and Enable adds it', () => {
+    const engine = resolveAiEngine(null, { ...ENV, provider: 'anthropic_api' });
+    assert.deepEqual(aiEngineCard(engine, 'claude_code', 'anthropic_api'), { enabled: false, position: -1, lastResort: true, canToggle: true });
+    assert.deepEqual(toggleAiEngine(engine.order, 'claude_code', 'anthropic_api'), ['anthropic_api', 'claude_code']);
+    assert.deepEqual(aiEngineCard(engine, 'anthropic_api', 'anthropic_api'), { enabled: true, position: 0, lastResort: false, canToggle: false });
   });
 
   it('removes an enabled engine, but not the .env engine alone in the list — an empty list seeds it back', () => {
