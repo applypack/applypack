@@ -1,9 +1,9 @@
 import { AtsType } from '@prisma/client';
 import { HttpError } from '../http';
 import { probeAts } from '../ats-probe';
-import { getSettings, getSourceKeys } from '../settings';
-import { aiCrawlerTokens, parseAiEngineConfig, type AiProviderId } from '../ai-engine';
-import { config } from '../config';
+import { getAiKeys, getSettings, getSourceKeys } from '../settings';
+import { aiCrawlerTokens, bindingProviders, resolveAiEngine } from '../ai-engine';
+import { getAiEngineEnv } from '../ai-runtime';
 import { extractAtsToken } from '../text-utils';
 import { checkPostingUrl, fetchPublicUrl } from '../jobs/posting-url';
 import { bindingTokens, robotsAllows } from '../robots';
@@ -221,16 +221,13 @@ async function confirmBoard(
 }
 
 /**
- * The crawler tokens this install is bound by, from the engines the user
- * enabled — the stored chain, plus the .env provider that runs when the
- * chain is empty. Everything the install *might* call counts, not only what
- * is usable this minute: an engine that is skipped today because its CLI is
- * not logged in will read these descriptions tomorrow.
+ * The crawler tokens of every engine that may read what this install fetches
+ * (`ai-engine.ts:bindingProviders`).
  */
 export async function installAiTokens(): Promise<string[]> {
-  const stored = parseAiEngineConfig((await getSettings()).aiEngine).order;
-  const providers: AiProviderId[] = [...new Set([...stored, config.AI_PROVIDER as AiProviderId])];
-  return aiCrawlerTokens(providers);
+  const [settings, keys] = await Promise.all([getSettings(), getAiKeys()]);
+  const env = getAiEngineEnv(keys);
+  return aiCrawlerTokens(bindingProviders(resolveAiEngine(settings.aiEngine, env), env.provider));
 }
 
 /**

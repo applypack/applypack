@@ -64,6 +64,17 @@ export function aiCrawlerTokens(providers: readonly AiProviderId[]): string[] {
   return [...new Set(providers.flatMap((p) => PROVIDER_AI_TOKENS[p] ?? []))];
 }
 
+/**
+ * The engines whose tokens bind this install: every one that may read what we
+ * fetch, not only what runs this minute. That is the list with its skipped
+ * engines (a login tomorrow puts them back in front), the last resort `chain`
+ * holds while nothing in the list can run, and the .env engine an emptied list
+ * falls back to.
+ */
+export function bindingProviders(engine: ResolvedAiEngine, provider: AiProviderId): AiProviderId[] {
+  return [...new Set([...engine.chain, ...engine.skipped, provider])];
+}
+
 /** Metered billing — every call spends money (vs a flat subscription). */
 export const PROVIDER_PAID: Record<AiProviderId, boolean> = {
   anthropic_api: true,
