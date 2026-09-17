@@ -2306,7 +2306,7 @@ options and measurements: [docs/local-install-plan.md](./local-install-plan.md).
 
 ---
 
-## 22. Dashboard redesign: hierarchy, disclosure, tokens (analysis 2026-09-16, nothing built)
+## 22. Dashboard redesign: hierarchy, disclosure, tokens (analysis 2026-09-16; stages in §22.2)
 
 Owner's ask: readers said the dashboard shows too much at once, every
 surface looks the same and nothing says where to look. He wrote a redesign
@@ -2357,11 +2357,16 @@ the numbers [docs/ui-redesign/metrics.md](./ui-redesign/metrics.md).
 One stage = one branch = one PR, stacked (plan §4.1); each names the number
 it moves. Stage 0 carries no tag; the others are a minor each.
 
-- [ ] **`redesign-baseline`** (no tag) — `data-ui` hooks on `Hint`, the
-      header intro, the settings section description, the radio body and
-      `ModeCard`; the twenty pages measured again with the 375 px pass and
-      the five wizard steps (`/welcome?step=…`); screenshots outside the
-      repository.
+- [x] **`redesign-baseline`** (no tag) — done 2026-09-17. `data-ui` hooks
+      on `Hint`, the header intro and meta, the settings section
+      description, the radio body and `ModeCard`, and on the raw faint
+      paragraphs and label spans the class selectors had been catching —
+      the four primitives alone left fifteen of 26 pages more than 5 % low;
+      with them the hooks, the classes and the union read the same number
+      on every page. 26 pages measured (the twenty, the five wizard steps,
+      `/screen/1`) with the 375 px pass; the served HTML equals `main`'s
+      once `data-ui` is removed. `docs/ui-redesign/shoot.js` takes the rows
+      and the screenshots from here on.
 - [ ] **`jobs-filter-panel`** — `/jobs` `aboveTable` 30 → ≤ 14. Toolbar, a
       **Filters (n)** disclosure (`panel=1` keeps it open), status tabs with
       counts, an active-filter row; `Disclosure`, `FilterChip`, `Tabs` in
