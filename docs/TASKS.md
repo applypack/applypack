@@ -2303,3 +2303,119 @@ options and measurements: [docs/local-install-plan.md](./local-install-plan.md).
 - `npm install && npm start` is enough for now; README and the site say
   exactly what to install on each system.
 - Data lives in the OS app-data folder; `APPLYPACK_DATA_DIR` moves it.
+
+---
+
+## 22. Dashboard redesign: hierarchy, disclosure, tokens (analysis 2026-09-16, nothing built)
+
+Owner's ask: readers said the dashboard shows too much at once, every
+surface looks the same and nothing says where to look. He wrote a redesign
+specification and a correction to it; both were read against the code at
+v2.10.0. What is adopted, adapted and dropped, the target system, the
+protocol and the stages: [docs/ui-redesign-plan.md](./ui-redesign-plan.md).
+The yardstick is [docs/ui-redesign/measure.js](./ui-redesign/measure.js),
+the numbers [docs/ui-redesign/metrics.md](./ui-redesign/metrics.md).
+
+### 22.1 Facts established (don't re-derive)
+
+- `/jobs` has 30 tab stops before the table and 150 controls in the DOM; the
+  first analysis's "98 visible" was `offsetParent` counting the 68 chips
+  inside the closed "More…" — Chrome hides a closed `<details>` with
+  `content-visibility`. `checkVisibility()` is the only honest test.
+- Helper prose per settings tab: Sources 583 words, AI engine 377, Profile
+  314, Screening 298, General 261, Notifications 122. `/target` shows five
+  input modes at once (18 tab stops, 1 191 px); `/runs` is 7 759 px of
+  `JSON.stringify`; a job page is eight equal cards with three solid-emerald
+  buttons; `/companies` puts its table last on a 2 776 px page.
+- The current *Alerted* pill fails AA: `#B45309` on its own 10 % tint is
+  4.39:1; the danger pill is 4.15:1. `ink-faint` is 4.40 on the overlay
+  surface. `#A24F0A`, `#B42318` and `#5F6B7E` pass everywhere.
+- Surface steps are 1.03–1.13 in both specs and today — a background alone
+  never carries structure or state.
+- The token *names* are used 1 062 times in 40 files and checked by
+  `self-contained.test.ts`: values change, names stay, one token is added.
+- Inter is a variable font (`wght` 100–900) — the weight ladder needs no new
+  face. The fit floors 85 / 70 / 50 stay (held by `tone-parity.test.ts`).
+- Every page costs 4–10 requests and 5–24 KB of JavaScript with no external
+  host; pagination, facets and the Overview are already server-side. A third
+  of the specification (its §50–§50AB: shadcn, TanStack, Recharts, MCP
+  catalogues, memoisation, virtualisation) has nothing to apply to.
+- `<details>` closes on every navigation and every chip is a navigation:
+  the filter panel's own links carry `panel=1`. `ModeCard` already uses
+  `has-[:checked]:`, so collapsing the unchosen input modes is one guarded
+  CSS rule. No launcher control is natively `required`.
+- The loop that works: `npm run css && npm run build`, then
+  `DATABASE_URL=…localhost:5433… WEB_PORT=4848 node dist/web/server.js` —
+  `.env` points at 5432, where a host Postgres answers. GET only on the live
+  database; a POST is exercised by the route smoke in CI. `npm start` is not
+  a scratch copy here: `.env`'s `DATABASE_URL` wins over the built-in
+  database (`src/local/launcher.ts`), so it would start a worker against a
+  real Postgres.
+
+### 22.2 Order of work
+
+One stage = one branch = one PR, stacked (plan §4.1); each names the number
+it moves. Stage 0 carries no tag; the others are a minor each.
+
+- [ ] **`redesign-baseline`** (no tag) — `data-ui` hooks on `Hint`, the
+      header intro, the settings section description, the radio body and
+      `ModeCard`; the twenty pages measured again with the 375 px pass and
+      the five wizard steps (`/welcome?step=…`); screenshots outside the
+      repository.
+- [ ] **`jobs-filter-panel`** — `/jobs` `aboveTable` 30 → ≤ 14. Toolbar, a
+      **Filters (n)** disclosure (`panel=1` keeps it open), status tabs with
+      counts, an active-filter row; `Disclosure`, `FilterChip`, `Tabs` in
+      `ui.tsx`; `jobsHref` / `activeFilters` / `filterCount` pure and tested
+      in `job-facets.ts`. Five URLs return the same totals before and after.
+- [ ] **`dashboard-tokens`** — `src/web/tokens.ts` + a contrast test over
+      every text-on-surface pair; new values under the old names,
+      `surface-selected`; the named type sizes (`title` 26, `section` 18,
+      `entity` 15, `label` 13, `meta` 12); `Card` variants; the emerald row
+      hover; sidebar groups and the active item; the input focus border.
+      DESIGN.md rewritten, `ui-review` and `commit-discipline` corrected.
+- [ ] **`settings-compare-disclosure`** — visible hint words ≥ 40 % down per
+      settings tab (Screening ≥ 15 %), `/target` 192 → ≤ 90 inside 900 px,
+      `/letter` ≤ 80, `/resumes` ≤ 50. `Field` gains `more`; settings gets
+      the left nav at ≥ lg; the launchers show one mode at a time; upload
+      and add-a-fact behind disclosures; the must-stay list (plan §8) stays
+      on screen.
+- [ ] **`overview-and-runs`** — `MetricStrip` replaces `Stat` (deleted), the
+      four numbers become links, "Pipeline health"; `runs-summary.ts` (pure,
+      tested) turns stats into a sentence, raw output behind a disclosure:
+      `/runs` 1 409 → ≤ 800 words, 7 759 → ≤ 5 200 px.
+- [ ] **`job-page-tabs`** — `job-tabs.ts` (pure, tested): `posting`,
+      `match`, `letter`, `verify` as `?tab=` links, inferred from `match=` /
+      `letter=` so existing links land right; the nine bare-anchor links
+      fixed; the rail's three POSTs return to the tab; `fitWord`; the route
+      smoke requests the tabs. Default tab: hint words 190 → ≤ 70, boxes
+      24 → ≤ 14, one primary per tab.
+- [ ] **`companies-welcome-disclosure`** — the companies table inside the
+      first 900 px, the four add-flows as disclosures, hint words 261 →
+      ≤ 130; the wizard's steps ≥ 30 % fewer hint words; the two
+      badge-buttons named by their action (A11Y-4).
+- [ ] **`redesign-polish`** — the board's quiet empties and surface columns;
+      `Empty` with a title and one action; the resume, targeted-view and
+      screening pages checked; error flashes that say what failed and what to
+      do; the full table in metrics.md, no page worse than stage 0 without a
+      written reason; CLAUDE.md, README and ARCHITECTURE.md read against the
+      pages.
+
+### 22.3 Later, each with its trigger (plan §6)
+
+- Charts as server-rendered SVG from a pure function — with §20's
+  `search-funnel`.
+- Dark theme as a second value set in `tokens.ts` — when the owner asks.
+- A drawer, a richer combobox — when a page, a `?tab=`, a `<details>` or a
+  native `<dialog>` cannot do the job.
+- §20's `first-run-follow-through` card lands after `overview-and-runs`, on
+  the strip's surface.
+- One name for the score and one for the flow (audit COPY-3) — its own block.
+
+### 22.4 Owner items
+
+- Merge the stacked PRs in order (retarget the next one to `main` before
+  deleting a base branch); tag per `release-discipline`.
+- Re-shoot `docs/screenshots/*.png` and `site/public/img/*.webp` after the
+  merge, on data chosen to be shown; record §20's `demo-loop` after that.
+- Tune by eye what no number decides: the canvas tint, the sidebar's ground,
+  the title size.
