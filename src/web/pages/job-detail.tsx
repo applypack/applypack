@@ -295,7 +295,7 @@ export const JobDetailPage: FC<JobDetailProps> = ({
               Every field the board sent, unchanged — its licence asks for the whole offer to be shown.
             </Hint>
             <details>
-              <summary class="cursor-pointer select-none text-[13px] font-medium text-ink">Show all fields</summary>
+              <summary class="cursor-pointer select-none text-label text-ink">Show all fields</summary>
               <div class="mt-3 overflow-x-auto">
                 <JsonTree value={job.sourcePayload} />
               </div>
@@ -479,7 +479,7 @@ const PageHeaderBlock: FC<{ job: JobDetail }> = ({ job }) => (
     </a>
     <div class="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
       <div class="min-w-0 flex-1 basis-72">
-        <h1 class="text-xl font-semibold leading-snug tracking-tight">{job.title}</h1>
+        <h1 class="text-title text-ink">{job.title}</h1>
         <div class="mt-1 text-sm text-ink-muted">
           {job.company.watched && <span aria-label="Watched company">★ </span>}
           {job.company.name} · {job.location || 'Remote'}

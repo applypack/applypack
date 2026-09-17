@@ -488,7 +488,7 @@ export const ScreenDetailPage: FC<ScreenDetailProps> = ({ screening, rubric, row
         {calibration.enough && (
           <div class="mt-3 grid gap-4 lg:grid-cols-2">
             <div>
-              <h3 class="text-[13px] font-medium text-ink">Where you and the table part ways</h3>
+              <h3 class="text-label text-ink">Where you and the table part ways</h3>
               {calibration.surprises.length === 0 ? (
                 <Hint class="mt-1">Nowhere: every To interview sits in the top {calibration.top?.k ?? 0}, no Declined does.</Hint>
               ) : (
@@ -508,7 +508,7 @@ export const ScreenDetailPage: FC<ScreenDetailProps> = ({ screening, rubric, row
               )}
             </div>
             <div>
-              <h3 class="text-[13px] font-medium text-ink">Which criteria tell your picks from the rest</h3>
+              <h3 class="text-label text-ink">Which criteria tell your picks from the rest</h3>
               <table class="mt-1 w-full text-sm">
                 <thead>
                   <tr class="text-left text-xs font-medium text-ink-muted">

@@ -204,7 +204,7 @@ const SuggestedSources: FC<{ suggestions: SourceSuggestion[] }> = ({ suggestions
         {suggestions.map((s) => (
           <li class="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 py-2">
             <div class="min-w-0">
-              <div class="text-[13px] font-medium text-ink">{s.name}</div>
+              <div class="text-label text-ink">{s.name}</div>
               <div class="truncate text-xs text-ink-faint">
                 {s.reason} · <Code>{s.atsToken}</Code>
               </div>

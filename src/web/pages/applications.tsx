@@ -105,7 +105,7 @@ const ColumnHeader: FC<{ dot: string; id: string; label: string; count: number }
 }) => (
   <div class="flex shrink-0 items-center gap-2 px-3 pb-2 pt-3">
     <span class={`h-2 w-2 rounded-full ${dot}`} aria-hidden="true" />
-    <h2 id={id} class="text-[13px] font-medium text-ink">
+    <h2 id={id} class="text-label text-ink">
       {label}
     </h2>
     <span class="ml-auto text-xs text-ink-faint tabular-nums">{count}</span>
@@ -249,7 +249,7 @@ export const ApplicationsPage: FC<ApplicationsProps> = ({
                         class={`h-2 w-2 rounded-full ${dotClassFor(work, s.key)}`}
                         aria-hidden="true"
                       />
-                      <h2 id={`stage-${s.key}`} class="text-[13px] font-medium text-ink">
+                      <h2 id={`stage-${s.key}`} class="text-label text-ink">
                         {s.label}
                       </h2>
                       <span class="ml-auto text-xs text-ink-faint tabular-nums">

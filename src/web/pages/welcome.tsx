@@ -171,7 +171,7 @@ export const WelcomePage: FC<WelcomeProps> = (p) => (
     <header class="mb-6">
       <div class="flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
         <div>
-          <h1 class="text-xl font-semibold tracking-tight">Welcome to ApplyPack</h1>
+          <h1 class="text-title text-ink">Welcome to ApplyPack</h1>
           <p data-ui="hint" class="mt-1 text-[13px] leading-5 text-ink-faint">
             Everything here can be changed later in Settings.
           </p>
@@ -241,7 +241,7 @@ const StepCard: FC<PropsWithChildren<{ n: number; step: WelcomeStep; done: boole
 }) => (
   <Card>
     <div class="mb-1 flex flex-wrap items-center gap-2">
-      <h2 class="text-sm font-semibold text-ink">
+      <h2 class="text-entity text-ink">
         Step {n} — {STEP_TITLES[step]}
       </h2>
       {done && <Badge tone="ok">done</Badge>}
@@ -604,7 +604,7 @@ const ProfileStep: FC<WelcomeProps> = ({ profile, steps }) => {
                 />
               </Field>
               <fieldset>
-                <legend class="text-[13px] font-medium text-ink">Seniority</legend>
+                <legend class="text-label text-ink">Seniority</legend>
                 <div class="mt-2 flex flex-wrap gap-1.5">
                   {SENIORITY_LEVELS.map((s) => (
                     <PillCheckbox name="seniority" value={s} checked={profile.seniority.includes(s)}>
@@ -657,7 +657,7 @@ const SourcesStep: FC<WelcomeProps> = ({ sources, steps }) => {
       )}
       {sources.packs.length > 0 && (
         <div class="mt-4">
-          <p class="text-[13px] font-medium text-ink">Starter packs for your searches</p>
+          <p class="text-label text-ink">Starter packs for your searches</p>
           <Hint>
             A preview shows what resolves, nothing is added until you confirm, and the boards land
             switched off.
@@ -806,7 +806,7 @@ const ScoreOrWatch: FC<WelcomeProps> = ({ matches, fetchingEnabled, telegramEnab
 
 const AllDone: FC<WelcomeProps> = ({ setupCompleted, fetchingEnabled, matches }) => (
   <Card>
-    <h2 class="text-sm font-semibold text-ink">Everything is set up</h2>
+    <h2 class="text-entity text-ink">Everything is set up</h2>
     <p class="mt-1 text-sm text-ink-muted">
       AI connected, {matches.scoredCount.toLocaleString()} jobs scored.{' '}
       {fetchingEnabled

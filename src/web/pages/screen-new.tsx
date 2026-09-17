@@ -29,7 +29,7 @@ export const ScreenNewPage: FC<{ jobs: JobPickOption[]; flash?: FlashMessage | n
 
       <form id="screen-form" method="post" action="/screen" enctype="multipart/form-data" class="w-full" onsubmit={SUBMIT_ONCE}>
         <div class="grid items-start gap-4 lg:grid-cols-2">
-          <Card>
+          <Card class="min-w-0">
             <SectionTitle>The position</SectionTitle>
             <div class="space-y-2">
               <ModeCard name="jobMode" value="existing" label="One of your jobs" checked={hasJobs} disabled={!hasJobs}>
@@ -54,7 +54,8 @@ export const ScreenNewPage: FC<{ jobs: JobPickOption[]; flash?: FlashMessage | n
                       name="file"
                       accept={ACCEPTED_EXTENSIONS.join(',')}
                       aria-label="Posting as a file"
-                      class={`text-sm text-ink-muted ${FILE_INPUT_CLASS}`}
+                      // A bare file input keeps its intrinsic width and pushed the page sideways at 375 px.
+                      class={`min-w-0 max-w-full text-sm text-ink-muted ${FILE_INPUT_CLASS}`}
                     />
                     <Hint>
                       …or the posting as a file ({ACCEPTED_EXTENSIONS.join(' / ')}, up to {MAX_UPLOAD_MB} MB). At least{' '}

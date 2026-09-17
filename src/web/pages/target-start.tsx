@@ -213,7 +213,9 @@ export const ModeCard: FC<
   <fieldset
     data-ui="mode-card"
     data-mode={value}
-    class={`rounded-md border border-line bg-surface-raised p-3 transition-colors duration-150 has-[:checked]:border-accent/50 has-[:checked]:bg-accent/5 ${
+    // min-w-0: a fieldset's default min-inline-size is min-content, which let a
+    // long option or a file input push the page sideways at 375 px.
+    class={`min-w-0 rounded-md border border-line bg-surface-raised p-3 transition-colors duration-150 has-[:checked]:border-accent/50 has-[:checked]:bg-surface-selected ${
       disabled ? 'opacity-60' : ''
     }`}
   >

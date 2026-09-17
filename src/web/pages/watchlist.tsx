@@ -284,7 +284,7 @@ export const WatchlistPreviewPage: FC<{ run: WatchlistRun }> = ({ run }) => {
             {rest.map((r) => (
               <li class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 py-2">
                 <div class="min-w-0">
-                  <span class="text-[13px] font-medium text-ink">{r.name}</span>{' '}
+                  <span class="text-label text-ink">{r.name}</span>{' '}
                   <a href={r.input.url} class="text-xs text-ink-faint underline" rel="noreferrer noopener" target="_blank">
                     {r.input.url}
                   </a>

@@ -4,6 +4,30 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.12.0] — 2026-09-17
+
+### Changed
+- **The dashboard has a visible hierarchy.** A type ladder the eye reads
+  before the words — page title 26 px, section 18, card heading 15, body 14,
+  label 13, helper text 12 — replaces a page where title, heading and label
+  sat within two pixels of each other. Three surfaces do the rest: the
+  canvas, white where work happens, and a subtle third one for the sidebar,
+  table headers and wells, with one tint for what is selected.
+- The menu is grouped — Work, Tools, Research, System — with Overview above
+  and Settings below; the current page carries the tint, emerald text and a
+  bar on the left, not a grey fill alone.
+- Table rows hover in the selected tint; a focused field turns its border
+  emerald (a 3:1 indicator) under a soft ring.
+
+### Fixed
+- **Contrast.** The *Alerted* pill read 4.39:1 and the danger pill 4.15:1 on
+  their own tints, and faint text fell under 4.5:1 on tinted surfaces. The
+  amber, the red and the faint ink are darker now, a pill carries its own
+  white ground so it reads the same on the canvas as in a table, and a test
+  holds every text colour to WCAG AA on every surface it can sit on.
+- `/screen/new` scrolled sideways on a phone: a file input kept its intrinsic
+  width inside the grid.
+
 ## [2.11.0] — 2026-09-17
 
 ### Changed
@@ -3699,6 +3723,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.12.0]: https://github.com/applypack/applypack/compare/v2.11.0...v2.12.0
 [2.11.0]: https://github.com/applypack/applypack/compare/v2.10.0...v2.11.0
 [2.10.0]: https://github.com/applypack/applypack/compare/v2.9.4...v2.10.0
 [2.9.4]: https://github.com/applypack/applypack/compare/v2.9.3...v2.9.4

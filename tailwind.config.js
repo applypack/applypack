@@ -5,7 +5,9 @@
  * browser modules mention. Until 2.7.0 the Play CDN compiled the same theme
  * in the browser on every page load, from a third-party script with full
  * DOM access on the origin that renders resumes (audit 2026-09-10, PRIV-1).
- * The colours are the tokens in src/web/layout.tsx, by name.
+ * The colours are the tokens in src/web/tokens.ts, by name; the named sizes
+ * are the type ladder (DESIGN.md) — size, line, tracking and weight in one
+ * class, so a page writes `text-title`, not four utilities.
  */
 /** @type {import('tailwindcss').Config} */
 module.exports = {
@@ -30,6 +32,7 @@ module.exports = {
           DEFAULT: 'rgb(var(--surface) / <alpha-value>)',
           raised: 'rgb(var(--surface-raised) / <alpha-value>)',
           overlay: 'rgb(var(--surface-overlay) / <alpha-value>)',
+          selected: 'rgb(var(--surface-selected) / <alpha-value>)',
         },
         line: {
           DEFAULT: 'rgb(var(--line) / <alpha-value>)',
@@ -50,6 +53,13 @@ module.exports = {
         danger: 'rgb(var(--danger) / <alpha-value>)',
         info: 'rgb(var(--info) / <alpha-value>)',
         violet: 'rgb(var(--violet) / <alpha-value>)',
+      },
+      fontSize: {
+        title: ['26px', { lineHeight: '32px', letterSpacing: '-0.02em', fontWeight: '650' }],
+        section: ['18px', { lineHeight: '24px', letterSpacing: '-0.01em', fontWeight: '600' }],
+        entity: ['15px', { lineHeight: '22px', fontWeight: '600' }],
+        label: ['13px', { lineHeight: '18px', fontWeight: '550' }],
+        meta: ['12px', { lineHeight: '16px', fontWeight: '400' }],
       },
       fontFamily: {
         sans: ['Inter', 'ui-sans-serif', 'system-ui', '-apple-system', '"Segoe UI"', 'sans-serif'],

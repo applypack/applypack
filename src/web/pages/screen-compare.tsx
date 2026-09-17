@@ -157,7 +157,7 @@ export const ScreenComparePage: FC<ScreenCompareProps> = ({ screening, side, com
       <Card class="mt-4" id="ai">
         <div class="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h2 class="text-sm font-semibold text-ink">Compare with AI — the shortlist read head to head</h2>
+            <h2 class="text-entity text-ink">Compare with AI — the shortlist read head to head</h2>
             <p class="mt-1 text-[13px] text-ink-muted">
               One call with these {n} resumes, the posting and the criteria, run twice — the second time with the
               resumes in the reverse order, because the first and last slots win in a listwise reading. It says who
@@ -207,7 +207,7 @@ export const ScreenComparePage: FC<ScreenCompareProps> = ({ screening, side, com
             <div class="grid gap-4 sm:grid-cols-2">
               {view.orders.map((order, i) => (
                 <div>
-                  <h3 class="text-[13px] font-medium text-ink">Order to talk to — reading {i === 0 ? 'A' : 'B'}</h3>
+                  <h3 class="text-label text-ink">Order to talk to — reading {i === 0 ? 'A' : 'B'}</h3>
                   {order.length === 0 ? (
                     <Hint class="mt-1">No order given.</Hint>
                   ) : (
@@ -225,7 +225,7 @@ export const ScreenComparePage: FC<ScreenCompareProps> = ({ screening, side, com
             </div>
             {view.deciders.some((d) => d !== null) && (
               <div>
-                <h3 class="text-[13px] font-medium text-ink">What would decide between the first two</h3>
+                <h3 class="text-label text-ink">What would decide between the first two</h3>
                 <ul class="mt-1 list-disc space-y-1 pl-5 text-sm text-ink">
                   {view.deciders.map((d, i) => d && <li>{d}{view.deciders[0] !== view.deciders[1] ? <span class="text-ink-faint"> (reading {i === 0 ? 'A' : 'B'})</span> : null}</li>)}
                 </ul>
@@ -263,7 +263,7 @@ export const ScreenComparePage: FC<ScreenCompareProps> = ({ screening, side, com
             </div>
             {view.criteria.some((c) => c.quotes.length > 0) && (
               <details>
-                <summary class="cursor-pointer text-[13px] font-medium text-ink">The lines behind the rankings</summary>
+                <summary class="cursor-pointer text-label text-ink">The lines behind the rankings</summary>
                 <ul class="mt-2 space-y-2 text-[13px]">
                   {view.criteria
                     .filter((c) => c.quotes.length > 0)

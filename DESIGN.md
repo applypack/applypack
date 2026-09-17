@@ -1,49 +1,56 @@
 ---
 name: ApplyPack
-description: A calm, light operations console for a one-person job hunt — dense tables, quiet status pills, one emerald accent.
+description: A calm, light operations console for a one-person job hunt — dense tables, a visible type ladder, three surfaces, quiet status pills, one emerald accent.
 colors:
-  surface: "#F7F8FA"
+  surface: "#F5F7F6"
   surface-raised: "#FFFFFF"
-  surface-overlay: "#F3F4F6"
-  line: "#E5E7EB"
-  line-strong: "#D0D5DD"
+  surface-overlay: "#EEF2F0"
+  surface-selected: "#E4F1EA"
+  line: "#DDE3E0"
+  line-strong: "#C8D1CC"
   ink: "#101828"
   ink-muted: "#475467"
-  ink-faint: "#667085"
+  ink-faint: "#5F6B7E"
   accent: "#059669"
   accent-strong: "#047857"
   accent-deep: "#065F46"
   ok: "#047857"
-  warn: "#B45309"
-  danger: "#D92D20"
+  warn: "#A24F0A"
+  danger: "#B42318"
   info: "#1D4ED8"
   violet: "#6D28D9"
 typography:
-  page-title:
+  title:
     fontFamily: "Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif"
-    fontSize: "20px"
-    fontWeight: 600
-    lineHeight: "28px"
-    letterSpacing: "-0.025em"
-  section-title:
+    fontSize: "26px"
+    fontWeight: 650
+    lineHeight: "32px"
+    letterSpacing: "-0.02em"
+  section:
     fontFamily: "Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif"
-    fontSize: "14px"
+    fontSize: "18px"
     fontWeight: 600
-    lineHeight: "20px"
+    lineHeight: "24px"
+    letterSpacing: "-0.01em"
+  entity:
+    fontFamily: "Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif"
+    fontSize: "15px"
+    fontWeight: 600
+    lineHeight: "22px"
   body:
     fontFamily: "Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif"
     fontSize: "14px"
     fontWeight: 400
     lineHeight: "20px"
-  secondary:
+  label:
     fontFamily: "Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif"
     fontSize: "13px"
-    fontWeight: 400
-    lineHeight: "20px"
-  micro:
+    fontWeight: 550
+    lineHeight: "18px"
+  meta:
     fontFamily: "Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif"
     fontSize: "12px"
-    fontWeight: 500
+    fontWeight: 400
     lineHeight: "16px"
   stat-value:
     fontFamily: "Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif"
@@ -117,10 +124,12 @@ components:
 
 A calm, light operations desk for a daily job hunt. The dashboard is read twice a
 day, briefly, in indoor daylight: it must be dense, quiet, and instantly legible.
-The composition is a Linear-density work surface — a fixed 240px sidebar on
-paper-gray ground, white cards and tables carrying the data, hairline borders
-doing all the structural work. Nothing on screen persuades or decorates; every
-pixel serves reading four numbers, scanning new jobs, and acting on one.
+The composition is a Linear-density work surface — a fixed 240px sidebar on the
+subtle surface, a canvas ground, white surfaces carrying the data. Structure
+comes from three surfaces and a type ladder the eye reads before the words:
+title, section, entity, body, label, meta. Nothing on screen persuades or
+decorates; every pixel serves reading four numbers, scanning new jobs, and
+acting on one.
 
 The personality is professional, calm, modern, information-first — compact but
 not cramped. Brand lives in details rather than surfaces: an emerald focus ring,
@@ -138,59 +147,78 @@ semantic CSS-variable tokens so a dark theme later is a second set of values,
 not a component rewrite.
 
 **Key Characteristics:**
-- Paper-gray ground (#F7F8FA), white work surfaces, hairline structure
+- Canvas ground (#F5F7F6), white work surfaces, a subtle third surface
+  (#EEF2F0) for the sidebar, table headers and wells — surface first, never
+  surface alone
+- A type ladder visible at a glance: 26 / 18 / 15 / 14 / 13 / 12 px
 - One brand accent (emerald); status as quiet tinted pills, never fills
 - Inter for all UI text; monospace strictly for machine values
-- Flat by default; shadow is a whisper on white surfaces only
+- One surface per region; shadow is a whisper on white surfaces only
 - Dense 4px-grid spacing; 14px body type; tables and forms carry the work
 - Drawn stroke icons (Lucide-style), never emoji or Unicode glyphs
 
 ## Colors
 
-A near-neutral gray field with a single emerald voice and a five-tone status
-vocabulary; every value is declared once as an RGB triplet on `:root`
-(`--surface: 247 248 250`) and consumed as `rgb(var(--token) / alpha)` through
-the Tailwind config in `src/web/layout.tsx` — components never hard-code hex.
+A near-neutral field, faintly green, with a single emerald voice and a
+five-tone status vocabulary. Every value is declared once as an RGB triplet in
+`src/web/tokens.ts` (`surface: [245, 247, 246]`), reaches the page as
+`--surface: 245 247 246` on `:root` (`layout.tsx`) and is consumed as
+`rgb(var(--token) / alpha)` through `tailwind.config.js` — components never
+hard-code hex. `tokens.test.ts` holds every text colour to WCAG AA (4.5:1) on
+every surface it can sit on; a value that fails does not ship.
 
 ### Primary
 - **Emerald** (#059669): the one brand accent. Focus rings (2px outline, 2px
-  offset), text selection (18% tint), the "AP" mark, checked states of pill
-  checkboxes and radios (`accent/5` fill, `accent/40–50` border), hover border
-  on kanban cards.
-- **Emerald Strong** (#047857): links and primary buttons — the AA-on-white
-  workhorse shade.
+  offset), text selection (18% tint), the "AP" mark, tints and rings.
+- **Emerald Strong** (#047857): links, primary buttons, the current tab's
+  underline, the active nav item, the focused control's border — the
+  AA-on-every-surface workhorse.
 - **Emerald Deep** (#065F46): primary button hover; link hover.
 
 ### Status
 - **OK Green** (#047857): Applied status, enabled toggles, healthy runs, fit
   scores ≥ 85.
 - **Info Blue** (#1D4ED8): New status, fit scores 70–84.
-- **Warn Amber** (#B45309): Alerted status, mid fit scores (50–69), the solid
-  `warn` button for destructive-ish batch actions.
+- **Warn Amber** (#A24F0A): Alerted status, mid fit scores (50–69), the solid
+  `warn` button for destructive-ish batch actions. Darkened in 2.12.0: the old
+  #B45309 read 4.39:1 on its own pill.
 - **AI Violet** (#6D28D9): the Saved status and AI-spend actions only — see the
   named rule below.
-- **Danger Red** (#D92D20): destructive actions and error flashes; always an
-  outline-tinted treatment on white, never a solid red button.
-- Dismissed / absent / unknown renders neutral: overlay-gray pill with muted ink.
+- **Danger Red** (#B42318): destructive actions and error flashes; always an
+  outline-tinted treatment on white, never a solid red button. Darkened in
+  2.12.0 (the old #D92D20 read 4.15:1 on its pill).
+- Dismissed / absent / unknown renders neutral: subtle-surface pill, muted ink.
 
 ### Neutral
-- **Paper Gray** (#F7F8FA): the app ground — page background, sidebar.
-- **Surface White** (#FFFFFF): cards, tables, panels, controls — where work happens.
-- **Overlay Gray** (#F3F4F6): table headers, hovers, wells, active nav, inline code.
-- **Hairline** (#E5E7EB): borders between and around everything; table row dividers.
-- **Strong Hairline** (#D0D5DD): control borders, scrollbar thumbs, disabled dots.
+- **Canvas** (#F5F7F6, `surface`): the app ground behind everything.
+- **Raised White** (#FFFFFF, `surface-raised`): cards, tables, panels,
+  controls — where work happens.
+- **Subtle** (#EEF2F0, `surface-overlay`): the sidebar, table headers,
+  toolbars, wells, inactive regions, inline code, option chips.
+- **Selected** (#E4F1EA, `surface-selected`): the active nav item, a chosen
+  option, a filter in force, a checked pill; table rows hover at 50 % of it.
+- **Divider** (#DDE3E0, `line`): row dividers and the outline of an object.
+- **Control Border** (#C8D1CC, `line-strong`): inputs, selects, secondary
+  buttons, scrollbar thumbs.
 - **Ink** (#101828): primary text.
-- **Muted Ink** (#475467): secondary text, table headers, stat labels.
-- **Faint Ink** (#667085): hints, meta, placeholders, timestamps.
+- **Muted Ink** (#475467): secondary text, table headers, a page's intro.
+- **Faint Ink** (#5F6B7E): hints, meta, placeholders, timestamps, group
+  labels — 4.64:1 on the selected surface, its hardest ground.
+
+The surface steps are small on purpose (canvas → white 1.08, white → subtle
+1.13, subtle → selected 1.03): a background alone never carries structure or
+state — see the Surface-First Rule.
 
 ### Named Rules
 **The One-Accent Rule.** Emerald is the only brand color. The status tones are
 vocabulary, not decoration: they appear exclusively where they carry state
 (pills, dots, meters, toned numbers) and never as ambient color.
 
-**The Quiet-Pill Rule.** Status renders as a tinted pill — 10% tone background,
-full-strength tone text, 20% tone inset ring — never as a saturated fill. A
-status color at 100% opacity may only paint dots, meter fills, and text.
+**The Quiet-Pill Rule.** Status renders as a tinted pill — 10% tone over white,
+full-strength tone text, 20% tone inset ring — never as a saturated fill. The
+pill carries its own white ground, so it reads the same on the canvas, in a
+table and on a subtle well. A status color at 100% opacity may only paint dots,
+meter fills, and text.
 
 **The Violet-Means-AI Rule.** Violet (#6D28D9) is reserved for AI/model-spend
 actions — Compare, Re-analyze with AI, Re-scan, Re-classify, HN Run now — and
@@ -199,28 +227,36 @@ It must never become a general secondary accent.
 
 ## Typography
 
-**UI Font:** Inter (400 / 500 / 600, via Google Fonts) with `ui-sans-serif,
-system-ui, -apple-system, "Segoe UI", sans-serif` fallback
+**UI Font:** Inter, bundled (`/static/fonts/inter-latin.woff2`, variable weight
+400–700) with `ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif`
+fallback
 **Machine Font:** system mono stack (`ui-monospace, SFMono-Regular, "SF Mono",
 Menlo, Consolas, monospace`)
 
-**Character:** One quiet family doing everything, differentiated by weight and
-size rather than by face. Titles tighten (-0.025em); numbers align
-(`tabular-nums`); nothing is ever uppercase-tracked or display-sized.
+**Character:** One quiet family doing everything, differentiated by size and
+weight rather than by face. The ladder must be visible at a glance on every
+page — title > section > entity > body > label > meta. Titles tighten; numbers
+align (`tabular-nums`); nothing is ever uppercase-tracked or display-sized.
 
 ### Hierarchy
-- **Page Title** (600, 20px/28px, tracking -0.025em): one per page, in the
-  header row next to meta and actions; truncates rather than wraps.
-- **Stat Value** (600, 24px/32px, tabular-nums): the largest type in the app —
-  the four Overview numbers and stat cards.
-- **Section Title** (600, 14px/20px): card headings (`SectionTitle`) and the
-  left column of settings sections.
+Each step is one Tailwind class (`tailwind.config.js` carries size, line,
+tracking and weight together), so a page writes `text-title`, not four
+utilities.
+- **Title** (`text-title`, 650, 26px/32px, tracking -0.02em): the page's one
+  `h1`, in the header row next to meta and actions.
+- **Section** (`text-section`, 600, 18px/24px, tracking -0.01em): a page-level
+  section outside a card — `SectionTitle level="section"`, a settings section.
+- **Entity** (`text-entity`, 600, 15px/22px): card headings (`SectionTitle`),
+  a row's name, a resume, a job, an engine.
 - **Body** (400, 14px/20px): default for everything — table cells, forms,
-  buttons, nav. Medium (500) marks emphasis: row titles, button labels, labels.
-- **Secondary** (400, 13px/20px): hints, meta counts, back-links, field labels
-  (labels at 500); the descriptive voice under every control.
-- **Micro** (500, 12px/16px): table headers, badges, kanban counts; drops to 400
-  for sub-values and timestamps.
+  buttons, nav, a page's one-sentence intro (muted ink). Medium (500) marks
+  emphasis: row titles, button labels.
+- **Label** (`text-label`, 550, 13px/18px): field labels, table headers,
+  fieldset legends, sidebar group labels, filter-row labels.
+- **Meta** (`text-meta`, 400, 12px/16px): timestamps, counts, the header's
+  meta line, helper prose under a control (`Hint`).
+- **Stat Value** (600, 24px/32px, tabular-nums): the Overview numbers.
+- **Micro** (500, 12px/16px): badges and kanban counts.
 - **Mono Value** (400, 12px, mono stack): ids, tokens, cron expressions,
   durations, code — machine values only, usually one size below their context.
 
@@ -232,7 +268,7 @@ stay in Inter; numeric columns align with `tabular-nums`, not with mono.
 ## Layout
 
 A fixed app frame, not a scrolling document: `flex h-dvh overflow-hidden` with a
-240px sidebar (`lg:w-60`) on paper-gray ground at desktop, a 64px icon rail at
+240px sidebar (`lg:w-60`) on the subtle surface at desktop, a 64px icon rail at
 tablet (`md:w-16`), and an off-canvas drawer on mobile (16rem wide, 200ms slide,
 dimmed backdrop). Content owns the scroll: the main region scrolls vertically,
 and pages that manage their own inner scrolling (the Jobs table, the
@@ -253,13 +289,15 @@ padding, 6px vertical padding in controls — compact but never cramped.
 
 ## Elevation & Depth
 
-Flat by default. Hairline borders (#E5E7EB, #D0D5DD on controls) carry all
-structure; depth is layered with the three surface values (paper ground → white
-raised → gray overlay), not with shadow. `shadow-sm` (`0 1px 2px 0
-rgb(0 0 0 / 0.05)`) is a whisper applied only to white surfaces — cards, stat
-tiles, controls, primary/secondary buttons — and reads as material thickness,
-not lift. Sticky table headers replace their border with an inset hairline
-shadow so the line survives scrolling.
+Surface first. Depth is layered with the surfaces — subtle sidebar, canvas
+ground, white raised work, the selected tint — and a region of a page is ONE
+raised surface with dividers inside it, not a stack of bordered cards. Borders
+stay where a control or an object ends; wrappers around wrappers lose theirs.
+`shadow-sm` (`0 1px 2px 0 rgb(0 0 0 / 0.05)`) is a whisper applied only to
+white surfaces — cards, controls, primary/secondary buttons — and reads as
+material thickness, not lift. Sticky table headers replace their border with
+an inset hairline shadow so the line survives scrolling. Between major blocks
+of a page sit 24–32px; inside a block 12–16px.
 
 ### Shadow Vocabulary
 - **Whisper** (`box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05)`): white surfaces
@@ -271,26 +309,37 @@ shadow so the line survives scrolling.
   bottom edge of sticky table headers.
 
 ### Named Rules
-**The Whisper-Shadow Rule.** Surfaces are flat at rest; hairlines do the
-structural work. `shadow-sm` appears only on white surfaces, and nothing except
-the mobile drawer ever casts a real shadow. No glows, no heavy ambient shadows,
-no hover-lift.
+**The Surface-First Rule.** A region is set apart by its surface AND one of:
+spacing, a heading, a divider, an indicator — never by a background alone (the
+steps are 1.03–1.13). State is never a background alone either: a selected
+option also gets emerald-strong text at weight 500 and a drawn check or a left
+bar; the active nav item gets all three.
+
+**The One-Surface-Per-Region Rule.** A settings tab, a job page's main column,
+a filter panel: one raised surface with dividers inside it. A card is for an
+object that moves or stands alone — a board card, a mode box, a resume, the
+metric strip. `Card variant="flat"` is a part of such a region, `"subtle"` a
+well inside it.
+
+**The Whisper-Shadow Rule.** Surfaces are flat at rest. `shadow-sm` appears
+only on white surfaces, and nothing except the mobile drawer ever casts a real
+shadow. No glows, no heavy ambient shadows, no hover-lift.
 
 ## Shapes
 
 A three-step radius ladder: 8px (`rounded-lg`) for cards, tables, panels, and
 empty states; 6px (`rounded-md`) for every control — buttons, inputs, selects,
-nav links, tags, filter segments; 4px for the smallest chrome (inline code,
-focus-ring corners, scrollbar thumbs). Badges and meters are full pills. Nothing
-exceeds 8px; large radii are an explicit anti-reference.
+nav links, tags, option chips, filter chips; 4px for the smallest chrome
+(inline code, focus-ring corners, scrollbar thumbs). Badges and meters are full
+pills, and only they are. Nothing exceeds 8px; large radii are an explicit
+anti-reference.
 
-Borders are 1px everywhere — hairline (#E5E7EB) on surfaces, strong hairline
-(#D0D5DD) on interactive controls, tone-tinted (30–50% alpha) on stateful
-elements; badges use a 1px inset ring at 20% tone. Dashed hairline rectangles
-mark empty wells (the "No applications" slot in a board column). Icons are drawn
-on the Lucide 24px grid at 2px stroke, round caps and joins, rendered
-14–18px — geometry consistent from nav icons down to the drawn select chevron
-and the check/x verdict marks.
+Borders are 1px everywhere — the divider (#DDE3E0) on surfaces, the control
+border (#C8D1CC) on interactive controls, tone-tinted (30–50% alpha) on
+stateful elements; badges use a 1px inset ring at 20% tone. Icons are drawn on
+the Lucide 24px grid at 2px stroke, round caps and joins, rendered 14–18px —
+geometry consistent from nav icons down to the drawn select chevron and the
+check/x verdict marks.
 
 ## Components
 
@@ -303,21 +352,21 @@ decisions live there and in the token layer, not in page files.
   is 40% opacity.
 - **Primary:** solid Emerald Strong (#047857), white text, whisper shadow;
   hover deepens to #065F46. One per view region — the main affirmative act.
-- **Secondary:** white with strong-hairline border, ink text; hover fills
-  overlay gray. The default for everything non-primary.
+- **Secondary:** white with the control border, ink text; hover fills the
+  subtle surface. The default for everything non-primary.
 - **Violet (AI):** violet text on 5% violet tint with 30% violet border; hover
   10% tint. Only for actions covered by the Violet-Means-AI Rule.
 - **Danger:** outline treatment — 30% danger border, danger text on white;
   hover 5% danger tint. Never solid red.
-- **Warn:** solid amber (#B45309), white text — rare, for pause-everything acts.
-- **Ghost:** borderless muted-ink text; hover overlay fill + ink text. For
+- **Warn:** solid amber (#A24F0A), white text — rare, for pause-everything acts.
+- **Ghost:** borderless muted-ink text; hover subtle fill + ink text. For
   tertiary row actions.
 - **Focus:** global ring — 2px emerald outline, 2px offset, 4px corner.
 
 ### Badges & Tags
 - **Status pill (`Badge` / `StatusBadge`):** full pill, 2×8px padding, 12px/500
-  text; 10% tone background, tone text, 20% tone inset ring; status pills lead
-  with a 6px `currentColor` dot. Status mapping: New=info, Alerted=warn,
+  text; 10% tone over its own white ground, tone text, 20% tone inset ring;
+  status pills lead with a 6px `currentColor` dot. Status mapping: New=info, Alerted=warn,
   Applied=ok, Saved=violet, Dismissed=neutral.
 - **Tag:** same tinting at 6px radius for tech-match and rule chips.
 
@@ -328,63 +377,74 @@ toned number beside a 36×6px pill track (hairline gray) with a tone-filled bar
 null renders an em dash.
 
 ### Tables
-- **Header:** overlay-gray row, 12px/500 muted-ink text, 10×16px padding,
-  hairline bottom edge; optional sticky mode swaps the border for an inset
+- **Header:** subtle-surface row, the label step (13px/550) in muted ink,
+  10×16px padding, hairline bottom edge; optional sticky mode swaps the border for an inset
   shadow; 20px outer-column padding.
 - **Body:** white; rows divided by hairlines, 12×16px cell padding, hover tints
-  overlay gray at 50%, 150ms.
+  the selected surface at 50%, 150ms. Nothing a row offers depends on hover.
 - **Fixed layout:** wide list tables set proportional column widths and a
   min-width wrapper that scrolls horizontally inside the card.
 
 ### Inputs / Fields
-- **Style:** white, strong-hairline 1px border, 6px radius, 6×12px padding,
+- **Style:** white, control-border 1px, 6px radius, 6×12px padding,
   14px text, faint-ink placeholder, whisper shadow.
 - **Hover / Focus:** border darkens to faint ink on hover; focus turns the
-  border emerald and adds a 2px ring at 15% emerald — calm, no glow.
+  border emerald-strong — the 3:1 indicator — and adds a 2px ring at 25%
+  emerald for softness. Calm, no glow.
 - **Select:** identical, with a drawn 14px chevron (data-URI SVG, faint-ink
   stroke) replacing browser chrome.
-- **Field:** 13px/500 ink label, optional faint hint, 6px gap to control.
+- **Field:** the label step (13px/550) in ink, an optional one-sentence hint
+  at the meta step, 6px gap to control.
 - **Choice controls:** native checkboxes/radios tinted via `accent-color`;
   PillCheckbox and Radio wrap them in bordered white containers whose checked
-  state tints emerald (5% fill, 40–50% border).
+  state takes the selected surface and a 40–50% emerald border — the native
+  mark is the second channel.
 
 ### Cards / Containers
-- **Corner style:** 8px; **background:** white; **border:** hairline;
-  **shadow:** whisper; **padding:** 20px (flush variant removes padding and
-  clips children for tables). Card headings use Section Title with 12px below.
+- **`Card`:** 8px corners, white, divider outline, whisper shadow, 20px
+  padding (`flush` removes the padding and clips children for tables). Card
+  headings use `SectionTitle` (the entity step) with 12px below.
+- **`Card variant="flat"`:** no border, shadow, fill or padding — a part of a
+  region that is already one surface. **`variant="subtle"`:** the subtle fill,
+  8px corners, no outline — a well or an inactive region.
 - **Stat card:** 16px padding, 13px/500 muted label over a 24px/600
   tabular-nums value, optional 12px faint sub-line; muted variant drops the
   shadow and fades its border.
 
 ### Navigation
-- **Sidebar:** paper-gray, hairline right edge; 56px brand row (emerald 28px
-  "AP" mark + 15px/600 wordmark); links are 14px, 6px radius, 6×10px padding,
-  18px icon + label; active = overlay fill, 500 weight, ink; inactive =
-  muted ink, hover 70% overlay. Settings and a privacy footnote pin to the
-  bottom. Tablet collapses to a 64px icon rail (icons only), mobile to a
-  drawer behind a hamburger bar.
+- **Sidebar:** the subtle surface, one step off the canvas, hairline right
+  edge; 56px brand row (emerald 28px "AP" mark + 15px/600 wordmark). Overview
+  stands alone, then four groups with sentence-case labels at the label step
+  in faint ink — *Work* (Jobs, Applications), *Tools* (Resumes, Compare, Cover
+  letter), *Research* (Companies, Discovery), *System* (Runs, and Screening
+  while employer mode is on). Links are 14px, 6px radius, 6×10px padding, 18px
+  icon + label; active = selected surface, emerald-strong text and icon at
+  500, a 2px emerald-strong bar on the left; inactive = muted ink, hover 70%
+  white. Settings and a privacy footnote pin to the bottom. Tablet collapses
+  to a 64px icon rail where a short hairline stands in for each group label;
+  mobile is a drawer behind a hamburger bar.
 - **Filter segments:** the same idiom inline — 13px bordered pills where active
-  gets strong-hairline border + overlay fill, inactive is borderless muted ink.
+  gets the control border + the subtle fill, inactive is borderless muted ink.
 - **Tabs (`Tabs`):** views of one list as a row of 13px links on a hairline;
   the current one carries a 2px emerald-strong underline, 500 weight and
   `aria-current="page"`, and a faint tabular count says what the tab would
   show. Never a pill — a tab must not read as a filter or a status.
 - **Disclosure (`Disclosure`):** native `<details>`, no JavaScript. `button`
-  is a secondary button with an emerald count chip and a chevron that turns
-  when open (a toolbar's "Filters"); `quiet` is a 13px muted line under a
-  control.
-- **Filter options (the Jobs panel):** 6px-radius links on the overlay surface
-  with a faint count; a chosen one is a 10% emerald tint with emerald-strong
+  is a secondary button with a count on the selected surface and a chevron
+  that turns when open (a toolbar's "Filters"); `quiet` is a 13px muted line
+  under a control.
+- **Filter options (the Jobs panel):** 6px-radius links on the subtle surface
+  with a faint count; a chosen one takes the selected surface, emerald-strong
   500 text and a drawn check — never colour alone.
 - **Filter chip (`FilterChip`):** a criterion in force, above the table: 6px
-  radius, 10% emerald tint, 30% emerald border, a drawn ✕. The whole chip is
+  radius, the selected surface, 30% emerald border, a drawn ✕. The whole chip is
   the link that lifts it (`aria-label="Remove filter: …"`).
 
 ### System Feedback
 - **Flash:** rounded 6px banner, 25% tone border, 5% tone fill, tone text, with
   a drawn 16px icon; ok and danger kinds only.
 - **Empty state:** centered in a hairline 8px card, a 28px 1.5px-stroke drawn
-  icon in strong-hairline gray over 14px faint text with an inline link.
+  icon in control-border gray over 14px faint text with an inline link.
 - **ToggleRow:** label + ok/neutral dot-pill beside an Enable/Disable button —
   the settings on/off idiom.
 
@@ -425,6 +485,18 @@ and icon fonts never stand in for icons.
 hand-roll Tailwind for shared patterns; new visual decisions land in the
 primitive or the token layer first.
 
+**The Disclosure Rule.** Under a label, one sentence. What explains a cap, a
+cost, a gate, a privacy fact or a destructive act stays visible; everything
+else sits behind a quiet `Disclosure` ("How this works"), outside the label so
+it never becomes the control's accessible name. Filters, inactive input modes
+and raw machine output fold the same way — native `<details>`, no JavaScript.
+
+**The Measured-Change Rule.** A UI pull request names a number from
+`docs/ui-redesign/measure.js` — tab stops before the table, visible hint
+words, boxes, primaries, height — and reports it before and after
+(`node docs/ui-redesign/shoot.js`). If the number does not move, the change is
+not done.
+
 ## Do's and Don'ts
 
 ### Do:
@@ -438,11 +510,26 @@ primitive or the token layer first.
 - **Do** give every interactive element the global focus ring (2px emerald,
   2px offset) and a 150ms color-only transition.
 - **Do** pair color with a redundant channel — dot + label on status, number +
-  meter on fit — so state reads without color.
+  meter on fit, a check or a bar on a selection — so state reads without color.
+- **Do** put a new value in `src/web/tokens.ts` and let `tokens.test.ts` say
+  whether its text passes AA on every surface, the pill and the flash.
+- **Do** mark helper prose written outside `Hint` with `data-ui="hint"`, so the
+  number a UI change reports counts it.
 
 ### Don't:
 - **Don't** introduce gradients, glassmorphism, decorative noise, heavy or
   colored shadows, hover-lift, or radii above 8px — the confirmed anti-world.
+  The same goes for the stock looks: a Bootstrap or Material admin, a
+  component-library demo page, giant colorful KPI cards, pills everywhere.
+- **Don't** nest cards in cards, wrap a wrapper in a border, or set a region
+  apart by a background alone.
+- **Don't** let helper paragraphs pile up under a control, show raw JSON as a
+  page's primary content, leave a page with a giant unused area, or hide an
+  important action behind an unlabelled icon.
+- **Don't** colour an icon arbitrarily, draw a chart that answers no question,
+  or vary the focus state between controls.
+- **Don't** set anything in uppercase with tracking; a group label is sentence
+  case at the label step.
 - **Don't** use violet for anything but AI-spend actions and the Saved status,
   and don't promote any status tone into a second brand accent.
 - **Don't** fill a status with saturated color; status stays a quiet tinted

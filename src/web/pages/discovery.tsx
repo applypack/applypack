@@ -80,7 +80,7 @@ export const DiscoveryPage: FC<DiscoveryProps> = ({
       </Card>
 
       <div>
-        <SectionTitle>Pending review ({pending.length})</SectionTitle>
+        <SectionTitle level="section">Pending review ({pending.length})</SectionTitle>
         {pending.length === 0 ? (
           <Empty>
             No candidates yet. Enable the HN parser and auto-discovery above, then "Run now" to
@@ -98,19 +98,19 @@ export const DiscoveryPage: FC<DiscoveryProps> = ({
 
       {promoted.length > 0 && (
         <div>
-          <SectionTitle>Promoted ({promoted.length})</SectionTitle>
+          <SectionTitle level="section">Promoted ({promoted.length})</SectionTitle>
           <CandidateTable rows={promoted} />
         </div>
       )}
       {ignored.length > 0 && (
         <div>
-          <SectionTitle>Ignored ({ignored.length})</SectionTitle>
+          <SectionTitle level="section">Ignored ({ignored.length})</SectionTitle>
           <CandidateTable rows={ignored} actions />
         </div>
       )}
       {dead.length > 0 && (
         <div>
-          <SectionTitle>Dead ({dead.length})</SectionTitle>
+          <SectionTitle level="section">Dead ({dead.length})</SectionTitle>
           <CandidateTable rows={dead} />
         </div>
       )}

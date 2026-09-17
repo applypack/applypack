@@ -90,7 +90,7 @@ Not "refactor classifier" but a sequence: extract ai provider, move prompt build
 [ ] `npm run lint:types && npm test` pass
 [ ] Pure logic has a *.test.ts next to it (see CLAUDE.md Testing)
 [ ] Schema change ships a hand-written migration (CLAUDE.md gotcha 7)
-[ ] Dashboard change checked in light + dark, keyboard reachable
+[ ] Dashboard change checked at 1440 / 768 / 375 (one light theme), keyboard reachable
 ```
 
 The diff re-read is not optional. If a line does not earn its place, delete it before committing, not "later".

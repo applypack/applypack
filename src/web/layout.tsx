@@ -2,6 +2,7 @@
 import { isEmployerMode } from './employer-mode';
 import type { FC, PropsWithChildren } from 'hono/jsx';
 import { raw } from 'hono/html';
+import { TOKENS, hex, rootBlock } from './tokens';
 
 export type NavKey =
   | 'overview'
@@ -28,47 +29,54 @@ interface LayoutProps {
   fill?: boolean;
 }
 
-const NAV: { key: NavKey; href: string; label: string }[] = [
-  { key: 'overview', href: '/', label: 'Overview' },
-  { key: 'jobs', href: '/jobs', label: 'Jobs' },
-  { key: 'applications', href: '/applications', label: 'Applications' },
-  { key: 'resumes', href: '/resumes', label: 'Resumes' },
-  { key: 'target', href: '/target', label: 'Compare' },
-  { key: 'letter', href: '/letter', label: 'Cover letter' },
-  { key: 'companies', href: '/companies', label: 'Companies' },
-  { key: 'discovery', href: '/discovery', label: 'Discovery' },
-  { key: 'runs', href: '/runs', label: 'Runs' },
+interface NavItem {
+  key: NavKey;
+  href: string;
+  label: string;
+}
+
+/** Overview stands alone above the groups; Settings is pinned below them. */
+const OVERVIEW_ITEM: NavItem = { key: 'overview', href: '/', label: 'Overview' };
+const SETTINGS_ITEM: NavItem = { key: 'settings', href: '/settings', label: 'Settings' };
+/** Employer mode (ADR 0049): in the menu only while the switch is on. */
+const SCREEN_ITEM: NavItem = { key: 'screen', href: '/screen', label: 'Screening' };
+
+/** The menu by what a visit is for — sentence-case labels, never uppercase (DESIGN.md). */
+const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
+  {
+    label: 'Work',
+    items: [
+      { key: 'jobs', href: '/jobs', label: 'Jobs' },
+      { key: 'applications', href: '/applications', label: 'Applications' },
+    ],
+  },
+  {
+    label: 'Tools',
+    items: [
+      { key: 'resumes', href: '/resumes', label: 'Resumes' },
+      { key: 'target', href: '/target', label: 'Compare' },
+      { key: 'letter', href: '/letter', label: 'Cover letter' },
+    ],
+  },
+  {
+    label: 'Research',
+    items: [
+      { key: 'companies', href: '/companies', label: 'Companies' },
+      { key: 'discovery', href: '/discovery', label: 'Discovery' },
+    ],
+  },
+  { label: 'System', items: [{ key: 'runs', href: '/runs', label: 'Runs' }] },
 ];
 
-const SETTINGS_ITEM = { key: 'settings' as NavKey, href: '/settings', label: 'Settings' };
-/** Employer mode (ADR 0049): in the menu only while the switch is on. */
-const SCREEN_ITEM = { key: 'screen' as NavKey, href: '/screen', label: 'Screening' };
-
 /**
- * Design tokens — light theme. Semantic names only (surface / line / ink /
- * accent / ok / warn / danger / info / violet); every page styles through
- * these via the Tailwind config below, so a dark theme later is a second
- * set of values, not a component rewrite. See src/web/ui.tsx for primitives.
+ * The token values live in tokens.ts (pure, contrast-tested); this is where
+ * they reach the page. Semantic names only (surface / line / ink / accent /
+ * ok / warn / danger / info / violet): every page styles through them via
+ * tailwind.config.js, so a dark theme later is a second set of values, not a
+ * component rewrite. See src/web/ui.tsx for primitives.
  */
 const TOKENS_CSS = `
-  :root {
-    --surface: 247 248 250;         /* app background */
-    --surface-raised: 255 255 255;  /* cards, tables, panels */
-    --surface-overlay: 243 244 246; /* subtle fills, hovers, wells */
-    --line: 229 231 235;            /* hairline borders */
-    --line-strong: 208 213 221;     /* control borders */
-    --ink: 16 24 40;                /* primary text */
-    --ink-muted: 71 84 103;         /* secondary text */
-    --ink-faint: 102 112 133;       /* muted text */
-    --accent: 5 150 105;            /* brand emerald - focus, highlights */
-    --accent-strong: 4 120 87;      /* links, primary buttons (AA on white) */
-    --accent-deep: 6 95 70;         /* primary button hover */
-    --ok: 4 120 87;
-    --warn: 180 83 9;
-    --danger: 217 45 32;
-    --info: 29 78 216;
-    --violet: 109 40 217;
-  }
+  ${rootBlock()}
   html { color-scheme: light; }
   html, body { background-color: rgb(var(--surface)); }
   /* App shell: every scroll lives inside a pane (main, board columns).
@@ -118,7 +126,7 @@ const TOKENS_CSS = `
 /** Direction contract — audited at the finish review; keep in sync with DESIGN.md. */
 const DIRECTION_CONTRACT = `<!--
 THESIS: A hunting console read twice a day: dense, calm, light. Refuses both the dark hacker-dashboard and the roomy marketing-admin.
-OWN-WORLD: Paper-gray ground (#F7F8FA), white work surfaces, hairline #E5E7EB borders, Inter for UI, mono reserved for machine values; emerald is the one brand accent; status speaks in quiet tinted pills (blue/amber/emerald/violet/gray).
+OWN-WORLD: Canvas ground (${hex(TOKENS.surface)}), white work surfaces, a subtle third surface (${hex(TOKENS['surface-overlay'])}) for the sidebar, table headers and wells, ${hex(TOKENS.line)} dividers; a type ladder of title / section / entity / body / label / meta; Inter for UI, mono reserved for machine values; emerald is the one brand accent; status speaks in quiet tinted pills (blue/amber/emerald/violet/gray).
 STORY: The user opens Overview, reads four numbers and the newest alerts, drills into a job, acts - apply, save, verify, compare - without ceremony.
 FIRST VIEWPORT: 240px sidebar left; content fills the rest: title row, four stat cards with 24h deltas, alerts list beside cron health.
 FORM: Brief-pinned light ops console (Linear density, Stripe forms, GitHub tables); the brief pins the world, no seed roll.
@@ -247,10 +255,7 @@ const NavIcon: FC<{ name: NavKey }> = ({ name }) => (
   </svg>
 );
 
-const NavLink: FC<{ item: { key: NavKey; href: string; label: string }; active?: NavKey }> = ({
-  item,
-  active,
-}) => {
+const NavLink: FC<{ item: NavItem; active?: NavKey }> = ({ item, active }) => {
   const current = active === item.key;
   return (
     <a
@@ -258,10 +263,11 @@ const NavLink: FC<{ item: { key: NavKey; href: string; label: string }; active?:
       aria-current={current ? 'page' : undefined}
       aria-label={item.label}
       title={item.label}
-      class={`flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-sm transition-colors duration-150 md:justify-center md:px-0 md:py-2 lg:justify-start lg:px-2.5 lg:py-1.5 ${
+      class={`relative flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-sm transition-colors duration-150 md:justify-center md:px-0 md:py-2 lg:justify-start lg:px-2.5 lg:py-1.5 ${
         current
-          ? 'bg-surface-overlay font-medium text-ink'
-          : 'text-ink-muted hover:bg-surface-overlay/70 hover:text-ink'
+          ? // Never a fill alone: the bar, the emerald text and the weight say "you are here" too.
+            'bg-surface-selected font-medium text-accent-strong before:absolute before:inset-y-1.5 before:left-0 before:w-0.5 before:rounded-full before:bg-accent-strong'
+          : 'text-ink-muted hover:bg-surface-raised/70 hover:text-ink'
       }`}
     >
       <NavIcon name={item.key} />
@@ -271,7 +277,7 @@ const NavLink: FC<{ item: { key: NavKey; href: string; label: string }; active?:
 };
 
 const Sidebar: FC<{ active?: NavKey }> = ({ active }) => (
-  <aside class="app-sidebar flex h-full shrink-0 flex-col border-r border-line bg-surface md:w-16 lg:w-60">
+  <aside class="app-sidebar flex h-full shrink-0 flex-col border-r border-line bg-surface-overlay md:w-16 lg:w-60">
     <div class="flex h-14 shrink-0 items-center gap-2.5 px-4 md:justify-center md:px-0 lg:justify-start lg:px-4">
       <a href="/" class="flex items-center gap-2.5" title="ApplyPack">
         <span class="grid h-7 w-7 shrink-0 place-items-center rounded-md bg-accent text-xs font-semibold text-white">
@@ -280,11 +286,26 @@ const Sidebar: FC<{ active?: NavKey }> = ({ active }) => (
         <span class="text-sm font-semibold tracking-tight md:hidden lg:block">ApplyPack</span>
       </a>
     </div>
-    <nav aria-label="Primary" class="flex-1 space-y-0.5 overflow-y-auto px-3 py-2 md:px-2.5 lg:px-3">
-      {NAV.map((n) => (
-        <NavLink item={n} active={active} />
-      ))}
-      {isEmployerMode() && <NavLink item={SCREEN_ITEM} active={active} />}
+    <nav aria-label="Primary" class="flex-1 overflow-y-auto px-3 py-2 md:px-2.5 lg:px-3">
+      <NavLink item={OVERVIEW_ITEM} active={active} />
+      {NAV_GROUPS.map((group) => {
+        const id = `nav-${group.label.toLowerCase()}`;
+        const items = group.label === 'System' && isEmployerMode() ? [...group.items, SCREEN_ITEM] : group.items;
+        return (
+          <div role="group" aria-labelledby={id} class="mt-4 md:mt-3 lg:mt-4">
+            {/* The label where there is room for words; a hairline in its place on the icon rail. */}
+            <div id={id} class="px-2.5 pb-1 text-label text-ink-faint md:hidden lg:block">
+              {group.label}
+            </div>
+            <div class="mx-auto mb-3 hidden h-px w-6 bg-line-strong md:block lg:hidden" aria-hidden="true" />
+            <div class="space-y-0.5">
+              {items.map((n) => (
+                <NavLink item={n} active={active} />
+              ))}
+            </div>
+          </div>
+        );
+      })}
     </nav>
     <div class="shrink-0 space-y-2 border-t border-line px-3 py-3 md:px-2.5 lg:px-3">
       <NavLink item={SETTINGS_ITEM} active={active} />

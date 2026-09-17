@@ -166,7 +166,7 @@ export const ScreenApplicantPage: FC<ScreenApplicantProps> = ({ screening, appli
             </Card>
 
             <Card>
-              <h2 class="text-sm font-semibold text-ink">Stands out — what no criterion asked</h2>
+              <h2 class="text-entity text-ink">Stands out — what no criterion asked</h2>
               {reply.standout.length === 0 ? (
                 <Hint class="mt-1">
                   {promptVersion !== null && promptVersion < SCREEN_PROMPT_VERSION
@@ -205,7 +205,7 @@ export const ScreenApplicantPage: FC<ScreenApplicantProps> = ({ screening, appli
             </Card>
 
             <Card>
-              <h2 class="text-sm font-semibold text-ink">Roles as the text gives them</h2>
+              <h2 class="text-entity text-ink">Roles as the text gives them</h2>
               {career && career.roles > 0 && (
                 <p class="mt-1 text-[13px] text-ink-muted">
                   Career, read off the dates: {trajectoryLine(career)}. Employer count and tenure are facts to ask about, never points.
@@ -239,7 +239,7 @@ export const ScreenApplicantPage: FC<ScreenApplicantProps> = ({ screening, appli
 
             <Card>
               <div class="flex items-baseline justify-between gap-3">
-                <h2 class="text-sm font-semibold text-ink">Questions for the interview</h2>
+                <h2 class="text-entity text-ink">Questions for the interview</h2>
                 {reply.questions.length > 0 && (
                   <Button variant="ghost" size="sm" type="button" data-copy={reply.questions.map((q) => `- ${q}`).join('\n')}>
                     Copy
@@ -259,7 +259,7 @@ export const ScreenApplicantPage: FC<ScreenApplicantProps> = ({ screening, appli
                 <div class="mt-4 grid gap-4 sm:grid-cols-2">
                   {reply.risks.length > 0 && (
                     <div>
-                      <h3 class="text-[13px] font-medium text-ink">Facts to discuss</h3>
+                      <h3 class="text-label text-ink">Facts to discuss</h3>
                       <ul class="mt-1 list-disc space-y-1 pl-5 text-sm text-ink-muted">
                         {reply.risks.map((r) => (
                           <li>{r}</li>
@@ -269,7 +269,7 @@ export const ScreenApplicantPage: FC<ScreenApplicantProps> = ({ screening, appli
                   )}
                   {reply.consistency.length > 0 && (
                     <div>
-                      <h3 class="text-[13px] font-medium text-ink">Consistency</h3>
+                      <h3 class="text-label text-ink">Consistency</h3>
                       <ul class="mt-1 list-disc space-y-1 pl-5 text-sm text-ink-muted">
                         {reply.consistency.map((r) => (
                           <li>{r}</li>
@@ -284,7 +284,7 @@ export const ScreenApplicantPage: FC<ScreenApplicantProps> = ({ screening, appli
 
           <div class="space-y-4">
             <Card>
-              <h2 class="text-sm font-semibold text-ink">How the score was made</h2>
+              <h2 class="text-entity text-ink">How the score was made</h2>
               <table class="mt-2 w-full text-sm">
                 <tbody class="divide-y divide-line">
                   {breakdown.rows
@@ -317,7 +317,7 @@ export const ScreenApplicantPage: FC<ScreenApplicantProps> = ({ screening, appli
             </Card>
 
             <Card>
-              <h2 class="text-sm font-semibold text-ink">Your decision</h2>
+              <h2 class="text-entity text-ink">Your decision</h2>
               <form method="post" action={`${back}/applicants/${applicant.id}/decision`} class="mt-2 flex items-center gap-2">
                 <input type="hidden" name="back" value={`${back}/applicants/${applicant.id}`} />
                 <Select name="decision" aria-label="Decision">
@@ -339,7 +339,7 @@ export const ScreenApplicantPage: FC<ScreenApplicantProps> = ({ screening, appli
             </Card>
 
             <Card>
-              <h2 class="text-sm font-semibold text-ink">Your adjustment</h2>
+              <h2 class="text-entity text-ink">Your adjustment</h2>
               <form method="post" action={`${back}/applicants/${applicant.id}/adjust`} class="mt-2 space-y-2">
                 <input type="hidden" name="back" value={`${back}/applicants/${applicant.id}`} />
                 <div class="flex items-center gap-2">
@@ -356,7 +356,7 @@ export const ScreenApplicantPage: FC<ScreenApplicantProps> = ({ screening, appli
             </Card>
 
             <Card>
-              <h2 class="text-sm font-semibold text-ink">What the model did not see</h2>
+              <h2 class="text-entity text-ink">What the model did not see</h2>
               <p class="mt-1 text-sm text-ink-muted">Removed before the call: {describeRedactions(applicant.redactions)}.</p>
               <p data-ui="hint" class="mt-1 text-[13px] text-ink-faint">
                 {applicant.leaks.length === 0

@@ -201,7 +201,7 @@ export const OverviewPage: FC<OverviewProps> = ({
 
       <div class="grid items-start gap-6 lg:grid-cols-3">
         <div class="min-w-0 lg:col-span-2">
-          <SectionTitle>Recent alerts</SectionTitle>
+          <SectionTitle level="section">Recent alerts</SectionTitle>
           {recentAlerts.length === 0 ? (
             <Empty>No alerted jobs yet.</Empty>
           ) : (
@@ -233,7 +233,7 @@ export const OverviewPage: FC<OverviewProps> = ({
         </div>
 
         <div class="min-w-0">
-          <SectionTitle>Cron health</SectionTitle>
+          <SectionTitle level="section">Cron health</SectionTitle>
           <Card flush>
             <ul class="divide-y divide-line">
               {latestRuns.map(({ name, run }) => (

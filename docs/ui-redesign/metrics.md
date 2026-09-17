@@ -156,3 +156,36 @@ form's seventeen controls are the same names, types and values.
 
 The other 24 pages read exactly as in stage 0.
 
+## Stage 2 — `dashboard-tokens`, 2026-09-17
+
+This stage moves no count on purpose — it changes what the counts look like.
+Its checks, on all 26 pages and on four more (`/jobs/new`, `/screen/new`, a
+targeted view, a scorecard), before = the stage 1 build, after = the branch:
+
+| Check | Result |
+| --- | --- |
+| `tokens.test.ts` — every ink and `accent-strong` on all four surfaces, each tone on white / its 10 % pill / its 5 % flash / the canvas, white on the solid buttons, the 3:1 focus border | 29 of 29 |
+| horizontal scroll at 1440 / 768 / 375 | none (stage 0 found `/screen/new` scrolling at 375: a file input kept its intrinsic width inside the grid — fixed here) |
+| `boxes` up on any page | none — equal on all 26 |
+| `hintWords`, `tabStops`, `aboveTable`, `primaries` | equal on all 26; the hooks still see everything the classes see, though `Hint` no longer carries the class sizes it had |
+| console errors, external hosts | none |
+| `ui-review` hierarchy | `/jobs` 8.5, `/settings?tab=profile` 8 (asked: ≥ 8) |
+
+Pages got shorter where helper prose moved from 13 to 12 px — the ladder's
+`meta` step:
+
+| Page | heightPx before | after | at 375 px before | after |
+| --- | ---: | ---: | ---: | ---: |
+| `/settings?tab=profile` | 2 002 | 1 916 | 3 344 | 3 140 |
+| `/settings?tab=ai` | 2 190 | 2 070 | 3 628 | 3 414 |
+| `/settings?tab=general` | 2 123 | 2 043 | — | — |
+| `/jobs/100` | 1 380 | 1 344 | 2 842 | 2 726 |
+| `/target` | 1 191 | 1 179 | 2 318 | 2 216 |
+
+Contrast, the pairs that failed before and what they read now (WCAG 2.1, 4.5
+asked): *Alerted* on its pill 4.39 → 4.97; danger on its pill 4.15 → 5.58;
+faint ink on the subtle surface 4.40 → 4.78, on the selected tint 4.28 → 4.64.
+One pair the plan did not list: a pill laid on the canvas instead of on white
+read 4.44 for *Applied* — a pill now paints its tint over its own white
+ground, so it is the tested pair wherever it sits.
+

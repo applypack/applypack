@@ -201,7 +201,7 @@ export const TargetPage: FC<TargetPageProps> = ({
 
       <div class="mb-4 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div class="min-w-0 lg:min-w-[15rem] lg:shrink-0">
-          <h1 class="text-xl font-semibold tracking-tight">Tailor resume</h1>
+          <h1 class="text-title text-ink">Tailor resume</h1>
           <div class="mt-1 text-sm text-ink-muted">
             {job.companyName} · {job.title}
             {job.location ? ` · ${job.location}` : ''}
@@ -362,7 +362,7 @@ export const TargetPage: FC<TargetPageProps> = ({
                 Re-upload resume
               </summary>
               <div class={MENU_PANEL}>
-                <div class="text-[13px] font-medium text-ink">
+                <div class="text-label text-ink">
                   {resume.ephemeral ? 'Upload another resume' : 'Upload new resume version'}
                 </div>
                 <form
@@ -536,7 +536,7 @@ export const TargetPage: FC<TargetPageProps> = ({
       <div id="panes" class="show-matched grid gap-4 lg:grid-cols-2" data-view="both">
         <Card class="pane-job">
           <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
-            <div class="text-[13px] font-medium text-ink">Job description</div>
+            <div class="text-label text-ink">Job description</div>
             <div class="flex flex-wrap items-center gap-2 text-xs text-ink-faint">
               {/* One axis, four colours: green is a word you already have, and
                   every other colour is a gap graded by how hard the posting
@@ -564,7 +564,7 @@ export const TargetPage: FC<TargetPageProps> = ({
 
         <Card class="pane-resume">
           <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
-            <div class="text-[13px] font-medium text-ink">
+            <div class="text-label text-ink">
               Your resume · {resume.name}
               {resume.ephemeral ? '' : ` v${match.resumeVersion}`}
             </div>

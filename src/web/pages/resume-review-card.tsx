@@ -164,7 +164,7 @@ const ReviewReport: FC<{
             <li class="flex flex-col gap-1.5 p-3 sm:flex-row sm:gap-3">
               <div class="flex shrink-0 items-center gap-2 sm:w-56">
                 <Badge tone={GRADE_VIEW[g.grade].tone}>{GRADE_VIEW[g.grade].label}</Badge>
-                <span class="text-[13px] font-medium text-ink">{DIMENSION_LABEL[g.dimension]}</span>
+                <span class="text-label text-ink">{DIMENSION_LABEL[g.dimension]}</span>
                 {bd && (
                   <span class="font-mono text-xs text-ink-faint">
                     {bd.points[g.dimension] ?? 0}/{REVIEW_SCORING.weight[g.dimension]}

@@ -4,19 +4,26 @@ import type { JobStatus } from '@prisma/client';
 import { fitTone, statusLabel, statusTone, type Tone } from './format';
 import type { FlashKind, FlashMessage } from './flash';
 import { hideCellsClass, hideHeaderClass, type HideBelow } from './table-hide';
+import { TOKENS, hex } from './tokens';
 
 /*
  * Shared primitives. Every page composes these instead of writing raw
  * Tailwind strings, so colour and spacing decisions live in one file.
- * Tones map to the semantic tokens declared in layout.tsx.
+ * Tones map to the semantic tokens valued in tokens.ts.
  */
 
+/*
+ * A pill paints its 10 % tint over white whatever it is laid on (the gradient
+ * is the tint, the colour under it the ground), so its text contrast is one
+ * number held by tokens.test.ts — not one per surface. On the canvas alone the
+ * bare tint read 4.44:1 for the Applied pill.
+ */
 const TONE_SOFT: Record<Tone, string> = {
-  ok: 'bg-ok/10 text-ok ring-ok/20',
-  warn: 'bg-warn/10 text-warn ring-warn/20',
-  danger: 'bg-danger/10 text-danger ring-danger/20',
-  info: 'bg-info/10 text-info ring-info/20',
-  violet: 'bg-violet/10 text-violet ring-violet/20',
+  ok: 'bg-surface-raised bg-[linear-gradient(rgb(var(--ok)/0.1),rgb(var(--ok)/0.1))] text-ok ring-ok/20',
+  warn: 'bg-surface-raised bg-[linear-gradient(rgb(var(--warn)/0.1),rgb(var(--warn)/0.1))] text-warn ring-warn/20',
+  danger: 'bg-surface-raised bg-[linear-gradient(rgb(var(--danger)/0.1),rgb(var(--danger)/0.1))] text-danger ring-danger/20',
+  info: 'bg-surface-raised bg-[linear-gradient(rgb(var(--info)/0.1),rgb(var(--info)/0.1))] text-info ring-info/20',
+  violet: 'bg-surface-raised bg-[linear-gradient(rgb(var(--violet)/0.1),rgb(var(--violet)/0.1))] text-violet ring-violet/20',
   neutral: 'bg-surface-overlay text-ink-muted ring-line',
 };
 
@@ -70,18 +77,18 @@ export const PageHeader: FC<
       </a>
     )}
     <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
-      <h1 class="min-w-0 truncate text-xl font-semibold tracking-tight" title={title}>
+      <h1 class="min-w-0 truncate text-title text-ink" title={title}>
         {title}
       </h1>
       {(meta || actions) && (
         <div class="flex min-w-0 flex-wrap items-center gap-3">
-          {meta && <div data-ui="hint" class="text-[13px] text-ink-faint tabular-nums">{meta}</div>}
+          {meta && <div data-ui="hint" class="text-meta text-ink-faint tabular-nums">{meta}</div>}
           {actions}
         </div>
       )}
     </div>
     {children && (
-      <div data-ui="hint" class="mt-1.5 text-[13px] leading-5 text-ink-faint">{children}</div>
+      <div data-ui="hint" class="mt-1.5 text-sm leading-5 text-ink-muted">{children}</div>
     )}
   </header>
 );
@@ -133,30 +140,35 @@ export const Flash: FC<PropsWithChildren<{ flash?: FlashMessage | null }>> = ({ 
     </div>
   ) : null;
 
-export const Card: FC<PropsWithChildren<{ class?: string; flush?: boolean; id?: string }>> = ({
-  children,
-  class: className = '',
-  flush = false,
-  id,
-}) => (
+const CARD_VARIANT = {
+  /** An object that stands alone: raised, outlined, a whisper of shadow. */
+  card: 'rounded-lg border border-line bg-surface-raised shadow-sm',
+  /** A part of a region that is already one surface: no border, shadow or fill of its own. */
+  flat: '',
+  /** A well or an inactive region: the subtle fill, no outline. */
+  subtle: 'rounded-lg bg-surface-overlay',
+} as const;
+
+export const Card: FC<
+  PropsWithChildren<{ class?: string; flush?: boolean; id?: string; variant?: keyof typeof CARD_VARIANT }>
+> = ({ children, class: className = '', flush = false, id, variant = 'card' }) => (
   <section
     id={id}
-    class={`rounded-lg border border-line bg-surface-raised shadow-sm ${
-      flush ? 'overflow-hidden' : 'p-5'
-    } ${className}`}
+    class={`${CARD_VARIANT[variant]} ${flush ? 'overflow-hidden' : variant === 'flat' ? '' : 'p-5'} ${className}`}
   >
     {children}
   </section>
 );
 
-export const SectionTitle: FC<PropsWithChildren> = ({ children }) => (
-  <h2 class="mb-3 text-sm font-semibold text-ink">{children}</h2>
+/** `card` heads a card; `section` heads a page-level section outside one (the type ladder, DESIGN.md). */
+export const SectionTitle: FC<PropsWithChildren<{ level?: 'card' | 'section' }>> = ({ children, level = 'card' }) => (
+  <h2 class={`text-ink ${level === 'section' ? 'mb-4 text-section' : 'mb-3 text-entity'}`}>{children}</h2>
 );
 
 export const Hint: FC<PropsWithChildren<{ class?: string }>> = ({
   children,
   class: className = '',
-}) => <p data-ui="hint" class={`text-[13px] leading-5 text-ink-faint ${className}`}>{children}</p>;
+}) => <p data-ui="hint" class={`text-meta text-ink-faint ${className}`}>{children}</p>;
 
 export const Empty: FC<PropsWithChildren> = ({ children }) => (
   <div class="flex flex-col items-center justify-center gap-2.5 rounded-lg border border-line bg-surface-raised px-6 py-12 text-center">
@@ -256,7 +268,7 @@ export const Disclosure: FC<
     >
       {summary}
       {count > 0 && (
-        <span class="rounded bg-accent/10 px-1.5 text-xs font-medium tabular-nums text-accent-strong">
+        <span class="rounded bg-surface-selected px-1.5 text-xs font-medium tabular-nums text-accent-strong">
           {count}
           <span class="sr-only"> active</span>
         </span>
@@ -307,7 +319,7 @@ export const FilterChip: FC<{ label: string; href: string; flag?: string }> = ({
   <a
     href={href}
     aria-label={`Remove filter: ${label}`}
-    class="inline-flex min-h-[28px] items-center gap-1.5 rounded-md border border-accent/30 bg-accent/10 py-0.5 pl-2 pr-1.5 text-[13px] font-medium text-accent-strong transition-colors duration-150 hover:border-accent-strong"
+    class="inline-flex min-h-[28px] items-center gap-1.5 rounded-md border border-accent/30 bg-surface-selected py-0.5 pl-2 pr-1.5 text-[13px] font-medium text-accent-strong transition-colors duration-150 hover:border-accent-strong"
   >
     {flag && <span aria-hidden="true">{flag}</span>}
     {label}
@@ -417,11 +429,11 @@ export const Table: FC<
     <table class={`w-full text-sm ${widths ? 'table-fixed' : ''} ${hideCellsClass(hideBelow)}`}>
       {caption && <caption class="sr-only">{caption}</caption>}
       <thead>
-        <tr class="text-left text-xs font-medium text-ink-muted">
+        <tr class="text-left text-label text-ink-muted">
           {columns.map((c, i) => (
             <th
               scope="col"
-              class={`bg-surface-overlay px-2.5 py-2.5 font-medium first:rounded-tl-none first:pl-3.5 last:pr-3.5 sm:px-4 sm:first:pl-5 sm:last:pr-5 ${
+              class={`bg-surface-overlay px-2.5 py-2.5 font-[550] first:rounded-tl-none first:pl-3.5 last:pr-3.5 sm:px-4 sm:first:pl-5 sm:last:pr-5 ${
                 widths?.[i] ?? ''
               } ${hideHeaderClass(hideBelow, i)} ${thClasses?.[i] ?? ''} ${
                 stickyHeader
@@ -445,7 +457,7 @@ export const Tr: FC<PropsWithChildren<Record<string, unknown> & { class?: string
   class: className = '',
   ...rest
 }) => (
-  <tr class={`transition-colors duration-150 hover:bg-surface-overlay/50 ${className}`} {...rest}>
+  <tr class={`transition-colors duration-150 hover:bg-surface-selected/50 ${className}`} {...rest}>
     {children}
   </tr>
 );
@@ -489,14 +501,14 @@ export const Field: FC<PropsWithChildren<{ label: string; hint?: string; class?:
   class: className = '',
 }) => (
   <label class={`block ${className}`}>
-    <span class="block text-[13px] font-medium text-ink">{label}</span>
+    <span class="block text-label text-ink">{label}</span>
     {hint && <Hint class="mt-0.5">{hint}</Hint>}
     <div class="mt-1.5">{children}</div>
   </label>
 );
 
 const CONTROL =
-  'w-full rounded-md border border-line-strong bg-surface-raised px-3 py-1.5 text-sm text-ink placeholder:text-ink-faint shadow-sm transition-colors duration-150 hover:border-ink-faint focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/15';
+  'w-full rounded-md border border-line-strong bg-surface-raised px-3 py-1.5 text-sm text-ink placeholder:text-ink-faint shadow-sm transition-colors duration-150 hover:border-ink-faint focus:border-accent-strong focus:outline-none focus:ring-2 focus:ring-accent/25';
 
 export const Input: FC<Record<string, unknown> & { mono?: boolean }> = ({
   mono,
@@ -505,7 +517,7 @@ export const Input: FC<Record<string, unknown> & { mono?: boolean }> = ({
 }) => <input class={`${CONTROL} ${mono ? 'font-mono text-xs' : ''} ${className}`} {...rest} />;
 
 /* Drawn chevron so selects match the themed controls instead of browser chrome. */
-const SELECT_CHEVRON = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23667085' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`;
+const SELECT_CHEVRON = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23${hex(TOKENS['ink-faint']).slice(1)}' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`;
 
 export const Select: FC<PropsWithChildren<Record<string, unknown>>> = ({
   children,
@@ -547,7 +559,7 @@ export const PillCheckbox: FC<PropsWithChildren<Record<string, unknown>>> = ({
   children,
   ...rest
 }) => (
-  <label class="inline-flex min-h-[28px] cursor-pointer items-center gap-2 rounded-md border border-line bg-surface-raised px-2.5 py-1 text-sm text-ink-muted transition-colors duration-150 hover:border-line-strong has-[:checked]:border-accent/40 has-[:checked]:bg-accent/5 has-[:checked]:text-ink">
+  <label class="inline-flex min-h-[28px] cursor-pointer items-center gap-2 rounded-md border border-line bg-surface-raised px-2.5 py-1 text-sm text-ink-muted transition-colors duration-150 hover:border-line-strong has-[:checked]:border-accent/40 has-[:checked]:bg-surface-selected has-[:checked]:text-ink">
     <input type="checkbox" class="h-3.5 w-3.5 accent-accent" {...rest} />
     {children}
   </label>
@@ -558,11 +570,11 @@ export const Radio: FC<PropsWithChildren<Record<string, unknown> & { title: Chil
   title,
   ...rest
 }) => (
-  <label class="flex cursor-pointer items-start gap-3 rounded-md border border-line bg-surface-raised p-3 text-sm text-ink transition-colors duration-150 hover:border-line-strong has-[:checked]:border-accent/50 has-[:checked]:bg-accent/5">
+  <label class="flex cursor-pointer items-start gap-3 rounded-md border border-line bg-surface-raised p-3 text-sm text-ink transition-colors duration-150 hover:border-line-strong has-[:checked]:border-accent/50 has-[:checked]:bg-surface-selected">
     <input type="radio" class="mt-1 h-4 w-4 accent-accent" {...rest} />
     <span>
       <span class="font-medium">{title}</span>
-      <span data-ui="hint" class="block text-[13px] leading-5 text-ink-faint">{children}</span>
+      <span data-ui="hint" class="block text-meta text-ink-faint">{children}</span>
     </span>
   </label>
 );

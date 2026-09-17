@@ -449,7 +449,7 @@ const OptionLink: FC<PropsWithChildren<{ href: string; selected: boolean; title?
     aria-current={selected ? 'true' : undefined}
     class={`inline-flex min-h-[28px] items-center gap-1.5 rounded-md px-2 py-0.5 text-[13px] transition-colors duration-150 ${
       selected
-        ? 'bg-accent/10 font-medium text-accent-strong'
+        ? 'bg-surface-selected font-medium text-accent-strong'
         : 'bg-surface-overlay text-ink-muted hover:text-ink'
     }`}
   >
