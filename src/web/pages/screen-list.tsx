@@ -26,9 +26,9 @@ export const ScreenListPage: FC<{ screenings: ScreeningSummary[]; flash?: FlashM
     <Flash flash={flash} />
 
     {screenings.length === 0 ? (
-      <Empty>
-        No screenings yet. Start one with a position — one of your jobs, a pasted posting or a file —
-        then drop the applicants' resumes in.
+      <Empty title="No screenings yet">
+        A screening starts with a position: one of your jobs, a pasted posting or a file. Press New
+        screening, then drop the applicants' resumes in.
       </Empty>
     ) : (
       <Card flush>

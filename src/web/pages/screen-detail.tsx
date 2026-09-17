@@ -389,7 +389,10 @@ export const ScreenDetailPage: FC<ScreenDetailProps> = ({ screening, rubric, row
 
         {rows.length === 0 ? (
           <div class="px-4 pb-5 sm:px-5">
-            <Empty>No applicants yet.</Empty>
+            <Empty bare title="No applicants yet">
+              The table fills as resumes arrive. Pick files, a .zip or a whole folder under Applicants
+              above; scoring starts by itself.
+            </Empty>
           </div>
         ) : (
           <form id="bulk-form" method="post" action={`/screen/${screening.id}/applicants/bulk`}>

@@ -167,15 +167,15 @@ export const ApplicationsPage: FC<ApplicationsProps> = ({
       <Flash flash={flash} />
 
       {!applicationTrackingEnabled ? (
-        <Empty>
-          Application tracking is off. Enable it in{' '}
-          <a
-            href="/settings"
-            class="font-medium text-accent-strong hover:text-accent-deep"
-          >
-            Settings
-          </a>{' '}
-          to see your funnel here.
+        <Empty
+          title="Application tracking is off"
+          action={
+            <Button href="/settings?tab=general" variant="secondary" size="sm">
+              Turn it on in Settings
+            </Button>
+          }
+        >
+          The board lists every job you applied to, by stage. It stays empty while tracking is off.
         </Empty>
       ) : (
         <>

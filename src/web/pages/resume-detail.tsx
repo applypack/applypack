@@ -163,7 +163,10 @@ export const ResumeDetailPage: FC<ResumeDetailProps> = ({
               <TagRow label="Skills" items={resume.skills} tone="ok" />
             </div>
           ) : (
-            <Empty>Not scanned yet — click "Scan" to extract headline, skills and issues.</Empty>
+            <Empty bare title="Not scanned yet">
+              A scan reads the headline, the skills and the issues every comparison starts from. Press
+              Scan at the top of the page: one AI call.
+            </Empty>
           )}
         </Card>
 

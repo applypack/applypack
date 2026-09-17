@@ -68,7 +68,9 @@ export const ResumesPage: FC<{
     </Disclosure>
 
     {resumes.length === 0 ? (
-      <Empty>No resumes yet. The first one you upload becomes the default.</Empty>
+      <Empty title="No resumes yet">
+        Comparisons and cover letters start from a resume. Upload one above; the first becomes the default.
+      </Empty>
     ) : (
       <Card flush class="mb-4">
         <Table caption="Resumes"

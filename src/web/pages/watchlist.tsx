@@ -188,10 +188,18 @@ export const WatchlistPreviewPage: FC<{ run: WatchlistRun }> = ({ run }) => {
 
       {addable.length === 0 ? (
         <Card class="mb-4">
-          <Empty>
-            None of those URLs published a job board or a job feed we can read. Paste a board URL
-            directly (Greenhouse, Lever, Ashby, Workable, SmartRecruiters, Recruitee, Personio,
-            Teamtailor …) if you know it.
+          <Empty
+            bare
+            title="Nothing to watch at those URLs"
+            action={
+              <Button href="/companies" variant="secondary" size="sm">
+                Back to Companies
+              </Button>
+            }
+          >
+            None of them published a job board or a job feed we can read. If you know the board URL
+            (Greenhouse, Lever, Ashby, Workable, SmartRecruiters, Recruitee, Personio, Teamtailor …),
+            paste that one instead.
           </Empty>
         </Card>
       ) : (

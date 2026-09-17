@@ -83,9 +83,9 @@ export const DiscoveryPage: FC<DiscoveryProps> = ({
       <div>
         <SectionTitle level="section">Pending review ({pending.length})</SectionTitle>
         {pending.length === 0 ? (
-          <Empty>
-            No candidates yet. Enable the HN parser and auto-discovery above, then "Run now" to
-            seed candidates from the latest thread.
+          <Empty title="No candidates yet">
+            A candidate is a company board found in a Hacker News hiring thread. Switch on the HN
+            parser and auto-discovery above, then press Run now.
           </Empty>
         ) : (
           <>

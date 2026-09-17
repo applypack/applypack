@@ -192,7 +192,16 @@ export const OverviewPage: FC<OverviewProps> = ({
         <div class="min-w-0 lg:col-span-2">
           <SectionTitle level="section">Recent alerts</SectionTitle>
           {recentAlerts.length === 0 ? (
-            <Empty>No alerted jobs yet.</Empty>
+            <Empty
+              title="No alerts yet"
+              action={
+                <Button href="/jobs" variant="secondary" size="sm">
+                  See all jobs
+                </Button>
+              }
+            >
+              A job lands here when a running search scores it at or above its threshold.
+            </Empty>
           ) : (
             <Card flush>
               <ul class="divide-y divide-line">
