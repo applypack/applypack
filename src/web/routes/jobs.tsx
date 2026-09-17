@@ -33,6 +33,7 @@ import { readEvidence } from '../../verification/prompts';
 import { addresseeFromFinding } from '../../resume/addressee';
 import { LIVENESS_CODE_LABEL } from '../../verification/liveness';
 import { JobsListPage } from '../pages/jobs-list';
+import { jobHref, jobTabLabels, resolveJobTab, type JobTab } from '../job-tabs';
 import { JobDetailPage } from '../pages/job-detail';
 import { JobNewPage } from '../pages/job-new';
 import { TargetPage } from '../pages/target';
@@ -85,6 +86,11 @@ import { setCoverAngles } from '../../settings';
 import { stageChangeEvent, type StageEventData } from '../stage-events';
 
 const PAGE_SIZE = 50;
+
+/** The hidden `tab` a rail form posts, read through the resolver: only a known tab ever reaches a redirect. */
+function formTab(value: unknown): JobTab {
+  return resolveJobTab({ tab: typeof value === 'string' ? value : null });
+}
 
 const ListQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
@@ -413,6 +419,12 @@ jobsRoute.get('/jobs/:id', async (c) => {
   const selectedKeywords = await orderedKeywords(selected, job.description);
   return c.html(
     <JobDetailPage
+      tab={resolveJobTab({ tab: c.req.query('tab'), match: c.req.query('match'), letter: c.req.query('letter') })}
+      tabs={jobTabLabels({
+        matchScore: selected?.matchScore ?? null,
+        letters: letters.length,
+        verdict: verifications[0]?.verdict ?? null,
+      })}
       job={job}
       appliedResumePicker={{
         resumes: resumes.map((r) => ({ id: r.id, name: r.name })),
@@ -519,7 +531,7 @@ jobsRoute.post('/jobs/:id/status', async (c) => {
   } else {
     await update;
   }
-  return c.redirect(`/jobs/${id}`, 303);
+  return c.redirect(jobHref(id, formTab(form.tab)), 303);
 });
 
 /** A letter is a page; past this it is something else. */
@@ -528,6 +540,7 @@ const MAX_LETTER_CHARS = 20_000;
 jobsRoute.post('/jobs/:id/reclassify', onceGuard((c) => `reclassify:${c.req.param('id')}`, (c) => `/jobs/${c.req.param('id')}`), async (c) => {
   const id = idParam(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text('Bad id', 400);
+  const tab = formTab((await c.req.parseBody()).tab);
   const job = await prisma.job.findUnique({
     where: { id },
     include: { company: { select: { name: true, atsType: true } } },
@@ -538,7 +551,7 @@ jobsRoute.post('/jobs/:id/reclassify', onceGuard((c) => `reclassify:${c.req.para
   } catch (err) {
     logger.error({ err, jobId: id }, 'web: reclassify failed');
   }
-  return c.redirect(`/jobs/${id}`, 303);
+  return c.redirect(jobHref(id, tab), 303);
 });
 
 /**
@@ -551,7 +564,7 @@ jobsRoute.post('/jobs/:id/description/refresh', async (c) => {
   if (!Number.isFinite(id)) return c.text('Bad id', 400);
   const job = await prisma.job.findUnique({ where: { id }, include: { company: { select: { name: true } } } });
   if (!job) return c.text('Not found', 404);
-  const back = `/jobs/${id}#verification`;
+  const back = jobHref(id, 'verify', {}, 'verification');
   const [latest] = await listVerificationsForJob(id);
   const url = latest?.postingUrl ?? null;
   if (!url) {
@@ -583,10 +596,10 @@ jobsRoute.post('/jobs/:id/description', async (c) => {
   const form = await c.req.parseBody();
   const text = typeof form.text === 'string' ? normaliseDescription(form.text) : '';
   if (text.length < MIN_DESCRIPTION_CHARS) {
-    return flashRedirect(`/jobs/${id}#verification`, 'warn', 'The listing text is too short to be a posting — nothing was replaced.');
+    return flashRedirect(jobHref(id, 'verify', {}, 'verification'), 'warn', 'The listing text is too short to be a posting — nothing was replaced.');
   }
   if (text.length > MAX_POSTING_CHARS) {
-    return flashRedirect(`/jobs/${id}#verification`, 'warn', `The listing text is longer than a posting (${MAX_POSTING_CHARS.toLocaleString()} characters at most) — nothing was replaced.`);
+    return flashRedirect(jobHref(id, 'verify', {}, 'verification'), 'warn', `The listing text is longer than a posting (${MAX_POSTING_CHARS.toLocaleString()} characters at most) — nothing was replaced.`);
   }
   const swap = await refreshDescription(job, text);
   return flashRedirect(`/jobs/${id}`, 'ok', refreshFlash(job.description.length, swap.job.description.length, swap.reclassified));
@@ -618,7 +631,7 @@ jobsRoute.post('/jobs/:id/verify', async (c) => {
   // checks, and a closed tab loses nothing. One run per job at a time.
   const form = await c.req.parseBody().catch(() => ({}) as Record<string, unknown>);
   const deep = form['deep'] === '1';
-  const back = `/jobs/${id}#verification`;
+  const back = jobHref(id, 'verify', {}, 'verification');
   const { run, joined } = claimRun(VERIFY_RUN_KEY(id), {
     steps: deep ? ['verify'] : ['liveness', 'verify'],
     jobTitle: job.title,
@@ -979,7 +992,7 @@ jobsRoute.get('/jobs/:id/target', async (c) => {
   const requested = idParam(c.req.query('match'));
   const match = matches.find((m) => m.id === requested) ?? matches[0];
   if (!match) {
-    return flashRedirect(`/jobs/${id}#resume-match`, 'err', 'Run Compare once — tailoring the resume needs an AI match to work from.');
+    return flashRedirect(jobHref(id, 'match', {}, 'resume-match'), 'err', 'Run Compare once — tailoring the resume needs an AI match to work from.');
   }
   const resume = await getResume(match.resumeId);
   if (!resume) return c.text('Not found', 404);

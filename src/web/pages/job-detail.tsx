@@ -5,18 +5,19 @@ import { Layout } from '../layout';
 import {
   ActionForm,
   Button,
-  type ButtonVariant,
   Card,
   Field,
   FitBadge,
   Flash,
+  Hint,
   Input,
   SectionTitle,
   Select,
   StatusBadge,
+  Tabs,
   Tag,
   Textarea,
-  Hint,
+  type ButtonVariant,
 } from '../ui';
 import { intervalLabel } from '../../watchlist/interval';
 import { formatDate, formatRelative, formatSalary } from '../format';
@@ -27,6 +28,8 @@ import { WORKPLACE_LABEL, type WorkplaceCode } from '../../location';
 import { appliedWithLabel } from '../../jobs/applied-with';
 import { needsAppliedResume } from '../applied-resume';
 import type { FlashMessage } from '../flash';
+import type { JobTab } from '../job-tabs';
+import { jobHref } from '../job-tabs';
 import { CoverLetterCard, type CoverLetterCardProps } from './cover-letter-card';
 import { ResumeMatchCard, type ResumeMatchCardProps } from './resume-match-card';
 import { VerificationCard, type VerificationCardProps } from './verification-card';
@@ -122,6 +125,9 @@ export interface JobDetailProps {
   verificationRun: VerificationCardProps['run'];
   resumeMatch: ResumeMatchCardProps;
   coverLetters: CoverLetterCardProps;
+  /** The tab this request means (job-tabs.ts), and the four labels with what exists behind each. */
+  tab: JobTab;
+  tabs: { tab: JobTab; label: string }[];
   flash?: FlashMessage | null;
 }
 
@@ -147,10 +153,14 @@ export const JobDetailPage: FC<JobDetailProps> = ({
   verificationRun,
   resumeMatch,
   coverLetters,
+  tab,
+  tabs,
   flash,
 }) => (
   <Layout title={job.title} active="jobs">
-    <PageHeaderBlock job={job} />
+    {/* One solid button a tab: the comparison and the letter bring their own
+        ("Tailor resume", "Copy letter"), so the header's steps back on those. */}
+    <PageHeaderBlock job={job} primary={tab === 'posting' || tab === 'verify'} />
     <Flash flash={flash}>
       {flash?.tailor && (
         <Button href={flash.tailor} size="sm">
@@ -171,29 +181,35 @@ export const JobDetailPage: FC<JobDetailProps> = ({
     </Flash>
     <CrossListingNotice job={job} />
 
+    <Tabs
+      label="Job sections"
+      class="mb-4"
+      tabs={tabs.map((t) => ({ href: jobHref(job.id, t.tab), label: t.label, current: t.tab === tab }))}
+    />
+
     <div class="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
-      {/* Right rail first in DOM so facts and actions lead on small screens. */}
-      <div class="min-w-0 space-y-4 xl:order-2">
-        <Card>
-          <SectionTitle>Actions</SectionTitle>
-          <MarkAppliedPicker job={job} picker={appliedResumePicker} />
+      {/* Right rail first in DOM so facts and actions lead on small screens. It rides on
+          every tab, and its three forms carry the tab so a status change returns to it. */}
+      <Card flush class="min-w-0 divide-y divide-line xl:order-2">
+        <div class="p-5">
+          <MarkAppliedPicker job={job} picker={appliedResumePicker} tab={tab} />
           <div class="flex flex-wrap items-center gap-2">
             {job.status !== 'APPLIED' && (
-              <Button variant="primary" size="sm" form={MARK_APPLIED_FORM}>
+              <Button variant="secondary" size="sm" form={MARK_APPLIED_FORM}>
                 Mark applied
               </Button>
             )}
             {STATUS_ACTIONS.filter((a) => a.status !== job.status).map((a) => (
-              <ActionForm action={`/jobs/${job.id}/status`} hidden={{ status: a.status }}>
+              <ActionForm action={`/jobs/${job.id}/status`} hidden={{ status: a.status, tab }}>
                 <Button variant={a.variant} size="sm">
                   {a.label}
                 </Button>
               </ActionForm>
             ))}
           </div>
-        </Card>
+        </div>
 
-        <Card>
+        <Card variant="flat" class="p-5">
           <SectionTitle>Details</SectionTitle>
           <dl class="space-y-2.5 text-sm">
             <FactRow label="Salary">
@@ -220,9 +236,10 @@ export const JobDetailPage: FC<JobDetailProps> = ({
         </Card>
 
         {applicationTrackingEnabled && (
-          <Card>
+          <Card variant="flat" class="p-5">
             <SectionTitle>Application tracking</SectionTitle>
             <form method="post" action={`/jobs/${job.id}/application`} class="space-y-3">
+              <input type="hidden" name="tab" value={tab} />
               <Field label="Pipeline stage">
                 <Select name="pipelineStage">
                   <option value="" selected={!job.pipelineStage}>
@@ -262,16 +279,16 @@ export const JobDetailPage: FC<JobDetailProps> = ({
                   {job.applicationNotes ?? ''}
                 </Textarea>
               </Field>
-              <Button>Save application</Button>
+              <Button variant="secondary">Save application</Button>
             </form>
             <AppliedTextDisclosure job={job} />
           </Card>
         )}
-      </div>
+      </Card>
 
       <div class="min-w-0 space-y-4 xl:order-1">
-        <ClassifierCard job={job} scores={profileScores} />
 
+        {tab === 'verify' && (
         <VerificationCard
           jobId={job.id}
           liveness={
@@ -284,12 +301,17 @@ export const JobDetailPage: FC<JobDetailProps> = ({
           run={verificationRun}
           url={job.url}
         />
+        )}
 
-        <ResumeMatchCard {...resumeMatch} />
+        {tab === 'match' && <ResumeMatchCard {...resumeMatch} />}
 
-        <CoverLetterCard {...coverLetters} />
+        {tab === 'letter' && <CoverLetterCard {...coverLetters} />}
+
+        {tab === 'posting' && (
+        <Card flush class="divide-y divide-line">
+        <ClassifierCard job={job} scores={profileScores} tab={tab} />
         {job.company.atsType === 'FRANCETRAVAIL' && job.sourcePayload !== null && job.sourcePayload !== undefined && (
-          <Card>
+          <Card variant="flat" class="p-5">
             <SectionTitle>Full offer as published by France Travail</SectionTitle>
             <Hint class="mb-3">
               Every field the board sent, unchanged — its licence asks for the whole offer to be shown.
@@ -303,8 +325,7 @@ export const JobDetailPage: FC<JobDetailProps> = ({
           </Card>
         )}
 
-
-        <Card>
+        <Card variant="flat" class="p-5">
           <SectionTitle>Description</SectionTitle>
           {job.descriptionRefreshedAt && (
             <div class="mb-3 flex flex-wrap items-center gap-2 text-[13px] text-ink-muted">
@@ -326,6 +347,8 @@ export const JobDetailPage: FC<JobDetailProps> = ({
             {job.description || '(empty)'}
           </div>
         </Card>
+        </Card>
+        )}
       </div>
     </div>
     {/* Copy on the suggestion cards and the change sheet; the card itself is
@@ -345,17 +368,17 @@ wireSelectCommits(document);
  * The verdict and the button that replaces it, on one card (#100). Rendered
  * for an unscored posting too — that is when Re-classify matters most.
  */
-const ClassifierCard: FC<{ job: JobDetail; scores: ProfileScore[] }> = ({ job, scores }) => {
+const ClassifierCard: FC<{ job: JobDetail; scores: ProfileScore[]; tab: JobTab }> = ({ job, scores, tab }) => {
   const scored =
     job.techMatch.length > 0 ||
     job.redFlags.length > 0 ||
     Boolean(job.summary) ||
     job.priorityRulesApplied.length > 0;
   return (
-    <Card>
+    <Card variant="flat" class="p-5">
       <div class="flex flex-wrap items-center justify-between gap-3">
         <SectionTitle>Classifier</SectionTitle>
-        <ActionForm action={`/jobs/${job.id}/reclassify`}>
+        <ActionForm action={`/jobs/${job.id}/reclassify`} hidden={{ tab }}>
           <Button variant="violet" size="sm">
             Re-classify
           </Button>
@@ -457,7 +480,7 @@ const CrossListingNotice: FC<{ job: JobDetail }> = ({ job }) => {
   );
 };
 
-const PageHeaderBlock: FC<{ job: JobDetail }> = ({ job }) => (
+const PageHeaderBlock: FC<{ job: JobDetail; primary: boolean }> = ({ job, primary }) => (
   <header class="mb-5 shrink-0">
     <a
       href="/jobs"
@@ -498,10 +521,10 @@ const PageHeaderBlock: FC<{ job: JobDetail }> = ({ job }) => (
         <PlaceChips job={job} />
       </div>
       <div class="flex shrink-0 flex-wrap items-center gap-3">
-        <FitBadge score={job.fitScore} />
+        <FitBadge score={job.fitScore} worded />
         <StatusBadge status={job.status} />
         {job.url && (
-          <Button href={job.url} target="_blank" rel="noopener" size="sm">
+          <Button href={job.url} target="_blank" rel="noopener" size="sm" variant={primary ? 'primary' : 'secondary'}>
             Open posting ↗
           </Button>
         )}
@@ -558,11 +581,13 @@ const PlaceChips: FC<{ job: Pick<JobDetail, 'workplace' | 'countries' | 'regions
 const MarkAppliedPicker: FC<{
   job: JobDetail;
   picker: JobDetailProps['appliedResumePicker'];
-}> = ({ job, picker }) =>
+  tab: JobTab;
+}> = ({ job, picker, tab }) =>
   job.status === 'APPLIED' ? null : (
     <>
       <form id={MARK_APPLIED_FORM} method="post" action={`/jobs/${job.id}/status`}>
         <input type="hidden" name="status" value="APPLIED" />
+        <input type="hidden" name="tab" value={tab} />
       </form>
       {picker.resumes.length > 0 && (
         <Field

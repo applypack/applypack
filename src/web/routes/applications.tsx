@@ -7,6 +7,7 @@ import { getSettings } from '../../settings';
 import { getResume } from '../../resume/store';
 import { appliedResumeColumns, readAppliedResumeChoice } from '../applied-resume';
 import { flashRedirect, parseFlashCookie } from '../flash';
+import { jobHref, resolveJobTab } from '../job-tabs';
 import { ApplicationsPage } from '../pages/applications';
 import { allStages, labelFor, parseStageConfig } from '../stage-config';
 import { appliedDateCorrection, stageChangeEvent } from '../stage-events';
@@ -229,5 +230,6 @@ applicationsRoute.post('/jobs/:id/application', async (c) => {
     await update;
   }
 
-  return c.redirect(`/jobs/${id}`, 303);
+  // Back to the tab the rail was used on; read through the resolver, so only a known tab reaches the redirect.
+  return c.redirect(jobHref(id, resolveJobTab({ tab: typeof form.tab === 'string' ? form.tab : null })), 303);
 });

@@ -1,7 +1,7 @@
 /** @jsxImportSource hono/jsx */
 import type { Child, FC, PropsWithChildren } from 'hono/jsx';
 import type { JobStatus } from '@prisma/client';
-import { fitTone, statusLabel, statusTone, type Tone } from './format';
+import { fitTone, fitWord, statusLabel, statusTone, type Tone } from './format';
 import type { FlashKind, FlashMessage } from './flash';
 import { hideCellsClass, hideHeaderClass, type HideBelow } from './table-hide';
 import { TOKENS, hex } from './tokens';
@@ -422,8 +422,16 @@ export const StatusBadge: FC<{ status: JobStatus }> = ({ status }) => (
   </Badge>
 );
 
-/** Fit score as number + meter, so the value reads without colour. */
-export const FitBadge: FC<{ score: number | null; label?: string }> = ({ score, label = 'fit' }) => {
+/**
+ * Fit score as number + meter, so the value reads without colour. `worded`
+ * adds the floor's word ("72 Good") where there is room for it — a job page's
+ * header, not a table cell.
+ */
+export const FitBadge: FC<{ score: number | null; label?: string; worded?: boolean }> = ({
+  score,
+  label = 'fit',
+  worded = false,
+}) => {
   if (score == null) return <span class="text-ink-faint">—</span>;
   const tone = fitTone(score);
   return (
@@ -431,7 +439,10 @@ export const FitBadge: FC<{ score: number | null; label?: string }> = ({ score, 
       class="inline-flex items-center gap-1.5 whitespace-nowrap"
       title={`${label} ${score}/100`}
     >
-      <span class={`text-sm font-medium tabular-nums ${TONE_TEXT[tone]}`}>{score}</span>
+      <span class={`text-sm font-medium tabular-nums ${TONE_TEXT[tone]}`}>
+        {score}
+        {worded && <span class="ml-1.5">{fitWord(score)}</span>}
+      </span>
       <span class="h-1.5 w-9 shrink-0 overflow-hidden rounded-full bg-line" aria-hidden="true">
         <span
           class={`block h-full rounded-full ${TONE_FILL[tone]}`}
