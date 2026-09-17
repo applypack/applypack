@@ -365,6 +365,20 @@ null renders an em dash.
   drawer behind a hamburger bar.
 - **Filter segments:** the same idiom inline — 13px bordered pills where active
   gets strong-hairline border + overlay fill, inactive is borderless muted ink.
+- **Tabs (`Tabs`):** views of one list as a row of 13px links on a hairline;
+  the current one carries a 2px emerald-strong underline, 500 weight and
+  `aria-current="page"`, and a faint tabular count says what the tab would
+  show. Never a pill — a tab must not read as a filter or a status.
+- **Disclosure (`Disclosure`):** native `<details>`, no JavaScript. `button`
+  is a secondary button with an emerald count chip and a chevron that turns
+  when open (a toolbar's "Filters"); `quiet` is a 13px muted line under a
+  control.
+- **Filter options (the Jobs panel):** 6px-radius links on the overlay surface
+  with a faint count; a chosen one is a 10% emerald tint with emerald-strong
+  500 text and a drawn check — never colour alone.
+- **Filter chip (`FilterChip`):** a criterion in force, above the table: 6px
+  radius, 10% emerald tint, 30% emerald border, a drawn ✕. The whole chip is
+  the link that lifts it (`aria-label="Remove filter: …"`).
 
 ### System Feedback
 - **Flash:** rounded 6px banner, 25% tone border, 5% tone fill, tone text, with

@@ -2367,11 +2367,14 @@ it moves. Stage 0 carries no tag; the others are a minor each.
       `/screen/1`) with the 375 px pass; the served HTML equals `main`'s
       once `data-ui` is removed. `docs/ui-redesign/shoot.js` takes the rows
       and the screenshots from here on.
-- [ ] **`jobs-filter-panel`** — `/jobs` `aboveTable` 30 → ≤ 14. Toolbar, a
+- [x] **`jobs-filter-panel`** — v2.11.0. `/jobs` `aboveTable` 30 → 12 (16
+      with three filters in force; ≤ 14 / ≤ 19 asked). Toolbar, a
       **Filters (n)** disclosure (`panel=1` keeps it open), status tabs with
       counts, an active-filter row; `Disclosure`, `FilterChip`, `Tabs` in
       `ui.tsx`; `jobsHref` / `activeFilters` / `filterCount` pure and tested
-      in `job-facets.ts`. Five URLs return the same totals before and after.
+      in `job-facets.ts`. Eight URLs return the same totals and the same
+      rows before and after; the route smoke requests `/jobs` under every
+      filter at once.
 - [ ] **`dashboard-tokens`** — `src/web/tokens.ts` + a contrast test over
       every text-on-surface pair; new values under the old names,
       `surface-selected`; the named type sizes (`title` 26, `section` 18,

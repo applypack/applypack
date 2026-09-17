@@ -187,7 +187,7 @@ src/
   location-corpus.json         ← every stored location string on 2026-09-03 with its pinned reading (a test)
   jobs/location-merge.ts       ← the classifier's place may only narrow the parser's (pure, ADR 0032)
   jobs/location-reason.ts      ← "open to Poland; this search hunts in …" for the job page (pure, ADR 0032)
-  web/job-facets.ts            ← /jobs place / workplace / posted facets: params, where, chip counts (pure)
+  web/job-facets.ts            ← /jobs place / workplace / posted facets: params, where, chip counts; the list's URLs (jobsHref), the filters in force (pure)
   web/public/countries.mjs     ← country picker: search over /countries.json + the suggestion list (tested via import())
   screening/                   ← employer mode (TASKS §19, ADR 0047–0049); web-only, off by default
     rubric.ts                  ← pure: what a screening checks, drafted from the posting brief, edited by the person

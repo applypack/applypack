@@ -119,6 +119,11 @@ const ListQuerySchema = z.object({
     .string()
     .optional()
     .transform((v) => (v === '1' ? '1' : '')),
+  // Set by the links inside the filter panel: the page they load keeps it open.
+  panel: z
+    .string()
+    .optional()
+    .transform((v) => (v === '1' ? '1' : '')),
   // ADR 0028: narrow the list to one search. Empty = every search.
   profile: z.coerce.number().int().positive().optional().catch(undefined),
   // ADR 0031: the facets. Unknown values are dropped, never rejected.
@@ -149,11 +154,12 @@ jobsRoute.get('/jobs', async (c) => {
     posted: c.req.query('posted'),
     open: c.req.query('open'),
     watched: c.req.query('watched'),
+    panel: c.req.query('panel'),
   });
   if (!parsed.success) {
     return c.text('Invalid query', 400);
   }
-  const { page, status, minFit, q, sort, verified, profile, country, workplace, posted, open, watched } = parsed.data;
+  const { page, status, minFit, q, sort, verified, profile, country, workplace, posted, open, watched, panel } = parsed.data;
   const now = new Date();
 
   const where: Prisma.JobWhereInput = {};
@@ -201,10 +207,12 @@ jobsRoute.get('/jobs', async (c) => {
   if (place) facetAnd.push(place);
   if (workplace.length > 0) facetAnd.push({ workplace: { in: workplace } });
   if (facetAnd.length > 0) where.AND = facetAnd;
+  // A status tab's count is what the tab would show: every filter but the status itself.
+  const { status: _status, ...anyStatusWhere } = where;
 
   const orderBy = sortToOrderBy(sort);
 
-  const [jobs, total, facetRows, activeProfile, activeProfiles] = await Promise.all([
+  const [jobs, facetRows, statusGroups, activeProfile, activeProfiles] = await Promise.all([
     prisma.job.findMany({
       where,
       orderBy,
@@ -241,14 +249,19 @@ jobsRoute.get('/jobs', async (c) => {
         ...(profile && { scores: { where: { profileId: profile }, take: 1, select: { fitScore: true } } }),
       },
     }),
-    prisma.job.count({ where }),
     prisma.job.findMany({
       where: facetWhere,
       select: { countries: true, regions: true, workplace: true, postedAt: true },
     }),
+    prisma.job.groupBy({ by: ['status'], where: anyStatusWhere, _count: { _all: true } }),
     getActiveProfile(),
     listActiveProfiles(),
   ]);
+  // The list's own total is one of those counts (or their sum), so it costs no query of its own.
+  const statusCounts: Partial<Record<JobStatus, number>> = Object.fromEntries(statusGroups.map((g) => [g.status, g._count._all]));
+  const total = status
+    ? (statusCounts[status as JobStatus] ?? 0)
+    : statusGroups.reduce((sum, g) => sum + g._count._all, 0);
 
   return c.html(
     <JobsListPage
@@ -269,6 +282,8 @@ jobsRoute.get('/jobs', async (c) => {
         workplace: workplace.map((w) => w.toLowerCase()),
         posted,
       }}
+      panelOpen={panel === '1'}
+      statusCounts={statusCounts}
       facets={tallyFacets(facetRows, { places: country, workplaces: workplace, posted }, now)}
       profiles={activeProfiles.map((p) => ({ id: p.id, name: p.name }))}
       blankProfileBanner={activeProfile !== null && isBlankProfile(activeProfile)}

@@ -1,24 +1,38 @@
 /** @jsxImportSource hono/jsx */
-import type { FC } from 'hono/jsx';
+import type { FC, PropsWithChildren } from 'hono/jsx';
 import type { JobStatus } from '@prisma/client';
 import { Layout } from '../layout';
 import {
   Badge,
   Button,
   Card,
+  Disclosure,
+  FilterChip,
   FitBadge,
   Input,
+  MarkIcon,
   PageHeader,
   Select,
   StatusBadge,
   Table,
+  Tabs,
   Td,
   Tr,
 } from '../ui';
 import { formatDateShort, formatRelative, formatSalary } from '../format';
 import { formatUsdPerYear } from '../../currency';
 import { flagOf } from '../../countries';
-import { splitPlaces, toggled, type FacetChip, type FacetChips } from '../job-facets';
+import {
+  activeFilters,
+  clearFiltersHref,
+  filterCount,
+  jobsHref,
+  splitPlaces,
+  toggled,
+  type FacetChip,
+  type FacetChips,
+  type JobsFilters,
+} from '../job-facets';
 import { AdzunaLabel, FranceTravailLine } from './attribution';
 import { VERDICT_TONE } from './verification-card';
 
@@ -50,23 +64,11 @@ export interface JobsListProps {
   total: number;
   page: number;
   pageSize: number;
-  filters: {
-    status: string;
-    minFit: string;
-    q: string;
-    sort: string;
-    verified: string;
-    /** '1' = only companies on the watchlist (ADR 0036). */
-    watched: string;
-    /** ADR 0033: "1" = only rows a search of mine can take. */
-    open: string;
-    /** Which search the list is narrowed to; null = all of them. */
-    profile: number | null;
-    /** ADR 0031 facets: place values (codes or "unknown"), workplace values, posted window. */
-    country: string[];
-    workplace: string[];
-    posted: string;
-  };
+  filters: JobsFilters;
+  /** The filter panel renders open: the request came from a link inside it. */
+  panelOpen: boolean;
+  /** Jobs per status under every other filter in force — what each tab would show. */
+  statusCounts: Partial<Record<JobStatus, number>>;
   /** Chips with counts for the three facets (ADR 0031). */
   facets: FacetChips;
   /** Every running search — one chip each (ADR 0028). */
@@ -75,7 +77,7 @@ export interface JobsListProps {
   blankProfileBanner?: boolean;
 }
 
-const STATUS_OPTIONS: { value: string; label: string }[] = [
+const STATUS_TABS: { value: JobStatus | ''; label: string }[] = [
   { value: '', label: 'All' },
   { value: 'NEW', label: 'New' },
   { value: 'ALERTED', label: 'Alerted' },
@@ -99,22 +101,19 @@ export const JobsListPage: FC<JobsListProps> = ({
   page,
   pageSize,
   filters,
+  panelOpen,
+  statusCounts,
   blankProfileBanner,
 }) => {
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const from = total === 0 ? 0 : (page - 1) * pageSize + 1;
   const to = Math.min(total, page * pageSize);
-  const pageHref = (p: number) => buildQuery({ ...filters, page: p });
-  const hasFilters =
-    filters.q.length > 0 ||
-    filters.status.length > 0 ||
-    filters.minFit.length > 0 ||
-    filters.verified.length > 0 ||
-    filters.watched.length > 0 ||
-    filters.country.length > 0 ||
-    filters.workplace.length > 0 ||
-    filters.posted.length > 0;
+  const active = activeFilters(filters, profiles);
+  const hasFilters = active.length > 0 || filters.q.length > 0 || filters.status.length > 0 || filters.minFit.length > 0;
   const places = splitPlaces(facets.places);
+  // A link inside the panel keeps it open on the page it loads.
+  const inPanel = (next: Partial<JobsFilters>) => jobsHref({ ...filters, ...next }, { panel: true });
+  const allStatuses = Object.values(statusCounts).reduce((sum, n) => sum + n, 0);
 
   return (
     <Layout title="Jobs" active="jobs" fill>
@@ -139,137 +138,8 @@ export const JobsListPage: FC<JobsListProps> = ({
         </div>
       )}
 
-      {profiles.length > 1 && (
-        <nav
-          aria-label="Filter by search"
-          class="mb-3 flex shrink-0 flex-wrap items-center gap-1"
-        >
-          <span class="mr-1 text-xs font-medium uppercase tracking-wide text-ink-faint">
-            Search
-          </span>
-          {[{ id: null as number | null, name: 'All' }, ...profiles].map((p) => {
-            const on = filters.profile === p.id;
-            return (
-              <a
-                href={buildQuery({ ...filters, profile: p.id ?? '', page: 1 })}
-                aria-current={on ? 'true' : undefined}
-                class={`rounded-full border px-3 py-1 text-[13px] transition-colors duration-150 ${
-                  on
-                    ? 'border-accent/40 bg-accent/10 font-medium text-accent-strong'
-                    : 'border-line text-ink-muted hover:bg-surface-overlay/70 hover:text-ink'
-                }`}
-              >
-                {p.name}
-              </a>
-            );
-          })}
-        </nav>
-      )}
-
-      {facets.places.length > 0 && (
-      <nav aria-label="Filter by place" class="mb-2 flex shrink-0 flex-wrap items-center gap-1">
-        <span class="mr-1 text-xs font-medium uppercase tracking-wide text-ink-faint">Where</span>
-        {places.shown.map((c) => (
-          <FacetLink
-            href={buildQuery({ ...filters, country: toggled(filters.country, c.value), page: 1 })}
-            chip={c}
-          />
-        ))}
-        {places.more.length > 0 && (
-          <details class="contents">
-            <summary class="cursor-pointer rounded-full border border-transparent px-2.5 py-1 text-[13px] text-ink-faint hover:text-ink [&::-webkit-details-marker]:hidden">
-              More…
-            </summary>
-            {places.more.map((c) => (
-              <FacetLink
-                href={buildQuery({ ...filters, country: toggled(filters.country, c.value), page: 1 })}
-                chip={c}
-              />
-            ))}
-          </details>
-        )}
-      </nav>
-      )}
-
-      <div class="mb-4 flex shrink-0 flex-wrap items-center gap-x-4 gap-y-2">
-        <nav aria-label="Filter by workplace" class="flex flex-wrap items-center gap-1">
-          <span class="mr-1 text-xs font-medium uppercase tracking-wide text-ink-faint">Work</span>
-          {facets.workplaces.map((c) => (
-            <FacetLink
-              href={buildQuery({ ...filters, workplace: toggled(filters.workplace, c.value), page: 1 })}
-              chip={c}
-            />
-          ))}
-        </nav>
-        <nav aria-label="Filter by posting date" class="flex flex-wrap items-center gap-1">
-          <span class="mr-1 text-xs font-medium uppercase tracking-wide text-ink-faint">Posted</span>
-          {facets.posted.map((c) => (
-            <FacetLink
-              href={buildQuery({ ...filters, posted: c.selected ? '' : c.value, page: 1 })}
-              chip={c}
-            />
-          ))}
-        </nav>
-      </div>
-
-      <div class="mb-4 flex shrink-0 flex-wrap items-center gap-x-4 gap-y-2">
-        <nav aria-label="Job filters" class="flex flex-wrap items-center gap-1">
-          {STATUS_OPTIONS.map((o) => {
-            const active = filters.status === o.value;
-            return (
-              <a
-                href={buildQuery({ ...filters, status: o.value })}
-                aria-current={active ? 'true' : undefined}
-                class={`rounded-md border px-2.5 py-1 text-[13px] transition-colors duration-150 ${
-                  active
-                    ? 'border-line-strong bg-surface-overlay font-medium text-ink'
-                    : 'border-transparent text-ink-muted hover:bg-surface-overlay/70 hover:text-ink'
-                }`}
-              >
-                {o.label}
-              </a>
-            );
-          })}
-          <span class="mx-1 h-4 w-px bg-line" aria-hidden="true" />
-          <a
-            href={buildQuery({ ...filters, verified: filters.verified ? '' : '1' })}
-            aria-current={filters.verified ? 'true' : undefined}
-            title="Only jobs with an “Is this job real?” verdict"
-            class={`rounded-md border px-2.5 py-1 text-[13px] transition-colors duration-150 ${
-              filters.verified
-                ? 'border-line-strong bg-surface-overlay font-medium text-ink'
-                : 'border-transparent text-ink-muted hover:bg-surface-overlay/70 hover:text-ink'
-            }`}
-          >
-            Verified
-          </a>
-          <a
-            href={buildQuery({ ...filters, watched: filters.watched ? '' : '1', page: 1 })}
-            aria-current={filters.watched ? 'true' : undefined}
-            title="Only postings from companies on your watchlist"
-            class={`rounded-md border px-2.5 py-1 text-[13px] transition-colors duration-150 ${
-              filters.watched
-                ? 'border-line-strong bg-surface-overlay font-medium text-ink'
-                : 'border-transparent text-ink-muted hover:bg-surface-overlay/70 hover:text-ink'
-            }`}
-          >
-            ★ Watched
-          </a>
-          <a
-            href={buildQuery({ ...filters, open: filters.open ? '' : '1', page: 1 })}
-            aria-current={filters.open ? 'true' : undefined}
-            title="Only roles a search of yours can take from where you live"
-            class={`rounded-md border px-2.5 py-1 text-[13px] transition-colors duration-150 ${
-              filters.open
-                ? 'border-line-strong bg-surface-overlay font-medium text-ink'
-                : 'border-transparent text-ink-muted hover:bg-surface-overlay/70 hover:text-ink'
-            }`}
-          >
-            Open to me
-          </a>
-        </nav>
-
-        <form method="get" action="/jobs" class="ml-auto flex flex-wrap items-center gap-2">
+      <div class="mb-3 flex shrink-0 flex-wrap items-center gap-2">
+        <form method="get" action="/jobs" class="flex w-full flex-wrap items-center gap-2 sm:w-auto">
           <input type="hidden" name="status" value={filters.status} />
           <input type="hidden" name="verified" value={filters.verified} />
           <input type="hidden" name="profile" value={filters.profile ?? ''} />
@@ -284,7 +154,7 @@ export const JobsListPage: FC<JobsListProps> = ({
             value={filters.q}
             placeholder="Search title, description or location…"
             aria-label="Search jobs"
-            class="!w-56"
+            class="sm:!w-56 xl:!w-72"
           />
           <Input
             type="number"
@@ -294,9 +164,9 @@ export const JobsListPage: FC<JobsListProps> = ({
             value={filters.minFit}
             placeholder="Fit ≥"
             aria-label="Minimum fit score"
-            class="!w-24"
+            class="!w-20 sm:!w-24"
           />
-          <Select name="sort" aria-label="Sort by" class="!w-44">
+          <Select name="sort" aria-label="Sort by" class="!w-auto min-w-0 flex-1 sm:!w-44 sm:flex-none">
             {SORT_OPTIONS.map((o) => (
               <option value={o.value} selected={filters.sort === o.value}>
                 {o.label}
@@ -305,7 +175,100 @@ export const JobsListPage: FC<JobsListProps> = ({
           </Select>
           <Button variant="secondary">Apply</Button>
         </form>
+
+        {/* Apply sends the form; Filters are links that act at once — the rule keeps the two apart.
+            From lg the row holds both; below it the button wraps and a rule would hang alone. */}
+        <span class="mx-1 hidden h-5 w-px bg-line lg:block" aria-hidden="true" />
+        {/* `contents`: the button shares the toolbar's row, the panel wraps below it. */}
+        <Disclosure variant="button" summary="Filters" count={filterCount(filters)} open={panelOpen} class="contents">
+          <div class="order-last grid basis-full gap-x-4 gap-y-3 rounded-lg border border-line bg-surface-raised p-4 shadow-sm sm:grid-cols-[5rem_minmax(0,1fr)]">
+            {profiles.length > 1 && (
+              <FilterRow label="Search">
+                {[{ id: null as number | null, name: 'All' }, ...profiles].map((p) => (
+                  <OptionLink href={inPanel({ profile: p.id })} selected={filters.profile === p.id}>
+                    {p.name}
+                  </OptionLink>
+                ))}
+              </FilterRow>
+            )}
+            {facets.places.length > 0 && (
+              <FilterRow label="Where">
+                {places.shown.map((c) => (
+                  <FacetLink href={inPanel({ country: toggled(filters.country, c.value) })} chip={c} />
+                ))}
+                {places.more.length > 0 && (
+                  <details class="contents">
+                    <summary class="inline-flex min-h-[28px] cursor-pointer list-none items-center rounded-md px-2 text-[13px] text-ink-muted underline-offset-2 hover:text-ink hover:underline [&::-webkit-details-marker]:hidden">
+                      More…
+                    </summary>
+                    {places.more.map((c) => (
+                      <FacetLink href={inPanel({ country: toggled(filters.country, c.value) })} chip={c} />
+                    ))}
+                  </details>
+                )}
+              </FilterRow>
+            )}
+            <FilterRow label="Work">
+              {facets.workplaces.map((c) => (
+                <FacetLink href={inPanel({ workplace: toggled(filters.workplace, c.value) })} chip={c} />
+              ))}
+            </FilterRow>
+            <FilterRow label="Posted">
+              {facets.posted.map((c) => (
+                <FacetLink href={inPanel({ posted: c.selected ? '' : c.value })} chip={c} />
+              ))}
+            </FilterRow>
+            <FilterRow label="Show">
+              <OptionLink
+                href={inPanel({ verified: filters.verified ? '' : '1' })}
+                selected={filters.verified.length > 0}
+                title="Only jobs with an “Is this job real?” verdict"
+              >
+                Verified
+              </OptionLink>
+              <OptionLink
+                href={inPanel({ watched: filters.watched ? '' : '1' })}
+                selected={filters.watched.length > 0}
+                title="Only postings from companies on your watchlist"
+              >
+                ★ Watched
+              </OptionLink>
+              <OptionLink
+                href={inPanel({ open: filters.open ? '' : '1' })}
+                selected={filters.open.length > 0}
+                title="Only roles a search of yours can take from where you live"
+              >
+                Open to me
+              </OptionLink>
+            </FilterRow>
+          </div>
+        </Disclosure>
       </div>
+
+      <Tabs
+        label="Job status"
+        class="mb-3 shrink-0"
+        tabs={STATUS_TABS.map((t) => ({
+          href: jobsHref({ ...filters, status: t.value }),
+          label: t.label,
+          count: t.value === '' ? allStatuses : (statusCounts[t.value] ?? 0),
+          current: filters.status === t.value,
+        }))}
+      />
+
+      {active.length > 0 && (
+        <div class="mb-3 flex shrink-0 flex-wrap items-center gap-1.5">
+          {active.map((f) => (
+            <FilterChip label={f.label} flag={f.flag} href={f.href} />
+          ))}
+          <a
+            href={clearFiltersHref(filters)}
+            class="ml-1 text-[13px] text-ink-muted underline-offset-2 transition-colors duration-150 hover:text-ink hover:underline"
+          >
+            Clear all
+          </a>
+        </div>
+      )}
 
       <div class="flex min-h-[320px] min-w-0 flex-1 flex-col">
         <Card flush class="flex min-h-0 flex-1 flex-col">
@@ -438,10 +401,10 @@ export const JobsListPage: FC<JobsListProps> = ({
                   <span class="hidden text-[13px] text-ink-faint tabular-nums md:inline">
                     Page {page} of {totalPages}
                   </span>
-                  <PageLink href={pageHref(page - 1)} disabled={page <= 1}>
+                  <PageLink href={jobsHref(filters, { page: page - 1 })} disabled={page <= 1}>
                     ← Prev
                   </PageLink>
-                  <PageLink href={pageHref(page + 1)} disabled={page >= totalPages}>
+                  <PageLink href={jobsHref(filters, { page: page + 1 })} disabled={page >= totalPages}>
                     Next →
                   </PageLink>
                 </div>
@@ -454,21 +417,54 @@ export const JobsListPage: FC<JobsListProps> = ({
   );
 };
 
-/** One facet chip: a link that toggles its value; the count reads without colour. */
-const FacetLink: FC<{ href: string; chip: FacetChip }> = ({ href, chip }) => (
+/** One line of the filter panel: what it narrows by, then the options — a group named by its visible label. */
+const FilterRow: FC<PropsWithChildren<{ label: string }>> = ({ label, children }) => {
+  const id = `filter-${label.toLowerCase()}`;
+  return (
+    <>
+      <div id={id} class="pt-1 text-[13px] font-medium text-ink-muted">
+        {label}
+      </div>
+      <div role="group" aria-labelledby={id} class="flex flex-wrap items-center gap-1.5">
+        {children}
+      </div>
+    </>
+  );
+};
+
+/**
+ * An option of the filter panel: a link that toggles its value. Square and on
+ * the subtle surface, so it reads as neither a status pill nor a tab; a chosen
+ * one is tinted, heavier and carries a drawn check — never colour alone.
+ */
+const OptionLink: FC<PropsWithChildren<{ href: string; selected: boolean; title?: string }>> = ({
+  href,
+  selected,
+  title,
+  children,
+}) => (
   <a
     href={href}
-    aria-current={chip.selected ? 'true' : undefined}
-    class={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[13px] transition-colors duration-150 ${
-      chip.selected
-        ? 'border-accent/40 bg-accent/10 font-medium text-accent-strong'
-        : 'border-line text-ink-muted hover:bg-surface-overlay/70 hover:text-ink'
+    title={title}
+    aria-current={selected ? 'true' : undefined}
+    class={`inline-flex min-h-[28px] items-center gap-1.5 rounded-md px-2 py-0.5 text-[13px] transition-colors duration-150 ${
+      selected
+        ? 'bg-accent/10 font-medium text-accent-strong'
+        : 'bg-surface-overlay text-ink-muted hover:text-ink'
     }`}
   >
+    {selected && <MarkIcon kind="check" class="!h-3 !w-3" />}
+    {children}
+  </a>
+);
+
+/** A facet's option: flag, label, and the count that reads without colour. */
+const FacetLink: FC<{ href: string; chip: FacetChip }> = ({ href, chip }) => (
+  <OptionLink href={href} selected={chip.selected}>
     {chip.flag && <span aria-hidden="true">{chip.flag}</span>}
     {chip.label}
-    <span class="tabular-nums text-ink-faint">{chip.count}</span>
-  </a>
+    <span class={`tabular-nums font-normal ${chip.selected ? '' : 'text-ink-faint'}`}>{chip.count}</span>
+  </OptionLink>
 );
 
 const PageLink: FC<{ href: string; disabled: boolean; children: string }> = ({
@@ -497,17 +493,4 @@ function salaryTitle(j: { salaryMin: number | null; salaryMax: number | null; sa
   const own = formatSalary(j.salaryMin, j.salaryMax, j.salaryCurrency, j.salaryPeriod);
   const usd = formatUsdPerYear(j.salaryMin, j.salaryMax, j.salaryCurrency, j.salaryPeriod);
   return usd ? `${own} (${usd})` : own;
-}
-
-function buildQuery(params: Record<string, string | number | string[] | null>): string {
-  const usp = new URLSearchParams();
-  for (const [k, v] of Object.entries(params)) {
-    if (v === null) continue;
-    const s = Array.isArray(v) ? v.join(',') : String(v);
-    if (s.length === 0) continue;
-    if (k === 'page' && s === '1') continue;
-    usp.set(k, s);
-  }
-  const qs = usp.toString();
-  return qs ? `/jobs?${qs}` : '/jobs';
 }

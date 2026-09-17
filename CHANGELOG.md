@@ -4,6 +4,25 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.11.0] — 2026-09-17
+
+### Changed
+- **The Jobs page leads with its table.** The three rows of place, workplace
+  and posted chips, the search chips and Verified / ★ Watched / Open to me
+  moved into one **Filters** panel beside the search form; the button says how
+  many are set. Thirty controls stood above the table before, twelve now —
+  sixteen with three filters in force. Nothing filters differently: the same
+  URLs return the same rows.
+- Status is a row of tabs with counts — All, New, Alerted, Applied, Saved,
+  Dismissed — and a tab's number is what it would show under the filters in
+  force.
+- Every filter in force sits above the table as a chip with a ✕ that lifts
+  it, and **Clear all** lifts them together; the search text, the fit floor,
+  the sort and the status stay.
+- The panel is a native `<details>`: it works without JavaScript, toggles on
+  Enter and Space, and stays open while you pick inside it (`panel=1` rides on
+  its own links only).
+
 ## [2.10.0] — 2026-09-16
 
 ### Added
@@ -3680,6 +3699,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.11.0]: https://github.com/applypack/applypack/compare/v2.10.0...v2.11.0
 [2.10.0]: https://github.com/applypack/applypack/compare/v2.9.4...v2.10.0
 [2.9.4]: https://github.com/applypack/applypack/compare/v2.9.3...v2.9.4
 [2.9.3]: https://github.com/applypack/applypack/compare/v2.9.2...v2.9.3

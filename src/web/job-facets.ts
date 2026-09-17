@@ -167,6 +167,102 @@ export function toggled(selected: readonly string[], value: string): string[] {
   return selected.includes(value) ? selected.filter((v) => v !== value) : [...selected, value];
 }
 
+/**
+ * Everything /jobs can be narrowed by, as the page holds it and its links
+ * carry it. `workplace` is the lower-case query form.
+ */
+export interface JobsFilters {
+  status: string;
+  minFit: string;
+  q: string;
+  sort: string;
+  verified: string;
+  /** '1' = only companies on the watchlist (ADR 0036). */
+  watched: string;
+  /** ADR 0033: '1' = only rows a search of mine can take. */
+  open: string;
+  /** Which search the list is narrowed to; null = all of them. */
+  profile: number | null;
+  /** ADR 0031 facets: place values (codes or "unknown"), workplace values, posted window. */
+  country: string[];
+  workplace: string[];
+  posted: string;
+}
+
+/**
+ * A /jobs URL for these filters. Empty values and page 1 stay out of it;
+ * `panel` is set only by the links inside the filter panel, so the page they
+ * load renders it open (a <details> closes on every navigation).
+ */
+export function jobsHref(filters: JobsFilters, extra: { page?: number; panel?: boolean } = {}): string {
+  const usp = new URLSearchParams();
+  const params: Record<string, string | number | string[] | null> = {
+    ...filters,
+    page: extra.page ?? 1,
+    panel: extra.panel ? '1' : '',
+  };
+  for (const [k, v] of Object.entries(params)) {
+    const s = v === null ? '' : Array.isArray(v) ? v.join(',') : String(v);
+    if (s.length === 0 || (k === 'page' && s === '1')) continue;
+    usp.set(k, s);
+  }
+  const qs = usp.toString();
+  return qs ? `/jobs?${qs}` : '/jobs';
+}
+
+/** One active criterion in the row above the table: what it says, and the link that lifts it. */
+export interface ActiveFilter {
+  label: string;
+  flag: string;
+  href: string;
+}
+
+/**
+ * The filters the panel holds, one entry per selected value, in the panel's
+ * own order. Status, sort, `q` and the fit floor are not here: their controls
+ * are in plain sight and show their own state.
+ */
+export function activeFilters(filters: JobsFilters, profiles: { id: number; name: string }[]): ActiveFilter[] {
+  const out: ActiveFilter[] = [];
+  const add = (label: string, flag: string, without: Partial<JobsFilters>) =>
+    out.push({ label, flag, href: jobsHref({ ...filters, ...without }) });
+
+  if (filters.profile !== null) {
+    const name = profiles.find((p) => p.id === filters.profile)?.name ?? `#${filters.profile}`;
+    add(`Search: ${name}`, '', { profile: null });
+  }
+  for (const value of filters.country) {
+    const unknown = value === UNKNOWN_PLACE;
+    add(unknown ? 'Place unknown' : placeLabel(value), unknown ? '' : flagOf(value), { country: toggled(filters.country, value) });
+  }
+  for (const value of filters.workplace) {
+    const code = value.toUpperCase() as WorkplaceCode;
+    add(code === 'UNKNOWN' ? 'Workplace unknown' : (WORKPLACE_LABEL[code] ?? value), '', {
+      workplace: toggled(filters.workplace, value),
+    });
+  }
+  if (filters.posted) add(`Posted: ${(POSTED_LABEL[filters.posted] ?? filters.posted).toLowerCase()}`, '', { posted: '' });
+  if (filters.verified) add('Verified', '', { verified: '' });
+  if (filters.watched) add('★ Watched', '', { watched: '' });
+  if (filters.open) add('Open to me', '', { open: '' });
+  return out;
+}
+
+/** How many values the panel holds — the number on its button. */
+export function filterCount(filters: JobsFilters): number {
+  return (
+    (filters.profile === null ? 0 : 1) +
+    filters.country.length +
+    filters.workplace.length +
+    [filters.posted, filters.verified, filters.watched, filters.open].filter((v) => v.length > 0).length
+  );
+}
+
+/** The list with every panel filter lifted; status, sort, `q` and the fit floor stay. */
+export function clearFiltersHref(filters: JobsFilters): string {
+  return jobsHref({ ...filters, profile: null, country: [], workplace: [], posted: '', verified: '', watched: '', open: '' });
+}
+
 function chip(value: string, count: number, selected: boolean): FacetChip {
   return {
     value,

@@ -3,6 +3,10 @@ import assert from 'node:assert/strict';
 import {
   TOP_PLACES,
   UNKNOWN_PLACE,
+  activeFilters,
+  clearFiltersHref,
+  filterCount,
+  jobsHref,
   parsePlaces,
   parsePosted,
   parseWorkplaces,
@@ -13,6 +17,7 @@ import {
   tallyFacets,
   toggled,
   type FacetRow,
+  type JobsFilters,
 } from './job-facets';
 
 const NOW = new Date('2026-09-03T12:00:00Z');
@@ -129,5 +134,104 @@ describe('chip helpers', () => {
   it('toggles a value in and out of a selection', () => {
     assert.deepEqual(toggled(['PL'], 'DE'), ['PL', 'DE']);
     assert.deepEqual(toggled(['PL', 'DE'], 'PL'), ['DE']);
+  });
+});
+
+const NONE: JobsFilters = {
+  status: '',
+  minFit: '',
+  q: '',
+  sort: 'fetchedAt_desc',
+  verified: '',
+  watched: '',
+  open: '',
+  profile: null,
+  country: [],
+  workplace: [],
+  posted: '',
+};
+const query = (href: string) => Object.fromEntries(new URL(href, 'http://x').searchParams);
+
+describe('jobsHref', () => {
+  it('leaves empty values and page 1 out', () => {
+    assert.equal(jobsHref({ ...NONE, sort: '' }), '/jobs');
+    assert.deepEqual(query(jobsHref(NONE)), { sort: 'fetchedAt_desc' });
+    assert.deepEqual(query(jobsHref(NONE, { page: 1 })), { sort: 'fetchedAt_desc' });
+    assert.equal(query(jobsHref(NONE, { page: 3 })).page, '3');
+  });
+
+  it('joins multi-value facets with commas, as the route reads them', () => {
+    const q = query(jobsHref({ ...NONE, country: ['US', 'EU', 'unknown'], workplace: ['remote', 'hybrid'], profile: 7 }));
+    assert.equal(q.country, 'US,EU,unknown');
+    assert.equal(q.workplace, 'remote,hybrid');
+    assert.equal(q.profile, '7');
+    assert.deepEqual(parsePlaces(q.country), ['US', 'EU', UNKNOWN_PLACE]);
+  });
+
+  it('carries panel=1 only when asked', () => {
+    assert.equal(query(jobsHref(NONE)).panel, undefined);
+    assert.equal(query(jobsHref({ ...NONE, posted: '7d' }, { panel: true })).panel, '1');
+  });
+});
+
+describe('the active-filter row', () => {
+  const ALL: JobsFilters = {
+    ...NONE,
+    status: 'ALERTED',
+    minFit: '70',
+    q: 'php',
+    profile: 2,
+    country: ['US', 'unknown'],
+    workplace: ['remote', 'unknown'],
+    posted: '7d',
+    verified: '1',
+    watched: '1',
+    open: '1',
+  };
+  const profiles = [{ id: 2, name: 'Laravel remote' }];
+
+  it('lists one entry per panel value, in the panel order, with flags on places', () => {
+    const rows = activeFilters(ALL, profiles);
+    assert.deepEqual(
+      rows.map((f) => f.label),
+      ['Search: Laravel remote', 'United States', 'Place unknown', 'Remote', 'Workplace unknown', 'Posted: last 7 days', 'Verified', '★ Watched', 'Open to me'],
+    );
+    assert.equal(rows[1]?.flag, '🇺🇸');
+    assert.equal(rows[2]?.flag, '');
+  });
+
+  it('each link lifts its own value and nothing else', () => {
+    const rows = activeFilters(ALL, profiles);
+    const byLabel = (label: string) => query(rows.find((f) => f.label === label)?.href ?? '');
+    assert.equal(byLabel('United States').country, 'unknown');
+    assert.equal(byLabel('Place unknown').country, 'US');
+    assert.equal(byLabel('Remote').workplace, 'unknown');
+    assert.equal(byLabel('Search: Laravel remote').profile, undefined);
+    assert.equal(byLabel('Posted: last 7 days').posted, undefined);
+    assert.equal(byLabel('Verified').verified, undefined);
+    for (const f of rows) {
+      const q = query(f.href);
+      assert.equal(q.status, 'ALERTED');
+      assert.equal(q.q, 'php');
+      assert.equal(q.minFit, '70');
+      assert.equal(q.panel, undefined);
+      assert.equal(q.page, undefined);
+    }
+    assert.equal(byLabel('Verified').watched, '1');
+  });
+
+  it('still offers a way out of a search that is no longer running', () => {
+    assert.deepEqual(activeFilters({ ...NONE, profile: 9 }, profiles).map((f) => f.label), ['Search: #9']);
+  });
+
+  it('counts what the panel holds, not the controls in plain sight', () => {
+    assert.equal(filterCount(NONE), 0);
+    assert.equal(filterCount({ ...NONE, status: 'NEW', q: 'php', minFit: '70', sort: 'title_asc' }), 0);
+    assert.equal(filterCount(ALL), activeFilters(ALL, profiles).length);
+    assert.equal(filterCount(ALL), 9);
+  });
+
+  it('clear-all lifts the panel and keeps status, search text, fit floor and sort', () => {
+    assert.deepEqual(query(clearFiltersHref(ALL)), { status: 'ALERTED', minFit: '70', q: 'php', sort: 'fetchedAt_desc' });
   });
 });
