@@ -37,8 +37,9 @@
   disclosure (filters, helper prose, inactive input modes, raw JSON behind
   native `<details>`, no JavaScript needed); a surface-first hierarchy and a
   real type ladder, delivered as new token *values* under the existing token
-  *names*; and six small primitives (`Disclosure`, `FilterChip`, `Tabs`,
-  `MetricStrip`, a card variant, a fuller `Empty`).
+  *names*; and four new primitives (`Disclosure`, `FilterChip`, `Tabs`,
+  `MetricStrip`) beside four changed ones (`Card`, `SectionTitle`, `Field`,
+  `Empty`).
 - **Two findings neither file had.** The current *Alerted* pill fails WCAG
   AA — amber `#B45309` on its own 10 % tint is 4.39:1, the danger pill
   4.15:1 (§1.2) — so the token change is a fix, not only taste. And the
@@ -246,7 +247,7 @@ says so and §3.3 below makes it a rule.
 | v2 §44 | Responsive | Present (icon rail, drawer, `table-hide.ts`). Every stage checks 768 and 375 | §4.2 |
 | v2 §45 | Dark mode | Later; stage 2's `tokens.ts` makes it a second value set plus one test | §6 |
 | v2 §46–47 | Motion, icons | Present (150 ms colour transitions, reduced motion, drawn Lucide paths) | — |
-| v2 §48–49 | Component inventory, tokens | Adapt: six new primitives, not forty | §3.4 |
+| v2 §48–49 | Component inventory, tokens | Adapt: four new primitives and four changed ones, not forty | §3.4 |
 | v2 §50–50E, C §1–4, §9, §27 | shadcn, TanStack, Recharts, MCP catalogues, dependency policy | Drop the stack; keep the policy (no new dependency) | — |
 | v2 §50F–50Y, C §10 | Backend-first, DTOs, pagination, virtualisation, state, memoisation | Drop: already true or not applicable (§1.1) | — |
 | v2 §50Z, §51, §56, C §22–24 | Migration order, measured criteria | Adopt, with a baseline stage and a number per PR | §4, §5 |
@@ -750,6 +751,7 @@ Paste this; it is the whole hand-over:
 
 ```text
 Прочитай CLAUDE.md, потім повністю docs/ui-redesign-plan.md і секцію 22 у docs/TASKS.md.
+Якщо цих файлів немає на main, план ще не змержено: скажи мені про це і зупинись.
 Виконай редизайн дашборда за цим планом автономно, стадія за стадією, починаючи з першої
 непозначеної стадії в TASKS §22.
 
