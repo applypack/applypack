@@ -4,6 +4,32 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.16.0] — 2026-09-17
+
+### Changed
+- **Companies shows its companies.** The table stood last on a 2 800 px page,
+  after seven other blocks; it is now the first thing under the header (and
+  under your watchlist and any quiet sources). The four ways to add to it —
+  *Watch specific companies*, *Add a starter pack*, *Add one company*,
+  *Sources for your searches* — are buttons under **Add sources** that open on
+  demand, and stand open while the list is still empty.
+- The setup wizard says less per step — a third to two thirds fewer words of
+  helper text — and what each starter pack holds is one press away. What a
+  step costs, what is saved and when, and that boards arrive switched off are
+  still in sight.
+- Discovery's two switches carry one sentence each, the rest behind "How this
+  works".
+
+### Fixed
+- A long feed query (`primary_keyword=PHP&employment=remote&region=UKR`)
+  pushed **Active** and **Delete** out of a 1440 px window, behind a sideways
+  scroll inside the table's card; tokens truncate now, with the full value on
+  hover.
+- A company's on/off badge was a button named "Toggle"; it now says "Disable
+  Himalayas".
+- A panel that opens under a row of buttons takes the full row in browsers
+  that wrap a `<details>` body in `::details-content`.
+
 ## [2.15.0] — 2026-09-17
 
 ### Changed
@@ -3784,6 +3810,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.16.0]: https://github.com/applypack/applypack/compare/v2.15.0...v2.16.0
 [2.15.0]: https://github.com/applypack/applypack/compare/v2.14.0...v2.15.0
 [2.14.0]: https://github.com/applypack/applypack/compare/v2.13.0...v2.14.0
 [2.13.0]: https://github.com/applypack/applypack/compare/v2.12.0...v2.13.0
