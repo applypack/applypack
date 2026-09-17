@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import dotenv from 'dotenv';
 import { dataDirFor, localPaths } from './data-dir';
-import { LocalDatabaseError, commandLineOf, portIsFree, startLocalDatabase, type LocalDatabase } from './postgres';
+import { LocalDatabaseError, commandLineOf, databaseAnswers, portIsFree, startLocalDatabase, type LocalDatabase } from './postgres';
 import { firstLinePid } from './postgres-setup';
 import { MAX_RESTARTS, isLauncherCommand, isLauncherMessage, restartDecision, type LauncherMessage } from './supervise';
 
@@ -70,6 +70,14 @@ async function run(databaseOnly: boolean, dataDir: string, paths: Paths): Promis
   if (!databaseOnly && !(await portIsFree(dashboardPort(), process.env.WEB_HOST?.trim() || '127.0.0.1'))) {
     releaseLock(paths);
     fail(`Port ${dashboardPort()} is taken by another program. Set WEB_PORT in .env to a free one, for example WEB_PORT=${dashboardPort() + 1}.`);
+  }
+  if (ownDatabase) {
+    // Every .env copied from the old .env.example points at localhost:5432.
+    const { answers, where } = await databaseAnswers(ownDatabase);
+    if (!answers) {
+      releaseLock(paths);
+      fail(`DATABASE_URL in .env points at ${where}, and nothing answers there. Start that Postgres, or delete the DATABASE_URL line from .env to use ApplyPack's built-in database.`);
+    }
   }
   const firstRun = !ownDatabase && !fs.existsSync(path.join(paths.pgdata, 'PG_VERSION'));
 
@@ -168,15 +176,28 @@ async function run(databaseOnly: boolean, dataDir: string, paths: Paths): Promis
   if (firstRun && !databaseOnly) openBrowser(url);
 }
 
-/** One launcher per data folder: a second `npm start` would otherwise stop the first one's database. */
+/**
+ * One launcher per data folder: a second `npm start` would otherwise stop the
+ * first one's database. Created exclusively, so two starts in the same second
+ * cannot both win; a lock whose PID is no launcher is what a killed run left.
+ */
 async function takeLock(paths: Paths): Promise<void> {
-  const pid = firstLinePid(readText(paths.lock));
-  if (pid !== null && pid !== process.pid && isLauncherCommand(await commandLineOf(pid))) {
-    say(`ApplyPack is already running → ${dashboardUrl()}`);
-    say('Stop it with npm run stop, or Ctrl+C in its terminal.');
-    process.exit(0);
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      fs.writeFileSync(paths.lock, `${process.pid}\n`, { flag: 'wx' });
+      return;
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code !== 'EEXIST') throw err;
+    }
+    const pid = firstLinePid(readText(paths.lock));
+    if (pid !== null && pid !== process.pid && isLauncherCommand(await commandLineOf(pid))) {
+      say(`ApplyPack is already running → ${dashboardUrl()}`);
+      say('Stop it with npm run stop, or Ctrl+C in its terminal.');
+      process.exit(0);
+    }
+    fs.rmSync(paths.lock, { force: true });
   }
-  fs.writeFileSync(paths.lock, `${process.pid}\n`);
+  fail(`Could not take ${paths.lock}. Is another ApplyPack starting right now?`);
 }
 
 function releaseLock(paths: Paths): void {
@@ -232,7 +253,7 @@ function openBrowser(url: string): void {
   if (process.env.CI || process.env.APPLYPACK_NO_OPEN) return;
   const [command, args]: [string, string[]] =
     process.platform === 'darwin' ? ['open', [url]]
-    : process.platform === 'win32' ? ['cmd', ['/c', 'start', '', url]]
+    : process.platform === 'win32' ? ['explorer.exe', [url]]
     : ['xdg-open', [url]];
   const opener = spawn(command, args, { stdio: 'ignore', detached: true, windowsHide: true });
   opener.on('error', () => undefined);

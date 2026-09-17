@@ -30,6 +30,8 @@ const execFileAsync = promisify(execFile);
 const PASSWORD_BYTES = 32;
 const LOG_LINES_ON_FAILURE = 15;
 const COMMAND_LOOKUP_TIMEOUT_MS = 15_000;
+const REACH_TIMEOUT_MS = 5_000;
+const DEFAULT_POSTGRES_PORT = 5432;
 
 /** A failure the person at the terminal can act on; the message says how. */
 export class LocalDatabaseError extends Error {}
@@ -57,8 +59,16 @@ export async function startLocalDatabase(dataDir: string): Promise<LocalDatabase
   const paths = localPaths(dataDir);
   fs.mkdirSync(path.dirname(paths.postgresLog), { recursive: true });
 
-  const state = readState(paths.state) ?? (await createState(paths.state));
-  if (!fs.existsSync(path.join(paths.pgdata, 'PG_VERSION'))) await createCluster(bins, paths, state);
+  const clusterExists = fs.existsSync(path.join(paths.pgdata, 'PG_VERSION'));
+  let state = readState(paths.state);
+  if (!state && clusterExists) {
+    // A new password would not open the database the old one created.
+    throw new LocalDatabaseError(
+      `${paths.state} is missing or unreadable, and the database it describes exists. Put db.json back from a backup, or move the ${paths.pgdata} folder away to start with an empty database.`,
+    );
+  }
+  state ??= await createState(paths.state);
+  if (!clusterExists) await createCluster(bins, paths, state);
   await clearLeftover(bins.pgCtl, paths.pgdata);
   if (!(await portIsFree(state.port))) {
     state.port = await anyFreePort();
@@ -135,8 +145,11 @@ function readState(file: string): DbState | null {
   return text ? parseDbState(text) : null;
 }
 
+/** Written beside and renamed over, so a crash never leaves half a db.json. */
 function writeState(file: string, state: DbState): void {
-  fs.writeFileSync(file, `${JSON.stringify(state, null, 2)}\n`, { mode: 0o600 });
+  const partial = `${file}.partial`;
+  fs.writeFileSync(partial, `${JSON.stringify(state, null, 2)}\n`, { mode: 0o600 });
+  fs.renameSync(partial, file);
 }
 
 async function createState(file: string): Promise<DbState> {
@@ -170,6 +183,30 @@ async function clearLeftover(pgCtl: string, pgdata: string): Promise<void> {
   const action = leftoverAction(pid, pid === null ? null : await commandLineOf(pid), pgdata);
   if (action === 'stop') await run(pgCtl, pgCtlStopArgs(pgdata));
   else fs.rmSync(pidFile, { force: true });
+}
+
+/** Whether anything accepts a TCP connection where a DATABASE_URL points. */
+export function databaseAnswers(url: string): Promise<{ answers: boolean; where: string }> {
+  let host = 'localhost';
+  let port = DEFAULT_POSTGRES_PORT;
+  try {
+    const parsed = new URL(url);
+    host = parsed.hostname || host;
+    port = Number(parsed.port) || port;
+  } catch {
+    // Prisma reports a malformed URL in its own words.
+  }
+  const where = `${host}:${port}`;
+  return new Promise((resolve) => {
+    const socket = net.connect({ host, port });
+    const done = (answers: boolean) => {
+      socket.destroy();
+      resolve({ answers, where });
+    };
+    socket.setTimeout(REACH_TIMEOUT_MS, () => done(false));
+    socket.once('connect', () => done(true));
+    socket.once('error', () => done(false));
+  });
 }
 
 export function portIsFree(port: number, host = '127.0.0.1'): Promise<boolean> {
