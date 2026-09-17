@@ -43,7 +43,8 @@ export function hex([r, g, b]: Rgb): string {
 
 /** `fg` at `alpha` over `bg` — what a `bg-ok/10` pill really is. */
 export function blend(fg: Rgb, bg: Rgb, alpha: number): Rgb {
-  return [0, 1, 2].map((i) => Math.round(alpha * fg[i]! + (1 - alpha) * bg[i]!)) as unknown as Rgb;
+  const mix = (i: 0 | 1 | 2) => Math.round(alpha * fg[i] + (1 - alpha) * bg[i]);
+  return [mix(0), mix(1), mix(2)];
 }
 
 function luminance([r, g, b]: Rgb): number {
