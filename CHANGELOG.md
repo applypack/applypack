@@ -4,6 +4,29 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.17.0] — 2026-09-17
+
+### Changed
+- **An empty page says what to do.** Every empty list, table and card now
+  names what is missing, says in one sentence why that matters, and offers one
+  way forward — "No alerts yet · A job lands here when a running search scores
+  it at or above its threshold · See all jobs" instead of "No alerted jobs
+  yet."
+- **An error says what is safe.** The messages that only reported a failure
+  ("Invalid form values.", "Probe failed", "Test failed", "Generation failed —
+  see the web logs") now name what failed, what stayed as it was and what to
+  do next; a refused form names the field.
+- The Applications board is quieter: a column is one subtle surface with no
+  outline, and an empty column says "No applications" in one line instead of
+  a dashed well. Drag-and-drop and the per-card Move are unchanged.
+- On the resume editor the suggestion cards' **Apply** is outlined, so the one
+  solid button in sight is the page's own; "About this posting" is set like
+  every other label.
+
+### Fixed
+- A status pill or tag carried an 80-byte class for its background. Pages with
+  many tags shrank — a resume with a hundred skills by 7 KB.
+
 ## [2.16.0] — 2026-09-17
 
 ### Changed
@@ -3810,6 +3833,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.17.0]: https://github.com/applypack/applypack/compare/v2.16.0...v2.17.0
 [2.16.0]: https://github.com/applypack/applypack/compare/v2.15.0...v2.16.0
 [2.15.0]: https://github.com/applypack/applypack/compare/v2.14.0...v2.15.0
 [2.14.0]: https://github.com/applypack/applypack/compare/v2.13.0...v2.14.0

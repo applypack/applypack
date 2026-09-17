@@ -315,9 +315,9 @@ src/
     server.ts                   ← Hono app, middleware, basicAuth, listen
     layout.tsx                  ← HTML shell, the :root token block, grouped sidebar nav, the committed Tailwind build
     tokens.ts                   ← the design tokens' values + contrast arithmetic (pure); tokens.test.ts holds every text colour to AA
-    ui.tsx                      ← shared <Card>, <StatusBadge>, <FitBadge>, <Tag>, <Stat>
-    format.ts                   ← formatSalary, formatRelative, statusTone, fitTone
-    flash.ts                  ← POST → redirect → GET flash cookie
+    ui.tsx                      ← the shared primitives: <PageHeader>, <Card>, <Empty> (title · why · one action), <Disclosure>, <More>, <Tabs>, <FilterChip>, <MetricStrip>, <StatusBadge>, <FitBadge>, <Tag>, the form controls
+    format.ts                   ← formatSalary, formatRelative, statusTone, fitTone, fitWord
+    flash.ts                  ← POST → redirect → GET flash cookie; firstIssue names the field a schema refused (pure)
     upload.ts                 ← multipart resume upload helper + 5 MB limit
     resume-source.ts          ← the launchers' "which resume": one of yours / file / paste → scratch row
     resume-label.ts           ← a resume as a <select> option: name · kind version · why preselected (pure)

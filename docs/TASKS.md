@@ -2306,7 +2306,7 @@ options and measurements: [docs/local-install-plan.md](./local-install-plan.md).
 
 ---
 
-## 22. Dashboard redesign: hierarchy, disclosure, tokens (analysis 2026-09-16; stages in §22.2)
+## 22. Dashboard redesign: hierarchy, disclosure, tokens (analysis 2026-09-16; all eight stages built 2026-09-17, PRs stacked for review — §22.2, owner items §22.4)
 
 Owner's ask: readers said the dashboard shows too much at once, every
 surface looks the same and nothing says where to look. He wrote a redesign
@@ -2429,12 +2429,22 @@ it moves. Stage 0 carries no tag; the others are a minor each.
       way: long tokens pushed Active / Delete out of view at 1440 px, and a
       `contents` disclosure's body did not take the full row where the
       browser wraps it in `::details-content` — both fixed.
-- [ ] **`redesign-polish`** — the board's quiet empties and surface columns;
-      `Empty` with a title and one action; the resume, targeted-view and
-      screening pages checked; error flashes that say what failed and what to
-      do; the full table in metrics.md, no page worse than stage 0 without a
-      written reason; CLAUDE.md, README and ARCHITECTURE.md read against the
-      pages.
+- [x] **`redesign-polish`** (v2.17.0) — the board's columns are one subtle
+      surface each with a quiet "No applications" line: `/applications` boxes
+      13 → 4, the hooks `board.mjs` reads byte for byte the same, no drag on
+      the live board. `Empty` takes a required `title`, one sentence of why
+      and one action (`bare` inside a card); the compiler named all fifteen
+      uses. On the targeted view the cards' Apply is outlined: solid buttons
+      in sight with Suggestions open 6 → 1. The resume, targeted-view,
+      screening, scorecard and clean-version pages looked at under the tokens
+      at three widths — nothing had broken. Error flashes and failed-run lines
+      say what failed, what is safe and what to do (`flash.ts:firstIssue`,
+      `runFailure(what, reason, next)`). The full 26-page table is in
+      metrics.md: helper prose −45 %, boxes −21 %, height −19 % against stage
+      0, every worse number explained; one was a defect and is fixed (a pill's
+      80-byte ground class, 7 KB on `/resumes/1`). Docs read against the
+      pages: README said four wizard steps and five settings tabs, CLAUDE.md
+      still had the clean-version page spending an AI call on a visit.
 
 ### 22.3 Later, each with its trigger (plan §6)
 

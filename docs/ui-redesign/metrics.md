@@ -324,3 +324,134 @@ lives in your database; nothing is saved until the button is pressed; built
 for software engineering roles; what "nothing from N sources" usually means;
 the batch size and what is set aside for free; boards land switched off.
 
+## Stage 7 — `redesign-polish`, 2026-09-17
+
+The whole table again, on the last branch of the stack, the live database the
+same day (98 jobs).
+
+| Page | tabStops | inDom | aboveTable | hintWords | mainWords | boxes | primaries | heightPx | htmlKB |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| `/` | 15 | 15 | — | 17 | 248 | 5 | 0 | 900 | 33.0 |
+| `/jobs` | 63 | 151 | 12 | 2 | 1 094 | 9 | 0 | 900 | 156.8 |
+| `/jobs?country=US&workplace=remote&posted=7d` | 33 | 119 | 16 | 2 | 464 | 12 | 0 | 900 | 98.0 |
+| `/jobs/100` | 17 | 17 | — | 5 | 151 | 12 | 1 | 1 038 | 31.0 |
+| `/applications` | 4 | 9 | — | 2 | 48 | 4 | 0 | 900 | 26.1 |
+| `/resumes` | 4 | 11 | 1 | 39 | 86 | 4 | 0 | 900 | 30.3 |
+| `/resumes/1` | 15 | 15 | 11 | 147 | 856 | 15 | 2 | 2 356 | 56.1 |
+| `/target` | 10 | 19 | — | 43 | 460 | 11 | 0 | 900 | 33.1 |
+| `/letter` | 15 | 26 | — | 50 | 492 | 18 | 0 | 907 | 35.8 |
+| `/companies` | 85 | 103 | 0 | 2 | 350 | 32 | 0 | 1 843 | 109.7 |
+| `/discovery` | 4 | 5 | — | 51 | 101 | 3 | 2 | 900 | 24.0 |
+| `/runs` | 52 | 102 | 1 | 2 | 777 | 3 | 0 | 2 486 | 232.5 |
+| `/settings?tab=general` | 80 | 82 | — | 151 | 825 | 77 | 2 | 2 196 | 89.2 |
+| `/settings?tab=profile` | 77 | 97 | — | 180 | 585 | 41 | 1 | 1 881 | 69.7 |
+| `/settings?tab=ai` | 38 | 40 | — | 217 | 406 | 33 | 4 | 2 127 | 49.9 |
+| `/settings?tab=notifications` | 20 | 20 | 9 | 69 | 131 | 13 | 2 | 900 | 33.2 |
+| `/settings?tab=sources` | 57 | 57 | — | 345 | 489 | 45 | 0 | 1 503 | 50.1 |
+| `/settings?tab=screening` | 12 | 12 | — | 244 | 586 | 9 | 0 | 1 562 | 30.9 |
+| `/welcome` | 6 | 6 | — | 15 | 53 | 6 | 1 | 900 | 22.6 |
+| `/screen` | 4 | 4 | 1 | 71 | 102 | 1 | 1 | 900 | 23.3 |
+| `/welcome?step=ai` | 7 | 7 | — | 24 | 82 | 7 | 1 | 900 | 24.2 |
+| `/welcome?step=search` | 7 | 7 | — | 5 | 65 | 7 | 1 | 900 | 23.5 |
+| `/welcome?step=profile` | 8 | 12 | — | 5 | 77 | 8 | 1 | 900 | 26.3 |
+| `/welcome?step=sources` | 12 | 12 | — | 36 | 132 | 12 | 1 | 900 | 28.6 |
+| `/welcome?step=matches` | 11 | 11 | — | 5 | 95 | 7 | 1 | 900 | 26.5 |
+| `/screen/1` | 42 | 166 | 9 | 134 | 919 | 26 | 0 | 1 906 | 180.1 |
+
+Every page: 4–10 requests, 5–24 KB of JavaScript, no external host, no console
+error, no horizontal scroll at 1440, 768 or 375, and the hooks see everything
+the class selectors see.
+
+What this stage set out to move, before = the stage 6 build:
+
+| Page | | boxes | solid buttons in sight |
+| --- | --- | ---: | ---: |
+| `/applications` | before | 13 | 0 |
+| | after | **4** | 0 |
+| `/jobs/94/target`, Suggestions open | before | — | 6 |
+| | after | — | **1** |
+
+`/resumes/1` weighs 56.1 KB where stage 6 served 63.2 (the pill ground, below).
+
+The board's outlined columns and dashed wells, nine boxes, are one subtle
+surface a column and a quiet line. `board.mjs` reads `data-drop-stage`,
+`data-job-id`, `data-stage` and the `stage-…` ids: the 33 distinct `data-*`,
+`id`, `draggable`, `name`, `action` and `method` values on the page are byte
+for byte the stage 6 ones, `board.test.ts` is green, and no card was dragged
+on the live board. On the targeted view every suggestion card carried a solid
+Apply (five of them beside the header's button); they are outlined now, so
+the one solid button in sight is the page's own. `/resumes/1`, the targeted
+view, `/screen`, `/screen/1`, a scorecard and the clean-version page were
+looked at under the new tokens at three widths: nothing had broken, and their
+other numbers are the stage 6 ones.
+
+### Against stage 0
+
+| Page | hintWords | boxes | tabStops | heightPx |
+| --- | ---: | ---: | ---: | ---: |
+| `/` | 17 | 8 → 5 | 11 → 15 | 900 |
+| `/jobs` | 2 | 33 → 9 | 81 → 63 | 900 |
+| `/jobs?country=US&workplace=remote&posted=7d` | 2 | 33 → 12 | 47 → 33 | 900 |
+| `/jobs/100` | 190 → 5 | 24 → 12 | 24 → 17 | 1 380 → 1 038 |
+| `/applications` | 2 | 13 → 4 | 4 | 900 |
+| `/resumes` | 123 → 39 | 9 → 4 | 9 → 4 | 900 |
+| `/resumes/1` | 147 | 15 | 15 | 2 392 → 2 356 |
+| `/target` | 192 → 43 | 20 → 11 | 18 → 10 | 1 191 → 900 |
+| `/letter` | 144 → 50 | 26 → 18 | 23 → 15 | 1 282 → 907 |
+| `/companies` | 261 → 2 | 44 → 32 | 97 → 85 | 2 782 → 1 843 |
+| `/discovery` | 83 → 51 | 3 | 2 → 4 | 900 |
+| `/runs` | 2 | 2 → 3 | 63 → 52 | 7 741 → 2 486 |
+| `/settings?tab=general` | 261 → 151 | 78 → 77 | 79 → 80 | 2 123 → 2 196 |
+| `/settings?tab=profile` | 314 → 180 | 42 → 41 | 75 → 77 | 2 002 → 1 881 |
+| `/settings?tab=ai` | 377 → 217 | 34 → 33 | 32 → 38 | 2 190 → 2 127 |
+| `/settings?tab=notifications` | 122 → 69 | 14 → 13 | 18 → 20 | 915 → 900 |
+| `/settings?tab=sources` | 583 → 345 | 48 → 45 | 55 → 57 | 1 851 → 1 503 |
+| `/settings?tab=screening` | 298 → 244 | 10 → 9 | 11 → 12 | 1 462 → 1 562 |
+| `/welcome` | 8 → 15 | 6 | 6 | 900 |
+| `/screen` | 71 | 1 | 4 | 900 |
+| `/welcome?step=ai` | 21 → 24 | 7 | 7 | 900 |
+| `/welcome?step=search` | 8 → 5 | 7 | 7 | 900 |
+| `/welcome?step=profile` | 8 → 5 | 8 | 8 | 900 |
+| `/welcome?step=sources` | 25 → 36 | 12 | 11 → 12 | 900 |
+| `/welcome?step=matches` | 8 → 5 | 7 | 11 | 900 |
+| `/screen/1` | 134 | 26 | 42 | 1 885 → 1 906 |
+
+Over the 26 pages: helper prose 3 403 → 1 863 words (−45 %), bordered
+boxes 530 → 420 (−21 %), tab stops 760 → 698 (−8 %), page height
+40 896 → 33 305 px (−19 %). At 375 px the five pages of the mobile pass are all
+shorter: `/` 1 330 → 1 286, `/jobs` 886 → 764, `/jobs/100` 2 842 → 1 586,
+`/target` 2 318 → 974, `/settings?tab=profile` 3 344 → 2 943.
+
+### Every number that is worse than stage 0, and why
+
+- **`htmlKB`** is up 2–9 KB on every page but the job page (−5.8), and 44 KB
+  on `/runs`: the shell carries the grouped sidebar and the token and
+  disclosure rules (about 2.3 KB a page), and the rest is content folded
+  instead of removed — the closed filter panel, the add-flows, a run's raw
+  output — which costs bytes and no attention. One cause was a defect and is
+  fixed here: a toned pill wrote its ground as an 80-byte arbitrary class, 8 KB
+  on a resume page with a hundred skill tags; it is a `pill-*` class now.
+- **`inDom`** is up on `/jobs` (+1), its filtered view (+5), `/resumes` (+2),
+  `/target` (+1), `/letter` (+1), `/companies` (+5) and `/runs` (+39) while
+  `tabStops` fell on each: `inDom` counts what a closed disclosure holds, and
+  the redesign's method is to close things.
+- **`tabStops`** (and `inDom` with it) is up on `/` (11 → 15), Discovery
+  (2 → 4), the six settings tabs (+1 … +6) and `?step=sources` (+1): on
+  Overview the four numbers became links to their jobs; everywhere else each
+  new stop is one "How this works" that replaced a paragraph — the settings
+  tabs lost 18–43 % of their helper words for them.
+- **`aboveTable`** on `/resumes` (0 → 1) and Notifications (8 → 9): the
+  "Upload a resume" button that folded the upload card, and one "How this
+  works".
+- **`heightPx`** on General (+73), Screening (+100) and `/screen/1` (+21):
+  the settings tabs became stacked titled sections with 32 px between them,
+  and the 26 px page title with its margin is taller than the old one.
+- **`boxes`** on `/runs` (2 → 3): the one outlined button that folds the runs
+  past the latest fifty.
+- **`hintWords`** on `/welcome` (8 → 15), `?step=ai` (21 → 24) and
+  `?step=sources` (25 → 36): the hook finds prose the class selectors never
+  saw; against the marked build each step is 35–68 % shorter (stage 6).
+- **`mainWords`** on `/` (228 → 248): the strip writes each delta out ("0 in
+  the last 24h") and adds the all-time line; the count moves with the data.
+- **`primaries`** rose nowhere. The 2–4 on Discovery and the settings tabs
+  are `ToggleRow`'s Enable buttons, one a row, as at stage 0.
