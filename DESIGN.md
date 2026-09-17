@@ -447,7 +447,9 @@ null renders an em dash.
   mobile is a drawer behind a hamburger bar.
 - **Filter segments:** the same idiom inline — 13px bordered pills where active
   gets the control border + the subtle fill, inactive is borderless muted ink.
-- **Tabs (`Tabs`):** views of one list as a row of 13px links on a hairline;
+- **Tabs (`Tabs`):** views of one list — or the parts of one object, as on the
+  job page (`?tab=`, server-rendered, no client state) — as a row of 13px links
+  on a hairline;
   the current one carries a 2px emerald-strong underline, 500 weight and
   `aria-current="page"`, and a faint tabular count says what the tab would
   show. Never a pill — a tab must not read as a filter or a status.

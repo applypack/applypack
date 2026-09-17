@@ -2408,12 +2408,16 @@ it moves. Stage 0 carries no tag; the others are a minor each.
       routine counters stay in the raw block, and runs past the latest
       fifty fold behind a button that names and opens on a failure
       (metrics.md has the reasoning).
-- [ ] **`job-page-tabs`** — `job-tabs.ts` (pure, tested): `posting`,
-      `match`, `letter`, `verify` as `?tab=` links, inferred from `match=` /
-      `letter=` so existing links land right; the nine bare-anchor links
-      fixed; the rail's three POSTs return to the tab; `fitWord`; the route
-      smoke requests the tabs. Default tab: hint words 190 → ≤ 70, boxes
-      24 → ≤ 14, one primary per tab.
+- [x] **`job-page-tabs`** — v2.15.0. `job-tabs.ts` (pure, tested):
+      `posting`, `match`, `letter`, `verify` as `?tab=` links, inferred from
+      `match=` / `letter=` so existing links land right; the bare-anchor
+      links fixed (`jobHref`); the rail's POSTs (`status`, `reclassify`,
+      `application`) return to the tab through the resolver; `fitWord`; the
+      route smoke requests the tabs and posts a status change with a tab
+      and with a made-up one. Default tab: hint words 190 → 5, boxes
+      24 → 12, one solid button on every tab; all 61 forms of a full job
+      page found on their tabs unchanged. The rail and the Posting column
+      are one surface each; the match card's uppercase label is gone.
 - [ ] **`companies-welcome-disclosure`** — the companies table inside the
       first 900 px, the four add-flows as disclosures, hint words 261 →
       ≤ 130; the wizard's steps ≥ 30 % fewer hint words; the two

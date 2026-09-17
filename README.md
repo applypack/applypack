@@ -327,7 +327,7 @@ on the AI tab shows exactly which engine your calls went to.
 | Overview | `/` | Four counters by status (each opens its jobs), recent alerts, pipeline health, pause/resume, Fetch now |
 | Jobs | `/jobs` | Filterable, sortable list of everything fetched |
 | Paste a job | `/jobs/new` | Save a posting by hand (LinkedIn, email, referral); it gets classified like any other |
-| Job detail | `/jobs/:id` | Full description, AI verdict, status actions, verification, resume match, tracking |
+| Job detail | `/jobs/:id` | Four tabs — the posting with the AI verdict, resume match, cover letter, "is it real?" — beside status actions, details and tracking |
 | Tailor resume | `/jobs/:id/target` | Posting ↔ resume side by side, live keyword score, edit in place |
 | Compare | `/target` | One-shot comparison: paste any posting, pick / upload / paste any resume |
 | Cover letter | `/letter` | Write a letter for a posting that isn't stored yet: pick, paste or link it, then draft |

@@ -4,6 +4,21 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.15.0] — 2026-09-17
+
+### Changed
+- **A job opens on what decides it.** The job page was eight cards of equal
+  weight; it is now four tabs — **Posting** (the classifier's reading and the
+  description, on one surface), **Resume match**, **Cover letter**, **Is it
+  real?** — and a tab's label says what is already behind it ("Resume match ·
+  72", "Is it real? · legit"). Status actions, details and application
+  tracking stay beside every tab, and a status change returns you to the tab
+  you were on. Every link written before — `?match=…#resume-match`,
+  `?letter=…#cover-letter` — still lands on its card.
+- The header says the fit in a word beside the number ("72 Good"; Strong /
+  Good / Partial / Weak on the same floors as the colours), and the page keeps
+  one solid button a tab.
+
 ## [2.14.0] — 2026-09-17
 
 ### Changed
@@ -3769,6 +3784,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.15.0]: https://github.com/applypack/applypack/compare/v2.14.0...v2.15.0
 [2.14.0]: https://github.com/applypack/applypack/compare/v2.13.0...v2.14.0
 [2.13.0]: https://github.com/applypack/applypack/compare/v2.12.0...v2.13.0
 [2.12.0]: https://github.com/applypack/applypack/compare/v2.11.0...v2.12.0

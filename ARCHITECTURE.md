@@ -327,6 +327,7 @@ src/
     fetch-runs.ts             ← in-memory "Fetch now" registry (live source progress; the 'fetch-now' CronRun is the record)
     fetch-summary.ts          ← pure one-line verdict of a finished fetch-now run
     runs-summary.ts           ← a run's stats as facts in a fixed order, a reason as a sentence (pure) — what /runs shows instead of JSON
+    job-tabs.ts               ← the job page's tabs: resolveJobTab (explicit, else inferred from match= / letter=), jobHref, the labels with what exists (pure)
     welcome-steps.ts          ← pure first-run wizard rules (steps from data, score-run summary)
     welcome-facts.ts          ← loads what the wizard and the Overview chip derive from
     ai-test.ts                ← one live engine call — Settings Test button + wizard step 1
@@ -401,8 +402,9 @@ prisma/
 | any HTTP request                 | web     | Hono routing                             |
 | `POST /settings/reclassify`      | web     | spawns `runReclassifyAll` async (lock)   |
 | `POST /settings/hn-run`          | web     | spawns `runHnHiringJob` async (lock)     |
-| `POST /jobs/:id/reclassify`      | web     | sync `classifyJob` → auto-demote on fail |
-| `POST /jobs/:id/status`          | web     | status change; on APPLIED also seeds the funnel and snapshots the picked resume (id + version + text) |
+| `GET /jobs/:id?tab=…`            | web     | the job page, one tab a render: `posting` (default — classifier + description), `match`, `letter`, `verify`; `job-tabs.ts:resolveJobTab` infers the tab from `match=` / `letter=` when none is named, so older links land right |
+| `POST /jobs/:id/reclassify`      | web     | sync `classifyJob` → auto-demote on fail; returns to the posted `tab` |
+| `POST /jobs/:id/status`          | web     | status change; on APPLIED also seeds the funnel and snapshots the picked resume (id + version + text); returns to the posted `tab` (read through `resolveJobTab`) |
 | `POST /companies/new`            | web     | sync `probeAts` → upsert                 |
 | `POST /companies/starter-pack`   | web     | resolve a pack live (`probeAts`, ≥1 job wins) → preview; `/import` inserts inactive, `/enable` activates |
 | `POST /resumes`                  | web     | extract text → `scanResume` (sync, ~1 min) |
