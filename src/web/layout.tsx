@@ -136,7 +136,7 @@ const DIRECTION_CONTRACT = `<!--
 THESIS: A hunting console read twice a day: dense, calm, light. Refuses both the dark hacker-dashboard and the roomy marketing-admin.
 OWN-WORLD: Canvas ground (${hex(TOKENS.surface)}), white work surfaces, a subtle third surface (${hex(TOKENS['surface-overlay'])}) for the sidebar, table headers and wells, ${hex(TOKENS.line)} dividers; a type ladder of title / section / entity / body / label / meta; Inter for UI, mono reserved for machine values; emerald is the one brand accent; status speaks in quiet tinted pills (blue/amber/emerald/violet/gray).
 STORY: The user opens Overview, reads four numbers and the newest alerts, drills into a job, acts - apply, save, verify, compare - without ceremony.
-FIRST VIEWPORT: 240px sidebar left; content fills the rest: title row, four stat cards with 24h deltas, alerts list beside cron health.
+FIRST VIEWPORT: 240px sidebar left; content fills the rest: title row, one metric strip of four numbers with 24h deltas, recent alerts beside pipeline health.
 FORM: Brief-pinned light ops console (Linear density, Stripe forms, GitHub tables); the brief pins the world, no seed roll.
 FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, DESIGN.md, and every shipping raster carrying its provenance.
 -->`;

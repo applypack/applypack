@@ -346,30 +346,50 @@ export const FilterChip: FC<{ label: string; href: string; flag?: string }> = ({
 
 /* ---------- data display ---------- */
 
-export const Stat: FC<{
-  label: string | Child;
-  value: string | number;
-  tone?: Tone;
-  sub?: Child;
-  muted?: boolean;
-}> = ({ label, value, tone, sub, muted = false }) => (
-  <div
-    class={`rounded-lg border bg-surface-raised p-4 ${
-      muted ? 'border-line/70' : 'border-line shadow-sm'
-    }`}
-  >
-    <div class={`text-[13px] font-medium ${muted ? 'text-ink-faint' : 'text-ink-muted'}`}>
-      {label}
-    </div>
-    <div
-      class={`mt-1 text-2xl font-semibold tracking-tight tabular-nums ${
-        tone ? TONE_TEXT[tone] : muted ? 'text-ink-muted' : 'text-ink'
-      }`}
-    >
-      {value}
-    </div>
-    {sub && <div class="mt-1 text-xs text-ink-faint">{sub}</div>}
-  </div>
+/**
+ * A few numbers read as one line: a <dl> on one raised surface, the cells
+ * divided by hairlines rather than boxed apart. Each cell is a dot and a
+ * label, a 28 px tabular value and a delta line; with `href` the value is a
+ * link stretched over its cell. Two columns on a narrow screen, one row of
+ * four from xl.
+ */
+export const MetricStrip: FC<{
+  label: string;
+  cells: { label: string; value: number; tone: Tone; delta: Child; href?: string }[];
+  footer?: Child;
+}> = ({ label, cells, footer }) => (
+  <section aria-label={label} class="overflow-hidden rounded-lg border border-line bg-surface-raised shadow-sm">
+    <dl class="grid grid-cols-2 xl:grid-cols-4">
+      {cells.map((cell, i) => (
+        <div
+          class={`relative border-line px-5 py-4 transition-colors duration-150 ${cell.href ? 'hover:bg-surface-selected/50' : ''} ${
+            i % 2 === 1 ? 'border-l' : i > 0 ? 'xl:border-l' : ''
+          } ${i >= 2 ? 'border-t xl:border-t-0' : ''}`}
+        >
+          <dt class="flex items-center gap-1.5 text-label text-ink-muted">
+            <span class={`h-1.5 w-1.5 rounded-full ${TONE_FILL[cell.tone]}`} aria-hidden="true" />
+            {cell.label}
+          </dt>
+          <dd class="mt-1 text-[28px] font-semibold leading-8 tracking-tight tabular-nums text-ink">
+            {cell.href ? (
+              <a href={cell.href} class="after:absolute after:inset-0 hover:text-accent-strong">
+                {cell.value.toLocaleString()}
+                <span class="sr-only"> {cell.label} — open in Jobs</span>
+              </a>
+            ) : (
+              cell.value.toLocaleString()
+            )}
+          </dd>
+          <dd class="mt-0.5 text-meta text-ink-faint">{cell.delta}</dd>
+        </div>
+      ))}
+    </dl>
+    {footer && (
+      <div data-ui="hint" class="border-t border-line px-5 py-2.5 text-meta tabular-nums text-ink-faint">
+        {footer}
+      </div>
+    )}
+  </section>
 );
 
 export const Badge: FC<PropsWithChildren<{ tone?: Tone; class?: string }>> = ({
