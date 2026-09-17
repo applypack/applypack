@@ -55,8 +55,8 @@ returns legit / suspicious / fake with evidence URLs. A cover-letter
 writer sits behind a fact gate: a metric that appears in neither your
 resume nor your confirmed facts never reaches the letter.
 
-Stack: TypeScript strict, Postgres, two containers behind docker compose,
-dashboard bound to 127.0.0.1. AI is bring-your-own with failover: Claude
+Stack: TypeScript strict, a Postgres 16 that `npm start` runs itself (or
+docker compose on a server), dashboard bound to 127.0.0.1. AI is bring-your-own with failover: Claude
 Code / Gemini / Codex CLIs riding subscriptions you already pay for, the
 Anthropic API, or any OpenAI-compatible endpoint, including a local
 model. One honest caveat: consumer-subscription terms don't explicitly

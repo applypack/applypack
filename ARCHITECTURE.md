@@ -6,8 +6,11 @@
 
 ## Two-process layout
 
-The whole system is two Node 24 processes plus a Postgres container,
-all in the same `docker-compose.yml`:
+The whole system is two Node processes plus Postgres. `npm start` runs them
+on the user's own computer — `src/local/launcher.ts` starts a built-in
+Postgres 16 under `pg_ctl`, then the worker, then the dashboard, and stops
+them in reverse ([ADR 0054](./docs/adr/0054-npm-start-runs-a-built-in-database.md)).
+On a server the same two processes run as compose services:
 
 ```mermaid
 flowchart LR

@@ -14,17 +14,19 @@ body:
     attributes:
       label: Logs
       description: >
-        `docker compose logs app` / `docker compose logs web` around the
-        failure, or the browser console. Strip tokens and personal data
-        before pasting.
+        The terminal running `npm start` (or `docker compose logs app` /
+        `docker compose logs web`) around the failure, or the browser
+        console. Strip tokens and personal data before pasting.
       render: shell
   - type: dropdown
     id: setup
     attributes:
       label: Setup
       options:
+        - npm start (built-in database)
+        - npm start with my own DATABASE_URL
         - Docker (compose)
-        - Local (npm run dev)
+        - Development (npm run dev)
     validations:
       required: true
   - type: input

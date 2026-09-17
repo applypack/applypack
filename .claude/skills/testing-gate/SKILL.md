@@ -28,6 +28,7 @@ npm run lint:types                 # every commit
 npm test                           # every commit (pure modules only)
 npx prisma format --check          # after any schema edit (CI gates on it)
 npm run build                      # before a web/app container rebuild
+APPLYPACK_DATA_DIR=/tmp/ap WEB_PORT=4848 APPLYPACK_NO_OPEN=1 npm start   # the local install, on a scratch data folder
 docker compose build web && docker compose up -d web   # dashboard changes
 docker compose build app && docker compose up -d app   # worker changes
 docker compose logs -f app         # watch a tick

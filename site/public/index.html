@@ -24,7 +24,7 @@
 <meta property="og:image:alt" content="ApplyPack: stop losing interviews to a missing keyword">
 <meta name="twitter:card" content="summary_large_image">
 <script type="application/ld+json">
-{"@context":"https://schema.org","@type":"SoftwareApplication","name":"ApplyPack","url":"https://applypack.dev/","applicationCategory":"BusinessApplication","operatingSystem":"Docker, Node.js","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"license":"https://opensource.org/licenses/MIT","codeRepository":"https://github.com/applypack/applypack","description":"Self-hosted job search that watches 33 kinds of job source, scores postings against your profile, checks whether a job is real, scores your resume against the posting without flattering it, and writes a fact-checked cover letter."}
+{"@context":"https://schema.org","@type":"SoftwareApplication","name":"ApplyPack","url":"https://applypack.dev/","applicationCategory":"BusinessApplication","operatingSystem":"macOS, Windows, Linux","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"license":"https://opensource.org/licenses/MIT","codeRepository":"https://github.com/applypack/applypack","description":"Self-hosted job search that watches 33 kinds of job source, scores postings against your profile, checks whether a job is real, scores your resume against the posting without flattering it, and writes a fact-checked cover letter."}
 </script>
 </head>
 <body>
@@ -52,7 +52,7 @@
       <p class="sub">ApplyPack finds real openings, shows exactly which words a posting wants and your resume lacks, helps you fix it in place, and writes the cover letter. On your own machine.</p>
       <div class="cta">
         <a class="btn primary" href="#demo">Try the live demo</a>
-        <a class="btn" href="#install">Install with Docker</a>
+        <a class="btn" href="#install">Install</a>
       </div>
       <ul class="trust" role="list" aria-label="The short version">
         <li>Runs locally or in Docker</li>
@@ -327,14 +327,15 @@
   <section id="install" class="raised" aria-labelledby="install-h">
     <div class="wrap">
       <h2 id="install-h">Install in four commands</h2>
-      <p class="lead">Postgres, the worker and the dashboard from one compose file. A laptop or a $5 VPS is the whole deployment.</p>
+      <p class="lead">All you install is <a href="https://nodejs.org">Node.js</a> 22 or newer: the database comes with ApplyPack, no Docker needed. <a href="https://github.com/applypack/applypack/blob/main/docs/install.md">Step by step for macOS, Windows and Linux</a>.</p>
       <div class="term">
         <div class="bar" aria-hidden="true"><i></i><i></i><i></i></div>
         <pre><span class="g">git</span> clone https://github.com/applypack/applypack.git
 <span class="g">cd</span> applypack
-<span class="g">cp</span> .env.example .env    <span class="c"># nothing to fill in yet</span>
-<span class="g">docker</span> compose up -d    <span class="c"># → http://localhost:4747, a four-step setup opens</span></pre>
+<span class="g">npm</span> install
+<span class="g">npm</span> start    <span class="c"># → http://127.0.0.1:4747, the setup opens</span></pre>
       </div>
+      <p class="note">On a server, or to keep it running without a terminal: <code>docker compose up -d</code> runs the same thing in containers.</p>
       <p class="note">Paste an AI key on the first screen, or let the dashboard detect the CLI you are already logged into. Fetching starts paused until you finish the setup, so a blank profile never burns your quota.</p>
       <ul class="engines" role="list" aria-label="AI engines">
         <li><b>Claude Code</b> CLI, your subscription</li>

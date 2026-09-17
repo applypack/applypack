@@ -21,7 +21,8 @@ postgres ←─ worker (cron, fetchers, classifier, notifier)
 postgres ←─ web    (Hono dashboard, read-mostly + settings writes)
 ```
 
-Two separate Node 24 processes inside the same docker-compose stack.
+Two separate Node processes: started by `npm start` beside a built-in
+Postgres 16 (ADR 0054), or as two services of one docker-compose stack.
 Both share the database and the Prisma client. The dashboard never
 runs an HTTP server inside the worker; the worker never opens a web
 port.
