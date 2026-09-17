@@ -326,6 +326,7 @@ src/
     target-runs.ts            ← in-memory compare-run registry (async classify/scan/match)
     fetch-runs.ts             ← in-memory "Fetch now" registry (live source progress; the 'fetch-now' CronRun is the record)
     fetch-summary.ts          ← pure one-line verdict of a finished fetch-now run
+    runs-summary.ts           ← a run's stats as facts in a fixed order, a reason as a sentence (pure) — what /runs shows instead of JSON
     welcome-steps.ts          ← pure first-run wizard rules (steps from data, score-run summary)
     welcome-facts.ts          ← loads what the wizard and the Overview chip derive from
     ai-test.ts                ← one live engine call — Settings Test button + wizard step 1

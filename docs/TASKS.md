@@ -2397,10 +2397,17 @@ it moves. Stage 0 carries no tag; the others are a minor each.
       toggle is named by its action (A11Y-4). 59 forms on the ten changed
       pages post exactly what they posted; the must-stay list (plan §8)
       stays on screen.
-- [ ] **`overview-and-runs`** — `MetricStrip` replaces `Stat` (deleted), the
-      four numbers become links, "Pipeline health"; `runs-summary.ts` (pure,
-      tested) turns stats into a sentence, raw output behind a disclosure:
-      `/runs` 1 409 → ≤ 800 words, 7 759 → ≤ 5 200 px.
+- [x] **`overview-and-runs`** — v2.14.0. `MetricStrip` replaces `Stat`
+      (deleted), the four numbers are links, "Pipeline health" with a
+      Healthy / n failing badge: `/` boxes 8 → 5. `runs-summary.ts` (pure,
+      tested) turns stats into facts in a fixed order and a reason into a
+      sentence: `/runs` 1 410 → 775 words, 7 743 → 2 486 px, no JSON outside
+      a `<details>`. The plan's literal recipe (a sentence plus two folds
+      per row) measured WORSE than the JSON — a space-less blob counts as
+      one word — so a row is one line with a single **Details** fold, the
+      routine counters stay in the raw block, and runs past the latest
+      fifty fold behind a button that names and opens on a failure
+      (metrics.md has the reasoning).
 - [ ] **`job-page-tabs`** — `job-tabs.ts` (pure, tested): `posting`,
       `match`, `letter`, `verify` as `?tab=` links, inferred from `match=` /
       `letter=` so existing links land right; the nine bare-anchor links

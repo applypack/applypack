@@ -4,6 +4,24 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.14.0] — 2026-09-17
+
+### Changed
+- **Overview: four numbers read as one line.** New, Alerted, Applied and Saved
+  sit in one strip instead of four cards, each number opens its jobs, and the
+  "tracked all-time · seen in 24 h · dismissed" line is the strip's footer.
+  What the numbers cannot say — matches held for the alert window, watched
+  companies, a paused pipeline — sits together under it.
+- "Cron health" is **Pipeline health**: a badge in the heading says Healthy or
+  how many jobs are failing, and each job is one line.
+- **A run reads as a sentence.** `/runs` (now titled Runs, as the menu says)
+  showed the stats JSON of a hundred runs — 7 700 px of it. A run now reads
+  "594 fetched · 3 new · 55 duplicates · 3 classified · 0 alerted", a skipped
+  one says why ("Discovery is switched off"), and an error stays in full. The
+  JSON and the per-source timings are one press away under **Details**; runs
+  past the latest fifty fold behind a button that names — and opens on — any
+  failure among them.
+
 ## [2.13.0] — 2026-09-17
 
 ### Changed
@@ -3751,6 +3769,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.14.0]: https://github.com/applypack/applypack/compare/v2.13.0...v2.14.0
 [2.13.0]: https://github.com/applypack/applypack/compare/v2.12.0...v2.13.0
 [2.12.0]: https://github.com/applypack/applypack/compare/v2.11.0...v2.12.0
 [2.11.0]: https://github.com/applypack/applypack/compare/v2.10.0...v2.11.0

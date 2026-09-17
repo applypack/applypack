@@ -54,7 +54,7 @@ typography:
     lineHeight: "16px"
   stat-value:
     fontFamily: "Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif"
-    fontSize: "24px"
+    fontSize: "28px"
     fontWeight: 600
     lineHeight: "32px"
     letterSpacing: "-0.025em"
@@ -255,7 +255,8 @@ utilities.
   fieldset legends, sidebar group labels, filter-row labels.
 - **Meta** (`text-meta`, 400, 12px/16px): timestamps, counts, the header's
   meta line, helper prose under a control (`Hint`).
-- **Stat Value** (600, 24px/32px, tabular-nums): the Overview numbers.
+- **Stat Value** (600, 28px/32px, tabular-nums): the metric strip's numbers —
+  the largest type in the app after the page title.
 - **Micro** (500, 12px/16px): badges and kanban counts.
 - **Mono Value** (400, 12px, mono stack): ids, tokens, cron expressions,
   durations, code — machine values only, usually one size below their context.
@@ -417,9 +418,20 @@ null renders an em dash.
 - **`Card variant="flat"`:** no border, shadow, fill or padding — a part of a
   region that is already one surface. **`variant="subtle"`:** the subtle fill,
   8px corners, no outline — a well or an inactive region.
-- **Stat card:** 16px padding, 13px/500 muted label over a 24px/600
-  tabular-nums value, optional 12px faint sub-line; muted variant drops the
-  shadow and fades its border.
+- **Metric strip (`MetricStrip`):** a few numbers read as one line — a `<dl>`
+  on ONE raised surface, its cells divided by hairlines, never four boxed
+  cards. A cell is a tone dot and a label (the label step), a 28px/600
+  tabular-nums value and a delta line at the meta step; with `href` the value
+  is a link stretched over its cell, and the cell hovers in the selected
+  tint. An optional footer line sits under a hairline. Two columns below
+  1280px, one row of four from there.
+- **A run as a sentence (`/runs`):** `runs-summary.ts` turns a run's stats into
+  facts in a fixed order ("594 fetched · 3 new · 55 duplicates · 3 classified
+  · 0 alerted"), the dot between them drawn; a reason reads as a sentence
+  ("Discovery is switched off"). The stats JSON and the per-source list fold
+  behind **Details** on the same line — raw machine output is never a page's
+  primary content — and runs past the latest fifty fold behind a button that
+  names any failure among them.
 
 ### Navigation
 - **Sidebar:** the subtle surface, one step off the canvas, hairline right
