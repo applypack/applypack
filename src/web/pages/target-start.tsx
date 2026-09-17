@@ -9,6 +9,7 @@ import {
   Flash,
   Hint,
   Input,
+  More,
   PageHeader,
   SectionTitle,
   Select,
@@ -46,9 +47,8 @@ export const TargetStartPage: FC<TargetStartProps> = ({ jobs, selectedJobId, res
   const defaultResumeId = (resumes.find((r) => r.isDefault) ?? resumes[0])?.id;
   return (
     <Layout title="Compare" active="target">
-      <PageHeader title="Compare" meta="~½ min quick · ~2 min full">
-        Pick one of your jobs or paste a posting, then pick a resume — one of yours, a file, or
-        pasted text. One run scores the resume against the posting and opens the resume editor
+      <PageHeader title="Compare" meta="1–2 min">
+        A posting and a resume: one run scores the resume against the posting and opens the editor
         beside it.
       </PageHeader>
       <Flash flash={flash} />
@@ -85,23 +85,23 @@ export const TargetStartPage: FC<TargetStartProps> = ({ jobs, selectedJobId, res
                 <div class="space-y-4">
                   <Field
                     label="Job description"
-                    hint="Paste the posting verbatim — page chrome is trimmed automatically, and empty fields below are detected from it during the run."
+                    hint="Paste the posting as it is; page chrome is trimmed, and the fields below are detected from it when left empty."
                   >
                     <Textarea name="description" rows={12} placeholder="About the role…" data-required />
                   </Field>
                   <div class="grid gap-4 sm:grid-cols-2">
-                    <Field label="Company" hint="Optional — detected during the run.">
+                    <Field label="Company">
                       <Input type="text" name="companyName" maxlength="200" placeholder="Acme Corp" />
                     </Field>
-                    <Field label="Job title" hint="Optional — detected during the run.">
+                    <Field label="Job title">
                       <Input type="text" name="title" maxlength="200" placeholder="Senior Software Engineer" />
                     </Field>
                   </div>
                   <div class="grid gap-4 sm:grid-cols-2">
-                    <Field label="Posting URL" hint="Optional — lets Verify find the original later.">
+                    <Field label="Posting URL" hint="Lets Verify find the original later.">
                       <Input type="url" name="url" placeholder="https://…" />
                     </Field>
-                    <Field label="Location" hint="Optional — detected during the run when stated.">
+                    <Field label="Location">
                       <Input type="text" name="location" maxlength="200" placeholder="Remote (US)" />
                     </Field>
                   </div>
@@ -151,7 +151,7 @@ export const TargetStartPage: FC<TargetStartProps> = ({ jobs, selectedJobId, res
                   />
                   <Hint>
                     {ACCEPTED_EXTENSIONS.join(', ')} · up to {MAX_UPLOAD_MB} MB. A one-off check:
-                    nothing is added to your Resumes — upload it there to keep it.
+                    nothing is added to your Resumes.
                   </Hint>
                 </div>
               </ModeCard>
@@ -187,12 +187,12 @@ export const TargetStartPage: FC<TargetStartProps> = ({ jobs, selectedJobId, res
           <Button size="lg" variant="violet" title="Reads the posting, judges your resume against it and writes what to change">
             Compare
           </Button>
-          <Hint>
-            Reads the posting once (it is kept, so comparing another resume against it is quick),
-            then judges your resume and writes what to change — one to two minutes, with the steps
-            on screen. A pasted posting has its empty fields detected first, and pasting the same
-            one again reuses its job.
-          </Hint>
+          <Hint>One AI run, one to two minutes, with the steps on screen.</Hint>
+          <More class="basis-full">
+            ApplyPack reads the posting once and keeps it, so comparing another resume against it is
+            quick. It detects a pasted posting's empty fields first, and pasting the same one again
+            reuses its job.
+          </More>
         </div>
       </form>
       <script type="module" dangerouslySetInnerHTML={{ __html: BOOT_JS }} />
@@ -230,7 +230,10 @@ export const ModeCard: FC<
       />
       {label}
     </label>
-    <div data-ui="mode-body" class="mt-2.5">{children}</div>
+    {/* A disabled mode can never be chosen, so what it holds is its one-line reason: always in sight. */}
+    <div data-ui={disabled ? undefined : 'mode-body'} class="mt-2.5">
+      {children}
+    </div>
   </fieldset>
 );
 
