@@ -2386,12 +2386,17 @@ it moves. Stage 0 carries no tag; the others are a minor each.
       all 26 pages, no horizontal scroll at any width. DESIGN.md and its
       sidecar rewritten, PRODUCT.md, `ui-review` and `commit-discipline`
       corrected.
-- [ ] **`settings-compare-disclosure`** — visible hint words ≥ 40 % down per
-      settings tab (Screening ≥ 15 %), `/target` 192 → ≤ 90 inside 900 px,
-      `/letter` ≤ 80, `/resumes` ≤ 50. `Field` gains `more`; settings gets
-      the left nav at ≥ lg; the launchers show one mode at a time; upload
-      and add-a-fact behind disclosures; the must-stay list (plan §8) stays
-      on screen.
+- [x] **`settings-compare-disclosure`** — v2.13.0. Visible hint words per
+      settings tab −41…−43 % (Screening −18 %; ≥ 40 % / ≥ 15 % asked),
+      `/target` 192 → 43 with 18 → 10 tab stops inside 900 px, `/letter`
+      144 → 50, `/resumes` 123 → 39. `Field` / `ToggleRow` / `TagListInput`
+      / the settings `Section` gain `more` (the `More` primitive, outside
+      the label); settings gets the left nav at ≥ lg and stacked sections;
+      the launchers show one mode at a time (one `:has()` rule); upload and
+      add-a-fact behind disclosures; facts read as knowledge; the target
+      toggle is named by its action (A11Y-4). 59 forms on the ten changed
+      pages post exactly what they posted; the must-stay list (plan §8)
+      stays on screen.
 - [ ] **`overview-and-runs`** — `MetricStrip` replaces `Stat` (deleted), the
       four numbers become links, "Pipeline health"; `runs-summary.ts` (pure,
       tested) turns stats into a sentence, raw output behind a disclosure:

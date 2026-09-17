@@ -4,6 +4,34 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.13.0] — 2026-09-17
+
+### Changed
+- **One sentence under a label.** Settings showed 120–580 words of helper
+  prose per tab; each tab now shows at least 40 % fewer (Screening 18 % — its
+  legal text stays). What explains a cost, a cap, a secret or a deletion is
+  still in sight; the rest sits behind a quiet **How this works** under the
+  control it belongs to, and on the Sources tab each extra source folds "when
+  it is worth it, and what the vendor asks" the same way.
+- Settings puts its tabs in a column on the left on a wide screen (the row
+  stays on a narrow one), and a section's title and one sentence sit above its
+  controls instead of beside them.
+- **Compare, Cover letter and New screening show one input mode at a time.**
+  Picking "A new posting" or "Paste resume text" opens that box and folds the
+  others; nothing about what the form sends changes. Compare went from 18
+  controls and 1 191 px to 10 and one screen.
+- Resumes leads with its table: **Upload a resume** and **Add a fact** open on
+  demand (upload stands open while there is no resume yet). Confirmed facts
+  read as what you know about yourself — the term first, "I have this" or "I
+  don't" as a drawn mark with words, the note under it, what you have listed
+  first.
+
+### Fixed
+- The on/off badge of a notification target was a button named "Toggle"; a
+  screen reader now hears "Disable Work chat".
+- A long explanation under a field no longer becomes the field's accessible
+  name: the label wraps the label, one sentence and the control, nothing else.
+
 ## [2.12.0] — 2026-09-17
 
 ### Changed
@@ -3723,6 +3751,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.13.0]: https://github.com/applypack/applypack/compare/v2.12.0...v2.13.0
 [2.12.0]: https://github.com/applypack/applypack/compare/v2.11.0...v2.12.0
 [2.11.0]: https://github.com/applypack/applypack/compare/v2.10.0...v2.11.0
 [2.10.0]: https://github.com/applypack/applypack/compare/v2.9.4...v2.10.0

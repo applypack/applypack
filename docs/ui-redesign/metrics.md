@@ -189,3 +189,32 @@ One pair the plan did not list: a pill laid on the canvas instead of on white
 read 4.44 for *Applied* — a pill now paints its tint over its own white
 ground, so it is the tested pair wherever it sits.
 
+## Stage 3 — `settings-compare-disclosure`, 2026-09-17
+
+Before = the stage 2 build, after = the branch, same hour, same data.
+
+| Page | hintWords before | after | change | asked | tabStops | heightPx |
+| --- | ---: | ---: | ---: | --- | --- | --- |
+| `/settings?tab=general` | 261 | 151 | −42 % | ≥ 40 % down | 79 → 80 | 2 043 → 2 196 |
+| `/settings?tab=profile` | 314 | 180 | −43 % | ≥ 40 % | 75 → 77 | 1 916 → 1 881 |
+| `/settings?tab=ai` | 377 | 217 | −42 % | ≥ 40 % | 32 → 38 | 2 068 → 2 127 |
+| `/settings?tab=notifications` | 122 | 69 | −43 % | ≥ 40 % | 18 → 20 | 900 |
+| `/settings?tab=sources` | 583 | 345 | −41 % | ≥ 40 % | 55 → 57 | 1 825 → 1 503 |
+| `/settings?tab=screening` | 298 | 244 | −18 % | ≥ 15 % | 11 → 12 | 1 405 → 1 562 |
+| `/resumes` | 123 | 39 | −68 % | ≤ 50 | 9 → 4 | 900 |
+| `/target` | 192 | 43 | −78 % | ≤ 90 | **18 → 10** (≤ 11) | **1 179 → 900** (inside 900) |
+| `/letter` | 144 | 50 | −65 % | ≤ 80 | 23 → 15 | 1 264 → 907 |
+
+The AI tab's "before" is the host's reading: its state lines quote the CLI
+versions the machine reports, and the container's longer ones read 391. The
+tab stops that appeared are the "How this works" summaries (five of them on
+the AI tab, one per engine). Settings tabs grew taller where a section's title
+moved from beside its controls to above them; Sources shrank because the two
+vendors' explanations folded. At 375 px `/target` went from 2 216 px to 974.
+
+Every `<form>` on the ten changed pages — 59 forms, 1 020 controls — has the
+same action, method, encoding and the same controls in the same order, with
+the same names, types, values and `required` / `data-required` marks, before
+and after: a folded mode's fields are still in the markup and still posted.
+The other 17 measured pages read exactly as in stage 2.
+
