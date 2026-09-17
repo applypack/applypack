@@ -116,3 +116,12 @@ export function fitTone(score: number | null | undefined): Tone {
   if (score >= FIT_WARN_FLOOR) return 'warn';
   return 'neutral';
 }
+
+/** The same floors in a word, for where there is room beside the number: a job page's header. */
+export function fitWord(score: number | null | undefined): string {
+  if (score == null) return '';
+  if (score >= FIT_OK_FLOOR) return 'Strong';
+  if (score >= FIT_INFO_FLOOR) return 'Good';
+  if (score >= FIT_WARN_FLOOR) return 'Partial';
+  return 'Weak';
+}

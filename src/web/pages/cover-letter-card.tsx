@@ -12,6 +12,7 @@ import {
   COVER_WORDS_MIN,
   type CoverAngles,
 } from '../../resume/prompts';
+import { jobHref } from '../job-tabs';
 
 export interface CoverLetterCardProps {
   jobId: number;
@@ -160,7 +161,7 @@ export const CoverLetterCard: FC<CoverLetterCardProps> = ({
               <>
                 {' '}
                 No company research stored yet, so company lines stick to the posting itself —{' '}
-                <a href="#verification" class="font-medium text-accent-strong hover:text-accent-deep">
+                <a href={jobHref(jobId, 'verify', {}, 'verification')} class="font-medium text-accent-strong hover:text-accent-deep">
                   Verify first
                 </a>{' '}
                 for researched company facts.

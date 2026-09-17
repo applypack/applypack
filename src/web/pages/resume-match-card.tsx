@@ -42,6 +42,7 @@ import { noEditsLine, type Reach } from '../no-edits';
 import { readyToApply, scoreLines, type ScoreLine } from '../score-lines';
 import { diffMatches } from '../../resume/diff';
 import { earlierLabel, previousFor } from '../../resume/match-name';
+import { jobHref } from '../job-tabs';
 
 export interface ResumeMatchCardProps {
   jobId: number;
@@ -135,7 +136,7 @@ export const ResumeMatchCard: FC<ResumeMatchCardProps> = ({
   <div id="resume-match">
     <Card>
       <SectionTitle>Resume match</SectionTitle>
-      <VerificationLine verification={verification} />
+      <VerificationLine verification={verification} href={jobHref(jobId, 'verify', {}, 'verification')} />
       {resumes.length === 0 ? (
         <Hint>
           No resumes uploaded.{' '}
@@ -303,7 +304,7 @@ const LINE_TONE: Record<NonNullable<ScoreLine['tone']>, string> = {
 const LineGroup: FC<{ heading: string; lines: ScoreLine[] }> = ({ heading, lines }) =>
   lines.length === 0 ? null : (
     <div>
-      <div class="text-[11px] uppercase tracking-wide text-ink-faint">{heading}</div>
+      <div class="text-label text-ink-muted">{heading}</div>
       <dl class="mt-0.5 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5">
         {lines.map((l) => (
           <>
@@ -607,10 +608,10 @@ const HardRequirementsBlock: FC<{ hard: MatchHardRequirement[] }> = ({ hard }) =
  * card that holds the evidence — and the mirror of the cover card's hint
  * when nothing is stored yet.
  */
-export const VerificationLine: FC<{ verification: VerificationForHint | null; class?: string; href?: string }> = ({
+export const VerificationLine: FC<{ verification: VerificationForHint | null; class?: string; href: string }> = ({
   verification,
   class: className = 'mb-3',
-  href = '#verification',
+  href,
 }) => {
   const link = (
     <a href={href} class="font-medium text-accent-strong hover:text-accent-deep">

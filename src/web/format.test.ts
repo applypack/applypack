@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { formatUntil } from './format';
+import { FIT_INFO_FLOOR, FIT_OK_FLOOR, FIT_WARN_FLOOR, fitTone, fitWord, formatUntil } from './format';
 
 describe('formatUntil', () => {
   it('counts forward, in the units a reader wants', () => {
@@ -23,3 +23,24 @@ describe('formatUntil', () => {
     assert.equal(formatUntil(undefined), '—');
   });
 });
+
+describe('fitWord', () => {
+  it('says the tone floors in a word, on the same cut-offs as fitTone', () => {
+    assert.equal(fitWord(FIT_OK_FLOOR), 'Strong');
+    assert.equal(fitWord(FIT_OK_FLOOR - 1), 'Good');
+    assert.equal(fitWord(FIT_INFO_FLOOR), 'Good');
+    assert.equal(fitWord(FIT_INFO_FLOOR - 1), 'Partial');
+    assert.equal(fitWord(FIT_WARN_FLOOR), 'Partial');
+    assert.equal(fitWord(FIT_WARN_FLOOR - 1), 'Weak');
+    assert.equal(fitWord(0), 'Weak');
+    assert.equal(fitWord(null), '');
+  });
+
+  it('never parts ways with the tone', () => {
+    const wordOf = { ok: 'Strong', info: 'Good', warn: 'Partial', neutral: 'Weak' } as const;
+    for (let score = 0; score <= 100; score++) {
+      assert.equal(fitWord(score), wordOf[fitTone(score) as keyof typeof wordOf], `score ${score}`);
+    }
+  });
+});
+

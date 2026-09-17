@@ -30,6 +30,7 @@ import {
   SuggestionsPrompt,
 } from './resume-match-card';
 import { ACCEPTED_EXTENSIONS } from '../../resume/resume-text';
+import { jobHref } from '../job-tabs';
 
 /*
  * Resume match (targeted resume): job description with keyword highlights on
@@ -173,7 +174,7 @@ export const TargetPage: FC<TargetPageProps> = ({
         </a>
         <span aria-hidden="true">/</span>
         <a
-          href={`/jobs/${job.id}#resume-match`}
+          href={jobHref(job.id, 'match', {}, 'resume-match')}
           class="max-w-[18rem] truncate transition-colors duration-150 hover:text-ink"
           title={job.title}
         >
@@ -230,7 +231,7 @@ export const TargetPage: FC<TargetPageProps> = ({
         </div>
       </div>
       {verification && (
-        <VerificationLine verification={verification} class="-mt-2 mb-4" href={`/jobs/${job.id}#verification`} />
+        <VerificationLine verification={verification} class="-mt-2 mb-4" href={jobHref(job.id, 'verify', {}, 'verification')} />
       )}
 
       <Card class="mb-4">

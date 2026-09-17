@@ -33,10 +33,15 @@ const MAY_404 = new Set([
   '/companies/watchlist/:id/state',
   '/jobs/:id/cover/:letterId/file/:fmt',
 ]);
-/** GETs the route patterns do not reach: a page under its query parameters. */
+/** GETs the route patterns do not reach: a page under its query parameters (`:id` = the fixture job). */
 const QUERY_VARIANTS = [
   // Every /jobs filter at once, the panel open: the where-clause, the facet tally and the status counts together.
   '/jobs?panel=1&status=NEW&q=node&minFit=10&sort=fitScore_desc&verified=1&watched=1&open=1&country=DE,EU,unknown&workplace=remote,unknown&posted=30d',
+  // The job page's three other tabs, and a tab nobody offers — that one must fall back, not fail.
+  '/jobs/:id?tab=match',
+  '/jobs/:id?tab=letter',
+  '/jobs/:id?tab=verify',
+  '/jobs/:id?tab=nonsense',
 ];
 // app.request() builds no Host header of its own, and the origin guard
 // compares Origin's host with it (same-origin.ts) — so the request says both.
@@ -140,7 +145,7 @@ async function main(): Promise<void> {
     const ok = ACCEPT.has(res.status) || (res.status === 404 && MAY_404.has(route));
     rows.push({ route, url, status: res.status, ok });
   }
-  for (const url of QUERY_VARIANTS) {
+  for (const url of QUERY_VARIANTS.map((v) => fill(v, f))) {
     const res = await app.request(url, { headers: ORIGIN });
     rows.push({ route: url, url, status: res.status, ok: res.status === 200 });
   }
@@ -173,13 +178,32 @@ async function main(): Promise<void> {
       expect: (res) => res.status === 403,
     },
     {
+      // The rail rides on every tab: a status change made on one returns to it, and only a known tab is echoed.
+      name: 'POST /jobs/:id/status with tab=match (back to that tab)',
+      init: form({ status: 'SAVED', tab: 'match' }),
+      expect: (res) => res.status === 303 && res.headers.get('location') === `/jobs/${f.jobId}?tab=match`,
+    },
+    {
+      name: 'POST /jobs/:id/status with a made-up tab (back to the posting)',
+      init: form({ status: 'NEW', tab: 'https://evil.example' }),
+      expect: (res) => res.status === 303 && res.headers.get('location') === `/jobs/${f.jobId}`,
+    },
+    {
       // The one route that reads files beside dist/: the PDF fonts a build must copy.
       name: 'POST /resumes/:id/render (a clean PDF)',
       init: form({ mode: 'pdf' }),
       expect: (res) => res.status === 200 && res.headers.get('content-type') === 'application/pdf',
     },
   ];
-  const postPaths = ['/jobs/new', '/resumes', '/settings/fetching-toggle', `/jobs/${f.jobId}/status`, `/resumes/${f.resumeId}/render`];
+  const postPaths = [
+    '/jobs/new',
+    '/resumes',
+    '/settings/fetching-toggle',
+    `/jobs/${f.jobId}/status`,
+    `/jobs/${f.jobId}/status`,
+    `/jobs/${f.jobId}/status`,
+    `/resumes/${f.resumeId}/render`,
+  ];
   for (const [i, p] of posts.entries()) {
     const res = await app.request(postPaths[i]!, p.init);
     rows.push({ route: p.name, url: postPaths[i]!, status: res.status, ok: p.expect(res) });

@@ -3,6 +3,7 @@ import type { FC } from 'hono/jsx';
 import { Layout } from '../layout';
 import { Button, Card, Hint, PageHeader } from '../ui';
 import { describeRefresh, type PreviewRow, type RefreshPlan } from '../../jobs/description-diff';
+import { jobHref } from '../job-tabs';
 
 /*
  * The confirmation behind "Refresh the description from the company's
@@ -28,7 +29,7 @@ const ROW_CLASS: Record<Exclude<PreviewRow['kind'], 'fold'>, string> = {
 const ROW_MARK: Record<Exclude<PreviewRow['kind'], 'fold'>, string> = { keep: ' ', delete: '−', insert: '+' };
 
 export const DescriptionRefreshPage: FC<DescriptionRefreshProps> = ({ job, url, plan, rows, text }) => {
-  const back = `/jobs/${job.id}#verification`;
+  const back = jobHref(job.id, 'verify', {}, 'verification');
   return (
     <Layout title="Refresh the description" active="jobs">
       <PageHeader

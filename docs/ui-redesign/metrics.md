@@ -257,3 +257,29 @@ without taking anything away from the reader:
 and the JSON is still in the page. `mainWords` under-reads machine output by
 design; read it beside `heightPx` on any page that prints some.
 
+## Stage 5 — `job-page-tabs`, 2026-09-17
+
+Before = the stage 4 build (one page, eight cards), after = the branch.
+
+| Page | tabStops | hintWords | mainWords | boxes | primaries | heightPx |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| `/jobs/100` before | 24 | **190** | 400 | **24** | **3** | 1 344 |
+| `/jobs/100` — Posting (default) | 17 | **5** (≤ 70 asked) | 151 | **12** (≤ 14 asked) | **1** | 1 038 |
+| `/jobs/100?tab=match` | 20 | 75 | 190 | 14 | 0 | 1 038 |
+| `/jobs/100?tab=letter` | 22 | 54 | 177 | 17 | 0 | 1 038 |
+| `/jobs/100?tab=verify` | 17 | 71 | 162 | 12 | 1 | 1 038 |
+| `/jobs/62?match=3` (a full report; the tab is inferred) | 66 | 106 | 1 014 | 39 | 1 | 3 621 |
+
+One solid button on every tab (asked: ≤ 1): the header's "Open posting" is
+the primary on Posting and Is it real?, and steps back to a secondary button
+where the tab brings its own ("Tailor resume →", "Copy letter"). Two boxes
+went with the rail becoming one surface with dividers and one with the
+Posting tab's classifier and description sharing a surface — the
+One-Surface-Per-Region rule, not a trick of the count.
+
+All 61 forms of the single-page job 62 exist on the tabbed page with the same
+action and controls: the rail's five on every tab (each now posting a hidden
+`tab`), the classifier's on Posting, the comparison's 54 on Resume match, the
+letter's on Cover letter, the verifier's on Is it real?; none missing, none
+new. The other 25 measured pages read as in stage 4.
+
