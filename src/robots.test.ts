@@ -129,6 +129,15 @@ describe('isAllowed — which groups bind us', () => {
     assert.equal(allowed(anthropic, '/careers', CLAUDE), false);
   });
 
+  it('binds an install on Claude, API or CLI, to every crawler name Anthropic publishes', () => {
+    for (const provider of ['anthropic_api', 'claude_code'] as const) {
+      const tokens = bindingTokens(aiCrawlerTokens([provider]));
+      for (const agent of ['ClaudeBot', 'Claude-User', 'Claude-SearchBot']) {
+        assert.equal(allowed(`User-agent: ${agent}\nDisallow: /careers`, '/careers', tokens), false, `${provider} / ${agent}`);
+      }
+    }
+  });
+
   it('binds an install on Gemini the other way round', () => {
     const gemini = bindingTokens(aiCrawlerTokens(['gemini_cli']));
     assert.equal(allowed('User-agent: Google-Extended\nDisallow: /careers', '/careers', gemini), false);

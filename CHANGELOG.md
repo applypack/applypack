@@ -15,6 +15,11 @@ All notable changes to this project are documented here. The format follows
   so a site that bans `ClaudeBot` or `anthropic-ai` could still be added, and
   Claude then read its postings. The engine that answers binds you now too;
   an install whose own engines run is bound exactly as before.
+- **A ban on `Claude-User` or `Claude-SearchBot` binds an install that runs
+  Claude.** Anthropic publishes three crawler names, `ClaudeBot`,
+  `Claude-User` and `Claude-SearchBot`, but robots.txt was checked only
+  against `ClaudeBot` and the two older names, `Claude-Web` and
+  `anthropic-ai`. All five count now, the way OpenAI's three already did.
 
 ## [2.9.1] — 2026-09-13
 
