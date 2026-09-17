@@ -129,3 +129,30 @@ Two things the later stages should know before they quote a row:
   the marked build.
 - The steps were measured with setup finished and every step done — the only
   state the live database offers.
+
+## Stage 1 — `jobs-filter-panel`, 2026-09-17
+
+Before = the stage 0 build (the owner's dashboard), after = the branch, both
+read within the same minutes on the same 96 jobs.
+
+| Page | | tabStops | inDom | aboveTable | boxes | heightPx | htmlKB |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| `/jobs` | before | 81 | 150 | **30** | 33 | 900 | 151.7 |
+| | after | 63 | 151 | **12** | 9 | 900 | 154.1 |
+| `/jobs?country=US&workplace=remote&posted=7d` | before | 47 | 114 | **30** | 33 | 900 | 90.2 |
+| | after | 33 | 119 | **16** | 12 | 900 | 95.3 |
+
+Targets: `aboveTable` ≤ 14 with nothing selected (12), ≤ 19 with three
+filters (16); `inDom` ≤ 165 (151); `htmlKB` within +6 % (+1.6 %, and +5.7 %
+on the filtered page — every link inside the panel repeats the query and adds
+`panel=1`). With the panel open the two pages read 31 and 35: the reader asked
+for the options. At 375 px `/jobs` went from 81 stops and 886 px to 63 and 764.
+
+Nothing filters differently: eight URLs — the plan's five, plus
+`profile=1&open=1`, `country=unknown&workplace=unknown&verified=1` and
+`page=2` — return the same total and the same set of rows before and after,
+and each status tab's count equals the total of the list it opens. The GET
+form's seventeen controls are the same names, types and values.
+
+The other 24 pages read exactly as in stage 0.
+

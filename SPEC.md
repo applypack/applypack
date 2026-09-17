@@ -304,8 +304,8 @@ during hours the search sleeps.
 `alertPolicy = 'all'` bypasses the base filter and the fit threshold: the
 posting is still classified, so it carries a score, but the alert reads
 `★ New posting` rather than claiming a match. `★` marks the company on
-`/jobs`, on the job page and in Telegram, and the `★ Watched` chip filters
-the list.
+`/jobs`, on the job page and in Telegram, and `★ Watched` under **Filters**
+narrows the list to them.
 
 When a page publishes no board and no feed but does publish prose, the last
 rung takes it: **the change watch**. It hashes `stripHtml(page)` with
