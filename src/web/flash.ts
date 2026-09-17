@@ -72,6 +72,17 @@ export function parseFlashCookie(cookieHeader: string | undefined): FlashMessage
 }
 
 /**
+ * The first thing a schema refused, as "field: reason" — so a flash can name
+ * what was wrong instead of "Invalid form values".
+ */
+export function firstIssue(issues: readonly { path: readonly PropertyKey[]; message: string }[]): string {
+  const first = issues[0];
+  if (!first) return 'the form arrived empty';
+  const field = first.path.map(String).join('.');
+  return field ? `${field}: ${first.message}` : first.message;
+}
+
+/**
  * A redirect target from a form field, kept local — an absolute or
  * protocol-relative URL would be an open redirect.
  */

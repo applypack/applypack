@@ -139,7 +139,10 @@ async function compare(runId: string, req: ComparisonRequest): Promise<void> {
     },
   });
   if (!row) {
-    updateRun(runId, { stage: 'error', error: runFailure(req.failure ?? 'Comparison failed', reason) });
+    updateRun(runId, {
+      stage: 'error',
+      error: runFailure(req.failure ?? 'Comparison failed', reason, 'Earlier comparisons are untouched; go back and run it again.'),
+    });
     return;
   }
   const flash = rebuild

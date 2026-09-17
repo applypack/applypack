@@ -235,7 +235,7 @@ resumesRoute.post('/resumes/:id/draft', async (c) => {
       const scan = await scanResume(resume, noteReason);
       updateRun(run.id, scan
         ? { stage: 'done', resultUrl: `/resumes/${resume.id}`, flash: `${saved}.` }
-        : { stage: 'error', error: runFailure(`${saved}, but the scan failed`, reason) });
+        : { stage: 'error', error: runFailure(`${saved}, but the scan failed`, reason, 'The saved version is intact; press Re-scan on its page.') });
       return;
     }
     // The match reads the text, never the scan (target-plan §3.1 item 2), so
@@ -255,7 +255,7 @@ resumesRoute.post('/resumes/:id/draft', async (c) => {
         }
       : {
           stage: 'error',
-          error: runFailure(`${saved}, but the comparison failed`, reason),
+          error: runFailure(`${saved}, but the comparison failed`, reason, 'The saved version is intact; press Compare on the job page.'),
         });
   });
   return c.redirect(`/target/runs/${run.id}`, 303);
@@ -358,7 +358,7 @@ resumesRoute.post('/resumes/:id/rescan', async (c) => {
   return startScanRun(c, resume, {
     subtitle: `"${resume.name}" — headline, tools, seniority. About half a minute.`,
     onScanned: (scan) => `Scanned: ${scan.skills.length} skills, ${scan.issues.length} issues.`,
-    onFailed: 'Scan failed — see the web logs.',
+    onFailed: 'The scan did not finish, so the resume keeps its last reading. Test the engine on Settings → AI engine, then press Scan again.',
   });
 });
 
@@ -418,7 +418,7 @@ resumesRoute.post('/resumes/:id/review', async (c) => {
             ? deltaSentence(delta)
             : `Strength ${row.reviewScore}/100 — ${row.headline}`,
         }
-      : { stage: 'error', error: 'The review failed — see the web logs.' });
+      : { stage: 'error', error: 'The review did not finish, so the last one stays. Test the engine on Settings → AI engine, then run it again; the web log has the detail.' });
   });
   return c.redirect(`/target/runs/${run.id}`, 303);
 });

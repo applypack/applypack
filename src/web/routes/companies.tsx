@@ -19,7 +19,7 @@ import {
 import { resolvePack } from '../../starter-packs/probe';
 import { activeWatchlistRun } from '../watchlist-runs';
 import { currentSuggestions, waitingSuggestions } from '../source-suggestions';
-import { flashRedirect } from '../flash';
+import { firstIssue, flashRedirect } from '../flash';
 import {
   boardUrl,
   buildPreview,
@@ -240,14 +240,18 @@ const SuggestedAddSchema = z.object({ atsType: z.string(), atsToken: z.string().
 companiesRoute.post('/companies/suggested', async (c) => {
   const form = await c.req.parseBody();
   const parsed = SuggestedAddSchema.safeParse({ atsType: form.atsType, atsToken: form.atsToken });
-  if (!parsed.success) return redirectWithFlash(c, 'err', 'Invalid form values.');
+  if (!parsed.success) {
+    return redirectWithFlash(c, 'err', 'That request named no source, so nothing was added. Open Sources for your searches under Add sources and press Add (off) there.');
+  }
   const wanted = (await currentSuggestions()).find(
     (s) => s.atsType === parsed.data.atsType && s.atsToken === parsed.data.atsToken && s.state === 'missing',
   );
-  if (!wanted) return redirectWithFlash(c, 'err', 'That source is not among today\'s suggestions.');
+  if (!wanted) {
+    return redirectWithFlash(c, 'err', 'That source is not among today\'s suggestions, so nothing was added. Sources for your searches, under Add sources, lists the current ones.');
+  }
 
   const probe = await probeAts(wanted.atsType, wanted.atsToken, { keys: await getSourceKeys() });
-  if (!probe.ok) return redirectWithFlash(c, 'err', `Probe failed: ${probe.error}`);
+  if (!probe.ok) return redirectWithFlash(c, 'err', `Nothing was added. ${probe.error}`);
 
   await prisma.company.create({
     data: { name: wanted.name, atsType: wanted.atsType, atsToken: wanted.atsToken, careerUrl: wanted.careerUrl, active: false },
@@ -337,7 +341,7 @@ companiesRoute.post('/companies/starter-pack/import', async (c) => {
   const picks = toStringArray(form.pick);
   const next = packOrigin(form.next);
   if (picks.length === 0) {
-    return redirectWithFlash(c, 'err', 'Nothing selected.');
+    return redirectWithFlash(c, 'err', 'No board was ticked, so nothing was added. Open the pack again and tick at least one.');
   }
 
   const added: Array<{
@@ -396,7 +400,8 @@ companiesRoute.post('/companies/starter-pack/enable', async (c) => {
     .filter((n) => Number.isInteger(n));
   const back = packOrigin(form.next) === 'welcome' ? '/welcome?step=sources' : null;
   if (ids.length === 0) {
-    return back ? flashRedirect(back, 'err', 'No companies to enable.') : redirectWithFlash(c, 'err', 'No companies to enable.');
+    const text = 'That request named no company, so nothing was enabled. The ones you added are on Companies, switched off.';
+    return back ? flashRedirect(back, 'err', text) : redirectWithFlash(c, 'err', text);
   }
 
   const { count } = await prisma.company.updateMany({
@@ -452,7 +457,7 @@ companiesRoute.post('/companies/:id/reprobe', async (c) => {
     return redirectWithFlash(
       c,
       'err',
-      `${company.name}: ${probe.error ?? 'probe failed'}`,
+      `${company.name} did not answer the check. ${probe.error ?? 'No reason came back.'} The row is unchanged.`,
     );
   }
 
@@ -497,13 +502,13 @@ companiesRoute.post('/companies/new', async (c) => {
       { errors: parsed.error.flatten().fieldErrors },
       'companies/new: validation failed',
     );
-    return redirectWithFlash(c, 'err', 'Invalid form values.');
+    return redirectWithFlash(c, 'err', `Company not added (${firstIssue(parsed.error.issues)}). Fix that field under Add sources and try again.`);
   }
   const { name, atsType, atsToken, careerUrl } = parsed.data;
 
   const probe = await probeAts(atsType, atsToken, { keys: await getSourceKeys() });
   if (!probe.ok) {
-    return redirectWithFlash(c, 'err', `Probe failed: ${probe.error}`);
+    return redirectWithFlash(c, 'err', `Nothing was added. ${probe.error}`);
   }
 
   // Refuse silent overwrites — if the (atsType, atsToken) pair already

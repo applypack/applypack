@@ -174,15 +174,27 @@ export function getRun(id: string): TargetRun | null {
 }
 
 /** Runs the async chain; any uncaught failure flips the run to error. */
-/** The run's error line: the provider's one-line reason when there is one, else where to look (#184). */
-export function runFailure(what: string, reason: string): string {
-  return reason ? `${what}: ${reason}.` : `${what} — see the web logs.`;
+/**
+ * The run's error line: what failed, the provider's one-line reason when there
+ * is one (#184), then `next` — what is safe and the way forward, which only
+ * the caller knows. Without a reason the web log is where the detail lives.
+ */
+export function runFailure(what: string, reason: string, next: string): string {
+  return `${what}${reason ? `: ${reason}` : ''}. ${next}${reason ? '' : ' The web log has the detail.'}`;
 }
+
+/** The engine came back with no letter (the fact gate's refusal has its own sentence). */
+export const LETTER_FAILED =
+  'The engine returned no letter, so nothing was saved and earlier letters are untouched. Test the engine on Settings → AI engine, then generate again; the web log has the detail.';
+
+/** A failure nobody planned for: the chain threw. */
+export const UNEXPECTED_FAILURE =
+  'The run stopped on an unexpected error before it stored a result. Go back and start it again; the web log has the detail.';
 
 export function startRun(id: string, fn: () => Promise<void>): void {
   void fn().catch((err) => {
     logger.error({ err, runId: id }, 'web: compare run failed');
-    updateRun(id, { stage: 'error', error: 'Unexpected failure — see the web logs.' });
+    updateRun(id, { stage: 'error', error: UNEXPECTED_FAILURE });
   });
 }
 

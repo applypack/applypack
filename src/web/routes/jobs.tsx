@@ -42,7 +42,7 @@ import { oneOffDraft, previousFor } from '../../resume/match-name';
 import { nameFromFilename, readResumeUpload, resumeUploadLimit } from '../upload';
 import { scanInBackground } from '../../resume/scan';
 import { clearFlashCookie, flashRedirect, parseFlashCookie } from '../flash';
-import { claimRun, findLiveRun, runFailure, startRun, updateRun } from '../target-runs';
+import { claimRun, findLiveRun, LETTER_FAILED, runFailure, startRun, updateRun } from '../target-runs';
 import { startComparison } from '../comparison-run';
 import { startSuggestionsRun } from '../suggestions-run';
 import {
@@ -695,7 +695,7 @@ jobsRoute.post('/jobs/:id/verify', async (c) => {
             resultUrl: back,
             flash: `Verified: ${row.verdict} (${row.confidence}% confidence) — recommendation: ${row.recommendation}.`,
           }
-        : { stage: 'error', error: `Verification failed${reason ? `: ${reason}` : ' — see the web logs'}.` },
+        : { stage: 'error', error: runFailure('Verification failed', reason ?? '', 'The job and its earlier checks are untouched; press Verify again.') },
     );
   });
   return c.redirect(`/target/runs/${run.id}`, 303);
@@ -815,7 +815,7 @@ jobsRoute.post(
     },
   );
   if (!row) {
-    return flashRedirect(back, 'err', runFailure('Could not rewrite that suggestion', reason));
+    return flashRedirect(back, 'err', runFailure('Could not rewrite that suggestion', reason, 'The old wording stays; press Rewrite again.'));
   }
   const written = readActions(row.actions)[index];
   return flashRedirect(
@@ -890,7 +890,7 @@ jobsRoute.post('/jobs/:id/cover', async (c) => {
         error: `The fact checker rejected the letter twice, so nothing was saved. Violations: ${outcome.reasons.join('; ')}.`,
       });
     } else {
-      updateRun(run.id, { stage: 'error', error: 'Generation failed — see the web logs.' });
+      updateRun(run.id, { stage: 'error', error: LETTER_FAILED });
     }
   });
   return c.redirect(`/target/runs/${run.id}`, 303);

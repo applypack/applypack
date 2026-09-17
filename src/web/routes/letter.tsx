@@ -14,7 +14,7 @@ import { verifyJob } from '../../verification/verify';
 import { getSettings, setCoverAngles } from '../../settings';
 import { LetterStartPage } from '../pages/letter-start';
 import { clearFlashCookie, flashRedirect, parseFlashCookie } from '../flash';
-import { claimRun, startRun, updateRun, type RunStep } from '../target-runs';
+import { claimRun, LETTER_FAILED, startRun, updateRun, type RunStep } from '../target-runs';
 import { listPickableJobs } from '../job-pick';
 import { listResumeOptions, resolveResumeSource, ResumeSourceFields } from '../resume-source';
 import { resumeUploadLimit } from '../upload';
@@ -257,7 +257,7 @@ letterRoute.post('/letter', resumeUploadLimit('/letter'), async (c) => {
         error: `The fact checker rejected the letter twice, so nothing was saved. Violations: ${outcome.reasons.join('; ')}.`,
       });
     } else {
-      updateRun(run.id, { stage: 'error', error: 'Generation failed — see the web logs.' });
+      updateRun(run.id, { stage: 'error', error: LETTER_FAILED });
     }
   });
 
