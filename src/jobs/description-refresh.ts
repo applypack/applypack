@@ -1,7 +1,7 @@
 import type { Job } from '@prisma/client';
 import { prisma } from '../db';
 import { logger } from '../logger';
-import { simhash64 } from '../fingerprint';
+import { simhash64, toDbBigInt } from '../fingerprint';
 import { classifyExistingJob, type ClassifiableJob } from './classify-existing';
 import { normaliseDescription } from './description-diff';
 
@@ -48,7 +48,7 @@ async function swap(
 ): Promise<DescriptionSwap> {
   const updated = await prisma.job.update({
     where: { id: job.id },
-    data: { ...data, descriptionSimhash: simhash64(data.description) },
+    data: { ...data, descriptionSimhash: toDbBigInt(simhash64(data.description)) },
   });
   let reclassified = false;
   try {
