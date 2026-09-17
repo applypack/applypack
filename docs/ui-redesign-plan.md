@@ -480,7 +480,8 @@ row (only when something is active) → the table.
   the toolbar's flex row, its body `basis-full order-last`: rows *Search*
   (only with more than one running search), *Where* (top eight + the existing
   More…), *Work*, *Posted*, *Show* (Verified, ★ Watched, Open to me). Row
-  labels in sentence case at `label` size. Option chips are `rounded-md` on
+  labels in sentence case at 13 px medium (stage 2 names that size `label`
+  and the panel switches to it). Option chips are `rounded-md` on
   the subtle surface with their count; a selected one is tinted, weight 500,
   with a drawn check.
 - Every link inside the panel carries `panel=1`; the route accepts it
