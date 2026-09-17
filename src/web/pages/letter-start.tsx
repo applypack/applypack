@@ -1,7 +1,7 @@
 /** @jsxImportSource hono/jsx */
 import type { FC } from 'hono/jsx';
 import { Layout } from '../layout';
-import { Button, Card, Checkbox, FILE_INPUT_CLASS, Flash, Hint, Input, PageHeader, SectionTitle, Select, Textarea } from '../ui';
+import { Button, Card, Checkbox, FILE_INPUT_CLASS, Flash, Hint, Input, More, PageHeader, SectionTitle, Select, Textarea } from '../ui';
 import type { FlashMessage } from '../flash';
 import type { ResumeOption } from '../resume-source';
 import type { JobPickOption } from '../job-pick';
@@ -41,8 +41,8 @@ export const LetterStartPage: FC<LetterStartProps> = ({
   return (
     <Layout title="Cover letter" active="letter">
       <PageHeader title="Cover letter" meta="~30–60 s">
-        Pick a job, pick a resume, get a short letter grounded in what your resume actually says.
-        One model call by default — the deeper analyses below are opt-in, and cost minutes.
+        A short letter grounded in what your resume says. One model call; the deeper analyses
+        below are opt-in and cost minutes.
       </PageHeader>
       <Flash flash={flash} />
 
@@ -86,12 +86,15 @@ export const LetterStartPage: FC<LetterStartProps> = ({
                     <Input type="text" name="title" maxlength="200" placeholder="Job title (optional)" aria-label="Job title" />
                   </div>
                   <Hint>
-                    A URL alone is enough — we fetch the page and read the company and title out
-                    of it. Sites that need JavaScript or answer with a bot check cannot be read;
-                    paste the text instead. LinkedIn, Indeed, Glassdoor, Workday and Wellfound are
-                    never fetched. Filling company and title yourself skips a detection call and
-                    makes the run faster.
+                    A URL alone is enough: ApplyPack fetches the page and reads the company and
+                    title from it.
                   </Hint>
+                  <More summary="When a page cannot be read">
+                    Sites that need JavaScript or answer with a bot check cannot be read; paste the
+                    text instead. LinkedIn, Indeed, Glassdoor, Workday and Wellfound are never
+                    fetched. Filling company and title yourself skips a detection call and makes the
+                    run faster.
+                  </More>
                 </div>
               </ModeCard>
             </div>
@@ -182,8 +185,8 @@ export const LetterStartPage: FC<LetterStartProps> = ({
               </Textarea>
             </label>
             <Hint>
-              Angle values are saved for your next letters. Facts and numbers still come only from
-              your resume and confirmed facts.
+              Saved for your next letters. Facts and numbers still come only from your resume and
+              confirmed facts.
             </Hint>
 
             <details class="rounded-md border border-line px-3 py-2">

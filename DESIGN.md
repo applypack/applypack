@@ -278,10 +278,15 @@ Content gutters are 16px, stepping to 24px ≥640px and 32px ≥1024px, with 20p
 vertical padding. The page header sits 24px above the content. Cards stack and
 grid at 16px gaps. Detail pages split into a fluid main column and a 340px
 facts-and-actions rail at ≥1280px (rail first in DOM so actions lead on small
-screens). Settings caps at `max-w-5xl` and uses Stripe-style rows: a 220px
-title-and-description column beside the controls, each section separated by a
-hairline and 28px of padding. The Applications board scrolls horizontally
-through 288px fixed-width stage columns.
+screens). Settings puts its six tabs in a sticky left column of links from
+1024px (a rule down its side, the current tab marked on it in emerald-strong)
+and keeps them as a segmented row below that — same `?tab=` URLs either way.
+A settings section stacks its title (the section step) and one sentence above
+its controls, each section separated by a hairline and 28px of padding. The
+launchers (Compare, Cover letter, New screening) show one input mode at a
+time: the body of a mode whose radio is not checked folds away in CSS
+(`:has()`), its fields still in the form. The Applications board scrolls
+horizontally through 288px fixed-width stage columns.
 
 All spacing sits on the 4px grid; the working steps are 4 / 8 / 12 / 16 / 20 /
 24 / 32px. Density is the point — 12px cell padding in tables, 20px card
@@ -394,7 +399,12 @@ null renders an em dash.
 - **Select:** identical, with a drawn 14px chevron (data-URI SVG, faint-ink
   stroke) replacing browser chrome.
 - **Field:** the label step (13px/550) in ink, an optional one-sentence hint
-  at the meta step, 6px gap to control.
+  at the meta step, 6px gap to control. The `<label>` wraps only those three;
+  `more` renders a quiet "How this works" disclosure outside it, so a long
+  explanation never becomes the control's accessible name. `ToggleRow`,
+  `TagListInput` and a settings `Section` take `more` the same way.
+- **More (`More`):** the rest of an explanation — a quiet `Disclosure` whose
+  body is meta-step prose carrying the hint hook.
 - **Choice controls:** native checkboxes/radios tinted via `accent-color`;
   PillCheckbox and Radio wrap them in bordered white containers whose checked
   state takes the selected surface and a 40–50% emerald border — the native

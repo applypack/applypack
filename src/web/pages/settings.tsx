@@ -2,7 +2,7 @@
 import type { Child, FC, PropsWithChildren } from 'hono/jsx';
 import type { Profile } from '@prisma/client';
 import { Layout } from '../layout';
-import { ActionForm, Badge, Button, Card, Code, Empty, Field, FILE_INPUT_CLASS, Flash, Hint, Input, PageHeader, PillCheckbox, Radio, SectionTitle, Select, Table, Tag, Td, Textarea, ToggleRow, Tr, TagListInput } from '../ui';
+import { ActionForm, Badge, Button, Card, Code, Empty, Field, FILE_INPUT_CLASS, Flash, Hint, Input, More, PageHeader, PillCheckbox, Radio, SectionTitle, Select, Table, Tag, Td, Textarea, ToggleRow, Tr, TagListInput } from '../ui';
 import { formatRelative } from '../format';
 import type { FlashMessage } from '../flash';
 import { describeCount, type SourceGroup } from '../source-groups';
@@ -175,18 +175,21 @@ export interface ScreeningSettings {
   legalNote: string;
 }
 
-/** Stripe-style settings section: title + description left, controls right. */
-const Section: FC<PropsWithChildren<{ title: string; desc?: string | Child }>> = ({
+/**
+ * A settings section: its title and one sentence above its controls; what else
+ * is worth knowing sits behind "How this works" (DESIGN.md, the Disclosure Rule).
+ */
+const Section: FC<PropsWithChildren<{ title: string; desc?: string | Child; more?: Child }>> = ({
   title,
   desc,
+  more,
   children,
 }) => (
-  <section class="grid gap-3 border-t border-line py-7 first:border-t-0 first:pt-0 lg:grid-cols-[220px_1fr] lg:gap-8">
-    <div>
-      <h2 class="text-section text-ink">{title}</h2>
-      {desc && <p data-ui="hint" class="mt-1 text-[13px] leading-5 text-ink-faint">{desc}</p>}
-    </div>
-    <div class="min-w-0 space-y-4">{children}</div>
+  <section class="border-t border-line py-7 first:border-t-0 first:pt-0">
+    <h2 class="text-section text-ink">{title}</h2>
+    {desc && <p data-ui="hint" class="mt-1 text-sm leading-5 text-ink-muted">{desc}</p>}
+    {more && <More class="mt-1">{more}</More>}
+    <div class="mt-4 min-w-0 space-y-4">{children}</div>
   </section>
 );
 
@@ -242,11 +245,7 @@ const ScheduleCard: FC<{ view: ScheduleView }> = ({ view }) => {
   return (
     <Card>
       <form method="post" action="/settings/schedule" class="space-y-5">
-        <Field
-          label="Time zone"
-          hint="Used for every hour on this card — the search window, the alert window and the digest."
-          class="max-w-sm"
-        >
+        <Field label="Time zone" hint="One zone for every hour on this card." class="max-w-sm">
           <Select name="timezone">
             {zones.map((z) => (
               <option value={z} selected={z === s.timezone}>
@@ -276,9 +275,7 @@ const ScheduleCard: FC<{ view: ScheduleView }> = ({ view }) => {
             <HourSelect name="fetchTo" value={s.fetch.to} label="To (inclusive)" />
           </div>
           <DayPills name="fetchDays" days={s.fetch.days} />
-          <Hint class="mt-2">
-            "Fetch now" ignores all of this — press it whenever you want a tick.
-          </Hint>
+          <Hint class="mt-2">"Fetch now" ignores the schedule.</Hint>
         </div>
 
         <div class="border-t border-line pt-4">
@@ -297,18 +294,15 @@ const ScheduleCard: FC<{ view: ScheduleView }> = ({ view }) => {
                 title={ALERT_MODE_TITLE[mode]}
               >
                 {mode === 'instant'
-                  ? 'One message per match, the moment it is scored. This is the default.'
+                  ? 'One message per match, as soon as it is scored.'
                   : mode === 'window'
                     ? 'Matches found outside the hours arrive in one message when it opens.'
-                    : 'Nothing arrives on the spot; everything comes at the times below.'}
+                    : 'Everything comes at the digest times below.'}
               </Radio>
             ))}
           </div>
           <div class="mt-4 border-t border-line pt-3">
-            <Hint>
-              The hours and days below apply to "Only during these hours". Everything found
-              outside them waits and arrives in one message when the window opens.
-            </Hint>
+            <Hint>These hours and days apply to "Only during these hours".</Hint>
             <div class="mt-2 flex flex-wrap items-end gap-3">
               <HourSelect name="alertFrom" value={s.alerts.from} label="Alerts from" />
               <HourSelect name="alertTo" value={s.alerts.to} label="Until (inclusive)" />
@@ -317,7 +311,7 @@ const ScheduleCard: FC<{ view: ScheduleView }> = ({ view }) => {
           </div>
           <Field
             label="Digest times"
-            hint={`Up to ${MAX_DIGEST_HOURS}. Also when the daily recap and the stale-application nudge go out.`}
+            hint={`Up to ${MAX_DIGEST_HOURS}; the daily recap and the stale-application nudge go out then too.`}
             class="mt-3"
           >
             <div class="flex flex-wrap gap-1.5">
@@ -363,23 +357,25 @@ export const SettingsPage: FC<SettingsProps> = ({
   <Layout title="Settings" active="settings">
     <div class="w-full">
       <PageHeader title="Settings">
-        No restart needed: the dashboard uses a change at once, the background worker within
-        the hour.
+        Saved changes reach the background worker within the hour.
       </PageHeader>
       <Flash flash={flash} />
 
+      <div class="lg:grid lg:grid-cols-[11rem_minmax(0,1fr)] lg:gap-10">
+      {/* One nav, two shapes: a segmented row below lg, a sticky column of links from lg —
+          a rule down its side, the current tab marked on it. Same URLs, same order. */}
       <nav
         aria-label="Settings sections"
-        class="mb-6 inline-flex flex-wrap gap-0.5 rounded-lg border border-line bg-surface-overlay p-0.5"
+        class="mb-6 inline-flex flex-wrap gap-0.5 rounded-lg border border-line bg-surface-overlay p-0.5 lg:sticky lg:top-0 lg:mb-0 lg:flex lg:flex-col lg:gap-0 lg:self-start lg:rounded-none lg:border-0 lg:border-l lg:bg-transparent lg:p-0"
       >
         {SETTINGS_TABS.map((t) => (
           <a
             href={`/settings?tab=${t.id}`}
             aria-current={t.id === activeTab ? 'page' : undefined}
-            class={`rounded-[6px] px-3 py-1.5 text-[13px] transition-colors duration-150 ${
+            class={`rounded-[6px] px-3 py-1.5 text-[13px] transition-colors duration-150 lg:-ml-px lg:rounded-none lg:border-l-2 lg:py-1.5 lg:pl-3 lg:text-sm ${
               t.id === activeTab
-                ? 'bg-surface-raised font-medium text-ink shadow-sm'
-                : 'text-ink-muted hover:text-ink'
+                ? 'bg-surface-raised font-medium text-ink shadow-sm lg:border-accent-strong lg:bg-transparent lg:shadow-none'
+                : 'text-ink-muted hover:text-ink lg:border-transparent lg:hover:border-line-strong'
             }`}
           >
             {t.label}
@@ -387,12 +383,10 @@ export const SettingsPage: FC<SettingsProps> = ({
         ))}
       </nav>
 
+      <div class="min-w-0">
       {/* Sections are declared in one flow; activeTab picks which render. */}
       {activeTab === 'general' && (
-      <Section
-        title="Job fetching"
-        desc="The master switch for new-job fetching."
-      >
+      <Section title="Job fetching">
         <Card>
           <ToggleRow
             label="Pipeline"
@@ -402,19 +396,16 @@ export const SettingsPage: FC<SettingsProps> = ({
             offLabel="Paused"
             enableText="Resume"
             disableText="Pause"
+            more="The pipeline is the hourly fetch and the monthly “Who is hiring” pull from Hacker News."
           >
-            Hourly fetch + monthly HN pull. Pausing stops new jobs and alerts; the dashboard,
-            digests and cleanup keep running.
+            Pausing stops new jobs and alerts; the dashboard, digests and cleanup keep running.
           </ToggleRow>
         </Card>
       </Section>
       )}
 
       {activeTab === 'general' && (
-      <Section
-        title="Schedule"
-        desc="When the search runs and when alerts arrive."
-      >
+      <Section title="Schedule">
         <ScheduleCard view={schedule} />
       </Section>
       )}
@@ -422,7 +413,7 @@ export const SettingsPage: FC<SettingsProps> = ({
       {activeTab === 'profile' && (
       <Section
         title="Profile"
-        desc="What a matching job looks like: stack, role types, regions, salary floor. One AI call scores every posting against every running search."
+        desc="One AI call scores every posting against every running search."
       >
         {/* Order follows the user's journey: contextual warnings → fill from a
             resume → the editor → profile management last (docs/onboarding-plan.md §3). */}
@@ -447,12 +438,14 @@ export const SettingsPage: FC<SettingsProps> = ({
             <div class="mb-1 text-entity text-ink">Fill from a resume</div>
             {resumes.length > 0 ? (
               <>
-                <Hint class="mb-3">
-                  AI maps the resume's scanned stack onto the profile — primary stack →
-                  required, other skills → nice-to-have, plus role types and seniority.
-                  Re-scans the resume when needed. The result appears below as a draft;
-                  nothing is saved until you press "Save profile".
+                <Hint>
+                  AI drafts the fields below from a resume; nothing is saved until you press "Save
+                  profile".
                 </Hint>
+                <More class="mb-3 mt-1">
+                  The resume's primary stack goes to required, its other skills to nice-to-have, plus
+                  role types and seniority. The resume is scanned again when its scan is out of date.
+                </More>
                 <form
                   method="post"
                   action={`/settings/profiles/${activeProfile.id}/fill-from-resume`}
@@ -476,13 +469,15 @@ export const SettingsPage: FC<SettingsProps> = ({
               </>
             ) : (
               <>
-                <Hint class="mb-3">
-                  No resumes yet — pick a file ({ACCEPTED_EXTENSIONS.join(', ')} · up to{' '}
-                  {MAX_UPLOAD_MB} MB) and AI maps its stack onto the profile: primary stack →
-                  required, other skills → nice-to-have, plus role types and seniority. Takes
-                  about half a minute; the file also lands in Resumes. The result appears below as
-                  a draft; nothing is saved until you press "Save profile".
+                <Hint>
+                  Pick a file ({ACCEPTED_EXTENSIONS.join(', ')} · up to {MAX_UPLOAD_MB} MB): one AI
+                  call, about half a minute, drafts the fields below. Nothing is saved until you
+                  press "Save profile".
                 </Hint>
+                <More class="mb-3 mt-1">
+                  The resume's primary stack goes to required, its other skills to nice-to-have, plus
+                  role types and seniority. The file also lands in Resumes.
+                </More>
                 <form
                   method="post"
                   action={`/settings/profiles/${activeProfile.id}/fill-from-resume`}
@@ -518,8 +513,8 @@ export const SettingsPage: FC<SettingsProps> = ({
         <div class="space-y-2">
           <div class="text-entity text-ink">Searches</div>
           <Hint>
-            Every running search scores each new posting in the same AI call, with its
-            own threshold and its own Telegram chat. Up to {MAX_ACTIVE_PROFILES} at once.
+            Each running search has its own threshold and alert target. Up to{' '}
+            {MAX_ACTIVE_PROFILES} at once.
           </Hint>
           <ul class="divide-y divide-line rounded-md border border-line">
             {profiles.map((p) => (
@@ -592,7 +587,8 @@ export const SettingsPage: FC<SettingsProps> = ({
       <>
       <Section
         title="AI engines"
-        desc="Your AI subscriptions and API keys, in priority order. #1 serves every call; when it errors or hits a rate limit, the next enabled engine takes over automatically. Setup guide: docs/ai-engines.md in the repo."
+        desc="In priority order: #1 serves every call, and the next enabled engine takes over when it errors or hits a rate limit."
+        more="An engine is an AI subscription or an API key of yours. How to set each one up, locally and in Docker: docs/ai-engines.md in the repo."
       >
         <div class="space-y-3">
           <div class="text-[13px] text-ink-muted">
@@ -626,7 +622,7 @@ export const SettingsPage: FC<SettingsProps> = ({
 
       <Section
         title="Classifier"
-        desc="How much AI spend each fetched job gets before it reaches you."
+        desc="What each fetched job costs before it reaches you."
       >
         <Card>
           <form method="post" action="/settings/classifier-mode" class="space-y-2">
@@ -657,10 +653,7 @@ export const SettingsPage: FC<SettingsProps> = ({
       )}
 
       {activeTab === 'general' && (
-      <Section
-        title="Application tracking"
-        desc="The applications board, and the reminder for the ones gone quiet."
-      >
+      <Section title="Application tracking">
         <Card>
           <div class="space-y-5">
             <ToggleRow
@@ -668,8 +661,7 @@ export const SettingsPage: FC<SettingsProps> = ({
               enabled={applicationTrackingEnabled}
               action="/settings/application-tracking-toggle"
             >
-              Shows the tracking card on each job and the Applications funnel. Stored fields
-              persist either way.
+              The tracking card on each job and the Applications board; off keeps what is stored.
             </ToggleRow>
             <div class="border-t border-line pt-5">
               <ToggleRow
@@ -677,8 +669,8 @@ export const SettingsPage: FC<SettingsProps> = ({
                 enabled={staleApplicationsDigestEnabled}
                 action="/settings/stale-digest-toggle"
               >
-                A daily nudge for jobs stuck in "applied" with no recruiter contact for 14+
-                days. Honours the alerts master switch.
+                A daily nudge for applications with no recruiter contact for 14+ days; off while
+                alerts are off.
               </ToggleRow>
             </div>
           </div>
@@ -690,7 +682,7 @@ export const SettingsPage: FC<SettingsProps> = ({
       <div id="stages" class="scroll-mt-4">
       <Section
         title="Board columns"
-        desc="Applied and the Closed pair are fixed; every column between them is yours — rename, reorder, add, remove. A column with jobs in it can't be removed."
+        desc="Applied and the two Closed columns are fixed; the ones between are yours."
       >
         <Card>
           <ul class="divide-y divide-line">
@@ -813,16 +805,16 @@ export const SettingsPage: FC<SettingsProps> = ({
               button looked like it belonged to the first. */}
           <div class="space-y-5">
             <ToggleRow label="Alerts" enabled={telegramEnabled} action="/settings/telegram-toggle">
-              When off, nothing is sent to any target. Jobs are still classified and stored.
+              Off sends nothing to any target; jobs are still classified and stored.
             </ToggleRow>
             <div class="border-t border-line pt-5">
               <ToggleRow
                 label="Source health alerts"
                 enabled={sourceHealthAlerts}
                 action="/settings/source-health-toggle"
+                more="A board usually goes quiet because its slug was rotated. The quiet-sources card on Companies shows it whether this is on or off."
               >
-                Adds one line to the daily digest when a tracked board stops answering —
-                usually a rotated slug. The quiet-sources card on Companies is always on.
+                One line in the daily digest when a tracked board stops answering.
               </ToggleRow>
             </div>
           </div>
@@ -854,7 +846,14 @@ export const SettingsPage: FC<SettingsProps> = ({
                   </Td>
                   <Td>
                     <ActionForm action={`/settings/targets/${t.id}/toggle`}>
-                      <button type="submit" class="cursor-pointer rounded-full" title="Toggle">
+                      {/* The badge shows the state; the button's name says the action and its
+                          object — "Toggle" told a screen reader neither (audit A11Y-4). */}
+                      <button
+                        type="submit"
+                        class="cursor-pointer rounded-full"
+                        aria-label={`${t.active ? 'Disable' : 'Enable'} ${t.name}`}
+                        title={`${t.active ? 'Disable' : 'Enable'} ${t.name}`}
+                      >
                         <Badge tone={t.active ? 'ok' : 'neutral'}>
                           {t.active ? 'Active' : 'Disabled'}
                         </Badge>
@@ -909,9 +908,7 @@ export const SettingsPage: FC<SettingsProps> = ({
                 <Button>Add target</Button>
               </div>
             </form>
-            <Hint class="mt-3">
-              The token is checked and a test message is sent before saving.
-            </Hint>
+            <Hint class="mt-3">ApplyPack sends a test message before saving.</Hint>
           </Card>
           <Card>
             <div class="mb-3 text-entity text-ink">Add a Discord webhook</div>
@@ -920,7 +917,10 @@ export const SettingsPage: FC<SettingsProps> = ({
               <Field label="Name">
                 <Input type="text" name="name" required placeholder="#job-alerts" />
               </Field>
-              <Field label="Webhook URL" hint="Server settings → Integrations → Webhooks → New webhook → Copy URL.">
+              <Field
+                label="Webhook URL"
+                more="In Discord: Server settings → Integrations → Webhooks → New webhook → Copy URL."
+              >
                 <Input
                   type="password"
                   name="webhookUrl"
@@ -935,8 +935,8 @@ export const SettingsPage: FC<SettingsProps> = ({
               </div>
             </form>
             <Hint class="mt-3">
-              A test message is posted before saving. The URL is a secret — anyone holding it can
-              post to the channel — and is stored like a bot token, never shown in full.
+              ApplyPack posts a test message before saving. The URL is a secret: anyone holding it
+              can post to the channel.
             </Hint>
           </Card>
         </div>
@@ -946,7 +946,7 @@ export const SettingsPage: FC<SettingsProps> = ({
       {activeTab === 'sources' && (
       <Section
         title="Job sources"
-        desc="Disable a whole source family with one click — handy when an aggregator gets noisy. Per-company toggles on the Companies page still apply."
+        desc="Switch a whole source family off; per-company toggles on Companies still apply."
       >
         <Card>
           <form method="post" action="/settings/sources" class="space-y-4">
@@ -973,9 +973,8 @@ export const SettingsPage: FC<SettingsProps> = ({
               </div>
             ))}
             <Hint>
-              Keep the aggregators on — they carry the long tail of companies not tracked on the
-              Companies page. The profile filter and classifier do the narrowing; turning
-              aggregators off usually means near-zero new jobs.
+              Keep the aggregators on: they carry the companies you do not track, and turning them
+              off usually means near-zero new jobs.
             </Hint>
             <Button variant="secondary">Save sources</Button>
           </form>
@@ -987,7 +986,7 @@ export const SettingsPage: FC<SettingsProps> = ({
       {activeTab === 'general' && (
       <Section
         title="Resumes"
-        desc="The resumes you send out. Every job page can compare one against the posting."
+        desc="The resumes you send out."
       >
         <Card>
           {resumes.length > 0 ? (
@@ -1008,11 +1007,9 @@ export const SettingsPage: FC<SettingsProps> = ({
           ) : (
             <Empty>No resumes yet.</Empty>
           )}
-          <Hint class="mt-3">
-            <a href="/resumes" class="font-medium text-accent-strong hover:text-accent-deep">
-              Upload &amp; manage resumes →
-            </a>
-          </Hint>
+          <a href="/resumes" class="mt-3 inline-block text-[13px] font-medium text-accent-strong hover:text-accent-deep">
+            Upload &amp; manage resumes →
+          </a>
         </Card>
       </Section>
       )}
@@ -1031,11 +1028,10 @@ export const SettingsPage: FC<SettingsProps> = ({
             offLabel="Off"
             enableText="Turn on"
             disableText="Turn off"
+            more="A screening is one position and its applicants: the posting is read into a rubric you edit, every resume is stripped of the person before a model reads it, one independent call per applicant marks the evidence with quotes, and the code computes the score."
           >
-            Adds a Screening section to the menu. A screening is one position and its applicants: the posting is
-            read into a rubric you edit, every resume is stripped of the person before a model reads it, one
-            independent call per applicant marks the evidence with quotes, and the code computes the score. Nothing
-            is decided for you — the table is an order to talk to people in.
+            Adds a Screening section to the menu. The table is an order to talk to people in; the
+            decisions stay yours.
             {screening.screenings > 0 && !screening.enabled && (
               <> Turning it off hides {screening.screenings} stored screening{screening.screenings === 1 ? '' : 's'}; the files stay until their retention date.</>
             )}
@@ -1118,6 +1114,8 @@ export const SettingsPage: FC<SettingsProps> = ({
         </Card>
       </Section>
       )}
+      </div>
+      </div>
     </div>
     <script dangerouslySetInnerHTML={{ __html: SETTINGS_JS }} />
     <script type="module" dangerouslySetInnerHTML={{ __html: "import { wireCopy } from '/static/copy.mjs'; wireCopy(document);" }} />
@@ -1149,25 +1147,26 @@ const SourceKeysCard: FC<{ rows: SourceKeyRow[] }> = ({ rows }) => (
   <Card class="mt-4" id="source-keys">
     <SectionTitle>Extra sources — a free account of your own</SectionTitle>
     <Hint class="mb-3">
-      Everything above works without any account. These two search wider, and each needs a free
-      account <em>you</em> register with the vendor, because you accept their terms and their limits
-      apply to you. Until you paste the values here, the source stays out of the app: it is not
-      fetched, not offered on Companies and not listed in its add-company form.
+      Two wider sources, each behind a free account you register with the vendor. Until its values
+      are saved here, a source stays out of the app.
     </Hint>
-    <div class="space-y-4">
+    {/* One region, a divider between the vendors — not a bordered box inside the card. */}
+    <div class="divide-y divide-line">
       {rows.map((r) => (
-        <div class="rounded-md border border-line bg-surface-raised px-3.5 py-3">
+        <div class="py-4 first:pt-0 last:pb-0">
           <div class="flex flex-wrap items-baseline gap-x-2 gap-y-1">
             <span class="text-entity text-ink">{r.label}</span>
             <Badge tone={r.ready ? 'ok' : 'neutral'}>{r.ready ? 'ready' : 'not set up'}</Badge>
           </div>
-          <p class="mt-1.5 text-[13px] leading-5 text-ink-muted">{r.what}</p>
-          <p data-ui="hint" class="mt-1 text-[13px] leading-5 text-ink-faint">
-            <span class="font-medium text-ink-muted">Worth it if:</span> {r.worthIt}
-          </p>
-          <p data-ui="hint" class="mt-1 text-[13px] leading-5 text-ink-faint">
-            <span class="font-medium text-ink-muted">In exchange:</span> {r.cost}
-          </p>
+          <p data-ui="hint" class="mt-1 text-sm leading-5 text-ink-muted">{r.what}</p>
+          <More summary="When it is worth it, and what the vendor asks" class="mt-1">
+            <p>
+              <span class="font-medium text-ink-muted">Worth it if:</span> {r.worthIt}
+            </p>
+            <p>
+              <span class="font-medium text-ink-muted">In exchange:</span> {r.cost}
+            </p>
+          </More>
           <p class="mt-1.5 text-[13px] leading-5">
             <a href={r.signupUrl} target="_blank" rel="noopener" class="text-accent-strong hover:underline">
               {r.signupLabel}
@@ -1214,7 +1213,7 @@ const SourceKeysCard: FC<{ rows: SourceKeyRow[] }> = ({ rows }) => (
           <Hint class="mt-2">
             {r.ready
               ? `Ready. Add it on Companies → "Sources for your searches", then switch the row on.`
-              : `Once both values are saved, the source appears on Companies → "Sources for your searches".`}
+              : `Once both values are saved, add it on Companies → "Sources for your searches".`}
           </Hint>
         </div>
       ))}
@@ -1272,10 +1271,10 @@ const EngineKeyRow: FC<{ engine: AiEngineRow }> = ({ engine: e }) => {
       </form>
       <Hint class="mt-2">
         {e.keySource === 'db'
-          ? `Saved in the database and used instead of ${e.keyEnvVar} from .env.`
+          ? `Saved in your database and used instead of ${e.keyEnvVar} from .env.`
           : e.keySource === 'env'
-            ? `Currently read from ${e.keyEnvVar} in .env. A key pasted here overrides it, no restart needed.`
-            : `Stored in the database — the same place as Telegram tokens. ${e.keyEnvVar} in .env still works instead.`}
+            ? `Read from ${e.keyEnvVar} in .env; a key pasted here overrides it.`
+            : `Stored in your database; ${e.keyEnvVar} in .env works too.`}
       </Hint>
     </div>
   );
@@ -1311,17 +1310,19 @@ const AiEngineCard: FC<{ engine: AiEngineRow }> = ({ engine: e }) => (
         )}
       </div>
     </div>
-    <p data-ui="hint" class="mt-1.5 text-[13px] leading-5 text-ink-faint">
-      {e.desc} ({e.detail})
-    </p>
+    {/* The live state stays in sight; what the engine is sits one press away. */}
+    <Hint class="mt-1.5">{e.detail}</Hint>
+    <More summary="What this engine is" class="mt-1">
+      {e.desc}
+    </More>
     {e.lastResort && (
       <Hint class="mt-1.5 text-warn">
-        Nothing in the list can run on this host, so this engine answers every call for now. Enable
-        it to keep it once an engine in the list works.
+        No engine in the list can run on this host, so this one answers every call. Enable it to
+        keep it.
       </Hint>
     )}
     {!e.canToggle && (
-      <Hint class="mt-1.5">The only engine in the list. Enable another one to replace it.</Hint>
+      <Hint class="mt-1.5">The only engine in the list; enable another to replace it.</Hint>
     )}
     {e.keyEnvVar && <EngineKeyRow engine={e} />}
     {(e.enabled || e.lastResort) && (
@@ -1333,7 +1334,7 @@ const AiEngineCard: FC<{ engine: AiEngineRow }> = ({ engine: e }) => (
       >
         <input type="hidden" name="provider" value={e.id} />
         <div class="grid gap-3 sm:grid-cols-3">
-        <Field label="Classifier model" hint="Scores every fetched job — cheap and frequent.">
+        <Field label="Classifier model" hint="Scores every fetched job; keep it cheap.">
           <ModelPicker
             name="classifier"
             value={e.classifierModel}
@@ -1342,7 +1343,7 @@ const AiEngineCard: FC<{ engine: AiEngineRow }> = ({ engine: e }) => (
             freeText={e.freeTextModels}
           />
         </Field>
-        <Field label="Resume model" hint="Resume scan, match, verification — judgment calls. Empty = Sonnet 5 on the Claude CLI, Haiku 4.5 on the API (measured 2026-09-05).">
+        <Field label="Resume model" hint="Resume scan, match and verification.">
           <ModelPicker
             name="resume"
             value={e.resumeModel}
@@ -1351,7 +1352,7 @@ const AiEngineCard: FC<{ engine: AiEngineRow }> = ({ engine: e }) => (
             freeText={e.freeTextModels}
           />
         </Field>
-        <Field label="Cover letter model" hint="Writing quality, not analysis. Empty = Opus 5, the strongest writer.">
+        <Field label="Cover letter model" hint="Writing quality, not analysis.">
           <ModelPicker
             name="cover"
             value={e.coverModel}
@@ -1452,12 +1453,12 @@ const ProfileEditor: FC<{
       </div>
     )}
     <div class="grid gap-4 sm:grid-cols-2">
-      <Field label="Name" hint="What you call this search — yours alone, nothing reads it.">
+      <Field label="Name" hint="Yours alone; nothing reads it.">
         <Input type="text" name="name" required value={profile.name} />
       </Field>
       <Field
         label="Resume for this search"
-        hint="Preselected on every job page this search finds. Leave unset to pick by skill overlap."
+        hint="Preselected on the job pages this search finds."
       >
         <Select name="resumeId">
           <option value="" selected={profile.resumeId === null}>
@@ -1476,28 +1477,25 @@ const ProfileEditor: FC<{
     <fieldset class="space-y-4">
       <legend class="text-label text-ink">What are we hunting for?</legend>
       <Hint class="!mt-0.5">
-        Languages and frameworks the job must use go into the required stack.
-        <br />
-        Words from job titles ("backend", "full-stack") go into role types — a title match
-        alone is never a tech match.
+        Technologies go in the required stack, title words ("backend") in role types. A title
+        match alone is never a tech match.
       </Hint>
       <TagListInput
         label="Tech stack — required"
-        hint="Real technologies the role must use."
         name="stackRequired"
         values={profile.stackRequired}
         placeholder="php, laravel, mysql…"
       />
       <TagListInput
         label="Role types"
-        hint="Title shapes you accept — they admit jobs to the classifier."
+        hint="Title shapes you accept; they admit jobs to the classifier."
         name="roleTypes"
         values={profile.roleTypes}
         placeholder="backend, full-stack…"
       />
       <TagListInput
         label="Stack — nice to have"
-        hint="Boosts the fit score when they show up in the description."
+        hint="Raise the fit score when the description names them."
         name="stackNiceToHave"
         values={profile.stackNiceToHave}
         placeholder="docker, aws…"
@@ -1517,11 +1515,9 @@ const ProfileEditor: FC<{
 
     <fieldset class="space-y-3">
       <legend class="text-label text-ink">Location</legend>
-      <Hint class="!mt-0.5">
-        Where this search hunts. Countries and regions add up; leave both empty for anywhere.
-      </Hint>
+      <Hint class="!mt-0.5">Countries and regions add up; both empty = anywhere.</Hint>
       <div>
-        <Hint>Arrangements you accept</Hint>
+        <div class="text-label text-ink">Arrangements you accept</div>
         <div class="mt-1.5 flex flex-wrap gap-1.5">
           {PROFILE_WORKPLACES.map((w) => (
             <PillCheckbox name="workplace" value={w} checked={profile.workplace.includes(w)}>
@@ -1532,7 +1528,8 @@ const ProfileEditor: FC<{
       </div>
       <TagListInput
         label="Countries"
-        hint='Where you can work from — type "Poland", "Polska", "Польща", "PL" or a city and pick from the list. For hybrid and on-site roles: where the office may be.'
+        hint="Type a country in any spelling, or a city."
+        more='"Poland", "Polska", "Польща" and "PL" all find it. For hybrid and on-site roles this is where the office may be.'
         name="countries"
         values={profile.countries.map((c) => `${flagOf(c)} ${placeLabel(c)}`)}
         placeholder="Poland, Germany, Netherlands…"
@@ -1540,7 +1537,8 @@ const ProfileEditor: FC<{
         picker="countries"
       />
       <div>
-        <Hint>Regions — a group counts as a group, not as its members</Hint>
+        <div class="text-label text-ink">Regions</div>
+        <Hint class="mt-0.5">A group counts as a group, not as its members.</Hint>
         <div class="mt-1.5 flex flex-wrap gap-1.5">
           {REGIONS.map((r) => (
             <PillCheckbox name="regions" value={r.code} checked={profile.regions.includes(r.code)}>
@@ -1551,7 +1549,7 @@ const ProfileEditor: FC<{
       </div>
       <Field
         label="I live in"
-        hint="Where you are now. Not a place this search hunts — it decides whether a role's work-permit and relocation wording is a problem for you."
+        hint="Not a place this search hunts: it decides whether a role's work-permit and relocation wording is a problem for you."
       >
         <Select name="residence">
           <option value="" selected={!profile.residence}>
@@ -1565,7 +1563,7 @@ const ProfileEditor: FC<{
         </Select>
       </Field>
       <div>
-        <Hint>If the role is somewhere you do not live</Hint>
+        <div class="text-label text-ink">If the role is somewhere you do not live</div>
         <div class="mt-1.5 grid gap-2 sm:grid-cols-3">
           {RELOCATION_CODES.map((r) => (
             <Radio

@@ -16,6 +16,8 @@
  *   --shots   1440 (the fold and the whole page), 768 and 375, each after its own load
  *   --pages   all (default), or slugs from PAGES, or slug=/path for a page not listed
  *   --missed  list the prose the class selectors see and the data-ui hooks do not
+ *   --hints   list every visible piece of helper prose with its word count —
+ *             the working list for a copy pass (plan §5, stages 3, 5 and 6)
  *   --base    the dashboard to read (default http://127.0.0.1:4848 — plan §4.2)
  *
  * <main> is the scroll container, so "the whole page" is taken by growing the
@@ -99,6 +101,12 @@ const HOOKS = `(() => {
   return JSON.stringify({
     hintWordsClass: count(CLASS),
     hintWordsHook: count('[data-ui="hint"]'),
+    hints: (() => {
+      const els = [...main.querySelectorAll('[data-ui="hint"], ' + CLASS)].filter(vis);
+      return els
+        .filter((el) => !els.some((o) => o !== el && o.contains(el)))
+        .map((el) => words(el.innerText) + ' · ' + el.innerText.trim().replace(/\\s+/g, ' ').slice(0, 110));
+    })(),
     missedByHook: [...main.querySelectorAll(CLASS)]
       .filter((el) => vis(el) && !hooked.some((h) => h === el || h.contains(el) || el.contains(h)))
       .map((el) => el.tagName.toLowerCase() + ': ' + el.innerText.trim().replace(/\\s+/g, ' ').slice(0, 90)),
@@ -189,7 +197,7 @@ async function startChrome(profileDir) {
   throw new Error(`Chrome did not open its DevTools port (${CHROME})`);
 }
 
-function printTable(rows, problems, showMissed) {
+function printTable(rows, problems, showMissed, showHints) {
   const cols = ['slug', 'tabStops', 'inDom', 'aboveTable', 'hintWords', 'mainWords', 'boxes', 'primaries', 'heightPx', 'htmlKB', 'requests', 'jsKB'];
   console.log(cols.join('\t'));
   for (const r of rows) console.log(cols.map((c) => (r[c] === null ? '—' : r[c])).join('\t'));
@@ -208,6 +216,9 @@ function printTable(rows, problems, showMissed) {
   if (showMissed) {
     console.log('\nseen by class, not by hook:');
     for (const r of rows.filter((x) => x.missedByHook.length)) console.log(`  ${r.slug}\n    ${r.missedByHook.join('\n    ')}`);
+  }
+  if (showHints) {
+    for (const r of rows) console.log(`\n${r.slug} — ${r.hintWords} hint words\n    ${r.hints.join('\n    ')}`);
   }
 }
 
@@ -323,7 +334,7 @@ async function run(cdp, pages) {
     fs.mkdirSync(outDir, { recursive: true });
     fs.writeFileSync(path.join(outDir, `metrics-${label}.json`), JSON.stringify({ label, base, takenAt: new Date().toISOString(), rows, problems }, null, 2));
   }
-  printTable(rows, problems, flag('missed'));
+  printTable(rows, problems, flag('missed'), flag('hints'));
 }
 
 main().then(

@@ -280,6 +280,23 @@ export const Disclosure: FC<
 );
 
 /**
+ * The rest of an explanation, one press away (DESIGN.md, the Disclosure
+ * Rule): under a label one sentence stays in sight, what else is worth
+ * knowing folds here. Its prose carries the hint hook, so an open one counts.
+ */
+export const More: FC<PropsWithChildren<{ summary?: string; class?: string }>> = ({
+  summary = 'How this works',
+  class: className = '',
+  children,
+}) => (
+  <Disclosure variant="quiet" summary={summary} class={className}>
+    <div data-ui="hint" class="mt-1 space-y-1 text-meta text-ink-faint">
+      {children}
+    </div>
+  </Disclosure>
+);
+
+/**
  * A row of links to views of the same list, the current one underlined —
  * never a pill, so a tab does not read as a filter chip or a status badge.
  * A count is what the tab would show.
@@ -494,17 +511,26 @@ export const NEEDS_FILE_JS =
   "var b=f.querySelector('button:not([type]),button[type=submit]'),i=f.querySelector('input[type=file]');" +
   "if(!b||!i)return;b.disabled=!i.files.length;i.addEventListener('change',function(){b.disabled=!i.files.length})})";
 
-export const Field: FC<PropsWithChildren<{ label: string; hint?: string; class?: string }>> = ({
+/**
+ * Label → one sentence → control. The <label> wraps only those, so a long
+ * explanation never becomes the control's accessible name (audit A11Y-4):
+ * `more` sits outside it, behind "How this works".
+ */
+export const Field: FC<PropsWithChildren<{ label: string; hint?: string; more?: Child; class?: string }>> = ({
   label,
   hint,
+  more,
   children,
   class: className = '',
 }) => (
-  <label class={`block ${className}`}>
-    <span class="block text-label text-ink">{label}</span>
-    {hint && <Hint class="mt-0.5">{hint}</Hint>}
-    <div class="mt-1.5">{children}</div>
-  </label>
+  <div class={className}>
+    <label class="block">
+      <span class="block text-label text-ink">{label}</span>
+      {hint && <Hint class="mt-0.5">{hint}</Hint>}
+      <div class="mt-1.5">{children}</div>
+    </label>
+    {more && <More class="mt-1.5">{more}</More>}
+  </div>
 );
 
 const CONTROL =
@@ -677,6 +703,8 @@ export const ToggleRow: FC<
     enableText?: string;
     disableText?: string;
     extra?: Child;
+    /** What else is worth knowing, behind "How this works"; `children` stays one sentence. */
+    more?: Child;
   }>
 > = ({
   label,
@@ -687,6 +715,7 @@ export const ToggleRow: FC<
   enableText = 'Enable',
   disableText = 'Disable',
   extra,
+  more,
   children,
 }) => (
   <div class="flex flex-wrap items-start justify-between gap-4">
@@ -699,6 +728,7 @@ export const ToggleRow: FC<
         </Badge>
       </div>
       <Hint class="mt-1">{children}</Hint>
+      {more && <More class="mt-1">{more}</More>}
     </div>
     {/* Row, not column: a card with an `extra` action (Discovery's "Run now")
         stacked its two buttons vertically, which read as one button dropped
@@ -721,7 +751,8 @@ export const ToggleRow: FC<
  */
 export const TagListInput: FC<{
   label: string;
-  hint: string;
+  hint?: string;
+  more?: Child;
   name: string;
   values: string[];
   rows?: number;
@@ -729,8 +760,8 @@ export const TagListInput: FC<{
   placeholder?: string;
   /** "countries": countries.mjs adds gazetteer suggestions to the chip input (ADR 0032). */
   picker?: 'countries';
-}> = ({ label, hint, name, values, rows = 3, placeholder, picker }) => (
-  <Field label={label} hint={hint}>
+}> = ({ label, hint, more, name, values, rows = 3, placeholder, picker }) => (
+  <Field label={label} hint={hint} more={more}>
     <div data-chips data-label={label} data-placeholder={placeholder} data-picker={picker}>
       <Textarea name={name} rows={rows} mono placeholder={placeholder}>
         {values.join('\n')}

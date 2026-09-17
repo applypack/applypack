@@ -1,7 +1,7 @@
 /** @jsxImportSource hono/jsx */
 import type { FC } from 'hono/jsx';
 import { Layout } from '../layout';
-import { ActionForm, Badge, Button, Card, Empty, Field, FILE_INPUT_CLASS, FitBadge, Flash, Hint, Input, PageHeader, SectionTitle, Select, SUBMIT_ONCE, Table, Tag, Td, Tr } from '../ui';
+import { ActionForm, Badge, Button, Card, Disclosure, Empty, Field, FILE_INPUT_CLASS, FitBadge, Flash, Hint, Input, MarkIcon, PageHeader, SectionTitle, Select, SUBMIT_ONCE, Table, Tag, Td, Tr } from '../ui';
 import type { FlashMessage } from '../flash';
 import { formatRelative } from '../format';
 import { ACCEPTED_EXTENSIONS } from '../../resume/resume-text';
@@ -55,13 +55,20 @@ export const ResumesPage: FC<{
 }) => (
   <Layout title="Resumes" active="resumes">
     <PageHeader title="Resumes" meta={`${resumes.length} uploaded`}>
-      Upload the resumes you actually send. Each one is scanned once into skills and headline,
-      then compared against any job from its page.
+      The resumes you send. Each is scanned once, then compared against any job from its page.
     </PageHeader>
     <Flash flash={flash} />
 
+    {/* The list is what the page is about: with a resume in it the upload form folds
+        behind its button; with none it is the first thing to do, so it stands open. */}
+    <Disclosure variant="button" summary="Upload a resume" open={resumes.length === 0} class="mb-4">
+      <Card class="mt-3">
+        <ResumeUploadForm />
+      </Card>
+    </Disclosure>
+
     {resumes.length === 0 ? (
-      <Empty>No resumes yet. Upload one below — the first becomes the default.</Empty>
+      <Empty>No resumes yet. The first one you upload becomes the default.</Empty>
     ) : (
       <Card flush class="mb-4">
         <Table caption="Resumes"
@@ -135,32 +142,33 @@ export const ResumesPage: FC<{
       </Card>
     )}
 
-    <Card>
-      <SectionTitle>Upload a resume</SectionTitle>
-      <ResumeUploadForm />
-    </Card>
-
     <Card class="mt-4">
       <SectionTitle>Confirmed facts</SectionTitle>
       <Hint class="mb-3">
-        Your answers to "do you have this?" questions from comparisons. They feed every future
-        match, so a skill you have but never wrote down is worth adding here — and a wrong one is
-        worth flipping. None of this calls the AI.
+        Your answers to a comparison's "do you have this?" questions. They feed every future
+        match; none of this calls the AI.
       </Hint>
       {facts.length > 0 && (
         <ul class="mb-3 divide-y divide-line">
-          {/* Two deliberate lines below sm rather than a ragged wrap: the
-              term reads first, the two actions sit together under it. */}
-          {facts.map((f) => (
-            <li class="flex flex-col gap-1 py-2 first:pt-0 sm:flex-row sm:items-center sm:gap-2">
-              <div class="flex min-w-0 items-center gap-2">
-                <Badge tone={f.status === 'confirmed' ? 'ok' : 'neutral'}>
-                  {f.status === 'confirmed' ? 'have it' : "don't"}
-                </Badge>
-                <span class="truncate text-sm font-medium text-ink">{f.term}</span>
+          {/* What you know about yourself, read as knowledge: the term leads, the answer is a
+              drawn mark plus words, the note sits under it; what you have comes first. */}
+          {confirmedFirst(facts).map((f) => (
+            <li class="flex flex-col gap-1.5 py-2.5 first:pt-0 sm:flex-row sm:items-center sm:gap-3">
+              <div class="min-w-0 flex-1">
+                <div class="flex flex-wrap items-baseline gap-x-2.5">
+                  <span class="truncate text-entity text-ink">{f.term}</span>
+                  <span
+                    class={`inline-flex items-center gap-1 text-[13px] ${
+                      f.status === 'confirmed' ? 'font-medium text-ok' : 'text-ink-muted'
+                    }`}
+                  >
+                    <MarkIcon kind={f.status === 'confirmed' ? 'check' : 'x'} class="!h-3 !w-3" />
+                    {f.status === 'confirmed' ? 'I have this' : "I don't"}
+                  </span>
+                </div>
+                {f.note && <div class="mt-0.5 truncate text-meta text-ink-faint">{f.note}</div>}
               </div>
-              {f.note && <span class="min-w-0 truncate text-xs text-ink-faint sm:before:content-['—_']">{f.note}</span>}
-              <div class="flex items-center gap-1.5 sm:ml-auto">
+              <div class="flex items-center gap-1.5">
                 {/* The same POST /facts the comparison uses, with the answer
                     turned around — no second endpoint for the same decision. */}
                 <ActionForm
@@ -186,10 +194,19 @@ export const ResumesPage: FC<{
           ))}
         </ul>
       )}
-      <AddFactForm />
+      <Disclosure variant="button" summary="Add a fact">
+        <div class="mt-3">
+          <AddFactForm />
+        </div>
+      </Disclosure>
     </Card>
   </Layout>
 );
+
+/** What you have first, then what you do not — each group in the order it was stored. */
+function confirmedFirst(facts: FactRow[]): FactRow[] {
+  return [...facts.filter((f) => f.status === 'confirmed'), ...facts.filter((f) => f.status !== 'confirmed')];
+}
 
 /**
  * Adding a fact by hand (§12 quick win). `POST /facts` already accepted any
@@ -208,7 +225,7 @@ const AddFactForm: FC = () => (
         <option value="denied">I don't</option>
       </Select>
     </Field>
-    <Field label="Where / when" class="min-w-[12rem] flex-[2]" hint="Optional — the match prompt quotes it.">
+    <Field label="Where / when" class="min-w-[12rem] flex-[2]" hint="The match prompt quotes it.">
       <Input name="note" maxlength="300" placeholder="ran the cluster at Vodwork, 2023-2025" />
     </Field>
     <Button variant="violet">Remember this</Button>
@@ -301,9 +318,8 @@ const ResumeUploadForm: FC = () => (
       <Button class="w-full">Upload &amp; scan</Button>
     </div>
     <Hint class="sm:col-span-3">
-      The scan calls the resume model once and stores headline, skills and job-agnostic issues;
-      you watch it on a progress page and can leave the tab. The file itself never leaves your
-      Postgres.
+      One call to the resume model reads headline, skills and issues; you can leave the progress
+      page. The file never leaves your Postgres.
     </Hint>
   </form>
 );

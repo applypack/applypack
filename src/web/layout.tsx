@@ -90,6 +90,14 @@ const TOKENS_CSS = `
   ::-webkit-scrollbar-thumb:hover { background: rgb(var(--ink-faint)); }
   ::-webkit-scrollbar-track { background: transparent; }
   :focus-visible { outline: 2px solid rgb(var(--accent)); outline-offset: 2px; border-radius: 4px; }
+  /* A launcher shows one input mode at a time: the body of a mode whose own
+     radio is not checked folds away (the radio reads "> label", so a checked
+     radio inside a body cannot hold a closed mode open). A hidden control is
+     still submitted; only a disabled one is not. Without :has() every mode
+     stays open, as before 2.13. */
+  @supports selector(:has(*)) {
+    [data-ui="mode-card"]:not(:has(> label input[type="radio"]:checked)) > [data-ui="mode-body"] { display: none; }
+  }
   .skip-link { position: absolute; left: -999px; top: 8px; z-index: 50; }
   .skip-link:focus { left: 8px; }
   /* Navigation progress (public/progress.mjs). Above the skip link and the
