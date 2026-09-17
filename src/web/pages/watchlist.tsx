@@ -9,6 +9,7 @@ import {
   Code,
   Empty,
   Hint,
+  More,
   PageHeader,
   SectionTitle,
   Select,
@@ -80,18 +81,18 @@ const POLICY_SELECT = (name: string, value: string, company?: string) => (
  * policy) is answered better on the preview, where they can see what each URL
  * actually resolved to.
  */
+/** The body of "Watch specific companies" on /companies — the disclosure's button is its title. */
 export const AddCompaniesCard: FC<{ running: WatchlistRun | null }> = ({ running }) => (
-  <Card class="mb-4">
-    <SectionTitle>Watch specific companies</SectionTitle>
-    <Hint class="mb-3">
-      One URL per line — a careers page or a board link. Optionally{' '}
-      <Code>Name — https://…</Code>. Each one is resolved to a job board or a feed; whatever we
-      cannot read is listed honestly rather than half-added. Up to {MAX_LINES} at a time.
-      <br />
-      Watched companies are checked <strong class="font-medium text-ink">on the same tick as
-      your search</strong>, so they follow your schedule — nothing is fetched during hours you
-      told the search to sleep.
+  <Card>
+    <Hint>
+      One URL per line — a careers page or a board link, optionally <Code>Name — https://…</Code>.
+      Up to {MAX_LINES} at a time; what cannot be read is listed, never half-added.
     </Hint>
+    <More class="mb-3 mt-1">
+      Each URL is resolved to a job board or a feed. Watched companies are checked on the same tick
+      as your search, so they follow your schedule: nothing is fetched during hours you told the
+      search to sleep.
+    </More>
     {running ? (
       <Button href={`/companies/watchlist/${running.id}`} variant="secondary">
         Resolving {running.results.length}/{running.total}… watch
@@ -121,8 +122,8 @@ export const WatchlistRunPage: FC<{ run: WatchlistRun }> = ({ run }) => (
       <Card>
         <div class="mb-1 text-sm font-semibold text-ink">Resolving companies</div>
         <Hint class="mb-4">
-          Each URL gets at most five requests: robots.txt, the page, and up to three feed paths.
-          A polite second between them, so twenty companies take a couple of minutes.
+          Each URL gets at most five requests, a polite second apart — twenty companies take a
+          couple of minutes.
         </Hint>
         <div
           id="wl-progress"
@@ -330,13 +331,15 @@ export const WatchlistSection: FC<{ rows: WatchedRow[] }> = ({ rows }) => {
         <SectionTitle>
           Watchlist <Badge tone="ok">{rows.length}</Badge>
         </SectionTitle>
-        <Hint class="mb-3">
-          Companies you chose by hand. They are checked on the same tick as your search, so they
-          follow your schedule — set it on Settings → General. &ldquo;Every posting&rdquo; alerts
-          you about everything they put up, whatever your fit threshold says. A row marked{' '}
-          <em>Page changes</em> publishes no board and no feed: we cannot read its jobs, so we
-          watch the page&rsquo;s text and say when it moves.
+        <Hint>
+          Companies you chose by hand, checked on the same tick as your search. &ldquo;Every
+          posting&rdquo; alerts you about everything they put up, whatever your fit threshold says.
         </Hint>
+        <More class="mb-3 mt-1">
+          They follow your schedule — set it on Settings → General. A row marked <em>Page
+          changes</em> publishes no board and no feed: its jobs cannot be read, so the page&rsquo;s
+          text is watched and you are told when it moves.
+        </More>
       </div>
       <Table
         columns={['Company', 'Checked', 'Alerts', 'Next check', 'New', '']}

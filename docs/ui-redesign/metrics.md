@@ -283,3 +283,44 @@ action and controls: the rail's five on every tab (each now posting a hidden
 letter's on Cover letter, the verifier's on Is it real?; none missing, none
 new. The other 25 measured pages read as in stage 4.
 
+## Stage 6 — `companies-welcome-disclosure`, 2026-09-17
+
+Before = the stage 5 build, after = the branch.
+
+| Page | | tabStops | aboveTable | hintWords | mainWords | boxes | heightPx |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| `/companies` | before | 97 | 16 | **261** | 662 | 44 | 2 758 |
+| | after | 85 | **0** | **2** (≤ 130 asked) | 350 | 32 | 1 843 |
+| `/discovery` | before | 2 | — | 83 | 119 | 3 | 900 |
+| | after | 4 | — | 51 | 93 | 3 | 900 |
+
+The companies table starts **77 px** down the page (asked: inside the first
+900; it started at 1 140). The 16 stops that stood before it were the add-flows'
+fields; they sit under **Add sources** now, closed while the list has rows.
+All 57 forms on the page keep their action and controls.
+
+The wizard, measured the way stage 0 said it would have to be: the old
+selectors never saw a step's lead (muted, not faint) nor the pack blurbs (faint
+spans outside a label), so the steps first got the hook on that prose — the
+**marked** column is this branch with only the hooks added — and the rule was
+applied after.
+
+| Step | stage 5 (unmarked) | marked | after | change from marked | asked |
+| --- | ---: | ---: | ---: | ---: | --- |
+| `/welcome` (all done) | 8 | 25 | 15 | −40 % | ≥ 30 % down |
+| `?step=ai` | 21 | 37 | 24 | −35 % | ≥ 30 % |
+| `?step=search` | 8 | 8 | 5 | −37 % | ≥ 30 % |
+| `?step=profile` | 8 | 8 | 5 | −37 % | ≥ 30 % |
+| `?step=sources` | 25 | 111 | 36 | −68 % | ≥ 30 % |
+| `?step=matches` | 8 | 8 | 5 | −37 % | ≥ 30 % |
+
+Read against the unmarked stage 5 column three steps went UP (8 → 15, 21 → 24,
+25 → 36): that is the hook finding prose that was always on screen, not prose
+added. The live database only offers each step's finished state; the
+first-run branches (no engine detected, no search run, no resume, nothing
+scored) were shortened by the same rule and read in the diff, not measured.
+What §8 keeps in sight is still there: the test is one tiny AI call; the key
+lives in your database; nothing is saved until the button is pressed; built
+for software engineering roles; what "nothing from N sources" usually means;
+the batch size and what is set aside for free; boards land switched off.
+

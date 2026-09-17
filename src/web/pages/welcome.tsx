@@ -7,14 +7,15 @@ import {
   Button,
   Card,
   Code,
-  FILE_INPUT_CLASS,
-  NEEDS_FILE_JS,
   Field,
+  FILE_INPUT_CLASS,
   FitBadge,
   Flash,
   Hint,
   Input,
   MarkIcon,
+  More,
+  NEEDS_FILE_JS,
   PillCheckbox,
   Select,
   TagListInput,
@@ -173,7 +174,7 @@ export const WelcomePage: FC<WelcomeProps> = (p) => (
         <div>
           <h1 class="text-title text-ink">Welcome to ApplyPack</h1>
           <p data-ui="hint" class="mt-1 text-[13px] leading-5 text-ink-faint">
-            Everything here can be changed later in Settings.
+            Everything stays editable in Settings.
           </p>
         </div>
         {!p.setupCompleted && (
@@ -259,8 +260,8 @@ const AiStep: FC<WelcomeProps> = ({ ai, steps }) => {
     <StepCard n={1} step="ai" done={done}>
       {connected.length > 0 ? (
         <>
-          <p class="text-sm text-ink-muted">
-            An AI reads every job and scores how well it matches you. Detected on this machine:
+          <p data-ui="hint" class="text-sm text-ink-muted">
+            An AI scores every job against you. Detected on this machine:
           </p>
           <ul class="mt-3 space-y-1.5">
             {connected.map((e) => (
@@ -278,15 +279,14 @@ const AiStep: FC<WelcomeProps> = ({ ai, steps }) => {
                 Send a test message
               </Button>
             </ActionForm>
-            <Hint>Optional: the test takes a few seconds and spends one tiny AI call.</Hint>
+            <Hint>Optional: one tiny AI call, a few seconds.</Hint>
           </div>
         </>
       ) : (
         <>
-          <p class="text-sm text-ink-muted">
-            An AI reads every job and scores how well it matches you. Nothing usable was detected
-            yet — pick the one you have and paste its key below. It is saved in your own
-            database: no file to edit, no restart.
+          <p data-ui="hint" class="text-sm text-ink-muted">
+            An AI scores every job against you. None was detected yet: pick the one you have and
+            paste its key. It is saved in your own database — no file to edit, no restart.
           </p>
           <ul class="mt-4 grid gap-3 lg:grid-cols-2">
             {ENGINE_CARDS.map((card) => {
@@ -380,12 +380,15 @@ const SearchStep: FC<WelcomeProps> = ({ search, steps }) => {
         </>
       ) : (
         <>
-          <p class="text-sm text-ink-muted">
-            Does the job search actually work? Find out before setting anything up: this asks the{' '}
-            {search.aggregators} aggregator boards that are on — the ones that publish every posting
-            they have — and stores what it finds. No AI, no profile needed; you'll watch them answer
-            one by one. The company boards join the hourly watch once your profile exists.
+          <p data-ui="hint" class="text-sm text-ink-muted">
+            See that the search works before setting anything up: this asks the{' '}
+            {search.aggregators} aggregator boards that are on and stores what it finds. No AI and
+            no profile needed.
           </p>
+          <More class="mt-1">
+            Aggregators publish every posting they have, so they answer without knowing you. The
+            company boards join the hourly watch once your profile exists.
+          </More>
           {last && last.fetched === 0 && (
             <p class="mt-2 text-[13px] leading-5 text-warn">
               The last search got nothing from {last.sources} sources — that usually means no
@@ -401,7 +404,8 @@ const SearchStep: FC<WelcomeProps> = ({ search, steps }) => {
             <form method="post" action="/welcome/search" class="mt-4">
               <TagListInput
                 label="Where do you work? (optional)"
-                hint='The boards that can narrow by place will, and your search profile starts from it. Type "Poland", "Polska", "PL" or a city and pick from the list.'
+                hint="Boards that can narrow by place will, and your search profile starts from it."
+                more='Type "Poland", "Polska", "PL" or a city and pick from the list.'
                 name="countries"
                 values={search.countries}
                 placeholder="Poland, Germany, United States…"
@@ -426,7 +430,7 @@ const ProfileStep: FC<WelcomeProps> = ({ profile, steps }) => {
     <StepCard n={3} step="profile" done={done}>
       {d ? (
         <>
-          <p class="text-sm text-ink-muted">From your resume "{d.resumeName}":</p>
+          <p data-ui="hint" class="text-sm text-ink-muted">From your resume "{d.resumeName}":</p>
           <p class="mt-2 text-sm leading-6 text-ink">
             Looks like you're a <span class="font-medium">{d.title ?? 'software professional'}</span>
             {d.primarySkills.length > 0 && (
@@ -504,8 +508,7 @@ const ProfileStep: FC<WelcomeProps> = ({ profile, steps }) => {
             </summary>
             <div class="space-y-3 border-t border-line px-4 py-4">
               <Hint class="!mt-0">
-                It becomes a second search of its own, linked to that resume — one search per
-                resume. Up to eight run at once; each is switched on or off on Settings → Profile.
+                It becomes a second search linked to that resume. Up to eight run at once.
               </Hint>
               <form
                 method="post"
@@ -543,10 +546,9 @@ const ProfileStep: FC<WelcomeProps> = ({ profile, steps }) => {
         </>
       ) : (
         <>
-          <p class="text-sm text-ink-muted">
-            Choose your resume — we read the tools you use and the roles you do, in about half a
-            minute. ApplyPack is built for software engineering roles: the boards, the scan and the
-            scoring assume a tech stack.
+          <p data-ui="hint" class="text-sm text-ink-muted">
+            Choose your resume: one AI call reads your tools and roles in about half a minute.
+            ApplyPack is built for software engineering roles.
           </p>
           <form
             method="post"
@@ -630,14 +632,14 @@ const SourcesStep: FC<WelcomeProps> = ({ sources, steps }) => {
   return (
     <StepCard n={4} step="sources" done={done}>
       {sources.suggestions.length === 0 ? (
-        <p class="text-sm text-ink-muted">
+        <p data-ui="hint" class="text-sm text-ink-muted">
           {sources.packs.length > 0
             ? 'No board feed fits where your searches hunt yet — the starter packs below do.'
             : 'Your searches hunt where the boards already switched on look — nothing to add. Name a country in Settings → Profile and the boards for it show up here.'}
         </p>
       ) : (
         <>
-          <p class="text-sm text-ink-muted">
+          <p data-ui="hint" class="text-sm text-ink-muted">
             Turn them all on now; each one can be switched off on the Companies page later.
           </p>
           <ul class="mt-3 divide-y divide-line rounded-md border border-line">
@@ -659,9 +661,16 @@ const SourcesStep: FC<WelcomeProps> = ({ sources, steps }) => {
         <div class="mt-4">
           <p class="text-label text-ink">Starter packs for your searches</p>
           <Hint>
-            A preview shows what resolves, nothing is added until you confirm, and the boards land
+            A preview shows what resolves; nothing is added until you confirm, and boards land
             switched off.
           </Hint>
+          <More summary="What each pack holds" class="mt-1">
+            {sources.packs.map((pack) => (
+              <p>
+                <span class="font-medium text-ink-muted">{pack.label}:</span> {pack.blurb}
+              </p>
+            ))}
+          </More>
           <ul class="mt-2 divide-y divide-line rounded-md border border-line">
             {sources.packs.map((p) => (
               <li class="flex items-center justify-between gap-4 px-4 py-2.5 text-sm">
@@ -672,7 +681,6 @@ const SourcesStep: FC<WelcomeProps> = ({ sources, steps }) => {
                       · {p.count} boards{p.tracked > 0 ? `, ${p.tracked} already here` : ''}
                     </span>
                   </span>
-                  <span class="block text-[13px] leading-5 text-ink-faint">{p.blurb}</span>
                 </span>
                 <ActionForm action="/companies/starter-pack" hidden={{ segment: p.id, next: 'welcome' }}>
                   <Button size="sm" variant="secondary">
@@ -747,11 +755,10 @@ const MatchesStep: FC<WelcomeProps> = (p) => {
         </>
       ) : (
         <>
-          <p class="text-sm text-ink-muted">
-            The AI reads the jobs we found against your profile and gives each a match score. This
-            pass takes the {SCORE_BATCH} that match you best — jobs that mention none of your tools
-            or role words are set aside without spending anything. Seconds per job on an API engine,
-            up to half a minute each on a CLI one; press it again for the next {SCORE_BATCH}.
+          <p data-ui="hint" class="text-sm text-ink-muted">
+            The AI scores the {SCORE_BATCH} stored jobs that match you best; jobs that mention none
+            of your tools or role words are set aside for free. Seconds per job on an API engine, up
+            to half a minute on a CLI one; press again for the next {SCORE_BATCH}.
           </p>
           {matches.waiting === 0 && (
             <p class="mt-2 text-[13px] leading-5 text-warn">
@@ -807,10 +814,10 @@ const ScoreOrWatch: FC<WelcomeProps> = ({ matches, fetchingEnabled, telegramEnab
 const AllDone: FC<WelcomeProps> = ({ setupCompleted, fetchingEnabled, matches }) => (
   <Card>
     <h2 class="text-entity text-ink">Everything is set up</h2>
-    <p class="mt-1 text-sm text-ink-muted">
+    <p data-ui="hint" class="mt-1 text-sm text-ink-muted">
       AI connected, {matches.scoredCount.toLocaleString()} jobs scored.{' '}
       {fetchingEnabled
-        ? 'The hourly watch is running — new matches land on the Overview.'
+        ? 'The hourly watch is running.'
         : 'The hourly watch is paused; start it to keep the matches coming.'}
     </p>
     <div class="mt-4 flex flex-wrap items-center gap-2">

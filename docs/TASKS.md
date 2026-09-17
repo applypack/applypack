@@ -2418,10 +2418,17 @@ it moves. Stage 0 carries no tag; the others are a minor each.
       24 → 12, one solid button on every tab; all 61 forms of a full job
       page found on their tabs unchanged. The rail and the Posting column
       are one surface each; the match card's uppercase label is gone.
-- [ ] **`companies-welcome-disclosure`** — the companies table inside the
-      first 900 px, the four add-flows as disclosures, hint words 261 →
-      ≤ 130; the wizard's steps ≥ 30 % fewer hint words; the two
-      badge-buttons named by their action (A11Y-4).
+- [x] **`companies-welcome-disclosure`** — v2.16.0. The companies table
+      starts 77 px down (it started at 1 140), the four add-flows are
+      disclosures under **Add sources** (open while the list is empty),
+      hint words 261 → 2. The wizard's prose was marked first (the old
+      selectors never saw it), then cut: every step −35…−68 % against the
+      marked build, the §8 sentences still in sight. Discovery one sentence
+      per switch. The company row's badge-button is named by its action
+      (A11Y-4; the notification target's went in stage 3). Found on the
+      way: long tokens pushed Active / Delete out of view at 1440 px, and a
+      `contents` disclosure's body did not take the full row where the
+      browser wraps it in `::details-content` — both fixed.
 - [ ] **`redesign-polish`** — the board's quiet empties and surface columns;
       `Empty` with a title and one action; the resume, targeted-view and
       screening pages checked; error flashes that say what failed and what to

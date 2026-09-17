@@ -42,18 +42,20 @@ export const DiscoveryPage: FC<DiscoveryProps> = ({
 }) => (
   <Layout title="Discovery" active="discovery">
     <PageHeader title="Discovery">
-      Company boards the HN parser spotted in comments. Promote one to start fetching it on the
-      next tick.
+      Company boards the HN parser spotted in comments. Promote one to fetch it from the next tick.
     </PageHeader>
     <Flash flash={flash} />
 
     <div class="space-y-6">
       <Card>
         <div class="space-y-5">
-          <ToggleRow label="Auto-discovery" enabled={discoveryEnabled} action="/discovery/toggle">
-            When the HN parser sees a Greenhouse / Lever / Ashby URL in a comment, the company
-            lands here as a candidate. Pending candidates are re-probed weekly so the job count
-            stays fresh.
+          <ToggleRow
+            label="Auto-discovery"
+            enabled={discoveryEnabled}
+            action="/discovery/toggle"
+            more="Pending candidates are probed again every week, so the job count beside each stays fresh."
+          >
+            A Greenhouse, Lever or Ashby URL in an HN comment lands its company here as a candidate.
           </ToggleRow>
           <div class="border-t border-line pt-5">
             <ToggleRow
@@ -70,10 +72,9 @@ export const DiscoveryPage: FC<DiscoveryProps> = ({
                   </Button>
                 </ActionForm>
               }
+              more="The thread runs to 300–500 comments; the structured ones go through the same filter → classify → alert pipeline as any posting. Many small startups post only there."
             >
-              Parses the latest "Ask HN: Who is hiring?" thread (300-500 comments) monthly and
-              runs the structured ones through the same filter → classify → alert pipeline. Many
-              small startups only post there.
+              Reads the latest "Ask HN: Who is hiring?" thread once a month; Run now spends AI credit.
             </ToggleRow>
           </div>
         </div>
