@@ -46,9 +46,9 @@ tech stack, and the scoring gates on one.
 
 I built it during my own job search and found my job with it
 ([the story](https://applypack.dev/#story)). Everything runs on your
-machine: your resume, your profile and every AI report stay in your own
-Postgres, and `docker compose up` on a laptop or a $5 VPS is the whole
-deployment. MIT, no accounts, no telemetry, no ads. Bring your own AI: a
+machine: your resume, your profile and every AI report stay in a Postgres
+of your own, and `npm install && npm start` is the whole install — Docker if
+you would rather run it on a server. MIT, no accounts, no telemetry, no ads. Bring your own AI: a
 subscription you already pay for, a key, or a local model.
 
 ## What you get
@@ -83,14 +83,24 @@ roadmap item.
 
 ## Quick start
 
+**The only thing to install is [Node.js](https://nodejs.org) 22 or newer.**
+The database comes with ApplyPack: no Docker, no PostgreSQL, and no AI key
+before the first start. Step by step for macOS, Windows and Linux, with what
+to do when something goes wrong: **[docs/install.md](./docs/install.md)**.
+
 ```bash
-git clone https://github.com/applypack/applypack.git
+git clone https://github.com/applypack/applypack.git   # or Code → Download ZIP
 cd applypack
-cp .env.example .env    # nothing to fill in yet
-docker compose up -d    # postgres + worker + dashboard → http://localhost:4747
+npm install
+npm start    # database + worker + dashboard → http://127.0.0.1:4747
 ```
 
-**You don't need an API key before the first boot.** Paste one into the
+Ctrl+C stops everything and `npm start` carries on where it stopped. Your
+data lives outside the folder — `~/Library/Application Support/ApplyPack`
+on macOS, `%APPDATA%\ApplyPack` on Windows, `~/.local/share/applypack` on
+Linux — so an update or a fresh download finds it.
+
+**You don't need an API key before the first start.** Paste one into the
 dashboard instead — step 1 of `/welcome`, or **Settings → AI engine** any
 time. Keys are stored in Postgres, shown masked, and never logged
 ([ADR 0027](./docs/adr/0027-ai-keys-in-the-database.md)); `.env` is only the
@@ -140,29 +150,40 @@ the hour; dashboard actions use them immediately. Too impatient for the
 hourly tick: **Fetch now** on the Overview.
 
 <details>
-<summary><b>Running without Docker</b></summary>
-
-The stack is plain Node + Postgres, so a local setup is first-class:
+<summary><b>Running with Docker</b> (a server, or always on)</summary>
 
 ```bash
-docker compose up -d postgres   # or any Postgres 16 you already have
-cp .env.example .env            # then point DATABASE_URL at that Postgres
-npm install
-npx prisma migrate deploy
-npm run seed
-
-npm run dev                     # the cron worker
-npm run dev:web                 # the dashboard → http://localhost:4747
+git clone https://github.com/applypack/applypack.git
+cd applypack
+cp .env.example .env    # nothing to fill in yet
+docker compose up -d    # postgres + worker + dashboard → http://localhost:4747
 ```
 
-`DATABASE_URL` is the only line you must set — with an existing Postgres,
-use a role and database you already have. Everything else in `.env.example`
-works as shipped, engines included: the dashboard starts without any AI
-credential and the AI tab shows you which engines are usable, so you can
-pick one there instead of guessing up front.
+Get Docker first: [Docker Desktop](https://www.docker.com/products/docker-desktop/)
+on macOS and Windows, [Docker Engine](https://docs.docker.com/engine/install/)
+on Linux. compose runs its own Postgres 16, restarts the two processes when
+they stop, and brings them back with Docker. It keeps its data apart from
+`npm start`'s.
 
-Run both commands from the repository root — the dashboard serves its
-browser modules from `src/web/public/` relative to the working directory.
+</details>
+
+<details>
+<summary><b>Your own Postgres, development, and the dashboard's binding</b></summary>
+
+`DATABASE_URL` in `.env` points ApplyPack at a Postgres 16 you already run;
+`npm start` then leaves the built-in database alone.
+
+For development, run the database on its own and the two processes with
+watchers, from the repository root:
+
+```bash
+npm run db        # the built-in database, until Ctrl+C
+npm run dev       # the cron worker
+npm run dev:web   # the dashboard → http://localhost:4747
+```
+
+They find the database through `db.json` in the data folder, and so do
+`npm run fetch:once` and the other scripts.
 
 `WEB_HOST` defaults to `127.0.0.1` here on purpose. The dashboard has no
 authentication unless you set `WEB_BASIC_AUTH`, so bind it wider only
@@ -344,7 +365,15 @@ comparisons, cover letters, applications, and your AI keys if you pasted them
 into the dashboard instead of `.env`. Nothing is sent anywhere but the AI
 engine you chose and, if you set it up, your own Telegram bot.
 
-Back it up with one command; it is a plain SQL dump:
+**`npm start`'s built-in database** lives in the data folder
+(`~/Library/Application Support/ApplyPack`, `%APPDATA%\ApplyPack` or
+`~/.local/share/applypack`). To back it up, stop ApplyPack and copy that
+folder; to restore, stop it and put the copy back. Deleting the ApplyPack
+folder keeps the data, deleting the data folder removes it. The database
+listens on `127.0.0.1` only (port 5434 unless something else has it), and
+its password is in the folder's `db.json`.
+
+**Docker's database** backs up with one command; it is a plain SQL dump:
 
 ```bash
 docker compose exec -T postgres pg_dump -U jobhunter jobhunter > applypack-$(date +%F).sql
@@ -395,8 +424,8 @@ run at the hour written above. See
 [ADR 0035](./docs/adr/0035-many-installs-one-set-of-boards.md).
 
 Every cron has a matching one-shot script for manual runs
-(`docker compose exec app node dist/scripts/<name>-once.js`, or
-`npm run <name>:once` locally).
+(`npm run <name>:once` while ApplyPack runs, or
+`docker compose exec app node dist/scripts/<name>-once.js`).
 
 </details>
 
@@ -408,7 +437,9 @@ nothing fetched from a third party at runtime), node-cron for scheduling. Delibe
 no Redis, no queues, no framework sprawl. Every external byte (env vars,
 API responses, AI output) passes through zod before it's trusted. The
 worker and the dashboard are separate processes sharing one database, so
-a toggle flipped in the UI reaches the worker on its next tick.
+a toggle flipped in the UI reaches the worker on its next tick; `npm start`
+runs both beside a built-in Postgres 16 and stops them in reverse order
+([ADR 0054](./docs/adr/0054-npm-start-runs-a-built-in-database.md)).
 
 ```bash
 npm run lint:types   # tsc --noEmit
@@ -422,6 +453,7 @@ down in [CLAUDE.md](./CLAUDE.md).
 > **Docs map:** [SPEC.md](./SPEC.md) — current behaviour, phase by phase ·
 > [ARCHITECTURE.md](./ARCHITECTURE.md) — data-flow diagrams + file map ·
 > [CLAUDE.md](./CLAUDE.md) — conventions, gotchas, where-to-look tables ·
+> [docs/install.md](./docs/install.md) — installing, per system ·
 > [docs/ai-engines.md](./docs/ai-engines.md) — AI setup, local + Docker ·
 > [docs/adr/](./docs/adr/) — every non-obvious decision, with reasons ·
 > [CHANGELOG.md](./CHANGELOG.md) — releases.

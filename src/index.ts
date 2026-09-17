@@ -13,6 +13,7 @@ import { recordCronRun, type CronStats } from './jobs/cron-run';
 import { spreadMinute } from './schedule';
 import { getInstanceId, getSchedule } from './settings';
 import { isDigestHour, isFirstDigestHour, type Schedule } from './user-schedule';
+import { announceReady, onLauncherStop } from './local/child';
 
 const SHUTDOWN_POLL_MS = 250;
 const SHUTDOWN_MAX_WAIT_MS = 60_000;
@@ -56,8 +57,10 @@ async function main(): Promise<void> {
   process.on('SIGINT', () => {
     void shutdown('SIGINT');
   });
+  onLauncherStop((reason) => void shutdown(reason));
 
   logger.info({ tz: config.TZ }, 'applypack: cron registered, idle');
+  announceReady();
 }
 
 /**

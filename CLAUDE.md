@@ -117,6 +117,16 @@
   `AppSettings.employerMode` — the worker never imports it, and nothing in
   `src/resume/` reads an `Applicant`. Redaction (`redactApplicant`) runs at
   intake and cannot be switched off; the model sees "Applicant №N" only.
+- `src/local/` is `npm start` without Docker (ADR 0054): `data-dir.ts`,
+  `db-state.ts`, `postgres-setup.ts`, `supervise.ts` are pure (tested);
+  `postgres.ts` runs the built-in Postgres 16 through `pg_ctl` (own session,
+  UTF-8 + `C.UTF-8`, UTC, loopback, no socket); `launcher.ts` takes the data
+  folder's lock, starts the database, then the worker, then the dashboard,
+  and stops them in reverse. The launcher never imports `config.ts` or
+  `db.ts` — the URL does not exist until it has started the database. The
+  worker and the dashboard only call `child.ts` (`announceReady`,
+  `onLauncherStop`), a no-op without a launcher. `config.ts` fills an empty
+  `DATABASE_URL` from `db.json`, so dev watchers and once-scripts find it.
 - `src/starter-packs/` is the curated-pack module: `catalog.json` (data),
   `catalog.ts` and `resolve.ts` are pure (tested), `probe.ts` calls
   `probeAts`. Web-only — the worker never imports it. Every catalog entry
@@ -169,7 +179,7 @@
 - Do not add Express, Next.js, or any HTTP server to the worker process.
 - Do not add Redis, BullMQ, or other queues — node-cron is sufficient.
 - Do not expose the dashboard on a public interface by default — bind to `127.0.0.1` in compose.
-- Do not store secrets anywhere except `.env` (gitignored). Two carve-outs, both deliberate: Telegram tokens and Discord webhook URLs belong in `NotificationTarget` rows once `init.ts` has bootstrapped them (ADR 0041), and per-engine AI keys belong in `AppSettings.aiKeys` (ADR 0027) — in both cases `.env` becomes optional after first boot. A secret in the DB is read only through its own accessor, never rendered in full, never logged.
+- Do not store secrets anywhere except `.env` (gitignored). Three carve-outs, all deliberate: Telegram tokens and Discord webhook URLs belong in `NotificationTarget` rows once `init.ts` has bootstrapped them (ADR 0041), per-engine AI keys belong in `AppSettings.aiKeys` (ADR 0027) — in both cases `.env` becomes optional after first boot — and the built-in database's password lives in `db.json` (mode 0600) beside the database it guards (ADR 0054). A secret in the DB is read only through its own accessor, never rendered in full, never logged.
 - Do not commit `node_modules`, `dist`, or `.env`.
 - Do not use any `--save-dev` that isn't necessary.
 - Do not scrape LinkedIn / Indeed / Glassdoor / Workday / Wellfound — see [ADR 0005](./docs/adr/0005-no-linkedin-indeed-workday.md).
@@ -190,12 +200,22 @@
   smoke** (`npm run smoke:routes` after `npm run build` —
   `src/scripts/route-smoke.ts`): fixtures in, every GET route one
   in-process request through `app.request()`, the first run's POSTs, a
-  cross-origin POST refused. A 500 anywhere fails the build. Run it locally
-  on a throwaway database only — it inserts rows and switches employer
-  mode on (see `.github/workflows/test.yml`).
+  cross-origin POST refused, one clean PDF render. A 500 anywhere fails the
+  build. Run it locally on a throwaway database only — it inserts rows and
+  switches employer mode on (see `.github/workflows/test.yml`).
+- The `local-start` job runs the default install on Linux (Node 22 and 24),
+  macOS and Windows: `npm start` with a temporary `APPLYPACK_DATA_DIR`, the
+  route smoke against the built-in database, `npm run stop`, nothing left.
 
-## Docker
-- Multi-stage Dockerfile: `deps → build → runtime`.
+## Running
+- `npm start` is the default install (ADR 0054): `npm run build` (tsc + the
+  PDF fonts into `dist/`), then `dist/local/launcher.js`. Data lives in the OS
+  app-data folder (`APPLYPACK_DATA_DIR` moves it). `npm run db` runs the
+  database alone; `npm run stop` stops a running launcher.
+- Docker is the server option and does not use the launcher: compose sets
+  `DATABASE_URL` and runs `node dist/index.js` / `node dist/web/server.js`.
+- Multi-stage Dockerfile: `deps → build → runtime`; the build stage deletes
+  the built-in database's binaries.
 - Runtime image: `node:24-alpine`.
 - `init.ts` runs `prisma migrate deploy` if `prisma/migrations/` exists,
   else falls back to `prisma db push`. Real migrations exist from
@@ -242,6 +262,8 @@ When the question is **"where does X live?"**, save yourself a `find`:
 | "Fetch now" (the tick from the dashboard: live progress, unscored while paused) | `src/web/fetch-now.ts:beginFetchNow` (shared by `POST /runs/fetch-now` and the wizard's `POST /welcome/search`) → `runFetchJob({ manual: true })` in `src/jobs/fetch-job.ts`; registry `src/web/fetch-runs.ts`; verdict line `src/web/fetch-summary.ts` (pure) |
 | What each source cost in a tick (ms, status, count), and a walk over a subset | `SourceStat` in `src/jobs/cron-run.ts`, stamped by `fetchers/index.ts:runAllFetchers` into the `fetch` / `fetch-now` row's `bySource` (folded under the stats on `/runs`, the last board's time on the progress line); `FetchWalkOptions.only` / `.places` are how the wizard's step 2 asks the aggregators alone, where the user says they work (docs/onboarding-sources.md §6) |
 | What runs on container boot | `src/init.ts` |
+| What `npm start` does (the built-in Postgres, the lock, start order, restarts, stop) | `src/local/launcher.ts` over `postgres.ts` (I/O) and the pure `data-dir.ts`, `db-state.ts`, `postgres-setup.ts`, `supervise.ts` (ADR 0054) |
+| Where a local install keeps its data, and how scripts find its database | `src/local/data-dir.ts:dataDirFor` → `db.json`, read by `config.ts:useBuiltInDatabaseWhenUnset` |
 | A generic RSS/Atom job feed as a source (atsToken = the feed URL) | `src/fetchers/feed.ts` (ADR 0036); the URL goes through `checkPostingUrl` on every tick, and an empty feed is `empty`, not a source |
 | A careers page with nothing machine-readable — "this page changed, have a look" | `src/watchlist/page-hash.ts` (pure: `normalisePageText` = stripHtml + collapse whitespace and NOTHING else — masking digits would erase "92 positions", which is the signal; `decideChange` holds the once-a-day rule) · `src/fetchers/career-page.ts` returns `[]` forever and stages through `watchlist/page-changes.ts` · `jobs/page-change-alerts.ts` sends one grouped message after the walk and only THEN advances `lastContentHash` |
 | Adding a new ATS source — single-feed template | `src/fetchers/larajobs.ts` (LARAJOBS_RSS) or `src/fetchers/golangprojects.ts` (single RSS) |
@@ -756,6 +778,9 @@ Always:
 
 | Task | Command |
 | --- | --- |
+| Run ApplyPack without Docker | `npm start` (Ctrl+C or `npm run stop` to stop); for watchers `npm run db` + `npm run dev` + `npm run dev:web` |
+| Back up a local install | stop it, copy the data folder (`~/Library/Application Support/ApplyPack`, `%APPDATA%\ApplyPack`, `~/.local/share/applypack`) |
+| Test the launcher on a scratch folder | `APPLYPACK_DATA_DIR=/tmp/ap WEB_PORT=4848 APPLYPACK_NO_OPEN=1 npm start` — never the live data folder |
 | Run one fetch tick now | UI: Overview → "Fetch now" (live progress, row on `/runs`); or `docker compose exec app node dist/scripts/fetch-once.js` |
 | Run discovery probe now | `docker compose exec app node dist/scripts/discovery-once.js` |
 | Pull HN Who-is-hiring now | `docker compose exec app node dist/scripts/hn-once.js` |

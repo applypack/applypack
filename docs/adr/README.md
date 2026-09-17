@@ -62,6 +62,7 @@ consequences (what we accept). Aim for 15–30 lines each.
 - [0051 — A shortlist is compared head to head, twice, and the comparison is never a score](./0051-a-shortlist-is-compared-head-to-head-twice.md)
 - [0052 — Calibration reports agreement with the person's decisions and never tunes the rubric by itself](./0052-calibration-reports-agreement-and-never-tunes-the-rubric.md)
 - [0053 — Uniqueness lives in the database, and a row's state is written with the row](./0053-uniqueness-lives-in-the-database.md)
+- [0054 — `npm start` runs ApplyPack with a built-in Postgres; Docker is the server option](./0054-npm-start-runs-a-built-in-database.md)
 
 ## When to write a new one
 

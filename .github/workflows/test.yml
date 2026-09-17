@@ -76,3 +76,64 @@ jobs:
         run: npm run smoke:routes
         env:
           AI_PROVIDER: claude_code
+
+  local-start:
+    # The default install (ADR 0054): `npm start` with the built-in database,
+    # on the systems people run it on — the only job that runs on macOS and
+    # Windows. The smoke reaches the database through db.json, as a script
+    # does on a laptop.
+    name: npm start without Docker (${{ matrix.os }}, Node ${{ matrix.node }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-latest, node: 22 }
+          - { os: ubuntu-latest, node: 24 }
+          - { os: macos-latest, node: 24 }
+          - { os: windows-latest, node: 24 }
+    env:
+      APPLYPACK_NO_OPEN: '1'
+      # The upload the smoke makes starts a scan: fail fast, never call out.
+      AI_PROVIDER: claude_code
+      CLAUDE_CODE_BIN: applypack-ci-no-such-binary
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: npm start, the route smoke, npm run stop
+        shell: bash
+        run: |
+          export APPLYPACK_DATA_DIR="$RUNNER_TEMP/applypack-data"
+          npm start > "$RUNNER_TEMP/start.log" 2>&1 &
+          for i in $(seq 1 240); do
+            if [ "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:4747/)" = "303" ]; then
+              echo "the dashboard answered after ${i}s"
+              break
+            fi
+            if [ "$i" = 240 ]; then
+              cat "$RUNNER_TEMP/start.log"
+              cat "$APPLYPACK_DATA_DIR/logs/postgres.log" || true
+              exit 1
+            fi
+            sleep 1
+          done
+          npm run smoke:routes
+          npm run stop
+          cat "$RUNNER_TEMP/start.log"
+          node -e "
+            const fs = require('node:fs'), path = require('node:path');
+            const dir = process.env.APPLYPACK_DATA_DIR;
+            for (const file of ['applypack.pid', path.join('postgres', 'postmaster.pid')]) {
+              if (fs.existsSync(path.join(dir, file))) { console.error('left behind: ' + file); process.exit(1); }
+            }
+            console.log('stopped cleanly');
+          "

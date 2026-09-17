@@ -161,7 +161,7 @@ works on macOS too.)
    full path works (binary, auth, model id, network).
 3. The "Active now" line at the top shows who serves calls and in which
    order the rest stand by.
-4. Worker side: `docker compose logs -f app` (or your local worker output) —
+4. Worker side: the terminal running `npm start` (or `docker compose logs -f app`) —
    on failover you will see `ai: engine failed, trying next` followed by
    `ai: served by fallback engine`.
 

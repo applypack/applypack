@@ -1,8 +1,8 @@
 {
   "name": "applypack",
-  "version": "2.9.4",
+  "version": "2.10.0",
   "private": true,
-  "description": "Runs locally with Docker: an AI console for the whole job search that finds the postings, checks they're real, scores your resume without flattering it, drafts the cover letter, tracks the application. 33 sources, 5 swappable AI backends, your data in your own Postgres, self-hosted on a VPS if you like.",
+  "description": "Runs on your own computer with npm start: an AI console for the whole job search that finds the postings, checks they're real, scores your resume without flattering it, drafts the cover letter, tracks the application. 33 sources, 5 swappable AI backends, your data in a Postgres of its own, Docker on a VPS if you like.",
   "license": "MIT",
   "author": "Nazar Boyko (https://github.com/nazboyko)",
   "repository": {
@@ -13,12 +13,15 @@
     "node": ">=22"
   },
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && node -e \"require('node:fs').cpSync('src/resume/fonts', 'dist/resume/fonts', { recursive: true })\"",
     "css": "tailwindcss -c tailwind.config.js -i src/web/tailwind.css -o src/web/public/tailwind.css --minify",
-    "start": "node dist/index.js",
+    "start": "npm run build && node dist/local/launcher.js",
+    "db": "npm run build && node dist/local/launcher.js db",
+    "stop": "node dist/local/launcher.js stop",
+    "start:worker": "node dist/index.js",
     "start:web": "node dist/web/server.js",
     "dev": "tsx watch src/index.ts",
-    "dev:web": "tsc && node --watch --watch-path=./dist/web dist/web/server.js",
+    "dev:web": "npm run build && node --watch --watch-path=./dist/web dist/web/server.js",
     "build:watch": "tsc --watch --preserveWatchOutput",
     "seed": "tsx src/seed.ts",
     "fetch:once": "tsx src/scripts/fetch-once.ts",
@@ -53,6 +56,7 @@
     "@xmldom/xmldom": "0.9.12",
     "docx": "9.7.1",
     "dotenv": "^16.4.5",
+    "embedded-postgres": "16.14.0-beta.17",
     "hono": "^4.13.7",
     "jszip": "3.10.1",
     "node-cron": "^3.0.3",

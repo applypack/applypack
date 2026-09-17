@@ -3,6 +3,7 @@ import { config } from '../config';
 import { logger } from '../logger';
 import { prisma } from '../db';
 import { app } from './app';
+import { announceReady, onLauncherStop } from '../local/child';
 
 const server = serve(
   {
@@ -15,6 +16,7 @@ const server = serve(
       { host: info.address, port: info.port },
       'web: listening',
     );
+    announceReady();
   },
 );
 
@@ -28,3 +30,4 @@ async function shutdown(signal: string): Promise<void> {
 
 process.on('SIGTERM', () => void shutdown('SIGTERM'));
 process.on('SIGINT', () => void shutdown('SIGINT'));
+onLauncherStop((reason) => void shutdown(reason));

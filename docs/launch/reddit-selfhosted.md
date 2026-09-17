@@ -42,9 +42,10 @@ What it does:
 
 Self-hosting details, since that's why we're here:
 
-* `docker compose up -d` brings up Postgres 16, a cron worker and a
-  dashboard. The dashboard binds to 127.0.0.1; put your own proxy in
-  front if you want it off-box
+* `npm install && npm start` brings up Postgres 16, a cron worker and a
+  dashboard with nothing but Node installed; `docker compose up -d` does
+  the same on a server. The dashboard binds to 127.0.0.1; put your own
+  proxy in front if you want it off-box
 * No accounts, no telemetry, no phone-home. Outbound traffic goes to
   the job boards and to whichever AI backend you configure
 * AI is the one running cost, and you pick the meter: Claude Code /

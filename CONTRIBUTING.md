@@ -6,19 +6,21 @@ down in an ADR. You can be productive here in one evening.
 
 ## Dev setup
 
-```bash
-docker compose up -d postgres   # or any Postgres 16 you already have
-cp .env.example .env            # DATABASE_URL is preset for the compose postgres
-npm install
-npx prisma migrate deploy
-npm run seed
+All you need is Node.js 22 or newer ([docs/install.md](./docs/install.md));
+the database comes with the repo.
 
-npm run dev       # the cron worker
+```bash
+npm install
+npm run db        # the built-in Postgres 16, until Ctrl+C
+npm run dev       # the cron worker (migrates and seeds on start)
 npm run dev:web   # the dashboard → http://localhost:4747
 ```
 
-An AI engine key in `.env` is only needed for classifier/resume work;
-fetchers, filters and the dashboard run without one.
+`npm start` runs all three without watchers, the way a user runs it. A
+Postgres of your own works too: set `DATABASE_URL` in `.env`.
+
+An AI engine key is only needed for classifier/resume work; fetchers,
+filters and the dashboard run without one.
 
 ```bash
 npm run lint:types && npm test   # must be green before every PR; CI runs the same
@@ -51,8 +53,7 @@ npm run lint:types && npm test   # must be green before every PR; CI runs the sa
 - Pure logic gets a `*.test.ts` next to it. Modules that touch Prisma or
   an AI SDK are verified by smoke runs instead (see CLAUDE.md → Testing);
   say in the PR which smoke run you did.
-- Schema changes ship a hand-written migration (CLAUDE.md gotcha 7:
-  `prisma migrate dev` can't reach the compose Postgres from the host).
+- Schema changes ship a hand-written migration (CLAUDE.md gotcha 7).
 - Changes to architecture, schema or policy get an ADR in
   [docs/adr/](./docs/adr/).
 - Dashboard changes: check light and dark themes, keep it keyboard
