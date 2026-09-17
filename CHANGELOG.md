@@ -4,7 +4,7 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
-## [2.9.2] — 2026-09-16
+## [2.9.3] — 2026-09-16
 
 ### Fixed
 - **Enable and Disable on an AI engine card do what they say.** Before
@@ -17,6 +17,17 @@ All notable changes to this project are documented here. The format follows
   engine that answers only because nothing in that list can run is marked
   "last resort", and its Enable adds it to the list. The `.env` engine alone
   in the list has no Disable, since an empty list brings it straight back.
+
+## [2.9.2] — 2026-09-16
+
+### Fixed
+- **Replacing a description with the company's own listing no longer fails
+  on about half of all postings.** **Replace the description and
+  re-classify** and **Restore the original** (1.69.0) answered 500 and
+  changed nothing whenever the text's fingerprint had its top bit set: the
+  fingerprint went to the database unsigned, and Postgres `BIGINT` is
+  signed. It is stored the way every other write stores it now, and a test
+  names any file that writes a fingerprint without that conversion.
 
 ## [2.9.1] — 2026-09-13
 
@@ -3617,6 +3628,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.9.3]: https://github.com/applypack/applypack/compare/v2.9.2...v2.9.3
 [2.9.2]: https://github.com/applypack/applypack/compare/v2.9.1...v2.9.2
 [2.9.1]: https://github.com/applypack/applypack/compare/v2.9.0...v2.9.1
 [2.9.0]: https://github.com/applypack/applypack/compare/v2.8.0...v2.9.0
