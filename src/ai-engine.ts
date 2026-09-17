@@ -147,6 +147,30 @@ export function parseAiEngineConfig(raw: unknown): AiEngineConfig {
   return { order: [...new Set(order)], models };
 }
 
+/**
+ * The priority list the user edits on /settings → AI engine: the stored
+ * order, or the AI_PROVIDER engine alone while nothing is stored (ADR 0014).
+ * The resolver walks it, the cards show it and their buttons change it.
+ */
+export function aiEngineOrder(config: AiEngineConfig, provider: AiProviderId): AiProviderId[] {
+  return config.order.length > 0 ? [...config.order] : [provider];
+}
+
+/**
+ * The list after pressing Enable or Disable on `id`, or null when Disable
+ * would change nothing: an emptied list is seeded from AI_PROVIDER again, so
+ * the .env engine cannot leave a list it is alone in.
+ */
+export function toggleAiEngine(
+  order: readonly AiProviderId[],
+  id: AiProviderId,
+  provider: AiProviderId,
+): AiProviderId[] | null {
+  if (!order.includes(id)) return [...order, id];
+  if (order.length === 1 && id === provider) return null;
+  return order.filter((x) => x !== id);
+}
+
 export interface AiEngineEnv {
   provider: AiProviderId;
   hasAnthropicKey: boolean;
@@ -212,19 +236,17 @@ export function defaultModelFor(id: AiProviderId, role: AiRole, env: AiEngineEnv
 }
 
 export interface ResolvedAiEngine {
+  /** The priority list the user edits (aiEngineOrder), usable or not. */
+  order: AiProviderId[];
   /** Usable engines in priority order — never empty. */
   chain: AiProviderId[];
   /** Engines the user enabled but this host cannot run yet. */
   skipped: AiProviderId[];
+  /** The engine answering because nothing in `order` can run; never in `order`. */
+  lastResort: AiProviderId | null;
   modelFor(id: AiProviderId, role: AiRole): string;
 }
 
-/**
- * Merges the stored chain with the .env defaults. Unusable engines are
- * skipped (reported, so the UI can explain); an empty result falls back to
- * the .env provider and finally claude_code — the pipeline always has a
- * chain to try. Models outside the backend's family fall back per role.
- */
 /** Shape of AppSettings.aiUsage: { "YYYY-MM-DD": { provider: { role: n } } }. */
 const StoredUsageSchema = z.record(
   z.string(),
@@ -264,17 +286,28 @@ export function summarizeAiUsage(raw: unknown, days: number, today: Date): AiUsa
     .sort((a, b) => b.classifier + b.resume + b.cover - (a.classifier + a.resume + a.cover));
 }
 
+/**
+ * Merges the stored chain with the .env defaults. Unusable engines are
+ * skipped (reported, so the UI can explain); when nothing in the list can
+ * run, the .env provider and finally claude_code answer as the last resort —
+ * the pipeline always has a chain to try. Models outside the backend's
+ * family fall back per role.
+ */
 export function resolveAiEngine(raw: unknown, env: AiEngineEnv): ResolvedAiEngine {
   const config = parseAiEngineConfig(raw);
-  const wanted = config.order.length > 0 ? config.order : [env.provider];
-  const chain = wanted.filter((id) => !providerUnusable(id, env));
-  const skipped = wanted.filter((id) => providerUnusable(id, env));
+  const order = aiEngineOrder(config, env.provider);
+  const chain = order.filter((id) => !providerUnusable(id, env));
+  const skipped = order.filter((id) => providerUnusable(id, env));
+  let lastResort: AiProviderId | null = null;
   if (chain.length === 0) {
-    chain.push(providerUnusable(env.provider, env) ? 'claude_code' : env.provider);
+    lastResort = providerUnusable(env.provider, env) ? 'claude_code' : env.provider;
+    chain.push(lastResort);
   }
   return {
+    order,
     chain,
     skipped,
+    lastResort,
     modelFor(id, role) {
       // An empty slot takes the backend's default for THAT role — the cover's
       // is the strongest writer whatever the resume slot says (#184).

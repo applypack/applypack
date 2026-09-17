@@ -53,12 +53,14 @@ import {
   AI_PROVIDER_LABELS,
   PROVIDER_MODEL_OPTIONS,
   PROVIDER_PAID,
+  aiEngineOrder,
   defaultModelFor,
   isAiProviderId,
   modelFitsProvider,
   parseAiEngineConfig,
   resolveAiEngine,
   summarizeAiUsage,
+  toggleAiEngine,
   type AiEngineConfig,
   type AiProviderId,
 } from '../../ai-engine';
@@ -183,6 +185,12 @@ function supportedTimezones(current: string): string[] {
   return zones.includes(current) ? [...zones] : [current, ...zones];
 }
 
+/** Engine cards: the list in priority order, then the last resort (it serves), then the rest. */
+function cardRank(e: { enabled: boolean; position: number; lastResort: boolean }): number {
+  if (e.enabled) return e.position;
+  return e.lastResort ? AI_PROVIDER_IDS.length : AI_PROVIDER_IDS.length + 1;
+}
+
 async function loadSettingsProps() {
   // The keys are read once and lent to the probe — both need them (ADR 0027).
   const aiKeys = await getAiKeys();
@@ -213,10 +221,10 @@ async function loadSettingsProps() {
   const aiEnv = getAiEngineEnv(aiKeys);
   const engine = resolveAiEngine(settings.aiEngine, aiEnv);
   const aiConfig = parseAiEngineConfig(settings.aiEngine);
-  // With no stored config the .env-seeded chain is shown as enabled.
-  const enabledOrder = aiConfig.order.length > 0 ? aiConfig.order : engine.chain;
   const aiEngines = AI_PROVIDER_IDS.map((id) => {
-    const position = enabledOrder.indexOf(id);
+    // The list the Enable / Disable routes edit — never the chain, which
+    // holds a last resort nobody enabled and leaves out a skipped engine.
+    const position = engine.order.indexOf(id);
     const classifierDefault = defaultModelFor(id, 'classifier', aiEnv) || 'CLI default';
     const resumeDefault = defaultModelFor(id, 'resume', aiEnv) || 'CLI default';
     const storedKey = providerTakesKey(id) ? aiKeys[id] : undefined;
@@ -228,6 +236,8 @@ async function loadSettingsProps() {
       detail: aiStatuses[id].detail,
       enabled: position !== -1,
       position,
+      lastResort: engine.lastResort === id,
+      canToggle: toggleAiEngine(engine.order, id, aiEnv.provider) !== null,
       classifierModel: aiConfig.models[id]?.classifier ?? '',
       resumeModel: aiConfig.models[id]?.resume ?? '',
       coverModel: aiConfig.models[id]?.cover ?? '',
@@ -244,10 +254,7 @@ async function loadSettingsProps() {
       keySource: aiKeySource(id, aiKeys),
       maskedKey: storedKey ? maskToken(storedKey) : '',
     };
-  }).sort((a, b) => {
-    if (a.enabled !== b.enabled) return a.enabled ? -1 : 1;
-    return a.enabled ? a.position - b.position : 0;
-  });
+  }).sort((a, b) => cardRank(a) - cardRank(b));
   const primary = engine.chain[0]!;
   // What actually runs on this install, per family (#147): the enum is the
   // menu, the Company rows are the order.
@@ -444,34 +451,43 @@ settingsRoute.post('/settings/telegram-toggle', async (c) => {
   );
 });
 
-/** Reads the stored chain, seeding it from .env when nothing is saved yet. */
-async function readAiOrder(): Promise<{ order: AiProviderId[]; config: AiEngineConfig }> {
+/** The list the engine cards show (`aiEngineOrder`), the stored config, and the .env engine that seeds it. */
+async function readAiOrder(): Promise<{
+  order: AiProviderId[];
+  config: AiEngineConfig;
+  envProvider: AiProviderId;
+}> {
   const settings = await getSettings();
   const config = parseAiEngineConfig(settings.aiEngine);
-  const order = config.order.length > 0 ? [...config.order] : [getAiEngineEnv().provider];
-  return { order, config };
+  const envProvider = getAiEngineEnv().provider;
+  return { order: aiEngineOrder(config, envProvider), config, envProvider };
 }
 
 settingsRoute.post('/settings/ai/enable', async (c) => {
   const form = await c.req.parseBody();
   const provider = typeof form.provider === 'string' ? form.provider : '';
   if (!isAiProviderId(provider)) return flashRedirect('/settings?tab=ai', 'err', 'Unknown engine.');
-  const { order, config } = await readAiOrder();
+  const { order, config, envProvider } = await readAiOrder();
   const label = AI_PROVIDER_LABELS[provider];
+  const next = toggleAiEngine(order, provider, envProvider);
+  if (next === null) {
+    return flashRedirect(
+      '/settings?tab=ai',
+      'warn',
+      `${label} is the only engine in the list. Enable another one before you disable it.`,
+    );
+  }
+  await setAiEngineConfig({ ...config, order: next });
   if (order.includes(provider)) {
-    const next = order.filter((id) => id !== provider);
-    await setAiEngineConfig({ ...config, order: next });
     if (next.length === 0) {
       return flashRedirect(
         '/settings?tab=ai',
         'warn',
-        `${label} disabled. No engines left — the pipeline falls back to the .env default.`,
+        `${label} disabled. Nothing is left in the list, so ${AI_PROVIDER_LABELS[envProvider]} (AI_PROVIDER in .env) takes its place.`,
       );
     }
     return flashRedirect('/settings?tab=ai', 'ok', `${label} disabled.`);
   }
-  const next = [...order, provider];
-  await setAiEngineConfig({ ...config, order: next });
   const statuses = await probeAiProviders();
   if (!statuses[provider].ok) {
     return flashRedirect(
