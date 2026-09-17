@@ -1,33 +1,35 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-08-28T12:00:00Z",
+  "generatedAt": "2026-09-17T12:00:00Z",
   "title": "Design System: ApplyPack",
   "extensions": {
     "colorMeta": {
-      "surface": { "role": "neutral", "displayName": "Paper Gray", "canonical": "rgb(247 248 250)", "tonalRamp": ["#101828", "#344054", "#475467", "#667085", "#98A2B3", "#D0D5DD", "#E5E7EB", "#F7F8FA"] },
-      "surface-raised": { "role": "neutral", "displayName": "Surface White", "canonical": "rgb(255 255 255)", "tonalRamp": ["#101828", "#344054", "#475467", "#667085", "#98A2B3", "#D0D5DD", "#E5E7EB", "#FFFFFF"] },
-      "surface-overlay": { "role": "neutral", "displayName": "Overlay Gray", "canonical": "rgb(243 244 246)", "tonalRamp": ["#101828", "#344054", "#475467", "#667085", "#98A2B3", "#D0D5DD", "#E5E7EB", "#F3F4F6"] },
-      "line": { "role": "neutral", "displayName": "Hairline", "canonical": "rgb(229 231 235)", "tonalRamp": ["#101828", "#344054", "#475467", "#667085", "#98A2B3", "#D0D5DD", "#E5E7EB", "#F7F8FA"] },
-      "line-strong": { "role": "neutral", "displayName": "Strong Hairline", "canonical": "rgb(208 213 221)", "tonalRamp": ["#101828", "#344054", "#475467", "#667085", "#98A2B3", "#D0D5DD", "#E5E7EB", "#F7F8FA"] },
-      "ink": { "role": "neutral", "displayName": "Ink", "canonical": "rgb(16 24 40)", "tonalRamp": ["#101828", "#344054", "#475467", "#667085", "#98A2B3", "#D0D5DD", "#E5E7EB", "#F7F8FA"] },
-      "ink-muted": { "role": "neutral", "displayName": "Muted Ink", "canonical": "rgb(71 84 103)", "tonalRamp": ["#101828", "#344054", "#475467", "#667085", "#98A2B3", "#D0D5DD", "#E5E7EB", "#F7F8FA"] },
-      "ink-faint": { "role": "neutral", "displayName": "Faint Ink", "canonical": "rgb(102 112 133)", "tonalRamp": ["#101828", "#344054", "#475467", "#667085", "#98A2B3", "#D0D5DD", "#E5E7EB", "#F7F8FA"] },
+      "surface": { "role": "neutral", "displayName": "Canvas", "canonical": "rgb(245 247 246)", "tonalRamp": ["#101828", "#344054", "#475467", "#5F6B7E", "#98A2B3", "#C8D1CC", "#DDE3E0", "#F5F7F6"] },
+      "surface-raised": { "role": "neutral", "displayName": "Raised White", "canonical": "rgb(255 255 255)", "tonalRamp": ["#101828", "#344054", "#475467", "#5F6B7E", "#98A2B3", "#C8D1CC", "#DDE3E0", "#FFFFFF"] },
+      "surface-overlay": { "role": "neutral", "displayName": "Subtle", "canonical": "rgb(238 242 240)", "tonalRamp": ["#101828", "#344054", "#475467", "#5F6B7E", "#98A2B3", "#C8D1CC", "#DDE3E0", "#EEF2F0"] },
+      "surface-selected": { "role": "neutral", "displayName": "Selected", "canonical": "rgb(228 241 234)", "tonalRamp": ["#065F46", "#047857", "#059669", "#34D399", "#A7E0C6", "#CBE8D8", "#E4F1EA", "#F2F8F5"] },
+      "line": { "role": "neutral", "displayName": "Divider", "canonical": "rgb(221 227 224)", "tonalRamp": ["#101828", "#344054", "#475467", "#5F6B7E", "#98A2B3", "#C8D1CC", "#DDE3E0", "#F5F7F6"] },
+      "line-strong": { "role": "neutral", "displayName": "Control Border", "canonical": "rgb(200 209 204)", "tonalRamp": ["#101828", "#344054", "#475467", "#5F6B7E", "#98A2B3", "#C8D1CC", "#DDE3E0", "#F5F7F6"] },
+      "ink": { "role": "neutral", "displayName": "Ink", "canonical": "rgb(16 24 40)", "tonalRamp": ["#101828", "#344054", "#475467", "#5F6B7E", "#98A2B3", "#C8D1CC", "#DDE3E0", "#F5F7F6"] },
+      "ink-muted": { "role": "neutral", "displayName": "Muted Ink", "canonical": "rgb(71 84 103)", "tonalRamp": ["#101828", "#344054", "#475467", "#5F6B7E", "#98A2B3", "#C8D1CC", "#DDE3E0", "#F5F7F6"] },
+      "ink-faint": { "role": "neutral", "displayName": "Faint Ink", "canonical": "rgb(95 107 126)", "tonalRamp": ["#101828", "#344054", "#475467", "#5F6B7E", "#98A2B3", "#C8D1CC", "#DDE3E0", "#F5F7F6"] },
       "accent": { "role": "primary", "displayName": "Emerald", "canonical": "rgb(5 150 105)", "tonalRamp": ["#022C22", "#064E3B", "#065F46", "#047857", "#059669", "#10B981", "#6EE7B7", "#D1FAE5"] },
       "accent-strong": { "role": "primary", "displayName": "Emerald Strong", "canonical": "rgb(4 120 87)", "tonalRamp": ["#022C22", "#064E3B", "#065F46", "#047857", "#059669", "#10B981", "#6EE7B7", "#D1FAE5"] },
       "accent-deep": { "role": "primary", "displayName": "Emerald Deep", "canonical": "rgb(6 95 70)", "tonalRamp": ["#022C22", "#064E3B", "#065F46", "#047857", "#059669", "#10B981", "#6EE7B7", "#D1FAE5"] },
       "ok": { "role": "status", "displayName": "OK Green", "canonical": "rgb(4 120 87)", "tonalRamp": ["#022C22", "#064E3B", "#065F46", "#047857", "#059669", "#10B981", "#6EE7B7", "#D1FAE5"] },
-      "warn": { "role": "status", "displayName": "Warn Amber", "canonical": "rgb(180 83 9)", "tonalRamp": ["#451A03", "#78350F", "#92400E", "#B45309", "#D97706", "#F59E0B", "#FCD34D", "#FEF3C7"] },
-      "danger": { "role": "status", "displayName": "Danger Red", "canonical": "rgb(217 45 32)", "tonalRamp": ["#55160C", "#7A271A", "#912018", "#B42318", "#D92D20", "#F04438", "#FDA29B", "#FEE4E2"] },
+      "warn": { "role": "status", "displayName": "Warn Amber", "canonical": "rgb(162 79 10)", "tonalRamp": ["#451A03", "#6F3407", "#8A430A", "#A24F0A", "#D97706", "#F59E0B", "#FCD34D", "#FEF3C7"] },
+      "danger": { "role": "status", "displayName": "Danger Red", "canonical": "rgb(180 35 24)", "tonalRamp": ["#450A0A", "#7A1A12", "#971D14", "#B42318", "#D92D20", "#F97066", "#FDA29B", "#FEE4E2"] },
       "info": { "role": "status", "displayName": "Info Blue", "canonical": "rgb(29 78 216)", "tonalRamp": ["#172554", "#1E3A8A", "#1E40AF", "#1D4ED8", "#2563EB", "#3B82F6", "#93C5FD", "#DBEAFE"] },
       "violet": { "role": "status", "displayName": "AI Violet", "canonical": "rgb(109 40 217)", "tonalRamp": ["#2E1065", "#4C1D95", "#5B21B6", "#6D28D9", "#7C3AED", "#8B5CF6", "#C4B5FD", "#EDE9FE"] }
     },
     "typographyMeta": {
-      "page-title": { "displayName": "Page Title", "purpose": "One per page, in the header row; truncates rather than wraps." },
-      "stat-value": { "displayName": "Stat Value", "purpose": "The four Overview numbers and stat cards; always tabular-nums." },
-      "section-title": { "displayName": "Section Title", "purpose": "Card headings and settings-section titles." },
+      "title": { "displayName": "Title", "purpose": "The page's one h1, in the header row next to meta and actions." },
+      "section": { "displayName": "Section", "purpose": "A page-level section outside a card; a settings section." },
+      "entity": { "displayName": "Entity", "purpose": "Card headings, a row's name, a resume, a job, an engine." },
       "body": { "displayName": "Body", "purpose": "Default UI text: tables, forms, buttons, nav. Weight 500 marks emphasis." },
-      "secondary": { "displayName": "Secondary", "purpose": "Hints, meta counts, back-links; field labels at weight 500." },
-      "micro": { "displayName": "Micro", "purpose": "Table headers, badges, kanban counts; weight 400 for sub-values and timestamps." },
+      "label": { "displayName": "Label", "purpose": "Field labels, table headers, fieldset legends, sidebar group labels." },
+      "meta": { "displayName": "Meta", "purpose": "Timestamps, counts, the header's meta line, helper prose under a control." },
+      "stat-value": { "displayName": "Stat Value", "purpose": "The four Overview numbers and stat cards; always tabular-nums." },
       "mono-value": { "displayName": "Mono Value", "purpose": "Machine values only: ids, tokens, cron names, durations, code." }
     },
     "shadows": [
@@ -127,37 +129,48 @@
   ],
   "narrative": {
     "northStar": "The Hunting Console",
-    "overview": "A calm, light operations desk for a daily job hunt. The dashboard is read twice a day, briefly, in indoor daylight: it must be dense, quiet, and instantly legible. The composition is a Linear-density work surface — a fixed 240px sidebar on paper-gray ground, white cards and tables carrying the data, hairline borders doing all the structural work. Nothing on screen persuades or decorates; every pixel serves reading four numbers, scanning new jobs, and acting on one.\n\nThe personality is professional, calm, modern, information-first — compact but not cramped. Brand lives in details rather than surfaces: an emerald focus ring, emerald text selection, the emerald \"AP\" mark, an emerald primary button. Status speaks in a quiet five-color vocabulary of tinted pills (blue / amber / emerald / violet / gray) that never rises to a saturated fill. Controls follow a \"quiet precision\" philosophy: they disappear into the task, borrowing their forms from Stripe's settings forms and GitHub's data tables.\n\nTwo worlds are explicitly refused, per the owner's brief: the dark hacker dashboard (glowing terminals, neon-on-black) and the AI-slop marketing admin (gradients, glassmorphism, giant cards, 20–30px radii, decorative noise, heavy shadows). Only a light theme is implemented today; every color flows through semantic CSS-variable tokens so a dark theme later is a second set of values, not a component rewrite.",
+    "overview": "A calm, light operations desk for a daily job hunt. The dashboard is read twice a day, briefly, in indoor daylight: it must be dense, quiet, and instantly legible. The composition is a Linear-density work surface — a fixed 240px sidebar on the subtle surface, a canvas ground, white surfaces carrying the data. Structure comes from three surfaces and a type ladder the eye reads before the words: title, section, entity, body, label, meta. Nothing on screen persuades or decorates; every pixel serves reading four numbers, scanning new jobs, and acting on one.\n\nThe personality is professional, calm, modern, information-first — compact but not cramped. Brand lives in details rather than surfaces: an emerald focus ring, emerald text selection, the emerald \"AP\" mark, an emerald primary button. Status speaks in a quiet five-color vocabulary of tinted pills (blue / amber / emerald / violet / gray) that never rises to a saturated fill. Controls follow a \"quiet precision\" philosophy: they disappear into the task, borrowing their forms from Stripe's settings forms and GitHub's data tables.\n\nTwo worlds are explicitly refused, per the owner's brief: the dark hacker dashboard (glowing terminals, neon-on-black) and the AI-slop marketing admin (gradients, glassmorphism, giant cards, 20–30px radii, decorative noise, heavy shadows). Only a light theme is implemented today; every color flows through semantic CSS-variable tokens so a dark theme later is a second set of values, not a component rewrite.",
     "keyCharacteristics": [
-      "Paper-gray ground (#F7F8FA), white work surfaces, hairline structure",
+      "Canvas ground (#F5F7F6), white work surfaces, a subtle third surface (#EEF2F0) for the sidebar, table headers and wells — surface first, never surface alone",
+      "A type ladder visible at a glance: 26 / 18 / 15 / 14 / 13 / 12 px",
       "One brand accent (emerald); status as quiet tinted pills, never fills",
       "Inter for all UI text; monospace strictly for machine values",
-      "Flat by default; shadow is a whisper on white surfaces only",
+      "One surface per region; shadow is a whisper on white surfaces only",
       "Dense 4px-grid spacing; 14px body type; tables and forms carry the work",
       "Drawn stroke icons (Lucide-style), never emoji or Unicode glyphs"
     ],
     "rules": [
-      { "name": "The One-Accent Rule", "body": "Emerald is the only brand color. The status tones are vocabulary, not decoration: they appear exclusively where they carry state (pills, dots, meters, toned numbers) and never as ambient color.", "section": "colors" },
-      { "name": "The Quiet-Pill Rule", "body": "Status renders as a tinted pill — 10% tone background, full-strength tone text, 20% tone inset ring — never as a saturated fill. A status color at 100% opacity may only paint dots, meter fills, and text.", "section": "colors" },
-      { "name": "The Violet-Means-AI Rule", "body": "Violet (#6D28D9) is reserved for AI/model-spend actions — Compare, Re-analyze with AI, Re-scan, Re-classify, HN Run now — and for the Saved status. It signals \"this button costs AI credit or marks a save.\" It must never become a general secondary accent.", "section": "colors" },
-      { "name": "The Machine-Mono Rule", "body": "Monospace is strictly for machine values — ids, tokens, cron names, durations, code. Prose, labels, titles, and numbers-in-prose stay in Inter; numeric columns align with tabular-nums, not with mono.", "section": "typography" },
-      { "name": "The Whisper-Shadow Rule", "body": "Surfaces are flat at rest; hairlines do the structural work. shadow-sm appears only on white surfaces, and nothing except the mobile drawer ever casts a real shadow. No glows, no heavy ambient shadows, no hover-lift.", "section": "elevation" },
-      { "name": "The Drawn-Icon Rule", "body": "Every icon is a drawn SVG stroke on the 24px Lucide grid — including the select chevron and check/x marks. Emoji, Unicode glyphs, and icon fonts never stand in for icons.", "section": "components" },
-      { "name": "The Composed-Primitive Rule", "body": "Pages compose ui.tsx primitives and never hand-roll Tailwind for shared patterns; new visual decisions land in the primitive or the token layer first.", "section": "components" }
+      { "name": "The One-Accent Rule", "section": "colors", "body": "Emerald is the only brand color. The status tones are vocabulary, not decoration: they appear exclusively where they carry state (pills, dots, meters, toned numbers) and never as ambient color." },
+      { "name": "The Quiet-Pill Rule", "section": "colors", "body": "Status renders as a tinted pill — 10% tone over white, full-strength tone text, 20% tone inset ring — never as a saturated fill. The pill carries its own white ground, so it reads the same on the canvas, in a table and on a subtle well. A status color at 100% opacity may only paint dots, meter fills, and text." },
+      { "name": "The Violet-Means-AI Rule", "section": "colors", "body": "Violet (#6D28D9) is reserved for AI/model-spend actions — Compare, Re-analyze with AI, Re-scan, Re-classify, HN Run now — and for the Saved status. It signals \"this button costs AI credit or marks a save.\" It must never become a general secondary accent." },
+      { "name": "The Machine-Mono Rule", "section": "typography", "body": "Monospace is strictly for machine values — ids, tokens, cron names, durations, code. Prose, labels, titles, and numbers-in-prose stay in Inter; numeric columns align with `tabular-nums`, not with mono." },
+      { "name": "The Surface-First Rule", "section": "elevation", "body": "A region is set apart by its surface AND one of: spacing, a heading, a divider, an indicator — never by a background alone (the steps are 1.03–1.13). State is never a background alone either: a selected option also gets emerald-strong text at weight 500 and a drawn check or a left bar; the active nav item gets all three." },
+      { "name": "The One-Surface-Per-Region Rule", "section": "elevation", "body": "A settings tab, a job page's main column, a filter panel: one raised surface with dividers inside it. A card is for an object that moves or stands alone — a board card, a mode box, a resume, the metric strip. `Card variant=\"flat\"` is a part of such a region, `\"subtle\"` a well inside it." },
+      { "name": "The Whisper-Shadow Rule", "section": "elevation", "body": "Surfaces are flat at rest. `shadow-sm` appears only on white surfaces, and nothing except the mobile drawer ever casts a real shadow. No glows, no heavy ambient shadows, no hover-lift." },
+      { "name": "The Drawn-Icon Rule", "section": "components", "body": "Every icon is a drawn SVG stroke on the 24px Lucide grid — including the select chevron and check/x marks. Emoji, Unicode glyphs, and icon fonts never stand in for icons." },
+      { "name": "The Composed-Primitive Rule", "section": "components", "body": "Pages compose `ui.tsx` primitives and never hand-roll Tailwind for shared patterns; new visual decisions land in the primitive or the token layer first." },
+      { "name": "The Disclosure Rule", "section": "components", "body": "Under a label, one sentence. What explains a cap, a cost, a gate, a privacy fact or a destructive act stays visible; everything else sits behind a quiet `Disclosure` (\"How this works\"), outside the label so it never becomes the control's accessible name. Filters, inactive input modes and raw machine output fold the same way — native `<details>`, no JavaScript." },
+      { "name": "The Measured-Change Rule", "section": "components", "body": "A UI pull request names a number from `docs/ui-redesign/measure.js` — tab stops before the table, visible hint words, boxes, primaries, height — and reports it before and after (`node docs/ui-redesign/shoot.js`). If the number does not move, the change is not done." }
     ],
     "dos": [
-      "Do route every color through the semantic tokens (surface / line / ink / accent / status tones) as rgb(var(--token) / alpha); a future dark theme must be a token swap, not a component edit.",
-      "Do keep the 4px spacing grid and the observed density: 20px card padding, 12×16px table cells, 6px control padding, 16px card gaps.",
-      "Do set tabular-nums on every numeric readout (stats, counts, scores, dates in columns) and render absent values as an em dash (—), never blank.",
-      "Do give every interactive element the global focus ring (2px emerald, 2px offset) and a 150ms color-only transition.",
-      "Do pair color with a redundant channel — dot + label on status, number + meter on fit — so state reads without color."
+      "**Do** route every color through the semantic tokens (`surface` / `line` / `ink` / `accent` / status tones) as `rgb(var(--token) / alpha)`; a future dark theme must be a token swap, not a component edit.",
+      "**Do** keep the 4px spacing grid and the observed density: 20px card padding, 12×16px table cells, 6px control padding, 16px card gaps.",
+      "**Do** set `tabular-nums` on every numeric readout (stats, counts, scores, dates in columns) and render absent values as an em dash (—), never blank.",
+      "**Do** give every interactive element the global focus ring (2px emerald, 2px offset) and a 150ms color-only transition.",
+      "**Do** pair color with a redundant channel — dot + label on status, number + meter on fit, a check or a bar on a selection — so state reads without color.",
+      "**Do** put a new value in `src/web/tokens.ts` and let `tokens.test.ts` say whether its text passes AA on every surface, the pill and the flash.",
+      "**Do** mark helper prose written outside `Hint` with `data-ui=\"hint\"`, so the number a UI change reports counts it."
     ],
     "donts": [
-      "Don't introduce gradients, glassmorphism, decorative noise, heavy or colored shadows, hover-lift, or radii above 8px — the confirmed anti-world.",
-      "Don't use violet for anything but AI-spend actions and the Saved status, and don't promote any status tone into a second brand accent.",
-      "Don't fill a status with saturated color; status stays a quiet tinted pill (10% background, 20% ring).",
-      "Don't set prose, labels, or headings in monospace — mono is machine values only.",
-      "Don't go dark ad hoc: no dark-styled components or pages until the token layer itself grows a dark value set."
+      "**Don't** introduce gradients, glassmorphism, decorative noise, heavy or colored shadows, hover-lift, or radii above 8px — the confirmed anti-world. The same goes for the stock looks: a Bootstrap or Material admin, a component-library demo page, giant colorful KPI cards, pills everywhere.",
+      "**Don't** nest cards in cards, wrap a wrapper in a border, or set a region apart by a background alone.",
+      "**Don't** let helper paragraphs pile up under a control, show raw JSON as a page's primary content, leave a page with a giant unused area, or hide an important action behind an unlabelled icon.",
+      "**Don't** colour an icon arbitrarily, draw a chart that answers no question, or vary the focus state between controls.",
+      "**Don't** set anything in uppercase with tracking; a group label is sentence case at the label step.",
+      "**Don't** use violet for anything but AI-spend actions and the Saved status, and don't promote any status tone into a second brand accent.",
+      "**Don't** fill a status with saturated color; status stays a quiet tinted pill (10% background, 20% ring).",
+      "**Don't** set prose, labels, or headings in monospace — mono is machine values only.",
+      "**Don't** go dark ad hoc: no dark-styled components or pages until the token layer itself grows a dark value set."
     ]
   }
 }

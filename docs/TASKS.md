@@ -2375,12 +2375,17 @@ it moves. Stage 0 carries no tag; the others are a minor each.
       in `job-facets.ts`. Eight URLs return the same totals and the same
       rows before and after; the route smoke requests `/jobs` under every
       filter at once.
-- [ ] **`dashboard-tokens`** — `src/web/tokens.ts` + a contrast test over
-      every text-on-surface pair; new values under the old names,
-      `surface-selected`; the named type sizes (`title` 26, `section` 18,
-      `entity` 15, `label` 13, `meta` 12); `Card` variants; the emerald row
-      hover; sidebar groups and the active item; the input focus border.
-      DESIGN.md rewritten, `ui-review` and `commit-discipline` corrected.
+- [x] **`dashboard-tokens`** — v2.12.0. `src/web/tokens.ts` + a contrast
+      test over every text-on-surface pair (29 checks); new values under the
+      old names, `surface-selected`; the named type sizes (`title` 26,
+      `section` 18, `entity` 15, `label` 13, `meta` 12) on every page title,
+      card heading, label and hint; `Card` variants; the emerald row hover;
+      sidebar groups and the active item; the input focus border; a pill
+      carries its own white ground (4.44:1 on the canvas before).
+      `/screen/new` no longer scrolls sideways at 375 px. `boxes` equal on
+      all 26 pages, no horizontal scroll at any width. DESIGN.md and its
+      sidecar rewritten, PRODUCT.md, `ui-review` and `commit-discipline`
+      corrected.
 - [ ] **`settings-compare-disclosure`** — visible hint words ≥ 40 % down per
       settings tab (Screening ≥ 15 %), `/target` 192 → ≤ 90 inside 900 px,
       `/letter` ≤ 80, `/resumes` ≤ 50. `Field` gains `more`; settings gets

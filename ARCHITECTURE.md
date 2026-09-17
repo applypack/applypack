@@ -313,7 +313,8 @@ src/
 
   web/
     server.ts                   ← Hono app, middleware, basicAuth, listen
-    layout.tsx                  ← HTML shell, light design tokens, sidebar nav, Tailwind CDN
+    layout.tsx                  ← HTML shell, the :root token block, grouped sidebar nav, the committed Tailwind build
+    tokens.ts                   ← the design tokens' values + contrast arithmetic (pure); tokens.test.ts holds every text colour to AA
     ui.tsx                      ← shared <Card>, <StatusBadge>, <FitBadge>, <Tag>, <Stat>
     format.ts                   ← formatSalary, formatRelative, statusTone, fitTone
     flash.ts                  ← POST → redirect → GET flash cookie

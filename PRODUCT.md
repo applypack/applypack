@@ -46,6 +46,11 @@ the priority.
   may be added later via the token layer only.
 - Typography: Inter for UI; monospace strictly for machine values (ids, tokens,
   cron names, durations, code).
+- **Hierarchy before decoration**: a type ladder the eye reads before the words
+  (title 26, section 18, entity 15, body 14, label 13, meta 12) and three
+  surfaces — canvas, white, subtle — with one tint for what is selected. What
+  is not needed at first glance folds behind a native `<details>`; a UI change
+  names the number it moves (DESIGN.md, the Measured-Change Rule).
 
 ## Constraints that shape design
 
@@ -54,7 +59,8 @@ the priority.
   from `tailwind.config.js`) over semantic CSS-variable tokens in
   `src/web/layout.tsx`. Nothing on a page is fetched from a third party.
 - Every color flows through semantic tokens (surface / line / ink / accent / status
-  tones) so a second theme is a token swap, not a component rewrite.
+  tones, valued in `src/web/tokens.ts` and held to WCAG AA by its test) so a
+  second theme is a token swap, not a component rewrite.
 - Primitives live in `src/web/ui.tsx`; pages compose them and never hand-roll
   Tailwind for shared patterns.
 - Dashboard is localhost-only, single user — no marketing surfaces, no auth UI
