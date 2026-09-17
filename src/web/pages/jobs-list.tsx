@@ -154,7 +154,7 @@ export const JobsListPage: FC<JobsListProps> = ({
             value={filters.q}
             placeholder="Search title, description or location…"
             aria-label="Search jobs"
-            class="sm:!w-72"
+            class="sm:!w-56 xl:!w-72"
           />
           <Input
             type="number"
@@ -176,8 +176,9 @@ export const JobsListPage: FC<JobsListProps> = ({
           <Button variant="secondary">Apply</Button>
         </form>
 
-        {/* Apply sends the form; Filters are links that act at once — the rule keeps the two apart. */}
-        <span class="mx-1 hidden h-5 w-px bg-line sm:block" aria-hidden="true" />
+        {/* Apply sends the form; Filters are links that act at once — the rule keeps the two apart.
+            From lg the row holds both; below it the button wraps and a rule would hang alone. */}
+        <span class="mx-1 hidden h-5 w-px bg-line lg:block" aria-hidden="true" />
         {/* `contents`: the button shares the toolbar's row, the panel wraps below it. */}
         <Disclosure variant="button" summary="Filters" count={filterCount(filters)} open={panelOpen} class="contents">
           <div class="order-last grid basis-full gap-x-4 gap-y-3 rounded-lg border border-line bg-surface-raised p-4 shadow-sm sm:grid-cols-[5rem_minmax(0,1fr)]">
