@@ -336,6 +336,10 @@ in the dashboard with the pages they sit on.
 
 `Hint`, the `PageHeader` intro, the settings `Section` description and the
 `Radio` body get `data-ui="hint"` in stage 0 — the hook measure.js counts.
+Stage 0 found those four left fifteen pages more than 5 % low and put the
+hook on the header's meta line and on the raw faint paragraphs and label
+spans as well ([metrics.md](./ui-redesign/metrics.md)). The rule since:
+helper prose written outside `Hint` takes the hook too.
 
 Input focus becomes `focus:border-accent-strong focus:ring-2
 focus:ring-accent/25`: the border is the 3:1 indicator the audit asked for,

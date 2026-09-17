@@ -358,7 +358,7 @@ export const ScreenApplicantPage: FC<ScreenApplicantProps> = ({ screening, appli
             <Card>
               <h2 class="text-sm font-semibold text-ink">What the model did not see</h2>
               <p class="mt-1 text-sm text-ink-muted">Removed before the call: {describeRedactions(applicant.redactions)}.</p>
-              <p class="mt-1 text-[13px] text-ink-faint">
+              <p data-ui="hint" class="mt-1 text-[13px] text-ink-faint">
                 {applicant.leaks.length === 0
                   ? 'Leak check after redaction: nothing identifying left.'
                   : `Leak check found: ${applicant.leaks.join(', ')} — read the text below before trusting the mark.`}

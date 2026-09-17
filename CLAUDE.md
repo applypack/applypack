@@ -138,6 +138,13 @@
 - `src/web/public/` holds browser code served as-is (no build step). Keep it
   dependency-free ES modules with pure functions, tested through `import()`
   from `src/web/*.test.ts`. The Dockerfile copies the directory into the image.
+- `data-ui` attributes in `src/web/` are the redesign's measuring hooks:
+  `data-ui="hint"` marks helper prose (the `Hint` primitive, the header's
+  intro and meta, a radio's body, and any raw faint paragraph or label span),
+  `mode-card` / `mode-body` mark a launcher's input modes.
+  `docs/ui-redesign/measure.js` counts them and `shoot.js` runs it over the
+  pages (docs/ui-redesign-plan.md §4.2). Helper prose written outside `Hint`
+  takes the hook, or the number a UI change reports reads low.
 - `AtsType.MANUAL` companies are inactive rows for pasted jobs — `fetchOne`
   returns `[]`, `/companies` and the source toggles hide them.
 - `src/resume/` is the resume module: `zip.ts`, `docx-text.ts`, `pdf-text.ts`

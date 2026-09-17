@@ -42,11 +42,11 @@ export const StarterPackPicker: FC<{ segments: PackSegmentChoice[] }> = ({ segme
             <span class="min-w-0">
               <span class="block font-medium text-ink">
                 {s.label}{' '}
-                <span class="font-normal text-ink-faint tabular-nums">
+                <span data-ui="hint" class="font-normal text-ink-faint tabular-nums">
                   · {s.count}
                 </span>
               </span>
-              <span class="block text-[13px] leading-5 text-ink-faint">{s.blurb}</span>
+              <span data-ui="hint" class="block text-[13px] leading-5 text-ink-faint">{s.blurb}</span>
             </span>
           </PillCheckbox>
         ))}

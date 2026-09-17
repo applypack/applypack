@@ -312,7 +312,7 @@ export const JobsListPage: FC<JobsListProps> = ({
           {jobs.length === 0 ? (
             <div class="flex flex-1 flex-col items-center justify-center gap-2 px-6 py-16 text-center">
               <div class="text-sm font-medium text-ink">No jobs match these filters</div>
-              <p class="text-[13px] text-ink-faint">
+              <p data-ui="hint" class="text-[13px] text-ink-faint">
                 {hasFilters ? (
                   <>
                     Try widening the search, or{' '}

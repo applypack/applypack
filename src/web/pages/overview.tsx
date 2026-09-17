@@ -123,7 +123,7 @@ export const OverviewPage: FC<OverviewProps> = ({
       <Flash flash={flash} />
 
       {fetchingEnabled && heldAlerts > 0 && (
-        <p class="-mt-2 mb-4 text-[13px] leading-5 text-ink-faint">
+        <p data-ui="hint" class="-mt-2 mb-4 text-[13px] leading-5 text-ink-faint">
           {heldAlerts} {heldAlerts === 1 ? 'match is' : 'matches are'} waiting for the alert
           window to open —{' '}
           <a
@@ -137,7 +137,7 @@ export const OverviewPage: FC<OverviewProps> = ({
       )}
 
       {watched.companies > 0 && (
-        <p class="-mt-2 mb-4 text-[13px] leading-5 text-ink-faint">
+        <p data-ui="hint" class="-mt-2 mb-4 text-[13px] leading-5 text-ink-faint">
           ★ {watched.companies} watched compan{watched.companies === 1 ? 'y' : 'ies'} ·{' '}
           {watched.newJobs === 0 ? (
             'nothing new in the last 24 hours'
@@ -154,7 +154,7 @@ export const OverviewPage: FC<OverviewProps> = ({
       )}
 
       {!fetchingEnabled && (
-        <p class="-mt-2 mb-4 text-[13px] leading-5 text-ink-faint">
+        <p data-ui="hint" class="-mt-2 mb-4 text-[13px] leading-5 text-ink-faint">
           Paused means no new jobs or alerts. Fresh installs start paused so a blank profile
           doesn't spend AI credit —{' '}
           <a
@@ -194,7 +194,7 @@ export const OverviewPage: FC<OverviewProps> = ({
         })}
       </div>
 
-      <p class="mb-6 text-[13px] text-ink-faint tabular-nums">
+      <p data-ui="hint" class="mb-6 text-[13px] text-ink-faint tabular-nums">
         {total.toLocaleString()} jobs tracked all-time · {total24h.toLocaleString()} seen in the
         last 24h · {(byStatus.DISMISSED ?? 0).toLocaleString()} dismissed
       </p>
