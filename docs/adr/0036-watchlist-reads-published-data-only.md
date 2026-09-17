@@ -133,6 +133,15 @@ than about a crawler's name: `ai-input=no` refuses us whatever the groups say,
 and `ai-input=yes` drops the vendor tokens so only `applypack` and `*` decide
 the path.
 
+## Addendum (2026-09-16): the last resort binds too
+
+The binding set was the stored list plus `AI_PROVIDER`. When neither can run,
+the resolver sends every call to Claude Code CLI, so an install set to Gemini
+CLI with no login sent every description to Claude while only
+`Google-Extended` bound. `ai-engine.ts:bindingProviders` now counts every
+engine that may read what we fetch: the list with its skipped engines, the
+last resort, and `AI_PROVIDER`.
+
 ## Consequences
 
 ✅ Nothing in the image changes: no Chromium, no HTML parser, no new

@@ -1,12 +1,17 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  aiCrawlerTokens,
+  aiEngineCard,
+  aiEngineOrder,
+  bindingProviders,
   isAiProviderId,
   modelFitsProvider,
   parseAiEngineConfig,
   providerUnusable,
   resolveAiEngine,
   summarizeAiUsage,
+  toggleAiEngine,
   type AiEngineEnv,
 } from './ai-engine';
 
@@ -75,6 +80,24 @@ describe('resolveAiEngine', () => {
       { ...ENV, provider: 'gemini_cli', geminiUsable: false },
     );
     assert.deepEqual(out.chain, ['claude_code']);
+    assert.equal(out.lastResort, 'claude_code');
+  });
+
+  it('reports the last resort apart from the list it stands in for', () => {
+    // AI_PROVIDER=anthropic_api, no key, nothing stored — the install this bug was found on.
+    const seeded = resolveAiEngine(null, { ...ENV, provider: 'anthropic_api' });
+    assert.deepEqual(seeded.order, ['anthropic_api']);
+    assert.deepEqual(seeded.skipped, ['anthropic_api']);
+    assert.deepEqual(seeded.chain, ['claude_code']);
+    assert.equal(seeded.lastResort, 'claude_code');
+
+    // A usable .env engine outside the stored list is the last resort before claude_code.
+    const stored = resolveAiEngine({ order: ['openai_api'], models: {} }, { ...ENV, provider: 'gemini_cli' });
+    assert.deepEqual(stored.order, ['openai_api']);
+    assert.deepEqual(stored.chain, ['gemini_cli']);
+    assert.equal(stored.lastResort, 'gemini_cli');
+
+    assert.equal(resolveAiEngine(null, ENV).lastResort, null);
   });
 
   it('codex defaults to the CLI-configured model (empty id)', () => {
@@ -92,6 +115,26 @@ describe('resolveAiEngine', () => {
     );
     assert.deepEqual(out.chain, ['openai_api']);
     assert.equal(out.modelFor('openai_api', 'resume'), 'llama-3.3-70b');
+  });
+});
+
+describe('aiEngineOrder / aiEngineCard / toggleAiEngine', () => {
+  it('is the stored order, or the .env engine alone while nothing is stored', () => {
+    assert.deepEqual(aiEngineOrder({ order: ['gemini_cli', 'claude_code'], models: {} }, 'anthropic_api'), ['gemini_cli', 'claude_code']);
+    assert.deepEqual(aiEngineOrder({ order: [], models: {} }, 'anthropic_api'), ['anthropic_api']);
+  });
+
+  it('a card reads the list its button edits: the last resort says Enable, and Enable adds it', () => {
+    const engine = resolveAiEngine(null, { ...ENV, provider: 'anthropic_api' });
+    assert.deepEqual(aiEngineCard(engine, 'claude_code', 'anthropic_api'), { enabled: false, position: -1, lastResort: true, canToggle: true });
+    assert.deepEqual(toggleAiEngine(engine.order, 'claude_code', 'anthropic_api'), ['anthropic_api', 'claude_code']);
+    assert.deepEqual(aiEngineCard(engine, 'anthropic_api', 'anthropic_api'), { enabled: true, position: 0, lastResort: false, canToggle: false });
+  });
+
+  it('removes an enabled engine, but not the .env engine alone in the list — an empty list seeds it back', () => {
+    assert.deepEqual(toggleAiEngine(['anthropic_api', 'claude_code'], 'anthropic_api', 'anthropic_api'), ['claude_code']);
+    assert.deepEqual(toggleAiEngine(['gemini_cli'], 'gemini_cli', 'anthropic_api'), []);
+    assert.equal(toggleAiEngine(['anthropic_api'], 'anthropic_api', 'anthropic_api'), null);
   });
 });
 
@@ -207,5 +250,29 @@ describe('cover role', () => {
       env,
     );
     assert.equal(wrong.modelFor('gemini_cli', 'cover'), 'gemini-2.5-pro');
+  });
+});
+
+// ADR 0036: a robots.txt binds this install through the engine that reads what we fetch.
+describe('bindingProviders', () => {
+  it('binds the last resort: Gemini CLI in .env with no login means Claude Code CLI reads everything', () => {
+    const env: AiEngineEnv = { ...ENV, provider: 'gemini_cli', geminiUsable: false };
+    const providers = bindingProviders(resolveAiEngine(null, env), env.provider);
+    assert.deepEqual(providers, ['claude_code', 'gemini_cli']);
+    assert.ok(aiCrawlerTokens(providers).includes('claudebot'));
+
+    const stored = resolveAiEngine({ order: ['openai_api'], models: {} }, env);
+    assert.deepEqual(bindingProviders(stored, env.provider), ['claude_code', 'openai_api', 'gemini_cli']);
+  });
+
+  it('adds no last resort while the list runs, and still counts its skipped engines and the .env engine', () => {
+    const gemini: AiEngineEnv = { ...ENV, provider: 'gemini_cli' };
+    const providers = bindingProviders(resolveAiEngine(null, gemini), gemini.provider);
+    assert.deepEqual(providers, ['gemini_cli']);
+    assert.ok(!aiCrawlerTokens(providers).includes('claudebot'));
+
+    const env: AiEngineEnv = { ...ENV, provider: 'anthropic_api' };
+    const engine = resolveAiEngine({ order: ['codex_cli', 'gemini_cli'], models: {} }, env);
+    assert.deepEqual(bindingProviders(engine, env.provider), ['gemini_cli', 'codex_cli', 'anthropic_api']);
   });
 });

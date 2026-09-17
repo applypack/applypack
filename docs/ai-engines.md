@@ -173,6 +173,13 @@ works on macOS too.)
 - **Enabled but "skipped"** — the engine is in your chain but this host
   cannot run it yet. The banner lists them; the pipeline keeps working on
   the next usable engine.
+- **"last resort" badge** — nothing in your list can run here, so this
+  engine answers every call anyway: the `AI_PROVIDER` engine if it can
+  run, otherwise Claude Code CLI. It is not in the list, and it stops
+  answering once an engine in the list works. Press **Enable** to keep it.
+- **No Disable button** — the card is the only engine in the list and the
+  one `AI_PROVIDER` names, so an empty list would bring it straight back.
+  Enable another engine first.
 - **Test fails after N seconds** — the exact error is in the web logs:
   `docker compose logs web | grep "ai:"` (Docker) or the terminal running
   the server (local).

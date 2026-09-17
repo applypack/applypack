@@ -50,10 +50,15 @@ export const PROVIDER_WEB_TOOLS: Record<AiProviderId, boolean> = {
  * local model on localhost, and nothing in the config says which. It is
  * mapped to OpenAI's tokens because that is what the setting is named for,
  * and erring toward the vendor is the direction that asks for less.
+ *
+ * Anthropic publishes three names (support.claude.com, read 2026-09-16):
+ * `ClaudeBot`, `Claude-User` and `Claude-SearchBot`. `Claude-Web` and
+ * `anthropic-ai` are older names it no longer lists. They stay, because a
+ * robots.txt that still names them is still talking about Anthropic.
  */
 const PROVIDER_AI_TOKENS: Record<AiProviderId, readonly string[]> = {
-  anthropic_api: ['claudebot', 'claude-web', 'anthropic-ai'],
-  claude_code: ['claudebot', 'claude-web', 'anthropic-ai'],
+  anthropic_api: ['claudebot', 'claude-user', 'claude-searchbot', 'claude-web', 'anthropic-ai'],
+  claude_code: ['claudebot', 'claude-user', 'claude-searchbot', 'claude-web', 'anthropic-ai'],
   gemini_cli: ['google-extended'],
   openai_api: ['gptbot', 'chatgpt-user', 'oai-searchbot'],
   codex_cli: ['gptbot', 'chatgpt-user', 'oai-searchbot'],
@@ -62,6 +67,17 @@ const PROVIDER_AI_TOKENS: Record<AiProviderId, readonly string[]> = {
 /** Every vendor token that binds an install running these engines, once each. */
 export function aiCrawlerTokens(providers: readonly AiProviderId[]): string[] {
   return [...new Set(providers.flatMap((p) => PROVIDER_AI_TOKENS[p] ?? []))];
+}
+
+/**
+ * The engines whose tokens bind this install: every one that may read what we
+ * fetch, not only what runs this minute. That is the list with its skipped
+ * engines (a login tomorrow puts them back in front), the last resort `chain`
+ * holds while nothing in the list can run, and the .env engine an emptied list
+ * falls back to.
+ */
+export function bindingProviders(engine: ResolvedAiEngine, provider: AiProviderId): AiProviderId[] {
+  return [...new Set([...engine.chain, ...engine.skipped, provider])];
 }
 
 /** Metered billing — every call spends money (vs a flat subscription). */
@@ -147,6 +163,30 @@ export function parseAiEngineConfig(raw: unknown): AiEngineConfig {
   return { order: [...new Set(order)], models };
 }
 
+/**
+ * The priority list the user edits on /settings → AI engine: the stored
+ * order, or the AI_PROVIDER engine alone while nothing is stored (ADR 0014).
+ * The resolver walks it, the cards show it and their buttons change it.
+ */
+export function aiEngineOrder(config: AiEngineConfig, provider: AiProviderId): AiProviderId[] {
+  return config.order.length > 0 ? [...config.order] : [provider];
+}
+
+/**
+ * The list after pressing Enable or Disable on `id`, or null when Disable
+ * would change nothing: an emptied list is seeded from AI_PROVIDER again, so
+ * the .env engine cannot leave a list it is alone in.
+ */
+export function toggleAiEngine(
+  order: readonly AiProviderId[],
+  id: AiProviderId,
+  provider: AiProviderId,
+): AiProviderId[] | null {
+  if (!order.includes(id)) return [...order, id];
+  if (order.length === 1 && id === provider) return null;
+  return order.filter((x) => x !== id);
+}
+
 export interface AiEngineEnv {
   provider: AiProviderId;
   hasAnthropicKey: boolean;
@@ -212,19 +252,17 @@ export function defaultModelFor(id: AiProviderId, role: AiRole, env: AiEngineEnv
 }
 
 export interface ResolvedAiEngine {
+  /** The priority list the user edits (aiEngineOrder), usable or not. */
+  order: AiProviderId[];
   /** Usable engines in priority order — never empty. */
   chain: AiProviderId[];
   /** Engines the user enabled but this host cannot run yet. */
   skipped: AiProviderId[];
+  /** The engine answering because nothing in `order` can run; never in `order`. */
+  lastResort: AiProviderId | null;
   modelFor(id: AiProviderId, role: AiRole): string;
 }
 
-/**
- * Merges the stored chain with the .env defaults. Unusable engines are
- * skipped (reported, so the UI can explain); an empty result falls back to
- * the .env provider and finally claude_code — the pipeline always has a
- * chain to try. Models outside the backend's family fall back per role.
- */
 /** Shape of AppSettings.aiUsage: { "YYYY-MM-DD": { provider: { role: n } } }. */
 const StoredUsageSchema = z.record(
   z.string(),
@@ -264,17 +302,28 @@ export function summarizeAiUsage(raw: unknown, days: number, today: Date): AiUsa
     .sort((a, b) => b.classifier + b.resume + b.cover - (a.classifier + a.resume + a.cover));
 }
 
+/**
+ * Merges the stored chain with the .env defaults. Unusable engines are
+ * skipped (reported, so the UI can explain); when nothing in the list can
+ * run, the .env provider and finally claude_code answer as the last resort —
+ * the pipeline always has a chain to try. Models outside the backend's
+ * family fall back per role.
+ */
 export function resolveAiEngine(raw: unknown, env: AiEngineEnv): ResolvedAiEngine {
   const config = parseAiEngineConfig(raw);
-  const wanted = config.order.length > 0 ? config.order : [env.provider];
-  const chain = wanted.filter((id) => !providerUnusable(id, env));
-  const skipped = wanted.filter((id) => providerUnusable(id, env));
+  const order = aiEngineOrder(config, env.provider);
+  const chain = order.filter((id) => !providerUnusable(id, env));
+  const skipped = order.filter((id) => providerUnusable(id, env));
+  let lastResort: AiProviderId | null = null;
   if (chain.length === 0) {
-    chain.push(providerUnusable(env.provider, env) ? 'claude_code' : env.provider);
+    lastResort = providerUnusable(env.provider, env) ? 'claude_code' : env.provider;
+    chain.push(lastResort);
   }
   return {
+    order,
     chain,
     skipped,
+    lastResort,
     modelFor(id, role) {
       // An empty slot takes the backend's default for THAT role — the cover's
       // is the strongest writer whatever the resume slot says (#184).
@@ -282,5 +331,24 @@ export function resolveAiEngine(raw: unknown, env: AiEngineEnv): ResolvedAiEngin
       if (stored && modelFitsProvider(stored, id)) return stored;
       return defaultModelFor(id, role, env);
     },
+  };
+}
+
+/**
+ * An engine card on /settings → AI engine, read off the list its button
+ * edits — never off `chain`, which drops a skipped engine and holds a last
+ * resort nobody enabled.
+ */
+export function aiEngineCard(
+  engine: ResolvedAiEngine,
+  id: AiProviderId,
+  provider: AiProviderId,
+): { enabled: boolean; position: number; lastResort: boolean; canToggle: boolean } {
+  const position = engine.order.indexOf(id);
+  return {
+    enabled: position !== -1,
+    position,
+    lastResort: engine.lastResort === id,
+    canToggle: toggleAiEngine(engine.order, id, provider) !== null,
   };
 }

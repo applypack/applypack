@@ -39,6 +39,48 @@ All notable changes to this project are documented here. The format follows
   points at `localhost:5432` — stops `npm start` with a sentence saying to
   delete the line, instead of a worker that fails to start.
 
+## [2.9.4] — 2026-09-16
+
+### Fixed
+- **A careers page that bans Claude's crawler is refused while Claude Code
+  CLI answers in your engines' place.** When nothing in your AI engine list
+  can run and the `AI_PROVIDER` engine cannot either (Gemini CLI with no
+  login, an API with no key), Claude Code CLI answers every call. Resolving a
+  pasted careers URL still read robots.txt for the configured engines alone,
+  so a site that bans `ClaudeBot` or `anthropic-ai` could still be added, and
+  Claude then read its postings. The engine that answers binds you now too;
+  an install whose own engines run is bound exactly as before.
+- **A ban on `Claude-User` or `Claude-SearchBot` binds an install that runs
+  Claude.** Anthropic publishes three crawler names, `ClaudeBot`,
+  `Claude-User` and `Claude-SearchBot`, but robots.txt was checked only
+  against `ClaudeBot` and the two older names, `Claude-Web` and
+  `anthropic-ai`. All five count now, the way OpenAI's three already did.
+
+## [2.9.3] — 2026-09-16
+
+### Fixed
+- **Enable and Disable on an AI engine card do what they say.** Before
+  anything was saved on the AI engine tab, the cards showed the engines
+  answering calls while the buttons edited the list `AI_PROVIDER` seeds. On
+  an install whose `.env` names Anthropic API without a key, Claude Code CLI
+  answers in its place: its card read #1 with a Disable button that enabled
+  it as priority #2, and enabling any other engine turned it to "Enable"
+  while it kept answering. The cards now show the list the buttons edit. An
+  engine that answers only because nothing in that list can run is marked
+  "last resort", and its Enable adds it to the list. The `.env` engine alone
+  in the list has no Disable, since an empty list brings it straight back.
+
+## [2.9.2] — 2026-09-16
+
+### Fixed
+- **Replacing a description with the company's own listing no longer fails
+  on about half of all postings.** **Replace the description and
+  re-classify** and **Restore the original** (1.69.0) answered 500 and
+  changed nothing whenever the text's fingerprint had its top bit set: the
+  fingerprint went to the database unsigned, and Postgres `BIGINT` is
+  signed. It is stored the way every other write stores it now, and a test
+  names any file that writes a fingerprint without that conversion.
+
 ## [2.9.1] — 2026-09-13
 
 ### Fixed
@@ -3638,7 +3680,10 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
-[2.10.0]: https://github.com/applypack/applypack/compare/v2.9.1...v2.10.0
+[2.10.0]: https://github.com/applypack/applypack/compare/v2.9.4...v2.10.0
+[2.9.4]: https://github.com/applypack/applypack/compare/v2.9.3...v2.9.4
+[2.9.3]: https://github.com/applypack/applypack/compare/v2.9.2...v2.9.3
+[2.9.2]: https://github.com/applypack/applypack/compare/v2.9.1...v2.9.2
 [2.9.1]: https://github.com/applypack/applypack/compare/v2.9.0...v2.9.1
 [2.9.0]: https://github.com/applypack/applypack/compare/v2.8.0...v2.9.0
 [2.8.0]: https://github.com/applypack/applypack/compare/v2.7.2...v2.8.0
