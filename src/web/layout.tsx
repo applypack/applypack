@@ -99,11 +99,17 @@ const TOKENS_CSS = `
     [data-ui="mode-card"]:not(:has(> label input[type="radio"]:checked)) > [data-ui="mode-body"] { display: none; }
   }
   /* A "contents" disclosure hands its summary and its body to the flex row it sits in
-     (a toolbar's Filters, the Add sources buttons). Where the browser wraps the body in
-     ::details-content, that box is the flex item — so it, not the div inside it, takes the
-     full row under the buttons. A browser without the pseudo-element ignores the rule and
-     the body's own basis-full / order-last classes do the same job. */
-  details.contents::details-content { flex-basis: 100%; order: 9999; min-width: 0; }
+     (a toolbar's Filters, the Add sources buttons, a run's Details). Where the browser
+     wraps the body in ::details-content, that box is the flex item, not the div inside it:
+     open, it takes the full row under the buttons and lays its children out with the
+     row's gap (the Jobs panel's "More…" places were glued together without it); closed, it
+     leaves the flow — still in the page, so find-in-page can open it — or each closed
+     disclosure would hold an empty row. A browser without the pseudo-element ignores both
+     rules and the body's own basis-full / order-last classes do the job. */
+  details.contents:not([open])::details-content { position: absolute; }
+  details.contents[open]::details-content {
+    display: flex; flex-wrap: wrap; gap: 0.375rem; flex-basis: 100%; order: 9999; min-width: 0;
+  }
   .skip-link { position: absolute; left: -999px; top: 8px; z-index: 50; }
   .skip-link:focus { left: 8px; }
   /* Navigation progress (public/progress.mjs). Above the skip link and the
