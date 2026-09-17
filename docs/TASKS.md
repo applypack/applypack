@@ -2217,3 +2217,89 @@ release-discipline skill, a docs/site block does not.
   or queue it; `node-cron` 4.
 - Run once: the live failover check and the four-viewport browser pass
   with data in the database ([27-master-prompt.md](./improvement-2026-09/27-master-prompt.md)).
+
+---
+
+## 21. Local install without Docker (analysis 2026-09-16, nothing built)
+
+Owner's ask: most people who would run ApplyPack don't use Docker; the
+default install should run straight on the computer, with Docker kept as
+the other way. The goal behind it: non-technical people can use ApplyPack,
+and the path depends on their system and how technical they are. Plan,
+options and measurements: [docs/local-install-plan.md](./local-install-plan.md).
+
+### 21.1 Facts established (don't re-derive)
+
+- The obstacle is Postgres, not Docker. `embedded-postgres@16.14.0-beta.17`
+  from a fresh `git archive` copy: dashboard listening 1.8 s after a cold
+  start (initdb + 77 migrations + seed), 0.8 s warm; the route smoke 39/39
+  against it; Linux arm64 as a normal user 0.6 s, as root refused.
+- Download 23.2 MB (Linux x64) / 37.3 MB (Windows) / 50.8 MB (macOS arm64);
+  58 / 100 / 134 MB on disk; `initdb`, `pg_ctl`, `postgres` only — no
+  `pg_dump`, no `psql`.
+- initdb with no `LANG` → `SQL_ASCII / C`: `'Київ' ILIKE '%КИЇВ%'` false.
+  `--encoding=UTF8 --locale=C.UTF-8` matches the compose database exactly,
+  sort order included (Alpine's musl sorts by code point).
+- `kill -9` on the launcher leaves `postgres` running; the next start fails
+  on `postmaster.pid` and `EmbeddedPostgres.start()` rejects with
+  `undefined`; `pg_ctl stop -m fast` recovers. SIGHUP (a closed terminal)
+  stops both through the package's `async-exit-hook`, which a launcher
+  spawning Postgres itself must replace.
+- `db.json` (the built-in database's password) would be a third secret
+  outside `.env` — ADR 0054 names the carve-out.
+- With install scripts skipped (npm announces blocking unreviewed ones):
+  0 of 17 library symlinks, `dyld: Library not loaded`; re-creating them
+  from `native/pg-symlinks.json` at runtime fixes it.
+- Live bug for every non-Docker run today: `tsc` does not copy
+  `src/resume/fonts`, so `renderPdf` from `dist/` throws `ENOENT`. The route
+  smoke cannot see it (the render is a POST).
+- PGlite behind `pglite-socket`: an open transaction on one connection
+  blocks the other's `SELECT`. SQLite: 6 enums, 30 scalar lists, 14 raw SQL
+  sites, 1 163 lines of Postgres migrations.
+- Three cwd-relative paths: `web/app.ts:92`, `resume/keyword-matcher.ts:36`,
+  `resume/line-diff.ts:25`. `pg_ctl start -w` puts Postgres in its own
+  session (Ctrl+C to the launcher leaves it running, stopped last); initdb
+  takes the machine's time zone unless `postgresql.conf` says UTC.
+- For people new to a terminal: a `curl` download carries no
+  `com.apple.quarantine` attribute (measured), while a browser-downloaded
+  bundle would carry the ad-hoc-signed Prisma engine and an EDB `postgres`
+  that fails `syspolicy_check distribution` — so one pasted install line,
+  not a zip, until someone pays for signing. Node 24: 52.9 MB (macOS arm64)
+  / 37.6 MB (Windows) download, 199 MB on disk; dependencies 368 MB
+  (340 MB runtime only).
+- `/welcome` tells people to add `OPENAI_BASE_URL` to `.env`
+  (`welcome.tsx:158`): the free Gemini key or a local model is the one file
+  edit left on the non-technical path.
+- Docker today: `applypack-app` image 2.08 GB + `postgres:16-alpine` 389 MB.
+  The npm name `applypack` is free.
+
+### 21.2 Order of work
+
+- [ ] **`local-start`** (minor, ADR 0054) — plan §4 and §6: the fonts copied
+      by `npm run build`; `src/local/` launcher behind `npm start`: the
+      built-in Postgres 16 under `pg_ctl` in the OS data folder (UTF-8
+      locale, UTC, loopback, no socket, symlink repair, stale-lock rules,
+      a launcher lock), the worker's IPC "ready" before the dashboard
+      starts, restart with backoff, ordered shutdown; `npm run db` and
+      `npm run stop`; `resolveDatabaseUrl` in `config.ts`; `.env.example`
+      without a `DATABASE_URL`; the runtime image drops the binaries; README
+      "what to install", `docs/install.md` for the three systems, site,
+      CONTRIBUTING, CLAUDE.md, bug template, SPEC, ARCHITECTURE, launch
+      drafts; CI `local-start` job on Linux, macOS, Windows × Node 22 / 24;
+      verification matrix plan §4.10.
+- [ ] **`ai-without-env`** (patch, later) — the OpenAI-compatible engine's
+      base URL on its card and in `/welcome` step 1.
+- [ ] **`local-always-on`** (minor, later) — start at login; a dated
+      snapshot of the data folder on start; `npm run db:import` from Docker
+      (`pg_dump --inserts`); the Windows CLI engines (`.cmd` shims and
+      `execFile`).
+- Parked: the pasted-line installer (plan §3.7) and a desktop app for
+  Windows, macOS and Linux — the owner's future project, not a priority.
+
+### 21.3 Decided (owner, 2026-09-16)
+
+- The user installs Node.js and nothing else; the built-in Postgres is the
+  default, `DATABASE_URL` and Docker stay.
+- `npm install && npm start` is enough for now; README and the site say
+  exactly what to install on each system.
+- Data lives in the OS app-data folder; `APPLYPACK_DATA_DIR` moves it.
