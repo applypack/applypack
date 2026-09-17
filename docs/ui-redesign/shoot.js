@@ -28,9 +28,9 @@ const path = require('node:path');
 
 const CHROME = process.env.CHROME_BIN || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 const EVIDENCE = process.env.EVIDENCE_DIR || path.join(os.homedir(), 'applypack-evidence/ui-redesign');
-const DEBUG_PORT = 9333;
 const MAX_SHOT_HEIGHT = 12000;
 const SETTLE_MS = 350;
+const LOAD_TIMEOUT_MS = 30_000;
 
 // The twenty pages of metrics.md, the five wizard steps and one screening.
 // /jobs/100, /resumes/1 and /screen/1 are rows of the owner's database.
@@ -102,8 +102,6 @@ const HOOKS = `(() => {
     missedByHook: [...main.querySelectorAll(CLASS)]
       .filter((el) => vis(el) && !hooked.some((h) => h === el || h.contains(el) || el.contains(h)))
       .map((el) => el.tagName.toLowerCase() + ': ' + el.innerText.trim().replace(/\\s+/g, ' ').slice(0, 90)),
-    modeCards: main.querySelectorAll('[data-ui="mode-card"]').length,
-    modeBodies: main.querySelectorAll('[data-ui="mode-body"]').length,
   });
 })()`;
 
@@ -160,20 +158,27 @@ async function startChrome(profileDir) {
     CHROME,
     [
       '--headless=new',
-      `--remote-debugging-port=${DEBUG_PORT}`,
+      // Port 0 = Chrome picks a free one and writes it into the profile, so
+      // two runs at once never attach to each other's browser.
+      '--remote-debugging-port=0',
       `--user-data-dir=${profileDir}`,
       '--no-first-run',
       '--no-default-browser-check',
+      '--disable-background-networking',
+      '--disable-component-update',
+      '--disable-sync',
       '--hide-scrollbars',
       '--force-device-scale-factor=1',
       'about:blank',
     ],
     { stdio: 'ignore' },
   );
+  const portFile = path.join(profileDir, 'DevToolsActivePort');
   for (let i = 0; i < 60; i++) {
     await sleep(250);
     try {
-      const targets = await (await fetch(`http://127.0.0.1:${DEBUG_PORT}/json/list`)).json();
+      const port = Number(fs.readFileSync(portFile, 'utf8').split('\n')[0]);
+      const targets = await (await fetch(`http://127.0.0.1:${port}/json/list`)).json();
       const page = targets.find((t) => t.type === 'page');
       if (page) return { chrome, wsUrl: page.webSocketDebuggerUrl };
     } catch {
@@ -192,8 +197,9 @@ function printTable(rows, problems, showMissed) {
   console.log('\n375 px (tabStops / heightPx):');
   for (const r of rows.filter((x) => MOBILE_PASS.includes(x.slug))) console.log(`  ${r.slug}\t${r.tabStops375}\t${r.heightPx375}`);
 
-  const drift = rows.filter((r) => r.hintWordsHook !== r.hintWordsClass).map((r) => `${r.slug} hook ${r.hintWordsHook} / class ${r.hintWordsClass}`);
-  console.log(`\nhooks vs classes: ${drift.length ? drift.join('; ') : 'equal on every page'}`);
+  // More by hook than by class is fine (restyled prose kept its hook); less means prose lost it.
+  const unhooked = rows.filter((r) => r.hintWordsHook < r.hintWordsClass).map((r) => `${r.slug} hook ${r.hintWordsHook} / class ${r.hintWordsClass}`);
+  console.log(`\nhooks vs classes: ${unhooked.length ? `${unhooked.join('; ')} — run with --missed` : 'the hooks see everything the classes see'}`);
   const scrolls = rows.flatMap((r) => [1440, 768, 375].filter((w) => r[`hScroll${w}`]).map((w) => `${r.slug}@${w}`));
   console.log(`horizontal scroll: ${scrolls.length ? scrolls.join(', ') : 'none'}`);
   const hosts = rows.filter((r) => r.externalHosts.length).map((r) => `${r.slug}: ${r.externalHosts.join(' ')}`);
@@ -262,13 +268,16 @@ async function run(cdp, pages) {
     const offResponse = cdp.on('Network.responseReceived', (p) => {
       if (p.type === 'Document' && status === null) status = p.response.status;
     });
-    const loaded = new Promise((resolve) => {
+    const loaded = new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error(`${current}: no load event in ${LOAD_TIMEOUT_MS} ms`)), LOAD_TIMEOUT_MS);
       const off = cdp.on('Page.loadEventFired', () => {
         off();
+        clearTimeout(timer);
         resolve();
       });
     });
-    await cdp.send('Page.navigate', { url: base + urlPath });
+    const { errorText } = await cdp.send('Page.navigate', { url: base + urlPath });
+    if (errorText) throw new Error(`${current}: ${errorText} — is the dashboard up on ${base}?`);
     await loaded;
     await sleep(SETTLE_MS);
     offResponse();
@@ -290,6 +299,7 @@ async function run(cdp, pages) {
   for (const [slug, urlPath] of pages) {
     await open(slug, urlPath, 1440, 900);
     const row = { slug, ...JSON.parse(await evaluate(MEASURE)), ...JSON.parse(await evaluate(HOOKS)) };
+    if (row.path !== urlPath) problems.push(`${slug}: asked for ${urlPath}, measured ${row.path}`);
     row.hScroll1440 = JSON.parse(await evaluate(AT_WIDTH)).hScroll;
     if (shots) {
       await shoot(path.join(outDir, '1440', `${slug}-fold.png`));
