@@ -28,12 +28,10 @@ export interface PackSegmentChoice extends PackSegment {
 
 /** The picker that lives on /companies. */
 export const StarterPackPicker: FC<{ segments: PackSegmentChoice[] }> = ({ segments }) => (
-  <Card class="mb-4">
-    <SectionTitle>Add a starter pack</SectionTitle>
+  <Card>
     <Hint class="mb-4">
-      Curated lists of companies whose board we pinned and checked by hand. We
-      re-probe each one now, show you what resolved, and add nothing until you
-      confirm. Companies land disabled so the next fetch does not run away.
+      Curated lists of companies whose board was pinned and checked by hand. Nothing is added
+      until you confirm, and companies land switched off.
     </Hint>
     <form method="post" action="/companies/starter-pack">
       <div class="mb-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">

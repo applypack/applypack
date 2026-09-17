@@ -8,11 +8,13 @@ import {
   Button,
   Card,
   Code,
+  Disclosure,
   Empty,
   Field,
   Flash,
   Hint,
   Input,
+  More,
   PageHeader,
   SectionTitle,
   Select,
@@ -189,11 +191,10 @@ const SuggestedSources: FC<{ suggestions: SourceSuggestion[] }> = ({ suggestions
   if (suggestions.length === 0) return null;
   const waiting = suggestions.filter((s) => s.state !== 'on').length;
   return (
-    <Card class="mb-4">
-      <SectionTitle>Sources for your searches</SectionTitle>
+    <Card>
       <Hint class="mb-3">
-        Feeds that fit where your running searches hunt, built from their stack. Add (off) probes a
-        feed and adds it switched off; Enable puts it in the hourly tick.
+        Feeds that fit where your running searches hunt. Add (off) probes a feed and adds it
+        switched off; Enable puts it in the hourly tick.
       </Hint>
       {waiting > 1 && (
         <ActionForm action="/companies/suggested/all" class="mb-3" once>
@@ -238,17 +239,182 @@ export const CompaniesPage: FC<CompaniesProps> = ({
   keyedUnlocked,
   flash,
   fetchingEnabled,
-}) => (
+}) => {
+  const empty = companies.length === 0;
+  return (
   <Layout title="Companies" active="companies">
     <PageHeader title="Companies" meta={`${companies.length} sources`} />
     <Flash flash={flash} />
 
     <WatchlistSection rows={watchlist} />
-    <AddCompaniesCard running={watchlistRun} />
-
     <QuietSources companies={companies} fetchingEnabled={fetchingEnabled} />
 
-    <details class="mb-4 rounded-lg border border-line bg-surface-raised shadow-sm">
+    {companies.length === 0 ? (
+      <Empty>No companies yet. Add one below.</Empty>
+    ) : (
+      <Card flush>
+        <div class="overflow-x-auto">
+          <div class="min-w-[56rem]">
+            <Table caption="Companies and sources"
+              columns={[
+                'Name',
+                'Source',
+                'Token',
+                'Health',
+                <span class="block text-right">Jobs</span>,
+                <span class="block text-right">Alerted</span>,
+                <span class="block text-right">Last fetch</span>,
+                'Active',
+                <span class="block text-right">Actions</span>,
+              ]}
+            >
+              {companies.map((c) => (
+                <Tr>
+                  <Td class="max-w-[14rem] font-medium text-ink">
+                    <div class="truncate" title={c.name}>
+                      {c.careerUrl ? (
+                        <a
+                          href={c.careerUrl}
+                          target="_blank"
+                          rel="noopener"
+                          class="transition-colors duration-150 hover:text-accent-strong"
+                        >
+                          {c.name}
+                        </a>
+                      ) : (
+                        c.name
+                      )}
+                    </div>
+                  </Td>
+                  <Td>
+                    <Tag>{c.atsType.replace('_', ' ')}</Tag>
+                  </Td>
+                  {/* A feed query can run to fifty characters; untruncated it pushed Active and
+                      Delete out of a 1440 px window, behind a sideways scroll inside the card. */}
+                  <Td class="max-w-[11rem] font-mono text-xs text-ink-muted">
+                    <div class="truncate" title={c.atsToken}>
+                      {c.atsToken}
+                    </div>
+                  </Td>
+                  <Td>
+                    <HealthDot status={c.lastFetchStatus} streak={c.consecutiveFailures} />
+                  </Td>
+                  <Td class="text-right tabular-nums text-ink-muted">{c.jobsTotal}</Td>
+                  <Td
+                    class={`text-right tabular-nums ${
+                      c.alertedTotal ? 'font-medium text-ok' : 'text-ink-faint'
+                    }`}
+                  >
+                    {c.alertedTotal}
+                  </Td>
+                  <Td class="whitespace-nowrap text-right text-[13px] text-ink-faint">
+                    {formatRelative(c.lastFetchedAt)}
+                  </Td>
+                  <Td>
+                    <ActionForm action={`/companies/${c.id}/toggle-active`}>
+                      {/* The badge shows the state; the button's name says the action and the company (A11Y-4). */}
+                      <button
+                        type="submit"
+                        class="cursor-pointer rounded-full"
+                        aria-label={`${c.active ? 'Disable' : 'Enable'} ${c.name}`}
+                        title={`${c.active ? 'Disable' : 'Enable'} ${c.name}`}
+                      >
+                        <Badge tone={c.active ? 'ok' : 'neutral'}>
+                          {c.active ? 'Active' : 'Disabled'}
+                        </Badge>
+                      </button>
+                    </ActionForm>
+                  </Td>
+                  <Td>
+                    <ActionForm
+                      action={`/companies/${c.id}/delete`}
+                      confirm={companyDeleteConfirm(c.name, c.deleteImpact)}
+                      class="flex justify-end"
+                    >
+                      <Button size="sm" variant="danger">
+                        Delete
+                      </Button>
+                    </ActionForm>
+                  </Td>
+                </Tr>
+              ))}
+            </Table>
+          </div>
+        </div>
+      </Card>
+    )}
+
+    {/* The list is what the page is about; the four ways to add to it open on demand,
+        and stand open while there is nothing in the list yet. */}
+    <div class="mt-8">
+      <SectionTitle level="section">Add sources</SectionTitle>
+      <div class="flex flex-wrap items-start gap-2">
+        <Disclosure variant="button" summary="Watch specific companies" open={empty || watchlistRun !== null} class="contents">
+          <div class="order-last basis-full">
+            <AddCompaniesCard running={watchlistRun} />
+          </div>
+        </Disclosure>
+        <Disclosure variant="button" summary="Add a starter pack" open={empty} class="contents">
+          <div class="order-last basis-full">
+            <StarterPackPicker segments={packs} />
+          </div>
+        </Disclosure>
+        <Disclosure variant="button" summary="Add one company" open={empty} class="contents">
+          <div class="order-last basis-full">
+            <Card>
+              <Hint>The public ATS endpoint is probed before saving, and an invalid token is refused.</Hint>
+              <More summary="Tokens that are not a slug" class="mb-4 mt-1">
+                Aggregator feeds have no per-company token — those are seeded once via{' '}
+                <Code>src/seed.ts</Code>. DOU, Djinni and JobTech take a feed query instead of a slug:{' '}
+                <Code>category=PHP&amp;remote</Code>, <Code>search=laravel</Code>, <Code>city=Львів</Code>;{' '}
+                <Code>primary_keyword=PHP&amp;employment=remote&amp;region=UKR</Code>;{' '}
+                <Code>occupation-field=apaJ_2ja_LuF</Code>, <Code>q=php&amp;remote=true</Code>.
+              </More>
+            <form
+              method="post"
+              action="/companies/new"
+              class="grid gap-3 sm:grid-cols-2 lg:grid-cols-[1.2fr_0.9fr_1fr_1.2fr_auto]"
+            >
+              <Field label="Name">
+                <Input type="text" name="name" required placeholder="Honeycomb.io" />
+              </Field>
+              <Field label="ATS">
+                <Select name="atsType">
+                  {PROBEABLE_ATS.filter((t) => !KEYED_ATS.includes(t) || keyedUnlocked.includes(t)).map((t) => (
+                    <option value={t}>{t}</option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label="ATS token / slug">
+                <Input type="text" name="atsToken" required placeholder="honeycombio" mono />
+              </Field>
+              <Field label="Career URL (optional)">
+                <Input type="url" name="careerUrl" placeholder="https://acme.com/careers" />
+              </Field>
+              <div class="flex items-end">
+                <Button class="w-full">Add</Button>
+              </div>
+            </form>
+            </Card>
+          </div>
+        </Disclosure>
+        {suggestions.length > 0 && (
+          <Disclosure
+            variant="button"
+            summary="Sources for your searches"
+            count={suggestions.filter((x) => x.state !== 'on').length}
+            open={empty}
+            class="contents"
+          >
+            <div class="order-last basis-full">
+              <SuggestedSources suggestions={suggestions} />
+            </div>
+          </Disclosure>
+        )}
+      </div>
+    </div>
+
+    <details class="mt-4 rounded-lg border border-line bg-surface-raised shadow-sm">
       <summary class="cursor-pointer select-none px-5 py-3 text-sm font-medium text-ink transition-colors duration-150 hover:bg-surface-overlay/50">
         How coverage works
       </summary>
@@ -280,128 +446,6 @@ export const CompaniesPage: FC<CompaniesProps> = ({
         </p>
       </div>
     </details>
-
-    <SuggestedSources suggestions={suggestions} />
-    <StarterPackPicker segments={packs} />
-
-    <Card class="mb-4">
-      <SectionTitle>Add company</SectionTitle>
-      <Hint class="mb-4">
-        We probe the public ATS endpoint before saving and refuse invalid tokens. Aggregator
-        feeds have no per-company token — those are seeded once via <Code>src/seed.ts</Code>.
-        DOU, Djinni and JobTech take a feed query instead of a slug: <Code>category=PHP&amp;remote</Code>,{' '}
-        <Code>search=laravel</Code>, <Code>city=Львів</Code>;{' '}
-        <Code>primary_keyword=PHP&amp;employment=remote&amp;region=UKR</Code>;{' '}
-        <Code>occupation-field=apaJ_2ja_LuF</Code>, <Code>q=php&amp;remote=true</Code>.
-      </Hint>
-      <form
-        method="post"
-        action="/companies/new"
-        class="grid gap-3 sm:grid-cols-2 lg:grid-cols-[1.2fr_0.9fr_1fr_1.2fr_auto]"
-      >
-        <Field label="Name">
-          <Input type="text" name="name" required placeholder="Honeycomb.io" />
-        </Field>
-        <Field label="ATS">
-          <Select name="atsType">
-            {PROBEABLE_ATS.filter((t) => !KEYED_ATS.includes(t) || keyedUnlocked.includes(t)).map((t) => (
-              <option value={t}>{t}</option>
-            ))}
-          </Select>
-        </Field>
-        <Field label="ATS token / slug">
-          <Input type="text" name="atsToken" required placeholder="honeycombio" mono />
-        </Field>
-        <Field label="Career URL (optional)">
-          <Input type="url" name="careerUrl" placeholder="https://acme.com/careers" />
-        </Field>
-        <div class="flex items-end">
-          <Button class="w-full">Add</Button>
-        </div>
-      </form>
-    </Card>
-
-    {companies.length === 0 ? (
-      <Empty>No companies yet. Add one above.</Empty>
-    ) : (
-      <Card flush>
-        <div class="overflow-x-auto">
-          <div class="min-w-[56rem]">
-            <Table caption="Companies and sources"
-              columns={[
-                'Name',
-                'Source',
-                'Token',
-                'Health',
-                <span class="block text-right">Jobs</span>,
-                <span class="block text-right">Alerted</span>,
-                <span class="block text-right">Last fetch</span>,
-                'Active',
-                <span class="block text-right">Actions</span>,
-              ]}
-            >
-              {companies.map((c) => (
-                <Tr>
-                  <Td class="max-w-[16rem] font-medium text-ink">
-                    <div class="truncate" title={c.name}>
-                      {c.careerUrl ? (
-                        <a
-                          href={c.careerUrl}
-                          target="_blank"
-                          rel="noopener"
-                          class="transition-colors duration-150 hover:text-accent-strong"
-                        >
-                          {c.name}
-                        </a>
-                      ) : (
-                        c.name
-                      )}
-                    </div>
-                  </Td>
-                  <Td>
-                    <Tag>{c.atsType.replace('_', ' ')}</Tag>
-                  </Td>
-                  <Td class="font-mono text-xs text-ink-muted">{c.atsToken}</Td>
-                  <Td>
-                    <HealthDot status={c.lastFetchStatus} streak={c.consecutiveFailures} />
-                  </Td>
-                  <Td class="text-right tabular-nums text-ink-muted">{c.jobsTotal}</Td>
-                  <Td
-                    class={`text-right tabular-nums ${
-                      c.alertedTotal ? 'font-medium text-ok' : 'text-ink-faint'
-                    }`}
-                  >
-                    {c.alertedTotal}
-                  </Td>
-                  <Td class="whitespace-nowrap text-right text-[13px] text-ink-faint">
-                    {formatRelative(c.lastFetchedAt)}
-                  </Td>
-                  <Td>
-                    <ActionForm action={`/companies/${c.id}/toggle-active`}>
-                      <button type="submit" class="cursor-pointer rounded-full" title="Toggle">
-                        <Badge tone={c.active ? 'ok' : 'neutral'}>
-                          {c.active ? 'Active' : 'Disabled'}
-                        </Badge>
-                      </button>
-                    </ActionForm>
-                  </Td>
-                  <Td>
-                    <ActionForm
-                      action={`/companies/${c.id}/delete`}
-                      confirm={companyDeleteConfirm(c.name, c.deleteImpact)}
-                      class="flex justify-end"
-                    >
-                      <Button size="sm" variant="danger">
-                        Delete
-                      </Button>
-                    </ActionForm>
-                  </Td>
-                </Tr>
-              ))}
-            </Table>
-          </div>
-        </div>
-      </Card>
-    )}
   </Layout>
-);
+  );
+};
