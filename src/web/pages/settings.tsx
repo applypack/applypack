@@ -65,6 +65,10 @@ export interface AiEngineRow {
   enabled: boolean;
   /** Index in the priority chain; -1 when disabled. */
   position: number;
+  /** Not enabled, but answering every call because nothing enabled can run here. */
+  lastResort: boolean;
+  /** False when Disable would store the same list again — the .env engine alone in it. */
+  canToggle: boolean;
   classifierModel: string;
   resumeModel: string;
   coverModel: string;
@@ -1278,11 +1282,12 @@ const EngineKeyRow: FC<{ engine: AiEngineRow }> = ({ engine: e }) => {
 };
 
 const AiEngineCard: FC<{ engine: AiEngineRow }> = ({ engine: e }) => (
-  <Card class={e.enabled ? '' : 'opacity-75'}>
+  <Card class={e.enabled || e.lastResort ? '' : 'opacity-75'}>
     <div class="flex flex-wrap items-center gap-2">
       {e.enabled && <Badge tone="violet">#{e.position + 1}</Badge>}
       <span class="text-sm font-medium text-ink">{e.label}</span>
       <Badge tone={e.ok ? 'ok' : 'neutral'}>{e.ok ? 'available' : 'not detected'}</Badge>
+      {e.lastResort && <Badge tone="warn">last resort</Badge>}
       {e.paid && <Badge tone="warn">pay per token</Badge>}
       <div class="ml-auto flex flex-wrap justify-end gap-2">
         {e.enabled && e.position > 0 && (
@@ -1297,18 +1302,29 @@ const AiEngineCard: FC<{ engine: AiEngineRow }> = ({ engine: e }) => (
             Test
           </Button>
         </ActionForm>
-        <ActionForm action="/settings/ai/enable" hidden={{ provider: e.id }}>
-          <Button size="sm" variant={e.enabled ? 'secondary' : 'primary'}>
-            {e.enabled ? 'Disable' : 'Enable'}
-          </Button>
-        </ActionForm>
+        {e.canToggle && (
+          <ActionForm action="/settings/ai/enable" hidden={{ provider: e.id }}>
+            <Button size="sm" variant={e.enabled ? 'secondary' : 'primary'}>
+              {e.enabled ? 'Disable' : 'Enable'}
+            </Button>
+          </ActionForm>
+        )}
       </div>
     </div>
     <p class="mt-1.5 text-[13px] leading-5 text-ink-faint">
       {e.desc} ({e.detail})
     </p>
+    {e.lastResort && (
+      <Hint class="mt-1.5 text-warn">
+        Nothing in the list can run on this host, so this engine answers every call for now. Enable
+        it to keep it once an engine in the list works.
+      </Hint>
+    )}
+    {!e.canToggle && (
+      <Hint class="mt-1.5">The only engine in the list. Enable another one to replace it.</Hint>
+    )}
     {e.keyEnvVar && <EngineKeyRow engine={e} />}
-    {e.enabled && (
+    {(e.enabled || e.lastResort) && (
       <form
         method="post"
         action="/settings/ai/models"
