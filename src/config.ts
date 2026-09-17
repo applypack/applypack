@@ -1,9 +1,13 @@
 import 'dotenv/config';
+import { readFileSync } from 'node:fs';
+import os from 'node:os';
 import { z } from 'zod';
 import { AI_PROVIDER_IDS } from './ai-engine';
+import { dataDirFor, localPaths } from './local/data-dir';
+import { resolveDatabaseUrl } from './local/db-state';
 
 export const ConfigSchema = z.object({
-  DATABASE_URL: z.string().min(1, 'DATABASE_URL is required'),
+  DATABASE_URL: z.string().min(1, 'DATABASE_URL is required: start with `npm start`, which runs a database of its own, or set DATABASE_URL in .env'),
   // Default AI backend; /settings → "AI engine" can override it at runtime.
   AI_PROVIDER: z.enum(AI_PROVIDER_IDS).default('anthropic_api'),
   // Optional on purpose, even when AI_PROVIDER selects it. The engine chain
@@ -57,7 +61,25 @@ export const ConfigSchema = z.object({
 
 export type Config = z.infer<typeof ConfigSchema>;
 
+/**
+ * No DATABASE_URL: the built-in database `npm start` or `npm run db` runs, if
+ * one was ever created (ADR 0054). Written into process.env, not only into
+ * the config, because the Prisma CLI that init.ts runs reads it from there.
+ */
+function useBuiltInDatabaseWhenUnset(): void {
+  if (process.env.DATABASE_URL?.trim()) return;
+  let state: string | null = null;
+  try {
+    state = readFileSync(localPaths(dataDirFor(process.platform, process.env, os.homedir())).state, 'utf8');
+  } catch {
+    // never created: the schema below reports the missing URL
+  }
+  const url = resolveDatabaseUrl(undefined, state);
+  if (url) process.env.DATABASE_URL = url;
+}
+
 function loadConfig(): Config {
+  useBuiltInDatabaseWhenUnset();
   const parsed = ConfigSchema.safeParse(process.env);
   if (!parsed.success) {
     const issues = parsed.error.issues

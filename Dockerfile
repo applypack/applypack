@@ -11,8 +11,10 @@ FROM node:24-alpine AS build
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-# npm run build is tsc plus the PDF fonts beside dist/ (ADR 0039).
-RUN npx prisma generate && npm run build
+# npm run build is tsc plus the PDF fonts beside dist/ (ADR 0039). The built-in
+# database is for `npm start` (ADR 0054); compose runs its own Postgres.
+RUN npx prisma generate && npm run build \
+ && rm -rf node_modules/embedded-postgres node_modules/@embedded-postgres
 
 FROM node:24-alpine AS runtime
 WORKDIR /app
