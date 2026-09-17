@@ -2257,8 +2257,9 @@ options and measurements: [docs/local-install-plan.md](./local-install-plan.md).
   blocks the other's `SELECT`. SQLite: 6 enums, 30 scalar lists, 14 raw SQL
   sites, 1 163 lines of Postgres migrations.
 - Three cwd-relative paths: `web/app.ts:92`, `resume/keyword-matcher.ts:36`,
-  `resume/line-diff.ts:25`. `embedded-postgres` is ESM-only, the build is
-  CommonJS → `engines.node >=22.12`.
+  `resume/line-diff.ts:25`. `pg_ctl start -w` puts Postgres in its own
+  session (Ctrl+C to the launcher leaves it running, stopped last); initdb
+  takes the machine's time zone unless `postgresql.conf` says UTC.
 - For people new to a terminal: a `curl` download carries no
   `com.apple.quarantine` attribute (measured), while a browser-downloaded
   bundle would carry the ad-hoc-signed Prisma engine and an EDB `postgres`
@@ -2274,41 +2275,31 @@ options and measurements: [docs/local-install-plan.md](./local-install-plan.md).
 
 ### 21.2 Order of work
 
-- [ ] **`dist-fonts`** (patch) — `npm run build` copies the fonts into
-      `dist/resume/fonts`; the Dockerfile `COPY` goes; the route smoke
-      posts one clean render so CI builds a PDF from `dist/`.
-- [ ] **`local-start`** (minor, ADR 0054) — `src/local/` launcher behind
-      `npm start` (plan §4.2): the built-in Postgres 16 in the data folder
-      §21.3 settles, with the three fixes above, the worker's IPC "ready"
-      before the dashboard starts, restart with backoff, ordered shutdown;
-      `resolveDatabaseUrl` in `config.ts`; `npm run db`; `.env.example`
-      without a `DATABASE_URL`; `allowScripts`; the runtime image drops the
-      embedded binaries; every file in plan §4.8 (README "which one is
-      you", `docs/install/` per system, site, CONTRIBUTING, CLAUDE.md, bug
-      template, SPEC, ARCHITECTURE, launch drafts); CI `local-start` job on
-      Linux, macOS, Windows × Node 22.12 / 24; verification matrix plan §4.10.
-- [ ] **`one-line-install`** (minor) — `site/public/install.sh` and
-      `install.ps1` (plan §3.7): private Node, latest release, build,
-      shortcut per system, first start; a CI job per system on a fresh
-      runner (`/` answers, the shortcut exists, no `Zone.Identifier` on
-      Windows); one run on a real Windows machine for the firewall; guides
-      and site lead with the line.
-- [ ] **`ai-without-env`** (patch) — the OpenAI-compatible engine's base URL
-      on its card and in `/welcome` step 1.
-- [ ] **`local-always-on`** (minor) — `npm run autostart:on|off` (launchd,
-      `systemd --user`, Windows Startup); logs in the data folder; a dated
-      snapshot of the data folder on start (keep 7);
-      `npm run db:import <dump.sql>` from Docker (`pg_dump --inserts`);
-      the Windows CLI engines (`.cmd` shims and `execFile`).
-- [ ] **signed installers / `npx applypack`** (owner decision) — only if
-      the pasted line still loses people.
+- [ ] **`local-start`** (minor, ADR 0054) — plan §4 and §6: the fonts copied
+      by `npm run build`; `src/local/` launcher behind `npm start`: the
+      built-in Postgres 16 under `pg_ctl` in the OS data folder (UTF-8
+      locale, UTC, loopback, no socket, symlink repair, stale-lock rules,
+      a launcher lock), the worker's IPC "ready" before the dashboard
+      starts, restart with backoff, ordered shutdown; `npm run db` and
+      `npm run stop`; `resolveDatabaseUrl` in `config.ts`; `.env.example`
+      without a `DATABASE_URL`; the runtime image drops the binaries; README
+      "what to install", `docs/install.md` for the three systems, site,
+      CONTRIBUTING, CLAUDE.md, bug template, SPEC, ARCHITECTURE, launch
+      drafts; CI `local-start` job on Linux, macOS, Windows × Node 22 / 24;
+      verification matrix plan §4.10.
+- [ ] **`ai-without-env`** (patch, later) — the OpenAI-compatible engine's
+      base URL on its card and in `/welcome` step 1.
+- [ ] **`local-always-on`** (minor, later) — start at login; a dated
+      snapshot of the data folder on start; `npm run db:import` from Docker
+      (`pg_dump --inserts`); the Windows CLI engines (`.cmd` shims and
+      `execFile`).
+- Parked: the pasted-line installer (plan §3.7) and a desktop app for
+  Windows, macOS and Linux — the owner's future project, not a priority.
 
-### 21.3 Owner items
+### 21.3 Decided (owner, 2026-09-16)
 
-- Accept the built-in database as the default (the download above).
-- Where the data lives: the OS app-data folder (recommended) or `./data`
-  in the clone.
-- README and site lead with the local install; Docker becomes "for a
-  server, or to keep it running".
-- How far down the technical ladder: the pasted line (no cost,
-  recommended) or, later, a signed installer (a yearly certificate).
+- The user installs Node.js and nothing else; the built-in Postgres is the
+  default, `DATABASE_URL` and Docker stay.
+- `npm install && npm start` is enough for now; README and the site say
+  exactly what to install on each system.
+- Data lives in the OS app-data folder; `APPLYPACK_DATA_DIR` moves it.

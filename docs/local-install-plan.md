@@ -26,12 +26,11 @@
   database. **Docker stays exactly as it is** — the way to run it on a
   server or always on. **Your own Postgres** stays too: set `DATABASE_URL`
   and the built-in database is never started.
-- **`npm start` is the foundation, not the finish line for a non-technical
-  person.** It still takes Node, a terminal and a download. The finish is
-  one pasted line per operating system that fetches its own Node, installs,
-  and leaves an "ApplyPack" icon (§3.7, stage 2); below that is only a
-  signed installer, which costs a yearly certificate (§3.6). README
-  becomes a "which one is you" table with a guide per OS (§0.1, §4.8).
+- **Decided 2026-09-16 (§7):** the user installs Node.js and nothing else;
+  `npm install && npm start` is the install, and README says exactly what
+  to install on each system. A desktop app for Windows, macOS and Linux is
+  a later project, not a priority; the pasted-line installer (§3.7) and
+  the signed installer (§3.6) stay analysed and parked.
 - **Nothing the app does changes** (§0.2): no fetcher, prompt, score,
   page, table or migration. Docker keeps its two commands; the new code is
   a wrapper that starts the same two processes.
@@ -45,9 +44,6 @@
   connection), SQLite (counted: a rewrite of the schema and the raw SQL),
   asking users to install Postgres (more steps than Docker), one process
   (ADR 0002).
-- **Owner calls (§7):** the dependency size (23–51 MB download), where the
-  data folder lives, the README/site lead, and how far down the technical
-  ladder to go (the pasted line, or a signed installer later).
 
 ## 0. Who installs it, and what must not break
 
@@ -55,8 +51,8 @@
 
 | Who | Has | Today | After this plan |
 | --- | --- | --- | --- |
-| Has never opened a terminal | a browser; macOS or Windows | install Docker Desktop (on Windows, with WSL 2), git or a ZIP, then `cp` and `docker compose` — README explains none of it | open Terminal / PowerShell once and paste one line; from then on an "ApplyPack" icon (stage 2, §3.7) |
-| Follows a guide, copies commands | a terminal, maybe Node | the same, plus working out what Docker is | install Node from nodejs.org, `npm install`, `npm start`, each step for their OS in `docs/install/` (stage 1) |
+| Has never opened a terminal | a browser; macOS or Windows | install Docker Desktop (on Windows, with WSL 2), git or a ZIP, then `cp` and `docker compose` — README explains none of it | the Node.js installer from nodejs.org, the ZIP, then two commands, each step written for their system (`docs/install.md`); a desktop app later |
+| Follows a guide, copies commands | a terminal, maybe Node | the same, plus working out what Docker is | install Node from nodejs.org, `npm install`, `npm start` |
 | Developer | Node, git | `docker compose up -d`, or README's collapsed contributor block | `npm install && npm start`, or Docker, unchanged |
 | Runs a server | Docker | `docker compose up -d` | unchanged, and README says how to install Docker on each OS |
 
@@ -74,7 +70,7 @@ stop and update. Those go in one guide per system, not in README.
 | The worker | One line: after `init()` it tells the launcher "ready". Under Docker, CI or `npm run dev` there is no launcher to tell, and nothing happens |
 | `config.ts` | Only when `DATABASE_URL` is empty; compose, CI and every existing `.env` set it |
 | `npm start` | Yes: it started the worker alone, now the database, the worker and the dashboard. Nothing in the repo calls it — Docker runs `node dist/index.js` |
-| New files | `src/local/` (the launcher), the install scripts, `docs/install/` |
+| New files | `src/local/` (the launcher), `docs/install.md` |
 
 Every stage is its own PR, merged only after its verification matrix,
 which builds the Docker image and runs the route smoke inside it (§4.10).
@@ -84,9 +80,9 @@ which builds the Docker image and runs the route smoke inside it (§4.10).
 | Need | Today (compose / Dockerfile) | Without Docker |
 | --- | --- | --- |
 | A Postgres 16 with a user, a database, a volume | `postgres:16-alpine`, `jobhunter/jobhunter`, volume `pgdata` | a built-in Postgres 16 in a data folder, random password (§4.3) |
-| Start in order, restart on a crash, start at login | `depends_on` + healthcheck, `restart: unless-stopped`, Docker Desktop at login | the launcher (§4.2); start-at-login is stage 4 |
+| Start in order, restart on a crash, start at login | `depends_on` + healthcheck, `restart: unless-stopped`, Docker Desktop at login | the launcher (§4.2); start-at-login later (§6) |
 | Build | `npm install`, `prisma generate`, `tsc`, fonts and `src/web/public` copied | `npm install` (postinstall generates) + a build on start (§4.6) |
-| A pinned runtime | Node 24 + tini + three AI CLIs installed globally | the user's Node ≥ 22.12; the CLIs they already use |
+| A pinned runtime | Node 24 + tini + three AI CLIs installed globally | the user's Node ≥ 22; the CLIs they already use |
 | Loopback only | dashboard on `127.0.0.1:4747`, DB on `127.0.0.1:5433` | `WEB_HOST=127.0.0.1` (already the default), Postgres on `127.0.0.1` only |
 
 What Docker costs a first-time user, measured on this machine: the
@@ -140,7 +136,7 @@ read (two read-only queries). macOS 27 arm64, Node 26.4.0, npm 11.17.0.
 PostgreSQL binaries built by zonky as one npm package per platform;
 `16.14.0-beta.17` is the current 16.x (the package tags every version
 `-beta.N`). The same major as compose, so data can move between the two
-(stage 4 builds the import).
+(a later `db:import`, §6).
 
 | Measured | Result |
 | --- | --- |
@@ -238,7 +234,7 @@ database. It stays as the third way for people who already run Postgres.
 ADR 0002 keeps the worker free of HTTP, and it paid off once already. The
 launcher runs the same two processes; nothing in them changes.
 
-### 3.6 No terminal at all: a signed installer — not now
+### 3.6 No terminal at all: a signed installer or a desktop app — parked
 
 Below "paste one line" is a file you download and double-click. The
 browser marks that download, and macOS checks the native code inside it
@@ -253,7 +249,7 @@ yearly fee) and signing a Windows installer, in CI — and the same for
 Electron/Tauri or a single binary (Node SEA, `bun build --compile`). A
 money-and-maintenance decision (§7), not a first step.
 
-### 3.7 One pasted line per system — recommended for people new to a terminal
+### 3.7 One pasted line per system — analysed, parked
 
 A file a script downloads itself carries no quarantine mark: measured, the
 Node tarball fetched with `curl` has no `com.apple.quarantine` attribute,
@@ -287,7 +283,7 @@ which takes one run on a real Windows machine before the stage ships.
 ### 4.1 What the user types
 
 ```bash
-# Node.js 22.12 or newer — https://nodejs.org
+# Node.js 22 or newer (24 LTS recommended) — https://nodejs.org
 git clone https://github.com/applypack/applypack.git    # or Code → Download ZIP
 cd applypack
 npm install
@@ -301,7 +297,7 @@ empty `DATABASE_URL` means the built-in database.
 
 ### 4.2 The launcher (`src/local/`, entry `dist/local/launcher.js`)
 
-1. Check Node ≥ 22.12 and a supported platform (macOS arm64/x64, Linux
+1. Check Node ≥ 22 and a supported platform (macOS arm64/x64, Linux
    x64/arm64, Windows x64). On Linux/macOS as root: stop with "run it as a
    normal user, or use Docker".
 2. Read `.env` the way `config.ts` does. `DATABASE_URL` set → your own
@@ -332,30 +328,37 @@ empty `DATABASE_URL` means the built-in database.
 ### 4.3 The built-in database
 
 - `db.json` in the data folder, mode 0600: port, user `applypack`, a random
-  32-byte password, database `applypack`, major `16`. The port is 5434 when
-  free (5432 is a host Postgres, 5433 is compose), else any free port, and
-  is kept, so the URL stays stable for scripts and a GUI client.
+  32-byte password. The port is 5434 when free (5432 is a host Postgres,
+  5433 is compose), else any free port, and is kept, so the URL stays
+  stable for scripts and a GUI client. The app uses initdb's own
+  `postgres` database, so nothing needs a client to create one.
 - The binary package's symlinks are repaired before every start (§3.1,
   failure 3).
 - initdb: `--auth=scram-sha-256 --encoding=UTF8 --locale=C.UTF-8` (§3.1,
-  failure 1). Every start checks `server_encoding = 'UTF8'` and refuses a
-  data folder that fails it, instead of using it quietly.
-- A `postmaster.pid` whose process is alive is stopped with
-  `pg_ctl stop -m fast` before the start (§3.1, failure 2).
-- `postgres -D <dir> -p <port> -c listen_addresses=127.0.0.1
-  -c unix_socket_directories=''`, spawned in its own process group, so
-  Ctrl+C reaches the launcher and not Postgres, and the app stops before
-  its database. The platform packages export the three binary paths;
-  `embedded-postgres` itself is only needed for the initdb step, and its
-  `start()` is not used — it spawns in our process group and rejects
-  without a reason. Its exit hook goes with it, so the launcher stops
-  Postgres on SIGHUP, SIGINT and SIGTERM itself (§4.2, step 8).
-- Postgres writes to `<data>/logs/postgres.log`; a failed start prints its
-  last lines.
-- `embedded-postgres` and its platform packages are ESM-only while this
-  build is CommonJS, where TypeScript turns `import()` into `require()`:
-  `engines.node` becomes `>=22.12`, where `require()` of ES modules works
-  without a flag.
+  failure 1), then four lines in `postgresql.conf`:
+  `listen_addresses = '127.0.0.1'`, `unix_socket_directories = ''`,
+  `timezone = 'UTC'`, `log_timezone = 'UTC'`. The time zone matters:
+  initdb takes the machine's (the probe logged CDT), compose runs in UTC,
+  and every `DEFAULT CURRENT_TIMESTAMP` column would otherwise store local
+  time. Measured after these steps: `UTF8`, `C.UTF-8`, `UTC`, no socket,
+  `'Київ' ILIKE '%КИЇВ%'` true.
+- Postgres runs under `pg_ctl`, not as the launcher's child:
+  `pg_ctl start -w -l <data>/logs/postgres.log -o "-p <port>"` returned in
+  120 ms, and the postmaster sits in its own session — a SIGINT to the
+  launcher's process group (Ctrl+C) left it running, so the launcher stops
+  it last with `pg_ctl stop -m fast -w` (107 ms). On Windows the same
+  commands start it with a restricted token from an elevated shell and stop
+  it without `taskkill`. `embedded-postgres` is only the carrier of the
+  binaries; none of its JavaScript runs, so its ESM packaging does not
+  touch this CommonJS build.
+- A `postmaster.pid` left by a killed launcher: when its PID is a running
+  `postgres`, `pg_ctl stop -m fast` (§3.1, failure 2); when the PID belongs
+  to something else after a reboot, the stale file is removed instead —
+  `pg_ctl stop` would signal whatever process has that number now.
+- `<data>/applypack.pid` holds the launcher's own PID: a second `npm start`
+  says ApplyPack is already running instead of stopping the first one's
+  database.
+- A failed start prints the last lines of `postgres.log`.
 
 ### 4.4 Config, scripts, contributors
 
@@ -417,8 +420,8 @@ pass.
 | File | Change |
 | --- | --- |
 | `README.md` | "Install" opens with the §0.1 table as "which one is you", each row linking to its guide; the developer row is §4.1; Docker is one row, with how to get Docker on each OS; "Your own Postgres" last; the intro line "`docker compose up` … is the whole deployment"; "Your data" per way (the folder, a backup, restore); the one-shot scripts line; "Under the hood" |
-| `docs/install/macos.md`, `windows.md`, `linux.md` (new) | per system: how to open Terminal or PowerShell, Node from nodejs.org, `npm install` + `npm start` (stage 1; the one line from stage 2), what the first start looks like, stop, update, uninstall, where the data lives, the errors people actually hit — filled from the stage's own runs, not guessed |
-| `src/web/pages/welcome.tsx` :158 | "add OPENAI_BASE_URL to .env" is the one file edit left on the non-technical path: a free Gemini key or a local model needs it (stage 3) |
+| `docs/install.md` (new) | one section per system: what to install (Node.js, optionally Git), how to open Terminal or PowerShell, `npm install` + `npm start`, what the first start looks like, stop, update, uninstall, where the data lives, the errors people actually hit — filled from the stage's own runs, not guessed |
+| `src/web/pages/welcome.tsx` :158 | "add OPENAI_BASE_URL to .env" is the one file edit left on the non-technical path: a free Gemini key or a local model needs it (`ai-without-env`, §6) |
 | `site/public/index.html` | hero button "Install with Docker" → "Install"; the install section's title, lead and commands local-first with a Docker line; JSON-LD `operatingSystem` "Docker, Node.js" → "macOS, Windows, Linux" |
 | `package.json` | `description` without "with Docker"; its "33 sources" stays, because `source-count.test.ts` reads the field |
 | `CONTRIBUTING.md` | dev setup without Docker (`npm run db` + `npm run dev` + `npm run dev:web`) |
@@ -433,7 +436,7 @@ pass.
 ### 4.9 CI
 
 A `local-start` job on `ubuntu-latest`, `macos-latest` and
-`windows-latest`, Node 22.12 and 24: `npm ci` → `npm start` in the
+`windows-latest`, Node 22 and 24: `npm ci` → `npm start` in the
 background with a temp data folder → poll `/` for the 303 → the route smoke
 against the built-in database → stop → assert no `postgres` process is
 left. The Windows leg is the first time anything in this repo runs on
@@ -462,67 +465,52 @@ Windows. Free on a public repository.
 
 1. **It runs while `npm start` runs.** A laptop asleep or a closed terminal
    means no hourly search until it is back; nothing is lost but the time.
-   Docker Desktop at login is today's always-on answer; stage 4 adds a
+   Docker Desktop at login is today's always-on answer; `local-always-on` (§6) would add a
    start-at-login switch.
 2. **Backups.** No `pg_dump` in the bundle. Stage 1: stop ApplyPack and
-   copy the data folder. Stage 4: a dated snapshot on start. The Docker way
+   copy the data folder. Later: a dated snapshot on start. The Docker way
    keeps its `pg_dump`.
 3. **Major upgrades.** Both ways stay on PostgreSQL 16 (supported until
    November 2028). Moving a built-in database to 17+ needs an upgrade path
    this plan does not build; ADR 0054 records it.
-4. **Windows is unverified** until the CI leg. There `embedded-postgres`
-   stops Postgres with `taskkill /f`, so the next start runs crash recovery
-   (safe, slower). The CLI engines are started with `execFile(bin)` without
+4. **Windows is unverified** until the CI leg; `pg_ctl` starts and stops
+   Postgres there as it does elsewhere. The CLI engines are started with `execFile(bin)` without
    a shell, and npm installs `claude` / `gemini` / `codex` on Windows as
    `.cmd` shims, which Node refuses to start that way: expect the API
-   engines to work and the CLI engines to need a fix (stage 4).
+   engines to work and the CLI engines to need a fix (§6).
 5. **Linux as root** is refused: a normal user, or Docker.
 6. **Node versions drift.** Docker pins 24; a laptop has what it has. On
    Node 26 the dashboard prints a harmless
    `ExperimentalWarning: localStorage is not available`, from the `docx`
-   package's bundled `util-deprecate`. CI covers 22.12 and 24.
+   package's bundled `util-deprecate`. CI covers 22 and 24.
 
 ## 6. Stages
 
-- **Stage 0 — `dist-fonts`** (patch): `npm run build` copies the fonts; the
-  Dockerfile `COPY` goes; the route smoke gains the clean-render POST, so CI
-  renders one PDF from `dist/`. Fixes today's non-Docker bug on its own.
-- **Stage 1 — `local-start`** (minor, ADR 0054): §4 whole — the launcher,
-  the built-in database with the three fixes of §3.1, `npm run db`, the
-  config fallback, `.env.example`, the image clean-up, every file in §4.8
-  including the three `docs/install/` guides for the Node and Docker paths,
-  the CI job, the verification matrix in §4.10.
-- **Stage 2 — `one-line-install`** (minor): `install.sh` and `install.ps1`
-  in `site/public/` (§3.7) — a private Node, the latest release, the
-  build, the shortcut per system, the first start. A CI job per system
-  runs the line on a fresh runner and checks `/` answers, the shortcut
-  exists and (Windows) nothing it downloaded carries a `Zone.Identifier`.
-  The guides and the site lead with the line from then on.
-- **Stage 3 — `ai-without-env`** (patch): the OpenAI-compatible engine's
-  base URL on its card and in `/welcome` step 1, so a free Gemini key, a
-  local model or OpenRouter needs no `.env` edit.
-- **Stage 4 — `local-always-on`** (minor): `npm run autostart:on|off` (a
-  launchd user agent, a `systemd --user` unit, a Windows Startup entry);
-  logs in the data folder; a dated snapshot of the data folder on start
-  (keep 7); `npm run db:import <dump.sql>` to move a Docker database in (a
-  `pg_dump --inserts` dump, since `COPY … FROM stdin` needs `psql`); the
-  Windows CLI engines.
-- **Stage 5 — owner decision:** a signed installer per system (§3.6), or
-  `npx applypack` (the npm name is free, checked 2026-09-16) — only if
-  stage 2 still loses people.
+- **Stage 1 — `local-start`** (minor, ADR 0054): §4 whole — the fonts in
+  `npm run build` (the §2 bug; the launcher runs from `dist/`, so the fix
+  belongs to it), the launcher, the built-in database with the fixes of
+  §3.1 and §4.3, `npm run db` and `npm run stop`, the config fallback,
+  `.env.example`, the image clean-up, every file in §4.8 with one install
+  guide covering the three systems, the CI job, the verification matrix in
+  §4.10.
+- **Later, if wanted — `ai-without-env`** (patch): the OpenAI-compatible
+  engine's base URL on its card and in `/welcome` step 1, so a free Gemini
+  key, a local model or OpenRouter needs no `.env` edit.
+- **Later, if wanted — `local-always-on`** (minor): start at login (a
+  launchd user agent, a `systemd --user` unit, a Windows Startup entry); a
+  dated snapshot of the data folder on start; `npm run db:import` to move a
+  Docker database in (a `pg_dump --inserts` dump, since `COPY … FROM stdin`
+  needs `psql`); the Windows CLI engines.
+- **Parked:** the pasted-line installer (§3.7) and a desktop app for
+  Windows, macOS and Linux (§3.6) — the owner's future project, not a
+  priority.
 
-## 7. Owner decisions
+## 7. Decisions (owner, 2026-09-16)
 
-1. **The built-in database as the default** — a 23–51 MB download and
-   58–134 MB on disk per install. Recommended: yes; the alternatives in §3
-   are either broken (PGlite), a rewrite (SQLite) or harder than Docker.
-2. **Where the data lives.** Recommended: the OS app-data folder — it
-   survives a fresh clone or a new ZIP, and it is the place a future
-   `npx applypack` needs. The alternative, `./data` inside the clone, is
-   easier to find but starts empty in every new download.
-3. **README and site lead with the local install; Docker becomes "for a
-   server, or to keep it running".** Recommended.
-4. **How far down the ladder.** Recommended: the one pasted line (stage 2)
-   — no cost, and the least technical person meets a terminal once. A
-   signed double-click installer (stage 5) means a yearly certificate and
-   signing in CI; decide it after stage 2 has been in people's hands.
+1. **The user installs Node.js and nothing else.** The built-in Postgres 16
+   is the default (a 23–51 MB download); `DATABASE_URL` still points
+   ApplyPack at a Postgres of your own, and Docker stays as it is.
+2. **`npm install && npm start` is enough** for now; README and the site
+   say exactly what to install on each system. A desktop app comes later.
+3. **Data folder:** the OS app-data folder (§4.2 step 3) — it survives a
+   fresh clone or a new ZIP. `APPLYPACK_DATA_DIR` moves it.
