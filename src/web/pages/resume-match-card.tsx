@@ -738,8 +738,10 @@ const SuggestionCard: FC<{
         )}
         <div class="mt-1 text-xs leading-5 text-ink-faint">why: {item.why}</div>
         <div class="mt-2 flex flex-wrap items-center gap-2">
+          {/* Outlined, not solid: a list of cards is one region, and its one solid
+              button is the page's Save (DESIGN.md, one primary per region). */}
           {canApply && (
-            <Button type="button" variant="primary" size="sm" data-apply={proposal?.text}>
+            <Button type="button" variant="secondary" size="sm" data-apply={proposal?.text}>
               Apply
             </Button>
           )}
@@ -753,7 +755,7 @@ const SuggestionCard: FC<{
               Remove
             </Button>
           )}
-          <Button type="button" variant="secondary" size="sm" data-copy={copyable}>
+          <Button type="button" variant={canApply || canRemove ? 'ghost' : 'secondary'} size="sm" data-copy={copyable}>
             Copy
           </Button>
           {rewrite && (
