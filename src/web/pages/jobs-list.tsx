@@ -416,15 +416,20 @@ export const JobsListPage: FC<JobsListProps> = ({
   );
 };
 
-/** One line of the filter panel: what it narrows by, then the options. */
-const FilterRow: FC<PropsWithChildren<{ label: string }>> = ({ label, children }) => (
-  <>
-    <div class="pt-1 text-[13px] font-medium text-ink-muted">{label}</div>
-    <nav aria-label={`Filter: ${label}`} class="flex flex-wrap items-center gap-1.5">
-      {children}
-    </nav>
-  </>
-);
+/** One line of the filter panel: what it narrows by, then the options — a group named by its visible label. */
+const FilterRow: FC<PropsWithChildren<{ label: string }>> = ({ label, children }) => {
+  const id = `filter-${label.toLowerCase()}`;
+  return (
+    <>
+      <div id={id} class="pt-1 text-[13px] font-medium text-ink-muted">
+        {label}
+      </div>
+      <div role="group" aria-labelledby={id} class="flex flex-wrap items-center gap-1.5">
+        {children}
+      </div>
+    </>
+  );
+};
 
 /**
  * An option of the filter panel: a link that toggles its value. Square and on

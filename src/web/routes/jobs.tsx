@@ -212,7 +212,7 @@ jobsRoute.get('/jobs', async (c) => {
 
   const orderBy = sortToOrderBy(sort);
 
-  const [jobs, total, facetRows, statusGroups, activeProfile, activeProfiles] = await Promise.all([
+  const [jobs, facetRows, statusGroups, activeProfile, activeProfiles] = await Promise.all([
     prisma.job.findMany({
       where,
       orderBy,
@@ -249,7 +249,6 @@ jobsRoute.get('/jobs', async (c) => {
         ...(profile && { scores: { where: { profileId: profile }, take: 1, select: { fitScore: true } } }),
       },
     }),
-    prisma.job.count({ where }),
     prisma.job.findMany({
       where: facetWhere,
       select: { countries: true, regions: true, workplace: true, postedAt: true },
@@ -258,6 +257,11 @@ jobsRoute.get('/jobs', async (c) => {
     getActiveProfile(),
     listActiveProfiles(),
   ]);
+  // The list's own total is one of those counts (or their sum), so it costs no query of its own.
+  const statusCounts: Partial<Record<JobStatus, number>> = Object.fromEntries(statusGroups.map((g) => [g.status, g._count._all]));
+  const total = status
+    ? (statusCounts[status as JobStatus] ?? 0)
+    : statusGroups.reduce((sum, g) => sum + g._count._all, 0);
 
   return c.html(
     <JobsListPage
@@ -279,7 +283,7 @@ jobsRoute.get('/jobs', async (c) => {
         posted,
       }}
       panelOpen={panel === '1'}
-      statusCounts={Object.fromEntries(statusGroups.map((g) => [g.status, g._count._all]))}
+      statusCounts={statusCounts}
       facets={tallyFacets(facetRows, { places: country, workplaces: workplace, posted }, now)}
       profiles={activeProfiles.map((p) => ({ id: p.id, name: p.name }))}
       blankProfileBanner={activeProfile !== null && isBlankProfile(activeProfile)}

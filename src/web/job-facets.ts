@@ -232,8 +232,8 @@ export function activeFilters(filters: JobsFilters, profiles: { id: number; name
     add(`Search: ${name}`, '', { profile: null });
   }
   for (const value of filters.country) {
-    const place = chip(value, 0, true);
-    add(value === UNKNOWN_PLACE ? 'Place unknown' : place.label, place.flag, { country: toggled(filters.country, value) });
+    const unknown = value === UNKNOWN_PLACE;
+    add(unknown ? 'Place unknown' : placeLabel(value), unknown ? '' : flagOf(value), { country: toggled(filters.country, value) });
   }
   for (const value of filters.workplace) {
     const code = value.toUpperCase() as WorkplaceCode;
