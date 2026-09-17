@@ -74,7 +74,7 @@ export const CoverLetterCard: FC<CoverLetterCardProps> = ({
           <input type="hidden" name="saveAngles" value="1" />
           <div class="flex flex-wrap items-end gap-3">
             <label class="block min-w-0 max-w-full">
-              <span class="block text-[13px] font-medium text-ink">Resume</span>
+              <span class="block text-label text-ink">Resume</span>
               <Select name="resumeId" class="mt-1.5 !w-auto max-w-full">
                 {resumes.map((r) => (
                   <option value={r.id} selected={r.id === (suggestedResumeId ?? resumes[0]?.id)}>
@@ -84,7 +84,7 @@ export const CoverLetterCard: FC<CoverLetterCardProps> = ({
               </Select>
             </label>
             <label class="block">
-              <span class="block text-[13px] font-medium text-ink">Tone</span>
+              <span class="block text-label text-ink">Tone</span>
               <Select name="tone" class="mt-1.5 !w-auto">
                 {COVER_TONES.map((t) => (
                   <option value={t} selected={t === 'warm'}>
@@ -94,7 +94,7 @@ export const CoverLetterCard: FC<CoverLetterCardProps> = ({
               </Select>
             </label>
             <label class="block">
-              <span class="block text-[13px] font-medium text-ink">Addressed to</span>
+              <span class="block text-label text-ink">Addressed to</span>
               <Input
                 name="addressee"
                 maxlength="80"

@@ -147,7 +147,7 @@ export const LetterStartPage: FC<LetterStartProps> = ({
           <div class="space-y-3">
             <div class="flex flex-wrap items-end gap-4">
               <label class="block">
-                <span class="block text-[13px] font-medium text-ink">Tone</span>
+                <span class="block text-label text-ink">Tone</span>
                 <Select name="tone" class="mt-1.5 !w-auto">
                   {COVER_TONES.map((t) => (
                     <option value={t} selected={t === 'warm'}>

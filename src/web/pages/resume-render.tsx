@@ -156,7 +156,7 @@ export const ResumeRenderPage: FC<RenderPageProps> = ({
           </fieldset>
 
           <fieldset class="mt-4 border-0 p-0">
-            <legend class="block text-[13px] font-medium text-ink">Margins (inches)</legend>
+            <legend class="block text-label text-ink">Margins (inches)</legend>
             <div class="mt-1.5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               {(['top', 'right', 'bottom', 'left'] as const).map((side) => (
                 <Field label={side[0]!.toUpperCase() + side.slice(1)}>

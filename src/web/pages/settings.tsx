@@ -183,7 +183,7 @@ const Section: FC<PropsWithChildren<{ title: string; desc?: string | Child }>> =
 }) => (
   <section class="grid gap-3 border-t border-line py-7 first:border-t-0 first:pt-0 lg:grid-cols-[220px_1fr] lg:gap-8">
     <div>
-      <h2 class="text-sm font-semibold text-ink">{title}</h2>
+      <h2 class="text-section text-ink">{title}</h2>
       {desc && <p data-ui="hint" class="mt-1 text-[13px] leading-5 text-ink-faint">{desc}</p>}
     </div>
     <div class="min-w-0 space-y-4">{children}</div>
@@ -257,7 +257,7 @@ const ScheduleCard: FC<{ view: ScheduleView }> = ({ view }) => {
         </Field>
 
         <div class="border-t border-line pt-4">
-          <div class="text-[13px] font-medium text-ink">Check for jobs</div>
+          <div class="text-label text-ink">Check for jobs</div>
           <Hint class="mt-0.5 mb-2">
             {describeSchedule(s)}
             {nextFetch ? ` · next check ${nextFetch}` : ''}
@@ -282,7 +282,7 @@ const ScheduleCard: FC<{ view: ScheduleView }> = ({ view }) => {
         </div>
 
         <div class="border-t border-line pt-4">
-          <div class="text-[13px] font-medium text-ink">Send alerts</div>
+          <div class="text-label text-ink">Send alerts</div>
           {held > 0 && (
             <Hint class="mt-0.5 text-warn">
               {held} {held === 1 ? 'match is' : 'matches are'} waiting for the next window.
@@ -444,7 +444,7 @@ export const SettingsPage: FC<SettingsProps> = ({
         )}
         {activeProfile && (
           <Card>
-            <div class="mb-1 text-[13px] font-medium text-ink">Fill from a resume</div>
+            <div class="mb-1 text-entity text-ink">Fill from a resume</div>
             {resumes.length > 0 ? (
               <>
                 <Hint class="mb-3">
@@ -516,7 +516,7 @@ export const SettingsPage: FC<SettingsProps> = ({
           <Empty>No search selected. Pick one below or create a new one.</Empty>
         )}
         <div class="space-y-2">
-          <div class="text-[13px] font-medium text-ink">Searches</div>
+          <div class="text-entity text-ink">Searches</div>
           <Hint>
             Every running search scores each new posting in the same AI call, with its
             own threshold and its own Telegram chat. Up to {MAX_ACTIVE_PROFILES} at once.
@@ -886,7 +886,7 @@ export const SettingsPage: FC<SettingsProps> = ({
 
         <div class="grid gap-4 lg:grid-cols-2">
           <Card>
-            <div class="mb-3 text-[13px] font-medium text-ink">Add a Telegram target</div>
+            <div class="mb-3 text-entity text-ink">Add a Telegram target</div>
             <form method="post" action="/settings/targets" class="grid gap-3 sm:grid-cols-2">
               <input type="hidden" name="kind" value="telegram" />
               <Field label="Name">
@@ -914,7 +914,7 @@ export const SettingsPage: FC<SettingsProps> = ({
             </Hint>
           </Card>
           <Card>
-            <div class="mb-3 text-[13px] font-medium text-ink">Add a Discord webhook</div>
+            <div class="mb-3 text-entity text-ink">Add a Discord webhook</div>
             <form method="post" action="/settings/targets" class="grid gap-3">
               <input type="hidden" name="kind" value="discord" />
               <Field label="Name">
@@ -952,7 +952,7 @@ export const SettingsPage: FC<SettingsProps> = ({
           <form method="post" action="/settings/sources" class="space-y-4">
             {sourceGroups.map((g) => (
               <div>
-                <div class="text-[13px] font-medium text-ink">{g.title}</div>
+                <div class="text-label text-ink">{g.title}</div>
                 <p data-ui="hint" class="mb-2 text-xs leading-5 text-ink-faint">{g.caption}</p>
                 <div class="flex flex-wrap gap-1.5">
                   {g.pills.map((p) => (
@@ -1158,7 +1158,7 @@ const SourceKeysCard: FC<{ rows: SourceKeyRow[] }> = ({ rows }) => (
       {rows.map((r) => (
         <div class="rounded-md border border-line bg-surface-raised px-3.5 py-3">
           <div class="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-            <span class="text-[13px] font-medium text-ink">{r.label}</span>
+            <span class="text-entity text-ink">{r.label}</span>
             <Badge tone={r.ready ? 'ok' : 'neutral'}>{r.ready ? 'ready' : 'not set up'}</Badge>
           </div>
           <p class="mt-1.5 text-[13px] leading-5 text-ink-muted">{r.what}</p>
@@ -1232,7 +1232,7 @@ const EngineKeyRow: FC<{ engine: AiEngineRow }> = ({ engine: e }) => {
   return (
     <div class="mt-3 rounded-md border border-line bg-surface-raised px-3.5 py-3">
       <div class="flex flex-wrap items-center gap-2">
-        <span class="text-[13px] font-medium text-ink">{label}</span>
+        <span class="text-label text-ink">{label}</span>
         {e.keySource === 'db' && (
           <>
             <Badge tone="ok">saved</Badge>
@@ -1285,7 +1285,7 @@ const AiEngineCard: FC<{ engine: AiEngineRow }> = ({ engine: e }) => (
   <Card class={e.enabled || e.lastResort ? '' : 'opacity-75'}>
     <div class="flex flex-wrap items-center gap-2">
       {e.enabled && <Badge tone="violet">#{e.position + 1}</Badge>}
-      <span class="text-sm font-medium text-ink">{e.label}</span>
+      <span class="text-entity text-ink">{e.label}</span>
       <Badge tone={e.ok ? 'ok' : 'neutral'}>{e.ok ? 'available' : 'not detected'}</Badge>
       {e.lastResort && <Badge tone="warn">last resort</Badge>}
       {e.paid && <Badge tone="warn">pay per token</Badge>}
@@ -1474,7 +1474,7 @@ const ProfileEditor: FC<{
     </div>
 
     <fieldset class="space-y-4">
-      <legend class="text-[13px] font-medium text-ink">What are we hunting for?</legend>
+      <legend class="text-label text-ink">What are we hunting for?</legend>
       <Hint class="!mt-0.5">
         Languages and frameworks the job must use go into the required stack.
         <br />
@@ -1505,7 +1505,7 @@ const ProfileEditor: FC<{
     </fieldset>
 
     <fieldset>
-      <legend class="text-[13px] font-medium text-ink">Seniority</legend>
+      <legend class="text-label text-ink">Seniority</legend>
       <div class="mt-2 flex flex-wrap gap-1.5">
         {SENIORITY_LEVELS.map((s) => (
           <PillCheckbox name="seniority" value={s} checked={profile.seniority.includes(s)}>
@@ -1516,7 +1516,7 @@ const ProfileEditor: FC<{
     </fieldset>
 
     <fieldset class="space-y-3">
-      <legend class="text-[13px] font-medium text-ink">Location</legend>
+      <legend class="text-label text-ink">Location</legend>
       <Hint class="!mt-0.5">
         Where this search hunts. Countries and regions add up; leave both empty for anywhere.
       </Hint>

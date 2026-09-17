@@ -156,7 +156,7 @@ export const ResumeMatchCard: FC<ResumeMatchCardProps> = ({
               was choosing between two tooltips. */}
           <input type="hidden" name="mode" value="full" />
           <label class="block min-w-0 max-w-full">
-            <span class="block text-[13px] font-medium text-ink">Resume</span>
+            <span class="block text-label text-ink">Resume</span>
             <Select name="resumeId" class="mt-1.5 !w-auto max-w-full">
               {resumes.map((r) => (
                 <option value={r.id} selected={r.id === (suggestedResumeId ?? resumes[0]?.id)}>
@@ -1167,7 +1167,7 @@ const AddKeywordForm: FC<{ edit: KeywordEditTarget }> = ({ edit }) => (
     <input type="hidden" name="op" value="add" />
     <input type="hidden" name="back" value={edit.back} />
     <label class="block">
-      <span class="block text-[13px] font-medium text-ink">Add a keyword</span>
+      <span class="block text-label text-ink">Add a keyword</span>
       <Input
         name="term"
         required
