@@ -82,7 +82,7 @@ Full table: [ui-redesign/metrics.md](./ui-redesign/metrics.md) — 20 pages at
 | `/jobs/:id` | eight `h2` cards of equal weight, 190 hint words, three solid-emerald buttons |
 | `/` | four separate stat cards (8 boxes), none of the four numbers is a link |
 | `/runs` | `JSON.stringify(stats)` in a hundred rows: 1 409 words, 7 759 px, 190 KB |
-| `/companies` | the companies table is the last of seven blocks on a 2 776 px page; 261 hint words |
+| `/companies` | the companies table comes after seven other blocks on a 2 776 px page; 261 hint words |
 | `/resumes` | the upload form and the add-a-fact form are always open; 123 hint words |
 
 Every page already costs 4–10 requests and 5–24 KB of JavaScript with no
@@ -170,8 +170,8 @@ says so and §3.3 below makes it a rule.
   `routes/jobs.tsx:539, 571, 574, 606`) and bare `#resume-match`
   (`target.tsx:176`).
 - Board: the dashed empty wells are `pages/applications.tsx:223` and `:261`;
-  `public/board.mjs` finds columns by `data-drop-stage` and
-  `id="stage-col-…"`.
+  `public/board.mjs` finds its drop targets by `data-drop-stage`; the
+  `stage-col-…` ids are the page's own jump links.
 - Companies: block order in `pages/companies.tsx:243–327` — Watchlist, the
   paste-a-list card, Quiet sources, "How coverage works", Sources for your
   searches, Starter packs, Add company, then the table.
@@ -196,10 +196,13 @@ says so and §3.3 below makes it a rule.
 - A `Field` is a `<label>` wrapping its hint, so a long hint becomes the
   control's accessible name (audit A11Y-4). Short hints plus a disclosure
   *outside* the label is the fix chosen here (§3.4).
-- Browsing the live database is GET only. Anything that writes — a status
-  change, a drag on the board, a saved setting — is checked on the scratch
-  install (§4.2), never on the owner's data. No violet button (AI spend) and
-  no "Fetch now" is pressed during this work.
+- Browsing the live database is GET only: no status change, no drag on the
+  board, no saved setting, no violet button (AI spend), no "Fetch now". A
+  POST is exercised by the route smoke in CI, on its throwaway Postgres.
+- `npm start` is **not** a scratch copy on this machine. `.env` sets
+  `DATABASE_URL`, and in `src/local/launcher.ts` that wins over the built-in
+  database — the launcher would start a worker and a dashboard against a
+  real Postgres. It is not run during this work.
 
 ## 2. Decisions: both files, section by section
 
@@ -298,8 +301,9 @@ line height, tracking and weight), so a page writes `text-title`, not
 | `meta` | 12 / 16 | 400 | timestamps, counts, helper prose under a control |
 
 The ladder must be visible at a glance on every page: title > section >
-entity > body > meta. No uppercase tracking anywhere — the three
-`uppercase tracking-wide` labels on `/jobs` go in stage 1.
+entity > body > meta. No uppercase tracking anywhere — the four
+`uppercase tracking-wide` labels on `/jobs` go in stage 1, the other three
+in the dashboard with the pages they sit on.
 
 ### 3.3 Surfaces and borders
 
@@ -384,11 +388,11 @@ DATABASE_URL='postgresql://jobhunter:jobhunter@localhost:5433/jobhunter' WEB_POR
 That serves the branch on `127.0.0.1:4848` against the compose database —
 real rows, read-only browsing (checked 2026-09-16: `/health` 200, `/jobs`
 in 34 ms). The owner's own dashboard on 4747 is not touched until the stage
-is finished. Anything that writes is tried on a scratch install instead:
-
-```
-APPLYPACK_DATA_DIR=/tmp/ap-ui WEB_PORT=4949 APPLYPACK_NO_OPEN=1 npm start
-```
+is finished. Nothing is posted to either. What a POST does is checked where
+it is safe: a stage that changes a form's fields, or where a POST redirects,
+extends `src/scripts/route-smoke.ts` (CI runs it on a throwaway Postgres) and
+diffs the page's `<form>` markup before and after. The five wizard steps
+render by GET whatever the setup state: `/welcome?step=ai|search|profile|sources|matches`.
 
 Per stage, on the pages it names:
 
@@ -447,8 +451,8 @@ first unticked stage.
   settings `Section` description and to the `Radio` body;
   `data-ui="mode-card"` and `data-ui="mode-body"` to `ModeCard`'s fieldset
   and body (stage 3 styles them). Nothing visible changes.
-- Measure the twenty pages of metrics.md again, plus every `/welcome` step on
-  the scratch install and one `/screen/:id` if a screening exists; add the
+- Measure the twenty pages of metrics.md again, plus the five wizard steps
+  (`/welcome?step=…`) and one `/screen/:id` if a screening exists; add the
   375 px `tabStops` / `heightPx` pass for `/`, `/jobs`, `/jobs/:id`,
   `/target`, `/settings?tab=profile`.
 - Screenshots of all of them into `~/applypack-evidence/ui-redesign/baseline/`.
@@ -571,9 +575,11 @@ least 15 % — its legal text stays), `/resumes` 123 → ≤ 50, `/target` 192 �
   `entity` weight, "I have this" / "I don't" with a drawn mark, the note
   under it, confirmed first — and "Add a fact" is a disclosure.
 
-**Check** on the scratch install: upload a resume through the disclosure;
-submit `/target` in each of the five modes with JavaScript on; read the
-markup to confirm each mode still posts with it off.
+**Check**: `curl` each changed page before and after and diff its `<form>`
+blocks — fields, names and actions are unchanged, and a closed mode's
+fields are still in the markup, so every mode posts exactly as it did (a
+`display: none` control is submitted; only a `disabled` one is not). The
+route smoke's `POST /resumes` still answers 303.
 
 ### Stage 4 — `overview-and-runs` (minor)
 
@@ -621,8 +627,9 @@ markup to confirm each mode still posts with it off.
 - `FitBadge` gains a worded size for the page header: `fitWord(score)` in
   `format.ts` (Strong / Good / Partial / Weak on the existing floors),
   tested. The "Actions" heading over the button row goes.
-- `route-smoke.ts` requests the three non-default tabs too; ARCHITECTURE.md's
-  route table names `?tab=`.
+- `route-smoke.ts` requests the three non-default tabs, and posts a status
+  change with `tab=match`, expecting the redirect to carry it;
+  ARCHITECTURE.md's route table names `?tab=`.
 
 ### Stage 6 — `companies-welcome-disclosure` (minor)
 
@@ -641,16 +648,17 @@ every must-stay sentence of §8 still on screen.
   company, the badge keeps showing the state.
 - Discovery and the watchlist preview pages: `Section` / flat-card
   treatment, one-sentence hints.
-- Welcome: the disclosure rule per step, measured on the scratch install.
+- Welcome: the disclosure rule per step, each measured through `?step=`.
 
 ### Stage 7 — `redesign-polish` (minor)
 
 **Goal**: no page left in the old idiom, no page worse than its baseline.
 
 - Applications: the dashed wells become a quiet "No applications" line; a
-  column is the subtle surface with no outline; `data-drop-stage` and the
-  column ids unchanged, `board.test.ts` green. Dragging is tried on the
-  scratch install only.
+  column is the subtle surface with no outline. A drag writes a stage event,
+  so it is not tried on the live board: the hooks `board.mjs` reads
+  (`data-drop-stage`, the cards' data attributes) are diffed before and
+  after, and `board.test.ts` stays green.
 - `Empty` gains `title` and `action`; every use says what is missing, why it
   matters and offers one way forward.
 - `/resumes/:id`, `/jobs/:id/target`, the `/screen` pages: tokens arrive by
@@ -751,9 +759,10 @@ Paste this; it is the whole hand-over:
   клавіатурна і no-JS перевірка, ui-review, code-review-expert, PR, перевірка CI, галочка в
   TASKS §22 і таблиця в docs/ui-redesign/metrics.md.
 - Ціль кожної стадії — число, назване в плані. Якщо число не рухається, стадія не готова.
-- Не мерж і не тегай. Жодної prisma-команди. На живій базі лише GET: не натискай фіолетові
-  (AI) кнопки, Fetch now і нічого, що пише в базу; все таке перевіряй на scratch-інсталяції
-  (план §4.2).
+- Не мерж і не тегай. Жодної prisma-команди. `npm start` не запускай: на цій машині .env
+  задає DATABASE_URL, і лаунчер підняв би воркер проти справжньої бази. На живій базі лише
+  GET: не натискай фіолетові (AI) кнопки, Fetch now і нічого, що пише в базу. POST-поведінку
+  перевіряє route smoke у CI (план §4.2).
 - Після відкриття PR і зеленого CI одразу переходь до наступної стадії, не чекаючи мержу.
   Зупиняйся лише за правилами §4.5 плану.
 - Якщо контекст стає важким, заверши поточну стадію, онови TASKS і пам'ять, і скажи, що

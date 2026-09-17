@@ -39,4 +39,4 @@ with `data-ui` so the helper-prose count survives the restyle.
 Every page: 4–10 requests, 5–24 KB of JavaScript, no external host.
 
 `/welcome` was measured with setup finished, so it shows the summary, not
-the five steps; stage 6 measures each step on the scratch install.
+the five steps; stage 0 measures each step through `/welcome?step=…`.

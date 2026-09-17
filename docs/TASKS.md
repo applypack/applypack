@@ -2347,7 +2347,10 @@ the numbers [docs/ui-redesign/metrics.md](./ui-redesign/metrics.md).
 - The loop that works: `npm run css && npm run build`, then
   `DATABASE_URL=…localhost:5433… WEB_PORT=4848 node dist/web/server.js` —
   `.env` points at 5432, where a host Postgres answers. GET only on the live
-  database; anything that writes goes to the scratch install.
+  database; a POST is exercised by the route smoke in CI. `npm start` is not
+  a scratch copy here: `.env`'s `DATABASE_URL` wins over the built-in
+  database (`src/local/launcher.ts`), so it would start a worker against a
+  real Postgres.
 
 ### 22.2 Order of work
 
@@ -2357,7 +2360,8 @@ it moves. Stage 0 carries no tag; the others are a minor each.
 - [ ] **`redesign-baseline`** (no tag) — `data-ui` hooks on `Hint`, the
       header intro, the settings section description, the radio body and
       `ModeCard`; the twenty pages measured again with the 375 px pass and
-      every wizard step; screenshots outside the repository.
+      the five wizard steps (`/welcome?step=…`); screenshots outside the
+      repository.
 - [ ] **`jobs-filter-panel`** — `/jobs` `aboveTable` 30 → ≤ 14. Toolbar, a
       **Filters (n)** disclosure (`panel=1` keeps it open), status tabs with
       counts, an active-filter row; `Disclosure`, `FilterChip`, `Tabs` in
