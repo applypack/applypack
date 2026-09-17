@@ -324,7 +324,7 @@ on the AI tab shows exactly which engine your calls went to.
 | Page | URL | What it's for |
 | --- | --- | --- |
 | First run | `/welcome` | The four setup steps; `/` redirects here until you finish or skip |
-| Overview | `/` | Counters by status, recent alerts, cron health, pause/resume, Fetch now |
+| Overview | `/` | Four counters by status (each opens its jobs), recent alerts, pipeline health, pause/resume, Fetch now |
 | Jobs | `/jobs` | Filterable, sortable list of everything fetched |
 | Paste a job | `/jobs/new` | Save a posting by hand (LinkedIn, email, referral); it gets classified like any other |
 | Job detail | `/jobs/:id` | Full description, AI verdict, status actions, verification, resume match, tracking |
@@ -336,7 +336,7 @@ on the AI tab shows exactly which engine your calls went to.
 | Clean version | `/resumes/:id/render` | Re-typeset a resume that cannot be edited in place as a single-column `.docx` / `.pdf` in its own typography |
 | Companies | `/companies` | Tracked boards; add new ones with a live probe that refuses bad slugs. **Watch specific companies** takes a pasted list of career-page URLs and resolves each to the board or feed behind it |
 | Discovery | `/discovery` | Board candidates harvested from HN, with the discovery toggles |
-| Runs | `/runs` | The last 100 cron runs with stats and errors |
+| Runs | `/runs` | The last 100 runs, each as a sentence ("594 fetched · 3 new · 0 alerted"), errors in full, raw output one press away |
 | Settings | `/settings` | Five tabs: General · Profile · AI engine · Notifications · Sources |
 
 <div align="center">

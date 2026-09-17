@@ -29,7 +29,7 @@
       "body": { "displayName": "Body", "purpose": "Default UI text: tables, forms, buttons, nav. Weight 500 marks emphasis." },
       "label": { "displayName": "Label", "purpose": "Field labels, table headers, fieldset legends, sidebar group labels." },
       "meta": { "displayName": "Meta", "purpose": "Timestamps, counts, the header's meta line, helper prose under a control." },
-      "stat-value": { "displayName": "Stat Value", "purpose": "The four Overview numbers and stat cards; always tabular-nums." },
+      "stat-value": { "displayName": "Stat Value", "purpose": "The metric strip's numbers on Overview; always tabular-nums." },
       "mono-value": { "displayName": "Mono Value", "purpose": "Machine values only: ids, tokens, cron names, durations, code." }
     },
     "shadows": [

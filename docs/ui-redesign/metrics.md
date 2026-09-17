@@ -218,3 +218,42 @@ the same names, types, values and `required` / `data-required` marks, before
 and after: a folded mode's fields are still in the markup and still posted.
 The other 17 measured pages read exactly as in stage 2.
 
+## Stage 4 — `overview-and-runs`, 2026-09-17
+
+Before = the stage 3 build, after = the branch, same hour, same data.
+
+| Page | | tabStops | inDom | mainWords | boxes | heightPx | htmlKB |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| `/` | before | 11 | 11 | 228 | **8** | 900 | 32.0 |
+| | after | 15 | 15 | 248 | **5** (≤ 5 asked) | 900 | 32.9 |
+| `/runs` | before | 63 | 63 | **1 410** | 2 | **7 743** | 197.2 |
+| | after | 52 | 102 | **775** (≤ 800 asked) | 3 | **2 486** (≤ 5 200 asked) | 238.2 |
+
+No JSON stands outside a `<details>` on `/runs`. The four tab stops `/`
+gained are its four numbers, now links to their jobs. The other 24 pages read
+as in stage 3.
+
+**The plan's own recipe for `/runs` measured worse than the page it replaced**
+— 2 152 words and 8 372 px against 1 410 and 7 741 — and the reason is worth
+keeping. The yardstick counts words by whitespace, and a `JSON.stringify`
+blob has none: four hundred characters of machine output read as one to three
+"words", while the sentence that replaces them ("594 fetched · 3 new · 55
+duplicates · 3 classified · 0 alerted · 9 sources") reads as seventeen, dots
+included; and two folds stacked under every sentence ("Raw output", then "by
+source") added two lines to each of a hundred rows. What reached the numbers,
+without taking anything away from the reader:
+
+- one line per run: the facts, then a single **Details** fold on the same line
+  holding the per-source list and the JSON;
+- the routine counters every tick carries (`filterRejected`, `preFiltered`,
+  `dismissed`) stay in the raw block, and a zero speaks only where it is news
+  ("0 new" always, "0 alerted" when something new was stored);
+- the dot between two facts is drawn in CSS, not typed — it is a separator,
+  not a word;
+- runs past the latest fifty fold behind a button ("50 earlier runs") that
+  names any failure among them and opens by itself when there is one.
+
+`htmlKB` on `/runs` rose by a fifth: the facts are markup the JSON was not,
+and the JSON is still in the page. `mainWords` under-reads machine output by
+design; read it beside `heightPx` on any page that prints some.
+
