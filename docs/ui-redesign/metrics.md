@@ -427,8 +427,8 @@ shorter: `/` 1 330 → 1 286, `/jobs` 886 → 764, `/jobs/100` 2 842 → 1 586,
 - **`htmlKB`** is up 2–9 KB on every page but the job page (−5.8), and 44 KB
   on `/runs`: the shell carries the grouped sidebar and the token and
   disclosure rules (about 2.3 KB a page), and the rest is content folded
-  instead of removed — the closed filter panel, the add-flows, a run's raw
-  output — which costs bytes and no attention. One cause was a defect and is
+  instead of removed (the closed filter panel, the add-flows, a run's raw
+  output), which costs bytes and no attention. One cause was a defect and is
   fixed here: a toned pill wrote its ground as an 80-byte arbitrary class, 8 KB
   on a resume page with a hundred skill tags; it is a `pill-*` class now.
 - **`inDom`** is up on `/jobs` (+1), its filtered view (+5), `/resumes` (+2),
@@ -438,7 +438,7 @@ shorter: `/` 1 330 → 1 286, `/jobs` 886 → 764, `/jobs/100` 2 842 → 1 586,
 - **`tabStops`** (and `inDom` with it) is up on `/` (11 → 15), Discovery
   (2 → 4), the six settings tabs (+1 … +6) and `?step=sources` (+1): on
   Overview the four numbers became links to their jobs; everywhere else each
-  new stop is one "How this works" that replaced a paragraph — the settings
+  new stop is one "How this works" that replaced a paragraph, and the settings
   tabs lost 18–43 % of their helper words for them.
 - **`aboveTable`** on `/resumes` (0 → 1) and Notifications (8 → 9): the
   "Upload a resume" button that folded the upload card, and one "How this

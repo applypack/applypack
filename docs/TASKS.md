@@ -2437,7 +2437,7 @@ it moves. Stage 0 carries no tag; the others are a minor each.
       uses. On the targeted view the cards' Apply is outlined: solid buttons
       in sight with Suggestions open 6 → 1. The resume, targeted-view,
       screening, scorecard and clean-version pages looked at under the tokens
-      at three widths — nothing had broken. Error flashes and failed-run lines
+      at three widths: nothing had broken. Error flashes and failed-run lines
       say what failed, what is safe and what to do (`flash.ts:firstIssue`,
       `runFailure(what, reason, next)`). The full 26-page table is in
       metrics.md: helper prose −45 %, boxes −21 %, height −19 % against stage

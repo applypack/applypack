@@ -420,8 +420,7 @@ settingsRoute.post('/settings/schedule', async (c) => {
   };
   const parsed = ScheduleSchema.safeParse(candidate);
   if (!parsed.success) {
-    const first = parsed.error.issues[0];
-    return flashRedirect('/settings?tab=general', 'err', `Schedule not saved: ${first?.path.join('.') ?? 'input'} — ${first?.message ?? 'invalid'}.`);
+    return flashRedirect('/settings?tab=general', 'err', `Schedule not saved (${firstIssue(parsed.error.issues)}). The stored schedule is unchanged; fix that field and save again.`);
   }
   await setSchedule(parsed.data);
   const held = await countHeldAlerts();

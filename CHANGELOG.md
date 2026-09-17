@@ -9,8 +9,8 @@ All notable changes to this project are documented here. The format follows
 ### Changed
 - **An empty page says what to do.** Every empty list, table and card now
   names what is missing, says in one sentence why that matters, and offers one
-  way forward — "No alerts yet · A job lands here when a running search scores
-  it at or above its threshold · See all jobs" instead of "No alerted jobs
+  way forward: "No alerts yet · A job lands here when a running search scores
+  it at or above its threshold · See all jobs" where it said "No alerted jobs
   yet."
 - **An error says what is safe.** The messages that only reported a failure
   ("Invalid form values.", "Probe failed", "Test failed", "Generation failed —
@@ -25,7 +25,7 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 - A status pill or tag carried an 80-byte class for its background. Pages with
-  many tags shrank — a resume with a hundred skills by 7 KB.
+  many tags shrank: a resume with a hundred skills by 7 KB.
 
 ## [2.16.0] — 2026-09-17
 
