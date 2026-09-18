@@ -72,7 +72,7 @@ install, unchanged.
   watched for changes.
 
 <div align="center">
-<img src="docs/screenshots/jobs.png" alt="Jobs: a table of postings with fit scores, companies, locations with country flags, salaries and statuses" width="900">
+<img src="docs/screenshots/jobs-list.png" alt="Jobs: a table of postings with fit scores, companies, locations with country flags, salaries and statuses" width="900">
 </div>
 
 **Fix the resume for this posting**
@@ -94,7 +94,7 @@ install, unchanged.
   [0039](./docs/adr/0039-clean-render-from-json-resume.md)).
 
 <div align="center">
-<img src="docs/screenshots/target.png" alt="Tailor resume: an 84/100 score with the primary stack 3/3, the one edit to make first, what the posting is about, the hard requirements, and the posting beside the resume with every keyword marked" width="900">
+<img src="docs/screenshots/tailor-resume.png" alt="Tailor resume: an 84/100 score with the primary stack 3/3, the one edit to make first, what the posting is about, the hard requirements, and the posting beside the resume with every keyword marked" width="900">
 </div>
 
 **Send it and track it**
@@ -159,7 +159,7 @@ Postgres, development and hosting for other people:
 
 ## What it costs
 
-Nothing, except the AI you choose. MIT licence, no hosted version, no
+Nothing, except the AI you choose. MIT license, no hosted version, no
 accounts, no subscription, no telemetry, no ads. You pick the meter:
 
 | You have | Extra cost |
@@ -167,7 +167,7 @@ accounts, no subscription, no telemetry, no ads. You pick the meter:
 | A Claude.ai, ChatGPT or Google subscription | **$0.** The Claude Code, Codex and Gemini CLIs ride it. When the usage window runs dry, the next engine takes over and the first comes back on its own |
 | Gemini CLI's free tier | **$0** for a typical day of classification |
 | A local model via Ollama or LM Studio | **$0** |
-| An Anthropic API key | About **$2–10 a month**. A classified posting costs ~$0.003 on Haiku 4.5, and the bill follows how many postings your sources produce, not how many you apply to. The two-stage classifier cuts another 30–40 % |
+| An Anthropic API key | About **$2–10 a month**. A classified posting costs ~$0.003 on Haiku 4.5, and the bill follows how many postings your sources produce, not how many you apply to. The two-stage classifier cuts another 30–40% |
 
 Postgres, Telegram, Discord and the job boards cost nothing. The AI tab
 counts which engine served your calls in the last seven days.
@@ -213,9 +213,9 @@ Coverage is two-tier, because the HR vendors have no "all jobs" API:
 **direct boards** for the companies you track (paste a board URL; the form
 probes it live and refuses one that does not resolve) and **aggregators**:
 RemoteOK, Remotive, We Work Remotely, Jobicy, Working Nomads, Himalayas,
-Laravel Jobs, Golang Projects, Arbeitnow, 4 Day Week, solid.jobs,
-DevITjobs, Landing.jobs, JobTech, the HN feeds, and Adzuna and France
-Travail with your own free key. Leave the aggregators on: a dozen tracked
+Laravel Jobs, Golang Projects, Arbeitnow, 4 Day Week, DOU, Djinni,
+solid.jobs, DevITjobs, Landing.jobs, JobTech, the HN feeds, and Adzuna
+and France Travail with your own free key. Leave the aggregators on: a dozen tracked
 companies do not post a matching role every week, and your profile keeps
 the long tail quiet.
 
