@@ -22,11 +22,11 @@ for. MIT: no accounts, no subscription, no telemetry, no ads.
 [What it does](#what-it-does) · [What it costs](#what-it-costs) ·
 [Bring your own AI](#bring-your-own-ai) · [Employer mode](#employer-mode-screening-a-folder-of-resumes)
 
-<img src="docs/screenshots/target.png" alt="Tailor resume: a 70/100 score capped by the primary-stack verdict, nine suggested edits, experience confirmations, and the posting beside the resume with every keyword weighted and counted" width="900">
+<img src="docs/screenshots/tour.gif" alt="A 25-second tour: the job list with fit scores, one posting's verdict, the resume compared with it, the editor where one press adds a keyword and the score moves, and the fact-checked cover letter" width="900">
 
-<sub>Tailor resume: a Laravel resume against a Laravel + React posting. The
-score is capped at 70 because React and TypeScript are missing, nine edits
-are ready to apply, and the number moves as you type.</sub>
+<sub>Twenty-five seconds, no cuts: the jobs it found and scored, one
+posting's verdict, your resume against it, an edit that moves the score
+with no AI call, and the letter. Synthetic resume and companies.</sub>
 
 </div>
 
@@ -72,7 +72,7 @@ install, unchanged.
   watched for changes.
 
 <div align="center">
-<img src="docs/screenshots/jobs.png" alt="Jobs: a full-width table with fit scores, sources, salaries, statuses and a ghost-job flag" width="900">
+<img src="docs/screenshots/jobs.png" alt="Jobs: a table of postings with fit scores, companies, locations with country flags, salaries and statuses" width="900">
 </div>
 
 **Fix the resume for this posting**
@@ -92,6 +92,10 @@ install, unchanged.
   own font
   ([ADR 0038](./docs/adr/0038-save-patches-the-users-docx-in-place.md),
   [0039](./docs/adr/0039-clean-render-from-json-resume.md)).
+
+<div align="center">
+<img src="docs/screenshots/target.png" alt="Tailor resume: an 84/100 score with the primary stack 3/3, the one edit to make first, what the posting is about, the hard requirements, and the posting beside the resume with every keyword marked" width="900">
+</div>
 
 **Send it and track it**
 
