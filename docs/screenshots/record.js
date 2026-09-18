@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Drives headless Chrome over the DevTools protocol against the scratch ApplyPack:
-//   node record.js shots <outdir>   → 1440×900 fold screenshots (jobs.png, target.png)
+//   node record.js shots <outdir>   → 1440×900 fold screenshots (jobs-list.png, tailor-resume.png)
 //   node record.js gif <outdir>     → screencast frames + list.txt for ffmpeg (1200×760)
 const { spawn } = require('node:child_process');
 const fs = require('node:fs');
@@ -124,7 +124,7 @@ async function main() {
   try {
     if (mode === 'shots') {
       await cdp.send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false });
-      const shots = [['jobs', '/jobs?sort=fitScore_desc'], ['target', `/jobs/${JOB}/target?match=${MATCH}`]];
+      const shots = [['jobs-list', '/jobs?sort=fitScore_desc'], ['tailor-resume', `/jobs/${JOB}/target?match=${MATCH}`]];
       for (const [name, url] of shots) {
         await goto(url);
         await evalJs(`document.getElementById('__cur').remove(); document.getElementById('__cap').remove(); 'ok'`);

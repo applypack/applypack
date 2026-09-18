@@ -1,7 +1,7 @@
 # The README's screenshots and the tour GIF
 
 Everything here is shot on a **scratch install with synthetic data**, never
-on the owner's database. `jobs.png` and `target.png` are the 1440×900 fold;
+on the owner's database. `jobs-list.png` and `tailor-resume.png` are the 1440×900 fold;
 `tour.gif` is a 25-second screencast (1440×966, the caption band under the
 page). Re-shoot both after a UI change that moves what they show.
 
@@ -57,7 +57,7 @@ no dependency). `BASE`, `JOB` and `MATCH` are environment variables
 (defaults: port 4949, job 14, match 1).
 
 ```bash
-node docs/screenshots/record.js shots docs/screenshots     # jobs.png, target.png
+node docs/screenshots/record.js shots docs/screenshots     # jobs-list.png, tailor-resume.png
 node docs/screenshots/record.js gif /tmp/ap-frames         # the screencast, frames + timestamps
 python3 docs/screenshots/build-gif.py /tmp/ap-frames /tmp/ap-seq 15   # 15 fps on the real timeline + caption band (Pillow)
 ffmpeg -framerate 15 -i /tmp/ap-seq/%04d.png \
