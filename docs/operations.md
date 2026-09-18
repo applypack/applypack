@@ -1,7 +1,27 @@
-# Running ApplyPack: your data, the schedule, your own Postgres, hosting
+# Running ApplyPack: the pages, your data, the schedule, your own Postgres, hosting
 
-> Operator notes for an install that already works. Installing is
+> Notes for an install that already works. Installing is
 > [install.md](./install.md); the AI engines are [ai-engines.md](./ai-engines.md).
+
+## The pages
+
+| Page | URL | What it's for |
+| --- | --- | --- |
+| First run | `/welcome` | The five setup steps; `/` redirects here until you finish or skip |
+| Overview | `/` | Four counters by status (each opens its jobs), recent alerts, pipeline health, pause/resume, Fetch now |
+| Jobs | `/jobs` | Filterable, sortable list of everything fetched |
+| Paste a job | `/jobs/new` | Save a posting by hand (LinkedIn, email, referral); it gets classified like any other |
+| Job detail | `/jobs/:id` | Four tabs — the posting with the AI verdict, resume match, cover letter, "is it real?" — beside status actions, details and tracking |
+| Tailor resume | `/jobs/:id/target` | Posting ↔ resume side by side, live keyword score, edit in place |
+| Compare | `/target` | One-shot comparison: paste any posting, pick / upload / paste any resume |
+| Cover letter | `/letter` | Write a letter for a posting that isn't stored yet: pick, paste or link it, then draft |
+| Applications | `/applications` | Kanban with drag-and-drop. Applied and Rejected/Ghosted are fixed; every column between them is yours to name, add and reorder ([ADR 0025](./adr/0025-custom-work-stages.md)) |
+| Resumes | `/resumes` | Upload `.pdf` / `.docx` / `.md` / `.txt`, AI scan, version history, template check |
+| Clean version | `/resumes/:id/render` | Re-typeset a resume that cannot be edited in place as a single-column `.docx` / `.pdf` in its own typography |
+| Companies | `/companies` | Tracked boards; add new ones with a live probe that refuses bad slugs. **Watch specific companies** takes a pasted list of career-page URLs and resolves each to the board or feed behind it |
+| Discovery | `/discovery` | Board candidates harvested from HN, with the discovery toggles |
+| Runs | `/runs` | The last 100 runs, each as a sentence ("594 fetched · 3 new · 0 alerted"), errors in full, raw output one press away |
+| Settings | `/settings` | Six tabs: General · Profile · AI engine · Notifications · Sources · Screening |
 
 ## Your data, and how to keep it
 
