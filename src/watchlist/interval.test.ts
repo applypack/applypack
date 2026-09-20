@@ -3,7 +3,9 @@ import assert from 'node:assert/strict';
 import {
   ALERT_POLICIES,
   CHECK_INTERVALS,
+  PACING_TOLERANCE_MS,
   alertsEveryPosting,
+  dueCutoff,
   intervalLabel,
   isDue,
   nextCheckAfter,
@@ -49,13 +51,67 @@ describe('isDue', () => {
   });
 
   it('is not due while the interval has not elapsed', () => {
-    const soon = new Date(NOW.getTime() + 1);
+    const soon = new Date(NOW.getTime() + 30 * 60 * 1000);
     assert.equal(isDue({ checkEvery: 'hour', nextCheckAt: soon }, NOW), false);
   });
 
   it('is due when the row fell behind', () => {
     const past = new Date(NOW.getTime() - 9 * 24 * 60 * 60 * 1000);
     assert.equal(isDue({ checkEvery: 'week', nextCheckAt: past }, NOW), true);
+  });
+
+  it('allows the slack, so a row stamped a hair late is still read this tick', () => {
+    const hair = new Date(NOW.getTime() + PACING_TOLERANCE_MS - 1);
+    assert.equal(isDue({ checkEvery: 'hour', nextCheckAt: hair }, NOW), true);
+    const beyond = new Date(NOW.getTime() + PACING_TOLERANCE_MS + 1);
+    assert.equal(isDue({ checkEvery: 'hour', nextCheckAt: beyond }, NOW), false);
+  });
+
+  it('reads the same rule the walk\'s where clause reads', () => {
+    const cutoff = dueCutoff(NOW);
+    assert.equal(isDue({ checkEvery: 'hour', nextCheckAt: cutoff }, NOW), true);
+    assert.equal(cutoff.getTime() - NOW.getTime(), PACING_TOLERANCE_MS);
+  });
+});
+
+/**
+ * The defect this pins, measured on the live install 2026-09-15…18: hourly
+ * rows were read every OTHER tick. `nextCheckAt` was stamped an interval
+ * after the attempt FINISHED, the next heartbeat started a moment earlier
+ * than that, and the row missed its own slot every single time.
+ */
+describe('pacing over a day of heartbeats', () => {
+  /** One hourly cron, `ticks` times, jitter included. Returns how often the row was read. */
+  function readsOverTicks(checkEvery: string, ticks: number, stampFrom: 'tick' | 'attempt'): number {
+    const HOUR = 60 * 60 * 1000;
+    let nextCheckAt: Date | null = null;
+    let reads = 0;
+    for (let i = 0; i < ticks; i++) {
+      // A cron fires on its minute, never on the same millisecond twice.
+      const tick = new Date(NOW.getTime() + i * HOUR + (i % 2 === 0 ? 700 : 100));
+      if (!isDue({ checkEvery, nextCheckAt }, tick)) continue;
+      reads++;
+      // The walk takes a while: sources, polite delays, a slow board.
+      const attemptEnded = new Date(tick.getTime() + 95_000);
+      nextCheckAt = nextCheckAfter({ checkEvery }, stampFrom === 'tick' ? tick : attemptEnded);
+    }
+    return reads;
+  }
+
+  it('reads an hourly row on every heartbeat', () => {
+    assert.equal(readsOverTicks('hour', 24, 'tick'), 24);
+  });
+
+  it('holds even if the stamp is taken at the end of a long walk', () => {
+    assert.equal(readsOverTicks('hour', 24, 'attempt'), 24);
+  });
+
+  it('reads a daily row once a day, not once every 25 hours', () => {
+    assert.equal(readsOverTicks('day', 48, 'tick'), 2);
+  });
+
+  it('reads a weekly row once a week', () => {
+    assert.equal(readsOverTicks('week', 24 * 14, 'tick'), 2);
   });
 });
 
