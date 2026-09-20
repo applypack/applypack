@@ -646,21 +646,26 @@ export async function getPostingRefreshedAt(jobId: number): Promise<Date | null>
 
 /**
  * The stored reading of this exact posting text under this brief version
- * (ADR 0044), newest first. A miss means the brief has to be written; a hit
- * costs one indexed lookup and no AI at all.
+ * (ADR 0044). A miss means the brief has to be written; a hit costs one
+ * lookup on the key and no AI at all.
  */
 export async function getPostingBrief(
   jobId: number,
   postingHash: string,
   promptVersion: number,
 ): Promise<{ id: number; brief: unknown; model: string; createdAt: Date } | null> {
-  return prisma.postingBrief.findFirst({
-    where: { jobId, postingHash, promptVersion },
-    orderBy: { createdAt: 'desc' },
+  return prisma.postingBrief.findUnique({
+    where: { jobId_postingHash_promptVersion: { jobId, postingHash, promptVersion } },
     select: { id: true, brief: true, model: true, createdAt: true },
   });
 }
 
+/**
+ * An upsert, because the key is unique (D12d): two comparisons of one posting
+ * started together both missed the lookup above, and the second write used to
+ * add a row nobody would read. The newer reading wins, as the old newest-first
+ * read already had it.
+ */
 export async function createPostingBrief(input: {
   jobId: number;
   model: string;
@@ -668,8 +673,12 @@ export async function createPostingBrief(input: {
   postingHash: string;
   brief: unknown;
 }): Promise<{ id: number }> {
-  return prisma.postingBrief.create({
-    data: { ...input, brief: input.brief as Prisma.InputJsonValue },
+  const { jobId, postingHash, promptVersion, model } = input;
+  const brief = input.brief as Prisma.InputJsonValue;
+  return prisma.postingBrief.upsert({
+    where: { jobId_postingHash_promptVersion: { jobId, postingHash, promptVersion } },
+    create: { jobId, postingHash, promptVersion, model, brief },
+    update: { model, brief, createdAt: new Date() },
     select: { id: true },
   });
 }

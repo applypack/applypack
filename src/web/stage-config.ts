@@ -26,7 +26,7 @@ export const DEFAULT_WORK_STAGES: StageDef[] = [
 ];
 
 export const MAX_WORK_STAGES = 10;
-const RESERVED_KEYS = new Set(['applied', 'rejected', 'ghosted']);
+const RESERVED_KEYS = new Set(['applied', 'rejected', 'ghosted', 'unfiled']);
 
 const StageListSchema = z
   .array(
@@ -124,6 +124,21 @@ export function renameStage(
 /** Ordered board columns: the fixed entry plus the configured work list. */
 export function boardStages(work: StageDef[]): StageDef[] {
   return [ENTRY_STAGE, ...work];
+}
+
+/**
+ * The column for jobs whose stage the board no longer has (D12e).
+ *
+ * A removed column used to strand its jobs: `/applications` asks only for the
+ * configured keys, so the cards vanished — invisible, and with no column to
+ * drag them out of. The key is reserved, so a user cannot create a second one.
+ */
+export const UNFILED_STAGE: StageDef = { key: 'unfiled', label: 'Unfiled' };
+
+/** The stages these jobs hold that no column covers. Empty is the normal case. */
+export function strandedStages(work: StageDef[], held: readonly (string | null)[]): string[] {
+  const known = new Set(allStages(work).map((s) => s.key));
+  return [...new Set(held.filter((k): k is string => k !== null && !known.has(k)))];
 }
 
 /** Every stage a job can hold, in funnel order. */

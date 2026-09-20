@@ -715,7 +715,9 @@ model PostingBrief {
   brief         Json
   createdAt     DateTime @default(now())
 
-  @@index([jobId, postingHash, promptVersion])
+  // The memo key, not merely an index (D12d): two comparisons of one posting
+  // starting together both missed the lookup and both paid for a brief.
+  @@unique([jobId, postingHash, promptVersion])
   @@map("posting_brief")
 }
 

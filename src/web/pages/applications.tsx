@@ -9,6 +9,7 @@ import {
   dotClassFor,
   nextStageKey,
   TERMINAL_STAGES,
+  UNFILED_STAGE,
   type StageDef,
 } from '../stage-config';
 import type { StageTimeLine } from '../stage-time';
@@ -26,6 +27,8 @@ export interface ApplicationsProps {
   byStage: Record<string, ApplicationCard[]>;
   /** Configured work columns (ADR 0025) — entry and exits are fixed. */
   work: StageDef[];
+  /** Some jobs hold a stage no column covers, so "Unfiled" is shown (D12e). */
+  stranded?: boolean;
   applicationTrackingEnabled: boolean;
   flash?: FlashMessage | null;
 }
@@ -139,13 +142,17 @@ const BOARD_BOOT = `
 export const ApplicationsPage: FC<ApplicationsProps> = ({
   byStage,
   work,
+  stranded = false,
   applicationTrackingEnabled,
   flash,
 }) => {
   const columns = boardStages(work);
   const count = (key: string) => byStage[key]?.length ?? 0;
   const activeCount = columns.reduce((sum, s) => sum + count(s.key), 0);
-  const closedCount = TERMINAL_STAGES.reduce((sum, s) => sum + count(s.key), 0);
+  // "Unfiled" folds in with the closed columns: it is an exception to look at,
+  // not a step of the funnel.
+  const closedColumns = [...TERMINAL_STAGES, ...(stranded ? [UNFILED_STAGE] : [])];
+  const closedCount = closedColumns.reduce((sum, s) => sum + count(s.key), 0);
 
   return (
     <Layout title="Applications" active="applications" fill>
@@ -236,10 +243,11 @@ export const ApplicationsPage: FC<ApplicationsProps> = ({
               Closed
               <span class="ml-2 text-xs font-normal text-ink-faint">
                 {count('rejected')} rejected · {count('ghosted')} ghosted
+                {stranded ? ` · ${count(UNFILED_STAGE.key)} unfiled` : ''}
               </span>
             </summary>
             <div class="grid gap-4 border-t border-line/70 p-4 md:grid-cols-2">
-              {TERMINAL_STAGES.map((s) => {
+              {closedColumns.map((s) => {
                 const items = byStage[s.key] ?? [];
                 return (
                   <section data-drop-stage={s.key} aria-labelledby={`stage-${s.key}`}>
@@ -255,6 +263,12 @@ export const ApplicationsPage: FC<ApplicationsProps> = ({
                         {items.length}
                       </span>
                     </div>
+                    {s.key === UNFILED_STAGE.key && (
+                      <p data-ui="hint" class="pb-2 text-meta text-ink-faint">
+                        The column these were in was removed. Move each one to a
+                        column that still exists.
+                      </p>
+                    )}
                     <ul class="space-y-2">
                       {items.length === 0 ? (
                         <li class="px-1 py-1 text-meta text-ink-faint">None</li>

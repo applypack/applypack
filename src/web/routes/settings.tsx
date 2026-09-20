@@ -3,6 +3,7 @@ import { Hono } from 'hono';
 import { idParam } from '../params';
 import { onceGuard } from '../once-guard';
 import { AtsType } from '@prisma/client';
+import type { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { logger } from '../../logger';
 import {
@@ -31,6 +32,8 @@ import {
   setEmployerMode,
   setScreeningRetentionDays,
   SCREENING_RETENTION_DAYS,
+  SETTINGS_ID,
+  withGlobalWriteLock,
 } from '../../settings';
 import { setEmployerModeCache } from '../employer-mode';
 import { applicantNotice, LEGAL_NOTE } from '../../screening/notice';
@@ -751,15 +754,38 @@ settingsRoute.post('/settings/stages/add', async (c) => {
 
 settingsRoute.post('/settings/stages/:key/remove', async (c) => {
   const key = c.req.param('key');
-  const inUse = await prisma.job.count({ where: { pipelineStage: key } });
-  if (inUse > 0) {
+  // The count and the write go together (D12e). Read the count, hand back to
+  // the event loop, then write, and a settings tab editing the same list in
+  // between decided from a stale one. A card dragged into the column in that
+  // instant is still possible — the drag itself takes no lock, and making
+  // every card move queue on one row would be a poor trade — so a stranded
+  // job is caught by the "Unfiled" column on the board rather than lost.
+  const outcome = await withGlobalWriteLock(async (tx) => {
+    const held = await tx.job.count({ where: { pipelineStage: key } });
+    if (held > 0) return { kind: 'in-use' as const, held };
+    const row = await tx.appSettings.findUnique({
+      where: { id: SETTINGS_ID },
+      select: { pipelineStages: true },
+    });
+    const next = removeStage(parseStageConfig(row?.pipelineStages), key);
+    if (typeof next === 'string') return { kind: 'refused' as const, error: next };
+    await tx.appSettings.update({
+      where: { id: SETTINGS_ID },
+      data: { pipelineStages: JSON.parse(JSON.stringify(next)) as Prisma.InputJsonValue },
+    });
+    return { kind: 'ok' as const };
+  });
+  if (outcome.kind === 'in-use') {
     return flashRedirect(
       STAGES_BACK,
       'err',
-      `Move ${inUse} job${inUse === 1 ? '' : 's'} out of that column first.`,
+      `Move ${outcome.held} job${outcome.held === 1 ? '' : 's'} out of that column first.`,
     );
   }
-  return applyStageEdit((work) => removeStage(work, key), 'Column removed.');
+  if (outcome.kind === 'refused') {
+    return flashRedirect(STAGES_BACK, 'err', STAGE_ERROR_TEXT[outcome.error]);
+  }
+  return flashRedirect(STAGES_BACK, 'ok', 'Column removed.');
 });
 
 settingsRoute.post('/settings/stages/:key/move', async (c) => {
