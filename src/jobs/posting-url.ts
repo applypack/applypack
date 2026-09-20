@@ -2,6 +2,7 @@ import dns from 'node:dns/promises';
 import { isIP } from 'node:net';
 import { z } from 'zod';
 import { fetchWithRetry, HttpError, stripHtml, type FetchOptions } from '../http';
+import { looksLikeChallengeText } from '../watchlist/scan';
 import { MIN_DESCRIPTION_CHARS } from './manual-job';
 
 /*
@@ -26,9 +27,6 @@ const BLOCKED_POSTING_HOSTS = [
   'wellfound.com',
   'dice.com',
 ];
-
-const CHALLENGE_MARKERS =
-  /just a moment|checking your browser|cloudflare|are you a (?:robot|human)|captcha|access denied|enable javascript and cookies/i;
 
 /*
  * Ashby draws its job pages in the browser, so a GET returns a shell with no
@@ -283,7 +281,7 @@ export function postingTextFromHtml(html: string): PostingUrlResult {
 }
 
 function postingText(text: string): PostingUrlResult {
-  if (CHALLENGE_MARKERS.test(text.slice(0, 600))) {
+  if (looksLikeChallengeText(text)) {
     return { ok: false, error: 'The page answered with a bot check — paste the posting text instead.' };
   }
   if (text.length < MIN_DESCRIPTION_CHARS) {
