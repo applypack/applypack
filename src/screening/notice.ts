@@ -30,11 +30,10 @@ export function applicantNotice(
   ].join('\n');
 }
 
-/** What the person turning the mode on is agreeing to carry — the settings tab says it once, in full. */
 /**
  * Mirrors `settings.ts:SCREENING_RETENTION_DAYS.default`. Not imported from
  * there: this module is pure and the settings module reaches for Prisma, and
- * the caller passes the install's real number anyway.
+ * every real caller passes the install's own number anyway.
  */
 const DEFAULT_RETENTION_DAYS = 90;
 
@@ -44,6 +43,7 @@ function retentionPhrase(days: number): string {
   return `${whole} ${whole === 1 ? 'day' : 'days'}`;
 }
 
+/** What the person turning the mode on is agreeing to carry — the settings tab says it once, in full. */
 export const LEGAL_NOTE = [
   'Screening other people’s resumes with an AI tool is regulated in a way the rest of ApplyPack is not. Under the EU AI Act (Annex III, 4(a)) a system that filters job applications is high-risk, and the open-source exemption does not cover high-risk use; under GDPR art. 22 nobody may be subject to a hiring decision made solely by automated means, and art. 13–14 require applicants to be told. NYC Local Law 144, Colorado SB 24-205 and Illinois HB 3773 add audit and notice duties in the US.',
   'This mode is built to be the tool, not the decision: it ranks, quotes and asks; a person decides, and every score can be read off a table. Two things are yours: tell applicants (the notice below), and run it on an engine you have a data-processing agreement with or on a local model — a personal-subscription CLI is not that.',
