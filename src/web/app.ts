@@ -141,10 +141,26 @@ app.route('/', healthRoute);
 
 app.notFound((c) => c.text('Not found', 404));
 
+/**
+ * A body that is not the multipart it claims to be. undici raises a plain
+ * TypeError from `formData()` and hono hands it straight to `onError`, so a
+ * malformed upload read as a server fault — it is the request that is wrong
+ * (D12g). Matched on the message because that is the only signal there is;
+ * if a future undici words it differently the answer goes back to 500, which
+ * is where it is today.
+ */
+function isMalformedBody(err: unknown): boolean {
+  return err instanceof TypeError && /Failed to parse body as FormData/i.test(err.message);
+}
+
 app.onError((err, c) => {
   // A status hono itself raised — the 413 of a body past its limit — is the
   // answer, not an accident to flatten into a 500.
   if (err instanceof HTTPException) return err.getResponse();
+  if (isMalformedBody(err)) {
+    logger.warn({ path: c.req.path }, 'web: malformed request body');
+    return c.text('Malformed request body', 400);
+  }
   logger.error({ err, path: c.req.path }, 'web: unhandled error');
   return c.text('Internal server error', 500);
 });

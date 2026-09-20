@@ -87,11 +87,19 @@ export function firstIssue(issues: readonly { path: readonly PropertyKey[]; mess
 
 /**
  * A redirect target from a form field, kept local — an absolute or
- * protocol-relative URL would be an open redirect.
+ * protocol-relative URL would be an open redirect, and a control character
+ * would be a header split: `Location: /jobs\r\nSet-Cookie: …` is two headers
+ * to anything that does not encode it for us (D12h).
  */
 export function safeBack(back: unknown, fallback: string): string {
-  return typeof back === 'string' && back.startsWith('/') && !back.startsWith('//') ? back : fallback;
+  if (typeof back !== 'string') return fallback;
+  if (!back.startsWith('/') || back.startsWith('//')) return fallback;
+  return CONTROL_CHARS.test(back) ? fallback : back;
 }
+
+// C0, DEL and C1. Not just CR/LF: a bare \n splits a header for some clients
+// and \u0085 is a line break to others.
+const CONTROL_CHARS = /[\u0000-\u001f\u007f-\u009f]/;
 
 export function clearFlashCookie(): string {
   return 'flash=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax';

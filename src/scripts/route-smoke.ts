@@ -209,6 +209,66 @@ async function main(): Promise<void> {
     rows.push({ route: p.name, url: postPaths[i]!, status: res.status, ok: p.expect(res) });
   }
 
+  // What a request gets WRONG. Every one of these used to be a 500 or worse,
+  // and a 500 anywhere fails the build — so the negative paths need naming
+  // as explicitly as the happy ones (H30).
+  const negatives: { name: string; url: string; init: RequestInit; expect: (res: Response) => boolean }[] = [
+    {
+      name: 'GET /jobs/:id with a non-numeric id (400, not a crash)',
+      url: '/jobs/not-a-number',
+      init: { headers: ORIGIN },
+      expect: (res) => res.status === 400 || res.status === 404,
+    },
+    {
+      name: 'GET /jobs/:id that does not exist (404)',
+      url: '/jobs/99999999',
+      init: { headers: ORIGIN },
+      expect: (res) => res.status === 404,
+    },
+    {
+      name: 'POST a body that is not the multipart it claims (400, D12g)',
+      url: '/resumes',
+      init: {
+        method: 'POST',
+        headers: { ...ORIGIN, 'content-type': 'multipart/form-data; boundary=----smoke' },
+        body: 'this is not multipart at all',
+      },
+      expect: (res) => res.status === 400,
+    },
+    {
+      name: 'POST a body past the size limit (413)',
+      url: '/jobs/new',
+      init: {
+        method: 'POST',
+        headers: { ...ORIGIN, 'content-type': 'application/x-www-form-urlencoded' },
+        body: `description=${'x'.repeat(30 * 1024 * 1024)}`,
+      },
+      expect: (res) => res.status === 413,
+    },
+  ];
+  for (const n of negatives) {
+    const res = await app.request(n.url, n.init);
+    rows.push({ route: n.name, url: n.url, status: res.status, ok: n.expect(res) });
+  }
+
+  // The same posting pasted twice at once: the unique key settles it and BOTH
+  // requests get an answer, rather than the loser reading on an aborted
+  // transaction and returning a 500 (D4).
+  const twice = {
+    companyName: 'Smoke Race',
+    title: 'Race Engineer',
+    url: '',
+    location: 'Berlin',
+    description: POSTING,
+  };
+  const raced = await Promise.all([app.request('/jobs/new', form(twice)), app.request('/jobs/new', form(twice))]);
+  rows.push({
+    route: 'POST /jobs/new twice at once (both 303, D4)',
+    url: '/jobs/new',
+    status: raced[0]!.status,
+    ok: raced.every((r) => r.status === 303 && /^\/jobs\/\d+/.test(r.headers.get('location') ?? '')),
+  });
+
   const failed = rows.filter((r) => !r.ok);
   const width = Math.max(...rows.map((r) => r.route.length));
   for (const r of rows) console.log(`${r.ok ? 'ok ' : 'FAIL'}  ${r.status}  ${r.route.padEnd(width)}  ${r.url}`);
