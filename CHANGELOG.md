@@ -4,6 +4,31 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.18.1] — 2026-09-20
+
+### Fixed
+- **A duplicate is said, not thrown.** Pasting the same posting from two tabs
+  at once answered one of them with a 500: the retry read from a transaction
+  Postgres had already aborted. A second Telegram target, Discord webhook or
+  company row did the same. Each now says what happened.
+- **A removed board column no longer swallows its cards.** A job left in a
+  column that was deleted was invisible on the board with nothing to drag it
+  out of; those jobs now appear under **Unfiled**, beside the closed columns,
+  with one line saying what to do.
+- **An alert cannot overwrite your answer.** Dismissing or saving a job in the
+  seconds between the message going out and the row being stamped used to be
+  overwritten with "Alerted". Your status stands; the message was sent either
+  way.
+- Two resume uploads, two first comparisons or two tabs editing searches at
+  the same instant could leave two default resumes, two hidden scratch rows,
+  or delete the search the other tab had just made primary. They queue on the
+  same lock the eight-search limit already used.
+- Two comparisons of one posting started together both paid for the model to
+  read it. The stored reading has a real key now, so the second one is free.
+- A malformed upload answers 400 instead of 500, a redirect field carrying a
+  newline is refused, and the progress endpoints the pages poll say
+  `Cache-Control: no-store`.
+
 ## [2.18.0] — 2026-09-20
 
 ### Fixed
@@ -3867,6 +3892,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.18.1]: https://github.com/applypack/applypack/compare/v2.18.0...v2.18.1
 [2.18.0]: https://github.com/applypack/applypack/compare/v2.17.1...v2.18.0
 [2.17.1]: https://github.com/applypack/applypack/compare/v2.17.0...v2.17.1
 [2.17.0]: https://github.com/applypack/applypack/compare/v2.16.0...v2.17.0

@@ -1,6 +1,7 @@
 import { Prisma } from '@prisma/client';
 import type { CandidateFact, CoverLetter, Resume, ResumeMatch, ResumeReview } from '@prisma/client';
 import { prisma } from '../db';
+import { withGlobalWriteLock } from '../settings';
 import { logger } from '../logger';
 import { readAnswers, upsertAnswer, type ReviewAnswer } from './answers';
 import { readFrameReason, type FrameReason } from './keyword-frame';
@@ -49,11 +50,16 @@ export async function createResume(input: {
   text: string;
 }): Promise<ResumeSummary> {
   // The first upload becomes the default so the job page has a preselection.
-  const isDefault = (await prisma.resume.count()) === 0;
-  const row = await prisma.resume.create({
-    // Prisma 6 types Bytes as Uint8Array<ArrayBuffer>; a Buffer's backing store may be shared.
-    data: { ...input, original: new Uint8Array(input.original), isDefault },
-    omit: WITHOUT_ORIGINAL,
+  // Counting and then creating is check-then-act — two first uploads at once
+  // both counted 0 and both became the default (D12b), so the count and the
+  // create share one lock.
+  const row = await withGlobalWriteLock(async (tx) => {
+    const isDefault = (await tx.resume.count()) === 0;
+    return tx.resume.create({
+      // Prisma 6 types Bytes as Uint8Array<ArrayBuffer>; a Buffer's backing store may be shared.
+      data: { ...input, original: new Uint8Array(input.original), isDefault },
+      omit: WITHOUT_ORIGINAL,
+    });
   });
   logger.info({ id: row.id, name: row.name, chars: input.text.length }, 'resume: created');
   return row;
@@ -74,30 +80,43 @@ export async function upsertScratchResume(input: {
   original: Buffer;
   text: string;
 }): Promise<ResumeSummary> {
-  const existing = await prisma.resume.findFirst({ where: { hidden: true }, select: { id: true, text: true } });
+  // "Find it, else create it" is check-then-act: two first compares at once
+  // each found nothing and each created a scratch row, and the second one was
+  // invisible for good (D12a). Finding, replacing and creating all happen
+  // under the lock — the same one the default flag uses, because it is the
+  // same kind of invariant: one row in the whole table.
   const data = { ...input, original: new Uint8Array(input.original) };
-  if (existing) {
-    if (existing.text !== input.text) await deleteCoverLettersForResume(existing.id);
-    const row = await prisma.resume.update({
-      where: { id: existing.id },
-      data: { ...data, version: { increment: 1 }, scannedAt: null },
-      omit: WITHOUT_ORIGINAL,
-    });
-    logger.info({ id: row.id, chars: input.text.length }, 'resume: scratch replaced');
-    return row;
-  }
-  const row = await prisma.resume.create({
-    data: { ...data, hidden: true, isDefault: false },
-    omit: WITHOUT_ORIGINAL,
+  const { row, created, lettersCleared } = await withGlobalWriteLock(async (tx) => {
+    const existing = await tx.resume.findFirst({ where: { hidden: true }, select: { id: true, text: true } });
+    if (!existing) {
+      return {
+        row: await tx.resume.create({ data: { ...data, hidden: true, isDefault: false }, omit: WITHOUT_ORIGINAL }),
+        created: true,
+        lettersCleared: 0,
+      };
+    }
+    // A letter is fact-checked against its resume's CURRENT text, so a new
+    // text retires it — in the same transaction as the swap, or a letter
+    // outlives the text it was checked against.
+    const cleared =
+      existing.text === input.text
+        ? 0
+        : (await tx.coverLetter.deleteMany({ where: { resumeId: existing.id } })).count;
+    return {
+      row: await tx.resume.update({
+        where: { id: existing.id },
+        data: { ...data, version: { increment: 1 }, scannedAt: null },
+        omit: WITHOUT_ORIGINAL,
+      }),
+      created: false,
+      lettersCleared: cleared,
+    };
   });
-  logger.info({ id: row.id, chars: input.text.length }, 'resume: scratch created');
+  logger.info(
+    { id: row.id, chars: input.text.length, lettersCleared },
+    created ? 'resume: scratch created' : 'resume: scratch replaced',
+  );
   return row;
-}
-
-async function deleteCoverLettersForResume(resumeId: number): Promise<number> {
-  const r = await prisma.coverLetter.deleteMany({ where: { resumeId } });
-  if (r.count > 0) logger.info({ resumeId, deleted: r.count }, 'resume: old letters cleared');
-  return r.count;
 }
 
 /** "Upload new version": swap the file + text, bump version, clear the scan. */
@@ -627,21 +646,26 @@ export async function getPostingRefreshedAt(jobId: number): Promise<Date | null>
 
 /**
  * The stored reading of this exact posting text under this brief version
- * (ADR 0044), newest first. A miss means the brief has to be written; a hit
- * costs one indexed lookup and no AI at all.
+ * (ADR 0044). A miss means the brief has to be written; a hit costs one
+ * lookup on the key and no AI at all.
  */
 export async function getPostingBrief(
   jobId: number,
   postingHash: string,
   promptVersion: number,
 ): Promise<{ id: number; brief: unknown; model: string; createdAt: Date } | null> {
-  return prisma.postingBrief.findFirst({
-    where: { jobId, postingHash, promptVersion },
-    orderBy: { createdAt: 'desc' },
+  return prisma.postingBrief.findUnique({
+    where: { jobId_postingHash_promptVersion: { jobId, postingHash, promptVersion } },
     select: { id: true, brief: true, model: true, createdAt: true },
   });
 }
 
+/**
+ * An upsert, because the key is unique (D12d): two comparisons of one posting
+ * started together both missed the lookup above, and the second write used to
+ * add a row nobody would read. The newer reading wins, as the old newest-first
+ * read already had it.
+ */
 export async function createPostingBrief(input: {
   jobId: number;
   model: string;
@@ -649,8 +673,12 @@ export async function createPostingBrief(input: {
   postingHash: string;
   brief: unknown;
 }): Promise<{ id: number }> {
-  return prisma.postingBrief.create({
-    data: { ...input, brief: input.brief as Prisma.InputJsonValue },
+  const { jobId, postingHash, promptVersion, model } = input;
+  const brief = input.brief as Prisma.InputJsonValue;
+  return prisma.postingBrief.upsert({
+    where: { jobId_postingHash_promptVersion: { jobId, postingHash, promptVersion } },
+    create: { jobId, postingHash, promptVersion, model, brief },
+    update: { model, brief, createdAt: new Date() },
     select: { id: true },
   });
 }

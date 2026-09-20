@@ -3,7 +3,7 @@ import { Hono } from 'hono';
 import { idParam } from '../params';
 import { bodyLimit } from 'hono/body-limit';
 import { z } from 'zod';
-import { prisma } from '../../db';
+import { isUniqueViolation, prisma } from '../../db';
 import { logger } from '../../logger';
 import { getAiRuntime } from '../../ai-runtime';
 import { AI_PROVIDER_LABELS, PROVIDER_PAID } from '../../ai-engine';
@@ -15,7 +15,6 @@ import { briefForPosting, briefLine } from '../../resume/brief';
 import { ResumeTextError } from '../../resume/docx-text';
 import { extractResumeText } from '../../resume/resume-text';
 import { applyPreset, draftRubric, PRESETS, rubricEquals, rubricFromForm, rubricSummary, type Preset } from '../../screening/rubric';
-import { Prisma } from '@prisma/client';
 import { displayName, expandUploads, findDuplicate, fingerprintBytes, fingerprintText, MAX_APPLICANTS_PER_SCREENING, MAX_BATCH_UPLOAD_MB } from '../../screening/intake';
 import { findLeaks, readRedactions, redactApplicant } from '../../screening/redact';
 import { MAX_COMPARE, MIN_COMPARE, readScreenReply } from '../../screening/prompts';
@@ -432,7 +431,7 @@ screenRoute.post('/screen/:id/applicants', (c, next) => batchUploadLimit(c.req.p
     } catch (err) {
       // The unique on (screening, textHash) is the check `known` cannot make:
       // another upload of the same file landed since it was read (ADR 0053).
-      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+      if (isUniqueViolation(err)) {
         repeats++;
         continue;
       }

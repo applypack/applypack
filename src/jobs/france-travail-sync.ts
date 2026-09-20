@@ -37,6 +37,12 @@ import type { FetchContext } from '../fetchers/fetch-context';
 
 /** Checks per tick — at one every CALL_GAP_MS that is under a minute of calls. */
 const MAX_CHECKS_PER_TICK = 200;
+/**
+ * Phase 2 withdraws without asking the board, so it is not rate-limited by
+ * anyone but us — the cap is here to keep one tick's memory and one
+ * transaction bounded, not to be polite. Larger than phase 1 for that reason.
+ */
+const MAX_EXPIRIES_PER_TICK = 500;
 const DAY_MS = 24 * 60 * 60 * 1000;
 /**
  * How long an offer may go unverified before we withdraw it ourselves. The
@@ -176,6 +182,12 @@ export async function syncFranceTravail(context: FetchContext): Promise<MirrorSt
   const stale = await prisma.job.findMany({
     where: { companyId, ...unverifiedSince(expiredBefore(now)) },
     select: OFFER_COLUMNS,
+    // Bounded like phase 1 (H26). Nothing is lost by the cap: a row that is
+    // still too old on the next tick is withdrawn then, and the oldest go
+    // first — an unbounded query is how a long outage turns one tick into
+    // the whole table in memory.
+    orderBy: { sourceCheckedAt: { sort: 'asc', nulls: 'first' } },
+    take: MAX_EXPIRIES_PER_TICK,
   });
   const before = result.deleted + result.anonymised;
   await apply(planExpiry(stale), now, result);

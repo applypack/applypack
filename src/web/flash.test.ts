@@ -41,3 +41,12 @@ test('safeBack keeps a redirect on this site', () => {
   assert.equal(safeBack('https://evil.example', '/'), '/');
   assert.equal(safeBack(undefined, '/runs'), '/runs');
 });
+
+test('safeBack refuses a control character, so a Location cannot be split (D12h)', () => {
+  assert.equal(safeBack('/jobs\r\nSet-Cookie: a=b', '/'), '/');
+  assert.equal(safeBack('/jobs\nSet-Cookie: a=b', '/'), '/');
+  assert.equal(safeBack('/jobs\u0085x', '/'), '/');
+  assert.equal(safeBack('/jobs\u0000', '/'), '/');
+  // A space and a percent-escape are ordinary path characters.
+  assert.equal(safeBack('/jobs?q=a%20b', '/'), '/jobs?q=a%20b');
+});

@@ -1,5 +1,5 @@
 import { JobStatus, Prisma, type Job, type Profile } from '@prisma/client';
-import { prisma } from '../db';
+import { isUniqueViolation, prisma } from '../db';
 import { config } from '../config';
 import { logger } from '../logger';
 import { createLimiter } from '../concurrency';
@@ -366,8 +366,12 @@ export async function processNormalizedJobs(
         // Routed to the winning search's chat; null still broadcasts.
         winner.notificationTargetId,
       );
-      await prisma.job.update({
-        where: { id: created.id },
+      // Still NEW, exactly as the held-alert path checks (D12f): the send
+      // takes seconds and the dashboard is open the whole time. A row the
+      // user dismissed or saved in between keeps their status — the message
+      // is out either way, and overwriting their answer is the worse loss.
+      await prisma.job.updateMany({
+        where: { id: created.id, status: JobStatus.NEW },
         data: { status: JobStatus.ALERTED, alertedAt: new Date() },
       });
       stats.alerted++;
@@ -484,7 +488,7 @@ async function persistJob(
       },
     });
   } catch (err) {
-    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+    if (isUniqueViolation(err)) {
       stats.duplicate++;
       logger.warn(
         { title: job.title, companyName },

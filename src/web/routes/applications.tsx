@@ -9,7 +9,7 @@ import { appliedResumeColumns, readAppliedResumeChoice } from '../applied-resume
 import { flashRedirect, parseFlashCookie } from '../flash';
 import { jobHref, resolveJobTab } from '../job-tabs';
 import { ApplicationsPage } from '../pages/applications';
-import { allStages, labelFor, parseStageConfig } from '../stage-config';
+import { allStages, labelFor, parseStageConfig, strandedStages, UNFILED_STAGE } from '../stage-config';
 import { appliedDateCorrection, stageChangeEvent } from '../stage-events';
 import { groupEventsByJob, stageTimeLine, type StageTimeLine } from '../stage-time';
 
@@ -30,13 +30,11 @@ export const applicationsRoute = new Hono();
 applicationsRoute.get('/applications', async (c) => {
   const settings = await getSettings();
   const work = parseStageConfig(settings.pipelineStages);
-  const stageKeys = allStages(work).map((s) => s.key);
-
-  // Explicit select, not include: the board reads six scalars, and a whole
-  // Job row would drag the description and the applied-resume snapshot along
-  // for every card — this query is unbounded in the number of applications.
+  // Every job that holds a stage, not only the ones a column covers: a column
+  // the user removed used to strand its jobs, invisible and with nothing to
+  // drag them out of (D12e). They land in "Unfiled" instead.
   const rows = await prisma.job.findMany({
-    where: { pipelineStage: { in: stageKeys } },
+    where: { pipelineStage: { not: null } },
     select: {
       id: true,
       title: true,
@@ -64,7 +62,9 @@ applicationsRoute.get('/applications', async (c) => {
   const eventsByJob = groupEventsByJob(events, boardIds);
 
   const now = new Date();
-  const byStage = Object.fromEntries(stageKeys.map((k) => [k, []])) as Record<
+  const stranded = strandedStages(work, rows.map((r) => r.pipelineStage));
+  const columns = [...allStages(work), ...(stranded.length > 0 ? [UNFILED_STAGE] : [])];
+  const byStage = Object.fromEntries(columns.map((s) => [s.key, []])) as Record<
     string,
     Array<{
       id: number;
@@ -76,9 +76,9 @@ applicationsRoute.get('/applications', async (c) => {
     }>
   >;
   for (const j of rows) {
-    const stage = j.pipelineStage;
-    if (!stage || !byStage[stage]) continue;
-    byStage[stage].push({
+    if (!j.pipelineStage) continue;
+    const stage = byStage[j.pipelineStage] ? j.pipelineStage : UNFILED_STAGE.key;
+    byStage[stage]!.push({
       id: j.id,
       title: j.title,
       companyName: j.company.name,
@@ -98,6 +98,7 @@ applicationsRoute.get('/applications', async (c) => {
     <ApplicationsPage
       byStage={byStage}
       work={work}
+      stranded={stranded.length > 0}
       applicationTrackingEnabled={settings.applicationTrackingEnabled}
       flash={parseFlashCookie(c.req.header('cookie'))}
     />,

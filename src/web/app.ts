@@ -86,6 +86,18 @@ if (config.WEB_BASIC_AUTH) {
  */
 app.use('*', originGuard());
 
+/**
+ * The progress endpoints the pages poll — a fetch tick, a comparison, a
+ * watchlist resolve, a screening batch — answer the state at this instant
+ * and nothing else (H28). One rule rather than a header per route: they all
+ * end in `/state`, the 404 branches need it as much as the 200s, and the
+ * next progress page gets it without anyone remembering.
+ */
+app.use('*', async (c, next) => {
+  await next();
+  if (c.req.path.endsWith('/state')) c.header('Cache-Control', 'no-store');
+});
+
 // Static files (the browser modules of ADR 0010 among them) never touch the
 // database: served before anything that does, so an unreachable Postgres
 // cannot turn a stylesheet into a 500.
@@ -141,10 +153,26 @@ app.route('/', healthRoute);
 
 app.notFound((c) => c.text('Not found', 404));
 
+/**
+ * A body that is not the multipart it claims to be. undici raises a plain
+ * TypeError from `formData()` and hono hands it straight to `onError`, so a
+ * malformed upload read as a server fault — it is the request that is wrong
+ * (D12g). Matched on the message because that is the only signal there is;
+ * if a future undici words it differently the answer goes back to 500, which
+ * is where it is today.
+ */
+function isMalformedBody(err: unknown): boolean {
+  return err instanceof TypeError && /Failed to parse body as FormData/i.test(err.message);
+}
+
 app.onError((err, c) => {
   // A status hono itself raised — the 413 of a body past its limit — is the
   // answer, not an accident to flatten into a 500.
   if (err instanceof HTTPException) return err.getResponse();
+  if (isMalformedBody(err)) {
+    logger.warn({ path: c.req.path }, 'web: malformed request body');
+    return c.text('Malformed request body', 400);
+  }
   logger.error({ err, path: c.req.path }, 'web: unhandled error');
   return c.text('Internal server error', 500);
 });

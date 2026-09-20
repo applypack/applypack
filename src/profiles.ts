@@ -4,7 +4,7 @@ import { logger } from './logger';
 import { MAX_ACTIVE_PROFILES } from './profile-guards';
 import type { WorkplaceCode } from './location';
 import type { RelocationCode } from './eligibility';
-import { ensureSettingsRow, SETTINGS_ID } from './settings';
+import { SETTINGS_ID, withGlobalWriteLock } from './settings';
 import type { PriorityRule } from './priority-rules';
 
 export interface ProfileInput {
@@ -96,16 +96,10 @@ export async function listActiveProfiles(): Promise<Profile[]> {
  * a dashboard that quietly stops working.
  */
 export async function setProfileActive(id: number, active: boolean): Promise<void> {
-  // The whole decision runs under one lock (issue #70). Counting the running
-  // searches and then flipping the row in a second statement is check-then-act:
-  // two tabs both read 7, both pass, and 9 searches run. A transaction alone
-  // does not fix it — at Read Committed each transaction's count reads its own
-  // snapshot — and locking the rows we counted cannot see a row that became
-  // active while we waited. So both writers queue on the one row that stands
-  // for global state, and the loser re-counts after the winner has committed.
-  await ensureSettingsRow();
-  const name = await prisma.$transaction(async (tx) => {
-    await tx.$queryRaw`SELECT id FROM app_settings WHERE id = ${SETTINGS_ID} FOR UPDATE`;
+  // Counting the running searches and then flipping the row is check-then-act:
+  // two tabs both read 7, both pass, and 9 searches run. `withGlobalWriteLock`
+  // is why they cannot (issue #70).
+  const name = await withGlobalWriteLock(async (tx) => {
     const profile = await tx.profile.findUnique({ where: { id } });
     if (!profile) throw new Error(`Profile ${id} not found`);
     if (active) {
@@ -147,14 +141,17 @@ export async function updateProfile(
 }
 
 export async function deleteProfile(id: number): Promise<void> {
-  // Cannot delete the primary profile — UI must switch first.
-  const settings = await prisma.appSettings.findUnique({
-    where: { id: SETTINGS_ID },
+  // Cannot delete the primary profile — UI must switch first. Under the same
+  // lock as the other profile writes: reading the primary and then deleting
+  // let a tab that was making this search primary win the race, and the
+  // dashboard lost the row every page falls back to (D12c).
+  await withGlobalWriteLock(async (tx) => {
+    const settings = await tx.appSettings.findUnique({ where: { id: SETTINGS_ID } });
+    if (settings?.activeProfileId === id) {
+      throw new Error('Cannot delete the primary profile. Make another one primary first.');
+    }
+    await tx.profile.delete({ where: { id } });
   });
-  if (settings?.activeProfileId === id) {
-    throw new Error('Cannot delete the primary profile. Make another one primary first.');
-  }
-  await prisma.profile.delete({ where: { id } });
 }
 
 export async function setActiveProfile(id: number): Promise<void> {

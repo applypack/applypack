@@ -1,6 +1,6 @@
 import { AtsType } from '@prisma/client';
 import type { Prisma, NotificationTarget } from '@prisma/client';
-import { prisma } from './db';
+import { isUniqueViolation, prisma } from './db';
 import { logger } from './logger';
 import type { AiEngineConfig } from './ai-engine';
 import { parseAiKeys, type AiKeyProviderId, type AiKeys } from './ai-keys';
@@ -56,6 +56,40 @@ export async function ensureSettingsRow(): Promise<void> {
     create: { id: SETTINGS_ID },
   });
 }
+
+/**
+ * Run a write that has to be the only one of its kind in flight (issue #70).
+ *
+ * Some invariants are about a SET of rows, not one of them: at most eight
+ * searches running, exactly one default resume, exactly one scratch resume,
+ * the primary search not deleted from under the tab that is switching it.
+ * Counting and then writing is check-then-act — two tabs both read the old
+ * count and both pass — and a transaction alone does not fix it, because at
+ * Read Committed each one counts inside its own snapshot. Locking the rows
+ * that were counted cannot help either: it cannot see a row that appeared
+ * while we waited.
+ *
+ * So every such writer queues on the one row that stands for global state,
+ * and the loser reads again after the winner has committed.
+ */
+export async function withGlobalWriteLock<T>(
+  run: (tx: Prisma.TransactionClient) => Promise<T>,
+): Promise<T> {
+  await ensureSettingsRow();
+  return prisma.$transaction(
+    async (tx) => {
+      await tx.$queryRaw`SELECT id FROM app_settings WHERE id = ${SETTINGS_ID} FOR UPDATE`;
+      return run(tx);
+    },
+    // The wait for the lock is spent INSIDE the transaction, so it counts
+    // against this budget. Prisma's default of 5 s was set when one caller
+    // held the row for a few queries; a resume upload writes its bytes under
+    // it now, and a waiter should queue rather than fail.
+    { timeout: LOCK_TIMEOUT_MS },
+  );
+}
+
+const LOCK_TIMEOUT_MS = 20_000;
 
 /**
  * Returns the singleton AppSettings row, creating it with defaults if missing.
@@ -376,13 +410,25 @@ export type NewTarget =
   | { kind: 'TELEGRAM'; name: string; botToken: string; chatId: string }
   | { kind: 'DISCORD'; name: string; webhookUrl: string };
 
-export async function addNotificationTarget(input: NewTarget): Promise<NotificationTarget> {
-  return prisma.notificationTarget.create({
-    data:
-      input.kind === 'DISCORD'
-        ? { kind: 'DISCORD', name: input.name, webhookUrl: input.webhookUrl, active: true }
-        : { kind: 'TELEGRAM', name: input.name, botToken: input.botToken, chatId: input.chatId, active: true },
-  });
+/**
+ * Null means the destination was already there. `findSameDestination` answers
+ * that for a user who is not racing themselves; this answers the tab that
+ * pressed Add a moment later, which used to be a bare 500 (D5). All four
+ * callers check it; a new one that forgets adds a target the user is never
+ * told about, which is why it is worth checking.
+ */
+export async function addNotificationTarget(input: NewTarget): Promise<NotificationTarget | null> {
+  try {
+    return await prisma.notificationTarget.create({
+      data:
+        input.kind === 'DISCORD'
+          ? { kind: 'DISCORD', name: input.name, webhookUrl: input.webhookUrl, active: true }
+          : { kind: 'TELEGRAM', name: input.name, botToken: input.botToken, chatId: input.chatId, active: true },
+    });
+  } catch (err) {
+    if (isUniqueViolation(err)) return null;
+    throw err;
+  }
 }
 
 /** The row that already names this destination — the same bot and chat, or the same webhook — if any (ADR 0053). */

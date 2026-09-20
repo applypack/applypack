@@ -1,7 +1,7 @@
-import { AtsType, JobStatus, Prisma } from '@prisma/client';
+import { AtsType, JobStatus } from '@prisma/client';
 import type { Job } from '@prisma/client';
 import { z } from 'zod';
-import { prisma } from '../db';
+import { prisma, retryOnUniqueViolation } from '../db';
 import { decodeHtmlEntities } from '../http';
 import { parseLocation } from '../location';
 import { logger } from '../logger';
@@ -62,17 +62,19 @@ export async function createManualJob(
   // One transaction: the company row and the job row appear together or not
   // at all, and the same paste from two tabs at once (/jobs/new and
   // /screen/new both land here) is settled by the unique key, not by a read
-  // that the other tab can outrun (audit 2026-09-10, DATA-10).
-  const found = await prisma.$transaction(async (tx) => {
-    const company = await tx.company.upsert({
-      where: { atsType_atsToken: { atsType: AtsType.MANUAL, atsToken } },
-      update: {},
-      create: { name: f.companyName, atsType: AtsType.MANUAL, atsToken, active: false },
-    });
-    const where = { companyId_externalId: { companyId: company.id, externalId } };
-    const existing = await tx.job.findUnique({ where, include: jobInclude });
-    if (existing) return { kind: 'existing' as const, job: existing, company };
-    try {
+  // that the other tab can outrun (audit 2026-09-10, DATA-10). The loser of
+  // that race is answered by a SECOND attempt, whose own read finds the row —
+  // reading on the aborted `tx` was a 500 in the user's face (D4).
+  const found = await retryOnUniqueViolation(() =>
+    prisma.$transaction(async (tx) => {
+      const company = await tx.company.upsert({
+        where: { atsType_atsToken: { atsType: AtsType.MANUAL, atsToken } },
+        update: {},
+        create: { name: f.companyName, atsType: AtsType.MANUAL, atsToken, active: false },
+      });
+      const where = { companyId_externalId: { companyId: company.id, externalId } };
+      const existing = await tx.job.findUnique({ where, include: jobInclude });
+      if (existing) return { kind: 'existing' as const, job: existing, company };
       const job = await tx.job.create({
         data: {
           companyId: company.id,
@@ -93,14 +95,8 @@ export async function createManualJob(
         include: jobInclude,
       });
       return { kind: 'created' as const, job, company };
-    } catch (err) {
-      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
-        const raced = await tx.job.findUnique({ where, include: jobInclude });
-        if (raced) return { kind: 'existing' as const, job: raced, company };
-      }
-      throw err;
-    }
-  });
+    }),
+  );
   if (found.kind === 'existing') return { kind: 'existing', job: found.job };
   const { job, company } = found;
   const classified =
