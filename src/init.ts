@@ -107,18 +107,19 @@ async function bootstrapTargetsFromEnv(): Promise<void> {
   if (existing.length > 0) return;
   let added = 0;
   if (config.TELEGRAM_BOT_TOKEN && config.TELEGRAM_CHAT_ID) {
-    await addNotificationTarget({
+    // Null = another boot of the same compose stack got there first.
+    const target = await addNotificationTarget({
       kind: 'TELEGRAM',
       name: 'from .env',
       botToken: config.TELEGRAM_BOT_TOKEN,
       chatId: config.TELEGRAM_CHAT_ID,
     });
-    added++;
+    if (target) added++;
   }
   if (config.DISCORD_WEBHOOK_URL) {
     if (isDiscordWebhookUrl(config.DISCORD_WEBHOOK_URL)) {
-      await addNotificationTarget({ kind: 'DISCORD', name: 'Discord from .env', webhookUrl: config.DISCORD_WEBHOOK_URL });
-      added++;
+      const target = await addNotificationTarget({ kind: 'DISCORD', name: 'Discord from .env', webhookUrl: config.DISCORD_WEBHOOK_URL });
+      if (target) added++;
     } else {
       logger.warn('init: DISCORD_WEBHOOK_URL is not a Discord webhook URL; ignored');
     }

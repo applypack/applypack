@@ -3,7 +3,7 @@ import { Hono, type Context } from 'hono';
 import { idParam } from '../params';
 import { AtsType, JobStatus } from '@prisma/client';
 import { z } from 'zod';
-import { prisma } from '../../db';
+import { isUniqueViolation, prisma } from '../../db';
 import { logger } from '../../logger';
 import { probeAts } from '../../ats-probe';
 import { quietReason } from '../../fetchers/source-health';
@@ -254,9 +254,14 @@ companiesRoute.post('/companies/suggested', async (c) => {
   const probe = await probeAts(wanted.atsType, wanted.atsToken, { keys: await getSourceKeys() });
   if (!probe.ok) return redirectWithFlash(c, 'err', `Nothing was added. ${probe.error}`);
 
-  await prisma.company.create({
-    data: { name: wanted.name, atsType: wanted.atsType, atsToken: wanted.atsToken, careerUrl: wanted.careerUrl, active: false },
-  });
+  try {
+    await prisma.company.create({
+      data: { name: wanted.name, atsType: wanted.atsType, atsToken: wanted.atsToken, careerUrl: wanted.careerUrl, active: false },
+    });
+  } catch (err) {
+    if (!isUniqueViolation(err)) throw err;
+    return redirectWithFlash(c, 'err', `"${wanted.name}" is already on your list, so nothing was added. Find it in the table above.`);
+  }
   logger.info({ name: wanted.name, atsToken: wanted.atsToken, jobs: probe.jobsCount }, 'companies: suggested source added');
   return redirectWithFlash(c, 'ok', `Added "${wanted.name}" (${probe.jobsCount ?? 0} postings), switched off — enable it when ready.`);
 });
@@ -283,9 +288,15 @@ companiesRoute.post('/companies/suggested/all', async (c) => {
       failed.push(s.name);
       continue;
     }
-    await prisma.company.create({
-      data: { name: s.name, atsType: s.atsType, atsToken: s.atsToken, careerUrl: s.careerUrl, active: true },
-    });
+    try {
+      await prisma.company.create({
+        data: { name: s.name, atsType: s.atsType, atsToken: s.atsToken, careerUrl: s.careerUrl, active: true },
+      });
+    } catch (err) {
+      // Added from another tab between the listing and now — not a failure.
+      if (!isUniqueViolation(err)) throw err;
+      continue;
+    }
     enabled.push(s.name);
   }
   logger.info({ enabled, failed }, 'companies: suggested sources enabled');
@@ -384,8 +395,10 @@ companiesRoute.post('/companies/starter-pack/import', async (c) => {
         select: { id: true, name: true, atsType: true, atsToken: true },
       });
       added.push(created);
-    } catch {
+    } catch (err) {
       // Unique (atsType, atsToken) — someone added it between preview and now.
+      // Anything else is a real failure and must not be counted as "skipped".
+      if (!isUniqueViolation(err)) throw err;
       skipped++;
     }
   }
@@ -531,15 +544,21 @@ companiesRoute.post('/companies/new', async (c) => {
     );
   }
 
-  await prisma.company.create({
-    data: {
-      name: name.trim(),
-      atsType,
-      atsToken: atsToken.trim(),
-      careerUrl: careerUrl && careerUrl.length > 0 ? careerUrl : null,
-      active: true,
-    },
-  });
+  try {
+    await prisma.company.create({
+      data: {
+        name: name.trim(),
+        atsType,
+        atsToken: atsToken.trim(),
+        careerUrl: careerUrl && careerUrl.length > 0 ? careerUrl : null,
+        active: true,
+      },
+    });
+  } catch (err) {
+    // The findUnique above is a read; two tabs pass it together (ADR 0053).
+    if (!isUniqueViolation(err)) throw err;
+    return redirectWithFlash(c, 'err', `${atsType} "${atsToken}" was added from another tab a moment ago, so it was not added twice.`);
+  }
 
   return redirectWithFlash(
     c,

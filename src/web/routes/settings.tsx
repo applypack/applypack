@@ -863,7 +863,10 @@ settingsRoute.post('/settings/targets', onceGuard(() => 'targets:add', () => '/s
     if (!test.ok) {
       return flashRedirect(back, 'err', `The test message did not reach Discord (${test.error ?? 'no reason given'}), so the webhook was not saved. Check the URL and add it again.`);
     }
-    await addNotificationTarget({ kind: 'DISCORD', ...parsed.data });
+    const added = await addNotificationTarget({ kind: 'DISCORD', ...parsed.data });
+    if (!added) {
+      return flashRedirect(back, 'err', 'That webhook was added from another tab a moment ago, so it was not added twice. The test message did reach the channel.');
+    }
     return flashRedirect(back, 'ok', `Added Discord webhook "${parsed.data.name}". Test message sent.`);
   }
   const parsed = TelegramTargetSchema.safeParse({
@@ -880,7 +883,10 @@ settingsRoute.post('/settings/targets', onceGuard(() => 'targets:add', () => '/s
   if (!test.ok) {
     return flashRedirect(back, 'err', `The test message did not reach Telegram (${test.error ?? 'no reason given'}), so the target was not saved. Check the token and the chat id, and add it again.`);
   }
-  await addNotificationTarget({ kind: 'TELEGRAM', ...parsed.data });
+  const added = await addNotificationTarget({ kind: 'TELEGRAM', ...parsed.data });
+  if (!added) {
+    return flashRedirect(back, 'err', 'That bot and chat were added from another tab a moment ago, so they were not added twice. The test message did arrive.');
+  }
   return flashRedirect(
     back,
     'ok',

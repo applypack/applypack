@@ -1,6 +1,6 @@
 import { AtsType } from '@prisma/client';
 import type { Prisma, NotificationTarget } from '@prisma/client';
-import { prisma } from './db';
+import { isUniqueViolation, prisma } from './db';
 import { logger } from './logger';
 import type { AiEngineConfig } from './ai-engine';
 import { parseAiKeys, type AiKeyProviderId, type AiKeys } from './ai-keys';
@@ -376,13 +376,24 @@ export type NewTarget =
   | { kind: 'TELEGRAM'; name: string; botToken: string; chatId: string }
   | { kind: 'DISCORD'; name: string; webhookUrl: string };
 
-export async function addNotificationTarget(input: NewTarget): Promise<NotificationTarget> {
-  return prisma.notificationTarget.create({
-    data:
-      input.kind === 'DISCORD'
-        ? { kind: 'DISCORD', name: input.name, webhookUrl: input.webhookUrl, active: true }
-        : { kind: 'TELEGRAM', name: input.name, botToken: input.botToken, chatId: input.chatId, active: true },
-  });
+/**
+ * Null means the destination was already there. `findSameDestination` answers
+ * that for a user who is not racing themselves; this answers the tab that
+ * pressed Add a moment later, which used to be a bare 500 (D5). Every caller
+ * has a sentence for "already added" — the type makes them write it.
+ */
+export async function addNotificationTarget(input: NewTarget): Promise<NotificationTarget | null> {
+  try {
+    return await prisma.notificationTarget.create({
+      data:
+        input.kind === 'DISCORD'
+          ? { kind: 'DISCORD', name: input.name, webhookUrl: input.webhookUrl, active: true }
+          : { kind: 'TELEGRAM', name: input.name, botToken: input.botToken, chatId: input.chatId, active: true },
+    });
+  } catch (err) {
+    if (isUniqueViolation(err)) return null;
+    throw err;
+  }
 }
 
 /** The row that already names this destination — the same bot and chat, or the same webhook — if any (ADR 0053). */
