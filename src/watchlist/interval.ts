@@ -64,11 +64,35 @@ export interface Pacing {
 }
 
 /**
+ * Slack on the interval, the same idea as `user-schedule.ts`'s
+ * `EVERY_TOLERANCE_MS` and for the same reason. Ticks are an hour apart by
+ * the clock, but `nextCheckAt` is stamped a whole interval after the tick
+ * STARTED, and the next tick starts a moment earlier or later. Without slack
+ * an hourly row measures 59 min 59 s at the next tick, is not due, and is
+ * fetched two hours later instead of one.
+ *
+ * Measured on the live install before this constant existed (2026-09-15…18):
+ * consecutive fetch ticks reported 9 sources and then 0, over and over —
+ * every source was read every OTHER hour, and the shortest interval the
+ * watchlist offers silently meant two.
+ */
+export const PACING_TOLERANCE_MS = 5 * 60 * 1000;
+
+/**
  * Whether this row is due. NULL is due — that is what a fresh row, a row
  * added before this feature and a "Check now" all mean.
  */
 export function isDue(row: Pacing, now: Date): boolean {
-  return row.nextCheckAt === null || row.nextCheckAt.getTime() <= now.getTime();
+  return row.nextCheckAt === null || row.nextCheckAt.getTime() <= dueCutoff(now).getTime();
+}
+
+/**
+ * The latest `nextCheckAt` a tick at `now` still calls due. The Prisma where
+ * clause the walk uses cannot call `isDue` per row, so it compares against
+ * this instead — one rule, two readers.
+ */
+export function dueCutoff(now: Date): Date {
+  return new Date(now.getTime() + PACING_TOLERANCE_MS);
 }
 
 /**

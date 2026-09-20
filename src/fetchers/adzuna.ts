@@ -28,6 +28,17 @@ const ADZUNA_HOURS: readonly number[] = [0, 6, 12, 18];
 /** Rows beyond this are skipped with an error, whatever the user adds. */
 export const MAX_ADZUNA_ROWS = 10;
 
+/**
+ * Which Adzuna rows are over the ceiling, by id order. The ids are every
+ * ACTIVE Adzuna row, never the subset a tick happens to ask: a market that
+ * was merely not due yet must not promote the eleventh row into the ten, or
+ * which markets are live would change from tick to tick and the user could
+ * not tell which ten they get (ADR 0034).
+ */
+export function adzunaOverflowIds(activeAdzunaIds: readonly number[]): Set<number> {
+  return new Set([...activeAdzunaIds].sort((a, b) => a - b).slice(MAX_ADZUNA_ROWS));
+}
+
 /** The logo the terms name, served by the vendor's own CDN (press page, 2026-09-04). */
 const ADZUNA_LOGO_URL = 'https://zunastatic-abf.kxcdn.com/images/global/adzuna_logo.svg';
 

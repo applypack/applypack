@@ -4,6 +4,21 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.17.1] — 2026-09-20
+
+### Fixed
+- **Every source is read every hour again.** A company set to "every hour"
+  was in fact read every *other* hour, and one set to "once a day" every 25
+  hours: the next check was stamped an interval after the attempt finished,
+  so the row came due seconds after the next heartbeat had already asked for
+  it. Measured on a live install over four days — consecutive ticks reported
+  nine sources, then none, then nine. The interval is now counted from the
+  moment the tick started, and due-ness allows five minutes of slack.
+- An Adzuna market could lose its 0/6/12/18 UTC slots for days as a result,
+  and which ten markets stayed under the monthly limit was decided from the
+  rows that happened to be due this tick. The ten are chosen from the full
+  active list again, as ADR 0034 requires.
+
 ## [2.17.0] — 2026-09-17
 
 ### Changed

@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { ADZUNA_MARKETS, adzunaCodeFor, adzunaCount, adzunaDue, adzunaMarket, adzunaSearchUrl, mapAdzunaPage } from './adzuna';
+import { ADZUNA_MARKETS, MAX_ADZUNA_ROWS, adzunaCodeFor, adzunaCount, adzunaDue, adzunaMarket, adzunaOverflowIds, adzunaSearchUrl, mapAdzunaPage } from './adzuna';
 
 // The vendor's documented sample (developer.adzuna.com/docs/search), trimmed.
 const page = {
@@ -87,5 +87,34 @@ describe('markets, cadence and the URL', () => {
       adzunaSearchUrl('de', { app_id: 'id1', app_key: 'k/2' }),
       'https://api.adzuna.com/v1/api/jobs/de/search/1?app_id=id1&app_key=k%2F2&results_per_page=50&max_days_old=1&sort_by=date&category=it-jobs&content-type=application%2Fjson',
     );
+  });
+});
+
+describe('adzunaOverflowIds', () => {
+  it('accepts every row while the ceiling is not reached', () => {
+    assert.equal(adzunaOverflowIds([3, 1, 2]).size, 0);
+  });
+
+  it('refuses the rows past the ceiling, by id order', () => {
+    const ids = Array.from({ length: MAX_ADZUNA_ROWS + 3 }, (_, i) => i + 1);
+    assert.deepEqual([...adzunaOverflowIds(ids)].sort((a, b) => a - b), [11, 12, 13]);
+  });
+
+  it('gives the same answer whichever rows a tick happens to ask for', () => {
+    // The defect: the overflow was sliced off the DUE rows, so a market that
+    // was merely not due promoted the eleventh into the ten.
+    const all = Array.from({ length: MAX_ADZUNA_ROWS + 2 }, (_, i) => i + 1);
+    const thisTick = all.filter((id) => id % 2 === 0);
+    assert.deepEqual([...adzunaOverflowIds(all)], [11, 12]);
+    assert.notDeepEqual([...adzunaOverflowIds(thisTick)], [11, 12]);
+    for (const id of thisTick) {
+      assert.equal(adzunaOverflowIds(all).has(id), id > MAX_ADZUNA_ROWS);
+    }
+  });
+
+  it('does not mutate the array it was given', () => {
+    const ids = [5, 4, 3];
+    adzunaOverflowIds(ids);
+    assert.deepEqual(ids, [5, 4, 3]);
   });
 });

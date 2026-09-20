@@ -89,11 +89,22 @@ Four rules make the ladder honest rather than merely cheap:
 `checkEvery` (`hour | day | week`), `nextCheckAt`, `alertPolicy`
 (`matches | all`) — and **it rides on the existing tick, with no cron of its
 own** (ADR 0003). `runAllFetchers` selects `active AND (nextCheckAt IS NULL OR
-nextCheckAt <= now)`, then shuffles the survivors (ADR 0035's order is
-unchanged; the Adzuna monthly slice is still computed from the full
-id-ordered list, so a market that merely was not due cannot promote the
-eleventh into the ten). `nextCheckAt` is stamped after **every** attempt,
-failures included.
+nextCheckAt <= now + PACING_TOLERANCE_MS)`, then shuffles the survivors
+(ADR 0035's order is unchanged; the Adzuna monthly slice is computed by
+`adzunaOverflowIds` from its own query over the full id-ordered active list,
+so a market that merely was not due cannot promote the eleventh into the
+ten). `nextCheckAt` is stamped after **every** attempt, failures included,
+an interval after the tick STARTED.
+
+**Addendum, 2026-09-20 (v2.17.1).** The two sentences above describe the fix,
+not the first implementation. Until then the stamp was taken when the
+attempt finished and the query compared against `now` exactly, so a row came
+due a few seconds after the next heartbeat had already asked: measured on the
+live install over four days, every hourly source was read every OTHER tick
+(consecutive ticks reported 9 sources, then 0), a daily row every 25 hours,
+and an Adzuna row could miss its 0/6/12/18 UTC slots entirely. The Adzuna
+slice had also drifted onto the due-filtered list. The slack is the same idea
+`user-schedule.ts` already used for the search cadence.
 
 Riding the tick has a consequence the §17 plan did not foresee, and it is
 accepted deliberately: since v1.47.0 the tick is gated by the user's own

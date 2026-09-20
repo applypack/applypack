@@ -45,13 +45,13 @@ import { fetchLandingJobs } from './landingjobs';
 import { fetchJobTech } from './jobtech';
 import { fetchPersonio } from './personio';
 import { fetchTeamtailor } from './teamtailor';
-import { MAX_ADZUNA_ROWS, fetchAdzuna } from './adzuna';
+import { MAX_ADZUNA_ROWS, adzunaOverflowIds, fetchAdzuna } from './adzuna';
 import { fetchFranceTravail } from './francetravail';
 import { fetchFeed } from './feed';
 import { fetchCareerPage } from './career-page';
 import { getSourceKeys } from '../settings';
 import { politeDelayMs, shuffleSources, tickSeed } from './source-order';
-import { nextCheckAfter, watchRules, type WatchRules } from '../watchlist/interval';
+import { dueCutoff, nextCheckAfter, watchRules, type WatchRules } from '../watchlist/interval';
 import type { NormalizedJob } from '../types';
 
 export interface FetcherResult {
@@ -107,16 +107,25 @@ export async function runAllFetchers(
   };
   // The due-ness is a where clause, on the index that exists for it, not a
   // filter over every active row loaded in full (audit 2026-09-10, DATA-6).
+  // It compares against `dueCutoff`, not against `now`, for the reason that
+  // constant documents: a row stamped one interval after THIS tick started is
+  // a hair short of due at the next one, and without the slack an hourly
+  // company was read every other hour.
   // A manual run asks every row — see the note below.
-  const [companies, roster] = await Promise.all([
+  const [companies, roster, adzunaRows] = await Promise.all([
     prisma.company.findMany({
       where: {
         ...rosterWhere,
-        ...(opts.manual ? {} : { OR: [{ nextCheckAt: null }, { nextCheckAt: { lte: now } }] }),
+        ...(opts.manual ? {} : { OR: [{ nextCheckAt: null }, { nextCheckAt: { lte: dueCutoff(now) } }] }),
       },
       orderBy: { id: 'asc' },
     }),
     prisma.company.count({ where: rosterWhere }),
+    prisma.company.findMany({
+      where: { ...rosterWhere, atsType: AtsType.ADZUNA },
+      select: { id: true },
+      orderBy: { id: 'asc' },
+    }),
   ]);
   // The watchlist's intervals ride on this tick, they do not replace it
   // (ADR 0036): the heartbeat still fires, the interval decides which rows it
@@ -143,14 +152,10 @@ export async function runAllFetchers(
   // context is never logged whole from here on.
   const context: FetchContext = { ...places, keys: await getSourceKeys(), manual: opts.manual === true, now };
   // Adzuna's monthly limit allows ten rows on the four-a-day cadence; any
-  // beyond that are refused, not silently fetched (ADR 0034). Decided from
-  // the id order and from the FULL active list — before the shuffle and
-  // before the due filter: which markets are live has to be the same answer
-  // every tick, or a market that merely was not due would promote the
-  // eleventh into the ten and the user could not tell which ten they get.
-  const adzunaOverflow = new Set(
-    companies.filter((c) => c.atsType === AtsType.ADZUNA).slice(MAX_ADZUNA_ROWS).map((c) => c.id),
-  );
+  // beyond that are refused, not silently fetched (ADR 0034). The ids come
+  // from their own query over the FULL active list, not from this tick's due
+  // rows — `adzunaOverflowIds` says why.
+  const adzunaOverflow = adzunaOverflowIds(adzunaRows.map((c) => c.id));
   // Every install seeds the same ids, so a fixed order means every install
   // asks the same board in the same second (docs/scale-plan.md §3).
   const walk = shuffleSources(due, tickSeed());
@@ -204,7 +209,7 @@ export async function runAllFetchers(
       }
     }
     const durationMs = Date.now() - startedAt;
-    await recordFetchHealth(company, status, cachedCount(company.id));
+    await recordFetchHealth(company, status, cachedCount(company.id), now);
     onSource?.({ company: company.name, status, count, done, total: due.length, durationMs });
     // Back off in proportion to what we just spent of the board's: a feed we
     // did not download does not earn the same second as one we did.
@@ -222,6 +227,12 @@ async function recordFetchHealth(
   company: { id: number; name: string; consecutiveFailures: number; checkEvery: string },
   status: FetchStatus,
   lastFullCount: number | null,
+  /**
+   * When the TICK started, not when this source's attempt finished. A walk
+   * takes minutes — 35 on the longest measured tick — and counting from the
+   * end would push every row past the next heartbeat, one source at a time.
+   */
+  tickStartedAt: Date,
 ): Promise<void> {
   const streak = nextStreak(status, company.consecutiveFailures);
   try {
@@ -233,7 +244,7 @@ async function recordFetchHealth(
         // Stamped after EVERY attempt, failures included: a board that throws
         // has to wait its interval like a healthy one, or a broken feed is
         // retried every heartbeat while a working one waits an hour.
-        nextCheckAt: nextCheckAfter(company, new Date()),
+        nextCheckAt: nextCheckAfter(company, tickStartedAt),
         ...(advancesLastOk(status, lastFullCount) ? { lastOkAt: new Date() } : {}),
       },
     });
