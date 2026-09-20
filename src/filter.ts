@@ -64,17 +64,18 @@ export function passesAnyBaseFilter(
  *   character were required after a "+" or a "#", and ".net" has to be free
  *   to sit inside "ASP.NET".
  * - A short list of suffixes may follow, because plain boundaries dropped six
- *   real matches on the live corpus and nothing else: "go" no longer found
- *   five Golang roles and "team lead" no longer found "Team Leader". Each
- *   entry below is there because a stored title needed it.
+ *   real matches on the corpus and nothing else: "go" no longer found five
+ *   Golang roles and "team lead" no longer found "Team Leader". Four of the
+ *   five below fire on stored titles; "ers" rides along with "er", being its
+ *   plural. A suffix nothing needed ("es") is not here — a tolerance that
+ *   was never measured is a guess about which words a user will type.
  */
 const KEYWORD_SUFFIXES = [
-  's',
-  'es', // plurals: "sales", "services"
-  'er',
-  'ers', // "team lead" → "Team Leader"
-  'js', // "react" → "ReactJS", "vue" → "VueJS"
-  'lang', // "go" → "Golang"
+  's', // 40 hits: "sale" → "Sales"
+  'er', // 7 hits: "team lead" → "Team Leader"
+  'ers', // the plural of the above
+  'js', // 2 hits: "vue" → "VueJS", "node" → "NodeJS"
+  'lang', // 10 hits: "go" → "Golang"
 ] as const;
 
 export function titleHasKeyword(title: string, keyword: string): boolean {

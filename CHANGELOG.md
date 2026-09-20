@@ -12,8 +12,8 @@ All notable changes to this project are documented here. The format follows
   941 stored here — and "intern" read "International" the same way. A
   required "go" matched Chicago, Google and Government in 35 of its 50 hits.
   Keywords now match whole words, with "c++", "c#", ".net" and "node.js"
-  still matchable and six suffixes allowed, so "go" keeps finding Golang and
-  "team lead" keeps finding Team Leader.
+  still matchable and five measured suffixes allowed, so "go" keeps finding
+  Golang and "team lead" keeps finding Team Leader.
 - **A pasted feed or careers page is checked against robots.txt.** The
   watchlist ladder read it before fetching a company's own site and the
   "Add one company" form did not, so the same URL could be refused in one
