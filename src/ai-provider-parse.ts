@@ -43,9 +43,22 @@ const RATE_LIMIT_STATUS = 429;
 const RATE_LIMIT_PATTERN = /rate.?limit|usage limit|overloaded|resource.?exhausted|quota/i;
 
 const MAX_FAILURE_REASON = 200;
-// Anything shaped like a credential. A CLI writes whatever it likes to
-// stderr, so the reason is scrubbed before it can reach a flash message.
-const KEY_SHAPED = /\b(?:sk-[A-Za-z0-9._-]{8,}|AIza[A-Za-z0-9._-]{10,})\b/g;
+/*
+ * Anything shaped like a credential. A CLI writes whatever it likes to
+ * stderr, so the reason is scrubbed before it can reach a flash message.
+ *
+ * Two shapes were slipping past (H44), and both arrive through the same
+ * door: `openai_api` is "any server that speaks /chat/completions", so the
+ * key in play is whatever that server issues, not OpenAI's own.
+ *
+ *  - An underscore instead of a hyphen. `sk-` was matched and `sk_` was not,
+ *    which is Groq's `gsk_…` and every `sk_live_…` the shape is copied from.
+ *  - `Bearer <token>`. A gateway that echoes the request's headers in its
+ *    error body hands over the whole credential in a form no vendor prefix
+ *    can catch.
+ */
+const KEY_SHAPED =
+  /\b(?:[A-Za-z]{0,4}sk[-_][A-Za-z0-9._-]{8,}|AIza[A-Za-z0-9._-]{10,}|Bearer\s+[A-Za-z0-9._~+/-]{8,}=*)/g;
 
 /**
  * `max_tokens` on the Messages API counts the thinking too, and the current

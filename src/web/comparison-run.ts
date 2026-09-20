@@ -146,13 +146,13 @@ async function compare(runId: string, req: ComparisonRequest): Promise<void> {
     return;
   }
   const flash = rebuild
-    ? `Keywords rebuilt from the posting — AI match ${row.matchScore}/100, counted over a fresh set of terms.`
-    : `${req.label} ${mode === 'fast' ? 'checked' : 'compared'} — AI match ${row.matchScore}/100.`;
+    ? `Keywords rebuilt from the posting — match ${row.matchScore}/100, counted over a fresh set of terms.`
+    : `${req.label} ${mode === 'fast' ? 'checked' : 'compared'} — match ${row.matchScore}/100.`;
   updateRun(runId, {
     stage: 'done',
     resultUrl: req.resultUrl(row.id),
     tailorUrl: `/jobs/${jobId}/target?match=${row.id}`,
-    results: { ...results, [matchStep(mode)]: `AI match ${row.matchScore}/100` },
+    results: { ...results, [matchStep(mode)]: `match ${row.matchScore}/100` },
     flash: req.doneNote ? `${flash} ${req.doneNote}` : flash,
   });
 }

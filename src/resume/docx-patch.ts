@@ -24,6 +24,7 @@ import type { Document, Element } from '@xmldom/xmldom';
 import { docxToText, parseDocumentXml, renderLines, walkDocument, W_NS, type Block, type LineOwner } from './docx-text';
 import { setCoreProps } from './docx-props';
 import { loadLineDiff } from './line-diff';
+import { readZipEntry, ZipError } from './zip';
 import { toPlainPunctuation } from './prompts';
 
 export interface PatchReport {
@@ -58,10 +59,20 @@ export async function patchDocx(
   editedText: string,
   opts: PatchOptions = {},
 ): Promise<PatchResult> {
+  // Read the part through zip.ts, which applies the project's inflation cap
+  // (D12l). JSZip has no ceiling of its own, so a zip bomb uploaded as a
+  // resume would have inflated here — the reader that checks it is the one
+  // the rest of the module already uses. JSZip stays for the rewrite only.
+  let xml: string;
+  try {
+    const part = readZipEntry(original, DOCUMENT_PART);
+    if (!part) return { ok: false, reason: 'not a .docx file (word/document.xml missing)' };
+    xml = part.toString('utf8');
+  } catch (err) {
+    if (err instanceof ZipError) return { ok: false, reason: 'this .docx cannot be read safely' };
+    throw err;
+  }
   const zip = await JSZip.loadAsync(original, { createFolders: false });
-  const part = zip.file(DOCUMENT_PART);
-  if (!part) return { ok: false, reason: 'not a .docx file (word/document.xml missing)' };
-  const xml = await part.async('string');
   let doc: Document;
   try {
     doc = parseDocumentXml(xml);

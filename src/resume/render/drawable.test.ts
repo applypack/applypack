@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { drawable, isKept, keptCodePoints, undrawable } from './drawable';
-import { planToText, planRender } from './sections';
+import { droppedByRender, planToText, planRender } from './sections';
 import { JsonResumeSchema } from '../json-resume';
 import { knobsFrom } from './knobs';
 
@@ -103,4 +103,22 @@ test('the fold reaches every string of a plan, not only the bold ones', () => {
   assert.match(text, /OCorp/);
   assert.match(text, /NOTES/);
   assert.match(text, /H2O/);
+});
+
+test('droppedByRender names what a clean render would remove (D12j)', () => {
+  const resume = JsonResumeSchema.parse({
+    basics: { name: 'Тарас 世界 Шевченко', summary: 'Shipped it 😀 and π stayed.' },
+  });
+  const dropped = droppedByRender(resume, knobsFrom());
+  // The bundled face reaches further than its name suggests: Greek, the
+  // dashes, the arrows, the currency signs and Cyrillic all draw. CJK and
+  // emoji do not, and those are the ones a user has to be told about.
+  assert.ok(dropped.includes('世'), `CJK should be reported: ${dropped.join(' ')}`);
+  assert.ok(dropped.includes('😀'), `the emoji should be reported: ${dropped.join(' ')}`);
+  assert.ok(!dropped.includes('π'), 'Greek draws and must not be reported');
+  assert.ok(!dropped.includes('Т'), 'Cyrillic draws and must not be reported');
+
+  // Nothing to say about a resume the face covers entirely.
+  const plain = JsonResumeSchema.parse({ basics: { name: 'Nazar Boyko', summary: 'Laravel and React.' } });
+  assert.deepEqual(droppedByRender(plain, knobsFrom()), []);
 });

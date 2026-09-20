@@ -53,10 +53,10 @@ describe('summarizeRun', () => {
   it('words a bare count for the job that writes it, and humanises it for any other', () => {
     assert.deepEqual(summarizeRun('digest', { count: 3, durationMs: 527 }), ['3 jobs in the digest']);
     assert.deepEqual(summarizeRun('stale-applications', { found: 0 }), ['0 stale applications']);
-    assert.deepEqual(summarizeRun('cleanup', { deleted: 12, screeningsDeleted: 1, durationMs: 40 }), [
-      '12 old jobs deleted',
-      '1 screening deleted',
-    ]);
+    assert.deepEqual(
+      summarizeRun('cleanup', { deleted: 12, screeningsDeleted: 1, runsDeleted: 240, durationMs: 40 }),
+      ['12 old jobs deleted', '1 screening deleted', '240 old runs deleted'],
+    );
     assert.deepEqual(summarizeRun('some-new-job', { count: 3 }), ['3 count']);
   });
 

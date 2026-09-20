@@ -246,6 +246,23 @@ test('describeAiFailure masks anything key-shaped', () => {
   assert.match(out, /\*\*\*mnop/);
 });
 
+test('describeAiFailure masks the shapes an OpenAI-compatible server issues (H44)', () => {
+  // `openai_api` is any server that speaks /chat/completions, so the key in
+  // play is whatever that server issues.
+  const groq = describeAiFailure('401 from gateway: invalid key gsk_abcdefghijklmnopqrst');
+  assert.doesNotMatch(groq, /gsk_abcdefghijklmnopqrst/, groq);
+
+  const stripeShaped = describeAiFailure('rejected sk_live_abcdefghijklmnop');
+  assert.doesNotMatch(stripeShaped, /sk_live_abcdefghijklmnop/, stripeShaped);
+
+  // A gateway that echoes the request headers in its error body.
+  const echoed = describeAiFailure('upstream said: {"headers":{"authorization":"Bearer abc123def456ghi789"}}');
+  assert.doesNotMatch(echoed, /abc123def456ghi789/, echoed);
+
+  // And an ordinary word is not a credential.
+  assert.match(describeAiFailure('the model was overloaded, retry later'), /overloaded/);
+});
+
 test('describeAiFailure caps a runaway stderr dump', () => {
   const out = describeAiFailure('x'.repeat(5_000));
   assert.ok(out.length <= 201, `length was ${out.length}`);

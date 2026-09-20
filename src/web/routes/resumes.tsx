@@ -346,7 +346,7 @@ resumesRoute.post('/resumes/:id/profile', async (c) => {
   return flashRedirect(
     `/settings?tab=profile&profile=${profile.id}`,
     'ok',
-    `Created the search "${profile.name}" from "${resume.name}". It is not hunting yet — press Activate to switch to it.`,
+    `Created the search "${profile.name}" from "${resume.name}". It is not hunting yet — press Run on it under Settings → Profile → Searches.`,
   );
 });
 
@@ -484,7 +484,12 @@ resumesRoute.post('/resumes/:id/default', async (c) => {
 resumesRoute.post('/resumes/:id/delete', async (c) => {
   const id = idParam(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text('Bad id', 400);
-  await deleteResume(id);
+  // A row that was not there is not a deletion. Saying it was sent a user
+  // looking for a resume they still have back to a list that still shows it.
+  const deleted = await deleteResume(id);
+  if (!deleted) {
+    return flashRedirect('/resumes', 'warn', 'That resume was not found, so nothing was deleted — it may already be gone.');
+  }
   logger.info({ id }, 'resume: deleted');
   return flashRedirect('/resumes', 'ok', 'Resume deleted.');
 });

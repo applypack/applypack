@@ -149,10 +149,11 @@ export async function renameResume(id: number, name: string): Promise<ResumeSumm
     .catch(() => null);
 }
 
-export async function deleteResume(id: number): Promise<void> {
-  await prisma.resume.delete({ where: { id } }).catch((err) => {
-    logger.warn({ err, id }, 'resume: delete failed (already gone?)');
-  });
+/** False when there was no such row — the caller must not report a deletion. */
+export async function deleteResume(id: number): Promise<boolean> {
+  const { count } = await prisma.resume.deleteMany({ where: { id } });
+  if (count === 0) logger.warn({ id }, 'resume: delete found nothing');
+  return count > 0;
 }
 
 export async function setDefaultResume(id: number): Promise<void> {

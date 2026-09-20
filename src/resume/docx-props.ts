@@ -56,12 +56,14 @@ export function readProps(bytes: Buffer): DocxProps {
  * added before `</cp:coreProperties>`.
  */
 export async function withProps(bytes: Buffer, patch: PropsPatch, now: Date = new Date()): Promise<Buffer> {
-  const zip = await JSZip.loadAsync(bytes, { createFolders: false });
-  const file = zip.file(CORE_PART);
+  // Through zip.ts, for its inflation cap — `readProps` above already reads
+  // this part that way, and JSZip has no ceiling of its own (D12l).
+  const core = readZipEntry(bytes, CORE_PART);
   // A package without core.xml has nothing to fix; adding an orphan part would
   // need a content-type override and a relationship, so it is left alone.
-  if (!file) return bytes;
-  zip.file(CORE_PART, setCoreProps(await file.async('string'), patch, now), { createFolders: false });
+  if (!core) return bytes;
+  const zip = await JSZip.loadAsync(bytes, { createFolders: false });
+  zip.file(CORE_PART, setCoreProps(core.toString('utf8'), patch, now), { createFolders: false });
   return zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' });
 }
 

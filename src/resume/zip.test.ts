@@ -120,3 +120,21 @@ test('readZipEntries at a full ceiling skips the rest instead of asking zlib for
   assert.deepEqual(entries.map((e) => e.name), ['a.txt']);
   assert.deepEqual(skipped, ['empty.txt', 'b.txt']);
 });
+
+test('readZipEntries stops at the entry ceiling before inflating (H15)', () => {
+  // The byte ceilings bound what an archive expands to, not how often we ask:
+  // a million one-byte entries stays far under them.
+  const many = buildZip(
+    Array.from({ length: 12 }, (_, i) => ({ name: `r${i}.txt`, data: Buffer.from('x'), deflate: true })),
+  );
+  const all = readZipEntries(many);
+  assert.equal(all.entries.length, 12);
+  assert.equal(all.truncated, false);
+
+  const capped = readZipEntries(many, Infinity, undefined, 5);
+  assert.equal(capped.entries.length, 5);
+  assert.equal(capped.truncated, true, 'the caller has to be able to say so');
+  // Truncation is not the same answer as "these entries were too big", and
+  // listing the rest would be the same million-name problem again.
+  assert.deepEqual(capped.skipped, []);
+});

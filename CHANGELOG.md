@@ -4,6 +4,37 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.18.2] — 2026-09-20
+
+### Fixed
+- **The applicant notice says what actually happens.** It promised that an
+  application is "deleted after the hiring round closes", and nothing in the
+  tool closes a round — deletion follows the retention on the Screening tab.
+  It now names that number, taken from your own settings.
+- **Run history is pruned.** `cron_run` grew forever while the docs said 30
+  days. Runs older than 90 days are deleted with the rest of the nightly
+  cleanup; a run still going is never touched.
+- Five messages said something that was not so: a new search told you to
+  "press Activate" (the button is Run), the alerts toggle reported itself as
+  Telegram-only when it covers Discord too, a comparison called its score an
+  "AI match" when the number is computed in code, "Re-classify started" was
+  shown while one was already running, and deleting a resume that was not
+  there said it had been deleted.
+- **The clean render says what it removed.** It silently dropped characters
+  the bundled typeface cannot draw — CJK, emoji, subscripts. The page now
+  names them. The four buttons on that page also work without JavaScript,
+  where all of them used to just refresh the preview.
+
+### Security
+- No `.env` file of any name reaches the Docker build context.
+- An archive is capped at 2 000 entries before anything is inflated, so a zip
+  built to be counted rather than read cannot occupy the upload.
+- The logger redacts key, token, webhook and resume-text fields wherever they
+  appear in a log line — a safety net under the scrubbing that already exists.
+- Two more credential shapes are masked in a failed AI call's reason: a key
+  with an underscore (`gsk_…`, `sk_live_…`) and an echoed `Bearer` token.
+  Both arrive through the OpenAI-compatible engine, which talks to any server.
+
 ## [2.18.1] — 2026-09-20
 
 ### Fixed
@@ -3892,6 +3923,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.18.2]: https://github.com/applypack/applypack/compare/v2.18.1...v2.18.2
 [2.18.1]: https://github.com/applypack/applypack/compare/v2.18.0...v2.18.1
 [2.18.0]: https://github.com/applypack/applypack/compare/v2.17.1...v2.18.0
 [2.17.1]: https://github.com/applypack/applypack/compare/v2.17.0...v2.17.1

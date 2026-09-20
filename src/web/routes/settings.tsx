@@ -346,7 +346,7 @@ async function loadSettingsProps() {
       engineLabel: AI_PROVIDER_LABELS[primary],
       engineSubscription: !PROVIDER_PAID[primary],
       screenings: screeningCount,
-      notice: applicantNotice(),
+      notice: applicantNotice(undefined, settings.screeningRetentionDays),
       legalNote: LEGAL_NOTE,
     },
   };
@@ -456,7 +456,8 @@ settingsRoute.post('/settings/telegram-toggle', async (c) => {
   return flashRedirect(
     '/settings?tab=notifications',
     'ok',
-    `Telegram alerts ${!settings.telegramEnabled ? 'enabled' : 'disabled'}.`,
+    // Every channel, Discord included (ADR 0041) — the column is just old.
+    `Alerts ${!settings.telegramEnabled ? 'enabled' : 'disabled'} on every channel.`,
   );
 });
 
@@ -1159,11 +1160,15 @@ settingsRoute.post('/settings/profiles/:id/save', async (c) => {
         'Search saved, but re-classify skipped — it scores against running searches only. Press Run first.',
       );
     }
-    triggerReclassifyAsync();
+    const started = triggerReclassifyAsync();
     return flashRedirect(
       editorUrl,
       'ok',
-      `Search saved${activated ? ' and started' : ''}. Re-classify started in the background — track progress at /runs.${sourcesHint}`,
+      `Search saved${activated ? ' and started' : ''}. ${
+        started
+          ? 'Re-classify started in the background'
+          : 'A re-classify was already running, so this one joins it'
+      } — track progress at /runs.${sourcesHint}`,
     );
   }
   if (activated) {
@@ -1275,8 +1280,9 @@ function optionalId(value: string): number | null {
   return Number.isInteger(n) && n > 0 ? n : null;
 }
 
-function triggerReclassifyAsync(): void {
-  if (reclassifyInFlight) return;
+/** False when one is already running — the caller must not claim it started. */
+function triggerReclassifyAsync(): boolean {
+  if (reclassifyInFlight) return false;
   reclassifyInFlight = true;
   void (async () => {
     try {
@@ -1287,4 +1293,5 @@ function triggerReclassifyAsync(): void {
       reclassifyInFlight = false;
     }
   })();
+  return true;
 }
