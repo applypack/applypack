@@ -10,6 +10,7 @@ import { adzunaCount, adzunaMarket, adzunaSearchUrl, fetchAdzunaJson } from './f
 import { feedUrl, looksLikeFeed } from './fetchers/feed';
 import { careerPageUrl } from './fetchers/career-page';
 import { looksLikeChallenge } from './watchlist/scan';
+import { bindingTokens, robotsAllows } from './robots';
 import { MIN_WATCHABLE_CHARS, normalisePageText } from './watchlist/page-hash';
 import { franceTravailProbeCount } from './fetchers/francetravail';
 import type { FranceTravailCredentials } from './fetchers/francetravail-auth';
@@ -19,6 +20,65 @@ export interface ProbeResult {
   ok: boolean;
   jobsCount?: number;
   error?: string;
+}
+
+/** One robots.txt answer, reduced to what `robotsAllows` reads. A failure is a 0. */
+export interface RobotsAnswer {
+  status: number;
+  body: string;
+}
+
+export interface ProbeOptions {
+  keys?: SourceKeys;
+  /**
+   * The crawler tokens that bind this install besides our own (ADR 0036).
+   * The caller reads them once with `installAiTokens`, exactly as the
+   * watchlist ladder does, so one paste is judged against one engine list.
+   * Omitted falls back to every backend this project supports — asking for
+   * less than we may, never more.
+   */
+  aiTokens?: readonly string[];
+  /** Injected so the refusal is testable without a network. */
+  fetchRobots?: (url: string) => Promise<RobotsAnswer>;
+}
+
+/**
+ * robots.txt, for the two probes that fetch a company's own site.
+ *
+ * Every other case calls a vendor's documented API, which needs no read; the
+ * ladder in `watchlist/resolve.ts` skips it there for the same reason. But
+ * `FEED` and `CAREER_PAGE` fetch the host the user pasted, and ADR 0005's
+ * addendum makes robots binding on every such request — the ladder read it
+ * and this path did not, so the same URL was refused in one door and saved
+ * in the other.
+ *
+ * The ladder's job-feed path rule is deliberately NOT applied here. It exists
+ * to sort GUESSED feeds, where a false refusal costs nothing; measured
+ * against the feeds this project already reads, it refuses all of them —
+ * WeWorkRemotely's `/categories/remote-programming-jobs.rss`, LaraJobs'
+ * `/feed`, DOU's `/vacancies/feeds/`, RemoteOK's `/remote-jobs.rss`. A URL
+ * the user typed is not a guess.
+ */
+export async function robotsRefusal(
+  url: string,
+  opts: ProbeOptions,
+): Promise<string | null> {
+  const origin = new URL(url);
+  const read = opts.fetchRobots ?? liveRobotsRead;
+  const answer = await read(`${origin.origin}/robots.txt`);
+  const verdict = robotsAllows(answer.status, answer.body, origin.pathname, bindingTokens(opts.aiTokens));
+  return verdict.allowed ? null : verdict.reason;
+}
+
+async function liveRobotsRead(url: string): Promise<RobotsAnswer> {
+  try {
+    const resp = await fetchPublicUrl(url, { timeoutMs: 8_000 });
+    return { status: resp.status, body: await resp.text() };
+  } catch (err) {
+    // fetchWithRetry throws on every non-2xx; the status is the answer.
+    if (err instanceof HttpError) return { status: err.status, body: err.body ?? '' };
+    return { status: 0, body: '' };
+  }
 }
 
 /**
@@ -34,7 +94,7 @@ export interface ProbeResult {
 export async function probeAts(
   atsType: AtsType,
   atsToken: string,
-  opts: { keys?: SourceKeys } = {},
+  opts: ProbeOptions = {},
 ): Promise<ProbeResult> {
   const trimmed = atsToken.trim();
   if (trimmed.length === 0) {
@@ -216,6 +276,8 @@ export async function probeAts(
         } catch (err) {
           return { ok: false, error: err instanceof Error ? err.message.replace(/^feed: /, '') : 'Invalid feed URL.' };
         }
+        const refused = await robotsRefusal(url, opts);
+        if (refused) return { ok: false, error: refused };
         const answer = await fetchPublicUrl(url, { timeoutMs: 8_000 });
         const xml = await answer.text();
         if (!looksLikeFeed(xml)) return { ok: false, error: 'That URL answered something other than an RSS or Atom feed.' };
@@ -235,6 +297,8 @@ export async function probeAts(
         } catch (err) {
           return { ok: false, error: err instanceof Error ? err.message.replace(/^career-page: /, '') : 'Invalid page URL.' };
         }
+        const refused = await robotsRefusal(url, opts);
+        if (refused) return { ok: false, error: refused };
         const answer = await fetchPublicUrl(url, { timeoutMs: 8_000 });
         const html = await answer.text();
         if (looksLikeChallenge(html)) {

@@ -18,6 +18,7 @@ import {
 } from '../../starter-packs/catalog';
 import { resolvePack } from '../../starter-packs/probe';
 import { activeWatchlistRun } from '../watchlist-runs';
+import { installAiTokens } from '../../watchlist/resolve';
 import { currentSuggestions, waitingSuggestions } from '../source-suggestions';
 import { firstIssue, flashRedirect } from '../flash';
 import {
@@ -452,7 +453,10 @@ companiesRoute.post('/companies/:id/reprobe', async (c) => {
   });
   if (!company) return c.text('Not found', 404);
 
-  const probe = await probeAts(company.atsType, company.atsToken, { keys: await getSourceKeys() });
+  const probe = await probeAts(company.atsType, company.atsToken, {
+    keys: await getSourceKeys(),
+    aiTokens: await installAiTokens(),
+  });
   if (!probe.ok) {
     return redirectWithFlash(
       c,
@@ -506,7 +510,10 @@ companiesRoute.post('/companies/new', async (c) => {
   }
   const { name, atsType, atsToken, careerUrl } = parsed.data;
 
-  const probe = await probeAts(atsType, atsToken, { keys: await getSourceKeys() });
+  const probe = await probeAts(atsType, atsToken, {
+    keys: await getSourceKeys(),
+    aiTokens: await installAiTokens(),
+  });
   if (!probe.ok) {
     return redirectWithFlash(c, 'err', `Nothing was added. ${probe.error}`);
   }
