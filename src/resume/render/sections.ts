@@ -1,5 +1,5 @@
 import type { JsonResume } from '../json-resume';
-import { drawable } from './drawable';
+import { drawable, undrawable } from './drawable';
 import { SECTION_LABELS, type RenderKnobs, type SectionKey } from './knobs';
 
 /*
@@ -75,6 +75,29 @@ const DOT = ' · ';
 const DASH = ' – ';
 
 export function planRender(resume: JsonResume, knobs: RenderKnobs): RenderPlan {
+  // Folded here, once, rather than at each of the dozen places a string is
+  // put into a block: a construction site added later cannot forget it.
+  return fold(rawPlan(resume, knobs));
+}
+
+/**
+ * What a clean render would drop, so the page can say so (D12j).
+ *
+ * The bundled face covers Latin and Cyrillic and no more, and `drawable`
+ * quietly removes what it cannot draw — a Greek letter in a formula, a CJK
+ * name, an emoji in a bullet. Quietly is the problem: the file downloads
+ * looking finished. Measured off the UNFOLDED plan, so it sees exactly the
+ * characters the fold is about to take out.
+ */
+export function droppedByRender(resume: JsonResume, knobs: RenderKnobs): string[] {
+  const seen = new Set<string>();
+  for (const text of planStrings(rawPlan(resume, knobs))) {
+    for (const ch of undrawable(text)) seen.add(ch);
+  }
+  return [...seen];
+}
+
+function rawPlan(resume: JsonResume, knobs: RenderKnobs): RenderPlan {
   const b = resume.basics;
   // A model reading a one-link contact line often fills BOTH `url` and
   // `profiles` with it, and the line then says linkedin.com twice (measured on
@@ -82,12 +105,23 @@ export function planRender(resume: JsonResume, knobs: RenderKnobs): RenderPlan {
   const contact = unique([b.location, b.email, b.phone, b.url, ...b.profiles]).join(DOT);
   const blocks: RenderBlock[] = [];
   for (const key of knobs.sectionOrder) blocks.push(...section(key, resume));
-  // Folded here, once, rather than at each of the dozen places a string is
-  // put into a block: a construction site added later cannot forget it.
-  return fold({
+  return {
     header: { name: b.name, label: b.label, contact: contact.length > 0 ? contact : null },
     blocks,
-  });
+  };
+}
+
+/** Every string a plan would draw, header included. */
+function planStrings(plan: RenderPlan): string[] {
+  const out: string[] = [plan.header.name, plan.header.label, plan.header.contact].filter(
+    (v): v is string => v !== null,
+  );
+  for (const b of plan.blocks) {
+    if (b.kind === 'gap') continue;
+    if (b.kind === 'line') out.push(...[...b.left, ...b.right].map((r) => r.text));
+    else out.push(b.text);
+  }
+  return out;
 }
 
 /** Every string of a plan through `drawable` (see that module for why). */

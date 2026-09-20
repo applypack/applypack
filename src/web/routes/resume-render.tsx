@@ -11,6 +11,7 @@ import { knobsFrom, readKnobs, type RenderKnobs } from '../../resume/render/knob
 import { DOCX_MIME } from '../../resume/docx-write';
 import { renderDocx } from '../../resume/render/clean-docx';
 import { PDF_MIME, renderPdf } from '../../resume/render/clean-pdf';
+import { droppedByRender } from '../../resume/render/sections';
 import { docxStructure } from '../../resume/docx-structure';
 import { docxToText } from '../../resume/docx-text';
 import { parseWarnings } from '../../resume/parse-warnings';
@@ -104,7 +105,12 @@ resumeRenderRoute.post('/resumes/:id/render', async (c) => {
   if ('response' in ctx) return ctx.response;
   const form = await c.req.parseBody();
   const knobs = readKnobs(form as Record<string, unknown>, knobsFrom(ctx.style));
-  const mode = typeof form.mode === 'string' ? form.mode : 'preview';
+  // The button's own value when the browser sent one (no JavaScript), else
+  // the hidden field the onclick set. See the form for why there are two.
+  const mode =
+    typeof form.submitMode === 'string' ? form.submitMode
+    : typeof form.mode === 'string' ? form.mode
+    : 'preview';
   const { resume } = ctx;
 
   if (mode === 'docx' || mode === 'pdf') {
@@ -208,6 +214,7 @@ async function page(ctx: RenderContext, knobs: RenderKnobs, flash: ReturnType<ty
       origin={ctx.origin}
       styleSource={ctx.style.source}
       preview={preview}
+      dropped={droppedByRender(ctx.structure, knobs)}
       warnings={parseWarnings(preview)}
       reason={ctx.reason}
       flash={flash}

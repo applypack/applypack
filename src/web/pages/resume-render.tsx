@@ -27,6 +27,8 @@ export interface RenderPageProps {
   styleSource: 'docx' | 'pdf' | 'none';
   /** The plain text the .docx renders to — literally what the ATS gets. */
   preview: string;
+  /** Characters the bundled face cannot draw, which the render removes (D12j). */
+  dropped?: string[];
   warnings: ParseWarning[];
   reason: string;
   flash?: FlashMessage | null;
@@ -50,6 +52,7 @@ export const ResumeRenderPage: FC<RenderPageProps> = ({
   origin,
   styleSource,
   preview,
+  dropped = [],
   warnings,
   reason,
   flash,
@@ -175,17 +178,39 @@ export const ResumeRenderPage: FC<RenderPageProps> = ({
         <Card class="mt-4">
           <SectionTitle>Take it away</SectionTitle>
           <div class="flex flex-wrap gap-2">
-            {/* The mode rides in a hidden field: a disabled submitter's own value
-                never reaches the form (SUBMIT_ONCE disables them all). */}
+            {/* Two channels on purpose (D12k). WITH JavaScript the mode rides in
+                the hidden field, because SUBMIT_ONCE disables every button and a
+                disabled submitter's own value never reaches the form. WITHOUT it
+                the onclick never runs and the hidden field would keep saying
+                "preview" — all four buttons previewed — so each button also
+                carries its own name and value, which is what a plain browser
+                submits. The route reads `submitMode` first for that reason. */}
             <input type="hidden" name="mode" value="preview" id="render-mode" />
-            <Button onclick="document.getElementById('render-mode').value='preview'">Update the preview</Button>
-            <Button variant="secondary" onclick="document.getElementById('render-mode').value='docx'">
+            <Button name="submitMode" value="preview" onclick="document.getElementById('render-mode').value='preview'">
+              Update the preview
+            </Button>
+            <Button
+              variant="secondary"
+              name="submitMode"
+              value="docx"
+              onclick="document.getElementById('render-mode').value='docx'"
+            >
               Download .docx
             </Button>
-            <Button variant="secondary" onclick="document.getElementById('render-mode').value='pdf'">
+            <Button
+              variant="secondary"
+              name="submitMode"
+              value="pdf"
+              onclick="document.getElementById('render-mode').value='pdf'"
+            >
               Download .pdf
             </Button>
-            <Button variant="secondary" onclick="document.getElementById('render-mode').value='save'">
+            <Button
+              variant="secondary"
+              name="submitMode"
+              value="save"
+              onclick="document.getElementById('render-mode').value='save'"
+            >
               Save as a new resume
             </Button>
           </div>
@@ -202,6 +227,13 @@ export const ResumeRenderPage: FC<RenderPageProps> = ({
           The text a parser reads out of the .docx above — produced by rendering it and reading it back, not by
           guessing.
         </Hint>
+        {dropped.length > 0 && (
+          <p class="mb-3 text-sm text-warn">
+            {dropped.length === 1 ? '1 character was removed' : `${dropped.length} characters were removed`} —
+            the bundled typeface cannot draw {dropped.map((c) => `"${c}"`).join(' ')}. They are gone from the .docx
+            and the .pdf above, so check anywhere your resume used them.
+          </p>
+        )}
         {warnings.length > 0 ? (
           <ul class="mb-3 space-y-1 text-sm text-warn">
             {warnings.map((w) => (
