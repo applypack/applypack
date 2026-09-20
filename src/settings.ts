@@ -58,6 +58,31 @@ export async function ensureSettingsRow(): Promise<void> {
 }
 
 /**
+ * Run a write that has to be the only one of its kind in flight (issue #70).
+ *
+ * Some invariants are about a SET of rows, not one of them: at most eight
+ * searches running, exactly one default resume, exactly one scratch resume,
+ * the primary search not deleted from under the tab that is switching it.
+ * Counting and then writing is check-then-act — two tabs both read the old
+ * count and both pass — and a transaction alone does not fix it, because at
+ * Read Committed each one counts inside its own snapshot. Locking the rows
+ * that were counted cannot help either: it cannot see a row that appeared
+ * while we waited.
+ *
+ * So every such writer queues on the one row that stands for global state,
+ * and the loser reads again after the winner has committed.
+ */
+export async function withGlobalWriteLock<T>(
+  run: (tx: Prisma.TransactionClient) => Promise<T>,
+): Promise<T> {
+  await ensureSettingsRow();
+  return prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM app_settings WHERE id = ${SETTINGS_ID} FOR UPDATE`;
+    return run(tx);
+  });
+}
+
+/**
  * Returns the singleton AppSettings row, creating it with defaults if missing.
  */
 export async function getSettings(): Promise<AppSettingsView> {
