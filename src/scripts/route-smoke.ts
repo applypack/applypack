@@ -16,6 +16,7 @@
  * TEST-1); the unit tests cover the pure modules, this covers the wiring.
  */
 import { app } from '../web/app';
+import { DEFAULT_BODY_BYTES } from '../web/body-limits';
 import { prisma } from '../db';
 import { createManualJob } from '../jobs/manual-job';
 import { createResume } from '../resume/store';
@@ -236,12 +237,15 @@ async function main(): Promise<void> {
       expect: (res) => res.status === 400,
     },
     {
+      // Just over DEFAULT_BODY_BYTES, not a round number of megabytes: the
+      // point is the ceiling, and CI should not build a 30 MB string to
+      // prove it.
       name: 'POST a body past the size limit (413)',
       url: '/jobs/new',
       init: {
         method: 'POST',
         headers: { ...ORIGIN, 'content-type': 'application/x-www-form-urlencoded' },
-        body: `description=${'x'.repeat(30 * 1024 * 1024)}`,
+        body: `description=${'x'.repeat(DEFAULT_BODY_BYTES + 1024)}`,
       },
       expect: (res) => res.status === 413,
     },

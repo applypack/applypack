@@ -86,6 +86,18 @@ if (config.WEB_BASIC_AUTH) {
  */
 app.use('*', originGuard());
 
+/**
+ * The progress endpoints the pages poll — a fetch tick, a comparison, a
+ * watchlist resolve, a screening batch — answer the state at this instant
+ * and nothing else (H28). One rule rather than a header per route: they all
+ * end in `/state`, the 404 branches need it as much as the 200s, and the
+ * next progress page gets it without anyone remembering.
+ */
+app.use('*', async (c, next) => {
+  await next();
+  if (c.req.path.endsWith('/state')) c.header('Cache-Control', 'no-store');
+});
+
 // Static files (the browser modules of ADR 0010 among them) never touch the
 // database: served before anything that does, so an unreachable Postgres
 // cannot turn a stylesheet into a 500.
