@@ -4,6 +4,25 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.18.0] — 2026-09-20
+
+### Fixed
+- **A keyword no longer matches inside a longer word.** Excluding "java" also
+  dropped every JavaScript role — 7 of the 13 titles holding "java" in the
+  941 stored here — and "intern" read "International" the same way. A
+  required "go" matched Chicago, Google and Government in 35 of its 50 hits.
+  Keywords now match whole words, with "c++", "c#", ".net" and "node.js"
+  still matchable and six suffixes allowed, so "go" keeps finding Golang and
+  "team lead" keeps finding Team Leader.
+- **A pasted feed or careers page is checked against robots.txt.** The
+  watchlist ladder read it before fetching a company's own site and the
+  "Add one company" form did not, so the same URL could be refused in one
+  door and saved in the other.
+- **A posting that mentions Cloudflare is a posting.** Reading a posting from
+  a URL treated the bare vendor name as a bot check and refused the page. Both
+  readers now share one detector, which reads what an interstitial says to a
+  reader and never a vendor's name.
+
 ## [2.17.1] — 2026-09-20
 
 ### Fixed
@@ -3848,6 +3867,8 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.18.0]: https://github.com/applypack/applypack/compare/v2.17.1...v2.18.0
+[2.17.1]: https://github.com/applypack/applypack/compare/v2.17.0...v2.17.1
 [2.17.0]: https://github.com/applypack/applypack/compare/v2.16.0...v2.17.0
 [2.16.0]: https://github.com/applypack/applypack/compare/v2.15.0...v2.16.0
 [2.15.0]: https://github.com/applypack/applypack/compare/v2.14.0...v2.15.0
