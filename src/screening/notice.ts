@@ -7,7 +7,18 @@
  * thing. Not legal advice — a starting point to hand to whoever is.
  */
 
-export function applicantNotice(contact = '[contact address]'): string {
+/**
+ * D7 / Q25: the sentence used to promise deletion "after the hiring round
+ * closes", and nothing in the tool closes a round. What actually happens is
+ * `Screening.retainUntil`, set from `AppSettings.screeningRetentionDays` when
+ * the screening is made and swept by `jobs/cleanup-job.ts`. A retention the
+ * employer can read off their own settings is a promise they can keep; the
+ * old one was a promise nobody was making.
+ */
+export function applicantNotice(
+  contact = '[contact address]',
+  retentionDays = DEFAULT_RETENTION_DAYS,
+): string {
   return [
     'How we read your application',
     '',
@@ -15,11 +26,24 @@ export function applicantNotice(contact = '[contact address]'): string {
     '',
     'No decision is made automatically. The tool orders applications by what it found; a person reads them and decides whom to talk to. It does not see your name, contact details, photo, date of birth, age, family situation, gender, citizenship or address — those are removed before the text is analysed.',
     '',
-    `You may ask how your application was read, request that it be reviewed by a person without the tool, or object to this processing, by writing to ${contact}. Your application and its analysis are deleted after the hiring round closes.`,
+    `You may ask how your application was read, request that it be reviewed by a person without the tool, or object to this processing, by writing to ${contact}. Your application and its analysis are deleted ${retentionPhrase(retentionDays)} after we receive them, or sooner if you ask us to.`,
   ].join('\n');
 }
 
 /** What the person turning the mode on is agreeing to carry — the settings tab says it once, in full. */
+/**
+ * Mirrors `settings.ts:SCREENING_RETENTION_DAYS.default`. Not imported from
+ * there: this module is pure and the settings module reaches for Prisma, and
+ * the caller passes the install's real number anyway.
+ */
+const DEFAULT_RETENTION_DAYS = 90;
+
+/** "90 days", "30 days", "1 day" — the notice is read by people, not parsers. */
+function retentionPhrase(days: number): string {
+  const whole = Math.max(1, Math.round(days));
+  return `${whole} ${whole === 1 ? 'day' : 'days'}`;
+}
+
 export const LEGAL_NOTE = [
   'Screening other people’s resumes with an AI tool is regulated in a way the rest of ApplyPack is not. Under the EU AI Act (Annex III, 4(a)) a system that filters job applications is high-risk, and the open-source exemption does not cover high-risk use; under GDPR art. 22 nobody may be subject to a hiring decision made solely by automated means, and art. 13–14 require applicants to be told. NYC Local Law 144, Colorado SB 24-205 and Illinois HB 3773 add audit and notice duties in the US.',
   'This mode is built to be the tool, not the decision: it ranks, quotes and asks; a person decides, and every score can be read off a table. Two things are yours: tell applicants (the notice below), and run it on an engine you have a data-processing agreement with or on a local model — a personal-subscription CLI is not that.',
