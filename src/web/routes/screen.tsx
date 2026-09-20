@@ -14,6 +14,7 @@ import { onceGuard } from '../once-guard';
 import { briefForPosting, briefLine } from '../../resume/brief';
 import { ResumeTextError } from '../../resume/docx-text';
 import { extractResumeText } from '../../resume/resume-text';
+import { MAX_ZIP_ENTRIES } from '../../resume/zip';
 import { applyPreset, draftRubric, PRESETS, rubricEquals, rubricFromForm, rubricSummary, type Preset } from '../../screening/rubric';
 import { displayName, expandUploads, findDuplicate, fingerprintBytes, fingerprintText, MAX_APPLICANTS_PER_SCREENING, MAX_BATCH_UPLOAD_MB } from '../../screening/intake';
 import { findLeaks, readRedactions, redactApplicant } from '../../screening/redact';
@@ -377,7 +378,7 @@ screenRoute.post('/screen/:id/applicants', (c, next) => batchUploadLimit(c.req.p
   if (picked.length === 0) return flashRedirect(back, 'err', 'Pick the resume files, a folder or a zip first.');
 
   const uploads = await Promise.all(picked.map(async (f) => ({ name: f.name, bytes: Buffer.from(await f.arrayBuffer()) })));
-  const { files, badArchives, oversized, notResumes } = expandUploads(uploads);
+  const { files, badArchives, oversized, truncatedArchives, notResumes } = expandUploads(uploads);
   const room = MAX_APPLICANTS_PER_SCREENING - (await countApplicants(screening.id));
   if (room <= 0) return flashRedirect(back, 'err', `This screening already holds ${MAX_APPLICANTS_PER_SCREENING} applicants.`);
   const batch = files.slice(0, room);
@@ -462,6 +463,11 @@ screenRoute.post('/screen/:id/applicants', (c, next) => batchUploadLimit(c.req.p
   if (notResumes.length > 0) parts.push(`${notResumes.length} file${notResumes.length === 1 ? '' : 's'} of other types left out`);
   if (badArchives.length > 0) parts.push(`${badArchives.length} archive${badArchives.length === 1 ? '' : 's'} could not be opened`);
   if (oversized.length > 0) parts.push(`${oversized.length} zip entr${oversized.length === 1 ? 'y' : 'ies'} over ${MAX_UPLOAD_MB} MB left out`);
+  if (truncatedArchives.length > 0) {
+    parts.push(
+      `${truncatedArchives.length} archive${truncatedArchives.length === 1 ? '' : 's'} held more than ${MAX_ZIP_ENTRIES} files — only the first ${MAX_ZIP_ENTRIES} were opened`,
+    );
+  }
   if (files.length > room) parts.push(`${files.length - room} left out — the screening holds ${MAX_APPLICANTS_PER_SCREENING} at most`);
   if (leaked > 0) parts.push(`${leaked} may still carry something identifying — check their scorecards`);
   const tail =

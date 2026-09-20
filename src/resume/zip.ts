@@ -25,6 +25,12 @@ export class ZipLimitError extends ZipError {}
 export const MAX_INFLATED_PART_BYTES = 64 * 1024 * 1024;
 /** Everything an archive of resumes may inflate to, in total — the web process holds it all at once. */
 const MAX_INFLATED_TOTAL_BYTES = 512 * 1024 * 1024;
+/**
+ * How many entries are read out of one archive at all. Well above the 300
+ * files a screening takes, so a real folder of resumes is never cut; low
+ * enough that an archive built to be counted rather than read stops early.
+ */
+export const MAX_ZIP_ENTRIES = 2_000;
 
 export interface ZipEntry {
   name: string;
@@ -62,12 +68,23 @@ export function readZipEntries(
   zip: Buffer,
   maxEntryBytes = Infinity,
   maxTotalBytes = MAX_INFLATED_TOTAL_BYTES,
-): { entries: ZipEntry[]; skipped: string[] } {
+  maxEntries = MAX_ZIP_ENTRIES,
+): { entries: ZipEntry[]; skipped: string[]; truncated: boolean } {
   const entries: ZipEntry[] = [];
   const skipped: string[] = [];
   let total = 0;
+  let truncated = false;
   for (const record of centralDirectory(zip)) {
     if (record.name.endsWith('/')) continue;
+    // Counted BEFORE inflating (H15). The byte ceilings bound what an archive
+    // can expand to, not how many times we ask: a million one-byte entries
+    // costs a million inflate calls and a million-element array while staying
+    // far under the total. The walk stops rather than listing the rest —
+    // naming a million skipped files is the same problem again.
+    if (entries.length >= maxEntries) {
+      truncated = true;
+      break;
+    }
     const room = Math.min(maxEntryBytes, maxTotalBytes - total);
     // zlib refuses a ceiling under one byte, so a full archive skips the rest
     // outright instead of asking the inflater for nothing.
@@ -88,7 +105,7 @@ export function readZipEntries(
     total += data.length;
     entries.push({ name: record.name, data });
   }
-  return { entries, skipped };
+  return { entries, skipped, truncated };
 }
 
 function* centralDirectory(zip: Buffer): Generator<CentralRecord> {

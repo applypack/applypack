@@ -34,6 +34,8 @@ export interface ExpandedUploads {
   badArchives: string[];
   /** Zip entries past MAX_ENTRY_BYTES, not read. */
   oversized: string[];
+  /** Archives holding more entries than the reader will open (H15). */
+  truncatedArchives: string[];
   /** Files of a type the extractor cannot read (a photo, a spreadsheet) — a folder drop carries them; they are not applicants. */
   notResumes: string[];
 }
@@ -57,6 +59,7 @@ export function expandUploads(files: UploadFile[]): ExpandedUploads {
   const out: ExpandedFile[] = [];
   const badArchives: string[] = [];
   const oversized: string[] = [];
+  const truncatedArchives: string[] = [];
   const notResumes: string[] = [];
   const take = (name: string, bytes: Buffer, archive: string | null): void => {
     if (out.length >= MAX_FILES_PER_UPLOAD) return;
@@ -74,15 +77,16 @@ export function expandUploads(files: UploadFile[]): ExpandedUploads {
       continue;
     }
     try {
-      const { entries, skipped } = readZipEntries(f.bytes, MAX_ENTRY_BYTES);
+      const { entries, skipped, truncated } = readZipEntries(f.bytes, MAX_ENTRY_BYTES);
       oversized.push(...skipped);
+      if (truncated) truncatedArchives.push(f.name);
       for (const entry of entries) take(entry.name, entry.data, f.name);
     } catch (err) {
       if (err instanceof ZipError) badArchives.push(f.name);
       else throw err;
     }
   }
-  return { files: out, badArchives, oversized, notResumes };
+  return { files: out, badArchives, oversized, truncatedArchives, notResumes };
 }
 
 /** "Ivan Petrenko/CV.pdf (from batch.zip)" — what the table shows for a file. */
