@@ -1,6 +1,13 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { passesAnyBaseFilter, passesBaseFilter, placesOverlap, type FilterableJob, type FilterProfile } from './filter';
+import {
+  passesAnyBaseFilter,
+  passesBaseFilter,
+  placesOverlap,
+  titleHasKeyword,
+  type FilterableJob,
+  type FilterProfile,
+} from './filter';
 import { parseLocation } from './location';
 
 /** A job as the filter sees it: the string plus its parsed columns. */
@@ -70,6 +77,62 @@ describe('passesBaseFilter — exclude stack', () => {
 
   it('rejects wordpress-only titles', () => {
     assert.equal(passesBaseFilter(job('Senior WordPress Developer', 'Remote, US'), phpProfile), false);
+  });
+
+  it('does not let an exclude fire inside a longer word (D6)', () => {
+    // "intern" must not read "International"; measured: excluding "java"
+    // dropped 7 of 13 matching titles, all of them JavaScript roles.
+    const p = { ...phpProfile, stackRequired: ['php', 'javascript'] };
+    assert.equal(passesBaseFilter(job('International PHP Lead', 'Remote, US'), p), true);
+    assert.equal(
+      passesBaseFilter(job('Senior JavaScript Engineer', 'Remote, US'), { ...p, stackExclude: ['java'] }),
+      true,
+    );
+  });
+});
+
+describe('titleHasKeyword — word boundaries', () => {
+  const yes = (title: string, keyword: string) =>
+    assert.equal(titleHasKeyword(title.toLowerCase(), keyword), true, `${keyword} in ${title}`);
+  const no = (title: string, keyword: string) =>
+    assert.equal(titleHasKeyword(title.toLowerCase(), keyword), false, `${keyword} in ${title}`);
+
+  it('does not match inside a longer word', () => {
+    no('Senior JavaScript Engineer', 'java');
+    no('Staff Engineer, Google Cloud', 'go');
+    no('Territory Account Executive, Chicago', 'go');
+    no('Director of Government Affairs', 'go');
+    no('Principal Consultant, Reactive Services', 'react');
+    no('Engineer, maintain the platform', 'ai');
+  });
+
+  it('matches the word itself', () => {
+    yes('Senior Java Engineer', 'java');
+    yes('Go Backend Engineer', 'go');
+    yes('Software Engineer (Go)', 'go');
+    yes('Senior React Developer', 'react');
+  });
+
+  it('keeps punctuation-edged keywords matchable', () => {
+    yes('C++ Developer', 'c++');
+    yes('Senior C# Engineer', 'c#');
+    yes('.NET Backend Developer', '.net');
+    yes('ASP.NET Core Engineer', '.net');
+    yes('Node.js Engineer', 'node.js');
+    no('Kubernetes Engineer', '.net');
+  });
+
+  it('allows the measured suffixes and nothing else', () => {
+    yes('Senior Golang Developer', 'go');
+    yes('CQA Team Leader', 'team lead');
+    yes('Django + VueJS Developer', 'vue');
+    yes('Sales Engineer', 'sale');
+    no('Gooseworks Founding Engineer', 'go');
+    no('Senior Internship Programme', 'intern');
+  });
+
+  it('ignores an empty keyword', () => {
+    no('Senior PHP Developer', '');
   });
 });
 

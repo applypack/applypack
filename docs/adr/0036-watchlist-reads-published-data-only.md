@@ -41,8 +41,10 @@ Three measurements shaped the rules more than the totals:
   automattic.com), and the `<link rel="alternate">` a careers page declares is
   the blog on both netlify.com and posthog.com.
 - **A vendor's name is not evidence of its interstitial.**
-  `jobs/posting-url.ts` matches the bare word `cloudflare`, so
-  cloudflare.com's own careers page is reported as a bot check.
+  `jobs/posting-url.ts` matched the bare word `cloudflare`, so
+  cloudflare.com's own careers page was reported as a bot check. Since
+  v2.17.2 both readers share `scan.ts:looksLikeChallengeText`, which reads
+  phrases only.
 
 ## Decision
 

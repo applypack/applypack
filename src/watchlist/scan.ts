@@ -96,25 +96,35 @@ export function wellKnownFeeds(pageUrl: string): string[] {
 
 /**
  * Bot-check phrasing only, read from the page's TEXT rather than its markup.
+ * The one detector in the project: `jobs/posting-url.ts` reads a pasted
+ * posting through `looksLikeChallengeText`.
  *
  * Two false positives, both measured on 2026-09-04, set these rules:
  *
- * - `jobs/posting-url.ts` matches the bare word "cloudflare", so
- *   cloudflare.com's own careers page is refused as a bot check. A careers
- *   page belongs to a company that may be named after the vendor protecting
- *   it, so a vendor's name is never evidence.
+ * - The bare word "cloudflare" refused cloudflare.com's own careers page as a
+ *   bot check. A careers page belongs to a company that may be named after
+ *   the vendor protecting it, so a vendor's name is never evidence. The
+ *   posting reader kept the bare word until ADR 0036's note was acted on; it
+ *   now reads these phrases too, so a posting that lists "Cloudflare Workers"
+ *   on its stack line is a posting.
  * - The bare word "captcha" matched `.grecaptcha-badge` in a `<style>` block
  *   (jobs.ashbyhq.com) and `<!-- ReCaptcha -->` in a `<head>` (storyblok.com).
  *   A site that puts a captcha on its contact form has not challenged us.
  *
  * Hence: strip the markup first, then look only for what an interstitial
- * actually says to a reader. The broad set stays right where it is for a
- * posting page, where the page IS the content and a vendor name in the first
- * paragraph is a strong signal.
+ * actually says to a reader.
  */
 const CHALLENGE =
   /just a moment|checking your browser|verify you are human|are you a (?:robot|human)|enable javascript and cookies|attention required|(?:solve|complete) the captcha|captcha challenge|security check to access|ddos protection by/i;
 
+/** The window a challenge page fits in; a real posting is longer than its lede. */
+const CHALLENGE_WINDOW = 2_000;
+
 export function looksLikeChallenge(html: string): boolean {
-  return CHALLENGE.test(stripHtml(html).slice(0, 2_000));
+  return looksLikeChallengeText(stripHtml(html));
+}
+
+/** The same question asked of text that has already been stripped (gotcha 12). */
+export function looksLikeChallengeText(text: string): boolean {
+  return CHALLENGE.test(text.slice(0, CHALLENGE_WINDOW));
 }

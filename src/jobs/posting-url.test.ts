@@ -39,6 +39,15 @@ test('postingTextFromHtml strips markup and rejects thin or challenged pages', (
   if (!challenge.ok) assert.match(challenge.error, /bot check/);
 });
 
+test('a posting that merely names a bot-check vendor is a posting (D11)', () => {
+  const html = `<html><body><h1>Senior Platform Engineer</h1><p>Our edge runs on
+    Cloudflare Workers, and we use a captcha on the sign-up form.
+    ${'We build Go services. '.repeat(20)}</p></body></html>`;
+  const result = postingTextFromHtml(html);
+  assert.equal(result.ok, true, 'a vendor name is not evidence of a challenge');
+  if (result.ok) assert.match(result.text, /Cloudflare Workers/);
+});
+
 test('isPrivateHost covers loopback, RFC1918, link-local and IPv6', () => {
   for (const h of [
     'localhost', 'dev.localhost', 'printer.local', '127.0.0.1', '10.1.2.3',

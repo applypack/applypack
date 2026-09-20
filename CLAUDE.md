@@ -54,7 +54,8 @@
   `passesAnyBaseFilter` is the union wrapper every caller uses (ADR 0028).
   It reads the Job columns, not the string: callers pass stored rows or a
   `parseLocation` result; `placesOverlap` expands groups on both sides
-  (ADR 0032) and everything unknown goes to the classifier.
+  (ADR 0032) and everything unknown goes to the classifier. Title keywords
+  match whole words through `titleHasKeyword`, never a run inside one.
 - `apply-link.ts` is pure — no I/O. It flags apply links, never rejects a
   row, and the company name is deliberately not an input (ADR 0023).
   `withApplyLinkFlags` is called at every site that persists `redFlags`.
@@ -300,6 +301,7 @@ When the question is **"where does X live?"**, save yourself a `find`:
 | How many jobs are classified at once | `AI_CONCURRENCY` in `.env` (default 3); limiter in `src/concurrency.ts`, used by `jobs/process-jobs.ts` and `jobs/reclassify-job.ts` |
 | The two-stage prefilter prompt | `src/classifier-prefilter.ts:buildPrefilterPrompt` |
 | Per-job filter rules (pre-Claude) | `src/filter.ts:passesBaseFilter`; union across running searches = `passesAnyBaseFilter` |
+| Why an exclude of "java" does not drop "JavaScript" | `src/filter.ts:titleHasKeyword` (pure) — whole-word matching for all three keyword lists, a boundary demanded only where the keyword's own edge is a letter or a digit (so `c++`, `c#`, `.net`, `node.js` still match), plus `KEYWORD_SUFFIXES`, five tolerances measured on 941 stored titles (`go` → Golang, `team lead` → Team Leader) |
 | One posting → a verdict per running search (winner, score line, thresholds) | `src/jobs/verdict-merge.ts` (pure, ADR 0028); parser `classifier.ts:parseClassifications`; write path `src/jobs/score-store.ts` |
 | Which searches are running, and the ceiling on them | `src/profiles.ts:listActiveProfiles` / `setProfileActive`; `MAX_ACTIVE_PROFILES` in `src/profile-guards.ts` |
 | Blank-profile guards (skip tick, fit ≤ 50 cap, activation gate) | `src/profile-guards.ts` (pure, issue #50) — wired in `process-jobs.ts`, `classifier.ts`, `routes/settings.tsx` |
