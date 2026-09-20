@@ -1,5 +1,5 @@
 import { JobStatus, Prisma, type Job, type Profile } from '@prisma/client';
-import { prisma } from '../db';
+import { isUniqueViolation, prisma } from '../db';
 import { config } from '../config';
 import { logger } from '../logger';
 import { createLimiter } from '../concurrency';
@@ -488,7 +488,7 @@ async function persistJob(
       },
     });
   } catch (err) {
-    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+    if (isUniqueViolation(err)) {
       stats.duplicate++;
       logger.warn(
         { title: job.title, companyName },

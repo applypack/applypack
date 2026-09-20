@@ -76,11 +76,20 @@ export async function withGlobalWriteLock<T>(
   run: (tx: Prisma.TransactionClient) => Promise<T>,
 ): Promise<T> {
   await ensureSettingsRow();
-  return prisma.$transaction(async (tx) => {
-    await tx.$queryRaw`SELECT id FROM app_settings WHERE id = ${SETTINGS_ID} FOR UPDATE`;
-    return run(tx);
-  });
+  return prisma.$transaction(
+    async (tx) => {
+      await tx.$queryRaw`SELECT id FROM app_settings WHERE id = ${SETTINGS_ID} FOR UPDATE`;
+      return run(tx);
+    },
+    // The wait for the lock is spent INSIDE the transaction, so it counts
+    // against this budget. Prisma's default of 5 s was set when one caller
+    // held the row for a few queries; a resume upload writes its bytes under
+    // it now, and a waiter should queue rather than fail.
+    { timeout: LOCK_TIMEOUT_MS },
+  );
 }
+
+const LOCK_TIMEOUT_MS = 20_000;
 
 /**
  * Returns the singleton AppSettings row, creating it with defaults if missing.
@@ -404,8 +413,9 @@ export type NewTarget =
 /**
  * Null means the destination was already there. `findSameDestination` answers
  * that for a user who is not racing themselves; this answers the tab that
- * pressed Add a moment later, which used to be a bare 500 (D5). Every caller
- * has a sentence for "already added" — the type makes them write it.
+ * pressed Add a moment later, which used to be a bare 500 (D5). All four
+ * callers check it; a new one that forgets adds a target the user is never
+ * told about, which is why it is worth checking.
  */
 export async function addNotificationTarget(input: NewTarget): Promise<NotificationTarget | null> {
   try {

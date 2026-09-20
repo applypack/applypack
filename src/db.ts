@@ -11,10 +11,10 @@ export const prisma = new PrismaClient({
 /**
  * A unique-constraint violation, whoever raised it (ADR 0053).
  *
- * Every write that races another tab meets P2002, and the four call sites
- * used to spell the check out — or, for the two that did not, answered a
- * second Telegram target or a second company row with a bare 500. One
- * predicate, so a duplicate can be *said* rather than thrown.
+ * Every write that races another tab can meet P2002. Three sites spelled the
+ * check out by hand and several more did not have it at all, so a second
+ * Telegram target or company row was a bare 500. One predicate, so that a
+ * duplicate can be *said* rather than thrown.
  *
  * Read the code, not the message: Prisma's wording changes between versions
  * and is not part of its contract.
