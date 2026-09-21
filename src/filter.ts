@@ -65,10 +65,13 @@ export function passesAnyBaseFilter(
  *   to sit inside "ASP.NET".
  * - A short list of suffixes may follow, because plain boundaries dropped six
  *   real matches on the corpus and nothing else: "go" no longer found five
- *   Golang roles and "team lead" no longer found "Team Leader". Four of the
- *   five below fire on stored titles; "ers" rides along with "er", being its
- *   plural. A suffix nothing needed ("es") is not here — a tolerance that
- *   was never measured is a guess about which words a user will type.
+ *   Golang roles and "team lead" no longer found "Team Leader". "ing" came
+ *   from a wider keyword list than the live profile's: "engineer" lost 33
+ *   titles such as "Head of Engineering". Five of the six below fire on
+ *   stored titles; "ers" rides along with "er", being its plural. A suffix
+ *   nothing needed ("es", "ship", a version digit as in "PHP8") is not here
+ *   — a tolerance that was never measured is a guess about which words a
+ *   user will type.
  */
 const KEYWORD_SUFFIXES = [
   's', // 40 hits: "sale" → "Sales"
@@ -76,6 +79,7 @@ const KEYWORD_SUFFIXES = [
   'ers', // the plural of the above
   'js', // 2 hits: "vue" → "VueJS", "node" → "NodeJS"
   'lang', // 10 hits: "go" → "Golang"
+  'ing', // 33 hits: "engineer" → "Engineering Manager"
 ] as const;
 
 export function titleHasKeyword(title: string, keyword: string): boolean {
