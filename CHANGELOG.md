@@ -4,6 +4,29 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.18.3] — 2026-09-21
+
+### Fixed
+- **A comparison survives a brief the database refuses.** The reading of a
+  posting is kept as a memo. On an install whose worker had not been rebuilt,
+  the unique key v2.18.1 adds did not exist yet, the store refused the memo,
+  and every comparison of a new posting failed after the model had already
+  answered. The answer is now used for that run and a warning is logged; only
+  the memo is lost.
+- **Making a search primary takes the lock that deleting one takes.** A delete
+  landing in between made the foreign key refuse the write, and the flash
+  showed Prisma's own error text. A stale search — deleted in another tab, or
+  a second press on Delete — now says the search no longer exists, on Run,
+  Pause, Make primary and Delete alike.
+- **The last two "AI match" sentences** — after checking a new resume version
+  against a job, and on the targeted view before any comparison — say "match"
+  and "comparison", like the rest.
+- **"Engineering Manager" passes an "engineer" keyword again.** v2.18.0 made
+  title keywords match whole words, with five measured suffixes; "ing" was
+  missing, and "engineer" dropped 33 of 941 stored titles. The same suffix
+  lets "market" reach "Marketing" and "account" reach "Accounting". On the
+  default search no verdict moves.
+
 ## [2.18.2] — 2026-09-20
 
 ### Fixed
@@ -3923,6 +3946,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.18.3]: https://github.com/applypack/applypack/compare/v2.18.2...v2.18.3
 [2.18.2]: https://github.com/applypack/applypack/compare/v2.18.1...v2.18.2
 [2.18.1]: https://github.com/applypack/applypack/compare/v2.18.0...v2.18.1
 [2.18.0]: https://github.com/applypack/applypack/compare/v2.17.1...v2.18.0
