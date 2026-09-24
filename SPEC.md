@@ -29,7 +29,7 @@ port.
 
 See [ARCHITECTURE.md](./ARCHITECTURE.md) for diagrams.
 
-## Sources (26 ATS / aggregator types + MANUAL)
+## Sources (33 kinds of source, the change watch, and MANUAL)
 
 | AtsType            | Shape         | Auth      | Notes                                           |
 | ------------------ | ------------- | --------- | ----------------------------------------------- |
@@ -459,9 +459,9 @@ The label never says "AI-generated" and never claims the original design back.
 The loop: edit the resume → "Upload a new version" on `/resumes/:id`
 (`Resume.version` +1, re-scan) → Compare again. `ResumeMatch.resumeVersion`
 records which version scored; the card shows the delta vs the previous run.
-The prompt uses a fixed rubric (60 keyword coverage / 20 title+summary /
-20 most-recent role, −10 per hard red flag) so scores are comparable, and
-returns `removals` — what to cut so the resume reads cleaner.
+The model marks facts and `resume/score.ts` computes the number from them
+(ADR 0012), so scores are comparable; the full report also returns
+`removals`, what to cut so the resume reads cleaner.
 
 ## Manual jobs + verification (Phase 8.2)
 
@@ -541,17 +541,19 @@ editing. Manual edits are re-checked warn-only — the gate polices the
 model, not the user. The generation call is tool-free (`webTools` stays
 exclusive to verification, ADR 0009).
 
-## Employer mode (TASKS §19, ADR 0047–0049)
+## Employer mode (TASKS §19, ADR 0047–0052)
 
 Off by default. `/settings` → Screening turns it on; the menu then has
 "Screening". A `Screening` is one position (`jobId`, any Job — a pasted
 posting becomes a MANUAL job as on `/target`; `postingText` is the
 screening's own editable snapshot of the description, `postingUpdatedAt`
-marks an edit) with a `rubric` (JSON,
-`screening/rubric.ts`): gates, must-have and nice-to-have terms with a
-core-stack flag, level, minimum years, sector, education, weights. The
-draft is the posting brief (ADR 0044), edited by the person; a save that
-changes it bumps `rubricVersion`.
+marks an edit) with a `rubric` (JSON, `screening/rubric.ts`, v2): a list
+of criteria the person chooses (ADR 0050). Each has a kind (a skill, years,
+level, industry, language, certification, impact, the overall read, one in
+the person's own words …), a mode (a gate that buckets, stars that score,
+or a note that only shows) and its stars. The draft is the posting brief
+(ADR 0044), edited by the person; a save that changes it bumps
+`rubricVersion`, and a v1 rubric converts on read.
 
 `Applicant` rows belong to one screening and cascade with it: the file,
 the extracted `text`, the `redactedText` the model reads (name, contacts,
@@ -609,8 +611,8 @@ the cleanup cron, or at once from its page.
 - TypeScript strict, Node 24 (runtime image; >=22 locally), pino, zod, native fetch with `fetchWithRetry` + `AbortController`
 - Prisma 6 + Postgres 16 (real migrations from `phase-3.0` baseline onward)
 - node-cron for scheduling, no Redis / BullMQ
-- Hono 4 for the dashboard, JSX SSR with `hono/jsx`, Tailwind via CDN over semantic CSS-variable tokens (no build pipeline; light SaaS theme, see DESIGN.md)
-- `src/ai-provider.ts` seam, five engines: `anthropic_api` (SDK, per-token), `claude_code` (headless CLI, subscription), `gemini_cli` (headless CLI, Google account), `openai_api` (fetch → any /chat/completions endpoint via OPENAI_BASE_URL), `codex_cli` (headless CLI, ChatGPT subscription). `/settings` → "AI engine" stores an ordered chain + per-engine classifier/resume/cover models (AppSettings.aiEngine JSON, ADR 0013/0014) and, for the four key-bearing engines, the API key itself (AppSettings.aiKeys, ADR 0027 — DB first, `.env` as fallback, never rendered in full); calls fail over down the chain automatically; `.env` seeds the default (Haiku 4.5 classifier, Opus 5 resume); `AI_CONCURRENCY` jobs classified at once (default 3)
+- Hono 4 for the dashboard, JSX SSR with `hono/jsx`, Tailwind over semantic CSS-variable tokens, built by `npm run css` and committed (`src/web/public/tailwind.css`), so the runtime has no build step and no page loads a CDN (light SaaS theme, see DESIGN.md)
+- `src/ai-provider.ts` seam, five engines: `anthropic_api` (SDK, per-token), `claude_code` (headless CLI, subscription), `gemini_cli` (headless CLI, Google account), `openai_api` (fetch → any /chat/completions endpoint via OPENAI_BASE_URL), `codex_cli` (headless CLI, ChatGPT subscription). `/settings` → "AI engine" stores an ordered chain + per-engine classifier/resume/cover models (AppSettings.aiEngine JSON, ADR 0013/0014) and, for the four key-bearing engines, the API key itself (AppSettings.aiKeys, ADR 0027 — DB first, `.env` as fallback, never rendered in full); calls fail over down the chain automatically; an empty model slot takes `ai-engine.ts:defaultModelFor` (Haiku 4.5 for the classifier; Sonnet 5 for resume calls on the Claude CLI, Haiku 4.5 on the API; Opus 5 for the letter); `AI_CONCURRENCY` jobs classified at once (default 3)
 - node:test runner (`npm test`), no jest
 
 ## Project layout

@@ -189,13 +189,13 @@ src/
   jobs/location-reason.ts      ← "open to Poland; this search hunts in …" for the job page (pure, ADR 0032)
   web/job-facets.ts            ← /jobs place / workplace / posted facets: params, where, chip counts; the list's URLs (jobsHref), the filters in force (pure)
   web/public/countries.mjs     ← country picker: search over /countries.json + the suggestion list (tested via import())
-  screening/                   ← employer mode (TASKS §19, ADR 0047–0049); web-only, off by default
+  screening/                   ← employer mode (TASKS §19, ADR 0047–0052); web-only, off by default
     rubric.ts                  ← pure: what a screening checks, drafted from the posting brief, edited by the person
     redact.ts                  ← pure: the applicant taken out of the text before any model reads it (ADR 0048)
     dates.ts                   ← pure: resume dates in five languages → years covered, months since
     prompts.ts                 ← buildScreenPrompt + ScreenReplySchema (one answer per criterion, roles, stand-out facts, questions)
     anchor.ts                  ← pure: every quote checked against the redacted text; unproven rungs lowered
-    score.ts                   ← pure: the employer score, its caps, the bucket, the confidence (ADR 0047)
+    score.ts                   ← pure: the employer score, its caps, the bucket, the confidence (ADR 0050)
     trajectory.ts              ← pure: the career read off the dated roles (years, employers, average stay, sectors) — a fact, never points
     comparison.ts              ← pure: a shortlist's two readings — stored shape, the anchor, where they differ, the Markdown (ADR 0051)
     compare.ts                 ← Compare with AI: two calls at once (the second reversed), both stored as one ScreeningComparison
