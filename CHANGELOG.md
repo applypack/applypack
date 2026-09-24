@@ -4,6 +4,36 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.18.4] — 2026-09-24
+
+No runtime change: documentation, public copy and tests.
+
+### Changed
+- **The docs say what the code does.** CLAUDE.md, SPEC.md, ARCHITECTURE.md,
+  DESIGN.md, TASKS.md and the operator docs were read against the code and
+  corrected. Every ADR the code has moved past links to the ADR that changed
+  it or carries a dated addendum, and ADR 0005's undecided sources are now
+  "not used". Each dated plan opens with one status line.
+- **The public copy says what the product does.** On the landing page, the
+  demo and the launch drafts: a typed word counts in full (ADR 0045), alerts
+  go to Telegram or Discord, `npm start` is the default install, Save writes
+  into your own .docx, the five first-run steps, the source, vendor and
+  aggregator counts, the cost per posting. README no longer says fake
+  postings are dropped (a posting is checked when you ask) or that the clean
+  PDF is set in your own font, and no copy promises labelled first issues.
+- `docs/operations.md` warns that a backup holds AI keys, bot tokens,
+  webhooks, resumes and applicants in clear text, and names DOU's terms for a
+  hosted install. The bug report form asks for steps, expected, actual and
+  severity.
+
+### Added
+- `src/docs-paths.test.ts`: every path, `file:symbol` and code name the docs
+  cite must still exist in the code. `source-count.test.ts` also reads
+  SPEC.md and counts written as words.
+
+### Removed
+- `hash-probe.ts`, the tracked `.scratch/` and an outside plan's source file.
+
 ## [2.18.3] — 2026-09-21
 
 ### Fixed
@@ -3946,6 +3976,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.18.4]: https://github.com/applypack/applypack/compare/v2.18.3...v2.18.4
 [2.18.3]: https://github.com/applypack/applypack/compare/v2.18.2...v2.18.3
 [2.18.2]: https://github.com/applypack/applypack/compare/v2.18.1...v2.18.2
 [2.18.1]: https://github.com/applypack/applypack/compare/v2.18.0...v2.18.1
