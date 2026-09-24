@@ -2014,8 +2014,9 @@ A → B1+B2 → C → D → E.
 
 ## 20. Improvement plan + full audit (analysis 2026-09-10)
 
-An outside plan ([docs/applypack-improvement-and-claude-code-audit.md](./applypack-improvement-and-claude-code-audit.md))
-was read section by section against v2.5.2 — one file per section in
+An outside plan (`applypack-improvement-and-claude-code-audit.md`, removed
+after this review; it last lay at e468c83) was read section by section
+against v2.5.2 — one file per section in
 [docs/improvement-2026-09/](./improvement-2026-09/README.md) — and its
 audit prompt was run in the form that fits this repo. The findings, with
 `file:line` evidence and severities, are [docs/audit-2026-09-10.md](./audit-2026-09-10.md).
