@@ -1,6 +1,9 @@
 # 0005 — Never scrape LinkedIn / Indeed / Workday
 
-**Status:** Accepted (re-confirmed every phase)
+**Status:** Accepted (re-confirmed every phase) — amended by
+[0034](./0034-keyed-sources.md) (rule 3, keyed access under a vendor's
+licence) and [0036](./0036-watchlist-reads-published-data-only.md) (rule 2,
+which AI-bot bans bind us); see the 2026-09-24 addendum
 
 ## Context
 
@@ -100,9 +103,9 @@ original decision (from the feature-expansion-plan ground rules):
 | echojobs.io | rejected | API behind a bot-protection checkpoint; `robots.txt` disallows `/api` |
 | Torre | rejected | public API caps responses at ~20 rows with no working pagination |
 | Comeet | rejected | requires a per-tenant token not derivable from a public board page |
-| The Muse | deferred | very high volume, low match density — re-decide at F10 |
-| WelcomeToTheJungle | deferred | search backend keys rotate per-run and are referer-locked — fragile |
-| TrueUp / Remote Rocketship / DevRelX / Tecnoempleo / JobFluent | rejected for now | no structured public feed found |
+| The Muse | not used | very high volume, low match density |
+| Welcome to the Jungle | not used | no public API; its search backend's keys rotate per run and are referer-locked (2026-09-03) |
+| TrueUp / Remote Rocketship / DevRelX / Tecnoempleo / JobFluent | not used | no structured public feed found |
 | DOU.ua | adopted (v1.30.0) | RSS at `/vacancies/feeds/` is DOU's own interface (`utm_source=jobsrss`); `robots.txt` names no AI bots and allows the path; legal §2.5 forbids automated collection without consent and §3.2 licenses content CC BY-NC-SA — fine for a self-hosted personal tool with the link-back kept, a hosted or commercial deployment needs written consent. Fetched with the project User-Agent (the default RSS UA gets 403) (2026-09-03) |
 | Djinni | adopted (v1.31.0) | RSS at `/jobs/rss/` with the site's filters; `robots.txt` disallows only `/jobs2`, `/q`, `/developers`, `/free-jobs`, `/set_lang`, names no AI bots; terms cover posting and fees only. Items carry no location — it lives in the filter — and an unknown `primary_keyword` answers the whole feed, so the fetcher keeps only rows whose category is the requested keyword (2026-09-03) |
 | solid.jobs | adopted (v1.34.0) | public offers API with a mandatory `campaign` slug that rides in every offer URL as the link-back; `robots.txt` `Allow: /` for every agent, AI crawlers named explicitly; 300 requests/min per IP, we make 3 per tick (2026-09-03) |
@@ -117,15 +120,15 @@ original decision (from the feature-expansion-plan ground rules):
 | EURES | rejected | no official API; only a reverse-engineered frontend backend with stub descriptions (2026-09-03) |
 | Work.ua / Robota.ua | rejected | every listing path (Work.ua) or every path incl. robots.txt (Robota.ua) answers a Cloudflare challenge; no feed, partner API is employer-only (2026-09-03) |
 | Happy Monday | rejected | `robots.txt` `Disallow: /` for ClaudeBot, GPTBot, CCBot + `ai-train=no` (2026-09-03) |
-| GRC.ua | deferred | undocumented frontend JSON (`/api/job/listing`), tiny IT slice (2026-09-03) |
-| JOIN (join.com) | deferred — policy call | undocumented `api/public/companies/{id}/jobs` served token-less for its own pages, best structured location data of any EU ATS, 5 rows per page; robots welcomes AI bots (2026-09-03) |
+| GRC.ua | not used | undocumented frontend JSON (`/api/job/listing`), tiny IT slice (2026-09-03) |
+| JOIN (join.com) | not used | undocumented `api/public/companies/{id}/jobs` served token-less for its own pages, best structured location data of any EU ATS, 5 rows per page; robots welcomes AI bots (2026-09-03). Not used by the owner's decision of 2026-09-03: the endpoint is undocumented |
 | Softgarden / HiBob / Jobvite / Factorial / Jobylon / Freshteam | rejected | token-only (Softgarden also `Disallow: /api/`); Jobylon's feed hash comes from support; Freshteam is discontinued (2026-09-03) |
 | SAP SuccessFactors / Oracle Cloud HCM / iCIMS / Cornerstone | rejected | `career4.successfactors.com` `Disallow: /`; Oracle's `recruitingCEJobRequisitions` is documented "for Oracle internal use"; iCIMS and Cornerstone are gated (2026-09-03) |
 | eurotechjobs.com / europeremotely.com | rejected | ClaudeBot + GPTBot `Disallow: /`; `Disallow: /` + HTTP 403 (2026-09-03) |
 | swissdevjobs.ch / bulldogjob.pl / theprotocol.it / it.pracuj.pl / rocketjobs.pl | rejected | Cloudflare challenges (swissdevjobs even on robots.txt); bulldogjob `Disallow: /feeds`; rocketjobs `Disallow: /api/` like JustJoin (2026-09-03) |
 | relocate.me / iamexpat / remote-europe.com / Lobby X / jobs.ua | rejected | no feed; no feed; dead TLS; `Disallow: /feed/`; HTML only (2026-09-03) |
 | Landing.jobs JSON API | rejected (Atom feed usable) | `Disallow: /api/`; `/feed` is allowed (2026-09-03) |
-| Talent.com / Welcome to the Jungle / Otta / XING / StepStone / Honeypot | rejected | no public API (2026-09-03) |
+| Talent.com / Otta / XING / StepStone / Honeypot | rejected | no public API (2026-09-03) |
 | Adzuna | adopted (v1.42.0) under rule 3 | API terms (read 2026-09-04) permit personal research and publishing listings with the "Jobs by Adzuna" label, 25/min, 250/day, 1 000/week, 2 500/month; the label, the four-a-day cadence, the ten-row ceiling, the snippet note and key redaction are code (ADR 0034) |
 | France Travail (Offres d'emploi v2) | adopted (v1.43.0) under rule 3 | not Etalab: its own "Licence de réutilisation de la base de données des offres d'emploi" — source + date + licence link on every offer (art. 4), poll at least every 24 h and mirror deletions (5.2), show the whole offer (5.3), anonymise withdrawn offers (7); 4 calls/s per application |
 
@@ -138,3 +141,32 @@ when one is adopted or dropped at implementation time.
 Counter-example that shapes the rule: 4dayweek.io disallows `/api/` but
 explicitly allows `/api/v1` and `/api/v2` — so the F2 fetcher uses the
 allowed `/api/v2/jobs`, not the unversioned path.
+
+## Addendum (2026-09-24): what changed since
+
+- **"`applypack/0.11 (+https://github.com/applypack/applypack)`".** Since
+  v0.11.1 the version in the User-Agent is `package.json`'s major.minor,
+  read when the module loads, so it follows every release (`applypack/2.18`
+  at v2.18.3). See `src/http.ts:DEFAULT_USER_AGENT`.
+- **"Every source we use exposes an explicitly-public API ... or a public
+  RSS feed".** The public boards still do, and the feeds now come in more
+  formats: Atom, Personio's XML, Teamtailor's RSS, and any RSS or Atom
+  job feed a watched company publishes (`src/fetchers/feed.ts`). Two kinds
+  of source fall outside the sentence. Adzuna and France Travail are keyed
+  APIs used under the vendor's licence (rule 3 above,
+  [0034](./0034-keyed-sources.md)). The change watch reads the HTML of one
+  careers page the user pasted and keeps only a hash of its text; it never
+  reads a posting out of it (`src/fetchers/career-page.ts`,
+  [0036](./0036-watchlist-reads-published-data-only.md)).
+- **Single pages.** Beyond the sources, the project reads single HTML
+  pages: a posting URL the user pastes (`src/jobs/posting-url.ts`), the
+  liveness check's read of a posting page
+  ([0016](./0016-liveness-ladder.md)) and the change watch above. Each goes
+  through `src/jobs/posting-url.ts:checkPostingUrl`, which refuses the hosts
+  this ADR names.
+- **Rule 2, "the backend this install actually runs".** Since v2.9.4 the
+  binding set is every engine that may read what we fetch: the enabled list
+  with its skipped engines, the last resort and `AI_PROVIDER`
+  (`src/ai-engine.ts:bindingProviders`). Each vendor also binds by more than
+  one token: `Claude-User` and `Claude-SearchBot` bind beside `ClaudeBot`
+  (`src/ai-engine.ts:PROVIDER_AI_TOKENS`).

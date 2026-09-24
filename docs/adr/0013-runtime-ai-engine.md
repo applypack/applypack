@@ -2,6 +2,10 @@
 
 **Status:** Accepted (2026-08-29). Extends 0007 — the seam is unchanged, the
 selection mechanism moves from `.env`-only to DB-with-`.env`-fallback.
+Amended by [0014](./0014-ai-engine-chain.md) (the three columns became the
+`aiEngine` JSON, an ordered chain) and extended by
+[0027](./0027-ai-keys-in-the-database.md) (the keys resolve the same way).
+See the 2026-09-24 addendum.
 
 ## Context
 
@@ -53,3 +57,14 @@ never logged in); its error path is verified against the real binary.
 - Batch API path lands → fourth implementation behind the same seam.
 - A third per-task model split (e.g. a dedicated verification model) →
   another column, not another env var.
+
+## Addendum (2026-09-24): what changed since
+
+- "`{ provider, classifierModel, resumeModel }`" and "two model inputs":
+  there are three roles now (`src/ai-engine.ts:AiRole`: classifier, resume,
+  cover). The cover slot arrived in v0.8.0 inside the `aiEngine` JSON.
+- "another column, not another env var": v1.65.0 added `CLAUDE_MODEL_COVER`
+  as the `.env` fallback for the cover slot, beside `CLAUDE_MODEL_RESUME`
+  (`src/config.ts`).
+- "the Batch API from TASKS §1.4": closed won't-fix on 2026-09-01
+  (issue #22). Codex CLI arrived with [0014](./0014-ai-engine-chain.md).

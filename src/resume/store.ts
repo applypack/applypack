@@ -51,7 +51,7 @@ export async function createResume(input: {
 }): Promise<ResumeSummary> {
   // The first upload becomes the default so the job page has a preselection.
   // Counting and then creating is check-then-act — two first uploads at once
-  // both counted 0 and both became the default (D12b), so the count and the
+  // both counted 0 and both became the default, so the count and the
   // create share one lock.
   const row = await withGlobalWriteLock(async (tx) => {
     const isDefault = (await tx.resume.count()) === 0;
@@ -82,7 +82,7 @@ export async function upsertScratchResume(input: {
 }): Promise<ResumeSummary> {
   // "Find it, else create it" is check-then-act: two first compares at once
   // each found nothing and each created a scratch row, and the second one was
-  // invisible for good (D12a). Finding, replacing and creating all happen
+  // invisible for good. Finding, replacing and creating all happen
   // under the lock — the same one the default flag uses, because it is the
   // same kind of invariant: one row in the whole table.
   const data = { ...input, original: new Uint8Array(input.original) };
@@ -662,7 +662,7 @@ export async function getPostingBrief(
 }
 
 /**
- * An upsert, because the key is unique (D12d): two comparisons of one posting
+ * An upsert, because the key is unique: two comparisons of one posting
  * started together both missed the lookup above, and the second write used to
  * add a row nobody would read. The newer reading wins, as the old newest-first
  * read already had it.

@@ -1,6 +1,6 @@
 # 0009 — Web tools through the AI seam, for job verification only
 
-**Status:** Accepted (2026-08-28)
+**Status:** Accepted (2026-08-28); see the 2026-09-24 addendum
 
 ## Context
 
@@ -43,3 +43,16 @@ board. That is reported as such, never upgraded to "legit".
 ❌ `pause_turn` resumes are capped, so a very long research turn can end
 with a partial answer that fails the zod parse; the route reports failure
 and the user re-runs.
+
+## Addendum (2026-09-24): what changed since
+
+- "Verification runs synchronously in `POST /jobs/:id/verify` (2-4 min)": it
+  runs in the background now. The route claims one run per job and
+  redirects to a progress page (`src/web/target-runs.ts`). The free
+  liveness rungs run first ([0016](./0016-liveness-ladder.md)), and the AI
+  research runs only when they cannot answer or the user asks for the deep
+  check.
+- "API path" and "CLI path": since [0013](./0013-runtime-ai-engine.md) and
+  [0014](./0014-ai-engine-chain.md), Gemini CLI and Codex CLI take web tools
+  too. A `webTools` call prefers the engines that have them, which is every
+  one but `openai_api` (`src/ai-engine.ts:PROVIDER_WEB_TOOLS`).

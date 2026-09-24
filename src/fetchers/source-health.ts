@@ -131,9 +131,10 @@ export function isFailureStatus(status: FetchStatus): boolean {
 }
 
 /**
- * The streak, inverted on purpose: `ok` and `empty` reset, EVERYTHING else
- * increments — including `unknown`. A status added later cannot fall out of
- * the streak by omission; the worst it can do is be counted.
+ * The streak, inverted on purpose: `ok`, `empty` and `not_modified` reset,
+ * EVERYTHING else increments — including `unknown`. A status added later
+ * cannot fall out of the streak by omission; the worst it can do is be
+ * counted.
  */
 export function nextStreak(status: FetchStatus, current: number): number {
   if (!isFailureStatus(status)) return 0;

@@ -1,6 +1,13 @@
 # 0029 — A comparison is a quick check by default; suggestions are a second call
 
-**Status:** Accepted (2026-09-02)
+**Status:** Accepted (2026-09-02) — amended by
+[0042](./0042-company-facts-are-context-never-evidence.md) (a fourth
+`breakdown` marker, `verificationId`),
+[0043](./0043-refresh-the-posting-from-the-companys-own-listing.md) (a
+refreshed description makes the memo stale) and
+[0044](./0044-the-posting-is-read-once-on-its-own.md) (the brief is one more
+call on a posting's first comparison, in both modes);
+see the 2026-09-24 addendum
 
 ## Context
 
@@ -119,3 +126,20 @@ If measurements show the suggestions call rarely follows a quick check, drop
 the second call and keep only the fast prompt. If a future engine makes a
 faster model both quicker *and* stable on the keyword frame, flip
 `CLAUDE_MODEL_RESUME` and re-run the bench table in the same shape.
+
+## Addendum (2026-09-24): what changed since
+
+- "Fast is the default for Compare, Re-check and `/target`; the full report
+  is an explicit ... button": the dashboard no longer offers the choice.
+  Since commit 9c5f4b0 (v1.70.0, 2026-09-06) the Compare button on the job
+  page posts `mode=full` from a hidden input
+  (`src/web/pages/resume-match-card.tsx`). The Compare page and the
+  targeted view post `full` too, and there is no "Full analysis" button.
+- The quick check is still in the code. `src/resume/match.ts:matchResumeToJob`
+  and `src/resume/match-mode.ts:parseMatchMode` default to `fast`, a stored
+  fast row keeps its "Get suggestions" button, and "Rebuild keywords"
+  re-runs a row in its own mode.
+- "The resume-role default stays Opus": since v1.65.0 an empty resume slot
+  takes `claude-sonnet-5` on the Claude CLI and Haiku 4.5 on the API
+  (`src/ai-engine.ts:defaultModelFor`). Opus 5 stays the cover letter's
+  default.

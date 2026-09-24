@@ -34,7 +34,7 @@ export interface ExpandedUploads {
   badArchives: string[];
   /** Zip entries past MAX_ENTRY_BYTES, not read. */
   oversized: string[];
-  /** Archives holding more entries than the reader will open (H15). */
+  /** Archives holding more entries than the reader will open. */
   truncatedArchives: string[];
   /** Files of a type the extractor cannot read (a photo, a spreadsheet) — a folder drop carries them; they are not applicants. */
   notResumes: string[];

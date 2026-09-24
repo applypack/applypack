@@ -1,5 +1,13 @@
 # applypack.dev + README refresh — analysis and plan (2026-09-02)
 
+**Status (2026-09-24):** Shipped in PR #107 on 2026-09-02 as a site and
+docs change, with no version tag; Part C logs the build. The §B8 row on
+Tailwind's Play CDN describes the dashboard of that date: since v2.7.0 its
+CSS is built by `npm run css` and committed, and no page loads the CDN.
+Not built (owner items): the numbers for the story section, an HTTPS
+redirect, HSTS and a www-to-apex redirect on Cloudflare, the GitHub About
+text (it still says 22 sources), and an analytics baseline.
+
 > Two analyses in one file, written before the `site-refresh` branch was
 > started. Part A is content and structure, part B is design, mobile and
 > code. Everything was measured against the live site on 2026-09-02

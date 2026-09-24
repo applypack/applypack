@@ -1,6 +1,6 @@
 # 0003 — No job queue; node-cron is enough
 
-**Status:** Accepted (phase-1, reaffirmed phase-3)
+**Status:** Accepted (phase-1, reaffirmed phase-3); see the 2026-09-24 addendum
 
 ## Context
 
@@ -55,3 +55,19 @@ If we hit any of:
 - Multi-user mode where each user gets their own cron schedule
 
 …then pg-boss is the natural next step (it stays in Postgres).
+
+## Addendum (2026-09-24): what changed since
+
+- "we cap fetch at ~2 minutes": there is no cap. A tick reads every due
+  source with a pause between requests
+  ([0035](./0035-many-installs-one-set-of-boards.md)), and the longest
+  measured walk took 35 minutes (the note in `src/fetchers/index.ts`).
+  Pausing fetching on `/settings` stops a running tick
+  (`src/jobs/fetch-job.ts`).
+- "We mitigate with a `shuttingDown` guard plus the in-flight counter": both
+  are in `src/index.ts`, but they only let a shutdown wait for running jobs.
+  No lock stops a second fetch while one runs. node-cron 3 has no overlap
+  option, there is no database lock, and "Fetch now"
+  (`src/web/fetch-now.ts:beginFetchNow`) allows one run at a time inside the
+  web process only, so it can run beside the worker's hourly tick. The unique
+  constraints still keep the data whole.

@@ -32,7 +32,7 @@ applicationsRoute.get('/applications', async (c) => {
   const work = parseStageConfig(settings.pipelineStages);
   // Every job that holds a stage, not only the ones a column covers: a column
   // the user removed used to strand its jobs, invisible and with nothing to
-  // drag them out of (D12e). They land in "Unfiled" instead.
+  // drag them out of. They land in "Unfiled" instead.
   const rows = await prisma.job.findMany({
     where: { pipelineStage: { not: null } },
     select: {

@@ -715,7 +715,7 @@ model PostingBrief {
   brief         Json
   createdAt     DateTime @default(now())
 
-  // The memo key, not merely an index (D12d): two comparisons of one posting
+  // The memo key, not merely an index: two comparisons of one posting
   // starting together both missed the lookup and both paid for a brief.
   @@unique([jobId, postingHash, promptVersion])
   @@map("posting_brief")
@@ -755,9 +755,10 @@ model Screening {
   jobId            Int
   job              Job       @relation(fields: [jobId], references: [id], onDelete: Cascade)
   title            String
-  // What the screen checks (screening/rubric.ts:RubricSchema): the gates,
-  // the must-have and nice-to-have terms, the level, the years, the domain
-  // and the weights. Drafted from the posting brief, edited by the person.
+  // What the screen checks (screening/rubric.ts:RubricSchema, v2): a list of
+  // criteria the person chooses, each with a kind, a mode (gate, scored or
+  // note) and its stars (ADR 0050). Drafted from the posting brief, edited
+  // by the person; a v1 rubric converts on read.
   rubric           Json
   // Bumped on every rubric save that changes it; a verdict records the
   // version it was scored under, and an older one is shown as stale.
@@ -806,7 +807,7 @@ model Applicant {
   // [{ kind, count }] — what the redaction removed, for the audit line.
   redactions     Json   @default("[]")
 
-  // ok | unreadable | duplicate. An unreadable file (a scanned PDF, an empty
+  // ok | unreadable. An unreadable file (a scanned PDF, an empty
   // .docx) is kept as a row so the table can say so; a file whose text is
   // byte for byte an earlier applicant's is never added. `sameAsId` marks
   // another document of a person already in the list (same email or phone,

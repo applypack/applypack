@@ -1,6 +1,12 @@
 # Improvement plan 2026-09 — the analysis, one file per point
 
-The source is [applypack-improvement-and-claude-code-audit.md](../applypack-improvement-and-claude-code-audit.md)
+**Status (2026-09-24):** a snapshot of the repository at v2.5.2 on
+2026-09-10, kept as written. TASKS §20 tracks what shipped from it. Where
+these files say "TASKS §14" for the site and README items, that section is
+now §14b.
+
+The source was `applypack-improvement-and-claude-code-audit.md`, removed from
+the repository after this review; it last lay at e468c83
 (an outside plan, September 2026: 30 sections — positioning, landing page,
 first run, copy, metadata, five future directions, and a 25-phase audit
 prompt). Every section was read against the repository as it stands at

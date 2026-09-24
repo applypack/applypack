@@ -1,6 +1,9 @@
 # 0044 — The posting is read once, on its own, and the reading is kept
 
-**Status:** Accepted (2026-09-06)
+**Status:** Accepted (2026-09-06) — amended by
+[0045](./0045-the-resume-text-decides-presence.md) (the addendum's anchoring
+rule: the resume text decides presence for every status);
+see the 2026-09-24 addendum
 
 ## Context
 
@@ -193,3 +196,13 @@ on the page. The four statuses now describe the candidate's side of each term �
 *in your resume · add the word · do you have it? · missing* — with the
 requirement level in the column beside them, so "missing" next to "must" says
 the thing the user needs to hear.
+
+## Addendum (2026-09-24): what changed since
+
+- The addendum's anchoring (`anchorStatuses` turns an unfindable `present`
+  into `add`) now works both ways: since
+  [0045](./0045-the-resume-text-decides-presence.md) a term the text spells
+  is `present` whatever the model said, `cannot_claim` included.
+- "the quick check is the path the user waits on": since v1.70.0 every
+  Compare in the dashboard runs the full report (see the 2026-09-24
+  addendum to [0029](./0029-quick-check-and-lazy-suggestions.md)).

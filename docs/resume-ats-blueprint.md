@@ -1,5 +1,15 @@
 # ApplyPack — Advanced Resume ↔ Job Matching & ATS Analysis Blueprint
 
+**Status (2026-09-24):** Parts of this shipped between v0.1.1 and v1.74.0:
+the deterministic score with hard gates (ADR 0012), claim-safe keyword
+statuses and confirmed facts, "What the ATS sees", version deltas, the fact
+gate and the replacement gate (ADR 0020, 0037), aliases (v1.14.0), the
+posting read once into requirement groups (ADR 0044), and evidence strength
+and presence read off the text (ADR 0045). Not built: embeddings, BM25 and
+hybrid retrieval, the vendor-style ATS lenses, external taxonomies (O*NET,
+ESCO), calibrated confidence, learning to rank, and multi-language
+matching.
+
 **Version:** 1.0  
 **Date:** 2026-08-28  
 **Goal:** turn the current resume-vs-job analyzer into an explainable, evidence-based, ATS-aware matching system rather than a keyword counter with an opaque score.

@@ -179,9 +179,9 @@ every surface it can sit on; a value that fails does not ship.
 - **OK Green** (#047857): Applied status, enabled toggles, healthy runs, fit
   scores ≥ 85.
 - **Info Blue** (#1D4ED8): New status, fit scores 70–84.
-- **Warn Amber** (#A24F0A): Alerted status, mid fit scores (50–69), the solid
-  `warn` button for destructive-ish batch actions. Darkened in 2.12.0: the old
-  #B45309 read 4.39:1 on its own pill.
+- **Warn Amber** (#A24F0A): Alerted status, mid fit scores (50–69), warn
+  flashes. The solid `warn` button variant is defined in `ui.tsx` and no page
+  uses it. Darkened in 2.12.0: the old #B45309 read 4.39:1 on its own pill.
 - **AI Violet** (#6D28D9): the Saved status and AI-spend actions only — see the
   named rule below.
 - **Danger Red** (#B42318): destructive actions and error flashes; always an
@@ -255,8 +255,8 @@ utilities.
   fieldset legends, sidebar group labels, filter-row labels.
 - **Meta** (`text-meta`, 400, 12px/16px): timestamps, counts, the header's
   meta line, helper prose under a control (`Hint`).
-- **Stat Value** (600, 28px/32px, tabular-nums): the metric strip's numbers —
-  the largest type in the app after the page title.
+- **Stat Value** (600, 28px/32px, tabular-nums): the metric strip's numbers.
+  One number is larger: the score ring on the targeted view, at 32px.
 - **Micro** (500, 12px/16px): badges and kanban counts.
 - **Mono Value** (400, 12px, mono stack): ids, tokens, cron expressions,
   durations, code — machine values only, usually one size below their context.
@@ -364,7 +364,8 @@ decisions live there and in the token layer, not in page files.
   10% tint. Only for actions covered by the Violet-Means-AI Rule.
 - **Danger:** outline treatment — 30% danger border, danger text on white;
   hover 5% danger tint. Never solid red.
-- **Warn:** solid amber (#A24F0A), white text — rare, for pause-everything acts.
+- **Warn:** solid amber (#A24F0A), white text. Defined, unused: the pause
+  acts use the secondary button.
 - **Ghost:** borderless muted-ink text; hover subtle fill + ink text. For
   tertiary row actions.
 - **Focus:** global ring — 2px emerald outline, 2px offset, 4px corner.
@@ -445,8 +446,6 @@ null renders an em dash.
   white. Settings and a privacy footnote pin to the bottom. Tablet collapses
   to a 64px icon rail where a short hairline stands in for each group label;
   mobile is a drawer behind a hamburger bar.
-- **Filter segments:** the same idiom inline — 13px bordered pills where active
-  gets the control border + the subtle fill, inactive is borderless muted ink.
 - **Tabs (`Tabs`):** views of one list — or the parts of one object, as on the
   job page (`?tab=`, server-rendered, no client state) — as a row of 13px links
   on a hairline;

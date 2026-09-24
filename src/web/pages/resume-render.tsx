@@ -27,7 +27,7 @@ export interface RenderPageProps {
   styleSource: 'docx' | 'pdf' | 'none';
   /** The plain text the .docx renders to — literally what the ATS gets. */
   preview: string;
-  /** Characters the bundled face cannot draw, which the render removes (D12j). */
+  /** Characters the bundled face cannot draw, which the render removes. */
   dropped?: string[];
   warnings: ParseWarning[];
   reason: string;
@@ -178,7 +178,7 @@ export const ResumeRenderPage: FC<RenderPageProps> = ({
         <Card class="mt-4">
           <SectionTitle>Take it away</SectionTitle>
           <div class="flex flex-wrap gap-2">
-            {/* Two channels on purpose (D12k). WITH JavaScript the mode rides in
+            {/* Two channels on purpose. WITH JavaScript the mode rides in
                 the hidden field, because SUBMIT_ONCE disables every button and a
                 disabled submitter's own value never reaches the form. WITHOUT it
                 the onclick never runs and the hidden field would keep saying

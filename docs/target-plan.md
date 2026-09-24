@@ -1,7 +1,14 @@
 # /target compare flow: speed (30-40 s target) + keyword-matching accuracy
 
-> **Analysis written 2026-08-31; blocks 1–3 of §7 shipped 2026-09-02 (measured
-> numbers in §2.3, §3.4 and §4).** Written from a parallel
+**Status (2026-09-24):** Shipped as v1.13.0–v1.18.0 (ADR 0029): blocks
+1–5 and 7 of §7; block 6 was closed as not needed. The model and budget
+lines in §1 and §8 are old: since v1.65.0 an empty resume slot means
+Sonnet 5 on the Claude CLI and Haiku 4.5 on the API, and each call has its
+own timeout (`resume/prompts.ts:RESUME_TIMEOUT_MS`). Since v1.70.0 every
+Compare runs the full report. Not built: the F8 lexicon sweep (§4).
+
+> **Analysis written 2026-08-31; measured numbers in §2.3, §3.4 and §4.**
+> Written from a parallel
 > session (full source pass over the compare pipeline: `src/web/routes/target.tsx`,
 > `jobs.tsx`, `src/resume/{match,scan,prompts,score}.ts`, `src/web/public/{target,score,target-page}.mjs`,
 > `src/ai-{runtime,provider}.ts`, `src/jobs/{manual-job,posting-extract,classify-existing}.ts`)

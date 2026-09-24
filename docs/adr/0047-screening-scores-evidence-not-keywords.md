@@ -1,6 +1,9 @@
 # 0047 — A screening scores evidence, not keywords, and a person decides
 
 **Status:** Accepted (2026-09-09). Successor to [0012](./0012-deterministic-match-score.md) and [0030](./0030-resume-strength-review.md) for the other side of the table.
+Extended by [0050](./0050-the-rubric-is-a-list-of-criteria-the-person-chooses.md);
+the score formula here is superseded by the one there.
+See the 2026-09-24 addendum.
 
 ## Context
 
@@ -70,3 +73,18 @@ says so in its constants, and the rubric editor lets a person move them.
 A human-ranked set of thirty resumes for one posting (Kendall τ against the
 order this produces), or a real hiring round where the bucket order was
 wrong for a reason the scorecard could not show.
+
+## Addendum (2026-09-24): what changed since
+
+- "must-have 35, relevant years and recency 15, ... the weights editable
+  per rubric": superseded by
+  [0050](./0050-the-rubric-is-a-list-of-criteria-the-person-chooses.md).
+  The score is one row per criterion, credit × stars
+  (`src/screening/score.ts:scoreScreening`); the three caps (30, 50, 60)
+  stay.
+- "stage 0 of §19 (a gold set) was not built": the harness was built in
+  v2.5.0 (`npm run bench:screen`, `src/screening/bench.ts`,
+  [0052](./0052-calibration-reports-agreement-and-never-tunes-the-rubric.md)).
+  Its one set, `src/screening/fixtures/gold/qa-automation`, is six synthetic
+  resumes ranked by the fixtures' author, so the score is still not
+  calibrated against a recruiter's order.

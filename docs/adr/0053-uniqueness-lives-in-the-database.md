@@ -1,6 +1,7 @@
 # 0053 — Uniqueness lives in the database, and a row's state is written with the row
 
-**Status:** accepted (2026-09-10) — audit 2026-09-10 (DATA-3, DATA-7, DATA-8, DATA-10), TASKS §20 block `data-integrity`
+**Status:** Accepted (2026-09-10) — audit 2026-09-10 (DATA-3, DATA-7, DATA-8, DATA-10), TASKS §20 block `data-integrity`;
+see the 2026-09-24 addendum
 
 ## Context
 
@@ -56,3 +57,9 @@ never fetched again either.
   already read as "no longer here" on the page.
 - `alertHeldAt` is never set by a second statement; `deliverHeldAlerts` is
   unchanged.
+
+## Addendum (2026-09-24): what changed since
+
+- "cleanup deletes jobs nightly": the cleanup cron runs weekly, on Sunday at
+  03:00 in the configured time zone (`src/index.ts`). The delete is still
+  routine, so the index keeps its reason.

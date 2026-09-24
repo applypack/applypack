@@ -1,6 +1,6 @@
 # 0051 — A shortlist is compared head to head, twice, and the comparison is never a score
 
-**Status:** accepted (2026-09-09) — stage D of docs/screening-criteria-plan.md §5.1
+**Status:** Accepted (2026-09-09) — stage D of docs/screening-criteria-plan.md §5.1
 
 ## Context
 

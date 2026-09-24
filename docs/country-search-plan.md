@@ -1,6 +1,12 @@
 # Country-aware search plan (Europe + Ukraine)
 
-> Analysis 2026-09-03, nothing built yet. Answers three questions the owner
+**Status (2026-09-24):** Shipped as v1.24.0–v1.44.0 (ADR 0031, 0032,
+0033, 0034): stages 1 to 4 and every source sub-stage. Not built: the
+Homerun and d.vinci fetchers, a classifier bench with European gold
+fixtures, a re-classify pass limited to rows whose place is unknown, and a
+notice that the comparison and the letter assume an English posting.
+
+> Analysis 2026-09-03. Answers three questions the owner
 > asked: can ApplyPack search and filter by country the way LinkedIn does,
 > which European and Ukrainian sources can be fetched legally, and how to
 > filter the jobs already in the database. Backlog ticks live in

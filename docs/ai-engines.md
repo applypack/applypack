@@ -49,11 +49,23 @@ copy (rotate the key itself in the provider's console).
 | OpenAI-compatible API | `POST /chat/completions` | per token (or free if local) | `OPENAI_API_KEY` (+ optional base URL) |
 | Codex CLI | headless `codex exec` | ChatGPT Plus/Pro subscription | `codex` binary + login |
 
-Two model slots per engine: the **classifier model** (cheap, runs on every
-fetched job) and the **resume model** (a few calls a day where judgment
-matters). Closed families are dropdowns — you cannot pick a wrong-family id.
-"Default" means the engine's own default (for CLIs, whatever the CLI is
-configured to use).
+Three model slots per engine: the **classifier model** (cheap, runs on every
+fetched job), the **resume model** (resume scan, comparison, verification
+and screening: a few calls a day where judgment matters) and the **cover
+letter model** (writing quality). Closed families are dropdowns, so you
+cannot pick a wrong-family id. An empty slot takes the engine's default for
+that role:
+
+| Engine | Classifier | Resume | Cover letter |
+| --- | --- | --- | --- |
+| Anthropic API | Haiku 4.5 | Haiku 4.5 | Opus 5 |
+| Claude Code CLI | Haiku 4.5 | Sonnet 5 | Opus 5 |
+| Gemini CLI | `gemini-2.5-flash` | `gemini-2.5-pro` | `gemini-2.5-pro` |
+| OpenAI-compatible API | `OPENAI_MODEL` | `OPENAI_MODEL` | `OPENAI_MODEL` |
+| Codex CLI | the CLI's own | the CLI's own | the CLI's own |
+
+On the two Claude engines, `CLAUDE_MODEL`, `CLAUDE_MODEL_RESUME` and
+`CLAUDE_MODEL_COVER` in `.env` replace those defaults.
 
 ---
 
@@ -227,4 +239,4 @@ look alike in `docker compose logs web`.
 **Practical rule:** Opus or Sonnet still judge resumes better than Haiku;
 pick them for the resume and cover-letter roles on `claude_code`, or use
 `anthropic_api` (fastest of all). Leaving the Cover letter slot empty is
-safe — it inherits the resume model, which is opus by default.
+safe: on both Claude engines it takes Opus 5, whatever the resume slot says.

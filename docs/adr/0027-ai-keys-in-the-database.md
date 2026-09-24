@@ -3,7 +3,7 @@
 **Status:** Accepted (2026-09-02). Extends 0013/0014 (engine configuration
 resolves DB-row-first with `.env` as fallback; this adds the credential to
 what resolves that way) and the CLAUDE.md secrets rule, whose one existing
-carve-out is `TelegramTarget.botToken`.
+carve-out is `TelegramTarget.botToken`. See the 2026-09-24 addendum.
 
 ## Context
 
@@ -121,3 +121,10 @@ secret exists in another process's environment for the duration of a call.
   single-user, loopback-only deployment and does not survive either change.
 - If a hosted deployment appears, the column becomes the seam an external
   secret store would plug into (`getAiKeys` is already the only reader).
+
+## Addendum (2026-09-24): what changed since
+
+- "`TelegramTarget.botToken`": [0041](./0041-notification-channels.md)
+  renamed the table `NotificationTarget` (`notification_target`). It holds
+  Discord webhook URLs as well, and the bot token is
+  `NotificationTarget.botToken`.

@@ -1,7 +1,14 @@
 # Match-score inflation on stack-mismatched postings — analysis
 
-**Date:** 2026-08-29 · **Status:** analysis only, nothing implemented yet
-(pairs with [ADR 0012](./adr/0012-deterministic-match-score.md); formula
+**Status (2026-09-24):** Fix 3 shipped in v1.70.0: a `present` term the
+text does not spell becomes `add`. ADR 0045 (v1.74.0) widened it to every
+status and settled question 5: a term written in the text counts in full,
+live and stored. Not built: fix 1 (a raw mode with no stored facts for a
+one-off file), fix 2 (no `add` credit from other resumes) and fix 4 (a
+hedged-stack bench fixture).
+
+**Date:** 2026-08-29 (pairs with
+[ADR 0012](./adr/0012-deterministic-match-score.md); formula
 changes must go through a bench fixture first).
 
 ## The report

@@ -755,7 +755,7 @@ settingsRoute.post('/settings/stages/add', async (c) => {
 
 settingsRoute.post('/settings/stages/:key/remove', async (c) => {
   const key = c.req.param('key');
-  // The count and the write go together (D12e). Read the count, hand back to
+  // The count and the write go together. Read the count, hand back to
   // the event loop, then write, and a settings tab editing the same list in
   // between decided from a stale one. A card dragged into the column in that
   // instant is still possible — the drag itself takes no lock, and making

@@ -1,6 +1,6 @@
 node_modules
 dist
-# Every env file, not two names (H7). `.env.audit-backup` reached the build
+# Every env file, not two names. `.env.audit-backup` reached the build
 # stage through `COPY . .` — it never got into the runtime image, but a build
 # layer holding the operator's keys is a layer that can be pushed or cached
 # somewhere. `.env.example` has no secrets and the image has no use for it.

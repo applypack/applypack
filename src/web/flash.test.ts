@@ -42,7 +42,7 @@ test('safeBack keeps a redirect on this site', () => {
   assert.equal(safeBack(undefined, '/runs'), '/runs');
 });
 
-test('safeBack refuses a control character, so a Location cannot be split (D12h)', () => {
+test('safeBack refuses a control character, so a Location cannot be split', () => {
   assert.equal(safeBack('/jobs\r\nSet-Cookie: a=b', '/'), '/');
   assert.equal(safeBack('/jobs\nSet-Cookie: a=b', '/'), '/');
   assert.equal(safeBack('/jobs\u0085x', '/'), '/');

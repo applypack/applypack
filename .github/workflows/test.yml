@@ -44,9 +44,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # Verifies prisma/schema.prisma parses and the migrations directory
-      # is consistent with it. Catches half-finished migration commits
-      # before they hit main.
+      # Verifies prisma/schema.prisma parses and is valid. It does not
+      # compare prisma/migrations/ with the schema, so a half-finished
+      # migration commit still passes this step.
       - name: Validate Prisma schema
         run: npx prisma validate
 

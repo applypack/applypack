@@ -105,7 +105,7 @@ test('the fold reaches every string of a plan, not only the bold ones', () => {
   assert.match(text, /H2O/);
 });
 
-test('droppedByRender names what a clean render would remove (D12j)', () => {
+test('droppedByRender names what a clean render would remove', () => {
   const resume = JsonResumeSchema.parse({
     basics: { name: 'Тарас 世界 Шевченко', summary: 'Shipped it 😀 and π stayed.' },
   });

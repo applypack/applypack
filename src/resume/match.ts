@@ -168,8 +168,8 @@ export async function matchResumeToJob(
   // score 79 and then 30.
   const anchoredStatuses = anchorStatuses(grouped.keywords, resume.text, matcher);
   // How strongly the text shows each term — read off the resume, never asked
-  // of the model (§23 of the intelligence analysis): a skills line, a sentence
-  // about work, or a sentence with a number in it.
+  // of the model (evidence.ts): a skills line, a sentence about work, or a
+  // sentence with a number in it.
   const evidence = annotateEvidence(anchoredStatuses.keywords, resume.text, matcher);
   const keywords = evidence.keywords;
   // What may be applied with one press is decided here, in code, against

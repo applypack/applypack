@@ -1,6 +1,9 @@
 # 0024 — Funnel history is an append-only stage ledger, written only where stages are written
 
-**Status:** Accepted (2026-08-31)
+**Status:** Accepted (2026-08-31) — amended by
+[0025](./0025-custom-work-stages.md) (the funnel, velocity and calibration
+cards and their math were removed; the ledger stays);
+see the 2026-09-24 addendum
 
 ## Context
 
@@ -75,3 +78,16 @@ mostly "need 5" until real volume exists.
 If a third stage write site appears (F17 replies, bulk actions), or if
 correction events grow beyond date fixes — then consider moving stage
 writes behind a single service function instead of a route-level helper.
+
+## Addendum (2026-09-24): what changed since
+
+- "Analytics are pure functions" and "Cards live on `/applications`":
+  [0025](./0025-custom-work-stages.md) removed the cards and the module
+  that computed them. The ledger's one reader is the board on `/applications`,
+  which dates each card's time in its stage
+  (`src/web/routes/applications.tsx`).
+- "Two write sites": there are three. The board's drag and quick-move,
+  `POST /jobs/:id/stage` (v1.3.0), joined `POST /jobs/:id/application` and
+  the `applied` seeding in `POST /jobs/:id/status`. All three build their
+  rows with `src/web/stage-events.ts`. The revisit trigger, "a third stage
+  write site", has fired; the writes are still route-level.

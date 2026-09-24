@@ -1,6 +1,6 @@
 # 0031 — A job's location is three columns next to the string, filled by hints and a parser, never by rewriting the string
 
-**Status:** Accepted (2026-09-03)
+**Status:** Accepted (2026-09-03); see the 2026-09-24 addendum
 
 ## Context
 
@@ -102,3 +102,15 @@ the moment to move rules from the prompt into the parser, or to retire
 parser rules the model does better. And when a source arrives whose
 structured fields carry a subdivision or a time zone the model needs (JobTech's
 `workplace_address`), which would be the first argument for a fourth column.
+
+## Addendum (2026-09-24): what changed since
+
+- "`locationSource`: `structured`, `parsed`, `null`": a fourth value, `ai`,
+  is written when the classifier's own reading fills or narrows the
+  parser's (`src/jobs/location-merge.ts:mergeAiLocation`,
+  [0032](./0032-profile-countries-and-the-classifier-place.md)).
+- The list of region markers leaves out two the gazetteer has carried since
+  v1.24.0: `EEA` and `UK_IE`. `src/countries.json` holds 14 groups.
+- "`/target` still writes the arrangement into the string ... (stage 2
+  changes that)": stage 2 left it. `src/web/routes/target.tsx` still writes
+  it, on purpose, because the classifier reads the string.

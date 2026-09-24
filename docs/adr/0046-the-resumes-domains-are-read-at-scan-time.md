@@ -1,6 +1,6 @@
 # 0046 — The resume's domains are read at scan time and compared with the posting's
 
-**Status:** Accepted (2026-09-08)
+**Status:** Accepted (2026-09-08); see the 2026-09-24 addendum
 
 ## Context
 
@@ -54,3 +54,9 @@ is the next step if a wrong `different` shows up on a real pair.
 A `different` verdict a user disputes on a real pair, or a posting whose
 brief puts the sector in `product` rather than `industry` often enough that
 the overlap should read both.
+
+## Addendum (2026-09-24): what changed since
+
+- "prompt v14, withdrawn": the number was used again. The trial sentence
+  was withdrawn, and `PROMPT_VERSION` 14 (`src/resume/prompts.ts`) is the
+  CANDIDATE'S DOMAINS block this ADR decided.

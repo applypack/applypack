@@ -1,5 +1,11 @@
 # AI engine — future improvements (backlog, not scheduled)
 
+**Status (2026-09-24):** Two rows of the "Rejected" table no longer hold.
+An AI key can be pasted into the dashboard and is stored in the database,
+with `.env` as the fallback (ADR 0027, v1.8.0). There are three model
+roles, not two: the cover letter got its own slot in v0.8.0. Routing
+beyond those three roles is still not built.
+
 > Distilled 2026-08-30 from the multi-provider research doc
 > ([archive/applypack-multi-provider-ai-architecture.md](./archive/applypack-multi-provider-ai-architecture.md),
 > § numbers below refer to it) reviewed against what ADR 0013/0014 already

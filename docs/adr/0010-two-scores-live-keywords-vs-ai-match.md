@@ -1,6 +1,10 @@
 # 0010 — Two scores: live keyword coverage in the browser, AI match on demand
 
-**Status:** Accepted (2026-08-28)
+**Status:** Accepted (2026-08-28) — amended by
+[0012](./0012-deterministic-match-score.md) (the code computes the match
+score from the model's facts) and
+[0038](./0038-save-patches-the-users-docx-in-place.md) (Save patches the
+user's own .docx; a text version is the fallback)
 
 ## Context
 

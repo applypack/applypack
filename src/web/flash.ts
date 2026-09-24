@@ -89,7 +89,7 @@ export function firstIssue(issues: readonly { path: readonly PropertyKey[]; mess
  * A redirect target from a form field, kept local — an absolute or
  * protocol-relative URL would be an open redirect, and a control character
  * would be a header split: `Location: /jobs\r\nSet-Cookie: …` is two headers
- * to anything that does not encode it for us (D12h).
+ * to anything that does not encode it for us.
  */
 export function safeBack(back: unknown, fallback: string): string {
   if (typeof back !== 'string') return fallback;

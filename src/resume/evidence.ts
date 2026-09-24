@@ -4,8 +4,8 @@ import type { MatchKeyword } from './prompts';
 /*
  * How strongly the resume evidences a keyword, computed from the text rather
  * than asked of the model (ADR 0012's rule, applied to the one thing the model
- * was previously guessing at in prose). The idea is the four-level evidence
- * scale from the Resume ↔ Job Intelligence analysis, §23:
+ * was previously guessing at in prose). The idea is the evidence strength
+ * model of docs/resume-ats-blueprint.md §10, cut to what the text shows:
  *
  *   listed     the term is on a list of terms — a skills line
  *   described  the term appears inside a sentence about work that was done

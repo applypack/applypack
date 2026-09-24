@@ -1,6 +1,13 @@
 # Local install without Docker (plan)
 
-> Analysis 2026-09-16, nothing built. Answers the owner's question: most
+**Status (2026-09-24):** Shipped as v2.10.0 (ADR 0054): `npm start` with
+the built-in database. Not built: the OpenAI-compatible engine's base URL
+on its card and in `/welcome` (it still takes a `.env` line), start at
+login, a dated snapshot of the data folder on start, `npm run db:import`
+from a Docker dump, the CLI engines on Windows, and the pasted-line
+installer (parked).
+
+> Analysis 2026-09-16. Answers the owner's question: most
 > people who would run ApplyPack do not use Docker, and many do not know
 > what it is — can the default install run straight on the computer, with
 > Docker described as the other way to run it? The owner's goal behind

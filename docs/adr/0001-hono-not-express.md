@@ -1,6 +1,6 @@
 # 0001 — Hono not Express for the dashboard
 
-**Status:** Accepted (phase-2)
+**Status:** Accepted (phase-2); see the 2026-09-24 addendum
 
 ## Context
 
@@ -42,3 +42,18 @@ instead of `tsx watch`. Documented in CLAUDE.md gotchas.
 (rare), Stack Overflow has fewer answers.
 ❌ No built-in OpenAPI spec generation. Acceptable since this is an
 internal single-user dashboard, not a public API.
+
+## Addendum (2026-09-24): what changed since
+
+- "htmx and Tailwind via CDN": htmx left in the v0.1.0 redesign and nothing
+  loads it. Tailwind is built by `npm run css` (the Tailwind CLI, a dev
+  dependency) into `src/web/public/tailwind.css`, which is committed, so the
+  runtime still has no build step. Since v2.7.0 no page loads anything from
+  a third-party host (`src/web/self-contained.test.ts`).
+- "~3 npm dependencies for the whole dashboard": the server needs `hono` and
+  `@hono/node-server`; the resume module it hosts adds `unpdf`, `jszip`,
+  `@xmldom/xmldom`, `docx` and `pdfkit`. `package.json` lists 17 runtime
+  dependencies in all.
+- "~10 pages" and "route files mirror page files 1:1": the dashboard serves
+  about two dozen pages. `src/web/routes/` holds 18 files and
+  `src/web/pages/` holds 33, many of them cards shared between pages.

@@ -47,6 +47,8 @@ export async function fetchHnJobs(
 ): Promise<NormalizedJob[]> {
   const since = Math.floor(now.getTime() / 1000) - FRESH_WINDOW_DAYS * 86_400;
   const url = `${ALGOLIA_BASE}/search_by_date?tags=job&hitsPerPage=${HITS_PER_PAGE}&numericFilters=created_at_i>${since}`;
+  // No conditional request (ADR 0035): `since` moves with the clock, so the
+  // URL is new on every tick and a stored validator would never be sent.
   const resp = await fetchWithRetry(url);
   const raw: unknown = await resp.json();
   const parsed = HnJobSearchResultSchema.safeParse(raw);

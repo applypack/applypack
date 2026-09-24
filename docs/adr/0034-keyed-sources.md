@@ -1,6 +1,6 @@
 # 0034 — Keyed sources: a vendor's own licence governs keyed access, the keys live beside the AI keys, and the vendor's terms are code
 
-**Status:** Accepted (2026-09-04)
+**Status:** Accepted (2026-09-04); see the 2026-09-24 addendum
 
 ## Context
 
@@ -143,3 +143,12 @@ grace, never permission, and a unit test keeps it wider than the due window.
 - Live verification of either source needs the owner's own credentials;
   the mappers are tested on the vendors' documented payloads, and the
   pull request that adds each source says what was and was not run live.
+
+## Addendum (2026-09-24): what changed since
+
+- The "Source keys" section of rule 2: since v1.44.0 the keys are pasted
+  in the section "Extra sources — a free account of your own" on
+  `/settings` → Sources (`src/web/pages/settings.tsx`).
+- "the Telegram alert render it": the Discord alert carries the label too,
+  as text ([0041](./0041-notification-channels.md),
+  `src/notify/discord.ts`).

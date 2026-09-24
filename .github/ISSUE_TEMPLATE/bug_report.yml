@@ -3,10 +3,38 @@ description: Something broke
 labels: [bug]
 body:
   - type: textarea
-    id: what
+    id: steps
     attributes:
-      label: What happened
-      description: What you did, what you expected, what you got instead.
+      label: Steps to reproduce
+      description: What you did, one step per line, from a page or command we can open.
+      placeholder: |
+        1. Open /jobs/123 → Resume match
+        2. Pick resume "backend.docx" and press Compare
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected
+      description: What you expected to see.
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual
+      description: What you saw instead. A screenshot helps; paint over personal data.
+    validations:
+      required: true
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity
+      options:
+        - Blocks me (data lost, the app does not start, a wrong alert or score I acted on)
+        - Broken, but I found a way around it
+        - Annoying or cosmetic
     validations:
       required: true
   - type: textarea
@@ -33,7 +61,7 @@ body:
     id: version
     attributes:
       label: Version or commit
-      placeholder: v0.2.1
+      placeholder: v2.x.y, or a commit hash
   - type: input
     id: engines
     attributes:

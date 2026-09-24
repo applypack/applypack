@@ -413,7 +413,7 @@ export type NewTarget =
 /**
  * Null means the destination was already there. `findSameDestination` answers
  * that for a user who is not racing themselves; this answers the tab that
- * pressed Add a moment later, which used to be a bare 500 (D5). All four
+ * pressed Add a moment later, which used to be a bare 500. All four
  * callers check it; a new one that forgets adds a target the user is never
  * told about, which is why it is worth checking.
  */

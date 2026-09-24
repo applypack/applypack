@@ -16,11 +16,14 @@ const ROOT = join(__dirname, '..');
 /** Enum values that are not a kind of source: pasted jobs, and the change watch on a careers page. */
 const NOT_A_SOURCE = new Set(['MANUAL', 'CAREER_PAGE']);
 
-function sourceKindCount(): number {
+function atsTypes(): string[] {
   const schema = readFileSync(join(ROOT, 'prisma', 'schema.prisma'), 'utf8');
   const block = /enum AtsType \{([^}]*)\}/.exec(schema)?.[1] ?? '';
-  const values = block.split('\n').map((l) => l.trim()).filter((l) => /^[A-Z][A-Z_0-9]*$/.test(l));
-  return values.filter((v) => !NOT_A_SOURCE.has(v)).length;
+  return block.split('\n').map((l) => l.trim()).filter((l) => /^[A-Z][A-Z_0-9]*$/.test(l));
+}
+
+function sourceKindCount(): number {
+  return atsTypes().filter((v) => !NOT_A_SOURCE.has(v)).length;
 }
 
 /** Every "<number> … source(s)" phrase in a document, so a stale number anywhere fails, not only the one place we remembered to check. */
@@ -61,4 +64,20 @@ test('every public copy states the number of source kinds the enum has', () => {
       `${file} says ${[...new Set(numbers)].join('/')} where the enum has ${expected} kinds of source`,
     );
   }
+});
+
+/*
+ * SPEC.md's Sources table has a row per AtsType but MANUAL (a pasted job has
+ * no fetcher), and its heading counts the kinds of source among them. The
+ * heading said 26 while the enum had 35 values, so both are read against the
+ * enum here.
+ */
+test('SPEC.md lists every AtsType but MANUAL and counts the source kinds', () => {
+  const spec = readFileSync(join(ROOT, 'SPEC.md'), 'utf8');
+  const section = /^## Sources \(([^)]*)\)\n([\s\S]*?)\n\*\*Hard exclusions\*\*/m.exec(spec);
+  assert.ok(section, 'SPEC.md has no "## Sources (…)" section');
+  const [, heading = '', table = ''] = section;
+  assert.deepEqual(countedSourcePhrases(heading), [sourceKindCount()], `SPEC.md heading: "${heading}"`);
+  const rows = [...table.matchAll(/^\| ([A-Z][A-Z_0-9]*) +\|/gm)].map((m) => m[1]);
+  assert.deepEqual([...rows].sort(), atsTypes().filter((v) => v !== 'MANUAL').sort());
 });

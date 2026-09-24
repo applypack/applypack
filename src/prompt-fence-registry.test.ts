@@ -340,8 +340,9 @@ test('every module that exports a prompt builder is on the roster', () => {
 });
 
 test('every AI call site is a known one', () => {
-  // A renamed import (`askForJson as ask`) or a destructured `complete` used
-  // to slip past `.complete(`; the pattern reads the call, not the dot.
+  // A destructured `complete` used to slip past `.complete(`; the pattern
+  // reads the call, not the dot. A renamed import (`askForJson as ask`)
+  // still slips past it: the call it reads is `ask(`.
   const callers = walkSrc().filter((f) => /\bcomplete\s*\(|askForJson\s*\(/.test(readFileSync(join(SRC, f), 'utf8')));
   const unknown = callers.filter((f) => !(f in KNOWN_CALL_SITES));
   assert.deepEqual(

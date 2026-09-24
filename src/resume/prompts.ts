@@ -276,10 +276,10 @@ const MatchSchema = z.object({
         // Optional, not nullable: rows written before v8 carry no groups at all,
         // and the score reads an absent group as "this term stands alone".
         group: nullableText.optional(),
-        // Set by post-processing from the resume text (evidence.ts, §23 of the
-        // intelligence analysis): listed on a skills line, described inside a
-        // sentence about work, or described with a number. Never asked of the
-        // model — it is a property of the text.
+        // Set by post-processing from the resume text (evidence.ts): listed on
+        // a skills line, described inside a sentence about work, or described
+        // with a number. Never asked of the model — it is a property of the
+        // text.
         evidence: z.enum(EVIDENCE_LEVELS).optional(),
         // Set by post-processing when another stored resume evidences the term.
         elsewhere: nullableText,

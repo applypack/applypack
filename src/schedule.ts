@@ -13,8 +13,9 @@
 /**
  * The crons that talk to somebody else's server. `digest`,
  * `stale-applications` and `cleanup` are left alone: they touch only the
- * user's Telegram and database, and 09:00 means 09:00 because a human
- * picked it.
+ * user's alert channels and database, and the digest beats on the hour so
+ * a digest time the user picked (`user-schedule.ts:isDigestHour`) is met on
+ * time.
  */
 const SHARED_SOURCE_JOBS: ReadonlySet<string> = new Set([
   'fetch',

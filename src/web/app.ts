@@ -89,7 +89,7 @@ app.use('*', originGuard());
 /**
  * The progress endpoints the pages poll — a fetch tick, a comparison, a
  * watchlist resolve, a screening batch — answer the state at this instant
- * and nothing else (H28). One rule rather than a header per route: they all
+ * and nothing else. One rule rather than a header per route: they all
  * end in `/state`, the 404 branches need it as much as the 200s, and the
  * next progress page gets it without anyone remembering.
  */
@@ -156,8 +156,8 @@ app.notFound((c) => c.text('Not found', 404));
 /**
  * A body that is not the multipart it claims to be. undici raises a plain
  * TypeError from `formData()` and hono hands it straight to `onError`, so a
- * malformed upload read as a server fault — it is the request that is wrong
- * (D12g). Matched on the message because that is the only signal there is;
+ * malformed upload read as a server fault — it is the request that is
+ * wrong. Matched on the message because that is the only signal there is;
  * if a future undici words it differently the answer goes back to 500, which
  * is where it is today.
  */

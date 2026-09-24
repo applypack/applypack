@@ -1,11 +1,19 @@
 # One number outside, four judgments inside (plan)
 
-> Analysis 2026-09-07, nothing built. Answers the owner's question: can the
+**Status (2026-09-24):** Shipped as v1.71.0 (no ADR: UI over the stored
+row), with the five lines and the "Ready to apply" gate of §7. v1.72.0
+took the lines off `/jobs/:id/target` again; they stay on the match card
+on `/jobs/:id`. v2.8.0 added the one next move
+(`web/score-lines.ts:mainAdvice`). Not built: nothing.
+
+> Analysis 2026-09-07. Answers the owner's question: can the
 > card show three or four scores the headline number was made of, and why was
 > that idea not picked up in v1.70.0. Pairs with
 > [ADR 0012](./adr/0012-deterministic-match-score.md),
 > [ADR 0044](./adr/0044-the-posting-is-read-once-on-its-own.md) and §2, §4,
-> §39, §49 of the Resume ↔ Job Intelligence analysis.
+> §39, §49 of the Resume ↔ Job Intelligence analysis, an outside document
+> that was never added to the repository (its sections are not the
+> numbering of `resume-ats-blueprint.md`).
 
 ---
 

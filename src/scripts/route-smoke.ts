@@ -212,7 +212,7 @@ async function main(): Promise<void> {
 
   // What a request gets WRONG. Every one of these used to be a 500 or worse,
   // and a 500 anywhere fails the build — so the negative paths need naming
-  // as explicitly as the happy ones (H30).
+  // as explicitly as the happy ones.
   const negatives: { name: string; url: string; init: RequestInit; expect: (res: Response) => boolean }[] = [
     {
       name: 'GET /jobs/:id with a non-numeric id (400, not a crash)',
@@ -227,7 +227,7 @@ async function main(): Promise<void> {
       expect: (res) => res.status === 404,
     },
     {
-      name: 'POST a body that is not the multipart it claims (400, D12g)',
+      name: 'POST a body that is not the multipart it claims (400)',
       url: '/resumes',
       init: {
         method: 'POST',
@@ -257,7 +257,7 @@ async function main(): Promise<void> {
 
   // The same posting pasted twice at once: the unique key settles it and BOTH
   // requests get an answer, rather than the loser reading on an aborted
-  // transaction and returning a 500 (D4).
+  // transaction and returning a 500.
   const twice = {
     companyName: 'Smoke Race',
     title: 'Race Engineer',
@@ -267,7 +267,7 @@ async function main(): Promise<void> {
   };
   const raced = await Promise.all([app.request('/jobs/new', form(twice)), app.request('/jobs/new', form(twice))]);
   rows.push({
-    route: 'POST /jobs/new twice at once (both 303, D4)',
+    route: 'POST /jobs/new twice at once (both 303)',
     url: '/jobs/new',
     status: raced[0]!.status,
     ok: raced.every((r) => r.status === 303 && /^\/jobs\/\d+/.test(r.headers.get('location') ?? '')),

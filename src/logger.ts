@@ -2,7 +2,7 @@ import pino from 'pino';
 import { config } from './config';
 
 /**
- * A safety net, not the rule (H17). Nothing deliberately logs a secret —
+ * A safety net, not the rule. Nothing deliberately logs a secret —
  * `ai-provider-parse.ts` scrubs a CLI's stderr and the settings pages render
  * keys masked — but a log line is written by whoever is in a hurry, and
  * `logger.error({ err })` on a thrown object carries whatever that object

@@ -1,6 +1,8 @@
 # 0017 — Starter-pack catalog entries pin a hand-verified board; a probe hit is never proof of identity
 
-**Status:** Accepted (2026-08-31)
+**Status:** Accepted (2026-08-31) — extended by
+[0040](./0040-default-sources-are-the-aggregators.md) (the catalog holds every
+curated employer board; the seed turns none on)
 
 ## Context
 

@@ -1,6 +1,12 @@
 # The tailoring loop: apply, copy, save, export (plan)
 
-> Analysis 2026-09-03, nothing built. Answers four questions the owner asked
+**Status (2026-09-24):** Shipped as v1.51.0–v1.55.0 (ADR 0037, 0038,
+0039): all five stages. Decision 11 changed later: v1.70.0 removed the
+tailored copy per posting, so a save is a new version of the resume. Not
+built: moving a bullet up or down, adding or removing .docx table rows, and
+the optional LibreOffice profile for a PDF of the patched file.
+
+> Analysis 2026-09-03. Answers four questions the owner asked
 > about `/target` → `/jobs/:id/target`: can the user apply the AI's edit
 > suggestions with a click and save the result as a file; is the
 > linkedin-radar "resume regeneration service" worth reusing; do ATS block

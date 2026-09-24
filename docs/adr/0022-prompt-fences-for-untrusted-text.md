@@ -1,6 +1,6 @@
 # 0022 — Fences make untrusted text data, and an attempt evidence
 
-**Status:** Accepted (2026-08-31)
+**Status:** Accepted (2026-08-31); see the 2026-09-24 addendum
 
 ## Context
 
@@ -117,3 +117,15 @@ of scope here, recorded rather than implied.
 passes the prompt as a flag value and `codex_cli` as a positional that
 starts with our system text, so neither is exposed today; neither was
 changed, because neither could be tested from here.
+
+## Addendum (2026-09-24): what changed since
+
+- "A blind SSRF remains everywhere we follow redirects": fixed in v2.5.3.
+  Every address a name resolves to must be public before a connection is
+  made, and redirects are walked one hop at a time under the same checks
+  (`src/jobs/posting-url.ts:fetchPublicHops`).
+- "the column is written and never read back": since v1.13.0 the comparison
+  memo (`src/resume/match-reuse.ts:reuseDecision`) and since v1.18.0 the
+  keyword frame (`src/resume/keyword-frame.ts:planKeywordFrame`) read
+  `PROMPT_VERSION` back. A bump makes stored comparisons unreusable and
+  rebuilds their keyword frames.

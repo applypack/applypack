@@ -1,6 +1,6 @@
 # 0052 — Calibration reports agreement with the person's decisions and never tunes the rubric by itself
 
-**Status:** accepted (2026-09-09) — stage E of docs/screening-criteria-plan.md §9
+**Status:** Accepted (2026-09-09) — stage E of docs/screening-criteria-plan.md §9
 
 ## Context
 

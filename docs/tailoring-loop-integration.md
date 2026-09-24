@@ -1,5 +1,11 @@
 # The tailoring loop: integration guide
 
+**Status (2026-09-24):** Shipped as v1.51.0–v1.55.0 (ADR 0037, 0038,
+0039): stages 1 to 5. Two parts changed after the build: v1.66.0 moved the
+resume structure out of the scan into its own call, and v1.70.0 removed
+"Save as a tailored copy". Not built: the optional LibreOffice profile
+(§7).
+
 > How to build what [tailoring-loop-plan.md](./tailoring-loop-plan.md)
 > decided, in this codebase, file by file. Written 2026-09-03 before any
 > code; the backlog ticks are [TASKS.md §18](./TASKS.md). One stage = one

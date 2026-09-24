@@ -76,7 +76,7 @@ export function readZipEntries(
   let truncated = false;
   for (const record of centralDirectory(zip)) {
     if (record.name.endsWith('/')) continue;
-    // Counted BEFORE inflating (H15). The byte ceilings bound what an archive
+    // Counted BEFORE inflating. The byte ceilings bound what an archive
     // can expand to, not how many times we ask: a million one-byte entries
     // costs a million inflate calls and a million-element array while staying
     // far under the total. The walk stops rather than listing the rest —
