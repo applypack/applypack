@@ -19,7 +19,7 @@ Status legend: `[ ]` todo · `[~]` in progress · `[x]` done
 
 ---
 
-## 1. AI provider: subscription-friendly classifier (analysis done, not built)
+## 1. AI provider: subscription-friendly classifier (analysis done; §1.1–§1.3 built, §1.4 closed 2026-09-01)
 
 **Current state.** Two call sites, both `client.messages.create` on
 `claude-haiku-4-5-20251001` with a cached system prompt:
@@ -125,6 +125,10 @@ reviewed:
   colours) — applied directly; no `design-system/` folder needed.
 - [x] Tokens as CSS vars in `src/web/layout.tsx`, exposed to Tailwind via
   inline `tailwind.config` (dark-only by design).
+- **2026-09-24:** both items above are history. The light redesign (PR #12,
+  2026-08-28) replaced the dark look and Fira with Inter; the token values
+  live in `src/web/tokens.ts` since v2.12.0, and Tailwind is a committed
+  build from `tailwind.config.js` (`npm run css`) since v2.7.0.
 - [x] `src/web/ui.tsx`: PageHeader, Flash, Card, Table/Tr/Td, Field/Input/
   Select/Textarea/Checkbox/Radio, Button, ActionForm, ToggleRow, Badge,
   FitBadge (number + 4-step meter). Pages contain no palette classes.
@@ -143,6 +147,8 @@ reviewed:
 ### 2.4 Verify
 - [x] `lint:types` + `npm test` green; web container rebuilt; all 7 pages 200;
   screenshots at 1200px + 375px, no console errors (CSP now allows Google Fonts).
+  **2026-09-24:** since v2.7.0 no page loads Google Fonts: Inter is served
+  from `/static/fonts/` and the CSP names no outside host.
 
 ---
 
@@ -260,6 +266,9 @@ Python docx scripts). Decision record: [ADR 0008](./adr/0008-resume-module-in-we
   and loses the original design anyway; the genuinely useful version is
   format-preserving `.docx` patching, which is big-ticket XML surgery.
   Reopen trigger: same as 5.15 (the paste workflow hurting in practice).
+  **2026-09-24:** reopened and built in §18: Save patches the user's own
+  `.docx` (v1.54.0, ADR 0038), and a clean `.docx` / `.pdf` render exists
+  (v1.55.0, ADR 0039).
 - [x] 5.11 PDF upload — done 2026-08-28 via unpdf (ADR 0011, `src/resume/pdf-text.ts`).
 - [x] 5.12 Async comparison — done via the in-memory run registry
   (`src/web/target-runs.ts` + polled progress pages), not the planned
@@ -362,6 +371,9 @@ removing the violet accent.
 ### 6.4 Later (P2) — resolved 2026-09-01
 - [x] ~~Apply-suggestion buttons on action cards~~ — closed with 5.15 (same
   auto-rewrite surface, same fact-gate reasoning, same reopen trigger).
+  **2026-09-24:** reopened and built in §18: Apply / Remove / Undo on the
+  cards (v1.52.0), with the wording gated by `fact-check.ts` (v1.53.0,
+  ADR 0037).
 - [x] ~~Linked compare: requirement ↔ evidence scrolling~~ — closed: polish
   on a flow that shipped and is in daily use without it; zero measured pain.
 - [x] "Ready to apply" state at ≥85 instead of endless optimization —
@@ -444,7 +456,10 @@ external project, copy-check before merge.
       12/15/13/29 per band). Deferred: assessment event type (0 data),
       per-source channel yield (today Greenhouse×2 + Jobicy×1, floor
       n≥8), per-hop occurredOn date picker (stage hops date to the
-      write day; appliedAt edits write correction events)
+      write day; appliedAt edits write correction events).
+      **2026-09-24:** the funnel / velocity / calibration cards were
+      removed in v1.4.0 (ADR 0025, §10); the `JobStageEvent` ledger still
+      records
 - [x] ~~F6 follow-up cadence with pin/retire/auto-seed in the stale digest~~ —
       closed 2026-09-01: at 3 tracked applications a cadence state machine
       (urgent/overdue/cold/retire) is machinery without a workload; the
@@ -561,7 +576,11 @@ external project, copy-check before merge.
       claude_code CLI and exposed a pre-existing flag-injection hole in
       `buildClaudeCodeArgs` (gotcha 14). Follow-ups: unify
       `isPrivateHost` / `isFetchableJobUrl`; blind SSRF still open (the
-      request is made before the post-redirect guard refuses the body)
+      request is made before the post-redirect guard refuses the body).
+      **2026-09-24:** both done in v2.5.3 (#224):
+      `src/verification/liveness.ts:isFetchableJobUrl` calls
+      `src/jobs/posting-url.ts:checkPostingUrl`, and every redirect hop is
+      checked before it is requested (`fetchPublicHops`)
 - [x] F14 company starter packs — v0.5.0 (branch `starter-packs`, ADR 0017):
       86 companies in 5 segments, each board identity-checked live.
       Re-analysis killed the name-guessing design: `GREENHOUSE:aha` is a
@@ -611,7 +630,8 @@ and shadcn/ui are all React-runtime. What we lift instead:
 
 - **Radix Colors** [P2] — framework-agnostic CSS scales (12 steps, paired
   dark scales, contrast-tested). The ready path for the deferred dark theme:
-  swap the token values in `src/web/layout.tsx`, zero component changes.
+  swap the token values in `src/web/tokens.ts` (they left `layout.tsx` in
+  v2.12.0), zero component changes.
 - **Radix Icons** [P3] — 15×15 SVGs, inline-able in Hono JSX by copying the
   path data (no React). Candidate when we next touch dashboard glyphs.
 - **shadcn/ui as a taste reference** [P3] — the 2026-08 redesign already
@@ -638,6 +658,9 @@ only help when asked (e.g. drafting a measurement post).
   4-month rule sets the earliest submission at 2026-12-28.
 - Owner: pick the day (Tue–Thu, US-morning), submit, stay in the comments ~6h.
 - Owner: `www.applypack.dev` custom domain in Cloudflare Pages (one click).
+  **2026-09-24:** done. The site is a Cloudflare Worker with static assets,
+  not a Pages project, and `www.applypack.dev` is one of its custom domains
+  (`site/README.md`).
 - Owner (post-launch, ~biweekly): measurement posts, each from a paid-for
   gotcha: SmartRecruiters `totalFound:0` for every slug (gotcha 13); the
   82→10 resume-score inflation fix (gotcha 11 / ADR 0012); "empty is not
@@ -650,6 +673,9 @@ Community-facing roadmap lives in GitHub issues, deliberately open for
 contributors — currently #24 (Discord notification channel behind a
 `NotificationChannel` seam). Issues #18–#22 were audited 2026-09-01:
 #18/#21 shipped, #19/#20/#22 closed with measurements (§1.4).
+**2026-09-24:** #24 closed on 2026-09-05: Discord shipped in v1.63.0 behind
+the channel seam (ADR 0041). The nine open issues are resume-matching and
+screening follow-ups (#203–#219), and none carries a contributor label.
 
 ---
 
@@ -730,7 +756,8 @@ Original analysis kept for reference — one branch, one PR, ordered:
 
 Also: `.claude/skills/ui-review/SKILL.md` still says "dark-only" — stale
 since the 2026-08-28 light redesign (PR #12); fix the skill context line
-when next touching it.
+when next touching it. **2026-09-24:** fixed (see the note at the top of
+§10); the skill no longer says "dark-only".
 
 ## 11. Onboarding wizard + profile simplification + multi-resume search (analysis 2026-08-31)
 
@@ -922,7 +949,10 @@ Sonnet bench for the resume role — not "make Opus stream faster".
       afterwards. Sonnet is NOT the faster resume model on this engine
       (v5: p50 40 s vs Opus 22 s, 95% status agreement, 74% term overlap),
       so `CLAUDE_MODEL_RESUME` stays `claude-opus-5` and §8 question 1 is
-      answered by the numbers.
+      answered by the numbers. **2026-09-24:** no longer the default. Since
+      v1.65.0 an empty resume slot means Sonnet 5 on the Claude CLI and
+      Haiku 4.5 on the API, and Opus 5 is the cover-letter default
+      (`src/ai-engine.ts:defaultModelFor`, measured in target-plan.md §2.3).
 - [x] `keyword-priority-ui` — per-keyword user overrides (re-level /
       ignore / add own term) through the existing `updateMatchScoring` path,
       visual weight for must+primary misses, posting-frequency tiebreaker —
@@ -968,7 +998,10 @@ Sonnet bench for the resume role — not "make Opus stream faster".
       per-job cache to invalidate, while block 3 already answers the
       as-you-type case with no call at all (0-15 ms) and F7 shows that a
       frozen frame is a liability, not an asset. Reopen only if a measured
-      compare goes back over ~60 s.
+      compare goes back over ~60 s. **2026-09-24:** built later in another
+      shape, for accuracy rather than speed: ADR 0044 (v1.70.0) reads the
+      posting once in its own call and keeps the brief with its keyword
+      frame per posting (`posting_brief`); every comparison judges against it.
 
 ## 14. Pre-public hardening (2026-09-02)
 
@@ -1082,7 +1115,11 @@ before anyone else installs this.
 
 ---
 
-## 14. applypack.dev + README refresh (analysis 2026-09-02 — built on `site-refresh`)
+## 14b. applypack.dev + README refresh (analysis 2026-09-02 — built on `site-refresh`)
+
+**2026-09-24:** renumbered from a second "14". Code, ADRs and CHANGELOG
+mean Pre-public hardening when they say §14; the owner items that
+docs/improvement-2026-09/ cites as "TASKS §14" are the ones below.
 
 Analysis and the build log: [docs/site-refresh-plan.md](./site-refresh-plan.md).
 The landing was rewritten around the live demo (hero within a 45-word
@@ -1094,9 +1131,10 @@ Owner items left open by the branch:
 
 - [ ] Story facts for the `#story` section: month, employer if named,
       2–3 counters from the Overview (the section ships number-free).
-- [x] Label 3–5 issues `good first issue` — done 2026-09-04: #90, #92, #96,
+- [ ] Label 3–5 issues `good first issue` — done 2026-09-04: #90, #92, #96,
       #100, each scoped with file pointers. (the site and README link there;
-      the label is empty).
+      the label is empty). **2026-09-24:** unticked: all four are closed,
+      and none of the nine open issues carries the label.
 - [ ] Cloudflare: Always Use HTTPS, HSTS, redirect www → apex
       (`http://applypack.dev/` answers 200 over plain HTTP today).
 - [ ] GitHub About text and social preview from the new
@@ -1326,10 +1364,12 @@ nudge follows `digestAt` too — yes, one digest time for everything.
   fired once a day, so a user picking 19:00 would have got nothing. They beat
   hourly now, and a beat that is not a digest hour writes no run row — 23
   skipped rows a day would be noise, and CronRun rows are never trimmed.
+  **2026-09-24:** they are since v2.18.2: `cleanup-job.ts` deletes runs
+  older than 90 days (`RUN_RETENTION_DAYS`).
 
 ---
 
-## 17. Company watchlist: "check these 20 companies for new jobs" (analysis 2026-09-03, nothing built)
+## 17. Company watchlist: "check these 20 companies for new jobs" (analysis 2026-09-03; stage A SHIPPED v1.48.0, stage C v1.50.0, stage B measured out)
 
 Owner's ask: paste a list of companies (site or job-list URLs), have them
 checked at a chosen interval, show their postings apart from the rest, and
@@ -1654,7 +1694,9 @@ re-render in the user's typography, labelled as such; no external service.
 | 5 `resume-render` | Opus 5 for libraries and pages; Fable 5.1 for the `structure` prompt | high |
 
 Product engine unchanged: the resume role stays `claude-opus-5` (ADR 0029
-bench); re-run `bench:resume` after stages 3 and 5.
+bench); re-run `bench:resume` after stages 3 and 5. **2026-09-24:** since
+v1.65.0 the resume default is Sonnet 5 on the Claude CLI and Haiku 4.5 on
+the API (`src/ai-engine.ts:defaultModelFor`); Opus 5 writes the letters.
 
 ### 18.4 Implementation order (five branches, each its own PR; tags from stage 3 on)
 
@@ -1748,6 +1790,8 @@ bench); re-run `bench:resume` after stages 3 and 5.
       `.docx` + check; `replaceResumeFile` with the patched bytes; text
       fallback with the reason; "Save as a tailored copy" (owner decides the
       default); Download reflects the new file; export report line.
+      **2026-09-24:** "Save as a tailored copy" was removed in v1.70.0;
+      Save as vN is the one save on the page.
 - [x] `fix document properties` — the opt-in POST; current values shown.
 - [x] `write adr 0038` — supersedes ADR 0010's text-only consequence;
       CLAUDE.md rows; CHANGELOG + bump + tag; screenshots of the patched
@@ -1774,6 +1818,9 @@ bench); re-run `bench:resume` after stages 3 and 5.
       from the .docx reader, bare caps from the PDF) and rejoins wrapped
       bullets. First live scan: 161 strings kept, **0 dropped**, 6 roles,
       24 bullets — the same split the deterministic reader finds.
+      **2026-09-24:** `SCAN_STRUCTURE` is gone since v1.66.0. The shape is
+      its own call, `src/resume/structure.ts:structureResume` over
+      `prompts.ts:buildStructurePrompt` (ADR 0039, addendum 2026-09-05).
 - [x] `add style inference` — `style-infer.ts`. The guide's recipe was wrong
       twice and both are in the tests: `styles.xml` says Times New Roman 12 pt
       where the runs say Arial 11 pt with a blue accent, and pdf.js gives only
@@ -1811,7 +1858,15 @@ Tables in the patcher's v1: cell text edits or refuse? (6) Reordering:
 "make this the first bullet" only, or free line moves? (7) Ship stages 1
 and 2 as one branch or two?
 
-## 19. HR screening: rank a folder of resumes against one position (SHIPPED 2026-09-09 as employer mode, v2.0.0; stage 0 and stage 5 open)
+**2026-09-24:** all answered except (4). (1) A copy per posting was built
+(ADR 0038 point 7), then removed in v1.70.0: Save as vN is the one save.
+(2) On click (ADR 0038 point 8). (3) pdfkit (ADR 0039). (5) Cell text edits
+yes, rows refused (ADR 0038 point 5). (6) Neither: `moveLineToBlockTop` was
+built, measured and dropped in stage 2, because a move is a replacement.
+(7) Two branches, v1.51.0 and v1.52.0. (4) is open: no LibreOffice profile
+exists, and nobody has reported the Word or Pages export as friction.
+
+## 19. HR screening: rank a folder of resumes against one position (SHIPPED 2026-09-09 as employer mode, v2.0.0; stage 0 and stage 5's Batch API open)
 
 Owner's ask: let an HR person or a hiring manager take a folder of resumes,
 pick a position (pasted, from a file, or one of the manually added jobs)
@@ -1880,6 +1935,10 @@ lives as an opt-in `employerMode` (option C), never as a card on the
 candidate pages, never in the worker; three ADRs (evidence not keywords,
 redaction and retention, mode not product).
 
+**2026-09-24:** as built, the file is `src/screening/score.ts` (ADR 0047),
+and since v2.2.0 the weights are the stars the person gives each criterion
+(ADR 0050), not the fixed shares above. The three caps stayed (30 / 50 / 60).
+
 Guardrails before any bulk screen ships: no auto-reject; blind by default;
 every score explainable from a table with rubric and model versions on the
 verdict; `retainUntil` + auto-cleanup + "delete with files"; a warning when
@@ -1922,6 +1981,10 @@ checks became unit tests and the calibration stays open.
       editor on `/jobs/:id` is per comparison, not per posting, so the
       rubric has its own); `Applicant` with multi-file / zip intake, dedupe
       by hash / email / SimHash, unreadable and duplicate rows kept visible.
+      **2026-09-24:** changed by the ADR 0048 addendum: a byte-for-byte
+      repeat is never added (unique `(screeningId, textHash)` since v2.6.0),
+      and the same email, phone or SimHash is a second document, scored and
+      marked "also №N" (`src/screening/intake.ts:findDuplicate`).
 - [x] `screening/redact.ts` (pure, tested); ADRs 0048 and 0049.
 
 **Stage 3 — `screen-batch`**
@@ -1939,13 +2002,18 @@ checks became unit tests and the calibration stays open.
 
 **Stage 4 — `screen-guardrails`**
 - [x] `retainUntil` (90 days by default, 7–365 on the settings tab),
-      deletion in `cleanup-job.ts`, "Delete with files", "Keep N more days",
+      deletion in `cleanup-job.ts`, "Delete with files" (renamed "Delete
+      screening" in v2.1.0, see A below), "Keep N more days",
       the engine warning, the applicant notice with a Copy button, the
       README section and the legal note.
 
 **Stage 5 — optional**
-- [ ] Top-10 comparative tie-break with shuffled order; calibration
-      report; Batch API for the API engines.
+- [x] Top-10 comparative tie-break with shuffled order (done as Compare in
+      v2.4.0, ADR 0051: 2–5 ticked applicants, read twice in reversed
+      order rather than shuffled; D below).
+- [x] Calibration report (done in v2.5.0, ADR 0052; E below).
+- [ ] Batch API for the API engines. **2026-09-24:** an open owner
+      question, not decided here.
 
 ### 19.5 Criteria HR chooses, the posting in the loop (analysis 2026-09-09; A–E shipped)
 
@@ -1967,13 +2035,19 @@ A → B1+B2 → C → D → E.
       impact, overall, custom), presets (Standard, Junior hire, Senior/lead,
       Regulated, Agency work), the draft into criteria, v1 read as v2, a
       refusal for protected characteristics with the lawful criterion
-      offered instead (plan §3.6).
+      offered instead (plan §3.6). **2026-09-24:** there is no `skillGroup`
+      kind: an either/or group is one `skill` criterion with several terms
+      (`src/screening/rubric.ts:CRITERION_KINDS`).
 - [x] **B2 — prompt v2, anchor per kind, score v2, scorecard v2** (v2.2.0): one
       reply entry per criterion id, custom criteria answered with a quote,
       the `overall` five-step read with reasons and concerns as one weighted
       row (plan §3.7); the three caps as flags; recency decay for skills
       (`last_used`); verdicts from v1 read as stale. The sum stays in code
-      for the measured reason in plan §8.
+      for the measured reason in plan §8. **2026-09-24:** the skill decay
+      never fires. `score.ts` halves a term only when the criterion's
+      `recentWithinMonths` is set, and nothing sets it (no draft, preset,
+      grammar or form field; only `score.test.ts` does). The years
+      criterion's recency does count.
 - [x] **C — beyond the score** (v2.3.0): "Stands out" — three facts no
       criterion asked for, each with its line, anchored, never scored — on
       the scorecard, the row's expandable line and the exports; the career
@@ -2009,6 +2083,17 @@ A → B1+B2 → C → D → E.
 4. Accept Ukrainian CVs with photo and date of birth and redact, or demand
    clean files?
 5. Where do 90 human-ranked resumes for stage 0 come from?
+
+**2026-09-24:** 1–4 are answered by what shipped; only 5 is open.
+(1) One person on their own install; multi-user stays out (ADR 0049).
+(2) The label sits one link away: README says the mode is regulated and
+links `docs/employer-mode.md`, whose legal note (also on the settings tab,
+`src/screening/notice.ts`) names the high-risk class; the mode is off by
+default, so the candidate side does not carry it. (3) Either, with a
+warning: the defensible path is an API under a
+DPA or a local model, and a subscription CLI is warned about, not blocked
+(ADR 0048). (4) Accept and redact: redaction runs at intake and cannot be
+switched off, and a photo is never extracted (ADR 0048).
 
 ---
 
@@ -2058,7 +2143,9 @@ report's.
   (30-day retention); the F5 funnel cards were removed on 2026-09-01
   (`eddfe40`) and F19 closed on n≈3; skill demand needs the classifier to
   return the posting's own stack (today `techMatch` is the overlap with
-  the profile).
+  the profile). **2026-09-24:** the 30 days were never enforced; nothing
+  pruned `cron_run` until v2.18.2, and since then `cleanup-job.ts` keeps
+  90 days (`RUN_RETENTION_DAYS`).
 
 ### 20.2 Decisions
 
@@ -2099,8 +2186,12 @@ release-discipline skill, a docs/site block does not.
       package.json (the JSON field) and `docs/launch/*.md`; COPY-1 the two
       false sentences; DOCS-2 the site/README/CONTRIBUTING line reads
       honestly until the label has entries. Owner: GitHub About text
-      (TASKS §14), label 3–5 open issues (`#203`, `#204`, `#208` are
-      scoped), the social preview.
+      (TASKS §14b), label 3–5 open issues (`#203`, `#204`, `#208` are
+      scoped), the social preview. **2026-09-24:** the DOCS-2 part did not
+      land (363b7cb touched none of the three files): on this date
+      `README.md` and `CONTRIBUTING.md` said "Grab a good first issue", the
+      site said "labelled in the tracker", and no open issue carried the
+      label.
 - [x] **`data-integrity`** (minor) — shipped v2.6.0 (ADR 0053); DATA-9 left for a later pass, DATA-10's scratch-row / `isDefault` / `deleteProfile` races too. DATA-2 one migration indexing
       `Job.crossListedOfJobId`, `Job.appliedResumeId`, `Screening.jobId`,
       `CoverLetter.resumeId`; DATA-3 `alertHeldAt` in the create
@@ -2111,7 +2202,10 @@ release-discipline skill, a docs/site block does not.
       DATA-9 a stranded `pipelineStage` is repaired on column removal or
       shown as "unfiled". Second pass: DATA-10 (`manual-job.ts`
       transaction + `P2002`, the scratch-row and `isDefault` races,
-      `deleteProfile` under the lock).
+      `deleteProfile` under the lock). **2026-09-24:** the key that shipped
+      is `(botToken, chatId)`, not `(kind, chatId)`
+      (`prisma/schema.prisma`, ADR 0053). DATA-9 ("Unfiled") and DATA-10
+      shipped in v2.18.1.
 - [x] **`route-hardening`** (patch) — shipped v2.6.1: ROUTE-1/2/3, SEC-7/8; ROUTE-4 (the 500s on repeat, cache headers on polled JSON, multipart → 400) and ROUTE-5 (the three handlers) left for a later pass. ROUTE-2 one `idParam` (from
       `screen.tsx:229`) for every `:id` and query id, 404 on a missing
       row (`discovery` ignore/delete, `/screen/:id/run`); ROUTE-1
@@ -2124,7 +2218,13 @@ release-discipline skill, a docs/site block does not.
       becomes a POST. Then ROUTE-4 (the 500s on repeat, cache headers on
       polled JSON, multipart → 400) and ROUTE-5 (`/letter`, `/target`,
       profile save → pure decision modules; the reuse trichotomy in one
-      place).
+      place). **2026-09-24:** the `/target` part of ROUTE-5 is done: since
+      v2.9.0 its comparison runs through `src/web/comparison-run.ts`
+      (`startComparison` / `runComparison`), the path `/jobs/:id/match`
+      takes too. `/letter` and the profile save are still open. ROUTE-4
+      landed in v2.18.1 and v2.18.2 (a duplicate is said, a bad body is a
+      400, `no-store` on polled state, a newline in a redirect refused, the
+      two false flashes).
 - [x] **`fetcher-dates`** (patch) — shipped v2.6.2; FETCH-5 left. FETCH-1 a shared `safeDate` in the
       seven RSS fetchers and `lever.ts`, and `classifier.ts:162` never
       throws on a date; FETCH-2 the `??` chain fixed in five fetchers
@@ -2164,7 +2264,13 @@ release-discipline skill, a docs/site block does not.
       visually-hidden live region beside the ring), the dirty bar's live
       region carrying text that changes; A11Y-3 `scope` on the five
       hand-rolled tables, `<th scope="row">` in the compare matrix, a
-      `caption` prop on `Table`. Then A11Y-4.
+      `caption` prop on `Table`. Then A11Y-4. **2026-09-24:** three of the
+      A11Y-4 leftovers were done in §22: the input ring (v2.12.0, an
+      emerald-strong border plus a 25 % ring), the toggle buttons named by
+      their action (v2.13.0, v2.16.0) and the long hint out of the label
+      (v2.13.0, `more` outside the `<label>`). Still open: the glyph-only
+      weights and gate marks on `/screen/:id`, and the targeted view's tab
+      keyboard model.
 - [x] **`copy-pass`** (patch) — shipped v2.7.2 as one pass over the six pages (25 sentences cut or shortened, the six-fact upload hint split into lines, four DESIGN.md corrections, the tone floors named once with a parity test); left: the tab/flow/source naming (COPY-3's rename half). COPY-1 first (two false
       sentences — in `metadata-drift` if that ships first); then the
       candidate tables in [11-ui-copy.md](./improvement-2026-09/11-ui-copy.md)
@@ -2177,7 +2283,7 @@ release-discipline skill, a docs/site block does not.
       `test.yml`, `migrate deploy` + seed, the Hono app in-process,
       `app.request()` over every GET route derived from the routers
       (2xx/3xx), the wizard's POSTs and one upload; not Playwright
-      (TASKS §17.2 stands).
+      (TASKS §6 stands).
 - [x] **`dead-exports`** (no tag) — done 2026-09-10: the ten deleted, `export` dropped from 88, `npm run exports:audit` reruns the scan. DEAD-1 delete the ten (the cleanup
       job keeps its inline delete — the worker may not import
       `src/screening`), drop `export` from the 84, keep the 8 test seams;
@@ -2190,10 +2296,14 @@ release-discipline skill, a docs/site block does not.
       [06-employer-split.md](./improvement-2026-09/06-employer-split.md):
       `site/public/employers/`, one CTA on the candidate page, nav, OG,
       Lighthouse re-run; optional §5 graphic.
-- [ ] **`demo-loop`** (assets, no tag) — §13: `/demo/` recorded at
+- [x] **`demo-loop`** (assets, no tag) — §13: `/demo/` recorded at
       1280×720, three moves, ≤ 20 s, `.webm` + `.gif` < 3 MB into
       `docs/screenshots/`; README above the static screenshot; the
-      launch drafts mention it.
+      launch drafts mention it. **2026-09-24:** done differently in PR
+      #256 (2026-09-18): `docs/screenshots/tour.gif`, a 25 s screencast
+      of the dashboard on a scratch install (1.9 MB), at the top of
+      README; the recipe is `docs/screenshots/README.md`. No `.webm`, and
+      the launch drafts do not mention it yet.
 - [ ] **`first-run-follow-through`** (minor) — §10: cost hints on wizard
       steps 3 and 5; an Overview "next three things" card while
       `scoredCount > 0 && matchCount === 0` (open the top match →
@@ -2211,9 +2321,10 @@ release-discipline skill, a docs/site block does not.
 ### 20.4 Owner items
 
 - GitHub About → the package description; social preview from
-  `docs/brand/social-card.png` (both already in §14).
+  `docs/brand/social-card.png` (both already in §14b).
 - Label 3–5 open issues `good first issue` (or accept the honest wording
-  from `metadata-drift`).
+  from `metadata-drift`). **2026-09-24:** that wording never landed; see
+  the note on `metadata-drift`.
 - Decide: prompts in `argv` (document) or stdin; hold a leaking applicant
   or queue it; `node-cron` 4.
 - Run once: the live failover check and the four-viewport browser pass
@@ -2221,7 +2332,7 @@ release-discipline skill, a docs/site block does not.
 
 ---
 
-## 21. Local install without Docker (analysis 2026-09-16, nothing built)
+## 21. Local install without Docker (analysis 2026-09-16; `local-start` SHIPPED v2.10.0, the rest later)
 
 Owner's ask: most people who would run ApplyPack don't use Docker; the
 default install should run straight on the computer, with Docker kept as
@@ -2287,7 +2398,9 @@ options and measurements: [docs/local-install-plan.md](./local-install-plan.md).
       "what to install", `docs/install.md` for the three systems, site,
       CONTRIBUTING, CLAUDE.md, bug template, SPEC, ARCHITECTURE, launch
       drafts; CI `local-start` job on Linux, macOS, Windows × Node 22 / 24;
-      verification matrix plan §4.10.
+      verification matrix plan §4.10. **2026-09-24:** the CI matrix is
+      Ubuntu on Node 22 and 24, macOS and Windows on Node 24 only
+      (`.github/workflows/test.yml`).
 - [ ] **`ai-without-env`** (patch, later) — the OpenAI-compatible engine's
       base URL on its card and in `/welcome` step 1.
 - [ ] **`local-always-on`** (minor, later) — start at login; a dated
@@ -2307,7 +2420,7 @@ options and measurements: [docs/local-install-plan.md](./local-install-plan.md).
 
 ---
 
-## 22. Dashboard redesign: hierarchy, disclosure, tokens (analysis 2026-09-16; all eight stages built 2026-09-17, PRs stacked for review — §22.2, owner items §22.4)
+## 22. Dashboard redesign: hierarchy, disclosure, tokens (analysis 2026-09-16; all eight stages SHIPPED 2026-09-17, v2.11.0–v2.17.0, PRs #247–#254 — §22.2, owner items §22.4)
 
 Owner's ask: readers said the dashboard shows too much at once, every
 surface looks the same and nothing says where to look. He wrote a redesign
@@ -2457,12 +2570,19 @@ it moves. Stage 0 carries no tag; the others are a minor each.
 - §20's `first-run-follow-through` card lands after `overview-and-runs`, on
   the strip's surface.
 - One name for the score and one for the flow (audit COPY-3) — its own block.
+- Sidebar counters (plan §6), if `Layout` ever receives data. Open:
+  `LayoutProps` in `src/web/layout.tsx` carries none today.
 
 ### 22.4 Owner items
 
 - Merge the stacked PRs in order (retarget the next one to `main` before
-  deleting a base branch); tag per `release-discipline`.
+  deleting a base branch); tag per `release-discipline`. **2026-09-24:**
+  done: #247–#254 merged 2026-09-17, tags and releases v2.11.0–v2.17.0.
 - Re-shoot `docs/screenshots/*.png` and `site/public/img/*.webp` after the
   merge, on data chosen to be shown; record §20's `demo-loop` after that.
+  **2026-09-24:** README's two screenshots and the tour GIF were retaken on
+  a scratch install (#256, #257, 2026-09-18). Still open: the four
+  `docs/screenshots/screening-*.png` and every `site/public/img/*.webp`
+  were last taken on 2026-09-02 or 2026-09-09, before the redesign.
 - Tune by eye what no number decides: the canvas tint, the sidebar's ground,
   the title size.
