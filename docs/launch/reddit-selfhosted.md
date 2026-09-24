@@ -7,7 +7,7 @@
 ## Title
 
 ```
-ApplyPack: self-hosted job-hunt console – watches the boards, scores your resume without flattery, pings Telegram (MIT)
+ApplyPack: self-hosted job-hunt console – watches the boards, scores your resume without flattery, pings Telegram or Discord (MIT)
 ```
 
 ## Body
@@ -50,9 +50,9 @@ Self-hosting details, since that's why we're here:
   the job boards and to whichever AI backend you configure
 * AI is the one running cost, and you pick the meter: Claude Code /
   Gemini / Codex CLIs ride subscriptions you already pay ($0 extra),
-  the Anthropic API costs about $0.001 per classified job ($2–10/month
-  at 5–10 matching jobs a day; prompt caching covers ~90% of the system
-  prompt), or point the OpenAI-compatible engine at Ollama / LM Studio
+  the Anthropic API costs about $0.003 per classified posting on Haiku
+  4.5 ($2–10/month, growing with how many postings your sources
+  produce), or point the OpenAI-compatible engine at Ollama / LM Studio
   and pay nothing. Engines chain with automatic failover
 * Official public APIs and RSS only. No LinkedIn / Indeed / Glassdoor /
   Workday scraping; an ADR in the repo draws that line. For anything

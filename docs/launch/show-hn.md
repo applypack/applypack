@@ -30,7 +30,7 @@ country, or a ghost posting. ApplyPack did that reading for me, on my
 own machine, every day of the search.
 
 The submission link (https://applypack.dev/demo/) is the app's actual
-scoring module compiled for the browser, on a synthetic resume and
+scoring module, served to the browser as is, on a synthetic resume and
 posting. My first version let the model output the score, and it graded a
 Laravel/Vue resume 82/100 against a Node.js/React posting. Credit leaked
 through sibling tech: Vue read as close enough to React, PHP as close
@@ -41,17 +41,18 @@ posting's primary stack is missing. Same resume after the split: 10/100
 against that Node posting, 92/100 against a Laravel one.
 
 You can feel it in the demo. Type Redis into the skills line and the
-score moves on the next keystroke. Type Terraform and nothing moves: the
-model marked it cannot-claim against the original resume, and typing a
-word is not evidence. Delete TypeScript to watch the primary-stack cap
-bite.
+score moves on the next keystroke. Type hooks, a must-have, and it moves
+further. Before you type Terraform, its dashed underline in the posting
+says nothing in the resume backs it. Typed, it counts all the same: the
+score reads the text, as an ATS filter does.
 
 Scoring is one corner of the console. A worker checks 33 kinds of source hourly
-(Greenhouse, Lever, Ashby and seven more ATS vendors on boards you pick,
-eleven aggregators, the monthly HN "Who is hiring" thread), a classifier
-reads each posting against your profile, and Telegram pings you above
-your fit threshold. A ghost-job check runs a web-search checklist and
-returns legit / suspicious / fake with evidence URLs. A cover-letter
+(twelve ATS vendors such as Greenhouse, Lever and Ashby on boards you
+pick, twenty aggregators with the monthly HN "Who is hiring" thread among
+them, any RSS feed you paste), a classifier reads each posting against
+your profile, and Telegram or Discord pings you above your fit
+threshold. A ghost-job check runs a web-search checklist and returns
+legit / suspicious / fake with evidence URLs. A cover-letter
 writer sits behind a fact gate: a metric that appears in neither your
 resume nor your confirmed facts never reaches the letter.
 

@@ -30,8 +30,8 @@ in the entry below.
 `Automation` — "Automation software designed to reduce human
 intervention in processes". No jobs/career/recruitment tag exists
 (checked the full `tags/` inventory 2026-08-31), and
-`human-resources-management-hrm` is employer-side software, which
-ApplyPack is not. The Automation tag hosts personal monitor-and-act
+`human-resources-management-hrm` is employer-side software; ApplyPack is
+the job seeker's tool, with screening only as an opt-in mode. The Automation tag hosts personal monitor-and-act
 agents, which is what the worker is. Their own fallback rule
 (`Miscellaneous` when nothing fits) stays available if maintainers
 disagree.
@@ -43,7 +43,7 @@ name: ApplyPack
 website_url: https://applypack.dev
 source_code_url: https://github.com/applypack/applypack
 demo_url: https://applypack.dev/demo/
-description: Job-search console that watches company ATS boards and job feeds, scores postings against your profile using your own AI accounts, verifies ghost jobs and tracks applications, with Telegram alerts.
+description: Job-search console that watches company ATS boards and job feeds, scores postings against your profile using your own AI accounts, verifies ghost jobs and tracks applications, with Telegram or Discord alerts.
 licenses:
   - MIT
 platforms:
@@ -53,7 +53,7 @@ tags:
   - Automation
 ```
 
-Description is 197 chars and avoids "self-hosted" / "open-source" /
+Description is 208 chars and avoids "self-hosted" / "open-source" /
 "free" per their rules. `demo_url` points at the live scoring demo, one
 real module of the app; if maintainers read `demo_url` as
 full-application-only, drop the field rather than argue.

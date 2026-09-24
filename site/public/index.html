@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ApplyPack: open-source job search and ATS resume check</title>
-<meta name="description" content="Free, self-hosted job search: watches 33 kinds of job source, drops fake and wrong-fit postings, shows which keywords your resume lacks, helps you fix it, writes the cover letter. MIT.">
+<meta name="description" content="Free, open-source AI job search that runs on your own computer. Watches 33 kinds of job source, drops wrong-fit postings, checks whether a posting is real, shows which keywords your resume lacks, helps you fix it, writes the cover letter. MIT.">
 <meta name="theme-color" content="#f7f8fa">
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="apple-touch-icon" href="img/apple-touch-icon.png">
@@ -24,7 +24,7 @@
 <meta property="og:image:alt" content="ApplyPack: stop losing interviews to a missing keyword">
 <meta name="twitter:card" content="summary_large_image">
 <script type="application/ld+json">
-{"@context":"https://schema.org","@type":"SoftwareApplication","name":"ApplyPack","url":"https://applypack.dev/","applicationCategory":"BusinessApplication","operatingSystem":"macOS, Windows, Linux","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"license":"https://opensource.org/licenses/MIT","codeRepository":"https://github.com/applypack/applypack","description":"Self-hosted job search that watches 33 kinds of job source, scores postings against your profile, checks whether a job is real, scores your resume against the posting without flattering it, and writes a fact-checked cover letter."}
+{"@context":"https://schema.org","@type":"SoftwareApplication","name":"ApplyPack","url":"https://applypack.dev/","applicationCategory":"BusinessApplication","operatingSystem":"macOS, Windows, Linux","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"license":"https://opensource.org/licenses/MIT","codeRepository":"https://github.com/applypack/applypack","description":"Open-source AI job search that runs on your own computer. It watches 33 kinds of job source, scores postings against your profile, checks whether a job is real, scores your resume against the posting without flattering it, and writes a fact-checked cover letter."}
 </script>
 </head>
 <body>
@@ -81,7 +81,7 @@
         <div id="chips"></div>
         <div class="panes">
           <div class="pane">
-            <div class="pane-title">Job posting <span class="hint">green: in the resume · amber: still missing</span></div>
+            <div class="pane-title">Job posting <span class="hint">green: in the resume · red: a must-have it lacks · grey: a nice-to-have or a passing mention</span></div>
             <div class="pane-body"><div id="jd" class="layer"></div></div>
           </div>
           <div class="pane resume">
@@ -93,7 +93,7 @@
           </div>
         </div>
       </div>
-      <p class="demo-hint">Type <code>Redis</code> into the skills line: the score moves on the next keystroke. Type <code>Terraform</code>: nothing moves, because the model marked it cannot-claim against the original resume, and typing a word is not evidence. Delete every <code>TypeScript</code> to watch the primary-stack cap bite.</p>
+      <p class="demo-hint">Type <code>Redis</code> into the skills line: the score moves on the next keystroke. Type <code>hooks</code>, a must-have, and it moves further. Before you type <code>Terraform</code>, its dashed underline in the posting says nothing in the resume backs it. Typed, it counts all the same: the score reads the text, as an ATS filter does.</p>
     </div>
   </section>
 
@@ -128,7 +128,7 @@
             <li><b>33 kinds of job source every hour.</b> Twelve ATS vendors on the companies you pick, twenty aggregators (the monthly HN thread among them), any RSS feed you paste. Starter packs add a whole segment at once.</li>
             <li><b>A classifier with rules that burned me.</b> "Full-stack" in a title is not a stack match; "Remote · Germany" is not US-remote. Up to eight searches at once, one AI call per posting.</li>
             <li><b>Is it real?</b> A free liveness check first, then a web-search verdict with evidence links: legit, suspicious, fake.</li>
-            <li><b>Telegram only above your fit threshold.</b> Paste a posting from anywhere and it gets the same treatment.</li>
+            <li><b>Telegram or Discord, only above your fit threshold.</b> A company on your watchlist can alert on every posting instead. Paste a posting from anywhere and it is scored the same way.</li>
           </ul>
         </div>
         <figure class="shot">
@@ -141,8 +141,8 @@
           <h3>Fix your resume for this posting. Honestly.</h3>
           <ul role="list">
             <li><b>Every keyword the posting wants,</b> graded must / preferred / nice and marked present, missing or confirm-with-you.</li>
-            <li><b>The model marks facts, code computes the score.</b> No core-stack overlap caps it at 30, Vue is not React, and typing a word is not evidence.</li>
-            <li><b>Edit side by side</b> with the score updating on every keystroke, free of AI calls. Re-check with AI in about 15 seconds. Save as v2, and the delta against v1 is real.</li>
+            <li><b>The model marks facts, code computes the score.</b> No core-stack overlap caps it at 30, Vue is not React, and an unknown becomes a question instead of a guess.</li>
+            <li><b>Edit side by side</b> with the score updating on every keystroke, free of AI calls. Save as v2 and the edits go back into your own .docx with the formatting intact. A PDF, or a layout that cannot be patched, can be re-set as a clean single-column .docx in your own font, and as a PDF.</li>
             <li><b>Disagree with the model?</b> Re-level a keyword, ignore it, add the one it missed, or rebuild the list. Your edits survive every re-run.</li>
           </ul>
         </div>
@@ -185,7 +185,7 @@
         <h3>And the rest</h3>
         <ul class="more-list" role="list">
           <li><b>Applications board.</b> Columns you name, drag and drop, which resume each application went out with, a nudge when one goes quiet for two weeks.</li>
-          <li><b>Guided first run.</b> Connect an AI, test the search, turn a resume into a profile, score the first matches.</li>
+          <li><b>Guided first run.</b> Connect an AI, test the search, turn a resume into a profile, switch on the boards for your countries, read the first matches.</li>
           <li><b>Five AI engines with failover.</b> Claude Code, Gemini and Codex CLIs on subscriptions you already pay for, the Anthropic API, any OpenAI-compatible endpoint including free local models.</li>
           <li><b>Postings cannot hijack the prompt.</b> Every outside text reaches the model inside untrusted-text markers; a test fails the build otherwise.</li>
           <li><b>Board discovery.</b> Company boards harvested from HN comments, one click to track.</li>
@@ -204,7 +204,7 @@
         <li><b>Base filter</b>pure code, zero cost, drops the obvious misses</li>
         <li><b>AI classifier</b>reads the full posting against every running search</li>
         <li><b>Your Postgres</b>on your machine, nothing leaves it</li>
-        <li><b>Telegram</b>only when the fit clears your threshold</li>
+        <li><b>Telegram or Discord</b>only when the fit clears your threshold</li>
       </ol>
       <p class="pipe-note">Cheap deterministic filters drop the obvious misses first, so the AI only reads postings that might be for you.</p>
     </div>
@@ -291,7 +291,7 @@
         </figure>
       </div>
 
-      <p class="note">Read this before turning it on: screening other people's resumes with an AI tool is high-risk under the EU AI Act, GDPR forbids a decision made solely by automated means and requires applicants to be told, and several US jurisdictions add audit and notice duties. The mode is built to be the tool and not the decision; telling applicants (a copy-ready notice is in the settings tab) and running it on an engine under a data-processing agreement or on a local model are yours. <a href="https://github.com/applypack/applypack#employer-mode-screening-a-folder-of-resumes">The README says the rest</a>; this is not legal advice.</p>
+      <p class="note">Read this before turning it on: screening other people's resumes with an AI tool is high-risk under the EU AI Act, GDPR forbids a decision made solely by automated means and requires applicants to be told, and several US jurisdictions add audit and notice duties. The mode is built to be the tool and not the decision; telling applicants (a copy-ready notice is in the settings tab) and running it on an engine under a data-processing agreement or on a local model are yours. <a href="https://github.com/applypack/applypack/blob/main/docs/employer-mode.md">The employer-mode guide says the rest</a>; this is not legal advice.</p>
     </div>
   </section>
 
@@ -310,10 +310,10 @@
     <div class="wrap">
       <h2 id="open-h">Free, open source, yours to bend</h2>
       <p class="lead">ApplyPack is MIT-licensed and has no hosted version: no accounts, no subscription, no telemetry, no ads. You bring the AI: a subscription you already pay for, an API key, or a local model that costs nothing.</p>
-      <p class="note">It is built to be changed. Over a thousand unit tests on the pure modules, a decision record for every non-obvious choice, and a CLAUDE.md that says where everything lives, so a first change takes an evening, with an AI assistant or without one.</p>
+      <p class="note">It is built to be changed. Over 2,300 unit tests on the pure modules, a decision record for every non-obvious choice, and a CLAUDE.md that says where everything lives, so a first change takes an evening, with an AI assistant or without one.</p>
       <ul class="ways" role="list">
         <li><b>Add a job source</b>Close to a one-file change: three fetcher templates in the repo, a unit test for the mapper, a smoke run.</li>
-        <li><b>Take a good first issue</b>Scoped tasks with file pointers, labelled in the tracker.</li>
+        <li><b>Pick an open issue</b>Comment on it before you start, and ask there when the scope is unclear.</li>
         <li><b>Bring an idea</b>Open an issue with the feature template. Public APIs and RSS only, never scraping; everything else is on the table.</li>
       </ul>
       <div class="cta left">

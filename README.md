@@ -4,11 +4,12 @@
 
 **Free, open-source AI job search that runs on your own computer.**
 
-It watches 33 kinds of job board around the clock, drops the fake and
-wrong-fit postings, shows which keywords your resume lacks and fixes them
-with you, writes a cover letter that cannot invent, and tracks the
-application. Built for software engineers. Bring the AI you already pay
-for. MIT: no accounts, no subscription, no telemetry, no ads.
+It watches 33 kinds of job board around the clock, drops the wrong-fit
+postings and checks whether one is real, shows which keywords your resume
+lacks and fixes them with you, writes a cover letter that cannot invent,
+and tracks the application. Built for software engineers. Bring the AI
+you already pay for. MIT: no accounts, no subscription, no telemetry, no
+ads.
 
 [![CI](https://github.com/applypack/applypack/actions/workflows/test.yml/badge.svg)](https://github.com/applypack/applypack/actions/workflows/test.yml)
 [![Live demo](https://img.shields.io/badge/live%20demo-applypack.dev-047857)](https://applypack.dev/demo/)
@@ -88,8 +89,8 @@ install, unchanged.
   write your own; disagree with a keyword and re-level, ignore or add it.
 - **💾 Save into your own .docx.** The accepted edits are written back into
   your file with the formatting intact. A PDF, or a layout that cannot be
-  patched, is re-typeset as a clean single-column `.docx` and `.pdf` in your
-  own font
+  patched, can be re-typeset as a clean single-column `.docx` in your own
+  font, and as a `.pdf`
   ([ADR 0038](./docs/adr/0038-save-patches-the-users-docx-in-place.md),
   [0039](./docs/adr/0039-clean-render-from-json-resume.md)).
 
@@ -282,8 +283,8 @@ entry points:
   Unsure it fits the sourcing policy? Open a
   [source proposal](https://github.com/applypack/applypack/issues/new?template=new_source.yml)
   first.
-- **Grab a [good first issue](https://github.com/applypack/applypack/labels/good%20first%20issue).**
-  Scoped tasks with file pointers.
+- **Pick an open issue.** Comment on it before you start, and ask there
+  when the scope is unclear.
 - **Break it and report.** A fresh-machine setup that stumbled, an ATS
   edge case, a resume that parses badly: issues with logs are gold.
 
