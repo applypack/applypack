@@ -30,7 +30,7 @@ country, or a ghost posting. ApplyPack did that reading for me, on my
 own machine, every day of the search.
 
 The submission link (https://applypack.dev/demo/) is the app's actual
-scoring module compiled for the browser, on a synthetic resume and
+scoring module, served to the browser as is, on a synthetic resume and
 posting. My first version let the model output the score, and it graded a
 Laravel/Vue resume 82/100 against a Node.js/React posting. Credit leaked
 through sibling tech: Vue read as close enough to React, PHP as close
@@ -42,9 +42,9 @@ against that Node posting, 92/100 against a Laravel one.
 
 You can feel it in the demo. Type Redis into the skills line and the
 score moves on the next keystroke. Type hooks, a must-have, and it moves
-further. Terraform counts too once typed, because the score reads the
-text; its dashed underline in the posting says nothing in the resume backs
-it yet.
+further. Before you type Terraform, its dashed underline in the posting
+says nothing in the resume backs it. Typed, it counts all the same: the
+score reads the text, as an ATS filter does.
 
 Scoring is one corner of the console. A worker checks 33 kinds of source hourly
 (twelve ATS vendors such as Greenhouse, Lever and Ashby on boards you

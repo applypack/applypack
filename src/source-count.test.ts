@@ -56,12 +56,20 @@ function numberValue(token: string): number | null {
 
 const NUMBER = String.raw`(\d+|[a-z]+(?:-[a-z]+)?)`;
 
+/*
+ * A count under ten is prose about a subset ("the two sources that need a
+ * key") unless it says "more" or "other", which is the shape of the Show HN
+ * slip; "N more" is read as N, so the copy states the total.
+ */
+const SUBSET_BELOW = 10;
+
 /** The count in every match of `noun` after a number; a word that is not a number ("open source", "the aggregators") is skipped. */
 function countsBefore(text: string, noun: string): number[] {
-  const pattern = new RegExp(String.raw`\b${NUMBER}\s+${noun}\b`, 'gi');
+  const pattern = new RegExp(String.raw`\b${NUMBER}\s+((?:more|other)\s+)?${noun}\b`, 'gi');
   return [...text.matchAll(pattern)].flatMap((m) => {
     const n = numberValue(m[1] ?? '');
-    return n === null ? [] : [n];
+    if (n === null || (n < SUBSET_BELOW && m[2] === undefined)) return [];
+    return [n];
   });
 }
 
@@ -70,17 +78,13 @@ function countedSourcePhrases(text: string): number[] {
   return countsBefore(text, String.raw`(?:kinds\s+of\s+(?:job\s+)?sources?|job\s+sources?|sources?)`);
 }
 
-/*
- * The split between the two is the one the Settings grid draws
- * (web/source-groups.ts:sourceFamily). "N more ATS vendors" is read as N, so
- * the copy states the total instead of arithmetic this test cannot check.
- */
+/* The split between the two is the one the Settings grid draws (web/source-groups.ts:sourceFamily). */
 function countedVendorPhrases(text: string): number[] {
-  return countsBefore(text, String.raw`(?:more\s+)?ATS\s+vendors`);
+  return countsBefore(text, String.raw`ATS\s+vendors`);
 }
 
 function countedAggregatorPhrases(text: string): number[] {
-  return countsBefore(text, String.raw`(?:more\s+)?aggregators`);
+  return countsBefore(text, String.raw`aggregators`);
 }
 
 /*
@@ -106,8 +110,9 @@ function publicCopies(): [string, string][] {
 
 test('the phrase reader takes digits and number words, and skips words that are not numbers', () => {
   assert.deepEqual(countedSourcePhrases('checks 33 kinds of source, thirty-three\nsources, open source'), [33, 33]);
-  assert.deepEqual(countedVendorPhrases('Twelve ATS vendors; Ashby and seven more ATS vendors'), [12, 7]);
-  assert.deepEqual(countedAggregatorPhrases('twenty aggregators; leave the aggregators on'), [20]);
+  assert.deepEqual(countedVendorPhrases('Twelve ATS vendors; Ashby and seven more ATS vendors; nine other ATS vendors'), [12, 7, 9]);
+  assert.deepEqual(countedAggregatorPhrases('twenty aggregators; leave the aggregators on; two aggregators need a key'), [20]);
+  assert.deepEqual(countedSourcePhrases('the two sources that need a key'), []);
 });
 
 test('every public copy states the number of source kinds the enum has', () => {

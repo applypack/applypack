@@ -30,8 +30,8 @@ in the entry below.
 `Automation` — "Automation software designed to reduce human
 intervention in processes". No jobs/career/recruitment tag exists
 (checked the full `tags/` inventory 2026-08-31), and
-`human-resources-management-hrm` is employer-side software, which
-ApplyPack is not. The Automation tag hosts personal monitor-and-act
+`human-resources-management-hrm` is employer-side software; ApplyPack is
+the job seeker's tool, with screening only as an opt-in mode. The Automation tag hosts personal monitor-and-act
 agents, which is what the worker is. Their own fallback rule
 (`Miscellaneous` when nothing fits) stays available if maintainers
 disagree.

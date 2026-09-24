@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ApplyPack: open-source job search and ATS resume check</title>
-<meta name="description" content="Free, open-source AI job search that runs on your own computer. Watches 33 kinds of job source, drops fake and wrong-fit postings, shows which keywords your resume lacks, helps you fix it, writes the cover letter. MIT.">
+<meta name="description" content="Free, open-source AI job search that runs on your own computer. Watches 33 kinds of job source, drops wrong-fit postings, checks whether a posting is real, shows which keywords your resume lacks, helps you fix it, writes the cover letter. MIT.">
 <meta name="theme-color" content="#f7f8fa">
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="apple-touch-icon" href="img/apple-touch-icon.png">
@@ -81,7 +81,7 @@
         <div id="chips"></div>
         <div class="panes">
           <div class="pane">
-            <div class="pane-title">Job posting <span class="hint">green: in the resume · red: a must-have it lacks · grey: a nice-to-have it lacks</span></div>
+            <div class="pane-title">Job posting <span class="hint">green: in the resume · red: a must-have it lacks · grey: a nice-to-have or a passing mention</span></div>
             <div class="pane-body"><div id="jd" class="layer"></div></div>
           </div>
           <div class="pane resume">
@@ -93,7 +93,7 @@
           </div>
         </div>
       </div>
-      <p class="demo-hint">Type <code>Redis</code> into the skills line: the score moves on the next keystroke. Type <code>hooks</code>, a must-have, and it moves further. <code>Terraform</code> counts too once typed, because the score reads the text; its dashed underline in the posting says nothing in the resume backs it yet.</p>
+      <p class="demo-hint">Type <code>Redis</code> into the skills line: the score moves on the next keystroke. Type <code>hooks</code>, a must-have, and it moves further. Before you type <code>Terraform</code>, its dashed underline in the posting says nothing in the resume backs it. Typed, it counts all the same: the score reads the text, as an ATS filter does.</p>
     </div>
   </section>
 
@@ -128,7 +128,7 @@
             <li><b>33 kinds of job source every hour.</b> Twelve ATS vendors on the companies you pick, twenty aggregators (the monthly HN thread among them), any RSS feed you paste. Starter packs add a whole segment at once.</li>
             <li><b>A classifier with rules that burned me.</b> "Full-stack" in a title is not a stack match; "Remote · Germany" is not US-remote. Up to eight searches at once, one AI call per posting.</li>
             <li><b>Is it real?</b> A free liveness check first, then a web-search verdict with evidence links: legit, suspicious, fake.</li>
-            <li><b>Telegram or Discord, only above your fit threshold.</b> A company on your watchlist can alert on every posting instead. Paste a posting from anywhere and it gets the same treatment.</li>
+            <li><b>Telegram or Discord, only above your fit threshold.</b> A company on your watchlist can alert on every posting instead. Paste a posting from anywhere and it is scored the same way.</li>
           </ul>
         </div>
         <figure class="shot">
@@ -142,7 +142,7 @@
           <ul role="list">
             <li><b>Every keyword the posting wants,</b> graded must / preferred / nice and marked present, missing or confirm-with-you.</li>
             <li><b>The model marks facts, code computes the score.</b> No core-stack overlap caps it at 30, Vue is not React, and an unknown becomes a question instead of a guess.</li>
-            <li><b>Edit side by side</b> with the score updating on every keystroke, free of AI calls. Save as v2 and the edits go back into your own .docx with the formatting intact. A PDF, or a layout that cannot be patched, gets a clean single-column copy in your own font.</li>
+            <li><b>Edit side by side</b> with the score updating on every keystroke, free of AI calls. Save as v2 and the edits go back into your own .docx with the formatting intact. A PDF, or a layout that cannot be patched, can be re-set as a clean single-column .docx in your own font, and as a PDF.</li>
             <li><b>Disagree with the model?</b> Re-level a keyword, ignore it, add the one it missed, or rebuild the list. Your edits survive every re-run.</li>
           </ul>
         </div>
