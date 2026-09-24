@@ -35,8 +35,8 @@ npm run lint:types && npm test   # must be green before every PR; CI runs the sa
   hand-written migration, and unit-test the pure mapper. Unsure the
   source qualifies? Open a [source proposal](https://github.com/applypack/applypack/issues/new?template=new_source.yml)
   first.
-- **Grab a [good first issue](https://github.com/applypack/applypack/labels/good%20first%20issue).**
-  Scoped tasks with file pointers.
+- **Pick an [open issue](https://github.com/applypack/applypack/issues).**
+  Comment on it before you start, and ask there when the scope is unclear.
 - **Report bugs.** Use the issue template; logs beat prose.
 
 ## Ground rules

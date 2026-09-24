@@ -282,8 +282,8 @@ entry points:
   Unsure it fits the sourcing policy? Open a
   [source proposal](https://github.com/applypack/applypack/issues/new?template=new_source.yml)
   first.
-- **Grab a [good first issue](https://github.com/applypack/applypack/labels/good%20first%20issue).**
-  Scoped tasks with file pointers.
+- **Pick an open issue.** Comment on it before you start, and ask there
+  when the scope is unclear.
 - **Break it and report.** A fresh-machine setup that stumbled, an ATS
   edge case, a resume that parses badly: issues with logs are gold.
 
