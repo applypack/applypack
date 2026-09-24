@@ -29,7 +29,8 @@
 Everything lives in one Postgres database — jobs, resumes and their versions,
 comparisons, cover letters, applications, and your AI keys if you pasted them
 into the dashboard instead of `.env`. Nothing is sent anywhere but the AI
-engine you chose and, if you set it up, your own Telegram bot.
+engine you chose and, if you set them up, your own Telegram bot or Discord
+webhook.
 
 **`npm start`'s built-in database** lives in the data folder
 (`~/Library/Application Support/ApplyPack`, `%APPDATA%\ApplyPack` or
@@ -54,6 +55,18 @@ docker compose exec -T postgres psql -U jobhunter -d jobhunter < applypack-2026-
 docker compose start app web
 ```
 
+**A backup holds your secrets in clear text.** The dump and a copy of the
+data folder carry everything the database holds, unencrypted: the AI,
+Adzuna and France Travail keys you pasted into the dashboard, every
+Telegram bot token and Discord webhook URL, your resumes, cover letters and
+confirmed facts, and, in employer mode, each applicant's resume with their
+name, email and phone. The data folder also holds `db.json` with the
+database password. Keep backups where only you can read them. Encrypt one
+before it leaves the machine (`gpg --symmetric <file>` writes `<file>.gpg`;
+delete the plain copy), never commit it to a repository, and never upload
+it unencrypted. Keys kept in `.env` are in neither backup; that file needs
+the same care.
+
 `docker compose down` keeps the data (it lives in the `pgdata` volume);
 `docker compose down -v` deletes it. There is no undo, so take a dump first.
 
@@ -70,29 +83,41 @@ application you tracked against it.
 
 ## The worker's schedule
 
-Six cron jobs, `TZ` from `.env`.
+Six cron jobs, `TZ` from `.env`. Three of them are hourly heartbeats, and
+the schedule on `/settings` → General → Schedule decides which beats do
+work, in the time zone saved there (`TZ` until you pick one). With no
+schedule saved, the search runs every hour and both summaries go out at
+09:00.
 
 
 | Cron | Job | What it does |
 | --- | --- | --- |
-| `mm * * * *` † | fetch | Pull all sources → filter → classify → alert |
-| `0 9 * * *` | digest | Telegram digest of the last 24h of new/alerted jobs |
-| `0 8 * * *` | stale-applications | Nudge for applications quiet for 14+ days |
-| `0 3 * * 0` | cleanup | Drop dismissed jobs older than 30 days, trim usage counters |
+| `mm * * * *` † | fetch | Every beat: re-check stored France Travail offers and send alerts held outside your alert hours. Then, if fetching is on and the schedule says this hour searches: pull all sources → filter → classify → alert |
+| `0 * * * *` | digest | At each of your digest times: a recap of the new and alerted jobs since the last recap, to your alert targets |
+| `0 * * * *` | stale-applications | At your first digest time of the day: a nudge for applications quiet for 14+ days |
+| `0 3 * * 0` | cleanup | Drop dismissed jobs older than 30 days that you do not track, expired screenings and runs older than 90 days; trim usage counters to 60 days |
 | `mm 4 * * 0` † | discovery | Re-probe pending company candidates |
 | `mm 6 1 * *` † | hn-hiring | Pull the monthly HN "Who is hiring" thread |
+
+A digest or stale-applications beat outside your digest times does nothing
+and leaves no row on `/runs`. A fetch beat outside the schedule leaves a
+row that says so.
 
 † `mm` is a fixed minute your install picks for itself, so that every
 ApplyPack in your time zone doesn't ask the same free job board in the same
 second. It's stable across restarts and printed at boot (`cron: registered`
 in the worker log). The three jobs that reach somebody else's server get
-their own minute; the ones that only touch your Telegram and your database
-run at the hour written above. See
+their own minute; the ones that only touch your alert channels and your
+database run at the minute written above. See
 [ADR 0035](./adr/0035-many-installs-one-set-of-boards.md).
 
-Every cron has a matching one-shot script for manual runs
-(`npm run <name>:once` while ApplyPack runs, or
-`docker compose exec app node dist/scripts/<name>-once.js`).
+Every cron has a matching one-shot script for manual runs:
+`npm run <name>:once` while ApplyPack runs, or
+`docker compose exec app node dist/scripts/<name>-once.js`, where `<name>`
+is `fetch`, `digest`, `stale`, `cleanup`, `discovery` or `hn`. The digest
+and stale scripts run whatever the schedule says. The fetch script still
+stops at the pause and at the schedule, like a cron beat; "Fetch now" on
+the dashboard is the run that ignores both.
 
 
 ## Your own Postgres, development, and the dashboard's binding
@@ -153,10 +178,22 @@ source at somebody else's screen. Neither is on by default, and neither
 appears anywhere in the UI until you paste a credential
 ([ADR 0034](./adr/0034-keyed-sources.md)).
 
+DOU.ua needs no key, and its terms bind a host the same way. It is off by
+default; Companies suggests it when a search names Ukraine. DOU's terms
+(§2.5) forbid automated collection without DOU's consent, and license its
+content CC BY-NC-SA (§3.2). A self-hosted personal install that keeps the
+link back to each posting is fine. A hosted or commercial deployment needs
+DOU's written consent
+([ADR 0005](./adr/0005-no-linkedin-indeed-workday.md)).
+
 **The daily obligation doesn't pause when you do.** France Travail asks for
-every stored offer to be re-checked every 24 hours; ApplyPack does that on
-each tick, so leaving fetching paused for more than a day quietly puts your
-stored offers out of compliance. The Sources tab says so next to the source.
+every stored offer to be re-checked every 24 hours. ApplyPack does that at
+the top of every hourly tick, above the pause switch, so pausing fetching,
+having no search running or switching the source's rows off does not stop
+it. It cannot run while the worker is stopped. An offer it could not
+re-check for two days is withdrawn on the next tick: deleted, or kept
+anonymised when it is your own application record
+([ADR 0034](./adr/0034-keyed-sources.md) rule 5).
 
 **Be a good guest on the free ones.** The default sources are RSS feeds and
 public APIs with no contract at all, which is a reason for more care rather
@@ -169,5 +206,6 @@ per-install, so give each instance its own database rather than sharing one
 
 One practical note: compose binds the dashboard to `127.0.0.1` on purpose.
 Exposing it is your call and your reverse proxy; ApplyPack has no user
-accounts and no authentication of its own.
+accounts, and its only lock is the one `user:password` pair in
+`WEB_BASIC_AUTH`.
 

@@ -1,5 +1,10 @@
 # Scale: many installs, one set of job boards
 
+**Status (2026-09-24):** Shipped as v1.45.0 (ADR 0035): the spread cron
+minute, the shuffled walk with its polite gap, and conditional requests;
+the hosting notes of §5 went into the README, and moved to
+`docs/operations.md` since. Not built: nothing.
+
 > Analysis written 2026-09-04, before the code. Companion to
 > [ADR 0034](./adr/0034-keyed-sources.md), which closed the *keyed* half of
 > the sourcing plan. This is the *unkeyed* half — the 32 default sources
@@ -118,8 +123,9 @@ every Sunday on every install — today they are :05 and :00 and never do.
 and `cleanup` touch only the user's own Telegram and database; 09:00 means
 09:00 because a human chose it.
 
-Pure and testable: `fetchMinute(instanceId, jobName)` → 0–59, spread checked
-over a few thousand ids.
+Pure and testable: `cronMinute(instanceId, jobName)` → 0–59, spread checked
+over a few thousand ids, applied to the expression by `spreadMinute`
+(`src/schedule.ts`).
 
 ## 3. Source order, and the gap between requests
 
@@ -245,8 +251,9 @@ infer:
   charging job seekers for access to it. A hosted multi-user ApplyPack is
   exactly the case both clauses are about.
 - **The daily obligation does not pause.** France Travail Art. 5.2 asks for
-  a re-read every 24 hours; if fetching is paused longer than that, the
-  mirror stops and the stored offers are out of compliance.
+  a re-read every 24 hours. Since v1.46.0 the re-check runs at the top of
+  every hourly tick, above the pause, and an offer it could not re-check
+  for two days is withdrawn (ADR 0034 rule 5).
 - **Be a good guest on the shared sources.** The unkeyed sources are free
   RSS and public APIs with no contract at all, which is a reason to be more
   careful, not less. §2–§4 are the code side of that; a host running many
@@ -255,7 +262,7 @@ infer:
 
 ## 6. Verification
 
-- `fetchMinute` / `shuffleCompanies` / `advancesLastOk` / the conditional
+- `spreadMinute` / `shuffleSources` / `advancesLastOk` / the conditional
   cache: unit tests (pure).
 - `not_modified` through the health surfaces: `/companies` shows "Unchanged"
   and the source is neither failing nor silent.

@@ -14,8 +14,12 @@ resolver uses them.
 | 2 | The URL redirects onto a board | the landed URL, same two calls |
 | 3 | The page links to a board | `watchlist/scan.ts:boardHints` (whole document, JSON islands included) |
 | 4 | A feed whose own path names jobs, carrying entries | `declaredJobFeeds` then `wellKnownFeeds` |
-| 5 | Nothing machine-readable → `watchOnly` | stage B's territory |
+| 5 | Nothing machine-readable, but readable prose → `changeWatch`; a page with almost no text → `watchOnly` | `watchlist/resolve.ts` over `watchlist/page-hash.ts:normalisePageText` (stage C below) |
 | — | Refused, with the reason on screen | ADR 0005 host, private address, robots.txt, HTTP error, bot check |
+
+The twenty below were resolved before rung 5 existed. Today a `watchOnly`
+row whose page has readable prose resolves to `changeWatch`, unless the URL
+landed on a board the vendor's API does not serve (Deno).
 
 ## The twenty
 
@@ -62,8 +66,10 @@ resolver uses them.
    `.grecaptcha-badge` CSS rule) and storyblok.com (an `<!-- ReCaptcha -->`
    comment) on the bare word `captcha`. `watchlist/scan.ts:looksLikeChallenge`
    therefore strips the markup first and matches only what an interstitial
-   says to a reader. `posting-url.ts` is left alone: for a posting page the
-   broad set is the safer default.
+   says to a reader. `posting-url.ts` was left alone at first: for a posting
+   page the broad set looked the safer default. Since v2.18.0 it uses the
+   same detector (`watchlist/scan.ts:looksLikeChallengeText`), because a
+   posting that names Cloudflare was refused as a bot check.
 4. **The big boards exist but are not linked.** GitLab, Stripe, Remote and
    Elastic all have live Greenhouse boards with 200–600 postings that no page
    scan finds. Guessing a slug is what ADR 0017 forbids, so the preview says
@@ -245,8 +251,19 @@ and honouring Cloudflare's `Content-Signal: ai-input=no` where a site
 publishes one, recovers 3 of 16 European companies without touching a single
 site that asked us to stay away.
 
-That is a change to a standing rule (ADR 0005 addendum rule 2), so it is the
-owner's call.
+That is a change to a standing rule (ADR 0005 addendum rule 2), so it was
+the owner's call.
+
+**Resolved in v1.49.0** (ADR 0036). `src/robots.ts` no longer binds on
+every AI token. It takes the strictest verdict across our own token, `*`,
+and the crawler tokens of the AI engines that may read what we fetch
+(`ai-engine.ts:aiCrawlerTokens`), and it reads `Content-Signal`:
+`ai-input=no` refuses, `ai-input=yes` outranks a group aimed at another
+vendor's bot. Software Mansion and STX Next pass the robots check on
+every install; Brainly still fails it where an OpenAI engine is in use. Since
+v2.9.4 the engine that answers as the last resort binds too
+(`ai-engine.ts:bindingProviders`), and Anthropic's `Claude-User` and
+`Claude-SearchBot` count beside `ClaudeBot`.
 
 
 ---
