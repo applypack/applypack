@@ -251,7 +251,7 @@ resumesRoute.post('/resumes/:id/draft', async (c) => {
       ? {
           stage: 'done',
           resultUrl: `/jobs/${job.id}/target?match=${match.id}`,
-          flash: `${saved} and checked: AI match ${match.matchScore}/100. The headline and skills refresh in the background.`,
+          flash: `${saved} and checked: match ${match.matchScore}/100. The headline and skills refresh in the background.`,
         }
       : {
           stage: 'error',

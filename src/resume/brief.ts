@@ -49,8 +49,8 @@ export interface BriefResult {
 
 /**
  * The brief for this posting: the stored one when the text and the brief
- * version both match, otherwise a fresh reading, stored. Null only when the
- * model call fails — callers carry on without it.
+ * version both match, otherwise a fresh reading, stored when the store takes
+ * it. Null only when the model call fails — callers carry on without it.
  */
 export async function briefForPosting(
   job: MatchJobInput & { id: number },
@@ -84,16 +84,24 @@ export async function briefForPosting(
   );
   if (!answer) return null;
 
-  const row = await createPostingBrief({
-    jobId: job.id,
-    model: answer.model,
-    promptVersion: BRIEF_PROMPT_VERSION,
-    postingHash,
-    brief: answer.data,
-  });
+  let row: { id: number } | null = null;
+  try {
+    row = await createPostingBrief({
+      jobId: job.id,
+      model: answer.model,
+      promptVersion: BRIEF_PROMPT_VERSION,
+      postingHash,
+      brief: answer.data,
+    });
+  } catch (err) {
+    // The reading is paid for by now. A store that refuses it — the live
+    // case was a unique key a half-finished deploy never created (42P10) —
+    // costs the memo, not the comparison waiting on this answer.
+    logger.warn({ err, jobId: job.id }, 'resume: brief not stored, used for this run only');
+  }
   logger.info(
     {
-      briefId: row.id,
+      briefId: row?.id ?? null,
       jobId: job.id,
       model: answer.model,
       family: answer.data.role.family,

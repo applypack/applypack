@@ -992,7 +992,7 @@ jobsRoute.get('/jobs/:id/target', async (c) => {
   const requested = idParam(c.req.query('match'));
   const match = matches.find((m) => m.id === requested) ?? matches[0];
   if (!match) {
-    return flashRedirect(jobHref(id, 'match', {}, 'resume-match'), 'err', 'Run Compare once — tailoring the resume needs an AI match to work from.');
+    return flashRedirect(jobHref(id, 'match', {}, 'resume-match'), 'err', 'Run Compare once — tailoring the resume needs a comparison to work from.');
   }
   const resume = await getResume(match.resumeId);
   if (!resume) return c.text('Not found', 404);

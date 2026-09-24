@@ -127,8 +127,10 @@ describe('titleHasKeyword — word boundaries', () => {
     yes('CQA Team Leader', 'team lead');
     yes('Django + VueJS Developer', 'vue');
     yes('Sales Engineer', 'sale');
+    yes('Engineering Manager, Platform', 'engineer');
     no('Gooseworks Founding Engineer', 'go');
     no('Senior Internship Programme', 'intern');
+    no('PHP8 Backend Developer', 'php');
   });
 
   it('ignores an empty keyword', () => {

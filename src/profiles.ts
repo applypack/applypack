@@ -7,6 +7,9 @@ import type { RelocationCode } from './eligibility';
 import { SETTINGS_ID, withGlobalWriteLock } from './settings';
 import type { PriorityRule } from './priority-rules';
 
+/** A stale id: the search was deleted, most often from another tab. */
+const SEARCH_GONE = 'That search no longer exists, so nothing changed — it was probably deleted in another tab.';
+
 export interface ProfileInput {
   name: string;
   stackRequired: string[];
@@ -101,7 +104,7 @@ export async function setProfileActive(id: number, active: boolean): Promise<voi
   // is why they cannot (issue #70).
   const name = await withGlobalWriteLock(async (tx) => {
     const profile = await tx.profile.findUnique({ where: { id } });
-    if (!profile) throw new Error(`Profile ${id} not found`);
+    if (!profile) throw new Error(SEARCH_GONE);
     if (active) {
       const running = await tx.profile.count({ where: { active: true, id: { not: id } } });
       if (running >= MAX_ACTIVE_PROFILES) {
@@ -150,22 +153,23 @@ export async function deleteProfile(id: number): Promise<void> {
     if (settings?.activeProfileId === id) {
       throw new Error('Cannot delete the primary profile. Make another one primary first.');
     }
-    await tx.profile.delete({ where: { id } });
+    const { count } = await tx.profile.deleteMany({ where: { id } });
+    if (count === 0) throw new Error(SEARCH_GONE);
   });
 }
 
 export async function setActiveProfile(id: number): Promise<void> {
-  const profile = await prisma.profile.findUnique({ where: { id } });
-  if (!profile) {
-    throw new Error(`Profile ${id} not found`);
-  }
-  await prisma.appSettings.upsert({
-    where: { id: SETTINGS_ID },
-    update: { activeProfileId: id },
-    create: { id: SETTINGS_ID, activeProfileId: id },
+  // The other half of D12c: reading the row and then pointing the settings at
+  // it let a delete land in between, and the foreign key refused the write
+  // with Prisma's own text in the flash.
+  const name = await withGlobalWriteLock(async (tx) => {
+    const profile = await tx.profile.findUnique({ where: { id } });
+    if (!profile) throw new Error(SEARCH_GONE);
+    await tx.appSettings.update({ where: { id: SETTINGS_ID }, data: { activeProfileId: id } });
+    // The primary always runs: it is the fallback every page reads, so leaving
+    // it switched off would show defaults from a search that scores nothing.
+    await tx.profile.update({ where: { id }, data: { active: true } });
+    return profile.name;
   });
-  // The primary always runs: it is the fallback every page reads, so leaving
-  // it switched off would show defaults from a search that scores nothing.
-  await prisma.profile.update({ where: { id }, data: { active: true } });
-  logger.info({ profileId: id, name: profile.name }, 'profiles: primary set');
+  logger.info({ profileId: id, name }, 'profiles: primary set');
 }
