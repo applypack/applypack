@@ -1,10 +1,10 @@
 import type { PostingBrief } from './prompts';
 
 /*
- * How much this posting actually said — §17 of the Resume ↔ Job Intelligence
- * analysis, and the honesty rule that follows it in §15/16: advice drawn from
- * "what this kind of role usually asks for" must never be presented as
- * something the employer asked for.
+ * How much this posting actually said, and the honesty rule behind it:
+ * advice drawn from "what this kind of role usually asks for" must never be
+ * presented as something the employer asked for (docs/resume-ats-blueprint.md
+ * §89 makes the same point about a vague requirement).
  *
  * "Golang dev with AI experience" and a two-page requirements list produce
  * comparably confident-looking reports today, and the user has no way to tell

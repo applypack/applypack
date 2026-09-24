@@ -5,7 +5,7 @@ import { readKeywords, type MatchKeyword } from './prompts';
 import type { KeywordMatcher } from './keyword-matcher';
 
 /*
- * The regression suite §62 of the Resume ↔ Job Intelligence analysis asks for,
+ * The regression suite docs/resume-ats-blueprint.md §69 and §104 ask for,
  * written against the two pieces that actually decide a match: the alias table
  * (the same thing spelled differently) and the browser matcher (what the panes
  * and the live score can find). No AI, so it runs on every push.
