@@ -380,7 +380,7 @@ footer { border-top: 1px solid var(--line); background: var(--surface); padding:
   .term pre { font-size: 13px; }
   .foot .links { margin-left: 0; }
 }
-/* the narrowest phones: the mark alone identifies the site, the nav keeps its two items */
+/* the narrowest phones: the mark alone identifies the site, so the Open source pill and the GitHub button still fit */
 @media (max-width: 360px) {
   .top .brand .word { display: none; }
 }

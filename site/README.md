@@ -13,8 +13,13 @@ Static landing for the project. Zero build step, zero dependencies —
 - `fonts/inter-latin.woff2` is the Inter variable font, latin subset, as
   served by Google Fonts (SIL OFL, `fonts/LICENSE-Inter.txt`). Self-hosted
   so the page does not block on a third-party stylesheet.
-- `img/*.webp` are crops of `docs/screenshots/` (`cwebp -q 82`; re-make
-  them when those regenerate), `img/og.png` is a copy of
+- `img/*.webp` are crops of `docs/screenshots/` (`cwebp -q 82`, plus a
+  `-720` copy of each; re-make them when those regenerate): `jobs.webp`
+  from `jobs-list.png`, `resume-score.webp` from `tailor-resume.png`, and
+  each `screening-*.webp` from the `.png` of the same name. `jobs.webp`
+  and `resume-score.webp` were cut before those two files were retaken
+  and renamed (they were `jobs.png` and `target.png`), so they still show
+  the older screens. `img/og.png` is a copy of
   `docs/brand/social-card.png`, and `img/apple-touch-icon.png` is
   `favicon.svg` rendered at 180 px.
 
