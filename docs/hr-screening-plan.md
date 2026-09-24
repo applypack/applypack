@@ -1,6 +1,14 @@
 # HR screening: rank a folder of resumes against one position (plan)
 
-> Analysis 2026-09-04, nothing built. Answers the owner's question: could
+**Status (2026-09-24):** Shipped as v2.0.0 (ADR 0047, 0048, 0049), as one
+opt-in employer mode. Stage 5's head-to-head reading and calibration came
+in v2.4.0 and v2.5.0 (ADR 0051, 0052) through
+[screening-criteria-plan.md](./screening-criteria-plan.md). Not built: a
+human-ranked gold set (the `bench:screen` harness exists), a measured
+batch of 100 resumes, a shared cached prompt prefix, the Batch API for the
+API engines, and a screener's view of one resume on the candidate side.
+
+> Analysis 2026-09-04. Answers the owner's question: could
 > ApplyPack let an HR person or a hiring manager take a folder of resumes,
 > pick a position (pasted, from a file, or one of the manually added jobs)
 > and see who fits and whom to interview first — by content, not by

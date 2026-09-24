@@ -1,6 +1,13 @@
 # Dashboard redesign: hierarchy, disclosure, tokens (plan)
 
-> Analysis 2026-09-16, nothing built. The owner's ask: readers said the
+**Status (2026-09-24):** Shipped as v2.11.0–v2.17.0 (no new ADR): all
+eight stages. Not built, each waiting for its trigger in §6: charts as
+server-rendered SVG, a dark theme, a drawer or a richer combobox, the
+first-run "next three things" card on Overview, sidebar counters, and one
+name each for the score and the compare flow (v2.18.2 and v2.18.3 only
+removed "AI match").
+
+> Analysis 2026-09-16. The owner's ask: readers said the
 > dashboard shows too much at once, every surface looks the same, and nothing
 > says where to look first. He wrote a redesign specification
 > ([applypack-ui-ux-redesign-spec-v2.md](./applypack-ui-ux-redesign-spec-v2.md),

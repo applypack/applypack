@@ -1,6 +1,12 @@
 # /resumes: page overhaul + on-demand resume strength review
 
-> **Analysis only — nothing implemented.** Written 2026-08-31 from a parallel
+**Status (2026-09-24):** Shipped as v1.12.0, v1.19.0 and v1.22.0
+(ADR 0030): all of Part A, the strength review and its answer loop. Not
+built: the strength trend across versions of one resume, and three A.2
+candidates: a cover-letters list on `/resumes/:id`, a skill diff between
+resumes, and a warning when an upload repeats an earlier version.
+
+> Written 2026-08-31 from a parallel
 > session (browser audit of the live page at desktop + 375px, plus code
 > verification) while `backlog-triage` was checked out with uncommitted work.
 > Do not start without checking §10/§11 status in [TASKS.md](./TASKS.md) first.

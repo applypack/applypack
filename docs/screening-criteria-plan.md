@@ -1,6 +1,11 @@
 # Screening, round 4: what HR actually checks, criteria HR chooses, the posting in the loop (plan)
 
-> Analysis 2026-09-09, nothing built. Follows [hr-screening-plan.md](./hr-screening-plan.md)
+**Status (2026-09-24):** Shipped as v2.1.0–v2.5.0 (ADR 0050, 0051, 0052):
+stages A to E. Not built: the recruiter-ranked gold set that stage E's
+bench waits for, and a cover letter found in a folder attached to its
+resume instead of scored as a document of its own (§7, question 5).
+
+> Analysis 2026-09-09. Follows [hr-screening-plan.md](./hr-screening-plan.md)
 > (the mode as shipped in v2.0.0, ADR 0047–0049) and answers three asks
 > from the first real use: *the posting cannot be seen or edited from the
 > screening*, *twenty-two versions of one resume score within five points*,
