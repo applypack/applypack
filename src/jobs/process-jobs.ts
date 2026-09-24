@@ -366,7 +366,7 @@ export async function processNormalizedJobs(
         // Routed to the winning search's chat; null still broadcasts.
         winner.notificationTargetId,
       );
-      // Still NEW, exactly as the held-alert path checks (D12f): the send
+      // Still NEW, exactly as the held-alert path checks: the send
       // takes seconds and the dashboard is open the whole time. A row the
       // user dismissed or saved in between keeps their status — the message
       // is out either way, and overwriting their answer is the worse loss.

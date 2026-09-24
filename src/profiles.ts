@@ -147,7 +147,7 @@ export async function deleteProfile(id: number): Promise<void> {
   // Cannot delete the primary profile — UI must switch first. Under the same
   // lock as the other profile writes: reading the primary and then deleting
   // let a tab that was making this search primary win the race, and the
-  // dashboard lost the row every page falls back to (D12c).
+  // dashboard lost the row every page falls back to.
   await withGlobalWriteLock(async (tx) => {
     const settings = await tx.appSettings.findUnique({ where: { id: SETTINGS_ID } });
     if (settings?.activeProfileId === id) {
@@ -159,9 +159,9 @@ export async function deleteProfile(id: number): Promise<void> {
 }
 
 export async function setActiveProfile(id: number): Promise<void> {
-  // The other half of D12c: reading the row and then pointing the settings at
-  // it let a delete land in between, and the foreign key refused the write
-  // with Prisma's own text in the flash.
+  // The other half of the same race: reading the row and then pointing the
+  // settings at it let a delete land in between, and the foreign key refused
+  // the write with Prisma's own text in the flash.
   const name = await withGlobalWriteLock(async (tx) => {
     const profile = await tx.profile.findUnique({ where: { id } });
     if (!profile) throw new Error(SEARCH_GONE);

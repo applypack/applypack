@@ -29,7 +29,7 @@ export function isUniqueViolation(err: unknown): boolean {
  * The retry, not a catch inside the transaction, is what makes this safe:
  * Postgres aborts a transaction on the first error (25P02), so a read taken
  * on the same `tx` afterwards throws too, and the user saw a 500 instead of
- * "this job is already here" (D4). A fresh attempt starts a fresh
+ * "this job is already here". A fresh attempt starts a fresh
  * transaction, whose own read finds the row the other request committed.
  *
  * Exactly one retry. If the racing write rolled back meanwhile, the second

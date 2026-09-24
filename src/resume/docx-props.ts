@@ -57,7 +57,7 @@ export function readProps(bytes: Buffer): DocxProps {
  */
 export async function withProps(bytes: Buffer, patch: PropsPatch, now: Date = new Date()): Promise<Buffer> {
   // Through zip.ts, for its inflation cap — `readProps` above already reads
-  // this part that way, and JSZip has no ceiling of its own (D12l).
+  // this part that way, and JSZip has no ceiling of its own.
   const core = readZipEntry(bytes, CORE_PART);
   // A package without core.xml has nothing to fix; adding an orphan part would
   // need a content-type override and a relationship, so it is left alone.

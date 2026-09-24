@@ -182,7 +182,7 @@ export async function syncFranceTravail(context: FetchContext): Promise<MirrorSt
   const stale = await prisma.job.findMany({
     where: { companyId, ...unverifiedSince(expiredBefore(now)) },
     select: OFFER_COLUMNS,
-    // Bounded like phase 1 (H26). Nothing is lost by the cap: a row that is
+    // Bounded like phase 1. Nothing is lost by the cap: a row that is
     // still too old on the next tick is withdrawn then, and the oldest go
     // first — an unbounded query is how a long outage turns one tick into
     // the whole table in memory.

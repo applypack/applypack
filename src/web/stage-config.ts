@@ -127,7 +127,7 @@ export function boardStages(work: StageDef[]): StageDef[] {
 }
 
 /**
- * The column for jobs whose stage the board no longer has (D12e).
+ * The column for jobs whose stage the board no longer has.
  *
  * A removed column used to strand its jobs: `/applications` asks only for the
  * configured keys, so the cards vanished — invisible, and with no column to

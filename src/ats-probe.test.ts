@@ -4,7 +4,7 @@ import { AtsType } from '@prisma/client';
 import { probeAts, robotsRefusal } from './ats-probe';
 
 /**
- * D3: a manually added feed or careers page fetches the user's own host, so
+ * A manually added feed or careers page fetches the user's own host, so
  * robots.txt binds it exactly as it binds the watchlist ladder. The read is
  * injected, so nothing here touches the network — and the two `probeAts`
  * cases are safe for the same reason: a refusal returns before the fetch.

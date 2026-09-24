@@ -66,8 +66,8 @@ async function main(): Promise<void> {
 /**
  * The daily summaries beat hourly and do their work on the hours `due` picks.
  * Unlike the fetch tick, a beat that is not one writes no run row: twenty-three
- * "skipped" lines a day on /runs would be noise, not evidence, and CronRun
- * rows are never trimmed.
+ * "skipped" lines a day on /runs would be noise, not evidence, and would sit
+ * there for the 90 days `cleanup-job.ts` keeps runs.
  */
 async function onSchedule(
   name: string,

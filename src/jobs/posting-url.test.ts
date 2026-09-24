@@ -39,7 +39,7 @@ test('postingTextFromHtml strips markup and rejects thin or challenged pages', (
   if (!challenge.ok) assert.match(challenge.error, /bot check/);
 });
 
-test('a posting that merely names a bot-check vendor is a posting (D11)', () => {
+test('a posting that merely names a bot-check vendor is a posting', () => {
   const html = `<html><body><h1>Senior Platform Engineer</h1><p>Our edge runs on
     Cloudflare Workers, and we use a captcha on the sign-up form.
     ${'We build Go services. '.repeat(20)}</p></body></html>`;

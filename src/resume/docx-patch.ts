@@ -59,8 +59,8 @@ export async function patchDocx(
   editedText: string,
   opts: PatchOptions = {},
 ): Promise<PatchResult> {
-  // Read the part through zip.ts, which applies the project's inflation cap
-  // (D12l). JSZip has no ceiling of its own, so a zip bomb uploaded as a
+  // Read the part through zip.ts, which applies the project's inflation cap.
+  // JSZip has no ceiling of its own, so a zip bomb uploaded as a
   // resume would have inflated here — the reader that checks it is the one
   // the rest of the module already uses. JSZip stays for the rewrite only.
   let xml: string;

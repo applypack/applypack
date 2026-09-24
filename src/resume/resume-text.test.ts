@@ -5,7 +5,7 @@ import { extractResumeText, ACCEPTED_EXTENSIONS } from './resume-text';
 import { ResumeTextError } from './docx-text';
 
 /**
- * H47: what the reader does with a file that is not what it claims to be.
+ * What the reader does with a file that is not what it claims to be.
  * Every path here has to end in a ResumeTextError the upload form can show —
  * anything else reaches the user as a 500 on a file they chose themselves.
  */

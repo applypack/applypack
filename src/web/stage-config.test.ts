@@ -153,7 +153,7 @@ test('default dots reproduce the pre-config board exactly', () => {
   assert.equal(dotClassFor(work, 'unknown'), 'bg-info');
 });
 
-test('a stage no column covers is stranded, and Unfiled is where it shows (D12e)', () => {
+test('a stage no column covers is stranded, and Unfiled is where it shows', () => {
   const work = [
     { key: 'screen', label: 'Screen' },
     { key: 'tech', label: 'Tech' },

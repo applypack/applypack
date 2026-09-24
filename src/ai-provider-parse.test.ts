@@ -246,7 +246,7 @@ test('describeAiFailure masks anything key-shaped', () => {
   assert.match(out, /\*\*\*mnop/);
 });
 
-test('describeAiFailure masks the shapes an OpenAI-compatible server issues (H44)', () => {
+test('describeAiFailure masks the shapes an OpenAI-compatible server issues', () => {
   // `openai_api` is any server that speaks /chat/completions, so the key in
   // play is whatever that server issues.
   const groq = describeAiFailure('401 from gateway: invalid key gsk_abcdefghijklmnopqrst');

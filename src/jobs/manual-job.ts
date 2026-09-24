@@ -64,7 +64,7 @@ export async function createManualJob(
   // /screen/new both land here) is settled by the unique key, not by a read
   // that the other tab can outrun (audit 2026-09-10, DATA-10). The loser of
   // that race is answered by a SECOND attempt, whose own read finds the row —
-  // reading on the aborted `tx` was a 500 in the user's face (D4).
+  // reading on the aborted `tx` was a 500 in the user's face.
   const found = await retryOnUniqueViolation(() =>
     prisma.$transaction(async (tx) => {
       const company = await tx.company.upsert({

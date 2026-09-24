@@ -81,7 +81,7 @@ export function planRender(resume: JsonResume, knobs: RenderKnobs): RenderPlan {
 }
 
 /**
- * What a clean render would drop, so the page can say so (D12j).
+ * What a clean render would drop, so the page can say so.
  *
  * The bundled face covers Latin and Cyrillic and no more, and `drawable`
  * quietly removes what it cannot draw — a Greek letter in a formula, a CJK

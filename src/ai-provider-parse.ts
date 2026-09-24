@@ -47,7 +47,7 @@ const MAX_FAILURE_REASON = 200;
  * Anything shaped like a credential. A CLI writes whatever it likes to
  * stderr, so the reason is scrubbed before it can reach a flash message.
  *
- * Two shapes were slipping past (H44), and both arrive through the same
+ * Two shapes were slipping past, and both arrive through the same
  * door: `openai_api` is "any server that speaks /chat/completions", so the
  * key in play is whatever that server issues, not OpenAI's own.
  *

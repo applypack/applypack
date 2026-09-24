@@ -6,11 +6,11 @@ import type { CronStats } from './cron-run';
 const RETENTION_DAYS = 30;
 const AI_USAGE_RETENTION_DAYS = 60;
 /**
- * Run history (D8). Nothing pruned `cron_run` at all, while TASKS and the
+ * Run history. Nothing pruned `cron_run` at all, while TASKS and the
  * search-analytics note both said 30 days — after a year of hourly ticks
  * that is around 50 000 rows nobody reads past the first page of /runs.
  *
- * 90 and not 30, because the search funnel that is coming (N1) reads this
+ * 90 and not 30, because the search funnel that is coming reads this
  * history to say how many postings a search turned into matches, and a month
  * is too short a window to see a seasonal search in. When the funnel lands
  * with its daily rollup, the raw rows may go back to 30 — the rollup is what

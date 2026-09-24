@@ -121,7 +121,7 @@ test('readZipEntries at a full ceiling skips the rest instead of asking zlib for
   assert.deepEqual(skipped, ['empty.txt', 'b.txt']);
 });
 
-test('readZipEntries stops at the entry ceiling before inflating (H15)', () => {
+test('readZipEntries stops at the entry ceiling before inflating', () => {
   // The byte ceilings bound what an archive expands to, not how often we ask:
   // a million one-byte entries stays far under them.
   const many = buildZip(

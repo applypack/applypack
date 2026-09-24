@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { applicantNotice, LEGAL_NOTE } from './notice';
 
 describe('applicantNotice', () => {
-  it('names the retention the install actually keeps (D7)', () => {
+  it('names the retention the install actually keeps', () => {
     assert.match(applicantNotice('hr@example.com', 90), /deleted 90 days after we receive them/);
     assert.match(applicantNotice('hr@example.com', 30), /deleted 30 days after we receive them/);
     assert.match(applicantNotice('hr@example.com', 1), /deleted 1 day after we receive them/);

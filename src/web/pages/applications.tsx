@@ -27,7 +27,7 @@ export interface ApplicationsProps {
   byStage: Record<string, ApplicationCard[]>;
   /** Configured work columns (ADR 0025) — entry and exits are fixed. */
   work: StageDef[];
-  /** Some jobs hold a stage no column covers, so "Unfiled" is shown (D12e). */
+  /** Some jobs hold a stage no column covers, so "Unfiled" is shown. */
   stranded?: boolean;
   applicationTrackingEnabled: boolean;
   flash?: FlashMessage | null;

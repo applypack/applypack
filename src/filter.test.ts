@@ -79,7 +79,7 @@ describe('passesBaseFilter — exclude stack', () => {
     assert.equal(passesBaseFilter(job('Senior WordPress Developer', 'Remote, US'), phpProfile), false);
   });
 
-  it('does not let an exclude fire inside a longer word (D6)', () => {
+  it('does not let an exclude fire inside a longer word', () => {
     // "intern" must not read "International"; measured: excluding "java"
     // dropped 7 of 13 matching titles, all of them JavaScript roles.
     const p = { ...phpProfile, stackRequired: ['php', 'javascript'] };
