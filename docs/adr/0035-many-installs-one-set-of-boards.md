@@ -204,7 +204,8 @@ the validators into the `Company` row starts paying for its migration.
 
 - "42 of 62 seeded rows revalidate":
   [0040](./0040-default-sources-are-the-aggregators.md) changed the seed. A
-  fresh install turns on nine aggregators and no employer board; the
+  fresh install turns on nine aggregator rows (eight aggregators: We Work
+  Remotely has two) and no employer board; the
   Greenhouse, Lever and Ashby boards that made up most of the 42 now arrive
   through starter packs. The measurement stands for the rows it measured.
 - "surfacing the chosen minute in the dashboard rather than only in the

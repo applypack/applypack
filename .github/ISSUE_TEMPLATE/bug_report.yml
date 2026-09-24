@@ -61,7 +61,7 @@ body:
     id: version
     attributes:
       label: Version or commit
-      placeholder: v2.18.3
+      placeholder: v2.x.y, or a commit hash
   - type: input
     id: engines
     attributes:

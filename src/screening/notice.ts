@@ -8,7 +8,7 @@
  */
 
 /**
- * D7 / Q25: the sentence used to promise deletion "after the hiring round
+ * The sentence used to promise deletion "after the hiring round
  * closes", and nothing in the tool closes a round. What actually happens is
  * `Screening.retainUntil`, set from `AppSettings.screeningRetentionDays` when
  * the screening is made and swept by `jobs/cleanup-job.ts`. A retention the

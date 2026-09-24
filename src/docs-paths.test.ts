@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 /*
@@ -34,9 +35,6 @@ const ADRS = readdirSync(ADR_DIR)
   .filter((f) => /^\d{4}-.*\.md$/.test(f))
   .map((f) => `docs/adr/${f}`);
 
-/** Directories whose files a doc may name; everything else in the repo root is matched by its own name. */
-const WALKED = ['src', 'prisma', 'docs', 'site', '.github', '.claude'];
-const SKIP_DIRS = new Set(['node_modules', 'dist', '.git', 'worktrees']);
 
 /*
  * Named in an ADR as history: the file is gone and the ADR, its addendum or
@@ -48,22 +46,12 @@ const GONE: Record<string, string[]> = {
   'docs/adr/0025-custom-work-stages.md': ['stats.ts', 'funnel-stats.tsx'],
 };
 
-function walk(dir: string): string[] {
-  return readdirSync(join(ROOT, dir), { withFileTypes: true }).flatMap((e) => {
-    const rel = `${dir}/${e.name}`;
-    if (e.isDirectory()) return SKIP_DIRS.has(e.name) ? [] : [rel, ...walk(rel)];
-    return [rel];
-  });
-}
-
-const FILES: string[] = [
-  ...readdirSync(ROOT).filter((f) => statSync(join(ROOT, f)).isFile()),
-  ...WALKED.flatMap((d) => walk(d)),
-];
+/* What git tracks, not what the disk holds: a local, untracked file must not satisfy a reference that CI will then fail. */
+const FILES: string[] = execFileSync('git', ['ls-files'], { cwd: ROOT, encoding: 'utf8' }).split('\n').filter(Boolean);
 
 /** A doc's `src/x.ts` is that path; its `fetchers/index.ts` or `ui.tsx` is any file whose path ends so. */
 function resolve(path: string): string[] {
-  const p = path.replace(/\/$/, '');
+  const p = path.replace(/^\.\//, '');
   return FILES.filter((f) => f === p || f.endsWith(`/${p}`));
 }
 
@@ -95,7 +83,7 @@ function schemaDeclares(text: string, name: string, member: string | undefined):
 }
 
 const CODE_EXT = 'ts|tsx|mjs|js|json|css|prisma|sql|md|yml';
-/** A path (with or without a directory), then optionally `:symbol` or `:line`. */
+/** A path (with or without a directory), then optionally `:symbol` or `:line`. A directory alone (`src/resume/`) is not read. */
 const REF = new RegExp(
   String.raw`(?<![\w@./*>-])((?:[\w.@{},-]+/)*[\w.@{},-]+\.(?:${CODE_EXT}))(?::([A-Za-z_$][\w$]*(?:[./][A-Za-z_$][\w$]*)*|\d[\d-]*))?(?![\w-])`,
   'g',
@@ -161,7 +149,9 @@ test('every path and file:symbol the docs name exists', () => {
  * A bare name is checked more loosely: `onDigestHour` names no file, so the
  * test only asks that the word still occurs somewhere in the code. A
  * camelCase, PascalCase or UPPER_SNAKE word in backticks that the code no
- * longer contains is a rename the doc missed.
+ * longer contains is a rename the doc missed. Only a span that is one name
+ * (or dotted names) is read, and a product name in backticks (`GitHub`,
+ * `macOS`) would be taken for code: write it without backticks.
  */
 const PLACEHOLDERS = new Set(['mapXFeed']);
 const IDENT = /^(?:[a-z][a-z0-9]*[A-Z][A-Za-z0-9]*|[A-Z][A-Z0-9]*_[A-Z0-9_]+|[A-Z][a-z0-9]+[A-Z][A-Za-z0-9]*)$/;
@@ -171,7 +161,7 @@ function codeWords(): Set<string> {
     (f) =>
       (/^(src|prisma|\.github)\//.test(f) || ['package.json', 'tailwind.config.js', '.env.example'].includes(f)) &&
       f !== 'src/docs-paths.test.ts' &&
-      statSync(join(ROOT, f)).isFile(),
+      !/\.(png|jpe?g|webp|gif|pdf|docx|woff2?|ttf|zip)$/.test(f),
   );
   return new Set(code.flatMap((f) => readFileSync(join(ROOT, f), 'utf8').match(/[A-Za-z_$][\w$]*/g) ?? []));
 }
@@ -180,11 +170,26 @@ test('every code name the current docs mention is still in the code', () => {
   const words = codeWords();
   const missing = CURRENT.flatMap((doc) =>
     [...readFileSync(join(ROOT, doc), 'utf8').matchAll(/`([^`\n]+)`/g)].flatMap(([, span = '']) =>
-      span
-        .split('.')
+      (/^[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*$/.test(span) ? span.split('.') : [])
         .filter((part) => IDENT.test(part) && !PLACEHOLDERS.has(part) && !words.has(part))
         .map((part) => `${doc}: \`${part}\``),
     ),
   );
   assert.deepEqual(missing, [], `\n${missing.join('\n')}\n`);
+});
+
+/*
+ * The adr-writer skill carries its own copy of the register so a session
+ * sees the standing decisions without opening the index. The copy is only
+ * worth having while it lists the same ADRs with the same notes.
+ */
+test('the adr-writer skill lists the ADR register the index has', () => {
+  const index = readFileSync(join(ADR_DIR, 'README.md'), 'utf8');
+  const skill = readFileSync(join(ROOT, '.claude', 'skills', 'adr-writer', 'SKILL.md'), 'utf8');
+  const fromIndex = [...index.matchAll(/^- \[(\d{4}) — (.*?)\]\([^)]*\)(.*)$/gm)].map(([, n, title, note]) =>
+    `- ${n} ${title}${note?.trim() ? ` ${note.trim()}` : ''}`,
+  );
+  const fromSkill = skill.split('\n').filter((l) => /^- \d{4} /.test(l));
+  assert.ok(fromIndex.length >= 54, `index parse looks wrong: ${fromIndex.length}`);
+  assert.deepEqual(fromSkill, fromIndex, 'regenerate the "Standing register" in .claude/skills/adr-writer/SKILL.md from docs/adr/README.md');
 });

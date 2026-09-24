@@ -158,7 +158,7 @@ green. Details per engine in [docs/ai-engines.md](./ai-engines.md).
 
 > `dev:web` compiles with `tsc` and reloads with Node's `--watch` rather
 > than `tsx`, a deliberate workaround: see gotcha #2 in
-> [CLAUDE.md](../CLAUDE.md#gotchas).
+> [CLAUDE.md](../CLAUDE.md#gotchas-real-bugs-we-paid-for-codified-so-we-dont-pay-again).
 
 
 ## Hosting this for other people

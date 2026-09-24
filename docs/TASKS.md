@@ -459,7 +459,7 @@ external project, copy-check before merge.
       write day; appliedAt edits write correction events).
       **2026-09-24:** the funnel / velocity / calibration cards were
       removed in v1.4.0 (ADR 0025, §10); the `JobStageEvent` ledger still
-      records
+      records every stage change, and the board reads it for time in stage.
 - [x] ~~F6 follow-up cadence with pin/retire/auto-seed in the stale digest~~ —
       closed 2026-09-01: at 3 tracked applications a cadence state machine
       (urgent/overdue/cold/retire) is machinery without a workload; the

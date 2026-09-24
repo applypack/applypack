@@ -168,8 +168,9 @@
   runs the quick check (`fast`, the function's default: keywords + alignment
   + gates + red flags — everything `score.ts` reads) or the full report
   (`full`, which also writes actions/removals/strengths/cautions). Every
-  Compare button in the dashboard posts `full` (since 9c5f4b0); `fast` is
-  left for rows stored before that and for the bench. Both variants are built
+  Compare button in the dashboard posts `full` (since v1.70.0); `fast` is
+  left for rows stored before that (Rebuild keywords re-runs such a row as
+  `fast`) and for the bench. Both variants are built
   from the SAME rule constants in `prompts.ts` and parsed by the same
   `MatchSchema`; `suggestions.ts` fills a fast row in later from its stored
   verdicts. The mode marker rides in the `breakdown` JSON, never in the schema.
@@ -265,7 +266,7 @@ When the question is **"where does X live?"**, save yourself a `find`:
 | The job page's tabs (`?tab=posting\|match\|letter\|verify`), and why an old link still lands right | `src/web/job-tabs.ts` (pure): `resolveJobTab({ tab, match, letter })` — an explicit tab wins, else `match=` means the comparison and `letter=` the letter, so `?match=12#resume-match` needs no edit; anything unknown is the posting. `jobHref(id, tab, params, anchor)` writes every link that aims inside the page (the default tab stays out of the URL); `jobTabLabels` puts what exists on the label ("Resume match · 72", "Is it real? · legit"). The rail (status, details, application tracking) rides on every tab, its forms post a hidden `tab`, and `POST /jobs/:id/status`, `/reclassify` and `/application` read it back through the resolver — nothing unvalidated reaches a redirect. One solid button a tab: the header's "Open posting" steps back where a tab brings its own. `format.ts:fitWord` says the fit floors in a word for the header |
 | A run on `/runs` as a sentence instead of its stats JSON | `src/web/runs-summary.ts:summarizeRun(name, stats)` (pure): a `reason` code becomes a sentence, a raised 0/1 flag too, known counts follow in a fixed order ("0 new" always, the rest only when they happened, "0 alerted" whenever something new was stored), a count it has never heard of is humanised, and the routine ones (`filterRejected`, `preFiltered`, `dismissed`) plus everything that is not a number stay in the raw block. `pages/runs.tsx` draws the dots, folds the JSON and the per-source list behind **Details**, and folds runs past the latest fifty (`RECENT_RUNS`) behind a button that names and opens on a failure. A new job's stat shows up humanised without an edit; a new `reason` code wants a line in `REASON` |
 | Four numbers as one line (Overview) | `ui.tsx:MetricStrip` — a `<dl>` on one surface, hairlines between cells, each value a link to `/jobs?status=…`; `Stat` is gone. "Pipeline health" on the same page reads its badge (Healthy / n failing) off the latest run per job |
-| An empty list, table or card | `ui.tsx:Empty` — `title` (what is missing, required: the compiler names every use), the children (why it matters, one sentence), `action` (one way forward, or the sentence names the control already on the page); `bare` inside a `Card`, so the card stays the one surface. Two empties are still hand-rolled: the jobs table (`pages/jobs-list.tsx`) and the Comparisons card on `pages/resume-detail.tsx` |
+| An empty list, table or card | `ui.tsx:Empty` — `title` (what is missing, required: the compiler names every use), the children (why it matters, one sentence), `action` (one way forward, or the sentence names the control already on the page); `bare` inside a `Card`, so the card stays the one surface. A few empties are still hand-rolled, for example the jobs table (`pages/jobs-list.tsx`), the Comparisons card on `pages/resume-detail.tsx` and `pages/screen-compare.tsx` |
 | An error the user reads: a flash, a failed run | the rule is three parts — what failed, what is safe, the way forward. `flash.ts:firstIssue` names the field a schema refused (no more "Invalid form values"); `target-runs.ts:runFailure(what, reason, next)` makes the caller say the last two, and points at the web log only when the engine gave no reason; `UNEXPECTED_FAILURE` / `LETTER_FAILED` / `fetch-runs.ts:FETCH_FAILED` are the sentences for a chain that threw |
 | Helper prose under a control: what stays in sight and what folds | `ui.tsx`: `Field` / `ToggleRow` / `TagListInput` take `hint` (one sentence) and `more` (the rest, rendered by `More` as a quiet `Disclosure` OUTSIDE the `<label>`, so it is never the control's accessible name); the settings `Section` takes `desc` + `more`. What may never fold is docs/ui-redesign-plan.md §8 (caps, costs, gates, privacy, destructive acts). The launchers' one-mode-at-a-time is one `@supports selector(:has(*))` rule in `layout.tsx` over `data-ui="mode-card"` / `"mode-body"`; a disabled mode's reason is rendered outside the body on purpose |
 | A colour, a surface or a type size in the dashboard | `src/web/tokens.ts` (pure): the RGB triplets behind the token names, `rootBlock()` for `layout.tsx`, `contrast` / `blend`; `tokens.test.ts` fails a text colour that drops under 4.5:1 on any surface, on its 10 % pill or its 5 % flash. `tailwind.config.js` maps the names and carries the type ladder as one class per step (`text-title` 26, `text-section` 18, `text-entity` 15, `text-label` 13, `text-meta` 12 — size, line, tracking and weight together). A toned pill's ground (white under the 10 % tint) is a `pill-*` component class in `src/web/tailwind.css`, not an arbitrary value: repeated on every tag it cost 8 KB a page. Rules and roles: DESIGN.md. A new class = `npm run css` |
@@ -620,9 +621,10 @@ forever:
 
 Hence ADR 0019 keeps two signals, not one: the failure streak (`ok`,
 `empty` and, since ADR 0035, `not_modified` reset it, everything else
-increments) *and* `lastOkAt`, which
-advances only on `ok`. A source stuck on `empty` ages into "silent" without
-ever touching the streak.
+increments) *and* `lastOkAt`, which advances on `ok`, and on
+`not_modified` only when the last full read carried rows
+(`source-health.ts:advancesLastOk`). A source stuck on `empty` ages into
+"silent" without ever touching the streak.
 
 Two related traps in the same area:
 

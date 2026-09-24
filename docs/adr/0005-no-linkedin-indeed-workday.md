@@ -150,7 +150,7 @@ allowed `/api/v2/jobs`, not the unversioned path.
   at v2.18.3). See `src/http.ts:DEFAULT_USER_AGENT`.
 - **"Every source we use exposes an explicitly-public API ... or a public
   RSS feed".** The public boards still do, and the feeds now come in more
-  formats: Atom, Personio's XML, Teamtailor's JSON Feed, and any RSS or Atom
+  formats: Atom, Personio's XML, Teamtailor's RSS, and any RSS or Atom
   job feed a watched company publishes (`src/fetchers/feed.ts`). Two kinds
   of source fall outside the sentence. Adzuna and France Travail are keyed
   APIs used under the vendor's licence (rule 3 above,

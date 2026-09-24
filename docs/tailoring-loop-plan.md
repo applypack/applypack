@@ -3,7 +3,7 @@
 **Status (2026-09-24):** Shipped as v1.51.0–v1.55.0 (ADR 0037, 0038,
 0039): all five stages. Decision 11 changed later: v1.70.0 removed the
 tailored copy per posting, so a save is a new version of the resume. Not
-built: moving a bullet up or down, editing text inside a .docx table, and
+built: moving a bullet up or down, adding or removing .docx table rows, and
 the optional LibreOffice profile for a PDF of the patched file.
 
 > Analysis 2026-09-03. Answers four questions the owner asked
