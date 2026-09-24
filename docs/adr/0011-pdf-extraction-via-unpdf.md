@@ -1,6 +1,6 @@
 # 0011 — PDF resume text comes from unpdf, not a hand-rolled parser
 
-**Status:** Accepted (2026-08-28)
+**Status:** Accepted (2026-08-28); see the 2026-09-24 addendum
 
 ## Context
 
@@ -41,3 +41,9 @@ not OCR'd.
 
 If unpdf goes unmaintained, or if scanned resumes ever need OCR — that is a
 separate decision (external service or a native dependency).
+
+## Addendum (2026-09-24): what changed since
+
+- "Import location: `src/resume/pdf-text.ts` only": `src/resume/style-infer.ts`
+  imports unpdf too, to read a PDF's typeface for the clean render
+  ([0039](./0039-clean-render-from-json-resume.md)).

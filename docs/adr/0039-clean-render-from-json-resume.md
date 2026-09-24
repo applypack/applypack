@@ -1,7 +1,7 @@
 # 0039 — A resume that cannot be patched is re-typeset from JSON Resume, in the user's own typography
 
 **Status:** Accepted (2026-09-04). Extends [ADR 0038](./0038-save-patches-the-users-docx-in-place.md);
-supersedes nothing.
+supersedes nothing. See the 2026-09-24 addendum.
 
 ## Context
 
@@ -138,3 +138,12 @@ are unchanged. The scan's budget went from 12 000 to 4 000 tokens.
   started asking the model to write rather than copy.
 - The owner reports wanting the knobs remembered per resume. Then, and only
   then, they earn a column.
+
+## Addendum (2026-09-24): what changed since
+
+- The 2026-09-05 addendum says the structure call starts "on the first
+  visit" to `/resumes/:id/render`. Since v2.6.1 a visit starts nothing: only
+  the page's "Read the shape with AI" button does
+  (`POST /resumes/:id/render/shape`), because a GET that spends a model call
+  can be fired by any other page (audit 2026-09-10). Until then the page
+  shows the reading of `src/resume/structure-from-text.ts`.

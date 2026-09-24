@@ -3,7 +3,7 @@
 **Status:** Accepted (2026-08-30). Extends 0013 (runtime selection stays in
 AppSettings; a single choice becomes an ordered chain). Extended by
 [0027](./0027-ai-keys-in-the-database.md) (per-engine keys resolve DB-first,
-with `.env` as the fallback).
+with `.env` as the fallback). See the 2026-09-24 addendum.
 
 ## Context
 
@@ -55,3 +55,11 @@ Y) was deliberately left out to keep failover semantics simple.
 - If per-role chains are actually wanted → second `order` list, same shape.
 - If a sixth backend appears (Batch API from TASKS §1.4) → one `CliSpec` /
   provider class + enum entry + probe, per 0013's extension path.
+
+## Addendum (2026-09-24): what changed since
+
+- "`models: { <id>: { classifier, resume } }`" and "One chain for both
+  roles": since v0.8.0 each engine's models carry a third role, `cover`
+  (`src/ai-engine.ts:AiRole`). The one chain serves all three.
+- "a sixth backend appears (Batch API from TASKS §1.4)": the Batch API item
+  was closed won't-fix on 2026-09-01 (issue #22).

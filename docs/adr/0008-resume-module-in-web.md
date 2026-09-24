@@ -1,6 +1,6 @@
 # 0008 — Resume module lives in the web process, files in Postgres
 
-**Status:** Accepted (2026-08-28)
+**Status:** Accepted (2026-08-28); see the 2026-09-24 addendum
 
 ## Context
 
@@ -56,3 +56,37 @@ browser tab has to stay open. Acceptable for one user; an async run with
 `127.0.0.1`; anyone sharing `pgdata` shares the resumes.
 ❌ Python `.docx` patching stays in the CLI skill until it is ported to
 TypeScript (only three of the nine scripts are generic).
+
+## Addendum (2026-09-24): what changed since
+
+- "synchronously inside the request": each AI action now starts a run in
+  the web process and answers with a progress page that polls it
+  (`src/web/target-runs.ts`). After an upload the scan runs in the
+  background (`src/resume/scan.ts:scanInBackground`). Nothing moved to the
+  worker.
+- "A comparison is one call": a posting's first comparison also reads the
+  posting on its own
+  ([0044](./0044-the-posting-is-read-once-on-its-own.md)), and a full report
+  may spend one more, cheaper call on the suggestion floor
+  (`src/resume/suggestion-floor.ts:floorGaps`).
+- "`.docx`, `.md`, `.txt` only" and "regex over WordprocessingML": PDFs are
+  read since [0011](./0011-pdf-extraction-via-unpdf.md).
+  `src/resume/docx-text.ts` walks the XML with `@xmldom/xmldom` and keeps
+  the regex reader as its fallback
+  ([0038](./0038-save-patches-the-users-docx-in-place.md)).
+- "keywords with `present | add | cannot_claim` ... score": the reply also
+  carries `ask_user`, and the model writes no score: code computes it
+  ([0012](./0012-deterministic-match-score.md)).
+- "`CLAUDE_MODEL_RESUME` (default `claude-opus-5`)": each engine carries its
+  own resume model ([0014](./0014-ai-engine-chain.md)). Since v1.65.0 an
+  empty slot takes `src/ai-engine.ts:defaultModelFor`: `claude-sonnet-5` on
+  the Claude CLI, Haiku 4.5 on the API. `CLAUDE_MODEL_RESUME` defaults to
+  empty.
+- "Out of scope for now": all of it shipped. Ghost-job verification
+  ([0009](./0009-web-tools-for-job-verification.md)), the profile draft from
+  a resume ([0015](./0015-profile-draft-from-resume-scan.md)), `.docx`
+  patching in TypeScript (`src/resume/docx-patch.ts`,
+  [0038](./0038-save-patches-the-users-docx-in-place.md)) and a clean
+  `.docx` and `.pdf` render ([0039](./0039-clean-render-from-json-resume.md)).
+- "Zero new dependencies": the module now uses `unpdf`, `jszip`,
+  `@xmldom/xmldom`, `docx` and `pdfkit`.

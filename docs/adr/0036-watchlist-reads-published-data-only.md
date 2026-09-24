@@ -1,6 +1,6 @@
 # 0036 — Watched companies are checked by reading what a site publishes for machines, never by rendering it
 
-**Status:** Accepted (2026-09-04)
+**Status:** Accepted (2026-09-04); see the 2026-09-24 addendum
 
 ## Context
 
@@ -185,3 +185,11 @@ clients, which would be the first case where "no headless browser" costs a
 source rather than a nuisance. And when `nextCheckAt` gains a second writer:
 today only the tick stamps it, and "Check now" clears it, which is what keeps
 the column readable.
+
+## Addendum (2026-09-24): what changed since
+
+- "At most 5 requests per company, at add time only": the five are the
+  requests to the pasted site, robots.txt included
+  (`src/watchlist/resolve.ts:MAX_HOST_REQUESTS`). The probes that confirm a
+  board go to the vendor's API on top of them: up to four `probeAts` calls,
+  three of them for board links found on the page.

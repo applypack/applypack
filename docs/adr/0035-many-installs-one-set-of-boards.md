@@ -1,6 +1,6 @@
 # 0035 — Many installs, one set of boards: spread the tick, shuffle the walk, revalidate instead of re-downloading
 
-**Status:** Accepted (2026-09-04)
+**Status:** Accepted (2026-09-04); see the 2026-09-24 addendum
 
 ## Context
 
@@ -199,3 +199,14 @@ surfacing the chosen minute in the dashboard rather than only in the boot
 log. And if a restart ever stops being rare — a crash loop, or a host that
 recycles the container hourly — because that is the point at which moving
 the validators into the `Company` row starts paying for its migration.
+
+## Addendum (2026-09-24): what changed since
+
+- "42 of 62 seeded rows revalidate":
+  [0040](./0040-default-sources-are-the-aggregators.md) changed the seed. A
+  fresh install turns on nine aggregators and no employer board; the
+  Greenhouse, Lever and Ashby boards that made up most of the 42 now arrive
+  through starter packs. The measurement stands for the rows it measured.
+- "surfacing the chosen minute in the dashboard rather than only in the
+  boot log": done in v1.47.0. `src/web/schedule-view.ts:loadNextCheck` reads
+  `instanceId` for the next-check line on `/` and `/settings`.

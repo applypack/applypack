@@ -1,6 +1,6 @@
 # 0048 — Applicants' resumes are redacted before any model reads them, and they expire
 
-**Status:** Accepted (2026-09-09)
+**Status:** Accepted (2026-09-09); see the 2026-09-24 addendum
 
 ## Context
 
@@ -64,3 +64,9 @@ the DPA, which are the employer's.
 A leak-line hit on a real batch that a rule could have caught; a
 jurisdiction that requires a bias audit the tool cannot produce (it holds
 no protected-group data by design).
+
+## Addendum (2026-09-24): what changed since
+
+- The "Delete with files" button is "Delete screening" now. It removes the
+  screening, the uploaded copies and every verdict from the database, and
+  leaves the user's own files on disk (`src/web/pages/screen-detail.tsx`).

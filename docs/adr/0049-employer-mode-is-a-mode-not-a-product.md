@@ -1,6 +1,6 @@
 # 0049 — Employer mode is a switchable mode, not a second product and not a card
 
-**Status:** Accepted (2026-09-09)
+**Status:** Accepted (2026-09-09); see the 2026-09-24 addendum
 
 ## Context
 
@@ -47,3 +47,17 @@ next to "Compare" is only clear because it is off until asked for.
 The mode is on in no install after a few releases (delete it), or a second
 user of it needs multi-user (which SPEC.md rules out — then it is a
 product, and ADR 0049 was the wrong answer).
+
+## Addendum (2026-09-24): what changed since
+
+- "its four pages and one served module": five pages in `src/web/pages/`
+  since v2.4.0 (`screen-list`, `screen-new`, `screen-detail`,
+  `screen-applicant`, and `screen-compare` from
+  [0051](./0051-a-shortlist-is-compared-head-to-head-twice.md)). The served
+  module is still `src/web/public/screen.mjs`. Beside them sit
+  `src/web/employer-mode.ts` and two view helpers, `src/web/screen-view.ts`
+  and `src/web/screen-compare.ts`.
+- "two settings columns and three tables": four tables since v2.4.0, with
+  `ScreeningComparison`
+  ([0051](./0051-a-shortlist-is-compared-head-to-head-twice.md)). Removing
+  the mode drops four.

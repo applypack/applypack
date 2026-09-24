@@ -3,7 +3,7 @@
 **Status:** Accepted (2026-08-28) — the live-score rule on `cannot_claim` amended by [0045](./0045-the-resume-text-decides-presence.md);
 the formula amended by [0044](./0044-the-posting-is-read-once-on-its-own.md)
 (either/or groups fold to one requirement, SCORING v4; the primary cap
-counts `add`)
+counts `add`); see the 2026-09-24 addendum
 
 ## Context
 
@@ -63,3 +63,20 @@ breakdown.
 If the formula needs semantic inputs code can't provide (e.g. per-evidence
 strength grading), or if the browser copy diverges twice despite the parity
 test — then generate one artifact from a single source instead.
+
+## Addendum (2026-09-24): what changed since
+
+- "Scoring v3": the formula is at v4 (`src/resume/score.ts:SCORING`).
+  Either/or requirement groups count once, and the primary-stack cap counts
+  `add` as coverage
+  ([0044](./0044-the-posting-is-read-once-on-its-own.md)).
+- "never counts flags that restate missing primaries": since v1.70.0
+  `src/resume/red-flags.ts:countableFlags` drops, before the formula, every
+  flag that names a keyword the resume lacks or shows only on a skills line,
+  primary or not.
+- "`cannot_claim` never counts even when typed": since
+  [0045](./0045-the-resume-text-decides-presence.md) a term the text spells
+  counts in the live editor whatever its stored status.
+- "Two copies of the formula (TS + browser mjs)": there are three.
+  `site/public/demo/score.mjs` is a byte copy of `src/web/public/score.mjs`
+  for the landing page's demo, held equal by `src/web/site-vendor.test.ts`.

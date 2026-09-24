@@ -1,6 +1,7 @@
 # 0050 — The rubric is a list of criteria the person chooses, answered one by one with a quote
 
 **Status:** Accepted (2026-09-09). Extends [0047](./0047-screening-scores-evidence-not-keywords.md); the score formula there is superseded by the one here.
+See the 2026-09-24 addendum.
 
 ## Context
 
@@ -77,3 +78,13 @@ stands).
 A criterion kind the grammar cannot hold that keeps being written as a
 custom question; a human-ranked set showing the overall read should weigh
 more (or less) than two stars.
+
+## Addendum (2026-09-24): what changed since
+
+- "`screening/prompts.ts` v2": the prompt is at v4
+  (`src/screening/prompts.ts:SCREEN_PROMPT_VERSION`). v3 (v2.3.0) added up
+  to three "standout" facts no criterion asked for, read and never scored.
+  v4 (v2.4.0) spells the evidence ladder out for lists, and
+  `src/screening/anchor.ts:anchorScreenReply` enforces it: a quote that is a
+  list of terms supports at most "listed", or "role" on a job's own stack
+  line, and a term the text never spells is "absent" (CLAUDE.md gotcha 18).

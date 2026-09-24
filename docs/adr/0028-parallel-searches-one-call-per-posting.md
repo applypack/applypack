@@ -3,6 +3,7 @@
 **Status:** Accepted (2026-09-02). **Supersedes [0004](./0004-single-active-profile.md)**,
 whose own "when to revisit" named this table: *"If we ever truly need it, we'd
 introduce a `JobScore { jobId, profileId, fitScore }`"*.
+See the 2026-09-24 addendum.
 
 ## Context
 
@@ -137,3 +138,10 @@ rows when a profile is deleted.
 If someone actually runs 8 searches and the per-posting latency shows up as a
 complaint during "Fetch now" — the answer then is not a lower cap but batching
 postings per call, which the measured token curve says there is room for.
+
+## Addendum (2026-09-24): what changed since
+
+- "`telegramTargetId`" and "`Profile.telegramTargetId`":
+  [0041](./0041-notification-channels.md) renamed the column
+  `Profile.notificationTargetId`. A search's alerts go to a
+  `NotificationTarget`, Telegram or Discord.

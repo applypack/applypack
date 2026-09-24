@@ -1,6 +1,6 @@
 # 0016 — Job liveness is checked by a free three-rung ladder before any AI verify
 
-**Status:** Accepted (2026-08-30)
+**Status:** Accepted (2026-08-30); see the 2026-09-24 addendum
 
 ## Context
 
@@ -57,3 +57,11 @@ gate written down there (list-completeness assertion)
 A vendor moves or gates its public posting endpoint (probe code then
 returns `uncertain` — delete the vendor from rung 1); or F4 lands and the
 board-feed-vanish signal gets designed properly.
+
+## Addendum (2026-09-24): what changed since
+
+- "All five tracked ATS vendors": the project reads 12 per-company vendors
+  now (`src/text-utils.ts:extractAtsToken`). Rung 1 still knows the first
+  five (`src/verification/liveness.ts:resolveLivenessProbe`). A posting from
+  Recruitee, Breezy, BambooHR, Pinpoint, Rippling, Personio or Teamtailor
+  starts at rung 2, the page read.

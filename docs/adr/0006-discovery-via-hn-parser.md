@@ -1,6 +1,6 @@
 # 0006 — Discovery via HN parser, not vendor lists
 
-**Status:** Accepted (phase-4.2)
+**Status:** Accepted (phase-4.2); see the 2026-09-24 addendum
 
 ## Context
 
@@ -62,3 +62,16 @@ If HN's Who-is-hiring thread ever stops, or if we want to harvest
 candidates from a non-HN source. The harvest helper is generic
 (`recordCandidatesFromText(text, sourceTag, …)`) — wiring up another
 text source is mostly tagging it (e.g. `source='reddit-cscareerquestions-2026-04'`).
+
+## Addendum (2026-09-24): what changed since
+
+- "scanning the text of HN Who-is-hiring comments": since phase 7.5
+  (2026-04-29) the hourly fetch tick also harvests from every fetched
+  posting's URL and description (`src/jobs/fetch-job.ts`), so HN's /jobs
+  feed and any aggregator row that links a board feed discovery too.
+- "recognises greenhouse, lever, ashby, workable, smartrecruiters URLs":
+  `src/text-utils.ts:extractAtsToken` recognises 12 vendors now, adding
+  Recruitee, Breezy, BambooHR, Pinpoint, Rippling, Personio and Teamtailor.
+- "Disabling `hnParserEnabled` also turns off discovery feed": no longer.
+  The fetch-tick harvest is gated by `discoveryEnabled` alone, so candidates
+  keep arriving with the HN parser off.

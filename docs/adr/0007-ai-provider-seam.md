@@ -4,7 +4,8 @@
 [0013](./0013-runtime-ai-engine.md) (the engine is chosen at runtime from
 AppSettings; a third backend), [0014](./0014-ai-engine-chain.md) (an ordered
 chain of five backends with failover) and
-[0027](./0027-ai-keys-in-the-database.md) (the keys may live in the database)
+[0027](./0027-ai-keys-in-the-database.md) (the keys may live in the database);
+see the 2026-09-24 addendum
 
 ## Context
 
@@ -77,3 +78,15 @@ toward the subscription window).
   not back a background service → drop `claude_code`, keep the seam.
 - If the Batch API path lands (docs/TASKS.md §1.3), it becomes a third
   implementation behind the same interface.
+
+## Addendum (2026-09-24): what changed since
+
+- "Two implementations, selected by `AI_PROVIDER` in `.env`": five backends
+  implement the interface (`src/ai-engine.ts:AI_PROVIDER_IDS`). Each call
+  walks an ordered chain stored in `AppSettings.aiEngine`, each engine with
+  its own model per role, and `AI_PROVIDER` is the fallback when nothing is
+  stored ([0013](./0013-runtime-ai-engine.md),
+  [0014](./0014-ai-engine-chain.md)).
+- "If the Batch API path lands (docs/TASKS.md §1.3)": the Batch API item is
+  TASKS §1.4, closed won't-fix on 2026-09-01 (issue #22). A Batch API for
+  employer screening is still an open item in TASKS §19.

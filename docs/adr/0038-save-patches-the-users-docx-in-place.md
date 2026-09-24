@@ -4,6 +4,7 @@
 file" consequence of [ADR 0010](./0010-two-scores-live-keywords-vs-ai-match.md).
 Extended by [0039](./0039-clean-render-from-json-resume.md) (a clean
 single-column render for a file that cannot be patched in place).
+See the 2026-09-24 addendum.
 
 ## Context
 
@@ -90,3 +91,11 @@ and keeps its skills in a 1 × 2 table, which set two of the rules below.
   write); allowing partial patches with a report (rejected for v1 — a file
   half-edited and a text version that says why are not the same promise);
   LibreOffice for the PDF (deferred to the plan's optional profile).
+
+## Addendum (2026-09-24): what changed since
+
+- Decision 7, "Save as a tailored copy is the primary action": removed in
+  v1.70.0 with no ADR, because every comparison could mint one more resume
+  row named after the company. The one save left is "Save as v{n+1}" on a
+  resume the user already has; a one-off check from the Compare page saves
+  nothing (`src/web/routes/resumes.tsx:saveEdited`).

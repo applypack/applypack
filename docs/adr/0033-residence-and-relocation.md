@@ -1,6 +1,6 @@
 # 0033 — A search says where its candidate lives; the model decides whether a posting is open to them
 
-**Status:** Accepted (2026-09-04)
+**Status:** Accepted (2026-09-04); see the 2026-09-24 addendum
 
 ## Context
 
@@ -70,3 +70,10 @@ rescues the posting is left to the model, which read the text.
 - A search created before this stage has `residence = null` and
   `relocation = 'no'`: the eligibility rules stay dormant, and every
   existing verdict keeps its meaning until the user says where they live.
+
+## Addendum (2026-09-24): what changed since
+
+- "Salary in EUR / PLN / GBP is still the model's silent conversion": since
+  v1.41.0 the model reports the posting's own amount, currency and period,
+  and `src/currency.ts:toUsdPerYear` converts in code before the
+  `low-salary` dismissal (`src/jobs/verdict-merge.ts`).

@@ -1,6 +1,6 @@
 # 0043 — A posting refreshed from the company's own listing keeps its original and is re-judged
 
-**Status:** Accepted (2026-09-05)
+**Status:** Accepted (2026-09-05); see the 2026-09-24 addendum
 
 ## Context
 
@@ -92,3 +92,11 @@ moves verdicts, scores and keywords, and it has to be reversible.
   JavaScript" before the Ashby API path existed.
 - Migration `20260905210000_posting_refresh` adds the three nullable
   columns; nothing is backfilled.
+
+## Addendum (2026-09-24): what changed since
+
+- "The memo (`match-reuse.ts`) does not reuse a row older than the swap":
+  the rule is a query filter. `src/resume/match.ts:findReusableMatch` passes
+  `descriptionRefreshedAt` to `src/resume/store.ts:listMatchesForText`,
+  which returns only rows created after it, so `match-reuse.ts` never sees
+  an older row.
