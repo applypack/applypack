@@ -1,6 +1,8 @@
 # 0021 — Cover letters generate from stored inputs only
 
-**Status:** Accepted (2026-08-31)
+**Status:** Accepted (2026-08-31) — extended by
+[0042](./0042-company-facts-are-context-never-evidence.md) (the full analysis
+and the suggestions read the company snapshot too, as context only)
 
 ## Context
 

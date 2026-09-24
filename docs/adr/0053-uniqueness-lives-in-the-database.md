@@ -1,6 +1,6 @@
 # 0053 — Uniqueness lives in the database, and a row's state is written with the row
 
-**Status:** accepted (2026-09-10) — audit 2026-09-10 (DATA-3, DATA-7, DATA-8, DATA-10), TASKS §20 block `data-integrity`
+**Status:** Accepted (2026-09-10) — audit 2026-09-10 (DATA-3, DATA-7, DATA-8, DATA-10), TASKS §20 block `data-integrity`
 
 ## Context
 

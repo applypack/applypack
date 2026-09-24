@@ -1,6 +1,6 @@
 # 0054 — `npm start` runs ApplyPack with a built-in Postgres; Docker is the server option
 
-**Status:** accepted (2026-09-16) — owner decision, plan [docs/local-install-plan.md](../local-install-plan.md), TASKS §21
+**Status:** Accepted (2026-09-16) — owner decision, plan [docs/local-install-plan.md](../local-install-plan.md), TASKS §21
 
 ## Context
 

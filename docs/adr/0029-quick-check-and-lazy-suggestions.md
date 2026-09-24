@@ -1,6 +1,12 @@
 # 0029 — A comparison is a quick check by default; suggestions are a second call
 
-**Status:** Accepted (2026-09-02)
+**Status:** Accepted (2026-09-02) — amended by
+[0042](./0042-company-facts-are-context-never-evidence.md) (a fourth
+`breakdown` marker, `verificationId`),
+[0043](./0043-refresh-the-posting-from-the-companys-own-listing.md) (a
+refreshed description makes the memo stale) and
+[0044](./0044-the-posting-is-read-once-on-its-own.md) (the brief is one more
+call on a posting's first comparison, in both modes)
 
 ## Context
 

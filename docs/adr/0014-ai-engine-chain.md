@@ -1,7 +1,9 @@
 # 0014 — AI engines form a priority chain with automatic failover
 
 **Status:** Accepted (2026-08-30). Extends 0013 (runtime selection stays in
-AppSettings; a single choice becomes an ordered chain).
+AppSettings; a single choice becomes an ordered chain). Extended by
+[0027](./0027-ai-keys-in-the-database.md) (per-engine keys resolve DB-first,
+with `.env` as the fallback).
 
 ## Context
 

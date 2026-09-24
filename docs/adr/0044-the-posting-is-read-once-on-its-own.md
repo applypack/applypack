@@ -1,6 +1,8 @@
 # 0044 — The posting is read once, on its own, and the reading is kept
 
-**Status:** Accepted (2026-09-06)
+**Status:** Accepted (2026-09-06) — amended by
+[0045](./0045-the-resume-text-decides-presence.md) (the addendum's anchoring
+rule: the resume text decides presence for every status)
 
 ## Context
 

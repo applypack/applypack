@@ -1,6 +1,10 @@
 # 0007 — One AI provider seam: Messages API or Claude Code CLI
 
-**Status:** Accepted (2026-08-27)
+**Status:** Accepted (2026-08-27) — extended by
+[0013](./0013-runtime-ai-engine.md) (the engine is chosen at runtime from
+AppSettings; a third backend), [0014](./0014-ai-engine-chain.md) (an ordered
+chain of five backends with failover) and
+[0027](./0027-ai-keys-in-the-database.md) (the keys may live in the database)
 
 ## Context
 

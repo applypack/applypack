@@ -1,6 +1,8 @@
 # 0047 — A screening scores evidence, not keywords, and a person decides
 
 **Status:** Accepted (2026-09-09). Successor to [0012](./0012-deterministic-match-score.md) and [0030](./0030-resume-strength-review.md) for the other side of the table.
+Extended by [0050](./0050-the-rubric-is-a-list-of-criteria-the-person-chooses.md);
+the score formula here is superseded by the one there.
 
 ## Context
 

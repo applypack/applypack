@@ -1,6 +1,8 @@
 # 0024 — Funnel history is an append-only stage ledger, written only where stages are written
 
-**Status:** Accepted (2026-08-31)
+**Status:** Accepted (2026-08-31) — amended by
+[0025](./0025-custom-work-stages.md) (the funnel, velocity and calibration
+cards and their math were removed; the ledger stays)
 
 ## Context
 

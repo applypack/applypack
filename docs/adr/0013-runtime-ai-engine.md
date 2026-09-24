@@ -2,6 +2,9 @@
 
 **Status:** Accepted (2026-08-29). Extends 0007 — the seam is unchanged, the
 selection mechanism moves from `.env`-only to DB-with-`.env`-fallback.
+Amended by [0014](./0014-ai-engine-chain.md) (the three columns became the
+`aiEngine` JSON, an ordered chain) and extended by
+[0027](./0027-ai-keys-in-the-database.md) (the keys resolve the same way).
 
 ## Context
 

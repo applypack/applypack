@@ -1,6 +1,9 @@
 # 0019 — Source health is a per-company streak; `empty` resets it but does not prove health
 
-**Status:** Accepted (2026-08-30)
+**Status:** Accepted (2026-08-30) — amended by
+[0035](./0035-many-installs-one-set-of-boards.md) (a 304 is the new status
+`not_modified`: healthy for the streak, and it advances `lastOkAt` only when
+the last full response carried rows)
 
 ## Context
 

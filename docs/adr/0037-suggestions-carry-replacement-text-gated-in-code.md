@@ -1,6 +1,8 @@
 # 0037 — Suggestions carry replacement text; the fact gate decides what is applicable
 
-**Status:** Accepted (2026-09-04)
+**Status:** Accepted (2026-09-04) — amended by
+[0044](./0044-the-posting-is-read-once-on-its-own.md) (the posted job title
+may be introduced on a title or summary action; removal quotes are gated too)
 
 ## Context
 

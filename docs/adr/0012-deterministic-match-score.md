@@ -1,6 +1,9 @@
 # 0012 — The resume-match score is computed by application code, not by the model
 
-**Status:** Accepted (2026-08-28) — the live-score rule on `cannot_claim` amended by [0045](./0045-the-resume-text-decides-presence.md)
+**Status:** Accepted (2026-08-28) — the live-score rule on `cannot_claim` amended by [0045](./0045-the-resume-text-decides-presence.md);
+the formula amended by [0044](./0044-the-posting-is-read-once-on-its-own.md)
+(either/or groups fold to one requirement, SCORING v4; the primary cap
+counts `add`)
 
 ## Context
 
