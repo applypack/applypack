@@ -57,7 +57,7 @@
       <div id="chips"></div>
       <div class="panes">
         <div class="pane">
-          <div class="pane-title">Job posting <span class="hint">green: already in the resume · red: a must it lacks · amber: preferred · a dashed underline means nothing in the resume backs the word</span></div>
+          <div class="pane-title">Job posting <span class="hint">green: already in the resume · red: a must-have it lacks · grey: a nice-to-have it lacks · a dashed underline means nothing in the resume backs the word</span></div>
           <div class="pane-body"><div id="jd" class="layer"></div></div>
         </div>
         <div class="pane resume">
@@ -69,12 +69,12 @@
         </div>
       </div>
     </div>
-    <p class="demo-hint">Type <code>Redis</code> into the skills line: the number moves on the next keystroke. Type <code>Terraform</code>: nothing moves, because the AI marked it cannot-claim against the original resume, and typing a word is not evidence. Delete every <code>TypeScript</code> to watch the primary-stack cap bite.</p>
+    <p class="demo-hint">Type <code>Redis</code> into the skills line: the number moves on the next keystroke. Type <code>hooks</code>, a must-have, and it moves further. <code>Terraform</code> counts too once typed, because the score reads the text; its dashed underline in the posting says nothing in the resume backs it yet.</p>
   </div>
 
   <div class="after-demo">
     <p>This runs on your machine too, against real postings and your own resume.</p>
-    <a class="btn primary" href="../#install">Install with Docker</a>
+    <a class="btn primary" href="../#install">Install in four commands</a>
     <a class="btn" href="../">What else it does</a>
   </div>
 
