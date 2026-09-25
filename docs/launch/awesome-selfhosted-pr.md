@@ -6,11 +6,11 @@
 > machine-generated contributions that break the rules: Nazar reviews
 > this draft and submits it by hand from his own account.
 
-ApplyPack fits the list as a job-search console that checks 33 kinds of source
-hourly and keeps every AI report in the user's own Postgres; the live
-scoring demo at https://applypack.dev/demo/ goes into the entry's
-`demo_url`. Format below was checked against their CONTRIBUTING.md and a
-live entry (`software/gitea.yml`) on 2026-08-31.
+ApplyPack fits the list as a job-search console that checks 33 kinds of
+source, most of them hourly, and keeps every AI report in the user's own
+Postgres; the live scoring demo at https://applypack.dev/demo/ goes into
+the entry's `demo_url`. Format below was checked against their
+CONTRIBUTING.md and a live entry (`software/gitea.yml`) on 2026-08-31.
 
 ## Where it goes
 

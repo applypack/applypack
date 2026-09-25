@@ -71,7 +71,9 @@ On the two Claude engines, `CLAUDE_MODEL`, `CLAUDE_MODEL_RESUME` and
 
 ## Anthropic API
 
-Pay-per-token Messages API. Fastest option (no process spawn, prompt cache).
+Pay-per-token Messages API. Fastest option (no process spawn). It asks for
+prompt caching on every call, but the classifier's prompt is under Haiku
+4.5's 4096-token floor, so the calls made per posting are never cached.
 
 **Local:**
 1. Get a key at <https://console.anthropic.com/settings/keys>.

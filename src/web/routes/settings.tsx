@@ -176,7 +176,7 @@ const ProfileFormSchema = z.object({
 
 // UI copy per backend; availability comes from probeAiProviders().
 const AI_PROVIDER_DESCS: Record<AiProviderId, string> = {
-  anthropic_api: 'Messages API with prompt caching — fastest, pays per token.',
+  anthropic_api: 'Messages API: fastest, pays per token.',
   claude_code: 'Headless claude -p on your Claude.ai subscription. Slower, no per-token bill.',
   gemini_cli: 'Headless gemini -p on your Google account or GEMINI_API_KEY.',
   openai_api:

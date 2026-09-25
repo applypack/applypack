@@ -48,7 +48,7 @@ install, unchanged.
 
 **Find real jobs**
 
-- **🔭 33 kinds of job source, checked every hour.** Twelve ATS vendors
+- **🔭 33 kinds of job source, most of them checked every hour.** Twelve ATS vendors
   (Greenhouse, Lever, Ashby, Workable, SmartRecruiters, Recruitee, Breezy,
   BambooHR, Pinpoint, Rippling, Personio, Teamtailor) on the companies you
   pick; twenty aggregators, from RemoteOK to the monthly HN "Who is hiring"
@@ -202,8 +202,8 @@ yours before making a subscription your primary engine.
 
 ```
  33 kinds of source ──▶ normalize ──▶ base filter ──▶ AI classifier ──▶ Postgres ──▶ Telegram
-   hourly        + dedupe      pure code,      one call, a       dashboard    only when
-   fetch                       zero cost       score per search               fit ≥ threshold
+   mostly hourly          + dedupe      pure code,      one call, a       dashboard    or Discord,
+   fetch                                zero cost       score per search               fit ≥ threshold
 ```
 
 Cheap deterministic filters drop the obvious misses first, so the AI only
