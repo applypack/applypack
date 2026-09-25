@@ -1,6 +1,9 @@
 # 0037 — Suggestions carry replacement text; the fact gate decides what is applicable
 
-**Status:** Accepted (2026-09-04) — amended by
+**Status:** Accepted (2026-09-04) — extended by
+[0042](./0042-company-facts-are-context-never-evidence.md) (the full analysis
+and the suggestions read the company snapshot as context; the gate's sources
+do not grow) and amended by
 [0044](./0044-the-posting-is-read-once-on-its-own.md) (the posted job title
 may be introduced on a title or summary action; removal quotes are gated too)
 
