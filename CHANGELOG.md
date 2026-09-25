@@ -7,15 +7,18 @@ All notable changes to this project are documented here. The format follows
 ## [2.18.5] — 2026-09-25
 
 ### Fixed
-- **Three sentences in the dashboard said something untrue.** The Messages
-  API card on `/settings` → AI engine no longer promises prompt caching (it
-  never fires: the prompt is under Haiku 4.5's floor). The empty jobs list
-  pointed at "Job sources in Settings", a tab that is now called Sources; it
-  links there. `/companies` → How coverage works named 6 of the 20
-  aggregators from a hand-kept list, one of them not a source at all; the
-  list is now read off the code and links the Sources tab.
-- **The landing page header fits a 768 px screen.** The GitHub button keeps
-  its icon only up to 900 px; before, it pushed 6 px past a tablet screen.
+- **Three places in the dashboard read wrong.** The Messages API card on
+  `/settings` → AI engine no longer promises prompt caching: the classifier's
+  prompt is under Haiku 4.5's 4096-token floor, so the per-posting calls are
+  never cached. The empty jobs list says "No jobs yet" when no filter is set
+  and links the Sources tab it names. `/companies` → How coverage works named
+  6 of the 20 aggregators from a hand-kept list, one of them under an
+  identifier the enum does not have; the list is now read off the code, says
+  which two need your own key, and links the Sources tab.
+- **The landing page header fits a tablet screen.** The GitHub button keeps
+  its icon only up to 900 px, and below 744 px only the Open source pill
+  stays in the nav; before, the header ran up to 133 px past the screen
+  between 641 and 774 px.
 - **Public copy says most sources run every hour**, not all 33 kinds:
   Adzuna is polled four times a day and a watched company keeps its own
   interval. The README pipeline names Discord beside Telegram.

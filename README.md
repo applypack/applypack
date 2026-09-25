@@ -201,9 +201,9 @@ yours before making a subscription your primary engine.
 ## How it works
 
 ```
- 33 kinds of source ──▶ normalize ──▶ base filter ──▶ AI classifier ──▶ Postgres ──▶ Telegram / Discord
-   mostly hourly          + dedupe      pure code,      one call, a       dashboard    when fit ≥ threshold,
-   fetch                                zero cost       score per search               or a watched company
+ 33 kinds of source ──▶ normalize ──▶ base filter ──▶ AI classifier ──▶ Postgres ──▶ Telegram
+   mostly hourly          + dedupe      pure code,      one call, a       dashboard    or Discord,
+   fetch                                zero cost       score per search               fit ≥ threshold
 ```
 
 Cheap deterministic filters drop the obvious misses first, so the AI only

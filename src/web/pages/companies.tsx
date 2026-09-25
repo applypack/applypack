@@ -178,10 +178,11 @@ const PROBEABLE_ATS: AtsType[] = [
   AtsType.CAREER_PAGE,
 ];
 
-/** Every cross-company feed, read off the enum so the list cannot fall behind it (MANUAL is not a source). */
+/** Every cross-company feed, read off the enum so the list cannot fall behind it (MANUAL is not a source), in the Sources grid's order. */
 const AGGREGATOR_LABELS = Object.values(AtsType)
   .filter((t) => t !== AtsType.MANUAL && sourceFamily(t) === 'aggregator')
-  .map(sourceLabel);
+  .map(sourceLabel)
+  .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
 
 /** Sources that need the user's own vendor account (ADR 0034) — hidden until it exists. */
 const KEYED_ATS: string[] = [AtsType.ADZUNA, AtsType.FRANCETRAVAIL];
@@ -445,11 +446,11 @@ export const CompaniesPage: FC<CompaniesProps> = ({
         <p>
           The long tail comes from the {AGGREGATOR_LABELS.length} cross-company aggregators (
           {AGGREGATOR_LABELS.join(', ')}), broad and noisy, so the profile filter does the culling.
-          Turn them all off on{' '}
+          Adzuna and France Travail need a free key of your own. Turn them all off on{' '}
           <a href="/settings?tab=sources" class="font-medium text-accent-strong hover:text-accent-deep">
             Settings → Sources
           </a>{' '}
-          and you will only see jobs from the boards below.
+          and you will only see jobs from the boards in the table above.
         </p>
       </div>
     </details>

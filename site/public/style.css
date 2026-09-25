@@ -341,10 +341,10 @@ footer { border-top: 1px solid var(--line); background: var(--surface); padding:
   }
 }
 
-/* tablet: the GitHub button keeps its icon only, or the five links push it 6px past a 768px screen */
+/* tablet: next to the landing page's five links the GitHub button keeps its icon only, or the header runs past a 768px screen */
 @media (max-width: 900px) {
-  .gh-btn { padding: 0 11px; }
-  .gh-btn span { display: none; }
+  .nav:has(.links a:nth-child(4)) .btn.gh-btn { padding: 0 11px; }
+  .nav:has(.links a:nth-child(4)) .gh-btn span { display: none; }
   .row { grid-template-columns: 1fr; gap: var(--s-5); }
   .row.flip .row-text { order: 0; }
   .why-grid, .ways { grid-template-columns: 1fr; gap: var(--s-5); }
@@ -352,9 +352,16 @@ footer { border-top: 1px solid var(--line); background: var(--surface); padding:
   .pipe li:not(:last-child)::after { display: none; }
 }
 
+/* below 744px five links do not fit even beside the icon: keep the Open source pill */
+@media (max-width: 743px) {
+  .nav .links:has(a:nth-child(4)) a:not(.key) { display: none; }
+}
+
 /* phone */
 @media (max-width: 640px) {
   .nav .links a:not(.key) { display: none; }
+  .btn.gh-btn { padding: 0 11px; }
+  .gh-btn span { display: none; }
   .free { border-radius: 10px; text-align: left; }
   .demo-head { flex-wrap: wrap; }
   .demo-head .dots { display: none; }

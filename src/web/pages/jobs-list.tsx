@@ -274,7 +274,7 @@ export const JobsListPage: FC<JobsListProps> = ({
         <Card flush class="flex min-h-0 flex-1 flex-col">
           {jobs.length === 0 ? (
             <div class="flex flex-1 flex-col items-center justify-center gap-2 px-6 py-16 text-center">
-              <div class="text-sm font-medium text-ink">No jobs match these filters</div>
+              <div class="text-sm font-medium text-ink">{hasFilters ? 'No jobs match these filters' : 'No jobs yet'}</div>
               <p data-ui="hint" class="text-[13px] text-ink-faint">
                 {hasFilters ? (
                   <>
