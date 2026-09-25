@@ -288,7 +288,13 @@ export const JobsListPage: FC<JobsListProps> = ({
                     .
                   </>
                 ) : (
-                  'Nothing fetched yet — check Job sources in Settings.'
+                  <>
+                    Nothing fetched yet. Check the{' '}
+                    <a href="/settings?tab=sources" class="font-medium text-accent-strong hover:text-accent-deep">
+                      Sources
+                    </a>{' '}
+                    tab in Settings.
+                  </>
                 )}
               </p>
             </div>

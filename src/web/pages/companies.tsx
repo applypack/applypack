@@ -24,6 +24,8 @@ import {
   Tr,
 } from '../ui';
 import { formatRelative } from '../format';
+import { sourceFamily } from '../source-groups';
+import { sourceLabel } from '../source-names';
 import { companyDeleteConfirm, type CompanyDeleteImpact } from '../delete-confirm';
 import {
   QUIET_STREAK,
@@ -176,7 +178,10 @@ const PROBEABLE_ATS: AtsType[] = [
   AtsType.CAREER_PAGE,
 ];
 
-const AGGREGATORS = ['LARAJOBS', 'REMOTEOK', 'REMOTIVE', 'JOBICY', 'WEWORKREMOTELY', 'HN_HIRING'];
+/** Every cross-company feed, read off the enum so the list cannot fall behind it (MANUAL is not a source). */
+const AGGREGATOR_LABELS = Object.values(AtsType)
+  .filter((t) => t !== AtsType.MANUAL && sourceFamily(t) === 'aggregator')
+  .map(sourceLabel);
 
 /** Sources that need the user's own vendor account (ADR 0034) — hidden until it exists. */
 const KEYED_ATS: string[] = [AtsType.ADZUNA, AtsType.FRANCETRAVAIL];
@@ -438,14 +443,13 @@ export const CompaniesPage: FC<CompaniesProps> = ({
           ).
         </p>
         <p>
-          The long tail comes from cross-company aggregators —{' '}
-          {AGGREGATORS.map((a) => (
-            <>
-              <Code>{a}</Code>{' '}
-            </>
-          ))}
-          — broad and noisy, so the profile filter does the culling. Disable them all in
-          Settings → Job sources and you will only see jobs from the boards below.
+          The long tail comes from the {AGGREGATOR_LABELS.length} cross-company aggregators (
+          {AGGREGATOR_LABELS.join(', ')}), broad and noisy, so the profile filter does the culling.
+          Turn them all off on{' '}
+          <a href="/settings?tab=sources" class="font-medium text-accent-strong hover:text-accent-deep">
+            Settings → Sources
+          </a>{' '}
+          and you will only see jobs from the boards below.
         </p>
       </div>
     </details>
