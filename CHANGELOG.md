@@ -4,6 +4,36 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.18.5] — 2026-09-25
+
+### Fixed
+- **Three sentences in the dashboard said something untrue.** The Messages
+  API card on `/settings` → AI engine no longer promises prompt caching (it
+  never fires: the prompt is under Haiku 4.5's floor). The empty jobs list
+  pointed at "Job sources in Settings", a tab that is now called Sources; it
+  links there. `/companies` → How coverage works named 6 of the 20
+  aggregators from a hand-kept list, one of them not a source at all; the
+  list is now read off the code and links the Sources tab.
+- **The landing page header fits a 768 px screen.** The GitHub button keeps
+  its icon only up to 900 px; before, it pushed 6 px past a tablet screen.
+- **Public copy says most sources run every hour**, not all 33 kinds:
+  Adzuna is polled four times a day and a watched company keeps its own
+  interval. The README pipeline names Discord beside Telegram.
+
+### Changed
+- **SPEC.md and ARCHITECTURE.md describe the code as it is:** the
+  routes that exist, crons in `TZ` (UTC by default) with the hourly digest
+  and nudge beats, Telegram and Discord, the five AI engines and their
+  defaults, a per-tick diagram with the held-alert path, an ER diagram of all
+  20 models, and a file map that lists every non-test source file.
+- **The docs test reads more:** code names inside fenced blocks and
+  diagrams, the ER diagram against the Prisma schema, and every
+  `GET|POST /route` the docs name against the routes the dashboard
+  registers. An applied migration no longer counts as "the code".
+- TASKS notes about labelled first issues, ADR 0037's link to 0042 and the
+  register's forward notes, and three code comments (cron time zones, where
+  the resume shape comes from, the cover-letter slot) were brought up to date.
+
 ## [2.18.4] — 2026-09-24
 
 No runtime change: documentation, public copy and tests.
@@ -3976,6 +4006,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.18.5]: https://github.com/applypack/applypack/compare/v2.18.4...v2.18.5
 [2.18.4]: https://github.com/applypack/applypack/compare/v2.18.3...v2.18.4
 [2.18.3]: https://github.com/applypack/applypack/compare/v2.18.2...v2.18.3
 [2.18.2]: https://github.com/applypack/applypack/compare/v2.18.1...v2.18.2
