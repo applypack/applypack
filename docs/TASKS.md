@@ -1134,7 +1134,9 @@ Owner items left open by the branch:
 - [ ] Label 3–5 issues `good first issue` — done 2026-09-04: #90, #92, #96,
       #100, each scoped with file pointers. (the site and README link there;
       the label is empty). **2026-09-24:** unticked: all four are closed,
-      and none of the nine open issues carries the label.
+      and none of the nine open issues carries the label. Since v2.18.4
+      (#264) no copy links the label ("Pick an open issue"), so labelling is
+      optional.
 - [ ] Cloudflare: Always Use HTTPS, HSTS, redirect www → apex
       (`http://applypack.dev/` answers 200 over plain HTTP today).
 - [ ] GitHub About text and social preview from the new
@@ -2191,7 +2193,9 @@ release-discipline skill, a docs/site block does not.
       land (363b7cb touched none of the three files): on this date
       `README.md` and `CONTRIBUTING.md` said "Grab a good first issue", the
       site said "labelled in the tracker", and no open issue carried the
-      label.
+      label. Later that day DOCS-2 landed in v2.18.4 (#264): README,
+      CONTRIBUTING and the site say "Pick an open issue", and no copy
+      promises the label.
 - [x] **`data-integrity`** (minor) — shipped v2.6.0 (ADR 0053); DATA-9 left for a later pass, DATA-10's scratch-row / `isDefault` / `deleteProfile` races too. DATA-2 one migration indexing
       `Job.crossListedOfJobId`, `Job.appliedResumeId`, `Screening.jobId`,
       `CoverLetter.resumeId`; DATA-3 `alertHeldAt` in the create
@@ -2323,8 +2327,8 @@ release-discipline skill, a docs/site block does not.
 - GitHub About → the package description; social preview from
   `docs/brand/social-card.png` (both already in §14b).
 - Label 3–5 open issues `good first issue` (or accept the honest wording
-  from `metadata-drift`). **2026-09-24:** that wording never landed; see
-  the note on `metadata-drift`.
+  from `metadata-drift`). **2026-09-24:** the honest wording landed in
+  v2.18.4 (#264), so labelling is optional.
 - Decide: prompts in `argv` (document) or stdin; hold a leaking applicant
   or queue it; `node-cron` 4.
 - Run once: the live failover check and the four-viewport browser pass

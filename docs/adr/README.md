@@ -26,8 +26,8 @@ gets a dated addendum at the end of the ADR.
 - [0010 — Two scores: live keyword coverage in the browser, AI match on demand](./0010-two-scores-live-keywords-vs-ai-match.md) — *amended by 0012, 0038*
 - [0011 — PDF resume text comes from unpdf, not a hand-rolled parser](./0011-pdf-extraction-via-unpdf.md)
 - [0012 — The resume-match score is computed by application code, not by the model](./0012-deterministic-match-score.md) — *amended by 0044, 0045*
-- [0013 — AI engine is chosen at runtime from AppSettings, with a Gemini CLI backend](./0013-runtime-ai-engine.md) — *amended by 0014; extended by 0027*
-- [0014 — AI engines form a priority chain with automatic failover](./0014-ai-engine-chain.md) — *extended by 0027*
+- [0013 — AI engine is chosen at runtime from AppSettings, with a Gemini CLI backend](./0013-runtime-ai-engine.md) *(extends 0007)* — *amended by 0014; extended by 0027*
+- [0014 — AI engines form a priority chain with automatic failover](./0014-ai-engine-chain.md) *(extends 0013)* — *extended by 0027*
 - [0015 — The profile is drafted from the resume scan, never written by AI](./0015-profile-draft-from-resume-scan.md)
 - [0016 — Job liveness via a free three-rung ladder before AI verify](./0016-liveness-ladder.md)
 - [0017 — Starter-pack entries pin a hand-verified board](./0017-starter-packs-pin-verified-boards.md) — *extended by 0040*
@@ -40,7 +40,7 @@ gets a dated addendum at the end of the ADR.
 - [0024 — Funnel history is an append-only stage ledger](./0024-append-only-stage-ledger.md) — *amended by 0025*
 - [0025 — Work columns are user-defined; fixed entry and exits](./0025-custom-work-stages.md)
 - [0026 — Database tables are snake_case, mapped with `@@map()`](./0026-snake-case-table-names.md)
-- [0027 — Per-engine AI keys live in the database, `.env` as fallback](./0027-ai-keys-in-the-database.md)
+- [0027 — Per-engine AI keys live in the database, `.env` as fallback](./0027-ai-keys-in-the-database.md) *(extends 0013 and 0014)*
 - [0028 — Several searches run in parallel, scored by one call per posting](./0028-parallel-searches-one-call-per-posting.md) *(supersedes 0004)*
 - [0029 — A comparison is a quick check by default; suggestions are a second call](./0029-quick-check-and-lazy-suggestions.md) — *amended by 0042, 0043, 0044*
 - [0030 — The strength review grades; the code scores](./0030-resume-strength-review.md)
@@ -50,7 +50,7 @@ gets a dated addendum at the end of the ADR.
 - [0034 — A vendor's own licence governs keyed access, and the vendor's terms are code](./0034-keyed-sources.md)
 - [0035 — Many installs, one set of boards: spread the tick, shuffle the walk, revalidate](./0035-many-installs-one-set-of-boards.md)
 - [0036 — Watched companies are checked by reading what a site publishes for machines, never by rendering it](./0036-watchlist-reads-published-data-only.md)
-- [0037 — Suggestions carry replacement text; the fact gate decides what is applicable](./0037-suggestions-carry-replacement-text-gated-in-code.md) — *amended by 0044*
+- [0037 — Suggestions carry replacement text; the fact gate decides what is applicable](./0037-suggestions-carry-replacement-text-gated-in-code.md) — *extended by 0042; amended by 0044*
 - [0038 — Save patches the user's .docx in place; text-only versions are the fallback](./0038-save-patches-the-users-docx-in-place.md) *(supersedes the text-only consequence of 0010)* — *extended by 0039*
 - [0039 — A resume that cannot be patched is re-typeset from JSON Resume, in the user's own typography](./0039-clean-render-from-json-resume.md) *(extends 0038)*
 - [0040 — The default source set is the aggregators; employer boards are starter packs](./0040-default-sources-are-the-aggregators.md) *(extends 0017)*
@@ -58,12 +58,12 @@ gets a dated addendum at the end of the ADR.
 - [0042 — The verifier's company facts are context for the match, never evidence](./0042-company-facts-are-context-never-evidence.md) *(extends 0021 and 0037)*
 - [0043 — A posting refreshed from the company's own listing keeps its original and is re-judged](./0043-refresh-the-posting-from-the-companys-own-listing.md)
 - [0044 — The posting is read once, on its own, and the reading is kept](./0044-the-posting-is-read-once-on-its-own.md) — *amended by 0045*
-- [0045 — The resume text decides whether a keyword is present](./0045-the-resume-text-decides-presence.md)
+- [0045 — The resume text decides whether a keyword is present](./0045-the-resume-text-decides-presence.md) *(amends 0012 and 0044)*
 - [0046 — The resume's domains are read at scan time and compared with the posting's](./0046-the-resumes-domains-are-read-at-scan-time.md)
 - [0047 — A screening scores evidence, not keywords, and a person decides](./0047-screening-scores-evidence-not-keywords.md) — *extended by 0050, which supersedes its score formula*
 - [0048 — Applicants' resumes are redacted before any model reads them, and they expire](./0048-applicant-data-is-redacted-and-expires.md)
 - [0049 — Employer mode is a switchable mode, not a second product and not a card](./0049-employer-mode-is-a-mode-not-a-product.md)
-- [0050 — The rubric is a list of criteria the person chooses, answered one by one with a quote](./0050-the-rubric-is-a-list-of-criteria-the-person-chooses.md)
+- [0050 — The rubric is a list of criteria the person chooses, answered one by one with a quote](./0050-the-rubric-is-a-list-of-criteria-the-person-chooses.md) *(extends 0047; supersedes its score formula)*
 - [0051 — A shortlist is compared head to head, twice, and the comparison is never a score](./0051-a-shortlist-is-compared-head-to-head-twice.md)
 - [0052 — Calibration reports agreement with the person's decisions and never tunes the rubric by itself](./0052-calibration-reports-agreement-and-never-tunes-the-rubric.md)
 - [0053 — Uniqueness lives in the database, and a row's state is written with the row](./0053-uniqueness-lives-in-the-database.md)

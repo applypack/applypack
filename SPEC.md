@@ -65,7 +65,7 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for diagrams.
 | ADZUNA             | aggregator    | **your key** | `api.adzuna.com/v1/api/jobs/<cc>/search/1` with the user's app_id + app_key (Settings → Sources; ADR 0034), one row per market (`de`, `gb`, `pl` …), IT category, last day, 50 newest; polled four times a day (00/06/12/18 UTC) and at most ten rows — the 2 500/month limit; descriptions are snippets and say so; every displayed listing carries "Jobs by Adzuna"; errors redacted of the keys |
 | FRANCETRAVAIL      | aggregator    | **your key** | `api.francetravail.io/partenaire/offresdemploi/v2/offres/search` with an OAuth client-credentials token (Settings → Sources; ADR 0034); the token is the filter (`codeROME=M1805`, `motsCles=…`), the fetcher adds `publieeDepuis=1`, `sort=1`, pages of 150 (cap 3); the offer is stored whole (`Job.sourcePayload`) and shown whole; the daily mirror (`jobs/france-travail-sync.ts`) re-checks every stored offer, deletes withdrawn ones or anonymises the user's own records; source + update date + licence link on every display; 4 calls/s |
 | LANDINGJOBS        | aggregator    | none      | Atom `https://landing.jobs/feed` (~55 newest; the JSON API is robots-disallowed); `lj:city` / `lj:country` / `lj:remote_policy` (Full remote → REMOTE, Partial remote → HYBRID) as hints, company from `<author>`, the full HTML posting as the description; seeded off |
-| DEVITJOBS          | aggregator    | none      | `https://<host>/rss` for germantechjobs.de / devitjobs.uk / devitjobs.nl (the token is the host, one row each); title `Role @ Company [salary]`; `content:encoded` sections Salary / Requirements / Responsibilities / Technologies; no city, no arrangement — the country hint is the site's; items older than 90 days skipped; conditional GET (ETag / Last-Modified, in-process cache, 304 answers the last parse); seeded off |
+| DEVITJOBS          | aggregator    | none      | `https://<host>/rss` for germantechjobs.de / devitjobs.uk / devitjobs.nl (the token is the host, one row each); title `Role @ Company [salary]`; `content:encoded` sections Salary / Requirements / Responsibilities / Technologies; no city, no arrangement — the country hint is the site's; items older than 90 days skipped; both validators (ETag / Last-Modified) answer 304, which the shared conditional cache (`src/fetchers/conditional.ts`, ADR 0035) reads as "no change": no jobs that tick; seeded off |
 | SOLIDJOBS          | aggregator    | none      | `solid.jobs/public-api/offers/IT?campaign=applypack&pageSize=500&pageIndex=N` (+ `X-Api-Version: 1.0`), cap 3 pages; Polish cities, `isRemote`/`isHybrid`, PLN salary + employment type + skills folded into the description; PL hint on every row; seeded off |
 
 **Hard exclusions** — never added regardless of demand:
@@ -83,29 +83,35 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for diagrams.
 Per-tick flow inside `runFetchJob`:
 
 ```
-runAllFetchers()         filter by Company.active and AppSettings.disabledSources
+runAllFetchers()         Company.active, minus AppSettings.disabledSources, minus rows
+                         whose nextCheckAt is later than dueCutoff(now) (a manual run asks every row)
    ↓
 NormalizedJob[]          unified shape (companyId, externalId, title, location, …)
                          + locationHints where the feed has structured geodata (ADR 0031);
                          geo-filtered sources (Jobicy, Himalayas, 4dayweek) read the FetchContext —
                          the union of the running searches' countries + regions — instead of the whole feed
    ↓
-passesAnyBaseFilter()    admit if ANY running search admits it (title contains its
-                         stackRequired OR roleTypes; its stackExclude rejects)
+passesAnyBaseFilter()    admit if ANY running search admits it: a whole-word title hit on its
+                         stackRequired OR roleTypes, no hit on its stackExclude, and a place and
+                         arrangement that do not contradict its own (an unknown one passes)
    ↓
-findUnique (companyId, externalId)
-   ↓ (skip if seen before)
-classifyJob(input, profiles[], mode)   ONE call for every running search
-   ├─ mode='single':   Haiku 4.5 only
-   └─ mode='two_stage': Haiku 4.5 prefilter → Haiku 4.5 full only on yes
+one query per batch      the batch's (companyId, externalId) pairs already stored are skipped
    ↓
-{salary, scores: [{profile_id, fit_score, location_match, tech_match, …}]}
+classifyJob(input, profiles[], mode)   ONE call for every running search, on the engine's
+   │                                   classifier model (Haiku 4.5 by default on the Claude engines)
+   ├─ mode='single':    the full prompt only
+   └─ mode='two_stage': a short prefilter first, the full prompt only on yes
    ↓
-mergeVerdicts()          per-search decideDismissReason() against that search's
-                         thresholds; the winner's numbers become Job.fitScore,
-                         every verdict becomes a JobScore row
+{salary_min, salary_max, salary_currency, salary_period, location,
+ scores: [{profile_id, fit_score, location_match, tech_match, …}]}
+   ↓
+buildVerdicts()          per-search decideDismissReason() against that search's thresholds;
+mergeVerdicts()          the winner's numbers become Job.fitScore, every verdict a JobScore row
    ↓ dismissed only when every search dismissed it
-Job(status=NEW) → one alert, named for the winner, routed to its telegramTargetId
+Job(status=NEW) → one sendAlert(), named for the winner, routed to its notificationTargetId;
+                  when canAlertNow says no (outside the window, or any time in digest mode) the
+                  row is stamped alertHeldAt instead, and deliverHeldAlerts() sends it on the first
+                  heartbeat shouldDeliverHeld allows: inside the window, or at a digest hour
 ```
 
 Every persisted Job also carries `workplace`, `countries`, `regions` and
@@ -117,28 +123,32 @@ the string itself is never rewritten (ADR 0031). `/jobs` filters on them
 The same inner loop is reused by `runHnHiringJob` (extracted into
 `src/jobs/process-jobs.ts`).
 
-## Cron schedule (all `America/Chicago`)
+## Cron schedule (in `TZ`, `UTC` by default)
 
-`mm` is this install's own minute, hashed from `AppSettings.instanceId` so
-that every deployment does not knock on the same board in the same second
-(ADR 0035); it applies to the three jobs that reach somebody else's server.
+node-cron runs every expression below in `config.TZ`: the `TZ` variable of
+the environment or `.env`, `UTC` when unset. `mm` is this install's own
+minute, hashed from `AppSettings.instanceId` so that every deployment does
+not knock on the same board in the same second (ADR 0035); it applies to
+the three jobs that reach somebody else's server.
 
 The cron list itself never changes. What the user picks on Settings →
 General → Schedule is read by a pure gate (`src/user-schedule.ts`) at the
-start of each beat: `isFetchDue` decides whether the fetch tick searches (a
-"no" is `outside-schedule` on /runs), `canAlertNow` decides whether a fresh
-match is sent or held on `Job.alertHeldAt`, and `isDigestHour` decides
-whether the two hourly summary beats do anything at all — a beat that is not
-a digest hour writes no run row. An empty `AppSettings.schedule` means every
-hour, around the clock, one message per match: the behaviour before v1.47.0.
+start of each beat, in the schedule's own time zone: `isFetchDue` decides
+whether the fetch tick searches (a "no" is `outside-schedule` on /runs),
+`canAlertNow` decides whether a fresh match is sent or held on
+`Job.alertHeldAt`, `isDigestHour` decides whether the hourly recap beat does
+anything, and `isFirstDigestHour` whether the stale-application beat does.
+A beat that is not its digest hour writes no run row. An empty
+`AppSettings.schedule` means every hour, around the clock, one message per
+match and a recap at 09:00: the behaviour before v1.47.0.
 
 | Cron expr    | Job                | What it does                                   |
 | ------------ | ------------------ | ---------------------------------------------- |
-| `mm * * * *` | fetch              | full fetch + filter + classify + alert — gated by the user's schedule |
-| `0 * * * *` | digest             | Telegram digest of last 24h NEW/ALERTED — only on the digest hours |
-| `0 * * * *` | stale-applications | Telegram nudge for `applied >14d ago, no contact` — only on the digest hours |
-| `0 3 * * 0` | cleanup            | Delete DISMISSED older than 30 days            |
-| `mm 4 * * 0` | discovery         | Re-probe pending CompanyCandidates             |
+| `mm * * * *` | fetch              | full fetch + filter + classify + alert — gated by the user's schedule; held alerts and the France Travail check run first, even while paused |
+| `0 * * * *` | digest             | Recap of the NEW / ALERTED jobs stored since the last recap, to every active target; only on the digest hours |
+| `0 * * * *` | stale-applications | Nudge for jobs in the Applied column for more than 14 days with no recruiter contact; only on the first digest hour of the day |
+| `0 3 * * 0` | cleanup            | Delete DISMISSED jobs older than 30 days (never one with a pipeline stage), screenings past `retainUntil`, finished run rows older than 90 days and AI usage counts older than 60 days |
+| `mm 4 * * 0` | discovery         | Re-probe the pending Greenhouse, Lever and Ashby CompanyCandidates |
 | `mm 6 1 * *` | hn-hiring         | Pull latest HN Who-is-hiring + extract candidates |
 
 ## Profiles
@@ -151,7 +161,7 @@ against every running search and returns a verdict each; those land in
 `JobScore` (jobId × profileId) while `Job.fitScore` keeps the best-of for
 sorting. A posting is admitted when any search's base filter admits it, and
 dismissed only when every search rejects it. Alerts are one per posting,
-named for the winner and routed to that search's `telegramTargetId`.
+named for the winner and routed to that search's `notificationTargetId`.
 "Save & re-classify" reruns the classifier across existing jobs.
 
 Profile fields that drive matching:
@@ -163,18 +173,26 @@ Profile fields that drive matching:
 - `countries` (ISO-2), `regions` (group codes — a group stays a group), `workplace`
   (arrangements accepted), `onsiteCities` — where the search hunts (ADR 0032);
   both lists empty = anywhere, empty `workplace` = any arrangement
+- `residence` (ISO-2) and `relocation` (`no | yes | sponsorship`): where the
+  candidate lives and whether they would move (ADR 0033); the classifier
+  weighs them apart from `countries`, which is where the search hunts
 - `minFitScore`, `minSalaryUsd`
+- `priorityRules`: floors that lift the score of a job whose techs and
+  region match (`src/priority-rules.ts`)
 - `notes` — free-form prose appended to the Claude prompt
-- `telegramTargetId` — optional: route alerts to a specific bot (else broadcast)
+- `notificationTargetId` — optional: route alerts to one target, a Telegram
+  bot + chat or a Discord webhook (else, or while that target is switched
+  off, broadcast to every active target)
 - `resumeId` — optional: the resume this search hunts with. A job page
   preselects it for comparisons and cover letters; unset falls back to
   skill-tag overlap (`src/resume/pick.ts:preselectResume`). `SET NULL` on
   resume delete — the search survives, the preselect goes back to guessing.
 
 The editor shows the essentials (stack, role types, seniority, location);
-excludes, notes, on-site cities, priority rules, thresholds and Telegram
-routing sit in a collapsed "Advanced" block that opens itself when any of
-them is customised.
+excludes, notes, on-site cities, priority rules, the salary and fit
+thresholds and the alert target sit in a collapsed "Advanced" block. It
+opens itself when notes, on-site cities or priority rules are set; a
+threshold or a target alone does not open it.
 
 **Fill from a resume** (ADR 0015): the Profile tab can prefill
 `stackRequired` (from `Resume.primarySkills`), `stackNiceToHave` (remaining
@@ -193,20 +211,23 @@ profiles are **born inactive** — creating a search never switches the one
 the pipeline is scoring against; activation stays a deliberate press on
 `/settings` → Profile.
 
-## Toggles in `/settings`
+## Toggles
 
 All gating is in `AppSettings` (singleton row). Each toggle has a guard
-clause at the start of the affected job/handler.
+clause at the start of the affected job/handler. The toggles live on
+`/settings`, except `hnParserEnabled` and `discoveryEnabled`, which sit on
+`/discovery`.
 
 | Field                            | Default  | Effect when off                              |
 | -------------------------------- | -------- | -------------------------------------------- |
-| `telegramEnabled`                | false (+true after .env bootstrap) | Notifier no-ops with log line       |
-| `classifierMode`                 | `single` | `two_stage` adds Haiku-4.5 prefilter        |
-| `applicationTrackingEnabled`     | true     | Hides the per-job tracking card + auto-set on APPLIED |
+| `telegramEnabled`                | false (+true after .env bootstrap) | "Alerts": no alert, held delivery, recap, stale nudge or change notice goes to any target, Telegram or Discord (all of them pass `notifier.ts:broadcast`, which logs and returns). A target's own test message still sends: the one on add and its Test button |
+| `classifierMode`                 | `single` | `two_stage` adds a short prefilter call on the same classifier model |
+| `applicationTrackingEnabled`     | true     | Hides the per-job tracking card, skips the funnel seed on APPLIED and the stale nudge |
 | `staleApplicationsDigestEnabled` | true     | Daily nudge job exits early                  |
-| `hnParserEnabled`                | false    | Monthly HN cron + manual run skip            |
-| `discoveryEnabled`               | false    | HN parser does not record CompanyCandidates  |
-| `fetchingEnabled`                | false    | Master pause: hourly fetch + monthly HN pull exit early (`fetching-paused`); digest/cleanup/discovery/dashboard unaffected. Deployments start PAUSED — enable via `/settings` → "Job fetching" |
+| `sourceHealthAlerts`             | true     | The recap carries no line about quiet sources |
+| `hnParserEnabled`                | false    | Monthly HN cron + manual run skip (on `/discovery`) |
+| `discoveryEnabled`               | false    | No CompanyCandidates from HN comments or from fetched jobs, and the weekly probe skips (on `/discovery`) |
+| `fetchingEnabled`                | false    | Master pause: hourly fetch + monthly HN pull exit early (`fetching-paused`); the fetch tick still delivers held alerts and runs the France Travail check; digest/cleanup/discovery/dashboard unaffected. Deployments start PAUSED — enable via `/settings` → "Job fetching" |
 | `disabledSources` (String[])     | `[]`     | Skip whole AtsType families in runAllFetchers |
 | `employerMode`                   | false    | Employer mode (ADR 0049): the Screening menu item and every `/screen` route exist only while on; the worker never reads it |
 | `screeningRetentionDays`         | 90       | How long a screening keeps its applicant files and verdicts before the weekly cleanup deletes it (ADR 0048) |
@@ -234,13 +255,18 @@ they always did.
 
 ## Discovery
 
-When `discoveryEnabled=true`, the HN parser scans each comment for ATS
-URLs (`extractAtsToken` in `src/text-utils.ts` covers
-greenhouse/lever/ashby/workable/smartrecruiters) and writes
-`CompanyCandidate` rows. The user reviews on `/discovery` and clicks
+When `discoveryEnabled=true`, the monthly HN parser scans each comment for
+ATS URLs, and every fetch tick scans each fetched job's URL and description
+the same way (`extractAtsToken` in `src/text-utils.ts` knows the twelve
+per-company vendors: greenhouse, lever, ashby, workable, smartrecruiters,
+recruitee, breezy, bamboohr, pinpoint, rippling, personio, teamtailor). Only
+the first 20 URLs of each text are read, and only a new pair becomes a
+PENDING `CompanyCandidate` row: a hit on a tracked company or on a known
+candidate is left alone. The user reviews on `/discovery` and clicks
 **Promote** → adds to `Company` with `active=true`. A weekly probe job
-re-validates each pending candidate's slug and updates `jobsSeen`,
-marking 4xx-returning slugs as DEAD.
+re-probes the pending Greenhouse, Lever and Ashby candidates (the other
+vendors' candidates are left as they are), updates `jobsSeen`, and marks a
+slug that answers 4xx as DEAD.
 
 ## Cross-source dedup (F3)
 
@@ -251,7 +277,7 @@ the description (3-token shingles, markup/entities/URLs stripped first).
 A new job is compared against the last 90 days **at other companies only**, at
 Hamming ≤ 7; a hit sets `Job.crossListedOfJobId` and shows as "Also listed
 elsewhere — apply through one channel only" on `/jobs/:id` (both directions)
-and as a line in the Telegram alert. **Annotation only** — nothing is merged,
+and as a line in the alert, Telegram or Discord. **Annotation only** — nothing is merged,
 hidden or skipped, so a wrong link costs a confusing note and nothing else.
 
 Bodies under 400 normalized characters get no fingerprint and never match:
@@ -266,9 +292,11 @@ it links nothing new.
 
 ## Company starter packs (F14)
 
-`/companies` → **Add a starter pack**: curated segments (PHP/Laravel & CMS,
-JS infra & dev tools, JS/TS product & headless CMS, remote-first,
-UA-friendly remote) held in `src/starter-packs/catalog.json`. Each entry
+`/companies` → **Add sources** → **Add a starter pack**: curated segments
+(PHP, Laravel & CMS platforms; JavaScript infrastructure & dev tools; JS/TS
+product & headless CMS; remote-first, worldwide; UA-friendly remote; US
+product companies; European product companies) held in
+`src/starter-packs/catalog.json`. Each entry
 pins an `(atsType, atsToken)` that was resolved *and* identity-checked
 against the live vendor API — a probe hit alone proves a board exists, not
 whose it is (ADR 0017).
@@ -277,14 +305,15 @@ Picking segments re-probes every board now and shows a preview split into
 new / already tracked / **unresolved** (listed with a reason, never dropped).
 Confirming inserts the boards **inactive**, then an "Enable all" button
 activates them. A board only counts as resolved at ≥ 1 open job, and the
-resolve chain falls back through all ten per-company vendors
+resolve chain falls back through all twelve per-company vendors
 (greenhouse → ashby → lever → workable → smartrecruiters → recruitee →
-breezy → bamboohr → pinpoint → rippling) if the pinned board has moved.
+breezy → bamboohr → pinpoint → rippling → personio → teamtailor) if the
+pinned board has moved.
 Re-importing a pack adds nothing.
 
 ## Company watchlist (§17 stage A, ADR 0036)
 
-`/companies` → **Watch specific companies**: paste career-page or board URLs,
+`/companies` → **Add sources** → **Watch specific companies**: paste career-page or board URLs,
 one per line (optionally `Name — URL`). Each one is resolved by a ladder that
 reads only what a site publishes for machines — the ATS behind the page
 (confirmed against the vendor's API), then an RSS/Atom feed whose own path
@@ -295,16 +324,19 @@ only at add time.
 
 A watched company is a `Company` row with four columns — `watched`,
 `checkEvery` (`hour | day | week`), `nextCheckAt`, `alertPolicy`
-(`matches | all`) — and no cron of its own: the hourly tick selects
-`active AND (nextCheckAt IS NULL OR nextCheckAt <= now)` and stamps
-`nextCheckAt` after every attempt, failures included. That means watched
+(`matches | all`) — and no cron of its own: the hourly tick selects the
+active rows whose `nextCheckAt` is NULL or no later than
+`interval.ts:dueCutoff` (the tick's start plus five minutes of slack, so a
+row stamped one interval after the last tick started is due at the next
+one), and stamps `nextCheckAt` after every attempt, failures included. A
+manual "Fetch now" asks every row, due or not. That means watched
 companies **follow the user's search schedule** (§16) and are not checked
 during hours the search sleeps.
 
 `alertPolicy = 'all'` bypasses the base filter and the fit threshold: the
 posting is still classified, so it carries a score, but the alert reads
 `★ New posting` rather than claiming a match. `★` marks the company on
-`/jobs`, on the job page and in Telegram, and `★ Watched` under **Filters**
+`/jobs`, on the job page and in the alert, and `★ Watched` under **Filters**
 narrows the list to them.
 
 When a page publishes no board and no feed but does publish prose, the last
@@ -325,18 +357,23 @@ refusal. The sitemap + JSON-LD rung the plan called stage B was measured and
 
 ## Resumes (Phase 8.1)
 
-`Resume` rows hold an uploaded file (`original` bytes, `.docx` / `.md` /
-`.txt`) and its plain-text extraction (`text`). On upload the web process
-runs one AI call (the resume model, `CLAUDE_MODEL_RESUME` by default) that fills headline, seniority,
-years, skill tags, role types and job-agnostic `issues`. The first upload
-becomes the default.
+`Resume` rows hold an uploaded file (`original` bytes, `.pdf` / `.docx` /
+`.md` / `.txt`) and its plain-text extraction (`text`). On upload the web
+process runs one AI call on a progress page (the engine's resume model: the
+slot on `/settings` → AI engine, else `ai-engine.ts:defaultModelFor`) that
+fills headline, seniority, years, skill tags, the primary stack, role types,
+industries and job-agnostic `issues`. The first upload becomes the default.
 
 `ResumeMatch` is one comparison of a resume against a job, triggered from
-`/jobs/:id` → "Resume match" → Compare (the dropdown preselects the resume
-with the most skill-tag overlap). Stored per run: `matchScore`, `summary`,
-`strengths`, `redFlags`, `keywords` (`present | add | ask_user |
-cannot_claim`, where, note) and `actions` (section, where, what, why,
-priority). Nothing edits the resume — the report is the to-do list. See
+`/jobs/:id` → "Resume match" → Compare. The dropdown preselects a resume in
+two steps: the job page (`src/web/routes/jobs.tsx`) takes the resume linked
+to the search that scored the posting best, else the one linked to the
+primary, and `src/resume/pick.ts:preselectResume` keeps that link unless the
+resume is gone or hidden, and otherwise picks the one with the most
+skill-tag overlap. Stored per run: `matchScore`, `summary`, `strengths`,
+`redFlags`, `keywords` (`present | add | ask_user | cannot_claim`, where,
+note) and `actions` (section, where, what, why, priority). The comparison itself changes nothing in the resume: the report
+is the to-do list, and the edits happen in the targeted view below. See
 ADR 0008.
 
 Before any resume is judged, the posting is read on its own (ADR 0044). One
@@ -358,21 +395,31 @@ Python, or Node.js", "WordPress, Drupal, Shopify" — is ONE requirement, and
 each alternative cost a separate must-weight, so a resume that met the
 requirement outright was charged for the options it did not have.
 
-A comparison has two shapes (ADR 0029). **Compare** runs the quick check:
-one call that returns the keywords, alignment grades, hard-requirement gates
+A comparison has two shapes in the code (ADR 0029). The quick check is one
+call that returns the keywords, alignment grades, hard-requirement gates
 and red flags — everything the score is computed from — and no edit
-suggestions. **Full analysis** runs the same rules plus the suggestions, and
-**Get suggestions** adds them to a stored quick check in a second call that
-reuses its verdicts and leaves the score untouched. The mode is recorded in
-the `breakdown` JSON next to the prompt version, so a re-run of unchanged
-text is still free and a full request over a stored quick check pays only
-for the suggestions.
+suggestions. The full report runs the same rules plus the suggestions.
+Every **Compare** button in the dashboard asks for the full report. The
+quick check still runs in two places: **Save as vN** with a posting
+re-scores the saved text as a quick check (`POST /resumes/:id/draft` passes
+no mode, and `fast` is the default), and the bench can run either shape. A
+row stored in that mode offers **Get suggestions**, which adds the
+suggestions in a second call that reuses the stored verdicts and leaves the
+score untouched; Rebuild keywords re-runs such a row as a quick check. The
+mode is recorded in the `breakdown` JSON next to the prompt version, so a
+re-run of unchanged text is still free and a full request over a stored
+quick check pays only for the suggestions.
 
 The targeted view (`/jobs/:id/target`, ADR 0010) shows one match as two
 panes: the posting with every keyword highlighted, and the resume text in an
 editor. `src/web/public/target.mjs` scores keyword coverage in the browser
-on every edit (P1 = 3, P2 = 2, P3/P4 = 1, `cannot_claim` excluded by
-default) and renders both panes' highlights from the match's `keywords`
+on every edit: a term weighs what the posting demands of it (must 3,
+preferred 2, nice 1, context 0; a row from before requirement levels falls
+back to its priority, P1 = 3, P2 = 2, P3/P4 = 1), and every weighted term
+earns its weight once the text spells it, whatever status the last analysis
+gave it (ADR 0045). The number under the editor is the live estimate of
+`src/web/public/score.mjs`, the mirror of `src/resume/score.ts`. Both panes'
+highlights come from the match's `keywords`
 (with `aliases`), `actions` and `removals` (with verbatim `quote`s).
 The page has one AI action, **Analyse my resume again**: it posts the edited text
 (`draftText`) and runs the full report on it — same rules, same suggestions,
@@ -384,8 +431,9 @@ judged. Older runs stay listed; the one save, **Save as vN**, is offered only
 for a resume of the user's own.
 
 Each suggestion is a card showing **Now** (the resume's own words) and
-**Proposed** (the wording the model quoted inside its `what` sentence, pulled
-out by `resume/change-sheet.ts:proposalOf`), with **Copy** for that wording and
+**Proposed** (read by `resume/change-sheet.ts:proposalOf`: the action's own
+`replacement` since prompt v7, below; on an older row, the wording the model
+quoted inside its `what` sentence), with **Copy** for that wording and
 **Locate**, which outlines it in the editor and scrolls the editor only — the
 page never moves. Removals show the text to cut rather than describing it.
 The whole list travels as Markdown: **Copy all suggestions** is rendered
@@ -439,12 +487,15 @@ only, bytes only, current values shown.
 
 A file a Save cannot write into gets **Clean version in your typeface**
 (`/resumes/:id/render`, ADR 0039) — the way a PDF enters the loop at all, and
-three of the four resumes in a live database are PDFs. The scan reads the
-resume into a JSON Resume subset (`resume/json-resume.ts`) under one rule,
-copy never write; `resume/structure-anchor.ts` drops at persist time every
-string that is not a verbatim span of the resume text, and refuses to store a
-structure it emptied — `resume/structure-from-text.ts` then reads the text
-deterministically instead. `resume/style-infer.ts` takes the typography from
+three of the four resumes in a live database are PDFs. A call of its own
+(`resume/structure.ts:structureResume`) reads the resume into a JSON Resume
+subset (`resume/json-resume.ts`) under one rule, copy never write. The page
+starts it from its "Read the shape with AI" button
+(`POST /resumes/:id/render/shape`), never on a visit.
+`resume/structure-anchor.ts` drops at persist time every string that is not
+a verbatim span of the resume text, and a reply the guard emptied is not
+stored. Until a reading is stored, `resume/structure-from-text.ts` reads the
+text deterministically instead. `resume/style-infer.ts` takes the typography from
 the file's own runs (not its style sheet, which on the corpus file says a
 different font and size entirely) and from a PDF's embedded fonts. One plan
 (`resume/render/sections.ts`) is drawn twice: `render/clean-docx.ts` names the
@@ -524,7 +575,11 @@ Every slow stage — the page fetch included — is a visible run step, so the
 form never hangs.
 
 Letter writing has its own per-engine model slot on `/settings` → AI engine;
-an empty slot follows the resume model. Each letter row offers Regenerate (same resume + tone,
+an empty slot takes that engine's default for letters, not the resume slot
+(`ai-engine.ts:defaultModelFor`: Opus 5 on the two Claude engines, or
+`CLAUDE_MODEL_COVER` when set; Gemini 2.5 Pro on the Gemini CLI;
+`OPENAI_MODEL` on the OpenAI-compatible engine; the CLI's own default on
+Codex). Each letter row offers Regenerate (same resume + tone,
 current saved angles and prompt) and "Save as PDF" / "Save as DOCX"
 downloads built in-process (`zip-write` / `docx-write` / `pdf-write`, no new
 dependencies); the edited text wins in exports. Edits autosave (debounced,
@@ -600,7 +655,8 @@ the cleanup cron, or at once from its page.
 ## Hard out-of-scope (Phase 7+)
 
 - Multi-user / per-user views (auth, sessions). Single-deployment-per-friend stays the answer — employer mode included: one HR person or hiring manager per install.
-- Adzuna / Jooble / The Muse paid aggregators (have free tiers, just not added)
+- Jooble / The Muse aggregators (free tiers exist, not added; Adzuna is a
+  source since stage 3e, ADR 0034)
 - Built In, Wellfound, YC WAAS — fragile or behind anti-bot
 - Workday — see exclusions above
 - Embedding-based duplicate detection across sources
@@ -612,7 +668,7 @@ the cleanup cron, or at once from its page.
 - Prisma 6 + Postgres 16 (real migrations from `phase-3.0` baseline onward)
 - node-cron for scheduling, no Redis / BullMQ
 - Hono 4 for the dashboard, JSX SSR with `hono/jsx`, Tailwind over semantic CSS-variable tokens, built by `npm run css` and committed (`src/web/public/tailwind.css`), so the runtime has no build step and no page loads a CDN (light SaaS theme, see DESIGN.md)
-- `src/ai-provider.ts` seam, five engines: `anthropic_api` (SDK, per-token), `claude_code` (headless CLI, subscription), `gemini_cli` (headless CLI, Google account), `openai_api` (fetch → any /chat/completions endpoint via OPENAI_BASE_URL), `codex_cli` (headless CLI, ChatGPT subscription). `/settings` → "AI engine" stores an ordered chain + per-engine classifier/resume/cover models (AppSettings.aiEngine JSON, ADR 0013/0014) and, for the four key-bearing engines, the API key itself (AppSettings.aiKeys, ADR 0027 — DB first, `.env` as fallback, never rendered in full); calls fail over down the chain automatically; an empty model slot takes `ai-engine.ts:defaultModelFor` (Haiku 4.5 for the classifier; Sonnet 5 for resume calls on the Claude CLI, Haiku 4.5 on the API; Opus 5 for the letter); `AI_CONCURRENCY` jobs classified at once (default 3)
+- `src/ai-provider.ts` seam, five engines: `anthropic_api` (SDK, per-token), `claude_code` (headless CLI, subscription), `gemini_cli` (headless CLI, Google account), `openai_api` (fetch → any /chat/completions endpoint via OPENAI_BASE_URL), `codex_cli` (headless CLI, ChatGPT subscription). `/settings` → "AI engine" stores an ordered chain + per-engine classifier/resume/cover models (AppSettings.aiEngine JSON, ADR 0013/0014) and, for the four key-bearing engines, the API key itself (AppSettings.aiKeys, ADR 0027 — DB first, `.env` as fallback, never rendered in full); calls fail over down the chain automatically; an empty model slot takes `ai-engine.ts:defaultModelFor` (on the two Claude engines: `CLAUDE_MODEL`, Haiku 4.5, for the classifier; Sonnet 5 for resume calls on the Claude CLI, Haiku 4.5 on the API; Opus 5 for the letter. Gemini 2.5 Flash for the classifier and 2.5 Pro for the rest on the Gemini CLI; `OPENAI_MODEL` on the OpenAI-compatible engine; the CLI's own default on Codex); `AI_CONCURRENCY` jobs classified at once (default 3)
 - node:test runner (`npm test`), no jest
 
 ## Project layout
