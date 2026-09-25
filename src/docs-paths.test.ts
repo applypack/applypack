@@ -75,9 +75,9 @@ function declares(text: string, name: string): boolean {
   );
 }
 
-/** `model Profile { … residence … }` in the Prisma schema. */
+/** `model Profile { … residence … }` in the Prisma schema, read to the block's closing line (a `{}` default or comment inside must not end it). */
 function schemaDeclares(text: string, name: string, member: string | undefined): boolean {
-  const block = new RegExp(String.raw`^(?:model|enum)\s+${name}\s*\{([^}]*)\}`, 'm').exec(text);
+  const block = new RegExp(String.raw`^(?:model|enum)\s+${name}\s*\{([\s\S]*?)^\}`, 'm').exec(text);
   if (!block) return false;
   return member === undefined || new RegExp(String.raw`^\s*${member}\b`, 'm').test(block[1]!);
 }
@@ -138,6 +138,7 @@ test('the reader finds paths and file:symbol pairs, and skips technologies and g
   assert.ok(declares('export const Empty: FC = () => null;', 'Empty'));
   assert.ok(!declares('runAllFetchers();', 'runAllFetchers'));
   assert.ok(schemaDeclares('model Profile {\n  id Int\n  residence String[]\n}', 'Profile', 'residence'));
+  assert.ok(schemaDeclares('model Resume {\n  issues Json @default("{}")\n  structure Json?\n}', 'Resume', 'structure'));
 });
 
 test('every path and file:symbol the docs name exists', () => {
@@ -161,6 +162,8 @@ function codeWords(): Set<string> {
     (f) =>
       (/^(src|prisma|\.github)\//.test(f) || ['package.json', 'tailwind.config.js', '.env.example'].includes(f)) &&
       f !== 'src/docs-paths.test.ts' &&
+      // An applied migration keeps the names it renamed away from.
+      !f.startsWith('prisma/migrations/') &&
       !/\.(png|jpe?g|webp|gif|pdf|docx|woff2?|ttf|zip)$/.test(f),
   );
   return new Set(code.flatMap((f) => readFileSync(join(ROOT, f), 'utf8').match(/[A-Za-z_$][\w$]*/g) ?? []));
@@ -176,6 +179,104 @@ test('every code name the current docs mention is still in the code', () => {
     ),
   );
   assert.deepEqual(missing, [], `\n${missing.join('\n')}\n`);
+});
+
+/*
+ * The file tree and the diagrams sit in fenced blocks, which the backtick
+ * reader never sees; ARCHITECTURE.md drew `sendTelegramAlert` and
+ * `ClaudeCodeProvider` there long after both were gone. Every code-shaped
+ * word in a fenced block must occur in the code too, except mermaid's own
+ * keywords.
+ */
+const NOT_CODE = new Set(['sequenceDiagram', 'erDiagram', 'stateDiagram', 'classDiagram']);
+
+function fencedBlocks(text: string): string[] {
+  return [...text.matchAll(/^```[^\n]*\n([\s\S]*?)^```/gm)].map(([, body = '']) => body);
+}
+
+/* A diagram's own node ids (`apId["activeProfileId"]`, `participant TG as …`) name nothing in the code. */
+function diagramIds(block: string): Set<string> {
+  return new Set([
+    ...[...block.matchAll(/^\s*(\w+)\s*[[({]/gm)].map(([, id = '']) => id),
+    ...[...block.matchAll(/\b(?:participant|actor)\s+(\w+)/g)].map(([, id = '']) => id),
+  ]);
+}
+
+test('every code name in the current docs\' fenced blocks is still in the code', () => {
+  const words = codeWords();
+  const missing = CURRENT.flatMap((doc) =>
+    fencedBlocks(readFileSync(join(ROOT, doc), 'utf8')).flatMap((block) => {
+      const ids = diagramIds(block);
+      return [...new Set(block.match(/[A-Za-z_$][\w$]*/g) ?? [])]
+        .filter((w) => IDENT.test(w) && !ids.has(w) && !NOT_CODE.has(w) && !PLACEHOLDERS.has(w) && !words.has(w))
+        .map((w) => `${doc}: ${w} (fenced block)`);
+    }),
+  );
+  assert.deepEqual(missing, [], `\n${missing.join('\n')}\n`);
+});
+
+/* An entity or a field in a mermaid ER diagram is a Prisma model or enum, and one of its fields. */
+test('every ER diagram names the models and fields the schema has', () => {
+  const schema = readFileSync(join(ROOT, 'prisma', 'schema.prisma'), 'utf8');
+  const fields = new Map<string, Set<string>>();
+  for (const [, name = '', body = ''] of schema.matchAll(/^(?:model|enum) (\w+) \{([\s\S]*?)^\}/gm)) {
+    fields.set(name, new Set(body.split('\n').map((l) => l.trim().split(/\s+/)[0] ?? '').filter((w) => /^\w+$/.test(w))));
+  }
+  const wrong = CURRENT.flatMap((doc) =>
+    fencedBlocks(readFileSync(join(ROOT, doc), 'utf8'))
+      .filter((block) => /^\s*erDiagram/.test(block))
+      .flatMap((block) => [
+        ...[...block.matchAll(/^\s*(\w+)\s+[|}o][|o]--[|o][|{o]\s+(\w+)/gm)].flatMap(([, a = '', b = '']) =>
+          [a, b].filter((m) => !fields.has(m)).map((m) => `${doc}: relation names ${m}, not a model`),
+        ),
+        ...[...block.matchAll(/^\s*(\w+)\s*\{([^}]*)\}/gm)].flatMap(([, entity = '', body = '']) => {
+          const known = fields.get(entity);
+          if (!known) return [`${doc}: entity ${entity} is not a model`];
+          return body
+            .split('\n')
+            .map((l) => l.trim().split(/\s+/)[1])
+            .filter((f): f is string => f !== undefined && !known.has(f))
+            .map((f) => `${doc}: ${entity}.${f} is not a field`);
+        }),
+      ]),
+  );
+  assert.deepEqual(wrong, [], `\n${wrong.join('\n')}\n`);
+});
+
+/*
+ * A route written as `POST /jobs/:id/match` must be one the dashboard
+ * registers (`:param` names may differ). ARCHITECTURE.md listed
+ * `POST /settings/reclassify` and `/settings/hn-run` after both had moved.
+ */
+/* Endpoints of other servers that the docs name in the same shape. */
+const EXTERNAL_ROUTES = new Set(['POST /chat/completions']);
+
+function routeKey(path: string): string {
+  return path.replace(/[?#].*$/, '').replace(/\/+$/, '').replace(/:[A-Za-z_]\w*/g, ':p') || '/';
+}
+
+test('every route the current docs name is one the dashboard registers', () => {
+  const registered = new Set(
+    FILES.filter((f) => /^src\/web\/.*\.tsx?$/.test(f) && !/\.test\.tsx?$/.test(f)).flatMap((f) =>
+      [...readFileSync(join(ROOT, f), 'utf8').matchAll(/\.(get|post|put|patch|delete|all)\(\s*['"`](\/[^'"`]*)['"`]/g)].map(
+        ([, method = '', path = '']) => `${method.toUpperCase()} ${routeKey(path)}`,
+      ),
+    ),
+  );
+  assert.ok(registered.size > 50, `route parse looks wrong: ${registered.size}`);
+  const unknown = CURRENT.flatMap((doc) =>
+    [...readFileSync(join(ROOT, doc), 'utf8').matchAll(/\b(GET|POST|PUT|PATCH|DELETE) (\/[\w\-./:?=&]*)/g)]
+      .map(([, method = '', path = '']) => `${method} ${routeKey(path.replace(/[.,;:]+$/, ''))}`)
+      .filter(
+        (key) =>
+          !/ \/static(\/|$)/.test(key) &&
+          !EXTERNAL_ROUTES.has(key) &&
+          !registered.has(key) &&
+          !registered.has(key.replace(/^\w+/, 'ALL')),
+      )
+      .map((key) => `${doc}: ${key}`),
+  );
+  assert.deepEqual([...new Set(unknown)], [], `\n${[...new Set(unknown)].join('\n')}\n`);
 });
 
 /*
