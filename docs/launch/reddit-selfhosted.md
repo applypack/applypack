@@ -23,11 +23,11 @@ https://applypack.dev/demo/
 
 What it does:
 
-* Checks 33 kinds of source hourly: twelve ATS vendors (Greenhouse, Lever,
-  Ashby, Workable, SmartRecruiters, Recruitee, Breezy, BambooHR, Pinpoint,
-  Rippling, Personio, Teamtailor) on company boards you pick, twenty
-  aggregators with the monthly HN "Who is hiring" thread among them, and
-  any RSS or Atom feed you paste
+* Checks 33 kinds of source, most of them hourly: twelve ATS vendors
+  (Greenhouse, Lever, Ashby, Workable, SmartRecruiters, Recruitee,
+  Breezy, BambooHR, Pinpoint, Rippling, Personio, Teamtailor) on company
+  boards you pick, twenty aggregators with the monthly HN "Who is
+  hiring" thread among them, and any RSS or Atom feed you paste
 * An AI classifier reads each full description against your profile.
   "Remote · Germany" is not a US-remote match, and "full-stack" in a
   title is not a stack match; both rules exist because both burned me

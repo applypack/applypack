@@ -46,15 +46,16 @@ further. Before you type Terraform, its dashed underline in the posting
 says nothing in the resume backs it. Typed, it counts all the same: the
 score reads the text, as an ATS filter does.
 
-Scoring is one corner of the console. A worker checks 33 kinds of source hourly
-(twelve ATS vendors such as Greenhouse, Lever and Ashby on boards you
-pick, twenty aggregators with the monthly HN "Who is hiring" thread among
-them, any RSS feed you paste), a classifier reads each posting against
-your profile, and Telegram or Discord pings you above your fit
-threshold. A ghost-job check runs a web-search checklist and returns
-legit / suspicious / fake with evidence URLs. A cover-letter
-writer sits behind a fact gate: a metric that appears in neither your
-resume nor your confirmed facts never reaches the letter.
+Scoring is one corner of the console. A worker checks 33 kinds of
+source, most of them hourly (twelve ATS vendors such as Greenhouse,
+Lever and Ashby on boards you pick, twenty aggregators with the monthly
+HN "Who is hiring" thread among them, any RSS feed you paste), a
+classifier reads each posting against your profile, and Telegram or
+Discord pings you above your fit threshold. A ghost-job check runs a
+web-search checklist and returns legit / suspicious / fake with evidence
+URLs. A cover-letter writer sits behind a fact gate: a metric that
+appears in neither your resume nor your confirmed facts never reaches
+the letter.
 
 Stack: TypeScript strict, a Postgres 16 that `npm start` runs itself (or
 docker compose on a server), dashboard bound to 127.0.0.1. AI is bring-your-own with failover: Claude
