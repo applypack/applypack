@@ -40,13 +40,15 @@ async function main(): Promise<void> {
   registerCron('0 * * * *', 'stale-applications', () =>
     onSchedule('stale-applications', isFirstDigestHour, runStaleApplicationsJob),
   );
-  // 06:00 Chicago on the 1st of each month (Who-is-hiring threads land
-  // around the 1st-2nd of the month).
+  // 06:xx on the 1st of each month, in `config.TZ` (Who-is-hiring threads
+  // land around the 1st-2nd; the minute is this install's own, see
+  // `schedule.ts:spreadMinute`).
   registerCron('0 6 1 * *', 'hn-hiring', () =>
     recordCronRun('hn-hiring', runHnHiringJob),
   );
-  // Sunday 04:00 Chicago: re-probe pending candidates so /discovery shows
-  // accurate jobsSeen and dead candidates fall off the review list.
+  // Sunday 04:xx in `config.TZ`, on this install's own minute: re-probe
+  // pending candidates so /discovery shows accurate jobsSeen and dead
+  // candidates fall off the review list.
   registerCron('0 4 * * 0', 'discovery', () =>
     recordCronRun('discovery', runDiscoveryJob),
   );

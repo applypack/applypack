@@ -312,7 +312,7 @@ When the question is **"where does X live?"**, save yourself a `find`:
 | Telegram MarkdownV2 escape, Discord markdown escape, and the channel switch between them | `src/notifier.ts:escapeMarkdownV2` (the Telegram channel) · `src/notify/discord.ts:escapeDiscord` · `notifier.ts:deliverToTarget` hands a row to its channel by `kind`; the words both share are `notify/lines.ts` (ADR 0041) |
 | Profile-to-prompt translation | `src/classifier.ts:buildSystemPrompt` (stack/role/location/notes lines) |
 | Discovery candidate extraction | `src/discovery.ts:recordCandidatesFromText` (calls `extractAtsToken`) |
-| URL → ATS recognition (greenhouse/lever/ashby/workable/SR) | `src/text-utils.ts:extractAtsToken` |
+| URL → ATS recognition (the twelve per-company vendors) | `src/text-utils.ts:extractAtsToken` |
 | Manual company probe before save | `src/ats-probe.ts:probeAts` |
 | Curated company packs (catalog, resolve order, preview), and which packs the wizard offers | `src/starter-packs/` — `catalog.json` + `resolve.ts` (pure) + `probe.ts`; ADR 0017. `suggest.ts:packsForSearches` (pure) picks the segments for the running searches' countries, groups, stack and remote-ness; the wizard's boards step lists them and threads `next=welcome` through preview → add → enable (ADR 0040) |
 | What a .docx is made of, and whether Save can write into it | `src/resume/docx-structure.ts:docxStructure` (pure, ADR 0038): `flow` / `structural` / `unsupported`, editable-line count, plain-sentence notes; never stored, recomputed from the bytes on `/resumes/:id` and the target page; `describeStructure` is the one-liner above the editor |
