@@ -423,12 +423,16 @@ export const JobsListPage: FC<JobsListProps> = ({
   );
 };
 
-/** One line of the filter panel: what it narrows by, then the options — a group named by its visible label. */
+/**
+ * One line of the filter panel: what it narrows by, then the options — a group
+ * named by its visible label. The label step in muted ink, as a table header
+ * names its column; centred on a 28 px option's height so the baselines meet.
+ */
 const FilterRow: FC<PropsWithChildren<{ label: string }>> = ({ label, children }) => {
   const id = `filter-${label.toLowerCase()}`;
   return (
     <>
-      <div id={id} class="pt-1 text-[13px] font-medium text-ink-muted">
+      <div id={id} class="flex min-h-[28px] items-center text-label text-ink-muted">
         {label}
       </div>
       <div role="group" aria-labelledby={id} class="flex flex-wrap items-center gap-1.5">

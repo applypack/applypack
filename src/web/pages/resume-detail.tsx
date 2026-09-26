@@ -392,10 +392,9 @@ const SearchCard: FC<ResumeDetailProps['search'] & { resumeId: number }> = ({
             <p class="mt-2 text-[13px] leading-5 text-warn">Note: {draft.warnings.join('; ')}.</p>
           )}
           <div class="mt-3.5">
+            {/* The card's one act, and it spends no AI: the draft above is the stored scan's. */}
             <ActionForm action={`/resumes/${resumeId}/profile`}>
-              <Button variant="violet" size="sm">
-                Create a search from this resume
-              </Button>
+              <Button size="sm">Create a search from this resume</Button>
             </ActionForm>
           </div>
           <Hint class="mt-3">

@@ -581,7 +581,7 @@ const CriterionChip: FC<{ c: Criterion }> = ({ c }) => {
   const words = c.kind === 'impact' || c.kind === 'overall' ? c.label : criterionText(c) || c.label;
   return (
     <span
-      class={`inline-flex min-w-0 max-w-[32rem] items-center gap-1 rounded-full px-2 py-0.5 text-xs ring-1 ring-inset ${
+      class={`inline-flex min-w-0 max-w-[32rem] items-center gap-1 rounded-md px-2 py-0.5 text-xs ring-1 ring-inset ${
         c.mode === 'gate' ? 'bg-warn/5 text-ink ring-warn/25' : c.mode === 'note' ? 'bg-surface-overlay text-ink-muted ring-line' : 'bg-surface-raised text-ink ring-line'
       }`}
       title={`${CRITERION_KIND_LABELS[c.kind]} · ${CRITERION_MODE_LABELS[c.mode].split(' — ')[0]}${c.source === 'you' ? ' · yours' : ''}`}
@@ -683,7 +683,8 @@ const RUN_BADGE_CSS = `
   .run-badge { display: none; margin-right: .5rem; font-size: 11px; font-weight: 500; border-radius: 9999px; padding: 1px 8px; vertical-align: middle; }
   tr[data-run-state] .run-badge { display: inline-block; }
   tr[data-run-state="queued"] .run-badge { background: rgb(var(--surface-overlay)); color: rgb(var(--ink-muted)); }
-  tr[data-run-state="scoring"] .run-badge { background: rgb(var(--violet) / .12); color: rgb(var(--violet)); }
+  /* Info, as DESIGN.md names the run badges: violet is for the button that starts the spend, not the row it is spent on. */
+  tr[data-run-state="scoring"] .run-badge { background: rgb(var(--info) / .12); color: rgb(var(--info)); }
   tr[data-run-state="scored"] .run-badge { background: rgb(var(--ok) / .12); color: rgb(var(--ok)); }
   /* While a row is in the run, the number beside the badge is its previous verdict — say so, or it reads as the new one. */
   tr[data-run-state] .score-now { color: rgb(var(--ink-faint)); font-weight: 400; }
