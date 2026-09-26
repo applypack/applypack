@@ -32,6 +32,8 @@ import { welcomeRoute } from './routes/welcome';
 import { countriesRoute } from './routes/countries';
 import { screenRoute } from './routes/screen';
 import { ensureEmployerMode } from './employer-mode';
+import { withDisplayZone } from './display-zone';
+import { getSchedule } from '../settings';
 import { DEFAULT_BODY_BYTES, hasOwnBodyLimit } from './body-limits';
 
 const app = new Hono();
@@ -109,18 +111,21 @@ app.use('*', async (c, next) =>
   hasOwnBodyLimit(c.req.method, c.req.path) ? next() : bodyLimit({ maxSize: DEFAULT_BODY_BYTES })(c, next),
 );
 
-// Tiny request log; also loads the employer-mode switch once, for the sidebar (ADR 0049).
+// Tiny request log; also loads the employer-mode switch once, for the sidebar
+// (ADR 0049), and the zone every date on the page is written in.
 app.use('*', async (c, next) => {
   // The sidebar's one switch. With the database down every route used to
   // die here, /health included — the route decides what a missing database
   // means for it (a 503 on /health), so the failure is logged and passed.
+  let timezone = config.TZ;
   try {
     await ensureEmployerMode();
+    timezone = (await getSchedule()).timezone;
   } catch (err) {
     logger.warn({ err, path: c.req.path }, 'web: employer mode unknown — database unreachable');
   }
   const started = Date.now();
-  await next();
+  await withDisplayZone(timezone, () => next());
   logger.info(
     {
       method: c.req.method,

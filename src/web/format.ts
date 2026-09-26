@@ -1,7 +1,6 @@
 import { formatSalaryRange } from '../currency';
 import type { JobStatus } from '@prisma/client';
-
-const SHORT_TZ = 'America/Chicago';
+import { displayZone } from './display-zone';
 
 /** The posting's own money and period (src/currency.ts); null columns read as USD a year. */
 export function formatSalary(
@@ -13,22 +12,37 @@ export function formatSalary(
   return formatSalaryRange(min, max, currency, period);
 }
 
+/** A moment, in the zone of the user's schedule, with the zone named so the reader does not have to guess it. */
 export function formatDate(d: Date | null | undefined): string {
   if (!d) return '—';
   return d.toLocaleString('en-US', {
-    timeZone: SHORT_TZ,
+    timeZone: displayZone(),
     year: 'numeric',
     month: 'short',
     day: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
+    timeZoneName: 'short',
+  });
+}
+
+/** A moment in a table cell: day and 24-hour time, no year; the column header names the zone (`displayZoneLabel`). */
+export function formatStamp(d: Date | null | undefined): string {
+  if (!d) return '—';
+  return d.toLocaleString('en-US', {
+    timeZone: displayZone(),
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
   });
 }
 
 export function formatDateShort(d: Date | null | undefined): string {
   if (!d) return '—';
   return d.toLocaleString('en-US', {
-    timeZone: SHORT_TZ,
+    timeZone: displayZone(),
     month: 'short',
     day: 'numeric',
   });
