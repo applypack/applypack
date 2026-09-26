@@ -2,7 +2,7 @@ import { AtsType, type Company } from '@prisma/client';
 import { prisma } from '../db';
 import { logger } from '../logger';
 import { HttpError, sleep } from '../http';
-import { getSettings, toAtsTypes } from '../settings';
+import { getSettings, pausedFamilies } from '../settings';
 import { listActiveProfiles } from '../profiles';
 import { isBlankProfile } from '../profile-guards';
 import { EMPTY_CONTEXT, searchPlaces, type FetchContext } from './fetch-context';
@@ -95,7 +95,7 @@ export async function runAllFetchers(
   opts: FetchWalkOptions = {},
 ): Promise<FetcherResult[]> {
   const settings = await getSettings();
-  const disabled = toAtsTypes(settings.disabledSources);
+  const disabled = pausedFamilies(settings);
   if (disabled.length > 0) {
     logger.info({ disabled }, 'fetchers: skipping disabled source families');
   }

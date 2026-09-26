@@ -53,7 +53,7 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for diagrams.
 | ARBEITNOW          | aggregator    | none      | EU-skewed; **disabled by default**              |
 | DOU                | aggregator    | feed query (`category=PHP&remote`) | Ukraine's board via its RSS; one row per query; **disabled by default** (stage 3b) |
 | DJINNI             | aggregator    | feed filter (`primary_keyword=PHP&employment=remote&region=UKR`) | Ukraine's marketplace via its RSS; location comes from the filter; **disabled by default** (stage 3b) |
-| HN_HIRING          | aggregator    | none      | Algolia API → monthly "Ask HN: Who is hiring?" |
+| HN_HIRING          | aggregator    | none      | Algolia API → the latest "Ask HN: Who is hiring?"; added by the first monthly pull (or Run now), then read hourly |
 | WEWORKREMOTELY     | aggregator    | none      | Per-category RSS, atsToken = category slug      |
 | GOLANGPROJECTS     | aggregator    | none      | Single RSS; **disabled by default** (Go-only)   |
 | JOBICY             | aggregator    | none      | RSS `?job_categories=dev`, custom `job_listing:` namespace |
@@ -225,10 +225,10 @@ clause at the start of the affected job/handler. The toggles live on
 | `applicationTrackingEnabled`     | true     | Hides the per-job tracking card, skips the funnel seed on APPLIED and the stale nudge |
 | `staleApplicationsDigestEnabled` | true     | Daily nudge job exits early                  |
 | `sourceHealthAlerts`             | true     | The recap carries no line about quiet sources |
-| `hnParserEnabled`                | false    | Monthly HN cron + manual run skip (on `/discovery`) |
+| `hnParserEnabled`                | false    | The HN thread is not read: the monthly pull and Run now skip, and the hourly walk leaves the HN_HIRING row out (`settings.ts:pausedFamilies`). Unticking HN on Settings → Sources does the same (on `/discovery`) |
 | `discoveryEnabled`               | false    | No CompanyCandidates from HN comments or from fetched jobs, and the weekly probe skips (on `/discovery`) |
 | `fetchingEnabled`                | false    | Master pause: hourly fetch + monthly HN pull exit early (`fetching-paused`); the fetch tick still delivers held alerts and runs the France Travail check; digest/cleanup/discovery/dashboard unaffected. Deployments start PAUSED — enable via `/settings` → "Job fetching" |
-| `disabledSources` (String[])     | `[]`     | Skip whole AtsType families in runAllFetchers |
+| `disabledSources` (String[])     | `[]`     | Skip whole AtsType families in runAllFetchers (and the monthly HN pull, for HN_HIRING); a switched-off family is never called quiet |
 | `employerMode`                   | false    | Employer mode (ADR 0049): the Screening menu item and every `/screen` route exist only while on; the worker never reads it |
 | `screeningRetentionDays`         | 90       | How long a screening keeps its applicant files and verdicts before the weekly cleanup deletes it (ADR 0048) |
 

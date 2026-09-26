@@ -142,6 +142,8 @@ export interface SettingsProps {
   staleApplicationsDigestEnabled: boolean;
   sourceHealthAlerts: boolean;
   disabledSources: string[];
+  /** Off on /discovery stops the HN thread as surely as unticking its pill here. */
+  hnParserEnabled: boolean;
   /** ADR 0034: the keyed sources' credential rows — origins and masks only, never a value. */
   sourceKeyRows: SourceKeyRow[];
   sourceGroups: SourceGroup[];
@@ -338,6 +340,7 @@ export const SettingsPage: FC<SettingsProps> = ({
   staleApplicationsDigestEnabled,
   sourceHealthAlerts,
   disabledSources,
+  hnParserEnabled,
   sourceKeyRows,
   sourceGroups,
   fetchingEnabled,
@@ -966,6 +969,10 @@ export const SettingsPage: FC<SettingsProps> = ({
                         {p.locked ? (
                           <a href="#source-keys" class="text-warn hover:underline">
                             needs a key
+                          </a>
+                        ) : p.atsType === 'HN_HIRING' && !hnParserEnabled ? (
+                          <a href="/discovery" class="text-warn hover:underline">
+                            parser off on Discovery
                           </a>
                         ) : (
                           describeCount(p, g.family)

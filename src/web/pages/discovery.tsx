@@ -72,9 +72,9 @@ export const DiscoveryPage: FC<DiscoveryProps> = ({
                   </Button>
                 </ActionForm>
               }
-              more="The thread runs to 300–500 comments; the structured ones go through the same filter → classify → alert pipeline as any posting. Many small startups post only there."
+              more="The first pull (on the 1st of the month, or Run now) adds the thread as a source; from then on the hourly fetch reads it with the others, so new comments arrive through the month. It runs to 300–500 comments; the structured ones go through the same filter → classify → alert pipeline as any posting. Many small startups post only there. Switching the source off on Settings → Sources stops it too."
             >
-              Reads the latest "Ask HN: Who is hiring?" thread once a month; Run now spends AI credit.
+              Reads the latest "Ask HN: Who is hiring?" thread every hour once the first pull has added it; Run now spends AI credit.
             </ToggleRow>
           </div>
         </div>
