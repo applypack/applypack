@@ -16,6 +16,10 @@ import type { PostingBrief } from '../resume/prompts';
  * criterion that stands behind the wish (docs/screening-criteria-plan.md
  * §2.4). Pure: schema, draft, presets, the text grammar, equality, a
  * summary; no I/O.
+ *
+ * One grammar reads every row, whoever writes it — the person, the draft, a
+ * preset, a v1 rubric — so the editor's text for a row reads back into the
+ * same row, and the editor saved as it is rendered changes nothing.
  */
 
 export const RUBRIC_VERSION = 2;
@@ -126,6 +130,11 @@ const MAX_CRITERIA = 40;
 const MAX_CUSTOM = 20;
 const MAX_TEXT = 200;
 const MAX_TERM = 60;
+const MAX_ALIASES = 8;
+/** A years band or an industry's years: the schema's ceiling, which a larger number is clamped to. */
+const MAX_YEARS = 60;
+/** Posting rows the person removed, remembered by label; past this the oldest is forgotten. */
+const MAX_REMOVED = 60;
 export const MAX_WEIGHT = 5;
 /** A skill's recency window, in months: "within 36 months", or "within 3 years" read as 36. */
 const MIN_WINDOW_MONTHS = 1;
@@ -138,7 +147,7 @@ const text = z.string().trim().min(1).max(MAX_TEXT);
 const SpecSchema = z
   .object({
     /** skill: one term, or the members of an either/or group. */
-    terms: z.array(z.object({ term, aliases: z.array(term).max(8).default([]) })).max(12).default([]),
+    terms: z.array(z.object({ term, aliases: z.array(term).max(MAX_ALIASES).default([]) })).max(12).default([]),
     /** skill: part of the core stack — none of the core anywhere caps the score at 30. */
     core: z.boolean().default(false),
     /** skill: the rung a gate needs (a scored skill takes the ladder as it is). */
@@ -147,8 +156,8 @@ const SpecSchema = z
     recentWithinMonths: z.number().int().min(MIN_WINDOW_MONTHS).max(MAX_WINDOW_MONTHS).nullable().default(null),
     /** years: the kind of work that counts, and the band. */
     of: z.string().trim().max(MAX_TEXT).nullable().default(null),
-    min: z.number().min(0).max(60).nullable().default(null),
-    max: z.number().min(0).max(60).nullable().default(null),
+    min: z.number().min(0).max(MAX_YEARS).nullable().default(null),
+    max: z.number().min(0).max(MAX_YEARS).nullable().default(null),
     /** level. */
     wanted: z.enum(SCREEN_LEVELS).nullable().default(null),
     tolerance: z.enum(LEVEL_TOLERANCES).default('one'),
@@ -185,7 +194,7 @@ export const RubricSchema = z.object({
   version: z.literal(RUBRIC_VERSION).default(RUBRIC_VERSION),
   criteria: z.array(CriterionSchema).max(MAX_CRITERIA).default([]),
   /** Posting-drafted criteria the person removed, by label — a redraft does not resurrect them. */
-  removed: z.array(z.string()).max(60).default([]),
+  removed: z.array(z.string()).max(MAX_REMOVED).default([]),
 });
 export type Rubric = z.infer<typeof RubricSchema>;
 
@@ -227,27 +236,23 @@ export function readRubric(value: unknown): Rubric {
 function fromV1(v1: z.infer<typeof V1Schema>): Rubric {
   const taken = new Set<string>();
   const criteria: Criterion[] = [];
-  const add = (c: Omit<Criterion, 'id'>): void => {
+  const add = (c: Omit<Criterion, 'id'> | null): void => {
+    if (!c) return;
     const id = newCriterionId(c.kind, taken);
     taken.add(id);
     criteria.push({ ...c, id });
   };
-  for (const gate of v1.gates) {
-    add({ kind: 'custom', label: gate, mode: 'gate', weight: 3, source: 'posting', spec: SpecSchema.parse({ question: gate }) });
-  }
-  for (const group of groupTerms(v1.must)) {
-    add({ kind: 'skill', label: skillLabel(group.map((t) => t.term), group.some((t) => t.primary)), mode: 'scored', weight: 3, source: 'posting', spec: SpecSchema.parse({ terms: group.map((t) => ({ term: t.term, aliases: t.aliases })), core: group.some((t) => t.primary) }) });
-  }
-  for (const group of groupTerms(v1.nice)) {
-    add({ kind: 'skill', label: skillLabel(group.map((t) => t.term), false), mode: 'scored', weight: 1, source: 'posting', spec: SpecSchema.parse({ terms: group.map((t) => ({ term: t.term, aliases: t.aliases })) }) });
-  }
-  if (v1.yearsMin !== null) add({ kind: 'years', label: `${v1.yearsMin}+ years`, mode: 'scored', weight: 2, source: 'posting', spec: SpecSchema.parse({ min: v1.yearsMin }) });
-  if (v1.level) add({ kind: 'level', label: `${v1.level} (one rung either way)`, mode: 'scored', weight: 2, source: 'posting', spec: SpecSchema.parse({ wanted: v1.level, tolerance: 'one' }) });
-  if (v1.domain) add({ kind: 'industry', label: v1.domain, mode: 'scored', weight: 2, source: 'posting', spec: SpecSchema.parse({ items: [v1.domain] }) });
-  if (v1.educationRequired) add({ kind: 'education', label: 'a degree or certificate the posting requires', mode: 'gate', weight: 3, source: 'posting', spec: SpecSchema.parse({}) });
-  add({ kind: 'impact', label: 'outcomes, not duties', mode: 'scored', weight: 2, source: 'posting', spec: SpecSchema.parse({}) });
-  add({ kind: 'overall', label: 'the whole resume against the whole posting', mode: 'scored', weight: 2, source: 'posting', spec: SpecSchema.parse({}) });
-  return RubricSchema.parse({ version: RUBRIC_VERSION, criteria });
+  const posting = (mode: CriterionMode, weight: number): RowShape => ({ mode, weight, source: 'posting' });
+  for (const gate of v1.gates) add(written('custom', gate, posting('gate', 3)));
+  for (const group of groupTerms(v1.must)) add(skillRow(group, group.some((t) => t.primary), posting('scored', 3)));
+  for (const group of groupTerms(v1.nice)) add(skillRow(group, false, posting('scored', 1)));
+  if (v1.yearsMin !== null) add(written('years', `${v1.yearsMin}+ years`, posting('scored', 2)));
+  if (v1.level) add(written('level', `${v1.level} (one rung either way)`, posting('scored', 2)));
+  if (v1.domain) add(written('industry', v1.domain, posting('scored', 2)));
+  if (v1.educationRequired) add(written('education', 'a degree or certificate the posting requires', posting('gate', 3)));
+  add(written('impact', '', posting('scored', 2)));
+  add(written('overall', '', posting('scored', 2)));
+  return RubricSchema.parse({ version: RUBRIC_VERSION, criteria: criteria.slice(0, MAX_CRITERIA) });
 }
 
 /** Terms sharing a group label become one either/or criterion; the rest stand alone. */
@@ -271,10 +276,40 @@ function groupTerms<T extends { group: string | null }>(terms: T[]): T[][] {
   return out;
 }
 
+/* ---------- rows the code writes: through the editor's grammar, so the editor reads them back unchanged ---------- */
+
+type RowShape = Pick<Criterion, 'mode' | 'weight' | 'source'>;
+
+/** A row from words, read exactly as the editor reads them; null when the kind cannot read them. */
+function written(kind: CriterionKind, text: string, row: RowShape): Omit<Criterion, 'id'> | null {
+  const read = parseCriterionText(kind, text);
+  return read && { kind, ...row, label: read.label, spec: read.spec };
+}
+
+/** A skill row from named terms (the posting's, a v1 rubric's), each term keeping its spellings. */
+function skillRow(terms: { term: string; aliases: string[] }[], core: boolean, row: RowShape): Omit<Criterion, 'id'> | null {
+  const skill = written('skill', skillText(terms.map((t) => t.term), null, core), row);
+  if (skill) {
+    const spelled = terms.map((t) => ({ term: termOf(t.term), aliases: t.aliases.map(termOf).filter(Boolean).slice(0, MAX_ALIASES) }));
+    skill.spec.terms = keepAliases(skill.spec.terms, spelled);
+  }
+  return skill;
+}
+
+/** A term or a spelling as a skill row keeps it: single spaces, cut to the schema's length. */
+function termOf(raw: string): string {
+  return raw.trim().replace(/\s+/g, ' ').slice(0, MAX_TERM).trim();
+}
+
+/** Each term with the spellings its namesake in `from` carries. */
+function keepAliases(terms: CriterionSpec['terms'], from: { term: string; aliases: string[] }[]): CriterionSpec['terms'] {
+  return terms.map((t) => ({ ...t, aliases: from.find((o) => o.term.toLowerCase() === t.term.toLowerCase())?.aliases ?? [] }));
+}
+
 /* ---------- the draft from the posting brief ---------- */
 
 const EDUCATION_WORDS = /\b(degree|bachelor|master|bsc|msc|b\.s\.|m\.s\.|phd|diploma)\b/i;
-const CERT_WORDS = /\b(certif|licen[cs]e|clearance)\b/i;
+const CERT_WORDS = /\b(certif\w*|licen[cs]e[ds]?|clearance)\b/i;
 const YEARS_WORDS = /(\d+)\s*(?:\+|-|–|to)?\s*(\d+)?\s*\+?\s*years?/i;
 const AUTH_WORDS = /\b(authori[sz]ed|authori[sz]ation|work permit|eligible to work|legally able|right to work|visa|sponsorship)\b/i;
 const LOCATION_WORDS = /\b(located|based|on-?site|relocat|in the office|hybrid)\b/i;
@@ -294,12 +329,13 @@ export function draftRubric(brief: PostingBrief | null, previous: Rubric = empty
   const removed = new Set(previous.removed.map((l) => l.toLowerCase()));
   const taken = new Set<string>();
   const criteria: Criterion[] = [];
-  const add = (c: Omit<Criterion, 'id'>): void => {
-    if (removed.has(c.label.toLowerCase())) return;
+  const add = (c: Omit<Criterion, 'id'> | null): void => {
+    if (!c || removed.has(c.label.toLowerCase())) return;
     const id = newCriterionId(c.kind, taken);
     taken.add(id);
     criteria.push({ ...c, id });
   };
+  const posting = (mode: CriterionMode, weight: number): RowShape => ({ mode, weight, source: 'posting' });
   // The posted title (or a two-word fragment of it) and the sector are not
   // skills: the title is what the rubric is FOR, the sector is the industry
   // row. A one-word term that also sits in the title ("Playwright" in
@@ -311,43 +347,33 @@ export function draftRubric(brief: PostingBrief | null, previous: Rubric = empty
     if (t === sector) return false;
     return !(t.split(/\s+/).length >= 2 && title.includes(t));
   });
-  for (const gate of brief.gates) add(gateCriterion(gate));
-  for (const group of groupTerms(skills.filter((k) => k.requirement === 'must'))) {
-    const core = group.some((k) => k.primary);
-    add({ kind: 'skill', label: skillLabel(group.map((k) => k.term), core), mode: 'scored', weight: 3, source: 'posting', spec: SpecSchema.parse({ terms: group.map((k) => ({ term: k.term, aliases: k.aliases.slice(0, 8) })), core }) });
-  }
-  for (const group of groupTerms(skills.filter((k) => k.requirement === 'preferred' || k.requirement === 'nice'))) {
-    add({ kind: 'skill', label: skillLabel(group.map((k) => k.term), false), mode: 'scored', weight: 1, source: 'posting', spec: SpecSchema.parse({ terms: group.map((k) => ({ term: k.term, aliases: k.aliases.slice(0, 8) })) }) });
-  }
+  for (const gate of brief.gates) add(written(gateKind(gate), gate, posting('gate', 3)) ?? written('custom', gate, posting('gate', 3)));
+  for (const group of groupTerms(skills.filter((k) => k.requirement === 'must'))) add(skillRow(group, group.some((k) => k.primary), posting('scored', 3)));
+  for (const group of groupTerms(skills.filter((k) => k.requirement === 'preferred' || k.requirement === 'nice'))) add(skillRow(group, false, posting('scored', 1)));
   if (brief.role.years_min !== null && !criteria.some((c) => c.kind === 'years')) {
-    add({ kind: 'years', label: `${brief.role.years_min}+ years: ${brief.role.family}`, mode: 'scored', weight: 2, source: 'posting', spec: SpecSchema.parse({ min: brief.role.years_min, of: brief.role.family }) });
+    const family = brief.role.family.trim();
+    add(written('years', family ? `${brief.role.years_min}+ years: ${family}` : `${brief.role.years_min}+ years`, posting('scored', 2)));
   }
   const level = levelFromBrief(brief.role.seniority);
-  if (level) add({ kind: 'level', label: `${level} (one rung either way)`, mode: 'scored', weight: 2, source: 'posting', spec: SpecSchema.parse({ wanted: level, tolerance: 'one' }) });
-  if (brief.company.industry) add({ kind: 'industry', label: brief.company.industry, mode: 'scored', weight: 2, source: 'posting', spec: SpecSchema.parse({ items: [brief.company.industry] }) });
-  add({ kind: 'impact', label: 'outcomes, not duties', mode: 'scored', weight: 2, source: 'posting', spec: SpecSchema.parse({}) });
-  add({ kind: 'overall', label: 'the whole resume against the whole posting', mode: 'scored', weight: 2, source: 'posting', spec: SpecSchema.parse({}) });
+  if (level) add(written('level', `${level} (one rung either way)`, posting('scored', 2)));
+  if (brief.company.industry) add(written('industry', brief.company.industry, posting('scored', 2)));
+  add(written('impact', '', posting('scored', 2)));
+  add(written('overall', '', posting('scored', 2)));
   // The person's own criteria survive a redraft.
   for (const c of previous.criteria) if (c.source === 'you') criteria.push(c);
   return RubricSchema.parse({ version: RUBRIC_VERSION, criteria: criteria.slice(0, MAX_CRITERIA), removed: previous.removed });
 }
 
-/** A posting's gate sentence under the kind its wording names, else a custom yes / no gate. */
-function gateCriterion(gate: string): Omit<Criterion, 'id'> {
-  const base = { label: gate, mode: 'gate' as const, weight: 3, source: 'posting' as const };
-  const years = YEARS_WORDS.exec(gate);
-  if (years && !CERT_WORDS.test(gate) && !EDUCATION_WORDS.test(gate)) {
-    const min = Number(years[1]);
-    const max = years[2] ? Number(years[2]) : null;
-    return { ...base, kind: 'years', spec: SpecSchema.parse({ min, max, of: gate }) };
-  }
-  if (AUTH_WORDS.test(gate)) return { ...base, kind: 'authorization', spec: SpecSchema.parse({ items: [gate] }) };
-  if (LANGUAGE_WORDS.test(gate)) return { ...base, kind: 'language', spec: SpecSchema.parse({ items: [gate] }) };
-  if (EDUCATION_WORDS.test(gate)) return { ...base, kind: 'education', spec: SpecSchema.parse({ items: [gate] }) };
-  if (CERT_WORDS.test(gate)) return { ...base, kind: 'certification', spec: SpecSchema.parse({ items: [gate] }) };
-  if (LOCATION_WORDS.test(gate)) return { ...base, kind: 'location', spec: SpecSchema.parse({ items: [gate], remoteOk: /remote/i.test(gate) }) };
-  if (AVAILABILITY_WORDS.test(gate)) return { ...base, kind: 'availability', spec: SpecSchema.parse({ level: gate }) };
-  return { ...base, kind: 'custom', spec: SpecSchema.parse({ question: gate, answer: 'yesno' }) };
+/** The kind a posting's gate sentence names, else a custom yes / no gate. */
+function gateKind(gate: string): CriterionKind {
+  if (YEARS_WORDS.test(gate) && !CERT_WORDS.test(gate) && !EDUCATION_WORDS.test(gate)) return 'years';
+  if (AUTH_WORDS.test(gate)) return 'authorization';
+  if (LANGUAGE_WORDS.test(gate)) return 'language';
+  if (EDUCATION_WORDS.test(gate)) return 'education';
+  if (CERT_WORDS.test(gate)) return 'certification';
+  if (LOCATION_WORDS.test(gate)) return 'location';
+  if (AVAILABILITY_WORDS.test(gate)) return 'availability';
+  return 'custom';
 }
 
 /** The brief's seniority vocabulary folded to the four rungs the score can compare. */
@@ -359,10 +385,6 @@ export function levelFromBrief(seniority: string | null): ScreenLevel | null {
   if (/staff|lead|principal|head|architect/.test(s)) return 'lead';
   if (/senior/.test(s)) return 'senior';
   return null;
-}
-
-function skillLabel(terms: string[], core: boolean): string {
-  return `${terms.join(' / ')}${core ? ' !' : ''}`;
 }
 
 /* ---------- presets: one click, then edit ---------- */
@@ -390,41 +412,45 @@ export function applyPreset(rubric: Rubric, preset: Preset): Rubric {
   const taken = new Set(rubric.criteria.map((c) => c.id));
   const criteria = rubric.criteria.map((c) => ({ ...c, spec: { ...c.spec } }));
   const has = (kind: CriterionKind) => criteria.find((c) => c.kind === kind);
-  const add = (c: Omit<Criterion, 'id'>): void => {
+  const add = (c: Omit<Criterion, 'id'> | null): void => {
+    if (!c) return;
     const id = newCriterionId(c.kind, taken);
     taken.add(id);
     criteria.push({ ...c, id });
   };
-  const set = (kind: CriterionKind, patch: Omit<Partial<Criterion>, 'spec'> & { spec?: Partial<CriterionSpec> }): void => {
+  const yours = (mode: CriterionMode, weight: number): RowShape => ({ mode, weight, source: 'you' });
+  /** The kind's first row rewritten to these words (and `patch`), or a new row when there is none — words and spec change together. */
+  const put = (kind: CriterionKind, text: string, fresh: RowShape, patch: Partial<RowShape> = {}): void => {
+    const row = written(kind, text, fresh);
     const c = has(kind);
-    if (c) Object.assign(c, patch, { spec: { ...c.spec, ...(patch.spec ?? {}) } });
+    if (row && c) Object.assign(c, patch, { label: row.label, spec: row.spec });
+    else add(row);
+  };
+  const weigh = (kind: CriterionKind, weight: number): void => {
+    const c = has(kind);
+    if (c) c.weight = weight;
   };
   switch (preset) {
     case 'junior':
-      if (has('years')) set('years', { mode: 'gate', label: '0–2 years', spec: { min: 0, max: 2, of: null } });
-      else add({ kind: 'years', label: '0–2 years', mode: 'gate', weight: 3, source: 'you', spec: SpecSchema.parse({ min: 0, max: 2 }) });
-      if (has('level')) set('level', { label: 'junior or below', spec: { wanted: 'junior', tolerance: 'atMost' } });
-      else add({ kind: 'level', label: 'junior or below', mode: 'scored', weight: 2, source: 'you', spec: SpecSchema.parse({ wanted: 'junior', tolerance: 'atMost' }) });
+      put('years', '0–2 years', yours('gate', 3), { mode: 'gate' });
+      put('level', 'junior or below', yours('scored', 2));
       for (const c of criteria) if (c.kind === 'skill') c.spec.minRung = 'project';
-      set('impact', { weight: 1 });
+      weigh('impact', 1);
       break;
     case 'senior':
-      if (has('years')) set('years', { label: '5+ years', spec: { min: Math.max(5, has('years')!.spec.min ?? 0), max: null } });
-      else add({ kind: 'years', label: '5+ years', mode: 'scored', weight: 3, source: 'you', spec: SpecSchema.parse({ min: 5 }) });
-      if (has('level')) set('level', { label: 'senior or above', spec: { wanted: 'senior', tolerance: 'atLeast' } });
-      else add({ kind: 'level', label: 'senior or above', mode: 'scored', weight: 3, source: 'you', spec: SpecSchema.parse({ wanted: 'senior', tolerance: 'atLeast' }) });
-      set('impact', { weight: 3 });
-      if (!has('scale')) add({ kind: 'scale', label: 'team of 3+ or a system with named numbers', mode: 'scored', weight: 2, source: 'you', spec: SpecSchema.parse({ level: 'team of 3+ or a system with named numbers' }) });
+      put('years', `${Math.max(5, has('years')?.spec.min ?? 0)}+ years`, yours('scored', 3));
+      put('level', 'senior or above', yours('scored', 3));
+      weigh('impact', 3);
+      if (!has('scale')) add(written('scale', 'team of 3+ or a system with named numbers', yours('scored', 2)));
       break;
     case 'regulated':
       for (const c of criteria) if (c.kind === 'education' || c.kind === 'certification') c.mode = 'gate';
-      if (!has('education')) add({ kind: 'education', label: 'the degree the posting requires', mode: 'gate', weight: 3, source: 'you', spec: SpecSchema.parse({}) });
-      if (!has('certification')) add({ kind: 'certification', label: 'the certification the posting requires', mode: 'gate', weight: 3, source: 'you', spec: SpecSchema.parse({}) });
+      if (!has('education')) add(written('education', 'the degree the posting requires', yours('gate', 3)));
+      if (!has('certification')) add(written('certification', 'the certification the posting requires', yours('gate', 3)));
       break;
     case 'agency':
-      if (has('companyType')) set('companyType', { weight: 4, spec: { items: ['agency', 'consultancy'] } });
-      else add({ kind: 'companyType', label: 'agency, consultancy', mode: 'scored', weight: 4, source: 'you', spec: SpecSchema.parse({ items: ['agency', 'consultancy'] }) });
-      set('industry', { weight: 4 });
+      put('companyType', 'agency, consultancy', yours('scored', 4), { weight: 4 });
+      weigh('industry', 4);
       break;
   }
   return RubricSchema.parse({ ...rubric, criteria });
@@ -438,41 +464,31 @@ const CORE_MARK = /\s*!\s*$/;
 const WINDOW_TAIL = /\bwithin\s+(\d+)\s*(months?|years?)$/i;
 /** "within" anywhere else in a skill's text is a window the grammar could not read. */
 const WINDOW_WORD = /\bwithin\b/i;
+/** A years band, the unit optional: "5+", "0–2", "3 to 5 years". */
+const YEARS_BAND = /^(\d+)\s*(?:(?:[–-]|to)\s*(\d+)|\+)?\s*(?:years?)?$/i;
 
-/** The "What" text the editor shows for a criterion — what `parseCriterionText` reads back. */
+/**
+ * The "What" text the editor shows for a criterion — what `parseCriterionText`
+ * reads back into the same row. A skill's is written from its terms, the
+ * window and the core mark in their places; every other kind's is its
+ * label, the words it was saved with, and its spec is read from them.
+ */
 export function criterionText(c: Criterion): string {
-  const s = c.spec;
   switch (c.kind) {
-    case 'skill': {
-      const recency = s.recentWithinMonths === null ? '' : ` within ${s.recentWithinMonths} month${s.recentWithinMonths === 1 ? '' : 's'}`;
-      return `${s.terms.map((t) => t.term).join(' / ')}${recency}${s.core ? ' !' : ''}`;
-    }
-    case 'years': {
-      const band = s.min !== null && s.max !== null ? `${s.min}–${s.max}` : s.max !== null ? `0–${s.max}` : `${s.min ?? 0}+`;
-      return s.of ? `${band}: ${s.of}` : band;
-    }
-    case 'level':
-      return `${s.wanted ?? 'mid'}${s.tolerance === 'atLeast' ? ' or above' : s.tolerance === 'atMost' ? ' or below' : s.tolerance === 'exact' ? ' exactly' : ''}`;
-    case 'industry':
-      return s.min !== null ? `${s.items.join(', ')}: ${s.min}+` : s.items.join(', ');
-    case 'companyType':
-    case 'certification':
-      return s.items.join(', ');
-    case 'language':
-    case 'authorization':
-    case 'availability':
-    case 'scale':
-      return s.level ?? s.items.join(', ');
-    case 'location':
-      return `${s.items.join(', ')}${s.remoteOk ? ' or remote' : ''}`;
-    case 'education':
-      return s.level ? `${s.level}${s.items.length > 0 ? `: ${s.items.join(', ')}` : ''}` : s.items.join(', ');
-    case 'custom':
-      return s.question ?? c.label;
+    case 'skill':
+      return skillText(c.spec.terms.map((t) => t.term), c.spec.recentWithinMonths, c.spec.core);
     case 'impact':
     case 'overall':
       return '';
+    default:
+      return c.label;
   }
+}
+
+/** A skill's words: "React / Vue within 36 months !"; without the window it is the row's label. */
+function skillText(terms: string[], recentWithinMonths: number | null, core: boolean): string {
+  const recency = recentWithinMonths === null ? '' : ` within ${recentWithinMonths} month${recentWithinMonths === 1 ? '' : 's'}`;
+  return `${terms.join(' / ')}${recency}${core ? ' !' : ''}`;
 }
 
 /** The editor's text back into a spec (the label is the text). Null when the kind needs text and none was given. */
@@ -499,17 +515,20 @@ export function parseCriterionText(kind: CriterionKind, raw: string): { label: s
       }
       // Refused, not kept: inside a term it would be searched for with the term, which then reads as absent for everyone.
       if (WINDOW_WORD.test(rest)) return null;
-      const terms = rest.split(' / ').map((t) => t.trim()).filter(Boolean).slice(0, 12);
-      if (terms.length === 0) return null;
-      return { label: skillLabel(terms, core), spec: SpecSchema.parse({ terms: terms.map((t) => ({ term: t.slice(0, MAX_TERM) })), core, recentWithinMonths }) };
+      const terms = rest.split(' / ').map(termOf).filter(Boolean).slice(0, 12);
+      // Longer than the editor's field once written out, it could not come back whole: refused rather than cut.
+      if (terms.length === 0 || skillText(terms, recentWithinMonths, core).length > MAX_TEXT) return null;
+      return { label: skillText(terms, null, core), spec: SpecSchema.parse({ terms: terms.map((term) => ({ term })), core, recentWithinMonths }) };
     }
     case 'years': {
-      const [band, ...rest] = text.split(':');
-      const m = /^(\d+)\s*(?:([–-])\s*(\d+)|\+)?$/.exec((band ?? '').trim());
-      if (!m) return null;
-      const min = m[2] ? Number(m[1]) : Number(m[1]);
-      const max = m[3] ? Number(m[3]) : null;
-      const of = rest.join(':').trim() || null;
+      // A band with the kind of work after a colon ("5+ years: test automation"), or a sentence that names the years.
+      const [head = '', ...work] = text.split(':');
+      const band = YEARS_BAND.exec(head.trim());
+      const said = band ?? YEARS_WORDS.exec(text);
+      if (!said) return null;
+      const min = Math.min(MAX_YEARS, Number(said[1]));
+      const max = said[2] === undefined ? null : Math.min(MAX_YEARS, Number(said[2]));
+      const of = band ? work.join(':').trim() || null : text;
       return { label: text, spec: SpecSchema.parse({ min: max !== null && min > max ? max : min, max, of }) };
     }
     case 'level': {
@@ -523,7 +542,7 @@ export function parseCriterionText(kind: CriterionKind, raw: string): { label: s
       const items = list(sectors ?? '');
       if (items.length === 0) return null;
       const min = years ? Number(/\d+/.exec(years)?.[0]) : NaN;
-      return { label: text, spec: SpecSchema.parse({ items, min: Number.isFinite(min) ? min : null }) };
+      return { label: text, spec: SpecSchema.parse({ items, min: Number.isNaN(min) ? null : Math.min(MAX_YEARS, min) }) };
     }
     case 'companyType':
     case 'certification': {
@@ -532,7 +551,8 @@ export function parseCriterionText(kind: CriterionKind, raw: string): { label: s
     }
     case 'location': {
       const remoteOk = /\bor remote\b|\bremote ok\b/i.test(text);
-      const items = list(text.replace(/\bor remote\b|\bremote ok\b/i, ''));
+      // "Kyiv or remote": the trailing phrase is the flag, not a place; inside a sentence it stays in the sentence.
+      const items = list(text.replace(/\s*\b(?:or remote|remote ok)$/i, ''));
       return items.length === 0 && !remoteOk ? null : { label: text, spec: SpecSchema.parse({ items, remoteOk }) };
     }
     case 'education': {
@@ -600,7 +620,7 @@ export function rubricFromForm(form: Record<string, unknown>, previous: Rubric):
     const weight = Math.max(1, Math.min(MAX_WEIGHT, Math.round(Number(str(`weight_${c.id}`)) || c.weight)));
     const answer = str(`answer_${c.id}`) === 'howmuch' ? 'howmuch' : str(`answer_${c.id}`) === 'yesno' ? 'yesno' : c.spec.answer;
     // A skill keeps each unchanged term's aliases and its minimum rung; the text sets the terms, the core mark and the window.
-    const spec = c.kind === 'skill' ? { ...parsed.spec, terms: parsed.spec.terms.map((t) => ({ ...t, aliases: c.spec.terms.find((o) => o.term.toLowerCase() === t.term.toLowerCase())?.aliases ?? [] })), minRung: c.spec.minRung } : { ...parsed.spec, answer };
+    const spec = c.kind === 'skill' ? { ...parsed.spec, terms: keepAliases(parsed.spec.terms, c.spec.terms), minRung: c.spec.minRung } : { ...parsed.spec, answer };
     const next: Criterion = { ...c, label: parsed.label, mode, weight, spec: SpecSchema.parse(spec) };
     const refused = protectedCharacteristic(next);
     if (refused) return { error: refused };
@@ -623,12 +643,23 @@ export function rubricFromForm(form: Record<string, unknown>, previous: Rubric):
     criteria.push(next);
   }
   if (criteria.length > MAX_CRITERIA) return { error: `At most ${MAX_CRITERIA} criteria.` };
-  return { rubric: RubricSchema.parse({ version: RUBRIC_VERSION, criteria, removed }) };
+  return { rubric: RubricSchema.parse({ version: RUBRIC_VERSION, criteria, removed: removed.slice(-MAX_REMOVED) }) };
 }
 
-/** Same yardstick or not — what decides whether a save bumps the version. Ids and sources do not count; what is read and weighed does. */
+/** A status or years row's spec fields read out of its own words; nothing reads them, the model reads the words. */
+const WORD_READINGS = new Set(['items', 'level', 'remoteOk', 'question', 'of']);
+
+/**
+ * Same yardstick or not — what decides whether a save bumps the version. Ids
+ * and sources do not count; what is read and weighed does: the words, the
+ * mode, a scored row's stars, and the spec the score reads. A status or
+ * years row's reading of its own words is left out, so an older reading of
+ * the same words (a draft from before the grammar wrote every row) is the
+ * same yardstick.
+ */
 export function rubricEquals(a: Rubric, b: Rubric): boolean {
-  const key = (r: Rubric) => JSON.stringify(r.criteria.map((c) => [c.kind, c.label.toLowerCase(), c.mode, c.mode === 'scored' ? c.weight : 0, c.spec]));
+  const weighed = (c: Criterion) => (KIND_ANSWER[c.kind] === 'status' || c.kind === 'years' ? Object.entries(c.spec).filter(([field]) => !WORD_READINGS.has(field)) : c.spec);
+  const key = (r: Rubric) => JSON.stringify(r.criteria.map((c) => [c.kind, c.label.toLowerCase(), c.mode, c.mode === 'scored' ? c.weight : 0, weighed(c)]));
   return key(a) === key(b);
 }
 

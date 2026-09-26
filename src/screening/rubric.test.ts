@@ -4,15 +4,18 @@ import { BriefSchema } from '../resume/prompts';
 import {
   applyPreset,
   coreCriteria,
+  CRITERION_KINDS,
   criterionText,
   draftRubric,
   emptyRubric,
   levelFromBrief,
   parseCriterionText,
+  PRESETS,
   protectedCharacteristic,
   readRubric,
   rubricEquals,
   rubricFromForm,
+  RubricSchema,
   rubricSummary,
   RUBRIC_VERSION,
   type Criterion,
@@ -39,18 +42,55 @@ const BRIEF = BriefSchema.parse({
   gates: ['at least 5 years of backend development', 'EU work authorisation', "Bachelor's degree in Computer Science or equivalent", 'German at B2 or higher', 'on-site in Berlin or remote within Germany'],
 });
 
+/** A posting whose draft holds every kind a draft can write: a gate of each wording, core / plain / either-or / nice skills, the years from the role, the level, the sectors. */
+const EVERY_KIND = BriefSchema.parse({
+  role: { posted_title: 'Senior QA Automation Engineer', family: 'test automation', seniority: 'senior', years_min: 4, focus: '' },
+  company: { industry: 'payments, banking', product: null, audience: null, stage: null },
+  requirement_groups: [{ label: 'e2e framework', level: 'must', satisfy: 'any', options: ['Playwright', 'Cypress'] }],
+  keywords: [
+    { term: 'Playwright', priority: 1, requirement: 'must', primary: true, aliases: ['playwright test'], group: 'e2e framework' },
+    { term: 'Cypress', priority: 1, requirement: 'must', primary: true, aliases: [], group: 'e2e framework' },
+    { term: 'TypeScript', priority: 1, requirement: 'must', primary: false, aliases: ['ts'], group: null },
+    { term: 'Postman', priority: 3, requirement: 'preferred', primary: false, aliases: [], group: null },
+    { term: 'k6', priority: 4, requirement: 'nice', primary: false, aliases: [], group: null },
+  ],
+  gates: [
+    'EU work authorisation or a valid work permit',
+    'English at C1 or fluent',
+    "Bachelor's degree in Computer Science or equivalent",
+    'a valid security clearance',
+    'on-site in Berlin or remote within Germany',
+    'able to start within 4 weeks',
+    'has owned a test framework end to end',
+  ],
+});
+
 const byKind = (r: { criteria: Criterion[] }, kind: CriterionKind) => r.criteria.filter((c) => c.kind === kind);
 
-/** The editor's form as it posts a rubric back, with some rows' text changed. */
+/** The editor's form exactly as `pages/screen-detail.tsx` renders it (no text field on the two fixed rows, the answer select on a custom row, the empty add row), with some rows' text changed. */
 function formOf(r: Rubric, texts: Record<string, string> = {}): Record<string, string> {
-  const form: Record<string, string> = {};
+  const form: Record<string, string> = { add_kind: 'custom', add_text: '', add_answer: 'yesno', add_mode: 'scored', add_weight: '3' };
   for (const c of r.criteria) {
-    form[`text_${c.id}`] = texts[c.id] ?? criterionText(c);
+    if (c.kind !== 'impact' && c.kind !== 'overall') form[`text_${c.id}`] = texts[c.id] ?? criterionText(c);
+    if (c.kind === 'custom') form[`answer_${c.id}`] = c.spec.answer;
     form[`mode_${c.id}`] = c.mode;
     form[`weight_${c.id}`] = String(c.weight);
   }
   return form;
 }
+
+/** The editor's form posted back as rendered. */
+function saveUntouched(r: Rubric): Rubric {
+  const out = rubricFromForm(formOf(r), r);
+  assert.ok('rubric' in out, JSON.stringify(out));
+  return out.rubric;
+}
+
+test('a certification gate drafts under its kind, whatever form of the word it takes', () => {
+  for (const gate of ['ISTQB certification required', 'AWS Certified Solutions Architect', 'a valid security clearance', 'a licensed electrician']) {
+    assert.deepEqual(byKind(draftRubric({ ...BRIEF, gates: [gate] }), 'certification').map((c) => [c.label, c.mode]), [[gate, 'gate']], gate);
+  }
+});
 
 test('draftRubric turns the brief into criteria under the kinds their wording names', () => {
   const r = draftRubric(BRIEF);
@@ -106,16 +146,20 @@ test('the text grammar round-trips every kind', () => {
     ['skill', 'Kubernetes within 1 month', 'Kubernetes within 1 month'],
     ['years', '5+: test automation', '5+: test automation'],
     ['years', '0–2', '0–2'],
-    ['years', '3-5', '3–5'],
+    ['years', '3-5', '3-5'],
+    ['years', '5+ years: test automation', '5+ years: test automation'],
+    ['years', 'at least 5 years of backend development', 'at least 5 years of backend development'],
     ['level', 'junior or below', 'junior or below'],
     ['level', 'senior or above', 'senior or above'],
     ['level', 'mid exactly', 'mid exactly'],
     ['level', 'lead', 'lead'],
+    ['level', 'senior (one rung either way)', 'senior (one rung either way)'],
     ['industry', 'fintech, payments: 3+', 'fintech, payments: 3+'],
     ['industry', 'e-commerce', 'e-commerce'],
     ['companyType', 'agency, consultancy', 'agency, consultancy'],
     ['language', 'English B2', 'English B2'],
     ['location', 'Kyiv or remote', 'Kyiv or remote'],
+    ['location', 'on-site in Berlin or remote within Germany', 'on-site in Berlin or remote within Germany'],
     ['authorization', 'Ukraine', 'Ukraine'],
     ['availability', 'within 4 weeks', 'within 4 weeks'],
     ['education', 'bachelor: computer science, software engineering', 'bachelor: computer science, software engineering'],
@@ -130,12 +174,21 @@ test('the text grammar round-trips every kind', () => {
     assert.ok(parsed, `${kind}: ${input}`);
     const c: Criterion = { id: 'x', kind, label: parsed.label, mode: 'scored', weight: 3, source: 'you', spec: parsed.spec };
     assert.equal(criterionText(c), expected, `${kind}: ${input}`);
+    assert.deepEqual(parseCriterionText(kind, criterionText(c)), parsed, `${kind}: ${input} — the text reads back as the same label and spec`);
   }
   assert.equal(parseCriterionText('years', 'five'), null);
   assert.equal(parseCriterionText('level', 'guru'), null);
   assert.equal(parseCriterionText('skill', '  '), null);
   const band = parseCriterionText('years', '8–3')!;
   assert.deepEqual([band.spec.min, band.spec.max], [3, 3], 'a band upside down is clamped');
+  const years = (text: string) => {
+    const s = parseCriterionText('years', text)!.spec;
+    return [s.min, s.max, s.of];
+  };
+  assert.deepEqual(years('3-5'), [3, 5, null]);
+  assert.deepEqual(years('3 to 5 years'), [3, 5, null]);
+  assert.deepEqual(years('5+ years: test automation'), [5, null, 'test automation']);
+  assert.deepEqual(years('at least 5 years of backend development'), [5, null, 'at least 5 years of backend development'], 'a sentence that names the years reads as the posting wrote it');
 });
 
 test('a skill\'s recency window is typed into its text, and off unless it is', () => {
@@ -180,6 +233,95 @@ test('the editor saves a window from the row\'s text, and deleting the words del
   const removed = rubricFromForm({ ...formOf(windowed), [`remove_${pg.id}`]: '1' }, windowed);
   assert.ok('rubric' in removed);
   assert.ok(!draftRubric(BRIEF, removed.rubric).criteria.some((c) => c.label === 'PostgreSQL'), 'removed with a window, a redraft does not bring it back');
+});
+
+test('the editor saved as rendered changes nothing, for every row a draft or a preset writes', () => {
+  const seen = new Set<CriterionKind>();
+  for (const brief of [BRIEF, EVERY_KIND]) {
+    for (const preset of PRESETS) {
+      let r = applyPreset(draftRubric(brief), preset);
+      for (const c of r.criteria) seen.add(c.kind);
+      for (let save = 1; save <= 3; save++) {
+        const next = saveUntouched(r);
+        assert.deepEqual(next, r, `${preset}, save ${save}: the same rubric`);
+        assert.ok(rubricEquals(r, next), `${preset}, save ${save}: no new version`);
+        r = next;
+      }
+    }
+  }
+  assert.deepEqual([...seen].sort(), [...CRITERION_KINDS].sort(), 'every kind was written and read back');
+  const location = byKind(saveUntouched(saveUntouched(saveUntouched(draftRubric(EVERY_KIND)))), 'location');
+  assert.deepEqual(location.map((c) => [c.label, criterionText(c), c.spec.items, c.spec.remoteOk]), [['on-site in Berlin or remote within Germany', 'on-site in Berlin or remote within Germany', ['on-site in Berlin or remote within Germany'], true]], 'the location words after three saves');
+});
+
+test('a rubric drafted before every row went through the grammar saves into it without a new version', () => {
+  const gate = (id: string, kind: CriterionKind, label: string, spec: object) => ({ id, kind, label, mode: 'gate', weight: 3, source: 'posting', spec });
+  const old = RubricSchema.parse({
+    criteria: [
+      gate('y', 'years', 'at least 5 years of backend development', { min: 5, of: 'at least 5 years of backend development' }),
+      gate('a', 'authorization', 'EU work authorisation', { items: ['EU work authorisation'] }),
+      gate('e', 'education', "Bachelor's degree in Computer Science", { items: ["Bachelor's degree in Computer Science"] }),
+      gate('l', 'location', 'on-site in Berlin or remote within Germany', { items: ['on-site in Berlin or remote within Germany'], remoteOk: true }),
+      gate('v', 'availability', 'able to start within 4 weeks', { level: 'able to start within 4 weeks' }),
+      { id: 's', kind: 'level', label: 'senior (one rung either way)', mode: 'scored', weight: 2, source: 'posting', spec: { wanted: 'senior', tolerance: 'one' } },
+    ],
+  });
+  const saved = saveUntouched(old);
+  assert.ok(rubricEquals(old, saved), 'the same words and the same numbers: no new version');
+  assert.deepEqual(saveUntouched(saved), saved, 'and from then on a save is an identity');
+  const inflated = RubricSchema.parse({ criteria: [{ id: 'y', kind: 'years', label: '5+ years', mode: 'scored', weight: 3, source: 'you', spec: { min: 7 } }] });
+  assert.ok(!rubricEquals(inflated, saveUntouched(inflated)), 'a number the words do not say is re-read from the words — a new yardstick');
+});
+
+test('a number or a length past the schema clamps or is refused, and a save never throws', () => {
+  const band = (text: string) => {
+    const s = parseCriterionText('years', text)!.spec;
+    return [s.min, s.max];
+  };
+  assert.deepEqual(band('70+'), [60, null], 'clamped to the schema, as an upside-down band is');
+  assert.deepEqual(band('5–70'), [5, 60]);
+  assert.deepEqual(band('80–99 years'), [60, 60]);
+  assert.deepEqual(band('at least 75 years of Java'), [60, null]);
+  assert.equal(parseCriterionText('industry', 'fintech: 99+')!.spec.min, 60);
+  assert.ok('rubric' in rubricFromForm({ add_kind: 'years', add_text: '70+' }, emptyRubric()), 'the save answers instead of throwing');
+  for (const [typed, stars] of [['99', 5], ['-5', 1], ['abc', 3], ['Infinity', 5], ['2.5', 3]] as const) {
+    const out = rubricFromForm({ add_kind: 'custom', add_text: 'has shipped an app', add_weight: typed }, emptyRubric());
+    assert.ok('rubric' in out && out.rubric.criteria[0]!.weight === stars, `stars "${typed}" → ${stars}`);
+  }
+  const long = rubricFromForm({ add_kind: 'skill', add_text: `${'x'.repeat(199)}!` }, emptyRubric());
+  assert.ok('rubric' in long && long.rubric.criteria[0]!.label === `${'x'.repeat(60)} !`, 'a term past the schema is cut, and its label with it');
+  const three = ['a', 'b', 'c'].map((ch) => ch.repeat(60)).join(' / ');
+  assert.equal(parseCriterionText('skill', `${three} within 1 year`), null, 'written out as "within 12 months" it would not fit the field: refused');
+  const full = RubricSchema.parse({
+    criteria: [{ id: 'p', kind: 'custom', label: 'one more', mode: 'gate', weight: 3, source: 'posting', spec: { question: 'one more' } }],
+    removed: Array.from({ length: 60 }, (_, i) => `gone ${i}`),
+  });
+  const removed = rubricFromForm({ remove_p: '1' }, full);
+  assert.ok('rubric' in removed);
+  assert.deepEqual([removed.rubric.removed.length, removed.rubric.removed.at(0), removed.rubric.removed.at(-1)], [60, 'gone 1', 'one more'], 'the 61st removal forgets the oldest');
+});
+
+test('a brief whose words run past the schema drafts, and saves as drafted', () => {
+  const brief = (over: Record<string, unknown>) =>
+    BriefSchema.parse({
+      role: { posted_title: 'Developer', family: 'backend', seniority: null, years_min: 5, focus: '' },
+      company: { industry: 'fintech' },
+      keywords: [{ term: 'Java', priority: 1, requirement: 'must', primary: false, aliases: [], group: null }],
+      gates: [],
+      ...over,
+    });
+  const drafts = {
+    longGate: draftRubric(brief({ gates: [`must hold ${'x'.repeat(240)}`] })),
+    manyYears: draftRubric(brief({ gates: ['at least 70 years of backend development'] })),
+    longTerm: draftRubric(brief({ keywords: [{ term: 'K'.repeat(70), priority: 1, requirement: 'must', primary: false, aliases: ['a'.repeat(70)], group: null }] })),
+    longFamily: draftRubric(brief({ role: { posted_title: 'Developer', family: 'f'.repeat(250), seniority: null, years_min: 5, focus: '' } })),
+  };
+  assert.equal(byKind(drafts.longGate, 'custom')[0]!.label.length, 200);
+  assert.deepEqual(byKind(drafts.manyYears, 'years').map((c) => c.spec.min), [60]);
+  assert.deepEqual(byKind(drafts.longTerm, 'skill')[0]!.spec.terms, [{ term: 'K'.repeat(60), aliases: ['a'.repeat(60)] }]);
+  assert.equal(byKind(drafts.longFamily, 'years')[0]!.label.length, 200);
+  for (const [name, r] of Object.entries(drafts)) assert.deepEqual(saveUntouched(r), r, name);
+  assert.equal(readRubric({ gates: [], must: Array.from({ length: 45 }, (_, i) => ({ term: `t${i}` })), nice: [] }).criteria.length, 40, 'a v1 rubric past the ceiling converts to the first 40');
 });
 
 test('protectedCharacteristic refuses the wish and names the lawful criterion', () => {
