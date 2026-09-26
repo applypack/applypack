@@ -213,7 +213,7 @@ const ReviewReport: FC<{
                   </div>
                 )}
                 {a.ask && (
-                  <div class="rounded-md border border-violet/30 bg-surface-overlay/50 px-2.5 py-1.5 text-[13px] leading-5 text-ink">
+                  <div class="rounded-md border border-line bg-surface-overlay/50 px-2.5 py-1.5 text-[13px] leading-5 text-ink">
                     <span class="text-ink-faint">Only you can answer: </span>
                     {a.ask}
                   </div>
@@ -292,7 +292,7 @@ const AnswerBlock: FC<{ resumeId: number; advice: ReviewAdvice[]; answers: Revie
         Only you can answer these — {answered.length} answered,{' '}
         {open.length === 0 ? 'none open' : `${open.length} open`}
       </div>
-      <ul class="divide-y divide-line rounded-md border border-violet/30">
+      <ul class="divide-y divide-line rounded-md border border-line">
         {[...open, ...answered].map((question) => {
           const stored = answerFor(answers, question);
           return (
@@ -312,7 +312,7 @@ const AnswerBlock: FC<{ resumeId: number; advice: ReviewAdvice[]; answers: Revie
                   aria-label={question}
                   class="!w-64 !px-2 !py-1 !text-xs"
                 />
-                <Button size="sm" variant={stored ? 'secondary' : 'violet'}>
+                <Button size="sm" variant="secondary">
                   {stored ? 'Update' : 'Save'}
                 </Button>
                 {stored && <Badge tone="ok">answered</Badge>}

@@ -50,7 +50,7 @@ export const RunSteps: FC<{
               {results[s] ?? ''}
             </span>
             <span
-              class="t-activity mt-1.5 block text-[13px] leading-5 text-violet transition-opacity duration-300"
+              class="t-activity mt-1.5 block text-[13px] leading-5 text-ink-muted transition-opacity duration-300"
               data-activity
               aria-live="polite"
             ></span>

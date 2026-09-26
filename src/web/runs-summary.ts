@@ -15,6 +15,7 @@ const REASON: Record<string, string> = {
   'no-active-profile': 'No running search',
   'discovery-disabled': 'Discovery is switched off',
   'parser-disabled': 'The HN parser is switched off',
+  'source-disabled': 'The source is switched off on Settings → Sources',
   'tracking-disabled': 'Application tracking is switched off',
   'digest-disabled': 'The stale-applications digest is switched off',
   'alerts-off': 'Alerts are switched off; nothing sent',

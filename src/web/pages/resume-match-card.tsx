@@ -7,6 +7,7 @@ import {
   Card,
   FitBadge,
   Hint,
+  HistoryChip,
   SUBMIT_ONCE,
   Input,
   MarkIcon,
@@ -79,7 +80,8 @@ const PRIORITY_TONE: Record<MatchAction['priority'], Tone> = {
 const STATUS_VIEW: Record<MatchKeyword['status'], { label: string; tone: Tone }> = {
   present: { label: 'in your resume', tone: 'ok' },
   add: { label: 'add the word', tone: 'warn' },
-  ask_user: { label: 'do you have it?', tone: 'violet' },
+  // Unknown until the candidate answers: neutral, the tone DESIGN.md gives "unknown".
+  ask_user: { label: 'do you have it?', tone: 'neutral' },
   cannot_claim: { label: 'no evidence in your resume', tone: 'danger' },
 };
 
@@ -206,23 +208,15 @@ export const ResumeMatchCard: FC<ResumeMatchCardProps> = ({
           <ul class="flex flex-wrap gap-2">
             {matches.map((m) => (
               <li>
-                <a
-                  href={`/jobs/${jobId}?match=${m.id}#resume-match`}
-                  aria-current={selected?.id === m.id ? 'true' : undefined}
-                  class={`inline-flex items-center gap-2 rounded-md border px-2.5 py-1 text-xs transition-colors duration-150 ${
-                    selected?.id === m.id
-                      ? 'border-accent/50 bg-accent/5 text-ink'
-                      : 'border-line bg-surface-raised text-ink-muted hover:border-line-strong hover:text-ink'
-                  }`}
-                >
+                <HistoryChip href={`/jobs/${jobId}?match=${m.id}#resume-match`} current={selected?.id === m.id}>
                   <FitBadge score={m.matchScore} label="match" />
                   {m.resume.name}
-                  <span class="font-mono text-ink-faint">
+                  <span class="font-mono font-normal text-ink-faint">
                     {m.resume.hidden ? '' : `v${m.resumeVersion}`}
                     {m.draft ? ' draft' : ''}
                   </span>
-                  <span class="text-ink-faint">{formatRelative(m.createdAt)}</span>
-                </a>
+                  <span class="font-normal text-ink-faint">{formatRelative(m.createdAt)}</span>
+                </HistoryChip>
               </li>
             ))}
           </ul>
@@ -351,7 +345,7 @@ const FactRow: FC<{ k: MatchKeyword; matchId: number; back: string }> = ({ k, ma
       <span class="font-medium text-ink">{k.term}</span>
       {k.note && <span class="ml-2 text-xs text-ink-faint">{k.note}</span>}
       {k.elsewhere && (
-        <Badge tone="violet" class="ml-2">
+        <Badge tone="neutral" class="ml-2">
           in "{k.elsewhere}"
         </Badge>
       )}
@@ -369,7 +363,8 @@ const FactRow: FC<{ k: MatchKeyword; matchId: number; back: string }> = ({ k, ma
           aria-label={`Where or when did you use ${k.term}?`}
           class="!w-44 !px-2 !py-1 !text-xs"
         />
-        <Button size="sm" variant="violet">
+        {/* Saved as a fact and re-scored in code — no AI call, so not violet. */}
+        <Button size="sm" variant="secondary">
           I have it
         </Button>
       </form>
@@ -398,7 +393,7 @@ export const ConfirmFacts: FC<{ asks: MatchKeyword[]; unproven: MatchKeyword[]; 
     <div>
       <div class={SUBHEAD}>Confirm your experience — the posting wants these</div>
       {asks.length > 0 && (
-        <ul class="divide-y divide-line rounded-md border border-violet/30">
+        <ul class="divide-y divide-line rounded-md border border-line">
           {asks.map((k) => (
             <FactRow k={k} matchId={matchId} back={back} />
           ))}
@@ -1046,7 +1041,7 @@ const KeywordRow: FC<{ k: CountedKeyword; edit?: KeywordEditTarget }> = ({ k, ed
             ×{k.count}
           </span>
         )}
-        {k.override?.added && <Badge tone="violet">yours</Badge>}
+        {k.override?.added && <Badge tone="neutral">yours</Badge>}
         {k.group && (
           <span
             title={`The posting offers this as one of several — "${k.group}". Any one of them satisfies it, so the score counts the group once, not each option.`}
@@ -1075,7 +1070,7 @@ const KeywordRow: FC<{ k: CountedKeyword; edit?: KeywordEditTarget }> = ({ k, ed
             <Badge tone="ok">with a number</Badge>
           </span>
         )}
-        {k.elsewhere && <Badge tone="violet">in "{k.elsewhere}"</Badge>}
+        {k.elsewhere && <Badge tone="neutral">in "{k.elsewhere}"</Badge>}
         {k.unanchored && (
           <span
             title={
@@ -1130,7 +1125,7 @@ const LevelControls: FC<{ k: CountedKeyword; edit: KeywordEditTarget }> = ({ k, 
           </option>
         ))}
       </Select>
-      {overridden && <Badge tone="violet">yours</Badge>}
+      {overridden && <Badge tone="neutral">yours</Badge>}
       <button
         type="submit"
         class={ROW_LINK}

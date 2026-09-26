@@ -299,6 +299,7 @@ async function loadSettingsProps() {
     staleApplicationsDigestEnabled: settings.staleApplicationsDigestEnabled,
     sourceHealthAlerts: settings.sourceHealthAlerts,
     disabledSources: settings.disabledSources,
+    hnParserEnabled: settings.hnParserEnabled,
     sourceGroups: groupSources(
       Object.values(AtsType).filter((t) => t !== AtsType.MANUAL),
       sourceCounts,

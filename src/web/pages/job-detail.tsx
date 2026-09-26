@@ -390,7 +390,7 @@ const ClassifierCard: FC<{ job: JobDetail; scores: ProfileScore[]; tab: JobTab }
           <dl class="space-y-2">
             <TagRow label="Tech" items={job.techMatch} tone="ok" />
             <TagRow label="Flags" items={job.redFlags} tone="danger" />
-            <TagRow label="Priority rules" items={job.priorityRulesApplied} tone="violet" />
+            <TagRow label="Priority rules" items={job.priorityRulesApplied} tone="neutral" />
           </dl>
           <ProfileScoreRow scores={scores} />
         </>
@@ -678,7 +678,7 @@ const FactRow: FC<PropsWithChildren<{ label: string }>> = ({ label, children }) 
   </div>
 );
 
-const TagRow: FC<{ label: string; items: string[]; tone: 'ok' | 'danger' | 'violet' }> = ({
+const TagRow: FC<{ label: string; items: string[]; tone: 'ok' | 'danger' | 'neutral' }> = ({
   label,
   items,
   tone,

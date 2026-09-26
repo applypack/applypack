@@ -363,6 +363,28 @@ export const FilterChip: FC<{ label: string; href: string; flag?: string }> = ({
   </a>
 );
 
+/**
+ * One stored run in a row of them — a job's comparisons, its letters — as a
+ * link to it. The one on screen is marked the way a chosen option is (DESIGN.md,
+ * the Surface-First Rule): the selected surface, emerald-strong text at 500 and
+ * a drawn check, never a tint alone. Meta inside it keeps its own weight with
+ * `font-normal`, as a filter option's count does.
+ */
+export const HistoryChip: FC<PropsWithChildren<{ href: string; current: boolean }>> = ({ href, current, children }) => (
+  <a
+    href={href}
+    aria-current={current ? 'true' : undefined}
+    class={`inline-flex items-center gap-2 rounded-md border px-2.5 py-1 text-xs transition-colors duration-150 ${
+      current
+        ? 'border-accent/50 bg-surface-selected font-medium text-accent-strong'
+        : 'border-line bg-surface-raised text-ink-muted hover:border-line-strong hover:text-ink'
+    }`}
+  >
+    {current && <MarkIcon kind="check" class="!h-3 !w-3" />}
+    {children}
+  </a>
+);
+
 /* ---------- data display ---------- */
 
 /**
