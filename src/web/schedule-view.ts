@@ -2,6 +2,10 @@ import { prisma } from '../db';
 import { config } from '../config';
 import { cronMinute } from '../schedule';
 import { getInstanceId } from '../settings';
+import { alertChannel } from '../notifier';
+import { countHeldAlerts } from '../jobs/alert-delivery';
+import { heldReason } from '../jobs/held-alerts';
+import { heldLine, type HeldLine } from './held-line';
 import {
   describeNextFetch,
   isFetchDue,
@@ -24,6 +28,13 @@ export interface NextCheck {
   dueNow: boolean;
   /** "today at 14:05" — empty when the schedule reaches no heartbeat within a week. */
   next: string;
+}
+
+/** The waiting line both pages show, or null when nothing is held. */
+export async function loadHeldLine(schedule: Schedule): Promise<HeldLine | null> {
+  const count = await countHeldAlerts();
+  if (count === 0) return null;
+  return heldLine(count, heldReason(await alertChannel(), schedule.alerts.mode));
 }
 
 export async function loadNextCheck(rawSchedule: unknown, now = new Date()): Promise<NextCheck> {

@@ -4,6 +4,47 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.19.0] — 2026-09-25
+
+### Fixed
+- **Alerts wait instead of being marked sent.** With Alerts switched off, or
+  when every chat refused the message, a match was marked Alerted anyway and
+  a careers-page change was taken as reported. Now it waits and arrives in
+  one message per chat once it can go out; a long wait lists the best 20 and
+  counts the rest, which stay New. With no chat set up nothing waits: matches
+  stay New on the dashboard. Overview and the Schedule section say what
+  holds them.
+- **Careers-page changes reach digest mode.** The change watch sent nothing
+  when alerts arrive as a digest, and a change seen outside the alert hours
+  could be lost to a 304 or a weekly check. A change now waits on the
+  company row and goes out at the first hour the schedule allows;
+  `/companies` says "notice waiting". One migration adds the column
+  (`company.pendingContentHash`); it is applied on start.
+- **The daily recap and the stale nudge say when they went nowhere** (Alerts
+  off, or no chat) on `/runs`, and a recap every chat refused fails, so the
+  next one covers the gap.
+- **Dashboard dates are in your time zone** — the schedule's, `TZ` until you
+  pick one — instead of Chicago's for everyone; `/runs` names the zone in
+  its header.
+- **The HN thread stops when either switch says so**, the parser on
+  `/discovery` or its pill on Settings → Sources, for the hourly read and the
+  monthly pull alike.
+- **`fetch-once.js` runs like Fetch now.** On a paused install, or outside
+  the schedule, it used to fetch nothing.
+- **Screening rubrics.** A skill's text takes a recency window ("React / Vue
+  within 36 months"), off unless typed. An untouched save no longer changes
+  the rubric: it staled every verdict, and the location row grew on each
+  save. A number past the schema ("70+" years) no longer answers 500, and
+  "certification" gates draft as certification.
+
+### Changed
+- **The dashboard follows DESIGN.md's surface, violet and pill rules.** A
+  settings tab is one surface with hairlines between sections; violet marks
+  only AI spend and Saved; full pills are badges and meters, and the chosen
+  comparison or letter chip shows a check.
+- The fence registry test follows a renamed AI call (`askForJson as ask`),
+  and CODEOWNERS no longer claims the owner's review is required.
+
 ## [2.18.5] — 2026-09-25
 
 ### Fixed
@@ -4009,6 +4050,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.19.0]: https://github.com/applypack/applypack/compare/v2.18.5...v2.19.0
 [2.18.5]: https://github.com/applypack/applypack/compare/v2.18.4...v2.18.5
 [2.18.4]: https://github.com/applypack/applypack/compare/v2.18.3...v2.18.4
 [2.18.3]: https://github.com/applypack/applypack/compare/v2.18.2...v2.18.3

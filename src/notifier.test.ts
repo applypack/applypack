@@ -1,6 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  channelFor,
   escapeMarkdownV2,
   escapeMarkdownV2Url,
   formatJobMessage,
@@ -8,7 +9,76 @@ import {
   formatPlaceLine,
   formatSalary,
   formatSourceHealthLine,
+  formatTelegramDigest,
+  sendParts,
 } from './notifier';
+import type { AlertJob } from './types';
+
+describe('channelFor', () => {
+  it('says there is no chat before it says the switch is off — with no chat nothing waits', () => {
+    assert.equal(channelFor(0, false), 'no-targets');
+    assert.equal(channelFor(0, true), 'no-targets');
+    assert.equal(channelFor(2, false), 'alerts-off');
+    assert.equal(channelFor(1, true), 'open');
+  });
+});
+
+describe('sendParts', () => {
+  const sender = (failAt: number | null) => {
+    const out: string[] = [];
+    const send = async (text: string) => {
+      if (out.length === failAt) throw new Error(`refused part ${failAt}`);
+      out.push(text);
+    };
+    return { out, send };
+  };
+
+  it('sends every part in order', async () => {
+    const { out, send } = sender(null);
+    assert.deepEqual(await sendParts(['a', 'b', 'c'], send), { sent: 3 });
+    assert.deepEqual(out, ['a', 'b', 'c']);
+  });
+
+  it('throws when the first part is refused: nothing arrived, so a retry repeats nothing', async () => {
+    const { send } = sender(0);
+    await assert.rejects(sendParts(['a', 'b'], send), /refused part 0/);
+  });
+
+  it('counts a message cut short as reached, and hands the error back instead of throwing', async () => {
+    const { out, send } = sender(2);
+    const result = await sendParts(['a', 'b', 'c', 'd'], send);
+    assert.equal(result.sent, 2);
+    assert.match(String(result.error), /refused part 2/);
+    assert.deepEqual(out, ['a', 'b']);
+  });
+});
+
+describe('formatTelegramDigest', () => {
+  const job = {
+    title: 'Backend Engineer',
+    companyName: 'Acme',
+    location: 'Remote',
+    url: 'https://example.com/jobs/1',
+    fitScore: 80,
+    salaryMin: null,
+    salaryMax: null,
+    techMatch: [],
+    redFlags: [],
+    summary: '',
+  } satisfies AlertJob;
+
+  it('counts the unlisted matches in the header and says where they are', () => {
+    const parts = formatTelegramDigest([job, job], [], 'While you were away', 5);
+    assert.match(parts[0]!, /^\*While you were away — 7 matches\*/);
+    assert.ok(parts.at(-1)!.endsWith('…and 5 more on the Jobs page, under New\\.'));
+  });
+
+  it('says nothing about more when everything is listed', () => {
+    const parts = formatTelegramDigest([job], [], 'Daily digest');
+    assert.match(parts[0]!, /^\*Daily digest — 1 match\*/);
+    assert.ok(!parts.join('').includes('more on the Jobs page'));
+  });
+});
 
 describe('formatSalary', () => {
   it('returns em-dash when both bounds are null', () => {

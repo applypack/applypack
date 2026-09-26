@@ -7,7 +7,6 @@ import { activeFetchRun } from '../fetch-runs';
 import { loadWelcomeContext } from '../welcome-facts';
 import { currentStep, needsWelcome } from '../welcome-steps';
 import { OverviewPage } from '../pages/overview';
-import { countHeldAlerts } from '../../jobs/alert-delivery';
 
 /** ★ How many companies the user watches, and what they put up today (ADR 0036). */
 async function watchedSummary(): Promise<{ companies: number; newJobs: number }> {
@@ -18,7 +17,7 @@ async function watchedSummary(): Promise<{ companies: number; newJobs: number }>
   });
   return { companies, newJobs };
 }
-import { loadNextCheck } from '../schedule-view';
+import { loadHeldLine, loadNextCheck } from '../schedule-view';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const RECENT_LIMIT = 8;
@@ -85,7 +84,7 @@ overviewRoute.get('/', async (c) => {
       latestRuns={latestRuns}
       fetchingEnabled={settings.fetchingEnabled}
       sleepingUntil={sleepingUntil}
-      heldAlerts={await countHeldAlerts()}
+      held={await loadHeldLine(check.schedule)}
       watched={await watchedSummary()}
       fetchRun={activeFetchRun()}
       finishSetup={currentStep(facts) !== null}

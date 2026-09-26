@@ -12,7 +12,7 @@ import { buildVerdicts, mergeVerdicts, type ProfileVerdict } from './verdict-mer
 import { toScoreData } from './score-store';
 import { mergeAiLocation, type StoredPlace } from './location-merge';
 import { isBlankProfile, NO_PROFILE_STACK_FLAG } from '../profile-guards';
-import { sendAlert } from '../notifier';
+import { alertChannel, sendAlert, type Delivery } from '../notifier';
 import { attributionLine } from '../web/pages/attribution';
 import type { ClassifierMode } from '../settings';
 import { canAlertNow, type Schedule } from '../user-schedule';
@@ -67,6 +67,10 @@ export interface ProcessStats {
   skippedBlankProfile: number;
   /** Matches scored outside the alert window; they wait for the next one (TASKS §16). */
   alertHeld: number;
+  /** Matches scored while Alerts were switched off; they go out when they are back on. */
+  alertsOffHeld: number;
+  /** Matches with no active chat to send them to; they stay New on the dashboard. */
+  alertNoTarget: number;
   /** Postings kept because a watched company alerts on everything (ADR 0036). */
   watchedKept: number;
 }
@@ -199,6 +203,10 @@ export async function processNormalizedJobs(
     return;
   }
 
+  // Read once, like the schedule: Alerts off with a chat to send to means a
+  // match waits for them; no chat at all means there is nothing to wait for.
+  const channel = await alertChannel();
+
   // Classify up to AI_CONCURRENCY jobs at once; results are consumed in the
   // original order, so persisting and alerting stay sequential and ordered.
   const limit = createLimiter(config.AI_CONCURRENCY);
@@ -296,13 +304,15 @@ export async function processNormalizedJobs(
       continue;
     }
 
-    // Whether the alert is skipped (issue #50) or held for the window is known
-    // before the row exists, so the held stamp is written WITH the row: a
-    // second statement could leave a NEW match with no stamp, which nothing
-    // would ever send (audit 2026-09-10, DATA-3).
+    // Whether the alert is skipped (issue #50) or held — for the window, or
+    // while Alerts are off — is known before the row exists, so the held
+    // stamp is written WITH the row: a second statement could leave a NEW
+    // match with no stamp, which nothing would ever send (audit 2026-09-10,
+    // DATA-3).
     const skipsAlert =
       finalClassification.red_flags.includes(NO_PROFILE_STACK_FLAG) && !alertsEveryPosting(item.watch);
-    const alertHeldAt = !skipsAlert && !mayAlert ? new Date() : null;
+    const holds = !skipsAlert && channel !== 'no-targets' && (!mayAlert || channel === 'alerts-off');
+    const alertHeldAt = holds ? new Date() : null;
     const stored = await persistJob(
       placed,
       finalClassification,
@@ -325,17 +335,27 @@ export async function processNormalizedJobs(
     // score — it says a company the user chose has put something up.
     if (skipsAlert) continue;
 
-    // Outside the alert window the match is kept, not dropped: the row is NEW
-    // with its verdicts and its held stamp already stored, and the next
-    // heartbeat inside the window sends it in one grouped message instead of
-    // twelve at 03:00.
-    if (alertHeldAt) {
-      stats.alertHeld++;
+    // No chat to send to: the row stays NEW on the dashboard, which is where
+    // an install without notifications reads its matches. Nothing is held,
+    // so adding a chat later does not replay the backlog.
+    if (channel === 'no-targets') {
+      stats.alertNoTarget++;
       continue;
     }
 
+    // Outside the alert window, or while Alerts are off, the match is kept,
+    // not dropped: the row is NEW with its verdicts and its held stamp already
+    // stored, and the first heartbeat that may send it does, in one grouped
+    // message instead of twelve at 03:00.
+    if (alertHeldAt) {
+      if (channel === 'alerts-off') stats.alertsOffHeld++;
+      else stats.alertHeld++;
+      continue;
+    }
+
+    let delivery: Delivery;
     try {
-      await sendAlert(
+      delivery = await sendAlert(
         {
           title: created.title,
           companyName: starred(companyName, item.watch),
@@ -366,6 +386,18 @@ export async function processNormalizedJobs(
         // Routed to the winning search's chat; null still broadcasts.
         winner.notificationTargetId,
       );
+    } catch (err) {
+      // Every chat refused it. Held, so the next heartbeat sends it with the
+      // others in one grouped message instead of never.
+      stats.alertFailed++;
+      logger.error(
+        { err, jobId: created.id, title: created.title },
+        'process-jobs: alert failed; held for the next heartbeat',
+      );
+      await holdAlert(created.id);
+      continue;
+    }
+    if (delivery.skipped === null) {
       // Still NEW, exactly as the held-alert path checks: the send
       // takes seconds and the dashboard is open the whole time. A row the
       // user dismissed or saved in between keeps their status — the message
@@ -375,14 +407,19 @@ export async function processNormalizedJobs(
         data: { status: JobStatus.ALERTED, alertedAt: new Date() },
       });
       stats.alerted++;
-    } catch (err) {
-      stats.alertFailed++;
-      logger.error(
-        { err, jobId: created.id, title: created.title },
-        'process-jobs: alert failed',
-      );
+    } else if (delivery.skipped === 'alerts-off') {
+      // Switched off since the tick read the switch: this one waits too.
+      await holdAlert(created.id);
+      stats.alertsOffHeld++;
+    } else {
+      stats.alertNoTarget++;
     }
   }
+}
+
+/** Stamps a NEW match for the grouped delivery (`alert-delivery.ts`); a row the user already answered keeps their status. */
+async function holdAlert(id: number): Promise<void> {
+  await prisma.job.updateMany({ where: { id, status: JobStatus.NEW }, data: { alertHeldAt: new Date() } });
 }
 
 function pairKey(job: Pick<NormalizedJob, 'companyId' | 'externalId'>): string {

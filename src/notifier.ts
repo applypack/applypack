@@ -6,6 +6,7 @@ import type { AlertJob } from './types';
 import {
   formatPlaceLine,
   formatSalary,
+  moreOnDashboard,
   quietSourceItems,
   type PageChangeNotice,
   type QuietSourceAlert,
@@ -35,13 +36,50 @@ interface Outgoing {
 }
 
 /**
+ * Whether a message could leave right now. `alerts-off` = there is a chat and
+ * the Alerts switch is off: what is found then waits for it to come back on.
+ * `no-targets` = no active chat at all, so there is nothing to wait for.
+ */
+export type AlertChannel = 'open' | 'alerts-off' | 'no-targets';
+
+/**
+ * What a broadcast did. `skipped` says why nothing was attempted; otherwise
+ * `reached` targets got the message, at least one — when every target
+ * refuses it, the broadcast throws `AlertDeliveryError` instead.
+ */
+export interface Delivery {
+  reached: number;
+  skipped: Exclude<AlertChannel, 'open'> | null;
+}
+
+/** Every target refused the message; nothing reached anyone, so the caller may safely try again. */
+export class AlertDeliveryError extends Error {
+  constructor(readonly targets: number) {
+    super(`notify: every target failed (${targets})`);
+    this.name = 'AlertDeliveryError';
+  }
+}
+
+/** A chat first, then the switch: with no chat there is nothing to hold a match for. Pure. */
+export function channelFor(activeTargets: number, alertsOn: boolean): AlertChannel {
+  if (activeTargets === 0) return 'no-targets';
+  return alertsOn ? 'open' : 'alerts-off';
+}
+
+/** The channel as it stands, for a caller deciding whether to hold a match before it sends anything. */
+export async function alertChannel(): Promise<AlertChannel> {
+  const targets = await listActiveNotificationTargets();
+  return channelFor(targets.length, (await getSettings()).telegramEnabled);
+}
+
+/**
  * One alert per posting (ADR 0028). `targetId` is the winning search's
  * `Profile.notificationTargetId` — a number, not the whole row, because
  * routing is the only thing the notifier ever wanted from a profile, and
  * passing the row invited callers to think the message was per-profile.
  */
-export async function sendAlert(job: AlertJob, targetId?: number | null): Promise<void> {
-  await broadcast({ telegram: [formatJobMessage(job)], discord: [formatDiscordAlert(job)] }, targetId);
+export async function sendAlert(job: AlertJob, targetId?: number | null): Promise<Delivery> {
+  return broadcast({ telegram: [formatJobMessage(job)], discord: [formatDiscordAlert(job)] }, targetId);
 }
 
 export async function sendDigest(
@@ -50,41 +88,40 @@ export async function sendDigest(
   quiet: QuietSourceAlert[] = [],
   /** What the header calls this batch — the daily recap, or a held delivery (TASKS §16). */
   title = 'Daily digest',
-): Promise<void> {
-  await broadcast(
-    { telegram: formatTelegramDigest(jobs, quiet, title), discord: formatDiscordDigest(jobs, quiet, title) },
+  /** Matches counted in the header but not listed — a long wait's backlog stays on the dashboard. */
+  more = 0,
+): Promise<Delivery> {
+  return broadcast(
+    { telegram: formatTelegramDigest(jobs, quiet, title, more), discord: formatDiscordDigest(jobs, quiet, title, more) },
     targetId,
   );
 }
 
 /** The Telegram digest, packed under the 4096-char message limit. Pure — exported for the test. */
-function formatTelegramDigest(jobs: readonly AlertJob[], quiet: readonly QuietSourceAlert[], title: string): string[] {
+export function formatTelegramDigest(
+  jobs: readonly AlertJob[],
+  quiet: readonly QuietSourceAlert[],
+  title: string,
+  more = 0,
+): string[] {
   const healthLine = formatSourceHealthLine([...quiet]);
   if (jobs.length === 0) {
     const empty = escapeMarkdownV2('No new matches since the last digest.');
     return [healthLine ? `${empty}\n\n${healthLine}` : empty];
   }
-  const header = `*${title} — ${jobs.length} match${jobs.length === 1 ? '' : 'es'}*${healthLine ? `\n${healthLine}` : ''}`;
-  return packMessages(header, jobs.map(formatJobMessage), '\n\n———\n\n', MAX_MESSAGE_LENGTH);
+  const total = jobs.length + more;
+  const header = `*${title} — ${total} match${total === 1 ? '' : 'es'}*${healthLine ? `\n${healthLine}` : ''}`;
+  const blocks = jobs.map(formatJobMessage);
+  if (more > 0) blocks.push(escapeMarkdownV2(moreOnDashboard(more)));
+  return packMessages(header, blocks, '\n\n———\n\n', MAX_MESSAGE_LENGTH);
 }
 
-async function broadcast(out: Outgoing, targetId?: number | null): Promise<void> {
-  const settings = await getSettings();
-  if (!settings.telegramEnabled) {
-    logger.info(
-      { alerts: 'disabled', preview: out.telegram[0]?.slice(0, 200) },
-      'notify: alerts disabled in settings; skipping',
-    );
-    return;
-  }
-
+async function broadcast(out: Outgoing, targetId?: number | null): Promise<Delivery> {
   const targets = await resolveTargets(targetId);
-  if (targets.length === 0) {
-    logger.info(
-      { alerts: 'no-targets', targetId, preview: out.telegram[0]?.slice(0, 200) },
-      'notify: no eligible targets; skipping',
-    );
-    return;
+  const channel = channelFor(targets.length, (await getSettings()).telegramEnabled);
+  if (channel !== 'open') {
+    logger.info({ alerts: channel, targetId, preview: out.telegram[0]?.slice(0, 200) }, 'notify: nothing sent');
+    return { reached: 0, skipped: channel };
   }
 
   const results = await Promise.allSettled(targets.map((t) => deliverToTarget(t, out)));
@@ -96,6 +133,8 @@ async function broadcast(out: Outgoing, targetId?: number | null): Promise<void>
     logger.error({ err: f.r.reason, target: f.name, kind: f.kind }, 'notify: delivery failed for target');
   }
   logger.info({ ok: okCount, failed: failed.length, total: targets.length }, 'notify: broadcast complete');
+  if (okCount === 0) throw new AlertDeliveryError(targets.length);
+  return { reached: okCount, skipped: null };
 }
 
 /**
@@ -114,12 +153,37 @@ async function resolveTargets(targetId?: number | null): Promise<NotificationTar
 
 /** Each target gets the messages in its own channel's markup; the row's kind decides. */
 async function deliverToTarget(target: NotificationTarget, out: Outgoing): Promise<void> {
-  if (target.kind === 'DISCORD') {
-    for (const text of out.discord) await deliverDiscord(target, text);
-  } else {
-    for (const text of out.telegram) await deliverTelegram(target, text);
+  const texts = target.kind === 'DISCORD' ? out.discord : out.telegram;
+  const { sent, error } = await sendParts(texts, (text) =>
+    target.kind === 'DISCORD' ? deliverDiscord(target, text) : deliverTelegram(target, text),
+  );
+  if (error !== undefined) {
+    logger.error({ err: error, target: target.name, sent, total: texts.length }, 'notify: message cut short; the rest is not re-sent');
   }
   await markTargetUsed(target.id);
+}
+
+/**
+ * The parts of one message, in order, stopping at the first refusal. It
+ * throws only when nothing went out: once the first part has arrived the
+ * target counts as reached, because the retry a failure earns would send
+ * that part a second time. The error is handed back for the log.
+ */
+export async function sendParts(
+  texts: readonly string[],
+  send: (text: string) => Promise<void>,
+): Promise<{ sent: number; error?: unknown }> {
+  let sent = 0;
+  for (const text of texts) {
+    try {
+      await send(text);
+    } catch (error) {
+      if (sent === 0) throw error;
+      return { sent, error };
+    }
+    sent++;
+  }
+  return { sent };
 }
 
 async function deliverTelegram(target: NotificationTarget, text: string): Promise<void> {
@@ -227,9 +291,8 @@ export function formatPageChangeMessage(pages: readonly PageChangeNotice[]): str
   return [header, ...lines, escapeMarkdownV2('We cannot read this page for jobs — have a look.')].join('\n');
 }
 
-export async function sendPageChangeAlert(pages: readonly PageChangeNotice[]): Promise<void> {
-  if (pages.length === 0) return;
-  await broadcast({ telegram: [formatPageChangeMessage(pages)], discord: [formatDiscordPageChanges(pages)] }, null);
+export async function sendPageChangeAlert(pages: readonly PageChangeNotice[]): Promise<Delivery> {
+  return broadcast({ telegram: [formatPageChangeMessage(pages)], discord: [formatDiscordPageChanges(pages)] }, null);
 }
 
 export function escapeMarkdownV2(text: string): string {

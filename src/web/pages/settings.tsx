@@ -17,6 +17,7 @@ import { ACCEPTED_EXTENSIONS } from '../../resume/resume-text';
 import { MAX_UPLOAD_MB } from '../upload';
 import { ALERT_MODES, ALL_DAYS, DAY_LABELS, FETCH_EVERY, MAX_DIGEST_HOURS, describeSchedule, type Schedule } from '../../user-schedule';
 import { KIND_LABEL } from '../../notify/targets';
+import { SCHEDULE_HREF, type HeldLine } from '../held-line';
 
 interface MaskedTarget {
   id: number;
@@ -95,8 +96,8 @@ export interface ScheduleView {
   zones: string[];
   /** "today at 14:05" — already formatted in the schedule's own zone. */
   nextFetch: string;
-  /** Matches waiting for the alert window to open. */
-  held: number;
+  /** Matches waiting to be sent — for the window, for Alerts, for a chat — or null. */
+  held: HeldLine | null;
 }
 
 export interface AiStatusSummary {
@@ -285,9 +286,16 @@ const ScheduleForm: FC<{ view: ScheduleView }> = ({ view }) => {
 
       <div class="border-t border-line pt-4">
         <div class="text-label text-ink">Send alerts</div>
-        {held > 0 && (
+        {held && (
           <Hint class="mt-0.5 text-warn">
-            {held} {held === 1 ? 'match is' : 'matches are'} waiting for the next window.
+            {held.text}
+            {/* The window is set in this section; any other reason is set elsewhere. */}
+            {held.href === SCHEDULE_HREF ? '.' : (
+              <>
+                {' — '}
+                <a href={held.href} class="font-medium underline">{held.action}</a>.
+              </>
+            )}
           </Hint>
         )}
         <div class="mt-2 grid gap-2 sm:grid-cols-3">
@@ -808,7 +816,7 @@ export const SettingsPage: FC<SettingsProps> = ({
             button looked like it belonged to the first. */}
         <div class="space-y-5">
           <ToggleRow label="Alerts" enabled={telegramEnabled} action="/settings/telegram-toggle">
-            Off sends nothing to any target; jobs are still classified and stored.
+            Off sends nothing to any target; what is found meanwhile waits, and arrives in one message per chat when you switch it back on.
           </ToggleRow>
           <div class="border-t border-line pt-5">
             <ToggleRow

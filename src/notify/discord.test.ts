@@ -66,6 +66,12 @@ describe('the Discord channel', () => {
     assert.equal(formatDiscordHealthLine([]), '');
   });
 
+  it('counts the unlisted matches of a long wait and closes with where they are', () => {
+    const parts = formatDiscordDigest([job], [], 'While you were away', 12);
+    assert.match(parts[0]!, /^\*\*While you were away — 13 matches\*\*/);
+    assert.ok(parts.at(-1)!.endsWith('…and 12 more on the Jobs page, under New.'));
+  });
+
   it('names a changed careers page with its link, no embed', () => {
     const text = formatDiscordPageChanges([{ companyName: 'Acme', url: 'https://acme.example/careers' }]);
     assert.equal(text, '**★ A watched careers page changed**\n• **Acme** — <https://acme.example/careers>\nWe cannot read this page for jobs — have a look.');

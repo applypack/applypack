@@ -92,7 +92,7 @@ schedule saved, the search runs every hour and both summaries go out at
 
 | Cron | Job | What it does |
 | --- | --- | --- |
-| `mm * * * *` † | fetch | Every beat: re-check stored France Travail offers and send alerts held outside your alert hours. Then, if fetching is on and the schedule says this hour searches: pull all sources → filter → classify → alert |
+| `mm * * * *` † | fetch | Every beat: re-check stored France Travail offers, and send what is waiting — matches held outside your alert hours, while Alerts were off or after a failed send, and careers-page changes not reported yet. Then, if fetching is on and the schedule says this hour searches: pull all sources → filter → classify → alert |
 | `0 * * * *` | digest | At each of your digest times: a recap of the new and alerted jobs since the last recap, to your alert targets |
 | `0 * * * *` | stale-applications | At your first digest time of the day: a nudge for applications quiet for 14+ days |
 | `0 3 * * 0` | cleanup | Drop dismissed jobs older than 30 days that you do not track, expired screenings and runs older than 90 days; trim usage counters to 60 days |

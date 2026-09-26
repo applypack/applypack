@@ -66,7 +66,7 @@ export async function runStaleApplicationsJob(): Promise<{ stats: CronStats }> {
   // markdown is its own, but the chunking and the multi-target broadcast are
   // sendDigest's and worth reusing. An empty list is never passed — that
   // branch prints the recap's "no new matches" placeholder.
-  await sendDigest(
+  const delivery = await sendDigest(
     [
       {
         title: `${items.length} stale application${items.length === 1 ? '' : 's'}`,
@@ -83,6 +83,11 @@ export async function runStaleApplicationsJob(): Promise<{ stats: CronStats }> {
     ],
   );
 
+  // A snapshot of a standing state: tomorrow's first digest hour asks again.
+  if (delivery.skipped !== null) {
+    logger.info({ found: items.length, reason: delivery.skipped }, 'stale-applications: nothing sent');
+    return { stats: { skipped: 1, reason: delivery.skipped, found: items.length } };
+  }
   logger.info({ found: items.length }, 'stale-applications: digest sent');
   return { stats: { found: items.length } };
 }

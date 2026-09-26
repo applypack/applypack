@@ -18,6 +18,8 @@ const REASON: Record<string, string> = {
   'source-disabled': 'The source is switched off on Settings → Sources',
   'tracking-disabled': 'Application tracking is switched off',
   'digest-disabled': 'The stale-applications digest is switched off',
+  'alerts-off': 'Alerts are switched off; nothing sent',
+  'no-targets': 'No chat to send to',
 };
 
 /**
@@ -33,7 +35,9 @@ const FACTS: { key: string; one: string; many: string; always?: true; job?: stri
   { key: 'classifyFailed', one: 'failed to classify', many: 'failed to classify' },
   { key: 'alerted', one: 'alerted', many: 'alerted' },
   { key: 'alertHeld', one: 'held for the alert window', many: 'held for the alert window' },
-  { key: 'alertFailed', one: 'alert failed to send', many: 'alerts failed to send' },
+  { key: 'alertsOffHeld', one: 'held while Alerts are off', many: 'held while Alerts are off' },
+  { key: 'alertFailed', one: 'alert failed to send, held for a retry', many: 'alerts failed to send, held for a retry' },
+  { key: 'alertNoTarget', one: 'not alerted: no chat set up', many: 'not alerted: no chat set up' },
   { key: 'sourcesFailed', one: 'source failed', many: 'sources failed' },
   // Bare words a second job could reuse for something else: worded for the job that writes them.
   { key: 'found', job: 'stale-applications', one: 'stale application', many: 'stale applications', always: true },

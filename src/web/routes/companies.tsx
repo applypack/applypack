@@ -202,6 +202,7 @@ function watchedRows(
     alertPolicy: string;
     nextCheckAt: Date | null;
     lastContentAlertAt: Date | null;
+    pendingContentHash: string | null;
     lastOkAt: Date | null;
     lastFetchStatus: string | null;
     _count: { jobs: number };
@@ -221,6 +222,7 @@ function watchedRows(
       alertPolicy: c.alertPolicy,
       nextCheckAt: c.nextCheckAt,
       lastContentAlertAt: c.lastContentAlertAt,
+      changePending: c.pendingContentHash !== null,
       lastOkAt: c.lastOkAt,
       lastFetchStatus: c.lastFetchStatus,
       jobsTotal: c._count.jobs,

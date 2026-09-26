@@ -82,9 +82,16 @@ export async function runDigestJob(): Promise<{ stats: CronStats }> {
   }));
 
   // Broadcast, not routed: the digest spans every search, so it goes to every
-  // active target rather than to any one search's chat.
-  await sendDigest(alerts, undefined, await quietSources());
+  // active target rather than to any one search's chat. A send every chat
+  // refused throws, and the failed run keeps the mark where it was.
+  const delivery = await sendDigest(alerts, undefined, await quietSources());
   const durationMs = Date.now() - started;
+  if (delivery.skipped !== null) {
+    // Alerts off, or no chat: nothing to recap into. The matches found
+    // meanwhile wait as held alerts and arrive on their own when they can.
+    logger.info({ reason: delivery.skipped, durationMs }, 'digest-job: nothing sent');
+    return { stats: { skipped: 1, reason: delivery.skipped, durationMs } };
+  }
   logger.info({ count: alerts.length, durationMs }, 'digest-job: done');
   return { stats: { count: alerts.length, durationMs } };
 }

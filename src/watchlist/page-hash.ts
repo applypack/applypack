@@ -60,10 +60,10 @@ export type ChangeDecision =
   | { kind: 'first'; hash: string }
   /** The text is what we last reported. */
   | { kind: 'unchanged' }
-  /** Changed, and we may say so: alert, then store this hash. */
+  /** Changed, and we may say so: the hash waits on the row until the notice is out. */
   | { kind: 'changed'; hash: string }
   /** Changed, but we said so less than a day ago — keep the OLD hash so the
-   *  change is still pending at the next allowed check, rather than lost. */
+   *  change is still there at the next check after the day, rather than lost. */
   | { kind: 'held' };
 
 /**

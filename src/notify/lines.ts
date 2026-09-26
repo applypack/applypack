@@ -66,3 +66,8 @@ export interface PageChangeNotice {
   companyName: string;
   url: string;
 }
+
+/** The last line of a delivery that lists only the best of a long wait; the rest are still New on the dashboard. */
+export function moreOnDashboard(more: number): string {
+  return `…and ${more} more on the Jobs page, under New.`;
+}

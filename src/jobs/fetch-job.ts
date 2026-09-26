@@ -3,7 +3,7 @@ import { prisma } from '../db';
 import { runAllFetchers, type FetchWalkOptions, type SourceProgress } from '../fetchers';
 import { beginConditionalTick, commitConditionalCache, tickStoredEverything } from '../fetchers/conditional';
 import { beginPageChangeTick } from '../watchlist/page-changes';
-import { deliverPageChanges } from './page-change-alerts';
+import { deliverPageChanges, recordPageChanges } from './page-change-alerts';
 import { syncFranceTravail, type MirrorStats } from './france-travail-sync';
 import { isFailureStatus } from '../fetchers/source-health';
 import { listActiveProfiles } from '../profiles';
@@ -52,7 +52,12 @@ export async function runFetchJob(opts: FetchJobOptions = {}): Promise<{ stats: 
   // the user never to hear about them (TASKS §16).
   const schedule = await getSchedule();
   const held = await deliverHeldAlerts(new Date(), schedule);
-  const delivery: CronStats = held.delivered > 0 ? { heldDelivered: held.delivered, heldMessages: held.messages } : {};
+  // Careers-page changes seen earlier and not reported yet, under the same rules.
+  const pagesWaiting = await deliverPageChanges(new Date(), schedule);
+  const delivery: CronStats = {
+    ...(held.delivered > 0 && { heldDelivered: held.delivered, heldMessages: held.messages }),
+    ...(pagesWaiting.alerted > 0 && { pagesChanged: pagesWaiting.alerted }),
+  };
 
   if (!settings.fetchingEnabled && !opts.manual) {
     logger.info('fetch-job: skipped (fetching paused in settings)');
@@ -115,9 +120,12 @@ export async function runFetchJob(opts: FetchJobOptions = {}): Promise<{ stats: 
     'fetch-job: total fetched',
   );
 
-  // Reported straight after the walk, before classification: the message
-  // carries no posting and costs no AI, so there is nothing to wait for.
-  const pageChanges = await deliverPageChanges(new Date(), schedule);
+  // Written down straight after the walk, and reported at once if the
+  // schedule allows: the message carries no posting and costs no AI, so there
+  // is nothing to wait for.
+  await recordPageChanges();
+  const pagesNow = await deliverPageChanges(new Date(), schedule);
+  if (pagesNow.alerted > 0) delivery.pagesChanged = pagesWaiting.alerted + pagesNow.alerted;
 
   // Phase 7.5 — universal ATS-URL discovery from any fetched job's URL
   // and description. The HN /jobs feed is the primary source: each
@@ -187,6 +195,8 @@ export async function runFetchJob(opts: FetchJobOptions = {}): Promise<{ stats: 
     skippedByPause: 0,
     skippedBlankProfile: 0,
     alertHeld: 0,
+    alertsOffHeld: 0,
+    alertNoTarget: 0,
     watchedKept: 0,
   };
   await processNormalizedJobs(fetched, profiles, inner, {
@@ -211,7 +221,6 @@ export async function runFetchJob(opts: FetchJobOptions = {}): Promise<{ stats: 
     sourcesFailed,
     ...(sourcesUnchanged > 0 && { sourcesUnchanged }),
     candidatesRecorded: candidates,
-    ...(pageChanges.alerted > 0 && { pagesChanged: pageChanges.alerted }),
     ...licence,
     ...delivery,
     ...inner,
