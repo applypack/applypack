@@ -1,3 +1,4 @@
-# Every PR needs the owner's review (pairs with the "Require review from
-# Code Owners" rule on the main ruleset).
+# Asks for the owner's review on every PR. The main ruleset does not require
+# it (no approvals needed): before a merge the change has to work and add no
+# new bug.
 * @nazboyko
