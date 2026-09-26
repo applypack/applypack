@@ -457,7 +457,7 @@ When the question is **"how does the user toggle / configure X?"**:
 | Pipeline stage on a job | `/jobs/:id` → "Application tracking" in the rail (it rides on every tab); on `/applications` drag the card between columns (`public/board.mjs`) or use its quick-move select — both hit the stage-only endpoint that never touches appliedAt/notes |
 | Add / rename / reorder board columns | `/settings` General tab → "Board columns" (ADR 0025: Applied + Rejected/Ghosted fixed, delete needs an empty column; keys never change, labels do) |
 | Review newly discovered companies | `/discovery` (sorted by jobsSeen DESC) |
-| Toggle auto-discovery / HN parser | `/discovery` (card at the top; moved off `/settings` 2026-08-29) |
+| Toggle auto-discovery / HN parser | `/discovery` (card at the top; moved off `/settings` 2026-08-29). The HN thread is also a pill on Settings → Sources; off in either place stops the monthly pull and the hourly read (`settings.ts:pausedFamilies`) |
 | Upload / scan a resume | `/resumes` → **Upload a resume** (a disclosure above the table; it stands open while there is no resume yet). The Resumes section on Settings only lists + links |
 | Record a skill no comparison asked about | `/resumes` → Confirmed facts → **Add a fact** (what you have is listed first; "I don't, actually" / "I do have it" flips one, "Forget" drops it; no AI call) |
 | Read what a setting does beyond its one sentence | the quiet **How this works** under it (a native `<details>`); on Settings → Sources each extra source folds "when it is worth it, and what the vendor asks" the same way |
@@ -812,7 +812,7 @@ Always:
 | Run ApplyPack without Docker | `npm start` (Ctrl+C or `npm run stop` to stop); for watchers `npm run db` + `npm run dev` + `npm run dev:web` |
 | Back up a local install | stop it, copy the data folder (`~/Library/Application Support/ApplyPack`, `%APPDATA%\ApplyPack`, `~/.local/share/applypack`) |
 | Test the launcher on a scratch folder | `APPLYPACK_DATA_DIR=/tmp/ap WEB_PORT=4848 APPLYPACK_NO_OPEN=1 npm start` — never the live data folder |
-| Run one fetch tick now | UI: Overview → "Fetch now" (live progress, row on `/runs`; runs outside the schedule, and while paused stores the jobs unscored); or `docker compose exec app node dist/scripts/fetch-once.js`, which stops at both like a cron beat |
+| Run one fetch tick now | UI: Overview → "Fetch now" (live progress, row on `/runs`; runs outside the schedule, and while paused stores the jobs unscored); or `docker compose exec app node dist/scripts/fetch-once.js`, which does the same without the dashboard and is recorded as a `fetch-now` run |
 | Run discovery probe now | `docker compose exec app node dist/scripts/discovery-once.js` |
 | Pull HN Who-is-hiring now | `docker compose exec app node dist/scripts/hn-once.js` |
 | Send the stale-applications digest now | `docker compose exec app node dist/scripts/stale-once.js` |

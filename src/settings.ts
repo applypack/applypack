@@ -362,6 +362,18 @@ export function toAtsTypes(values: string[]): AtsType[] {
   return values.filter((v): v is AtsType => known.includes(v));
 }
 
+/**
+ * The source families this install does not poll: the ones switched off on
+ * Settings → Sources, and HN "Who is hiring" while its parser is off on
+ * /discovery. Either switch means "do not read the thread", so the hourly
+ * walk, the monthly pull and the quiet-source lists all read this one list.
+ */
+export function pausedFamilies(settings: Pick<AppSettingsView, 'disabledSources' | 'hnParserEnabled'>): AtsType[] {
+  const off = toAtsTypes(settings.disabledSources);
+  if (!settings.hnParserEnabled && !off.includes(AtsType.HN_HIRING)) off.push(AtsType.HN_HIRING);
+  return off;
+}
+
 export async function setSourceHealthAlerts(enabled: boolean): Promise<void> {
   await prisma.appSettings.upsert({
     where: { id: SETTINGS_ID },

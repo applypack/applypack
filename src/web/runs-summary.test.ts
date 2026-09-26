@@ -83,6 +83,10 @@ describe('summarizeRun', () => {
     ]);
   });
 
+  it('says which switch stopped the monthly HN pull', () => {
+    assert.deepEqual(summarizeRun('hn-hiring', { skipped: 1, reason: 'source-disabled' }), ['The source is switched off on Settings → Sources']);
+  });
+
   it('has nothing to say about an empty record', () => {
     assert.deepEqual(summarizeRun('fetch', {}), []);
   });

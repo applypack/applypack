@@ -7,7 +7,7 @@ import { isUniqueViolation, prisma } from '../../db';
 import { logger } from '../../logger';
 import { probeAts } from '../../ats-probe';
 import { quietReason } from '../../fetchers/source-health';
-import { getSettings, getSourceKeys } from '../../settings';
+import { getSettings, getSourceKeys, pausedFamilies } from '../../settings';
 import { unlockedSources } from '../../source-keys';
 import { toStringArray } from '../../text-utils';
 import {
@@ -121,6 +121,7 @@ companiesRoute.get('/companies', async (c) => {
   const letterMap = new Map(letterCounts.map((r) => [r.companyId, r.n]));
 
   const settings = await getSettings();
+  const paused = pausedFamilies(settings);
   const now = new Date();
   const rows = companies.map((c) => ({
     id: c.id,
@@ -144,7 +145,7 @@ companiesRoute.get('/companies', async (c) => {
     // Only sources we actually poll can be judged: a disabled row, or one in
     // a source family the user switched off, is silent by instruction.
     quiet:
-      c.active && !settings.disabledSources.includes(c.atsType)
+      c.active && !paused.includes(c.atsType)
         ? quietReason(c, now)
         : null,
   }));

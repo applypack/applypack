@@ -31,6 +31,12 @@ export async function runHnHiringJob(): Promise<{ stats: CronStats }> {
     logger.info('hn-hiring: skipped (parser disabled in settings)');
     return { stats: { skipped: 1, reason: 'parser-disabled' } };
   }
+  // The same thread is a source family on Settings → Sources; off there is
+  // off here too, as the parser switch is for the hourly walk.
+  if (settings.disabledSources.includes(AtsType.HN_HIRING)) {
+    logger.info('hn-hiring: skipped (source switched off on Settings → Sources)');
+    return { stats: { skipped: 1, reason: 'source-disabled' } };
+  }
 
   const profiles = await listActiveProfiles();
   if (profiles.length === 0) {
@@ -48,9 +54,8 @@ export async function runHnHiringJob(): Promise<{ stats: CronStats }> {
       atsType: AtsType.HN_HIRING,
       atsToken: HN_ATS_TOKEN,
       careerUrl: HN_CAREER_URL,
-      // The parent toggle (settings.hnParserEnabled) gates this job, so we
-      // mark the synthetic Company active by default so the kanban / Jobs
-      // page filtering respect it normally.
+      // Active like any source: whether it is read is the two switches'
+      // call (`settings.ts:pausedFamilies`), for this job and the hourly walk.
       active: true,
     },
   });

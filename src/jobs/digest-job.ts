@@ -4,7 +4,7 @@ import { logger } from '../logger';
 import { sendDigest, type QuietSourceAlert } from '../notifier';
 import { attributionLine } from '../web/pages/attribution';
 import { QUIET_STREAK } from '../fetchers/source-health';
-import { getSettings, toAtsTypes } from '../settings';
+import { getSettings, pausedFamilies } from '../settings';
 import { lastSuccessfulRunAt, type CronStats } from './cron-run';
 import type { AlertJob } from '../types';
 
@@ -97,7 +97,7 @@ export async function runDigestJob(): Promise<{ stats: CronStats }> {
 async function quietSources(): Promise<QuietSourceAlert[]> {
   const settings = await getSettings();
   if (!settings.sourceHealthAlerts) return [];
-  const disabled = toAtsTypes(settings.disabledSources);
+  const disabled = pausedFamilies(settings);
   const rows = await prisma.company.findMany({
     where: {
       active: true,
