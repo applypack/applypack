@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { capExplanation, levelCredit, orderVerdicts, readScreenBreakdown, scoreScreening, sectorMatches } from './score';
-import { RubricSchema, specOf, type Criterion, type Rubric } from './rubric';
+import { parseCriterionText, RubricSchema, specOf, type Criterion, type Rubric } from './rubric';
 import { ScreenReplySchema, type ScreenReply } from './prompts';
 
 const NOW = new Date('2026-09-09T00:00:00Z');
@@ -81,6 +81,22 @@ test('a strong applicant: every criterion earns, gates pass, no cap', () => {
   assert.equal(bd.level, 'senior');
   assert.equal(bd.confidence.band, 'high');
   assert.equal(capExplanation(bd), null);
+});
+
+test('a window typed into the criterion halves older use; without one, a skill\'s age costs nothing', () => {
+  const rowFor = (text: string, lastUsed: string) => {
+    const parsed = parseCriterionText('skill', text)!;
+    const rubric = RubricSchema.parse({ criteria: [c('s-k8s', 'skill', parsed.label, 'scored', 1, parsed.spec)] });
+    return scoreScreening({ rubric, reply: reply({}, { 's-k8s': { rung: 'role', quote: 'q', last_used: lastUsed } }), textChars: 3000, now: NOW }).rows[0]!;
+  };
+  const old = rowFor('Kubernetes within 12 months', '2024');
+  assert.equal(old.credit, 0.4, 'last used in 2024, 21 months ago: half of 0.8');
+  assert.equal(old.detail, 'last used 21 months ago — past the 12-month window, half credit');
+  assert.equal(rowFor('Kubernetes within 12 months', 'Sep 2025').credit, 0.8, 'twelve months ago is still inside the window');
+  const recent = rowFor('Kubernetes within 1 year', 'Present');
+  assert.equal(recent.credit, 0.8);
+  assert.equal(recent.detail, 'last used Present');
+  assert.equal(rowFor('Kubernetes', '2019').credit, 0.8, 'no window typed: 2019 still earns the whole rung');
 });
 
 test('no core skill anywhere caps at 30', () => {

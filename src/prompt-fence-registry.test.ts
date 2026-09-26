@@ -298,6 +298,25 @@ const CASES: Record<string, Case> = {
   },
 };
 
+/**
+ * The names a file calls the AI seam by: `complete` (the runtime's method,
+ * dotted or destructured) and `askForJson`, plus any name the file gave
+ * either of them — `askForJson as ask` on import, `{ complete: run }` on
+ * destructuring — since those calls read `ask(` and `run(`.
+ */
+function seamNames(source: string): string[] {
+  const renamed = [
+    ...source.matchAll(/\baskForJson\s+as\s+([A-Za-z_$][\w$]*)/g),
+    ...source.matchAll(/\bcomplete\s*:\s*([A-Za-z_$][\w$]*)\s*[,}]/g),
+  ].map((m) => m[1]!);
+  return ['complete', 'askForJson', ...renamed];
+}
+
+/** Whether the file calls the seam under any of its names. */
+function callsSeam(source: string): boolean {
+  return seamNames(source).some((name) => new RegExp(`(?<![\\w$])${name.replace(/\$/g, '\\$')}\\s*\\(`).test(source));
+}
+
 function walkSrc(): string[] {
   return readdirSync(SRC, { recursive: true, withFileTypes: true })
     .filter((e) => e.isFile() && /\.tsx?$/.test(e.name) && !e.name.includes('.test.'))
@@ -339,11 +358,19 @@ test('every module that exports a prompt builder is on the roster', () => {
   }
 });
 
+test('the call-site reader follows a renamed seam', () => {
+  assert.ok(callsSeam('const out = await ai.complete({ role: "classifier" });'));
+  assert.ok(callsSeam('const { complete } = runtime;\nawait complete(req);'));
+  assert.ok(callsSeam("import { askForJson as ask } from '../ai-json';\nawait ask(runtime, req);"));
+  assert.ok(callsSeam('const { complete: run } = runtime;\nawait run(req);'));
+  assert.ok(!callsSeam("import { askForJson as ask } from '../ai-json';"), 'an import alone is not a call');
+  assert.ok(!callsSeam('const done = { complete: true };\nmarkComplete(done);'), 'a field named complete is not the seam');
+});
+
 test('every AI call site is a known one', () => {
-  // A destructured `complete` used to slip past `.complete(`; the pattern
-  // reads the call, not the dot. A renamed import (`askForJson as ask`)
-  // still slips past it: the call it reads is `ask(`.
-  const callers = walkSrc().filter((f) => /\bcomplete\s*\(|askForJson\s*\(/.test(readFileSync(join(SRC, f), 'utf8')));
+  // The pattern reads the call, not the dot, so a destructured `complete`
+  // counts; `seamNames` adds the names a file renamed the seam to.
+  const callers = walkSrc().filter((f) => callsSeam(readFileSync(join(SRC, f), 'utf8')));
   const unknown = callers.filter((f) => !(f in KNOWN_CALL_SITES));
   assert.deepEqual(
     unknown,
