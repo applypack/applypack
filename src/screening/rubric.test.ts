@@ -17,6 +17,7 @@ import {
   RUBRIC_VERSION,
   type Criterion,
   type CriterionKind,
+  type Rubric,
 } from './rubric';
 
 const BRIEF = BriefSchema.parse({
@@ -39,6 +40,17 @@ const BRIEF = BriefSchema.parse({
 });
 
 const byKind = (r: { criteria: Criterion[] }, kind: CriterionKind) => r.criteria.filter((c) => c.kind === kind);
+
+/** The editor's form as it posts a rubric back, with some rows' text changed. */
+function formOf(r: Rubric, texts: Record<string, string> = {}): Record<string, string> {
+  const form: Record<string, string> = {};
+  for (const c of r.criteria) {
+    form[`text_${c.id}`] = texts[c.id] ?? criterionText(c);
+    form[`mode_${c.id}`] = c.mode;
+    form[`weight_${c.id}`] = String(c.weight);
+  }
+  return form;
+}
 
 test('draftRubric turns the brief into criteria under the kinds their wording names', () => {
   const r = draftRubric(BRIEF);
@@ -66,12 +78,7 @@ test('draftRubric turns the brief into criteria under the kinds their wording na
 
 test('a redraft keeps the person\'s own criteria and does not resurrect what they removed', () => {
   const first = draftRubric(BRIEF);
-  const form: Record<string, string> = {};
-  for (const c of first.criteria) {
-    form[`text_${c.id}`] = criterionText(c);
-    form[`mode_${c.id}`] = c.mode;
-    form[`weight_${c.id}`] = String(c.weight);
-  }
+  const form = formOf(first);
   form[`remove_${byKind(first, 'language')[0]!.id}`] = '1';
   form.add_kind = 'custom';
   form.add_text = 'has led a team of three or more';
@@ -93,6 +100,10 @@ test('the text grammar round-trips every kind', () => {
   const cases: [CriterionKind, string, string][] = [
     ['skill', 'Playwright / Cypress !', 'Playwright / Cypress !'],
     ['skill', 'TypeScript', 'TypeScript'],
+    ['skill', 'React / Vue within 36 months !', 'React / Vue within 36 months !'],
+    ['skill', 'React / Vue ! within 36 months', 'React / Vue within 36 months !'],
+    ['skill', 'Kubernetes within 3 years', 'Kubernetes within 36 months'],
+    ['skill', 'Kubernetes within 1 month', 'Kubernetes within 1 month'],
     ['years', '5+: test automation', '5+: test automation'],
     ['years', '0–2', '0–2'],
     ['years', '3-5', '3–5'],
@@ -125,6 +136,50 @@ test('the text grammar round-trips every kind', () => {
   assert.equal(parseCriterionText('skill', '  '), null);
   const band = parseCriterionText('years', '8–3')!;
   assert.deepEqual([band.spec.min, band.spec.max], [3, 3], 'a band upside down is clamped');
+});
+
+test('a skill\'s recency window is typed into its text, and off unless it is', () => {
+  const read = (text: string) => {
+    const p = parseCriterionText('skill', text);
+    return p && { terms: p.spec.terms.map((t) => t.term), core: p.spec.core, months: p.spec.recentWithinMonths, label: p.label };
+  };
+  assert.deepEqual(read('React / Vue within 36 months !'), { terms: ['React', 'Vue'], core: true, months: 36, label: 'React / Vue !' }, 'the window stays out of the terms and the label');
+  assert.deepEqual(read('React / Vue ! within 36 months'), read('React / Vue within 36 months !'), '"!" before the window reads the same');
+  assert.deepEqual(read('Kubernetes within 3 years'), { terms: ['Kubernetes'], core: false, months: 36, label: 'Kubernetes' });
+  assert.equal(read('Kubernetes WITHIN 1 Year')!.months, 12, 'any case, the singular too');
+  assert.equal(read('Kubernetes within 1 month')!.months, 1);
+  assert.equal(read('Playwright / Cypress !')!.months, null, 'no window typed, no decay');
+  assert.equal(read('TypeScript')!.months, null);
+  assert.equal(read('Kubernetes within 0 months')!.months, 1, 'clamped to the schema, as an upside-down band is');
+  assert.equal(read('Kubernetes within 300 months')!.months, 240);
+  assert.equal(read('Kubernetes within 25 years')!.months, 240);
+  for (const unreadable of ['Kubernetes within two years', 'Kubernetes within 1.5 years', 'Kubernetes within 3 yrs', 'React within 2 years / Vue', 'within 36 months !']) {
+    assert.equal(parseCriterionText('skill', unreadable), null, `${unreadable}: refused, never kept inside a term`);
+  }
+});
+
+test('the editor saves a window from the row\'s text, and deleting the words deletes it', () => {
+  const first = draftRubric(BRIEF);
+  const pg = byKind(first, 'skill').find((c) => c.label === 'PostgreSQL')!;
+  const save = (texts: Record<string, string>, previous: Rubric): Rubric => {
+    const out = rubricFromForm(formOf(previous, texts), previous);
+    assert.ok('rubric' in out, JSON.stringify(out));
+    return out.rubric;
+  };
+  const windowed = save({ [pg.id]: 'PostgreSQL within 24 months' }, first);
+  const row = windowed.criteria.find((c) => c.id === pg.id)!;
+  assert.equal(row.spec.recentWithinMonths, 24);
+  assert.deepEqual(row.spec.terms[0]!.aliases, ['postgres'], 'the aliases survive');
+  assert.equal(row.label, 'PostgreSQL', 'the label stays the terms');
+  assert.equal(criterionText(row), 'PostgreSQL within 24 months', 'the row re-opens on the same text');
+  assert.ok(!rubricEquals(first, windowed), 'a window is a new yardstick');
+  assert.deepEqual(save({}, windowed).criteria.find((c) => c.id === pg.id), row, 'saved again untouched, the row stays');
+  assert.equal(save({ [pg.id]: 'PostgreSQL' }, windowed).criteria.find((c) => c.id === pg.id)!.spec.recentWithinMonths, null);
+  const refused = rubricFromForm(formOf(first, { [pg.id]: 'PostgreSQL within two years' }), first);
+  assert.ok('error' in refused && /add "within 36 months"/.test(refused.error), 'an unreadable window is refused with the hint');
+  const removed = rubricFromForm({ ...formOf(windowed), [`remove_${pg.id}`]: '1' }, windowed);
+  assert.ok('rubric' in removed);
+  assert.ok(!draftRubric(BRIEF, removed.rubric).criteria.some((c) => c.label === 'PostgreSQL'), 'removed with a window, a redraft does not bring it back');
 });
 
 test('protectedCharacteristic refuses the wish and names the lawful criterion', () => {

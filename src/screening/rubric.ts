@@ -72,7 +72,7 @@ export const CRITERION_KIND_LABELS: Record<CriterionKind, string> = {
 
 /** What the editor's "What" field takes for each kind — the grammar `parseCriterionText` reads. */
 export const CRITERION_KIND_HINTS: Record<CriterionKind, string> = {
-  skill: 'one term, or alternatives as "Playwright / Cypress"; add "!" to mark the core stack',
+  skill: 'one term, or alternatives as "Playwright / Cypress"; add "!" to mark the core stack; add "within 36 months" to halve the credit for older use',
   years: '"5+", "0–2", "3–5" — years in this kind of work; add the kind after a colon: "5+: test automation"',
   level: 'junior, mid, senior or lead; add "or above" / "or below" / "exactly"',
   industry: 'sectors, comma-separated; optional years: "fintech, payments: 3+"',
@@ -127,6 +127,10 @@ const MAX_CUSTOM = 20;
 const MAX_TEXT = 200;
 const MAX_TERM = 60;
 export const MAX_WEIGHT = 5;
+/** A skill's recency window, in months: "within 36 months", or "within 3 years" read as 36. */
+const MIN_WINDOW_MONTHS = 1;
+const MAX_WINDOW_MONTHS = 240;
+const MONTHS_PER_YEAR = 12;
 
 const term = z.string().trim().min(1).max(MAX_TERM);
 const text = z.string().trim().min(1).max(MAX_TEXT);
@@ -139,8 +143,8 @@ const SpecSchema = z
     core: z.boolean().default(false),
     /** skill: the rung a gate needs (a scored skill takes the ladder as it is). */
     minRung: z.enum(EVIDENCE_RUNGS).default('listed'),
-    /** skill: a term last used longer ago than this earns half. Null = no decay. */
-    recentWithinMonths: z.number().int().min(1).max(240).nullable().default(null),
+    /** skill: a term last used longer ago than this earns half. Null = no decay — off unless the text says "within N months". */
+    recentWithinMonths: z.number().int().min(MIN_WINDOW_MONTHS).max(MAX_WINDOW_MONTHS).nullable().default(null),
     /** years: the kind of work that counts, and the band. */
     of: z.string().trim().max(MAX_TEXT).nullable().default(null),
     min: z.number().min(0).max(60).nullable().default(null),
@@ -428,12 +432,21 @@ export function applyPreset(rubric: Rubric, preset: Preset): Rubric {
 
 /* ---------- the editor's grammar: one text field per criterion ---------- */
 
+/** A skill's core mark: "!" as the last token. */
+const CORE_MARK = /\s*!\s*$/;
+/** A skill's recency window, just before the core mark: "React / Vue within 36 months !". */
+const WINDOW_TAIL = /\bwithin\s+(\d+)\s*(months?|years?)$/i;
+/** "within" anywhere else in a skill's text is a window the grammar could not read. */
+const WINDOW_WORD = /\bwithin\b/i;
+
 /** The "What" text the editor shows for a criterion — what `parseCriterionText` reads back. */
 export function criterionText(c: Criterion): string {
   const s = c.spec;
   switch (c.kind) {
-    case 'skill':
-      return `${s.terms.map((t) => t.term).join(' / ')}${s.core ? ' !' : ''}`;
+    case 'skill': {
+      const recency = s.recentWithinMonths === null ? '' : ` within ${s.recentWithinMonths} month${s.recentWithinMonths === 1 ? '' : 's'}`;
+      return `${s.terms.map((t) => t.term).join(' / ')}${recency}${s.core ? ' !' : ''}`;
+    }
     case 'years': {
       const band = s.min !== null && s.max !== null ? `${s.min}–${s.max}` : s.max !== null ? `0–${s.max}` : `${s.min ?? 0}+`;
       return s.of ? `${band}: ${s.of}` : band;
@@ -472,10 +485,23 @@ export function parseCriterionText(kind: CriterionKind, raw: string): { label: s
     case 'overall':
       return { label: 'the whole resume against the whole posting', spec: SpecSchema.parse({}) };
     case 'skill': {
-      const core = /!\s*$/.test(text);
-      const terms = text.replace(/!\s*$/, '').split(' / ').map((t) => t.trim()).filter(Boolean).slice(0, 12);
+      // The core mark comes off first, then the window before it; "React ! within 36 months" reads the same.
+      let core = CORE_MARK.test(text);
+      let rest = text.replace(CORE_MARK, '');
+      let recentWithinMonths: number | null = null;
+      const tail = WINDOW_TAIL.exec(rest);
+      if (tail) {
+        const months = Number(tail[1]) * (/^y/i.test(tail[2]!) ? MONTHS_PER_YEAR : 1);
+        recentWithinMonths = Math.min(MAX_WINDOW_MONTHS, Math.max(MIN_WINDOW_MONTHS, months));
+        rest = rest.slice(0, tail.index);
+        core ||= CORE_MARK.test(rest);
+        rest = rest.replace(CORE_MARK, '');
+      }
+      // Refused, not kept: inside a term it would be searched for with the term, which then reads as absent for everyone.
+      if (WINDOW_WORD.test(rest)) return null;
+      const terms = rest.split(' / ').map((t) => t.trim()).filter(Boolean).slice(0, 12);
       if (terms.length === 0) return null;
-      return { label: skillLabel(terms, core), spec: SpecSchema.parse({ terms: terms.map((t) => ({ term: t.slice(0, MAX_TERM) })), core }) };
+      return { label: skillLabel(terms, core), spec: SpecSchema.parse({ terms: terms.map((t) => ({ term: t.slice(0, MAX_TERM) })), core, recentWithinMonths }) };
     }
     case 'years': {
       const [band, ...rest] = text.split(':');
@@ -573,8 +599,8 @@ export function rubricFromForm(form: Record<string, unknown>, previous: Rubric):
     const mode = (CRITERION_MODES as readonly string[]).includes(str(`mode_${c.id}`)) ? (str(`mode_${c.id}`) as CriterionMode) : c.mode;
     const weight = Math.max(1, Math.min(MAX_WEIGHT, Math.round(Number(str(`weight_${c.id}`)) || c.weight)));
     const answer = str(`answer_${c.id}`) === 'howmuch' ? 'howmuch' : str(`answer_${c.id}`) === 'yesno' ? 'yesno' : c.spec.answer;
-    // A skill keeps its aliases and recency when the terms are unchanged; the text only re-spells the terms.
-    const spec = c.kind === 'skill' ? { ...parsed.spec, terms: parsed.spec.terms.map((t) => ({ ...t, aliases: c.spec.terms.find((o) => o.term.toLowerCase() === t.term.toLowerCase())?.aliases ?? [] })), minRung: c.spec.minRung, recentWithinMonths: c.spec.recentWithinMonths } : { ...parsed.spec, answer };
+    // A skill keeps each unchanged term's aliases and its minimum rung; the text sets the terms, the core mark and the window.
+    const spec = c.kind === 'skill' ? { ...parsed.spec, terms: parsed.spec.terms.map((t) => ({ ...t, aliases: c.spec.terms.find((o) => o.term.toLowerCase() === t.term.toLowerCase())?.aliases ?? [] })), minRung: c.spec.minRung } : { ...parsed.spec, answer };
     const next: Criterion = { ...c, label: parsed.label, mode, weight, spec: SpecSchema.parse(spec) };
     const refused = protectedCharacteristic(next);
     if (refused) return { error: refused };

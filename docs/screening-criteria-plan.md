@@ -479,7 +479,8 @@ reads.
    characteristics, nothing else. Is a warning on every custom gate
    ("a gate is a knockout — is this truly a minimum?") enough?
 3. **Recency decay** for skills (`recentWithin`): default 36 months, or
-   off unless set?
+   off unless set? **Answered 2026-09-25:** off unless set — a skill's
+   text takes "within 36 months" (`rubric.ts:parseCriterionText`).
 4. **Trajectory columns** — shown by default, or opt-in per screening?
    Tenure and employer counts are exactly the numbers a screener misreads
    as a penalty.
