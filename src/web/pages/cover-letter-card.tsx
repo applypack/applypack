@@ -1,6 +1,6 @@
 /** @jsxImportSource hono/jsx */
 import type { FC } from 'hono/jsx';
-import { ActionForm, Badge, Button, Card, Hint, Input, SectionTitle, Select, Tag, Textarea } from '../ui';
+import { ActionForm, Badge, Button, Card, Hint, HistoryChip, Input, SectionTitle, Select, Tag, Textarea } from '../ui';
 import { greetingOf } from '../../resume/addressee';
 import type { Tone } from '../format';
 import { formatRelative } from '../format';
@@ -189,22 +189,14 @@ export const CoverLetterCard: FC<CoverLetterCardProps> = ({
           <ul class="flex flex-wrap gap-2">
             {letters.map((l) => (
               <li>
-                <a
-                  href={`/jobs/${jobId}?letter=${l.id}#cover-letter`}
-                  aria-current={selected?.id === l.id ? 'true' : undefined}
-                  class={`inline-flex items-center gap-2 rounded-md border px-2.5 py-1 text-xs transition-colors duration-150 ${
-                    selected?.id === l.id
-                      ? 'border-accent/50 bg-accent/5 text-ink'
-                      : 'border-line bg-surface-raised text-ink-muted hover:border-line-strong hover:text-ink'
-                  }`}
-                >
+                <HistoryChip href={`/jobs/${jobId}?letter=${l.id}#cover-letter`} current={selected?.id === l.id}>
                   <Badge tone={(GATE_VIEW[l.gateVerdict] ?? GATE_VIEW.pass!).tone}>
                     {l.gateVerdict}
                   </Badge>
                   {l.resume.name}
-                  <span class="font-mono text-ink-faint">v{l.resumeVersion}</span>
-                  <span class="text-ink-faint">{formatRelative(l.createdAt)}</span>
-                </a>
+                  <span class="font-mono font-normal text-ink-faint">v{l.resumeVersion}</span>
+                  <span class="font-normal text-ink-faint">{formatRelative(l.createdAt)}</span>
+                </HistoryChip>
               </li>
             ))}
           </ul>
