@@ -2049,7 +2049,9 @@ A → B1+B2 → C → D → E.
       never fires. `score.ts` halves a term only when the criterion's
       `recentWithinMonths` is set, and nothing sets it (no draft, preset,
       grammar or form field; only `score.test.ts` does). The years
-      criterion's recency does count.
+      criterion's recency does count. **2026-09-25:** settable since this
+      change (`within N months` in the criterion text); off unless set, the
+      owner's answer to question 3 in screening-criteria-plan.md §7.
 - [x] **C — beyond the score** (v2.3.0): "Stands out" — three facts no
       criterion asked for, each with its line, anchored, never scored — on
       the scorecard, the row's expandable line and the exports; the career

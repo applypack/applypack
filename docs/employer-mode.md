@@ -16,9 +16,10 @@ screening's own editable snapshot — and its applicants. The posting is
 read once into a draft list of criteria you edit before anyone is scored:
 a gate (pass / unknown / fail, never points), a scored criterion with one
 to five stars, or a note that is shown and not counted. Each row is a kind
-and a line of text — "Playwright / Cypress !", "0–2 years", "fintech,
-payments: 3+", "has led a team of three or more" — and the last row takes
-anything in your own words, answered yes/no or on the evidence ladder.
+and a line of text — "Playwright / Cypress !", "Kubernetes within 36
+months" (older use earns half), "0–2 years", "fintech, payments: 3+", "has
+led a team of three or more" — and the last row takes anything in your own
+words, answered yes/no or on the evidence ladder.
 Five presets bend the draft (Standard, Junior hire, Senior / lead,
 Regulated, Agency work); a criterion naming age, gender, family, origin or
 health is refused with the lawful criterion offered instead.
