@@ -195,7 +195,9 @@ function rubricLines(rubric: Rubric): string {
   if (rubric.criteria.length === 0) return '(no criteria)';
   return rubric.criteria
     .map((c) => {
-      const what = c.kind === 'impact' || c.kind === 'overall' ? c.label : criterionText(c) || c.label;
+      // A skill's window is score.ts's arithmetic, like the stars: the model is asked for the evidence and "last_used", never the window.
+      const asked: Criterion = { ...c, spec: { ...c.spec, recentWithinMonths: null } };
+      const what = c.kind === 'impact' || c.kind === 'overall' ? c.label : criterionText(asked) || c.label;
       const extra =
         c.kind === 'skill' && c.spec.terms.some((t) => t.aliases.length > 0)
           ? ` (also spelled: ${c.spec.terms.flatMap((t) => t.aliases).join(', ')})`
