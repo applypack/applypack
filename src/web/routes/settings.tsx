@@ -11,6 +11,7 @@ import {
   findSameDestination,
   deleteNotificationTarget,
   getAiKeys,
+  getSchedule,
   getSettings,
   listNotificationTargets,
   maskToken,
@@ -39,8 +40,7 @@ import { setEmployerModeCache } from '../employer-mode';
 import { applicantNotice, LEGAL_NOTE } from '../../screening/notice';
 import { config } from '../../config';
 import { ALL_DAYS, MAX_DIGEST_HOURS, ScheduleSchema, describeSchedule, parseSchedule } from '../../user-schedule';
-import { countHeldAlerts } from '../../jobs/alert-delivery';
-import { loadNextCheck } from '../schedule-view';
+import { loadHeldLine, loadNextCheck } from '../schedule-view';
 import {
   addStage,
   allStages,
@@ -229,7 +229,7 @@ async function loadSettingsProps() {
     schedule: check.schedule,
     zones: supportedTimezones(check.schedule.timezone),
     nextFetch: check.next,
-    held: await countHeldAlerts(),
+    held: await loadHeldLine(check.schedule),
   };
   const countByStage = new Map(
     stageCounts.map((row) => [row.pipelineStage, row._count._all]),
@@ -426,8 +426,8 @@ settingsRoute.post('/settings/schedule', async (c) => {
     return flashRedirect('/settings?tab=general', 'err', `Schedule not saved (${firstIssue(parsed.error.issues)}). The stored schedule is unchanged; fix that field and save again.`);
   }
   await setSchedule(parsed.data);
-  const held = await countHeldAlerts();
-  const waiting = parsed.data.alerts.mode !== 'instant' && held > 0 ? ` ${held} waiting ${held === 1 ? 'match' : 'matches'} will go out at the next window.` : '';
+  const held = await loadHeldLine(parsed.data);
+  const waiting = held === null ? '' : ` ${held.text}.`;
   return flashRedirect('/settings?tab=general', 'ok', `Schedule saved — ${describeSchedule(parsed.data)}.${waiting}`);
 });
 
@@ -452,12 +452,17 @@ function pills(value: unknown, fallback: readonly number[]): number[] {
 
 settingsRoute.post('/settings/telegram-toggle', async (c) => {
   const settings = await getSettings();
-  await setTelegramEnabled(!settings.telegramEnabled);
+  const enabled = !settings.telegramEnabled;
+  await setTelegramEnabled(enabled);
+  // Every channel, Discord included (ADR 0041) — the column is just old.
+  const done = `Alerts ${enabled ? 'enabled' : 'disabled'} on every channel.`;
+  const held = enabled ? await loadHeldLine(await getSchedule()) : null;
   return flashRedirect(
     '/settings?tab=notifications',
     'ok',
-    // Every channel, Discord included (ADR 0041) — the column is just old.
-    `Alerts ${!settings.telegramEnabled ? 'enabled' : 'disabled'} on every channel.`,
+    enabled
+      ? `${done}${held ? ` ${held.text}.` : ''}`
+      : `${done} What is found meanwhile waits, and arrives in one message per chat when you switch them back on.`,
   );
 });
 

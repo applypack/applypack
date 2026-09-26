@@ -102,6 +102,8 @@ export async function runHnHiringJob(): Promise<{ stats: CronStats }> {
     skippedByPause: 0,
     skippedBlankProfile: 0,
     alertHeld: 0,
+    alertsOffHeld: 0,
+    alertNoTarget: 0,
     watchedKept: 0,
   };
   await processNormalizedJobs(items, profiles, inner, {

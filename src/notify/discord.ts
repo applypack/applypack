@@ -1,6 +1,6 @@
 import type { NotificationTarget } from '@prisma/client';
 import type { AlertJob } from '../types';
-import { formatPlaceLine, formatSalary, quietSourceItems, type PageChangeNotice, type QuietSourceAlert } from './lines';
+import { formatPlaceLine, formatSalary, moreOnDashboard, quietSourceItems, type PageChangeNotice, type QuietSourceAlert } from './lines';
 import { packMessages } from './pack';
 
 /*
@@ -59,15 +59,18 @@ export function formatDiscordHealthLine(quiet: readonly QuietSourceAlert[]): str
   return `⚠️ **${quiet.length} quiet source${quiet.length === 1 ? '' : 's'}** — ${items.join(', ')}`;
 }
 
-/** The digest, packed under Discord's 2000-character limit. */
-export function formatDiscordDigest(jobs: readonly AlertJob[], quiet: readonly QuietSourceAlert[], title: string): string[] {
+/** The digest, packed under Discord's 2000-character limit. `more` = matches counted in the header and not listed. */
+export function formatDiscordDigest(jobs: readonly AlertJob[], quiet: readonly QuietSourceAlert[], title: string, more = 0): string[] {
   const health = formatDiscordHealthLine(quiet);
   if (jobs.length === 0) {
     const empty = 'No new matches since the last digest.';
     return [health ? `${empty}\n\n${health}` : empty];
   }
-  const header = `**${escapeDiscord(title)} — ${jobs.length} match${jobs.length === 1 ? '' : 'es'}**${health ? `\n${health}` : ''}`;
-  return packMessages(header, jobs.map(formatDiscordAlert), '\n\n———\n\n', DISCORD_MAX_LENGTH);
+  const total = jobs.length + more;
+  const header = `**${escapeDiscord(title)} — ${total} match${total === 1 ? '' : 'es'}**${health ? `\n${health}` : ''}`;
+  const blocks = jobs.map(formatDiscordAlert);
+  if (more > 0) blocks.push(escapeDiscord(moreOnDashboard(more)));
+  return packMessages(header, blocks, '\n\n———\n\n', DISCORD_MAX_LENGTH);
 }
 
 export function formatDiscordPageChanges(pages: readonly PageChangeNotice[]): string {

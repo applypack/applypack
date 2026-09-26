@@ -61,7 +61,8 @@ sequenceDiagram
 
   cron->>runFetchJob: tick, through recordCronRun
   runFetchJob->>runFetchJob: syncFranceTravail (the licence's daily check)
-  runFetchJob->>deliverHeldAlerts: matches held by earlier ticks, when shouldDeliverHeld allows this beat
+  runFetchJob->>deliverHeldAlerts: matches held by earlier ticks, when shouldDeliverHeld allows this beat and Alerts are on
+  runFetchJob->>runFetchJob: deliverPageChanges (careers-page changes still pending, under the same rules)
   Note over runFetchJob: stops here when fetchingEnabled is off or isFetchDue says no<br/>(a manual "Fetch now" carries on)
   runFetchJob->>listActiveProfiles: the running searches
   listActiveProfiles-->>runFetchJob: profiles[]
@@ -71,7 +72,7 @@ sequenceDiagram
     runAllFetchers->>runAllFetchers: fetchOne(c) → NormalizedJob[]
   end
   runAllFetchers-->>runFetchJob: FetcherResult[]
-  runFetchJob->>runFetchJob: deliverPageChanges (the change watch's notices, when canAlertNow allows)
+  runFetchJob->>runFetchJob: recordPageChanges (a change becomes pendingContentHash), then deliverPageChanges
   runFetchJob->>runFetchJob: recordCandidatesFromText per fetched job (when discoveryEnabled)
   Note over runFetchJob: a pause cuts the walk short at the next board, and the tick stops here (paused-mid-run)<br/>processNormalizedJobs polls the same probe and stops within seconds
   runFetchJob->>processNormalizedJobs: processNormalizedJobs(fetched, profiles, stats, opts)
@@ -125,14 +126,20 @@ Two things to remember while reading this:
    seconds.
 
 A match held outside the alert window stays NEW with its `alertHeldAt`
-stamp. `deliverHeldAlerts` sends the held rows on the first heartbeat the
-schedule allows (`user-schedule.ts:shouldDeliverHeld`): inside the alert
+stamp, and so does one found while Alerts are off or refused by every chat
+(`notifier.ts:broadcast` throws `AlertDeliveryError` when nothing reached
+anyone, and says `skipped` when it never tried). `deliverHeldAlerts` sends
+the held rows on the first heartbeat the schedule allows
+(`user-schedule.ts:shouldDeliverHeld`) with Alerts on: inside the alert
 window in window mode, at a digest hour in digest mode, and on any beat in
-instant mode, where a held row is a leftover from an earlier setting. It
-runs above the pause and the schedule gate. The rows are grouped by the
-target their winning search routes to (`held-alerts.ts:groupHeldByTarget`),
-one delivery per group; the group with no target goes to every active
-target, and so does a group whose target is switched off.
+instant mode, where a held row is a failed send or a leftover from an
+earlier setting. It runs above the pause and the schedule gate. The rows
+are grouped by the target their winning search routes to
+(`held-alerts.ts:groupHeldByTarget`), one delivery per group listing the
+best `HELD_LIST_MAX`; the group with no target goes to every active target,
+and so does a group whose target is switched off. With no active chat at
+all nothing is held. The change watch follows the same rules through
+`Company.pendingContentHash` (`jobs/page-change-alerts.ts`).
 
 ## Discovery loop
 
@@ -420,9 +427,9 @@ src/
     score-store.ts              ← the one write path for a re-score of a stored job
     location-merge.ts           ← pure: the classifier's place fills or narrows the parser's, never blanks it (ADR 0032)
     location-reason.ts          ← pure: "open to Poland; this search hunts in …" for the job page (ADR 0032)
-    alert-delivery.ts           ← deliverHeldAlerts: sends the held matches on the first beat the schedule allows
-    held-alerts.ts              ← pure: groupHeldByTarget, one delivery per routing target, the broadcast group apart
-    page-change-alerts.ts       ← deliverPageChanges: one message for the changed careers pages, then the hash advances
+    alert-delivery.ts           ← deliverHeldAlerts: sends the held matches on the first beat the schedule and the Alerts switch allow
+    held-alerts.ts              ← pure: groupHeldByTarget (one delivery per routing target, the best twenty listed), heldReason
+    page-change-alerts.ts       ← recordPageChanges + deliverPageChanges: a change waits on the row, then one message and the hash advances
     france-travail-sync.ts      ← the licence's daily re-check of the stored France Travail offers (ADR 0034)
     digest-job.ts               ← runDigestJob (hourly beat; works on the user's digest hours)
     stale-applications-job.ts   ← runStaleApplicationsJob (hourly beat; the day's first digest hour)
@@ -486,7 +493,8 @@ src/
     job-tabs.ts                 ← the job page's tabs: resolveJobTab (explicit, else inferred from match= / letter=), jobHref, the labels with what exists (pure)
     job-pick.ts                 ← the jobs a candidate launcher offers (fit threshold, newest, ?job= kept)
     runs-summary.ts             ← a run's stats as facts in a fixed order, a reason as a sentence (pure) — what /runs shows instead of JSON
-    schedule-view.ts            ← loadNextCheck: the "next check" line the Overview and /settings share
+    schedule-view.ts            ← loadNextCheck + loadHeldLine: the "next check" and "waiting" lines the Overview and /settings share
+    held-line.ts                ← pure: the waiting line's words — how many, what holds them, the one place to change it
     stage-config.ts             ← pure: the board's columns (ADR 0025): parse, add / remove / move / rename
     stage-events.ts             ← pure: the JobStageEvent row of a stage move (ADR 0024)
     stage-time.ts               ← pure: time in stage for the /applications cards
@@ -769,6 +777,7 @@ erDiagram
     String alertPolicy "matches or all"
     String lastContentHash "the change watch"
     DateTime lastContentAlertAt
+    String pendingContentHash "a change not reported yet"
   }
 
   Job {

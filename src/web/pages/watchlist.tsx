@@ -46,6 +46,8 @@ export interface WatchedRow {
   newJobs: number;
   /** §17 stage C — when we last said this page changed. */
   lastContentAlertAt: Date | null;
+  /** A change seen and not reported yet — waiting for the alert hours, for Alerts, or for a retry. */
+  changePending: boolean;
 }
 
 /** A change watch produces no postings, so its row says different things. */
@@ -396,7 +398,11 @@ export const WatchlistSection: FC<{ rows: WatchedRow[] }> = ({ rows }) => {
             <Td class="whitespace-nowrap">
               {isChangeWatch(r) ? (
                 <span class="text-[13px] text-ink-faint" title="A change watch never stores postings.">
-                  {r.lastContentAlertAt ? `changed ${formatRelative(r.lastContentAlertAt)}` : 'watching'}
+                  {r.changePending
+                    ? 'changed · notice waiting'
+                    : r.lastContentAlertAt
+                      ? `changed ${formatRelative(r.lastContentAlertAt)}`
+                      : 'watching'}
                 </span>
               ) : r.newJobs > 0 ? (
                 <a

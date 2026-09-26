@@ -193,3 +193,22 @@ the column readable.
   (`src/watchlist/resolve.ts:MAX_HOST_REQUESTS`). The probes that confirm a
   board go to the vendor's API on top of them: up to four `probeAts` calls,
   three of them for board links found on the page.
+
+## Addendum (2026-09-25): a change waits on the row
+
+"A change seen inside the quiet window waits for the next check" relied on
+the page being read again at an hour that may send the notice. That failed
+three ways: in digest mode no notice was ever sent (the check asked
+`canAlertNow`, which is false in that mode at every hour); a page checked
+daily or weekly is rarely read at such an hour; and the validator the read
+kept let the next check answer 304 and say nothing. With Alerts off the
+hash advanced as if the notice had gone out.
+
+A change is now written to `Company.pendingContentHash` after the walk, and
+`jobs/page-change-alerts.ts:deliverPageChanges` sends every pending change
+from the top of the fetch tick under the held matches' rules
+(`shouldDeliverHeld`, Alerts on, a chat to send to). `lastContentHash`
+still advances only when the notice is out. With no active chat the row on
+`/companies` is the report, so the change is taken as reported at once. A
+change inside the once-a-day gap keeps no validator, so the next check reads
+the page in full.

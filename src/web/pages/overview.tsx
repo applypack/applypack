@@ -5,6 +5,7 @@ import { Layout } from '../layout';
 import { Badge, Button, Card, Empty, FitBadge, Flash, MetricStrip, PageHeader, SectionTitle, StatusBadge } from '../ui';
 import type { FlashMessage } from '../flash';
 import type { FetchRun } from '../fetch-runs';
+import type { HeldLine } from '../held-line';
 import { FetchNowButton } from './fetch-run';
 import {
   formatDuration,
@@ -44,8 +45,8 @@ export interface OverviewProps {
   fetchingEnabled: boolean;
   /** "" while the schedule lets every hour through; "Sleeping until Mon 07:05" otherwise (TASKS §16). */
   sleepingUntil: string;
-  /** Matches scored outside the alert window, waiting for the next one. */
-  heldAlerts: number;
+  /** Matches waiting to be sent — for the window, for Alerts, for a chat — or null. */
+  held: HeldLine | null;
   /** §17: watched companies, and what they put up in the last 24h (ADR 0036). */
   watched: { companies: number; newJobs: number };
   /** The manual fetch in flight, if any — the button turns into a link to it. */
@@ -74,7 +75,7 @@ export const OverviewPage: FC<OverviewProps> = ({
   latestRuns,
   fetchingEnabled,
   sleepingUntil,
-  heldAlerts,
+  held,
   watched,
   fetchRun,
   finishSetup,
@@ -144,15 +145,14 @@ export const OverviewPage: FC<OverviewProps> = ({
 
       {/* What the four numbers cannot say, together under them. */}
       <div class="mb-8 mt-3 space-y-1">
-        {fetchingEnabled && heldAlerts > 0 && (
+        {fetchingEnabled && held && (
           <p data-ui="hint" class="text-[13px] leading-5 text-ink-muted">
-            {heldAlerts} {heldAlerts === 1 ? 'match is' : 'matches are'} waiting for the alert
-            window to open —{' '}
+            {held.text} —{' '}
             <a
-              href="/settings?tab=general"
+              href={held.href}
               class="font-medium text-accent-strong transition-colors duration-150 hover:text-accent-deep"
             >
-              change when alerts arrive
+              {held.action}
             </a>
             .
           </p>

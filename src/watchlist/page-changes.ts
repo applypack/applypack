@@ -7,9 +7,10 @@
  * fetcher must not send Telegram messages. It stages what it saw; the tick
  * takes the list afterwards and sends one grouped message.
  *
- * Nothing is written to the row here. `lastContentHash` advances only once
- * the alert is out (`jobs/page-change-alerts.ts`), so a change that could not
- * be delivered is still pending at the next check rather than swallowed.
+ * Nothing is written to the row here. After the walk the change becomes the
+ * row's `pendingContentHash`, and `lastContentHash` advances only once the
+ * notice is out (`jobs/page-change-alerts.ts`), so a change that could not be
+ * delivered waits rather than being swallowed.
  */
 
 export interface PageChange {

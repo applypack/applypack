@@ -79,7 +79,26 @@ describe('summarizeRun', () => {
       'Every running search is empty; nothing scored',
       '40 fetched',
       '0 new',
-      '2 alerts failed to send',
+      '2 alerts failed to send, held for a retry',
+    ]);
+  });
+
+  it('says why a match was not sent: the window, the switch, no chat', () => {
+    assert.deepEqual(summarizeRun('fetch', { fetched: 9, persisted: 4, alerted: 0, alertHeld: 1, alertsOffHeld: 2, alertNoTarget: 1 }), [
+      '9 fetched',
+      '4 new',
+      '0 alerted',
+      '1 held for the alert window',
+      '2 held while Alerts are off',
+      '1 not alerted: no chat set up',
+    ]);
+  });
+
+  it('names the reason a recap or a nudge went nowhere', () => {
+    assert.deepEqual(summarizeRun('digest', { skipped: 1, reason: 'alerts-off', durationMs: 12 }), ['Alerts are switched off; nothing sent']);
+    assert.deepEqual(summarizeRun('stale-applications', { skipped: 1, reason: 'no-targets', found: 3 }), [
+      'No chat to send to',
+      '3 stale applications',
     ]);
   });
 

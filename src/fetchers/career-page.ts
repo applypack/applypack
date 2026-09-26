@@ -69,6 +69,10 @@ export async function fetchCareerPage(company: CareerPageCompany): Promise<Norma
     stagePageChange({ ...base, hash: decision.hash, announce: true });
   } else if (decision.kind === 'held') {
     logger.info({ company: company.name }, 'career-page: changed again inside the daily window; still pending');
+    // Nothing is written for this change, so the next check has to read the
+    // page in full: a 304 on the validator would hide it until the page
+    // changed once more.
+    return [];
   }
   // A validator is only worth keeping when there is nothing to chase.
   rememberResponse(company.id, url, resp, 0);

@@ -127,6 +127,11 @@ model Company {
   // inside the once-a-day window waits rather than being lost.
   lastContentHash    String?
   lastContentAlertAt DateTime?
+  // A change seen and not reported yet: outside the alert hours, before the
+  // digest time, while Alerts are off, or after a failed send. Kept on the
+  // row because the page may not be read again at an hour that may send it
+  // (a weekly check, a 304), and sent from the top of the fetch tick.
+  pendingContentHash String?
 
   @@unique([atsType, atsToken])
   @@index([active, nextCheckAt])

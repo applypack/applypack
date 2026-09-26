@@ -1,53 +1,82 @@
 import { prisma } from '../db';
 import { logger } from '../logger';
-import { sendPageChangeAlert } from '../notifier';
+import { alertChannel, sendPageChangeAlert, type Delivery } from '../notifier';
+import { checkPostingUrl } from './posting-url';
 import { takePageChanges } from '../watchlist/page-changes';
-import { canAlertNow, type Schedule } from '../user-schedule';
+import { shouldDeliverHeld, type Schedule } from '../user-schedule';
 
 /**
  * Delivery for the change watch (TASKS §17 stage C, ADR 0036).
  *
- * `fetchers/career-page.ts` stages a changed page during the walk; this sends
- * one grouped message and only then advances `lastContentHash`. The order
- * matters: a change we could not deliver stays pending, because the row still
- * holds the text we last reported.
+ * `fetchers/career-page.ts` stages what it saw during the walk. After the walk
+ * `recordPageChanges` writes it down: a first read stores its hash, a change
+ * becomes the row's `pendingContentHash`. `deliverPageChanges` sends every
+ * pending change in one grouped message and only then advances
+ * `lastContentHash`, so a change that could not be delivered stays pending.
  *
- * Outside the user's alert window nothing is sent and nothing is advanced —
- * the next heartbeat inside it finds the page still different and reports it.
- * That is simpler than a second held-alert table and gives the same answer:
- * "the page changed" is a standing fact, not an event that expires.
+ * The notice keeps to the held matches' rules (TASKS §16): it goes out on
+ * the first heartbeat the schedule allows — any hour with alerts sent right
+ * away, the hours of the window, the digest times — with Alerts on and a chat
+ * to send to. It is on the row, not in memory, because the page may not be
+ * read again at such an hour: a weekly check, or a 304 that says nothing new.
+ * With no chat at all the row on /companies is the report ("changed 2h ago"),
+ * so the change is taken as reported at once — as a match with no chat stays
+ * New on the dashboard rather than waiting.
  */
-export async function deliverPageChanges(now: Date, schedule: Schedule): Promise<{ alerted: number }> {
-  const staged = takePageChanges();
-  if (staged.length === 0) return { alerted: 0 };
 
-  // A page seen for the first time has no news in it: store the hash so the
-  // next check has something to compare against, and say nothing.
-  for (const first of staged.filter((c) => !c.announce)) {
-    await prisma.company.update({ where: { id: first.companyId }, data: { lastContentHash: first.hash } });
-  }
-
-  const changes = staged.filter((c) => c.announce);
-  if (changes.length === 0) return { alerted: 0 };
-  if (!canAlertNow(now, schedule)) {
-    logger.info({ pages: changes.length }, 'page-change: outside the alert window; leaving them pending');
-    return { alerted: 0 };
-  }
-
-  try {
-    await sendPageChangeAlert(changes.map((c) => ({ companyName: c.companyName, url: c.url })));
-  } catch (err) {
-    // The hashes are untouched, so the next tick sees the same difference.
-    logger.error({ err, pages: changes.length }, 'page-change: send failed, leaving them pending');
-    return { alerted: 0 };
-  }
-
-  for (const change of changes) {
+/** After the walk: a first read stores its hash and says nothing; a change waits to be sent. */
+export async function recordPageChanges(): Promise<void> {
+  for (const change of takePageChanges()) {
     await prisma.company.update({
       where: { id: change.companyId },
-      data: { lastContentHash: change.hash, lastContentAlertAt: now },
+      data: change.announce ? { pendingContentHash: change.hash } : { lastContentHash: change.hash },
     });
   }
-  logger.info({ pages: changes.length }, 'page-change: reported');
-  return { alerted: changes.length };
+}
+
+/**
+ * Called at the top of the fetch tick — above the pause and the fetch
+ * schedule, like the held matches — and again after the walk, so a change
+ * seen inside the alert hours goes out in the tick that saw it.
+ */
+export async function deliverPageChanges(now: Date, schedule: Schedule): Promise<{ alerted: number }> {
+  const channel = await alertChannel();
+  if (channel === 'alerts-off' || (channel === 'open' && !shouldDeliverHeld(now, schedule))) return { alerted: 0 };
+  const pending = await prisma.company.findMany({
+    where: { pendingContentHash: { not: null }, active: true },
+    select: { id: true, name: true, atsToken: true, pendingContentHash: true },
+    orderBy: { name: 'asc' },
+  });
+  // The link the fetcher reads (`career-page.ts:careerPageUrl`). A URL the
+  // check now refuses is one the fetcher refuses too; it is left out rather
+  // than failing everyone else's notice.
+  const linked = pending.flatMap((c) => {
+    const checked = checkPostingUrl(c.atsToken);
+    return checked.ok ? [{ ...c, url: checked.url.toString() }] : [];
+  });
+  if (linked.length === 0) return { alerted: 0 };
+
+  if (channel === 'open') {
+    let delivery: Delivery;
+    try {
+      delivery = await sendPageChangeAlert(linked.map((c) => ({ companyName: c.name, url: c.url })));
+    } catch (err) {
+      // Every chat refused it; the rows keep their pending hash for the next heartbeat.
+      logger.error({ err, pages: linked.length }, 'page-change: send failed, leaving them pending');
+      return { alerted: 0 };
+    }
+    // Switched off since the check above.
+    if (delivery.skipped === 'alerts-off') return { alerted: 0 };
+  }
+
+  for (const company of linked) {
+    // Only the hash that was reported: a newer one written by a tick that
+    // ran meanwhile ("Fetch now" beside the cron) stays pending.
+    await prisma.company.updateMany({
+      where: { id: company.id, pendingContentHash: company.pendingContentHash },
+      data: { lastContentHash: company.pendingContentHash, lastContentAlertAt: now, pendingContentHash: null },
+    });
+  }
+  logger.info({ pages: linked.length }, 'page-change: reported');
+  return { alerted: linked.length };
 }

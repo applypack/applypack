@@ -109,9 +109,11 @@ buildVerdicts()          per-search decideDismissReason() against that search's 
 mergeVerdicts()          the winner's numbers become Job.fitScore, every verdict a JobScore row
    ↓ dismissed only when every search dismissed it
 Job(status=NEW) → one sendAlert(), named for the winner, routed to its notificationTargetId;
-                  when canAlertNow says no (outside the window, or any time in digest mode) the
-                  row is stamped alertHeldAt instead, and deliverHeldAlerts() sends it on the first
-                  heartbeat shouldDeliverHeld allows: inside the window, or at a digest hour
+                  when canAlertNow says no (outside the window, or any time in digest mode), while
+                  Alerts are off, or when every chat refused the send, the row is stamped
+                  alertHeldAt instead, and deliverHeldAlerts() sends it on the first heartbeat
+                  shouldDeliverHeld allows with Alerts on: inside the window, or at a digest hour.
+                  With no active chat nothing is held: the row stays NEW on the dashboard
 ```
 
 Every persisted Job also carries `workplace`, `countries`, `regions` and
@@ -136,7 +138,8 @@ General → Schedule is read by a pure gate (`src/user-schedule.ts`) at the
 start of each beat, in the schedule's own time zone: `isFetchDue` decides
 whether the fetch tick searches (a "no" is `outside-schedule` on /runs),
 `canAlertNow` decides whether a fresh match is sent or held on
-`Job.alertHeldAt`, `isDigestHour` decides whether the hourly recap beat does
+`Job.alertHeldAt` (held too while Alerts are off, or after every chat
+refused it), `isDigestHour` decides whether the hourly recap beat does
 anything, and `isFirstDigestHour` whether the stale-application beat does.
 A beat that is not its digest hour writes no run row. An empty
 `AppSettings.schedule` means every hour, around the clock, one message per
@@ -220,7 +223,7 @@ clause at the start of the affected job/handler. The toggles live on
 
 | Field                            | Default  | Effect when off                              |
 | -------------------------------- | -------- | -------------------------------------------- |
-| `telegramEnabled`                | false (+true after .env bootstrap) | "Alerts": no alert, held delivery, recap, stale nudge or change notice goes to any target, Telegram or Discord (all of them pass `notifier.ts:broadcast`, which logs and returns). A target's own test message still sends: the one on add and its Test button |
+| `telegramEnabled`                | false (+true after .env bootstrap) | "Alerts": nothing goes to any target, Telegram or Discord. A match found meanwhile is held on `Job.alertHeldAt` and a changed careers page waits on `Company.pendingContentHash`; both arrive in one message per chat once Alerts are back on (a long wait lists the best `HELD_LIST_MAX`, 20, and counts the rest). The recap and the stale nudge are skipped (`alerts-off` on /runs). With no active chat nothing is held: matches stay New. A target's own test message still sends: the one on add and its Test button |
 | `classifierMode`                 | `single` | `two_stage` adds a short prefilter call on the same classifier model |
 | `applicationTrackingEnabled`     | true     | Hides the per-job tracking card, skips the funnel seed on APPLIED and the stale nudge |
 | `staleApplicationsDigestEnabled` | true     | Daily nudge job exits early                  |
@@ -346,8 +349,10 @@ digits in the text were the counts that ARE the signal ("92 positions") — and
 says *"this careers page changed, have a look"* at most once a day, with the
 link. It never claims to know the jobs, produces no `Job` rows and costs no
 AI; `/companies` says *Page changes* and *watching* rather than a count. The
-hash advances only once the alert is actually sent, so a change seen inside
-the quiet window waits instead of being lost.
+hash advances only once the notice is actually sent: a change seen outside
+the alert hours, while Alerts are off, or refused by every chat waits on the
+row (`pendingContentHash`, *notice waiting* on `/companies`) and goes out from
+the top of the first tick that may send it.
 
 Measured on twenty JavaScript-heavy companies and sixteen European ones
 (2026-09-04, [docs/company-watchlist.md](./docs/company-watchlist.md)): 7

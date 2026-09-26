@@ -1,7 +1,7 @@
 import { JobStatus } from '@prisma/client';
 import { prisma } from '../db';
 import { logger } from '../logger';
-import { sendDigest } from '../notifier';
+import { alertChannel, sendDigest, type Delivery } from '../notifier';
 import { attributionLine } from '../web/pages/attribution';
 import { shouldDeliverHeld, type Schedule } from '../user-schedule';
 import { starred, watchRules } from '../watchlist/interval';
@@ -9,10 +9,12 @@ import { groupHeldByTarget, HELD_TITLE, type HeldRow } from './held-alerts';
 import type { AlertJob } from '../types';
 
 /**
- * Delivery of the matches that were scored outside the alert window (TASKS
- * §16). Held rows stay NEW with `alertHeldAt` set and their verdicts already
- * in job_score; this sends them as one grouped message per chat on the first
- * heartbeat the schedule allows, and only then marks them ALERTED.
+ * Delivery of the matches that could not be sent when they were scored: found
+ * outside the alert window (TASKS §16), found while Alerts were switched off,
+ * or refused by every chat. Held rows stay NEW with `alertHeldAt` set and
+ * their verdicts already in job_score; this sends them as one grouped message
+ * per chat on the first heartbeat the schedule allows — with Alerts on and a
+ * chat to send to — and only then marks them ALERTED.
  *
  * It is called from the top of the fetch tick, above the pause and above the
  * schedule gate: these are matches this app has already found and already
@@ -30,6 +32,11 @@ export async function deliverHeldAlerts(now: Date, schedule: Schedule): Promise<
     where: { alertHeldAt: { not: null }, status: { not: JobStatus.NEW } },
     data: { alertHeldAt: null },
   });
+
+  // Alerts switched off, or no chat to send to: the rows keep waiting, as
+  // they wait for the window. Asked before the rows are read, so an install
+  // with Alerts off does not build the messages every hour to discard them.
+  if ((await alertChannel()) !== 'open') return { delivered: 0, messages: 0 };
 
   const rows = await prisma.job.findMany({
     where: { alertHeldAt: { not: null }, status: JobStatus.NEW },
@@ -90,14 +97,19 @@ export async function deliverHeldAlerts(now: Date, schedule: Schedule): Promise<
   let delivered = 0;
   let messages = 0;
   for (const group of groupHeldByTarget(held)) {
+    let delivery: Delivery;
     try {
-      await sendDigest(group.alerts, group.targetId, [], HELD_TITLE);
+      delivery = await sendDigest(group.alerts, group.targetId, [], HELD_TITLE, group.unlisted.length);
     } catch (err) {
-      // The rows keep alertHeldAt, so the next heartbeat tries again rather
-      // than leaving a match the user never hears about.
+      // Every chat refused it. The rows keep alertHeldAt, so the next
+      // heartbeat tries again rather than leaving a match the user never
+      // hears about.
       logger.error({ err, targetId: group.targetId, count: group.ids.length }, 'alert-delivery: send failed, keeping the rows held');
       continue;
     }
+    // Switched off, or the last chat removed, since the check above: the
+    // other groups would meet the same answer.
+    if (delivery.skipped !== null) break;
     const { count } = await prisma.job.updateMany({
       // Still NEW: the same guard again, because the send takes seconds and
       // the dashboard is open. A row settled in between keeps the user's
@@ -105,6 +117,10 @@ export async function deliverHeldAlerts(now: Date, schedule: Schedule): Promise<
       where: { id: { in: group.ids }, status: JobStatus.NEW },
       data: { status: JobStatus.ALERTED, alertedAt: now, alertHeldAt: null },
     });
+    // Counted in the header and left New: no longer waiting, never listed.
+    if (group.unlisted.length > 0) {
+      await prisma.job.updateMany({ where: { id: { in: group.unlisted } }, data: { alertHeldAt: null } });
+    }
     delivered += count;
     messages++;
   }
