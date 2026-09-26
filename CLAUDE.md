@@ -811,7 +811,7 @@ Always:
 | Run ApplyPack without Docker | `npm start` (Ctrl+C or `npm run stop` to stop); for watchers `npm run db` + `npm run dev` + `npm run dev:web` |
 | Back up a local install | stop it, copy the data folder (`~/Library/Application Support/ApplyPack`, `%APPDATA%\ApplyPack`, `~/.local/share/applypack`) |
 | Test the launcher on a scratch folder | `APPLYPACK_DATA_DIR=/tmp/ap WEB_PORT=4848 APPLYPACK_NO_OPEN=1 npm start` — never the live data folder |
-| Run one fetch tick now | UI: Overview → "Fetch now" (live progress, row on `/runs`; runs outside the schedule, and while paused stores the jobs unscored); or `docker compose exec app node dist/scripts/fetch-once.js`, which stops at both like a cron beat |
+| Run one fetch tick now | UI: Overview → "Fetch now" (live progress, row on `/runs`; runs outside the schedule, and while paused stores the jobs unscored); or `docker compose exec app node dist/scripts/fetch-once.js`, which does the same without the dashboard and is recorded as a `fetch-now` run |
 | Run discovery probe now | `docker compose exec app node dist/scripts/discovery-once.js` |
 | Pull HN Who-is-hiring now | `docker compose exec app node dist/scripts/hn-once.js` |
 | Send the stale-applications digest now | `docker compose exec app node dist/scripts/stale-once.js` |
