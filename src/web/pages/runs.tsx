@@ -4,7 +4,8 @@ import type { CronRunStatus } from '@prisma/client';
 import { Layout } from '../layout';
 import { Badge, Card, Disclosure, Empty, Flash, PageHeader, Table, Td, Tr } from '../ui';
 import type { FlashMessage } from '../flash';
-import { formatDate, formatDuration } from '../format';
+import { formatDate, formatDuration, formatStamp } from '../format';
+import { displayZoneLabel } from '../display-zone';
 import type { FetchRun } from '../fetch-runs';
 import type { CronStats, SourceStat } from '../../jobs/cron-run';
 import { summarizeRun } from '../runs-summary';
@@ -31,7 +32,8 @@ export interface RunsProps {
 /** How many runs the page shows before the rest fold away: two days of hourly ticks. */
 const RECENT_RUNS = 50;
 
-const COLUMNS = ['Job', 'Started', <span class="block text-right">Duration</span>, 'Status', 'What happened'];
+/** The header names the zone once, so each row can say only the day and the time. */
+const columns = () => ['Job', `Started (${displayZoneLabel()})`, <span class="block text-right">Duration</span>, 'Status', 'What happened'];
 const WIDTHS = ['w-[15%]', 'w-[17%]', 'w-[8%]', 'w-[7%]', 'w-[53%]'];
 
 export const RunsPage: FC<RunsProps> = ({ runs, fetchRun, flash }) => {
@@ -74,11 +76,13 @@ const RunsTable: FC<{ runs: RunRow[]; caption: string }> = ({ runs, caption }) =
   <Card flush>
     <div class="overflow-x-auto">
       <div class="min-w-[56rem]">
-        <Table caption={caption} columns={COLUMNS} widths={WIDTHS}>
+        <Table caption={caption} columns={columns()} widths={WIDTHS}>
           {runs.map((r) => (
             <Tr class="align-top">
               <Td class="whitespace-nowrap font-mono text-[13px] text-ink">{r.name}</Td>
-              <Td class="whitespace-nowrap text-ink-muted">{formatDate(r.startedAt)}</Td>
+              <Td class="whitespace-nowrap text-ink-muted">
+                <span title={formatDate(r.startedAt)}>{formatStamp(r.startedAt)}</span>
+              </Td>
               <Td class="whitespace-nowrap text-right font-mono text-[13px] tabular-nums text-ink-muted">
                 {r.finishedAt ? formatDuration(r.finishedAt.getTime() - r.startedAt.getTime()) : '—'}
               </Td>
