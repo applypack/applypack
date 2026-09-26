@@ -163,11 +163,13 @@ export function nextStageKey(work: StageDef[], current: string): string {
 
 /**
  * Column accent dot. Applied and the exits keep their fixed colours; work
- * columns cycle a palette — with the default list this reproduces the
- * pre-ADR-0025 dots exactly (violet, warn, hollow warn ring, ok).
+ * columns cycle a palette. The default list reads hollow info ring, warn,
+ * hollow warn ring, ok: pre-ADR-0025 the first was violet, which DESIGN.md
+ * keeps for AI spend and the Saved status, so it became the ring of
+ * Applied's own info — one step on from it.
  */
 const DOT_CYCLE = [
-  'bg-violet',
+  'border-2 border-info bg-transparent',
   'bg-warn',
   'border-2 border-warn bg-transparent',
   'bg-ok',

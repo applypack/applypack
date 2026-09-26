@@ -142,10 +142,11 @@ test('nextStageKey walks the funnel forward and revives terminals', () => {
   assert.equal(nextStageKey([], 'applied'), 'rejected');
 });
 
-test('default dots reproduce the pre-config board exactly', () => {
+test('default dots: Applied, the four work columns in cycle order, the exits', () => {
   const work = DEFAULT_WORK_STAGES;
   assert.equal(dotClassFor(work, 'applied'), 'bg-info');
-  assert.equal(dotClassFor(work, 'screen'), 'bg-violet');
+  // Not violet: that is AI spend and the Saved status only (DESIGN.md).
+  assert.equal(dotClassFor(work, 'screen'), 'border-2 border-info bg-transparent');
   assert.equal(dotClassFor(work, 'tech'), 'bg-warn');
   assert.equal(dotClassFor(work, 'onsite'), 'border-2 border-warn bg-transparent');
   assert.equal(dotClassFor(work, 'offer'), 'bg-ok');

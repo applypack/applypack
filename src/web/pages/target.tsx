@@ -1,7 +1,7 @@
 /** @jsxImportSource hono/jsx */
 import type { FC } from 'hono/jsx';
 import { Layout } from '../layout';
-import { Badge, Button, Card, FitBadge, Flash, Hint, SUBMIT_ONCE } from '../ui';
+import { Badge, Button, Card, FitBadge, Flash, Hint, HistoryChip, SUBMIT_ONCE } from '../ui';
 import type { FlashMessage } from '../flash';
 import { FIT_OK_FLOOR, fitTone, formatRelative, type Tone } from '../format';
 import type { MatchWithResume } from '../../resume/store';
@@ -736,21 +736,13 @@ const RunChip: FC<{ m: MatchWithResume; currentId: number; jobId: number }> = ({
   jobId,
 }) => (
   <li>
-    <a
-      href={`/jobs/${jobId}/target?match=${m.id}`}
-      aria-current={m.id === currentId ? 'true' : undefined}
-      class={`inline-flex items-center gap-2 rounded-md border px-2.5 py-1 text-xs transition-colors duration-150 ${
-        m.id === currentId
-          ? 'border-accent/50 bg-accent/5 text-ink'
-          : 'border-line bg-surface-raised text-ink-muted hover:border-line-strong hover:text-ink'
-      }`}
-    >
+    <HistoryChip href={`/jobs/${jobId}/target?match=${m.id}`} current={m.id === currentId}>
       <FitBadge score={m.matchScore} label="match" />
       {m.resume.name}
-      {!m.resume.hidden && <span class="font-mono text-ink-faint">v{m.resumeVersion}</span>}
-      {m.draft && <Badge tone="violet">draft</Badge>}
-      <span class="text-ink-faint">{formatRelative(m.createdAt)}</span>
-    </a>
+      {!m.resume.hidden && <span class="font-mono font-normal text-ink-faint">v{m.resumeVersion}</span>}
+      {m.draft && <Badge tone="neutral">draft</Badge>}
+      <span class="font-normal text-ink-faint">{formatRelative(m.createdAt)}</span>
+    </HistoryChip>
   </li>
 );
 

@@ -190,7 +190,7 @@ export const ApplicationsPage: FC<ApplicationsProps> = ({
           {columns.map((s) => (
             <a
               href={`#stage-col-${s.key}`}
-              class="inline-flex min-h-[32px] items-center gap-1 rounded-full border border-line bg-surface-raised px-3 text-xs text-ink-muted"
+              class="inline-flex min-h-[32px] items-center gap-1 rounded-md border border-line bg-surface-raised px-3 text-xs text-ink-muted"
             >
               {s.label}
               <span class="tabular-nums text-ink-faint">{count(s.key)}</span>
@@ -199,7 +199,7 @@ export const ApplicationsPage: FC<ApplicationsProps> = ({
           {closedCount > 0 && (
             <a
               href="#closed"
-              class="inline-flex min-h-[32px] items-center gap-1 rounded-full border border-line bg-surface-raised px-3 text-xs text-ink-muted"
+              class="inline-flex min-h-[32px] items-center gap-1 rounded-md border border-line bg-surface-raised px-3 text-xs text-ink-muted"
             >
               Closed <span class="tabular-nums text-ink-faint">{closedCount}</span>
             </a>

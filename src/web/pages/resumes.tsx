@@ -230,7 +230,8 @@ const AddFactForm: FC = () => (
     <Field label="Where / when" class="min-w-[12rem] flex-[2]" hint="The match prompt quotes it.">
       <Input name="note" maxlength="300" placeholder="ran the cluster at Vodwork, 2023-2025" />
     </Field>
-    <Button variant="violet">Remember this</Button>
+    {/* The card's one affirmative act, and no AI call (POST /facts) — so primary, not violet. */}
+    <Button>Remember this</Button>
   </form>
 );
 

@@ -457,7 +457,7 @@ When the question is **"how does the user toggle / configure X?"**:
 | Add / rename / reorder board columns | `/settings` General tab → "Board columns" (ADR 0025: Applied + Rejected/Ghosted fixed, delete needs an empty column; keys never change, labels do) |
 | Review newly discovered companies | `/discovery` (sorted by jobsSeen DESC) |
 | Toggle auto-discovery / HN parser | `/discovery` (card at the top; moved off `/settings` 2026-08-29). The HN thread is also a pill on Settings → Sources; off in either place stops the monthly pull and the hourly read (`settings.ts:pausedFamilies`) |
-| Upload / scan a resume | `/resumes` → **Upload a resume** (a disclosure above the table; it stands open while there is no resume yet). The Settings card only lists + links |
+| Upload / scan a resume | `/resumes` → **Upload a resume** (a disclosure above the table; it stands open while there is no resume yet). The Resumes section on Settings only lists + links |
 | Record a skill no comparison asked about | `/resumes` → Confirmed facts → **Add a fact** (what you have is listed first; "I don't, actually" / "I do have it" flips one, "Forget" drops it; no AI call) |
 | Read what a setting does beyond its one sentence | the quiet **How this works** under it (a native `<details>`); on Settings → Sources each extra source folds "when it is worth it, and what the vendor asks" the same way |
 | Ask how strong a resume is on its own (no posting) | `/resumes/:id` → "Resume strength" → Run strength review (one AI call, ~1 min; nothing runs on its own). Scores show in the `/resumes` Strength column |
