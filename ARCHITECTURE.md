@@ -478,7 +478,8 @@ src/
     tokens.ts                   ← the design tokens' values + contrast arithmetic (pure); tokens.test.ts holds every text colour to AA
     ui.tsx                      ← the shared primitives: <PageHeader>, <Card>, <Empty> (title · why · one action), <Disclosure>, <More>, <Tabs>, <FilterChip>, <MetricStrip>, <StatusBadge>, <FitBadge>, <Tag>, the form controls
     table-hide.ts               ← pure: the classes that hide a table column below a breakpoint
-    format.ts                   ← formatSalary, formatRelative, statusTone, fitTone, fitWord
+    format.ts                   ← formatSalary, formatDate / formatStamp (in the request's zone), formatRelative, statusTone, fitTone, fitWord
+    display-zone.ts             ← the zone a request's dates are written in: the schedule's, set by app.ts (AsyncLocalStorage)
     flash.ts                    ← POST → redirect → GET flash cookie; firstIssue names the field a schema refused (pure)
     params.ts                   ← idParam / intQuery: ids and numbers off the request, a 400 where a 500 would be
     same-origin.ts              ← pure: sameOriginPost, the cross-origin write decision (issue #69)
