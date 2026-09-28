@@ -58,7 +58,7 @@
     "@prisma/client": "^6.1.0",
     "@xmldom/xmldom": "0.9.12",
     "docx": "9.7.2",
-    "dotenv": "^16.4.5",
+    "dotenv": "^18.0.3",
     "embedded-postgres": "16.14.0-beta.17",
     "hono": "^4.13.9",
     "jszip": "3.10.2",
