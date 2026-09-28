@@ -55,7 +55,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.121.0",
     "@hono/node-server": "^1.19.17",
-    "@prisma/client": "^6.1.0",
+    "@prisma/client": "^7.10.0",
     "@xmldom/xmldom": "0.9.12",
     "docx": "9.7.1",
     "dotenv": "^16.4.5",
