@@ -62,7 +62,7 @@
     "embedded-postgres": "16.14.0-beta.17",
     "hono": "^4.13.7",
     "jszip": "3.10.1",
-    "node-cron": "^3.0.3",
+    "node-cron": "^4.6.0",
     "pdfkit": "0.20.2",
     "pino": "^9.5.0",
     "pino-pretty": "^11.3.0",
