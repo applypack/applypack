@@ -194,6 +194,7 @@ const AI_PROVIDER_DESCS: Record<AiProviderId, string> = {
   anthropic_api: 'Messages API: fastest, pays per token.',
   claude_code: 'Headless claude -p on your Claude.ai subscription. Slower, no per-token bill.',
   gemini_cli: 'Headless gemini -p on your Google account or GEMINI_API_KEY.',
+  agy_cli: 'Headless agy -p on your Google Antigravity account.',
   openai_api:
     'Any server speaking /chat/completions: OpenAI, OpenRouter, Groq, local LM Studio / Ollama. Pays per token (or free locally).',
   codex_cli: 'Headless codex exec on your ChatGPT subscription.',

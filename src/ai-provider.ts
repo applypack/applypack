@@ -18,6 +18,7 @@ import {
   buildCliEnv,
   buildCodexCliArgs,
   buildGeminiCliArgs,
+  buildAgyCliArgs,
   CLAUDE_CODE_ISOLATION_ENV,
   CLI_PROVIDER_ENV_KEYS,
   cliRetryable,
@@ -29,6 +30,7 @@ import {
   parseClaudeCodeOutput,
   parseCodexCliOutput,
   parseGeminiCliOutput,
+  parseAgyCliOutput,
   parseOpenAiChatResponse,
   refusedReason,
   retryWait,
@@ -624,6 +626,15 @@ export function getAiProviderById(id: AiProviderId): AiProvider {
         keyEnv: AI_KEY_ENV_VARS.gemini_cli,
         // gemini has no --tools '' switch; an empty cwd keeps it from
         // ingesting workspace files (GEMINI.md, sources) as context.
+        cwd: tmpdir(),
+      });
+      break;
+    case 'agy_cli':
+      provider = new CliProvider('agy_cli', config.AGY_CLI_BIN, {
+        buildArgs: buildAgyCliArgs,
+        parse: parseAgyCliOutput,
+        defaultModel: 'gemini-3.8-flash-high',
+        envKeys: CLI_PROVIDER_ENV_KEYS.agy_cli ?? [],
         cwd: tmpdir(),
       });
       break;

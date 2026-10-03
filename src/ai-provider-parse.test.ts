@@ -8,6 +8,7 @@ import {
   buildCliEnv,
   buildCodexCliArgs,
   buildGeminiCliArgs,
+  buildAgyCliArgs,
   buildOllamaChatBody,
   CLAUDE_CODE_ISOLATION_ENV,
   CLI_EFFORT_ENV,
@@ -28,6 +29,7 @@ import {
   webToolsDirectOnly,
   parseCodexCliOutput,
   parseGeminiCliOutput,
+  parseAgyCliOutput,
   parseOpenAiChatResponse,
 } from './ai-provider-parse';
 import { SCAN_MAX_TOKENS } from './resume/prompts';
@@ -127,6 +129,74 @@ test('buildGeminiCliArgs prepends system text and gates web tools', () => {
   const web = buildGeminiCliArgs({ ...base, webTools: true });
   assert.ok(web.includes('google_web_search') && web.includes('web_fetch'));
   assert.equal(web[web.length - 1], '--prompt=S\n\nU');
+});
+
+test('agy success returns the response text and spend stats', () => {
+  const out = parseAgyCliOutput(
+    JSON.stringify({
+      conversation_id: 'c123',
+      status: 'SUCCESS',
+      response: '{"relevant": true}\n',
+      duration_seconds: 2.5,
+      num_turns: 1,
+      usage: { input_tokens: 100, output_tokens: 20, thinking_tokens: 15, cache_read_tokens: 10 },
+    }),
+  );
+  assert.equal(out.error, null);
+  assert.equal(out.rateLimited, false);
+  assert.equal(out.text, '{"relevant": true}\n');
+  assert.equal(out.usage?.apiMs, 2500);
+  assert.equal(out.usage?.outputTokens, 20);
+  assert.equal(out.usage?.thinkingTokens, 15);
+  assert.equal(out.spend?.usage.inputTokens, 90);
+  assert.equal(out.spend?.usage.cacheReadTokens, 10);
+  assert.equal(out.spend?.usage.outputTokens, 20);
+});
+
+test('agy error and rate-limit parsing', () => {
+  const quota = parseAgyCliOutput(
+    JSON.stringify({ status: 'ERROR', error: 'quota exceeded: resource exhausted' }),
+  );
+  assert.equal(quota.text, null);
+  assert.equal(quota.rateLimited, true);
+  assert.match(quota.error ?? '', /quota exceeded/);
+
+  const auth = parseAgyCliOutput(
+    JSON.stringify({ status: 'ERROR', error: 'authentication failed: please run /login' }),
+  );
+  assert.equal(auth.outcome, 'unauthorized');
+  assert.equal(auth.rateLimited, false);
+
+  const leadingNoise = parseAgyCliOutput(
+    'error: something failed\n{"status":"SUCCESS","response":"ok"}'
+  );
+  assert.equal(leadingNoise.text, 'ok');
+});
+
+test('buildAgyCliArgs includes flags and formats prompt', () => {
+  const plain = buildAgyCliArgs({ system: 'S', user: 'U', model: 'gemini-3.8-flash-high' });
+  assert.deepEqual(plain, [
+    '--output-format', 'json',
+    '--disable-slash-commands',
+    '--model', 'gemini-3.8-flash-high',
+    '--prompt=S\n\nU',
+  ]);
+
+  const defaultModel = buildAgyCliArgs({ system: 'S', user: 'U', model: '' });
+  assert.deepEqual(defaultModel, [
+    '--output-format', 'json',
+    '--disable-slash-commands',
+    '--prompt=S\n\nU',
+  ]);
+
+  const web = buildAgyCliArgs({ system: 'S', user: 'U', model: 'gemini-3.8-flash-high', webTools: true });
+  assert.deepEqual(web, [
+    '--output-format', 'json',
+    '--disable-slash-commands',
+    '--dangerously-skip-permissions',
+    '--model', 'gemini-3.8-flash-high',
+    '--prompt=S\n\nU',
+  ]);
 });
 
 test('codex JSONL: last agent message wins, both event shapes covered', () => {

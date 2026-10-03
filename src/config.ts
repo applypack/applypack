@@ -27,6 +27,8 @@ export const ConfigSchema = z.object({
   CLAUDE_CODE_BIN: z.string().default('claude'),
   // Path to the Gemini CLI when the gemini_cli engine is selected.
   GEMINI_CLI_BIN: z.string().default('gemini'),
+  // Path to the Antigravity CLI when the agy_cli engine is selected.
+  AGY_CLI_BIN: z.string().default('agy'),
   // Path to the Codex CLI when the codex_cli engine is selected.
   CODEX_CLI_BIN: z.string().default('codex'),
   // OpenAI-compatible API engine: any server that speaks /chat/completions

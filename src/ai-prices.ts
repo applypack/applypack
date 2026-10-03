@@ -70,6 +70,8 @@ const PRICES: Record<string, ModelPrice> = {
   o3: noWrite(2, 0.5, 8),
   'o4-mini': noWrite(1.1, 0.275, 4.4),
   // Google, paid tier, text — output includes thinking.
+  'gemini-3.8-flash-high': noWrite(0.3, 0.03, 2.5),
+  'gemini-3.1-pro-high': { ...noWrite(1.25, 0.125, 10), longContext: { above: 200_000, input: 2.5, cacheRead: 0.25, output: 15 } },
   'gemini-2.5-pro': { ...noWrite(1.25, 0.125, 10), longContext: { above: 200_000, input: 2.5, cacheRead: 0.25, output: 15 } },
   'gemini-2.5-flash': noWrite(0.3, 0.03, 2.5),
 };

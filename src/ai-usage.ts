@@ -157,6 +157,7 @@ export function billingOf(id: AiProviderId, facts: BillingFacts): AiBilling {
       return facts.geminiKey ? 'billed' : 'plan';
     case 'claude_code':
     case 'codex_cli':
+    case 'agy_cli':
       return 'plan';
     case 'local_api':
       return 'local';

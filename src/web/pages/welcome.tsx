@@ -158,6 +158,12 @@ const ENGINE_CARDS: { id: AiProviderId; title: string; how: string; env: string 
     env: 'GEMINI_API_KEY',
   },
   {
+    id: 'agy_cli',
+    title: 'I have Google Antigravity',
+    how: 'Log in with `agy` on your computer — see docs/ai-engines.md.',
+    env: null,
+  },
+  {
     id: 'openai_api',
     title: 'OpenAI, OpenRouter or Groq',
     how: 'Any server that speaks /chat/completions. Paste its key here; a server other than OpenAI takes its address on Settings → AI engine.',

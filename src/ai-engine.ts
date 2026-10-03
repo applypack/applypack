@@ -11,6 +11,7 @@ export const AI_PROVIDER_IDS = [
   'anthropic_api',
   'claude_code',
   'gemini_cli',
+  'agy_cli',
   'openai_api',
   'codex_cli',
   'local_api',
@@ -21,6 +22,7 @@ export const AI_PROVIDER_LABELS: Record<AiProviderId, string> = {
   anthropic_api: 'Anthropic API',
   claude_code: 'Claude Code CLI',
   gemini_cli: 'Gemini CLI',
+  agy_cli: 'Antigravity CLI (agy)',
   openai_api: 'OpenAI-compatible API',
   codex_cli: 'Codex CLI',
   local_api: 'Local model (Ollama)',
@@ -31,6 +33,7 @@ export const PROVIDER_WEB_TOOLS: Record<AiProviderId, boolean> = {
   anthropic_api: true,
   claude_code: true,
   gemini_cli: true,
+  agy_cli: true,
   openai_api: false,
   codex_cli: true,
   local_api: false,
@@ -64,6 +67,7 @@ const PROVIDER_AI_TOKENS: Record<AiProviderId, readonly string[]> = {
   anthropic_api: ['claudebot', 'claude-user', 'claude-searchbot', 'claude-web', 'anthropic-ai'],
   claude_code: ['claudebot', 'claude-user', 'claude-searchbot', 'claude-web', 'anthropic-ai'],
   gemini_cli: ['google-extended'],
+  agy_cli: ['google-extended'],
   openai_api: ['gptbot', 'chatgpt-user', 'oai-searchbot'],
   codex_cli: ['gptbot', 'chatgpt-user', 'oai-searchbot'],
   local_api: [],
@@ -110,6 +114,7 @@ export const PROVIDER_MODEL_OPTIONS: Record<AiProviderId, string[]> = {
   anthropic_api: ['claude-haiku-4-5-20251001', 'claude-sonnet-5', 'claude-opus-5'],
   claude_code: ['claude-haiku-4-5-20251001', 'claude-sonnet-5', 'claude-opus-5'],
   gemini_cli: ['gemini-2.5-flash', 'gemini-2.5-pro'],
+  agy_cli: ['gemini-3.8-flash-high', 'gemini-3.1-pro-high', 'claude-sonnet-4-6'],
   openai_api: [],
   codex_cli: ['gpt-5.1', 'gpt-5-mini'],
   local_api: [],
@@ -127,6 +132,8 @@ export function modelFitsProvider(model: string, provider: AiProviderId): boolea
   switch (provider) {
     case 'gemini_cli':
       return model.startsWith('gemini');
+    case 'agy_cli':
+      return /^(gemini|claude|gpt)/.test(model);
     case 'openai_api':
     case 'local_api':
       // Base-URL providers (OpenRouter, Groq, local) use arbitrary ids.
@@ -219,6 +226,7 @@ export interface AiEngineEnv {
   openAiLocal: boolean;
   /** CLI auth is file/env detectable — false means calls cannot work yet. */
   geminiUsable: boolean;
+  agyUsable: boolean;
   codexUsable: boolean;
   classifierModel: string;
   /** CLAUDE_MODEL_RESUME / CLAUDE_MODEL_COVER from .env; '' = the backend's default for the role. */
@@ -252,6 +260,8 @@ export function providerUnusable(id: AiProviderId, env: AiEngineEnv): boolean {
       return !env.hasOpenAiKey && !env.openAiLocal;
     case 'gemini_cli':
       return !env.geminiUsable;
+    case 'agy_cli':
+      return !env.agyUsable;
     case 'codex_cli':
       return !env.codexUsable;
     case 'claude_code':
@@ -274,6 +284,8 @@ export function defaultModelFor(id: AiProviderId, role: AiRole, env: AiEngineEnv
       return env.resumeModel || RESUME_MODEL_DEFAULT[id];
     case 'gemini_cli':
       return role === 'classifier' ? 'gemini-2.5-flash' : 'gemini-2.5-pro';
+    case 'agy_cli':
+      return role === 'classifier' ? 'gemini-3.8-flash-high' : 'gemini-3.1-pro-high';
     case 'openai_api':
       return env.openAiModel;
     case 'local_api':
