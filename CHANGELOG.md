@@ -4,6 +4,28 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.43.0] — 2026-10-04
+
+### Added
+- **Antigravity CLI as an AI engine.** A seventh engine: headless `agy -p`
+  on your Google Antigravity account, with its own card on Settings → AI
+  engine and in the first-run wizard, and its calls in Usage & cost as
+  plan-covered. Gemini 3.8 Flash scores the postings and Gemini 3.1 Pro
+  takes the resume calls and the letters unless you pick another model
+  (Claude Sonnet 4.6 is in the list). Install `agy`, sign in once, then
+  Enable and Test. Local installs only: the CLI keeps its login in the
+  system keyring and the Docker image does not carry it. Contributed by
+  [@amir-darwish](https://github.com/amir-darwish) in
+  [#329](https://github.com/applypack/applypack/pull/329).
+- The engine never searches the web and runs in an empty folder of its own.
+  Headless `agy` may read and write files inside its workspace, and the only
+  way to let it fetch a page is a flag that also lets it run shell commands,
+  so "Is it real?" goes to the next engine in your chain that can search.
+
+### Changed
+- The price table was read on 2026-10-03 and has rows for Gemini 3.8 Flash
+  and Gemini 3.1 Pro.
+
 ## [2.42.0] — 2026-10-01
 
 ### Added
@@ -4670,6 +4692,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.43.0]: https://github.com/applypack/applypack/compare/v2.42.0...v2.43.0
 [2.42.0]: https://github.com/applypack/applypack/compare/v2.41.2...v2.42.0
 [2.41.2]: https://github.com/applypack/applypack/compare/v2.41.1...v2.41.2
 [2.41.1]: https://github.com/applypack/applypack/compare/v2.41.0...v2.41.1

@@ -188,12 +188,13 @@ counts which engine served your calls in the last seven days.
 
 ## Bring your own AI
 
-Six backends, and you can attach every subscription and key you own:
+Seven backends, and you can attach every subscription and key you own:
 
 | Engine | What it is | Billing |
 | --- | --- | --- |
 | Claude Code CLI | headless `claude -p` | your Claude.ai Pro/Max subscription |
 | Gemini CLI | headless `gemini -p` | your Google account (generous free tier) or an AI Studio key |
+| Antigravity CLI | headless `agy -p` | your Google Antigravity account |
 | Codex CLI | headless `codex exec` | your ChatGPT Plus/Pro subscription |
 | Anthropic API | Messages API | per token |
 | OpenAI-compatible API | `POST /chat/completions` to any base URL | OpenAI, OpenRouter, Groq, DeepSeek, or a free local model |

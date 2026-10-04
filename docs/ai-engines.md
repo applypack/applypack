@@ -1,6 +1,6 @@
 # AI engines — setup guide
 
-The pipeline can run on any mix of six AI backends. You enable the ones you
+The pipeline can run on any mix of seven AI backends. You enable the ones you
 have, put them in priority order on **`/settings` → AI engine**, and the app
 does the rest:
 
@@ -46,6 +46,7 @@ copy (rotate the key itself in the provider's console).
 | Anthropic API | Messages API via SDK | per token | `ANTHROPIC_API_KEY` |
 | Claude Code CLI | headless `claude -p` | Claude.ai Pro/Max subscription | `claude` binary + login |
 | Gemini CLI | headless `gemini -p` | Google account (free tier) or API key | `gemini` binary + login/key |
+| Antigravity CLI | headless `agy -p` | Google Antigravity account | `agy` binary + login |
 | OpenAI-compatible API | `POST /chat/completions` | per token (or free if local) | `OPENAI_API_KEY` (+ optional base URL) |
 | Codex CLI | headless `codex exec` | ChatGPT Plus/Pro subscription | `codex` binary + login |
 
@@ -61,6 +62,7 @@ that role:
 | Anthropic API | Haiku 4.5 | Haiku 4.5 | Opus 5 |
 | Claude Code CLI | Haiku 4.5 | Sonnet 5 | Opus 5 |
 | Gemini CLI | `gemini-2.5-flash` | `gemini-2.5-pro` | `gemini-2.5-pro` |
+| Antigravity CLI | `gemini-3.8-flash-high` | `gemini-3.1-pro-high` | `gemini-3.1-pro-high` |
 | OpenAI-compatible API | `OPENAI_MODEL` | `OPENAI_MODEL` | `OPENAI_MODEL` |
 | Codex CLI | the CLI's own | the CLI's own | the CLI's own |
 
@@ -126,6 +128,14 @@ for the classifier.
   volumes:
     - ~/.gemini:/home/node/.gemini
   ```
+
+## Antigravity CLI (agy)
+
+Runs `agy -p` per call on your Google account / Antigravity workspace. Fast, headless agent with zero per-token cost on supported accounts. Local only (keyring authentication is not containerised).
+
+1. Install Antigravity CLI (`agy`).
+2. Run `agy` once to log in with your Google account.
+3. Enable + **Test** on `/settings`.
 
 ## OpenAI-compatible API (OpenAI, OpenRouter, Groq, local models)
 

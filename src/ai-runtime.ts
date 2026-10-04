@@ -183,9 +183,10 @@ export async function probeAiProviders(
   stored?: AiKeys,
 ): Promise<Record<AiProviderId, AiProviderStatus>> {
   if (probeCache && Date.now() - probeCache.at < PROBE_TTL_MS) return probeCache.statuses;
-  const [claude, gemini, codex, keys, servers] = await Promise.all([
+  const [claude, gemini, agy, codex, keys, servers] = await Promise.all([
     probeCliBin(config.CLAUDE_CODE_BIN),
     probeCliBin(config.GEMINI_CLI_BIN),
+    probeCliBin(config.AGY_CLI_BIN),
     probeCliBin(config.CODEX_CLI_BIN),
     stored ?? readAiKeys(),
     readServers(),
@@ -199,6 +200,7 @@ export async function probeAiProviders(
         : { ok: true, detail: `API key ${keyOrigin(from('anthropic_api'))}` },
     claude_code: withClaudeAuth(claude, from('claude_code')),
     gemini_cli: withGeminiAuth(gemini, from('gemini_cli')),
+    agy_cli: agy,
     openai_api: isLocalUrl(openAi)
       ? await localServerStatus(openAi, resolveAiKey('openai_api', keys))
       : from('openai_api') === 'none'

@@ -340,6 +340,7 @@ export const CLI_PROVIDER_ENV_KEYS: Partial<Record<AiProviderId, readonly string
     'GOOGLE_CLOUD_PROJECT',
     'GOOGLE_CLOUD_LOCATION',
   ],
+  agy_cli: [],
   codex_cli: ['OPENAI_API_KEY', 'CODEX_HOME'],
 };
 
@@ -487,6 +488,112 @@ export function buildGeminiCliArgs(req: {
     // One argument, not two: yargs reads a separate value that opens with "-"
     // as the next flag and exits "Not enough arguments following: prompt"
     // (measured on 0.46.0). The `=` form keeps any text the value.
+    `--prompt=${req.system}\n\n${req.user}`,
+  ];
+}
+
+/**
+ * Shape of `agy -p --output-format json`: success carries `response`,
+ * failures an `error` string. Stats pass through untouched.
+ */
+const AgyTokensSchema = z.object({
+  input_tokens: z.number().optional(),
+  output_tokens: z.number().optional(),
+  thinking_tokens: z.number().optional(),
+  cache_read_tokens: z.number().optional(),
+  total_tokens: z.number().optional(),
+});
+
+const AgyCliResultSchema = z.object({
+  conversation_id: z.string().optional(),
+  status: z.string().optional(),
+  response: z.string().optional(),
+  error: z.string().optional(),
+  duration_seconds: z.number().optional(),
+  num_turns: z.number().optional(),
+  usage: AgyTokensSchema.optional(),
+});
+
+export function parseAgyCliOutput(raw: string): CliOutcome {
+  let json: unknown;
+  try {
+    json = JSON.parse(raw.trim());
+  } catch {
+    const match = raw.match(/\{[\s\S]*\}/);
+    if (!match) {
+      return { text: null, rateLimited: false, error: 'agy-cli: output is not JSON' };
+    }
+    try {
+      json = JSON.parse(match[0]);
+    } catch {
+      return { text: null, rateLimited: false, error: 'agy-cli: output is not JSON' };
+    }
+  }
+
+  const parsed = AgyCliResultSchema.safeParse(json);
+  if (!parsed.success) {
+    return { text: null, rateLimited: false, error: 'agy-cli: unexpected result shape' };
+  }
+  const r = parsed.data;
+  const input = count(r.usage?.input_tokens) ?? 0;
+  const cached = count(r.usage?.cache_read_tokens) ?? 0;
+  const output = count(r.usage?.output_tokens) ?? 0;
+  const spend: AiSpend = {
+    usage: {
+      ...NO_USAGE,
+      inputTokens: Math.max(0, input - cached),
+      cacheReadTokens: cached,
+      outputTokens: output,
+    },
+    model: null,
+    reportedUsd: null,
+  };
+
+  if (r.status === 'ERROR' || r.error) {
+    const message = r.error || 'unknown error';
+    const kind = failureKind(null, message);
+    const rateLimited = kind !== 'auth' && RATE_LIMIT_PATTERN.test(message);
+    return {
+      text: null,
+      rateLimited,
+      error: `agy-cli: ${message}`,
+      ...(kind === 'auth' && { outcome: 'unauthorized' as const }),
+      spend,
+    };
+  }
+
+  if (typeof r.response === 'string') {
+    return {
+      text: r.response,
+      rateLimited: false,
+      error: null,
+      spend,
+      usage: {
+        apiMs: typeof r.duration_seconds === 'number' ? Math.round(r.duration_seconds * 1000) : undefined,
+        outputTokens: count(r.usage?.output_tokens) ?? undefined,
+        thinkingTokens: count(r.usage?.thinking_tokens) ?? undefined,
+        turns: count(r.num_turns) ?? undefined,
+      },
+    };
+  }
+
+  return { text: null, rateLimited: false, error: 'agy-cli: no response field', spend };
+}
+
+/**
+ * Argument list for `agy -p`. Headless default disables slash commands.
+ * Empty model = CLI's configured default.
+ */
+export function buildAgyCliArgs(req: {
+  system: string;
+  user: string;
+  model: string;
+  webTools?: boolean;
+}): string[] {
+  return [
+    '--output-format', 'json',
+    '--disable-slash-commands',
+    ...(req.model ? ['--model', req.model] : []),
     `--prompt=${req.system}\n\n${req.user}`,
   ];
 }
