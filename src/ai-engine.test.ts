@@ -161,6 +161,8 @@ describe('modelFitsProvider', () => {
   it('checks family prefixes per provider', () => {
     assert.equal(modelFitsProvider('gemini-2.5-flash', 'gemini_cli'), true);
     assert.equal(modelFitsProvider('claude-opus-5', 'gemini_cli'), false);
+    assert.equal(modelFitsProvider('gemini-3.8-flash-high', 'agy_cli'), true);
+    assert.equal(modelFitsProvider('claude-sonnet-4-6', 'agy_cli'), true);
     assert.equal(modelFitsProvider('haiku', 'claude_code'), true);
     assert.equal(modelFitsProvider('haiku', 'anthropic_api'), false);
     assert.equal(modelFitsProvider('gpt-5.1', 'codex_cli'), true);
@@ -179,6 +181,7 @@ describe('providerUnusable / isAiProviderId', () => {
     assert.equal(providerUnusable('anthropic_api', ENV), true);
     assert.equal(providerUnusable('openai_api', ENV), true);
     assert.equal(providerUnusable('gemini_cli', ENV), false);
+    assert.equal(providerUnusable('agy_cli', ENV), false);
     assert.equal(providerUnusable('codex_cli', ENV), true);
     assert.equal(providerUnusable('claude_code', ENV), false);
   });
@@ -188,8 +191,9 @@ describe('providerUnusable / isAiProviderId', () => {
     assert.equal(providerUnusable('openai_api', { ...ENV, hasOpenAiKey: true }), false);
   });
 
-  it('accepts the five known ids and nothing else', () => {
+  it('accepts the known provider ids and nothing else', () => {
     assert.equal(isAiProviderId('codex_cli'), true);
+    assert.equal(isAiProviderId('agy_cli'), true);
     assert.equal(isAiProviderId('openai_api'), true);
     assert.equal(isAiProviderId('openai'), false);
     assert.equal(isAiProviderId(null), false);

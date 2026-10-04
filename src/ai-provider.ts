@@ -1,6 +1,8 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { execFile, type ChildProcess } from 'node:child_process';
+import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { config } from './config';
 import { logger } from './logger';
@@ -18,6 +20,7 @@ import {
   buildCliEnv,
   buildCodexCliArgs,
   buildGeminiCliArgs,
+  buildAgyCliArgs,
   CLAUDE_CODE_ISOLATION_ENV,
   CLI_PROVIDER_ENV_KEYS,
   cliRetryable,
@@ -29,6 +32,7 @@ import {
   parseClaudeCodeOutput,
   parseCodexCliOutput,
   parseGeminiCliOutput,
+  parseAgyCliOutput,
   parseOpenAiChatResponse,
   refusedReason,
   retryWait,
@@ -625,6 +629,16 @@ export function getAiProviderById(id: AiProviderId): AiProvider {
         // gemini has no --tools '' switch; an empty cwd keeps it from
         // ingesting workspace files (GEMINI.md, sources) as context.
         cwd: tmpdir(),
+      });
+      break;
+    case 'agy_cli':
+      provider = new CliProvider('agy_cli', config.AGY_CLI_BIN, {
+        buildArgs: buildAgyCliArgs,
+        parse: parseAgyCliOutput,
+        defaultModel: 'gemini-3.8-flash-high',
+        envKeys: CLI_PROVIDER_ENV_KEYS.agy_cli ?? [],
+        // Keep the CLI away from workspace and OS temp files with a dedicated empty directory.
+        cwd: mkdtempSync(join(tmpdir(), 'applypack-agy-')),
       });
       break;
     case 'openai_api':
