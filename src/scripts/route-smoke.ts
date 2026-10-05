@@ -16,6 +16,9 @@
  * 145 handlers had zero automated requests before this (audit 2026-09-10,
  * TEST-1); the unit tests cover the pure modules, this covers the wiring.
  */
+import './route-smoke-env';
+import { promises as fs } from 'node:fs';
+import path from 'node:path';
 import { app } from '../web/app';
 import { DEFAULT_BODY_BYTES } from '../web/body-limits';
 import { prisma } from '../db';
@@ -45,6 +48,8 @@ const MAY_404 = new Set([
   '/jobs/:id/cover/:letterId/file/:fmt',
   // No letter is attached until the upload below runs.
   '/screen/:id/applicants/:aid/letters/:lid/file',
+  // The fixture company is a pasted job's, not a folder; the folder walk below asks a real one.
+  '/companies/:id/files',
 ]);
 /** GETs the route patterns do not reach: a page under its query parameters (`:id` = the fixture job). */
 const QUERY_VARIANTS = [
@@ -556,6 +561,7 @@ async function main(): Promise<void> {
   }
 
   rows.push(...(await importChecks()));
+  rows.push(...(await folderChecks()));
 
   // The Overview itself. A fresh database sends `/` to /welcome, so until here
   // the dashboard was never drawn: setup is skipped, a scored match and a day
@@ -713,6 +719,84 @@ async function importChecks(): Promise<Check[]> {
   check('POST /jobs/import/sources/:id/delete (the source and its jobs)', '/jobs/import/sources/:id/delete', removed, removed.status === 303 && (await imported()) === 0);
 
   await setFetchingEnabled(wasFetching);
+  return out;
+}
+
+/**
+ * ADR 0062: a folder a tool writes into, from Check to the ledger. The folder
+ * is this run's own, under the one root route-smoke-env.ts names; fetching is
+ * paused, so no engine is asked. Check stores nothing; Add stores the row
+ * switched off; the first check reads the file and stores its rows; the
+ * second reads nothing; a path outside the root is refused.
+ */
+async function folderChecks(): Promise<Check[]> {
+  const out: Check[] = [];
+  const check = (route: string, url: string, res: Response, ok: boolean): void => {
+    out.push({ route, url, status: res.status, ok });
+  };
+  const inbox = (process.env.APPLYPACK_INBOX_ROOTS ?? '').split(path.delimiter)[0] ?? '';
+  await fs.mkdir(inbox, { recursive: true });
+  const file = path.join(inbox, 'run-1.json');
+  await fs.writeFile(
+    file,
+    JSON.stringify([
+      { id: 'f1', title: 'Backend Developer', company: 'Smoke Folder Co', url: 'https://rows.example/f/1', location: 'Remote' },
+      { id: 'f2', title: 'Mobile Developer', company: 'Smoke Folder Co', url: 'https://rows.example/f/2', location: 'Lisbon' },
+    ]),
+  );
+  // Written a minute ago, as far as the look can tell: a file changed this second waits.
+  const settledAt = new Date(Date.now() - 60_000);
+  await fs.utimes(file, settledAt, settledAt);
+  const wasFetching = (await getSettings()).fetchingEnabled;
+  await setFetchingEnabled(false);
+  const mapping = { title: 'title', employer: 'company', url: 'url', location: 'location', id: 'id' };
+  const stored = (): Promise<number> => prisma.job.count({ where: { company: { atsType: 'FOLDER' } } });
+  const checkNow = async (id: number): Promise<Response> => {
+    const res = await app.request(`/companies/${id}/check-now`, form({}));
+    await settled(() => getFetchRun((res.headers.get('location') ?? '').split('/').pop() ?? ''));
+    return res;
+  };
+
+  try {
+    const outside = await app.request('/companies/folder/check', form({ path: path.dirname(inbox) }));
+    check('POST /companies/folder/check outside the named root (refused)', '/companies/folder/check', outside, outside.status === 303 && outside.headers.get('location') === '/companies');
+    const preview = await app.request('/companies/folder/check', form({ path: inbox, name: 'Smoke folder' }));
+    const html = preview.status === 200 ? await preview.text() : '';
+    check(
+      'POST /companies/folder/check (what is in it, the mapping, the next check)',
+      '/companies/folder/check',
+      preview,
+      html.includes('1 file of rows') && html.includes('Which column is which') && html.includes('2 rows of the files it reads are jobs') && (await prisma.company.count({ where: { atsType: 'FOLDER' } })) === 0,
+    );
+    const added = await app.request('/companies/folder', form({ path: inbox, name: 'Smoke folder', include: '', ...mapping }));
+    const folder = await prisma.company.findFirst({ where: { atsType: 'FOLDER' } });
+    check('POST /companies/folder (added, switched off)', '/companies/folder', added, added.status === 303 && folder?.active === false && folder.sourceConfig !== null);
+    if (!folder) return out;
+
+    const off = await app.request(`/companies/${folder.id}/check-now`, form({}));
+    check('POST /companies/:id/check-now on a folder that is off (refused)', `/companies/${folder.id}/check-now`, off, off.status === 303 && off.headers.get('location') === '/companies');
+    await app.request(`/companies/${folder.id}/toggle-active`, form({}));
+    const first = await checkNow(folder.id);
+    const ledger = await prisma.sourceFile.findMany({ where: { companyId: folder.id } });
+    check(
+      'POST /companies/:id/check-now on a folder (the file read once, its rows stored unscored)',
+      `/companies/${folder.id}/check-now`,
+      first,
+      first.status === 303 && (await stored()) === 2 && ledger.length === 1 && ledger[0]?.status === 'done' && ledger[0].jobCount === 2 && ledger[0].sha256 !== null,
+    );
+    const second = await checkNow(folder.id);
+    const after = await prisma.company.findUnique({ where: { id: folder.id }, select: { lastFetchStatus: true } });
+    check('POST /companies/:id/check-now again (nothing read, nothing new)', `/companies/${folder.id}/check-now`, second, second.status === 303 && (await stored()) === 2 && after?.lastFetchStatus === 'empty');
+    const files = await app.request(`/companies/${folder.id}/files`, { headers: ORIGIN });
+    check('GET /companies/:id/files (the per-file list)', `/companies/${folder.id}/files`, files, files.status === 200 && (await files.text()).includes('2 rows read as jobs'));
+    const list = await app.request('/companies', { headers: ORIGIN });
+    check('GET /companies with a folder among the sources', '/companies', list, list.status === 200 && (await list.text()).includes('1 file · 0 new at the last check'));
+    const removed = await app.request(`/companies/${folder.id}/delete`, form({}));
+    check('POST /companies/:id/delete on a folder (its jobs and its ledger go, its files stay)', `/companies/${folder.id}/delete`, removed, removed.status === 303 && (await stored()) === 0 && (await prisma.sourceFile.count()) === 0 && (await fs.readdir(inbox)).length === 1);
+  } finally {
+    await setFetchingEnabled(wasFetching);
+    await fs.rm(inbox, { recursive: true, force: true });
+  }
   return out;
 }
 

@@ -208,13 +208,13 @@ watchlistRoute.post('/companies/:id/watch', async (c) => {
 watchlistRoute.post('/companies/:id/check-now', async (c) => {
   const id = idParam(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text('Bad id', 400);
-  const company = await prisma.company.findUnique({ where: { id }, select: { name: true, active: true } });
+  const company = await prisma.company.findUnique({ where: { id }, select: { name: true, active: true, atsType: true } });
   if (!company) return c.text('Not found', 404);
   if (!company.active) {
     return flashRedirect('/companies', 'err', `${company.name} is switched off — turn it on to check it.`);
   }
   if (activeFetchRun() === null) {
-    const run = await beginFetchNow({ backUrl: '/companies', scope: { companyId: id, name: company.name } });
+    const run = await beginFetchNow({ backUrl: '/companies', scope: { companyId: id, name: company.name, folder: company.atsType === AtsType.FOLDER } });
     return c.redirect(`/runs/fetch-now/${run.id}`, 303);
   }
   await prisma.company.update({ where: { id }, data: { nextCheckAt: null } });
