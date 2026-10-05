@@ -31,3 +31,26 @@
   font-display: swap;
   src: url('/static/fonts/inter-latin.woff2') format('woff2');
 }
+
+/* The scripts the interface's other languages are written in (ADR 0061). A
+   face with a unicode-range is fetched only by a page that holds a character
+   in it, so an English page asks for the latin file alone. Sources, versions
+   and hashes: public/fonts/README.md. */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('/static/fonts/inter-cyrillic.woff2') format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+
+/* Inter has no Devanagari; Noto Sans Devanagari follows it in the stack. */
+@font-face {
+  font-family: 'Noto Sans Devanagari';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('/static/fonts/noto-sans-devanagari.woff2') format('woff2');
+  unicode-range: U+0900-097F, U+1CD0-1CF9, U+200C-200D, U+20A8, U+20B9, U+20F0, U+25CC, U+A830-A839, U+A8E0-A8FF, U+11B00-11B09;
+}

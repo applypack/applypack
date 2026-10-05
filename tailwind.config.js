@@ -79,7 +79,8 @@ module.exports = {
         pop: '0 4px 8px -2px rgb(13 20 33 / 0.08), 0 16px 32px -8px rgb(13 20 33 / 0.16)',
       },
       fontFamily: {
-        sans: ['Inter', 'ui-sans-serif', 'system-ui', '-apple-system', '"Segoe UI"', 'sans-serif'],
+        // Noto Sans Devanagari stands in for the script Inter does not draw (src/web/tailwind.css).
+        sans: ['Inter', '"Noto Sans Devanagari"', 'ui-sans-serif', 'system-ui', '-apple-system', '"Segoe UI"', 'sans-serif'],
         mono: ['ui-monospace', 'SFMono-Regular', '"SF Mono"', 'Menlo', 'Consolas', 'monospace'],
       },
     },
