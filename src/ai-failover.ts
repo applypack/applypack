@@ -1,5 +1,6 @@
 import { logger } from './logger';
-import { PROVIDER_WEB_TOOLS, type AiProviderId, type ResolvedAiEngine } from './ai-engine';
+import { preferWebTools, type AiProviderId, type ResolvedAiEngine } from './ai-engine';
+import { taskOf } from './ai-tasks';
 import type { CooldownTracker } from './ai-cooldown';
 import type { AiProvider } from './ai-provider';
 import type { AiCallRequest, AiCallResult } from './ai-runtime';
@@ -8,11 +9,12 @@ import type { AiBilling } from './ai-usage';
 import { hashShortId } from './text-utils';
 
 /*
- * One logical AI call run down the engine chain (ADR 0013/0014): the first
- * engine that answers wins, every attempt goes in the ledger (ADR 0055), a
- * failing engine cools down and a refused credential is left alone until it
- * changes (H40). Its I/O is injected — the backends, the ledger, the clock —
- * so the loop itself is tested (H45); ai-runtime.ts hands it the real ones.
+ * One logical AI call run down the engine chain (ADR 0013/0014) — the engines
+ * that take the call's task (ADR 0060): the first engine that answers wins,
+ * every attempt goes in the ledger (ADR 0055), a failing engine cools down
+ * and a refused credential is left alone until it changes (H40). Its I/O is
+ * injected — the backends, the ledger, the clock — so the loop itself is
+ * tested (H45); ai-runtime.ts hands it the real ones.
  */
 
 // Chain guards (docs/ai-engine-improvements.md item 2): at most this many
@@ -60,10 +62,10 @@ export async function runChain(
 ): Promise<AiCallResult | null> {
   // A fingerprint, never the key: a refusal is lifted by a different one.
   const credential = (id: AiProviderId) => hashShortId(ctx.keyFor(id) ?? '');
+  const takers = engine.chainFor(taskOf(req.label));
   // Verification asks for web tools — prefer engines that have them, but a
   // tool-less engine is still better than no answer at all.
-  const capable = req.webTools ? engine.chain.filter((id) => PROVIDER_WEB_TOOLS[id]) : engine.chain;
-  const chain = capable.length > 0 ? capable : engine.chain;
+  const chain = req.webTools ? preferWebTools(takers) : takers;
   // Engines in cooldown are skipped — unless that would leave nothing to try.
   const hot = chain.filter((id) => deps.cooldowns.blockedUntil(id, credential(id)) === null);
   if (hot.length > 0 && hot.length < chain.length) {
@@ -102,7 +104,7 @@ export async function runChain(
       ...(id === 'local_api' && { baseUrl: ctx.localBase, contextTokens: ctx.localContextTokens }),
       onError: req.onError,
     });
-    const viaFallback = id !== engine.chain[0];
+    const viaFallback = id !== takers[0];
     // Every attempt, the failed ones too: a cut-off reply was billed (ADR 0055).
     await deps.record({
       at: new Date(started),
@@ -119,7 +121,7 @@ export async function runChain(
     });
     if (attempt.text !== null) {
       deps.cooldowns.success(id);
-      if (viaFallback) logger.warn({ served: id, primary: engine.chain[0], label: req.label }, 'ai: served by fallback engine');
+      if (viaFallback) logger.warn({ served: id, primary: takers[0], label: req.label }, 'ai: served by fallback engine');
       return { text: attempt.text, providerId: id, model, viaFallback };
     }
     if (attempt.outcome === 'unauthorized') deps.cooldowns.refused(id, credential(id));

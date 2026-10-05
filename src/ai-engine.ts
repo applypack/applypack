@@ -1,10 +1,12 @@
 import { z } from 'zod';
+import { AI_TASKS, type AiTask } from './ai-tasks';
 
 /*
  * Pure AI-engine resolution (ADR 0013 / 0014): which backends run the AI
- * calls, in which priority order, and with which model per backend per role.
- * The dashboard stores an ordered chain in AppSettings.aiEngine (JSON);
- * .env only seeds the default. No I/O — unit-tested (ai-engine.test.ts).
+ * calls, in which priority order, with which model per backend per role, and
+ * which tasks each backend takes (ADR 0060). The dashboard stores an ordered
+ * chain in AppSettings.aiEngine (JSON); .env only seeds the default. No I/O —
+ * unit-tested (ai-engine.test.ts).
  */
 
 export const AI_PROVIDER_IDS = [
@@ -29,7 +31,7 @@ export const AI_PROVIDER_LABELS: Record<AiProviderId, string> = {
 };
 
 /** Which backends can research the web (verification calls ask for it). */
-export const PROVIDER_WEB_TOOLS: Record<AiProviderId, boolean> = {
+const PROVIDER_WEB_TOOLS: Record<AiProviderId, boolean> = {
   anthropic_api: true,
   claude_code: true,
   gemini_cli: true,
@@ -38,6 +40,12 @@ export const PROVIDER_WEB_TOOLS: Record<AiProviderId, boolean> = {
   codex_cli: true,
   local_api: false,
 };
+
+/** A call that searches the web goes to the engines that can, while the chain holds one (ADR 0009). */
+export function preferWebTools(chain: readonly AiProviderId[]): AiProviderId[] {
+  const capable = chain.filter((id) => PROVIDER_WEB_TOOLS[id]);
+  return capable.length > 0 ? capable : [...chain];
+}
 
 /**
  * The crawler tokens each backend's vendor publishes (ADR 0036).
@@ -160,6 +168,8 @@ const StoredEngineSchema = z.object({
       }),
     )
     .default({}),
+  // Read entry by entry below: one malformed list must not cost the user their engine order.
+  tasks: z.record(z.string(), z.unknown()).catch({}),
 });
 
 export interface AiEngineConfig {
@@ -167,18 +177,24 @@ export interface AiEngineConfig {
   models: Partial<
     Record<AiProviderId, { classifier?: string | null; resume?: string | null; cover?: string | null }>
   >;
+  /** The tasks an engine takes (ADR 0060); an engine with no entry takes every task. */
+  tasks: Partial<Record<AiProviderId, AiTask[]>>;
 }
 
 /** Parses the raw JSON column; never throws, unknown ids are dropped. */
 export function parseAiEngineConfig(raw: unknown): AiEngineConfig {
   const parsed = StoredEngineSchema.safeParse(raw ?? {});
-  if (!parsed.success) return { order: [], models: {} };
+  if (!parsed.success) return { order: [], models: {}, tasks: {} };
   const order = parsed.data.order.filter(isAiProviderId);
   const models: AiEngineConfig['models'] = {};
   for (const [id, m] of Object.entries(parsed.data.models)) {
     if (isAiProviderId(id)) models[id] = m;
   }
-  return { order: [...new Set(order)], models };
+  const tasks: AiEngineConfig['tasks'] = {};
+  for (const [id, list] of Object.entries(parsed.data.tasks)) {
+    if (isAiProviderId(id) && Array.isArray(list)) tasks[id] = AI_TASKS.filter((t) => list.includes(t));
+  }
+  return { order: [...new Set(order)], models, tasks };
 }
 
 /**
@@ -212,10 +228,33 @@ export function toggleAiEngine(
 export function withEngineFirst(config: AiEngineConfig, id: AiProviderId, env: AiEngineEnv, model: string): AiEngineConfig {
   // The .env engine stands in for a list nobody stored; one that cannot run here is no fallback worth keeping.
   const behind = config.order.length > 0 ? config.order : [env.provider].filter((p) => !providerUnusable(p, env));
+  // "For every task" is what the button promises: a narrower list from before is lifted.
+  const tasks = { ...config.tasks };
+  delete tasks[id];
   return {
     order: [id, ...behind.filter((x) => x !== id)],
     models: { ...config.models, [id]: { classifier: model, resume: model, cover: model } },
+    tasks,
   };
+}
+
+/** The tasks an engine can be given at all: one that cannot search the web is never offered the web check. */
+export function offeredTasks(id: AiProviderId): AiTask[] {
+  return AI_TASKS.filter((t) => t !== 'verify' || PROVIDER_WEB_TOOLS[id]);
+}
+
+/**
+ * The config after an engine's task boxes are saved. Every offered task
+ * ticked is stored as no list at all, so a task a later version adds is
+ * taken too; anything narrower is stored as picked.
+ */
+export function withEngineTasks(config: AiEngineConfig, id: AiProviderId, picked: readonly AiTask[]): AiEngineConfig {
+  const offered = offeredTasks(id);
+  const kept = offered.filter((t) => picked.includes(t));
+  const tasks = { ...config.tasks };
+  if (kept.length === offered.length) delete tasks[id];
+  else tasks[id] = kept;
+  return { ...config, tasks };
 }
 
 export interface AiEngineEnv {
@@ -303,6 +342,14 @@ export interface ResolvedAiEngine {
   /** The engine answering because nothing in `order` can run; never in `order`. */
   lastResort: AiProviderId | null;
   modelFor(id: AiProviderId, role: AiRole): string;
+  /** Whether the engine's task list holds the task; an engine with no list takes every one. */
+  takes(id: AiProviderId, task: AiTask): boolean;
+  /**
+   * The usable engines that take the task, in priority order (ADR 0060). A
+   * task nobody usable takes is answered by the whole chain, as a call with
+   * no task is: a narrowed list never leaves the pipeline without an engine.
+   */
+  chainFor(task: AiTask | null): AiProviderId[];
 }
 
 /**
@@ -322,11 +369,17 @@ export function resolveAiEngine(raw: unknown, env: AiEngineEnv): ResolvedAiEngin
     lastResort = providerUnusable(env.provider, env) ? 'claude_code' : env.provider;
     chain.push(lastResort);
   }
+  const takes = (id: AiProviderId, task: AiTask) => config.tasks[id]?.includes(task) ?? true;
   return {
     order,
     chain,
     skipped,
     lastResort,
+    takes,
+    chainFor(task) {
+      const takers = task ? chain.filter((id) => takes(id, task)) : chain;
+      return takers.length > 0 ? takers : chain;
+    },
     modelFor(id, role) {
       // An empty slot takes the backend's default for THAT role — the cover's
       // is the strongest writer whatever the resume slot says (#184).
@@ -354,4 +407,24 @@ export function aiEngineCard(
     lastResort: engine.lastResort === id,
     canToggle: toggleAiEngine(engine.order, id, provider) !== null,
   };
+}
+
+interface TaskPlan {
+  task: AiTask;
+  /** Who is asked, in order: the first answers, the rest are its fallback. */
+  engines: AiProviderId[];
+  /** No usable engine in the list takes the task, so every one of them may answer it. */
+  unclaimed: boolean;
+}
+
+/** Who does what: each task with the engines a call for it would try (the AI tab's table). */
+export function taskPlans(engine: ResolvedAiEngine): TaskPlan[] {
+  return AI_TASKS.map((task) => {
+    const chain = engine.chainFor(task);
+    return {
+      task,
+      engines: task === 'verify' ? preferWebTools(chain) : chain,
+      unclaimed: !engine.chain.some((id) => engine.takes(id, task)),
+    };
+  });
 }

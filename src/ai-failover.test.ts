@@ -176,3 +176,23 @@ test('the local engine gets its server, its window, JSON, and three times the cl
   assert.equal(cloud?.req.timeoutMs, 60_000);
   assert.equal(cloud?.req.contextTokens, undefined);
 });
+
+test('a call goes to the engines that take its task, and "fallback" is read against the first of those (ADR 0060)', async () => {
+  const engine = resolveAiEngine({ order: ['openai_api', 'claude_code'], models: {}, tasks: { openai_api: ['scoring'] } }, ENV);
+  const letter = harness({ claude_code: [answer('Dear team')] });
+  const out = await runChain(engine, { ...REQ, label: 'cover-letter', role: 'cover' }, letter.ctx, letter.deps);
+  assert.deepEqual(letter.asked.map((a) => a.id), ['claude_code']);
+  assert.equal(out?.viaFallback, false);
+  assert.equal(letter.rows[0]?.viaFallback, false);
+  const score = harness({ openai_api: [failure('error')], claude_code: [answer('{}')] });
+  const scored = await runChain(engine, REQ, score.ctx, score.deps);
+  assert.deepEqual(score.asked.map((a) => a.id), ['openai_api', 'claude_code']);
+  assert.equal(scored?.viaFallback, true);
+});
+
+test('a task no engine takes still gets an answer from the chain', async () => {
+  const engine = resolveAiEngine({ order: ['openai_api', 'claude_code'], models: {}, tasks: { openai_api: ['scoring'], claude_code: ['scoring'] } }, ENV);
+  const h = harness({ openai_api: [answer('Dear team')] });
+  await runChain(engine, { ...REQ, label: 'cover-letter', role: 'cover' }, h.ctx, h.deps);
+  assert.deepEqual(h.asked.map((a) => a.id), ['openai_api']);
+});

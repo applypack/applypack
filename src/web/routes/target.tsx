@@ -91,7 +91,7 @@ targetRoute.get('/target/runs/:id', async (c) => {
 /** Engine × model the resume calls run on — the run page states its measured band (#184). */
 async function resumeLane(): Promise<Lane> {
   const runtime = await getAiRuntime();
-  const id = runtime.chain[0];
+  const id = runtime.chainFor('analysis')[0];
   return id ? laneOf(id, runtime.modelFor(id, 'resume')) : 'other';
 }
 
