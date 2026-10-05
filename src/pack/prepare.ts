@@ -97,6 +97,8 @@ export interface Prepared {
 
 /** How many stored comparisons of one text are looked through for one to reuse. */
 const STORED_CANDIDATES = 5;
+/** A company check older than this is run again: a posting can go stale, a company rarely turns fake. */
+const VERIFICATION_FRESH_MS = 14 * 24 * 60 * 60 * 1000;
 
 /**
  * The last full comparison of this very text under today's prompt. Unlike the
@@ -163,7 +165,10 @@ export async function preparePosting(posting: PackPosting, resume: PackResume, o
   if (out.stop) return out;
 
   if (opts.verify) {
-    out.verification = await prisma.jobVerification.findFirst({ where: { jobId: posting.id }, orderBy: { createdAt: 'desc' } });
+    out.verification = await prisma.jobVerification.findFirst({
+      where: { jobId: posting.id, createdAt: { gte: new Date(Date.now() - VERIFICATION_FRESH_MS) } },
+      orderBy: { createdAt: 'desc' },
+    });
     out.verificationReused = out.verification !== null;
     // A check that fails is not a verdict: the resume is still worth
     // preparing, and the pack says the company was not looked at.

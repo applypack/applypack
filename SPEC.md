@@ -867,7 +867,7 @@ prepares them one at a time through `pack/prepare.ts:preparePosting`:
 | --- | --- | --- |
 | Still open | The liveness ladder (ADR 0016), no AI | the posting is known to be closed |
 | Compare | The full comparison with the resume the best-scoring search hunts with (else the primary's); a stored one of the same text is reused | a requirement the posting gates on fails, or the ceiling is under 75 |
-| Company | "Is it real?" with web search; the latest stored check is reused | the verdict is fake, or the recommendation is skip. A check that fails is not a stop: the pack says the company was not checked |
+| Company | "Is it real?" with web search; a stored check from the last 14 days is reused | the verdict is fake, or the recommendation is skip. A check that fails is not a stop: the pack says the company was not checked |
 | Tailor | The comparison's suggestions held to the policy (`pack/policy.ts`) and applied as Apply all applies them | — |
 | Checks | Undoing every recorded change gives the original back; no change took out words its suggestion did not quote; no email or phone touched; the score did not fall | a failed check drops every edit: the resume goes out as it stood |
 | Judge again | The tailored text compared once more — the honest "after" score, and the comparison the Tailor page opens | — |

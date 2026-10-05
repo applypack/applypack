@@ -402,9 +402,14 @@ export async function processNormalizedJobs(
       !skipsAlert &&
       autoPack({ settings: packs, fit: created.fitScore, postedAt: created.postedAt, now: new Date(), queuedToday: packsToday }) === 'queue'
     ) {
-      await queuePack(created.id, 'auto');
-      packsToday++;
-      stats.packsQueued++;
+      // A pack is an extra: failing to queue one must never cost the match its alert.
+      try {
+        await queuePack(created.id, 'auto');
+        packsToday++;
+        stats.packsQueued++;
+      } catch (err) {
+        logger.warn({ err, jobId: created.id }, 'process-jobs: could not queue an application pack');
+      }
     }
     // Counted where every other counter is: after the row exists. A posting
     // the unique key rejected was not kept by anything.

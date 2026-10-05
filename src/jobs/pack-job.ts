@@ -1,6 +1,6 @@
 import type { Prisma } from '@prisma/client';
 import { logger } from '../logger';
-import { sendPackNotice } from '../notifier';
+import { alertChannel, sendPackNotice } from '../notifier';
 import { DEFAULT_MIN_CEILING } from '../pack/gate';
 import { preparePosting, type Prepared } from '../pack/prepare';
 import { wantsCoverLetter } from '../pack/settings';
@@ -14,7 +14,7 @@ import {
   requeueOrphans,
   setPackStep,
 } from '../pack/store';
-import { packNoticeLines, type PackEdits } from '../pack/view';
+import { packNoticeLines, type PackEdits, type PackNotice } from '../pack/view';
 import { getActiveProfile } from '../profiles';
 import { readCoverAngles } from '../resume/prompts';
 import { getPackSettings, getSchedule, getSettings } from '../settings';
@@ -48,8 +48,20 @@ export function stopPackJob(): void {
 
 /** Whether this beat has anything to do — asked before a run row is written. */
 export async function packWorkWaiting(): Promise<boolean> {
-  if (await hasQueuedPacks()) return true;
-  return (await listUnnotifiedPacks()).length > 0 && shouldDeliverHeld(new Date(), await getSchedule());
+  return (await hasQueuedPacks()) || (await noticesDue()).length > 0;
+}
+
+/**
+ * The finished packs a message can carry NOW: the person's schedule lets a
+ * held message out (user-schedule.ts), Alerts are not off, and the last try
+ * did not just fail. Anything else waits without a run row a minute.
+ */
+async function noticesDue(): Promise<(PackNotice & { id: number })[]> {
+  if (Date.now() - noticeFailedAt < NOTICE_RETRY_MS) return [];
+  const waiting = await listUnnotifiedPacks();
+  if (waiting.length === 0) return [];
+  if (!shouldDeliverHeld(new Date(), await getSchedule())) return [];
+  return (await alertChannel()) === 'alerts-off' ? [] : waiting;
 }
 
 export async function runPackJob(): Promise<{ stats: CronStats }> {
@@ -61,7 +73,14 @@ export async function runPackJob(): Promise<{ stats: CronStats }> {
   try {
     stats.requeued = await requeueOrphans();
     for (let next = stopping ? null : await claimNextPack(); next; next = stopping ? null : await claimNextPack()) {
-      const outcome = await runOne(next.id, next.jobId);
+      const { id, jobId } = next;
+      // Whatever goes wrong with one pack ends with that pack: left `running`
+      // it would be re-queued and tried again on every beat.
+      const outcome = await runOne(id, jobId).catch(async (err: unknown) => {
+        logger.error({ err, packId: id, jobId }, 'pack: failed outside its own steps');
+        await finishPack(id, { status: 'failed', why: err instanceof Error ? err.message : String(err) }).catch(() => undefined);
+        return 'failed' as const;
+      });
       stats[outcome]++;
     }
     stats.notified = await deliverNotices();
@@ -155,23 +174,21 @@ async function requeue(packId: number): Promise<'requeued'> {
 }
 
 /**
- * One message for every pack that finished since the last one, when the
- * person's schedule lets a held message out (user-schedule.ts) — at once, in
- * the alert window, or at a digest hour. While Alerts are off they wait.
+ * One message for every pack that finished since the last one. With no chat
+ * to send to they are marked as told: there is nobody to keep trying for.
  */
 async function deliverNotices(): Promise<number> {
-  const waiting = await listUnnotifiedPacks();
-  if (waiting.length === 0 || Date.now() - noticeFailedAt < NOTICE_RETRY_MS) return 0;
-  if (!shouldDeliverHeld(new Date(), await getSchedule())) return 0;
+  const due = await noticesDue();
+  const lines = packNoticeLines(due);
+  if (lines.length === 0) return 0;
   try {
-    const delivery = await sendPackNotice(packNoticeLines(waiting));
+    const delivery = await sendPackNotice(lines);
     if (delivery.skipped === 'alerts-off') return 0;
-    // No chat at all: there is nobody to tell, and nothing to keep trying for.
-    await markPacksNotified(waiting.map((p) => p.id), new Date());
-    return delivery.reached > 0 ? waiting.length : 0;
+    await markPacksNotified(due.map((p) => p.id), new Date());
+    return delivery.reached > 0 ? due.length : 0;
   } catch (err) {
     noticeFailedAt = Date.now();
-    logger.warn({ err, packs: waiting.length }, 'pack: the notice reached nobody; it stays owed');
+    logger.warn({ err, packs: due.length }, 'pack: the notice reached nobody; it stays owed');
     return 0;
   }
 }
