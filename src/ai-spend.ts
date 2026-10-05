@@ -4,7 +4,7 @@ import { AI_BILLING, featureName, type AiBilling, type AiFeature, type AiOutcome
 
 /*
  * The AI spend ledger, read and written (ADR 0055). Pure: the runtime hands
- * an attempt to `ledgerRow`, the page hands grouped sums to `spendView`, and
+ * an attempt to `ledgerRow`, the AI usage page hands grouped sums to `spendView`, and
  * the budget, the periods and the billing notes are decided here. The I/O is
  * src/ai-ledger.ts.
  */
@@ -73,6 +73,14 @@ export interface SpendGroup {
   tokensOut: number;
   /** Our price where we have one, else the vendor's own; micro-dollars. */
   micro: number;
+  /** Wall time of the calls that answered: the middle one, and the slow tail. Null when none answered. */
+  medianMs: number | null;
+  p90Ms: number | null;
+  /** Calls the vendor turned away for a rate limit — the sign of a plan's allowance or a key's quota running out. */
+  rateLimited: number;
+  /** Calls answered by an engine other than the first one asked, and what those cost. */
+  viaFallback: number;
+  fallbackMicro: number;
 }
 
 export interface SpendTotal {
@@ -93,6 +101,8 @@ export interface SpendRow {
   tokensIn: number;
   tokensOut: number;
   micro: number;
+  medianMs: number | null;
+  p90Ms: number | null;
 }
 
 export interface SpendView {
@@ -116,7 +126,7 @@ export function spendView(groups: readonly SpendGroup[]): SpendView {
     t.micro += g.billing === 'local' ? 0 : g.micro;
   }
   const rows = groups
-    .map(({ feature, engine, model, billing, calls, failed, unpriced, tokensIn, tokensOut, micro }) => ({
+    .map(({ feature, engine, model, billing, calls, failed, unpriced, tokensIn, tokensOut, micro, medianMs, p90Ms }) => ({
       feature: featureName(feature),
       engine: AI_PROVIDER_LABELS[engine as AiProviderId] ?? engine,
       model,
@@ -127,9 +137,39 @@ export function spendView(groups: readonly SpendGroup[]): SpendView {
       tokensIn,
       tokensOut,
       micro: billing === 'local' ? 0 : micro,
+      medianMs,
+      p90Ms,
     }))
     .sort((a, b) => b.micro - a.micro || b.calls - a.calls || a.feature.localeCompare(b.feature));
   return { totals, rows, notes: spendNotes(groups) };
+}
+
+/** One engine and model, with everything it did in the period. */
+export interface ModelUsage {
+  engine: string;
+  model: string;
+  billing: AiBilling;
+  calls: number;
+  failed: number;
+  micro: number;
+  /** What it did, the most calls first. */
+  rows: SpendRow[];
+}
+
+/** The view's rows by the model that answered: which model does what, in how long, for how much. */
+export function usageByModel(rows: readonly SpendRow[]): ModelUsage[] {
+  const models = new Map<string, ModelUsage>();
+  for (const row of rows) {
+    const key = `${row.engine}\n${row.model}\n${row.billing}`;
+    const m = models.get(key) ?? { engine: row.engine, model: row.model, billing: row.billing, calls: 0, failed: 0, micro: 0, rows: [] };
+    m.calls += row.calls;
+    m.failed += row.failed;
+    m.micro += row.micro;
+    m.rows.push(row);
+    models.set(key, m);
+  }
+  for (const m of models.values()) m.rows.sort((a, b) => b.calls - a.calls || a.feature.localeCompare(b.feature));
+  return [...models.values()].sort((a, b) => b.calls - a.calls || b.micro - a.micro || a.model.localeCompare(b.model));
 }
 
 function spendNotes(groups: readonly SpendGroup[]): string[] {
@@ -246,7 +286,7 @@ export function budgetAlert(billedMicro: number, budgetCents: number, month: str
 /** The line a budget warning sends, on the chat channels the alerts use. */
 export function budgetAlertText(billedMicro: number, budgetCents: number): string {
   const share = Math.round((billedMicro / (budgetCents * 10_000)) * 100);
-  return `AI spend: ${formatUsd(billedMicro)} billed this month, ${share} % of your ${formatUsd(budgetCents * 10_000)} monthly budget. Nothing is stopped — this is a warning. Settings → AI engine shows where it went.`;
+  return `AI spend: ${formatUsd(billedMicro)} billed this month, ${share} % of your ${formatUsd(budgetCents * 10_000)} monthly budget. Nothing is stopped — this is a warning. The AI usage page shows where it went.`;
 }
 
 /**

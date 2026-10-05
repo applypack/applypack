@@ -82,7 +82,7 @@ async function warnOnBudget(now: Date): Promise<void> {
   }
 }
 
-/** The ledger between two instants, grouped the way the Usage & cost card reads it. */
+/** The ledger between two instants, grouped the way the AI usage page reads it: a feature on a model, on one kind of money. */
 export async function loadSpendGroups(from: Date, to: Date): Promise<SpendGroup[]> {
   const rows = await prisma.$queryRaw<
     {
@@ -97,6 +97,11 @@ export async function loadSpendGroups(from: Date, to: Date): Promise<SpendGroup[
       tokensIn: bigint;
       tokensOut: bigint;
       micro: bigint;
+      medianMs: number | null;
+      p90Ms: number | null;
+      rateLimited: number;
+      viaFallback: number;
+      fallbackMicro: bigint;
     }[]
   >`
     SELECT "feature", "engine", COALESCE("resolvedModel", "model") AS "model", "billing",
@@ -109,7 +114,12 @@ export async function loadSpendGroups(from: Date, to: Date): Promise<SpendGroup[
       COALESCE(sum(COALESCE("inputTokens", 0) + COALESCE("cacheReadTokens", 0) + COALESCE("cacheWriteTokens", 0)
         + COALESCE("cacheWrite1hTokens", 0)), 0)::bigint AS "tokensIn",
       COALESCE(sum("outputTokens"), 0)::bigint AS "tokensOut",
-      COALESCE(sum(COALESCE("costMicroUsd", "reportedMicroUsd")), 0)::bigint AS "micro"
+      COALESCE(sum(COALESCE("costMicroUsd", "reportedMicroUsd")), 0)::bigint AS "micro",
+      percentile_cont(0.5) WITHIN GROUP (ORDER BY "durationMs") FILTER (WHERE "outcome" = 'ok') AS "medianMs",
+      percentile_cont(0.9) WITHIN GROUP (ORDER BY "durationMs") FILTER (WHERE "outcome" = 'ok') AS "p90Ms",
+      count(*) FILTER (WHERE "outcome" = 'rate_limited')::int AS "rateLimited",
+      count(*) FILTER (WHERE "viaFallback" AND "outcome" = 'ok')::int AS "viaFallback",
+      COALESCE(sum(COALESCE("costMicroUsd", "reportedMicroUsd")) FILTER (WHERE "viaFallback"), 0)::bigint AS "fallbackMicro"
     FROM "ai_call"
     WHERE "at" >= ${from} AND "at" < ${to}
     GROUP BY 1, 2, 3, 4`;
@@ -118,6 +128,9 @@ export async function loadSpendGroups(from: Date, to: Date): Promise<SpendGroup[
     tokensIn: Number(r.tokensIn),
     tokensOut: Number(r.tokensOut),
     micro: Number(r.micro),
+    medianMs: r.medianMs === null ? null : Math.round(r.medianMs),
+    p90Ms: r.p90Ms === null ? null : Math.round(r.p90Ms),
+    fallbackMicro: Number(r.fallbackMicro),
   }));
 }
 

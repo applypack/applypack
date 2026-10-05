@@ -12,6 +12,7 @@ import {
   periodRange,
   spendReportLines,
   spendView,
+  usageByModel,
   typicalMicro,
   type LedgerInput,
   type SpendGroup,
@@ -72,6 +73,11 @@ const group = (over: Partial<SpendGroup>): SpendGroup => ({
   tokensIn: 0,
   tokensOut: 0,
   micro: 0,
+  medianMs: null,
+  p90Ms: null,
+  rateLimited: 0,
+  viaFallback: 0,
+  fallbackMicro: 0,
   ...over,
 });
 
@@ -185,3 +191,23 @@ test('before any call is on record, the hint says what kind of money and no figu
   assert.equal(billingHint('plan'), 'Your plan covers it.');
   assert.equal(billingHint('local'), 'Runs on your local model: free.');
 });
+
+test('the rows by the model that answered: the busiest model first, and inside it the busiest task', () => {
+  const view = spendView([
+    group({ engine: 'claude_code', billing: 'plan', calls: 395, micro: 1_600_000, medianMs: 3_374, p90Ms: 3_836 }),
+    group({ feature: 'posting-extract', engine: 'claude_code', billing: 'plan', calls: 3, failed: 1, micro: 10_000 }),
+    group({ feature: 'resume-match', engine: 'claude_code', model: 'claude-sonnet-5', billing: 'plan', calls: 15, micro: 1_190_000, medianMs: 29_427, p90Ms: 34_361 }),
+    group({ feature: 'classifier', engine: 'local_api', model: 'gemma4:e4b', billing: 'local', calls: 40, micro: 0 }),
+  ]);
+  const models = usageByModel(view.rows);
+  assert.deepEqual(models.map((m) => [m.engine, m.model, m.calls, m.failed, m.micro]), [
+    ['Claude Code CLI', 'claude-haiku-4-5-20251001', 398, 1, 1_610_000],
+    ['Local model (Ollama)', 'gemma4:e4b', 40, 0, 0],
+    ['Claude Code CLI', 'claude-sonnet-5', 15, 0, 1_190_000],
+  ]);
+  assert.deepEqual(models[0]?.rows.map((r) => [r.feature, r.calls, r.medianMs, r.p90Ms]), [
+    ['Scoring new postings', 395, 3_374, 3_836],
+    ['Reading a pasted posting', 3, null, null],
+  ]);
+});
+
