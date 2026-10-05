@@ -12,6 +12,10 @@ import type { ScoreBreakdown } from '../resume/score';
  * is it still open, can this resume get there, is the company real.
  */
 
+/** The steps of preparing one application, in the order they run. */
+export const PREPARE_STEPS = ['liveness', 'brief', 'match', 'verify', 'tailor', 'rejudge', 'document', 'letter'] as const;
+export type PrepareStep = (typeof PREPARE_STEPS)[number];
+
 /** The lowest score editing must be able to reach for a pack to be worth preparing. */
 export const DEFAULT_MIN_CEILING = 75;
 

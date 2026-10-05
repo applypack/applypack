@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { PACK_STOPS, type PackStop } from './gate';
+import { PACK_STOPS, PREPARE_STEPS, type PackStop, type PrepareStep } from './gate';
 import type { TailorPolicy } from './policy';
 
 /*
@@ -9,9 +9,6 @@ import type { TailorPolicy } from './policy';
  * the ones that reached the end look like. It exists to set the feature's
  * thresholds on measurements instead of guesses.
  */
-
-const DRY_STEPS = ['liveness', 'brief', 'match', 'verify', 'tailor', 'document', 'rejudge'] as const;
-export type DryStep = (typeof DRY_STEPS)[number];
 
 const stepMs = z.number().optional();
 
@@ -53,7 +50,7 @@ const DryRecordSchema = z.object({
     })
     .optional(),
   /** Milliseconds per step, for the steps that did the work (a reused result has none). */
-  ms: z.object({ liveness: stepMs, brief: stepMs, match: stepMs, verify: stepMs, tailor: stepMs, document: stepMs, rejudge: stepMs }),
+  ms: z.object({ liveness: stepMs, brief: stepMs, match: stepMs, verify: stepMs, tailor: stepMs, rejudge: stepMs, document: stepMs, letter: stepMs }),
 });
 export type DryRecord = z.infer<typeof DryRecordSchema>;
 
@@ -72,14 +69,15 @@ export interface DrySettings {
   policy: TailorPolicy;
 }
 
-const STEP_LABEL: Record<DryStep, string> = {
+const STEP_LABEL: Record<PrepareStep, string> = {
   liveness: 'Still open? (no AI)',
   brief: 'Read the posting',
   match: 'Compare',
   verify: 'Check the company (web)',
   tailor: 'Apply the edits (no AI)',
-  document: 'Draw the file (no AI)',
   rejudge: 'Judge the tailored text again',
+  document: 'Draw the file (no AI)',
+  letter: 'Write the cover letter',
 };
 
 const STOP_LABEL: Record<PackStop | 'error', string> = {
@@ -99,7 +97,7 @@ export function percentile(values: number[], p: number): number | null {
 }
 
 const seconds = (ms: number | null): string => (ms === null ? '—' : `${Math.round(ms / 1000)} s`);
-const total = (r: DryRecord): number => DRY_STEPS.reduce((sum, step) => sum + (r.ms[step] ?? 0), 0);
+const total = (r: DryRecord): number => PREPARE_STEPS.reduce((sum, step) => sum + (r.ms[step] ?? 0), 0);
 /** A table cell: one line, no column breaks, short enough to scan. */
 const cell = (s: string, max = 160): string => {
   const flat = s.replace(/\s+/g, ' ').replace(/\|/g, '/').trim();
@@ -144,7 +142,7 @@ export function dryReport(records: DryRecord[], settings: DrySettings): string {
   if (errors.length > 0) out.push(`A step failed on ${errors.length}: they are listed under Stopped and run again on the next start.`, '');
 
   out.push('## Time per step', '', '| Step | Runs | Median | 90th percentile |', '| --- | --- | --- | --- |');
-  for (const step of DRY_STEPS) {
+  for (const step of PREPARE_STEPS) {
     const times = records.flatMap((r) => r.ms[step] ?? []);
     if (times.length > 0) out.push(`| ${STEP_LABEL[step]} | ${times.length} | ${seconds(percentile(times, 50))} | ${seconds(percentile(times, 90))} |`);
   }

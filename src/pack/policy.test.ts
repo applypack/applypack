@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { suggestionKey } from '../resume/change-sheet';
 import type { MatchAction, MatchKeyword, MatchRemoval } from '../resume/prompts';
-import { DEFAULT_POLICY, planEdits, type TailorPolicy } from './policy';
+import { DEFAULT_POLICY, dropsFigure, planEdits, type TailorPolicy } from './policy';
 
 const action = (over: Partial<MatchAction> = {}): MatchAction => ({
   section: 'experience',
@@ -39,7 +39,7 @@ const keyword = (term: string, over: Partial<MatchKeyword> = {}): MatchKeyword =
 });
 
 const plan = (
-  report: { actions?: MatchAction[]; removals?: MatchRemoval[]; keywords?: MatchKeyword[] },
+  report: { actions?: MatchAction[]; removals?: MatchRemoval[]; keywords?: MatchKeyword[]; postingTitle?: string },
   policy: Partial<TailorPolicy> = {},
 ) => planEdits({ actions: [], removals: [], keywords: [], ...report }, { ...DEFAULT_POLICY, ...policy });
 
@@ -139,4 +139,31 @@ test('a removal of the very span a change rewrites is not run on top of it', () 
   const change = action({ section: 'skills', where: 'Skills · Tools', quote: 'jQuery, Bower' });
   const { ops } = plan({ actions: [change], removals: [removal()] }, { removals: true });
   assert.deepEqual(ops.map((o) => o.kind), ['change']);
+});
+
+test('a rewrite that loses a number the line had waits for the person', () => {
+  assert.equal(dropsFigure('Led platforms supporting $10M+ ARR with 99.9% uptime.', 'Led Laravel platforms with 99.9% uptime.'), true);
+  assert.equal(dropsFigure('raising successful transactions by 15–20%', 'raising successful transactions 15-20% across two gateways'), false);
+  assert.equal(dropsFigure('serving 1,200 clients', 'serving 1200 clients on Laravel'), false);
+  // The same digits under another unit are another figure.
+  assert.equal(dropsFigure('Ten years. Led platforms supporting $10M+ ARR.', 'Engineer with 10+ years on Laravel platforms.'), true);
+  assert.equal(dropsFigure('reducing risks by 40%+.', 'reducing risks by 40% across three services.'), false);
+  assert.equal(dropsFigure('Built a billing service.', 'Built a billing service, cutting invoice time 40%.'), false);
+
+  const summary = action({ section: 'summary', where: 'Summary', quote: 'Ten years. Led platforms supporting $10M+ ARR.', replacement: 'Ten years of Laravel.' });
+  const { ops, held } = plan({ actions: [summary] });
+  assert.deepEqual(ops, []);
+  assert.deepEqual(held, [{ section: 'summary', where: 'Summary', reason: 'drops-figure' }]);
+});
+
+test('an edit that drops a figure does not use up the bullet limit', () => {
+  const lossy = action({ where: 'lossy', priority: 'high', quote: 'Cut costs 30%.', replacement: 'Cut costs.' });
+  const kept = action({ where: 'kept', priority: 'low', quote: 'x' });
+  assert.deepEqual(plan({ actions: [lossy, kept] }, { maxBullets: 1 }).ops.map((o) => o.key), [suggestionKey(kept)]);
+});
+
+test("the posting's own title is never written as a skill, however it is punctuated", () => {
+  const keywords = [keyword('Senior Product Engineer (Laravel - Remote)'), keyword('Redis')];
+  assert.deepEqual(plan({ keywords, postingTitle: 'Senior Product Engineer (Laravel – Remote)' }).terms, [{ term: 'Redis' }]);
+  assert.deepEqual(plan({ keywords }).terms.length, 2);
 });

@@ -6,8 +6,7 @@ import type { KeywordMatcher } from '../resume/keyword-matcher';
 import { effectiveKeywords } from '../resume/keyword-overrides';
 import { hasContactDetail } from '../resume/parse-warnings';
 import type { MatchKeyword } from '../resume/prompts';
-import { countableFlags } from '../resume/red-flags';
-import { scoreMatch, type MatchAlignment, type ScoreBreakdown } from '../resume/score';
+import { computeScore, entriesFromKeywords, type ScoreBreakdown } from '../resume/score';
 import type { EditOperation, EditPlan, SkillTerm } from './policy';
 
 /*
@@ -58,20 +57,17 @@ export function tailor(text: string, plan: EditPlan, edit: Editor): EditOutcome 
 }
 
 /**
- * The comparison's score on another text, as the stored one was computed
- * (match.ts): the text settles what is written (ADR 0045) and how strongly
- * (ADR 0058). The three alignment grades are the model's reading of the
- * analysed text and stay as they were, so a better title line earns nothing
- * here — the number is a floor for what the next analysis will say.
+ * The comparison's score on another text — the Tailor page's live ring, on the
+ * server: the text settles what is written (ADR 0045) and how strongly
+ * (ADR 0058), and everything the model judged on the analysed text stays as
+ * it was. That is the penalty (a flag was written about the old text, and
+ * counting it again once its keyword is typed in took a live score from 42
+ * to 29) and the three alignment grades, so a better title line earns nothing
+ * here: the number is a floor for what the next analysis will say.
  */
-export function scoreOnText(
-  text: string,
-  report: { keywords: MatchKeyword[]; redFlags: string[]; alignment: MatchAlignment | null },
-  matcher: KeywordMatcher,
-): ScoreBreakdown {
-  const keywords = annotateEvidence(anchorStatuses(report.keywords, text, matcher).keywords, text, matcher).keywords;
-  const flags = countableFlags(report.redFlags, keywords, matcher);
-  return scoreMatch(effectiveKeywords(keywords), report.alignment, flags.counted.length);
+export function scoreOnText(text: string, keywords: MatchKeyword[], judged: ScoreBreakdown, matcher: KeywordMatcher): ScoreBreakdown {
+  const read = annotateEvidence(anchorStatuses(keywords, text, matcher).keywords, text, matcher).keywords;
+  return computeScore(entriesFromKeywords(effectiveKeywords(read)), judged.alignment, judged.flagsCounted ?? 0, judged.penalty);
 }
 
 export type TailorCheck = 'unexplained-change' | 'beyond-quote' | 'contact-changed' | 'score-dropped';

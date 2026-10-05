@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { loadKeywordMatcher } from '../resume/keyword-matcher';
 import type { MatchKeyword } from '../resume/prompts';
+import type { ScoreBreakdown } from '../resume/score';
 import type { EditPlan } from './policy';
 import { loadEditor, scoreOnText, tailor, tailorChecks } from './tailor';
 
@@ -35,7 +36,23 @@ const keyword = (term: string, over: Partial<MatchKeyword> = {}): MatchKeyword =
 });
 
 const KEYWORDS = [keyword('Laravel', { status: 'present', primary: true }), keyword('Redis'), keyword('Kubernetes', { status: 'cannot_claim' })];
-const REPORT = { keywords: KEYWORDS, redFlags: [], alignment: null };
+/** What the analysis left behind: one counted flag, ten points taken. */
+const JUDGED: ScoreBreakdown = {
+  v: 6,
+  keywordPts: 0,
+  keywordMax: 60,
+  keywordEarned: 0,
+  keywordTotal: 0,
+  alignmentPts: 0,
+  alignmentMax: 40,
+  penalty: 10,
+  flagsCounted: 1,
+  primaryTotal: 1,
+  primaryPresent: 1,
+  cap: null,
+  score: 0,
+  alignment: { title: 'partial', summary: 'strong', recent_role: 'strong' },
+};
 
 const PLAN: EditPlan = {
   ops: [
@@ -63,17 +80,26 @@ test('a keyword a rewritten bullet already carries is not written twice', async 
 
 test('the score follows the text: a backed keyword written in counts, and the ceiling stays where it was', async () => {
   const matcher = await loadKeywordMatcher();
-  const before = scoreOnText(RESUME, REPORT, matcher);
-  const after = scoreOnText(tailor(RESUME, PLAN, await loadEditor()).text, REPORT, matcher);
+  const before = scoreOnText(RESUME, KEYWORDS, JUDGED, matcher);
+  const after = scoreOnText(tailor(RESUME, PLAN, await loadEditor()).text, KEYWORDS, JUDGED, matcher);
   assert.ok(after.score > before.score, `${after.score} should be above ${before.score}`);
   // The ceiling already counted the keyword as written, so writing it moves the score toward it.
   assert.equal(after.ceiling, before.ceiling);
 });
 
+test('what the model judged stays as judged: the penalty and the alignment grades', async () => {
+  const matcher = await loadKeywordMatcher();
+  const after = scoreOnText(tailor(RESUME, PLAN, await loadEditor()).text, KEYWORDS, JUDGED, matcher);
+  assert.equal(after.penalty, 10);
+  assert.deepEqual(after.alignment, JUDGED.alignment);
+  // Without a penalty to hold, the same text scores exactly ten points more.
+  assert.equal(scoreOnText(RESUME, KEYWORDS, { ...JUDGED, penalty: 0, flagsCounted: 0 }, matcher).score, scoreOnText(RESUME, KEYWORDS, JUDGED, matcher).score + 10);
+});
+
 test('an unbacked keyword typed in is counted too, which is why the plan never writes one', async () => {
   const matcher = await loadKeywordMatcher();
-  const typed = scoreOnText(`${RESUME}\nKubernetes`, REPORT, matcher);
-  assert.ok(typed.score > scoreOnText(RESUME, REPORT, matcher).score);
+  const typed = scoreOnText(`${RESUME}\nKubernetes`, KEYWORDS, JUDGED, matcher);
+  assert.ok(typed.score > scoreOnText(RESUME, KEYWORDS, JUDGED, matcher).score);
 });
 
 test('the checks pass what the plan made: a wrapped summary rewritten, a few words inside a bullet, a keyword appended', async () => {

@@ -48,8 +48,11 @@ export interface SkillTerm {
   where?: string;
 }
 
-/** `no-wording`: an instruction with nothing to paste, or wording the gate refused. */
-export type HeldReason = 'no-wording' | 'section' | 'over-limit' | 'removals-off';
+/**
+ * `no-wording`: an instruction with nothing to paste, or wording the gate
+ * refused. `drops-figure`: the new wording loses a number the line had.
+ */
+export type HeldReason = 'no-wording' | 'drops-figure' | 'section' | 'over-limit' | 'removals-off';
 
 export interface HeldEdit {
   section: ActionSection;
@@ -65,6 +68,23 @@ export interface EditPlan {
 
 const PRIORITY_RANK: Record<MatchAction['priority'], number> = { high: 0, medium: 1, low: 2 };
 
+/** Letters and digits alone: how two spellings of one phrase are told to be the same. */
+const wordsOf = (s: string): string => s.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '');
+/** A number with what makes it one figure and not another: "$10M" is not the "10" of "10+ years". */
+const figuresOf = (s: string): string[] =>
+  (s.match(/[$€£]?\d+(?:[.,]\d+)*(?:\s?%|[kKmMbB]\b)?/g) ?? []).map((n) => n.toLowerCase().replace(/[,\s]/g, ''));
+
+/**
+ * Whether a rewrite loses a number the quoted text carried. The gate checks
+ * that no figure is invented (ADR 0037); nothing checked that none is lost,
+ * and "$10M+ ARR" left three summaries of seventeen on the dry run. A number
+ * is what a recruiter stops on, so such an edit waits for the person.
+ */
+export function dropsFigure(quote: string, wording: string): boolean {
+  const kept = new Set(figuresOf(wording));
+  return figuresOf(quote).some((n) => !kept.has(n));
+}
+
 /** The operation a card's Apply runs, or null when the card has none. */
 function operationOf(action: MatchAction): EditOperation | null {
   const wording = proposalOf(action)?.text;
@@ -76,7 +96,13 @@ function operationOf(action: MatchAction): EditOperation | null {
 }
 
 export function planEdits(
-  report: { actions: MatchAction[]; removals: MatchRemoval[]; keywords: MatchKeyword[] },
+  report: {
+    actions: MatchAction[];
+    removals: MatchRemoval[];
+    keywords: MatchKeyword[];
+    /** The posting's title: the brief carries it as a keyword for the title line, and it is no skill. */
+    postingTitle?: string;
+  },
   policy: TailorPolicy,
 ): EditPlan {
   const ops: EditOperation[] = [];
@@ -93,6 +119,7 @@ export function planEdits(
     const op = operationOf(action);
     if (!op) hold(action, 'no-wording');
     else if (!allowed(action)) hold(action, 'section');
+    else if (op.kind === 'change' && dropsFigure(op.quote, op.wording)) hold(action, 'drops-figure');
     else if (!queued.has(op.key)) {
       queued.add(op.key);
       open.push({ action, op });
@@ -122,10 +149,13 @@ export function planEdits(
   }
 
   // What the page's "Add missing keywords" offers ticked: a weighted term the
-  // resume backs and does not spell. A term nothing backs is never written.
+  // resume backs and does not spell. A term nothing backs is never written,
+  // and neither is the posting's own title — on the dry run three of the seven
+  // terms written onto a skills line were "Senior Product Engineer (…)".
+  const title = wordsOf(report.postingTitle ?? '');
   const terms = policy.keywords
     ? effectiveKeywords(report.keywords)
-        .filter((k) => k.status === 'add' && k.requirement !== 'context')
+        .filter((k) => k.status === 'add' && k.requirement !== 'context' && wordsOf(k.term) !== title)
         .map((k) => (k.where ? { term: k.term, where: k.where } : { term: k.term }))
     : [];
   return { ops, terms, held };
