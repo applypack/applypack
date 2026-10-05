@@ -312,6 +312,7 @@ src/
     page-changes.ts            ← the careers pages that changed this tick, staged for jobs/page-change-alerts.ts
 
   starter-packs/               ← web-only curated company packs (ADR 0017)
+  pack/                        ← the application pack (ADR 0060): settings, trigger, gate, policy, tailor, view are pure; prepare.ts spends the AI, store.ts owns the rows
     catalog.json               ← segments + hand-verified (atsType, atsToken) per company
     catalog.ts                 ← zod-validated load + segment lookups (pure)
     resolve.ts                 ← RESOLVE_ORDER, buildResolvePlan, buildPreview, boardUrl (pure)
@@ -475,6 +476,7 @@ src/
     cleanup-job.ts              ← runCleanupJob (Sunday 03:00)
     hn-hiring-job.ts            ← runHnHiringJob (the 1st of the month, 06:mm)
     discovery-job.ts            ← runDiscoveryJob (Sunday 04:mm, validation probe)
+    pack-job.ts                 ← runPackJob: the queued application packs, one at a time, then one message (every minute; ADR 0060)
     reclassify-job.ts           ← runReclassifyAll + runScoreUnscored (web-triggered, async)
     score-pick.ts               ← pure ranking of unscored jobs by profile mentions (wizard step 5)
     classify-existing.ts        ← classify one stored job (Re-classify button, manual entry)

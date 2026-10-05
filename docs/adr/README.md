@@ -21,7 +21,7 @@ gets a dated addendum at the end of the ADR.
 - [0005 — No LinkedIn / Indeed / Workday](./0005-no-linkedin-indeed-workday.md) — *amended by 0034, 0036*
 - [0006 — Discovery via HN parser, not ATS-vendor lists](./0006-discovery-via-hn-parser.md)
 - [0007 — One AI provider seam: Messages API or Claude Code CLI](./0007-ai-provider-seam.md) — *extended by 0013, 0014, 0027, 0055*
-- [0008 — Resume module lives in the web process, files in Postgres](./0008-resume-module-in-web.md)
+- [0008 — Resume module lives in the web process, files in Postgres](./0008-resume-module-in-web.md) — *amended by 0060*
 - [0009 — Web tools through the AI seam, for job verification only](./0009-web-tools-for-job-verification.md)
 - [0010 — Two scores: live keyword coverage in the browser, AI match on demand](./0010-two-scores-live-keywords-vs-ai-match.md) — *amended by 0012, 0038*
 - [0011 — PDF resume text comes from unpdf, not a hand-rolled parser](./0011-pdf-extraction-via-unpdf.md)
@@ -73,6 +73,7 @@ gets a dated addendum at the end of the ADR.
 - [0057 — A model on this machine is an engine of its own, and it is held to its window](./0057-a-local-model-is-an-engine-of-its-own.md) *(extends 0013/0014)*
 - [0058 — How strongly the text shows a term counts, a little (score v6)](./0058-evidence-strength-counts-a-little.md) *(amends 0012/0045)*
 - [0059 — The Tailor page edits the resume as a document, and a save is always one](./0059-the-tailor-page-edits-the-resume-as-a-document.md) *(extends 0038/0039)*
+- [0060 — The worker prepares an application pack for a strong new match](./0060-the-worker-prepares-an-application-pack.md) *(amends 0008)*
 
 ## When to write a new one
 

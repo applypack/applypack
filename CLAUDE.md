@@ -149,16 +149,22 @@
   `src/login-item.ts`) also reads the pure `data-dir.ts`. `snapshots.ts`
   (pure) plans the daily copy the launcher takes before Postgres starts. `config.ts` fills an empty
   `DATABASE_URL` from `db.json`, so dev watchers and once-scripts find it.
-- `src/pack/` is the application pack's pure core (a dry run so far — no
-  runtime caller yet): `policy.ts` (what an unattended tailoring may touch,
-  and `planEdits`: a stored comparison's suggestions held to it, each one left
-  out kept in `held` with its reason), `gate.ts` (where preparing stops:
-  closed, a failed requirement, a ceiling under the floor, a fake),
-  `tailor.ts` (the plan run through `apply-all.mjs`, the score of the text it
-  leaves, and `tailorChecks`: undoing every recorded change must give the
-  original back, and no change may take out words its suggestion did not
-  quote), `dry-report.ts` (the dry run's records and report). The limits are
-  code, never a prompt rule (gotcha 11).
+- `src/pack/` is the application pack (ADR 0060) — what the worker prepares
+  for a strong new match with nobody watching: `settings.ts` (the person's
+  choices, off by default), `trigger.ts` (whether the tick queues one —
+  asked only where a NEW match is stored, so the backlog is never walked),
+  `gate.ts` (where preparing stops: closed, a failed requirement, a ceiling
+  under the floor, a fake), `policy.ts` (what an unattended edit may touch,
+  and `planEdits`: a comparison's suggestions held to it, each one left out
+  kept in `held` with its reason), `tailor.ts` (the plan run through
+  `apply-all.mjs`, the score of the text it leaves, and `tailorChecks`:
+  undoing every recorded change must give the original back, and no change
+  may take out words its suggestion did not quote), `view.ts` and
+  `dry-report.ts` are pure (tested); `prepare.ts` is the only file that
+  spends AI — one pipeline for the worker and the dry run; `store.ts` is the
+  only one that touches `application_pack`. The dashboard never prepares a
+  pack: it queues a row, and `jobs/pack-job.ts` takes it. The limits are
+  code, never a prompt rule (gotcha 11), and a pack never changes a resume.
 - `src/starter-packs/` is the curated-pack module: `catalog.json` (data),
   `catalog.ts` and `resolve.ts` are pure (tested), `probe.ts` calls
   `probeAts`. Web-only — the worker never imports it. Every catalog entry
@@ -199,7 +205,8 @@
   `scan.ts` / `match.ts` / `suggestions.ts` / `review.ts` / `cover-letter.ts`
   call the AI provider (the letter is gated by `fact-check.ts` and generates from stored
   inputs only — ADR 0021); `store.ts` is the only file that touches Prisma.
-  Web-only — the worker never imports it (ADR 0008).
+  Called by the dashboard and, since ADR 0060, by the worker's pack runner
+  (`src/pack/prepare.ts`); no other worker job imports it (ADR 0008).
 - A comparison has two shapes (ADR 0029): `matchResumeToJob(..., {mode})`
   runs the quick check (`fast`, the function's default: keywords + alignment
   + gates + red flags — everything `score.ts` reads) or the full report
@@ -351,7 +358,7 @@ When the question is **"where does X live?"**, save yourself a `find`:
 | A colour, a surface, a type size, a corner or a shadow in the dashboard | `src/web/tokens.ts` (pure): the RGB triplets behind the token names, `rootBlock()` for `layout.tsx`, `contrast` / `blend`; `tokens.test.ts` fails body or helper text (ink, muted, faint) under 5:1 on any surface or the row hover, and a status tone under 4.5:1 on white, on its 12 % pill, its 5 % flash or the canvas. `tailwind.config.js` maps the names and carries the type ladder as one class per step (`text-title` 30, `text-kpi` 32, `text-section` 18, `text-entity` 15, `text-label` 13/550, `text-note` 13/400, `text-meta` 12 — size, line, tracking and weight together; body is `text-sm`), the two radii under Tailwind's own names (`rounded-md` 8px for a control, `rounded-lg` 12px for a card) and the three shadows (`shadow-sm` a control, `shadow-card` a raised surface, `shadow-pop` what floats); `src/web/type-ladder.test.ts` fails a raw size or a `text-sm font-semibold` heading anywhere in `src/web`, with no exception left (TASKS U3). A toned pill's ground (white under the 12 % tint) is a `pill-*` component class in `src/web/tailwind.css`, not an arbitrary value: repeated on every tag it cost 8 KB a page. One control height: a field is 36px and a `Button` beside it is the default size (`sm` is 30px, for a table row). Rules and roles: DESIGN.md. A new class = `npm run css` |
 | The /jobs links, the **Filters** panel and the row of filters in force | `src/web/job-facets.ts` (pure): `JobsFilters`, `jobsHref(filters, { page, panel })` is the one URL builder, `activeFilters` = one removable entry per panel value, `filterCount` = the number on the button, `clearFiltersHref`. Status, sort, `q` and the fit floor are not "filters" — their controls are in plain sight. A `<details>` closes on every navigation, so the links INSIDE the panel carry `panel=1` and the route renders it open; tabs, the chip row, pagination and the form never carry it. The status tabs' counts are one `groupBy` over the final where minus `status` (`routes/jobs.tsx`), and the list's own total is read off them — no separate count query |
 | Stable id for a feed row with no id of its own | `src/text-utils.ts:feedItemKey` (URL key → text key → null, never `''`) |
-| The cron list (6 schedules) | `src/index.ts:registerCron` (node-cron 4, `noOverlap`, its own notes routed to pino). `digest` and `stale-applications` beat hourly and do their work on the user's digest hours (`onSchedule` over `user-schedule.ts:isDigestHour` / `isFirstDigestHour`); a beat that is not one writes no run row |
+| The cron list (7 schedules) | `src/index.ts:registerCron` (node-cron 4, `noOverlap`, its own notes routed to pino). `pack` beats every minute, quietly, and writes a run row only when a pack is queued or a message is owed (`jobs/pack-job.ts:packWorkWaiting`). `digest` and `stale-applications` beat hourly and do their work on the user's digest hours (`onSchedule` over `user-schedule.ts:isDigestHour` / `isFirstDigestHour`); a beat that is not one writes no run row |
 | One fetch at a time: the worker's tick, "Fetch now", `fetch-once.js`, the monthly HN pull | `src/jobs/fetch-lock.ts:tryFetchLock` — a Postgres advisory lock on a client of its own with one connection (`db-url.ts:singleConnectionUrl`), because a session lock belongs to its connection and the shared client pools them; a crash closes the connection and frees it. `runFetchJob` / `runHnHiringJob` that cannot take it return `reason: 'overlap'` before reading, sending or classifying anything (ADR 0003 addendum 2026-09-28); the route smoke holds it and checks "Fetch now" stands down |
 | Which minute THIS install ticks at (and why it is not :05 everywhere) | `src/schedule.ts:spreadMinute` (pure, ADR 0035) over `AppSettings.instanceId`; only `fetch` / `hn-hiring` / `discovery` move |
 | When the user wants the search to run and alerts to arrive (hours, days, cadence, time zone) | `src/user-schedule.ts` (pure, TASKS §16): `isFetchDue` / `canAlertNow` / `shouldDeliverHeld` / `isDigestHour` / `nextFetchAt` / `describeSchedule`, `ScheduleSchema` over `AppSettings.schedule` (NULL = today's behaviour). NOT `src/schedule.ts` — that one is the install's cron minute. The gate sits ON TOP of the cron: the heartbeat still fires hourly, the gate decides whether it searches |
@@ -438,6 +445,11 @@ When the question is **"where does X live?"**, save yourself a `find`:
 | Quick check vs full analysis (which prompt variant runs, what a stored row holds) | `src/resume/match-mode.ts` (pure) + the `MATCH_STEPS` / `MATCH_OUTPUT` tables in `src/resume/prompts.ts` (ADR 0029) |
 | "Get suggestions" on a quick check (the lazy second call) | `src/resume/suggestions.ts` + `buildSuggestionsPrompt`; run wiring `src/web/suggestions-run.ts`, route `POST /jobs/:id/matches/:matchId/suggestions` — `rewrite=1` on the same route is "Rewrite all", which lifts the already-has-them guard |
 | Writing ONE suggestion again (the card's Rewrite) | `src/resume/rewrite.ts:rewriteAction` over `prompts.ts:buildRewritePrompt` / `RewriteSchema`; the target (section, where, quote/anchor) is the comparison's and is copied, not re-asked, and the new wording goes through `gateActions` exactly as the first one did. Route `POST /jobs/:id/matches/:matchId/actions/:index/rewrite`, writer `store.ts:updateMatchActions` (actions only — the score never moves) |
+| An application pack: who queues it, who prepares it, what a ready one holds | queued by `jobs/process-jobs.ts` (a new match, `pack/trigger.ts:autoPack` — switched on, fit ≥ the threshold, published recently, under the day's limit) or by `POST /jobs/:id/pack` (`web/routes/pack.ts`, any job, never counted); prepared by `jobs/pack-job.ts:runPackJob` (every minute, one runner under an advisory lock, a row left `running` by a stopped worker re-queued) through `pack/prepare.ts:preparePosting`; stored by `pack/store.ts` in `application_pack` — the ids of the comparison, the tailored comparison, the verification and the letter, the text before and after, `edits` (`pack/view.ts:readPackEdits`), the `.docx` / `.pdf` as bytes. ADR 0060 |
+| Why a pack stopped, or kept the resume as it stood | `pack/gate.ts` — `livenessStop` (closed), `compareStop` (a failed hard requirement; a ceiling under `DEFAULT_MIN_CEILING` 75), `verifyStop` (fake, or "skip"); a company check that FAILS is not a stop (`Prepared.unchecked`). `pack/tailor.ts:tailorChecks` failing drops every edit (`edits.checks`). Words: `pack/view.ts:STOP_WORDS`, `HELD_WORDS` |
+| What an unattended edit may touch | `pack/policy.ts:planEdits` over `AppSettings.pack.policy` — sections, `maxBullets`, `removals`, `keywords`; always held: wording the gate refused, a rewrite that `dropsFigure`, the posting's title as a skill. Settings → General → Application packs |
+| The pack tab on a job, its downloads, "I sent this file" | `web/pages/application-pack-card.tsx` over `web/routes/pack.ts:loadPackView`; `GET /jobs/:id/pack/resume.docx` / `.pdf` serve the stored bytes; the button posts `status=APPLIED&pack=1` to `/jobs/:id/status`, which records the pack's text as the applied resume and freezes the row (`pack/store.ts:markPackSent`). The tab refreshes itself while a pack is queued or running |
+| The "packs ready" message, and the Overview's Ready to send | `jobs/pack-job.ts:deliverNotices` → `pack/view.ts:packNoticeLines` → `notifier.ts:sendPackNotice`, when `user-schedule.ts:shouldDeliverHeld` lets a held message out; only packs the worker started on its own. `pack/store.ts:listReadyPacks` feeds the card |
 | What preparing an application with nobody watching would do to the stored postings: where each stops, seconds per step, the tailored file | `npm run pack:dry -- --out <dir> [--min-fit 90] [--min-ceiling 75] [--limit N] [--only id,id] [--no-verify] [--rejudge]` → `src/scripts/pack-dry-once.ts` over `src/pack/`: still open (no AI) → Compare with the search's resume → the company check → the edits `pack/policy.ts` allows, applied as Apply all applies them → `.docx` / `.pdf` and the edits as Markdown per posting, `report.md` for all. Reuses a stored comparison and verification, resumes from `records.json`; spends AI and writes rows, so run it on a COPY of the database — hand-run, never CI |
 | Running the comparison over a matrix of real resumes × real postings, with every invariant checked | `npm run matrix:compare` (or `-- 2:2111 3:2108 …`) → `src/scripts/match-matrix-once.ts`; checks keyword shape, both anchors, evidence, group labels, the cap arithmetic, every quote the editor has to locate, the removal gate and the suggestion floor. Spends AI and writes rows — hand-run, never CI |
 | Why a full report sometimes costs a second, cheaper call | `src/resume/suggestion-floor.ts:floorGaps` (pure) — REQUIRED COVERAGE checked instead of hoped for. When a grade below `strong` got no high-priority action (or a must-level term named only on a skills line got none, or a must-level `add` term sits in no rewrite — `unwrittenMusts`, prompt v15), and the candidate has part of the core and a ceiling worth chasing, `match.ts` spends one `suggestForMatch` with `floorDemand` naming what was owed. The verdicts are already stored, so the score cannot move |
@@ -579,6 +591,9 @@ When the question is **"how does the user toggle / configure X?"**:
 | Record a skill no comparison asked about | `/resumes` → Confirmed facts → **Add a fact** (what you have is listed first; "I don't, actually" / "I do have it" flips one, "Forget" drops it; no AI call) |
 | Read what a setting does beyond its one sentence | the quiet **How this works** under it (a native `<details>`); on Settings → Sources each extra source folds "when it is worth it, and what the vendor asks" the same way |
 | Ask how strong a resume is on its own (no posting) | `/resumes/:id` → "Resume strength" → Run strength review (one AI call, ~1 min; nothing runs on its own). Scores show in the `/resumes` Strength column |
+| Have ApplyPack prepare an application by itself | `/settings` General tab → **Application packs** → tick "Prepare application packs on their own", set the fit, the daily number, how recent a posting must be, the cover letter and what an edit may touch → Save. Off by default; only postings found from then on are prepared, never the ones already stored. In the morning: the message, or Overview → **Ready to send** |
+| Prepare a pack for one job, whatever the settings say | `/jobs/:id` → **Application pack** tab → **Prepare the pack** (the worker starts it within a minute; the tab updates itself). It says where it stopped and why, or shows the company, what was changed, what was left for you, and **Download .docx / .pdf** |
+| Download the resume I sent for a job, months later | `/jobs/:id` → **Application pack** tab → Download. Press **I sent this file — mark applied** when you apply: the file is kept as it was and the pack no longer changes |
 | Compare a resume with a posting | `/jobs/:id` → **Resume match** tab → **Compare**: one full report (keywords, gates, score and the edit suggestions). The quick check of ADR 0029 is no longer a button |
 | Get the edit suggestions for an older quick check | the comparison → "Get suggestions" (second call, reuses the stored verdicts, score unchanged); shown only on a row stored in `fast` mode |
 | Copy a suggested wording, or find it in the editor | the comparison on `/jobs/:id` or `/jobs/:id/target` → each card's **Copy** (the proposed wording alone) and **Locate** (outlines it in the editor and scrolls the editor — never the page) |
@@ -946,6 +961,7 @@ Always:
 | Run one fetch tick now | UI: Overview → "Fetch now" (live progress, row on `/runs`; runs outside the schedule, and while paused stores the jobs unscored); or `docker compose exec app node dist/scripts/fetch-once.js`, which does the same without the dashboard and is recorded as a `fetch-now` run |
 | Run discovery probe now | `docker compose exec app node dist/scripts/discovery-once.js` |
 | Pull HN Who-is-hiring now | `docker compose exec app node dist/scripts/hn-once.js` |
+| Run the application-pack queue now | `docker compose exec app node dist/scripts/pack-once.js` (the worker does this every minute; recorded as a `pack` run) |
 | Send the stale-applications digest now | `docker compose exec app node dist/scripts/stale-once.js` |
 | Send 4 test Telegram messages | `npm run test:telegram` (locally, .env loaded) |
 | Tail the worker | `docker compose logs -f app` (JSON; add `--no-log-prefix … \| npx pino-pretty` for lines) |

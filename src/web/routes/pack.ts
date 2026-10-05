@@ -1,4 +1,4 @@
-import { Hono } from 'hono';
+import { Hono, type Context } from 'hono';
 import { prisma } from '../../db';
 import { getPack, getPackFile, packFiles, queuePack } from '../../pack/store';
 import { readPackEdits } from '../../pack/view';
@@ -39,21 +39,22 @@ packRoute.post('/jobs/:id/pack', async (c) => {
 });
 
 /** The file as the pack kept it — the same bytes on every download, whatever happened to the resume since. */
-for (const kind of ['docx', 'pdf'] as const) {
-  packRoute.get(`/jobs/:id/pack/resume.${kind}`, async (c) => {
-    const id = idParam(c.req.param('id'));
-    if (!Number.isFinite(id)) return c.text('Bad id', 400);
-    const file = await getPackFile(id, kind);
-    if (!file) return c.text('Not found', 404);
-    return new Response(new Uint8Array(file.bytes), {
-      headers: {
-        'Content-Type': kind === 'pdf' ? PDF_MIME : DOCX_MIME,
-        'Content-Disposition': contentDisposition(file.fileName),
-        'Cache-Control': 'no-store',
-      },
-    });
+async function sendPackFile(c: Context, kind: 'docx' | 'pdf'): Promise<Response> {
+  const id = idParam(c.req.param('id'));
+  if (!Number.isFinite(id)) return c.text('Bad id', 400);
+  const file = await getPackFile(id, kind);
+  if (!file) return c.text('Not found', 404);
+  return new Response(new Uint8Array(file.bytes), {
+    headers: {
+      'Content-Type': kind === 'pdf' ? PDF_MIME : DOCX_MIME,
+      'Content-Disposition': contentDisposition(file.fileName),
+      'Cache-Control': 'no-store',
+    },
   });
 }
+
+packRoute.get('/jobs/:id/pack/resume.docx', (c) => sendPackFile(c, 'docx'));
+packRoute.get('/jobs/:id/pack/resume.pdf', (c) => sendPackFile(c, 'pdf'));
 
 /** Everything the job page's pack tab shows, read from what the pack stored. */
 export async function loadPackView(jobId: number, url: string): Promise<ApplicationPackProps> {

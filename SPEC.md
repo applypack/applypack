@@ -217,6 +217,7 @@ match and a recap at 09:00: the behaviour before v1.47.0.
 | `0 3 * * 0` | cleanup            | Delete DISMISSED jobs older than 30 days (never one with a pipeline stage), screenings past `retainUntil`, finished run rows older than 90 days and AI ledger rows older than 400 days |
 | `mm 4 * * 0` | discovery         | Re-probe the pending Greenhouse, Lever and Ashby CompanyCandidates |
 | `mm 6 1 * *` | hn-hiring         | Pull latest HN Who-is-hiring + extract candidates |
+| `* * * * *`  | pack               | Prepare the queued application packs one at a time and send one message for the finished ones (ADR 0060); a beat with nothing queued and no message owed writes no run row |
 
 ## Profiles
 
@@ -303,6 +304,7 @@ clause at the start of the affected job/handler. The toggles live on
 | `openAiBaseUrl`                  | NULL     | The OpenAI-compatible engine's server, set on its card (Settings → AI engine → Server address) or by the wizard's **Use it** on a model found on this computer; NULL = `OPENAI_BASE_URL`. A server on this machine or the user's network takes no key and is billed as local |
 | `localAiUrl`                     | NULL     | The local engine's Ollama root (Settings → AI engine → Local model → Ollama address, or the wizard's **Use it** on Ollama); NULL = `OLLAMA_URL`. Local addresses only (ADR 0057) |
 | `localContextTokens`             | NULL     | The context window the local engine asks for on every call: 8k / 16k / 32k / 64k tokens; NULL = 16 384. A prompt estimated larger than it is refused before it is sent, and the next engine takes the call |
+| `pack`                           | NULL     | Application packs (ADR 0060), one JSON value read by `pack/settings.ts`: `enabled` (false), `minFit` (90), `dailyLimit` (5; 0 = none), `maxAgeDays` (7), `coverLetter` (never / asked / always) and the tailoring `policy`. NULL = off with those defaults. Settings → General → Application packs |
 | `aiBudgetCents`                  | NULL     | A monthly ceiling on billed AI money: one line to the alert chats at 80 % and at 100 %, once each per UTC month (`aiBudgetAlerted` holds the last one sent). NULL = no budget. Nothing is ever stopped (ADR 0055) |
 
 ## Application tracking
@@ -844,6 +846,49 @@ letter show what such a call usually costs here (the middle of the last
 twenty that answered). `npm run spend:report` prints the ledger per UTC
 day, engine and model for a comparison with the vendor's own report; the
 vendor's admin key never enters ApplyPack.
+
+## Application packs (ADR 0060)
+
+Off by default. With **Settings → General → Application packs** switched on,
+a new posting the tick stores with a fit at or above the threshold (90),
+published within the last N days (7), gets a pack — up to a daily number the
+worker starts on its own (5; 0 = no limit, counted per UTC day). The trigger
+is asked only where a new match is inserted (`process-jobs.ts` →
+`pack/trigger.ts`), so jobs already stored are never walked and a
+re-classify queues nothing. Any job can be prepared by hand on its
+**Application pack** tab (`POST /jobs/:id/pack`), whatever the settings say.
+
+The dashboard only queues a row in `application_pack` (one per posting:
+queued → running → ready | stopped | failed). The worker's `pack` beat
+(`jobs/pack-job.ts`, every minute, one runner under an advisory lock)
+prepares them one at a time through `pack/prepare.ts:preparePosting`:
+
+| Step | What it does | Stops the pack when |
+| --- | --- | --- |
+| Still open | The liveness ladder (ADR 0016), no AI | the posting is known to be closed |
+| Compare | The full comparison with the resume the best-scoring search hunts with (else the primary's); a stored one of the same text is reused | a requirement the posting gates on fails, or the ceiling is under 75 |
+| Company | "Is it real?" with web search; the latest stored check is reused | the verdict is fake, or the recommendation is skip. A check that fails is not a stop: the pack says the company was not checked |
+| Tailor | The comparison's suggestions held to the policy (`pack/policy.ts`) and applied as Apply all applies them | — |
+| Checks | Undoing every recorded change gives the original back; no change took out words its suggestion did not quote; no email or phone touched; the score did not fall | a failed check drops every edit: the resume goes out as it stood |
+| Judge again | The tailored text compared once more — the honest "after" score, and the comparison the Tailor page opens | — |
+| File | The person's own `.docx` with the edits written in, else the clean version and its PDF (ADR 0059) | — |
+| Letter | Only when the setting asks: never · when the posting's text mentions one · always | — |
+
+The policy is the person's: the sections an edit may touch (title line,
+summary, skills, experience bullets), at most N experience bullets (2),
+whether backed keywords are written onto skills lines, whether lines may be
+removed (off). Always, whatever it says: only wording the fact gate let
+through (ADR 0037), never a keyword nothing backs, never the posting's title
+as a skill, never a rewrite that loses a number the line had.
+
+A ready pack keeps its file as bytes and changes no resume. **I sent this
+file — mark applied** marks the job applied, records the pack's text as the
+applied resume and freezes the row; the file stays downloadable for as long
+as the job does (`GET /jobs/:id/pack/resume.docx`, `.pdf`). Packs the worker
+started on its own are announced in one message — ready ones, then the
+postings not worth the evening — when the schedule lets a held message out;
+the Overview lists the ones ready and not yet sent. Nothing is ever submitted
+for the person.
 
 ## Hard out-of-scope (Phase 7+)
 
