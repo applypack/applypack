@@ -13,7 +13,7 @@ test('statusFor names each state and prefers the server wording on failure', asy
   assert.equal(statusFor(''), '');
   assert.match(statusFor('saving'), /Saving/);
   assert.equal(statusFor('saved'), 'Saved');
-  assert.match(statusFor('failed'), /press Save models/);
+  assert.match(statusFor('failed'), /press the Save button/);
   assert.equal(
     statusFor('failed', '"gemini-2.5-pro" is not a Claude Code CLI model id. Nothing saved.'),
     '"gemini-2.5-pro" is not a Claude Code CLI model id. Nothing saved.',

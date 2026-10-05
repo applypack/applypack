@@ -66,12 +66,16 @@ import {
   defaultModelFor,
   isAiProviderId,
   modelFitsProvider,
+  offeredTasks,
   parseAiEngineConfig,
   resolveAiEngine,
   toggleAiEngine,
+  withEngineTasks,
   type AiEngineConfig,
   type AiProviderId,
 } from '../../ai-engine';
+import { AI_TASKS, AI_TASK_LABELS, isAiTask } from '../../ai-tasks';
+import { aiPlanRows, pickedTasks, taskShown, tasksSaved } from '../ai-plan';
 import { billingFacts, forgetAiProbe, getAiEngineEnv, localAiBase, openAiBase, probeAiProviders } from '../../ai-runtime';
 import { DEFAULT_LOCAL_CONTEXT_TOKENS, LOCAL_CONTEXT_CHOICES } from '../../ai-provider-parse';
 import { knownModels } from '../../server-models';
@@ -82,8 +86,8 @@ import { isNewer } from '../../versions';
 import { isReapplyChoice } from '../../employer';
 import { forgetUpdateNotice } from '../update-notice';
 import { billingOf, checkLocalAiUrl, checkOpenAiBaseUrl, isLocalUrl, type AiBilling } from '../../ai-usage';
-import { billingNotes, isSpendPeriod, periodRange, spendView, type SpendPeriod } from '../../ai-spend';
-import { billedThisMonth, loadSpendGroups } from '../../ai-ledger';
+import { billingNotes } from '../../ai-spend';
+import { billedThisMonth } from '../../ai-ledger';
 import {
   AI_KEY_ENV_VARS,
   aiKeySource,
@@ -225,11 +229,10 @@ function cardRank(e: { enabled: boolean; position: number; lastResort: boolean }
   return e.lastResort ? AI_PROVIDER_IDS.length : AI_PROVIDER_IDS.length + 1;
 }
 
-async function loadSettingsProps(spendPeriod: SpendPeriod = '7d') {
+async function loadSettingsProps() {
   // The keys are read once and lent to the probe — both need them (ADR 0027).
   const aiKeys = await getAiKeys();
-  const spendRange = periodRange(spendPeriod, new Date());
-  const [settings, targets, profiles, active, resumes, aiStatuses, stageCounts, spendGroups, billedMonth] =
+  const [settings, targets, profiles, active, resumes, aiStatuses, stageCounts, billedMonth] =
     await Promise.all([
       getSettings(),
       listNotificationTargets(),
@@ -242,7 +245,6 @@ async function loadSettingsProps(spendPeriod: SpendPeriod = '7d') {
         _count: { _all: true },
         where: { pipelineStage: { not: null } },
       }),
-      loadSpendGroups(spendRange.from, spendRange.to),
       billedThisMonth(),
     ]);
   const check = await loadNextCheck(settings.schedule);
@@ -297,6 +299,12 @@ async function loadSettingsProps(spendPeriod: SpendPeriod = '7d') {
       ok: aiStatuses[id].ok,
       detail: aiStatuses[id].detail,
       ...aiEngineCard(engine, id, aiEnv.provider),
+      tasks: AI_TASKS.filter((task) => taskShown(task, settings.employerMode)).map((task) => ({
+        id: task,
+        label: AI_TASK_LABELS[task],
+        taken: engine.takes(id, task),
+        offered: offeredTasks(id).includes(task),
+      })),
       classifierModel: aiConfig.models[id]?.classifier ?? '',
       resumeModel: aiConfig.models[id]?.resume ?? '',
       coverModel: aiConfig.models[id]?.cover ?? '',
@@ -316,7 +324,6 @@ async function loadSettingsProps(spendPeriod: SpendPeriod = '7d') {
       maskedKey: storedKey ? maskToken(storedKey) : '',
     };
   }).sort((a, b) => cardRank(a) - cardRank(b));
-  const primary = engine.chain[0]!;
   // What actually runs on this install, per family (#147): the enum is the
   // menu, the Company rows are the order.
   const sourceCounts: Record<string, SourceCount> = {};
@@ -327,18 +334,14 @@ async function loadSettingsProps(spendPeriod: SpendPeriod = '7d') {
   }
   const keys = await getSourceKeys();
   const screeningCount = await prisma.screening.count();
+  const screeningEngine = engine.chainFor('screening')[0]!;
+  const plan = aiPlanRows(engine, billingFor, settings.employerMode);
   const aiStatus = {
-    active: AI_PROVIDER_LABELS[primary],
-    chain: engine.chain.map((id) => AI_PROVIDER_LABELS[id]),
+    plan,
     skipped: engine.skipped.map((id) => AI_PROVIDER_LABELS[id]),
-    billingNotes: billingNotes(engine.chain, billingFor),
+    billingNotes: billingNotes(plan),
   };
-  const aiSpend = {
-    period: spendPeriod,
-    view: spendView(spendGroups),
-    budgetCents: settings.aiBudgetCents,
-    billedThisMonthMicro: billedMonth,
-  };
+  const aiBudget = { cents: settings.aiBudgetCents, billedThisMonthMicro: billedMonth };
   return {
     telegramEnabled: settings.telegramEnabled,
     classifierMode: settings.classifierMode,
@@ -370,7 +373,7 @@ async function loadSettingsProps(spendPeriod: SpendPeriod = '7d') {
     schedule: scheduleView,
     aiEngines,
     aiStatus,
-    aiSpend,
+    aiBudget,
     targets: targets.map((t) => ({
       id: t.id,
       name: t.name,
@@ -405,8 +408,8 @@ async function loadSettingsProps(spendPeriod: SpendPeriod = '7d') {
       retentionDays: settings.screeningRetentionDays,
       retentionMin: SCREENING_RETENTION_DAYS.min,
       retentionMax: SCREENING_RETENTION_DAYS.max,
-      engineLabel: AI_PROVIDER_LABELS[primary],
-      engineSubscription: billingFor(primary) === 'plan',
+      engineLabel: AI_PROVIDER_LABELS[screeningEngine],
+      engineSubscription: billingFor(screeningEngine) === 'plan',
       screenings: screeningCount,
       notice: applicantNotice(undefined, settings.screeningRetentionDays),
       legalNote: LEGAL_NOTE,
@@ -415,8 +418,7 @@ async function loadSettingsProps(spendPeriod: SpendPeriod = '7d') {
 }
 
 settingsRoute.get('/settings', async (c) => {
-  const spend = c.req.query('spend');
-  const props = await loadSettingsProps(isSpendPeriod(spend) ? spend : undefined);
+  const props = await loadSettingsProps();
   const tabParam = c.req.query('tab');
   const activeTab = isSettingsTab(tabParam) ? tabParam : 'general';
   // ?profile= points the editor at a specific (possibly inactive) profile.
@@ -597,12 +599,12 @@ settingsRoute.post('/settings/ai/budget', async (c) => {
   const raw = typeof form.budget === 'string' ? form.budget.trim() : '';
   const usd = raw === '' ? 0 : Number(raw);
   if (!Number.isFinite(usd) || usd < 0 || usd > MAX_AI_BUDGET_USD) {
-    return flashRedirect('/settings?tab=ai#usage', 'err', `The budget is dollars a month, from 0 to ${MAX_AI_BUDGET_USD.toLocaleString('en-US')}; nothing was changed.`);
+    return flashRedirect('/settings?tab=ai#budget', 'err', `The budget is dollars a month, from 0 to ${MAX_AI_BUDGET_USD.toLocaleString('en-US')}; nothing was changed.`);
   }
   const cents = Math.round(usd * 100);
   await setAiBudgetCents(cents > 0 ? cents : null);
   return flashRedirect(
-    '/settings?tab=ai#usage',
+    '/settings?tab=ai#budget',
     'ok',
     cents > 0
       ? `Monthly budget set to $${(cents / 100).toFixed(2)}: a warning at 80 % and 100 % of billed spend, nothing stopped.`
@@ -653,6 +655,24 @@ settingsRoute.post('/settings/ai/models', async (c) => {
   return wantsJson
     ? c.json({ ok: true })
     : flashRedirect('/settings?tab=ai', 'ok', `${label} models saved.`);
+});
+
+/** ADR 0060: the tasks an engine takes. Every box ticked is stored as no list, so the engine takes what a later version adds. */
+settingsRoute.post('/settings/ai/tasks', async (c) => {
+  // The boxes share one name (gotcha 1).
+  const form = await c.req.parseBody({ all: true });
+  const wantsJson = (c.req.header('accept') ?? '').includes('application/json');
+  const provider = typeof form.provider === 'string' ? form.provider : '';
+  if (!isAiProviderId(provider)) {
+    return wantsJson ? c.json({ error: UNKNOWN_ENGINE }, 400) : flashRedirect('/settings?tab=ai', 'err', UNKNOWN_ENGINE);
+  }
+  const settings = await getSettings();
+  const config = parseAiEngineConfig(settings.aiEngine);
+  const picked = pickedTasks(toStringArray(form.tasks).filter(isAiTask), settings.employerMode, config.tasks[provider]);
+  const next = withEngineTasks(config, provider, picked);
+  await setAiEngineConfig(next);
+  if (wantsJson) return c.json({ ok: true });
+  return flashRedirect('/settings?tab=ai', 'ok', tasksSaved(AI_PROVIDER_LABELS[provider], next.tasks[provider], settings.employerMode));
 });
 
 /** TASKS S5 (Q29): start `npm start` at login, or stop — the one button is also the undo. */

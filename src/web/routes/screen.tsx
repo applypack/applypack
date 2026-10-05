@@ -245,7 +245,7 @@ async function loadApplicant(id: number) {
 /** Which engine the calls go to — and the warning when it is a personal-subscription CLI (guardrail 5). */
 async function engineNote(): Promise<{ label: string; warn: string | null }> {
   const runtime = await getAiRuntime();
-  const first = runtime.chain[0];
+  const first = runtime.chainFor('screening')[0];
   if (!first) return { label: 'no engine', warn: 'No AI engine is usable — set one up on Settings → AI engine before scoring.' };
   const label = AI_PROVIDER_LABELS[first];
   // A key (under a vendor's API terms) or a local model is fine; a personal plan is the warning.
@@ -253,7 +253,7 @@ async function engineNote(): Promise<{ label: string; warn: string | null }> {
   if (billingOf(first, billingFacts(keys, openAiBaseUrl)) !== 'plan') return { label, warn: null };
   return {
     label,
-    warn: `Scoring runs on ${label}, a personal subscription. Other people's resumes go through it under terms you do not control — for applicants' data the defensible path is an API engine under a data-processing agreement, or a local model through the OpenAI-compatible engine. Change the order on Settings → AI engine.`,
+    warn: `Scoring runs on ${label}, a personal subscription. Other people's resumes go through it under terms you do not control — for applicants' data the defensible path is an API engine under a data-processing agreement, or a local model through the OpenAI-compatible engine. Change who takes Screening applicants on Settings → AI engine.`,
   };
 }
 

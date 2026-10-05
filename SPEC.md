@@ -831,12 +831,22 @@ never added: **billed** (the Anthropic API, an OpenAI-compatible server on
 the internet, the Gemini CLI with a key), **covered by a plan** (Claude
 Code, Codex, the Gemini CLI on a Google login — the figure is what the call
 would cost on the API) and **local** (an OpenAI-compatible server on this
-machine or network — free). `/settings` → AI engine → Usage & cost shows
-the three totals over the last 7 days, this month, last month or this year
-(UTC days, as the vendors' dashboards), a table of feature × model with
-calls, tokens and money, and three sentences when they apply: which
-feature takes most of one kind of money, which calls are not priced, and
-how many ended with no usage (a timed-out call may still be billed). Each
+machine or network — free). The **AI usage** page (`/ai`, in the menu under
+System) shows the three totals over the last 7 days, this month, last month
+or this year (UTC days, as the vendors' dashboards); a table by the model
+that answered — what it did, how many calls, the typical time (the middle
+call and the slow tail), tokens and money; three sentences when they apply
+(which feature takes most of one kind of money, which calls are not priced,
+how many ended with no usage — a timed-out call may still be billed); who
+answers each task now (ADR 0060); and **Worth a look**, hints read off the
+ledger by `web/usage-hints.ts`: the task most of the bill went to while a
+plan or a local model stands ready, billed calls that were a fallback, a
+model that keeps failing or hitting its rate limit, scoring billed on a
+model several times the price of the cheapest, a month's pace over the
+budget. A hint never says a model is good enough for a task, offers a
+model on this computer for scoring only, and never steers applicants'
+resumes onto a personal plan. The monthly budget stays on
+`/settings` → AI engine. Each
 engine card says which kind it spends; a billed engine standing ahead of
 one a plan covers gets a warning with the move that fixes it. `/jobs/:id`
 shows what the AI spent on that posting, and Compare, Verify and Generate
@@ -861,7 +871,7 @@ vendor's admin key never enters ApplyPack.
 - Prisma 6 + Postgres 16 (real migrations from `phase-3.0` baseline onward)
 - node-cron for scheduling, no Redis / BullMQ
 - Hono 4 for the dashboard, JSX SSR with `hono/jsx`, Tailwind over semantic CSS-variable tokens, built by `npm run css` and committed (`src/web/public/tailwind.css`), so the runtime has no build step and no page loads a CDN (light SaaS theme, see DESIGN.md)
-- `src/ai-provider.ts` seam, seven engines: `anthropic_api` (SDK, per-token), `claude_code` (headless CLI, subscription), `gemini_cli` (headless CLI, Google account), `agy_cli` (headless CLI, Google Antigravity account), `openai_api` (fetch → any /chat/completions endpoint: the server on its card, else OPENAI_BASE_URL; a local one needs no key), `codex_cli` (headless CLI, ChatGPT subscription), `local_api` (Ollama's own `/api/chat` on this machine: the context window per call, JSON mode, one call at a time, a prompt too large for the window refused before it is sent — ADR 0057). `/settings` → "AI engine" stores an ordered chain + per-engine classifier/resume/cover models (AppSettings.aiEngine JSON, ADR 0013/0014) and, for the four key-bearing engines, the API key itself (AppSettings.aiKeys, ADR 0027 — DB first, `.env` as fallback, never rendered in full); calls fail over down the chain automatically; an empty model slot takes `ai-engine.ts:defaultModelFor` (on the two Claude engines: `CLAUDE_MODEL`, Haiku 4.5, for the classifier; Sonnet 5 for resume calls on the Claude CLI, Haiku 4.5 on the API; Opus 5 for the letter. Gemini 2.5 Flash for the classifier and 2.5 Pro for the rest on the Gemini CLI; `OPENAI_MODEL` on the OpenAI-compatible engine; the CLI's own default on Codex); `AI_CONCURRENCY` jobs classified at once (default 3)
+- `src/ai-provider.ts` seam, seven engines: `anthropic_api` (SDK, per-token), `claude_code` (headless CLI, subscription), `gemini_cli` (headless CLI, Google account), `agy_cli` (headless CLI, Google Antigravity account), `openai_api` (fetch → any /chat/completions endpoint: the server on its card, else OPENAI_BASE_URL; a local one needs no key), `codex_cli` (headless CLI, ChatGPT subscription), `local_api` (Ollama's own `/api/chat` on this machine: the context window per call, JSON mode, one call at a time, a prompt too large for the window refused before it is sent — ADR 0057). `/settings` → "AI engine" stores an ordered chain + per-engine classifier/resume/cover models (AppSettings.aiEngine JSON, ADR 0013/0014) and, for the four key-bearing engines, the API key itself (AppSettings.aiKeys, ADR 0027 — DB first, `.env` as fallback, never rendered in full); each engine takes every task until its card unticks some (`aiEngine.tasks`, six tasks in `ai-tasks.ts`, ADR 0060), and a call fails over down the engines that take its task automatically; an empty model slot takes `ai-engine.ts:defaultModelFor` (on the two Claude engines: `CLAUDE_MODEL`, Haiku 4.5, for the classifier; Sonnet 5 for resume calls on the Claude CLI, Haiku 4.5 on the API; Opus 5 for the letter. Gemini 2.5 Flash for the classifier and 2.5 Pro for the rest on the Gemini CLI; `OPENAI_MODEL` on the OpenAI-compatible engine; the CLI's own default on Codex); `AI_CONCURRENCY` jobs classified at once (default 3)
 - node:test runner (`npm test`), no jest
 
 ## Project layout

@@ -4,7 +4,7 @@ import { AI_BILLING, featureName, type AiBilling, type AiFeature, type AiOutcome
 
 /*
  * The AI spend ledger, read and written (ADR 0055). Pure: the runtime hands
- * an attempt to `ledgerRow`, the page hands grouped sums to `spendView`, and
+ * an attempt to `ledgerRow`, the AI usage page hands grouped sums to `spendView`, and
  * the budget, the periods and the billing notes are decided here. The I/O is
  * src/ai-ledger.ts.
  */
@@ -73,6 +73,14 @@ export interface SpendGroup {
   tokensOut: number;
   /** Our price where we have one, else the vendor's own; micro-dollars. */
   micro: number;
+  /** Wall time of the calls that answered: the middle one, and the slow tail. Null when none answered. */
+  medianMs: number | null;
+  p90Ms: number | null;
+  /** Calls the vendor turned away for a rate limit — the sign of a plan's allowance or a key's quota running out. */
+  rateLimited: number;
+  /** Attempts on an engine other than the first one asked — answered or not — and what those attempts cost. */
+  viaFallback: number;
+  fallbackMicro: number;
 }
 
 export interface SpendTotal {
@@ -93,6 +101,8 @@ export interface SpendRow {
   tokensIn: number;
   tokensOut: number;
   micro: number;
+  medianMs: number | null;
+  p90Ms: number | null;
 }
 
 export interface SpendView {
@@ -116,7 +126,7 @@ export function spendView(groups: readonly SpendGroup[]): SpendView {
     t.micro += g.billing === 'local' ? 0 : g.micro;
   }
   const rows = groups
-    .map(({ feature, engine, model, billing, calls, failed, unpriced, tokensIn, tokensOut, micro }) => ({
+    .map(({ feature, engine, model, billing, calls, failed, unpriced, tokensIn, tokensOut, micro, medianMs, p90Ms }) => ({
       feature: featureName(feature),
       engine: AI_PROVIDER_LABELS[engine as AiProviderId] ?? engine,
       model,
@@ -127,9 +137,39 @@ export function spendView(groups: readonly SpendGroup[]): SpendView {
       tokensIn,
       tokensOut,
       micro: billing === 'local' ? 0 : micro,
+      medianMs,
+      p90Ms,
     }))
     .sort((a, b) => b.micro - a.micro || b.calls - a.calls || a.feature.localeCompare(b.feature));
   return { totals, rows, notes: spendNotes(groups) };
+}
+
+/** One engine and model, with everything it did in the period. */
+export interface ModelUsage {
+  engine: string;
+  model: string;
+  billing: AiBilling;
+  calls: number;
+  failed: number;
+  micro: number;
+  /** What it did, the most calls first. */
+  rows: SpendRow[];
+}
+
+/** The view's rows by the model that answered: which model does what, in how long, for how much. */
+export function usageByModel(rows: readonly SpendRow[]): ModelUsage[] {
+  const models = new Map<string, ModelUsage>();
+  for (const row of rows) {
+    const key = `${row.engine}\n${row.model}\n${row.billing}`;
+    const m = models.get(key) ?? { engine: row.engine, model: row.model, billing: row.billing, calls: 0, failed: 0, micro: 0, rows: [] };
+    m.calls += row.calls;
+    m.failed += row.failed;
+    m.micro += row.micro;
+    m.rows.push(row);
+    models.set(key, m);
+  }
+  for (const m of models.values()) m.rows.sort((a, b) => b.calls - a.calls || a.feature.localeCompare(b.feature));
+  return [...models.values()].sort((a, b) => b.calls - a.calls || b.micro - a.micro || a.model.localeCompare(b.model));
 }
 
 function spendNotes(groups: readonly SpendGroup[]): string[] {
@@ -246,23 +286,36 @@ export function budgetAlert(billedMicro: number, budgetCents: number, month: str
 /** The line a budget warning sends, on the chat channels the alerts use. */
 export function budgetAlertText(billedMicro: number, budgetCents: number): string {
   const share = Math.round((billedMicro / (budgetCents * 10_000)) * 100);
-  return `AI spend: ${formatUsd(billedMicro)} billed this month, ${share} % of your ${formatUsd(budgetCents * 10_000)} monthly budget. Nothing is stopped — this is a warning. Settings → AI engine shows where it went.`;
+  return `AI spend: ${formatUsd(billedMicro)} billed this month, ${share} % of your ${formatUsd(budgetCents * 10_000)} monthly budget. Nothing is stopped — this is a warning. The AI usage page shows where it went.`;
 }
 
 /**
- * The trap a user pays twice through: a pay-per-token engine sits ahead of
- * one their plan covers, so the plan answers only when the key fails (N4).
+ * The trap a user pays twice through: a pay-per-token engine answers a task
+ * ahead of one their plan covers, so the plan answers only when the key
+ * fails (N4). Read per task (ADR 0060): an engine narrowed to other tasks is
+ * not ahead of anything here. Screening is left out — moving applicants'
+ * resumes onto a personal plan is what employer mode warns against.
  */
-export function billingNotes(chain: readonly AiProviderId[], billing: (id: AiProviderId) => AiBilling): string[] {
-  const firstPlan = chain.findIndex((id) => billing(id) === 'plan');
-  if (firstPlan <= 0) return [];
-  const billedAhead = chain.slice(0, firstPlan).filter((id) => billing(id) === 'billed');
-  if (billedAhead.length === 0) return [];
-  const names = billedAhead.map((id) => AI_PROVIDER_LABELS[id]).join(' and ');
-  const plan = AI_PROVIDER_LABELS[chain[firstPlan]!];
-  return [
-    `Calls go to ${names} first and are billed per token; ${plan}, which your plan covers, answers only when ${billedAhead.length === 1 ? 'it fails' : 'they fail'}. Move ${plan} up to spend the plan first.`,
-  ];
+export function billingNotes(
+  plan: readonly { task: string; label: string; engines: readonly { label: string; billing: AiBilling }[] }[],
+): string[] {
+  const rows = plan.filter((row) => row.task !== 'screening');
+  const traps = new Map<string, { billed: string[]; plan: string; tasks: string[] }>();
+  for (const row of rows) {
+    const firstPlan = row.engines.findIndex((e) => e.billing === 'plan');
+    const billedAhead = row.engines.slice(0, Math.max(firstPlan, 0)).filter((e) => e.billing === 'billed');
+    if (billedAhead.length === 0) continue;
+    const billed = billedAhead.map((e) => e.label);
+    const covered = row.engines[firstPlan]!.label;
+    const key = `${billed.join('|')}>${covered}`;
+    const trap = traps.get(key) ?? { billed, plan: covered, tasks: [] };
+    trap.tasks.push(row.label);
+    traps.set(key, trap);
+  }
+  return [...traps.values()].map((t) => {
+    const scope = t.tasks.length === rows.length ? 'Calls go' : `For ${t.tasks.join(', ')}, calls go`;
+    return `${scope} to ${t.billed.join(' and ')} first and are billed per token; ${t.plan}, which your plan covers, answers only when ${t.billed.length === 1 ? 'it fails' : 'they fail'}. Move ${t.plan} up to spend the plan first.`;
+  });
 }
 
 /** What each kind of money means, said on every engine card. */
