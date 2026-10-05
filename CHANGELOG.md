@@ -4,6 +4,31 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.44.0] — 2026-10-05
+
+### Added
+- **Each AI engine takes the tasks you give it.** Every engine card on
+  Settings → AI engine has a row of boxes, **Tasks it takes**: scoring
+  postings, reading a resume, resume analysis, cover letters, the web check
+  and (in employer mode) screening. All are ticked at first, so nothing
+  changes until you untick one. An engine that does not take a task is not
+  asked for it, and is not its fallback when the engine above fails. A small
+  model on your computer can score the hourly postings while your
+  subscription writes the letters: put the local engine first and leave
+  only **Scoring postings** ticked on it (ADR 0060).
+- **Who does what, in one table.** The AI tab opens with a row per task:
+  the engine and model that answer it, whose money that spends, and the
+  engines behind it. It redraws when a card saves. A task that no usable
+  engine takes is still answered by the whole list, and the tab names it.
+
+### Changed
+- The engine named on a comparison's progress page, on the Screening tab
+  and under a cost estimate is the one that answers that task, which is no
+  longer always engine #1.
+- In the usage ledger, "served by a fallback" is read against the engine the
+  table names for the task. A web check answered by the first engine that
+  can search is no longer recorded as a fallback.
+
 ## [2.43.0] — 2026-10-04
 
 ### Added
@@ -4692,6 +4717,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.44.0]: https://github.com/applypack/applypack/compare/v2.43.0...v2.44.0
 [2.43.0]: https://github.com/applypack/applypack/compare/v2.42.0...v2.43.0
 [2.42.0]: https://github.com/applypack/applypack/compare/v2.41.2...v2.42.0
 [2.41.2]: https://github.com/applypack/applypack/compare/v2.41.1...v2.41.2

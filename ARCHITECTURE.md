@@ -269,7 +269,9 @@ src/
                                  (buildSystemPrompt, parseClassifications)
   classifier-prefilter.ts      ← preClassify (the short two_stage prompt)
   prompt-fence.ts              ← untrusted-text markers + directive (pure, tested, ADR 0022)
-  ai-engine.ts                 ← pure: the engine chain, the models per role, defaultModelFor (ADR 0013/0014)
+  ai-engine.ts                 ← pure: the engine chain, the models per role, defaultModelFor (ADR 0013/0014),
+                                 the tasks each engine takes and who answers which (chainFor, taskPlans — ADR 0060)
+  ai-tasks.ts                  ← pure: the six tasks, and the task each ledger feature belongs to (ADR 0060)
   ai-keys.ts                   ← pure: per-engine API keys, DB first, .env as fallback (ADR 0027)
   ai-runtime.ts                ← getAiRuntime().complete(): the engine chain for this host, engine probes
   ai-failover.ts               ← runChain: the failover loop, a ledger row per attempt, cooldowns; its I/O injected (tested)
