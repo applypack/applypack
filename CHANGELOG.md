@@ -4,6 +4,28 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.47.0] — 2026-10-05
+
+### Added
+- **A folder of job files as a source.** Companies → Add sources → **A
+  folder on this computer**: name a folder a tool of yours writes exports
+  into, and each hourly check reads the new `.json`, `.jsonl`, `.csv` and
+  `.tsv` files in it. **Check** shows what is in the folder, which column
+  was read as what, the first rows as they would be stored and what the next
+  check would cost, with no AI spent; **Add (off)** stores it, and you switch
+  it on in the table. A file is read once and again only when it changes; a
+  file still being written waits for the next check; a copy of one already
+  read is set aside.
+- **Folders on this computer** on Companies shows each folder's line
+  ("214 files · 3 new at the last check") with **Files** — what became of
+  every file, in words — **Mapping** and **Check now**.
+- ApplyPack never writes, moves, renames or deletes anything in the folder.
+  With `npm start` a folder inside your home folder works (the page can
+  create `~/ApplyPack/inbox`); in Docker, mount the folder read-only into
+  both services and name it in `APPLYPACK_INBOX_ROOTS`
+  ([ADR 0062](docs/adr/0062-rows-the-user-brings-are-read-never-fetched.md),
+  addendum; [docs/install.md](docs/install.md#a-folder-of-job-files)).
+
 ## [2.46.0] — 2026-10-05
 
 ### Added
@@ -4774,6 +4796,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.47.0]: https://github.com/applypack/applypack/compare/v2.46.0...v2.47.0
 [2.46.0]: https://github.com/applypack/applypack/compare/v2.45.0...v2.46.0
 [2.44.0]: https://github.com/applypack/applypack/compare/v2.43.0...v2.44.0
 [2.43.0]: https://github.com/applypack/applypack/compare/v2.42.0...v2.43.0
