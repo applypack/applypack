@@ -300,9 +300,15 @@ it instead of running on to its timeout on your plan.
 
 ## What it costs, and checking it against the vendor
 
-`/settings` → AI engine → **Usage & cost** lists every call ApplyPack made
-(ADR 0055): what it was for, which model answered, the tokens the vendor
-reported and the money. It keeps three totals apart and never adds them:
+The **AI usage** page (in the menu under System) lists every call ApplyPack
+made (ADR 0055), by the model that answered: what it did, how long a call
+typically took, the tokens the vendor reported and the money. Above the
+table, **Worth a look** reads the same ledger for what you could change:
+the task most of your bill went to while a plan or a local model stands
+ready, calls that fell over to a billed engine, a model that keeps failing
+or hitting its rate limit. The hints are arithmetic on your own calls and
+the published prices; none of them says a model is good enough for a task.
+The page keeps three totals apart and never adds them:
 
 - **Billed** — the Anthropic API, an OpenAI-compatible server on the
   internet, the Gemini CLI with a key. Priced from `src/ai-prices.ts`, a

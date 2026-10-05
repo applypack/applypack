@@ -831,12 +831,21 @@ never added: **billed** (the Anthropic API, an OpenAI-compatible server on
 the internet, the Gemini CLI with a key), **covered by a plan** (Claude
 Code, Codex, the Gemini CLI on a Google login — the figure is what the call
 would cost on the API) and **local** (an OpenAI-compatible server on this
-machine or network — free). `/settings` → AI engine → Usage & cost shows
-the three totals over the last 7 days, this month, last month or this year
-(UTC days, as the vendors' dashboards), a table of feature × model with
-calls, tokens and money, and three sentences when they apply: which
-feature takes most of one kind of money, which calls are not priced, and
-how many ended with no usage (a timed-out call may still be billed). Each
+machine or network — free). The **AI usage** page (`/ai`, in the menu under
+System) shows the three totals over the last 7 days, this month, last month
+or this year (UTC days, as the vendors' dashboards); a table by the model
+that answered — what it did, how many calls, the typical time (the middle
+call and the slow tail), tokens and money; three sentences when they apply
+(which feature takes most of one kind of money, which calls are not priced,
+how many ended with no usage — a timed-out call may still be billed); who
+answers each task now (ADR 0060); and **Worth a look**, hints read off the
+ledger by `web/usage-hints.ts`: the task most of the bill went to while a
+plan or a local model stands ready, billed calls that were a fallback, a
+model that keeps failing or hitting its rate limit, scoring billed on a
+model several times the price of the cheapest, a month's pace over the
+budget. A hint never says a model is good enough for a task, and offers a
+model on this computer for scoring only. The monthly budget stays on
+`/settings` → AI engine. Each
 engine card says which kind it spends; a billed engine standing ahead of
 one a plan covers gets a warning with the move that fixes it. `/jobs/:id`
 shows what the AI spent on that posting, and Compare, Verify and Generate

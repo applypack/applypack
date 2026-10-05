@@ -4,6 +4,33 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.45.0] — 2026-10-05
+
+### Added
+- **AI usage, a page of its own.** In the menu under System: which model did
+  what, how long it took and what it cost. The calls are grouped by the model
+  that answered, each task with its number of calls, the typical time (the
+  middle call, and the one nine in ten were faster than), the tokens and the
+  money. The three totals stay apart as before: billed, covered by your
+  plans, local. Last 7 days, this month, last month or this year.
+- **Worth a look: what the ledger suggests changing.** Above the table, in
+  plain sentences with your own numbers: the task most of the bill went to
+  while an engine your plan covers (or a model on this computer) stands
+  ready; calls that fell over to a billed engine and what they cost; a model
+  that keeps failing or hitting its rate limit; scoring billed on a model
+  several times the price of the cheapest one its engine offers; a month
+  whose pace runs past your budget. Every hint is arithmetic on your calls,
+  your engines and the published prices. None says a model is good enough
+  for a task, and a model on this computer is suggested for scoring only.
+- The page also shows who answers each task now, with a link to change it.
+
+### Changed
+- Settings → AI engine no longer carries the Usage & cost table: it moved to
+  the AI usage page. The **Monthly budget** stays on the tab, with a link.
+- The usage ledger's reader also returns the time of the calls that
+  answered, the calls a rate limit turned away, and the calls and money that
+  went through a fallback.
+
 ## [2.44.0] — 2026-10-05
 
 ### Added
@@ -4717,6 +4744,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.45.0]: https://github.com/applypack/applypack/compare/v2.44.0...v2.45.0
 [2.44.0]: https://github.com/applypack/applypack/compare/v2.43.0...v2.44.0
 [2.43.0]: https://github.com/applypack/applypack/compare/v2.42.0...v2.43.0
 [2.42.0]: https://github.com/applypack/applypack/compare/v2.41.2...v2.42.0
