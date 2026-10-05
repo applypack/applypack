@@ -1,0 +1,7 @@
+﻿Position,Organisation,Job link,Where,Posted,About the role,Pay
+"Backend Developer, Payments",Fennel Works,https://fennel.example/jobs/12,"Lisbon, Portugal",2026-09-25,"Fennel Works settles card payments for market stalls.
+You will write the ledger service in Kotlin and keep it reconciled to the cent; ""close enough"" is a bug here.
+Three years on a payments or banking system.",EUR 60000-75000 a year
+Mobile Developer,Fennel Works,https://fennel.example/jobs/13,Remote (Portugal),2026-09-27,"The stallholder app is Flutter. It has to take a payment on a five-year-old phone with one bar of signal, and say clearly when it could not. You will own the offline queue and the receipt printer bridge.",
+Office Manager,Juniper Court,https://junipercourt.example/vacancies/7,Porto,,Keep the Porto office running.,
+,Juniper Court,https://junipercourt.example/vacancies/8,Porto,2026-09-20,A row whose title was left empty.,
