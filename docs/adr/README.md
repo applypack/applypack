@@ -73,6 +73,7 @@ gets a dated addendum at the end of the ADR.
 - [0057 — A model on this machine is an engine of its own, and it is held to its window](./0057-a-local-model-is-an-engine-of-its-own.md) *(extends 0013/0014)*
 - [0058 — How strongly the text shows a term counts, a little (score v6)](./0058-evidence-strength-counts-a-little.md) *(amends 0012/0045)*
 - [0059 — The Tailor page edits the resume as a document, and a save is always one](./0059-the-tailor-page-edits-the-resume-as-a-document.md) *(extends 0038/0039)*
+- [0062 — Rows the user brings are read from what they hand over, and nothing is fetched](./0062-rows-the-user-brings-are-read-never-fetched.md)
 
 ## When to write a new one
 

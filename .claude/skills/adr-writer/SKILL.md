@@ -118,6 +118,7 @@ of truth when the two disagree.
 - 0057 A model on this machine is an engine of its own, and it is held to its window *(extends 0013/0014)*
 - 0058 How strongly the text shows a term counts, a little (score v6) *(amends 0012/0045)*
 - 0059 The Tailor page edits the resume as a document, and a save is always one *(extends 0038/0039)*
+- 0062 Rows the user brings are read from what they hand over, and nothing is fetched
 
 Check a proposal against these before touching process layout, sources,
 scheduling, profiles, how the AI is called, the resume score or employer

@@ -174,6 +174,25 @@
   takes the hook, or the number a UI change reports reads low.
 - `AtsType.MANUAL` companies are inactive rows for pasted jobs — `fetchOne`
   returns `[]`, `/companies` and the source toggles hide them.
+- `src/datasets/` is the rows the user brings (ADR 0062): `delimited.ts` (the
+  CSV / TSV reader), `rows.ts` (`findRows`: a JSON array, a wrapper object,
+  JSON Lines, CSV or TSV, the format read off the text, under the 5 MB and
+  2 000-row ceilings), `map.ts` (`detectMapping` from the names, then the
+  values; `mapRow` / `mapRows` → `NormalizedJob`; the zod schema of the
+  mapping kept in `Company.sourceConfig`) and `preview.ts` are pure (tested,
+  hand-written rows in `fixtures/`). Only mapped columns are read: a column
+  about a person never appears in `columnsOf`, so it is never kept, and a
+  link survives only as http(s). The mapper sets `employer` on every row — a
+  name or null, never absent — because these rows carry many employers
+  (ADR 0056); `source-groups.ts:bringsRows` is what makes `sourceIsEmployer`
+  answer false for a type `sourceFamily` files under the user's own.
+  `AtsType.IMPORT` companies are inactive rows like MANUAL: `fetchOne` returns
+  `[]`, `/companies` and the source toggles hide them, `/jobs/import` lists
+  and deletes them. The import is `jobs/import-job.ts:runImportJob` →
+  `processNormalizedJobs` under the fetch lock; between the preview and the
+  import the rows wait in `web/import-stash.ts`, in memory only. Nothing here
+  makes a request, and no site a row may have come from, and no tool that
+  wrote it, is named in code, copy or docs.
 - `src/resume/` is the resume module: `zip.ts`, `docx-text.ts`, `pdf-text.ts`
   (unpdf, ADR 0011), `resume-text.ts`, `prompts.ts`, `pick.ts`, `score.ts`
   (ADR 0012), `facts.ts`, `diff.ts`, `parse-warnings.ts`, `match-mode.ts`,
@@ -254,7 +273,8 @@
   smoke** (`npm run smoke:routes` after `npm run build` —
   `src/scripts/route-smoke.ts`): fixtures in, every GET route one
   in-process request through `app.request()`, the first run's POSTs, a
-  cross-origin POST refused, one clean PDF render. A 500 anywhere fails the
+  cross-origin POST refused, one clean PDF render, a file of rows through its
+  preview and its import. A 500 anywhere fails the
   build. Run it locally on a throwaway database only — it inserts rows and
   switches employer mode on (see `.github/workflows/test.yml`).
 - The `local-start` job runs the default install on Linux (Node 22 and 24),
@@ -508,6 +528,8 @@ When the question is **"where does X live?"**, save yourself a `find`:
 | The posting a screening reads (a snapshot, editable, never the Job's live text) | `Screening.postingText` + `postingUpdatedAt`; `store.ts:postingOf` is what the brief and every call read; `POST /screen/:id/posting` saves, `POST /screen/:id/run-all` scores everyone again; `web/screen-view.ts:scoredBeforePosting` counts the verdicts older than the edit |
 | The notice an employer owes applicants, and the legal note | `src/screening/notice.ts` — shown with a Copy button on `/settings` → Screening |
 | Each cron's once-script (manual trigger) | `src/scripts/{fetch,digest,cleanup,stale,hn,discovery}-once.ts` |
+| A file of jobs the user imports: what counts as rows, which column is which, what is never kept | `src/datasets/rows.ts:findRows` (the format off the text; `decodeBody` for a UTF-16 spreadsheet export) → `src/datasets/map.ts:detectMapping` (the alias table `ALIASES`, then `GUESSES` off the values — the title is never guessed) → `mapRow`: the id or a hash of the link, the apply link unless it leads into a host `jobs/blocked-hosts.ts:isBlockedPostingHost` names, markup stripped once, pay as a `Salary: …` line at the head, a snippet marked as one, the country and the arrangement as `locationHints`, a date only when it is one (`readDate`). `PEOPLE_RE` is the columns never offered. ADR 0062 |
+| The import itself: the preview's counts, the run, its row on `/runs`, the sources it made | `src/web/routes/jobs-import.tsx` (upload → `web/import-stash.ts` → preview → run) over `datasets/preview.ts:previewCounts`, `jobs/import-job.ts:runImportJob` (`processNormalizedJobs` under `tryFetchLock`, recorded as an `import` run; paused = stored unscored) and `web/import-summary.ts:summarizeImport` (the flash); the progress page is the shared one (`target-runs.ts`, step `import`); pages `web/pages/job-import.tsx` |
 
 When the question is **"how does the user toggle / configure X?"**:
 
@@ -582,6 +604,7 @@ When the question is **"how does the user toggle / configure X?"**:
 | Re-level, ignore or add a keyword by hand | the keyword table on `/jobs/:id` or `/jobs/:id/target` → the "Wants it" select, `ignore` / `reset`, and "Add a keyword" (instant re-score, no AI call; the edit sticks to the posting across re-runs) |
 | Throw away a keyword list the model got wrong | the keyword table → "Rebuild keywords" (one run with the stored frame withheld; your own keyword edits survive it, the new score is not comparable with the old) |
 | Paste a posting the fetchers don't see | `/jobs` → "+ Paste a job" (`/jobs/new`) |
+| Import a file of jobs you already have (an export, a spreadsheet, a tool's output) | `/jobs` → **Import a file** (`/jobs/import`): choose a .json, .jsonl, .csv or .tsv file (5 MB, the first 2 000 rows) and name its source → the next page shows which column was taken for the title, the link, the company and the text (change a select, then **Update the preview**), the first three rows as they would be stored, how many are new and pass your searches' filter, and what scoring them costs → **Import**. No AI is spent before that press, and none at all while fetching is paused (the rows are stored unscored). A newer export into the same source adds only what is new; the page lists the sources you imported, each with **Delete** (the source and its jobs) |
 | Compare a pasted posting with any resume in one step | menu → Tailor resume (`/target`): paste posting, pick / upload / paste resume, Compare |
 | Compare a found job with a file that is not in Resumes, or with pasted text | `/jobs/:id` → **Resume match** tab → **Compare a file or pasted text →** (opens `/target?job=:id` with the job picked), or menu → Tailor resume → "One of your jobs". Nothing is added to Resumes |
 | Check whether a posting is real | `/jobs/:id` → **Is it real?** tab → Verify (web search, 2-4 min); the tab's label carries the last verdict |

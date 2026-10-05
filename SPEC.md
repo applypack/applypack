@@ -700,6 +700,33 @@ on confirmation the stored text is replaced, the original kept next to it
 (`descriptionOriginal`, `descriptionRefreshedAt`), the posting re-classified
 and the next comparison's keyword frame read afresh (ADR 0043).
 
+## Imported rows (ADR 0062)
+
+`/jobs/import` takes a file of jobs the user already has: a JSON array, an
+object holding one list, JSON Lines, CSV or TSV, up to 5 MB and 2 000 rows.
+Nothing is requested from anywhere, and the file is never stored: its rows
+wait in the web process's memory between the two steps.
+
+1. **Preview, no AI.** `datasets/map.ts:detectMapping` decides which column
+   is the title, the link, the company, the text, the place, the date and
+   the pay — from the names first, from the values where the names say
+   nothing. The page shows each field with a sample and a select, the first
+   three rows as they would be stored, and the counts: rows read, rows that
+   are a job (the others by reason: no title, neither an id nor a link,
+   marked closed, a repeat), rows the source already holds, and new rows the
+   running searches' base filter admits. That last number is the AI calls an
+   import would make.
+2. **Import.** The rows become jobs of an inactive `Company` with
+   `atsType = IMPORT` (one per source name; the confirmed mapping is kept in
+   `sourceConfig`) through `processNormalizedJobs`: filter, mute, dedupe,
+   classify, persist, alert. It shares the fetch lock with the tick, is
+   recorded as an `import` run, and stores the rows unscored while fetching
+   is paused. A newer export into the same source adds only what is new.
+
+Each row names its own employer (ADR 0056): the list reads "Acme · via
+September export", and a mute acts on Acme. Columns about people are never
+offered for mapping and never stored; a link is kept only when it is http(s).
+
 ## Cover letters (F8, ADR 0021)
 
 "Cover letter" on `/jobs/:id` writes a short letter (120–180 words, capped
