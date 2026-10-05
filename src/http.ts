@@ -133,8 +133,13 @@ export function sleep(ms: number): Promise<void> {
 }
 
 /** Code points outside the Unicode range would make String.fromCodePoint throw. */
+/**
+ * A numeric entity as its character, or nothing: `&#0;` is a NUL, which
+ * Postgres refuses in a text column (one such posting failed the whole
+ * insert), and a surrogate on its own is half a character.
+ */
 function safeCodePoint(n: number): string {
-  return n >= 0 && n <= 0x10ffff ? String.fromCodePoint(n) : '';
+  return n > 0 && n <= 0x10ffff && (n < 0xd800 || n > 0xdfff) ? String.fromCodePoint(n) : '';
 }
 
 /**
@@ -168,26 +173,71 @@ const BLOCK_TAG_RE =
  * descriptions keep their paragraphs and bullet lists.
  */
 export function stripHtml(html: string): string {
-  return (
-    decodeHtmlEntities(html)
-      // Source newlines/tabs are not structure — block tags below are.
-      .replace(/\s+/g, ' ')
-      .replace(/<!--[\s\S]*?-->/g, ' ')
-      // Markup declarations — `<!DOCTYPE html>` and friends. The tag regex
-      // below needs a letter after `<`, so these used to survive it and show
-      // up at the head of every description taken from a whole page.
-      .replace(/<![^>]*>/g, ' ')
-      .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, ' ')
-      .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, ' ')
-      .replace(/<li(?:\s[^>]*)?>/gi, '\n• ')
-      .replace(/<\/li>/gi, ' ')
-      .replace(/<br\s*\/?>/gi, '\n')
-      .replace(BLOCK_TAG_RE, '\n')
-      // Only real tag shapes — "<3" or "a < b" in prose must survive.
-      .replace(/<\/?[a-zA-Z][^>]*>/g, ' ')
-      .replace(/[^\S\n]+/g, ' ')
-      .replace(/ *\n */g, '\n')
-      .replace(/\n{3,}/g, '\n\n')
-      .trim()
-  );
+  // Source newlines/tabs are not structure — block tags below are.
+  let text = decodeHtmlEntities(html).replace(/\s+/g, ' ');
+  text = replaceUpTo(text, lastIndexOf(text, /-->/g), /<!--[\s\S]*?-->/g, ' ');
+  // Every pattern given to this one ends in `>`.
+  const tags = (re: RegExp, to: string): void => {
+    text = replaceUpTo(text, lastIndexOf(text, />/g), re, to);
+  };
+  // Markup declarations — `<!DOCTYPE html>` and friends. The tag regex
+  // below needs a letter after `<`, so these used to survive it and show
+  // up at the head of every description taken from a whole page.
+  tags(/<![^>]*>/g, ' ');
+  text = dropElements(dropElements(text, 'script'), 'style');
+  tags(/<li(?:\s[^>]*)?>/gi, '\n• ');
+  tags(/<\/li>/gi, ' ');
+  tags(/<br\s*\/?>/gi, '\n');
+  tags(BLOCK_TAG_RE, '\n');
+  // Only real tag shapes — "<3" or "a < b" in prose must survive.
+  tags(/<\/?[a-zA-Z][^>]*>/g, ' ');
+  return text
+    .replace(/[^\S\n]+/g, ' ')
+    .replace(/ *\n */g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+/**
+ * `<tag …>…</tag>` out of the text, each from its opener to the first closer
+ * after it — what `/<tag[^>]*>[\s\S]*?<\/tag>/gi` matches, found by walking
+ * forward once. As a regex, a run of openers before one closer scanned to
+ * that closer from every opener in turn.
+ */
+function dropElements(text: string, tag: 'script' | 'style'): string {
+  const opener = new RegExp(`<${tag}`, 'gi');
+  const closer = new RegExp(`</${tag}>`, 'gi');
+  let out = '';
+  let from = 0;
+  for (;;) {
+    opener.lastIndex = from;
+    const start = opener.exec(text);
+    const openEnd = start ? text.indexOf('>', start.index) : -1;
+    if (!start || openEnd === -1) break;
+    closer.lastIndex = openEnd + 1;
+    const end = closer.exec(text);
+    // No closer after this opener means none after any later one.
+    if (!end) break;
+    out += `${text.slice(from, start.index)} `;
+    from = end.index + end[0].length;
+  }
+  return out + text.slice(from);
+}
+
+/** Where the last match of `closer` ends, or 0 when there is none. */
+function lastIndexOf(text: string, closer: RegExp): number {
+  let end = 0;
+  for (const match of text.matchAll(closer)) end = match.index + match[0].length;
+  return end;
+}
+
+/**
+ * `re` over the text up to `end` only. Each pattern it is given ends in a
+ * closer (`-->` or `>`), so nothing past the last closer can
+ * match — and without the cut, every opener in a run that is never closed
+ * scans to the end of the text on its own: 300 kB of `<a ` took nine
+ * seconds, which a posting from outside can be.
+ */
+function replaceUpTo(text: string, end: number, re: RegExp, to: string): string {
+  return end === 0 ? text : text.slice(0, end).replace(re, to) + text.slice(end);
 }
