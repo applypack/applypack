@@ -16,6 +16,7 @@ import { createCooldownTracker } from './ai-cooldown';
 import { recordAiCall } from './ai-ledger';
 import { listOllamaModels, listServerModels, LOCAL_LIST_TIMEOUT_MS } from './server-models';
 import { billingOf, isLocalUrl, type AiFeature, type BillingFacts } from './ai-usage';
+import type { AiTask } from './ai-tasks';
 import {
   resolveAiEngine,
   type AiEngineEnv,
@@ -74,15 +75,13 @@ export interface AiCallResult {
   providerId: AiProviderId;
   /** Model actually used; '' means the CLI's own default. */
   model: string;
-  /** True when an engine other than the configured #1 served the call. */
+  /** True when an engine other than the first one this call would ask served it. */
   viaFallback: boolean;
 }
 
 export interface AiRuntime {
-  /** Usable engines in priority order — the first one serves the call. */
-  chain: AiProviderId[];
-  /** Enabled engines this host cannot run yet (no key / not logged in). */
-  skipped: AiProviderId[];
+  /** The usable engines that take a task, in priority order — the first one serves the call (ADR 0060). */
+  chainFor(task: AiTask): AiProviderId[];
   modelFor(id: AiProviderId, role: AiRole): string;
   /** Runs the chain: first engine that answers wins; null when all fail. */
   complete(req: AiCallRequest): Promise<AiCallResult | null>;
@@ -110,8 +109,7 @@ export async function getAiRuntime(): Promise<AiRuntime> {
   }
   const resolved = resolveAiEngine(raw, getAiEngineEnv(keys, servers.openAiBaseUrl));
   return {
-    chain: resolved.chain,
-    skipped: resolved.skipped,
+    chainFor: resolved.chainFor,
     modelFor: resolved.modelFor,
     complete: (req) => completeWithFailover(resolved, keys, servers, req),
   };

@@ -3,7 +3,9 @@
 **Status:** Accepted (2026-08-30). Extends 0013 (runtime selection stays in
 AppSettings; a single choice becomes an ordered chain). Extended by
 [0027](./0027-ai-keys-in-the-database.md) (per-engine keys resolve DB-first,
-with `.env` as the fallback). See the 2026-09-24 addendum.
+with `.env` as the fallback) and by
+[0060](./0060-an-engine-takes-the-tasks-it-is-given.md) (a call runs down the
+engines that take its task). See the 2026-09-24 addendum.
 
 ## Context
 

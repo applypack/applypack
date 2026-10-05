@@ -5,6 +5,8 @@ proposal (docs/feature-gap-2026-09, not published), after stage A shipped in
 v2.28.0: the OpenAI-compatible engine got a server address on the AI tab and
 stopped asking a local server for a key. Extends ADR 0013/0014 (the engine
 chain); the robots rule it relies on is ADR 0036's addendum of the same day.
+Extended by [0060](./0060-an-engine-takes-the-tasks-it-is-given.md) (the
+tasks a local model takes are a list on its card).
 
 ## Context
 

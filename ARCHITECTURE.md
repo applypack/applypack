@@ -269,7 +269,9 @@ src/
                                  (buildSystemPrompt, parseClassifications)
   classifier-prefilter.ts      ← preClassify (the short two_stage prompt)
   prompt-fence.ts              ← untrusted-text markers + directive (pure, tested, ADR 0022)
-  ai-engine.ts                 ← pure: the engine chain, the models per role, defaultModelFor (ADR 0013/0014)
+  ai-engine.ts                 ← pure: the engine chain, the models per role, defaultModelFor (ADR 0013/0014),
+                                 the tasks each engine takes and who answers which (chainFor, taskPlans — ADR 0060)
+  ai-tasks.ts                  ← pure: the six tasks, and the task each ledger feature belongs to (ADR 0060)
   ai-keys.ts                   ← pure: per-engine API keys, DB first, .env as fallback (ADR 0027)
   ai-runtime.ts                ← getAiRuntime().complete(): the engine chain for this host, engine probes
   ai-failover.ts               ← runChain: the failover loop, a ledger row per attempt, cooldowns; its I/O injected (tested)
@@ -286,7 +288,7 @@ src/
   server-models.ts             ← the models a server runs (GET {base}/models, Ollama's /api/tags), remembered for the
                                  fields' suggestions; findLocalServers asks Ollama's and LM Studio's default addresses
   ai-prices.ts                 ← pure: the dated price table (PRICES_AS_OF), costMicroUsd; an unknown model is not priced
-  ai-spend.ts                  ← pure: ledgerRow, the Usage & cost view, periods, the budget warning, billingNotes, the estimates
+  ai-spend.ts                  ← pure: ledgerRow, the AI usage view (spendView, usageByModel), periods, the budget warning, billingNotes, the estimates
   ai-ledger.ts                 ← recordAiCall into ai_call (+ the budget warning), the sums the pages read
   notifier.ts                  ← sendAlert / sendDigest: to the routed target when it is active, else to every active
                                  target; the Telegram channel (MarkdownV2) and the switch to notify/discord.ts
@@ -546,6 +548,8 @@ src/
     job-tabs.ts                 ← the job page's tabs: resolveJobTab (explicit, else inferred from match= / letter=), jobHref, the labels with what exists (pure)
     job-pick.ts                 ← the jobs a candidate launcher offers (fit threshold, newest, ?job= kept)
     runs-summary.ts             ← a run's stats as facts in a fixed order, a reason as a sentence (pure) — what /runs shows instead of JSON
+    usage-hints.ts              ← what the AI ledger suggests changing (pure): the billed task, fallbacks, failures, a pricey scoring model, the budget's pace
+    ai-plan.ts                  ← who answers each task, with which model and whose money (pure, ADR 0060)
     schedule-view.ts            ← loadNextCheck + loadHeldLine: the "next check" and "waiting" lines the Overview and /settings share
     login-item-io.ts            ← writes / removes the login entry (src/login-item.ts), only under the launcher
     held-line.ts                ← pure: the waiting line's words — how many, what holds them, the one place to change it
@@ -646,7 +650,8 @@ src/
       run-steps.tsx             ← step list shared by the two progress pages
       welcome.tsx               ← /welcome first-run wizard (5 steps, one card at a time)
       settings.tsx              ← /settings (6 tabs: General, Profile, AI engine, Notifications, Sources, Screening)
-      ai-spend-card.tsx         ← Usage & cost on the AI engine tab: three kinds of money, never added; the budget form
+      ai-usage.tsx              ← /ai: three kinds of money never added, the hints, calls by model with their time, who answers what
+      ai-plan.tsx               ← the who-does-what table, shared by the AI tab and /ai (ADR 0060)
       resumes.tsx               ← /resumes (list + upload form component)
       resume-detail.tsx         ← /resumes/:id
       parsed-view-block.tsx     ← "What the ATS sees" on /resumes/:id: the parsed view above the warnings
@@ -681,6 +686,7 @@ src/
       watchlist.tsx             ← paste a list → resolve run → preview → add; watch / unwatch / check now
       discovery.tsx             ← list + promote + ignore + delete + manual probe + the discovery and HN toggles + HN run
       runs.tsx                  ← /runs + POST /runs/fetch-now (the tick in the web process) + progress/state
+      ai-usage.tsx              ← /ai (?period=): the ledger by model, the hints, the plan
       welcome.tsx               ← /welcome + skip / finish / ai key / ai test / resume → scan run / profile / search / score run
       settings.tsx              ← the profile editor and searches, the toggles, the schedule, AI engines and keys,
                                   source keys, notification targets, board columns, screening settings, the AI budget

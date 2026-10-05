@@ -55,10 +55,10 @@ const QUERY_VARIANTS = [
   '/jobs/:id?tab=letter',
   '/jobs/:id?tab=verify',
   '/jobs/:id?tab=nonsense',
-  // The AI ledger's card over each period, and a period nobody offers (ADR 0055).
-  '/settings?tab=ai&spend=month',
-  '/settings?tab=ai&spend=year',
-  '/settings?tab=ai&spend=nonsense',
+  // The AI ledger over each period, and a period nobody offers (ADR 0055).
+  '/ai?period=month',
+  '/ai?period=year',
+  '/ai?period=nonsense',
   // Step 1 asks the default local addresses for a model server (TASKS S1); nothing answering is the usual case.
   '/welcome?step=ai',
 ];

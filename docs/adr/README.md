@@ -27,7 +27,7 @@ gets a dated addendum at the end of the ADR.
 - [0011 — PDF resume text comes from unpdf, not a hand-rolled parser](./0011-pdf-extraction-via-unpdf.md)
 - [0012 — The resume-match score is computed by application code, not by the model](./0012-deterministic-match-score.md) — *amended by 0044, 0045*
 - [0013 — AI engine is chosen at runtime from AppSettings, with a Gemini CLI backend](./0013-runtime-ai-engine.md) *(extends 0007)* — *amended by 0014; extended by 0027*
-- [0014 — AI engines form a priority chain with automatic failover](./0014-ai-engine-chain.md) *(extends 0013)* — *extended by 0027*
+- [0014 — AI engines form a priority chain with automatic failover](./0014-ai-engine-chain.md) *(extends 0013)* — *extended by 0027, 0060*
 - [0015 — The profile is drafted from the resume scan, never written by AI](./0015-profile-draft-from-resume-scan.md)
 - [0016 — Job liveness via a free three-rung ladder before AI verify](./0016-liveness-ladder.md)
 - [0017 — Starter-pack entries pin a hand-verified board](./0017-starter-packs-pin-verified-boards.md) — *extended by 0040*
@@ -70,9 +70,10 @@ gets a dated addendum at the end of the ADR.
 - [0054 — `npm start` runs ApplyPack with a built-in Postgres; Docker is the server option](./0054-npm-start-runs-a-built-in-database.md)
 - [0055 — Every AI attempt is a ledger row, and a bill, a plan and a local model are never added together](./0055-every-ai-attempt-is-a-ledger-row.md) *(extends 0007)*
 - [0056 — A company can be muted, and a company applied to can rest, before any AI reads its postings](./0056-mute-an-employer-and-a-reapply-window.md)
-- [0057 — A model on this machine is an engine of its own, and it is held to its window](./0057-a-local-model-is-an-engine-of-its-own.md) *(extends 0013/0014)*
+- [0057 — A model on this machine is an engine of its own, and it is held to its window](./0057-a-local-model-is-an-engine-of-its-own.md) *(extends 0013/0014)* — *extended by 0060*
 - [0058 — How strongly the text shows a term counts, a little (score v6)](./0058-evidence-strength-counts-a-little.md) *(amends 0012/0045)*
 - [0059 — The Tailor page edits the resume as a document, and a save is always one](./0059-the-tailor-page-edits-the-resume-as-a-document.md) *(extends 0038/0039)*
+- [0060 — An engine takes the tasks it is given, and the order decides among those that take one](./0060-an-engine-takes-the-tasks-it-is-given.md) *(extends 0014/0057)*
 - [0062 — Rows the user brings are read from what they hand over, and nothing is fetched](./0062-rows-the-user-brings-are-read-never-fetched.md)
 
 ## When to write a new one

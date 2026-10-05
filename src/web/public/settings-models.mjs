@@ -1,5 +1,5 @@
 /*
- * Per-engine model pickers save themselves. Dependency-free ES module served
+ * Per-engine model pickers and task boxes save themselves. Dependency-free ES module served
  * as-is; the settings page boots init(). Progressive: without JS the Save
  * button stays visible and the plain form POST still works.
  *
@@ -18,7 +18,7 @@ export function statusFor(state, error) {
     case 'saved':
       return 'Saved';
     case 'failed':
-      return error || 'Could not save — press Save models to retry';
+      return error || 'Could not save — press the Save button to retry';
     default:
       return '';
   }
@@ -27,6 +27,19 @@ export function statusFor(state, error) {
 import { wireSelectCommit } from './select-commit.mjs';
 
 const SAVED_CLEAR_MS = 2500;
+
+/** The "who does what" table is drawn by the server; after a save it is read again rather than left showing the answer from before. */
+async function refreshPlan() {
+  const plan = document.querySelector('[data-ai-plan]');
+  if (!plan) return;
+  try {
+    const res = await fetch(location.href, { headers: { Accept: 'text/html' } });
+    const fresh = new DOMParser().parseFromString(await res.text(), 'text/html').querySelector('[data-ai-plan]');
+    if (fresh) plan.replaceChildren(...fresh.childNodes);
+  } catch {
+    // The table catches up on the next page load.
+  }
+}
 
 function wireForm(form) {
   const status = form.querySelector('[data-save-status]');
@@ -61,6 +74,7 @@ function wireForm(form) {
         return;
       }
       show('saved');
+      void refreshPlan();
     } catch {
       show('failed');
       showButton(true);
