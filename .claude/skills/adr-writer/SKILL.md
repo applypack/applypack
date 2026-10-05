@@ -119,6 +119,7 @@ of truth when the two disagree.
 - 0058 How strongly the text shows a term counts, a little (score v6) *(amends 0012/0045)*
 - 0059 The Tailor page edits the resume as a document, and a save is always one *(extends 0038/0039)*
 - 0060 An engine takes the tasks it is given, and the order decides among those that take one *(extends 0014/0057)*
+- 0061 The interface speaks several languages; what a model writes stays English
 
 Check a proposal against these before touching process layout, sources,
 scheduling, profiles, how the AI is called, the resume score or employer

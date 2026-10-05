@@ -72,7 +72,7 @@ export const LanguageMenu: FC<{ variant: keyof typeof TRIGGER }> = ({ variant })
         aria-label={label}
         class="m-auto w-72 max-w-[calc(100vw-2rem)] rounded-lg border border-line bg-surface-raised p-4 text-left text-sm text-ink shadow-pop backdrop:bg-[rgb(13_20_33/0.25)]"
       >
-        <h2 class="text-entity text-ink">{label}</h2>
+        <p class="text-entity text-ink">{label}</p>
         <form method="post" action={SWITCH_ACTION} class="mt-3 grid gap-1">
           <input type="hidden" name="back" value={languagePage().back} />
           {choices.map((l) => (
@@ -81,6 +81,8 @@ export const LanguageMenu: FC<{ variant: keyof typeof TRIGGER }> = ({ variant })
               name="locale"
               value={l}
               aria-current={l === current ? 'true' : undefined}
+              // Opening the popover puts the keyboard on the language in use, inside the dialog.
+              autofocus={l === current}
               class={`flex min-h-[36px] w-full cursor-pointer items-center gap-2 rounded-md px-3 py-1.5 text-left transition-colors duration-150 ${
                 l === current ? 'bg-surface-selected font-medium text-accent-strong' : 'text-ink hover:bg-surface-overlay'
               }`}
@@ -113,7 +115,7 @@ export const LanguageInvite: FC = () => {
   const answer = (locale: Locale, text: string, tone: string) => (
     <form method="post" action={SWITCH_ACTION}>
       <input type="hidden" name="back" value={back} />
-      <button type="submit" name="locale" value={locale} class={`cursor-pointer font-medium transition-colors duration-150 ${tone}`}>
+      <button type="submit" name="locale" value={locale} class={`inline-flex min-h-[32px] cursor-pointer items-center font-medium transition-colors duration-150 ${tone}`}>
         {text}
       </button>
     </form>
@@ -121,7 +123,7 @@ export const LanguageInvite: FC = () => {
   return (
     <div lang={invite} class="rounded-md bg-surface-overlay px-3 py-2.5 text-meta leading-4 text-ink-muted md:hidden lg:block">
       <p>{words.text}</p>
-      <div class="mt-1.5 flex flex-wrap gap-x-3 gap-y-1">
+      <div class="flex flex-wrap gap-x-3">
         {answer(invite, words.yes, 'text-accent-strong hover:text-accent-deep')}
         {answer(SOURCE_LOCALE, words.no, 'text-ink-muted hover:text-ink')}
       </div>

@@ -71,6 +71,11 @@ export function formatTime(d: Date): string {
   return formatDateTime(d, { timeZone: displayZone(), hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
 }
 
+/**
+ * "5m ago", worded by the catalog (`time.ago.*`) rather than by
+ * `Intl.RelativeTimeFormat`: CLDR's narrow forms are uneven — French writes
+ * "-5 min", German "vor 5 m" — and a message is ours to word (ADR 0061).
+ */
 export function formatRelative(d: Date | null | undefined): string {
   if (!d) return '—';
   const ms = Date.now() - d.getTime();

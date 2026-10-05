@@ -153,6 +153,20 @@
   `catalog.ts` and `resolve.ts` are pure (tested), `probe.ts` calls
   `probeAts`. Web-only — the worker never imports it. Every catalog entry
   pins a hand-verified board; a probe hit is not proof of identity (ADR 0017).
+- `src/i18n/` is the interface's languages (ADR 0061): `locale.ts`,
+  `message.ts`, `catalog.ts`, `t.ts`, `format.ts`, `pseudo.ts` are pure
+  (tested) and the worker may import them. A string a person reads is a key
+  in `catalog/en.json`, worded through `t()`; it ships with its line in every
+  other catalog, in the same PR (`catalog.test.ts`). `t()` reads the language
+  of the moment, so a module-level constant that holds words reads English
+  for ever: make it a function or keep the key. A sentence is one message,
+  never glued from translated pieces; a message with a link goes through
+  `web/rich.ts:tRich`. Not translated: prompts, anything a model writes
+  (render it inside `lang="en"`), resume and letter content, logs, CSV
+  values, `screening/notice.ts`, and values the code compares
+  (`resume/facts.ts:DENIED_NOTE` / `UNSURE_NOTE`, the ` · not applied — `
+  that `replacement-gate.ts` writes into `why`). Data in a page (a posting's
+  title, a company, a file name) takes `translate="no"`.
 - `src/web/public/tailwind.css` is generated: `npm run css` (Tailwind CLI over
   `tailwind.config.js` + `src/web/tailwind.css`) and committed, so the runtime
   has no build step and no page fetches from a third party
@@ -254,8 +268,9 @@
   smoke** (`npm run smoke:routes` after `npm run build` —
   `src/scripts/route-smoke.ts`): fixtures in, every GET route one
   in-process request through `app.request()`, the first run's POSTs, a
-  cross-origin POST refused, one clean PDF render. A 500 anywhere fails the
-  build. Run it locally on a throwaway database only — it inserts rows and
+  cross-origin POST refused, one clean PDF render, then every page again in
+  the pseudo-language (the count of English still outside the catalog —
+  ADR 0061). A 500 anywhere fails the build. Run it locally on a throwaway database only — it inserts rows and
   switches employer mode on (see `.github/workflows/test.yml`).
 - The `local-start` job runs the default install on Linux (Node 22 and 24),
   macOS and Windows: `npm start` with a temporary `APPLYPACK_DATA_DIR`, the
@@ -293,6 +308,11 @@ When the question is **"where does X live?"**, save yourself a `find`:
 
 | What | File |
 | --- | --- |
+| A string of the interface: where it lives, how a page words it, the language of the moment | `src/i18n/` (ADR 0061): `catalog/en.json` is the source and `catalog.ts:MessageKey` its keys; `t.ts:t(key, params)` reads the message in `locale.ts:currentLocale()` (AsyncLocalStorage — English outside a request or a tick, so tests read English); `message.ts` is the ICU subset (`{name}`, `{n, number}`, `plural` with `#`, `select`, `<tags>`); `web/rich.ts:tRich` renders a message's inline elements. `catalog.test.ts` holds every language to the source: same keys, arguments and tags, plurals in the forms `Intl.PluralRules` reports. The glossary and the voice per language: `docs/translating.md` |
+| Which language a request is answered in, and why it never changes by itself | `src/web/language.ts:resolveLanguage` (pure): the stored `AppSettings.locale`; with none, a first run opens in the browser's language (`locale.ts:matchAcceptLanguage` over the offered ones) and `settings.ts:setSetupCompleted` stores it; an install already set up stays English and gets one invitation line (`language-menu.tsx:LanguageInvite`), whose two answers both store a choice. The middleware in `app.ts` reads `settings.ts:getDisplaySettings` once per request and sets the language, the invitation and the zone; `POST /settings/locale` is the one writer (`settings.ts:setLocale`) |
+| Which languages exist and who may pick them | `src/i18n/locale.ts:LOCALES` — `ready` / `beta` are in the switcher (`offeredLocales`), `unfinished` only under Settings → General → Language (`unfinishedLocales`), `internal` is the pseudo-language. Adding one: its row there, `catalog/<code>.json` imported in `catalog.ts`, every key translated by the glossary |
+| A date, a number, a list, a weekday or a country name in the reader's language | `src/i18n/format.ts` (`formatNumber`, `formatDateTime`, `formatDatePart`, `formatList`, `weekdayName`, `regionName`) — the one place the interface calls `Intl` with a language; Latin digits everywhere. `web/format.ts` and `display-zone.ts` go through it. `'en-US'` written out elsewhere is a computation, a prompt or a CSV. Relative time and durations ("5m ago", "1.5s") are catalog messages (`time.*`, `duration.*`), not `Intl.RelativeTimeFormat`: CLDR's narrow forms are uneven (French "-5 min", German "vor 5 m") |
+| How much English is still written into the code | the route smoke's last pass: every page again in the pseudo-language (`locale.ts:PSEUDO_LOCALE`, stored as `AppSettings.locale`), where the catalog's and the format module's text comes back in ⟦ ⟧ and `src/i18n/pseudo.ts:hardcodedText` reads what is left outside them. `npm run smoke:routes` prints the count and the worst pages; `node dist/scripts/route-smoke.js --pseudo-list out.txt` writes every run. An element with `translate="no"` or `lang="en"` is data and is skipped |
 | HTTP retry, timeout, default User-Agent | `src/http.ts` — a 5xx and a network failure are retried twice; a 429 whose `Retry-After` (`retryAfterMs`) is at most 10 s is waited out once, a longer one fails as the `rate_limit` source-health reads |
 | A URL from outside (a feed's link, the verifier's finding, a typed career page) as a link | `src/web/format.ts:safeHref` — http(s) or no link at all: a `javascript:` link from a feed would run in the dashboard's origin on a click |
 | HTML → plaintext (entities, paragraphs, bullets) | `src/http.ts:stripHtml` + `decodeHtmlEntities` (gotcha 12) |
@@ -515,6 +535,7 @@ When the question is **"how does the user toggle / configure X?"**:
 
 | What | Page |
 | --- | --- |
+| Change the language of the interface | the globe at the bottom of the menu (shown once more than one language is offered), or `/settings` General tab → **Language**; a language still being translated is under **Unfinished languages** there. What the AI writes, resumes and letters do not change language |
 | Pause / resume all new-job fetching | `/settings` General tab → "Job fetching" |
 | Be told when a newer ApplyPack is out | `/settings` General tab → **Updates** → Check weekly (off by default: it is one request a week to GitHub); the sidebar then says "vX.Y.Z is out". The version you run is always in the sidebar |
 | Answer "do you have X?" with "I don't know" | the comparison's confirm card → **Not sure**: the question stops coming back and nothing is claimed; `/resumes` → Confirmed facts lists it as "Not sure", with "I do have it" for later |

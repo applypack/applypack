@@ -74,6 +74,7 @@ gets a dated addendum at the end of the ADR.
 - [0058 — How strongly the text shows a term counts, a little (score v6)](./0058-evidence-strength-counts-a-little.md) *(amends 0012/0045)*
 - [0059 — The Tailor page edits the resume as a document, and a save is always one](./0059-the-tailor-page-edits-the-resume-as-a-document.md) *(extends 0038/0039)*
 - [0060 — An engine takes the tasks it is given, and the order decides among those that take one](./0060-an-engine-takes-the-tasks-it-is-given.md) *(extends 0014/0057)*
+- [0061 — The interface speaks several languages; what a model writes stays English](./0061-the-interface-speaks-several-languages.md)
 
 ## When to write a new one
 
