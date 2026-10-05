@@ -22,6 +22,34 @@ export function taskShown(task: AiTask, employerMode: boolean): boolean {
   return task !== 'screening' || employerMode;
 }
 
+/**
+ * The boxes a save sent, as the tasks they stand for. While the page hides
+ * Screening, an engine that already has a list keeps the choice in it — it
+ * may have been made on purpose, with the box in sight. An engine with no
+ * list yet gets Screening where Resume analysis goes, the same kind of
+ * reading on the same model slot: one narrowed to scoring is never handed
+ * other people's resumes by a box nobody could see.
+ */
+export function pickedTasks(sent: readonly AiTask[], employerMode: boolean, previous: readonly AiTask[] | undefined): AiTask[] {
+  if (employerMode) return [...sent];
+  const shown = sent.filter((task) => task !== 'screening');
+  const screening = previous ? previous.includes('screening') : shown.includes('analysis');
+  return screening ? [...shown, 'screening'] : shown;
+}
+
+/**
+ * What a save of an engine's task boxes says back, in the tasks the page
+ * shows: a list that holds only a hidden task reads as the empty row of
+ * boxes the user is looking at.
+ */
+export function tasksSaved(engine: string, list: readonly AiTask[] | undefined, employerMode: boolean): string {
+  if (list === undefined) return `${engine} takes every task.`;
+  const shown = list.filter((task) => taskShown(task, employerMode));
+  return shown.length === 0
+    ? `${engine} takes no task now. It answers only one that no other engine takes.`
+    : `${engine} takes ${shown.map((task) => AI_TASK_LABELS[task]).join(', ')}, and nothing else.`;
+}
+
 export function aiPlanRows(engine: ResolvedAiEngine, billingFor: (id: AiProviderId) => AiBilling, employerMode: boolean): AiPlanRow[] {
   return taskPlans(engine)
     .filter((p) => taskShown(p.task, employerMode))

@@ -118,7 +118,7 @@ export async function loadSpendGroups(from: Date, to: Date): Promise<SpendGroup[
       percentile_cont(0.5) WITHIN GROUP (ORDER BY "durationMs") FILTER (WHERE "outcome" = 'ok') AS "medianMs",
       percentile_cont(0.9) WITHIN GROUP (ORDER BY "durationMs") FILTER (WHERE "outcome" = 'ok') AS "p90Ms",
       count(*) FILTER (WHERE "outcome" = 'rate_limited')::int AS "rateLimited",
-      count(*) FILTER (WHERE "viaFallback" AND "outcome" = 'ok')::int AS "viaFallback",
+      count(*) FILTER (WHERE "viaFallback")::int AS "viaFallback",
       COALESCE(sum(COALESCE("costMicroUsd", "reportedMicroUsd")) FILTER (WHERE "viaFallback"), 0)::bigint AS "fallbackMicro"
     FROM "ai_call"
     WHERE "at" >= ${from} AND "at" < ${to}

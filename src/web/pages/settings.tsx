@@ -106,12 +106,8 @@ export interface AiEngineRow {
   lastResort: boolean;
   /** False when Disable would store the same list again — the .env engine alone in it. */
   canToggle: boolean;
-  /**
-   * The tasks this engine takes (ADR 0060). `kept` is a task the page does not
-   * show now (Screening, with employer mode off) and must not lose on a save;
-   * `unavailable` one the engine cannot do at all (the web check, with no web search).
-   */
-  tasks: { id: string; label: string; taken: boolean; state: 'shown' | 'kept' | 'unavailable' }[];
+  /** The tasks the page shows and whether this engine takes each (ADR 0060); one it cannot do at all — the web check, with no web search — is not offered. */
+  tasks: { id: string; label: string; taken: boolean; offered: boolean }[];
   classifierModel: string;
   resumeModel: string;
   coverModel: string;
@@ -165,7 +161,7 @@ export interface AiStatusSummary {
   /** Who does what: each task with the engines a call for it tries, in order (web/ai-plan.ts). */
   plan: AiPlanRow[];
   skipped: string[];
-  /** A pay-per-token engine standing ahead of one a plan covers (ai-spend.ts:billingNotes). */
+  /** A pay-per-token engine answering a task ahead of one a plan covers (ai-spend.ts:billingNotes). */
   billingNotes: string[];
 }
 
@@ -718,13 +714,13 @@ export const SettingsPage: FC<SettingsProps> = ({
         more="An engine is an AI subscription, an API key or a model on this computer. Each takes every task until you untick some on its card: a small local model can score postings while a stronger one writes the letters. How to set each one up, locally and in Docker: docs/ai-engines.md in the repo."
       >
         <div class="space-y-3">
-          {/* settings-models.mjs redraws this block after a card saves. */}
+          {/* settings-models.mjs redraws this block after a card saves: the table and the note read off it. */}
           <div data-ai-plan class="space-y-3">
             <AiPlan plan={aiStatus.plan} />
+            {aiStatus.billingNotes.map((note) => (
+              <Notice tone="warn">{note}</Notice>
+            ))}
           </div>
-          {aiStatus.billingNotes.map((note) => (
-            <Notice tone="warn">{note}</Notice>
-          ))}
           {aiStatus.skipped.length > 0 && (
             <Notice tone="warn">
               Enabled but skipped for now: {aiStatus.skipped.join(', ')} — not usable on this
@@ -1276,10 +1272,10 @@ export const SettingsPage: FC<SettingsProps> = ({
       )}
 
       {activeTab === 'screening' && (
-      <Section title="Which engine reads applicants" desc="Every screening call uses the first engine in your chain, with its resume model.">
+      <Section title="Which engine reads applicants" desc="Every screening call goes to the first engine that takes Screening applicants, with its resume model.">
         <div>
           <p class="text-sm text-ink">
-            First in the chain: <span class="font-medium">{screening.engineLabel}</span>
+            Answers screening now: <span class="font-medium">{screening.engineLabel}</span>
             {screening.engineSubscription ? (
               <Badge tone="warn" class="ml-2">
                 personal subscription
@@ -1294,7 +1290,7 @@ export const SettingsPage: FC<SettingsProps> = ({
             {screening.engineSubscription
               ? 'A CLI on a personal subscription runs under terms and data settings the subscriber controls, not the employer. For applicants’ data the defensible path is an API engine under a data-processing agreement, or a local model through the OpenAI-compatible engine (a localhost base URL). The screening page warns about this too; it does not block.'
               : 'An API or a local model is what other people’s data should go through — check the vendor’s data-processing terms, or keep the model on your own machine.'}{' '}
-            Change the order on the AI engine tab.
+            Change who takes Screening applicants on the AI engine tab.
           </Hint>
         </div>
       </Section>
@@ -1673,33 +1669,26 @@ const AiEngine: FC<{ engine: AiEngineRow }> = ({ engine: e }) => (
 const EngineTasks: FC<{ engine: AiEngineRow }> = ({ engine: e }) => (
   <form method="post" action="/settings/ai/tasks" data-model-form class="mt-4">
     <input type="hidden" name="provider" value={e.id} />
-    {e.tasks
-      .filter((t) => t.state === 'kept' && t.taken)
-      .map((t) => (
-        <input type="hidden" name="tasks" value={t.id} />
-      ))}
     <fieldset>
       <legend class="text-label text-ink">Tasks it takes</legend>
       <div class="mt-2 flex flex-wrap gap-2">
-        {e.tasks
-          .filter((t) => t.state !== 'kept')
-          .map((t) =>
-            t.state === 'unavailable' ? (
-              <PillCheckbox name="tasks" value={t.id} disabled>
-                {t.label}
-              </PillCheckbox>
-            ) : (
-              <PillCheckbox name="tasks" value={t.id} checked={t.taken}>
-                {t.label}
-              </PillCheckbox>
-            ),
-          )}
+        {e.tasks.map((t) =>
+          t.offered ? (
+            <PillCheckbox name="tasks" value={t.id} checked={t.taken}>
+              {t.label}
+            </PillCheckbox>
+          ) : (
+            <PillCheckbox name="tasks" value={t.id} disabled>
+              {t.label}
+            </PillCheckbox>
+          ),
+        )}
       </div>
     </fieldset>
     <Hint class="mt-2">
       A task you untick goes to the next engine in the list that takes it, and this one is not its
       fallback either.
-      {e.tasks.some((t) => t.state === 'unavailable') && ' The web check is not offered here: this engine cannot search the web.'}
+      {e.tasks.some((t) => !t.offered) && ' The web check is not offered here: this engine cannot search the web.'}
     </Hint>
     <div class="mt-3 flex items-center gap-3">
       <Button size="sm" variant="secondary" data-save-button>

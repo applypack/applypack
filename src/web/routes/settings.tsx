@@ -75,7 +75,7 @@ import {
   type AiProviderId,
 } from '../../ai-engine';
 import { AI_TASKS, AI_TASK_LABELS, isAiTask } from '../../ai-tasks';
-import { aiPlanRows, taskShown } from '../ai-plan';
+import { aiPlanRows, pickedTasks, taskShown, tasksSaved } from '../ai-plan';
 import { billingFacts, forgetAiProbe, getAiEngineEnv, localAiBase, openAiBase, probeAiProviders } from '../../ai-runtime';
 import { DEFAULT_LOCAL_CONTEXT_TOKENS, LOCAL_CONTEXT_CHOICES } from '../../ai-provider-parse';
 import { knownModels } from '../../server-models';
@@ -299,12 +299,11 @@ async function loadSettingsProps() {
       ok: aiStatuses[id].ok,
       detail: aiStatuses[id].detail,
       ...aiEngineCard(engine, id, aiEnv.provider),
-      tasks: AI_TASKS.map((task) => ({
+      tasks: AI_TASKS.filter((task) => taskShown(task, settings.employerMode)).map((task) => ({
         id: task,
         label: AI_TASK_LABELS[task],
         taken: engine.takes(id, task),
-        // A task the page does not show now is kept as the engine had it.
-        state: !offeredTasks(id).includes(task) ? ('unavailable' as const) : taskShown(task, settings.employerMode) ? ('shown' as const) : ('kept' as const),
+        offered: offeredTasks(id).includes(task),
       })),
       classifierModel: aiConfig.models[id]?.classifier ?? '',
       resumeModel: aiConfig.models[id]?.resume ?? '',
@@ -336,10 +335,11 @@ async function loadSettingsProps() {
   const keys = await getSourceKeys();
   const screeningCount = await prisma.screening.count();
   const screeningEngine = engine.chainFor('screening')[0]!;
+  const plan = aiPlanRows(engine, billingFor, settings.employerMode);
   const aiStatus = {
-    plan: aiPlanRows(engine, billingFor, settings.employerMode),
+    plan,
     skipped: engine.skipped.map((id) => AI_PROVIDER_LABELS[id]),
-    billingNotes: billingNotes(engine.chain, billingFor),
+    billingNotes: billingNotes(plan),
   };
   const aiBudget = { cents: settings.aiBudgetCents, billedThisMonthMicro: billedMonth };
   return {
@@ -666,21 +666,13 @@ settingsRoute.post('/settings/ai/tasks', async (c) => {
   if (!isAiProviderId(provider)) {
     return wantsJson ? c.json({ error: UNKNOWN_ENGINE }, 400) : flashRedirect('/settings?tab=ai', 'err', UNKNOWN_ENGINE);
   }
-  const { config } = await readAiOrder();
-  const next = withEngineTasks(config, provider, toStringArray(form.tasks).filter(isAiTask));
+  const settings = await getSettings();
+  const config = parseAiEngineConfig(settings.aiEngine);
+  const picked = pickedTasks(toStringArray(form.tasks).filter(isAiTask), settings.employerMode, config.tasks[provider]);
+  const next = withEngineTasks(config, provider, picked);
   await setAiEngineConfig(next);
   if (wantsJson) return c.json({ ok: true });
-  const label = AI_PROVIDER_LABELS[provider];
-  const list = next.tasks[provider];
-  return flashRedirect(
-    '/settings?tab=ai',
-    'ok',
-    list === undefined
-      ? `${label} takes every task.`
-      : list.length === 0
-        ? `${label} takes no task now. It answers only one that no other engine takes.`
-        : `${label} takes ${list.map((task) => AI_TASK_LABELS[task]).join(', ')}, and nothing else.`,
-  );
+  return flashRedirect('/settings?tab=ai', 'ok', tasksSaved(AI_PROVIDER_LABELS[provider], next.tasks[provider], settings.employerMode));
 });
 
 /** TASKS S5 (Q29): start `npm start` at login, or stop — the one button is also the undo. */

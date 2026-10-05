@@ -340,10 +340,28 @@ describe('tasks per engine', () => {
   const env = { ...ENV, localModel: 'gemma4:e4b' };
   const both = { order: ['local_api', 'claude_code'], models: {} };
 
-  it('an engine with no list takes every task, so a stored chain from before reads as it did', () => {
+  it('an engine with no list takes every task it can be given, so a stored chain from before reads as it did', () => {
     const engine = resolveAiEngine(both, env);
-    for (const task of AI_TASKS) assert.deepEqual(engine.chainFor(task), ['local_api', 'claude_code']);
+    for (const task of AI_TASKS.filter((t) => t !== 'verify')) assert.deepEqual(engine.chainFor(task), ['local_api', 'claude_code']);
     assert.deepEqual(engine.chainFor(null), ['local_api', 'claude_code']);
+    // The web check was never the local engine's to take: it goes where it went before, to the engine that can search.
+    assert.deepEqual(engine.chainFor('verify'), ['claude_code']);
+    assert.equal(engine.takes('local_api', 'verify'), false);
+  });
+
+  it('the web check unticked on the one engine that can search is unclaimed, not the local model\'s alone', () => {
+    const engine = resolveAiEngine({ ...both, tasks: { claude_code: ['scoring', 'analysis'] } }, env);
+    const verify = taskPlans(engine).find((p) => p.task === 'verify');
+    assert.deepEqual(engine.chainFor('verify'), ['local_api', 'claude_code']);
+    assert.deepEqual(verify?.engines, ['claude_code']);
+    assert.equal(verify?.unclaimed, true);
+  });
+
+  it('an install with no engine that can search has nobody to tick the web check on, and is not told to', () => {
+    const engine = resolveAiEngine({ order: ['local_api'], models: {} }, env);
+    const verify = taskPlans(engine).find((p) => p.task === 'verify');
+    assert.deepEqual(verify?.engines, ['local_api']);
+    assert.equal(verify?.unclaimed, false);
   });
 
   it('a narrowed engine is asked for its tasks only, and stays out of the fallback for the rest', () => {

@@ -78,7 +78,7 @@ export interface SpendGroup {
   p90Ms: number | null;
   /** Calls the vendor turned away for a rate limit — the sign of a plan's allowance or a key's quota running out. */
   rateLimited: number;
-  /** Calls answered by an engine other than the first one asked, and what those cost. */
+  /** Attempts on an engine other than the first one asked — answered or not — and what those attempts cost. */
   viaFallback: number;
   fallbackMicro: number;
 }
@@ -290,19 +290,32 @@ export function budgetAlertText(billedMicro: number, budgetCents: number): strin
 }
 
 /**
- * The trap a user pays twice through: a pay-per-token engine sits ahead of
- * one their plan covers, so the plan answers only when the key fails (N4).
+ * The trap a user pays twice through: a pay-per-token engine answers a task
+ * ahead of one their plan covers, so the plan answers only when the key
+ * fails (N4). Read per task (ADR 0060): an engine narrowed to other tasks is
+ * not ahead of anything here. Screening is left out — moving applicants'
+ * resumes onto a personal plan is what employer mode warns against.
  */
-export function billingNotes(chain: readonly AiProviderId[], billing: (id: AiProviderId) => AiBilling): string[] {
-  const firstPlan = chain.findIndex((id) => billing(id) === 'plan');
-  if (firstPlan <= 0) return [];
-  const billedAhead = chain.slice(0, firstPlan).filter((id) => billing(id) === 'billed');
-  if (billedAhead.length === 0) return [];
-  const names = billedAhead.map((id) => AI_PROVIDER_LABELS[id]).join(' and ');
-  const plan = AI_PROVIDER_LABELS[chain[firstPlan]!];
-  return [
-    `Calls go to ${names} first and are billed per token; ${plan}, which your plan covers, answers only when ${billedAhead.length === 1 ? 'it fails' : 'they fail'}. Move ${plan} up to spend the plan first.`,
-  ];
+export function billingNotes(
+  plan: readonly { task: string; label: string; engines: readonly { label: string; billing: AiBilling }[] }[],
+): string[] {
+  const rows = plan.filter((row) => row.task !== 'screening');
+  const traps = new Map<string, { billed: string[]; plan: string; tasks: string[] }>();
+  for (const row of rows) {
+    const firstPlan = row.engines.findIndex((e) => e.billing === 'plan');
+    const billedAhead = row.engines.slice(0, Math.max(firstPlan, 0)).filter((e) => e.billing === 'billed');
+    if (billedAhead.length === 0) continue;
+    const billed = billedAhead.map((e) => e.label);
+    const covered = row.engines[firstPlan]!.label;
+    const key = `${billed.join('|')}>${covered}`;
+    const trap = traps.get(key) ?? { billed, plan: covered, tasks: [] };
+    trap.tasks.push(row.label);
+    traps.set(key, trap);
+  }
+  return [...traps.values()].map((t) => {
+    const scope = t.tasks.length === rows.length ? 'Calls go' : `For ${t.tasks.join(', ')}, calls go`;
+    return `${scope} to ${t.billed.join(' and ')} first and are billed per token; ${t.plan}, which your plan covers, answers only when ${t.billed.length === 1 ? 'it fails' : 'they fail'}. Move ${t.plan} up to spend the plan first.`;
+  });
 }
 
 /** What each kind of money means, said on every engine card. */

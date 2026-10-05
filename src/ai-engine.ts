@@ -342,7 +342,10 @@ export interface ResolvedAiEngine {
   /** The engine answering because nothing in `order` can run; never in `order`. */
   lastResort: AiProviderId | null;
   modelFor(id: AiProviderId, role: AiRole): string;
-  /** Whether the engine's task list holds the task; an engine with no list takes every one. */
+  /**
+   * Whether the engine takes the task: one it can be given at all (`offeredTasks`),
+   * and in its list — an engine with no list takes every task it can be given.
+   */
   takes(id: AiProviderId, task: AiTask): boolean;
   /**
    * The usable engines that take the task, in priority order (ADR 0060). A
@@ -369,7 +372,7 @@ export function resolveAiEngine(raw: unknown, env: AiEngineEnv): ResolvedAiEngin
     lastResort = providerUnusable(env.provider, env) ? 'claude_code' : env.provider;
     chain.push(lastResort);
   }
-  const takes = (id: AiProviderId, task: AiTask) => config.tasks[id]?.includes(task) ?? true;
+  const takes = (id: AiProviderId, task: AiTask) => offeredTasks(id).includes(task) && (config.tasks[id]?.includes(task) ?? true);
   return {
     order,
     chain,
@@ -413,7 +416,12 @@ interface TaskPlan {
   task: AiTask;
   /** Who is asked, in order: the first answers, the rest are its fallback. */
   engines: AiProviderId[];
-  /** No usable engine in the list takes the task, so every one of them may answer it. */
+  /**
+   * An engine that could take the task stands in the list and none does, so
+   * every one of them may answer it. An install whose engines cannot search
+   * the web has nobody to tick the web check on: it runs without, as it
+   * always did, and that is not this.
+   */
   unclaimed: boolean;
 }
 
@@ -424,7 +432,7 @@ export function taskPlans(engine: ResolvedAiEngine): TaskPlan[] {
     return {
       task,
       engines: task === 'verify' ? preferWebTools(chain) : chain,
-      unclaimed: !engine.chain.some((id) => engine.takes(id, task)),
+      unclaimed: !engine.chain.some((id) => engine.takes(id, task)) && engine.chain.some((id) => offeredTasks(id).includes(task)),
     };
   });
 }

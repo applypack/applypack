@@ -4,6 +4,7 @@ import { AI_PROVIDER_IDS, resolveAiEngine, type AiProviderId } from '../../ai-en
 import { billedThisMonth, loadSpendGroups } from '../../ai-ledger';
 import { billingFacts, getAiEngineEnv, probeAiProviders } from '../../ai-runtime';
 import { isSpendPeriod, periodRange, spendView, usageByModel, type SpendPeriod } from '../../ai-spend';
+import { AI_TASKS } from '../../ai-tasks';
 import { billingOf } from '../../ai-usage';
 import { getAiKeys, getSettings } from '../../settings';
 import { aiPlanRows } from '../ai-plan';
@@ -46,7 +47,13 @@ aiUsageRoute.get('/ai', async (c) => {
       hints={usageHints({
         groups,
         period: PERIOD_WORDS[period],
-        engines: AI_PROVIDER_IDS.map((id) => ({ id, billing: billingFor(id), ready: statuses[id].ok, enabled: engine.order.includes(id) })),
+        engines: AI_PROVIDER_IDS.map((id) => ({
+          id,
+          billing: billingFor(id),
+          ready: statuses[id].ok,
+          position: engine.order.indexOf(id),
+          takes: AI_TASKS.filter((task) => engine.takes(id, task)),
+        })),
         first: Object.fromEntries(plan.map((p) => [p.task, p.engines[0]?.id])),
         budgetCents: settings.aiBudgetCents,
         billedMonthMicro: billedMonth,

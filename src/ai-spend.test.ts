@@ -18,7 +18,6 @@ import {
   type SpendGroup,
 } from './ai-spend';
 import { NO_USAGE, type AiBilling } from './ai-usage';
-import type { AiProviderId } from './ai-engine';
 import { PRICES_AS_OF } from './ai-prices';
 
 const attempt = (over: Partial<LedgerInput> = {}): LedgerInput => ({
@@ -147,12 +146,22 @@ test('the budget warns once at 80 % and once at 100 % a month, and a new month s
 });
 
 test('a billed engine ahead of one a plan covers is named, with the move that fixes it', () => {
-  const billing = (id: AiProviderId): AiBilling => (id === 'anthropic_api' || id === 'openai_api' ? 'billed' : 'plan');
-  assert.deepEqual(billingNotes(['anthropic_api', 'claude_code'], billing), [
+  const API = { label: 'Anthropic API', billing: 'billed' as const };
+  const OPENAI = { label: 'OpenAI-compatible API', billing: 'billed' as const };
+  const CLI = { label: 'Claude Code CLI', billing: 'plan' as const };
+  const rows = (...engines: { label: string; billing: AiBilling }[][]) =>
+    engines.map((list, i) => ({ task: ['scoring', 'analysis', 'letters'][i]!, label: ['Scoring postings', 'Resume analysis', 'Cover letters'][i]!, engines: list }));
+  assert.deepEqual(billingNotes(rows([API, CLI], [API, CLI], [API, CLI])), [
     'Calls go to Anthropic API first and are billed per token; Claude Code CLI, which your plan covers, answers only when it fails. Move Claude Code CLI up to spend the plan first.',
   ]);
-  assert.deepEqual(billingNotes(['claude_code', 'anthropic_api'], billing), []);
-  assert.deepEqual(billingNotes(['anthropic_api', 'openai_api'], billing), []);
+  assert.deepEqual(billingNotes(rows([CLI, API], [CLI, API], [CLI, API])), []);
+  assert.deepEqual(billingNotes(rows([API, OPENAI], [API, OPENAI], [API])), []);
+  // ADR 0060: a billed engine narrowed to the letters is ahead of the plan for the letters only.
+  assert.deepEqual(billingNotes(rows([CLI], [CLI], [API, CLI])), [
+    'For Cover letters, calls go to Anthropic API first and are billed per token; Claude Code CLI, which your plan covers, answers only when it fails. Move Claude Code CLI up to spend the plan first.',
+  ]);
+  // Applicants' resumes are not steered onto a personal plan.
+  assert.deepEqual(billingNotes([{ task: 'screening', label: 'Screening applicants', engines: [API, CLI] }]), []);
 });
 
 test('an estimate is the middle of at least three, and money reads as money', () => {
