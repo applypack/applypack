@@ -7,6 +7,7 @@ CREATE TABLE "application_pack" (
     "jobId" INTEGER NOT NULL,
     "status" TEXT NOT NULL DEFAULT 'queued',
     "trigger" TEXT NOT NULL,
+    "step" TEXT,
     "stop" TEXT,
     "why" TEXT,
     "resumeId" INTEGER,

@@ -831,6 +831,9 @@ model ApplicationPack {
   // auto (the tick queued it) | manual (the person asked). Only auto counts
   // toward the daily limit.
   trigger         String
+  // The step a running pack is on (src/pack/gate.ts:PREPARE_STEPS) — what
+  // the page says while it waits.
+  step            String?
   // Where it stopped (src/pack/gate.ts) and the sentence that says why; on a
   // failed row `why` is what went wrong.
   stop            String?
