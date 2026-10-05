@@ -239,6 +239,11 @@ function fill(path: string, f: Fixtures): string {
     .replace(':id', String(id));
 }
 
+/** The flash a redirect carries, as text. */
+function flashOf(res: Response): string {
+  return decodeURIComponent(res.headers.get('set-cookie') ?? '');
+}
+
 function form(fields: Record<string, string>): RequestInit {
   return {
     method: 'POST',
@@ -264,7 +269,7 @@ async function main(): Promise<void> {
   }
 
   // The writes a first run makes, through the same guard a browser meets.
-  const posts: { name: string; init: RequestInit; expect: (res: Response) => boolean }[] = [
+  const posts: { name: string; init: RequestInit; expect: (res: Response) => boolean | Promise<boolean> }[] = [
     {
       name: 'POST /jobs/new (a pasted posting)',
       init: form({ companyName: 'Smoke Two', title: 'Platform Engineer', url: '', location: 'Berlin', description: POSTING }),
@@ -326,7 +331,7 @@ async function main(): Promise<void> {
         return { method: 'POST', headers: ORIGIN, body } satisfies RequestInit;
       })(),
       expect: (res) => {
-        const flash = decodeURIComponent(res.headers.get('set-cookie') ?? '');
+        const flash = flashOf(res);
         return (
           res.status === 303 &&
           flash.includes('3 applicants added') &&
@@ -461,6 +466,30 @@ async function main(): Promise<void> {
       init: form({ text: RESUME, baseText: RESUME, as: 'pdf' }),
       expect: (res) => res.status === 200 && res.headers.get('content-type') === 'application/pdf',
     },
+    {
+      // ADR 0061: the switcher returns to the page it was pressed on, and says so in the language chosen.
+      name: 'POST /settings/locale (Ukrainian, back to the page it was pressed on)',
+      init: form({ locale: 'uk', back: '/jobs?status=NEW' }),
+      expect: (res) => res.status === 303 && res.headers.get('location') === '/jobs?status=NEW' && flashOf(res).includes('Інтерфейс тепер українською'),
+    },
+    {
+      name: 'GET /jobs in Ukrainian (the page says which language it is in, and the menu speaks it)',
+      init: { method: 'GET', headers: ORIGIN },
+      expect: async (res) => {
+        const html = res.status === 200 ? await res.text() : '';
+        return html.includes('<html lang="uk">') && html.includes('Вакансії');
+      },
+    },
+    {
+      name: 'POST /settings/locale with a language nobody offers (refused, in the language in use)',
+      init: form({ locale: 'en-XA' }),
+      expect: (res) => res.status === 303 && flashOf(res).includes('нічого не змінилося'),
+    },
+    {
+      name: 'POST /settings/locale (English, a way back that leaves the site ignored)',
+      init: form({ locale: 'en', back: '//evil.example/jobs' }),
+      expect: (res) => res.status === 303 && res.headers.get('location') === '/settings?tab=general#language' && flashOf(res).includes('The interface is in English'),
+    },
   ];
   const postPaths = [
     '/jobs/new',
@@ -491,10 +520,14 @@ async function main(): Promise<void> {
     `/resumes/${f.resumeId}/document`,
     `/resumes/${f.resumeId}/document`,
     `/resumes/${f.resumeId}/document`,
+    '/settings/locale',
+    '/jobs',
+    '/settings/locale',
+    '/settings/locale',
   ];
   for (const [i, p] of posts.entries()) {
     const res = await app.request(postPaths[i]!, p.init);
-    rows.push({ route: p.name, url: postPaths[i]!, status: res.status, ok: p.expect(res) });
+    rows.push({ route: p.name, url: postPaths[i]!, status: res.status, ok: await p.expect(res) });
   }
 
   // What a request gets WRONG. Every one of these used to be a 500 or worse,
