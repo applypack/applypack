@@ -5,6 +5,7 @@
  * on is a zero, never a gap; a rate is shown only when the number under it is
  * large enough to mean something.
  */
+import { formatDateRange, formatDateTime, formatNumber } from '../i18n/format';
 
 const DAY_MS = 86_400_000;
 
@@ -37,10 +38,10 @@ export function dailySeries(counts: ReadonlyMap<number, number>, days: number, n
 
 /** The ranges the chart offers. A long range reads in wider steps, thirty points at most. */
 export const RANGES = {
-  '7d': { days: 7, step: 1, label: '7D', words: '7 days' },
-  '30d': { days: 30, step: 1, label: '30D', words: '30 days' },
-  '90d': { days: 90, step: 3, label: '90D', words: '90 days' },
-  '180d': { days: 180, step: 6, label: '180D', words: '180 days' },
+  '7d': { days: 7, step: 1 },
+  '30d': { days: 30, step: 1 },
+  '90d': { days: 90, step: 3 },
+  '180d': { days: 180, step: 6 },
 } as const;
 export type RangeKey = keyof typeof RANGES;
 export const RANGE_KEYS = Object.keys(RANGES) as RangeKey[];
@@ -107,10 +108,10 @@ export function trend(current: number, previous: number): Trend {
 }
 
 /** "+12%" when the previous period carries a rate, "+3" when it does not, "0" when nothing moved. */
-export function trendText(t: Trend): string {
-  if (t.direction === 'flat') return '0';
-  const sign = t.delta > 0 ? '+' : '−';
-  return t.percent === null ? `${sign}${Math.abs(t.delta).toLocaleString('en-US')}` : `${sign}${Math.abs(t.percent)}%`;
+export function trendText(trend: Trend): string {
+  if (trend.direction === 'flat') return '0';
+  const sign = trend.delta > 0 ? '+' : '−';
+  return trend.percent === null ? `${sign}${formatNumber(Math.abs(trend.delta))}` : `${sign}${Math.abs(trend.percent)}%`;
 }
 
 /**
@@ -127,18 +128,17 @@ export function niceTicks(maxValue: number, maxSteps = 4): number[] {
   return Array.from({ length: steps + 1 }, (_, i) => i * step);
 }
 
-const DAY_FORMAT = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+const DAY = { month: 'short', day: 'numeric', timeZone: 'UTC' } as const;
 
 /** "Sep 18" — a UTC day as an axis writes it. */
 export function dayLabel(day: Date): string {
-  return DAY_FORMAT.format(day);
+  return formatDateTime(day, DAY);
 }
 
 /** "Sep 18" for a day, "Sep 16 – 18" for a few, "Sep 29 – Oct 1" across a month's end. */
 export function pointLabel(point: SeriesPoint): string {
   if (point.from.getTime() === point.to.getTime()) return dayLabel(point.to);
-  const sameMonth = point.from.getUTCMonth() === point.to.getUTCMonth();
-  return `${dayLabel(point.from)} – ${sameMonth ? point.to.getUTCDate() : dayLabel(point.to)}`;
+  return formatDateRange(point.from, point.to, DAY);
 }
 
 /** Which of `count` points carry an axis label: `max` of them at most, evenly spread, the first and the last always. */

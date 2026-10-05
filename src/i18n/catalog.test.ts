@@ -33,7 +33,7 @@ function sampleParams(shape: MessageShape, n: number): MessageParams {
 
 describe('the source catalog', () => {
   it('names its keys in dotted words', () => {
-    for (const key of MESSAGE_KEYS) assert.match(key, /^[a-z][A-Za-z0-9]*(\.[A-Za-z0-9]+)+$/, key);
+    for (const key of MESSAGE_KEYS) assert.match(key, /^[a-z][A-Za-z0-9]*(\.[A-Za-z0-9_]+)+$/, key);
   });
 
   it('holds a key once (JSON keeps the last of two silently)', () => {

@@ -1,6 +1,8 @@
 import { EMPLOYER_GATES, type EmployerGate } from './employer';
 import { FILTER_REASONS, type FilterReason } from './filter';
 import type { DismissReason } from './jobs/verdict-merge';
+import type { MessageKey } from './i18n/catalog';
+import { t } from './i18n/t';
 
 /**
  * The search funnel (TASKS §20 `search-funnel`): what the ticks read, what the
@@ -122,23 +124,21 @@ export const DISMISS_KEY = {
   'low-salary': 'dismissedSalary',
 } as const satisfies Record<DismissReason, FunnelKey>;
 
-const FILTERED_AS: Record<TurnedAway, string> = {
-  title: 'without a title keyword',
-  excluded: 'with an excluded word in the title',
-  workplace: 'in an arrangement you did not pick',
-  place: 'outside your places',
-  muted: 'from companies you muted',
-  applied: 'at companies you applied to recently',
-};
+/** The words a count is followed by, as catalog keys: "4,900 without a title keyword". */
+const FILTERED_AS = {
+  title: 'funnel.filtered.title',
+  excluded: 'funnel.filtered.excluded',
+  workplace: 'funnel.filtered.workplace',
+  place: 'funnel.filtered.place',
+  muted: 'funnel.filtered.muted',
+  applied: 'funnel.filtered.applied',
+} as const satisfies Record<TurnedAway, MessageKey>;
 
-const DISMISSED_AS: Record<DismissReason, string> = {
-  'low-fit': 'under the fit threshold',
-  'location-mismatch': 'with a location mismatch',
-  'low-salary': 'under the salary floor',
-};
-
-/** The reasons started with the funnel; a day stored before it carries the total only. */
-const UNRECORDED = 'from before the reasons were counted';
+const DISMISSED_AS = {
+  'low-fit': 'funnel.dismissed.lowFit',
+  'location-mismatch': 'funnel.dismissed.location',
+  'low-salary': 'funnel.dismissed.salary',
+} as const satisfies Record<DismissReason, MessageKey>;
 
 /** Largest first, zeros left out. */
 function largestFirst(parts: FunnelReason[]): FunnelReason[] {
@@ -148,21 +148,22 @@ function largestFirst(parts: FunnelReason[]): FunnelReason[] {
 /** Why the tick turned postings away before any AI, by gate. */
 export function filteredReasons(counts: FunnelCounts): FunnelReason[] {
   return largestFirst(
-    [...FILTER_REASONS, ...EMPLOYER_GATES].map((reason) => ({ label: FILTERED_AS[reason], count: counts[FILTER_KEY[reason]] ?? 0 })),
+    [...FILTER_REASONS, ...EMPLOYER_GATES].map((reason) => ({ label: t(FILTERED_AS[reason]), count: counts[FILTER_KEY[reason]] ?? 0 })),
   );
 }
 
 /** Why every search set a scored posting aside, by the winning search's reason. */
 export function dismissedReasons(counts: FunnelCounts): FunnelReason[] {
   return largestFirst(
-    (Object.keys(DISMISS_KEY) as DismissReason[]).map((reason) => ({ label: DISMISSED_AS[reason], count: counts[DISMISS_KEY[reason]] ?? 0 })),
+    (Object.keys(DISMISS_KEY) as DismissReason[]).map((reason) => ({ label: t(DISMISSED_AS[reason]), count: counts[DISMISS_KEY[reason]] ?? 0 })),
   );
 }
 
 /** The reasons, then what the total holds beyond them — the days stored before they were counted. */
 function withRest(list: FunnelReason[], total: number): FunnelReason[] {
   const rest = total - list.reduce((sum, r) => sum + r.count, 0);
-  return rest > 0 ? [...list, { label: UNRECORDED, count: rest }] : list;
+  // The reasons started with the funnel; a day stored before it carries the total only.
+  return rest > 0 ? [...list, { label: t('funnel.unrecorded'), count: rest }] : list;
 }
 
 /** The stages a reader follows left to right, and the two "why" lists. */
@@ -173,12 +174,12 @@ export function funnelView(counts: FunnelCounts): FunnelView {
   const fresh = Math.max(0, passed - n('duplicate'));
   return {
     stages: [
-      { key: 'read', label: 'Read from your sources', count: read },
-      { key: 'passed', label: 'Past the filter', count: passed },
-      { key: 'fresh', label: 'New to you', count: fresh },
-      { key: 'scored', label: 'Scored by the AI', count: n('classified') + n('preFiltered') },
-      { key: 'matches', label: 'Matches', count: n('matched') },
-      { key: 'alerted', label: 'Alerted', count: n('alerted') + n('heldDelivered') },
+      { key: 'read', label: t('funnel.stage.read'), count: read },
+      { key: 'passed', label: t('funnel.stage.passed'), count: passed },
+      { key: 'fresh', label: t('funnel.stage.fresh'), count: fresh },
+      { key: 'scored', label: t('funnel.stage.scored'), count: n('classified') + n('preFiltered') },
+      { key: 'matches', label: t('funnel.stage.matches'), count: n('matched') },
+      { key: 'alerted', label: t('funnel.stage.alerted'), count: n('alerted') + n('heldDelivered') },
     ],
     filtered: withRest(filteredReasons(counts), n('filterRejected')),
     dismissed: withRest(dismissedReasons(counts), n('dismissed')),
@@ -194,7 +195,7 @@ export function stageCount(view: FunnelView, key: StageKey): number {
 export function reasonsText(list: readonly FunnelReason[], max = list.length): string {
   return list
     .slice(0, max)
-    .map((r) => `${r.count.toLocaleString('en-US')} ${r.label}`)
+    .map((r) => t('funnel.reason', { n: r.count, label: r.label }))
     .join(', ');
 }
 

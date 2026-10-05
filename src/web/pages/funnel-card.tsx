@@ -3,6 +3,8 @@ import type { FC } from 'hono/jsx';
 import { Card, Disclosure, SectionTitle, Table, Td, Tr } from '../ui';
 import { reasonsText, stageCount, type FunnelReason, type FunnelView } from '../../funnel';
 import type { SourceYield } from '../../jobs/funnel-store';
+import { formatNumber } from '../../i18n/format';
+import { t } from '../../i18n/t';
 
 /**
  * The search funnel on /runs (TASKS §20 `search-funnel`): the stages over the
@@ -11,11 +13,11 @@ import type { SourceYield } from '../../jobs/funnel-store';
  */
 export const FunnelCard: FC<{ week: FunnelView; month: FunnelView; sources: SourceYield[] }> = ({ week, month, sources }) => (
   <section id="funnel" class="mb-8">
-    <SectionTitle level="section">Search funnel</SectionTitle>
+    <SectionTitle level="section">{t('funnel.searchFunnel')}</SectionTitle>
     <Card flush>
       <Table
-        caption="Search funnel"
-        columns={['Stage', 'Last 7 days', 'Last 30 days']}
+        caption={t('funnel.searchFunnel')}
+        columns={[t('funnel.column.stage'), t('funnel.column.week'), t('funnel.column.month')]}
         widths={['w-[47%]', 'w-[24%]', 'w-[28%]']}
         thClasses={['', 'text-right', 'text-right']}
       >
@@ -28,20 +30,22 @@ export const FunnelCard: FC<{ week: FunnelView; month: FunnelView; sources: Sour
         ))}
       </Table>
       <div class="space-y-1 border-t border-line px-3.5 py-3 text-note leading-5 text-ink-muted sm:px-5">
-        <ReasonLine title="Set aside by the filter" reasons={month.filtered} />
-        <ReasonLine title="Dismissed after scoring" reasons={month.dismissed} />
+        <ReasonLine title={t('funnel.setAsideByTheFilter')} reasons={month.filtered} />
+        <ReasonLine title={t('funnel.dismissedAfterScoring')} reasons={month.dismissed} />
         {sources.length > 0 && (
-          <Disclosure summary="By source, last 30 days" class="pt-1">
+          <Disclosure summary={t('funnel.bySourceLast30Days')} class="pt-1">
             <div class="mt-2 overflow-hidden rounded-lg border border-line">
               <Table
-                caption="What each source brought in the last 30 days"
-                columns={['Source', 'New', 'Matches']}
+                caption={t('funnel.whatEachSourceBroughtIn')}
+                columns={[t('funnel.column.source'), t('funnel.column.new'), t('funnel.column.matches')]}
                 widths={['w-[47%]', 'w-[24%]', 'w-[28%]']}
                 thClasses={['', 'text-right', 'text-right']}
               >
                 {sources.map((s) => (
                   <Tr>
-                    <Td class="text-ink">{s.name}</Td>
+                    <Td class="text-ink">
+                      <span translate="no">{s.name}</span>
+                    </Td>
                     <Td class="text-right tabular-nums">{count(s.stored)}</Td>
                     <Td class="text-right tabular-nums">{count(s.matches)}</Td>
                   </Tr>
@@ -59,10 +63,10 @@ export const FunnelCard: FC<{ week: FunnelView; month: FunnelView; sources: Sour
 const ReasonLine: FC<{ title: string; reasons: FunnelReason[] }> = ({ title, reasons }) =>
   reasons.length > 0 ? (
     <p>
-      <span class="font-medium text-ink">{title}, 30 days:</span> {reasonsText(reasons)}.
+      <span class="font-medium text-ink">{t('funnel.reasonsTitle', { title })}</span> {reasonsText(reasons)}.
     </p>
   ) : null;
 
 function count(n: number): string {
-  return n.toLocaleString('en-US');
+  return formatNumber(n);
 }

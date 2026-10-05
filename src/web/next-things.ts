@@ -7,6 +7,8 @@
  * next-things.test.ts.
  */
 
+import { t } from '../i18n/t';
+
 export interface NextThingsFacts {
   /** The best-scored open posting that clears the primary search's floor; null when none does. */
   top: { id: number; title: string; company: string; fitScore: number } | null;
@@ -29,17 +31,18 @@ export function nextThings(f: NextThingsFacts): NextThing[] | null {
   if (f.comparisons > 0 || f.top === null) return null;
   const { id, title, company, fitScore } = f.top;
   return [
-    { title: 'Open your best match', body: `${title} at ${company}, fit ${fitScore}.`, href: `/jobs/${id}` },
+    { title: t('next.open.title'), body: t('next.open.body', { title, company, fit: fitScore }), href: `/jobs/${id}` },
     f.resumes === 0
-      ? { title: 'Compare it with your resume', body: 'Upload your resume first: one AI call reads it.', href: '/resumes' }
+      ? { title: t('next.compare.title'), body: t('next.compare.upload'), href: '/resumes' }
       : {
-          title: 'Compare it with your resume',
-          body: `One AI call: the keywords the posting wants, its gates, and edits to make. ${f.compareCost}`.trim(),
+          title: t('next.compare.title'),
+          // Two sentences side by side: the second is the cost line, worded where the cost is known.
+          body: `${t('next.compare.body')} ${f.compareCost}`.trim(),
           href: `/jobs/${id}?tab=match`,
         },
     {
-      title: 'Tailor your resume for it',
-      body: 'Apply the edits in the editor, save a version, download the .docx.',
+      title: t('next.tailor.title'),
+      body: t('next.tailor.body'),
       href: null,
     },
   ];

@@ -1,5 +1,6 @@
-import { placeLabel } from '../countries';
-import { WORKPLACE_LABEL, type WorkplaceCode } from '../location';
+import type { WorkplaceCode } from '../location';
+import { placeName, workplaceName } from '../i18n/places';
+import { t } from '../i18n/t';
 
 /*
  * Where a posting is, in one short line for a list row (pure): the
@@ -9,14 +10,14 @@ import { WORKPLACE_LABEL, type WorkplaceCode } from '../location';
  * `title`, so nothing is lost to the "+3".
  */
 
-/** How the three longest-named usual suspects are written in a row. */
-const SHORT_NAME: Readonly<Record<string, string>> = { US: 'USA', GB: 'UK', AE: 'UAE' };
+/** How the three longest-named usual suspects are written in a row: "USA", "UK", "UAE" — and each language's own short form. */
+const SHORT_NAME = { US: 'place.short.US', GB: 'place.short.GB', AE: 'place.short.AE' } as const;
 
 /** Places named before the rest become a count. */
 const NAMED_PLACES = 2;
 
 function name(code: string): string {
-  return SHORT_NAME[code] ?? placeLabel(code);
+  return code in SHORT_NAME ? t(SHORT_NAME[code as keyof typeof SHORT_NAME]) : placeName(code);
 }
 
 /** The places a row names first: where the running searches hunt, and where the user lives. */
@@ -44,10 +45,10 @@ export interface PlaceLine {
  * searching the US, not "Albania, Andorra +68".
  */
 export function placeLine(job: PlaceInput, prefer: readonly string[] = []): PlaceLine {
-  const arrangement = job.workplace === 'UNKNOWN' ? '' : WORKPLACE_LABEL[job.workplace];
+  const arrangement = job.workplace === 'UNKNOWN' ? '' : workplaceName(job.workplace);
   const codes = job.countries.length > 0 ? job.countries : job.regions;
   if (codes.length === 0) {
-    const words = job.location.trim() || arrangement || 'Remote';
+    const words = job.location.trim() || arrangement || workplaceName('REMOTE');
     return { text: words, title: words };
   }
   const wanted = new Set(prefer);

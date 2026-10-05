@@ -1,4 +1,5 @@
 import type { HeldReason } from '../jobs/held-alerts';
+import { t } from '../i18n/t';
 
 /**
  * The waiting line on Overview and on the Schedule card: how many matches
@@ -15,15 +16,16 @@ export const SCHEDULE_HREF = '/settings?tab=general';
 const NOTIFICATIONS_HREF = '/settings?tab=notifications';
 
 export function heldLine(count: number, reason: HeldReason): HeldLine {
-  const waiting = `${count} ${count === 1 ? 'match is' : 'matches are'} waiting`;
+  // One whole sentence per reason: "is waiting" and "it" both follow the count, and not only in English.
+  const n = { n: count };
   switch (reason) {
     case 'alerts-off':
-      return { text: `${waiting}: Alerts are switched off`, href: NOTIFICATIONS_HREF, action: 'switch them on' };
+      return { text: t('held.alertsOff', n), href: NOTIFICATIONS_HREF, action: t('held.alertsOff.action') };
     case 'no-targets':
-      return { text: `${waiting} for a chat to send ${count === 1 ? 'it' : 'them'} to`, href: NOTIFICATIONS_HREF, action: 'add one' };
+      return { text: t('held.noTargets', n), href: NOTIFICATIONS_HREF, action: t('held.noTargets.action') };
     case 'next-check':
-      return { text: `${waiting} to be sent at the next hourly check`, href: NOTIFICATIONS_HREF, action: 'see the chats' };
+      return { text: t('held.nextCheck', n), href: NOTIFICATIONS_HREF, action: t('held.nextCheck.action') };
     case 'window':
-      return { text: `${waiting} for the alert window to open`, href: SCHEDULE_HREF, action: 'change when alerts arrive' };
+      return { text: t('held.window', n), href: SCHEDULE_HREF, action: t('held.window.action') };
   }
 }

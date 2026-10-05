@@ -34,6 +34,17 @@ export function formatDateTime(d: Date, options: Intl.DateTimeFormatOptions): st
   return marked(cached(dateFormats, `${tag}\n${JSON.stringify(options)}`, () => new Intl.DateTimeFormat(tag, options)).format(d));
 }
 
+/**
+ * A span of days as the language writes it: "Sep 16 – 18", "16–18 вер.",
+ * "Sep 29 – Oct 1". ICU sets the dash in thin spaces; they are written as
+ * plain ones, which is what a table cell and a test both expect.
+ */
+export function formatDateRange(from: Date, to: Date, options: Intl.DateTimeFormatOptions): string {
+  const tag = intlTag();
+  const format = cached(dateFormats, `${tag}\n${JSON.stringify(options)}`, () => new Intl.DateTimeFormat(tag, options));
+  return marked(format.formatRange(from, to).replace(/\u2009/g, ' '));
+}
+
 /** One named part of a date ("GMT+3" for `timeZoneName`), or null when the format has none. */
 export function formatDatePart(d: Date, options: Intl.DateTimeFormatOptions, part: Intl.DateTimeFormatPartTypes): string | null {
   const tag = intlTag();

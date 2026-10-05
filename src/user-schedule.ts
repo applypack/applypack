@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import { formatDateTime } from './i18n/format';
+import { t } from './i18n/t';
 
 /**
  * When the user wants the search to run and alerts to arrive (TASKS §16).
@@ -239,11 +241,10 @@ export function describeNextFetch(next: Date | null, now: Date, timezone: string
   if (next === null) return '';
   const clock = new Intl.DateTimeFormat('en-GB', { timeZone: timezone, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(next);
   const dayOf = (at: Date) => new Intl.DateTimeFormat('en-GB', { timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(at);
-  if (dayOf(next) === dayOf(now)) return `today at ${clock}`;
+  if (dayOf(next) === dayOf(now)) return t('schedule.next.today', { clock });
   const tomorrow = new Date(now.getTime() + 24 * HOUR_MS);
-  if (dayOf(next) === dayOf(tomorrow)) return `tomorrow at ${clock}`;
-  const weekday = new Intl.DateTimeFormat('en-GB', { timeZone: timezone, weekday: 'short' }).format(next);
-  return `${weekday} at ${clock}`;
+  if (dayOf(next) === dayOf(tomorrow)) return t('schedule.next.tomorrow', { clock });
+  return t('schedule.next.weekday', { weekday: formatDateTime(next, { timeZone: timezone, weekday: 'short' }), clock });
 }
 
 /** "Every hour, 07:00–23:00, Mon–Fri" — one sentence for the card and the overview. */
