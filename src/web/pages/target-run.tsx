@@ -66,6 +66,11 @@ const STEP_VIEW: Record<RunStep, StepView> = {
     label: 'Read the shortlist head to head',
     detail: 'two readings at once, the second with the resumes in the reverse order — about a minute on a CLI engine',
   },
+  import: {
+    label: 'Filter, store and score the rows',
+    detail:
+      'your searches’ filter and the duplicate check first, no AI; then each new row is scored and matches are alerted — or stored unscored while fetching is paused',
+  },
 };
 
 /** What the timed steps cost when the lane is not one we measured. */
@@ -147,7 +152,14 @@ export const TargetRunPage: FC<{ run: TargetRun; lane: Lane }> = ({ run, lane })
               <div class="mt-5 flex items-center justify-between gap-3 border-t border-line pt-3">
                 <Hint>
                   You can close this page — the run keeps going and the result lands{' '}
-                  {run.backUrl.startsWith('/screen') ? 'on the screening page' : run.heading ? 'back in setup' : 'on the job page'}.
+                  {run.backUrl.startsWith('/screen')
+                    ? 'on the screening page'
+                    : run.backUrl.startsWith('/jobs/import')
+                      ? 'on Jobs, with a row on Runs'
+                      : run.heading
+                        ? 'back in setup'
+                        : 'on the job page'}
+                  .
                 </Hint>
                 <span id="run-elapsed" class="shrink-0 text-meta tabular-nums text-ink-faint">
                   {elapsed}s

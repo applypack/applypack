@@ -1,5 +1,5 @@
 /*
- * Maps a row the user brought (ADR 0061) to a NormalizedJob. Every tool and
+ * Maps a row the user brought (ADR 0062) to a NormalizedJob. Every tool and
  * every spreadsheet names its fields its own way, so which column is the
  * title, the link and the text — the mapping — is detected from the names and
  * the values, shown to the user, corrected there and kept on the source row.
@@ -90,6 +90,8 @@ const MAX_LOCATION_CHARS = 200;
 const MAX_LINK_CHARS = 2000;
 const MAX_ID_CHARS = 200;
 const MAX_PAY_CHARS = 120;
+/** Longer than any date a row writes; a longer cell is prose. */
+const MAX_DATE_CHARS = 64;
 /** What the model reads of a posting is 30 k; twice that is kept, as for a pasted one (manual-job.ts). */
 const MAX_DESCRIPTION_CHARS = 60_000;
 /** Markup is stripped from at most this much, so a 2 MB cell costs one bounded pass. */
@@ -211,6 +213,7 @@ function httpLink(value: unknown): string | null {
  */
 export function readDate(value: unknown, now: Date): Date | null {
   const text = cellText(value);
+  if (text.length > MAX_DATE_CHARS) return null;
   let ms: number;
   if (/^\d{10}$/.test(text)) ms = Number(text) * 1000;
   else if (/^\d{13}$/.test(text)) ms = Number(text);

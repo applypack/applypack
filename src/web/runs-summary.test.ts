@@ -130,6 +130,15 @@ describe('summarizeRun', () => {
   it('has nothing to say about an empty record', () => {
     assert.deepEqual(summarizeRun('fetch', {}), []);
   });
+
+  it('reads an import in its own words: rows of a file, not a fetch', () => {
+    const stats = { source: 'September export', fetched: 250, persisted: 37, duplicate: 112, classified: 37, alerted: 4, filterRejected: 101, rejectedTitle: 101, durationMs: 9_000 };
+    assert.deepEqual(summarizeRun('import', stats), ['250 rows read from the file', '37 new', '112 duplicates', '37 classified', '4 alerted']);
+    assert.deepEqual(summarizeRun('import', { fetched: 1, persisted: 0 }), ['1 row read from the file', '0 new']);
+    assert.deepEqual(summarizeRun('import', { skipped: 1, reason: 'overlap' }), ['Another fetch was running; this one did nothing']);
+    // The shared wording stands for every other job.
+    assert.equal(summarizeRun('fetch', { fetched: 250 })[0], '250 fetched');
+  });
 });
 
 describe('failedRunLine (TASKS U6)', () => {
@@ -139,6 +148,12 @@ describe('failedRunLine (TASKS U6)', () => {
       'The fetch run failed: PrismaClientKnownRequestError: connection refused. What it stored before the failure stays, and the next tick tries again.',
     );
     assert.equal(failedRunLine('digest', 'Telegram 401 Unauthorized'), 'The digest run failed: Telegram 401 Unauthorized. Nothing was sent; the next digest hour tries again.');
+  });
+  it('a failed import says the file can be imported again', () => {
+    assert.equal(
+      failedRunLine('import', 'connection refused'),
+      'The import run failed: connection refused. What it stored before the failure stays; import the same file again and only the rest is added.',
+    );
   });
   it('an unknown job still gets a way forward, and an empty error points at the log', () => {
     assert.equal(failedRunLine('reclassify', ''), 'The reclassify run failed. The next scheduled run tries again. The web log has the detail.');

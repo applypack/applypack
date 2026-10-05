@@ -1,5 +1,5 @@
 /*
- * Finds the rows in a body the user brought (ADR 0061): a JSON array, an
+ * Finds the rows in a body the user brought (ADR 0062): a JSON array, an
  * object wrapping one, JSON Lines, CSV or TSV. The format is read off the
  * text, never off a file name. Pure — tested in rows.test.ts.
  */
