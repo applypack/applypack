@@ -41,6 +41,7 @@ const SOURCE_NAMES: Record<string, string> = {
   CAREER_PAGE: 'Careers page (change watch)',
   BROWSER_PAGE: 'Careers page (needs a browser)',
   IMPORT: 'Imported file',
+  FOLDER: 'Folder on this computer',
   MANUAL: 'Manual',
 };
 

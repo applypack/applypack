@@ -56,8 +56,18 @@ export const MappingSchema = z.object(
   Object.fromEntries(MAPPING_FIELDS.map((f) => [f, PathSchema])) as Record<MappingField, typeof PathSchema>,
 );
 
-/** `Company.sourceConfig` of a source whose rows the user brings: the mapping they confirmed. */
-const SourceConfigSchema = z.object({ mapping: MappingSchema });
+/** The name filter of a folder source (`jobs-*.json`); longer than this is not a file name pattern. */
+export const MAX_INCLUDE_CHARS = 200;
+
+/**
+ * `Company.sourceConfig` of a source whose rows the user brings: the mapping
+ * they confirmed and, for a folder, the name filter of the files that count
+ * (folder-scan.ts:includeMatcher). An imported file has no filter.
+ */
+const SourceConfigSchema = z.object({
+  mapping: MappingSchema,
+  include: z.string().max(MAX_INCLUDE_CHARS).nullable().default(null),
+});
 
 export type SourceConfig = z.infer<typeof SourceConfigSchema>;
 

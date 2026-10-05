@@ -48,6 +48,7 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for diagrams.
 | FEED               | per-company   | none      | A generic RSS / Atom job feed; the atsToken IS the feed URL, re-checked through the posting-URL guards on every tick. The rung below the vendor types — `watchlist/resolve.ts` only reaches it when no board resolves (ADR 0036) |
 | CAREER_PAGE        | per-company   | none      | A careers page with nothing machine-readable on it; the atsToken is the page URL. **Never yields a job** — it hashes the page's text and reports that it changed (ADR 0036) |
 | BROWSER_PAGE       | per-company   | none      | A careers page that draws its jobs in the browser (a loading shell: no board, no feed, almost no text); the atsToken is the page URL. **Never fetched** — the row is watched and inactive, and the user pastes the page's text to see what is new (TASKS N8) |
+| FOLDER             | your folder   | none      | A folder on this computer that a tool writes files of rows into (`.json`, `.jsonl`, `.csv`, `.tsv`); the atsToken is its absolute path, `sourceConfig` keeps the name filter and the column mapping, `source_file` is the ledger of what was read. Read on the tick with **no request**: a new or changed file is read once, a file still being written waits, and nothing in the folder is ever written, moved or deleted. Rows carry many employers, each named on its row (ADR 0062) |
 | IMPORT             | your file     | none      | Rows the user uploads on `/jobs/import` — a JSON array, JSON Lines, CSV or TSV; the atsToken is the source's name as a slug and `sourceConfig` keeps the column mapping the user confirmed. **Never fetched** and never active: the rows go through `processNormalizedJobs` once, at the import, and carry many employers, each named on its row (ADR 0062) |
 | LARAJOBS_RSS       | aggregator    | none      | Single RSS, all jobs under one synthetic Company |
 | REMOTEOK           | aggregator    | none      | First array element is meta (`legal:`) — dropped via `slice(1)` |
@@ -726,6 +727,25 @@ wait in the web process's memory between the two steps.
 Each row names its own employer (ADR 0056): the list reads "Acme · via
 September export", and a mute acts on Acme. Columns about people are never
 offered for mapping and never stored; a link is kept only when it is http(s).
+
+**A folder a tool writes into** is the same rows without the upload
+(`atsType = FOLDER`). Companies → Add sources → *A folder on this computer*
+takes a typed path, **Check** shows what is in it and what the next check
+would do (no AI, nothing stored), and **Add (off)** stores the path, an
+optional name filter and the column mapping. Switched on, the hourly check
+reads each new or changed `.json`, `.jsonl`, `.csv` or `.tsv` file once:
+
+- a file is read again only when its size or time changes; one changed in
+  the last ten seconds waits; a copy of a file already read is set aside;
+- 20 files and 5 000 rows a check, 5 MB a file, three folders deep;
+- what became of each file is kept in `source_file`, written only after the
+  check stored its jobs, and shown on the folder's **Files** page;
+- nothing in the folder is ever written, moved, renamed or deleted.
+
+Which folders may be read: on a local install, one inside the home folder
+(not a hidden one, not `Library` / `AppData`, not ApplyPack's own data
+folder); on a server or in Docker, only one inside a root named in
+`APPLYPACK_INBOX_ROOTS`.
 
 ## Cover letters (F8, ADR 0021)
 

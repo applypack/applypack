@@ -456,8 +456,10 @@ describe('a stored mapping', () => {
   });
 
   it('comes back from the row as it was stored, and as null when it is not one', () => {
-    const stored = { mapping: mapping({ title: 'title', url: 'url' }) };
+    const stored = { mapping: mapping({ title: 'title', url: 'url' }), include: 'jobs-*.json' };
     assert.deepEqual(readSourceConfig(JSON.parse(JSON.stringify(stored))), stored);
+    // An imported file's source has no name filter; one stored before the filter existed reads the same.
+    assert.deepEqual(readSourceConfig({ mapping: stored.mapping }), { mapping: stored.mapping, include: null });
     assert.equal(readSourceConfig(null), null);
     assert.equal(readSourceConfig({ mapping: { title: 5 } }), null);
     assert.equal(readSourceConfig('mapping'), null);

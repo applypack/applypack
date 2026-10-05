@@ -11,7 +11,8 @@ test('every source kind lands in exactly one of the three groups', () => {
   assert.deepEqual([...placed].sort(), [...ALL].sort());
   assert.deepEqual(groups.map((g) => g.family), ['vendor', 'aggregator', 'own']);
   assert.equal(groups.find((g) => g.family === 'vendor')?.pills.length, 12);
-  assert.equal(groups.find((g) => g.family === 'own')?.pills.length, 2);
+  // A feed, a change watch and a folder on this computer.
+  assert.equal(groups.find((g) => g.family === 'own')?.pills.length, 3);
   // A pasted job, a page the user pastes and a file they imported have no switch.
   assert.equal(fetchedSource('MANUAL') || fetchedSource('BROWSER_PAGE') || fetchedSource('IMPORT'), false);
 });
@@ -20,6 +21,8 @@ test('rows the user brings are their own source, never an aggregator the wizard 
   assert.equal(sourceFamily('IMPORT'), 'own');
   assert.equal(isAggregator({ atsType: 'IMPORT' }), false);
   assert.equal(bringsRows('IMPORT'), true);
+  // A folder is read on the tick, so it has a switch; its rows are the user's all the same.
+  assert.deepEqual([sourceFamily('FOLDER'), isAggregator({ atsType: 'FOLDER' }), bringsRows('FOLDER'), fetchedSource('FOLDER')], ['own', false, true, true]);
   assert.equal(bringsRows('FEED') || bringsRows('REMOTIVE') || bringsRows('MANUAL'), false);
 });
 

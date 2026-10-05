@@ -17,11 +17,12 @@ const VENDORS = new Set([
 /** Not vendors at all: the user's own feeds and the careers pages they watch (ADR 0036). */
 const OWN = new Set(['FEED', 'CAREER_PAGE', 'BROWSER_PAGE']);
 /**
- * Rows the user brings in bulk (ADR 0062): a file they import. Theirs, like a
- * feed — and many employers under one source, like an aggregator, each named
- * on its own row (`bringsRows`, read by employer.ts).
+ * Rows the user brings in bulk (ADR 0062): a file they import, a folder a
+ * tool writes into. Theirs, like a feed — and many employers under one
+ * source, like an aggregator, each named on its own row (`bringsRows`, read
+ * by employer.ts).
  */
-const ROW_SOURCES = new Set(['IMPORT']);
+const ROW_SOURCES = new Set(['IMPORT', 'FOLDER']);
 /** Kinds the tick never reads: a pasted job, a page the user pastes (TASKS N8), an imported file. */
 const NOT_FETCHED = new Set(['MANUAL', 'BROWSER_PAGE', 'IMPORT']);
 
@@ -83,7 +84,7 @@ const GROUPS: { family: SourceFamily; title: string; caption: string }[] = [
   {
     family: 'own',
     title: 'Your own sources',
-    caption: 'The feeds you pasted and the careers pages you watch. Unticking these switches your watchlist off.',
+    caption: 'The feeds you pasted, the careers pages you watch and the folders you added. Unticking these switches your watchlist off.',
   },
 ];
 

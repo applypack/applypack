@@ -10,6 +10,8 @@ import {
   type Entry as ValidatorEntry,
 } from '../fetchers/conditional';
 import { beginPageChangeTick } from '../watchlist/page-changes';
+import { beginFolderTick, takeFolderLooks } from '../fetchers/folder-ledger';
+import { keepFolderLooks } from './source-file-store';
 import { deliverPageChanges, recordPageChanges } from './page-change-alerts';
 import { syncFranceTravail, type MirrorStats } from './france-travail-sync';
 import { isFailureStatus } from '../fetchers/source-health';
@@ -144,6 +146,8 @@ async function fetchUnderLock(opts: FetchJobOptions): Promise<{ stats: CronStats
   // reported after it (TASKS §17 stage C); anything a previous run staged and
   // never delivered is dropped here.
   beginPageChangeTick();
+  // What a look at a folder learns about its files is staged the same way (ADR 0062).
+  beginFolderTick();
   const fetched = await runAllFetchers(paused, (progress) => {
     sources = progress.done;
     if (isFailureStatus(progress.status)) sourcesFailed++;
@@ -225,7 +229,11 @@ async function fetchUnderLock(opts: FetchJobOptions): Promise<{ stats: CronStats
   // Only now may this tick's validators be sent, and only if it stored
   // everything it fetched — see tickStoredEverything for why each counter
   // costs us a full re-read next tick instead of a skipped posting.
-  if (tickStoredEverything(inner)) await keepValidators(commitConditionalCache());
+  if (tickStoredEverything(inner)) {
+    await keepValidators(commitConditionalCache());
+    // The same rule for a folder's ledger: a file is "read" only once its rows are stored.
+    await keepFolderLooks(takeFolderLooks()).catch((err) => logger.warn({ err }, 'fetch-job: folder ledger not kept; the files are read again next tick'));
+  }
 
   const durationMs = Date.now() - started;
   const stats: CronStats = {
