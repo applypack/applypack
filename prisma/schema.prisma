@@ -56,6 +56,10 @@ enum AtsType {
   // the page URL. The row is watched and never active — the tick has nothing
   // to read — and the user pastes the page's text to see what changed.
   BROWSER_PAGE
+  // ADR 0062: rows the user brought in a file (/jobs/import). atsToken is the
+  // source's name as a slug. The row is never active — the tick has nothing
+  // to read — and its jobs carry many employers, each named per row.
+  IMPORT
   // Phase 8.2: pasted by hand on /jobs/new. One inactive Company row per
   // employer; runAllFetchers never touches it.
   MANUAL
@@ -155,6 +159,11 @@ model Company {
   pastedLines String[]  @default([])
   pastedNew   String[]  @default([])
   pastedAt    DateTime?
+
+  // ADR 0062 — a source whose rows the user brings: `{ mapping }`, which
+  // column is the title, the link, the text (datasets/map.ts). Parsed with
+  // zod on every read; NULL on every other kind of source.
+  sourceConfig Json?
 
   @@unique([atsType, atsToken])
   @@index([active, nextCheckAt])

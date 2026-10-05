@@ -402,5 +402,9 @@ export async function fetchOne(
       // A page drawn in the browser (TASKS N8): nothing a fetch can read, and
       // the row is never active. The user pastes the page instead.
       return [];
+    case AtsType.IMPORT:
+      // Rows the user uploaded on /jobs/import (ADR 0062): stored then, and
+      // the row is never active.
+      return [];
   }
 }

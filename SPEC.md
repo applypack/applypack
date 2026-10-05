@@ -29,7 +29,7 @@ port.
 
 See [ARCHITECTURE.md](./ARCHITECTURE.md) for diagrams.
 
-## Sources (33 kinds of source, the change watch, and MANUAL)
+## Sources (33 kinds of source, the change watch, the rows you bring, and MANUAL)
 
 | AtsType            | Shape         | Auth      | Notes                                           |
 | ------------------ | ------------- | --------- | ----------------------------------------------- |
@@ -48,6 +48,7 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for diagrams.
 | FEED               | per-company   | none      | A generic RSS / Atom job feed; the atsToken IS the feed URL, re-checked through the posting-URL guards on every tick. The rung below the vendor types — `watchlist/resolve.ts` only reaches it when no board resolves (ADR 0036) |
 | CAREER_PAGE        | per-company   | none      | A careers page with nothing machine-readable on it; the atsToken is the page URL. **Never yields a job** — it hashes the page's text and reports that it changed (ADR 0036) |
 | BROWSER_PAGE       | per-company   | none      | A careers page that draws its jobs in the browser (a loading shell: no board, no feed, almost no text); the atsToken is the page URL. **Never fetched** — the row is watched and inactive, and the user pastes the page's text to see what is new (TASKS N8) |
+| IMPORT             | your file     | none      | Rows the user uploads on `/jobs/import` — a JSON array, JSON Lines, CSV or TSV; the atsToken is the source's name as a slug and `sourceConfig` keeps the column mapping the user confirmed. **Never fetched** and never active: the rows go through `processNormalizedJobs` once, at the import, and carry many employers, each named on its row (ADR 0062) |
 | LARAJOBS_RSS       | aggregator    | none      | Single RSS, all jobs under one synthetic Company |
 | REMOTEOK           | aggregator    | none      | First array element is meta (`legal:`) — dropped via `slice(1)` |
 | REMOTIVE           | aggregator    | none      | `?category=software-dev`                        |

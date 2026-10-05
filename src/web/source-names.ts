@@ -40,6 +40,7 @@ const SOURCE_NAMES: Record<string, string> = {
   FEED: 'RSS/Atom feed',
   CAREER_PAGE: 'Careers page (change watch)',
   BROWSER_PAGE: 'Careers page (needs a browser)',
+  IMPORT: 'Imported file',
   MANUAL: 'Manual',
 };
 

@@ -280,6 +280,7 @@ describe('isSilent — sources that never post', () => {
   it('never ages a change watch, which produces no postings by design', () => {
     assert.equal(isSilent({ ...old, atsType: 'CAREER_PAGE' }, now), false);
     assert.equal(isSilent({ ...old, atsType: 'MANUAL' }, now), false);
+    assert.equal(isSilent({ ...old, atsType: 'IMPORT' }, now), false);
   });
 
   it('still reports one that is failing outright', () => {
