@@ -54,6 +54,8 @@ import { AiPlan, BILLING_TONE } from './ai-plan';
 import type { AiPlanRow } from '../ai-plan';
 import { BILLING_WORDS, formatUsd } from '../../ai-spend';
 import type { AiBilling } from '../../ai-usage';
+import { t } from '../../i18n/t';
+import { LanguageSettings } from '../language-menu';
 
 interface MaskedTarget {
   id: number;
@@ -1165,6 +1167,12 @@ export const SettingsPage: FC<SettingsProps> = ({
             ? '. It takes effect at your next login; npm run stop still stops it.'
             : ', which runs npm start from this folder when you log in. The button above takes it away again.'}
         </Hint>
+      </Section>
+      )}
+
+      {activeTab === 'general' && (
+      <Section id="language" title={t('settings.language.title')} desc={t('settings.language.desc')}>
+        <LanguageSettings />
       </Section>
       )}
 

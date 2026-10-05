@@ -1,7 +1,23 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { FIT_INFO_FLOOR, FIT_OK_FLOOR, FIT_WARN_FLOOR, fitTone, fitWord, formatDate, formatDateShort, formatStamp, formatUntil, safeHref } from './format';
+import {
+  FIT_INFO_FLOOR,
+  FIT_OK_FLOOR,
+  FIT_WARN_FLOOR,
+  fitTone,
+  fitWord,
+  formatDate,
+  formatDateShort,
+  formatDuration,
+  formatRelative,
+  formatStamp,
+  formatTime,
+  formatUntil,
+  safeHref,
+  statusLabel,
+} from './format';
 import { displayZoneLabel, withDisplayZone } from './display-zone';
+import { withLocale } from '../i18n/locale';
 
 /** ICU writes a narrow no-break space before AM/PM; the tests read plain spaces. */
 const plain = (s: string): string => s.replace(/\s/g, ' ');
@@ -91,5 +107,48 @@ describe('safeHref', () => {
     assert.equal(safeHref('/relative'), null);
     assert.equal(safeHref(null), null);
     assert.equal(safeHref(''), null);
+  });
+});
+
+describe('formatDuration', () => {
+  it('writes milliseconds, then seconds and minutes to one decimal', () => {
+    assert.equal(formatDuration(250), '250ms');
+    assert.equal(formatDuration(1500), '1.5s');
+    assert.equal(formatDuration(59_960), '60.0s');
+    assert.equal(formatDuration(90_000), '1.5m');
+    assert.equal(formatDuration(72_000_000), '1200.0m');
+    assert.equal(formatDuration(null), '—');
+  });
+});
+
+// ADR 0061: the same helpers in another language of the interface.
+describe('in Ukrainian', () => {
+  const uk = <T>(fn: () => T): T => withLocale('uk', fn);
+  const noonUtc = new Date('2026-09-25T12:00:00Z');
+
+  it('writes dates as Ukrainian does, in the zone of the request', () => {
+    assert.equal(plain(uk(() => withDisplayZone('Europe/Kyiv', () => formatDate(noonUtc)))), '25 вер. 2026 р., 15:00 GMT+3');
+    assert.equal(uk(() => withDisplayZone('Europe/Kyiv', () => formatStamp(noonUtc))), '25 вер., 15:00');
+    assert.equal(uk(() => formatDateShort(noonUtc)), '25 вер.');
+    assert.equal(uk(() => formatTime(noonUtc)), '12:00');
+  });
+
+  it('words how long ago and how soon', () => {
+    const now = Date.now();
+    assert.equal(uk(() => formatRelative(new Date(now - 5 * 60_000))), '5 хв тому');
+    assert.equal(uk(() => formatRelative(new Date(now - 3 * 86_400_000))), '3 дн. тому');
+    assert.equal(uk(() => formatUntil(new Date(now + 22 * 3_600_000))), 'за 22 год');
+    assert.equal(uk(() => formatUntil(new Date(now - 1))), 'на черзі');
+  });
+
+  it('writes a duration with the comma Ukrainian uses', () => {
+    assert.equal(uk(() => formatDuration(1500)), '1,5 с');
+    assert.equal(uk(() => formatDuration(250)), '250 мс');
+  });
+
+  it('names a status and a fit floor', () => {
+    assert.equal(uk(() => statusLabel('APPLIED')), 'Подано');
+    assert.equal(statusLabel('APPLIED'), 'Applied');
+    assert.equal(uk(() => fitWord(FIT_OK_FLOOR)), 'Сильна');
   });
 });

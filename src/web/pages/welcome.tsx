@@ -29,6 +29,7 @@ import { SCORE_BATCH } from '../../jobs/score-pick';
 import { WELCOME_STEPS, type WelcomeStep } from '../welcome-steps';
 import type { SourceSuggestion } from '../../starter-packs/suggest';
 import type { PackOffer } from '../pack-offers';
+import { LanguageMenu } from '../language-menu';
 
 
 /*
@@ -187,13 +188,17 @@ export const WelcomePage: FC<WelcomeProps> = (p) => (
             Everything stays editable in Settings.
           </p>
         </div>
-        {!p.setupCompleted && (
-          <ActionForm action="/welcome/skip">
-            <Button size="sm" variant="ghost" title="Mark setup as done; every step stays reachable in Settings">
-              Skip setup
-            </Button>
-          </ActionForm>
-        )}
+        <div class="flex flex-wrap items-center gap-2">
+          {/* The language is the first choice of a first run (ADR 0061); later it lives in the menu and in Settings. */}
+          {p.current === 'ai' && <LanguageMenu variant="inline" />}
+          {!p.setupCompleted && (
+            <ActionForm action="/welcome/skip">
+              <Button size="sm" variant="ghost" title="Mark setup as done; every step stays reachable in Settings">
+                Skip setup
+              </Button>
+            </ActionForm>
+          )}
+        </div>
       </div>
     </header>
     <Flash flash={p.flash} />
