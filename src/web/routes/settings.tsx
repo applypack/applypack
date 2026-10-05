@@ -69,13 +69,13 @@ import {
   offeredTasks,
   parseAiEngineConfig,
   resolveAiEngine,
-  taskPlans,
   toggleAiEngine,
   withEngineTasks,
   type AiEngineConfig,
   type AiProviderId,
 } from '../../ai-engine';
-import { AI_TASKS, AI_TASK_DESCS, AI_TASK_LABELS, AI_TASK_ROLE, isAiTask, type AiTask } from '../../ai-tasks';
+import { AI_TASKS, AI_TASK_LABELS, isAiTask } from '../../ai-tasks';
+import { aiPlanRows, taskShown } from '../ai-plan';
 import { billingFacts, forgetAiProbe, getAiEngineEnv, localAiBase, openAiBase, probeAiProviders } from '../../ai-runtime';
 import { DEFAULT_LOCAL_CONTEXT_TOKENS, LOCAL_CONTEXT_CHOICES } from '../../ai-provider-parse';
 import { knownModels } from '../../server-models';
@@ -86,8 +86,8 @@ import { isNewer } from '../../versions';
 import { isReapplyChoice } from '../../employer';
 import { forgetUpdateNotice } from '../update-notice';
 import { billingOf, checkLocalAiUrl, checkOpenAiBaseUrl, isLocalUrl, type AiBilling } from '../../ai-usage';
-import { billingNotes, isSpendPeriod, periodRange, spendView, type SpendPeriod } from '../../ai-spend';
-import { billedThisMonth, loadSpendGroups } from '../../ai-ledger';
+import { billingNotes } from '../../ai-spend';
+import { billedThisMonth } from '../../ai-ledger';
 import {
   AI_KEY_ENV_VARS,
   aiKeySource,
@@ -229,11 +229,10 @@ function cardRank(e: { enabled: boolean; position: number; lastResort: boolean }
   return e.lastResort ? AI_PROVIDER_IDS.length : AI_PROVIDER_IDS.length + 1;
 }
 
-async function loadSettingsProps(spendPeriod: SpendPeriod = '7d') {
+async function loadSettingsProps() {
   // The keys are read once and lent to the probe — both need them (ADR 0027).
   const aiKeys = await getAiKeys();
-  const spendRange = periodRange(spendPeriod, new Date());
-  const [settings, targets, profiles, active, resumes, aiStatuses, stageCounts, spendGroups, billedMonth] =
+  const [settings, targets, profiles, active, resumes, aiStatuses, stageCounts, billedMonth] =
     await Promise.all([
       getSettings(),
       listNotificationTargets(),
@@ -246,7 +245,6 @@ async function loadSettingsProps(spendPeriod: SpendPeriod = '7d') {
         _count: { _all: true },
         where: { pipelineStage: { not: null } },
       }),
-      loadSpendGroups(spendRange.from, spendRange.to),
       billedThisMonth(),
     ]);
   const check = await loadNextCheck(settings.schedule);
@@ -290,8 +288,6 @@ async function loadSettingsProps(spendPeriod: SpendPeriod = '7d') {
   const aiEnv = getAiEngineEnv(aiKeys, openAiBaseUrl);
   const engine = resolveAiEngine(settings.aiEngine, aiEnv);
   const aiConfig = parseAiEngineConfig(settings.aiEngine);
-  // Screening is a task only while employer mode is on; hidden, an engine keeps what it had.
-  const taskShown = (task: AiTask) => task !== 'screening' || settings.employerMode;
   const aiEngines = AI_PROVIDER_IDS.map((id) => {
     const classifierDefault = defaultModelFor(id, 'classifier', aiEnv) || 'CLI default';
     const resumeDefault = defaultModelFor(id, 'resume', aiEnv) || 'CLI default';
@@ -307,7 +303,8 @@ async function loadSettingsProps(spendPeriod: SpendPeriod = '7d') {
         id: task,
         label: AI_TASK_LABELS[task],
         taken: engine.takes(id, task),
-        state: !offeredTasks(id).includes(task) ? ('unavailable' as const) : taskShown(task) ? ('shown' as const) : ('kept' as const),
+        // A task the page does not show now is kept as the engine had it.
+        state: !offeredTasks(id).includes(task) ? ('unavailable' as const) : taskShown(task, settings.employerMode) ? ('shown' as const) : ('kept' as const),
       })),
       classifierModel: aiConfig.models[id]?.classifier ?? '',
       resumeModel: aiConfig.models[id]?.resume ?? '',
@@ -340,27 +337,11 @@ async function loadSettingsProps(spendPeriod: SpendPeriod = '7d') {
   const screeningCount = await prisma.screening.count();
   const screeningEngine = engine.chainFor('screening')[0]!;
   const aiStatus = {
-    plan: taskPlans(engine)
-      .filter((p) => taskShown(p.task))
-      .map((p) => ({
-        label: AI_TASK_LABELS[p.task],
-        desc: AI_TASK_DESCS[p.task],
-        unclaimed: p.unclaimed,
-        engines: p.engines.map((id) => ({
-          label: AI_PROVIDER_LABELS[id],
-          model: engine.modelFor(id, AI_TASK_ROLE[p.task]) || 'CLI default',
-          billing: billingFor(id),
-        })),
-      })),
+    plan: aiPlanRows(engine, billingFor, settings.employerMode),
     skipped: engine.skipped.map((id) => AI_PROVIDER_LABELS[id]),
     billingNotes: billingNotes(engine.chain, billingFor),
   };
-  const aiSpend = {
-    period: spendPeriod,
-    view: spendView(spendGroups),
-    budgetCents: settings.aiBudgetCents,
-    billedThisMonthMicro: billedMonth,
-  };
+  const aiBudget = { cents: settings.aiBudgetCents, billedThisMonthMicro: billedMonth };
   return {
     telegramEnabled: settings.telegramEnabled,
     classifierMode: settings.classifierMode,
@@ -392,7 +373,7 @@ async function loadSettingsProps(spendPeriod: SpendPeriod = '7d') {
     schedule: scheduleView,
     aiEngines,
     aiStatus,
-    aiSpend,
+    aiBudget,
     targets: targets.map((t) => ({
       id: t.id,
       name: t.name,
@@ -437,8 +418,7 @@ async function loadSettingsProps(spendPeriod: SpendPeriod = '7d') {
 }
 
 settingsRoute.get('/settings', async (c) => {
-  const spend = c.req.query('spend');
-  const props = await loadSettingsProps(isSpendPeriod(spend) ? spend : undefined);
+  const props = await loadSettingsProps();
   const tabParam = c.req.query('tab');
   const activeTab = isSettingsTab(tabParam) ? tabParam : 'general';
   // ?profile= points the editor at a specific (possibly inactive) profile.
@@ -619,12 +599,12 @@ settingsRoute.post('/settings/ai/budget', async (c) => {
   const raw = typeof form.budget === 'string' ? form.budget.trim() : '';
   const usd = raw === '' ? 0 : Number(raw);
   if (!Number.isFinite(usd) || usd < 0 || usd > MAX_AI_BUDGET_USD) {
-    return flashRedirect('/settings?tab=ai#usage', 'err', `The budget is dollars a month, from 0 to ${MAX_AI_BUDGET_USD.toLocaleString('en-US')}; nothing was changed.`);
+    return flashRedirect('/settings?tab=ai#budget', 'err', `The budget is dollars a month, from 0 to ${MAX_AI_BUDGET_USD.toLocaleString('en-US')}; nothing was changed.`);
   }
   const cents = Math.round(usd * 100);
   await setAiBudgetCents(cents > 0 ? cents : null);
   return flashRedirect(
-    '/settings?tab=ai#usage',
+    '/settings?tab=ai#budget',
     'ok',
     cents > 0
       ? `Monthly budget set to $${(cents / 100).toFixed(2)}: a warning at 80 % and 100 % of billed spend, nothing stopped.`

@@ -7,6 +7,7 @@ import {
   Badge,
   Button,
   Card,
+  CardLink,
   Code,
   ConfirmAction,
   Empty,
@@ -49,8 +50,9 @@ import { MAX_UPLOAD_MB } from '../upload';
 import { ALERT_MODES, ALL_DAYS, DAY_LABELS, FETCH_EVERY, MAX_DIGEST_HOURS, describeSchedule, type Schedule } from '../../user-schedule';
 import { KIND_LABEL } from '../../notify/targets';
 import { SCHEDULE_HREF, type HeldLine } from '../held-line';
-import { AiSpendCard, type AiSpendProps } from './ai-spend-card';
-import { BILLING_WORDS } from '../../ai-spend';
+import { AiPlan, BILLING_TONE } from './ai-plan';
+import type { AiPlanRow } from '../ai-plan';
+import { BILLING_WORDS, formatUsd } from '../../ai-spend';
 import type { AiBilling } from '../../ai-usage';
 
 interface MaskedTarget {
@@ -160,14 +162,8 @@ export interface ScheduleView {
 }
 
 export interface AiStatusSummary {
-  /** Who does what: each task with the engines a call for it tries, in order (ai-engine.ts:taskPlans). */
-  plan: {
-    label: string;
-    desc: string;
-    /** No usable engine takes it, so every engine in the list may answer. */
-    unclaimed: boolean;
-    engines: { label: string; model: string; billing: AiBilling }[];
-  }[];
+  /** Who does what: each task with the engines a call for it tries, in order (web/ai-plan.ts). */
+  plan: AiPlanRow[];
   skipped: string[];
   /** A pay-per-token engine standing ahead of one a plan covers (ai-spend.ts:billingNotes). */
   billingNotes: string[];
@@ -226,7 +222,8 @@ export interface SettingsProps {
   schedule: ScheduleView;
   aiEngines: AiEngineRow[];
   aiStatus: AiStatusSummary;
-  aiSpend: AiSpendProps;
+  /** The monthly ceiling on billed AI money in cents (null = none), and what this UTC month has billed, micro-dollars. */
+  aiBudget: { cents: number | null; billedThisMonthMicro: number };
   targets: MaskedTarget[];
   profiles: ProfileListItem[];
   activeProfile: Profile | null;
@@ -471,7 +468,7 @@ export const SettingsPage: FC<SettingsProps> = ({
   schedule,
   aiEngines,
   aiStatus,
-  aiSpend,
+  aiBudget,
   targets,
   profiles,
   activeProfile,
@@ -745,12 +742,29 @@ export const SettingsPage: FC<SettingsProps> = ({
       </Section>
 
       <Section
-        id="usage"
-        title="Usage & cost"
-        desc="Every AI call ApplyPack made: what it was for, which model answered, and what it spent."
-        more="Tokens are what the vendor reported; a count it did not report stays empty rather than zero. Money is our price from a dated table of the vendors' published rates, or the vendor's own figure where it sends one (OpenRouter, the Claude Code CLI's estimate). Days are UTC, as on the vendors' own dashboards. Nothing of a prompt or a reply is kept."
+        id="budget"
+        title="Monthly budget"
+        desc="A ceiling on what the pay-per-token engines may bill in a month, with a warning before you reach it."
       >
-        <AiSpendCard {...aiSpend} />
+        <form method="post" action="/settings/ai/budget" class="flex flex-wrap items-end gap-3">
+          <Field
+            label="Budget for billed calls, USD a month"
+            hint={
+              aiBudget.cents
+                ? `Billed this month: ${formatUsd(aiBudget.billedThisMonthMicro)} of ${formatUsd(aiBudget.cents * 10_000)} (${Math.round((aiBudget.billedThisMonthMicro / (aiBudget.cents * 10_000)) * 100)} %).`
+                : 'Empty = no budget. A plan or a local model never counts against it.'
+            }
+            class="w-72"
+          >
+            <Input type="number" name="budget" min="0" step="0.01" value={aiBudget.cents ? (aiBudget.cents / 100).toFixed(2) : ''} />
+          </Field>
+          <Button variant="secondary">Save budget</Button>
+        </form>
+        <Hint>
+          A warning on your alert chats at 80 % and at 100 % of it, once each a month (UTC). Nothing is ever stopped: a
+          missed match costs more than a cent.
+        </Hint>
+        <CardLink href="/ai">Which model did what, how long it took and what it cost: AI usage</CardLink>
       </Section>
 
       <Section
@@ -1531,48 +1545,6 @@ const EngineServerRow: FC<{ server: EngineServer }> = ({ server }) => (
     )}
   </Card>
 );
-
-const BILLING_TONE: Record<AiBilling, 'warn' | 'ok' | 'neutral'> = { billed: 'warn', local: 'ok', plan: 'neutral' };
-
-/** Who does what: one row a task, the engine that answers it first and the ones behind it. */
-const AiPlan: FC<{ plan: AiStatusSummary['plan'] }> = ({ plan }) => {
-  const unclaimed = plan.filter((p) => p.unclaimed).map((p) => p.label);
-  return (
-    <>
-      <Table columns={['Task', 'Answered by', 'If that fails']} caption="Which engine answers each task" hideBelow={['', '', 'sm']}>
-        {plan.map((p) => {
-          const [first, ...behind] = p.engines;
-          return (
-            <Tr>
-              <Td>
-                <div class="text-ink">{p.label}</div>
-                <div class="text-meta text-ink-faint" data-ui="hint">{p.desc}</div>
-              </Td>
-              <Td>
-                {first && (
-                  <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
-                    <span class="text-ink">{first.label}</span>
-                    <span class="font-mono text-meta text-ink-muted">{first.model}</span>
-                    <Badge tone={BILLING_TONE[first.billing]}>{BILLING_WORDS[first.billing]}</Badge>
-                  </div>
-                )}
-              </Td>
-              <Td class="text-ink-muted">
-                {behind.length > 0 ? behind.map((e) => `${e.label} · ${e.model}`).join(' → ') : 'Nothing behind it'}
-              </Td>
-            </Tr>
-          );
-        })}
-      </Table>
-      {unclaimed.length > 0 && (
-        <Notice tone="warn">
-          No engine that can run here takes {unclaimed.join(', ')}, so every engine in the list may
-          answer {unclaimed.length === 1 ? 'it' : 'them'}. Tick the task on the engine that should.
-        </Notice>
-      )}
-    </>
-  );
-};
 
 /**
  * One engine: a row of the AI engines section, not a card of its own. The
