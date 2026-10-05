@@ -104,7 +104,7 @@ export async function runChain(
       ...(id === 'local_api' && { baseUrl: ctx.localBase, contextTokens: ctx.localContextTokens }),
       onError: req.onError,
     });
-    const viaFallback = id !== takers[0];
+    const viaFallback = id !== chain[0];
     // Every attempt, the failed ones too: a cut-off reply was billed (ADR 0055).
     await deps.record({
       at: new Date(started),
@@ -121,7 +121,7 @@ export async function runChain(
     });
     if (attempt.text !== null) {
       deps.cooldowns.success(id);
-      if (viaFallback) logger.warn({ served: id, primary: takers[0], label: req.label }, 'ai: served by fallback engine');
+      if (viaFallback) logger.warn({ served: id, primary: chain[0], label: req.label }, 'ai: served by fallback engine');
       return { text: attempt.text, providerId: id, model, viaFallback };
     }
     if (attempt.outcome === 'unauthorized') deps.cooldowns.refused(id, credential(id));

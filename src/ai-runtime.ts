@@ -75,7 +75,7 @@ export interface AiCallResult {
   providerId: AiProviderId;
   /** Model actually used; '' means the CLI's own default. */
   model: string;
-  /** True when an engine other than the first one for the call's task served it. */
+  /** True when an engine other than the first one this call would ask served it. */
   viaFallback: boolean;
 }
 

@@ -66,12 +66,16 @@ import {
   defaultModelFor,
   isAiProviderId,
   modelFitsProvider,
+  offeredTasks,
   parseAiEngineConfig,
   resolveAiEngine,
+  taskPlans,
   toggleAiEngine,
+  withEngineTasks,
   type AiEngineConfig,
   type AiProviderId,
 } from '../../ai-engine';
+import { AI_TASKS, AI_TASK_DESCS, AI_TASK_LABELS, AI_TASK_ROLE, isAiTask, type AiTask } from '../../ai-tasks';
 import { billingFacts, forgetAiProbe, getAiEngineEnv, localAiBase, openAiBase, probeAiProviders } from '../../ai-runtime';
 import { DEFAULT_LOCAL_CONTEXT_TOKENS, LOCAL_CONTEXT_CHOICES } from '../../ai-provider-parse';
 import { knownModels } from '../../server-models';
@@ -286,6 +290,8 @@ async function loadSettingsProps(spendPeriod: SpendPeriod = '7d') {
   const aiEnv = getAiEngineEnv(aiKeys, openAiBaseUrl);
   const engine = resolveAiEngine(settings.aiEngine, aiEnv);
   const aiConfig = parseAiEngineConfig(settings.aiEngine);
+  // Screening is a task only while employer mode is on; hidden, an engine keeps what it had.
+  const taskShown = (task: AiTask) => task !== 'screening' || settings.employerMode;
   const aiEngines = AI_PROVIDER_IDS.map((id) => {
     const classifierDefault = defaultModelFor(id, 'classifier', aiEnv) || 'CLI default';
     const resumeDefault = defaultModelFor(id, 'resume', aiEnv) || 'CLI default';
@@ -297,6 +303,12 @@ async function loadSettingsProps(spendPeriod: SpendPeriod = '7d') {
       ok: aiStatuses[id].ok,
       detail: aiStatuses[id].detail,
       ...aiEngineCard(engine, id, aiEnv.provider),
+      tasks: AI_TASKS.map((task) => ({
+        id: task,
+        label: AI_TASK_LABELS[task],
+        taken: engine.takes(id, task),
+        state: !offeredTasks(id).includes(task) ? ('unavailable' as const) : taskShown(task) ? ('shown' as const) : ('kept' as const),
+      })),
       classifierModel: aiConfig.models[id]?.classifier ?? '',
       resumeModel: aiConfig.models[id]?.resume ?? '',
       coverModel: aiConfig.models[id]?.cover ?? '',
@@ -316,7 +328,6 @@ async function loadSettingsProps(spendPeriod: SpendPeriod = '7d') {
       maskedKey: storedKey ? maskToken(storedKey) : '',
     };
   }).sort((a, b) => cardRank(a) - cardRank(b));
-  const primary = engine.chain[0]!;
   // What actually runs on this install, per family (#147): the enum is the
   // menu, the Company rows are the order.
   const sourceCounts: Record<string, SourceCount> = {};
@@ -327,9 +338,20 @@ async function loadSettingsProps(spendPeriod: SpendPeriod = '7d') {
   }
   const keys = await getSourceKeys();
   const screeningCount = await prisma.screening.count();
+  const screeningEngine = engine.chainFor('screening')[0]!;
   const aiStatus = {
-    active: AI_PROVIDER_LABELS[primary],
-    chain: engine.chain.map((id) => AI_PROVIDER_LABELS[id]),
+    plan: taskPlans(engine)
+      .filter((p) => taskShown(p.task))
+      .map((p) => ({
+        label: AI_TASK_LABELS[p.task],
+        desc: AI_TASK_DESCS[p.task],
+        unclaimed: p.unclaimed,
+        engines: p.engines.map((id) => ({
+          label: AI_PROVIDER_LABELS[id],
+          model: engine.modelFor(id, AI_TASK_ROLE[p.task]) || 'CLI default',
+          billing: billingFor(id),
+        })),
+      })),
     skipped: engine.skipped.map((id) => AI_PROVIDER_LABELS[id]),
     billingNotes: billingNotes(engine.chain, billingFor),
   };
@@ -405,8 +427,8 @@ async function loadSettingsProps(spendPeriod: SpendPeriod = '7d') {
       retentionDays: settings.screeningRetentionDays,
       retentionMin: SCREENING_RETENTION_DAYS.min,
       retentionMax: SCREENING_RETENTION_DAYS.max,
-      engineLabel: AI_PROVIDER_LABELS[primary],
-      engineSubscription: billingFor(primary) === 'plan',
+      engineLabel: AI_PROVIDER_LABELS[screeningEngine],
+      engineSubscription: billingFor(screeningEngine) === 'plan',
       screenings: screeningCount,
       notice: applicantNotice(undefined, settings.screeningRetentionDays),
       legalNote: LEGAL_NOTE,
@@ -653,6 +675,32 @@ settingsRoute.post('/settings/ai/models', async (c) => {
   return wantsJson
     ? c.json({ ok: true })
     : flashRedirect('/settings?tab=ai', 'ok', `${label} models saved.`);
+});
+
+/** ADR 0060: the tasks an engine takes. Every box ticked is stored as no list, so the engine takes what a later version adds. */
+settingsRoute.post('/settings/ai/tasks', async (c) => {
+  // The boxes share one name (gotcha 1).
+  const form = await c.req.parseBody({ all: true });
+  const wantsJson = (c.req.header('accept') ?? '').includes('application/json');
+  const provider = typeof form.provider === 'string' ? form.provider : '';
+  if (!isAiProviderId(provider)) {
+    return wantsJson ? c.json({ error: UNKNOWN_ENGINE }, 400) : flashRedirect('/settings?tab=ai', 'err', UNKNOWN_ENGINE);
+  }
+  const { config } = await readAiOrder();
+  const next = withEngineTasks(config, provider, toStringArray(form.tasks).filter(isAiTask));
+  await setAiEngineConfig(next);
+  if (wantsJson) return c.json({ ok: true });
+  const label = AI_PROVIDER_LABELS[provider];
+  const list = next.tasks[provider];
+  return flashRedirect(
+    '/settings?tab=ai',
+    'ok',
+    list === undefined
+      ? `${label} takes every task.`
+      : list.length === 0
+        ? `${label} takes no task now. It answers only one that no other engine takes.`
+        : `${label} takes ${list.map((task) => AI_TASK_LABELS[task]).join(', ')}, and nothing else.`,
+  );
 });
 
 /** TASKS S5 (Q29): start `npm start` at login, or stop — the one button is also the undo. */

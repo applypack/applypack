@@ -113,9 +113,11 @@ test('an engine in cooldown is skipped, unless nothing else is left to try', asy
 test('a web-tools call goes to an engine that has the tools first', async () => {
   const engine = resolveAiEngine({ order: ['openai_api', 'claude_code'], models: {} }, ENV);
   const h = harness({ claude_code: [answer('researched')] });
-  await runChain(engine, { ...REQ, webTools: true }, h.ctx, h.deps);
+  const out = await runChain(engine, { ...REQ, webTools: true }, h.ctx, h.deps);
   assert.deepEqual(h.asked.map((a) => a.id), ['claude_code']);
   assert.equal(h.asked[0]?.req.webTools, true);
+  // The engine the AI tab names for the web check is not its own fallback.
+  assert.equal(out?.viaFallback, false);
 });
 
 test('the chain stops at its deadline, and an attempt never gets more than the time left', async () => {

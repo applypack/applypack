@@ -104,6 +104,12 @@ export interface AiEngineRow {
   lastResort: boolean;
   /** False when Disable would store the same list again — the .env engine alone in it. */
   canToggle: boolean;
+  /**
+   * The tasks this engine takes (ADR 0060). `kept` is a task the page does not
+   * show now (Screening, with employer mode off) and must not lose on a save;
+   * `unavailable` one the engine cannot do at all (the web check, with no web search).
+   */
+  tasks: { id: string; label: string; taken: boolean; state: 'shown' | 'kept' | 'unavailable' }[];
   classifierModel: string;
   resumeModel: string;
   coverModel: string;
@@ -154,8 +160,14 @@ export interface ScheduleView {
 }
 
 export interface AiStatusSummary {
-  active: string;
-  chain: string[];
+  /** Who does what: each task with the engines a call for it tries, in order (ai-engine.ts:taskPlans). */
+  plan: {
+    label: string;
+    desc: string;
+    /** No usable engine takes it, so every engine in the list may answer. */
+    unclaimed: boolean;
+    engines: { label: string; model: string; billing: AiBilling }[];
+  }[];
   skipped: string[];
   /** A pay-per-token engine standing ahead of one a plan covers (ai-spend.ts:billingNotes). */
   billingNotes: string[];
@@ -705,15 +717,13 @@ export const SettingsPage: FC<SettingsProps> = ({
       <>
       <Section
         title="AI engines"
-        desc="In priority order: #1 serves every call, and the next enabled engine takes over when it errors or hits a rate limit."
-        more="An engine is an AI subscription or an API key of yours. How to set each one up, locally and in Docker: docs/ai-engines.md in the repo."
+        desc="In priority order: the first engine that takes a task answers it, and the next one that takes it steps in when the first errors or hits a rate limit."
+        more="An engine is an AI subscription, an API key or a model on this computer. Each takes every task until you untick some on its card: a small local model can score postings while a stronger one writes the letters. How to set each one up, locally and in Docker: docs/ai-engines.md in the repo."
       >
         <div class="space-y-3">
-          <div class="text-note text-ink-muted">
-            Active now: <span class="font-medium text-ink">{aiStatus.active}</span>
-            {aiStatus.chain.length > 1 && (
-              <span> → fallback: {aiStatus.chain.slice(1).join(' → ')}</span>
-            )}
+          {/* settings-models.mjs redraws this block after a card saves. */}
+          <div data-ai-plan class="space-y-3">
+            <AiPlan plan={aiStatus.plan} />
           </div>
           {aiStatus.billingNotes.map((note) => (
             <Notice tone="warn">{note}</Notice>
@@ -1522,6 +1532,48 @@ const EngineServerRow: FC<{ server: EngineServer }> = ({ server }) => (
   </Card>
 );
 
+const BILLING_TONE: Record<AiBilling, 'warn' | 'ok' | 'neutral'> = { billed: 'warn', local: 'ok', plan: 'neutral' };
+
+/** Who does what: one row a task, the engine that answers it first and the ones behind it. */
+const AiPlan: FC<{ plan: AiStatusSummary['plan'] }> = ({ plan }) => {
+  const unclaimed = plan.filter((p) => p.unclaimed).map((p) => p.label);
+  return (
+    <>
+      <Table columns={['Task', 'Answered by', 'If that fails']} caption="Which engine answers each task" hideBelow={['', '', 'sm']}>
+        {plan.map((p) => {
+          const [first, ...behind] = p.engines;
+          return (
+            <Tr>
+              <Td>
+                <div class="text-ink">{p.label}</div>
+                <div class="text-meta text-ink-faint" data-ui="hint">{p.desc}</div>
+              </Td>
+              <Td>
+                {first && (
+                  <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
+                    <span class="text-ink">{first.label}</span>
+                    <span class="font-mono text-meta text-ink-muted">{first.model}</span>
+                    <Badge tone={BILLING_TONE[first.billing]}>{BILLING_WORDS[first.billing]}</Badge>
+                  </div>
+                )}
+              </Td>
+              <Td class="text-ink-muted">
+                {behind.length > 0 ? behind.map((e) => `${e.label} · ${e.model}`).join(' → ') : 'Nothing behind it'}
+              </Td>
+            </Tr>
+          );
+        })}
+      </Table>
+      {unclaimed.length > 0 && (
+        <Notice tone="warn">
+          No engine that can run here takes {unclaimed.join(', ')}, so every engine in the list may
+          answer {unclaimed.length === 1 ? 'it' : 'them'}. Tick the task on the engine that should.
+        </Notice>
+      )}
+    </>
+  );
+};
+
 /**
  * One engine: a row of the AI engines section, not a card of its own. The
  * section draws the hairline between engines, so nothing inside one draws
@@ -1534,7 +1586,7 @@ const AiEngine: FC<{ engine: AiEngineRow }> = ({ engine: e }) => (
       <span class="text-entity text-ink">{e.label}</span>
       <Badge tone={e.ok ? 'ok' : 'neutral'}>{e.ok ? 'available' : 'not detected'}</Badge>
       {e.lastResort && <Badge tone="warn">last resort</Badge>}
-      <Badge tone={e.billing === 'billed' ? 'warn' : e.billing === 'local' ? 'ok' : 'neutral'}>{BILLING_WORDS[e.billing]}</Badge>
+      <Badge tone={BILLING_TONE[e.billing]}>{BILLING_WORDS[e.billing]}</Badge>
       <div class="ml-auto flex flex-wrap justify-end gap-2">
         {e.enabled && e.position > 0 && (
           <ActionForm action="/settings/ai/move" hidden={{ provider: e.id }}>
@@ -1641,7 +1693,49 @@ const AiEngine: FC<{ engine: AiEngineRow }> = ({ engine: e }) => (
         </div>
       </form>
     )}
+    {e.enabled && <EngineTasks engine={e} />}
   </Card>
+);
+
+/** The tasks an engine takes (ADR 0060): every box ticked until the user narrows it. */
+const EngineTasks: FC<{ engine: AiEngineRow }> = ({ engine: e }) => (
+  <form method="post" action="/settings/ai/tasks" data-model-form class="mt-4">
+    <input type="hidden" name="provider" value={e.id} />
+    {e.tasks
+      .filter((t) => t.state === 'kept' && t.taken)
+      .map((t) => (
+        <input type="hidden" name="tasks" value={t.id} />
+      ))}
+    <fieldset>
+      <legend class="text-label text-ink">Tasks it takes</legend>
+      <div class="mt-2 flex flex-wrap gap-2">
+        {e.tasks
+          .filter((t) => t.state !== 'kept')
+          .map((t) =>
+            t.state === 'unavailable' ? (
+              <PillCheckbox name="tasks" value={t.id} disabled>
+                {t.label}
+              </PillCheckbox>
+            ) : (
+              <PillCheckbox name="tasks" value={t.id} checked={t.taken}>
+                {t.label}
+              </PillCheckbox>
+            ),
+          )}
+      </div>
+    </fieldset>
+    <Hint class="mt-2">
+      A task you untick goes to the next engine in the list that takes it, and this one is not its
+      fallback either.
+      {e.tasks.some((t) => t.state === 'unavailable') && ' The web check is not offered here: this engine cannot search the web.'}
+    </Hint>
+    <div class="mt-3 flex items-center gap-3">
+      <Button size="sm" variant="secondary" data-save-button>
+        Save tasks
+      </Button>
+      <span class="text-meta text-ink-faint" data-save-status role="status" aria-live="polite"></span>
+    </div>
+  </form>
 );
 
 /** Closed families get a select (no wrong-family ids possible); base-URL
