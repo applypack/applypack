@@ -44,6 +44,8 @@ export interface AppSettingsView {
   reapplyDays: number | null;
   /** When init.ts gave the older rows their employer keys; null = not yet. */
   employersFilledAt: Date | null;
+  /** Raw AppSettings.pack JSON — parse with parsePackSettings (ADR 0060). */
+  pack: unknown;
   /** Raw AppSettings.coverAngles JSON — parse with readCoverAngles. */
   coverAngles: unknown;
   /** Raw AppSettings.pipelineStages JSON — parse with parseStageConfig (ADR 0025). */
@@ -135,6 +137,7 @@ export async function getSettings(): Promise<AppSettingsView> {
     localContextTokens: row.localContextTokens,
     reapplyDays: row.reapplyDays,
     employersFilledAt: row.employersFilledAt,
+    pack: row.pack,
     coverAngles: row.coverAngles,
     pipelineStages: row.pipelineStages,
     schedule: row.schedule,

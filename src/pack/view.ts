@@ -8,10 +8,6 @@ import type { HeldReason } from './policy';
  * the row, the page and the notifier put their own markup on these.
  */
 
-export const PACK_STATUSES = ['queued', 'running', 'ready', 'stopped', 'failed'] as const;
-export type PackStatus = (typeof PACK_STATUSES)[number];
-
-export const isPackStatus = (v: unknown): v is PackStatus => (PACK_STATUSES as readonly unknown[]).includes(v);
 export const isPackStop = (v: unknown): v is PackStop => (PACK_STOPS as readonly unknown[]).includes(v);
 
 const HELD_REASONS = ['no-wording', 'drops-figure', 'section', 'over-limit', 'removals-off'] as const satisfies readonly HeldReason[];

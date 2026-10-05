@@ -4,7 +4,7 @@
  * rail (status, details, application tracking) rides on all of them.
  */
 
-export const JOB_TABS = ['posting', 'match', 'letter', 'verify'] as const;
+export const JOB_TABS = ['posting', 'match', 'letter', 'verify', 'pack'] as const;
 export type JobTab = (typeof JOB_TABS)[number];
 
 const DEFAULT_TAB: JobTab = 'posting';
@@ -48,9 +48,11 @@ export interface JobTabFacts {
   letters: number;
   /** The latest verification's verdict; null = never checked. */
   verdict: string | null;
+  /** Where the application pack stands (pack/view.ts:packFact); null = none. */
+  pack: string | null;
 }
 
-/** "Resume match · 72", "Cover letter · 1", "Is it real? · likely real" — or the bare name while there is nothing yet. */
+/** "Resume match · 72", "Cover letter · 1", "Is it real? · likely real", "Application pack · ready" — or the bare name while there is nothing yet. */
 export function jobTabLabels(facts: JobTabFacts): { tab: JobTab; label: string }[] {
   const withFact = (name: string, fact: string | number | null) => (fact === null || fact === 0 ? name : `${name} · ${fact}`);
   return [
@@ -58,5 +60,6 @@ export function jobTabLabels(facts: JobTabFacts): { tab: JobTab; label: string }
     { tab: 'match', label: withFact('Resume match', facts.matchScore) },
     { tab: 'letter', label: withFact('Cover letter', facts.letters) },
     { tab: 'verify', label: withFact('Is it real?', facts.verdict ? facts.verdict.replace(/_/g, ' ').toLowerCase() : null) },
+    { tab: 'pack', label: withFact('Application pack', facts.pack) },
   ];
 }

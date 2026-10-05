@@ -48,15 +48,19 @@ export type QueueOutcome = 'queued' | 'busy' | 'sent';
  * does not hand the day's limit a free slot.
  */
 export async function queuePack(jobId: number, trigger: PackTrigger): Promise<QueueOutcome> {
-  try {
-    await prisma.applicationPack.create({ data: { jobId, trigger } });
-    return 'queued';
-  } catch (err) {
-    if (!isUniqueViolation(err)) throw err;
-  }
   const existing = await prisma.applicationPack.findUnique({ where: { jobId }, select: { status: true, sentAt: true } });
-  if (existing?.sentAt) return 'sent';
-  if (existing?.status === 'queued' || existing?.status === 'running') return 'busy';
+  if (!existing) {
+    try {
+      await prisma.applicationPack.create({ data: { jobId, trigger } });
+      return 'queued';
+    } catch (err) {
+      // Two presses at once: the other one queued it.
+      if (isUniqueViolation(err)) return 'busy';
+      throw err;
+    }
+  }
+  if (existing.sentAt) return 'sent';
+  if (existing.status === 'queued' || existing.status === 'running') return 'busy';
   const reset = await prisma.applicationPack.updateMany({
     where: { jobId, sentAt: null, status: { in: ['ready', 'stopped', 'failed'] } },
     data: { ...BLANK, status: 'queued', queuedAt: new Date() },

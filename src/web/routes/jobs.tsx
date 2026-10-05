@@ -36,6 +36,9 @@ import { addresseeFromFinding } from '../../resume/addressee';
 import { LIVENESS_CODE_LABEL } from '../../verification/liveness';
 import { JobsListPage } from '../pages/jobs-list';
 import { jobHref, jobTabLabels, resolveJobTab, type JobTab } from '../job-tabs';
+import { getPack, markPackSent } from '../../pack/store';
+import { packFact } from '../../pack/view';
+import { loadPackView } from './pack';
 import { JobDetailPage } from '../pages/job-detail';
 import { JobNewPage } from '../pages/job-new';
 import { TargetPage } from '../pages/target';
@@ -481,6 +484,7 @@ jobsRoute.get('/jobs/:id', async (c) => {
       : null;
 
   const flashCookie = parseFlashCookie(c.req.header('cookie'));
+  const applicationPack = await loadPackView(id, job.url);
   const selectedKeywords = await orderedKeywords(selected, job.description);
   const selectedSummaryGuide = selected
     ? await summaryGuideFor(
@@ -496,6 +500,7 @@ jobsRoute.get('/jobs/:id', async (c) => {
         matchScore: selected?.matchScore ?? null,
         letters: letters.length,
         verdict: verifications[0]?.verdict ?? null,
+        pack: packFact(applicationPack.pack),
       })}
       job={job}
       appliedResumePicker={{
@@ -536,6 +541,7 @@ jobsRoute.get('/jobs/:id', async (c) => {
         verification: verifications[0] ?? null,
         costHint: costHintText(matchCost),
       }}
+      applicationPack={applicationPack}
       coverLetters={{
         jobId: id,
         resumes: resumeOptions,
@@ -569,6 +575,7 @@ jobsRoute.post('/jobs/:id/status', async (c) => {
   if (!(await prisma.job.findUnique({ where: { id }, select: { id: true } }))) return c.text('Not found', 404);
 
   const data: Prisma.JobUpdateInput = { status: parsed.data.status };
+  let sentPack: Awaited<ReturnType<typeof getPack>> = null;
   if (parsed.data.status === 'ALERTED' || parsed.data.status === 'APPLIED') {
     data.alertedAt = data.alertedAt ?? new Date();
   }
@@ -597,9 +604,14 @@ jobsRoute.post('/jobs/:id/status', async (c) => {
     // the version alone would name v3 and hand back v5's words. The rules for
     // what counts live in applied-resume.ts, shared with the two paths on
     // /applications that used to record nothing at all (#75).
-    const requested = parsed.data.appliedResumeId;
+    // "I sent this file" on the pack tab (ADR 0060): what went out is the
+    // pack's text, not the resume's as it stands — and the pack is frozen
+    // below, once the status is written.
+    sentPack = form.pack === '1' ? await getPack(id) : null;
+    if (sentPack?.status !== 'ready' || !sentPack.text || !sentPack.resumeId) sentPack = null;
+    const requested = sentPack?.resumeId ?? parsed.data.appliedResumeId;
     const picked = requested ? await getResume(requested) : null;
-    const columns = appliedResumeColumns(picked);
+    const columns = appliedResumeColumns(picked && sentPack?.text ? { ...picked, text: sentPack.text } : picked);
     data.appliedResume = columns.appliedResumeId
       ? { connect: { id: columns.appliedResumeId } }
       : { disconnect: true };
@@ -613,6 +625,7 @@ jobsRoute.post('/jobs/:id/status', async (c) => {
   } else {
     await update;
   }
+  if (sentPack) await markPackSent(id, new Date());
   return c.redirect(jobHref(id, formTab(form.tab)), 303);
 });
 

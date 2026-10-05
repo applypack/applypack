@@ -46,15 +46,15 @@ describe('jobHref', () => {
 });
 
 describe('jobTabLabels', () => {
-  it('names the four tabs in order, bare while nothing exists', () => {
+  it('names the five tabs in order, bare while nothing exists', () => {
     assert.deepEqual(
-      jobTabLabels({ matchScore: null, letters: 0, verdict: null }).map((t) => `${t.tab}=${t.label}`),
-      ['posting=Posting', 'match=Resume match', 'letter=Cover letter', 'verify=Is it real?'],
+      jobTabLabels({ matchScore: null, letters: 0, verdict: null, pack: null }).map((t) => `${t.tab}=${t.label}`),
+      ['posting=Posting', 'match=Resume match', 'letter=Cover letter', 'verify=Is it real?', 'pack=Application pack'],
     );
   });
 
   it('carries what exists behind each tab', () => {
-    const labels = jobTabLabels({ matchScore: 72, letters: 1, verdict: 'legit' }).map((t) => t.label);
-    assert.deepEqual(labels, ['Posting', 'Resume match · 72', 'Cover letter · 1', 'Is it real? · legit']);
+    const labels = jobTabLabels({ matchScore: 72, letters: 1, verdict: 'legit', pack: 'ready' }).map((t) => t.label);
+    assert.deepEqual(labels, ['Posting', 'Resume match · 72', 'Cover letter · 1', 'Is it real? · legit', 'Application pack · ready']);
   });
 });
