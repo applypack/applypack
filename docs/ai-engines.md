@@ -26,7 +26,7 @@ first:
 | Resume analysis | the posting brief, the comparison, the edit suggestions and rewrites, the strength review |
 | Cover letters | writing a letter |
 | Is it real? | the deep check of a posting (needs web search, so it is not offered to an engine without it) |
-| Screening applicants | employer mode; shown while it is on |
+| Screening applicants | employer mode; shown while it is on. Until then an engine you narrow for the first time gets it where Resume analysis goes, and a choice you already made is kept |
 
 Untick a task and that engine is no longer asked for it: not first, and not
 as a fallback when the engine above it fails. The table at the top of the

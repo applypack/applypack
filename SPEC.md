@@ -843,8 +843,9 @@ ledger by `web/usage-hints.ts`: the task most of the bill went to while a
 plan or a local model stands ready, billed calls that were a fallback, a
 model that keeps failing or hitting its rate limit, scoring billed on a
 model several times the price of the cheapest, a month's pace over the
-budget. A hint never says a model is good enough for a task, and offers a
-model on this computer for scoring only. The monthly budget stays on
+budget. A hint never says a model is good enough for a task, offers a
+model on this computer for scoring only, and never steers applicants'
+resumes onto a personal plan. The monthly budget stays on
 `/settings` → AI engine. Each
 engine card says which kind it spends; a billed engine standing ahead of
 one a plan covers gets a warning with the move that fixes it. `/jobs/:id`

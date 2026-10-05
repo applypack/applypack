@@ -59,6 +59,16 @@ Alternatives considered:
 - **Every box ticked is stored as no list.** An engine left on "everything"
   takes a task a later version adds. An engine that cannot search the web is
   not offered the web check.
+- **An engine never takes a task it is not offered.** With no list, an engine
+  without web search still does not take the web check, so that task cannot
+  fall to it alone because the box was unticked elsewhere. A task counts as
+  unclaimed only when an engine that could take it stands in the list.
+- **Screening has a box only while employer mode is on.** Until then an
+  engine's first narrowed list sends it where Resume analysis goes
+  (`web/ai-plan.ts:pickedTasks`): the same kind of reading on the same model
+  slot, so an engine narrowed to scoring is never handed other people's
+  resumes by a box nobody could see. An engine that already has a list keeps
+  its choice, which may have been made on purpose.
 - **The AI tab shows the result, not the rule**: one row per task with the
   engine and model that answer it first and the ones behind it
   (`ai-engine.ts:taskPlans`). The ledger's `viaFallback` is read against the
