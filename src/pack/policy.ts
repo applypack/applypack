@@ -1,0 +1,123 @@
+import { proposalOf, suggestionKey } from '../resume/change-sheet';
+import { effectiveKeywords } from '../resume/keyword-overrides';
+import type { ACTION_SECTIONS, MatchAction, MatchKeyword, MatchRemoval } from '../resume/prompts';
+
+/*
+ * What an unattended tailoring may do to a resume, and the plan that holds a
+ * comparison's suggestions to it. Pure — a stored report in, the editor's
+ * operations out (src/web/public/apply-all.mjs runs them).
+ *
+ * The plan is the Tailor page's "Apply all" with the person's limits on it:
+ * the same cards, the same wording the gate let through (ADR 0037), the same
+ * keywords — minus what the policy does not allow, each one kept in `held`
+ * with the reason, so a pack can say what it left for the person to decide.
+ * The limits live here, in code, and not in a prompt: a rule the user can
+ * lose a line of their resume to is not one to hope a model follows
+ * (CLAUDE.md gotcha 11).
+ */
+
+export type ActionSection = (typeof ACTION_SECTIONS)[number];
+
+export interface TailorPolicy {
+  /** The sections a rewrite, an addition or a removal may touch. */
+  sections: ActionSection[];
+  /** Experience edits kept, the highest priority first: a light touch, not a rewrite. */
+  maxBullets: number;
+  /** Whether a line may be cut. */
+  removals: boolean;
+  /** Whether the keywords the resume backs are written onto its skills lines. */
+  keywords: boolean;
+}
+
+/** Every keyword the resume backs, the lead lines, two bullets — and nothing cut. */
+export const DEFAULT_POLICY: TailorPolicy = {
+  sections: ['title', 'summary', 'skills', 'experience'],
+  maxBullets: 2,
+  removals: false,
+  keywords: true,
+};
+
+/** The card operations of apply-all.mjs; `key` is the suggestion's (change-sheet.ts:suggestionKey). */
+export type EditOperation =
+  | { key: string; kind: 'change'; quote: string; wording: string }
+  | { key: string; kind: 'add'; anchor: string; wording: string }
+  | { key: string; kind: 'remove'; quote: string };
+
+export interface SkillTerm {
+  term: string;
+  where?: string;
+}
+
+/** `no-wording`: an instruction with nothing to paste, or wording the gate refused. */
+export type HeldReason = 'no-wording' | 'section' | 'over-limit' | 'removals-off';
+
+export interface HeldEdit {
+  section: ActionSection;
+  where: string;
+  reason: HeldReason;
+}
+
+export interface EditPlan {
+  ops: EditOperation[];
+  terms: SkillTerm[];
+  held: HeldEdit[];
+}
+
+const PRIORITY_RANK: Record<MatchAction['priority'], number> = { high: 0, medium: 1, low: 2 };
+
+/** The operation a card's Apply runs, or null when the card has none. */
+function operationOf(action: MatchAction): EditOperation | null {
+  const wording = proposalOf(action)?.text;
+  if (!wording) return null;
+  const key = suggestionKey(action);
+  if (action.quote) return { key, kind: 'change', quote: action.quote, wording };
+  if (action.insert_after) return { key, kind: 'add', anchor: action.insert_after, wording };
+  return null;
+}
+
+export function planEdits(
+  report: { actions: MatchAction[]; removals: MatchRemoval[]; keywords: MatchKeyword[] },
+  policy: TailorPolicy,
+): EditPlan {
+  const ops: EditOperation[] = [];
+  const held: HeldEdit[] = [];
+  const hold = (item: { section: ActionSection; where: string }, reason: HeldReason): void => {
+    held.push({ section: item.section, where: item.where, reason });
+  };
+  const allowed = (item: { section: ActionSection }): boolean => policy.sections.includes(item.section);
+
+  // Array.sort is stable, so within one priority the report's own order decides.
+  const bullets = new Set(
+    report.actions
+      .filter((a) => a.section === 'experience' && allowed(a) && operationOf(a) !== null)
+      .sort((a, b) => PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority])
+      .slice(0, Math.max(0, policy.maxBullets)),
+  );
+  // Two additions to one place share a key, and the page applies one of them.
+  const queued = new Set<string>();
+  for (const action of report.actions) {
+    const op = operationOf(action);
+    if (!op) hold(action, 'no-wording');
+    else if (!allowed(action)) hold(action, 'section');
+    else if (action.section === 'experience' && !bullets.has(action)) hold(action, 'over-limit');
+    else if (!queued.has(op.key)) {
+      queued.add(op.key);
+      ops.push(op);
+    }
+  }
+  for (const removal of report.removals) {
+    if (!removal.quote) hold(removal, 'no-wording');
+    else if (!policy.removals) hold(removal, 'removals-off');
+    else if (!allowed(removal)) hold(removal, 'section');
+    else ops.push({ key: suggestionKey(removal), kind: 'remove', quote: removal.quote });
+  }
+
+  // What the page's "Add missing keywords" offers ticked: a weighted term the
+  // resume backs and does not spell. A term nothing backs is never written.
+  const terms = policy.keywords
+    ? effectiveKeywords(report.keywords)
+        .filter((k) => k.status === 'add' && k.requirement !== 'context')
+        .map((k) => (k.where ? { term: k.term, where: k.where } : { term: k.term }))
+    : [];
+  return { ops, terms, held };
+}

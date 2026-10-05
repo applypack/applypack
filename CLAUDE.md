@@ -149,6 +149,14 @@
   `src/login-item.ts`) also reads the pure `data-dir.ts`. `snapshots.ts`
   (pure) plans the daily copy the launcher takes before Postgres starts. `config.ts` fills an empty
   `DATABASE_URL` from `db.json`, so dev watchers and once-scripts find it.
+- `src/pack/` is the application pack's pure core (a dry run so far — no
+  runtime caller yet): `policy.ts` (what an unattended tailoring may touch,
+  and `planEdits`: a stored comparison's suggestions held to it, each one left
+  out kept in `held` with its reason), `gate.ts` (where preparing stops:
+  closed, a failed requirement, a ceiling under the floor, a fake),
+  `tailor.ts` (the plan run through `apply-all.mjs`, the score of the text it
+  leaves, and `tailorChecks`), `dry-report.ts` (the dry run's records and
+  report). The limits are code, never a prompt rule (gotcha 11).
 - `src/starter-packs/` is the curated-pack module: `catalog.json` (data),
   `catalog.ts` and `resolve.ts` are pure (tested), `probe.ts` calls
   `probeAts`. Web-only — the worker never imports it. Every catalog entry
@@ -428,6 +436,7 @@ When the question is **"where does X live?"**, save yourself a `find`:
 | Quick check vs full analysis (which prompt variant runs, what a stored row holds) | `src/resume/match-mode.ts` (pure) + the `MATCH_STEPS` / `MATCH_OUTPUT` tables in `src/resume/prompts.ts` (ADR 0029) |
 | "Get suggestions" on a quick check (the lazy second call) | `src/resume/suggestions.ts` + `buildSuggestionsPrompt`; run wiring `src/web/suggestions-run.ts`, route `POST /jobs/:id/matches/:matchId/suggestions` — `rewrite=1` on the same route is "Rewrite all", which lifts the already-has-them guard |
 | Writing ONE suggestion again (the card's Rewrite) | `src/resume/rewrite.ts:rewriteAction` over `prompts.ts:buildRewritePrompt` / `RewriteSchema`; the target (section, where, quote/anchor) is the comparison's and is copied, not re-asked, and the new wording goes through `gateActions` exactly as the first one did. Route `POST /jobs/:id/matches/:matchId/actions/:index/rewrite`, writer `store.ts:updateMatchActions` (actions only — the score never moves) |
+| What preparing an application with nobody watching would do to the stored postings: where each stops, seconds per step, the tailored file | `npm run pack:dry -- --out <dir> [--min-fit 90] [--min-ceiling 75] [--limit N] [--only id,id] [--no-verify] [--rejudge]` → `src/scripts/pack-dry-once.ts` over `src/pack/`: still open (no AI) → Compare with the search's resume → the company check → the edits `pack/policy.ts` allows, applied as Apply all applies them → `.docx` / `.pdf` and the edits as Markdown per posting, `report.md` for all. Reuses a stored comparison and verification, resumes from `records.json`; spends AI and writes rows, so run it on a COPY of the database — hand-run, never CI |
 | Running the comparison over a matrix of real resumes × real postings, with every invariant checked | `npm run matrix:compare` (or `-- 2:2111 3:2108 …`) → `src/scripts/match-matrix-once.ts`; checks keyword shape, both anchors, evidence, group labels, the cap arithmetic, every quote the editor has to locate, the removal gate and the suggestion floor. Spends AI and writes rows — hand-run, never CI |
 | Why a full report sometimes costs a second, cheaper call | `src/resume/suggestion-floor.ts:floorGaps` (pure) — REQUIRED COVERAGE checked instead of hoped for. When a grade below `strong` got no high-priority action (or a must-level term named only on a skills line got none, or a must-level `add` term sits in no rewrite — `unwrittenMusts`, prompt v15), and the candidate has part of the core and a ceiling worth chasing, `match.ts` spends one `suggestForMatch` with `floorDemand` naming what was owed. The verdicts are already stored, so the score cannot move |
 | Why a German or Ukrainian posting carries a line about English | `src/text-language.ts` (pure: `textLanguage` counts each language's function words, Ukrainian and Russian told apart by the alphabet; `notEnglishNotice`) — shown on the job page's Resume match and Cover letter tabs and on the targeted view: the comparison and the letter are written for English (TASKS S20) |
