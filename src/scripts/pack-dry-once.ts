@@ -25,7 +25,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { JobStatus, type Prisma } from '@prisma/client';
+import { JobStatus, type Prisma, type ResumeMatch } from '@prisma/client';
 import { createLimiter } from '../concurrency';
 import { prisma } from '../db';
 import { dryReport, readDryRecords, type DryRecord, type DrySettings, type DryStep } from '../pack/dry-report';
@@ -36,10 +36,13 @@ import { getActiveProfile } from '../profiles';
 import { briefForPosting } from '../resume/brief';
 import { draftDocx, draftPdf, type DraftInput } from '../resume/draft-document';
 import { loadKeywordMatcher, type KeywordMatcher } from '../resume/keyword-matcher';
-import { findReusableMatch, matchResumeToJob } from '../resume/match';
-import { readActions, readHardRequirements, readKeywords, readRemovals, type MatchKeyword } from '../resume/prompts';
+import { matchResumeToJob } from '../resume/match';
+import { readMatchEvidence, readMatchMode } from '../resume/match-mode';
+import { readPromptVersion } from '../resume/match-reuse';
+import { PROMPT_VERSION, readActions, readHardRequirements, readKeywords, readRemovals, type MatchKeyword } from '../resume/prompts';
 import { knobsFrom } from '../resume/render/knobs';
 import { readBreakdown } from '../resume/score';
+import { getPostingRefreshedAt, listMatchesForText } from '../resume/store';
 import { LIVENESS_CODE_LABEL, runLivenessLadder } from '../verification/liveness';
 import { verifyJob } from '../verification/verify';
 import { resumeStyle } from '../web/resume-style';
@@ -49,6 +52,8 @@ import { formatEditSheet } from '../web/public/change-sheet.mjs';
 
 const DEFAULT_MIN_FIT = 90;
 const DEFAULT_CONCURRENCY = 2;
+/** How many stored comparisons of one text are looked through for one to reuse. */
+const STORED_CANDIDATES = 5;
 
 const JOB_INCLUDE = {
   company: { select: { name: true, atsType: true, atsToken: true } },
@@ -84,6 +89,19 @@ async function resumeFor(job: StoredJob, fallbackId: number | null) {
   return id === null ? null : prisma.resume.findFirst({ where: { id, hidden: false } });
 }
 
+/**
+ * The last full comparison of this very text under today's prompt. Unlike the
+ * dashboard's memo (match-reuse.ts) it does not ask which verification the
+ * row read: here the company check comes after the comparison, and judging
+ * the same text again because of it would only pay twice.
+ */
+async function storedComparison(jobId: number, resumeId: number, text: string): Promise<ResumeMatch | null> {
+  const rows = await listMatchesForText(jobId, resumeId, text, STORED_CANDIDATES, await getPostingRefreshedAt(jobId));
+  const usable = (r: ResumeMatch): boolean =>
+    readMatchMode(r.breakdown) === 'full' && readPromptVersion(r.breakdown) === PROMPT_VERSION && readMatchEvidence(r.breakdown) === 'own';
+  return rows.find(usable) ?? null;
+}
+
 async function prepare(job: StoredJob, tools: Tools, fallbackResumeId: number | null): Promise<DryRecord> {
   const company = job.employer ?? job.company.name;
   const record: DryRecord = { jobId: job.id, title: job.title, company, fit: job.fitScore ?? 0, stop: null, why: null, ms: {} };
@@ -114,8 +132,7 @@ async function prepare(job: StoredJob, tools: Tools, fallbackResumeId: number | 
   if (halt(livenessStop({ liveness: live.liveness, label: LIVENESS_CODE_LABEL[live.code] }))) return record;
 
   const posting = { id: job.id, title: job.title, companyName: company, location: job.location, description: job.description };
-  const stored = await findReusableMatch(job.id, resume.id, resume.text, 'full', 'own');
-  let row = stored?.decision === 'reuse' ? stored.row : null;
+  let row = await storedComparison(job.id, resume.id, resume.text);
   const reused = row !== null;
   if (!row) {
     const briefed = await timed('brief', () => briefForPosting(posting, { onError }));
@@ -153,7 +170,7 @@ async function prepare(job: StoredJob, tools: Tools, fallbackResumeId: number | 
   const edited = tailor(row.resumeText, plan, tools.editor);
   const report = { keywords, redFlags: row.redFlags, alignment: breakdown.alignment };
   const score = { before: scoreOnText(row.resumeText, report, tools.matcher).score, after: scoreOnText(edited.text, report, tools.matcher).score };
-  const checks: string[] = tailorChecks({ before: row.resumeText, plan, outcome: edited, score });
+  const checks: string[] = tailorChecks({ before: row.resumeText, plan, outcome: edited, score }, tools.editor);
   // The stored number was computed by the same formula on the same text; a
   // difference means the row predates a scoring change, and the lift is then
   // measured from the recomputed one.
@@ -188,9 +205,11 @@ async function prepare(job: StoredJob, tools: Tools, fallbackResumeId: number | 
   };
 
   if (tools.rejudge && edited.text !== row.resumeText) {
-    const again = await timed('rejudge', () =>
-      matchResumeToJob({ id: resume.id, name: resume.name, text: edited.text, version: resume.version }, posting, { mode: 'full', draft: true, onError }),
-    );
+    const again =
+      (await storedComparison(job.id, resume.id, edited.text)) ??
+      (await timed('rejudge', () =>
+        matchResumeToJob({ id: resume.id, name: resume.name, text: edited.text, version: resume.version }, posting, { mode: 'full', draft: true, onError }),
+      ));
     if (again) record.tailor.rejudged = again.matchScore;
   }
 

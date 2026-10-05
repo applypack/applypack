@@ -125,3 +125,18 @@ test('only keywords the resume backs are written: weighted, unwritten, not ignor
   assert.deepEqual(terms, [{ term: 'Redis', where: 'Skills · Backend' }, { term: 'Horizon' }]);
   assert.deepEqual(plan({ keywords: [keyword('Redis')] }, { keywords: false }).terms, []);
 });
+
+test('a second card on the same place neither runs nor uses up the bullet limit', () => {
+  const first = action({ where: 'Acme · after bullet 2', priority: 'high', quote: null, insert_after: 'Led code reviews.', replacement: 'Mentored four developers.' });
+  const twin = { ...first, replacement: 'Ran weekly design reviews.' };
+  const other = action({ where: 'Acme · bullet 1', priority: 'low' });
+  const { ops, held } = plan({ actions: [first, twin, other] });
+  assert.deepEqual(ops.map((o) => o.key), [first, other].map(suggestionKey));
+  assert.deepEqual(held, []);
+});
+
+test('a removal of the very span a change rewrites is not run on top of it', () => {
+  const change = action({ section: 'skills', where: 'Skills · Tools', quote: 'jQuery, Bower' });
+  const { ops } = plan({ actions: [change], removals: [removal()] }, { removals: true });
+  assert.deepEqual(ops.map((o) => o.kind), ['change']);
+});

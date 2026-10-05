@@ -86,30 +86,39 @@ export function planEdits(
   };
   const allowed = (item: { section: ActionSection }): boolean => policy.sections.includes(item.section);
 
-  // Array.sort is stable, so within one priority the report's own order decides.
-  const bullets = new Set(
-    report.actions
-      .filter((a) => a.section === 'experience' && allowed(a) && operationOf(a) !== null)
-      .sort((a, b) => PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority])
-      .slice(0, Math.max(0, policy.maxBullets)),
-  );
-  // Two additions to one place share a key, and the page applies one of them.
+  // Two cards on one place share a key, and the page applies the first of them.
   const queued = new Set<string>();
+  const open: { action: MatchAction; op: EditOperation }[] = [];
   for (const action of report.actions) {
     const op = operationOf(action);
     if (!op) hold(action, 'no-wording');
     else if (!allowed(action)) hold(action, 'section');
-    else if (action.section === 'experience' && !bullets.has(action)) hold(action, 'over-limit');
     else if (!queued.has(op.key)) {
       queued.add(op.key);
-      ops.push(op);
+      open.push({ action, op });
     }
   }
+  // Array.sort is stable, so within one priority the report's own order decides.
+  const bullets = new Set(
+    open
+      .filter((c) => c.action.section === 'experience')
+      .sort((a, b) => PRIORITY_RANK[a.action.priority] - PRIORITY_RANK[b.action.priority])
+      .slice(0, Math.max(0, policy.maxBullets))
+      .map((c) => c.op),
+  );
+  for (const { action, op } of open) {
+    if (action.section === 'experience' && !bullets.has(op)) hold(action, 'over-limit');
+    else ops.push(op);
+  }
   for (const removal of report.removals) {
+    const key = suggestionKey(removal);
     if (!removal.quote) hold(removal, 'no-wording');
     else if (!policy.removals) hold(removal, 'removals-off');
     else if (!allowed(removal)) hold(removal, 'section');
-    else ops.push({ key: suggestionKey(removal), kind: 'remove', quote: removal.quote });
+    else if (!queued.has(key)) {
+      queued.add(key);
+      ops.push({ key, kind: 'remove', quote: removal.quote });
+    }
   }
 
   // What the page's "Add missing keywords" offers ticked: a weighted term the

@@ -155,8 +155,10 @@
   out kept in `held` with its reason), `gate.ts` (where preparing stops:
   closed, a failed requirement, a ceiling under the floor, a fake),
   `tailor.ts` (the plan run through `apply-all.mjs`, the score of the text it
-  leaves, and `tailorChecks`), `dry-report.ts` (the dry run's records and
-  report). The limits are code, never a prompt rule (gotcha 11).
+  leaves, and `tailorChecks`: undoing every recorded change must give the
+  original back, and no change may take out words its suggestion did not
+  quote), `dry-report.ts` (the dry run's records and report). The limits are
+  code, never a prompt rule (gotcha 11).
 - `src/starter-packs/` is the curated-pack module: `catalog.json` (data),
   `catalog.ts` and `resolve.ts` are pure (tested), `probe.ts` calls
   `probeAts`. Web-only — the worker never imports it. Every catalog entry

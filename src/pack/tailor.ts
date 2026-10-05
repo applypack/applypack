@@ -17,25 +17,36 @@ import type { EditOperation, EditPlan, SkillTerm } from './policy';
  * wording was written and gated when the comparison was stored (ADR 0037).
  */
 
+/** What one applied operation changed, as the editor recorded it (text-edits.mjs) — its Undo. */
+export interface InverseEdit {
+  start: number;
+  removed: string;
+  inserted: string;
+}
+
 export interface EditOutcome {
   text: string;
-  done: { key: string; kind: string }[];
+  done: { key: string; kind: string; edit: InverseEdit }[];
   failed: { key: string; kind: string; error: string }[];
 }
 
-/** src/web/public/apply-all.mjs — what the Tailor page's "Apply all" runs. */
+/** The Tailor page's own "Apply all" and Undo (src/web/public/apply-all.mjs, text-edits.mjs). */
 export interface Editor {
   applyAll(text: string, ops: EditOperation[]): EditOutcome;
   addKeywords(text: string, terms: SkillTerm[]): EditOutcome;
+  undoEdit(text: string, edit: InverseEdit): { text: string } | { error: string };
 }
 
-// A file URL, as keyword-matcher.ts explains.
-const MODULE_URL = pathToFileURL(path.resolve('src/web/public/apply-all.mjs')).href;
+// File URLs, as keyword-matcher.ts explains.
+const moduleUrl = (name: string): string => pathToFileURL(path.resolve('src/web/public', name)).href;
 
 let editor: Promise<Editor> | undefined;
 
 export function loadEditor(): Promise<Editor> {
-  editor ??= import(MODULE_URL) as Promise<Editor>;
+  editor ??= Promise.all([
+    import(moduleUrl('apply-all.mjs')) as Promise<Pick<Editor, 'applyAll' | 'addKeywords'>>,
+    import(moduleUrl('text-edits.mjs')) as Promise<Pick<Editor, 'undoEdit'>>,
+  ]).then(([batch, edits]) => ({ applyAll: batch.applyAll, addKeywords: batch.addKeywords, undoEdit: edits.undoEdit }));
   return editor;
 }
 
@@ -63,37 +74,39 @@ export function scoreOnText(
   return scoreMatch(effectiveKeywords(keywords), report.alignment, flags.counted.length);
 }
 
-export type TailorCheck = 'contact-changed' | 'line-lost' | 'score-dropped';
+export type TailorCheck = 'unexplained-change' | 'beyond-quote' | 'contact-changed' | 'score-dropped';
 
-const filledLines = (text: string): string[] => text.split('\n').map((l) => l.trim()).filter((l) => l !== '');
-/** A line's words alone: a quote is found past wrapping and punctuation (target.mjs:locateQuote), so it is compared that way. */
+/** A span's words alone: a quote is found past wrapping and punctuation (target.mjs:locateQuote), so it is compared that way. */
 const wordsOf = (s: string): string => s.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '');
 
 /**
- * What must hold before an unattended edit is kept, read off the two texts
- * and trusting nothing about how the second was made: the contact lines stand
- * as they were, every line that is gone is one the plan quoted (a line a
- * keyword was appended to still stands inside its longer self), and the score
- * did not fall.
+ * What must hold before an unattended edit is kept. It trusts neither the
+ * plan nor the editor, only the record of what each operation changed:
+ *
+ *  - taking every change back, last one first, gives the text it started
+ *    from to the character — so nothing changed that is not on record;
+ *  - a change or a removal took out nothing but words of the span its
+ *    suggestion quoted, and an addition or a keyword took out no word at all;
+ *  - no email address or phone number was in anything taken out;
+ *  - the score did not fall.
  */
-export function tailorChecks(input: {
-  before: string;
-  plan: EditPlan;
-  outcome: EditOutcome;
-  score: { before: number; after: number };
-}): TailorCheck[] {
-  const after = filledLines(input.outcome.text);
-  const gone = filledLines(input.before).filter((line) => !after.some((a) => a.includes(line)));
-  const done = new Set(input.outcome.done.map((d) => d.key));
-  const quoted = input.plan.ops.flatMap((op) => ('quote' in op && done.has(op.key) ? wordsOf(op.quote) : [])).filter((q) => q !== '');
-  // A quote may cover several wrapped lines, or a few words inside one.
-  const planned = (line: string): boolean => {
-    const words = wordsOf(line);
-    return words === '' || quoted.some((q) => q.includes(words) || words.includes(q));
-  };
+export function tailorChecks(
+  input: { before: string; plan: EditPlan; outcome: EditOutcome; score: { before: number; after: number } },
+  edit: Pick<Editor, 'undoEdit'>,
+): TailorCheck[] {
+  const { outcome } = input;
   const failed: TailorCheck[] = [];
-  if (gone.some(hasContactDetail)) failed.push('contact-changed');
-  if (!gone.every(planned)) failed.push('line-lost');
+
+  let text: string | null = outcome.text;
+  for (const done of [...outcome.done].reverse()) {
+    const back: { text: string } | { error: string } = text === null ? { error: 'lost' } : edit.undoEdit(text, done.edit);
+    text = 'text' in back ? back.text : null;
+  }
+  if (text !== input.before) failed.push('unexplained-change');
+
+  const quotes = new Map(input.plan.ops.flatMap((op) => ('quote' in op ? [[op.key, wordsOf(op.quote)] as const] : [])));
+  if (outcome.done.some((d) => !(quotes.get(d.key) ?? '').includes(wordsOf(d.edit.removed)))) failed.push('beyond-quote');
+  if (outcome.done.some((d) => hasContactDetail(d.edit.removed))) failed.push('contact-changed');
   if (input.score.after < input.score.before) failed.push('score-dropped');
   return failed;
 }

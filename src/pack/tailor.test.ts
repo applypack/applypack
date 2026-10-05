@@ -76,37 +76,58 @@ test('an unbacked keyword typed in is counted too, which is why the plan never w
   assert.ok(typed.score > scoreOnText(RESUME, REPORT, matcher).score);
 });
 
-test('the checks pass an edit the plan made: a rewritten bullet, a wrapped summary, a keyword appended', async () => {
+test('the checks pass what the plan made: a wrapped summary rewritten, a few words inside a bullet, a keyword appended', async () => {
+  const editor = await loadEditor();
   const wrapped = RESUME.replace('Back end developer with ten years of PHP.', 'Back end developer with ten\nyears of PHP.');
   const plan: EditPlan = {
     ops: [
       { key: 'summary', kind: 'change', quote: 'Back end developer with ten years of PHP.', wording: 'Senior PHP developer, ten years with Laravel.' },
       { key: 'bullet', kind: 'change', quote: 'billing service', wording: 'billing service on Laravel queues' },
+      { key: 'more', kind: 'add', anchor: '• Led code reviews.', wording: 'Mentored four developers.' },
     ],
     terms: [{ term: 'Redis' }],
     held: [],
   };
-  const outcome = tailor(wrapped, plan, await loadEditor());
+  const outcome = tailor(wrapped, plan, editor);
   assert.deepEqual(outcome.failed, []);
-  assert.deepEqual(tailorChecks({ before: wrapped, plan, outcome, score: { before: 60, after: 70 } }), []);
+  assert.equal(outcome.done.length, 4);
+  assert.deepEqual(tailorChecks({ before: wrapped, plan, outcome, score: { before: 60, after: 70 } }, editor), []);
 });
 
-test('the checks catch what no plan asked for: a contact detail, a line, a lower score', async () => {
-  const plan: EditPlan = { ops: [{ key: 'bullet', kind: 'change', quote: 'Built a billing service.', wording: 'Built a billing service on Laravel.' }], terms: [], held: [] };
-  const outcome = tailor(RESUME, plan, await loadEditor());
-  const score = { before: 60, after: 70 };
-  const check = (text: string, over = score) => tailorChecks({ before: RESUME, plan, outcome: { ...outcome, text }, score: over });
-
-  assert.deepEqual(check(outcome.text.replace(' | +1 512 555 0100', '')), ['contact-changed', 'line-lost']);
-  assert.deepEqual(check(outcome.text.replace('\n• Led code reviews.', '')), ['line-lost']);
-  assert.deepEqual(check(outcome.text, { before: 70, after: 64 }), ['score-dropped']);
-  // A planned change that did not land excuses nothing.
-  assert.deepEqual(tailorChecks({ before: RESUME, plan, outcome: { text: RESUME.replace('• Built a billing service.\n', ''), done: [], failed: [] }, score }), ['line-lost']);
-});
-
-test('a removal the plan made is not a lost line', async () => {
-  const plan: EditPlan = { ops: [{ key: 'cut', kind: 'remove', quote: '• Led code reviews.' }], terms: [], held: [] };
-  const outcome = tailor(RESUME, plan, await loadEditor());
+test('a removal the plan made passes, bullet marker and all', async () => {
+  const editor = await loadEditor();
+  const plan: EditPlan = { ops: [{ key: 'cut', kind: 'remove', quote: 'Led code reviews.' }], terms: [], held: [] };
+  const outcome = tailor(RESUME, plan, editor);
   assert.doesNotMatch(outcome.text, /Led code reviews/);
-  assert.deepEqual(tailorChecks({ before: RESUME, plan, outcome, score: { before: 60, after: 60 } }), []);
+  assert.deepEqual(tailorChecks({ before: RESUME, plan, outcome, score: { before: 60, after: 60 } }, editor), []);
+});
+
+test('the checks catch what no plan asked for', async () => {
+  const editor = await loadEditor();
+  const plan: EditPlan = { ops: [{ key: 'bullet', kind: 'change', quote: 'Built a billing service.', wording: 'Built a billing service on Laravel.' }], terms: [], held: [] };
+  const outcome = tailor(RESUME, plan, editor);
+  const score = { before: 60, after: 70 };
+  const check = (over: Partial<Parameters<typeof tailorChecks>[0]>) => tailorChecks({ before: RESUME, plan, outcome, score, ...over }, editor);
+
+  // A line gone that no operation recorded: undoing what is on record does not give the original back.
+  assert.deepEqual(check({ outcome: { ...outcome, text: outcome.text.replace('\n• Led code reviews.', '') } }), ['unexplained-change']);
+  assert.deepEqual(check({ before: `${RESUME}\nReferences on request.` }), ['unexplained-change']);
+  // An operation that took out more than its suggestion quoted.
+  const greedy = outcome.done.map((d) => ({ ...d, edit: { ...d.edit, removed: `${d.edit.removed}\n• Led code reviews.` } }));
+  assert.ok(check({ outcome: { ...outcome, done: greedy } }).includes('beyond-quote'));
+  // A keyword that replaced a word instead of joining the line.
+  const swapped = { ...outcome, done: [{ key: 'kw:Redis', kind: 'keyword', edit: { start: 0, removed: 'MySQL', inserted: 'Redis' } }] };
+  assert.ok(check({ outcome: swapped }).includes('beyond-quote'));
+  assert.deepEqual(check({ score: { before: 70, after: 64 } }), ['score-dropped']);
+});
+
+test('a contact detail inside a rewritten span is caught even when the plan quoted it', async () => {
+  const editor = await loadEditor();
+  const plan: EditPlan = {
+    ops: [{ key: 'contact', kind: 'change', quote: 'jane@example.com | +1 512 555 0100 | Austin, TX', wording: 'Austin, TX' }],
+    terms: [],
+    held: [],
+  };
+  const outcome = tailor(RESUME, plan, editor);
+  assert.deepEqual(tailorChecks({ before: RESUME, plan, outcome, score: { before: 60, after: 60 } }, editor), ['contact-changed']);
 });
