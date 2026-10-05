@@ -16,7 +16,7 @@ import { workplaceFromText, type LocationHints, type WorkplaceCode } from '../lo
 import { feedItemKey, hashShortId } from '../text-utils';
 import type { NormalizedJob } from '../types';
 import { safeHref } from '../web/format';
-import { isRow, type Row } from './rows';
+import { MAX_COLUMNS, isRow, type Row } from './rows';
 
 /** What a column can be mapped to, in the order detection claims columns and the preview lists them. */
 export const MAPPING_FIELDS = [
@@ -48,7 +48,8 @@ const MAX_PATH_CHARS = 200;
 /** A form posts '' for "not in this file"; a stored mapping may predate a field. Both read as null. */
 const PathSchema = z.preprocess(
   (v) => (typeof v === 'string' && v.trim() === '' ? null : v),
-  z.string().trim().max(MAX_PATH_CHARS).nullable().default(null),
+  // Not trimmed: a column is named by its key exactly as the file writes it.
+  z.string().max(MAX_PATH_CHARS).nullable().default(null),
 );
 
 export const MappingSchema = z.object(
@@ -81,7 +82,6 @@ export function mappingFits(mapping: Mapping, columns: readonly string[]): boole
 
 /** How many rows detection and the column list look at. */
 const SAMPLE_ROWS = 50;
-const MAX_COLUMNS = 120;
 /** An object with more keys than this is a map of opaque attributes, not a group of fields. */
 const MAX_NESTED_KEYS = 24;
 
@@ -94,8 +94,8 @@ const MAX_PAY_CHARS = 120;
 const MAX_DATE_CHARS = 64;
 /** What the model reads of a posting is 30 k; twice that is kept, as for a pasted one (manual-job.ts). */
 const MAX_DESCRIPTION_CHARS = 60_000;
-/** Markup is stripped from at most this much, so a 2 MB cell costs one bounded pass. */
-const MAX_RAW_DESCRIPTION_CHARS = 400_000;
+/** Markup is stripped from at most this much — markup around 60 k of text — so a 2 MB cell costs one bounded pass. */
+const MAX_RAW_DESCRIPTION_CHARS = 200_000;
 /** Under the paste form's minimum a description is a snippet, and the row says so. */
 const THIN_DESCRIPTION_CHARS = 200;
 
@@ -110,11 +110,24 @@ function norm(name: string): string {
   return name.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '');
 }
 
-/** Columns about a person — who posted, who recruits, how to reach them. Never offered, never read. */
-const PEOPLE_RE = /poster|postedby|recruiter|hiringmanager|contact|email|phone|author|photo|avatar|headshot/;
+/**
+ * Columns about a person, by their names — who posted, who recruits, whose
+ * profile, how to reach them. Never offered, never read. A list of names can
+ * only know the names it holds, so `holdsContacts` reads the cells as well.
+ */
+const PEOPLE_RE =
+  /poster|postedby|createdby|submittedby|addedby|owner|recruiter|manager|contact|person|people|member|username|fullname|firstname|lastname|surname|author|profile(?:url|link|pic|photo|image|id)|userprofile|email|phone|telefon|^tel$|^mobile|mobile(?:number|no)$|photo|picture|image|avatar|headshot|gender|birth/;
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+/** A number written to be dialled: a plus and at least seven digits. A bare run of digits is an id. */
+const PHONE_RE = /^\+\d(?:[\s().-]*\d){6,}$/;
 
 function isPeopleColumn(path: string): boolean {
   return PEOPLE_RE.test(norm(path));
+}
+
+/** Most of what a column holds is e-mail addresses or phone numbers, whatever the column is called. */
+function holdsContacts(texts: readonly string[]): boolean {
+  return texts.length > 0 && texts.filter((t) => EMAIL_RE.test(t) || PHONE_RE.test(t)).length >= texts.length * 0.8;
 }
 
 /** Names a field goes by, normalised, most telling first. A nested path joins its parts: `employer.name` is `employername`. */
@@ -156,8 +169,10 @@ const PAY_TEXT_KEYS = ['text', 'formatted', 'display', 'label'];
 const MARKUP_RE = /<\/?(p|div|ul|ol|li|br|h[1-6]|strong|em|b|table|span|a)[\s>/]|&lt;\/?(p|div|ul|ol|li|br|h[1-6])\b/i;
 
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?\s?(?:Z|[+-]\d{2}:?\d{2})?)?$/;
-const MONTH_NAME_RE = /\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\b/i;
+const MONTH_NAME_RE = /\b(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\b/i;
 const YEAR_RE = /\b(?:19|20)\d{2}\b/;
+/** A date that says which zone it is in; one that does not is read as UTC, on every machine alike. */
+const ZONED_RE = /(?:Z|GMT|UTC|[+-]\d{2}:?\d{2})$/i;
 /** A posting date before this, or past tomorrow, is a misread column rather than a date. */
 const EARLIEST_POSTING = Date.UTC(2000, 0, 1);
 const DAY_MS = 86_400_000;
@@ -181,11 +196,29 @@ function valueAt(row: Row, path: string): unknown {
   return value;
 }
 
-/** A cell as text: a string trimmed, a number or a boolean written out, a list of those joined. Anything else is nothing. */
+/** Control characters a posting never means: a NUL above all, which Postgres refuses in a text column. Tab and line breaks stay. */
+const CONTROL_RE = /[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g;
+
+/** Half of a surrogate pair on its own: not a character. */
+const LONE_SURROGATE_RE = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g;
+
+/** Text a database can hold: no control characters, no half of a surrogate pair. */
+function clean(text: string): string {
+  return text.replace(CONTROL_RE, '').replace(LONE_SURROGATE_RE, '');
+}
+
+/** A cap that does not leave half a character behind. */
+function clip(text: string, max: number): string {
+  if (text.length <= max) return text;
+  const last = text.charCodeAt(max - 1);
+  return text.slice(0, last >= 0xd800 && last <= 0xdbff ? max - 1 : max);
+}
+
+/** A cell as text: a string cleaned and trimmed, a number or a boolean written out, a list of those joined. Anything else is nothing. */
 function cellText(value: unknown): string {
-  if (typeof value === 'string') return value.trim();
+  if (typeof value === 'string') return clean(value).trim();
   if (typeof value === 'number' || typeof value === 'boolean') return String(value);
-  if (Array.isArray(value)) return value.filter((v) => typeof v === 'string' || typeof v === 'number').join(', ');
+  if (Array.isArray(value)) return clean(value.filter((v) => typeof v === 'string' || typeof v === 'number').join(', ')).trim();
   return '';
 }
 
@@ -203,7 +236,9 @@ function inner(value: Row, names: readonly string[]): unknown {
 /** A link only when it is http(s) — the rule `safeHref` keeps for every URL from outside. */
 function httpLink(value: unknown): string | null {
   const text = cellText(value);
-  return text.length > 0 && text.length <= MAX_LINK_CHARS ? safeHref(text) : null;
+  const href = text.length > 0 && text.length <= MAX_LINK_CHARS ? safeHref(text) : null;
+  // Measured again as it will be stored: a link in another script grows when it is written out.
+  return href !== null && href.length <= MAX_LINK_CHARS ? href : null;
 }
 
 /**
@@ -217,15 +252,15 @@ export function readDate(value: unknown, now: Date): Date | null {
   let ms: number;
   if (/^\d{10}$/.test(text)) ms = Number(text) * 1000;
   else if (/^\d{13}$/.test(text)) ms = Number(text);
-  else if (ISO_DATE_RE.test(text)) ms = Date.parse(text.replace(' ', 'T'));
-  else if (MONTH_NAME_RE.test(text) && YEAR_RE.test(text)) ms = Date.parse(text);
+  else if (ISO_DATE_RE.test(text)) ms = Date.parse(text.length === 10 || ZONED_RE.test(text) ? text.replace(' ', 'T') : `${text.replace(' ', 'T')}Z`);
+  else if (MONTH_NAME_RE.test(text) && YEAR_RE.test(text)) ms = Date.parse(ZONED_RE.test(text) ? text : `${text} UTC`);
   else return null;
   return Number.isNaN(ms) || ms < EARLIEST_POSTING || ms > now.getTime() + DAY_MS ? null : new Date(ms);
 }
 
 function readId(value: unknown): string | null {
   if (typeof value !== 'string' && typeof value !== 'number') return null;
-  const id = String(value).trim();
+  const id = cellText(value);
   if (id.length === 0) return null;
   return id.length <= MAX_ID_CHARS ? id : hashShortId(id);
 }
@@ -240,7 +275,7 @@ function readDescription(value: unknown): string {
   // Stripped once and only when it is markup: a second pass over plain text
   // flattens the paragraphs the first one built (gotcha 12).
   const text = MARKUP_RE.test(clipped) ? stripHtml(clipped) : decodeHtmlEntities(clipped);
-  return text.slice(0, MAX_DESCRIPTION_CHARS).trim();
+  return clip(clean(text).trim(), MAX_DESCRIPTION_CHARS).trim();
 }
 
 function readCountry(value: unknown): string | null {
@@ -269,10 +304,22 @@ function isTrue(value: unknown): boolean {
   return /^(?:true|yes|y|1|expired|closed)$/i.test(cellText(value));
 }
 
+/**
+ * An amount of money as a number. A number is taken as it is; a text is read
+ * the way amounts are written on both sides of the decimal comma: with both
+ * marks the last one is the decimal ("90.000,50", "90,000.50"), and one mark
+ * before exactly three final digits groups thousands ("65.000", "65,000") —
+ * nobody pays to a tenth of a cent. Anything else is not a number here.
+ */
 function amount(value: unknown): number | null {
-  const text = cellText(value).replace(/[\s,'_]/g, '');
-  if (!/^\d+(?:\.\d+)?$/.test(text)) return null;
-  const n = Number(text);
+  if (typeof value === 'number') return Number.isFinite(value) && value > 0 ? Number(value.toFixed(2)) : null;
+  const text = cellText(value).replace(/[\s'_\u00A0\u202F]/g, '');
+  if (!/^\d+(?:[.,]\d+)*$/.test(text)) return null;
+  const mark = Math.max(text.lastIndexOf('.'), text.lastIndexOf(','));
+  const marks = text.replace(/\d/g, '');
+  const grouped = marks.length > 0 && new Set(marks).size === 1 && /^\d{1,3}(?:[.,]\d{3})+$/.test(text);
+  const digits = (part: string): string => part.replace(/[.,]/g, '');
+  const n = mark === -1 || grouped ? Number(digits(text)) : Number(`${digits(text.slice(0, mark))}.${text.slice(mark + 1)}`);
   return n > 0 ? Number(n.toFixed(2)) : null;
 }
 
@@ -296,7 +343,7 @@ function salaryLine(at: (field: MappingField) => unknown): string | null {
   const min = first(pick('salaryMin', PAY_MIN_KEYS), amount);
   const max = first(pick('salaryMax', PAY_MAX_KEYS), amount);
   if (min === null && max === null) {
-    const text = oneLine(nested ? cellText(inner(nested, PAY_TEXT_KEYS)) : cellText(pay)).slice(0, MAX_PAY_CHARS).replace(/[.\s]+$/, '');
+    const text = clip(oneLine(nested ? cellText(inner(nested, PAY_TEXT_KEYS)) : cellText(pay)), MAX_PAY_CHARS).replace(/[.\s]+$/, '');
     return text.length > 0 ? `Salary: ${text}.` : null;
   }
   const currency = first(pick('salaryCurrency', PAY_CURRENCY_KEYS), (v) => (/^[A-Za-z]{3}$/.test(cellText(v)) ? cellText(v).toUpperCase() : null));
@@ -318,11 +365,12 @@ function fitsField(field: MappingField, value: unknown, now: Date): boolean {
  * not a cell, and a column about a person is left out.
  */
 export function columnsOf(rows: readonly Row[]): string[] {
+  const sample = rows.slice(0, SAMPLE_ROWS);
   const out = new Set<string>();
   const add = (path: string): void => {
     if (path.length <= MAX_PATH_CHARS && !isPeopleColumn(path)) out.add(path);
   };
-  for (const row of rows.slice(0, SAMPLE_ROWS)) {
+  for (const row of sample) {
     for (const [key, value] of Object.entries(row)) {
       if (Array.isArray(value) && value.some(isRow)) continue;
       add(key);
@@ -332,7 +380,16 @@ export function columnsOf(rows: readonly Row[]): string[] {
       }
     }
   }
-  return [...out].slice(0, MAX_COLUMNS);
+  return [...out].slice(0, MAX_COLUMNS).filter((column) => !holdsContacts(textsOf(sample, column)));
+}
+
+/** A column's non-empty cells as text; an object in a cell is not text. */
+function textsOf(rows: readonly Row[], column: string): string[] {
+  return rows
+    .map((row) => valueAt(row, column))
+    .filter((v) => !isRow(v))
+    .map(cellText)
+    .filter((t) => t.length > 0);
 }
 
 /** A column's first value, short enough for a table cell — what the preview shows beside its select. */
@@ -421,7 +478,7 @@ export function detectMapping(rows: readonly Row[], now: Date = new Date()): Det
     if (mapping[field] !== null) continue;
     const free = columns
       .filter((c) => !used.has(c))
-      .map((column) => ({ column, texts: sample.map((row) => valueAt(row, column)).filter((v) => !isRow(v)).map(cellText).filter((t) => t.length > 0) }))
+      .map((column) => ({ column, texts: textsOf(sample, column) }))
       .filter((c) => c.texts.length > 0);
     const column = guess(free, sample.length, now);
     if (column === null) continue;
@@ -445,7 +502,7 @@ export type MappedRow = { job: NormalizedJob; thin: boolean } | { dropped: DropR
 export function mapRow(row: Row, mapping: Mapping, companyId: number, now: Date): MappedRow {
   const at = (field: MappingField): unknown => (mapping[field] === null ? undefined : valueAt(row, mapping[field]));
   if (isTrue(at('closed'))) return { dropped: 'closed' };
-  const title = oneLine(cellText(at('title'))).slice(0, MAX_TITLE_CHARS);
+  const title = clip(oneLine(cellText(at('title'))), MAX_TITLE_CHARS).trim();
   if (title.length === 0) return { dropped: 'no-title' };
   const listing = httpLink(at('url'));
   const apply = httpLink(at('applyUrl'));
@@ -475,7 +532,7 @@ export function mapRow(row: Row, mapping: Mapping, companyId: number, now: Date)
       // The apply link when the row has one on a host of its own; a link back
       // into a listing site is the listing, so the listing link stands.
       url: apply !== null && !isBlockedPostingHost(new URL(apply).hostname) ? apply : (listing ?? apply ?? ''),
-      location: location.slice(0, MAX_LOCATION_CHARS),
+      location: clip(location, MAX_LOCATION_CHARS).trim(),
       description: [salaryLine(at), body, note].filter((part) => part !== null && part.length > 0).join('\n\n'),
       postedAt: readDate(at('postedAt'), now) ?? now,
       employer: readEmployer(at('employer')),

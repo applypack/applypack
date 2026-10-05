@@ -607,11 +607,11 @@ async function main(): Promise<void> {
 }
 
 const IMPORT_CSV = [
-  'Position,Organisation,Job link,Where,About the role',
-  'Backend Developer,Smoke Imports,https://rows.example/jobs/1,Remote,"Owns the ledger service, end to end."',
-  'Mobile Developer,Smoke Imports,https://rows.example/jobs/2,Lisbon,Owns the offline queue.',
-  'QA Engineer,Other Smoke,https://rows.example/jobs/3,Porto,Tests both.',
-  ',Other Smoke,https://rows.example/jobs/4,Porto,A row with no title.',
+  'Position,Organisation,Job link,Where,About the role,Recruiter email',
+  'Backend Developer,Smoke Imports,https://rows.example/jobs/1,Remote,"Owns the ledger service, end to end.",someone@rows.example',
+  'Mobile Developer,Smoke Imports,https://rows.example/jobs/2,Lisbon,Owns the offline queue.,someone@rows.example',
+  'QA Engineer,Other Smoke,https://rows.example/jobs/3,Porto,Tests both.,other@rows.example',
+  ',Other Smoke,https://rows.example/jobs/4,Porto,A row with no title.,other@rows.example',
 ].join('\r\n');
 const IMPORT_MAPPING = { title: 'Position', employer: 'Organisation', url: 'Job link', location: 'Where', description: 'About the role' };
 
@@ -652,7 +652,20 @@ async function importChecks(): Promise<Check[]> {
   check('POST /jobs/import (a .csv upload)', '/jobs/import', first, first.status === 303 && /^\/jobs\/import\/[0-9a-f-]{36}$/.test(preview));
   const page = await app.request(preview, { headers: ORIGIN });
   const html = page.status === 200 ? await page.text() : '';
-  check('GET /jobs/import/:token (the mapping, three rows, the counts)', preview, page, html.includes('Which column is which') && html.includes('3 of them jobs'));
+  check(
+    'GET /jobs/import/:token (the mapping, three rows, the counts; no column about a person)',
+    preview,
+    page,
+    html.includes('Which column is which') && html.includes('3 of them jobs') && !html.includes('Recruiter email') && !html.includes('someone@rows.example'),
+  );
+  // A hand-made POST naming the column the page never offers: refused, and nothing is written.
+  const crafted = await app.request(preview, form({ ...IMPORT_MAPPING, employer: 'Recruiter email' }));
+  check(
+    'POST /jobs/import/:token mapping a column about a person (refused)',
+    preview,
+    crafted,
+    crafted.status === 303 && crafted.headers.get('location') === preview && (await prisma.company.count({ where: { atsType: 'IMPORT' } })) === 0,
+  );
   const mapped = await app.request(`${preview}/mapping`, form(IMPORT_MAPPING));
   check('POST /jobs/import/:token/mapping', `${preview}/mapping`, mapped, mapped.status === 303 && mapped.headers.get('location') === preview);
   const foreign = await app.request(preview, {

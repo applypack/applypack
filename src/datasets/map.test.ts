@@ -424,7 +424,11 @@ describe('readDate', () => {
 
   it('reads ISO dates, month names with a year, and epochs in seconds or milliseconds', () => {
     assert.equal(iso('2026-09-28'), '2026-09-28T00:00:00.000Z');
-    assert.equal(iso('2026-09-28 14:30'), new Date('2026-09-28T14:30').toISOString());
+    // A time with no zone is read as UTC, on every machine alike.
+    assert.equal(iso('2026-09-28 14:30'), '2026-09-28T14:30:00.000Z');
+    assert.equal(iso('2026-09-28T14:30:15'), '2026-09-28T14:30:15.000Z');
+    assert.equal(iso('Sep 28, 2026'), '2026-09-28T00:00:00.000Z');
+    assert.equal(iso('28 September 2026 14:30'), '2026-09-28T14:30:00.000Z');
     assert.equal(iso('2026-09-28T14:30:00+02:00'), '2026-09-28T12:30:00.000Z');
     assert.equal(iso('Mon, 28 Sep 2026 10:00:00 GMT'), '2026-09-28T10:00:00.000Z');
     assert.equal(iso(1759132800), '2025-09-29T08:00:00.000Z');
@@ -433,7 +437,7 @@ describe('readDate', () => {
   });
 
   it('refuses words, a month with no year, a day/month order it would have to guess, and dates out of range', () => {
-    for (const value of ['2 days ago', 'yesterday', 'March 5', '05/06/2026', '5.6.2026', 'soon', '', null, 42, true, '1998-01-01', '2031-01-01']) {
+    for (const value of ['2 days ago', 'yesterday', 'March 5', '05/06/2026', '5.6.2026', 'soon', '', null, 42, true, '1998-01-01', '2031-01-01', 'decade 2020', 'marching on in 2024', `2026-09-28 ${'x'.repeat(100)}`]) {
       assert.equal(iso(value), null, String(value));
     }
   });
@@ -441,9 +445,12 @@ describe('readDate', () => {
 
 describe('a stored mapping', () => {
   it('reads an empty select as "not in this source" and fills a field the form left out', () => {
-    const parsed = MappingSchema.parse({ title: ' Position ', url: 'Job link', employer: '' });
+    const parsed = MappingSchema.parse({ title: 'Position', url: 'Job link', employer: '', location: '   ' });
     assert.equal(parsed.title, 'Position');
     assert.equal(parsed.employer, null);
+    assert.equal(parsed.location, null);
+    // A key is the column's name exactly as the file writes it, blanks included.
+    assert.equal(MappingSchema.parse({ title: ' Title ' }).title, ' Title ');
     assert.equal(parsed.closed, null);
     assert.deepEqual(Object.keys(parsed).sort(), [...MAPPING_FIELDS].sort());
   });
@@ -462,6 +469,96 @@ describe('a stored mapping', () => {
     assert.equal(mappingFits(mapping({ title: 'title', url: 'url', employer: 'company' }), columns), false);
     assert.equal(mappingFits(mapping({ title: 'title', url: 'url', employer: 'recruiterName' }), columns), false);
     assert.equal(mappingFits(mapping({ title: 'title' }), columns), false);
+  });
+});
+
+describe('columns about people, beyond the obvious names', () => {
+  it('leaves out who made, owns or is named in a row, and how to reach them', () => {
+    const row = Object.fromEntries(
+      ['title', 'url', 'owner', 'created_by', 'submittedBy', 'Full Name', 'First name', 'profileUrl', 'picture', 'image', 'Tel', 'Telefon', 'Mobile', 'mobile number', 'Hiring Manager', 'gender', 'date of birth'].map((name) => [name, 'x']),
+    );
+    assert.deepEqual(columnsOf([row]), ['title', 'url']);
+  });
+
+  it('keeps the columns of a job that only sound close', () => {
+    const row = Object.fromEntries(['Position', 'postedAt', 'Job Profile', 'description', 'telework', 'employer', 'Experience'].map((name) => [name, 'x']));
+    assert.deepEqual(columnsOf([row]), Object.keys(row));
+  });
+
+  it('leaves out a column that holds e-mail addresses or phone numbers, whatever it is called', () => {
+    const rows = Array.from({ length: 6 }, (_, i) => ({
+      Field1: `Role ${i}`,
+      Field2: `person${i}@rows.example`,
+      Field3: `+380 67 123 45 6${i}`,
+      Field4: `720000001${i}`,
+      Field5: `2026-09-1${i}`,
+    }));
+    assert.deepEqual(columnsOf(rows), ['Field1', 'Field4', 'Field5']);
+    assert.doesNotMatch(JSON.stringify(detectMapping(rows, NOW).mapping), /Field2|Field3/);
+  });
+});
+
+describe('mapRow: text a database can hold', () => {
+  const only = mapping({ title: 'title', id: 'id', employer: 'company', location: 'place', description: 'text' });
+  const job = (row: Row) => {
+    const mapped = mapRow(row, only, 1, NOW);
+    if (!('job' in mapped)) throw new Error(mapped.dropped);
+    return mapped.job;
+  };
+
+  it('drops a NUL and other control characters wherever a row carries them', () => {
+    const got = job({ id: 'a\u0000b', title: 'Dev\u0000eloper\u0007', company: 'Ac\u0000me', place: 'Ber\u0000lin', text: `line one\u0000\n\tline two ${'x'.repeat(200)}` });
+    assert.equal(got.externalId, 'ab');
+    assert.equal(got.title, 'Developer');
+    assert.equal(got.employer, 'Acme');
+    assert.equal(got.location, 'Berlin');
+    assert.match(got.description, /^line one\n\tline two x/);
+    assert.doesNotMatch(JSON.stringify(got), /\\u0000|\\u0007/);
+  });
+
+  it('drops a NUL written as an entity, in markup and in plain text', () => {
+    assert.doesNotMatch(job({ id: 1, title: 'a', text: `<p>one&#0;two</p>${'<p>x</p>'.repeat(60)}` }).description, /\u0000/);
+    assert.doesNotMatch(job({ id: 1, title: 'a', text: `one&#x0;two ${'x'.repeat(250)}` }).description, /\u0000/);
+  });
+
+  it('keeps no half of a character: a lone surrogate goes, and a cap does not cut a pair in two', () => {
+    assert.equal(job({ id: 1, title: 'Dev \uD83D oper' }).title, 'Dev oper');
+    const capped = job({ id: 1, title: `${'t'.repeat(199)}\u{1F600} and more` }).title;
+    assert.equal(capped, 't'.repeat(199));
+    assert.equal(job({ id: 1, title: `${'t'.repeat(198)}\u{1F600} and more` }).title, `${'t'.repeat(198)}\u{1F600}`);
+  });
+});
+
+describe('mapRow: pay as numbers', () => {
+  const pay = mapping({ title: 'title', id: 'id', salaryMin: 'min', salaryMax: 'max', salaryCurrency: 'cur', salaryPeriod: 'per' });
+  const line = (row: Row): string => {
+    const mapped = mapRow({ id: 1, title: 'a', ...row }, pay, 1, NOW);
+    if (!('job' in mapped)) throw new Error(mapped.dropped);
+    return mapped.job.description.split('\n')[0]!;
+  };
+
+  it('reads amounts the way they are written on both sides of the decimal comma', () => {
+    assert.equal(line({ min: '65.000', max: '80.000', cur: 'eur', per: 'Jahr / year' }), 'Salary: 65000-80000 EUR (year).');
+    assert.equal(line({ min: '65,000', max: '80,000' }), 'Salary: 65000-80000.');
+    assert.equal(line({ min: '90 000,00', max: '1.234.567,89' }), 'Salary: 90000-1234567.89.');
+    assert.equal(line({ min: '4500,50', max: '4500.75' }), 'Salary: 4500.5-4500.75.');
+    assert.equal(line({ min: "120'000" }), 'Salary: 120000.');
+    assert.equal(line({ min: '52.5', max: '60', per: 'hourly' }), 'Salary: 52.5-60 (hour).');
+  });
+
+  it('takes a number as the number it is, and nothing from a cell that is not one', () => {
+    assert.equal(line({ min: 65.125, max: 80000 }), 'Salary: 65.13-80000.');
+    assert.equal(line({ min: '$50k', max: 'DOE' }), 'No description came with this row — the full posting is behind the link.');
+    assert.equal(line({ min: 0, max: '-5' }), 'No description came with this row — the full posting is behind the link.');
+  });
+});
+
+describe('mapRow: a link is measured as it is stored', () => {
+  it('drops a link that grows past the cap once it is written out', () => {
+    const only = mapping({ title: 'title', id: 'id', url: 'url' });
+    const mapped = mapRow({ id: 1, title: 'a', url: `https://rows.example/${'ї'.repeat(1900)}` }, only, 1, NOW);
+    assert.ok('job' in mapped);
+    assert.equal(mapped.job.url, '');
   });
 });
 

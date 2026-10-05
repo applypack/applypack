@@ -19,6 +19,8 @@ import { previewCounts } from '../../datasets/preview';
 import { MAX_BODY_MB, decodeBody, findRows } from '../../datasets/rows';
 import { recordCronRun, type CronStats } from '../../jobs/cron-run';
 import { runImportJob } from '../../jobs/import-job';
+import { employerGate, hiringKey } from '../../employer';
+import { loadEmployerRules } from '../../jobs/employer-store';
 import { isBlankProfile } from '../../profile-guards';
 import { listActiveProfiles } from '../../profiles';
 import { getSettings } from '../../settings';
@@ -46,6 +48,8 @@ const TOO_LARGE = `That file is over ${MAX_BODY_MB} MB. Split it, or export fewe
 const BODY_SLACK_BYTES = 64 * 1024;
 const MAX_SOURCE_NAME_CHARS = 80;
 const MAX_FILE_NAME_CHARS = 120;
+/** An import scoring a few hundred rows on a CLI engine outlasts the half hour a run is usually kept. */
+const IMPORT_RUN_KEEP_MS = 6 * 60 * 60_000;
 const GONE = 'That preview is gone — uploaded rows are kept for half an hour and never written to disk. Choose the file again.';
 /** The pipeline threw: what is safe (stored rows stay) and the way forward. */
 const IMPORT_FAILED =
@@ -139,9 +143,10 @@ jobsImportRoute.get('/jobs/import/:token', async (c) => {
   if (!stash) return flashRedirect('/jobs/import', 'err', GONE);
   const now = new Date();
   const mapped = mapRows(stash.rows, stash.mapping, stash.source.id ?? 0, now);
-  const [settings, active, stored] = await Promise.all([
+  const [settings, active, employers, stored] = await Promise.all([
     getSettings(),
     listActiveProfiles(),
+    loadEmployerRules(now),
     stash.source.id === null || mapped.jobs.length === 0
       ? []
       : prisma.job.findMany({
@@ -152,7 +157,8 @@ jobsImportRoute.get('/jobs/import/:token', async (c) => {
   // The roster the import itself will ask (process-jobs.ts): blank searches judge nothing once scoring is on.
   const scoring = settings.fetchingEnabled;
   const roster = scoring ? active.filter((p) => !isBlankProfile(p)) : active;
-  const counts = previewCounts(mapped.jobs, roster, new Set(stored.map((s) => s.externalId)));
+  // The employer gate as the tick applies it: these rows always name their own employer, or nobody (ADR 0056).
+  const counts = previewCounts(mapped.jobs, roster, new Set(stored.map((s) => s.externalId)), (job) => employerGate(hiringKey(job.employer, stash.source.name, true), employers) !== null);
   return c.html(
     <JobImportPreviewPage
       stash={stash}
@@ -194,6 +200,9 @@ jobsImportRoute.post('/jobs/import/:token', async (c) => {
     return flashRedirect(back, 'err', 'Nothing was imported. Choose the column that holds the job title, and one that holds a link or an id, then import again.');
   }
   stash.mapping = mapping;
+  // Before a source row is written: a file with no job in it leaves nothing behind.
+  const mapped = mapRows(stash.rows, mapping, 0, new Date());
+  if (mapped.jobs.length === 0) return flashRedirect(back, 'err', 'Nothing was imported: with these columns no row of the file is a job. Check the title and the link.');
 
   const config: SourceConfig = { mapping };
   const sourceConfig = config as Prisma.InputJsonValue;
@@ -213,8 +222,7 @@ jobsImportRoute.post('/jobs/import/:token', async (c) => {
     stash.source = source;
   }
 
-  const { jobs } = mapRows(stash.rows, mapping, source.id, new Date());
-  if (jobs.length === 0) return flashRedirect(back, 'err', 'Nothing was imported: with these columns no row of the file is a job. Check the title and the link.');
+  const jobs = mapped.jobs.map((job) => ({ ...job, companyId: source.id }));
 
   const { fetchingEnabled } = await getSettings();
   const { run, joined } = claimRun(key, {
@@ -225,6 +233,7 @@ jobsImportRoute.post('/jobs/import/:token', async (c) => {
     subtitle: `${jobs.length.toLocaleString('en-US')} row${jobs.length === 1 ? '' : 's'} from ${stash.fileName} into "${source.name}"${fetchingEnabled ? '' : ' — stored unscored, because fetching is paused'}.`,
     backUrl: back,
     backLabel: 'Back to the preview',
+    keepMs: IMPORT_RUN_KEEP_MS,
   });
   if (joined) return c.redirect(`/target/runs/${run.id}`, 303);
 

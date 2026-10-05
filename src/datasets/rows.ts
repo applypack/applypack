@@ -4,7 +4,7 @@
  * text, never off a file name. Pure — tested in rows.test.ts.
  */
 
-import { readDelimited, sniffDelimiter } from './delimited';
+import { readDelimited, sniffDelimiter, type Delimiter } from './delimited';
 
 export type Row = Record<string, unknown>;
 export type RowFormat = 'json' | 'jsonl' | 'csv' | 'tsv';
@@ -26,13 +26,20 @@ export interface FoundRows {
 
 export type RowsResult = ({ ok: true } & FoundRows) | { ok: false; error: string };
 
+/**
+ * The widest table read. A row is built from the cells it has, so memory
+ * follows the file; without a ceiling on the header, a few kilobytes of
+ * commas made every short row carry thousands of keys.
+ */
+export const MAX_COLUMNS = 200;
+
 /** Where exports keep their rows, most common first. */
 const ROW_KEYS = ['data', 'items', 'results', 'records', 'jobs'];
 /** How deep a wrapper is followed: `{ result: { lists: { Jobs: [...] } } }` and no further. */
 const MAX_WRAPPER_DEPTH = 3;
 /** What a record carries around its `fields` object in a table export. */
 const RECORD_KEYS = new Set(['id', 'createdTime', 'fields']);
-const BOM = '﻿';
+const BOM = '\uFEFF';
 
 export const NOT_ROWS = 'This file holds no rows ApplyPack can read. It takes a JSON array of objects, JSON Lines, CSV or TSV.';
 
@@ -102,22 +109,32 @@ function fromJsonLines(text: string, maxRows: number): RowsResult {
 
 /** Header names as the selects show them: trimmed, an empty one numbered, a repeat told apart. */
 function headerNames(cells: readonly string[]): string[] {
-  const seen = new Map<string, number>();
+  const taken = new Set<string>();
   return cells.map((cell, i) => {
-    const name = cell.trim() || `Column ${i + 1}`;
-    const n = (seen.get(name) ?? 0) + 1;
-    seen.set(name, n);
-    return n === 1 ? name : `${name} (${n})`;
+    const base = cell.trim() || `Column ${i + 1}`;
+    let name = base;
+    for (let n = 2; taken.has(name); n++) name = `${base} (${n})`;
+    taken.add(name);
+    return name;
   });
 }
 
-function fromDelimited(text: string, maxRows: number): RowsResult {
-  const delimiter = sniffDelimiter(text);
+/** `sep=;` on a line of its own: how a spreadsheet says which delimiter the file uses. */
+const SEPARATOR_LINE_RE = /^sep=([,;\t])\r?\n/i;
+
+function fromDelimited(body: string, maxRows: number): RowsResult {
+  const hint = SEPARATOR_LINE_RE.exec(body);
+  const text = hint ? body.slice(hint[0].length) : body;
+  const delimiter = (hint?.[1] as Delimiter | undefined) ?? sniffDelimiter(text);
   const [head, ...lines] = readDelimited(text, delimiter);
   // One column and no delimiter anywhere is prose, not a table.
   if (!head || head.length < 2 || lines.length === 0) return { ok: false, error: NOT_ROWS };
+  if (head.length > MAX_COLUMNS) {
+    return { ok: false, error: `This table has ${head.length.toLocaleString('en-US')} columns, and ApplyPack reads up to ${MAX_COLUMNS}. Export the columns that describe the job.` };
+  }
   const names = headerNames(head);
-  const rows = lines.slice(0, maxRows).map((cells) => Object.fromEntries(names.map((name, i) => [name, cells[i] ?? ''])));
+  // A row keeps the cells it has: a short row is not padded out to the header's width.
+  const rows = lines.slice(0, maxRows).map((cells) => Object.fromEntries(cells.slice(0, names.length).map((cell, i) => [names[i]!, cell])));
   return { ok: true, format: delimiter === '\t' ? 'tsv' : 'csv', rows, over: Math.max(0, lines.length - maxRows), notRows: 0 };
 }
 
@@ -137,7 +154,9 @@ export function findRows(body: string, maxRows: number = MAX_ROWS): RowsResult {
   try {
     parsed = JSON.parse(text);
   } catch {
-    return fromJsonLines(text, maxRows);
+    // Not one JSON value: a line of JSON each, or a table whose first cell happens to open with a bracket.
+    const lines = fromJsonLines(text, maxRows);
+    return lines.ok ? lines : fromDelimited(text, maxRows);
   }
   return fromJson(parsed, maxRows);
 }

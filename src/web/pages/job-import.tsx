@@ -2,7 +2,7 @@
 import type { FC } from 'hono/jsx';
 import { DROP_REASONS, sampleValue, usableMapping, type DropReason, type MappedRows, type MappingField } from '../../datasets/map';
 import type { PreviewCounts } from '../../datasets/preview';
-import { MAX_BODY_MB, MAX_ROWS } from '../../datasets/rows';
+import { MAX_BODY_MB, MAX_COLUMNS, MAX_ROWS, type RowFormat } from '../../datasets/rows';
 import { companyDeleteConfirm, type CompanyDeleteImpact } from '../delete-confirm';
 import type { FlashMessage } from '../flash';
 import { formatDateShort } from '../format';
@@ -159,6 +159,8 @@ const FIELD_LABEL: Record<MappingField, string> = {
 const MAIN_FIELDS: MappingField[] = ['title', 'url', 'applyUrl', 'employer', 'description', 'location', 'postedAt', 'id'];
 const MORE_FIELDS: MappingField[] = ['country', 'workplace', 'salary', 'salaryMin', 'salaryMax', 'salaryCurrency', 'salaryPeriod', 'closed'];
 
+const FORMAT_NAME: Record<RowFormat, string> = { json: 'JSON', jsonl: 'JSON Lines', csv: 'CSV', tsv: 'TSV' };
+
 const DROPPED_AS: Record<DropReason, string> = {
   closed: 'marked closed by the file',
   'no-title': 'without a title',
@@ -221,8 +223,8 @@ export const JobImportPreviewPage: FC<ImportPreviewProps> = (props) => {
     <Layout title="Check the import" active="jobs">
       <div class="w-full">
         <PageHeader title="Check the import" back={{ href: '/jobs/import', label: 'Choose another file' }}>
-          {stash.fileName} into “{stash.source.name}”{stash.source.id === null ? ', a new source' : ''}. Nothing is stored
-          yet.
+          {stash.fileName}, read as {FORMAT_NAME[stash.format]}, into “{stash.source.name}”
+          {stash.source.id === null ? ', a new source' : ''}. Nothing is stored yet.
         </PageHeader>
         <Flash flash={flash} />
 
@@ -245,7 +247,10 @@ export const JobImportPreviewPage: FC<ImportPreviewProps> = (props) => {
               <Button variant="secondary" formaction={`${action}/mapping`}>
                 Update the preview
               </Button>
-              <Hint>Columns about people are not offered: they are never read.</Hint>
+              <Hint>
+                Columns about people are not offered: they are never read.
+                {columns.length >= MAX_COLUMNS ? ` Only the first ${MAX_COLUMNS} columns of this file are offered.` : ''}
+              </Hint>
             </div>
           </form>
         </Card>
@@ -282,8 +287,12 @@ export const JobImportPreviewPage: FC<ImportPreviewProps> = (props) => {
             )}
             <li>
               Of the {count(fresh, 'new row')}, {count(counts.passing, 'passes', 'pass')} your running searches’ filter and would be
-              stored; the rest are set aside without any AI.
+              stored; the rest are set aside without any AI
+              {counts.turnedAway > 0 ? `, ${counts.turnedAway} of them at a company you muted or applied to recently` : ''}.
             </li>
+            {stash.mapping.employer === null && counts.passing > 0 && (
+              <li>No column is read as the company, so where a company is shown these rows will carry the source’s name.</li>
+            )}
             {counts.passing > 0 && (
               <li>
                 {scoring

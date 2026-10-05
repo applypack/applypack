@@ -1,11 +1,11 @@
 /*
- * CSV and TSV as spreadsheets and tools really write them: CRLF or LF, a BOM,
- * a quoted cell holding the delimiter, a line break or a doubled quote, and a
+ * CSV and TSV as spreadsheets and tools really write them: CRLF or LF, a
+ * quoted cell holding the delimiter, a line break or a doubled quote, and a
  * semicolon where the locale's decimal mark is a comma. Pure — tested in
- * delimited.test.ts. `src/csv.ts` is the writer; this is the reader.
+ * delimited.test.ts. `src/csv.ts` is the writer; this is the reader, and
+ * `rows.ts` hands it text with the byte-order mark already gone.
  */
 
-const BOM = '﻿';
 const DELIMITERS = [',', ';', '\t'] as const;
 
 export type Delimiter = (typeof DELIMITERS)[number];
@@ -14,7 +14,7 @@ export type Delimiter = (typeof DELIMITERS)[number];
 export function sniffDelimiter(text: string): Delimiter {
   const counts = new Map<Delimiter, number>(DELIMITERS.map((d) => [d, 0]));
   let quoted = false;
-  for (const ch of text.startsWith(BOM) ? text.slice(1) : text) {
+  for (const ch of text) {
     if (ch === '"') quoted = !quoted;
     else if (!quoted && (ch === '\n' || ch === '\r')) break;
     else if (!quoted && counts.has(ch as Delimiter)) counts.set(ch as Delimiter, counts.get(ch as Delimiter)! + 1);
@@ -26,12 +26,12 @@ export function sniffDelimiter(text: string): Delimiter {
 
 /**
  * The rows of a delimited text, every cell a string. A quote opens a quoted
- * cell only at the cell's start; text after the closing quote is kept as it
- * is, and a quote never closed runs to the end — a damaged file loses a row's
- * shape, never its text. Lines with nothing in them are left out.
+ * cell only at the cell's start (blanks before it aside, as some tools write
+ * `a, "b, c"`); text after the closing quote is kept as it is, and a quote
+ * never closed runs to the end — a damaged file loses a row's shape, never
+ * its text. Lines with nothing in them are left out.
  */
-export function readDelimited(text: string, delimiter: Delimiter): string[][] {
-  const src = text.startsWith(BOM) ? text.slice(1) : text;
+export function readDelimited(src: string, delimiter: Delimiter): string[][] {
   const rows: string[][] = [];
   let row: string[] = [];
   let cell = '';
@@ -50,8 +50,10 @@ export function readDelimited(text: string, delimiter: Delimiter): string[][] {
         cell += '"';
         i++;
       } else quoted = false;
-    } else if (ch === '"' && cell.length === 0) quoted = true;
-    else if (ch === delimiter) {
+    } else if (ch === '"' && cell.trim().length === 0) {
+      cell = '';
+      quoted = true;
+    } else if (ch === delimiter) {
       row.push(cell);
       cell = '';
     } else if (ch === '\n') endRow();

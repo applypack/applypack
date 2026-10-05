@@ -7,6 +7,9 @@ test('isBlockedPostingHost: every listed host and its subdomains, whatever the c
     assert.equal(isBlockedPostingHost(host), true);
     assert.equal(isBlockedPostingHost(`WWW.${host.toUpperCase()}`), true);
     assert.equal(isBlockedPostingHost(`jobs.eu.${host}`), true);
+    // The fully qualified spelling resolves to the same host.
+    assert.equal(isBlockedPostingHost(`${host}.`), true);
+    assert.equal(isBlockedPostingHost(`www.${host}.`), true);
   }
 });
 

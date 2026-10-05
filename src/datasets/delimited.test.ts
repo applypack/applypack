@@ -10,9 +10,8 @@ describe('sniffDelimiter', () => {
     assert.equal(sniffDelimiter('"Title, with commas";"Company"\nx;y'), ';');
   });
 
-  it('answers a comma when the line has none of them, and skips a BOM', () => {
+  it('answers a comma when the line has none of them', () => {
     assert.equal(sniffDelimiter('just one column'), ',');
-    assert.equal(sniffDelimiter('﻿a\tb'), '\t');
   });
 });
 
@@ -28,8 +27,12 @@ describe('readDelimited', () => {
     ]);
   });
 
-  it('drops a BOM, blank lines and the empty line a trailing newline leaves', () => {
-    assert.deepEqual(readDelimited('﻿a,b\n\n1,2\n\n', ','), [['a', 'b'], ['1', '2']]);
+  it('drops blank lines and the empty line a trailing newline leaves', () => {
+    assert.deepEqual(readDelimited('a,b\n\n1,2\n\n', ','), [['a', 'b'], ['1', '2']]);
+  });
+
+  it('opens a quoted cell after the blanks some tools put behind the delimiter', () => {
+    assert.deepEqual(readDelimited('a, "b, c" ,d', ','), [['a', 'b, c ', 'd']]);
   });
 
   it('keeps empty cells in their place', () => {

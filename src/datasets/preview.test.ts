@@ -34,7 +34,7 @@ test('previewCounts: stored rows are set aside before the filter is asked', () =
     job('4', 'PHP Developer', 'Remote, United States'),
     job('5', 'Gardener', 'Berlin, Germany'),
   ];
-  assert.deepEqual(previewCounts(jobs, [php], new Set(['2'])), { usable: 5, stored: 1, passing: 1 });
+  assert.deepEqual(previewCounts(jobs, [php], new Set(['2'])), { usable: 5, stored: 1, turnedAway: 0, passing: 1 });
 });
 
 test('previewCounts: any running search admits a row, and no search admits none', () => {
@@ -42,6 +42,19 @@ test('previewCounts: any running search admits a row, and no search admits none'
   const anything: FilterProfile = { ...php, stackRequired: ['gardener'], stackExclude: [], countries: [] };
   assert.equal(previewCounts(jobs, [php, anything], new Set()).passing, 2);
   assert.equal(previewCounts(jobs, [], new Set()).passing, 0);
+});
+
+test('previewCounts: a muted company’s rows are counted apart, and only among rows a search admits', () => {
+  const jobs = [
+    { ...job('1', 'PHP Developer', 'Berlin, Germany'), employer: 'Acme' },
+    { ...job('2', 'PHP Developer', 'Berlin, Germany'), employer: 'Other' },
+    // Muted and filtered: the filter took it first, as it does in the tick.
+    { ...job('3', 'Gardener', 'Berlin, Germany'), employer: 'Acme' },
+    // Muted and already stored: stored comes first.
+    { ...job('4', 'PHP Developer', 'Berlin, Germany'), employer: 'Acme' },
+  ];
+  const muted = (j: NormalizedJob): boolean => j.employer === 'Acme';
+  assert.deepEqual(previewCounts(jobs, [php], new Set(['4']), muted), { usable: 4, stored: 1, turnedAway: 1, passing: 1 });
 });
 
 test('previewCounts: a structured country hint is read like the tick reads it', () => {

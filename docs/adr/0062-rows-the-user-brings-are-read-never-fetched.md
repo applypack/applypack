@@ -30,9 +30,10 @@ posted the job, who recruits for it, their profile links, emails and phones.
 objects, an object holding one list (`data`, `items`, `results`, `records`,
 `jobs`, else the only list of objects inside, a few levels down), JSON Lines,
 CSV or TSV. The format is read off the text, never off the file name
-(`datasets/rows.ts`). One body is at most 5 MB and gives at most 2 000 rows;
-rows past the ceiling are counted and said, never read and never dropped in
-silence.
+(`datasets/rows.ts`). One body is at most 5 MB and gives at most 2 000 rows,
+and a table is at most 200 columns wide; rows past the ceiling are counted
+and said, never read and never dropped in silence. A row is built from the
+cells it has, so what a file costs in memory follows its size.
 
 **The mapping is detected, shown, corrected and kept.** `datasets/map.ts`
 decides which column is which from the names (an alias table, with case,
@@ -52,13 +53,16 @@ import and the ones that follow it:
    not a company page. What ApplyPack does later with a stored job (the
    liveness ladder, "Is it real?") is what it does with every job, under the
    rules those already have, ADR 0005's host list included.
-2. **Only mapped columns are read.** A column about a person (poster,
-   recruiter, contact, author, email, phone, photo) is left out of the
-   column list, so it cannot be mapped and is never stored.
+2. **Only mapped columns are read.** A column whose name says it is about a
+   person (who posted, who recruits, who owns or made the row, a contact, a
+   profile link, an e-mail, a phone, a photo), or whose cells are e-mail
+   addresses or phone numbers, is left out of the column list. It cannot be
+   mapped, by the page or by a hand-made request, and is never stored.
 3. **What arrives is data.** A link is kept only when it is http(s). Every
-   field has a length cap. Markup is stripped to text once and never
-   rendered. The description reaches a model only through the fenced prompt
-   builders (ADR 0022).
+   field has a length cap, and no control character or half a character
+   reaches the database. Markup is stripped to text once, in one pass
+   whatever the markup, and never rendered. The description reaches a model
+   only through the fenced prompt builders (ADR 0022).
 4. **Nothing is written to disk.** Between the preview and the import the
    parsed rows wait in the web process's memory, four files at most, for
    half an hour (`web/import-stash.ts`). The uploaded file itself is never
@@ -108,6 +112,9 @@ ask the question.
   such rows unscored as leads is a later decision.
 - **A wrong mapping stores wrong jobs.** The preview is the guard: nothing
   is stored before the user has seen three rows as they would be kept.
+- **The people filter knows names and two shapes of value, not meaning.** A
+  person's name in a column called `Field7` cannot be told from a company's.
+  The preview shows what each field took, and the user decides.
 - **The public count of sources does not move.** An import is not a kind of
   source ApplyPack reads from the web; `source-count.test.ts` lists it with
   the pasted job.

@@ -16,6 +16,7 @@ export const BLOCKED_POSTING_HOSTS: readonly string[] = [
 
 /** True for a blocked host and any subdomain of one. */
 export function isBlockedPostingHost(hostname: string): boolean {
-  const host = hostname.toLowerCase();
+  // A trailing dot is the same name to the resolver and a different string to a check.
+  const host = hostname.toLowerCase().replace(/\.+$/, '');
   return BLOCKED_POSTING_HOSTS.some((b) => host === b || host.endsWith(`.${b}`));
 }

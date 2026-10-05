@@ -23,6 +23,18 @@ All notable changes to this project are documented here. The format follows
   only when it is http(s), and the file itself is never stored
   ([ADR 0062](docs/adr/0062-rows-the-user-brings-are-read-never-fetched.md)).
 
+### Fixed
+- A posting whose markup is never closed no longer stalls the reader. Three
+  hundred kilobytes of unclosed tags took nine to twenty-five seconds to
+  turn into text; it takes milliseconds now, and the text of every other
+  posting comes out the same.
+- A posting carrying `&#0;` is stored like any other. The decoded NUL made
+  the database refuse the row, and the fetch that brought it failed.
+- A link written with a trailing dot after its host (`host.com.`) is
+  recognised as that host by the list of sites ApplyPack never requests.
+- The progress page of a long run keeps its answer for half an hour after
+  the run finishes, not after it started.
+
 ## [2.44.0] — 2026-10-05
 
 ### Added

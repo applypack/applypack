@@ -2,7 +2,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { MAX_ROWS, NOT_ROWS, decodeBody, findRows, type FoundRows } from './rows';
+import { MAX_COLUMNS, MAX_ROWS, NOT_ROWS, decodeBody, findRows, type FoundRows } from './rows';
 
 const fixture = (name: string): string => readFileSync(join(__dirname, 'fixtures', name), 'utf8');
 
@@ -106,11 +106,35 @@ describe('findRows: CSV and TSV', () => {
     assert.equal(semi.rows[0]!.pay, '1,5');
   });
 
-  it('numbers an empty header, tells repeated ones apart and fills a short row', () => {
-    const { rows } = rowsOf('title,,title,__proto__\nA,B,C\n');
+  it('numbers an empty header and tells repeated ones apart, whatever they are called', () => {
+    const { rows } = rowsOf('title,,title,__proto__\nA,B,C,D\n');
     assert.deepEqual(Object.keys(rows[0]!), ['title', 'Column 2', 'title (2)', '__proto__']);
-    assert.equal(rows[0]!['__proto__'], '');
+    assert.equal(rows[0]!['__proto__'], 'D');
     assert.equal(Object.getPrototypeOf(rows[0]), Object.prototype);
+    assert.deepEqual(Object.keys(rowsOf('a,a,a (2),a\n1,2,3,4').rows[0]!), ['a', 'a (2)', 'a (2) (2)', 'a (3)']);
+  });
+
+  it('keeps the cells a row has: a short row is not padded, a long one is cut at the header', () => {
+    const { rows } = rowsOf('title,url,place\nA\nB,https://rows.example/b,Lisbon,extra,cells\n');
+    assert.deepEqual(rows[0], { title: 'A' });
+    assert.deepEqual(rows[1], { title: 'B', url: 'https://rows.example/b', place: 'Lisbon' });
+  });
+
+  it('refuses a header wider than a table of jobs is, before a row is built from it', () => {
+    const wide = `${Array.from({ length: MAX_COLUMNS + 1 }, (_, i) => `c${i}`).join(',')}\n${'x\n'.repeat(2000)}`;
+    const found = findRows(wide);
+    assert.equal(found.ok, false);
+    assert.match(found.ok ? '' : found.error, /201 columns, and ApplyPack reads up to 200/);
+    assert.equal(rowsOf(`${Array.from({ length: MAX_COLUMNS }, (_, i) => `c${i}`).join(',')}\nx,y`).rows.length, 1);
+  });
+
+  it('takes the delimiter a spreadsheet names on a line of its own', () => {
+    const found = rowsOf('sep=;\r\ntitle;note\r\nA;"one, two"\r\n');
+    assert.deepEqual(found.rows, [{ title: 'A', note: 'one, two' }]);
+  });
+
+  it('reads a table whose first cell opens with a bracket', () => {
+    assert.deepEqual(rowsOf('[ref],title\n[1],A').rows, [{ '[ref]': '[1]', title: 'A' }]);
   });
 
   it('refuses prose, a header with no rows, an empty file and a binary one', () => {
@@ -142,6 +166,8 @@ describe('decodeBody', () => {
   it('reads UTF-8, with or without its mark, and UTF-16 in either byte order', () => {
     const text = 'title\turl\nРозробник\thttps://rows.example/1';
     assert.equal(decodeBody(Buffer.from(text, 'utf8')), text);
+    // The row finder drops a mark the decoder left, as when something else read the file into a string.
+    assert.equal(rowsOf(`\uFEFF${text}`).rows[0]!.title, 'Розробник');
     assert.equal(rowsOf(decodeBody(Buffer.from(`\uFEFF${text}`, 'utf8'))).rows[0]!.title, 'Розробник');
     const le = Buffer.from(`\uFEFF${text}`, 'utf16le');
     assert.equal(rowsOf(decodeBody(le)).rows[0]!.title, 'Розробник');

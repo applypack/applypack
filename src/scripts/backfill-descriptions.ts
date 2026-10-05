@@ -38,9 +38,10 @@ async function main(): Promise<void> {
     if (before.length === 0) continue;
     // stripHtml is NOT idempotent on its own plaintext output (it reads
     // newlines as HTML whitespace), so only rows that still carry markup go
-    // through it; everything else — MANUAL included — gets entity decoding.
+    // through it; everything else — MANUAL and IMPORT included, text the user
+    // brought — gets entity decoding.
     const after =
-      job.company.atsType !== AtsType.MANUAL && TAG_RE.test(before)
+      job.company.atsType !== AtsType.MANUAL && job.company.atsType !== AtsType.IMPORT && TAG_RE.test(before)
         ? stripHtml(before)
         : decodeHtmlEntities(before).trim();
     if (after === before) continue;
