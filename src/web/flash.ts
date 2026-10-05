@@ -41,16 +41,14 @@ export function flashRedirect(
   text: string,
   opts: { rerun?: boolean; mode?: string; tailor?: string; download?: string; field?: RefusedField } = {},
 ): Response {
-  const value = encodeURIComponent(
-    JSON.stringify({
-      kind,
-      text,
-      ...(opts.rerun ? { rerun: true, mode: opts.mode } : {}),
-      ...(opts.tailor ? { tailor: opts.tailor } : {}),
-      ...(opts.download ? { download: opts.download } : {}),
-      ...(opts.field ? { field: opts.field } : {}),
-    }),
-  );
+  const value = encodeFlash({
+    kind,
+    text,
+    ...(opts.rerun ? { rerun: true, mode: opts.mode } : {}),
+    ...(opts.tailor ? { tailor: opts.tailor } : {}),
+    ...(opts.download ? { download: opts.download } : {}),
+    ...(opts.field ? { field: opts.field } : {}),
+  });
   return new Response(null, {
     status: 303,
     headers: {
@@ -60,12 +58,23 @@ export function flashRedirect(
   });
 }
 
+/**
+ * The message as a cookie value: its JSON in base64url. A browser drops a
+ * cookie past 4 096 bytes without a word, and percent-encoding spends six
+ * characters on a Cyrillic letter and nine on a Devanagari one — a
+ * 500-character message in Ukrainian would never arrive (ADR 0061). Base64url
+ * spends under three and four.
+ */
+function encodeFlash(message: Record<string, unknown>): string {
+  return Buffer.from(JSON.stringify(message), 'utf8').toString('base64url');
+}
+
 export function parseFlashCookie(cookieHeader: string | undefined): FlashMessage | null {
   if (!cookieHeader) return null;
   const match = /(?:^|;\s*)flash=([^;]+)/.exec(cookieHeader);
   if (!match || !match[1]) return null;
   try {
-    const parsed = JSON.parse(decodeURIComponent(match[1]));
+    const parsed = JSON.parse(Buffer.from(match[1], 'base64url').toString('utf8'));
     if (
       parsed &&
       typeof parsed === 'object' &&

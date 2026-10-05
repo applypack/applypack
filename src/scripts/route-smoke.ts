@@ -31,6 +31,7 @@ import { fingerprintText } from '../screening/intake';
 import { tryFetchLock } from '../jobs/fetch-lock';
 import { addToFunnel } from '../jobs/funnel-store';
 import { getFetchRun } from '../web/fetch-runs';
+import { parseFlashCookie } from '../web/flash';
 import { writeFileSync } from 'node:fs';
 import { PSEUDO_LOCALE } from '../i18n/locale';
 import { hardcodedText } from '../i18n/pseudo';
@@ -241,7 +242,7 @@ function fill(path: string, f: Fixtures): string {
 
 /** The flash a redirect carries, as text. */
 function flashOf(res: Response): string {
-  return decodeURIComponent(res.headers.get('set-cookie') ?? '');
+  return parseFlashCookie((res.headers.get('set-cookie') ?? '').split(';')[0])?.text ?? '';
 }
 
 function form(fields: Record<string, string>): RequestInit {
