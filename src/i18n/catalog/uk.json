@@ -3951,5 +3951,6 @@
   "pack.why.postingGone": "Вакансії вже немає.",
   "pack.why.noResume": "До пошуку, що знайшов цю вакансію, не прив'язано резюме. Прив'яжіть його в «Налаштування → Пошуки → Резюме для цього пошуку», а тоді підготуйте пакет знову.",
   "pack.why.noResumeMade": "Пакет завершився без резюме, яке можна показати.",
-  "language.trigger": "Мова: {language}"
+  "language.trigger": "Мова: {language}",
+  "engine.probe.ollamaReason": "Ollama · {reason}"
 }
