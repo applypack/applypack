@@ -100,6 +100,7 @@ schedule saved, the search runs every hour and both summaries go out at
 | `0 3 * * 0` | cleanup | Drop dismissed jobs older than 30 days that you do not track, AI-call ledger rows older than 400 days, expired screenings and runs older than 90 days; check for a newer release when that is switched on |
 | `mm 4 * * 0` † | discovery | Re-probe pending company candidates |
 | `mm 6 1 * *` † | hn-hiring | Pull the monthly HN "Who is hiring" thread |
+| `* * * * *` | pack | Prepare the application packs waiting in the queue, one at a time, and tell you about the finished ones in one message. Does nothing, and leaves no row on `/runs`, while none is queued — which is always, until you switch packs on or ask for one |
 
 A digest or stale-applications beat outside your digest times does nothing
 and leaves no row on `/runs`. A fetch beat outside the schedule leaves a

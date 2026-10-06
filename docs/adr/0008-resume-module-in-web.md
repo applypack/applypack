@@ -1,6 +1,6 @@
 # 0008 — Resume module lives in the web process, files in Postgres
 
-**Status:** Accepted (2026-08-28); see the 2026-09-24 addendum
+**Status:** Accepted (2026-08-28); see the 2026-09-24 addendum; amended by [0063](./0063-the-worker-prepares-an-application-pack.md) (the worker's pack runner calls the resume module too)
 
 ## Context
 
@@ -90,3 +90,10 @@ TypeScript (only three of the nine scripts are generic).
   `.docx` and `.pdf` render ([0039](./0039-clean-render-from-json-resume.md)).
 - "Zero new dependencies": the module now uses `unpdf`, `jszip`,
   `@xmldom/xmldom`, `docx` and `pdfkit`.
+
+## Addendum (2026-10-05): the worker calls it too
+
+- "Nothing moved to the worker": since v2.48.0 the worker's pack runner
+  (`src/jobs/pack-job.ts`) runs the comparison, the suggestions and the cover
+  letter for an application pack ([0063](./0063-the-worker-prepares-an-application-pack.md)).
+  The dashboard's own calls are where they were.

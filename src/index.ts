@@ -10,6 +10,7 @@ import { runCleanupJob } from './jobs/cleanup-job';
 import { runStaleApplicationsJob } from './jobs/stale-applications-job';
 import { runHnHiringJob } from './jobs/hn-hiring-job';
 import { runDiscoveryJob } from './jobs/discovery-job';
+import { packWorkWaiting, runPackJob, stopPackJob } from './jobs/pack-job';
 import { recordCronRun, type CronStats } from './jobs/cron-run';
 import { spreadMinute } from './schedule';
 import { getInstanceId, getSchedule } from './settings';
@@ -65,6 +66,19 @@ async function main(): Promise<void> {
     recordCronRun('discovery', runDiscoveryJob),
   );
 
+  // Application packs (ADR 0063): a beat a minute, so a pack asked for in the
+  // dashboard starts within one. A beat with nothing queued and no message
+  // owed is one lookup and writes no run row — which is every beat on an
+  // install that never switched packs on.
+  registerCron(
+    '* * * * *',
+    'pack',
+    async () => {
+      if (await packWorkWaiting()) await recordCronRun('pack', runPackJob);
+    },
+    { quiet: true },
+  );
+
   process.on('SIGTERM', () => {
     void shutdown('SIGTERM');
   });
@@ -115,7 +129,10 @@ function registerCron(
   expression: string,
   name: string,
   fn: () => Promise<void>,
+  /** `quiet`: a beat a minute would otherwise write its start and end 2 880 times a day. */
+  { quiet = false }: { quiet?: boolean } = {},
 ): void {
+  const note = quiet ? logger.debug.bind(logger) : logger.info.bind(logger);
   const schedule = spreadMinute(expression, instanceId, name);
   // noOverlap: a beat that finds its own previous run still going is
   // skipped in this process. Across processes the fetch lock does the same
@@ -129,17 +146,14 @@ function registerCron(
       }
       inFlight++;
       const started = Date.now();
-      logger.info({ name }, 'cron: tick start');
+      note({ name }, 'cron: tick start');
       try {
         await fn();
       } catch (err) {
         logger.error({ err, name }, 'cron: tick failed');
       } finally {
         inFlight--;
-        logger.info(
-          { name, durationMs: Date.now() - started },
-          'cron: tick end',
-        );
+        note({ name, durationMs: Date.now() - started }, 'cron: tick end');
       }
     },
     { timezone: config.TZ, name, noOverlap: true },
@@ -150,6 +164,8 @@ function registerCron(
 async function shutdown(signal: string): Promise<void> {
   if (shuttingDown) return;
   shuttingDown = true;
+  // No further pack starts, and the one in flight goes back in the queue.
+  stopPackJob();
   // The CLI calls go first: a job waited on here ends as soon as its call
   // does, and a child left behind would run on, orphaned, on the user's plan (H43).
   logger.info({ signal, inFlight, cliChildren: stopCliChildren() }, 'shutdown: waiting for in-flight jobs');

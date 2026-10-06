@@ -21,7 +21,7 @@ gets a dated addendum at the end of the ADR.
 - [0005 — No LinkedIn / Indeed / Workday](./0005-no-linkedin-indeed-workday.md) — *amended by 0034, 0036*
 - [0006 — Discovery via HN parser, not ATS-vendor lists](./0006-discovery-via-hn-parser.md)
 - [0007 — One AI provider seam: Messages API or Claude Code CLI](./0007-ai-provider-seam.md) — *extended by 0013, 0014, 0027, 0055*
-- [0008 — Resume module lives in the web process, files in Postgres](./0008-resume-module-in-web.md)
+- [0008 — Resume module lives in the web process, files in Postgres](./0008-resume-module-in-web.md) — *amended by 0063*
 - [0009 — Web tools through the AI seam, for job verification only](./0009-web-tools-for-job-verification.md)
 - [0010 — Two scores: live keyword coverage in the browser, AI match on demand](./0010-two-scores-live-keywords-vs-ai-match.md) — *amended by 0012, 0038*
 - [0011 — PDF resume text comes from unpdf, not a hand-rolled parser](./0011-pdf-extraction-via-unpdf.md)
@@ -76,6 +76,7 @@ gets a dated addendum at the end of the ADR.
 - [0060 — An engine takes the tasks it is given, and the order decides among those that take one](./0060-an-engine-takes-the-tasks-it-is-given.md) *(extends 0014/0057)*
 - [0061 — The interface speaks several languages; what a model writes stays English](./0061-the-interface-speaks-several-languages.md)
 - [0062 — Rows the user brings are read from what they hand over, and nothing is fetched](./0062-rows-the-user-brings-are-read-never-fetched.md)
+- [0063 — The worker prepares an application pack for a strong new match](./0063-the-worker-prepares-an-application-pack.md) *(amends 0008)*
 
 ## When to write a new one
 

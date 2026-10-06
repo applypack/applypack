@@ -53,6 +53,9 @@ const MAY_404 = new Set([
   '/jobs/:id/cover/:letterId/file/:fmt',
   // No letter is attached until the upload below runs.
   '/screen/:id/applicants/:aid/letters/:lid/file',
+  // A pack keeps a file only once the worker has prepared it (ADR 0063); nothing here runs one.
+  '/jobs/:id/pack/resume.docx',
+  '/jobs/:id/pack/resume.pdf',
   // The fixture company is a pasted job's, not a folder; the folder walk below asks a real one.
   '/companies/:id/files',
 ]);
@@ -64,6 +67,7 @@ const QUERY_VARIANTS = [
   '/jobs/:id?tab=match',
   '/jobs/:id?tab=letter',
   '/jobs/:id?tab=verify',
+  '/jobs/:id?tab=pack',
   '/jobs/:id?tab=nonsense',
   // The AI ledger over each period, and a period nobody offers (ADR 0055).
   '/ai?period=month',
@@ -499,6 +503,39 @@ async function main(): Promise<void> {
       init: form({ locale: 'en', back: '//evil.example/jobs' }),
       expect: (res) => res.status === 303 && res.headers.get('location') === '/settings?tab=general#language' && flashOf(res).includes('The interface is in English'),
     },
+    {
+      // ADR 0063: the settings form as a browser sends it — an unticked box absent, the sections repeated.
+      name: 'POST /settings/pack (packs switched on)',
+      init: { method: 'POST', headers: { ...ORIGIN, 'content-type': 'application/x-www-form-urlencoded' }, body: 'enabled=1&minFit=92&dailyLimit=0&maxAgeDays=14&coverLetter=asked&sections=title&sections=skills&maxBullets=1&keywords=1' },
+      expect: (res) => res.status === 303 && res.headers.get('location') === '/settings?tab=general#packs',
+    },
+    {
+      name: 'GET /settings?tab=general (the saved pack settings drawn)',
+      init: { headers: ORIGIN },
+      expect: (res) => res.status === 200,
+    },
+    {
+      // The dashboard only queues; the worker prepares. With no worker here the row stays queued.
+      name: 'POST /jobs/:id/pack (queued for the worker)',
+      init: form({}),
+      expect: (res) => res.status === 303 && res.headers.get('location') === `/jobs/${f.jobId}?tab=pack`,
+    },
+    {
+      name: 'POST /jobs/:id/pack again (already queued, not a second row)',
+      init: form({}),
+      expect: (res) => res.status === 303 && res.headers.get('location') === `/jobs/${f.jobId}?tab=pack`,
+    },
+    {
+      name: 'GET /jobs/:id?tab=pack (a queued pack, the page refreshing itself)',
+      init: { headers: ORIGIN },
+      expect: (res) => res.status === 200,
+    },
+    {
+      // "I sent this file" with no ready pack behind it marks the job applied and freezes nothing.
+      name: 'POST /jobs/:id/status with pack=1 and no ready pack',
+      init: form({ status: 'APPLIED', pack: '1', tab: 'pack' }),
+      expect: (res) => res.status === 303 && res.headers.get('location') === `/jobs/${f.jobId}?tab=pack`,
+    },
   ];
   const postPaths = [
     '/jobs/new',
@@ -533,6 +570,12 @@ async function main(): Promise<void> {
     '/jobs',
     '/settings/locale',
     '/settings/locale',
+    '/settings/pack',
+    '/settings?tab=general',
+    `/jobs/${f.jobId}/pack`,
+    `/jobs/${f.jobId}/pack`,
+    `/jobs/${f.jobId}?tab=pack`,
+    `/jobs/${f.jobId}/status`,
   ];
   for (const [i, p] of posts.entries()) {
     const res = await app.request(postPaths[i]!, p.init);
