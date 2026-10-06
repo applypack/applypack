@@ -10,6 +10,7 @@
  * and the textarea round-trip in src/web/routes/settings.tsx.
  */
 import { z } from 'zod';
+import { t } from './i18n/t';
 import type { ClaudeClassification } from './types';
 
 const PriorityRuleSchema = z.object({
@@ -138,7 +139,7 @@ export function parsePriorityRulesText(input: string): {
       errors.push({
         line: i + 1,
         raw: trimmed,
-        reason: `expected 4 fields separated by "|", got ${parts.length}`,
+        reason: t('settingsRoute.priority.fields', { n: parts.length }),
       });
       continue;
     }
@@ -152,14 +153,14 @@ export function parsePriorityRulesText(input: string): {
     const regionsAny = splitCsv(regionsRaw);
     const minFitFloor = Number(floorRaw);
     if (label.length === 0) {
-      errors.push({ line: i + 1, raw: trimmed, reason: 'label is empty' });
+      errors.push({ line: i + 1, raw: trimmed, reason: t('settingsRoute.priority.noLabel') });
       continue;
     }
     if (techsAny.length === 0) {
       errors.push({
         line: i + 1,
         raw: trimmed,
-        reason: 'at least one tech is required',
+        reason: t('settingsRoute.priority.noTech'),
       });
       continue;
     }
@@ -171,7 +172,7 @@ export function parsePriorityRulesText(input: string): {
       errors.push({
         line: i + 1,
         raw: trimmed,
-        reason: `min fit must be a number 0-100, got "${floorRaw}"`,
+        reason: t('settingsRoute.priority.badFloor', { value: floorRaw }),
       });
       continue;
     }

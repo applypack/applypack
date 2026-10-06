@@ -4,12 +4,13 @@ import { Layout } from '../layout';
 import { ActionForm, Badge, Button, Card, Flash, Hint, Notice, PageHeader } from '../ui';
 import type { FlashMessage } from '../flash';
 import { formatDate } from '../format';
-import { CRITERION_KIND_LABELS, EVIDENCE_RUNG_LABELS } from '../../screening/rubric';
-import { GATE_BUCKET_LABELS, type ScoreRow } from '../../screening/score';
+import { CRITERION_KIND_LABELS, criterionLabel, EVIDENCE_RUNG_LABELS } from '../../screening/rubric';
+import { answerBadge, GATE_BUCKET_LABELS, type ScoreRow } from '../../screening/score';
 import { GATE_MARK } from '../../screening/export';
 import { who, type ComparisonView } from '../../screening/comparison';
 import type { SideBySide } from '../screen-compare';
-import { ANSWER_TONE, BUCKET_TONE, RUNG_SHORT } from '../screen-view';
+import { ANSWER_TONE, BUCKET_TONE, confidenceLabel } from '../screen-view';
+import { t } from '../../i18n/t';
 
 /*
  * Side by side (plan §5) and Compare with AI (plan §5.1, ADR 0051): the
@@ -32,7 +33,7 @@ export interface ScreenCompareProps {
 
 const Cell: FC<{ r: ScoreRow | null }> = ({ r }) => {
   if (!r) return <span class="text-ink-faint">—</span>;
-  const answer = r.mode === 'gate' ? `${GATE_MARK[r.gate ?? 'unknown']} ${r.gate ?? 'unknown'}` : ((RUNG_SHORT as Record<string, string>)[r.answer] ?? r.answer);
+  const answer = r.mode === 'gate' ? `${GATE_MARK[r.gate ?? 'unknown']} ${answerBadge(r.gate ?? 'unknown')}` : answerBadge(r.answer);
   const tone = r.mode === 'gate' && r.gate ? ANSWER_TONE[r.gate] : (ANSWER_TONE[r.answer] ?? 'neutral');
   return (
     <>
@@ -40,14 +41,15 @@ const Cell: FC<{ r: ScoreRow | null }> = ({ r }) => {
         <Badge tone={tone ?? 'neutral'}>{answer}</Badge>
       </span>
       {r.mode === 'scored' && r.max > 0 && <span class="ml-1.5 text-meta tabular-nums text-ink-faint">{r.pts} / {r.max}</span>}
-      {r.quote && <q class="mt-1 block text-note leading-5 text-ink-muted">{r.quote}</q>}
-      {!r.quote && r.detail && <div class="mt-1 text-meta text-ink-faint">{r.detail}</div>}
+      {r.quote && <q class="mt-1 block text-note leading-5 text-ink-muted" translate="no">{r.quote}</q>}
+      {/* Written into the stored breakdown in English (score.ts) — data. */}
+      {!r.quote && r.detail && <div class="mt-1 text-meta text-ink-faint" lang="en">{r.detail}</div>}
     </>
   );
 };
 
 const Ranking: FC<{ ranking: number[]; names: Map<number, string | null> }> = ({ ranking, names }) =>
-  ranking.length === 0 ? <span class="text-ink-faint">no one placed</span> : <span class="font-medium text-ink">{ranking.map((n) => who(n, names)).join(' › ')}</span>;
+  ranking.length === 0 ? <span class="text-ink-faint">{t('screen.compare.noOnePlaced')}</span> : <span class="font-medium text-ink" translate="no">{ranking.map((n) => who(n, names)).join(' › ')}</span>;
 
 export const ScreenComparePage: FC<ScreenCompareProps> = ({ screening, side, comparison, ids, engine, flash }) => {
   const back = `/screen/${screening.id}#results`;
@@ -58,10 +60,9 @@ export const ScreenComparePage: FC<ScreenCompareProps> = ({ screening, side, com
   const label = `${td} whitespace-nowrap text-ink-muted`;
   const view = comparison?.view ?? null;
   return (
-    <Layout title={`Compare ${n} applicants`} active="screen">
-      <PageHeader title={`Compare ${n} applicants`} back={{ href: back, label: screening.title }}>
-        One column per applicant, one row per criterion, the quotes under the answers — the stored scorecards, no
-        new call. Names are shown to you only.
+    <Layout title={t('screen.compare.title', { n })} active="screen">
+      <PageHeader title={t('screen.compare.title', { n })} back={{ href: back, label: screening.title, labelIsData: true }}>
+        {t('screen.compare.intro')}
       </PageHeader>
       <Flash flash={flash} />
 
@@ -73,7 +74,7 @@ export const ScreenComparePage: FC<ScreenCompareProps> = ({ screening, side, com
                 <th class={th} />
                 {side.columns.map((c) => (
                   <th class={th}>
-                    <a href={`/screen/${screening.id}/applicants/${c.id}`} class="text-entity text-ink hover:underline">
+                    <a href={`/screen/${screening.id}/applicants/${c.id}`} class="text-entity text-ink hover:underline" translate="no">
                       №{c.number}
                       {c.name ? ` — ${c.name}` : ''}
                     </a>
@@ -81,7 +82,7 @@ export const ScreenComparePage: FC<ScreenCompareProps> = ({ screening, side, com
                       <Badge tone={BUCKET_TONE[c.bucket]}>{GATE_BUCKET_LABELS[c.bucket]}</Badge>
                       <span class="text-entity text-ink">{c.adjusted}</span>
                       <span class="text-meta text-ink-faint">
-                        / 100{c.adjustment !== 0 ? ` (computed ${c.score}, your ${c.adjustment > 0 ? '+' : ''}${c.adjustment})` : ''} · {c.confidence}
+                        / 100{c.adjustment !== 0 ? ` ${t('screen.compare.adjusted', { score: c.score, adjustment: `${c.adjustment > 0 ? '+' : ''}${c.adjustment}` })}` : ''} · {confidenceLabel(c.confidence)}
                       </span>
                     </div>
                   </th>
@@ -90,34 +91,34 @@ export const ScreenComparePage: FC<ScreenCompareProps> = ({ screening, side, com
             </thead>
             <tbody class="divide-y divide-line">
               <tr>
-                <th scope="row" class={label}>Relevant years</th>
+                <th scope="row" class={label}>{t('screen.compare.row.years')}</th>
                 {side.columns.map((c) => (
                   <td class={`${td} tabular-nums`}>{c.years ?? '?'}</td>
                 ))}
               </tr>
               <tr>
-                <th scope="row" class={label}>Level</th>
+                <th scope="row" class={label}>{t('screen.compare.row.level')}</th>
                 {side.columns.map((c) => (
-                  <td class={td}>{c.level ?? '?'}</td>
+                  <td class={td} translate="no">{c.level ?? '?'}</td>
                 ))}
               </tr>
               <tr>
-                <th scope="row" class={label}>Career</th>
+                <th scope="row" class={label}>{t('screen.compare.row.career')}</th>
                 {side.columns.map((c) => (
                   <td class={`${td} text-ink-muted`}>{c.career ?? '—'}</td>
                 ))}
               </tr>
               <tr class="bg-surface-overlay/60">
                 <td colspan={n + 1} class="px-3 py-1.5 text-meta font-medium text-ink-muted sm:px-4">
-                  Criteria, rubric v{screening.rubricVersion}
+                  {t('screen.compare.criteria', { version: screening.rubricVersion })}
                 </td>
               </tr>
               {side.rows.map((r) => (
                 <tr>
                   <td class={`${td} text-ink`}>
-                    <div>{r.label}</div>
+                    <div>{criterionLabel(r)}</div>
                     <div class="text-meta text-ink-faint">
-                      {CRITERION_KIND_LABELS[r.kind]} · {r.mode === 'gate' ? 'gate' : r.mode === 'note' ? 'note' : 'scored'}
+                      {CRITERION_KIND_LABELS[r.kind]} · {t('screen.compare.mode', { mode: r.mode })}
                     </div>
                   </td>
                   {r.cells.map((cell) => (
@@ -128,9 +129,9 @@ export const ScreenComparePage: FC<ScreenCompareProps> = ({ screening, side, com
                 </tr>
               ))}
               <tr>
-                <th scope="row" class={label}>Stands out</th>
+                <th scope="row" class={label}>{t('screen.compare.row.standsOut')}</th>
                 {side.columns.map((c) => (
-                  <td class={`${td} text-ink-muted`}>
+                  <td class={`${td} text-ink-muted`} lang="en">
                     {c.standout.length === 0 ? '—' : (
                       <ul class="list-disc space-y-0.5 pl-4">
                         {c.standout.map((f) => (
@@ -142,9 +143,9 @@ export const ScreenComparePage: FC<ScreenCompareProps> = ({ screening, side, com
                 ))}
               </tr>
               <tr>
-                <th scope="row" class={label}>Verdict</th>
+                <th scope="row" class={label}>{t('screen.compare.row.verdict')}</th>
                 {side.columns.map((c) => (
-                  <td class={`${td} text-ink`}>{c.verdictLine || '—'}</td>
+                  <td class={`${td} text-ink`} lang="en">{c.verdictLine || '—'}</td>
                 ))}
               </tr>
             </tbody>
@@ -155,25 +156,21 @@ export const ScreenComparePage: FC<ScreenCompareProps> = ({ screening, side, com
       <Card class="mt-4" id="ai">
         <div class="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h2 class="text-entity text-ink">Compare with AI — the shortlist read head to head</h2>
+            <h2 class="text-entity text-ink">{t('screen.compare.ai.title')}</h2>
             <p class="mt-1 text-note text-ink-muted">
-              One call with these {n} resumes, the posting and the criteria, run twice — the second time with the
-              resumes in the reverse order, because the first and last slots win in a listwise reading. It says who
-              is stronger on each criterion and why, with the lines, and whom to talk to first. Never a score: the
-              table above keeps its order. Runs on {engine.label}
-              {engine.warn ? ' — a personal subscription; see Settings → Screening.' : '.'}
+              {t('screen.compare.ai.intro', { n, engine: engine.label, personal: engine.warn ? 'yes' : 'no' })}
             </p>
           </div>
           <div class="flex items-center gap-2">
             {comparison && (
               <Button variant="secondary" size="sm" type="button" data-copy={comparison.markdown}>
-                Copy as Markdown
+                {t('screen.compare.ai.copy')}
               </Button>
             )}
             <ActionForm action={`/screen/${screening.id}/compare/ai`} once>
               <input type="hidden" name="ids" value={ids} />
               <Button variant="violet" size="sm">
-                {comparison ? 'Read again' : 'Compare with AI'}
+                {comparison ? t('screen.compare.ai.readAgain') : t('screen.compare.ai.compare')}
               </Button>
             </ActionForm>
           </div>
@@ -182,38 +179,40 @@ export const ScreenComparePage: FC<ScreenCompareProps> = ({ screening, side, com
         {comparison && view && (
           <div class="mt-4 space-y-4">
             <p data-ui="hint" class="text-note text-ink-faint">
-              Read {formatDate(comparison.createdAt)} on {comparison.model}, rubric v{comparison.rubricVersion}
-              {comparison.rubricVersion !== screening.rubricVersion ? ' — the criteria changed since; read again for the current ones' : ''}. Shown as{' '}
-              {view.shown[0].map((x) => `№${x}`).join(', ')} and then as {view.shown[1].map((x) => `№${x}`).join(', ')}.
+              {t('screen.compare.ai.read', {
+                date: formatDate(comparison.createdAt),
+                model: comparison.model,
+                version: comparison.rubricVersion,
+                changed: comparison.rubricVersion !== screening.rubricVersion ? 'yes' : 'no',
+                first: view.shown[0].map((x) => `№${x}`).join(', '),
+                second: view.shown[1].map((x) => `№${x}`).join(', '),
+              })}
             </p>
             <div class="rounded-md border border-line bg-surface-overlay px-3.5 py-2.5 text-note leading-5 text-ink" role="status">
               {view.orderAgree
-                ? 'The two readings agree on the whole order.'
+                ? t('screen.compare.ai.orderAgree')
                 : view.firstAgree
-                  ? 'The two readings agree on who to talk to first and differ below.'
-                  : 'The two readings differ on who to talk to first — the order is not settled by the texts alone.'}{' '}
-              {view.disagreements === 0
-                ? 'On every criterion where both placed someone, they placed the same applicant first.'
-                : `On ${view.disagreements} criteri${view.disagreements === 1 ? 'on' : 'a'} they placed different applicants first.`}
+                  ? t('screen.compare.ai.firstAgree')
+                  : t('screen.compare.ai.firstDiffer')}{' '}
+              {view.disagreements === 0 ? t('screen.compare.ai.criteriaAgree') : t('screen.compare.ai.criteriaDiffer', { n: view.disagreements })}
             </div>
             {view.injection && (
               <Notice tone="danger">
-                A resume in this shortlist carried text addressed to an AI reader; it was reported and the texts
-                were judged on their merits. Read that scorecard before trusting the order.
+                {t('screen.compare.ai.injection')}
               </Notice>
             )}
             <div class="grid gap-4 sm:grid-cols-2">
               {view.orders.map((order, i) => (
                 <div>
-                  <h3 class="text-label text-ink">Order to talk to — reading {i === 0 ? 'A' : 'B'}</h3>
+                  <h3 class="text-label text-ink">{t('screen.compare.ai.order', { reading: i === 0 ? 'A' : 'B' })}</h3>
                   {order.length === 0 ? (
-                    <Hint class="mt-1">No order given.</Hint>
+                    <Hint class="mt-1">{t('screen.compare.ai.noOrder')}</Hint>
                   ) : (
                     <ol class="mt-1 list-decimal space-y-1 pl-5 text-sm">
                       {order.map((o) => (
                         <li>
-                          <span class="font-medium text-ink">{who(o.applicant, names)}</span>
-                          {o.reason && <span class="text-ink-muted"> — {o.reason}</span>}
+                          <span class="font-medium text-ink" translate="no">{who(o.applicant, names)}</span>
+                          {o.reason && <span class="text-ink-muted" lang="en"> — {o.reason}</span>}
                         </li>
                       ))}
                     </ol>
@@ -223,9 +222,17 @@ export const ScreenComparePage: FC<ScreenCompareProps> = ({ screening, side, com
             </div>
             {view.deciders.some((d) => d !== null) && (
               <div>
-                <h3 class="text-label text-ink">What would decide between the first two</h3>
+                <h3 class="text-label text-ink">{t('screen.compare.ai.deciders')}</h3>
                 <ul class="mt-1 list-disc space-y-1 pl-5 text-sm text-ink">
-                  {view.deciders.map((d, i) => d && <li>{d}{view.deciders[0] !== view.deciders[1] ? <span class="text-ink-faint"> (reading {i === 0 ? 'A' : 'B'})</span> : null}</li>)}
+                  {view.deciders.map(
+                    (d, i) =>
+                      d && (
+                        <li>
+                          <span lang="en">{d}</span>
+                          {view.deciders[0] !== view.deciders[1] ? <span class="text-ink-faint"> {t('screen.compare.ai.readingNote', { reading: i === 0 ? 'A' : 'B' })}</span> : null}
+                        </li>
+                      ),
+                  )}
                 </ul>
               </div>
             )}
@@ -233,26 +240,26 @@ export const ScreenComparePage: FC<ScreenCompareProps> = ({ screening, side, com
               <table class="w-full text-sm">
                 <thead class="border-b border-line bg-surface-overlay/60">
                   <tr>
-                    <th scope="col" class={th}>Criterion</th>
-                    <th scope="col" class={th}>Reading A</th>
-                    <th scope="col" class={th}>Reading B</th>
+                    <th scope="col" class={th}>{t('screen.compare.ai.criterion')}</th>
+                    <th scope="col" class={th}>{t('screen.compare.ai.reading', { reading: 'A' })}</th>
+                    <th scope="col" class={th}>{t('screen.compare.ai.reading', { reading: 'B' })}</th>
                     <th scope="col" class={th} />
                   </tr>
                 </thead>
                 <tbody class="divide-y divide-line">
                   {view.criteria.map((c) => (
                     <tr>
-                      <td class={`${td} text-ink`}>{c.label}</td>
+                      <td class={`${td} text-ink`}>{criterionLabel(c)}</td>
                       <td class={td}>
                         <Ranking ranking={c.rankings[0]} names={names} />
-                        {c.why[0] && <div class="mt-0.5 text-note text-ink-muted">{c.why[0]}</div>}
+                        {c.why[0] && <div class="mt-0.5 text-note text-ink-muted" lang="en">{c.why[0]}</div>}
                       </td>
                       <td class={td}>
                         <Ranking ranking={c.rankings[1]} names={names} />
-                        {c.why[1] && <div class="mt-0.5 text-note text-ink-muted">{c.why[1]}</div>}
+                        {c.why[1] && <div class="mt-0.5 text-note text-ink-muted" lang="en">{c.why[1]}</div>}
                       </td>
                       <td class={`${td} whitespace-nowrap`}>
-                        {c.picks[0] !== null && c.picks[1] !== null && <Badge tone={c.agree ? 'ok' : 'warn'}>{c.agree ? 'agree' : 'differ'}</Badge>}
+                        {c.picks[0] !== null && c.picks[1] !== null && <Badge tone={c.agree ? 'ok' : 'warn'}>{c.agree ? t('screen.compare.ai.agree') : t('screen.compare.ai.differ')}</Badge>}
                       </td>
                     </tr>
                   ))}
@@ -261,16 +268,16 @@ export const ScreenComparePage: FC<ScreenCompareProps> = ({ screening, side, com
             </div>
             {view.criteria.some((c) => c.quotes.length > 0) && (
               <details>
-                <summary class="cursor-pointer text-label text-ink">The lines behind the rankings</summary>
+                <summary class="cursor-pointer text-label text-ink">{t('screen.compare.ai.lines')}</summary>
                 <ul class="mt-2 space-y-2 text-note">
                   {view.criteria
                     .filter((c) => c.quotes.length > 0)
                     .map((c) => (
                       <li>
-                        <span class="text-ink">{c.label}</span>
+                        <span class="text-ink">{criterionLabel(c)}</span>
                         <ul class="mt-0.5 list-disc space-y-0.5 pl-5 text-ink-muted">
                           {c.quotes.map((q) => (
-                            <li>
+                            <li translate="no">
                               {who(q.applicant, names)}: <q>{q.quote}</q>
                             </li>
                           ))}
@@ -283,7 +290,7 @@ export const ScreenComparePage: FC<ScreenCompareProps> = ({ screening, side, com
           </div>
         )}
         {!comparison && (
-          <Hint class="mt-3">Nothing read yet for these {n}. A reading is kept with the screening and shown here until you read again.</Hint>
+          <Hint class="mt-3">{t('screen.compare.ai.nothingYet', { n })}</Hint>
         )}
       </Card>
       <script type="module" dangerouslySetInnerHTML={{ __html: "import { wireCopy } from '/static/copy.mjs'; wireCopy(document);" }} />

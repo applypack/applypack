@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { logger } from '../logger';
 import type { ResolvedCompany } from '../watchlist/resolve';
+import { t } from '../i18n/t';
 
 /*
  * In-memory registry for a "Add companies" resolve run (TASKS §17 stage A) —
@@ -82,7 +83,7 @@ export function activeWatchlistRun(): WatchlistRun | null {
 export function startWatchlistRun(id: string, fn: () => Promise<void>): void {
   void fn().catch((err) => {
     logger.error({ err, runId: id }, 'web: watchlist resolve failed');
-    finishWatchlistRun(id, 'The resolve run stopped on an error, so nothing was added. Paste the list again; the web log has the detail.');
+    finishWatchlistRun(id, t('watchlist.run.failed'));
   });
 }
 

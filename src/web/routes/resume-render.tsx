@@ -158,7 +158,7 @@ resumeRenderRoute.post('/resumes/:id/render', async (c) => {
  */
 async function load(c: Context): Promise<RenderContext | { response: Response }> {
   const id = idParam(c.req.param('id'));
-  if (!Number.isFinite(id)) return { response: c.text('Bad id', 400) };
+  if (!Number.isFinite(id)) return { response: c.text(t('http.badId'), 400) };
   const resume = await getResume(id);
   if (!resume) return { response: c.text(t('http.notFound'), 404) };
   if (resume.hidden) {

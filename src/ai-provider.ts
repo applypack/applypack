@@ -7,6 +7,8 @@ import { promisify } from 'node:util';
 import { config } from './config';
 import { logger } from './logger';
 import { sleep } from './http';
+import { SOURCE_LOCALE, withLocale } from './i18n/locale';
+import { t } from './i18n/t';
 import { addUsage, isLocalUrl, NO_USAGE, type AiOutcome, type AiSpend } from './ai-usage';
 import {
   anthropicMaxTokens,
@@ -22,6 +24,7 @@ import {
   buildGeminiCliArgs,
   buildAgyCliArgs,
   CLAUDE_CODE_ISOLATION_ENV,
+  CLI_NO_TEXT,
   CLI_PROVIDER_ENV_KEYS,
   cliRetryable,
   cliThinkingCap,
@@ -34,6 +37,7 @@ import {
   parseGeminiCliOutput,
   parseAgyCliOutput,
   parseOpenAiChatResponse,
+  readableFailure,
   refusedReason,
   retryWait,
   webToolsDirectOnly,
@@ -165,7 +169,7 @@ class AnthropicApiProvider implements AiProvider {
     const key = req.apiKey ?? config.ANTHROPIC_API_KEY;
     if (!key) {
       logger.error({ label: req.label }, 'ai: no Anthropic API key — paste one on /settings');
-      req.onError?.('no API key — paste one on /settings, or set it in .env');
+      req.onError?.(t('engine.fail.noKey'));
       return failed('error');
     }
     // What the requests of this call spent so far: a web-search turn resumed
@@ -196,10 +200,10 @@ class AnthropicApiProvider implements AiProvider {
     }
   }
 
-  /** A reply the API billed and the caller cannot use: logged and reported as the thrown errors are. */
-  private refuse(req: AiRequest, outcome: AiOutcome, reason: string, spend: AiSpend): AiAttempt {
-    logger.error({ label: req.label, outcome }, `ai: request failed: ${reason}`);
-    req.onError?.(describeAiFailure(reason));
+  /** A reply the API billed and the caller cannot use: logged in English, and reported in the reader's language. */
+  private refuse(req: AiRequest, outcome: AiOutcome, reason: () => string, spend: AiSpend): AiAttempt {
+    logger.error({ label: req.label, outcome }, `ai: request failed: ${withLocale(SOURCE_LOCALE, reason)}`);
+    req.onError?.(describeAiFailure(reason()));
     return failed(outcome, spend);
   }
 
@@ -253,15 +257,12 @@ class AnthropicApiProvider implements AiProvider {
       // JSON, and a cut-off one used to come back as "no JSON object" (#159).
       if (resp.stop_reason === 'max_tokens') {
         const { output_tokens, output_tokens_details } = resp.usage;
-        return this.refuse(
-          req,
-          'cut_off',
-          `reply cut off at ${output_tokens} output tokens (${output_tokens_details?.thinking_tokens ?? 0} of them thinking)`,
-          spend,
-        );
+        const thinking = output_tokens_details?.thinking_tokens ?? 0;
+        return this.refuse(req, 'cut_off', () => t('engine.fail.cutOff', { tokens: output_tokens, thinking }), spend);
       }
       if (resp.stop_reason === 'refusal') {
-        return this.refuse(req, 'refused', `the model declined this request (${resp.stop_details?.category ?? 'no category given'})`, spend);
+        const category = resp.stop_details?.category;
+        return this.refuse(req, 'refused', () => (category ? t('engine.fail.declined', { category }) : t('engine.fail.declinedNoCategory')), spend);
       }
       const text = resp.content
         .filter((b): b is Anthropic.TextBlock => b.type === 'text')
@@ -269,7 +270,7 @@ class AnthropicApiProvider implements AiProvider {
         .join('');
       // A reply with no text is not an answer: handed on as one, it spent a
       // parse retry instead of a failover to an engine that talks.
-      if (text.trim().length === 0) return this.refuse(req, 'empty', 'the model returned no text', spend);
+      if (text.trim().length === 0) return this.refuse(req, 'empty', () => t('engine.fail.noText'), spend);
       return { text, outcome: 'ok', spend };
     }
   }
@@ -288,7 +289,7 @@ class OpenAiApiProvider implements AiProvider {
     // A local server (Ollama, LM Studio, llama.cpp) needs no key and gets none.
     if (!apiKey && !isLocalUrl(baseUrl)) {
       logger.error({ label: req.label }, 'ai: no OpenAI API key — paste one on /settings');
-      req.onError?.('no API key — paste one on /settings, or set it in .env');
+      req.onError?.(t('engine.fail.noKey'));
       return failed('error');
     }
     const model = req.model || config.OPENAI_MODEL || OPENAI_FALLBACK_MODEL;
@@ -328,7 +329,7 @@ class OpenAiApiProvider implements AiProvider {
         const raw = await resp.text();
         const out = parseOpenAiChatResponse(raw);
         if (out.text !== null) return { text: out.text, outcome: 'ok', spend: out.spend ?? null };
-        const reason = `HTTP ${resp.status}: ${out.error ?? 'no reply text'}`;
+        const reason = `HTTP ${resp.status}: ${out.error ? readableFailure(out.error) : t('engine.fail.noReplyText')}`;
         // A reply that parsed (cut off, filtered, empty) is judged by its outcome; the status speaks for the rest.
         const kind = out.outcome ? 'other' : failureKind(resp.status, out.error ?? '');
         const wait = attempt === 0 && kind === 'transient' ? retryWait((n) => resp.headers.get(n), deadline - Date.now(), Date.now()) : null;
@@ -371,16 +372,14 @@ class LocalApiProvider implements AiProvider {
     const root = req.baseUrl ?? config.OLLAMA_URL;
     const model = req.model || config.LOCAL_MODEL;
     if (!model) {
-      req.onError?.('no model chosen for the local engine — pick one on Settings → AI engine');
+      req.onError?.(t('engine.fail.noLocalModel'));
       return failed('error');
     }
     const contextTokens = req.contextTokens ?? DEFAULT_LOCAL_CONTEXT_TOKENS;
     const need = localBudgetTokens(req.system, req.user, req.maxTokens);
     if (need > contextTokens) {
       logger.warn({ label: req.label, need, contextTokens }, 'ai: prompt larger than the local context window');
-      req.onError?.(
-        `this call needs about ${need.toLocaleString('en-US')} tokens and the local context window is ${contextTokens.toLocaleString('en-US')} — a larger window on Settings → AI engine, or the engine behind this one, takes it`,
-      );
+      req.onError?.(t('engine.fail.contextTooSmall', { need, window: contextTokens }));
       return failed('error');
     }
     const deadline = Date.now() + (req.timeoutMs ?? CLI_TIMEOUT_MS);
@@ -392,7 +391,7 @@ class LocalApiProvider implements AiProvider {
   private async send(req: AiRequest, root: string, model: string, contextTokens: number, deadline: number): Promise<AiAttempt> {
     const remainingMs = deadline - Date.now();
     if (remainingMs < MIN_LOCAL_CALL_MS) {
-      req.onError?.('the local model was busy with other calls for all the time this one had');
+      req.onError?.(t('engine.fail.localBusy'));
       return failed('timeout');
     }
     const ctrl = new AbortController();
@@ -406,9 +405,10 @@ class LocalApiProvider implements AiProvider {
       });
       const raw = await resp.text();
       if (!resp.ok) {
-        const message = ollamaError(raw) ?? 'no reason given';
-        logger.error({ label: req.label, status: resp.status, error: message, model }, 'ai: local request failed');
-        req.onError?.(describeAiFailure(resp.status === 404 ? `${message} — pull it first: ollama pull ${model}` : `HTTP ${resp.status}: ${message}`));
+        const said = ollamaError(raw);
+        logger.error({ label: req.label, status: resp.status, error: said ?? 'no reason given', model }, 'ai: local request failed');
+        const message = said ?? t('engine.fail.noReasonGiven');
+        req.onError?.(describeAiFailure(resp.status === 404 ? t('engine.fail.ollamaPull', { message, model }) : `HTTP ${resp.status}: ${message}`));
         return failed('error');
       }
       const out = parseOllamaStream(raw);
@@ -420,12 +420,12 @@ class LocalApiProvider implements AiProvider {
         return { text: out.text, outcome: 'ok', spend: out.spend ?? null };
       }
       logger.error({ label: req.label, error: out.error, model }, 'ai: local reply unusable');
-      req.onError?.(describeAiFailure(out.error ?? 'no reply'));
+      req.onError?.(describeAiFailure(out.error ? readableFailure(out.error) : t('engine.fail.noReply')));
       return failed(out.outcome ?? 'error', out.spend ?? null);
     } catch (err) {
       const timedOut = ctrl.signal.aborted;
       logger.error({ err, label: req.label, model }, 'ai: local request failed');
-      req.onError?.(timedOut ? `no reply within ${Math.round(remainingMs / 1000)} s` : `nothing answered at ${root} — is Ollama running?`);
+      req.onError?.(timedOut ? t('engine.fail.noReplyWithin', { seconds: Math.round(remainingMs / 1000) }) : t('engine.fail.ollamaDown', { root }));
       return failed(timedOut ? 'timeout' : 'error');
     } finally {
       clearTimeout(timer);
@@ -482,7 +482,7 @@ class CliProvider implements AiProvider {
 
   async complete(req: AiRequest): Promise<AiAttempt> {
     if (stopping) {
-      req.onError?.('ApplyPack is shutting down');
+      req.onError?.(t('engine.fail.shuttingDown'));
       return failed('error');
     }
     const args = this.spec.buildArgs({
@@ -522,7 +522,7 @@ class CliProvider implements AiProvider {
       }
       if ('err' in result) {
         if (stopping) {
-          req.onError?.('stopped: ApplyPack is shutting down');
+          req.onError?.(t('engine.fail.stoppedShuttingDown'));
           return failed('error');
         }
         // execFile puts the whole command line — prompt included — in
@@ -538,7 +538,7 @@ class CliProvider implements AiProvider {
         logger.error({ label: req.label, provider: this.name, ...failure.log }, 'ai: cli process failed');
         const refused = printed?.outcome === 'unauthorized' || failureKind(null, failure.reason) === 'auth';
         // The CLI's own sentence, when it printed one, says more than its exit code.
-        const reason = printed?.error ?? `${this.bin}: ${failure.reason}`;
+        const reason = printed?.error ? readableFailure(printed.error) : `${this.bin}: ${failure.reason}`;
         req.onError?.(describeAiFailure(refused ? refusedReason(reason, 'sign-in') : reason));
         return failed(e.killed === true ? 'timeout' : refused ? 'unauthorized' : (printed?.outcome ?? 'error'), printed?.spend ?? null);
       }
@@ -546,7 +546,7 @@ class CliProvider implements AiProvider {
       // An empty reply is a failure to fail over from, not a text to parse.
       const out =
         parsedOut.text !== null && parsedOut.text.trim().length === 0
-          ? { ...parsedOut, text: null, error: 'the CLI returned no text' }
+          ? { ...parsedOut, text: null, error: CLI_NO_TEXT }
           : parsedOut;
       if (out.text !== null) {
         logger.info({ label: req.label, provider: this.name, model: req.model, ...out.usage }, 'ai: reply');
@@ -557,7 +557,7 @@ class CliProvider implements AiProvider {
         { label: req.label, provider: this.name, error: out.error, rateLimited: out.rateLimited },
         'ai: cli returned an error',
       );
-      const reason = out.error ?? 'the CLI returned no text';
+      const reason = readableFailure(out.error ?? CLI_NO_TEXT);
       req.onError?.(describeAiFailure(out.outcome === 'unauthorized' ? refusedReason(reason, 'sign-in') : reason));
       const outcome = parsedOut.text !== null ? 'empty' : (out.outcome ?? (out.rateLimited ? 'rate_limited' : 'error'));
       return failed(outcome, out.spend ?? null);

@@ -1,10 +1,12 @@
 import type { ApplicantRow } from '../screening/store';
 import { readScreenReply, type GateStatus } from '../screening/prompts';
-import type { EvidenceRung } from '../screening/rubric';
 import { orderVerdicts, readScreenBreakdown, type CapReason, type ConfidenceBand, type GateBucket } from '../screening/score';
 import type { ExportRow } from '../screening/export';
 import { trajectoryLine, trajectoryOf, type Trajectory } from '../screening/trajectory';
+import { noteWords } from '../screening/redact';
 import type { CalibrationRow, Decided } from '../screening/calibration';
+import type { MessageKey } from '../i18n/catalog';
+import { t } from '../i18n/t';
 
 /*
  * The screening table's rows, read off stored applicants and verdicts — one
@@ -35,8 +37,12 @@ export interface VerdictView {
   careerLine: string;
 }
 
-/** The badge's word for a rung — the long label (`EVIDENCE_RUNG_LABELS`) is the tooltip. */
-export const RUNG_SHORT: Record<EvidenceRung, string> = { absent: 'absent', listed: 'skills list', project: 'project', role: 'in a role', production: 'production' };
+const CONFIDENCE_WORD: Record<ConfidenceBand, MessageKey> = { high: 'screen.confidence.high', medium: 'screen.confidence.medium', low: 'screen.confidence.low' };
+/** A verdict's confidence band in a word. */
+export function confidenceLabel(band: ConfidenceBand): string {
+  return t(CONFIDENCE_WORD[band]);
+}
+
 /** The badge tone for every answer word a scorecard row can carry — rungs, statuses, impact and overall grades. */
 export const ANSWER_TONE: Record<string, 'danger' | 'warn' | 'neutral' | 'ok'> = {
   absent: 'danger',
@@ -132,7 +138,8 @@ export function rowView(a: ApplicantRow & { sameAsNumber?: number | null }, now 
     name: a.name,
     file: a.sourceFilename,
     status,
-    note: a.parseNote,
+    // Stored in English; worded for the page (an export runs in English and gets it back as stored).
+    note: a.parseNote === null ? null : noteWords(a.parseNote),
     decision: a.decision,
     sameAs: a.sameAsNumber ?? null,
     letters: a.letters,

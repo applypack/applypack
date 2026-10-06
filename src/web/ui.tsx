@@ -60,7 +60,8 @@ export const PageHeader: FC<
     title: string;
     meta?: string | Child;
     actions?: Child;
-    back?: { href: string; label: string };
+    /** `labelIsData`: the label is a name of the person's own (a screening's title) and is marked as data. */
+    back?: { href: string; label: string; labelIsData?: boolean };
     /** The title is data — a resume's or a posting's own name — and no translator should touch it (ADR 0061). */
     titleIsData?: boolean;
   }>
@@ -69,6 +70,7 @@ export const PageHeader: FC<
     {back && (
       <a
         href={back.href}
+        translate={back.labelIsData ? 'no' : undefined}
         class="mb-2 inline-flex items-center gap-1 text-note font-medium text-ink-faint transition-colors duration-150 hover:text-ink"
       >
         <Icon name="chevron-left" size={14} />
@@ -97,6 +99,13 @@ export const PageHeader: FC<
 );
 
 /** "3 hours ago", with the date and time it stands for on hover and in the markup (TASKS R20). */
+/**
+ * A model's words inside a sentence of ours, as a `tRich` tag renderer
+ * (`{ en: inEnglish }`): marked English, as it wrote them, whatever language
+ * the page reads in (ADR 0061).
+ */
+export const inEnglish = (words: Child[]) => <span lang="en">{words}</span>;
+
 export const When: FC<{ at: Date | null | undefined }> = ({ at }) =>
   at ? (
     <time datetime={at.toISOString()} title={formatDate(at)}>

@@ -2,6 +2,8 @@ import type { Applicant } from '@prisma/client';
 import { logger } from '../logger';
 import type { AiRuntime } from '../ai-runtime';
 import { askForJson } from '../ai-json';
+import { withLocale } from '../i18n/locale';
+import { t } from '../i18n/t';
 import type { KeywordMatcher } from '../resume/keyword-matcher';
 import { anchorCompareReply, comparisonView, readingsAgreement, secondOrder, type StoredComparison } from './comparison';
 import { buildComparePrompt, COMPARE_MAX_TOKENS, COMPARE_PROMPT_VERSION, COMPARE_TIMEOUT_MS, parseCompareResponse } from './prompts';
@@ -32,7 +34,8 @@ export async function compareApplicants(
     const answer = await askForJson(
       runtime,
       {
-        ...buildComparePrompt({ rubric, job: postingOf(screening), applicants: shown.map((a) => ({ number: a.number, text: a.redactedText })) }),
+        // The prompt is English whatever the page that asked for it reads in (ADR 0061).
+        ...withLocale('en', () => buildComparePrompt({ rubric, job: postingOf(screening), applicants: shown.map((a) => ({ number: a.number, text: a.redactedText })) })),
         maxTokens: COMPARE_MAX_TOKENS,
         label: 'screening-compare',
         role: 'resume',
@@ -54,7 +57,7 @@ export async function compareApplicants(
   };
   try {
     const [a, b] = await Promise.all([reading(applicants), reading(secondOrder(applicants))]);
-    if (!a || !b) return { ok: false, reason: reason || 'no engine answered' };
+    if (!a || !b) return { ok: false, reason: reason || t('screening.noEngineAnswered') };
     const readings: StoredComparison = { v: 1, readings: [{ shown: a.shown, reply: a.reply }, { shown: b.shown, reply: b.reply }] };
     // TASKS E10: the disagreement rate, measured on every real comparison at no extra call.
     logger.info({ screeningId: screening.id, ids, ...readingsAgreement(comparisonView(readings, rubric)) }, 'screening: shortlist readings compared');

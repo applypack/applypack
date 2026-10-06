@@ -1,4 +1,4 @@
-import { DELETED_LABEL } from '../jobs/applied-with';
+import { deletedLabel } from '../jobs/applied-with';
 import type { MessageKey } from '../i18n/catalog';
 import { t } from '../i18n/t';
 
@@ -44,7 +44,7 @@ export function deleteConfirm(name: string, impact: DeleteImpact): string {
   const unlinked = joinList([
     countOf(impact.searches, 'profile.deleteConfirm.part.searchesStop'),
     // The words the applications will show are another module's: they go in as they are.
-    impact.applications === 0 ? null : t('profile.deleteConfirm.part.applicationsShow', { n: impact.applications, label: DELETED_LABEL }),
+    impact.applications === 0 ? null : t('profile.deleteConfirm.part.applicationsShow', { n: impact.applications, label: deletedLabel() }),
   ]);
 
   // One sentence per shape: what goes with the resume belongs in the question, what only loses its link after it.

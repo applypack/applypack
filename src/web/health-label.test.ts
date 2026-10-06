@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { describeStatus } from '../fetchers/source-health';
 import { withLocale } from '../i18n/locale';
-import { healthLabel } from './health-label';
+import { healthLabel, healthStreak } from './health-label';
 
 const STATUSES = ['ok', 'empty', 'not_modified', 'slug_gone', 'auth', 'rate_limit', 'server', 'network', 'bad_payload', 'unknown', null, 'never-heard-of'];
 
@@ -14,4 +14,15 @@ test('healthLabel says in English what describeStatus says, for a board and for 
 test('healthLabel speaks the reader’s language', () => {
   assert.equal(withLocale('uk', () => healthLabel('slug_gone', 'FOLDER')), 'Теку не знайдено');
   assert.equal(withLocale('uk', () => healthLabel('slug_gone')), withLocale('uk', () => healthLabel('slug_gone', 'GREENHOUSE')));
+});
+
+test('healthStreak is the label, lowercased in English, and the streak — for every status', () => {
+  for (const atsType of ['GREENHOUSE', 'FOLDER'])
+    for (const status of STATUSES)
+      assert.equal(
+        healthStreak(status, atsType, 3),
+        `${healthLabel(status, atsType).toLowerCase()} — 3 ticks in a row`,
+        `${atsType} ${status}`,
+      );
+  assert.equal(healthStreak('slug_gone', 'GREENHOUSE', 1), 'slug not found — 1 tick in a row');
 });

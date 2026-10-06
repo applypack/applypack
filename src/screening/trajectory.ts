@@ -1,3 +1,4 @@
+import { t } from '../i18n/t';
 import { parseRange, yearsCovered, type DateRange } from './dates';
 import { sectorLabels } from './sectors';
 import type { ScreenRole } from './prompts';
@@ -61,15 +62,18 @@ export function trajectoryOf(roles: ScreenRole[], now: Date): Trajectory {
   };
 }
 
-/** "9.8 years across 3 employers · average stay 3.3 years · in a role now · fintech, e-commerce" */
-export function trajectoryLine(t: Trajectory): string {
-  if (t.roles === 0) return 'no dated roles in the text';
-  const across = t.employers > 0 ? `${t.employers} employer${t.employers === 1 ? '' : 's'}` : `${t.roles} role${t.roles === 1 ? '' : 's'}`;
+/**
+ * "9.8 years across 3 employers · average stay 3.3 years · in a role now · fintech, e-commerce".
+ * The sectors are the vocabulary's labels (sectors.ts), data the criterion matches, so they stay as written.
+ */
+export function trajectoryLine(career: Trajectory): string {
+  if (career.roles === 0) return t('screening.career.none');
+  const years = career.yearsTotal ?? 0;
   const parts = [
-    `${t.yearsTotal} year${t.yearsTotal === 1 ? '' : 's'} across ${across}`,
-    t.averageTenure !== null ? `average stay ${t.averageTenure} year${t.averageTenure === 1 ? '' : 's'}` : '',
-    t.inRoleNow ? 'in a role now' : 'not in a role now',
-    t.sectors.length > 0 ? t.sectors.slice(0, 4).join(', ') : '',
+    career.employers > 0 ? t('screening.career.acrossEmployers', { years, n: career.employers }) : t('screening.career.acrossRoles', { years, n: career.roles }),
+    career.averageTenure !== null ? t('screening.career.averageStay', { years: career.averageTenure }) : '',
+    career.inRoleNow ? t('screening.career.inRoleNow') : t('screening.career.notInRoleNow'),
+    career.sectors.length > 0 ? career.sectors.slice(0, 4).join(', ') : '',
   ];
   return parts.filter(Boolean).join(' · ');
 }

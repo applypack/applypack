@@ -56,7 +56,7 @@ export async function readResumeUpload(
       text,
     };
   } catch (err) {
-    if (err instanceof ResumeTextError) return { error: err.message };
+    if (err instanceof ResumeTextError) return { error: err.reason() };
     throw err;
   }
 }

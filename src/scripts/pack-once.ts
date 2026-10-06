@@ -2,9 +2,10 @@ import { logger } from '../logger';
 import { prisma } from '../db';
 import { runPackJob } from '../jobs/pack-job';
 import { recordCronRun } from '../jobs/cron-run';
+import { inRunLocale } from '../run-locale';
 
 // The pack queue, now: what the worker's minute beat does when a pack is waiting (ADR 0063).
-recordCronRun('pack', runPackJob)
+inRunLocale(() => recordCronRun('pack', runPackJob))
   .then(() => prisma.$disconnect())
   .then(() => process.exit(0))
   .catch((err) => {

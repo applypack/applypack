@@ -1,5 +1,6 @@
 import { AtsType, CandidateStatus, type CompanyCandidate } from '@prisma/client';
 import { prisma } from './db';
+import { t } from './i18n/t';
 import { logger } from './logger';
 import { extractAtsToken } from './text-utils';
 
@@ -90,7 +91,7 @@ export async function listCandidates(
 export async function promoteCandidate(id: number): Promise<void> {
   const cand = await prisma.companyCandidate.findUnique({ where: { id } });
   if (!cand) {
-    throw new Error(`Candidate ${id} not found`);
+    throw new Error(t('discovery.flash.candidateGone', { id }));
   }
   if (cand.status === CandidateStatus.PROMOTED) {
     return; // already done

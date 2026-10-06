@@ -13,6 +13,7 @@ import { createHash } from 'node:crypto';
 import { constants, promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { t } from '../i18n/t';
 import { dataDirFor } from '../local/data-dir';
 import { inboxRoots, insideFolder, type FolderRules } from './folder-path';
 import { MAX_DEPTH, MAX_ENTRIES, MAX_FILE_BYTES, type FileRead, type ListedFile } from './folder-scan';
@@ -46,8 +47,8 @@ function codeOf(err: unknown): string {
 function folderError(err: unknown, folder: string): FolderError {
   if (err instanceof FolderError) return err;
   const code = codeOf(err);
-  if (MISSING_CODES.has(code)) return new FolderError('missing', `There is no folder at ${folder}.`);
-  if (code.length > 0) return new FolderError('refused', `The system did not let ApplyPack read ${folder} (${code}).`);
+  if (MISSING_CODES.has(code)) return new FolderError('missing', t('datasets.folder.missing', { path: folder }));
+  if (code.length > 0) return new FolderError('refused', t('datasets.folder.refused', { path: folder, code }));
   throw err;
 }
 
@@ -72,7 +73,7 @@ export async function currentFolderRules(launcher: boolean, roots: string | unde
 export async function realFolder(folder: string): Promise<string> {
   try {
     const real = await fs.realpath(folder);
-    if (!(await fs.stat(real)).isDirectory()) throw new FolderError('not-a-folder', `${folder} is a file, not a folder.`);
+    if (!(await fs.stat(real)).isDirectory()) throw new FolderError('not-a-folder', t('datasets.folder.notAFolder', { path: folder }));
     return real;
   } catch (err) {
     throw folderError(err, folder);
@@ -101,7 +102,7 @@ export async function listFolder(root: string): Promise<ListedFile[]> {
     // Entry by entry, so a folder of millions of files is refused before it is held in memory.
     for await (const child of children) {
       if (++entries > MAX_ENTRIES) {
-        throw new FolderError('too-many', `${root} holds more than ${MAX_ENTRIES.toLocaleString('en-US')} entries, which is not a folder of job files. Point at the subfolder the files land in.`);
+        throw new FolderError('too-many', t('datasets.folder.tooMany', { path: root, n: MAX_ENTRIES }));
       }
       if (child.name.startsWith('.') || child.isSymbolicLink()) continue;
       const relPath = rel === '' ? child.name : `${rel}/${child.name}`;

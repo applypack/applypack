@@ -1,7 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { AtsType } from '@prisma/client';
-import { bringsRows, describeCount, fetchedSource, groupSources, isAggregator, sourceFamily } from './source-groups';
+import { withLocale } from '../i18n/locale';
+import { bringsRows, describeCount, fetchedSource, groupSources, isAggregator, sourceFamily, wordedSource } from './source-groups';
+import { sourceLabel } from './source-names';
 
 const ALL = Object.values(AtsType).filter(fetchedSource);
 
@@ -50,4 +52,10 @@ test('describeCount says it in words, with the noun the family counts', () => {
   assert.equal(describeCount({ companies: 12, active: 3 }, 'vendor'), '12 companies · 3 active');
   assert.equal(describeCount({ companies: 2, active: 2 }, 'aggregator'), '2 feeds · 2 active');
   assert.equal(describeCount({ companies: 1, active: 0 }, 'own'), '1 entry · 0 active');
+});
+
+test('a source the catalog names is told from a vendor that keeps its own name', () => {
+  // Ukrainian words every kind ApplyPack names, and never a vendor's name.
+  for (const ats of Object.values(AtsType))
+    assert.equal(wordedSource(ats), withLocale('uk', () => sourceLabel(ats)) !== sourceLabel(ats), ats);
 });

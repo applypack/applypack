@@ -4,6 +4,8 @@
  * profile editor on /settings and by the wizard's "Where do you work?"; the
  * country picker (countries.mjs) adds gazetteer suggestions on top of it.
  */
+import { t } from './i18n.mjs';
+
 function enhance(host) {
   var ta = host.querySelector('textarea');
   if (!ta) return;
@@ -12,8 +14,8 @@ function enhance(host) {
   var input = document.createElement('input');
   input.type = 'text';
   input.className = 'min-w-[8rem] flex-1 border-0 bg-transparent p-0.5 text-sm text-ink placeholder:text-ink-faint focus:outline-none focus:ring-0';
-  input.placeholder = host.dataset.placeholder || 'Add and press Enter…';
-  input.setAttribute('aria-label', (host.dataset.label || 'Tags') + ' — add item');
+  input.placeholder = host.dataset.placeholder || t('browser.chips.placeholder');
+  input.setAttribute('aria-label', t('browser.chips.addItem', { label: host.dataset.label || t('browser.chips.defaultLabel') }));
 
   function items() {
     return ta.value.split('\n').map(function (s) { return s.trim(); }).filter(Boolean);
@@ -33,7 +35,7 @@ function enhance(host) {
       text.textContent = value;
       var del = document.createElement('button');
       del.type = 'button';
-      del.setAttribute('aria-label', 'Remove ' + value);
+      del.setAttribute('aria-label', t('browser.chips.remove', { value: value }));
       del.className = 'grid h-4 w-4 cursor-pointer place-items-center rounded text-ink-faint hover:bg-line hover:text-ink';
       del.textContent = '\u00d7';
       del.addEventListener('click', function () {

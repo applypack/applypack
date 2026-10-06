@@ -6,6 +6,8 @@ import type { Tone } from '../format';
 import { formatRelative, safeHref } from '../format';
 import { readEvidence, type VerificationEvidence } from '../../verification/prompts';
 import { livenessCodeLabel } from '../../verification/liveness';
+import { formatUsd } from '../../ai-spend';
+import type { AiBilling } from '../../ai-usage';
 import type { MessageKey } from '../../i18n/catalog';
 import { t } from '../../i18n/t';
 import { tRich } from '../rich';
@@ -25,8 +27,8 @@ export interface VerificationCardProps {
   verificationCount: number;
   /** A run in flight: the buttons give way to a link to its progress page. */
   run: { id: string; startedAt: number } | null;
-  /** What the AI research usually costs here (ai-spend.ts:costHintText); the free checks cost nothing. */
-  costHint: string | null;
+  /** What the AI research usually costs here (ai-ledger.ts:typicalCost); the free checks cost nothing. */
+  cost: { micro: number; billing: AiBilling } | null;
 }
 
 // In the three tables below a label is a catalog key, read when the card renders.
@@ -82,7 +84,7 @@ export const VerificationCard: FC<VerificationCardProps> = ({
   verification,
   verificationCount,
   run,
-  costHint,
+  cost,
 }) => (
   <div id="verification">
     <Card>
@@ -143,7 +145,7 @@ export const VerificationCard: FC<VerificationCardProps> = ({
           )}
         </div>
       </div>
-      {costHint && !run && <Hint class="mt-2">{t('verify.costHint', { hint: costHint.charAt(0).toLowerCase() + costHint.slice(1) })}</Hint>}
+      {cost && !run && <Hint class="mt-2">{t('verify.costHint', { billing: cost.billing, money: formatUsd(cost.micro) })}</Hint>}
       {liveness && !verification && (
         <p class="mt-3 text-sm text-ink-muted">
           {tRich('verify.checkedLine', { how: codeLabel(liveness.code) }, { when: () => <When at={liveness.checkedAt} /> })}

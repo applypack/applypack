@@ -12,6 +12,7 @@
 
 import { SCORING } from './score.mjs';
 import { evidenceOf } from './evidence.mjs';
+import { t } from './i18n.mjs';
 
 // Fallback for keyword rows that predate requirement levels (ADR 0012).
 const PRIORITY_WEIGHT = { 1: 3, 2: 2, 3: 1, 4: 1 };
@@ -81,8 +82,8 @@ export function markClass(k, found) {
 
 /** The requirement in words — one vocabulary for the pane tooltips and the chips. */
 export function wantsLabel(k) {
-  const level = levelOf(k) ?? 'P' + k.priority;
-  return k.primary === true ? level + ' · primary stack' : level;
+  const level = t('browser.keyword.level', { level: levelOf(k) ?? 'P' + k.priority });
+  return k.primary === true ? `${level} · ${t('browser.keyword.primaryStack')}` : level;
 }
 
 /**
@@ -274,10 +275,10 @@ export function highlightHtml(text, spans) {
  * vocabulary the legend and the keyword table use, in the second person.
  */
 export function gapLabel(k, found) {
-  if (found) return 'in your resume';
-  if (k.status === 'cannot_claim') return 'not in your resume, and nothing here evidences it';
-  if (k.status === 'ask_user') return 'not written — confirm whether you have it';
-  return 'not written — your resume evidences it, add the word';
+  if (found) return t('browser.keyword.inResume');
+  if (k.status === 'cannot_claim') return t('browser.keyword.cannotClaim');
+  if (k.status === 'ask_user') return t('browser.keyword.askUser');
+  return t('browser.keyword.addWord');
 }
 
 /** Spans for the job-description pane: every keyword occurrence, classed by whether the resume has it. */
@@ -290,7 +291,7 @@ export function jobSpans(keywords, jobText, scored) {
     const cls = markClass(k, found);
     // Every occurrence is already in hand, so the frequency costs nothing.
     const hits = findTerm(jobText, k.term, k.aliases ?? []);
-    const often = hits.length > 1 ? ` · ×${hits.length} in the posting` : '';
+    const often = hits.length > 1 ? ` · ${t('browser.keyword.inPosting', { n: hits.length })}` : '';
     const title = `${k.term} · ${wantsLabel(k)} · ${gapLabel(k, found)}${often}`;
     for (const s of hits) {
       spans.push({ ...s, cls, title });
@@ -312,11 +313,11 @@ export function resumeSpans(keywords, actions, removals, resumeText) {
   }
   for (const r of removals) {
     const loc = locateQuote(resumeText, r.quote);
-    if (loc) spans.push({ ...loc, cls: 'edit-remove', title: `Remove: ${r.what}` });
+    if (loc) spans.push({ ...loc, cls: 'edit-remove', title: t('browser.keyword.removeTitle', { what: r.what }) });
   }
   for (const a of actions) {
     const loc = locateQuote(resumeText, a.quote);
-    if (loc) spans.push({ ...loc, cls: 'edit-change', title: `Change: ${a.what}` });
+    if (loc) spans.push({ ...loc, cls: 'edit-change', title: t('browser.keyword.changeTitle', { what: a.what }) });
   }
   // Edits outrank keyword marks when they overlap: sort edits first at equal
   // starts. Keyed off the first class, since a mark may carry a modifier too.

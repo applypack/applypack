@@ -1,6 +1,9 @@
 import type { NotificationTarget } from '@prisma/client';
+import type { MessageKey } from '../i18n/catalog';
+import type { MessageParams } from '../i18n/message';
 import type { AlertJob } from '../types';
-import { formatPlaceLine, formatSalary, moreOnDashboard, quietSourceItems, type PageChangeNotice, type QuietSourceAlert } from './lines';
+import { formatPlaceLine, formatSalary, quietSourceList, type PageChangeNotice, type QuietSourceAlert } from './lines';
+import { tMarkup, type ChannelMarkup } from './markup';
 import { packMessages } from './pack';
 
 /*
@@ -30,54 +33,61 @@ export function escapeDiscord(text: string): string {
   return text.replace(/([\\*_~`|>#])/g, '\\$1');
 }
 
+/** Discord markdown: every run of text escaped, catalog words included; `<b>` is bold. */
+const DISCORD: ChannelMarkup = { escape: escapeDiscord, tags: { b: (inner) => `**${inner}**` } };
+
+function discordText(key: MessageKey, params?: MessageParams): string {
+  return tMarkup(DISCORD, key, params);
+}
+
 /** One posting, the same lines as the Telegram message, in Discord's markup. */
 export function formatDiscordAlert(job: AlertJob): string {
-  const headline = job.watched ? '★ New posting' : job.matchedProfile ? escapeDiscord(job.matchedProfile) : 'New role match';
+  const score = job.fitScore;
+  const headline = job.watched
+    ? `★ ${discordText('notify.alert.headerWatched', { score })}`
+    : job.matchedProfile
+      ? discordText('notify.alert.headerSearch', { search: job.matchedProfile, score })
+      : discordText('notify.alert.header', { score });
   const lines = [
-    `**${headline} — fit ${job.fitScore}/100**`,
+    `**${headline}**`,
     `**${escapeDiscord(job.title)}** @ ${escapeDiscord(job.companyName)}`,
     `📍 ${escapeDiscord(formatPlaceLine(job))} | 💰 ${escapeDiscord(
       formatSalary(job.salaryMin, job.salaryMax, job.salaryCurrency, job.salaryPeriod),
     )}`,
   ];
-  if (job.techMatch.length > 0) lines.push(`✅ Tech: ${escapeDiscord(job.techMatch.join(', '))}`);
-  if (job.redFlags.length > 0) lines.push(`⚠️ Flags: ${escapeDiscord(job.redFlags.join(', '))}`);
-  if (job.crossListedAt) lines.push(`🔁 Also listed at ${escapeDiscord(job.crossListedAt)} — apply through one channel only`);
+  if (job.techMatch.length > 0) lines.push(`✅ ${discordText('notify.alert.tech', { list: job.techMatch.join(', ') })}`);
+  if (job.redFlags.length > 0) lines.push(`⚠️ ${discordText('notify.alert.flags', { list: job.redFlags.join(', ') })}`);
+  if (job.crossListedAt) lines.push(`🔁 ${discordText('notify.alert.alsoListed', { where: job.crossListedAt })}`);
   if (job.profileScores) lines.push(`🎯 ${escapeDiscord(job.profileScores)}`);
   if (job.summary) lines.push(`_${escapeDiscord(job.summary)}_`);
   if (job.attribution) lines.push(escapeDiscord(job.attribution));
   // Angle brackets keep Discord from unfurling the posting into an embed.
-  lines.push(`Apply → <${job.url}>`);
+  lines.push(`${discordText('notify.alert.apply')} <${job.url}>`);
   return lines.join('\n');
 }
 
 export function formatDiscordHealthLine(quiet: readonly QuietSourceAlert[]): string {
   if (quiet.length === 0) return '';
-  const { named, hidden } = quietSourceItems(quiet);
-  const items = named.map(escapeDiscord);
-  if (hidden > 0) items.push(`and ${hidden} more`);
-  return `⚠️ **${quiet.length} quiet source${quiet.length === 1 ? '' : 's'}** — ${items.join(', ')}`;
+  return `⚠️ ${discordText('sourceHealth.line', { n: quiet.length, sources: quietSourceList(quiet) })}`;
 }
 
 /** The digest, packed under Discord's 2000-character limit. `more` = matches counted in the header and not listed. */
 export function formatDiscordDigest(jobs: readonly AlertJob[], quiet: readonly QuietSourceAlert[], title: string, more = 0): string[] {
   const health = formatDiscordHealthLine(quiet);
   if (jobs.length === 0) {
-    const empty = 'No new matches since the last digest.';
+    const empty = discordText('digest.empty');
     return [health ? `${empty}\n\n${health}` : empty];
   }
-  const total = jobs.length + more;
-  const header = `**${escapeDiscord(title)} — ${total} match${total === 1 ? '' : 'es'}**${health ? `\n${health}` : ''}`;
+  const header = `**${discordText('digest.header', { title, n: jobs.length + more })}**${health ? `\n${health}` : ''}`;
   const blocks = jobs.map(formatDiscordAlert);
-  if (more > 0) blocks.push(escapeDiscord(moreOnDashboard(more)));
+  if (more > 0) blocks.push(discordText('digest.more', { n: more }));
   return packMessages(header, blocks, '\n\n———\n\n', DISCORD_MAX_LENGTH);
 }
 
 export function formatDiscordPageChanges(pages: readonly PageChangeNotice[]): string {
-  const header =
-    pages.length === 1 ? '**★ A watched careers page changed**' : `**★ ${pages.length} watched careers pages changed**`;
+  const header = `**★ ${discordText('pageChange.header', { n: pages.length })}**`;
   const lines = pages.map((p) => `• **${escapeDiscord(p.companyName)}** — <${p.url}>`);
-  return [header, ...lines, 'We cannot read this page for jobs — have a look.'].join('\n');
+  return [header, ...lines, discordText('pageChange.footer')].join('\n');
 }
 
 export interface DiscordSendResult {
@@ -129,5 +139,6 @@ export async function deliverDiscord(target: Pick<NotificationTarget, 'name' | '
 
 /** The same proof the Telegram form asks for: a real message before the row is saved. */
 export async function testDiscordWebhook(webhookUrl: string): Promise<DiscordSendResult> {
-  return postDiscord(webhookUrl, '✅ ApplyPack test — this webhook is configured correctly.');
+  // Pressed on Settings, so in the dashboard's language.
+  return postDiscord(webhookUrl, `✅ ${discordText('notify.discordTest')}`);
 }

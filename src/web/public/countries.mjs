@@ -8,7 +8,15 @@
  * Chips carry "🇵🇱 Poland": the flag is what the server resolves, the name is
  * for the reader. Without JS the textarea takes any spelling the gazetteer
  * knows, one per line.
+ *
+ * Outside English a country carries `local` too, its name in the interface's
+ * language (routes/countries.ts): the list shows it, the search finds it, and
+ * a chip is written with it exactly as the server's i18n/places.ts:countryChip
+ * writes one — the save splits a chip on commas, so a name with one keeps its
+ * first part, and the flag resolves it either way.
  */
+
+import { pageLocale } from './i18n.mjs';
 
 /** How many suggestions show at once. */
 export const SUGGESTION_LIMIT = 8;
@@ -40,7 +48,7 @@ export function searchCountries(query, countries, limit = SUGGESTION_LIMIT) {
     const best = bestMatch(q, country);
     if (best) hits.push({ country, via: best.via, rank: best.rank });
   }
-  hits.sort((a, b) => a.rank - b.rank || a.country.name.localeCompare(b.country.name));
+  hits.sort((a, b) => a.rank - b.rank || shownName(a.country).localeCompare(shownName(b.country)));
   return hits.slice(0, limit).map(({ country, via }) => ({ country, via }));
 }
 
@@ -57,15 +65,21 @@ function bestMatch(q, country) {
     if (rank !== null && (best === null || rank < best.rank)) best = { via: spelling, rank };
   };
   consider(country.name, RANK.namePrefix, true);
+  if (country.local) consider(country.local, RANK.namePrefix, true);
   for (const n of country.names) consider(n, RANK.namePrefix, true);
   for (const c of country.cities) consider(c, RANK.cityPrefix, false);
   for (const d of country.demonyms) consider(d, RANK.cityPrefix, false);
   return best;
 }
 
-/** The chip text for a country: flag + display name. */
+/** The name a reader sees: the interface language's, else the gazetteer's own. */
+function shownName(country) {
+  return country.local ?? country.name;
+}
+
+/** The chip text for a country: flag + display name, cut at a comma as places.ts:countryChip cuts it. */
 export function chipText(country) {
-  return `${country.flag} ${country.name}`;
+  return `${country.flag} ${shownName(country).split(',')[0]}`;
 }
 
 /** Wire every `[data-picker="countries"]` chip editor on the page. */
@@ -74,7 +88,8 @@ export async function mountCountryPickers(doc = document) {
   if (hosts.length === 0) return;
   let gazetteer;
   try {
-    const res = await fetch('/countries.json');
+    // The language in the address: a day's cache must never hand one language's names to another.
+    const res = await fetch(`/countries.json?lang=${encodeURIComponent(pageLocale())}`);
     gazetteer = await res.json();
   } catch {
     return; // the textarea path still works
@@ -127,8 +142,9 @@ function mountPicker(host, countries, doc) {
       li.className = `flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-note ${
         i === active ? 'bg-accent/10 text-accent-strong' : 'text-ink hover:bg-surface-overlay'
       }`;
-      const via = normalize(hit.via) === normalize(hit.country.name) ? '' : hit.via;
-      li.textContent = `${hit.country.flag} ${hit.country.name}${via ? ` · ${via}` : ''}`;
+      const name = shownName(hit.country);
+      const via = normalize(hit.via) === normalize(name) ? '' : hit.via;
+      li.textContent = `${hit.country.flag} ${name}${via ? ` · ${via}` : ''}`;
       li.addEventListener('mousedown', (e) => {
         e.preventDefault();
         pick(hit);

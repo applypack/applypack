@@ -21,6 +21,21 @@ import { t } from '../i18n/t';
  * formula. Pure: tested in keyword-overrides.test.ts.
  */
 
+/** The note a term the user added carries. Stored in English, as a value; a page words it (`keywordNote`). */
+const ADDED_PRESENT_NOTE = 'added by you — already in this resume';
+const ADDED_ASK_NOTE = 'added by you — confirm whether you have it';
+
+/**
+ * A keyword's note as a page shows it: the two ApplyPack writes on a term the
+ * user added, in the reader's language; any other note is the model's own
+ * English (`ours: false`), shown as it wrote it.
+ */
+export function keywordNote(note: string): { text: string; ours: boolean } {
+  if (note === ADDED_PRESENT_NOTE) return { text: t('keyword.note.addedPresent'), ours: true };
+  if (note === ADDED_ASK_NOTE) return { text: t('keyword.note.addedAsk'), ours: true };
+  return { text: note, ours: false };
+}
+
 export interface KeywordOverride {
   /** Replaces the model's requirement level in every score and pane. */
   requirement?: RequirementLevel;
@@ -178,7 +193,7 @@ export function addKeyword(
   const added: MatchKeyword = {
     ...row,
     status: found ? 'present' : 'ask_user',
-    note: found ? 'added by you — already in this resume' : 'added by you — confirm whether you have it',
+    note: found ? ADDED_PRESENT_NOTE : ADDED_ASK_NOTE,
     // Graded like every row the analysis wrote, or the stored score and the live ring would part (score v6).
     evidence: evidenceFor(row, ctx.resumeText, ctx.matcher),
     ...(inPosting ? {} : { unanchored: true }),
@@ -259,7 +274,7 @@ export function carryOverrides(
     keywords.push({
       ...k,
       status: found ? 'present' : 'ask_user',
-      note: found ? 'added by you — already in this resume' : 'added by you — confirm whether you have it',
+      note: found ? ADDED_PRESENT_NOTE : ADDED_ASK_NOTE,
     });
   }
   return { keywords, carried, readded };

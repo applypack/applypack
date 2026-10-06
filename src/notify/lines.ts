@@ -1,13 +1,15 @@
 import { flagOf } from '../countries';
 import { formatSalaryRange } from '../currency';
-import { WORKPLACE_LABEL } from '../location';
-import { describeStatus } from '../fetchers/source-health';
+import { workplaceName } from '../i18n/places';
+import { t } from '../i18n/t';
 import type { AlertJob } from '../types';
 
 /*
  * The words every channel says the same way, before its own markup goes on
- * (ADR 0041): the place line, the salary, the quiet-source items, the shape
- * of a page-change notice. Pure — the escaping belongs to the channel.
+ * (ADR 0041): the place line, the salary, the quiet-source list, the shape
+ * of a page-change notice. Pure — the escaping belongs to the channel. The
+ * words are the catalog's, in the language of the run (ADR 0061); a
+ * posting's own title, company and place stay as posted.
  */
 
 /** Arrangement words a location string may already carry. */
@@ -28,12 +30,16 @@ const MAX_QUIET_NAMED = 8;
  */
 export function formatPlaceLine(job: AlertJob): string {
   const flags = (job.countries ?? []).map(flagOf).filter((f) => f.length > 0).join('');
-  const workplace = job.workplace && job.workplace !== 'UNKNOWN' ? WORKPLACE_LABEL[job.workplace] : '';
+  const workplace = job.workplace && job.workplace !== 'UNKNOWN' ? job.workplace : null;
   const words = job.location.trim();
   const said = words.length > 0 && new RegExp(WORKPLACE_WORDS, 'i').test(words);
-  const place = words.length > 0 ? words : workplace || 'Remote';
-  const tail = workplace && !said && words.length > 0 ? ` · ${workplace.toLowerCase()}` : '';
-  return `${flags ? `${flags} ` : ''}${place}${tail}`;
+  const place =
+    words.length === 0
+      ? workplaceName(workplace ?? 'REMOTE')
+      : workplace && !said
+        ? t('notify.place.withArrangement', { place: words, workplace })
+        : words;
+  return `${flags ? `${flags} ` : ''}${place}`;
 }
 
 /** The posting's own money and period (src/currency.ts); null columns read as USD a year. */
@@ -49,25 +55,25 @@ export function formatSalary(
 export interface QuietSourceAlert {
   name: string;
   atsType: string;
-  /** Raw FetchStatus — rendered through describeStatus for the label. */
+  /** Raw FetchStatus — worded by the `sourceHealth.item` message. */
   status: string | null;
   streak: number;
 }
 
-/** The quiet sources as plain items — "Acme (GREENHOUSE, failing ×3)" — and how many the cap hid. */
-export function quietSourceItems(sources: readonly QuietSourceAlert[]): { named: string[]; hidden: number } {
+/**
+ * The quiet sources as one plain list — "Acme (GREENHOUSE, slug not found ×3),
+ * …, and 63 more" — the cap's remainder counted at its end.
+ */
+export function quietSourceList(sources: readonly QuietSourceAlert[]): string {
   const named = sources
     .slice(0, MAX_QUIET_NAMED)
-    .map((s) => `${s.name} (${s.atsType}, ${describeStatus(s.status).label.toLowerCase()} ×${s.streak})`);
-  return { named, hidden: sources.length - named.length };
+    // A status the build does not know, or none yet, reads as "not fetched yet" (the select's `other`).
+    .map((s) => t('sourceHealth.item', { name: s.name, ats: s.atsType, status: s.status ?? 'none', streak: s.streak }));
+  const hidden = sources.length - named.length;
+  return [...named, ...(hidden > 0 ? [t('sourceHealth.more', { n: hidden })] : [])].join(', ');
 }
 
 export interface PageChangeNotice {
   companyName: string;
   url: string;
-}
-
-/** The last line of a delivery that lists only the best of a long wait; the rest are still New on the dashboard. */
-export function moreOnDashboard(more: number): string {
-  return `…and ${more} more on the Jobs page, under New.`;
 }

@@ -37,6 +37,8 @@ export interface PlaceLine {
   text: string;
   /** Every place, for the row's tooltip. */
   title: string;
+  /** The line is the posting's own words (data, `translate="no"`), not names in the reader's language. */
+  asPosted: boolean;
 }
 
 /**
@@ -48,8 +50,9 @@ export function placeLine(job: PlaceInput, prefer: readonly string[] = []): Plac
   const arrangement = job.workplace === 'UNKNOWN' ? '' : workplaceName(job.workplace);
   const codes = job.countries.length > 0 ? job.countries : job.regions;
   if (codes.length === 0) {
-    const words = job.location.trim() || arrangement || workplaceName('REMOTE');
-    return { text: words, title: words };
+    const posted = job.location.trim();
+    const words = posted || arrangement || workplaceName('REMOTE');
+    return { text: words, title: words, asPosted: posted !== '' };
   }
   const wanted = new Set(prefer);
   const ordered = [...codes].sort((a, b) => Number(wanted.has(b)) - Number(wanted.has(a)));
@@ -58,5 +61,5 @@ export function placeLine(job: PlaceInput, prefer: readonly string[] = []): Plac
   const more = names.length - NAMED_PLACES;
   const places = more > 0 ? `${shown} +${more}` : shown;
   const join = (list: string) => (arrangement ? `${arrangement} · ${list}` : list);
-  return { text: join(places), title: join(names.join(', ')) };
+  return { text: join(places), title: join(names.join(', ')), asPosted: false };
 }

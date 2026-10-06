@@ -19,25 +19,22 @@ export async function pdfToText(bytes: Buffer): Promise<string> {
     doc = await getDocumentProxy(new Uint8Array(bytes));
   } catch (err) {
     if ((err as { name?: string }).name === 'PasswordException') {
-      throw new ResumeTextError('The PDF is password-protected — remove the password and upload again.');
+      throw new ResumeTextError('pdfPassword');
     }
-    throw new ResumeTextError('The file is not a readable PDF.');
+    throw new ResumeTextError('pdfUnreadable');
   }
   let text: string;
   try {
     ({ text } = await extractText(doc, { mergePages: true }));
   } catch {
-    throw new ResumeTextError('Could not extract text from the PDF — is it corrupted?');
+    throw new ResumeTextError('pdfNoExtract');
   } finally {
     // The serverless build's type defs omit destroy(); the runtime has it.
     await (doc as { destroy?: () => Promise<void> }).destroy?.()?.catch(() => undefined);
   }
   const normalized = normalizePdfText(text);
   if (normalized.length < MIN_PDF_TEXT_CHARS) {
-    throw new ResumeTextError(
-      `Only ${normalized.length} characters of text came out of the PDF — a scanned image or an ` +
-        'outlined-text export has no text layer. Export a text-based PDF or upload the .docx.',
-    );
+    throw new ResumeTextError('pdfNoText', { n: normalized.length });
   }
   return normalized;
 }

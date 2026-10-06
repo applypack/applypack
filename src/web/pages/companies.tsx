@@ -37,7 +37,7 @@ import {
   type QuietReason,
 } from '../../fetchers/source-health';
 import type { FlashMessage } from '../flash';
-import { healthLabel } from '../health-label';
+import { healthLabel, healthStreak } from '../health-label';
 import { StarterPackPicker, type PackSegmentChoice } from './starter-pack';
 import type { SourceSuggestion } from '../../starter-packs/suggest';
 import { AddCompaniesCard, WatchlistSection, type WatchedRow } from './watchlist';
@@ -153,7 +153,7 @@ const QuietSources: FC<{ companies: CompanyRow[]; fetchingEnabled: boolean }> = 
                 </Badge>
                 <span>
                   {c.quiet === 'failing'
-                    ? t('sources.health.withStreak', { label: healthLabel(c.lastFetchStatus, c.atsType).toLowerCase(), n: c.consecutiveFailures })
+                    ? healthStreak(c.lastFetchStatus, c.atsType, c.consecutiveFailures)
                     : c.lastOkAt
                       ? t('companies.quiet.lastPosting', { when: formatRelative(c.lastOkAt) })
                       : t('companies.noPostingSinceWeStarted')}
@@ -471,7 +471,7 @@ export const CompaniesPage: FC<CompaniesProps> = ({
             </Card>
           </div>
         </Disclosure>
-        <Disclosure variant="button" summary="A folder on this computer" class="contents">
+        <Disclosure variant="button" summary={t('companies.aFolderOnThisComputer')} class="contents">
           <div class="order-last basis-full">
             <AddFolderCard host={folderHost} />
           </div>

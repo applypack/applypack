@@ -418,9 +418,9 @@ const RecentAlerts: FC<{ jobs: JobRow[]; places: string[] }> = ({ jobs, places }
                   <div class="truncate text-entity text-ink" translate="no">
                     {j.title}
                   </div>
-                  {/* Who posted it and where, as the posting says: data, whatever language the page is in. */}
-                  <div class="mt-0.5 truncate text-note text-ink-faint" translate="no" title={`${who} · ${place.title}`}>
-                    {who} · {place.text}
+                  {/* Who posted it (data, whatever language the page is in) and where — names in the reader's language, or the posting's own words. */}
+                  <div class="mt-0.5 truncate text-note text-ink-faint" title={`${who} · ${place.title}`} translate="no">
+                    <span translate="no">{who}</span> · <span translate={place.asPosted ? 'no' : undefined}>{place.text}</span>
                   </div>
                 </div>
                 {j.techMatch.length > 0 && (
@@ -499,19 +499,25 @@ export function runLabel(status: CronRunStatus): string {
 /** What the worker prepared while nobody watched: read the edits, download the file, apply. */
 const ReadyPacksCard: FC<{ packs: ReadyPack[] }> = ({ packs }) => (
   <Card class="mb-4">
-    <SectionTitle>Ready to send ({packs.length})</SectionTitle>
+    <SectionTitle>{t('overview.packs.title', { n: packs.length })}</SectionTitle>
     <ul class="mt-2 divide-y divide-line">
-      {packs.map((p) => (
-        <li class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 py-2">
-          <a href={jobHref(p.jobId, 'pack')} class={`min-w-0 ${QUIET_LINK}`}>
-            {p.title} — {p.company}
-          </a>
-          <span class="text-meta tabular-nums text-ink-faint">
-            {p.scoreBefore !== null && `match ${p.scoreBefore}${p.scoreAfter !== null && p.scoreAfter !== p.scoreBefore ? ` → ${p.scoreAfter}` : ''} · `}
-            prepared <When at={p.finishedAt} />
-          </span>
-        </li>
-      ))}
+      {packs.map((p) => {
+        const when = { when: () => <When at={p.finishedAt} /> };
+        return (
+          <li class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 py-2">
+            <a href={jobHref(p.jobId, 'pack')} class={`min-w-0 ${QUIET_LINK}`} translate="no">
+              {p.title} — {p.company}
+            </a>
+            <span class="text-meta tabular-nums text-ink-faint">
+              {p.scoreBefore === null
+                ? tRich('overview.packs.prepared', {}, when)
+                : p.scoreAfter !== null && p.scoreAfter !== p.scoreBefore
+                  ? tRich('overview.packs.preparedMoved', { before: p.scoreBefore, after: p.scoreAfter }, when)
+                  : tRich('overview.packs.preparedMatch', { score: p.scoreBefore }, when)}
+            </span>
+          </li>
+        );
+      })}
     </ul>
   </Card>
 );

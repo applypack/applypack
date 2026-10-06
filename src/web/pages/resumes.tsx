@@ -255,7 +255,7 @@ const AddFactForm: FC = () => (
   <form method="post" action="/facts" class="flex flex-wrap items-end gap-2">
     <input type="hidden" name="back" value="/resumes" />
     <Field label={t('resumes.skillOrTool')} class="min-w-[10rem] flex-1">
-      <Input name="term" maxlength="100" required placeholder="kubernetes" />
+      <Input name="term" maxlength="100" required placeholder="kubernetes" translate="no" />
     </Field>
     <Field label={t('resumes.doYouHaveIt')} class="w-40">
       <Select name="decision">

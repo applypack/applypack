@@ -1,6 +1,10 @@
 import { DOMParser } from '@xmldom/xmldom';
 import type { Document, Element, Node } from '@xmldom/xmldom';
 import { readZipEntry } from './zip';
+import type { MessageKey } from '../i18n/catalog';
+import { SOURCE_LOCALE, withLocale } from '../i18n/locale';
+import type { MessageParams } from '../i18n/message';
+import { t } from '../i18n/t';
 
 /*
  * .docx → plain text, the way an ATS parser sees it: one line per paragraph,
@@ -20,11 +24,67 @@ const HEADING_MAX_CHARS = 48;
 export const W_NS = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
 const M_NS = 'http://schemas.openxmlformats.org/officeDocument/2006/math';
 
-export class ResumeTextError extends Error {}
+/** Why a file gave no resume text: one row each, worded by the catalog (`resume.read.*`). */
+const READ_FAILURES = {
+  notDocx: 'resume.read.notDocx',
+  badXml: 'resume.read.badXml',
+  pdfPassword: 'resume.read.pdfPassword',
+  pdfUnreadable: 'resume.read.pdfUnreadable',
+  pdfNoExtract: 'resume.read.pdfNoExtract',
+  pdfNoText: 'resume.read.pdfNoText',
+  docxTooLarge: 'resume.read.docxTooLarge',
+  notZip: 'resume.read.notZip',
+  unsupported: 'resume.read.unsupported',
+  tooShort: 'resume.read.tooShort',
+} as const satisfies Record<string, MessageKey>;
+
+type ReadFailure = keyof typeof READ_FAILURES;
+
+/**
+ * A file that gave no resume text. `message` is English whatever the reader's
+ * language — a log reads it and a screening stores it as the applicant's note —
+ * and `reason()` is the same sentence in the reader's language (ADR 0061).
+ */
+export class ResumeTextError extends Error {
+  constructor(
+    readonly failure: ReadFailure,
+    readonly params: MessageParams = {},
+  ) {
+    super(withLocale(SOURCE_LOCALE, () => t(READ_FAILURES[failure], params)));
+  }
+
+  reason(): string {
+    return t(READ_FAILURES[this.failure], this.params);
+  }
+}
+
+/** The stored English notes that carry a number or a name, read back into their parameters. */
+const STORED_NOTES: [RegExp, ReadFailure, (m: RegExpExecArray) => MessageParams][] = [
+  [/^Only (\d+) characters? of text came out of the file — is it a real resume\?$/, 'tooShort', (m) => ({ n: Number(m[1]) })],
+  [/^Only (\d+) characters? of text came out of the PDF — /, 'pdfNoText', (m) => ({ n: Number(m[1]) })],
+  [/^Unsupported file type "(.*)"\. Upload (.*)\.$/, 'unsupported', (m) => ({ ext: m[1]!, accepted: m[2]! })],
+  [/^The \.docx is larger inside than this tool reads \((.+) MB in one part\)\.$/, 'docxTooLarge', (m) => ({ mb: m[1]! })],
+  [/^document\.xml: (.*)$/s, 'badXml', (m) => ({ detail: m[1]! })],
+];
+
+/**
+ * A note a screening stored from `ResumeTextError.message`, in the reader's
+ * language; null when the note is not one of these.
+ */
+export function storedReadNote(note: string): string | null {
+  for (const [pattern, failure, params] of STORED_NOTES) {
+    const m = pattern.exec(note);
+    if (m) return t(READ_FAILURES[failure], params(m));
+  }
+  for (const failure of Object.keys(READ_FAILURES) as ReadFailure[]) {
+    if (withLocale(SOURCE_LOCALE, () => t(READ_FAILURES[failure])) === note) return t(READ_FAILURES[failure]);
+  }
+  return null;
+}
 
 export function docxToText(docx: Buffer): string {
   const part = readZipEntry(docx, DOCUMENT_PART);
-  if (part === null) throw new ResumeTextError('not a .docx file (word/document.xml missing)');
+  if (part === null) throw new ResumeTextError('notDocx');
   return documentXmlToText(part.toString('utf8'));
 }
 
@@ -43,7 +103,7 @@ export function documentXmlToText(xml: string): string {
 export function parseDocumentXml(xml: string): Document {
   return new DOMParser({
     onError: (level, message) => {
-      if (level === 'fatalError' || level === 'error') throw new ResumeTextError(`document.xml: ${message}`);
+      if (level === 'fatalError' || level === 'error') throw new ResumeTextError('badXml', { detail: message });
     },
   }).parseFromString(xml, 'application/xml');
 }

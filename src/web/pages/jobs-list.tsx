@@ -11,6 +11,7 @@ import {
   Empty,
   FilterChip,
   FitBadge,
+  Flash,
   Input,
   MarkIcon,
   Notice,
@@ -24,6 +25,7 @@ import {
   When,
 } from '../ui';
 import { formatDateShort, formatSalary, statusLabel } from '../format';
+import type { FlashMessage } from '../flash';
 import { formatUsdPerYear } from '../../currency';
 import type { WorkplaceCode } from '../../location';
 import { placeLine } from '../place-line';
@@ -94,6 +96,8 @@ export interface JobsListProps {
   blankProfileBanner?: boolean;
   /** Stored postings of muted companies the list leaves out (ADR 0056); 0 when shown or none. */
   mutedHidden: number;
+  /** What the last action said — an unmute from the muted panel lands here (#343). */
+  flash?: FlashMessage | null;
 }
 
 /** The tabs in order; '' is every status. Each is named when the page renders (`statusLabel`, `jobs.tab.all`). */
@@ -120,6 +124,7 @@ export const JobsListPage: FC<JobsListProps> = ({
   blankProfileBanner,
   mutedHidden,
   searchPlaces,
+  flash,
 }) => {
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const from = total === 0 ? 0 : (page - 1) * pageSize + 1;
@@ -149,6 +154,7 @@ export const JobsListPage: FC<JobsListProps> = ({
       >
         {t('jobs.everyPostingTheSearchFound')}
       </PageHeader>
+      <Flash flash={flash} />
 
       {blankProfileBanner && (
         <Notice tone="warn" class="mb-4 shrink-0">
@@ -425,7 +431,7 @@ export const JobsListPage: FC<JobsListProps> = ({
                         </Td>
                         <Td class="text-ink-muted">
                           {/* The place in a few words — "Remote · USA, Canada +3" — never a row of flags; the tooltip has every country. */}
-                          <div class="truncate" title={place.title} translate="no">
+                          <div class="truncate" title={place.title} translate={place.asPosted ? 'no' : undefined}>
                             {place.text}
                           </div>
                         </Td>

@@ -1,5 +1,6 @@
 import { AtsType } from '@prisma/client';
 import { fetchWithRetry, HttpError } from './http';
+import { t } from './i18n/t';
 import { fetchPublicUrl } from './jobs/posting-url';
 import { douFeedUrl } from './fetchers/dou';
 import { djinniFeedUrl } from './fetchers/djinni';
@@ -98,7 +99,7 @@ export async function probeAts(
 ): Promise<ProbeResult> {
   const trimmed = atsToken.trim();
   if (trimmed.length === 0) {
-    return { ok: false, error: 'Empty atsToken.' };
+    return { ok: false, error: t('probe.emptyToken') };
   }
 
   try {
@@ -177,7 +178,7 @@ export async function probeAts(
         const items = ((await feed.text()).match(/<item>/g) ?? []).length;
         return items > 0
           ? { ok: true, jobsCount: items }
-          : { ok: false, error: 'DOU answered no vacancies for this query — check the category spelling.' };
+          : { ok: false, error: t('probe.dou.empty') };
       }
       case AtsType.DJINNI: {
         // An unknown primary_keyword answers the whole bare feed (verified
@@ -192,7 +193,7 @@ export async function probeAts(
           : items;
         return matching > 0
           ? { ok: true, jobsCount: matching }
-          : { ok: false, error: keyword ? `Djinni knows no primary_keyword "${keyword}" (or it has no vacancies right now).` : 'Djinni answered no vacancies for this filter.' };
+          : { ok: false, error: keyword ? t('probe.djinni.unknownKeyword', { keyword }) : t('probe.djinni.empty') };
       }
       case AtsType.PERSONIO: {
         // An unknown slug is a 307 to personio.com (verified 2026-09-03);
@@ -201,16 +202,16 @@ export async function probeAts(
         try {
           slug = personioSlug(trimmed);
         } catch (err) {
-          return { ok: false, error: err instanceof Error ? err.message : 'Invalid Personio token.' };
+          return { ok: false, error: err instanceof Error ? err.message : t('probe.personio.invalid') };
         }
         let xml: string;
         try {
           const feed = await fetchWithRetry(personioFeedUrl(slug), { timeoutMs: 8_000, init: { redirect: 'error' } });
           xml = await feed.text();
         } catch {
-          return { ok: false, error: `Personio has no public feed for "${slug}" — the host redirects to personio.com.` };
+          return { ok: false, error: t('probe.personio.noFeed', { slug }) };
         }
-        if (!isPersonioFeed(xml)) return { ok: false, error: `"${slug}" answered something other than a Personio job feed.` };
+        if (!isPersonioFeed(xml)) return { ok: false, error: t('probe.personio.notFeed', { slug }) };
         return { ok: true, jobsCount: parsePersonioXml(xml).length };
       }
       case AtsType.TEAMTAILOR: {
@@ -220,11 +221,11 @@ export async function probeAts(
         try {
           host = teamtailorHost(trimmed);
         } catch (err) {
-          return { ok: false, error: err instanceof Error ? err.message : 'Invalid Teamtailor token.' };
+          return { ok: false, error: err instanceof Error ? err.message : t('probe.teamtailor.invalid') };
         }
         const feed = await fetchWithRetry(teamtailorFeedUrl(host), { timeoutMs: 8_000 });
         const xml = await feed.text();
-        if (!/<rss[\s>]/i.test(xml)) return { ok: false, error: `"${host}" answered something other than a Teamtailor job feed.` };
+        if (!/<rss[\s>]/i.test(xml)) return { ok: false, error: t('probe.teamtailor.notFeed', { host }) };
         return { ok: true, jobsCount: (xml.match(/<item>/g) ?? []).length };
       }
       case AtsType.ADZUNA: {
@@ -234,26 +235,26 @@ export async function probeAts(
         try {
           code = adzunaMarket(trimmed).code;
         } catch (err) {
-          return { ok: false, error: err instanceof Error ? err.message : 'Not an Adzuna market.' };
+          return { ok: false, error: err instanceof Error ? err.message : t('probe.adzuna.notMarket') };
         }
         const creds = resolveSourceKeys('ADZUNA', opts.keys ?? {});
-        if (!creds) return { ok: false, error: 'Adzuna needs your app_id and app_key — paste them on Settings → Sources first.' };
+        if (!creds) return { ok: false, error: t('probe.adzuna.noKeys') };
         const raw = await fetchAdzunaJson(adzunaSearchUrl(code, creds as { app_id: string; app_key: string }, 1), creds);
         const count = adzunaCount(raw);
         return count === null
-          ? { ok: false, error: 'Adzuna answered something other than a search result — check the keys.' }
+          ? { ok: false, error: t('probe.adzuna.notResult') }
           : { ok: true, jobsCount: count };
       }
       case AtsType.FRANCETRAVAIL: {
         // A token, then one empty-range search: the total rides in Content-Range (ADR 0034).
         const creds = resolveSourceKeys('FRANCETRAVAIL', opts.keys ?? {});
-        if (!creds) return { ok: false, error: 'France Travail needs your client id and secret — paste them on Settings → Sources first.' };
+        if (!creds) return { ok: false, error: t('probe.franceTravail.noKeys') };
         const count = await franceTravailProbeCount(trimmed, creds as unknown as FranceTravailCredentials);
         return count === null
-          ? { ok: false, error: 'France Travail answered something other than a search result — check the filter.' }
+          ? { ok: false, error: t('probe.franceTravail.notResult') }
           : count > 0
             ? { ok: true, jobsCount: count }
-            : { ok: false, error: 'France Travail answered no offers for this filter — check the ROME code or the keywords.' };
+            : { ok: false, error: t('probe.franceTravail.empty') };
       }
       case AtsType.JOBTECH: {
         // An unknown taxonomy code or a hopeless query answers 200 with
@@ -262,7 +263,7 @@ export async function probeAts(
         const total = parseJobTechTotal(await answer.json());
         return total > 0
           ? { ok: true, jobsCount: total }
-          : { ok: false, error: 'JobTech answered no ads for this filter — check the taxonomy codes or the query.' };
+          : { ok: false, error: t('probe.jobtech.empty') };
       }
       case AtsType.FEED: {
         // The token is the feed URL, so the probe is the fetch the tick will
@@ -274,17 +275,17 @@ export async function probeAts(
         try {
           url = feedUrl(trimmed);
         } catch (err) {
-          return { ok: false, error: err instanceof Error ? err.message.replace(/^feed: /, '') : 'Invalid feed URL.' };
+          return { ok: false, error: err instanceof Error ? err.message.replace(/^feed: /, '') : t('probe.feed.invalid') };
         }
         const refused = await robotsRefusal(url, opts);
         if (refused) return { ok: false, error: refused };
         const answer = await fetchPublicUrl(url, { timeoutMs: 8_000 });
         const xml = await answer.text();
-        if (!looksLikeFeed(xml)) return { ok: false, error: 'That URL answered something other than an RSS or Atom feed.' };
+        if (!looksLikeFeed(xml)) return { ok: false, error: t('probe.feed.notFeed') };
         const items = (xml.match(/<item[\s>]|<entry[\s>]/gi) ?? []).length;
         return items > 0
           ? { ok: true, jobsCount: items }
-          : { ok: false, error: 'That feed is valid but carries no entries — it is not a job feed.' };
+          : { ok: false, error: t('probe.feed.empty') };
       }
       case AtsType.CAREER_PAGE: {
         // There is no board to count. The check is that the page is reachable
@@ -295,19 +296,19 @@ export async function probeAts(
         try {
           url = careerPageUrl(trimmed);
         } catch (err) {
-          return { ok: false, error: err instanceof Error ? err.message.replace(/^career-page: /, '') : 'Invalid page URL.' };
+          return { ok: false, error: err instanceof Error ? err.message.replace(/^career-page: /, '') : t('probe.page.invalid') };
         }
         const refused = await robotsRefusal(url, opts);
         if (refused) return { ok: false, error: refused };
         const answer = await fetchPublicUrl(url, { timeoutMs: 8_000 });
         const html = await answer.text();
         if (looksLikeChallenge(html)) {
-          return { ok: false, error: 'That page answered with a bot check, so its text cannot be watched.' };
+          return { ok: false, error: t('probe.page.botCheck') };
         }
         const text = normalisePageText(html);
         return text.length >= MIN_WATCHABLE_CHARS
           ? { ok: true, jobsCount: 0 }
-          : { ok: false, error: 'That page has almost no text to watch — it probably needs JavaScript to render.' };
+          : { ok: false, error: t('probe.page.noText') };
       }
       case AtsType.SMARTRECRUITERS:
         resp = await fetchWithRetry(
@@ -318,7 +319,7 @@ export async function probeAts(
       default:
         return {
           ok: false,
-          error: `No per-company probe available for ${atsType} (it's an aggregator feed).`,
+          error: t('probe.aggregator', { atsType }),
         };
     }
     const data: unknown = await resp.json();
@@ -330,7 +331,7 @@ export async function probeAts(
     }
     return {
       ok: false,
-      error: err instanceof Error ? err.message : 'Unknown probe error.',
+      error: err instanceof Error ? err.message : t('probe.unknownError'),
     };
   }
 }
@@ -346,12 +347,13 @@ function describeHttpFailure(
   atsToken: string,
 ): string {
   if (status === 429) {
-    return `${atsType} is rate-limiting us (HTTP 429) — try again in a minute.`;
+    return t('probe.http.rateLimited', { atsType });
   }
   if (status >= 500) {
-    return `${atsType} returned HTTP ${status} — the vendor is having trouble.`;
+    return t('probe.http.vendorTrouble', { atsType, status });
   }
-  return `HTTP ${status} from ${atsType} — token "${atsToken}" likely invalid.`;
+  // "HTTP 4xx" stays in every language: the discovery job reads a dead token off it.
+  return t('probe.http.invalidToken', { atsType, status, token: atsToken });
 }
 
 function countJobs(payload: unknown): number {

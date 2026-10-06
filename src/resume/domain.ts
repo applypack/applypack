@@ -117,9 +117,21 @@ export function domainMismatch(industries: string[], brief: Pick<PostingBrief, '
   return { verdict: overlap ? 'match' : 'different', resume, posting };
 }
 
-/** The sentence the target page shows — null unless the sectors differ. */
-export function domainNotice(report: DomainReport): string | null {
+/** A sentence of ours with the sectors the models named inside it, in `<en>` (ADR 0061). */
+export interface DomainNotice {
+  key: 'target.domain.notice';
+  params: { posting: string; shown: string };
+}
+
+/** The sentence the target page shows, as its message — null unless the sectors differ. */
+export function domainNoticeMessage(report: DomainReport): DomainNotice | null {
   if (report.verdict !== 'different' || report.posting === null) return null;
   const shown = report.resume.slice(0, 3).join(', ');
-  return t('target.domain.notice', { posting: report.posting, shown });
+  return { key: 'target.domain.notice', params: { posting: report.posting, shown } };
+}
+
+/** The same sentence as text. */
+export function domainNotice(report: DomainReport): string | null {
+  const message = domainNoticeMessage(report);
+  return message && t(message.key, message.params);
 }

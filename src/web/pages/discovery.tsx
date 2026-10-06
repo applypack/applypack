@@ -21,6 +21,7 @@ import {
 } from '../ui';
 
 import type { FlashMessage } from '../flash';
+import { wordedSource } from '../source-groups';
 import { sourceLabel } from '../source-names';
 import { t } from '../../i18n/t';
 
@@ -152,7 +153,7 @@ const CandidateTable: FC<{ rows: CompanyCandidate[]; actions?: boolean }> = ({
                 </div>
               </Td>
               <Td>
-                <span translate="no">
+                <span translate={wordedSource(c.atsType) ? undefined : 'no'}>
                   <Tag>{sourceLabel(c.atsType)}</Tag>
                 </span>
               </Td>

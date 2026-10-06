@@ -8,6 +8,7 @@
  */
 
 import { wireCopy } from './copy.mjs';
+import { t } from './i18n.mjs';
 
 const SAVE_DEBOUNCE_MS = 900;
 
@@ -15,17 +16,13 @@ const SAVE_DEBOUNCE_MS = 900;
 export function statusFor(state, verdict) {
   switch (state) {
     case 'dirty':
-      return 'Unsaved changes…';
+      return t('browser.letter.unsaved');
     case 'saving':
-      return 'Saving…';
+      return t('browser.save.saving');
     case 'saved':
-      return verdict === 'block'
-        ? 'Saved — the fact check flags a claim in your edit'
-        : verdict === 'warn'
-          ? 'Saved — the fact check could not read one claim'
-          : 'Saved';
+      return t(verdict === 'block' ? 'browser.letter.savedBlock' : verdict === 'warn' ? 'browser.letter.savedWarn' : 'browser.save.saved');
     case 'failed':
-      return 'Could not save — press Save to retry';
+      return t('browser.letter.failed');
     default:
       return '';
   }

@@ -63,7 +63,7 @@ export function jobTabLabels(facts: JobTabFacts): { tab: JobTab; label: string }
     { tab: 'match', label: facts.matchScore === null || facts.matchScore === 0 ? t('job.tab.match') : t('job.tab.matchScore', { score: facts.matchScore }) },
     { tab: 'letter', label: facts.letters === 0 ? t('job.tab.letter') : t('job.tab.letterCount', { n: facts.letters }) },
     { tab: 'verify', label: verdict === null ? t('job.tab.verify') : t('job.tab.verifyVerdict', { verdict }) },
-    // The pack's fact (pack/view.ts:packFact) is still the worker's English word; the tab name is ours.
+    // The pack's fact (pack/view.ts:packFact) is worded in the reader's language too; the tab name is ours.
     { tab: 'pack', label: facts.pack === null ? t('job.tab.pack') : t('job.tab.packFact', { fact: facts.pack }) },
   ];
 }

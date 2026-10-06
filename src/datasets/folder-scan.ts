@@ -6,6 +6,7 @@
  * Pure — tested in folder-scan.test.ts.
  */
 
+import { t } from '../i18n/t';
 import { mapRows, type Mapping } from './map';
 import { MAX_BODY_MB, MAX_ROWS, decodeBody, findRows, type RowFormat } from './rows';
 import type { NormalizedJob } from '../types';
@@ -60,16 +61,24 @@ const MAX_TEXT_FILE_BYTES = 2 * 1024 * 1024;
 /** A PDF or a .docx of a posting: its fonts and images weigh more than its words, and it is parsed on the event loop. */
 const MAX_DOCUMENT_BYTES = 5 * 1024 * 1024;
 
-const count = (n: number): string => n.toLocaleString('en-US');
-
-/** What the per-file list says about a file that was not read, or not read as jobs. */
+/** What the per-file list says about a file that was not read, or not read as jobs: worded when read, in the language of the moment. */
 export const FILE_NOTES = {
-  fresh: 'Changed a moment ago, so it may still be written. The next check reads it.',
-  changing: 'It changed while it was read, so it is still being written. The next check reads it.',
-  refused: 'The system did not let ApplyPack read this file.',
-  outside: 'A link, or a file outside the folder. Not read.',
-  notRows: 'No rows in it: not a JSON array of objects, JSON Lines, CSV or TSV.',
-} as const;
+  get fresh(): string {
+    return t('datasets.file.fresh');
+  },
+  get changing(): string {
+    return t('datasets.file.changing');
+  },
+  get refused(): string {
+    return t('datasets.file.refused');
+  },
+  get outside(): string {
+    return t('datasets.file.outside');
+  },
+  get notRows(): string {
+    return t('datasets.file.notRows');
+  },
+};
 
 /** What a folder holds (ADR 0062): the files a tool writes, many rows a file, or postings the user saved, one a file. */
 export type FolderHolds = 'rows' | 'postings';
@@ -158,9 +167,8 @@ export function maxBytesOf(kind: FileKind): number {
 
 /** Why a file of this kind was not read, in the per-file list's words. */
 export function tooLargeNote(kind: FileKind): string {
-  const mb = maxBytesOf(kind) / (1024 * 1024);
-  const what = kind === 'pdf' || kind === 'docx' ? 'a document' : kind === 'html' || kind === 'txt' || kind === 'md' ? 'a saved posting' : 'a file of rows';
-  return `Larger than ${mb} MB, which is more than ${what} is read at.`;
+  const what = kind === 'pdf' || kind === 'docx' ? 'document' : kind === 'html' || kind === 'txt' || kind === 'md' ? 'posting' : 'rows';
+  return t('datasets.file.tooLarge', { mb: maxBytesOf(kind) / (1024 * 1024), kind: what });
 }
 
 /**
@@ -293,7 +301,7 @@ export function unreadVerdict(file: ListedFile, kind: FileKind, got: Exclude<Fil
   if (got.why === 'gone') return null;
   if (got.why === 'changing') return note('waiting', FILE_NOTES.changing);
   if (got.why === 'refused') return note('failed', FILE_NOTES.refused);
-  if (got.why === 'unreadable') return note('failed', `The system could not read this file (${got.code}). It is tried again at the next check.`);
+  if (got.why === 'unreadable') return note('failed', t('datasets.file.unreadable', { code: got.code }));
   return note('skipped', got.why === 'too-large' ? tooLargeNote(kind) : FILE_NOTES.outside);
 }
 
@@ -337,16 +345,16 @@ export function judgeFile(file: ListedFile, got: FileRead, mapping: Mapping, com
   const measured = { size: got.size, mtimeMs: got.mtimeMs, sha256: got.sha256 };
   const twin = readAs.get(got.sha256);
   if (twin !== undefined && twin !== file.relPath) {
-    return { change: note('skipped', `The same content as ${twin}, which was read already.`, measured), jobs: [], rows: 'none' };
+    return { change: note('skipped', t('datasets.file.sameContent', { file: twin }), measured), jobs: [], rows: 'none' };
   }
   const found = findRows(decodeBody(got.bytes));
   if (!found.ok) return { change: note('skipped', FILE_NOTES.notRows, measured), jobs: [], rows: 'none' };
   const mapped = mapRows(found.rows, mapping, companyId, new Date(got.mtimeMs));
   const judged = found.rows.length - mapped.dropped.closed - mapped.repeated;
   if (mapped.jobs.length * 2 < judged) {
-    const detail = `Its columns do not fit the mapping: ${count(mapped.jobs.length)} of ${count(found.rows.length)} rows read as a job.`;
+    const detail = t('datasets.file.misfit', { jobs: mapped.jobs.length, rows: found.rows.length });
     return { change: note('failed', detail, measured), jobs: [], rows: 'misfit' };
   }
-  const detail = found.over > 0 ? `The first ${count(MAX_ROWS)} of ${count(MAX_ROWS + found.over)} rows.` : null;
+  const detail = found.over > 0 ? t('datasets.file.firstRows', { first: MAX_ROWS, total: MAX_ROWS + found.over }) : null;
   return { change: note('done', detail, { ...measured, jobCount: mapped.jobs.length }), jobs: mapped.jobs, rows: 'fit' };
 }

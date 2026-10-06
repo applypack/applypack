@@ -18,13 +18,13 @@ import { extractResumeText } from '../../resume/resume-text';
 import { MAX_ZIP_ENTRIES } from '../../resume/zip';
 import { applyPreset, draftRubric, PRESETS, rubricEquals, rubricFromForm, rubricSummary, type Preset } from '../../screening/rubric';
 import { displayName, expandUploads, fingerprintBytes, fingerprintText, coverLetterSignal, letterOwners, MAX_APPLICANTS_PER_SCREENING, MAX_BATCH_UPLOAD_MB, planIntake } from '../../screening/intake';
-import { findLeaks, heldNote, leakKinds, readRedactions, redactApplicant } from '../../screening/redact';
+import { findLeaks, heldNote, leakKinds, noteWords, readRedactions, redactApplicant } from '../../screening/redact';
 import { MAX_COMPARE, MIN_COMPARE, readScreenReply } from '../../screening/prompts';
 import { comparisonMarkdown, comparisonView, readStoredComparison } from '../../screening/comparison';
 import { compareApplicants } from '../../screening/compare';
 import { loadKeywordMatcher } from '../../resume/keyword-matcher';
 import { readScreenBreakdown } from '../../screening/score';
-import { DECISION_LABELS, MAX_ADJUSTMENT, toCsv, toMarkdown } from '../../screening/export';
+import { MAX_ADJUSTMENT, toCsv, toMarkdown } from '../../screening/export';
 import { screeningRun, startScreeningRun } from '../../screening/batch';
 import {
   countApplicants,
@@ -71,6 +71,8 @@ import { calibrate } from '../../screening/calibration';
 import { toPickOption } from '../job-pick';
 import { claimRun, startRun, updateRun } from '../target-runs';
 import { MAX_UPLOAD_MB } from '../upload';
+import { withLocale } from '../../i18n/locale';
+import { t } from '../../i18n/t';
 
 /*
  * Employer mode (TASKS §19, ADR 0049): every route here sits behind
@@ -123,14 +125,14 @@ const NewScreeningSchema = z.object({
 
 const postingUploadLimit = bodyLimit({
   maxSize: MAX_UPLOAD_MB * 1024 * 1024,
-  onError: () => flashRedirect('/screen/new', 'err', `File too large — the limit is ${MAX_UPLOAD_MB} MB.`),
+  onError: () => flashRedirect('/screen/new', 'err', t('upload.tooLarge', { mb: MAX_UPLOAD_MB })),
 });
 
 screenRoute.post('/screen', postingUploadLimit, onceGuard(() => 'screen:new', () => '/screen/new'), async (c) => {
   const form = await c.req.parseBody();
   const parsed = NewScreeningSchema.safeParse(form);
   if (!parsed.success) {
-    return flashRedirect('/screen/new', 'err', `No screening was started (${firstIssue(parsed.error.issues)}). Pick a position below and start again.`, refusedField(c.req.path, parsed.error.issues));
+    return flashRedirect('/screen/new', 'err', t('screenRoute.notStarted', { issue: firstIssue(parsed.error.issues) }), refusedField(c.req.path, parsed.error.issues));
   }
   const f = parsed.data;
 
@@ -139,7 +141,7 @@ screenRoute.post('/screen', postingUploadLimit, onceGuard(() => 'screen:new', ()
   let postingText: string;
   if (f.jobMode === 'existing') {
     const job = f.jobId ? await prisma.job.findUnique({ where: { id: f.jobId }, select: { id: true, title: true, description: true } }) : null;
-    if (!job) return flashRedirect('/screen/new', 'err', 'Pick a job from the list, or paste the posting.');
+    if (!job) return flashRedirect('/screen/new', 'err', t('screenRoute.pickJob'));
     jobId = job.id;
     jobTitle = job.title;
     postingText = job.description;
@@ -150,13 +152,13 @@ screenRoute.post('/screen', postingUploadLimit, onceGuard(() => 'screen:new', ()
       try {
         description = await extractResumeText(file.name, Buffer.from(await file.arrayBuffer()));
       } catch (err) {
-        if (err instanceof ResumeTextError) return flashRedirect('/screen/new', 'err', `The posting file: ${err.message}`);
+        if (err instanceof ResumeTextError) return flashRedirect('/screen/new', 'err', t('screenRoute.postingFile', { reason: err.reason() }));
         throw err;
       }
     }
-    if (!f.title) return flashRedirect('/screen/new', 'err', 'A new posting needs at least its title.');
+    if (!f.title) return flashRedirect('/screen/new', 'err', t('screenRoute.needsTitle'));
     if (description.length < MIN_DESCRIPTION_CHARS) {
-      return flashRedirect('/screen/new', 'err', `The posting needs at least ${MIN_DESCRIPTION_CHARS} characters of text — paste it or give it as a file.`);
+      return flashRedirect('/screen/new', 'err', t('screenRoute.needsText', { min: MIN_DESCRIPTION_CHARS }));
     }
     const result = await createManualJob(
       { companyName: f.companyName || 'Your company', title: f.title, url: '', location: f.location, description },
@@ -176,7 +178,7 @@ screenRoute.post('/screen', postingUploadLimit, onceGuard(() => 'screen:new', ()
     retainUntil: new Date(Date.now() + settings.screeningRetentionDays * DAY_MS),
   });
   logger.info({ screeningId: screening.id, jobId }, 'screening: created');
-  return startRubricDraft(c, screening.id, jobId, jobTitle, 'Reading the posting into a rubric');
+  return startRubricDraft(c, screening.id, jobId, jobTitle, t('screenRoute.run.reading'));
 });
 
 /**
@@ -198,15 +200,15 @@ async function startRubricDraft(
     resumeName: '',
     jobId,
     backUrl: `/screen/${screeningId}`,
-    backLabel: 'Back to the screening',
-    heading: { running: heading, failed: 'The posting could not be read' },
-    subtitle: `"${jobTitle}" — the gates, the must-have terms, the level and the sector, for you to edit before anyone is scored`,
+    backLabel: t('screenRoute.run.backToScreening'),
+    heading: { running: heading, failed: t('screenRoute.run.readFailed') },
+    subtitle: t('screenRoute.run.subtitle', { title: jobTitle }),
   });
   if (joined) return c.redirect(`/target/runs/${run.id}`, 303);
   startRun(run.id, async () => {
     const screening = await getScreening(screeningId);
     if (!screening) {
-      updateRun(run.id, { stage: 'error', error: 'The screening was deleted meanwhile.' });
+      updateRun(run.id, { stage: 'error', error: t('screenRoute.deletedMeanwhile') });
       return;
     }
     let reason = '';
@@ -216,7 +218,7 @@ async function startRubricDraft(
         stage: 'done',
         resultUrl: `/screen/${screeningId}`,
         flashKind: 'warn',
-        flash: `The posting could not be read into a rubric${reason ? ` (${reason})` : ''} — write the gates and the must-have terms yourself.`,
+        flash: reason ? t('screenRoute.run.noRubricReason', { reason }) : t('screenRoute.run.noRubric'),
       });
       return;
     }
@@ -225,10 +227,10 @@ async function startRubricDraft(
     // The first draft keeps version 1; a redraft over an edited rubric is a new yardstick.
     await saveRubric(screeningId, rubric, current.criteria.length > 0 && !rubricEquals(current, rubric));
     updateRun(run.id, {
-      results: { brief: briefed.reused ? `Reused this posting's reading — ${briefLine(briefed.brief)}` : briefLine(briefed.brief) },
+      results: { brief: briefed.reused ? t('screenRoute.run.briefReused', { line: briefLine(briefed.brief) }) : briefLine(briefed.brief) },
       stage: 'done',
       resultUrl: `/screen/${screeningId}`,
-      flash: `Criteria drafted from the posting${preset === 'standard' ? '' : ` as a ${preset} hire`}: ${rubricSummary(rubric)}. Check them, then add the applicants.`,
+      flash: t('screenRoute.run.drafted', { preset, summary: rubricSummary(rubric) }),
     });
   });
   return c.redirect(`/target/runs/${run.id}`, 303);
@@ -246,20 +248,20 @@ async function loadApplicant(id: number) {
 async function engineNote(): Promise<{ label: string; warn: string | null }> {
   const runtime = await getAiRuntime();
   const first = runtime.chainFor('screening')[0];
-  if (!first) return { label: 'no engine', warn: 'No AI engine is usable — set one up on Settings → AI engine before scoring.' };
+  if (!first) return { label: t('screenRoute.engine.none'), warn: t('screenRoute.engine.noneWarn') };
   const label = AI_PROVIDER_LABELS[first];
   // A key (under a vendor's API terms) or a local model is fine; a personal plan is the warning.
   const [keys, { openAiBaseUrl }] = await Promise.all([getAiKeys(), getSettings()]);
   if (billingOf(first, billingFacts(keys, openAiBaseUrl)) !== 'plan') return { label, warn: null };
   return {
     label,
-    warn: `Scoring runs on ${label}, a personal subscription. Other people's resumes go through it under terms you do not control — for applicants' data the defensible path is an API engine under a data-processing agreement, or a local model through the OpenAI-compatible engine. Change who takes Screening applicants on Settings → AI engine.`,
+    warn: t('screenRoute.engine.planWarn', { label }),
   };
 }
 
 screenRoute.get('/screen/:id', async (c) => {
   const screening = await loadScreening(idParam(c.req.param('id')));
-  if (!screening) return flashRedirect('/screen', 'err', 'That screening no longer exists.');
+  if (!screening) return flashRedirect('/screen', 'err', t('screenRoute.gone'));
   const [applicants, settings, engine] = await Promise.all([listApplicants(screening.id, screening.rubricVersion), getSettings(), engineNote()]);
   const numberOf = new Map(applicants.map((a) => [a.id, a.number]));
   const rows = applicants.map((a) => rowView({ ...a, sameAsNumber: a.sameAsId !== null ? (numberOf.get(a.sameAsId) ?? null) : null }));
@@ -303,41 +305,37 @@ screenRoute.get('/screen/:id/state', async (c) => {
 /** The posting as this screening reads it — edited here, never on the Job (plan §4). */
 screenRoute.post('/screen/:id/posting', async (c) => {
   const screening = await loadScreening(idParam(c.req.param('id')));
-  if (!screening) return flashRedirect('/screen', 'err', 'That screening no longer exists.');
+  if (!screening) return flashRedirect('/screen', 'err', t('screenRoute.gone'));
   const form = await c.req.parseBody();
   const text = typeof form.postingText === 'string' ? form.postingText.replace(/\r\n/g, '\n').trim() : '';
   if (text.length < MIN_DESCRIPTION_CHARS) {
-    return flashRedirect(`/screen/${screening.id}#position`, 'err', `The posting needs at least ${MIN_DESCRIPTION_CHARS} characters.`);
+    return flashRedirect(`/screen/${screening.id}#position`, 'err', t('screenRoute.posting.tooShort', { min: MIN_DESCRIPTION_CHARS }));
   }
   if (text.length > MAX_POSTING_CHARS) {
-    return flashRedirect(`/screen/${screening.id}#position`, 'err', `A posting is at most ${MAX_POSTING_CHARS.toLocaleString()} characters.`);
+    return flashRedirect(`/screen/${screening.id}#position`, 'err', t('screenRoute.posting.tooLong', { max: MAX_POSTING_CHARS }));
   }
-  if (text === screening.postingText) return flashRedirect(`/screen/${screening.id}#position`, 'ok', 'Posting unchanged.');
+  if (text === screening.postingText) return flashRedirect(`/screen/${screening.id}#position`, 'ok', t('screenRoute.posting.unchanged'));
   await savePosting(screening.id, text);
   logger.info({ screeningId: screening.id, chars: text.length }, 'screening: posting edited');
-  return flashRedirect(
-    `/screen/${screening.id}#position`,
-    'ok',
-    'Posting saved for this screening. Stored scores were read against the old text — re-read the rubric from it, or score everyone again.',
-  );
+  return flashRedirect(`/screen/${screening.id}#position`, 'ok', t('screenRoute.posting.saved'));
 });
 
 /** "Score everyone again": every readable applicant back through the current rubric and posting. */
 screenRoute.post('/screen/:id/run-all', async (c) => {
   const screening = await loadScreening(idParam(c.req.param('id')));
-  if (!screening) return flashRedirect('/screen', 'err', 'That screening no longer exists.');
+  if (!screening) return flashRedirect('/screen', 'err', t('screenRoute.gone'));
   // The readable rows' ids only — never the texts of three hundred applicants for a button press.
   const ids = (await listKnownApplicants(screening.id)).map((a) => a.id);
   const outcome = await startScreeningRun(screening.id, { again: ids });
   const back = `/screen/${screening.id}#results`;
-  if (outcome.kind === 'nothing') return flashRedirect(back, 'warn', 'No readable applicants to score.');
-  if (outcome.kind === 'missing') return flashRedirect('/screen', 'err', 'That screening no longer exists.');
-  return flashRedirect(back, 'ok', `Scoring all ${ids.length} readable applicant${ids.length === 1 ? '' : 's'} again — each row says where it is.`);
+  if (outcome.kind === 'nothing') return flashRedirect(back, 'warn', t('screenRoute.runAll.nothing'));
+  if (outcome.kind === 'missing') return flashRedirect('/screen', 'err', t('screenRoute.gone'));
+  return flashRedirect(back, 'ok', t('screenRoute.runAll.started', { n: ids.length }));
 });
 
 screenRoute.post('/screen/:id/rubric', async (c) => {
   const screening = await loadScreening(idParam(c.req.param('id')));
-  if (!screening) return flashRedirect('/screen', 'err', 'That screening no longer exists.');
+  if (!screening) return flashRedirect('/screen', 'err', t('screenRoute.gone'));
   const previous = rubricOf(screening);
   const parsed = rubricFromForm(await c.req.parseBody(), previous);
   if ('error' in parsed) return flashRedirect(`/screen/${screening.id}#rubric`, 'err', parsed.error);
@@ -347,47 +345,45 @@ screenRoute.post('/screen/:id/rubric', async (c) => {
   return flashRedirect(
     `/screen/${screening.id}#rubric`,
     'ok',
-    changed
-      ? `Criteria saved as rubric v${screening.rubricVersion + 1}: ${rubricSummary(next)}. Stored scores are about the old yardstick — press Score to read everyone again.`
-      : 'Criteria unchanged.',
+    changed ? t('screenRoute.rubric.saved', { version: screening.rubricVersion + 1, summary: rubricSummary(next) }) : t('screenRoute.rubric.unchanged'),
   );
 });
 
 screenRoute.post('/screen/:id/rubric/redraft', async (c) => {
   const screening = await loadScreening(idParam(c.req.param('id')));
-  if (!screening) return flashRedirect('/screen', 'err', 'That screening no longer exists.');
-  return startRubricDraft(c, screening.id, screening.job.id, screening.job.title, 'Reading the posting again');
+  if (!screening) return flashRedirect('/screen', 'err', t('screenRoute.gone'));
+  return startRubricDraft(c, screening.id, screening.job.id, screening.job.title, t('screenRoute.run.readingAgain'));
 });
 
 /** A preset: the posting read again, bent to a shape of hiring; the person's own rows survive. */
 screenRoute.post('/screen/:id/rubric/preset', async (c) => {
   const screening = await loadScreening(idParam(c.req.param('id')));
-  if (!screening) return flashRedirect('/screen', 'err', 'That screening no longer exists.');
+  if (!screening) return flashRedirect('/screen', 'err', t('screenRoute.gone'));
   const form = await c.req.parseBody();
   const preset = typeof form.preset === 'string' && (PRESETS as readonly string[]).includes(form.preset) ? (form.preset as Preset) : 'standard';
-  return startRubricDraft(c, screening.id, screening.job.id, screening.job.title, 'Reading the posting again', preset);
+  return startRubricDraft(c, screening.id, screening.job.id, screening.job.title, t('screenRoute.run.readingAgain'), preset);
 });
 
 const batchUploadLimit = (id: string) =>
   bodyLimit({
     maxSize: MAX_BATCH_UPLOAD_MB * 1024 * 1024,
-    onError: () => flashRedirect(`/screen/${id}`, 'err', `Upload too large — the limit is ${MAX_BATCH_UPLOAD_MB} MB per upload.`),
+    onError: () => flashRedirect(`/screen/${id}`, 'err', t('screenRoute.upload.tooLarge', { mb: MAX_BATCH_UPLOAD_MB })),
   });
 
 screenRoute.post('/screen/:id/applicants', (c, next) => batchUploadLimit(c.req.param('id'))(c, next), async (c) => {
   const screening = await loadScreening(idParam(c.req.param('id')));
-  if (!screening) return flashRedirect('/screen', 'err', 'That screening no longer exists.');
+  if (!screening) return flashRedirect('/screen', 'err', t('screenRoute.gone'));
   const back = `/screen/${screening.id}`;
   // Multi-value field: gotcha 1 — without `all` only the last file survives.
   const form = await c.req.parseBody({ all: true });
   const raw = form.files;
   const picked = (Array.isArray(raw) ? raw : [raw]).filter((f): f is File => f instanceof File && f.size > 0);
-  if (picked.length === 0) return flashRedirect(back, 'err', 'Pick the resume files, a folder or a zip first.');
+  if (picked.length === 0) return flashRedirect(back, 'err', t('screenRoute.upload.pickFirst'));
 
   const uploads = await Promise.all(picked.map(async (f) => ({ name: f.name, bytes: Buffer.from(await f.arrayBuffer()) })));
   const { files, badArchives, oversized, truncatedArchives, notResumes } = expandUploads(uploads);
   const room = MAX_APPLICANTS_PER_SCREENING - (await countApplicants(screening.id));
-  if (room <= 0) return flashRedirect(back, 'err', `This screening already holds ${MAX_APPLICANTS_PER_SCREENING} applicants.`);
+  if (room <= 0) return flashRedirect(back, 'err', t('screenRoute.upload.full', { max: MAX_APPLICANTS_PER_SCREENING }));
   const batch = files.slice(0, room);
 
   const known = await listKnownApplicants(screening.id);
@@ -489,31 +485,24 @@ screenRoute.post('/screen/:id/applicants', (c, next) => batchUploadLimit(c.req.p
   const rubricEmpty = rubricOf(screening).criteria.length === 0;
   const started = ok > 0 && !rubricEmpty ? await startScreeningRun(screening.id) : null;
 
-  const parts = [`${ok + held} applicant${ok + held === 1 ? '' : 's'} added`];
-  if (versions > 0) parts.push(`${versions} of them another document of someone already in the list`);
-  if (repeats > 0) parts.push(`${repeats} file${repeats === 1 ? '' : 's'} already added, skipped`);
-  if (unreadable > 0) parts.push(`${unreadable} file${unreadable === 1 ? '' : 's'} could not be read`);
-  if (lettersAttached > 0) parts.push(`${lettersAttached} cover letter${lettersAttached === 1 ? '' : 's'} attached to ${lettersAttached === 1 ? 'its applicant' : 'their applicants'}, not scored`);
-  if (lettersLeft > 0) {
-    parts.push(`${lettersLeft} cover letter${lettersLeft === 1 ? '' : 's'} left out — no resume of ${lettersLeft === 1 ? 'its' : 'their'} writer came with ${lettersLeft === 1 ? 'it' : 'them'} (put each in its person's folder, or upload it with the CV)`);
-  }
-  if (notResumes.length > 0) parts.push(`${notResumes.length} file${notResumes.length === 1 ? '' : 's'} of other types left out`);
-  if (badArchives.length > 0) parts.push(`${badArchives.length} archive${badArchives.length === 1 ? '' : 's'} could not be opened`);
-  if (oversized.length > 0) parts.push(`${oversized.length} zip entr${oversized.length === 1 ? 'y' : 'ies'} over ${MAX_UPLOAD_MB} MB left out`);
-  if (truncatedArchives.length > 0) {
-    parts.push(
-      `${truncatedArchives.length} archive${truncatedArchives.length === 1 ? '' : 's'} held more than ${MAX_ZIP_ENTRIES} files — only the first ${MAX_ZIP_ENTRIES} were opened`,
-    );
-  }
-  if (files.length > room) parts.push(`${files.length - room} left out — the screening holds ${MAX_APPLICANTS_PER_SCREENING} at most`);
-  if (held > 0) {
-    parts.push(`${held} held for a look — the redaction may have missed something identifying, so no model reads ${held === 1 ? 'it' : 'them'} until you release ${held === 1 ? 'it' : 'them'} on the scorecard`);
-  }
+  // One clause per thing that happened, in this order; the next step is a sentence of its own.
+  const parts = [t('screenRoute.upload.added', { n: ok + held })];
+  if (versions > 0) parts.push(t('screenRoute.upload.versions', { n: versions }));
+  if (repeats > 0) parts.push(t('screenRoute.upload.repeats', { n: repeats }));
+  if (unreadable > 0) parts.push(t('screenRoute.upload.unreadable', { n: unreadable }));
+  if (lettersAttached > 0) parts.push(t('screenRoute.upload.lettersAttached', { n: lettersAttached }));
+  if (lettersLeft > 0) parts.push(t('screenRoute.upload.lettersLeft', { n: lettersLeft }));
+  if (notResumes.length > 0) parts.push(t('screenRoute.upload.notResumes', { n: notResumes.length }));
+  if (badArchives.length > 0) parts.push(t('screenRoute.upload.badArchives', { n: badArchives.length }));
+  if (oversized.length > 0) parts.push(t('screenRoute.upload.oversized', { n: oversized.length, mb: MAX_UPLOAD_MB }));
+  if (truncatedArchives.length > 0) parts.push(t('screenRoute.upload.truncated', { n: truncatedArchives.length, max: MAX_ZIP_ENTRIES }));
+  if (files.length > room) parts.push(t('screenRoute.upload.overRoom', { n: files.length - room, max: MAX_APPLICANTS_PER_SCREENING }));
+  if (held > 0) parts.push(t('screenRoute.upload.held', { n: held }));
   const tail =
     started?.kind === 'started' || started?.kind === 'joined'
-      ? ' Scoring has started; the page updates itself.'
+      ? ` ${t('screenRoute.upload.scoringStarted')}`
       : ok > 0 && rubricEmpty
-        ? ' Add criteria above, then press Score.'
+        ? ` ${t('screenRoute.upload.addCriteria')}`
         : '';
   return flashRedirect(`${back}#results`, held > 0 || unreadable > 0 ? 'warn' : 'ok', `${parts.join('; ')}.${tail}`);
 });
@@ -523,7 +512,7 @@ const BULK_ACTIONS = ['interview', 'hold', 'declined', 'clear', 'again', 'compar
 /** The checked rows, one action (guardrail 1: every decision here is the person's, and logged). */
 screenRoute.post('/screen/:id/applicants/bulk', async (c) => {
   const screening = await loadScreening(idParam(c.req.param('id')));
-  if (!screening) return flashRedirect('/screen', 'err', 'That screening no longer exists.');
+  if (!screening) return flashRedirect('/screen', 'err', t('screenRoute.gone'));
   const back = `/screen/${screening.id}#results`;
   const form = await c.req.parseBody({ all: true });
   const rawIds = form.ids;
@@ -531,10 +520,8 @@ screenRoute.post('/screen/:id/applicants/bulk', async (c) => {
     .map((v) => (typeof v === 'string' ? idParam(v) : NaN))
     .filter((n) => Number.isInteger(n));
   const action = typeof form.do === 'string' && (BULK_ACTIONS as readonly string[]).includes(form.do) ? (form.do as (typeof BULK_ACTIONS)[number]) : null;
-  if (!action) return flashRedirect(back, 'err', 'Pick what to do with the checked applicants.');
-  if (ids.length === 0) return flashRedirect(back, 'warn', 'Tick the applicants first.');
-  const n = ids.length;
-  const plural = `${n} applicant${n === 1 ? '' : 's'}`;
+  if (!action) return flashRedirect(back, 'err', t('screenRoute.bulk.pickAction'));
+  if (ids.length === 0) return flashRedirect(back, 'warn', t('screenRoute.bulk.tickFirst'));
   switch (action) {
     case 'compare':
       // The ticked rows in the table's order; the compare page says what is wrong with the pick.
@@ -542,7 +529,7 @@ screenRoute.post('/screen/:id/applicants/bulk', async (c) => {
     case 'delete': {
       const count = await deleteApplicants(screening.id, ids);
       logger.info({ screeningId: screening.id, ids, count }, 'screening: applicants removed by the user');
-      return flashRedirect(back, 'ok', `${count} applicant${count === 1 ? '' : 's'} removed with the files and every verdict.`);
+      return flashRedirect(back, 'ok', t('screenRoute.bulk.removed', { n: count }));
     }
     case 'again': {
       const outcome = await startScreeningRun(screening.id, { again: ids });
@@ -551,18 +538,18 @@ screenRoute.post('/screen/:id/applicants/bulk', async (c) => {
         'ok',
         outcome.kind === 'joined'
           ? outcome.queued === 0
-            ? 'The checked applicants are already in the running scoring — each row says where it is.'
-            : `${outcome.queued} applicant${outcome.queued === 1 ? '' : 's'} queued behind the scoring already running; each row says where it is.`
+            ? t('screenRoute.bulk.alreadyQueued')
+            : t('screenRoute.bulk.queued', { n: outcome.queued })
           : outcome.kind === 'nothing'
-            ? 'None of the checked applicants can be scored (unreadable, or held for a look).'
-            : `Scoring ${plural} again — each row says where it is, and the page updates itself.`,
+            ? t('screenRoute.bulk.cannotScore')
+            : t('screenRoute.bulk.scoringAgain', { n: ids.length }),
       );
     }
     default: {
       const decision: Decision | null = action === 'clear' ? null : action;
       const count = await setDecisionMany(screening.id, ids, decision);
       logger.info({ screeningId: screening.id, ids, decision, count }, 'screening: decisions set by the user');
-      return flashRedirect(back, 'ok', decision ? `${count} applicant${count === 1 ? '' : 's'}: ${DECISION_LABELS[decision]?.toLowerCase() ?? decision}.` : `Decision cleared on ${count}.`);
+      return flashRedirect(back, 'ok', decision ? t('screenRoute.bulk.decided', { n: count, decision }) : t('screenRoute.bulk.cleared', { n: count }));
     }
   }
 });
@@ -571,33 +558,33 @@ screenRoute.post('/screen/:id/applicants/bulk', async (c) => {
 screenRoute.post('/screen/:id/applicants/:aid/adjust', async (c) => {
   const id = idParam(c.req.param('id'));
   const applicant = await loadApplicant(idParam(c.req.param('aid')));
-  if (!applicant || applicant.screeningId !== id) return flashRedirect('/screen', 'err', 'That applicant no longer exists.');
+  if (!applicant || applicant.screeningId !== id) return flashRedirect('/screen', 'err', t('screenRoute.applicantGone'));
   const form = await c.req.parseBody();
   const back = safeBack(form.back, `/screen/${id}/applicants/${applicant.id}`);
   const points = Math.max(-MAX_ADJUSTMENT, Math.min(MAX_ADJUSTMENT, Math.round(Number(form.points) || 0)));
   const note = typeof form.note === 'string' ? form.note.trim().slice(0, 200) : '';
-  if (points !== 0 && note.length === 0) return flashRedirect(back, 'err', 'Say why — the reason is shown beside the number and goes into the export.');
+  if (points !== 0 && note.length === 0) return flashRedirect(back, 'err', t('screenRoute.adjust.sayWhy'));
   await setAdjustment(applicant.id, points, note || null);
   logger.info({ screeningId: id, applicantId: applicant.id, number: applicant.number, points, hasNote: note.length > 0 }, 'screening: score adjusted by the user');
-  return flashRedirect(back, 'ok', points === 0 ? `№${applicant.number}: adjustment removed.` : `№${applicant.number}: ${points > 0 ? '+' : ''}${points} — "${note}".`);
+  return flashRedirect(
+    back,
+    'ok',
+    points === 0 ? t('screenRoute.adjust.removed', { n: applicant.number }) : t('screenRoute.adjust.saved', { n: applicant.number, points: `${points > 0 ? '+' : ''}${points}`, note }),
+  );
 });
 
 // TASKS E4 (Q6): the person read the redacted text the leak check flagged and lets the model read it as it is.
 screenRoute.post('/screen/:id/applicants/:aid/release', async (c) => {
   const screening = await loadScreening(idParam(c.req.param('id')));
-  if (!screening) return flashRedirect('/screen', 'err', 'That screening no longer exists.');
+  if (!screening) return flashRedirect('/screen', 'err', t('screenRoute.gone'));
   const applicant = await loadApplicant(idParam(c.req.param('aid')));
-  if (!applicant || applicant.screeningId !== screening.id) return flashRedirect(`/screen/${screening.id}`, 'err', 'That applicant no longer exists.');
+  if (!applicant || applicant.screeningId !== screening.id) return flashRedirect(`/screen/${screening.id}`, 'err', t('screenRoute.applicantGone'));
   const back = `/screen/${screening.id}/applicants/${applicant.id}`;
-  if (!(await releaseApplicant(screening.id, applicant.id))) return flashRedirect(back, 'warn', `№${applicant.number} is not held — nothing changed.`);
+  if (!(await releaseApplicant(screening.id, applicant.id))) return flashRedirect(back, 'warn', t('screenRoute.release.notHeld', { n: applicant.number }));
   logger.info({ screeningId: screening.id, applicantId: applicant.id, number: applicant.number }, 'screening: held applicant released by the user');
   const rubricEmpty = rubricOf(screening).criteria.length === 0;
   const started = rubricEmpty ? null : await startScreeningRun(screening.id);
-  return flashRedirect(
-    back,
-    'ok',
-    `№${applicant.number} will be scored as the redacted text reads now${started ? ' — scoring has started' : rubricEmpty ? ' — add criteria, then press Score' : ''}. Its scorecard shows the leak check's finding beside the result.`,
-  );
+  return flashRedirect(back, 'ok', t('screenRoute.release.done', { n: applicant.number, state: started ? 'started' : rubricEmpty ? 'empty' : 'neither' }));
 });
 
 function mimeOf(filename: string): string {
@@ -611,23 +598,19 @@ function mimeOf(filename: string): string {
 
 screenRoute.post('/screen/:id/run', async (c) => {
   const screening = await loadScreening(idParam(c.req.param('id')));
-  if (!screening) return flashRedirect('/screen', 'err', 'That screening no longer exists.');
+  if (!screening) return flashRedirect('/screen', 'err', t('screenRoute.gone'));
   const id = screening.id;
   const outcome = await startScreeningRun(id);
   const back = `/screen/${id}#results`;
   switch (outcome.kind) {
     case 'missing':
-      return flashRedirect('/screen', 'err', 'That screening no longer exists.');
+      return flashRedirect('/screen', 'err', t('screenRoute.gone'));
     case 'nothing':
-      return flashRedirect(back, 'ok', 'Everyone readable is already scored under this rubric.');
+      return flashRedirect(back, 'ok', t('screenRoute.run.nothing'));
     case 'joined':
-      return flashRedirect(back, 'ok', `Already scoring — ${outcome.state.done + outcome.state.failed} of ${outcome.state.total} done; each row says where it is.`);
+      return flashRedirect(back, 'ok', t('screenRoute.run.joined', { done: outcome.state.done + outcome.state.failed, total: outcome.state.total }));
     case 'started':
-      return flashRedirect(
-        back,
-        'ok',
-        `Scoring started, ${config.AI_CONCURRENCY} at a time. Each applicant is one independent call; verdicts land as they arrive, survive a restart, and anyone added meanwhile joins the run.`,
-      );
+      return flashRedirect(back, 'ok', t('screenRoute.run.started', { n: config.AI_CONCURRENCY }));
   }
 });
 
@@ -645,17 +628,17 @@ type Shortlist = { ok: true; applicants: ApplicantWithVerdict[] } | { ok: false;
 
 /** The ticked rows as a shortlist (plan §5.1): two to five, each scored under the current rubric. */
 async function shortlistOf(screening: ScreeningWithJob, ids: number[]): Promise<Shortlist> {
-  if (ids.length < MIN_COMPARE) return { ok: false, flash: `Tick ${MIN_COMPARE} to ${MAX_COMPARE} applicants to compare${ids.length === 1 ? ' — one on its own is a scorecard' : ''}.` };
-  if (ids.length > MAX_COMPARE) return { ok: false, flash: `Narrow the shortlist first: at most ${MAX_COMPARE} applicants side by side, and you ticked ${ids.length}.` };
+  if (ids.length < MIN_COMPARE) return { ok: false, flash: t('screenRoute.compare.tickRange', { min: MIN_COMPARE, max: MAX_COMPARE, one: ids.length === 1 ? 'yes' : 'no' }) };
+  if (ids.length > MAX_COMPARE) return { ok: false, flash: t('screenRoute.compare.tooMany', { max: MAX_COMPARE, n: ids.length }) };
   // With their texts: a comparison reads them; the table never does.
   const byId = new Map((await listApplicantsWithText(screening.id, screening.rubricVersion, ids)).map((a) => [a.id, a]));
   const applicants: ApplicantWithVerdict[] = [];
   for (const id of ids) {
     const a = byId.get(id);
-    if (!a) return { ok: false, flash: 'One of the ticked applicants no longer exists.' };
-    if (a.parseStatus === 'held') return { ok: false, flash: `№${a.number} is held for a look — release it on its scorecard first.` };
-    if (a.parseStatus !== 'ok') return { ok: false, flash: `№${a.number} could not be read, so there is nothing to compare.` };
-    if (!a.verdict || a.stale) return { ok: false, flash: `№${a.number} is not scored under rubric v${screening.rubricVersion} — Score first, then compare.` };
+    if (!a) return { ok: false, flash: t('screenRoute.compare.oneGone') };
+    if (a.parseStatus === 'held') return { ok: false, flash: t('screenRoute.compare.held', { n: a.number }) };
+    if (a.parseStatus !== 'ok') return { ok: false, flash: t('screenRoute.compare.unreadable', { n: a.number }) };
+    if (!a.verdict || a.stale) return { ok: false, flash: t('screenRoute.compare.notScored', { n: a.number, version: screening.rubricVersion }) };
     applicants.push(a);
   }
   return { ok: true, applicants };
@@ -663,7 +646,7 @@ async function shortlistOf(screening: ScreeningWithJob, ids: number[]): Promise<
 
 screenRoute.get('/screen/:id/compare', async (c) => {
   const screening = await loadScreening(idParam(c.req.param('id')));
-  if (!screening) return flashRedirect('/screen', 'err', 'That screening no longer exists.');
+  if (!screening) return flashRedirect('/screen', 'err', t('screenRoute.gone'));
   const ids = parseIdList(c.req.query('ids'));
   const pick = await shortlistOf(screening, ids);
   if (!pick.ok) return flashRedirect(`/screen/${screening.id}#results`, 'warn', pick.flash);
@@ -689,13 +672,13 @@ screenRoute.get('/screen/:id/compare', async (c) => {
 
 screenRoute.post('/screen/:id/compare/ai', async (c) => {
   const screening = await loadScreening(idParam(c.req.param('id')));
-  if (!screening) return flashRedirect('/screen', 'err', 'That screening no longer exists.');
+  if (!screening) return flashRedirect('/screen', 'err', t('screenRoute.gone'));
   const form = await c.req.parseBody();
   const ids = parseIdList(typeof form.ids === 'string' ? form.ids : undefined);
   const compareUrl = `/screen/${screening.id}/compare?ids=${ids.join(',')}`;
   const pick = await shortlistOf(screening, ids);
   if (!pick.ok) return flashRedirect(`/screen/${screening.id}#results`, 'warn', pick.flash);
-  if (rubricOf(screening).criteria.length === 0) return flashRedirect(compareUrl, 'warn', 'Write the criteria first — the shortlist is read against them.');
+  if (rubricOf(screening).criteria.length === 0) return flashRedirect(compareUrl, 'warn', t('screenRoute.compare.writeCriteria'));
   const n = pick.applicants.length;
   const { run, joined } = claimRun(`screen-compare:${screening.id}:${[...ids].sort((a, b) => a - b).join(',')}`, {
     steps: ['compare'],
@@ -703,23 +686,23 @@ screenRoute.post('/screen/:id/compare/ai', async (c) => {
     resumeName: '',
     jobId: screening.jobId,
     backUrl: compareUrl,
-    backLabel: 'Back to the comparison',
-    heading: { running: `Reading ${n} applicants head to head`, failed: 'The shortlist could not be read' },
-    subtitle: `${pick.applicants.map((a) => `№${a.number}`).join(', ')} — two readings at once, the second with the resumes in the reverse order`,
+    backLabel: t('screenRoute.compare.back'),
+    heading: { running: t('screenRoute.compare.running', { n }), failed: t('screenRoute.compare.failed') },
+    subtitle: t('screenRoute.compare.subtitle', { numbers: pick.applicants.map((a) => `№${a.number}`).join(', ') }),
   });
   if (joined) return c.redirect(`/target/runs/${run.id}`, 303);
   startRun(run.id, async () => {
     const fresh = await getScreening(screening.id);
     if (!fresh) {
-      updateRun(run.id, { stage: 'error', error: 'The screening was deleted meanwhile.' });
+      updateRun(run.id, { stage: 'error', error: t('screenRoute.deletedMeanwhile') });
       return;
     }
     const outcome = await compareApplicants(fresh, rubricOf(fresh), pick.applicants, await getAiRuntime(), await loadKeywordMatcher());
     updateRun(
       run.id,
       outcome.ok
-        ? { stage: 'done', resultUrl: `${compareUrl}#ai`, flash: `Read ${n} applicants head to head, twice. Where the two readings differ is marked.` }
-        : { stage: 'done', resultUrl: `${compareUrl}#ai`, flashKind: 'warn', flash: `The shortlist could not be read (${outcome.reason}). Nothing was stored — try again.` },
+        ? { stage: 'done', resultUrl: `${compareUrl}#ai`, flash: t('screenRoute.compare.done', { n }) }
+        : { stage: 'done', resultUrl: `${compareUrl}#ai`, flashKind: 'warn', flash: t('screenRoute.compare.notRead', { reason: outcome.reason }) },
     );
   });
   return c.redirect(`/target/runs/${run.id}`, 303);
@@ -727,7 +710,7 @@ screenRoute.post('/screen/:id/compare/ai', async (c) => {
 
 screenRoute.get('/screen/:id/applicants/:aid', async (c) => {
   const applicant = await loadApplicant(idParam(c.req.param('aid')));
-  if (!applicant || applicant.screeningId !== idParam(c.req.param('id'))) return flashRedirect('/screen', 'err', 'That applicant no longer exists.');
+  if (!applicant || applicant.screeningId !== idParam(c.req.param('id'))) return flashRedirect('/screen', 'err', t('screenRoute.applicantGone'));
   const s = applicant.screening;
   const sameAsNumber = applicant.sameAsId !== null ? ((await getApplicant(applicant.sameAsId))?.number ?? null) : null;
   const reply = applicant.verdict ? readScreenReply(applicant.verdict.facts) : null;
@@ -743,7 +726,7 @@ screenRoute.get('/screen/:id/applicants/:aid', async (c) => {
         phone: applicant.phone,
         file: applicant.sourceFilename,
         status: applicantStatus(applicant.parseStatus),
-        note: applicant.parseNote,
+        note: applicant.parseNote === null ? null : noteWords(applicant.parseNote),
         decision: applicant.decision,
         decidedAt: applicant.decidedAt,
         sameAs: sameAsNumber,
@@ -773,7 +756,7 @@ screenRoute.get('/screen/:id/applicants/:aid', async (c) => {
 screenRoute.get('/screen/:id/applicants/:aid/file', async (c) => {
   const aid = idParam(c.req.param('aid'));
   const file = Number.isInteger(aid) ? await getApplicantFile(aid) : null;
-  if (!file) return c.text('Not found', 404);
+  if (!file) return c.text(t('http.notFound'), 404);
   const filename = file.sourceFilename.replace(/ \(from .*\)$/, '').replace(/["\r\n]/g, '');
   return c.body(new Uint8Array(file.original), 200, {
     'Content-Type': file.mimeType,
@@ -785,7 +768,7 @@ screenRoute.get('/screen/:id/applicants/:aid/file', async (c) => {
 screenRoute.get('/screen/:id/applicants/:aid/letters/:lid/file', async (c) => {
   const lid = idParam(c.req.param('lid'));
   const file = Number.isInteger(lid) ? await getLetterFile(lid) : null;
-  if (!file || file.applicantId !== idParam(c.req.param('aid'))) return c.text('Not found', 404);
+  if (!file || file.applicantId !== idParam(c.req.param('aid'))) return c.text(t('http.notFound'), 404);
   const filename = file.sourceFilename.replace(/ \(from .*\)$/, '').replace(/["\r\n]/g, '');
   return c.body(new Uint8Array(file.original), 200, {
     'Content-Type': file.mimeType,
@@ -801,23 +784,32 @@ screenRoute.post('/screen/:id/applicants/:aid/decision', async (c) => {
   const raw = typeof form.decision === 'string' ? form.decision : '';
   const decision = (DECISIONS as readonly string[]).includes(raw) ? (raw as Decision) : null;
   const applicant = await loadApplicant(aid);
-  if (!applicant || applicant.screeningId !== id) return flashRedirect('/screen', 'err', 'That applicant no longer exists.');
+  if (!applicant || applicant.screeningId !== id) return flashRedirect('/screen', 'err', t('screenRoute.applicantGone'));
   await setDecision(aid, decision);
   // Guardrail 1: the person's decision is the one write the tool never makes, and it is logged.
   logger.info({ screeningId: id, applicantId: aid, number: applicant.number, decision }, 'screening: decision set by the user');
-  return flashRedirect(back, 'ok', decision ? `№${applicant.number}: ${decision === 'interview' ? 'to interview' : decision === 'hold' ? 'on hold' : 'declined'}.` : `№${applicant.number}: decision cleared.`);
+  return flashRedirect(back, 'ok', decision ? t('screenRoute.decision.set', { n: applicant.number, decision }) : t('screenRoute.decision.cleared', { n: applicant.number }));
 });
 
 screenRoute.post('/screen/:id/applicants/:aid/delete', async (c) => {
   const id = idParam(c.req.param('id'));
   const applicant = await loadApplicant(idParam(c.req.param('aid')));
-  if (!applicant || applicant.screeningId !== id) return flashRedirect('/screen', 'err', 'That applicant no longer exists.');
+  if (!applicant || applicant.screeningId !== id) return flashRedirect('/screen', 'err', t('screenRoute.applicantGone'));
   await deleteApplicant(applicant.id);
   logger.info({ screeningId: id, applicantId: applicant.id }, 'screening: applicant removed');
-  return flashRedirect(`/screen/${id}#results`, 'ok', `№${applicant.number} removed with the file and every verdict.`);
+  return flashRedirect(`/screen/${id}#results`, 'ok', t('screenRoute.applicant.removed', { n: applicant.number }));
 });
 
-async function exportData(id: number) {
+/**
+ * The table as a file for the hiring manager. A file is data, as its header
+ * is: the words the code writes into it (bucket names, the calibration line)
+ * are English whatever language the page reads in.
+ */
+function exportData(id: number) {
+  return withLocale('en', () => exportRowsFor(id));
+}
+
+async function exportRowsFor(id: number) {
   const screening = await loadScreening(id);
   if (!screening) return null;
   const applicants = await listApplicants(screening.id, screening.rubricVersion);
@@ -840,8 +832,8 @@ async function exportData(id: number) {
 
 screenRoute.get('/screen/:id/export.csv', async (c) => {
   const data = await exportData(idParam(c.req.param('id')));
-  if (!data) return c.text('Not found', 404);
-  return c.body(toCsv(data.meta, data.rows), 200, {
+  if (!data) return c.text(t('http.notFound'), 404);
+  return c.body(withLocale('en', () => toCsv(data.meta, data.rows)), 200, {
     'Content-Type': 'text/csv; charset=utf-8',
     'Content-Disposition': `attachment; filename="${data.slug}.csv"`,
   });
@@ -849,8 +841,8 @@ screenRoute.get('/screen/:id/export.csv', async (c) => {
 
 screenRoute.get('/screen/:id/export.md', async (c) => {
   const data = await exportData(idParam(c.req.param('id')));
-  if (!data) return c.text('Not found', 404);
-  return c.body(toMarkdown(data.meta, data.rows, data.calibration), 200, {
+  if (!data) return c.text(t('http.notFound'), 404);
+  return c.body(withLocale('en', () => toMarkdown(data.meta, data.rows, data.calibration)), 200, {
     'Content-Type': 'text/markdown; charset=utf-8',
     'Content-Disposition': `attachment; filename="${data.slug}.md"`,
   });
@@ -858,18 +850,18 @@ screenRoute.get('/screen/:id/export.md', async (c) => {
 
 screenRoute.post('/screen/:id/retain', async (c) => {
   const screening = await loadScreening(idParam(c.req.param('id')));
-  if (!screening) return flashRedirect('/screen', 'err', 'That screening no longer exists.');
+  if (!screening) return flashRedirect('/screen', 'err', t('screenRoute.gone'));
   const settings = await getSettings();
   const until = new Date(Date.now() + settings.screeningRetentionDays * DAY_MS);
   await extendRetention(screening.id, until);
-  return flashRedirect(`/screen/${screening.id}`, 'ok', `Kept until ${until.toISOString().slice(0, 10)}.`);
+  return flashRedirect(`/screen/${screening.id}`, 'ok', t('screenRoute.kept', { date: until.toISOString().slice(0, 10) }));
 });
 
 screenRoute.post('/screen/:id/delete', async (c) => {
   const screening = await loadScreening(idParam(c.req.param('id')));
-  if (!screening) return flashRedirect('/screen', 'err', 'That screening no longer exists.');
+  if (!screening) return flashRedirect('/screen', 'err', t('screenRoute.gone'));
   const n = await countApplicants(screening.id);
   await deleteScreening(screening.id);
   logger.info({ screeningId: screening.id, applicants: n }, 'screening: deleted with files');
-  return flashRedirect('/screen', 'ok', `"${screening.title}" deleted with ${n} applicant file${n === 1 ? '' : 's'} and every verdict.`);
+  return flashRedirect('/screen', 'ok', t('screenRoute.deleted', { title: screening.title, n }));
 });

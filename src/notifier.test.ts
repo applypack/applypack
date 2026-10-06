@@ -12,6 +12,8 @@ import {
   formatTelegramDigest,
   sendParts,
 } from './notifier';
+import { withLocale } from './i18n/locale';
+import { heldTitle } from './jobs/held-alerts';
 import type { AlertJob } from './types';
 
 describe('channelFor', () => {
@@ -341,5 +343,59 @@ describe('formatPlaceLine', () => {
     assert.equal(formatPlaceLine({ ...base, location: '', countries: [], workplace: 'ONSITE' }), 'On-site');
     assert.equal(formatPlaceLine({ ...base, location: '', countries: [], workplace: 'UNKNOWN' }), 'Remote');
     assert.equal(formatPlaceLine({ ...base, location: 'Anywhere' }), 'Anywhere');
+  });
+});
+
+/**
+ * The characters MarkdownV2 reserves that are left bare once every escape and
+ * every link's URL (its own grammar: only `)` and `\\` are escaped there) is
+ * set aside — which must be the markup the formatter wrote, nothing else.
+ */
+function bareReserved(text: string): Set<string> {
+  const bare = new Set<string>();
+  const outsideUrls = text.replace(/\]\((?:\\.|[^\\)])*\)/g, ']');
+  for (let i = 0; i < outsideUrls.length; i++) {
+    const ch = outsideUrls[i]!;
+    if (ch === '\\') i++;
+    else if ('_*[]()~`>#+-=|{}.!'.includes(ch)) bare.add(ch);
+  }
+  return bare;
+}
+
+describe('a message in the language of the run (ADR 0061)', () => {
+  const job: AlertJob = {
+    title: 'Senior Engineer (Node.js)',
+    companyName: 'Acme Inc.',
+    location: 'Kyiv, Ukraine',
+    countries: ['UA'],
+    workplace: 'HYBRID',
+    url: 'https://example.com/jobs/1?q=(a)',
+    fitScore: 88,
+    salaryMin: null,
+    salaryMax: null,
+    techMatch: ['node.js'],
+    redFlags: ['no-salary-listed'],
+    summary: '',
+    crossListedAt: 'Acme (EU) - Jobs',
+  };
+  const quiet = [{ name: 'Pleo', atsType: 'LEVER', status: 'rate_limit', streak: 3 }];
+
+  it('writes an alert in Ukrainian with no reserved character left bare', () => {
+    const msg = withLocale('uk', () => formatJobMessage(job));
+    assert.match(msg, /^\*Новий збіг — відповідність 88\/100\*/);
+    assert.match(msg, /🇺🇦 Kyiv, Ukraine · гібридно/);
+    assert.doesNotMatch(msg, /New role match|Tech:|Flags:|Also listed|Apply/);
+    assert.deepEqual([...bareReserved(msg)].sort(), ['*', '[', ']']);
+  });
+
+  it('writes the held delivery in Ukrainian, the catalog\'s own full stop and brackets escaped', () => {
+    const parts = withLocale('uk', () => formatTelegramDigest([job], quiet, heldTitle(), 5));
+    assert.match(parts[0]!, /^\*Поки вас не було — 6 збігів\*\n⚠️ \*1 тихе джерело\* — Pleo \\\(LEVER, ліміт запитів ×3\\\)/);
+    assert.ok(parts.at(-1)!.endsWith('у вкладці «Нова»\\.'), parts.at(-1));
+    for (const part of parts) assert.deepEqual([...bareReserved(part)].sort(), ['*', '[', ']']);
+  });
+
+  it('stays English outside a run, as the tests above assert', () => {
+    assert.match(formatJobMessage(job), /^\*New role match — fit 88\/100\*/);
   });
 });

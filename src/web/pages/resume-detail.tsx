@@ -93,7 +93,7 @@ export const ResumeDetailPage: FC<ResumeDetailProps> = ({
   // available behind a disclosure rather than competing for attention.
   const reviewed = review !== null && !reviewIsStale(review.resumeVersion, resume.version);
   return (
-    <Layout title={resume.name} active="resumes">
+    <Layout title={resume.name} titleIsData active="resumes">
       <PageHeader
         title={resume.name}
         titleIsData

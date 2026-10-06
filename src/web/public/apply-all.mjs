@@ -16,6 +16,7 @@
  */
 
 import { applyReplacement, insertAfterLine, removeSpan, insertIntoSkills, appendSkills, withContext } from './text-edits.mjs';
+import { formatList, t } from './i18n.mjs';
 
 /**
  * @typedef {{ key: string, kind: 'change', quote: string, wording: string }
@@ -76,7 +77,7 @@ export function applyAll(text, ops) {
  * undone on its own, and one for the leftover line.
  */
 export function addKeywords(text, terms) {
-  const first = applyAll(text, terms.map((t) => ({ key: 'kw:' + t.term, kind: 'keyword', term: t.term, where: t.where })));
+  const first = applyAll(text, terms.map((k) => ({ key: 'kw:' + k.term, kind: 'keyword', term: k.term, where: k.where })));
   const leftover = first.failed.filter((f) => f.error === 'no-skills-list').map((f) => f.key.slice(3));
   if (leftover.length === 0) return first;
   const rest = applyAll(first.text, [{ key: 'kw-line:' + leftover.join(','), kind: 'skills-line', terms: leftover }]);
@@ -87,27 +88,31 @@ export function addKeywords(text, terms) {
   };
 }
 
-const NOUNS = {
-  change: ['change', 'changes'],
-  add: ['addition', 'additions'],
-  remove: ['removal', 'removals'],
-  keyword: ['keyword', 'keywords'],
-  'skills-line': ['line of keywords', 'lines of keywords'],
+/** Each kind of edit counted, in the order the summary names them. */
+const COUNTED = {
+  change: 'browser.applyAll.change',
+  add: 'browser.applyAll.addition',
+  remove: 'browser.applyAll.removal',
+  keyword: 'browser.applyAll.keyword',
+  'skills-line': 'browser.applyAll.skillsLine',
 };
 
-function counted(n, [one, many]) {
-  return `${n} ${n === 1 ? one : many}`;
-}
+/** The summary's first sentence, by what the press was called. */
+const HEAD = { applied: 'browser.applyAll.applied', added: 'browser.applyAll.added' };
 
-/** One sentence for the status line and a screen reader: what landed, what did not. */
-export function applyAllSummary(result) {
+/**
+ * One sentence for the status line and a screen reader: what landed, what did
+ * not. `verb` is what the button said it would do — "Applied 2 changes" for
+ * Apply all, "Added 3 keywords" for the keyword list.
+ */
+export function applyAllSummary(result, verb = 'applied') {
   const byKind = {};
   for (const d of result.done) byKind[d.kind] = (byKind[d.kind] ?? 0) + 1;
-  const parts = Object.keys(NOUNS)
+  const parts = Object.keys(COUNTED)
     .filter((kind) => byKind[kind])
-    .map((kind) => counted(byKind[kind], NOUNS[kind]));
-  const head = parts.length > 0 ? `Applied ${parts.join(', ')}.` : 'Nothing was applied.';
+    .map((kind) => t(COUNTED[kind], { n: byKind[kind] }));
+  const head = parts.length > 0 ? t(HEAD[verb] ?? HEAD.applied, { list: formatList(parts) }) : t('browser.applyAll.nothing');
   const missed = result.failed.length;
   if (missed === 0) return head;
-  return `${head} ${missed === 1 ? '1 could not be placed' : `${missed} could not be placed`} — the card says why.`;
+  return `${head} ${t('browser.applyAll.missed', { n: missed })}`;
 }

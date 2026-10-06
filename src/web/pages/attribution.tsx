@@ -17,11 +17,12 @@ import { t } from '../../i18n/t';
 export const AdzunaLabel: FC<{ market: string; class?: string }> = ({ market, class: cls }) => {
   const a = adzunaAttribution(market);
   return (
-    <span class={`inline-flex items-center gap-1 text-meta text-ink-muted ${cls ?? ''}`} title={t('job.attribution.adzunaTitle')} translate="no">
-      <a href={a.url} target="_blank" rel="noopener" class="hover:underline">
+    // The tooltip is ours and translated; the words are the vendor's and are not.
+    <span class={`inline-flex items-center gap-1 text-meta text-ink-muted ${cls ?? ''}`} title={t('job.attribution.adzunaTitle')}>
+      <a href={a.url} target="_blank" rel="noopener" class="hover:underline" translate="no">
         Jobs
       </a>
-      <span>by</span>
+      <span translate="no">by</span>
       <a href={a.url} target="_blank" rel="noopener" class="inline-flex items-center">
         <img src={a.logo} alt="Adzuna" width="116" height="31" loading="lazy" class="h-[23px] w-auto" />
       </a>

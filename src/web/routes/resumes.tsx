@@ -118,7 +118,7 @@ resumesRoute.post('/resumes', resumeUploadLimit('/resumes'), onceGuard(() => 're
 
 resumesRoute.post('/resumes/:id/replace', resumeUploadLimit('/resumes'), onceGuard((c) => `resumes:replace:${c.req.param('id')}`, (c) => `/resumes/${c.req.param('id')}`), async (c) => {
   const id = idParam(c.req.param('id'));
-  if (!Number.isFinite(id)) return c.text('Bad id', 400);
+  if (!Number.isFinite(id)) return c.text(t('http.badId'), 400);
   const current = await getResume(id);
   if (!current) return c.text(t('http.notFound'), 404);
   const upload = await readResumeUpload(await c.req.parseBody());
@@ -138,7 +138,7 @@ resumesRoute.post('/resumes/:id/replace', resumeUploadLimit('/resumes'), onceGua
 // TASKS R14: the same resume as another file, read beside the saved one — rendered, never stored, no AI.
 resumesRoute.post('/resumes/:id/compare-format', resumeUploadLimit('/resumes'), async (c) => {
   const id = idParam(c.req.param('id'));
-  if (!Number.isFinite(id)) return c.text('Bad id', 400);
+  if (!Number.isFinite(id)) return c.text(t('http.badId'), 400);
   const resume = await getResume(id);
   if (!resume) return c.text(t('http.notFound'), 404);
   const upload = await readResumeUpload(await c.req.parseBody());
@@ -151,7 +151,7 @@ resumesRoute.post('/resumes/:id/compare-format', resumeUploadLimit('/resumes'), 
 
 resumesRoute.get('/resumes/:id', async (c) => {
   const id = idParam(c.req.param('id'));
-  if (!Number.isFinite(id)) return c.text('Bad id', 400);
+  if (!Number.isFinite(id)) return c.text(t('http.badId'), 400);
   const [resume, matches, review, linkedProfiles, impact, tables, facts] = await Promise.all([
     getResume(id),
     listMatchesForResume(id),
@@ -203,7 +203,7 @@ resumesRoute.get('/resumes/:id', async (c) => {
 
 resumesRoute.get('/resumes/:id/download', async (c) => {
   const id = idParam(c.req.param('id'));
-  if (!Number.isFinite(id)) return c.text('Bad id', 400);
+  if (!Number.isFinite(id)) return c.text(t('http.badId'), 400);
   const row = await getResumeOriginal(id);
   if (!row) return c.text(t('http.notFound'), 404);
   const filename = row.sourceFilename.replace(/["\r\n]/g, '');
@@ -217,7 +217,7 @@ resumesRoute.get('/resumes/:id/download', async (c) => {
 
 resumesRoute.post('/resumes/:id/draft', async (c) => {
   const id = idParam(c.req.param('id'));
-  if (!Number.isFinite(id)) return c.text('Bad id', 400);
+  if (!Number.isFinite(id)) return c.text(t('http.badId'), 400);
   const current = await getResume(id);
   if (!current) return c.text(t('http.notFound'), 404);
   const form = await c.req.parseBody();
@@ -381,7 +381,7 @@ async function saveEdited(
  */
 resumesRoute.post('/resumes/:id/props', async (c) => {
   const id = idParam(c.req.param('id'));
-  if (!Number.isFinite(id)) return c.text('Bad id', 400);
+  if (!Number.isFinite(id)) return c.text(t('http.badId'), 400);
   const [resume, row] = await Promise.all([getResume(id), getResumeOriginal(id)]);
   if (!resume || !row) return c.text(t('http.notFound'), 404);
   if (!isDocx(row.sourceFilename)) return flashRedirect(`/resumes/${id}`, 'err', t('resume.flash.propsOnlyDocx'));
@@ -397,7 +397,7 @@ resumesRoute.post('/resumes/:id/props', async (c) => {
  */
 resumesRoute.post('/resumes/:id/profile', async (c) => {
   const id = idParam(c.req.param('id'));
-  if (!Number.isFinite(id)) return c.text('Bad id', 400);
+  if (!Number.isFinite(id)) return c.text(t('http.badId'), 400);
   const resume = await getResume(id);
   if (!resume || resume.hidden) return c.text(t('http.notFound'), 404);
   if (!resume.scannedAt) {
@@ -414,7 +414,7 @@ resumesRoute.post('/resumes/:id/profile', async (c) => {
 
 resumesRoute.post('/resumes/:id/rescan', async (c) => {
   const id = idParam(c.req.param('id'));
-  if (!Number.isFinite(id)) return c.text('Bad id', 400);
+  if (!Number.isFinite(id)) return c.text(t('http.badId'), 400);
   const resume = await getResume(id);
   if (!resume) return c.text(t('http.notFound'), 404);
   return startScanRun(c, resume, {
@@ -448,7 +448,7 @@ function deltaFor(current: ResumeReview | null, previous: ResumeReview | null): 
  */
 resumesRoute.post('/resumes/:id/review', async (c) => {
   const id = idParam(c.req.param('id'));
-  if (!Number.isFinite(id)) return c.text('Bad id', 400);
+  if (!Number.isFinite(id)) return c.text(t('http.badId'), 400);
   const resume = await getResume(id);
   if (!resume) return c.text(t('http.notFound'), 404);
   const { text, version, roleTypes, answers } = resume;
@@ -493,11 +493,11 @@ resumesRoute.post('/resumes/:id/review', async (c) => {
  */
 resumesRoute.post('/resumes/:id/answers', async (c) => {
   const id = idParam(c.req.param('id'));
-  if (!Number.isFinite(id)) return c.text('Bad id', 400);
+  if (!Number.isFinite(id)) return c.text(t('http.badId'), 400);
   const form = await c.req.parseBody();
   const question = typeof form.question === 'string' ? form.question : '';
   const answer = typeof form.answer === 'string' ? form.answer : '';
-  if (question.trim().length === 0) return c.text('Bad answer', 400);
+  if (question.trim().length === 0) return c.text(t('http.badAnswer'), 400);
 
   const saved = await saveReviewAnswer(id, question, answer);
   if (saved === null) return c.text(t('http.notFound'), 404);
@@ -522,7 +522,7 @@ resumesRoute.post('/resumes/:id/answers', async (c) => {
  */
 resumesRoute.post('/resumes/:id/rename', async (c) => {
   const id = idParam(c.req.param('id'));
-  if (!Number.isFinite(id)) return c.text('Bad id', 400);
+  if (!Number.isFinite(id)) return c.text(t('http.badId'), 400);
   const form = await c.req.parseBody();
   const name = (typeof form.name === 'string' ? form.name : '').trim().slice(0, MAX_RESUME_NAME_CHARS);
   if (name.length === 0) {
@@ -535,7 +535,7 @@ resumesRoute.post('/resumes/:id/rename', async (c) => {
 
 resumesRoute.post('/resumes/:id/default', async (c) => {
   const id = idParam(c.req.param('id'));
-  if (!Number.isFinite(id)) return c.text('Bad id', 400);
+  if (!Number.isFinite(id)) return c.text(t('http.badId'), 400);
   if (!(await getResume(id))) return c.text(t('http.notFound'), 404);
   await setDefaultResume(id);
   return flashRedirect(`/resumes/${id}`, 'ok', t('resume.flash.defaultUpdated'));
@@ -543,7 +543,7 @@ resumesRoute.post('/resumes/:id/default', async (c) => {
 
 resumesRoute.post('/resumes/:id/delete', async (c) => {
   const id = idParam(c.req.param('id'));
-  if (!Number.isFinite(id)) return c.text('Bad id', 400);
+  if (!Number.isFinite(id)) return c.text(t('http.badId'), 400);
   // A row that was not there is not a deletion. Saying it was sent a user
   // looking for a resume they still have back to a list that still shows it.
   const deleted = await deleteResume(id);

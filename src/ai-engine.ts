@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { AI_TASKS, type AiTask } from './ai-tasks';
+import { t } from './i18n/t';
 
 /*
  * Pure AI-engine resolution (ADR 0013 / 0014): which backends run the AI
@@ -20,14 +21,23 @@ export const AI_PROVIDER_IDS = [
 ] as const;
 export type AiProviderId = (typeof AI_PROVIDER_IDS)[number];
 
-export const AI_PROVIDER_LABELS: Record<AiProviderId, string> = {
+/**
+ * The engines by name. Five are product names, the same in every language;
+ * the two that are described in words are read in the reader's language at
+ * the moment they are asked for, so a page and a tick each get their own.
+ */
+export const AI_PROVIDER_LABELS: Readonly<Record<AiProviderId, string>> = {
   anthropic_api: 'Anthropic API',
   claude_code: 'Claude Code CLI',
   gemini_cli: 'Gemini CLI',
   agy_cli: 'Antigravity CLI (agy)',
-  openai_api: 'OpenAI-compatible API',
+  get openai_api(): string {
+    return t('engine.label.openaiApi');
+  },
   codex_cli: 'Codex CLI',
-  local_api: 'Local model (Ollama)',
+  get local_api(): string {
+    return t('engine.label.localApi');
+  },
 };
 
 /** Which backends can research the web (verification calls ask for it). */

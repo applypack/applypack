@@ -10,6 +10,7 @@ import type { MessageKey } from '../../i18n/catalog';
 import { t } from '../../i18n/t';
 import { getAiKeys, getSettings } from '../../settings';
 import { aiPlanRows } from '../ai-plan';
+import { clearFlashCookie, parseFlashCookie } from '../flash';
 import { AiUsagePage } from '../pages/ai-usage';
 import { usageHints } from '../usage-hints';
 
@@ -63,6 +64,9 @@ aiUsageRoute.get('/ai', async (c) => {
       })}
       plan={plan}
       budget={{ cents: settings.aiBudgetCents, billedThisMonthMicro: billedMonth }}
+      flash={parseFlashCookie(c.req.header('cookie'))}
     />,
+    200,
+    { 'Set-Cookie': clearFlashCookie() },
   );
 });

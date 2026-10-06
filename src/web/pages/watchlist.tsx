@@ -23,6 +23,7 @@ import {
   Tr,
 } from '../ui';
 import { formatRelative, formatUntil } from '../format';
+import { wordedSource } from '../source-groups';
 import { sourceLabel } from '../source-names';
 import { CHECK_INTERVALS, intervalLabel } from '../../watchlist/interval';
 import { MAX_LINES } from '../../watchlist/parse-input';
@@ -110,13 +111,17 @@ export const AddCompaniesCard: FC<{ running: WatchlistRun | null }> = ({ running
       </Button>
     ) : (
       <form method="post" action="/companies/watchlist" onsubmit={SUBMIT_ONCE}>
+        {/* The label is ours; what goes in the box is the user's list, never translated. */}
+        <label for="watchlist-urls" class="sr-only">
+          {t('watchlist.add.urlsLabel')}
+        </label>
         <Textarea
+          id="watchlist-urls"
           name="urls"
           rows={6}
           mono
           required
           translate="no"
-          aria-label={t('watchlist.add.urlsLabel')}
           placeholder={'Vercel — https://vercel.com/careers\nhttps://www.netlify.com/careers/\nhttps://linear.app/careers'}
         />
         <div class="mt-3">
@@ -365,7 +370,7 @@ export const WatchlistSection: FC<{ rows: WatchedRow[] }> = ({ rows }) => {
                 ★ {r.name}
               </div>
               <div class="mt-0.5 flex flex-wrap items-center gap-2 text-meta text-ink-faint">
-                <span translate="no">
+                <span translate={wordedSource(r.atsType) ? undefined : 'no'}>
                   <Tag>{sourceLabel(r.atsType)}</Tag>
                 </span>
                 {!r.active && !needsPaste(r) && <Badge tone="warn">{t('watchlist.off')}</Badge>}

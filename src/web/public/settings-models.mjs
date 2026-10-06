@@ -14,17 +14,18 @@
 export function statusFor(state, error) {
   switch (state) {
     case 'saving':
-      return 'Saving…';
+      return t('browser.save.saving');
     case 'saved':
-      return 'Saved';
+      return t('browser.save.saved');
     case 'failed':
-      return error || 'Could not save — press the Save button to retry';
+      return error || t('browser.models.failed');
     default:
       return '';
   }
 }
 
 import { wireSelectCommit } from './select-commit.mjs';
+import { t } from './i18n.mjs';
 
 const SAVED_CLEAR_MS = 2500;
 

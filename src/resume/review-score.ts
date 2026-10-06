@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { t } from '../i18n/t';
 
 /*
  * Deterministic strength score for one resume, job-agnostic (docs/resumes-plan.md
@@ -130,8 +131,8 @@ export function scoreReview(grades: ReviewGradeEntry[]): ReviewBreakdown {
 export function capExplanation(bd: ReviewBreakdown): string | null {
   if (bd.capReason === null) return null;
   return bd.capReason === 'impact'
-    ? `Capped at ${bd.cap}: the experience reads as duties rather than outcomes, and no amount of polish elsewhere makes a resume read senior without them.`
-    : `Capped at ${bd.cap}: ${bd.weakCount} of ${REVIEW_DIMENSIONS.length} dimensions came back weak — those are the ones to fix first.`;
+    ? t('review.cap.impact', { cap: bd.cap ?? 0 })
+    : t('review.cap.weak', { cap: bd.cap ?? 0, weak: bd.weakCount, total: REVIEW_DIMENSIONS.length });
 }
 
 /* Stored JSON: the computation plus the prompt that produced the grades. The

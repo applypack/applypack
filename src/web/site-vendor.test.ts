@@ -5,9 +5,10 @@ import { join } from 'node:path';
 
 // The landing demo (site/public/demo/) ships byte copies of the pure scoring
 // modules so applypack.dev cannot drift from what the dashboard actually runs.
-// If this fails, re-copy: cp src/web/public/{score,target,evidence}.mjs site/public/demo/
+// target.mjs words its tooltips through i18n.mjs, which reads i18n-en.mjs, so those two ride along.
+// If this fails, re-copy: cp src/web/public/{score,target,evidence,i18n,i18n-en}.mjs site/public/demo/
 describe('site demo vendors the real scoring modules', () => {
-  for (const name of ['score.mjs', 'target.mjs', 'evidence.mjs']) {
+  for (const name of ['score.mjs', 'target.mjs', 'evidence.mjs', 'i18n.mjs', 'i18n-en.mjs']) {
     it(`${name} is byte-identical to src/web/public`, () => {
       const original = readFileSync(join(__dirname, 'public', name), 'utf8');
       const vendored = readFileSync(join(__dirname, '..', '..', 'site', 'public', 'demo', name), 'utf8');

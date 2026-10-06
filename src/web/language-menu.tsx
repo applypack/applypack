@@ -35,6 +35,15 @@ const OwnName: FC<{ locale: Locale; class?: string }> = ({ locale, class: classN
   </span>
 );
 
+/**
+ * The page's #fragment rides along with the way back (#358): the server builds
+ * `back` from path and query and never sees a fragment, so switching from
+ * Settings → General → Language would land at the top of the tab. One listener
+ * for every language form on the page; without a script the fragment is lost and
+ * nothing else changes.
+ */
+const KEEP_FRAGMENT = `if(!window.__apLanguageHash){window.__apLanguageHash=1;document.addEventListener('submit',function(e){var f=e.target;if(!f||!f.matches||!f.matches('form[data-language-form]'))return;var b=f.querySelector('input[name=back]');if(b&&location.hash&&b.value.indexOf('#')<0)b.value+=location.hash;},true);}`;
+
 const TRIGGER = {
   /** A row of the menu: the globe alone on the icon rail. */
   sidebar:
@@ -60,9 +69,9 @@ export const LanguageMenu: FC<{ variant: keyof typeof TRIGGER }> = ({ variant })
   return (
     // One element for the row it sits in: a sibling's spacing rule would otherwise reach the popover and pin it to the top.
     <div>
-      <button type="button" popovertarget={id} class={TRIGGER[variant]} title={label}>
+      {/* The label names the language in use: on the icon rail its name is hidden, and the label is all a screen reader gets (#345). */}
+      <button type="button" popovertarget={id} class={TRIGGER[variant]} title={label} aria-label={`${label}: ${localeName(current)}`}>
         <Icon name="globe" size={variant === 'sidebar' ? 18 : 16} />
-        <span class="sr-only">{label}: </span>
         <OwnName locale={current} class={variant === 'sidebar' ? 'truncate md:hidden lg:block' : undefined} />
       </button>
       <div
@@ -73,7 +82,7 @@ export const LanguageMenu: FC<{ variant: keyof typeof TRIGGER }> = ({ variant })
         class="m-auto w-72 max-w-[calc(100vw-2rem)] rounded-lg border border-line bg-surface-raised p-4 text-left text-sm text-ink shadow-pop backdrop:bg-[rgb(13_20_33/0.25)]"
       >
         <p class="text-entity text-ink">{label}</p>
-        <form method="post" action={SWITCH_ACTION} class="mt-3 grid gap-1">
+        <form method="post" action={SWITCH_ACTION} class="mt-3 grid gap-1" data-language-form>
           <input type="hidden" name="back" value={languagePage().back} />
           {choices.map((l) => (
             <button
@@ -94,16 +103,26 @@ export const LanguageMenu: FC<{ variant: keyof typeof TRIGGER }> = ({ variant })
           ))}
         </form>
       </div>
+      <script dangerouslySetInnerHTML={{ __html: KEEP_FRAGMENT }} />
     </div>
   );
 };
 
+/** Where the invitation is drawn: in the menu where there is room for words, above the page below that (#358). */
+const INVITE_PLACE = {
+  sidebar: 'hidden rounded-md bg-surface-overlay px-3 py-2.5 text-meta leading-4 text-ink-muted lg:block',
+  main: 'mb-4 flex flex-wrap items-center gap-x-4 gap-y-1 rounded-md border border-line bg-surface-raised px-3 py-2 text-note text-ink-muted shadow-sm lg:hidden',
+} as const;
+
 /**
  * The one-time line for an install that never chose (language.ts): written in
  * the browser's language, with the switch and the refusal as its two answers.
- * Either answer stores a choice, so the line does not come back.
+ * Either answer stores a choice, so the line does not come back. The layout
+ * draws it twice — in the menu on a wide screen, above the page on the icon
+ * rail and on a phone, where the menu's foot is hidden or folded away — and
+ * each copy shows only at its own widths.
  */
-export const LanguageInvite: FC = () => {
+export const LanguageInvite: FC<{ place: keyof typeof INVITE_PLACE }> = ({ place }) => {
   const { invite, back } = languagePage();
   if (!invite) return null;
   // Worded here, not in a child component: hono/jsx calls a component at render, outside this language.
@@ -113,7 +132,7 @@ export const LanguageInvite: FC = () => {
     no: t('language.invite.keep'),
   }));
   const answer = (locale: Locale, text: string, tone: string) => (
-    <form method="post" action={SWITCH_ACTION}>
+    <form method="post" action={SWITCH_ACTION} data-language-form>
       <input type="hidden" name="back" value={back} />
       <button type="submit" name="locale" value={locale} class={`inline-flex min-h-[32px] cursor-pointer items-center font-medium transition-colors duration-150 ${tone}`}>
         {text}
@@ -121,7 +140,7 @@ export const LanguageInvite: FC = () => {
     </form>
   );
   return (
-    <div lang={invite} class="rounded-md bg-surface-overlay px-3 py-2.5 text-meta leading-4 text-ink-muted md:hidden lg:block">
+    <div lang={invite} class={INVITE_PLACE[place]}>
       <p>{words.text}</p>
       <div class="flex flex-wrap gap-x-3">
         {answer(invite, words.yes, 'text-accent-strong hover:text-accent-deep')}

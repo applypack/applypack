@@ -24,6 +24,8 @@ import { loadEmployerRules } from '../../jobs/employer-store';
 import { isBlankProfile } from '../../profile-guards';
 import { listActiveProfiles } from '../../profiles';
 import { getSettings } from '../../settings';
+import type { MessageKey } from '../../i18n/catalog';
+import { t } from '../../i18n/t';
 import { spendHint } from '../cost-hint';
 import { clearFlashCookie, flashRedirect, parseFlashCookie } from '../flash';
 import { dropImport, getImport, stashImport, type ImportStash } from '../import-stash';
@@ -43,17 +45,16 @@ import { claimRun, findLiveRun, startRun, updateRun } from '../target-runs';
  */
 
 const MAX_IMPORT_BYTES = MAX_BODY_MB * 1024 * 1024;
-const TOO_LARGE = `That file is over ${MAX_BODY_MB} MB. Split it, or export fewer rows, and choose it again.`;
+const tooLarge = (): string => t('import.tooLarge', { mb: MAX_BODY_MB });
 /** The file plus what a multipart body wraps around it and the two small fields. */
 const BODY_SLACK_BYTES = 64 * 1024;
 const MAX_SOURCE_NAME_CHARS = 80;
 const MAX_FILE_NAME_CHARS = 120;
 /** An import scoring a few hundred rows on a CLI engine outlasts the half hour a run is usually kept. */
 const IMPORT_RUN_KEEP_MS = 6 * 60 * 60_000;
-const GONE = 'That preview is gone — uploaded rows are kept for half an hour and never written to disk. Choose the file again.';
+const GONE = 'import.gone' satisfies MessageKey;
 /** The pipeline threw: what is safe (stored rows stay) and the way forward. */
-const IMPORT_FAILED =
-  'The import stopped on an error. Rows it stored before that stay, and its row on Runs carries the error. Import again: only what is missing is added.';
+const IMPORT_FAILED = 'import.failed' satisfies MessageKey;
 
 export const jobsImportRoute = new Hono();
 
@@ -91,13 +92,13 @@ jobsImportRoute.post(
   '/jobs/import',
   bodyLimit({
     maxSize: MAX_IMPORT_BYTES + BODY_SLACK_BYTES,
-    onError: () => flashRedirect('/jobs/import', 'err', TOO_LARGE),
+    onError: () => flashRedirect('/jobs/import', 'err', tooLarge()),
   }),
   async (c) => {
     const form = await c.req.parseBody();
     const file = form.file;
-    if (!(file instanceof File) || file.size === 0) return flashRedirect('/jobs/import', 'err', 'Choose a .json, .jsonl, .csv or .tsv file first.');
-    if (file.size > MAX_IMPORT_BYTES) return flashRedirect('/jobs/import', 'err', TOO_LARGE);
+    if (!(file instanceof File) || file.size === 0) return flashRedirect('/jobs/import', 'err', t('import.chooseFile'));
+    if (file.size > MAX_IMPORT_BYTES) return flashRedirect('/jobs/import', 'err', tooLarge());
 
     // An existing source by its id, else a name: the same name is the same source.
     const existingId = idParam(form.source);
@@ -107,7 +108,7 @@ jobsImportRoute.post(
       : typed.length > 0
         ? await prisma.company.findUnique({ where: { atsType_atsToken: { atsType: AtsType.IMPORT, atsToken: sourceSlug(typed) } }, select: { id: true, name: true, sourceConfig: true } })
         : null;
-    if (!existing && typed.length === 0) return flashRedirect('/jobs/import', 'err', 'Name the source these rows belong to — any words that tell this file from the next one.');
+    if (!existing && typed.length === 0) return flashRedirect('/jobs/import', 'err', t('import.nameSource'));
 
     // A file name is the sender's text: cut before it rides in a flash cookie or is shown.
     const fileName = file.name.slice(0, MAX_FILE_NAME_CHARS);
@@ -140,7 +141,7 @@ function mappingFromForm(form: Record<string, unknown>, stash: ImportStash): Map
 
 jobsImportRoute.get('/jobs/import/:token', async (c) => {
   const stash = getImport(c.req.param('token'));
-  if (!stash) return flashRedirect('/jobs/import', 'err', GONE);
+  if (!stash) return flashRedirect('/jobs/import', 'err', t(GONE));
   const now = new Date();
   const mapped = mapRows(stash.rows, stash.mapping, stash.source.id ?? 0, now);
   const [settings, active, employers, stored] = await Promise.all([
@@ -178,9 +179,9 @@ jobsImportRoute.get('/jobs/import/:token', async (c) => {
 /** "Update the preview": the selects as the user set them, kept with the rows. */
 jobsImportRoute.post('/jobs/import/:token/mapping', async (c) => {
   const stash = getImport(c.req.param('token'));
-  if (!stash) return flashRedirect('/jobs/import', 'err', GONE);
+  if (!stash) return flashRedirect('/jobs/import', 'err', t(GONE));
   const mapping = mappingFromForm(await c.req.parseBody(), stash);
-  if (!mapping) return flashRedirect(`/jobs/import/${stash.id}`, 'err', 'One of the chosen columns is not in this file. Pick the columns from the lists and update the preview again.');
+  if (!mapping) return flashRedirect(`/jobs/import/${stash.id}`, 'err', t('import.columnNotInFile'));
   stash.guessed = stash.guessed.filter((f) => mapping[f] === stash.mapping[f]);
   stash.mapping = mapping;
   return c.redirect(`/jobs/import/${stash.id}`, 303);
@@ -193,23 +194,23 @@ jobsImportRoute.post('/jobs/import/:token', async (c) => {
   const live = findLiveRun(key);
   if (live) return c.redirect(`/target/runs/${live.id}`, 303);
   const stash = getImport(token);
-  if (!stash) return flashRedirect('/jobs/import', 'err', GONE);
+  if (!stash) return flashRedirect('/jobs/import', 'err', t(GONE));
   const back = `/jobs/import/${stash.id}`;
   const mapping = mappingFromForm(await c.req.parseBody(), stash);
   if (!mapping || !usableMapping(mapping)) {
-    return flashRedirect(back, 'err', 'Nothing was imported. Choose the column that holds the job title, and one that holds a link or an id, then import again.');
+    return flashRedirect(back, 'err', t('import.flash.noTitle'));
   }
   stash.mapping = mapping;
   // Before a source row is written: a file with no job in it leaves nothing behind.
   const mapped = mapRows(stash.rows, mapping, 0, new Date());
-  if (mapped.jobs.length === 0) return flashRedirect(back, 'err', 'Nothing was imported: with these columns no row of the file is a job. Check the title and the link.');
+  if (mapped.jobs.length === 0) return flashRedirect(back, 'err', t('import.flash.noJob'));
 
   const config: SourceConfig = { holds: 'rows', mapping, include: null, alerts: 'matches' };
   const sourceConfig = config as Prisma.InputJsonValue;
   let source: { id: number; name: string };
   if (stash.source.id !== null) {
     const kept = await prisma.company.updateMany({ where: { id: stash.source.id, atsType: AtsType.IMPORT }, data: { sourceConfig } });
-    if (kept.count === 0) return flashRedirect('/jobs/import', 'err', 'Nothing was imported: that source was deleted meanwhile. Choose the file again and name a source for it.');
+    if (kept.count === 0) return flashRedirect('/jobs/import', 'err', t('import.flash.sourceGone'));
     source = { id: stash.source.id, name: stash.source.name };
   } else {
     const atsToken = sourceSlug(stash.source.name);
@@ -229,10 +230,10 @@ jobsImportRoute.post('/jobs/import/:token', async (c) => {
     steps: ['import'],
     jobTitle: stash.fileName,
     resumeName: source.name,
-    heading: { running: 'Importing', failed: 'Import failed' },
-    subtitle: `${jobs.length.toLocaleString('en-US')} row${jobs.length === 1 ? '' : 's'} from ${stash.fileName} into "${source.name}"${fetchingEnabled ? '' : ' — stored unscored, because fetching is paused'}.`,
+    heading: { running: t('import.run.running'), failed: t('import.run.failed') },
+    subtitle: t('import.run.subtitle', { n: jobs.length, file: stash.fileName, source: source.name, paused: fetchingEnabled ? 'no' : 'yes' }),
     backUrl: back,
-    backLabel: 'Back to the preview',
+    backLabel: t('import.run.back'),
     keepMs: IMPORT_RUN_KEEP_MS,
   });
   if (joined) return c.redirect(`/target/runs/${run.id}`, 303);
@@ -247,7 +248,7 @@ jobsImportRoute.post('/jobs/import/:token', async (c) => {
       });
     } catch (err) {
       logger.error({ err, runId: run.id }, 'web: import run failed');
-      return updateRun(run.id, { stage: 'error', error: IMPORT_FAILED });
+      return updateRun(run.id, { stage: 'error', error: t(IMPORT_FAILED) });
     }
     const { kind, text } = summarizeImport(stats, stash.fileName, source.name);
     if (kind === 'err') return updateRun(run.id, { stage: 'error', error: text });
@@ -261,9 +262,9 @@ jobsImportRoute.post('/jobs/import/:token', async (c) => {
 /** One press removes a source and every job it brought — the cascade every source has. */
 jobsImportRoute.post('/jobs/import/sources/:id/delete', async (c) => {
   const id = idParam(c.req.param('id'));
-  if (!Number.isFinite(id)) return c.text('Bad id', 400);
+  if (!Number.isFinite(id)) return c.text(t('http.badId'), 400);
   const source = await prisma.company.findFirst({ where: { id, atsType: AtsType.IMPORT }, select: { name: true } });
-  if (!source) return c.text('Not found', 404);
+  if (!source) return c.text(t('http.notFound'), 404);
   await prisma.company.delete({ where: { id } });
-  return flashRedirect('/jobs/import', 'ok', `Deleted "${source.name}" and the jobs it brought.`);
+  return flashRedirect('/jobs/import', 'ok', t('import.flash.deleted', { name: source.name }));
 });

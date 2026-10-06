@@ -3,6 +3,7 @@ import { prisma } from '../db';
 import { runSeed } from '../seed';
 import { runFetchJob } from '../jobs/fetch-job';
 import { recordCronRun } from '../jobs/cron-run';
+import { inRunLocale } from '../run-locale';
 
 /**
  * One fetch tick from the command line — "Fetch now" without the dashboard,
@@ -14,7 +15,8 @@ import { recordCronRun } from '../jobs/cron-run';
 async function main(): Promise<void> {
   logger.info('fetch-once: ensuring companies are seeded');
   await runSeed();
-  await recordCronRun('fetch-now', () => runFetchJob({ manual: true }));
+  // Its alerts read like the worker's: in the interface's language.
+  await inRunLocale(() => recordCronRun('fetch-now', () => runFetchJob({ manual: true })));
 }
 
 main()

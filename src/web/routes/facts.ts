@@ -24,7 +24,7 @@ export const factsRoute = new Hono();
 
 factsRoute.post('/facts', async (c) => {
   const parsed = FactFormSchema.safeParse(await c.req.parseBody());
-  if (!parsed.success) return c.text('Bad fact', 400);
+  if (!parsed.success) return c.text(t('http.badFact'), 400);
   const f = parsed.data;
   const back = safeBack(f.back, '/resumes');
   const note = f.note.trim().slice(0, 300) || null;
@@ -61,7 +61,7 @@ factsRoute.post('/facts/delete', async (c) => {
   const form = await c.req.parseBody();
   const term = typeof form.term === 'string' ? form.term : '';
   const back = safeBack(form.back, '/resumes');
-  if (term.trim().length === 0) return c.text('Bad fact', 400);
+  if (term.trim().length === 0) return c.text(t('http.badFact'), 400);
   await deleteFact(term);
   return flashRedirect(back, 'ok', t('facts.flash.forgot', { term: term.trim().toLowerCase() }));
 });

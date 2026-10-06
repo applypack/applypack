@@ -8,6 +8,7 @@
  */
 
 import path from 'node:path';
+import { t } from '../i18n/t';
 
 type PathApi = Pick<path.PlatformPath, 'relative' | 'isAbsolute' | 'resolve' | 'sep' | 'join' | 'delimiter' | 'dirname'>;
 
@@ -73,21 +74,16 @@ export function folderAllowed(folder: string, rules: FolderRules, p: PathApi = p
   if (!rules.launcher) {
     return {
       ok: false,
-      reason:
-        rules.roots.length === 0
-          ? `On a server ApplyPack reads only the folders named in ${INBOX_ROOTS_ENV}, and none is named. Whoever runs this install sets it and mounts the folder (docs/install.md).`
-          : `This folder is not inside a folder named in ${INBOX_ROOTS_ENV}.`,
+      reason: t(rules.roots.length === 0 ? 'datasets.folder.serverNoRoots' : 'datasets.folder.notInRoots', { env: INBOX_ROOTS_ENV }),
     };
   }
   // A home that is the root of the disk (a container's, a service account's) bounds nothing.
   if (p.dirname(rules.home) === rules.home || !insideFolder(rules.home, folder, p)) {
-    return { ok: false, reason: `Choose a folder inside your home folder, or name another place in ${INBOX_ROOTS_ENV}.` };
+    return { ok: false, reason: t('datasets.folder.outsideHome', { env: INBOX_ROOTS_ENV }) };
   }
   const parts = p.relative(rules.home, folder).split(p.sep);
-  if (parts.some((part) => part.startsWith('.'))) return { ok: false, reason: 'A hidden folder (a name that starts with a dot) is not read.' };
-  if (SYSTEM_FOLDERS.includes(parts[0]!.toLowerCase())) return { ok: false, reason: 'The system’s own folders (Library, AppData) are not read.' };
-  if (within(folder, rules.dataDir, p) || within(rules.dataDir, folder, p)) {
-    return { ok: false, reason: 'That is where ApplyPack keeps its own database, which is not read as a source.' };
-  }
+  if (parts.some((part) => part.startsWith('.'))) return { ok: false, reason: t('datasets.folder.hidden') };
+  if (SYSTEM_FOLDERS.includes(parts[0]!.toLowerCase())) return { ok: false, reason: t('datasets.folder.system') };
+  if (within(folder, rules.dataDir, p) || within(rules.dataDir, folder, p)) return { ok: false, reason: t('datasets.folder.dataDir') };
   return { ok: true };
 }

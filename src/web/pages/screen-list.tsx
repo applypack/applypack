@@ -5,6 +5,7 @@ import { Badge, Button, Card, ConfirmAction, Empty, Flash, Hint, PageHeader, Tab
 import type { FlashMessage } from '../flash';
 import { formatDateShort } from '../format';
 import type { ScreeningSummary } from '../../screening/store';
+import { t } from '../../i18n/t';
 
 /*
  * /screen — every screening this install holds. The first sentence on the
@@ -13,48 +14,51 @@ import type { ScreeningSummary } from '../../screening/store';
  */
 
 export const ScreenListPage: FC<{ screenings: ScreeningSummary[]; flash?: FlashMessage | null }> = ({ screenings, flash }) => (
-  <Layout title="Screening" active="screen">
+  <Layout title={t('nav.screen')} active="screen">
     <PageHeader
-      title="Screening"
-      meta={`${screenings.length} screening${screenings.length === 1 ? '' : 's'}`}
-      actions={<Button href="/screen/new">New screening</Button>}
+      title={t('nav.screen')}
+      meta={t('screen.list.count', { n: screenings.length })}
+      actions={<Button href="/screen/new">{t('screen.list.new')}</Button>}
     >
-      A folder of resumes against one position, read for evidence rather than words. The result is an
-      order to talk to people in, with the quotes behind every mark — the decision stays with you, and the
-      model never sees a name.
+      {t('screen.list.intro')}
     </PageHeader>
     <Flash flash={flash} />
 
     {screenings.length === 0 ? (
-      <Empty title="No screenings yet">
-        A screening starts with a position: one of your jobs, a pasted posting or a file. Press New
-        screening, then drop the applicants' resumes in.
-      </Empty>
+      <Empty title={t('screen.list.empty')}>{t('screen.list.emptyBody')}</Empty>
     ) : (
       <Card flush>
-        <Table caption="Screenings"
-          columns={['Screening', 'Position', 'Applicants', 'Scored', 'Created', 'Kept until', '']}
+        <Table caption={t('screen.list.caption')}
+          columns={[
+            t('screen.list.col.screening'),
+            t('screen.list.col.position'),
+            t('screen.list.col.applicants'),
+            t('screen.list.col.scored'),
+            t('screen.list.col.created'),
+            t('screen.list.col.keptUntil'),
+            '',
+          ]}
           hideBelow={['', 'md', '', '', 'lg', 'sm', '']}
         >
           {screenings.map((s) => (
             <Tr>
               <Td>
-                <a href={`/screen/${s.id}`} class="font-medium text-ink hover:underline">
+                <a href={`/screen/${s.id}`} class="font-medium text-ink hover:underline" translate="no">
                   {s.title}
                 </a>
               </Td>
               <Td class="text-ink-muted">
-                <a href={`/jobs/${s.jobId}`} class="hover:underline">
+                <a href={`/jobs/${s.jobId}`} class="hover:underline" translate="no">
                   {s.jobTitle}
                 </a>{' '}
-                <span class="text-ink-faint">· {s.companyName}</span>
+                <span class="text-ink-faint" translate="no">· {s.companyName}</span>
               </Td>
               <Td class="tabular-nums">
                 {s.applicants}
                 {s.unread > 0 && (
-                  <span class="text-ink-faint" title="Could not be read, or held for a look because the redaction may have missed something identifying">
+                  <span class="text-ink-faint" title={t('screen.list.unreadTitle')}>
                     {' '}
-                    ({s.unread} not scored)
+                    {t('screen.list.notScored', { n: s.unread })}
                   </span>
                 )}
               </Td>
@@ -62,11 +66,9 @@ export const ScreenListPage: FC<{ screenings: ScreeningSummary[]; flash?: FlashM
                 {s.applicants === 0 ? (
                   <span class="text-ink-faint">—</span>
                 ) : s.scored === s.applicants - s.unread ? (
-                  <Badge tone="ok">all {s.scored}</Badge>
+                  <Badge tone="ok">{t('screen.list.allScored', { n: s.scored })}</Badge>
                 ) : (
-                  <Badge tone="neutral">
-                    {s.scored} of {s.applicants - s.unread}
-                  </Badge>
+                  <Badge tone="neutral">{t('screen.list.scoredOf', { scored: s.scored, total: s.applicants - s.unread })}</Badge>
                 )}
               </Td>
               <Td class="text-ink-faint" title={s.createdAt.toISOString()}>
@@ -76,10 +78,10 @@ export const ScreenListPage: FC<{ screenings: ScreeningSummary[]; flash?: FlashM
               <Td class="text-right">
                 <ConfirmAction
                   action={`/screen/${s.id}/delete`}
-                  label="Delete"
+                  label={t('common.delete')}
                   variant="ghost"
-                  ariaLabel={`Delete ${s.title}`}
-                  confirm={`Delete "${s.title}" with every applicant file and verdict? This cannot be undone.`}
+                  ariaLabel={t('screen.list.deleteNamed', { title: s.title })}
+                  confirm={t('screen.list.deleteConfirm', { title: s.title })}
                   class="inline-block"
                 />
               </Td>
@@ -88,9 +90,6 @@ export const ScreenListPage: FC<{ screenings: ScreeningSummary[]; flash?: FlashM
         </Table>
       </Card>
     )}
-    <Hint class="mt-4">
-      Each screening is deleted with its files on the date in "Kept until" — set the default on Settings →
-      Screening, or extend one from its page.
-    </Hint>
+    <Hint class="mt-4">{t('screen.list.retentionHint')}</Hint>
   </Layout>
 );

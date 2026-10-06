@@ -50,7 +50,8 @@ export const ParsedViewBlock: FC<{ view: ParsedView }> = ({ view }) => (
       <ul class="space-y-1">
         {view.roles.map((r) => (
           <li class="flex flex-wrap items-center gap-2">
-            <span class="text-ink" translate="no">
+            {/* The file's own words stay as written; a role it gave no title to is named in the reader's language. */}
+            <span class="text-ink" translate={r.named ? 'no' : undefined}>
               {r.company ? `${r.title}, ${r.company}` : r.title}
             </span>
             {r.dates ? (
@@ -70,7 +71,21 @@ export const ParsedViewBlock: FC<{ view: ParsedView }> = ({ view }) => (
         {tRich(
           'parsed.education',
           { list: view.education.map((e) => (e.dates ? `${e.title} (${e.dates})` : e.title)).join(' · ') },
-          { v: asWritten },
+          // Each entry on its own: one the file named stays as written, "no name found" is ours to translate.
+          {
+            v: () =>
+              view.education.map((e, i) => (
+                <>
+                  {i > 0 && ' · '}
+                  {e.named ? asWritten(e.dates ? `${e.title} (${e.dates})` : e.title) : (
+                    <>
+                      {e.title}
+                      {e.dates && <> {asWritten(`(${e.dates})`)}</>}
+                    </>
+                  )}
+                </>
+              )),
+          },
         )}
       </div>
     )}

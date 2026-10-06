@@ -28,11 +28,11 @@ import {
 import type { FlashMessage } from '../flash';
 import { formatDateShort, formatRelative } from '../format';
 import {
+  criterionLabel,
   criterionText,
   CRITERION_KIND_HINTS,
   CRITERION_KIND_LABELS,
   CRITERION_KINDS,
-  CRITERION_MODE_LABELS,
   CRITERION_MODES,
   MAX_WEIGHT,
   PRESET_HINTS,
@@ -42,16 +42,19 @@ import {
   type Criterion,
   type Rubric,
 } from '../../screening/rubric';
-import { GATE_BUCKET_LABELS, type ConfidenceBand, type GateBucket } from '../../screening/score';
-import { GATE_MARK, DECISION_LABELS } from '../../screening/export';
+import { answerBadge, GATE_BUCKET_LABELS, type ConfidenceBand, type GateBucket } from '../../screening/score';
+import { GATE_MARK } from '../../screening/export';
 import { adjustedScore } from '../screen-view';
 import { MAX_APPLICANTS_PER_SCREENING, MAX_BATCH_UPLOAD_MB } from '../../screening/intake';
 import { ACCEPTED_EXTENSIONS } from '../../resume/resume-text';
 import type { ScreenRunState } from '../../screening/batch';
 import { calibrationLine, MIN_DECISIONS, type Calibration } from '../../screening/calibration';
 import { ordinal } from '../../screening/export';
-import { DECISIONS } from '../../screening/store';
-import { BUCKET_TONE, groupRows, type ApplicantRowView } from '../screen-view';
+import { DECISIONS, type Decision } from '../../screening/store';
+import { BUCKET_TONE, confidenceLabel, groupRows, type ApplicantRowView } from '../screen-view';
+import type { MessageKey } from '../../i18n/catalog';
+import { t } from '../../i18n/t';
+import { tRich } from '../rich';
 
 export interface ScreenDetailProps {
   screening: {
@@ -81,43 +84,46 @@ export interface ScreenDetailProps {
 }
 
 const CONFIDENCE_TONE: Record<ConfidenceBand, 'ok' | 'warn' | 'neutral'> = { high: 'ok', medium: 'neutral', low: 'warn' };
+/** A decision in the reader's words; the export writes `DECISION_LABELS`, in English. */
+const DECISION_WORD: Record<Decision, MessageKey> = { interview: 'screening.decision.interview', hold: 'screening.decision.hold', declined: 'screening.decision.declined' };
 
 export const ScreenDetailPage: FC<ScreenDetailProps> = ({ screening, rubric, rows, run, pending, engine, retentionDays, calibration, flash }) => {
   const groups = groupRows(rows);
   const readable = rows.filter((r) => r.status === 'ok').length;
   const running = run?.running ?? false;
   const rubricEmpty = rubric.criteria.length === 0;
-  const gateLabels = rubric.criteria.filter((c) => c.mode === 'gate').map((c) => c.label);
+  const gateCriteria = rubric.criteria.filter((c) => c.mode === 'gate');
   const scoredAny = groups.scored.length > 0;
   return (
-    <Layout title={screening.title} active="screen">
+    <Layout title={screening.title} titleIsData active="screen">
       <PageHeader
         title={screening.title}
-        back={{ href: '/screen', label: 'Screening' }}
-        meta={`${rows.length} applicant${rows.length === 1 ? '' : 's'} · kept until ${formatDateShort(screening.retainUntil)}`}
+        titleIsData
+        back={{ href: '/screen', label: t('nav.screen') }}
+        meta={t('screen.detail.meta', { n: rows.length, date: formatDateShort(screening.retainUntil) })}
         actions={
           <div class="flex flex-wrap items-center gap-2">
+            {/* Format names, never translated. */}
             <Button href={`/screen/${screening.id}/export.csv`} variant="secondary" size="sm">
-              CSV
+              <span translate="no">CSV</span>
             </Button>
             <Button href={`/screen/${screening.id}/export.md`} variant="secondary" size="sm">
-              Markdown
+              <span translate="no">Markdown</span>
             </Button>
             <ActionForm action={`/screen/${screening.id}/retain`}>
-              <Button variant="ghost" size="sm" title={`Keep for another ${retentionDays} days from today`}>
-                Keep {retentionDays} more days
+              <Button variant="ghost" size="sm" title={t('screen.detail.keepTitle', { n: retentionDays })}>
+                {t('screen.detail.keep', { n: retentionDays })}
               </Button>
             </ActionForm>
             <ConfirmAction
               action={`/screen/${screening.id}/delete`}
-              label="Delete screening"
-              confirm="Delete this screening? It removes the screening, the uploaded copies of the resumes and every verdict from the database. Your files on disk are not touched. This cannot be undone."
+              label={t('screen.detail.delete')}
+              confirm={t('screen.detail.deleteConfirm')}
             />
           </div>
         }
       >
-        The order in the results is a priority to talk to; every mark has its quote on the scorecard, and the
-        decision column is yours alone.
+        {t('screen.detail.intro')}
       </PageHeader>
       <Flash flash={flash} />
 
@@ -126,64 +132,58 @@ export const ScreenDetailPage: FC<ScreenDetailProps> = ({ screening, rubric, row
         <div class="flex flex-wrap items-baseline justify-between gap-2">
           <SectionTitle>
             <Step n={1} />
-            Position
+            {t('screen.detail.position')}
           </SectionTitle>
           <span class="text-note text-ink-faint">
             {screening.postingUpdatedAt
-              ? `edited here ${formatRelative(screening.postingUpdatedAt)}`
-              : 'as stored on the job'}{' '}
+              ? t('screen.detail.postingEdited', { when: formatRelative(screening.postingUpdatedAt) })
+              : t('screen.detail.postingAsStored')}{' '}
             ·{' '}
             <a href={`/jobs/${screening.job.id}`} class="hover:underline">
-              the job page
+              {t('screen.detail.jobPage')}
             </a>
           </span>
         </div>
-        <p class="mt-1 text-sm text-ink">
+        <p class="mt-1 text-sm text-ink" translate="no">
           <span class="font-medium">{screening.job.title}</span> · {screening.job.companyName}
           {screening.job.location ? ` · ${screening.job.location}` : ''}
         </p>
         {screening.scoredBeforePosting > 0 && (
           <Notice tone="warn" role="status" class="mt-3 flex flex-wrap items-center gap-3">
-            <span>
-              The posting changed after {screening.scoredBeforePosting} of the current scores were written. Re-read the
-              rubric from it (a new yardstick), or score everyone again against the new text with the rubric as it is.
-            </span>
+            <span>{t('screen.detail.postingChanged', { n: screening.scoredBeforePosting })}</span>
             <ActionForm action={`/screen/${screening.id}/rubric/redraft`} once>
               <Button variant="secondary" size="sm">
-                Re-read the rubric
+                {t('screen.detail.rereadRubric')}
               </Button>
             </ActionForm>
             <ActionForm action={`/screen/${screening.id}/run-all`} once>
               <Button variant="violet" size="sm" disabled={running}>
-                Score everyone again
+                {t('screen.detail.scoreEveryoneAgain')}
               </Button>
             </ActionForm>
           </Notice>
         )}
         <details class="mt-3">
           <summary class={DISCLOSURE}>
-            <span class="when-closed">Read the posting</span>
-            <span class="when-open">Hide the posting</span>
+            <span class="when-closed">{t('screen.detail.showPosting')}</span>
+            <span class="when-open">{t('screen.detail.hidePosting')}</span>
             <Chevron />
           </summary>
-          <pre class="mt-2 max-h-[28rem] overflow-auto whitespace-pre-wrap rounded-md bg-surface-overlay p-3 font-sans text-note leading-5 text-ink">{screening.postingText}</pre>
+          <pre translate="no" class="mt-2 max-h-[28rem] overflow-auto whitespace-pre-wrap rounded-md bg-surface-overlay p-3 font-sans text-note leading-5 text-ink">{screening.postingText}</pre>
         </details>
         <details class="mt-2">
           <summary class={DISCLOSURE}>
-            <span class="when-closed">Edit the posting for this screening</span>
-            <span class="when-open">Close the editor</span>
+            <span class="when-closed">{t('screen.detail.editPosting')}</span>
+            <span class="when-open">{t('screen.detail.closeEditor')}</span>
             <Chevron />
           </summary>
           <form method="post" action={`/screen/${screening.id}/posting`} class="mt-2 space-y-2">
-            <Textarea name="postingText" rows={14} aria-label="Posting text">
+            <Textarea name="postingText" rows={14} aria-label={t('screen.detail.postingText')}>
               {screening.postingText}
             </Textarea>
             <div class="flex flex-wrap items-center gap-3">
-              <Button variant="secondary">Save the posting</Button>
-              <Hint>
-                Edits stay on this screening — the job page keeps its own text. After saving, re-read the rubric or
-                score everyone again; the page will say which scores predate the edit.
-              </Hint>
+              <Button variant="secondary">{t('screen.detail.savePosting')}</Button>
+              <Hint>{t('screen.detail.savePostingHint')}</Hint>
             </div>
           </form>
         </details>
@@ -195,10 +195,10 @@ export const ScreenDetailPage: FC<ScreenDetailProps> = ({ screening, rubric, row
         <div class="flex flex-wrap items-baseline justify-between gap-2">
           <SectionTitle>
             <Step n={2} />
-            Criteria — what this screen checks
+            {t('screen.detail.criteria')}
           </SectionTitle>
           <span class="text-note text-ink-faint">
-            {rubricEmpty ? 'no criteria yet' : rubricSummary(rubric)} · rubric v{screening.rubricVersion}
+            {rubricEmpty ? t('screen.detail.noCriteria') : rubricSummary(rubric)} · {t('screen.detail.rubricVersion', { version: screening.rubricVersion })}
           </span>
         </div>
         {!rubricEmpty && (
@@ -207,31 +207,24 @@ export const ScreenDetailPage: FC<ScreenDetailProps> = ({ screening, rubric, row
               <CriterionChip c={c} />
             ))}
             {rubric.criteria.length > MAX_CRITERION_CHIPS && (
-              <span class="self-center text-meta text-ink-faint">+{rubric.criteria.length - MAX_CRITERION_CHIPS} more</span>
+              <span class="self-center text-meta text-ink-faint">{t('screen.detail.moreCriteria', { n: rubric.criteria.length - MAX_CRITERION_CHIPS })}</span>
             )}
           </div>
         )}
         <details open={!scoredAny || rubricEmpty}>
           <summary class={DISCLOSURE}>
-            <span class="when-closed">Show and edit the criteria</span>
-            <span class="when-open">Hide the editor</span>
+            <span class="when-closed">{t('screen.detail.showCriteria')}</span>
+            <span class="when-open">{t('screen.detail.hideEditor')}</span>
             <Chevron />
           </summary>
-          <Hint class="mt-2">
-            A <span class="text-ink">gate</span> buckets (pass / unknown / fail, never points), the
-            <span class="text-ink"> stars</span> weigh a scored criterion, a <span class="text-ink">note</span> is shown and
-            not counted.
-          </Hint>
-          <More class="mt-1">
-            Rows the posting wrote say so; edit the words, change the mode, tick Remove — and add your own in the last row,
-            in your own words.
-          </More>
+          <Hint class="mt-2">{tRich('screen.detail.modesHint', {}, { em: (words) => <span class="text-ink">{words}</span> })}</Hint>
+          <More class="mt-1">{t('screen.detail.modesMore')}</More>
           {rubricEmpty && (
             <div class="mt-3 flex flex-wrap items-center gap-3">
-              <Hint>The posting could not be read into a draft. Add criteria below, or read the posting again.</Hint>
+              <Hint>{t('screen.detail.noDraft')}</Hint>
               <ActionForm action={`/screen/${screening.id}/rubric/redraft`} once>
                 <Button variant="secondary" size="sm">
-                  Read the posting again
+                  {t('screen.detail.readPostingAgain')}
                 </Button>
               </ActionForm>
             </div>
@@ -241,12 +234,12 @@ export const ScreenDetailPage: FC<ScreenDetailProps> = ({ screening, rubric, row
               <table class="w-full text-sm">
                 <thead>
                   <tr class="text-left text-label text-ink-muted [&>th]:font-[550]">
-                    <th scope="col" class="py-2 pr-2">Kind</th>
-                    <th scope="col" class="py-2 pr-2">What</th>
-                    <th scope="col" class="py-2 pr-2">Mode</th>
-                    <th scope="col" class="py-2 pr-2">Weight</th>
-                    <th scope="col" class="py-2 pr-2">From</th>
-                    <th scope="col" class="py-2 text-right">Remove</th>
+                    <th scope="col" class="py-2 pr-2">{t('screen.detail.col.kind')}</th>
+                    <th scope="col" class="py-2 pr-2">{t('screen.detail.col.what')}</th>
+                    <th scope="col" class="py-2 pr-2">{t('screen.detail.col.mode')}</th>
+                    <th scope="col" class="py-2 pr-2">{t('screen.detail.col.weight')}</th>
+                    <th scope="col" class="py-2 pr-2">{t('screen.detail.col.from')}</th>
+                    <th scope="col" class="py-2 text-right">{t('common.remove')}</th>
                   </tr>
                 </thead>
                 <tbody class="divide-y divide-line">
@@ -255,7 +248,7 @@ export const ScreenDetailPage: FC<ScreenDetailProps> = ({ screening, rubric, row
                   ))}
                   <tr class="bg-surface-overlay/40">
                     <td class="py-2 pr-2 align-top">
-                      <Select name="add_kind" aria-label="Kind of the new criterion" class="!w-auto !py-1 text-note">
+                      <Select name="add_kind" aria-label={t('screen.detail.addKind')} class="!w-auto !py-1 text-note">
                         {CRITERION_KINDS.map((k) => (
                           <option value={k} selected={k === 'custom'}>
                             {CRITERION_KIND_LABELS[k]}
@@ -264,15 +257,15 @@ export const ScreenDetailPage: FC<ScreenDetailProps> = ({ screening, rubric, row
                       </Select>
                     </td>
                     <td class="py-2 pr-2 align-top">
-                      <Input type="text" name="add_text" maxlength="200" placeholder="In your own words: a question the resume can answer — or a term, a band of years, a sector…" aria-label="The new criterion" class="!py-1 text-note" />
+                      <Input type="text" name="add_text" maxlength="200" placeholder={t('screen.detail.addPlaceholder')} aria-label={t('screen.detail.addLabel')} class="!py-1 text-note" />
                       <div class="mt-1 text-meta text-ink-faint" id="add-hint">
                         {CRITERION_KIND_HINTS.custom}
                       </div>
                       <label class="mt-1 inline-flex flex-wrap items-center gap-x-2 gap-y-1 text-meta text-ink-muted">
-                        answered as
-                        <Select name="add_answer" aria-label="How a question in your own words is answered" class="!w-auto max-w-full !py-0.5 !text-meta">
-                          <option value="yesno">yes / no (pass, partial, unknown, fail)</option>
-                          <option value="howmuch">how much (the evidence ladder)</option>
+                        {t('screen.detail.answeredAs')}
+                        <Select name="add_answer" aria-label={t('screen.detail.addAnswerLabel')} class="!w-auto max-w-full !py-0.5 !text-meta">
+                          <option value="yesno">{t('screen.detail.yesNoLong')}</option>
+                          <option value="howmuch">{t('screen.detail.howMuchLong')}</option>
                         </Select>
                       </label>
                     </td>
@@ -282,23 +275,19 @@ export const ScreenDetailPage: FC<ScreenDetailProps> = ({ screening, rubric, row
                     <td class="py-2 pr-2 align-top">
                       <WeightSelect name="add_weight" value={3} />
                     </td>
-                    <td class="py-2 pr-2 align-top text-meta text-ink-faint">you</td>
+                    <td class="py-2 pr-2 align-top text-meta text-ink-faint">{t('screen.detail.fromYou')}</td>
                     <td></td>
                   </tr>
                 </tbody>
               </table>
             </div>
             <div class="mt-3 flex flex-wrap items-center gap-3">
-              <Button>Save the criteria</Button>
-              <Hint>
-                A change to the yardstick makes every stored score stale — the table says so and "Score" reads
-                everyone again. A criterion naming age, gender, family, origin or health is refused, with the lawful
-                criterion offered instead.
-              </Hint>
+              <Button>{t('screen.detail.saveCriteria')}</Button>
+              <Hint>{t('screen.detail.saveCriteriaHint')}</Hint>
             </div>
           </form>
           <div class="mt-4 flex flex-wrap items-center gap-2 border-t border-line pt-3">
-            <span class="text-note text-ink-faint">Start over from a shape of hiring:</span>
+            <span class="text-note text-ink-faint">{t('screen.detail.presets')}</span>
             {PRESETS.map((p) => (
               <ActionForm action={`/screen/${screening.id}/rubric/preset`} hidden={{ preset: p }} once>
                 <Button variant="secondary" size="sm" title={PRESET_HINTS[p]}>
@@ -306,7 +295,7 @@ export const ScreenDetailPage: FC<ScreenDetailProps> = ({ screening, rubric, row
                 </Button>
               </ActionForm>
             ))}
-            <Hint>Re-reads the posting, applies the shape, keeps your own rows; every stored score turns stale.</Hint>
+            <Hint>{t('screen.detail.presetsHint')}</Hint>
           </div>
         </details>
       </Card>
@@ -315,7 +304,7 @@ export const ScreenDetailPage: FC<ScreenDetailProps> = ({ screening, rubric, row
       <Card class="mb-4">
         <SectionTitle>
           <Step n={3} />
-          Applicants
+          {t('screen.detail.applicants')}
         </SectionTitle>
         <form
           id="upload-form"
@@ -326,43 +315,31 @@ export const ScreenDetailPage: FC<ScreenDetailProps> = ({ screening, rubric, row
           onsubmit={SUBMIT_ONCE}
         >
           <label class="flex flex-wrap items-center gap-2 text-sm text-ink-muted">
-            <span class="text-ink">Files or a zip</span>
+            <span class="text-ink">{t('screen.detail.files')}</span>
             <input
               type="file"
               name="files"
               multiple
               accept={[...ACCEPTED_EXTENSIONS, '.zip'].join(',')}
-              aria-label="Resume files or a zip"
+              aria-label={t('screen.detail.filesLabel')}
               class={`text-sm text-ink-muted ${FILE_INPUT_CLASS}`}
             />
           </label>
           <label class="flex flex-wrap items-center gap-2 text-sm text-ink-muted">
-            <span class="text-ink">…or a whole folder</span>
-            <input type="file" name="files" multiple webkitdirectory aria-label="A folder of resumes" class={`text-sm text-ink-muted ${FILE_INPUT_CLASS}`} />
+            <span class="text-ink">{t('screen.detail.folder')}</span>
+            <input type="file" name="files" multiple webkitdirectory aria-label={t('screen.detail.folderLabel')} class={`text-sm text-ink-muted ${FILE_INPUT_CLASS}`} />
           </label>
           <Button variant="secondary" data-upload-button>
-            Add and score
+            {t('screen.detail.addAndScore')}
           </Button>
           <span class="text-note text-ink-faint" data-picked aria-live="polite"></span>
         </form>
         {/* Six facts, one line each — as one paragraph none of them was findable. */}
         <ul class="mt-2 list-disc space-y-1 pl-4 text-note leading-5 text-ink-faint">
-          <li>
-            Choosing is adding: pick {ACCEPTED_EXTENSIONS.join(' / ')} files, a .zip, or a folder with its subfolders,
-            and the scoring starts. On a folder, the browser asks once whether to upload its files.
-          </li>
-          <li>
-            Up to {MAX_APPLICANTS_PER_SCREENING} applicants per screening, {MAX_BATCH_UPLOAD_MB} MB per upload; other
-            file types in a folder are left out; files added during a run join it.
-          </li>
-          <li>
-            Before any model reads a file, the name, contacts, links, date of birth, age, family, gender, citizenship,
-            religion, health, street and graduation years are removed.
-          </li>
-          <li>
-            A second document of someone already listed is scored and labelled; the same file twice is skipped; a
-            scanned PDF with no text layer stays in the list unscored, so you can see it.
-          </li>
+          <li>{t('screen.detail.upload.pick', { formats: ACCEPTED_EXTENSIONS.join(' / ') })}</li>
+          <li>{t('screen.detail.upload.limits', { max: MAX_APPLICANTS_PER_SCREENING, mb: MAX_BATCH_UPLOAD_MB })}</li>
+          <li>{t('screen.detail.upload.redaction')}</li>
+          <li>{t('screen.detail.upload.repeats')}</li>
         </ul>
       </Card>
 
@@ -372,86 +349,84 @@ export const ScreenDetailPage: FC<ScreenDetailProps> = ({ screening, rubric, row
           <div>
             <SectionTitle>
               <Step n={4} />
-              Results
+              {t('screen.detail.results')}
             </SectionTitle>
             <div class="text-note text-ink-faint" id="run-progress" role="status" aria-live="polite" data-screening={screening.id} data-running={running ? '1' : undefined}>
               {running
                 ? progressText(run!)
                 : run && run.finishedAt !== null && run.failed > 0
-                  ? `Last run: ${run.done} scored, ${run.failed} failed${run.lastError ? ` — ${run.lastError}` : ''}. Failed ones stay pending; press Score again.`
+                  ? run.lastError
+                    ? t('screen.detail.lastRunError', { done: run.done, failed: run.failed, error: run.lastError })
+                    : t('screen.detail.lastRun', { done: run.done, failed: run.failed })
                   : pending > 0
-                    ? `${pending} of ${readable} readable applicant${readable === 1 ? '' : 's'} not scored under rubric v${screening.rubricVersion}.`
+                    ? t('screen.detail.pending', { pending, readable, version: screening.rubricVersion })
                     : readable > 0
-                      ? `All ${readable} readable applicant${readable === 1 ? '' : 's'} scored under rubric v${screening.rubricVersion} on ${engine.label}.${
-                          screening.scoredBeforePosting > 0 ? ` ${screening.scoredBeforePosting} of them before the posting was edited — see Position above.` : ''
+                      ? `${t('screen.detail.allScored', { readable, version: screening.rubricVersion, engine: engine.label })}${
+                          screening.scoredBeforePosting > 0 ? ` ${t('screen.detail.allScoredBefore', { n: screening.scoredBeforePosting })}` : ''
                         }`
-                      : 'Add applicants above.'}
+                      : t('screen.detail.addApplicants')}
             </div>
             <div class="mt-1 text-note text-ink-faint">
-              Runs on {engine.label}
-              {engine.warn ? (
-                <>
-                  , a personal subscription —{' '}
-                  <a href="/settings?tab=screening" class="text-warn hover:underline">
-                    read why that matters for other people's resumes
-                  </a>
-                  .
-                </>
-              ) : (
-                '.'
-              )}
+              {engine.warn
+                ? tRich('screen.detail.runsOnPersonal', { engine: engine.label }, {
+                    link: (words) => (
+                      <a href="/settings?tab=screening" class="text-warn hover:underline">
+                        {words}
+                      </a>
+                    ),
+                  })
+                : t('screen.detail.runsOn', { engine: engine.label })}
             </div>
           </div>
           <ActionForm action={`/screen/${screening.id}/run`} once>
             <Button variant="violet" disabled={running || pending === 0 || rubricEmpty}>
-              {running ? 'Scoring…' : pending > 0 ? `Score ${pending} applicant${pending === 1 ? '' : 's'}` : 'Score'}
+              {running ? t('screen.detail.scoring') : pending > 0 ? t('screen.detail.scoreN', { n: pending }) : t('screen.detail.score')}
             </Button>
           </ActionForm>
         </div>
 
         {rows.length === 0 ? (
           <div class="px-4 pb-5 sm:px-5">
-            <Empty bare title="No applicants yet">
-              The table fills as resumes arrive. Pick files, a .zip or a whole folder under Applicants
-              above; scoring starts by itself.
+            <Empty bare title={t('screen.detail.empty')}>
+              {t('screen.detail.emptyBody')}
             </Empty>
           </div>
         ) : (
           <form id="bulk-form" method="post" action={`/screen/${screening.id}/applicants/bulk`}>
           <div class="flex flex-wrap items-center gap-2 border-t border-line px-4 py-2.5 sm:px-5">
             <span class="text-note text-ink-faint" data-selection>
-              With the ticked applicants:
+              {t('screen.detail.withTicked')}
             </span>
-            {(['interview', 'hold', 'declined'] as const).map((d) => (
+            {DECISIONS.map((d) => (
               <Button variant="secondary" size="sm" name="do" value={d}>
-                {DECISION_LABELS[d]}
+                {t(DECISION_WORD[d])}
               </Button>
             ))}
             <Button variant="ghost" size="sm" name="do" value="clear">
-              Clear decision
+              {t('screen.detail.clearDecision')}
             </Button>
-            <Button variant="secondary" size="sm" name="do" value="compare" data-min="2" title="Two to five scored applicants, side by side">
-              Compare
+            <Button variant="secondary" size="sm" name="do" value="compare" data-min="2" title={t('screen.detail.compareTitle')}>
+              {t('screen.detail.compare')}
             </Button>
             <Button variant="violet" size="sm" name="do" value="again" disabled={running}>
-              Score again
+              {t('screen.detail.scoreAgain')}
             </Button>
             <Button variant="danger" size="sm" name="do" value="delete">
-              Delete
+              {t('common.delete')}
             </Button>
           </div>
-          <Table caption="Applicants"
+          <Table caption={t('screen.detail.applicants')}
             columns={[
-              <input type="checkbox" data-select-all aria-label="Select every applicant" class="h-4 w-4 accent-accent" />,
+              <input type="checkbox" data-select-all aria-label={t('screen.detail.selectAll')} class="h-4 w-4 accent-accent" />,
               '#',
-              'Name',
-              'Gates',
-              'Score',
-              'Confidence',
-              'Must-have',
-              'Years',
-              'Level',
-              'Decision',
+              t('screen.detail.col.name'),
+              t('screen.detail.col.gates'),
+              t('screen.detail.col.score'),
+              t('screen.detail.col.confidence'),
+              t('screen.detail.col.mustHave'),
+              t('screen.detail.col.years'),
+              t('screen.detail.col.level'),
+              t('screen.detail.col.decision'),
             ]}
             hideBelow={['', '', '', 'sm', '', 'md', 'lg', 'lg', 'lg', '']}
             thClasses={['w-8', '', '', '', 'text-right', '', 'text-right', 'text-right', '', '']}
@@ -463,32 +438,32 @@ export const ScreenDetailPage: FC<ScreenDetailProps> = ({ screening, rubric, row
                 <>
                   <GroupRow tone={BUCKET_TONE[bucket]} label={GATE_BUCKET_LABELS[bucket]} count={group.length} />
                   {group.map((r) => (
-                    <ApplicantRow r={r} screeningId={screening.id} gates={gateLabels} run={run} />
+                    <ApplicantRow r={r} screeningId={screening.id} gates={gateCriteria} run={run} />
                   ))}
                 </>
               );
             })}
             {groups.pending.length > 0 && (
               <>
-                <GroupRow tone="neutral" label={running ? 'Being scored' : 'Not scored yet'} count={groups.pending.length} />
+                <GroupRow tone="neutral" label={running ? t('screen.detail.group.scoring') : t('screen.detail.group.pending')} count={groups.pending.length} />
                 {groups.pending.map((r) => (
-                  <ApplicantRow r={r} screeningId={screening.id} gates={gateLabels} run={run} />
+                  <ApplicantRow r={r} screeningId={screening.id} gates={gateCriteria} run={run} />
                 ))}
               </>
             )}
             {groups.held.length > 0 && (
               <>
-                <GroupRow tone="warn" label="Held for a look" count={groups.held.length} />
+                <GroupRow tone="warn" label={t('screen.detail.group.held')} count={groups.held.length} />
                 {groups.held.map((r) => (
-                  <ApplicantRow r={r} screeningId={screening.id} gates={gateLabels} run={run} />
+                  <ApplicantRow r={r} screeningId={screening.id} gates={gateCriteria} run={run} />
                 ))}
               </>
             )}
             {groups.unread.length > 0 && (
               <>
-                <GroupRow tone="neutral" label="Could not be screened" count={groups.unread.length} />
+                <GroupRow tone="neutral" label={t('screen.detail.group.unread')} count={groups.unread.length} />
                 {groups.unread.map((r) => (
-                  <ApplicantRow r={r} screeningId={screening.id} gates={gateLabels} run={run} />
+                  <ApplicantRow r={r} screeningId={screening.id} gates={gateCriteria} run={run} />
                 ))}
               </>
             )}
@@ -509,11 +484,11 @@ export const ScreenDetailPage: FC<ScreenDetailProps> = ({ screening, rubric, row
         <div class="flex flex-wrap items-baseline justify-between gap-2">
           <SectionTitle>
             <Step n={5} />
-            Calibration — your decisions against the order
+            {t('screen.detail.calibration')}
           </SectionTitle>
           {calibration.enough && (
             <span class="text-note text-ink-faint">
-              {calibration.decided.interview} to interview · {calibration.decided.hold} on hold · {calibration.decided.declined} declined
+              {t('screen.detail.decided', { interview: calibration.decided.interview, hold: calibration.decided.hold, declined: calibration.decided.declined })}
             </span>
           )}
         </div>
@@ -521,9 +496,9 @@ export const ScreenDetailPage: FC<ScreenDetailProps> = ({ screening, rubric, row
         {calibration.enough && (
           <div class="mt-3 grid gap-4 lg:grid-cols-2">
             <div>
-              <h3 class="text-label text-ink">Where you and the table part ways</h3>
+              <h3 class="text-label text-ink">{t('screen.detail.partWays')}</h3>
               {calibration.surprises.length === 0 ? (
-                <Hint class="mt-1">Nowhere: every To interview sits in the top {calibration.top?.k ?? 0}, no Declined does.</Hint>
+                <Hint class="mt-1">{t('screen.detail.partWaysNowhere', { k: calibration.top?.k ?? 0 })}</Hint>
               ) : (
                 <ul class="mt-1 space-y-1.5 text-sm">
                   {calibration.surprises.map((sp) => (
@@ -531,8 +506,7 @@ export const ScreenDetailPage: FC<ScreenDetailProps> = ({ screening, rubric, row
                       <span class="font-medium text-ink">№{sp.number}</span>
                       <span class="text-ink-muted">
                         {' — '}
-                        {sp.decision === 'interview' ? 'To interview' : 'Declined'}, {sp.position}
-                        {ordinal(sp.position)} of {sp.total} in the table
+                        {t('screen.detail.surprise', { decision: sp.decision, position: sp.position, suffix: ordinal(sp.position), total: sp.total })}
                       </span>
                       {sp.why.length > 0 && <div class="text-note text-ink-faint">{sp.why.join(' · ')}</div>}
                     </li>
@@ -541,14 +515,14 @@ export const ScreenDetailPage: FC<ScreenDetailProps> = ({ screening, rubric, row
               )}
             </div>
             <div>
-              <h3 class="text-label text-ink">Which criteria tell your picks from the rest</h3>
+              <h3 class="text-label text-ink">{t('screen.detail.separations')}</h3>
               <table class="mt-1 w-full text-sm">
                 <thead>
                   <tr class="text-left text-label text-ink-muted [&>th]:font-[550]">
-                    <th scope="col" class="py-1 pr-2">Criterion</th>
-                    <th scope="col" class="py-1 pr-2 text-right">To interview</th>
-                    <th scope="col" class="py-1 pr-2 text-right">Declined</th>
-                    <th scope="col" class="py-1 text-right">Gap</th>
+                    <th scope="col" class="py-1 pr-2">{t('screen.detail.sep.criterion')}</th>
+                    <th scope="col" class="py-1 pr-2 text-right">{t('screen.detail.sep.interview')}</th>
+                    <th scope="col" class="py-1 pr-2 text-right">{t('screen.detail.sep.declined')}</th>
+                    <th scope="col" class="py-1 text-right">{t('screen.detail.sep.gap')}</th>
                   </tr>
                 </thead>
                 <tbody class="divide-y divide-line">
@@ -570,32 +544,17 @@ export const ScreenDetailPage: FC<ScreenDetailProps> = ({ screening, rubric, row
                     ))}
                 </tbody>
               </table>
-              <Hint class="mt-2">
-                Mean credit per criterion (0–1) among the applicants you chose to interview and among those you
-                declined. A gap near zero means the criterion does not tell your picks from the rest; a negative gap
-                means the ones you declined scored higher on it. The tool never changes a criterion or a weight from
-                this — that is card 2, and yours.
-              </Hint>
+              <Hint class="mt-2">{t('screen.detail.separationsHint')}</Hint>
             </div>
           </div>
         )}
         {!calibration.enough && (
-          <Hint class="mt-1">
-            Decisions are the one thing the tool never writes; {MIN_DECISIONS} of them, with a To interview and a
-            Declined among them, are enough for the first reading. The CSV and Markdown carry it too.
-          </Hint>
+          <Hint class="mt-1">{t('screen.detail.notEnough', { n: MIN_DECISIONS })}</Hint>
         )}
       </Card>
-      <Hint class="mt-3">
-        Created <When at={screening.createdAt} />. A failed gate is a fact about the posting's conditions, never a
-        verdict on the person.
-      </Hint>
-      <More class="mt-1">
-        "Priority to talk to" means every gate passed; "Ask first" means one is unknown and the scorecard has the
-        question. A score with a small +N or −N beside it carries your own adjustment from the scorecard; the
-        computed number is in its tooltip and in the export.
-      </More>
-      <style dangerouslySetInnerHTML={{ __html: RUN_BADGE_CSS + DISCLOSURE_CSS }} />
+      <Hint class="mt-3">{tRich('screen.detail.created', {}, { when: () => <When at={screening.createdAt} /> })}</Hint>
+      <More class="mt-1">{t('screen.detail.bucketsMore')}</More>
+      <style dangerouslySetInnerHTML={{ __html: runBadgeCss() + DISCLOSURE_CSS }} />
       <script
         type="module"
         dangerouslySetInnerHTML={{ __html: "import { init } from '/static/screen.mjs'; init();" }}
@@ -611,36 +570,39 @@ const FLAT_GAP = 0.1;
 
 /** One criterion as a chip in the closed card: its words, and whether it gates, scores (with the stars) or only notes. */
 const CriterionChip: FC<{ c: Criterion }> = ({ c }) => {
-  const words = c.kind === 'impact' || c.kind === 'overall' ? c.label : criterionText(c) || c.label;
+  const words = c.kind === 'impact' || c.kind === 'overall' ? criterionLabel(c) : criterionText(c) || c.label;
   return (
     <span
       class={`inline-flex min-w-0 max-w-[32rem] items-center gap-1 rounded-md px-2 py-0.5 text-meta ring-1 ring-inset ${
         c.mode === 'gate' ? 'bg-warn/5 text-ink ring-warn/25' : c.mode === 'note' ? 'bg-surface-overlay text-ink-muted ring-line' : 'bg-surface-raised text-ink ring-line'
       }`}
-      title={`${CRITERION_KIND_LABELS[c.kind]} · ${CRITERION_MODE_LABELS[c.mode].split(' — ')[0]}${c.source === 'you' ? ' · yours' : ''}`}
+      title={t('screen.detail.chipTitle', { kind: CRITERION_KIND_LABELS[c.kind], mode: t(MODE_WORD[c.mode]), yours: c.source === 'you' ? 'yes' : 'no' })}
     >
-      {c.mode === 'gate' && <span class="text-warn">gate</span>}
+      {c.mode === 'gate' && <span class="text-warn">{t('screen.detail.chip.gate')}</span>}
       <span class="min-w-0 truncate">{words}</span>
       {c.mode === 'scored' && <Stars n={c.weight} class="shrink-0 text-ink-faint" />}
-      {c.mode === 'note' && <span class="text-ink-faint">note</span>}
+      {c.mode === 'note' && <span class="text-ink-faint">{t('screen.detail.chip.note')}</span>}
     </span>
   );
 };
 
+/** A mode's short name — the select's options and the chip's tooltip. */
+const MODE_WORD: Record<Criterion['mode'], MessageKey> = { gate: 'screen.detail.mode.gate', scored: 'screen.detail.mode.scored', note: 'screen.detail.mode.note' };
+
 const ModeSelect: FC<{ name: string; value: Criterion['mode'] }> = ({ name, value }) => (
-  <Select name={name} aria-label="Mode" class="!w-auto !py-1 text-note">
+  <Select name={name} aria-label={t('screen.detail.col.mode')} class="!w-auto !py-1 text-note">
     {CRITERION_MODES.map((m) => (
       <option value={m} selected={m === value}>
-        {CRITERION_MODE_LABELS[m].split(' — ')[0]}
+        {t(MODE_WORD[m])}
       </option>
     ))}
   </Select>
 );
 
 const WeightSelect: FC<{ name: string; value: number }> = ({ name, value }) => (
-  <Select name={name} aria-label="Weight" class="!w-auto !py-1 text-note">
+  <Select name={name} aria-label={t('screen.detail.col.weight')} class="!w-auto !py-1 text-note">
     {Array.from({ length: MAX_WEIGHT }, (_, i) => i + 1).map((w) => (
-      <option value={w} selected={w === value} aria-label={`Weight ${w} of ${MAX_WEIGHT}`}>
+      <option value={w} selected={w === value} aria-label={t('screen.detail.weightOf', { w, max: MAX_WEIGHT })}>
         {'★'.repeat(w)}
         {'☆'.repeat(MAX_WEIGHT - w)}
       </option>
@@ -656,19 +618,19 @@ const CriterionRow: FC<{ c: Criterion }> = ({ c }) => {
       <td class="py-2 pr-2 align-top whitespace-nowrap text-note text-ink">{CRITERION_KIND_LABELS[c.kind]}</td>
       <td class="py-2 pr-2 align-top">
         {fixed ? (
-          <span class="text-note text-ink-muted">{c.label}</span>
+          <span class="text-note text-ink-muted">{criterionLabel(c)}</span>
         ) : (
-          <Input type="text" name={`text_${c.id}`} value={criterionText(c)} maxlength="200" aria-label={`${CRITERION_KIND_LABELS[c.kind]} criterion`} title={CRITERION_KIND_HINTS[c.kind]} class="!py-1 text-note" />
+          <Input type="text" name={`text_${c.id}`} value={criterionText(c)} maxlength="200" aria-label={t('screen.detail.criterionLabel', { kind: CRITERION_KIND_LABELS[c.kind] })} title={CRITERION_KIND_HINTS[c.kind]} class="!py-1 text-note" />
         )}
         {c.kind === 'custom' && (
           <label class="mt-1 inline-flex items-center gap-2 text-meta text-ink-muted">
-            answered as
-            <Select name={`answer_${c.id}`} aria-label="How this question is answered" class="!w-auto !py-0.5 !text-meta">
+            {t('screen.detail.answeredAs')}
+            <Select name={`answer_${c.id}`} aria-label={t('screen.detail.answerLabel')} class="!w-auto !py-0.5 !text-meta">
               <option value="yesno" selected={c.spec.answer === 'yesno'}>
-                yes / no
+                {t('screen.detail.yesNo')}
               </option>
               <option value="howmuch" selected={c.spec.answer === 'howmuch'}>
-                how much
+                {t('screen.detail.howMuch')}
               </option>
             </Select>
           </label>
@@ -680,9 +642,9 @@ const CriterionRow: FC<{ c: Criterion }> = ({ c }) => {
       <td class="py-2 pr-2 align-top">
         <WeightSelect name={`weight_${c.id}`} value={c.weight} />
       </td>
-      <td class="py-2 pr-2 align-top text-meta text-ink-faint">{c.source === 'posting' ? 'the posting' : 'you'}</td>
+      <td class="py-2 pr-2 align-top text-meta text-ink-faint">{c.source === 'posting' ? t('screen.detail.fromPosting') : t('screen.detail.fromYou')}</td>
       <td class="py-2 text-right align-top">
-        <input type="checkbox" name={`remove_${c.id}`} value="1" aria-label={`Remove ${c.label}`} class="h-4 w-4 accent-accent" />
+        <input type="checkbox" name={`remove_${c.id}`} value="1" aria-label={t('screen.detail.removeNamed', { label: criterionLabel(c) })} class="h-4 w-4 accent-accent" />
       </td>
     </tr>
   );
@@ -712,7 +674,7 @@ const DISCLOSURE_CSS = `
 `;
 
 /* The Score cell's run badge, keyed on the row's data-run-state so the poller only flips attributes. */
-const RUN_BADGE_CSS = `
+const runBadgeCss = (): string => `
   .run-badge { display: none; margin-right: .5rem; font-size: 11px; font-weight: 500; border-radius: 9999px; padding: 1px 8px; vertical-align: middle; }
   tr[data-run-state] .run-badge { display: inline-block; }
   tr[data-run-state="queued"] .run-badge { background: rgb(var(--surface-overlay)); color: rgb(var(--ink-muted)); }
@@ -721,7 +683,7 @@ const RUN_BADGE_CSS = `
   tr[data-run-state="scored"] .run-badge { background: rgb(var(--ok) / .12); color: rgb(var(--ok)); }
   /* While a row is in the run, the number beside the badge is its previous verdict — say so, or it reads as the new one. */
   tr[data-run-state] .score-now { color: rgb(var(--ink-faint)); font-weight: 400; }
-  tr[data-run-state] .score-now::before { content: "was "; font-size: 11px; }
+  tr[data-run-state] .score-now::before { content: ${JSON.stringify(`${t('screen.detail.was')} `)}; font-size: 11px; }
 `;
 
 const GroupRow: FC<{ tone: 'ok' | 'warn' | 'danger' | 'neutral'; label: string; count: number }> = ({ tone, label, count }) => (
@@ -733,13 +695,18 @@ const GroupRow: FC<{ tone: 'ok' | 'warn' | 'danger' | 'neutral'; label: string; 
   </tr>
 );
 
-/** "Scoring… 2 of 5 — now reading №3, №4; 1 queued" — the same words screen.mjs paints on every poll. */
+/** "Scoring… 2 of 5 — now reading №3, №4; 1 queued" — the message screen.mjs paints on every poll, with the same arguments. */
 function progressText(run: ScreenRunState): string {
-  const done = run.done + run.failed;
-  const failed = run.failed > 0 ? ` (${run.failed} failed)` : '';
-  const reading = run.inFlight.length > 0 ? ` — now reading ${run.inFlight.map((n) => `№${n}`).join(', ')}` : '';
-  const queued = run.queued.length > 0 ? `; ${run.queued.length} queued` : '';
-  return `Scoring… ${done} of ${run.total}${failed}${reading}${queued}. Each row says where it is; scored rows appear on refresh.`;
+  return t('browser.screen.progress', {
+    done: run.done + run.failed,
+    total: run.total,
+    failed: run.failed,
+    hasFailed: run.failed > 0 ? 'yes' : 'no',
+    reading: run.inFlight.map((n) => `№${n}`).join(', '),
+    hasReading: run.inFlight.length > 0 ? 'yes' : 'no',
+    queued: run.queued.length,
+    hasQueued: run.queued.length > 0 ? 'yes' : 'no',
+  });
 }
 
 type RowRunState = 'queued' | 'scoring' | 'scored' | null;
@@ -753,9 +720,10 @@ function rowRunState(number: number, run: ScreenRunState | null): RowRunState {
   return null;
 }
 
-const RUN_BADGE: Record<Exclude<RowRunState, null>, string> = { queued: 'queued', scoring: 'scoring…', scored: 'scored — refresh for the new number' };
+/** The same keys screen.mjs flips the badge to. */
+const RUN_BADGE: Record<Exclude<RowRunState, null>, MessageKey> = { queued: 'browser.screen.queued', scoring: 'browser.screen.scoring', scored: 'browser.screen.scored' };
 
-const ApplicantRow: FC<{ r: ApplicantRowView; screeningId: number; gates: string[]; run: ScreenRunState | null }> = ({ r, screeningId, gates, run }) => {
+const ApplicantRow: FC<{ r: ApplicantRowView; screeningId: number; gates: Criterion[]; run: ScreenRunState | null }> = ({ r, screeningId, gates, run }) => {
   const v = r.verdict && !r.stale ? r.verdict : null;
   const href = `/screen/${screeningId}/applicants/${r.id}`;
   const adjusted = v ? adjustedScore(v.score, r.adjustment) : null;
@@ -763,42 +731,44 @@ const ApplicantRow: FC<{ r: ApplicantRowView; screeningId: number; gates: string
   return (
     <Tr data-applicant={r.number} data-run-state={state ?? undefined}>
       <Td class="w-8 pr-0">
-        <input type="checkbox" name="ids" value={r.id} aria-label={`Select applicant ${r.number}`} class="h-4 w-4 accent-accent" />
+        <input type="checkbox" name="ids" value={r.id} aria-label={t('screen.detail.selectApplicant', { n: r.number })} class="h-4 w-4 accent-accent" />
       </Td>
       <Td class="whitespace-nowrap tabular-nums text-ink-faint">№{r.number}</Td>
       <Td class="w-full max-w-0">
         <a href={href} class="font-medium text-ink hover:underline">
-          {r.name ?? <span class="text-ink-muted">(no name found)</span>}
+          {r.name ? <span translate="no">{r.name}</span> : <span class="text-ink-muted">{t('screen.detail.noName')}</span>}
         </a>
         {r.sameAs !== null && (
-          <span title="Same email, phone or near-identical text as that applicant — another document of theirs, scored on its own">
+          <span title={t('screen.detail.sameAsTitle')}>
             <Badge tone="neutral" class="ml-1.5">
-              also №{r.sameAs}
+              {t('screen.detail.sameAs', { n: r.sameAs })}
             </Badge>
           </span>
         )}
         {v?.injection && (
-          <span title="The resume carried text addressed to an AI reader — see the scorecard">
+          <span title={t('screen.detail.injectionTitle')}>
             <Badge tone="danger" class="ml-1.5">
-              steering text
+              {t('screen.detail.injection')}
             </Badge>
           </span>
         )}
-        <div class="truncate text-meta text-ink-faint" title={r.file}>
-          {r.file}
-          {r.letters > 0 ? ` · + cover letter${r.letters === 1 ? '' : 's'}` : ''}
+        <div class="truncate text-meta text-ink-faint">
+          <span translate="no" title={r.file}>
+            {r.file}
+          </span>
+          {r.letters > 0 ? ` · ${t('screen.detail.letters', { n: r.letters })}` : ''}
           {r.status !== 'ok' && r.note ? ` — ${r.note}` : ''}
-          {r.stale && r.verdict ? ` — scored ${r.verdict.score} under an earlier rubric` : ''}
+          {r.stale && r.verdict ? ` — ${t('screen.detail.scoredEarlier', { score: r.verdict.score })}` : ''}
         </div>
         {/* Phone width leaves the name cell too narrow for a list; the scorecard has the same facts. */}
         {v && (v.standout.length > 0 || v.career.roles > 0) && (
           <details class="mt-0.5 hidden text-meta sm:block">
             <summary class="cursor-pointer truncate text-ink-muted" title={v.standout.length > 0 ? v.standout.map((f) => f.fact).join(' · ') : v.careerLine}>
-              {v.standout.length > 0 ? v.standout.map((f) => f.fact).join(' · ') : `Career: ${v.careerLine}`}
+              {v.standout.length > 0 ? <span lang="en">{v.standout.map((f) => f.fact).join(' · ')}</span> : t('screen.detail.career', { line: v.careerLine })}
             </summary>
             <ul class="mt-1 space-y-0.5 whitespace-normal text-ink-muted">
               {v.standout.map((f) => (
-                <li>
+                <li lang="en">
                   {f.fact}
                   {f.quote && (
                     <>
@@ -808,7 +778,7 @@ const ApplicantRow: FC<{ r: ApplicantRowView; screeningId: number; gates: string
                   )}
                 </li>
               ))}
-              {v.career.roles > 0 && <li class="text-ink-faint">Career: {v.careerLine}. Read off the dates, never scored.</li>}
+              {v.career.roles > 0 && <li class="text-ink-faint">{t('screen.detail.careerRead', { line: v.careerLine })}</li>}
             </ul>
           </details>
         )}
@@ -817,14 +787,13 @@ const ApplicantRow: FC<{ r: ApplicantRowView; screeningId: number; gates: string
         {v ? (
           <span class="inline-flex gap-1.5 font-mono text-note">
             {gates.map((g) => {
-              const status = v.gates.find((x) => x.gate.toLowerCase() === g.toLowerCase())?.status ?? 'unknown';
+              // Matched on the stored label, the verdict's own; shown in the reader's words.
+              const status = v.gates.find((x) => x.gate.toLowerCase() === g.label.toLowerCase())?.status ?? 'unknown';
+              const said = `${criterionLabel(g)}: ${answerBadge(status)}`;
               return (
-                <span
-                  title={`${g}: ${status}`}
-                  class={status === 'pass' ? 'text-ok' : status === 'fail' ? 'text-danger' : 'text-warn'}
-                >
+                <span title={said} class={status === 'pass' ? 'text-ok' : status === 'fail' ? 'text-danger' : 'text-warn'}>
                   <span aria-hidden="true">{GATE_MARK[status]}</span>
-                  <span class="sr-only">{`${g}: ${status}`}</span>
+                  <span class="sr-only">{said}</span>
                 </span>
               );
             })}
@@ -835,16 +804,20 @@ const ApplicantRow: FC<{ r: ApplicantRowView; screeningId: number; gates: string
       </Td>
       <Td class="whitespace-nowrap text-right tabular-nums">
         <span class="run-badge" data-run-badge>
-          {state ? RUN_BADGE[state] : ''}
+          {state ? t(RUN_BADGE[state]) : ''}
         </span>
         {v ? (
-          <span class="score-now font-semibold text-ink" title={v.cap !== null ? `capped at ${v.cap}` : undefined}>
+          <span class="score-now font-semibold text-ink" title={v.cap !== null ? t('screen.detail.capped', { n: v.cap }) : undefined}>
             {adjusted}
             {v.cap !== null && <span class="text-ink-faint">*</span>}
             {r.adjustment !== 0 && (
               <span
                 class={`ml-1 text-meta font-normal ${r.adjustment > 0 ? 'text-ok' : 'text-warn'}`}
-                title={`Computed ${v.score}; your adjustment ${r.adjustment > 0 ? '+' : ''}${r.adjustment}${r.adjustmentNote ? ` — ${r.adjustmentNote}` : ''}`}
+                title={
+                  r.adjustmentNote
+                    ? t('screen.detail.adjustedNote', { score: v.score, adjustment: `${r.adjustment > 0 ? '+' : ''}${r.adjustment}`, note: r.adjustmentNote })
+                    : t('screen.detail.adjusted', { score: v.score, adjustment: `${r.adjustment > 0 ? '+' : ''}${r.adjustment}` })
+                }
               >
                 {r.adjustment > 0 ? '+' : ''}
                 {r.adjustment}
@@ -855,46 +828,46 @@ const ApplicantRow: FC<{ r: ApplicantRowView; screeningId: number; gates: string
           <span class="text-ink-faint">—</span>
         )}
       </Td>
-      <Td>{v ? <Badge tone={CONFIDENCE_TONE[v.confidence]}>{v.confidence}</Badge> : ''}</Td>
-      <Td class="whitespace-nowrap text-right tabular-nums" title={v ? `${v.mustStrong} of ${v.mustTotal} shown in a role or in production — the rest on a skills line only` : undefined}>
+      <Td>{v ? <Badge tone={CONFIDENCE_TONE[v.confidence]}>{confidenceLabel(v.confidence)}</Badge> : ''}</Td>
+      <Td class="whitespace-nowrap text-right tabular-nums" title={v ? t('screen.detail.mustTitle', { strong: v.mustStrong, total: v.mustTotal }) : undefined}>
         {v ? (
           <>
             {v.mustCovered} / {v.mustTotal}
-            <span class="block text-meta text-ink-faint">{v.mustStrong} strong</span>
+            <span class="block text-meta text-ink-faint">{t('screen.detail.strong', { n: v.mustStrong })}</span>
           </>
         ) : (
           ''
         )}
       </Td>
-      <Td class="text-right tabular-nums" title={v && v.career.roles > 0 ? `Relevant years. Career: ${v.careerLine}` : undefined}>
+      <Td class="text-right tabular-nums" title={v && v.career.roles > 0 ? t('screen.detail.yearsTitle', { line: v.careerLine }) : undefined}>
         {v ? (v.years ?? '?') : ''}
       </Td>
       <Td class="text-ink-muted">{v ? (v.level ?? '?') : ''}</Td>
       <Td class="whitespace-nowrap">
         {r.status === 'ok' ? (
           <span class="flex items-center gap-2">
-            <Select name="decision" form={`decision-${r.id}`} data-commit="submit" aria-label={`Decision for applicant ${r.number}`} class="min-w-[7.5rem] !py-1 text-note">
+            <Select name="decision" form={`decision-${r.id}`} data-commit="submit" aria-label={t('screen.detail.decisionFor', { n: r.number })} class="min-w-[7.5rem] !py-1 text-note">
               <option value="" selected={r.decision === null}>
                 —
               </option>
               {DECISIONS.map((d) => (
                 <option value={d} selected={r.decision === d}>
-                  {DECISION_LABELS[d]}
+                  {t(DECISION_WORD[d])}
                 </option>
               ))}
             </Select>
             <noscript>
               <Button variant="ghost" size="sm" form={`decision-${r.id}`}>
-                Save
+                {t('common.save')}
               </Button>
             </noscript>
           </span>
         ) : r.status === 'held' ? (
           <a href={`/screen/${screeningId}/applicants/${r.id}`} class="text-note text-ink hover:underline">
-            read it first
+            {t('screen.detail.readFirst')}
           </a>
         ) : (
-          <span class="text-note text-ink-faint">tick and Delete</span>
+          <span class="text-note text-ink-faint">{t('screen.detail.tickDelete')}</span>
         )}
       </Td>
     </Tr>

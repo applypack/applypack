@@ -6,10 +6,10 @@ import { prisma } from '../../db';
 import { getSettings } from '../../settings';
 import { getResume } from '../../resume/store';
 import { appliedResumeColumns, readAppliedResumeChoice } from '../applied-resume';
-import { flashRedirect, parseFlashCookie } from '../flash';
+import { clearFlashCookie, flashRedirect, parseFlashCookie } from '../flash';
 import { jobHref, resolveJobTab } from '../job-tabs';
 import { ApplicationsPage, type ApplicationCard } from '../pages/applications';
-import { allStages, labelFor, parseStageConfig, strandedStages, UNFILED_STAGE } from '../stage-config';
+import { allStages, labelFor, parseStageConfig, strandedStages, UNFILED_STAGE, wordedStage } from '../stage-config';
 import { appliedDateCorrection, stageChangeEvent } from '../stage-events';
 import { groupEventsByJob, stageTimeLine, type StageTimeLine } from '../stage-time';
 import { applicationsCsv, applicationsMarkdown, dayIn, type ApplicationExportRow } from '../applications-export';
@@ -80,7 +80,8 @@ async function loadBoard() {
   const cards = rows.flatMap((j) => {
     if (!j.pipelineStage) return [];
     const stage = columns.some((col) => col.key === j.pipelineStage) ? j.pipelineStage : UNFILED_STAGE.key;
-    const line = stageTimeLine(stage, j.appliedAt, eventsByJob.get(j.id) ?? [], now, labelFor(work, stage));
+    const def = columns.find((col) => col.key === stage);
+    const line = stageTimeLine(stage, j.appliedAt, eventsByJob.get(j.id) ?? [], now, labelFor(work, stage), def !== undefined && wordedStage(def));
     return [{ job: j, stage, line }];
   });
   return { settings, work, columns, stranded: stranded.length > 0, cards, now };
@@ -108,6 +109,8 @@ applicationsRoute.get('/applications', async (c) => {
       applicationTrackingEnabled={settings.applicationTrackingEnabled}
       flash={parseFlashCookie(c.req.header('cookie'))}
     />,
+    200,
+    { 'Set-Cookie': clearFlashCookie() },
   );
 });
 
@@ -170,7 +173,7 @@ const StageMoveSchema = z.object({ toStage: z.string().min(1).max(40) });
 // recruiterContact / applicationNotes — reusing it here would null them out.
 applicationsRoute.post('/jobs/:id/stage', async (c) => {
   const id = idParam(c.req.param('id'));
-  if (!Number.isFinite(id)) return c.text('Bad id', 400);
+  if (!Number.isFinite(id)) return c.text(t('http.badId'), 400);
   const settings = await getSettings();
   if (!settings.applicationTrackingEnabled) {
     return c.redirect('/applications', 303);
@@ -178,18 +181,18 @@ applicationsRoute.post('/jobs/:id/stage', async (c) => {
 
   const form = await c.req.parseBody();
   const parsed = StageMoveSchema.safeParse({ toStage: form.toStage });
-  if (!parsed.success) return c.text('Invalid stage', 400);
+  if (!parsed.success) return c.text(t('http.invalidStage'), 400);
   const { toStage } = parsed.data;
   const work = parseStageConfig(settings.pipelineStages);
   if (!allStages(work).some((s) => s.key === toStage)) {
-    return c.text('Unknown stage', 400);
+    return c.text(t('http.unknownStage'), 400);
   }
 
   const current = await prisma.job.findUnique({
     where: { id },
     select: { pipelineStage: true, appliedAt: true },
   });
-  if (!current) return c.text('Not found', 404);
+  if (!current) return c.text(t('http.notFound'), 404);
 
   const event = stageChangeEvent(
     id,
@@ -209,7 +212,7 @@ applicationsRoute.post('/jobs/:id/stage', async (c) => {
 
 applicationsRoute.post('/jobs/:id/application', async (c) => {
   const id = idParam(c.req.param('id'));
-  if (!Number.isFinite(id)) return c.text('Bad id', 400);
+  if (!Number.isFinite(id)) return c.text(t('http.badId'), 400);
   const settings = await getSettings();
   if (!settings.applicationTrackingEnabled) {
     return c.redirect(`/jobs/${id}`, 303);
@@ -224,7 +227,7 @@ applicationsRoute.post('/jobs/:id/application', async (c) => {
     appliedResumeId: form.appliedResumeId,
   });
   if (!parsed.success) {
-    return c.text('Invalid form values', 400);
+    return c.text(t('http.invalidForm'), 400);
   }
   const { pipelineStage, appliedAt, recruiterContact, applicationNotes } =
     parsed.data;
@@ -249,7 +252,7 @@ applicationsRoute.post('/jobs/:id/application', async (c) => {
     where: { id },
     select: { pipelineStage: true, appliedAt: true },
   });
-  if (!current) return c.text('Not found', 404);
+  if (!current) return c.text(t('http.notFound'), 404);
 
   // Keeping the job's current stage is always allowed — even one whose
   // column was removed by hand — but a CHANGE must land on a configured key.
@@ -258,7 +261,7 @@ applicationsRoute.post('/jobs/:id/application', async (c) => {
     stageValue !== current.pipelineStage &&
     !allStages(parseStageConfig(settings.pipelineStages)).some((s) => s.key === stageValue)
   ) {
-    return c.text('Unknown stage', 400);
+    return c.text(t('http.unknownStage'), 400);
   }
 
   // F5 (ADR 0024): ledger row in the same transaction as the stage write.

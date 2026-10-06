@@ -21,6 +21,7 @@ import { getPackSettings, getSchedule, getSettings } from '../settings';
 import { shouldDeliverHeld } from '../user-schedule';
 import type { CronStats } from './cron-run';
 import { tryAdvisoryLock } from './fetch-lock';
+import { t } from '../i18n/t';
 
 /*
  * The pack runner (ADR 0063): the queued application packs, one at a time,
@@ -151,7 +152,7 @@ async function runOne(packId: number, jobId: number): Promise<'ready' | 'stopped
   await finishPack(packId, {
     ...read,
     status: 'ready',
-    why: prepared.unchecked ? `The company was not checked: ${prepared.unchecked}` : null,
+    why: prepared.unchecked ? t('pack.why.companyUnchecked', { reason: prepared.unchecked }) : null,
     tailoredMatchId: made.tailored?.id ?? null,
     coverLetterId: prepared.letterId,
     baseText: prepared.match.resumeText,

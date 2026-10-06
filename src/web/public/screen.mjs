@@ -9,16 +9,24 @@
  * bulk bar posts whatever is ticked, and a folder pick sends plain file names.
  */
 import { wireSelectCommits } from './select-commit.mjs';
+import { formatList, t } from './i18n.mjs';
 
 const POLL_MS = 2000;
 
 /** "Scoring… 2 of 5 — now reading №3, №4; 1 queued" — pure, tested from src/web/screen.test.ts; the server renders the same words. */
 export function progressLine(state) {
-  const done = state.done + state.failed;
-  const failed = state.failed > 0 ? ` (${state.failed} failed)` : '';
-  const reading = state.inFlight?.length > 0 ? ` — now reading ${state.inFlight.map((n) => `№${n}`).join(', ')}` : '';
-  const queued = state.queued?.length > 0 ? `; ${state.queued.length} queued` : '';
-  return `Scoring… ${done} of ${state.total}${failed}${reading}${queued}. Each row says where it is; scored rows appear on refresh.`;
+  const reading = state.inFlight ?? [];
+  const queued = state.queued?.length ?? 0;
+  return t('browser.screen.progress', {
+    done: state.done + state.failed,
+    total: state.total,
+    failed: state.failed,
+    hasFailed: state.failed > 0 ? 'yes' : 'no',
+    reading: formatList(reading.map((n) => `№${n}`)),
+    hasReading: reading.length > 0 ? 'yes' : 'no',
+    queued,
+    hasQueued: queued > 0 ? 'yes' : 'no',
+  });
 }
 
 /** Where one applicant is in the run: queued, scoring, scored, or nowhere. Pure. */
@@ -30,7 +38,7 @@ export function rowRunState(number, state) {
   return null;
 }
 
-const RUN_BADGE = { queued: 'queued', scoring: 'scoring…', scored: 'scored — refresh for the new number' };
+const RUN_BADGE = { queued: 'browser.screen.queued', scoring: 'browser.screen.scoring', scored: 'browser.screen.scored' };
 
 function paintRows(state) {
   for (const tr of document.querySelectorAll('tr[data-applicant]')) {
@@ -38,13 +46,13 @@ function paintRows(state) {
     if (s) tr.dataset.runState = s;
     else delete tr.dataset.runState;
     const badge = tr.querySelector('[data-run-badge]');
-    if (badge) badge.textContent = s ? RUN_BADGE[s] : '';
+    if (badge) badge.textContent = s ? t(RUN_BADGE[s]) : '';
   }
 }
 
 /** "3 of 12 selected" — pure. */
 export function selectionLine(checked, total) {
-  return checked === 0 ? `none of ${total} selected` : `${checked} of ${total} selected`;
+  return checked === 0 ? t('browser.screen.selectedNone', { total }) : t('browser.screen.selected', { n: checked, total });
 }
 
 /**
@@ -96,7 +104,7 @@ function wireSelection(form) {
   });
   form.addEventListener('submit', (e) => {
     const doing = e.submitter?.value;
-    if (doing === 'delete' && !confirm(`Remove ${boxes().filter((b) => b.checked).length} applicant(s) with their files and every verdict?`)) e.preventDefault();
+    if (doing === 'delete' && !confirm(t('browser.screen.confirmDelete', { n: boxes().filter((b) => b.checked).length }))) e.preventDefault();
   });
   paint();
 }
@@ -119,7 +127,7 @@ function wireUpload(form) {
     const files = picked();
     if (files.length === 0 || sending) return;
     sending = true;
-    if (line) line.textContent = `${files.length} file${files.length === 1 ? '' : 's'} picked — uploading…`;
+    if (line) line.textContent = t('browser.screen.uploading', { n: files.length });
     for (const b of form.querySelectorAll('button')) b.disabled = true;
     for (const i of inputs) i.disabled = true;
     if (!files.some((f) => f.webkitRelativePath)) {

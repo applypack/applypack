@@ -129,7 +129,9 @@ app.use('/static/*', serveStatic({ root: './src/web/public', rewriteRequestPath:
 // Every POST carries a body ceiling; the upload routes bring their own,
 // larger one and are stepped around here (body-limits.ts).
 app.use('*', async (c, next) =>
-  hasOwnBodyLimit(c.req.method, c.req.path) ? next() : bodyLimit({ maxSize: DEFAULT_BODY_BYTES })(c, next),
+  hasOwnBodyLimit(c.req.method, c.req.path)
+    ? next()
+    : bodyLimit({ maxSize: DEFAULT_BODY_BYTES, onError: (ctx) => ctx.text(t('http.tooLarge'), 413) })(c, next),
 );
 
 // Tiny request log; also loads the employer-mode switch once, for the sidebar

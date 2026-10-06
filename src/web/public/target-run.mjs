@@ -9,94 +9,67 @@
  * src/web/target-run.test.ts.
  */
 
+import { t } from './i18n.mjs';
+
+/* The lines are catalog keys (`browser.activity.*`), worded in the page's language when one shows. */
+
 /** The judgment half of the match prompt — walked by both variants. */
 const VERDICT_LINES = [
-  'Reading the posting and the resume side by side…',
-  'Building the keyword frame — must-have, preferred, nice-to-have, primary stack…',
-  'Searching the resume for evidence of every keyword…',
-  'Grading alignment — title, summary, most recent role…',
-  'Checking hard requirements, red flags and facts to confirm…',
+  'browser.activity.verdict1',
+  'browser.activity.verdict2',
+  'browser.activity.verdict3',
+  'browser.activity.verdict4',
+  'browser.activity.verdict5',
 ];
-const SCORE_LINE = 'Composing the deterministic score — almost there…';
+const SCORE_LINE = 'browser.activity.scoreLine';
 
 const ACTIVITIES = {
-  fetch: [
-    'Requesting the posting page…',
-    'Reading the description out of the page…',
-  ],
-  extract: [
-    'Reading the pasted posting…',
-    'Picking out company, title, location and salary…',
-  ],
-  scan: [
-    'Extracting the text an ATS parser would see…',
-    'Cataloguing skills, seniority and job-agnostic issues…',
-  ],
-  structure: [
-    'Copying the resume into the JSON Resume shape…',
-    'Pairing the skills table back into groups…',
-    'Checking every line against your own words…',
-  ],
+  fetch: ['browser.activity.fetch1', 'browser.activity.fetch2'],
+  extract: ['browser.activity.extract1', 'browser.activity.extract2'],
+  scan: ['browser.activity.scan1', 'browser.activity.scan2'],
+  structure: ['browser.activity.structure1', 'browser.activity.structure2', 'browser.activity.structure3'],
   // The quick check walks the same steps as the full report minus the
   // suggestion drafting, so the two lists are one list (ADR 0029).
   keywords: [...VERDICT_LINES, SCORE_LINE],
-  match: [...VERDICT_LINES, 'Drafting edit suggestions and removals with exact quotes…', SCORE_LINE],
-  suggestions: [
-    'Reading the stored verdicts and the resume…',
-    'Drafting edit suggestions with exact quotes…',
-    'Listing what to remove and what already sells you…',
-  ],
-  liveness: ["Asking the company's board API…", 'Reading the posting page…'],
+  match: [...VERDICT_LINES, 'browser.activity.matchDraft', SCORE_LINE],
+  suggestions: ['browser.activity.suggestions1', 'browser.activity.suggestions2', 'browser.activity.suggestions3'],
+  liveness: ['browser.activity.liveness1', 'browser.activity.liveness2'],
   // The prompt's seven named checks (EVIDENCE_CHECKS), in its order.
   verify: [
-    "Looking for the company's careers page and this posting on it…",
-    'Searching LinkedIn for the company and the role…',
-    'Reading reputation and scam reports…',
-    'Judging how long the posting has been up…',
-    'Comparing the salary with the market…',
-    'Looking for named humans behind the posting…',
-    "Weighing the posting's own quality…",
-    'Writing the verdict and the company snapshot…',
+    'browser.activity.verify1',
+    'browser.activity.verify2',
+    'browser.activity.verify3',
+    'browser.activity.verify4',
+    'browser.activity.verify5',
+    'browser.activity.verify6',
+    'browser.activity.verify7',
+    'browser.activity.verify8',
   ],
   brief: [
-    'Reading the posting on its own…',
-    'Naming the discipline, the level and the industry…',
-    'Working out who reads your resume first…',
-    'Listing what they scan for in their first ten seconds…',
-    'Grouping the either/or requirements…',
-    'Writing the keyword frame the comparison will use…',
+    'browser.activity.brief1',
+    'browser.activity.brief2',
+    'browser.activity.brief3',
+    'browser.activity.brief4',
+    'browser.activity.brief5',
+    'browser.activity.brief6',
   ],
-  letter: [
-    'Reading the posting and the resume…',
-    'Choosing which true facts serve this role…',
-    'Drafting the letter — role, evidence, why this company…',
-    'Fact-checking every claim against the resume…',
-  ],
+  letter: ['browser.activity.letter1', 'browser.activity.letter2', 'browser.activity.letter3', 'browser.activity.letter4'],
   review: [
-    'Reading the resume the way a recruiter reads it…',
-    'Judging the first impression — headline and summary…',
-    'Looking for outcomes behind the duties…',
-    'Weighing the seniority the wording actually shows…',
-    'Checking structure, keyword evidence and wording…',
-    'Writing what to change, with quotes from your text…',
+    'browser.activity.review1',
+    'browser.activity.review2',
+    'browser.activity.review3',
+    'browser.activity.review4',
+    'browser.activity.review5',
+    'browser.activity.review6',
   ],
-  score: [
-    'Filtering the stored jobs against your profile…',
-    'Scoring what passed — a few seconds per job…',
-  ],
-  import: [
-    'Checking each row against your running searches…',
-    'Setting aside what is already stored…',
-    'Storing the new rows — and scoring them, unless fetching is paused…',
-  ],
+  score: ['browser.activity.score1', 'browser.activity.score2'],
+  import: ['browser.activity.import1', 'browser.activity.import2', 'browser.activity.import3'],
 };
-/** What one unit of a step's progress is called. */
-const PROGRESS_UNIT = { score: 'jobs scored' };
 const ROTATE_MS = 9000;
 const POLL_MS = 2000;
 const FADE_MS = 250;
 
-/** Which line of `list` shows after `elapsedMs`; holds on the last one. */
+/** Which entry of `list` shows after `elapsedMs`; holds on the last one. */
 export function paced(list, elapsedMs) {
   if (list.length === 0) return '';
   return list[Math.min(Math.floor(elapsedMs / ROTATE_MS), list.length - 1)];
@@ -104,12 +77,13 @@ export function paced(list, elapsedMs) {
 
 /** Which activity line a step shows after `stageElapsedMs`. */
 export function activityFor(step, stageElapsedMs) {
-  return paced(ACTIVITIES[step] ?? [], stageElapsedMs);
+  const key = paced(ACTIVITIES[step] ?? [], stageElapsedMs);
+  return key ? t(key) : '';
 }
 
-/** "12 of 100 jobs scored" — the line once the run reports real counts. */
+/** "12 of 100 jobs scored" — the line once the run reports real counts; a step without a unit of its own says "done". */
 export function progressLine(step, progress) {
-  return `${progress.done} of ${progress.total} ${PROGRESS_UNIT[step] ?? 'done'}`;
+  return t('browser.run.progress', { unit: step === 'score' ? 'score' : 'other', done: progress.done, total: progress.total });
 }
 
 function defaultActivity(step, state) {
@@ -118,7 +92,7 @@ function defaultActivity(step, state) {
 
 export function formatElapsed(ms) {
   const s = Math.max(0, Math.round(ms / 1000));
-  return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${s % 60}s`;
+  return s < 60 ? t('browser.duration.seconds', { n: s }) : t('browser.duration.minutesSeconds', { m: Math.floor(s / 60), s: s % 60 });
 }
 
 /** The time slot next to a step: its final time once done, a live count while active. */

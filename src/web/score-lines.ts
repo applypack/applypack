@@ -2,6 +2,8 @@ import { effectiveRequirement } from '../resume/keyword-overrides';
 import type { MatchAction, MatchHardRequirement, MatchKeyword } from '../resume/prompts';
 import { clipWords } from '../text-utils';
 import { SCORING, type ScoreBreakdown } from '../resume/score';
+import type { MessageKey } from '../i18n/catalog';
+import type { MessageParams } from '../i18n/message';
 import { t } from '../i18n/t';
 
 /*
@@ -251,11 +253,18 @@ function openingCase(text: string): string {
 export interface Advice {
   text: string;
   modelWritten: boolean;
+  /** Ours, as its catalog message: a gate the posting wrote rides inside it in `<en>` (ADR 0061). */
+  message?: AdviceMessage;
+}
+
+interface AdviceMessage {
+  key: MessageKey;
+  params: MessageParams;
 }
 
 export function mainAdvice(input: AdviceInput): Advice | null {
   const ruled = ruledAdvice(input);
-  if (ruled !== null) return { text: ruled, modelWritten: false };
+  if (ruled !== null) return { text: t(ruled.key, ruled.params), modelWritten: false, message: ruled };
   const { actions } = input;
   const edit = actions.find((a) => a.priority === 'high') ?? actions[0];
   if (!edit) return null;
@@ -265,10 +274,12 @@ export function mainAdvice(input: AdviceInput): Advice | null {
   return what === '' ? null : { text: `${openingCase(what)}${/[.!?…]$/.test(what) ? '' : '.'}`, modelWritten: true };
 }
 
+const said = (key: MessageKey, params: MessageParams): AdviceMessage => ({ key, params });
+
 /** Every rung but the last: the ones this file words itself, from verdicts already stored. */
-function ruledAdvice({ breakdown, keywords, hard }: AdviceInput): string | null {
+function ruledAdvice({ breakdown, keywords, hard }: AdviceInput): AdviceMessage | null {
   const failed = hard.find((h) => h.status === 'fail');
-  if (failed) return t('score.advice.gateFailed', { gate: clipWords(failed.requirement, MAX_GATE_CHARS) });
+  if (failed) return said('score.advice.gateFailed', { gate: clipWords(failed.requirement, MAX_GATE_CHARS) });
 
   // The cap is the biggest lever in the formula and the only one no edit
   // moves: without a word of the core stack, every other improvement is
@@ -279,16 +290,16 @@ function ruledAdvice({ breakdown, keywords, hard }: AdviceInput): string | null 
       .map((k) => k.term);
     const [first, second] = missing;
     const cap = breakdown.cap;
-    if (first === undefined) return t('score.advice.coreMissing', { cap });
-    if (second === undefined) return t('score.advice.coreOne', { term: first, cap });
+    if (first === undefined) return said('score.advice.coreMissing', { cap });
+    if (second === undefined) return said('score.advice.coreOne', { term: first, cap });
     // Naming two of five and calling those two "the core stack" would be a
     // false statement, so the ones that did not fit are counted, not dropped.
     const rest = missing.length - MAX_NAMED_TERMS;
-    return rest > 0 ? t('score.advice.coreMore', { first, second, rest, cap }) : t('score.advice.coreTwo', { first, second, cap });
+    return rest > 0 ? said('score.advice.coreMore', { first, second, rest, cap }) : said('score.advice.coreTwo', { first, second, cap });
   }
 
   const unanswered = hard.find((h) => h.status === 'unknown');
-  if (unanswered) return t('score.advice.gateUnknown', { gate: clipWords(unanswered.requirement, MAX_GATE_CHARS) });
+  if (unanswered) return said('score.advice.gateUnknown', { gate: clipWords(unanswered.requirement, MAX_GATE_CHARS) });
 
   const musts = keywords.filter((k) => effectiveRequirement(k) === 'must');
 
@@ -296,10 +307,10 @@ function ruledAdvice({ breakdown, keywords, hard }: AdviceInput): string | null 
   // itself is missing — the cheapest points on the page, and the only rung
   // that asks for nothing but typing.
   const unwritten = musts.find((k) => k.status === 'add' && !groupMet(keywords, k, written));
-  if (unwritten) return t('score.advice.unwritten', { term: unwritten.term });
+  if (unwritten) return said('score.advice.unwritten', { term: unwritten.term });
 
   const unbacked = musts.find((k) => (k.status === 'ask_user' || k.status === 'cannot_claim') && !groupMet(keywords, k, claimable));
-  if (unbacked) return t('score.advice.unbacked', { term: unbacked.term });
+  if (unbacked) return said('score.advice.unbacked', { term: unbacked.term });
 
   // Named on a skills line and never shown at work: the score discounts it a
   // little (v6), a human reads it as a claim with nothing behind it (evidence.ts).
@@ -307,8 +318,8 @@ function ruledAdvice({ breakdown, keywords, hard }: AdviceInput): string | null 
   const first = listed[0];
   if (first) {
     return listed.length === 1
-      ? t('score.advice.listedOne', { term: first.term })
-      : t('score.advice.listedMany', { term: first.term, n: listed.length });
+      ? said('score.advice.listedOne', { term: first.term })
+      : said('score.advice.listedMany', { term: first.term, n: listed.length });
   }
 
   const alignment = breakdown.alignment;
@@ -319,7 +330,7 @@ function ruledAdvice({ breakdown, keywords, hard }: AdviceInput): string | null 
       { where: 'summary', grade: alignment.summary },
       { where: 'role', grade: alignment.recent_role },
     ].find((g) => g.grade !== 'strong');
-    if (weak) return t('score.advice.sharpen', weak);
+    if (weak) return said('score.advice.sharpen', weak);
   }
 
   return null;

@@ -1,3 +1,7 @@
+import type { MessageKey } from '../i18n/catalog';
+import { t } from '../i18n/t';
+import { storedReadNote } from '../resume/docx-text';
+
 /*
  * Blind screening (ADR 0048): what is taken out of an applicant's resume
  * before a model reads it, and it cannot be switched off. Name, contact
@@ -37,20 +41,21 @@ const REDACTION_KINDS = [
 ] as const;
 export type RedactionKind = (typeof REDACTION_KINDS)[number];
 
-const REDACTION_LABELS: Record<RedactionKind, string> = {
-  name: 'name',
-  email: 'email',
-  phone: 'phone',
-  link: 'link',
-  birth: 'date of birth',
-  age: 'age',
-  marital: 'marital status / family',
-  gender: 'gender',
-  citizenship: 'citizenship',
-  address: 'street address',
-  religion: 'religion',
-  health: 'health / disability',
-  graduation: 'graduation year',
+/** How the audit line names each kind: once (a person has one name), or with how many were removed. */
+const REDACTION_WORDS: Record<RedactionKind, { once: MessageKey } | { counted: MessageKey }> = {
+  name: { once: 'screening.redaction.name' },
+  email: { counted: 'screening.redaction.email' },
+  phone: { counted: 'screening.redaction.phone' },
+  link: { counted: 'screening.redaction.link' },
+  birth: { once: 'screening.redaction.birth' },
+  age: { counted: 'screening.redaction.age' },
+  marital: { counted: 'screening.redaction.marital' },
+  gender: { once: 'screening.redaction.gender' },
+  citizenship: { once: 'screening.redaction.citizenship' },
+  address: { counted: 'screening.redaction.address' },
+  religion: { once: 'screening.redaction.religion' },
+  health: { once: 'screening.redaction.health' },
+  graduation: { counted: 'screening.redaction.graduation' },
 };
 
 export interface Redaction {
@@ -332,9 +337,36 @@ export function leakKinds(leaks: string[]): string[] {
   return [...new Set(leaks.map((l) => l.split(':')[0]!))];
 }
 
-/** The row's note while it is held (TASKS E4): what the leak check found, never the text it found. */
+/**
+ * The row's note while it is held (TASKS E4): what the leak check found, never
+ * the text it found. Stored, and exported, in English; `noteWords` words it on a page.
+ */
 export function heldNote(kinds: string[]): string {
   return `Held for a look: after redaction the leak check still found ${kinds.join(', ')}.`;
+}
+
+const HELD_NOTE = /^Held for a look: after redaction the leak check still found (.+)\.$/s;
+
+const LEAK_WORDS: Record<string, MessageKey> = {
+  name: 'screening.leak.name',
+  email: 'screening.leak.email',
+  phone: 'screening.leak.phone',
+  link: 'screening.leak.link',
+};
+
+/** A leak kind ("name", "email") or a whole entry ("name:Petrenko") in the reader's language. */
+export function leakLabel(leak: string): string {
+  const [kind = '', ...part] = leak.split(':');
+  const word = Object.hasOwn(LEAK_WORDS, kind) ? t(LEAK_WORDS[kind]!) : kind;
+  return part.length > 0 ? t('screening.leak.withPart', { kind: word, part: part.join(':') }) : word;
+}
+
+/** A stored applicant note as a page shows it: the held note worded, any other note (a reader's error) as stored. */
+export function noteWords(note: string): string {
+  const held = HELD_NOTE.exec(note);
+  if (held) return t('screening.heldNote', { kinds: held[1]!.split(', ').map(leakLabel).join(', ') });
+  // A file that gave no text keeps the reader's failure as its note, in English (resume/docx-text.ts).
+  return storedReadNote(note) ?? note;
 }
 
 /** Reader for the stored `redactions` column. */
@@ -348,12 +380,11 @@ export function readRedactions(value: unknown): Redaction[] {
 
 /** "name, 1 email, 1 phone, 2 links, date of birth" — the audit line on the scorecard. */
 export function describeRedactions(redactions: Redaction[]): string {
-  if (redactions.length === 0) return 'nothing to remove';
+  if (redactions.length === 0) return t('screening.redaction.nothing');
   return redactions
     .map((r) => {
-      const label = REDACTION_LABELS[r.kind];
-      if (r.kind === 'name' || r.kind === 'birth' || r.kind === 'gender' || r.kind === 'citizenship' || r.kind === 'religion' || r.kind === 'health') return label;
-      return `${r.count} ${label}${r.count === 1 ? '' : 's'}`;
+      const words = REDACTION_WORDS[r.kind];
+      return 'once' in words ? t(words.once) : t(words.counted, { n: r.count });
     })
     .join(', ');
 }

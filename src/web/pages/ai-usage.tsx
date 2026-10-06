@@ -1,7 +1,8 @@
 /** @jsxImportSource hono/jsx */
 import type { FC } from 'hono/jsx';
 import { Layout } from '../layout';
-import { Badge, Card, CardHeader, CardLink, Empty, Hint, Notice, PageHeader, Tabs } from '../ui';
+import { Badge, Card, CardHeader, CardLink, Empty, Flash, Hint, Notice, PageHeader, Tabs } from '../ui';
+import type { FlashMessage } from '../flash';
 import { formatDuration } from '../format';
 import { billingWords, formatUsd, SPEND_PERIODS, type ModelUsage, type SpendPeriod, type SpendRow, type SpendView } from '../../ai-spend';
 import type { AiBilling } from '../../ai-usage';
@@ -27,6 +28,8 @@ export interface AiUsageProps {
   plan: AiPlanRow[];
   /** The monthly ceiling on billed money in cents (null = none), and what this UTC month has billed, micro-dollars. */
   budget: { cents: number | null; billedThisMonthMicro: number };
+  /** What the last action said, when it sent the person here (#343). */
+  flash?: FlashMessage | null;
 }
 
 /** A period on its tab, and in the caption of the table it filters. */
@@ -65,11 +68,12 @@ const SLOW_TAIL = 1.1;
 /** A suggestion is a quiet box; only a warning and an all-clear take a tone. */
 const NEUTRAL_HINT = 'rounded-md border border-line bg-surface-overlay/60 px-3.5 py-2.5 text-note leading-5 text-ink';
 
-export const AiUsagePage: FC<AiUsageProps> = ({ period, view, models, hints, plan, budget }) => (
+export const AiUsagePage: FC<AiUsageProps> = ({ period, view, models, hints, plan, budget, flash }) => (
   <Layout title={t('nav.ai')} active="ai">
     <PageHeader title={t('nav.ai')} actions={<CardLink href="/settings?tab=ai">{t('ai.aiEngines')}</CardLink>}>
       {t('ai.whichModelDidWhatHow')}
     </PageHeader>
+    <Flash flash={flash} />
     <div class="space-y-6">
       <Tabs
         label={t('ai.period')}

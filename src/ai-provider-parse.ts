@@ -2,6 +2,8 @@ import { z } from 'zod';
 import type { AiProviderId } from './ai-engine';
 import { addUsage, count, NO_USAGE, type AiOutcome, type AiSpend, type AiUsage } from './ai-usage';
 import { retryAfterMs } from './http';
+import type { MessageKey } from './i18n/catalog';
+import { t } from './i18n/t';
 import { maskToken } from './text-utils';
 
 /** The Messages API's `usage` block, as the API and the Claude Code CLI report it. */
@@ -116,8 +118,7 @@ export function failureOutcome(kind: FailureKind): AiOutcome {
 
 /** The flash's sentence for a refused credential: what happened, and the one place to fix it. */
 export function refusedReason(detail: string, what: 'key' | 'sign-in'): string {
-  const fix = what === 'key' ? 'paste a new one on Settings → AI engine' : 'sign in again, or paste a token on Settings → AI engine';
-  return `the ${what} was refused (${detail}) — ${fix}`;
+  return t(what === 'key' ? 'engine.fail.keyRefused' : 'engine.fail.signInRefused', { detail });
 }
 
 /** The longest wait a vendor may ask for before one more try; a longer one goes to the next engine. */
@@ -209,15 +210,49 @@ export function cliFailure(
     ...(typeof e.signal === 'string' ? { signal: e.signal } : {}),
     ...(stderr ? { stderr } : {}),
   };
-  if (e.code === 'ENOENT') return { reason: 'not found on PATH', log };
-  if (e.code === 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER') return { reason: 'the reply exceeded the 1 MiB output cap', log };
+  if (e.code === 'ENOENT') return { reason: t('engine.fail.notOnPath'), log };
+  if (e.code === 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER') return { reason: t('engine.fail.outputCap'), log };
   // execFile sets `killed` when it pulled the plug itself (the timeout); a
   // signal it did not send came from outside — the OOM killer, a shutdown.
-  if (e.killed === true) return { reason: `timed out after ${Math.round(timeoutMs / 1000)} s`, log };
-  if (typeof e.signal === 'string' && typeof e.code !== 'number') return { reason: `ended by ${e.signal}`, log };
+  if (e.killed === true) return { reason: t('engine.fail.timedOut', { seconds: Math.round(timeoutMs / 1000) }), log };
+  if (typeof e.signal === 'string' && typeof e.code !== 'number') return { reason: t('engine.fail.endedBy', { signal: e.signal }), log };
   if (stderr) return { reason: stderr, log };
-  if (typeof e.code === 'number') return { reason: `exited with code ${e.code}`, log };
-  return { reason: 'failed with no output', log };
+  if (typeof e.code === 'number') return { reason: t('engine.fail.exitCode', { code: e.code }), log };
+  return { reason: t('engine.fail.noOutput'), log };
+}
+
+/** The log's word for a CLI that answered with nothing. */
+export const CLI_NO_TEXT = 'the CLI returned no text';
+
+/*
+ * The parsers' own diagnoses stay English in `error` — the log reads them —
+ * and are worded for the person where a failure reaches a page.
+ */
+const DIAGNOSIS: Readonly<Record<string, MessageKey>> = {
+  [CLI_NO_TEXT]: 'engine.fail.cliNoText',
+  'claude-code: output is not JSON': 'engine.diag.claudeNotJson',
+  'claude-code: unexpected result shape': 'engine.diag.claudeShape',
+  'gemini-cli: output is not JSON': 'engine.diag.geminiNotJson',
+  'gemini-cli: unexpected result shape': 'engine.diag.geminiShape',
+  'gemini-cli: no response field': 'engine.diag.geminiNoResponse',
+  'agy-cli: output is not JSON': 'engine.diag.agyNotJson',
+  'agy-cli: unexpected result shape': 'engine.diag.agyShape',
+  'agy-cli: no response field': 'engine.diag.agyNoResponse',
+  'codex: no agent message in output': 'engine.diag.codexNoMessage',
+  'openai: response is not JSON': 'engine.diag.openaiNotJson',
+  'openai: unexpected response shape': 'engine.diag.openaiShape',
+  'openai: reply cut off at the token limit': 'engine.diag.openaiCutOff',
+  'openai: the model declined this request': 'engine.diag.openaiDeclined',
+  'openai: empty completion': 'engine.diag.openaiEmpty',
+  'ollama: the reply stopped before it ended': 'engine.diag.ollamaUnfinished',
+  'ollama: reply cut off at the token limit': 'engine.diag.ollamaCutOff',
+  'ollama: the model returned no text': 'engine.diag.ollamaNoText',
+};
+
+/** A parser's diagnosis in the reader's language; a vendor's own words come through as they are. */
+export function readableFailure(error: string): string {
+  const key = DIAGNOSIS[error];
+  return key ? t(key) : error;
 }
 
 /**
@@ -227,7 +262,7 @@ export function cliFailure(
  */
 export function describeAiFailure(reason: string): string {
   const oneLine = reason.replace(/\s+/g, ' ').trim();
-  if (oneLine.length === 0) return 'no reason reported';
+  if (oneLine.length === 0) return t('engine.fail.noReason');
   const masked = oneLine.replace(KEY_SHAPED, maskToken);
   const capped =
     masked.length > MAX_FAILURE_REASON

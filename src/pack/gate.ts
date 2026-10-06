@@ -1,3 +1,4 @@
+import { t } from '../i18n/t';
 import type { MatchHardRequirement } from '../resume/prompts';
 import type { ScoreBreakdown } from '../resume/score';
 
@@ -49,11 +50,11 @@ export function compareStop(input: {
   const { breakdown } = input;
   const ceiling = breakdown.ceiling ?? breakdown.score;
   if (ceiling >= input.minCeiling) return null;
-  const core =
+  const why =
     breakdown.primaryPresent < breakdown.primaryTotal
-      ? ` — it shows ${breakdown.primaryPresent} of the ${breakdown.primaryTotal} core technologies`
-      : '';
-  return { stop: 'low-ceiling', why: `Editing can take this resume to ${ceiling} at most, under the floor of ${input.minCeiling}${core}` };
+      ? t('pack.why.lowCeilingCore', { ceiling, floor: input.minCeiling, present: breakdown.primaryPresent, total: breakdown.primaryTotal })
+      : t('pack.why.lowCeiling', { ceiling, floor: input.minCeiling });
+  return { stop: 'low-ceiling', why };
 }
 
 /** After the web check: a fake, or a posting the check says to skip (dead, re-posted for months). */

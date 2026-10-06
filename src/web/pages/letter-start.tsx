@@ -104,7 +104,7 @@ export const LetterStartPage: FC<LetterStartProps> = ({
                 {hasResumes ? (
                   <Select name="resumeId" aria-label={t('letter.resume')}>
                     {resumes.map((r) => (
-                      <option value={r.id} selected={r.id === defaultResumeId}>
+                      <option value={r.id} selected={r.id === defaultResumeId} translate="no">
                         {r.label}
                       </option>
                     ))}

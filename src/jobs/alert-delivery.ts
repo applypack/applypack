@@ -5,7 +5,7 @@ import { alertChannel, sendDigest, type Delivery } from '../notifier';
 import { attributionLine } from '../web/pages/attribution';
 import { shouldDeliverHeld, type Schedule } from '../user-schedule';
 import { starred, watchRules } from '../watchlist/interval';
-import { groupHeldByTarget, HELD_TITLE, type HeldRow } from './held-alerts';
+import { groupHeldByTarget, heldTitle, type HeldRow } from './held-alerts';
 import type { AlertJob } from '../types';
 
 /**
@@ -100,7 +100,7 @@ export async function deliverHeldAlerts(now: Date, schedule: Schedule): Promise<
   for (const group of groupHeldByTarget(held)) {
     let delivery: Delivery;
     try {
-      delivery = await sendDigest(group.alerts, group.targetId, [], HELD_TITLE, group.unlisted.length);
+      delivery = await sendDigest(group.alerts, group.targetId, [], heldTitle(), group.unlisted.length);
     } catch (err) {
       // Every chat refused it. The rows keep alertHeldAt, so the next
       // heartbeat tries again rather than leaving a match the user never

@@ -1,6 +1,7 @@
 import type { MiddlewareHandler } from 'hono';
 import { getSettings } from '../settings';
 import { flashRedirect } from './flash';
+import { t } from '../i18n/t';
 
 /*
  * The one switch the Screening section hangs on (ADR 0049). Cached in the
@@ -31,7 +32,7 @@ const SCREENING_SETTINGS_URL = '/settings?tab=screening';
 /** Every /screen route: with the mode off the section does not exist, and the settings tab says why. */
 export const requireEmployerMode: MiddlewareHandler = async (c, next) => {
   if (!(await ensureEmployerMode())) {
-    return flashRedirect(SCREENING_SETTINGS_URL, 'warn', 'Screening is part of employer mode, which is off. Turn it on here to use it.');
+    return flashRedirect(SCREENING_SETTINGS_URL, 'warn', t('employerMode.flash.off'));
   }
   await next();
 };

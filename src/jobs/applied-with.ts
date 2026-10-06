@@ -1,3 +1,5 @@
+import { t } from '../i18n/t';
+
 /**
  * "applied with Senior Backend v3" — the one phrase that names the resume an
  * application went out with. Pure so the stale digest (worker) and the job page
@@ -17,9 +19,12 @@ export interface AppliedResume {
 /**
  * A deleted resume still counts as an answer: we know it was sent, just not
  * what it was called. Exported so the delete dialog can promise the exact
- * words the page will show afterwards.
+ * words the page will show afterwards — in the reader's language, and in
+ * English in an export (ADR 0061).
  */
-export const DELETED_LABEL = 'a deleted resume';
+export function deletedLabel(): string {
+  return t('appliedWith.deleted');
+}
 
 /**
  * Short label for the resume: `Senior Backend v3`. Null when nothing was
@@ -29,6 +34,6 @@ export function appliedWithLabel(applied: AppliedResume | null): string | null {
   if (!applied) return null;
   const name = applied.name?.trim();
   if (!name && applied.version === null) return null;
-  const label = name || DELETED_LABEL;
+  const label = name || deletedLabel();
   return applied.version === null ? label : `${label} v${applied.version}`;
 }

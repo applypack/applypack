@@ -18,22 +18,18 @@ export async function extractResumeText(filename: string, bytes: Buffer): Promis
       text = docxToText(bytes);
     } catch (err) {
       if (err instanceof ZipLimitError) {
-        throw new ResumeTextError(`The .docx is larger inside than this tool reads (${MAX_INFLATED_PART_BYTES / 1024 / 1024} MB in one part).`);
+        throw new ResumeTextError('docxTooLarge', { mb: MAX_INFLATED_PART_BYTES / 1024 / 1024 });
       }
-      if (err instanceof ZipError) throw new ResumeTextError('The file is not a valid .docx (not a zip archive).');
+      if (err instanceof ZipError) throw new ResumeTextError('notZip');
       throw err;
     }
   } else if (ext === '.md' || ext === '.txt') {
     text = bytes.toString('utf8').replace(/\r\n/g, '\n').trim();
   } else {
-    throw new ResumeTextError(
-      `Unsupported file type "${ext || 'none'}". Upload ${ACCEPTED_EXTENSIONS.join(', ')}.`,
-    );
+    throw new ResumeTextError('unsupported', { ext: ext || 'none', accepted: ACCEPTED_EXTENSIONS.join(', ') });
   }
   if (text.length < MIN_TEXT_CHARS) {
-    throw new ResumeTextError(
-      `Only ${text.length} characters of text came out of the file — is it a real resume?`,
-    );
+    throw new ResumeTextError('tooShort', { n: text.length });
   }
   return text;
 }

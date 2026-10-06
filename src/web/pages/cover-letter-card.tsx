@@ -106,7 +106,7 @@ export const CoverLetterCard: FC<CoverLetterCardProps> = ({
               <span class="block text-label text-ink">{t('letter.resume')}</span>
               <Select name="resumeId" class="mt-1.5 !w-auto max-w-full">
                 {resumes.map((r) => (
-                  <option value={r.id} selected={r.id === (suggestedResumeId ?? resumes[0]?.id)}>
+                  <option value={r.id} selected={r.id === (suggestedResumeId ?? resumes[0]?.id)} translate="no">
                     {r.label}
                   </option>
                 ))}

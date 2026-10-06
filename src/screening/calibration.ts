@@ -1,6 +1,7 @@
+import { t } from '../i18n/t';
 import type { GateStatus } from './prompts';
-import type { Criterion, Rubric } from './rubric';
-import type { GateBucket } from './score';
+import { criterionLabel, type Criterion, type Rubric } from './rubric';
+import { answerWords, type GateBucket } from './score';
 
 /*
  * Calibration (plan §6 stage E, ADR 0052): the person's own decisions held
@@ -129,7 +130,7 @@ export function calibrate(rows: CalibrationRow[], rubric: Rubric): Calibration {
     .map((c): Separation => {
       const interviewed = mean(withDecision.filter((r) => r.decision === 'interview').map((r) => r.credits[c.id]).filter((v): v is number => v !== null && v !== undefined));
       const declined = mean(withDecision.filter((r) => r.decision === 'declined').map((r) => r.credits[c.id]).filter((v): v is number => v !== null && v !== undefined));
-      return { id: c.id, label: c.label, weight: c.weight, interviewed, declined, gap: interviewed === null || declined === null ? null : Math.round((interviewed - declined) * 100) / 100 };
+      return { id: c.id, label: criterionLabel(c), weight: c.weight, interviewed, declined, gap: interviewed === null || declined === null ? null : Math.round((interviewed - declined) * 100) / 100 };
     })
     .sort((a, b) => Math.abs(b.gap ?? 0) - Math.abs(a.gap ?? 0) || b.weight - a.weight);
 
@@ -141,15 +142,15 @@ function whyLow(r: CalibrationRow, scored: Criterion[], gates: Criterion[]): str
   const out: string[] = [];
   for (const g of gates) {
     const status = r.gates[g.id];
-    if (status === 'fail') out.push(`${g.label}: failed`);
-    else if (status === 'unknown') out.push(`${g.label}: unknown`);
+    if (status === 'fail') out.push(t('screening.calibration.gateFailed', { label: criterionLabel(g) }));
+    else if (status === 'unknown') out.push(t('screening.calibration.gateUnknown', { label: criterionLabel(g) }));
   }
   // The heaviest criterion with the most credit missing first: stars × (1 − credit).
   const weak = scored
     .map((c) => ({ c, credit: r.credits[c.id] ?? null }))
     .filter((x) => x.credit !== null && x.credit < 0.5)
     .sort((a, b) => b.c.weight * (1 - b.credit!) - a.c.weight * (1 - a.credit!) || b.c.weight - a.c.weight);
-  for (const x of weak) out.push(`${x.c.label}: ${r.answers[x.c.id] ?? 'low'}`);
+  for (const x of weak) out.push(answerLine(x.c, r.answers[x.c.id], 'screening.calibration.low'));
   return out.slice(0, WHY_LIMIT);
 }
 
@@ -160,20 +161,25 @@ function whyHigh(r: CalibrationRow, scored: Criterion[]): string[] {
     .filter((x) => x.credit !== null && x.credit >= 0.8)
     .sort((a, b) => b.c.weight * b.credit! - a.c.weight * a.credit! || b.c.weight - a.c.weight)
     .slice(0, WHY_LIMIT)
-    .map((x) => `${x.c.label}: ${r.answers[x.c.id] ?? 'strong'}`);
+    .map((x) => answerLine(x.c, r.answers[x.c.id], 'screening.calibration.strong'));
+}
+
+/** "Playwright: listed" — the criterion and its stored answer, worded for the page. */
+function answerLine(c: Criterion, answer: string | undefined, fallback: 'screening.calibration.low' | 'screening.calibration.strong'): string {
+  return t('screening.calibration.answer', { label: criterionLabel(c), answer: answer === undefined ? t(fallback) : answerWords(answer) });
 }
 
 /** One sentence for the card's head and the export. */
 export function calibrationLine(c: Calibration): string {
   if (!c.enough) {
     const n = c.decided.interview + c.decided.hold + c.decided.declined;
-    return n === 0
-      ? `Decide on at least ${MIN_DECISIONS} applicants — one To interview and one Declined among them — and this card says whether the criteria rank the way you do.`
-      : `${n} decision${n === 1 ? '' : 's'} so far; at least ${MIN_DECISIONS}, with one To interview and one Declined among them, before the table can be held against them.`;
+    return n === 0 ? t('screening.calibration.none', { min: MIN_DECISIONS }) : t('screening.calibration.some', { n, min: MIN_DECISIONS });
   }
   const parts: string[] = [];
-  if (c.top) parts.push(`${c.top.hit} of your ${c.top.k} To interview sit in the table's top ${c.top.k}`);
-  if (c.agreement !== null) parts.push(`the table orders ${Math.round(c.agreement * 100)}% of your pairs the way you decided (${c.pairs.concordant} of ${c.pairs.concordant + c.pairs.discordant})`);
-  if (c.pairs.fixedByAdjustment > 0) parts.push(`${c.pairs.fixedByAdjustment} of those only after your adjustments`);
+  if (c.top) parts.push(t('screening.calibration.top', { hit: c.top.hit, k: c.top.k }));
+  if (c.agreement !== null) {
+    parts.push(t('screening.calibration.agreement', { pct: Math.round(c.agreement * 100), concordant: c.pairs.concordant, pairs: c.pairs.concordant + c.pairs.discordant }));
+  }
+  if (c.pairs.fixedByAdjustment > 0) parts.push(t('screening.calibration.fixed', { n: c.pairs.fixedByAdjustment }));
   return `${parts.join('; ')}.`;
 }

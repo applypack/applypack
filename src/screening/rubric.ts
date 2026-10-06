@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import type { MessageKey } from '../i18n/catalog';
+import { t } from '../i18n/t';
 import type { PostingBrief } from '../resume/prompts';
 
 /*
@@ -24,18 +26,30 @@ import type { PostingBrief } from '../resume/prompts';
 
 export const RUBRIC_VERSION = 2;
 
+/**
+ * A table of words read when it is looked up, in the language of the moment
+ * (ADR 0061) — never frozen at import. The pages index it as they indexed the
+ * English table it replaces. prompts.ts reads CRITERION_KIND_LABELS too, so
+ * its callers build the prompt under `withLocale('en')` (batch.ts, compare.ts).
+ */
+export function wordedTable<K extends string>(keys: Record<K, MessageKey>): Readonly<Record<K, string>> {
+  const table = {} as Record<K, string>;
+  for (const k of Object.keys(keys) as K[]) Object.defineProperty(table, k, { enumerable: true, get: () => t(keys[k]) });
+  return Object.freeze(table);
+}
+
 export const SCREEN_LEVELS = ['junior', 'mid', 'senior', 'lead'] as const;
 export type ScreenLevel = (typeof SCREEN_LEVELS)[number];
 /** How strongly a text evidences a term, lowest first — the ladder the skill kinds are answered on. */
 export const EVIDENCE_RUNGS = ['absent', 'listed', 'project', 'role', 'production'] as const;
 export type EvidenceRung = (typeof EVIDENCE_RUNGS)[number];
-export const EVIDENCE_RUNG_LABELS: Record<EvidenceRung, string> = {
-  absent: 'not in the resume',
-  listed: 'skills list only',
-  project: 'project or study',
-  role: 'used in a role',
-  production: 'owned in production',
-};
+export const EVIDENCE_RUNG_LABELS = wordedTable<EvidenceRung>({
+  absent: 'rubric.rung.absent',
+  listed: 'rubric.rung.listed',
+  project: 'rubric.rung.project',
+  role: 'rubric.rung.role',
+  production: 'rubric.rung.production',
+});
 
 export const CRITERION_KINDS = [
   'skill',
@@ -56,50 +70,49 @@ export const CRITERION_KINDS = [
 ] as const;
 export type CriterionKind = (typeof CRITERION_KINDS)[number];
 
-export const CRITERION_KIND_LABELS: Record<CriterionKind, string> = {
-  skill: 'Skill',
-  years: 'Years of experience',
-  level: 'Level',
-  industry: 'Industry',
-  companyType: 'Company type',
-  language: 'Language',
-  location: 'Location',
-  authorization: 'Work permit',
-  availability: 'Availability',
-  education: 'Education',
-  certification: 'Certification',
-  scale: 'Scale',
-  impact: 'Impact evidence',
-  overall: 'Overall read',
-  custom: 'In my own words',
-};
+export const CRITERION_KIND_LABELS = wordedTable<CriterionKind>({
+  skill: 'rubric.kind.skill',
+  years: 'rubric.kind.years',
+  level: 'rubric.kind.level',
+  industry: 'rubric.kind.industry',
+  companyType: 'rubric.kind.companyType',
+  language: 'rubric.kind.language',
+  location: 'rubric.kind.location',
+  authorization: 'rubric.kind.authorization',
+  availability: 'rubric.kind.availability',
+  education: 'rubric.kind.education',
+  certification: 'rubric.kind.certification',
+  scale: 'rubric.kind.scale',
+  impact: 'rubric.kind.impact',
+  overall: 'rubric.kind.overall',
+  custom: 'rubric.kind.custom',
+});
 
-/** What the editor's "What" field takes for each kind — the grammar `parseCriterionText` reads. */
-export const CRITERION_KIND_HINTS: Record<CriterionKind, string> = {
-  skill: 'one term, or alternatives as "Playwright / Cypress"; add "!" to mark the core stack; add "within 36 months" to halve the credit for older use',
-  years: '"5+", "0–2", "3–5" — years in this kind of work; add the kind after a colon: "5+: test automation"',
-  level: 'junior, mid, senior or lead; add "or above" / "or below" / "exactly"',
-  industry: 'sectors, comma-separated; optional years: "fintech, payments: 3+"',
-  companyType: 'product, agency, consultancy, startup, enterprise, public sector, non-profit',
-  language: '"English B2", "Ukrainian native"',
-  location: 'a city or country; add "or remote"',
-  authorization: 'the country: "Ukraine", "EU", "United States"',
-  availability: '"within 4 weeks"',
-  education: '"bachelor: computer science, software engineering"',
-  certification: 'names, comma-separated',
-  scale: 'what and how much: "team of 5+", "1M users", "10k requests/s"',
-  impact: 'outcomes with numbers versus duties — nothing to type',
-  overall: 'the model reads the whole resume against the whole posting — nothing to type',
-  custom: 'a question the resume can answer: "has led a team of three or more"',
-};
+/**
+ * What the editor's "What" field takes for each kind — the grammar `parseCriterionText`
+ * reads. The tokens it reads ("within 36 months", "or above", "or remote", the
+ * company types) stay as the parser spells them in every language.
+ */
+export const CRITERION_KIND_HINTS = wordedTable<CriterionKind>({
+  skill: 'rubric.kindHint.skill',
+  years: 'rubric.kindHint.years',
+  level: 'rubric.kindHint.level',
+  industry: 'rubric.kindHint.industry',
+  companyType: 'rubric.kindHint.companyType',
+  language: 'rubric.kindHint.language',
+  location: 'rubric.kindHint.location',
+  authorization: 'rubric.kindHint.authorization',
+  availability: 'rubric.kindHint.availability',
+  education: 'rubric.kindHint.education',
+  certification: 'rubric.kindHint.certification',
+  scale: 'rubric.kindHint.scale',
+  impact: 'rubric.kindHint.impact',
+  overall: 'rubric.kindHint.overall',
+  custom: 'rubric.kindHint.custom',
+});
 
 export const CRITERION_MODES = ['gate', 'scored', 'note'] as const;
 export type CriterionMode = (typeof CRITERION_MODES)[number];
-export const CRITERION_MODE_LABELS: Record<CriterionMode, string> = {
-  gate: 'Gate — pass / unknown / fail, never points',
-  scored: 'Scored — weighted by the stars',
-  note: 'Note — shown, not counted',
-};
 
 /** How each kind is answered — the reply's shape per criterion (prompts.ts) and the credit rule (score.ts). */
 export const KIND_ANSWER: Record<CriterionKind, 'status' | 'rung' | 'level' | 'impact' | 'overall' | 'years' | 'industry' | 'companyType'> = {
@@ -391,20 +404,20 @@ export function levelFromBrief(seniority: string | null): ScreenLevel | null {
 
 export const PRESETS = ['standard', 'junior', 'senior', 'regulated', 'agency'] as const;
 export type Preset = (typeof PRESETS)[number];
-export const PRESET_LABELS: Record<Preset, string> = {
-  standard: 'Standard screen',
-  junior: 'Junior hire',
-  senior: 'Senior / lead hire',
-  regulated: 'Regulated role',
-  agency: 'Agency / client work',
-};
-export const PRESET_HINTS: Record<Preset, string> = {
-  standard: 'the draft as the posting reads',
-  junior: 'no more than two years as a gate, junior or below, skills at project level or above, impact at one star',
-  senior: 'five years or more, senior or above, impact at three stars, a scale criterion to fill in',
-  regulated: 'education and certifications as gates',
-  agency: 'agency work and the sectors at four stars',
-};
+export const PRESET_LABELS = wordedTable<Preset>({
+  standard: 'rubric.preset.standard',
+  junior: 'rubric.preset.junior',
+  senior: 'rubric.preset.senior',
+  regulated: 'rubric.preset.regulated',
+  agency: 'rubric.preset.agency',
+});
+export const PRESET_HINTS = wordedTable<Preset>({
+  standard: 'rubric.presetHint.standard',
+  junior: 'rubric.presetHint.junior',
+  senior: 'rubric.presetHint.senior',
+  regulated: 'rubric.presetHint.regulated',
+  agency: 'rubric.presetHint.agency',
+});
 
 /** The draft, bent to a shape of hiring. Pure: the same brief and preset give the same rubric. */
 export function applyPreset(rubric: Rubric, preset: Preset): Rubric {
@@ -491,15 +504,26 @@ function skillText(terms: string[], recentWithinMonths: number | null, core: boo
   return `${terms.join(' / ')}${recency}${core ? ' !' : ''}`;
 }
 
+/** The two rows that take no words carry these labels — stored, read by the prompt, worded on a page by `criterionLabel`. */
+const IMPACT_LABEL = 'outcomes, not duties';
+const OVERALL_LABEL = 'the whole resume against the whole posting';
+
+/** A criterion's "What" as a page shows it: the person's own words as written, the two fixed labels in the reader's language. */
+export function criterionLabel(c: Pick<Criterion, 'kind' | 'label'>): string {
+  if (c.kind === 'impact' && c.label === IMPACT_LABEL) return t('rubric.label.impact');
+  if (c.kind === 'overall' && c.label === OVERALL_LABEL) return t('rubric.label.overall');
+  return c.label;
+}
+
 /** The editor's text back into a spec (the label is the text). Null when the kind needs text and none was given. */
 export function parseCriterionText(kind: CriterionKind, raw: string): { label: string; spec: CriterionSpec } | null {
   const text = raw.trim().replace(/\s+/g, ' ').slice(0, MAX_TEXT);
   const list = (s: string): string[] => s.split(/[,;]/).map((x) => x.trim()).filter(Boolean).slice(0, 12);
   switch (kind) {
     case 'impact':
-      return { label: 'outcomes, not duties', spec: SpecSchema.parse({}) };
+      return { label: IMPACT_LABEL, spec: SpecSchema.parse({}) };
     case 'overall':
-      return { label: 'the whole resume against the whole posting', spec: SpecSchema.parse({}) };
+      return { label: OVERALL_LABEL, spec: SpecSchema.parse({}) };
     case 'skill': {
       // The core mark comes off first, then the window before it; "React ! within 36 months" reads the same.
       let core = CORE_MARK.test(text);
@@ -576,12 +600,12 @@ export function parseCriterionText(kind: CriterionKind, raw: string): { label: s
 const protectedRe = (words: string, stems: string): RegExp =>
   new RegExp(`(?<![\\p{L}\\p{N}])(?:${words})(?![\\p{L}\\p{N}])|(?<![\\p{L}\\p{N}])(?:${stems})`, 'iu');
 
-const PROTECTED: { re: RegExp; instead: string }[] = [
-  { re: protectedRe('age|aged|years? old|young|elderly|birth|born|date of birth', 'вік\\b|дата народження|рік народження|возраст|дата рождения'), instead: 'Say the level or the years instead: "junior or below", "0–2 years".' },
-  { re: protectedRe('gender|sex|male|female|man|woman|men|women|girl|boy|lady|guy', 'стать\\b|чоловік|жінк|дівчин|хлоп(?:ець|ці|ця)|мужчин|женщин|парен|девушк'), instead: 'There is no lawful criterion for it — the resume is read blind; if a job requirement is meant, say the requirement.' },
-  { re: protectedRe('married|unmarried|divorced|widowed|children|kids|pregnan\\w*|family status|marital', 'одруж|неодруж|заміж|дитин|дітей|діти\\b|вагіт|сімейн|семейн|женат|замужем|дети\\b|беремен'), instead: 'Say the availability or travel requirement as a gate instead: "available for on-call".' },
-  { re: protectedRe('nationality|citizen|citizenship|ethnic\\w*|racial|religio\\w*|national origin', 'національн|громадян|релігі|национальн|гражданств|этнич|етніч'), instead: 'Use a work permit criterion ("Work permit: Ukraine") or a language level instead.' },
-  { re: protectedRe('disabilit\\w*|disabled|illness|medical condition|sick leave', 'інвалід|хвороб|инвалид|болезн'), instead: 'Say the concrete job requirement as a gate instead: "able to lift 20 kg".' },
+const PROTECTED: { re: RegExp; instead: MessageKey }[] = [
+  { re: protectedRe('age|aged|years? old|young|elderly|birth|born|date of birth', 'вік\\b|дата народження|рік народження|возраст|дата рождения'), instead: 'rubric.protected.age' },
+  { re: protectedRe('gender|sex|male|female|man|woman|men|women|girl|boy|lady|guy', 'стать\\b|чоловік|жінк|дівчин|хлоп(?:ець|ці|ця)|мужчин|женщин|парен|девушк'), instead: 'rubric.protected.gender' },
+  { re: protectedRe('married|unmarried|divorced|widowed|children|kids|pregnan\\w*|family status|marital', 'одруж|неодруж|заміж|дитин|дітей|діти\\b|вагіт|сімейн|семейн|женат|замужем|дети\\b|беремен'), instead: 'rubric.protected.family' },
+  { re: protectedRe('nationality|citizen|citizenship|ethnic\\w*|racial|religio\\w*|national origin', 'національн|громадян|релігі|национальн|гражданств|этнич|етніч'), instead: 'rubric.protected.origin' },
+  { re: protectedRe('disabilit\\w*|disabled|illness|medical condition|sick leave', 'інвалід|хвороб|инвалид|болезн'), instead: 'rubric.protected.health' },
 ];
 
 /** Why a criterion is refused, or null when it may be saved (plan §2.4). */
@@ -590,7 +614,7 @@ export function protectedCharacteristic(c: Pick<Criterion, 'kind' | 'label'> & {
   if (c.kind !== 'custom' && c.kind !== 'scale') return null;
   const wording = `${c.label} ${c.spec?.question ?? ''} ${c.spec?.level ?? ''}`;
   for (const p of PROTECTED) {
-    if (p.re.test(wording)) return `"${c.label}" names a protected characteristic and cannot be a criterion. ${p.instead}`;
+    if (p.re.test(wording)) return t('rubric.protected', { label: c.label, instead: t(p.instead) });
   }
   return null;
 }
@@ -615,7 +639,7 @@ export function rubricFromForm(form: Record<string, unknown>, previous: Rubric):
     }
     const text = str(`text_${c.id}`);
     const parsed = c.kind === 'impact' || c.kind === 'overall' ? parseCriterionText(c.kind, '') : parseCriterionText(c.kind, text || criterionText(c));
-    if (!parsed) return { error: `"${text || c.label}" is not something a ${CRITERION_KIND_LABELS[c.kind].toLowerCase()} criterion can read — ${CRITERION_KIND_HINTS[c.kind]}.` };
+    if (!parsed) return { error: unreadable(c.kind, text || c.label) };
     const mode = (CRITERION_MODES as readonly string[]).includes(str(`mode_${c.id}`)) ? (str(`mode_${c.id}`) as CriterionMode) : c.mode;
     const weight = Math.max(1, Math.min(MAX_WEIGHT, Math.round(Number(str(`weight_${c.id}`)) || c.weight)));
     const answer = str(`answer_${c.id}`) === 'howmuch' ? 'howmuch' : str(`answer_${c.id}`) === 'yesno' ? 'yesno' : c.spec.answer;
@@ -632,18 +656,23 @@ export function rubricFromForm(form: Record<string, unknown>, previous: Rubric):
   if ((CRITERION_KINDS as readonly string[]).includes(addKind) && (addText || addKind === 'impact' || addKind === 'overall')) {
     const kind = addKind as CriterionKind;
     const parsed = parseCriterionText(kind, addText);
-    if (!parsed) return { error: `"${addText}" is not something a ${CRITERION_KIND_LABELS[kind].toLowerCase()} criterion can read — ${CRITERION_KIND_HINTS[kind]}.` };
+    if (!parsed) return { error: unreadable(kind, addText) };
     const mode = (CRITERION_MODES as readonly string[]).includes(str('add_mode')) ? (str('add_mode') as CriterionMode) : 'scored';
     const weight = Math.max(1, Math.min(MAX_WEIGHT, Math.round(Number(str('add_weight')) || 3)));
     const answer = str('add_answer') === 'howmuch' ? 'howmuch' : 'yesno';
     const next: Criterion = { id: newCriterionId(kind, taken), kind, label: parsed.label, mode, weight, source: 'you', spec: SpecSchema.parse({ ...parsed.spec, answer }) };
     const refused = protectedCharacteristic(next);
     if (refused) return { error: refused };
-    if (criteria.filter((c) => c.kind === 'custom').length >= MAX_CUSTOM && kind === 'custom') return { error: `At most ${MAX_CUSTOM} criteria in your own words.` };
+    if (criteria.filter((c) => c.kind === 'custom').length >= MAX_CUSTOM && kind === 'custom') return { error: t('rubric.error.tooManyCustom', { max: MAX_CUSTOM }) };
     criteria.push(next);
   }
-  if (criteria.length > MAX_CRITERIA) return { error: `At most ${MAX_CRITERIA} criteria.` };
+  if (criteria.length > MAX_CRITERIA) return { error: t('rubric.error.tooMany', { max: MAX_CRITERIA }) };
   return { rubric: RubricSchema.parse({ version: RUBRIC_VERSION, criteria, removed: removed.slice(-MAX_REMOVED) }) };
+}
+
+/** Words a kind's grammar cannot read, with what it does read. */
+function unreadable(kind: CriterionKind, text: string): string {
+  return t('rubric.error.unreadable', { text, kind, hint: CRITERION_KIND_HINTS[kind] });
 }
 
 /** A status or years row's spec fields read out of its own words; nothing reads them, the model reads the words. */
@@ -669,9 +698,9 @@ export function rubricSummary(r: Rubric): string {
   const scored = r.criteria.filter((c) => c.mode === 'scored').length;
   const notes = r.criteria.filter((c) => c.mode === 'note').length;
   const yours = r.criteria.filter((c) => c.source === 'you').length;
-  const parts = [`${gates} gate${gates === 1 ? '' : 's'}`, `${scored} scored`];
-  if (notes > 0) parts.push(`${notes} note${notes === 1 ? '' : 's'}`);
-  if (yours > 0) parts.push(`${yours} in your own words`);
+  const parts = [t('rubric.summary.gates', { n: gates }), t('rubric.summary.scored', { n: scored })];
+  if (notes > 0) parts.push(t('rubric.summary.notes', { n: notes }));
+  if (yours > 0) parts.push(t('rubric.summary.yours', { n: yours }));
   return parts.join(' · ');
 }
 

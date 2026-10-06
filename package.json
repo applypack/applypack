@@ -41,6 +41,7 @@
     "spend:report": "tsx src/scripts/ai-spend-report.ts",
     "keywords:audit": "tsx src/scripts/keyword-audit.ts",
     "exports:audit": "tsx src/scripts/dead-exports.ts",
+    "i18n:browser": "tsx src/scripts/i18n-browser.ts",
     "smoke:routes": "node dist/scripts/route-smoke.js",
     "test:telegram": "tsx src/scripts/test-telegram.ts",
     "prisma:generate": "prisma generate",
