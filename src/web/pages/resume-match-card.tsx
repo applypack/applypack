@@ -273,7 +273,7 @@ const ScoreBreakdownChips: FC<{ bd: ScoreBreakdown; keywords: MatchKeyword[]; ha
 };
 
 /*
- * The advice ladder's one sentence (score-lines.ts:adviceLine), in the same
+ * The advice ladder's one sentence (score-lines.ts:mainAdvice), in the same
  * place on both cards: under the model's summary, above the arithmetic. Null
  * renders nothing — a report with nothing open has the "Ready to apply" line
  * instead, and both at once would be two sentences saying one thing.

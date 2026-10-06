@@ -13,7 +13,7 @@ import { readActions, readHardRequirements, readRemovals } from '../../resume/pr
 import { readMatchEvidence, readMatchMode } from '../../resume/match-mode';
 import { notEnglishNotice } from '../../text-language';
 import { readBreakdown } from '../../resume/score';
-import { adviceLine, readyToApply } from '../score-lines';
+import { mainAdvice, readyToApply } from '../score-lines';
 import type { OrientationRow } from '../../resume/posting-orientation';
 import type { SummaryGuide } from '../../resume/summary-guide';
 import {
@@ -141,7 +141,7 @@ export const TargetPage: FC<TargetPageProps> = ({
   const breakdown = readBreakdown(match.breakdown);
   // The one move worth making next, ranked in code from the verdicts this row
   // already carries (score-lines.ts) — the editor is where it gets made.
-  const advice = breakdown ? adviceLine({ breakdown, keywords: scored, hard, actions }) : null;
+  const advice = breakdown ? mainAdvice({ breakdown, keywords: scored, hard, actions }) : null;
   const recent = matches.slice(0, RECENT_RUNS);
   const shownRuns = recent.some((m) => m.id === match.id)
     ? recent

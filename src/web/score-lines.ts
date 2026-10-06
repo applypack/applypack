@@ -253,11 +253,7 @@ export interface Advice {
   modelWritten: boolean;
 }
 
-export function mainAdvice(input: AdviceInput): string | null {
-  return adviceLine(input)?.text ?? null;
-}
-
-export function adviceLine(input: AdviceInput): Advice | null {
+export function mainAdvice(input: AdviceInput): Advice | null {
   const ruled = ruledAdvice(input);
   if (ruled !== null) return { text: ruled, modelWritten: false };
   const { actions } = input;

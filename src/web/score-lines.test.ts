@@ -118,8 +118,8 @@ const act = (priority: MatchAction['priority'], what: string): MatchAction =>
   readActions([{ section: 'summary', where: 'x', what, why: 'x', priority, quote: null, replacement: null, insert_after: null }])[0]!;
 
 /** A stored row as the advice ladder reads it: the five lines' input plus the report's edits. */
-const advice = (over: Partial<AdviceInput> & { keywords: MatchKeyword[] }): string | null =>
-  mainAdvice({ actions: [], ...input(over), ...over });
+const adviceOf = (over: Partial<AdviceInput> & { keywords: MatchKeyword[] }) => mainAdvice({ actions: [], ...input(over), ...over });
+const advice = (over: Partial<AdviceInput> & { keywords: MatchKeyword[] }): string | null => adviceOf(over)?.text ?? null;
 
 test('a failed gate outranks everything the wording could fix', () => {
   assert.equal(
@@ -205,7 +205,7 @@ test('job 71: three musts named only on a skills line, the first named and the r
 test('a weak first glance reads as words, for every grade below strong', () => {
   const keywords = [kw({ term: 'PHP', primary: true, evidence: 'measured' })];
   const glance = (alignment: MatchAlignment) =>
-    mainAdvice({ breakdown: scoreMatch(keywords, alignment, 0), keywords, hard: [], actions: [act('high', 'rewrite the summary')] });
+    mainAdvice({ breakdown: scoreMatch(keywords, alignment, 0), keywords, hard: [], actions: [act('high', 'rewrite the summary')] })?.text;
   assert.equal(
     glance({ title: 'partial', summary: 'strong', recent_role: 'strong' }),
     'Sharpen the title — it only partly matches this posting.',
@@ -227,6 +227,12 @@ test('with nothing else open the report\u2019s own first high edit becomes the s
     'Lead with PHP/Laravel platform leadership instead of the AI-orchestrator framing.',
   );
   assert.equal(advice({ keywords, actions: [act('low', 'tidy the dates')] }), 'Tidy the dates.');
+});
+
+test('the sentence says whose words it is: the report\u2019s edit is the model\u2019s, a rung is ours', () => {
+  const keywords = [kw({ term: 'PHP', primary: true, evidence: 'measured' })];
+  assert.deepEqual(adviceOf({ keywords, actions: [act('high', 'tidy the dates')] }), { text: 'Tidy the dates.', modelWritten: true });
+  assert.equal(adviceOf({ keywords, hard: [gate('fail', 'US work authorization')] })?.modelWritten, false);
 });
 
 test('a name that opens lowercase on purpose keeps its own spelling', () => {
