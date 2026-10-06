@@ -20,7 +20,7 @@ import { planEdits, type EditPlan, type TailorPolicy } from './policy';
 import { loadEditor, scoreOnText, tailor, tailorChecks, type EditOutcome } from './tailor';
 
 /*
- * One application prepared with nobody watching (ADR 0060). The only file in
+ * One application prepared with nobody watching (ADR 0063). The only file in
  * the module that spends AI: it calls what the dashboard's buttons call —
  * the liveness ladder, Compare, "Is it real?", the cover letter — in the
  * order that pays for the least, and applies the edits the policy allows.

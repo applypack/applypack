@@ -44,7 +44,7 @@ export interface AppSettingsView {
   reapplyDays: number | null;
   /** When init.ts gave the older rows their employer keys; null = not yet. */
   employersFilledAt: Date | null;
-  /** Raw AppSettings.pack JSON — parse with parsePackSettings (ADR 0060). */
+  /** Raw AppSettings.pack JSON — parse with parsePackSettings (ADR 0063). */
   pack: unknown;
   /** Raw AppSettings.coverAngles JSON — parse with readCoverAngles. */
   coverAngles: unknown;
@@ -377,7 +377,7 @@ export async function setReapplyDays(days: number | null): Promise<void> {
   logger.info({ days }, 'settings: re-apply window set');
 }
 
-/** ADR 0060: what the person decided about application packs; off until they say otherwise. */
+/** ADR 0063: what the person decided about application packs; off until they say otherwise. */
 export async function getPackSettings(): Promise<PackSettings> {
   const row = await prisma.appSettings.findUnique({ where: { id: SETTINGS_ID }, select: { pack: true } });
   return parsePackSettings(row?.pack);

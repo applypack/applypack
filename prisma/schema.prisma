@@ -56,6 +56,15 @@ enum AtsType {
   // the page URL. The row is watched and never active — the tick has nothing
   // to read — and the user pastes the page's text to see what changed.
   BROWSER_PAGE
+  // ADR 0062: rows the user brought in a file (/jobs/import). atsToken is the
+  // source's name as a slug. The row is never active — the tick has nothing
+  // to read — and its jobs carry many employers, each named per row.
+  IMPORT
+  // ADR 0062: a folder on this computer that a tool writes files of rows
+  // into. atsToken is the folder's absolute path; `sourceConfig` holds the
+  // name filter and the column mapping; `source_file` is its ledger. Read on
+  // the tick like any source, with no request made.
+  FOLDER
   // Phase 8.2: pasted by hand on /jobs/new. One inactive Company row per
   // employer; runAllFetchers never touches it.
   MANUAL
@@ -156,9 +165,48 @@ model Company {
   pastedNew   String[]  @default([])
   pastedAt    DateTime?
 
+  // ADR 0062 — a source whose rows the user brings: `{ mapping, include }`,
+  // which column is the title, the link, the text (datasets/map.ts) and, for
+  // a folder, which file names count. Parsed with zod on every read; NULL on
+  // every other kind of source.
+  sourceConfig Json?
+  sourceFiles  SourceFile[]
+
   @@unique([atsType, atsToken])
   @@index([active, nextCheckAt])
   @@map("company")
+}
+
+// ADR 0062 — the ledger of a FOLDER source: one row per file of rows seen in
+// the folder. A file is read once; one whose size or time changed is read
+// again. ApplyPack never writes into the folder, so this table is where a
+// folder's state lives. Rows go with their source.
+model SourceFile {
+  id        Int       @id @default(autoincrement())
+  companyId Int
+  company   Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  // The path inside the folder, `/` between its parts on every system.
+  relPath   String
+  // Bytes. A file too large for the column is recorded at the column's
+  // largest value: it is far past what is ever read.
+  size      Int
+  mtime     DateTime
+  // Of the bytes as read; NULL for a file that was never read.
+  sha256    String?
+  // json | jsonl | csv | tsv, by the file's name.
+  kind      String
+  // done | waiting | skipped | failed (datasets/folder-scan.ts:FileStatus).
+  status    String
+  // Why it waits, was skipped or failed, in words for the per-file list.
+  detail    String?
+  // Rows of it handed to the pipeline as jobs.
+  jobCount  Int       @default(0)
+  // The last look that listed it, and the last one that read it.
+  seenAt    DateTime
+  readAt    DateTime?
+
+  @@unique([companyId, relPath])
+  @@map("source_file")
 }
 
 model Job {
@@ -491,7 +539,7 @@ model AppSettings {
   // before the cleanup cron deletes them (ADR 0048).
   employerMode                   Boolean   @default(false)
   screeningRetentionDays         Int       @default(90)
-  // ADR 0060: application packs — whether the worker prepares them, for which
+  // ADR 0063: application packs — whether the worker prepares them, for which
   // postings, how many a day, and what an unattended edit may touch
   // (src/pack/settings.ts). NULL = off, which is every install until its
   // owner switches it on.
@@ -818,7 +866,7 @@ model CoverLetter {
 // two web write sites only; the worker never writes stages). Never
 // updated; rows leave only via the job's cascade, and cleanup-job skips
 // jobs that have a pipelineStage.
-// ADR 0060: what the worker prepared for one posting with nobody watching —
+// ADR 0063: what the worker prepared for one posting with nobody watching —
 // where it stopped and why, or the tailored resume as a file. One row per
 // posting, and the row is the queue as well (status = queued): no second
 // table, no broker. A posting's row goes when the posting does.

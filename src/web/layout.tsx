@@ -17,6 +17,7 @@ export type NavKey =
   | 'companies'
   | 'discovery'
   | 'runs'
+  | 'ai'
   | 'screen'
   | 'settings';
 
@@ -68,7 +69,13 @@ const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
       { key: 'discovery', href: '/discovery', label: 'Discovery' },
     ],
   },
-  { label: 'System', items: [{ key: 'runs', href: '/runs', label: 'Runs' }] },
+  {
+    label: 'System',
+    items: [
+      { key: 'runs', href: '/runs', label: 'Runs' },
+      { key: 'ai', href: '/ai', label: 'AI usage' },
+    ],
+  },
 ];
 
 /**
@@ -254,6 +261,7 @@ const NAV_ICON: Record<NavKey, IconName> = {
   companies: 'building',
   discovery: 'radar',
   runs: 'activity',
+  ai: 'chart-column',
   screen: 'users',
   settings: 'settings',
 };

@@ -66,13 +66,13 @@ of truth when the two disagree.
 - 0005 No LinkedIn / Indeed / Workday — *amended by 0034, 0036*
 - 0006 Discovery via HN parser, not ATS-vendor lists
 - 0007 One AI provider seam: Messages API or Claude Code CLI — *extended by 0013, 0014, 0027, 0055*
-- 0008 Resume module lives in the web process, files in Postgres — *amended by 0060*
+- 0008 Resume module lives in the web process, files in Postgres — *amended by 0063*
 - 0009 Web tools through the AI seam, for job verification only
 - 0010 Two scores: live keyword coverage in the browser, AI match on demand — *amended by 0012, 0038*
 - 0011 PDF resume text comes from unpdf, not a hand-rolled parser
 - 0012 The resume-match score is computed by application code, not by the model — *amended by 0044, 0045*
 - 0013 AI engine is chosen at runtime from AppSettings, with a Gemini CLI backend *(extends 0007)* — *amended by 0014; extended by 0027*
-- 0014 AI engines form a priority chain with automatic failover *(extends 0013)* — *extended by 0027*
+- 0014 AI engines form a priority chain with automatic failover *(extends 0013)* — *extended by 0027, 0060*
 - 0015 The profile is drafted from the resume scan, never written by AI
 - 0016 Job liveness via a free three-rung ladder before AI verify
 - 0017 Starter-pack entries pin a hand-verified board — *extended by 0040*
@@ -115,10 +115,12 @@ of truth when the two disagree.
 - 0054 `npm start` runs ApplyPack with a built-in Postgres; Docker is the server option
 - 0055 Every AI attempt is a ledger row, and a bill, a plan and a local model are never added together *(extends 0007)*
 - 0056 A company can be muted, and a company applied to can rest, before any AI reads its postings
-- 0057 A model on this machine is an engine of its own, and it is held to its window *(extends 0013/0014)*
+- 0057 A model on this machine is an engine of its own, and it is held to its window *(extends 0013/0014)* — *extended by 0060*
 - 0058 How strongly the text shows a term counts, a little (score v6) *(amends 0012/0045)*
 - 0059 The Tailor page edits the resume as a document, and a save is always one *(extends 0038/0039)*
-- 0060 The worker prepares an application pack for a strong new match *(amends 0008)*
+- 0060 An engine takes the tasks it is given, and the order decides among those that take one *(extends 0014/0057)*
+- 0062 Rows the user brings are read from what they hand over, and nothing is fetched
+- 0063 The worker prepares an application pack for a strong new match *(amends 0008)*
 
 Check a proposal against these before touching process layout, sources,
 scheduling, profiles, how the AI is called, the resume score or employer

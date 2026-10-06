@@ -7,13 +7,17 @@ import {
   bindingProviders,
   isAiProviderId,
   modelFitsProvider,
+  offeredTasks,
   parseAiEngineConfig,
   providerUnusable,
   resolveAiEngine,
+  taskPlans,
   toggleAiEngine,
   withEngineFirst,
+  withEngineTasks,
   type AiEngineEnv,
 } from './ai-engine';
+import { AI_TASKS } from './ai-tasks';
 
 const ENV: AiEngineEnv = {
   provider: 'claude_code',
@@ -122,8 +126,8 @@ describe('resolveAiEngine', () => {
 
 describe('aiEngineOrder / aiEngineCard / toggleAiEngine', () => {
   it('is the stored order, or the .env engine alone while nothing is stored', () => {
-    assert.deepEqual(aiEngineOrder({ order: ['gemini_cli', 'claude_code'], models: {} }, 'anthropic_api'), ['gemini_cli', 'claude_code']);
-    assert.deepEqual(aiEngineOrder({ order: [], models: {} }, 'anthropic_api'), ['anthropic_api']);
+    assert.deepEqual(aiEngineOrder({ order: ['gemini_cli', 'claude_code'], models: {}, tasks: {} }, 'anthropic_api'), ['gemini_cli', 'claude_code']);
+    assert.deepEqual(aiEngineOrder({ order: [], models: {}, tasks: {} }, 'anthropic_api'), ['anthropic_api']);
   });
 
   it('a card reads the list its button edits: the last resort says Enable, and Enable adds it', () => {
@@ -151,9 +155,9 @@ describe('parseAiEngineConfig', () => {
   });
 
   it('never throws on garbage', () => {
-    assert.deepEqual(parseAiEngineConfig('nope'), { order: [], models: {} });
-    assert.deepEqual(parseAiEngineConfig(null), { order: [], models: {} });
-    assert.deepEqual(parseAiEngineConfig({ order: 42 }), { order: [], models: {} });
+    assert.deepEqual(parseAiEngineConfig('nope'), { order: [], models: {}, tasks: {} });
+    assert.deepEqual(parseAiEngineConfig(null), { order: [], models: {}, tasks: {} });
+    assert.deepEqual(parseAiEngineConfig({ order: 42 }), { order: [], models: {}, tasks: {} });
   });
 });
 
@@ -291,18 +295,19 @@ describe('a local OpenAI-compatible server', () => {
   });
 
   it('goes first on "Use it", with the stored list behind it and one model in every slot', () => {
-    const stored = { order: ['claude_code' as const, 'openai_api' as const], models: { claude_code: { resume: 'claude-sonnet-5' } } };
+    const stored = { order: ['claude_code' as const, 'openai_api' as const], models: { claude_code: { resume: 'claude-sonnet-5' } }, tasks: {} };
     assert.deepEqual(withEngineFirst(stored, 'openai_api', local, 'llama3.1:8b'), {
       order: ['openai_api', 'claude_code'],
       models: {
         claude_code: { resume: 'claude-sonnet-5' },
         openai_api: { classifier: 'llama3.1:8b', resume: 'llama3.1:8b', cover: 'llama3.1:8b' },
       },
+      tasks: {},
     });
   });
 
   it('keeps the .env engine behind it only when that engine can run here', () => {
-    const none = { order: [], models: {} };
+    const none = { order: [], models: {}, tasks: {} };
     assert.deepEqual(withEngineFirst(none, 'openai_api', local, 'm').order, ['openai_api']);
     assert.deepEqual(withEngineFirst(none, 'openai_api', { ...local, hasAnthropicKey: true }, 'm').order, ['openai_api', 'anthropic_api']);
   });
@@ -326,6 +331,87 @@ describe('the local engine', () => {
   });
 
   it('goes first on "Use it" like the OpenAI-compatible one', () => {
-    assert.deepEqual(withEngineFirst({ order: ['claude_code'], models: {} }, 'local_api', ENV, 'm').order, ['local_api', 'claude_code']);
+    assert.deepEqual(withEngineFirst({ order: ['claude_code'], models: {}, tasks: {} }, 'local_api', ENV, 'm').order, ['local_api', 'claude_code']);
+  });
+});
+
+// ADR 0060: an engine takes the tasks it is given, and the order decides among those that take one.
+describe('tasks per engine', () => {
+  const env = { ...ENV, localModel: 'gemma4:e4b' };
+  const both = { order: ['local_api', 'claude_code'], models: {} };
+
+  it('an engine with no list takes every task it can be given, so a stored chain from before reads as it did', () => {
+    const engine = resolveAiEngine(both, env);
+    for (const task of AI_TASKS.filter((t) => t !== 'verify')) assert.deepEqual(engine.chainFor(task), ['local_api', 'claude_code']);
+    assert.deepEqual(engine.chainFor(null), ['local_api', 'claude_code']);
+    // The web check was never the local engine's to take: it goes where it went before, to the engine that can search.
+    assert.deepEqual(engine.chainFor('verify'), ['claude_code']);
+    assert.equal(engine.takes('local_api', 'verify'), false);
+  });
+
+  it('the web check unticked on the one engine that can search is unclaimed, not the local model\'s alone', () => {
+    const engine = resolveAiEngine({ ...both, tasks: { claude_code: ['scoring', 'analysis'] } }, env);
+    const verify = taskPlans(engine).find((p) => p.task === 'verify');
+    assert.deepEqual(engine.chainFor('verify'), ['local_api', 'claude_code']);
+    assert.deepEqual(verify?.engines, ['claude_code']);
+    assert.equal(verify?.unclaimed, true);
+  });
+
+  it('an install with no engine that can search has nobody to tick the web check on, and is not told to', () => {
+    const engine = resolveAiEngine({ order: ['local_api'], models: {} }, env);
+    const verify = taskPlans(engine).find((p) => p.task === 'verify');
+    assert.deepEqual(verify?.engines, ['local_api']);
+    assert.equal(verify?.unclaimed, false);
+  });
+
+  it('a narrowed engine is asked for its tasks only, and stays out of the fallback for the rest', () => {
+    const engine = resolveAiEngine({ ...both, tasks: { local_api: ['scoring'] } }, env);
+    assert.deepEqual(engine.chainFor('scoring'), ['local_api', 'claude_code']);
+    assert.deepEqual(engine.chainFor('letters'), ['claude_code']);
+    assert.equal(engine.takes('local_api', 'letters'), false);
+    assert.equal(engine.takes('claude_code', 'letters'), true);
+  });
+
+  it('a task nobody usable takes is answered by the whole chain, and the plan says so', () => {
+    const engine = resolveAiEngine({ ...both, tasks: { local_api: ['scoring'], claude_code: ['analysis'] } }, env);
+    assert.deepEqual(engine.chainFor('letters'), ['local_api', 'claude_code']);
+    const plans = taskPlans(engine);
+    assert.equal(plans.find((p) => p.task === 'letters')?.unclaimed, true);
+    assert.equal(plans.find((p) => p.task === 'scoring')?.unclaimed, false);
+    // The one taker cannot run here (no key): its task is as unclaimed as if nobody had ticked it.
+    const keyless = resolveAiEngine({ order: ['anthropic_api', 'claude_code'], models: {}, tasks: { claude_code: ['scoring'] } }, env);
+    assert.deepEqual(keyless.chainFor('letters'), ['claude_code']);
+    assert.equal(taskPlans(keyless).find((p) => p.task === 'letters')?.unclaimed, true);
+  });
+
+  it('the plan sends the web check to an engine that can search, whoever stands first', () => {
+    const verify = taskPlans(resolveAiEngine(both, env)).find((p) => p.task === 'verify');
+    assert.deepEqual(verify?.engines, ['claude_code']);
+  });
+
+  it('never offers the web check to an engine that cannot search', () => {
+    assert.ok(!offeredTasks('local_api').includes('verify'));
+    assert.deepEqual(offeredTasks('claude_code'), [...AI_TASKS]);
+  });
+
+  it('stores a full set of boxes as no list, and a narrower one as picked', () => {
+    const config = parseAiEngineConfig(both);
+    assert.deepEqual(withEngineTasks(config, 'local_api', ['scoring', 'verify']).tasks, { local_api: ['scoring'] });
+    const narrowed = withEngineTasks(config, 'claude_code', ['letters']);
+    assert.deepEqual(narrowed.tasks, { claude_code: ['letters'] });
+    assert.deepEqual(withEngineTasks(narrowed, 'claude_code', [...AI_TASKS]).tasks, {});
+    assert.deepEqual(withEngineTasks(config, 'local_api', offeredTasks('local_api')).tasks, {});
+    assert.deepEqual(withEngineTasks(config, 'local_api', []).tasks, { local_api: [] });
+  });
+
+  it('reads a stored list tolerantly: unknown engines and tasks dropped, in the tasks\' own order', () => {
+    const out = parseAiEngineConfig({ order: ['claude_code'], tasks: { claude_code: ['letters', 'nope', 'scoring'], openai: ['scoring'], gemini_cli: 'all' } });
+    assert.deepEqual(out, { order: ['claude_code'], models: {}, tasks: { claude_code: ['scoring', 'letters'] } });
+    assert.deepEqual(parseAiEngineConfig({ order: ['claude_code'], tasks: 'everything' }), { order: ['claude_code'], models: {}, tasks: {} });
+  });
+
+  it('"Use it" lifts a narrower list from the engine it puts first', () => {
+    const stored = parseAiEngineConfig({ order: ['claude_code', 'local_api'], tasks: { local_api: ['scoring'], claude_code: ['letters'] } });
+    assert.deepEqual(withEngineFirst(stored, 'local_api', env, 'gemma4:e4b').tasks, { claude_code: ['letters'] });
   });
 });

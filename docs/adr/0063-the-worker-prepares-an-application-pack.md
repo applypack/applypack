@@ -1,4 +1,4 @@
-# 0060 — The worker prepares an application pack for a strong new match
+# 0063 — The worker prepares an application pack for a strong new match
 
 **Status:** Accepted (2026-10-05). Amends [0008](./0008-resume-module-in-web.md)
 (the resume module is no longer called by the dashboard alone); builds on

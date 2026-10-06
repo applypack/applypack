@@ -13,7 +13,7 @@ import { runComparison, startComparison } from '../comparison-run';
 import { listPickableJobs } from '../job-pick';
 import { idParam } from '../params';
 import { TargetStartPage } from '../pages/target-start';
-import { TargetRunPage } from '../pages/target-run';
+import { TargetRunPage, type RunLanes } from '../pages/target-run';
 import { clearFlashCookie, flashRedirect, parseFlashCookie } from '../flash';
 import { claimRun, getRun, matchStep, startRun, updateRun, type RunStep } from '../target-runs';
 import { listResumeOptions, resolveResumeSource, ResumeSourceFields } from '../resume-source';
@@ -85,14 +85,17 @@ targetRoute.get('/target/runs/:id', async (c) => {
       download: run.downloadUrl,
     });
   }
-  return c.html(<TargetRunPage run={run} lane={await resumeLane()} />);
+  return c.html(<TargetRunPage run={run} lanes={await resumeLanes()} />);
 });
 
 /** Engine × model the resume calls run on — the run page states its measured band (#184). */
-async function resumeLane(): Promise<Lane> {
+async function resumeLanes(): Promise<RunLanes> {
   const runtime = await getAiRuntime();
-  const id = runtime.chain[0];
-  return id ? laneOf(id, runtime.modelFor(id, 'resume')) : 'other';
+  const lane = (task: 'resume-read' | 'analysis'): Lane => {
+    const id = runtime.chainFor(task)[0];
+    return id ? laneOf(id, runtime.modelFor(id, 'resume')) : 'other';
+  };
+  return { read: lane('resume-read'), analysis: lane('analysis') };
 }
 
 targetRoute.post('/target', resumeUploadLimit('/target'), async (c) => {

@@ -16,9 +16,12 @@ import { originGuard } from './origin-guard';
 import { overviewRoute } from './routes/overview';
 import { jobsRoute } from './routes/jobs';
 import { packRoute } from './routes/pack';
+import { jobsImportRoute } from './routes/jobs-import';
 import { companiesRoute } from './routes/companies';
+import { foldersRoute } from './routes/folders';
 import { watchlistRoute } from './routes/watchlist';
 import { runsRoute } from './routes/runs';
+import { aiUsageRoute } from './routes/ai-usage';
 import { settingsRoute } from './routes/settings';
 import { applicationsRoute } from './routes/applications';
 import { discoveryRoute } from './routes/discovery';
@@ -156,6 +159,8 @@ app.use('*', async (c, next) => {
 app.route('/', overviewRoute);
 app.route('/', welcomeRoute);
 app.route('/', countriesRoute);
+// Before jobsRoute: `/jobs/import` must not be read as `/jobs/:id`.
+app.route('/', jobsImportRoute);
 app.route('/', jobsRoute);
 app.route('/', packRoute);
 app.route('/', applicationsRoute);
@@ -166,10 +171,13 @@ app.route('/', targetRoute);
 app.route('/', letterRoute);
 app.route('/', factsRoute);
 app.route('/', keywordsRoute);
+// Before the company routes: `/companies/folder` is not a company's id.
+app.route('/', foldersRoute);
 app.route('/', watchlistRoute);
 app.route('/', companiesRoute);
 app.route('/', discoveryRoute);
 app.route('/', runsRoute);
+app.route('/', aiUsageRoute);
 app.route('/', screenRoute);
 app.route('/', settingsRoute);
 app.route('/', healthRoute);

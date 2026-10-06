@@ -3,7 +3,7 @@ import { ACTION_SECTIONS } from '../resume/prompts';
 import { DEFAULT_POLICY, type TailorPolicy } from './policy';
 
 /*
- * What the person decides about application packs (ADR 0060): whether the
+ * What the person decides about application packs (ADR 0063): whether the
  * worker prepares them at all, for which postings, how many a day, and what
  * an unattended edit may touch. Pure — `AppSettings.pack` in, a whole value
  * out. NULL, or anything this cannot read, is the feature switched off: a

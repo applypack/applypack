@@ -1,6 +1,6 @@
 # 0008 — Resume module lives in the web process, files in Postgres
 
-**Status:** Accepted (2026-08-28); see the 2026-09-24 addendum; amended by [0060](./0060-the-worker-prepares-an-application-pack.md) (the worker's pack runner calls the resume module too)
+**Status:** Accepted (2026-08-28); see the 2026-09-24 addendum; amended by [0063](./0063-the-worker-prepares-an-application-pack.md) (the worker's pack runner calls the resume module too)
 
 ## Context
 
@@ -93,7 +93,7 @@ TypeScript (only three of the nine scripts are generic).
 
 ## Addendum (2026-10-05): the worker calls it too
 
-- "Nothing moved to the worker": since v2.44.0 the worker's pack runner
+- "Nothing moved to the worker": since v2.48.0 the worker's pack runner
   (`src/jobs/pack-job.ts`) runs the comparison, the suggestions and the cover
-  letter for an application pack ([0060](./0060-the-worker-prepares-an-application-pack.md)).
+  letter for an application pack ([0063](./0063-the-worker-prepares-an-application-pack.md)).
   The dashboard's own calls are where they were.

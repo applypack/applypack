@@ -147,6 +147,49 @@ describe('stripHtml — markup declarations', () => {
   });
 });
 
+describe('stripHtml — markup nobody closed', () => {
+  // A posting is text from outside. Each of these took seconds at this size
+  // while every opener scanned to the end of the text on its own; a bound far
+  // above what one pass costs still catches that coming back.
+  const hostile: Record<string, string> = {
+    'comments never closed': `<p>${'<!--'.repeat(80_000)}`,
+    'tags never closed': '<a '.repeat(100_000),
+    'block tags never closed': '<p '.repeat(100_000),
+    'list items never closed': '<li '.repeat(100_000),
+    'declarations never closed': '<!x'.repeat(100_000),
+    'script openers before one closer': `${'<script '.repeat(50_000)}</script>`,
+    'style openers before one closer': `${'<style '.repeat(50_000)}</style>`,
+    'style blocks never closed': '<style>'.repeat(50_000),
+  };
+  for (const [name, text] of Object.entries(hostile)) {
+    it(`reads ${name} in one pass`, () => {
+      const started = Date.now();
+      stripHtml(text);
+      const took = Date.now() - started;
+      assert.ok(took < 1_500, `${text.length} characters took ${took} ms`);
+    });
+  }
+
+  it('leaves an opener with no closer as the text it is', () => {
+    assert.equal(stripHtml('before <script after'), 'before <script after');
+    assert.equal(stripHtml('a <!-- b'), 'a <!-- b');
+    assert.equal(stripHtml('x <style>y'), 'x y');
+  });
+
+  it('removes a script block from its opener to the first closer after it, whatever the case', () => {
+    assert.equal(stripHtml('a<SCRIPT type="x">1</Script>b<script>2</script>c'), 'a b c');
+    assert.equal(stripHtml('a<script><script>1</script>b</script>c'), 'a b c');
+  });
+});
+
+describe('decoded entities are characters a database can hold', () => {
+  it('drops a NUL and half a surrogate pair, written either way', () => {
+    assert.equal(stripHtml('a&#0;b&#x0;c'), 'abc');
+    assert.equal(stripHtml('a&#xD800;b&#57343;c'), 'abc');
+    assert.equal(stripHtml('ok &#x1F600; ok'), 'ok \u{1F600} ok');
+  });
+});
+
 describe('sleep', () => {
   it('resolves after roughly the requested time', async () => {
     const before = Date.now();

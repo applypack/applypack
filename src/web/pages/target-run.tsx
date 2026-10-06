@@ -66,7 +66,18 @@ const STEP_VIEW: Record<RunStep, StepView> = {
     label: 'Read the shortlist head to head',
     detail: 'two readings at once, the second with the resumes in the reverse order — about a minute on a CLI engine',
   },
+  import: {
+    label: 'Filter, store and score the rows',
+    detail:
+      'your searches’ filter and the duplicate check first, no AI; then each new row is scored and matches are alerted — or stored unscored while fetching is paused',
+  },
 };
+
+/** The engine × model behind the steps: reading the resume and analysing it are two tasks, and may be two engines (ADR 0060). */
+export interface RunLanes {
+  read: Lane;
+  analysis: Lane;
+}
 
 /** What the timed steps cost when the lane is not one we measured. */
 const GENERIC_BAND: Partial<Record<RunStep, string>> = {
@@ -82,9 +93,10 @@ const GENERIC_BAND: Partial<Record<RunStep, string>> = {
 };
 
 /** The step copy with this install's measured band appended — "about 20 s on Sonnet 5 through the Claude CLI" (#184). */
-function stepView(lane: Lane): Record<RunStep, StepView> {
+function stepView(lanes: RunLanes): Record<RunStep, StepView> {
   const out = { ...STEP_VIEW };
   for (const step of Object.keys(GENERIC_BAND) as RunStep[]) {
+    const lane = step === 'scan' || step === 'structure' ? lanes.read : lanes.analysis;
     const band = bandFor(step, lane);
     const when = band ? `about ${band} on ${laneLabel(lane)}` : GENERIC_BAND[step];
     out[step] = { ...STEP_VIEW[step], detail: `${STEP_VIEW[step].detail} — ${when}` };
@@ -97,7 +109,7 @@ function stepView(lane: Lane): Record<RunStep, StepView> {
  * step icons and fades a "what the analysis is doing right now" line under
  * the active step. Terminal states reload into the server-side redirect.
  */
-export const TargetRunPage: FC<{ run: TargetRun; lane: Lane }> = ({ run, lane }) => {
+export const TargetRunPage: FC<{ run: TargetRun; lanes: RunLanes }> = ({ run, lanes }) => {
   const failed = run.stage === 'error';
   const currentIdx = run.steps.indexOf(run.stage as RunStep);
   const elapsed = Math.max(0, Math.round((Date.now() - run.startedAt) / 1000));
@@ -139,7 +151,7 @@ export const TargetRunPage: FC<{ run: TargetRun; lane: Lane }> = ({ run, lane })
               <RunSteps
                 steps={run.steps}
                 currentIdx={currentIdx}
-                view={stepView(lane)}
+                view={stepView(lanes)}
                 stepMs={run.stepMs}
                 activeMs={Date.now() - run.stageAt}
                 results={run.results}
@@ -147,7 +159,14 @@ export const TargetRunPage: FC<{ run: TargetRun; lane: Lane }> = ({ run, lane })
               <div class="mt-5 flex items-center justify-between gap-3 border-t border-line pt-3">
                 <Hint>
                   You can close this page — the run keeps going and the result lands{' '}
-                  {run.backUrl.startsWith('/screen') ? 'on the screening page' : run.heading ? 'back in setup' : 'on the job page'}.
+                  {run.backUrl.startsWith('/screen')
+                    ? 'on the screening page'
+                    : run.backUrl.startsWith('/jobs/import')
+                      ? 'on Jobs, with a row on Runs'
+                      : run.heading
+                        ? 'back in setup'
+                        : 'on the job page'}
+                  .
                 </Hint>
                 <span id="run-elapsed" class="shrink-0 text-meta tabular-nums text-ink-faint">
                   {elapsed}s

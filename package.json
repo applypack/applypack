@@ -1,6 +1,6 @@
 {
   "name": "applypack",
-  "version": "2.44.0",
+  "version": "2.48.0",
   "private": true,
   "description": "Runs on your own computer with npm start: an AI console for the whole job search that finds the postings, checks they're real, scores your resume without flattering it, drafts the cover letter, tracks the application. 33 sources, 7 swappable AI backends, your data in a Postgres of its own, Docker on a VPS if you like.",
   "license": "MIT",
@@ -31,7 +31,6 @@
     "stale:once": "tsx src/scripts/stale-once.ts",
     "hn:once": "tsx src/scripts/hn-once.ts",
     "discovery:once": "tsx src/scripts/discovery-once.ts",
-    "pack:once": "tsx src/scripts/pack-once.ts",
     "priority:dryrun": "tsx src/scripts/priority-rules-dryrun.ts",
     "bench:resume": "tsx src/scripts/resume-bench-once.ts",
     "bench:screen": "tsx src/scripts/screen-bench-once.ts",
@@ -39,7 +38,6 @@
     "matrix:compare": "tsx src/scripts/match-matrix-once.ts",
     "variance:compare": "tsx src/scripts/match-variance-once.ts",
     "churn:compare": "tsx src/scripts/churn-once.ts",
-    "pack:dry": "tsx src/scripts/pack-dry-once.ts",
     "spend:report": "tsx src/scripts/ai-spend-report.ts",
     "keywords:audit": "tsx src/scripts/keyword-audit.ts",
     "exports:audit": "tsx src/scripts/dead-exports.ts",

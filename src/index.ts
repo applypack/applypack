@@ -66,7 +66,7 @@ async function main(): Promise<void> {
     recordCronRun('discovery', runDiscoveryJob),
   );
 
-  // Application packs (ADR 0060): a beat a minute, so a pack asked for in the
+  // Application packs (ADR 0063): a beat a minute, so a pack asked for in the
   // dashboard starts within one. A beat with nothing queued and no message
   // owed is one lookup and writes no run row — which is every beat on an
   // install that never switched packs on.

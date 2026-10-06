@@ -6,7 +6,7 @@ import { utcDayStart } from './trigger';
 import type { PackNotice } from './view';
 
 /*
- * The pack rows (ADR 0060) — the only file in the module that touches
+ * The pack rows (ADR 0063) — the only file in the module that touches
  * Prisma for them. A row is the queue entry, the progress and the result in
  * one: `status` moves queued → running → ready | stopped | failed, and a row
  * the person marked as sent never changes again.

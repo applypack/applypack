@@ -64,7 +64,7 @@ export interface ProcessStats {
   dismissed: number;
   alerted: number;
   alertFailed: number;
-  /** Matches an application pack was queued for (ADR 0060); 0 on every install that never switched packs on. */
+  /** Matches an application pack was queued for (ADR 0063); 0 on every install that never switched packs on. */
   packsQueued: number;
   priorityBoosted: number;
   crossListed: number;
@@ -275,7 +275,7 @@ export async function processNormalizedJobs(
   // match waits for them; no chat at all means there is nothing to wait for.
   const channel = await alertChannel();
   // Read once as well: whether a strong new match gets an application pack
-  // (ADR 0060), and how many today's limit has left.
+  // (ADR 0063), and how many today's limit has left.
   const packs = await getPackSettings();
   let packsToday = packs.enabled ? await autoPacksToday(new Date()) : 0;
 

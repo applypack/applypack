@@ -23,7 +23,7 @@ import type { CronStats } from './cron-run';
 import { tryAdvisoryLock } from './fetch-lock';
 
 /*
- * The pack runner (ADR 0060): the queued application packs, one at a time,
+ * The pack runner (ADR 0063): the queued application packs, one at a time,
  * oldest first, and then one message for the ones that finished. The first
  * job in the worker that calls the resume module — a pack is a chain of the
  * calls the dashboard's buttons make, with nobody there to press them.

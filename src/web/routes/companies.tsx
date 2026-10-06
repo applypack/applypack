@@ -39,6 +39,11 @@ import { roleLines, titleWordsOf, type TitleWords } from '../../watchlist/paste'
 import { listActiveProfiles } from '../../profiles';
 import { packOffers } from '../pack-offers';
 import { isBlankProfile } from '../../profile-guards';
+import { config } from '../../config';
+import { inboxRoots } from '../../datasets/folder-path';
+import { readSourceConfig } from '../../datasets/map';
+import { folderSummaries } from '../../jobs/source-file-store';
+import { underLauncher } from '../../local/child';
 
 const FLASH_TTL_SECONDS = 5;
 
@@ -79,7 +84,8 @@ interface CompanyTally {
 
 companiesRoute.get('/companies', async (c) => {
   const companies = await prisma.company.findMany({
-    where: { atsType: { not: AtsType.MANUAL } },
+    // A pasted job's row and an imported file's (managed on /jobs/import) are not sources the tick reads.
+    where: { atsType: { notIn: [AtsType.MANUAL, AtsType.IMPORT] } },
     orderBy: [{ active: 'desc' }, { name: 'asc' }],
     include: {
       _count: { select: { jobs: true } },
@@ -172,10 +178,17 @@ companiesRoute.get('/companies', async (c) => {
   });
   const freshMap = new Map(freshCounts.map((r) => [r.companyId, r._count._all]));
 
+  const summaries = companies.some((c) => c.atsType === AtsType.FOLDER) ? await folderSummaries() : new Map();
+  const folders = companies
+    .filter((c) => c.atsType === AtsType.FOLDER)
+    .map((c) => ({ id: c.id, name: c.name, path: c.atsToken, active: c.active, include: readSourceConfig(c.sourceConfig)?.include ?? null, summary: summaries.get(c.id) }));
+
   const flash = parseFlashCookie(c.req.header('cookie'));
   return c.html(
     <CompaniesPage
       companies={rows}
+      folders={folders}
+      folderHost={{ launcher: underLauncher(), roots: inboxRoots(config.APPLYPACK_INBOX_ROOTS) }}
       watchlist={watchedRows(companies, freshMap, titleWordsOf((await listActiveProfiles()).filter((p) => !isBlankProfile(p))))}
       watchlistRun={activeWatchlistRun()}
       packs={packs}
@@ -501,6 +514,10 @@ companiesRoute.post('/companies/:id/toggle-active', async (c) => {
   // TASKS N8: an active row would put a page nothing can read into every tick.
   if (!current.active && current.atsType === AtsType.BROWSER_PAGE) {
     return redirectWithFlash(c, 'err', `${current.name} draws its jobs in the browser, which ApplyPack cannot read — paste the page from the watchlist instead.`);
+  }
+  // The same for a file the user imported: its rows are stored already, and the next ones come from the next file.
+  if (!current.active && current.atsType === AtsType.IMPORT) {
+    return redirectWithFlash(c, 'err', `${current.name} is a file you imported, so there is nothing for the hourly fetch to read. Import a newer file on Jobs → Import a file.`);
   }
 
   await prisma.company.update({

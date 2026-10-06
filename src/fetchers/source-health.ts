@@ -67,6 +67,16 @@ function causeOf(err: unknown): { code?: string; message?: string } {
  * A thrown value from `fetchOne` → a status. Never returns `ok` or `empty`:
  * those describe a successful fetch and come from the row count instead.
  */
+/** A folder that is gone, that the system or the rules will not open, or whose files stopped fitting their mapping. */
+const FOLDER_FAULT_STATUS: Record<string, FetchStatus> = {
+  missing: 'slug_gone',
+  'not-a-folder': 'slug_gone',
+  refused: 'auth',
+  'not-allowed': 'auth',
+  unmapped: 'bad_payload',
+  'too-many': 'bad_payload',
+};
+
 export function classifyFetchError(err: unknown): FetchStatus {
   if (err instanceof HttpError) {
     // Not an error at all: fetchWithRetry throws on every non-2xx, and a 304
@@ -82,6 +92,8 @@ export function classifyFetchError(err: unknown): FetchStatus {
   const name = (err as { name?: unknown })?.name;
   // A keyed source with nothing pasted yet (ADR 0034) — the fix is on the Sources tab.
   if (name === 'SourceKeyMissingError') return 'auth';
+  // A folder source (ADR 0062), by what went wrong with the folder (datasets/folder-io.ts:FolderFault).
+  if (name === 'FolderError') return FOLDER_FAULT_STATUS[String((err as { fault?: unknown }).fault)] ?? 'unknown';
   // A 200 carrying HTML instead of JSON dies in resp.json().
   if (name === 'SyntaxError' || name === 'ZodError') return 'bad_payload';
 
@@ -144,13 +156,15 @@ export function nextStreak(status: FetchStatus, current: number): number {
 /**
  * Sources that never yield a posting by design, so ageing them into "silent"
  * would be reporting the design as a fault. A change watch (ADR 0036) reports
- * that a page moved and stores no Job; a MANUAL or BROWSER_PAGE row is not
- * fetched at all. Everything else has to earn `lastOkAt` the ordinary way.
+ * that a page moved and stores no Job; a MANUAL, BROWSER_PAGE or IMPORT row is
+ * not fetched at all; and a folder with no new file in it is the user not
+ * having put one there, which is not a fault. Everything else has to earn
+ * `lastOkAt` the ordinary way.
  */
 function neverPosts(atsType: string | null | undefined): boolean {
   // Compared as strings on purpose: importing AtsType would pull the Prisma
   // client into a module whose whole point is that it unit-tests without one.
-  return atsType === 'CAREER_PAGE' || atsType === 'MANUAL' || atsType === 'BROWSER_PAGE';
+  return atsType === 'CAREER_PAGE' || atsType === 'MANUAL' || atsType === 'BROWSER_PAGE' || atsType === 'IMPORT' || atsType === 'FOLDER';
 }
 
 export interface SourceHealth {
@@ -193,11 +207,21 @@ export function quietReason(h: SourceHealth, now: Date): QuietReason | null {
 
 export type HealthTone = 'good' | 'idle' | 'bad' | 'warn' | 'none';
 
+/** The same statuses in a folder's words: there is no board, slug or payload to speak of. */
+const FOLDER_STATUS: Record<string, { label: string; tone: HealthTone }> = {
+  empty: { label: 'Nothing new', tone: 'idle' },
+  slug_gone: { label: 'Folder not found', tone: 'bad' },
+  auth: { label: 'Not allowed to read', tone: 'bad' },
+  bad_payload: { label: 'Files do not fit the mapping', tone: 'bad' },
+};
+
 /** Display label + tone for the `/companies` status dot. */
-export function describeStatus(status: string | null): {
+export function describeStatus(status: string | null, atsType?: string): {
   label: string;
   tone: HealthTone;
 } {
+  const folder = atsType === 'FOLDER' && status !== null ? FOLDER_STATUS[status] : undefined;
+  if (folder) return folder;
   switch (status) {
     case 'ok':
       return { label: 'OK', tone: 'good' };

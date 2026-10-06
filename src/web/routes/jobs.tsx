@@ -604,7 +604,7 @@ jobsRoute.post('/jobs/:id/status', async (c) => {
     // the version alone would name v3 and hand back v5's words. The rules for
     // what counts live in applied-resume.ts, shared with the two paths on
     // /applications that used to record nothing at all (#75).
-    // "I sent this file" on the pack tab (ADR 0060): what went out is the
+    // "I sent this file" on the pack tab (ADR 0063): what went out is the
     // pack's text, not the resume's as it stands — and the pack is frozen
     // below, once the status is written.
     sentPack = form.pack === '1' ? await getPack(id) : null;

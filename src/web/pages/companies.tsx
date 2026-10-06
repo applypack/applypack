@@ -43,6 +43,7 @@ import { AddCompaniesCard, WatchlistSection, type WatchedRow } from './watchlist
 import { MutedCompaniesSection, type MutedRow } from './muted-companies';
 import type { PackOffer } from '../pack-offers';
 import type { WatchlistRun } from '../watchlist-runs';
+import { AddFolderCard, FolderSourcesSection, type FolderHost, type FolderSourceRow } from './folder-source';
 
 interface CompanyRow {
   id: number;
@@ -79,6 +80,9 @@ export interface CompaniesProps {
   fetchingEnabled: boolean;
   /** ADR 0056: the companies the user does not want to see. */
   muted: MutedRow[];
+  /** ADR 0062: the folders among the sources, and where one may be on this install. */
+  folders: FolderSourceRow[];
+  folderHost: FolderHost;
 }
 
 const DOT_TONE: Record<HealthTone, string> = {
@@ -90,8 +94,8 @@ const DOT_TONE: Record<HealthTone, string> = {
 };
 
 /** Status dot + label, the per-row half of ADR 0019. */
-const HealthDot: FC<{ status: string | null; streak: number }> = ({ status, streak }) => {
-  const { label, tone } = describeStatus(status);
+const HealthDot: FC<{ status: string | null; streak: number; atsType: string }> = ({ status, streak, atsType }) => {
+  const { label, tone } = describeStatus(status, atsType);
   // The label is already text, so the dot is decorative and the streak is the
   // only part a screen reader would otherwise miss.
   const streakText = streak > 0 ? `${streak} tick${streak === 1 ? '' : 's'} in a row` : '';
@@ -145,18 +149,25 @@ const QuietSources: FC<{ companies: CompanyRow[]; fetchingEnabled: boolean }> = 
                 </Badge>
                 <span>
                   {c.quiet === 'failing'
-                    ? `${describeStatus(c.lastFetchStatus).label.toLowerCase()} — ${c.consecutiveFailures} ticks in a row`
+                    ? `${describeStatus(c.lastFetchStatus, c.atsType).label.toLowerCase()} — ${c.consecutiveFailures} ticks in a row`
                     : c.lastOkAt
                       ? `last posting ${formatRelative(c.lastOkAt)}`
                       : 'no posting since we started tracking it'}
                 </span>
               </div>
             </div>
-            <ActionForm action={`/companies/${c.id}/reprobe`}>
-              <Button size="sm" variant="secondary">
-                Re-probe
+            {c.atsType === AtsType.FOLDER ? (
+              // A folder has no board to probe: its files say what went wrong.
+              <Button href={`/companies/${c.id}/files`} size="sm" variant="secondary">
+                Files
               </Button>
-            </ActionForm>
+            ) : (
+              <ActionForm action={`/companies/${c.id}/reprobe`}>
+                <Button size="sm" variant="secondary">
+                  Re-probe
+                </Button>
+              </ActionForm>
+            )}
           </div>
         ))}
       </div>
@@ -286,6 +297,8 @@ export const CompaniesPage: FC<CompaniesProps> = ({
   flash,
   fetchingEnabled,
   muted,
+  folders,
+  folderHost,
 }) => {
   const empty = companies.length === 0;
   return (
@@ -297,6 +310,7 @@ export const CompaniesPage: FC<CompaniesProps> = ({
 
     <WatchlistSection rows={watchlist} />
     <QuietSources companies={companies} fetchingEnabled={fetchingEnabled} />
+    <FolderSourcesSection folders={folders} />
 
     {companies.length === 0 ? (
       <Empty title="No companies yet">
@@ -351,7 +365,7 @@ export const CompaniesPage: FC<CompaniesProps> = ({
                     </div>
                   </Td>
                   <Td>
-                    <HealthDot status={c.lastFetchStatus} streak={c.consecutiveFailures} />
+                    <HealthDot status={c.lastFetchStatus} streak={c.consecutiveFailures} atsType={c.atsType} />
                   </Td>
                   <Td class="text-right tabular-nums text-ink-muted">{c.jobsTotal}</Td>
                   <Td
@@ -448,6 +462,11 @@ export const CompaniesPage: FC<CompaniesProps> = ({
               </div>
             </form>
             </Card>
+          </div>
+        </Disclosure>
+        <Disclosure variant="button" summary="A folder on this computer" class="contents">
+          <div class="order-last basis-full">
+            <AddFolderCard host={folderHost} />
           </div>
         </Disclosure>
         {(suggestions.length > 0 || fitPacks.length > 0) && (

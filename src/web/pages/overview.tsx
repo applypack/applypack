@@ -96,7 +96,7 @@ export interface OverviewProps {
   finishSetup: boolean;
   /** TASKS N11: open a match → compare → tailor, until the first comparison; null hides the card. */
   next: NextThing[] | null;
-  /** Application packs prepared and not yet sent (ADR 0060); empty on an install that never asked for one. */
+  /** Application packs prepared and not yet sent (ADR 0063); empty on an install that never asked for one. */
   readyPacks: ReadyPack[];
   flash?: FlashMessage | null;
 }

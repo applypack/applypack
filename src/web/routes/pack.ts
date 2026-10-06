@@ -14,7 +14,7 @@ import type { ApplicationPackProps } from '../pages/application-pack-card';
 import { idParam } from '../params';
 
 /*
- * The application pack in the dashboard (ADR 0060): asking for one, and the
+ * The application pack in the dashboard (ADR 0063): asking for one, and the
  * file it kept. The dashboard never prepares a pack itself — it puts the row
  * in the queue and the worker's runner takes it within a minute, so a pack
  * the tick queued and one asked for here are made by the same code.
