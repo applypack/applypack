@@ -142,7 +142,8 @@ async function boardRows(): Promise<{ rows: ApplicationExportRow[]; columns: { k
       url: j.url,
     }))
     .sort((a, b) => (order.get(a.stageKey) ?? 0) - (order.get(b.stageKey) ?? 0));
-  return { rows, columns, now };
+  // A stage of ours words its label when read: read it here, while the language is English.
+  return { rows, columns: columns.map(({ key, label }) => ({ key, label })), now };
 }
 
 /** TASKS N7: the board as a file — CSV for a spreadsheet, Markdown to read. Dates are days in the dashboard's time zone. */
