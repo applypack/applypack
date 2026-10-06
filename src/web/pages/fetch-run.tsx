@@ -5,31 +5,19 @@ import { ActionForm, Button, Card, Hint, Notice } from '../ui';
 import { Icon } from '../icons';
 import { RunSteps, type StepView } from './run-steps';
 import { FETCH_FAILED, FETCH_RUN_STEPS, type FetchRun } from '../fetch-runs';
+import { t } from '../../i18n/t';
 
 function stepView({ classify, scope }: Pick<FetchRun, 'classify' | 'scope'>): Record<string, StepView> {
   return {
     fetch:
       typeof scope === 'object'
-        ? { label: `Check ${scope.name}`, detail: scope.folder ? 'its new and changed files, read off this computer — seconds' : 'one request to its board or page — seconds' }
+        ? { label: t('fetch.step.check', { name: scope.name }), detail: scope.folder ? t('fetch.step.check.detailFolder') : t('fetch.step.check.detail') }
         : scope === 'aggregators'
-        ? {
-            label: 'Ask the aggregators',
-            detail: 'the boards that publish every posting they have, a polite second apart — well under a minute',
-          }
-        : {
-            label: 'Ask every enabled source',
-            detail: 'one request per board, a polite second apart — a few minutes',
-          },
+        ? { label: t('fetch.step.aggregators'), detail: t('fetch.step.aggregators.detail') }
+        : { label: t('fetch.step.all'), detail: t('fetch.step.all.detail') },
     store: classify
-      ? {
-          label: 'Score what is new',
-          detail:
-            'filter, de-duplicate, then the AI scores each new job and alerts on matches — minutes for a big batch',
-        }
-      : {
-          label: 'Store what is new',
-          detail: 'filter and de-duplicate; stored unscored — no AI spent while the pipeline is paused',
-        },
+      ? { label: t('fetch.step.score'), detail: t('fetch.step.score.detail') }
+      : { label: t('fetch.step.store'), detail: t('fetch.step.store.detail') },
   };
 }
 
@@ -38,13 +26,13 @@ export const FetchNowButton: FC<{ run: FetchRun | null }> = ({ run }) =>
   run ? (
     <Button href={`/runs/fetch-now/${run.id}`} variant="secondary">
       <Icon name="activity" size={16} />
-      Fetching… watch
+      {t('fetch.fetchingWatch')}
     </Button>
   ) : (
     <ActionForm action="/runs/fetch-now">
-      <Button title="Run the hourly fetch now. While the pipeline is paused, new jobs are stored unscored.">
+      <Button title={t('fetch.runTheHourlyFetchNow')}>
         <Icon name="play" size={16} />
-        Fetch now
+        {t('fetch.fetchNow')}
       </Button>
     </ActionForm>
   );
@@ -58,26 +46,26 @@ export const FetchRunPage: FC<{ run: FetchRun }> = ({ run }) => {
   const failed = run.stage === 'error';
   const currentIdx = FETCH_RUN_STEPS.indexOf(run.stage);
   const elapsed = Math.max(0, Math.round((Date.now() - run.startedAt) / 1000));
-  const heading = failed ? 'Fetch failed' : 'Fetching now';
+  const heading = failed ? t('fetch.failed') : t('fetch.running');
   return (
-    <Layout title={failed ? heading : `${heading}…`} active="runs">
+    <Layout title={failed ? heading : t('fetch.runningTitle')} active="runs">
       <div class="w-full pt-6 lg:pt-16">
         <Card>
           <div class="mb-1 text-entity text-ink">{heading}</div>
           <div class="text-sm text-ink-muted">
             {run.classify
-              ? 'Every enabled source, then the new jobs are scored and alerted — the hourly tick, just now.'
-              : 'Every enabled source; new jobs are stored unscored because the pipeline is paused.'}
+              ? t('fetch.everyEnabledSourceThenThe')
+              : t('fetch.everyEnabledSourceNewJobs')}
           </div>
 
           {failed ? (
             <div class="mt-4 space-y-4">
               <Notice tone="danger" role="alert">
-                {run.error ?? FETCH_FAILED}
+                {run.error ?? t(FETCH_FAILED)}
               </Notice>
               <div class="flex flex-wrap gap-2">
                 <Button href={run.backUrl} variant="secondary">
-                  ← {run.backUrl === '/welcome' ? 'Back to setup' : 'Back to runs'}
+                  ← {run.backUrl === '/welcome' ? t('fetch.backToSetup') : t('fetch.backToRuns')}
                 </Button>
               </div>
             </div>
@@ -85,7 +73,7 @@ export const FetchRunPage: FC<{ run: FetchRun }> = ({ run }) => {
             <>
               <RunSteps steps={FETCH_RUN_STEPS} currentIdx={currentIdx} view={stepView(run)} />
               <div class="mt-5 flex items-center justify-between gap-3 border-t border-line pt-3">
-                <Hint>You can close this page — the run keeps going, and its row lands on Runs.</Hint>
+                <Hint>{t('fetch.youCanCloseThisPage')}</Hint>
                 <span id="run-elapsed" class="shrink-0 text-meta tabular-nums text-ink-faint">
                   {elapsed}s
                 </span>

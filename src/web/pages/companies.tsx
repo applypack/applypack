@@ -37,12 +37,15 @@ import {
   type QuietReason,
 } from '../../fetchers/source-health';
 import type { FlashMessage } from '../flash';
+import { healthLabel } from '../health-label';
 import { StarterPackPicker, type PackSegmentChoice } from './starter-pack';
 import type { SourceSuggestion } from '../../starter-packs/suggest';
 import { AddCompaniesCard, WatchlistSection, type WatchedRow } from './watchlist';
 import { MutedCompaniesSection, type MutedRow } from './muted-companies';
 import type { PackOffer } from '../pack-offers';
 import type { WatchlistRun } from '../watchlist-runs';
+import { t } from '../../i18n/t';
+import { tRich } from '../rich';
 import { AddFolderCard, FolderSourcesSection, type FolderHost, type FolderSourceRow } from './folder-source';
 
 interface CompanyRow {
@@ -95,18 +98,18 @@ const DOT_TONE: Record<HealthTone, string> = {
 
 /** Status dot + label, the per-row half of ADR 0019. */
 const HealthDot: FC<{ status: string | null; streak: number; atsType: string }> = ({ status, streak, atsType }) => {
-  const { label, tone } = describeStatus(status, atsType);
-  // The label is already text, so the dot is decorative and the streak is the
-  // only part a screen reader would otherwise miss.
-  const streakText = streak > 0 ? `${streak} tick${streak === 1 ? '' : 's'} in a row` : '';
+  const { tone } = describeStatus(status, atsType);
+  const label = healthLabel(status, atsType);
   return (
     <span
       class="inline-flex items-center gap-2 whitespace-nowrap"
-      title={streakText ? `${label} — ${streakText}` : label}
+      title={streak > 0 ? t('sources.health.withStreak', { label, n: streak }) : label}
     >
       <span class={`h-2 w-2 shrink-0 rounded-full ${DOT_TONE[tone]}`} aria-hidden="true" />
       <span class="text-note text-ink-muted">{label}</span>
-      {streakText && <span class="sr-only">, {streakText}</span>}
+      {/* The label is already text, so the dot is decorative and the streak is the
+          only part a screen reader would otherwise miss. */}
+      {streak > 0 && <span class="sr-only">{t('sources.health.streakAfterLabel', { n: streak })}</span>}
     </span>
   );
 };
@@ -120,19 +123,14 @@ const QuietSources: FC<{ companies: CompanyRow[]; fetchingEnabled: boolean }> = 
   return (
     <Card class="mb-4">
       <SectionTitle>
-        Quiet sources <Badge tone="warn">{quiet.length}</Badge>
+        {t('companies.quiet.title')} <Badge tone="warn">{quiet.length}</Badge>
       </SectionTitle>
       <Hint class="mb-4">
-        A board that stopped answering is usually a rotated slug. <em>Failing</em> means{' '}
-        {QUIET_STREAK} consecutive ticks ended in an error; <em>silent</em> means the board is
-        reachable but has returned no posting for {SILENT_DAYS} days — the only signal that
-        catches a vendor answering 200 with an empty list. Re-probe runs the same public check
-        the add-company form uses.
+        {tRich('companies.quiet.hint', { streak: QUIET_STREAK, days: SILENT_DAYS }, { em: (words) => <em>{words}</em> })}
         {!fetchingEnabled && (
           <>
             {' '}
-            <strong class="font-medium text-ink">Fetching is paused</strong>, so these numbers
-            are frozen where the last tick left them.
+            {tRich('companies.quiet.paused', {}, { strong: (words) => <strong class="font-medium text-ink">{words}</strong> })}
           </>
         )}
       </Hint>
@@ -140,31 +138,37 @@ const QuietSources: FC<{ companies: CompanyRow[]; fetchingEnabled: boolean }> = 
         {quiet.map((c) => (
           <div class="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-line bg-surface-raised px-4 py-3">
             <div class="min-w-0">
-              <div class="truncate font-medium text-ink">{c.name}</div>
+              <div class="truncate font-medium text-ink" translate="no">
+                {c.name}
+              </div>
               <div class="mt-0.5 flex flex-wrap items-center gap-2 text-note text-ink-muted">
-                <Tag>{c.atsType.replace('_', ' ')}</Tag>
-                <Code>{c.atsToken}</Code>
+                <span translate="no">
+                  <Tag>{c.atsType.replace('_', ' ')}</Tag>
+                </span>
+                <span translate="no">
+                  <Code>{c.atsToken}</Code>
+                </span>
                 <Badge tone={c.quiet === 'failing' ? 'danger' : 'warn'}>
-                  {c.quiet === 'failing' ? 'Failing' : 'Silent'}
+                  {c.quiet === 'failing' ? t('companies.failing') : t('companies.silent')}
                 </Badge>
                 <span>
                   {c.quiet === 'failing'
-                    ? `${describeStatus(c.lastFetchStatus, c.atsType).label.toLowerCase()} — ${c.consecutiveFailures} ticks in a row`
+                    ? t('sources.health.withStreak', { label: healthLabel(c.lastFetchStatus, c.atsType).toLowerCase(), n: c.consecutiveFailures })
                     : c.lastOkAt
-                      ? `last posting ${formatRelative(c.lastOkAt)}`
-                      : 'no posting since we started tracking it'}
+                      ? t('companies.quiet.lastPosting', { when: formatRelative(c.lastOkAt) })
+                      : t('companies.noPostingSinceWeStarted')}
                 </span>
               </div>
             </div>
             {c.atsType === AtsType.FOLDER ? (
               // A folder has no board to probe: its files say what went wrong.
               <Button href={`/companies/${c.id}/files`} size="sm" variant="secondary">
-                Files
+                {t('companies.files')}
               </Button>
             ) : (
               <ActionForm action={`/companies/${c.id}/reprobe`}>
                 <Button size="sm" variant="secondary">
-                  Re-probe
+                  {t('companies.reProbe')}
                 </Button>
               </ActionForm>
             )}
@@ -199,7 +203,7 @@ const PROBEABLE_ATS: AtsType[] = [
 
 /** Every cross-company feed, read off the enum so the list cannot fall behind it (MANUAL is not a source), in the Sources grid's order. */
 const AGGREGATOR_LABELS = Object.values(AtsType)
-  .filter((t) => t !== AtsType.MANUAL && sourceFamily(t) === 'aggregator')
+  .filter((ats) => ats !== AtsType.MANUAL && sourceFamily(ats) === 'aggregator')
   .map(sourceLabel)
   .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
 
@@ -220,36 +224,40 @@ const SuggestedSources: FC<{ suggestions: SourceSuggestion[]; packs: PackOffer[]
       {suggestions.length > 0 && (
         <>
           <Hint class="mb-3">
-            Feeds that fit where your running searches hunt. Add (off) probes a feed and adds it
-            switched off; Enable puts it in the hourly tick.
+            {t('companies.feedsThatFitWhereYour')}
           </Hint>
           {waiting > 1 && (
             <ActionForm action="/companies/suggested/all" class="mb-3" once>
-              <Button size="sm">Enable all {waiting}</Button>
+              <Button size="sm">{t('companies.enableAllN', { n: waiting })}</Button>
             </ActionForm>
           )}
           <ul class="divide-y divide-line">
             {suggestions.map((s) => (
               <li class="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 py-2">
                 <div class="min-w-0">
-                  <div class="text-label text-ink">{s.name}</div>
+                  <div class="text-label text-ink" translate="no">
+                    {s.name}
+                  </div>
                   <div class="truncate text-meta text-ink-faint">
-                    {s.reason} · <Code>{s.atsToken}</Code>
+                    {s.reason} ·{' '}
+                    <span translate="no">
+                      <Code>{s.atsToken}</Code>
+                    </span>
                   </div>
                 </div>
                 {s.state === 'missing' && (
                   <form method="post" action="/companies/suggested">
                     <input type="hidden" name="atsType" value={s.atsType} />
                     <input type="hidden" name="atsToken" value={s.atsToken} />
-                    <Button size="sm" variant="secondary">Add (off)</Button>
+                    <Button size="sm" variant="secondary">{t('companies.addOff')}</Button>
                   </form>
                 )}
                 {s.state === 'off' && s.companyId !== null && (
                   <form method="post" action={`/companies/${s.companyId}/toggle-active`}>
-                    <Button size="sm">Enable</Button>
+                    <Button size="sm">{t('ui.enable')}</Button>
                   </form>
                 )}
-                {s.state === 'on' && <Badge tone="ok">On</Badge>}
+                {s.state === 'on' && <Badge tone="ok">{t('companies.on')}</Badge>}
               </li>
             ))}
           </ul>
@@ -257,10 +265,9 @@ const SuggestedSources: FC<{ suggestions: SourceSuggestion[]; packs: PackOffer[]
       )}
       {packs.length > 0 && (
         <div class={suggestions.length > 0 ? 'mt-4 border-t border-line pt-4' : ''}>
-          <div class="text-label text-ink">Company packs for your searches</div>
+          <div class="text-label text-ink">{t('companies.companyPacksForYourSearches')}</div>
           <Hint class="mt-0.5">
-            Boards picked and checked by hand that fit what your searches hunt. The preview lists every company
-            before anything is added, and they land switched off.
+            {t('companies.boardsPickedAndCheckedBy')}
           </Hint>
           <form method="post" action="/companies/starter-pack" class="mt-2">
             {packs.map((p) => (
@@ -269,15 +276,16 @@ const SuggestedSources: FC<{ suggestions: SourceSuggestion[]; packs: PackOffer[]
             <ul class="mb-3 space-y-1 text-sm">
               {packs.map((p) => (
                 <li>
-                  <span class="font-medium text-ink">{p.label}</span>{' '}
-                  <span class="text-ink-faint">
-                    · {p.count - p.tracked} of {p.count} not here yet
-                  </span>
+                  {/* The pack's name is the catalog's own (starter-packs/catalog.json), in English. */}
+                  <span class="font-medium text-ink" lang="en">
+                    {p.label}
+                  </span>{' '}
+                  <span class="text-ink-faint">· {t('packs.notHereYet', { missing: p.count - p.tracked, total: p.count })}</span>
                 </li>
               ))}
             </ul>
             <Button size="sm" variant="secondary">
-              Preview {packs.length === 1 ? 'this pack' : `these ${packs.length} packs`}
+              {t('companies.previewPacks', { n: packs.length })}
             </Button>
           </form>
         </div>
@@ -302,9 +310,9 @@ export const CompaniesPage: FC<CompaniesProps> = ({
 }) => {
   const empty = companies.length === 0;
   return (
-  <Layout title="Companies" active="companies">
-    <PageHeader title="Companies" meta={`${companies.length} sources`}>
-      The boards and feeds the search reads, and the companies you watch.
+  <Layout title={t('nav.companies')} active="companies">
+    <PageHeader title={t('nav.companies')} meta={t('companies.sourcesCount', { n: companies.length })}>
+      {t('companies.theBoardsAndFeedsThe')}
     </PageHeader>
     <Flash flash={flash} />
 
@@ -313,33 +321,32 @@ export const CompaniesPage: FC<CompaniesProps> = ({
     <FolderSourcesSection folders={folders} />
 
     {companies.length === 0 ? (
-      <Empty title="No companies yet">
-        The hourly search reads the sources on this list, so an empty list finds nothing. Start with a
-        starter pack under Add sources below.
+      <Empty title={t('companies.noCompaniesYet')}>
+        {t('companies.theHourlySearchReadsThe')}
       </Empty>
     ) : (
       <Card flush>
         <div class="overflow-x-auto">
           {/* TASKS U7: a phone keeps the name, the health and the actions. */}
           <div class="lg:min-w-[56rem]">
-            <Table caption="Companies and sources"
+            <Table caption={t('companies.companiesAndSources')}
               hideBelow={['', 'sm', 'lg', '', 'md', 'lg', 'md', 'sm', '']}
               columns={[
-                'Name',
-                'Source',
-                'Token',
-                'Health',
-                <span class="block text-right">Jobs</span>,
-                <span class="block text-right">Alerted</span>,
-                <span class="block text-right">Last fetch</span>,
-                'Active',
-                <span class="block text-right">Actions</span>,
+                t('companies.name'),
+                t('companies.col.source'),
+                t('companies.col.token'),
+                t('companies.col.health'),
+                <span class="block text-right">{t('companies.jobs')}</span>,
+                <span class="block text-right">{t('companies.alerted')}</span>,
+                <span class="block text-right">{t('companies.lastFetch')}</span>,
+                t('companies.col.active'),
+                <span class="block text-right">{t('common.actions')}</span>,
               ]}
             >
               {companies.map((c) => (
                 <Tr>
                   <Td class="max-w-[14rem] font-medium text-ink">
-                    <div class="truncate" title={c.name}>
+                    <div class="truncate" title={c.name} translate="no">
                       {safeHref(c.careerUrl) ? (
                         <a
                           href={safeHref(c.careerUrl)!}
@@ -355,12 +362,14 @@ export const CompaniesPage: FC<CompaniesProps> = ({
                     </div>
                   </Td>
                   <Td>
-                    <Tag>{c.atsType.replace('_', ' ')}</Tag>
+                    <span translate="no">
+                      <Tag>{c.atsType.replace('_', ' ')}</Tag>
+                    </span>
                   </Td>
                   {/* A feed query can run to fifty characters; untruncated it pushed Active and
                       Delete out of a 1440 px window, behind a sideways scroll inside the card. */}
                   <Td class="max-w-[11rem] font-mono text-meta text-ink-muted">
-                    <div class="truncate" title={c.atsToken}>
+                    <div class="truncate" title={c.atsToken} translate="no">
                       {c.atsToken}
                     </div>
                   </Td>
@@ -384,11 +393,11 @@ export const CompaniesPage: FC<CompaniesProps> = ({
                       <button
                         type="submit"
                         class="cursor-pointer rounded-full"
-                        aria-label={`${c.active ? 'Disable' : 'Enable'} ${c.name}`}
-                        title={`${c.active ? 'Disable' : 'Enable'} ${c.name}`}
+                        aria-label={t(c.active ? 'companies.disableNamed' : 'companies.enableNamed', { name: c.name })}
+                        title={t(c.active ? 'companies.disableNamed' : 'companies.enableNamed', { name: c.name })}
                       >
                         <Badge tone={c.active ? 'ok' : 'neutral'}>
-                          {c.active ? 'Active' : 'Disabled'}
+                          {c.active ? t('companies.active') : t('companies.inactive')}
                         </Badge>
                       </button>
                     </ActionForm>
@@ -396,8 +405,8 @@ export const CompaniesPage: FC<CompaniesProps> = ({
                   <Td>
                     <ConfirmAction
                       action={`/companies/${c.id}/delete`}
-                      label="Delete"
-                      ariaLabel={`Delete ${c.name}`}
+                      label={t('common.delete')}
+                      ariaLabel={t('companies.deleteNamed', { name: c.name })}
                       confirm={companyDeleteConfirm(c.name, c.deleteImpact)}
                       class="flex justify-end"
                     />
@@ -413,52 +422,50 @@ export const CompaniesPage: FC<CompaniesProps> = ({
     {/* The list is what the page is about; the four ways to add to it open on demand,
         and stand open while there is nothing in the list yet. */}
     <div class="mt-8">
-      <SectionTitle level="section">Add sources</SectionTitle>
+      <SectionTitle level="section">{t('companies.addSources')}</SectionTitle>
       <div class="flex flex-wrap items-start gap-2">
-        <Disclosure variant="button" summary="Watch specific companies" open={empty || watchlistRun !== null} class="contents">
+        <Disclosure variant="button" summary={t('companies.watchSpecificCompanies')} open={empty || watchlistRun !== null} class="contents">
           <div class="order-last basis-full">
             <AddCompaniesCard running={watchlistRun} />
           </div>
         </Disclosure>
-        <Disclosure variant="button" summary="Add a starter pack" open={empty} class="contents">
+        <Disclosure variant="button" summary={t('companies.addAStarterPack')} open={empty} class="contents">
           <div class="order-last basis-full">
             <StarterPackPicker segments={packs} />
           </div>
         </Disclosure>
-        <Disclosure variant="button" summary="Add one company" open={empty} class="contents">
+        <Disclosure variant="button" summary={t('companies.addOneCompany')} open={empty} class="contents">
           <div class="order-last basis-full">
             <Card>
-              <Hint>The public ATS endpoint is probed before saving, and an invalid token is refused.</Hint>
-              <More summary="Tokens that are not a slug" class="mb-4 mt-1">
-                Aggregator feeds have no per-company token — those are seeded once via{' '}
-                <Code>src/seed.ts</Code>. DOU, Djinni and JobTech take a feed query instead of a slug:{' '}
-                <Code>category=PHP&amp;remote</Code>, <Code>search=laravel</Code>, <Code>city=Львів</Code>;{' '}
-                <Code>primary_keyword=PHP&amp;employment=remote&amp;region=UKR</Code>;{' '}
-                <Code>occupation-field=apaJ_2ja_LuF</Code>, <Code>q=php&amp;remote=true</Code>.
+              <Hint>{t('companies.thePublicAtsEndpointIs')}</Hint>
+              <More summary={t('companies.tokensThatAreNotA')} class="mb-4 mt-1">
+                {tRich('companies.tokensHelp', {}, { code: (words) => <Code>{words}</Code> })}
               </More>
             <form
               method="post"
               action="/companies/new"
               class="grid gap-3 sm:grid-cols-2 lg:grid-cols-[1.2fr_auto_1fr_1.2fr_auto]"
             >
-              <Field label="Name">
-                <Input type="text" name="name" required placeholder="Honeycomb.io" />
+              <Field label={t('companies.name')}>
+                <Input type="text" name="name" required placeholder="Honeycomb.io" translate="no" />
               </Field>
-              <Field label="ATS">
+              <Field label={t('companies.ats')}>
                 <Select name="atsType">
-                  {PROBEABLE_ATS.filter((t) => !KEYED_ATS.includes(t) || keyedUnlocked.includes(t)).map((t) => (
-                    <option value={t}>{t}</option>
+                  {PROBEABLE_ATS.filter((ats) => !KEYED_ATS.includes(ats) || keyedUnlocked.includes(ats)).map((ats) => (
+                    <option value={ats} translate="no">
+                      {ats}
+                    </option>
                   ))}
                 </Select>
               </Field>
-              <Field label="ATS token / slug">
-                <Input type="text" name="atsToken" required placeholder="honeycombio" mono />
+              <Field label={t('companies.atsTokenSlug')}>
+                <Input type="text" name="atsToken" required placeholder="honeycombio" mono translate="no" />
               </Field>
-              <Field label="Career URL (optional)">
-                <Input type="url" name="careerUrl" placeholder="https://acme.com/careers" />
+              <Field label={t('companies.careerUrlOptional')}>
+                <Input type="url" name="careerUrl" placeholder="https://acme.com/careers" translate="no" />
               </Field>
               <div class="flex items-end">
-                <Button class="w-full">Add</Button>
+                <Button class="w-full">{t('companies.add')}</Button>
               </div>
             </form>
             </Card>
@@ -472,7 +479,7 @@ export const CompaniesPage: FC<CompaniesProps> = ({
         {(suggestions.length > 0 || fitPacks.length > 0) && (
           <Disclosure
             variant="button"
-            summary="Sources for your searches"
+            summary={t('companies.sourcesForYourSearches')}
             count={suggestions.filter((x) => x.state !== 'on').length + fitPacks.length}
             open={empty}
             class="contents"
@@ -489,32 +496,32 @@ export const CompaniesPage: FC<CompaniesProps> = ({
 
     <details class="mt-4 rounded-lg border border-line bg-surface-raised shadow-sm">
       <summary class="cursor-pointer select-none px-5 py-3 text-sm font-medium text-ink transition-colors duration-150 hover:bg-surface-overlay/50">
-        How coverage works
+        {t('companies.howCoverageWorks')}
       </summary>
       {/* Two columns keep a readable measure while filling the panel. */}
       <div class="grid gap-x-8 gap-y-2 border-t border-line px-5 py-4 text-sm leading-6 text-ink-muted sm:grid-cols-2">
         <p>
-          Greenhouse, Lever, Ashby, Workable and SmartRecruiters are{' '}
-          <strong class="font-medium text-ink">HR vendors, not job boards</strong>. Their public
-          APIs only answer <Code>/boards/&lt;slug&gt;/jobs</Code>, so this table is the full
-          list of boards we can see. There is no "all Greenhouse postings" endpoint, and we
-          never scrape LinkedIn / Indeed / Workday (
-          <a
-            href="https://github.com/applypack/applypack/blob/main/docs/adr/0005-no-linkedin-indeed-workday.md"
-            class="font-medium text-accent-strong hover:text-accent-deep"
-          >
-            ADR 0005
-          </a>
-          ).
+          {tRich('companies.coverage.vendors', {}, {
+            strong: (words) => <strong class="font-medium text-ink">{words}</strong>,
+            code: (words) => <Code>{words}</Code>,
+            link: (words) => (
+              <a
+                href="https://github.com/applypack/applypack/blob/main/docs/adr/0005-no-linkedin-indeed-workday.md"
+                class="font-medium text-accent-strong hover:text-accent-deep"
+              >
+                {words}
+              </a>
+            ),
+          })}
         </p>
         <p>
-          The long tail comes from the {AGGREGATOR_LABELS.length} cross-company aggregators (
-          {AGGREGATOR_LABELS.join(', ')}), broad and noisy, so the profile filter does the culling.
-          Adzuna and France Travail need a free key of your own. Turn them all off on{' '}
-          <a href="/settings?tab=sources" class="font-medium text-accent-strong hover:text-accent-deep">
-            Settings → Sources
-          </a>{' '}
-          and you will only see jobs from the boards in the table above.
+          {tRich('companies.coverage.aggregators', { n: AGGREGATOR_LABELS.length, list: AGGREGATOR_LABELS.join(', ') }, {
+            link: (words) => (
+              <a href="/settings?tab=sources" class="font-medium text-accent-strong hover:text-accent-deep">
+                {words}
+              </a>
+            ),
+          })}
         </p>
       </div>
     </details>

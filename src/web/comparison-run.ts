@@ -10,6 +10,7 @@ import { formatRelative } from './format';
 import { finishSuggestions, startSuggestionsRun, suggestionsKey } from './suggestions-run';
 import { alsoClaims, claimRun, matchStep, startRun, updateRun, type RunStep } from './target-runs';
 import { runFailure } from './run-failure';
+import { t } from '../i18n/t';
 
 /**
  * One comparison of one text against one stored posting, run on the progress
@@ -127,7 +128,7 @@ async function compare(runId: string, req: ComparisonRequest): Promise<void> {
   // updateRun replaces `results`, so the lines are gathered here and the done step keeps the reading's.
   const results: Record<string, string> = {};
   if (briefed) {
-    results.brief = briefed.reused ? `Reused this posting's analysis — ${briefLine(briefed.brief)}` : briefLine(briefed.brief);
+    results.brief = briefed.reused ? t('target.run.briefReused', { line: briefLine(briefed.brief) }) : briefLine(briefed.brief);
     updateRun(runId, { results: { ...results } });
   }
   updateRun(runId, { stage: matchStep(mode) });
@@ -145,18 +146,18 @@ async function compare(runId: string, req: ComparisonRequest): Promise<void> {
   if (!row) {
     updateRun(runId, {
       stage: 'error',
-      error: runFailure(req.failure ?? 'Comparison failed', reason, 'Earlier comparisons are untouched; go back and run it again.'),
+      error: runFailure(req.failure ?? t('target.run.compareFailure'), reason, t('target.run.compareNext')),
     });
     return;
   }
   const flash = rebuild
-    ? `Keywords rebuilt from the posting — match ${row.matchScore}/100, counted over a fresh set of terms.`
-    : `${req.label} ${mode === 'fast' ? 'checked' : 'compared'} — match ${row.matchScore}/100.`;
+    ? t('target.run.done.rebuilt', { score: row.matchScore })
+    : t(mode === 'fast' ? 'target.run.done.checked' : 'target.run.done.compared', { label: req.label, score: row.matchScore });
   updateRun(runId, {
     stage: 'done',
     resultUrl: req.resultUrl(row.id),
     tailorUrl: `/jobs/${jobId}/target?match=${row.id}`,
-    results: { ...results, [matchStep(mode)]: `match ${row.matchScore}/100` },
+    results: { ...results, [matchStep(mode)]: t('target.run.result.match', { score: row.matchScore }) },
     flash: req.doneNote ? `${flash} ${req.doneNote}` : flash,
   });
 }

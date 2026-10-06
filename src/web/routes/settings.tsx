@@ -76,7 +76,7 @@ import {
   type AiEngineConfig,
   type AiProviderId,
 } from '../../ai-engine';
-import { AI_TASKS, AI_TASK_LABELS, isAiTask } from '../../ai-tasks';
+import { AI_TASKS, isAiTask, taskLabel } from '../../ai-tasks';
 import { aiPlanRows, pickedTasks, taskShown, tasksSaved } from '../ai-plan';
 import { billingFacts, forgetAiProbe, getAiEngineEnv, localAiBase, openAiBase, probeAiProviders } from '../../ai-runtime';
 import { DEFAULT_LOCAL_CONTEXT_TOKENS, LOCAL_CONTEXT_CHOICES } from '../../ai-provider-parse';
@@ -141,6 +141,8 @@ import { isSettingsTab, SettingsPage, type EngineServer, type SourceKeyRow } fro
 import { packSettingsFromForm, parsePackSettings } from '../../pack/settings';
 import { sourceLabel } from '../source-names';
 import { clearFlashCookie, firstIssue, flashRedirect, parseFlashCookie, refusedField, safeBack } from '../flash';
+import type { MessageKey } from '../../i18n/catalog';
+import { formatNumber } from '../../i18n/format';
 import { isSelectableLocale, withLocale } from '../../i18n/locale';
 import { t } from '../../i18n/t';
 import { describeDestination } from '../../notify/targets';
@@ -154,14 +156,24 @@ import { nameFromFilename, readResumeUpload, resumeUploadLimit } from '../upload
 /*
  * A flash that refuses says what it refused, what is safe and what to do next.
  * The first two answer a request the page's own forms cannot send, the third a
- * page gone stale — so the way forward is the page as it is now.
+ * page gone stale — so the way forward is the page as it is now. Kept as keys:
+ * the words are read when the flash is made, in the language of that request.
  */
-const UNKNOWN_ENGINE = 'That request named an engine this version does not know, so nothing changed. Reload the page and use its buttons.';
-const UNKNOWN_SEARCH = 'That request named no search, so nothing changed. Reload the page and use its buttons.';
-const SEARCH_GONE = 'That search no longer exists, so nothing was saved. Pick one under Searches below.';
+const UNKNOWN_ENGINE = 'settingsRoute.unknownEngine' satisfies MessageKey;
+const UNKNOWN_SEARCH = 'settingsRoute.unknownSearch' satisfies MessageKey;
+const SEARCH_GONE = 'settingsRoute.searchGone' satisfies MessageKey;
+
+/** What stands where a channel's own reason would, when it gave none. */
+const noReason = (): string => t('settingsRoute.noReasonGiven');
 
 const testFailed = (name: string, reason: string | undefined): string =>
-  `The test message to "${name}" did not go through (${reason ?? 'no reason given'}). The target is unchanged; check its token or URL, or delete it and add it again.`;
+  t('settingsRoute.targets.testFailed', { name, reason: reason ?? noReason() });
+
+/** Whole sentences side by side; the ones that do not apply are empty. */
+const sentences = (...parts: string[]): string => parts.filter((part) => part !== '').join(' ');
+
+/** Dollars and cents as `toFixed(2)` writes them, with the reader's decimal mark. */
+const USD_AMOUNT = { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: false } as const;
 
 const TelegramTargetSchema = z.object({
   name: z.string().min(1).max(100),
@@ -198,18 +210,16 @@ const ProfileFormSchema = z.object({
   action: z.string().optional(),
 });
 
-// UI copy per backend; availability comes from probeAiProviders().
-const AI_PROVIDER_DESCS: Record<AiProviderId, string> = {
-  anthropic_api: 'Messages API: fastest, pays per token.',
-  claude_code: 'Headless claude -p on your Claude.ai subscription. Slower, no per-token bill.',
-  gemini_cli: 'Headless gemini -p on your Google account or GEMINI_API_KEY.',
-  agy_cli: 'Headless agy -p on your Google Antigravity account.',
-  openai_api:
-    'Any server speaking /chat/completions: OpenAI, OpenRouter, Groq, local LM Studio / Ollama. Pays per token (or free locally).',
-  codex_cli: 'Headless codex exec on your ChatGPT subscription.',
-  local_api:
-    'Ollama on this machine, through its own API: the context window set per call, JSON mode, one call at a time. Free, private, slower; the text never leaves.',
-};
+// UI copy per backend, as catalog keys; availability comes from probeAiProviders().
+const AI_PROVIDER_DESCS = {
+  anthropic_api: 'settingsRoute.engineDesc.anthropic_api',
+  claude_code: 'settingsRoute.engineDesc.claude_code',
+  gemini_cli: 'settingsRoute.engineDesc.gemini_cli',
+  agy_cli: 'settingsRoute.engineDesc.agy_cli',
+  openai_api: 'settingsRoute.engineDesc.openai_api',
+  codex_cli: 'settingsRoute.engineDesc.codex_cli',
+  local_api: 'settingsRoute.engineDesc.local_api',
+} as const satisfies Record<AiProviderId, MessageKey>;
 
 let reclassifyInFlight = false;
 
@@ -273,9 +283,9 @@ async function loadSettingsProps() {
     openai_api: {
       action: '/settings/ai/openai-base',
       envVar: 'OPENAI_BASE_URL',
-      label: 'Server address',
-      hint: 'Any server that speaks /chat/completions — OpenRouter, Groq, LM Studio (http://127.0.0.1:1234/v1). Test lists the models it runs.',
-      more: 'Ollama is better through the Local model engine. From Docker, write host.docker.internal instead of 127.0.0.1.',
+      label: t('settingsRoute.server.openai.label'),
+      hint: t('settingsRoute.server.openai.hint'),
+      more: t('settingsRoute.server.openai.more'),
       value: openAiServer,
       stored: openAiBaseUrl !== null,
       local: isLocalUrl(openAiServer),
@@ -283,8 +293,8 @@ async function loadSettingsProps() {
     local_api: {
       action: '/settings/ai/local',
       envVar: 'OLLAMA_URL',
-      label: 'Ollama address',
-      hint: 'Ollama answers at http://127.0.0.1:11434 (from Docker: http://host.docker.internal:11434). Test lists the models it has pulled.',
+      label: t('settingsRoute.server.local.label'),
+      hint: t('settingsRoute.server.local.hint'),
       value: localServer,
       stored: settings.localAiUrl !== null,
       local: true,
@@ -296,20 +306,22 @@ async function loadSettingsProps() {
   const aiEnv = getAiEngineEnv(aiKeys, openAiBaseUrl);
   const engine = resolveAiEngine(settings.aiEngine, aiEnv);
   const aiConfig = parseAiEngineConfig(settings.aiEngine);
+  // A CLI engine with no model set runs whatever its own configuration names.
+  const cliDefault = t('settingsRoute.cliDefault');
   const aiEngines = AI_PROVIDER_IDS.map((id) => {
-    const classifierDefault = defaultModelFor(id, 'classifier', aiEnv) || 'CLI default';
-    const resumeDefault = defaultModelFor(id, 'resume', aiEnv) || 'CLI default';
+    const classifierDefault = defaultModelFor(id, 'classifier', aiEnv) || cliDefault;
+    const resumeDefault = defaultModelFor(id, 'resume', aiEnv) || cliDefault;
     const storedKey = providerTakesKey(id) ? aiKeys[id] : undefined;
     return {
       id,
       label: AI_PROVIDER_LABELS[id],
-      desc: AI_PROVIDER_DESCS[id],
+      desc: t(AI_PROVIDER_DESCS[id]),
       ok: aiStatuses[id].ok,
       detail: aiStatuses[id].detail,
       ...aiEngineCard(engine, id, aiEnv.provider),
       tasks: AI_TASKS.filter((task) => taskShown(task, settings.employerMode)).map((task) => ({
         id: task,
-        label: AI_TASK_LABELS[task],
+        label: taskLabel(task),
         taken: engine.takes(id, task),
         offered: offeredTasks(id).includes(task),
       })),
@@ -319,7 +331,7 @@ async function loadSettingsProps() {
       classifierDefault,
       resumeDefault,
       // An empty cover slot takes the engine's own letter default, not the resume slot.
-      coverDefault: defaultModelFor(id, 'cover', aiEnv) || 'CLI default',
+      coverDefault: defaultModelFor(id, 'cover', aiEnv) || cliDefault,
       // TASKS S3: an OpenAI-compatible server's own models, as its last Test listed them.
       options: id === 'openai_api' ? knownModels(openAiServer) : id === 'local_api' ? knownModels(localServer) : PROVIDER_MODEL_OPTIONS[id],
       freeTextModels: id === 'openai_api' || id === 'local_api',
@@ -383,14 +395,14 @@ async function loadSettingsProps() {
     aiEngines,
     aiStatus,
     aiBudget,
-    targets: targets.map((t) => ({
-      id: t.id,
-      name: t.name,
-      kind: t.kind,
-      destination: describeDestination(t),
-      active: t.active,
-      createdAt: t.createdAt,
-      lastUsed: t.lastUsed,
+    targets: targets.map((target) => ({
+      id: target.id,
+      name: target.name,
+      kind: target.kind,
+      destination: describeDestination(target),
+      active: target.active,
+      createdAt: target.createdAt,
+      lastUsed: target.lastUsed,
     })),
     profiles: profiles.map((p) => ({
       id: p.id,
@@ -400,11 +412,11 @@ async function loadSettingsProps() {
       blank: isBlankProfile(p),
     })),
     activeProfile: active,
-    availableTargets: targets.map((t) => ({
-      id: t.id,
-      name: t.name,
-      kind: t.kind,
-      active: t.active,
+    availableTargets: targets.map((target) => ({
+      id: target.id,
+      name: target.name,
+      kind: target.kind,
+      active: target.active,
     })),
     resumes: resumes.map((r) => ({
       id: r.id,
@@ -455,19 +467,15 @@ settingsRoute.post('/settings/fetching-toggle', async (c) => {
   const enabling = !settings.fetchingEnabled;
   await setFetchingEnabled(enabling);
   if (!enabling) {
-    return flashRedirect(back, 'warn', 'Job fetching paused — no new jobs or alerts until you resume.');
+    return flashRedirect(back, 'warn', t('settingsRoute.fetching.paused'));
   }
   const profile = await getActiveProfile();
   const gateEmpty =
     !profile || (profile.stackRequired.length === 0 && profile.roleTypes.length === 0);
   if (gateEmpty) {
-    return flashRedirect(
-      back,
-      'warn',
-      'Job fetching resumed, but no running search has a required stack or role types — every fetched job goes to the AI classifier. Fill one in first (Settings → Searches).',
-    );
+    return flashRedirect(back, 'warn', t('settingsRoute.fetching.resumedNoGate'));
   }
-  return flashRedirect(back, 'ok', 'Job fetching resumed — next hourly tick will pull new jobs.');
+  return flashRedirect(back, 'ok', t('settingsRoute.fetching.resumed'));
 });
 
 
@@ -498,12 +506,12 @@ settingsRoute.post('/settings/schedule', async (c) => {
   };
   const parsed = ScheduleSchema.safeParse(candidate);
   if (!parsed.success) {
-    return flashRedirect('/settings?tab=general', 'err', `Schedule not saved (${firstIssue(parsed.error.issues)}). The stored schedule is unchanged; fix that field and save again.`, refusedField(c.req.path, parsed.error.issues));
+    return flashRedirect('/settings?tab=general', 'err', t('settingsRoute.schedule.notSaved', { issue: firstIssue(parsed.error.issues) }), refusedField(c.req.path, parsed.error.issues));
   }
   await setSchedule(parsed.data);
   const held = await loadHeldLine(parsed.data);
-  const waiting = held === null ? '' : ` ${held.text}.`;
-  return flashRedirect('/settings?tab=general', 'ok', `Schedule saved — ${describeSchedule(parsed.data)}.${waiting}`);
+  const saved = t('settingsRoute.schedule.saved', { schedule: describeSchedule(parsed.data) });
+  return flashRedirect('/settings?tab=general', 'ok', sentences(saved, held === null ? '' : `${held.text}.`));
 });
 
 function str(value: unknown): string {
@@ -530,15 +538,9 @@ settingsRoute.post('/settings/telegram-toggle', async (c) => {
   const enabled = !settings.telegramEnabled;
   await setTelegramEnabled(enabled);
   // Every channel, Discord included (ADR 0041) — the column is just old.
-  const done = `Alerts ${enabled ? 'enabled' : 'disabled'} on every channel.`;
-  const held = enabled ? await loadHeldLine(await getSchedule()) : null;
-  return flashRedirect(
-    '/settings?tab=notifications',
-    'ok',
-    enabled
-      ? `${done}${held ? ` ${held.text}.` : ''}`
-      : `${done} What is found meanwhile waits, and arrives in one message per chat when you switch them back on.`,
-  );
+  if (!enabled) return flashRedirect('/settings?tab=notifications', 'ok', t('settingsRoute.alerts.disabled'));
+  const held = await loadHeldLine(await getSchedule());
+  return flashRedirect('/settings?tab=notifications', 'ok', sentences(t('settingsRoute.alerts.enabled'), held ? `${held.text}.` : ''));
 });
 
 /** The list the engine cards show (`aiEngineOrder`), the stored config, and the .env engine that seeds it. */
@@ -556,48 +558,33 @@ async function readAiOrder(): Promise<{
 settingsRoute.post('/settings/ai/enable', async (c) => {
   const form = await c.req.parseBody();
   const provider = typeof form.provider === 'string' ? form.provider : '';
-  if (!isAiProviderId(provider)) return flashRedirect('/settings?tab=ai', 'err', UNKNOWN_ENGINE);
+  if (!isAiProviderId(provider)) return flashRedirect('/settings?tab=ai', 'err', t(UNKNOWN_ENGINE));
   const { order, config, envProvider } = await readAiOrder();
-  const label = AI_PROVIDER_LABELS[provider];
+  const engine = AI_PROVIDER_LABELS[provider];
   const next = toggleAiEngine(order, provider, envProvider);
   if (next === null) {
-    return flashRedirect(
-      '/settings?tab=ai',
-      'warn',
-      `${label} is the only engine in the list. Enable another one before you disable it.`,
-    );
+    return flashRedirect('/settings?tab=ai', 'warn', t('settingsRoute.ai.onlyEngine', { engine }));
   }
   await setAiEngineConfig({ ...config, order: next });
   if (order.includes(provider)) {
     if (next.length === 0) {
-      return flashRedirect(
-        '/settings?tab=ai',
-        'warn',
-        `${label} disabled. Nothing is left in the list, so ${AI_PROVIDER_LABELS[envProvider]} (AI_PROVIDER in .env) takes its place.`,
-      );
+      return flashRedirect('/settings?tab=ai', 'warn', t('settingsRoute.ai.disabledFallback', { engine, fallback: AI_PROVIDER_LABELS[envProvider] }));
     }
-    return flashRedirect('/settings?tab=ai', 'ok', `${label} disabled.`);
+    return flashRedirect('/settings?tab=ai', 'ok', t('settingsRoute.ai.disabled', { engine }));
   }
+  const placed = { engine, n: next.length };
   const statuses = await probeAiProviders();
   if (!statuses[provider].ok) {
-    return flashRedirect(
-      '/settings?tab=ai',
-      'warn',
-      `${label} enabled as priority #${next.length}, but it is not usable here yet (${statuses[provider].detail}). It is skipped until that is fixed.`,
-    );
+    return flashRedirect('/settings?tab=ai', 'warn', t('settingsRoute.ai.enabledUnusable', { ...placed, detail: statuses[provider].detail }));
   }
   // A metered engine standing behind subscription engines = money spent
   // exactly when the free capacity runs out — say so up front.
   const [keys, { openAiBaseUrl }] = await Promise.all([getAiKeys(), getSettings()]);
   const billing = billingFacts(keys, openAiBaseUrl);
   if (billingOf(provider, billing) === 'billed' && next.slice(0, -1).some((id) => billingOf(id, billing) !== 'billed')) {
-    return flashRedirect(
-      '/settings?tab=ai',
-      'warn',
-      `${label} enabled as priority #${next.length}. It pays per token — it will spend money whenever the engines above it fail or run out of quota.`,
-    );
+    return flashRedirect('/settings?tab=ai', 'warn', t('settingsRoute.ai.enabledBilled', placed));
   }
-  return flashRedirect('/settings?tab=ai', 'ok', `${label} enabled as priority #${next.length}.`);
+  return flashRedirect('/settings?tab=ai', 'ok', t('settingsRoute.ai.enabled', placed));
 });
 
 /** The monthly ceiling on billed AI money (ADR 0055): dollars in, cents stored; empty or 0 = none. */
@@ -608,34 +595,28 @@ settingsRoute.post('/settings/ai/budget', async (c) => {
   const raw = typeof form.budget === 'string' ? form.budget.trim() : '';
   const usd = raw === '' ? 0 : Number(raw);
   if (!Number.isFinite(usd) || usd < 0 || usd > MAX_AI_BUDGET_USD) {
-    return flashRedirect('/settings?tab=ai#budget', 'err', `The budget is dollars a month, from 0 to ${MAX_AI_BUDGET_USD.toLocaleString('en-US')}; nothing was changed.`);
+    return flashRedirect('/settings?tab=ai#budget', 'err', t('settingsRoute.budget.invalid', { max: MAX_AI_BUDGET_USD }));
   }
   const cents = Math.round(usd * 100);
   await setAiBudgetCents(cents > 0 ? cents : null);
   return flashRedirect(
     '/settings?tab=ai#budget',
     'ok',
-    cents > 0
-      ? `Monthly budget set to $${(cents / 100).toFixed(2)}: a warning at 80 % and 100 % of billed spend, nothing stopped.`
-      : 'Monthly budget removed.',
+    cents > 0 ? t('settingsRoute.budget.set', { amount: formatNumber(cents / 100, USD_AMOUNT) }) : t('settingsRoute.budget.removed'),
   );
 });
 
 settingsRoute.post('/settings/ai/move', async (c) => {
   const form = await c.req.parseBody();
   const provider = typeof form.provider === 'string' ? form.provider : '';
-  if (!isAiProviderId(provider)) return flashRedirect('/settings?tab=ai', 'err', UNKNOWN_ENGINE);
+  if (!isAiProviderId(provider)) return flashRedirect('/settings?tab=ai', 'err', t(UNKNOWN_ENGINE));
   const { order, config } = await readAiOrder();
   const idx = order.indexOf(provider);
-  if (idx <= 0) return flashRedirect('/settings?tab=ai', 'ok', 'Already at the top.');
+  if (idx <= 0) return flashRedirect('/settings?tab=ai', 'ok', t('settingsRoute.ai.alreadyTop'));
   const next = [...order];
   [next[idx - 1], next[idx]] = [next[idx]!, next[idx - 1]!];
   await setAiEngineConfig({ ...config, order: next });
-  return flashRedirect(
-    '/settings?tab=ai',
-    'ok',
-    `${AI_PROVIDER_LABELS[provider]} moved to priority #${idx}.`,
-  );
+  return flashRedirect('/settings?tab=ai', 'ok', t('settingsRoute.ai.moved', { engine: AI_PROVIDER_LABELS[provider], n: idx }));
 });
 
 settingsRoute.post('/settings/ai/models', async (c) => {
@@ -646,14 +627,14 @@ settingsRoute.post('/settings/ai/models', async (c) => {
   const fail = (message: string) =>
     wantsJson ? c.json({ error: message }, 400) : flashRedirect('/settings?tab=ai', 'err', message);
   const provider = typeof form.provider === 'string' ? form.provider : '';
-  if (!isAiProviderId(provider)) return fail('Unknown engine.');
-  const label = AI_PROVIDER_LABELS[provider];
+  if (!isAiProviderId(provider)) return fail(t('settingsRoute.ai.unknownEngineShort'));
+  const engine = AI_PROVIDER_LABELS[provider];
   const classifier = cleanModelId(form.classifier);
   const resume = cleanModelId(form.resume);
   const cover = cleanModelId(form.cover);
   for (const model of [classifier, resume, cover]) {
     if (model && !modelFitsProvider(model, provider)) {
-      return fail(`"${model}" is not a ${label} model id. Nothing saved.`);
+      return fail(t('settingsRoute.ai.notModelId', { model, engine }));
     }
   }
   const { config } = await readAiOrder();
@@ -663,7 +644,7 @@ settingsRoute.post('/settings/ai/models', async (c) => {
   });
   return wantsJson
     ? c.json({ ok: true })
-    : flashRedirect('/settings?tab=ai', 'ok', `${label} models saved.`);
+    : flashRedirect('/settings?tab=ai', 'ok', t('settingsRoute.ai.modelsSaved', { engine }));
 });
 
 /** ADR 0060: the tasks an engine takes. Every box ticked is stored as no list, so the engine takes what a later version adds. */
@@ -673,7 +654,7 @@ settingsRoute.post('/settings/ai/tasks', async (c) => {
   const wantsJson = (c.req.header('accept') ?? '').includes('application/json');
   const provider = typeof form.provider === 'string' ? form.provider : '';
   if (!isAiProviderId(provider)) {
-    return wantsJson ? c.json({ error: UNKNOWN_ENGINE }, 400) : flashRedirect('/settings?tab=ai', 'err', UNKNOWN_ENGINE);
+    return wantsJson ? c.json({ error: t(UNKNOWN_ENGINE) }, 400) : flashRedirect('/settings?tab=ai', 'err', t(UNKNOWN_ENGINE));
   }
   const settings = await getSettings();
   const config = parseAiEngineConfig(settings.aiEngine);
@@ -689,12 +670,8 @@ settingsRoute.post('/settings/login-item', async (c) => {
   const form = await c.req.parseBody();
   const on = form.on === '1';
   const result = await setLoginItem(on);
-  if (!result.ok) return flashRedirect('/settings?tab=general#login', 'err', `Login start not changed: ${result.reason}.`);
-  return flashRedirect(
-    '/settings?tab=general#login',
-    'ok',
-    on ? 'ApplyPack will start when you log in. The same button stops it.' : 'ApplyPack will no longer start at login.',
-  );
+  if (!result.ok) return flashRedirect('/settings?tab=general#login', 'err', t('settingsRoute.login.notChanged', { reason: result.reason }));
+  return flashRedirect('/settings?tab=general#login', 'ok', t(on ? 'settingsRoute.login.on' : 'settingsRoute.login.off'));
 });
 
 /** ADR 0057: the local engine's Ollama address and its context window. */
@@ -703,21 +680,21 @@ settingsRoute.post('/settings/ai/local', async (c) => {
   if (form.clear === '1') {
     await setLocalAiUrl(null);
     forgetAiProbe();
-    return flashRedirect('/settings?tab=ai', 'ok', `Ollama address cleared — the engine uses ${config.OLLAMA_URL} again.`);
+    return flashRedirect('/settings?tab=ai', 'ok', t('settingsRoute.local.cleared', { url: config.OLLAMA_URL }));
   }
   if (typeof form.contextTokens === 'string') {
     const tokens = Number(form.contextTokens);
     if (!(LOCAL_CONTEXT_CHOICES as readonly number[]).includes(tokens)) {
-      return flashRedirect('/settings?tab=ai', 'err', 'That context window is not one of the choices; nothing changed.');
+      return flashRedirect('/settings?tab=ai', 'err', t('settingsRoute.local.badContext'));
     }
     await setLocalContextTokens(tokens);
-    return flashRedirect('/settings?tab=ai', 'ok', `Context window set to ${tokens.toLocaleString('en-US')} tokens.`);
+    return flashRedirect('/settings?tab=ai', 'ok', t('settingsRoute.local.contextSet', { tokens }));
   }
   const checked = checkLocalAiUrl(typeof form.baseUrl === 'string' ? form.baseUrl : '');
-  if (!checked.ok) return flashRedirect('/settings?tab=ai', 'err', `Ollama address not saved: ${checked.reason}`);
+  if (!checked.ok) return flashRedirect('/settings?tab=ai', 'err', t('settingsRoute.local.notSaved', { reason: checked.reason }));
   await setLocalAiUrl(checked.url);
   forgetAiProbe();
-  return flashRedirect('/settings?tab=ai', 'ok', `Ollama address saved: ${checked.url}. Press Test to list its models.`);
+  return flashRedirect('/settings?tab=ai', 'ok', t('settingsRoute.local.saved', { url: checked.url }));
 });
 
 /** TASKS S1: the OpenAI-compatible engine's server, set here instead of in .env. */
@@ -726,17 +703,13 @@ settingsRoute.post('/settings/ai/openai-base', async (c) => {
   if (form.clear === '1') {
     await setOpenAiBaseUrl(null);
     forgetAiProbe();
-    return flashRedirect('/settings?tab=ai', 'ok', `Server address cleared — the engine uses ${config.OPENAI_BASE_URL} again.`);
+    return flashRedirect('/settings?tab=ai', 'ok', t('settingsRoute.openai.cleared', { url: config.OPENAI_BASE_URL }));
   }
   const checked = checkOpenAiBaseUrl(typeof form.baseUrl === 'string' ? form.baseUrl : '');
-  if (!checked.ok) return flashRedirect('/settings?tab=ai', 'err', `Server address not saved: ${checked.reason}`);
+  if (!checked.ok) return flashRedirect('/settings?tab=ai', 'err', t('settingsRoute.openai.notSaved', { reason: checked.reason }));
   await setOpenAiBaseUrl(checked.url);
   forgetAiProbe();
-  return flashRedirect(
-    '/settings?tab=ai',
-    'ok',
-    `Server saved: ${checked.url}.${isLocalUrl(checked.url) ? ' A local server needs no key and costs nothing.' : ''} Press Test to list its models.`,
-  );
+  return flashRedirect('/settings?tab=ai', 'ok', t(isLocalUrl(checked.url) ? 'settingsRoute.openai.savedLocal' : 'settingsRoute.openai.saved', { url: checked.url }));
 });
 
 /**
@@ -748,28 +721,27 @@ settingsRoute.post('/settings/ai/key', async (c) => {
   const form = await c.req.parseBody();
   const provider = typeof form.provider === 'string' ? form.provider : '';
   if (!isAiProviderId(provider) || !providerTakesKey(provider)) {
-    return flashRedirect('/settings?tab=ai', 'err', 'That engine does not take a pasted key.');
+    return flashRedirect('/settings?tab=ai', 'err', t('settingsRoute.key.notTaken'));
   }
-  const label = AI_PROVIDER_LABELS[provider];
+  const engine = AI_PROVIDER_LABELS[provider];
   const clearing = form.clear === '1';
   const key = typeof form.key === 'string' ? form.key.trim() : '';
   if (!clearing && key.length === 0) {
-    return flashRedirect('/settings?tab=ai', 'err', `Paste a ${label} key first.`);
+    return flashRedirect('/settings?tab=ai', 'err', t('settingsRoute.key.pasteFirst', { engine }));
   }
   if (key.length > MAX_AI_KEY_LENGTH) {
-    return flashRedirect(
-      '/settings?tab=ai',
-      'err',
-      `That is ${key.length} characters — longer than any API key. Nothing saved.`,
-    );
+    return flashRedirect('/settings?tab=ai', 'err', t('settingsRoute.key.tooLong', { n: key.length }));
   }
   await setAiKey(provider, clearing ? '' : key);
   forgetAiProbe();
   if (clearing) {
-    const fallback = aiKeySource(provider, {}) === 'env' ? ` Falling back to ${AI_KEY_ENV_VARS[provider]} from .env.` : '';
-    return flashRedirect('/settings?tab=ai', 'ok', `${label} key removed.${fallback}`);
+    const removed =
+      aiKeySource(provider, {}) === 'env'
+        ? t('settingsRoute.key.removedFallback', { engine, envVar: AI_KEY_ENV_VARS[provider] })
+        : t('settingsRoute.key.removed', { engine });
+    return flashRedirect('/settings?tab=ai', 'ok', removed);
   }
-  return flashRedirect('/settings?tab=ai', 'ok', `${label} key saved. Press Test to prove it works.`);
+  return flashRedirect('/settings?tab=ai', 'ok', t('settingsRoute.key.saved', { engine }));
 });
 
 /** The keyed sources as the Sources tab shows them — origins and masks, never values (ADR 0034). */
@@ -779,12 +751,12 @@ function sourceKeyRows(keys: SourceKeys): SourceKeyRow[] {
     return {
       source,
       label: meta.label,
-      what: meta.what,
-      worthIt: meta.worthIt,
-      cost: meta.cost,
+      what: t(meta.what),
+      worthIt: t(meta.worthIt),
+      cost: t(meta.cost),
       signupUrl: meta.signupUrl,
-      signupLabel: meta.signupLabel,
-      terms: meta.terms,
+      signupLabel: t(meta.signupLabel),
+      terms: t(meta.terms),
       termsUrl: meta.termsUrl,
       ready: sourceUnlocked(source, keys),
       fields: (Object.keys(SOURCE_KEY_FIELDS[source]) as SourceKeyField[]).map((field) => {
@@ -802,31 +774,33 @@ function sourceKeyRows(keys: SourceKeys): SourceKeyRow[] {
   });
 }
 
-/** UI copy per keyed source: the vendor's own name for each field, and the terms the user accepted. */
+/**
+ * UI copy per keyed source, as catalog keys. The source and each of its fields
+ * keep the vendor's own name, so they read here as they do on the vendor's page.
+ */
 const SOURCE_KEY_META: Record<
   KeyedSource,
-  { label: string; what: string; worthIt: string; cost: string; signupUrl: string; signupLabel: string; terms: string; termsUrl: string; fields: Record<string, string> }
+  { label: string; what: MessageKey; worthIt: MessageKey; cost: MessageKey; signupUrl: string; signupLabel: MessageKey; terms: MessageKey; termsUrl: string; fields: Record<string, string> }
 > = {
   ADZUNA: {
     label: 'Adzuna',
-    what: 'A job-ad aggregator in nineteen countries — Germany, France, Poland, the UK, the US, India and more — with ads from boards this app has no other way to see.',
-    worthIt:
-      'you hunt in a country the free sources barely cover (ES, IT, BE, CH, AT, IN, BR, MX, ZA, AU, NZ, SG, CA) or want a wider net than the tech-specific boards. Skip it if you hunt remote-first English roles or in UA, PL, DE, GB, NL, PT, SE — the free sources already cover those.',
-    cost: 'personal research only (a company needs its own licence from Adzuna), a "Jobs by Adzuna" label on every listing shown, and 2 500 calls a month — so a market is checked four times a day and ten markets is the ceiling. Descriptions arrive as snippets, so the classifier and the resume match see less than usual.',
+    what: 'settingsRoute.source.adzuna.what',
+    worthIt: 'settingsRoute.source.adzuna.worthIt',
+    cost: 'settingsRoute.source.adzuna.cost',
     signupUrl: 'https://developer.adzuna.com/signup',
-    signupLabel: 'Register for a free key (developer.adzuna.com)',
-    terms: 'API terms',
+    signupLabel: 'settingsRoute.source.adzuna.signup',
+    terms: 'settingsRoute.source.adzuna.terms',
     termsUrl: 'https://developer.adzuna.com/docs/terms_of_service',
     fields: { app_id: 'Application ID', app_key: 'Application key' },
   },
   FRANCETRAVAIL: {
     label: 'France Travail',
-    what: "The French state employment service's own API: every public job ad in France, with full descriptions — the most complete source there is for that country.",
-    worthIt: 'you hunt in France. It adds nothing anywhere else, so leave it alone otherwise.',
-    cost: 'the board\'s licence: every offer is shown whole with its source, date and licence link, and each stored offer is re-checked daily. That re-check runs on every hourly tick whatever else you switch off — pausing fetching does not pause it — so the obligation is not yours to remember. Offers the board withdraws are deleted here, or kept anonymised when they are your own application record; an offer this app could not re-check for two days goes the same way. Charging job seekers for a service built on this data is forbidden by French law.',
+    what: 'settingsRoute.source.francetravail.what',
+    worthIt: 'settingsRoute.source.francetravail.worthIt',
+    cost: 'settingsRoute.source.francetravail.cost',
     signupUrl: 'https://francetravail.io/produits-partages/catalogue',
-    signupLabel: 'Create a free account and an app (francetravail.io)',
-    terms: 'Licence offres d\'emploi',
+    signupLabel: 'settingsRoute.source.francetravail.signup',
+    terms: 'settingsRoute.source.francetravail.terms',
     termsUrl: 'https://francetravail.io/produits-partages/documentation/conditions-dutilisation-api/licence-offres-emploi',
     fields: { client_id: 'Client ID', client_secret: 'Client secret' },
   },
@@ -842,25 +816,25 @@ settingsRoute.post('/settings/sources/key', async (c) => {
   const source = typeof form.source === 'string' ? form.source : '';
   const field = typeof form.field === 'string' ? form.field : '';
   if (!isKeyedSource(source) || !isSourceKeyField(source, field)) {
-    return flashRedirect('/settings?tab=sources', 'err', 'That source takes no such key.');
+    return flashRedirect('/settings?tab=sources', 'err', t('settingsRoute.sourceKey.unknown'));
   }
   const label = `${SOURCE_KEY_META[source].label} ${SOURCE_KEY_META[source].fields[field] ?? field}`;
   const clearing = form.clear === '1';
   const key = typeof form.key === 'string' ? form.key.trim() : '';
   if (!clearing && key.length === 0) {
-    return flashRedirect('/settings?tab=sources', 'err', `Paste the ${label} first.`);
+    return flashRedirect('/settings?tab=sources', 'err', t('settingsRoute.sourceKey.pasteFirst', { label }));
   }
   if (key.length > MAX_SOURCE_KEY_LENGTH) {
-    return flashRedirect('/settings?tab=sources', 'err', `That is ${key.length} characters — longer than any key. Nothing saved.`);
+    return flashRedirect('/settings?tab=sources', 'err', t('settingsRoute.sourceKey.tooLong', { n: key.length }));
   }
   await setSourceKey(source, field, clearing ? '' : key);
-  return flashRedirect('/settings?tab=sources', 'ok', clearing ? `${label} removed.` : `${label} saved.`);
+  return flashRedirect('/settings?tab=sources', 'ok', t(clearing ? 'settingsRoute.sourceKey.removed' : 'settingsRoute.sourceKey.saved', { label }));
 });
 
 settingsRoute.post('/settings/ai/test', async (c) => {
   const form = await c.req.parseBody();
   const provider = typeof form.provider === 'string' ? form.provider : '';
-  if (!isAiProviderId(provider)) return flashRedirect('/settings?tab=ai', 'err', UNKNOWN_ENGINE);
+  if (!isAiProviderId(provider)) return flashRedirect('/settings?tab=ai', 'err', t(UNKNOWN_ENGINE));
   const result = await testAiEngine(provider);
   return flashRedirect('/settings?tab=ai', result.ok ? 'ok' : 'err', result.text);
 });
@@ -876,8 +850,7 @@ settingsRoute.post('/settings/classifier-mode', async (c) => {
   const raw = form.mode;
   const mode = raw === 'two_stage' ? 'two_stage' : 'single';
   await setClassifierMode(mode);
-  const label = mode === 'two_stage' ? 'Two stage' : 'Single stage';
-  return flashRedirect('/settings?tab=ai', 'ok', `Classifier mode → ${label}.`);
+  return flashRedirect('/settings?tab=ai', 'ok', t(mode === 'two_stage' ? 'settingsRoute.classifier.twoStage' : 'settingsRoute.classifier.single'));
 });
 
 settingsRoute.post('/settings/application-tracking-toggle', async (c) => {
@@ -886,9 +859,7 @@ settingsRoute.post('/settings/application-tracking-toggle', async (c) => {
   return flashRedirect(
     '/settings?tab=general',
     'ok',
-    `Application tracking ${
-      !settings.applicationTrackingEnabled ? 'enabled' : 'disabled'
-    }.`,
+    t(!settings.applicationTrackingEnabled ? 'settingsRoute.tracking.enabled' : 'settingsRoute.tracking.disabled'),
   );
 });
 
@@ -896,13 +867,13 @@ settingsRoute.post('/settings/application-tracking-toggle', async (c) => {
 
 const STAGES_BACK = '/settings?tab=general#stages';
 
-const STAGE_ERROR_TEXT: Record<StageEditError, string> = {
-  'empty-label': 'Column name is required.',
-  'duplicate-label': 'A column with that name already exists.',
-  limit: 'Column limit reached — remove one first.',
-  'unknown-key': 'That column no longer exists.',
-  'last-column': 'Keep at least one column between Applied and Closed.',
-};
+const STAGE_ERROR_TEXT = {
+  'empty-label': 'settingsRoute.stages.emptyLabel',
+  'duplicate-label': 'settingsRoute.stages.duplicateLabel',
+  limit: 'settingsRoute.stages.limit',
+  'unknown-key': 'settingsRoute.stages.unknownKey',
+  'last-column': 'settingsRoute.stages.lastColumn',
+} as const satisfies Record<StageEditError, MessageKey>;
 
 async function applyStageEdit(
   edit: (work: { key: string; label: string }[]) =>
@@ -914,7 +885,7 @@ async function applyStageEdit(
   const work = parseStageConfig(settings.pipelineStages);
   const next = edit(work);
   if (typeof next === 'string') {
-    return flashRedirect(STAGES_BACK, 'err', STAGE_ERROR_TEXT[next]);
+    return flashRedirect(STAGES_BACK, 'err', t(STAGE_ERROR_TEXT[next]));
   }
   await setPipelineStages(next);
   return flashRedirect(STAGES_BACK, 'ok', okText);
@@ -925,7 +896,7 @@ settingsRoute.post('/settings/stages/add', async (c) => {
   const label = typeof form.label === 'string' ? form.label : '';
   return applyStageEdit(
     (work) => addStage(work, label),
-    `Added "${label.trim()}".`,
+    t('settingsRoute.stages.added', { label: label.trim() }),
   );
 });
 
@@ -953,23 +924,19 @@ settingsRoute.post('/settings/stages/:key/remove', async (c) => {
     return { kind: 'ok' as const };
   });
   if (outcome.kind === 'in-use') {
-    return flashRedirect(
-      STAGES_BACK,
-      'err',
-      `Move ${outcome.held} job${outcome.held === 1 ? '' : 's'} out of that column first.`,
-    );
+    return flashRedirect(STAGES_BACK, 'err', t('settingsRoute.stages.moveJobsOut', { n: outcome.held }));
   }
   if (outcome.kind === 'refused') {
-    return flashRedirect(STAGES_BACK, 'err', STAGE_ERROR_TEXT[outcome.error]);
+    return flashRedirect(STAGES_BACK, 'err', t(STAGE_ERROR_TEXT[outcome.error]));
   }
-  return flashRedirect(STAGES_BACK, 'ok', 'Column removed.');
+  return flashRedirect(STAGES_BACK, 'ok', t('settingsRoute.stages.removed'));
 });
 
 settingsRoute.post('/settings/stages/:key/move', async (c) => {
   const key = c.req.param('key');
   const form = await c.req.parseBody();
   const dir = form.dir === 'up' ? 'up' : 'down';
-  return applyStageEdit((work) => moveStage(work, key, dir), 'Order updated.');
+  return applyStageEdit((work) => moveStage(work, key, dir), t('settingsRoute.stages.orderUpdated'));
 });
 
 settingsRoute.post('/settings/stages/:key/rename', async (c) => {
@@ -978,7 +945,7 @@ settingsRoute.post('/settings/stages/:key/rename', async (c) => {
   const label = typeof form.label === 'string' ? form.label : '';
   return applyStageEdit(
     (work) => renameStage(work, key, label),
-    'Column renamed.',
+    t('settingsRoute.stages.renamed'),
   );
 });
 
@@ -987,16 +954,16 @@ settingsRoute.post('/settings/update-check-toggle', async (c) => {
   const enabling = !(await getSettings()).updateCheck;
   await setUpdateCheck(enabling);
   forgetUpdateNotice();
-  if (!enabling) return flashRedirect('/settings?tab=general#updates', 'ok', 'No more update checks.');
+  if (!enabling) return flashRedirect('/settings?tab=general#updates', 'ok', t('settingsRoute.updates.off'));
   const latest = await checkForUpdate();
   return flashRedirect(
     '/settings?tab=general#updates',
     'ok',
     latest === null
-      ? 'Checking weekly. GitHub did not answer just now; the next look is on Sunday.'
+      ? t('settingsRoute.updates.noAnswer')
       : isNewer(APP_VERSION, latest)
-        ? `Checking weekly. v${latest} is out — you run v${APP_VERSION}.`
-        : `Checking weekly. You run the latest release, v${APP_VERSION}.`,
+        ? t('settingsRoute.updates.newer', { latest, current: APP_VERSION })
+        : t('settingsRoute.updates.latest', { current: APP_VERSION }),
   );
 });
 
@@ -1034,15 +1001,13 @@ settingsRoute.post('/settings/reapply', async (c) => {
   const raw = typeof body.days === 'string' ? body.days.trim() : '';
   const days = raw === '' ? null : Number(raw);
   if (days !== null && !isReapplyChoice(days)) {
-    return flashRedirect('/settings?tab=general', 'err', 'The re-apply window was not changed: pick one of the listed lengths, or Off.');
+    return flashRedirect('/settings?tab=general', 'err', t('settingsRoute.reapply.invalid'));
   }
   await setReapplyDays(days);
   return flashRedirect(
     '/settings?tab=general',
     'ok',
-    days === null
-      ? 'Re-apply window off: every company is read again.'
-      : `Re-apply window: ${days} days. New postings at a company you applied to in that time are turned away before any AI.`,
+    days === null ? t('settingsRoute.reapply.off') : t('settingsRoute.reapply.set', { days }),
   );
 });
 
@@ -1054,9 +1019,7 @@ settingsRoute.post('/settings/stale-digest-toggle', async (c) => {
   return flashRedirect(
     '/settings?tab=general',
     'ok',
-    `Stale-applications digest ${
-      !settings.staleApplicationsDigestEnabled ? 'enabled' : 'disabled'
-    }.`,
+    t(!settings.staleApplicationsDigestEnabled ? 'settingsRoute.staleDigest.enabled' : 'settingsRoute.staleDigest.disabled'),
   );
 });
 
@@ -1068,17 +1031,17 @@ settingsRoute.post('/settings/employer-mode-toggle', async (c) => {
   return flashRedirect(
     '/settings?tab=screening',
     'ok',
-    next ? 'Employer mode on — Screening is in the menu.' : 'Employer mode off — Screening is hidden; stored screenings keep their retention dates.',
+    t(next ? 'settingsRoute.employer.on' : 'settingsRoute.employer.off'),
   );
 });
 
 settingsRoute.post('/settings/screening-retention', async (c) => {
   const form = await c.req.parseBody();
   const days = Number(form.days);
-  if (!Number.isFinite(days)) return flashRedirect('/settings?tab=screening', 'err', 'Enter a number of days.');
+  if (!Number.isFinite(days)) return flashRedirect('/settings?tab=screening', 'err', t('settingsRoute.retention.enterDays'));
   await setScreeningRetentionDays(days);
   const saved = (await getSettings()).screeningRetentionDays;
-  return flashRedirect('/settings?tab=screening', 'ok', `New screenings are kept for ${saved} days.`);
+  return flashRedirect('/settings?tab=screening', 'ok', t('settingsRoute.retention.saved', { days: saved }));
 });
 
 settingsRoute.post('/settings/source-health-toggle', async (c) => {
@@ -1087,7 +1050,7 @@ settingsRoute.post('/settings/source-health-toggle', async (c) => {
   return flashRedirect(
     '/settings?tab=notifications',
     'ok',
-    `Source health alerts ${!settings.sourceHealthAlerts ? 'enabled' : 'disabled'}.`,
+    t(!settings.sourceHealthAlerts ? 'settingsRoute.sourceHealth.enabled' : 'settingsRoute.sourceHealth.disabled'),
   );
 });
 
@@ -1109,8 +1072,8 @@ settingsRoute.post('/settings/sources', async (c) => {
     '/settings?tab=sources',
     'ok',
     disabled.length === 0
-      ? 'All sources enabled.'
-      : `Disabled: ${disabled.map(sourceLabel).join(', ')}.`,
+      ? t('settingsRoute.sources.allEnabled')
+      : t('settingsRoute.sources.disabled', { list: disabled.map(sourceLabel).join(', ') }),
   );
 });
 
@@ -1121,20 +1084,20 @@ settingsRoute.post('/settings/targets', onceGuard(() => 'targets:add', () => '/s
   if (form.kind === 'discord') {
     const parsed = DiscordTargetSchema.safeParse({ name: form.name, webhookUrl: form.webhookUrl });
     if (!parsed.success) {
-      return flashRedirect(back, 'err', 'Invalid input — a name and a Discord webhook URL (https://discord.com/api/webhooks/…) are required.');
+      return flashRedirect(back, 'err', t('settingsRoute.targets.invalidDiscord'));
     }
     // Before the test message, so a repeat does not post twice to the channel.
     const same = await findSameDestination({ kind: 'DISCORD', ...parsed.data });
-    if (same) return flashRedirect(back, 'err', `That webhook is already added as "${same.name}".`);
+    if (same) return flashRedirect(back, 'err', t('settingsRoute.targets.webhookExists', { name: same.name }));
     const test = await testDiscordWebhook(parsed.data.webhookUrl);
     if (!test.ok) {
-      return flashRedirect(back, 'err', `The test message did not reach Discord (${test.error ?? 'no reason given'}), so the webhook was not saved. Check the URL and add it again.`);
+      return flashRedirect(back, 'err', t('settingsRoute.targets.discordTestFailed', { reason: test.error ?? noReason() }));
     }
     const added = await addNotificationTarget({ kind: 'DISCORD', ...parsed.data });
     if (!added) {
-      return flashRedirect(back, 'err', 'That webhook was added from another tab a moment ago, so it was not added twice. The test message did reach the channel.');
+      return flashRedirect(back, 'err', t('settingsRoute.targets.webhookRace'));
     }
-    return flashRedirect(back, 'ok', `Added Discord webhook "${parsed.data.name}". Test message sent.`);
+    return flashRedirect(back, 'ok', t('settingsRoute.targets.discordAdded', { name: parsed.data.name }));
   }
   const parsed = TelegramTargetSchema.safeParse({
     name: form.name,
@@ -1142,59 +1105,55 @@ settingsRoute.post('/settings/targets', onceGuard(() => 'targets:add', () => '/s
     chatId: form.chatId,
   });
   if (!parsed.success) {
-    return flashRedirect(back, 'err', 'Invalid input — name, token, chat id required.');
+    return flashRedirect(back, 'err', t('settingsRoute.targets.invalidTelegram'));
   }
   const same = await findSameDestination({ kind: 'TELEGRAM', ...parsed.data });
-  if (same) return flashRedirect(back, 'err', `That bot and chat are already added as "${same.name}".`);
+  if (same) return flashRedirect(back, 'err', t('settingsRoute.targets.telegramExists', { name: same.name }));
   const test = await testTelegramTarget(parsed.data.botToken, parsed.data.chatId);
   if (!test.ok) {
-    return flashRedirect(back, 'err', `The test message did not reach Telegram (${test.error ?? 'no reason given'}), so the target was not saved. Check the token and the chat id, and add it again.`);
+    return flashRedirect(back, 'err', t('settingsRoute.targets.telegramTestFailed', { reason: test.error ?? noReason() }));
   }
   const added = await addNotificationTarget({ kind: 'TELEGRAM', ...parsed.data });
   if (!added) {
-    return flashRedirect(back, 'err', 'That bot and chat were added from another tab a moment ago, so they were not added twice. The test message did arrive.');
+    return flashRedirect(back, 'err', t('settingsRoute.targets.telegramRace'));
   }
-  return flashRedirect(
-    back,
-    'ok',
-    `Added target "${parsed.data.name}" (bot @${test.botUsername ?? '?'}). Test message sent.`,
-  );
+  return flashRedirect(back, 'ok', t('settingsRoute.targets.telegramAdded', { name: parsed.data.name, bot: test.botUsername ?? '?' }));
 });
 
 settingsRoute.post('/settings/targets/:id/toggle', async (c) => {
   const id = idParam(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text('Bad id', 400);
   await toggleNotificationTarget(id);
-  return flashRedirect('/settings?tab=notifications', 'ok', 'Target toggled.');
+  return flashRedirect('/settings?tab=notifications', 'ok', t('settingsRoute.targets.toggled'));
 });
 
 settingsRoute.post('/settings/targets/:id/delete', async (c) => {
   const id = idParam(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text('Bad id', 400);
   await deleteNotificationTarget(id);
-  return flashRedirect('/settings?tab=notifications', 'ok', 'Target deleted.');
+  return flashRedirect('/settings?tab=notifications', 'ok', t('settingsRoute.targets.deleted'));
 });
 
 settingsRoute.post('/settings/targets/:id/test', async (c) => {
   const id = idParam(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text('Bad id', 400);
-  const t = await prisma.notificationTarget.findUnique({ where: { id } });
-  if (!t) return flashRedirect('/settings?tab=notifications', 'err', 'That target no longer exists, so no test was sent. The list below is current.');
-  if (t.kind === 'DISCORD') {
-    const result = await testDiscordWebhook(t.webhookUrl ?? '');
+  const target = await prisma.notificationTarget.findUnique({ where: { id } });
+  if (!target) return flashRedirect('/settings?tab=notifications', 'err', t('settingsRoute.targets.gone'));
+  if (target.kind === 'DISCORD') {
+    const result = await testDiscordWebhook(target.webhookUrl ?? '');
     return result.ok
-      ? flashRedirect('/settings?tab=notifications', 'ok', `Test sent to "${t.name}".`)
-      : flashRedirect('/settings?tab=notifications', 'err', testFailed(t.name, result.error));
+      ? flashRedirect('/settings?tab=notifications', 'ok', t('settingsRoute.targets.testSent', { name: target.name }))
+      : flashRedirect('/settings?tab=notifications', 'err', testFailed(target.name, result.error));
   }
-  const result = await testTelegramTarget(t.botToken ?? '', t.chatId ?? '');
+  const result = await testTelegramTarget(target.botToken ?? '', target.chatId ?? '');
   if (result.ok) {
     return flashRedirect(
       '/settings?tab=notifications',
       'ok',
-      `Test sent to "${t.name}" (bot @${result.botUsername ?? '?'}).`,
+      t('settingsRoute.targets.testSentBot', { name: target.name, bot: result.botUsername ?? '?' }),
     );
   }
-  return flashRedirect('/settings?tab=notifications', 'err', testFailed(t.name, result.error));
+  return flashRedirect('/settings?tab=notifications', 'err', testFailed(target.name, result.error));
 });
 
 // --- Profiles ---------------------------------------------------------------
@@ -1206,7 +1165,7 @@ settingsRoute.post('/settings/profiles/new', async (c) => {
   return flashRedirect(
     `/settings?tab=profile&profile=${profile.id}`,
     'ok',
-    'New search created. Add a required stack or role types and save — it starts running on the first save with content.',
+    t('settingsRoute.search.created'),
   );
 });
 
@@ -1216,7 +1175,7 @@ settingsRoute.post('/settings/profiles/active', async (c) => {
   const form = await c.req.parseBody();
   const id = idParam(form.id);
   const want = form.active === '1';
-  if (!Number.isFinite(id)) return flashRedirect('/settings?tab=profile', 'err', UNKNOWN_SEARCH);
+  if (!Number.isFinite(id)) return flashRedirect('/settings?tab=profile', 'err', t(UNKNOWN_SEARCH));
   // Server-side half of the gate (issue #50): a search with nothing to match
   // on would admit every posting and score it on vibes.
   const target = await getProfile(id);
@@ -1224,7 +1183,7 @@ settingsRoute.post('/settings/profiles/active', async (c) => {
     return flashRedirect(
       `/settings?tab=profile&profile=${id}`,
       'err',
-      'This search has no required stack and no role types — fill it in and save before running it.',
+      t('settingsRoute.search.blankRun'),
     );
   }
   try {
@@ -1233,22 +1192,20 @@ settingsRoute.post('/settings/profiles/active', async (c) => {
     return flashRedirect(
       '/settings?tab=profile',
       'err',
-      err instanceof Error ? err.message : 'The search did not change state, and nothing else changed. Try again.',
+      err instanceof Error ? err.message : t('settingsRoute.search.stateFailed'),
     );
   }
   return flashRedirect(
     '/settings?tab=profile',
     'ok',
-    want
-      ? `"${target?.name ?? 'Search'}" is running — new postings are scored against it too. "Save & re-classify" in its editor scores the ones already stored.`
-      : `"${target?.name ?? 'Search'}" paused. Its existing scores stay on the jobs it already scored.`,
+    t(want ? 'settingsRoute.search.running' : 'settingsRoute.search.paused', { name: target?.name ?? t('settingsRoute.search.fallbackName') }),
   );
 });
 
 settingsRoute.post('/settings/profiles/activate', async (c) => {
   const form = await c.req.parseBody();
   const id = idParam(form.id);
-  if (!Number.isFinite(id)) return flashRedirect('/settings?tab=profile', 'err', UNKNOWN_SEARCH);
+  if (!Number.isFinite(id)) return flashRedirect('/settings?tab=profile', 'err', t(UNKNOWN_SEARCH));
   // Server-side half of the activation gate (issue #50) — the disabled
   // Activate button is advisory only.
   const target = await getProfile(id);
@@ -1256,7 +1213,7 @@ settingsRoute.post('/settings/profiles/activate', async (c) => {
     return flashRedirect(
       `/settings?tab=profile&profile=${id}`,
       'err',
-      'This search has no required stack and no role types — fill it in and save before making it primary.',
+      t('settingsRoute.search.blankPrimary'),
     );
   }
   try {
@@ -1265,30 +1222,30 @@ settingsRoute.post('/settings/profiles/activate', async (c) => {
     return flashRedirect(
       '/settings?tab=profile',
       'err',
-      err instanceof Error ? err.message : 'The primary search did not change, and nothing else changed. Try again.',
+      err instanceof Error ? err.message : t('settingsRoute.search.primaryFailed'),
     );
   }
   return flashRedirect(
     '/settings?tab=profile',
     'ok',
-    'Primary search changed. It also runs from now on; "Save & re-classify" in the editor re-scores existing jobs.',
+    t('settingsRoute.search.primaryChanged'),
   );
 });
 
 settingsRoute.post('/settings/profiles/delete', async (c) => {
   const form = await c.req.parseBody();
   const id = idParam(form.id);
-  if (!Number.isFinite(id)) return flashRedirect('/settings?tab=profile', 'err', UNKNOWN_SEARCH);
+  if (!Number.isFinite(id)) return flashRedirect('/settings?tab=profile', 'err', t(UNKNOWN_SEARCH));
   try {
     await deleteProfile(id);
   } catch (err) {
     return flashRedirect(
       '/settings?tab=profile',
       'err',
-      err instanceof Error ? err.message : 'The search was not deleted, and nothing else changed. Try again.',
+      err instanceof Error ? err.message : t('settingsRoute.search.deleteFailed'),
     );
   }
-  return flashRedirect('/settings?tab=profile', 'ok', 'Search deleted.');
+  return flashRedirect('/settings?tab=profile', 'ok', t('settingsRoute.search.deleted'));
 });
 
 settingsRoute.post('/settings/profiles/:id/save', async (c) => {
@@ -1296,7 +1253,7 @@ settingsRoute.post('/settings/profiles/:id/save', async (c) => {
   if (!Number.isFinite(id)) return c.text('Bad id', 400);
   const before = await getProfile(id);
   if (!before) {
-    return flashRedirect('/settings?tab=profile', 'err', SEARCH_GONE);
+    return flashRedirect('/settings?tab=profile', 'err', t(SEARCH_GONE));
   }
 
   // `all: true` is required so multi-value checkboxes (seniority,
@@ -1308,7 +1265,7 @@ settingsRoute.post('/settings/profiles/:id/save', async (c) => {
       { errors: parsed.error.flatten().fieldErrors, form },
       'profile form: validation failed',
     );
-    return flashRedirect('/settings?tab=profile', 'err', `${firstIssue(parsed.error.issues)}. Profile not saved; fix that field and save again.`, refusedField(c.req.path, parsed.error.issues));
+    return flashRedirect('/settings?tab=profile', 'err', t('settingsRoute.search.notSavedIssue', { issue: firstIssue(parsed.error.issues) }), refusedField(c.req.path, parsed.error.issues));
   }
   const f = parsed.data;
 
@@ -1322,7 +1279,7 @@ settingsRoute.post('/settings/profiles/:id/save', async (c) => {
     return flashRedirect(
       '/settings?tab=profile',
       'err',
-      `Priority rules — line ${first.line}: ${first.reason}. Profile not saved.`,
+      t('settingsRoute.search.priorityRule', { line: first.line, reason: first.reason }),
     );
   }
 
@@ -1348,7 +1305,7 @@ settingsRoute.post('/settings/profiles/:id/save', async (c) => {
     return flashRedirect(
       '/settings?tab=profile',
       'err',
-      `Country not recognised: ${countries.unknown.join(', ')}. Profile not saved.`,
+      t('settingsRoute.search.countryUnknown', { list: countries.unknown.join(', ') }),
     );
   }
 
@@ -1397,39 +1354,38 @@ settingsRoute.post('/settings/profiles/:id/save', async (c) => {
       return flashRedirect(
         editorUrl,
         'warn',
-        'Search saved, but re-classify skipped — it scores against running searches only. Press Run first.',
+        t('settingsRoute.search.reclassifySkipped'),
       );
     }
     const started = triggerReclassifyAsync();
     return flashRedirect(
       editorUrl,
       'ok',
-      `Search saved${activated ? ' and started' : ''}. ${
-        started
-          ? 'Re-classify started in the background'
-          : 'A re-classify was already running, so this one joins it'
-      } — track progress at /runs.${sourcesHint}`,
+      sentences(
+        t(activated ? 'settingsRoute.search.savedStarted' : 'settingsRoute.search.saved'),
+        t(started ? 'settingsRoute.reclassify.started' : 'settingsRoute.reclassify.joins'),
+        sourcesHint,
+      ),
     );
   }
   if (activated) {
-    return flashRedirect(editorUrl, 'ok', `Search saved and started — it scores new postings from the next tick.${sourcesHint}`);
+    return flashRedirect(editorUrl, 'ok', sentences(t('settingsRoute.search.savedStartedNext'), sourcesHint));
   }
   if (!isActive && isBlankProfile(input)) {
     return flashRedirect(
       editorUrl,
       'ok',
-      'Search saved. It stays paused until it lists a required stack or role types.',
+      t('settingsRoute.search.savedStaysPaused'),
     );
   }
-  return flashRedirect(editorUrl, 'ok', `Search saved.${sourcesHint}`);
+  return flashRedirect(editorUrl, 'ok', sentences(t('settingsRoute.search.saved'), sourcesHint));
 });
 
-/** " 2 sources fit these countries — see Companies → …", or '' when every suggested feed already runs. */
+/** "2 sources fit these countries — Companies → …", or '' when every suggested feed already runs. */
 async function sourcesWaiting(search: Profile): Promise<string> {
   const tracked = await prisma.company.findMany({ select: { id: true, atsType: true, atsToken: true, active: true } });
   const waiting = suggestSources([search], tracked).filter((s) => s.state !== 'on').length;
-  if (waiting === 0) return '';
-  return ` ${waiting} source${waiting === 1 ? '' : 's'} fit these countries — Companies → "Sources for your searches" → Enable all.`;
+  return waiting === 0 ? '' : t('settingsRoute.search.sourcesWaiting', { n: waiting });
 }
 
 // Prefill the editor from a resume's AI scan. Renders the draft directly —
@@ -1444,7 +1400,7 @@ settingsRoute.post(
   const id = idParam(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text('Bad id', 400);
   const profile = await getProfile(id);
-  if (!profile) return flashRedirect('/settings?tab=profile', 'err', SEARCH_GONE);
+  if (!profile) return flashRedirect('/settings?tab=profile', 'err', t(SEARCH_GONE));
   const form = await c.req.parseBody();
   let resume;
   if (form.file instanceof File && form.file.size > 0) {
@@ -1454,12 +1410,12 @@ settingsRoute.post(
   } else {
     const resumeId = idParam(form.resumeId);
     if (!Number.isFinite(resumeId)) {
-      return flashRedirect('/settings?tab=profile', 'err', 'Pick a resume first.');
+      return flashRedirect('/settings?tab=profile', 'err', t('settingsRoute.fill.pickResume'));
     }
     resume = await getResume(resumeId);
   }
   if (!resume || resume.hidden) {
-    return flashRedirect('/settings?tab=profile', 'err', 'That resume no longer exists, so no draft was made. Pick another under Fill from a resume.');
+    return flashRedirect('/settings?tab=profile', 'err', t('settingsRoute.fill.resumeGone'));
   }
 
   // Scans from before the primary-stack field (or failed ones) re-scan here.
@@ -1469,7 +1425,7 @@ settingsRoute.post(
       return flashRedirect(
         '/settings?tab=profile',
         'err',
-        `The AI scan of "${resume.name}" failed, so there is no draft and the profile is unchanged. Test the engine on the AI engine tab, then try again.`,
+        t('settingsRoute.fill.scanFailed', { name: resume.name }),
       );
     }
     resume = (await getResume(resume.id)) ?? resume;
@@ -1486,11 +1442,12 @@ settingsRoute.post(
   // review-then-save contract (ADR 0015): the select below carries it.
   const linking = profile.resumeId !== resume.id;
   if (draft.changed.length === 0 && !linking) {
-    const note = draft.warnings[0] ? ` — ${draft.warnings[0]}` : '';
+    const names = { profile: profile.name, resume: resume.name };
+    const note = draft.warnings[0];
     return flashRedirect(
       '/settings?tab=profile',
       'ok',
-      `"${profile.name}" already matches resume "${resume.name}"${note}.`,
+      note ? t('settingsRoute.fill.alreadyMatchesNote', { ...names, note }) : t('settingsRoute.fill.alreadyMatches', names),
     );
   }
 
@@ -1503,7 +1460,7 @@ settingsRoute.post(
       activeProfile={{ ...profile, ...draft.changes, resumeId: resume.id }}
       profileDraft={{
         resumeName: resume.name,
-        changed: linking ? [...draft.changed, 'resume for this search'] : draft.changed,
+        changed: linking ? [...draft.changed, t('profile.draft.changed.resume')] : draft.changed,
         warnings: draft.warnings,
       }}
     />,

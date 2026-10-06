@@ -7,6 +7,8 @@
  * commonest function words of each language, counted — no model, no package.
  */
 
+import { t } from './i18n/t';
+
 export interface TextLanguage {
   code: string;
   name: string;
@@ -61,5 +63,6 @@ export function textLanguage(text: string): TextLanguage | null {
 export function notEnglishNotice(postingText: string): string | null {
   const language = textLanguage(postingText);
   if (language === null || language.code === 'en') return null;
-  return `This posting is in ${language.name}. The comparison and the letter are written for English: a requirement phrased in ${language.name} may not match your resume's words, and a letter comes out in English.`;
+  // The message names the language itself, by its code: a translation declines it where its sentence needs.
+  return t('target.notEnglish', { code: language.code });
 }

@@ -308,7 +308,7 @@ clause at the start of the affected job/handler. The toggles live on
 | `localContextTokens`             | NULL     | The context window the local engine asks for on every call: 8k / 16k / 32k / 64k tokens; NULL = 16 384. A prompt estimated larger than it is refused before it is sent, and the next engine takes the call |
 | `pack`                           | NULL     | Application packs (ADR 0063), one JSON value read by `pack/settings.ts`: `enabled` (false), `minFit` (90), `dailyLimit` (5; 0 = none), `maxAgeDays` (7), `coverLetter` (never / asked / always) and the tailoring `policy`. NULL = off with those defaults. Settings → General → Application packs |
 | `aiBudgetCents`                  | NULL     | A monthly ceiling on billed AI money: one line to the alert chats at 80 % and at 100 %, once each per UTC month (`aiBudgetAlerted` holds the last one sent). NULL = no budget. Nothing is ever stopped (ADR 0055) |
-| `locale`                         | NULL     | The interface's language (ADR 0061). NULL = never chosen: English, and a browser that prefers an offered language sees one line proposing it. Set from the globe at the bottom of the menu, the wizard's first step or Settings → General → Language; finishing setup stores the language the wizard was read in. The worker's messages follow it. Prompts and what a model writes do not |
+| `locale`                         | NULL     | The interface's language (ADR 0061). NULL = never chosen: English, and a browser that prefers an offered language sees one line proposing it. Set from the globe at the bottom of the menu, the wizard's first step or Settings → General → Language; finishing setup stores the language the wizard was read in. The worker's messages do not follow it yet: they are English until stage 4 of ADR 0061. Prompts and what a model writes never do |
 
 ## Application tracking
 
@@ -901,13 +901,17 @@ writes, resumes, letters, a posting's own words, logs and CSV values are not.
   language has.
 - **The language of the moment** is in `AsyncLocalStorage`
   (`src/i18n/locale.ts`): set per request by the dashboard's middleware,
-  English outside one. Dates, numbers, lists, weekday and country names come
+  English outside one. The worker sets none yet, so alerts, the recap and
+  the reminders stay English until stage 4. Dates, numbers, lists, weekday and country names come
   from `src/i18n/format.ts` in that language, in Latin digits.
 - **Stages.** A language is `ready` or `beta` (both in the switcher; beta is
   machine-translated from `docs/translating.md` and says so), or `unfinished`
   (only under Settings → General → Language, while pages are still being
   moved to the catalog). Today: English is ready, Ukrainian is unfinished —
-  the menu and the shared controls are translated, the pages are not yet.
+  the menu, the shared controls and the job seeker's pages are translated;
+  employer mode, what a browser module writes into a page, the worker's
+  messages and the pages added since v2.46 (import, folders, application
+  packs) are not yet.
 - **It never changes by itself.** A stored choice wins. With none, a first
   run opens in the browser's language if it is offered, and finishing setup
   stores it; an install already set up stays English and shows one line in

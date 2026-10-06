@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { logger } from '../logger';
 import type { MatchMode } from '../resume/match-mode';
+import type { MessageKey } from '../i18n/catalog';
+import { t } from '../i18n/t';
 
 /*
  * In-memory registry for long compare runs (extract → scan → match). The
@@ -102,7 +104,7 @@ function createRun(
     stageAt: Date.now(),
     stepMs: {},
     backUrl: '/target',
-    backLabel: 'Back to Target',
+    backLabel: t('target.run.backToTarget'),
     ...fields,
   };
   runs.set(run.id, run);
@@ -187,15 +189,14 @@ export function getRun(id: string): TargetRun | null {
 export const LETTER_FAILED =
   'The engine returned no letter, so nothing was saved and earlier letters are untouched. Test the engine on Settings → AI engine, then generate again; the web log has the detail.';
 
-/** A failure nobody planned for: the chain threw. */
-export const UNEXPECTED_FAILURE =
-  'The run stopped on an unexpected error before it stored a result. Go back and start it again; the web log has the detail.';
+/** A failure nobody planned for: the chain threw. A catalog key, worded where it is stored or shown. */
+export const UNEXPECTED_FAILURE = 'target.run.unexpectedFailure' as const satisfies MessageKey;
 
 /** Runs the async chain; any uncaught failure flips the run to error. */
 export function startRun(id: string, fn: () => Promise<void>): void {
   void fn().catch((err) => {
     logger.error({ err, runId: id }, 'web: compare run failed');
-    updateRun(id, { stage: 'error', error: UNEXPECTED_FAILURE });
+    updateRun(id, { stage: 'error', error: t(UNEXPECTED_FAILURE) });
   });
 }
 

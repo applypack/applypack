@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { addUsage, billingOf, checkLocalAiUrl, checkOpenAiBaseUrl, count, featureName, hasUsage, isLocalUrl, NO_USAGE } from './ai-usage';
+import { addUsage, billingOf, checkLocalAiUrl, checkOpenAiBaseUrl, count, hasUsage, isLocalUrl, NO_USAGE } from './ai-usage';
 
 test('a count is what the vendor reported, or null', () => {
   assert.equal(count(1204), 1204);
@@ -47,10 +47,6 @@ test('a local server is this machine or a private network, nothing that merely l
   }
 });
 
-test('a feature reads as words, and one this version does not know reads as itself', () => {
-  assert.equal(featureName('resume-match'), 'Full analysis');
-  assert.equal(featureName('something-new'), 'something-new');
-});
 
 test('a server address is http(s) without a key in it, and plain http only on this machine', () => {
   assert.deepEqual(checkOpenAiBaseUrl('  http://127.0.0.1:11434/v1/  '), { ok: true, url: 'http://127.0.0.1:11434/v1' });

@@ -1,4 +1,5 @@
 import type { DiffOp } from '../resume/line-diff';
+import { t } from '../i18n/t';
 
 /*
  * What "Refresh the description from the company's listing" is about to do
@@ -82,29 +83,24 @@ export function foldOps(ops: DiffOp[]): PreviewRow[] {
   return rows;
 }
 
-/** The page's one-line summary of the swap. */
+/**
+ * The page's one-line summary of the swap. One whole message per case: the
+ * size, the comparison and the line counts agree with each other in every
+ * language, not only in English.
+ */
 export function describeRefresh(plan: RefreshPlan): string {
-  if (plan.unchanged) return `The company's listing reads the same as the stored description (${plan.before.toLocaleString('en-US')} characters) — nothing to replace.`;
-  const size =
-    plan.after > plan.before
-      ? `${plan.after.toLocaleString('en-US')} characters instead of ${plan.before.toLocaleString('en-US')}`
-      : plan.after === plan.before
-        ? `the same ${plan.after.toLocaleString('en-US')} characters, differently worded`
-        : `${plan.after.toLocaleString('en-US')} characters instead of ${plan.before.toLocaleString('en-US')} — shorter`;
-  return `${size}: ${plan.added} line${plan.added === 1 ? '' : 's'} added, ${plan.removed} removed.`;
+  if (plan.unchanged) return t('description.summary.same', { chars: plan.before });
+  const counts = { before: plan.before, after: plan.after, added: plan.added, removed: plan.removed };
+  if (plan.after > plan.before) return t('description.summary.longer', counts);
+  return t(plan.after === plan.before ? 'description.summary.reworded' : 'description.summary.shorter', counts);
 }
 
 /** The flash after the swap, naming what changed and what it set in motion. */
 export function refreshFlash(before: number, after: number, reclassified: boolean): string {
-  const sizes = `${before.toLocaleString('en-US')} → ${after.toLocaleString('en-US')} characters`;
-  const scored = reclassified
-    ? 'Re-classified against your running searches'
-    : 'No running search to re-classify against';
-  return `Description replaced with the company's listing (${sizes}); the original is kept. ${scored}; the next comparison reads the posting afresh.`;
+  return t(reclassified ? 'description.replaced.reclassified' : 'description.replaced.noSearch', { before, after });
 }
 
 /** The flash after "Restore the original". */
 export function restoreFlash(chars: number, reclassified: boolean): string {
-  const scored = reclassified ? 'Re-classified' : 'No running search to re-classify against';
-  return `Original description restored (${chars.toLocaleString('en-US')} characters). ${scored}; the next comparison reads the posting afresh.`;
+  return t(reclassified ? 'description.restored.reclassified' : 'description.restored.noSearch', { chars });
 }

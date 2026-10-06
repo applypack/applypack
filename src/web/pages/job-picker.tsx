@@ -2,6 +2,7 @@
 import type { FC, PropsWithChildren } from 'hono/jsx';
 import type { JobPickOption } from '../job-pick';
 import { Hint, Input, Select } from '../ui';
+import { t } from '../../i18n/t';
 
 /*
  * "One of your jobs" on every launcher (/target, /letter, /screen/new): a
@@ -17,12 +18,13 @@ export const JobPicker: FC<PropsWithChildren<{ jobs: JobPickOption[]; selectedId
   children,
 }) => (
   <div class="space-y-2">
-    <Input type="search" id="job-search" placeholder="Filter by title or company…" aria-label="Filter jobs" autocomplete="off" />
-    <Select name="jobId" id="job-select" size={8} aria-label="Job" class="!h-auto" data-required>
+    <Input type="search" id="job-search" placeholder={t('job.picker.filterByTitleOrCompany')} aria-label={t('job.picker.filterJobs')} autocomplete="off" />
+    <Select name="jobId" id="job-select" size={8} aria-label={t('job.picker.job')} class="!h-auto" data-required>
       {jobs.map((j) => (
-        <option value={j.id} selected={j.id === selectedId}>
+        // The company and the title are the posting's own; the note and the age are already in the reader's language.
+        <option value={j.id} selected={j.id === selectedId} translate="no">
           {j.companyName} — {j.title}
-          {j.note ? ` · ${j.note}` : ''} · {j.ageDays === 0 ? 'today' : `${j.ageDays}d old`}
+          {j.note ? ` · ${j.note}` : ''} · {j.ageDays === 0 ? t('job.picker.today') : t('job.picker.daysOld', { n: j.ageDays })}
         </option>
       ))}
     </Select>

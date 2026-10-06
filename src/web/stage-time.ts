@@ -3,6 +3,7 @@
 // so they never date a stage — such cards fall back to appliedAt.
 
 import { TERMINAL_KEYS } from './stage-config';
+import { t } from '../i18n/t';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -51,16 +52,16 @@ export function stageTimeLine(
   const name = label.toLowerCase();
   let text: string;
   if (!entered && stage !== 'applied') {
-    text = days === 0 ? 'applied today' : `applied ${days}d ago`;
+    text = days === 0 ? t('applications.line.appliedToday') : t('applications.line.appliedAgo', { days });
   } else if (stage === 'applied' || terminal) {
-    text = days === 0 ? `${name} today` : `${name} ${days}d ago`;
+    text = days === 0 ? t('applications.line.stageToday', { stage: name }) : t('applications.line.stageAgo', { stage: name, days });
   } else {
-    text = days === 0 ? `in ${name} today` : `in ${name} ${days}d`;
+    text = days === 0 ? t('applications.line.inStageToday', { stage: name }) : t('applications.line.inStage', { stage: name, days });
   }
 
   // The word, not just a warn colour — colour alone carries no meaning.
   const stale = !terminal && entryKnown && days > STALE_DAYS;
-  return { text: stale ? `${text} · stalled` : text, stale, since };
+  return { text: stale ? t('applications.line.stalled', { line: text }) : text, stale, since };
 }
 
 /**

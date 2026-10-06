@@ -5,9 +5,11 @@ import { prisma } from '../../db';
 import { loadKeywordMatcher } from '../../resume/keyword-matcher';
 import { addKeyword, editKeyword, type EditResult } from '../../resume/keyword-overrides';
 import { readKeywords, type MatchKeyword } from '../../resume/prompts';
-import { REQUIREMENT_LEVELS } from '../../resume/score';
+import { REQUIREMENT_LEVELS, type RequirementLevel } from '../../resume/score';
 import { getMatch, rescoreMatchKeywords } from '../../resume/store';
 import { flashRedirect, safeBack } from '../flash';
+import type { MessageKey } from '../../i18n/catalog';
+import { t } from '../../i18n/t';
 
 /*
  * Per-keyword overrides (target-plan.md §5). Re-levelling, ignoring and adding
@@ -17,6 +19,9 @@ import { flashRedirect, safeBack } from '../flash';
  * (routes/facts.ts). No AI call is made or needed.
  */
 
+/** The level a keyword is added at when the form names none. */
+const DEFAULT_LEVEL: RequirementLevel = 'preferred';
+
 const KeywordFormSchema = z.object({
   op: z.enum(['level', 'ignore', 'restore', 'reset', 'add']),
   term: z.string().trim().min(1).max(100),
@@ -24,25 +29,31 @@ const KeywordFormSchema = z.object({
   back: z.string().optional(),
 });
 
-/** What the flash says happened, before the score half of the sentence. */
-function describe(
-  op: z.infer<typeof KeywordFormSchema>['op'],
+type KeywordOp = z.infer<typeof KeywordFormSchema>['op'];
+
+/** The flash for each edit: what happened and what it did to the score, one sentence. */
+const DONE = {
+  add: 'keyword.flash.added',
+  level: 'keyword.flash.levelled',
+  ignore: 'keyword.flash.ignored',
+  restore: 'keyword.flash.restored',
+} as const satisfies Partial<Record<KeywordOp, MessageKey>>;
+
+function doneFlash(
+  op: KeywordOp,
   result: { term: string; removed: boolean },
-  requirement: string | undefined,
+  requirement: RequirementLevel | undefined,
+  score: { before: number; after: number },
 ): string {
-  const term = result.term;
-  switch (op) {
-    case 'add':
-      return `Added "${term}" as ${requirement}`;
-    case 'level':
-      return `"${term}" is now ${requirement}`;
-    case 'ignore':
-      return `Ignoring "${term}"`;
-    case 'restore':
-      return `"${term}" counts again`;
-    default:
-      return result.removed ? `Removed "${term}"` : `"${term}" back to the AI's own verdict`;
-  }
+  // A reset of a keyword the user added takes it off the list; of any other, it gives the AI's verdict back.
+  const key = op === 'reset' ? (result.removed ? 'keyword.flash.removed' : 'keyword.flash.reset') : DONE[op];
+  return t(key, {
+    term: result.term,
+    level: requirement ? t(`keyword.level.${requirement}`) : '',
+    moved: score.before === score.after ? 'no' : 'yes',
+    before: score.before,
+    after: score.after,
+  });
 }
 
 export const keywordsRoute = new Hono();
@@ -69,7 +80,7 @@ keywordsRoute.post('/jobs/:id/matches/:matchId/keywords', async (c) => {
       loadKeywordMatcher(),
     ]);
     if (!job) return c.text('Not found', 404);
-    const requirement = form.requirement ?? 'preferred';
+    const requirement = form.requirement ?? DEFAULT_LEVEL;
     // The same posting text the anchor pass reads, so "not in posting" means
     // the same thing whoever added the term.
     const posting = `${job.title}\n${job.description}`;
@@ -93,11 +104,9 @@ keywordsRoute.post('/jobs/:id/matches/:matchId/keywords', async (c) => {
   const result = outcome.detail;
   if (!result.ok) return flashRedirect(back, 'err', result.error);
   if (!outcome.scored) {
-    return flashRedirect(back, 'warn', 'This comparison predates the deterministic score — run Compare again to edit its keywords.');
+    return flashRedirect(back, 'warn', t('keyword.flash.predates'));
   }
-  const score =
-    outcome.after === outcome.before
-      ? `score stays ${outcome.after}`
-      : `score ${outcome.before} → ${outcome.after}`;
-  return flashRedirect(back, 'ok', `${describe(form.op, result, form.requirement)} — ${score}, no AI call.`);
+  // An added keyword with no level on the form took the default one above.
+  const level = form.op === 'add' ? (form.requirement ?? DEFAULT_LEVEL) : form.requirement;
+  return flashRedirect(back, 'ok', doneFlash(form.op, result, level, outcome));
 });

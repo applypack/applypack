@@ -3,13 +3,15 @@ import type { FC } from 'hono/jsx';
 import type { CheckState, SummaryGuide } from '../../resume/summary-guide';
 import type { Tone } from '../format';
 import { Hint, TONE_TEXT } from '../ui';
+import type { MessageKey } from '../../i18n/catalog';
+import { t } from '../../i18n/t';
 
-/** The mark a check carries, and the word a screen reader hears in its place. */
-const MARK: Record<CheckState, { glyph: string; tone: Tone; said: string }> = {
-  ok: { glyph: '✓', tone: 'ok', said: 'In place' },
-  todo: { glyph: '○', tone: 'neutral', said: 'Missing' },
-  warn: { glyph: '!', tone: 'warn', said: 'Fix' },
-};
+/** The mark a check carries, and the word a screen reader hears in its place ("In place:"), as a catalog key. */
+const MARK = {
+  ok: { glyph: '✓', tone: 'ok', said: 'summary.mark.ok' },
+  todo: { glyph: '○', tone: 'neutral', said: 'summary.mark.todo' },
+  warn: { glyph: '!', tone: 'warn', said: 'summary.mark.warn' },
+} as const satisfies Record<CheckState, { glyph: string; tone: Tone; said: MessageKey }>;
 
 /**
  * "What this reader looks for in a summary" (summary-guide.ts): the brief's
@@ -23,16 +25,19 @@ export const SummaryGuideBlock: FC<{ guide: SummaryGuide }> = ({ guide }) => {
   return (
     <div class="mb-2 rounded-md border border-line px-3 py-2.5">
       <div class="flex flex-wrap items-baseline gap-x-2">
-        <span class="text-label text-ink">What this reader looks for in a summary</span>
+        <span class="text-label text-ink">{t('summary.heading')}</span>
         <span class="text-meta text-ink-faint">
-          yours: {done} of {guide.checks.length} in place
-          {guide.proposed !== null && ` · the suggestion below: ${guide.proposed} of ${guide.checks.length}`}
+          {guide.proposed === null
+            ? t('summary.tally', { done, total: guide.checks.length })
+            : t('summary.tallyProposed', { done, total: guide.checks.length, proposed: guide.proposed })}
         </span>
       </div>
       {guide.reader && (
+        // Who reads first and what they scan for are the posting brief's own words.
         <Hint class="mt-0.5">
-          Read first by {guide.reader}
-          {guide.scanFor.length > 0 ? `, who scans for: ${guide.scanFor.join(' · ')}` : ''}.
+          {guide.scanFor.length > 0
+            ? t('summary.readerScans', { reader: guide.reader, list: guide.scanFor.join(' · ') })
+            : t('summary.reader', { reader: guide.reader })}
         </Hint>
       )}
       <ul class="mt-2 space-y-1 text-meta">
@@ -42,7 +47,7 @@ export const SummaryGuideBlock: FC<{ guide: SummaryGuide }> = ({ guide }) => {
               {MARK[c.state].glyph}
             </span>
             <span class="min-w-0">
-              <span class="sr-only">{MARK[c.state].said}: </span>
+              <span class="sr-only">{t(MARK[c.state].said)} </span>
               <span class="font-medium text-ink">{c.label}</span>
               <span class="text-ink-muted"> · {c.detail}</span>
             </span>

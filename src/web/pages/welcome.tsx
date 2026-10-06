@@ -1,5 +1,5 @@
 /** @jsxImportSource hono/jsx */
-import type { FC, PropsWithChildren } from 'hono/jsx';
+import type { Child, FC, PropsWithChildren } from 'hono/jsx';
 import { Layout } from '../layout';
 import {
   ActionForm,
@@ -30,7 +30,9 @@ import { WELCOME_STEPS, type WelcomeStep } from '../welcome-steps';
 import type { SourceSuggestion } from '../../starter-packs/suggest';
 import type { PackOffer } from '../pack-offers';
 import { LanguageMenu } from '../language-menu';
-
+import type { MessageKey } from '../../i18n/catalog';
+import { t } from '../../i18n/t';
+import { tRich } from '../rich';
 
 /*
  * First-run wizard (docs/onboarding-plan.md §2). One screen, one action:
@@ -130,62 +132,48 @@ export interface WelcomeProps {
   flash?: FlashMessage | null;
 }
 
-const STEP_TITLES: Record<WelcomeStep, string> = {
-  ai: 'Connect an AI',
-  search: 'Test the search',
-  profile: 'Tell us about you',
-  sources: 'Turn on the boards for your countries',
-  matches: 'See your first matches',
-};
+/** The step titles, as catalog keys: read at render, in the reader's language. */
+const STEP_TITLES = {
+  ai: 'welcome.step.ai',
+  search: 'welcome.step.search',
+  profile: 'welcome.step.profile',
+  sources: 'welcome.step.sources',
+  matches: 'welcome.step.matches',
+} as const satisfies Record<WelcomeStep, MessageKey>;
 
 /** Plain-language setup cards for the "nothing detected" state, in the order a newcomer reads them. */
-const ENGINE_CARDS: { id: AiProviderId; title: string; how: string; env: string | null }[] = [
-  {
-    id: 'claude_code',
-    title: 'I have a Claude subscription',
-    how: 'Run `claude setup-token` on your computer — it opens a browser and prints a token.',
-    env: 'CLAUDE_CODE_OAUTH_TOKEN',
-  },
-  {
-    id: 'anthropic_api',
-    title: 'I have an Anthropic API key',
-    how: 'Keys live at console.anthropic.com → API keys. Pays per token — the classifier is cheap.',
-    env: 'ANTHROPIC_API_KEY',
-  },
-  {
-    id: 'gemini_cli',
-    title: 'I have a Gemini key — the free tier works',
-    how: 'Get one at aistudio.google.com/apikey.',
-    env: 'GEMINI_API_KEY',
-  },
-  {
-    id: 'agy_cli',
-    title: 'I have Google Antigravity',
-    how: 'Log in with `agy` on your computer — see docs/ai-engines.md.',
-    env: null,
-  },
-  {
-    id: 'openai_api',
-    title: 'OpenAI, OpenRouter or Groq',
-    how: 'Any server that speaks /chat/completions. Paste its key here; a server other than OpenAI takes its address on Settings → AI engine.',
-    env: 'OPENAI_API_KEY',
-  },
-  {
-    id: 'codex_cli',
-    title: 'I have a ChatGPT subscription',
-    how: 'Run `codex login` on your computer and mount ~/.codex into the containers — see docs/ai-engines.md.',
-    env: null,
-  },
+const ENGINE_CARDS: { id: AiProviderId; title: MessageKey; how: MessageKey; env: string | null }[] = [
+  { id: 'claude_code', title: 'welcome.engine.claude_code.title', how: 'welcome.engine.claude_code.how', env: 'CLAUDE_CODE_OAUTH_TOKEN' },
+  { id: 'anthropic_api', title: 'welcome.engine.anthropic_api.title', how: 'welcome.engine.anthropic_api.how', env: 'ANTHROPIC_API_KEY' },
+  { id: 'gemini_cli', title: 'welcome.engine.gemini_cli.title', how: 'welcome.engine.gemini_cli.how', env: 'GEMINI_API_KEY' },
+  { id: 'agy_cli', title: 'welcome.engine.agy_cli.title', how: 'welcome.engine.agy_cli.how', env: null },
+  { id: 'openai_api', title: 'welcome.engine.openai_api.title', how: 'welcome.engine.openai_api.how', env: 'OPENAI_API_KEY' },
+  { id: 'codex_cli', title: 'welcome.engine.codex_cli.title', how: 'welcome.engine.codex_cli.how', env: null },
 ];
 
+/** What a source's badge says for its state here. */
+const SOURCE_STATE = {
+  on: 'welcome.sources.state.on',
+  off: 'welcome.sources.state.off',
+  missing: 'welcome.sources.state.missing',
+} as const satisfies Record<SourceSuggestion['state'], MessageKey>;
+
+const QUIET_LINK = 'font-medium text-accent-strong hover:text-accent-deep';
+
+/** A command or a variable's name inside a sentence: the message keeps it, the page sets it as code. */
+const asCode = (words: Child[]): Child => <Code>{words}</Code>;
+
+/** The part of a sentence the eye should land on: a count, a name. */
+const bold = (words: Child[]): Child => <span class="font-medium">{words}</span>;
+
 export const WelcomePage: FC<WelcomeProps> = (p) => (
-  <Layout title="Welcome">
+  <Layout title={t('welcome.title')}>
     <header class="mb-6">
       <div class="flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
         <div>
-          <h1 class="text-title text-ink">Welcome to ApplyPack</h1>
+          <h1 class="text-title text-ink">{t('welcome.heading')}</h1>
           <p data-ui="hint" class="mt-1 text-note leading-5 text-ink-faint">
-            Everything stays editable in Settings.
+            {t('welcome.editableLater')}
           </p>
         </div>
         <div class="flex flex-wrap items-center gap-2">
@@ -193,8 +181,8 @@ export const WelcomePage: FC<WelcomeProps> = (p) => (
           {p.current === 'ai' && <LanguageMenu variant="inline" />}
           {!p.setupCompleted && (
             <ActionForm action="/welcome/skip">
-              <Button size="sm" variant="ghost" title="Mark setup as done; every step stays reachable in Settings">
-                Skip setup
+              <Button size="sm" variant="ghost" title={t('welcome.skip.title')}>
+                {t('welcome.skip')}
               </Button>
             </ActionForm>
           )}
@@ -203,7 +191,7 @@ export const WelcomePage: FC<WelcomeProps> = (p) => (
     </header>
     <Flash flash={p.flash} />
 
-    <ol class="mb-6 grid gap-2 sm:grid-cols-2 xl:grid-cols-4" aria-label="Setup steps">
+    <ol class="mb-6 grid gap-2 sm:grid-cols-2 xl:grid-cols-4" aria-label={t('welcome.stepsLabel')}>
       {p.steps.map((s, i) => {
         const state = s.done ? 'done' : s.key === p.current ? 'active' : 'pending';
         return (
@@ -231,8 +219,8 @@ export const WelcomePage: FC<WelcomeProps> = (p) => (
               >
                 {state === 'done' ? <MarkIcon kind="check" /> : i + 1}
               </span>
-              <span class="truncate">{STEP_TITLES[s.key]}</span>
-              {state === 'done' && <span class="sr-only">(done)</span>}
+              <span class="truncate">{t(STEP_TITLES[s.key])}</span>
+              {state === 'done' && <span class="sr-only">{t('welcome.step.doneSr')}</span>}
             </a>
           </li>
         );
@@ -257,10 +245,8 @@ const StepCard: FC<PropsWithChildren<{ n: number; step: WelcomeStep; done: boole
 }) => (
   <Card>
     <div class="mb-1 flex flex-wrap items-center gap-2">
-      <h2 class="text-entity text-ink">
-        Step {n} — {STEP_TITLES[step]}
-      </h2>
-      {done && <Badge tone="ok">done</Badge>}
+      <h2 class="text-entity text-ink">{t('welcome.step.heading', { n, title: t(STEP_TITLES[step]) })}</h2>
+      {done && <Badge tone="ok">{t('welcome.step.doneBadge')}</Badge>}
     </div>
     {children}
   </Card>
@@ -279,44 +265,39 @@ const LocalModelCard: FC<{ local: LocalModelView; offerInstall: boolean }> = ({ 
   if (servers.length === 0 && !offerInstall) return null;
   return (
     <div class="mt-4 rounded-md border border-line px-4 py-3">
-      <div class="text-sm font-medium text-ink">A model on this computer</div>
+      <div class="text-sm font-medium text-ink">{t('welcome.local.title')}</div>
       {servers.length > 0 ? (
         servers.map((s) => (
           <form method="post" action="/welcome/ai/local" class="mt-2">
             <input type="hidden" name="engine" value={s.engine} />
             <input type="hidden" name="base" value={s.base} />
             <p data-ui="hint" class="text-note leading-5 text-ink-faint">
-              {s.name} answers at {s.host} with {s.models.length === 1 ? 'one model' : `${s.models.length} models`}. Free and
-              private — nothing leaves this machine — but slower than a hosted model, and a small one judges postings less
-              well.{' '}
+              {t('welcome.local.found', { name: s.name, host: s.host, n: s.models.length })}{' '}
               {s.engine === 'local_api'
-                ? 'ApplyPack sets its context window on each call and asks one thing at a time.'
-                : 'Load the model with a context of 16k tokens or more, or a long posting is cut.'}
+                ? t('welcome.local.contextOllama')
+                : t('welcome.local.contextOther')}
             </p>
             <div class="mt-2.5 flex flex-wrap items-end gap-2">
-              <Select name="model" aria-label={`Model on ${s.name}`} class="min-w-[12rem] flex-1">
+              <Select name="model" aria-label={t('welcome.local.modelOn', { name: s.name })} class="min-w-[12rem] flex-1">
                 {s.models.map((m) => (
-                  <option value={m} selected={m === s.preferred}>
+                  <option value={m} selected={m === s.preferred} translate="no">
                     {m}
                   </option>
                 ))}
               </Select>
               <Button variant="secondary">
-                Use it{offerInstall ? '' : ' first'}
+                {offerInstall ? t('welcome.local.use') : t('welcome.local.useFirst')}
               </Button>
             </div>
           </form>
         ))
       ) : empty ? (
         <p data-ui="hint" class="mt-1 text-note leading-5 text-ink-faint">
-          {empty.name} answers at {empty.host} but has no model yet. Pull one — <Code>ollama pull llama3.1:8b</Code>, or
-          download one in LM Studio — then press Check again.
+          {tRich('welcome.local.empty', { name: empty.name, host: empty.host }, { code: asCode })}
         </p>
       ) : (
         <p data-ui="hint" class="mt-1 text-note leading-5 text-ink-faint">
-          Free and private, slower than a hosted model. Install Ollama from ollama.com, run{' '}
-          <Code>ollama pull llama3.1:8b</Code> (or start LM Studio's server), then press Check again. Nothing answers at
-          127.0.0.1:11434 or 127.0.0.1:1234 right now.
+          {tRich('welcome.local.install', {}, { code: asCode })}
         </p>
       )}
     </div>
@@ -331,33 +312,34 @@ const AiStep: FC<WelcomeProps> = ({ ai, steps }) => {
       {connected.length > 0 ? (
         <>
           <p data-ui="hint" class="text-sm text-ink-muted">
-            An AI scores every job against you. Detected on this machine:
+            {t('welcome.ai.detected')}
           </p>
           <ul class="mt-3 space-y-1.5">
             {connected.map((e) => (
               <li class="flex items-center gap-2 text-sm text-ink">
                 <MarkIcon kind="check" class="text-ok" />
-                <span class="font-medium">{e.label}</span>
+                <span class="font-medium" translate="no">
+                  {e.label}
+                </span>
                 <span class="text-ink-faint">— {e.detail}</span>
               </li>
             ))}
           </ul>
           <div class="mt-4 flex flex-wrap items-center gap-2">
-            <Button href="/welcome?step=search">Continue →</Button>
+            <Button href="/welcome?step=search">{t('welcome.continue')}</Button>
             <ActionForm action="/welcome/ai/test">
-              <Button variant="violet" title="One tiny live call — proves the connection end to end">
-                Send a test message
+              <Button variant="violet" title={t('welcome.ai.test.title')}>
+                {t('welcome.ai.test')}
               </Button>
             </ActionForm>
-            <Hint>Optional: one tiny AI call, a few seconds.</Hint>
+            <Hint>{t('welcome.ai.test.hint')}</Hint>
           </div>
           <LocalModelCard local={ai.local} offerInstall={false} />
         </>
       ) : (
         <>
           <p data-ui="hint" class="text-sm text-ink-muted">
-            An AI scores every job against you. None was detected yet: pick the one you have and
-            paste its key. It is saved in your own database — no file to edit, no restart.
+            {t('welcome.ai.none')}
           </p>
           <LocalModelCard local={ai.local} offerInstall />
           <ul class="mt-4 grid gap-3 lg:grid-cols-2">
@@ -365,8 +347,8 @@ const AiStep: FC<WelcomeProps> = ({ ai, steps }) => {
               const status = ai.engines.find((e) => e.id === card.id);
               return (
                 <li class="rounded-md border border-line px-4 py-3">
-                  <div class="text-sm font-medium text-ink">{card.title}</div>
-                  <p data-ui="hint" class="mt-1 text-note leading-5 text-ink-faint">{card.how}</p>
+                  <div class="text-sm font-medium text-ink">{t(card.title)}</div>
+                  <p data-ui="hint" class="mt-1 text-note leading-5 text-ink-faint">{t(card.how)}</p>
                   {status?.keyEnvVar && (
                     <form
                       method="post"
@@ -380,22 +362,22 @@ const AiStep: FC<WelcomeProps> = ({ ai, steps }) => {
                         required
                         autocomplete="off"
                         spellcheck="false"
-                        aria-label={`${status.label} key`}
-                        placeholder="Paste it here"
+                        aria-label={t('welcome.ai.keyLabel', { engine: status.label })}
+                        placeholder={t('welcome.ai.keyPlaceholder')}
                         mono
                         class="min-w-[12rem] flex-1"
                       />
                       <Button variant="secondary">
-                        Save
+                        {t('common.save')}
                       </Button>
                     </form>
                   )}
                   {status && (
-                    <p data-ui="hint" class="mt-2 text-meta text-ink-faint">Right now: {status.detail}</p>
+                    <p data-ui="hint" class="mt-2 text-meta text-ink-faint">{t('welcome.ai.rightNow', { detail: status.detail })}</p>
                   )}
                   {card.env && (
                     <p data-ui="hint" class="mt-1 text-meta text-ink-faint">
-                      Prefer a file? <Code>{card.env}</Code> in <Code>.env</Code> works too.
+                      {tRich('welcome.ai.envFile', { name: card.env }, { code: asCode })}
                     </p>
                   )}
                 </li>
@@ -403,16 +385,15 @@ const AiStep: FC<WelcomeProps> = ({ ai, steps }) => {
             })}
           </ul>
           <div class="mt-4 flex flex-wrap items-center gap-2">
-            <Button href="/welcome">Check again</Button>
+            <Button href="/welcome">{t('welcome.ai.checkAgain')}</Button>
             <Hint>
-              Full instructions per engine:{' '}
-              <a
-                href="https://github.com/applypack/applypack/blob/main/docs/ai-engines.md"
-                class="font-medium text-accent-strong hover:text-accent-deep"
-              >
-                docs/ai-engines.md
-              </a>
-              .
+              {tRich('welcome.ai.docs', {}, {
+                link: (words) => (
+                  <a href="https://github.com/applypack/applypack/blob/main/docs/ai-engines.md" class={QUIET_LINK}>
+                    {words}
+                  </a>
+                ),
+              })}
             </Hint>
           </div>
         </>
@@ -432,59 +413,57 @@ const SearchStep: FC<WelcomeProps> = ({ search, steps }) => {
         <>
           <p class="text-sm text-ink">
             <MarkIcon kind="check" class="mr-1 inline text-ok" />
-            <span class="font-medium">{search.jobCount.toLocaleString()} jobs</span> are in your
-            database.
+            {tRich('welcome.search.stored', { n: search.jobCount }, { b: bold })}
             {last && (
               <>
                 {' '}
-                The last search saw {last.fetched.toLocaleString()} from {last.sources} sources
-                {last.failed > 0 ? ` (${last.failed} did not answer)` : ''} in{' '}
-                {formatDuration(last.durationMs)} and stored {last.stored.toLocaleString()} new.
+                {t('welcome.search.last', {
+                  fetched: last.fetched,
+                  sources: last.sources,
+                  failed: last.failed,
+                  duration: formatDuration(last.durationMs),
+                  stored: last.stored,
+                })}
               </>
             )}
           </p>
           <div class="mt-4 flex flex-wrap items-center gap-2">
-            <Button href="/welcome?step=profile">Continue →</Button>
+            <Button href="/welcome?step=profile">{t('welcome.continue')}</Button>
             <ActionForm action="/welcome/search">
-              <Button variant="secondary">Search again</Button>
+              <Button variant="secondary">{t('welcome.search.again')}</Button>
             </ActionForm>
           </div>
         </>
       ) : (
         <>
           <p data-ui="hint" class="text-sm text-ink-muted">
-            See that the search works before setting anything up: this asks the{' '}
-            {search.aggregators} aggregator boards that are on and stores what it finds. No AI and
-            no profile needed.
+            {t('welcome.search.intro', { n: search.aggregators })}
           </p>
           <More class="mt-1">
-            Aggregators publish every posting they have, so they answer without knowing you. The
-            company boards join the hourly watch once your profile exists.
+            {t('welcome.search.more')}
           </More>
           {last && last.fetched === 0 && (
             <p class="mt-2 text-note leading-5 text-warn">
-              The last search got nothing from {last.sources} sources — that usually means no
-              network. Check the connection and try again; the Companies page shows which boards
-              stopped answering.
+              {t('welcome.search.nothing', { n: last.sources })}
             </p>
           )}
           {search.runningRunId ? (
             <div class="mt-4">
-              <Button href={`/runs/fetch-now/${search.runningRunId}`}>Watch the search →</Button>
+              <Button href={`/runs/fetch-now/${search.runningRunId}`}>{t('welcome.search.watch')}</Button>
             </div>
           ) : (
             <form method="post" action="/welcome/search" class="mt-4">
               <TagListInput
-                label="Where do you work? (optional)"
-                hint="Boards that can narrow by place will, and your search profile starts from it."
-                more='Type "Poland", "Polska", "PL" or a city and pick from the list.'
+                label={t('welcome.search.where')}
+                hint={t('welcome.search.where.hint')}
+                more={t('welcome.search.where.more')}
                 name="countries"
                 values={search.countries}
-                placeholder="Poland, Germany, United States…"
+                placeholder={t('welcome.search.where.placeholder')}
                 rows={1}
                 picker="countries"
               />
-              <Button class="mt-3">Run a test search</Button>
+              <Button class="mt-3">{t('welcome.search.run')}</Button>
             </form>
           )}
         </>
@@ -502,85 +481,98 @@ const ProfileStep: FC<WelcomeProps> = ({ profile, steps }) => {
     <StepCard n={3} step="profile" done={done}>
       {d ? (
         <>
-          <p data-ui="hint" class="text-sm text-ink-muted">From your resume "{d.resumeName}":</p>
+          <p data-ui="hint" class="text-sm text-ink-muted">{t('welcome.draft.from', { name: d.resumeName })}</p>
           <p class="mt-2 text-sm leading-6 text-ink">
-            Looks like you're a <span class="font-medium">{d.title ?? 'software professional'}</span>
-            {d.primarySkills.length > 0 && (
-              <>
-                {' '}
-                — main tools <span class="font-medium">{d.primarySkills.join(', ')}</span>
-              </>
+            {/* Two sentences, each whole: who the resume says you are, then what the search will look for. */}
+            {tRich(
+              'welcome.draft.youAre',
+              {
+                titled: d.title ? 'yes' : 'no',
+                title: d.title ?? '',
+                tools: d.primarySkills.length > 0 ? 'yes' : 'no',
+                skills: d.primarySkills.join(', '),
+                more: d.skillCount,
+              },
+              { b: bold },
+            )}{' '}
+            {tRich(
+              d.asNew ? 'welcome.draft.huntNew' : 'welcome.draft.hunt',
+              {
+                name: d.profileName,
+                level: d.seniority ? 'yes' : 'no',
+                seniority: d.seniority ?? '',
+                typed: d.roleTypes.length > 0 ? 'yes' : 'no',
+                roles: d.roleTypes.join(' / '),
+              },
+              { b: bold },
             )}
-            {d.skillCount > 0 && <>, plus {d.skillCount} more skills</>}.{' '}
-            {d.asNew ? (
-              <>
-                The second search would be called{' '}
-                <span class="font-medium">"{d.profileName}"</span> and hunt for
-              </>
-            ) : (
-              <>We'll hunt for</>
-            )}
-            {d.seniority ? ` ${d.seniority}` : ''}{' '}
-            {d.roleTypes.length > 0 ? d.roleTypes.join(' / ') : 'matching'} roles using these.
           </p>
           {d.warnings.length > 0 && (
-            <p class="mt-2 text-note leading-5 text-warn">Note: {d.warnings.join('; ')}.</p>
+            <p class="mt-2 text-note leading-5 text-warn">{t('welcome.draft.note', { warnings: d.warnings.join('; ') })}</p>
           )}
           <div class="mt-4 flex flex-wrap items-center gap-2">
             {d.asNew ? (
               <>
                 <ActionForm action="/welcome/profile/create" hidden={{ resumeId: d.resumeId }}>
-                  <Button>Create this second search</Button>
+                  <Button>{t('welcome.draft.create')}</Button>
                 </ActionForm>
                 <Button href="/welcome?step=profile" variant="secondary">
-                  Cancel
+                  {t('ui.cancel')}
                 </Button>
               </>
             ) : (
               <>
                 {d.changed.length > 0 ? (
                   <ActionForm action="/welcome/profile/apply" hidden={{ resumeId: d.resumeId }}>
-                    <Button>Yes, that's me — start matching</Button>
+                    <Button>{t('welcome.draft.apply')}</Button>
                   </ActionForm>
                 ) : (
-                  <Button href="/welcome?step=matches">Continue →</Button>
+                  <Button href="/welcome?step=matches">{t('welcome.continue')}</Button>
                 )}
                 <ActionForm
                   action={`/settings/profiles/${profile.id}/fill-from-resume`}
                   hidden={{ resumeId: d.resumeId }}
                 >
-                  <Button variant="secondary">Let me adjust</Button>
+                  <Button variant="secondary">{t('welcome.draft.adjust')}</Button>
                 </ActionForm>
               </>
             )}
           </div>
           <Hint class="mt-3">
             {d.asNew
-              ? 'Nothing is saved until you press Create. The search you already set up keeps running — switch to the new one on Settings → Searches.'
-              : 'Nothing is saved until you press one of these.'}
+              ? t('welcome.draft.hintNew')
+              : t('welcome.draft.hint')}
           </Hint>
         </>
       ) : done ? (
         <>
           <p class="text-sm text-ink">
             <MarkIcon kind="check" class="mr-1 inline text-ok" />
-            Profile <span class="font-medium">"{profile.name}"</span> hunts for{' '}
-            {profile.roleTypes.length > 0 ? profile.roleTypes.join(' / ') : 'matching'} roles
-            {profile.stackRequired.length > 0 && <> built with {profile.stackRequired.join(', ')}</>}.
+            {tRich(
+              'welcome.profile.done',
+              {
+                name: profile.name,
+                typed: profile.roleTypes.length > 0 ? 'yes' : 'no',
+                roles: profile.roleTypes.join(' / '),
+                stacked: profile.stackRequired.length > 0 ? 'yes' : 'no',
+                stack: profile.stackRequired.join(', '),
+              },
+              { b: bold },
+            )}
           </p>
           <div class="mt-4 flex flex-wrap items-center gap-2">
-            <Button href="/welcome?step=matches">Continue →</Button>
+            <Button href="/welcome?step=matches">{t('welcome.continue')}</Button>
             <Button href="/settings?tab=profile" variant="secondary">
-              Adjust in Settings
+              {t('welcome.profile.adjust')}
             </Button>
           </div>
           <details class="mt-5 rounded-md border border-line">
             <summary class="cursor-pointer select-none px-4 py-2.5 text-note font-medium text-ink hover:text-accent-strong">
-              Another resume for a different kind of role?
+              {t('welcome.profile.another.summary')}
             </summary>
             <div class="space-y-3 border-t border-line px-4 py-4">
               <Hint class="!mt-0">
-                It becomes a second search linked to that resume. Up to eight run at once.
+                {t('welcome.profile.another.hint')}
               </Hint>
               <form
                 method="post"
@@ -589,7 +581,7 @@ const ProfileStep: FC<WelcomeProps> = ({ profile, steps }) => {
                 class="flex flex-wrap items-end gap-3"
               >
                 <input type="hidden" name="mode" value="new" />
-                <Field label="Another resume" class="min-w-0 flex-1">
+                <Field label={t('welcome.profile.another.file')} class="min-w-0 flex-1">
                   <input
                     type="file"
                     name="file"
@@ -598,19 +590,21 @@ const ProfileStep: FC<WelcomeProps> = ({ profile, steps }) => {
                     class={`block w-full text-sm text-ink-muted ${FILE_INPUT_CLASS}`}
                   />
                 </Field>
-                <Button variant="secondary">Upload &amp; read it</Button>
+                <Button variant="secondary">{t('welcome.profile.another.upload')}</Button>
               </form>
               {profile.resumes.length > 0 && (
                 <form method="post" action="/welcome/resume" class="flex flex-wrap items-end gap-3">
                   <input type="hidden" name="mode" value="new" />
-                  <Field label="…or one you already uploaded" class="min-w-0 flex-1">
+                  <Field label={t('welcome.profile.another.existing')} class="min-w-0 flex-1">
                     <Select name="resumeId">
                       {profile.resumes.map((r) => (
-                        <option value={r.id}>{r.name}</option>
+                        <option value={r.id} translate="no">
+                          {r.name}
+                        </option>
                       ))}
                     </Select>
                   </Field>
-                  <Button variant="secondary">Use this resume</Button>
+                  <Button variant="secondary">{t('welcome.profile.useResume')}</Button>
                 </form>
               )}
             </div>
@@ -619,8 +613,7 @@ const ProfileStep: FC<WelcomeProps> = ({ profile, steps }) => {
       ) : (
         <>
           <p data-ui="hint" class="text-sm text-ink-muted">
-            Choose your resume: one AI call reads your tools and roles in about half a minute.{' '}
-            {profile.scanCost} ApplyPack is built for software engineering roles.
+            {t('welcome.profile.intro', { cost: profile.scanCost })}
           </p>
           <form
             method="post"
@@ -629,7 +622,7 @@ const ProfileStep: FC<WelcomeProps> = ({ profile, steps }) => {
             class="mt-4 flex flex-wrap items-end gap-3"
             data-needs-file
           >
-            <Field label="Your resume" hint={`${ACCEPTED_EXTENSIONS.join(', ')} · up to 5 MB`} class="min-w-0 flex-1">
+            <Field label={t('welcome.profile.file')} hint={t('welcome.profile.file.hint', { formats: ACCEPTED_EXTENSIONS.join(', ') })} class="min-w-0 flex-1">
               <input
                 type="file"
                 name="file"
@@ -638,56 +631,59 @@ const ProfileStep: FC<WelcomeProps> = ({ profile, steps }) => {
                 class={`block w-full text-sm text-ink-muted ${FILE_INPUT_CLASS}`}
               />
             </Field>
-            <Button>Upload</Button>
+            <Button>{t('welcome.profile.upload')}</Button>
           </form>
           <script dangerouslySetInnerHTML={{ __html: NEEDS_FILE_JS }} />
           {profile.resumes.length > 0 && (
             <form method="post" action="/welcome/resume" class="mt-3 flex flex-wrap items-end gap-3">
-              <Field label="…or use one you already uploaded" class="min-w-0 flex-1">
+              <Field label={t('welcome.profile.existing')} class="min-w-0 flex-1">
                 <Select name="resumeId">
                   {profile.resumes.map((r) => (
-                    <option value={r.id}>{r.name}</option>
+                    <option value={r.id} translate="no">
+                      {r.name}
+                    </option>
                   ))}
                 </Select>
               </Field>
-              <Button variant="secondary">Use this resume</Button>
+              <Button variant="secondary">{t('welcome.profile.useResume')}</Button>
             </form>
           )}
           <details class="mt-5 rounded-md border border-line">
             <summary class="cursor-pointer select-none px-4 py-2.5 text-note font-medium text-ink hover:text-accent-strong">
-              No file handy? Answer three questions instead.
+              {t('welcome.profile.questions')}
             </summary>
             <form method="post" action="/welcome/profile" class="space-y-4 border-t border-line px-4 py-4">
               <Field
-                label="Main technologies"
-                hint="Languages and frameworks a job must use — comma-separated."
+                label={t('welcome.profile.stack')}
+                hint={t('welcome.profile.stack.hint')}
               >
                 <Input
                   type="text"
                   name="stackRequired"
-                  placeholder="php, laravel, mysql"
+                  placeholder={t('welcome.profile.stack.placeholder')}
                   value={profile.stackRequired.join(', ')}
                 />
               </Field>
-              <Field label="Role words" hint="Words from job titles you'd apply to.">
+              <Field label={t('welcome.profile.roles')} hint={t('welcome.profile.roles.hint')}>
                 <Input
                   type="text"
                   name="roleTypes"
-                  placeholder="backend, full-stack"
+                  placeholder={t('welcome.profile.roles.placeholder')}
                   value={profile.roleTypes.join(', ')}
                 />
               </Field>
               <fieldset>
-                <legend class="text-label text-ink">Seniority</legend>
+                <legend class="text-label text-ink">{t('welcome.profile.seniority')}</legend>
                 <div class="mt-2 flex flex-wrap gap-1.5">
                   {SENIORITY_LEVELS.map((s) => (
                     <PillCheckbox name="seniority" value={s} checked={profile.seniority.includes(s)}>
-                      {s}
+                      {/* The level as the profile stores it and postings write it: a term, in every language. */}
+                      <span translate="no">{s}</span>
                     </PillCheckbox>
                   ))}
                 </div>
               </fieldset>
-              <Button>Save and continue</Button>
+              <Button>{t('welcome.profile.save')}</Button>
             </form>
           </details>
         </>
@@ -706,24 +702,24 @@ const SourcesStep: FC<WelcomeProps> = ({ sources, steps }) => {
       {sources.suggestions.length === 0 ? (
         <p data-ui="hint" class="text-sm text-ink-muted">
           {sources.packs.length > 0
-            ? 'No board feed fits where your searches hunt yet — the starter packs below do.'
-            : 'Your searches hunt where the boards already switched on look — nothing to add. Name a country in Settings → Searches and the boards for it show up here.'}
+            ? t('welcome.sources.onlyPacks')
+            : t('welcome.sources.nothing')}
         </p>
       ) : (
         <>
           <p data-ui="hint" class="text-sm text-ink-muted">
-            Turn them all on now; each one can be switched off on the Companies page later.
+            {t('welcome.sources.intro')}
           </p>
           <ul class="mt-3 divide-y divide-line rounded-md border border-line">
             {sources.suggestions.map((s) => (
               <li class="flex items-center justify-between gap-4 px-4 py-2.5 text-sm">
                 <span class="min-w-0">
-                  <span class="block truncate font-medium text-ink">{s.name}</span>
+                  <span class="block truncate font-medium text-ink" translate="no">
+                    {s.name}
+                  </span>
                   <span class="block truncate text-note text-ink-faint">{s.reason}</span>
                 </span>
-                <Badge tone={s.state === 'on' ? 'ok' : 'neutral'}>
-                  {s.state === 'on' ? 'on' : s.state === 'off' ? 'added, off' : 'not added yet'}
-                </Badge>
+                <Badge tone={s.state === 'on' ? 'ok' : 'neutral'}>{t(SOURCE_STATE[s.state])}</Badge>
               </li>
             ))}
           </ul>
@@ -731,14 +727,14 @@ const SourcesStep: FC<WelcomeProps> = ({ sources, steps }) => {
       )}
       {sources.packs.length > 0 && (
         <div class="mt-4">
-          <p class="text-label text-ink">Starter packs for your searches</p>
+          <p class="text-label text-ink">{t('welcome.packs.title')}</p>
           <Hint>
-            A preview shows what resolves; nothing is added until you confirm, and boards land
-            switched off.
+            {t('welcome.packs.hint')}
           </Hint>
-          <More summary="What each pack holds" class="mt-1">
+          <More summary={t('welcome.packs.more')} class="mt-1">
+            {/* A pack's name and blurb are the catalog's own (starter-packs/catalog.json), in English. */}
             {sources.packs.map((pack) => (
-              <p>
+              <p lang="en">
                 <span class="font-medium text-ink-muted">{pack.label}:</span> {pack.blurb}
               </p>
             ))}
@@ -748,15 +744,15 @@ const SourcesStep: FC<WelcomeProps> = ({ sources, steps }) => {
               <li class="flex items-center justify-between gap-4 px-4 py-2.5 text-sm">
                 <span class="min-w-0">
                   <span class="block font-medium text-ink">
-                    {p.label}{' '}
+                    <span lang="en">{p.label}</span>{' '}
                     <span class="font-normal text-ink-faint tabular-nums">
-                      · {p.count} boards{p.tracked > 0 ? `, ${p.tracked} already here` : ''}
+                      {t('welcome.packs.count', { count: p.count, tracked: p.tracked })}
                     </span>
                   </span>
                 </span>
                 <ActionForm action="/companies/starter-pack" hidden={{ segment: p.id, next: 'welcome' }}>
                   <Button size="sm" variant="secondary">
-                    Preview →
+                    {t('welcome.packs.preview')}
                   </Button>
                 </ActionForm>
               </li>
@@ -767,11 +763,11 @@ const SourcesStep: FC<WelcomeProps> = ({ sources, steps }) => {
       <div class="mt-4 flex flex-wrap items-center gap-2">
         {waiting > 0 && (
           <ActionForm action="/companies/suggested/all" hidden={{ next: 'welcome' }} once>
-            <Button>Enable all {waiting}</Button>
+            <Button>{t('welcome.sources.enableAll', { n: waiting })}</Button>
           </ActionForm>
         )}
         <Button href="/welcome?step=matches" variant={waiting > 0 ? 'secondary' : 'primary'}>
-          {waiting > 0 ? 'Skip for now →' : 'Continue →'}
+          {waiting > 0 ? t('welcome.sources.skip') : t('welcome.continue')}
         </Button>
       </div>
     </StepCard>
@@ -790,11 +786,8 @@ const MatchesStep: FC<WelcomeProps> = (p) => {
         <>
           <p class="text-sm text-ink">
             <MarkIcon kind="check" class="mr-1 inline text-ok" />
-            <span class="font-medium">
-              {matches.matchCount} of {matches.scoredCount}
-            </span>{' '}
-            scored jobs look like a match (score {matches.minFitScore} or more).
-            {matches.top.length > 0 && ' Top of the list:'}
+            {tRich('welcome.matches.summary', { matches: matches.matchCount, scored: matches.scoredCount, min: matches.minFitScore }, { b: bold })}
+            {matches.top.length > 0 && <> {t('welcome.matches.top')}</>}
           </p>
           {matches.top.length > 0 && (
             <ul class="mt-3 divide-y divide-line rounded-md border border-line">
@@ -805,10 +798,14 @@ const MatchesStep: FC<WelcomeProps> = (p) => {
                     class="flex items-center justify-between gap-4 px-4 py-2.5 text-sm transition-colors duration-150 hover:bg-surface-overlay/50"
                   >
                     <span class="min-w-0">
-                      <span class="block truncate font-medium text-ink">{j.title}</span>
-                      <span class="block truncate text-note text-ink-faint">{j.companyName}</span>
+                      <span class="block truncate font-medium text-ink" translate="no">
+                        {j.title}
+                      </span>
+                      <span class="block truncate text-note text-ink-faint" translate="no">
+                        {j.companyName}
+                      </span>
                     </span>
-                    <FitBadge score={j.fitScore} label="match" />
+                    <FitBadge score={j.fitScore} label={t('welcome.matches.badge')} />
                   </a>
                 </li>
               ))}
@@ -816,9 +813,7 @@ const MatchesStep: FC<WelcomeProps> = (p) => {
           )}
           {matches.waiting > 0 && (
             <p data-ui="hint" class="mt-3 text-note leading-5 text-ink-faint">
-              {matches.waiting.toLocaleString()} more stored jobs mention your words and are still
-              unscored — score the next {SCORE_BATCH} whenever you like, or let the hourly watch
-              score new ones as they arrive. {matches.scoreCost}
+              {t('welcome.matches.waiting', { n: matches.waiting, batch: SCORE_BATCH, cost: matches.scoreCost })}
             </p>
           )}
           <div class="mt-4 flex flex-wrap items-center gap-2">
@@ -828,14 +823,11 @@ const MatchesStep: FC<WelcomeProps> = (p) => {
       ) : (
         <>
           <p data-ui="hint" class="text-sm text-ink-muted">
-            The AI scores the {SCORE_BATCH} stored jobs that match you best; jobs that mention none
-            of your tools or role words are set aside for free. Seconds per job on an API engine, up
-            to half a minute on a CLI one; press again for the next {SCORE_BATCH}. {matches.scoreCost}
+            {t('welcome.matches.intro', { batch: SCORE_BATCH, cost: matches.scoreCost })}
           </p>
           {matches.waiting === 0 && (
             <p class="mt-2 text-note leading-5 text-warn">
-              None of the stored jobs mention your technologies or role words yet — the hourly watch
-              keeps looking once you start it below.
+              {t('welcome.matches.noneWaiting')}
             </p>
           )}
           <div class="mt-4 flex flex-wrap items-center gap-2">
@@ -854,27 +846,29 @@ const ScoreOrWatch: FC<WelcomeProps> = ({ matches, fetchingEnabled, telegramEnab
     <>
       {matches.runningRunId ? (
         <Button href={`/target/runs/${matches.runningRunId}`} variant="secondary">
-          Watch the scoring →
+          {t('welcome.matches.watch')}
         </Button>
       ) : matches.waiting > 0 ? (
         <ActionForm action="/welcome/score">
           <Button variant="violet">
-            {done ? `Score ${SCORE_BATCH} more` : 'Score the best matches'}
+            {done ? t('welcome.matches.scoreMore', { n: SCORE_BATCH }) : t('welcome.matches.score')}
           </Button>
         </ActionForm>
       ) : null}
       <ActionForm action="/welcome/finish">
         <Button variant={done || matches.waiting === 0 ? 'primary' : 'secondary'}>
-          {fetchingEnabled ? 'Finish setup' : 'Start the hourly watch'}
+          {fetchingEnabled ? t('welcome.finish') : t('welcome.startWatch')}
         </Button>
       </ActionForm>
       {!telegramEnabled && (
         <Hint>
-          Want new matches on your phone? Set up Telegram or Discord later in{' '}
-          <a href="/settings?tab=notifications" class="font-medium text-accent-strong hover:text-accent-deep">
-            Settings → Notifications
-          </a>
-          .
+          {tRich('welcome.matches.phone', {}, {
+            link: (words) => (
+              <a href="/settings?tab=notifications" class={QUIET_LINK}>
+                {words}
+              </a>
+            ),
+          })}
         </Hint>
       )}
     </>
@@ -885,24 +879,24 @@ const ScoreOrWatch: FC<WelcomeProps> = ({ matches, fetchingEnabled, telegramEnab
 
 const AllDone: FC<WelcomeProps> = ({ setupCompleted, fetchingEnabled, matches }) => (
   <Card>
-    <h2 class="text-entity text-ink">Everything is set up</h2>
+    <h2 class="text-entity text-ink">{t('welcome.done.title')}</h2>
     <p data-ui="hint" class="mt-1 text-sm text-ink-muted">
-      AI connected, {matches.scoredCount.toLocaleString()} jobs scored.{' '}
+      {t('welcome.done.summary', { n: matches.scoredCount })}{' '}
       {fetchingEnabled
-        ? 'The hourly watch is running.'
-        : 'The hourly watch is paused; start it to keep the matches coming.'}
+        ? t('welcome.done.watchOn')
+        : t('welcome.done.watchOff')}
     </p>
     <div class="mt-4 flex flex-wrap items-center gap-2">
       {setupCompleted && fetchingEnabled ? (
-        <Button href="/">Go to the Overview →</Button>
+        <Button href="/">{t('welcome.done.overview')}</Button>
       ) : (
         <ActionForm action="/welcome/finish">
-          <Button>{fetchingEnabled ? 'Finish setup' : 'Start the hourly watch'}</Button>
+          <Button>{fetchingEnabled ? t('welcome.finish') : t('welcome.startWatch')}</Button>
         </ActionForm>
       )}
       {matches.waiting > 0 && (
         <ActionForm action="/welcome/score">
-          <Button variant="violet">Score {SCORE_BATCH} more</Button>
+          <Button variant="violet">{t('welcome.matches.scoreMore', { n: SCORE_BATCH })}</Button>
         </ActionForm>
       )}
     </div>

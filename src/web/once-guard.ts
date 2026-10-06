@@ -1,6 +1,7 @@
 import type { Context, MiddlewareHandler } from 'hono';
 import { flashRedirect } from './flash';
 import { beginOnce, endOnce } from './inflight';
+import { t } from '../i18n/t';
 
 /**
  * A route that starts work — an AI call, a new row, a test message — refuses
@@ -10,7 +11,7 @@ import { beginOnce, endOnce } from './inflight';
 export function onceGuard(key: (c: Context) => string, back: (c: Context) => string): MiddlewareHandler {
   return async (c, next) => {
     const k = key(c);
-    if (!beginOnce(k)) return flashRedirect(back(c), 'warn', 'That is already running — give it a moment.');
+    if (!beginOnce(k)) return flashRedirect(back(c), 'warn', t('common.alreadyRunning'));
     try {
       await next();
     } finally {

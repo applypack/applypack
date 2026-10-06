@@ -23,7 +23,7 @@ import {
   Tr,
   When,
 } from '../ui';
-import { formatDateShort, formatSalary } from '../format';
+import { formatDateShort, formatSalary, statusLabel } from '../format';
 import { formatUsdPerYear } from '../../currency';
 import type { WorkplaceCode } from '../../location';
 import { placeLine } from '../place-line';
@@ -41,6 +41,9 @@ import {
 } from '../job-facets';
 import { AdzunaLabel, FranceTravailLine } from './attribution';
 import { VERDICT_TONE } from './verification-card';
+import type { MessageKey } from '../../i18n/catalog';
+import { t } from '../../i18n/t';
+import { tRich } from '../rich';
 
 interface JobRow {
   id: number;
@@ -93,20 +96,15 @@ export interface JobsListProps {
   mutedHidden: number;
 }
 
-const STATUS_TABS: { value: JobStatus | ''; label: string }[] = [
-  { value: '', label: 'All' },
-  { value: 'NEW', label: 'New' },
-  { value: 'ALERTED', label: 'Alerted' },
-  { value: 'APPLIED', label: 'Applied' },
-  { value: 'SAVED', label: 'Saved' },
-  { value: 'DISMISSED', label: 'Dismissed' },
-];
+/** The tabs in order; '' is every status. Each is named when the page renders (`statusLabel`, `jobs.tab.all`). */
+const STATUS_TABS: (JobStatus | '')[] = ['', 'NEW', 'ALERTED', 'APPLIED', 'SAVED', 'DISMISSED'];
 
-const SORT_OPTIONS: { value: string; label: string }[] = [
-  { value: 'fetchedAt_desc', label: 'Recently fetched' },
-  { value: 'fitScore_desc', label: 'Highest fit' },
-  { value: 'postedAt_desc', label: 'Recently posted' },
-  { value: 'title_asc', label: 'Title A-Z' },
+/** The orders the list offers, each with the catalog key of its name. */
+const SORT_OPTIONS: { value: string; label: MessageKey }[] = [
+  { value: 'fetchedAt_desc', label: 'jobs.sort.fetched' },
+  { value: 'fitScore_desc', label: 'jobs.sort.fit' },
+  { value: 'postedAt_desc', label: 'jobs.sort.posted' },
+  { value: 'title_asc', label: 'jobs.sort.title' },
 ];
 
 export const JobsListPage: FC<JobsListProps> = ({
@@ -134,32 +132,33 @@ export const JobsListPage: FC<JobsListProps> = ({
   const allStatuses = Object.values(statusCounts).reduce((sum, n) => sum + n, 0);
 
   return (
-    <Layout title="Jobs" active="jobs" fill>
+    <Layout title={t('nav.jobs')} active="jobs" fill>
       <PageHeader
-        title="Jobs"
-        meta={`${total.toLocaleString()} jobs`}
+        title={t('nav.jobs')}
+        meta={t('jobs.count', { n: total })}
         actions={
           <>
             <Button href="/jobs/import" variant="secondary">
-              Import a file
+              {t('jobs.importAFile')}
             </Button>
             <Button href="/jobs/new" variant="secondary">
-              + Paste a job
+              {t('jobs.pasteAJob')}
             </Button>
           </>
         }
       >
-        Every posting the search found, with its fit and its status.
+        {t('jobs.everyPostingTheSearchFound')}
       </PageHeader>
 
       {blankProfileBanner && (
         <Notice tone="warn" class="mb-4 shrink-0">
-          Every running search is empty — classification idle. New jobs are fetched but
-          not scored or alerted until one lists a required stack or role types.{' '}
-          <a href="/settings?tab=profile" class="font-medium underline">
-            Fix the search
-          </a>
-          .
+          {tRich('jobs.blankProfile', {}, {
+            link: (words) => (
+              <a href="/settings?tab=profile" class="font-medium underline">
+                {words}
+              </a>
+            ),
+          })}
         </Notice>
       )}
 
@@ -178,8 +177,8 @@ export const JobsListPage: FC<JobsListProps> = ({
             type="search"
             name="q"
             value={filters.q}
-            placeholder="Search title, description or location…"
-            aria-label="Search jobs"
+            placeholder={t('jobs.searchTitleDescriptionOrLocation')}
+            aria-label={t('jobs.searchJobs')}
             class="sm:!w-56 xl:!w-72"
           />
           <Input
@@ -188,44 +187,47 @@ export const JobsListPage: FC<JobsListProps> = ({
             min="0"
             max="100"
             value={filters.minFit}
-            placeholder="Fit ≥"
-            aria-label="Minimum fit score"
+            placeholder={t('jobs.minFitPlaceholder')}
+            aria-label={t('jobs.minimumFitScore')}
             class="!w-20 sm:!w-24"
           />
-          <Select name="sort" aria-label="Sort by" class="!w-auto min-w-0 flex-1 sm:!w-44 sm:flex-none">
+          <Select name="sort" aria-label={t('jobs.sortBy')} class="!w-auto min-w-0 flex-1 sm:!w-44 sm:flex-none">
             {SORT_OPTIONS.map((o) => (
               <option value={o.value} selected={filters.sort === o.value}>
-                {o.label}
+                {t(o.label)}
               </option>
             ))}
           </Select>
-          <Button variant="secondary">Apply</Button>
+          <Button variant="secondary">{t('jobs.apply')}</Button>
         </form>
 
         {/* Apply sends the form; Filters are links that act at once — the rule keeps the two apart.
             From lg the row holds both; below it the button wraps and a rule would hang alone. */}
         <span class="mx-1 hidden h-5 w-px bg-line lg:block" aria-hidden="true" />
         {/* `contents`: the button shares the toolbar's row, the panel wraps below it. */}
-        <Disclosure variant="button" summary="Filters" count={filterCount(filters)} open={panelOpen} class="contents">
+        <Disclosure variant="button" summary={t('jobs.filters')} count={filterCount(filters)} open={panelOpen} class="contents">
           <div class="order-last grid basis-full gap-x-4 gap-y-3 rounded-lg border border-line bg-surface-raised p-4 shadow-sm sm:grid-cols-[5rem_minmax(0,1fr)]">
             {profiles.length > 1 && (
-              <FilterRow label="Search">
-                {[{ id: null as number | null, name: 'All' }, ...profiles].map((p) => (
+              <FilterRow name="search" label={t('jobs.filter.search')}>
+                <OptionLink href={inPanel({ profile: null })} selected={filters.profile === null}>
+                  {t('jobs.filter.allSearches')}
+                </OptionLink>
+                {profiles.map((p) => (
                   <OptionLink href={inPanel({ profile: p.id })} selected={filters.profile === p.id}>
-                    {p.name}
+                    <span translate="no">{p.name}</span>
                   </OptionLink>
                 ))}
               </FilterRow>
             )}
             {facets.places.length > 0 && (
-              <FilterRow label="Where">
+              <FilterRow name="where" label={t('jobs.filter.where')}>
                 {places.shown.map((c) => (
                   <FacetLink href={inPanel({ country: toggled(filters.country, c.value) })} chip={c} />
                 ))}
                 {places.more.length > 0 && (
                   <details class="contents">
                     <summary class="inline-flex min-h-[28px] cursor-pointer list-none items-center rounded-md px-2 text-note text-ink-muted underline-offset-2 hover:text-ink hover:underline [&::-webkit-details-marker]:hidden">
-                      More…
+                      {t('jobs.filter.more')}
                     </summary>
                     {places.more.map((c) => (
                       <FacetLink href={inPanel({ country: toggled(filters.country, c.value) })} chip={c} />
@@ -234,44 +236,44 @@ export const JobsListPage: FC<JobsListProps> = ({
                 )}
               </FilterRow>
             )}
-            <FilterRow label="Work">
+            <FilterRow name="work" label={t('jobs.filter.work')}>
               {facets.workplaces.map((c) => (
                 <FacetLink href={inPanel({ workplace: toggled(filters.workplace, c.value) })} chip={c} />
               ))}
             </FilterRow>
-            <FilterRow label="Posted">
+            <FilterRow name="posted" label={t('jobs.filter.posted')}>
               {facets.posted.map((c) => (
                 <FacetLink href={inPanel({ posted: c.selected ? '' : c.value })} chip={c} />
               ))}
             </FilterRow>
-            <FilterRow label="Show">
+            <FilterRow name="show" label={t('jobs.filter.show')}>
               <OptionLink
                 href={inPanel({ verified: filters.verified ? '' : '1' })}
                 selected={filters.verified.length > 0}
-                title="Only jobs with an “Is this job real?” verdict"
+                title={t('jobs.filter.verifiedTitle')}
               >
-                Verified
+                {t('jobs.filter.verified')}
               </OptionLink>
               <OptionLink
                 href={inPanel({ watched: filters.watched ? '' : '1' })}
                 selected={filters.watched.length > 0}
-                title="Only postings from companies on your watchlist"
+                title={t('jobs.filter.watchedTitle')}
               >
-                ★ Watched
+                {t('jobs.filter.watched')}
               </OptionLink>
               <OptionLink
                 href={inPanel({ open: filters.open ? '' : '1' })}
                 selected={filters.open.length > 0}
-                title="Only roles a search of yours can take from where you live"
+                title={t('jobs.filter.openToMeTitle')}
               >
-                Open to me
+                {t('jobs.filter.openToMe')}
               </OptionLink>
               <OptionLink
                 href={inPanel({ muted: filters.muted ? '' : '1' })}
                 selected={filters.muted.length > 0}
-                title="Postings from the companies you muted, which the list hides"
+                title={t('jobs.filter.mutedTitle')}
               >
-                Muted companies
+                {t('jobs.filter.muted')}
               </OptionLink>
             </FilterRow>
           </div>
@@ -279,13 +281,13 @@ export const JobsListPage: FC<JobsListProps> = ({
       </div>
 
       <Tabs
-        label="Job status"
+        label={t('jobs.jobStatus')}
         class="mb-3 shrink-0"
-        tabs={STATUS_TABS.map((t) => ({
-          href: jobsHref({ ...filters, status: t.value }),
-          label: t.label,
-          count: t.value === '' ? allStatuses : (statusCounts[t.value] ?? 0),
-          current: filters.status === t.value,
+        tabs={STATUS_TABS.map((status) => ({
+          href: jobsHref({ ...filters, status }),
+          label: status === '' ? t('jobs.tab.all') : statusLabel(status),
+          count: status === '' ? allStatuses : (statusCounts[status] ?? 0),
+          current: filters.status === status,
         }))}
       />
 
@@ -298,22 +300,25 @@ export const JobsListPage: FC<JobsListProps> = ({
             href={clearFiltersHref(filters)}
             class="ml-1 text-note text-ink-muted underline-offset-2 transition-colors duration-150 hover:text-ink hover:underline"
           >
-            Clear all
+            {t('jobs.clearAll')}
           </a>
         </div>
       )}
 
       {mutedHidden > 0 && (
         <p data-ui="hint" class="mb-3 shrink-0 text-note text-ink-muted">
-          {mutedHidden.toLocaleString()} {mutedHidden === 1 ? 'posting' : 'postings'} from companies you muted{' '}
-          {mutedHidden === 1 ? 'is' : 'are'} hidden.{' '}
-          <a href={jobsHref({ ...filters, muted: '1' })} class="font-medium text-accent-strong hover:text-accent-deep">
-            Show them
-          </a>{' '}
-          ·{' '}
-          <a href="/companies#muted" class="font-medium text-accent-strong hover:text-accent-deep">
-            Manage mutes
-          </a>
+          {tRich('jobs.mutedHidden', { n: mutedHidden }, {
+            show: (words) => (
+              <a href={jobsHref({ ...filters, muted: '1' })} class="font-medium text-accent-strong hover:text-accent-deep">
+                {words}
+              </a>
+            ),
+            manage: (words) => (
+              <a href="/companies#muted" class="font-medium text-accent-strong hover:text-accent-deep">
+                {words}
+              </a>
+            ),
+          })}
         </p>
       )}
 
@@ -324,28 +329,28 @@ export const JobsListPage: FC<JobsListProps> = ({
               {hasFilters ? (
                 <Empty
                   bare
-                  title="No jobs match these filters"
+                  title={t('jobs.noJobsMatchTheseFilters')}
                   action={
                     <Button href="/jobs" variant="secondary" size="sm">
-                      Clear all filters
+                      {t('jobs.clearAllFilters')}
                     </Button>
                   }
                 >
-                  The filters in force hide every stored job; widen them or clear them.
+                  {t('jobs.theFiltersInForceHide')}
                 </Empty>
               ) : (
                 <Empty
                   bare
-                  title="No jobs yet"
+                  title={t('jobs.noJobsYet')}
                   action={
                     <ActionForm action="/runs/fetch-now" once>
                       <Button variant="secondary" size="sm">
-                        Fetch now
+                        {t('fetch.fetchNow')}
                       </Button>
                     </ActionForm>
                   }
                 >
-                  The hourly search fills this list from the sources in Settings → Sources.
+                  {t('jobs.theHourlySearchFillsThis')}
                 </Empty>
               )}
             </div>
@@ -354,7 +359,7 @@ export const JobsListPage: FC<JobsListProps> = ({
               <div class="min-h-0 flex-1 overflow-auto">
                 {/* TASKS U7: a phone keeps the title and the fit; the rest joins as the screen widens. */}
                 <div class="lg:min-w-[64rem]">
-                  <Table caption="Jobs"
+                  <Table caption={t('nav.jobs')}
                     stickyHeader
                     hideBelow={['', 'sm', 'md', '', 'lg', 'sm', 'md']}
                     widths={[
@@ -367,13 +372,13 @@ export const JobsListPage: FC<JobsListProps> = ({
                       'w-[8%]',
                     ]}
                     columns={[
-                      'Title',
-                      'Company',
-                      'Location',
-                      'Fit',
-                      <span class="block text-right">Salary</span>,
-                      'Status',
-                      <span class="block text-right">Fetched</span>,
+                      t('jobs.column.title'),
+                      t('common.company'),
+                      t('common.location'),
+                      t('jobs.column.fit'),
+                      <span class="block text-right">{t('jobs.column.salary')}</span>,
+                      t('jobs.column.status'),
+                      <span class="block text-right">{t('jobs.column.fetched')}</span>,
                     ]}
                   >
                     {jobs.map((j) => {
@@ -385,36 +390,42 @@ export const JobsListPage: FC<JobsListProps> = ({
                             href={`/jobs/${j.id}`}
                             class="block truncate font-medium text-ink transition-colors duration-150 hover:text-accent-strong"
                             title={j.title}
+                            translate="no"
                           >
                             {j.title}
                           </a>
                           {j.liveness === 'expired' && (
-                            <div class="text-meta text-warn" title="No longer on the company's board">
-                              Closed
+                            <div class="text-meta text-warn" title={t('jobs.closedTitle')}>
+                              {t('job.closed')}
                             </div>
                           )}
                           {j.techMatch.length > 0 && (
-                            <div class="mt-0.5 truncate text-meta text-ink-faint">
+                            <div class="mt-0.5 truncate text-meta text-ink-faint" translate="no">
                               {j.techMatch.map(techLabel).join(' · ')}
                             </div>
                           )}
                         </Td>
                         <Td class="text-ink-muted">
-                          <div class="truncate" title={j.employer ?? j.company.name}>
+                          <div class="truncate">
                             {j.company.watched && (
-                              <span title="On your watchlist" aria-label="Watched company">★ </span>
+                              <span title={t('jobs.onYourWatchlist')} aria-label={t('job.watchedCompany')}>★ </span>
                             )}
-                            {j.employer ?? j.company.name}
+                            {/* The company as the posting names it: data, whatever language the page is in. */}
+                            <span title={j.employer ?? j.company.name} translate="no">
+                              {j.employer ?? j.company.name}
+                            </span>
                           </div>
                           {j.employer && j.company.atsType !== 'ADZUNA' && j.company.atsType !== 'FRANCETRAVAIL' && (
-                            <div class="truncate text-meta text-ink-faint">via {j.company.name}</div>
+                            <div class="truncate text-meta text-ink-faint">
+                              {tRich('job.via', {}, { source: () => <span translate="no">{j.company.name}</span> })}
+                            </div>
                           )}
                           {j.company.atsType === 'ADZUNA' && <AdzunaLabel market={j.company.atsToken} class="mt-0.5" />}
                           {j.company.atsType === 'FRANCETRAVAIL' && <FranceTravailLine updatedAt={j.sourceUpdatedAt} class="mt-0.5" />}
                         </Td>
                         <Td class="text-ink-muted">
                           {/* The place in a few words — "Remote · USA, Canada +3" — never a row of flags; the tooltip has every country. */}
-                          <div class="truncate" title={place.title}>
+                          <div class="truncate" title={place.title} translate="no">
                             {place.text}
                           </div>
                         </Td>
@@ -438,7 +449,8 @@ export const JobsListPage: FC<JobsListProps> = ({
                               <Badge
                                 tone={VERDICT_TONE[j.verifications[0].verdict] ?? 'neutral'}
                               >
-                                {j.verifications[0].verdict}
+                                {/* The verifier's own word (legit / suspicious / fake): what a model wrote, left as written. */}
+                                <span lang="en">{j.verifications[0].verdict}</span>
                               </Badge>
                             </div>
                           )}
@@ -456,22 +468,22 @@ export const JobsListPage: FC<JobsListProps> = ({
                 </div>
               </div>
               <nav
-                aria-label="Pagination"
+                aria-label={t('jobs.pagination')}
                 class="flex shrink-0 items-center justify-between gap-3 border-t border-line px-5 py-2.5"
               >
                 <span class="text-note text-ink-faint tabular-nums">
-                  <span class="hidden sm:inline">Showing </span>
-                  {from.toLocaleString()}–{to.toLocaleString()} of {total.toLocaleString()}
+                  {/* A phone keeps the numbers and drops the word before them. */}
+                  {tRich('jobs.showing', { from, to, total }, { wide: (words) => <span class="hidden sm:inline">{words}</span> })}
                 </span>
                 <div class="flex items-center gap-2">
                   <span class="hidden text-note text-ink-faint tabular-nums md:inline">
-                    Page {page} of {totalPages}
+                    {t('jobs.pageOf', { page, pages: totalPages })}
                   </span>
                   <PageLink href={jobsHref(filters, { page: page - 1 })} disabled={page <= 1}>
-                    ← Prev
+                    {t('jobs.prev')}
                   </PageLink>
                   <PageLink href={jobsHref(filters, { page: page + 1 })} disabled={page >= totalPages}>
-                    Next →
+                    {t('jobs.next')}
                   </PageLink>
                 </div>
               </nav>
@@ -488,8 +500,9 @@ export const JobsListPage: FC<JobsListProps> = ({
  * named by its visible label. The label step in muted ink, as a table header
  * names its column; centred on a 28 px option's height so the baselines meet.
  */
-const FilterRow: FC<PropsWithChildren<{ label: string }>> = ({ label, children }) => {
-  const id = `filter-${label.toLowerCase()}`;
+const FilterRow: FC<PropsWithChildren<{ name: string; label: string }>> = ({ name, label, children }) => {
+  // The id is the row's own name, not its words: a label is translated, an id is not.
+  const id = `filter-${name}`;
   return (
     <>
       <div id={id} class="flex min-h-[28px] items-center text-label text-ink-muted">

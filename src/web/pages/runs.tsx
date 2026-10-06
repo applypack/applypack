@@ -14,6 +14,7 @@ import { FunnelCard } from './funnel-card';
 import { runLabel, runTone } from './overview';
 import type { FunnelView } from '../../funnel';
 import type { SourceYield } from '../../jobs/funnel-store';
+import { t } from '../../i18n/t';
 
 interface RunRow {
   id: number;
@@ -38,7 +39,13 @@ export interface RunsProps {
 const RECENT_RUNS = 50;
 
 /** The header names the zone once, so each row can say only the day and the time. */
-const columns = () => ['Job', `Started (${displayZoneLabel()})`, <span class="block text-right">Duration</span>, 'Status', 'What happened'];
+const columns = () => [
+  t('runs.column.job'),
+  t('runs.column.started', { zone: displayZoneLabel() }),
+  <span class="block text-right">{t('runs.duration')}</span>,
+  t('runs.column.status'),
+  t('runs.column.whatHappened'),
+];
 const WIDTHS = ['w-[15%]', 'w-[17%]', 'w-[8%]', 'w-[7%]', 'w-[53%]'];
 
 export const RunsPage: FC<RunsProps> = ({ runs, funnel, fetchRun, flash }) => {
@@ -48,33 +55,32 @@ export const RunsPage: FC<RunsProps> = ({ runs, funnel, fetchRun, flash }) => {
   const earlier = runs.slice(RECENT_RUNS);
   const earlierFailed = earlier.filter((r) => r.status === 'FAILED').length;
   return (
-    <Layout title="Runs" active="runs">
-      <PageHeader title="Runs" meta={`last ${runs.length}`} actions={<FetchNowButton run={fetchRun} />}>
-        What the search kept and why, and every scheduled run.
+    <Layout title={t('runs.runs')} active="runs">
+      <PageHeader title={t('runs.runs')} meta={t('runs.lastN', { n: runs.length })} actions={<FetchNowButton run={fetchRun} />}>
+        {t('runs.whatTheSearchKeptAnd')}
       </PageHeader>
       <Flash flash={flash} />
 
       {funnelShown && <FunnelCard {...funnel} />}
-      {funnelShown && runs.length > 0 && <SectionTitle level="section">Run history</SectionTitle>}
+      {funnelShown && runs.length > 0 && <SectionTitle level="section">{t('runs.runHistory')}</SectionTitle>}
 
       {runs.length === 0 ? (
-        <Empty title="No runs yet">
-          The worker writes a row here on every tick, and it has not ticked yet. Press Fetch now to run
-          the first search.
+        <Empty title={t('runs.noRunsYet')}>
+          {t('runs.theWorkerWritesARow')}
         </Empty>
       ) : (
         <>
-          <RunsTable runs={recent} caption="Runs" />
+          <RunsTable runs={recent} caption={t('runs.runs')} />
           {earlier.length > 0 && (
             // A failure never hides: the fold says so, and opens itself when there is one.
             <Disclosure
               variant="button"
-              summary={`${earlier.length} earlier runs${earlierFailed > 0 ? ` · ${earlierFailed} failed` : ''}`}
+              summary={t(earlierFailed > 0 ? 'runs.earlierWithFailed' : 'runs.earlierCount', { n: earlier.length, failed: earlierFailed })}
               open={earlierFailed > 0}
               class="mt-4"
             >
               <div class="mt-3">
-                <RunsTable runs={earlier} caption="Earlier runs" />
+                <RunsTable runs={earlier} caption={t('runs.earlierRuns')} />
               </div>
             </Disclosure>
           )}
@@ -92,7 +98,9 @@ const RunsTable: FC<{ runs: RunRow[]; caption: string }> = ({ runs, caption }) =
         <Table caption={caption} columns={columns()} widths={WIDTHS} hideBelow={['', 'sm', 'md', '', '']}>
           {runs.map((r) => (
             <Tr class="align-top">
-              <Td class="whitespace-nowrap font-mono text-note text-ink">{r.name}</Td>
+              <Td class="whitespace-nowrap font-mono text-note text-ink">
+                <span translate="no">{r.name}</span>
+              </Td>
               <Td class="whitespace-nowrap text-ink-muted">
                 <span title={formatDate(r.startedAt)}>{formatStamp(r.startedAt)}</span>
               </Td>
@@ -107,7 +115,7 @@ const RunsTable: FC<{ runs: RunRow[]; caption: string }> = ({ runs, caption }) =
                   <div>
                     <p class="text-note leading-5 text-danger">{failedRunLine(r.name, r.errorMessage)}</p>
                     <details class="mt-1">
-                      <summary class="cursor-pointer text-meta text-ink-faint transition-colors duration-150 hover:text-ink">Details</summary>
+                      <summary class="cursor-pointer text-meta text-ink-faint transition-colors duration-150 hover:text-ink">{t('runs.details')}</summary>
                       <pre class="mt-1 whitespace-pre-wrap break-words font-mono text-meta leading-5 text-ink-muted">{r.errorMessage}</pre>
                     </details>
                   </div>
@@ -149,7 +157,7 @@ const StatsCell: FC<{ name: string; stats: unknown }> = ({ name, stats }) => {
       {/* A bare <details>, not the Disclosure primitive: a drawn chevron a hundred times over
           is 40 KB of markup on the one page that is a log. The native marker does here. */}
       <details class="contents">
-        <summary class="cursor-pointer text-meta text-ink-faint transition-colors duration-150 hover:text-ink">Details</summary>
+        <summary class="cursor-pointer text-meta text-ink-faint transition-colors duration-150 hover:text-ink">{t('runs.details')}</summary>
         {/* min-w-0 + break-all: a space-less JSON string is one unbreakable word, and a flex
             item will not shrink under its longest word on its own. */}
         <div class="order-last min-w-0 basis-full pt-1 font-mono text-meta leading-5 text-ink-faint">
@@ -159,7 +167,7 @@ const StatsCell: FC<{ name: string; stats: unknown }> = ({ name, stats }) => {
                 .sort((a: SourceStat, b: SourceStat) => b.ms - a.ms)
                 .map((s: SourceStat) => (
                   <li>
-                    {formatDuration(s.ms)} · {s.name} · {s.status}
+                    {formatDuration(s.ms)} · <span translate="no">{s.name} · {s.status}</span>
                     {s.count > 0 ? ` · ${s.count}` : ''}
                   </li>
                 ))}

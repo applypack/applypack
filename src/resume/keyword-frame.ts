@@ -24,6 +24,8 @@
  * ADR 0029) so the card can say why a score stands on its own.
  */
 
+import { t } from '../i18n/t';
+
 const FRAME_REASONS = ['carried', 'first-run', 'rebuild', 'prompt-bump', 'posting-changed'] as const;
 export type FrameReason = (typeof FRAME_REASONS)[number];
 
@@ -80,11 +82,5 @@ export function freshFrame(breakdown: unknown): FreshFrameReason | null {
 
 /** What the card says in place of the version delta. */
 export function freshFrameNotice(reason: FreshFrameReason): string {
-  const why =
-    reason === 'rebuild'
-      ? 'Keywords were rebuilt from the posting for this run'
-      : reason === 'posting-changed'
-        ? "The posting's description was replaced after the earlier analysis, so its keywords were read afresh"
-        : 'The analysis prompt changed, so the earlier keywords were not reused';
-  return `${why}, so this analysis counts a different set of terms. Read the score on its own — the earlier ones judged another list.`;
+  return t(reason === 'rebuild' ? 'match.delta.fresh.rebuild' : reason === 'posting-changed' ? 'match.delta.fresh.postingChanged' : 'match.delta.fresh.promptBump');
 }

@@ -65,6 +65,7 @@ import {
   readResumeUpload,
   resumeUploadLimit,
 } from '../upload';
+import { t } from '../../i18n/t';
 
 const MIN_DRAFT_CHARS = 200;
 /** A resume runs to a few thousand characters; the model reads 30 k. Past this it is not a resume. */
@@ -101,7 +102,7 @@ resumesRoute.post('/resumes', resumeUploadLimit('/resumes'), onceGuard(() => 're
   // R16: the same text again is not a second resume, and not a second scan to pay for.
   const same = await findResumeWithText(upload.text);
   if (same) {
-    return flashRedirect(`/resumes/${same.id}`, 'warn', `This file reads exactly like "${same.name}" (v${same.version}), so nothing was added — it is already here.`);
+    return flashRedirect(`/resumes/${same.id}`, 'warn', t('resume.flash.sameAsExisting', { name: same.name, version: same.version }));
   }
   const name =
     typeof form.name === 'string' && form.name.trim().length > 0
@@ -109,10 +110,9 @@ resumesRoute.post('/resumes', resumeUploadLimit('/resumes'), onceGuard(() => 're
       : nameFromFilename(upload.sourceFilename);
   const resume = await createResume({ name, ...upload });
   return startScanRun(c, resume, {
-    subtitle: `"${name}" — headline, tools, seniority. About half a minute.`,
-    onScanned: () =>
-      `Uploaded and scanned "${name}". "Run strength review" on this page grades it on its own; Settings → Searches → "Fill from a resume" updates your search profile from it.`,
-    onFailed: `Uploaded "${name}", but the AI scan failed — check the web logs, then try "Scan".`,
+    subtitle: t('resume.run.scanSubtitle', { name }),
+    onScanned: () => t('resume.flash.uploaded', { name }),
+    onFailed: t('resume.flash.uploadedScanFailed', { name }),
   });
 });
 
@@ -120,18 +120,18 @@ resumesRoute.post('/resumes/:id/replace', resumeUploadLimit('/resumes'), onceGua
   const id = idParam(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text('Bad id', 400);
   const current = await getResume(id);
-  if (!current) return c.text('Not found', 404);
+  if (!current) return c.text(t('http.notFound'), 404);
   const upload = await readResumeUpload(await c.req.parseBody());
   if ('error' in upload) return flashRedirect(`/resumes/${id}`, 'err', upload.error);
   // R16: a new version that reads like the one in place changes nothing, and would pay for a scan of it.
   if (sameTextAs(upload.text, [current])) {
-    return flashRedirect(`/resumes/${id}`, 'warn', `This file reads exactly like v${current.version}, the version you have, so no new version was made.`);
+    return flashRedirect(`/resumes/${id}`, 'warn', t('resume.flash.sameAsCurrent', { version: current.version }));
   }
   const resume = await replaceResumeFile(id, upload);
   return startScanRun(c, resume, {
-    subtitle: `"${resume.name}" v${resume.version} — re-reading headline, tools, seniority.`,
-    onScanned: () => `Version ${resume.version} uploaded and scanned. Now re-run Compare on the job.`,
-    onFailed: `Version ${resume.version} uploaded, but the AI scan failed — try "Scan".`,
+    subtitle: t('resume.run.rescanSubtitle', { name: resume.name, version: resume.version }),
+    onScanned: () => t('resume.flash.versionUploaded', { version: resume.version }),
+    onFailed: t('resume.flash.versionScanFailed', { version: resume.version }),
   });
 });
 
@@ -140,7 +140,7 @@ resumesRoute.post('/resumes/:id/compare-format', resumeUploadLimit('/resumes'), 
   const id = idParam(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text('Bad id', 400);
   const resume = await getResume(id);
-  if (!resume) return c.text('Not found', 404);
+  if (!resume) return c.text(t('http.notFound'), 404);
   const upload = await readResumeUpload(await c.req.parseBody());
   if ('error' in upload) return flashRedirect(`/resumes/${id}#ats`, 'err', upload.error);
   const [saved, uploaded] = formatSides(resume.sourceFilename, resume.version, upload.sourceFilename);
@@ -161,7 +161,7 @@ resumesRoute.get('/resumes/:id', async (c) => {
     listLatestKeywordTables(id),
     listFacts(),
   ]);
-  if (!resume) return c.text('Not found', 404);
+  if (!resume) return c.text(t('http.notFound'), 404);
   // What the compared postings keep asking for (N10): no AI, the stored
   // tables read against the text as it is now. The scratch row's tables
   // belong to one-off files, not to a resume.
@@ -205,7 +205,7 @@ resumesRoute.get('/resumes/:id/download', async (c) => {
   const id = idParam(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text('Bad id', 400);
   const row = await getResumeOriginal(id);
-  if (!row) return c.text('Not found', 404);
+  if (!row) return c.text(t('http.notFound'), 404);
   const filename = row.sourceFilename.replace(/["\r\n]/g, '');
   return new Response(Buffer.from(row.original), {
     headers: {
@@ -219,21 +219,21 @@ resumesRoute.post('/resumes/:id/draft', async (c) => {
   const id = idParam(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text('Bad id', 400);
   const current = await getResume(id);
-  if (!current) return c.text('Not found', 404);
+  if (!current) return c.text(t('http.notFound'), 404);
   const form = await c.req.parseBody();
   const text = typeof form.text === 'string' ? form.text.replace(/\r\n/g, '\n').trim() : '';
   if (text.length < MIN_DRAFT_CHARS) {
-    return flashRedirect(`/resumes/${id}`, 'err', 'The draft is too short to be a resume.');
+    return flashRedirect(`/resumes/${id}`, 'err', t('resume.flash.draftTooShort'));
   }
   if (text.length > MAX_DRAFT_CHARS) {
-    return flashRedirect(`/resumes/${id}`, 'err', `The draft is longer than a resume (${MAX_DRAFT_CHARS.toLocaleString()} characters at most).`);
+    return flashRedirect(`/resumes/${id}`, 'err', t('resume.flash.draftTooLong', { max: MAX_DRAFT_CHARS }));
   }
   // A one-off check from the Tailor resume page is not a resume: its text belongs to
   // the comparison, which keeps its own snapshot of it. Saving one used to mint
   // a row on /resumes named after the company — the surest way to end up with
   // six resumes and no idea which is the real one.
   if (current.hidden) {
-    return flashRedirect(`/resumes`, 'err', 'A one-off check from the Tailor resume page is not saved as a resume — upload the file on Resumes to keep it.');
+    return flashRedirect(`/resumes`, 'err', t('resume.flash.oneOffNotSaved'));
   }
   // What the edits are relative to — the text the editor started from. Without
   // it a .docx cannot be patched (the diff would be against nothing) and the
@@ -253,10 +253,10 @@ resumesRoute.post('/resumes/:id/draft', async (c) => {
     jobTitle: job?.title ?? '',
     resumeName: '',
     jobId: job?.id,
-    heading: { running: 'Re-reading your edited resume', failed: 'Could not read the edited resume' },
-    subtitle: 'Saving the new version…',
+    heading: { running: t('resume.run.draftRunning'), failed: t('resume.run.draftFailed') },
+    subtitle: t('resume.run.saving'),
     backUrl: `/resumes/${id}`,
-    backLabel: 'Back to the resume',
+    backLabel: t('resume.backToResume'),
   });
   if (joined) return c.redirect(`/target/runs/${run.id}`, 303);
 
@@ -266,12 +266,13 @@ resumesRoute.post('/resumes/:id/draft', async (c) => {
   // the worst wait on the site, which is why this gets a run at all.
   startRun(run.id, async () => {
     const { resume, note, document } = await saveEdited(id, text, baseText);
-    const saved = `Saved as v${resume.version} (${note})`;
+    // Every sentence below opens the same way: the version it was saved as, and how.
+    const saved = { version: resume.version, note };
     // TASKS R25: the saved file — the user's own .docx written into, or the clean one — handed back.
     const downloadUrl = document ? `/resumes/${resume.id}/download` : undefined;
     updateRun(run.id, {
       resumeName: resume.name,
-      subtitle: `${saved}.${job ? ' Scoring it against the posting.' : ''}`,
+      subtitle: t(job ? 'resume.save.scoring' : 'resume.save.done', saved),
     });
     let reason = '';
     const noteReason = (r: string) => {
@@ -280,8 +281,8 @@ resumesRoute.post('/resumes/:id/draft', async (c) => {
     if (!job) {
       const scan = await scanResume(resume, noteReason);
       updateRun(run.id, scan
-        ? { stage: 'done', resultUrl: `/resumes/${resume.id}`, flash: `${saved}.`, downloadUrl }
-        : { stage: 'error', error: runFailure(`${saved}, but the scan failed`, reason, 'The saved version is intact; press Re-scan on its page.') });
+        ? { stage: 'done', resultUrl: `/resumes/${resume.id}`, flash: t('resume.save.done', saved), downloadUrl }
+        : { stage: 'error', error: runFailure(t('resume.save.scanFailed', saved), reason, t('resume.save.scanFailedNext')) });
       return;
     }
     // The match reads the text, never the scan (target-plan §3.1 item 2), so
@@ -297,12 +298,12 @@ resumesRoute.post('/resumes/:id/draft', async (c) => {
       ? {
           stage: 'done',
           resultUrl: `/jobs/${job.id}/target?match=${match.id}`,
-          flash: `${saved} and checked: match ${match.matchScore}/100. The headline and skills refresh in the background.`,
+          flash: t('resume.save.checked', { ...saved, score: match.matchScore }),
           downloadUrl,
         }
       : {
           stage: 'error',
-          error: runFailure(`${saved}, but the comparison failed`, reason, 'The saved version is intact; press Compare on the job page.'),
+          error: runFailure(t('resume.save.compareFailed', saved), reason, t('resume.save.compareFailedNext')),
         });
   });
   return c.redirect(`/target/runs/${run.id}`, 303);
@@ -334,20 +335,20 @@ async function saveEdited(
   const nextVersion = current.version + 1;
   const name = current.name;
   let file: { sourceFilename: string; mimeType: string; original: Buffer; text: string } | null = null;
-  let why = row && /\.pdf$/i.test(row.sourceFilename) ? 'a PDF cannot be edited in place' : 'the resume was plain text';
+  let why = row && /\.pdf$/i.test(row.sourceFilename) ? t('resume.save.why.pdf') : t('resume.save.why.text');
   if (row && isDocx(row.sourceFilename)) {
     const original = Buffer.from(row.original);
-    if (!baseText) why = 'the editor did not say which text the edits started from';
-    else if (docxStructure(original).kind === 'unsupported') why = 'this .docx cannot be edited in place';
+    if (!baseText) why = t('resume.save.why.noBase');
+    else if (docxStructure(original).kind === 'unsupported') why = t('resume.save.why.unsupported');
     else {
       const patched = await patchDocx(original, baseText, text);
       if (patched.ok) {
         const r = patched.report;
         file = { sourceFilename: versionFileName(name, nextVersion, 'docx'), mimeType: DOCX_MIME, original: patched.docx, text: patched.text };
-        why = `.docx patched: ${r.changed} changed, ${r.added} added, ${r.removed} removed`;
+        why = t('resume.save.why.patched', { changed: r.changed, added: r.added, removed: r.removed });
         logger.info({ id, ...r, bytes: patched.docx.length }, 'resume: docx patched');
       } else {
-        why = `the .docx could not be patched: ${patched.reason}`;
+        why = t('resume.save.why.refused', { reason: patched.shown });
         logger.info({ id, reason: patched.reason, skipped: patched.report?.skipped }, 'resume: docx patch refused');
       }
     }
@@ -358,9 +359,9 @@ async function saveEdited(
     const clean = await cleanDocx(text, knobsFrom(style), style?.layout ?? null);
     if (clean.missing.length === 0) {
       file = { sourceFilename: versionFileName(name, nextVersion, 'docx'), mimeType: DOCX_MIME, original: clean.docx, text: clean.text };
-      note = `a clean .docx in your typeface — ${why}`;
+      note = t('resume.save.note.clean', { why });
     } else {
-      note = `text version — ${why}, and the clean .docx would have lost ${clean.missing.length} line${clean.missing.length === 1 ? '' : 's'}`;
+      note = t('resume.save.note.text', { why, n: clean.missing.length });
       logger.info({ id, missing: clean.missing.slice(0, 3) }, 'resume: clean save would drop lines');
     }
   }
@@ -382,12 +383,12 @@ resumesRoute.post('/resumes/:id/props', async (c) => {
   const id = idParam(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text('Bad id', 400);
   const [resume, row] = await Promise.all([getResume(id), getResumeOriginal(id)]);
-  if (!resume || !row) return c.text('Not found', 404);
-  if (!isDocx(row.sourceFilename)) return flashRedirect(`/resumes/${id}`, 'err', 'Only a .docx carries document properties.');
+  if (!resume || !row) return c.text(t('http.notFound'), 404);
+  if (!isDocx(row.sourceFilename)) return flashRedirect(`/resumes/${id}`, 'err', t('resume.flash.propsOnlyDocx'));
   const candidate = resume.text.split('\n')[0]?.trim() || resume.name;
   const fixed = await withProps(Buffer.from(row.original), { title: `${candidate} — Resume`, creator: candidate, lastModifiedBy: candidate });
   await replaceResumeBytes(id, fixed);
-  return flashRedirect(`/resumes/${id}`, 'ok', `Document properties now name ${candidate}. Download the file to get the fixed copy.`);
+  return flashRedirect(`/resumes/${id}`, 'ok', t('resume.flash.propsFixed', { candidate }));
 });
 
 /**
@@ -398,16 +399,16 @@ resumesRoute.post('/resumes/:id/profile', async (c) => {
   const id = idParam(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text('Bad id', 400);
   const resume = await getResume(id);
-  if (!resume || resume.hidden) return c.text('Not found', 404);
+  if (!resume || resume.hidden) return c.text(t('http.notFound'), 404);
   if (!resume.scannedAt) {
-    return flashRedirect(`/resumes/${id}`, 'err', 'Scan the resume first — the search is built from the scan.');
+    return flashRedirect(`/resumes/${id}`, 'err', t('resume.flash.scanFirst'));
   }
   const profile = await createProfileFromResume(resume);
   logger.info({ profileId: profile.id, resumeId: id }, 'profile: created from resume');
   return flashRedirect(
     `/settings?tab=profile&profile=${profile.id}`,
     'ok',
-    `Created the search "${profile.name}" from "${resume.name}". It is not hunting yet — press Run on it under Settings → Searches → Searches.`,
+    t('resume.flash.searchCreated', { search: profile.name, resume: resume.name }),
   );
 });
 
@@ -415,11 +416,11 @@ resumesRoute.post('/resumes/:id/rescan', async (c) => {
   const id = idParam(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text('Bad id', 400);
   const resume = await getResume(id);
-  if (!resume) return c.text('Not found', 404);
+  if (!resume) return c.text(t('http.notFound'), 404);
   return startScanRun(c, resume, {
-    subtitle: `"${resume.name}" — headline, tools, seniority. About half a minute.`,
-    onScanned: (scan) => `Scanned: ${scan.skills.length} skills, ${scan.issues.length} issues.`,
-    onFailed: 'The scan did not finish, so the resume keeps its last reading. Test the engine on Settings → AI engine, then press Scan again.',
+    subtitle: t('resume.run.scanSubtitle', { name: resume.name }),
+    onScanned: (scan) => t('resume.flash.scanned', { skills: scan.skills.length, issues: scan.issues.length }),
+    onFailed: t('resume.flash.scanFailed'),
   });
 });
 
@@ -449,7 +450,7 @@ resumesRoute.post('/resumes/:id/review', async (c) => {
   const id = idParam(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text('Bad id', 400);
   const resume = await getResume(id);
-  if (!resume) return c.text('Not found', 404);
+  if (!resume) return c.text(t('http.notFound'), 404);
   const { text, version, roleTypes, answers } = resume;
   const answered = readAnswers(answers);
 
@@ -462,10 +463,10 @@ resumesRoute.post('/resumes/:id/review', async (c) => {
     steps: ['review'],
     jobTitle: '',
     resumeName: resume.name,
-    heading: { running: 'Reviewing your resume', failed: 'Could not review the resume' },
-    subtitle: 'Six dimensions, graded against your own text — no job posting involved.',
+    heading: { running: t('review.run.running'), failed: t('review.run.failed') },
+    subtitle: t('review.run.subtitle'),
     backUrl: `/resumes/${id}`,
-    backLabel: 'Back to the resume',
+    backLabel: t('resume.backToResume'),
   });
   if (joined) return c.redirect(`/target/runs/${run.id}`, 303);
   startRun(run.id, async () => {
@@ -477,9 +478,9 @@ resumesRoute.post('/resumes/:id/review', async (c) => {
           resultUrl: `/resumes/${id}`,
           flash: delta
             ? deltaSentence(delta)
-            : `Strength ${row.reviewScore}/100 — ${row.headline}`,
+            : t('review.flash.done', { score: row.reviewScore, headline: row.headline }),
         }
-      : { stage: 'error', error: 'The review did not finish, so the last one stays. Test the engine on Settings → AI engine, then run it again; the web log has the detail.' });
+      : { stage: 'error', error: t('review.run.error') });
   });
   return c.redirect(`/target/runs/${run.id}`, 303);
 });
@@ -499,7 +500,7 @@ resumesRoute.post('/resumes/:id/answers', async (c) => {
   if (question.trim().length === 0) return c.text('Bad answer', 400);
 
   const saved = await saveReviewAnswer(id, question, answer);
-  if (saved === null) return c.text('Not found', 404);
+  if (saved === null) return c.text(t('http.notFound'), 404);
   const open = unansweredAsks(
     readReviewAdvice((await getLatestReviewForResume(id))?.advice).map((a) => a.ask),
     saved,
@@ -509,9 +510,7 @@ resumesRoute.post('/resumes/:id/answers', async (c) => {
   return flashRedirect(
     `/resumes/${id}#resume-strength`,
     'ok',
-    cleared
-      ? 'Answer removed — the next review will ask again.'
-      : `Saved. ${open === 0 ? 'That was the last open question' : `${open} question${open === 1 ? '' : 's'} still open`} — run the review again to fold it in. No AI call was made.`,
+    cleared ? t('review.flash.answerRemoved') : t('review.flash.answerSaved', { open }),
   );
 });
 
@@ -527,19 +526,19 @@ resumesRoute.post('/resumes/:id/rename', async (c) => {
   const form = await c.req.parseBody();
   const name = (typeof form.name === 'string' ? form.name : '').trim().slice(0, MAX_RESUME_NAME_CHARS);
   if (name.length === 0) {
-    return flashRedirect(`/resumes/${id}`, 'err', 'A resume needs a name.');
+    return flashRedirect(`/resumes/${id}`, 'err', t('resume.flash.needsName'));
   }
   const renamed = await renameResume(id, name);
-  if (!renamed) return c.text('Not found', 404);
-  return flashRedirect(`/resumes/${id}`, 'ok', `Renamed to "${name}".`);
+  if (!renamed) return c.text(t('http.notFound'), 404);
+  return flashRedirect(`/resumes/${id}`, 'ok', t('resume.flash.renamed', { name }));
 });
 
 resumesRoute.post('/resumes/:id/default', async (c) => {
   const id = idParam(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text('Bad id', 400);
-  if (!(await getResume(id))) return c.text('Not found', 404);
+  if (!(await getResume(id))) return c.text(t('http.notFound'), 404);
   await setDefaultResume(id);
-  return flashRedirect(`/resumes/${id}`, 'ok', 'Default resume updated.');
+  return flashRedirect(`/resumes/${id}`, 'ok', t('resume.flash.defaultUpdated'));
 });
 
 resumesRoute.post('/resumes/:id/delete', async (c) => {
@@ -549,10 +548,10 @@ resumesRoute.post('/resumes/:id/delete', async (c) => {
   // looking for a resume they still have back to a list that still shows it.
   const deleted = await deleteResume(id);
   if (!deleted) {
-    return flashRedirect('/resumes', 'warn', 'That resume was not found, so nothing was deleted — it may already be gone.');
+    return flashRedirect('/resumes', 'warn', t('resume.flash.deleteMissing'));
   }
   logger.info({ id }, 'resume: deleted');
-  return flashRedirect('/resumes', 'ok', 'Resume deleted.');
+  return flashRedirect('/resumes', 'ok', t('resume.flash.deleted'));
 });
 
 /**
@@ -572,11 +571,11 @@ function startScanRun(
     steps: ['scan'],
     jobTitle: '',
     resumeName: name,
-    heading: { running: 'Reading your resume', failed: 'Could not read the resume' },
+    heading: { running: t('resume.run.scanRunning'), failed: t('resume.run.scanFailed') },
     subtitle: copy.subtitle,
     // The row exists either way, so the error state has somewhere real to go.
     backUrl: `/resumes/${id}`,
-    backLabel: 'Back to the resume',
+    backLabel: t('resume.backToResume'),
   });
   if (joined) return c.redirect(`/target/runs/${run.id}`, 303);
   startRun(run.id, async () => {

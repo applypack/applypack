@@ -1,9 +1,10 @@
 import type { FolderFault } from '../datasets/folder-io';
 import { postingFileKind } from '../datasets/folder-scan';
-import { describeStatus } from '../fetchers/source-health';
 import type { CronStats } from '../jobs/cron-run';
 import type { FolderSummary } from '../jobs/source-file-store';
 import type { FlashKind } from './flash';
+import { healthLabel } from './health-label';
+import { t } from '../i18n/t';
 
 /*
  * A folder source in words (ADR 0062): its line on Companies, a file's line
@@ -74,9 +75,6 @@ export function explainFolderFault(fault: FolderFault, message: string, platform
 export function folderCheckLine(label: string, stats: CronStats): { kind: FlashKind; text: string } | null {
   const source = Array.isArray(stats.bySource) ? stats.bySource[0] : undefined;
   if (!source || typeof stats.reason === 'string' || (typeof stats.fetched === 'number' && stats.fetched > 0)) return null;
-  if (source.status === 'empty') return { kind: 'ok', text: `${label}: nothing new in the folder. A file is read once, and again when it changes.` };
-  return {
-    kind: 'err',
-    text: `${label}: the folder was not read — ${describeStatus(source.status, 'FOLDER').label.toLowerCase()}. Nothing stored is touched; Files on its row says what happened to each file, and Mapping checks the folder again.`,
-  };
+  if (source.status === 'empty') return { kind: 'ok', text: t('runs.folderCheck.nothingNew', { label }) };
+  return { kind: 'err', text: t('runs.folderCheck.notRead', { label, status: healthLabel(source.status, 'FOLDER').toLowerCase() }) };
 }

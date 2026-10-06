@@ -6,6 +6,8 @@ import { billingFacts, getAiEngineEnv, probeAiProviders } from '../../ai-runtime
 import { isSpendPeriod, periodRange, spendView, usageByModel, type SpendPeriod } from '../../ai-spend';
 import { AI_TASKS } from '../../ai-tasks';
 import { billingOf } from '../../ai-usage';
+import type { MessageKey } from '../../i18n/catalog';
+import { t } from '../../i18n/t';
 import { getAiKeys, getSettings } from '../../settings';
 import { aiPlanRows } from '../ai-plan';
 import { AiUsagePage } from '../pages/ai-usage';
@@ -13,13 +15,13 @@ import { usageHints } from '../usage-hints';
 
 export const aiUsageRoute = new Hono();
 
-/** The period as it reads inside a hint's sentence. */
-const PERIOD_WORDS: Record<SpendPeriod, string> = {
-  '7d': 'in the last 7 days',
-  month: 'this month',
-  'last-month': 'last month',
-  year: 'this year',
-};
+/** The period as it reads inside a hint's sentence: "in the last 7 days", "this month". */
+const PERIOD_WORDS = {
+  '7d': 'usage.period.7d',
+  month: 'usage.period.month',
+  'last-month': 'usage.period.lastMonth',
+  year: 'usage.period.year',
+} as const satisfies Record<SpendPeriod, MessageKey>;
 
 aiUsageRoute.get('/ai', async (c) => {
   const asked = c.req.query('period');
@@ -46,7 +48,7 @@ aiUsageRoute.get('/ai', async (c) => {
       models={usageByModel(view.rows)}
       hints={usageHints({
         groups,
-        period: PERIOD_WORDS[period],
+        period: t(PERIOD_WORDS[period]),
         engines: AI_PROVIDER_IDS.map((id) => ({
           id,
           billing: billingFor(id),

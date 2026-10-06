@@ -4,6 +4,7 @@ import { applyFacts, FACT_ANSWERS } from '../../resume/facts';
 import { readKeywords } from '../../resume/prompts';
 import { deleteFact, rescoreMatchKeywords, upsertFact } from '../../resume/store';
 import { flashRedirect, safeBack } from '../flash';
+import { t } from '../../i18n/t';
 
 /*
  * "ask_user" answers. Confirming or denying a term stores a CandidateFact and
@@ -44,17 +45,16 @@ factsRoute.post('/facts', async (c) => {
     if (outcome && outcome.detail.changed > 0 && !unsure) {
       if (outcome.scored) {
         // A "no" moves nothing (an ask and a term without evidence both earn 0): say so, not "37 → 37".
-        const score =
-          outcome.before === outcome.after ? `the score stays ${outcome.after}` : `score ${outcome.before} → ${outcome.after}`;
-        return flashRedirect(back, 'ok', `Saved "${fact.term}" — ${score}, no AI call needed.`);
+        const moved = outcome.before === outcome.after ? 'no' : 'yes';
+        return flashRedirect(back, 'ok', t('facts.flash.savedScored', { term: fact.term, moved, before: outcome.before, after: outcome.after }));
       }
-      return flashRedirect(back, 'ok', `Saved "${fact.term}". Re-check to refresh this comparison.`);
+      return flashRedirect(back, 'ok', t('facts.flash.savedRecheck', { term: fact.term }));
     }
   }
   if (unsure) {
-    return flashRedirect(back, 'ok', `Noted: not sure about "${fact.term}". It will not be asked again, and nothing claims it.`);
+    return flashRedirect(back, 'ok', t('facts.flash.unsure', { term: fact.term }));
   }
-  return flashRedirect(back, 'ok', `Saved "${fact.term}" — future comparisons will use it.`);
+  return flashRedirect(back, 'ok', t('facts.flash.saved', { term: fact.term }));
 });
 
 factsRoute.post('/facts/delete', async (c) => {
@@ -63,5 +63,5 @@ factsRoute.post('/facts/delete', async (c) => {
   const back = safeBack(form.back, '/resumes');
   if (term.trim().length === 0) return c.text('Bad fact', 400);
   await deleteFact(term);
-  return flashRedirect(back, 'ok', `Forgot "${term.trim().toLowerCase()}".`);
+  return flashRedirect(back, 'ok', t('facts.flash.forgot', { term: term.trim().toLowerCase() }));
 });

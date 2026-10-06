@@ -8,7 +8,7 @@ import { PSEUDO_CLOSE, PSEUDO_OPEN, isPseudo } from './pseudo';
  * (locale.ts:currentLocale) — English outside a request or a tick.
  */
 
-/** The message as parts: text, and the inline elements a caller turns into markup (web/rich.tsx:tRich). */
+/** The message as parts: text, and the inline elements a caller turns into markup (web/rich.ts:tRich). */
 export function tParts(key: MessageKey, params: MessageParams = {}): MessagePart[] {
   const locale = currentLocale();
   const parts = formatMessage(messageNodes(locale, key), params, intlTag(locale));

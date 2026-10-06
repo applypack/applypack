@@ -9,6 +9,7 @@ import { beginFetchNow } from '../fetch-now';
 import { summarizeFetchRun } from '../fetch-summary';
 import { folderCheckLine } from '../folder-words';
 import { loadFunnel, loadSourceYield } from '../../jobs/funnel-store';
+import { t } from '../../i18n/t';
 
 const RUNS_LIMIT = 100;
 
@@ -66,13 +67,13 @@ runsRoute.get('/runs/fetch-now/:id', (c) => {
     return flashRedirect(
       '/runs',
       'err',
-      'That fetch run is gone (live progress lasts ~30 min) — its row below still has the result.',
+      t('runs.fetchRunGone'),
     );
   }
   if (run.stage === 'done') {
-    const label = typeof run.scope === 'object' ? `Checked ${run.scope.name}` : undefined;
+    const label = typeof run.scope === 'object' ? t('runs.checked', { name: run.scope.name }) : undefined;
     // A folder that brought nothing has its own two sentences: there is no network to check.
-    const own = typeof run.scope === 'object' && run.scope.folder ? folderCheckLine(`Checked ${run.scope.name}`, run.stats ?? {}) : null;
+    const own = typeof run.scope === 'object' && run.scope.folder ? folderCheckLine(t('runs.checked', { name: run.scope.name }), run.stats ?? {}) : null;
     const { kind, text } = own ?? summarizeFetchRun(run.stats ?? {}, label);
     return flashRedirect(run.backUrl, kind, text);
   }

@@ -1,6 +1,9 @@
 import type { Prisma } from '@prisma/client';
-import { flagOf, isCountryCode, isRegionCode, placeLabel } from '../countries';
-import { WORKPLACE_CODES, WORKPLACE_LABEL, type WorkplaceCode } from '../location';
+import { flagOf, isCountryCode, isRegionCode } from '../countries';
+import { WORKPLACE_CODES, type WorkplaceCode } from '../location';
+import type { MessageKey } from '../i18n/catalog';
+import { placeName, workplaceName } from '../i18n/places';
+import { t } from '../i18n/t';
 
 /*
  * The /jobs facets (ADR 0031): where a job is, how it is worked, when it was
@@ -61,7 +64,7 @@ export function parseWorkplaces(raw: string | undefined): WorkplaceCode[] {
 }
 
 export function parsePosted(raw: string | undefined): string {
-  return raw && raw in POSTED_WINDOWS ? raw : '';
+  return raw && Object.hasOwn(POSTED_WINDOWS, raw) ? raw : '';
 }
 
 /** Where-clause for the place facet: OR across the selection; null when nothing is selected. */
@@ -78,7 +81,7 @@ export function placeWhere(places: string[]): Prisma.JobWhereInput | null {
 }
 
 export function postedSince(posted: string, now: Date): Date | null {
-  const days = POSTED_WINDOWS[posted];
+  const days = Object.hasOwn(POSTED_WINDOWS, posted) ? POSTED_WINDOWS[posted] : undefined;
   return days ? new Date(now.getTime() - days * DAY_MS) : null;
 }
 
@@ -125,14 +128,14 @@ export function tallyFacets(rows: FacetRow[], selected: FacetSelection, now: Dat
     .sort(byCountThenLabel);
   const workplaces = WORKPLACE_CODES.map((code) => ({
     value: code.toLowerCase(),
-    label: WORKPLACE_LABEL[code],
+    label: workplaceName(code),
     flag: '',
     count: workplaceCounts.get(code) ?? 0,
     selected: selected.workplaces.includes(code),
   }));
   const posted = Object.keys(POSTED_WINDOWS).map((key) => ({
     value: key,
-    label: POSTED_LABEL[key] ?? key,
+    label: worded(POSTED_LABEL, key),
     flag: '',
     count: postedCounts.get(key) ?? 0,
     selected: selected.posted === key,
@@ -140,7 +143,18 @@ export function tallyFacets(rows: FacetRow[], selected: FacetSelection, now: Dat
   return { places, workplaces, posted };
 }
 
-const POSTED_LABEL: Record<string, string> = { '24h': 'Last 24h', '7d': 'Last 7 days', '30d': 'Last 30 days' };
+/** What each `posted=` window is called on its chip, and in the row of filters in force — catalog keys. */
+const POSTED_LABEL: Record<string, MessageKey> = { '24h': 'jobs.posted.day', '7d': 'jobs.posted.week', '30d': 'jobs.posted.month' };
+const POSTED_ACTIVE: Record<string, MessageKey> = {
+  '24h': 'jobs.active.postedDay',
+  '7d': 'jobs.active.postedWeek',
+  '30d': 'jobs.active.postedMonth',
+};
+
+/** The words for `value`, read when asked; a value the table does not know stays as it is. */
+function worded(keys: Record<string, MessageKey>, value: string): string {
+  return Object.hasOwn(keys, value) ? t(keys[value]!) : value;
+}
 
 /** The place values one row counts under. */
 export function rowPlaces(row: Pick<FacetRow, 'countries' | 'regions'>): string[] {
@@ -231,23 +245,23 @@ export function activeFilters(filters: JobsFilters, profiles: { id: number; name
 
   if (filters.profile !== null) {
     const name = profiles.find((p) => p.id === filters.profile)?.name ?? `#${filters.profile}`;
-    add(`Search: ${name}`, '', { profile: null });
+    add(t('jobs.active.search', { name }), '', { profile: null });
   }
   for (const value of filters.country) {
     const unknown = value === UNKNOWN_PLACE;
-    add(unknown ? 'Place unknown' : placeLabel(value), unknown ? '' : flagOf(value), { country: toggled(filters.country, value) });
+    add(unknown ? t('jobs.active.placeUnknown') : placeName(value), unknown ? '' : flagOf(value), { country: toggled(filters.country, value) });
   }
   for (const value of filters.workplace) {
     const code = value.toUpperCase() as WorkplaceCode;
-    add(code === 'UNKNOWN' ? 'Workplace unknown' : (WORKPLACE_LABEL[code] ?? value), '', {
+    add(code === 'UNKNOWN' ? t('jobs.active.workplaceUnknown') : WORKPLACE_CODES.includes(code) ? workplaceName(code) : value, '', {
       workplace: toggled(filters.workplace, value),
     });
   }
-  if (filters.posted) add(`Posted: ${(POSTED_LABEL[filters.posted] ?? filters.posted).toLowerCase()}`, '', { posted: '' });
-  if (filters.verified) add('Verified', '', { verified: '' });
-  if (filters.watched) add('★ Watched', '', { watched: '' });
-  if (filters.open) add('Open to me', '', { open: '' });
-  if (filters.muted) add('Muted companies shown', '', { muted: '' });
+  if (filters.posted) add(worded(POSTED_ACTIVE, filters.posted), '', { posted: '' });
+  if (filters.verified) add(t('jobs.filter.verified'), '', { verified: '' });
+  if (filters.watched) add(t('jobs.filter.watched'), '', { watched: '' });
+  if (filters.open) add(t('jobs.filter.openToMe'), '', { open: '' });
+  if (filters.muted) add(t('jobs.active.mutedShown'), '', { muted: '' });
   return out;
 }
 
@@ -269,7 +283,7 @@ export function clearFiltersHref(filters: JobsFilters): string {
 function chip(value: string, count: number, selected: boolean): FacetChip {
   return {
     value,
-    label: value === UNKNOWN_PLACE ? 'Unknown' : placeLabel(value),
+    label: value === UNKNOWN_PLACE ? t('jobs.filter.placeUnknown') : placeName(value),
     flag: value === UNKNOWN_PLACE ? '' : flagOf(value),
     count,
     selected,

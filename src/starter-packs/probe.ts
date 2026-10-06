@@ -7,6 +7,7 @@
 import type { AtsType } from '@prisma/client';
 import { probeAts } from '../ats-probe';
 import { createLimiter } from '../concurrency';
+import { t } from '../i18n/t';
 import {
   MIN_JOBS_TO_ACCEPT,
   boardUrl,
@@ -53,22 +54,23 @@ async function resolveOne(
   target: ResolveTarget,
   deadline: number,
 ): Promise<ResolvedEntry | UnresolvedEntry> {
-  let lastError = 'no board found on any supported ATS';
+  // The reasons land on the pack's preview, beside the company they are about.
+  let lastError = t('packs.reason.noBoard');
 
   for (const attempt of buildResolvePlan(target)) {
     if (Date.now() > deadline) {
-      return { name: target.name, segment: target.segment, reason: 'timed out' };
+      return { name: target.name, segment: target.segment, reason: t('packs.reason.timedOut') };
     }
 
     const probe = await probeAts(attempt.atsType as AtsType, attempt.atsToken);
     if (!probe.ok) {
-      if (attempt.pinned) lastError = probe.error ?? 'probe failed';
+      if (attempt.pinned) lastError = probe.error ?? t('packs.reason.probeFailed');
       continue;
     }
     // A board that exists but holds nothing is not proof of identity —
     // SmartRecruiters answers 200 with an empty list for any slug (ADR 0017).
     if ((probe.jobsCount ?? 0) < MIN_JOBS_TO_ACCEPT) {
-      if (attempt.pinned) lastError = 'board answered, but has no open jobs';
+      if (attempt.pinned) lastError = t('packs.reason.noOpenJobs');
       continue;
     }
 

@@ -15,6 +15,8 @@ import { groupEventsByJob, stageTimeLine, type StageTimeLine } from '../stage-ti
 import { applicationsCsv, applicationsMarkdown, dayIn, type ApplicationExportRow } from '../applications-export';
 import { appliedWithLabel } from '../../jobs/applied-with';
 import { displayZone } from '../display-zone';
+import { withLocale } from '../../i18n/locale';
+import { t } from '../../i18n/t';
 
 // Stage keys are validated at runtime against the configured list
 // (ADR 0025) — an enum would freeze what is now user data.
@@ -109,8 +111,16 @@ applicationsRoute.get('/applications', async (c) => {
   );
 });
 
-/** The board as rows for a file, in column order, newest application first within a column. */
-async function exportRows(): Promise<{ rows: ApplicationExportRow[]; columns: { key: string; label: string }[]; now: Date }> {
+/**
+ * The board as rows for a file, in column order, newest application first
+ * within a column. A file is data, as its header is: the stages the interface
+ * names itself are written in English whatever language the page reads in.
+ */
+function exportRows(): Promise<{ rows: ApplicationExportRow[]; columns: { key: string; label: string }[]; now: Date }> {
+  return withLocale('en', boardRows);
+}
+
+async function boardRows(): Promise<{ rows: ApplicationExportRow[]; columns: { key: string; label: string }[]; now: Date }> {
   const { work, columns, cards, now } = await loadBoard();
   const order = new Map(columns.map((col, i) => [col.key, i]));
   const rows = cards
@@ -132,7 +142,8 @@ async function exportRows(): Promise<{ rows: ApplicationExportRow[]; columns: { 
       url: j.url,
     }))
     .sort((a, b) => (order.get(a.stageKey) ?? 0) - (order.get(b.stageKey) ?? 0));
-  return { rows, columns, now };
+  // A stage of ours words its label when read: read it here, while the language is English.
+  return { rows, columns: columns.map(({ key, label }) => ({ key, label })), now };
 }
 
 /** TASKS N7: the board as a file — CSV for a spreadsheet, Markdown to read. Dates are days in the dashboard's time zone. */
@@ -193,7 +204,7 @@ applicationsRoute.post('/jobs/:id/stage', async (c) => {
       prisma.jobStageEvent.create({ data: event }),
     ]);
   }
-  return flashRedirect('/applications', 'ok', `Moved to ${labelFor(work, toStage)}`);
+  return flashRedirect('/applications', 'ok', t('applications.movedTo', { stage: labelFor(work, toStage) }));
 });
 
 applicationsRoute.post('/jobs/:id/application', async (c) => {

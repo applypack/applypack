@@ -4,6 +4,8 @@ import { z } from 'zod';
 import { fetchWithRetry, HttpError, stripHtml, type FetchOptions } from '../http';
 import { looksLikeChallengeText } from '../watchlist/scan';
 import { MIN_DESCRIPTION_CHARS } from './manual-job';
+import type { MessageKey } from '../i18n/catalog';
+import { t } from '../i18n/t';
 import { isBlockedPostingHost } from './blocked-hosts';
 
 /*
@@ -13,6 +15,9 @@ import { isBlockedPostingHost } from './blocked-hosts';
  * (ADR 0016), not a crawler. ADR 0005 hosts are refused outright, and a
  * page that answers with a bot check fails honestly instead of being worked
  * around. The guards are pure and tested; only fetchPostingText does I/O.
+ *
+ * Every refusal is a sentence a page or a flash shows as it is, so each comes
+ * from the catalog in the reader's language (ADR 0061).
  */
 
 const FETCH_TIMEOUT_MS = 12_000;
@@ -61,7 +66,7 @@ export function pickAshbyJob<T extends { id: string; title: string }>(
 ): { ok: true; job: T } | { ok: false; error: string } {
   if (ref.jobId) {
     const job = jobs.find((j) => j.id === ref.jobId);
-    return job ? { ok: true, job } : { ok: false, error: "That listing is no longer on the company's Ashby board — it may have closed." };
+    return job ? { ok: true, job } : { ok: false, error: t('posting.ashby.gone') };
   }
   const wanted = title?.trim().toLowerCase();
   const byTitle = wanted ? jobs.filter((j) => j.title.trim().toLowerCase() === wanted) : [];
@@ -71,8 +76,8 @@ export function pickAshbyJob<T extends { id: string; title: string }>(
     ok: false,
     error:
       byTitle.length > 1
-        ? `The board lists ${byTitle.length} roles titled "${title}" — paste the job page URL instead.`
-        : `That is the board's index (${jobs.length} roles), not a job page — paste the job page URL instead.`,
+        ? t('posting.ashby.several', { n: byTitle.length, title: title ?? '' })
+        : t('posting.ashby.index', { n: jobs.length }),
   };
 }
 
@@ -156,7 +161,8 @@ export type Resolver = (hostname: string) => Promise<string[]>;
 const lookupAddresses: Resolver = async (hostname) =>
   (await dns.lookup(hostname, { all: true })).map((a) => a.address);
 
-const PUBLIC_ONLY = 'Only public posting URLs can be fetched.';
+/** The guard's refusal of a private address, as a catalog key: worded when it is returned, in the reader's language. */
+const PUBLIC_ONLY = 'posting.publicOnly' satisfies MessageKey;
 
 /** Layer 2: every address behind the name is public. An address literal has nothing to resolve. */
 export async function resolvesToPublic(
@@ -169,10 +175,10 @@ export async function resolvesToPublic(
   try {
     addresses = await resolve(host);
   } catch {
-    return { ok: false, error: 'That host does not resolve — check the URL.' };
+    return { ok: false, error: t('posting.noHost') };
   }
-  if (addresses.length === 0) return { ok: false, error: 'That host does not resolve — check the URL.' };
-  return addresses.some(isPrivateIp) ? { ok: false, error: PUBLIC_ONLY } : { ok: true };
+  if (addresses.length === 0) return { ok: false, error: t('posting.noHost') };
+  return addresses.some(isPrivateIp) ? { ok: false, error: t(PUBLIC_ONLY) } : { ok: true };
 }
 
 const MAX_REDIRECTS = 5;
@@ -208,12 +214,12 @@ export async function fetchPublicHops<T extends Hop>(
     if (!REDIRECT_STATUSES.has(response.status) || !response.location) {
       return { ok: true, response, url: url.toString() };
     }
-    if (hops >= MAX_REDIRECTS) return { ok: false, error: 'That URL redirects too many times.' };
+    if (hops >= MAX_REDIRECTS) return { ok: false, error: t('posting.tooManyRedirects') };
     let next: URL;
     try {
       next = new URL(response.location, url);
     } catch {
-      return { ok: false, error: 'That URL redirects somewhere unreadable.' };
+      return { ok: false, error: t('posting.badRedirect') };
     }
     const again = checkPostingUrl(next.toString());
     if (!again.ok) return again;
@@ -245,23 +251,20 @@ export function checkPostingUrl(raw: string): { ok: true; url: URL } | { ok: fal
   try {
     url = new URL(raw.trim());
   } catch {
-    return { ok: false, error: 'That does not look like a URL.' };
+    return { ok: false, error: t('posting.notUrl') };
   }
   if (url.protocol !== 'https:' && url.protocol !== 'http:') {
-    return { ok: false, error: 'Only http(s) posting URLs can be fetched.' };
+    return { ok: false, error: t('posting.httpOnly') };
   }
   if (url.username || url.password) {
-    return { ok: false, error: 'A posting URL with a password in it is not fetched.' };
+    return { ok: false, error: t('posting.hasPassword') };
   }
   const host = url.hostname.toLowerCase();
   if (isBlockedPostingHost(host)) {
-    return {
-      ok: false,
-      error: 'That site is never fetched here (ADR 0005) — paste the posting text instead.',
-    };
+    return { ok: false, error: t('posting.blockedSite') };
   }
   if (isPrivateHost(host)) {
-    return { ok: false, error: PUBLIC_ONLY };
+    return { ok: false, error: t(PUBLIC_ONLY) };
   }
   return { ok: true, url };
 }
@@ -272,14 +275,10 @@ export function postingTextFromHtml(html: string): PostingUrlResult {
 
 function postingText(text: string): PostingUrlResult {
   if (looksLikeChallengeText(text)) {
-    return { ok: false, error: 'The page answered with a bot check — paste the posting text instead.' };
+    return { ok: false, error: t('posting.botCheck') };
   }
   if (text.length < MIN_DESCRIPTION_CHARS) {
-    return {
-      ok: false,
-      error:
-        'Could not read a posting from that page (it may need JavaScript) — paste the text instead.',
-    };
+    return { ok: false, error: t('posting.unreadable') };
   }
   return { ok: true, text: text.slice(0, MAX_TEXT_CHARS) };
 }
@@ -295,12 +294,9 @@ export async function fetchPostingText(raw: string, opts: { title?: string } = {
   } catch (err) {
     if (err instanceof PublicUrlError) return { ok: false, error: err.message };
     if (err instanceof HttpError && (err.status === 403 || err.status === 429 || err.status === 503)) {
-      return { ok: false, error: 'The page answered with a bot check — paste the posting text instead.' };
+      return { ok: false, error: t('posting.botCheck') };
     }
-    return {
-      ok: false,
-      error: `Could not fetch that URL (${err instanceof Error ? err.message : 'unknown error'}) — paste the text instead.`,
-    };
+    return { ok: false, error: t('posting.fetchFailed', { reason: err instanceof Error ? err.message : t('posting.unknownError') }) };
   }
 }
 
@@ -309,14 +305,11 @@ async function fetchAshbyPosting(ref: AshbyRef, title: string | undefined): Prom
     const res = await fetchWithRetry(`${ASHBY_API}${encodeURIComponent(ref.org)}`, { timeoutMs: FETCH_TIMEOUT_MS });
     const parsed = AshbyPostingSchema.safeParse(await res.json());
     if (!parsed.success) {
-      return { ok: false, error: 'The Ashby board answered with something other than its listings — paste the text instead.' };
+      return { ok: false, error: t('posting.ashby.badAnswer') };
     }
     const pick = pickAshbyJob(parsed.data.jobs, ref, title);
     return pick.ok ? ashbyPostingText(pick.job) : pick;
   } catch (err) {
-    return {
-      ok: false,
-      error: `Could not read the Ashby board (${err instanceof Error ? err.message : 'unknown error'}) — paste the text instead.`,
-    };
+    return { ok: false, error: t('posting.ashby.failed', { reason: err instanceof Error ? err.message : t('posting.unknownError') }) };
   }
 }

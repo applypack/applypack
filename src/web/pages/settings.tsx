@@ -42,22 +42,26 @@ import type { LoginItemState } from '../login-item-io';
 import { describeCount, type SourceGroup } from '../source-groups';
 import { dotClassFor, MAX_WORK_STAGES } from '../stage-config';
 import { formatPriorityRulesText, parsePriorityRules } from '../../priority-rules';
-import { COUNTRIES, REGIONS, flagOf, placeLabel } from '../../countries';
+import { COUNTRIES, REGIONS } from '../../countries';
 import { RELOCATION_CODES, RELOCATION_LABEL } from '../../eligibility';
-import { PROFILE_WORKPLACES, WORKPLACE_LABEL } from '../../location';
+import { PROFILE_WORKPLACES } from '../../location';
 import { isBlankProfile, MAX_ACTIVE_PROFILES } from '../../profile-guards';
 import { SENIORITY_LEVELS } from '../../resume/profile-draft';
 import { ACCEPTED_EXTENSIONS } from '../../resume/resume-text';
 import { MAX_UPLOAD_MB } from '../upload';
-import { ALERT_MODES, ALL_DAYS, DAY_LABELS, FETCH_EVERY, MAX_DIGEST_HOURS, describeSchedule, type Schedule } from '../../user-schedule';
+import { ALERT_MODES, ALL_DAYS, FETCH_EVERY, MAX_DIGEST_HOURS, describeCadence, describeSchedule, type Schedule } from '../../user-schedule';
 import { KIND_LABEL } from '../../notify/targets';
 import { SCHEDULE_HREF, type HeldLine } from '../held-line';
 import { AiPlan, BILLING_TONE } from './ai-plan';
 import type { AiPlanRow } from '../ai-plan';
-import { BILLING_WORDS, formatUsd } from '../../ai-spend';
+import { billingWords, formatUsd } from '../../ai-spend';
 import type { AiBilling } from '../../ai-usage';
+import type { MessageKey } from '../../i18n/catalog';
+import { weekdayName } from '../../i18n/format';
+import { countryChip, placeName, workplaceName } from '../../i18n/places';
 import { t } from '../../i18n/t';
 import { LanguageSettings } from '../language-menu';
+import { tRich } from '../rich';
 
 interface MaskedTarget {
   id: number;
@@ -171,21 +175,15 @@ export interface AiStatusSummary {
 
 /**
  * Link-based sub-navigation (?tab=…): one route, server picks the sections.
- * POST routes redirect back to the tab their setting lives on.
+ * POST routes redirect back to the tab their setting lives on. A tab's label
+ * is the catalog's `settings.tab.<id>`.
  */
-const SETTINGS_TABS = [
-  { id: 'general', label: 'General' },
-  { id: 'profile', label: 'Searches' },
-  { id: 'ai', label: 'AI engine' },
-  { id: 'notifications', label: 'Notifications' },
-  { id: 'sources', label: 'Sources' },
-  { id: 'screening', label: 'Screening' },
-] as const;
+const SETTINGS_TABS = ['general', 'profile', 'ai', 'notifications', 'sources', 'screening'] as const;
 
-export type SettingsTab = (typeof SETTINGS_TABS)[number]['id'];
+export type SettingsTab = (typeof SETTINGS_TABS)[number];
 
 export function isSettingsTab(value: unknown): value is SettingsTab {
-  return SETTINGS_TABS.some((t) => t.id === value);
+  return (SETTINGS_TABS as readonly unknown[]).includes(value);
 }
 
 
@@ -252,6 +250,16 @@ export interface ScreeningSettings {
   legalNote: string;
 }
 
+/** A resume in a picker: its name, and what the reader should know about it before choosing it. */
+function resumeOption(r: ResumeListItem, scanned = true): string {
+  return t('settings.resumeOption', { name: r.name, isDefault: r.isDefault ? 'yes' : 'no', scanned: scanned ? 'yes' : 'no' });
+}
+
+/** An `onclick` that asks first. The question goes in as a JSON string, so a quote or an apostrophe in a language's wording cannot end it. */
+function confirmScript(question: string): string {
+  return `return confirm(${JSON.stringify(question)})`;
+}
+
 /**
  * A settings section: its title and one sentence above its controls; what else
  * is worth knowing sits behind "How this works" (DESIGN.md, the Disclosure Rule).
@@ -292,10 +300,10 @@ const Section: FC<PropsWithChildren<{ title: string; desc?: string | Child; more
 const UpdateLine: FC<{ current: string; latest: string | null; checkedAt: Date }> = ({ current, latest, checkedAt }) => (
   <Hint>
     {latest === null
-      ? `GitHub had nothing to read on ${formatDate(checkedAt)}; the next look is on Sunday.`
+      ? t('settings.updates.nothing', { at: formatDate(checkedAt) })
       : isNewer(current, latest)
-        ? `v${latest} is out (checked ${formatDate(checkedAt)}): git pull, then npm install and npm start — or docker compose up -d --build.`
-        : `You run the latest release (checked ${formatDate(checkedAt)}).`}
+        ? t('settings.updates.newer', { latest, at: formatDate(checkedAt) })
+        : t('settings.updates.latest', { at: formatDate(checkedAt) })}
   </Hint>
 );
 
@@ -321,40 +329,28 @@ const HourSelect: FC<{ name: string; value: number; label: string; hint?: string
 
 const DayPills: FC<{ name: string; days: readonly number[] }> = ({ name, days }) => (
   <fieldset class="mt-1.5">
-    <legend class="sr-only">Days</legend>
+    <legend class="sr-only">{t('settings.days')}</legend>
     <div class="flex flex-wrap gap-1.5">
       {ALL_DAYS.map((d) => (
         <PillCheckbox name={name} value={String(d)} checked={days.includes(d)}>
-          {DAY_LABELS[d - 1]}
+          {weekdayName(d)}
         </PillCheckbox>
       ))}
     </div>
   </fieldset>
 );
 
-const EVERY_LABEL: Record<(typeof FETCH_EVERY)[number], string> = {
-  hour: 'Every hour',
-  '2h': 'Every 2 hours',
-  '4h': 'Every 4 hours',
-  day: 'Once a day',
-};
-
-const ALERT_MODE_TITLE: Record<(typeof ALERT_MODES)[number], string> = {
-  instant: 'Right away',
-  window: 'Only during these hours',
-  digest: 'As one digest',
-};
-
 const ScheduleForm: FC<{ view: ScheduleView }> = ({ view }) => {
   const { schedule: s, zones, nextFetch, held, unsaved } = view;
   return (
     <form method="post" action="/settings/schedule" class="space-y-5">
       <Field
-        label="Time zone"
-        hint={unsaved ? "One zone for every hour in this section — your browser's is picked until you save one." : 'One zone for every hour in this section.'}
+        label={t('settings.timeZone')}
+        hint={unsaved ? t('settings.timeZoneHintUnsaved') : t('settings.timeZoneHint')}
         class="max-w-sm"
       >
-        <Select name="timezone" data-browser-zone={unsaved ? '' : undefined}>
+        {/* IANA zone ids: data, in every language. */}
+        <Select name="timezone" translate="no" data-browser-zone={unsaved ? '' : undefined}>
           {zones.map((z) => (
             <option value={z} selected={z === s.timezone}>
               {z}
@@ -373,40 +369,37 @@ const ScheduleForm: FC<{ view: ScheduleView }> = ({ view }) => {
       )}
 
       <div class="border-t border-line pt-4">
-        <div class="text-label text-ink">Check for jobs</div>
+        <div class="text-label text-ink">{t('settings.checkForJobs')}</div>
         <Hint class="mt-0.5 mb-2">
-          {describeSchedule(s)}
-          {nextFetch ? ` · next check ${nextFetch}` : ''}
+          {nextFetch ? t('settings.scheduleWithNext', { schedule: describeSchedule(s), next: nextFetch }) : describeSchedule(s)}
         </Hint>
         <div class="flex flex-wrap items-end gap-3">
-          <Field label="How often" class="w-44">
+          <Field label={t('settings.howOften')} class="w-44">
             <Select name="fetchEvery">
               {FETCH_EVERY.map((e) => (
                 <option value={e} selected={e === s.fetch.every}>
-                  {EVERY_LABEL[e]}
+                  {describeCadence(e)}
                 </option>
               ))}
             </Select>
           </Field>
-          <HourSelect name="fetchFrom" value={s.fetch.from} label="From" />
-          <HourSelect name="fetchTo" value={s.fetch.to} label="To (inclusive)" />
+          <HourSelect name="fetchFrom" value={s.fetch.from} label={t('settings.from')} />
+          <HourSelect name="fetchTo" value={s.fetch.to} label={t('settings.toInclusive')} />
         </div>
         <DayPills name="fetchDays" days={s.fetch.days} />
-        <Hint class="mt-2">"Fetch now" ignores the schedule.</Hint>
+        <Hint class="mt-2">{t('settings.fetchNowIgnoresTheSchedule')}</Hint>
       </div>
 
       <div class="border-t border-line pt-4" data-ui="alert-modes">
-        <div class="text-label text-ink">Send alerts</div>
+        <div class="text-label text-ink">{t('settings.sendAlerts')}</div>
         {held && (
           <Hint class="mt-0.5 text-warn">
-            {held.text}
             {/* The window is set in this section; any other reason is set elsewhere. */}
-            {held.href === SCHEDULE_HREF ? '.' : (
-              <>
-                {' — '}
-                <a href={held.href} class="font-medium underline">{held.action}</a>.
-              </>
-            )}
+            {held.href === SCHEDULE_HREF
+              ? t('settings.heldHere', { text: held.text })
+              : tRich('settings.heldElsewhere', { text: held.text, action: held.action }, {
+                  link: (words) => <a href={held.href} class="font-medium underline">{words}</a>,
+                })}
           </Hint>
         )}
         <div class="mt-2 grid gap-2 sm:grid-cols-3">
@@ -415,13 +408,9 @@ const ScheduleForm: FC<{ view: ScheduleView }> = ({ view }) => {
               name="alertMode"
               value={mode}
               checked={mode === s.alerts.mode}
-              title={ALERT_MODE_TITLE[mode]}
+              title={t(`settings.alertMode.${mode}`)}
             >
-              {mode === 'instant'
-                ? 'One message per match, as soon as it is scored.'
-                : mode === 'window'
-                  ? 'Matches found outside the window wait, and arrive in one message when it opens.'
-                  : 'Every match comes at the scheduled times below.'}
+              {t(`settings.alertMode.${mode}.body`)}
             </Radio>
           ))}
         </div>
@@ -429,11 +418,11 @@ const ScheduleForm: FC<{ view: ScheduleView }> = ({ view }) => {
             rule in layout.tsx). Hidden, its fields are still submitted; where :has() is
             missing it simply stays in sight, as before 2.40. */}
         <div class="mt-3 rounded-md bg-surface-overlay p-4" data-ui="alert-window">
-          <div class="text-label text-ink">Alert window</div>
-          <Hint class="mt-0.5">The hours and the days an alert may arrive in.</Hint>
+          <div class="text-label text-ink">{t('settings.alertWindow')}</div>
+          <Hint class="mt-0.5">{t('settings.theHoursAndTheDays')}</Hint>
           <div class="mt-3 flex flex-wrap items-end gap-3">
-            <HourSelect name="alertFrom" value={s.alerts.from} label="From" />
-            <HourSelect name="alertTo" value={s.alerts.to} label="Until (inclusive)" />
+            <HourSelect name="alertFrom" value={s.alerts.from} label={t('settings.from')} />
+            <HourSelect name="alertTo" value={s.alerts.to} label={t('settings.untilInclusive')} />
           </div>
           <DayPills name="alertDays" days={s.alerts.days} />
         </div>
@@ -441,13 +430,12 @@ const ScheduleForm: FC<{ view: ScheduleView }> = ({ view }) => {
 
       {/* Its own block: these hours run every day, whichever alert mode is picked. */}
       <div class="border-t border-line pt-4">
-        <div class="text-label text-ink">Scheduled messages</div>
+        <div class="text-label text-ink">{t('settings.scheduledMessages')}</div>
         <Hint class="mt-0.5">
-          Every day at the hours you pick, whatever the alert window says: the daily recap at each of them, and the
-          stale-application reminder once, at the first ({String(s.alerts.digestAt[0] ?? 9).padStart(2, '0')}:00).
+          {t('settings.scheduledMessagesHint', { first: String(s.alerts.digestAt[0] ?? 9).padStart(2, '0') })}
         </Hint>
         <fieldset class="mt-2">
-          <legend class="sr-only">Hours the scheduled messages go out</legend>
+          <legend class="sr-only">{t('settings.hoursTheScheduledMessagesGo')}</legend>
           <div class="flex flex-wrap gap-1.5">
             {HOURS.map((h) => (
               <PillCheckbox name="digestAt" value={String(h)} checked={s.alerts.digestAt.includes(h)}>
@@ -456,10 +444,10 @@ const ScheduleForm: FC<{ view: ScheduleView }> = ({ view }) => {
             ))}
           </div>
         </fieldset>
-        <Hint class="mt-2">Up to {MAX_DIGEST_HOURS} hours a day.</Hint>
+        <Hint class="mt-2">{t('settings.digestHoursLimit', { n: MAX_DIGEST_HOURS })}</Hint>
       </div>
 
-      <Button type="submit">Save schedule</Button>
+      <Button type="submit">{t('settings.saveSchedule')}</Button>
     </form>
   );
 };
@@ -495,10 +483,10 @@ export const SettingsPage: FC<SettingsProps> = ({
   flash,
   profileDraft,
 }) => (
-  <Layout title="Settings" active="settings">
+  <Layout title={t('nav.settings')} active="settings">
     <div class="w-full">
-      <PageHeader title="Settings">
-        Saved changes reach the background worker within the hour.
+      <PageHeader title={t('nav.settings')}>
+        {t('settings.savedChangesReachTheBackground')}
       </PageHeader>
       <Flash flash={flash} />
 
@@ -506,20 +494,20 @@ export const SettingsPage: FC<SettingsProps> = ({
       {/* One nav, two shapes: a segmented row below lg, a sticky column of links from lg —
           a rule down its side, the current tab marked on it. Same URLs, same order. */}
       <nav
-        aria-label="Settings sections"
+        aria-label={t('settings.settingsSections')}
         class="mb-6 inline-flex flex-wrap gap-0.5 rounded-lg border border-line bg-surface-overlay p-0.5 lg:sticky lg:top-0 lg:mb-0 lg:flex lg:flex-col lg:gap-0 lg:self-start lg:rounded-none lg:border-0 lg:border-l lg:bg-transparent lg:p-0"
       >
-        {SETTINGS_TABS.map((t) => (
+        {SETTINGS_TABS.map((tab) => (
           <a
-            href={`/settings?tab=${t.id}`}
-            aria-current={t.id === activeTab ? 'page' : undefined}
+            href={`/settings?tab=${tab}`}
+            aria-current={tab === activeTab ? 'page' : undefined}
             class={`rounded-[6px] px-3 py-1.5 text-note transition-colors duration-150 lg:-ml-px lg:rounded-none lg:border-l-2 lg:py-1.5 lg:pl-3 lg:text-sm ${
-              t.id === activeTab
+              tab === activeTab
                 ? 'bg-surface-raised font-medium text-ink shadow-sm lg:border-accent-strong lg:bg-transparent lg:shadow-none'
                 : 'text-ink-muted hover:text-ink lg:border-transparent lg:hover:border-line-strong'
             }`}
           >
-            {t.label}
+            {t(`settings.tab.${tab}`)}
           </a>
         ))}
       </nav>
@@ -530,64 +518,56 @@ export const SettingsPage: FC<SettingsProps> = ({
           picks which render. */}
       <Card flush class="divide-y divide-line">
       {activeTab === 'general' && (
-      <Section title="Job fetching">
+      <Section title={t('settings.jobFetching')}>
         <ToggleRow
-          label="Pipeline"
+          label={t('settings.pipeline')}
           enabled={fetchingEnabled}
           action="/settings/fetching-toggle"
-          onLabel="Running"
-          offLabel="Paused"
-          enableText="Resume"
-          disableText="Pause"
-          more="The pipeline is the hourly fetch and the monthly “Who is hiring” pull from Hacker News."
+          onLabel={t('settings.running')}
+          offLabel={t('settings.paused')}
+          enableText={t('settings.resumePipeline')}
+          disableText={t('settings.pause')}
+          more={t('settings.thePipelineIsTheHourly')}
         >
-          Pausing stops new jobs and alerts; the dashboard, digests and cleanup keep running.
+          {t('settings.pausingStopsNewJobsAnd')}
         </ToggleRow>
       </Section>
       )}
 
       {activeTab === 'general' && (
-      <Section title="Schedule">
+      <Section title={t('settings.schedule')}>
         <ScheduleForm view={schedule} />
       </Section>
       )}
 
       {activeTab === 'profile' && (
       <Section
-        title="Profile"
-        desc="One AI call scores every posting against every running search."
+        title={t('settings.profile')}
+        desc={t('settings.oneAiCallScoresEvery')}
       >
         {/* Order follows the user's journey: contextual warnings → fill from a
             resume → the editor → profile management last (docs/onboarding-plan.md §3). */}
         {profiles.some((p) => p.running && p.blank) && profiles.every((p) => !p.running || p.blank) && (
           <Notice tone="warn">
-            Every running search is empty — classification idle. New jobs are fetched but
-            not scored or alerted until one lists a required stack or role types.
-            {resumes.length > 0
-              ? ' Fastest fix: fill the fields from a resume below.'
-              : ' Fastest fix: upload a resume below and fill the fields from it.'}
+            {resumes.length > 0 ? t('settings.everySearchEmpty.fill') : t('settings.everySearchEmpty.upload')}
           </Notice>
         )}
         {activeProfile && !profiles.some((p) => p.id === activeProfile.id && p.running) && (
           <div class="rounded-md border border-line bg-surface-overlay px-3.5 py-2.5 text-note leading-5 text-ink-muted">
-            Editing a paused search — it scores nothing until you press Run below.
-            {isBlankProfile(activeProfile) &&
-              ' It starts running automatically on the first save with a required stack or role types.'}
+            {isBlankProfile(activeProfile) ? t('settings.editingPausedBlank') : t('settings.editingPaused')}
           </div>
         )}
         {/* A well inside the section: a tool that writes into the editor below, not a second card. */}
         {activeProfile && (
           <Card variant="subtle" id="fill">
-            <div class="mb-1 text-entity text-ink">Fill from a resume</div>
+            <div class="mb-1 text-entity text-ink">{t('settings.fillFromAResume')}</div>
             {resumes.length > 0 ? (
               <>
                 <Hint>
-                  AI drafts the fields below from a resume; nothing is saved until you press "Save
-                  profile".
+                  {t('settings.aiDraftsTheFieldsBelow')}
                 </Hint>
                 <More class="mb-3 mt-1">
-                  The resume's primary stack goes to required, its other skills to nice-to-have, plus
-                  role types and seniority. The resume is scanned again when its scan is out of date.
+                  {t('settings.fillMoreRescanned')}
                 </More>
                 <form
                   method="post"
@@ -597,29 +577,24 @@ export const SettingsPage: FC<SettingsProps> = ({
                   <Select
                     name="resumeId"
                     class="!w-auto min-w-0 max-w-full"
-                    aria-label="Resume to fill the profile from"
+                    aria-label={t('settings.resumeToFillTheProfile')}
                   >
                     {resumes.map((r) => (
                       <option value={r.id} selected={fillResumeId !== undefined ? r.id === fillResumeId : r.isDefault}>
-                        {r.name}
-                        {r.isDefault ? ' (default)' : ''}
-                        {r.scannedAt ? '' : ' (not scanned yet)'}
+                        {resumeOption(r, r.scannedAt !== null)}
                       </option>
                     ))}
                   </Select>
-                  <Button variant="violet">Fill from resume</Button>
+                  <Button variant="violet">{t('settings.fillFromResume')}</Button>
                 </form>
               </>
             ) : (
               <>
                 <Hint>
-                  Pick a file ({ACCEPTED_EXTENSIONS.join(', ')} · up to {MAX_UPLOAD_MB} MB): one AI
-                  call, about half a minute, drafts the fields below. Nothing is saved until you
-                  press "Save profile".
+                  {t('settings.fillPickAFile', { types: ACCEPTED_EXTENSIONS.join(', '), mb: MAX_UPLOAD_MB })}
                 </Hint>
                 <More class="mb-3 mt-1">
-                  The resume's primary stack goes to required, its other skills to nice-to-have, plus
-                  role types and seniority. The file also lands in Resumes.
+                  {t('settings.fillMoreLandsInResumes')}
                 </More>
                 <form
                   method="post"
@@ -632,10 +607,10 @@ export const SettingsPage: FC<SettingsProps> = ({
                     name="file"
                     required
                     accept={ACCEPTED_EXTENSIONS.join(',')}
-                    aria-label="Resume file"
+                    aria-label={t('settings.resumeFile')}
                     class={`!w-auto min-w-0 max-w-full ${FILE_INPUT_CLASS}`}
                   />
-                  <Button variant="violet">Upload &amp; fill</Button>
+                  <Button variant="violet">{t('settings.uploadFill')}</Button>
                 </form>
               </>
             )}
@@ -649,15 +624,14 @@ export const SettingsPage: FC<SettingsProps> = ({
             draft={profileDraft}
           />
         ) : (
-          <Empty bare title="No search selected">
-            The editor opens one search at a time. Pick one under Searches below, or create a new one there.
+          <Empty bare title={t('settings.noSearchSelected')}>
+            {t('settings.theEditorOpensOneSearch')}
           </Empty>
         )}
         <div class="space-y-2 border-t border-line pt-5">
-          <div class="text-entity text-ink">Searches</div>
+          <div class="text-entity text-ink">{t('settings.searches')}</div>
           <Hint>
-            Each running search has its own threshold and alert target. Up to{' '}
-            {MAX_ACTIVE_PROFILES} at once.
+            {t('settings.searchesHint', { n: MAX_ACTIVE_PROFILES })}
           </Hint>
           <ul class="divide-y divide-line">
             {profiles.map((p) => (
@@ -669,22 +643,22 @@ export const SettingsPage: FC<SettingsProps> = ({
                 {/* On a narrow screen the name takes its own line — the row's
                     four actions otherwise squeeze it down to "S…". */}
                 <span class="min-w-0 basis-[calc(100%-1.5rem)] truncate text-note text-ink sm:basis-0 sm:flex-1">
-                  {p.name}
+                  <span translate="no">{p.name}</span>
                   {p.primary && (
-                    <span class="ml-1.5 text-meta text-ink-faint">· primary</span>
+                    <span class="ml-1.5 text-meta text-ink-faint">{t('settings.searchPrimary')}</span>
                   )}
                   {p.blank && (
-                    <span class="ml-1.5 text-meta text-warn">· empty, fill it in first</span>
+                    <span class="ml-1.5 text-meta text-warn">{t('settings.searchEmpty')}</span>
                   )}
                   {!p.running && !p.blank && (
-                    <span class="ml-1.5 text-meta text-ink-faint">· paused</span>
+                    <span class="ml-1.5 text-meta text-ink-faint">{t('settings.searchPaused')}</span>
                   )}
                 </span>
                 <a
                   href={`/settings?tab=profile&profile=${p.id}`}
                   class="text-note text-ink-muted underline-offset-2 hover:text-ink hover:underline"
                 >
-                  Edit
+                  {t('settings.edit')}
                 </a>
                 {!p.primary && (
                   <ActionForm
@@ -692,14 +666,14 @@ export const SettingsPage: FC<SettingsProps> = ({
                     hidden={{ id: p.id, active: p.running ? '' : '1' }}
                   >
                     <Button variant="secondary" size="sm" disabled={p.blank && !p.running}>
-                      {p.running ? 'Pause' : 'Run'}
+                      {p.running ? t('settings.pause') : t('settings.run')}
                     </Button>
                   </ActionForm>
                 )}
                 {!p.primary && (
                   <ActionForm action="/settings/profiles/activate" hidden={{ id: p.id }}>
                     <Button variant="secondary" size="sm" disabled={p.blank}>
-                      Make primary
+                      {t('settings.makePrimary')}
                     </Button>
                   </ActionForm>
                 )}
@@ -708,9 +682,9 @@ export const SettingsPage: FC<SettingsProps> = ({
                     <Button
                       variant="danger"
                       size="sm"
-                      onclick="return confirm('Delete this search? This cannot be undone.')"
+                      onclick={confirmScript(t('settings.deleteSearchConfirm'))}
                     >
-                      Delete
+                      {t('common.delete')}
                     </Button>
                   </ActionForm>
                 )}
@@ -720,7 +694,7 @@ export const SettingsPage: FC<SettingsProps> = ({
         </div>
         <div class="flex flex-wrap items-center gap-2">
           <ActionForm action="/settings/profiles/new">
-            <Button variant="secondary">+ New search</Button>
+            <Button variant="secondary">{t('settings.newSearch')}</Button>
           </ActionForm>
         </div>
       </Section>
@@ -729,9 +703,9 @@ export const SettingsPage: FC<SettingsProps> = ({
       {activeTab === 'ai' && (
       <>
       <Section
-        title="AI engines"
-        desc="In priority order: the first engine that takes a task answers it, and the next one that takes it steps in when the first errors or hits a rate limit."
-        more="An engine is an AI subscription, an API key or a model on this computer. Each takes every task until you untick some on its card: a small local model can score postings while a stronger one writes the letters. How to set each one up, locally and in Docker: docs/ai-engines.md in the repo."
+        title={t('settings.aiEngines')}
+        desc={t('settings.inPriorityOrderTheFirst')}
+        more={t('settings.anEngineIsAnAi')}
       >
         <div class="space-y-3">
           {/* settings-models.mjs redraws this block after a card saves: the table and the note read off it. */}
@@ -743,8 +717,7 @@ export const SettingsPage: FC<SettingsProps> = ({
           </div>
           {aiStatus.skipped.length > 0 && (
             <Notice tone="warn">
-              Enabled but skipped for now: {aiStatus.skipped.join(', ')} — not usable on this
-              host yet. Each joins the chain automatically once its key or login appears.
+              {t('settings.enginesSkipped', { engines: aiStatus.skipped.join(', ') })}
             </Notice>
           )}
         </div>
@@ -759,54 +732,56 @@ export const SettingsPage: FC<SettingsProps> = ({
 
       <Section
         id="budget"
-        title="Monthly budget"
-        desc="A ceiling on what the pay-per-token engines may bill in a month, with a warning before you reach it."
+        title={t('settings.monthlyBudget')}
+        desc={t('settings.aCeilingOnWhatThe')}
       >
         <form method="post" action="/settings/ai/budget" class="flex flex-wrap items-end gap-3">
           <Field
-            label="Budget for billed calls, USD a month"
+            label={t('settings.budgetForBilledCallsUsd')}
             hint={
               aiBudget.cents
-                ? `Billed this month: ${formatUsd(aiBudget.billedThisMonthMicro)} of ${formatUsd(aiBudget.cents * 10_000)} (${Math.round((aiBudget.billedThisMonthMicro / (aiBudget.cents * 10_000)) * 100)} %).`
-                : 'Empty = no budget. A plan or a local model never counts against it.'
+                ? t('settings.budgetBilled', {
+                    billed: formatUsd(aiBudget.billedThisMonthMicro),
+                    budget: formatUsd(aiBudget.cents * 10_000),
+                    percent: Math.round((aiBudget.billedThisMonthMicro / (aiBudget.cents * 10_000)) * 100),
+                  })
+                : t('settings.emptyNoBudgetAPlan')
             }
             class="w-72"
           >
             <Input type="number" name="budget" min="0" step="0.01" value={aiBudget.cents ? (aiBudget.cents / 100).toFixed(2) : ''} />
           </Field>
-          <Button variant="secondary">Save budget</Button>
+          <Button variant="secondary">{t('settings.saveBudget')}</Button>
         </form>
         <Hint>
-          A warning on your alert chats at 80 % and at 100 % of it, once each a month (UTC). Nothing is ever stopped: a
-          missed match costs more than a cent.
+          {t('settings.aWarningOnYourAlert')}
         </Hint>
-        <CardLink href="/ai">Which model did what, how long it took and what it cost: AI usage</CardLink>
+        <CardLink href="/ai">{t('settings.whichModelDidWhatHow')}</CardLink>
       </Section>
 
       <Section
-        title="Classifier"
-        desc="What each fetched job costs before it reaches you."
+        title={t('settings.classifier')}
+        desc={t('settings.whatEachFetchedJobCosts')}
       >
         <form method="post" action="/settings/classifier-mode" class="space-y-2">
           <Radio
             name="mode"
             value="single"
             checked={classifierMode === 'single'}
-            title="Single stage"
+            title={t('settings.singleStage')}
           >
-            Every job goes straight to the full classifier. Highest precision, full cost.
+            {t('settings.everyJobGoesStraightTo')}
           </Radio>
           <Radio
             name="mode"
             value="two_stage"
             checked={classifierMode === 'two_stage'}
-            title="Two stage (cheaper)"
+            title={t('settings.twoStageCheaper')}
           >
-            A short yes/no prefilter gates the full classifier. When most fetched jobs are
-            off-target, spend drops ~30-40% with marginal precision loss.
+            {t('settings.aShortYesNoPrefilter')}
           </Radio>
           <div class="pt-2">
-            <Button variant="secondary">Save mode</Button>
+            <Button variant="secondary">{t('settings.saveMode')}</Button>
           </div>
         </form>
       </Section>
@@ -814,50 +789,48 @@ export const SettingsPage: FC<SettingsProps> = ({
       )}
 
       {activeTab === 'general' && (
-      <Section title="Application tracking">
+      <Section title={t('settings.applicationTracking')}>
         <div class="space-y-5">
           <ToggleRow
-            label="Tracking"
+            label={t('settings.tracking')}
             enabled={applicationTrackingEnabled}
             action="/settings/application-tracking-toggle"
           >
-            The tracking card on each job and the Applications board; off keeps what is stored.
+            {t('settings.theTrackingCardOnEach')}
           </ToggleRow>
           <div class="border-t border-line pt-5">
             <ToggleRow
-              label="Stale digest"
+              label={t('settings.staleDigest')}
               enabled={staleApplicationsDigestEnabled}
               action="/settings/stale-digest-toggle"
             >
-              A daily nudge for applications with no recruiter contact for 14+ days; off while
-              alerts are off.
+              {t('settings.aDailyNudgeForApplications')}
             </ToggleRow>
           </div>
           <div class="border-t border-line pt-5">
             <form method="post" action="/settings/reapply" class="flex flex-wrap items-end gap-3">
               <Field
-                label="Re-apply window"
-                hint="New postings at a company you applied to inside it are turned away before any AI."
+                label={t('settings.reApplyWindow')}
+                hint={t('settings.newPostingsAtACompany')}
                 class="min-w-0 flex-1"
               >
                 <Select name="days">
                   <option value="" selected={reapplyDays === null}>
-                    Off
+                    {t('settings.off')}
                   </option>
                   {REAPPLY_CHOICES.map((d) => (
                     <option value={String(d)} selected={reapplyDays === d}>
-                      {d} days
+                      {t('settings.reapplyDays', { n: d })}
                     </option>
                   ))}
                 </Select>
               </Field>
               <Button variant="secondary">
-                Save
+                {t('common.save')}
               </Button>
             </form>
             <More class="mt-1.5">
-              Read from the applications you marked Applied, by company name across every source. A watched company
-              that alerts on every posting is still read in full; a muted one never is. Off by default.
+              {t('settings.readFromTheApplicationsYou')}
             </More>
           </div>
         </div>
@@ -939,8 +912,8 @@ export const SettingsPage: FC<SettingsProps> = ({
       {activeTab === 'general' && (
       <Section
         id="stages"
-        title="Board columns"
-        desc="Applied and the two Closed columns are fixed; the ones between are yours."
+        title={t('settings.boardColumns')}
+        desc={t('settings.appliedAndTheTwoClosed')}
       >
         <div>
           <ul class="divide-y divide-line">
@@ -958,9 +931,9 @@ export const SettingsPage: FC<SettingsProps> = ({
                     <>
                       <span class="min-w-0 flex-1 text-sm text-ink">{s.label}</span>
                       <span class="text-meta tabular-nums text-ink-faint">
-                        {s.count} job{s.count === 1 ? '' : 's'}
+                        {t('settings.stageJobs', { n: s.count })}
                       </span>
-                      <Tag>fixed</Tag>
+                      <Tag>{t('settings.fixed')}</Tag>
                     </>
                   ) : (
                     <>
@@ -974,22 +947,22 @@ export const SettingsPage: FC<SettingsProps> = ({
                           value={s.label}
                           required
                           maxlength={40}
-                          aria-label={`Rename ${s.label}`}
+                          aria-label={t('settings.stage.rename', { label: s.label })}
                           class="max-w-[14rem]"
                         />
-                        <Button variant="ghost" aria-label={`Save name for ${s.label}`}>
-                          Save
+                        <Button variant="ghost" aria-label={t('settings.stage.saveName', { label: s.label })}>
+                          {t('common.save')}
                         </Button>
                       </form>
                       <span class="text-meta tabular-nums text-ink-faint">
-                        {s.count} job{s.count === 1 ? '' : 's'}
+                        {t('settings.stageJobs', { n: s.count })}
                       </span>
                       <ActionForm action={`/settings/stages/${s.key}/move`} hidden={{ dir: 'up' }}>
                         <Button
                           size="sm"
                           variant="secondary"
                           disabled={prevFixed || undefined}
-                          aria-label={`Move ${s.label} up`}
+                          aria-label={t('settings.stage.moveUp', { label: s.label })}
                         >
                           ↑
                         </Button>
@@ -999,7 +972,7 @@ export const SettingsPage: FC<SettingsProps> = ({
                           size="sm"
                           variant="secondary"
                           disabled={nextFixed || undefined}
-                          aria-label={`Move ${s.label} down`}
+                          aria-label={t('settings.stage.moveDown', { label: s.label })}
                         >
                           ↓
                         </Button>
@@ -1007,13 +980,13 @@ export const SettingsPage: FC<SettingsProps> = ({
                       {s.count === 0 && work.length > 1 ? (
                         <ConfirmAction
                           action={`/settings/stages/${s.key}/remove`}
-                          label="Delete"
-                          ariaLabel={`Delete ${s.label}`}
-                          confirm={`Delete the "${s.label}" column?`}
+                          label={t('common.delete')}
+                          ariaLabel={t('settings.stage.delete', { label: s.label })}
+                          confirm={t('settings.stage.deleteConfirm', { label: s.label })}
                         />
                       ) : (
                         <span class="text-meta text-ink-faint">
-                          {s.count > 0 ? 'move jobs out to delete' : 'last column'}
+                          {s.count > 0 ? t('settings.moveJobsOutToDelete') : t('settings.lastColumn')}
                         </span>
                       )}
                     </>
@@ -1030,17 +1003,17 @@ export const SettingsPage: FC<SettingsProps> = ({
             >
               <Input
                 name="label"
-                placeholder="e.g. Take-home"
+                placeholder={t('settings.newColumnPlaceholder')}
                 required
                 maxlength={40}
-                aria-label="New column name"
+                aria-label={t('settings.newColumnName')}
                 class="max-w-[14rem]"
               />
-              <Button>Add column</Button>
+              <Button>{t('settings.addColumn')}</Button>
             </form>
           ) : (
             <Hint class="mt-4 border-t border-line pt-4">
-              Column limit ({MAX_WORK_STAGES}) reached — remove one to add another.
+              {t('settings.columnLimit', { n: MAX_WORK_STAGES })}
             </Hint>
           )}
         </div>
@@ -1049,31 +1022,31 @@ export const SettingsPage: FC<SettingsProps> = ({
 
       {activeTab === 'notifications' && (
       <Section
-        title="Notifications"
-        desc="Telegram chats and Discord webhooks that receive job alerts."
+        title={t('settings.notifications')}
+        desc={t('settings.telegramChatsAndDiscordWebhooks')}
       >
         {/* Same spacing and rule as the General tab's toggle pair: bare
             siblings here had the two rows touching, so the second row's
             button looked like it belonged to the first. */}
         <div class="space-y-5">
-          <ToggleRow label="Alerts" enabled={telegramEnabled} action="/settings/telegram-toggle">
-            Off sends nothing to any target; what is found meanwhile waits, and arrives in one message per chat when you switch it back on.
+          <ToggleRow label={t('settings.alerts')} enabled={telegramEnabled} action="/settings/telegram-toggle">
+            {t('settings.offSendsNothingToAny')}
           </ToggleRow>
           <div class="border-t border-line pt-5">
             <ToggleRow
-              label="Source health alerts"
+              label={t('settings.sourceHealthAlerts')}
               enabled={sourceHealthAlerts}
               action="/settings/source-health-toggle"
-              more="A board usually goes quiet because its slug was rotated. The quiet-sources card on Companies shows it whether this is on or off."
+              more={t('settings.aBoardUsuallyGoesQuiet')}
             >
-              One line in the daily digest when a tracked board stops answering.
+              {t('settings.oneLineInTheDaily')}
             </ToggleRow>
           </div>
         </div>
 
         {targets.length === 0 ? (
-          <Empty bare title="No targets yet">
-            An alert has nowhere to go until a target exists. Add a Telegram chat or a Discord webhook below.
+          <Empty bare title={t('settings.noTargetsYet')}>
+            {t('settings.anAlertHasNowhereTo')}
           </Empty>
         ) : (
           /* Edge to edge of the surface: the table's header and hairlines are
@@ -1081,48 +1054,55 @@ export const SettingsPage: FC<SettingsProps> = ({
           <div class="-mx-5 border-y border-line">
             <Table
               columns={[
-                'Name',
-                'Channel',
-                'Destination',
-                'Last used',
-                'Active',
-                <span class="block text-right">Actions</span>,
+                t('settings.name'),
+                t('settings.channel'),
+                t('settings.destination'),
+                t('settings.lastUsed'),
+                t('settings.activeColumn'),
+                <span class="block text-right">{t('common.actions')}</span>,
               ]}
             >
-              {targets.map((t) => (
+              {targets.map((target) => (
                 <Tr>
-                  <Td class="font-medium text-ink">{t.name}</Td>
-                  <Td>
-                    <Badge tone="neutral">{KIND_LABEL[t.kind]}</Badge>
+                  {/* The user's own name for it, the vendor and the masked secret: data. */}
+                  <Td class="font-medium text-ink">
+                    <span translate="no">{target.name}</span>
                   </Td>
-                  <Td class="font-mono text-meta text-ink-muted">{t.destination}</Td>
+                  <Td>
+                    <Badge tone="neutral">
+                      <span translate="no">{KIND_LABEL[target.kind]}</span>
+                    </Badge>
+                  </Td>
+                  <Td class="font-mono text-meta text-ink-muted">
+                    <span translate="no">{target.destination}</span>
+                  </Td>
                   <Td class="whitespace-nowrap text-note text-ink-faint">
-                    <When at={t.lastUsed} />
+                    <When at={target.lastUsed} />
                   </Td>
                   <Td>
-                    <ActionForm action={`/settings/targets/${t.id}/toggle`}>
+                    <ActionForm action={`/settings/targets/${target.id}/toggle`}>
                       {/* The badge shows the state; the button's name says the action and its
                           object — "Toggle" told a screen reader neither (audit A11Y-4). */}
                       <button
                         type="submit"
                         class="cursor-pointer rounded-full"
-                        aria-label={`${t.active ? 'Disable' : 'Enable'} ${t.name}`}
-                        title={`${t.active ? 'Disable' : 'Enable'} ${t.name}`}
+                        aria-label={t(target.active ? 'settings.target.disable' : 'settings.target.enable', { name: target.name })}
+                        title={t(target.active ? 'settings.target.disable' : 'settings.target.enable', { name: target.name })}
                       >
-                        <Badge tone={t.active ? 'ok' : 'neutral'}>
-                          {t.active ? 'Active' : 'Disabled'}
+                        <Badge tone={target.active ? 'ok' : 'neutral'}>
+                          {target.active ? t('settings.active') : t('ui.disabled')}
                         </Badge>
                       </button>
                     </ActionForm>
                   </Td>
                   <Td>
                     <div class="flex justify-end gap-2">
-                      <ActionForm action={`/settings/targets/${t.id}/test`}>
+                      <ActionForm action={`/settings/targets/${target.id}/test`}>
                         <Button size="sm" variant="secondary">
-                          Test
+                          {t('settings.test')}
                         </Button>
                       </ActionForm>
-                      <ConfirmAction action={`/settings/targets/${t.id}/delete`} label="Delete" confirm="Delete this target?" />
+                      <ConfirmAction action={`/settings/targets/${target.id}/delete`} label={t('common.delete')} confirm={t('settings.deleteThisTarget')} />
                     </div>
                   </Td>
                 </Tr>
@@ -1134,16 +1114,16 @@ export const SettingsPage: FC<SettingsProps> = ({
         {/* Two parts of the section, a hairline between them — beside each other from lg, stacked below. */}
         <div class="grid gap-6 lg:grid-cols-2">
           <div>
-            <div class="mb-3 text-entity text-ink">Add a Telegram target</div>
+            <div class="mb-3 text-entity text-ink">{t('settings.addATelegramTarget')}</div>
             <form method="post" action="/settings/targets" class="grid gap-3 sm:grid-cols-2">
               <input type="hidden" name="kind" value="telegram" />
-              <Field label="Name">
-                <Input type="text" name="name" required placeholder="My phone" />
+              <Field label={t('settings.name')}>
+                <Input type="text" name="name" required placeholder={t('settings.myPhone')} />
               </Field>
-              <Field label="Chat id">
-                <Input type="text" name="chatId" required placeholder="-100…" mono />
+              <Field label={t('settings.chatId')}>
+                <Input type="text" name="chatId" required placeholder="-100…" mono translate="no" />
               </Field>
-              <Field label="Bot token" class="sm:col-span-2">
+              <Field label={t('settings.botToken')} class="sm:col-span-2">
                 <Input
                   type="password"
                   name="botToken"
@@ -1151,24 +1131,25 @@ export const SettingsPage: FC<SettingsProps> = ({
                   autocomplete="off"
                   placeholder="123456789:ABC…"
                   mono
+                  translate="no"
                 />
               </Field>
               <div class="sm:col-span-2">
-                <Button>Add target</Button>
+                <Button>{t('settings.addTarget')}</Button>
               </div>
             </form>
-            <Hint class="mt-3">ApplyPack sends a test message before saving.</Hint>
+            <Hint class="mt-3">{t('settings.applypackSendsATestMessage')}</Hint>
           </div>
           <div class="border-t border-line pt-6 lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0">
-            <div class="mb-3 text-entity text-ink">Add a Discord webhook</div>
+            <div class="mb-3 text-entity text-ink">{t('settings.addADiscordWebhook')}</div>
             <form method="post" action="/settings/targets" class="grid gap-3">
               <input type="hidden" name="kind" value="discord" />
-              <Field label="Name">
-                <Input type="text" name="name" required placeholder="#job-alerts" />
+              <Field label={t('settings.name')}>
+                <Input type="text" name="name" required placeholder="#job-alerts" translate="no" />
               </Field>
               <Field
-                label="Webhook URL"
-                more="In Discord: Server settings → Integrations → Webhooks → New webhook → Copy URL."
+                label={t('settings.webhookUrl')}
+                more={t('settings.inDiscordServerSettingsIntegrations')}
               >
                 <Input
                   type="password"
@@ -1177,15 +1158,15 @@ export const SettingsPage: FC<SettingsProps> = ({
                   autocomplete="off"
                   placeholder="https://discord.com/api/webhooks/…"
                   mono
+                  translate="no"
                 />
               </Field>
               <div>
-                <Button>Add webhook</Button>
+                <Button>{t('settings.addWebhook')}</Button>
               </div>
             </form>
             <Hint class="mt-3">
-              ApplyPack posts a test message before saving. The URL is a secret: anyone holding it
-              can post to the channel.
+              {t('settings.applypackPostsATestMessage')}
             </Hint>
           </div>
         </div>
@@ -1195,8 +1176,8 @@ export const SettingsPage: FC<SettingsProps> = ({
       {activeTab === 'sources' && (
       <>
       <Section
-        title="Job sources"
-        desc="Switch a whole source family off; per-company toggles on Companies still apply."
+        title={t('settings.jobSources')}
+        desc={t('settings.switchAWholeSourceFamily')}
       >
         <form method="post" action="/settings/sources" class="space-y-4">
           {sourceGroups.map((g) => (
@@ -1206,15 +1187,15 @@ export const SettingsPage: FC<SettingsProps> = ({
               <div class="flex flex-wrap gap-1.5">
                 {g.pills.map((p) => (
                   <PillCheckbox name="enabled" value={p.atsType} checked={!disabledSources.includes(p.atsType)}>
-                    {p.label}
+                    <span translate="no">{p.label}</span>
                     <span data-ui="hint" class="text-meta text-ink-faint">
                       {p.locked ? (
                         <a href="#source-keys" class="text-warn hover:underline">
-                          needs a key
+                          {t('settings.needsAKey')}
                         </a>
                       ) : p.atsType === 'HN_HIRING' && !hnParserEnabled ? (
                         <a href="/discovery" class="text-warn hover:underline">
-                          parser off on Discovery
+                          {t('settings.parserOffOnDiscovery')}
                         </a>
                       ) : (
                         describeCount(p, g.family)
@@ -1226,10 +1207,9 @@ export const SettingsPage: FC<SettingsProps> = ({
             </div>
           ))}
           <Hint>
-            Keep the aggregators on: they carry the companies you do not track, and turning them
-            off usually means near-zero new jobs.
+            {t('settings.keepTheAggregatorsOnThey')}
           </Hint>
-          <Button variant="secondary">Save sources</Button>
+          <Button variant="secondary">{t('settings.saveSources')}</Button>
         </form>
       </Section>
       <SourceKeysSection rows={sourceKeyRows} />
@@ -1239,23 +1219,25 @@ export const SettingsPage: FC<SettingsProps> = ({
       {activeTab === 'general' && loginItem.available && (
       <Section
         id="login"
-        title="Start with this computer"
-        desc="ApplyPack searches only while it runs. Started at login, the hourly search does not wait for you to open a terminal."
+        title={t('settings.startWithThisComputer')}
+        desc={t('settings.applypackSearchesOnlyWhileIt')}
       >
         <div class="flex flex-wrap items-center gap-3">
-          <Badge tone={loginItem.on ? 'ok' : 'neutral'}>{loginItem.on ? 'Starts at login' : 'Off'}</Badge>
+          <Badge tone={loginItem.on ? 'ok' : 'neutral'}>{loginItem.on ? t('settings.startsAtLogin') : t('settings.off')}</Badge>
           <ActionForm action="/settings/login-item" hidden={{ on: loginItem.on ? '0' : '1' }}>
             <Button size="sm" variant={loginItem.on ? 'secondary' : 'primary'}>
-              {loginItem.on ? 'Stop starting at login' : 'Start ApplyPack when I log in'}
+              {loginItem.on ? t('settings.stopStartingAtLogin') : t('settings.startApplypackWhenILog')}
             </Button>
           </ActionForm>
         </div>
         <Hint>
-          {loginItem.on ? `On: ${loginItem.kind} at ` : `This writes ${loginItem.kind} at `}
-          <span class="break-all font-mono text-meta">{loginItem.file}</span>
-          {loginItem.on
-            ? '. It takes effect at your next login; npm run stop still stops it.'
-            : ', which runs npm start from this folder when you log in. The button above takes it away again.'}
+          {tRich(loginItem.on ? 'settings.login.on' : 'settings.login.off', { kind: loginItem.kind ?? '' }, {
+            file: () => (
+              <span class="break-all font-mono text-meta" translate="no">
+                {loginItem.file}
+              </span>
+            ),
+          })}
         </Hint>
       </Section>
       )}
@@ -1267,18 +1249,18 @@ export const SettingsPage: FC<SettingsProps> = ({
       )}
 
       {activeTab === 'general' && (
-      <Section id="updates" title="Updates" desc={`You run ApplyPack v${updates.current}.`}>
+      <Section id="updates" title={t('settings.updates')} desc={t('settings.updatesDesc', { version: updates.current })}>
         <ToggleRow
-          label="New versions"
+          label={t('settings.newVersions')}
           enabled={updates.enabled}
           action="/settings/update-check-toggle"
-          onLabel="Checking weekly"
-          offLabel="Off"
-          enableText="Check weekly"
-          disableText="Stop checking"
-          more="One request a week to GitHub's releases API — the only request ApplyPack makes about itself, so it is off until you turn it on. It never updates anything: updating is git pull, then npm install and npm start (with Docker: git pull, then docker compose up -d --build)."
+          onLabel={t('settings.checkingWeekly')}
+          offLabel={t('settings.off')}
+          enableText={t('settings.checkWeekly')}
+          disableText={t('settings.stopChecking')}
+          more={t('settings.oneRequestAWeekTo')}
         >
-          Say in the sidebar when a newer release is out.
+          {t('settings.sayInTheSidebarWhen')}
         </ToggleRow>
         {updates.enabled && updates.checkedAt && <UpdateLine {...updates} checkedAt={updates.checkedAt} />}
       </Section>
@@ -1286,8 +1268,8 @@ export const SettingsPage: FC<SettingsProps> = ({
 
       {activeTab === 'general' && (
       <Section
-        title="Resumes"
-        desc="The resumes you send out."
+        title={t('settings.resumes')}
+        desc={t('settings.theResumesYouSendOut')}
       >
         <div>
           {resumes.length > 0 ? (
@@ -1297,21 +1279,22 @@ export const SettingsPage: FC<SettingsProps> = ({
                   <a
                     href={`/resumes/${r.id}`}
                     class="font-medium text-ink transition-colors duration-150 hover:text-accent-strong"
+                    translate="no"
                   >
                     {r.name}
                   </a>
-                  {r.isDefault && <Badge tone="ok">default</Badge>}
-                  {!r.scannedAt && <Badge tone="warn">not scanned</Badge>}
+                  {r.isDefault && <Badge tone="ok">{t('settings.resumeDefault')}</Badge>}
+                  {!r.scannedAt && <Badge tone="warn">{t('settings.notScanned')}</Badge>}
                 </li>
               ))}
             </ul>
           ) : (
-            <Empty bare title="No resumes yet">
-              A job page compares and drafts a letter from a resume. Upload one on the Resumes page.
+            <Empty bare title={t('settings.noResumesYet')}>
+              {t('settings.aJobPageComparesAnd')}
             </Empty>
           )}
           <a href="/resumes" class="mt-3 inline-block text-note font-medium text-accent-strong hover:text-accent-deep">
-            Upload &amp; manage resumes →
+            {t('settings.uploadManageResumes')}
           </a>
         </div>
       </Section>
@@ -1319,97 +1302,101 @@ export const SettingsPage: FC<SettingsProps> = ({
 
       {activeTab === 'screening' && (
       <Section
-        title="Employer mode"
-        desc="The other side of the table: rank a folder of resumes against one position. Off by default, because it reads other people's data."
+        title={t('settings.employerMode')}
+        desc={t('settings.theOtherSideOfThe')}
       >
         <ToggleRow
-          label="Employer mode"
+          label={t('settings.employerMode')}
           enabled={screening.enabled}
           action="/settings/employer-mode-toggle"
-          onLabel="On"
-          offLabel="Off"
-          enableText="Turn on"
-          disableText="Turn off"
-          more="A screening is one position and its applicants: the posting is read into a rubric you edit, every resume is stripped of the person before a model reads it, one independent call per applicant marks the evidence with quotes, and the code computes the score."
+          onLabel={t('settings.on')}
+          offLabel={t('settings.off')}
+          enableText={t('settings.turnOn')}
+          disableText={t('settings.turnOff')}
+          more={t('settings.aScreeningIsOnePosition')}
         >
-          Adds a Screening section to the menu. The table is an order to talk to people in; the
-          decisions stay yours.
-          {screening.screenings > 0 && !screening.enabled && (
-            <> Turning it off hides {screening.screenings} stored screening{screening.screenings === 1 ? '' : 's'}; the files stay until their retention date.</>
-          )}
-          {screening.enabled && (
-            <>
-              {' '}
-              <a href="/screen" class="font-medium text-accent-strong hover:text-accent-deep">
-                Open Screening →
-              </a>
-            </>
-          )}
+          {screening.enabled
+            ? tRich('settings.employerHintOpen', {}, {
+                link: (words) => (
+                  <a href="/screen" class="font-medium text-accent-strong hover:text-accent-deep">
+                    {words}
+                  </a>
+                ),
+              })
+            : screening.screenings > 0
+              ? t('settings.employerHintHidden', { n: screening.screenings })
+              : t('settings.employerHint')}
         </ToggleRow>
       </Section>
       )}
 
       {activeTab === 'screening' && (
-      <Section title="Retention" desc="Applicants' files and every verdict are deleted with the screening on its date. A hiring round, not a talent pool.">
+      <Section title={t('settings.retention')} desc={t('settings.applicantsFilesAndEveryVerdict')}>
         <div>
           <form method="post" action="/settings/screening-retention" class="flex flex-wrap items-end gap-3">
-            <Field label="Keep a screening for" hint={`${screening.retentionMin}–${screening.retentionMax} days; each screening's page can extend its own date.`}>
+            <Field label={t('settings.keepAScreeningFor')} hint={t('settings.retentionHint', { min: screening.retentionMin, max: screening.retentionMax })}>
               <div class="flex items-center gap-2">
                 <Input type="number" name="days" min={screening.retentionMin} max={screening.retentionMax} value={screening.retentionDays} class="w-28" />
-                <span class="text-sm text-ink-muted">days</span>
+                <span class="text-sm text-ink-muted">{t('settings.retentionDaysUnit')}</span>
               </div>
             </Field>
-            <Button variant="secondary">Save</Button>
+            <Button variant="secondary">{t('common.save')}</Button>
           </form>
           <Hint class="mt-3">
-            The weekly cleanup deletes what has passed its date. Deleting a screening yourself removes the files at
-            once.
+            {t('settings.theWeeklyCleanupDeletesWhat')}
           </Hint>
         </div>
       </Section>
       )}
 
       {activeTab === 'screening' && (
-      <Section title="Which engine reads applicants" desc="Every screening call goes to the first engine that takes Screening applicants, with its resume model.">
+      <Section title={t('settings.whichEngineReadsApplicants')} desc={t('settings.everyScreeningCallGoesTo')}>
         <div>
           <p class="text-sm text-ink">
-            Answers screening now: <span class="font-medium">{screening.engineLabel}</span>
+            {tRich('settings.answersScreeningNow', { engine: screening.engineLabel }, {
+              b: (words) => (
+                <span class="font-medium" translate="no">
+                  {words}
+                </span>
+              ),
+            })}
             {screening.engineSubscription ? (
               <Badge tone="warn" class="ml-2">
-                personal subscription
+                {t('settings.personalSubscription')}
               </Badge>
             ) : (
               <Badge tone="ok" class="ml-2">
-                API or local
+                {t('settings.apiOrLocal')}
               </Badge>
             )}
           </p>
           <Hint class="mt-2">
             {screening.engineSubscription
-              ? 'A CLI on a personal subscription runs under terms and data settings the subscriber controls, not the employer. For applicants’ data the defensible path is an API engine under a data-processing agreement, or a local model through the OpenAI-compatible engine (a localhost base URL). The screening page warns about this too; it does not block.'
-              : 'An API or a local model is what other people’s data should go through — check the vendor’s data-processing terms, or keep the model on your own machine.'}{' '}
-            Change who takes Screening applicants on the AI engine tab.
+              ? t('settings.aCliOnAPersonal')
+              : t('settings.anApiOrALocal')}{' '}
+            {t('settings.changeWhoTakesScreening')}
           </Hint>
         </div>
       </Section>
       )}
 
       {activeTab === 'screening' && (
-      <Section title="What this means legally" desc="Not legal advice — the facts to check with whoever gives you that.">
-        <p class="text-sm leading-6 text-ink-muted">{screening.legalNote}</p>
+      <Section title={t('settings.whatThisMeansLegally')} desc={t('settings.notLegalAdviceTheFacts')}>
+        {/* The legal note and the notice are legal texts (screening/notice.ts): English in every language. */}
+        <p class="text-sm leading-6 text-ink-muted" lang="en">
+          {screening.legalNote}
+        </p>
         <div class="border-t border-line pt-5">
           <div class="flex flex-wrap items-baseline justify-between gap-3">
-            <SectionTitle>Notice for applicants</SectionTitle>
+            <SectionTitle>{t('settings.noticeForApplicants')}</SectionTitle>
             <Button variant="secondary" size="sm" type="button" data-copy={screening.notice}>
-              Copy
+              {t('common.copy')}
             </Button>
           </div>
           <Hint>
-            Paste it into the posting or the reply applicants get. It says what reads the application, that no
-            decision is automatic, what the tool never sees, and how to ask for a human review — the duties GDPR
-            art. 13–14 and the AI Act's transparency rule put on the employer.
+            {t('settings.pasteItIntoThePosting')}
           </Hint>
-          <pre class="mt-3 whitespace-pre-wrap rounded-md bg-surface-overlay p-3 font-sans text-note leading-5 text-ink">{screening.notice}</pre>
+          <pre class="mt-3 whitespace-pre-wrap rounded-md bg-surface-overlay p-3 font-sans text-note leading-5 text-ink" lang="en">{screening.notice}</pre>
         </div>
       </Section>
       )}
@@ -1446,24 +1433,26 @@ export interface SourceKeyRow {
 const SourceKeysSection: FC<{ rows: SourceKeyRow[] }> = ({ rows }) => (
   <Section
     id="source-keys"
-    title="Extra sources — a free account of your own"
-    desc="Two wider sources, each behind a free account you register with the vendor. Until its values are saved here, a source stays out of the app."
+    title={t('settings.extraSourcesAFreeAccount')}
+    desc={t('settings.twoWiderSourcesEachBehind')}
   >
     {/* A divider between the vendors — not a bordered box inside the section. */}
     <div class="divide-y divide-line">
       {rows.map((r) => (
         <div class="py-4 first:pt-0 last:pb-0">
           <div class="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-            <span class="text-entity text-ink">{r.label}</span>
-            <Badge tone={r.ready ? 'ok' : 'neutral'}>{r.ready ? 'ready' : 'not set up'}</Badge>
+            <span class="text-entity text-ink" translate="no">
+              {r.label}
+            </span>
+            <Badge tone={r.ready ? 'ok' : 'neutral'}>{r.ready ? t('settings.ready') : t('settings.notSetUp')}</Badge>
           </div>
           <p data-ui="hint" class="mt-1 text-sm leading-5 text-ink-muted">{r.what}</p>
-          <More summary="When it is worth it, and what the vendor asks" class="mt-1">
+          <More summary={t('settings.whenItIsWorthIt')} class="mt-1">
             <p>
-              <span class="font-medium text-ink-muted">Worth it if:</span> {r.worthIt}
+              <span class="font-medium text-ink-muted">{t('settings.worthItIf')}</span> {r.worthIt}
             </p>
             <p>
-              <span class="font-medium text-ink-muted">In exchange:</span> {r.cost}
+              <span class="font-medium text-ink-muted">{t('settings.inExchange')}</span> {r.cost}
             </p>
           </More>
           <p class="mt-1.5 text-note leading-5">
@@ -1480,39 +1469,49 @@ const SourceKeysSection: FC<{ rows: SourceKeyRow[] }> = ({ rows }) => (
               <input type="hidden" name="source" value={r.source} />
               <input type="hidden" name="field" value={f.field} />
               <div class="flex min-w-[9rem] flex-col gap-1 text-meta text-ink-muted">
-                <span class="font-medium text-ink">{f.label}</span>
+                {/* The vendor's own name for the field, as its sign-up page writes it. */}
+                <span class="font-medium text-ink" translate="no">
+                  {f.label}
+                </span>
                 {f.origin === 'db' && (
                   <span>
-                    <Badge tone="ok">saved</Badge> <span class="font-mono">{f.masked}</span>
+                    <Badge tone="ok">{t('settings.saved')}</Badge>{' '}
+                    <span class="font-mono" translate="no">
+                      {f.masked}
+                    </span>
                   </span>
                 )}
-                {f.origin === 'env' && <Badge tone="neutral">from .env</Badge>}
-                {f.origin === 'none' && <span class="text-ink-faint">{f.envVar}</span>}
+                {f.origin === 'env' && <Badge tone="neutral">{t('settings.fromEnv')}</Badge>}
+                {f.origin === 'none' && (
+                  <span class="text-ink-faint" translate="no">
+                    {f.envVar}
+                  </span>
+                )}
               </div>
               <Input
                 type="password"
                 name="key"
                 autocomplete="off"
                 spellcheck="false"
-                aria-label={`${r.label} ${f.label}`}
-                placeholder={f.origin === 'db' ? 'Paste a new one to replace it' : 'Paste it here'}
+                aria-label={t('settings.sourceKeyField', { source: r.label, field: f.label })}
+                placeholder={f.origin === 'db' ? t('settings.pasteANewOneTo') : t('settings.pasteItHere')}
                 mono
                 class="min-w-[14rem] flex-1"
               />
               <Button variant="secondary">
-                Save
+                {t('common.save')}
               </Button>
               {f.origin === 'db' && (
                 <Button size="sm" variant="danger" name="clear" value="1">
-                  Remove
+                  {t('common.remove')}
                 </Button>
               )}
             </form>
           ))}
           <Hint class="mt-2">
             {r.ready
-              ? `Ready. Add it on Companies → "Sources for your searches", then switch the row on.`
-              : `Once both values are saved, add it on Companies → "Sources for your searches".`}
+              ? t('settings.readyAddItOnCompanies')
+              : t('settings.onceBothValuesAreSaved')}
           </Hint>
         </div>
       ))}
@@ -1527,24 +1526,28 @@ const SourceKeysSection: FC<{ rows: SourceKeyRow[] }> = ({ rows }) => (
  * A well inside the engine's row: the credential is one group of controls.
  */
 const EngineKeyRow: FC<{ engine: AiEngineRow }> = ({ engine: e }) => {
-  const label = e.keyEnvVar?.endsWith('_TOKEN') ? 'Access token' : 'API key';
+  // A login-token engine names its credential a token, every other one a key: each wording is a message of its own.
+  const token = e.keyEnvVar?.endsWith('_TOKEN') ?? false;
+  const envVar = e.keyEnvVar ?? '';
   return (
     <Card variant="subtle" class="mt-3">
       <div class="flex flex-wrap items-center gap-2">
-        <span class="text-label text-ink">{label}</span>
+        <span class="text-label text-ink">{token ? t('settings.accessToken') : t('settings.apiKey')}</span>
         {e.keySource === 'db' && (
           <>
-            <Badge tone="ok">saved</Badge>
-            <span class="font-mono text-meta text-ink-muted">{e.maskedKey}</span>
+            <Badge tone="ok">{t('settings.saved')}</Badge>
+            <span class="font-mono text-meta text-ink-muted" translate="no">
+              {e.maskedKey}
+            </span>
           </>
         )}
-        {e.keySource === 'env' && <Badge tone="neutral">from .env</Badge>}
+        {e.keySource === 'env' && <Badge tone="neutral">{t('settings.fromEnv')}</Badge>}
         {e.keySource === 'db' && (
           <ConfirmAction
             action="/settings/ai/key"
             hidden={{ provider: e.id, clear: '1' }}
-            label="Remove"
-            confirm={`Remove the saved ${e.label} ${label.toLowerCase()}?`}
+            label={t('common.remove')}
+            confirm={t(token ? 'settings.removeSavedToken' : 'settings.removeSavedKey', { engine: e.label })}
             class="ml-auto"
           />
         )}
@@ -1557,23 +1560,23 @@ const EngineKeyRow: FC<{ engine: AiEngineRow }> = ({ engine: e }) => {
           required
           autocomplete="off"
           spellcheck="false"
-          aria-label={`${e.label} ${label.toLowerCase()}`}
-          placeholder={e.keySource === 'db' ? 'Paste a new one to replace it' : 'Paste it here'}
+          aria-label={t(token ? 'settings.engineToken' : 'settings.engineKey', { engine: e.label })}
+          placeholder={e.keySource === 'db' ? t('settings.pasteANewOneTo') : t('settings.pasteItHere')}
           mono
           class="min-w-[16rem] flex-1"
         />
         <Button variant="secondary">
-          Save
+          {t('common.save')}
         </Button>
       </form>
       <Hint class="mt-2">
         {e.keySource === 'db'
-          ? `Saved in your database and used instead of ${e.keyEnvVar} from .env.`
+          ? t('settings.keySavedInDatabase', { envVar })
           : e.keySource === 'env'
-            ? `Read from ${e.keyEnvVar} in .env; a key pasted here overrides it.`
+            ? t('settings.keyReadFromEnv', { envVar })
             : e.server?.local
-              ? 'A server on this machine needs none; paste one only if yours asks for it.'
-              : `Stored in your database; ${e.keyEnvVar} in .env works too.`}
+              ? t('settings.aServerOnThisMachine')
+              : t('settings.keyStoredInDatabase', { envVar })}
       </Hint>
     </Card>
   );
@@ -1589,12 +1592,12 @@ const EngineServerRow: FC<{ server: EngineServer }> = ({ server }) => (
   <Card variant="subtle" class="mt-3">
     <div class="flex flex-wrap items-center gap-2">
       <span class="text-label text-ink">{server.label}</span>
-      <Badge tone="neutral">{server.stored ? 'saved' : 'from .env'}</Badge>
-      {server.local && <Badge tone="ok">on this machine · no key needed</Badge>}
+      <Badge tone="neutral">{server.stored ? t('settings.saved') : t('settings.fromEnv')}</Badge>
+      {server.local && <Badge tone="ok">{t('settings.onThisMachineNoKey')}</Badge>}
       {server.stored && (
         <ActionForm action={server.action} hidden={{ clear: '1' }} class="ml-auto">
-          <Button size="sm" variant="secondary" title={`Forget this address and use ${server.envVar} from .env`}>
-            Use .env
+          <Button size="sm" variant="secondary" title={t('settings.forgetThisAddress', { envVar: server.envVar })}>
+            {t('settings.useEnv')}
           </Button>
         </ActionForm>
       )}
@@ -1613,7 +1616,7 @@ const EngineServerRow: FC<{ server: EngineServer }> = ({ server }) => (
         class="min-w-[16rem] flex-1"
       />
       <Button variant="secondary">
-        Save
+        {t('common.save')}
       </Button>
     </form>
     <Hint class="mt-2">{server.hint}</Hint>
@@ -1621,19 +1624,19 @@ const EngineServerRow: FC<{ server: EngineServer }> = ({ server }) => (
     {server.context && (
       <form method="post" action={server.action} class="mt-3 flex flex-wrap items-end gap-2">
         <Field
-          label="Context window"
-          hint="Room for the prompt and the answer. A resume comparison wants 16k or more; each step takes more of the machine's memory."
+          label={t('settings.contextWindow')}
+          hint={t('settings.roomForThePromptAnd')}
         >
           <Select name="contextTokens" class="w-auto">
             {server.context.choices.map((n) => (
               <option value={String(n)} selected={n === server.context!.value}>
-                {`${n / 1024}k tokens`}
+                {t('settings.contextTokens', { k: n / 1024 })}
               </option>
             ))}
           </Select>
         </Field>
         <Button variant="secondary">
-          Save window
+          {t('settings.saveWindow')}
         </Button>
       </form>
     )}
@@ -1649,27 +1652,29 @@ const AiEngine: FC<{ engine: AiEngineRow }> = ({ engine: e }) => (
   <Card variant="flat" class={`py-5 last:pb-0 ${e.enabled || e.lastResort ? '' : 'opacity-75'}`}>
     <div class="flex flex-wrap items-center gap-2">
       {e.enabled && <Badge tone="neutral">#{e.position + 1}</Badge>}
-      <span class="text-entity text-ink">{e.label}</span>
-      <Badge tone={e.ok ? 'ok' : 'neutral'}>{e.ok ? 'available' : 'not detected'}</Badge>
-      {e.lastResort && <Badge tone="warn">last resort</Badge>}
-      <Badge tone={BILLING_TONE[e.billing]}>{BILLING_WORDS[e.billing]}</Badge>
+      <span class="text-entity text-ink" translate="no">
+        {e.label}
+      </span>
+      <Badge tone={e.ok ? 'ok' : 'neutral'}>{e.ok ? t('settings.available') : t('settings.notDetected')}</Badge>
+      {e.lastResort && <Badge tone="warn">{t('settings.lastResort')}</Badge>}
+      <Badge tone={BILLING_TONE[e.billing]}>{billingWords(e.billing)}</Badge>
       <div class="ml-auto flex flex-wrap justify-end gap-2">
         {e.enabled && e.position > 0 && (
           <ActionForm action="/settings/ai/move" hidden={{ provider: e.id }}>
-            <Button size="sm" variant="secondary" title="Move one step up the priority order">
-              ↑ Priority
+            <Button size="sm" variant="secondary" title={t('settings.moveOneStepUpThe')}>
+              {t('settings.priority')}
             </Button>
           </ActionForm>
         )}
         <ActionForm action="/settings/ai/test" hidden={{ provider: e.id }}>
-          <Button size="sm" variant="violet" title="Run a tiny live call through this engine">
-            Test
+          <Button size="sm" variant="violet" title={t('settings.runATinyLiveCall')}>
+            {t('settings.test')}
           </Button>
         </ActionForm>
         {e.canToggle && (
           <ActionForm action="/settings/ai/enable" hidden={{ provider: e.id }}>
             <Button size="sm" variant={e.enabled ? 'secondary' : 'primary'}>
-              {e.enabled ? 'Disable' : 'Enable'}
+              {e.enabled ? t('ui.disable') : t('ui.enable')}
             </Button>
           </ActionForm>
         )}
@@ -1677,17 +1682,16 @@ const AiEngine: FC<{ engine: AiEngineRow }> = ({ engine: e }) => (
     </div>
     {/* The live state stays in sight; what the engine is sits one press away. */}
     <Hint class="mt-1.5">{e.detail}</Hint>
-    <More summary="What this engine is" class="mt-1">
+    <More summary={t('settings.whatThisEngineIs')} class="mt-1">
       {e.desc}
     </More>
     {e.lastResort && (
       <Hint class="mt-1.5 text-warn">
-        No engine in the list can run on this host, so this one answers every call. Enable it to
-        keep it.
+        {t('settings.noEngineInTheList')}
       </Hint>
     )}
     {!e.canToggle && (
-      <Hint class="mt-1.5">The only engine in the list; enable another to replace it.</Hint>
+      <Hint class="mt-1.5">{t('settings.theOnlyEngineInThe')}</Hint>
     )}
     {e.server && <EngineServerRow server={e.server} />}
     {e.keyEnvVar && <EngineKeyRow engine={e} />}
@@ -1707,7 +1711,7 @@ const AiEngine: FC<{ engine: AiEngineRow }> = ({ engine: e }) => (
           </datalist>
         )}
         <div class="grid grid-cols-[repeat(auto-fit,minmax(min(19.5rem,100%),1fr))] gap-3">
-        <Field label="Classifier model" hint="Scores every fetched job; keep it cheap.">
+        <Field label={t('settings.classifierModel')} hint={t('settings.scoresEveryFetchedJobKeep')}>
           <ModelPicker
             name="classifier"
             value={e.classifierModel}
@@ -1717,7 +1721,7 @@ const AiEngine: FC<{ engine: AiEngineRow }> = ({ engine: e }) => (
             list={e.freeTextModels && e.options.length > 0 ? `models-${e.id}` : undefined}
           />
         </Field>
-        <Field label="Resume model" hint="Resume scan, match and verification.">
+        <Field label={t('settings.resumeModel')} hint={t('settings.resumeScanMatchAndVerification')}>
           <ModelPicker
             name="resume"
             value={e.resumeModel}
@@ -1727,7 +1731,7 @@ const AiEngine: FC<{ engine: AiEngineRow }> = ({ engine: e }) => (
             list={e.freeTextModels && e.options.length > 0 ? `models-${e.id}` : undefined}
           />
         </Field>
-        <Field label="Cover letter model" hint="Writing quality, not analysis.">
+        <Field label={t('settings.coverLetterModel')} hint={t('settings.writingQualityNotAnalysis')}>
           <ModelPicker
             name="cover"
             value={e.coverModel}
@@ -1739,16 +1743,14 @@ const AiEngine: FC<{ engine: AiEngineRow }> = ({ engine: e }) => (
         </Field>
         {e.id === 'claude_code' && /haiku/.test(e.resumeModel || e.resumeDefault) && (
           <Hint class="col-span-full">
-            Measured 2026-09-05 on this lane: Haiku 4.5 answers a quick check in 21–26 s but returned
-            JSON that could not be parsed in 2 of 3 calls, and each costs a retry. Sonnet 5 answered
-            in 19 s with none — it is the default when this slot is empty.
+            {t('settings.measured20260905On')}
           </Hint>
         )}
         </div>
         <div class="mt-3 flex items-center gap-3">
           {/* The no-JS path: settings-models.mjs hides this and saves on change. */}
           <Button size="sm" variant="secondary" data-save-button>
-            Save models
+            {t('settings.saveModels')}
           </Button>
           <span
             class="text-meta text-ink-faint"
@@ -1768,29 +1770,28 @@ const EngineTasks: FC<{ engine: AiEngineRow }> = ({ engine: e }) => (
   <form method="post" action="/settings/ai/tasks" data-model-form class="mt-4">
     <input type="hidden" name="provider" value={e.id} />
     <fieldset>
-      <legend class="text-label text-ink">Tasks it takes</legend>
+      <legend class="text-label text-ink">{t('settings.tasksItTakes')}</legend>
       <div class="mt-2 flex flex-wrap gap-2">
-        {e.tasks.map((t) =>
-          t.offered ? (
-            <PillCheckbox name="tasks" value={t.id} checked={t.taken}>
-              {t.label}
+        {e.tasks.map((task) =>
+          task.offered ? (
+            <PillCheckbox name="tasks" value={task.id} checked={task.taken}>
+              {task.label}
             </PillCheckbox>
           ) : (
-            <PillCheckbox name="tasks" value={t.id} disabled>
-              {t.label}
+            <PillCheckbox name="tasks" value={task.id} disabled>
+              {task.label}
             </PillCheckbox>
           ),
         )}
       </div>
     </fieldset>
     <Hint class="mt-2">
-      A task you untick goes to the next engine in the list that takes it, and this one is not its
-      fallback either.
-      {e.tasks.some((t) => !t.offered) && ' The web check is not offered here: this engine cannot search the web.'}
+      {t('settings.tasksHint')}
+      {e.tasks.some((task) => !task.offered) && <> {t('settings.tasksNoWebCheck')}</>}
     </Hint>
     <div class="mt-3 flex items-center gap-3">
       <Button size="sm" variant="secondary" data-save-button>
-        Save tasks
+        {t('settings.saveTasks')}
       </Button>
       <span class="text-meta text-ink-faint" data-save-status role="status" aria-live="polite"></span>
     </div>
@@ -1809,26 +1810,27 @@ const ModelPicker: FC<{
   list?: string;
 }> = ({ name, value, fallback, options, freeText, list }) =>
   freeText ? (
-    <Input type="text" name={name} value={value} placeholder={fallback || 'model id'} list={list} autocomplete="off" mono />
+    // A model id is typed and suggested here: data, whatever the page's language.
+    <Input type="text" name={name} value={value} placeholder={fallback || t('settings.modelId')} list={list} autocomplete="off" mono translate="no" />
   ) : (
     <Select name={name}>
       <option value="" selected={value === ''}>
-        Default — {fallback}
+        {t('settings.modelDefault', { model: fallback })}
       </option>
       {options.map((m) => (
-        <option value={m} selected={value === m}>
+        <option value={m} selected={value === m} translate="no">
           {m}
         </option>
       ))}
     </Select>
   );
 
-/** One line under each relocation choice — editor copy, not vocabulary. */
-const RELOCATION_HINT: Record<string, string> = {
-  no: 'Only roles I can take from where I am.',
-  yes: 'I can move, and I may work there already.',
-  sponsorship: 'A visa or work permit has to come with the job.',
-};
+/** One line under each relocation choice, as catalog keys — editor copy, not vocabulary. */
+const RELOCATION_HINT = {
+  no: 'relocation.hint.no',
+  yes: 'relocation.hint.yes',
+  sponsorship: 'relocation.hint.sponsorship',
+} as const satisfies Record<(typeof RELOCATION_CODES)[number], MessageKey>;
 
 const ProfileEditor: FC<{
   profile: Profile;
@@ -1855,31 +1857,28 @@ const ProfileEditor: FC<{
         Violet is for the button that spends the AI (DESIGN.md), not for what it wrote. */}
     {draft && (
       <Notice tone="warn" role="status">
-        <span class="font-medium">
-          AI prefilled this profile from resume "{draft.resumeName}"
-        </span>{' '}
-        — replaced: {draft.changed.join(', ')}.
-        {draft.warnings.length > 0 && <> Note: {draft.warnings.join('; ')}.</>}{' '}
-        Nothing is saved yet — review the fields and press "Save profile" or "Save &amp;
-        re-classify".
+        {tRich(
+          draft.warnings.length > 0 ? 'settings.draftNoticeWarned' : 'settings.draftNotice',
+          { resume: draft.resumeName, changed: draft.changed.join(', '), warnings: draft.warnings.join('; ') },
+          { b: (words) => <span class="font-medium">{words}</span> },
+        )}
       </Notice>
     )}
     <div class="grid gap-4 sm:grid-cols-2">
-      <Field label="Name" hint="Yours alone; nothing reads it.">
+      <Field label={t('settings.name')} hint={t('settings.yoursAloneNothingReadsIt')}>
         <Input type="text" name="name" required value={profile.name} />
       </Field>
       <Field
-        label="Resume for this search"
-        hint="Preselected on the job pages this search finds."
+        label={t('settings.resumeForThisSearch')}
+        hint={t('settings.preselectedOnTheJobPages')}
       >
         <Select name="resumeId">
           <option value="" selected={profile.resumeId === null}>
-            (pick by skill overlap)
+            {t('settings.pickBySkillOverlap')}
           </option>
           {resumes.map((r) => (
             <option value={r.id} selected={profile.resumeId === r.id}>
-              {r.name}
-              {r.isDefault ? ' (default)' : ''}
+              {resumeOption(r)}
             </option>
           ))}
         </Select>
@@ -1887,104 +1886,104 @@ const ProfileEditor: FC<{
     </div>
 
     <fieldset class="space-y-4">
-      <legend class="text-label text-ink">What are we hunting for?</legend>
+      <legend class="text-label text-ink">{t('settings.whatAreWeHuntingFor')}</legend>
       <Hint class="!mt-0.5">
-        Technologies go in the required stack, title words ("backend") in role types. A title
-        match alone is never a tech match.
+        {t('settings.technologiesGoInTheRequired')}
       </Hint>
       <TagListInput
-        label="Tech stack — required"
+        label={t('settings.techStackRequired')}
         name="stackRequired"
         values={profile.stackRequired}
-        placeholder="php, laravel, mysql…"
+        placeholder={t('settings.phpLaravelMysql')}
       />
       <TagListInput
-        label="Role types"
-        hint="Title shapes you accept; they admit jobs to the classifier."
+        label={t('settings.roleTypes')}
+        hint={t('settings.titleShapesYouAcceptThey')}
         name="roleTypes"
         values={profile.roleTypes}
-        placeholder="backend, full-stack…"
+        placeholder={t('settings.backendFullStack')}
       />
       <TagListInput
-        label="Stack — nice to have"
-        hint="Raise the fit score when the description names them."
+        label={t('settings.stackNiceToHave')}
+        hint={t('settings.raiseTheFitScoreWhen')}
         name="stackNiceToHave"
         values={profile.stackNiceToHave}
-        placeholder="docker, aws…"
+        placeholder={t('settings.dockerAws')}
       />
     </fieldset>
 
     <fieldset>
-      <legend class="text-label text-ink">Seniority</legend>
+      <legend class="text-label text-ink">{t('settings.seniority')}</legend>
       <div class="mt-2 flex flex-wrap gap-1.5">
         {SENIORITY_LEVELS.map((s) => (
           <PillCheckbox name="seniority" value={s} checked={profile.seniority.includes(s)}>
-            {s}
+            {t(`settings.seniority.${s}`)}
           </PillCheckbox>
         ))}
       </div>
     </fieldset>
 
     <fieldset class="space-y-3">
-      <legend class="text-label text-ink">Location</legend>
-      <Hint class="!mt-0.5">Countries and regions add up; both empty = anywhere.</Hint>
+      <legend class="text-label text-ink">{t('settings.locationLegend')}</legend>
+      <Hint class="!mt-0.5">{t('settings.countriesAndRegionsAddUp')}</Hint>
       <div>
-        <div class="text-label text-ink">Arrangements you accept</div>
+        <div class="text-label text-ink">{t('settings.arrangementsYouAccept')}</div>
         <div class="mt-1.5 flex flex-wrap gap-1.5">
           {PROFILE_WORKPLACES.map((w) => (
             <PillCheckbox name="workplace" value={w} checked={profile.workplace.includes(w)}>
-              {WORKPLACE_LABEL[w]}
+              {workplaceName(w)}
             </PillCheckbox>
           ))}
         </div>
       </div>
       <TagListInput
-        label="Countries"
-        hint="Type a country in any spelling, or a city."
-        more='"Poland", "Polska", "Польща" and "PL" all find it. For hybrid and on-site roles this is where the office may be.'
+        label={t('settings.countries')}
+        hint={t('settings.typeACountryInAny')}
+        more={t('settings.polandPolskaAndPlAll')}
         name="countries"
-        values={profile.countries.map((c) => `${flagOf(c)} ${placeLabel(c)}`)}
-        placeholder="Poland, Germany, Netherlands…"
+        // Each line goes back through the form: the flag is what the save reads, so the name may be in any language.
+        values={profile.countries.map(countryChip)}
+        placeholder={t('settings.polandGermanyNetherlands')}
         rows={2}
         picker="countries"
       />
       <div>
-        <div class="text-label text-ink">Regions</div>
-        <Hint class="mt-0.5">A group counts as a group, not as its members.</Hint>
+        <div class="text-label text-ink">{t('settings.regions')}</div>
+        <Hint class="mt-0.5">{t('settings.aGroupCountsAsA')}</Hint>
         <div class="mt-1.5 flex flex-wrap gap-1.5">
           {REGIONS.map((r) => (
             <PillCheckbox name="regions" value={r.code} checked={profile.regions.includes(r.code)}>
-              {r.flag ? `${r.flag} ${r.label}` : r.label}
+              {r.flag ? `${r.flag} ${placeName(r.code)}` : placeName(r.code)}
             </PillCheckbox>
           ))}
         </div>
       </div>
       <Field
-        label="I live in"
-        hint="Not a place this search hunts: it decides whether a role's work-permit and relocation wording is a problem for you."
+        label={t('settings.iLiveIn')}
+        hint={t('settings.notAPlaceThisSearch')}
       >
         <Select name="residence">
           <option value="" selected={!profile.residence}>
-            Not set
+            {t('settings.notSet')}
           </option>
           {COUNTRIES.map((c) => (
             <option value={c.code} selected={profile.residence === c.code}>
-              {c.flag} {c.name}
+              {c.flag} {placeName(c.code)}
             </option>
           ))}
         </Select>
       </Field>
       <div>
-        <div class="text-label text-ink">If the role is somewhere you do not live</div>
+        <div class="text-label text-ink">{t('settings.ifTheRoleIsSomewhere')}</div>
         <div class="mt-1.5 grid gap-2 sm:grid-cols-3">
           {RELOCATION_CODES.map((r) => (
             <Radio
               name="relocation"
               value={r}
               checked={(profile.relocation ?? 'no') === r}
-              title={RELOCATION_LABEL[r]}
+              title={t(RELOCATION_LABEL[r])}
             >
-              {RELOCATION_HINT[r]}
+              {t(RELOCATION_HINT[r])}
             </Radio>
           ))}
         </div>
@@ -1993,22 +1992,22 @@ const ProfileEditor: FC<{
 
     <details class="rounded-md border border-line" open={advancedOpen}>
       <summary class="cursor-pointer select-none rounded-md px-4 py-3 text-note font-medium text-ink transition-colors duration-150 hover:text-accent-strong">
-        Advanced — excludes, notes, priority rules, thresholds
+        {t('settings.advancedSummary')}
         <span class="ml-2 font-normal text-ink-faint">
-          Excludes, notes, priority rules, thresholds.
+          {t('settings.advancedSummaryNote')}
         </span>
       </summary>
       <div class="space-y-5 border-t border-line px-4 py-4">
         <TagListInput
-          label="Stack — exclude (auto-reject in title)"
-          hint="If the title contains any of these, the job is dropped before the classifier runs."
+          label={t('settings.stackExcludeAutoRejectIn')}
+          hint={t('settings.ifTheTitleContainsAny')}
           name="stackExclude"
           values={profile.stackExclude}
         />
 
         <Field
-          label="Notes for the classifier"
-          hint='Free-form context: "AI-adjacent roles preferred", "open to first-time-manager positions", "EU-friendly time zones".'
+          label={t('settings.notesForTheClassifier')}
+          hint={t('settings.freeFormContextAiAdjacent')}
         >
           <Textarea name="notes" rows={3}>
             {profile.notes ?? ''}
@@ -2016,8 +2015,8 @@ const ProfileEditor: FC<{
         </Field>
 
         <TagListInput
-          label="On-site cities (OK to commute)"
-          hint='One per line: "Austin, TX", "Berlin".'
+          label={t('settings.onSiteCitiesOkTo')}
+          hint={t('settings.onePerLineAustinTx')}
           name="onsiteCities"
           values={profile.onsiteCities}
           rows={2}
@@ -2026,7 +2025,7 @@ const ProfileEditor: FC<{
         <PriorityRulesEditor profile={profile} />
 
         <div class="grid gap-4 sm:grid-cols-3">
-          <Field label="Min salary (USD/year)" hint="0 = no salary filter.">
+          <Field label={t('settings.minSalaryUsdYear')} hint={t('settings.n0NoSalaryFilter')}>
             <Input
               type="number"
               name="minSalaryUsd"
@@ -2035,18 +2034,17 @@ const ProfileEditor: FC<{
               value={profile.minSalaryUsd}
             />
           </Field>
-          <Field label="Min fit score (0-100)" hint="Jobs below it are stored, not alerted.">
+          <Field label={t('settings.minFitScore0100')} hint={t('settings.jobsBelowItAreStored')}>
             <Input type="number" name="minFitScore" min="0" max="100" value={profile.minFitScore} />
           </Field>
-          <Field label="Alert target">
+          <Field label={t('settings.alertTarget')}>
             <Select name="notificationTargetId">
               <option value="" selected={profile.notificationTargetId === null}>
-                (broadcast to all active)
+                {t('settings.broadcastToAllActive')}
               </option>
-              {availableTargets.map((t) => (
-                <option value={t.id} selected={profile.notificationTargetId === t.id}>
-                  {t.name} · {KIND_LABEL[t.kind]}
-                  {t.active ? '' : ' (inactive)'}
+              {availableTargets.map((target) => (
+                <option value={target.id} selected={profile.notificationTargetId === target.id}>
+                  {t('settings.targetOption', { name: target.name, kind: KIND_LABEL[target.kind], active: target.active ? 'yes' : 'no' })}
                 </option>
               ))}
             </Select>
@@ -2056,18 +2054,18 @@ const ProfileEditor: FC<{
     </details>
 
     <div class="flex flex-wrap items-center gap-3 border-t border-line pt-4">
-      <Button size="lg">Save profile</Button>
+      <Button size="lg">{t('settings.saveProfile')}</Button>
       <Button
         size="lg"
         variant="violet"
         name="action"
         value="save-and-reclassify"
-        onclick="return confirm('Save the profile and re-classify all jobs (except APPLIED)? Takes 2-5 minutes and spends AI credit.')"
+        onclick={confirmScript(t('settings.reclassifyConfirm'))}
       >
-        Save &amp; re-classify
+        {t('settings.saveReClassify')}
       </Button>
       <span data-dirty-indicator hidden={!draft} class="text-note font-medium text-warn">
-        Unsaved changes
+        {t('settings.unsavedChanges')}
       </span>
     </div>
   </form>
@@ -2080,40 +2078,41 @@ const PriorityRulesEditor: FC<{ profile: Profile }> = ({ profile }) => {
   return (
     <details class="rounded-md border border-line" open={rules.length > 0}>
       <summary class="cursor-pointer select-none rounded-md px-4 py-3 text-note font-medium text-ink transition-colors duration-150 hover:text-accent-strong">
-        Priority rules (post-classifier overrides)
+        {t('settings.priorityRulesSummary')}
         <span class="ml-2 font-normal text-ink-faint">
-          {rules.length > 0
-            ? `${rules.length} rule${rules.length === 1 ? '' : 's'} set`
-            : 'None set.'}
+          {rules.length > 0 ? t('settings.rulesSet', { n: rules.length }) : t('settings.noneSet')}
         </span>
       </summary>
       <div class="border-t border-line px-4 py-4">
+        {/* The rule grammar and its sample values are written in code: the sentence places them, a translator never retypes them. */}
         <Hint>
-          One rule per line: <Code>LABEL | techs,csv | regions,csv | MIN_FIT</Code>. If the
-          title or description contains any tech and the location matches any region phrase,
-          fit is clamped up to MIN_FIT and the location check passes. Empty regions match
-          anywhere. <Code>#</Code> starts a comment. A bad line stops the save.
+          {tRich('settings.priorityRulesHint', {}, {
+            format: () => <Code>LABEL | techs,csv | regions,csv | MIN_FIT</Code>,
+            hash: () => <Code>#</Code>,
+          })}
         </Hint>
         {rules.length > 0 && (
           <Hint class="mt-1 text-warn">
-            Region entries are phrases — every word must appear in the location.{' '}
-            <Code>Remote US</Code> matches "Dallas (Remote US)" but not "Remote · Germany".
-            Avoid a bare <Code>Remote</Code>; prefer{' '}
-            <Code>Remote US,United States,USA,Worldwide</Code>.
+            {tRich('settings.priorityRulesRegions', {}, {
+              phrase: () => <Code>Remote US</Code>,
+              bare: () => <Code>Remote</Code>,
+              list: () => <Code>Remote US,United States,USA,Worldwide</Code>,
+            })}
           </Hint>
         )}
         <Textarea
           name="priorityRules"
-          aria-label="Priority rules"
+          aria-label={t('settings.priorityRules')}
           rows={Math.max(3, rules.length + 1)}
           placeholder="Python remote-US | python | Remote US,United States,USA,Worldwide | 90"
           class="mt-1.5"
           mono
+          translate="no"
         >
           {text}
         </Textarea>
         {rules.length > 0 && (
-          <div class="mt-2 flex flex-wrap gap-1.5">
+          <div class="mt-2 flex flex-wrap gap-1.5" translate="no">
             {rules.map((r) => (
               <Tag>
                 {r.label} → ≥{r.minFitFloor}

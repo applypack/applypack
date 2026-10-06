@@ -56,6 +56,15 @@ describe('formatMessage', () => {
     assert.deepEqual(parts, ['Fix it in ', { tag: 'link', children: ['the ', { tag: 'b', children: ['catalog'] }, ' files'] }, '.']);
   });
 
+  // #368: a selector or an argument name that an object inherits must not reach the prototype.
+  it('never reads a branch or an argument an object inherits', () => {
+    const select = '{kind, select, pdf {PDF} other {a file}}';
+    for (const kind of ['constructor', '__proto__', 'toString', 'hasOwnProperty', 'valueOf']) assert.equal(say(select, { kind }), 'a file', kind);
+    assert.equal(say('{n, plural, one {# job} other {# jobs}}', { n: '__proto__' }), '__proto__ jobs');
+    assert.equal(say('Hello {toString}'), 'Hello {toString}');
+    assert.equal(say('Hello {constructor}', { constructor: 'x' } as never), 'Hello x');
+  });
+
   it('joins neighbouring text into one part', () => {
     assert.deepEqual(formatMessage(parseMessage('{a}{b} and {n, plural, one {#} other {#}}'), { a: 'x', b: 'y', n: 2 }, 'en-US'), ['xy and 2']);
   });
@@ -76,6 +85,10 @@ describe('parseMessage', () => {
     ['<a>wrong</b>', /unexpected <\/b>/],
     ['stray </link>', /unexpected <\/link>/],
     ["'{ never closed", /unclosed quote/],
+    // #368: a tag a translator mistyped would render as text; the catalog test must say so.
+    ['a <B>bold</B> word', /lower case/],
+    ['a <a href="/x">link</a>', /lower case/],
+    ['<Link>x</Link>', /lower case/],
   ];
   for (const [message, reason] of BROKEN) {
     it(`refuses ${message}`, () => assert.throws(() => parseMessage(message), (err) => err instanceof MessageSyntaxError && reason.test(err.message)));

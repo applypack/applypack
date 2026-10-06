@@ -1,8 +1,10 @@
 import { AI_PROVIDER_LABELS, PROVIDER_MODEL_OPTIONS, isAiProviderId, offeredTasks, type AiProviderId } from '../ai-engine';
 import { PRICES_AS_OF, priceOf } from '../ai-prices';
-import { formatUsd, type SpendGroup } from '../ai-spend';
-import { AI_TASK_LABELS, taskOf, type AiTask } from '../ai-tasks';
-import { featureName, type AiBilling, type AiFeature } from '../ai-usage';
+import { featureLabel, formatUsd, joinNames, type SpendGroup } from '../ai-spend';
+import { taskLabel, taskOf, type AiTask } from '../ai-tasks';
+import type { AiBilling, AiFeature } from '../ai-usage';
+import type { MessageKey } from '../i18n/catalog';
+import { t } from '../i18n/t';
 
 /*
  * What the ledger suggests changing (the AI usage page). Pure, and every
@@ -37,8 +39,8 @@ export interface HintFacts {
   now: Date;
 }
 
-const ENGINES = { href: '/settings?tab=ai', label: 'AI engines' };
-const BUDGET = { href: '/settings?tab=ai#budget', label: 'Set a budget' };
+const enginesLink = () => ({ href: '/settings?tab=ai', label: t('ai.aiEngines') });
+const budgetLink = () => ({ href: '/settings?tab=ai#budget', label: t('ai.setABudget') });
 
 /** A failure rate is a pattern from this many calls up; under it, it is an anecdote. */
 const MIN_CALLS = 5;
@@ -58,16 +60,22 @@ const PRICED_CALLS = 50;
 const LOCAL_TASK: AiTask = 'scoring';
 /** Applicants' resumes are never steered onto a personal plan: employer mode warns against exactly that. */
 const NO_PLAN_TASK: AiTask = 'screening';
-const UNMEASURED = 'How well a small model does this task is not measured here';
+
+/**
+ * What makes the free engine answer first, one whole sentence per combination
+ * of steps: the box on its card (tick it, leave only it ticked, or nothing to
+ * do), then its place (enable it, which also means above; move it above; or
+ * stay where it is).
+ */
+const STEPS: Record<'tick' | 'only' | 'none', Partial<Record<'enable' | 'above' | 'stay', MessageKey>>> = {
+  tick: { enable: 'usage.steps.enableTickAbove', above: 'usage.steps.tickAbove', stay: 'usage.steps.tick' },
+  only: { enable: 'usage.steps.enableOnlyAbove', above: 'usage.steps.onlyAbove', stay: 'usage.steps.only' },
+  none: { enable: 'usage.steps.enableAbove', above: 'usage.steps.above' },
+};
 
 const label = (id: string): string => (isAiProviderId(id) ? AI_PROVIDER_LABELS[id] : id);
 const percent = (part: number, whole: number): number => (whole > 0 ? Math.round((part / whole) * 100) : 0);
-const calls = (n: number): string => `${n.toLocaleString('en-US')} call${n === 1 ? '' : 's'}`;
 const taskOfGroup = (g: SpendGroup): AiTask | null => taskOf(g.feature as AiFeature) ?? null;
-const sentence = (steps: readonly string[]): string => {
-  const joined = steps.length <= 2 ? steps.join(' and ') : `${steps.slice(0, -1).join(', ')} and ${steps.at(-1)}`;
-  return joined.charAt(0).toUpperCase() + joined.slice(1);
-};
 
 export function usageHints(facts: HintFacts): UsageHint[] {
   const groups = facts.groups.filter((g) => g.feature !== 'engine-test');
@@ -77,7 +85,7 @@ export function usageHints(facts: HintFacts): UsageHint[] {
   );
   // Any call on a billed engine — an engine test, one the table cannot price — and "nothing was billed" is not ours to say.
   if (hints.length === 0 && !facts.groups.some((g) => g.billing === 'billed')) {
-    hints.push({ tone: 'ok', text: `Nothing was billed ${facts.period}: every call ran on a plan or on this computer.` });
+    hints.push({ tone: 'ok', text: t('usage.nothingBilled', { period: facts.period }) });
   }
   const rank = { warn: 0, neutral: 1, ok: 2 };
   return hints.sort((a, b) => rank[a.tone] - rank[b.tone]);
@@ -100,7 +108,7 @@ function budgetPace(facts: HintFacts, groups: readonly SpendGroup[]): UsageHint 
   const billedInPeriod = groups.filter((g) => g.billing === 'billed').reduce((n, g) => n + g.micro, 0);
   if (!facts.budgetCents) {
     return billedInPeriod > 0
-      ? { tone: 'neutral', text: 'No monthly budget is set for billed calls. With one, your alert chats hear at 80 % and at 100 % of it.', action: BUDGET }
+      ? { tone: 'neutral', text: t('usage.noBudget'), action: budgetLink() }
       : null;
   }
   const budget = facts.budgetCents * 10_000;
@@ -109,10 +117,7 @@ function budgetPace(facts: HintFacts, groups: readonly SpendGroup[]): UsageHint 
   const days = new Date(Date.UTC(facts.now.getUTCFullYear(), facts.now.getUTCMonth() + 1, 0)).getUTCDate();
   const pace = Math.round((facts.billedMonthMicro / day) * days);
   if (pace <= budget) return null;
-  return {
-    tone: 'warn',
-    text: `At the pace of its first ${day} days, this month's billed calls reach about ${formatUsd(pace)}, over your ${formatUsd(budget)} budget.`,
-  };
+  return { tone: 'warn', text: t('usage.pace', { day, pace: formatUsd(pace), budget: formatUsd(budget) }) };
 }
 
 /**
@@ -134,24 +139,20 @@ function billedTask(facts: HintFacts, groups: readonly SpendGroup[]): UsageHint 
   if (!task || !spent || !first || first.billing !== 'billed') return null;
   const free = freeEngineFor(facts, task, ['plan', 'local']);
   if (!free) return null;
-  const name = AI_TASK_LABELS[task];
-  const steps = [
-    ...(free.position === -1 ? ['enable it'] : []),
-    ...(free.billing === 'local' ? [`leave only ${name} ticked on its card`] : free.takes.includes(task) ? [] : [`tick ${name} on its card`]),
-    // The engine that bills today may answer as a last resort from outside the list: anything in the list is ahead of it.
-    ...(free.position === -1 || (first.position !== -1 && free.position > first.position) ? [`put it above ${label(first.id)}`] : []),
+  const box = free.billing === 'local' ? 'only' : free.takes.includes(task) ? 'none' : 'tick';
+  // The engine that bills today may answer as a last resort from outside the list: anything in the list is ahead of it.
+  const place = free.position === -1 ? 'enable' : first.position !== -1 && free.position > first.position ? 'above' : 'stay';
+  const steps = STEPS[box][place];
+  if (!steps) return null;
+  const name = taskLabel(task);
+  const share = { task: name, period: facts.period, spent: formatUsd(spent), total: formatUsd(total), percent: percent(spent, total) };
+  const sentences = [
+    t(spent === total ? 'usage.billedTask.all' : 'usage.billedTask.part', share),
+    t(free.billing === 'plan' ? 'usage.billedTask.plan' : 'usage.billedTask.local', { engine: label(free.id) }),
+    t(steps, { task: name, first: label(first.id) }),
+    ...(free.billing === 'plan' ? [] : [t('usage.unmeasured.compare')]),
   ];
-  if (steps.length === 0) return null;
-  const share = spent === total ? `${formatUsd(spent)} billed` : `${formatUsd(spent)} of the ${formatUsd(total)} billed (${percent(spent, total)} %)`;
-  const then = `${sentence(steps)}: it then answers first, with ${label(first.id)} as its fallback.`;
-  return {
-    tone: 'warn',
-    text:
-      free.billing === 'plan'
-        ? `${name} was ${share} ${facts.period}. ${label(free.id)} is set up here and your plan covers it. ${then}`
-        : `${name} was ${share} ${facts.period}. ${label(free.id)} runs on this computer for free. ${then} ${UNMEASURED}: compare a day of results before you rely on it.`,
-    action: ENGINES,
-  };
+  return { tone: 'warn', text: sentences.join(' '), action: enginesLink() };
 }
 
 /**
@@ -164,12 +165,8 @@ function billedFallback(facts: HintFacts, groups: readonly SpendGroup[]): UsageH
   if (fell.length === 0) return null;
   const count = fell.reduce((n, g) => n + g.viaFallback, 0);
   const micro = fell.reduce((n, g) => n + g.fallbackMicro, 0);
-  const engines = [...new Set(fell.map((g) => label(g.engine)))].join(' and ');
-  return {
-    tone: 'warn',
-    text: `${calls(count)} fell over to ${engines} ${facts.period} and ${count === 1 ? 'was' : 'were'} billed per token: ${formatUsd(micro)}. The engine ahead failed or ran out of its allowance.`,
-    action: ENGINES,
-  };
+  const engines = joinNames([...new Set(fell.map((g) => label(g.engine)))]);
+  return { tone: 'warn', text: t('usage.fellOver', { n: count, engines, period: facts.period, money: formatUsd(micro) }), action: enginesLink() };
 }
 
 /**
@@ -193,22 +190,29 @@ function failures(facts: HintFacts, groups: readonly SpendGroup[]): UsageHint | 
   if (!worst) return null;
   // One model is named; several, and the engine alone is the subject.
   const models = worst.answered.size > 0 ? worst.answered : worst.asked;
-  const model = models.size === 1 ? ` · ${[...models][0] || 'CLI default'}` : '';
+  const model = models.size === 1 ? ` · ${[...models][0] || t('ai.cliDefault')}` : '';
   const limited = worst.rateLimited * 2 >= worst.failed;
   const task = taskOf(worst.feature as AiFeature) ?? null;
   const local = task ? freeEngineFor(facts, task, ['local']) : undefined;
   const advice = !limited
-    ? 'Try another model in that slot, or press Test on the engine.'
+    ? t('usage.failed.tryModel')
     : local && task && facts.first[task] !== local.id
-      ? `${label(local.id)} runs on this computer and has no limit to hit; giving it ${AI_TASK_LABELS[task]} would take the volume off this engine. ${UNMEASURED}.`
-      : 'Put a second engine behind it for this task, or lower AI_CONCURRENCY.';
-  return {
-    tone: 'warn',
-    text: `${featureName(worst.feature)} on ${label(worst.engine)}${model}: ${worst.failed} of ${calls(worst.calls)} did not answer ${facts.period}${
-      worst.rateLimited > 0 ? ` (${worst.rateLimited} hit a rate limit)` : ''
-    }. Each is retried or handed to the next engine, which costs time${worst.billing === 'billed' ? ' and money' : ''}. ${advice}`,
-    action: ENGINES,
+      ? `${t('usage.failed.giveLocal', { local: label(local.id), task: taskLabel(task) })} ${t('usage.unmeasured')}`
+      : t('usage.failed.secondEngine');
+  const said = {
+    feature: featureLabel(worst.feature),
+    engine: `${label(worst.engine)}${model}`,
+    failed: worst.failed,
+    calls: worst.calls,
+    period: facts.period,
+    limited: worst.rateLimited,
   };
+  const sentences = [
+    t(worst.rateLimited > 0 ? 'usage.failed.limited' : 'usage.failed', said),
+    t(worst.billing === 'billed' ? 'usage.failed.costsTimeMoney' : 'usage.failed.costsTime'),
+    advice,
+  ];
+  return { tone: 'warn', text: sentences.join(' '), action: enginesLink() };
 }
 
 /** Scoring billed on a model several times the price of the cheapest one its engine offers. */
@@ -225,8 +229,15 @@ function priceyScoring(facts: HintFacts, groups: readonly SpendGroup[]): UsageHi
   if (!cheapest || used.input < cheapest.price.input * PRICE_RATIO) return null;
   return {
     tone: 'neutral',
-    text: `Scoring ran on ${scoring.model}: ${calls(scoring.calls)} ${facts.period}. ${cheapest.model} costs about ${Math.round(used.input / cheapest.price.input)} times less per token (prices of ${PRICES_AS_OF}). The model is picked in the Classifier slot on the engine's card.`,
-    action: ENGINES,
+    text: t('usage.pricey', {
+      model: scoring.model,
+      n: scoring.calls,
+      period: facts.period,
+      cheapest: cheapest.model,
+      times: Math.round(used.input / cheapest.price.input),
+      asOf: PRICES_AS_OF,
+    }),
+    action: enginesLink(),
   };
 }
 
@@ -238,11 +249,14 @@ function volumeOnPlan(facts: HintFacts, groups: readonly SpendGroup[]): UsageHin
   if (count < VOLUME_CALLS || count < total * VOLUME_SHARE || volume.some((g) => g.billing !== 'plan')) return null;
   const local = freeEngineFor(facts, LOCAL_TASK, ['local']);
   if (!local || engineOf(facts, facts.first[LOCAL_TASK])?.billing !== 'plan') return null;
-  const engines = [...new Set(volume.map((g) => label(g.engine)))];
-  const name = AI_TASK_LABELS[LOCAL_TASK];
-  return {
-    tone: 'neutral',
-    text: `${name} is ${count.toLocaleString('en-US')} of ${calls(total)} ${facts.period} (${percent(count, total)} %), all on ${engines.join(' and ')}. A plan covers them, so there is no bill to cut. They do use the plan's allowance: ${label(local.id)} runs on this computer and can be given this task if you want to keep that allowance for the analysis and the letters. ${UNMEASURED}.`,
-    action: ENGINES,
+  const share = {
+    task: taskLabel(LOCAL_TASK),
+    count,
+    total,
+    period: facts.period,
+    percent: percent(count, total),
+    engines: joinNames([...new Set(volume.map((g) => label(g.engine)))]),
+    local: label(local.id),
   };
+  return { tone: 'neutral', text: `${t('usage.volume', share)} ${t('usage.unmeasured')}`, action: enginesLink() };
 }

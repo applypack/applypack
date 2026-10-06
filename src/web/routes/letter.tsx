@@ -18,6 +18,7 @@ import { claimRun, LETTER_FAILED, startRun, updateRun, type RunStep } from '../t
 import { listPickableJobs } from '../job-pick';
 import { listResumeOptions, resolveResumeSource, ResumeSourceFields } from '../resume-source';
 import { resumeUploadLimit } from '../upload';
+import { t } from '../../i18n/t';
 
 /*
  * The /letter launcher (F8.3): a searchable picker over tracked jobs, or one
@@ -60,7 +61,7 @@ letterRoute.get('/letter', async (c) => {
 letterRoute.post('/letter', resumeUploadLimit('/letter'), async (c) => {
   const form = await c.req.parseBody();
   const parsed = LetterFormSchema.safeParse(form);
-  if (!parsed.success) return flashRedirect('/letter', 'err', 'Pick a job source and a resume.');
+  if (!parsed.success) return flashRedirect('/letter', 'err', t('letter.flash.pickSourceAndResume'));
   const f = parsed.data;
   const tone: CoverTone = COVER_TONES.includes(form.tone as CoverTone)
     ? (form.tone as CoverTone)
@@ -94,9 +95,9 @@ letterRoute.post('/letter', resumeUploadLimit('/letter'), async (c) => {
   let jobUrl = '';
   let { companyName, title } = f;
   if (f.jobMode === 'existing') {
-    if (!f.jobId) return flashRedirect('/letter', 'err', 'Pick a job from the list.');
+    if (!f.jobId) return flashRedirect('/letter', 'err', t('letter.flash.pickJob'));
     const row = await prisma.job.findUnique({ where: { id: f.jobId }, select: { id: true, title: true } });
-    if (!row) return flashRedirect('/letter', 'err', 'That job no longer exists.');
+    if (!row) return flashRedirect('/letter', 'err', t('letter.flash.jobGone'));
     existingJob = row;
   } else {
     // One box for both: pasted text wins, a bare URL gets fetched. Only the
@@ -106,12 +107,12 @@ letterRoute.post('/letter', resumeUploadLimit('/letter'), async (c) => {
     jobUrl = f.jobUrl;
     if (description.length === 0) {
       if (!jobUrl) {
-        return flashRedirect('/letter', 'err', 'Give a posting URL or paste the posting text.');
+        return flashRedirect('/letter', 'err', t('letter.flash.needPosting'));
       }
       const checked = checkPostingUrl(jobUrl);
       if (!checked.ok) return flashRedirect(`/letter?url=${encodeURIComponent(jobUrl)}`, 'err', checked.error);
     } else if (description.length < MIN_DESCRIPTION_CHARS) {
-      return flashRedirect('/letter', 'err', `The pasted posting is too short — at least ${MIN_DESCRIPTION_CHARS} characters.`);
+      return flashRedirect('/letter', 'err', t('letter.flash.postingTooShort', { n: MIN_DESCRIPTION_CHARS }));
     }
   }
 
@@ -135,11 +136,11 @@ letterRoute.post('/letter', resumeUploadLimit('/letter'), async (c) => {
     `letter:${existingJob?.id ?? `new:${hashShortId(`${jobUrl}\n${description}`)}`}:${resume.id}:${tone}:${runMatch ? 'm' : ''}${runVerify ? 'v' : ''}`,
     {
       steps,
-      jobTitle: existingJob?.title ?? title ?? 'Detecting the role…',
+      jobTitle: existingJob?.title ?? title ?? t('letter.run.detectingRole'),
       resumeName: resume.name,
       jobId: existingJob?.id,
       backUrl: '/letter',
-      backLabel: 'Back to Cover letter',
+      backLabel: t('letter.run.back'),
     },
   );
   if (joined) return c.redirect(`/target/runs/${run.id}`, 303);
@@ -215,7 +216,7 @@ letterRoute.post('/letter', resumeUploadLimit('/letter'), async (c) => {
         { id: job.id, title: job.title, companyName: job.companyName, location: job.location, description: job.description },
         { mode: 'full', evidence: resume.evidence },
       );
-      if (!row) warnings.push('The resume match failed, so the letter works from the resume and posting alone.');
+      if (!row) warnings.push(t('letter.run.matchFailed'));
     }
 
     if (steps.includes('verify')) {
@@ -232,7 +233,7 @@ letterRoute.post('/letter', resumeUploadLimit('/letter'), async (c) => {
           description: job.description,
           postedAt: job.postedAt,
         });
-        if (!row) warnings.push('Company research failed, so company lines stick to the posting.');
+        if (!row) warnings.push(t('letter.run.researchFailed'));
       }
     }
 
@@ -247,14 +248,15 @@ letterRoute.post('/letter', resumeUploadLimit('/letter'), async (c) => {
         stage: 'done',
         resultUrl: `/jobs/${job.id}?letter=${outcome.row.id}#cover-letter`,
         flash: [
-          `Letter drafted — ${countWords(outcome.row.text)} words, fact-check ${outcome.row.gateVerdict}.`,
+          t('letter.drafted', { n: countWords(outcome.row.text), verdict: outcome.row.gateVerdict }),
           ...warnings,
         ].join(' '),
       });
     } else if (outcome.kind === 'blocked') {
       updateRun(run.id, {
         stage: 'error',
-        error: `The fact checker rejected the letter twice, so nothing was saved. Violations: ${outcome.reasons.join('; ')}.`,
+        // The violations are the gate's own sentences and quote the letter; they stay as written.
+        error: t('letter.run.blocked', { reasons: outcome.reasons.join('; ') }),
       });
     } else {
       updateRun(run.id, { stage: 'error', error: LETTER_FAILED });

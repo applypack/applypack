@@ -30,6 +30,7 @@ import type { FlashMessage } from '../flash';
 
 import { ACCEPTED_EXTENSIONS } from '../../resume/resume-text';
 import { MAX_UPLOAD_MB } from '../upload';
+import { t } from '../../i18n/t';
 
 export interface ResumeRow {
   id: number;
@@ -77,35 +78,35 @@ export const ResumesPage: FC<{
   facts,
   flash,
 }) => (
-  <Layout title="Resumes" active="resumes">
-    <PageHeader title="Resumes" meta={`${resumes.length} uploaded`}>
-      The resumes you send. Each is scanned once, then compared against any job from its page.
+  <Layout title={t('nav.resumes')} active="resumes">
+    <PageHeader title={t('nav.resumes')} meta={t('resumes.uploadedCount', { n: resumes.length })}>
+      {t('resumes.theResumesYouSendEach')}
     </PageHeader>
     <Flash flash={flash} />
 
     {/* The list is what the page is about: with a resume in it the upload form folds
         behind its button; with none it is the first thing to do, so it stands open. */}
-    <Disclosure variant="button" summary="Upload a resume" open={resumes.length === 0} class="mb-4">
+    <Disclosure variant="button" summary={t('resumes.uploadAResume')} open={resumes.length === 0} class="mb-4">
       <Card class="mt-3">
         <ResumeUploadForm />
       </Card>
     </Disclosure>
 
     {resumes.length === 0 ? (
-      <Empty title="No resumes yet">
-        Comparisons and cover letters start from a resume. Upload one above; the first becomes the default.
+      <Empty title={t('resumes.noResumesYet')}>
+        {t('resumes.comparisonsAndCoverLettersStart')}
       </Empty>
     ) : (
       <Card flush class="mb-4">
-        <Table caption="Resumes"
+        <Table caption={t('nav.resumes')}
           columns={[
-            'Name',
-            'Headline',
-            'Core stack',
-            'Matches',
-            'Strength',
-            'Scanned',
-            <span class="block text-right">Default</span>,
+            t('resumes.col.name'),
+            t('resumes.col.headline'),
+            t('resumes.col.coreStack'),
+            t('resumes.col.matches'),
+            t('resumes.col.strength'),
+            t('resumes.col.scanned'),
+            <span class="block text-right">{t('resumes.col.default')}</span>,
           ]}
           hideBelow={['', 'xl', 'lg', '', 'sm', 'sm', '']}
         >
@@ -117,6 +118,7 @@ export const ResumesPage: FC<{
                     href={`/resumes/${r.id}`}
                     class="truncate font-medium text-ink transition-colors duration-150 hover:text-accent-strong"
                     title={r.name}
+                    translate="no"
                   >
                     {r.name}
                   </a>
@@ -125,14 +127,15 @@ export const ResumesPage: FC<{
                   <Badge tone="info" class={HIDE_SM_INLINE}>
                     v{r.version}
                   </Badge>
-                  {r.isDefault && <Badge tone="ok" class={HIDE_SM_INLINE}>default</Badge>}
+                  {r.isDefault && <Badge tone="ok" class={HIDE_SM_INLINE}>{t('resumes.defaultBadge')}</Badge>}
                 </div>
-                <div class="mt-0.5 hidden truncate font-mono text-meta text-ink-faint sm:block">
+                <div class="mt-0.5 hidden truncate font-mono text-meta text-ink-faint sm:block" translate="no">
                   {r.sourceFilename}
                 </div>
               </Td>
               <Td class="max-w-[16rem] text-ink-muted">
-                <div class="truncate" title={r.title ?? undefined}>
+                {/* The scan's headline: the model's words about the resume. */}
+                <div class="truncate" title={r.title ?? undefined} lang="en">
                   {r.title ?? '—'}
                 </div>
               </Td>
@@ -146,17 +149,17 @@ export const ResumesPage: FC<{
                 <StrengthCell resume={r} />
               </Td>
               <Td class="whitespace-nowrap text-note text-ink-faint">
-                {r.scannedAt ? <When at={r.scannedAt} /> : <Badge tone="warn">not scanned</Badge>}
+                {r.scannedAt ? <When at={r.scannedAt} /> : <Badge tone="warn">{t('resumes.notScanned')}</Badge>}
               </Td>
               <Td>
                 <div class="flex justify-end">
                   {r.isDefault ? (
-                    <Badge tone="ok">default</Badge>
+                    <Badge tone="ok">{t('resumes.defaultBadge')}</Badge>
                   ) : (
                     <ActionForm action={`/resumes/${r.id}/default`}>
                       <Button size="sm" variant="secondary">
-                        <span class="sm:hidden">Use</span>
-                        <span class="hidden sm:inline">Set default</span>
+                        <span class="sm:hidden">{t('resumes.use')}</span>
+                        <span class="hidden sm:inline">{t('resumes.setDefault')}</span>
                       </Button>
                     </ActionForm>
                   )}
@@ -169,10 +172,9 @@ export const ResumesPage: FC<{
     )}
 
     <Card class="mt-4" id="facts">
-      <SectionTitle>Confirmed facts</SectionTitle>
+      <SectionTitle>{t('resumes.confirmedFacts')}</SectionTitle>
       <Hint class="mb-3">
-        Your answers to a comparison's "do you have this?" questions. They feed every future
-        match; none of this calls the AI.
+        {t('resumes.yourAnswersToAComparisons')}
       </Hint>
       {facts.length > 0 && (
         <ul class="mb-3 divide-y divide-line">
@@ -182,17 +184,23 @@ export const ResumesPage: FC<{
             <li class="flex flex-col gap-1.5 py-2.5 first:pt-0 sm:flex-row sm:items-center sm:gap-3">
               <div class="min-w-0 flex-1">
                 <div class="flex flex-wrap items-baseline gap-x-2.5">
-                  <span class="truncate text-entity text-ink">{f.term}</span>
+                  <span class="truncate text-entity text-ink" translate="no">
+                    {f.term}
+                  </span>
                   <span
                     class={`inline-flex items-center gap-1 text-note ${
                       f.status === 'confirmed' ? 'font-medium text-ok' : 'text-ink-muted'
                     }`}
                   >
                     {f.status !== 'unknown' && <MarkIcon kind={f.status === 'confirmed' ? 'check' : 'x'} class="!h-3 !w-3" />}
-                    {f.status === 'confirmed' ? 'I have this' : f.status === 'unknown' ? 'Not sure' : "I don't"}
+                    {f.status === 'confirmed' ? t('resumes.iHaveThis') : f.status === 'unknown' ? t('resumes.notSure') : t('resumes.iDont')}
                   </span>
                 </div>
-                {f.note && <div class="mt-0.5 truncate text-meta text-ink-faint">{f.note}</div>}
+                {f.note && (
+                  <div class="mt-0.5 truncate text-meta text-ink-faint" translate="no">
+                    {f.note}
+                  </div>
+                )}
               </div>
               <div class="flex items-center gap-1.5">
                 {/* The same POST /facts the comparison uses, with the answer
@@ -208,23 +216,23 @@ export const ResumesPage: FC<{
                   }}
                 >
                   <Button size="sm" variant="ghost">
-                    {f.status === 'confirmed' ? "I don't, actually" : 'I do have it'}
+                    {f.status === 'confirmed' ? t('resumes.iDontActually') : t('resumes.iDoHaveIt')}
                   </Button>
                 </ActionForm>
                 <ConfirmAction
                   action="/facts/delete"
                   hidden={{ term: f.term, back: '/resumes' }}
-                  label="Forget"
+                  label={t('resumes.forget')}
                   variant="ghost"
-                  ariaLabel={`Forget ${f.term}`}
-                  confirm={`Forget what you said about ${f.term}? The next comparison that meets it asks again.`}
+                  ariaLabel={t('resumes.forgetTerm', { term: f.term })}
+                  confirm={t('resumes.forgetConfirm', { term: f.term })}
                 />
               </div>
             </li>
           ))}
         </ul>
       )}
-      <Disclosure variant="button" summary="Add a fact">
+      <Disclosure variant="button" summary={t('resumes.addAFact')}>
         <div class="mt-3">
           <AddFactForm />
         </div>
@@ -246,20 +254,20 @@ function confirmedFirst(facts: FactRow[]): FactRow[] {
 const AddFactForm: FC = () => (
   <form method="post" action="/facts" class="flex flex-wrap items-end gap-2">
     <input type="hidden" name="back" value="/resumes" />
-    <Field label="Skill or tool" class="min-w-[10rem] flex-1">
+    <Field label={t('resumes.skillOrTool')} class="min-w-[10rem] flex-1">
       <Input name="term" maxlength="100" required placeholder="kubernetes" />
     </Field>
-    <Field label="Do you have it?" class="w-40">
+    <Field label={t('resumes.doYouHaveIt')} class="w-40">
       <Select name="decision">
-        <option value="confirmed">I have it</option>
-        <option value="denied">I don't</option>
+        <option value="confirmed">{t('resumes.iHaveIt')}</option>
+        <option value="denied">{t('resumes.iDont')}</option>
       </Select>
     </Field>
-    <Field label="Where / when" class="min-w-[12rem] flex-[2]" hint="The match prompt quotes it.">
-      <Input name="note" maxlength="300" placeholder="ran the cluster at Vodwork, 2023-2025" />
+    <Field label={t('resumes.whereWhen')} class="min-w-[12rem] flex-[2]" hint={t('resumes.theMatchPromptQuotesIt')}>
+      <Input name="note" maxlength="300" placeholder={t('resumes.notePlaceholder')} />
     </Field>
     {/* The card's one affirmative act, and no AI call (POST /facts) — so primary, not violet. */}
-    <Button>Remember this</Button>
+    <Button>{t('resumes.rememberThis')}</Button>
   </form>
 );
 
@@ -272,10 +280,10 @@ const PrimaryStack: FC<{ resume: ResumeRow }> = ({ resume }) => {
   const core = resume.primarySkills.slice(0, PRIMARY_PREVIEW);
   const rest = resume.skills.length - core.length;
   if (core.length === 0) {
-    return <span class="text-note text-ink-faint">{resume.scannedAt ? '—' : 'not scanned'}</span>;
+    return <span class="text-note text-ink-faint">{resume.scannedAt ? '—' : t('resumes.notScanned')}</span>;
   }
   return (
-    <div class="flex flex-wrap items-center gap-1">
+    <div class="flex flex-wrap items-center gap-1" translate="no">
       {core.map((skill) => (
         <Tag>{skill}</Tag>
       ))}
@@ -289,13 +297,13 @@ const MatchCell: FC<{ matches: ResumeRow['matches'] }> = ({ matches }) =>
   matches === null ? (
     <span class="text-note text-ink-faint">
       <span class="sm:hidden">—</span>
-      <span class="hidden sm:inline">never compared</span>
+      <span class="hidden sm:inline">{t('resumes.neverCompared')}</span>
     </span>
   ) : (
     <div class="flex items-center gap-2">
       <FitBadge score={matches.best} />
       <span class="hidden text-meta text-ink-faint sm:inline">
-        {matches.count === 1 ? '1 run' : `${matches.count} runs`}
+        {t('resumes.runs', { n: matches.count })}
       </span>
     </div>
   );
@@ -311,13 +319,13 @@ const StrengthCell: FC<{ resume: ResumeRow }> = ({ resume }) =>
       href={`/resumes/${resume.id}`}
       class="text-note text-ink-faint underline-offset-2 transition-colors duration-150 hover:text-ink hover:underline"
     >
-      not reviewed
+      {t('resumes.notReviewed')}
     </a>
   ) : (
     <div class="flex items-center gap-2">
-      <FitBadge score={resume.review.reviewScore} label="strength" />
+      <FitBadge score={resume.review.reviewScore} label={t('review.strength')} />
       {resume.review.resumeVersion < resume.version && (
-        <span title={`the review read v${resume.review.resumeVersion}, the resume is at v${resume.version}`}>
+        <span title={t('resumes.reviewBehind', { reviewed: resume.review.resumeVersion, current: resume.version })}>
           <Badge tone="warn">v{resume.review.resumeVersion}</Badge>
         </span>
       )}
@@ -333,10 +341,10 @@ const ResumeUploadForm: FC = () => (
     onsubmit={SUBMIT_ONCE}
     class="grid gap-3 sm:grid-cols-[1fr_1.4fr_auto]"
   >
-    <Field label="Name" hint="Blank = taken from the file name.">
-      <Input type="text" name="name" placeholder="Senior Backend" maxlength="100" />
+    <Field label={t('resumes.name')} hint={t('resumes.blankTakenFromTheFile')}>
+      <Input type="text" name="name" placeholder={t('resumes.namePlaceholder')} maxlength="100" />
     </Field>
-    <Field label="File" hint={`${ACCEPTED_EXTENSIONS.join(', ')} · up to ${MAX_UPLOAD_MB} MB`}>
+    <Field label={t('resumes.file')} hint={t('upload.fileHint', { types: ACCEPTED_EXTENSIONS.join(', '), mb: MAX_UPLOAD_MB })}>
       <Input
         type="file"
         name="file"
@@ -346,11 +354,10 @@ const ResumeUploadForm: FC = () => (
       />
     </Field>
     <div class="flex items-end">
-      <Button class="w-full">Upload &amp; scan</Button>
+      <Button class="w-full">{t('resumes.uploadScan')}</Button>
     </div>
     <Hint class="sm:col-span-3">
-      One call to the resume model reads headline, skills and issues; you can leave the progress
-      page. The file never leaves your Postgres.
+      {t('resumes.oneCallToTheResume')}
     </Hint>
   </form>
 );

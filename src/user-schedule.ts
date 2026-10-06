@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import { formatDateTime, weekdayName } from './i18n/format';
+import { t } from './i18n/t';
 
 /**
  * When the user wants the search to run and alerts to arrive (TASKS §16).
@@ -28,7 +30,6 @@ export type AlertMode = (typeof ALERT_MODES)[number];
 
 /** ISO weekdays: 1 = Monday … 7 = Sunday, the order the pills are drawn in. */
 export const ALL_DAYS = [1, 2, 3, 4, 5, 6, 7] as const;
-export const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const;
 
 const HOUR_MS = 60 * 60 * 1000;
 /** Minimum gap per cadence. `hour` has none: every heartbeat qualifies. */
@@ -239,27 +240,32 @@ export function describeNextFetch(next: Date | null, now: Date, timezone: string
   if (next === null) return '';
   const clock = new Intl.DateTimeFormat('en-GB', { timeZone: timezone, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(next);
   const dayOf = (at: Date) => new Intl.DateTimeFormat('en-GB', { timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(at);
-  if (dayOf(next) === dayOf(now)) return `today at ${clock}`;
+  if (dayOf(next) === dayOf(now)) return t('schedule.next.today', { clock });
   const tomorrow = new Date(now.getTime() + 24 * HOUR_MS);
-  if (dayOf(next) === dayOf(tomorrow)) return `tomorrow at ${clock}`;
-  const weekday = new Intl.DateTimeFormat('en-GB', { timeZone: timezone, weekday: 'short' }).format(next);
-  return `${weekday} at ${clock}`;
+  if (dayOf(next) === dayOf(tomorrow)) return t('schedule.next.tomorrow', { clock });
+  return t('schedule.next.weekday', { weekday: formatDateTime(next, { timeZone: timezone, weekday: 'short' }), clock });
+}
+
+/** "Every hour" / "Every 2 hours" / "Once a day" — the cadence, as the picker and the summary name it. */
+export function describeCadence(every: FetchEvery): string {
+  if (every === 'hour') return t('schedule.cadence.hour');
+  if (every === 'day') return t('schedule.cadence.day');
+  return t('schedule.cadence.hours', { n: EVERY_MS[every] / HOUR_MS });
 }
 
 /** "Every hour, 07:00–23:00, Mon–Fri" — one sentence for the card and the overview. */
 export function describeSchedule(schedule: Schedule): string {
   const { every, from, to, days } = schedule.fetch;
-  const cadence = every === 'hour' ? 'Every hour' : every === 'day' ? 'Once a day' : `Every ${every.replace('h', ' hours')}`;
-  const hours = from === 0 && to === 23 ? 'around the clock' : `${pad(from)}:00–${pad(to)}:59`;
-  return `${cadence}, ${hours}, ${describeDays(days)}`;
+  const hours = from === 0 && to === 23 ? t('schedule.hours.all') : t('schedule.hours.range', { from: pad(from), to: pad(to) });
+  return t('schedule.summary', { cadence: describeCadence(every), hours, days: describeDays(days) });
 }
 
 /** "every day" / "Mon–Fri" / "Mon, Wed, Fri" — contiguous runs are named as ranges. */
 export function describeDays(days: readonly number[]): string {
-  if (days.length === 7) return 'every day';
-  if (days.length === 5 && days.every((d) => d <= 5)) return 'Mon–Fri';
-  if (days.length === 2 && days[0] === 6 && days[1] === 7) return 'weekends';
-  return days.map((d) => DAY_LABELS[d - 1]).join(', ');
+  if (days.length === 7) return t('schedule.days.every');
+  if (days.length === 5 && days.every((d) => d <= 5)) return t('schedule.days.range', { from: weekdayName(1), to: weekdayName(5) });
+  if (days.length === 2 && days[0] === 6 && days[1] === 7) return t('schedule.days.weekends');
+  return days.map((d) => weekdayName(d)).join(', ');
 }
 
 function pad(hour: number): string {

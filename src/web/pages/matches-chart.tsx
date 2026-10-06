@@ -8,6 +8,8 @@ import type { OverviewChart } from '../overview-stats';
 import { DEFAULT_RANGE, RANGES, RANGE_KEYS, dayLabel, labelIndexes, pointLabel, trendText } from '../stats-series';
 import { techLabel } from '../tech-label';
 import { stageCount, type FunnelView, type StageKey } from '../../funnel';
+import { formatNumber } from '../../i18n/format';
+import { t } from '../../i18n/t';
 
 /*
  * The Overview's chart: how many jobs matched the searches, day by day. The
@@ -17,19 +19,11 @@ import { stageCount, type FunnelView, type StageKey } from '../../funnel';
  * URL, so what was picked stays picked.
  */
 
-const INFO =
-  'Jobs a running search scored at or above its fit floor, by the day they were found. Days are UTC. By technology, the chart looks back 30 days: that is how long a dismissed job is kept.';
-
-/** The four stages the card's foot walks through, with the word each count is followed by. */
-const FLOW: { key: StageKey; word: string }[] = [
-  { key: 'read', word: 'read' },
-  { key: 'passed', word: 'past the filter' },
-  { key: 'matches', word: 'matches' },
-  { key: 'alerted', word: 'alerted' },
-];
+/** The four stages the card's foot walks through; the word each count is followed by is `overview.flow.<key>`. */
+const FLOW = ['read', 'passed', 'matches', 'alerted'] as const satisfies readonly StageKey[];
 
 const RangeSwitch: FC<{ chart: OverviewChart }> = ({ chart }) => (
-  <nav aria-label="Chart range" class="inline-flex rounded-md bg-surface-overlay p-0.5">
+  <nav aria-label={t('overview.chartRange')} class="inline-flex rounded-md bg-surface-overlay p-0.5">
     {RANGE_KEYS.map((key) => {
       const current = key === chart.range;
       // A technology filter reaches back 30 days; a longer range lets go of it.
@@ -42,7 +36,7 @@ const RangeSwitch: FC<{ chart: OverviewChart }> = ({ chart }) => (
             current ? 'bg-surface-raised text-accent-strong shadow-sm' : 'text-ink-muted hover:text-ink'
           }`}
         >
-          {RANGES[key].label}
+          {t('overview.chart.rangeLabel', { n: RANGES[key].days })}
         </a>
       );
     })}
@@ -58,14 +52,14 @@ const StackFilter: FC<{ chart: OverviewChart }> = ({ chart }) => (
     <Select
       name="stack"
       data-commit="submit"
-      aria-label="Technology"
+      aria-label={t('overview.technology')}
       class="!w-auto !py-1 !pl-8 font-medium"
       disabled={!chart.stackAllowed}
-      title={chart.stackAllowed ? undefined : 'By technology, the chart looks back 7 or 30 days'}
+      title={chart.stackAllowed ? undefined : t('overview.byTechnologyTheChartLooks')}
     >
-      <option value="">All stack</option>
+      <option value="">{t('overview.allStack')}</option>
       {chart.options.map((o) => (
-        <option value={o.term} selected={o.term === chart.stack}>
+        <option value={o.term} selected={o.term === chart.stack} translate="no">
           {techLabel(o.term)}
         </option>
       ))}
@@ -73,25 +67,27 @@ const StackFilter: FC<{ chart: OverviewChart }> = ({ chart }) => (
     {/* The no-JS path: select-commit.mjs submits on a pick and this button never shows. */}
     <noscript>
       <Button size="sm" variant="secondary">
-        Apply
+        {t('overview.apply')}
       </Button>
     </noscript>
   </form>
 );
 
 export const MatchesChart: FC<{ chart: OverviewChart; funnel: FunnelView }> = ({ chart, funnel }) => {
-  const { words, step } = RANGES[chart.range];
+  const { days, step } = RANGES[chart.range];
   const top = chart.ticks[chart.ticks.length - 1] ?? 0;
   const values = chart.points.map((p) => p.value);
   const points = plotPoints(values, top);
   const count = chart.points.length;
+  // Read by public/chart.mjs for the hover card, which words its own lines in the browser.
   const stepWords = step === 1 ? 'day' : `${step} days`;
   const peak = chart.points.reduce((best, p) => (p.value > best.value ? p : best), chart.points[0]!);
-  const naming = chart.stack ? ` naming ${techLabel(chart.stack)}` : '';
+  const tech = chart.stack ? techLabel(chart.stack) : '';
+  const said = { n: chart.total, days, step, tech, peak: peak.value, when: pointLabel(peak) };
   const caption =
     chart.total === 0
-      ? `No jobs matched your searches${naming} in the last ${words}.`
-      : `${chart.total.toLocaleString('en-US')} ${chart.total === 1 ? 'job' : 'jobs'} matched your searches${naming} in the last ${words}; the most in one ${stepWords} was ${peak.value.toLocaleString('en-US')} (${pointLabel(peak)}).`;
+      ? t(chart.stack ? 'overview.chart.captionNoneStack' : 'overview.chart.captionNone', said)
+      : t(chart.stack ? 'overview.chart.captionStack' : 'overview.chart.caption', said);
   const hoverData = chart.points.map((p, i) => ({ l: pointLabel(p), v: p.value, y: Math.round((points[i]!.y / PLOT_HEIGHT) * 10000) / 100 }));
   const labelled = labelIndexes(count);
   const phoneEvery = Math.ceil(labelled.length / 3);
@@ -99,8 +95,8 @@ export const MatchesChart: FC<{ chart: OverviewChart; funnel: FunnelView }> = ({
   return (
     <Card id="matches">
       <CardHeader
-        title="Jobs matching your searches"
-        info={INFO}
+        title={t('overview.jobsMatchingYourSearches')}
+        info={t('overview.chart.info')}
         class="mb-3"
         action={
           <div class="flex flex-wrap items-center gap-2">
@@ -111,11 +107,8 @@ export const MatchesChart: FC<{ chart: OverviewChart; funnel: FunnelView }> = ({
       />
 
       <p class="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
-        <span class="text-kpi tabular-nums text-ink">{chart.total.toLocaleString('en-US')}</span>
-        <span class="text-sm text-ink-muted">
-          {chart.total === 1 ? 'job' : 'jobs'}
-          {chart.stack && <> naming {techLabel(chart.stack)}</>}
-        </span>
+        <span class="text-kpi tabular-nums text-ink">{formatNumber(chart.total)}</span>
+        <span class="text-sm text-ink-muted">{t(chart.stack ? 'overview.chart.unitStack' : 'overview.chart.unit', { n: chart.total, tech })}</span>
         {chart.trend ? (
           <>
             <span
@@ -128,10 +121,10 @@ export const MatchesChart: FC<{ chart: OverviewChart; funnel: FunnelView }> = ({
               )}
               {trendText(chart.trend)}
             </span>
-            <span class="text-note text-ink-faint">vs previous {words}</span>
+            <span class="text-note text-ink-faint">{t('overview.chart.vsPrevious', { days })}</span>
           </>
         ) : (
-          <span class="text-note text-ink-faint">in the last {words}</span>
+          <span class="text-note text-ink-faint">{t('overview.chart.inLast', { days })}</span>
         )}
       </p>
 
@@ -145,15 +138,15 @@ export const MatchesChart: FC<{ chart: OverviewChart; funnel: FunnelView }> = ({
           data-step={stepWords}
           tabindex={0}
           role="img"
-          aria-label={`${caption} Arrow keys walk the points.`}
+          aria-label={t('overview.chart.aria', { caption })}
         >
-          {chart.ticks.map((t) => (
+          {chart.ticks.map((tick) => (
             <span
               aria-hidden="true"
               class="absolute -left-8 w-6 -translate-y-1/2 text-right text-meta tabular-nums text-ink-faint"
-              style={`top:${tickOffset(t, top)}%`}
+              style={`top:${tickOffset(tick, top)}%`}
             >
-              {t.toLocaleString('en-US')}
+              {formatNumber(tick)}
             </span>
           ))}
           <svg
@@ -195,8 +188,7 @@ export const MatchesChart: FC<{ chart: OverviewChart; funnel: FunnelView }> = ({
           </svg>
           {chart.total === 0 && (
             <p data-ui="hint" class="absolute inset-x-0 top-1/3 text-center text-note text-ink-faint">
-              No matches in the last {words}
-              {chart.stack ? ` name ${techLabel(chart.stack)}` : ''}.
+              {t(chart.stack ? 'overview.chart.emptyStack' : 'overview.chart.empty', { days, tech })}
             </p>
           )}
           <div class="pointer-events-none absolute inset-0" data-chart-hover hidden>
@@ -235,11 +227,11 @@ export const MatchesChart: FC<{ chart: OverviewChart; funnel: FunnelView }> = ({
         </div>
         <figcaption class="sr-only">{caption}</figcaption>
         <table class="sr-only">
-          <caption>Jobs matching your searches, per {stepWords}</caption>
+          <caption>{t('overview.chart.tableCaption', { step })}</caption>
           <thead>
             <tr>
-              <th scope="col">{step === 1 ? 'Day' : 'Days'}</th>
-              <th scope="col">Jobs</th>
+              <th scope="col">{t('overview.chart.dayColumn', { step })}</th>
+              <th scope="col">{t('nav.jobs')}</th>
             </tr>
           </thead>
           <tbody>
@@ -256,15 +248,15 @@ export const MatchesChart: FC<{ chart: OverviewChart; funnel: FunnelView }> = ({
       {stageCount(funnel, 'read') > 0 && (
         <div class="mt-5 border-t border-line pt-4">
           <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
-            <h3 class="text-label text-ink-muted">The search funnel, last {words}</h3>
-            <CardLink href="/runs#funnel">Where the rest went</CardLink>
+            <h3 class="text-label text-ink-muted">{t('overview.chart.funnelHeading', { days })}</h3>
+            <CardLink href="/runs#funnel">{t('overview.whereTheRestWent')}</CardLink>
           </div>
           <ol class="mt-3 grid grid-cols-2 gap-x-3 gap-y-4 sm:grid-cols-4">
-            {FLOW.map(({ key, word }, i) => (
+            {FLOW.map((key, i) => (
               <li class="flex items-center gap-3">
                 <div class="min-w-0 flex-1">
-                  <div class="text-section tabular-nums text-ink">{stageCount(funnel, key).toLocaleString('en-US')}</div>
-                  <div class="truncate text-note text-ink-muted">{word}</div>
+                  <div class="text-section tabular-nums text-ink">{formatNumber(stageCount(funnel, key))}</div>
+                  <div class="truncate text-note text-ink-muted">{t(`overview.flow.${key}`, { n: stageCount(funnel, key) })}</div>
                 </div>
                 {i < FLOW.length - 1 && (
                   <span class="hidden shrink-0 text-line-strong sm:block" aria-hidden="true">

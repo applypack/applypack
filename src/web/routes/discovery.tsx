@@ -15,6 +15,7 @@ import { runDiscoveryJob } from '../../jobs/discovery-job';
 import { runHnHiringJob } from '../../jobs/hn-hiring-job';
 import { DiscoveryPage } from '../pages/discovery';
 import { clearFlashCookie, flashRedirect, parseFlashCookie } from '../flash';
+import { t } from '../../i18n/t';
 
 let probeInFlight = false;
 let hnRunInFlight = false;
@@ -49,7 +50,7 @@ discoveryRoute.post('/discovery/toggle', async (c) => {
   const settings = await getSettings();
   await setDiscoveryEnabled(!settings.discoveryEnabled);
   return flashRedirect('/discovery', 'ok',
-    `Auto-discovery ${!settings.discoveryEnabled ? 'enabled' : 'disabled'}.`,
+    t(!settings.discoveryEnabled ? 'discovery.flash.autoEnabled' : 'discovery.flash.autoDisabled'),
   );
 });
 
@@ -57,13 +58,13 @@ discoveryRoute.post('/discovery/hn-parser-toggle', async (c) => {
   const settings = await getSettings();
   await setHnParserEnabled(!settings.hnParserEnabled);
   return flashRedirect('/discovery', 'ok',
-    `HN "Who is hiring" parser ${!settings.hnParserEnabled ? 'enabled' : 'disabled'}.`,
+    t(!settings.hnParserEnabled ? 'discovery.flash.hnEnabled' : 'discovery.flash.hnDisabled'),
   );
 });
 
 discoveryRoute.post('/discovery/hn-run', (c) => {
   if (hnRunInFlight) {
-    return flashRedirect('/discovery', 'err', 'An HN parse run is already in progress. Watch /runs.');
+    return flashRedirect('/discovery', 'err', t('discovery.flash.hnRunning'));
   }
   hnRunInFlight = true;
   void (async () => {
@@ -76,7 +77,7 @@ discoveryRoute.post('/discovery/hn-run', (c) => {
     }
   })();
   return flashRedirect('/discovery', 'ok',
-    'HN parse started in the background. Track progress at /runs.',
+    t('discovery.flash.hnStarted'),
   );
 });
 
@@ -87,34 +88,34 @@ discoveryRoute.post('/discovery/:id/promote', async (c) => {
     await promoteCandidate(id);
   } catch (err) {
     // The one throw is "Candidate N not found": someone reviewed it in another tab.
-    const reason = err instanceof Error ? err.message : 'no reason given';
+    const reason = err instanceof Error ? err.message : t('discovery.flash.noReason');
     return flashRedirect('/discovery', 'err',
-      `Nothing was promoted (${reason}). The list below is current; add a board by its URL on Companies if it is gone from here.`,
+      t('discovery.flash.promoteFailed', { reason }),
     );
   }
   return flashRedirect('/discovery', 'ok',
-    'Promoted to active company. Next fetch tick will pull its jobs.',
+    t('discovery.flash.promoted'),
   );
 });
 
 discoveryRoute.post('/discovery/:id/ignore', async (c) => {
   const id = idParam(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text('Bad id', 400);
-  if (!(await ignoreCandidate(id))) return flashRedirect('/discovery', 'warn', 'That candidate is no longer listed.');
-  return flashRedirect('/discovery', 'ok', 'Marked as ignored.');
+  if (!(await ignoreCandidate(id))) return flashRedirect('/discovery', 'warn', t('discovery.flash.gone'));
+  return flashRedirect('/discovery', 'ok', t('discovery.flash.ignored'));
 });
 
 discoveryRoute.post('/discovery/:id/delete', async (c) => {
   const id = idParam(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text('Bad id', 400);
-  if (!(await deleteCandidate(id))) return flashRedirect('/discovery', 'warn', 'That candidate is no longer listed.');
-  return flashRedirect('/discovery', 'ok', 'Candidate deleted.');
+  if (!(await deleteCandidate(id))) return flashRedirect('/discovery', 'warn', t('discovery.flash.gone'));
+  return flashRedirect('/discovery', 'ok', t('discovery.flash.deleted'));
 });
 
 discoveryRoute.post('/discovery/probe-now', (c) => {
   if (probeInFlight) {
     return flashRedirect('/discovery', 'err',
-      'A discovery probe is already running. Watch /runs.',
+      t('discovery.flash.probeRunning'),
     );
   }
   probeInFlight = true;
@@ -128,6 +129,6 @@ discoveryRoute.post('/discovery/probe-now', (c) => {
     }
   })();
   return flashRedirect('/discovery', 'ok',
-    'Discovery probe started. Track progress at /runs.',
+    t('discovery.flash.probeStarted'),
   );
 });

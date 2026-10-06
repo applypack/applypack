@@ -7,18 +7,28 @@
  * Pure — tested in lane.test.ts.
  */
 
+import type { MessageKey } from '../i18n/catalog';
+import { t } from '../i18n/t';
+
 export type Lane = 'cli-haiku' | 'cli-sonnet' | 'cli-opus' | 'api-haiku' | 'api-sonnet' | 'api-opus' | 'other';
 type MeasuredLane = Exclude<Lane, 'other'>;
 type TimedStep = 'scan' | 'structure' | 'keywords' | 'match' | 'suggestions' | 'review';
 
-const LABEL: Record<MeasuredLane, string> = {
-  'cli-haiku': 'Haiku 4.5 through the Claude CLI',
-  'cli-sonnet': 'Sonnet 5 through the Claude CLI',
-  'cli-opus': 'Opus 5 through the Claude CLI',
-  'api-haiku': 'Haiku 4.5 on the API',
-  'api-sonnet': 'Sonnet 5 on the API',
-  'api-opus': 'Opus 5 on the API',
-};
+/** The route a model is reached by, as a catalog message, and the model's name — the same in every language. */
+const LABEL = {
+  'cli-haiku': ['lane.cli', 'Haiku 4.5'],
+  'cli-sonnet': ['lane.cli', 'Sonnet 5'],
+  'cli-opus': ['lane.cli', 'Opus 5'],
+  'api-haiku': ['lane.api', 'Haiku 4.5'],
+  'api-sonnet': ['lane.api', 'Sonnet 5'],
+  'api-opus': ['lane.api', 'Opus 5'],
+} as const satisfies Record<MeasuredLane, readonly [route: MessageKey, model: string]>;
+
+/** How long a call takes, as a catalog message and the seconds it names. */
+type Band = readonly [key: MessageKey, seconds?: number];
+const exactly = (seconds: number): Band => ['lane.band.seconds', seconds];
+const roughly = (seconds: number): Band => ['lane.band.aboutSeconds', seconds];
+const ABOUT_A_MINUTE: Band = ['lane.band.aboutMinute'];
 
 /**
  * Wall seconds per call. The CLI caps thinking (v1.59.1), so Sonnet and
@@ -28,13 +38,13 @@ const LABEL: Record<MeasuredLane, string> = {
  * structure — the measured scan of v1.65 (35–75 s) split between the two
  * calls it became in v1.66.
  */
-const BANDS: Record<MeasuredLane, Record<TimedStep, string>> = {
-  'cli-sonnet': { scan: '~20 s', structure: '~40 s', keywords: '20 s', match: '35 s', suggestions: '30 s', review: '40 s' },
-  'cli-haiku': { scan: '~25 s', structure: '~45 s', keywords: '25 s, twice that when a reply has to be retried', match: '75 s', suggestions: '35 s', review: '55 s' },
-  'cli-opus': { scan: '~25 s', structure: '~50 s', keywords: '25 s', match: '60 s', suggestions: '45 s', review: '50 s' },
-  'api-haiku': { scan: '~15 s', structure: '~30 s', keywords: '20 s', match: '45 s', suggestions: '~30 s', review: '~40 s' },
-  'api-sonnet': { scan: '~40 s', structure: '~1 minute', keywords: '65 s', match: 'more than 2 minutes', suggestions: '~1 minute', review: '~1 minute' },
-  'api-opus': { scan: '~35 s', structure: '~1 minute', keywords: '40 s', match: '110 s', suggestions: '~1 minute', review: '~1 minute' },
+const BANDS: Record<MeasuredLane, Record<TimedStep, Band>> = {
+  'cli-sonnet': { scan: roughly(20), structure: roughly(40), keywords: exactly(20), match: exactly(35), suggestions: exactly(30), review: exactly(40) },
+  'cli-haiku': { scan: roughly(25), structure: roughly(45), keywords: ['lane.band.secondsOrTwice', 25], match: exactly(75), suggestions: exactly(35), review: exactly(55) },
+  'cli-opus': { scan: roughly(25), structure: roughly(50), keywords: exactly(25), match: exactly(60), suggestions: exactly(45), review: exactly(50) },
+  'api-haiku': { scan: roughly(15), structure: roughly(30), keywords: exactly(20), match: exactly(45), suggestions: roughly(30), review: roughly(40) },
+  'api-sonnet': { scan: roughly(40), structure: ABOUT_A_MINUTE, keywords: exactly(65), match: ['lane.band.overTwoMinutes'], suggestions: ABOUT_A_MINUTE, review: ABOUT_A_MINUTE },
+  'api-opus': { scan: roughly(35), structure: ABOUT_A_MINUTE, keywords: exactly(40), match: exactly(110), suggestions: ABOUT_A_MINUTE, review: ABOUT_A_MINUTE },
 };
 
 export function laneOf(provider: string, model: string): Lane {
@@ -46,12 +56,17 @@ export function laneOf(provider: string, model: string): Lane {
 }
 
 export function laneLabel(lane: Lane): string {
-  return lane === 'other' ? 'this engine' : LABEL[lane];
+  if (lane === 'other') return t('lane.other');
+  const [route, model] = LABEL[lane];
+  return t(route, { model });
 }
 
 /** The measured band for a step on a lane, or null when either is not one we measured. */
 export function bandFor(step: string, lane: Lane): string | null {
   if (lane === 'other') return null;
-  const bands: Record<string, string> = BANDS[lane];
-  return bands[step] ?? null;
+  const bands: Record<string, Band> = BANDS[lane];
+  const band = bands[step];
+  if (!band) return null;
+  const [key, seconds] = band;
+  return t(key, seconds === undefined ? {} : { n: seconds });
 }

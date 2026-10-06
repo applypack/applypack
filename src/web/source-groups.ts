@@ -1,3 +1,5 @@
+import type { MessageKey } from '../i18n/catalog';
+import { t } from '../i18n/t';
 import { sourceLabel } from './source-names';
 
 /*
@@ -70,30 +72,23 @@ export interface SourceGroup {
   pills: SourcePill[];
 }
 
-const GROUPS: { family: SourceFamily; title: string; caption: string }[] = [
-  {
-    family: 'vendor',
-    title: 'ATS vendors',
-    caption: 'Boards on the companies you added. A vendor with no companies fetches nothing.',
-  },
-  {
-    family: 'aggregator',
-    title: 'Aggregators',
-    caption: 'Whole job boards — they bring postings on their own.',
-  },
-  {
-    family: 'own',
-    title: 'Your own sources',
-    caption: 'The feeds you pasted, the careers pages you watch and the folders you added. Unticking these switches your watchlist off.',
-  },
-];
+/** The three groups in the grid's order; a group's title and caption are catalog keys, worded when the grid is built. */
+const GROUPS = [
+  { family: 'vendor', title: 'sources.group.vendor', caption: 'sources.group.vendor.caption' },
+  { family: 'aggregator', title: 'sources.group.aggregator', caption: 'sources.group.aggregator.caption' },
+  { family: 'own', title: 'sources.group.own', caption: 'sources.group.own.caption' },
+] as const satisfies readonly { family: SourceFamily; title: MessageKey; caption: MessageKey }[];
 
-/** What a pill says next to its label — the install fact, not the enum. Vendors count companies, the rest count rows. */
+/** Vendors count companies, aggregators feeds, the user's own sources entries. */
+const COUNT_KEY = {
+  vendor: 'sources.count.vendor',
+  aggregator: 'sources.count.aggregator',
+  own: 'sources.count.own',
+} as const satisfies Record<SourceFamily, MessageKey>;
+
+/** What a pill says next to its label — the install fact, not the enum: "12 companies · 3 active", "no feeds yet". */
 export function describeCount(c: SourceCount, family: SourceFamily): string {
-  const noun = family === 'vendor' ? 'compan' : family === 'aggregator' ? 'feed' : 'entr';
-  const plural = (n: number) => (noun === 'compan' ? (n === 1 ? 'company' : 'companies') : noun === 'entr' ? (n === 1 ? 'entry' : 'entries') : n === 1 ? 'feed' : 'feeds');
-  if (c.companies === 0) return `no ${plural(2)} yet`;
-  return `${c.companies} ${plural(c.companies)} · ${c.active} active`;
+  return t(COUNT_KEY[family], { n: c.companies, active: c.active });
 }
 
 export function groupSources(
@@ -102,7 +97,9 @@ export function groupSources(
   locked: readonly string[],
 ): SourceGroup[] {
   return GROUPS.map((g) => ({
-    ...g,
+    family: g.family,
+    title: t(g.title),
+    caption: t(g.caption),
     pills: all
       .filter((s) => sourceFamily(s) === g.family)
       .map((s) => ({

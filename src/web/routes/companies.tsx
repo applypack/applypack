@@ -1,5 +1,5 @@
 /** @jsxImportSource hono/jsx */
-import { Hono, type Context } from 'hono';
+import { Hono } from 'hono';
 import { idParam } from '../params';
 import { AtsType, JobStatus } from '@prisma/client';
 import { z } from 'zod';
@@ -20,7 +20,7 @@ import { resolvePack } from '../../starter-packs/probe';
 import { activeWatchlistRun } from '../watchlist-runs';
 import { installAiTokens } from '../../watchlist/resolve';
 import { currentSuggestions, waitingSuggestions } from '../source-suggestions';
-import { firstIssue, flashRedirect, refusedField, safeBack } from '../flash';
+import { clearFlashCookie, firstIssue, flashRedirect, parseFlashCookie, refusedField, safeBack } from '../flash';
 import {
   boardUrl,
   buildPreview,
@@ -39,13 +39,12 @@ import { roleLines, titleWordsOf, type TitleWords } from '../../watchlist/paste'
 import { listActiveProfiles } from '../../profiles';
 import { packOffers } from '../pack-offers';
 import { isBlankProfile } from '../../profile-guards';
+import { t } from '../../i18n/t';
 import { config } from '../../config';
 import { inboxRoots } from '../../datasets/folder-path';
 import { readSourceConfig } from '../../datasets/map';
 import { folderSummaries } from '../../jobs/source-file-store';
 import { underLauncher } from '../../local/child';
-
-const FLASH_TTL_SECONDS = 5;
 
 const NewCompanySchema = z.object({
   name: z.string().min(1).max(100),
@@ -218,25 +217,19 @@ companiesRoute.post('/companies/mutes', async (c) => {
   const body = await c.req.parseBody();
   const back = safeBack(body.back, '/companies#muted');
   const parsed = MuteFormSchema.safeParse(body);
-  if (!parsed.success) return flashRedirect(back, 'err', `Nothing was muted: ${firstIssue(parsed.error.issues)}.`, refusedField(c.req.path, parsed.error.issues));
+  if (!parsed.success) return flashRedirect(back, 'err', t('mute.flash.invalid', { issue: firstIssue(parsed.error.issues) }), refusedField(c.req.path, parsed.error.issues));
   const mute = await muteEmployer(parsed.data.name, parsed.data.reason);
-  if (!mute) return flashRedirect(back, 'err', 'Nothing was muted: that name has no letters or digits to match.');
+  if (!mute) return flashRedirect(back, 'err', t('mute.flash.noLetters'));
   const hidden = await prisma.job.count({ where: { employerKey: mute.key } });
-  return flashRedirect(
-    back,
-    'ok',
-    `Muted ${mute.name}. Its new postings are turned away before any AI, and ${hidden.toLocaleString()} stored ${
-      hidden === 1 ? 'posting is' : 'postings are'
-    } hidden on Jobs.`,
-  );
+  return flashRedirect(back, 'ok', t('mute.flash.muted', { name: mute.name, n: hidden }));
 });
 
 companiesRoute.post('/companies/mutes/delete', async (c) => {
   const body = await c.req.parseBody();
   const back = safeBack(body.back, '/companies#muted');
   const mute = typeof body.key === 'string' ? await findMute(body.key) : null;
-  if (!mute || !(await unmuteEmployer(mute.key))) return flashRedirect(back, 'err', 'That company was not muted.');
-  return flashRedirect(back, 'ok', `Unmuted ${mute.name}. The next search reads its postings again, and Jobs shows the stored ones.`);
+  if (!mute || !(await unmuteEmployer(mute.key))) return flashRedirect(back, 'err', t('mute.flash.notMuted'));
+  return flashRedirect(back, 'ok', t('mute.flash.unmuted', { name: mute.name }));
 });
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
@@ -316,17 +309,17 @@ companiesRoute.post('/companies/suggested', async (c) => {
   const form = await c.req.parseBody();
   const parsed = SuggestedAddSchema.safeParse({ atsType: form.atsType, atsToken: form.atsToken });
   if (!parsed.success) {
-    return redirectWithFlash(c, 'err', 'That request named no source, so nothing was added. Open Sources for your searches under Add sources and press Add (off) there.');
+    return redirectWithFlash('err', t('sources.flash.noSource'));
   }
   const wanted = (await currentSuggestions()).find(
     (s) => s.atsType === parsed.data.atsType && s.atsToken === parsed.data.atsToken && s.state === 'missing',
   );
   if (!wanted) {
-    return redirectWithFlash(c, 'err', 'That source is not among today\'s suggestions, so nothing was added. Sources for your searches, under Add sources, lists the current ones.');
+    return redirectWithFlash('err', t('sources.flash.notSuggested'));
   }
 
   const probe = await probeAts(wanted.atsType, wanted.atsToken, { keys: await getSourceKeys() });
-  if (!probe.ok) return redirectWithFlash(c, 'err', `Nothing was added. ${probe.error}`);
+  if (!probe.ok) return redirectWithFlash('err', t('companies.flash.probeFailed', { reason: probe.error ?? t('companies.flash.noReason') }));
 
   try {
     await prisma.company.create({
@@ -334,10 +327,10 @@ companiesRoute.post('/companies/suggested', async (c) => {
     });
   } catch (err) {
     if (!isUniqueViolation(err)) throw err;
-    return redirectWithFlash(c, 'err', `"${wanted.name}" is already on your list, so nothing was added. Find it in the table above.`);
+    return redirectWithFlash('err', t('sources.flash.alreadyListed', { name: wanted.name }));
   }
   logger.info({ name: wanted.name, atsToken: wanted.atsToken, jobs: probe.jobsCount }, 'companies: suggested source added');
-  return redirectWithFlash(c, 'ok', `Added "${wanted.name}" (${probe.jobsCount ?? 0} postings), switched off — enable it when ready.`);
+  return redirectWithFlash('ok', t('sources.flash.added', { name: wanted.name, n: probe.jobsCount ?? 0 }));
 });
 
 /**
@@ -374,12 +367,12 @@ companiesRoute.post('/companies/suggested/all', async (c) => {
     enabled.push(s.name);
   }
   logger.info({ enabled, failed }, 'companies: suggested sources enabled');
-  const note = failed.length > 0 ? ` ${failed.length} could not be probed and were left out: ${failed.join(', ')}.` : '';
-  return flashRedirect(
-    back,
-    enabled.length === 0 && failed.length > 0 ? 'err' : 'ok',
-    enabled.length === 0 ? `Nothing to enable.${note}` : `Enabled ${enabled.length} source${enabled.length === 1 ? '' : 's'}: ${enabled.join(', ')}.${note}`,
-  );
+  // Two sentences at most: what was switched on, then what was left out and why.
+  const said = [
+    enabled.length === 0 ? t('sources.flash.nothingToEnable') : t('sources.flash.enabled', { n: enabled.length, list: enabled.join(', ') }),
+    ...(failed.length > 0 ? [t('sources.flash.failed', { n: failed.length, list: failed.join(', ') })] : []),
+  ];
+  return flashRedirect(back, enabled.length === 0 && failed.length > 0 ? 'err' : 'ok', said.join(' '));
 });
 
 // --- starter packs ----------------------------------------------------------
@@ -399,7 +392,7 @@ companiesRoute.post('/companies/starter-pack', async (c) => {
   const next = packOrigin(form.next);
   const targets = companiesInSegments(chosen);
   if (targets.length === 0) {
-    return redirectWithFlash(c, 'err', 'Pick at least one segment.');
+    return redirectWithFlash('err', t('packs.flash.pickSegment'));
   }
 
   const { resolved, unresolved } = await resolvePack(targets);
@@ -427,7 +420,7 @@ companiesRoute.post('/companies/starter-pack/import', async (c) => {
   const picks = toStringArray(form.pick);
   const next = packOrigin(form.next);
   if (picks.length === 0) {
-    return redirectWithFlash(c, 'err', 'No board was ticked, so nothing was added. Open the pack again and tick at least one.');
+    return redirectWithFlash('err', t('packs.flash.nonePicked'));
   }
 
   const added: Array<{
@@ -488,16 +481,16 @@ companiesRoute.post('/companies/starter-pack/enable', async (c) => {
     .filter((n) => Number.isInteger(n));
   const back = packOrigin(form.next) === 'welcome' ? '/welcome?step=sources' : null;
   if (ids.length === 0) {
-    const text = 'That request named no company, so nothing was enabled. The ones you added are on Companies, switched off.';
-    return back ? flashRedirect(back, 'err', text) : redirectWithFlash(c, 'err', text);
+    const text = t('packs.flash.noneNamed');
+    return back ? flashRedirect(back, 'err', text) : redirectWithFlash('err', text);
   }
 
   const { count } = await prisma.company.updateMany({
     where: { id: { in: ids }, active: false },
     data: { active: true },
   });
-  const text = `Enabled ${count} companies.`;
-  return back ? flashRedirect(back, 'ok', text) : redirectWithFlash(c, 'ok', text);
+  const text = t('packs.flash.enabled', { n: count });
+  return back ? flashRedirect(back, 'ok', text) : redirectWithFlash('ok', text);
 });
 
 /** The wizard's boards step threads `next=welcome` through preview → add → enable, so the flow returns to setup. */
@@ -516,22 +509,18 @@ companiesRoute.post('/companies/:id/toggle-active', async (c) => {
   if (!current) return c.text('Not found', 404);
   // TASKS N8: an active row would put a page nothing can read into every tick.
   if (!current.active && current.atsType === AtsType.BROWSER_PAGE) {
-    return redirectWithFlash(c, 'err', `${current.name} draws its jobs in the browser, which ApplyPack cannot read — paste the page from the watchlist instead.`);
+    return redirectWithFlash('err', t('watchlist.flash.browserOnly', { name: current.name }));
   }
   // The same for a file the user imported: its rows are stored already, and the next ones come from the next file.
   if (!current.active && current.atsType === AtsType.IMPORT) {
-    return redirectWithFlash(c, 'err', `${current.name} is a file you imported, so there is nothing for the hourly fetch to read. Import a newer file on Jobs → Import a file.`);
+    return redirectWithFlash('err', t('companies.importedNoFetch', { name: current.name }));
   }
 
   await prisma.company.update({
     where: { id },
     data: { active: !current.active },
   });
-  return redirectWithFlash(
-    c,
-    'ok',
-    `${current.name} ${current.active ? 'disabled' : 'enabled'}.`,
-  );
+  return redirectWithFlash('ok', t(current.active ? 'companies.flash.disabled' : 'companies.flash.enabled', { name: current.name }));
 });
 
 /**
@@ -554,9 +543,8 @@ companiesRoute.post('/companies/:id/reprobe', async (c) => {
   });
   if (!probe.ok) {
     return redirectWithFlash(
-      c,
       'err',
-      `${company.name} did not answer the check. ${probe.error ?? 'No reason came back.'} The row is unchanged.`,
+      t('companies.flash.reprobeFailed', { name: company.name, reason: probe.error ?? t('companies.flash.noReason') }),
     );
   }
 
@@ -569,11 +557,7 @@ companiesRoute.post('/companies/:id/reprobe', async (c) => {
       ...(jobsCount > 0 ? { lastOkAt: new Date() } : {}),
     },
   });
-  return redirectWithFlash(
-    c,
-    'ok',
-    `${company.name}: board answered with ${jobsCount} posting${jobsCount === 1 ? '' : 's'}.`,
-  );
+  return redirectWithFlash('ok', t('companies.flash.reprobeOk', { name: company.name, n: jobsCount }));
 });
 
 companiesRoute.post('/companies/:id/delete', async (c) => {
@@ -586,11 +570,8 @@ companiesRoute.post('/companies/:id/delete', async (c) => {
   if (!current) return c.text('Not found', 404);
   await prisma.company.delete({ where: { id } });
   return redirectWithFlash(
-    c,
     'ok',
-    current.atsType === AtsType.BROWSER_PAGE
-      ? `Removed "${current.name}" from the watchlist.`
-      : `Deleted "${current.name}" and its jobs.`,
+    t(current.atsType === AtsType.BROWSER_PAGE ? 'watchlist.flash.removed' : 'companies.flash.deleted', { name: current.name }),
   );
 });
 
@@ -607,7 +588,7 @@ companiesRoute.post('/companies/new', async (c) => {
       { errors: parsed.error.flatten().fieldErrors },
       'companies/new: validation failed',
     );
-    return redirectWithFlash(c, 'err', `Company not added (${firstIssue(parsed.error.issues)}). Fix that field under Add sources and try again.`);
+    return redirectWithFlash('err', t('companies.flash.invalid', { issue: firstIssue(parsed.error.issues) }));
   }
   const { name, atsType, atsToken, careerUrl } = parsed.data;
 
@@ -616,7 +597,7 @@ companiesRoute.post('/companies/new', async (c) => {
     aiTokens: await installAiTokens(),
   });
   if (!probe.ok) {
-    return redirectWithFlash(c, 'err', `Nothing was added. ${probe.error}`);
+    return redirectWithFlash('err', t('companies.flash.probeFailed', { reason: probe.error ?? t('companies.flash.noReason') }));
   }
 
   // Refuse silent overwrites — if the (atsType, atsToken) pair already
@@ -625,11 +606,7 @@ companiesRoute.post('/companies/new', async (c) => {
     where: { atsType_atsToken: { atsType, atsToken: atsToken.trim() } },
   });
   if (existing) {
-    return redirectWithFlash(
-      c,
-      'err',
-      `${atsType} "${atsToken}" already exists as "${existing.name}".`,
-    );
+    return redirectWithFlash('err', t('companies.flash.exists', { ats: atsType, token: atsToken, name: existing.name }));
   }
 
   try {
@@ -645,53 +622,15 @@ companiesRoute.post('/companies/new', async (c) => {
   } catch (err) {
     // The findUnique above is a read; two tabs pass it together (ADR 0053).
     if (!isUniqueViolation(err)) throw err;
-    return redirectWithFlash(c, 'err', `${atsType} "${atsToken}" was added from another tab a moment ago, so it was not added twice.`);
+    return redirectWithFlash('err', t('companies.flash.addedElsewhere', { ats: atsType, token: atsToken }));
   }
 
-  return redirectWithFlash(
-    c,
-    'ok',
-    `Added "${name}" — probe found ${probe.jobsCount ?? 0} jobs total.`,
-  );
+  return redirectWithFlash('ok', t('companies.flash.added', { name, n: probe.jobsCount ?? 0 }));
 });
 
 // --- helpers ----------------------------------------------------------------
 
-function redirectWithFlash(
-  c: Context,
-  kind: 'ok' | 'err',
-  text: string,
-): Response {
-  const value = encodeURIComponent(JSON.stringify({ kind, text }));
-  const cookie = `flash=${value}; Path=/; Max-Age=${FLASH_TTL_SECONDS}; HttpOnly; SameSite=Lax`;
-  return new Response(null, {
-    status: 303,
-    headers: { Location: '/companies', 'Set-Cookie': cookie },
-  });
-}
-
-function parseFlashCookie(
-  cookieHeader: string | undefined,
-): { kind: 'ok' | 'err'; text: string } | null {
-  if (!cookieHeader) return null;
-  const match = /(?:^|;\s*)flash=([^;]+)/.exec(cookieHeader);
-  if (!match || !match[1]) return null;
-  try {
-    const parsed = JSON.parse(decodeURIComponent(match[1]));
-    if (
-      parsed &&
-      typeof parsed === 'object' &&
-      (parsed.kind === 'ok' || parsed.kind === 'err') &&
-      typeof parsed.text === 'string'
-    ) {
-      return parsed;
-    }
-  } catch {
-    return null;
-  }
-  return null;
-}
-
-function clearFlashCookie(): string {
-  return 'flash=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax';
+/** Back to the list with a flash, in the cookie every page reads (flash.ts) — the watchlist and mute routes land here too. */
+function redirectWithFlash(kind: 'ok' | 'err', text: string): Response {
+  return flashRedirect('/companies', kind, text);
 }

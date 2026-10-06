@@ -3,75 +3,29 @@ import type { FC } from 'hono/jsx';
 import { Layout } from '../layout';
 import { Button, Card, Hint, Notice } from '../ui';
 import { RunSteps, type StepView } from './run-steps';
-import { UNEXPECTED_FAILURE, type RunStep, type TargetRun } from '../target-runs';
+import { LETTER_FAILED, UNEXPECTED_FAILURE, type RunStep, type TargetRun } from '../target-runs';
 import { bandFor, laneLabel, type Lane } from '../lane';
+import type { MessageKey } from '../../i18n/catalog';
+import { t } from '../../i18n/t';
 
-const STEP_VIEW: Record<RunStep, StepView> = {
-  liveness: {
-    label: 'Ask the board and read the posting page',
-    detail: 'the free checks — seconds, no AI spent',
-  },
-  fetch: {
-    label: 'Read the posting page',
-    detail: 'one request to the URL you gave — seconds',
-  },
-  extract: {
-    label: 'Detect posting facts',
-    detail: 'company, title, location, salary from the description — 10 to 40 s on a CLI engine, seconds on an API one',
-  },
-  brief: {
-    label: 'Read the posting',
-    detail:
-      'the role, the seniority, the industry, who reads your resume first and what impresses them — written once per posting and reused while you edit',
-  },
-  scan: {
-    // Also reached by a plain re-scan and a first upload, where there is no
-    // "new version" to speak of.
-    label: 'Read the resume',
-    detail: 'headline, skills, ATS issues, the resume as a shape',
-  },
-  structure: {
-    label: 'Read the resume as data',
-    detail: 'every line copied into the JSON Resume shape, then checked against your own words',
-  },
-  keywords: {
-    label: 'Quick AI check',
-    detail: 'the resume model judges every keyword, the gates and the score — no edit suggestions',
-  },
-  match: {
-    label: 'Full AI analysis',
-    detail: 'the resume model reads both texts and writes the full report with edit suggestions',
-  },
-  suggestions: {
-    label: 'Edit suggestions',
-    detail: 'what to change and what to remove, written from the stored keyword verdicts — the score stays',
-  },
-  verify: {
-    label: 'Research the company',
-    detail: 'seven named checks with web search — careers page, LinkedIn, reputation, posting age, salary, named humans, the posting itself — 2 to 4 minutes',
-  },
-  letter: {
-    label: 'Write the cover letter',
-    detail: 'grounded in the resume, fact-checked before it is shown — about a minute',
-  },
-  review: {
-    label: 'Review the resume',
-    detail: 'six dimensions graded with quotes from your own text, then the advice',
-  },
-  score: {
-    label: 'Score the best matches',
-    detail: 'the AI reads each one against your profile — seconds on an API engine, up to half a minute on a CLI one',
-  },
-  compare: {
-    label: 'Read the shortlist head to head',
-    detail: 'two readings at once, the second with the resumes in the reverse order — about a minute on a CLI engine',
-  },
-  import: {
-    label: 'Filter, store and score the rows',
-    detail:
-      'your searches’ filter and the duplicate check first, no AI; then each new row is scored and matches are alerted — or stored unscored while fetching is paused',
-  },
-};
+/** Every step a run can show; its label is `target.step.<step>` and the line under it `target.step.<step>.detail`. */
+const STEPS = [
+  'liveness',
+  'fetch',
+  'extract',
+  'brief',
+  'scan',
+  'structure',
+  'keywords',
+  'match',
+  'suggestions',
+  'verify',
+  'letter',
+  'review',
+  'score',
+  'compare',
+  'import',
+] as const satisfies readonly RunStep[];
 
 /** The engine × model behind the steps: reading the resume and analysing it are two tasks, and may be two engines (ADR 0060). */
 export interface RunLanes {
@@ -80,26 +34,33 @@ export interface RunLanes {
 }
 
 /** What the timed steps cost when the lane is not one we measured. */
-const GENERIC_BAND: Partial<Record<RunStep, string>> = {
+const GENERIC_BAND = {
   // No measured band yet: the posting is the shortest prompt of the family,
   // and on the second comparison of the same posting it costs nothing at all.
-  brief: 'half a minute the first time, instant afterwards',
-  scan: 'half a minute to a minute',
-  structure: 'half a minute to a minute',
-  keywords: 'half a minute to a minute',
-  match: '1½ to 2 minutes on Opus',
-  suggestions: 'about a minute on Opus',
-  review: 'about a minute on Opus',
-};
+  brief: 'target.band.briefFirst',
+  scan: 'target.band.halfToOne',
+  structure: 'target.band.halfToOne',
+  keywords: 'target.band.halfToOne',
+  match: 'target.band.matchOpus',
+  suggestions: 'target.band.minuteOpus',
+  review: 'target.band.minuteOpus',
+} as const satisfies Partial<Record<RunStep, MessageKey>>;
+
+const isTimed = (step: RunStep): step is keyof typeof GENERIC_BAND => step in GENERIC_BAND;
 
 /** The step copy with this install's measured band appended — "about 20 s on Sonnet 5 through the Claude CLI" (#184). */
-function stepView(lanes: RunLanes): Record<RunStep, StepView> {
-  const out = { ...STEP_VIEW };
-  for (const step of Object.keys(GENERIC_BAND) as RunStep[]) {
+function stepView(lanes: RunLanes): Record<string, StepView> {
+  const out: Record<string, StepView> = {};
+  for (const step of STEPS) {
+    const detail = t(`target.step.${step}.detail`);
+    if (!isTimed(step)) {
+      out[step] = { label: t(`target.step.${step}`), detail };
+      continue;
+    }
     const lane = step === 'scan' || step === 'structure' ? lanes.read : lanes.analysis;
     const band = bandFor(step, lane);
-    const when = band ? `about ${band} on ${laneLabel(lane)}` : GENERIC_BAND[step];
-    out[step] = { ...STEP_VIEW[step], detail: `${STEP_VIEW[step].detail} — ${when}` };
+    const when = band ? t('target.band.measured', { band, lane: laneLabel(lane) }) : t(GENERIC_BAND[step]);
+    out[step] = { label: t(`target.step.${step}`), detail: t('target.step.timed', { detail, when }) };
   }
   return out;
 }
@@ -118,22 +79,23 @@ export const TargetRunPage: FC<{ run: TargetRun; lanes: RunLanes }> = ({ run, la
   const copy = run.heading ?? runCopy(run.steps);
   const heading = failed ? copy.failed : copy.running;
   return (
-    <Layout title={failed ? heading : `${heading}…`} active={run.heading ? undefined : 'target'}>
+    <Layout title={failed ? heading : t('target.run.titleRunning', { heading })} active={run.heading ? undefined : 'target'}>
       <div class="mx-auto w-full max-w-2xl pt-6 lg:pt-16">
         <Card>
           <div class="mb-1 text-entity text-ink">{heading}</div>
           <div class="text-sm text-ink-muted">
             {run.subtitle ?? (
-              <>
+              // Two names as the user gave them: a resume and a posting's title.
+              <span translate="no">
                 "{run.resumeName}" ↔ "<span id="run-job-title">{run.jobTitle}</span>"
-              </>
+              </span>
             )}
           </div>
 
           {failed ? (
             <div class="mt-4 space-y-4">
               <Notice tone="danger" role="alert">
-                {run.error ?? UNEXPECTED_FAILURE}
+                {runError(run.error)}
               </Notice>
               <div class="flex flex-wrap gap-2">
                 <Button href={run.backUrl} variant="secondary">
@@ -141,7 +103,7 @@ export const TargetRunPage: FC<{ run: TargetRun; lanes: RunLanes }> = ({ run, la
                 </Button>
                 {run.jobId && (
                   <Button href={`/jobs/${run.jobId}`} variant="secondary">
-                    Open the saved job
+                    {t('target.run.openSavedJob')}
                   </Button>
                 )}
               </div>
@@ -158,15 +120,15 @@ export const TargetRunPage: FC<{ run: TargetRun; lanes: RunLanes }> = ({ run, la
               />
               <div class="mt-5 flex items-center justify-between gap-3 border-t border-line pt-3">
                 <Hint>
-                  You can close this page — the run keeps going and the result lands{' '}
-                  {run.backUrl.startsWith('/screen')
-                    ? 'on the screening page'
-                    : run.backUrl.startsWith('/jobs/import')
-                      ? 'on Jobs, with a row on Runs'
-                      : run.heading
-                        ? 'back in setup'
-                        : 'on the job page'}
-                  .
+                  {t(
+                    run.backUrl.startsWith('/screen')
+                      ? 'target.run.closeScreening'
+                      : run.backUrl.startsWith('/jobs/import')
+                        ? 'target.run.closeImport'
+                        : run.heading
+                          ? 'target.run.closeSetup'
+                          : 'target.run.closeJob',
+                  )}
                 </Hint>
                 <span id="run-elapsed" class="shrink-0 text-meta tabular-nums text-ink-faint">
                   {elapsed}s
@@ -187,10 +149,20 @@ export const TargetRunPage: FC<{ run: TargetRun; lanes: RunLanes }> = ({ run, la
 };
 
 function runCopy(steps: RunStep[]): { running: string; failed: string } {
-  if (steps.includes('letter')) return { running: 'Writing a cover letter', failed: 'Generation failed' };
-  if (steps.includes('structure')) return { running: 'Reading the resume as data', failed: 'The reading failed' };
-  if (steps.includes('suggestions')) return { running: 'Writing suggestions', failed: 'Suggestions failed' };
-  return { running: 'Comparing', failed: 'Comparison failed' };
+  if (steps.includes('letter')) return { running: t('target.run.letter.running'), failed: t('target.run.letter.failed') };
+  if (steps.includes('structure')) return { running: t('target.run.structure.running'), failed: t('target.run.structure.failed') };
+  if (steps.includes('suggestions')) return { running: t('target.run.suggestions.running'), failed: t('target.run.suggestions.failed') };
+  return { running: t('target.run.compare.running'), failed: t('target.run.compare.failed') };
+}
+
+/**
+ * The error a failed run shows. A chain that threw stored nothing, and the
+ * letter routes store `LETTER_FAILED` as it is written, so both are worded
+ * here, in the reader's language; any other error is the sentence its route wrote.
+ */
+function runError(error: string | undefined): string {
+  if (error === undefined) return t(UNEXPECTED_FAILURE);
+  return error === LETTER_FAILED ? t('target.run.letterFailed') : error;
 }
 
 const RUN_BOOT = `

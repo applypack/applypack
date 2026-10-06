@@ -4,6 +4,7 @@ import { withTableAliases } from './keyword-aliases';
 import type { KeywordMatcher } from './keyword-matcher';
 import type { MatchKeyword } from './prompts';
 import type { RequirementLevel } from './score';
+import { t } from '../i18n/t';
 
 /*
  * The user's own say over the keyword list (target-plan.md §5). Three edits,
@@ -115,7 +116,7 @@ export function editKeyword(keywords: MatchKeyword[], edit: KeywordEdit): EditRe
   const key = canonicalTerm(edit.term);
   const index = keywords.findIndex((k) => names(k).includes(key));
   const current = keywords[index];
-  if (!current) return { ok: false, error: `"${edit.term}" is not in this comparison.` };
+  if (!current) return { ok: false, error: t('keyword.error.notInComparison', { term: edit.term }) };
 
   if (edit.op === 'reset' && current.override?.added) {
     return { ok: true, keywords: keywords.filter((_, i) => i !== index), term: current.term, removed: true };
@@ -147,19 +148,17 @@ export function addKeyword(
   ctx: KeywordEditContext,
 ): EditResult {
   const term = input.term.trim().replace(/\s+/g, ' ');
-  if (term.length === 0) return { ok: false, error: 'Type the keyword first.' };
+  if (term.length === 0) return { ok: false, error: t('keyword.error.empty') };
   // Truncating would store a term that highlights nothing and reads as a bug.
   if (term.length > MAX_TERM_CHARS) {
-    return { ok: false, error: `Keep the keyword under ${MAX_TERM_CHARS} characters — it has to match the posting word for word.` };
+    return { ok: false, error: t('keyword.error.tooLong', { n: MAX_TERM_CHARS }) };
   }
   const key = canonicalTerm(term);
   const clash = keywords.find((k) => names(k).includes(key));
   if (clash) {
     return {
       ok: false,
-      error: isIgnored(clash)
-        ? `"${clash.term}" is already in the list — restore it instead.`
-        : `"${clash.term}" is already in the list.`,
+      error: t(isIgnored(clash) ? 'keyword.error.ignoredClash' : 'keyword.error.clash', { term: clash.term }),
     };
   }
   const row = withTableAliases({

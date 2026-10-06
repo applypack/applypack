@@ -116,3 +116,21 @@ a constant that holds words has to become a function or a key.
   properties yet.
 - The catalog format needs something the subset lacks (ordinals, gender
   through more than `select`): take a library then, on the server only.
+
+## Addendum (2026-10-06): stage 2, and two statements ahead of the code
+
+- "The worker sets it per tick": not yet. In v2.51.0 no worker code calls
+  `withLocale`, so alerts, the recap and the reminders are English until
+  stage 4 sets the language per tick and per run.
+- "Small enough to serve to the browser modules as it stands": `message.ts`
+  is TypeScript and `public/` serves `.mjs` with no build step, so stage 3
+  adds an `.mjs` mirror held to it by a parity test, as `score.mjs` is to
+  `resume/score.ts`. The ✅ about the worker and the browser modules holds
+  once stages 3 and 4 are done.
+- v2.51.0 moves the job seeker's pages to the catalog. A value the code
+  stores or compares keeps its English and is worded on the way out
+  (`i18n/places.ts` beside `countries.ts:placeLabel` and
+  `location.ts:WORKPLACE_LABEL`); a page title that is data takes
+  `PageHeader`'s `titleIsData`; a code-built sentence that can be the
+  model's own says so (`score-lines.ts:Advice.modelWritten`) and is rendered
+  inside `lang="en"`.

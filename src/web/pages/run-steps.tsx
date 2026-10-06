@@ -1,6 +1,7 @@
 /** @jsxImportSource hono/jsx */
 import type { FC } from 'hono/jsx';
 import { MarkIcon } from '../ui';
+import { t } from '../../i18n/t';
 
 export interface StepView {
   label: string;
@@ -24,7 +25,7 @@ export const RunSteps: FC<{
   results?: Partial<Record<string, string>>;
 }> = ({ steps, currentIdx, view, stepMs = {}, activeMs, results = {} }) => (
   <>
-    <ol class="mt-5 space-y-5" aria-label="Progress">
+    <ol class="mt-5 space-y-5" aria-label={t('target.run.progress')}>
       {steps.map((s, i) => (
         <li
           class="step flex items-start gap-3"

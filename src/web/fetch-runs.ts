@@ -3,6 +3,7 @@ import { logger } from '../logger';
 import type { CronStats } from '../jobs/cron-run';
 import type { SourceProgress } from '../fetchers';
 import { isFailureStatus } from '../fetchers/source-health';
+import type { MessageKey } from '../i18n/catalog';
 
 /*
  * In-memory registry for "Fetch now" — the fetch tick started from the
@@ -22,9 +23,8 @@ export type FetchScope = 'every' | 'aggregators' | { companyId: number; name: st
 
 export const FETCH_RUN_STEPS: FetchRunStage[] = ['fetch', 'store'];
 
-/** The tick threw: what is safe (stored jobs stay) and where to look, then the way forward. */
-export const FETCH_FAILED =
-  'The fetch stopped on an error. Jobs it stored before that stay, and its row on Runs carries the error. Press Fetch now to try again.';
+/** The tick threw: what is safe (stored jobs stay) and where to look, then the way forward. A key: the page words it when it is read. */
+export const FETCH_FAILED = 'fetch.stoppedOnError' satisfies MessageKey;
 
 export interface FetchRun {
   id: string;
@@ -99,7 +99,8 @@ export function activeFetchRun(): FetchRun | null {
 export function startFetchRun(id: string, fn: () => Promise<void>): void {
   void fn().catch((err) => {
     logger.error({ err, runId: id }, 'web: fetch-now run failed');
-    updateFetchRun(id, { stage: 'error', error: FETCH_FAILED });
+    // No words stored: the page says FETCH_FAILED in the language it is read in.
+    updateFetchRun(id, { stage: 'error' });
   });
 }
 

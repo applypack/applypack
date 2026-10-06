@@ -103,10 +103,11 @@ export function matchAcceptLanguage(header: string | undefined | null, among: re
     .slice(0, MAX_ACCEPT_ENTRIES)
     .map((entry, index) => {
       const [tag = '', ...params] = entry.trim().split(';');
-      const q = params.map((p) => p.trim()).find((p) => p.startsWith('q='));
+      // Parameter names are case-insensitive (RFC 9110): "Q=0.1" is a weight too.
+      const q = params.map((p) => p.trim().toLowerCase()).find((p) => p.startsWith('q='));
       // A weight that is not a number reads as zero: the entry is left out, never promoted.
       const weight = q === undefined ? 1 : Number(q.slice(2));
-      return { language: tag.trim().toLowerCase().split('-')[0] ?? '', weight: Number.isFinite(weight) ? weight : 0, index };
+      return { language: tag.trim().toLowerCase().split(/[-_]/)[0] ?? '', weight: Number.isFinite(weight) ? weight : 0, index };
     })
     .filter((w) => w.language && w.weight > 0)
     .sort((a, b) => b.weight - a.weight || a.index - b.index);

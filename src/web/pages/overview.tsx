@@ -47,6 +47,9 @@ import {
   statusTone,
 } from '../format';
 import type { Tone } from '../format';
+import { formatNumber } from '../../i18n/format';
+import { t } from '../../i18n/t';
+import { tRich } from '../rich';
 
 interface JobRow {
   id: number;
@@ -114,8 +117,6 @@ const ROW_TAGS = 3;
 
 const QUIET_LINK = 'font-medium text-accent-strong transition-colors duration-150 hover:text-accent-deep';
 
-const count = (n: number) => n.toLocaleString('en-US');
-const plural = (n: number, one: string, many: string) => `${count(n)} ${n === 1 ? one : many}`;
 
 export const OverviewPage: FC<OverviewProps> = ({
   counts,
@@ -139,32 +140,35 @@ export const OverviewPage: FC<OverviewProps> = ({
   const checked = stats.lastCheckedAt;
 
   return (
-    <Layout title="Overview" active="overview" refresh={30}>
+    <Layout title={t('nav.overview')} active="overview" refresh={30}>
       <PageHeader
-        title="Overview"
+        title={t('nav.overview')}
         meta={
           checked && (
-            <span title={`${formatDate(checked)} · this page refreshes every 30 seconds`}>
-              Last checked{' '}
-              <time datetime={checked.toISOString()}>
-                {formatDateShort(checked) === formatDateShort(new Date()) ? formatTime(checked) : formatStamp(checked)}
-              </time>
+            <span title={t('overview.lastCheckedTitle', { at: formatDate(checked) })}>
+              {tRich('overview.lastChecked', {}, {
+                at: () => (
+                  <time datetime={checked.toISOString()}>
+                    {formatDateShort(checked) === formatDateShort(new Date()) ? formatTime(checked) : formatStamp(checked)}
+                  </time>
+                ),
+              })}
             </span>
           )
         }
         actions={
           <>
             {finishSetup && (
-              <a href="/welcome" class="inline-flex" title="Some setup steps are still open">
+              <a href="/welcome" class="inline-flex" title={t('overview.someSetupStepsAreStill')}>
                 <Badge tone="warn" size="md">
-                  Finish setup
+                  {t('overview.finishSetup')}
                   <Icon name="arrow-right" size={14} />
                 </Badge>
               </a>
             )}
             <Badge tone={fetchingEnabled && !sleepingUntil ? 'ok' : 'neutral'} size="md">
               <span class="h-1.5 w-1.5 rounded-full bg-current" aria-hidden="true" />
-              {!fetchingEnabled ? 'Pipeline paused' : sleepingUntil ? `Sleeping until ${sleepingUntil}` : 'Pipeline running'}
+              {!fetchingEnabled ? t('overview.pipelinePaused') : sleepingUntil ? t('overview.sleepingUntil', { when: sleepingUntil }) : t('overview.pipelineRunning')}
             </Badge>
             <FetchNowButton run={fetchRun} />
             {/* Quick master switch — same toggle as Settings → General. */}
@@ -172,37 +176,41 @@ export const OverviewPage: FC<OverviewProps> = ({
               <input type="hidden" name="back" value="/" />
               <Button variant="secondary">
                 <Icon name={fetchingEnabled ? 'pause' : 'play'} size={16} />
-                {fetchingEnabled ? 'Pause' : 'Resume'}
+                {fetchingEnabled ? t('overview.pause') : t('overview.resume')}
               </Button>
             </form>
           </>
         }
       >
-        Your job search activity and pipeline status.
+        {t('overview.yourJobSearchActivityAnd')}
       </PageHeader>
       <Flash flash={flash} />
 
       {/* What stands between the search and its alerts, said before any number. */}
       {!fetchingEnabled && (
         <Notice tone="warn" class="mb-4">
-          Paused means no new jobs or alerts. Fresh installs start paused so a blank profile doesn't spend AI credit —{' '}
-          <a href="/settings?tab=profile" class="font-medium underline">
-            fill the profile
-          </a>
-          , then press Resume. Fetch now still works while paused — it stores new jobs unscored.
+          {tRich('overview.pausedNotice', {}, {
+            link: (words) => (
+              <a href="/settings?tab=profile" class="font-medium underline">
+                {words}
+              </a>
+            ),
+          })}
         </Notice>
       )}
       {fetchingEnabled && held && (
         <Notice tone="warn" class="mb-4">
-          {held.text} —{' '}
-          <a href={held.href} class="font-medium underline">
-            {held.action}
-          </a>
-          .
+          {tRich('overview.heldNotice', { text: held.text, action: held.action }, {
+            link: (words) => (
+              <a href={held.href} class="font-medium underline">
+                {words}
+              </a>
+            ),
+          })}
         </Notice>
       )}
 
-      <section aria-label="Jobs by status" class="grid gap-4 sm:grid-cols-2 xl:grid-cols-[repeat(3,minmax(0,1fr))_minmax(18rem,27%)]">
+      <section aria-label={t('overview.jobsByStatus')} class="grid gap-4 sm:grid-cols-2 xl:grid-cols-[repeat(3,minmax(0,1fr))_minmax(18rem,27%)]">
         {KPI_STATUSES.map((status) => {
           const moved = stats.kpi[status].last24h;
           return (
@@ -212,23 +220,19 @@ export const OverviewPage: FC<OverviewProps> = ({
               tone={statusTone(status)}
               icon={KPI_ICON[status]}
               href={`/jobs?status=${status}`}
-              hrefLabel="open in Jobs"
+              hrefLabel={t('overview.openInJobs')}
               spark={stats.kpi[status].spark}
               delta={
-                moved > 0 ? (
-                  <>
-                    <span class="font-medium text-ok">+{count(moved)}</span> in the last 24h
-                  </>
-                ) : (
-                  '0 in the last 24h'
-                )
+                moved > 0
+                  ? tRich('overview.kpi.moved', { n: moved }, { up: (words) => <span class="font-medium text-ok">{words}</span> })
+                  : t('overview.kpi.still')
               }
             />
           );
         })}
       </section>
       <p data-ui="hint" class="mb-4 mt-2.5 text-meta tabular-nums text-ink-faint">
-        {count(total)} jobs tracked all-time · {count(byStatus.DISMISSED ?? 0)} dismissed
+        {t('overview.totals', { total, dismissed: byStatus.DISMISSED ?? 0 })}
       </p>
 
       {next && <NextThingsCard steps={next} />}
@@ -243,11 +247,11 @@ export const OverviewPage: FC<OverviewProps> = ({
         <div class="grid min-w-0 gap-4 md:grid-cols-2 xl:grid-cols-1">
           <Card>
             <CardHeader
-              title="Pipeline health"
-              info="The latest run of each scheduled job: when it started and how long it took."
-              action={<CardLink href="/runs">View history</CardLink>}
+              title={t('overview.pipelineHealth')}
+              info={t('overview.theLatestRunOfEach')}
+              action={<CardLink href="/runs">{t('overview.viewHistory')}</CardLink>}
             >
-              {failing > 0 && <Badge tone="danger">{failing} failing</Badge>}
+              {failing > 0 && <Badge tone="danger">{t('overview.failing', { n: failing })}</Badge>}
             </CardHeader>
             <ul class="divide-y divide-line">
               {latestRuns.map(({ name, run }) => (
@@ -256,16 +260,18 @@ export const OverviewPage: FC<OverviewProps> = ({
                     class={`h-2 w-2 shrink-0 rounded-full ${run ? TONE_FILL[runTone(run.status)] : 'bg-line-strong'}`}
                     aria-hidden="true"
                   />
-                  <span class="min-w-0 flex-1 truncate text-sm font-medium text-ink">{name}</span>
+                  <span class="min-w-0 flex-1 truncate text-sm font-medium text-ink" translate="no">
+                    {name}
+                  </span>
                   {/* The word, not the dot alone: said aloud for a healthy run, shown for one that is not. */}
-                  {run && run.status === 'OK' && <span class="sr-only">OK</span>}
+                  {run && run.status === 'OK' && <span class="sr-only">{t('run.status.ok')}</span>}
                   {run && run.status !== 'OK' && <Badge tone={runTone(run.status)}>{runLabel(run.status)}</Badge>}
                   <span class="shrink-0 text-note tabular-nums text-ink-faint">
                     {run
                       ? `${formatRelative(run.startedAt)} · ${formatDuration(
                           run.finishedAt ? run.finishedAt.getTime() - run.startedAt.getTime() : null,
                         )}`
-                      : 'never ran'}
+                      : t('overview.neverRan')}
                   </span>
                 </li>
               ))}
@@ -273,45 +279,45 @@ export const OverviewPage: FC<OverviewProps> = ({
           </Card>
 
           <Card>
-            <CardHeader title="Recent activity" info="What the search did in the last 24 hours, and when each last happened.">
-              <span class="shrink-0 text-note text-ink-faint">24 hours</span>
+            <CardHeader title={t('overview.recentActivity')} info={t('overview.whatTheSearchDidIn')}>
+              <span class="shrink-0 text-note text-ink-faint">{t('overview.n24Hours')}</span>
             </CardHeader>
             <ul class="divide-y divide-line">
               <ActivityRow
                 icon="download"
-                title={stats.activity.fetched24h > 0 ? `${plural(stats.activity.fetched24h, 'new job', 'new jobs')} fetched` : 'No new jobs fetched'}
+                title={stats.activity.fetched24h > 0 ? t('overview.activity.fetched', { n: stats.activity.fetched24h }) : t('overview.noNewJobsFetched')}
                 at={stats.activity.lastFetchedAt}
               />
               <ActivityRow
                 icon="search"
-                title={stats.activity.matches24h > 0 ? `${plural(stats.activity.matches24h, 'match', 'matches')} found` : 'No matches found'}
+                title={stats.activity.matches24h > 0 ? t('overview.activity.matches', { n: stats.activity.matches24h }) : t('overview.noMatchesFound')}
                 at={stats.activity.lastMatchAt}
-                none="None in the last 30 days"
+                none={t('overview.noneInTheLast30')}
               />
               <ActivityRow
                 icon="bell"
-                title={stats.activity.alerts24h > 0 ? `${plural(stats.activity.alerts24h, 'alert', 'alerts')} sent` : 'No alerts sent'}
+                title={stats.activity.alerts24h > 0 ? t('overview.activity.alerts', { n: stats.activity.alerts24h }) : t('overview.noAlertsSent')}
                 at={stats.activity.lastAlertAt}
               />
               {watched.companies > 0 && (
                 <ActivityRow
                   icon="building"
                   tone="neutral"
-                  title={`${plural(watched.companies, 'watched company', 'watched companies')}`}
+                  title={t('overview.activity.watched', { n: watched.companies })}
                   detail={
                     <>
                       {watched.newJobs === 0 ? (
-                        'nothing new in the last 24h'
+                        t('overview.nothingNewInTheLast')
                       ) : (
                         <a href="/jobs?watched=1" class={QUIET_LINK}>
-                          {plural(watched.newJobs, 'new posting', 'new postings')} in the last 24h
+                          {t('overview.activity.newPostings', { n: watched.newJobs })}
                         </a>
                       )}
                       {watched.toPaste > 0 && (
                         <>
                           {' · '}
                           <a href="/companies#browser-pages" class={QUIET_LINK}>
-                            {count(watched.toPaste)} to paste by hand
+                            {t('overview.activity.toPaste', { n: watched.toPaste })}
                           </a>
                         </>
                       )}
@@ -325,43 +331,44 @@ export const OverviewPage: FC<OverviewProps> = ({
           {stats.stack.terms.length > 0 && (
             <Card>
               <CardHeader
-                title="Jobs by stack"
-                info="The technologies from your searches that the last 30 days' matches name. A job counts once for each one it names. Pick a bar to narrow the chart."
+                title={t('overview.jobsByStack')}
+                info={t('overview.theTechnologiesFromYourSearches')}
               >
-                <span class="shrink-0 text-note text-ink-faint">30 days</span>
+                <span class="shrink-0 text-note text-ink-faint">{t('overview.n30Days')}</span>
               </CardHeader>
               <ul class="space-y-2.5">
-                {stats.stack.terms.map((t) => {
-                  const current = stats.chart.stack === t.term;
+                {stats.stack.terms.map((entry) => {
+                  const current = stats.chart.stack === entry.term;
                   return (
                     <li>
                       <a
-                        href={`${overviewHref({ range: stats.chart.stackAllowed ? stats.chart.range : '30d', stack: current ? null : t.term })}#matches`}
+                        href={`${overviewHref({ range: stats.chart.stackAllowed ? stats.chart.range : '30d', stack: current ? null : entry.term })}#matches`}
                         aria-current={current ? 'true' : undefined}
-                        title={current ? 'Show every technology again' : `Narrow the chart to ${techLabel(t.term)}`}
+                        title={current ? t('overview.showEveryTechnologyAgain') : t('overview.stack.narrow', { tech: techLabel(entry.term) })}
                         class="group flex items-center gap-3 text-sm"
                       >
                         <span
+                          translate="no"
                           class={`w-24 shrink-0 truncate transition-colors duration-150 group-hover:text-accent-strong ${
                             current ? 'font-semibold text-accent-strong' : 'text-ink'
                           }`}
                         >
-                          {techLabel(t.term)}
+                          {techLabel(entry.term)}
                         </span>
                         <span class="h-2 min-w-0 flex-1 overflow-hidden rounded-full bg-surface-overlay" aria-hidden="true">
                           <span
                             class={`block h-full rounded-full ${current ? 'bg-accent-strong' : 'bg-accent'}`}
-                            style={`width:${Math.max(3, t.share)}%`}
+                            style={`width:${Math.max(3, entry.share)}%`}
                           />
                         </span>
-                        <span class="w-8 shrink-0 text-right tabular-nums text-ink-muted">{count(t.count)}</span>
+                        <span class="w-8 shrink-0 text-right tabular-nums text-ink-muted">{formatNumber(entry.count)}</span>
                       </a>
                     </li>
                   );
                 })}
               </ul>
               <p data-ui="hint" class="mt-4 border-t border-line pt-3 text-meta text-ink-faint">
-                Out of {plural(stats.stack.matches, 'match', 'matches')} in the last 30 days.
+                {t('overview.stack.outOf', { n: stats.stack.matches })}
               </p>
             </Card>
           )}
@@ -382,18 +389,18 @@ wireSelectCommits(document);
 
 const RecentAlerts: FC<{ jobs: JobRow[]; places: string[] }> = ({ jobs, places }) => (
   <Card flush>
-    <CardHeader title="Recent alerts" class="px-5 pb-3 pt-5" action={<CardLink href="/jobs?status=ALERTED">View all</CardLink>} />
+    <CardHeader title={t('overview.recentAlerts')} class="px-5 pb-3 pt-5" action={<CardLink href="/jobs?status=ALERTED">{t('overview.viewAll')}</CardLink>} />
     {jobs.length === 0 ? (
       <Empty
         bare
-        title="No alerts yet"
+        title={t('overview.noAlertsYet')}
         action={
           <Button href="/jobs" variant="secondary" size="sm">
-            See all jobs
+            {t('overview.seeAllJobs')}
           </Button>
         }
       >
-        A job lands here when a running search scores it at or above its threshold.
+        {t('overview.aJobLandsHereWhen')}
       </Empty>
     ) : (
       <ul class="divide-y divide-line border-t border-line">
@@ -408,17 +415,20 @@ const RecentAlerts: FC<{ jobs: JobRow[]; places: string[] }> = ({ jobs, places }
               >
                 <Avatar name={who} />
                 <div class="min-w-0 flex-1">
-                  <div class="truncate text-entity text-ink">{j.title}</div>
-                  <div class="mt-0.5 truncate text-note text-ink-faint" title={`${who} · ${place.title}`}>
+                  <div class="truncate text-entity text-ink" translate="no">
+                    {j.title}
+                  </div>
+                  {/* Who posted it and where, as the posting says: data, whatever language the page is in. */}
+                  <div class="mt-0.5 truncate text-note text-ink-faint" translate="no" title={`${who} · ${place.title}`}>
                     {who} · {place.text}
                   </div>
                 </div>
                 {j.techMatch.length > 0 && (
                   // Two technologies where the column is narrow, three from 2xl; the rest is a count either way.
-                  <div class="hidden shrink-0 items-center gap-1.5 lg:flex" title={j.techMatch.map(techLabel).join(', ')}>
-                    {j.techMatch.slice(0, ROW_TAGS).map((t, i) => (
+                  <div class="hidden shrink-0 items-center gap-1.5 lg:flex" translate="no" title={j.techMatch.map(techLabel).join(', ')}>
+                    {j.techMatch.slice(0, ROW_TAGS).map((tech, i) => (
                       <span class={i === ROW_TAGS - 1 ? 'hidden 2xl:inline-flex' : 'inline-flex'}>
-                        <Tag>{techLabel(t)}</Tag>
+                        <Tag>{techLabel(tech)}</Tag>
                       </span>
                     ))}
                     {j.techMatch.length >= ROW_TAGS && (
@@ -452,7 +462,7 @@ const ActivityRow: FC<{ icon: IconName; title: string; at?: Date | null; none?: 
   icon,
   title,
   at,
-  none = 'None yet',
+  none = t('overview.noneYet'),
   detail,
   tone = 'ok',
 }) => (
@@ -461,7 +471,7 @@ const ActivityRow: FC<{ icon: IconName; title: string; at?: Date | null; none?: 
     <div class="min-w-0 flex-1">
       <div class="truncate text-sm font-medium text-ink">{title}</div>
       <div class="mt-0.5 truncate text-note text-ink-faint">
-        {detail ?? (at ? <>Latest <When at={at} /></> : none)}
+        {detail ?? (at ? tRich('overview.latestAt', {}, { when: () => <When at={at} /> }) : none)}
       </div>
     </div>
   </li>
@@ -480,9 +490,9 @@ export function runTone(status: CronRunStatus): Tone {
 }
 
 export function runLabel(status: CronRunStatus): string {
-  if (status === 'OK') return 'OK';
-  if (status === 'FAILED') return 'Failed';
-  return 'Running';
+  if (status === 'OK') return t('run.status.ok');
+  if (status === 'FAILED') return t('run.status.failed');
+  return t('run.status.running');
 }
 
 /** The loop the product is for, in three steps, until the user has walked it once (TASKS N11). */
@@ -508,7 +518,7 @@ const ReadyPacksCard: FC<{ packs: ReadyPack[] }> = ({ packs }) => (
 
 const NextThingsCard: FC<{ steps: NextThing[] }> = ({ steps }) => (
   <Card class="mb-4">
-    <SectionTitle>Next: three things</SectionTitle>
+    <SectionTitle>{t('overview.nextThreeThings')}</SectionTitle>
     <ol class="mt-3 grid gap-5 md:grid-cols-3">
       {steps.map((s, i) => (
         <li class="min-w-0">

@@ -1,4 +1,5 @@
 import type { MatchEvidence, MatchMode } from './match-mode';
+import { t } from '../i18n/t';
 
 /*
  * When a stored comparison already answers a request (docs/target-plan.md
@@ -83,12 +84,13 @@ export function readPromptVersion(breakdown: unknown): number | null {
 
 /** The flash shown instead of a run; `when` is the stored row's age ("3m ago"). */
 export function reuseNotice(when: string): string {
-  return `Unchanged since the last analysis (${when}) — showing that result; the resume model was not called again.`;
+  return t('match.reuse.notice', { when });
 }
 
-/** What the user is told when the suggestions call could not answer. */
-export const SUGGESTIONS_FAILED =
-  'The suggestions call failed — the quick check is still there. See the web logs.';
+/** What the user is told when the suggestions call could not answer; `reason` is the engine's own words. */
+export function suggestionsFailed(reason?: string): string {
+  return reason ? t('match.suggestions.failedWith', { reason }) : t('match.suggestions.failed');
+}
 
 /**
  * The flash a finished suggestions call leaves. `reusedFrom` is the stored
@@ -97,8 +99,7 @@ export const SUGGESTIONS_FAILED =
  * Pressing "Get suggestions" on a comparison already knows that.
  */
 export function suggestionsFlash(counts: { actions: number; removals: number }, reusedFrom?: string): string {
-  const kept = reusedFrom
-    ? `The quick check from ${reusedFrom} judged this exact text, so its verdicts and score stand. `
-    : '';
-  return `${kept}Suggestions added — ${counts.actions} edits, ${counts.removals} removals; the score is unchanged.`;
+  return reusedFrom
+    ? t('match.suggestions.addedReused', { ...counts, when: reusedFrom })
+    : t('match.suggestions.added', counts);
 }

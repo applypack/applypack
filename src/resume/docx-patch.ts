@@ -26,6 +26,10 @@ import { setCoreProps } from './docx-props';
 import { loadLineDiff } from './line-diff';
 import { readZipEntry, ZipError } from './zip';
 import { toPlainPunctuation } from './prompts';
+import type { MessageKey } from '../i18n/catalog';
+import { SOURCE_LOCALE, withLocale } from '../i18n/locale';
+// A `t` in this file is a <w:t> element, so the catalog's reader comes in under another name.
+import { t as say } from '../i18n/t';
 
 export interface PatchReport {
   changed: number;
@@ -38,7 +42,27 @@ export interface PatchReport {
 
 export type PatchResult =
   | { ok: true; docx: Buffer; report: PatchReport; text: string }
-  | { ok: false; reason: string; report?: PatchReport };
+  | PatchRefusal;
+
+/**
+ * `reason` is English whatever the page's language: the log keeps it and
+ * draft-document.ts reads it. `shown` is the same sentence for the person.
+ */
+interface PatchRefusal {
+  ok: false;
+  reason: string;
+  shown: string;
+  report?: PatchReport;
+}
+
+/** Why one line cannot be written back, as the catalog key of the sentence that says so. */
+type LineRefusal = Extract<MessageKey, `resume.patch.line.${string}`>;
+
+const inEnglish = (words: () => string): string => withLocale(SOURCE_LOCALE, words);
+
+function refusal(words: () => string, report?: PatchReport): PatchRefusal {
+  return { ok: false, reason: inEnglish(words), shown: words(), ...(report ? { report } : {}) };
+}
 
 export interface PatchOptions {
   /** Rewrite the document properties too (title, creator, last modified by) — the opt-in "fix" (docx-props.ts). */
@@ -64,10 +88,10 @@ export async function patchDocx(
   let xml: string;
   try {
     const part = readZipEntry(original, DOCUMENT_PART);
-    if (!part) return { ok: false, reason: 'not a .docx file (word/document.xml missing)' };
+    if (!part) return refusal(() => say('resume.patch.notDocx'));
     xml = part.toString('utf8');
   } catch (err) {
-    if (err instanceof ZipError) return { ok: false, reason: 'this .docx cannot be read safely' };
+    if (err instanceof ZipError) return refusal(() => say('resume.patch.unsafe'));
     throw err;
   }
   const zip = await JSZip.loadAsync(original, { createFolders: false });
@@ -75,21 +99,26 @@ export async function patchDocx(
   try {
     doc = parseDocumentXml(xml);
   } catch {
-    return { ok: false, reason: 'the document XML could not be parsed' };
+    return refusal(() => say('resume.patch.unparsed'));
   }
 
   const blocks = walkDocument(doc);
   const folded = fold(renderLines(blocks));
   const analysed = normalise(analysedText);
   if (folded.lines.join('\n') !== analysed) {
-    return { ok: false, reason: 'the analysed text does not match this file — the edits describe another version' };
+    return refusal(() => say('resume.patch.stale'));
   }
 
   const { diffLines } = await loadLineDiff();
   const ops = diffLines(analysed, normalise(editedText));
   const report: PatchReport = { changed: 0, removed: 0, added: 0, skipped: [] };
   const expected: string[] = [];
-  const skip = (line: string, reason: string) => report.skipped.push({ line, reason });
+  // The report is for the log, so its reasons are English; the first refusal is also said to the person.
+  let firstRefused: LineRefusal | null = null;
+  const skip = (line: string, why: LineRefusal) => {
+    firstRefused ??= why;
+    report.skipped.push({ line, reason: inEnglish(() => say(why)) });
+  };
 
   // Every op resolves to a node BEFORE anything is mutated, so a delete above
   // an insert cannot pull the insert's anchor out from under it.
@@ -115,7 +144,7 @@ export async function patchDocx(
         continue;
       }
       const paragraph = owner?.kind === 'paragraph' ? owner : null;
-      if (!paragraph) { skip(op.a.text, 'no paragraph behind this line'); expected.push(op.a.text); continue; }
+      if (!paragraph) { skip(op.a.text, 'resume.patch.line.noParagraph'); expected.push(op.a.text); continue; }
       const write = planChange(paragraph.block, paragraph.line, op.a.text, text);
       if (typeof write === 'string') { skip(op.a.text, write); expected.push(op.a.text); continue; }
       plan.push(write);
@@ -136,9 +165,9 @@ export async function patchDocx(
     // insert
     const text = toPlainPunctuation(op.b.text);
     const anchor = lastOwner?.kind === 'paragraph' ? lastOwner.block : null;
-    if (!anchor) { skip(op.b.text, lastOwner?.kind === 'row' ? 'cannot add a line inside a table' : 'no paragraph above this line to shape it after'); continue; }
-    if (anchor.table) { skip(op.b.text, 'cannot add a line inside a table'); continue; }
-    if (boxed(anchor.node)) { skip(op.b.text, 'cannot add a line inside a text box'); continue; }
+    if (!anchor) { skip(op.b.text, lastOwner?.kind === 'row' ? 'resume.patch.line.addInTable' : 'resume.patch.line.noAnchor'); continue; }
+    if (anchor.table) { skip(op.b.text, 'resume.patch.line.addInTable'); continue; }
+    if (boxed(anchor.node)) { skip(op.b.text, 'resume.patch.line.addInTextBox'); continue; }
     const cloneAfter = anchor.node;
     plan.push(() => insertAfter(doc, cloneAfter, anchor, text, lastInserted));
     report.added++;
@@ -148,8 +177,9 @@ export async function patchDocx(
     // anchor and let insertAfter place each clone after the previous clone.
   }
 
-  if (report.skipped.length > 0) {
-    return { ok: false, reason: `${report.skipped.length} line${report.skipped.length === 1 ? '' : 's'} could not be written back: ${report.skipped[0]!.reason}`, report };
+  if (firstRefused) {
+    const first: LineRefusal = firstRefused;
+    return refusal(() => say('resume.patch.skipped', { n: report.skipped.length, reason: say(first) }), report);
   }
   for (const step of plan) step();
 
@@ -173,12 +203,13 @@ export async function patchDocx(
   const wanted = foldText(expected);
   if (text !== wanted) {
     const diff = firstDifference(text, wanted);
-    return { ok: false, reason: `the patched file does not read back as the edited text (line ${diff.line} reads ${JSON.stringify(diff.got.slice(0, 60))}, expected ${JSON.stringify(diff.wanted.slice(0, 60))})`, report: { ...report, readback: diff } };
+    const said = { line: diff.line, got: JSON.stringify(diff.got.slice(0, 60)), wanted: JSON.stringify(diff.wanted.slice(0, 60)) };
+    return refusal(() => say('resume.patch.readback', said), { ...report, readback: diff });
   }
   for (const [name, ns] of [['oMath', M_NS], ['drawing', W_NS], ['txbxContent', W_NS], ['vanish', W_NS]] as const) {
     const before = countIn(xml, name);
     const after = countIn(out, name);
-    if (before !== after) return { ok: false, reason: `the patch would change the number of ${name} objects (${before} → ${after})`, report };
+    if (before !== after) return refusal(() => say('resume.patch.objects', { name, before, after }), report);
   }
   return { ok: true, docx, report, text };
 }
@@ -220,19 +251,19 @@ function insertedBody(anchor: Block, text: string): string {
  * a line of its own, or has a tab inside it: then the parts no longer name
  * their cells.
  */
-function planRowChange(members: Block[], prev: string, next: string): { write: () => void; readBack: string } | string {
-  if (members.some((b) => b.lines.length !== 1 || b.lines[0]!.includes(CELL_JOIN))) return 'a table row cannot be rewritten as one line';
+function planRowChange(members: Block[], prev: string, next: string): { write: () => void; readBack: string } | LineRefusal {
+  if (members.some((b) => b.lines.length !== 1 || b.lines[0]!.includes(CELL_JOIN))) return 'resume.patch.line.rowAsLine';
   const cells = new Set(members.map((b) => b.table?.cell));
-  if (cells.size !== members.length) return 'a table cell with several paragraphs cannot be rewritten as one line';
+  if (cells.size !== members.length) return 'resume.patch.line.cellParagraphs';
   const before = prev.split(CELL_JOIN);
   const after = next.split(CELL_JOIN);
-  if (before.length !== members.length || after.length !== members.length) return 'the edit changes how many cells this table row has';
+  if (before.length !== members.length || after.length !== members.length) return 'resume.patch.line.cellCount';
   const writes: Array<() => void> = [];
   const read: string[] = [];
   for (let i = 0; i < members.length; i++) {
     const was = before[i]!.trim();
     const now = after[i]!.trim();
-    if (now.length === 0) return 'a table cell cannot be emptied';
+    if (now.length === 0) return 'resume.patch.line.cellEmptied';
     read.push(readBack(members[i]!, was, now));
     if (was === now) continue;
     const write = planChange(members[i]!, 0, was, now);
@@ -250,14 +281,14 @@ function planRowChange(members: Block[], prev: string, next: string): { write: (
  * as tab groups; the new line is split the same way, so each side of a
  * `Company | Location` header lands in its own runs.
  */
-function planChange(block: Block, line: number, prev: string, next: string): (() => void) | string {
-  if (boxed(block.node)) return 'text inside a text box is not edited in place';
+function planChange(block: Block, line: number, prev: string, next: string): (() => void) | LineRefusal {
+  if (boxed(block.node)) return 'resume.patch.line.textBox';
   const body = withoutMarker(block, line, prev, next);
   const segments = segmentsOf(block.node);
   const segment = segments[line];
-  if (!segment) return 'the line and its paragraph no longer line up';
+  if (!segment) return 'resume.patch.line.misaligned';
   const parts = body.split(CELL_JOIN);
-  if (parts.length !== segment.groups.length) return 'the edit changes the tab layout of this line';
+  if (parts.length !== segment.groups.length) return 'resume.patch.line.tabLayout';
   const writes: Array<() => void> = [];
   segment.groups.forEach((group, g) => {
     const wanted = parts[g]!.trim();
@@ -358,12 +389,12 @@ function setText(t: Element, value: string): void {
 
 /* ---------- deletes and inserts ---------- */
 
-function deleteReason(owner: LineOwner): string | null {
-  if (!owner) return 'no paragraph behind this line';
-  if (owner.kind === 'row') return 'a table row cannot be removed';
-  if (owner.block.table) return 'a table cell cannot be removed';
-  if (boxed(owner.block.node)) return 'text inside a text box is not edited in place';
-  if (owner.block.lines.length > 1) return 'this line shares its paragraph with the next one';
+function deleteReason(owner: LineOwner): LineRefusal | null {
+  if (!owner) return 'resume.patch.line.noParagraph';
+  if (owner.kind === 'row') return 'resume.patch.line.rowRemoved';
+  if (owner.block.table) return 'resume.patch.line.cellRemoved';
+  if (boxed(owner.block.node)) return 'resume.patch.line.textBox';
+  if (owner.block.lines.length > 1) return 'resume.patch.line.sharedParagraph';
   return null;
 }
 

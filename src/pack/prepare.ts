@@ -12,7 +12,7 @@ import { PROMPT_VERSION, readActions, readHardRequirements, readKeywords, readRe
 import { knobsFrom } from '../resume/render/knobs';
 import { readBreakdown } from '../resume/score';
 import { getPostingRefreshedAt, getResumeOriginal, listMatchesForText } from '../resume/store';
-import { LIVENESS_CODE_LABEL, runLivenessLadder } from '../verification/liveness';
+import { livenessCodeLabel, runLivenessLadder } from '../verification/liveness';
 import { verifyJob } from '../verification/verify';
 import { resumeStyle } from '../web/resume-style';
 import { compareStop, livenessStop, verifyStop, type PrepareStep, type Stop } from './gate';
@@ -144,7 +144,7 @@ export async function preparePosting(posting: PackPosting, resume: PackResume, o
   const live = await timed('liveness', () =>
     runLivenessLadder({ url: posting.url, externalId: posting.externalId, atsType: posting.atsType, atsToken: posting.atsToken }),
   );
-  out.stop = livenessStop({ liveness: live.liveness, label: LIVENESS_CODE_LABEL[live.code] });
+  out.stop = livenessStop({ liveness: live.liveness, label: livenessCodeLabel(live.code) ?? live.code });
   if (out.stop) return out;
 
   const me = { id: resume.id, name: resume.name, version: resume.version };

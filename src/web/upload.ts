@@ -4,6 +4,7 @@ import { logger } from '../logger';
 import { ResumeTextError } from '../resume/docx-text';
 import { ACCEPTED_EXTENSIONS, extractResumeText } from '../resume/resume-text';
 import { flashRedirect } from './flash';
+import { t } from '../i18n/t';
 
 /* Multipart resume upload, shared by /resumes, /resumes/:id/replace, /target and the targeted view's re-upload. */
 
@@ -28,7 +29,7 @@ export const MAX_RESUME_NAME_CHARS = 100;
 /** "Alex_Doe-Senior_2026.docx" → "Alex Doe Senior 2026" — default resume name. */
 export function nameFromFilename(filename: string): string {
   const base = filename.slice(0, filename.length - extname(filename).length);
-  return base.replace(/[_\-\s]+/g, ' ').trim().slice(0, MAX_RESUME_NAME_CHARS) || 'Resume';
+  return base.replace(/[_\-\s]+/g, ' ').trim().slice(0, MAX_RESUME_NAME_CHARS) || t('upload.defaultName');
 }
 
 /** Reads the multipart `file` field into bytes + extracted text, or a user-facing error. */
@@ -37,7 +38,7 @@ export async function readResumeUpload(
 ): Promise<UploadedResumeFile | { error: string }> {
   const file = form.file;
   if (!(file instanceof File) || file.size === 0) {
-    return { error: `Pick a ${ACCEPTED_EXTENSIONS.join(' / ')} file first.` };
+    return { error: t('upload.pickFile', { types: ACCEPTED_EXTENSIONS.join(' / ') }) };
   }
   const original = Buffer.from(await file.arrayBuffer());
   try {
@@ -64,5 +65,5 @@ export async function readResumeUpload(
 export const resumeUploadLimit = (redirectTo: string) =>
   bodyLimit({
     maxSize: MAX_UPLOAD_BYTES,
-    onError: () => flashRedirect(redirectTo, 'err', `File too large — the limit is ${MAX_UPLOAD_MB} MB.`),
+    onError: () => flashRedirect(redirectTo, 'err', t('upload.tooLarge', { mb: MAX_UPLOAD_MB })),
   });

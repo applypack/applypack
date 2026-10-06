@@ -297,12 +297,13 @@ src/
     lines.ts                   ← pure: the words both channels share (place line, salary, quiet sources)
     pack.ts                    ← pure: packMessages, blocks under a header within a length limit
     targets.ts                 ← pure: KIND_LABEL, describeDestination with the secret masked
-  i18n/                        ← the interface's languages (ADR 0061); pure, used by the dashboard and the worker
+  i18n/                        ← the interface's languages (ADR 0061); pure, read by the dashboard (the worker from stage 4)
     locale.ts                  ← LOCALES and their stages; withLocale / currentLocale (AsyncLocalStorage, English outside one); matchAcceptLanguage
     message.ts                 ← pure: the catalog's ICU subset — parseMessage, formatMessage, messageShape
     catalog.ts                 ← loads catalog/<code>.json; MessageKey is a key of en.json
     t.ts                       ← t(key, params): the message as text; tParts for a page that renders its inline elements
     format.ts                  ← numbers, dates, lists, weekday and country names in the current language, Latin digits
+    places.ts                  ← placeName / workplaceName: a place and an arrangement in the reader's words (stored ones stay English)
     pseudo.ts                  ← the pseudo-language's brackets; hardcodedText reads the English left in a rendered page
     catalog/                   ← en.json (the source), uk.json
   local/                       ← npm start without Docker (ADR 0054)

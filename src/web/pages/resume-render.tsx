@@ -8,6 +8,9 @@ import { structureCoverage } from '../../resume/json-resume';
 import { LIMITS, SECTION_KEYS, SECTION_LABELS, type RenderKnobs } from '../../resume/render/knobs';
 import { typefaceNote } from '../../resume/render/clean-pdf';
 import type { ParseWarning } from '../../resume/parse-warnings';
+import type { MessageKey } from '../../i18n/catalog';
+import { t } from '../../i18n/t';
+import { tRich } from '../rich';
 
 /*
  * "Clean version in your typeface" (ADR 0039) — the page for a resume whose
@@ -34,16 +37,16 @@ export interface RenderPageProps {
   flash?: FlashMessage | null;
 }
 
-const ORIGIN_NOTE: Record<RenderPageProps['origin'], string> = {
-  ai: 'Read by the AI as data, then checked line by line against your own words — anything it did not copy exactly was dropped.',
-  text: 'Read by the built-in reader — no AI reading is stored. An AI reading pairs a skills table back into groups and keeps every line.',
-};
+const ORIGIN_NOTE = {
+  ai: 'render.origin.ai',
+  text: 'render.origin.builtIn',
+} as const satisfies Record<RenderPageProps['origin'], MessageKey>;
 
-const STYLE_NOTE: Record<RenderPageProps['styleSource'], string> = {
-  docx: 'Prefilled from your .docx — its own font, sizes, accent colour, page and margins.',
-  pdf: 'Prefilled from your PDF — its font, sizes, page, margins and accent colour, and the look of each kind of line: its skills table, the colour of a place, the weight of a date, the rule under the header.',
-  none: 'Your file did not say what it is set in, so these are the defaults. Change anything.',
-};
+const STYLE_NOTE = {
+  docx: 'render.style.docx',
+  pdf: 'render.style.pdf',
+  none: 'render.style.none',
+} as const satisfies Record<RenderPageProps['styleSource'], MessageKey>;
 
 export const ResumeRenderPage: FC<RenderPageProps> = ({
   resume,
@@ -60,41 +63,36 @@ export const ResumeRenderPage: FC<RenderPageProps> = ({
   const coverage = structureCoverage(structure);
   const action = `/resumes/${resume.id}/render`;
   return (
-    <Layout title={`Clean version — ${resume.name}`} active="resumes">
+    <Layout title={t('render.pageTitle', { name: resume.name })} active="resumes">
       <PageHeader
-        title="Clean version in your typeface"
-        meta={`${resume.name} · v${resume.version}`}
-        back={{ href: `/resumes/${resume.id}`, label: 'Back to the resume' }}
+        title={t('render.cleanVersionInYourTypeface')}
+        meta={<span translate="no">{`${resume.name} · v${resume.version}`}</span>}
+        back={{ href: `/resumes/${resume.id}`, label: t('render.backToTheResume') }}
       />
       <Flash flash={flash} />
 
       <Card>
-        <SectionTitle>What this makes</SectionTitle>
+        <SectionTitle>{t('render.whatThisMakes')}</SectionTitle>
         <p class="text-sm text-ink">
-          A single-column <span class="font-medium">.docx</span> and{' '}
-          <span class="font-medium">.pdf</span> of the same words, set in the typography below. It is{' '}
-          <span class="font-medium">not</span> your original design — the layout is rebuilt from scratch, plainly, so
-          that every parser can read it and so that the editor can write into it afterwards.
+          {tRich('render.whatThisMakesBody', {}, { b: (words) => <span class="font-medium">{words}</span> })}
         </p>
         <Hint class="mt-2">{reason}</Hint>
         <Hint class="mt-1">{typefaceNote(knobs.fontFamily)}</Hint>
       </Card>
 
       <Card class="mt-4">
-        <SectionTitle>What it found in your resume</SectionTitle>
+        <SectionTitle>{t('render.whatItFoundInYour')}</SectionTitle>
         <div class="flex flex-wrap items-center gap-2">
-          <Badge tone={origin === 'ai' ? 'ok' : 'neutral'}>{origin === 'ai' ? 'Read by the AI' : 'From the text'}</Badge>
+          <Badge tone={origin === 'ai' ? 'ok' : 'neutral'}>{origin === 'ai' ? t('render.readByTheAi') : t('render.fromTheText')}</Badge>
           <span class="text-sm text-ink-muted">
-            {coverage.sections} {coverage.sections === 1 ? 'section' : 'sections'} · {coverage.roles}{' '}
-            {coverage.roles === 1 ? 'role' : 'roles'} · {coverage.bullets}{' '}
-            {coverage.bullets === 1 ? 'bullet' : 'bullets'}
+            {t('render.coverage', { sections: coverage.sections, roles: coverage.roles, bullets: coverage.bullets })}
           </span>
         </div>
-        <Hint class="mt-2">{ORIGIN_NOTE[origin]}</Hint>
+        <Hint class="mt-2">{t(ORIGIN_NOTE[origin])}</Hint>
         {origin === 'text' && (
           <ActionForm action={`/resumes/${resume.id}/render/shape`} class="mt-3" once>
-            <Button size="sm" variant="violet" title="One AI call — under a minute on every engine we measured">
-              Read the shape with AI
+            <Button size="sm" variant="violet" title={t('render.oneAiCallUnderA')}>
+              {t('render.readTheShapeWithAi')}
             </Button>
           </ActionForm>
         )}
@@ -102,27 +100,27 @@ export const ResumeRenderPage: FC<RenderPageProps> = ({
 
       <form method="post" action={action} class="mt-4" onsubmit={SUBMIT_ONCE}>
         <Card>
-          <SectionTitle>Typography</SectionTitle>
-          <Hint class="mb-3">{STYLE_NOTE[styleSource]}</Hint>
+          <SectionTitle>{t('render.typography')}</SectionTitle>
+          <Hint class="mb-3">{t(STYLE_NOTE[styleSource])}</Hint>
           <fieldset class="border-0 p-0">
-            <legend class="sr-only">Typeface and sizes</legend>
+            <legend class="sr-only">{t('render.typefaceAndSizes')}</legend>
             <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              <Field label="Font family" hint="Named in the .docx">
+              <Field label={t('render.fontFamily')} hint={t('render.namedInTheDocx')}>
                 <Input name="fontFamily" value={knobs.fontFamily} maxlength={60} autocomplete="off" />
               </Field>
-              <Field label="Body size (pt)">
+              <Field label={t('render.bodySizePt')}>
                 <Input
                   type="number" name="bodyPt" value={String(knobs.bodyPt)} step="0.5"
                   min={String(LIMITS.bodyPt.min)} max={String(LIMITS.bodyPt.max)}
                 />
               </Field>
-              <Field label="Name size (pt)">
+              <Field label={t('render.nameSizePt')}>
                 <Input
                   type="number" name="namePt" value={String(knobs.namePt)} step="0.5"
                   min={String(LIMITS.namePt.min)} max={String(LIMITS.namePt.max)}
                 />
               </Field>
-              <Field label="Heading size (pt)">
+              <Field label={t('render.headingSizePt')}>
                 <Input
                   type="number" name="headingPt" value={String(knobs.headingPt)} step="0.5"
                   min={String(LIMITS.headingPt.min)} max={String(LIMITS.headingPt.max)}
@@ -132,37 +130,42 @@ export const ResumeRenderPage: FC<RenderPageProps> = ({
           </fieldset>
 
           <fieldset class="mt-4 border-0 p-0">
-            <legend class="sr-only">Page and colour</legend>
+            <legend class="sr-only">{t('render.pageAndColour')}</legend>
             <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              <Field label="Accent colour" hint="Headings and their rules. Empty for none.">
+              <Field label={t('render.accentColour')} hint={t('render.headingsAndTheirRulesEmpty')}>
                 <Input name="accentHex" value={knobs.accentHex ?? ''} placeholder="0070c0" maxlength={7} autocomplete="off" />
               </Field>
-              <Field label="Page size">
+              <Field label={t('render.pageSize')}>
                 <Select name="page">
-                  <option value="LETTER" selected={knobs.page === 'LETTER'}>US Letter</option>
+                  <option value="LETTER" selected={knobs.page === 'LETTER'}>{t('render.usLetter')}</option>
                   <option value="A4" selected={knobs.page === 'A4'}>A4</option>
                 </Select>
               </Field>
-              <Field label="Section order" hint="Comma-separated; anything left out is appended.">
+              <Field label={t('render.sectionOrder')} hint={t('render.commaSeparatedAnythingLeftOut')}>
                 <Input name="sectionOrder" value={knobs.sectionOrder.join(',')} mono autocomplete="off" />
               </Field>
               <div class="flex items-end">
                 <label class="flex min-h-[28px] cursor-pointer items-center gap-2 text-sm text-ink">
                   <input type="checkbox" name="nameCentered" checked={knobs.nameCentered} class="size-4 accent-accent" />
-                  Centre the name and contact line
+                  {t('render.centreTheNameAndContact')}
                 </label>
               </div>
             </div>
             <Hint class="mt-2">
-              Sections you can name: {SECTION_KEYS.map((k) => SECTION_LABELS[k] || k).join(', ').toLowerCase()}.
+              {/* The names are typed into the field as they stand, so they stay as they are in every language. */}
+              {tRich(
+                'render.sectionsYouCanName',
+                { names: SECTION_KEYS.map((k) => SECTION_LABELS[k] || k).join(', ').toLowerCase() },
+                { list: (words) => <span translate="no">{words}</span> },
+              )}
             </Hint>
           </fieldset>
 
           <fieldset class="mt-4 border-0 p-0">
-            <legend class="block text-label text-ink">Margins (inches)</legend>
+            <legend class="block text-label text-ink">{t('render.marginsInches')}</legend>
             <div class="mt-1.5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               {(['top', 'right', 'bottom', 'left'] as const).map((side) => (
-                <Field label={side[0]!.toUpperCase() + side.slice(1)}>
+                <Field label={t(`render.margin.${side}`)}>
                   <Input
                     type="number" step="0.05"
                     name={`margin${side[0]!.toUpperCase()}${side.slice(1)}`}
@@ -176,7 +179,7 @@ export const ResumeRenderPage: FC<RenderPageProps> = ({
         </Card>
 
         <Card class="mt-4">
-          <SectionTitle>Take it away</SectionTitle>
+          <SectionTitle>{t('render.takeItAway')}</SectionTitle>
           <div class="flex flex-wrap gap-2">
             {/* Two channels on purpose. WITH JavaScript the mode rides in
                 the hidden field, because SUBMIT_ONCE disables every button and a
@@ -187,7 +190,7 @@ export const ResumeRenderPage: FC<RenderPageProps> = ({
                 submits. The route reads `submitMode` first for that reason. */}
             <input type="hidden" name="mode" value="preview" id="render-mode" />
             <Button name="submitMode" value="preview" onclick="document.getElementById('render-mode').value='preview'">
-              Update the preview
+              {t('render.updateThePreview')}
             </Button>
             <Button
               variant="secondary"
@@ -195,7 +198,7 @@ export const ResumeRenderPage: FC<RenderPageProps> = ({
               value="docx"
               onclick="document.getElementById('render-mode').value='docx'"
             >
-              Download .docx
+              {t('ui.downloadDocx')}
             </Button>
             <Button
               variant="secondary"
@@ -203,7 +206,7 @@ export const ResumeRenderPage: FC<RenderPageProps> = ({
               value="pdf"
               onclick="document.getElementById('render-mode').value='pdf'"
             >
-              Download .pdf
+              {t('render.downloadPdf')}
             </Button>
             <Button
               variant="secondary"
@@ -211,39 +214,38 @@ export const ResumeRenderPage: FC<RenderPageProps> = ({
               value="save"
               onclick="document.getElementById('render-mode').value='save'"
             >
-              Save as a new resume
+              {t('render.saveAsANewResume')}
             </Button>
           </div>
           <Hint class="mt-2">
-            Saving keeps the .docx as a new resume beside this one, one the editor can write into. This resume is not
-            touched by any of the four.
+            {t('render.savingKeepsTheDocxAs')}
           </Hint>
         </Card>
       </form>
 
       <Card class="mt-4">
-        <SectionTitle>What the ATS sees</SectionTitle>
+        <SectionTitle>{t('render.whatTheAtsSees')}</SectionTitle>
         <Hint class="mb-2">
-          The text a parser reads out of the .docx above — produced by rendering it and reading it back, not by
-          guessing.
+          {t('render.theTextAParserReads')}
         </Hint>
         {dropped.length > 0 && (
           <p class="mb-3 text-sm text-warn">
-            {dropped.length === 1 ? '1 character was removed' : `${dropped.length} characters were removed`} —
-            the bundled typeface cannot draw {dropped.map((c) => `"${c}"`).join(' ')}. They are gone from the .docx
-            and the .pdf above, so check anywhere your resume used them.
+            {t('render.droppedChars', { n: dropped.length, chars: dropped.map((c) => `"${c}"`).join(' ') })}
           </p>
         )}
         {warnings.length > 0 ? (
           <ul class="mb-3 space-y-1 text-sm text-warn">
             {warnings.map((w) => (
-              <li>{w.message}</li>
+              <li>{w.shown}</li>
             ))}
           </ul>
         ) : (
-          <p class="mb-3 text-sm text-ok">No parse problems in the rendered file.</p>
+          <p class="mb-3 text-sm text-ok">{t('render.noParseProblemsInThe')}</p>
         )}
-        <pre class="max-h-[28rem] overflow-auto whitespace-pre-wrap rounded-md border border-line bg-surface px-3 py-2 font-mono text-meta text-ink">
+        <pre
+          translate="no"
+          class="max-h-[28rem] overflow-auto whitespace-pre-wrap rounded-md border border-line bg-surface px-3 py-2 font-mono text-meta text-ink"
+        >
           {preview}
         </pre>
       </Card>

@@ -2,18 +2,22 @@
 import type { FC } from 'hono/jsx';
 import { adzunaAttribution } from '../../fetchers/adzuna';
 import { FRANCE_TRAVAIL_LICENCE_URL } from '../../fetchers/francetravail';
+import { t } from '../../i18n/t';
 
 /*
  * What a vendor's terms make us say next to a listing (ADR 0034). The
  * markup is the wording of the terms, rendered — Adzuna's asks for "Jobs by
  * Adzuna" at least 116 × 23 px, "Jobs" linked to the local domain and
  * "Adzuna" as the logo image, also linked.
+ *
+ * That wording is the vendor's and is never translated (`translate="no"`);
+ * only our own labels around it come from the catalog (ADR 0061).
  */
 
 export const AdzunaLabel: FC<{ market: string; class?: string }> = ({ market, class: cls }) => {
   const a = adzunaAttribution(market);
   return (
-    <span class={`inline-flex items-center gap-1 text-meta text-ink-muted ${cls ?? ''}`} title="Listing from the Adzuna API">
+    <span class={`inline-flex items-center gap-1 text-meta text-ink-muted ${cls ?? ''}`} title={t('job.attribution.adzunaTitle')} translate="no">
       <a href={a.url} target="_blank" rel="noopener" class="hover:underline">
         Jobs
       </a>
@@ -31,14 +35,14 @@ export const AdzunaLabel: FC<{ market: string; class?: string }> = ({ market, cl
  */
 export const FranceTravailLine: FC<{ updatedAt: Date | null; class?: string }> = ({ updatedAt, class: cls }) => (
   <span class={`inline-flex flex-wrap items-center gap-1 text-meta text-ink-muted ${cls ?? ''}`}>
-    <span>Source: France Travail{updatedAt ? ` · updated ${updatedAt.toISOString().slice(0, 10)}` : ''}</span>
+    <span translate="no">Source: France Travail{updatedAt ? ` · updated ${updatedAt.toISOString().slice(0, 10)}` : ''}</span>
     <span>·</span>
     <a href={FRANCE_TRAVAIL_LICENCE_URL} target="_blank" rel="noopener" class="hover:underline">
-      licence
+      {t('job.attribution.licence')}
     </a>
     <span>·</span>
     <a href="https://github.com/applypack/applypack/blob/main/docs/france-travail-reuse.md" target="_blank" rel="noopener" class="hover:underline">
-      how it is reused
+      {t('job.attribution.howReused')}
     </a>
   </span>
 );

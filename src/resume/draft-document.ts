@@ -6,6 +6,7 @@ import { drawDocx } from './render/clean-docx';
 import { drawPdf } from './render/clean-pdf';
 import type { RenderKnobs } from './render/knobs';
 import { planLines, planRender, planToText, type PlanOptions, type RenderPlan } from './render/sections';
+import { t } from '../i18n/t';
 
 /*
  * The resume on the Tailor page as a document rather than a text: the draft
@@ -60,7 +61,8 @@ export async function draftDocx(input: DraftInput): Promise<DraftDocument> {
     if (docxStructure(original).kind === 'unsupported') return clean(input, 'unsupported');
     const patched = await patchDocx(original, input.baseText, input.text);
     if (patched.ok) return { kind: 'own', basis: 'own', docx: patched.docx, notice: null };
-    return clean(input, STALE_REASON.test(patched.reason) ? 'stale' : 'refused', patched.reason);
+    // `reason` is the patcher's English, which STALE_REASON reads; `shown` is the same sentence in the page's language.
+    return clean(input, STALE_REASON.test(patched.reason) ? 'stale' : 'refused', patched.shown);
   }
   return clean(input, isPdf(sourceFilename) ? 'pdf' : 'text');
 }
@@ -136,15 +138,16 @@ export async function cleanDocx(
 export function noticeFor(basis: Exclude<DocumentBasis, 'own'>, reason?: string): string {
   switch (basis) {
     case 'pdf':
-      return 'Your resume is a PDF, which has no paragraphs to edit: this is the same text re-set in the look read off its page — the typeface, colours, skills table and rules. Your PDF is untouched; Save keeps this as a .docx.';
+      return t('document.notice.pdf');
     case 'text':
-      return 'Your resume was uploaded as plain text, so this is a clean version set from it.';
+      return t('document.notice.text');
     case 'unsupported':
-      return 'Most of your .docx sits in text boxes, which cannot be edited in place, so this is a clean version in your typeface. Your file is untouched.';
+      return t('document.notice.unsupported');
     case 'stale':
-      return 'This comparison read an earlier version of your resume, so its edits cannot be written into the file you have now. This is a clean version; compare again to edit your own file.';
+      return t('document.notice.stale');
     case 'refused':
-      return `Your .docx cannot take one of these edits (${reason ?? 'a line the file cannot hold'}), so this is a clean version in your typeface. Undo that edit, or edit that line in plain text, to get your own file back.`;
+      // The reason is the patcher's own sentence (docx-patch.ts), already in the page's language.
+      return t('document.notice.refused', { reason: reason ?? t('document.notice.someLine') });
   }
 }
 
