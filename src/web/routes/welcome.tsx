@@ -17,7 +17,7 @@ import {
   setSetupCompleted,
 } from '../../settings';
 import { getActiveProfile, updateProfile, type ProfileInput } from '../../profiles';
-import { flagOf, placeLabel, resolveCountries } from '../../countries';
+import { flagOf, resolveCountries } from '../../countries';
 import { searchPlaces } from '../../fetchers/fetch-context';
 import { isAggregator } from '../source-groups';
 import { beginFetchNow } from '../fetch-now';
@@ -64,6 +64,8 @@ import {
 } from '../welcome-steps';
 import { spendHint } from '../cost-hint';
 import { currentLocale } from '../../i18n/locale';
+import { placeName } from '../../i18n/places';
+import { t } from '../../i18n/t';
 
 const TOP_MATCHES = 5;
 const AI_STEP = '/welcome?step=ai';
@@ -134,7 +136,7 @@ welcomeRoute.get('/welcome', async (c) => {
         last: lastSearch,
         runningRunId: activeFetchRun()?.id ?? null,
         aggregators,
-        countries: profile?.countries.map((code) => `${flagOf(code)} ${placeLabel(code)}`) ?? [],
+        countries: profile?.countries.map(countryChip) ?? [],
       }}
       profile={{
         id: profile?.id ?? 0,
@@ -165,18 +167,14 @@ welcomeRoute.get('/welcome', async (c) => {
 
 welcomeRoute.post('/welcome/skip', async () => {
   await setSetupCompleted(currentLocale());
-  return flashRedirect(
-    '/',
-    'ok',
-    'Setup skipped — everything lives in Settings. The Overview keeps a "Finish setup" link until every step is done.',
-  );
+  return flashRedirect('/', 'ok', t('welcome.flash.skipped'));
 });
 
 /** Step 5's closing action: the hourly watch starts and the wizard stops greeting. */
 welcomeRoute.post('/welcome/finish', async () => {
   await setFetchingEnabled(true);
   await setSetupCompleted(currentLocale());
-  return flashRedirect('/', 'ok', 'Setup complete — the hourly watch is on. New matches land here.');
+  return flashRedirect('/', 'ok', t('welcome.flash.finished'));
 });
 
 /**
@@ -188,26 +186,18 @@ welcomeRoute.post('/welcome/ai/key', async (c) => {
   const form = await c.req.parseBody();
   const provider = typeof form.provider === 'string' ? form.provider : '';
   if (!isAiProviderId(provider) || !providerTakesKey(provider)) {
-    return flashRedirect('/welcome?step=ai', 'err', 'That engine does not take a pasted key.');
+    return flashRedirect('/welcome?step=ai', 'err', t('welcome.flash.noKeyEngine'));
   }
   const key = typeof form.key === 'string' ? form.key.trim() : '';
   if (key.length === 0) {
-    return flashRedirect('/welcome?step=ai', 'err', 'Paste the key first.');
+    return flashRedirect('/welcome?step=ai', 'err', t('welcome.flash.keyEmpty'));
   }
   if (key.length > MAX_AI_KEY_LENGTH) {
-    return flashRedirect(
-      '/welcome?step=ai',
-      'err',
-      `That is ${key.length} characters — longer than any API key. Nothing saved.`,
-    );
+    return flashRedirect('/welcome?step=ai', 'err', t('welcome.flash.keyTooLong', { n: key.length }));
   }
   await setAiKey(provider, key);
   forgetAiProbe();
-  return flashRedirect(
-    '/welcome?step=ai',
-    'ok',
-    `${AI_PROVIDER_LABELS[provider]} key saved. Send a test message to be sure it works.`,
-  );
+  return flashRedirect('/welcome?step=ai', 'ok', t('welcome.flash.keySaved', { engine: AI_PROVIDER_LABELS[provider] }));
 });
 
 /**
@@ -221,22 +211,18 @@ welcomeRoute.post('/welcome/ai/local', async (c) => {
   const form = await c.req.parseBody();
   const engine = form.engine === 'local_api' ? 'local_api' : 'openai_api';
   const checked = engine === 'local_api' ? checkLocalAiUrl(typeof form.base === 'string' ? form.base : '') : checkOpenAiBaseUrl(typeof form.base === 'string' ? form.base : '');
-  if (!checked.ok || !isLocalUrl(checked.url)) return flashRedirect(AI_STEP, 'err', 'That is not a server on this machine; nothing changed.');
+  if (!checked.ok || !isLocalUrl(checked.url)) return flashRedirect(AI_STEP, 'err', t('welcome.flash.notLocal'));
   const listed = engine === 'local_api' ? await listOllamaModels(checked.url) : await listServerModels(checked.url, undefined);
-  if ('reason' in listed) return flashRedirect(AI_STEP, 'err', `Nothing changed — ${listed.reason}.`);
+  if ('reason' in listed) return flashRedirect(AI_STEP, 'err', t('welcome.flash.localUnlisted', { reason: listed.reason }));
   const model = typeof form.model === 'string' ? form.model.trim() : '';
   if (!listed.models.includes(model)) {
-    return flashRedirect(AI_STEP, 'err', `The server does not list "${model}"; nothing changed. Pick one of the models it runs.`);
+    return flashRedirect(AI_STEP, 'err', t('welcome.flash.modelUnknown', { model }));
   }
   await (engine === 'local_api' ? setLocalAiUrl(checked.url) : setOpenAiBaseUrl(checked.url));
   const [settings, keys] = await Promise.all([getSettings(), getAiKeys()]);
   await setAiEngineConfig(withEngineFirst(parseAiEngineConfig(settings.aiEngine), engine, getAiEngineEnv(keys, settings.openAiBaseUrl), model));
   forgetAiProbe();
-  return flashRedirect(
-    AI_STEP,
-    'ok',
-    `The model on this computer comes first now: ${model}, for every task. Send a test message — the first call loads the model and can take a minute.`,
-  );
+  return flashRedirect(AI_STEP, 'ok', t('welcome.flash.localFirst', { model }));
 });
 
 /** Step 1's optional proof: one tiny live call through the engine that would serve the pipeline. */
@@ -244,7 +230,7 @@ welcomeRoute.post('/welcome/ai/test', async () => {
   const { statuses, settings } = await loadWelcomeContext();
   const chain = resolveAiEngine(settings.aiEngine, getAiEngineEnv(await getAiKeys(), settings.openAiBaseUrl)).chain;
   const provider = chain.find((id) => statuses[id].ok) ?? AI_PROVIDER_IDS.find((id) => statuses[id].ok);
-  if (!provider) return flashRedirect('/welcome?step=ai', 'err', 'No usable AI engine detected yet.');
+  if (!provider) return flashRedirect('/welcome?step=ai', 'err', t('welcome.flash.noEngine'));
   const result = await testAiEngine(provider);
   return flashRedirect('/welcome?step=ai', result.ok ? 'ok' : 'err', result.text);
 });
@@ -268,7 +254,7 @@ welcomeRoute.post('/welcome/resume', resumeUploadLimit(PROFILE_STEP), onceGuard(
     const id = idParam(form.resumeId);
     if (Number.isFinite(id)) resume = await getResume(id);
   }
-  if (!resume || resume.hidden) return flashRedirect(PROFILE_STEP, 'err', 'Pick a resume file first.');
+  if (!resume || resume.hidden) return flashRedirect(PROFILE_STEP, 'err', t('welcome.flash.pickResume'));
   if (resume.scannedAt && resume.primarySkills.length > 0) {
     return c.redirect(`${back}&resume=${resume.id}`, 303);
   }
@@ -278,10 +264,10 @@ welcomeRoute.post('/welcome/resume', resumeUploadLimit(PROFILE_STEP), onceGuard(
     steps: ['scan'],
     jobTitle: '',
     resumeName: name,
-    heading: { running: 'Reading your resume', failed: 'Could not read the resume' },
-    subtitle: `"${name}" — headline, tools, seniority. About half a minute.`,
+    heading: { running: t('welcome.scanRun.running'), failed: t('welcome.scanRun.failed') },
+    subtitle: t('welcome.scanRun.subtitle', { name }),
     backUrl: PROFILE_STEP,
-    backLabel: 'Back to setup',
+    backLabel: t('fetch.backToSetup'),
   });
   if (joined) return c.redirect(`/target/runs/${run.id}`, 303);
   startRun(run.id, async () => {
@@ -289,14 +275,14 @@ welcomeRoute.post('/welcome/resume', resumeUploadLimit(PROFILE_STEP), onceGuard(
     if (!scan) {
       updateRun(run.id, {
         stage: 'error',
-        error: `The AI could not read "${name}" — check the web logs and try again, or answer the three questions instead.`,
+        error: t('welcome.scanRun.error', { name }),
       });
       return;
     }
     updateRun(run.id, {
       stage: 'done',
       resultUrl: `${back}&resume=${id}`,
-      flash: `Read "${name}" — check the summary below.`,
+      flash: t('welcome.scanRun.done', { name }),
     });
   });
   return c.redirect(`/target/runs/${run.id}`, 303);
@@ -307,21 +293,21 @@ welcomeRoute.post('/welcome/profile/apply', async (c) => {
   const form = await c.req.parseBody();
   const { profile } = await loadWelcomeContext();
   const resume = await getResume(idParam(form.resumeId));
-  if (!profile) return flashRedirect(PROFILE_STEP, 'err', 'No primary search — create one in Settings → Searches.');
-  if (!resume || !resume.scannedAt) return flashRedirect(PROFILE_STEP, 'err', 'That resume has not been read yet.');
+  if (!profile) return flashRedirect(PROFILE_STEP, 'err', t('welcome.flash.noPrimary'));
+  if (!resume || !resume.scannedAt) return flashRedirect(PROFILE_STEP, 'err', t('welcome.flash.notScanned'));
   const draft = buildProfileDraft(profile, scanFields(resume));
   // The search is built from this resume, so it hunts with it (#158) — the
   // same link the settings route proposes when it fills from a resume.
   await updateProfile(profile.id, { ...profileInput(profile), ...draft.changes, resumeId: resume.id });
-  const changed = profile.resumeId === resume.id ? draft.changed : [...draft.changed, 'resume for this search'];
+  const changed = profile.resumeId === resume.id ? draft.changed : [...draft.changed, t('welcome.flash.changedResume')];
   // No step named: the wizard lands on the first undone one — the sources
   // step when the new countries call for boards, the matches otherwise.
   return flashRedirect(
     '/welcome',
     'ok',
     changed.length > 0
-      ? `Profile filled from "${resume.name}" — ${changed.join(', ')}. Adjust it any time in Settings → Searches.`
-      : `Profile already matched "${resume.name}".`,
+      ? t('welcome.flash.profileFilled', { name: resume.name, changed: changed.join(', ') })
+      : t('welcome.flash.profileSame', { name: resume.name }),
   );
 });
 
@@ -334,31 +320,27 @@ welcomeRoute.post('/welcome/profile/create', async (c) => {
   const form = await c.req.parseBody();
   const resume = await getResume(idParam(form.resumeId));
   if (!resume || resume.hidden || !resume.scannedAt) {
-    return flashRedirect(PROFILE_STEP, 'err', 'That resume has not been read yet.');
+    return flashRedirect(PROFILE_STEP, 'err', t('welcome.flash.notScanned'));
   }
   const profile = await createProfileFromResume(resume);
-  return flashRedirect(
-    PROFILE_STEP,
-    'ok',
-    `Created a second search, "${profile.name}", from "${resume.name}". Your current search keeps running — switch to it on Settings → Searches.`,
-  );
+  return flashRedirect(PROFILE_STEP, 'ok', t('welcome.flash.secondCreated', { profile: profile.name, resume: resume.name }));
 });
 
 /** Step 3, no-resume path: three answers write the same fields. */
 welcomeRoute.post('/welcome/profile', async (c) => {
   const form = await c.req.parseBody({ all: true });
   const { profile } = await loadWelcomeContext();
-  if (!profile) return flashRedirect(PROFILE_STEP, 'err', 'No primary search — create one in Settings → Searches.');
+  if (!profile) return flashRedirect(PROFILE_STEP, 'err', t('welcome.flash.noPrimary'));
   const stackRequired = parseTagList(String(form.stackRequired ?? ''));
   const roleTypes = parseTagList(String(form.roleTypes ?? ''));
   const seniority = toStringArray(form.seniority).filter((s) =>
     (SENIORITY_LEVELS as readonly string[]).includes(s),
   );
   if (stackRequired.length === 0 && roleTypes.length === 0) {
-    return flashRedirect(PROFILE_STEP, 'err', 'Add at least one technology or one role word.');
+    return flashRedirect(PROFILE_STEP, 'err', t('welcome.flash.profileEmpty'));
   }
   await updateProfile(profile.id, { ...profileInput(profile), stackRequired, roleTypes, seniority });
-  return flashRedirect('/welcome', 'ok', 'Profile saved. Adjust it any time in Settings → Searches.');
+  return flashRedirect('/welcome', 'ok', t('welcome.flash.profileSaved'));
 });
 
 /** Step 5: score the stored-unscored jobs on the progress page; one pass at a time. */
@@ -374,7 +356,7 @@ welcomeRoute.post('/welcome/search', async (c) => {
   const form = await c.req.parseBody({ all: true });
   const typed = resolveCountries(toStringArray(form.countries).flatMap(parseTagList));
   if (typed.unknown.length > 0) {
-    return flashRedirect(SEARCH_STEP, 'err', `Country not recognised: ${typed.unknown.join(', ')} — pick one from the list.`);
+    return flashRedirect(SEARCH_STEP, 'err', t('welcome.flash.countryUnknown', { names: typed.unknown.join(', ') }));
   }
   let profile = await getActiveProfile();
   if (profile && typed.codes.length > 0) {
@@ -391,26 +373,22 @@ welcomeRoute.post('/welcome/search', async (c) => {
 welcomeRoute.post('/welcome/score', async (c) => {
   const { facts } = await loadWelcomeContext();
   if (!facts.profileReady) {
-    return flashRedirect(PROFILE_STEP, 'err', 'Fill the profile first — scoring needs your technologies or role words.');
+    return flashRedirect(PROFILE_STEP, 'err', t('welcome.flash.profileFirst'));
   }
   // Step 1 can be skipped, and then every call in this pass fails one by one:
   // a minute of watching a progress bar to be told nothing could be scored.
   // The wizard already knows whether an engine answers — ask it first.
   if (!facts.aiReady) {
-    return flashRedirect(
-      AI_STEP,
-      'err',
-      'No AI engine answered, so there is nothing to score with. Connect one here first — the jobs we found are already stored and stay put.',
-    );
+    return flashRedirect(AI_STEP, 'err', t('welcome.flash.noAi'));
   }
   const { run, joined } = claimRun(SCORE_RUN_KEY, {
     steps: ['score'],
     jobTitle: '',
     resumeName: '',
-    heading: { running: 'Scoring the jobs we found', failed: 'Scoring failed' },
-    subtitle: `The ${SCORE_BATCH} stored jobs that match your profile best — seconds each on an API engine, up to half a minute on a CLI one.`,
+    heading: { running: t('welcome.scoreRun.running'), failed: t('welcome.scoreRun.failed') },
+    subtitle: t('welcome.scoreRun.subtitle', { n: SCORE_BATCH }),
     backUrl: MATCHES_STEP,
-    backLabel: 'Back to setup',
+    backLabel: t('fetch.backToSetup'),
   });
   if (joined) return c.redirect(`/target/runs/${run.id}`, 303);
   startRun(run.id, async () => {
@@ -429,6 +407,16 @@ welcomeRoute.post('/welcome/score', async (c) => {
 });
 
 /* ---------- helpers ---------- */
+
+/**
+ * A country as step 2's chip shows it: its flag and its name in the reader's
+ * language. The chip comes back through parseTagList, which splits on commas,
+ * so a name with one ("Гонконг, ОАР Китаю") keeps its first part — the flag
+ * is what resolves it either way.
+ */
+function countryChip(code: string): string {
+  return `${flagOf(code)} ${placeName(code).split(',')[0]}`;
+}
 
 /** The aggregators switched on — what step 2 asks. */
 async function countAggregators(): Promise<number> {

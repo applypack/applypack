@@ -9,6 +9,7 @@ import { isBlankProfile } from '../profile-guards';
 import type { SourceSuggestion } from '../starter-packs/suggest';
 import { currentSuggestions, waitingSuggestions } from './source-suggestions';
 import type { WelcomeFacts } from './welcome-steps';
+import { t } from '../i18n/t';
 
 /*
  * Gathers what the wizard derives its steps from (welcome-steps.ts) — shared
@@ -41,7 +42,7 @@ export async function loadWelcomeContext(): Promise<WelcomeContext> {
   const order = aiEngineOrder(parseAiEngineConfig(settings.aiEngine), config.AI_PROVIDER);
   const statuses =
     probed.local_api.ok && !order.includes('local_api')
-      ? { ...probed, local_api: { ok: false, detail: `${probed.local_api.detail} — not in your engine list yet` } }
+      ? { ...probed, local_api: { ok: false, detail: t('welcome.ai.notInList', { detail: probed.local_api.detail }) } }
       : probed;
   return {
     settings,

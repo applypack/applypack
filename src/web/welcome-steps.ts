@@ -5,6 +5,7 @@
  * the first undone step. Tested in welcome-steps.test.ts.
  */
 import { dismissedReasons, filteredReasons, funnelCounts, reasonsText } from '../funnel';
+import { t } from '../i18n/t';
 
 export const WELCOME_STEPS = ['ai', 'search', 'profile', 'sources', 'matches'] as const;
 export type WelcomeStep = (typeof WELCOME_STEPS)[number];
@@ -57,25 +58,29 @@ export function isWelcomeStep(value: unknown): value is WelcomeStep {
 export function summarizeScoreRun(stats: Record<string, unknown>): { kind: 'ok' | 'warn'; text: string } {
   const n = (key: string): number => (typeof stats[key] === 'number' ? (stats[key] as number) : 0);
   if (stats.reason === 'blank-profile') {
-    return { kind: 'warn', text: 'Scoring skipped — the profile lists no technologies or role words yet.' };
+    return { kind: 'warn', text: t('welcome.scoreRun.skippedBlank') };
   }
   if (stats.reason === 'no-active-profile') {
-    return { kind: 'warn', text: 'Scoring skipped — no running search. Create one in Settings → Searches.' };
+    return { kind: 'warn', text: t('welcome.scoreRun.skippedNoSearch') };
   }
   const scored = n('reclassified');
   const matches = n('unchanged') + n('promoted');
   const counts = funnelCounts(stats);
   // Why the rest did not match (N2): the winning search's reason, then the base filter's gate.
   const notMatched = reasonsText(dismissedReasons(counts));
-  const parts = [`Scored ${scored} jobs — ${matches} look like a match${notMatched ? ` (not a match: ${notMatched})` : ''}`];
+  // Each clause is a whole message, with and without its reason; the line is the clauses that apply.
+  const parts = [
+    notMatched ? t('welcome.scoreRun.scoredWhy', { scored, matches, why: notMatched }) : t('welcome.scoreRun.scored', { scored, matches }),
+  ];
   if (n('filterDismissed') > 0) {
     const why = reasonsText(filteredReasons(counts));
-    parts.push(`${n('filterDismissed')} set aside as off-topic without AI${why ? ` — ${why}` : ''}`);
+    const set = { n: n('filterDismissed'), why };
+    parts.push(why ? t('welcome.scoreRun.setAsideWhy', set) : t('welcome.scoreRun.setAside', set));
   }
   if (n('failed') > 0) {
-    const why = typeof stats.lastError === 'string' && stats.lastError ? ` — the AI did not answer: ${stats.lastError}` : '';
-    parts.push(`${n('failed')} could not be scored${why}`);
+    const failed = { n: n('failed'), error: typeof stats.lastError === 'string' ? stats.lastError : '' };
+    parts.push(failed.error ? t('welcome.scoreRun.failedWhy', failed) : t('welcome.scoreRun.failedCount', failed));
   }
-  if (n('remaining') > 0) parts.push(`${n('remaining')} more waiting for the next pass`);
+  if (n('remaining') > 0) parts.push(t('welcome.scoreRun.remaining', { n: n('remaining') }));
   return { kind: scored === 0 && n('failed') > 0 ? 'warn' : 'ok', text: `${parts.join('; ')}.` };
 }
