@@ -1,5 +1,7 @@
 import en from './catalog/en.json';
 import uk from './catalog/uk.json';
+import es from './catalog/es.json';
+import fr from './catalog/fr.json';
 import { PSEUDO_LOCALE, SOURCE_LOCALE, type Locale } from './locale';
 import { parseMessage, type MessageNode } from './message';
 
@@ -18,6 +20,8 @@ type Catalog = Partial<Record<MessageKey, string>>;
 const CATALOGS: Record<Locale, Catalog> = {
   en,
   uk,
+  es,
+  fr,
   // English under another name; t() marks what comes out of it (pseudo.ts).
   [PSEUDO_LOCALE]: en,
 };

@@ -87,7 +87,10 @@ for (const locale of TRANSLATIONS) {
         assert.deepEqual(own.args, source.args, `${key}: arguments`);
         assert.deepEqual(own.tags, source.tags, `${key}: inline elements`);
         assert.deepEqual(own.selects, source.selects, `${key}: select branches`);
-        assert.deepEqual(Object.keys(own.plurals), Object.keys(source.plurals), `${key}: plural arguments`);
+        // Every plural of the source stays a plural. A language may add one on an argument the English writes plainly:
+        // French and Spanish agree a participle with its count ("{failed} failed" → "# échoué(s)") where English does not.
+        const missing = Object.keys(source.plurals).filter((name) => !(name in own.plurals));
+        assert.deepEqual(missing, [], `${key}: plural arguments`);
       }
     });
 
