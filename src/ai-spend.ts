@@ -1,6 +1,8 @@
 import { AI_PROVIDER_LABELS, type AiProviderId } from './ai-engine';
 import { costMicroUsd, PRICES_AS_OF } from './ai-prices';
-import { AI_BILLING, featureName, type AiBilling, type AiFeature, type AiOutcome, type AiSpend } from './ai-usage';
+import { AI_BILLING, type AiBilling, type AiFeature, type AiOutcome, type AiSpend } from './ai-usage';
+import type { MessageKey } from './i18n/catalog';
+import { t } from './i18n/t';
 
 /*
  * The AI spend ledger, read and written (ADR 0055). Pure: the runtime hands
@@ -120,14 +122,14 @@ export function spendView(groups: readonly SpendGroup[]): SpendView {
     local: { calls: 0, tokens: 0, micro: 0 },
   };
   for (const g of groups) {
-    const t = totals[g.billing];
-    t.calls += g.calls;
-    t.tokens += g.tokensIn + g.tokensOut;
-    t.micro += g.billing === 'local' ? 0 : g.micro;
+    const total = totals[g.billing];
+    total.calls += g.calls;
+    total.tokens += g.tokensIn + g.tokensOut;
+    total.micro += g.billing === 'local' ? 0 : g.micro;
   }
   const rows = groups
     .map(({ feature, engine, model, billing, calls, failed, unpriced, tokensIn, tokensOut, micro, medianMs, p90Ms }) => ({
-      feature: featureName(feature),
+      feature: featureLabel(feature),
       engine: AI_PROVIDER_LABELS[engine as AiProviderId] ?? engine,
       model,
       billing,
@@ -194,33 +196,64 @@ function spendNotes(groups: readonly SpendGroup[]): string[] {
     }
     if (byFeature.size > 1) {
       const [feature, top] = [...byFeature.entries()].sort((a, b) => b[1].micro - a[1].micro)[0]!;
-      const money = kind === 'billed' ? 'of the billed money' : 'of what your plans covered, at API prices';
-      notes.push(`${featureName(feature)} is ${percent(top.calls, totalCalls)} of those calls and ${percent(top.micro, totalMicro)} ${money}.`);
+      notes.push(
+        t(kind === 'billed' ? 'spend.note.topBilled' : 'spend.note.topPlan', {
+          feature: featureLabel(feature),
+          calls: percent(top.calls, totalCalls),
+          money: percent(top.micro, totalMicro),
+        }),
+      );
     }
   }
   const unpriced = groups.filter((g) => g.unpriced > 0);
   const unpricedCalls = unpriced.reduce((n, g) => n + g.unpriced, 0);
   if (unpricedCalls > 0) {
-    const models = [...new Set(unpriced.map((g) => g.model || 'the CLI default'))].join(', ');
-    notes.push(
-      `${plural(unpricedCalls, 'call')} on ${models} ${unpricedCalls === 1 ? 'is' : 'are'} not priced — the price table is from ${PRICES_AS_OF} and does not know ${unpriced.length === 1 && unpriced[0]!.model ? 'that model' : 'those models'}.`,
-    );
+    const models = [...new Set(unpriced.map((g) => g.model || t('spend.theCliDefault')))].join(', ');
+    const oneModel = unpriced.length === 1 && unpriced[0]!.model;
+    notes.push(t(oneModel ? 'spend.note.unpricedModel' : 'spend.note.unpricedModels', { n: unpricedCalls, models, asOf: PRICES_AS_OF }));
   }
   const unheard = groups.reduce((n, g) => n + g.noUsage, 0);
-  if (unheard > 0) {
-    notes.push(
-      `${plural(unheard, 'call')} ended with no usage reported (a timeout or an error). A timed-out call may still be on the vendor's bill.`,
-    );
-  }
+  if (unheard > 0) notes.push(t('spend.note.unheard', { n: unheard }));
   return notes;
 }
 
-function percent(part: number, whole: number): string {
-  return `${whole > 0 ? Math.round((part / whole) * 100) : 0} %`;
+function percent(part: number, whole: number): number {
+  return whole > 0 ? Math.round((part / whole) * 100) : 0;
 }
 
-function plural(n: number, word: string): string {
-  return `${n.toLocaleString('en-US')} ${word}${n === 1 ? '' : 's'}`;
+/** What the user reads for each feature the ledger stores, each one a singular subject ("… is 4 % of those calls"). */
+const FEATURE_LABEL = {
+  classifier: 'spend.feature.classifier',
+  prefilter: 'spend.feature.prefilter',
+  'posting-extract': 'spend.feature.postingExtract',
+  'posting-brief': 'spend.feature.postingBrief',
+  'resume-scan': 'spend.feature.resumeScan',
+  'resume-structure': 'spend.feature.resumeStructure',
+  'resume-match': 'spend.feature.resumeMatch',
+  'resume-match-fast': 'spend.feature.resumeMatchFast',
+  'resume-suggestions': 'spend.feature.resumeSuggestions',
+  'resume-rewrite': 'spend.feature.resumeRewrite',
+  'resume-review': 'spend.feature.resumeReview',
+  'cover-letter': 'spend.feature.coverLetter',
+  'job-verify': 'spend.feature.jobVerify',
+  screening: 'spend.feature.screening',
+  'screening-compare': 'spend.feature.screeningCompare',
+  'screening-bench': 'spend.feature.screeningBench',
+  'engine-test': 'spend.feature.engineTest',
+} as const satisfies Record<AiFeature, MessageKey>;
+
+/** A stored feature as words; one this version does not know reads as itself. */
+export function featureLabel(feature: string): string {
+  const key = (FEATURE_LABEL as Record<string, MessageKey>)[feature];
+  return key ? t(key) : feature;
+}
+
+/**
+ * Names in a row, "A and B": joined pair by pair, as the English always was,
+ * with the word between them in the reader's language.
+ */
+export function joinNames(names: readonly string[]): string {
+  return names.slice(1).reduce((joined, name) => t('spend.and', { a: joined, b: name }), names[0] ?? '');
 }
 
 /** Micro-dollars as money: cents from a cent up, four places below it. */
@@ -312,18 +345,24 @@ export function billingNotes(
     trap.tasks.push(row.label);
     traps.set(key, trap);
   }
-  return [...traps.values()].map((t) => {
-    const scope = t.tasks.length === rows.length ? 'Calls go' : `For ${t.tasks.join(', ')}, calls go`;
-    return `${scope} to ${t.billed.join(' and ')} first and are billed per token; ${t.plan}, which your plan covers, answers only when ${t.billed.length === 1 ? 'it fails' : 'they fail'}. Move ${t.plan} up to spend the plan first.`;
+  return [...traps.values()].map((trap) => {
+    const said = { billed: joinNames(trap.billed), plan: trap.plan, count: trap.billed.length };
+    return trap.tasks.length === rows.length
+      ? t('spend.trap.everyTask', said)
+      : t('spend.trap.tasks', { ...said, tasks: trap.tasks.join(', ') });
   });
 }
 
+const BILLING_LABEL = {
+  billed: 'spend.billing.billed',
+  plan: 'spend.billing.plan',
+  local: 'spend.billing.local',
+} as const satisfies Record<AiBilling, MessageKey>;
+
 /** What each kind of money means, said on every engine card. */
-export const BILLING_WORDS: Record<AiBilling, string> = {
-  billed: 'Billed per token',
-  plan: 'Covered by your plan',
-  local: 'Local — free',
-};
+export function billingWords(billing: AiBilling): string {
+  return t(BILLING_LABEL[billing]);
+}
 
 /** The middle of the recent costs of one kind of call: the estimate shown before the button. Null under three. */
 export function typicalMicro(costs: readonly number[]): number | null {
@@ -340,11 +379,8 @@ export function typicalMicro(costs: readonly number[]): number | null {
  */
 export function costHintText(typical: { micro: number; billing: AiBilling } | null): string | null {
   if (!typical) return null;
-  if (typical.billing === 'local') return 'Runs on your local model: free.';
-  const money = formatUsd(typical.micro);
-  return typical.billing === 'plan'
-    ? `Usually ≈ ${money} at API prices, which your plan covers (the middle of your recent calls).`
-    : `Usually ${money} a call, billed per token (the middle of your recent calls).`;
+  if (typical.billing === 'local') return t('cost.local');
+  return t(typical.billing === 'plan' ? 'cost.usual.plan' : 'cost.usual.billed', { money: formatUsd(typical.micro) });
 }
 
 /**
@@ -353,17 +389,17 @@ export function costHintText(typical: { micro: number; billing: AiBilling } | nu
  * without a single measured call would be the number people quote back.
  */
 export function billingHint(billing: AiBilling): string {
-  if (billing === 'local') return 'Runs on your local model: free.';
-  return billing === 'plan' ? 'Your plan covers it.' : 'Billed per token on your API key.';
+  if (billing === 'local') return t('cost.local');
+  return t(billing === 'plan' ? 'cost.kind.plan' : 'cost.kind.billed');
 }
 
 /** "$0.12 billed · ≈ $0.30 covered by your plan" — the Details row on a posting; null when nothing was recorded for it. */
 export function jobSpendText(spend: Partial<Record<AiBilling, number>> | null): string | null {
   if (!spend) return null;
   const parts = [
-    ...(spend.billed !== undefined ? [`${formatUsd(spend.billed)} billed`] : []),
-    ...(spend.plan !== undefined ? [`≈ ${formatUsd(spend.plan)} covered by your plan`] : []),
-    ...(spend.local !== undefined ? ['local calls, free'] : []),
+    ...(spend.billed !== undefined ? [t('spend.job.billed', { money: formatUsd(spend.billed) })] : []),
+    ...(spend.plan !== undefined ? [t('spend.job.plan', { money: formatUsd(spend.plan) })] : []),
+    ...(spend.local !== undefined ? [t('spend.job.local')] : []),
   ];
   return parts.length > 0 ? parts.join(' · ') : null;
 }

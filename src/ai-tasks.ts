@@ -1,5 +1,7 @@
 import type { AiRole } from './ai-engine';
 import type { AiFeature } from './ai-usage';
+import type { MessageKey } from './i18n/catalog';
+import { t } from './i18n/t';
 
 /*
  * The kinds of work an engine can be given (ADR 0060). A task is a group of
@@ -14,24 +16,33 @@ export function isAiTask(value: unknown): value is AiTask {
   return typeof value === 'string' && (AI_TASKS as readonly string[]).includes(value);
 }
 
-export const AI_TASK_LABELS: Record<AiTask, string> = {
-  scoring: 'Scoring postings',
-  'resume-read': 'Reading a resume',
-  analysis: 'Resume analysis',
-  letters: 'Cover letters',
-  verify: 'Is it real?',
-  screening: 'Screening applicants',
-};
+const TASK_LABEL = {
+  scoring: 'plan.task.scoring',
+  'resume-read': 'plan.task.resumeRead',
+  analysis: 'plan.task.analysis',
+  letters: 'plan.task.letters',
+  verify: 'plan.task.verify',
+  screening: 'plan.task.screening',
+} as const satisfies Record<AiTask, MessageKey>;
 
 /** What each task covers, one sentence under its name. */
-export const AI_TASK_DESCS: Record<AiTask, string> = {
-  scoring: 'The score of every new posting, the two-stage prefilter, and reading a posting you paste.',
-  'resume-read': 'The scan after an upload, and the shape read for the clean version.',
-  analysis: 'The posting brief, the comparison, the edit suggestions and rewrites, the strength review.',
-  letters: 'Writing a cover letter.',
-  verify: 'The deep check of a posting, which searches the web.',
-  screening: 'Employer mode: scoring applicants and comparing a shortlist.',
-};
+const TASK_DESC = {
+  scoring: 'plan.taskDesc.scoring',
+  'resume-read': 'plan.taskDesc.resumeRead',
+  analysis: 'plan.taskDesc.analysis',
+  letters: 'plan.taskDesc.letters',
+  verify: 'plan.taskDesc.verify',
+  screening: 'plan.taskDesc.screening',
+} as const satisfies Record<AiTask, MessageKey>;
+
+/** A task's name in the reader's language. */
+export function taskLabel(task: AiTask): string {
+  return t(TASK_LABEL[task]);
+}
+
+export function taskDesc(task: AiTask): string {
+  return t(TASK_DESC[task]);
+}
 
 /** The model slot a task's calls read on each engine card. */
 export const AI_TASK_ROLE: Record<AiTask, AiRole> = {
