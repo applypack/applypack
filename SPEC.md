@@ -264,7 +264,7 @@ thresholds and the alert target sit in a collapsed "Advanced" block. It
 opens itself when notes, on-site cities or priority rules are set; a
 threshold or a target alone does not open it.
 
-**Fill from a resume** (ADR 0015): the Searches tab can prefill
+**Fill from a resume** (ADR 0015): the Job search tab can prefill
 `stackRequired` (from `Resume.primarySkills`), `stackNiceToHave` (remaining
 scanned skills), `roleTypes` and `seniority` from any scanned resume —
 rendered as an unsaved draft in the editor; nothing persists until Save.
@@ -279,7 +279,7 @@ and saves it on one press, linked to that resume. The wizard's step 3
 offers the same for a second resume once the first search exists. New
 profiles are **born inactive** — creating a search never switches the one
 the pipeline is scoring against; activation stays a deliberate press on
-`/settings` → Searches.
+`/settings` → Job search.
 
 ## Toggles
 
@@ -301,12 +301,12 @@ clause at the start of the affected job/handler. The toggles live on
 | `disabledSources` (String[])     | `[]`     | Skip whole AtsType families in runAllFetchers (and the monthly HN pull, for HN_HIRING); a switched-off family is never called quiet |
 | `employerMode`                   | false    | Employer mode (ADR 0049): the Screening menu item and every `/screen` route exist only while on; the worker never reads it |
 | `screeningRetentionDays`         | 90       | How long a screening keeps its applicant files and verdicts before the weekly cleanup deletes it (ADR 0048) |
-| `reapplyDays`                    | null     | Off. 30 / 60 / 90 / 180: a new posting at a company with a job marked Applied inside that many days is turned away before any AI (a watched company on "every posting" excepted). Settings → General → Application tracking (ADR 0056) |
+| `reapplyDays`                    | null     | Off. 30 / 60 / 90 / 180: a new posting at a company with a job marked Applied inside that many days is turned away before any AI (a watched company on "every posting" excepted). Settings → Applications → Avoid duplicate applications (ADR 0056) |
 | `updateCheck`                    | false    | Off: ApplyPack never asks anyone about itself. On: one request a week (the cleanup job, and once when turned on) to GitHub's latest-release API; the sidebar says "vX.Y.Z is out" and Settings → General → Updates gives the commands. It never updates anything |
-| `openAiBaseUrl`                  | NULL     | The OpenAI-compatible engine's server, set on its card (Settings → AI engine → Server address) or by the wizard's **Use it** on a model found on this computer; NULL = `OPENAI_BASE_URL`. A server on this machine or the user's network takes no key and is billed as local |
-| `localAiUrl`                     | NULL     | The local engine's Ollama root (Settings → AI engine → Local model → Ollama address, or the wizard's **Use it** on Ollama); NULL = `OLLAMA_URL`. Local addresses only (ADR 0057) |
+| `openAiBaseUrl`                  | NULL     | The OpenAI-compatible engine's server, set on its card (Settings → AI & costs → Server address) or by the wizard's **Use it** on a model found on this computer; NULL = `OPENAI_BASE_URL`. A server on this machine or the user's network takes no key and is billed as local |
+| `localAiUrl`                     | NULL     | The local engine's Ollama root (Settings → AI & costs → Local model → Ollama address, or the wizard's **Use it** on Ollama); NULL = `OLLAMA_URL`. Local addresses only (ADR 0057) |
 | `localContextTokens`             | NULL     | The context window the local engine asks for on every call: 8k / 16k / 32k / 64k tokens; NULL = 16 384. A prompt estimated larger than it is refused before it is sent, and the next engine takes the call |
-| `pack`                           | NULL     | Application packs (ADR 0063), one JSON value read by `pack/settings.ts`: `enabled` (false), `minFit` (90), `dailyLimit` (5; 0 = none), `maxAgeDays` (7), `coverLetter` (never / asked / always) and the tailoring `policy`. NULL = off with those defaults. Settings → General → Application packs |
+| `pack`                           | NULL     | Application packs (ADR 0063), one JSON value read by `pack/settings.ts`: `enabled` (false), `minFit` (90), `dailyLimit` (5; 0 = none), `maxAgeDays` (7), `coverLetter` (never / asked / always) and the tailoring `policy`. NULL = off with those defaults. Settings → Automation → Application packs |
 | `aiBudgetCents`                  | NULL     | A monthly ceiling on billed AI money: one line to the alert chats at 80 % and at 100 %, once each per UTC month (`aiBudgetAlerted` holds the last one sent). NULL = no budget. Nothing is ever stopped (ADR 0055) |
 | `locale`                         | NULL     | The interface's language (ADR 0061). NULL = never chosen: English, and a browser that prefers an offered language sees one line proposing it. Set from the globe at the bottom of the menu, the wizard's first step or Settings → General → Language; finishing setup stores the language the wizard was read in. The worker's messages do not follow it yet: they are English until stage 4 of ADR 0061. Prompts and what a model writes never do |
 
@@ -314,7 +314,7 @@ clause at the start of the affected job/handler. The toggles live on
 
 `Job.pipelineStage` is the funnel state, orthogonal to `Job.status`
 (`status=APPLIED` + `pipelineStage='ghosted'` is a valid pair). Columns are
-configured on `/settings` → General: **Applied** and **Rejected/Ghosted** are
+configured on `/settings` → Applications: **Applied** and **Rejected/Ghosted** are
 fixed, everything between them is user-named and reorderable, and keys never
 change once created (ADR 0025). Every stage move writes a `JobStageEvent`
 ledger row in the same transaction (ADR 0024).
@@ -478,7 +478,7 @@ refusal. The sitemap + JSON-LD rung the plan called stage B was measured and
   `/jobs` hides the stored ones behind a line that says how many; Filters →
   Show → Muted companies brings them back. Nothing changes status, and
   Unmute undoes both.
-- **Re-apply window.** `reapplyDays`: off by default, or 30 / 60 / 90 / 180
+- **Avoid duplicate applications** (the re-apply window). `reapplyDays`: off by default, or 30 / 60 / 90 / 180
   days. Read once per tick from the jobs marked Applied.
 - **Names on pages and in prompts.** Everything that names a posting's
   company reads `employer ?? company.name`: the list ("Acme · via
@@ -489,7 +489,7 @@ refusal. The sitemap + JSON-LD rung the plan called stage B was measured and
 `Resume` rows hold an uploaded file (`original` bytes, `.pdf` / `.docx` /
 `.md` / `.txt`) and its plain-text extraction (`text`). On upload the web
 process runs one AI call on a progress page (the engine's resume model: the
-slot on `/settings` → AI engine, else `ai-engine.ts:defaultModelFor`) that
+slot on `/settings` → AI & costs, else `ai-engine.ts:defaultModelFor`) that
 fills headline, seniority, years, skill tags, the primary stack, role types,
 industries and job-agnostic `issues`. The first upload becomes the default.
 
@@ -809,7 +809,7 @@ analyses are stored on the job, so a later letter reuses them for free.
 Every slow stage — the page fetch included — is a visible run step, so the
 form never hangs.
 
-Letter writing has its own per-engine model slot on `/settings` → AI engine;
+Letter writing has its own per-engine model slot on `/settings` → AI & costs;
 an empty slot takes that engine's default for letters, not the resume slot
 (`ai-engine.ts:defaultModelFor`: Opus 5 on the two Claude engines, or
 `CLAUDE_MODEL_COVER` when set; Gemini 2.5 Pro on the Gemini CLI;
@@ -954,7 +954,7 @@ model several times the price of the cheapest, a month's pace over the
 budget. A hint never says a model is good enough for a task, offers a
 model on this computer for scoring only, and never steers applicants'
 resumes onto a personal plan. The monthly budget stays on
-`/settings` → AI engine. Each
+`/settings` → AI & costs. Each
 engine card says which kind it spends; a billed engine standing ahead of
 one a plan covers gets a warning with the move that fixes it. `/jobs/:id`
 shows what the AI spent on that posting, and Compare, Verify and Generate
@@ -965,7 +965,7 @@ vendor's admin key never enters ApplyPack.
 
 ## Application packs (ADR 0063)
 
-Off by default. With **Settings → General → Application packs** switched on,
+Off by default. With **Settings → Automation → Application packs** switched on,
 a new posting the tick stores with a fit at or above the threshold (90),
 published within the last N days (7), gets a pack — up to a daily number the
 worker starts on its own (5; 0 = no limit, counted per UTC day). The trigger

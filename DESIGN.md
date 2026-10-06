@@ -319,14 +319,14 @@ opens with `PageHeader`: the title and its one sentence at the left, what the
 page offers — a quiet meta line, a status pill, the buttons — at the right,
 level with the title. Cards stack and grid at 16px gaps. Detail pages split
 into a fluid main column and a 340px facts-and-actions rail at ≥1280px (rail
-first in DOM so actions lead on small screens). Settings puts its six tabs in
-a sticky left column of links from 1024px and keeps them as a segmented row
-below that — same `?tab=` URLs either way. The launchers (Compare, Cover
-letter, New screening) show one input mode at a time: the body of a mode whose
-radio is not checked folds away in CSS (`:has()`), its fields still in the
-form; the alert window on Settings → Schedule folds the same way. The
-Applications board scrolls horizontally through 288px fixed-width stage
-columns.
+first in DOM so actions lead on small screens). Settings puts its eight tabs,
+each with its icon, in a sticky left column of links from 1024px and keeps
+them as a segmented row below that — same `?tab=` URLs either way. The
+launchers (Compare, Cover letter, New screening) show one input mode at a
+time: the body of a mode whose radio is not checked folds away in CSS
+(`:has()`), its fields still in the form; the alert window on Settings →
+Notifications folds the same way. The Applications board scrolls
+horizontally through 288px fixed-width stage columns.
 
 **The Overview** is the dashboard and sets the language: four status cards in
 a row, then a main column (the matches chart with the search funnel at its

@@ -4,6 +4,30 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.54.0] — 2026-10-06
+
+### Changed
+- **Settings are grouped by what you came to change.** The catch-all General
+  tab is split up: the automatic search and when it runs sit with the search
+  profiles on **Job search**; tracking, follow-up reminders, duplicate
+  applications and the board columns on **Applications**; application packs
+  on **Automation**; when job matches arrive and the daily summary on
+  **Notifications**; the time zone stays under **General** with the language,
+  the resumes and updates. The AI tab is **AI & costs** and the screening tab
+  **Employer tools**. `/settings` opens on Job search, and every tab says in
+  one line what it holds.
+- Plainer words: core skills, target roles and preferred skills instead of
+  "tech stack — required / nice to have" and "role types", score adjustments
+  instead of priority rules, a monthly spending alert instead of a budget, and
+  best accuracy / lower AI cost instead of single / two-stage classifier.
+- Minimum fit, minimum salary and the title words to skip are in sight in the
+  search editor, no longer inside its Advanced block.
+- What most people never need folds away: an engine's models and tasks, the
+  key and server rows of an engine that is not switched on, the keys of the
+  sources that need an account, the per-company career platforms, the
+  applicant notice and the legal note. Telegram and Discord each open their
+  own Connect form, one at a time.
+
 ## [2.53.0] — 2026-10-06
 
 ### Added
@@ -4989,6 +5013,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.54.0]: https://github.com/applypack/applypack/compare/v2.53.0...v2.54.0
 [2.53.0]: https://github.com/applypack/applypack/compare/v2.52.0...v2.53.0
 [2.52.0]: https://github.com/applypack/applypack/compare/v2.51.0...v2.52.0
 [2.51.0]: https://github.com/applypack/applypack/compare/v2.50.0...v2.51.0
