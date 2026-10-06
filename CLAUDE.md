@@ -185,7 +185,21 @@
   title, a company, a file name) takes `translate="no"`; a page title that is
   data, `PageHeader`'s `titleIsData`. A value the code stores or compares
   keeps its English and is worded on the way out: `places.ts:placeName` /
-  `workplaceName` beside `countries.ts:placeLabel` / `WORKPLACE_LABEL`.
+  `workplaceName` beside `countries.ts:placeLabel` / `WORKPLACE_LABEL`; an
+  error a page shows and the code stores keeps an English `message` and a
+  `reason()` in the reader's language (`resume/docx-text.ts:ResumeTextError`,
+  a stored note read back by `storedReadNote` and `screening/redact.ts:noteWords`);
+  a reason a worker run stores verbatim (a pack's `why`, a folder file's note, a
+  probe's error) is written in that run's language, and code that acts on a
+  failure reads a code or a status, never the words (`ats-probe.ts:isDeadToken`).
+  The browser modules word through `public/i18n.mjs` — the `message.ts`
+  mirror, held to it by `web/i18n-mirror.test.ts` — over the generated
+  `public/i18n-en.mjs` (every `browser.*` key: `npm run i18n:browser` after an
+  English change, and the copy in `site/public/demo/`) and the page's language
+  that `layout.tsx` embeds (`web/browser-messages.ts`). Every worker run reads
+  the stored language (`run-locale.ts:inRunLocale`, around each cron beat and
+  once-script); Telegram and Discord word a tagged message through
+  `notify/markup.ts:tMarkup`, which escapes every part.
 - `src/web/public/tailwind.css` is generated: `npm run css` (Tailwind CLI over
   `tailwind.config.js` + `src/web/tailwind.css`) and committed, so the runtime
   has no build step and no page fetches from a third party
@@ -337,9 +351,9 @@
   `src/scripts/route-smoke.ts`): fixtures in, every GET route one
   in-process request through `app.request()`, the first run's POSTs, a
   cross-origin POST refused, one clean PDF render, a file of rows through its
-  preview and its import, then every page again in the pseudo-language (the
-  count of English still outside the catalog — ADR 0061). A 500 anywhere fails
-  the build. Run it locally on a throwaway database only — it inserts rows and
+  preview and its import, then every page again in the pseudo-language, where
+  one run of English outside the catalog fails the build as a 500 does (ADR
+  0061, #356). Run it locally on a throwaway database only — it inserts rows and
   switches employer mode on (see `.github/workflows/test.yml`).
 - The `local-start` job runs the default install on Linux (Node 22 and 24),
   macOS and Windows: `npm start` with a temporary `APPLYPACK_DATA_DIR`, the
@@ -377,11 +391,11 @@ When the question is **"where does X live?"**, save yourself a `find`:
 
 | What | File |
 | --- | --- |
-| A string of the interface: where it lives, how a page words it, the language of the moment | `src/i18n/` (ADR 0061): `catalog/en.json` is the source and `catalog.ts:MessageKey` its keys; `t.ts:t(key, params)` reads the message in `locale.ts:currentLocale()` (AsyncLocalStorage — English outside a request, so tests read English; the worker sets no language yet, so its messages are English until stage 4); `message.ts` is the ICU subset (`{name}`, `{n, number}`, `plural` with `#`, `select`, `<tags>`); `web/rich.ts:tRich` renders a message's inline elements. `catalog.test.ts` holds every language to the source: same keys, arguments and tags, plurals in the forms `Intl.PluralRules` reports. The glossary and the voice per language: `docs/translating.md` |
-| Which language a request is answered in, and why it never changes by itself | `src/web/language.ts:resolveLanguage` (pure): the stored `AppSettings.locale`; with none, a first run opens in the browser's language (`locale.ts:matchAcceptLanguage` over the offered ones) and `settings.ts:setSetupCompleted` stores it; an install already set up stays English and gets one invitation line (`language-menu.tsx:LanguageInvite`), whose two answers both store a choice. The middleware in `app.ts` reads `settings.ts:getDisplaySettings` once per request and sets the language, the invitation and the zone; `POST /settings/locale` is the one writer (`settings.ts:setLocale`) |
+| A string of the interface: where it lives, how a page words it, the language of the moment | `src/i18n/` (ADR 0061): `catalog/en.json` is the source and `catalog.ts:MessageKey` its keys; `t.ts:t(key, params)` reads the message in `locale.ts:currentLocale()` (AsyncLocalStorage — English outside a request or a run, so tests read English; the worker reads the stored language per run, `run-locale.ts:inRunLocale`); `message.ts` is the ICU subset (`{name}`, `{n, number}`, `plural` with `#`, `select`, `<tags>`); `web/rich.ts:tRich` renders a message's inline elements. `catalog.test.ts` holds every language to the source: same keys, arguments and tags, plurals in the forms `Intl.PluralRules` reports. The glossary and the voice per language: `docs/translating.md` |
+| Which language a request is answered in, and why it never changes by itself | `src/web/language.ts:resolveLanguage` (pure): the stored `AppSettings.locale`; with none, a first run opens in the browser's language (`locale.ts:matchAcceptLanguage` over the offered ones) and `settings.ts:setSetupCompleted` stores it unless it was English, which chose nothing (`locale.ts:languageKeptAtSetup`, #355); an install already set up stays English and gets one invitation line (`language-menu.tsx:LanguageInvite`), whose two answers both store a choice. The middleware in `app.ts` reads `settings.ts:getDisplaySettings` once per request and sets the language, the invitation and the zone; `POST /settings/locale` is the one writer (`settings.ts:setLocale`) |
 | Which languages exist and who may pick them | `src/i18n/locale.ts:LOCALES` — `ready` / `beta` are in the switcher (`offeredLocales`), `unfinished` only under Settings → General → Language (`unfinishedLocales`), `internal` is the pseudo-language. Adding one: its row there, `catalog/<code>.json` imported in `catalog.ts`, every key translated by the glossary |
 | A date, a number, a list, a weekday or a country name in the reader's language | `src/i18n/format.ts` (`formatNumber`, `formatDateTime`, `formatDatePart`, `formatDateRange`, `formatList`, `weekdayName`, `regionName`; a place or a work arrangement by name in `places.ts`) — the one place the interface calls `Intl` with a language; Latin digits everywhere. `web/format.ts` and `display-zone.ts` go through it. `'en-US'` written out elsewhere is a computation, a prompt or a CSV. Relative time and durations ("5m ago", "1.5s") are catalog messages (`time.*`, `duration.*`), not `Intl.RelativeTimeFormat`: CLDR's narrow forms are uneven (French "-5 min", German "vor 5 m") |
-| How much English is still written into the code | the route smoke's last pass: every page again in the pseudo-language (`locale.ts:PSEUDO_LOCALE`, stored as `AppSettings.locale`), where the catalog's and the format module's text comes back in ⟦ ⟧ and `src/i18n/pseudo.ts:hardcodedText` reads what is left outside them. `npm run smoke:routes` prints the count and the worst pages; `node dist/scripts/route-smoke.js --pseudo-list out.txt` writes every run. An element with `translate="no"` or `lang="en"` is data and is skipped |
+| How much English is still written into the code | the route smoke's last pass: every page again in the pseudo-language (`locale.ts:PSEUDO_LOCALE`, stored as `AppSettings.locale`), where the catalog's and the format module's text comes back in ⟦ ⟧ and `src/i18n/pseudo.ts:hardcodedText` reads what is left outside them. Since v2.52.0 it is a gate: one run on any page fails `npm run smoke:routes` with the page and its first runs; `node dist/scripts/route-smoke.js --pseudo-list out.txt` writes every run. An element with `translate="no"` or `lang="en"` is data and is skipped — data says so in its markup, a tab title through `Layout`'s `titleIsData` |
 | HTTP retry, timeout, default User-Agent | `src/http.ts` — a 5xx and a network failure are retried twice; a 429 whose `Retry-After` (`retryAfterMs`) is at most 10 s is waited out once, a longer one fails as the `rate_limit` source-health reads |
 | A URL from outside (a feed's link, the verifier's finding, a typed career page) as a link | `src/web/format.ts:safeHref` — http(s) or no link at all: a `javascript:` link from a feed would run in the dashboard's origin on a click |
 | HTML → plaintext (entities, paragraphs, bullets) | `src/http.ts:stripHtml` + `decodeHtmlEntities` (gotcha 12); one pass even over markup nobody closed — `replaceUpTo` cuts each pattern off at its last closer and `dropElements` walks script and style blocks forward, because 300 kB of `<a ` once took nine seconds; `safeCodePoint` decodes no NUL and no lone surrogate |

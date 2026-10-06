@@ -8,10 +8,10 @@ terms each language uses.
 
 ## What is translated
 
-Everything the code writes for a person: menus, pages, buttons, messages
-and the explanations the code builds (why a score is what it is, why a
-posting was turned away). The Telegram and Discord alerts join them once the
-worker follows the language; until then they are written in English.
+Everything the code writes for a person: menus, pages, buttons, messages,
+the lines a page writes while you edit or wait, the explanations the code
+builds (why a score is what it is, why a posting was turned away) and the
+Telegram and Discord messages, which follow the language you chose.
 
 Not translated, on purpose:
 
@@ -25,14 +25,18 @@ Not translated, on purpose:
 ## Where the words live
 
 One file per language in `src/i18n/catalog/`: `en.json` is the source,
-`uk.json` the Ukrainian. A line is a key and its message:
+the others are named by their code (`uk.json`, …). A line is a key and its
+message:
 
 ```json
 "ui.removeFilter": "Remove filter: {label}",
 ```
 
 To correct a wording, change the message in your language's file and open a
-pull request. Never change a key, and never translate what is inside
+pull request. A key under `browser.` is also read by the page's own scripts:
+after changing one in `en.json`, run `npm run i18n:browser` (it rewrites
+`src/web/public/i18n-en.mjs`) and copy that file into `site/public/demo/`;
+the tests say so if you forget. Never change a key, and never translate what is inside
 `{braces}` or `<tags>`. `npm test` checks every file against `en.json`: the
 same keys, the same `{arguments}` and `<tags>`, and every plural in the forms
 your language has.

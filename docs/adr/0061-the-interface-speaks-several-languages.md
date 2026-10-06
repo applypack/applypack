@@ -134,3 +134,38 @@ a constant that holds words has to become a function or a key.
   `PageHeader`'s `titleIsData`; a code-built sentence that can be the
   model's own says so (`score-lines.ts:Advice.modelWritten`) and is rendered
   inside `lang="en"`.
+
+## Addendum (2026-10-06): stages 3–5, and Ukrainian opens (v2.52.0)
+
+- **The worker** reads the stored language at the start of every run —
+  each cron beat, the folder-watch check and the fetch retry, every
+  once-script (`src/run-locale.ts:inRunLocale`); no language or an
+  unreadable database is English. A Telegram or Discord message words its
+  sentences through `notify/markup.ts:tMarkup`, which escapes every text part
+  of a tagged message for its channel and writes the tags as the channel's
+  markup; a posting's title, company and place stay as posted.
+- **The browser modules** word through `public/i18n.mjs`, the `message.ts`
+  mirror (`web/i18n-mirror.test.ts` runs every message of every catalog
+  through both). English comes from the generated `public/i18n-en.mjs`
+  (`npm run i18n:browser`, every `browser.*` key), the page's language from
+  the JSON `layout.tsx` embeds when it is not English (about 5 KB gzipped).
+  The country picker searches and writes names in the page's language and
+  round-trips through `places.ts:countryChip`.
+- **What the code stores** keeps the rule of stage 2 where it can: an error
+  shown on a page and kept as a note carries an English `message` and a
+  `reason()` in the reader's language (`resume/docx-text.ts:ResumeTextError`),
+  and a stored note is read back into the reader's language
+  (`storedReadNote`, `screening/redact.ts:noteWords`). A reason a run stores
+  verbatim — a discovery probe's error, a folder file's note, a pack's
+  "why" — is written in the language that run had: one person uses an
+  install, so a switch leaves earlier lines in the earlier language, and a
+  check that reads such text (`/HTTP 4\d\d/`) keeps its English token.
+- **The pseudo-language pass is a gate** (#356): one run of English outside
+  the catalog on any page fails the route smoke. Data says it is data in the
+  markup — `translate="no"`, `lang="en"` for a model's words, `Layout`'s and
+  `PageHeader`'s `titleIsData`; an `<option>` that is mostly data is marked
+  whole, which only keeps a browser's translator off it.
+- **Ukrainian moves to `ready`.** A wizard read in English stores no
+  language at setup (`locale.ts:languageKeptAtSetup`, #355), so an install
+  set up before a language existed can still be invited to it; the
+  invitation shows above the page below the `lg` breakpoint (#358).

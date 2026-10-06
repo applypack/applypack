@@ -4,6 +4,44 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.52.0] — 2026-10-06
+
+### Added
+- **The whole interface in Ukrainian.** Ukrainian is now in the language
+  switcher at the bottom of the menu, beside English. What was still English
+  in 2.51 is translated: Import a file, folders and their Files page,
+  application packs, employer mode (screening) from the rubric to the
+  scorecard and the comparison, the lines a page writes live while you edit
+  or wait, and the Telegram and Discord messages — alerts, the held matches,
+  the daily recap, the stale-application reminder, page changes, the budget
+  warning — which now follow the language you chose. What the AI writes,
+  your resumes and letters, and the CSV and Markdown exports stay as they
+  are.
+- A new install opens in the browser's language when it is offered, with the
+  choice on every step of the setup wizard. An install that never chose is
+  invited once, above the page on a phone or a tablet and in the menu on a
+  wide screen.
+
+### Changed
+- The test build fails when a page holds English that is not in the catalog
+  (#356), so a new page ships translated.
+- A form's error reads in plain words: "Expected a number", "At least 3
+  characters", "Not an email address".
+- A count of one reads as one in a few more places: "Keep 1 more day",
+  "Compare 1 applicant", "published in the last 1 day", "1 year".
+
+### Fixed
+- Finishing or skipping setup in English no longer stores English as a
+  choice, so the invitation can still reach that install (#355). An install
+  set up on 2.49–2.51 already holds English as its choice and is not
+  invited: pick Українська in the menu or on Settings → General.
+- A message about a pack that could not be prepared, and the "request too
+  large" answer, read in your language.
+- After switching the language, its confirmation shows on Jobs and on AI
+  usage too, and no message comes back on the next page (#343).
+- The language switcher names the language in use to a screen reader on the
+  icon rail, and keeps the page's #section when it returns there (#358).
+
 ## [2.51.0] — 2026-10-06
 
 ### Added
@@ -4932,6 +4970,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.52.0]: https://github.com/applypack/applypack/compare/v2.51.0...v2.52.0
 [2.51.0]: https://github.com/applypack/applypack/compare/v2.50.0...v2.51.0
 [2.50.0]: https://github.com/applypack/applypack/compare/v2.49.0...v2.50.0
 [2.49.0]: https://github.com/applypack/applypack/compare/v2.48.0...v2.49.0
