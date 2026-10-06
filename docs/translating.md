@@ -25,7 +25,8 @@ Not translated, on purpose:
 ## Where the words live
 
 One file per language in `src/i18n/catalog/`: `en.json` is the source,
-the others are named by their code (`uk.json`, …). A line is a key and its
+the others are named by their code: `uk.json` (Ukrainian, ready), `es.json`
+(Spanish, beta) and `fr.json` (French, beta). A line is a key and its
 message:
 
 ```json
@@ -170,6 +171,39 @@ A job's status:
 | Applied | Подано | Beworben | Solicitada | Candidature envoyée | आवेदन किया |
 | Saved | Збережено | Gespeichert | Guardada | Enregistrée | सहेजा गया |
 | Dismissed | Відхилено | Verworfen | Descartada | Écartée | खारिज |
+
+## Spanish and French: terms settled while translating
+
+The catalogs were translated in pieces and then held to one term list. These
+are the choices the glossary above did not make; a correction replaces the
+row here first, then every message that uses it.
+
+| English | Spanish | French |
+| --- | --- | --- |
+| board (a company's list of openings) | portal (de empleo) | job board |
+| setup (the first-run wizard) | configuración inicial | configuration initiale |
+| to upload | subir | importer |
+| to scan (a resume) | analizar | analyser |
+| watched (a company) | en seguimiento | suivie |
+| stale application | solicitud estancada | candidature au point mort |
+| Ghosted (board column) | Sin respuesta | Sans nouvelles |
+| Onsite (board column) | Entrevista presencial | Entretien sur site |
+| application pack | paquete de solicitud | dossier de candidature |
+| summary (resume section) | perfil profesional | résumé |
+| digest (daily recap) | resumen diario | récapitulatif |
+| score (noun) | puntuación | score |
+| token | token | token |
+| request (HTTP, an engine call) | petición | requête |
+| Is it real? (tab) | ¿Es real? | Est-elle réelle ? |
+| To interview / On hold / Declined | Para entrevista / En espera / Descartado | À convoquer / En attente / Écarté |
+| scorecard | ficha de evaluación | fiche d'évaluation |
+| redaction | anonimización | anonymisation |
+| criterion mode Gate / Scored / Note | Requisito excluyente / Puntuado / Nota | Condition éliminatoire / Noté / Remarque |
+
+Known clashes a native reader may want to settle: Spanish "seguimiento" is a
+watched company, application tracking and the follow-up reminder at once;
+French "importer" is both uploading a resume and importing a file of jobs, and
+"dossier" is both a folder and an application pack.
 
 ## Adding a language
 

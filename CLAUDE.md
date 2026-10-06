@@ -628,7 +628,7 @@ When the question is **"how does the user toggle / configure X?"**:
 
 | What | Page |
 | --- | --- |
-| Change the language of the interface | the globe at the bottom of the menu (shown once more than one language is offered), or `/settings` General tab → **Language**; a language still being translated is under **Unfinished languages** there. What the AI writes, resumes and letters do not change language |
+| Change the language of the interface | the globe at the bottom of the menu, or `/settings` General tab → **Language**: English, Українська, and Español and Français marked beta (machine-translated, not yet read by a native speaker). A language still being translated would sit under **Unfinished languages** there. What the AI writes, resumes, letters and the exports do not change language |
 | Pause / resume all new-job fetching | `/settings` General tab → "Job fetching" |
 | Be told when a newer ApplyPack is out | `/settings` General tab → **Updates** → Check weekly (off by default: it is one request a week to GitHub); the sidebar then says "vX.Y.Z is out". The version you run is always in the sidebar |
 | Answer "do you have X?" with "I don't know" | the comparison's confirm card → **Not sure**: the question stops coming back and nothing is claimed; `/resumes` → Confirmed facts lists it as "Not sure", with "I do have it" for later |
