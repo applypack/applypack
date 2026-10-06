@@ -73,6 +73,8 @@ test('which sources are the employer themselves', () => {
 
 test('rows the user brings carry many employers: the source’s own name is never one', () => {
   assert.equal(sourceIsEmployer('IMPORT'), false);
+  assert.equal(sourceIsEmployer('FOLDER'), false);
+  assert.equal(hiringName(null, { name: 'Tool output', atsType: 'FOLDER' }), null);
   assert.equal(hiringName('Acme', { name: 'September export', atsType: 'IMPORT' }), 'Acme');
   assert.equal(hiringName(null, { name: 'September export', atsType: 'IMPORT' }), null);
 });

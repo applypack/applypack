@@ -204,7 +204,7 @@ jobsImportRoute.post('/jobs/import/:token', async (c) => {
   const mapped = mapRows(stash.rows, mapping, 0, new Date());
   if (mapped.jobs.length === 0) return flashRedirect(back, 'err', 'Nothing was imported: with these columns no row of the file is a job. Check the title and the link.');
 
-  const config: SourceConfig = { mapping };
+  const config: SourceConfig = { mapping, include: null };
   const sourceConfig = config as Prisma.InputJsonValue;
   let source: { id: number; name: string };
   if (stash.source.id !== null) {

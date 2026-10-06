@@ -1,18 +1,17 @@
 /** @jsxImportSource hono/jsx */
 import type { FC } from 'hono/jsx';
-import { DROP_REASONS, sampleValue, usableMapping, type DropReason, type MappedRows, type MappingField } from '../../datasets/map';
+import { DROP_REASONS, usableMapping, type DropReason, type MappedRows } from '../../datasets/map';
 import type { PreviewCounts } from '../../datasets/preview';
-import { MAX_BODY_MB, MAX_COLUMNS, MAX_ROWS, type RowFormat } from '../../datasets/rows';
+import { MAX_BODY_MB, MAX_ROWS, type RowFormat } from '../../datasets/rows';
 import { companyDeleteConfirm, type CompanyDeleteImpact } from '../delete-confirm';
 import type { FlashMessage } from '../flash';
-import { formatDateShort } from '../format';
 import type { ImportStash } from '../import-stash';
 import { Layout } from '../layout';
+import { MappedRowsList, MappingFields, MappingNote } from './mapping-fields';
 import {
   Button,
   Card,
   ConfirmAction,
-  Disclosure,
   Field,
   FILE_INPUT_CLASS,
   Flash,
@@ -38,14 +37,6 @@ export interface ImportSourceRow {
 }
 
 const count = (n: number, one: string, many = `${one}s`): string => `${n.toLocaleString('en-US')} ${n === 1 ? one : many}`;
-
-const EXCERPT_CHARS = 280;
-
-/** The head of a description on one paragraph: enough to see the text was read, and read clean. */
-function excerpt(description: string): string {
-  const text = description.replace(/\s+/g, ' ').trim();
-  return text.length > EXCERPT_CHARS ? `${text.slice(0, EXCERPT_CHARS - 1)}…` : text;
-}
 
 export const JobImportPage: FC<{ sources: ImportSourceRow[]; flash?: FlashMessage | null }> = ({ sources, flash }) => (
   <Layout title="Import a file of jobs" active="jobs">
@@ -137,28 +128,6 @@ export const JobImportPage: FC<{ sources: ImportSourceRow[]; flash?: FlashMessag
   </Layout>
 );
 
-/** What a column can be, in the user's words. The first eight are what most files have; the rest fold. */
-const FIELD_LABEL: Record<MappingField, string> = {
-  title: 'Job title',
-  url: 'Link to the posting',
-  applyUrl: 'Link to apply',
-  employer: 'Company',
-  description: 'Description',
-  location: 'Location',
-  postedAt: 'Date posted',
-  id: 'Id of the row',
-  country: 'Country',
-  workplace: 'Remote, hybrid or on-site',
-  salary: 'Pay, as the row writes it',
-  salaryMin: 'Pay from',
-  salaryMax: 'Pay to',
-  salaryCurrency: 'Pay currency',
-  salaryPeriod: 'Pay period',
-  closed: 'Closed or expired',
-};
-const MAIN_FIELDS: MappingField[] = ['title', 'url', 'applyUrl', 'employer', 'description', 'location', 'postedAt', 'id'];
-const MORE_FIELDS: MappingField[] = ['country', 'workplace', 'salary', 'salaryMin', 'salaryMax', 'salaryCurrency', 'salaryPeriod', 'closed'];
-
 const FORMAT_NAME: Record<RowFormat, string> = { json: 'JSON', jsonl: 'JSON Lines', csv: 'CSV', tsv: 'TSV' };
 
 const DROPPED_AS: Record<DropReason, string> = {
@@ -180,27 +149,6 @@ export interface ImportPreviewProps {
   flash?: FlashMessage | null;
 }
 
-const MappingSelect: FC<{ field: MappingField } & Pick<ImportPreviewProps, 'stash' | 'columns'>> = ({ field, stash, columns }) => {
-  const column = stash.mapping[field];
-  const sample = column === null ? '' : sampleValue(stash.rows, column);
-  const hint =
-    column === null
-      ? 'Not found in this file.'
-      : `${stash.guessed.includes(field) ? 'Guessed from the values, so check it. ' : ''}${sample ? `For example: ${sample}` : 'Empty in the first rows.'}`;
-  return (
-    <Field label={field === 'title' ? `${FIELD_LABEL[field]} (needed)` : FIELD_LABEL[field]} hint={hint}>
-      <Select name={field}>
-        <option value="">— not in this file —</option>
-        {columns.map((c) => (
-          <option value={c} selected={c === column}>
-            {c}
-          </option>
-        ))}
-      </Select>
-    </Field>
-  );
-};
-
 /** Why Import is not offered, or null when it is. One reason, the first that holds. */
 function blocker({ stash, mapped, counts, scoring, searches }: ImportPreviewProps): string | null {
   if (!usableMapping(stash.mapping)) return 'Choose the column that holds the job title, and one that holds a link or an id, then update the preview.';
@@ -218,7 +166,6 @@ export const JobImportPreviewPage: FC<ImportPreviewProps> = (props) => {
   if (mapped.repeated > 0) dropped.push(`${mapped.repeated} repeating a row above`);
   const fresh = counts.usable - counts.stored;
   const blocked = blocker(props);
-  const moreMapped = MORE_FIELDS.filter((f) => stash.mapping[f] !== null).length;
   return (
     <Layout title="Check the import" active="jobs">
       <div class="w-full">
@@ -231,26 +178,12 @@ export const JobImportPreviewPage: FC<ImportPreviewProps> = (props) => {
         <Card>
           <SectionTitle>Which column is which</SectionTitle>
           <form id="import-form" method="post" action={action} onsubmit={SUBMIT_ONCE}>
-            <div class="grid items-end gap-4 sm:grid-cols-2 xl:grid-cols-4">
-              {MAIN_FIELDS.map((field) => (
-                <MappingSelect field={field} stash={stash} columns={columns} />
-              ))}
-            </div>
-            <Disclosure summary="Country, arrangement, pay and closed rows" count={moreMapped} class="mt-4">
-              <div class="mt-3 grid items-end gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                {MORE_FIELDS.map((field) => (
-                  <MappingSelect field={field} stash={stash} columns={columns} />
-                ))}
-              </div>
-            </Disclosure>
+            <MappingFields mapping={stash.mapping} guessed={stash.guessed} rows={stash.rows} columns={columns} />
             <div class="mt-4 flex flex-wrap items-center gap-3">
               <Button variant="secondary" formaction={`${action}/mapping`}>
                 Update the preview
               </Button>
-              <Hint>
-                Columns about people are not offered: they are never read.
-                {columns.length >= MAX_COLUMNS ? ` Only the first ${MAX_COLUMNS} columns of this file are offered.` : ''}
-              </Hint>
+              <MappingNote columns={columns} />
             </div>
           </form>
         </Card>
@@ -258,18 +191,7 @@ export const JobImportPreviewPage: FC<ImportPreviewProps> = (props) => {
         {mapped.jobs.length > 0 && (
           <Card class="mt-6">
             <SectionTitle>The first rows as they would be stored</SectionTitle>
-            <ul class="divide-y divide-line">
-              {mapped.jobs.slice(0, 3).map((job) => (
-                <li class="py-3 first:pt-0 last:pb-0">
-                  <div class="text-label text-ink">{job.title}</div>
-                  <div class="text-note text-ink-muted">
-                    {[job.employer ?? 'company not named', job.location || 'no location', formatDateShort(job.postedAt)].join(' · ')}
-                  </div>
-                  <div class="break-all text-meta text-ink-faint">{job.url || 'no link'}</div>
-                  <p class="mt-1 text-note text-ink-muted">{excerpt(job.description)}</p>
-                </li>
-              ))}
-            </ul>
+            <MappedRowsList jobs={mapped.jobs} />
           </Card>
         )}
 

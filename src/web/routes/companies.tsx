@@ -39,6 +39,11 @@ import { roleLines, titleWordsOf, type TitleWords } from '../../watchlist/paste'
 import { listActiveProfiles } from '../../profiles';
 import { packOffers } from '../pack-offers';
 import { isBlankProfile } from '../../profile-guards';
+import { config } from '../../config';
+import { inboxRoots } from '../../datasets/folder-path';
+import { readSourceConfig } from '../../datasets/map';
+import { folderSummaries } from '../../jobs/source-file-store';
+import { underLauncher } from '../../local/child';
 
 const FLASH_TTL_SECONDS = 5;
 
@@ -173,10 +178,17 @@ companiesRoute.get('/companies', async (c) => {
   });
   const freshMap = new Map(freshCounts.map((r) => [r.companyId, r._count._all]));
 
+  const summaries = companies.some((c) => c.atsType === AtsType.FOLDER) ? await folderSummaries() : new Map();
+  const folders = companies
+    .filter((c) => c.atsType === AtsType.FOLDER)
+    .map((c) => ({ id: c.id, name: c.name, path: c.atsToken, active: c.active, include: readSourceConfig(c.sourceConfig)?.include ?? null, summary: summaries.get(c.id) }));
+
   const flash = parseFlashCookie(c.req.header('cookie'));
   return c.html(
     <CompaniesPage
       companies={rows}
+      folders={folders}
+      folderHost={{ launcher: underLauncher(), roots: inboxRoots(config.APPLYPACK_INBOX_ROOTS) }}
       watchlist={watchedRows(companies, freshMap, titleWordsOf((await listActiveProfiles()).filter((p) => !isBlankProfile(p))))}
       watchlistRun={activeWatchlistRun()}
       packs={packs}

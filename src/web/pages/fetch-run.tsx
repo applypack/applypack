@@ -10,7 +10,7 @@ function stepView({ classify, scope }: Pick<FetchRun, 'classify' | 'scope'>): Re
   return {
     fetch:
       typeof scope === 'object'
-        ? { label: `Check ${scope.name}`, detail: 'one request to its board or page — seconds' }
+        ? { label: `Check ${scope.name}`, detail: scope.folder ? 'its new and changed files, read off this computer — seconds' : 'one request to its board or page — seconds' }
         : scope === 'aggregators'
         ? {
             label: 'Ask the aggregators',

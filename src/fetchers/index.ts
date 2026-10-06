@@ -49,6 +49,11 @@ import { MAX_ADZUNA_ROWS, adzunaOverflowIds, fetchAdzuna } from './adzuna';
 import { fetchFranceTravail } from './francetravail';
 import { fetchFeed } from './feed';
 import { fetchCareerPage } from './career-page';
+import { fetchFolder } from './folder';
+import { currentFolderRules } from '../datasets/folder-io';
+import { loadLedger } from '../jobs/source-file-store';
+import { config } from '../config';
+import { underLauncher } from '../local/child';
 import { getSourceKeys } from '../settings';
 import { politeDelayMs, shuffleSources, tickSeed } from './source-order';
 import { dueCutoff, nextCheckAfter, watchRules, type WatchRules } from '../watchlist/interval';
@@ -309,6 +314,8 @@ export async function fetchOne(
     /** §17 stage C — read by CAREER_PAGE only. */
     lastContentHash?: string | null;
     lastContentAlertAt?: Date | null;
+    /** ADR 0062 — read by FOLDER only. */
+    sourceConfig?: unknown;
   },
   context: FetchContext = EMPTY_CONTEXT,
 ): Promise<NormalizedJob[]> {
@@ -406,5 +413,10 @@ export async function fetchOne(
       // Rows the user uploaded on /jobs/import (ADR 0062): stored then, and
       // the row is never active.
       return [];
+    case AtsType.FOLDER:
+      // A folder a tool writes into (ADR 0062): read from the disk, no
+      // request. What it learns about each file is staged in
+      // `folder-ledger.ts` and kept once the tick stored the jobs.
+      return fetchFolder(company, await loadLedger(company.id), await currentFolderRules(underLauncher(), config.APPLYPACK_INBOX_ROOTS));
   }
 }

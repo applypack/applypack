@@ -70,6 +70,10 @@ export const ConfigSchema = z.object({
   // The worker touches this file every minute and the container healthcheck
   // reads its age (heartbeat.ts). compose sets it; unset, nothing is written.
   HEARTBEAT_FILE: z.string().optional(),
+  // Folders a folder source may read, separated as PATH is (ADR 0062). On a
+  // server these are the only ones; `npm start` also reads a folder inside
+  // the home directory. Set by whoever runs the machine, never in the browser.
+  APPLYPACK_INBOX_ROOTS: z.string().default(''),
 });
 
 export type Config = z.infer<typeof ConfigSchema>;

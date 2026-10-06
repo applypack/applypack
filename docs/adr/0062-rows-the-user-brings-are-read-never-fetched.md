@@ -118,10 +118,9 @@ ask the question.
 - **The public count of sources does not move.** An import is not a kind of
   source ApplyPack reads from the web; `source-count.test.ts` lists it with
   the pasted job.
-- **Not built:** saved postings as files, a folder that is watched, any
-  account at another service, a URL of rows. Each is its own change, and a
-  connector to another service's data would have to amend ADR 0005 in an ADR
-  of its own.
+- **Not built:** saved postings as files, any account at another service, a
+  URL of rows. Each is its own change, and a connector to another service's
+  data would have to amend ADR 0005 in an ADR of its own.
 
 ## When to revisit
 
@@ -131,3 +130,88 @@ ask the question.
   preview: then the guess goes and the select stays.
 - Rows start arriving from anything other than the user's own hand, at which
   point rule 1 needs a decision of its own.
+
+## Addendum (2026-10-05): a folder a tool writes into (v2.47.0)
+
+The second way in for the same rows: instead of uploading each export, the
+user names a folder that a tool of theirs writes files into, and the tick
+reads what is new. Everything above holds; this adds what a folder needs.
+
+**The model.** `AtsType.FOLDER`: the token is the folder's real absolute
+path, `sourceConfig` is `{ mapping, include }` (the mapping of the file
+import, and an optional name filter such as `jobs-*.json`). Unlike an
+import it is a source the tick reads, so it has a switch, an interval and a
+health row like any other; `bringsRows` keeps its rows on the aggregator's
+employer semantics. The ledger is `source_file`: one row per file of rows
+the folder's looks have seen, removed with its source.
+
+**Which folders.** Adding a folder turns its files into postings shown in
+the dashboard, so the form is a way to read files for whoever can reach the
+dashboard. `datasets/folder-path.ts` bounds it, on real paths:
+
+- Under the launcher (`npm start`: one user, loopback) a folder inside the
+  home directory, except a hidden one, the system's own (`Library`,
+  `AppData`), and the install's data folder or anything that holds it.
+- Anywhere else only a folder inside a root named in `APPLYPACK_INBOX_ROOTS`,
+  which whoever runs the machine sets in the environment, never in the
+  browser. In Docker that is one read-only mount into both services.
+- The rules are asked again on every look, not only when the row is added.
+- The path is typed. A browser cannot hand a server a folder, and the form
+  does not pretend it can.
+
+**A look** (`datasets/folder-scan.ts`, pure; `fetchers/folder.ts`):
+
+- Files of rows are known by their names (`.json`, `.jsonl`, `.ndjson`,
+  `.csv`, `.tsv`), three folders deep; dotfiles and links are passed over.
+- A file is read once. One whose size or time changed is read again. One
+  changed in the last ten seconds, or that moves while it is read, waits for
+  the next look: it is still being written.
+- A copy or a rename of a file already read (the same SHA-256) brings
+  nothing and is set aside by name.
+- Ceilings: 20 files and 5 000 rows a look, 5 MB a file, and a folder of
+  more than 20 000 entries is refused whole.
+- A file where fewer than half the rows read as a job no longer fits the
+  mapping: none of it is handed over, and it is not read again until it
+  changes or the mapping is saved again. When every file a look reads
+  misfits, the look fails as `bad_payload`, which is how a tool that changed
+  its output shows on the source's row.
+
+**The ledger advances only after the jobs are stored.** The fetcher never
+touches the database. It stages what the look learned
+(`fetchers/folder-ledger.ts`), and `runFetchJob` writes it
+(`jobs/source-file-store.ts`) under the rule `conditional.ts` keeps for
+validators: only when `tickStoredEverything()` agrees. A tick that was
+paused mid-run, or lost a classification, drops the staged look; the next
+one reads the same files again, and rows already stored are duplicates that
+cost nothing.
+
+**ApplyPack never writes into the folder.** No "processed" subfolder, no
+rename, no delete. `datasets/folder-io.ts` is the one module that touches
+such a folder, it opens files for reading only and without following a
+link, a file's real path must lie beneath the folder's, and a test holds
+the module to that call by call. The one folder ApplyPack creates is an
+empty `~/ApplyPack/inbox`, on a local install, when the user presses the
+button for it.
+
+**What the user sees.** Check reads the folder and shows what a first look
+would do, with no AI spent and nothing stored; Add stores the row switched
+off. The row says "214 files · 3 new at the last check" and opens a list
+that says, file by file, what became of it. A read the system refuses is
+explained in words: on macOS it is usually the privacy guard over Desktop,
+Documents and Downloads, which is why the offered default is a folder
+directly in the home directory.
+
+Consequences added:
+
+- **A folder with nothing new is not a quiet source.** It never ages into
+  "silent": no new file is the user not having put one there. A folder that
+  is gone, refused, or whose files stopped fitting shows as failing, in a
+  folder's words.
+- **One folder, one mapping.** Two tools that name their columns
+  differently want two folders, or a name filter and two sources.
+- **The hourly check is the pace.** A file that lands a minute after the
+  tick waits for the next one, or for "Check now" on its row. Watching the
+  folder for changes as they happen is not built.
+- **Still not built:** postings saved one a file (`.html`, `.pdf`, `.txt`,
+  `.md`, `.docx`), the instant watch, and the "from your folder" line on an
+  alert.

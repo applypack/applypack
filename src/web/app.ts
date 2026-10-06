@@ -17,6 +17,7 @@ import { overviewRoute } from './routes/overview';
 import { jobsRoute } from './routes/jobs';
 import { jobsImportRoute } from './routes/jobs-import';
 import { companiesRoute } from './routes/companies';
+import { foldersRoute } from './routes/folders';
 import { watchlistRoute } from './routes/watchlist';
 import { runsRoute } from './routes/runs';
 import { aiUsageRoute } from './routes/ai-usage';
@@ -168,6 +169,8 @@ app.route('/', targetRoute);
 app.route('/', letterRoute);
 app.route('/', factsRoute);
 app.route('/', keywordsRoute);
+// Before the company routes: `/companies/folder` is not a company's id.
+app.route('/', foldersRoute);
 app.route('/', watchlistRoute);
 app.route('/', companiesRoute);
 app.route('/', discoveryRoute);
