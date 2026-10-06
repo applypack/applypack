@@ -6,7 +6,12 @@ import {
   MAX_FILES_PER_LOOK,
   MAX_FILE_BYTES,
   SETTLE_MS,
+  guessHolds,
   includeMatcher,
+  kindsFor,
+  maxBytesOf,
+  postingFileKind,
+  tooLargeNote,
   judgeFile,
   newestIsMisfit,
   planScan,
@@ -270,5 +275,31 @@ describe('unreadChange', () => {
   it('records a file the plan did not read: one that waits, one too large', () => {
     assert.deepEqual(unreadChange(file('a.csv'), 'fresh'), { ...file('a.csv'), kind: 'csv', sha256: null, status: 'waiting', detail: FILE_NOTES.fresh, jobCount: 0 });
     assert.equal(unreadChange(file('a.csv'), 'tooLarge').status, 'skipped');
+  });
+});
+
+describe('saved postings in a folder', () => {
+  it('knows a saved posting by its extension, and keeps the kinds of a folder apart', () => {
+    assert.deepEqual(['a.html', 'a.HTM', 'b.txt', 'c.md', 'c.markdown', 'd.pdf', 'e.docx'].map(postingFileKind), ['html', 'html', 'txt', 'md', 'md', 'pdf', 'docx']);
+    for (const name of ['a.json', 'a.doc', 'a.png', 'a.eml', '.html']) assert.equal(postingFileKind(name), null, name);
+    assert.equal(kindsFor('postings')('a.json'), null);
+    assert.equal(kindsFor('rows')('a.html'), null);
+  });
+
+  it('reads each kind up to its own size, and says so in the list', () => {
+    assert.equal(maxBytesOf('json'), MAX_FILE_BYTES);
+    assert.ok(maxBytesOf('html') < maxBytesOf('json') && maxBytesOf('json') < maxBytesOf('pdf'));
+    assert.match(tooLargeNote('pdf'), /10 MB, which is more than a document/);
+    const page = file('big.html', 10 * MINUTE, maxBytesOf('html') + 1);
+    const plan = planScan([page, file('ok.pdf', 10 * MINUTE, maxBytesOf('html') + 1)], [], NOW, undefined, postingFileKind);
+    assert.deepEqual([names(plan.tooLarge), names(plan.read)], [['big.html'], ['ok.pdf']]);
+    assert.equal(unreadChange(page, 'tooLarge', postingFileKind).detail, tooLargeNote('html'));
+  });
+
+  it('guesses what a folder holds from its files, an empty one being for saved postings', () => {
+    assert.equal(guessHolds([file('a.json'), file('b.csv'), file('c.html')]), 'rows');
+    assert.equal(guessHolds([file('a.json'), file('c.html'), file('d.pdf')]), 'postings');
+    assert.equal(guessHolds([]), 'postings');
+    assert.equal(guessHolds([file('a.json'), file('c.html'), file('d.pdf')], includeMatcher('*.json')), 'rows');
   });
 });

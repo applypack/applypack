@@ -43,6 +43,8 @@ export interface FetchResult {
   source?: { atsType: string; atsToken: string };
   /** What the watchlist asks of this row (ADR 0036). Absent = the normal pipeline. */
   watch?: WatchRules;
+  /** The source's alerts are off (a folder set so, ADR 0062): a match is kept and shown, and sends nothing. */
+  quiet?: boolean;
 }
 
 /** A fetched row plus its parsed location and whose it is — read once, used by the gates and the insert. */
@@ -80,6 +82,8 @@ export interface ProcessStats {
   alertsOffHeld: number;
   /** Matches with no active chat to send them to; they stay New on the dashboard. */
   alertNoTarget: number;
+  /** Matches from a source whose alerts are off (ADR 0062): kept on /jobs, never sent. */
+  alertSourceOff: number;
   /** Postings kept because a watched company alerts on everything (ADR 0036). */
   watchedKept: number;
   /** Stored as a match after scoring — kept by a search, or by a watched company's policy. */
@@ -120,6 +124,7 @@ export function emptyProcessStats(): ProcessStats {
     alertHeld: 0,
     alertsOffHeld: 0,
     alertNoTarget: 0,
+    alertSourceOff: 0,
     watchedKept: 0,
     matched: 0,
     rejectedTitle: 0,
@@ -229,14 +234,17 @@ export async function processNormalizedJobs(
     // to SEE what appears there, so the roster's gate does not apply to it.
     // The posting is still classified below — the policy decides what is done
     // with the verdict, not whether one is formed (ADR 0036).
-    const rejected = alertsEveryPosting(item.watch)
+    // A posting the user saved themselves is taken as a paste is (ADR 0062):
+    // they chose it, so no search's filter and no employer rule turns it away.
+    const chosen = item.job.handPicked === true;
+    const rejected = chosen || alertsEveryPosting(item.watch)
       ? null
       : anyBaseFilterReason({ ...item.job, ...place }, classify ? profiles : activeProfiles);
     // Who hires, before any AI: a muted company, or one applied to inside the
     // re-apply window, is turned away like a filter reject — no row, no call.
     // Reversible: after an unmute the next tick meets the posting as new.
     const employerKey = hiringKey(item.job.employer, item.companyName, item.job.employer !== undefined);
-    const turnedAway = rejected ?? employerGate(employerKey, employers, alertsEveryPosting(item.watch));
+    const turnedAway = rejected ?? (chosen ? null : employerGate(employerKey, employers, alertsEveryPosting(item.watch)));
     if (turnedAway !== null) {
       stats.filterRejected++;
       stats[FILTER_KEY[turnedAway]]++;
@@ -359,7 +367,10 @@ export async function processNormalizedJobs(
     const kept = merged.kept || keptByPolicy;
 
     if (!kept) {
-      const stored = await persistJob(placed, finalClassification, JobStatus.DISMISSED, winner.priorityRulesApplied, batch, {
+      // A posting the user saved is theirs to keep whatever the score says: Saved, as a paste is,
+      // with the verdicts that explain it — never Dismissed, which is deleted after a month.
+      const status = job.handPicked === true ? JobStatus.SAVED : JobStatus.DISMISSED;
+      const stored = await persistJob(placed, finalClassification, status, winner.priorityRulesApplied, batch, {
         verdicts,
       });
       if (stored) {
@@ -386,7 +397,7 @@ export async function processNormalizedJobs(
     // DATA-3).
     const skipsAlert =
       finalClassification.red_flags.includes(NO_PROFILE_STACK_FLAG) && !alertsEveryPosting(item.watch);
-    const holds = !skipsAlert && channel !== 'no-targets' && (!mayAlert || channel === 'alerts-off');
+    const holds = !skipsAlert && item.quiet !== true && channel !== 'no-targets' && (!mayAlert || channel === 'alerts-off');
     const alertHeldAt = holds ? new Date() : null;
     const stored = await persistJob(placed, finalClassification, JobStatus.NEW, winner.priorityRulesApplied, batch, {
       verdicts,
@@ -422,6 +433,12 @@ export async function processNormalizedJobs(
     // score — it says a company the user chose has put something up.
     if (skipsAlert) continue;
 
+    // The source's own alerts are off: the match is on /jobs with its score, and nothing is sent or held.
+    if (item.quiet === true) {
+      stats.alertSourceOff++;
+      continue;
+    }
+
     // No chat to send to: the row stays NEW on the dashboard, which is where
     // an install without notifications reads its matches. Nothing is held,
     // so adding a chat later does not replay the backlog.
@@ -447,7 +464,11 @@ export async function processNormalizedJobs(
           title: created.title,
           companyName: starred(job.employer ?? companyName, item.watch),
           watched: item.watch?.watched === true,
-          attribution: item.source ? attributionLine(item.source.atsType, item.source.atsToken) : null,
+          attribution: job.sourceFile
+            ? `From your folder: ${companyName} / ${job.sourceFile}`
+            : item.source
+              ? attributionLine(item.source.atsType, item.source.atsToken)
+              : null,
           location: created.location,
           countries: created.countries,
           workplace: created.workplace,
@@ -612,6 +633,7 @@ async function persistJob(
         ...(summary !== null && c === null && { summary }),
         employer: job.employer ?? null,
         employerKey,
+        sourceFile: job.sourceFile ?? null,
         alertHeldAt,
         // Every search's verdict, written with the row it belongs to — a
         // second statement could leave a scored Job with no JobScore.

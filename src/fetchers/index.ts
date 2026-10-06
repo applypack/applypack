@@ -50,6 +50,7 @@ import { fetchFranceTravail } from './francetravail';
 import { fetchFeed } from './feed';
 import { fetchCareerPage } from './career-page';
 import { fetchFolder } from './folder';
+import { readSourceConfig } from '../datasets/map';
 import { currentFolderRules } from '../datasets/folder-io';
 import { loadLedger } from '../jobs/source-file-store';
 import { config } from '../config';
@@ -68,6 +69,8 @@ export interface FetcherResult {
   source: { atsType: AtsType; atsToken: string };
   /** What the watchlist asks of this row's postings (ADR 0036). */
   watch: WatchRules;
+  /** The source's alerts are off (ADR 0062). */
+  quiet?: boolean;
 }
 
 /** One source answered — live progress for the dashboard's "Fetch now" page. */
@@ -158,7 +161,7 @@ export async function runAllFetchers(
   }
   // The keyed sources' credentials ride in the context (ADR 0034); the
   // context is never logged whole from here on.
-  const context: FetchContext = { ...places, keys: await getSourceKeys(), manual: opts.manual === true, now };
+  const context: FetchContext = { ...places, keys: await getSourceKeys(), manual: opts.manual === true, now, scoring: settings.fetchingEnabled };
   // Adzuna's monthly limit allows ten rows on the four-a-day cadence; any
   // beyond that are refused, not silently fetched (ADR 0034). The ids come
   // from their own query over the FULL active list, not from this tick's due
@@ -202,8 +205,10 @@ export async function runAllFetchers(
         'fetcher: ok',
       );
       const watch = watchRules(company);
+      // A folder whose alerts are off keeps its matches on /jobs and sends nothing (ADR 0062).
+      const quiet = company.atsType === AtsType.FOLDER && readSourceConfig(company.sourceConfig)?.alerts === 'off';
       for (const job of jobs) {
-        out.push({ job, companyName: company.name, source: { atsType: company.atsType, atsToken: company.atsToken }, watch });
+        out.push({ job, companyName: company.name, source: { atsType: company.atsType, atsToken: company.atsToken }, watch, ...(quiet && { quiet }) });
       }
     } catch (err) {
       status = classifyFetchError(err);
@@ -417,6 +422,9 @@ export async function fetchOne(
       // A folder a tool writes into (ADR 0062): read from the disk, no
       // request. What it learns about each file is staged in
       // `folder-ledger.ts` and kept once the tick stored the jobs.
-      return fetchFolder(company, await loadLedger(company.id), await currentFolderRules(underLauncher(), config.APPLYPACK_INBOX_ROOTS));
+      return fetchFolder(company, await loadLedger(company.id), await currentFolderRules(underLauncher(), config.APPLYPACK_INBOX_ROOTS), {
+        now: context.now,
+        scoring: context.scoring !== false,
+      });
   }
 }

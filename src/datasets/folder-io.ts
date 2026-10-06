@@ -123,7 +123,7 @@ export async function listFolder(root: string): Promise<ListedFile[]> {
  * link, must really lie beneath the folder, and is measured before and after
  * the read: a file that moved meanwhile is still being written.
  */
-export async function readFolderFile(root: string, relPath: string): Promise<FileRead> {
+export async function readFolderFile(root: string, relPath: string, maxBytes: number = MAX_FILE_BYTES): Promise<FileRead> {
   const file = path.join(root, ...relPath.split('/'));
   let handle: fs.FileHandle | undefined;
   try {
@@ -136,7 +136,7 @@ export async function readFolderFile(root: string, relPath: string): Promise<Fil
     // The file opened is the one the real path named a moment ago, not something swapped in between.
     const named = await fs.lstat(real).catch(() => null);
     if (!named || named.ino !== before.ino || named.dev !== before.dev) return { ok: false, why: 'outside' };
-    if (before.size > MAX_FILE_BYTES) return { ok: false, why: 'too-large' };
+    if (before.size > maxBytes) return { ok: false, why: 'too-large' };
     // Exactly the bytes it had: a file still being appended to is not read to its moving end.
     const bytes = Buffer.alloc(before.size);
     const { bytesRead } = await handle.read(bytes, 0, before.size, 0);

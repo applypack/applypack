@@ -13,7 +13,7 @@ import { cleanEmployer } from '../employer';
 import { decodeHtmlEntities, stripHtml } from '../http';
 import { isBlockedPostingHost } from '../jobs/blocked-hosts';
 import { workplaceFromText, type LocationHints, type WorkplaceCode } from '../location';
-import { feedItemKey, hashShortId } from '../text-utils';
+import { clipText, feedItemKey, hashShortId, storableText } from '../text-utils';
 import type { NormalizedJob } from '../types';
 import { safeHref } from '../web/format';
 import { MAX_COLUMNS, isRow, type Row } from './rows';
@@ -59,15 +59,27 @@ export const MappingSchema = z.object(
 /** The name filter of a folder source (`jobs-*.json`); longer than this is not a file name pattern. */
 export const MAX_INCLUDE_CHARS = 200;
 
-/**
- * `Company.sourceConfig` of a source whose rows the user brings: the mapping
- * they confirmed and, for a folder, the name filter of the files that count
- * (folder-scan.ts:includeMatcher). An imported file has no filter.
- */
-const SourceConfigSchema = z.object({
-  mapping: MappingSchema,
+/** Whether a folder's matches send an alert (ADR 0062): as every source does, or never — they still land on /jobs. */
+export const FOLDER_ALERTS = ['matches', 'off'] as const;
+export type FolderAlerts = (typeof FOLDER_ALERTS)[number];
+
+const sharedConfig = {
   include: z.string().max(MAX_INCLUDE_CHARS).nullable().default(null),
-});
+  alerts: z.enum(FOLDER_ALERTS).default('matches'),
+};
+
+/**
+ * `Company.sourceConfig` of a source the user brings. Rows (an imported file,
+ * a folder a tool writes into): the mapping they confirmed. Saved postings (a
+ * folder the user saves pages into): no mapping — a file is one posting. For
+ * a folder, the name filter of the files that count
+ * (folder-scan.ts:includeMatcher) and whether its matches alert. A config
+ * stored before `holds` existed reads as rows.
+ */
+const SourceConfigSchema = z.union([
+  z.object({ holds: z.literal('postings'), mapping: z.null().default(null), ...sharedConfig }),
+  z.object({ holds: z.literal('rows').default('rows'), mapping: MappingSchema, ...sharedConfig }),
+]);
 
 export type SourceConfig = z.infer<typeof SourceConfigSchema>;
 
@@ -206,29 +218,11 @@ function valueAt(row: Row, path: string): unknown {
   return value;
 }
 
-/** Control characters a posting never means: a NUL above all, which Postgres refuses in a text column. Tab and line breaks stay. */
-const CONTROL_RE = /[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g;
-
-/** Half of a surrogate pair on its own: not a character. */
-const LONE_SURROGATE_RE = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g;
-
-/** Text a database can hold: no control characters, no half of a surrogate pair. */
-function clean(text: string): string {
-  return text.replace(CONTROL_RE, '').replace(LONE_SURROGATE_RE, '');
-}
-
-/** A cap that does not leave half a character behind. */
-function clip(text: string, max: number): string {
-  if (text.length <= max) return text;
-  const last = text.charCodeAt(max - 1);
-  return text.slice(0, last >= 0xd800 && last <= 0xdbff ? max - 1 : max);
-}
-
 /** A cell as text: a string cleaned and trimmed, a number or a boolean written out, a list of those joined. Anything else is nothing. */
 function cellText(value: unknown): string {
-  if (typeof value === 'string') return clean(value).trim();
+  if (typeof value === 'string') return storableText(value).trim();
   if (typeof value === 'number' || typeof value === 'boolean') return String(value);
-  if (Array.isArray(value)) return clean(value.filter((v) => typeof v === 'string' || typeof v === 'number').join(', ')).trim();
+  if (Array.isArray(value)) return storableText(value.filter((v) => typeof v === 'string' || typeof v === 'number').join(', ')).trim();
   return '';
 }
 
@@ -285,7 +279,7 @@ function readDescription(value: unknown): string {
   // Stripped once and only when it is markup: a second pass over plain text
   // flattens the paragraphs the first one built (gotcha 12).
   const text = MARKUP_RE.test(clipped) ? stripHtml(clipped) : decodeHtmlEntities(clipped);
-  return clip(clean(text).trim(), MAX_DESCRIPTION_CHARS).trim();
+  return clipText(storableText(text).trim(), MAX_DESCRIPTION_CHARS).trim();
 }
 
 function readCountry(value: unknown): string | null {
@@ -353,7 +347,7 @@ function salaryLine(at: (field: MappingField) => unknown): string | null {
   const min = first(pick('salaryMin', PAY_MIN_KEYS), amount);
   const max = first(pick('salaryMax', PAY_MAX_KEYS), amount);
   if (min === null && max === null) {
-    const text = clip(oneLine(nested ? cellText(inner(nested, PAY_TEXT_KEYS)) : cellText(pay)), MAX_PAY_CHARS).replace(/[.\s]+$/, '');
+    const text = clipText(oneLine(nested ? cellText(inner(nested, PAY_TEXT_KEYS)) : cellText(pay)), MAX_PAY_CHARS).replace(/[.\s]+$/, '');
     return text.length > 0 ? `Salary: ${text}.` : null;
   }
   const currency = first(pick('salaryCurrency', PAY_CURRENCY_KEYS), (v) => (/^[A-Za-z]{3}$/.test(cellText(v)) ? cellText(v).toUpperCase() : null));
@@ -512,7 +506,7 @@ export type MappedRow = { job: NormalizedJob; thin: boolean } | { dropped: DropR
 export function mapRow(row: Row, mapping: Mapping, companyId: number, now: Date): MappedRow {
   const at = (field: MappingField): unknown => (mapping[field] === null ? undefined : valueAt(row, mapping[field]));
   if (isTrue(at('closed'))) return { dropped: 'closed' };
-  const title = clip(oneLine(cellText(at('title'))), MAX_TITLE_CHARS).trim();
+  const title = clipText(oneLine(cellText(at('title'))), MAX_TITLE_CHARS).trim();
   if (title.length === 0) return { dropped: 'no-title' };
   const listing = httpLink(at('url'));
   const apply = httpLink(at('applyUrl'));
@@ -542,7 +536,7 @@ export function mapRow(row: Row, mapping: Mapping, companyId: number, now: Date)
       // The apply link when the row has one on a host of its own; a link back
       // into a listing site is the listing, so the listing link stands.
       url: apply !== null && !isBlockedPostingHost(new URL(apply).hostname) ? apply : (listing ?? apply ?? ''),
-      location: clip(location, MAX_LOCATION_CHARS).trim(),
+      location: clipText(location, MAX_LOCATION_CHARS).trim(),
       description: [salaryLine(at), body, note].filter((part) => part !== null && part.length > 0).join('\n\n'),
       postedAt: readDate(at('postedAt'), now) ?? now,
       employer: readEmployer(at('employer')),

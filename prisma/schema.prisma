@@ -223,6 +223,9 @@ model Job {
   // re-apply window match on it.
   employer               String?
   employerKey            String?
+  // The file inside a folder source this job came from (ADR 0062), as the
+  // ledger names it; NULL for every other source.
+  sourceFile             String?
   title                  String
   url                    String
   location               String
