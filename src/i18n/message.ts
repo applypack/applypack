@@ -136,6 +136,9 @@ export function parseMessage(source: string): MessageNode[] {
           pos += name.length + 3;
           out.push({ kind: 'tag', name, children });
         } else {
+          // A letter after < that is not a tag of ours is a mistake a translator would never see
+          // on the page; "salary < 100k" (no letter) stays text, and '<' quotes a literal one.
+          if (/^<\/?[A-Za-z]/.test(rest)) fail('a tag is <name>…</name> or <name/>, lower case and without attributes');
           // "salary < 100k": not a tag, so not markup.
           text += ch;
           pos++;
@@ -170,7 +173,8 @@ export function parseMessage(source: string): MessageNode[] {
     }
     if (type !== 'plural' && type !== 'select') return fail(`unknown argument type "${type}"`);
     expect(',');
-    const cases: Cases = {};
+    // No prototype: a selector is looked up with a value from outside (a status, a file kind).
+    const cases: Cases = Object.create(null);
     for (;;) {
       skipSpace();
       if (source[pos] === '}') break;
@@ -189,6 +193,11 @@ export function parseMessage(source: string): MessageNode[] {
   }
 
   return nodes({ brace: false, tag: null }, null);
+}
+
+/** A branch by its selector, never one an object inherits (`constructor`, `__proto__` …). */
+function ownCase(cases: Cases, key: string): MessageNode[] | undefined {
+  return Object.hasOwn(cases, key) ? cases[key] : undefined;
 }
 
 const pluralRules = new Map<string, Intl.PluralRules>();
@@ -227,7 +236,8 @@ export function formatMessage(nodes: readonly MessageNode[], params: MessagePara
       out.push({ tag: node.name, children: formatMessage(node.children, params, tag) });
       continue;
     }
-    const value = params[node.name];
+    // Own properties only: an argument named `toString` that nobody passed stays in sight as `{toString}`.
+    const value = Object.hasOwn(params, node.name) ? params[node.name] : undefined;
     if (value === undefined) {
       push(`{${node.name}}`);
     } else if (node.kind === 'arg') {
@@ -237,8 +247,8 @@ export function formatMessage(nodes: readonly MessageNode[], params: MessagePara
     } else {
       const branch =
         node.kind === 'plural'
-          ? (node.cases[`=${value}`] ?? node.cases[pluralCategory(tag, Number(value))])
-          : node.cases[String(value)];
+          ? (ownCase(node.cases, `=${value}`) ?? ownCase(node.cases, pluralCategory(tag, Number(value))))
+          : ownCase(node.cases, String(value));
       for (const part of formatMessage(branch ?? node.cases.other ?? [], params, tag)) {
         if (typeof part === 'string') push(part);
         else out.push(part);

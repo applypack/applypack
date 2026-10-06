@@ -70,6 +70,11 @@ describe('matchAcceptLanguage', () => {
 
   it('ignores the region and the case', () => {
     assert.equal(matchAcceptLanguage('UK-ua', among), 'uk');
+    assert.equal(matchAcceptLanguage('uk_UA', among), 'uk');
+  });
+
+  it('reads a weight whatever case its name is written in (#368)', () => {
+    assert.equal(matchAcceptLanguage('uk;Q=0.1, en;q=0.5', among), 'en');
   });
 
   it('has nothing to say for a header that names none of them, or for none at all', () => {
