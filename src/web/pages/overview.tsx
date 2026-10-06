@@ -27,6 +27,8 @@ import type { FlashMessage } from '../flash';
 import type { FetchRun } from '../fetch-runs';
 import type { HeldLine } from '../held-line';
 import type { NextThing } from '../next-things';
+import { jobHref } from '../job-tabs';
+import type { ReadyPack } from '../../pack/store';
 import { KPI_STATUSES, overviewHref, type KpiStatus } from '../overview-numbers';
 import type { OverviewStats } from '../overview-stats';
 import { placeLine } from '../place-line';
@@ -97,6 +99,8 @@ export interface OverviewProps {
   finishSetup: boolean;
   /** TASKS N11: open a match → compare → tailor, until the first comparison; null hides the card. */
   next: NextThing[] | null;
+  /** Application packs prepared and not yet sent (ADR 0063); empty on an install that never asked for one. */
+  readyPacks: ReadyPack[];
   flash?: FlashMessage | null;
 }
 
@@ -127,6 +131,7 @@ export const OverviewPage: FC<OverviewProps> = ({
   fetchRun,
   finishSetup,
   next,
+  readyPacks,
   flash,
 }) => {
   const byStatus = mapCounts(counts);
@@ -231,6 +236,7 @@ export const OverviewPage: FC<OverviewProps> = ({
       </p>
 
       {next && <NextThingsCard steps={next} />}
+      {readyPacks.length > 0 && <ReadyPacksCard packs={readyPacks} />}
 
       <div class="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(18rem,27%)]">
         <div class="min-w-0 space-y-4">
@@ -490,6 +496,26 @@ export function runLabel(status: CronRunStatus): string {
 }
 
 /** The loop the product is for, in three steps, until the user has walked it once (TASKS N11). */
+/** What the worker prepared while nobody watched: read the edits, download the file, apply. */
+const ReadyPacksCard: FC<{ packs: ReadyPack[] }> = ({ packs }) => (
+  <Card class="mb-4">
+    <SectionTitle>Ready to send ({packs.length})</SectionTitle>
+    <ul class="mt-2 divide-y divide-line">
+      {packs.map((p) => (
+        <li class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 py-2">
+          <a href={jobHref(p.jobId, 'pack')} class={`min-w-0 ${QUIET_LINK}`}>
+            {p.title} — {p.company}
+          </a>
+          <span class="text-meta tabular-nums text-ink-faint">
+            {p.scoreBefore !== null && `match ${p.scoreBefore}${p.scoreAfter !== null && p.scoreAfter !== p.scoreBefore ? ` → ${p.scoreAfter}` : ''} · `}
+            prepared <When at={p.finishedAt} />
+          </span>
+        </li>
+      ))}
+    </ul>
+  </Card>
+);
+
 const NextThingsCard: FC<{ steps: NextThing[] }> = ({ steps }) => (
   <Card class="mb-4">
     <SectionTitle>{t('overview.nextThreeThings')}</SectionTitle>

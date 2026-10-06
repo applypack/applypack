@@ -32,8 +32,7 @@ import {
   type MatchKeyword,
 } from '../../resume/prompts';
 import { freshFrame, freshFrameNotice } from '../../resume/keyword-frame';
-import { proposalOf, suggestionSheet, type Proposal } from '../../resume/change-sheet';
-import { hashShortId } from '../../text-utils';
+import { proposalOf, suggestionKey, suggestionSheet, type Proposal } from '../../resume/change-sheet';
 import { readMatchEvidence, readMatchMode, type MatchMode } from '../../resume/match-mode';
 import { verificationCautions, verificationHint, type VerificationForHint, type VerificationHint } from '../../resume/verification-hint';
 import type { CountedKeyword } from '../../resume/keyword-matcher';
@@ -768,7 +767,7 @@ const SuggestionCard: FC<{
 }> = ({ item, badge, proposal, interactive, removal = false, badgeWidth = 'w-16', rewrite }) => {
   const copyable = proposal?.text ?? item.quote ?? item.what;
   // Stable across re-runs of the same comparison, so applied/skipped marks survive a reload.
-  const key = hashShortId(`${item.section}|${item.where}|${item.quote ?? ''}`);
+  const key = suggestionKey(item);
   // A change applies over its quote; an addition applies after its anchor line.
   // The edit box is the one carrier of that target — Apply reads it from there.
   const target = item.quote ? { 'data-quote': item.quote } : item.insert_after ? { 'data-anchor': item.insert_after } : null;

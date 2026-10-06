@@ -164,6 +164,7 @@ export const TargetPage: FC<TargetPageProps> = ({
       ? { alignment: breakdown.alignment, redFlagCount: match.redFlags.length, penalty: breakdown.penalty }
       : null,
     // Heads "Copy my changes"; the suggestion sheet is rendered server-side.
+    // The title also keeps the posting's own title off the skills lines (skillGaps).
     sheet: { jobTitle: job.title, companyName: job.companyName, resumeName: resume.name },
     // The document pane draws the draft through POST /resumes/:id/document.
     resumeId: resume.id,

@@ -24,6 +24,7 @@ const STEPS = [
   'review',
   'score',
   'compare',
+  'import',
 ] as const satisfies readonly RunStep[];
 
 /** The engine × model behind the steps: reading the resume and analysing it are two tasks, and may be two engines (ADR 0060). */
@@ -119,7 +120,15 @@ export const TargetRunPage: FC<{ run: TargetRun; lanes: RunLanes }> = ({ run, la
               />
               <div class="mt-5 flex items-center justify-between gap-3 border-t border-line pt-3">
                 <Hint>
-                  {t(run.backUrl.startsWith('/screen') ? 'target.run.closeScreening' : run.heading ? 'target.run.closeSetup' : 'target.run.closeJob')}
+                  {t(
+                    run.backUrl.startsWith('/screen')
+                      ? 'target.run.closeScreening'
+                      : run.backUrl.startsWith('/jobs/import')
+                        ? 'target.run.closeImport'
+                        : run.heading
+                          ? 'target.run.closeSetup'
+                          : 'target.run.closeJob',
+                  )}
                 </Hint>
                 <span id="run-elapsed" class="shrink-0 text-meta tabular-nums text-ink-faint">
                   {elapsed}s

@@ -25,6 +25,13 @@ export interface NormalizedJob {
    * is the key, or nobody is (employer.ts:hiringKey).
    */
   employer?: string | null;
+  /** The file inside a folder source the row came from (ADR 0062): kept on the job, named on its page and in its alert. */
+  sourceFile?: string;
+  /**
+   * A posting the user saved themselves (ADR 0062): treated as a paste, so no
+   * search's base filter and no employer gate turns it away — they chose it.
+   */
+  handPicked?: boolean;
 }
 
 export interface ClaudeClassification {

@@ -29,7 +29,7 @@ port.
 
 See [ARCHITECTURE.md](./ARCHITECTURE.md) for diagrams.
 
-## Sources (33 kinds of source, the change watch, and MANUAL)
+## Sources (33 kinds of source, the change watch, the rows you bring, and MANUAL)
 
 | AtsType            | Shape         | Auth      | Notes                                           |
 | ------------------ | ------------- | --------- | ----------------------------------------------- |
@@ -48,6 +48,8 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for diagrams.
 | FEED               | per-company   | none      | A generic RSS / Atom job feed; the atsToken IS the feed URL, re-checked through the posting-URL guards on every tick. The rung below the vendor types — `watchlist/resolve.ts` only reaches it when no board resolves (ADR 0036) |
 | CAREER_PAGE        | per-company   | none      | A careers page with nothing machine-readable on it; the atsToken is the page URL. **Never yields a job** — it hashes the page's text and reports that it changed (ADR 0036) |
 | BROWSER_PAGE       | per-company   | none      | A careers page that draws its jobs in the browser (a loading shell: no board, no feed, almost no text); the atsToken is the page URL. **Never fetched** — the row is watched and inactive, and the user pastes the page's text to see what is new (TASKS N8) |
+| FOLDER             | your folder   | none      | A folder on this computer that a tool writes files of rows into (`.json`, `.jsonl`, `.csv`, `.tsv`), or that the user saves postings into (`.html`, `.pdf`, `.docx`, `.txt`, `.md`, one a file); the atsToken is its absolute path, `sourceConfig` keeps what it holds, the name filter, the alerts and, for rows, the column mapping; `source_file` is the ledger of what was read. Read on the tick with **no request**: a new or changed file is read once, a file still being written waits, and nothing in the folder is ever written, moved or deleted. Rows carry many employers, each named on its row (ADR 0062) |
+| IMPORT             | your file     | none      | Rows the user uploads on `/jobs/import` — a JSON array, JSON Lines, CSV or TSV; the atsToken is the source's name as a slug and `sourceConfig` keeps the column mapping the user confirmed. **Never fetched** and never active: the rows go through `processNormalizedJobs` once, at the import, and carry many employers, each named on its row (ADR 0062) |
 | LARAJOBS_RSS       | aggregator    | none      | Single RSS, all jobs under one synthetic Company |
 | REMOTEOK           | aggregator    | none      | First array element is meta (`legal:`) — dropped via `slice(1)` |
 | REMOTIVE           | aggregator    | none      | `?category=software-dev`                        |
@@ -217,6 +219,7 @@ match and a recap at 09:00: the behaviour before v1.47.0.
 | `0 3 * * 0` | cleanup            | Delete DISMISSED jobs older than 30 days (never one with a pipeline stage), screenings past `retainUntil`, finished run rows older than 90 days and AI ledger rows older than 400 days |
 | `mm 4 * * 0` | discovery         | Re-probe the pending Greenhouse, Lever and Ashby CompanyCandidates |
 | `mm 6 1 * *` | hn-hiring         | Pull latest HN Who-is-hiring + extract candidates |
+| `* * * * *`  | pack               | Prepare the queued application packs one at a time and send one message for the finished ones (ADR 0063); a beat with nothing queued and no message owed writes no run row |
 
 ## Profiles
 
@@ -303,6 +306,7 @@ clause at the start of the affected job/handler. The toggles live on
 | `openAiBaseUrl`                  | NULL     | The OpenAI-compatible engine's server, set on its card (Settings → AI engine → Server address) or by the wizard's **Use it** on a model found on this computer; NULL = `OPENAI_BASE_URL`. A server on this machine or the user's network takes no key and is billed as local |
 | `localAiUrl`                     | NULL     | The local engine's Ollama root (Settings → AI engine → Local model → Ollama address, or the wizard's **Use it** on Ollama); NULL = `OLLAMA_URL`. Local addresses only (ADR 0057) |
 | `localContextTokens`             | NULL     | The context window the local engine asks for on every call: 8k / 16k / 32k / 64k tokens; NULL = 16 384. A prompt estimated larger than it is refused before it is sent, and the next engine takes the call |
+| `pack`                           | NULL     | Application packs (ADR 0063), one JSON value read by `pack/settings.ts`: `enabled` (false), `minFit` (90), `dailyLimit` (5; 0 = none), `maxAgeDays` (7), `coverLetter` (never / asked / always) and the tailoring `policy`. NULL = off with those defaults. Settings → General → Application packs |
 | `aiBudgetCents`                  | NULL     | A monthly ceiling on billed AI money: one line to the alert chats at 80 % and at 100 %, once each per UTC month (`aiBudgetAlerted` holds the last one sent). NULL = no budget. Nothing is ever stopped (ADR 0055) |
 | `locale`                         | NULL     | The interface's language (ADR 0061). NULL = never chosen: English, and a browser that prefers an offered language sees one line proposing it. Set from the globe at the bottom of the menu, the wizard's first step or Settings → General → Language; finishing setup stores the language the wizard was read in. The worker's messages follow it. Prompts and what a model writes do not |
 
@@ -700,6 +704,76 @@ on confirmation the stored text is replaced, the original kept next to it
 (`descriptionOriginal`, `descriptionRefreshedAt`), the posting re-classified
 and the next comparison's keyword frame read afresh (ADR 0043).
 
+## Imported rows (ADR 0062)
+
+`/jobs/import` takes a file of jobs the user already has: a JSON array, an
+object holding one list, JSON Lines, CSV or TSV, up to 5 MB and 2 000 rows.
+Nothing is requested from anywhere, and the file is never stored: its rows
+wait in the web process's memory between the two steps.
+
+1. **Preview, no AI.** `datasets/map.ts:detectMapping` decides which column
+   is the title, the link, the company, the text, the place, the date and
+   the pay — from the names first, from the values where the names say
+   nothing. The page shows each field with a sample and a select, the first
+   three rows as they would be stored, and the counts: rows read, rows that
+   are a job (the others by reason: no title, neither an id nor a link,
+   marked closed, a repeat), rows the source already holds, and new rows the
+   running searches' base filter admits. That last number is the AI calls an
+   import would make.
+2. **Import.** The rows become jobs of an inactive `Company` with
+   `atsType = IMPORT` (one per source name; the confirmed mapping is kept in
+   `sourceConfig`) through `processNormalizedJobs`: filter, mute, dedupe,
+   classify, persist, alert. It shares the fetch lock with the tick, is
+   recorded as an `import` run, and stores the rows unscored while fetching
+   is paused. A newer export into the same source adds only what is new.
+
+Each row names its own employer (ADR 0056): the list reads "Acme · via
+September export", and a mute acts on Acme. Columns about people are never
+offered for mapping and never stored; a link is kept only when it is http(s).
+
+**A folder a tool writes into** is the same rows without the upload
+(`atsType = FOLDER`). Companies → Add sources → *A folder on this computer*
+takes a typed path, **Check** shows what is in it and what the next check
+would do (no AI, nothing stored), and **Add (off)** stores the path, an
+optional name filter and the column mapping. Switched on, the hourly check
+reads each new or changed `.json`, `.jsonl`, `.csv` or `.tsv` file once:
+
+- a file is read again only when its size or time changes; one changed in
+  the last ten seconds waits; a copy of a file already read is set aside;
+- 20 files and 5 000 rows a check, 5 MB a file, three folders deep;
+- what became of each file is kept in `source_file`, written only after the
+  check stored its jobs, and shown on the folder's **Files** page;
+- nothing in the folder is ever written, moved, renamed or deleted.
+
+Which folders may be read: on a local install, one inside the home folder
+(not a hidden one, not `Library` / `AppData`, not ApplyPack's own data
+folder); on a server or in Docker, only one inside a root named in
+`APPLYPACK_INBOX_ROOTS`.
+
+**A folder the user saves postings into** is the same source holding one
+posting a file (`sourceConfig.holds = 'postings'`, ADR 0062 addendum
+2026-10-06): a saved page (`.html`), a PDF, a `.docx`, text or Markdown.
+Check guesses which kind a folder holds and lets the user switch it.
+
+- Code reads what it can first: a page's `JobPosting` block (title,
+  company, place, date, description), its own address (canonical link,
+  `og:url`, the browser's "saved from url" note), its main text. A model
+  reads the title and the company only when the page does not state them —
+  one small call, none while fetching is paused (the file waits).
+- Each file becomes one job of the folder, taken as a paste: no search's
+  filter and no employer rule sets it aside, it is scored, and one that
+  every search turns down is kept **Saved**. A match alerts like any other
+  and says "From your folder: <folder> / <file>"; the folder's **Alerts**
+  can be "No alerts", which keeps matches on Jobs only, with no application
+  pack prepared for them on its own.
+- The job page says which folder and file it came from (`Job.sourceFile`),
+  and the folder's **Files** page links each file to its job.
+- 2 MB a page or a text file, 5 MB a PDF or a `.docx`; under 200
+  characters is a note, not a posting.
+- With `npm start` the worker watches these folders and reads a saved file
+  within a minute, outside the search hours too, never while paused. A
+  server reads them on the hourly check.
+
 ## Cover letters (F8, ADR 0021)
 
 "Cover letter" on `/jobs/:id` writes a short letter (120–180 words, capped
@@ -884,6 +958,49 @@ letter show what such a call usually costs here (the middle of the last
 twenty that answered). `npm run spend:report` prints the ledger per UTC
 day, engine and model for a comparison with the vendor's own report; the
 vendor's admin key never enters ApplyPack.
+
+## Application packs (ADR 0063)
+
+Off by default. With **Settings → General → Application packs** switched on,
+a new posting the tick stores with a fit at or above the threshold (90),
+published within the last N days (7), gets a pack — up to a daily number the
+worker starts on its own (5; 0 = no limit, counted per UTC day). The trigger
+is asked only where a new match is inserted (`process-jobs.ts` →
+`pack/trigger.ts`), so jobs already stored are never walked and a
+re-classify queues nothing. Any job can be prepared by hand on its
+**Application pack** tab (`POST /jobs/:id/pack`), whatever the settings say.
+
+The dashboard only queues a row in `application_pack` (one per posting:
+queued → running → ready | stopped | failed). The worker's `pack` beat
+(`jobs/pack-job.ts`, every minute, one runner under an advisory lock)
+prepares them one at a time through `pack/prepare.ts:preparePosting`:
+
+| Step | What it does | Stops the pack when |
+| --- | --- | --- |
+| Still open | The liveness ladder (ADR 0016), no AI | the posting is known to be closed |
+| Compare | The full comparison with the resume the best-scoring search hunts with (else the primary's); a stored one of the same text is reused | a requirement the posting gates on fails, or the ceiling is under 75 |
+| Company | "Is it real?" with web search; a stored check from the last 14 days is reused | the verdict is fake, or the recommendation is skip. A check that fails is not a stop: the pack says the company was not checked |
+| Tailor | The comparison's suggestions held to the policy (`pack/policy.ts`) and applied as Apply all applies them | — |
+| Checks | Undoing every recorded change gives the original back; no change took out words its suggestion did not quote; no email or phone touched; the score did not fall | a failed check drops every edit: the resume goes out as it stood |
+| Judge again | The tailored text compared once more — the honest "after" score, and the comparison the Tailor page opens | — |
+| File | The person's own `.docx` with the edits written in, else the clean version and its PDF (ADR 0059) | — |
+| Letter | Only when the setting asks: never · when the posting's text mentions one · always | — |
+
+The policy is the person's: the sections an edit may touch (title line,
+summary, skills, experience bullets), at most N experience bullets (2),
+whether backed keywords are written onto skills lines, whether lines may be
+removed (off). Always, whatever it says: only wording the fact gate let
+through (ADR 0037), never a keyword nothing backs, never the posting's title
+as a skill, never a rewrite that loses a number the line had.
+
+A ready pack keeps its file as bytes and changes no resume. **I sent this
+file — mark applied** marks the job applied, records the pack's text as the
+applied resume and freezes the row; the file stays downloadable for as long
+as the job does (`GET /jobs/:id/pack/resume.docx`, `.pdf`). Packs the worker
+started on its own are announced in one message — ready ones, then the
+postings not worth the evening — when the schedule lets a held message out;
+the Overview lists the ones ready and not yet sent. Nothing is ever submitted
+for the person.
 
 ## Hard out-of-scope (Phase 7+)
 

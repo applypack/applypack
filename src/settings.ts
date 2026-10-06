@@ -5,6 +5,7 @@ import { logger } from './logger';
 import type { AiEngineConfig } from './ai-engine';
 import { parseAiKeys, type AiKeyProviderId, type AiKeys } from './ai-keys';
 import { parseSourceKeys, type KeyedSource, type SourceKeyField, type SourceKeys } from './source-keys';
+import { parsePackSettings, type PackSettings } from './pack/settings';
 import { parseSchedule, type Schedule } from './user-schedule';
 import { config } from './config';
 import { isLocale, type Locale } from './i18n/locale';
@@ -44,6 +45,8 @@ export interface AppSettingsView {
   reapplyDays: number | null;
   /** When init.ts gave the older rows their employer keys; null = not yet. */
   employersFilledAt: Date | null;
+  /** Raw AppSettings.pack JSON — parse with parsePackSettings (ADR 0063). */
+  pack: unknown;
   /** Raw AppSettings.coverAngles JSON — parse with readCoverAngles. */
   coverAngles: unknown;
   /** Raw AppSettings.pipelineStages JSON — parse with parseStageConfig (ADR 0025). */
@@ -137,6 +140,7 @@ export async function getSettings(): Promise<AppSettingsView> {
     localContextTokens: row.localContextTokens,
     reapplyDays: row.reapplyDays,
     employersFilledAt: row.employersFilledAt,
+    pack: row.pack,
     coverAngles: row.coverAngles,
     pipelineStages: row.pipelineStages,
     schedule: row.schedule,
@@ -414,6 +418,22 @@ export async function setReapplyDays(days: number | null): Promise<void> {
     create: { id: SETTINGS_ID, reapplyDays: days },
   });
   logger.info({ days }, 'settings: re-apply window set');
+}
+
+/** ADR 0063: what the person decided about application packs; off until they say otherwise. */
+export async function getPackSettings(): Promise<PackSettings> {
+  const row = await prisma.appSettings.findUnique({ where: { id: SETTINGS_ID }, select: { pack: true } });
+  return parsePackSettings(row?.pack);
+}
+
+export async function setPackSettings(pack: PackSettings): Promise<void> {
+  const value = pack as unknown as Prisma.InputJsonValue;
+  await prisma.appSettings.upsert({
+    where: { id: SETTINGS_ID },
+    update: { pack: value },
+    create: { id: SETTINGS_ID, pack: value },
+  });
+  logger.info({ enabled: pack.enabled, minFit: pack.minFit, dailyLimit: pack.dailyLimit }, 'settings: application packs set');
 }
 
 /** init.ts filled the older rows' employer keys; it never runs again. */

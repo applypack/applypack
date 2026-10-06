@@ -11,6 +11,9 @@
 | Overview | `/` | Four status cards with their last fortnight (each opens its jobs), the matches chart (7–180 days, by technology) with the search funnel under it, recent alerts, pipeline health, recent activity, jobs by stack, pause/resume, Fetch now |
 | Jobs | `/jobs` | Filterable, sortable list of everything fetched |
 | Paste a job | `/jobs/new` | Save a posting by hand (LinkedIn, email, referral); it gets classified like any other |
+| A folder of job files | `/companies` → Add sources → A folder on this computer | Name a folder a tool of yours writes exports into; each hourly check reads the new files in it, with the same preview, filter and scoring as an import. ApplyPack only reads the folder |
+| A folder of postings you save | `/companies` → Add sources → A folder on this computer → Postings I save | Save a page, a PDF or a `.docx` of a posting into it and it becomes one job, scored like a paste and never filtered out; with `npm start` within a minute. ApplyPack only reads the folder |
+| Import a file | `/jobs/import` | Bring jobs you already have as a file — JSON, JSON Lines, CSV or TSV. A preview shows how the columns were read and what an import would cost before anything is stored; the rows then go through the same filter and scoring as every job |
 | Job detail | `/jobs/:id` | Four tabs — the posting with the AI verdict, resume match, cover letter, "is it real?" — beside status actions, details and tracking |
 | Tailor resume | `/jobs/:id/target` | Posting ↔ resume side by side, live keyword score, edit in place |
 | Compare | `/target` | One-shot comparison: paste any posting, pick / upload / paste any resume |
@@ -98,6 +101,7 @@ schedule saved, the search runs every hour and both summaries go out at
 | `0 3 * * 0` | cleanup | Drop dismissed jobs older than 30 days that you do not track, AI-call ledger rows older than 400 days, expired screenings and runs older than 90 days; check for a newer release when that is switched on |
 | `mm 4 * * 0` † | discovery | Re-probe pending company candidates |
 | `mm 6 1 * *` † | hn-hiring | Pull the monthly HN "Who is hiring" thread |
+| `* * * * *` | pack | Prepare the application packs waiting in the queue, one at a time, and tell you about the finished ones in one message. Does nothing, and leaves no row on `/runs`, while none is queued — which is always, until you switch packs on or ask for one |
 
 A digest or stale-applications beat outside your digest times does nothing
 and leaves no row on `/runs`. A fetch beat outside the schedule leaves a

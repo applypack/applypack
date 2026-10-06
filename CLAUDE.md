@@ -149,6 +149,22 @@
   `src/login-item.ts`) also reads the pure `data-dir.ts`. `snapshots.ts`
   (pure) plans the daily copy the launcher takes before Postgres starts. `config.ts` fills an empty
   `DATABASE_URL` from `db.json`, so dev watchers and once-scripts find it.
+- `src/pack/` is the application pack (ADR 0063) — what the worker prepares
+  for a strong new match with nobody watching: `settings.ts` (the person's
+  choices, off by default), `trigger.ts` (whether the tick queues one —
+  asked only where a NEW match is stored, so the backlog is never walked),
+  `gate.ts` (where preparing stops: closed, a failed requirement, a ceiling
+  under the floor, a fake), `policy.ts` (what an unattended edit may touch,
+  and `planEdits`: a comparison's suggestions held to it, each one left out
+  kept in `held` with its reason), `tailor.ts` (the plan run through
+  `apply-all.mjs`, the score of the text it leaves, and `tailorChecks`:
+  undoing every recorded change must give the original back, and no change
+  may take out words its suggestion did not quote), `view.ts` and
+  `dry-report.ts` are pure (tested); `prepare.ts` is the only file that
+  spends AI — one pipeline for the worker and the dry run; `store.ts` is the
+  only one that touches `application_pack`. The dashboard never prepares a
+  pack: it queues a row, and `jobs/pack-job.ts` takes it. The limits are
+  code, never a prompt rule (gotcha 11), and a pack never changes a resume.
 - `src/starter-packs/` is the curated-pack module: `catalog.json` (data),
   `catalog.ts` and `resolve.ts` are pure (tested), `probe.ts` calls
   `probeAts`. Web-only — the worker never imports it. Every catalog entry
@@ -188,6 +204,54 @@
   takes the hook, or the number a UI change reports reads low.
 - `AtsType.MANUAL` companies are inactive rows for pasted jobs — `fetchOne`
   returns `[]`, `/companies` and the source toggles hide them.
+- `src/datasets/` is the rows the user brings (ADR 0062): `delimited.ts` (the
+  CSV / TSV reader), `rows.ts` (`findRows`: a JSON array, a wrapper object,
+  JSON Lines, CSV or TSV, the format read off the text, under the 5 MB and
+  2 000-row ceilings), `map.ts` (`detectMapping` from the names, then the
+  values; `mapRow` / `mapRows` → `NormalizedJob`; the zod schema of the
+  mapping kept in `Company.sourceConfig`) and `preview.ts` are pure (tested,
+  hand-written rows in `fixtures/`). Only mapped columns are read: a column
+  about a person never appears in `columnsOf`, so it is never kept, and a
+  link survives only as http(s). The mapper sets `employer` on every row — a
+  name or null, never absent — because these rows carry many employers
+  (ADR 0056); `source-groups.ts:bringsRows` is what makes `sourceIsEmployer`
+  answer false for a type `sourceFamily` files under the user's own.
+  `AtsType.IMPORT` companies are inactive rows like MANUAL: `fetchOne` returns
+  `[]`, `/companies` and the source toggles hide them, `/jobs/import` lists
+  and deletes them. The import is `jobs/import-job.ts:runImportJob` →
+  `processNormalizedJobs` under the fetch lock; between the preview and the
+  import the rows wait in `web/import-stash.ts`, in memory only. Nothing here
+  makes a request, and no site a row may have come from, and no tool that
+  wrote it, is named in code, copy or docs.
+- A folder a tool writes into is the same rows read on the tick
+  (`AtsType.FOLDER`, ADR 0062 addendum). `datasets/folder-path.ts` (which
+  folder may be read: inside home under the launcher, inside
+  `APPLYPACK_INBOX_ROOTS` anywhere else, asked on every look) and
+  `datasets/folder-scan.ts` (`planScan`: read, wait or leave alone; the
+  ceilings; `judgeFile` → jobs and the ledger row) are pure.
+  `datasets/folder-io.ts` is the ONLY module that touches a user's folder and
+  it only reads — no write, move, rename or delete, ever, and
+  `folder-io.test.ts` fails the file if one appears; links are not followed
+  and a file's real path must lie beneath the folder's. `fetchers/folder.ts`
+  returns `NormalizedJob[]` and writes nothing: the look is staged in
+  `fetchers/folder-ledger.ts` and `jobs/fetch-job.ts` hands it to
+  `jobs/source-file-store.ts` (the only file that touches `source_file`) only
+  when `tickStoredEverything()` agrees, as for validators. Never mark a file
+  read before its jobs are stored.
+- A folder may hold postings the user saves instead (`sourceConfig.holds =
+  'postings'`, ADR 0062 addendum 2026-10-06): one file, one posting.
+  `datasets/saved-page.ts` (a saved page's text, its own address, its
+  `JobPosting` block — markup only ever becomes text, an address is never
+  followed) and `datasets/posting-file.ts` (bytes → text by kind, the PDF and
+  `.docx` readers of `src/resume/`; `savedPostingJob`) are pure. A model is
+  asked (`extractPostingFacts`) only when the page did not state its title
+  and company, never while paused. The job carries `handPicked`:
+  `processNormalizedJobs` skips the base filter and the employer gate for it,
+  as for a paste, and stores a turned-down one Saved, never Dismissed.
+  `Job.sourceFile` names the file for every folder row. Under the launcher
+  the worker watches these folders (`jobs/folder-watch.ts`, plan
+  `folder-watch-plan.ts`) and runs the scoped fetch a few seconds after a
+  save; never while paused, never on a server.
 - `src/resume/` is the resume module: `zip.ts`, `docx-text.ts`, `pdf-text.ts`
   (unpdf, ADR 0011), `resume-text.ts`, `prompts.ts`, `pick.ts`, `score.ts`
   (ADR 0012), `facts.ts`, `diff.ts`, `parse-warnings.ts`, `match-mode.ts`,
@@ -203,7 +267,8 @@
   `scan.ts` / `match.ts` / `suggestions.ts` / `review.ts` / `cover-letter.ts`
   call the AI provider (the letter is gated by `fact-check.ts` and generates from stored
   inputs only — ADR 0021); `store.ts` is the only file that touches Prisma.
-  Web-only — the worker never imports it (ADR 0008).
+  Called by the dashboard and, since ADR 0063, by the worker's pack runner
+  (`src/pack/prepare.ts`); no other worker job imports it (ADR 0008).
 - A comparison has two shapes (ADR 0029): `matchResumeToJob(..., {mode})`
   runs the quick check (`fast`, the function's default: keywords + alignment
   + gates + red flags — everything `score.ts` reads) or the full report
@@ -268,9 +333,10 @@
   smoke** (`npm run smoke:routes` after `npm run build` —
   `src/scripts/route-smoke.ts`): fixtures in, every GET route one
   in-process request through `app.request()`, the first run's POSTs, a
-  cross-origin POST refused, one clean PDF render, then every page again in
-  the pseudo-language (the count of English still outside the catalog —
-  ADR 0061). A 500 anywhere fails the build. Run it locally on a throwaway database only — it inserts rows and
+  cross-origin POST refused, one clean PDF render, a file of rows through its
+  preview and its import, then every page again in the pseudo-language (the
+  count of English still outside the catalog — ADR 0061). A 500 anywhere fails
+  the build. Run it locally on a throwaway database only — it inserts rows and
   switches employer mode on (see `.github/workflows/test.yml`).
 - The `local-start` job runs the default install on Linux (Node 22 and 24),
   macOS and Windows: `npm start` with a temporary `APPLYPACK_DATA_DIR`, the
@@ -315,7 +381,7 @@ When the question is **"where does X live?"**, save yourself a `find`:
 | How much English is still written into the code | the route smoke's last pass: every page again in the pseudo-language (`locale.ts:PSEUDO_LOCALE`, stored as `AppSettings.locale`), where the catalog's and the format module's text comes back in ⟦ ⟧ and `src/i18n/pseudo.ts:hardcodedText` reads what is left outside them. `npm run smoke:routes` prints the count and the worst pages; `node dist/scripts/route-smoke.js --pseudo-list out.txt` writes every run. An element with `translate="no"` or `lang="en"` is data and is skipped |
 | HTTP retry, timeout, default User-Agent | `src/http.ts` — a 5xx and a network failure are retried twice; a 429 whose `Retry-After` (`retryAfterMs`) is at most 10 s is waited out once, a longer one fails as the `rate_limit` source-health reads |
 | A URL from outside (a feed's link, the verifier's finding, a typed career page) as a link | `src/web/format.ts:safeHref` — http(s) or no link at all: a `javascript:` link from a feed would run in the dashboard's origin on a click |
-| HTML → plaintext (entities, paragraphs, bullets) | `src/http.ts:stripHtml` + `decodeHtmlEntities` (gotcha 12) |
+| HTML → plaintext (entities, paragraphs, bullets) | `src/http.ts:stripHtml` + `decodeHtmlEntities` (gotcha 12); one pass even over markup nobody closed — `replaceUpTo` cuts each pattern off at its last closer and `dropElements` walks script and style blocks forward, because 300 kB of `<a ` once took nine seconds; `safeCodePoint` decodes no NUL and no lone surrogate |
 | Pure helpers (parsing, hashing, masking) | `src/text-utils.ts` |
 | Near-duplicate detection across sources (SimHash, Hamming) | `src/fingerprint.ts` (ADR 0018); wired in `jobs/process-jobs.ts` |
 | Where the running searches hunt, handed to every fetcher (`FetchContext`: union of countries + regions; anywhere = empty) | `src/fetchers/fetch-context.ts:searchPlaces` (pure) built once per tick in `fetchers/index.ts:runAllFetchers`; a source with a geo filter maps it (`jobicy.ts:jobicySlugsFor`, `himalayas.ts:himalayasUrls`, `fourdayweek.ts:fourDayWeekPlaces`), the rest ignore it |
@@ -361,7 +427,7 @@ When the question is **"where does X live?"**, save yourself a `find`:
 | A colour, a surface, a type size, a corner or a shadow in the dashboard | `src/web/tokens.ts` (pure): the RGB triplets behind the token names, `rootBlock()` for `layout.tsx`, `contrast` / `blend`; `tokens.test.ts` fails body or helper text (ink, muted, faint) under 5:1 on any surface or the row hover, and a status tone under 4.5:1 on white, on its 12 % pill, its 5 % flash or the canvas. `tailwind.config.js` maps the names and carries the type ladder as one class per step (`text-title` 30, `text-kpi` 32, `text-section` 18, `text-entity` 15, `text-label` 13/550, `text-note` 13/400, `text-meta` 12 — size, line, tracking and weight together; body is `text-sm`), the two radii under Tailwind's own names (`rounded-md` 8px for a control, `rounded-lg` 12px for a card) and the three shadows (`shadow-sm` a control, `shadow-card` a raised surface, `shadow-pop` what floats); `src/web/type-ladder.test.ts` fails a raw size or a `text-sm font-semibold` heading anywhere in `src/web`, with no exception left (TASKS U3). A toned pill's ground (white under the 12 % tint) is a `pill-*` component class in `src/web/tailwind.css`, not an arbitrary value: repeated on every tag it cost 8 KB a page. One control height: a field is 36px and a `Button` beside it is the default size (`sm` is 30px, for a table row). Rules and roles: DESIGN.md. A new class = `npm run css` |
 | The /jobs links, the **Filters** panel and the row of filters in force | `src/web/job-facets.ts` (pure): `JobsFilters`, `jobsHref(filters, { page, panel })` is the one URL builder, `activeFilters` = one removable entry per panel value, `filterCount` = the number on the button, `clearFiltersHref`. Status, sort, `q` and the fit floor are not "filters" — their controls are in plain sight. A `<details>` closes on every navigation, so the links INSIDE the panel carry `panel=1` and the route renders it open; tabs, the chip row, pagination and the form never carry it. The status tabs' counts are one `groupBy` over the final where minus `status` (`routes/jobs.tsx`), and the list's own total is read off them — no separate count query |
 | Stable id for a feed row with no id of its own | `src/text-utils.ts:feedItemKey` (URL key → text key → null, never `''`) |
-| The cron list (6 schedules) | `src/index.ts:registerCron` (node-cron 4, `noOverlap`, its own notes routed to pino). `digest` and `stale-applications` beat hourly and do their work on the user's digest hours (`onSchedule` over `user-schedule.ts:isDigestHour` / `isFirstDigestHour`); a beat that is not one writes no run row |
+| The cron list (7 schedules) | `src/index.ts:registerCron` (node-cron 4, `noOverlap`, its own notes routed to pino). `pack` beats every minute, quietly, and writes a run row only when a pack is queued or a message is owed (`jobs/pack-job.ts:packWorkWaiting`). `digest` and `stale-applications` beat hourly and do their work on the user's digest hours (`onSchedule` over `user-schedule.ts:isDigestHour` / `isFirstDigestHour`); a beat that is not one writes no run row |
 | One fetch at a time: the worker's tick, "Fetch now", `fetch-once.js`, the monthly HN pull | `src/jobs/fetch-lock.ts:tryFetchLock` — a Postgres advisory lock on a client of its own with one connection (`db-url.ts:singleConnectionUrl`), because a session lock belongs to its connection and the shared client pools them; a crash closes the connection and frees it. `runFetchJob` / `runHnHiringJob` that cannot take it return `reason: 'overlap'` before reading, sending or classifying anything (ADR 0003 addendum 2026-09-28); the route smoke holds it and checks "Fetch now" stands down |
 | Which minute THIS install ticks at (and why it is not :05 everywhere) | `src/schedule.ts:spreadMinute` (pure, ADR 0035) over `AppSettings.instanceId`; only `fetch` / `hn-hiring` / `discovery` move |
 | When the user wants the search to run and alerts to arrive (hours, days, cadence, time zone) | `src/user-schedule.ts` (pure, TASKS §16): `isFetchDue` / `canAlertNow` / `shouldDeliverHeld` / `isDigestHour` / `nextFetchAt` / `describeSchedule`, `ScheduleSchema` over `AppSettings.schedule` (NULL = today's behaviour). NOT `src/schedule.ts` — that one is the install's cron minute. The gate sits ON TOP of the cron: the heartbeat still fires hourly, the gate decides whether it searches |
@@ -450,6 +516,12 @@ When the question is **"where does X live?"**, save yourself a `find`:
 | Quick check vs full analysis (which prompt variant runs, what a stored row holds) | `src/resume/match-mode.ts` (pure) + the `MATCH_STEPS` / `MATCH_OUTPUT` tables in `src/resume/prompts.ts` (ADR 0029) |
 | "Get suggestions" on a quick check (the lazy second call) | `src/resume/suggestions.ts` + `buildSuggestionsPrompt`; run wiring `src/web/suggestions-run.ts`, route `POST /jobs/:id/matches/:matchId/suggestions` — `rewrite=1` on the same route is "Rewrite all", which lifts the already-has-them guard |
 | Writing ONE suggestion again (the card's Rewrite) | `src/resume/rewrite.ts:rewriteAction` over `prompts.ts:buildRewritePrompt` / `RewriteSchema`; the target (section, where, quote/anchor) is the comparison's and is copied, not re-asked, and the new wording goes through `gateActions` exactly as the first one did. Route `POST /jobs/:id/matches/:matchId/actions/:index/rewrite`, writer `store.ts:updateMatchActions` (actions only — the score never moves) |
+| An application pack: who queues it, who prepares it, what a ready one holds | queued by `jobs/process-jobs.ts` (a new match, `pack/trigger.ts:autoPack` — switched on, fit ≥ the threshold, published recently, under the day's limit) or by `POST /jobs/:id/pack` (`web/routes/pack.ts`, any job, never counted); prepared by `jobs/pack-job.ts:runPackJob` (every minute, one runner under an advisory lock, a row left `running` by a stopped worker re-queued) through `pack/prepare.ts:preparePosting`; stored by `pack/store.ts` in `application_pack` — the ids of the comparison, the tailored comparison, the verification and the letter, the text before and after, `edits` (`pack/view.ts:readPackEdits`), the `.docx` / `.pdf` as bytes. ADR 0063 |
+| Why a pack stopped, or kept the resume as it stood | `pack/gate.ts` — `livenessStop` (closed), `compareStop` (a failed hard requirement; a ceiling under `DEFAULT_MIN_CEILING` 75), `verifyStop` (fake, or "skip"); a company check that FAILS is not a stop (`Prepared.unchecked`). `pack/tailor.ts:tailorChecks` failing drops every edit (`edits.checks`). Words: `pack/view.ts:STOP_WORDS`, `HELD_WORDS` |
+| What an unattended edit may touch | `pack/policy.ts:planEdits` over `AppSettings.pack.policy` — sections, `maxBullets`, `removals`, `keywords`; always held: wording the gate refused, a rewrite that `dropsFigure`, the posting's title as a skill. Settings → General → Application packs |
+| The pack tab on a job, its downloads, "I sent this file" | `web/pages/application-pack-card.tsx` over `web/routes/pack.ts:loadPackView`; `GET /jobs/:id/pack/resume.docx` / `.pdf` serve the stored bytes; the button posts `status=APPLIED&pack=1` to `/jobs/:id/status`, which records the pack's text as the applied resume and freezes the row (`pack/store.ts:markPackSent`). The tab refreshes itself while a pack is queued or running |
+| The "packs ready" message, and the Overview's Ready to send | `jobs/pack-job.ts:deliverNotices` → `pack/view.ts:packNoticeLines` → `notifier.ts:sendPackNotice`, when `user-schedule.ts:shouldDeliverHeld` lets a held message out; only packs the worker started on its own. `pack/store.ts:listReadyPacks` feeds the card |
+| What preparing an application with nobody watching would do to the stored postings: where each stops, seconds per step, the tailored file | `npm run pack:dry -- --out <dir> [--min-fit 90] [--min-ceiling 75] [--limit N] [--only id,id] [--no-verify] [--rejudge]` → `src/scripts/pack-dry-once.ts` over `src/pack/`: still open (no AI) → Compare with the search's resume → the company check → the edits `pack/policy.ts` allows, applied as Apply all applies them → `.docx` / `.pdf` and the edits as Markdown per posting, `report.md` for all. Reuses a stored comparison and verification, resumes from `records.json`; spends AI and writes rows, so run it on a COPY of the database — hand-run, never CI |
 | Running the comparison over a matrix of real resumes × real postings, with every invariant checked | `npm run matrix:compare` (or `-- 2:2111 3:2108 …`) → `src/scripts/match-matrix-once.ts`; checks keyword shape, both anchors, evidence, group labels, the cap arithmetic, every quote the editor has to locate, the removal gate and the suggestion floor. Spends AI and writes rows — hand-run, never CI |
 | Why a full report sometimes costs a second, cheaper call | `src/resume/suggestion-floor.ts:floorGaps` (pure) — REQUIRED COVERAGE checked instead of hoped for. When a grade below `strong` got no high-priority action (or a must-level term named only on a skills line got none, or a must-level `add` term sits in no rewrite — `unwrittenMusts`, prompt v15), and the candidate has part of the core and a ceiling worth chasing, `match.ts` spends one `suggestForMatch` with `floorDemand` naming what was owed. The verdicts are already stored, so the score cannot move |
 | Why a German or Ukrainian posting carries a line about English | `src/text-language.ts` (pure: `textLanguage` counts each language's function words, Ukrainian and Russian told apart by the alphabet; `notEnglishNotice`) — shown on the job page's Resume match and Cover letter tabs and on the targeted view: the comparison and the letter are written for English (TASKS S20) |
@@ -530,6 +602,10 @@ When the question is **"where does X live?"**, save yourself a `find`:
 | The posting a screening reads (a snapshot, editable, never the Job's live text) | `Screening.postingText` + `postingUpdatedAt`; `store.ts:postingOf` is what the brief and every call read; `POST /screen/:id/posting` saves, `POST /screen/:id/run-all` scores everyone again; `web/screen-view.ts:scoredBeforePosting` counts the verdicts older than the edit |
 | The notice an employer owes applicants, and the legal note | `src/screening/notice.ts` — shown with a Copy button on `/settings` → Screening |
 | Each cron's once-script (manual trigger) | `src/scripts/{fetch,digest,cleanup,stale,hn,discovery}-once.ts` |
+| A file of jobs the user imports: what counts as rows, which column is which, what is never kept | `src/datasets/rows.ts:findRows` (the format off the text; `decodeBody` for a UTF-16 spreadsheet export) → `src/datasets/map.ts:detectMapping` (the alias table `ALIASES`, then `GUESSES` off the values — the title is never guessed) → `mapRow`: the id or a hash of the link, the apply link unless it leads into a host `jobs/blocked-hosts.ts:isBlockedPostingHost` names, markup stripped once, pay as a `Salary: …` line at the head, a snippet marked as one, the country and the arrangement as `locationHints`, a date only when it is one (`readDate`). `PEOPLE_RE` (names) and `holdsContacts` (cells that are e-mail addresses or phone numbers) are the columns never offered; `clean` and `clip` keep control characters and half characters out of every field. ADR 0062 |
+| A folder a tool writes job files into: which folder may be read, what a look reads, when a file counts as read | `src/datasets/folder-path.ts:folderAllowed` (home on a local install minus hidden and system folders and the data folder; the roots of `APPLYPACK_INBOX_ROOTS` elsewhere — `config.ts`) → `src/datasets/folder-io.ts` (`realFolder`, `listFolder`: three folders deep, no dotfiles, no links; `readFolderFile`: O_NOFOLLOW, the real path beneath the folder, measured before and after) → `src/datasets/folder-scan.ts:planScan` (unchanged = size and time as the ledger has them; changed in the last `SETTLE_MS` = waits; `MAX_FILES_PER_LOOK`, `MAX_ROWS_PER_LOOK`; a misfit is settled until the file or the mapping changes — `settled`) and `judgeFile` (a copy by SHA-256 set aside, fewer than half the rows a job = misfit) → `src/fetchers/folder.ts:fetchFolder`; the ledger `source_file` through `src/jobs/source-file-store.ts`, staged in `src/fetchers/folder-ledger.ts` and kept by `jobs/fetch-job.ts` after the jobs are stored. Health: `source-health.ts:classifyFetchError` reads a `FolderError`'s fault, `describeStatus(status, 'FOLDER')` words it, and a folder never ages into "silent". ADR 0062 addendum |
+| The folder's pages: Check, Add (off), the row's line, the per-file list, "Check now" | `src/web/routes/folders.tsx` (`POST /companies/folder/check` renders the Check page straight from the POST and stores nothing; `POST /companies/folder` re-reads, re-checks the rules and upserts; `POST /companies/folder/inbox` under the launcher only; `GET /companies/:id/files`) · pages `web/pages/folder-source.tsx` over the shared `web/pages/mapping-fields.tsx` · words `web/folder-words.ts` (`folderLine`, `fileLine`, `explainFolderFault`, `folderCheckLine` — the flash of a check that brought nothing) · "Check now" is the watchlist's `POST /companies/:id/check-now` with `FetchScope.folder` |
+| The import itself: the preview's counts, the run, its row on `/runs`, the sources it made | `src/web/routes/jobs-import.tsx` (upload → `web/import-stash.ts` → preview → run) over `datasets/preview.ts:previewCounts`, `jobs/import-job.ts:runImportJob` (`processNormalizedJobs` under `tryFetchLock`, recorded as an `import` run; paused = stored unscored) and `web/import-summary.ts:summarizeImport` (the flash); the progress page is the shared one (`target-runs.ts`, step `import`); pages `web/pages/job-import.tsx` |
 
 When the question is **"how does the user toggle / configure X?"**:
 
@@ -592,12 +668,15 @@ When the question is **"how does the user toggle / configure X?"**:
 | Record a skill no comparison asked about | `/resumes` → Confirmed facts → **Add a fact** (what you have is listed first; "I don't, actually" / "I do have it" flips one, "Forget" drops it; no AI call) |
 | Read what a setting does beyond its one sentence | the quiet **How this works** under it (a native `<details>`); on Settings → Sources each extra source folds "when it is worth it, and what the vendor asks" the same way |
 | Ask how strong a resume is on its own (no posting) | `/resumes/:id` → "Resume strength" → Run strength review (one AI call, ~1 min; nothing runs on its own). Scores show in the `/resumes` Strength column |
+| Have ApplyPack prepare an application by itself | `/settings` General tab → **Application packs** → tick "Prepare application packs on their own", set the fit, the daily number, how recent a posting must be, the cover letter and what an edit may touch → Save. Off by default; only postings found from then on are prepared, never the ones already stored. In the morning: the message, or Overview → **Ready to send** |
+| Prepare a pack for one job, whatever the settings say | `/jobs/:id` → **Application pack** tab → **Prepare the pack** (the worker starts it within a minute; the tab updates itself). It says where it stopped and why, or shows the company, what was changed, what was left for you, and **Download .docx / .pdf** |
+| Download the resume I sent for a job, months later | `/jobs/:id` → **Application pack** tab → Download. Press **I sent this file — mark applied** when you apply: the file is kept as it was and the pack no longer changes |
 | Compare a resume with a posting | `/jobs/:id` → **Resume match** tab → **Compare**: one full report (keywords, gates, score and the edit suggestions). The quick check of ADR 0029 is no longer a button |
 | Get the edit suggestions for an older quick check | the comparison → "Get suggestions" (second call, reuses the stored verdicts, score unchanged); shown only on a row stored in `fast` mode |
 | Copy a suggested wording, or find it in the editor | the comparison on `/jobs/:id` or `/jobs/:id/target` → each card's **Copy** (the proposed wording alone) and **Locate** (outlines it in the editor and scrolls the editor — never the page) |
 | Apply a suggestion, or your own version of it | `/jobs/:id/target` → the card's **Apply**, or **Edit & apply** to change the wording first. **Remove** on a removal, **Skip** to set one aside, **Undo** on anything done. An addition applies after the line the model anchored it to. Nothing is saved until you Save as vN — the edits live in the editor |
 | Apply every suggestion at once | `/jobs/:id/target` → **Apply all suggestions (N)** under the score, or **Apply all** above the cards (the removals only while their box is ticked; every keyword the resume backs goes in too); **Undo all** takes them all back, and each card keeps its own Undo. Nothing is saved |
-| Add every missing keyword without clicking chips one by one | `/jobs/:id/target` → the resume card's **Add missing keywords to your skills**: every keyword the text does not spell, ticked where the resume backs it (an unticked one only if true), one press; a term no skills line takes gets a line of its own (`apply-all.mjs:addKeywords`, `text-edits.mjs:appendSkills`) |
+| Add every missing keyword without clicking chips one by one | `/jobs/:id/target` → the resume card's **Add missing keywords to your skills**: every keyword the text does not spell, ticked where the resume backs it (an unticked one only if true), one press; a term no skills line takes gets a line of its own (`apply-all.mjs:addKeywords`, `text-edits.mjs:appendSkills`). The posting's own title is a keyword for the title line (ADR 0044) and no skill: the list, Apply all and a chip's **+ add** leave it out (`target-page.mjs:skillGaps`), and it still counts in the score |
 | See and edit the resume as the document it is | `/jobs/:id/target` → the resume card's **Document** view (the default; **Plain text** is the editor as before): your own `.docx` with the edits in it, or for a PDF the same text re-set in the look read off its page. Click a paragraph to change it, Enter keeps, Escape puts back; a line in columns keeps its columns, and only a formula is edited in Plain text |
 | Download the tailored resume without saving a version | the Document view → **Download .docx** / **Download .pdf** (a PDF of your own `.docx` opens the print dialog — choose Save as PDF) |
 | Why a suggestion has no Apply and says "not applied — …" | the gate refused the wording at analysis time (an invented figure, a keyword the resume has no evidence for, a must-have the rewrite dropped); the reason is on the card's *why* line. Copy and Edit & apply still work — write your own version |
@@ -606,6 +685,11 @@ When the question is **"how does the user toggle / configure X?"**:
 | Re-level, ignore or add a keyword by hand | the keyword table on `/jobs/:id` or `/jobs/:id/target` → the "Wants it" select, `ignore` / `reset`, and "Add a keyword" (instant re-score, no AI call; the edit sticks to the posting across re-runs) |
 | Throw away a keyword list the model got wrong | the keyword table → "Rebuild keywords" (one run with the stored frame withheld; your own keyword edits survive it, the new score is not comparable with the old) |
 | Paste a posting the fetchers don't see | `/jobs` → "+ Paste a job" (`/jobs/new`) |
+| A saved posting in a folder: what code reads off it, when a model is asked, why it is never filtered out, where it says it came from | `src/datasets/saved-page.ts:readSavedPage` (the `JobPosting` block, `<main>`, the canonical / `og:url` / "saved from url" address) → `src/datasets/posting-file.ts` (`readPostingFile` by kind, `needsModel`, `savedPostingJob` — `savedPostingId`: the page's own address, else the text, never a model's words; `handPicked`; `folder-scan.ts:pageResources` passes over a saved page's `_files` folder) → `src/fetchers/folder.ts:lookAtPostings` (`extractPostingFacts` only when needed and allowed — `FetchContext.scoring` is false while paused or with no usable search — remembered by file hash in `readByModel`) → `jobs/process-jobs.ts` (no base filter or employer gate for `handPicked`, Saved when every search or the prefilter turns it down, `quiet` from `sourceConfig.alerts` — no alert, no hold, no pack — the "From your folder" attribution); `Job.sourceFile` on the job page and the files list; the instant read is `src/jobs/folder-watch.ts` from `src/index.ts`. ADR 0062 addendum 2026-10-06 |
+| Have ApplyPack read a folder a tool writes job files into | `/companies` → **Add sources** → **A folder on this computer**: type the folder's full path (a local install can press **Create ~/ApplyPack/inbox and check it**), optionally a name and a name filter (`jobs-*.json`) → **Check** shows what is in it, which column was taken for what, the first rows as they would be stored and what the next check would cost → **Add (off)** → switch it on in the table. The hourly check then reads each new or changed `.json`, `.jsonl`, `.csv` or `.tsv` file once; **Folders on this computer** shows "N files · M new at the last check" with **Files** (what became of each file), **Mapping** (check and save it again) and **Check now**. ApplyPack never writes into the folder |
+| Have ApplyPack read the postings you save | `/companies` → **Add sources** → **A folder on this computer**: the folder you save pages, PDFs or `.docx` files of postings into → **Check** reads it as **Postings I save** (switch it if it guessed wrong), shows the newest five as read without AI and what scoring costs → **Add (off)** → switch it on. Each file becomes one job, scored, never filtered out, kept Saved when no search wants it; a match alerts like any other unless **Alerts** is set to "No alerts". With `npm start` a saved file is read within a minute; while fetching is paused only pages that state their title and company are stored, unscored |
+| Let a Docker install read such a folder | mount it read-only into both services (`./inbox:/inbox:ro` under `app` and `web` in `docker-compose.yml`) and set `APPLYPACK_INBOX_ROOTS=/inbox` in `.env`; the folder form then takes `/inbox` or a folder inside it |
+| Import a file of jobs you already have (an export, a spreadsheet, a tool's output) | `/jobs` → **Import a file** (`/jobs/import`): choose a .json, .jsonl, .csv or .tsv file (5 MB, the first 2 000 rows) and name its source → the next page shows which column was taken for the title, the link, the company and the text (change a select, then **Update the preview**), the first three rows as they would be stored, how many are new and pass your searches' filter, and what scoring them costs → **Import**. No AI is spent before that press, and none at all while fetching is paused (the rows are stored unscored). A newer export into the same source adds only what is new; the page lists the sources you imported, each with **Delete** (the source and its jobs) |
 | Compare a pasted posting with any resume in one step | menu → Tailor resume (`/target`): paste posting, pick / upload / paste resume, Compare |
 | Compare a found job with a file that is not in Resumes, or with pasted text | `/jobs/:id` → **Resume match** tab → **Compare a file or pasted text →** (opens `/target?job=:id` with the job picked), or menu → Tailor resume → "One of your jobs". Nothing is added to Resumes |
 | Check whether a posting is real | `/jobs/:id` → **Is it real?** tab → Verify (web search, 2-4 min); the tab's label carries the last verdict |
@@ -959,6 +1043,7 @@ Always:
 | Run one fetch tick now | UI: Overview → "Fetch now" (live progress, row on `/runs`; runs outside the schedule, and while paused stores the jobs unscored); or `docker compose exec app node dist/scripts/fetch-once.js`, which does the same without the dashboard and is recorded as a `fetch-now` run |
 | Run discovery probe now | `docker compose exec app node dist/scripts/discovery-once.js` |
 | Pull HN Who-is-hiring now | `docker compose exec app node dist/scripts/hn-once.js` |
+| Run the application-pack queue now | `docker compose exec app node dist/scripts/pack-once.js` (the worker does this every minute; recorded as a `pack` run) |
 | Send the stale-applications digest now | `docker compose exec app node dist/scripts/stale-once.js` |
 | Send 4 test Telegram messages | `npm run test:telegram` (locally, .env loaded) |
 | Tail the worker | `docker compose logs -f app` (JSON; add `--no-log-prefix … \| npx pino-pretty` for lines) |

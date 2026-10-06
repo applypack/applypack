@@ -6,7 +6,8 @@
  * that answers 500, or 4xx where 2xx/3xx is expected, fails the run.
  *
  * Run it on a throwaway database only — it inserts a job, a resume, a
- * screening and an applicant, and switches employer mode on:
+ * screening and an applicant (and a search, where nothing was seeded), and
+ * switches employer mode on:
  *
  *   DATABASE_URL=postgresql://…/scratch npx prisma migrate deploy
  *   npm run build && DATABASE_URL=… AI_PROVIDER=claude_code npm run smoke:routes
@@ -15,6 +16,9 @@
  * 145 handlers had zero automated requests before this (audit 2026-09-10,
  * TEST-1); the unit tests cover the pure modules, this covers the wiring.
  */
+import { SMOKE_INBOX } from './route-smoke-env';
+import { promises as fs } from 'node:fs';
+import path from 'node:path';
 import { app } from '../web/app';
 import { DEFAULT_BODY_BYTES } from '../web/body-limits';
 import { prisma } from '../db';
@@ -22,7 +26,8 @@ import { createManualJob } from '../jobs/manual-job';
 import { createMatch, createResume } from '../resume/store';
 import { parseMatchResponse, PROMPT_VERSION } from '../resume/prompts';
 import { scoreMatch } from '../resume/score';
-import { setAiBudgetCents, setEmployerMode } from '../settings';
+import { getSettings, setAiBudgetCents, setEmployerMode, setFetchingEnabled } from '../settings';
+import { blankProfileInput, listActiveProfiles } from '../profiles';
 import { recordAiCall } from '../ai-ledger';
 import { NO_USAGE } from '../ai-usage';
 import { createApplicants, createScreening } from '../screening/store';
@@ -31,6 +36,7 @@ import { fingerprintText } from '../screening/intake';
 import { tryFetchLock } from '../jobs/fetch-lock';
 import { addToFunnel } from '../jobs/funnel-store';
 import { getFetchRun } from '../web/fetch-runs';
+import { getRun } from '../web/target-runs';
 import { parseFlashCookie } from '../web/flash';
 import { writeFileSync } from 'node:fs';
 import { PSEUDO_LOCALE } from '../i18n/locale';
@@ -47,6 +53,11 @@ const MAY_404 = new Set([
   '/jobs/:id/cover/:letterId/file/:fmt',
   // No letter is attached until the upload below runs.
   '/screen/:id/applicants/:aid/letters/:lid/file',
+  // A pack keeps a file only once the worker has prepared it (ADR 0063); nothing here runs one.
+  '/jobs/:id/pack/resume.docx',
+  '/jobs/:id/pack/resume.pdf',
+  // The fixture company is a pasted job's, not a folder; the folder walk below asks a real one.
+  '/companies/:id/files',
 ]);
 /** GETs the route patterns do not reach: a page under its query parameters (`:id` = the fixture job). */
 const QUERY_VARIANTS = [
@@ -56,6 +67,7 @@ const QUERY_VARIANTS = [
   '/jobs/:id?tab=match',
   '/jobs/:id?tab=letter',
   '/jobs/:id?tab=verify',
+  '/jobs/:id?tab=pack',
   '/jobs/:id?tab=nonsense',
   // The AI ledger over each period, and a period nobody offers (ADR 0055).
   '/ai?period=month',
@@ -491,6 +503,39 @@ async function main(): Promise<void> {
       init: form({ locale: 'en', back: '//evil.example/jobs' }),
       expect: (res) => res.status === 303 && res.headers.get('location') === '/settings?tab=general#language' && flashOf(res).includes('The interface is in English'),
     },
+    {
+      // ADR 0063: the settings form as a browser sends it — an unticked box absent, the sections repeated.
+      name: 'POST /settings/pack (packs switched on)',
+      init: { method: 'POST', headers: { ...ORIGIN, 'content-type': 'application/x-www-form-urlencoded' }, body: 'enabled=1&minFit=92&dailyLimit=0&maxAgeDays=14&coverLetter=asked&sections=title&sections=skills&maxBullets=1&keywords=1' },
+      expect: (res) => res.status === 303 && res.headers.get('location') === '/settings?tab=general#packs',
+    },
+    {
+      name: 'GET /settings?tab=general (the saved pack settings drawn)',
+      init: { headers: ORIGIN },
+      expect: (res) => res.status === 200,
+    },
+    {
+      // The dashboard only queues; the worker prepares. With no worker here the row stays queued.
+      name: 'POST /jobs/:id/pack (queued for the worker)',
+      init: form({}),
+      expect: (res) => res.status === 303 && res.headers.get('location') === `/jobs/${f.jobId}?tab=pack`,
+    },
+    {
+      name: 'POST /jobs/:id/pack again (already queued, not a second row)',
+      init: form({}),
+      expect: (res) => res.status === 303 && res.headers.get('location') === `/jobs/${f.jobId}?tab=pack`,
+    },
+    {
+      name: 'GET /jobs/:id?tab=pack (a queued pack, the page refreshing itself)',
+      init: { headers: ORIGIN },
+      expect: (res) => res.status === 200,
+    },
+    {
+      // "I sent this file" with no ready pack behind it marks the job applied and freezes nothing.
+      name: 'POST /jobs/:id/status with pack=1 and no ready pack',
+      init: form({ status: 'APPLIED', pack: '1', tab: 'pack' }),
+      expect: (res) => res.status === 303 && res.headers.get('location') === `/jobs/${f.jobId}?tab=pack`,
+    },
   ];
   const postPaths = [
     '/jobs/new',
@@ -525,6 +570,12 @@ async function main(): Promise<void> {
     '/jobs',
     '/settings/locale',
     '/settings/locale',
+    '/settings/pack',
+    '/settings?tab=general',
+    `/jobs/${f.jobId}/pack`,
+    `/jobs/${f.jobId}/pack`,
+    `/jobs/${f.jobId}?tab=pack`,
+    `/jobs/${f.jobId}/status`,
   ];
   for (const [i, p] of posts.entries()) {
     const res = await app.request(postPaths[i]!, p.init);
@@ -602,7 +653,7 @@ async function main(): Promise<void> {
   try {
     const started = await app.request('/runs/fetch-now', form({}));
     const runId = (started.headers.get('location') ?? '').split('/').pop() ?? '';
-    const run = await settledFetchRun(runId);
+    const run = await settled(() => getFetchRun(runId));
     rows.push({
       route: 'POST /runs/fetch-now while another fetch holds the lock (overlap)',
       url: '/runs/fetch-now',
@@ -612,6 +663,9 @@ async function main(): Promise<void> {
   } finally {
     await held.release();
   }
+
+  rows.push(...(await importChecks()));
+  rows.push(...(await folderChecks()));
 
   // The Overview itself. A fresh database sends `/` to /welcome, so until here
   // the dashboard was never drawn: setup is skipped, a scored match and a day
@@ -666,6 +720,194 @@ async function main(): Promise<void> {
   process.exit(failed.length > 0 ? 1 : 0);
 }
 
+const IMPORT_CSV = [
+  'Position,Organisation,Job link,Where,About the role,Recruiter email',
+  'Backend Developer,Smoke Imports,https://rows.example/jobs/1,Remote,"Owns the ledger service, end to end.",someone@rows.example',
+  'Mobile Developer,Smoke Imports,https://rows.example/jobs/2,Lisbon,Owns the offline queue.,someone@rows.example',
+  'QA Engineer,Other Smoke,https://rows.example/jobs/3,Porto,Tests both.,other@rows.example',
+  ',Other Smoke,https://rows.example/jobs/4,Porto,A row with no title.,other@rows.example',
+].join('\r\n');
+const IMPORT_MAPPING = { title: 'Position', employer: 'Organisation', url: 'Job link', location: 'Where', description: 'About the role' };
+
+type Check = { route: string; url: string; status: number; ok: boolean };
+
+/**
+ * ADR 0062: a file of rows through its preview and its import, with fetching
+ * paused so no engine is asked. While a fetch holds the lock the first press
+ * stores nothing and keeps the rows; the second stores them unscored under an
+ * inactive IMPORT source; the same file again adds nothing; deleting the
+ * source takes its jobs.
+ */
+async function importChecks(): Promise<Check[]> {
+  const out: Check[] = [];
+  const check = (route: string, url: string, res: Response, ok: boolean): void => {
+    out.push({ route, url, status: res.status, ok });
+  };
+  const wasFetching = (await getSettings()).fetchingEnabled;
+  await setFetchingEnabled(false);
+  // A migrated database with nothing seeded has no search, and an import with none running stores nothing.
+  if ((await listActiveProfiles()).length === 0) {
+    await prisma.profile.create({ data: { ...blankProfileInput(), name: 'Smoke search', active: true } });
+  }
+  const upload = (): Promise<Response> => {
+    const body = new FormData();
+    body.set('sourceName', 'Smoke export');
+    body.set('file', new File([IMPORT_CSV], 'smoke.csv', { type: 'text/csv' }));
+    return Promise.resolve(app.request('/jobs/import', { method: 'POST', headers: ORIGIN, body }));
+  };
+  const imported = (): Promise<number> => prisma.job.count({ where: { company: { atsType: 'IMPORT' } } });
+  const pressImport = async (preview: string): Promise<{ res: Response; run: ReturnType<typeof getRun> }> => {
+    const res = await app.request(preview, form(IMPORT_MAPPING));
+    return { res, run: await settled(() => getRun((res.headers.get('location') ?? '').split('/').pop() ?? '')) };
+  };
+
+  const first = await upload();
+  const preview = first.headers.get('location') ?? '';
+  check('POST /jobs/import (a .csv upload)', '/jobs/import', first, first.status === 303 && /^\/jobs\/import\/[0-9a-f-]{36}$/.test(preview));
+  const page = await app.request(preview, { headers: ORIGIN });
+  const html = page.status === 200 ? await page.text() : '';
+  check(
+    'GET /jobs/import/:token (the mapping, three rows, the counts; no column about a person)',
+    preview,
+    page,
+    html.includes('Which column is which') && html.includes('3 of them jobs') && !html.includes('Recruiter email') && !html.includes('someone@rows.example'),
+  );
+  // A hand-made POST naming the column the page never offers: refused, and nothing is written.
+  const crafted = await app.request(preview, form({ ...IMPORT_MAPPING, employer: 'Recruiter email' }));
+  check(
+    'POST /jobs/import/:token mapping a column about a person (refused)',
+    preview,
+    crafted,
+    crafted.status === 303 && crafted.headers.get('location') === preview && (await prisma.company.count({ where: { atsType: 'IMPORT' } })) === 0,
+  );
+  const mapped = await app.request(`${preview}/mapping`, form(IMPORT_MAPPING));
+  check('POST /jobs/import/:token/mapping', `${preview}/mapping`, mapped, mapped.status === 303 && mapped.headers.get('location') === preview);
+  const foreign = await app.request(preview, {
+    method: 'POST',
+    headers: { origin: 'http://evil.example', host: 'localhost', 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams(IMPORT_MAPPING).toString(),
+  });
+  check('POST /jobs/import/:token from another origin (refused)', preview, foreign, foreign.status === 403);
+
+  const held = await tryFetchLock();
+  if (!held) throw new Error('route smoke: the fetch lock is already taken');
+  try {
+    const { res, run } = await pressImport(preview);
+    check(
+      'POST /jobs/import/:token while a fetch holds the lock (nothing stored, the rows kept)',
+      preview,
+      res,
+      res.status === 303 && run?.stage === 'done' && run.flashKind === 'warn' && run.resultUrl === preview && (await imported()) === 0,
+    );
+  } finally {
+    await held.release();
+  }
+
+  const { res: stored, run } = await pressImport(preview);
+  const source = await prisma.company.findFirst({ where: { atsType: 'IMPORT' }, include: { jobs: { select: { fitScore: true, employer: true } } } });
+  check(
+    'POST /jobs/import/:token while paused (stored unscored under an inactive source)',
+    preview,
+    stored,
+    stored.status === 303 &&
+      run?.stage === 'done' &&
+      run.resultUrl === '/jobs' &&
+      source?.active === false &&
+      source.sourceConfig !== null &&
+      source.jobs.length === 3 &&
+      source.jobs.every((j) => j.fitScore === null && j.employer !== null),
+  );
+
+  const again = await upload();
+  const second = await pressImport(again.headers.get('location') ?? '');
+  check('POST /jobs/import with the same file again (nothing new)', '/jobs/import', second.res, second.run?.stage === 'done' && (await imported()) === 3);
+  const list = await app.request('/jobs/import', { headers: ORIGIN });
+  check('GET /jobs/import with a source imported', '/jobs/import', list, list.status === 200 && (await list.text()).includes('Smoke export'));
+  const removed = await app.request(`/jobs/import/sources/${source?.id ?? 0}/delete`, form({}));
+  check('POST /jobs/import/sources/:id/delete (the source and its jobs)', '/jobs/import/sources/:id/delete', removed, removed.status === 303 && (await imported()) === 0);
+
+  await setFetchingEnabled(wasFetching);
+  return out;
+}
+
+/**
+ * ADR 0062: a folder a tool writes into, from Check to the ledger. The folder
+ * is this run's own, under the one root route-smoke-env.ts names; fetching is
+ * paused, so no engine is asked. Check stores nothing; Add stores the row
+ * switched off; the first check reads the file and stores its rows; the
+ * second reads nothing; a path outside the root is refused.
+ */
+async function folderChecks(): Promise<Check[]> {
+  const out: Check[] = [];
+  const check = (route: string, url: string, res: Response, ok: boolean): void => {
+    out.push({ route, url, status: res.status, ok });
+  };
+  const inbox = SMOKE_INBOX;
+  const file = path.join(inbox, 'run-1.json');
+  await fs.writeFile(
+    file,
+    JSON.stringify([
+      { id: 'f1', title: 'Backend Developer', company: 'Smoke Folder Co', url: 'https://rows.example/f/1', location: 'Remote' },
+      { id: 'f2', title: 'Mobile Developer', company: 'Smoke Folder Co', url: 'https://rows.example/f/2', location: 'Lisbon' },
+    ]),
+  );
+  // Written a minute ago, as far as the look can tell: a file changed this second waits.
+  const settledAt = new Date(Date.now() - 60_000);
+  await fs.utimes(file, settledAt, settledAt);
+  const wasFetching = (await getSettings()).fetchingEnabled;
+  await setFetchingEnabled(false);
+  const mapping = { title: 'title', employer: 'company', url: 'url', location: 'location', id: 'id' };
+  const stored = (): Promise<number> => prisma.job.count({ where: { company: { atsType: 'FOLDER' } } });
+  const checkNow = async (id: number): Promise<Response> => {
+    const res = await app.request(`/companies/${id}/check-now`, form({}));
+    await settled(() => getFetchRun((res.headers.get('location') ?? '').split('/').pop() ?? ''));
+    return res;
+  };
+
+  try {
+    const outside = await app.request('/companies/folder/check', form({ path: path.dirname(inbox) }));
+    check('POST /companies/folder/check outside the named root (refused)', '/companies/folder/check', outside, outside.status === 303 && outside.headers.get('location') === '/companies');
+    const preview = await app.request('/companies/folder/check', form({ path: inbox, name: 'Smoke folder' }));
+    const html = preview.status === 200 ? await preview.text() : '';
+    check(
+      'POST /companies/folder/check (what is in it, the mapping, the next check)',
+      '/companies/folder/check',
+      preview,
+      html.includes('1 file of rows') && html.includes('Which column is which') && html.includes('2 rows of the files it reads are jobs') && (await prisma.company.count({ where: { atsType: 'FOLDER' } })) === 0,
+    );
+    const added = await app.request('/companies/folder', form({ path: inbox, name: 'Smoke folder', include: '', ...mapping }));
+    const folder = await prisma.company.findFirst({ where: { atsType: 'FOLDER' } });
+    check('POST /companies/folder (added, switched off)', '/companies/folder', added, added.status === 303 && folder?.active === false && folder.sourceConfig !== null);
+    if (!folder) return out;
+
+    const off = await app.request(`/companies/${folder.id}/check-now`, form({}));
+    check('POST /companies/:id/check-now on a folder that is off (refused)', `/companies/${folder.id}/check-now`, off, off.status === 303 && off.headers.get('location') === '/companies');
+    await app.request(`/companies/${folder.id}/toggle-active`, form({}));
+    const first = await checkNow(folder.id);
+    const ledger = await prisma.sourceFile.findMany({ where: { companyId: folder.id } });
+    check(
+      'POST /companies/:id/check-now on a folder (the file read once, its rows stored unscored)',
+      `/companies/${folder.id}/check-now`,
+      first,
+      first.status === 303 && (await stored()) === 2 && ledger.length === 1 && ledger[0]?.status === 'done' && ledger[0].jobCount === 2 && ledger[0].sha256 !== null,
+    );
+    const second = await checkNow(folder.id);
+    const after = await prisma.company.findUnique({ where: { id: folder.id }, select: { lastFetchStatus: true } });
+    check('POST /companies/:id/check-now again (nothing read, nothing new)', `/companies/${folder.id}/check-now`, second, second.status === 303 && (await stored()) === 2 && after?.lastFetchStatus === 'empty');
+    const files = await app.request(`/companies/${folder.id}/files`, { headers: ORIGIN });
+    check('GET /companies/:id/files (the per-file list)', `/companies/${folder.id}/files`, files, files.status === 200 && (await files.text()).includes('2 rows read as jobs'));
+    const list = await app.request('/companies', { headers: ORIGIN });
+    check('GET /companies with a folder among the sources', '/companies', list, list.status === 200 && (await list.text()).includes('1 file · 0 new at the last check'));
+    const removed = await app.request(`/companies/${folder.id}/delete`, form({}));
+    check('POST /companies/:id/delete on a folder (its jobs and its ledger go, its files stay)', `/companies/${folder.id}/delete`, removed, removed.status === 303 && (await stored()) === 0 && (await prisma.sourceFile.count()) === 0 && (await fs.readdir(inbox)).length === 1);
+    out.push(...(await savedPostingChecks(path.join(inbox, 'saved'), checkNow, stored)));
+  } finally {
+    await setFetchingEnabled(wasFetching);
+    await fs.rm(inbox, { recursive: true, force: true });
+  }
+  return out;
+}
+
 /**
  * Every page once more, in the pseudo-language (ADR 0061): what went through
  * the catalog or the format module comes back in brackets, so the words left
@@ -708,11 +950,57 @@ async function pseudoPass(urls: string[]): Promise<{ rows: { route: string; url:
   return { rows, report };
 }
 
-/** A "Fetch now" run once it has finished, or null if it never does within the wait. */
-async function settledFetchRun(id: string, waitMs = 10_000): Promise<ReturnType<typeof getFetchRun>> {
+const SAVED_BODY = 'Own the PHP billing services, their APIs and their queues, with two other engineers, remotely across the EU. '.repeat(3);
+
+/**
+ * ADR 0062, saved postings, with fetching paused so no engine is asked: a
+ * page that states its title and company is stored unscored as a job of the
+ * folder, a text file that would need a model to read them waits, and the
+ * job page names the file it came from.
+ */
+async function savedPostingChecks(dir: string, checkNow: (id: number) => Promise<Response>, stored: () => Promise<number>): Promise<Check[]> {
+  const out: Check[] = [];
+  const check = (route: string, url: string, res: Response, ok: boolean): void => {
+    out.push({ route, url, status: res.status, ok });
+  };
+  await fs.mkdir(dir, { recursive: true });
+  const block = { '@context': 'https://schema.org', '@type': 'JobPosting', title: 'Senior PHP Developer', hiringOrganization: { name: 'Smoke Saved Co' }, description: SAVED_BODY };
+  await fs.writeFile(path.join(dir, 'page.html'), `<html><head><link rel="canonical" href="https://saved.example/jobs/1"><script type="application/ld+json">${JSON.stringify(block)}</script></head><body><main>${SAVED_BODY}</main></body></html>`);
+  await fs.writeFile(path.join(dir, 'note.txt'), `Backend Engineer\n\n${SAVED_BODY}`);
+  const settledAt = new Date(Date.now() - 60_000);
+  for (const name of ['page.html', 'note.txt']) await fs.utimes(path.join(dir, name), settledAt, settledAt);
+
+  const preview = await app.request('/companies/folder/check', form({ path: dir, name: 'Smoke saved' }));
+  const html = preview.status === 200 ? await preview.text() : '';
+  check('POST /companies/folder/check on saved postings (read as postings, the newest without AI)', '/companies/folder/check', preview, html.includes('2 saved postings') && html.includes('Senior PHP Developer') && html.includes('https://saved.example/jobs/1'));
+  const added = await app.request('/companies/folder', form({ path: dir, name: 'Smoke saved', include: '', holds: 'postings', alerts: 'off' }));
+  const folder = await prisma.company.findFirst({ where: { atsType: 'FOLDER', name: 'Smoke saved' } });
+  check('POST /companies/folder (saved postings added, no mapping)', '/companies/folder', added, added.status === 303 && folder?.active === false);
+  if (!folder) return out;
+  await app.request(`/companies/${folder.id}/toggle-active`, form({}));
+  const looked = await checkNow(folder.id);
+  const job = await prisma.job.findFirst({ where: { companyId: folder.id } });
+  const note = await prisma.sourceFile.findFirst({ where: { companyId: folder.id, relPath: 'note.txt' } });
+  check(
+    'POST /companies/:id/check-now on saved postings while paused (the page stored unscored, the text waits for a model)',
+    `/companies/${folder.id}/check-now`,
+    looked,
+    (await stored()) === 1 && job?.sourceFile === 'page.html' && job.fitScore === null && job.employer === 'Smoke Saved Co' && job.url === 'https://saved.example/jobs/1' && note?.status === 'waiting',
+  );
+  if (job) {
+    const page = await app.request(`/jobs/${job.id}`, { headers: ORIGIN });
+    check('GET /jobs/:id for a saved posting (names its folder and file)', `/jobs/${job.id}`, page, page.status === 200 && (await page.text()).includes('page.html'));
+  }
+  const removed = await app.request(`/companies/${folder.id}/delete`, form({}));
+  check('POST /companies/:id/delete on saved postings (its job goes, its files stay)', `/companies/${folder.id}/delete`, removed, removed.status === 303 && (await stored()) === 0 && (await fs.readdir(dir)).length === 2);
+  return out;
+}
+
+/** A run once it has finished, or null if it never does within the wait. */
+async function settled<T extends { stage: string } | null>(read: () => T, waitMs = 10_000): Promise<T | null> {
   const until = Date.now() + waitMs;
   for (;;) {
-    const run = getFetchRun(id);
+    const run = read();
     if (run && (run.stage === 'done' || run.stage === 'error')) return run;
     if (Date.now() > until) return null;
     await new Promise((resolve) => setTimeout(resolve, 100));

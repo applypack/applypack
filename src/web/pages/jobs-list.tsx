@@ -137,9 +137,14 @@ export const JobsListPage: FC<JobsListProps> = ({
         title={t('nav.jobs')}
         meta={t('jobs.count', { n: total })}
         actions={
-          <Button href="/jobs/new" variant="secondary">
-            {t('jobs.pasteAJob')}
-          </Button>
+          <>
+            <Button href="/jobs/import" variant="secondary">
+              {t('jobs.importAFile')}
+            </Button>
+            <Button href="/jobs/new" variant="secondary">
+              {t('jobs.pasteAJob')}
+            </Button>
+          </>
         }
       >
         {t('jobs.everyPostingTheSearchFound')}

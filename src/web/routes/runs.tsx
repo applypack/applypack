@@ -7,6 +7,7 @@ import { clearFlashCookie, flashRedirect, parseFlashCookie } from '../flash';
 import { FETCH_RUN_STEPS, activeFetchRun, getFetchRun } from '../fetch-runs';
 import { beginFetchNow } from '../fetch-now';
 import { summarizeFetchRun } from '../fetch-summary';
+import { folderCheckLine } from '../folder-words';
 import { loadFunnel, loadSourceYield } from '../../jobs/funnel-store';
 import { t } from '../../i18n/t';
 
@@ -70,7 +71,10 @@ runsRoute.get('/runs/fetch-now/:id', (c) => {
     );
   }
   if (run.stage === 'done') {
-    const { kind, text } = summarizeFetchRun(run.stats ?? {}, typeof run.scope === 'object' ? t('runs.checked', { name: run.scope.name }) : undefined);
+    const label = typeof run.scope === 'object' ? t('runs.checked', { name: run.scope.name }) : undefined;
+    // A folder that brought nothing has its own two sentences: there is no network to check.
+    const own = typeof run.scope === 'object' && run.scope.folder ? folderCheckLine(t('runs.checked', { name: run.scope.name }), run.stats ?? {}) : null;
+    const { kind, text } = own ?? summarizeFetchRun(run.stats ?? {}, label);
     return flashRedirect(run.backUrl, kind, text);
   }
   return c.html(<FetchRunPage run={run} />);

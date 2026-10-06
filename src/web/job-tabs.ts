@@ -6,7 +6,7 @@ import { t } from '../i18n/t';
  * rail (status, details, application tracking) rides on all of them.
  */
 
-export const JOB_TABS = ['posting', 'match', 'letter', 'verify'] as const;
+export const JOB_TABS = ['posting', 'match', 'letter', 'verify', 'pack'] as const;
 export type JobTab = (typeof JOB_TABS)[number];
 
 const DEFAULT_TAB: JobTab = 'posting';
@@ -50,9 +50,11 @@ export interface JobTabFacts {
   letters: number;
   /** The latest verification's verdict; null = never checked. */
   verdict: string | null;
+  /** Where the application pack stands (pack/view.ts:packFact); null = none. */
+  pack: string | null;
 }
 
-/** "Resume match · 72", "Cover letter · 1", "Is it real? · likely real" — or the bare name while there is nothing yet. */
+/** "Resume match · 72", "Cover letter · 1", "Is it real? · likely real", "Application pack · ready" — or the bare name while there is nothing yet. */
 export function jobTabLabels(facts: JobTabFacts): { tab: JobTab; label: string }[] {
   // The verdict is the verifier's own word, shown as it wrote it.
   const verdict = facts.verdict ? facts.verdict.replace(/_/g, ' ').toLowerCase() : null;
@@ -61,5 +63,7 @@ export function jobTabLabels(facts: JobTabFacts): { tab: JobTab; label: string }
     { tab: 'match', label: facts.matchScore === null || facts.matchScore === 0 ? t('job.tab.match') : t('job.tab.matchScore', { score: facts.matchScore }) },
     { tab: 'letter', label: facts.letters === 0 ? t('job.tab.letter') : t('job.tab.letterCount', { n: facts.letters }) },
     { tab: 'verify', label: verdict === null ? t('job.tab.verify') : t('job.tab.verifyVerdict', { verdict }) },
+    // The pack's fact (pack/view.ts:packFact) is still the worker's English word; the tab name is ours.
+    { tab: 'pack', label: facts.pack === null ? t('job.tab.pack') : t('job.tab.packFact', { fact: facts.pack }) },
   ];
 }

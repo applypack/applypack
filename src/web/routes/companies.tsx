@@ -40,6 +40,11 @@ import { listActiveProfiles } from '../../profiles';
 import { packOffers } from '../pack-offers';
 import { isBlankProfile } from '../../profile-guards';
 import { t } from '../../i18n/t';
+import { config } from '../../config';
+import { inboxRoots } from '../../datasets/folder-path';
+import { readSourceConfig } from '../../datasets/map';
+import { folderSummaries } from '../../jobs/source-file-store';
+import { underLauncher } from '../../local/child';
 
 const NewCompanySchema = z.object({
   name: z.string().min(1).max(100),
@@ -78,7 +83,8 @@ interface CompanyTally {
 
 companiesRoute.get('/companies', async (c) => {
   const companies = await prisma.company.findMany({
-    where: { atsType: { not: AtsType.MANUAL } },
+    // A pasted job's row and an imported file's (managed on /jobs/import) are not sources the tick reads.
+    where: { atsType: { notIn: [AtsType.MANUAL, AtsType.IMPORT] } },
     orderBy: [{ active: 'desc' }, { name: 'asc' }],
     include: {
       _count: { select: { jobs: true } },
@@ -171,10 +177,20 @@ companiesRoute.get('/companies', async (c) => {
   });
   const freshMap = new Map(freshCounts.map((r) => [r.companyId, r._count._all]));
 
+  const summaries = companies.some((c) => c.atsType === AtsType.FOLDER) ? await folderSummaries() : new Map();
+  const folders = companies
+    .filter((c) => c.atsType === AtsType.FOLDER)
+    .map((c) => {
+      const kept = readSourceConfig(c.sourceConfig);
+      return { id: c.id, name: c.name, path: c.atsToken, active: c.active, include: kept?.include ?? null, holds: kept?.holds ?? 'rows', summary: summaries.get(c.id) };
+    });
+
   const flash = parseFlashCookie(c.req.header('cookie'));
   return c.html(
     <CompaniesPage
       companies={rows}
+      folders={folders}
+      folderHost={{ launcher: underLauncher(), roots: inboxRoots(config.APPLYPACK_INBOX_ROOTS) }}
       watchlist={watchedRows(companies, freshMap, titleWordsOf((await listActiveProfiles()).filter((p) => !isBlankProfile(p))))}
       watchlistRun={activeWatchlistRun()}
       packs={packs}
@@ -494,6 +510,10 @@ companiesRoute.post('/companies/:id/toggle-active', async (c) => {
   // TASKS N8: an active row would put a page nothing can read into every tick.
   if (!current.active && current.atsType === AtsType.BROWSER_PAGE) {
     return redirectWithFlash('err', t('watchlist.flash.browserOnly', { name: current.name }));
+  }
+  // The same for a file the user imported: its rows are stored already, and the next ones come from the next file.
+  if (!current.active && current.atsType === AtsType.IMPORT) {
+    return redirectWithFlash('err', t('companies.importedNoFetch', { name: current.name }));
   }
 
   await prisma.company.update({

@@ -4,7 +4,29 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
-## [2.45.0] — 2026-10-05
+## [2.50.0] — 2026-10-06
+
+### Added
+- **A folder of postings you save.** Companies → Add sources → **A folder
+  on this computer** now takes a folder you save postings into: "Save page
+  as…" in the browser, a page printed to PDF, a `.docx`, a text or Markdown
+  file. Each file becomes one job, taken as a posting you pasted: scored,
+  never set aside by a search's filter, and kept as Saved when no search
+  wants it. A match alerts like any other and says which folder and file it
+  came from; the folder's **Alerts** can be set to "No alerts", which also
+  prepares no application pack for it.
+- Code reads what it can first: a page's own posting block (title, company,
+  place, date), its address, its main text. The AI engine is asked for the
+  title and company only when the file does not state them, never twice for
+  the same file, and never while fetching is paused. What a browser saves
+  beside a page (its `_files` folder) is passed over.
+- **Read within a minute with `npm start`.** The worker watches these
+  folders and reads a saved file a few seconds after it lands, outside your
+  search hours too. In Docker they are read at the hourly check.
+- The job page says which folder and file a job came from, and a folder's
+  **Files** page links each file to its job.
+
+## [2.49.0] — 2026-10-06
 
 ### Added
 - **The groundwork for an interface in your language.** ApplyPack's
@@ -33,6 +55,115 @@ All notable changes to this project are documented here. The format follows
   pseudo-language and prints how much English is still written into the
   code: 2 708 runs of text on 34 pages today. Each translation release
   brings it down.
+
+## [2.48.0] — 2026-10-06
+
+### Added
+- **Application packs.** For a strong new match the worker can do the
+  evening's work by itself: check that the posting is still open, compare it
+  with your resume, research the company on the web, tailor the resume
+  lightly and keep the file. In the morning one message says which packs are
+  ready and which postings are not worth your time; the job's new
+  **Application pack** tab shows the company in a few sentences, what was
+  changed line by line, what was left for you, and **Download .docx / .pdf**.
+  **Off by default**: Settings → General → Application packs.
+- You decide when a pack is prepared: the fit a posting needs (90), how many
+  a day the worker starts on its own (5; 0 = no limit) and how recently the
+  posting must have been published (7 days). Only postings found after you
+  switch it on are prepared — the jobs already stored are never walked, and
+  a re-classify prepares nothing. Any single job can be prepared by hand on
+  its tab, whatever the settings say.
+- A pack stops early and says why: the posting is closed, it requires
+  something your resume does not show, no edit could bring the resume close
+  enough, or the company check says fake or not worth applying. Measured on
+  44 real postings with fit 90 or more: 17 reached the end, 17 failed a
+  requirement, 7 could not get close, 2 were closed, 1 was not worth it.
+- You decide what an automatic edit may touch: the title line, the summary,
+  the skills, how many experience bullets (2), whether anything may be
+  removed (no). Whatever you choose, only wording the fact check let through
+  is applied, a keyword nothing in your resume backs is never written, a
+  rewrite that would lose a number the line had is left for you, and your
+  contact details are never touched. Your stored resume is not changed.
+- **The file you sent stays.** "I sent this file — mark applied" marks the
+  job applied and keeps the pack's file exactly as it was; it can be
+  downloaded from the job for as long as the job is there.
+- A cover letter with the pack when you ask for one: never (the default),
+  when the posting's own text mentions one, or always.
+- Overview → **Ready to send**: the packs prepared and not yet sent.
+- `npm run pack:dry` measures what packs would do to the postings you
+  already have, on a copy of the database; `pack-once.js` runs the queue now.
+
+### Changed
+- The worker now calls the resume module for packs (ADR 0063 amends ADR 0008)
+  and has a seventh schedule, `pack`, that beats every minute and does
+  nothing while no pack is queued.
+
+## [2.47.1] — 2026-10-06
+
+### Fixed
+- **Tailor resume wrote the posting's job title onto a skills line.** The
+  posting's own title is a keyword, so that your title line can take it.
+  **Add missing keywords to your skills**, **Apply all** and the chip's
+  **+ add** offered it as a skill as well, and a resume came out with
+  "Frameworks/Libraries: …, Senior Software Engineer, Backend". Measured on
+  17 real comparisons: three of the seven keywords Apply all would write
+  were the title. It is no longer offered as a skill. It still counts in the
+  score, stays among the missing chips, and goes on the title line through
+  its own suggestion or by hand.
+
+## [2.47.0] — 2026-10-05
+
+### Added
+- **A folder of job files as a source.** Companies → Add sources → **A
+  folder on this computer**: name a folder a tool of yours writes exports
+  into, and each hourly check reads the new `.json`, `.jsonl`, `.csv` and
+  `.tsv` files in it. **Check** shows what is in the folder, which column
+  was read as what, the first rows as they would be stored and what the next
+  check would cost, with no AI spent; **Add (off)** stores it, and you switch
+  it on in the table. A file is read once and again only when it changes; a
+  file still being written waits for the next check; a copy of one already
+  read is set aside.
+- **Folders on this computer** on Companies shows each folder's line
+  ("214 files · 3 new at the last check") with **Files** — what became of
+  every file, in words — **Mapping** and **Check now**.
+- ApplyPack never writes, moves, renames or deletes anything in the folder.
+  With `npm start` a folder inside your home folder works (the page can
+  create `~/ApplyPack/inbox`); in Docker, mount the folder read-only into
+  both services and name it in `APPLYPACK_INBOX_ROOTS`
+  ([ADR 0062](docs/adr/0062-rows-the-user-brings-are-read-never-fetched.md),
+  addendum; [docs/install.md](docs/install.md#a-folder-of-job-files)).
+
+## [2.46.0] — 2026-10-05
+
+### Added
+- **Import a file of jobs.** Jobs → **Import a file** takes rows you already
+  have — an export, a spreadsheet you keep, the output of a tool you run — as
+  JSON, JSON Lines, CSV or TSV (up to 5 MB, the first 2 000 rows). Before
+  anything is stored a preview shows which column was read as the title, the
+  link, the company and the text, with a select to correct each; the first
+  three rows as they would be kept; how many are new and pass your searches'
+  filter; and what scoring them costs. **Import** then runs them through the
+  same filter, scoring and alerts as every other job, with a row on Runs.
+  While fetching is paused they are stored unscored and no AI is spent. A
+  newer export into the same source adds only what is new, and each company
+  in the file is named on its own rows, so a mute works on it.
+- ApplyPack reads the file and requests nothing. Columns about people (who
+  posted, who recruits, an email, a phone) are never read, a link is kept
+  only when it is http(s), and the file itself is never stored
+  ([ADR 0062](docs/adr/0062-rows-the-user-brings-are-read-never-fetched.md)).
+
+### Fixed
+- A posting whose markup is never closed no longer stalls the reader. Three
+  hundred kilobytes of unclosed tags took nine to twenty-five seconds to
+  turn into text; it takes milliseconds now, and the text of every other
+  posting comes out the same.
+- A posting carrying `&#0;` is stored like any other. The decoded NUL made
+  the database refuse the row, and the fetch that brought it failed.
+- A link written with a trailing dot after its host (`host.com.`) is
+  recognised as that host by the list of sites ApplyPack never requests.
+- The progress page of a long run keeps its answer for half an hour after
+  the run finishes, not after it started.
+
 ## [2.44.0] — 2026-10-05
 
 ### Added
@@ -4772,7 +4903,12 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
-[2.45.0]: https://github.com/applypack/applypack/compare/v2.44.0...v2.45.0
+[2.50.0]: https://github.com/applypack/applypack/compare/v2.49.0...v2.50.0
+[2.49.0]: https://github.com/applypack/applypack/compare/v2.48.0...v2.49.0
+[2.48.0]: https://github.com/applypack/applypack/compare/v2.47.1...v2.48.0
+[2.47.1]: https://github.com/applypack/applypack/compare/v2.47.0...v2.47.1
+[2.47.0]: https://github.com/applypack/applypack/compare/v2.46.0...v2.47.0
+[2.46.0]: https://github.com/applypack/applypack/compare/v2.44.0...v2.46.0
 [2.44.0]: https://github.com/applypack/applypack/compare/v2.43.0...v2.44.0
 [2.43.0]: https://github.com/applypack/applypack/compare/v2.42.0...v2.43.0
 [2.42.0]: https://github.com/applypack/applypack/compare/v2.41.2...v2.42.0

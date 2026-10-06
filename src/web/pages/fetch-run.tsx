@@ -11,7 +11,7 @@ function stepView({ classify, scope }: Pick<FetchRun, 'classify' | 'scope'>): Re
   return {
     fetch:
       typeof scope === 'object'
-        ? { label: t('fetch.step.check', { name: scope.name }), detail: t('fetch.step.check.detail') }
+        ? { label: t('fetch.step.check', { name: scope.name }), detail: scope.folder ? t('fetch.step.check.detailFolder') : t('fetch.step.check.detail') }
         : scope === 'aggregators'
         ? { label: t('fetch.step.aggregators'), detail: t('fetch.step.aggregators.detail') }
         : { label: t('fetch.step.all'), detail: t('fetch.step.all.detail') },

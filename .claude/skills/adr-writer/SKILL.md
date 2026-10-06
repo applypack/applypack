@@ -66,7 +66,7 @@ of truth when the two disagree.
 - 0005 No LinkedIn / Indeed / Workday — *amended by 0034, 0036*
 - 0006 Discovery via HN parser, not ATS-vendor lists
 - 0007 One AI provider seam: Messages API or Claude Code CLI — *extended by 0013, 0014, 0027, 0055*
-- 0008 Resume module lives in the web process, files in Postgres
+- 0008 Resume module lives in the web process, files in Postgres — *amended by 0063*
 - 0009 Web tools through the AI seam, for job verification only
 - 0010 Two scores: live keyword coverage in the browser, AI match on demand — *amended by 0012, 0038*
 - 0011 PDF resume text comes from unpdf, not a hand-rolled parser
@@ -120,6 +120,8 @@ of truth when the two disagree.
 - 0059 The Tailor page edits the resume as a document, and a save is always one *(extends 0038/0039)*
 - 0060 An engine takes the tasks it is given, and the order decides among those that take one *(extends 0014/0057)*
 - 0061 The interface speaks several languages; what a model writes stays English
+- 0062 Rows the user brings are read from what they hand over, and nothing is fetched
+- 0063 The worker prepares an application pack for a strong new match *(amends 0008)*
 
 Check a proposal against these before touching process layout, sources,
 scheduling, profiles, how the AI is called, the resume score or employer

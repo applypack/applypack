@@ -34,6 +34,7 @@ const REASON: Record<string, MessageKey> = {
  */
 const FACTS: { key: string; words: MessageKey; always?: true; job?: string }[] = [
   { key: 'fetched', words: 'runs.fact.fetched', always: true },
+  { key: 'fetched', job: 'import', words: 'runs.fact.importRows', always: true },
   { key: 'persisted', words: 'runs.fact.persisted', always: true },
   { key: 'duplicate', words: 'runs.fact.duplicate' },
   { key: 'crossListed', words: 'runs.fact.crossListed' },
@@ -96,7 +97,8 @@ function humanise(key: string): string {
  * 0 alerted" is a finding, "0 new, 0 alerted" is noise.
  */
 export function summarizeRun(name: string, stats: CronStats): string[] {
-  const facts = FACTS.filter((f) => f.job === undefined || f.job === name);
+  // A job's own wording for a count replaces the shared one ("3 rows read from the file", not "3 fetched").
+  const facts = FACTS.filter((f) => f.job === name || (f.job === undefined && !FACTS.some((own) => own.job === name && own.key === f.key)));
   const out: string[] = [];
   const num = (key: string): number | null => (typeof stats[key] === 'number' ? (stats[key] as number) : null);
 
@@ -127,7 +129,9 @@ export function summarizeRun(name: string, stats: CronStats): string[] {
 const AFTER_FAILURE: Record<string, MessageKey> = {
   fetch: 'runs.after.fetch',
   'fetch-now': 'runs.after.fetchNow',
+  'folder-watch': 'runs.after.folderWatch',
   'hn-hiring': 'runs.after.hnHiring',
+  import: 'runs.after.import',
   digest: 'runs.after.digest',
   'stale-applications': 'runs.after.digest',
   cleanup: 'runs.after.cleanup',

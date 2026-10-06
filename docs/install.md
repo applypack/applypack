@@ -106,6 +106,10 @@ or `Copy-Item .env.example .env` in PowerShell) and set:
 - `APPLYPACK_DATA_DIR=/path/to/folder` — to keep the data somewhere else.
 - `DATABASE_URL=postgresql://…` — to use a PostgreSQL 16 of your own; the
   built-in database is then never started.
+- `APPLYPACK_INBOX_ROOTS=/path/one:/path/two` — folders ApplyPack may read
+  job files from when they are outside your home folder (an external disk).
+  A folder inside your home folder needs no entry. See
+  [A folder of job files](#a-folder-of-job-files).
 
 Everything else — AI keys, models, Telegram or Discord, the search profile —
 is set in the dashboard, not in files.
@@ -132,6 +136,39 @@ Windows by a person yet — an API key is the sure one there.
 | `Postgres does not run as root` | Linux as root: start ApplyPack as your normal user, or use Docker |
 | `The built-in database did not start` | the message quotes the database log; please [open an issue](https://github.com/applypack/applypack/issues/new/choose) with it |
 | `ExperimentalWarning: localStorage is not available` | harmless: recent Node.js versions print it for a library ApplyPack uses |
+
+## A folder of job files
+
+Companies → Add sources → **A folder on this computer** makes a folder a
+source of one of two kinds. **Postings I save**: you save a posting into it
+— "Save page as…", a page printed to PDF, a `.docx`, text — and it becomes
+one job, scored like a pasted one; with `npm start` within a minute, in
+Docker at the hourly check. **Files a tool writes**: a tool of yours writes
+`.json`, `.jsonl`, `.csv` or `.tsv` files into it, and each hourly check
+reads the new ones. ApplyPack only reads the folder; it never writes, moves
+or deletes anything in it.
+
+- **With `npm start`** any folder inside your home folder works, except
+  hidden ones and the system's own. The page can create `~/ApplyPack/inbox`
+  for you. On macOS, Desktop, Documents and Downloads are guarded by the
+  system: either allow the program you start ApplyPack from under System
+  Settings → Privacy & Security → Files and Folders, or use a folder
+  directly in your home folder, which needs no permission.
+- **In Docker** a container sees only what is mounted. Mount the folder
+  read-only into both services and name the mount:
+
+  ```yaml
+  # docker-compose.yml, under app: and under web:
+  volumes:
+    - ./inbox:/inbox:ro
+  ```
+
+  ```bash
+  # .env
+  APPLYPACK_INBOX_ROOTS=/inbox
+  ```
+
+  The folder form then takes `/inbox`, or a folder inside it.
 
 ## Docker instead
 

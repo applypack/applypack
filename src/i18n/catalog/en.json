@@ -524,7 +524,7 @@
   "sources.group.aggregator": "Aggregators",
   "sources.group.aggregator.caption": "Whole job boards — they bring postings on their own.",
   "sources.group.own": "Your own sources",
-  "sources.group.own.caption": "The feeds you pasted and the careers pages you watch. Unticking these switches your watchlist off.",
+  "sources.group.own.caption": "The feeds you pasted, the careers pages you watch and the folders you added. Unticking these switches your watchlist off.",
   "sources.count.vendor": "{n, plural, =0 {no companies yet} one {# company · {active, plural, one {# active} other {# active}}} other {# companies · {active, plural, one {# active} other {# active}}}}",
   "sources.count.aggregator": "{n, plural, =0 {no feeds yet} one {# feed · {active, plural, one {# active} other {# active}}} other {# feeds · {active, plural, one {# active} other {# active}}}}",
   "sources.count.own": "{n, plural, =0 {no entries yet} one {# entry · {active, plural, one {# active} other {# active}}} other {# entries · {active, plural, one {# active} other {# active}}}}",
@@ -2777,5 +2777,34 @@
 
   "match.delta.fresh.rebuild": "Keywords were rebuilt from the posting for this run, so this analysis counts a different set of terms. Read the score on its own — the earlier ones judged another list.",
   "match.delta.fresh.postingChanged": "The posting's description was replaced after the earlier analysis, so its keywords were read afresh, so this analysis counts a different set of terms. Read the score on its own — the earlier ones judged another list.",
-  "match.delta.fresh.promptBump": "The analysis prompt changed, so the earlier keywords were not reused, so this analysis counts a different set of terms. Read the score on its own — the earlier ones judged another list."
+  "match.delta.fresh.promptBump": "The analysis prompt changed, so the earlier keywords were not reused, so this analysis counts a different set of terms. Read the score on its own — the earlier ones judged another list.",
+
+  "job.tab.pack": "Application pack",
+  "job.tab.packFact": "Application pack · {fact}",
+
+  "fetch.step.check.detailFolder": "its new and changed files, read off this computer — seconds",
+
+  "job.from": "From",
+
+  "jobs.importAFile": "Import a file",
+
+  "target.step.import": "Filter, store and score the rows",
+  "target.step.import.detail": "your searches’ filter and the duplicate check first, no AI; then each new row is scored and matches are alerted — or stored unscored while fetching is paused",
+  "target.run.closeImport": "You can close this page — the run keeps going and the result lands on Jobs, with a row on Runs.",
+
+  "runs.fact.importRows": "{n, plural, one {# row read from the file} other {# rows read from the file}}",
+  "runs.after.folderWatch": "What it stored before the failure stays, and the hourly check reads the folder again.",
+  "runs.after.import": "What it stored before the failure stays; import the same file again and only the rest is added.",
+
+  "sources.health.folder.empty": "Nothing new",
+  "sources.health.folder.slugGone": "Folder not found",
+  "sources.health.folder.auth": "Not allowed to read",
+  "sources.health.folder.badPayload": "Files do not fit the mapping",
+
+  "companies.files": "Files",
+
+  "sources.kind.import": "Imported file",
+  "sources.kind.folder": "Folder on this computer",
+
+  "companies.importedNoFetch": "{name} is a file you imported, so there is nothing for the hourly fetch to read. Import a newer file on Jobs → Import a file."
 }

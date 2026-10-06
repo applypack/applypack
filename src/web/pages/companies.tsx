@@ -47,6 +47,7 @@ import type { WatchlistRun } from '../watchlist-runs';
 import type { MessageKey } from '../../i18n/catalog';
 import { t } from '../../i18n/t';
 import { tRich } from '../rich';
+import { AddFolderCard, FolderSourcesSection, type FolderHost, type FolderSourceRow } from './folder-source';
 
 interface CompanyRow {
   id: number;
@@ -83,6 +84,9 @@ export interface CompaniesProps {
   fetchingEnabled: boolean;
   /** ADR 0056: the companies the user does not want to see. */
   muted: MutedRow[];
+  /** ADR 0062: the folders among the sources, and where one may be on this install. */
+  folders: FolderSourceRow[];
+  folderHost: FolderHost;
 }
 
 const DOT_TONE: Record<HealthTone, string> = {
@@ -110,15 +114,25 @@ const HEALTH_LABEL = {
   unknown: 'sources.health.unknown',
 } as const satisfies Record<FetchStatus, MessageKey>;
 
-function healthLabel(status: string | null): string {
+/** A folder's own words for the statuses a file read produces (fetchers/source-health.ts:FOLDER_STATUS). */
+const FOLDER_HEALTH_LABEL: Partial<Record<FetchStatus, MessageKey>> = {
+  empty: 'sources.health.folder.empty',
+  slug_gone: 'sources.health.folder.slugGone',
+  auth: 'sources.health.folder.auth',
+  bad_payload: 'sources.health.folder.badPayload',
+};
+
+function healthLabel(status: string | null, atsType?: string): string {
+  const folder = atsType === AtsType.FOLDER && status !== null && Object.hasOwn(FOLDER_HEALTH_LABEL, status) ? FOLDER_HEALTH_LABEL[status as FetchStatus] : undefined;
+  if (folder) return t(folder);
   const key = status !== null && Object.hasOwn(HEALTH_LABEL, status) ? HEALTH_LABEL[status as FetchStatus] : 'sources.health.none';
   return t(key);
 }
 
 /** Status dot + label, the per-row half of ADR 0019. */
-const HealthDot: FC<{ status: string | null; streak: number }> = ({ status, streak }) => {
-  const { tone } = describeStatus(status);
-  const label = healthLabel(status);
+const HealthDot: FC<{ status: string | null; streak: number; atsType: string }> = ({ status, streak, atsType }) => {
+  const { tone } = describeStatus(status, atsType);
+  const label = healthLabel(status, atsType);
   return (
     <span
       class="inline-flex items-center gap-2 whitespace-nowrap"
@@ -172,18 +186,25 @@ const QuietSources: FC<{ companies: CompanyRow[]; fetchingEnabled: boolean }> = 
                 </Badge>
                 <span>
                   {c.quiet === 'failing'
-                    ? t('sources.health.withStreak', { label: healthLabel(c.lastFetchStatus).toLowerCase(), n: c.consecutiveFailures })
+                    ? t('sources.health.withStreak', { label: healthLabel(c.lastFetchStatus, c.atsType).toLowerCase(), n: c.consecutiveFailures })
                     : c.lastOkAt
                       ? t('companies.quiet.lastPosting', { when: formatRelative(c.lastOkAt) })
                       : t('companies.noPostingSinceWeStarted')}
                 </span>
               </div>
             </div>
-            <ActionForm action={`/companies/${c.id}/reprobe`}>
-              <Button size="sm" variant="secondary">
-                {t('companies.reProbe')}
+            {c.atsType === AtsType.FOLDER ? (
+              // A folder has no board to probe: its files say what went wrong.
+              <Button href={`/companies/${c.id}/files`} size="sm" variant="secondary">
+                {t('companies.files')}
               </Button>
-            </ActionForm>
+            ) : (
+              <ActionForm action={`/companies/${c.id}/reprobe`}>
+                <Button size="sm" variant="secondary">
+                  {t('companies.reProbe')}
+                </Button>
+              </ActionForm>
+            )}
           </div>
         ))}
       </div>
@@ -317,6 +338,8 @@ export const CompaniesPage: FC<CompaniesProps> = ({
   flash,
   fetchingEnabled,
   muted,
+  folders,
+  folderHost,
 }) => {
   const empty = companies.length === 0;
   return (
@@ -328,6 +351,7 @@ export const CompaniesPage: FC<CompaniesProps> = ({
 
     <WatchlistSection rows={watchlist} />
     <QuietSources companies={companies} fetchingEnabled={fetchingEnabled} />
+    <FolderSourcesSection folders={folders} />
 
     {companies.length === 0 ? (
       <Empty title={t('companies.noCompaniesYet')}>
@@ -383,7 +407,7 @@ export const CompaniesPage: FC<CompaniesProps> = ({
                     </div>
                   </Td>
                   <Td>
-                    <HealthDot status={c.lastFetchStatus} streak={c.consecutiveFailures} />
+                    <HealthDot status={c.lastFetchStatus} streak={c.consecutiveFailures} atsType={c.atsType} />
                   </Td>
                   <Td class="text-right tabular-nums text-ink-muted">{c.jobsTotal}</Td>
                   <Td
@@ -478,6 +502,11 @@ export const CompaniesPage: FC<CompaniesProps> = ({
               </div>
             </form>
             </Card>
+          </div>
+        </Disclosure>
+        <Disclosure variant="button" summary="A folder on this computer" class="contents">
+          <div class="order-last basis-full">
+            <AddFolderCard host={folderHost} />
           </div>
         </Disclosure>
         {(suggestions.length > 0 || fitPacks.length > 0) && (

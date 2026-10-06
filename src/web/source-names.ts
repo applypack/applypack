@@ -50,6 +50,8 @@ const SOURCE_KINDS: Record<string, MessageKey> = {
   FEED: 'sources.kind.feed',
   CAREER_PAGE: 'sources.kind.careerPage',
   BROWSER_PAGE: 'sources.kind.browserPage',
+  IMPORT: 'sources.kind.import',
+  FOLDER: 'sources.kind.folder',
   MANUAL: 'sources.kind.manual',
 };
 

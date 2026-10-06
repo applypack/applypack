@@ -16,8 +16,10 @@ import { toScoreData } from './score-store';
 import { mergeAiLocation, type StoredPlace } from './location-merge';
 import { isBlankProfile, NO_PROFILE_STACK_FLAG } from '../profile-guards';
 import { alertChannel, sendAlert, type Delivery } from '../notifier';
+import { autoPacksToday, queuePack } from '../pack/store';
+import { autoPack } from '../pack/trigger';
 import { attributionLine } from '../web/pages/attribution';
-import type { ClassifierMode } from '../settings';
+import { getPackSettings, type ClassifierMode } from '../settings';
 import { canAlertNow, type Schedule } from '../user-schedule';
 import { alertsEveryPosting, starred, type WatchRules } from '../watchlist/interval';
 import {
@@ -41,6 +43,8 @@ export interface FetchResult {
   source?: { atsType: string; atsToken: string };
   /** What the watchlist asks of this row (ADR 0036). Absent = the normal pipeline. */
   watch?: WatchRules;
+  /** The source's alerts are off (a folder set so, ADR 0062): a match is kept and shown, and sends nothing. */
+  quiet?: boolean;
 }
 
 /** A fetched row plus its parsed location and whose it is — read once, used by the gates and the insert. */
@@ -62,6 +66,8 @@ export interface ProcessStats {
   dismissed: number;
   alerted: number;
   alertFailed: number;
+  /** Matches an application pack was queued for (ADR 0063); 0 on every install that never switched packs on. */
+  packsQueued: number;
   priorityBoosted: number;
   crossListed: number;
   /** 1 when the run stopped early because fetching was paused mid-run. */
@@ -76,6 +82,8 @@ export interface ProcessStats {
   alertsOffHeld: number;
   /** Matches with no active chat to send them to; they stay New on the dashboard. */
   alertNoTarget: number;
+  /** Matches from a source whose alerts are off (ADR 0062): kept on /jobs, never sent. */
+  alertSourceOff: number;
   /** Postings kept because a watched company alerts on everything (ADR 0036). */
   watchedKept: number;
   /** Stored as a match after scoring — kept by a search, or by a watched company's policy. */
@@ -107,6 +115,7 @@ export function emptyProcessStats(): ProcessStats {
     dismissed: 0,
     alerted: 0,
     alertFailed: 0,
+    packsQueued: 0,
     priorityBoosted: 0,
     crossListed: 0,
     abortedMidRun: 0,
@@ -115,6 +124,7 @@ export function emptyProcessStats(): ProcessStats {
     alertHeld: 0,
     alertsOffHeld: 0,
     alertNoTarget: 0,
+    alertSourceOff: 0,
     watchedKept: 0,
     matched: 0,
     rejectedTitle: 0,
@@ -224,14 +234,17 @@ export async function processNormalizedJobs(
     // to SEE what appears there, so the roster's gate does not apply to it.
     // The posting is still classified below — the policy decides what is done
     // with the verdict, not whether one is formed (ADR 0036).
-    const rejected = alertsEveryPosting(item.watch)
+    // A posting the user saved themselves is taken as a paste is (ADR 0062):
+    // they chose it, so no search's filter and no employer rule turns it away.
+    const chosen = item.job.handPicked === true;
+    const rejected = chosen || alertsEveryPosting(item.watch)
       ? null
       : anyBaseFilterReason({ ...item.job, ...place }, classify ? profiles : activeProfiles);
     // Who hires, before any AI: a muted company, or one applied to inside the
     // re-apply window, is turned away like a filter reject — no row, no call.
     // Reversible: after an unmute the next tick meets the posting as new.
     const employerKey = hiringKey(item.job.employer, item.companyName, item.job.employer !== undefined);
-    const turnedAway = rejected ?? employerGate(employerKey, employers, alertsEveryPosting(item.watch));
+    const turnedAway = rejected ?? (chosen ? null : employerGate(employerKey, employers, alertsEveryPosting(item.watch)));
     if (turnedAway !== null) {
       stats.filterRejected++;
       stats[FILTER_KEY[turnedAway]]++;
@@ -269,6 +282,10 @@ export async function processNormalizedJobs(
   // Read once, like the schedule: Alerts off with a chat to send to means a
   // match waits for them; no chat at all means there is nothing to wait for.
   const channel = await alertChannel();
+  // Read once as well: whether a strong new match gets an application pack
+  // (ADR 0063), and how many today's limit has left.
+  const packs = await getPackSettings();
+  let packsToday = packs.enabled ? await autoPacksToday(new Date()) : 0;
 
   // Classify up to AI_CONCURRENCY jobs at once; results are consumed in the
   // original order, so persisting and alerting stay sequential and ordered.
@@ -320,8 +337,9 @@ export async function processNormalizedJobs(
       stats.preFiltered++;
       // Stored, dismissed and unscored, with the prefilter's reason: unstored,
       // the next tick met it as new and paid the prefilter again, every hour it
-      // stayed on its feed (#290). "Save & re-classify" still reads it.
-      await persistJob(placed, null, JobStatus.DISMISSED, [], batch, {
+      // stayed on its feed (#290). "Save & re-classify" still reads it. A
+      // posting the user saved is kept Saved instead, as below (ADR 0062).
+      await persistJob(placed, null, job.handPicked === true ? JobStatus.SAVED : JobStatus.DISMISSED, [], batch, {
         summary: prefilterReason ? `Set aside by the prefilter: ${prefilterReason}` : 'Set aside by the prefilter.',
       });
       continue;
@@ -350,7 +368,10 @@ export async function processNormalizedJobs(
     const kept = merged.kept || keptByPolicy;
 
     if (!kept) {
-      const stored = await persistJob(placed, finalClassification, JobStatus.DISMISSED, winner.priorityRulesApplied, batch, {
+      // A posting the user saved is theirs to keep whatever the score says: Saved, as a paste is,
+      // with the verdicts that explain it — never Dismissed, which is deleted after a month.
+      const status = job.handPicked === true ? JobStatus.SAVED : JobStatus.DISMISSED;
+      const stored = await persistJob(placed, finalClassification, status, winner.priorityRulesApplied, batch, {
         verdicts,
       });
       if (stored) {
@@ -377,7 +398,7 @@ export async function processNormalizedJobs(
     // DATA-3).
     const skipsAlert =
       finalClassification.red_flags.includes(NO_PROFILE_STACK_FLAG) && !alertsEveryPosting(item.watch);
-    const holds = !skipsAlert && channel !== 'no-targets' && (!mayAlert || channel === 'alerts-off');
+    const holds = !skipsAlert && item.quiet !== true && channel !== 'no-targets' && (!mayAlert || channel === 'alerts-off');
     const alertHeldAt = holds ? new Date() : null;
     const stored = await persistJob(placed, finalClassification, JobStatus.NEW, winner.priorityRulesApplied, batch, {
       verdicts,
@@ -386,6 +407,24 @@ export async function processNormalizedJobs(
     if (!stored) continue;
     stats.matched++;
     const { created, crossListing } = stored;
+    // Asked here and nowhere else — about a posting this tick has just
+    // stored — so the backlog is never walked and a re-classify queues
+    // nothing (pack/trigger.ts). The runner picks the row up (pack-job.ts).
+    // A source whose alerts are off asked to be left quiet: no pack is prepared on its own either.
+    if (
+      !skipsAlert &&
+      item.quiet !== true &&
+      autoPack({ settings: packs, fit: created.fitScore, postedAt: created.postedAt, now: new Date(), queuedToday: packsToday }) === 'queue'
+    ) {
+      // A pack is an extra: failing to queue one must never cost the match its alert.
+      try {
+        await queuePack(created.id, 'auto');
+        packsToday++;
+        stats.packsQueued++;
+      } catch (err) {
+        logger.warn({ err, jobId: created.id }, 'process-jobs: could not queue an application pack');
+      }
+    }
     // Counted where every other counter is: after the row exists. A posting
     // the unique key rejected was not kept by anything.
     if (keptByPolicy) stats.watchedKept++;
@@ -396,6 +435,12 @@ export async function processNormalizedJobs(
     // statement about the SCORE, and this alert makes no claim about the
     // score — it says a company the user chose has put something up.
     if (skipsAlert) continue;
+
+    // The source's own alerts are off: the match is on /jobs with its score, and nothing is sent or held.
+    if (item.quiet === true) {
+      stats.alertSourceOff++;
+      continue;
+    }
 
     // No chat to send to: the row stays NEW on the dashboard, which is where
     // an install without notifications reads its matches. Nothing is held,
@@ -422,7 +467,11 @@ export async function processNormalizedJobs(
           title: created.title,
           companyName: starred(job.employer ?? companyName, item.watch),
           watched: item.watch?.watched === true,
-          attribution: item.source ? attributionLine(item.source.atsType, item.source.atsToken) : null,
+          attribution: job.sourceFile
+            ? `From your folder: ${companyName} / ${job.sourceFile}`
+            : item.source
+              ? attributionLine(item.source.atsType, item.source.atsToken)
+              : null,
           location: created.location,
           countries: created.countries,
           workplace: created.workplace,
@@ -587,6 +636,7 @@ async function persistJob(
         ...(summary !== null && c === null && { summary }),
         employer: job.employer ?? null,
         employerKey,
+        sourceFile: job.sourceFile ?? null,
         alertHeldAt,
         // Every search's verdict, written with the row it belongs to — a
         // second statement could leave a scored Job with no JobScore.

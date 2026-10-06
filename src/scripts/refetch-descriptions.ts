@@ -20,7 +20,8 @@ const POLITE_DELAY_MS = 1_000;
 
 async function main(): Promise<void> {
   const companies = await prisma.company.findMany({
-    where: { atsType: { not: AtsType.MANUAL }, jobs: { some: {} } },
+    // Nothing to re-pull where nothing is fetched: pasted jobs, and the rows the user brings (ADR 0062).
+    where: { atsType: { notIn: [AtsType.MANUAL, AtsType.IMPORT, AtsType.FOLDER] }, jobs: { some: {} } },
     select: { id: true, name: true, atsType: true, atsToken: true },
     orderBy: { id: 'asc' },
   });
