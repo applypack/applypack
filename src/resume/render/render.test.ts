@@ -6,6 +6,7 @@ import { pdfToText } from '../pdf-text';
 import { parseWarnings } from '../parse-warnings';
 import { docxStructure } from '../docx-structure';
 import { readProps } from '../docx-props';
+import { readZipEntries } from '../zip';
 import { inferFromPdf } from '../style-infer';
 import { readPdfGeometry } from '../pdf-geometry';
 import { renderDocx } from './clean-docx';
@@ -183,8 +184,16 @@ test('the .docx names the candidate and no tool', async () => {
   assert.equal(props.creator, 'Назар Бойко');
   assert.equal(props.lastModifiedBy, 'Назар Бойко');
   assert.match(props.title ?? '', /Назар Бойко/);
-  for (const fingerprint of ['dolanmiu', 'Un-named', 'PDFKit', 'ApplyPack']) {
-    assert.equal(bytes.includes(fingerprint), false, `"${fingerprint}" is in the file`);
+  // Looked for in what each part inflates to: the parts are deflated, so the
+  // file's own bytes show no name whatever a part says. Word's own names are
+  // not tool names: the "Office Theme" `docx` 9.8.1 writes is Word's default.
+  const { entries, skipped, truncated } = readZipEntries(bytes);
+  assert.deepEqual({ skipped, truncated }, { skipped: [], truncated: false }, 'every part was read');
+  const parts = entries.map(({ name, data }) => ({ name, text: `${name}\n${data.toString('utf8')}`.toLowerCase() }));
+  assert.ok(parts.some((p) => p.text.includes('назар бойко')), 'the search reaches inside a part');
+  for (const fingerprint of ['docx', 'dolanmiu', 'Un-named', 'PDFKit', 'ApplyPack']) {
+    const where = parts.filter((p) => p.text.includes(fingerprint.toLowerCase())).map((p) => p.name);
+    assert.deepEqual(where, [], `"${fingerprint}" is in ${where.join(', ')}`);
   }
 });
 
