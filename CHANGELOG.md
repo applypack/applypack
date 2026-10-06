@@ -4797,7 +4797,7 @@ commit history.
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
 [2.47.0]: https://github.com/applypack/applypack/compare/v2.46.0...v2.47.0
-[2.46.0]: https://github.com/applypack/applypack/compare/v2.45.0...v2.46.0
+[2.46.0]: https://github.com/applypack/applypack/compare/v2.44.0...v2.46.0
 [2.44.0]: https://github.com/applypack/applypack/compare/v2.43.0...v2.44.0
 [2.43.0]: https://github.com/applypack/applypack/compare/v2.42.0...v2.43.0
 [2.42.0]: https://github.com/applypack/applypack/compare/v2.41.2...v2.42.0
