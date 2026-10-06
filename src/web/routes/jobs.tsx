@@ -33,7 +33,7 @@ import { DescriptionRefreshPage } from '../pages/description-refresh';
 import { checkLiveness, listVerificationsForJob, verifyJob } from '../../verification/verify';
 import { readEvidence } from '../../verification/prompts';
 import { addresseeFromFinding } from '../../resume/addressee';
-import { LIVENESS_CODE_LABEL } from '../../verification/liveness';
+import { livenessCodeLabel } from '../../verification/liveness';
 import { JobsListPage } from '../pages/jobs-list';
 import { jobHref, jobTabLabels, resolveJobTab, type JobTab } from '../job-tabs';
 import { JobDetailPage } from '../pages/job-detail';
@@ -93,6 +93,7 @@ import { stageChangeEvent, type StageEventData } from '../stage-events';
 import { findMute, mutedKeys } from '../../jobs/employer-store';
 import { employerKey, hiringName, withoutMuted } from '../../employer';
 import { preferredPlaces } from '../place-line';
+import { t } from '../../i18n/t';
 
 const PAGE_SIZE = 50;
 
@@ -338,19 +339,17 @@ jobsRoute.post('/jobs/new', async (c) => {
     return flashRedirect(
       '/jobs/new',
       'err',
-      `Company, title and a description of at least ${MIN_DESCRIPTION_CHARS} characters are required.`,
+      t('jobRoute.new.required', { min: MIN_DESCRIPTION_CHARS }),
     );
   }
   const result = await createManualJob(parsed.data);
   if (result.kind === 'existing') {
-    return flashRedirect(`/jobs/${result.job.id}`, 'ok', 'This posting was already saved.');
+    return flashRedirect(`/jobs/${result.job.id}`, 'ok', t('jobRoute.new.existing'));
   }
   return flashRedirect(
     `/jobs/${result.job.id}`,
     'ok',
-    result.classified
-      ? 'Saved and scored against every running search. Next: Verify, then Compare with a resume.'
-      : 'Saved. Classifier skipped (no running search or AI failure) — Verify and Compare still work.',
+    result.classified ? t('jobRoute.new.scored') : t('jobRoute.new.unscored'),
   );
 });
 
@@ -445,7 +444,7 @@ jobsRoute.get('/jobs/:id', async (c) => {
     typicalCost('job-verify'),
     typicalCost('cover-letter'),
   ]);
-  if (!job) return c.text('Not found', 404);
+  if (!job) return c.text(t('http.notFound'), 404);
 
   // Who this company is to the mute list (ADR 0056): the employer an
   // aggregator named, or the source when it is the employer; nobody else.
@@ -566,7 +565,7 @@ jobsRoute.post('/jobs/:id/status', async (c) => {
   });
   if (!parsed.success) return c.text('Invalid status', 400);
   // The update below throws on a row that is not there; a missing job is a 404, not a 500.
-  if (!(await prisma.job.findUnique({ where: { id }, select: { id: true } }))) return c.text('Not found', 404);
+  if (!(await prisma.job.findUnique({ where: { id }, select: { id: true } }))) return c.text(t('http.notFound'), 404);
 
   const data: Prisma.JobUpdateInput = { status: parsed.data.status };
   if (parsed.data.status === 'ALERTED' || parsed.data.status === 'APPLIED') {
@@ -627,7 +626,7 @@ jobsRoute.post('/jobs/:id/reclassify', onceGuard((c) => `reclassify:${c.req.para
     where: { id },
     include: { company: { select: { name: true, atsType: true } } },
   });
-  if (!job) return c.text('Not found', 404);
+  if (!job) return c.text(t('http.notFound'), 404);
   try {
     await classifyExistingJob(job, { keepStatus: false });
   } catch (err) {
@@ -645,15 +644,15 @@ jobsRoute.post('/jobs/:id/description/refresh', async (c) => {
   const id = idParam(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text('Bad id', 400);
   const job = await prisma.job.findUnique({ where: { id }, include: { company: { select: { name: true } } } });
-  if (!job) return c.text('Not found', 404);
+  if (!job) return c.text(t('http.notFound'), 404);
   const back = jobHref(id, 'verify', {}, 'verification');
   const [latest] = await listVerificationsForJob(id);
   const url = latest?.postingUrl ?? null;
   if (!url) {
-    return flashRedirect(back, 'warn', "The verification recorded no listing on the company's own site — run Verify (deep check) first.");
+    return flashRedirect(back, 'warn', t('jobRoute.refresh.noListing'));
   }
   const fetched = await fetchPostingText(url, { title: job.title });
-  if (!fetched.ok) return flashRedirect(back, 'warn', `Could not read the company's listing: ${fetched.error}`);
+  if (!fetched.ok) return flashRedirect(back, 'warn', t('jobRoute.refresh.unreadable', { reason: fetched.error }));
   const text = normaliseDescription(fetched.text);
   const { diffLines } = await loadLineDiff();
   const ops = diffLines(normaliseDescription(job.description), text);
@@ -674,14 +673,14 @@ jobsRoute.post('/jobs/:id/description', async (c) => {
   const id = idParam(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text('Bad id', 400);
   const job = await prisma.job.findUnique({ where: { id }, include: { company: { select: { name: true, atsType: true } } } });
-  if (!job) return c.text('Not found', 404);
+  if (!job) return c.text(t('http.notFound'), 404);
   const form = await c.req.parseBody();
   const text = typeof form.text === 'string' ? normaliseDescription(form.text) : '';
   if (text.length < MIN_DESCRIPTION_CHARS) {
-    return flashRedirect(jobHref(id, 'verify', {}, 'verification'), 'warn', 'The listing text is too short to be a posting — nothing was replaced.');
+    return flashRedirect(jobHref(id, 'verify', {}, 'verification'), 'warn', t('jobRoute.refresh.tooShort'));
   }
   if (text.length > MAX_POSTING_CHARS) {
-    return flashRedirect(jobHref(id, 'verify', {}, 'verification'), 'warn', `The listing text is longer than a posting (${MAX_POSTING_CHARS.toLocaleString()} characters at most) — nothing was replaced.`);
+    return flashRedirect(jobHref(id, 'verify', {}, 'verification'), 'warn', t('jobRoute.refresh.tooLong', { max: MAX_POSTING_CHARS }));
   }
   const swap = await refreshDescription(job, text);
   return flashRedirect(`/jobs/${id}`, 'ok', refreshFlash(job.description.length, swap.job.description.length, swap.reclassified));
@@ -691,9 +690,9 @@ jobsRoute.post('/jobs/:id/description/restore', async (c) => {
   const id = idParam(c.req.param('id'));
   if (!Number.isFinite(id)) return c.text('Bad id', 400);
   const job = await prisma.job.findUnique({ where: { id }, include: { company: { select: { name: true, atsType: true } } } });
-  if (!job) return c.text('Not found', 404);
+  if (!job) return c.text(t('http.notFound'), 404);
   const swap = await restoreDescription(job);
-  if (!swap) return flashRedirect(`/jobs/${id}`, 'warn', 'Nothing to restore — the stored text is the original.');
+  if (!swap) return flashRedirect(`/jobs/${id}`, 'warn', t('jobRoute.restore.nothing'));
   return flashRedirect(`/jobs/${id}`, 'ok', restoreFlash(swap.job.description.length, swap.reclassified));
 });
 
@@ -704,7 +703,7 @@ jobsRoute.post('/jobs/:id/verify', async (c) => {
     where: { id },
     include: { company: { select: { name: true, atsType: true, atsToken: true } } },
   });
-  if (!job) return c.text('Not found', 404);
+  if (!job) return c.text(t('http.notFound'), 404);
 
   // Rungs 1-2 (ADR 0016): free ATS-API / page checks. A resolved verdict
   // stops there at $0; `deep=1` (the "Deep check" button) always goes to AI.
@@ -719,14 +718,10 @@ jobsRoute.post('/jobs/:id/verify', async (c) => {
     jobTitle: job.title,
     resumeName: '',
     jobId: id,
-    heading: { running: 'Checking whether the job is real', failed: 'The check failed' },
-    subtitle: deep
-      ? 'Straight to the AI research.'
-      : job.url
-        ? 'The free checks first; the AI only when they cannot say.'
-        : 'No posting URL stored, so the free checks have nothing to ask — straight to the AI research.',
+    heading: { running: t('jobRoute.verify.running'), failed: t('jobRoute.verify.failed') },
+    subtitle: deep ? t('jobRoute.verify.deep') : job.url ? t('jobRoute.verify.freeFirst') : t('jobRoute.verify.noUrl'),
     backUrl: back,
-    backLabel: 'Back to the job',
+    backLabel: t('job.backToTheJob'),
   });
   if (joined) return c.redirect(`/target/runs/${run.id}`, 303);
   startRun(run.id, async () => {
@@ -738,17 +733,15 @@ jobsRoute.post('/jobs/:id/verify', async (c) => {
         atsType: job.company.atsType,
         atsToken: job.company.atsToken,
       });
-      const how = `${LIVENESS_CODE_LABEL[live.code]} (rung ${live.rung}, no AI spent)`;
-      updateRun(run.id, { results: { liveness: how } });
+      // What the free rungs found, in the step's own line and again inside the flash's whole sentence.
+      const found = { how: livenessCodeLabel(live.code) ?? live.code, rung: live.rung };
+      updateRun(run.id, { results: { liveness: t('jobRoute.verify.found', found) } });
       if (live.liveness !== 'uncertain') {
         updateRun(run.id, {
           stage: 'done',
           resultUrl: back,
           flashKind: live.liveness === 'expired' ? 'warn' : 'ok',
-          flash:
-            live.liveness === 'expired'
-              ? `Posting looks closed — ${how}.`
-              : `Posting is live — ${how}. Deep check runs the full ghost-job analysis.`,
+          flash: live.liveness === 'expired' ? t('jobRoute.verify.closed', found) : t('jobRoute.verify.live', found),
         });
         return;
       }
@@ -775,9 +768,9 @@ jobsRoute.post('/jobs/:id/verify', async (c) => {
         ? {
             stage: 'done',
             resultUrl: back,
-            flash: `Verified: ${row.verdict} (${row.confidence}% confidence) — recommendation: ${row.recommendation}.`,
+            flash: t('jobRoute.verify.done', { verdict: row.verdict, confidence: row.confidence, recommendation: row.recommendation }),
           }
-        : { stage: 'error', error: runFailure('Verification failed', reason ?? '', 'The job and its earlier checks are untouched; press Verify again.') },
+        : { stage: 'error', error: runFailure(t('jobRoute.verify.failedWhat'), reason ?? '', t('jobRoute.verify.failedNext')) },
     );
   });
   return c.redirect(`/target/runs/${run.id}`, 303);
@@ -804,7 +797,7 @@ jobsRoute.post('/jobs/:id/match', async (c) => {
     getResume(resumeId),
     Number.isFinite(baseId) ? getMatch(baseId) : null,
   ]);
-  if (!job || !row) return c.text('Not found', 404);
+  if (!job || !row) return c.text(t('http.notFound'), 404);
   // The comparison a re-run starts from (the editor's form and Rebuild keywords
   // send it). On the scratch row it IS the resume: the row may hold another
   // upload by now, so its file name and text are the ones to judge again.
@@ -830,7 +823,7 @@ jobsRoute.post('/jobs/:id/match', async (c) => {
     rebuild: form.rebuild === '1',
     force: form.force === '1',
     resultUrl: (matchId) => (toTarget ? `/jobs/${id}/target?match=${matchId}` : `/jobs/${id}?match=${matchId}#resume-match`),
-    label: draft ? 'Draft' : `"${resume.name}"`,
+    label: draft ? t('jobRoute.match.draft') : `"${resume.name}"`,
     draft,
   });
 });
@@ -846,9 +839,9 @@ jobsRoute.post('/jobs/:id/matches/:matchId/suggestions', async (c) => {
     prisma.job.findUnique({ where: { id }, include: { company: { select: { name: true } } } }),
     getMatch(matchId),
   ]);
-  if (!job || !match || match.jobId !== id) return c.text('Not found', 404);
+  if (!job || !match || match.jobId !== id) return c.text(t('http.notFound'), 404);
   const resume = await getResume(match.resumeId);
-  if (!resume) return c.text('Not found', 404);
+  if (!resume) return c.text(t('http.notFound'), 404);
   const resultUrl =
     form.next === 'target'
       ? `/jobs/${id}/target?match=${matchId}`
@@ -859,7 +852,7 @@ jobsRoute.post('/jobs/:id/matches/:matchId/suggestions', async (c) => {
   // score does not move, only the advice — so the already-has-them guard is
   // the default, not the rule.
   if (form.rewrite !== '1' && readMatchMode(match.breakdown) === 'full') {
-    return flashRedirect(resultUrl, 'warn', 'This analysis already has its suggestions.');
+    return flashRedirect(resultUrl, 'warn', t('jobRoute.suggestions.already'));
   }
   const jobInput = { id: job.id, title: job.title, companyName: job.employer ?? job.company.name, location: job.location, description: job.description };
   return c.redirect(startSuggestionsRun({ match, job: jobInput, resumeName: resume.name, resultUrl }), 303);
@@ -885,7 +878,7 @@ jobsRoute.post(
     prisma.job.findUnique({ where: { id }, include: { company: { select: { name: true } } } }),
     getMatch(matchId),
   ]);
-  if (!job || !match || match.jobId !== id) return c.text('Not found', 404);
+  if (!job || !match || match.jobId !== id) return c.text(t('http.notFound'), 404);
   const form = await c.req.parseBody();
   const back = form.next === 'target' ? `/jobs/${id}/target?match=${matchId}` : `/jobs/${id}?match=${matchId}#resume-match`;
 
@@ -899,15 +892,15 @@ jobsRoute.post(
     },
   );
   if (!row) {
-    return flashRedirect(back, 'err', runFailure('Could not rewrite that suggestion', reason, 'The old wording stays; press Rewrite again.'));
+    return flashRedirect(back, 'err', runFailure(t('jobRoute.rewrite.failedWhat'), reason, t('jobRoute.rewrite.failedNext')));
   }
   const written = readActions(row.actions)[index];
   return flashRedirect(
     back,
     written?.replacement ? 'ok' : 'warn',
     written?.replacement
-      ? 'Rewritten — the new wording is on the card.'
-      : `Rewritten, but the new wording was refused: ${written?.why ?? 'it claimed something this resume does not show'}.`,
+      ? t('jobRoute.rewrite.done')
+      : t('jobRoute.rewrite.refused', { why: written?.why ?? t('jobRoute.rewrite.refusedDefault') }),
   );
 });
 
@@ -942,7 +935,7 @@ jobsRoute.post('/jobs/:id/cover', async (c) => {
     prisma.job.findUnique({ where: { id }, include: { company: { select: { name: true } } } }),
     getResume(resumeId),
   ]);
-  if (!job || !resume) return c.text('Not found', 404);
+  if (!job || !resume) return c.text(t('http.notFound'), 404);
 
   if (fromForm) await setCoverAngles(angles);
 
@@ -965,13 +958,13 @@ jobsRoute.post('/jobs/:id/cover', async (c) => {
       updateRun(run.id, {
         stage: 'done',
         resultUrl: `/jobs/${id}?letter=${outcome.row.id}#cover-letter`,
-        flash: `Letter drafted — ${countWords(outcome.row.text)} words, fact-check ${outcome.row.gateVerdict}.`,
+        flash: t('letter.drafted', { n: countWords(outcome.row.text), verdict: outcome.row.gateVerdict }),
       });
     } else if (outcome.kind === 'blocked') {
       // ADR 0021: a letter blocked twice is never shown and never saved.
       updateRun(run.id, {
         stage: 'error',
-        error: `The fact checker rejected the letter twice, so nothing was saved. Violations: ${outcome.reasons.join('; ')}.`,
+        error: t('letter.run.blocked', { reasons: outcome.reasons.join('; ') }),
       });
     } else {
       updateRun(run.id, { stage: 'error', error: LETTER_FAILED });
@@ -988,12 +981,12 @@ jobsRoute.get('/jobs/:id/cover/:letterId/file/:fmt', async (c) => {
   if (!Number.isFinite(id) || !Number.isFinite(letterId)) return c.text('Bad id', 400);
   if (fmt !== 'pdf' && fmt !== 'docx') return c.text('Bad format', 400);
   const letter = await getCoverLetter(letterId);
-  if (!letter || letter.jobId !== id) return c.text('Not found', 404);
+  if (!letter || letter.jobId !== id) return c.text(t('http.notFound'), 404);
   const job = await prisma.job.findUnique({
     where: { id },
     include: { company: { select: { name: true } } },
   });
-  if (!job) return c.text('Not found', 404);
+  if (!job) return c.text(t('http.notFound'), 404);
 
   const text = letter.editedText ?? letter.text;
   const slug =
@@ -1017,23 +1010,23 @@ jobsRoute.post('/jobs/:id/cover/:letterId', async (c) => {
   if (text.length === 0) {
     return wantsJson
       ? c.json({ error: 'empty' }, 400)
-      : flashRedirect(`/jobs/${id}?letter=${letterId}#cover-letter`, 'err', 'The letter cannot be empty.');
+      : flashRedirect(`/jobs/${id}?letter=${letterId}#cover-letter`, 'err', t('jobRoute.cover.empty'));
   }
   if (text.length > MAX_LETTER_CHARS) {
     return wantsJson
       ? c.json({ error: 'too long' }, 400)
-      : flashRedirect(`/jobs/${id}?letter=${letterId}#cover-letter`, 'err', `A letter is at most ${MAX_LETTER_CHARS.toLocaleString()} characters.`);
+      : flashRedirect(`/jobs/${id}?letter=${letterId}#cover-letter`, 'err', t('jobRoute.cover.tooLong', { max: MAX_LETTER_CHARS }));
   }
 
   const letter = await getCoverLetter(letterId);
-  if (!letter || letter.jobId !== id) return c.text('Not found', 404);
+  if (!letter || letter.jobId !== id) return c.text(t('http.notFound'), 404);
   const [job, resume, facts, snapshot] = await Promise.all([
     prisma.job.findUnique({ where: { id }, include: { company: { select: { name: true } } } }),
     getResume(letter.resumeId),
     listFacts(),
     getLatestCompanySnapshot(id),
   ]);
-  if (!job || !resume) return c.text('Not found', 404);
+  if (!job || !resume) return c.text(t('http.notFound'), 404);
 
   // Manual edits are re-checked but never blocked — the gate polices the
   // model, not the user (ADR 0021). A `block` verdict is stored and shown.
@@ -1058,10 +1051,10 @@ jobsRoute.post('/jobs/:id/cover/:letterId', async (c) => {
     return c.json({ gateVerdict: gate.verdict, reasons: gate.reasons, reverted });
   }
   const back = `/jobs/${id}?letter=${letter.id}#cover-letter`;
-  if (reverted) return flashRedirect(back, 'ok', 'Restored the generated letter.');
+  if (reverted) return flashRedirect(back, 'ok', t('jobRoute.cover.restored'));
   return gate.verdict === 'block'
-    ? flashRedirect(back, 'warn', `Edit saved — but the fact check flags it: ${gate.reasons.join('; ')}.`)
-    : flashRedirect(back, 'ok', `Edit saved — fact-check ${gate.verdict}.`);
+    ? flashRedirect(back, 'warn', t('jobRoute.cover.savedFlagged', { reasons: gate.reasons.join('; ') }))
+    : flashRedirect(back, 'ok', t('jobRoute.cover.saved', { verdict: gate.verdict }));
 });
 
 jobsRoute.get('/jobs/:id/target', async (c) => {
@@ -1072,14 +1065,14 @@ jobsRoute.get('/jobs/:id/target', async (c) => {
     listMatchesForJob(id),
     listVerificationsForJob(id),
   ]);
-  if (!job) return c.text('Not found', 404);
+  if (!job) return c.text(t('http.notFound'), 404);
   const requested = idParam(c.req.query('match'));
   const match = matches.find((m) => m.id === requested) ?? matches[0];
   if (!match) {
-    return flashRedirect(jobHref(id, 'match', {}, 'resume-match'), 'err', 'Run Compare once — tailoring the resume needs a comparison to work from.');
+    return flashRedirect(jobHref(id, 'match', {}, 'resume-match'), 'err', t('jobRoute.target.needsComparison'));
   }
   const resume = await getResume(match.resumeId);
-  if (!resume) return c.text('Not found', 404);
+  if (!resume) return c.text(t('http.notFound'), 404);
   const jobInput = { id: job.id, title: job.title, companyName: job.employer ?? job.company.name, location: job.location, description: job.description };
   // What the posting itself carried (§17): with little to go on, the page says
   // so rather than letting inferred advice read like the employer's demands —
@@ -1089,9 +1082,6 @@ jobsRoute.get('/jobs/:id/target', async (c) => {
   const depth = postingDepth(storedBrief);
   const domain = domainNotice(domainMismatch(resume.industries, storedBrief));
   const file = await describeResumeFile(resume);
-  // A one-off check keeps nothing: the comparison holds the text, and Resumes
-  // is where a file the user wants to keep is uploaded.
-  const fileVerdict = (resume.hidden ? 'A one-off check from the Tailor resume page. ' : '') + file.verdict;
   return c.html(
     <TargetPage
       job={{ id: job.id, title: job.title, companyName: job.employer ?? job.company.name, location: job.location, description: job.description }}
@@ -1106,7 +1096,7 @@ jobsRoute.get('/jobs/:id/target', async (c) => {
       orientation={postingOrientation(storedBrief)}
       summaryGuide={await summaryGuideFor(match, storedBrief, job.title)}
       verification={verifications[0] ?? null}
-      fileVerdict={fileVerdict}
+      fileVerdict={file.verdict}
       cleanHref={file.clean ? `/resumes/${resume.id}/render` : null}
       flash={parseFlashCookie(c.req.header('cookie'))}
     />,
@@ -1127,7 +1117,7 @@ jobsRoute.post('/jobs/:id/target/reupload', async (c, next) => resumeUploadLimit
     getResume(resumeId),
     Number.isFinite(baseId) ? getMatch(baseId) : null,
   ]);
-  if (!job || !resume) return c.text('Not found', 404);
+  if (!job || !resume) return c.text(t('http.notFound'), 404);
   const upload = await readResumeUpload(form);
   if ('error' in upload) return flashRedirect(`/jobs/${id}/target`, 'err', upload.error);
 
@@ -1187,10 +1177,11 @@ function sortToOrderBy(sort: string): Prisma.JobOrderByWithRelationInput[] {
  * only partly reaches; such a save keeps the clean version (ADR 0059).
  */
 async function describeResumeFile(resume: { id: number; sourceFilename: string; hidden: boolean }): Promise<{ verdict: string; clean: boolean }> {
-  // A one-off check has no Save, so it is not told what one would keep: the
-  // whole sentence below is about a save that is not offered here.
+  // A one-off check keeps nothing — the comparison holds the text, and Resumes
+  // is where a file the user wants to keep is uploaded — and has no Save, so it
+  // is not told what one would keep.
   if (resume.hidden) {
-    return { verdict: 'Edits stay in this browser tab — copy them out, or upload the file on Resumes to keep versions of it.', clean: false };
+    return { verdict: t('jobRoute.file.oneOff'), clean: false };
   }
   if (/\.docx$/i.test(resume.sourceFilename)) {
     const row = await getResumeOriginal(resume.id);
@@ -1201,9 +1192,9 @@ async function describeResumeFile(resume: { id: number; sourceFilename: string; 
   }
   if (/\.pdf$/i.test(resume.sourceFilename)) {
     return {
-      verdict: 'This file is a PDF: Document shows the clean version in its look, and Save keeps it as a .docx the next save can edit in place.',
+      verdict: t('jobRoute.file.pdf'),
       clean: true,
     };
   }
-  return { verdict: 'This file is plain text: Save keeps the clean version as a .docx.', clean: true };
+  return { verdict: t('jobRoute.file.text'), clean: true };
 }

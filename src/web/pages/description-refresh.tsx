@@ -5,6 +5,8 @@ import { Button, Card, Hint, PageHeader } from '../ui';
 import { describeRefresh, type PreviewRow, type RefreshPlan } from '../../jobs/description-diff';
 import { jobHref } from '../job-tabs';
 import { safeHref } from '../format';
+import { t } from '../../i18n/t';
+import { tRich } from '../rich';
 
 /*
  * The confirmation behind "Refresh the description from the company's
@@ -32,41 +34,53 @@ const ROW_MARK: Record<Exclude<PreviewRow['kind'], 'fold'>, string> = { keep: ' 
 export const DescriptionRefreshPage: FC<DescriptionRefreshProps> = ({ job, url, plan, rows, text }) => {
   const back = jobHref(job.id, 'verify', {}, 'verification');
   return (
-    <Layout title="Refresh the description" active="jobs">
+    <Layout title={t('description.refreshTheDescription')} active="jobs">
       <PageHeader
-        title="Refresh the description"
-        meta={`${job.title} · ${job.companyName}`}
-        back={{ href: back, label: 'Back to the job' }}
+        title={t('description.refreshTheDescription')}
+        meta={
+          <span translate="no">
+            {job.title} · {job.companyName}
+          </span>
+        }
+        back={{ href: back, label: t('job.backToTheJob') }}
       />
       <Card>
         <p class="text-sm leading-6 text-ink">
-          The company's own listing,{' '}
-          {safeHref(url) ? (
-            <a href={safeHref(url)!} target="_blank" rel="noopener noreferrer" class="break-all font-mono text-meta text-accent-strong hover:text-accent-deep">
-              {url.replace(/^https?:\/\//, '')}
-            </a>
-          ) : (
-            <span class="break-all font-mono text-meta">{url}</span>
-          )}
-          , reads {describeRefresh(plan)}
+          {tRich('description.reads', { summary: describeRefresh(plan) }, {
+            url: () =>
+              safeHref(url) ? (
+                <a
+                  href={safeHref(url)!}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="break-all font-mono text-meta text-accent-strong hover:text-accent-deep"
+                  translate="no"
+                >
+                  {url.replace(/^https?:\/\//, '')}
+                </a>
+              ) : (
+                <span class="break-all font-mono text-meta" translate="no">
+                  {url}
+                </span>
+              ),
+          })}
         </p>
         {!plan.mentionsTitle && (
           <Hint class="mt-2">
-            That page does not mention the title "{job.title}" — it may be the board's index or a login wall rather than
-            this posting. Read the lines below before replacing anything.
+            {t('description.noTitle', { title: job.title })}
           </Hint>
         )}
         <Hint class="mt-2">
-          Replacing keeps the stored text (Restore the original on the job page), re-classifies the posting against your
-          running searches, and makes the next comparison read its keywords afresh — earlier scores judged another text.
+          {t('description.replacingKeepsTheStoredText')}
         </Hint>
         <div class="mt-4 overflow-x-auto rounded-md border border-line">
           <ol class="font-mono text-meta leading-5">
             {rows.map((row) =>
               row.kind === 'fold' ? (
-                <li class="bg-surface-overlay/50 px-3 py-1 text-ink-faint">… {row.count} unchanged line{row.count === 1 ? '' : 's'} …</li>
+                <li class="bg-surface-overlay/50 px-3 py-1 text-ink-faint">{t('description.fold', { n: row.count })}</li>
               ) : (
-                <li class={`flex gap-2 px-3 ${ROW_CLASS[row.kind]}`}>
+                // A line of the posting, stored or fetched: data, whatever language the page is in.
+                <li class={`flex gap-2 px-3 ${ROW_CLASS[row.kind]}`} translate="no">
                   <span class="w-3 shrink-0 select-none text-ink-faint">{ROW_MARK[row.kind]}</span>
                   <span class="whitespace-pre-wrap break-words">{row.text || ' '}</span>
                 </li>
@@ -77,9 +91,9 @@ export const DescriptionRefreshPage: FC<DescriptionRefreshProps> = ({ job, url, 
         <div class="mt-4 flex flex-wrap items-center gap-2">
           <form method="post" action={`/jobs/${job.id}/description`} class="flex">
             <textarea name="text" hidden>{text}</textarea>
-            <Button variant="violet">Replace the description and re-classify</Button>
+            <Button variant="violet">{t('description.replaceTheDescriptionAndRe')}</Button>
           </form>
-          <Button href={back} variant="secondary">Keep the stored text</Button>
+          <Button href={back} variant="secondary">{t('description.keepTheStoredText')}</Button>
         </div>
       </Card>
     </Layout>

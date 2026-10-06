@@ -1,3 +1,5 @@
+import { t } from '../i18n/t';
+
 /*
  * The job page's tabs (`/jobs/:id?tab=…`). Pure — tested in job-tabs.test.ts.
  * A tab is a link, never client state: the server renders one tab's cards, the
@@ -21,7 +23,7 @@ type Raw = string | null | undefined;
  * nothing unvalidated reaches a redirect.
  */
 export function resolveJobTab(query: { tab?: Raw; match?: Raw; letter?: Raw }): JobTab {
-  const asked = JOB_TABS.find((t) => t === query.tab);
+  const asked = JOB_TABS.find((tab) => tab === query.tab);
   if (asked) return asked;
   if (query.match) return 'match';
   if (query.letter) return 'letter';
@@ -52,11 +54,12 @@ export interface JobTabFacts {
 
 /** "Resume match · 72", "Cover letter · 1", "Is it real? · likely real" — or the bare name while there is nothing yet. */
 export function jobTabLabels(facts: JobTabFacts): { tab: JobTab; label: string }[] {
-  const withFact = (name: string, fact: string | number | null) => (fact === null || fact === 0 ? name : `${name} · ${fact}`);
+  // The verdict is the verifier's own word, shown as it wrote it.
+  const verdict = facts.verdict ? facts.verdict.replace(/_/g, ' ').toLowerCase() : null;
   return [
-    { tab: 'posting', label: 'Posting' },
-    { tab: 'match', label: withFact('Resume match', facts.matchScore) },
-    { tab: 'letter', label: withFact('Cover letter', facts.letters) },
-    { tab: 'verify', label: withFact('Is it real?', facts.verdict ? facts.verdict.replace(/_/g, ' ').toLowerCase() : null) },
+    { tab: 'posting', label: t('job.tab.posting') },
+    { tab: 'match', label: facts.matchScore === null || facts.matchScore === 0 ? t('job.tab.match') : t('job.tab.matchScore', { score: facts.matchScore }) },
+    { tab: 'letter', label: facts.letters === 0 ? t('job.tab.letter') : t('job.tab.letterCount', { n: facts.letters }) },
+    { tab: 'verify', label: verdict === null ? t('job.tab.verify') : t('job.tab.verifyVerdict', { verdict }) },
   ];
 }

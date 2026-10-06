@@ -1,6 +1,7 @@
 import type { JobStatus } from '@prisma/client';
 import { prisma } from '../db';
 import { getActiveProfile } from '../profiles';
+import { t } from '../i18n/t';
 
 /*
  * The jobs a candidate-side launcher (/target, /letter) offers in its picker:
@@ -67,5 +68,5 @@ export async function listPickableJobs(include: number | null = null): Promise<J
     if (extra) jobs.unshift(extra);
   }
   const now = Date.now();
-  return jobs.map((j) => toPickOption(j, j.fitScore !== null ? `fit ${j.fitScore}` : null, now));
+  return jobs.map((j) => toPickOption(j, j.fitScore !== null ? t('job.picker.fit', { score: j.fitScore }) : null, now));
 }

@@ -1,6 +1,8 @@
 import { z } from 'zod';
 import { DEFAULT_USER_AGENT, stripHtml } from '../http';
 import { checkPostingUrl, fetchPublicHops, type HopResult } from '../jobs/posting-url';
+import type { MessageKey } from '../i18n/catalog';
+import { t } from '../i18n/t';
 
 /**
  * F1 liveness ladder (ADR 0016): free checks before the AI verify.
@@ -60,25 +62,30 @@ export interface LivenessJobInput {
 const FETCH_TIMEOUT_MS = 10_000;
 const MIN_PAGE_TEXT_CHARS = 200;
 
-/** Human wording for each code — used in flash messages and the chip title. */
-export const LIVENESS_CODE_LABEL: Record<LivenessCode, string> = {
-  api_ok: "the company's board API lists it as open",
-  api_gone: 'the board API returns 404 for it',
-  api_delisted: 'the board API no longer lists it',
-  api_ambiguous: 'the board API answer was inconclusive',
-  http_gone: 'the posting page returns 404',
-  bot_challenge: 'the page sits behind a bot check',
-  access_blocked: 'access to the page was blocked',
-  server_error: 'the site answered with a server error',
-  redirected_off_posting: 'the link now redirects away from the posting',
-  closed_banner: 'the page says applications are closed',
-  insufficient_content: 'the page rendered no readable content',
-  page_ok: 'the posting page renders normally',
-  unfetchable_url: 'the stored URL is not safely fetchable',
-  no_url: 'no posting URL stored — the free checks need one',
-  network_error: 'the site could not be reached',
-  conflicting_signals: 'the board API and the live page disagree',
-};
+/** Human wording for each code, as catalog keys — used in flash messages and the chip title. */
+const LIVENESS_CODE_KEY = {
+  api_ok: 'verify.code.apiOk',
+  api_gone: 'verify.code.apiGone',
+  api_delisted: 'verify.code.apiDelisted',
+  api_ambiguous: 'verify.code.apiAmbiguous',
+  http_gone: 'verify.code.httpGone',
+  bot_challenge: 'verify.code.botChallenge',
+  access_blocked: 'verify.code.accessBlocked',
+  server_error: 'verify.code.serverError',
+  redirected_off_posting: 'verify.code.redirectedOffPosting',
+  closed_banner: 'verify.code.closedBanner',
+  insufficient_content: 'verify.code.insufficientContent',
+  page_ok: 'verify.code.pageOk',
+  unfetchable_url: 'verify.code.unfetchableUrl',
+  no_url: 'verify.code.noUrl',
+  network_error: 'verify.code.networkError',
+  conflicting_signals: 'verify.code.conflictingSignals',
+} as const satisfies Record<LivenessCode, MessageKey>;
+
+/** The wording for a stored code in the reader's language; null for a code this version does not know. */
+export function livenessCodeLabel(code: string): string | null {
+  return Object.hasOwn(LIVENESS_CODE_KEY, code) ? t(LIVENESS_CODE_KEY[code as LivenessCode]) : null;
+}
 
 const v = (liveness: Liveness, code: LivenessCode): LivenessVerdict => ({ liveness, code });
 

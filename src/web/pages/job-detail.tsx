@@ -21,13 +21,13 @@ import {
   Textarea,
   type ButtonVariant,
 } from '../ui';
-import { intervalLabel } from '../../watchlist/interval';
+import { toCheckInterval } from '../../watchlist/interval';
 import { formatDate, formatRelative, formatSalary, safeHref } from '../format';
 import { techLabel } from '../tech-label';
 import { AdzunaLabel, FranceTravailLine, JsonTree } from './attribution';
 import { formatUsdPerYear } from '../../currency';
-import { flagOf, placeLabel } from '../../countries';
-import { WORKPLACE_LABEL, type WorkplaceCode } from '../../location';
+import { flagOf } from '../../countries';
+import type { WorkplaceCode } from '../../location';
 import { appliedWithLabel } from '../../jobs/applied-with';
 import { needsAppliedResume } from '../applied-resume';
 import type { FlashMessage } from '../flash';
@@ -37,7 +37,11 @@ import { CoverLetterCard, type CoverLetterCardProps } from './cover-letter-card'
 import { notEnglishNotice } from '../../text-language';
 import { ResumeMatchCard, type ResumeMatchCardProps } from './resume-match-card';
 import { VerificationCard, type VerificationCardProps } from './verification-card';
-import { LIVENESS_CODE_LABEL, type LivenessCode } from '../../verification/liveness';
+import { livenessCodeLabel } from '../../verification/liveness';
+import type { MessageKey } from '../../i18n/catalog';
+import { placeName, workplaceName } from '../../i18n/places';
+import { t } from '../../i18n/t';
+import { tRich } from '../rich';
 
 interface JobDetail {
   id: number;
@@ -155,10 +159,11 @@ const MARK_APPLIED_FORM = 'mark-applied';
 
 // "Mark applied" is not in this list: it posts through MARK_APPLIED_FORM so the
 // resume select can sit above the row while the button stays inside it.
-const STATUS_ACTIONS: { status: JobStatus; label: string; variant: ButtonVariant }[] = [
-  { status: 'SAVED', label: 'Save', variant: 'violet' },
-  { status: 'DISMISSED', label: 'Dismiss', variant: 'secondary' },
-  { status: 'NEW', label: 'Reopen', variant: 'secondary' },
+// Each label is the catalog key of the button's word, read when the page renders.
+const STATUS_ACTIONS: { status: JobStatus; label: MessageKey; variant: ButtonVariant }[] = [
+  { status: 'SAVED', label: 'job.action.save', variant: 'violet' },
+  { status: 'DISMISSED', label: 'job.action.dismiss', variant: 'secondary' },
+  { status: 'NEW', label: 'job.action.reopen', variant: 'secondary' },
 ];
 
 export const JobDetailPage: FC<JobDetailProps> = ({
@@ -186,7 +191,7 @@ export const JobDetailPage: FC<JobDetailProps> = ({
     <Flash flash={flash}>
       {flash?.tailor && (
         <Button href={flash.tailor} size="sm">
-          Tailor resume →
+          {t('job.tailorResume')}
         </Button>
       )}
       {flash?.rerun && resumeMatch.selected && (
@@ -196,7 +201,7 @@ export const JobDetailPage: FC<JobDetailProps> = ({
           {/* Repeat the comparison the user asked for, not the default one. */}
           <input type="hidden" name="mode" value={flash.mode ?? 'fast'} />
           <Button variant="secondary" size="sm">
-            Re-run anyway
+            {t('job.reRunAnyway')}
           </Button>
         </form>
       )}
@@ -204,9 +209,9 @@ export const JobDetailPage: FC<JobDetailProps> = ({
     <CrossListingNotice job={job} />
 
     <Tabs
-      label="Job sections"
+      label={t('job.jobSections')}
       class="mb-4"
-      tabs={tabs.map((t) => ({ href: jobHref(job.id, t.tab), label: t.label, current: t.tab === tab }))}
+      tabs={tabs.map((entry) => ({ href: jobHref(job.id, entry.tab), label: entry.label, current: entry.tab === tab }))}
     />
 
     <div class="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
@@ -218,13 +223,13 @@ export const JobDetailPage: FC<JobDetailProps> = ({
           <div class="flex flex-wrap items-center gap-2">
             {job.status !== 'APPLIED' && (
               <Button variant="secondary" size="sm" form={MARK_APPLIED_FORM}>
-                Mark applied
+                {t('job.markApplied')}
               </Button>
             )}
             {STATUS_ACTIONS.filter((a) => a.status !== job.status).map((a) => (
               <ActionForm action={`/jobs/${job.id}/status`} hidden={{ status: a.status, tab }}>
                 <Button variant={a.variant} size="sm">
-                  {a.label}
+                  {t(a.label)}
                 </Button>
               </ActionForm>
             ))}
@@ -232,9 +237,9 @@ export const JobDetailPage: FC<JobDetailProps> = ({
         </div>
 
         <Card variant="flat" class="p-5">
-          <SectionTitle>Details</SectionTitle>
+          <SectionTitle>{t('job.details')}</SectionTitle>
           <dl class="space-y-2.5 text-sm">
-            <FactRow label="Salary">
+            <FactRow label={t('job.salary')}>
               <span class="tabular-nums">
                 {formatSalary(job.salaryMin, job.salaryMax, job.salaryCurrency, job.salaryPeriod)}
               </span>
@@ -244,14 +249,16 @@ export const JobDetailPage: FC<JobDetailProps> = ({
                 </span>
               )}
             </FactRow>
-            <FactRow label="Posted">{formatDate(job.postedAt)}</FactRow>
-            <FactRow label="Fetched">{formatDate(job.fetchedAt)}</FactRow>
-            {job.alertedAt && <FactRow label="Alerted">{formatDate(job.alertedAt)}</FactRow>}
+            <FactRow label={t('job.posted')}>{formatDate(job.postedAt)}</FactRow>
+            <FactRow label={t('job.fetched')}>{formatDate(job.fetchedAt)}</FactRow>
+            {job.alertedAt && <FactRow label={t('job.alerted')}>{formatDate(job.alertedAt)}</FactRow>}
             <AppliedWithRow job={job} />
-            <FactRow label="Source">{job.company.atsType.replace('_', ' ')}</FactRow>
-            {aiSpent && <FactRow label="AI spent">{aiSpent}</FactRow>}
-            <FactRow label="External id">
-              <span class="block truncate font-mono text-meta" title={job.externalId}>
+            <FactRow label={t('job.source')}>
+              <span translate="no">{job.company.atsType.replace('_', ' ')}</span>
+            </FactRow>
+            {aiSpent && <FactRow label={t('job.aiSpent')}>{aiSpent}</FactRow>}
+            <FactRow label={t('job.externalId')}>
+              <span class="block truncate font-mono text-meta" title={job.externalId} translate="no">
                 {job.externalId}
               </span>
             </FactRow>
@@ -262,28 +269,29 @@ export const JobDetailPage: FC<JobDetailProps> = ({
 
         {applicationTrackingEnabled && (
           <Card variant="flat" class="p-5">
-            <SectionTitle>Application tracking</SectionTitle>
+            <SectionTitle>{t('job.applicationTracking')}</SectionTitle>
             <form method="post" action={`/jobs/${job.id}/application`} class="space-y-3">
               <input type="hidden" name="tab" value={tab} />
-              <Field label="Pipeline stage">
+              <Field label={t('job.pipelineStage')}>
                 <Select name="pipelineStage">
                   <option value="" selected={!job.pipelineStage}>
-                    — not in funnel —
+                    {t('job.notInFunnel')}
                   </option>
+                  {/* A column's name: the user's own, or a default the stage list already worded. */}
                   {pipelineStages.map((s) => (
-                    <option value={s.key} selected={job.pipelineStage === s.key}>
+                    <option value={s.key} selected={job.pipelineStage === s.key} translate="no">
                       {s.label}
                     </option>
                   ))}
                   {job.pipelineStage &&
                     !pipelineStages.some((s) => s.key === job.pipelineStage) && (
                       <option value={job.pipelineStage} selected>
-                        {job.pipelineStage} (removed column)
+                        {t('job.removedColumn', { stage: job.pipelineStage })}
                       </option>
                     )}
                 </Select>
               </Field>
-              <Field label="Applied on">
+              <Field label={t('job.appliedOn')}>
                 <Input
                   type="date"
                   name="appliedAt"
@@ -291,20 +299,20 @@ export const JobDetailPage: FC<JobDetailProps> = ({
                 />
               </Field>
               <AppliedWithField job={job} picker={appliedResumePicker} />
-              <Field label="Recruiter contact">
+              <Field label={t('job.recruiterContact')}>
                 <Input
                   type="text"
                   name="recruiterContact"
                   value={job.recruiterContact ?? ''}
-                  placeholder="jane@acme.com or Jane Doe (LinkedIn)"
+                  placeholder={t('job.janeAcmeComOrJane')}
                 />
               </Field>
-              <Field label="Notes">
+              <Field label={t('job.notes')}>
                 <Textarea name="applicationNotes" rows={3}>
                   {job.applicationNotes ?? ''}
                 </Textarea>
               </Field>
-              <Button variant="secondary">Save application</Button>
+              <Button variant="secondary">{t('job.saveApplication')}</Button>
             </form>
             <AppliedTextDisclosure job={job} />
           </Card>
@@ -342,13 +350,14 @@ export const JobDetailPage: FC<JobDetailProps> = ({
         <ClassifierCard job={job} scores={profileScores} tab={tab} />
         {job.company.atsType === 'FRANCETRAVAIL' && job.sourcePayload !== null && job.sourcePayload !== undefined && (
           <Card variant="flat" class="p-5">
-            <SectionTitle>Full offer as published by France Travail</SectionTitle>
+            <SectionTitle>{t('job.fullOfferAsPublishedBy')}</SectionTitle>
             <Hint class="mb-3">
-              Every field the board sent, unchanged — its licence asks for the whole offer to be shown.
+              {t('job.everyFieldTheBoardSent')}
             </Hint>
             <details>
-              <summary class="cursor-pointer select-none text-label text-ink">Show all fields</summary>
-              <div class="mt-3 overflow-x-auto">
+              <summary class="cursor-pointer select-none text-label text-ink">{t('job.showAllFields')}</summary>
+              {/* The offer as France Travail wrote it. */}
+              <div class="mt-3 overflow-x-auto" translate="no" lang="fr">
                 <JsonTree value={job.sourcePayload} />
               </div>
             </details>
@@ -356,25 +365,26 @@ export const JobDetailPage: FC<JobDetailProps> = ({
         )}
 
         <Card variant="flat" class="p-5">
-          <SectionTitle>Description</SectionTitle>
+          <SectionTitle>{t('job.description')}</SectionTitle>
           {job.descriptionRefreshedAt && (
             <div class="mb-3 flex flex-wrap items-center gap-2 text-note text-ink-muted">
               <span>
                 {job.descriptionOriginal !== null
-                  ? `Replaced with the company's own listing ${formatRelative(job.descriptionRefreshedAt)}; the original (${job.descriptionOriginal.length.toLocaleString('en-US')} characters) is kept.`
-                  : `Original text restored ${formatRelative(job.descriptionRefreshedAt)}.`}
+                  ? t('job.descriptionReplaced', { when: formatRelative(job.descriptionRefreshedAt), chars: job.descriptionOriginal.length })
+                  : t('job.descriptionRestored', { when: formatRelative(job.descriptionRefreshedAt) })}
               </span>
               {job.descriptionOriginal !== null && (
                 <ActionForm action={`/jobs/${job.id}/description/restore`}>
                   <Button variant="secondary" size="sm">
-                    Restore the original
+                    {t('job.restoreTheOriginal')}
                   </Button>
                 </ActionForm>
               )}
             </div>
           )}
-          <div class="whitespace-pre-line break-words text-sm leading-6 text-ink-muted">
-            {job.description || '(empty)'}
+          {/* The posting's own words: data, whatever language the page is in. */}
+          <div class="whitespace-pre-line break-words text-sm leading-6 text-ink-muted" translate="no">
+            {job.description || t('job.empty')}
           </div>
         </Card>
         </Card>
@@ -407,25 +417,30 @@ const ClassifierCard: FC<{ job: JobDetail; scores: ProfileScore[]; tab: JobTab }
   return (
     <Card variant="flat" class="p-5">
       <div class="flex flex-wrap items-center justify-between gap-3">
-        <SectionTitle>Classifier</SectionTitle>
+        <SectionTitle>{t('job.classifier')}</SectionTitle>
         <ActionForm action={`/jobs/${job.id}/reclassify`} hidden={{ tab }}>
           <Button variant="violet" size="sm">
-            Re-classify
+            {t('job.reClassify')}
           </Button>
         </ActionForm>
       </div>
       {scored ? (
         <>
-          {job.summary && <p class="mb-3 text-sm leading-6 text-ink">{job.summary}</p>}
+          {/* What the classifier wrote stays as it wrote it; the technologies and the user's own rules are data. */}
+          {job.summary && (
+            <p class="mb-3 text-sm leading-6 text-ink" lang="en">
+              {job.summary}
+            </p>
+          )}
           <dl class="space-y-2">
-            <TagRow label="Tech" items={job.techMatch.map(techLabel)} tone="ok" />
-            <TagRow label="Flags" items={job.redFlags} tone="danger" />
-            <TagRow label="Priority rules" items={job.priorityRulesApplied} tone="neutral" />
+            <TagRow label={t('job.tech')} items={job.techMatch.map(techLabel)} tone="ok" />
+            <TagRow label={t('job.flags')} items={job.redFlags} tone="danger" modelText />
+            <TagRow label={t('job.priorityRules')} items={job.priorityRulesApplied} tone="neutral" />
           </dl>
           <ProfileScoreRow scores={scores} />
         </>
       ) : (
-        <p class="text-sm text-ink-muted">Not scored yet — Re-classify runs the AI on this posting.</p>
+        <p class="text-sm text-ink-muted">{t('job.notScoredYetReClassify')}</p>
       )}
     </Card>
   );
@@ -441,7 +456,7 @@ const ProfileScoreRow: FC<{ scores: ProfileScore[] }> = ({ scores }) => {
   if (scores.length < 2) return null;
   return (
     <div class="mt-3 border-t border-line pt-3">
-      <div class="mb-2 text-meta font-medium text-ink-muted">By search</div>
+      <div class="mb-2 text-meta font-medium text-ink-muted">{t('job.bySearch')}</div>
       <ul class="space-y-1.5">
         {scores.map((s, i) => (
           <li class="flex items-start gap-2 text-note">
@@ -450,22 +465,23 @@ const ProfileScoreRow: FC<{ scores: ProfileScore[] }> = ({ scores }) => {
               <a
                 href={`/jobs?profile=${s.profileId}`}
                 class="font-medium text-ink transition-colors duration-150 hover:text-accent-strong"
+                translate="no"
               >
                 {s.name}
               </a>
               {i === 0 && (
-                <span class="ml-1.5 text-meta text-ink-faint">· best match</span>
+                <span class="ml-1.5 text-meta text-ink-faint">· {t('job.score.best')}</span>
               )}
               {!s.active && (
-                <span class="ml-1.5 text-meta text-ink-faint">· paused</span>
+                <span class="ml-1.5 text-meta text-ink-faint">· {t('job.score.paused')}</span>
               )}
               {!s.locationMatch && (
                 <span class="ml-1.5 text-meta text-warn">
-                  · location mismatch{s.locationReason ? ` — ${s.locationReason}` : ''}
+                  · {s.locationReason ? t('job.score.locationWhy', { reason: s.locationReason }) : t('job.score.location')}
                 </span>
               )}
               {s.summary && (
-                <div class="truncate text-meta text-ink-muted" title={s.summary}>
+                <div class="truncate text-meta text-ink-muted" title={s.summary} lang="en">
                   {s.summary}
                 </div>
               )}
@@ -491,18 +507,23 @@ const CrossListingNotice: FC<{ job: JobDetail }> = ({ job }) => {
   return (
     <div class="mb-4 rounded-lg border border-warn/25 bg-warn/5 px-4 py-3 text-sm text-ink">
       <p class="font-medium">
-        Also listed elsewhere — apply through one channel only
+        {t('job.alsoListedElsewhereApplyThrough')}
       </p>
       <ul class="mt-1.5 space-y-1 text-note text-ink-muted">
         {others.map((o) => (
           <li>
-            <a
-              href={`/jobs/${o.id}`}
-              class="font-medium text-accent-strong transition-colors duration-150 hover:text-accent-deep"
-            >
-              {o.title}
-            </a>{' '}
-            at {o.company.name}
+            {tRich('job.crossListed', {}, {
+              job: () => (
+                <a
+                  href={`/jobs/${o.id}`}
+                  class="font-medium text-accent-strong transition-colors duration-150 hover:text-accent-deep"
+                  translate="no"
+                >
+                  {o.title}
+                </a>
+              ),
+              company: () => <span translate="no">{o.company.name}</span>,
+            })}
           </li>
         ))}
       </ul>
@@ -528,26 +549,35 @@ const PageHeaderBlock: FC<{ job: JobDetail; primary: boolean }> = ({ job, primar
       >
         <path d="m15 18-6-6 6-6" />
       </svg>
-      All jobs
+      {t('job.allJobs')}
     </a>
     <div class="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
       <div class="min-w-0 flex-1 basis-72">
-        <h1 class="text-title text-ink">{job.title}</h1>
+        {/* The title, the company and the place as the posting gives them: data, whatever language the page is in. */}
+        <h1 class="text-title text-ink" translate="no">
+          {job.title}
+        </h1>
         <div class="mt-1 text-sm text-ink-muted">
-          {job.company.watched && <span aria-label="Watched company">★ </span>}
-          {job.employer ?? job.company.name}
+          {job.company.watched && <span aria-label={t('job.watchedCompany')}>★ </span>}
+          <span translate="no">{job.employer ?? job.company.name}</span>
           {job.employer && job.company.atsType !== 'ADZUNA' && job.company.atsType !== 'FRANCETRAVAIL' && (
-            <span class="text-ink-faint"> · via {job.company.name}</span>
+            <span class="text-ink-faint"> · {tRich('job.via', {}, { source: () => <span translate="no">{job.company.name}</span> })}</span>
           )}{' '}
-          · {job.location || 'Remote'}
+          · {job.location ? <span translate="no">{job.location}</span> : workplaceName('REMOTE')}
         </div>
         {job.company.watched && (
           <div data-ui="hint" class="mt-1 text-meta text-ink-faint">
-            Watched company · {intervalLabel(job.company.checkEvery).toLowerCase()}, with your search&rsquo;s schedule ·{' '}
-            {job.company.alertPolicy === 'all' ? 'alerts on every posting' : 'alerts on matches only'} ·{' '}
-            <a href="/companies" class="underline">
-              change
-            </a>
+            {tRich(
+              'job.watchedLine',
+              { every: toCheckInterval(job.company.checkEvery), policy: job.company.alertPolicy === 'all' ? 'all' : 'matches' },
+              {
+                link: (words) => (
+                  <a href="/companies" class="underline">
+                    {words}
+                  </a>
+                ),
+              },
+            )}
           </div>
         )}
         {job.company.atsType === 'ADZUNA' && <AdzunaLabel market={job.company.atsToken} class="mt-1" />}
@@ -560,12 +590,12 @@ const PageHeaderBlock: FC<{ job: JobDetail; primary: boolean }> = ({ job, primar
         {/* A whole board listing no longer carries it, or a check found it gone (TASKS S13, ADR 0016). */}
         {job.liveness === 'expired' && (
           <span title={closedTitle(job)}>
-            <Badge tone="warn">Closed</Badge>
+            <Badge tone="warn">{t('job.closed')}</Badge>
           </span>
         )}
         {safeHref(job.url) && (
           <Button href={safeHref(job.url)!} target="_blank" rel="noopener" size="sm" variant={primary ? 'primary' : 'secondary'}>
-            Open posting ↗
+            {t('job.openPosting')}
           </Button>
         )}
       </div>
@@ -582,10 +612,11 @@ const PlaceChips: FC<{ job: Pick<JobDetail, 'workplace' | 'countries' | 'regions
   const places = [...job.countries, ...job.regions];
   if (job.workplace === 'UNKNOWN' && places.length === 0) return null;
   return (
-    <ul class="mt-2 flex flex-wrap items-center gap-1.5" aria-label="Where this job is" title={job.location}>
+    // Everything inside is already in the reader's language (the catalog, the country names); the tooltip is the posting's own string.
+    <ul class="mt-2 flex flex-wrap items-center gap-1.5" aria-label={t('job.whereThisJobIs')} title={job.location} translate="no">
       {job.workplace !== 'UNKNOWN' && (
         <li>
-          <Tag tone="info">{WORKPLACE_LABEL[job.workplace]}</Tag>
+          <Tag tone="info">{workplaceName(job.workplace)}</Tag>
         </li>
       )}
       {places.map((code) => (
@@ -593,7 +624,7 @@ const PlaceChips: FC<{ job: Pick<JobDetail, 'workplace' | 'countries' | 'regions
           <a href={`/jobs?country=${encodeURIComponent(code)}`} class="hover:underline">
             <Tag>
               {flagOf(code) && <span aria-hidden="true">{flagOf(code)} </span>}
-              {placeLabel(code)}
+              {placeName(code)}
             </Tag>
           </a>
         </li>
@@ -631,14 +662,14 @@ const MarkAppliedPicker: FC<{
       </form>
       {picker.resumes.length > 0 && (
         <Field
-          label="Applied with"
-          hint="Kept for the follow-up reminder."
+          label={t('job.appliedWith')}
+          hint={t('job.keptForTheFollowUp')}
           class="mb-3"
         >
           <Select name="appliedResumeId" form={MARK_APPLIED_FORM}>
-            <option value="">— don't record a resume —</option>
+            <option value="">{t('job.dontRecordAResume')}</option>
             {picker.resumes.map((r) => (
-              <option value={r.id} selected={r.id === picker.suggestedId}>
+              <option value={r.id} selected={r.id === picker.suggestedId} translate="no">
                 {r.name}
               </option>
             ))}
@@ -668,19 +699,21 @@ const AppliedWithField: FC<{ job: JobDetail; picker: JobDetailProps['appliedResu
   const suggestion = picker.resumes.find((r) => r.id === picker.suggestedId);
   return (
     <Field
-      label="Applied with"
+      label={t('job.appliedWith')}
       hint={
         asking
-          ? `Not recorded — pick the one you sent.${suggestion ? ` Most likely "${suggestion.name}".` : ''}`
-          : 'Kept as it was on the day, so a later edit cannot rewrite history.'
+          ? suggestion
+            ? t('job.applied.pickLikely', { name: suggestion.name })
+            : t('job.applied.pick')
+          : t('job.keptAsItWasOn')
       }
     >
       <Select name="appliedResumeId">
         <option value="" selected={job.appliedResumeId === null}>
-          — not recorded —
+          {t('job.notRecorded')}
         </option>
         {picker.resumes.map((r) => (
-          <option value={r.id} selected={r.id === job.appliedResumeId}>
+          <option value={r.id} selected={r.id === job.appliedResumeId} translate="no">
             {r.name}
           </option>
         ))}
@@ -694,7 +727,7 @@ const AppliedTextDisclosure: FC<{ job: JobDetail }> = ({ job }) =>
   job.appliedResumeText ? (
     <details class="mt-3 rounded-md border border-line px-3 py-2">
       <summary class="cursor-pointer select-none text-note font-medium text-ink-muted transition-colors duration-150 hover:text-ink">
-        The text that went out ({job.appliedResumeText.length.toLocaleString()} chars)
+        {t('job.applied.textSent', { n: job.appliedResumeText.length })}
       </summary>
       <pre class="mt-3 whitespace-pre-wrap break-words font-sans text-note leading-6 text-ink-muted">
         {job.appliedResumeText}
@@ -708,7 +741,9 @@ const AppliedWithRow: FC<{ job: JobDetail }> = ({ job }) => {
     name: job.appliedResume?.name ?? null,
     version: job.appliedResumeVersion,
   });
-  return label === null ? null : <FactRow label="Applied with">{label}</FactRow>;
+  if (label === null) return null;
+  // A resume's own name is data; the words for one that was deleted since are applied-with.ts's.
+  return <FactRow label={t('job.appliedWith')}>{job.appliedResume?.name?.trim() ? <span translate="no">{label}</span> : label}</FactRow>;
 };
 
 const FactRow: FC<PropsWithChildren<{ label: string }>> = ({ label, children }) => (
@@ -718,17 +753,19 @@ const FactRow: FC<PropsWithChildren<{ label: string }>> = ({ label, children }) 
   </div>
 );
 
-const TagRow: FC<{ label: string; items: string[]; tone: 'ok' | 'danger' | 'neutral' }> = ({
+/** `modelText`: the items are a model's own words (`lang="en"`); otherwise they are names, kept as they are. */
+const TagRow: FC<{ label: string; items: string[]; tone: 'ok' | 'danger' | 'neutral'; modelText?: boolean }> = ({
   label,
   items,
   tone,
+  modelText = false,
 }) =>
   items.length === 0 ? null : (
     <div class="flex flex-wrap items-center gap-1.5">
       <dt class="mr-1 text-note font-medium text-ink-muted">{label}</dt>
-      {items.map((t) => (
-        <dd>
-          <Tag tone={tone}>{t}</Tag>
+      {items.map((item) => (
+        <dd lang={modelText ? 'en' : undefined} translate={modelText ? undefined : 'no'}>
+          <Tag tone={tone}>{item}</Tag>
         </dd>
       ))}
     </div>
@@ -744,15 +781,15 @@ const MuteCard: FC<{ jobId: number; tab: JobTab; mute: MuteState }> = ({ jobId, 
   if (mute.muted) {
     return (
       <Card variant="flat" class="p-5">
-        <SectionTitle>{mute.name} is muted</SectionTitle>
+        <SectionTitle>{t('job.mute.isMuted', { name: mute.name })}</SectionTitle>
         <Hint>
-          Since {formatDate(mute.muted.since)}
-          {mute.muted.reason ? ` — ${mute.muted.reason}` : ''}. Its new postings are turned away before any AI, and
-          the job list hides the stored ones.
+          {mute.muted.reason
+            ? t('job.mute.sinceWhy', { when: formatDate(mute.muted.since), reason: mute.muted.reason })
+            : t('job.mute.since', { when: formatDate(mute.muted.since) })}
         </Hint>
         <ActionForm action="/companies/mutes/delete" hidden={{ key: mute.key, back }} class="mt-3">
           <Button size="sm" variant="secondary">
-            Unmute
+            {t('job.unmute')}
           </Button>
         </ActionForm>
       </Card>
@@ -760,19 +797,18 @@ const MuteCard: FC<{ jobId: number; tab: JobTab; mute: MuteState }> = ({ jobId, 
   }
   return (
     <Card variant="flat" class="px-5 py-4">
-      <Disclosure summary={`Mute ${mute.name}`}>
+      <Disclosure summary={t('job.mute.mute', { name: mute.name })}>
         <form method="post" action="/companies/mutes" class="mt-3 space-y-3">
           <input type="hidden" name="name" value={mute.name} />
           <input type="hidden" name="back" value={back} />
-          <Field label="Why (optional)" hint="Shown beside the mute, so you remember it later.">
-            <Input name="reason" maxlength="300" placeholder="Rejected in September" />
+          <Field label={t('job.whyOptional')} hint={t('job.shownBesideTheMuteSo')}>
+            <Input name="reason" maxlength="300" placeholder={t('job.rejectedInSeptember')} />
           </Field>
           <Hint>
-            Its new postings are turned away before any AI, and the job list hides the stored ones. Nothing changes
-            status; Unmute undoes it.
+            {t('job.itsNewPostingsAreTurned')}
           </Hint>
           <Button variant="secondary">
-            Mute {mute.name}
+            {t('job.mute.mute', { name: mute.name })}
           </Button>
         </form>
       </Disclosure>
@@ -782,6 +818,6 @@ const MuteCard: FC<{ jobId: number; tab: JobTab; mute: MuteState }> = ({ jobId, 
 
 /** Why a posting reads as closed, and since when — the badge's tooltip. */
 function closedTitle(job: { livenessCode: string | null; livenessCheckedAt: Date | null }): string {
-  const why = job.livenessCode && job.livenessCode in LIVENESS_CODE_LABEL ? LIVENESS_CODE_LABEL[job.livenessCode as LivenessCode] : 'it was found gone';
-  return job.livenessCheckedAt ? `Closed: ${why} (seen ${formatDate(job.livenessCheckedAt)})` : `Closed: ${why}`;
+  const why = (job.livenessCode && livenessCodeLabel(job.livenessCode)) || t('job.closedFoundGone');
+  return job.livenessCheckedAt ? t('job.closedWhySeen', { why, when: formatDate(job.livenessCheckedAt) }) : t('job.closedWhy', { why });
 }

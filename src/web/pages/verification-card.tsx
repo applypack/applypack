@@ -5,7 +5,10 @@ import { ActionForm, Badge, Button, Card, Hint, MarkIcon, SectionTitle, When } f
 import type { Tone } from '../format';
 import { formatRelative, safeHref } from '../format';
 import { readEvidence, type VerificationEvidence } from '../../verification/prompts';
-import { LIVENESS_CODE_LABEL, type LivenessCode } from '../../verification/liveness';
+import { livenessCodeLabel } from '../../verification/liveness';
+import type { MessageKey } from '../../i18n/catalog';
+import { t } from '../../i18n/t';
+import { tRich } from '../rich';
 
 export interface JobLivenessView {
   liveness: string;
@@ -26,20 +29,20 @@ export interface VerificationCardProps {
   costHint: string | null;
 }
 
-const LIVENESS_VIEW: Record<string, { label: string; tone: Tone }> = {
-  active: { label: 'posting live', tone: 'ok' },
-  expired: { label: 'posting closed', tone: 'danger' },
-  uncertain: { label: 'liveness unknown', tone: 'neutral' },
+// In the three tables below a label is a catalog key, read when the card renders.
+const LIVENESS_VIEW: Record<string, { label: MessageKey; tone: Tone }> = {
+  active: { label: 'verify.liveness.active', tone: 'ok' },
+  expired: { label: 'verify.liveness.expired', tone: 'danger' },
+  uncertain: { label: 'verify.liveness.uncertain', tone: 'neutral' },
 };
 
-const codeLabel = (code: string): string =>
-  LIVENESS_CODE_LABEL[code as LivenessCode] ?? code;
+const codeLabel = (code: string): string => livenessCodeLabel(code) ?? code;
 
 export const VERDICT_TONE: Record<string, Tone> = { legit: 'ok', suspicious: 'warn', fake: 'danger' };
-const RECOMMENDATION_VIEW: Record<string, { label: string; tone: Tone }> = {
-  apply: { label: 'worth applying', tone: 'ok' },
-  caution: { label: 'apply with caution', tone: 'warn' },
-  skip: { label: 'skip', tone: 'danger' },
+const RECOMMENDATION_VIEW: Record<string, { label: MessageKey; tone: Tone }> = {
+  apply: { label: 'verify.recommendation.apply', tone: 'ok' },
+  caution: { label: 'verify.recommendation.caution', tone: 'warn' },
+  skip: { label: 'verify.recommendation.skip', tone: 'danger' },
 };
 const SIGNAL_TONE: Record<VerificationEvidence['signal'], Tone> = {
   legit: 'ok',
@@ -48,16 +51,29 @@ const SIGNAL_TONE: Record<VerificationEvidence['signal'], Tone> = {
   neutral: 'neutral',
   unverified: 'neutral',
 };
-const CHECK_LABEL: Record<VerificationEvidence['check'], string> = {
-  careers_page: 'Careers page',
-  linkedin: 'LinkedIn',
-  reputation: 'Reputation',
-  posting_age: 'Posting age',
-  salary: 'Salary',
-  named_humans: 'Named humans',
-  posting_quality: 'Posting quality',
-  other: 'Other',
-};
+const CHECK_LABEL = {
+  careers_page: 'verify.check.careersPage',
+  linkedin: 'verify.check.linkedin',
+  reputation: 'verify.check.reputation',
+  posting_age: 'verify.check.postingAge',
+  salary: 'verify.check.salary',
+  named_humans: 'verify.check.namedHumans',
+  posting_quality: 'verify.check.postingQuality',
+  other: 'verify.check.other',
+} as const satisfies Record<VerificationEvidence['check'], MessageKey>;
+
+/** A word the verifier chose (a verdict, a signal): what a model wrote, shown as written. */
+const ModelWord: FC<{ word: string }> = ({ word }) => <span lang="en">{word}</span>;
+
+function livenessWord(liveness: string): string {
+  const view = LIVENESS_VIEW[liveness];
+  return view ? t(view.label) : liveness;
+}
+
+function recommendationWord(recommendation: string): string {
+  const view = RECOMMENDATION_VIEW[recommendation];
+  return view ? t(view.label) : recommendation;
+}
 
 export const VerificationCard: FC<VerificationCardProps> = ({
   jobId,
@@ -72,59 +88,54 @@ export const VerificationCard: FC<VerificationCardProps> = ({
     <Card>
       <div class="flex flex-wrap items-start justify-between gap-3">
         <div class="min-w-0">
-          <SectionTitle>Is this job real?</SectionTitle>
+          <SectionTitle>{t('verify.isThisJobReal')}</SectionTitle>
           {liveness || verification ? (
             <div class="flex flex-wrap items-center gap-2">
               {liveness && (
-                <span title={`${codeLabel(liveness.code)} · checked ${formatRelative(liveness.checkedAt)}`}>
-                  <Badge tone={LIVENESS_VIEW[liveness.liveness]?.tone ?? 'neutral'}>
-                    {LIVENESS_VIEW[liveness.liveness]?.label ?? liveness.liveness}
-                  </Badge>
+                <span title={t('verify.checkedTitle', { how: codeLabel(liveness.code), when: formatRelative(liveness.checkedAt) })}>
+                  <Badge tone={LIVENESS_VIEW[liveness.liveness]?.tone ?? 'neutral'}>{livenessWord(liveness.liveness)}</Badge>
                 </span>
               )}
               {verification && (
                 <>
                   <Badge tone={VERDICT_TONE[verification.verdict] ?? 'neutral'}>
-                    {verification.verdict}
+                    <ModelWord word={verification.verdict} />
                   </Badge>
                   <Badge tone={RECOMMENDATION_VIEW[verification.recommendation]?.tone ?? 'neutral'}>
-                    {RECOMMENDATION_VIEW[verification.recommendation]?.label ??
-                      verification.recommendation}
+                    {recommendationWord(verification.recommendation)}
                   </Badge>
                   <span class="text-meta tabular-nums text-ink-faint">
-                    {verification.confidence}% confidence
+                    {t('verify.confidence', { n: verification.confidence })}
                   </span>
                   <span class="text-meta text-ink-faint">
                     · <When at={verification.createdAt} />
-                    {verificationCount > 1 ? ` · ${verificationCount} runs` : ''}
+                    {verificationCount > 1 ? ` · ${t('verify.runs', { n: verificationCount })}` : ''}
                   </span>
                 </>
               )}
             </div>
           ) : (
             <Hint>
-              Not checked yet. Verify first asks the company's job board and the posting page for
-              free; when that is inconclusive, the AI searches the web for careers-page, reputation
-              and scam signals and says whether to apply.
+              {t('verify.notCheckedYetVerifyFirst')}
             </Hint>
           )}
         </div>
         <div class="flex shrink-0 flex-wrap items-center gap-2">
           {run ? (
             <Button href={`/target/runs/${run.id}`} variant="secondary" size="sm">
-              Checking… started <When at={new Date(run.startedAt)} /> — open the progress page
+              {tRich('verify.checking', {}, { when: () => <When at={new Date(run.startedAt)} /> })}
             </Button>
           ) : (
             <>
               <ActionForm action={`/jobs/${jobId}/verify`}>
                 <Button variant={liveness || verification ? 'secondary' : 'violet'} size="sm">
-                  {liveness || verification ? 'Re-check' : 'Verify'}
+                  {liveness || verification ? t('verify.reCheck') : t('verify.verify')}
                 </Button>
               </ActionForm>
               {liveness && liveness.liveness !== 'uncertain' && (
                 <ActionForm action={`/jobs/${jobId}/verify`} hidden={{ deep: 1 }}>
                   <Button variant="violet" size="sm">
-                    Deep check (AI)
+                    {t('verify.deepCheckAi')}
                   </Button>
                 </ActionForm>
               )}
@@ -132,19 +143,22 @@ export const VerificationCard: FC<VerificationCardProps> = ({
           )}
         </div>
       </div>
-      {costHint && !run && <Hint class="mt-2">The AI research: {costHint.charAt(0).toLowerCase() + costHint.slice(1)}</Hint>}
+      {costHint && !run && <Hint class="mt-2">{t('verify.costHint', { hint: costHint.charAt(0).toLowerCase() + costHint.slice(1) })}</Hint>}
       {liveness && !verification && (
         <p class="mt-3 text-sm text-ink-muted">
-          {codeLabel(liveness.code)} · checked <When at={liveness.checkedAt} />.
+          {tRich('verify.checkedLine', { how: codeLabel(liveness.code) }, { when: () => <When at={liveness.checkedAt} /> })}
         </p>
       )}
 
       {verification && (
         <div class="mt-4 space-y-4">
-          <p class="text-sm leading-6 text-ink">{verification.summary}</p>
+          {/* The summary, the flags, the findings and the snapshot are the verifier's own words: shown as written. */}
+          <p class="text-sm leading-6 text-ink" lang="en">
+            {verification.summary}
+          </p>
 
           {verification.redFlags.length > 0 && (
-            <ul class="space-y-1 text-sm text-ink-muted">
+            <ul class="space-y-1 text-sm text-ink-muted" lang="en">
               {verification.redFlags.map((f) => (
                 <li class="flex gap-2">
                   <MarkIcon kind="x" class="mt-[3px] text-danger" />
@@ -158,8 +172,8 @@ export const VerificationCard: FC<VerificationCardProps> = ({
 
           {verification.companySnapshot && (
             <div>
-              <div class="mb-1.5 text-note font-medium text-ink-muted">Company snapshot</div>
-              <p class="text-sm leading-6 text-ink-muted">
+              <div class="mb-1.5 text-note font-medium text-ink-muted">{t('verify.companySnapshot')}</div>
+              <p class="text-sm leading-6 text-ink-muted" lang="en">
                 {verification.companySnapshot}
               </p>
             </div>
@@ -167,27 +181,27 @@ export const VerificationCard: FC<VerificationCardProps> = ({
 
           {safeHref(verification.postingUrl) && (
             <div>
-              <div class="mb-1.5 text-note font-medium text-ink-muted">Company's own listing</div>
+              <div class="mb-1.5 text-note font-medium text-ink-muted">{t('verify.companysOwnListing')}</div>
               <div class="flex flex-wrap items-center gap-2">
                 <a
                   href={safeHref(verification.postingUrl)!}
                   target="_blank"
                   rel="noopener noreferrer"
                   class="break-all font-mono text-meta text-accent-strong transition-colors duration-150 hover:text-accent-deep"
+                  translate="no"
                 >
                   {safeHref(verification.postingUrl)!.replace(/^https?:\/\//, '').slice(0, 80)}
                 </a>
                 {!run && (
                   <ActionForm action={`/jobs/${jobId}/description/refresh`}>
                     <Button variant="secondary" size="sm">
-                      Refresh the description from it
+                      {t('verify.refreshTheDescriptionFromIt')}
                     </Button>
                   </ActionForm>
                 )}
               </div>
               <Hint class="mt-1.5">
-                Reads that page and shows the difference before anything is replaced — for a posting that arrived
-                truncated from an aggregator or was pasted in part. The stored text is kept.
+                {t('verify.readsThatPageAndShows')}
               </Hint>
             </div>
           )}
@@ -196,8 +210,8 @@ export const VerificationCard: FC<VerificationCardProps> = ({
       {!verification && (
         <Hint class="mt-3">
           {url
-            ? 'The free checks answer in seconds; the AI deep check searches and reads pages for 2-4 minutes before answering. Either way it runs on a progress page you can leave.'
-            : 'This posting has no URL, so the free checks have nothing to ask — Verify goes straight to the AI research, 2-4 minutes on a progress page you can leave.'}
+            ? t('verify.theFreeChecksAnswerIn')
+            : t('verify.thisPostingHasNoUrl')}
         </Hint>
       )}
     </Card>
@@ -207,15 +221,17 @@ export const VerificationCard: FC<VerificationCardProps> = ({
 const EvidenceList: FC<{ items: VerificationEvidence[] }> = ({ items }) =>
   items.length === 0 ? null : (
     <div>
-      <div class="mb-1.5 text-note font-medium text-ink-muted">Evidence</div>
+      <div class="mb-1.5 text-note font-medium text-ink-muted">{t('verify.evidence')}</div>
       <ul class="divide-y divide-line rounded-md border border-line">
         {items.map((e) => (
           <li class="flex flex-col gap-1 p-3 sm:flex-row sm:items-start sm:gap-3">
             <div class="flex shrink-0 items-center gap-2 sm:w-48">
-              <Badge tone={SIGNAL_TONE[e.signal]}>{e.signal}</Badge>
-              <span class="text-meta text-ink-muted">{CHECK_LABEL[e.check]}</span>
+              <Badge tone={SIGNAL_TONE[e.signal]}>
+                <ModelWord word={e.signal} />
+              </Badge>
+              <span class="text-meta text-ink-muted">{t(CHECK_LABEL[e.check])}</span>
             </div>
-            <div class="min-w-0 text-sm text-ink">
+            <div class="min-w-0 text-sm text-ink" lang="en">
               {e.finding}
               {safeHref(e.url) && (
                 <a
