@@ -70,7 +70,7 @@ export const LanguageMenu: FC<{ variant: keyof typeof TRIGGER }> = ({ variant })
     // One element for the row it sits in: a sibling's spacing rule would otherwise reach the popover and pin it to the top.
     <div>
       {/* The label names the language in use: on the icon rail its name is hidden, and the label is all a screen reader gets (#345). */}
-      <button type="button" popovertarget={id} class={TRIGGER[variant]} title={label} aria-label={`${label}: ${localeName(current)}`}>
+      <button type="button" popovertarget={id} class={TRIGGER[variant]} title={label} aria-label={t('language.trigger', { language: localeName(current) })}>
         <Icon name="globe" size={variant === 'sidebar' ? 18 : 16} />
         <OwnName locale={current} class={variant === 'sidebar' ? 'truncate md:hidden lg:block' : undefined} />
       </button>

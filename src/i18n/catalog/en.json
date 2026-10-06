@@ -3950,5 +3950,6 @@
   "pack.why.companyUnchecked": "The company was not checked: {reason}",
   "pack.why.postingGone": "The posting is gone.",
   "pack.why.noResume": "No resume is linked to the search that found this posting. Link one on Settings → Searches → \"Resume for this search\", then prepare the pack again.",
-  "pack.why.noResumeMade": "The pack ended with no resume to show."
+  "pack.why.noResumeMade": "The pack ended with no resume to show.",
+  "language.trigger": "Language: {language}"
 }
