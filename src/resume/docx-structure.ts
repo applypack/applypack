@@ -13,6 +13,7 @@
 import type { Document, Element } from '@xmldom/xmldom';
 import { parseDocumentXml, walkDocument, W_NS, type Block } from './docx-text';
 import { readZipEntry } from './zip';
+import { t } from '../i18n/t';
 
 export type DocxKind = 'flow' | 'structural' | 'unsupported';
 
@@ -50,12 +51,12 @@ export function docxStructure(bytes: Buffer): DocxStructure {
     notes: [],
   };
   const part = readZipEntry(bytes, DOCUMENT_PART);
-  if (part === null) return { ...empty, notes: ['Not a .docx: the document part is missing.'] };
+  if (part === null) return { ...empty, notes: [t('resume.structure.note.notDocx')] };
   let doc: Document;
   try {
     doc = parseDocumentXml(part.toString('utf8'));
   } catch {
-    return { ...empty, notes: ['The document XML could not be parsed: Save keeps the clean version as a new .docx.'] };
+    return { ...empty, notes: [t('resume.structure.note.unparsed')] };
   }
 
   const count = (ns: string, name: string) => doc.getElementsByTagNameNS(ns, name).length;
@@ -80,16 +81,16 @@ export function docxStructure(bytes: Buffer): DocxStructure {
   const bodyChars = blocks.reduce((n, b) => n + b.lines.join('').length, 0) - boxedChars;
 
   const notes: string[] = [];
-  if (headerChars > 0) notes.push('Contact details or other text live in the header: ATS parsers and this editor do not see them.');
-  if (footerChars > 0) notes.push('The footer carries text that ATS parsers and this editor do not see.');
-  if (tables > 0) notes.push(`${tables === 1 ? 'A table' : `${tables} tables`}: cell text can be edited in place, rows cannot be added or removed.`);
-  if (textBoxes > 0) notes.push(`${textBoxes === 1 ? 'A text box' : `${textBoxes} text boxes`}: text inside it is read but not edited in place.`);
-  if (columns > 1) notes.push(`${columns} columns: the reading order an ATS sees may differ from the page.`);
-  if (math > 0) notes.push(`${math} formula object${math === 1 ? '' : 's'}: some parsers cannot read them.`);
-  if (drawings > 0) notes.push(`${drawings} image${drawings === 1 ? '' : 's'} or shape${drawings === 1 ? '' : 's'}: invisible to a text parser.`);
-  if (hiddenRuns > 0) notes.push(`${hiddenRuns} hidden run${hiddenRuns === 1 ? '' : 's'}: text a reader never sees, which ATS vendors flag.`);
-  if (whiteRuns > 0) notes.push(`${whiteRuns} white-text run${whiteRuns === 1 ? '' : 's'}: the classic keyword-stuffing marker, which ATS vendors flag.`);
-  if (tinyRuns > 0) notes.push(`${tinyRuns} run${tinyRuns === 1 ? '' : 's'} at 4 pt or smaller.`);
+  if (headerChars > 0) notes.push(t('resume.structure.note.header'));
+  if (footerChars > 0) notes.push(t('resume.structure.note.footer'));
+  if (tables > 0) notes.push(t('resume.structure.note.tables', { n: tables }));
+  if (textBoxes > 0) notes.push(t('resume.structure.note.textBoxes', { n: textBoxes }));
+  if (columns > 1) notes.push(t('resume.structure.note.columns', { n: columns }));
+  if (math > 0) notes.push(t('resume.structure.note.math', { n: math }));
+  if (drawings > 0) notes.push(t('resume.structure.note.drawings', { n: drawings }));
+  if (hiddenRuns > 0) notes.push(t('resume.structure.note.hiddenRuns', { n: hiddenRuns }));
+  if (whiteRuns > 0) notes.push(t('resume.structure.note.whiteRuns', { n: whiteRuns }));
+  if (tinyRuns > 0) notes.push(t('resume.structure.note.tinyRuns', { n: tinyRuns }));
 
   const kind: DocxKind =
     total === 0 || boxedChars > bodyChars
@@ -97,7 +98,7 @@ export function docxStructure(bytes: Buffer): DocxStructure {
       : tables === 0 && textBoxes === 0 && columns <= 1 && headerChars === 0 && footerChars === 0
         ? 'flow'
         : 'structural';
-  if (kind === 'unsupported' && total > 0) notes.unshift('Most of the text sits in text boxes: Save keeps the clean version as a new .docx.');
+  if (kind === 'unsupported' && total > 0) notes.unshift(t('resume.structure.note.boxed'));
 
   return { kind, lines: { total, editable }, tables, textBoxes, drawings, columns, headerChars, footerChars, math, hiddenRuns, whiteRuns, tinyRuns, notes };
 }
@@ -132,9 +133,10 @@ function marginChars(bytes: Buffer): { headerChars: number; footerChars: number 
  * so `withNote: false` keeps the line short.
  */
 export function describeStructure(s: DocxStructure, opts: { withNote?: boolean } = {}): string {
-  if (s.kind === 'unsupported') return 'This file cannot be edited in place: Save keeps the clean version as a new .docx.';
-  const lines = `${s.lines.editable} of ${s.lines.total} lines`;
-  if (s.kind === 'flow') return `This file: editable in place, ${lines}.`;
-  const note = opts.withNote === false ? '' : ` — ${s.notes[0] ?? 'some parts are not paragraphs'}`;
-  return `This file: partly editable in place, ${lines}${note}${note ? '' : '.'}`;
+  if (s.kind === 'unsupported') return t('resume.structure.unsupported');
+  const lines = { editable: s.lines.editable, total: s.lines.total };
+  if (s.kind === 'flow') return t('resume.structure.flow', lines);
+  if (opts.withNote === false) return t('resume.structure.partly', lines);
+  // The note ends the sentence: it brings its own full stop.
+  return t('resume.structure.partlyNote', { ...lines, note: s.notes[0] ?? t('resume.structure.notParagraphs') });
 }

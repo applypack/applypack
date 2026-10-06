@@ -3,6 +3,7 @@ import { findResumeWithText, getResume, listResumes, upsertScratchResume } from 
 import { resumeOptionLabel } from './resume-label';
 import type { MatchEvidence } from '../resume/match-mode';
 import { MAX_RESUME_NAME_CHARS, nameFromFilename, readResumeUpload } from './upload';
+import { t } from '../i18n/t';
 
 /*
  * "Which resume?" on the two launchers (/target, /letter): one of the user's
@@ -52,9 +53,9 @@ export async function resolveResumeSource(
   f: ResumeSourceInput,
 ): Promise<ResolvedResume | { error: string }> {
   if (f.resumeMode === 'existing') {
-    if (!f.resumeId) return { error: 'Pick a resume from the list.' };
+    if (!f.resumeId) return { error: t('upload.source.pick') };
     const row = await getResume(f.resumeId);
-    if (!row || row.hidden) return { error: 'That resume no longer exists.' };
+    if (!row || row.hidden) return { error: t('upload.source.gone') };
     return { ...row, evidence: 'own' };
   }
   // A file that reads exactly like one of the user's own resumes is theirs, checked or not (R16 helps R1).
@@ -67,9 +68,9 @@ export async function resolveResumeSource(
   }
   const text = f.resumeText.replace(/\r\n/g, '\n').trim();
   if (text.length < MIN_RESUME_CHARS) {
-    return { error: `The pasted resume is too short — at least ${MIN_RESUME_CHARS} characters.` };
+    return { error: t('upload.source.tooShort', { min: MIN_RESUME_CHARS }) };
   }
-  const name = f.pasteName.trim().slice(0, MAX_RESUME_NAME_CHARS) || 'Pasted resume';
+  const name = f.pasteName.trim().slice(0, MAX_RESUME_NAME_CHARS) || t('upload.pastedName');
   const scratch = await upsertScratchResume({
     name,
     sourceFilename: 'pasted.txt',

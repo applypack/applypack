@@ -3,6 +3,7 @@ import type { WorkEntry } from './json-resume';
 import type { KeywordMatcher } from './keyword-matcher';
 import type { MatchKeyword } from './prompts';
 import { structureFromText } from './structure-from-text';
+import { t } from '../i18n/t';
 
 /*
  * How long, and how lately, the resume shows each wanted term at work (TASKS
@@ -51,10 +52,12 @@ export function termUsage(
   return usage;
 }
 
+const MONTHS_IN_YEAR = 12;
+
 /** "3.5 yrs at work · current", "1 yr at work · 4 yrs ago". */
 export function usageLine(u: TermUsage): string {
-  const years = `${u.years} ${u.years === 1 ? 'yr' : 'yrs'} at work`;
-  if (u.monthsSince === 0) return `${years} · current`;
-  const ago = u.monthsSince < 12 ? `${u.monthsSince} mo ago` : `${Math.round(u.monthsSince / 12)} ${Math.round(u.monthsSince / 12) === 1 ? 'yr' : 'yrs'} ago`;
-  return `${years} · ${ago}`;
+  const { years, monthsSince } = u;
+  if (monthsSince === 0) return t('resume.usage.current', { years });
+  if (monthsSince < MONTHS_IN_YEAR) return t('resume.usage.monthsAgo', { years, months: monthsSince });
+  return t('resume.usage.yearsAgo', { years, ago: Math.round(monthsSince / MONTHS_IN_YEAR) });
 }

@@ -4,9 +4,29 @@
  * AI). Shown on the resume page next to "what the ATS sees". Pure.
  */
 
+import { SOURCE_LOCALE, withLocale } from '../i18n/locale';
+import type { MessageParams } from '../i18n/message';
+import { t } from '../i18n/t';
+
+type WarningCode = 'too_short' | 'unreadable_chars' | 'control_chars' | 'no_email' | 'no_phone' | 'glued_words' | 'too_long';
+
 export interface ParseWarning {
-  code: string;
+  code: WarningCode;
+  /** The sentence in English, whatever language the page is in: the review prompt quotes it (review.ts). */
   message: string;
+  /** The same sentence in the reader's language, and the code as a page's badge words it. */
+  shown: string;
+  label: string;
+}
+
+/** A warning's sentence is `parsed.warning.<code>` and its badge `parsed.warningLabel.<code>`. */
+function warning(code: WarningCode, params: MessageParams = {}): ParseWarning {
+  return {
+    code,
+    message: withLocale(SOURCE_LOCALE, () => t(`parsed.warning.${code}`, params)),
+    shown: t(`parsed.warning.${code}`, params),
+    label: t(`parsed.warningLabel.${code}`),
+  };
 }
 
 const MIN_TEXT_CHARS = 300;
@@ -42,58 +62,37 @@ export function parseWarnings(text: string): ParseWarning[] {
   const len = text.length;
 
   if (len < MIN_TEXT_CHARS) {
-    warnings.push({
-      code: 'too_short',
-      message: `Only ${len} characters extracted — likely a scanned or image-based file; most ATS parsers will see almost nothing.`,
-    });
+    warnings.push(warning('too_short', { n: len }));
     return warnings; // Everything below would just be noise on top of this.
   }
 
   const replacementChars = (text.match(/�/g) ?? []).length;
   if (replacementChars > 0) {
-    warnings.push({
-      code: 'unreadable_chars',
-      message: `${replacementChars} unreadable character${replacementChars === 1 ? '' : 's'} (�) — the file's fonts don't map to text; an ATS sees the same garbage.`,
-    });
+    warnings.push(warning('unreadable_chars', { n: replacementChars }));
   }
 
   const controlChars = (text.match(CONTROL_RE) ?? []).length;
   if (controlChars > 0) {
-    warnings.push({
-      code: 'control_chars',
-      message: `${controlChars} control character${controlChars === 1 ? '' : 's'} in the text — unusual encoding; some parsers truncate at these.`,
-    });
+    warnings.push(warning('control_chars', { n: controlChars }));
   }
 
   if (!EMAIL_RE.test(text)) {
-    warnings.push({
-      code: 'no_email',
-      message: 'No email address in the extracted text — if it lives in a header, image or text box, ATS contact mapping misses it.',
-    });
+    warnings.push(warning('no_email'));
   }
 
   if (!hasPhone(text)) {
-    warnings.push({
-      code: 'no_phone',
-      message: 'No phone number in the extracted text — same header/graphic risk as the email.',
-    });
+    warnings.push(warning('no_phone'));
   }
 
   const words = text.split(/\s+/).filter(Boolean);
   const avgWordLen = words.length > 0 ? len / words.length : 0;
   if (avgWordLen > GLUED_AVG_WORD_LEN) {
-    warnings.push({
-      code: 'glued_words',
-      message: 'Unusually long "words" — extraction may have lost spaces (ligatures or column layout); check the text below reads normally.',
-    });
+    warnings.push(warning('glued_words'));
   }
 
   const pages = Math.ceil(len / CHARS_PER_PAGE);
   if (pages > MAX_PAGES) {
-    warnings.push({
-      code: 'too_long',
-      message: `≈${pages} pages of text — over the ${MAX_PAGES}-page US norm; recruiters skim, parsers rank early content higher.`,
-    });
+    warnings.push(warning('too_long', { pages, max: MAX_PAGES }));
   }
 
   return warnings;

@@ -4,6 +4,7 @@ import { Layout } from '../layout';
 import { Badge, Card, Hint, PageHeader, SectionTitle } from '../ui';
 import type { DiffList, FormatComparison, FormatReading } from '../format-compare';
 import { ParsedViewBlock } from './parsed-view-block';
+import { t } from '../../i18n/t';
 
 /*
  * The same resume as two files, read side by side (TASKS R14): which one a
@@ -19,24 +20,27 @@ export interface FormatComparePageProps {
 }
 
 function verdict(r: FormatComparison): string {
-  if (r.identical) return 'The two files read exactly alike: a parser gets the same text from either, so send whichever you like.';
-  if (r.better === 'same') return 'A plain parser finds the same parts in both. Their text differs in the lines below — read them before you choose.';
+  if (r.identical) return t('parsed.verdict.identical');
+  if (r.better === 'same') return t('parsed.verdict.same');
   const [winner, loser] = r.better === 'a' ? [r.a, r.b] : [r.b, r.a];
-  return `${winner.name[0]!.toUpperCase()}${winner.name.slice(1)} reads better: send it rather than ${loser.name} where a form lets you choose.`;
+  // The winner's name opens the sentence, in every language the catalog has.
+  return t('parsed.verdict.better', { winner: `${winner.name[0]!.toUpperCase()}${winner.name.slice(1)}`, loser: loser.name });
 }
 
 const Side: FC<{ reading: FormatReading; file: string }> = ({ reading, file }) => (
   <Card>
     <SectionTitle>{reading.label}</SectionTitle>
-    <p class="-mt-2 mb-3 break-all text-meta text-ink-faint">{file}</p>
+    <p class="-mt-2 mb-3 break-all text-meta text-ink-faint" translate="no">
+      {file}
+    </p>
     <ParsedViewBlock view={reading.view} />
     {reading.warnings.length === 0 ? (
-      <Hint>No parse warnings.</Hint>
+      <Hint>{t('parsed.noParseWarnings')}</Hint>
     ) : (
       <ul class="space-y-1.5">
         {reading.warnings.map((w) => (
           <li class="text-sm text-ink-muted">
-            <Badge tone="warn">warning</Badge> {w}
+            <Badge tone="warn">{t('parsed.warningBadge')}</Badge> {w}
           </li>
         ))}
       </ul>
@@ -45,13 +49,18 @@ const Side: FC<{ reading: FormatReading; file: string }> = ({ reading, file }) =
 );
 
 const More: FC<{ list: DiffList<unknown> }> = ({ list }) =>
-  list.total > list.lines.length ? <li class="text-meta text-ink-faint">and {list.total - list.lines.length} more</li> : null;
+  list.total > list.lines.length ? (
+    <li class="text-meta text-ink-faint" translate="yes">
+      {t('parsed.andMore', { n: list.total - list.lines.length })}
+    </li>
+  ) : null;
 
 const Lines: FC<{ title: string; list: DiffList<string> }> = ({ title, list }) =>
   list.total === 0 ? null : (
     <div>
       <h3 class="text-label text-ink">{title}</h3>
-      <ul class="mt-1.5 space-y-1 font-mono text-meta leading-5 text-ink-muted">
+      {/* The lines are the resume's own text. */}
+      <ul class="mt-1.5 space-y-1 font-mono text-meta leading-5 text-ink-muted" translate="no">
         {list.lines.map((line) => (
           <li class="break-words">{line}</li>
         ))}
@@ -64,11 +73,11 @@ export const FormatComparePage: FC<FormatComparePageProps> = ({ resume, files, r
   const { a, b, changed } = result;
   const differs = result.onlyA.total + result.onlyB.total + result.moved.total + changed.total > 0;
   return (
-    <Layout title={`Two files — ${resume.name}`} active="resumes">
+    <Layout title={t('parsed.pageTitle', { name: resume.name })} active="resumes">
       <PageHeader
-        title="Two files, one resume"
-        meta={`${resume.name} · what a parser reads from each`}
-        back={{ href: `/resumes/${resume.id}#ats`, label: 'Back to the resume' }}
+        title={t('parsed.twoFilesOneResume')}
+        meta={t('parsed.pageMeta', { name: resume.name })}
+        back={{ href: `/resumes/${resume.id}#ats`, label: t('resume.backToResume') }}
       />
       <Card>
         <p class="text-sm leading-6 text-ink">{verdict(result)}</p>
@@ -80,9 +89,7 @@ export const FormatComparePage: FC<FormatComparePageProps> = ({ resume, files, r
           </ul>
         )}
         <Hint class="mt-3">
-          Measured in the order an ATS needs them — email and phone, roles with their dates, roles, sections, link and
-          location, warnings — and the first that differs decides. The same plain reader as "What the ATS sees": no AI, and the uploaded file was not
-          kept.
+          {t('parsed.measuredInTheOrderAn')}
         </Hint>
       </Card>
 
@@ -93,23 +100,23 @@ export const FormatComparePage: FC<FormatComparePageProps> = ({ resume, files, r
 
       {!result.identical && (
         <Card class="mt-4">
-          <SectionTitle>Where the text differs</SectionTitle>
+          <SectionTitle>{t('parsed.whereTheTextDiffers')}</SectionTitle>
           {differs ? (
             <div class="space-y-4">
-              <Lines title={`Only in ${a.name}`} list={result.onlyA} />
-              <Lines title={`Only in ${b.name}`} list={result.onlyB} />
-              <Lines title="In both, in a different place" list={result.moved} />
+              <Lines title={t('parsed.onlyIn', { name: a.name })} list={result.onlyA} />
+              <Lines title={t('parsed.onlyIn', { name: b.name })} list={result.onlyB} />
+              <Lines title={t('parsed.inBothInADifferent')} list={result.moved} />
               {changed.total > 0 && (
                 <div>
-                  <h3 class="text-label text-ink">Read differently</h3>
+                  <h3 class="text-label text-ink">{t('parsed.readDifferently')}</h3>
                   <ul class="mt-1.5 space-y-2 font-mono text-meta leading-5">
                     {changed.lines.map((pair) => (
                       <li class="break-words">
                         <div class="text-ink-muted">
-                          {a.label}: {pair.a}
+                          {a.label}: <span translate="no">{pair.a}</span>
                         </div>
                         <div class="text-ink">
-                          {b.label}: {pair.b}
+                          {b.label}: <span translate="no">{pair.b}</span>
                         </div>
                       </li>
                     ))}
@@ -119,7 +126,7 @@ export const FormatComparePage: FC<FormatComparePageProps> = ({ resume, files, r
               )}
             </div>
           ) : (
-            <Hint>The same lines in the same order — only spacing, capitals or the heading and bullet marks differ, and a parser reads past those.</Hint>
+            <Hint>{t('parsed.theSameLinesInThe')}</Hint>
           )}
         </Card>
       )}

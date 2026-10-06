@@ -2,7 +2,9 @@ import { extname } from 'node:path';
 import { resumeTextKey } from '../resume/duplicate';
 import type { DiffOp } from '../resume/line-diff';
 import { parseWarnings } from '../resume/parse-warnings';
-import { parsedView, type ParsedView } from './parsed-view';
+import { parsedView, type ContactKind, type ParsedView } from './parsed-view';
+import type { MessageKey } from '../i18n/catalog';
+import { t } from '../i18n/t';
 
 /*
  * The same resume as two files — the .docx and the .pdf exported from it —
@@ -15,7 +17,7 @@ import { parsedView, type ParsedView } from './parsed-view';
  */
 
 export interface FormatSide {
-  /** A column's title and a sentence's subject: "DOCX", "the DOCX". */
+  /** A column's title and a sentence's subject: "DOCX", "the DOCX". The name is written to stand as a subject in any sentence of the page. */
   label: string;
   name: string;
 }
@@ -52,7 +54,7 @@ const MAX_DIFF_LINES = 25;
 const LEAD_MARK = /^\s*(?:#{1,6}|[-•*·‣▪])\s+/;
 const EMPTY_CELLS = /\s*\|(?:\s*\|)+\s*/g;
 
-const found = (r: FormatReading, labels: string[]) => r.view.contacts.filter((c) => labels.includes(c.label) && c.value !== null).length;
+const found = (r: FormatReading, kinds: ContactKind[]) => r.view.contacts.filter((c) => kinds.includes(c.kind) && c.value !== null).length;
 
 /**
  * What an ATS needs first decides: an email or phone it cannot find loses the
@@ -60,17 +62,17 @@ const found = (r: FormatReading, labels: string[]) => r.view.contacts.filter((c)
  * filter, then the roles, the sections, the rest of the contact line and the
  * warnings.
  */
-const MEASURES: { what: string; of: (r: FormatReading) => number; fewerIsBetter?: true }[] = [
-  { what: 'Email and phone found', of: (r) => found(r, ['Email', 'Phone']) },
-  { what: 'Roles read with their dates', of: (r) => r.view.roles.filter((role) => role.dates !== null).length },
-  { what: 'Roles read', of: (r) => r.view.roles.length },
-  { what: 'Sections recognised', of: (r) => r.view.sections.length },
-  { what: 'Link and location found', of: (r) => found(r, ['Link', 'Location']) },
-  { what: 'Parse warnings', of: (r) => r.warnings.length, fewerIsBetter: true },
+const MEASURES: { said: MessageKey; of: (r: FormatReading) => number; fewerIsBetter?: true }[] = [
+  { said: 'parsed.measure.contacts', of: (r) => found(r, ['email', 'phone']) },
+  { said: 'parsed.measure.datedRoles', of: (r) => r.view.roles.filter((role) => role.dates !== null).length },
+  { said: 'parsed.measure.roles', of: (r) => r.view.roles.length },
+  { said: 'parsed.measure.sections', of: (r) => r.view.sections.length },
+  { said: 'parsed.measure.linkAndPlace', of: (r) => found(r, ['link', 'location']) },
+  { said: 'parsed.measure.warnings', of: (r) => r.warnings.length, fewerIsBetter: true },
 ];
 
 function reading({ text, ...side }: FormatSide & { text: string }): FormatReading {
-  return { ...side, view: parsedView(text), warnings: parseWarnings(text).map((w) => w.message) };
+  return { ...side, view: parsedView(text), warnings: parseWarnings(text).map((w) => w.shown) };
 }
 
 /**
@@ -121,7 +123,7 @@ export function compareFormats(
     const x = m.of(ra);
     const y = m.of(rb);
     if (x === y) continue;
-    reasons.push(`${m.what}: ${ra.label} ${x}, ${rb.label} ${y}.`);
+    reasons.push(t(m.said, { a: ra.label, x, b: rb.label, y }));
     if (better === 'same') better = (x > y) !== Boolean(m.fewerIsBetter) ? 'a' : 'b';
   }
   const [la, lb] = [comparableLines(a.text), comparableLines(b.text)];
@@ -159,6 +161,6 @@ export function formatSides(savedFile: string, version: number, uploadedFile: st
   const kind = (file: string) => extname(file).slice(1).toUpperCase();
   const [x, y] = [kind(savedFile), kind(uploadedFile)];
   return x && y && x !== y
-    ? [{ label: x, name: `the ${x}` }, { label: y, name: `the ${y}` }]
-    : [{ label: `v${version}`, name: `your v${version}` }, { label: 'New file', name: 'the new file' }];
+    ? [{ label: x, name: t('parsed.side.kind', { kind: x }) }, { label: y, name: t('parsed.side.kind', { kind: y }) }]
+    : [{ label: `v${version}`, name: t('parsed.side.saved', { version }) }, { label: t('parsed.side.newLabel'), name: t('parsed.side.newName') }];
 }

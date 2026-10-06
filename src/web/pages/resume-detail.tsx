@@ -1,5 +1,5 @@
 /** @jsxImportSource hono/jsx */
-import type { FC } from 'hono/jsx';
+import type { Child, FC } from 'hono/jsx';
 import { parsedView } from '../parsed-view';
 import { ParsedViewBlock } from './parsed-view-block';
 import { Layout } from '../layout';
@@ -42,6 +42,9 @@ import { describeStructure, type DocxStructure } from '../../resume/docx-structu
 import type { DocxProps } from '../../resume/docx-props';
 import type { ProfileDraft } from '../../resume/profile-draft';
 import type { Coverage, CoverageKind } from '../../resume/coverage';
+import type { MessageKey } from '../../i18n/catalog';
+import { t } from '../../i18n/t';
+import { tRich } from '../rich';
 
 export interface ResumeDetailProps {
   resume: ResumeSummary;
@@ -93,25 +96,26 @@ export const ResumeDetailPage: FC<ResumeDetailProps> = ({
     <Layout title={resume.name} active="resumes">
       <PageHeader
         title={resume.name}
-        back={{ href: '/resumes', label: 'All resumes' }}
+        titleIsData
+        back={{ href: '/resumes', label: t('resume.allResumes') }}
         actions={
           <div class="flex flex-wrap items-center gap-2">
             <Button variant="secondary" size="sm" href={`/resumes/${resume.id}/download`}>
-              Download original
+              {t('resume.downloadOriginal')}
             </Button>
             <ActionForm action={`/resumes/${resume.id}/rescan`} once>
               <Button variant="violet" size="sm">
-                {resume.scannedAt ? 'Re-scan' : 'Scan'}
+                {resume.scannedAt ? t('resume.reScan') : t('resume.scanButton')}
               </Button>
             </ActionForm>
             {!resume.isDefault && (
               <ActionForm action={`/resumes/${resume.id}/default`}>
                 <Button variant="secondary" size="sm">
-                  Set default
+                  {t('resume.setDefault')}
                 </Button>
               </ActionForm>
             )}
-            <ConfirmAction action={`/resumes/${resume.id}/delete`} label="Delete" confirm={deleteConfirm(resume.name, deleteImpact)} />
+            <ConfirmAction action={`/resumes/${resume.id}/delete`} label={t('common.delete')} confirm={deleteConfirm(resume.name, deleteImpact)} />
           </div>
         }
       >
@@ -124,19 +128,26 @@ export const ResumeDetailPage: FC<ResumeDetailProps> = ({
               value={resume.name}
               maxlength="120"
               required
-              aria-label="Resume name"
+              aria-label={t('resume.resumeName')}
               class="!w-56 !px-2 !py-1 !text-meta"
             />
             <Button variant="ghost">
-              Rename
+              {t('resume.rename')}
             </Button>
           </form>
-          <span class="break-all font-mono text-meta">{resume.sourceFilename}</span>
+          <span class="break-all font-mono text-meta" translate="no">
+            {resume.sourceFilename}
+          </span>
           <Badge tone="info">v{resume.version}</Badge>
-          {resume.isDefault && <Badge tone="ok">default</Badge>}
-          {resume.seniority && <Badge tone="info">{resume.seniority}</Badge>}
+          {resume.isDefault && <Badge tone="ok">{t('resume.default')}</Badge>}
+          {/* The scan's own word for the level. */}
+          {resume.seniority && (
+            <Badge tone="info">
+              <span lang="en">{resume.seniority}</span>
+            </Badge>
+          )}
           {resume.yearsExperience !== null && (
-            <Badge tone="neutral">{resume.yearsExperience} yrs</Badge>
+            <Badge tone="neutral">{t('resume.years', { n: resume.yearsExperience })}</Badge>
           )}
         </span>
       </PageHeader>
@@ -146,48 +157,51 @@ export const ResumeDetailPage: FC<ResumeDetailProps> = ({
 
       <div class="mt-4 grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
         <Card>
-          <SectionTitle>Scan</SectionTitle>
+          <SectionTitle>{t('resume.scanTitle')}</SectionTitle>
           {resume.scannedAt ? (
             <div class="space-y-3">
               <div class="text-sm">
-                <span class="text-ink-faint">Headline: </span>
-                <span class="font-medium text-ink">{resume.title ?? '—'}</span>
+                <span class="text-ink-faint">{t('resume.headline')} </span>
+                {/* The headline and the summary are the scan's: a model wrote them. */}
+                <span class="font-medium text-ink" lang="en">
+                  {resume.title ?? '—'}
+                </span>
                 <span class="ml-3 text-meta text-ink-faint">
-                  scanned <When at={resume.scannedAt} />
+                  {tRich('resume.scannedWhen', {}, { when: () => <When at={resume.scannedAt} /> })}
                 </span>
               </div>
               {resume.summary && (
-                <p class="text-sm leading-6 text-ink">{resume.summary}</p>
+                <p class="text-sm leading-6 text-ink" lang="en">
+                  {resume.summary}
+                </p>
               )}
-              <TagRow label="Domains" items={resume.industries} tone="info" />
-              <TagRow label="Roles" items={resume.roleTypes} tone="info" />
-              <TagRow label="Skills" items={resume.skills} tone="ok" />
+              <TagRow label={t('resume.domains')} items={resume.industries} tone="info" />
+              <TagRow label={t('resume.roles')} items={resume.roleTypes} tone="info" />
+              <TagRow label={t('resume.skills')} items={resume.skills} tone="ok" />
             </div>
           ) : (
-            <Empty bare title="Not scanned yet">
-              A scan reads the headline, the skills and the issues every comparison starts from. Press
-              Scan at the top of the page: one AI call.
+            <Empty bare title={t('resume.notScannedYet')}>
+              {t('resume.aScanReadsTheHeadline')}
             </Empty>
           )}
         </Card>
 
         <Card>
-          <SectionTitle>Issues to fix (any job)</SectionTitle>
+          <SectionTitle>{t('resume.issuesToFixAnyJob')}</SectionTitle>
           {issues.length === 0 ? (
             <Hint>
               {resume.scannedAt
-                ? 'Nothing flagged — the parser-facing basics look fine.'
-                : 'Appears after the first scan.'}
+                ? t('resume.nothingFlaggedTheParserFacing')
+                : t('resume.appearsAfterTheFirstScan')}
             </Hint>
           ) : reviewed ? (
             <>
               <Hint>
-                The strength review above judged this version; these are the first scan's notes,
-                kept for reference.
+                {t('resume.theStrengthReviewAboveJudged')}
               </Hint>
               <details class="mt-2">
                 <summary class="cursor-pointer text-note font-medium text-ink-muted transition-colors duration-150 hover:text-ink">
-                  What the scan flagged — {issues.length} note{issues.length === 1 ? '' : 's'}
+                  {t('resume.scanFlagged', { n: issues.length })}
                 </summary>
                 <IssueList issues={issues} />
               </details>
@@ -201,7 +215,7 @@ export const ResumeDetailPage: FC<ResumeDetailProps> = ({
       <SearchCard resumeId={resume.id} {...search} />
 
       <Card class="mt-4">
-        <SectionTitle>Upload a new version</SectionTitle>
+        <SectionTitle>{t('resume.uploadANewVersion')}</SectionTitle>
         <form
           method="post"
           action={`/resumes/${resume.id}/replace`}
@@ -209,7 +223,7 @@ export const ResumeDetailPage: FC<ResumeDetailProps> = ({
           onsubmit={SUBMIT_ONCE}
           class="grid gap-3 sm:grid-cols-[1.6fr_auto]"
         >
-          <Field label="File" hint={`${ACCEPTED_EXTENSIONS.join(', ')} · up to ${MAX_UPLOAD_MB} MB`}>
+          <Field label={t('resume.file')} hint={t('upload.fileHint', { types: ACCEPTED_EXTENSIONS.join(', '), mb: MAX_UPLOAD_MB })}>
             <Input
               type="file"
               name="file"
@@ -219,33 +233,40 @@ export const ResumeDetailPage: FC<ResumeDetailProps> = ({
             />
           </Field>
           <div class="flex items-end">
-            <Button class="w-full">Upload v{resume.version + 1} &amp; scan</Button>
+            <Button class="w-full">{t('resume.uploadVersionScan', { version: resume.version + 1 })}</Button>
           </div>
           <Hint class="sm:col-span-2">
-            Edited the resume from the comparison notes? Upload it here, then hit Compare on the
-            job again.
+            {t('resume.editedTheResumeFromThe')}
           </Hint>
         </form>
       </Card>
 
       <Card class="mt-4" flush>
         <div class="border-b border-line px-5 py-3 text-entity text-ink">
-          Comparisons
+          {t('resume.comparisons')}
         </div>
         {matches.length === 0 ? (
           <Empty
             bare
-            title="No comparisons yet"
+            title={t('resume.noComparisonsYet')}
             action={
               <Button href="/jobs" variant="secondary" size="sm">
-                Open your jobs
+                {t('resume.openYourJobs')}
               </Button>
             }
           >
-            Open a job and press Compare on its Resume match tab to score this resume against it.
+            {t('resume.openAJobAndPress')}
           </Empty>
         ) : (
-          <Table columns={['Job', 'Company', 'Version', 'Match', <span class="block text-right">When</span>]}>
+          <Table
+            columns={[
+              t('resume.col.job'),
+              t('common.company'),
+              t('resume.col.version'),
+              t('resume.col.match'),
+              <span class="block text-right">{t('resume.col.when')}</span>,
+            ]}
+          >
             {groupMatchesByJob(matches).map((h) => {
               const line = historyLabel(h);
               const runs = progression(h);
@@ -256,6 +277,7 @@ export const ResumeDetailPage: FC<ResumeDetailProps> = ({
                       href={`/jobs/${h.job.id}/target?match=${h.latest.id}`}
                       class="block truncate font-medium text-ink transition-colors duration-150 hover:text-accent-strong"
                       title={h.job.title}
+                      translate="no"
                     >
                       {h.job.title}
                     </a>
@@ -280,15 +302,16 @@ export const ResumeDetailPage: FC<ResumeDetailProps> = ({
                     )}
                   </Td>
                   <Td class="max-w-[14rem] text-ink-muted">
-                    <div class="truncate">{h.job.employer ?? h.job.company.name}</div>
+                    <div class="truncate" translate="no">
+                      {h.job.employer ?? h.job.company.name}
+                    </div>
                   </Td>
                   <Td class="whitespace-nowrap font-mono text-meta text-ink-faint">
-                    v{h.latest.resumeVersion}
-                    {h.latest.draft ? ' draft' : ''}
+                    {h.latest.draft ? t('resume.versionDraft', { version: h.latest.resumeVersion }) : `v${h.latest.resumeVersion}`}
                   </Td>
                   <Td>
                     <div class="flex items-center gap-1.5">
-                      <FitBadge score={h.latest.matchScore} label="match" />
+                      <FitBadge score={h.latest.matchScore} label={t('resume.matchLabel')} />
                       {h.delta !== null && h.delta !== 0 && (
                         <Badge tone={h.delta > 0 ? 'ok' : 'danger'}>
                           {h.delta > 0 ? `+${h.delta}` : h.delta}
@@ -313,20 +336,19 @@ export const ResumeDetailPage: FC<ResumeDetailProps> = ({
       <CleanVersion resumeId={resume.id} kind={structure?.kind ?? null} filename={resume.sourceFilename} />
 
       <Card class="mt-4" id="ats">
-        <SectionTitle>What the ATS sees</SectionTitle>
+        <SectionTitle>{t('resume.whatTheAtsSees')}</SectionTitle>
         <ParsedViewBlock view={parsedView(resume.text)} />
-        <Hint class="mb-4">Read by a plain parser, no AI: what is missing here, an ATS is likely to miss too.</Hint>
+        <Hint class="mb-4">{t('resume.readByAPlainParser')}</Hint>
         {warnings.length === 0 ? (
           <Hint>
-            Extraction looks clean — selectable text, contact details found, normal length. Parsers
-            should read this file the way you do.
+            {t('resume.extractionLooksCleanSelectableText')}
           </Hint>
         ) : (
           <ul class="mb-3 space-y-1.5">
             {warnings.map((w) => (
               <li class="flex items-start gap-2 text-sm">
-                <Badge tone="warn">{w.code.replace(/_/g, ' ')}</Badge>
-                <span class="min-w-0 text-ink-muted">{w.message}</span>
+                <Badge tone="warn">{w.label}</Badge>
+                <span class="min-w-0 text-ink-muted">{w.shown}</span>
               </li>
             ))}
           </ul>
@@ -338,7 +360,7 @@ export const ResumeDetailPage: FC<ResumeDetailProps> = ({
           onsubmit={SUBMIT_ONCE}
           class="mt-4 grid gap-3 border-t border-line pt-4 sm:grid-cols-[1.6fr_auto]"
         >
-          <Field label="The same resume in another format" hint={`${ACCEPTED_EXTENSIONS.join(', ')} · up to ${MAX_UPLOAD_MB} MB`}>
+          <Field label={t('resume.theSameResumeInAnother')} hint={t('upload.fileHint', { types: ACCEPTED_EXTENSIONS.join(', '), mb: MAX_UPLOAD_MB })}>
             <Input
               type="file"
               name="file"
@@ -348,19 +370,17 @@ export const ResumeDetailPage: FC<ResumeDetailProps> = ({
             />
           </Field>
           <div class="flex items-end">
-            <Button variant="secondary" class="w-full">Compare the two files</Button>
+            <Button variant="secondary" class="w-full">{t('resume.compareTheTwoFiles')}</Button>
           </div>
           <Hint class="sm:col-span-2">
-            Have it as a .docx and as a PDF? A parser reads them differently; this shows what it reads from each and which
-            one to send. No AI, and the file is not kept.
+            {t('resume.haveItAsADocx')}
           </Hint>
         </form>
         <details class="mt-2">
           <summary class="cursor-pointer select-none text-label text-ink">
-            Extracted text ({resume.text.length.toLocaleString()} chars) — exactly what the AI and
-            an ATS parser get
+            {t('resume.extractedText', { n: resume.text.length })}
           </summary>
-          <pre class="mt-3 whitespace-pre-wrap break-words font-sans text-sm leading-6 text-ink-muted">
+          <pre class="mt-3 whitespace-pre-wrap break-words font-sans text-sm leading-6 text-ink-muted" translate="no">
             {resume.text}
           </pre>
         </details>
@@ -381,64 +401,62 @@ const SearchCard: FC<ResumeDetailProps['search'] & { resumeId: number }> = ({
 }) => {
   return (
     <Card class="mt-4">
-      <SectionTitle>Search profile</SectionTitle>
+      <SectionTitle>{t('resume.searchProfile')}</SectionTitle>
       {linkedProfiles.length > 0 && (
         <p class="text-sm text-ink">
-          This resume is what{' '}
-          {linkedProfiles.map((p, i) => (
-            <>
-              {i > 0 && ', '}
-              <a
-                href={`/settings?tab=profile&profile=${p.id}`}
-                class="font-medium text-accent-strong hover:underline"
-              >
-                {p.name}
-              </a>
-            </>
-          ))}{' '}
-          {linkedProfiles.length === 1 ? 'hunts with' : 'hunt with'} — job pages preselect it for
-          those searches.
+          {tRich('resume.search.linked', { n: linkedProfiles.length }, {
+            names: () =>
+              linkedProfiles.map((p, i) => (
+                <>
+                  {i > 0 && ', '}
+                  <a
+                    href={`/settings?tab=profile&profile=${p.id}`}
+                    class="font-medium text-accent-strong hover:underline"
+                    translate="no"
+                  >
+                    {p.name}
+                  </a>
+                </>
+              )),
+          })}
         </p>
       )}
       {draft === null ? (
         <Hint class={linkedProfiles.length > 0 ? 'mt-3' : ''}>
-          Scan the resume first — a search is built from the headline, tools and roles the scan
-          finds.
+          {t('resume.scanTheResumeFirstA')}
         </Hint>
       ) : (
         <>
           <p class={`text-sm text-ink-muted ${linkedProfiles.length > 0 ? 'mt-3' : ''}`}>
-            {linkedProfiles.length > 0 ? 'Add another search' : 'Create a search'} that hunts the
-            jobs you'd apply to with this resume:
+            {linkedProfiles.length > 0 ? t('resume.search.addLead') : t('resume.search.createLead')}
           </p>
-          <div class="mt-2.5 flex flex-wrap items-center gap-1.5 text-sm">
+          {/* The draft is the scan's own words: a name, technologies, roles. */}
+          <div class="mt-2.5 flex flex-wrap items-center gap-1.5 text-sm" translate="no">
             <span class="font-medium text-ink">"{draft.changes.name}"</span>
-            {(draft.changes.stackRequired ?? []).map((t) => (
-              <Tag tone="ok">{t}</Tag>
+            {(draft.changes.stackRequired ?? []).map((tag) => (
+              <Tag tone="ok">{tag}</Tag>
             ))}
-            {(draft.changes.roleTypes ?? []).map((t) => (
-              <Tag tone="info">{t}</Tag>
+            {(draft.changes.roleTypes ?? []).map((tag) => (
+              <Tag tone="info">{tag}</Tag>
             ))}
-            {(draft.changes.seniority ?? []).map((t) => (
-              <Tag tone="info">{t}</Tag>
+            {(draft.changes.seniority ?? []).map((tag) => (
+              <Tag tone="info">{tag}</Tag>
             ))}
           </div>
           {draft.warnings.length > 0 && (
-            <p class="mt-2 text-note leading-5 text-warn">Note: {draft.warnings.join('; ')}.</p>
+            <p class="mt-2 text-note leading-5 text-warn">{t('resume.search.note', { warnings: draft.warnings.join('; ') })}</p>
           )}
           <div class="mt-3.5 flex flex-wrap items-center gap-3">
             {/* The card's one act, and it spends no AI: the draft above is the stored scan's. */}
             <ActionForm action={`/resumes/${resumeId}/profile`}>
-              <Button size="sm">Create a search from this resume</Button>
+              <Button size="sm">{t('resume.createASearchFromThis')}</Button>
             </ActionForm>
             <a href={`/settings?tab=profile&fill=${resumeId}#fill`} class="text-note font-medium text-accent-strong hover:text-accent-deep">
-              or fill your current search from it →
+              {t('resume.orFillYourCurrentSearch')}
             </a>
           </div>
           <Hint class="mt-3">
-            It starts switched off — your current search keeps running until you press Run on
-            Settings → Searches. Location, salary and alert routing are yours to set; a resume
-            cannot know them.
+            {t('resume.itStartsSwitchedOffYour')}
           </Hint>
         </>
       )}
@@ -446,12 +464,15 @@ const SearchCard: FC<ResumeDetailProps['search'] & { resumeId: number }> = ({
   );
 };
 
+/** The scan's notes, in the model's own words. */
 const IssueList: FC<{ issues: ReturnType<typeof readIssues> }> = ({ issues }) => (
   <ul class="divide-y divide-line">
     {issues.map((i) => (
       <li class="py-3 first:pt-0 last:pb-0">
-        <Badge tone="warn">{i.section}</Badge>
-        <div class="mt-1.5 min-w-0 text-sm">
+        <Badge tone="warn">
+          <span lang="en">{i.section}</span>
+        </Badge>
+        <div class="mt-1.5 min-w-0 text-sm" lang="en">
           <div class="text-ink">{i.issue}</div>
           <div class="mt-0.5 text-note leading-5 text-ink-muted">→ {i.fix}</div>
         </div>
@@ -468,18 +489,19 @@ const TagRow: FC<{ label: string; items: string[]; tone: 'ok' | 'info' }> = ({
   items.length === 0 ? null : (
     <div class="flex flex-wrap items-center gap-1.5">
       <span class="mr-1 text-note font-medium text-ink-muted">{label}</span>
-      {items.map((t) => (
-        <Tag tone={tone}>{t}</Tag>
+      {items.map((item) => (
+        <span class="inline-flex" translate="no">
+          <Tag tone={tone}>{item}</Tag>
+        </span>
       ))}
     </div>
   );
 
-const KIND_VIEW: Record<DocxStructure['kind'], { label: string; tone: 'ok' | 'warn' | 'neutral' }> = {
-  flow: { label: 'Editable in place', tone: 'ok' },
-  structural: { label: 'Partly editable', tone: 'warn' },
-  unsupported: { label: 'Text only', tone: 'neutral' },
-};
-
+const KIND_VIEW = {
+  flow: { label: 'resume.template.flow', tone: 'ok' },
+  structural: { label: 'resume.template.structural', tone: 'warn' },
+  unsupported: { label: 'resume.template.unsupported', tone: 'neutral' },
+} as const satisfies Record<DocxStructure['kind'], { label: MessageKey; tone: 'ok' | 'warn' | 'neutral' }>;
 
 /**
  * "Clean version in your typeface" (ADR 0039). Offered on every resume, but
@@ -496,23 +518,30 @@ const CleanVersion: FC<{ resumeId: number; kind: DocxStructure['kind'] | null; f
   const isPdf = /\.pdf$/i.test(filename);
   return (
     <Card class="mt-4">
-      <SectionTitle>Clean version in your typeface</SectionTitle>
+      <SectionTitle>{t('resume.cleanVersionInYourTypeface')}</SectionTitle>
       <p class="text-sm text-ink">
         {patchable
-          ? 'This file can already be edited in place, so this is optional: a plainer single-column .docx and .pdf of the same words, set in the typography this file uses.'
+          ? t('resume.thisFileCanAlreadyBe')
           : isPdf
-            ? 'A PDF has no paragraphs to edit — only glyphs at coordinates. This rebuilds the same words as a single-column .docx and .pdf in the typography your PDF uses, and the .docx is one the editor can write into.'
-            : 'Some of this file’s text sits where a save cannot rewrite it line by line. This rebuilds the same words as a plain single-column .docx and .pdf, in the typography this file uses.'}
+            ? t('resume.aPdfHasNoParagraphs')
+            : t('resume.someOfThisFilesText')}
       </p>
       <Hint class="mt-2">
-        It is not your original design back — the layout is rebuilt plainly. Nothing here changes this resume.
+        {t('resume.itIsNotYourOriginal')}
       </Hint>
       <Button href={`/resumes/${resumeId}/render`} variant={patchable ? 'secondary' : 'primary'} size="sm" class="mt-3">
-        Clean version in your typeface
+        {t('resume.cleanVersionInYourTypeface')}
       </Button>
     </Card>
   );
 };
+
+/** A name as the file or the resume writes it, inside a sentence of ours. */
+const bold = (words: Child[]) => (
+  <span class="font-medium" translate="no">
+    {words}
+  </span>
+);
 
 /**
  * What a Save can do with this .docx (ADR 0038): the kind as a badge, the
@@ -532,9 +561,9 @@ const TemplateCheck: FC<{ resumeId: number; candidate: string; structure: DocxSt
     : false;
   return (
     <Card class="mt-4">
-      <SectionTitle>Template check</SectionTitle>
+      <SectionTitle>{t('resume.templateCheck')}</SectionTitle>
       <div class="flex flex-wrap items-center gap-2">
-        <Badge tone={view.tone}>{view.label}</Badge>
+        <Badge tone={view.tone}>{t(view.label)}</Badge>
         <span class="text-sm text-ink-muted">{describeStructure(structure, { withNote: false })}</span>
       </div>
       {structure.notes.length > 0 && (
@@ -545,24 +574,28 @@ const TemplateCheck: FC<{ resumeId: number; candidate: string; structure: DocxSt
         </ul>
       )}
       <Hint class="mt-3">
-        Save in the resume editor writes your edits back into this file when the line is a paragraph or a
-        table cell; anything it cannot place honestly makes that save the clean version, with the reason.
+        {t('resume.saveInTheResumeEditor')}
       </Hint>
       {props && foreign && (
         <form method="post" action={`/resumes/${resumeId}/props`} class="mt-4 border-t border-line pt-3" onsubmit={SUBMIT_ONCE}>
           <div class="text-sm text-ink">
-            The file says it was written by <span class="font-medium">{props.creator ?? '—'}</span>
-            {props.lastModifiedBy ? <> and last edited by <span class="font-medium">{props.lastModifiedBy}</span></> : null}
-            {props.title ? <>, titled “{props.title}”</> : null}
-            {props.application ? <> ({props.application})</> : null}.
+            {tRich(
+              'resume.props.says',
+              {
+                creator: props.creator ?? '—',
+                edited: props.lastModifiedBy ? 'yes' : 'no',
+                editor: props.lastModifiedBy ?? '',
+                titled: props.title ? 'yes' : 'no',
+                title: props.title ?? '',
+                app: props.application ? 'yes' : 'no',
+                application: props.application ?? '',
+              },
+              { b: bold },
+            )}
           </div>
-          <Hint class="mt-1">
-            A downloaded template keeps its author's name. Nothing rejects a resume for it, but a human who opens
-            File → Properties sees it. This writes <span class="font-medium">{candidate}</span> as the author and title,
-            and changes nothing else.
-          </Hint>
+          <Hint class="mt-1">{tRich('resume.props.fixHint', { candidate }, { b: bold })}</Hint>
           <Button variant="secondary" size="sm" class="mt-2">
-            Fix document properties
+            {t('resume.fixDocumentProperties')}
           </Button>
         </form>
       )}
@@ -573,16 +606,19 @@ const TemplateCheck: FC<{ resumeId: number; candidate: string; structure: DocxSt
 /** What each reading asks of the user — the one move that closes it. */
 const CoverageMove: FC<{ kind: CoverageKind }> = ({ kind }) =>
   kind === 'unwritten' ? (
-    <>A comparison found it in your experience — write it in</>
+    <>{t('resume.aComparisonFoundItIn')}</>
   ) : kind === 'unconfirmed' ? (
     <>
-      Say whether you have it, under{' '}
-      <a href="/resumes#facts" class="font-medium text-accent-strong transition-colors duration-150 hover:text-accent-deep">
-        Confirmed facts
-      </a>
+      {tRich('resume.coverage.unconfirmed', {}, {
+        link: (words) => (
+          <a href="/resumes#facts" class="font-medium text-accent-strong transition-colors duration-150 hover:text-accent-deep">
+            {words}
+          </a>
+        ),
+      })}
     </>
   ) : (
-    <>Not on your resume — a skill to learn, or postings to skip</>
+    <>{t('resume.notOnYourResumeA')}</>
   );
 
 /**
@@ -592,33 +628,32 @@ const CoverageMove: FC<{ kind: CoverageKind }> = ({ kind }) =>
 const CoverageCard: FC<{ coverage: Coverage }> = ({ coverage }) => (
   <Card class="mt-4" flush>
     <div class="border-b border-line px-5 py-3">
-      <div class="text-entity text-ink">Missing across postings</div>
+      <div class="text-entity text-ink">{t('resume.missingAcrossPostings')}</div>
       <Hint class="mt-0.5">
-        What the latest comparison of each of your {coverage.postings} compared postings asked for and this resume does
-        not say, read against the text as it is now. No AI.
+        {t('resume.coverage.hint', { n: coverage.postings })}
       </Hint>
     </div>
     {coverage.terms.length === 0 ? (
       <div class="px-5 py-4">
-        <Hint>No keyword is missing from two postings or more — what is missing is one posting's own ask.</Hint>
+        <Hint>{t('resume.noKeywordIsMissingFrom')}</Hint>
       </div>
     ) : (
       <Table
-        caption="Keywords missing across compared postings"
-        columns={['Keyword', 'Missing in', 'What closes it']}
+        caption={t('resume.keywordsMissingAcrossComparedPostings')}
+        columns={[t('resume.coverage.col.keyword'), t('resume.coverage.col.missingIn'), t('resume.coverage.col.closes')]}
         widths={['w-[28%]', 'w-[24%]', 'w-[47%]']}
       >
-        {coverage.terms.map((t) => (
+        {coverage.terms.map((row) => (
           <Tr>
-            <Td class="font-medium text-ink">{t.term}</Td>
+            <Td class="font-medium text-ink">
+              <span translate="no">{row.term}</span>
+            </Td>
             <Td class="tabular-nums">
-              <div class="whitespace-nowrap">
-                {t.missing} of {coverage.postings}
-              </div>
-              {t.must > 0 && <div class="text-meta text-ink-faint">{t.must} as a must</div>}
+              <div class="whitespace-nowrap">{t('resume.coverage.missingOf', { missing: row.missing, postings: coverage.postings })}</div>
+              {row.must > 0 && <div class="text-meta text-ink-faint">{t('resume.coverage.asMust', { n: row.must })}</div>}
             </Td>
             <Td class="text-ink-muted">
-              <CoverageMove kind={t.kind} />
+              <CoverageMove kind={row.kind} />
             </Td>
           </Tr>
         ))}

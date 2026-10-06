@@ -1,4 +1,5 @@
 import { REVIEW_DIMENSIONS, type ReviewDimension, type ReviewGrade } from './review-score';
+import { t } from '../i18n/t';
 
 /*
  * What changed between two strength reviews of the SAME resume (ADR 0030
@@ -83,19 +84,13 @@ export function reviewDelta(previous: ReviewSnapshot | null, current: ReviewSnap
  */
 export function deltaSentence(delta: ReviewDelta): string {
   const { points, scoreFrom, scoreTo } = delta;
-  const direction = points > 0 ? `up ${points}` : points < 0 ? `down ${Math.abs(points)}` : 'unchanged';
-  const head =
-    points === 0
-      ? `Strength ${scoreTo}, ${direction} from the last review`
-      : `Strength ${scoreFrom} → ${scoreTo}, ${direction}`;
-  const moved =
-    delta.moves.length === 0
-      ? 'no dimension changed grade'
-      : `${delta.moves.length} dimension${delta.moves.length === 1 ? '' : 's'} moved`;
-  const caveat = delta.incomparable
-    ? ' — but the two runs used different rubric versions, so the difference is not a measurement'
-    : delta.sameVersion
-      ? ' — same text, re-judged'
-      : '';
-  return `${head}; ${moved}${caveat}.`;
+  // One sentence, so one message: the score's direction, the moves and the caveat are its branches.
+  return t('review.delta', {
+    direction: points > 0 ? 'up' : points < 0 ? 'down' : 'same',
+    from: scoreFrom,
+    to: scoreTo,
+    points: Math.abs(points),
+    moves: delta.moves.length,
+    caveat: delta.incomparable ? 'rubric' : delta.sameVersion ? 'same' : 'none',
+  });
 }

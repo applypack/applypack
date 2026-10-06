@@ -61,8 +61,10 @@ export const PageHeader: FC<
     meta?: string | Child;
     actions?: Child;
     back?: { href: string; label: string };
+    /** The title is data — a resume's or a posting's own name — and no translator should touch it (ADR 0061). */
+    titleIsData?: boolean;
   }>
-> = ({ title, meta, actions, back, children }) => (
+> = ({ title, meta, actions, back, titleIsData = false, children }) => (
   <header class="mb-6 shrink-0">
     {back && (
       <a
@@ -77,7 +79,7 @@ export const PageHeader: FC<
         page offers sits at the right, level with the title. */}
     <div class="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
       <div class="min-w-0 flex-1 basis-64">
-        <h1 class="truncate text-title text-ink" title={title}>
+        <h1 class="truncate text-title text-ink" title={title} translate={titleIsData ? 'no' : undefined}>
           {title}
         </h1>
         {children && (
