@@ -8,9 +8,10 @@ terms each language uses.
 
 ## What is translated
 
-Everything the code writes for a person: menus, pages, buttons, messages,
-the explanations the code builds (why a score is what it is, why a posting
-was turned away) and the Telegram and Discord alerts.
+Everything the code writes for a person: menus, pages, buttons, messages
+and the explanations the code builds (why a score is what it is, why a
+posting was turned away). The Telegram and Discord alerts join them once the
+worker follows the language; until then they are written in English.
 
 Not translated, on purpose:
 

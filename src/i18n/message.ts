@@ -10,8 +10,9 @@
  *   '{'  '}'  '<'  '#'  ''                   the character itself
  *
  * An apostrophe quotes only when one of those four characters follows it, so
- * "don't" and "l'offre" are written plainly. Pure, and written to run in a
- * browser as it stands: stage 3 serves this same logic to the page modules.
+ * "don't" and "l'offre" are written plainly. Pure, with no Node API: stage 3
+ * mirrors it as an `.mjs` for the page modules (public/ has no build step),
+ * held to this file by a parity test as score.mjs is to resume/score.ts.
  */
 
 export type MessageParams = Record<string, string | number>;
