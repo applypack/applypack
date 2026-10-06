@@ -426,6 +426,15 @@ async function main(): Promise<void> {
       expect: (res) => res.status === 303 && res.headers.get('location') === '/settings?tab=notifications#alerts',
     },
     {
+      // The daily summary's time pickers: an empty one ("—") is no hour, never 00:00.
+      name: 'POST /settings/schedule (summary times with an empty picker)',
+      init: { method: 'POST', headers: { ...ORIGIN, 'content-type': 'application/x-www-form-urlencoded' }, body: 'part=alerts&alertMode=digest&alertFrom=9&alertTo=18&alertDays=1&digestAt=8&digestAt=&digestAt=18&digestAt=' },
+      expect: async (res) => {
+        const stored = (await getSettings()).schedule as { alerts?: { digestAt?: number[] } } | null;
+        return res.status === 303 && stored?.alerts?.digestAt?.join() === '8,18';
+      },
+    },
+    {
       name: 'POST /settings/schedule (when to search, from Job search: the alert timing stays)',
       init: form({ part: 'fetch', fetchEvery: '2h', fetchFrom: '6', fetchTo: '22', fetchDays: '2' }),
       expect: async (res) => {
@@ -435,7 +444,7 @@ async function main(): Promise<void> {
           res.headers.get('location') === '/settings?tab=profile#schedule' &&
           stored?.fetch?.every === '2h' &&
           stored.alerts?.mode === 'digest' &&
-          stored.alerts.digestAt?.join() === '8'
+          stored.alerts.digestAt?.join() === '8,18'
         );
       },
     },
@@ -593,6 +602,7 @@ async function main(): Promise<void> {
     '/jobs',
     '/companies/mutes/delete',
     '/settings/reapply',
+    '/settings/schedule',
     '/settings/schedule',
     '/settings/schedule',
     '/settings/schedule',

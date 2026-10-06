@@ -110,6 +110,7 @@ import {
   type SourceKeys,
 } from '../../source-keys';
 import { groupSources, type SourceCount, fetchedSource } from '../source-groups';
+import { profileLine } from '../profile-line';
 import { testAiEngine } from '../ai-test';
 import {
   blankProfileInput,
@@ -410,6 +411,7 @@ async function loadSettingsProps() {
       running: p.active,
       primary: active?.id === p.id,
       blank: isBlankProfile(p),
+      line: profileLine(p),
     })),
     activeProfile: active,
     availableTargets: targets.map((target) => ({
@@ -429,6 +431,7 @@ async function loadSettingsProps() {
       retentionDays: settings.screeningRetentionDays,
       retentionMin: SCREENING_RETENTION_DAYS.min,
       retentionMax: SCREENING_RETENTION_DAYS.max,
+      retentionDefault: SCREENING_RETENTION_DAYS.default,
       engineLabel: AI_PROVIDER_LABELS[screeningEngine],
       engineSubscription: billingFor(screeningEngine) === 'plan',
       screenings: screeningCount,
@@ -552,7 +555,8 @@ function hour(value: unknown, fallback: number): number {
 /** Repeated checkboxes → numbers. An empty set means the user unticked them all, which is never what they meant. */
 function pills(value: unknown, fallback: readonly number[]): number[] {
   const raw = Array.isArray(value) ? value : value === undefined ? [] : [value];
-  const picked = raw.map((v) => Number(str(v))).filter((n) => Number.isInteger(n));
+  // An empty time picker ("—") sends "", which Number() would read as 00:00.
+  const picked = raw.filter((v) => str(v) !== '').map((v) => Number(str(v))).filter((n) => Number.isInteger(n));
   return picked.length > 0 ? picked : [...fallback];
 }
 
@@ -1051,7 +1055,7 @@ settingsRoute.post('/settings/stale-digest-toggle', async (c) => {
     !settings.staleApplicationsDigestEnabled,
   );
   return flashRedirect(
-    '/settings?tab=applications',
+    '/settings?tab=notifications#messages',
     'ok',
     t(!settings.staleApplicationsDigestEnabled ? 'settingsRoute.staleDigest.enabled' : 'settingsRoute.staleDigest.disabled'),
   );

@@ -19,6 +19,7 @@ import {
   Flash,
   Hint,
   Input,
+  MarkIcon,
   More,
   Notice,
   PageHeader,
@@ -55,7 +56,7 @@ import { ALERT_MODES, ALL_DAYS, FETCH_EVERY, MAX_DIGEST_HOURS, describeCadence, 
 import { KIND_LABEL } from '../../notify/targets';
 import { SCHEDULE_HREF, type HeldLine } from '../held-line';
 import { AiPlan, BILLING_TONE } from './ai-plan';
-import type { AiPlanRow } from '../ai-plan';
+import { planSummary, type AiPlanRow } from '../ai-plan';
 import { billingWords, formatUsd } from '../../ai-spend';
 import type { AiBilling } from '../../ai-usage';
 import type { MessageKey } from '../../i18n/catalog';
@@ -63,6 +64,7 @@ import { weekdayName } from '../../i18n/format';
 import { countryChip, placeName, workplaceName } from '../../i18n/places';
 import { t } from '../../i18n/t';
 import { LanguageSettings } from '../language-menu';
+import type { ProfileLine } from '../profile-line';
 import { tRich } from '../rich';
 
 interface MaskedTarget {
@@ -85,6 +87,8 @@ interface ProfileListItem {
   primary: boolean;
   /** No required stack and no role types — running is gated (issue #50). */
   blank: boolean;
+  /** What it hunts, in one line (web/profile-line.ts). */
+  line: ProfileLine;
 }
 
 type TargetKind = keyof typeof KIND_LABEL;
@@ -244,6 +248,8 @@ export interface ScreeningSettings {
   retentionDays: number;
   retentionMin: number;
   retentionMax: number;
+  /** The recommended length, marked in the picker. */
+  retentionDefault: number;
   /** The engine the calls would go to, and whether it is a personal subscription (guardrail 5). */
   engineLabel: string;
   engineSubscription: boolean;
@@ -406,6 +412,42 @@ const SearchScheduleForm: FC<{ view: ScheduleView }> = ({ view }) => {
   );
 };
 
+/**
+ * The daily summary's hours as up to MAX_DIGEST_HOURS time pickers instead of
+ * 24 pills. Every picker posts `digestAt`; an empty one ("—") posts nothing the
+ * route reads. Without a script all of them stand in sight; with one, the
+ * empty ones fold behind "Add another time".
+ */
+const DigestTimes: FC<{ hours: readonly number[] }> = ({ hours }) => (
+  <fieldset class="mt-2" data-digest-times>
+    <legend class="sr-only">{t('settings.hoursTheScheduledMessagesGo')}</legend>
+    <div class="flex flex-wrap items-end gap-2">
+      {Array.from({ length: MAX_DIGEST_HOURS }, (_, i) => (
+        <div data-digest-slot={hours[i] === undefined ? 'empty' : 'set'}>
+          <Select name="digestAt" aria-label={t('settings.summaryTime', { n: i + 1 })} class="!w-28">
+            {i > 0 && (
+              <option value="" selected={hours[i] === undefined}>
+                —
+              </option>
+            )}
+            {HOURS.map((h) => (
+              <option value={String(h)} selected={hours[i] === h}>
+                {String(h).padStart(2, '0')}:00
+              </option>
+            ))}
+          </Select>
+        </div>
+      ))}
+      {/* A Button's own display beats [hidden], so the wrapper is what the script shows. */}
+      <span data-add-time hidden>
+        <Button type="button" variant="ghost" size="sm">
+          {t('settings.addAnotherTime')}
+        </Button>
+      </span>
+    </div>
+  </fieldset>
+);
+
 const AlertTimingForm: FC<{ view: ScheduleView }> = ({ view }) => {
   const { schedule: s, held } = view;
   return (
@@ -455,17 +497,7 @@ const AlertTimingForm: FC<{ view: ScheduleView }> = ({ view }) => {
         <Hint class="mt-0.5">
           {t('settings.scheduledMessagesHint', { first: String(s.alerts.digestAt[0] ?? 9).padStart(2, '0') })}
         </Hint>
-        <fieldset class="mt-2">
-          <legend class="sr-only">{t('settings.hoursTheScheduledMessagesGo')}</legend>
-          <div class="flex flex-wrap gap-1.5">
-            {HOURS.map((h) => (
-              <PillCheckbox name="digestAt" value={String(h)} checked={s.alerts.digestAt.includes(h)}>
-                {String(h).padStart(2, '0')}
-              </PillCheckbox>
-            ))}
-          </div>
-        </fieldset>
-        <Hint class="mt-2">{t('settings.digestHoursLimit', { n: MAX_DIGEST_HOURS })}</Hint>
+        <DigestTimes hours={s.alerts.digestAt} />
       </div>
       <ZoneLine zone={s.timezone} />
       <Button type="submit" variant="secondary">{t('settings.saveAlertTiming')}</Button>
@@ -493,6 +525,61 @@ const TimeZoneForm: FC<{ view: ScheduleView }> = ({ view }) => (
     <Button type="submit" variant="secondary">{t('common.save')}</Button>
   </form>
 );
+
+/** The answer to "who does this, and does it cost me", in words above the table that proves it. */
+const AiSummary: FC<{ plan: AiPlanRow[]; billedMicro: number }> = ({ plan, billedMicro }) => {
+  const summary = planSummary(plan);
+  return (
+    <div class="rounded-md bg-surface-overlay px-4 py-3">
+      {summary && (
+        <p class="text-sm text-ink">
+          {summary.lead}
+          {summary.fallback && <> {summary.fallback}</>}
+        </p>
+      )}
+      <p class={`text-note text-ink-muted ${summary ? 'mt-1' : ''}`}>
+        {billedMicro > 0 ? t('settings.billedThisMonth', { amount: formatUsd(billedMicro) }) : t('settings.nothingBilledThisMonth')}
+      </p>
+    </div>
+  );
+};
+
+/** A screening's lengths as a few round choices, and the stored one when it is none of them — it was set by hand before. */
+const RETENTION_CHOICES = [30, 60, 90, 180, 365] as const;
+
+function retentionChoices(s: ScreeningSettings): number[] {
+  const offered = RETENTION_CHOICES.filter((d) => d >= s.retentionMin && d <= s.retentionMax);
+  return offered.includes(s.retentionDays as (typeof RETENTION_CHOICES)[number])
+    ? [...offered]
+    : [...offered, s.retentionDays].sort((a, b) => a - b);
+}
+
+/** Before applicants are read: what is in place and what is still the person's to do, worked out from the settings. */
+const ScreeningReadiness: FC<{ screening: ScreeningSettings }> = ({ screening }) => {
+  const items: { tone: 'ok' | 'warn' | 'todo'; text: string }[] = [
+    { tone: 'ok', text: t('settings.readiness.retention', { n: screening.retentionDays }) },
+    { tone: 'ok', text: t('settings.readiness.human') },
+    screening.engineSubscription
+      ? { tone: 'warn', text: t('settings.readiness.engineWarn', { engine: screening.engineLabel }) }
+      : { tone: 'ok', text: t('settings.readiness.engineOk', { engine: screening.engineLabel }) },
+    { tone: 'todo', text: t('settings.readiness.notice') },
+  ];
+  return (
+    <div class="rounded-md bg-surface-overlay px-4 py-3">
+      <div class="text-label text-ink">{t('settings.readiness.title')}</div>
+      <ul class="mt-2 space-y-1.5">
+        {items.map((item) => (
+          <li class="flex items-start gap-2 text-note leading-5 text-ink">
+            {item.tone === 'ok' && <MarkIcon kind="check" class="mt-0.5 text-ok" />}
+            {item.tone === 'warn' && <Icon name="info" size={14} class="mt-0.5 text-warn" />}
+            {item.tone === 'todo' && <Icon name="circle" size={14} class="mt-0.5 text-ink-faint" />}
+            <span>{item.text}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+};
 
 /** What each tab is for, in the order a person meets them: find, notify, track, prepare, then what supports it. */
 const TAB_ICON = {
@@ -571,7 +658,9 @@ export const SettingsPage: FC<SettingsProps> = ({
       {/* One raised surface a tab, its sections divided by hairlines (DESIGN.md, the
           One-Surface-Per-Region Rule). Sections are declared in one flow; activeTab
           picks which render. */}
-      <Card flush class="divide-y divide-line">
+      {/* overflow: clip, not hidden: it rounds the corners the same, and is no scroll box,
+          so the search editor's save bar can stick to the bottom of the window. */}
+      <Card flush class="divide-y divide-line !overflow-clip">
       {activeTab === 'profile' && (
       <Section id="schedule" title={t('settings.jobFetching')} desc={t('settings.savedChangesReachTheBackground')}>
         <ToggleRow
@@ -580,8 +669,6 @@ export const SettingsPage: FC<SettingsProps> = ({
           action="/settings/fetching-toggle"
           onLabel={t('settings.running')}
           offLabel={t('settings.paused')}
-          enableText={t('settings.resumePipeline')}
-          disableText={t('settings.pause')}
           more={t('settings.thePipelineIsTheHourly')}
         >
           {t('settings.pausingStopsNewJobsAnd')}
@@ -608,19 +695,30 @@ export const SettingsPage: FC<SettingsProps> = ({
               />
               {/* On a narrow screen the name takes its own line — the row's
                   four actions otherwise squeeze it down to "S…". */}
-              <span class="min-w-0 basis-[calc(100%-1.5rem)] truncate text-note text-ink sm:basis-0 sm:flex-1">
-                <span translate="no" class={activeProfile?.id === p.id ? 'font-medium' : undefined}>{p.name}</span>
-                {p.primary && (
-                  <span class="ml-1.5 text-meta text-ink-faint">{t('settings.searchPrimary')}</span>
-                )}
-                {p.blank && (
-                  <span class="ml-1.5 text-meta text-warn">{t('settings.searchEmpty')}</span>
-                )}
-                {!p.running && !p.blank && (
-                  <span class="ml-1.5 text-meta text-ink-faint">{t('settings.searchPaused')}</span>
-                )}
-                {activeProfile?.id === p.id && (
-                  <span class="ml-1.5 text-meta text-accent-strong">{t('settings.searchEditing')}</span>
+              <span class="min-w-0 basis-[calc(100%-1.5rem)] text-note text-ink sm:basis-0 sm:flex-1">
+                <span class="block truncate">
+                  <span translate="no" class={activeProfile?.id === p.id ? 'font-medium' : undefined}>{p.name}</span>
+                  {p.primary && (
+                    <span class="ml-1.5 text-meta text-ink-faint">{t('settings.searchPrimary')}</span>
+                  )}
+                  {p.blank && (
+                    <span class="ml-1.5 text-meta text-warn">{t('settings.searchEmpty')}</span>
+                  )}
+                  {!p.running && !p.blank && (
+                    <span class="ml-1.5 text-meta text-ink-faint">{t('settings.searchPaused')}</span>
+                  )}
+                  {activeProfile?.id === p.id && (
+                    <span class="ml-1.5 text-meta text-accent-strong">{t('settings.searchEditing')}</span>
+                  )}
+                </span>
+                {!p.blank && (
+                  <span class="mt-0.5 block truncate text-meta text-ink-faint">
+                    {p.line.roles && <span translate="no">{p.line.roles}</span>}
+                    {p.line.roles && ' · '}
+                    {p.line.skills && <span translate="no">{p.line.skills}</span>}
+                    {p.line.skills && ' · '}
+                    {p.line.place} · {p.line.fit}
+                  </span>
                 )}
               </span>
               <a
@@ -756,6 +854,7 @@ export const SettingsPage: FC<SettingsProps> = ({
       <Section
         title={t('settings.jobSources')}
         desc={t('settings.switchAWholeSourceFamily')}
+        more={t('settings.keepTheAggregatorsOnThey')}
       >
         <form method="post" action="/settings/sources" class="space-y-4">
           {/* Job boards first, then the user's own; the per-company platforms fold away:
@@ -765,7 +864,18 @@ export const SettingsPage: FC<SettingsProps> = ({
             if (!g) return null;
             const pills = (
               <div class="flex flex-wrap gap-1.5">
-                {g.pills.map((p) => (
+                {g.pills.map((p) =>
+                  g.family === 'own' && p.companies === 0 && !disabledSources.includes(p.atsType) ? (
+                    // Nothing of this kind exists yet, so a switch would switch nothing: the way to add one
+                    // instead. The hidden field keeps the kind on when the form is saved.
+                    <span class="inline-flex min-h-[32px] items-center gap-2 rounded-md border border-line px-2.5 text-note">
+                      <input type="hidden" name="enabled" value={p.atsType} />
+                      <span class="text-ink">{p.label}</span>
+                      <a href={OWN_SOURCE_ADD[p.atsType] ?? '/companies'} class="font-medium text-accent-strong hover:text-accent-deep">
+                        {t('settings.addOneOnCompanies')}
+                      </a>
+                    </span>
+                  ) : (
                   <PillCheckbox name="enabled" value={p.atsType} checked={!disabledSources.includes(p.atsType)}>
                     {/* A vendor's or a board's name is data; a source of our own (a folder, a pasted posting) is worded. */}
                     <span translate={wordedSource(p.atsType) ? undefined : 'no'}>{p.label}</span>
@@ -783,7 +893,8 @@ export const SettingsPage: FC<SettingsProps> = ({
                       )}
                     </span>
                   </PillCheckbox>
-                ))}
+                  ),
+                )}
               </div>
             );
             return family === 'vendor' ? (
@@ -801,9 +912,6 @@ export const SettingsPage: FC<SettingsProps> = ({
               </div>
             );
           })}
-          <Hint>
-            {t('settings.keepTheAggregatorsOnThey')}
-          </Hint>
           <Button variant="secondary">{t('settings.saveSources')}</Button>
         </form>
       </Section>
@@ -813,6 +921,7 @@ export const SettingsPage: FC<SettingsProps> = ({
 
       {activeTab === 'notifications' && (
       <Section
+        id="messages"
         title={t('settings.notifications')}
         desc={t('settings.telegramChatsAndDiscordWebhooks')}
       >
@@ -831,6 +940,15 @@ export const SettingsPage: FC<SettingsProps> = ({
               more={t('settings.aBoardUsuallyGoesQuiet')}
             >
               {t('settings.oneLineInTheDaily')}
+            </ToggleRow>
+          </div>
+          <div class="border-t border-line pt-5">
+            <ToggleRow
+              label={t('settings.staleDigest')}
+              enabled={staleApplicationsDigestEnabled}
+              action="/settings/stale-digest-toggle"
+            >
+              {t('settings.aDailyNudgeForApplications')}
             </ToggleRow>
           </div>
         </div>
@@ -985,15 +1103,16 @@ export const SettingsPage: FC<SettingsProps> = ({
           >
             {t('settings.theTrackingCardOnEach')}
           </ToggleRow>
-          <div class="border-t border-line pt-5">
-            <ToggleRow
-              label={t('settings.staleDigest')}
-              enabled={staleApplicationsDigestEnabled}
-              action="/settings/stale-digest-toggle"
-            >
-              {t('settings.aDailyNudgeForApplications')}
-            </ToggleRow>
-          </div>
+          {/* A message, so it is switched where every message is; its state is said here too. */}
+          <Hint>
+            {tRich('settings.followUpsLine', { state: staleApplicationsDigestEnabled ? 'on' : 'off' }, {
+              link: (words) => (
+                <a href="/settings?tab=notifications#messages" class="font-medium text-accent-strong hover:text-accent-deep">
+                  {words}
+                </a>
+              ),
+            })}
+          </Hint>
         </div>
       </Section>
       )}
@@ -1140,8 +1259,13 @@ export const SettingsPage: FC<SettingsProps> = ({
       <Section
         id="packs"
         title={t('settings.pack.title')}
-        desc={t('settings.pack.desc')}
-        more={t('settings.pack.more')}
+        desc={t('settings.pack.descShort')}
+        more={
+          <>
+            <p>{t('settings.pack.desc')}</p>
+            <p>{t('settings.pack.more')}</p>
+          </>
+        }
       >
         <form method="post" action="/settings/pack" class="space-y-5">
           <Checkbox name="enabled" value="1" checked={pack.enabled}>
@@ -1208,6 +1332,7 @@ export const SettingsPage: FC<SettingsProps> = ({
         <div class="space-y-3">
           {/* settings-models.mjs redraws this block after a card saves: the table and the note read off it. */}
           <div data-ai-plan class="space-y-3">
+            <AiSummary plan={aiStatus.plan} billedMicro={aiBudget.billedThisMonthMicro} />
             <AiPlan plan={aiStatus.plan} />
             {aiStatus.billingNotes.map((note) => (
               <Notice tone="warn">{note}</Notice>
@@ -1251,9 +1376,7 @@ export const SettingsPage: FC<SettingsProps> = ({
           </Field>
           <Button variant="secondary">{t('settings.saveBudget')}</Button>
         </form>
-        <Hint>
-          {t('settings.aWarningOnYourAlert')}
-        </Hint>
+        <More>{t('settings.aWarningOnYourAlert')}</More>
         <CardLink href="/ai">{t('settings.whichModelDidWhatHow')}</CardLink>
       </Section>
 
@@ -1336,16 +1459,16 @@ export const SettingsPage: FC<SettingsProps> = ({
       <Section
         id="login"
         title={t('settings.startWithThisComputer')}
-        desc={t('settings.applypackSearchesOnlyWhileIt')}
       >
-        <div class="flex flex-wrap items-center gap-3">
-          <Badge tone={loginItem.on ? 'ok' : 'neutral'}>{loginItem.on ? t('settings.startsAtLogin') : t('settings.off')}</Badge>
-          <ActionForm action="/settings/login-item" hidden={{ on: loginItem.on ? '0' : '1' }}>
-            <Button size="sm" variant={loginItem.on ? 'secondary' : 'primary'}>
-              {loginItem.on ? t('settings.stopStartingAtLogin') : t('settings.startApplypackWhenILog')}
-            </Button>
-          </ActionForm>
-        </div>
+        <ToggleRow
+          label={t('settings.startApplypackWhenILog')}
+          enabled={loginItem.on}
+          action="/settings/login-item"
+          hidden={{ on: loginItem.on ? '0' : '1' }}
+          onLabel={t('settings.startsAtLogin')}
+        >
+          {t('settings.applypackSearchesOnlyWhileIt')}
+        </ToggleRow>
         <Hint>
           {tRich(loginItem.on ? 'settings.login.on' : 'settings.login.off', { kind: loginItem.kind ?? '' }, {
             file: () => (
@@ -1366,8 +1489,6 @@ export const SettingsPage: FC<SettingsProps> = ({
           action="/settings/update-check-toggle"
           onLabel={t('settings.checkingWeekly')}
           offLabel={t('settings.off')}
-          enableText={t('settings.checkWeekly')}
-          disableText={t('settings.stopChecking')}
           more={t('settings.oneRequestAWeekTo')}
         >
           {t('settings.sayInTheSidebarWhen')}
@@ -1385,10 +1506,6 @@ export const SettingsPage: FC<SettingsProps> = ({
           label={t('settings.employerMode')}
           enabled={screening.enabled}
           action="/settings/employer-mode-toggle"
-          onLabel={t('settings.on')}
-          offLabel={t('settings.off')}
-          enableText={t('settings.turnOn')}
-          disableText={t('settings.turnOff')}
           more={t('settings.aScreeningIsOnePosition')}
         >
           {screening.enabled
@@ -1403,6 +1520,7 @@ export const SettingsPage: FC<SettingsProps> = ({
               ? t('settings.employerHintHidden', { n: screening.screenings })
               : t('settings.employerHint')}
         </ToggleRow>
+        <ScreeningReadiness screening={screening} />
       </Section>
       )}
 
@@ -1410,11 +1528,14 @@ export const SettingsPage: FC<SettingsProps> = ({
       <Section title={t('settings.retention')} desc={t('settings.applicantsFilesAndEveryVerdict')}>
         <div>
           <form method="post" action="/settings/screening-retention" class="flex flex-wrap items-end gap-3">
-            <Field label={t('settings.keepAScreeningFor')} hint={t('settings.retentionHint', { min: screening.retentionMin, max: screening.retentionMax })}>
-              <div class="flex items-center gap-2">
-                <Input type="number" name="days" min={screening.retentionMin} max={screening.retentionMax} value={screening.retentionDays} class="w-28" />
-                <span class="text-sm text-ink-muted">{t('settings.retentionDaysUnit')}</span>
-              </div>
+            <Field label={t('settings.keepAScreeningFor')} hint={t('settings.retentionHint')}>
+              <Select name="days" class="!w-56">
+                {retentionChoices(screening).map((d) => (
+                  <option value={String(d)} selected={d === screening.retentionDays}>
+                    {t('settings.retentionOption', { n: d, recommended: d === screening.retentionDefault ? 'yes' : 'no' })}
+                  </option>
+                ))}
+              </Select>
             </Field>
             <Button variant="secondary">{t('common.save')}</Button>
           </form>
@@ -1446,18 +1567,16 @@ export const SettingsPage: FC<SettingsProps> = ({
               </Badge>
             )}
           </p>
-          <Hint class="mt-2">
-            {screening.engineSubscription
-              ? t('settings.aCliOnAPersonal')
-              : t('settings.anApiOrALocal')}{' '}
-            {t('settings.changeWhoTakesScreening')}
-          </Hint>
+          <Hint class="mt-2">{t('settings.changeWhoTakesScreening')}</Hint>
+          <More class="mt-1">
+            {screening.engineSubscription ? t('settings.aCliOnAPersonal') : t('settings.anApiOrALocal')}
+          </More>
         </div>
       </Section>
       )}
 
       {activeTab === 'screening' && (
-      <Section title={t('settings.noticeForApplicants')} desc={t('settings.pasteItIntoThePosting')}>
+      <Section title={t('settings.noticeForApplicants')} desc={t('settings.noticeDesc')} more={t('settings.pasteItIntoThePosting')}>
         {/* The notice and the legal note are legal texts (screening/notice.ts): English in every language.
             The action stays in sight; the texts themselves open on demand. */}
         <div class="flex flex-wrap items-center gap-3">
@@ -1488,6 +1607,9 @@ export const SettingsPage: FC<SettingsProps> = ({
     <script type="module" dangerouslySetInnerHTML={{ __html: MODELS_BOOT }} />
   </Layout>
 );
+
+/** Where a kind of the user's own sources is added: a folder has its card on Companies; a feed or a careers page is pasted into "Watch specific companies". */
+const OWN_SOURCE_ADD: Record<string, string> = { FOLDER: '/companies#folders' };
 
 /** The Job sources grid's order: whole boards first, then what the user brought, then the per-company platforms, folded. */
 const SOURCE_GROUP_ORDER = ['aggregator', 'own', 'vendor'] as const satisfies readonly SourceGroup['family'][];
@@ -2167,7 +2289,8 @@ const ProfileEditor: FC<{
       </div>
     </details>
 
-    <div class="flex flex-wrap items-center gap-3 border-t border-line pt-4">
+    {/* Sticks to the bottom of the window while the editor scrolls: a long form keeps its Save in reach. */}
+    <div class="sticky bottom-0 z-10 -mx-5 flex flex-wrap items-center gap-3 border-t border-line bg-surface-raised px-5 py-3">
       <Button size="lg">{t('settings.saveProfile')}</Button>
       <Button
         size="lg"
@@ -2254,6 +2377,20 @@ mountCountryPickers();
 
 const SETTINGS_JS = `
   (function () {
+
+    // The daily summary's empty time pickers fold behind "Add another time", one shown per press.
+    document.querySelectorAll('[data-digest-times]').forEach(function (set) {
+      var add = set.querySelector('[data-add-time]');
+      var empty = Array.prototype.slice.call(set.querySelectorAll('[data-digest-slot="empty"]'));
+      if (!add || empty.length === 0) return;
+      empty.forEach(function (slot) { slot.hidden = true; });
+      add.hidden = false;
+      add.addEventListener('click', function () {
+        var next = empty.shift();
+        if (next) { next.hidden = false; var pick = next.querySelector('select'); if (pick) pick.focus(); }
+        if (empty.length === 0) add.hidden = true;
+      });
+    });
 
     document.querySelectorAll('[data-dirty-watch]').forEach(function (form) {
       var indicator = form.querySelector('[data-dirty-indicator]');
