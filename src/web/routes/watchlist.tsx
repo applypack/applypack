@@ -27,6 +27,7 @@ import { activeFetchRun } from '../fetch-runs';
 import { listActiveProfiles } from '../../profiles';
 import { isBlankProfile } from '../../profile-guards';
 import { formatDate } from '../format';
+import { t } from '../../i18n/t';
 
 /*
  * The watchlist's own routes (TASKS §17 stage A, ADR 0036): paste a list,
@@ -47,7 +48,7 @@ watchlistRoute.post('/companies/watchlist', async (c) => {
   const form = await c.req.parseBody();
   const parsed = parseCompanyLines(typeof form.urls === 'string' ? form.urls : '');
   if (parsed.rows.length === 0) {
-    return flashRedirect('/companies', 'err', 'No URLs in that list — one per line, or "Name — https://…".');
+    return flashRedirect('/companies', 'err', t('watchlist.flash.noUrls'));
   }
   // No await between the guard and the create — a double submit lands on one run.
   const active = activeWatchlistRun();
@@ -86,7 +87,7 @@ watchlistRoute.get('/companies/watchlist/:id/state', (c) => {
 watchlistRoute.get('/companies/watchlist/:id', (c) => {
   const run = getWatchlistRun(c.req.param('id'));
   if (!run) {
-    return flashRedirect('/companies', 'err', 'That resolve run has expired — paste the list again.');
+    return flashRedirect('/companies', 'err', t('watchlist.flash.expired'));
   }
   return c.html(run.done ? <WatchlistPreviewPage run={run} /> : <WatchlistRunPage run={run} />);
 });
@@ -106,10 +107,10 @@ watchlistRoute.post('/companies/watchlist/add', async (c) => {
     alertPolicy: form.alertPolicy,
   });
   if (!parsed.success) {
-    return flashRedirect('/companies', 'err', `Nothing was added (${firstIssue(parsed.error.issues)}). Paste the list again and add from its preview.`, refusedField(c.req.path, parsed.error.issues));
+    return flashRedirect('/companies', 'err', t('watchlist.flash.addInvalid', { issue: firstIssue(parsed.error.issues) }), refusedField(c.req.path, parsed.error.issues));
   }
   const run = getWatchlistRun(parsed.data.runId);
-  if (!run) return flashRedirect('/companies', 'err', 'That resolve run has expired — paste the list again.');
+  if (!run) return flashRedirect('/companies', 'err', t('watchlist.flash.expired'));
 
   const picked = new Set(toList(form.pick));
   let added = 0;
@@ -164,8 +165,8 @@ watchlistRoute.post('/companies/watchlist/add', async (c) => {
     '/companies',
     added > 0 ? 'ok' : 'err',
     added > 0
-      ? `Watching ${added} compan${added === 1 ? 'y' : 'ies'}${skipped > 0 ? ` (${skipped} already watched)` : ''} — first check on the next tick.`
-      : 'Nothing changed — those companies are already watched.',
+      ? t(skipped > 0 ? 'watchlist.flash.watchingSkipped' : 'watchlist.flash.watching', { n: added, skipped })
+      : t('watchlist.flash.alreadyWatched'),
   );
 });
 
@@ -181,7 +182,7 @@ watchlistRoute.post('/companies/:id/watch', async (c) => {
   const form = await c.req.parseBody();
   const parsed = WatchSchema.safeParse({ checkEvery: form.checkEvery, alertPolicy: form.alertPolicy });
   if (!parsed.success) {
-    return flashRedirect('/companies', 'err', `The company is unchanged (${firstIssue(parsed.error.issues)}). Pick the interval and the alert policy from the row's lists.`, refusedField(c.req.path, parsed.error.issues));
+    return flashRedirect('/companies', 'err', t('watchlist.flash.watchInvalid', { issue: firstIssue(parsed.error.issues) }), refusedField(c.req.path, parsed.error.issues));
   }
   const company = await prisma.company.findUnique({ where: { id }, select: { name: true, checkEvery: true } });
   if (!company) return c.text('Not found', 404);
@@ -197,7 +198,7 @@ watchlistRoute.post('/companies/:id/watch', async (c) => {
       ...(parsed.data.checkEvery !== company.checkEvery ? { nextCheckAt: null } : {}),
     },
   });
-  return flashRedirect('/companies', 'ok', `${company.name} updated.`);
+  return flashRedirect('/companies', 'ok', t('watchlist.flash.updated', { name: company.name }));
 });
 
 /**
@@ -211,18 +212,14 @@ watchlistRoute.post('/companies/:id/check-now', async (c) => {
   const company = await prisma.company.findUnique({ where: { id }, select: { name: true, active: true } });
   if (!company) return c.text('Not found', 404);
   if (!company.active) {
-    return flashRedirect('/companies', 'err', `${company.name} is switched off — turn it on to check it.`);
+    return flashRedirect('/companies', 'err', t('watchlist.flash.off', { name: company.name }));
   }
   if (activeFetchRun() === null) {
     const run = await beginFetchNow({ backUrl: '/companies', scope: { companyId: id, name: company.name } });
     return c.redirect(`/runs/fetch-now/${run.id}`, 303);
   }
   await prisma.company.update({ where: { id }, data: { nextCheckAt: null } });
-  return flashRedirect(
-    '/companies',
-    'ok',
-    `A fetch is already running — ${company.name} will be checked on the next tick.`,
-  );
+  return flashRedirect('/companies', 'ok', t('watchlist.flash.fetchRunning', { name: company.name }));
 });
 
 /** Drop the star, keep the company: it stays a tracked source on the normal rules. */
@@ -235,7 +232,7 @@ watchlistRoute.post('/companies/:id/unwatch', async (c) => {
     where: { id },
     data: { watched: false, alertPolicy: 'matches', checkEvery: 'hour' },
   });
-  return flashRedirect('/companies', 'ok', `${company.name} is no longer watched — it stays in the hourly tick.`);
+  return flashRedirect('/companies', 'ok', t('watchlist.flash.unwatched', { name: company.name }));
 });
 
 /**
@@ -252,16 +249,12 @@ watchlistRoute.post('/companies/:id/paste', async (c) => {
   });
   if (!company) return c.text('Not found', 404);
   if (company.atsType !== AtsType.BROWSER_PAGE) {
-    return flashRedirect('/companies', 'err', `ApplyPack reads ${company.name} on its own — there is nothing to paste.`);
+    return flashRedirect('/companies', 'err', t('watchlist.flash.notBrowserPage', { name: company.name }));
   }
   const body = await c.req.parseBody();
   const lines = pageLines(typeof body.page === 'string' ? body.page : '');
   if (lines.length === 0) {
-    return flashRedirect(
-      '/companies#browser-pages',
-      'err',
-      `Nothing was read from that paste. Open ${company.name}'s page, select all of it, copy, and paste it here.`,
-    );
+    return flashRedirect('/companies#browser-pages', 'err', t('watchlist.flash.emptyPaste', { name: company.name }));
   }
   const added = company.pastedAt === null ? [] : newLines(company.pastedLines, lines);
   const searches = titleWordsOf((await listActiveProfiles()).filter((p) => !isBlankProfile(p)));

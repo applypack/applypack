@@ -1,4 +1,5 @@
 import { titleHasKeyword } from '../filter';
+import { t } from '../i18n/t';
 
 /*
  * "Paste the page" (TASKS N8). A careers page that draws its jobs in the
@@ -76,14 +77,11 @@ const FLASH_ROLES = 3;
  * and the role lines among them.
  */
 export function pasteSummary(p: { name: string; lines: number; since: string | null; added: number; roles: readonly string[] }): string {
-  const head = `Read ${p.lines} ${p.lines === 1 ? 'line' : 'lines'} from ${p.name}'s page.`;
-  const roles =
-    p.roles.length === 0
-      ? ''
-      : ` ${p.roles.length === 1 ? 'One looks like a role' : `${p.roles.length} look like roles`} your searches want: ${p.roles
-          .slice(0, FLASH_ROLES)
-          .join('; ')}${p.roles.length > FLASH_ROLES ? '; …' : ''}.`;
-  if (p.since === null) return `${head}${roles} Paste it again later and it says what is new.`;
-  if (p.added === 0) return `${head} Nothing new since ${p.since}.`;
-  return `${head} ${p.added} new since ${p.since}.${roles}`;
+  // Whole sentences, each a message of its own; the lines named are the page's words.
+  const head = t('watchlist.paste.read', { n: p.lines, name: p.name });
+  const list = `${p.roles.slice(0, FLASH_ROLES).join('; ')}${p.roles.length > FLASH_ROLES ? '; …' : ''}`;
+  const roles = p.roles.length === 0 ? [] : [t('watchlist.paste.roles', { n: p.roles.length, list })];
+  if (p.since === null) return [head, ...roles, t('watchlist.paste.first')].join(' ');
+  if (p.added === 0) return [head, t('watchlist.paste.nothingNew', { since: p.since })].join(' ');
+  return [head, t('watchlist.paste.newSince', { n: p.added, since: p.since }), ...roles].join(' ');
 }

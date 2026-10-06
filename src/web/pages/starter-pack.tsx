@@ -21,6 +21,8 @@ import type {
   ResolvedEntry,
   UnresolvedEntry,
 } from '../../starter-packs/resolve';
+import { t } from '../../i18n/t';
+import { tRich } from '../rich';
 
 export interface PackSegmentChoice extends PackSegment {
   count: number;
@@ -30,14 +32,14 @@ export interface PackSegmentChoice extends PackSegment {
 export const StarterPackPicker: FC<{ segments: PackSegmentChoice[] }> = ({ segments }) => (
   <Card>
     <Hint class="mb-4">
-      Curated lists of companies whose board was pinned and checked by hand. Nothing is added
-      until you confirm, and companies land switched off.
+      {t('packs.curatedListsOfCompaniesWhose')}
     </Hint>
     <form method="post" action="/companies/starter-pack">
       <div class="mb-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
         {segments.map((s) => (
           <PillCheckbox name="segment" value={s.id}>
-            <span class="min-w-0">
+            {/* A segment's name and blurb are the catalog's own (starter-packs/catalog.json), in English. */}
+            <span class="min-w-0" lang="en">
               <span class="block font-medium text-ink">
                 {s.label}{' '}
                 <span data-ui="hint" class="font-normal text-ink-faint tabular-nums">
@@ -49,18 +51,21 @@ export const StarterPackPicker: FC<{ segments: PackSegmentChoice[] }> = ({ segme
           </PillCheckbox>
         ))}
       </div>
-      <Button>Preview pack</Button>
+      <Button>{t('packs.previewPack')}</Button>
     </form>
   </Card>
 );
 
 const BoardCell: FC<{ entry: ResolvedEntry }> = ({ entry }) => (
   <>
-    <Tag>{entry.atsType}</Tag>{' '}
+    <span translate="no">
+      <Tag>{entry.atsType}</Tag>
+    </span>{' '}
     <a
       href={entry.boardUrl}
       target="_blank"
       rel="noopener"
+      translate="no"
       class="font-mono text-meta text-ink-muted transition-colors duration-150 hover:text-accent-strong"
     >
       {entry.atsToken}
@@ -68,7 +73,7 @@ const BoardCell: FC<{ entry: ResolvedEntry }> = ({ entry }) => (
     {!entry.pinned && (
       <>
         {' '}
-        <Badge tone="warn">guessed</Badge>
+        <Badge tone="warn">{t('packs.guessed')}</Badge>
       </>
     )}
   </>
@@ -82,10 +87,10 @@ const ResolvedTable: FC<{
     <div class="min-w-[36rem]">
       <Table
         columns={[
-          ...(selectable ? ['Add'] : []),
-          'Company',
-          'Board',
-          <span class="block text-right">Open jobs</span>,
+          ...(selectable ? [t('packs.col.add')] : []),
+          t('common.company'),
+          t('packs.col.board'),
+          <span class="block text-right">{t('packs.openJobs')}</span>,
         ]}
       >
         {entries.map((e) => (
@@ -98,11 +103,13 @@ const ResolvedTable: FC<{
                   name="pick"
                   value={`${e.segment}|${e.name}|${e.atsType}|${e.atsToken}`}
                   checked
-                  aria-label={`Add ${e.name}`}
+                  aria-label={t('packs.addNamed', { name: e.name })}
                 />
               </Td>
             )}
-            <Td class="font-medium text-ink">{e.name}</Td>
+            <Td class="font-medium text-ink">
+              <span translate="no">{e.name}</span>
+            </Td>
             <Td>
               <BoardCell entry={e} />
             </Td>
@@ -117,10 +124,12 @@ const ResolvedTable: FC<{
 const UnresolvedList: FC<{ entries: UnresolvedEntry[] }> = ({ entries }) => (
   <div class="overflow-x-auto">
     <div class="min-w-[28rem]">
-      <Table columns={['Company', 'Why']}>
+      <Table columns={[t('common.company'), t('packs.col.why')]}>
         {entries.map((e) => (
           <Tr>
-            <Td class="font-medium text-ink">{e.name}</Td>
+            <Td class="font-medium text-ink">
+              <span translate="no">{e.name}</span>
+            </Td>
             <Td class="text-ink-muted">{e.reason}</Td>
           </Tr>
         ))}
@@ -132,41 +141,42 @@ const UnresolvedList: FC<{ entries: UnresolvedEntry[] }> = ({ entries }) => (
 /** Where the pack flow came from: the wizard's boards step, or Companies (ADR 0040). */
 export type PackOrigin = 'welcome' | undefined;
 
+/** Where "back" leads, the word for it, and the button that says so in full. */
 const backFor = (next: PackOrigin) =>
-  next === 'welcome' ? { href: '/welcome?step=sources', label: 'Setup' } : { href: '/companies', label: 'Companies' };
+  next === 'welcome'
+    ? { href: '/welcome?step=sources', label: t('packs.back.setup'), backTo: t('packs.backToSetup') }
+    : { href: '/companies', label: t('nav.companies'), backTo: t('packs.backToCompanies') };
 
 export const StarterPackPreviewPage: FC<{
   preview: PackPreview;
   segmentLabels: string[];
   next?: PackOrigin;
 }> = ({ preview, segmentLabels, next }) => (
-  <Layout title="Starter pack" active="companies">
+  <Layout title={t('packs.starterPack')} active="companies">
     <PageHeader
-      title="Starter pack preview"
-      meta={`${preview.toAdd.length} to add · ${preview.alreadyAdded.length} already tracked · ${preview.unresolved.length} unresolved`}
+      title={t('packs.starterPackPreview')}
+      meta={t('packs.preview.meta', { add: preview.toAdd.length, tracked: preview.alreadyAdded.length, unresolved: preview.unresolved.length })}
       back={backFor(next)}
     >
-      {segmentLabels.join(' · ')}
+      <span lang="en">{segmentLabels.join(' · ')}</span>
     </PageHeader>
 
     <form method="post" action="/companies/starter-pack/import">
       {next && <input type="hidden" name="next" value={next} />}
       <Card class="mb-4">
-        <SectionTitle>New boards</SectionTitle>
+        <SectionTitle>{t('packs.newBoards')}</SectionTitle>
         {preview.toAdd.length === 0 ? (
-          <Empty bare title="Nothing new in this pack">
-            Every board in it is on your Companies list already, so there is nothing to add. Go back and
-            pick another segment.
+          <Empty bare title={t('packs.nothingNewInThisPack')}>
+            {t('packs.everyBoardInItIs')}
           </Empty>
         ) : (
           <>
             <Hint class="mb-4">
-              Each of these answered with at least one open job just now. They
-              are added disabled; enable them on the next screen.
+              {t('packs.eachOfTheseAnsweredWith')}
             </Hint>
             <ResolvedTable entries={preview.toAdd} selectable />
             <div class="mt-4">
-              <Button>Add {preview.toAdd.length} companies</Button>
+              <Button>{t('packs.addN', { n: preview.toAdd.length })}</Button>
             </div>
           </>
         )}
@@ -175,14 +185,15 @@ export const StarterPackPreviewPage: FC<{
 
     {preview.unresolved.length > 0 && (
       <Card class="mb-4">
-        <SectionTitle>Could not resolve</SectionTitle>
+        <SectionTitle>{t('packs.couldNotResolve')}</SectionTitle>
         <Hint class="mb-4">
-          No public board on any ATS we support — worth a manual look, so they
-          are listed rather than dropped. Add one by hand above on{' '}
-          <a href="/companies" class="font-medium text-accent-strong hover:text-accent-deep">
-            Companies
-          </a>{' '}
-          if you find its board URL.
+          {tRich('packs.unresolvedHint', {}, {
+            link: (words) => (
+              <a href="/companies" class="font-medium text-accent-strong hover:text-accent-deep">
+                {words}
+              </a>
+            ),
+          })}
         </Hint>
         <UnresolvedList entries={preview.unresolved} />
       </Card>
@@ -190,8 +201,8 @@ export const StarterPackPreviewPage: FC<{
 
     {preview.alreadyAdded.length > 0 && (
       <Card>
-        <SectionTitle>Already tracked</SectionTitle>
-        <Hint class="mb-4">Skipped — re-importing a pack never duplicates a board.</Hint>
+        <SectionTitle>{t('packs.alreadyTracked')}</SectionTitle>
+        <Hint class="mb-4">{t('packs.skippedReImportingAPack')}</Hint>
         <ResolvedTable entries={preview.alreadyAdded} />
       </Card>
     )}
@@ -203,10 +214,10 @@ export const StarterPackResultPage: FC<{
   skipped: number;
   next?: PackOrigin;
 }> = ({ added, skipped, next }) => (
-  <Layout title="Starter pack" active="companies">
+  <Layout title={t('packs.starterPack')} active="companies">
     <PageHeader
-      title="Pack added"
-      meta={`${added.length} added${skipped > 0 ? ` · ${skipped} skipped` : ''}`}
+      title={t('packs.packAdded')}
+      meta={skipped > 0 ? t('packs.result.metaSkipped', { added: added.length, skipped }) : t('packs.result.meta', { added: added.length })}
       back={backFor(next)}
     />
 
@@ -214,31 +225,33 @@ export const StarterPackResultPage: FC<{
       {added.length === 0 ? (
         <Empty
           bare
-          title="Nothing was added"
+          title={t('packs.nothingWasAdded')}
           action={
             <Button href={backFor(next).href} variant="secondary" size="sm">
-              Back to {backFor(next).label}
+              {backFor(next).backTo}
             </Button>
           }
         >
-          Every board you ticked is on the Companies list already, so the list did not change.
+          {t('packs.everyBoardYouTickedIs')}
         </Empty>
       ) : (
         <>
-          <SectionTitle>Added, currently disabled</SectionTitle>
+          <SectionTitle>{t('packs.addedCurrentlyDisabled')}</SectionTitle>
           <Hint class="mb-4">
-            Enable them to include their boards in the next fetch tick. You can
-            also enable them one by one on Companies.
+            {t('packs.enableThemToIncludeTheir')}
           </Hint>
           <div class="overflow-x-auto">
             <div class="min-w-[28rem]">
-              <Table columns={['Company', 'Board']}>
+              <Table columns={[t('common.company'), t('packs.col.board')]}>
                 {added.map((a) => (
                   <Tr>
-                    <Td class="font-medium text-ink">{a.name}</Td>
+                    <Td class="font-medium text-ink">
+                      <span translate="no">{a.name}</span>
+                    </Td>
                     <Td>
-                      <Tag>{a.atsType}</Tag>{' '}
-                      <span class="font-mono text-meta text-ink-muted">{a.atsToken}</span>
+                      <span translate="no">
+                        <Tag>{a.atsType}</Tag> <span class="font-mono text-meta text-ink-muted">{a.atsToken}</span>
+                      </span>
                     </Td>
                   </Tr>
                 ))}
@@ -250,9 +263,9 @@ export const StarterPackResultPage: FC<{
             {added.map((a) => (
               <input type="hidden" name="id" value={String(a.id)} />
             ))}
-            <Button>Enable all {added.length}</Button>
+            <Button>{t('companies.enableAllN', { n: added.length })}</Button>
             <Button href={backFor(next).href} variant="ghost">
-              Leave disabled
+              {t('packs.leaveDisabled')}
             </Button>
           </form>
         </>

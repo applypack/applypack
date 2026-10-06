@@ -13,6 +13,9 @@
  * sleep. One tick, one intent.
  */
 
+import type { MessageKey } from '../i18n/catalog';
+import { t } from '../i18n/t';
+
 /** The presets, shortest first. The stored value is one of these strings. */
 export const CHECK_INTERVALS = ['hour', 'day', 'week'] as const;
 export type CheckInterval = (typeof CHECK_INTERVALS)[number];
@@ -29,11 +32,11 @@ const INTERVAL_MS: Readonly<Record<CheckInterval, number>> = {
   week: 7 * 24 * HOUR_MS,
 };
 
-const INTERVAL_LABEL: Readonly<Record<CheckInterval, string>> = {
-  hour: 'Every hour',
-  day: 'Once a day',
-  week: 'Once a week',
-};
+const INTERVAL_LABEL = {
+  hour: 'watchlist.interval.hour',
+  day: 'watchlist.interval.day',
+  week: 'watchlist.interval.week',
+} as const satisfies Record<CheckInterval, MessageKey>;
 
 /**
  * A stored string → a preset. Anything unrecognised reads as `hour`, which is
@@ -54,7 +57,7 @@ export function toAlertPolicy(value: string | null | undefined): AlertPolicy {
 }
 
 export function intervalLabel(value: string | null | undefined): string {
-  return INTERVAL_LABEL[toCheckInterval(value)];
+  return t(INTERVAL_LABEL[toCheckInterval(value)]);
 }
 
 /** The columns every decision here is made from. */

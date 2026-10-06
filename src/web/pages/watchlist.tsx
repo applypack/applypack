@@ -1,5 +1,5 @@
 /** @jsxImportSource hono/jsx */
-import type { FC } from 'hono/jsx';
+import type { Child, FC } from 'hono/jsx';
 import { Layout } from '../layout';
 import {
   ActionForm,
@@ -29,6 +29,8 @@ import { MAX_LINES } from '../../watchlist/parse-input';
 import { verdictLabel } from '../../watchlist/verdict';
 import type { ResolvedCompany } from '../../watchlist/resolve';
 import type { WatchlistRun } from '../watchlist-runs';
+import { t } from '../../i18n/t';
+import { tRich } from '../rich';
 
 /** One row of the watchlist section on /companies. */
 export interface WatchedRow {
@@ -68,7 +70,7 @@ function needsPaste(r: WatchedRow): boolean {
 }
 
 const INTERVAL_SELECT = (name: string, value: string, company?: string) => (
-  <Select name={name} class="min-w-[8rem]" aria-label={company ? `How often ${company} is checked` : 'How often this company is checked'}>
+  <Select name={name} class="min-w-[8rem]" aria-label={company ? t('watchlist.howOftenNamed', { name: company }) : t('watchlist.howOftenThisCompanyIs')}>
     {CHECK_INTERVALS.map((i) => (
       <option value={i} selected={i === value}>
         {intervalLabel(i)}
@@ -78,12 +80,12 @@ const INTERVAL_SELECT = (name: string, value: string, company?: string) => (
 );
 
 const POLICY_SELECT = (name: string, value: string, company?: string) => (
-  <Select name={name} class="min-w-[8.75rem]" aria-label={company ? `What ${company} alerts about` : 'What this company alerts about'}>
+  <Select name={name} class="min-w-[8.75rem]" aria-label={company ? t('watchlist.whatNamedAlertsAbout', { name: company }) : t('watchlist.whatThisCompanyAlertsAbout')}>
     <option value="all" selected={value === 'all'}>
-      Every posting
+      {t('watchlist.policy.all')}
     </option>
     <option value="matches" selected={value !== 'all'}>
-      Matches only
+      {t('watchlist.policy.matches')}
     </option>
   </Select>
 );
@@ -98,18 +100,13 @@ const POLICY_SELECT = (name: string, value: string, company?: string) => (
 /** The body of "Watch specific companies" on /companies — the disclosure's button is its title. */
 export const AddCompaniesCard: FC<{ running: WatchlistRun | null }> = ({ running }) => (
   <Card>
-    <Hint>
-      One URL per line — a careers page or a board link, optionally <Code>Name — https://…</Code>.
-      Up to {MAX_LINES} at a time; what cannot be read is listed, never half-added.
-    </Hint>
+    <Hint>{tRich('watchlist.add.hint', { max: MAX_LINES }, { code: (words) => <Code>{words}</Code> })}</Hint>
     <More class="mb-3 mt-1">
-      Each URL is resolved to a job board or a feed. Watched companies are checked on the same tick
-      as your search, so they follow your schedule: nothing is fetched during hours you told the
-      search to sleep.
+      {t('watchlist.eachUrlIsResolvedTo')}
     </More>
     {running ? (
       <Button href={`/companies/watchlist/${running.id}`} variant="secondary">
-        Resolving {running.results.length}/{running.total}… watch
+        {t('watchlist.add.resolving', { done: running.results.length, total: running.total })}
       </Button>
     ) : (
       <form method="post" action="/companies/watchlist" onsubmit={SUBMIT_ONCE}>
@@ -118,11 +115,12 @@ export const AddCompaniesCard: FC<{ running: WatchlistRun | null }> = ({ running
           rows={6}
           mono
           required
-          aria-label="Company URLs, one per line"
+          translate="no"
+          aria-label={t('watchlist.add.urlsLabel')}
           placeholder={'Vercel — https://vercel.com/careers\nhttps://www.netlify.com/careers/\nhttps://linear.app/careers'}
         />
         <div class="mt-3">
-          <Button>Resolve these</Button>
+          <Button>{t('watchlist.resolveThese')}</Button>
         </div>
       </form>
     )}
@@ -131,13 +129,12 @@ export const AddCompaniesCard: FC<{ running: WatchlistRun | null }> = ({ running
 
 /** Live progress while the URLs are resolved; watchlist.mjs polls the state route. */
 export const WatchlistRunPage: FC<{ run: WatchlistRun }> = ({ run }) => (
-  <Layout title="Resolving companies…" active="companies">
+  <Layout title={t('watchlist.run.title')} active="companies">
     <div class="w-full pt-6 lg:pt-16">
       <Card>
-        <div class="mb-1 text-entity text-ink">Resolving companies</div>
+        <div class="mb-1 text-entity text-ink">{t('watchlist.run.heading')}</div>
         <Hint class="mb-4">
-          Each URL gets at most five requests, a polite second apart — twenty companies take a
-          couple of minutes.
+          {t('watchlist.eachUrlGetsAtMost')}
         </Hint>
         <div
           id="wl-progress"
@@ -145,7 +142,7 @@ export const WatchlistRunPage: FC<{ run: WatchlistRun }> = ({ run }) => (
           data-state={`/companies/watchlist/${run.id}/state`}
           data-done={`/companies/watchlist/${run.id}`}
         >
-          {run.results.length} of {run.total} resolved
+          {t('watchlist.run.progress', { done: run.results.length, total: run.total })}
         </div>
         <ul id="wl-lines" class="mt-3 flex flex-col gap-1 text-note text-ink-muted" />
       </Card>
@@ -177,6 +174,9 @@ const VERDICT_TONE = {
   refused: 'danger',
 } as const;
 
+/** How the preview's hint sets off the part of each sentence that costs something. */
+const STRONG_TAG = { strong: (words: Child[]) => <strong class="font-medium text-ink">{words}</strong> };
+
 /** The verdicts that become a row. A page drawn in the browser is one: the user pastes it (TASKS N8). */
 const ADDABLE = ['ats', 'feed', 'changeWatch', 'needsBrowser'] as const;
 
@@ -196,26 +196,24 @@ export const WatchlistPreviewPage: FC<{ run: WatchlistRun }> = ({ run }) => {
   const watching = addable.filter((r) => r.resolution.kind === 'changeWatch').length;
   const browserOnly = addable.filter((r) => r.resolution.kind === 'needsBrowser').length;
   return (
-    <Layout title="Add companies" active="companies">
+    <Layout title={t('watchlist.addCompanies')} active="companies">
       <PageHeader
-        title="Add companies"
-        meta={`${addable.length} of ${run.results.length} can be watched`}
+        title={t('watchlist.addCompanies')}
+        meta={t('watchlist.preview.meta', { n: addable.length, total: run.results.length })}
       />
 
       {addable.length === 0 ? (
         <Card class="mb-4">
           <Empty
             bare
-            title="Nothing to watch at those URLs"
+            title={t('watchlist.nothingToWatchAtThose')}
             action={
               <Button href="/companies" variant="secondary" size="sm">
-                Back to Companies
+                {t('watchlist.backToCompanies')}
               </Button>
             }
           >
-            None of them published a job board or a job feed we can read. If you know the board URL
-            (Greenhouse, Lever, Ashby, Workable, SmartRecruiters, Recruitee, Personio, Teamtailor …),
-            paste that one instead.
+            {t('watchlist.noneOfThemPublishedA')}
           </Empty>
         </Card>
       ) : (
@@ -224,45 +222,30 @@ export const WatchlistPreviewPage: FC<{ run: WatchlistRun }> = ({ run }) => {
           <Card class="mb-4" flush>
             <div class="flex flex-wrap items-center gap-x-6 gap-y-3 border-b border-line px-5 py-4">
               <label class="flex items-center gap-2 text-sm text-ink-muted">
-                Check {INTERVAL_SELECT('checkEvery', 'day')}
+                {tRich('watchlist.preview.check', {}, { select: () => INTERVAL_SELECT('checkEvery', 'day') })}
               </label>
               <label class="flex items-center gap-2 text-sm text-ink-muted">
-                Alert me about {POLICY_SELECT('alertPolicy', 'all')}
+                {tRich('watchlist.preview.alertAbout', {}, { select: () => POLICY_SELECT('alertPolicy', 'all') })}
               </label>
-              <Button class="ml-auto">
-                Add {addable.length} compan{addable.length === 1 ? 'y' : 'ies'}
-              </Button>
+              <Button class="ml-auto">{t('watchlist.preview.addN', { n: addable.length })}</Button>
             </div>
             <Hint class="border-b border-line px-5 py-3">
-              &ldquo;Every posting&rdquo; ignores your filter and your fit threshold for these
-              companies, so the <strong class="font-medium text-ink">first check scores
-              everything they currently have up</strong> — on five companies that was 217
-              postings. A longer interval is the lever if that is more AI than you want.
+              {tRich('watchlist.preview.hint', {}, STRONG_TAG)}
               {watching > 0 && (
                 <>
                   {' '}
-                  <strong class="font-medium text-ink">
-                    {watching} of these publish no board and no feed
-                  </strong>
-                  , so they are watched a different way: we hash the page&rsquo;s text and tell
-                  you when it changes, at most once a day. Those never produce postings and
-                  never cost AI — they say &ldquo;have a look&rdquo;.
+                  {tRich('watchlist.preview.hintChangeWatch', { n: watching }, STRONG_TAG)}
                 </>
               )}
               {browserOnly > 0 && (
                 <>
                   {' '}
-                  <strong class="font-medium text-ink">
-                    {browserOnly} draw their jobs in the browser
-                  </strong>
-                  , which ApplyPack cannot read. They go on your watchlist without a check: open the
-                  page when you like, copy its text into the row&rsquo;s &ldquo;Paste the page&rdquo;,
-                  and it says what is new since the last paste.
+                  {tRich('watchlist.preview.hintBrowser', { n: browserOnly }, STRONG_TAG)}
                 </>
               )}
             </Hint>
             <Table
-              columns={['', 'Name', 'What we found', 'Source']}
+              columns={['', t('companies.name'), t('watchlist.col.found'), t('companies.col.source')]}
               widths={['w-[5%]', 'w-[28%]', 'w-[32%]', 'w-[35%]']}
             >
               {addable.map((r) => (
@@ -273,7 +256,7 @@ export const WatchlistPreviewPage: FC<{ run: WatchlistRun }> = ({ run }) => {
                       name="pick"
                       value={r.input.url}
                       checked
-                      aria-label={`Add ${r.name}`}
+                      aria-label={t('watchlist.preview.addNamed', { name: r.name })}
                       class="h-4 w-4 cursor-pointer accent-accent"
                     />
                   </Td>
@@ -283,7 +266,7 @@ export const WatchlistPreviewPage: FC<{ run: WatchlistRun }> = ({ run }) => {
                       name={`name:${r.input.url}`}
                       value={r.name}
                       maxlength={100}
-                      aria-label={`Name for ${r.input.url}`}
+                      aria-label={t('watchlist.preview.nameFor', { url: r.input.url })}
                       class="w-full rounded-md border border-line bg-surface px-2 py-1 text-sm text-ink"
                     />
                   </Td>
@@ -291,7 +274,7 @@ export const WatchlistPreviewPage: FC<{ run: WatchlistRun }> = ({ run }) => {
                     <Badge tone={VERDICT_TONE[r.resolution.kind]}>{verdictLabel(r.resolution)}</Badge>
                   </Td>
                   <Td class="text-ink-muted">
-                    <div class="truncate text-meta" title={r.careerUrl}>
+                    <div class="truncate text-meta" title={r.careerUrl} translate="no">
                       <Code>
                         {r.resolution.kind === 'ats'
                           ? r.resolution.atsToken
@@ -310,16 +293,14 @@ export const WatchlistPreviewPage: FC<{ run: WatchlistRun }> = ({ run }) => {
 
       {rest.length > 0 && (
         <Card class="mb-4">
-          <SectionTitle>Not added ({rest.length})</SectionTitle>
+          <SectionTitle>{t('watchlist.preview.notAdded', { n: rest.length })}</SectionTitle>
           <Hint class="mb-3">
-            These publish nothing a machine can read at that URL. If you know the company&rsquo;s
-            board (Greenhouse, Lever, Ashby …), paste that link instead — big career sites usually
-            have one, they just do not link it.
+            {t('watchlist.thesePublishNothingAMachine')}
           </Hint>
           <ul class="divide-y divide-line">
             {rest.map((r) => (
               <li class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 py-2">
-                <div class="min-w-0">
+                <div class="min-w-0" translate="no">
                   <span class="text-label text-ink">{r.name}</span>{' '}
                   <a href={r.input.url} class="text-meta text-ink-faint underline" rel="noreferrer noopener" target="_blank">
                     {r.input.url}
@@ -339,8 +320,8 @@ export const WatchlistPreviewPage: FC<{ run: WatchlistRun }> = ({ run }) => {
 
       {run.rejected.length > 0 && (
         <Card class="mb-4">
-          <SectionTitle>Lines with no URL ({run.rejected.length})</SectionTitle>
-          <ul class="mt-2 flex flex-col gap-1 text-note text-ink-muted">
+          <SectionTitle>{t('watchlist.preview.noUrlLines', { n: run.rejected.length })}</SectionTitle>
+          <ul class="mt-2 flex flex-col gap-1 text-note text-ink-muted" translate="no">
             {run.rejected.map((line) => (
               <li>
                 <Code>{line}</Code>
@@ -351,7 +332,7 @@ export const WatchlistPreviewPage: FC<{ run: WatchlistRun }> = ({ run }) => {
       )}
 
       <Button href="/companies" variant="secondary">
-        Back to companies
+        {t('watchlist.backToCompaniesList')}
       </Button>
     </Layout>
   );
@@ -364,20 +345,15 @@ export const WatchlistSection: FC<{ rows: WatchedRow[] }> = ({ rows }) => {
     <Card class="mb-4" flush>
       <div class="px-5 pt-4">
         <SectionTitle>
-          Watchlist <Badge tone="ok">{rows.length}</Badge>
+          {t('watchlist.title')} <Badge tone="ok">{rows.length}</Badge>
         </SectionTitle>
         <Hint>
-          Companies you chose by hand, checked on the same tick as your search. &ldquo;Every
-          posting&rdquo; alerts you about everything they put up, whatever your fit threshold says.
+          {t('watchlist.companiesYouChoseByHand')}
         </Hint>
-        <More class="mb-3 mt-1">
-          They follow your schedule — set it on Settings → General. A row marked <em>Page
-          changes</em> publishes no board and no feed: its jobs cannot be read, so the page&rsquo;s
-          text is watched and you are told when it moves.
-        </More>
+        <More class="mb-3 mt-1">{tRich('watchlist.more', {}, { em: (words) => <em>{words}</em> })}</More>
       </div>
       <Table
-        columns={['Company', 'Checked', 'Alerts', 'Next check', 'New', '']}
+        columns={[t('common.company'), t('watchlist.col.checked'), t('watchlist.col.alerts'), t('watchlist.col.nextCheck'), t('watchlist.col.new'), '']}
         widths={['w-[24%]', 'w-[16%]', 'w-[16%]', 'w-[13%]', 'w-[7%]', 'w-[24%]']}
         hideBelow={['', '', '', 'sm', '', '']}
         thClasses={['', '', '', '', '', 'text-right']}
@@ -385,25 +361,27 @@ export const WatchlistSection: FC<{ rows: WatchedRow[] }> = ({ rows }) => {
         {rows.map((r) => (
           <Tr>
             <Td>
-              <div class="truncate font-medium text-ink" title={r.name}>
+              <div class="truncate font-medium text-ink" title={r.name} translate="no">
                 ★ {r.name}
               </div>
               <div class="mt-0.5 flex flex-wrap items-center gap-2 text-meta text-ink-faint">
-                <Tag>{sourceLabel(r.atsType)}</Tag>
-                {!r.active && !needsPaste(r) && <Badge tone="warn">Off</Badge>}
+                <span translate="no">
+                  <Tag>{sourceLabel(r.atsType)}</Tag>
+                </span>
+                {!r.active && !needsPaste(r) && <Badge tone="warn">{t('watchlist.off')}</Badge>}
               </div>
             </Td>
             <Td class="text-ink-muted">
               {needsPaste(r) ? (
-                <span class="text-note" title="The page draws its jobs in the browser, so there is nothing for a check to read.">
-                  Not checked
+                <span class="text-note" title={t('watchlist.thePageDrawsItsJobs')}>
+                  {t('watchlist.notChecked')}
                 </span>
               ) : (
                 <form method="post" action={`/companies/${r.id}/watch`}>
                   {INTERVAL_SELECT('checkEvery', r.checkEvery, r.name)}
                   <input type="hidden" name="alertPolicy" value={r.alertPolicy} />
                   <noscript>
-                    <Button size="sm" variant="secondary">Save</Button>
+                    <Button size="sm" variant="secondary">{t('common.save')}</Button>
                   </noscript>
                 </form>
               )}
@@ -411,47 +389,47 @@ export const WatchlistSection: FC<{ rows: WatchedRow[] }> = ({ rows }) => {
             <Td class="text-ink-muted">
               {needsPaste(r) ? (
                 <a href="#browser-pages" class="text-note font-medium text-accent-strong hover:text-accent-deep">
-                  Paste the page
+                  {t('watchlist.pasteThePage')}
                 </a>
               ) : isChangeWatch(r) ? (
-                <span class="text-note" title="This page publishes no board and no feed, so there are no postings to score — we tell you when its text changes, at most once a day.">
-                  Page changes
+                <span class="text-note" title={t('watchlist.thisPagePublishesNoBoard')}>
+                  {t('watchlist.pageChanges')}
                 </span>
               ) : (
                 <form method="post" action={`/companies/${r.id}/watch`}>
                   {POLICY_SELECT('alertPolicy', r.alertPolicy, r.name)}
                   <input type="hidden" name="checkEvery" value={r.checkEvery} />
                   <noscript>
-                    <Button size="sm" variant="secondary">Save</Button>
+                    <Button size="sm" variant="secondary">{t('common.save')}</Button>
                   </noscript>
                 </form>
               )}
             </Td>
             <Td class="whitespace-nowrap text-ink-muted">
-              {needsPaste(r) ? '—' : r.nextCheckAt === null ? 'next tick' : formatUntil(r.nextCheckAt)}
+              {needsPaste(r) ? '—' : r.nextCheckAt === null ? t('watchlist.nextTick') : formatUntil(r.nextCheckAt)}
             </Td>
             <Td class="whitespace-nowrap">
               {needsPaste(r) ? (
                 <span class="text-note text-ink-faint">
                   {r.paste === null
-                    ? 'not pasted yet'
+                    ? t('watchlist.notPastedYet')
                     : r.paste.added.length > 0
-                      ? `${r.paste.added.length} new · ${formatRelative(r.paste.at)}`
-                      : `pasted ${formatRelative(r.paste.at)}`}
+                      ? t('watchlist.paste.newAt', { n: r.paste.added.length, when: formatRelative(r.paste.at) })
+                      : t('watchlist.paste.pastedAt', { when: formatRelative(r.paste.at) })}
                 </span>
               ) : isChangeWatch(r) ? (
-                <span class="text-note text-ink-faint" title="A change watch never stores postings.">
+                <span class="text-note text-ink-faint" title={t('watchlist.aChangeWatchNeverStores')}>
                   {r.changePending
-                    ? 'changed · notice waiting'
+                    ? t('watchlist.changedNoticeWaiting')
                     : r.lastContentAlertAt
-                      ? `changed ${formatRelative(r.lastContentAlertAt)}`
-                      : 'watching'}
+                      ? t('watchlist.changedAt', { when: formatRelative(r.lastContentAlertAt) })
+                      : t('watchlist.watching')}
                 </span>
               ) : r.newJobs > 0 ? (
                 <a
                   href={`/jobs?q=${encodeURIComponent(r.name)}`}
                   class="font-medium text-accent-strong hover:text-accent-deep"
-                  aria-label={`${r.newJobs} posting${r.newJobs === 1 ? '' : 's'} from ${r.name} in the last week`}
+                  aria-label={t('watchlist.newJobsAria', { n: r.newJobs, name: r.name })}
                 >
                   {r.newJobs}
                 </a>
@@ -465,13 +443,13 @@ export const WatchlistSection: FC<{ rows: WatchedRow[] }> = ({ rows }) => {
                   stays the first words of the accessible one (WCAG 2.5.3). */}
               <div class="flex flex-wrap items-center justify-end gap-2">
                 {needsPaste(r) ? (
-                  <Button href={r.atsToken} target="_blank" rel="noopener" size="sm" variant="secondary" aria-label={`Open ${r.name}'s page`}>
-                    Open ↗
+                  <Button href={r.atsToken} target="_blank" rel="noopener" size="sm" variant="secondary" aria-label={t('watchlist.openPageOf', { name: r.name })}>
+                    {t('watchlist.open')}
                   </Button>
                 ) : (
                   <ActionForm action={`/companies/${r.id}/check-now`}>
-                    <Button size="sm" variant="secondary" aria-label={`Check ${r.name} now`}>
-                      Check now
+                    <Button size="sm" variant="secondary" aria-label={t('watchlist.checkNamedNow', { name: r.name })}>
+                      {t('watchlist.checkNow')}
                     </Button>
                   </ActionForm>
                 )}
@@ -479,19 +457,19 @@ export const WatchlistSection: FC<{ rows: WatchedRow[] }> = ({ rows }) => {
                   // Nothing else reads this row, so leaving the watchlist is removing it.
                   <ConfirmAction
                     action={`/companies/${r.id}/delete`}
-                    label="Remove"
+                    label={t('common.remove')}
                     variant="ghost"
-                    ariaLabel={`Remove ${r.name} from the watchlist`}
-                    confirm={`Remove ${r.name} from the watchlist? What you pasted from its page goes with it.`}
+                    ariaLabel={t('watchlist.removeNamed', { name: r.name })}
+                    confirm={t('watchlist.removeConfirm', { name: r.name })}
                   />
                 ) : (
                   <ActionForm action={`/companies/${r.id}/unwatch`}>
                     <Button
                       size="sm"
                       variant="ghost"
-                      aria-label={`Unwatch ${r.name} — it stays in the hourly tick`}
+                      aria-label={t('watchlist.unwatchNamed', { name: r.name })}
                     >
-                      Unwatch
+                      {t('watchlist.unwatch')}
                     </Button>
                   </ActionForm>
                 )}
@@ -514,39 +492,37 @@ export const WatchlistSection: FC<{ rows: WatchedRow[] }> = ({ rows }) => {
 const BrowserPages: FC<{ rows: WatchedRow[] }> = ({ rows }) =>
   rows.length === 0 ? null : (
     <div id="browser-pages" class="scroll-mt-4 border-t border-line px-5 py-4">
-      <div class="text-label text-ink">Pages drawn in the browser</div>
+      <div class="text-label text-ink">{t('watchlist.pagesDrawnInTheBrowser')}</div>
       <Hint class="mt-0.5">
-        Their jobs appear only when a browser runs the page, so ApplyPack cannot read them. Open one, select all of it,
-        copy, and paste it here: you see what is new since the last paste and which lines look like roles your searches
-        want. No AI, and nothing is stored as a job.
+        {t('watchlist.theirJobsAppearOnlyWhen')}
       </Hint>
       <div class="mt-3 space-y-3">
         {rows.map((r) => (
-          <Disclosure summary={`Paste ${r.name}'s page`} open={r.paste === null && rows.length === 1}>
+          <Disclosure summary={t('watchlist.pastePageOf', { name: r.name })} open={r.paste === null && rows.length === 1}>
             <form method="post" action={`/companies/${r.id}/paste`} class="mt-2 space-y-2">
               <Textarea
                 name="page"
                 rows={5}
                 required
-                aria-label={`The text of ${r.name}'s careers page`}
-                placeholder="Select all on the careers page, copy, paste here"
+                aria-label={t('watchlist.pageTextOf', { name: r.name })}
+                placeholder={t('watchlist.pastePlaceholder')}
               />
               <Button size="sm" variant="secondary">
-                Read it
+                {t('watchlist.readIt')}
               </Button>
             </form>
             {r.paste && (r.paste.added.length > 0 || r.paste.roles.length > 0) && (
               <div class="mt-3">
                 <Hint>
                   {r.paste.added.length > 0
-                    ? `Your last paste (${formatRelative(r.paste.at)}) had these new lines:`
-                    : `Your last paste (${formatRelative(r.paste.at)}) had these lines your searches want:`}
+                    ? t('watchlist.paste.lastNew', { when: formatRelative(r.paste.at) })
+                    : t('watchlist.paste.lastRoles', { when: formatRelative(r.paste.at) })}
                 </Hint>
                 <ul class="mt-1 space-y-0.5 text-sm text-ink">
                   {(r.paste.added.length > 0 ? r.paste.added : r.paste.roles).slice(0, MAX_LISTED_LINES).map((line) => (
                     <li class="flex flex-wrap items-center gap-2">
-                      <span>{line}</span>
-                      {r.paste?.roles.includes(line) && r.paste.added.length > 0 && <Badge tone="ok">your search</Badge>}
+                      <span translate="no">{line}</span>
+                      {r.paste?.roles.includes(line) && r.paste.added.length > 0 && <Badge tone="ok">{t('watchlist.yourSearch')}</Badge>}
                     </li>
                   ))}
                 </ul>

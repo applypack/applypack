@@ -1,5 +1,8 @@
 import { flagOf, groupsOf, placeLabel } from '../countries';
 import { ADZUNA_MARKETS, adzunaCodeFor } from '../fetchers/adzuna';
+import type { MessageKey } from '../i18n/catalog';
+import { placeName } from '../i18n/places';
+import { t } from '../i18n/t';
 import type { WorkplaceCode } from '../location';
 
 /*
@@ -72,12 +75,17 @@ const MAX_FEEDS_PER_SEARCH = 3;
 const ARBEITNOW_COUNTRIES = ['DE', 'AT', 'CH', 'GB'];
 const ARBEITNOW_REGIONS = ['DACH', 'UK_IE'];
 
-/** The DevITjobs family: one site per country, offered when a search names it. */
-const DEVITJOBS_SITES: readonly { host: string; name: string; countries: string[]; regions: string[]; flag: string; place: string }[] = [
-  { host: 'germantechjobs.de', name: 'GermanTechJobs', countries: ['DE'], regions: ['DACH'], flag: '🇩🇪', place: 'Germany' },
-  { host: 'devitjobs.uk', name: 'DevITjobs UK', countries: ['GB'], regions: ['UK_IE'], flag: '🇬🇧', place: 'the UK' },
-  { host: 'devitjobs.nl', name: 'DevITjobs NL', countries: ['NL'], regions: ['BENELUX'], flag: '🇳🇱', place: 'the Netherlands' },
+/** The DevITjobs family: one site per country, offered when a search names it. `reason` is the catalog's sentence for that country. */
+const DEVITJOBS_SITES: readonly { host: string; name: string; countries: string[]; regions: string[]; reason: MessageKey }[] = [
+  { host: 'germantechjobs.de', name: 'GermanTechJobs', countries: ['DE'], regions: ['DACH'], reason: 'sources.reason.germany' },
+  { host: 'devitjobs.uk', name: 'DevITjobs UK', countries: ['GB'], regions: ['UK_IE'], reason: 'sources.reason.uk' },
+  { host: 'devitjobs.nl', name: 'DevITjobs NL', countries: ['NL'], regions: ['BENELUX'], reason: 'sources.reason.netherlands' },
 ];
+
+/** "🇺🇦 Ukraine in "PHP/Laravel"": the country that calls for a source and the search that names it, in the reader's language. */
+function placeReason(country: string, search: string): string {
+  return t('sources.reason.place', { flag: flagOf(country), place: placeName(country), search });
+}
 
 /** Sources that need the user's own account with the vendor (ADR 0034). */
 const KEYED: readonly string[] = ['ADZUNA', 'FRANCETRAVAIL'];
@@ -107,7 +115,7 @@ export function suggestSources(
   for (const search of searches) {
     const remote = search.workplace.length === 0 || search.workplace.includes('REMOTE');
     if (search.countries.includes('UA') || search.regions.includes('CEE')) {
-      const reason = `🇺🇦 Ukraine in "${search.name}"`;
+      const reason = placeReason('UA', search.name);
       for (const category of pick(search.stackRequired, DOU_CATEGORY)) {
         offer({
           name: `DOU · ${category}${remote ? ', remote' : ''}`,
@@ -134,7 +142,7 @@ export function suggestSources(
         atsType: 'SOLIDJOBS',
         atsToken: 'solidjobs',
         careerUrl: 'https://solid.jobs',
-        reason: `🇵🇱 Poland in "${search.name}"`,
+        reason: placeReason('PL', search.name),
       });
     }
     if (search.countries.includes('PT')) {
@@ -143,7 +151,7 @@ export function suggestSources(
         atsType: 'LANDINGJOBS',
         atsToken: 'landingjobs',
         careerUrl: 'https://landing.jobs',
-        reason: `🇵🇹 Portugal in "${search.name}"`,
+        reason: placeReason('PT', search.name),
       });
     }
     // Adzuna serves nineteen markets with the user's own free key (ADR 0034);
@@ -156,7 +164,7 @@ export function suggestSources(
         atsType: 'ADZUNA',
         atsToken: code,
         careerUrl: `https://${ADZUNA_MARKETS[code]?.domain ?? 'www.adzuna.com'}/`,
-        reason: `${flagOf(country)} ${placeLabel(country)} in "${search.name}"`,
+        reason: placeReason(country, search.name),
       });
     }
     if (search.countries.includes('FR')) {
@@ -165,7 +173,7 @@ export function suggestSources(
         atsType: 'FRANCETRAVAIL',
         atsToken: 'codeROME=M1805',
         careerUrl: 'https://candidat.francetravail.fr/offres/recherche?codeROME=M1805',
-        reason: `🇫🇷 France in "${search.name}"`,
+        reason: placeReason('FR', search.name),
       });
     }
     if (search.countries.includes('SE') || search.regions.includes('NORDICS')) {
@@ -174,7 +182,7 @@ export function suggestSources(
         atsType: 'JOBTECH',
         atsToken: 'occupation-field=apaJ_2ja_LuF',
         careerUrl: 'https://arbetsformedlingen.se/platsbanken/annonser?q=&occupation-field=apaJ_2ja_LuF',
-        reason: `🇸🇪 Sweden in "${search.name}"`,
+        reason: placeReason('SE', search.name),
       });
     }
     for (const site of DEVITJOBS_SITES) {
@@ -185,13 +193,13 @@ export function suggestSources(
         atsType: 'DEVITJOBS',
         atsToken: site.host,
         careerUrl: `https://${site.host}`,
-        reason: `${site.flag} ${site.place} in "${search.name}"`,
+        reason: t(site.reason, { search: search.name }),
       });
     }
     const germanOrBritish =
       search.countries.some((c) => ARBEITNOW_COUNTRIES.includes(c)) || search.regions.some((r) => ARBEITNOW_REGIONS.includes(r));
     if (germanOrBritish) {
-      const reason = `🇩🇪🇬🇧 Germany or the UK in "${search.name}"`;
+      const reason = t('sources.reason.germanyOrUk', { search: search.name });
       offer({ name: 'Arbeitnow Feed', atsType: 'ARBEITNOW', atsToken: 'arbeitnow', careerUrl: 'https://www.arbeitnow.com', reason });
       offer({
         name: 'Arbeitnow · visa sponsorship',

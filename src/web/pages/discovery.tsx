@@ -22,6 +22,7 @@ import {
 
 import type { FlashMessage } from '../flash';
 import { sourceLabel } from '../source-names';
+import { t } from '../../i18n/t';
 
 export interface DiscoveryProps {
   discoveryEnabled: boolean;
@@ -42,9 +43,9 @@ export const DiscoveryPage: FC<DiscoveryProps> = ({
   dead,
   flash,
 }) => (
-  <Layout title="Discovery" active="discovery">
-    <PageHeader title="Discovery">
-      Company boards the HN parser spotted in comments. Promote one to fetch it from the next tick.
+  <Layout title={t('nav.discovery')} active="discovery">
+    <PageHeader title={t('nav.discovery')}>
+      {t('discovery.companyBoardsTheHnParser')}
     </PageHeader>
     <Flash flash={flash} />
 
@@ -52,46 +53,45 @@ export const DiscoveryPage: FC<DiscoveryProps> = ({
       <Card>
         <div class="space-y-5">
           <ToggleRow
-            label="Auto-discovery"
+            label={t('discovery.autoDiscovery')}
             enabled={discoveryEnabled}
             action="/discovery/toggle"
-            more="Pending candidates are probed again every week, so the job count beside each stays fresh."
+            more={t('discovery.pendingCandidatesAreProbedAgain')}
           >
-            A Greenhouse, Lever or Ashby URL in an HN comment lands its company here as a candidate.
+            {t('discovery.aGreenhouseLeverOrAshby')}
           </ToggleRow>
           <div class="border-t border-line pt-5">
             <ToggleRow
-              label={'HN "Who is hiring" parser'}
+              label={t('discovery.hnWhoIsHiringParser')}
               enabled={hnParserEnabled}
               action="/discovery/hn-parser-toggle"
               extra={
                 <ConfirmAction
                   action="/discovery/hn-run"
-                  label="Run now"
+                  label={t('discovery.runNow')}
                   variant="violet"
                   disabled={!hnParserEnabled}
-                  confirm="Pull the latest HN Who-is-hiring thread now? Takes 1-2 minutes and spends AI credit."
+                  confirm={t('discovery.pullTheLatestHnWho')}
                 />
               }
-              more="The first pull (on the 1st of the month, or Run now) adds the thread as a source; from then on the hourly fetch reads it with the others, so new comments arrive through the month. It runs to 300–500 comments; the structured ones go through the same filter → classify → alert pipeline as any posting. Many small startups post only there. Switching the source off on Settings → Sources stops it too."
+              more={t('discovery.theFirstPullOnThe')}
             >
-              Reads the latest "Ask HN: Who is hiring?" thread every hour once the first pull has added it; Run now spends AI credit.
+              {t('discovery.readsTheLatestAskHn')}
             </ToggleRow>
           </div>
         </div>
       </Card>
 
       <div>
-        <SectionTitle level="section">Pending review ({pending.length})</SectionTitle>
+        <SectionTitle level="section">{t('discovery.pendingN', { n: pending.length })}</SectionTitle>
         {pending.length === 0 ? (
-          <Empty title="No candidates yet">
-            A candidate is a company board found in a Hacker News hiring thread. Switch on the HN
-            parser and auto-discovery above, then press Run now.
+          <Empty title={t('discovery.noCandidatesYet')}>
+            {t('discovery.aCandidateIsACompany')}
           </Empty>
         ) : (
           <>
             <Hint class="mb-3">
-              Sorted by jobs currently visible on the board.
+              {t('discovery.sortedByJobsCurrentlyVisible')}
             </Hint>
             <CandidateTable rows={pending} actions />
           </>
@@ -100,19 +100,19 @@ export const DiscoveryPage: FC<DiscoveryProps> = ({
 
       {promoted.length > 0 && (
         <div>
-          <SectionTitle level="section">Promoted ({promoted.length})</SectionTitle>
+          <SectionTitle level="section">{t('discovery.promotedN', { n: promoted.length })}</SectionTitle>
           <CandidateTable rows={promoted} />
         </div>
       )}
       {ignored.length > 0 && (
         <div>
-          <SectionTitle level="section">Ignored ({ignored.length})</SectionTitle>
+          <SectionTitle level="section">{t('discovery.ignoredN', { n: ignored.length })}</SectionTitle>
           <CandidateTable rows={ignored} actions />
         </div>
       )}
       {dead.length > 0 && (
         <div>
-          <SectionTitle level="section">Dead ({dead.length})</SectionTitle>
+          <SectionTitle level="section">{t('discovery.deadN', { n: dead.length })}</SectionTitle>
           <CandidateTable rows={dead} />
         </div>
       )}
@@ -127,29 +127,34 @@ const CandidateTable: FC<{ rows: CompanyCandidate[]; actions?: boolean }> = ({
   <Card flush>
     <div class="overflow-x-auto">
       <div class="min-w-[52rem]">
-        <Table caption="Discovered boards"
+        <Table caption={t('discovery.discoveredBoards')}
           columns={[
-            'Name / token',
-            'ATS',
-            'Source',
-            <span class="block text-right">Jobs</span>,
-            <span class="block text-right">Discovered</span>,
-            ...(actions ? [<span class="block text-right">Actions</span>] : []),
+            t('discovery.col.nameToken'),
+            t('companies.ats'),
+            t('discovery.col.source'),
+            <span class="block text-right">{t('discovery.jobs')}</span>,
+            <span class="block text-right">{t('discovery.discovered')}</span>,
+            ...(actions ? [<span class="block text-right">{t('common.actions')}</span>] : []),
           ]}
         >
           {rows.map((c) => (
             <Tr>
               <Td class="max-w-[20rem]">
-                <div class="truncate font-medium text-ink">{c.name ?? c.atsToken}</div>
-                <div class="truncate font-mono text-meta text-ink-faint">{c.atsToken}</div>
-                {c.signal && (
-                  <div class="mt-0.5 truncate text-meta italic text-ink-faint" title={c.signal}>
-                    {c.signal}
-                  </div>
-                )}
+                {/* The board as found: its name, its token and the words around the link in the comment. */}
+                <div translate="no">
+                  <div class="truncate font-medium text-ink">{c.name ?? c.atsToken}</div>
+                  <div class="truncate font-mono text-meta text-ink-faint">{c.atsToken}</div>
+                  {c.signal && (
+                    <div class="mt-0.5 truncate text-meta italic text-ink-faint" title={c.signal}>
+                      {c.signal}
+                    </div>
+                  )}
+                </div>
               </Td>
               <Td>
-                <Tag>{sourceLabel(c.atsType)}</Tag>
+                <span translate="no">
+                  <Tag>{sourceLabel(c.atsType)}</Tag>
+                </span>
               </Td>
               <Td class="text-note text-ink-muted">
                 {c.sourceUrl ? (
@@ -157,13 +162,14 @@ const CandidateTable: FC<{ rows: CompanyCandidate[]; actions?: boolean }> = ({
                     href={c.sourceUrl}
                     target="_blank"
                     rel="noopener"
+                    translate="no"
                     class="transition-colors duration-150 hover:text-accent-strong"
                     title={c.source}
                   >
                     {c.source}
                   </a>
                 ) : (
-                  c.source
+                  <span translate="no">{c.source}</span>
                 )}
               </Td>
               <Td class="text-right tabular-nums text-ink-muted">{c.jobsSeen}</Td>
@@ -174,14 +180,14 @@ const CandidateTable: FC<{ rows: CompanyCandidate[]; actions?: boolean }> = ({
                 <Td>
                   <div class="flex justify-end gap-2">
                     <ActionForm action={`/discovery/${c.id}/promote`}>
-                      <Button size="sm">Promote</Button>
+                      <Button size="sm">{t('discovery.promote')}</Button>
                     </ActionForm>
                     <ActionForm action={`/discovery/${c.id}/ignore`}>
                       <Button size="sm" variant="secondary">
-                        Ignore
+                        {t('discovery.ignore')}
                       </Button>
                     </ActionForm>
-                    <ConfirmAction action={`/discovery/${c.id}/delete`} label="Delete" confirm="Delete this candidate permanently?" />
+                    <ConfirmAction action={`/discovery/${c.id}/delete`} label={t('common.delete')} confirm={t('discovery.deleteThisCandidatePermanently')} />
                   </div>
                 </Td>
               )}

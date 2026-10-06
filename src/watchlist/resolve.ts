@@ -12,6 +12,7 @@ import { boardHints, declaredJobFeeds, looksLikeChallenge, wellKnownFeeds } from
 import { MIN_WATCHABLE_CHARS, normalisePageText } from './page-hash';
 import { nameFromUrl, type CompanyInput } from './parse-input';
 import { boardMissReason } from './verdict';
+import { t } from '../i18n/t';
 
 /**
  * One pasted URL → what we can actually watch (TASKS §17 stage A, ADR 0036).
@@ -130,12 +131,12 @@ export async function resolveCompanyUrl(
   const page = await io.get(target.toString());
   requests++;
   if (page.status === 0) {
-    return { ...base, resolution: { kind: 'refused', reason: 'That site did not answer.' }, requests };
+    return { ...base, resolution: { kind: 'refused', reason: t('watchlist.refused.noAnswer') }, requests };
   }
   if (page.status < 200 || page.status >= 300) {
     return {
       ...base,
-      resolution: { kind: 'refused', reason: `That URL answered HTTP ${page.status} — check the link.` },
+      resolution: { kind: 'refused', reason: t('watchlist.refused.http', { status: page.status }) },
       requests,
     };
   }
@@ -187,7 +188,7 @@ export async function resolveCompanyUrl(
   if (looksLikeChallenge(page.body)) {
     return {
       ...named,
-      resolution: { kind: 'refused', reason: 'That page answered with a bot check — find the company on a supported ATS instead.' },
+      resolution: { kind: 'refused', reason: t('watchlist.refused.botCheck') },
       requests,
     };
   }
