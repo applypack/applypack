@@ -4,6 +4,32 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.55.0] — 2026-10-06
+
+### Changed
+- **Settings, second readability pass.** Every on/off setting is a switch
+  with its state in words beside it, instead of a state pill next to an
+  Enable / Disable button; a press on the label flips it too, and it works
+  without JavaScript.
+- Every message is switched under **Notifications**: the follow-up reminders
+  moved there beside source problems, and Applications says whether they are
+  on. The daily summary's hours are up to four time pickers with "+ Add
+  another time", instead of 24 hour pills.
+- Each search profile on **Job search** carries one line of what it hunts —
+  target roles, core skills, where and the minimum fit — and the editor's
+  Save buttons stay at the bottom of the window while it scrolls.
+- **AI & costs** opens with one sentence: which engine answers every task,
+  on whose money, who stands behind it, and what was billed this month.
+- The interface language is one picker; a screening's retention is a choice
+  of 30 / 60 / 90 (recommended) / 180 / 365 days; **Employer tools** opens
+  with a short checklist of what is in place before applicants are read.
+- A kind of your own source with nothing in it yet (a feed, a careers page, a
+  folder) shows where to add one instead of a switch that would switch
+  nothing.
+- Long explanations under Sources, AI & costs, Automation and Employer tools
+  fold behind "How this works"; costs, limits and privacy warnings stay in
+  sight.
+
 ## [2.54.0] — 2026-10-06
 
 ### Changed
@@ -5013,6 +5039,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.55.0]: https://github.com/applypack/applypack/compare/v2.54.0...v2.55.0
 [2.54.0]: https://github.com/applypack/applypack/compare/v2.53.0...v2.54.0
 [2.53.0]: https://github.com/applypack/applypack/compare/v2.52.0...v2.53.0
 [2.52.0]: https://github.com/applypack/applypack/compare/v2.51.0...v2.52.0

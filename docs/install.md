@@ -67,7 +67,7 @@ the list of migrations it applies. Later starts take a few seconds.
 | Update | `git pull` (or download the new ZIP), then `npm install` and `npm start` — your data stays, it lives outside the folder |
 | Back up | automatic: each day's first start copies the database to `snapshots/<date>` in the data folder, three days kept (`APPLYPACK_SNAPSHOTS` in `.env` changes the count, `0` turns it off). For a copy elsewhere: stop ApplyPack and copy the data folder |
 | Restore | stop ApplyPack, move the data folder's `postgres` aside, copy `snapshots/<date>/postgres` in its place, start |
-| Start at login | Settings → General → **Start with this computer**: one button writes the system's own login entry (a launchd agent, a systemd user service, a Startup script), the same button takes it away |
+| Start at login | Settings → General → **Start with this computer**: one switch writes the system's own login entry (a launchd agent, a systemd user service, a Startup script), and switching it off takes it away |
 | Move a Docker install here | see below |
 | Uninstall | delete the ApplyPack folder; delete the data folder too if you want the data gone |
 
