@@ -3951,5 +3951,6 @@
   "pack.why.postingGone": "La oferta ya no existe.",
   "pack.why.noResume": "No hay ningún currículum vinculado a la búsqueda que encontró esta oferta. Vincula uno en Configuración → Búsquedas → “Currículum para esta búsqueda” y vuelve a preparar el paquete.",
   "pack.why.noResumeMade": "El paquete terminó sin un currículum que mostrar.",
-  "language.trigger": "Idioma: {language}"
+  "language.trigger": "Idioma: {language}",
+  "engine.probe.ollamaReason": "Ollama · {reason}"
 }
