@@ -7,6 +7,7 @@ import {
   intlTag,
   isLocale,
   isSelectableLocale,
+  languageKeptAtSetup,
   matchAcceptLanguage,
   offeredLocales,
   unfinishedLocales,
@@ -88,5 +89,15 @@ describe('matchAcceptLanguage', () => {
   it('survives a header that is not one', () => {
     assert.equal(matchAcceptLanguage(';;;,,q=,;q=abc,uk;q=abc', among), null);
     assert.equal(matchAcceptLanguage(`${'xx,'.repeat(500)}uk`, among), null);
+  });
+});
+
+describe('languageKeptAtSetup (#355)', () => {
+  it('keeps the language the wizard was read in', () => {
+    assert.equal(languageKeptAtSetup('uk'), 'uk');
+  });
+
+  it('stores nothing for an English wizard, so the browser can still be invited later', () => {
+    assert.equal(languageKeptAtSetup('en'), null);
   });
 });

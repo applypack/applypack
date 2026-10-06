@@ -88,6 +88,16 @@ export function currentLocale(): Locale {
   return current.getStore() ?? SOURCE_LOCALE;
 }
 
+/**
+ * The language finishing setup stores (#355): the one the wizard was read in,
+ * unless that was the source language. A wizard in English chose nothing — the
+ * browser's language may simply not have been offered yet — and storing English
+ * there would keep that install from ever being invited to the language later.
+ */
+export function languageKeptAtSetup(shownIn: Locale): Locale | null {
+  return shownIn === SOURCE_LOCALE ? null : shownIn;
+}
+
 /** How much of an Accept-Language header is read: a browser sends a handful of entries, never a page of them. */
 const MAX_ACCEPT_ENTRIES = 20;
 

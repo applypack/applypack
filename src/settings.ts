@@ -8,7 +8,8 @@ import { parseSourceKeys, type KeyedSource, type SourceKeyField, type SourceKeys
 import { parsePackSettings, type PackSettings } from './pack/settings';
 import { parseSchedule, type Schedule } from './user-schedule';
 import { config } from './config';
-import { isLocale, type Locale } from './i18n/locale';
+import { isLocale, languageKeptAtSetup, type Locale } from './i18n/locale';
+import { t } from './i18n/t';
 
 export const SETTINGS_ID = 1;
 const TELEGRAM_API = 'https://api.telegram.org';
@@ -176,7 +177,8 @@ export async function getInstanceId(): Promise<string> {
  * Marks the first-run wizard as finished (or skipped); `/` stops redirecting.
  * `shownIn` is the language the wizard was read in: with none chosen yet it
  * becomes the choice, so the interface does not turn English the moment setup
- * ends (ADR 0061). A language already chosen is left alone.
+ * ends (ADR 0061) — unless it was English, which chose nothing
+ * (`locale.ts:languageKeptAtSetup`, #355). A language already chosen is left alone.
  */
 export async function setSetupCompleted(shownIn: Locale): Promise<void> {
   await prisma.appSettings.upsert({
@@ -184,7 +186,8 @@ export async function setSetupCompleted(shownIn: Locale): Promise<void> {
     update: { setupCompletedAt: new Date() },
     create: { id: SETTINGS_ID, setupCompletedAt: new Date() },
   });
-  await prisma.appSettings.updateMany({ where: { id: SETTINGS_ID, locale: null }, data: { locale: shownIn } });
+  const kept = languageKeptAtSetup(shownIn);
+  if (kept) await prisma.appSettings.updateMany({ where: { id: SETTINGS_ID, locale: null }, data: { locale: kept } });
   logger.info('settings: setup marked complete');
 }
 
@@ -667,7 +670,8 @@ export async function testTelegramTarget(
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         chat_id: chatId,
-        text: '✅ ApplyPack test — this target is configured correctly.',
+        // Plain text, no parse mode: the catalog's words need no escaping here.
+        text: t('notify.targetTest'),
         disable_web_page_preview: true,
       }),
       signal: ctrl.signal,
