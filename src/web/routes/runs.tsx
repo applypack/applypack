@@ -8,6 +8,7 @@ import { FETCH_RUN_STEPS, activeFetchRun, getFetchRun } from '../fetch-runs';
 import { beginFetchNow } from '../fetch-now';
 import { summarizeFetchRun } from '../fetch-summary';
 import { loadFunnel, loadSourceYield } from '../../jobs/funnel-store';
+import { t } from '../../i18n/t';
 
 const RUNS_LIMIT = 100;
 
@@ -65,11 +66,11 @@ runsRoute.get('/runs/fetch-now/:id', (c) => {
     return flashRedirect(
       '/runs',
       'err',
-      'That fetch run is gone (live progress lasts ~30 min) — its row below still has the result.',
+      t('runs.fetchRunGone'),
     );
   }
   if (run.stage === 'done') {
-    const { kind, text } = summarizeFetchRun(run.stats ?? {}, typeof run.scope === 'object' ? `Checked ${run.scope.name}` : undefined);
+    const { kind, text } = summarizeFetchRun(run.stats ?? {}, typeof run.scope === 'object' ? t('runs.checked', { name: run.scope.name }) : undefined);
     return flashRedirect(run.backUrl, kind, text);
   }
   return c.html(<FetchRunPage run={run} />);

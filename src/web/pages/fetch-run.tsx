@@ -61,7 +61,7 @@ export const FetchRunPage: FC<{ run: FetchRun }> = ({ run }) => {
           {failed ? (
             <div class="mt-4 space-y-4">
               <Notice tone="danger" role="alert">
-                {run.error ?? FETCH_FAILED}
+                {run.error ?? t(FETCH_FAILED)}
               </Notice>
               <div class="flex flex-wrap gap-2">
                 <Button href={run.backUrl} variant="secondary">

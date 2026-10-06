@@ -13,6 +13,7 @@ import {
   type StageDef,
 } from '../stage-config';
 import type { StageTimeLine } from '../stage-time';
+import { t } from '../../i18n/t';
 
 export interface ApplicationCard {
   id: number;
@@ -53,10 +54,10 @@ const StageCard: FC<{ card: ApplicationCard; stage: string; work: StageDef[] }> 
       href={`/jobs/${card.id}`}
       class="block rounded-t-md p-3 transition-colors duration-150 hover:bg-surface-overlay/60"
     >
-      <div class="line-clamp-2 text-sm font-medium leading-snug text-ink">
+      <div class="line-clamp-2 text-sm font-medium leading-snug text-ink" translate="no">
         {card.title}
       </div>
-      <div class="mt-1 truncate text-note text-ink-muted">
+      <div class="mt-1 truncate text-note text-ink-muted" translate="no">
         {card.companyName}
       </div>
       <div class="mt-2 flex items-center justify-between gap-2">
@@ -66,7 +67,7 @@ const StageCard: FC<{ card: ApplicationCard; stage: string; work: StageDef[] }> 
           }`}
           title={card.stageLine?.since.toISOString().slice(0, 10)}
         >
-          {card.stageLine?.text ?? 'no apply date'}
+          {card.stageLine?.text ?? t('applications.noApplyDate')}
           {card.recruiterContact ? ` · ${card.recruiterContact}` : ''}
         </span>
         <FitBadge score={card.fitScore} />
@@ -78,7 +79,7 @@ const StageCard: FC<{ card: ApplicationCard; stage: string; work: StageDef[] }> 
       class="quick-move flex items-center gap-1.5 border-t border-line px-2 py-1.5"
     >
       <label class="sr-only" for={`move-${card.id}`}>
-        Move {card.title} to stage
+        {t('applications.moveToStage', { title: card.title })}
       </label>
       <select
         id={`move-${card.id}`}
@@ -93,8 +94,8 @@ const StageCard: FC<{ card: ApplicationCard; stage: string; work: StageDef[] }> 
             </option>
           ))}
       </select>
-      <Button size="sm" variant="secondary" aria-label={`Move ${card.title}`}>
-        Move
+      <Button size="sm" variant="secondary" aria-label={t('applications.moveCard', { title: card.title })}>
+        {t('applications.move')}
       </Button>
     </form>
   </li>
@@ -155,12 +156,12 @@ export const ApplicationsPage: FC<ApplicationsProps> = ({
   const closedCount = closedColumns.reduce((sum, s) => sum + count(s.key), 0);
 
   return (
-    <Layout title="Applications" active="applications" fill>
+    <Layout title={t('applications.applications')} active="applications" fill>
       <PageHeader
-        title="Applications"
+        title={t('applications.applications')}
         meta={
           applicationTrackingEnabled
-            ? `${activeCount} active${closedCount > 0 ? ` · ${closedCount} closed` : ''}`
+            ? t(closedCount > 0 ? 'applications.metaClosed' : 'applications.meta', { active: activeCount, closed: closedCount })
             : undefined
         }
         actions={
@@ -169,52 +170,52 @@ export const ApplicationsPage: FC<ApplicationsProps> = ({
               {/* TASKS N7: the board as a file, for the spreadsheet people keep anyway. */}
               {activeCount + closedCount > 0 && (
                 <>
-                  <Button href="/applications/export.csv" variant="secondary" size="sm" title="Every application, one row each">
-                    CSV
+                  <Button href="/applications/export.csv" variant="secondary" size="sm" title={t('applications.everyApplicationOneRowEach')}>
+                    {t('applications.csv')}
                   </Button>
-                  <Button href="/applications/export.md" variant="secondary" size="sm" title="Every application, by column">
-                    Markdown
+                  <Button href="/applications/export.md" variant="secondary" size="sm" title={t('applications.everyApplicationByColumn')}>
+                    {t('applications.markdown')}
                   </Button>
                 </>
               )}
               <Button href="/settings?tab=general#stages" variant="ghost" size="sm">
-                Edit columns
+                {t('applications.editColumns')}
               </Button>
             </div>
           ) : undefined
         }
       >
-        {applicationTrackingEnabled && 'Where each application stands. Drag a card to move it.'}
+        {applicationTrackingEnabled && t('applications.whereEachApplicationStandsDrag')}
       </PageHeader>
       <Flash flash={flash} />
 
       {!applicationTrackingEnabled ? (
         <Empty
-          title="Application tracking is off"
+          title={t('applications.applicationTrackingIsOff')}
           action={
             <Button href="/settings?tab=general" variant="secondary" size="sm">
-              Turn it on in Settings
+              {t('applications.turnItOnInSettings')}
             </Button>
           }
         >
-          The board lists every job you applied to, by stage. It stays empty while tracking is off.
+          {t('applications.theBoardListsEveryJob')}
         </Empty>
       ) : (
         <>
         {/* TASKS U5: an empty board says how a card gets onto it, once, above the empty columns. */}
         {Object.values(byStage).every((items) => items.length === 0) && (
           <Empty
-            title="Nothing on the board yet"
+            title={t('applications.nothingOnTheBoardYet')}
             action={
               <Button href="/jobs" variant="secondary" size="sm">
-                Open your jobs
+                {t('applications.openYourJobs')}
               </Button>
             }
           >
-            Mark a job Applied in its Application tracking panel and it lands in the first column.
+            {t('applications.markAJobAppliedIn')}
           </Empty>
         )}
-        <nav aria-label="Stages" class="mb-3 flex flex-wrap gap-1.5 md:hidden">
+        <nav aria-label={t('applications.stages')} class="mb-3 flex flex-wrap gap-1.5 md:hidden">
           {columns.map((s) => (
             <a
               href={`#stage-col-${s.key}`}
@@ -229,7 +230,7 @@ export const ApplicationsPage: FC<ApplicationsProps> = ({
               href="#closed"
               class="inline-flex min-h-[32px] items-center gap-1 rounded-md border border-line bg-surface-raised px-3 text-meta text-ink-muted"
             >
-              Closed <span class="tabular-nums text-ink-faint">{closedCount}</span>
+              {t('applications.closed')} <span class="tabular-nums text-ink-faint">{closedCount}</span>
             </a>
           )}
         </nav>
@@ -256,7 +257,7 @@ export const ApplicationsPage: FC<ApplicationsProps> = ({
                   <ul class="min-h-0 flex-1 space-y-2 overflow-y-auto px-3 pb-3">
                     {items.length === 0 ? (
                       // A quiet line, not a dashed well: the column's surface already says "a place to drop".
-                      <li class="hidden px-1 py-1 text-meta text-ink-faint md:block">No applications</li>
+                      <li class="hidden px-1 py-1 text-meta text-ink-faint md:block">{t('applications.noApplications')}</li>
                     ) : (
                       items.map((c) => <StageCard card={c} stage={s.key} work={work} />)
                     )}
@@ -268,10 +269,13 @@ export const ApplicationsPage: FC<ApplicationsProps> = ({
         {closedCount > 0 && (
           <details id="closed" class="mt-4 scroll-mt-4 rounded-lg bg-surface-overlay">
             <summary class="cursor-pointer select-none rounded-lg px-4 py-2.5 text-sm font-medium text-ink-muted transition-colors duration-150 hover:text-ink">
-              Closed
+              {t('applications.closed')}
               <span class="ml-2 text-meta font-normal text-ink-faint">
-                {count('rejected')} rejected · {count('ghosted')} ghosted
-                {stranded ? ` · ${count(UNFILED_STAGE.key)} unfiled` : ''}
+                {t(stranded ? 'applications.closedCountsUnfiled' : 'applications.closedCounts', {
+                  rejected: count('rejected'),
+                  ghosted: count('ghosted'),
+                  unfiled: count(UNFILED_STAGE.key),
+                })}
               </span>
             </summary>
             <div class="grid gap-4 border-t border-line/70 p-4 md:grid-cols-2">
@@ -293,13 +297,12 @@ export const ApplicationsPage: FC<ApplicationsProps> = ({
                     </div>
                     {s.key === UNFILED_STAGE.key && (
                       <p data-ui="hint" class="pb-2 text-meta text-ink-faint">
-                        The column these were in was removed. Move each one to a
-                        column that still exists.
+                        {t('applications.theColumnTheseWereIn')}
                       </p>
                     )}
                     <ul class="space-y-2">
                       {items.length === 0 ? (
-                        <li class="px-1 py-1 text-meta text-ink-faint">None</li>
+                        <li class="px-1 py-1 text-meta text-ink-faint">{t('applications.none')}</li>
                       ) : (
                         items.map((c) => <StageCard card={c} stage={s.key} work={work} />)
                       )}

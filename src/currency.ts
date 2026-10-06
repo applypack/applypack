@@ -13,6 +13,9 @@
  * unit as `1 / rates[CODE]` — and move RATES_REVIEWED_ON with them.
  */
 
+import type { MessageKey } from './i18n/catalog';
+import { t } from './i18n/t';
+
 /** USD per one unit. Source: exchangerate-api.com, 2026-09-04. */
 const RATES_REVIEWED_ON = '2026-09-04';
 
@@ -121,7 +124,7 @@ export function formatSalaryRange(
   if (lo === null && hi === null) return '—';
   const money = currencyOf(code);
   const per = periodOf(period);
-  const suffix = per === 'year' ? '' : `/${SHORT_PERIOD[per]}`;
+  const suffix = per === 'year' ? '' : `/${t(SHORT_PERIOD[per])}`;
   const amount = (n: number) => `${SYMBOL[money] ?? `${money} `}${round(n, per)}`;
   const range =
     lo !== null && hi !== null
@@ -130,7 +133,7 @@ export function formatSalaryRange(
         : `${amount(lo)}-${trimSymbol(amount(hi), money)}`
       : lo !== null
         ? `${amount(lo)}+`
-        : `up to ${amount(hi as number)}`;
+        : t('money.upTo', { amount: amount(hi as number) });
   return `${range}${suffix}`;
 }
 
@@ -143,16 +146,17 @@ export function formatUsdPerYear(
 ): string {
   if (currencyOf(code) === 'USD' && periodOf(period) === 'year') return '';
   const usd = toUsdPerYear(max ?? min, code, period) ?? toUsdPerYear(min, code, period);
-  return usd === null ? '' : `≈ $${round(usd, 'year')}/yr`;
+  return usd === null ? '' : `≈ $${round(usd, 'year')}/${t(SHORT_PERIOD.year)}`;
 }
 
-const SHORT_PERIOD: Readonly<Record<SalaryPeriod, string>> = {
-  year: 'yr',
-  month: 'mo',
-  week: 'wk',
-  day: 'day',
-  hour: 'hr',
-};
+/** "/mo", "/hr": the period a figure is paid per, as the reader's language shortens it. */
+const SHORT_PERIOD = {
+  year: 'money.per.year',
+  month: 'money.per.month',
+  week: 'money.per.week',
+  day: 'money.per.day',
+  hour: 'money.per.hour',
+} as const satisfies Record<SalaryPeriod, MessageKey>;
 
 /** Thousands for a yearly figure, the plain number for an hourly one. */
 function round(n: number, period: SalaryPeriod): string {

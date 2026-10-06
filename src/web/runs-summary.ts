@@ -1,6 +1,9 @@
 import type { CronStats } from '../jobs/cron-run';
 import { DISMISS_KEY, FILTER_KEY } from '../funnel';
 import { runFailure } from './run-failure';
+import type { MessageKey } from '../i18n/catalog';
+import { formatNumber } from '../i18n/format';
+import { t } from '../i18n/t';
 
 /*
  * A finished run as a reader meets it on /runs: the facts worth a glance, in a
@@ -10,48 +13,48 @@ import { runFailure } from './run-failure';
  */
 
 /** Why a run did nothing, as a sentence. The codes are the ones src/jobs/* write into `reason`. */
-const REASON: Record<string, string> = {
-  'fetching-paused': 'Fetching is paused',
-  overlap: 'Another fetch was running; this one did nothing',
-  'paused-mid-run': 'Fetching was paused mid-run; nothing stored',
-  'outside-schedule': "Outside the schedule's hours",
-  'no-active-profile': 'No running search',
-  'discovery-disabled': 'Discovery is switched off',
-  'parser-disabled': 'The HN parser is switched off',
-  'source-disabled': 'The source is switched off on Settings → Sources',
-  'tracking-disabled': 'Application tracking is switched off',
-  'digest-disabled': 'The stale-applications digest is switched off',
-  'alerts-off': 'Alerts are switched off; nothing sent',
-  'no-targets': 'No chat to send to',
+const REASON: Record<string, MessageKey> = {
+  'fetching-paused': 'runs.reason.fetchingPaused',
+  overlap: 'runs.reason.overlap',
+  'paused-mid-run': 'runs.reason.pausedMidRun',
+  'outside-schedule': 'runs.reason.outsideSchedule',
+  'no-active-profile': 'runs.reason.noActiveProfile',
+  'discovery-disabled': 'runs.reason.discoveryDisabled',
+  'parser-disabled': 'runs.reason.parserDisabled',
+  'source-disabled': 'runs.reason.sourceDisabled',
+  'tracking-disabled': 'runs.reason.trackingDisabled',
+  'digest-disabled': 'runs.reason.digestDisabled',
+  'alerts-off': 'runs.reason.alertsOff',
+  'no-targets': 'runs.reason.noTargets',
 };
 
 /**
  * Known counts in reading order. `always` facts show at zero too — "0 new" is
  * the news of an uneventful tick; the rest speak only when they happened.
  */
-const FACTS: { key: string; one: string; many: string; always?: true; job?: string }[] = [
-  { key: 'fetched', one: 'fetched', many: 'fetched', always: true },
-  { key: 'persisted', one: 'new', many: 'new', always: true },
-  { key: 'duplicate', one: 'duplicate', many: 'duplicates' },
-  { key: 'crossListed', one: 'cross-listed', many: 'cross-listed' },
-  { key: 'classified', one: 'classified', many: 'classified' },
-  { key: 'classifyFailed', one: 'failed to classify', many: 'failed to classify' },
-  { key: 'matched', one: 'match', many: 'matches' },
-  { key: 'alerted', one: 'alerted', many: 'alerted' },
-  { key: 'alertHeld', one: 'held for the alert window', many: 'held for the alert window' },
-  { key: 'alertsOffHeld', one: 'held while Alerts are off', many: 'held while Alerts are off' },
-  { key: 'alertFailed', one: 'alert failed to send, held for a retry', many: 'alerts failed to send, held for a retry' },
-  { key: 'alertNoTarget', one: 'not alerted: no chat set up', many: 'not alerted: no chat set up' },
-  { key: 'sourcesFailed', one: 'source failed', many: 'sources failed' },
+const FACTS: { key: string; words: MessageKey; always?: true; job?: string }[] = [
+  { key: 'fetched', words: 'runs.fact.fetched', always: true },
+  { key: 'persisted', words: 'runs.fact.persisted', always: true },
+  { key: 'duplicate', words: 'runs.fact.duplicate' },
+  { key: 'crossListed', words: 'runs.fact.crossListed' },
+  { key: 'classified', words: 'runs.fact.classified' },
+  { key: 'classifyFailed', words: 'runs.fact.classifyFailed' },
+  { key: 'matched', words: 'runs.fact.matched' },
+  { key: 'alerted', words: 'runs.fact.alerted' },
+  { key: 'alertHeld', words: 'runs.fact.alertHeld' },
+  { key: 'alertsOffHeld', words: 'runs.fact.alertsOffHeld' },
+  { key: 'alertFailed', words: 'runs.fact.alertFailed' },
+  { key: 'alertNoTarget', words: 'runs.fact.alertNoTarget' },
+  { key: 'sourcesFailed', words: 'runs.fact.sourcesFailed' },
   // Bare words a second job could reuse for something else: worded for the job that writes them.
-  { key: 'found', job: 'stale-applications', one: 'stale application', many: 'stale applications', always: true },
-  { key: 'count', job: 'digest', one: 'job in the digest', many: 'jobs in the digest', always: true },
-  { key: 'deleted', job: 'cleanup', one: 'old job deleted', many: 'old jobs deleted', always: true },
-  { key: 'screeningsDeleted', one: 'screening deleted', many: 'screenings deleted' },
-  { key: 'runsDeleted', one: 'old run deleted', many: 'old runs deleted' },
-  { key: 'aiCallsDeleted', one: 'old AI call record deleted', many: 'old AI call records deleted' },
-  { key: 'candidates', one: 'candidate', many: 'candidates', always: true },
-  { key: 'candidatesRecorded', one: 'candidate recorded', many: 'candidates recorded' },
+  { key: 'found', job: 'stale-applications', words: 'runs.fact.staleFound', always: true },
+  { key: 'count', job: 'digest', words: 'runs.fact.digestCount', always: true },
+  { key: 'deleted', job: 'cleanup', words: 'runs.fact.jobsDeleted', always: true },
+  { key: 'screeningsDeleted', words: 'runs.fact.screeningsDeleted' },
+  { key: 'runsDeleted', words: 'runs.fact.runsDeleted' },
+  { key: 'aiCallsDeleted', words: 'runs.fact.aiCallsDeleted' },
+  { key: 'candidates', words: 'runs.fact.candidates', always: true },
+  { key: 'candidatesRecorded', words: 'runs.fact.candidatesRecorded' },
 ];
 
 /**
@@ -75,9 +78,9 @@ const ELSEWHERE = new Set([
 ]);
 
 /** A 0 / 1 flag a job raises, as the sentence it stands for. */
-const FLAG: Record<string, string> = {
-  skippedBlankProfile: 'Every running search is empty; nothing scored',
-  abortedMidRun: 'Paused mid-run; the rest was skipped',
+const FLAG: Record<string, MessageKey> = {
+  skippedBlankProfile: 'runs.flag.skippedBlankProfile',
+  abortedMidRun: 'runs.flag.abortedMidRun',
 };
 
 /** `priorityBoosted` → "priority boosted". */
@@ -97,34 +100,38 @@ export function summarizeRun(name: string, stats: CronStats): string[] {
   const out: string[] = [];
   const num = (key: string): number | null => (typeof stats[key] === 'number' ? (stats[key] as number) : null);
 
-  if (typeof stats.reason === 'string') out.push(REASON[stats.reason] ?? `Skipped: ${stats.reason.replace(/-/g, ' ')}`);
-  for (const [key, sentence] of Object.entries(FLAG)) if (num(key) === 1) out.push(sentence);
+  if (typeof stats.reason === 'string') {
+    const known = REASON[stats.reason];
+    // A code this file has never heard of is shown as its own words, never dropped.
+    out.push(known ? t(known) : t('runs.reason.other', { reason: stats.reason.replace(/-/g, ' ') }));
+  }
+  for (const [key, sentence] of Object.entries(FLAG)) if (num(key) === 1) out.push(t(sentence));
 
   const stored = num('persisted') ?? 0;
   for (const f of facts) {
     const n = num(f.key);
     if (n === null) continue;
     if (n === 0 && !f.always && !(f.key === 'alerted' && stored > 0)) continue;
-    out.push(`${n.toLocaleString('en-US')} ${n === 1 ? f.one : f.many}`);
+    out.push(t(f.words, { n }));
   }
 
   const known = new Set(facts.map((f) => f.key));
   for (const [key, value] of Object.entries(stats)) {
     if (typeof value !== 'number' || value === 0 || known.has(key) || ELSEWHERE.has(key) || key in FLAG) continue;
-    out.push(`${value.toLocaleString('en-US')} ${humanise(key)}`);
+    out.push(`${formatNumber(value)} ${humanise(key)}`);
   }
   return out;
 }
 
 /** What is safe after a failed run of each job, and what comes next — the second and third parts of the sentence. */
-const AFTER_FAILURE: Record<string, string> = {
-  fetch: 'What it stored before the failure stays, and the next tick tries again',
-  'fetch-now': 'What it stored before the failure stays; press Fetch now again, or wait for the next tick',
-  'hn-hiring': 'What it stored before the failure stays, and the next run tries again',
-  digest: 'Nothing was sent; the next digest hour tries again',
-  'stale-applications': 'Nothing was sent; the next digest hour tries again',
-  cleanup: 'Nothing past the failure was deleted, and tomorrow\'s run tries again',
-  discovery: 'The next run tries again',
+const AFTER_FAILURE: Record<string, MessageKey> = {
+  fetch: 'runs.after.fetch',
+  'fetch-now': 'runs.after.fetchNow',
+  'hn-hiring': 'runs.after.hnHiring',
+  digest: 'runs.after.digest',
+  'stale-applications': 'runs.after.digest',
+  cleanup: 'runs.after.cleanup',
+  discovery: 'runs.after.discovery',
 };
 /** A reason is its first line, and one sentence of it — the rest folds behind Details. */
 const REASON_MAX_CHARS = 160;
@@ -137,5 +144,5 @@ const REASON_MAX_CHARS = 160;
 export function failedRunLine(name: string, error: string): string {
   const first = error.split('\n').map((l) => l.trim()).find(Boolean) ?? '';
   const reason = first.length > REASON_MAX_CHARS ? `${first.slice(0, REASON_MAX_CHARS - 1)}…` : first.replace(/[.\s]+$/, '');
-  return runFailure(`The ${name} run failed`, reason, `${AFTER_FAILURE[name] ?? 'The next scheduled run tries again'}.`);
+  return runFailure(t('runs.failed', { name }), reason, t(AFTER_FAILURE[name] ?? 'runs.after.other'));
 }

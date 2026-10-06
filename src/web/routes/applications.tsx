@@ -15,6 +15,7 @@ import { groupEventsByJob, stageTimeLine, type StageTimeLine } from '../stage-ti
 import { applicationsCsv, applicationsMarkdown, dayIn, type ApplicationExportRow } from '../applications-export';
 import { appliedWithLabel } from '../../jobs/applied-with';
 import { displayZone } from '../display-zone';
+import { t } from '../../i18n/t';
 
 // Stage keys are validated at runtime against the configured list
 // (ADR 0025) — an enum would freeze what is now user data.
@@ -193,7 +194,7 @@ applicationsRoute.post('/jobs/:id/stage', async (c) => {
       prisma.jobStageEvent.create({ data: event }),
     ]);
   }
-  return flashRedirect('/applications', 'ok', `Moved to ${labelFor(work, toStage)}`);
+  return flashRedirect('/applications', 'ok', t('applications.movedTo', { stage: labelFor(work, toStage) }));
 });
 
 applicationsRoute.post('/jobs/:id/application', async (c) => {

@@ -3,6 +3,8 @@
  * short-lived cookie. Shared by every route that redirects after a write.
  */
 
+import { t } from '../i18n/t';
+
 export type FlashKind = 'ok' | 'warn' | 'err';
 
 /** A form field's name and a form's action as our pages write them — nothing a selector could trip on. */
@@ -108,7 +110,7 @@ export function parseFlashCookie(cookieHeader: string | undefined): FlashMessage
  */
 export function firstIssue(issues: readonly { path: readonly PropertyKey[]; message: string }[]): string {
   const first = issues[0];
-  if (!first) return 'the form arrived empty';
+  if (!first) return t('flash.formEmpty');
   const field = first.path.map(String).join('.');
   const text = field ? `${field}: ${first.message}` : first.message;
   return text.length > MAX_ISSUE_CHARS ? `${text.slice(0, MAX_ISSUE_CHARS)}…` : text;
