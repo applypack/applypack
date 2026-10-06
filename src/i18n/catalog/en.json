@@ -2806,5 +2806,13 @@
   "sources.kind.import": "Imported file",
   "sources.kind.folder": "Folder on this computer",
 
-  "companies.importedNoFetch": "{name} is a file you imported, so there is nothing for the hourly fetch to read. Import a newer file on Jobs → Import a file."
+  "companies.importedNoFetch": "{name} is a file you imported, so there is nothing for the hourly fetch to read. Import a newer file on Jobs → Import a file.",
+
+  "match.reuse.notice": "Unchanged since the last analysis ({when}) — showing that result; the resume model was not called again.",
+  "match.suggestions.failed": "The suggestions call failed — the quick check is still there. See the web logs.",
+  "match.suggestions.failedWith": "The suggestions call failed — the quick check is still there. See the web logs: {reason}.",
+  "match.suggestions.added": "Suggestions added — {actions, plural, one {# edit} other {# edits}}, {removals, plural, one {# removal} other {# removals}}; the score is unchanged.",
+  "match.suggestions.addedReused": "The quick check from {when} judged this exact text, so its verdicts and score stand. Suggestions added — {actions, plural, one {# edit} other {# edits}}, {removals, plural, one {# removal} other {# removals}}; the score is unchanged.",
+
+  "common.alreadyRunning": "That is already running — give it a moment."
 }

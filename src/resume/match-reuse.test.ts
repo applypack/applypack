@@ -59,7 +59,7 @@ test('suggestionsFlash explains the kept verdicts when a stored quick check was 
   const flash = suggestionsFlash({ actions: 1, removals: 0 }, '3m ago');
   assert.match(flash, /3m ago/);
   assert.match(flash, /verdicts and score stand/);
-  assert.match(flash, /1 edits, 0 removals/);
+  assert.match(flash, /1 edit, 0 removals/);
 });
 
 test('a full row is stale for a full request when the verification it read is not the one stored now (#162 stage 2)', () => {

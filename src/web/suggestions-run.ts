@@ -1,5 +1,5 @@
 import type { ResumeMatch } from '@prisma/client';
-import { SUGGESTIONS_FAILED, suggestionsFlash } from '../resume/match-reuse';
+import { suggestionsFailed, suggestionsFlash } from '../resume/match-reuse';
 import { readActions, readRemovals, type MatchJobInput } from '../resume/prompts';
 import { suggestForMatch } from '../resume/suggestions';
 import { claimRun, startRun, updateRun } from './target-runs';
@@ -58,6 +58,6 @@ export async function finishSuggestions(
           resultUrl: input.resultUrl,
           flash: suggestionsFlash({ actions: readActions(row.actions).length, removals: readRemovals(row.removals).length }, input.when),
         }
-      : { stage: 'error', error: reason ? `${SUGGESTIONS_FAILED.replace(/\.$/, '')}: ${reason}.` : SUGGESTIONS_FAILED },
+      : { stage: 'error', error: suggestionsFailed(reason) },
   );
 }
