@@ -46,6 +46,19 @@ All notable changes to this project are documented here. The format follows
   and has a seventh schedule, `pack`, that beats every minute and does
   nothing while no pack is queued.
 
+## [2.47.1] — 2026-10-06
+
+### Fixed
+- **Tailor resume wrote the posting's job title onto a skills line.** The
+  posting's own title is a keyword, so that your title line can take it.
+  **Add missing keywords to your skills**, **Apply all** and the chip's
+  **+ add** offered it as a skill as well, and a resume came out with
+  "Frameworks/Libraries: …, Senior Software Engineer, Backend". Measured on
+  17 real comparisons: three of the seven keywords Apply all would write
+  were the title. It is no longer offered as a skill. It still counts in the
+  score, stays among the missing chips, and goes on the title line through
+  its own suggestion or by hand.
+
 ## [2.47.0] — 2026-10-05
 
 ### Added
@@ -4839,6 +4852,7 @@ commit history.
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
 [2.48.0]: https://github.com/applypack/applypack/compare/v2.47.1...v2.48.0
+[2.47.1]: https://github.com/applypack/applypack/compare/v2.47.0...v2.47.1
 [2.47.0]: https://github.com/applypack/applypack/compare/v2.46.0...v2.47.0
 [2.46.0]: https://github.com/applypack/applypack/compare/v2.44.0...v2.46.0
 [2.44.0]: https://github.com/applypack/applypack/compare/v2.43.0...v2.44.0

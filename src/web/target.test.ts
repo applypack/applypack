@@ -188,6 +188,41 @@ test('the gap chips are the weighted terms the text does not spell', async () =>
   );
 });
 
+test('the posting\'s own title is a gap but never a skill to add', async () => {
+  // The brief carries the title as a must-level keyword for the title line
+  // (ADR 0044). "Add missing keywords" and Apply all wrote it onto a skills
+  // line: three of the seven `add` keywords on 17 real comparisons.
+  // @ts-expect-error — plain JS with no declaration file.
+  const { keywordGaps, skillGaps } = (await import('./public/target-page.mjs')) as {
+    keywordGaps: <R extends { weight: number; found: boolean }>(rows: R[]) => R[];
+    skillGaps: <R extends { term: string }>(gaps: R[], jobTitle?: string | null) => R[];
+  };
+  const terms = (title: string | null, ...names: string[]): string[] =>
+    skillGaps(names.map((term) => ({ term })), title).map((r) => r.term);
+
+  // The three measured titles, each as the brief wrote the keyword.
+  assert.deepEqual(terms('Senior Product Engineer (Laravel - Remote)', 'Senior Product Engineer (Laravel - Remote)', 'Laravel'), ['Laravel']);
+  assert.deepEqual(terms('Senior Software Engineer, Backend', 'Senior Software Engineer, Backend', 'Kafka'), ['Kafka']);
+  assert.deepEqual(terms('Sr. Software Engineer II', 'Sr. Software Engineer II', 'Go'), ['Go']);
+  // Letters and digits decide: case, punctuation and spacing do not.
+  assert.deepEqual(terms('Senior Software Engineer, Backend', 'senior software engineer - backend'), []);
+  assert.deepEqual(terms('Sr. Software Engineer II', 'Sr Software Engineer III'), ['Sr Software Engineer III']);
+  // A word of the title is a keyword of its own.
+  assert.deepEqual(terms('Senior Backend Engineer', 'Backend', 'Senior Backend Engineer'), ['Backend']);
+  // No title, nothing held back — not even a term with no letter in it.
+  assert.deepEqual(terms('', '+++', 'Kafka'), ['+++', 'Kafka']);
+  assert.deepEqual(terms(null, 'Kafka'), ['Kafka']);
+
+  // The title stays among the gaps: it is still a chip and still scored.
+  const rows = [
+    { term: 'Senior Software Engineer, Backend', weight: 3, found: false, status: 'add' },
+    { term: 'Kafka', weight: 3, found: false, status: 'add' },
+  ];
+  const gaps = keywordGaps(rows);
+  assert.equal(gaps.length, 2);
+  assert.deepEqual(skillGaps(gaps, 'Senior Software Engineer, Backend'), [rows[1]]);
+});
+
 test('resumeSpans marks keywords and quoted edits, edits first on ties', async () => {
   const { resumeSpans } = await matcher;
   const spans = resumeSpans(

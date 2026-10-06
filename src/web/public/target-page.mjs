@@ -63,6 +63,22 @@ export function keywordGaps(rows) {
   return rows.filter((r) => r.weight > 0 && !r.found);
 }
 
+/** Letters and digits only, in one case: "Sr. Software Engineer II" is "sr software engineer ii". */
+const wordsOf = (s) => String(s ?? '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '');
+
+/**
+ * The gaps a skills line can take: every one but the posting's own title. The
+ * brief carries the title as a must-level keyword so the title line can take
+ * it (ADR 0044) — it stays a gap, a chip and a part of the score, and its own
+ * card offers it where it belongs. On a skills line it is nonsense: measured
+ * over 17 comparisons, three of the seven `add` keywords were the title
+ * ("Frameworks/Libraries: …, Senior Software Engineer, Backend").
+ */
+export function skillGaps(gaps, jobTitle) {
+  const title = wordsOf(jobTitle);
+  return title === '' ? gaps : gaps.filter((r) => wordsOf(r.term) !== title);
+}
+
 /** Why an edit did not happen — every error the text operations can return. */
 const REASON = {
   'not-found': "Couldn't find this text in the editor, it may already be edited",
@@ -191,10 +207,11 @@ export function init(data) {
 
     chips.innerHTML = '';
     const gaps = orderKeywords(keywordGaps(scored.rows), data.jobText);
+    const skills = skillGaps(gaps, data.sheet.jobTitle);
     // Every term the resume backs, whether or not a skills line can take it:
     // what no line takes gets a line of its own (apply-all.mjs:addKeywords).
-    addable = gaps.filter((r) => r.status === 'add').map((r) => ({ term: r.term, where: r.where }));
-    paintBulk(gaps.filter((r) => r.note !== data.deniedNote && r.note !== data.unsureNote));
+    addable = skills.filter((r) => r.status === 'add').map((r) => ({ term: r.term, where: r.where }));
+    paintBulk(bulkRows(skills));
     // Hardest requirement first, then the words the posting keeps repeating.
     for (const r of gaps) {
       const unproven = r.status === 'cannot_claim';
@@ -227,8 +244,9 @@ export function init(data) {
       // "Add to Skills" only where it can honestly work: the model (or a fact the
       // user confirmed — applyFacts flips confirmed to `add` before this page
       // renders) says the term is addable, AND the resume has a line shaped like
-      // a term list to put it on. cannot_claim never gets one.
-      if (r.status !== 'add') continue;
+      // a term list to put it on. cannot_claim never gets one, and neither does
+      // the posting's title.
+      if (r.status !== 'add' || !skills.includes(r)) continue;
       const probe = insertIntoSkills(editor.value, r.term, r.where);
       if (probe.error) continue;
       const add = document.createElement('button');
@@ -640,9 +658,14 @@ export function init(data) {
     return li;
   }
 
+  /** What the list offers of the skill gaps: a term the user answered "I don't" or "Not sure" to is left out. */
+  function bulkRows(skills) {
+    return skills.filter((r) => r.note !== data.deniedNote && r.note !== data.unsureNote);
+  }
+
   function currentBulkRows() {
     const scored = scoreKeywords(data.keywords, editor.value);
-    return orderKeywords(keywordGaps(scored.rows), data.jobText).filter((r) => r.note !== data.deniedNote && r.note !== data.unsureNote);
+    return bulkRows(skillGaps(orderKeywords(keywordGaps(scored.rows), data.jobText), data.sheet.jobTitle));
   }
 
   bulkAdd?.addEventListener('click', () => {
