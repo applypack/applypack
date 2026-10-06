@@ -3,6 +3,7 @@ import PDFDocument from 'pdfkit';
 import type { JsonResume } from '../json-resume';
 import { planRender, type RenderPlan, type Run } from './sections';
 import { BUNDLED_FAMILY, isMetricTwin, lookFor, type RenderKnobs } from './knobs';
+import { t } from '../../i18n/t';
 
 /*
  * The clean single-column .pdf (ADR 0039), the twin of clean-docx.ts: the same
@@ -243,8 +244,5 @@ export async function drawPdf(plan: RenderPlan, knobs: RenderKnobs): Promise<Buf
  * what it did instead — and whether that is the same width or merely close.
  */
 export function typefaceNote(family: string): string {
-  if (isMetricTwin(family)) {
-    return `The PDF is set in ${BUNDLED_FAMILY}, which has the same letter widths as ${family} — the lines break in the same places. The .docx asks for ${family} itself.`;
-  }
-  return `The PDF is set in ${BUNDLED_FAMILY}; ${family} is not a font this app can embed, so the lines may break differently. The .docx asks for ${family} itself.`;
+  return t(isMetricTwin(family) ? 'render.typeface.same' : 'render.typeface.close', { bundled: BUNDLED_FAMILY, family });
 }

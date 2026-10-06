@@ -11,8 +11,12 @@ import {
   COVER_WORDS_MAX,
   COVER_WORDS_MIN,
   type CoverAngles,
+  type CoverTone,
 } from '../../resume/prompts';
 import { jobHref } from '../job-tabs';
+import type { MessageKey } from '../../i18n/catalog';
+import { t } from '../../i18n/t';
+import { tRich } from '../rich';
 
 export interface CoverLetterCardProps {
   jobId: number;
@@ -41,12 +45,31 @@ export interface CoverLetterCardProps {
 /** The out-of-form "Get suggestions" button posts through this form (a form cannot nest). */
 const COVER_SUGGESTIONS_FORM = 'cover-suggestions';
 
-/** `block` is reachable only through a manual edit — generation never persists one. */
-const GATE_VIEW: Record<string, { label: string; tone: Tone }> = {
-  pass: { label: 'fact-check pass', tone: 'ok' },
-  warn: { label: 'fact-check warn', tone: 'warn' },
-  block: { label: 'fact-check block', tone: 'danger' },
+/**
+ * `block` is reachable only through a manual edit — generation never persists one.
+ * `label` is the badge on the open letter, `word` the short one on a chip in "All letters".
+ */
+const GATE_VIEW: Record<string, { label: MessageKey; word: MessageKey; tone: Tone }> = {
+  pass: { label: 'letter.gate.pass', word: 'letter.verdict.pass', tone: 'ok' },
+  warn: { label: 'letter.gate.warn', word: 'letter.verdict.warn', tone: 'warn' },
+  block: { label: 'letter.gate.block', word: 'letter.verdict.block', tone: 'danger' },
 };
+
+const TONE_LABEL = {
+  neutral: 'letter.tones.neutral',
+  warm: 'letter.tones.warm',
+  direct: 'letter.tones.direct',
+} as const satisfies Record<CoverTone, MessageKey>;
+
+/** A letter's tone as the page names it; the value a form posts and a row stores stays the English word. */
+export function toneLabel(tone: string): string {
+  return Object.hasOwn(TONE_LABEL, tone) ? t(TONE_LABEL[tone as CoverTone]) : tone;
+}
+
+const LINK = 'font-medium text-accent-strong hover:text-accent-deep';
+
+/** How much of the verifier's finding is shown beside the field. */
+const FINDING_SHOWN_CHARS = 200;
 
 const SUBHEAD = 'mb-2 text-note font-medium text-ink-muted';
 
@@ -64,21 +87,23 @@ export const CoverLetterCard: FC<CoverLetterCardProps> = ({
 }) => (
   <div id="cover-letter">
     <Card>
-      <SectionTitle>Cover letter</SectionTitle>
+      <SectionTitle>{t('nav.letter')}</SectionTitle>
       {resumes.length === 0 ? (
         <Hint>
-          No resumes uploaded.{' '}
-          <a href="/resumes" class="font-medium text-accent-strong hover:text-accent-deep">
-            Upload one
-          </a>{' '}
-          — the letter is written from your resume, never from thin air.
+          {tRich('letter.noResumes', {}, {
+            link: (words) => (
+              <a href="/resumes" class={LINK}>
+                {words}
+              </a>
+            ),
+          })}
         </Hint>
       ) : (
         <form method="post" action={`/jobs/${jobId}/cover`} class="space-y-3">
           <input type="hidden" name="saveAngles" value="1" />
           <div class="flex flex-wrap items-end gap-3">
             <label class="block min-w-0 max-w-full">
-              <span class="block text-label text-ink">Resume</span>
+              <span class="block text-label text-ink">{t('letter.resume')}</span>
               <Select name="resumeId" class="mt-1.5 !w-auto max-w-full">
                 {resumes.map((r) => (
                   <option value={r.id} selected={r.id === (suggestedResumeId ?? resumes[0]?.id)}>
@@ -88,87 +113,87 @@ export const CoverLetterCard: FC<CoverLetterCardProps> = ({
               </Select>
             </label>
             <label class="block">
-              <span class="block text-label text-ink">Tone</span>
+              <span class="block text-label text-ink">{t('letter.tone')}</span>
               <Select name="tone" class="mt-1.5 !w-auto">
-                {COVER_TONES.map((t) => (
-                  <option value={t} selected={t === 'warm'}>
-                    {t}
+                {COVER_TONES.map((tone) => (
+                  <option value={tone} selected={tone === 'warm'}>
+                    {toneLabel(tone)}
                   </option>
                 ))}
               </Select>
             </label>
             <label class="block">
-              <span class="block text-label text-ink">Addressed to</span>
+              <span class="block text-label text-ink">{t('letter.addressedTo')}</span>
               <Input
                 name="addressee"
                 maxlength="80"
                 class="mt-1.5 !w-auto"
                 value={addressee.suggested ?? ''}
-                placeholder="the team"
-                title="A person's name greets them by name; empty greets the company's team"
+                placeholder={t('letter.theTeam')}
+                title={t('letter.aPersonsNameGreetsThem')}
               />
             </label>
-            <Button variant="violet">Generate letter</Button>
+            <Button variant="violet">{t('letter.generateLetter')}</Button>
           </div>
           {costHint && <Hint>{costHint}</Hint>}
           {addressee.finding && (
             <Hint>
-              Named by the verification: {addressee.finding.length > 200 ? `${addressee.finding.slice(0, 200)}…` : addressee.finding}{' '}
-              {addressee.suggested ? '— prefilled above; edit or clear it.' : '— no clear name to prefill; type one if you see it.'}
+              {tRich(addressee.suggested ? 'letter.named.prefilled' : 'letter.named.noName', {}, {
+                // The verifier's own sentence: a model wrote it.
+                finding: () => <span lang="en">{shortFinding(addressee.finding ?? '')}</span>,
+              })}
             </Hint>
           )}
           {quickCheck && (
             <Hint>
-              The latest comparison with "{quickCheck.resumeName}" is a quick check — verdicts and
-              keywords, but no strengths for the letter to draw on.{' '}
+              {tRich('letter.quickCheck', { name: quickCheck.resumeName }, { file: (words) => <span translate="no">{words}</span> })}{' '}
               <Button variant="secondary" size="sm" form={COVER_SUGGESTIONS_FORM}>
-                Get suggestions first
+                {t('letter.getSuggestionsFirst')}
               </Button>
             </Hint>
           )}
           <details class="rounded-md border border-line px-3 py-2" open={hasAngles(angles)}>
             <summary class="cursor-pointer text-note font-medium text-ink-muted transition-colors duration-150 hover:text-ink">
-              Angle — optional, saved for your next letters
+              {t('letter.angleOptionalSavedForYour')}
             </summary>
             <div class="mt-2.5 grid gap-2.5 sm:grid-cols-3">
               <label class="block">
-                <span class="block text-meta text-ink-muted">Why this company</span>
+                <span class="block text-meta text-ink-muted">{t('letter.whyThisCompany')}</span>
                 <Input name="whyCompany" maxlength="300" class="mt-1 !text-meta" value={angles.whyCompany ?? ''} />
               </label>
               <label class="block">
-                <span class="block text-meta text-ink-muted">What problem you'd solve</span>
+                <span class="block text-meta text-ink-muted">{t('letter.whatProblemYoudSolve')}</span>
                 <Input name="problem" maxlength="300" class="mt-1 !text-meta" value={angles.problem ?? ''} />
               </label>
               <label class="block">
-                <span class="block text-meta text-ink-muted">Your approach</span>
+                <span class="block text-meta text-ink-muted">{t('letter.yourApproach')}</span>
                 <Input name="approach" maxlength="300" class="mt-1 !text-meta" value={angles.approach ?? ''} />
               </label>
             </div>
             <label class="mt-2.5 block">
               <span class="block text-meta text-ink-muted">
-                Anything every letter should mention
+                {t('letter.anythingEveryLetterShouldMention')}
               </span>
-              <Textarea name="notes" rows={2} maxlength="500" class="mt-1 !text-meta" placeholder="e.g. my open-source work matters to me; I can start immediately; I want to mention my blog">
+              <Textarea name="notes" rows={2} maxlength="500" class="mt-1 !text-meta" placeholder={t('letter.notesPlaceholder')}>
                 {angles.notes ?? ''}
               </Textarea>
             </label>
             <Hint class="mt-2">
-              These steer what the letter emphasises and are remembered after you generate —
-              edit or clear them any time. Facts and numbers still come only from your resume
-              and confirmed facts; a number typed here is not enough for the fact check.
+              {t('letter.theseSteerWhatTheLetter')}
             </Hint>
           </details>
           <Hint>
-            One model call, about half a minute. Every claim is fact-checked against the resume
-            before you see the letter — an invented number or tool is rejected, not shown.
+            {t('letter.howItWorks')}
             {!hasCompanyFacts && (
               <>
                 {' '}
-                No company research stored yet, so company lines stick to the posting itself —{' '}
-                <a href={jobHref(jobId, 'verify', {}, 'verification')} class="font-medium text-accent-strong hover:text-accent-deep">
-                  Verify first
-                </a>{' '}
-                for researched company facts.
+                {tRich('letter.noCompanyResearch', {}, {
+                  link: (words) => (
+                    <a href={jobHref(jobId, 'verify', {}, 'verification')} class={LINK}>
+                      {words}
+                    </a>
+                  ),
+                })}
               </>
             )}
           </Hint>
@@ -189,26 +214,31 @@ export const CoverLetterCard: FC<CoverLetterCardProps> = ({
 
       {letters.length > 1 && (
         <div class="mt-5 border-t border-line pt-4">
-          <div class={SUBHEAD}>All letters</div>
+          <div class={SUBHEAD}>{t('letter.allLetters')}</div>
           <ul class="flex flex-wrap gap-2">
-            {letters.map((l) => (
-              <li>
-                <HistoryChip href={`/jobs/${jobId}?letter=${l.id}#cover-letter`} current={selected?.id === l.id}>
-                  <Badge tone={(GATE_VIEW[l.gateVerdict] ?? GATE_VIEW.pass!).tone}>
-                    {l.gateVerdict}
-                  </Badge>
-                  {l.resume.name}
-                  <span class="font-mono font-normal text-ink-faint">v{l.resumeVersion}</span>
-                  <span class="font-normal text-ink-faint"><When at={l.createdAt} /></span>
-                </HistoryChip>
-              </li>
-            ))}
+            {letters.map((l) => {
+              const gate = GATE_VIEW[l.gateVerdict];
+              return (
+                <li>
+                  <HistoryChip href={`/jobs/${jobId}?letter=${l.id}#cover-letter`} current={selected?.id === l.id}>
+                    <Badge tone={(gate ?? GATE_VIEW.pass!).tone}>{gate ? t(gate.word) : l.gateVerdict}</Badge>
+                    <span translate="no">{l.resume.name}</span>
+                    <span class="font-mono font-normal text-ink-faint">v{l.resumeVersion}</span>
+                    <span class="font-normal text-ink-faint"><When at={l.createdAt} /></span>
+                  </HistoryChip>
+                </li>
+              );
+            })}
           </ul>
         </div>
       )}
     </Card>
   </div>
 );
+
+function shortFinding(finding: string): string {
+  return finding.length > FINDING_SHOWN_CHARS ? `${finding.slice(0, FINDING_SHOWN_CHARS)}…` : finding;
+}
 
 /** Open the details when saved values exist — hidden prefills would be invisible state. */
 function hasAngles(a: CoverAngles): boolean {
@@ -222,15 +252,18 @@ const LetterReport: FC<{ jobId: number; letter: CoverLetterWithResume }> = ({ jo
   return (
     <div class="mt-5 space-y-4 border-t border-line pt-4">
       <div class="flex flex-wrap items-center gap-3">
-        <Badge tone={gate.tone}>{gate.label}</Badge>
+        <Badge tone={gate.tone}>{t(gate.label)}</Badge>
         <span class="text-sm text-ink">
-          {letter.resume.name}{' '}
+          <span translate="no">{letter.resume.name}</span>{' '}
           <span class="font-mono text-meta text-ink-faint">v{letter.resumeVersion}</span>
         </span>
-        <Badge tone="neutral">{letter.tone}</Badge>
-        {letter.editedText && <Badge tone="info">edited</Badge>}
+        <Badge tone="neutral">{toneLabel(letter.tone)}</Badge>
+        {letter.editedText && <Badge tone="info">{t('letter.edited')}</Badge>}
         <span class="text-meta text-ink-faint">
-          <When at={letter.createdAt} /> · <span class="font-mono">{letter.model}</span>
+          <When at={letter.createdAt} /> ·{' '}
+          <span class="font-mono" translate="no">
+            {letter.model}
+          </span>
         </span>
         <ActionForm
           action={`/jobs/${jobId}/cover`}
@@ -240,9 +273,9 @@ const LetterReport: FC<{ jobId: number; letter: CoverLetterWithResume }> = ({ jo
           <Button
             variant="ghost"
             size="sm"
-            title="Fresh draft — same resume and tone, current saved angle and prompt"
+            title={t('letter.freshDraftSameResumeAnd')}
           >
-            Regenerate
+            {t('letter.regenerate')}
           </Button>
         </ActionForm>
       </div>
@@ -254,8 +287,9 @@ const LetterReport: FC<{ jobId: number; letter: CoverLetterWithResume }> = ({ jo
         class="space-y-2"
       >
         <label class="block">
-          <span class="sr-only">Letter text</span>
-          <Textarea id={`cover-text-${letter.id}`} name="text" rows={13} class="font-normal">
+          <span class="sr-only">{t('letter.letterText')}</span>
+          {/* A model wrote the letter in English and the person edits it: the page never translates it. */}
+          <Textarea id={`cover-text-${letter.id}`} name="text" rows={13} class="font-normal" lang="en">
             {text}
           </Textarea>
         </label>
@@ -266,17 +300,17 @@ const LetterReport: FC<{ jobId: number; letter: CoverLetterWithResume }> = ({ jo
             size="sm"
             data-copy-target={`cover-text-${letter.id}`}
           >
-            Copy letter
+            {t('letter.copyLetter')}
           </Button>
           <Button href={`/jobs/${jobId}/cover/${letter.id}/file/pdf`} variant="secondary" size="sm">
-            Save as PDF
+            {t('letter.saveAsPdf')}
           </Button>
           <Button href={`/jobs/${jobId}/cover/${letter.id}/file/docx`} variant="secondary" size="sm">
-            Save as DOCX
+            {t('letter.saveAsDocx')}
           </Button>
           {/* The no-JS path: cover-letter.mjs hides this and autosaves instead. */}
           <Button variant="ghost" size="sm" data-save-button>
-            Save edit
+            {t('letter.saveEdit')}
           </Button>
           <span
             class="text-meta text-ink-faint transition-colors duration-150"
@@ -285,20 +319,20 @@ const LetterReport: FC<{ jobId: number; letter: CoverLetterWithResume }> = ({ jo
             aria-live="polite"
           ></span>
           <span class="ml-auto text-meta tabular-nums text-ink-faint">
-            <span data-word-count>{words}</span> words · target {COVER_WORDS_MIN}–{COVER_WORDS_MAX}
+            {/* cover-letter.mjs rewrites the count as the person types, so the words around it name no plural. */}
+            {tRich('letter.wordCount', { min: COVER_WORDS_MIN, max: COVER_WORDS_MAX }, { count: () => <span data-word-count>{words}</span> })}
           </span>
         </div>
         <Hint>
-          Your edits save themselves and are re-checked against the resume — your own words are
-          flagged, never blocked. Restoring the generated text clears the edit.
+          {t('letter.yourEditsSaveThemselvesAnd')}
         </Hint>
       </form>
 
       <div class="grid gap-4 sm:grid-cols-2">
         {letter.keywordsUsed.length > 0 && (
           <div>
-            <div class={SUBHEAD}>Posting keywords worked in</div>
-            <div class="flex flex-wrap gap-1.5">
+            <div class={SUBHEAD}>{t('letter.postingKeywordsWorkedIn')}</div>
+            <div class="flex flex-wrap gap-1.5" translate="no">
               {letter.keywordsUsed.map((k) => (
                 <Tag tone="ok">{k}</Tag>
               ))}
@@ -307,8 +341,8 @@ const LetterReport: FC<{ jobId: number; letter: CoverLetterWithResume }> = ({ jo
         )}
         {letter.gapsAcknowledged.length > 0 && (
           <div>
-            <div class={SUBHEAD}>Gaps conceded or left out</div>
-            <div class="flex flex-wrap gap-1.5">
+            <div class={SUBHEAD}>{t('letter.gapsConcededOrLeftOut')}</div>
+            <div class="flex flex-wrap gap-1.5" lang="en">
               {letter.gapsAcknowledged.map((g) => (
                 <Tag tone="danger">{g}</Tag>
               ))}
@@ -317,8 +351,9 @@ const LetterReport: FC<{ jobId: number; letter: CoverLetterWithResume }> = ({ jo
         )}
       </div>
       <div class="text-meta text-ink-faint">
-        Company facts: {letter.usedVerification ? 'verification snapshot + posting' : 'posting only'}
-        {letter.gateNotes.length > 0 && <> · {letter.gateNotes.join(' · ')}</>}
+        {t(letter.usedVerification ? 'letter.companyFacts.verified' : 'letter.companyFacts.posting')}
+        {/* The gate's notes were worded when the letter was checked, and quote the letter. */}
+        {letter.gateNotes.length > 0 && <span lang="en"> · {letter.gateNotes.join(' · ')}</span>}
       </div>
       <script type="module" dangerouslySetInnerHTML={{ __html: COVER_BOOT }} />
     </div>

@@ -23,6 +23,7 @@ import { claimRun, startRun, updateRun, type TargetRun } from '../target-runs';
 import { runFailure } from '../run-failure';
 import { ResumeRenderPage } from '../pages/resume-render';
 import { clearFlashCookie, flashRedirect, parseFlashCookie } from '../flash';
+import { t } from '../../i18n/t';
 
 /*
  * "Clean version in your typeface" (ADR 0039). Everything here is derived from
@@ -79,9 +80,9 @@ function startStructureRun(resume: ResumeSummary): TargetRun {
     steps: ['structure'],
     jobTitle: '',
     resumeName: resume.name,
-    subtitle: 'Every line of the resume copied into the JSON Resume shape, so a clean file can be drawn from it.',
+    subtitle: t('render.run.subtitle'),
     backUrl: `${back}?shape=text`,
-    backLabel: 'Show the built-in reading',
+    backLabel: t('render.run.back'),
   });
   if (joined) return run;
   startRun(run.id, async () => {
@@ -92,10 +93,14 @@ function startStructureRun(resume: ResumeSummary): TargetRun {
     updateRun(
       run.id,
       structure
-        ? { stage: 'done', resultUrl: back, flash: `Read as data: ${structure.work.length} roles, ${structure.work.reduce((n, w) => n + w.highlights.length, 0)} bullets.` }
+        ? {
+            stage: 'done',
+            resultUrl: back,
+            flash: t('render.run.done', { roles: structure.work.length, bullets: structure.work.reduce((n, w) => n + w.highlights.length, 0) }),
+          }
         : {
             stage: 'error',
-            error: runFailure('The AI could not read the resume as data', reason, 'The page keeps the built-in reading; press "Read the shape with AI" to try again.'),
+            error: runFailure(t('render.run.failed'), reason, t('render.run.failedNext')),
           },
     );
   });
@@ -139,7 +144,7 @@ resumeRenderRoute.post('/resumes/:id/render', async (c) => {
     return flashRedirect(
       `/resumes/${saved.id}`,
       'ok',
-      `Saved "${name}" as a resume of its own — a .docx the editor can write into. "${resume.name}" is untouched. Reading it now; the headline and skills fill in shortly.`,
+      t('render.flash.saved', { name, original: resume.name }),
     );
   }
 
@@ -155,10 +160,10 @@ async function load(c: Context): Promise<RenderContext | { response: Response }>
   const id = idParam(c.req.param('id'));
   if (!Number.isFinite(id)) return { response: c.text('Bad id', 400) };
   const resume = await getResume(id);
-  if (!resume) return { response: c.text('Not found', 404) };
+  if (!resume) return { response: c.text(t('http.notFound'), 404) };
   if (resume.hidden) {
     return {
-      response: flashRedirect('/resumes', 'err', 'That is the one-off check the Tailor resume page uses — upload the file on Resumes to work on it here.'),
+      response: flashRedirect('/resumes', 'err', t('render.flash.hidden')),
     };
   }
 
@@ -185,19 +190,19 @@ async function load(c: Context): Promise<RenderContext | { response: Response }>
 /** Why this resume cannot simply be edited in place — the sentence the page opens with. */
 function reasonFor(resume: ResumeSummary, bytes: Buffer | null): string {
   if (isPdf(resume.sourceFilename)) {
-    return 'This resume is a PDF, so there is nothing in it to edit in place — a PDF has no paragraphs, only glyphs at coordinates. A clean version gives you a .docx the editor can write into.';
+    return t('render.reason.pdf');
   }
   if (bytes && isDocx(resume.sourceFilename)) {
     const kind = docxStructure(bytes).kind;
     if (kind === 'flow') {
-      return 'Your .docx can already be edited in place, so you do not need this — it is here for when you want a plainer, single-column version anyway.';
+      return t('render.reason.flow');
     }
     if (kind === 'structural') {
-      return 'Your .docx keeps some of its text in tables or text boxes, which a save cannot rewrite line by line. A clean version puts the same words in plain paragraphs.';
+      return t('render.reason.structural');
     }
-    return 'This .docx is one the editor cannot write into at all. A clean version puts the same words in a file it can.';
+    return t('render.reason.unsupported');
   }
-  return 'This resume is stored as text, so there is no layout to keep. A clean version gives it one, plus a .docx the editor can write into.';
+  return t('render.reason.text');
 }
 
 async function page(ctx: RenderContext, knobs: RenderKnobs, flash: ReturnType<typeof parseFlashCookie>) {

@@ -13,6 +13,7 @@ import {
   draftPdf,
   type DraftInput,
 } from '../../resume/draft-document';
+import { t } from '../../i18n/t';
 
 /*
  * The Tailor page's document: the draft in the editor as the file it would be
@@ -36,10 +37,10 @@ resumeDocumentRoute.post('/resumes/:id/document', async (c) => {
   const baseText = typeof form.baseText === 'string' ? form.baseText.replace(/\r\n/g, '\n').trim() : '';
   const want: Want = form.as === 'docx' || form.as === 'pdf' ? form.as : 'preview';
   if (text.length === 0 || text.length > MAX_TEXT_CHARS || baseText.length > MAX_TEXT_CHARS) {
-    return c.json({ error: 'The text is empty or longer than a resume.' }, 400);
+    return c.json({ error: t('document.error.textSize') }, 400);
   }
   const [resume, row] = await Promise.all([getResume(id), getResumeOriginal(id)]);
-  if (!resume || !row) return c.json({ error: 'Not found' }, 404);
+  if (!resume || !row) return c.json({ error: t('http.notFound') }, 404);
 
   const original = Buffer.from(row.original);
   const style = await resumeStyle(resume, row);
