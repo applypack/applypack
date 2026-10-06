@@ -15,7 +15,7 @@ test('an import that met a running fetch imported nothing, and says what to do',
 test('an import with no search running is an error with the way forward', () => {
   const { kind, text } = say({ aborted: 1, reason: 'no-active-profile' });
   assert.equal(kind, 'err');
-  assert.match(text, /Settings → Searches/);
+  assert.match(text, /Settings → Job search/);
 });
 
 test('every search blank: nothing stored, and why', () => {

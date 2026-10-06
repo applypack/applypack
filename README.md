@@ -200,7 +200,7 @@ Seven backends, and you can attach every subscription and key you own:
 | OpenAI-compatible API | `POST /chat/completions` to any base URL | OpenAI, OpenRouter, Groq, DeepSeek, or a free local model |
 | Local model (Ollama) | Ollama's own API on this machine | free; the text never leaves it |
 
-Enable the ones you have on **Settings → AI engine**, order them, and pick
+Enable the ones you have on **Settings → AI & costs**, order them, and pick
 models per engine. Engine #1 serves every call; on an error, a rate limit
 or an empty quota the next one takes over for that call, and #1 is back
 the moment it recovers. Every card says whether the engine works on this

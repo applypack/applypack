@@ -11,8 +11,8 @@ export interface HeldLine {
   action: string;
 }
 
-/** Where the alert window is set — the Schedule card, which therefore links nowhere. */
-export const SCHEDULE_HREF = '/settings?tab=general';
+/** Where the alert window is set — the alert timing on Notifications, which therefore links nowhere. */
+export const SCHEDULE_HREF = '/settings?tab=notifications#alerts';
 const NOTIFICATIONS_HREF = '/settings?tab=notifications';
 
 export function heldLine(count: number, reason: HeldReason): HeldLine {
