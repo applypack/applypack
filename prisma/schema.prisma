@@ -539,6 +539,11 @@ model AppSettings {
   // before the cleanup cron deletes them (ADR 0048).
   employerMode                   Boolean   @default(false)
   screeningRetentionDays         Int       @default(90)
+  // ADR 0061: the language the interface is written in — a code from
+  // src/i18n/locale.ts. NULL = never chosen: English, with the browser's
+  // language offered once (web/language.ts). Interface only; prompts and
+  // what a model writes do not follow it.
+  locale                         String?
   // ADR 0063: application packs — whether the worker prepares them, for which
   // postings, how many a day, and what an unattended edit may touch
   // (src/pack/settings.ts). NULL = off, which is every install until its

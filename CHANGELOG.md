@@ -4,6 +4,36 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.49.0] — 2026-10-06
+
+### Added
+- **The groundwork for an interface in your language.** ApplyPack's
+  interface is being translated: Ukrainian first, then German, Spanish,
+  French and Hindi. This release carries the machinery and the first words:
+  the menu and the controls every page shares read in English and
+  Ukrainian, and dates and numbers follow the language. The pages
+  themselves come in the next releases, so Ukrainian is not in the switcher
+  yet. To try it: Settings → General → **Language** → Unfinished languages.
+  What the AI writes, your resumes and your letters stay in the language
+  they are written in ([ADR 0061](docs/adr/0061-the-interface-speaks-several-languages.md)).
+- **The language never changes by itself.** An install that exists today
+  stays English. Once a language is offered, a browser that prefers it sees
+  one line at the bottom of the menu proposing the switch, and either answer
+  ends the question. A new install's setup opens in the browser's language,
+  with the choice on its first step.
+- Cyrillic is drawn in Inter, as Latin is, and Devanagari in Noto Sans
+  Devanagari. Both files are served from your own install and fetched only
+  by a page that holds those letters.
+- For translators: [docs/translating.md](docs/translating.md) has the rules,
+  the voice per language and the glossary. One JSON file per language, and
+  `npm test` checks it against the English one.
+
+### Changed
+- `npm run smoke:routes` ends with a pass over every page in a
+  pseudo-language and prints how much English is still written into the
+  code: 2 708 runs of text on 34 pages today. Each translation release
+  brings it down.
+
 ## [2.48.0] — 2026-10-06
 
 ### Added
@@ -4851,6 +4881,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.49.0]: https://github.com/applypack/applypack/compare/v2.48.0...v2.49.0
 [2.48.0]: https://github.com/applypack/applypack/compare/v2.47.1...v2.48.0
 [2.47.1]: https://github.com/applypack/applypack/compare/v2.47.0...v2.47.1
 [2.47.0]: https://github.com/applypack/applypack/compare/v2.46.0...v2.47.0

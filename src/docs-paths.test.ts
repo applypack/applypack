@@ -29,6 +29,7 @@ const CURRENT = [
   'docs/operations.md',
   'docs/ai-engines.md',
   'docs/employer-mode.md',
+  'docs/translating.md',
 ];
 /** Decisions: their paths must exist, but their prose names the alternatives they turned down and other vendors' APIs. */
 const ADRS = readdirSync(ADR_DIR)

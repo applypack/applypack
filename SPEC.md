@@ -308,6 +308,7 @@ clause at the start of the affected job/handler. The toggles live on
 | `localContextTokens`             | NULL     | The context window the local engine asks for on every call: 8k / 16k / 32k / 64k tokens; NULL = 16 384. A prompt estimated larger than it is refused before it is sent, and the next engine takes the call |
 | `pack`                           | NULL     | Application packs (ADR 0063), one JSON value read by `pack/settings.ts`: `enabled` (false), `minFit` (90), `dailyLimit` (5; 0 = none), `maxAgeDays` (7), `coverLetter` (never / asked / always) and the tailoring `policy`. NULL = off with those defaults. Settings → General → Application packs |
 | `aiBudgetCents`                  | NULL     | A monthly ceiling on billed AI money: one line to the alert chats at 80 % and at 100 %, once each per UTC month (`aiBudgetAlerted` holds the last one sent). NULL = no budget. Nothing is ever stopped (ADR 0055) |
+| `locale`                         | NULL     | The interface's language (ADR 0061). NULL = never chosen: English, and a browser that prefers an offered language sees one line proposing it. Set from the globe at the bottom of the menu, the wizard's first step or Settings → General → Language; finishing setup stores the language the wizard was read in. The worker's messages follow it. Prompts and what a model writes do not |
 
 ## Application tracking
 
@@ -861,6 +862,35 @@ criteria behind them, per-criterion gaps — and never re-weights
 folder, writing nothing. A screening is deleted
 with its files on `retainUntil` (`screeningRetentionDays`, default 90) by
 the cleanup cron, or at once from its page.
+
+## Interface languages (ADR 0061)
+
+The interface is written in English and translated from it; what a model
+writes, resumes, letters, a posting's own words, logs and CSV values are not.
+
+- **Catalogs.** One flat JSON file per language in `src/i18n/catalog/`;
+  `en.json` is the source and its keys are the type `t()` accepts. Messages
+  use a subset of ICU MessageFormat (arguments, `number`, `plural` with `#`,
+  `select`, simple tags for inline elements), parsed and formatted by
+  `src/i18n/message.ts` with nothing but `Intl`. `catalog.test.ts` fails a
+  language that lacks a key or writes a plural in other forms than the
+  language has.
+- **The language of the moment** is in `AsyncLocalStorage`
+  (`src/i18n/locale.ts`): set per request by the dashboard's middleware,
+  English outside one. Dates, numbers, lists, weekday and country names come
+  from `src/i18n/format.ts` in that language, in Latin digits.
+- **Stages.** A language is `ready` or `beta` (both in the switcher; beta is
+  machine-translated from `docs/translating.md` and says so), or `unfinished`
+  (only under Settings → General → Language, while pages are still being
+  moved to the catalog). Today: English is ready, Ukrainian is unfinished —
+  the menu and the shared controls are translated, the pages are not yet.
+- **It never changes by itself.** A stored choice wins. With none, a first
+  run opens in the browser's language if it is offered, and finishing setup
+  stores it; an install already set up stays English and shows one line in
+  the browser's language, whose two answers both store a choice.
+- **The meter.** The route smoke draws every page once more in a
+  pseudo-language that brackets everything from the catalog, and prints how
+  much English is left outside the brackets.
 
 ## AI spend (ADR 0055)
 

@@ -297,6 +297,14 @@ src/
     lines.ts                   ← pure: the words both channels share (place line, salary, quiet sources)
     pack.ts                    ← pure: packMessages, blocks under a header within a length limit
     targets.ts                 ← pure: KIND_LABEL, describeDestination with the secret masked
+  i18n/                        ← the interface's languages (ADR 0061); pure, used by the dashboard and the worker
+    locale.ts                  ← LOCALES and their stages; withLocale / currentLocale (AsyncLocalStorage, English outside one); matchAcceptLanguage
+    message.ts                 ← pure: the catalog's ICU subset — parseMessage, formatMessage, messageShape
+    catalog.ts                 ← loads catalog/<code>.json; MessageKey is a key of en.json
+    t.ts                       ← t(key, params): the message as text; tParts for a page that renders its inline elements
+    format.ts                  ← numbers, dates, lists, weekday and country names in the current language, Latin digits
+    pseudo.ts                  ← the pseudo-language's brackets; hardcodedText reads the English left in a rendered page
+    catalog/                   ← en.json (the source), uk.json
   local/                       ← npm start without Docker (ADR 0054)
     launcher.ts                ← the data folder's lock, then the database, the worker, the dashboard; stops in reverse
     postgres.ts                ← the built-in Postgres 16 through pg_ctl (I/O)
@@ -538,8 +546,11 @@ src/
     ui.tsx                      ← the shared primitives: <PageHeader>, <Card>, <Empty> (title · why · one action), <Disclosure>, <More>, <Tabs>, <FilterChip>, <StatCard>, <CardHeader>, <IconTile>, <Avatar>, <StatusBadge>, <FitBadge>, <Tag>, the form controls
     icons.tsx                   ← <Icon>: the one icon family (Lucide's paths), inline SVG
     table-hide.ts               ← pure: the classes that hide a table column below a breakpoint
-    format.ts                   ← formatSalary, formatDate / formatStamp (in the request's zone), formatRelative, statusTone, fitTone, fitWord
+    format.ts                   ← formatSalary, formatDate / formatStamp (in the request's zone and language), formatRelative, statusTone, fitTone, fitWord
     display-zone.ts             ← the zone a request's dates are written in: the schedule's, set by app.ts (AsyncLocalStorage)
+    language.ts                 ← resolveLanguage: stored choice, a first run's browser language, or English with one invitation (ADR 0061)
+    language-menu.tsx           ← <LanguageMenu> (the switcher), <LanguageInvite>, <LanguageSettings>
+    rich.ts                     ← tRich: a catalog message with its inline elements rendered by the page
     flash.ts                    ← POST → redirect → GET flash cookie; firstIssue names the field a schema refused (pure)
     run-failure.ts              ← pure: a failed run's sentence — what failed, what is safe, the way forward (TASKS U6)
     params.ts                   ← idParam / intQuery: ids and numbers off the request, a 400 where a 500 would be

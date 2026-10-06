@@ -21,46 +21,46 @@ colors:
   violet: "#6D28D9"
 typography:
   title:
-    fontFamily: "Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif"
+    fontFamily: "Inter, 'Noto Sans Devanagari', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif"
     fontSize: "30px"
     fontWeight: 700
     lineHeight: "36px"
     letterSpacing: "-0.025em"
   kpi:
-    fontFamily: "Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif"
+    fontFamily: "Inter, 'Noto Sans Devanagari', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif"
     fontSize: "32px"
     fontWeight: 700
     lineHeight: "36px"
     letterSpacing: "-0.03em"
   section:
-    fontFamily: "Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif"
+    fontFamily: "Inter, 'Noto Sans Devanagari', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif"
     fontSize: "18px"
     fontWeight: 650
     lineHeight: "26px"
     letterSpacing: "-0.015em"
   entity:
-    fontFamily: "Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif"
+    fontFamily: "Inter, 'Noto Sans Devanagari', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif"
     fontSize: "15px"
     fontWeight: 600
     lineHeight: "22px"
     letterSpacing: "-0.005em"
   body:
-    fontFamily: "Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif"
+    fontFamily: "Inter, 'Noto Sans Devanagari', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif"
     fontSize: "14px"
     fontWeight: 400
     lineHeight: "20px"
   label:
-    fontFamily: "Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif"
+    fontFamily: "Inter, 'Noto Sans Devanagari', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif"
     fontSize: "13px"
     fontWeight: 550
     lineHeight: "18px"
   note:
-    fontFamily: "Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif"
+    fontFamily: "Inter, 'Noto Sans Devanagari', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif"
     fontSize: "13px"
     fontWeight: 400
     lineHeight: "20px"
   meta:
-    fontFamily: "Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif"
+    fontFamily: "Inter, 'Noto Sans Devanagari', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif"
     fontSize: "12px"
     fontWeight: 400
     lineHeight: "16px"
@@ -259,7 +259,9 @@ It must never become a general secondary accent.
 
 **UI Font:** Inter, bundled (`/static/fonts/inter-latin.woff2`, variable weight
 400–700) with `ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif`
-fallback
+fallback. Two more faces serve the interface's other scripts and are fetched
+only by a page that holds them (`unicode-range`): Inter's Cyrillic subset, and
+Noto Sans Devanagari for the script Inter does not draw (ADR 0061)
 **Machine Font:** system mono stack (`ui-monospace, SFMono-Regular, "SF Mono",
 Menlo, Consolas, monospace`)
 

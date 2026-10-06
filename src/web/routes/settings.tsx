@@ -38,6 +38,7 @@ import {
   setSourceKey,
   setSchedule,
   setEmployerMode,
+  setLocale,
   setScreeningRetentionDays,
   SCREENING_RETENTION_DAYS,
   SETTINGS_ID,
@@ -139,7 +140,9 @@ import type { Profile } from '@prisma/client';
 import { isSettingsTab, SettingsPage, type EngineServer, type SourceKeyRow } from '../pages/settings';
 import { packSettingsFromForm, parsePackSettings } from '../../pack/settings';
 import { sourceLabel } from '../source-names';
-import { clearFlashCookie, firstIssue, flashRedirect, parseFlashCookie, refusedField } from '../flash';
+import { clearFlashCookie, firstIssue, flashRedirect, parseFlashCookie, refusedField, safeBack } from '../flash';
+import { isSelectableLocale, withLocale } from '../../i18n/locale';
+import { t } from '../../i18n/t';
 import { describeDestination } from '../../notify/targets';
 import { isDiscordWebhookUrl, testDiscordWebhook } from '../../notify/discord';
 import { missingLinkMessage } from '../profile-links';
@@ -209,6 +212,9 @@ const AI_PROVIDER_DESCS: Record<AiProviderId, string> = {
 };
 
 let reclassifyInFlight = false;
+
+/** Where the language is chosen on Settings: the switcher's way back when a form names none. */
+const LANGUAGE_SECTION = '/settings?tab=general#language';
 
 export const settingsRoute = new Hono();
 
@@ -992,6 +998,20 @@ settingsRoute.post('/settings/update-check-toggle', async (c) => {
         ? `Checking weekly. v${latest} is out — you run v${APP_VERSION}.`
         : `Checking weekly. You run the latest release, v${APP_VERSION}.`,
   );
+});
+
+/**
+ * ADR 0061: the interface's language — from the menu, the wizard's first step,
+ * Settings, or an answer to the one-time invitation (which stores English as
+ * surely as it stores the other). The flash is worded in the language chosen.
+ */
+settingsRoute.post('/settings/locale', async (c) => {
+  const form = await c.req.parseBody();
+  const back = safeBack(form.back, LANGUAGE_SECTION);
+  const locale = form.locale;
+  if (!isSelectableLocale(locale)) return flashRedirect(back, 'err', t('language.unknown'));
+  await setLocale(locale);
+  return flashRedirect(back, 'ok', withLocale(locale, () => t('language.saved')));
 });
 
 /** ADR 0063: application packs — the whole form at once, as the schedule is saved. */

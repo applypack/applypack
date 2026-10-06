@@ -37,6 +37,11 @@ import { tryFetchLock } from '../jobs/fetch-lock';
 import { addToFunnel } from '../jobs/funnel-store';
 import { getFetchRun } from '../web/fetch-runs';
 import { getRun } from '../web/target-runs';
+import { parseFlashCookie } from '../web/flash';
+import { writeFileSync } from 'node:fs';
+import { PSEUDO_LOCALE } from '../i18n/locale';
+import { hardcodedText } from '../i18n/pseudo';
+import { SETTINGS_ID, setLocale } from '../settings';
 
 /** What a page may answer: itself, or a redirect to where the state lives. */
 const ACCEPT = new Set([200, 302, 303]);
@@ -80,6 +85,29 @@ const OVERVIEW_VARIANTS = [
   '/?range=180d&stack=node.js',
   '/?range=nonsense&stack=%3Cscript%3E',
 ];
+/**
+ * Pages the route patterns draw once but that hold several: each tab and each
+ * wizard step is its own screenful of words for the pseudo-language pass.
+ */
+const PSEUDO_VARIANTS = [
+  '/jobs/:id?tab=match',
+  '/jobs/:id?tab=letter',
+  '/jobs/:id?tab=verify',
+  '/settings?tab=profile',
+  '/settings?tab=ai',
+  '/settings?tab=notifications',
+  '/settings?tab=sources',
+  '/settings?tab=screening',
+  '/welcome?step=ai',
+  '/welcome?step=search',
+  '/welcome?step=profile',
+  '/welcome?step=sources',
+  '/welcome?step=matches',
+];
+/** The words a page holds that are nobody's to translate: the product's name. */
+const NOT_INTERFACE = /\bApplyPack\b/g;
+/** How many pages the summary names; `--pseudo-list <file>` writes every run of every page. */
+const PSEUDO_TOP = 12;
 // app.request() builds no Host header of its own, and the origin guard
 // compares Origin's host with it (same-origin.ts) — so the request says both.
 const ORIGIN = { origin: 'http://localhost', host: 'localhost' };
@@ -224,6 +252,11 @@ function fill(path: string, f: Fixtures): string {
     .replace(':id', String(id));
 }
 
+/** The flash a redirect carries, as text. */
+function flashOf(res: Response): string {
+  return parseFlashCookie((res.headers.get('set-cookie') ?? '').split(';')[0])?.text ?? '';
+}
+
 function form(fields: Record<string, string>): RequestInit {
   return {
     method: 'POST',
@@ -249,7 +282,7 @@ async function main(): Promise<void> {
   }
 
   // The writes a first run makes, through the same guard a browser meets.
-  const posts: { name: string; init: RequestInit; expect: (res: Response) => boolean }[] = [
+  const posts: { name: string; init: RequestInit; expect: (res: Response) => boolean | Promise<boolean> }[] = [
     {
       name: 'POST /jobs/new (a pasted posting)',
       init: form({ companyName: 'Smoke Two', title: 'Platform Engineer', url: '', location: 'Berlin', description: POSTING }),
@@ -311,7 +344,7 @@ async function main(): Promise<void> {
         return { method: 'POST', headers: ORIGIN, body } satisfies RequestInit;
       })(),
       expect: (res) => {
-        const flash = decodeURIComponent(res.headers.get('set-cookie') ?? '');
+        const flash = flashOf(res);
         return (
           res.status === 303 &&
           flash.includes('3 applicants added') &&
@@ -447,6 +480,30 @@ async function main(): Promise<void> {
       expect: (res) => res.status === 200 && res.headers.get('content-type') === 'application/pdf',
     },
     {
+      // ADR 0061: the switcher returns to the page it was pressed on, and says so in the language chosen.
+      name: 'POST /settings/locale (Ukrainian, back to the page it was pressed on)',
+      init: form({ locale: 'uk', back: '/jobs?status=NEW' }),
+      expect: (res) => res.status === 303 && res.headers.get('location') === '/jobs?status=NEW' && flashOf(res).includes('Інтерфейс тепер українською'),
+    },
+    {
+      name: 'GET /jobs in Ukrainian (the page says which language it is in, and the menu speaks it)',
+      init: { method: 'GET', headers: ORIGIN },
+      expect: async (res) => {
+        const html = res.status === 200 ? await res.text() : '';
+        return html.includes('<html lang="uk">') && html.includes('Вакансії');
+      },
+    },
+    {
+      name: 'POST /settings/locale with a language nobody offers (refused, in the language in use)',
+      init: form({ locale: 'en-XA' }),
+      expect: (res) => res.status === 303 && flashOf(res).includes('нічого не змінилося'),
+    },
+    {
+      name: 'POST /settings/locale (English, a way back that leaves the site ignored)',
+      init: form({ locale: 'en', back: '//evil.example/jobs' }),
+      expect: (res) => res.status === 303 && res.headers.get('location') === '/settings?tab=general#language' && flashOf(res).includes('The interface is in English'),
+    },
+    {
       // ADR 0063: the settings form as a browser sends it — an unticked box absent, the sections repeated.
       name: 'POST /settings/pack (packs switched on)',
       init: { method: 'POST', headers: { ...ORIGIN, 'content-type': 'application/x-www-form-urlencoded' }, body: 'enabled=1&minFit=92&dailyLimit=0&maxAgeDays=14&coverLetter=asked&sections=title&sections=skills&maxBullets=1&keywords=1' },
@@ -509,6 +566,10 @@ async function main(): Promise<void> {
     `/resumes/${f.resumeId}/document`,
     `/resumes/${f.resumeId}/document`,
     `/resumes/${f.resumeId}/document`,
+    '/settings/locale',
+    '/jobs',
+    '/settings/locale',
+    '/settings/locale',
     '/settings/pack',
     '/settings?tab=general',
     `/jobs/${f.jobId}/pack`,
@@ -518,7 +579,7 @@ async function main(): Promise<void> {
   ];
   for (const [i, p] of posts.entries()) {
     const res = await app.request(postPaths[i]!, p.init);
-    rows.push({ route: p.name, url: postPaths[i]!, status: res.status, ok: p.expect(res) });
+    rows.push({ route: p.name, url: postPaths[i]!, status: res.status, ok: await p.expect(res) });
   }
 
   // What a request gets WRONG. Every one of these used to be a 500 or worse,
@@ -646,10 +707,14 @@ async function main(): Promise<void> {
     });
   }
 
+  const pseudo = await pseudoPass([...gets, ...PSEUDO_VARIANTS].map((route) => fill(route, f)));
+  rows.push(...pseudo.rows);
+
   const failed = rows.filter((r) => !r.ok);
   const width = Math.max(...rows.map((r) => r.route.length));
   for (const r of rows) console.log(`${r.ok ? 'ok ' : 'FAIL'}  ${r.status}  ${r.route.padEnd(width)}  ${r.url}`);
   console.log(`\n${rows.length} requests, ${rows.length - failed.length} as expected, ${failed.length} failed`);
+  console.log(pseudo.report);
   await prisma.$disconnect();
   // A background scan the upload started may still hold a child; the answer is in.
   process.exit(failed.length > 0 ? 1 : 0);
@@ -840,6 +905,48 @@ async function folderChecks(): Promise<Check[]> {
     await fs.rm(inbox, { recursive: true, force: true });
   }
   return out;
+}
+
+/**
+ * Every page once more, in the pseudo-language (ADR 0061): what went through
+ * the catalog or the format module comes back in brackets, so the words left
+ * outside them are English still written into the code. The count is the
+ * meter of the translation work — it only ever has to go down — and a page
+ * that fails in a language other than English fails the run. Data the
+ * fixtures put in (a company's name, a posting) counts until its markup says
+ * `translate="no"`; that is the same work.
+ */
+async function pseudoPass(urls: string[]): Promise<{ rows: { route: string; url: string; status: number; ok: boolean }[]; report: string }> {
+  const before = await prisma.appSettings.findUnique({ where: { id: SETTINGS_ID }, select: { locale: true } });
+  await setLocale(PSEUDO_LOCALE);
+  const rows: { route: string; url: string; status: number; ok: boolean }[] = [];
+  const perPage: { url: string; runs: string[] }[] = [];
+  try {
+    for (const url of urls) {
+      const res = await app.request(url, { headers: ORIGIN });
+      if (res.status >= 500) rows.push({ route: `GET ${url} in the pseudo-language`, url, status: res.status, ok: false });
+      if (res.status !== 200 || !(res.headers.get('content-type') ?? '').includes('text/html')) continue;
+      const runs = hardcodedText(await res.text())
+        .map((run) => run.replace(NOT_INTERFACE, '').trim())
+        .filter((run) => /[A-Za-z]{2,}/.test(run));
+      perPage.push({ url, runs });
+    }
+  } finally {
+    await prisma.appSettings.update({ where: { id: SETTINGS_ID }, data: { locale: before?.locale ?? null } });
+  }
+  const all = perPage.flatMap((p) => p.runs);
+  const distinct = new Set(all);
+  const listAt = process.argv.indexOf('--pseudo-list');
+  const listFile = listAt >= 0 ? process.argv[listAt + 1] : undefined;
+  if (listFile) writeFileSync(listFile, perPage.map((p) => `## ${p.url} (${p.runs.length})\n${p.runs.join('\n')}`).join('\n\n') + '\n');
+  const top = [...perPage].sort((a, b) => b.runs.length - a.runs.length).slice(0, PSEUDO_TOP);
+  const report = [
+    `\npseudo-language pass: ${perPage.length} pages, ${all.length} runs of English outside the catalog (${distinct.size} distinct)`,
+    ...top.map((p) => `  ${String(p.runs.length).padStart(5)}  ${p.url}`),
+    listFile ? `  every run: ${listFile}` : '  (--pseudo-list <file> writes every run)',
+  ].join('\n');
+  rows.push({ route: `the pseudo-language pass (${perPage.length} pages drawn)`, url: '', status: 200, ok: perPage.length > 0 });
+  return { rows, report };
 }
 
 /** A run once it has finished, or null if it never does within the wait. */

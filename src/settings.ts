@@ -8,6 +8,7 @@ import { parseSourceKeys, type KeyedSource, type SourceKeyField, type SourceKeys
 import { parsePackSettings, type PackSettings } from './pack/settings';
 import { parseSchedule, type Schedule } from './user-schedule';
 import { config } from './config';
+import { isLocale, type Locale } from './i18n/locale';
 
 export const SETTINGS_ID = 1;
 const TELEGRAM_API = 'https://api.telegram.org';
@@ -58,6 +59,8 @@ export interface AppSettingsView {
   employerMode: boolean;
   /** How long a screening and its applicant files are kept (ADR 0048). */
   screeningRetentionDays: number;
+  /** ADR 0061: the interface's language; null = never chosen (English, the browser's offered once). */
+  locale: Locale | null;
   updatedAt: Date;
 }
 
@@ -144,8 +147,14 @@ export async function getSettings(): Promise<AppSettingsView> {
     setupCompletedAt: row.setupCompletedAt,
     employerMode: row.employerMode,
     screeningRetentionDays: row.screeningRetentionDays,
+    locale: storedLocale(row.locale),
     updatedAt: row.updatedAt,
   };
+}
+
+/** A code this build knows, or null: a language a later release added reads as "never chosen" after a rollback. */
+function storedLocale(value: string | null): Locale | null {
+  return isLocale(value) ? value : null;
 }
 
 /**
@@ -163,14 +172,48 @@ export async function getInstanceId(): Promise<string> {
   return row.instanceId;
 }
 
-/** Marks the first-run wizard as finished (or skipped); `/` stops redirecting. */
-export async function setSetupCompleted(): Promise<void> {
+/**
+ * Marks the first-run wizard as finished (or skipped); `/` stops redirecting.
+ * `shownIn` is the language the wizard was read in: with none chosen yet it
+ * becomes the choice, so the interface does not turn English the moment setup
+ * ends (ADR 0061). A language already chosen is left alone.
+ */
+export async function setSetupCompleted(shownIn: Locale): Promise<void> {
   await prisma.appSettings.upsert({
     where: { id: SETTINGS_ID },
     update: { setupCompletedAt: new Date() },
     create: { id: SETTINGS_ID, setupCompletedAt: new Date() },
   });
+  await prisma.appSettings.updateMany({ where: { id: SETTINGS_ID, locale: null }, data: { locale: shownIn } });
   logger.info('settings: setup marked complete');
+}
+
+/**
+ * What every page is written in: the zone of its dates, the stored language
+ * and whether setup is done (web/language.ts turns the last two into the
+ * language of the request). One read per request.
+ */
+export async function getDisplaySettings(): Promise<{ timezone: string; locale: Locale | null; setupCompleted: boolean }> {
+  const row = await prisma.appSettings.findUnique({
+    where: { id: SETTINGS_ID },
+    select: { schedule: true, locale: true, setupCompletedAt: true },
+  });
+  return {
+    timezone: parseSchedule(row?.schedule ?? null, config.TZ).timezone,
+    locale: storedLocale(row?.locale ?? null),
+    // No row yet is a first run: init.ts has not seeded, and the wizard is what comes next.
+    setupCompleted: row ? row.setupCompletedAt !== null : false,
+  };
+}
+
+/** ADR 0061: the interface's language, chosen in the menu or on Settings → General. */
+export async function setLocale(locale: Locale): Promise<void> {
+  await prisma.appSettings.upsert({
+    where: { id: SETTINGS_ID },
+    update: { locale },
+    create: { id: SETTINGS_ID, locale },
+  });
+  logger.info({ locale }, 'settings: language set');
 }
 
 /**

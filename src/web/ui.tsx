@@ -8,6 +8,8 @@ import { barHeights } from './chart-svg';
 import { Icon, type IconName } from './icons';
 import { TOKENS, hex } from './tokens';
 import { hashShortId } from '../text-utils';
+import { formatNumber } from '../i18n/format';
+import { t } from '../i18n/t';
 
 /*
  * Shared primitives. Every page composes these instead of writing raw
@@ -106,7 +108,7 @@ export const When: FC<{ at: Date | null | undefined }> = ({ at }) =>
 export const Stars: FC<{ n: number; class?: string }> = ({ n, class: extra }) => (
   <span class={extra}>
     <span aria-hidden="true">{'★'.repeat(n)}</span>
-    <span class="sr-only">{`weight ${n}`}</span>
+    <span class="sr-only">{t('ui.weight', { n })}</span>
   </span>
 );
 
@@ -171,7 +173,7 @@ export const Flash: FC<PropsWithChildren<{ flash?: FlashMessage | null }>> = ({ 
       <span id="flash-text" class="min-w-0 flex-1">{flash.text}</span>
       {flash.download && (
         <a href={flash.download} class="shrink-0 font-medium underline">
-          Download .docx
+          {t('ui.downloadDocx')}
         </a>
       )}
       {children}
@@ -405,7 +407,7 @@ export const Disclosure: FC<
       {count > 0 && (
         <span class="rounded bg-surface-selected px-1.5 text-meta font-medium tabular-nums text-accent-strong">
           {count}
-          <span class="sr-only"> active</span>
+          <span class="sr-only"> {t('ui.activeInside', { n: count })}</span>
         </span>
       )}
       <ChevronDown />
@@ -420,7 +422,7 @@ export const Disclosure: FC<
  * knowing folds here. Its prose carries the hint hook, so an open one counts.
  */
 export const More: FC<PropsWithChildren<{ summary?: string; class?: string }>> = ({
-  summary = 'How this works',
+  summary = t('ui.howThisWorks'),
   class: className = '',
   children,
 }) => (
@@ -442,20 +444,20 @@ export const Tabs: FC<{
   class?: string;
 }> = ({ label, tabs, class: className = '' }) => (
   <nav aria-label={label} class={`flex flex-wrap gap-x-1 border-b border-line ${className}`}>
-    {tabs.map((t) => (
+    {tabs.map((tab) => (
       <a
-        href={t.href}
-        aria-current={t.current ? 'page' : undefined}
+        href={tab.href}
+        aria-current={tab.current ? 'page' : undefined}
         class={`-mb-px inline-flex items-center gap-1.5 border-b-2 px-2.5 py-2 text-note transition-colors duration-150 ${
-          t.current
+          tab.current
             ? 'border-accent-strong font-medium text-ink'
             : 'border-transparent text-ink-muted hover:border-line-strong hover:text-ink'
         }`}
       >
-        {t.label}
-        {t.count !== undefined && (
-          <span class={`tabular-nums ${t.current ? 'text-ink-muted' : 'text-ink-faint'}`}>
-            {t.count.toLocaleString()}
+        {tab.label}
+        {tab.count !== undefined && (
+          <span class={`tabular-nums ${tab.current ? 'text-ink-muted' : 'text-ink-faint'}`}>
+            {formatNumber(tab.count)}
           </span>
         )}
       </a>
@@ -470,7 +472,7 @@ export const Tabs: FC<{
 export const FilterChip: FC<{ label: string; href: string; flag?: string }> = ({ label, href, flag }) => (
   <a
     href={href}
-    aria-label={`Remove filter: ${label}`}
+    aria-label={t('ui.removeFilter', { label })}
     class="inline-flex min-h-[28px] items-center gap-1.5 rounded-md border border-accent/30 bg-surface-selected py-0.5 pl-2 pr-1.5 text-note font-medium text-accent-strong transition-colors duration-150 hover:border-accent-strong"
   >
     {flag && <span aria-hidden="true">{flag}</span>}
@@ -554,11 +556,11 @@ export const StatCard: FC<{
         <div class="text-kpi tabular-nums text-ink">
           {href ? (
             <a href={href} class="after:absolute after:inset-0 after:rounded-lg hover:text-accent-strong">
-              {value.toLocaleString('en-US')}
+              {formatNumber(value)}
               {hrefLabel && <span class="sr-only"> {label} — {hrefLabel}</span>}
             </a>
           ) : (
-            value.toLocaleString('en-US')
+            formatNumber(value)
           )}
         </div>
         {spark && <SparkBars values={spark} tone={tone} class="min-w-0 justify-end overflow-hidden" />}
@@ -611,7 +613,7 @@ export const StatusBadge: FC<{ status: JobStatus }> = ({ status }) => (
  */
 export const FitBadge: FC<{ score: number | null; label?: string; worded?: boolean }> = ({
   score,
-  label = 'fit',
+  label = t('fit.label'),
   worded = false,
 }) => {
   if (score == null) return <span class="text-ink-faint">—</span>;
@@ -674,7 +676,7 @@ export const Table: FC<
   return stickyHeader ? (
     table
   ) : (
-    <div class="overflow-x-auto" tabindex={0} role="region" aria-label={caption ?? 'Table'}>
+    <div class="overflow-x-auto" tabindex={0} role="region" aria-label={caption ?? t('ui.table')}>
       {table}
     </div>
   );
@@ -889,7 +891,7 @@ export const ConfirmAction: FC<{
         <form method="post" action={action} class="mt-3 flex justify-end gap-2">
           {hidden && Object.entries(hidden).map(([k, v]) => <input type="hidden" name={k} value={String(v)} />)}
           <Button type="button" variant="secondary" size="sm" popovertarget={id} popovertargetaction="hide" autofocus>
-            Cancel
+            {t('ui.cancel')}
           </Button>
           <Button variant={variant === 'ghost' ? 'danger' : variant} size="sm">
             {yes ?? label}
@@ -979,10 +981,10 @@ export const ToggleRow: FC<
   label,
   enabled,
   action,
-  onLabel = 'Enabled',
-  offLabel = 'Disabled',
-  enableText = 'Enable',
-  disableText = 'Disable',
+  onLabel = t('ui.enabled'),
+  offLabel = t('ui.disabled'),
+  enableText = t('ui.enable'),
+  disableText = t('ui.disable'),
   extra,
   more,
   children,

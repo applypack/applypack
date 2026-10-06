@@ -14,7 +14,12 @@ mostly semantics and focus — get those right and there is little else to do.
   `Button` in `ui.tsx`); navigation is `<a>`. Never a clickable `<div>`.
 - One `<h1>` per page (`PageHeader`); section titles are `<h2>`
   (`SectionTitle`); heading levels never skip. Landmarks: `header`, `nav`
-  (`aria-label="Primary"`), `main#main`, `section` per card, `footer`.
+  (labelled "Primary", the catalog's `layout.primaryNav`), `main#main`,
+  `section` per card, `footer`.
+- A word a person reads or hears — an `aria-label`, a `title`, an `sr-only`
+  span — is a catalog message like any other (`t()`, ADR 0061). A name that
+  is data (a company, a file, a language's own name) takes `translate="no"`,
+  and text in another language than the page takes its `lang`.
 - Every input has a wired label — use `Field`, which wraps the control in a
   `<label>`. Groups of checkboxes/radios sit in a `<fieldset>` with a
   `<legend>`.

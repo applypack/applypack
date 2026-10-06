@@ -3,6 +3,9 @@ import assert from 'node:assert/strict';
 import { z } from 'zod';
 import { firstIssue, flashRedirect, parseFlashCookie, refusedField, safeBack } from './flash';
 
+/** A flash cookie as a browser sends it back — or as someone who edits cookies would write one. */
+const cookieOf = (payload: unknown): string => `flash=${Buffer.from(JSON.stringify(payload), 'utf8').toString('base64url')}`;
+
 test('firstIssue names the field and the reason', () => {
   const schema = z.object({ name: z.string().min(1, 'a name is required'), days: z.number() });
   const result = schema.safeParse({ name: '', days: 3 });
@@ -32,7 +35,8 @@ test('a flash survives the redirect cookie and nothing else does', () => {
   const cookie = res.headers.get('Set-Cookie')?.split(';')[0];
   assert.deepEqual(parseFlashCookie(cookie), { kind: 'err', text: 'Profile not saved; fix "name" and save again.' });
   assert.equal(parseFlashCookie('flash=%7Bnot-json'), null);
-  assert.equal(parseFlashCookie(`flash=${encodeURIComponent(JSON.stringify({ kind: 'loud', text: 'x' }))}`), null);
+  assert.equal(parseFlashCookie(`flash=${Buffer.from('{not-json').toString('base64url')}`), null);
+  assert.equal(parseFlashCookie(cookieOf({ kind: 'loud', text: 'x' })), null);
 });
 
 test('safeBack keeps a redirect on this site', () => {
@@ -68,8 +72,7 @@ test('the refused field rides the flash with its form, and only names do (TASKS 
   assert.deepEqual(refusedField(at, [{ path: [0] }]), {});
   assert.deepEqual(refusedField('/jobs?x="]', [{ path: ['name'] }]), {}, 'a form path only');
   const cookie = (field: unknown) => {
-    const value = encodeURIComponent(JSON.stringify({ kind: 'err', text: 'name: required.', field }));
-    return parseFlashCookie(`flash=${value}`);
+    return parseFlashCookie(cookieOf({ kind: 'err', text: 'name: required.', field }));
   };
   const res = flashRedirect('/settings?tab=profile', 'err', 'name: required.', refusedField(at, [{ path: ['name'] }]));
   assert.deepEqual(parseFlashCookie((res.headers.get('set-cookie') ?? '').split(';')[0]!)?.field, { form: at, name: 'name' });
@@ -77,4 +80,17 @@ test('the refused field rides the flash with its form, and only names do (TASKS 
   assert.equal(cookie({ form: at, name: '"]; alert(1); ["' })?.field, undefined);
   assert.equal(cookie({ form: '/a"] b', name: 'name' })?.field, undefined);
   assert.equal(cookie('name')?.field, undefined);
+});
+
+// ADR 0061: a browser drops a cookie past 4 096 bytes silently, and the old percent-encoding
+// spent six characters on a Cyrillic letter and nine on a Devanagari one.
+test('a long message in Ukrainian or Hindi still fits the cookie, and comes back whole', () => {
+  const COOKIE_LIMIT = 4096;
+  for (const text of ['Резюме збережено як нову версію. '.repeat(24), 'रेज़्यूमे नए संस्करण के रूप में सहेजा गया। '.repeat(12)]) {
+    const header = flashRedirect('/resumes/3', 'ok', text).headers.get('set-cookie') ?? '';
+    assert.ok(header.length < COOKIE_LIMIT, `${header.length} bytes`);
+    assert.ok(encodeURIComponent(JSON.stringify({ kind: 'ok', text })).length > COOKIE_LIMIT, 'percent-encoded, this message would have been dropped');
+    assert.match(header.split(';')[0]!, /^flash=[A-Za-z0-9_-]+$/, 'only characters a cookie value may hold');
+    assert.equal(parseFlashCookie(header.split(';')[0]!)?.text, text);
+  }
 });

@@ -1,6 +1,8 @@
 import { formatSalaryRange } from '../currency';
 import type { JobStatus } from '@prisma/client';
 import { displayZone } from './display-zone';
+import { formatDateTime, formatNumber } from '../i18n/format';
+import { t } from '../i18n/t';
 
 /** The posting's own money and period (src/currency.ts); null columns read as USD a year. */
 /**
@@ -31,7 +33,7 @@ export function formatSalary(
 /** A moment, in the zone of the user's schedule, with the zone named so the reader does not have to guess it. */
 export function formatDate(d: Date | null | undefined): string {
   if (!d) return '—';
-  return d.toLocaleString('en-US', {
+  return formatDateTime(d, {
     timeZone: displayZone(),
     year: 'numeric',
     month: 'short',
@@ -45,7 +47,7 @@ export function formatDate(d: Date | null | undefined): string {
 /** A moment in a table cell: day and 24-hour time, no year; the column header names the zone (`displayZoneLabel`). */
 export function formatStamp(d: Date | null | undefined): string {
   if (!d) return '—';
-  return d.toLocaleString('en-US', {
+  return formatDateTime(d, {
     timeZone: displayZone(),
     month: 'short',
     day: 'numeric',
@@ -57,7 +59,7 @@ export function formatStamp(d: Date | null | undefined): string {
 
 export function formatDateShort(d: Date | null | undefined): string {
   if (!d) return '—';
-  return d.toLocaleString('en-US', {
+  return formatDateTime(d, {
     timeZone: displayZone(),
     month: 'short',
     day: 'numeric',
@@ -66,20 +68,25 @@ export function formatDateShort(d: Date | null | undefined): string {
 
 /** The time of day alone, 24-hour, in the display zone: "13:54" — for a moment the reader knows was today. */
 export function formatTime(d: Date): string {
-  return d.toLocaleTimeString('en-US', { timeZone: displayZone(), hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+  return formatDateTime(d, { timeZone: displayZone(), hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
 }
 
+/**
+ * "5m ago", worded by the catalog (`time.ago.*`) rather than by
+ * `Intl.RelativeTimeFormat`: CLDR's narrow forms are uneven — French writes
+ * "-5 min", German "vor 5 m" — and a message is ours to word (ADR 0061).
+ */
 export function formatRelative(d: Date | null | undefined): string {
   if (!d) return '—';
   const ms = Date.now() - d.getTime();
   const sec = Math.round(ms / 1000);
-  if (sec < 60) return `${sec}s ago`;
+  if (sec < 60) return t('time.ago.seconds', { n: sec });
   const min = Math.round(sec / 60);
-  if (min < 60) return `${min}m ago`;
+  if (min < 60) return t('time.ago.minutes', { n: min });
   const hr = Math.round(min / 60);
-  if (hr < 48) return `${hr}h ago`;
+  if (hr < 48) return t('time.ago.hours', { n: hr });
   const day = Math.round(hr / 24);
-  return `${day}d ago`;
+  return t('time.ago.days', { n: day });
 }
 
 /**
@@ -91,37 +98,33 @@ export function formatRelative(d: Date | null | undefined): string {
 export function formatUntil(d: Date | null | undefined): string {
   if (!d) return '—';
   const sec = Math.round((d.getTime() - Date.now()) / 1000);
-  if (sec <= 0) return 'due now';
-  if (sec < 60) return `in ${sec}s`;
+  if (sec <= 0) return t('time.dueNow');
+  if (sec < 60) return t('time.in.seconds', { n: sec });
   const min = Math.round(sec / 60);
-  if (min < 60) return `in ${min}m`;
+  if (min < 60) return t('time.in.minutes', { n: min });
   const hr = Math.round(min / 60);
-  if (hr < 48) return `in ${hr}h`;
-  return `in ${Math.round(hr / 24)}d`;
+  if (hr < 48) return t('time.in.hours', { n: hr });
+  return t('time.in.days', { n: Math.round(hr / 24) });
 }
 
 export function formatDuration(ms: number | null | undefined): string {
   if (ms == null) return '—';
-  if (ms < 1000) return `${ms}ms`;
+  if (ms < 1000) return t('duration.ms', { n: ms });
   const s = ms / 1000;
-  if (s < 60) return `${s.toFixed(1)}s`;
-  const m = s / 60;
-  return `${m.toFixed(1)}m`;
+  if (s < 60) return t('duration.seconds', { n: oneDecimal(s) });
+  return t('duration.minutes', { n: oneDecimal(s / 60) });
+}
+
+/** "1.5" in English, "1,5" where the language writes a comma — the digits `toFixed(1)` gives, never regrouped. */
+function oneDecimal(n: number): string {
+  return formatNumber(Number(n.toFixed(1)), { minimumFractionDigits: 1, maximumFractionDigits: 1, useGrouping: false });
 }
 
 export type Tone = 'ok' | 'warn' | 'danger' | 'info' | 'violet' | 'neutral';
 
-const STATUS_LABEL: Record<JobStatus, string> = {
-  NEW: 'New',
-  ALERTED: 'Alerted',
-  APPLIED: 'Applied',
-  SAVED: 'Saved',
-  DISMISSED: 'Dismissed',
-};
-
 /** Display label for a job status — the enum stays SCREAMING_CASE in data. */
 export function statusLabel(status: JobStatus): string {
-  return STATUS_LABEL[status] ?? status;
+  return t(`job.status.${status}`);
 }
 
 export function statusTone(status: JobStatus): Tone {
@@ -155,8 +158,8 @@ export function fitTone(score: number | null | undefined): Tone {
 /** The same floors in a word, for where there is room beside the number: a job page's header. */
 export function fitWord(score: number | null | undefined): string {
   if (score == null) return '';
-  if (score >= FIT_OK_FLOOR) return 'Strong';
-  if (score >= FIT_INFO_FLOOR) return 'Good';
-  if (score >= FIT_WARN_FLOOR) return 'Partial';
-  return 'Weak';
+  if (score >= FIT_OK_FLOOR) return t('fit.strong');
+  if (score >= FIT_INFO_FLOOR) return t('fit.good');
+  if (score >= FIT_WARN_FLOOR) return t('fit.partial');
+  return t('fit.weak');
 }

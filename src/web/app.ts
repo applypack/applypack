@@ -39,7 +39,10 @@ import { screenRoute } from './routes/screen';
 import { ensureEmployerMode } from './employer-mode';
 import { ensureUpdateNotice } from './update-notice';
 import { withDisplayZone } from './display-zone';
-import { getSchedule } from '../settings';
+import { getDisplaySettings } from '../settings';
+import { withLocale, type Locale } from '../i18n/locale';
+import { t } from '../i18n/t';
+import { backFor, resolveLanguage, withLanguagePage } from './language';
 import { DEFAULT_BODY_BYTES, hasOwnBodyLimit } from './body-limits';
 
 /** The bundled typeface changes far less often than a release: a week, and its URL carries no version. */
@@ -130,21 +133,32 @@ app.use('*', async (c, next) =>
 );
 
 // Tiny request log; also loads the employer-mode switch once, for the sidebar
-// (ADR 0049), and the zone every date on the page is written in.
+// (ADR 0049), the zone every date on the page is written in, and the language
+// the page is worded in (ADR 0061).
 app.use('*', async (c, next) => {
   // The sidebar's one switch. With the database down every route used to
   // die here, /health included — the route decides what a missing database
   // means for it (a 503 on /health), so the failure is logged and passed.
-  let timezone = config.TZ;
+  // An unreachable database answers in English and offers nothing.
+  let display: { timezone: string; locale: Locale | null; setupCompleted: boolean } = { timezone: config.TZ, locale: null, setupCompleted: true };
   try {
     await ensureEmployerMode();
     await ensureUpdateNotice();
-    timezone = (await getSchedule()).timezone;
+    display = await getDisplaySettings();
   } catch (err) {
     logger.warn({ err, path: c.req.path }, 'web: employer mode unknown — database unreachable');
   }
+  const language = resolveLanguage({
+    stored: display.locale,
+    setupCompleted: display.setupCompleted,
+    acceptLanguage: c.req.header('accept-language'),
+  });
   const started = Date.now();
-  await withDisplayZone(timezone, () => next());
+  await withLocale(language.locale, () =>
+    withLanguagePage({ invite: language.invite, back: backFor(c.req.method, c.req.url) }, () =>
+      withDisplayZone(display.timezone, () => next()),
+    ),
+  );
   logger.info(
     {
       method: c.req.method,
@@ -182,7 +196,7 @@ app.route('/', screenRoute);
 app.route('/', settingsRoute);
 app.route('/', healthRoute);
 
-app.notFound((c) => c.text('Not found', 404));
+app.notFound((c) => c.text(t('http.notFound'), 404));
 
 /**
  * A body that is not the multipart it claims to be. undici raises a plain
@@ -202,10 +216,10 @@ app.onError((err, c) => {
   if (err instanceof HTTPException) return err.getResponse();
   if (isMalformedBody(err)) {
     logger.warn({ path: c.req.path }, 'web: malformed request body');
-    return c.text('Malformed request body', 400);
+    return c.text(t('http.malformedBody'), 400);
   }
   logger.error({ err, path: c.req.path }, 'web: unhandled error');
-  return c.text('Internal server error', 500);
+  return c.text(t('http.serverError'), 500);
 });
 
 export { app };

@@ -63,6 +63,7 @@ import {
   summarizeScoreRun,
 } from '../welcome-steps';
 import { spendHint } from '../cost-hint';
+import { currentLocale } from '../../i18n/locale';
 
 const TOP_MATCHES = 5;
 const AI_STEP = '/welcome?step=ai';
@@ -163,7 +164,7 @@ welcomeRoute.get('/welcome', async (c) => {
 });
 
 welcomeRoute.post('/welcome/skip', async () => {
-  await setSetupCompleted();
+  await setSetupCompleted(currentLocale());
   return flashRedirect(
     '/',
     'ok',
@@ -174,7 +175,7 @@ welcomeRoute.post('/welcome/skip', async () => {
 /** Step 5's closing action: the hourly watch starts and the wizard stops greeting. */
 welcomeRoute.post('/welcome/finish', async () => {
   await setFetchingEnabled(true);
-  await setSetupCompleted();
+  await setSetupCompleted(currentLocale());
   return flashRedirect('/', 'ok', 'Setup complete — the hourly watch is on. New matches land here.');
 });
 

@@ -35,6 +35,10 @@ npm run lint:types && npm test   # must be green before every PR; CI runs the sa
   hand-written migration, and unit-test the pure mapper. Unsure the
   source qualifies? Open a [source proposal](https://github.com/applypack/applypack/issues/new?template=new_source.yml)
   first.
+- **Correct a translation, or add a language.** The words are one JSON
+  file per language in `src/i18n/catalog/`; the rules and the glossary are
+  in [docs/translating.md](./docs/translating.md). `npm test` checks a
+  catalog against the English one.
 - **Pick an [open issue](https://github.com/applypack/applypack/issues).**
   Comment on it before you start, and ask there when the scope is unclear.
 - **Report bugs.** Use the issue template; logs beat prose.
