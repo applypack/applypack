@@ -220,7 +220,7 @@ export const WelcomePage: FC<WelcomeProps> = (p) => (
               >
                 {state === 'done' ? <MarkIcon kind="check" /> : i + 1}
               </span>
-              <span class="truncate">{t(STEP_TITLES[s.key])}</span>
+              <span class="break-words">{t(STEP_TITLES[s.key])}</span>
               {state === 'done' && <span class="sr-only">{t('welcome.step.doneSr')}</span>}
             </a>
           </li>
