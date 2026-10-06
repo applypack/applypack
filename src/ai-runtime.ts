@@ -249,7 +249,7 @@ async function localServerStatus(base: string, apiKey: string | undefined): Prom
 async function ollamaStatus(root: string): Promise<AiProviderStatus> {
   const host = baseUrlHost(root);
   const listed = await listOllamaModels(root, LOCAL_LIST_TIMEOUT_MS);
-  if ('reason' in listed) return { ok: false, detail: `Ollama · ${listed.reason}` };
+  if ('reason' in listed) return { ok: false, detail: t('engine.probe.ollamaReason', { reason: listed.reason }) };
   if (listed.models.length === 0) return { ok: false, detail: t('engine.probe.ollamaEmpty', { host }) };
   return { ok: true, detail: t('engine.probe.ollama', { host, n: listed.models.length }) };
 }
