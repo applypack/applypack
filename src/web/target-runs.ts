@@ -24,7 +24,8 @@ export type RunStep =
   | 'letter'
   | 'review'
   | 'score'
-  | 'compare';
+  | 'compare'
+  | 'import';
 export type RunStage = RunStep | 'done' | 'error';
 
 /** The comparison step a mode runs as: the quick check or the full report (ADR 0029). */
@@ -55,6 +56,13 @@ export interface TargetRun {
   results?: Partial<Record<RunStep, string>>;
   /** The tone of the done-flash; 'ok' unless the run says otherwise ("posting looks closed"). */
   flashKind?: 'ok' | 'warn';
+  /**
+   * How long an unfinished run is kept, when the work can outlast the usual
+   * half hour: an import scoring a few hundred rows on a CLI engine. A pruned
+   * run that is still working answers "gone" on its progress page and loses
+   * its final flash.
+   */
+  keepMs?: number;
   /** Data-driven progress of the active step, when the job reports it. */
   progress?: { done: number; total: number };
   /** Set on done: where to send the user, with the flash to show there. */
@@ -83,7 +91,7 @@ const runs = new Map<string, TargetRun>();
 /** Registers a run. Private: every start goes through `claimRun`, which is what makes a second POST join instead of duplicate. */
 function createRun(
   fields: Pick<TargetRun, 'steps' | 'jobTitle' | 'resumeName'> &
-    Partial<Pick<TargetRun, 'jobId' | 'backUrl' | 'backLabel' | 'heading' | 'subtitle'>>,
+    Partial<Pick<TargetRun, 'jobId' | 'backUrl' | 'backLabel' | 'heading' | 'subtitle' | 'keepMs'>>,
 ): TargetRun {
   prune();
   const run: TargetRun = {
@@ -191,9 +199,16 @@ export function startRun(id: string, fn: () => Promise<void>): void {
   });
 }
 
+/**
+ * A run in flight is kept from its start (a hung one must not be joined for
+ * ever); a finished one from the moment it finished, so the page that polls
+ * a long run still finds its answer.
+ */
 function prune(): void {
-  const cutoff = Date.now() - RUN_TTL_MS;
+  const now = Date.now();
   for (const [id, run] of runs) {
-    if (run.startedAt < cutoff) runs.delete(id);
+    const live = run.stage !== 'done' && run.stage !== 'error';
+    const expired = live ? now - run.startedAt > (run.keepMs ?? RUN_TTL_MS) : now - run.stageAt > RUN_TTL_MS;
+    if (expired) runs.delete(id);
   }
 }

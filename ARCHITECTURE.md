@@ -320,6 +320,13 @@ src/
     probe.ts                   ← runs the plans through probeAts, bounded concurrency + budget
     suggest.ts                 ← pure: suggestSources / packsForSearches, what a search's places and stack call for
 
+  datasets/                    ← rows the user brings (ADR 0062): pure, the reader and the mapper every such source shares
+    delimited.ts               ← pure: the CSV / TSV reader (quotes, CRLF, a BOM, the delimiter read off the first line)
+    rows.ts                    ← pure: findRows — a JSON array, a wrapper object, JSON Lines, CSV or TSV → rows, under the 5 MB and 2 000-row ceilings
+    map.ts                     ← pure: detectMapping (names, then values), mapRow / mapRows → NormalizedJob, the stored mapping's zod schema
+    preview.ts                 ← pure: previewCounts — rows already stored, and new rows the running searches' base filter admits
+    fixtures/                  ← hand-written rows: four shapes, a spreadsheet with its own headers, hostile rows
+
   resume/                      ← web-only resume module (ADR 0008); store.ts is its only Prisma access
     zip.ts                     ← read one entry, or all of them, from a zip (node:zlib), pure
     docx-text.ts               ← word/document.xml → plain text: DOM walk (blocks + line owners) with the regex reader as fallback, parity-tested (ADR 0038)
@@ -487,6 +494,8 @@ src/
     manual-job.ts               ← pasted posting → MANUAL company + Job, classified unless the caller passes classify: false
                                   (used by /jobs/new, /target, /letter and /screen/new; the last three pass it,
                                   and /target classifies a new job in the background instead)
+    import-job.ts               ← runImportJob: imported rows through processNormalizedJobs under the fetch lock (ADR 0062)
+    blocked-hosts.ts            ← pure: isBlockedPostingHost — the hosts ADR 0005 names, for posting-url.ts and the dataset mapper
     cron-run.ts                 ← recordCronRun(name, fn) wrapper
 
   scripts/                      ← hand-run; CI runs route-smoke.ts only
@@ -569,6 +578,8 @@ src/
     fetch-now.ts                ← beginFetchNow: "Fetch now" from /runs, the Overview and the wizard
     fetch-runs.ts               ← in-memory "Fetch now" registry (live source progress; the 'fetch-now' CronRun is the record)
     fetch-summary.ts            ← pure one-line verdict of a finished fetch-now run
+    import-stash.ts             ← the rows of an uploaded file between its preview and its import (memory only, 30 min, four at most)
+    import-summary.ts           ← pure one-line verdict of a finished import
     watchlist-runs.ts           ← in-memory registry of a watchlist resolve run
     target-runs.ts              ← in-memory registry of the progress-page runs (scan, match, verify, letter, …)
     comparison-run.ts           ← startComparison / runComparison: one text × one stored job as a progress-page run
@@ -620,6 +631,7 @@ src/
       jobs-list.tsx             ← /jobs
       job-detail.tsx            ← /jobs/:id (tabs: posting, match, letter, verify)
       job-new.tsx               ← /jobs/new (paste a posting)
+      job-import.tsx            ← /jobs/import (upload a file of rows) and /jobs/import/:token (the mapping, three rows, the counts)
       resume-match-card.tsx     ← the "Resume match" tab's comparison card
       cover-letter-card.tsx     ← the "Cover letter" tab (F8, ADR 0021)
       verification-card.tsx     ← the "Is it real?" tab
@@ -661,6 +673,7 @@ src/
       overview.tsx              ← / (sends a fresh install to /welcome)
       jobs.tsx                  ← list + new (manual) + detail + status + reclassify + description refresh + verify
                                   + resume match + suggestions + rewrite + cover letters + the targeted view
+      jobs-import.tsx           ← /jobs/import: upload → preview (no AI) → the import run; delete an import source
       keywords.ts               ← a keyword re-levelled, ignored or added: instant re-score, no AI call
       facts.ts                  ← ask_user answers → CandidateFact rows, instant re-score
       target.tsx                ← /target launcher: resume resolve + (stored job | manual job) + match in one POST
@@ -718,6 +731,7 @@ user's schedule, read in the schedule's own time zone.
 | `POST /jobs/:id/matches/:matchId/suggestions` | web | async run: `suggestForMatch` — actions/removals/strengths/cautions onto the stored row, score untouched |
 | `POST /jobs/:id/verify`          | web     | async run on the progress page: `checkLiveness` (free rungs, seconds) → stop on a verdict; else, or with `deep=1`, `verifyJob` with web tools (2-4 min) → `JobVerification` |
 | `POST /jobs/new`                 | web     | MANUAL company upsert + Job + `classifyExistingJob` |
+| `POST /jobs/import`              | web     | read the uploaded rows (`datasets/rows.ts`), detect the mapping, keep them in memory → the preview; `POST /jobs/import/:token` upserts the IMPORT source and starts an async run: `runImportJob` → `processNormalizedJobs` under the fetch lock, recorded as an `import` run; redirects to `/target/runs/:id` |
 | `POST /target`                   | web     | resolve resume inline (upload/paste → hidden scratch row); `jobMode=existing` → `startComparison` on the stored job (same run as `POST /jobs/:id/match`); a pasted posting → async: extract? → `createManualJob` → `runComparison` (memo → suggestions? → brief → `matchResumeToJob`); redirects to `/target/runs/:id` |
 | `GET /target/runs/:id`           | web     | progress page; `public/target-run.mjs` polls `GET /target/runs/:id/state` every 2 s; done → flash + redirect into the result |
 | `POST /resumes/:id/replace`      | web     | new file → `version`+1 → async run: `scanResume` |
@@ -871,6 +885,7 @@ erDiagram
     String[] pastedLines "BROWSER_PAGE: the page's lines as last pasted (TASKS N8)"
     String[] pastedNew "the lines new against the paste before"
     DateTime pastedAt
+    Json sourceConfig "IMPORT: the column mapping the user confirmed (ADR 0062)"
   }
 
   Job {

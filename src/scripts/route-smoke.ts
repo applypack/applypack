@@ -6,7 +6,8 @@
  * that answers 500, or 4xx where 2xx/3xx is expected, fails the run.
  *
  * Run it on a throwaway database only — it inserts a job, a resume, a
- * screening and an applicant, and switches employer mode on:
+ * screening and an applicant (and a search, where nothing was seeded), and
+ * switches employer mode on:
  *
  *   DATABASE_URL=postgresql://…/scratch npx prisma migrate deploy
  *   npm run build && DATABASE_URL=… AI_PROVIDER=claude_code npm run smoke:routes
@@ -22,7 +23,8 @@ import { createManualJob } from '../jobs/manual-job';
 import { createMatch, createResume } from '../resume/store';
 import { parseMatchResponse, PROMPT_VERSION } from '../resume/prompts';
 import { scoreMatch } from '../resume/score';
-import { setAiBudgetCents, setEmployerMode } from '../settings';
+import { getSettings, setAiBudgetCents, setEmployerMode, setFetchingEnabled } from '../settings';
+import { blankProfileInput, listActiveProfiles } from '../profiles';
 import { recordAiCall } from '../ai-ledger';
 import { NO_USAGE } from '../ai-usage';
 import { createApplicants, createScreening } from '../screening/store';
@@ -31,6 +33,7 @@ import { fingerprintText } from '../screening/intake';
 import { tryFetchLock } from '../jobs/fetch-lock';
 import { addToFunnel } from '../jobs/funnel-store';
 import { getFetchRun } from '../web/fetch-runs';
+import { getRun } from '../web/target-runs';
 
 /** What a page may answer: itself, or a redirect to where the state lives. */
 const ACCEPT = new Set([200, 302, 303]);
@@ -541,7 +544,7 @@ async function main(): Promise<void> {
   try {
     const started = await app.request('/runs/fetch-now', form({}));
     const runId = (started.headers.get('location') ?? '').split('/').pop() ?? '';
-    const run = await settledFetchRun(runId);
+    const run = await settled(() => getFetchRun(runId));
     rows.push({
       route: 'POST /runs/fetch-now while another fetch holds the lock (overlap)',
       url: '/runs/fetch-now',
@@ -551,6 +554,8 @@ async function main(): Promise<void> {
   } finally {
     await held.release();
   }
+
+  rows.push(...(await importChecks()));
 
   // The Overview itself. A fresh database sends `/` to /welcome, so until here
   // the dashboard was never drawn: setup is skipped, a scored match and a day
@@ -601,11 +606,121 @@ async function main(): Promise<void> {
   process.exit(failed.length > 0 ? 1 : 0);
 }
 
-/** A "Fetch now" run once it has finished, or null if it never does within the wait. */
-async function settledFetchRun(id: string, waitMs = 10_000): Promise<ReturnType<typeof getFetchRun>> {
+const IMPORT_CSV = [
+  'Position,Organisation,Job link,Where,About the role,Recruiter email',
+  'Backend Developer,Smoke Imports,https://rows.example/jobs/1,Remote,"Owns the ledger service, end to end.",someone@rows.example',
+  'Mobile Developer,Smoke Imports,https://rows.example/jobs/2,Lisbon,Owns the offline queue.,someone@rows.example',
+  'QA Engineer,Other Smoke,https://rows.example/jobs/3,Porto,Tests both.,other@rows.example',
+  ',Other Smoke,https://rows.example/jobs/4,Porto,A row with no title.,other@rows.example',
+].join('\r\n');
+const IMPORT_MAPPING = { title: 'Position', employer: 'Organisation', url: 'Job link', location: 'Where', description: 'About the role' };
+
+type Check = { route: string; url: string; status: number; ok: boolean };
+
+/**
+ * ADR 0062: a file of rows through its preview and its import, with fetching
+ * paused so no engine is asked. While a fetch holds the lock the first press
+ * stores nothing and keeps the rows; the second stores them unscored under an
+ * inactive IMPORT source; the same file again adds nothing; deleting the
+ * source takes its jobs.
+ */
+async function importChecks(): Promise<Check[]> {
+  const out: Check[] = [];
+  const check = (route: string, url: string, res: Response, ok: boolean): void => {
+    out.push({ route, url, status: res.status, ok });
+  };
+  const wasFetching = (await getSettings()).fetchingEnabled;
+  await setFetchingEnabled(false);
+  // A migrated database with nothing seeded has no search, and an import with none running stores nothing.
+  if ((await listActiveProfiles()).length === 0) {
+    await prisma.profile.create({ data: { ...blankProfileInput(), name: 'Smoke search', active: true } });
+  }
+  const upload = (): Promise<Response> => {
+    const body = new FormData();
+    body.set('sourceName', 'Smoke export');
+    body.set('file', new File([IMPORT_CSV], 'smoke.csv', { type: 'text/csv' }));
+    return Promise.resolve(app.request('/jobs/import', { method: 'POST', headers: ORIGIN, body }));
+  };
+  const imported = (): Promise<number> => prisma.job.count({ where: { company: { atsType: 'IMPORT' } } });
+  const pressImport = async (preview: string): Promise<{ res: Response; run: ReturnType<typeof getRun> }> => {
+    const res = await app.request(preview, form(IMPORT_MAPPING));
+    return { res, run: await settled(() => getRun((res.headers.get('location') ?? '').split('/').pop() ?? '')) };
+  };
+
+  const first = await upload();
+  const preview = first.headers.get('location') ?? '';
+  check('POST /jobs/import (a .csv upload)', '/jobs/import', first, first.status === 303 && /^\/jobs\/import\/[0-9a-f-]{36}$/.test(preview));
+  const page = await app.request(preview, { headers: ORIGIN });
+  const html = page.status === 200 ? await page.text() : '';
+  check(
+    'GET /jobs/import/:token (the mapping, three rows, the counts; no column about a person)',
+    preview,
+    page,
+    html.includes('Which column is which') && html.includes('3 of them jobs') && !html.includes('Recruiter email') && !html.includes('someone@rows.example'),
+  );
+  // A hand-made POST naming the column the page never offers: refused, and nothing is written.
+  const crafted = await app.request(preview, form({ ...IMPORT_MAPPING, employer: 'Recruiter email' }));
+  check(
+    'POST /jobs/import/:token mapping a column about a person (refused)',
+    preview,
+    crafted,
+    crafted.status === 303 && crafted.headers.get('location') === preview && (await prisma.company.count({ where: { atsType: 'IMPORT' } })) === 0,
+  );
+  const mapped = await app.request(`${preview}/mapping`, form(IMPORT_MAPPING));
+  check('POST /jobs/import/:token/mapping', `${preview}/mapping`, mapped, mapped.status === 303 && mapped.headers.get('location') === preview);
+  const foreign = await app.request(preview, {
+    method: 'POST',
+    headers: { origin: 'http://evil.example', host: 'localhost', 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams(IMPORT_MAPPING).toString(),
+  });
+  check('POST /jobs/import/:token from another origin (refused)', preview, foreign, foreign.status === 403);
+
+  const held = await tryFetchLock();
+  if (!held) throw new Error('route smoke: the fetch lock is already taken');
+  try {
+    const { res, run } = await pressImport(preview);
+    check(
+      'POST /jobs/import/:token while a fetch holds the lock (nothing stored, the rows kept)',
+      preview,
+      res,
+      res.status === 303 && run?.stage === 'done' && run.flashKind === 'warn' && run.resultUrl === preview && (await imported()) === 0,
+    );
+  } finally {
+    await held.release();
+  }
+
+  const { res: stored, run } = await pressImport(preview);
+  const source = await prisma.company.findFirst({ where: { atsType: 'IMPORT' }, include: { jobs: { select: { fitScore: true, employer: true } } } });
+  check(
+    'POST /jobs/import/:token while paused (stored unscored under an inactive source)',
+    preview,
+    stored,
+    stored.status === 303 &&
+      run?.stage === 'done' &&
+      run.resultUrl === '/jobs' &&
+      source?.active === false &&
+      source.sourceConfig !== null &&
+      source.jobs.length === 3 &&
+      source.jobs.every((j) => j.fitScore === null && j.employer !== null),
+  );
+
+  const again = await upload();
+  const second = await pressImport(again.headers.get('location') ?? '');
+  check('POST /jobs/import with the same file again (nothing new)', '/jobs/import', second.res, second.run?.stage === 'done' && (await imported()) === 3);
+  const list = await app.request('/jobs/import', { headers: ORIGIN });
+  check('GET /jobs/import with a source imported', '/jobs/import', list, list.status === 200 && (await list.text()).includes('Smoke export'));
+  const removed = await app.request(`/jobs/import/sources/${source?.id ?? 0}/delete`, form({}));
+  check('POST /jobs/import/sources/:id/delete (the source and its jobs)', '/jobs/import/sources/:id/delete', removed, removed.status === 303 && (await imported()) === 0);
+
+  await setFetchingEnabled(wasFetching);
+  return out;
+}
+
+/** A run once it has finished, or null if it never does within the wait. */
+async function settled<T extends { stage: string } | null>(read: () => T, waitMs = 10_000): Promise<T | null> {
   const until = Date.now() + waitMs;
   for (;;) {
-    const run = getFetchRun(id);
+    const run = read();
     if (run && (run.stage === 'done' || run.stage === 'error')) return run;
     if (Date.now() > until) return null;
     await new Promise((resolve) => setTimeout(resolve, 100));

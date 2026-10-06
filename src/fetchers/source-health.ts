@@ -144,13 +144,13 @@ export function nextStreak(status: FetchStatus, current: number): number {
 /**
  * Sources that never yield a posting by design, so ageing them into "silent"
  * would be reporting the design as a fault. A change watch (ADR 0036) reports
- * that a page moved and stores no Job; a MANUAL or BROWSER_PAGE row is not
- * fetched at all. Everything else has to earn `lastOkAt` the ordinary way.
+ * that a page moved and stores no Job; a MANUAL, BROWSER_PAGE or IMPORT row is
+ * not fetched at all. Everything else has to earn `lastOkAt` the ordinary way.
  */
 function neverPosts(atsType: string | null | undefined): boolean {
   // Compared as strings on purpose: importing AtsType would pull the Prisma
   // client into a module whose whole point is that it unit-tests without one.
-  return atsType === 'CAREER_PAGE' || atsType === 'MANUAL' || atsType === 'BROWSER_PAGE';
+  return atsType === 'CAREER_PAGE' || atsType === 'MANUAL' || atsType === 'BROWSER_PAGE' || atsType === 'IMPORT';
 }
 
 export interface SourceHealth {

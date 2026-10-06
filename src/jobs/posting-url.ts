@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { fetchWithRetry, HttpError, stripHtml, type FetchOptions } from '../http';
 import { looksLikeChallengeText } from '../watchlist/scan';
 import { MIN_DESCRIPTION_CHARS } from './manual-job';
+import { isBlockedPostingHost } from './blocked-hosts';
 
 /*
  * Fetch one user-provided posting URL and turn the page into plain text for
@@ -16,17 +17,6 @@ import { MIN_DESCRIPTION_CHARS } from './manual-job';
 
 const FETCH_TIMEOUT_MS = 12_000;
 const MAX_TEXT_CHARS = 30_000;
-
-/** ADR 0005: never scraped — not even one page at a time. */
-const BLOCKED_POSTING_HOSTS = [
-  'linkedin.com',
-  'indeed.com',
-  'glassdoor.com',
-  'workday.com',
-  'myworkdayjobs.com',
-  'wellfound.com',
-  'dice.com',
-];
 
 /*
  * Ashby draws its job pages in the browser, so a GET returns a shell with no
@@ -264,7 +254,7 @@ export function checkPostingUrl(raw: string): { ok: true; url: URL } | { ok: fal
     return { ok: false, error: 'A posting URL with a password in it is not fetched.' };
   }
   const host = url.hostname.toLowerCase();
-  if (BLOCKED_POSTING_HOSTS.some((b) => host === b || host.endsWith(`.${b}`))) {
+  if (isBlockedPostingHost(host)) {
     return {
       ok: false,
       error: 'That site is never fetched here (ADR 0005) — paste the posting text instead.',

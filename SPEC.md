@@ -29,7 +29,7 @@ port.
 
 See [ARCHITECTURE.md](./ARCHITECTURE.md) for diagrams.
 
-## Sources (33 kinds of source, the change watch, and MANUAL)
+## Sources (33 kinds of source, the change watch, the rows you bring, and MANUAL)
 
 | AtsType            | Shape         | Auth      | Notes                                           |
 | ------------------ | ------------- | --------- | ----------------------------------------------- |
@@ -48,6 +48,7 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for diagrams.
 | FEED               | per-company   | none      | A generic RSS / Atom job feed; the atsToken IS the feed URL, re-checked through the posting-URL guards on every tick. The rung below the vendor types — `watchlist/resolve.ts` only reaches it when no board resolves (ADR 0036) |
 | CAREER_PAGE        | per-company   | none      | A careers page with nothing machine-readable on it; the atsToken is the page URL. **Never yields a job** — it hashes the page's text and reports that it changed (ADR 0036) |
 | BROWSER_PAGE       | per-company   | none      | A careers page that draws its jobs in the browser (a loading shell: no board, no feed, almost no text); the atsToken is the page URL. **Never fetched** — the row is watched and inactive, and the user pastes the page's text to see what is new (TASKS N8) |
+| IMPORT             | your file     | none      | Rows the user uploads on `/jobs/import` — a JSON array, JSON Lines, CSV or TSV; the atsToken is the source's name as a slug and `sourceConfig` keeps the column mapping the user confirmed. **Never fetched** and never active: the rows go through `processNormalizedJobs` once, at the import, and carry many employers, each named on its row (ADR 0062) |
 | LARAJOBS_RSS       | aggregator    | none      | Single RSS, all jobs under one synthetic Company |
 | REMOTEOK           | aggregator    | none      | First array element is meta (`legal:`) — dropped via `slice(1)` |
 | REMOTIVE           | aggregator    | none      | `?category=software-dev`                        |
@@ -698,6 +699,33 @@ analysis and the suggestions as context — never evidence (ADR 0042). Since
 on confirmation the stored text is replaced, the original kept next to it
 (`descriptionOriginal`, `descriptionRefreshedAt`), the posting re-classified
 and the next comparison's keyword frame read afresh (ADR 0043).
+
+## Imported rows (ADR 0062)
+
+`/jobs/import` takes a file of jobs the user already has: a JSON array, an
+object holding one list, JSON Lines, CSV or TSV, up to 5 MB and 2 000 rows.
+Nothing is requested from anywhere, and the file is never stored: its rows
+wait in the web process's memory between the two steps.
+
+1. **Preview, no AI.** `datasets/map.ts:detectMapping` decides which column
+   is the title, the link, the company, the text, the place, the date and
+   the pay — from the names first, from the values where the names say
+   nothing. The page shows each field with a sample and a select, the first
+   three rows as they would be stored, and the counts: rows read, rows that
+   are a job (the others by reason: no title, neither an id nor a link,
+   marked closed, a repeat), rows the source already holds, and new rows the
+   running searches' base filter admits. That last number is the AI calls an
+   import would make.
+2. **Import.** The rows become jobs of an inactive `Company` with
+   `atsType = IMPORT` (one per source name; the confirmed mapping is kept in
+   `sourceConfig`) through `processNormalizedJobs`: filter, mute, dedupe,
+   classify, persist, alert. It shares the fetch lock with the tick, is
+   recorded as an `import` run, and stores the rows unscored while fetching
+   is paused. A newer export into the same source adds only what is new.
+
+Each row names its own employer (ADR 0056): the list reads "Acme · via
+September export", and a mute acts on Acme. Columns about people are never
+offered for mapping and never stored; a link is kept only when it is http(s).
 
 ## Cover letters (F8, ADR 0021)
 

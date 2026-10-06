@@ -79,7 +79,8 @@ interface CompanyTally {
 
 companiesRoute.get('/companies', async (c) => {
   const companies = await prisma.company.findMany({
-    where: { atsType: { not: AtsType.MANUAL } },
+    // A pasted job's row and an imported file's (managed on /jobs/import) are not sources the tick reads.
+    where: { atsType: { notIn: [AtsType.MANUAL, AtsType.IMPORT] } },
     orderBy: [{ active: 'desc' }, { name: 'asc' }],
     include: {
       _count: { select: { jobs: true } },
@@ -501,6 +502,10 @@ companiesRoute.post('/companies/:id/toggle-active', async (c) => {
   // TASKS N8: an active row would put a page nothing can read into every tick.
   if (!current.active && current.atsType === AtsType.BROWSER_PAGE) {
     return redirectWithFlash(c, 'err', `${current.name} draws its jobs in the browser, which ApplyPack cannot read — paste the page from the watchlist instead.`);
+  }
+  // The same for a file the user imported: its rows are stored already, and the next ones come from the next file.
+  if (!current.active && current.atsType === AtsType.IMPORT) {
+    return redirectWithFlash(c, 'err', `${current.name} is a file you imported, so there is nothing for the hourly fetch to read. Import a newer file on Jobs → Import a file.`);
   }
 
   await prisma.company.update({

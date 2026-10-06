@@ -84,6 +84,11 @@ const ACTIVITIES = {
     'Filtering the stored jobs against your profile…',
     'Scoring what passed — a few seconds per job…',
   ],
+  import: [
+    'Checking each row against your running searches…',
+    'Setting aside what is already stored…',
+    'Storing the new rows — and scoring them, unless fetching is paused…',
+  ],
 };
 /** What one unit of a step's progress is called. */
 const PROGRESS_UNIT = { score: 'jobs scored' };
