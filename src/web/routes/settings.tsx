@@ -441,7 +441,7 @@ async function loadSettingsProps() {
 settingsRoute.get('/settings', async (c) => {
   const props = await loadSettingsProps();
   const tabParam = c.req.query('tab');
-  const activeTab = isSettingsTab(tabParam) ? tabParam : 'general';
+  const activeTab = isSettingsTab(tabParam) ? tabParam : 'profile';
   // ?profile= points the editor at a specific (possibly inactive) profile.
   // "+ New profile" lands here: new profiles are born inactive (issue #50)
   // and must be editable before activation.
@@ -462,7 +462,7 @@ settingsRoute.get('/settings', async (c) => {
 settingsRoute.post('/settings/fetching-toggle', async (c) => {
   // The Overview quick control posts back="/" to land where it came from.
   const form = await c.req.parseBody();
-  const back = form.back === '/' ? '/' : '/settings?tab=general';
+  const back = form.back === '/' ? '/' : '/settings?tab=profile';
   const settings = await getSettings();
   const enabling = !settings.fetchingEnabled;
   await setFetchingEnabled(enabling);
@@ -480,7 +480,8 @@ settingsRoute.post('/settings/fetching-toggle', async (c) => {
 
 
 /**
- * Saves the whole Schedule card (TASKS §16). Day and digest pills are
+ * Saves the schedule (TASKS §16), one part per form: when to search (Job
+ * search tab), when alerts arrive (Notifications), the zone (General). Day and digest pills are
  * repeated checkboxes, so the body is read with `{ all: true }` (gotcha 1);
  * an empty day set would silence the search forever, so it falls back to
  * every day rather than saving nothing.
@@ -488,31 +489,55 @@ settingsRoute.post('/settings/fetching-toggle', async (c) => {
 settingsRoute.post('/settings/schedule', async (c) => {
   const form = await c.req.parseBody({ all: true });
   const current = parseSchedule((await getSettings()).schedule, config.TZ);
+  // Three forms on three tabs save one part each and keep the stored rest; a body with no part saves all of it.
+  const part = schedulePart(form.part);
+  const takes = (p: SchedulePart): boolean => part === null || part === p;
   const candidate = {
+    // The zone form always sends it; the other two only while no zone was ever saved — the browser's guess (TASKS S28).
     timezone: str(form.timezone) || current.timezone,
-    fetch: {
-      every: str(form.fetchEvery),
-      from: hour(form.fetchFrom, current.fetch.from),
-      to: hour(form.fetchTo, current.fetch.to),
-      days: pills(form.fetchDays, ALL_DAYS),
-    },
-    alerts: {
-      mode: str(form.alertMode),
-      from: hour(form.alertFrom, current.alerts.from),
-      to: hour(form.alertTo, current.alerts.to),
-      days: pills(form.alertDays, ALL_DAYS),
-      digestAt: pills(form.digestAt, current.alerts.digestAt).slice(0, MAX_DIGEST_HOURS),
-    },
+    fetch: takes('fetch')
+      ? {
+          every: str(form.fetchEvery),
+          from: hour(form.fetchFrom, current.fetch.from),
+          to: hour(form.fetchTo, current.fetch.to),
+          days: pills(form.fetchDays, ALL_DAYS),
+        }
+      : current.fetch,
+    alerts: takes('alerts')
+      ? {
+          mode: str(form.alertMode),
+          from: hour(form.alertFrom, current.alerts.from),
+          to: hour(form.alertTo, current.alerts.to),
+          days: pills(form.alertDays, ALL_DAYS),
+          digestAt: pills(form.digestAt, current.alerts.digestAt).slice(0, MAX_DIGEST_HOURS),
+        }
+      : current.alerts,
   };
+  const back = SCHEDULE_BACK[part ?? 'fetch'];
   const parsed = ScheduleSchema.safeParse(candidate);
   if (!parsed.success) {
-    return flashRedirect('/settings?tab=general', 'err', t('settingsRoute.schedule.notSaved', { issue: firstIssue(parsed.error.issues) }), refusedField(c.req.path, parsed.error.issues));
+    return flashRedirect(back, 'err', t('settingsRoute.schedule.notSaved', { issue: firstIssue(parsed.error.issues) }), refusedField(c.req.path, parsed.error.issues));
   }
   await setSchedule(parsed.data);
+  if (part === 'zone') return flashRedirect(back, 'ok', t('settingsRoute.schedule.zoneSaved', { zone: parsed.data.timezone }));
   const held = await loadHeldLine(parsed.data);
-  const saved = t('settingsRoute.schedule.saved', { schedule: describeSchedule(parsed.data) });
-  return flashRedirect('/settings?tab=general', 'ok', sentences(saved, held === null ? '' : `${held.text}.`));
+  const saved = part === 'alerts' ? t('settingsRoute.schedule.alertsSaved') : t('settingsRoute.schedule.saved', { schedule: describeSchedule(parsed.data) });
+  return flashRedirect(back, 'ok', sentences(saved, held === null ? '' : `${held.text}.`));
 });
+
+/** Where each part of the schedule is set: the search's hours, the alerts' timing, the zone every date is written in. */
+const SCHEDULE_BACK = {
+  fetch: '/settings?tab=profile#schedule',
+  alerts: '/settings?tab=notifications#alerts',
+  zone: '/settings?tab=general#timezone',
+} as const;
+
+type SchedulePart = keyof typeof SCHEDULE_BACK;
+
+function schedulePart(value: unknown): SchedulePart | null {
+  const s = str(value);
+  return Object.hasOwn(SCHEDULE_BACK, s) ? (s as SchedulePart) : null;
+}
 
 function str(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
@@ -863,7 +888,7 @@ settingsRoute.post('/settings/application-tracking-toggle', async (c) => {
   const settings = await getSettings();
   await setApplicationTrackingEnabled(!settings.applicationTrackingEnabled);
   return flashRedirect(
-    '/settings?tab=general',
+    '/settings?tab=applications',
     'ok',
     t(!settings.applicationTrackingEnabled ? 'settingsRoute.tracking.enabled' : 'settingsRoute.tracking.disabled'),
   );
@@ -871,7 +896,7 @@ settingsRoute.post('/settings/application-tracking-toggle', async (c) => {
 
 // ---- Board columns (ADR 0025) ------------------------------------------
 
-const STAGES_BACK = '/settings?tab=general#stages';
+const STAGES_BACK = '/settings?tab=applications#stages';
 
 const STAGE_ERROR_TEXT = {
   'empty-label': 'settingsRoute.stages.emptyLabel',
@@ -992,7 +1017,7 @@ settingsRoute.post('/settings/pack', async (c) => {
   const pack = packSettingsFromForm(await c.req.parseBody({ all: true }));
   await setPackSettings(pack);
   return flashRedirect(
-    '/settings?tab=general#packs',
+    '/settings?tab=automation#packs',
     'ok',
     pack.enabled
       ? t(pack.dailyLimit === 0 ? 'settingsRoute.pack.onNoLimit' : 'settingsRoute.pack.on', {
@@ -1010,11 +1035,11 @@ settingsRoute.post('/settings/reapply', async (c) => {
   const raw = typeof body.days === 'string' ? body.days.trim() : '';
   const days = raw === '' ? null : Number(raw);
   if (days !== null && !isReapplyChoice(days)) {
-    return flashRedirect('/settings?tab=general', 'err', t('settingsRoute.reapply.invalid'));
+    return flashRedirect('/settings?tab=applications#reapply', 'err', t('settingsRoute.reapply.invalid'));
   }
   await setReapplyDays(days);
   return flashRedirect(
-    '/settings?tab=general',
+    '/settings?tab=applications#reapply',
     'ok',
     days === null ? t('settingsRoute.reapply.off') : t('settingsRoute.reapply.set', { days }),
   );
@@ -1026,7 +1051,7 @@ settingsRoute.post('/settings/stale-digest-toggle', async (c) => {
     !settings.staleApplicationsDigestEnabled,
   );
   return flashRedirect(
-    '/settings?tab=general',
+    '/settings?tab=applications',
     'ok',
     t(!settings.staleApplicationsDigestEnabled ? 'settingsRoute.staleDigest.enabled' : 'settingsRoute.staleDigest.disabled'),
   );

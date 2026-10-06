@@ -93,10 +93,12 @@ const PSEUDO_VARIANTS = [
   '/jobs/:id?tab=match',
   '/jobs/:id?tab=letter',
   '/jobs/:id?tab=verify',
-  '/settings?tab=profile',
-  '/settings?tab=ai',
-  '/settings?tab=notifications',
   '/settings?tab=sources',
+  '/settings?tab=notifications',
+  '/settings?tab=applications',
+  '/settings?tab=automation',
+  '/settings?tab=ai',
+  '/settings?tab=general',
   '/settings?tab=screening',
   '/welcome?step=ai',
   '/welcome?step=search',
@@ -415,7 +417,41 @@ async function main(): Promise<void> {
     {
       name: 'POST /settings/reapply',
       init: form({ days: '90' }),
-      expect: (res) => res.status === 303 && res.headers.get('location') === '/settings?tab=general',
+      expect: (res) => res.status === 303 && res.headers.get('location') === '/settings?tab=applications#reapply',
+    },
+    {
+      // The schedule is three forms on three tabs: each saves its own part and keeps the stored rest.
+      name: 'POST /settings/schedule (alert timing, from Notifications)',
+      init: form({ part: 'alerts', alertMode: 'digest', alertFrom: '9', alertTo: '18', alertDays: '1', digestAt: '8' }),
+      expect: (res) => res.status === 303 && res.headers.get('location') === '/settings?tab=notifications#alerts',
+    },
+    {
+      name: 'POST /settings/schedule (when to search, from Job search: the alert timing stays)',
+      init: form({ part: 'fetch', fetchEvery: '2h', fetchFrom: '6', fetchTo: '22', fetchDays: '2' }),
+      expect: async (res) => {
+        const stored = (await getSettings()).schedule as { fetch?: { every?: string }; alerts?: { mode?: string; digestAt?: number[] } } | null;
+        return (
+          res.status === 303 &&
+          res.headers.get('location') === '/settings?tab=profile#schedule' &&
+          stored?.fetch?.every === '2h' &&
+          stored.alerts?.mode === 'digest' &&
+          stored.alerts.digestAt?.join() === '8'
+        );
+      },
+    },
+    {
+      name: 'POST /settings/schedule (the time zone, from General: the hours stay)',
+      init: form({ part: 'zone', timezone: 'Europe/Kyiv' }),
+      expect: async (res) => {
+        const stored = (await getSettings()).schedule as { timezone?: string; fetch?: { every?: string }; alerts?: { mode?: string } } | null;
+        return (
+          res.status === 303 &&
+          res.headers.get('location') === '/settings?tab=general#timezone' &&
+          stored?.timezone === 'Europe/Kyiv' &&
+          stored.fetch?.every === '2h' &&
+          stored.alerts?.mode === 'digest'
+        );
+      },
     },
     {
       // TASKS S1: the OpenAI-compatible engine's server, set here; one on this machine takes no key.
@@ -510,10 +546,10 @@ async function main(): Promise<void> {
       // ADR 0063: the settings form as a browser sends it — an unticked box absent, the sections repeated.
       name: 'POST /settings/pack (packs switched on)',
       init: { method: 'POST', headers: { ...ORIGIN, 'content-type': 'application/x-www-form-urlencoded' }, body: 'enabled=1&minFit=92&dailyLimit=0&maxAgeDays=14&coverLetter=asked&sections=title&sections=skills&maxBullets=1&keywords=1' },
-      expect: (res) => res.status === 303 && res.headers.get('location') === '/settings?tab=general#packs',
+      expect: (res) => res.status === 303 && res.headers.get('location') === '/settings?tab=automation#packs',
     },
     {
-      name: 'GET /settings?tab=general (the saved pack settings drawn)',
+      name: 'GET /settings?tab=automation (the saved pack settings drawn)',
       init: { headers: ORIGIN },
       expect: (res) => res.status === 200,
     },
@@ -557,6 +593,9 @@ async function main(): Promise<void> {
     '/jobs',
     '/companies/mutes/delete',
     '/settings/reapply',
+    '/settings/schedule',
+    '/settings/schedule',
+    '/settings/schedule',
     '/settings/ai/openai-base',
     '/settings?tab=ai',
     '/welcome/ai/local',
@@ -574,7 +613,7 @@ async function main(): Promise<void> {
     '/settings/locale',
     '/settings/locale',
     '/settings/pack',
-    '/settings?tab=general',
+    '/settings?tab=automation',
     `/jobs/${f.jobId}/pack`,
     `/jobs/${f.jobId}/pack`,
     `/jobs/${f.jobId}?tab=pack`,
