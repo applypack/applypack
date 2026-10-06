@@ -4,6 +4,35 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.51.0] — 2026-10-06
+
+### Added
+- **The job seeker's pages in Ukrainian.** Overview, Jobs and the job page
+  with all its tabs, the comparison and Tailor resume, Resumes and the clean
+  version, Cover letter, Companies with the watchlist and Discovery, Runs,
+  Applications, AI usage, Settings and the first-run wizard now read in
+  Ukrainian when it is chosen, the sentences the code writes included: why
+  a score is what it is, the next move, the search funnel, why a posting was
+  turned away. Dates, numbers, countries and places follow the language.
+  Still in English: employer mode, the words a page fills in live while you
+  edit, the Telegram and Discord messages, and the pages added in 2.46–2.50
+  (Import a file, folders, application packs). Until those are done,
+  Ukrainian stays under Settings → General → Language → Unfinished
+  languages. The English pages read as before, except that a count of one
+  is singular and a large number carries a thousands separator ("1,200
+  sources").
+
+### Fixed
+- Since 2.49.0 the message after muting or unmuting a company, and the
+  watchlist's messages, did not show on Companies (#353).
+- A count of one reads as one: "1 match" under the Overview's chart and
+  "from 1 source" in the wizard, not "1 matches" and "1 sources".
+- A browser that asks for `uk_UA`, or writes its preference as `Q=0.8`, is
+  offered its language; a catalog line with a capitalised tag is refused
+  when it loads instead of rendering wrong (#368).
+- A Jobs link whose "posted" value names a built-in property
+  (`?posted=constructor`) no longer fails the page.
+
 ## [2.50.0] — 2026-10-06
 
 ### Added
@@ -4903,6 +4932,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.51.0]: https://github.com/applypack/applypack/compare/v2.50.0...v2.51.0
 [2.50.0]: https://github.com/applypack/applypack/compare/v2.49.0...v2.50.0
 [2.49.0]: https://github.com/applypack/applypack/compare/v2.48.0...v2.49.0
 [2.48.0]: https://github.com/applypack/applypack/compare/v2.47.1...v2.48.0
