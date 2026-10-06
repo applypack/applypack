@@ -6,7 +6,7 @@
  * one decision the tick asks of them. Pure — tested in employer.test.ts.
  */
 
-import { sourceFamily } from './web/source-groups';
+import { bringsRows, sourceFamily } from './web/source-groups';
 
 /** Longer than any company name a feed sends; a longer field is not a name. */
 const MAX_EMPLOYER_CHARS = 120;
@@ -81,10 +81,11 @@ export function employerFromDescription(description: string): string | null {
  * A vendor board, the user's own feed or careers page, a pasted posting: the
  * source IS who hires. Everything else carries many employers. MANUAL is named
  * here because `sourceFamily` files it with the aggregators, which is right for
- * the Settings grid and wrong for this question.
+ * the Settings grid and wrong for this question — and so are the rows the user
+ * brings (ADR 0062), which sit with their own sources and hold many employers.
  */
 export function sourceIsEmployer(atsType: string): boolean {
-  return atsType === 'MANUAL' || sourceFamily(atsType) !== 'aggregator';
+  return atsType === 'MANUAL' || (sourceFamily(atsType) !== 'aggregator' && !bringsRows(atsType));
 }
 
 /** Who hires, as a page names them: the aggregator's employer, else the source when it is the employer; null when nobody said. */

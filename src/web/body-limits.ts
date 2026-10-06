@@ -14,6 +14,7 @@ const OWN_LIMIT = [
   /^\/target$/,
   /^\/letter$/,
   /^\/jobs\/\d+\/target\/reupload$/,
+  /^\/jobs\/import$/,
   /^\/settings\/profiles\/\d+\/fill-from-resume$/,
   /^\/welcome\/resume$/,
   /^\/screen$/,

@@ -56,10 +56,14 @@ services:
     # For the CLI engines (claude_code / gemini_cli / codex_cli): mount the
     # credentials (the image runs as user "node"), or use
     # CLAUDE_CODE_OAUTH_TOKEN / GEMINI_API_KEY in .env instead.
+    # A folder a tool writes job files into (Companies → Add sources): mount
+    # it read-only here AND in the web service below, and name the mount in
+    # .env as APPLYPACK_INBOX_ROOTS=/inbox. ApplyPack only reads it.
     # volumes:
     #   - ~/.claude:/home/node/.claude
     #   - ~/.gemini:/home/node/.gemini
     #   - ~/.codex:/home/node/.codex
+    #   - ./inbox:/inbox:ro
     restart: unless-stopped
 
   web:
@@ -96,10 +100,13 @@ services:
     # For the CLI engines (resume scan / match / verify
     # run in this service too): mount the CLI credentials, or use
     # CLAUDE_CODE_OAUTH_TOKEN / GEMINI_API_KEY in .env instead.
+    # The folder of job files, the same read-only mount as in the worker:
+    # the dashboard previews it and runs "Check now".
     # volumes:
     #   - ~/.claude:/home/node/.claude
     #   - ~/.gemini:/home/node/.gemini
     #   - ~/.codex:/home/node/.codex
+    #   - ./inbox:/inbox:ro
     restart: unless-stopped
 
 volumes:

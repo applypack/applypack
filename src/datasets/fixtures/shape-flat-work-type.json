@@ -1,0 +1,53 @@
+[
+  {
+    "id": 7200000011,
+    "title": "Platform Engineer",
+    "companyName": "Quiet River Systems",
+    "url": "https://listings.example/view/7200000011",
+    "applyUrl": "https://quietriver.example/careers/platform-engineer",
+    "descriptionHtml": "<h2>About the role</h2><p>Quiet River Systems hosts databases for research labs. The platform team keeps four hundred PostgreSQL clusters patched, backed up and boring.</p><h2>You bring</h2><ul><li>Go or Rust in production</li><li>Kubernetes operators</li><li>A habit of writing things down</li></ul>",
+    "description": "About the role. Quiet River Systems hosts databases for research labs. The platform team keeps four hundred PostgreSQL clusters patched, backed up and boring. You bring: Go or Rust in production, Kubernetes operators, a habit of writing things down.",
+    "location": "Warsaw, Poland",
+    "postedDate": "2026-10-01",
+    "salary": "PLN 22,000 - 28,000 per month",
+    "workType": "Hybrid",
+    "sector": "Hosting",
+    "companyUrl": "https://quietriver.example",
+    "recruiterName": "Sample Recruiter",
+    "recruiterUrl": "https://listings.example/in/sample-recruiter"
+  },
+  {
+    "id": 7200000012,
+    "title": "Data Analyst",
+    "companyName": "Lantern Freight",
+    "url": "https://listings.example/view/7200000012",
+    "applyUrl": "https://listings.example/apply/7200000012",
+    "descriptionHtml": "<p>Lantern Freight moves refrigerated goods across the Baltic. You will build the weekly margin report in SQL and dbt, and sit with the dispatchers until the numbers match what they see on the dock.</p><p>Two years with a warehouse such as BigQuery or Snowflake.</p>",
+    "description": "Lantern Freight moves refrigerated goods across the Baltic. You will build the weekly margin report in SQL and dbt, and sit with the dispatchers until the numbers match what they see on the dock. Two years with a warehouse such as BigQuery or Snowflake.",
+    "location": "Gdansk, Poland",
+    "postedDate": "2026-09-29",
+    "salary": "",
+    "workType": "On-site",
+    "sector": "Logistics",
+    "companyUrl": "https://lanternfreight.example",
+    "recruiterName": "Sample Recruiter",
+    "recruiterUrl": "https://listings.example/in/sample-recruiter"
+  },
+  {
+    "id": 7200000013,
+    "title": "Support Engineer",
+    "companyName": "Quiet River Systems",
+    "url": "https://listings.example/view/7200000013",
+    "applyUrl": "https://quietriver.example/careers/support-engineer",
+    "descriptionHtml": "<p>Answer the labs when a restore is slow, find out why, and write the runbook so the next answer is shorter. Shifts follow European working hours; nobody is paged at night. PostgreSQL knowledge matters more than the ticket tool you used before.</p>",
+    "description": "Answer the labs when a restore is slow, find out why, and write the runbook so the next answer is shorter. Shifts follow European working hours; nobody is paged at night. PostgreSQL knowledge matters more than the ticket tool you used before.",
+    "location": "Remote, Poland",
+    "postedDate": "2026-09-27",
+    "salary": "",
+    "workType": "Remote",
+    "sector": "Hosting",
+    "companyUrl": "https://quietriver.example",
+    "recruiterName": "Sample Recruiter",
+    "recruiterUrl": "https://listings.example/in/sample-recruiter"
+  }
+]

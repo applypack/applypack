@@ -124,6 +124,27 @@ test('picking up a name twice, or on a run that is gone, changes nothing', () =>
   assert.deepEqual(getRun(first.run.id)?.keys, [`target:3:full:${stamp}`, `suggestions:${stamp}`]);
 });
 
+test('a run is forgotten half an hour after it started, unless its work is known to take longer', (t) => {
+  t.mock.timers.enable({ apis: ['Date'], now: 5_000_000 });
+  const short = claim(`short:${Math.random()}`).run;
+  const long = claimRun(`long:${Math.random()}`, { ...fields, steps: ['import'], keepMs: 6 * 60 * 60_000 }).run;
+  t.mock.timers.tick(31 * 60_000);
+  // Any claim prunes first.
+  claim(`other:${Math.random()}`);
+  assert.equal(getRun(short.id), null);
+  assert.equal(getRun(long.id)?.stage, 'import');
+
+  // Finished after forty minutes: its answer waits half an hour from then, not from the start.
+  t.mock.timers.tick(9 * 60_000);
+  updateRun(long.id, { stage: 'done', resultUrl: '/jobs', flash: 'Imported.' });
+  t.mock.timers.tick(29 * 60_000);
+  claim(`other:${Math.random()}`);
+  assert.equal(getRun(long.id)?.flash, 'Imported.');
+  t.mock.timers.tick(2 * 60_000);
+  claim(`other:${Math.random()}`);
+  assert.equal(getRun(long.id), null);
+});
+
 test('a failure line says what failed, why when the engine said, and what to do next', () => {
   const next = 'The old wording stays; press Rewrite again.';
   assert.equal(

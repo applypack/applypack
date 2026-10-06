@@ -188,6 +188,40 @@
   takes the hook, or the number a UI change reports reads low.
 - `AtsType.MANUAL` companies are inactive rows for pasted jobs — `fetchOne`
   returns `[]`, `/companies` and the source toggles hide them.
+- `src/datasets/` is the rows the user brings (ADR 0062): `delimited.ts` (the
+  CSV / TSV reader), `rows.ts` (`findRows`: a JSON array, a wrapper object,
+  JSON Lines, CSV or TSV, the format read off the text, under the 5 MB and
+  2 000-row ceilings), `map.ts` (`detectMapping` from the names, then the
+  values; `mapRow` / `mapRows` → `NormalizedJob`; the zod schema of the
+  mapping kept in `Company.sourceConfig`) and `preview.ts` are pure (tested,
+  hand-written rows in `fixtures/`). Only mapped columns are read: a column
+  about a person never appears in `columnsOf`, so it is never kept, and a
+  link survives only as http(s). The mapper sets `employer` on every row — a
+  name or null, never absent — because these rows carry many employers
+  (ADR 0056); `source-groups.ts:bringsRows` is what makes `sourceIsEmployer`
+  answer false for a type `sourceFamily` files under the user's own.
+  `AtsType.IMPORT` companies are inactive rows like MANUAL: `fetchOne` returns
+  `[]`, `/companies` and the source toggles hide them, `/jobs/import` lists
+  and deletes them. The import is `jobs/import-job.ts:runImportJob` →
+  `processNormalizedJobs` under the fetch lock; between the preview and the
+  import the rows wait in `web/import-stash.ts`, in memory only. Nothing here
+  makes a request, and no site a row may have come from, and no tool that
+  wrote it, is named in code, copy or docs.
+- A folder a tool writes into is the same rows read on the tick
+  (`AtsType.FOLDER`, ADR 0062 addendum). `datasets/folder-path.ts` (which
+  folder may be read: inside home under the launcher, inside
+  `APPLYPACK_INBOX_ROOTS` anywhere else, asked on every look) and
+  `datasets/folder-scan.ts` (`planScan`: read, wait or leave alone; the
+  ceilings; `judgeFile` → jobs and the ledger row) are pure.
+  `datasets/folder-io.ts` is the ONLY module that touches a user's folder and
+  it only reads — no write, move, rename or delete, ever, and
+  `folder-io.test.ts` fails the file if one appears; links are not followed
+  and a file's real path must lie beneath the folder's. `fetchers/folder.ts`
+  returns `NormalizedJob[]` and writes nothing: the look is staged in
+  `fetchers/folder-ledger.ts` and `jobs/fetch-job.ts` hands it to
+  `jobs/source-file-store.ts` (the only file that touches `source_file`) only
+  when `tickStoredEverything()` agrees, as for validators. Never mark a file
+  read before its jobs are stored.
 - `src/resume/` is the resume module: `zip.ts`, `docx-text.ts`, `pdf-text.ts`
   (unpdf, ADR 0011), `resume-text.ts`, `prompts.ts`, `pick.ts`, `score.ts`
   (ADR 0012), `facts.ts`, `diff.ts`, `parse-warnings.ts`, `match-mode.ts`,
@@ -268,9 +302,10 @@
   smoke** (`npm run smoke:routes` after `npm run build` —
   `src/scripts/route-smoke.ts`): fixtures in, every GET route one
   in-process request through `app.request()`, the first run's POSTs, a
-  cross-origin POST refused, one clean PDF render, then every page again in
-  the pseudo-language (the count of English still outside the catalog —
-  ADR 0061). A 500 anywhere fails the build. Run it locally on a throwaway database only — it inserts rows and
+  cross-origin POST refused, one clean PDF render, a file of rows through its
+  preview and its import, then every page again in the pseudo-language (the
+  count of English still outside the catalog — ADR 0061). A 500 anywhere fails
+  the build. Run it locally on a throwaway database only — it inserts rows and
   switches employer mode on (see `.github/workflows/test.yml`).
 - The `local-start` job runs the default install on Linux (Node 22 and 24),
   macOS and Windows: `npm start` with a temporary `APPLYPACK_DATA_DIR`, the
@@ -315,7 +350,7 @@ When the question is **"where does X live?"**, save yourself a `find`:
 | How much English is still written into the code | the route smoke's last pass: every page again in the pseudo-language (`locale.ts:PSEUDO_LOCALE`, stored as `AppSettings.locale`), where the catalog's and the format module's text comes back in ⟦ ⟧ and `src/i18n/pseudo.ts:hardcodedText` reads what is left outside them. `npm run smoke:routes` prints the count and the worst pages; `node dist/scripts/route-smoke.js --pseudo-list out.txt` writes every run. An element with `translate="no"` or `lang="en"` is data and is skipped |
 | HTTP retry, timeout, default User-Agent | `src/http.ts` — a 5xx and a network failure are retried twice; a 429 whose `Retry-After` (`retryAfterMs`) is at most 10 s is waited out once, a longer one fails as the `rate_limit` source-health reads |
 | A URL from outside (a feed's link, the verifier's finding, a typed career page) as a link | `src/web/format.ts:safeHref` — http(s) or no link at all: a `javascript:` link from a feed would run in the dashboard's origin on a click |
-| HTML → plaintext (entities, paragraphs, bullets) | `src/http.ts:stripHtml` + `decodeHtmlEntities` (gotcha 12) |
+| HTML → plaintext (entities, paragraphs, bullets) | `src/http.ts:stripHtml` + `decodeHtmlEntities` (gotcha 12); one pass even over markup nobody closed — `replaceUpTo` cuts each pattern off at its last closer and `dropElements` walks script and style blocks forward, because 300 kB of `<a ` once took nine seconds; `safeCodePoint` decodes no NUL and no lone surrogate |
 | Pure helpers (parsing, hashing, masking) | `src/text-utils.ts` |
 | Near-duplicate detection across sources (SimHash, Hamming) | `src/fingerprint.ts` (ADR 0018); wired in `jobs/process-jobs.ts` |
 | Where the running searches hunt, handed to every fetcher (`FetchContext`: union of countries + regions; anywhere = empty) | `src/fetchers/fetch-context.ts:searchPlaces` (pure) built once per tick in `fetchers/index.ts:runAllFetchers`; a source with a geo filter maps it (`jobicy.ts:jobicySlugsFor`, `himalayas.ts:himalayasUrls`, `fourdayweek.ts:fourDayWeekPlaces`), the rest ignore it |
@@ -530,6 +565,10 @@ When the question is **"where does X live?"**, save yourself a `find`:
 | The posting a screening reads (a snapshot, editable, never the Job's live text) | `Screening.postingText` + `postingUpdatedAt`; `store.ts:postingOf` is what the brief and every call read; `POST /screen/:id/posting` saves, `POST /screen/:id/run-all` scores everyone again; `web/screen-view.ts:scoredBeforePosting` counts the verdicts older than the edit |
 | The notice an employer owes applicants, and the legal note | `src/screening/notice.ts` — shown with a Copy button on `/settings` → Screening |
 | Each cron's once-script (manual trigger) | `src/scripts/{fetch,digest,cleanup,stale,hn,discovery}-once.ts` |
+| A file of jobs the user imports: what counts as rows, which column is which, what is never kept | `src/datasets/rows.ts:findRows` (the format off the text; `decodeBody` for a UTF-16 spreadsheet export) → `src/datasets/map.ts:detectMapping` (the alias table `ALIASES`, then `GUESSES` off the values — the title is never guessed) → `mapRow`: the id or a hash of the link, the apply link unless it leads into a host `jobs/blocked-hosts.ts:isBlockedPostingHost` names, markup stripped once, pay as a `Salary: …` line at the head, a snippet marked as one, the country and the arrangement as `locationHints`, a date only when it is one (`readDate`). `PEOPLE_RE` (names) and `holdsContacts` (cells that are e-mail addresses or phone numbers) are the columns never offered; `clean` and `clip` keep control characters and half characters out of every field. ADR 0062 |
+| A folder a tool writes job files into: which folder may be read, what a look reads, when a file counts as read | `src/datasets/folder-path.ts:folderAllowed` (home on a local install minus hidden and system folders and the data folder; the roots of `APPLYPACK_INBOX_ROOTS` elsewhere — `config.ts`) → `src/datasets/folder-io.ts` (`realFolder`, `listFolder`: three folders deep, no dotfiles, no links; `readFolderFile`: O_NOFOLLOW, the real path beneath the folder, measured before and after) → `src/datasets/folder-scan.ts:planScan` (unchanged = size and time as the ledger has them; changed in the last `SETTLE_MS` = waits; `MAX_FILES_PER_LOOK`, `MAX_ROWS_PER_LOOK`; a misfit is settled until the file or the mapping changes — `settled`) and `judgeFile` (a copy by SHA-256 set aside, fewer than half the rows a job = misfit) → `src/fetchers/folder.ts:fetchFolder`; the ledger `source_file` through `src/jobs/source-file-store.ts`, staged in `src/fetchers/folder-ledger.ts` and kept by `jobs/fetch-job.ts` after the jobs are stored. Health: `source-health.ts:classifyFetchError` reads a `FolderError`'s fault, `describeStatus(status, 'FOLDER')` words it, and a folder never ages into "silent". ADR 0062 addendum |
+| The folder's pages: Check, Add (off), the row's line, the per-file list, "Check now" | `src/web/routes/folders.tsx` (`POST /companies/folder/check` renders the Check page straight from the POST and stores nothing; `POST /companies/folder` re-reads, re-checks the rules and upserts; `POST /companies/folder/inbox` under the launcher only; `GET /companies/:id/files`) · pages `web/pages/folder-source.tsx` over the shared `web/pages/mapping-fields.tsx` · words `web/folder-words.ts` (`folderLine`, `fileLine`, `explainFolderFault`, `folderCheckLine` — the flash of a check that brought nothing) · "Check now" is the watchlist's `POST /companies/:id/check-now` with `FetchScope.folder` |
+| The import itself: the preview's counts, the run, its row on `/runs`, the sources it made | `src/web/routes/jobs-import.tsx` (upload → `web/import-stash.ts` → preview → run) over `datasets/preview.ts:previewCounts`, `jobs/import-job.ts:runImportJob` (`processNormalizedJobs` under `tryFetchLock`, recorded as an `import` run; paused = stored unscored) and `web/import-summary.ts:summarizeImport` (the flash); the progress page is the shared one (`target-runs.ts`, step `import`); pages `web/pages/job-import.tsx` |
 
 When the question is **"how does the user toggle / configure X?"**:
 
@@ -606,6 +645,9 @@ When the question is **"how does the user toggle / configure X?"**:
 | Re-level, ignore or add a keyword by hand | the keyword table on `/jobs/:id` or `/jobs/:id/target` → the "Wants it" select, `ignore` / `reset`, and "Add a keyword" (instant re-score, no AI call; the edit sticks to the posting across re-runs) |
 | Throw away a keyword list the model got wrong | the keyword table → "Rebuild keywords" (one run with the stored frame withheld; your own keyword edits survive it, the new score is not comparable with the old) |
 | Paste a posting the fetchers don't see | `/jobs` → "+ Paste a job" (`/jobs/new`) |
+| Have ApplyPack read a folder a tool writes job files into | `/companies` → **Add sources** → **A folder on this computer**: type the folder's full path (a local install can press **Create ~/ApplyPack/inbox and check it**), optionally a name and a name filter (`jobs-*.json`) → **Check** shows what is in it, which column was taken for what, the first rows as they would be stored and what the next check would cost → **Add (off)** → switch it on in the table. The hourly check then reads each new or changed `.json`, `.jsonl`, `.csv` or `.tsv` file once; **Folders on this computer** shows "N files · M new at the last check" with **Files** (what became of each file), **Mapping** (check and save it again) and **Check now**. ApplyPack never writes into the folder |
+| Let a Docker install read such a folder | mount it read-only into both services (`./inbox:/inbox:ro` under `app` and `web` in `docker-compose.yml`) and set `APPLYPACK_INBOX_ROOTS=/inbox` in `.env`; the folder form then takes `/inbox` or a folder inside it |
+| Import a file of jobs you already have (an export, a spreadsheet, a tool's output) | `/jobs` → **Import a file** (`/jobs/import`): choose a .json, .jsonl, .csv or .tsv file (5 MB, the first 2 000 rows) and name its source → the next page shows which column was taken for the title, the link, the company and the text (change a select, then **Update the preview**), the first three rows as they would be stored, how many are new and pass your searches' filter, and what scoring them costs → **Import**. No AI is spent before that press, and none at all while fetching is paused (the rows are stored unscored). A newer export into the same source adds only what is new; the page lists the sources you imported, each with **Delete** (the source and its jobs) |
 | Compare a pasted posting with any resume in one step | menu → Tailor resume (`/target`): paste posting, pick / upload / paste resume, Compare |
 | Compare a found job with a file that is not in Resumes, or with pasted text | `/jobs/:id` → **Resume match** tab → **Compare a file or pasted text →** (opens `/target?job=:id` with the job picked), or menu → Tailor resume → "One of your jobs". Nothing is added to Resumes |
 | Check whether a posting is real | `/jobs/:id` → **Is it real?** tab → Verify (web search, 2-4 min); the tab's label carries the last verdict |

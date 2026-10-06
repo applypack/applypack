@@ -328,6 +328,16 @@ src/
     probe.ts                   ← runs the plans through probeAts, bounded concurrency + budget
     suggest.ts                 ← pure: suggestSources / packsForSearches, what a search's places and stack call for
 
+  datasets/                    ← rows the user brings (ADR 0062): pure, the reader and the mapper every such source shares
+    delimited.ts               ← pure: the CSV / TSV reader (quotes, CRLF, a BOM, the delimiter read off the first line)
+    rows.ts                    ← pure: findRows — a JSON array, a wrapper object, JSON Lines, CSV or TSV → rows, under the 5 MB and 2 000-row ceilings
+    map.ts                     ← pure: detectMapping (names, then values), mapRow / mapRows → NormalizedJob, the stored mapping's zod schema
+    preview.ts                 ← pure: previewCounts — rows already stored, and new rows the running searches' base filter admits
+    fixtures/                  ← hand-written rows: four shapes, a spreadsheet with its own headers, hostile rows
+    folder-path.ts             ← pure: which folder a source may read (home on a local install, named roots elsewhere), a typed path made absolute
+    folder-scan.ts             ← pure: planScan — read, wait, leave alone — the ceilings, the name filter, judgeFile → jobs + the ledger row
+    folder-io.ts               ← the one module that touches a user's folder, and it only reads: listFolder, readFolderFile, realFolder
+
   resume/                      ← web-only resume module (ADR 0008); store.ts is its only Prisma access
     zip.ts                     ← read one entry, or all of them, from a zip (node:zlib), pure
     docx-text.ts               ← word/document.xml → plain text: DOM walk (blocks + line owners) with the regex reader as fallback, parity-tested (ADR 0038)
@@ -447,6 +457,8 @@ src/
     teamtailor.ts              ← per-company RSS, or a custom career domain as the token
     feed.ts                    ← a generic RSS / Atom job feed; the atsToken is the feed URL (ADR 0036)
     career-page.ts             ← the change watch: hashes a careers page and never returns a job (ADR 0036)
+    folder.ts                  ← a folder a tool writes into: one look, new and changed row files → jobs, no request (ADR 0062)
+    folder-ledger.ts           ← what a look learned about the folder's files, staged until the tick stored its jobs
     {larajobs,golangprojects}.ts ← single RSS feed
     weworkremotely.ts          ← per-category RSS (atsToken = category slug)
     {remoteok,remotive,arbeitnow}.ts ← aggregator JSON
@@ -495,6 +507,9 @@ src/
     manual-job.ts               ← pasted posting → MANUAL company + Job, classified unless the caller passes classify: false
                                   (used by /jobs/new, /target, /letter and /screen/new; the last three pass it,
                                   and /target classifies a new job in the background instead)
+    import-job.ts               ← runImportJob: imported rows through processNormalizedJobs under the fetch lock (ADR 0062)
+    source-file-store.ts        ← a folder source's ledger (source_file): loadLedger, keepFolderLooks, folderSummaries, listSourceFiles
+    blocked-hosts.ts            ← pure: isBlockedPostingHost — the hosts ADR 0005 names, for posting-url.ts and the dataset mapper
     cron-run.ts                 ← recordCronRun(name, fn) wrapper
 
   scripts/                      ← hand-run; CI runs route-smoke.ts only
@@ -580,6 +595,10 @@ src/
     fetch-now.ts                ← beginFetchNow: "Fetch now" from /runs, the Overview and the wizard
     fetch-runs.ts               ← in-memory "Fetch now" registry (live source progress; the 'fetch-now' CronRun is the record)
     fetch-summary.ts            ← pure one-line verdict of a finished fetch-now run
+    import-stash.ts             ← the rows of an uploaded file between its preview and its import (memory only, 30 min, four at most)
+    import-summary.ts           ← pure one-line verdict of a finished import
+    folder-words.ts             ← pure: a folder's line on Companies, a file's line on its list, a refused read explained, "nothing new in the folder"
+    inbox-folder.ts             ← createInbox: the empty ~/ApplyPack/inbox a local install offers
     watchlist-runs.ts           ← in-memory registry of a watchlist resolve run
     target-runs.ts              ← in-memory registry of the progress-page runs (scan, match, verify, letter, …)
     comparison-run.ts           ← startComparison / runComparison: one text × one stored job as a progress-page run
@@ -631,6 +650,9 @@ src/
       jobs-list.tsx             ← /jobs
       job-detail.tsx            ← /jobs/:id (tabs: posting, match, letter, verify)
       job-new.tsx               ← /jobs/new (paste a posting)
+      job-import.tsx            ← /jobs/import (upload a file of rows) and /jobs/import/:token (the mapping, three rows, the counts)
+      mapping-fields.tsx        ← the selects of a column mapping and the first rows as stored, shared by the import and the folder
+      folder-source.tsx         ← the folder card under Add sources, the Check page, the folders on Companies, the per-file list
       resume-match-card.tsx     ← the "Resume match" tab's comparison card
       cover-letter-card.tsx     ← the "Cover letter" tab (F8, ADR 0021)
       verification-card.tsx     ← the "Is it real?" tab
@@ -672,6 +694,7 @@ src/
       overview.tsx              ← / (sends a fresh install to /welcome)
       jobs.tsx                  ← list + new (manual) + detail + status + reclassify + description refresh + verify
                                   + resume match + suggestions + rewrite + cover letters + the targeted view
+      jobs-import.tsx           ← /jobs/import: upload → preview (no AI) → the import run; delete an import source
       keywords.ts               ← a keyword re-levelled, ignored or added: instant re-score, no AI call
       facts.ts                  ← ask_user answers → CandidateFact rows, instant re-score
       target.tsx                ← /target launcher: resume resolve + (stored job | manual job) + match in one POST
@@ -681,6 +704,7 @@ src/
       resume-document.ts        ← POST /resumes/:id/document: the Tailor page's draft as a .docx (JSON for the pane), a .docx or a .pdf, nothing stored
       applications.tsx          ← board + stage-only quick-move + per-job application form
       companies.tsx             ← list + new (probe-validated) + delete + toggle + re-probe + starter packs + suggested feeds
+      folders.tsx               ← a folder as a source: Check (no AI, nothing stored), Add (off), the inbox on a local install, /companies/:id/files
       watchlist.tsx             ← paste a list → resolve run → preview → add; watch / unwatch / check now
       discovery.tsx             ← list + promote + ignore + delete + manual probe + the discovery and HN toggles + HN run
       runs.tsx                  ← /runs + POST /runs/fetch-now (the tick in the web process) + progress/state
@@ -693,10 +717,10 @@ src/
       health.ts                 ← JSON liveness for external monitoring
 
 prisma/
-  schema.prisma                 ← 23 models: Company, Job, JobScore, CronRun, FunnelDay, AiCall, CompanyMute, AppSettings, CompanyCandidate,
-                                  NotificationTarget, Profile, Resume, ResumeReview, ResumeMatch, CandidateFact,
+  schema.prisma                 ← 25 models: Company, SourceFile, Job, JobScore, CronRun, FunnelDay, AiCall, CompanyMute, AppSettings,
+                                  CompanyCandidate, NotificationTarget, Profile, Resume, ResumeReview, ResumeMatch, CandidateFact,
                                   CoverLetter, JobStageEvent, PostingBrief, JobVerification, Screening, Applicant,
-                                  ScreeningComparison, ScreeningVerdict; 6 enums: AtsType, JobStatus, Workplace,
+                                  ApplicantLetter, ScreeningComparison, ScreeningVerdict; 6 enums: AtsType, JobStatus, Workplace,
                                   CronRunStatus, CandidateStatus, NotificationKind
   migrations/                   ← real Prisma migrations from phase-3.0 baseline
 ```
@@ -729,6 +753,8 @@ user's schedule, read in the schedule's own time zone.
 | `POST /jobs/:id/matches/:matchId/suggestions` | web | async run: `suggestForMatch` — actions/removals/strengths/cautions onto the stored row, score untouched |
 | `POST /jobs/:id/verify`          | web     | async run on the progress page: `checkLiveness` (free rungs, seconds) → stop on a verdict; else, or with `deep=1`, `verifyJob` with web tools (2-4 min) → `JobVerification` |
 | `POST /jobs/new`                 | web     | MANUAL company upsert + Job + `classifyExistingJob` |
+| `POST /jobs/import`              | web     | read the uploaded rows (`datasets/rows.ts`), detect the mapping, keep them in memory → the preview; `POST /jobs/import/:token` upserts the IMPORT source and starts an async run: `runImportJob` → `processNormalizedJobs` under the fetch lock, recorded as an `import` run; redirects to `/target/runs/:id` |
+| `POST /companies/folder/check`   | web     | resolve the typed path (`folder-path.ts`), list it, sample the newest files, detect or keep the mapping, count what the next look would hand over → the Check page; `POST /companies/folder` re-checks and upserts the FOLDER row (new = off). The tick then reads it: `fetchers/folder.ts` → `planScan` → `judgeFile`, the look staged in `fetchers/folder-ledger.ts` and kept by `runFetchJob` once the jobs are stored |
 | `POST /target`                   | web     | resolve resume inline (upload/paste → hidden scratch row); `jobMode=existing` → `startComparison` on the stored job (same run as `POST /jobs/:id/match`); a pasted posting → async: extract? → `createManualJob` → `runComparison` (memo → suggestions? → brief → `matchResumeToJob`); redirects to `/target/runs/:id` |
 | `GET /target/runs/:id`           | web     | progress page; `public/target-run.mjs` polls `GET /target/runs/:id/state` every 2 s; done → flash + redirect into the result |
 | `POST /resumes/:id/replace`      | web     | new file → `version`+1 → async run: `scanResume` |
@@ -763,6 +789,7 @@ erDiagram
   Profile ||--o{ JobScore : "profileId (Cascade)"
   Job ||--o{ JobScore : "jobId (Cascade)"
   Company ||--o{ Job : "companyId (Cascade)"
+  Company ||--o{ SourceFile : "companyId (Cascade)"
   Job |o--o{ Job : "crossListedOfJobId (SetNull)"
   Resume |o--o{ Job : "appliedResumeId (SetNull)"
   CompanyCandidate |o..o| Company : "the same atsType + atsToken, no foreign key"
@@ -882,6 +909,22 @@ erDiagram
     String[] pastedLines "BROWSER_PAGE: the page's lines as last pasted (TASKS N8)"
     String[] pastedNew "the lines new against the paste before"
     DateTime pastedAt
+    Json sourceConfig "IMPORT and FOLDER: the column mapping the user confirmed, and a folder's name filter (ADR 0062)"
+  }
+
+  SourceFile {
+    Int id PK
+    Int companyId FK
+    String relPath "inside the folder; unique with companyId"
+    Int size
+    DateTime mtime
+    String sha256 "of the bytes as read; null when never read"
+    String kind "json, jsonl, csv or tsv"
+    String status "done, waiting, skipped or failed"
+    String detail "why, in words"
+    Int jobCount "rows handed over as jobs"
+    DateTime seenAt "the last look that listed it"
+    DateTime readAt
   }
 
   Job {

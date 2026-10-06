@@ -14,8 +14,8 @@ import { sourceFamily } from './web/source-groups';
 
 const ROOT = join(__dirname, '..');
 
-/** Enum values that are not a kind of source: pasted jobs, the change watch on a careers page, and a page the user pastes. */
-const NOT_A_SOURCE = new Set(['MANUAL', 'CAREER_PAGE', 'BROWSER_PAGE']);
+/** Enum values that are not a kind of source: pasted jobs, the change watch on a careers page, a page the user pastes, and the rows they bring — a file, a folder. */
+const NOT_A_SOURCE = new Set(['MANUAL', 'CAREER_PAGE', 'BROWSER_PAGE', 'IMPORT', 'FOLDER']);
 
 function atsTypes(): string[] {
   const schema = readFileSync(join(ROOT, 'prisma', 'schema.prisma'), 'utf8');

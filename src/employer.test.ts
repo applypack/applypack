@@ -71,6 +71,14 @@ test('which sources are the employer themselves', () => {
   assert.equal(hiringName(null, { name: 'Stripe', atsType: 'GREENHOUSE' }), 'Stripe');
 });
 
+test('rows the user brings carry many employers: the source’s own name is never one', () => {
+  assert.equal(sourceIsEmployer('IMPORT'), false);
+  assert.equal(sourceIsEmployer('FOLDER'), false);
+  assert.equal(hiringName(null, { name: 'Tool output', atsType: 'FOLDER' }), null);
+  assert.equal(hiringName('Acme', { name: 'September export', atsType: 'IMPORT' }), 'Acme');
+  assert.equal(hiringName(null, { name: 'September export', atsType: 'IMPORT' }), null);
+});
+
 test('a mute turns a posting away; the window spares a watched company that wants everything', () => {
   const rules = { muted: new Set(['acme']), appliedRecently: new Set(['acme', 'globex']) };
   assert.equal(employerGate('acme', rules), 'muted');

@@ -75,6 +75,7 @@ gets a dated addendum at the end of the ADR.
 - [0059 — The Tailor page edits the resume as a document, and a save is always one](./0059-the-tailor-page-edits-the-resume-as-a-document.md) *(extends 0038/0039)*
 - [0060 — An engine takes the tasks it is given, and the order decides among those that take one](./0060-an-engine-takes-the-tasks-it-is-given.md) *(extends 0014/0057)*
 - [0061 — The interface speaks several languages; what a model writes stays English](./0061-the-interface-speaks-several-languages.md)
+- [0062 — Rows the user brings are read from what they hand over, and nothing is fetched](./0062-rows-the-user-brings-are-read-never-fetched.md)
 
 ## When to write a new one
 

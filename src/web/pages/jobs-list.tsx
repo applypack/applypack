@@ -139,9 +139,14 @@ export const JobsListPage: FC<JobsListProps> = ({
         title="Jobs"
         meta={`${total.toLocaleString()} jobs`}
         actions={
-          <Button href="/jobs/new" variant="secondary">
-            + Paste a job
-          </Button>
+          <>
+            <Button href="/jobs/import" variant="secondary">
+              Import a file
+            </Button>
+            <Button href="/jobs/new" variant="secondary">
+              + Paste a job
+            </Button>
+          </>
         }
       >
         Every posting the search found, with its fit and its status.

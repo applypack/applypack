@@ -2,6 +2,7 @@ import { AtsType } from '@prisma/client';
 import { logger } from '../logger';
 import { prisma } from '../db';
 import { decodeHtmlEntities, stripHtml } from '../http';
+import { bringsRows } from '../web/source-groups';
 
 /*
  * One-shot repair for stored job descriptions.
@@ -38,9 +39,10 @@ async function main(): Promise<void> {
     if (before.length === 0) continue;
     // stripHtml is NOT idempotent on its own plaintext output (it reads
     // newlines as HTML whitespace), so only rows that still carry markup go
-    // through it; everything else — MANUAL included — gets entity decoding.
+    // through it; everything else — MANUAL and the row sources included, text the user
+    // brought — gets entity decoding.
     const after =
-      job.company.atsType !== AtsType.MANUAL && TAG_RE.test(before)
+      job.company.atsType !== AtsType.MANUAL && !bringsRows(job.company.atsType) && TAG_RE.test(before)
         ? stripHtml(before)
         : decodeHtmlEntities(before).trim();
     if (after === before) continue;
