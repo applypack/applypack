@@ -13,14 +13,15 @@
  */
 
 import { wireSelectCommit } from './select-commit.mjs';
+import { t } from './i18n.mjs';
 
 const POLL_MS = 1500;
 
 /** "7 of 20 resolved · linear.app/careers" */
 export function resolveLine(state) {
-  const head = `${state.resolved} of ${state.total} resolved`;
-  if (state.done) return `${head} — opening the preview…`;
-  return state.current ? `${head} · ${short(state.current)}` : head;
+  const said = { done: state.resolved, total: state.total };
+  if (state.done) return t('browser.watchlist.progressDone', said);
+  return state.current ? t('browser.watchlist.progressAt', { ...said, url: short(state.current) }) : t('browser.watchlist.progress', said);
 }
 
 /** A URL short enough for one line, without the scheme. */
@@ -58,7 +59,7 @@ async function poll(box) {
     }
     await new Promise((r) => setTimeout(r, POLL_MS));
   }
-  box.textContent = 'Lost contact with the run — reload this page.';
+  box.textContent = t('browser.watchlist.lost');
 }
 
 function wireSelfSubmit() {

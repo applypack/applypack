@@ -4,6 +4,7 @@
  * text, never off a file name. Pure — tested in rows.test.ts.
  */
 
+import { t } from '../i18n/t';
 import { readDelimited, sniffDelimiter, type Delimiter } from './delimited';
 
 export type Row = Record<string, unknown>;
@@ -41,7 +42,9 @@ const MAX_WRAPPER_DEPTH = 3;
 const RECORD_KEYS = new Set(['id', 'createdTime', 'fields']);
 const BOM = '\uFEFF';
 
-export const NOT_ROWS = 'This file holds no rows ApplyPack can read. It takes a JSON array of objects, JSON Lines, CSV or TSV.';
+/** The sentence for a file that holds no rows, in English: what the tests compare. `findRows` words it in the language of the moment. */
+export const NOT_ROWS = t('datasets.rows.notRows');
+const noRows = (): RowsResult => ({ ok: false, error: t('datasets.rows.notRows') });
 
 export function isRow(value: unknown): value is Row {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -77,7 +80,7 @@ function unwrapRecord(row: Row): Row {
 
 function fromList(list: readonly unknown[], format: RowFormat, maxRows: number): RowsResult {
   const rows = list.filter(isRow);
-  if (rows.length === 0) return { ok: false, error: NOT_ROWS };
+  if (rows.length === 0) return noRows();
   return {
     ok: true,
     format,
@@ -89,7 +92,7 @@ function fromList(list: readonly unknown[], format: RowFormat, maxRows: number):
 
 function fromJson(parsed: unknown, maxRows: number): RowsResult {
   if (Array.isArray(parsed)) return fromList(parsed, 'json', maxRows);
-  if (!isRow(parsed)) return { ok: false, error: NOT_ROWS };
+  if (!isRow(parsed)) return noRows();
   // An object with no list inside is one row: a tool that writes a file per posting.
   return fromList(rowsInside(parsed, 1) ?? [parsed], 'json', maxRows);
 }
@@ -128,10 +131,8 @@ function fromDelimited(body: string, maxRows: number): RowsResult {
   const delimiter = (hint?.[1] as Delimiter | undefined) ?? sniffDelimiter(text);
   const [head, ...lines] = readDelimited(text, delimiter);
   // One column and no delimiter anywhere is prose, not a table.
-  if (!head || head.length < 2 || lines.length === 0) return { ok: false, error: NOT_ROWS };
-  if (head.length > MAX_COLUMNS) {
-    return { ok: false, error: `This table has ${head.length.toLocaleString('en-US')} columns, and ApplyPack reads up to ${MAX_COLUMNS}. Export the columns that describe the job.` };
-  }
+  if (!head || head.length < 2 || lines.length === 0) return noRows();
+  if (head.length > MAX_COLUMNS) return { ok: false, error: t('datasets.rows.tooManyColumns', { n: head.length, max: MAX_COLUMNS }) };
   const names = headerNames(head);
   // A row keeps the cells it has: a short row is not padded out to the header's width.
   const rows = lines.slice(0, maxRows).map((cells) => Object.fromEntries(cells.slice(0, names.length).map((cell, i) => [names[i]!, cell])));
@@ -146,9 +147,9 @@ export function decodeBody(bytes: Uint8Array): string {
 
 export function findRows(body: string, maxRows: number = MAX_ROWS): RowsResult {
   const text = (body.startsWith(BOM) ? body.slice(1) : body).trim();
-  if (text.length === 0) return { ok: false, error: 'This file is empty.' };
+  if (text.length === 0) return { ok: false, error: t('datasets.rows.empty') };
   // A NUL is a binary file (a spreadsheet's own format, an archive) read as text.
-  if (text.includes('\u0000')) return { ok: false, error: NOT_ROWS };
+  if (text.includes('\u0000')) return noRows();
   if (text[0] !== '[' && text[0] !== '{') return fromDelimited(text, maxRows);
   let parsed: unknown;
   try {

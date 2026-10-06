@@ -11,6 +11,8 @@
  * own label says nothing to a screen reader.
  */
 
+import { t } from './i18n.mjs';
+
 const RESET_MS = 2000;
 const LIVE_ID = 'copy-live';
 /**
@@ -66,8 +68,8 @@ export async function copyToClipboard(text) {
 export function flashCopied(button, ok) {
   const original = button.dataset.copyLabel ?? button.textContent;
   button.dataset.copyLabel = original;
-  button.textContent = ok ? 'Copied' : 'Copy failed';
-  announce(ok ? 'Copied to clipboard' : 'Could not copy — select the text and copy it by hand');
+  button.textContent = t(ok ? 'browser.copy.copied' : 'browser.copy.failed');
+  announce(t(ok ? 'browser.copy.announceCopied' : 'browser.copy.announceFailed'));
   clearTimeout(Number(button.dataset.copyTimer));
   button.dataset.copyTimer = String(
     setTimeout(() => {

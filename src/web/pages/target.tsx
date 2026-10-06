@@ -1,7 +1,7 @@
 /** @jsxImportSource hono/jsx */
 import type { FC } from 'hono/jsx';
 import { Layout } from '../layout';
-import { Badge, Button, Card, FitBadge, Flash, Hint, HistoryChip, More, SUBMIT_ONCE, TONE_TEXT, When } from '../ui';
+import { Badge, Button, Card, FitBadge, Flash, Hint, HistoryChip, inEnglish, More, SUBMIT_ONCE, TONE_TEXT, When } from '../ui';
 import type { FlashMessage } from '../flash';
 import { FIT_OK_FLOOR, fitTone } from '../format';
 import type { MatchWithResume } from '../../resume/store';
@@ -16,6 +16,7 @@ import { readBreakdown } from '../../resume/score';
 import { mainAdvice, readyToApply } from '../score-lines';
 import type { OrientationRow } from '../../resume/posting-orientation';
 import type { SummaryGuide } from '../../resume/summary-guide';
+import type { DomainNotice } from '../../resume/domain';
 import {
   ActionsBlock,
   ChangeSheetButton,
@@ -67,7 +68,7 @@ export interface TargetPageProps {
   /** What the posting itself said, when it did not say much (§17) — null when it did. */
   postingNotice?: string | null;
   /** The sectors differ (domain.ts) — one sentence, or nothing. */
-  domainNotice?: string | null;
+  domainNotice?: DomainNotice | null;
   /** What this posting is, from its own stored reading (posting-orientation.ts) — empty when it said nothing. */
   orientation?: OrientationRow[];
   /** What the first reader looks for in a summary, against the analysed text (summary-guide.ts). */
@@ -511,7 +512,8 @@ export const TargetPage: FC<TargetPageProps> = ({
           {domainNotice && (
             <div class="border-t border-line pt-3 lg:col-span-3">
               <p class="text-note leading-6 text-ink-muted">
-                <span class="font-medium text-info">{t('target.domain.lead')}</span> {domainNotice}
+                <span class="font-medium text-info">{t('target.domain.lead')}</span>{' '}
+                {tRich(domainNotice.key, domainNotice.params, { en: inEnglish })}
               </p>
             </div>
           )}
@@ -668,13 +670,14 @@ export const TargetPage: FC<TargetPageProps> = ({
               same text the plain view edits (public/doc-pane.mjs). */}
           <div id="doc-view" hidden>
             <p id="doc-notice" class="mb-2 text-note leading-6 text-ink-muted" hidden></p>
-            <div
-              id="doc-pane"
-              translate="no"
-              class="doc-pane editor h-[70vh] overflow-auto rounded-md border border-line-strong bg-surface-overlay"
-              role="region"
-              aria-label={t('target.doc.aria')}
-            ></div>
+            {/* The region's name is ours; what doc-pane.mjs draws in it is the resume, never translated. */}
+            <div role="region" aria-label={t('target.doc.aria')}>
+              <div
+                id="doc-pane"
+                translate="no"
+                class="doc-pane editor h-[70vh] overflow-auto rounded-md border border-line-strong bg-surface-overlay"
+              ></div>
+            </div>
             <div class="mt-2 flex flex-wrap items-center gap-2">
               <Button type="button" variant="secondary" size="sm" data-download="docx" title={t('target.doc.downloadTitle')}>
                 {t('ui.downloadDocx')}

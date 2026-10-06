@@ -1,6 +1,7 @@
 import { prisma } from '../db';
 import { logger } from '../logger';
 import { sendDigest } from '../notifier';
+import { t } from '../i18n/t';
 import { getSettings } from '../settings';
 import { daysSince } from '../text-utils';
 import { appliedWithLabel } from './applied-with';
@@ -69,8 +70,8 @@ export async function runStaleApplicationsJob(): Promise<{ stats: CronStats }> {
   const delivery = await sendDigest(
     [
       {
-        title: `${items.length} stale application${items.length === 1 ? '' : 's'}`,
-        companyName: 'Reminder',
+        title: t('stale.title', { n: items.length }),
+        companyName: t('stale.reminder'),
         location: '',
         url: items[0]?.url ?? '',
         fitScore: 0,

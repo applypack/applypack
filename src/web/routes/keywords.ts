@@ -61,14 +61,14 @@ export const keywordsRoute = new Hono();
 keywordsRoute.post('/jobs/:id/matches/:matchId/keywords', async (c) => {
   const id = idParam(c.req.param('id'));
   const matchId = idParam(c.req.param('matchId'));
-  if (!Number.isFinite(id) || !Number.isFinite(matchId)) return c.text('Bad id', 400);
+  if (!Number.isFinite(id) || !Number.isFinite(matchId)) return c.text(t('http.badId'), 400);
   const parsed = KeywordFormSchema.safeParse(await c.req.parseBody());
-  if (!parsed.success) return c.text('Bad keyword edit', 400);
+  if (!parsed.success) return c.text(t('http.badKeywordEdit'), 400);
   const form = parsed.data;
   const back = safeBack(form.back, `/jobs/${id}?match=${matchId}#resume-match`);
 
   const existing = await getMatch(matchId);
-  if (!existing || existing.jobId !== id) return c.text('Not found', 404);
+  if (!existing || existing.jobId !== id) return c.text(t('http.notFound'), 404);
 
   // The edit itself is pure; everything it needs from the database is loaded
   // here, before the lock, so the row below is held for the length of a
@@ -79,7 +79,7 @@ keywordsRoute.post('/jobs/:id/matches/:matchId/keywords', async (c) => {
       prisma.job.findUnique({ where: { id }, select: { title: true, description: true } }),
       loadKeywordMatcher(),
     ]);
-    if (!job) return c.text('Not found', 404);
+    if (!job) return c.text(t('http.notFound'), 404);
     const requirement = form.requirement ?? DEFAULT_LEVEL;
     // The same posting text the anchor pass reads, so "not in posting" means
     // the same thing whoever added the term.
@@ -87,7 +87,7 @@ keywordsRoute.post('/jobs/:id/matches/:matchId/keywords', async (c) => {
     edit = (keywords, resumeText) =>
       addKeyword(keywords, { term: form.term, requirement }, { resumeText, posting, matcher });
   } else {
-    if (form.op === 'level' && !form.requirement) return c.text('Bad keyword edit', 400);
+    if (form.op === 'level' && !form.requirement) return c.text(t('http.badKeywordEdit'), 400);
     const op = form.op;
     edit = (keywords) => editKeyword(keywords, { op, term: form.term, requirement: form.requirement });
   }
@@ -100,7 +100,7 @@ keywordsRoute.post('/jobs/:id/matches/:matchId/keywords', async (c) => {
     return { keywords: result.ok ? result.keywords : null, detail: result };
   });
 
-  if (!outcome) return c.text('Not found', 404);
+  if (!outcome) return c.text(t('http.notFound'), 404);
   const result = outcome.detail;
   if (!result.ok) return flashRedirect(back, 'err', result.error);
   if (!outcome.scored) {

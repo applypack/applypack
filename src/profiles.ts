@@ -1,5 +1,6 @@
 import type { Profile } from '@prisma/client';
 import { prisma } from './db';
+import { t } from './i18n/t';
 import { logger } from './logger';
 import { MAX_ACTIVE_PROFILES } from './profile-guards';
 import type { WorkplaceCode } from './location';
@@ -7,8 +8,8 @@ import type { RelocationCode } from './eligibility';
 import { SETTINGS_ID, withGlobalWriteLock } from './settings';
 import type { PriorityRule } from './priority-rules';
 
-/** A stale id: the search was deleted, most often from another tab. */
-const SEARCH_GONE = 'That search no longer exists, so nothing changed — it was probably deleted in another tab.';
+/** A stale id: the search was deleted, most often from another tab. The sentence reaches the flash. */
+const searchGone = (): Error => new Error(t('settingsRoute.search.gone'));
 
 export interface ProfileInput {
   name: string;
@@ -104,18 +105,16 @@ export async function setProfileActive(id: number, active: boolean): Promise<voi
   // is why they cannot (issue #70).
   const name = await withGlobalWriteLock(async (tx) => {
     const profile = await tx.profile.findUnique({ where: { id } });
-    if (!profile) throw new Error(SEARCH_GONE);
+    if (!profile) throw searchGone();
     if (active) {
       const running = await tx.profile.count({ where: { active: true, id: { not: id } } });
       if (running >= MAX_ACTIVE_PROFILES) {
-        throw new Error(
-          `At most ${MAX_ACTIVE_PROFILES} searches can run at once. Switch one off first.`,
-        );
+        throw new Error(t('settingsRoute.search.tooMany', { n: MAX_ACTIVE_PROFILES }));
       }
     } else {
       const settings = await tx.appSettings.findUnique({ where: { id: SETTINGS_ID } });
       if (settings?.activeProfileId === id) {
-        throw new Error('The primary search cannot be switched off. Make another one primary first.');
+        throw new Error(t('settingsRoute.search.primaryOff'));
       }
     }
     await tx.profile.update({ where: { id }, data: { active } });
@@ -151,10 +150,10 @@ export async function deleteProfile(id: number): Promise<void> {
   await withGlobalWriteLock(async (tx) => {
     const settings = await tx.appSettings.findUnique({ where: { id: SETTINGS_ID } });
     if (settings?.activeProfileId === id) {
-      throw new Error('Cannot delete the primary profile. Make another one primary first.');
+      throw new Error(t('settingsRoute.search.primaryDelete'));
     }
     const { count } = await tx.profile.deleteMany({ where: { id } });
-    if (count === 0) throw new Error(SEARCH_GONE);
+    if (count === 0) throw searchGone();
   });
 }
 
@@ -164,7 +163,7 @@ export async function setActiveProfile(id: number): Promise<void> {
   // the write with Prisma's own text in the flash.
   const name = await withGlobalWriteLock(async (tx) => {
     const profile = await tx.profile.findUnique({ where: { id } });
-    if (!profile) throw new Error(SEARCH_GONE);
+    if (!profile) throw searchGone();
     await tx.appSettings.update({ where: { id: SETTINGS_ID }, data: { activeProfileId: id } });
     // The primary always runs: it is the fallback every page reads, so leaving
     // it switched off would show defaults from a search that scores nothing.

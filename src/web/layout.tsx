@@ -9,6 +9,7 @@ import { TOKENS, hex, rootBlock } from './tokens';
 import { currentLocale } from '../i18n/locale';
 import { t } from '../i18n/t';
 import { LanguageInvite, LanguageMenu } from './language-menu';
+import { browserMessagesJson } from './browser-messages';
 
 export type NavKey =
   | 'overview'
@@ -26,6 +27,8 @@ export type NavKey =
 
 interface LayoutProps {
   title: string;
+  /** The title is data (a job's, a resume's, a screening's own name): the tab's title says so, as `PageHeader`'s `titleIsData` does. */
+  titleIsData?: boolean;
   active?: NavKey;
   /** Full-page reload interval in seconds (Overview only). */
   refresh?: number;
@@ -194,6 +197,7 @@ const NAV_JS = `
 
 export const Layout: FC<PropsWithChildren<LayoutProps>> = ({
   title,
+  titleIsData = false,
   active,
   refresh,
   fill = false,
@@ -209,7 +213,7 @@ export const Layout: FC<PropsWithChildren<LayoutProps>> = ({
       <meta charset="utf-8" />
       <meta name="viewport" content="width=device-width, initial-scale=1" />
       {refresh && <meta http-equiv="refresh" content={String(refresh)} />}
-      <title>{title} · ApplyPack</title>
+      <title translate={titleIsData ? 'no' : undefined}>{title} · ApplyPack</title>
       <link
         rel="icon"
         href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23059669'/%3E%3Ctext x='16' y='21.5' font-family='system-ui,sans-serif' font-size='13' font-weight='600' fill='white' text-anchor='middle'%3EAP%3C/text%3E%3C/svg%3E"
@@ -220,6 +224,7 @@ export const Layout: FC<PropsWithChildren<LayoutProps>> = ({
           a class a release added would otherwise have no rule until its cache let go. */}
       <link rel="stylesheet" href={`/static/tailwind.css?v=${APP_VERSION}`} />
       <style dangerouslySetInnerHTML={{ __html: TOKENS_CSS }} />
+      <BrowserMessages />
     </head>
     <body class="bg-surface font-sans text-sm text-ink antialiased">
       {raw(DIRECTION_CONTRACT)}
@@ -240,6 +245,7 @@ export const Layout: FC<PropsWithChildren<LayoutProps>> = ({
                 fill ? 'h-full' : 'min-h-full'
               }`}
             >
+              <LanguageInvite place="main" />
               {children}
             </div>
           </main>
@@ -252,6 +258,15 @@ export const Layout: FC<PropsWithChildren<LayoutProps>> = ({
   </html>
   </>
 );
+
+/**
+ * The words the page modules write after the page loads (public/i18n.mjs), in
+ * the page's language. English needs nothing: the modules carry it.
+ */
+const BrowserMessages: FC = () => {
+  const json = browserMessagesJson(currentLocale());
+  return json ? <script type="application/json" id="i18n-messages" dangerouslySetInnerHTML={{ __html: json }} /> : null;
+};
 
 /** The menu's icons, by the family's own names (icons.tsx). */
 const NAV_ICON: Record<NavKey, IconName> = {
@@ -330,7 +345,7 @@ const Sidebar: FC<{ active?: NavKey }> = ({ active }) => (
     <div class="shrink-0 space-y-2 border-t border-line px-3 py-3 md:px-2.5 lg:px-3">
       <NavLink item={SETTINGS_ITEM} active={active} />
       <LanguageMenu variant="sidebar" />
-      <LanguageInvite />
+      <LanguageInvite place="sidebar" />
       <p class="px-3 text-meta leading-4 text-ink-faint md:hidden lg:block">
         {t('layout.local')}
       </p>

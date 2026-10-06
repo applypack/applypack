@@ -1,6 +1,10 @@
+import { t } from '../i18n/t';
+
 /**
  * Pure formatter for the stale-applications digest. Lives in its own file
  * so it can be unit-tested without pulling in Prisma / Anthropic / pino.
+ * The words are the catalog's, in the language of the run (ADR 0061); the
+ * title, the company and the resume's name stay as they are.
  */
 
 export interface StaleApplicationItem {
@@ -16,14 +20,15 @@ export interface StaleApplicationItem {
 
 export function formatStaleMessage(items: StaleApplicationItem[]): string {
   if (items.length === 0) {
-    return '_No stale applications._';
+    return `_${t('stale.none')}_`;
   }
-  const header = `*Stale applications — ${items.length} need a follow-up*`;
-  const blocks = items.map(
-    (i) =>
-      `• *${i.title}* @ ${i.companyName} — applied ${i.daysSince}d ago` +
-      (i.appliedWith ? ` with ${i.appliedWith}` : '') +
-      (i.recruiterContact ? ` (last contact: ${i.recruiterContact})` : ''),
-  );
+  const header = `*${t('stale.header', { n: items.length })}*`;
+  const blocks = items.map((i) => {
+    const applied = i.appliedWith
+      ? t('stale.appliedWith', { days: i.daysSince, resume: i.appliedWith })
+      : t('stale.applied', { days: i.daysSince });
+    const contact = i.recruiterContact ? ` ${t('stale.lastContact', { contact: i.recruiterContact })}` : '';
+    return `• *${i.title}* @ ${i.companyName} — ${applied}${contact}`;
+  });
   return [header, ...blocks].join('\n');
 }

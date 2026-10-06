@@ -58,9 +58,11 @@ export function formatDatePart(d: Date, options: Intl.DateTimeFormatOptions, par
 }
 
 /** "a, b and c" (`conjunction`) or "a, b or c" (`disjunction`), as the language joins them. */
-export function formatList(items: readonly string[], type: 'conjunction' | 'disjunction' = 'conjunction'): string {
+export function formatList(items: readonly string[], type: 'conjunction' | 'disjunction' | 'unit' = 'conjunction'): string {
   const tag = intlTag();
-  return marked(cached(listFormats, `${tag}\n${type}`, () => new Intl.ListFormat(tag, { type })).format(items));
+  // `unit` is a short run of like things ("№3, №4 and №5"), the way public/i18n.mjs:formatList joins them.
+  const options: Intl.ListFormatOptions = type === 'unit' ? { type, style: 'short' } : { type };
+  return marked(cached(listFormats, `${tag}\n${type}`, () => new Intl.ListFormat(tag, options)).format(items));
 }
 
 /** 2024-01-01 was a Monday: day N of that month is ISO weekday N. */

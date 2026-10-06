@@ -1,4 +1,6 @@
 import { readEvidence } from '../verification/prompts';
+import type { MessageKey } from '../i18n/catalog';
+import type { MessageParams } from '../i18n/message';
 import { t } from '../i18n/t';
 
 /*
@@ -23,6 +25,16 @@ export interface VerificationHint {
   text: string;
 }
 
+/**
+ * A sentence of ours as a catalog message, for a page that marks the
+ * verifier's own words inside it: they arrive in `<en>`, written in English
+ * whatever language the page reads in (ADR 0061).
+ */
+export interface HintMessage {
+  key: MessageKey;
+  params: MessageParams;
+}
+
 const CAUTIONS_MAX = 5;
 
 /** The first thing the verifier held against the posting, if any. */
@@ -33,25 +45,29 @@ function leadFlag(v: VerificationForHint): string | null {
   return bad?.finding.trim() || null;
 }
 
-/** One line for the match card and the resume editor's header. */
-export function verificationHint(v: VerificationForHint): VerificationHint {
+/** One line for the match card and the resume editor's header, as its message. */
+export function verificationHintMessage(v: VerificationForHint): HintMessage & { tone: VerificationHint['tone'] } {
   const percent = Math.round(v.confidence);
   // The verifier's own words, when it held something against the posting, ride inside the sentence.
   const flag = leadFlag(v);
   switch (v.recommendation) {
     case 'skip':
-      return {
-        tone: 'danger',
-        text: flag ? t('match.verification.skipFlag', { percent, flag }) : t('match.verification.skip', { percent }),
-      };
+      return flag
+        ? { tone: 'danger', key: 'match.verification.skipFlag', params: { percent, flag } }
+        : { tone: 'danger', key: 'match.verification.skip', params: { percent } };
     case 'caution':
-      return {
-        tone: 'warn',
-        text: flag ? t('match.verification.cautionFlag', { percent, flag }) : t('match.verification.caution', { percent }),
-      };
+      return flag
+        ? { tone: 'warn', key: 'match.verification.cautionFlag', params: { percent, flag } }
+        : { tone: 'warn', key: 'match.verification.caution', params: { percent } };
     default:
-      return { tone: 'ok', text: t('match.verification.apply', { percent }) };
+      return { tone: 'ok', key: 'match.verification.apply', params: { percent } };
   }
+}
+
+/** The same line as text. */
+export function verificationHint(v: VerificationForHint): VerificationHint {
+  const { tone, key, params } = verificationHintMessage(v);
+  return { tone, text: t(key, params) };
 }
 
 /**
@@ -60,16 +76,30 @@ export function verificationHint(v: VerificationForHint): VerificationHint {
  * Displayed under "Worth knowing — not scored", labelled, never counted by
  * score.ts (a finding about the posting is not a finding about the resume).
  */
-export function verificationCautions(v: VerificationForHint): string[] {
-  const lines = v.redFlags
+export function verificationCautionMessages(v: VerificationForHint): HintMessage[] {
+  const lines: HintMessage[] = v.redFlags
     .map((f) => f.trim())
     // A flag with no words says nothing.
     .filter(Boolean)
-    .map((text) => t('match.verification.from', { text }));
+    .map((text) => ({ key: 'match.verification.from', params: { text } }));
   for (const e of readEvidence(v.evidence)) {
     if (e.check === 'posting_quality' && (e.signal === 'ghost' || e.signal === 'scam')) {
-      lines.push(t('match.verification.fromQuality', { text: e.finding.trim() }));
+      lines.push({ key: 'match.verification.fromQuality', params: { text: e.finding.trim() } });
     }
   }
-  return [...new Set(lines)].slice(0, CAUTIONS_MAX);
+  // The same finding twice under one label is said once.
+  const seen = new Set<string>();
+  return lines
+    .filter((l) => {
+      const id = `${l.key}\n${l.params.text}`;
+      if (seen.has(id)) return false;
+      seen.add(id);
+      return true;
+    })
+    .slice(0, CAUTIONS_MAX);
+}
+
+/** The same findings as text. */
+export function verificationCautions(v: VerificationForHint): string[] {
+  return verificationCautionMessages(v).map((m) => t(m.key, m.params));
 }

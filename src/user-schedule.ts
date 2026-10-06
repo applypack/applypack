@@ -66,7 +66,8 @@ const TimezoneSchema = z
   .trim()
   .min(1)
   .max(64)
-  .refine(isTimezone, { message: 'unknown time zone' });
+  // Worded when the check fails, not when the schema is built: the flash is in the reader's language.
+  .refine(isTimezone, () => ({ message: t('schedule.unknownZone') }));
 
 export const ScheduleSchema = z.object({
   timezone: TimezoneSchema,

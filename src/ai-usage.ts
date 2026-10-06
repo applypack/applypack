@@ -1,4 +1,5 @@
 import type { AiProviderId } from './ai-engine';
+import { t } from './i18n/t';
 
 /*
  * What one AI attempt spent, and on whose money (ADR 0055). Pure: the
@@ -149,15 +150,15 @@ export function checkOpenAiBaseUrl(input: string): { ok: true; url: string } | {
   try {
     url = new URL(input.trim());
   } catch {
-    return { ok: false, reason: 'That is not a web address — it starts with http:// or https://.' };
+    return { ok: false, reason: t('engine.url.notAddress') };
   }
   if (url.protocol !== 'http:' && url.protocol !== 'https:') {
-    return { ok: false, reason: 'The address starts with http:// or https://.' };
+    return { ok: false, reason: t('engine.url.scheme') };
   }
-  if (url.username || url.password) return { ok: false, reason: 'Leave the key out of the address; it has its own field.' };
+  if (url.username || url.password) return { ok: false, reason: t('engine.url.noKey') };
   const clean = `${url.origin}${url.pathname.replace(/\/+$/, '')}`;
   if (url.protocol === 'http:' && !isLocalUrl(clean)) {
-    return { ok: false, reason: 'A server on the internet takes https:// — plain http would send the key in the clear.' };
+    return { ok: false, reason: t('engine.url.https') };
   }
   return { ok: true, url: clean };
 }
@@ -171,7 +172,7 @@ export function checkLocalAiUrl(input: string): { ok: true; url: string } | { ok
   const checked = checkOpenAiBaseUrl(input);
   if (!checked.ok) return checked;
   if (!isLocalUrl(checked.url)) {
-    return { ok: false, reason: 'The local engine talks to a server on this machine or your own network; one on the internet goes in the OpenAI-compatible engine.' };
+    return { ok: false, reason: t('engine.url.notLocal') };
   }
   return { ok: true, url: checked.url.replace(/\/(v1|api)$/, '') };
 }

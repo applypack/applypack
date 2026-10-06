@@ -19,8 +19,9 @@ export interface ParsedView {
   sections: string[];
   /** How many of them, the last ones, are headings in the file's own words: the page shows those as written. */
   ownHeadings: number;
-  roles: { title: string; company: string | null; dates: string | null; bullets: number }[];
-  education: { title: string; dates: string | null }[];
+  /** `named`: the title is the file's own words; otherwise it is our "a role with no title". */
+  roles: { title: string; named: boolean; company: string | null; dates: string | null; bullets: number }[];
+  education: { title: string; named: boolean; dates: string | null }[];
 }
 
 const dates = (start: string | null, end: string | null): string | null =>
@@ -53,15 +54,19 @@ export function parsedView(text: string): ParsedView {
     ],
     sections,
     ownHeadings: r.extras.length,
-    roles: r.work.map((w) => ({
-      title: tidy(w.position ?? w.name) ?? t('parsed.roleNoTitle'),
-      company: w.position ? tidy(w.name) : null,
-      dates: dates(w.startDate, w.endDate),
-      bullets: w.highlights.length,
-    })),
-    education: r.education.map((e) => ({
-      title: tidy([e.studyType, e.area, e.institution].filter(Boolean).join(', ')) ?? t('parsed.educationNoName'),
-      dates: dates(e.startDate, e.endDate),
-    })),
+    roles: r.work.map((w) => {
+      const title = tidy(w.position ?? w.name);
+      return {
+        title: title ?? t('parsed.roleNoTitle'),
+        named: title !== null,
+        company: w.position ? tidy(w.name) : null,
+        dates: dates(w.startDate, w.endDate),
+        bullets: w.highlights.length,
+      };
+    }),
+    education: r.education.map((e) => {
+      const title = tidy([e.studyType, e.area, e.institution].filter(Boolean).join(', '));
+      return { title: title ?? t('parsed.educationNoName'), named: title !== null, dates: dates(e.startDate, e.endDate) };
+    }),
   };
 }

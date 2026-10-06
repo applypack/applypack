@@ -31,7 +31,7 @@ type Want = 'preview' | 'docx' | 'pdf';
 
 resumeDocumentRoute.post('/resumes/:id/document', async (c) => {
   const id = idParam(c.req.param('id'));
-  if (!Number.isFinite(id)) return c.json({ error: 'Bad id' }, 400);
+  if (!Number.isFinite(id)) return c.json({ error: t('http.badId') }, 400);
   const form = await c.req.parseBody();
   const text = typeof form.text === 'string' ? form.text.replace(/\r\n/g, '\n').trim() : '';
   const baseText = typeof form.baseText === 'string' ? form.baseText.replace(/\r\n/g, '\n').trim() : '';

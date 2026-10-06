@@ -33,7 +33,7 @@ export const PSEUDO_LOCALE = 'en-XA';
 
 export const LOCALES = {
   en: { name: 'English', intl: 'en-US', stage: 'ready' },
-  uk: { name: 'Українська', intl: 'uk-UA-u-nu-latn', stage: 'unfinished' },
+  uk: { name: 'Українська', intl: 'uk-UA-u-nu-latn', stage: 'ready' },
   [PSEUDO_LOCALE]: { name: 'Pseudo', intl: 'en-US', stage: 'internal' },
 } as const satisfies Record<string, LocaleInfo>;
 
@@ -86,6 +86,16 @@ export function withLocale<T>(locale: Locale, fn: () => T): T {
 
 export function currentLocale(): Locale {
   return current.getStore() ?? SOURCE_LOCALE;
+}
+
+/**
+ * The language finishing setup stores (#355): the one the wizard was read in,
+ * unless that was the source language. A wizard in English chose nothing — the
+ * browser's language may simply not have been offered yet — and storing English
+ * there would keep that install from ever being invited to the language later.
+ */
+export function languageKeptAtSetup(shownIn: Locale): Locale | null {
+  return shownIn === SOURCE_LOCALE ? null : shownIn;
 }
 
 /** How much of an Accept-Language header is read: a browser sends a handful of entries, never a page of them. */

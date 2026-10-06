@@ -10,6 +10,7 @@ import {
   nextStageKey,
   TERMINAL_STAGES,
   UNFILED_STAGE,
+  wordedStage,
   type StageDef,
 } from '../stage-config';
 import type { StageTimeLine } from '../stage-time';
@@ -89,7 +90,7 @@ const StageCard: FC<{ card: ApplicationCard; stage: string; work: StageDef[] }> 
         {allStages(work)
           .filter((s) => s.key !== stage)
           .map((s) => (
-            <option value={s.key} selected={s.key === nextStageKey(work, stage)}>
+            <option value={s.key} selected={s.key === nextStageKey(work, stage)} translate={wordedStage(s) ? undefined : 'no'}>
               {s.label}
             </option>
           ))}
@@ -101,16 +102,20 @@ const StageCard: FC<{ card: ApplicationCard; stage: string; work: StageDef[] }> 
   </li>
 );
 
-const ColumnHeader: FC<{ dot: string; id: string; label: string; count: number }> = ({
+/** A column's name: the user's own stays as typed (`translate="no"`); one ApplyPack names is translated. */
+const StageName: FC<{ stage: StageDef }> = ({ stage }) =>
+  wordedStage(stage) ? <>{stage.label}</> : <span translate="no">{stage.label}</span>;
+
+const ColumnHeader: FC<{ dot: string; id: string; stage: StageDef; count: number }> = ({
   dot,
   id,
-  label,
+  stage,
   count,
 }) => (
   <div class="flex shrink-0 items-center gap-2 px-3 pb-2 pt-3">
     <span class={`h-2 w-2 rounded-full ${dot}`} aria-hidden="true" />
     <h2 id={id} class="text-label text-ink">
-      {label}
+      <StageName stage={stage} />
     </h2>
     <span class="ml-auto text-meta text-ink-faint tabular-nums">{count}</span>
   </div>
@@ -221,7 +226,7 @@ export const ApplicationsPage: FC<ApplicationsProps> = ({
               href={`#stage-col-${s.key}`}
               class="inline-flex min-h-[32px] items-center gap-1 rounded-md border border-line bg-surface-raised px-3 text-meta text-ink-muted"
             >
-              {s.label}
+              <StageName stage={s} />
               <span class="tabular-nums text-ink-faint">{count(s.key)}</span>
             </a>
           ))}
@@ -251,7 +256,7 @@ export const ApplicationsPage: FC<ApplicationsProps> = ({
                   <ColumnHeader
                     dot={dotClassFor(work, s.key)}
                     id={`stage-${s.key}`}
-                    label={s.label}
+                    stage={s}
                     count={items.length}
                   />
                   <ul class="min-h-0 flex-1 space-y-2 overflow-y-auto px-3 pb-3">
@@ -289,7 +294,7 @@ export const ApplicationsPage: FC<ApplicationsProps> = ({
                         aria-hidden="true"
                       />
                       <h2 id={`stage-${s.key}`} class="text-label text-ink">
-                        {s.label}
+                        <StageName stage={s} />
                       </h2>
                       <span class="ml-auto text-meta text-ink-faint tabular-nums">
                         {items.length}

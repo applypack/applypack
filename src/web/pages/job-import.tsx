@@ -4,6 +4,9 @@ import { DROP_REASONS, usableMapping, type DropReason, type MappedRows } from '.
 import type { PreviewCounts } from '../../datasets/preview';
 import { MAX_BODY_MB, MAX_ROWS, type RowFormat } from '../../datasets/rows';
 import { companyDeleteConfirm, type CompanyDeleteImpact } from '../delete-confirm';
+import type { MessageKey } from '../../i18n/catalog';
+import { formatNumber } from '../../i18n/format';
+import { t } from '../../i18n/t';
 import type { FlashMessage } from '../flash';
 import type { ImportStash } from '../import-stash';
 import { Layout } from '../layout';
@@ -36,47 +39,34 @@ export interface ImportSourceRow {
   impact: CompanyDeleteImpact;
 }
 
-const count = (n: number, one: string, many = `${one}s`): string => `${n.toLocaleString('en-US')} ${n === 1 ? one : many}`;
-
 export const JobImportPage: FC<{ sources: ImportSourceRow[]; flash?: FlashMessage | null }> = ({ sources, flash }) => (
-  <Layout title="Import a file of jobs" active="jobs">
+  <Layout title={t('import.title')} active="jobs">
     <div class="w-full">
-      <PageHeader title="Import a file of jobs" back={{ href: '/jobs', label: 'All jobs' }}>
-        Rows you already have — an export, a spreadsheet, the output of a tool you run — become jobs here: filtered by
-        your searches, scored and tracked like every other job. ApplyPack reads the file and requests nothing.
+      <PageHeader title={t('import.title')} back={{ href: '/jobs', label: t('job.allJobs') }}>
+        {t('import.intro')}
       </PageHeader>
       <Flash flash={flash} />
 
       <Card>
         <form method="post" action="/jobs/import" enctype="multipart/form-data" class="grid gap-4 sm:grid-cols-2" data-needs-file>
           <Field
-            label="File"
-            hint={`.json, .jsonl, .csv or .tsv — up to ${MAX_BODY_MB} MB, and the first ${MAX_ROWS.toLocaleString('en-US')} rows of it.`}
+            label={t('import.file')}
+            hint={t('import.fileHint', { mb: MAX_BODY_MB, rows: MAX_ROWS })}
             class="sm:col-span-2"
             more={
               <>
-                <p>
-                  A JSON array of objects, an object holding one list (under data, items, results, records or jobs),
-                  JSON Lines, or CSV / TSV with a header row. The next page shows which column was taken for the
-                  title, the link and the text, and lets you correct it.
-                </p>
-                <p>
-                  A row needs a title and a link or an id. Columns about people — who posted, who recruits, an email,
-                  a phone — are never read. Nothing is fetched from the links in the file.
-                </p>
-                <p>
-                  When a row is scored, its title, place and description go to the AI engine you chose, as for every
-                  job; a local engine keeps them on this computer.
-                </p>
+                <p>{t('import.more.formats')}</p>
+                <p>{t('import.more.needs')}</p>
+                <p>{t('import.more.ai')}</p>
               </>
             }
           >
             <Input type="file" name="file" required accept=".json,.jsonl,.ndjson,.csv,.tsv" class={FILE_INPUT_CLASS} />
           </Field>
           {sources.length > 0 && (
-            <Field label="Add to a source you imported before" hint="A newer export of the same source adds only the rows that are new.">
+            <Field label={t('import.addTo')} hint={t('import.addToHint')}>
               <Select name="source">
-                <option value="">— a new source —</option>
+                <option value="">{t('import.newSourceOption')}</option>
                 {sources.map((s) => (
                   <option value={String(s.id)}>{s.name}</option>
                 ))}
@@ -84,14 +74,14 @@ export const JobImportPage: FC<{ sources: ImportSourceRow[]; flash?: FlashMessag
             </Field>
           )}
           <Field
-            label={sources.length > 0 ? 'Or name a new source' : 'Source name'}
-            hint="Your own words for where these rows come from, such as “September export”."
+            label={t(sources.length > 0 ? 'import.orNewSource' : 'import.sourceName')}
+            hint={t('import.sourceNameHint')}
           >
-            <Input type="text" name="sourceName" maxlength="80" placeholder="September export" required={sources.length === 0} />
+            <Input type="text" name="sourceName" maxlength="80" placeholder={t('import.sourcePlaceholder')} required={sources.length === 0} />
           </Field>
           <div class="flex flex-wrap items-center gap-3 sm:col-span-2">
-            <Button>Preview the rows</Button>
-            <Hint>Nothing is stored and no AI is spent until you press Import on the next page.</Hint>
+            <Button>{t('import.previewRows')}</Button>
+            <Hint>{t('import.previewHint')}</Hint>
           </div>
         </form>
         <script dangerouslySetInnerHTML={{ __html: NEEDS_FILE_JS }} />
@@ -100,21 +90,24 @@ export const JobImportPage: FC<{ sources: ImportSourceRow[]; flash?: FlashMessag
       {sources.length > 0 && (
         <Card class="mt-6" flush>
           <div class="px-5 pt-5">
-            <SectionTitle>Sources you imported</SectionTitle>
+            <SectionTitle>{t('import.sources')}</SectionTitle>
           </div>
-          <Table columns={['Source', 'Jobs', 'Last import', <span class="sr-only">Actions</span>]} caption="Sources you imported">
+          <Table
+            columns={[t('import.col.source'), t('import.col.jobs'), t('import.col.lastImport'), <span class="sr-only">{t('common.actions')}</span>]}
+            caption={t('import.sources')}
+          >
             {sources.map((s) => (
               <Tr>
                 <Td class="text-ink">{s.name}</Td>
-                <Td class="font-mono tabular-nums text-ink-muted">{s.impact.jobs.toLocaleString('en-US')}</Td>
+                <Td class="font-mono tabular-nums text-ink-muted">{formatNumber(s.impact.jobs)}</Td>
                 <Td class="text-ink-muted">
                   <When at={s.lastImportAt} />
                 </Td>
                 <Td>
                   <ConfirmAction
                     action={`/jobs/import/sources/${s.id}/delete`}
-                    label="Delete"
-                    ariaLabel={`Delete ${s.name}`}
+                    label={t('common.delete')}
+                    ariaLabel={t('companies.deleteNamed', { name: s.name })}
                     confirm={companyDeleteConfirm(s.name, s.impact)}
                     class="flex justify-end"
                   />
@@ -130,10 +123,10 @@ export const JobImportPage: FC<{ sources: ImportSourceRow[]; flash?: FlashMessag
 
 const FORMAT_NAME: Record<RowFormat, string> = { json: 'JSON', jsonl: 'JSON Lines', csv: 'CSV', tsv: 'TSV' };
 
-const DROPPED_AS: Record<DropReason, string> = {
-  closed: 'marked closed by the file',
-  'no-title': 'without a title',
-  'no-identity': 'with neither an id nor a link',
+const DROPPED_AS: Record<DropReason, MessageKey> = {
+  closed: 'import.dropped.closed',
+  'no-title': 'import.dropped.noTitle',
+  'no-identity': 'import.dropped.noIdentity',
 };
 
 export interface ImportPreviewProps {
@@ -151,37 +144,41 @@ export interface ImportPreviewProps {
 
 /** Why Import is not offered, or null when it is. One reason, the first that holds. */
 function blocker({ stash, mapped, counts, scoring, searches }: ImportPreviewProps): string | null {
-  if (!usableMapping(stash.mapping)) return 'Choose the column that holds the job title, and one that holds a link or an id, then update the preview.';
-  if (mapped.jobs.length === 0) return 'With these columns no row of the file is a job. Check the title and the link, then update the preview.';
-  if (searches.running === 0) return 'No search is running, so nothing would be stored. Switch one on under Settings → Searches.';
-  if (scoring && searches.usable === 0) return 'Every running search is empty, so nothing would be scored or stored. Give one a required stack or role types on Settings → Searches.';
-  if (counts.passing === 0) return 'Nothing here is both new and wanted by a running search, so there is nothing to import.';
+  if (!usableMapping(stash.mapping)) return t('import.block.mapping');
+  if (mapped.jobs.length === 0) return t('import.block.noJob');
+  if (searches.running === 0) return t('import.block.noSearch');
+  if (scoring && searches.usable === 0) return t('import.allSearchesBlank');
+  if (counts.passing === 0) return t('import.block.nothing');
   return null;
 }
 
 export const JobImportPreviewPage: FC<ImportPreviewProps> = (props) => {
   const { stash, columns, mapped, counts, scoring, cost, flash } = props;
   const action = `/jobs/import/${stash.id}`;
-  const dropped = DROP_REASONS.filter((r) => mapped.dropped[r] > 0).map((r) => `${mapped.dropped[r]} ${DROPPED_AS[r]}`);
-  if (mapped.repeated > 0) dropped.push(`${mapped.repeated} repeating a row above`);
+  const dropped = DROP_REASONS.filter((r) => mapped.dropped[r] > 0).map((r) => t(DROPPED_AS[r], { n: mapped.dropped[r] }));
+  if (mapped.repeated > 0) dropped.push(t('import.dropped.repeated', { n: mapped.repeated }));
   const fresh = counts.usable - counts.stored;
   const blocked = blocker(props);
   return (
-    <Layout title="Check the import" active="jobs">
+    <Layout title={t('import.checkTitle')} active="jobs">
       <div class="w-full">
-        <PageHeader title="Check the import" back={{ href: '/jobs/import', label: 'Choose another file' }}>
-          {stash.fileName}, read as {FORMAT_NAME[stash.format]}, into “{stash.source.name}”
-          {stash.source.id === null ? ', a new source' : ''}. Nothing is stored yet.
+        <PageHeader title={t('import.checkTitle')} back={{ href: '/jobs/import', label: t('import.chooseAnother') }}>
+          {t('import.preview.header', {
+            file: stash.fileName,
+            format: FORMAT_NAME[stash.format],
+            source: stash.source.name,
+            isNew: stash.source.id === null ? 'yes' : 'no',
+          })}
         </PageHeader>
         <Flash flash={flash} />
 
         <Card>
-          <SectionTitle>Which column is which</SectionTitle>
+          <SectionTitle>{t('import.whichColumn')}</SectionTitle>
           <form id="import-form" method="post" action={action} onsubmit={SUBMIT_ONCE}>
             <MappingFields mapping={stash.mapping} guessed={stash.guessed} rows={stash.rows} columns={columns} />
             <div class="mt-4 flex flex-wrap items-center gap-3">
               <Button variant="secondary" formaction={`${action}/mapping`}>
-                Update the preview
+                {t('render.updateThePreview')}
               </Button>
               <MappingNote columns={columns} />
             </div>
@@ -190,51 +187,34 @@ export const JobImportPreviewPage: FC<ImportPreviewProps> = (props) => {
 
         {mapped.jobs.length > 0 && (
           <Card class="mt-6">
-            <SectionTitle>The first rows as they would be stored</SectionTitle>
+            <SectionTitle>{t('import.firstRows')}</SectionTitle>
             <MappedRowsList jobs={mapped.jobs} />
           </Card>
         )}
 
         <Card class="mt-6">
-          <SectionTitle>What importing does</SectionTitle>
+          <SectionTitle>{t('import.whatImportingDoes')}</SectionTitle>
           <ul class="space-y-1 text-sm text-ink">
             <li>
-              {count(stash.rows.length, 'row')} read from the file, {count(counts.usable, 'of them a job', 'of them jobs')}
-              {dropped.length > 0 ? `; left out: ${dropped.join(', ')}` : ''}.
+              {t('import.preview.rows', {
+                rows: stash.rows.length,
+                usable: counts.usable,
+                hasDropped: dropped.length > 0 ? 'yes' : 'no',
+                dropped: dropped.join(', '),
+              })}
             </li>
-            {counts.stored > 0 && (
-              <li>
-                {count(counts.stored, 'is', 'are')} already in “{stash.source.name}” and {counts.stored === 1 ? 'stays as it is' : 'stay as they are'}.
-              </li>
-            )}
-            <li>
-              Of the {count(fresh, 'new row')}, {count(counts.passing, 'passes', 'pass')} your running searches’ filter and would be
-              stored; the rest are set aside without any AI
-              {counts.turnedAway > 0 ? `, ${counts.turnedAway} of them at a company you muted or applied to recently` : ''}.
-            </li>
-            {stash.mapping.employer === null && counts.passing > 0 && (
-              <li>No column is read as the company, so where a company is shown these rows will carry the source’s name.</li>
-            )}
-            {counts.passing > 0 && (
-              <li>
-                {scoring
-                  ? `Each stored row is scored: about ${count(counts.passing, 'AI call')}. ${cost}`
-                  : 'Fetching is paused, so they are stored unscored and no AI is spent. Score them later with Save & re-classify on Settings → Searches.'}
-              </li>
-            )}
-            {mapped.thin > 0 && (
-              <li>{count(mapped.thin, 'row comes', 'rows come')} with little or no description, and {mapped.thin === 1 ? 'is' : 'are'} judged on what there is.</li>
-            )}
+            {counts.stored > 0 && <li>{t('import.preview.stored', { n: counts.stored, source: stash.source.name })}</li>}
+            <li>{t('import.preview.passing', { fresh, passing: counts.passing, turnedAway: counts.turnedAway })}</li>
+            {stash.mapping.employer === null && counts.passing > 0 && <li>{t('import.noCompanyColumn')}</li>}
+            {counts.passing > 0 && <li>{scoring ? `${t('import.preview.cost', { n: counts.passing })} ${cost}` : t('import.preview.paused')}</li>}
+            {mapped.thin > 0 && <li>{t('import.preview.thin', { n: mapped.thin })}</li>}
           </ul>
           {stash.over > 0 && (
             <Notice tone="warn" class="mt-3">
-              The file holds {count(stash.over, 'more row')} than the {MAX_ROWS.toLocaleString('en-US')} read at a time. Those are not
-              in this preview and will not be imported; split the file to bring them in.
+              {t('import.preview.over', { over: stash.over, max: MAX_ROWS })}
             </Notice>
           )}
-          {stash.notRows > 0 && (
-            <Hint class="mt-2">{count(stash.notRows, 'entry of the file is', 'entries of the file are')} not a row and skipped.</Hint>
-          )}
+          {stash.notRows > 0 && <Hint class="mt-2">{t('import.preview.notRows', { n: stash.notRows })}</Hint>}
           {blocked && (
             <Notice tone="warn" class="mt-3">
               {blocked}
@@ -242,9 +222,9 @@ export const JobImportPreviewPage: FC<ImportPreviewProps> = (props) => {
           )}
           <div class="mt-4 flex flex-wrap items-center gap-3">
             <Button form="import-form" disabled={blocked !== null}>
-              Import
+              {t('import.import')}
             </Button>
-            <Hint>Changed a column? Update the preview first to see these numbers again.</Hint>
+            <Hint>{t('import.changedColumn')}</Hint>
           </div>
         </Card>
       </div>

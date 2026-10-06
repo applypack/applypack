@@ -3,6 +3,8 @@ import { config } from '../config';
 import { logger } from '../logger';
 import { getAiRuntime, type AiRuntime } from '../ai-runtime';
 import { askForJson } from '../ai-json';
+import { withLocale } from '../i18n/locale';
+import { t } from '../i18n/t';
 import { loadKeywordMatcher, type KeywordMatcher } from '../resume/keyword-matcher';
 import { anchorScreenReply } from './anchor';
 import { buildScreenPrompt, parseScreenResponse, SCREEN_MAX_TOKENS, SCREEN_PROMPT_VERSION, SCREEN_TIMEOUT_MS } from './prompts';
@@ -142,7 +144,7 @@ export async function startScreeningRun(screeningId: number, opts: RunOptions = 
     logger.error({ err, screeningId }, 'screening: run crashed');
     run.state.running = false;
     run.state.finishedAt = Date.now();
-    run.state.lastError = 'Unexpected failure — see the web logs.';
+    run.state.lastError = t('screening.run.unexpected');
   });
 
   return { kind: 'started', state: run.state };
@@ -231,12 +233,15 @@ async function screenApplicant(
     const answer = await askForJson(
       runtime,
       {
-        ...buildScreenPrompt({
-          rubric,
-          job: postingOf(screening),
-          applicantText: applicant.redactedText,
-          number: applicant.number,
-        }),
+        // The prompt is English whatever the page that started the run reads in (ADR 0061).
+        ...withLocale('en', () =>
+          buildScreenPrompt({
+            rubric,
+            job: postingOf(screening),
+            applicantText: applicant.redactedText,
+            number: applicant.number,
+          }),
+        ),
         maxTokens: SCREEN_MAX_TOKENS,
         label: 'screening',
         role: 'resume',
@@ -248,7 +253,7 @@ async function screenApplicant(
       parseScreenResponse,
       { screeningId: screening.id, applicantId: applicant.id },
     );
-    if (!answer) return { ok: false, reason: reason || 'no engine answered' };
+    if (!answer) return { ok: false, reason: reason || t('screening.noEngineAnswered') };
 
     const anchored = anchorScreenReply(answer.data, applicant.redactedText, rubric, matcher);
     const breakdown = scoreScreening({ rubric, reply: anchored.reply, textChars: applicant.redactedText.length, now });

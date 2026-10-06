@@ -108,6 +108,9 @@ const PSEUDO_VARIANTS = [
 const NOT_INTERFACE = /\bApplyPack\b/g;
 /** How many pages the summary names; `--pseudo-list <file>` writes every run of every page. */
 const PSEUDO_TOP = 12;
+/** A failing page names its first few runs, cut short: enough to find them in the code. */
+const PSEUDO_SHOWN = 3;
+const PSEUDO_RUN_CHARS = 60;
 // app.request() builds no Host header of its own, and the origin guard
 // compares Origin's host with it (same-origin.ts) — so the request says both.
 const ORIGIN = { origin: 'http://localhost', host: 'localhost' };
@@ -911,9 +914,10 @@ async function folderChecks(): Promise<Check[]> {
 /**
  * Every page once more, in the pseudo-language (ADR 0061): what went through
  * the catalog or the format module comes back in brackets, so the words left
- * outside them are English still written into the code. The count is the
- * meter of the translation work — it only ever has to go down — and a page
- * that fails in a language other than English fails the run. Data the
+ * outside them are English still written into the code. Since every page was
+ * translated the count is a gate, not a meter (#356): one run on any page
+ * fails the smoke, as a page that fails in a language other than English
+ * does. Data the
  * fixtures put in (a company's name, a posting) counts until its markup says
  * `translate="no"`; that is the same work.
  */
@@ -931,6 +935,12 @@ async function pseudoPass(urls: string[]): Promise<{ rows: { route: string; url:
         .map((run) => run.replace(NOT_INTERFACE, '').trim())
         .filter((run) => /[A-Za-z]{2,}/.test(run));
       perPage.push({ url, runs });
+      // The gate (#356): a page holds no English outside the catalog. A word that is data says so in its markup
+      // (`translate="no"`, or `lang="en"` for a model's words) and is not counted.
+      if (runs.length > 0) {
+        const shown = runs.slice(0, PSEUDO_SHOWN).map((run) => JSON.stringify(run.slice(0, PSEUDO_RUN_CHARS))).join(', ');
+        rows.push({ route: `GET ${url} in the pseudo-language: ${runs.length} run(s) of English outside the catalog — ${shown}`, url, status: res.status, ok: false });
+      }
     }
   } finally {
     await prisma.appSettings.update({ where: { id: SETTINGS_ID }, data: { locale: before?.locale ?? null } });

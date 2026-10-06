@@ -1,5 +1,6 @@
 import type { MiddlewareHandler } from 'hono';
 import { logger } from '../logger';
+import { t } from '../i18n/t';
 import { guardedMethod, sameOriginPost } from './same-origin';
 
 /*
@@ -29,6 +30,6 @@ export function originGuard(): MiddlewareHandler {
       { method: c.req.method, path: c.req.path, reason: verdict.reason },
       'web: cross-origin write refused',
     );
-    return c.text('Cross-origin request refused.', 403);
+    return c.text(t('http.crossOrigin'), 403);
   };
 }

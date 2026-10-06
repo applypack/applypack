@@ -3,6 +3,7 @@
  * short-lived cookie. Shared by every route that redirects after a write.
  */
 
+import { defaultErrorMap, type ZodIssue } from 'zod';
 import { t } from '../i18n/t';
 
 export type FlashKind = 'ok' | 'warn' | 'err';
@@ -104,16 +105,70 @@ export function parseFlashCookie(cookieHeader: string | undefined): FlashMessage
   return null;
 }
 
+/** A refused field as a schema reports it; `code` is there when zod wrote it. */
+interface Issue {
+  path: readonly PropertyKey[];
+  message: string;
+  code?: string;
+}
+
 /**
  * The first thing a schema refused, as "field: reason" — so a flash can name
  * what was wrong instead of "Invalid form values".
  */
-export function firstIssue(issues: readonly { path: readonly PropertyKey[]; message: string }[]): string {
+export function firstIssue(issues: readonly Issue[]): string {
   const first = issues[0];
   if (!first) return t('flash.formEmpty');
   const field = first.path.map(String).join('.');
-  const text = field ? `${field}: ${first.message}` : first.message;
+  const reason = issueReason(first);
+  const text = field ? `${field}: ${reason}` : reason;
   return text.length > MAX_ISSUE_CHARS ? `${text.slice(0, MAX_ISSUE_CHARS)}…` : text;
+}
+
+/** Never one of zod's own sentences: an issue of a code zod does not word itself keeps its message. */
+const NO_DEFAULT = '\u0000';
+
+/**
+ * zod's own sentence ("Required", "Expected number, received nan") in the
+ * reader's language (ADR 0061). A message the schema wrote itself is kept as
+ * written: it is the schema's to word.
+ */
+function issueReason(issue: Issue): string {
+  if (issue.code === undefined) return issue.message;
+  const zod = issue as ZodIssue;
+  if (defaultErrorMap(zod, { defaultError: NO_DEFAULT, data: undefined }).message !== issue.message) return issue.message;
+  switch (zod.code) {
+    case 'invalid_type':
+      return zod.received === 'undefined' ? t('flash.issue.required') : t('flash.issue.type', { expected: zod.expected });
+    case 'too_small':
+      return boundReason(zod.type, 'min', Number(zod.minimum), zod.exact === true, zod.inclusive);
+    case 'too_big':
+      return boundReason(zod.type, 'max', Number(zod.maximum), zod.exact === true, zod.inclusive);
+    case 'invalid_string':
+      return t('flash.issue.string', { validation: typeof zod.validation === 'string' ? zod.validation : 'other' });
+    case 'invalid_enum_value':
+      return t('flash.issue.enum');
+    case 'invalid_literal':
+      return t('flash.issue.literal');
+    default:
+      return t('flash.issue.invalid');
+  }
+}
+
+/** A length, a count or a number out of bounds; a date or a bigint says only that it is not valid. */
+function boundReason(type: string, side: 'min' | 'max', n: number, exact: boolean, inclusive: boolean): string {
+  switch (type) {
+    case 'string':
+      return t(exact ? 'flash.issue.exactChars' : side === 'min' ? 'flash.issue.minChars' : 'flash.issue.maxChars', { n });
+    case 'array':
+    case 'set':
+      return t(exact ? 'flash.issue.exactItems' : side === 'min' ? 'flash.issue.minItems' : 'flash.issue.maxItems', { n });
+    case 'number':
+      if (side === 'min') return t(inclusive ? 'flash.issue.minNumber' : 'flash.issue.aboveNumber', { n });
+      return t(inclusive ? 'flash.issue.maxNumber' : 'flash.issue.belowNumber', { n });
+    default:
+      return t('flash.issue.invalid');
+  }
 }
 
 /**

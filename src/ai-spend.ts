@@ -2,6 +2,7 @@ import { AI_PROVIDER_LABELS, type AiProviderId } from './ai-engine';
 import { costMicroUsd, PRICES_AS_OF } from './ai-prices';
 import { AI_BILLING, type AiBilling, type AiFeature, type AiOutcome, type AiSpend } from './ai-usage';
 import type { MessageKey } from './i18n/catalog';
+import { formatNumber } from './i18n/format';
 import { t } from './i18n/t';
 
 /*
@@ -256,12 +257,15 @@ export function joinNames(names: readonly string[]): string {
   return names.slice(1).reduce((joined, name) => t('spend.and', { a: joined, b: name }), names[0] ?? '');
 }
 
-/** Micro-dollars as money: cents from a cent up, four places below it. */
+/**
+ * Micro-dollars as money: cents from a cent up, four places below it, written
+ * the reader's way ("$8.00", "8,00 USD"). Outside a request or a tick — the
+ * spend report a script prints — it is English.
+ */
 export function formatUsd(micro: number): string {
   const usd = micro / MICRO;
-  if (usd === 0) return '$0';
-  if (Math.abs(usd) < 0.01) return `$${usd.toFixed(4)}`;
-  return `$${usd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const places = usd === 0 ? 0 : Math.abs(usd) < 0.01 ? 4 : 2;
+  return formatNumber(usd, { style: 'currency', currency: 'USD', minimumFractionDigits: places, maximumFractionDigits: places });
 }
 
 export const SPEND_PERIODS = ['7d', 'month', 'last-month', 'year'] as const;
@@ -283,13 +287,13 @@ export function periodRange(period: SpendPeriod, now: Date): { from: Date; to: D
   const DAY = 86_400_000;
   switch (period) {
     case '7d':
-      return { from: new Date(today - 6 * DAY), to: new Date(today + DAY), label: 'Last 7 days' };
+      return { from: new Date(today - 6 * DAY), to: new Date(today + DAY), label: t('ai.period.7d') };
     case 'month':
-      return { from: new Date(Date.UTC(y, m, 1)), to: new Date(Date.UTC(y, m + 1, 1)), label: 'This month' };
+      return { from: new Date(Date.UTC(y, m, 1)), to: new Date(Date.UTC(y, m + 1, 1)), label: t('ai.period.month') };
     case 'last-month':
-      return { from: new Date(Date.UTC(y, m - 1, 1)), to: new Date(Date.UTC(y, m, 1)), label: 'Last month' };
+      return { from: new Date(Date.UTC(y, m - 1, 1)), to: new Date(Date.UTC(y, m, 1)), label: t('ai.period.lastMonth') };
     case 'year':
-      return { from: new Date(Date.UTC(y, 0, 1)), to: new Date(Date.UTC(y + 1, 0, 1)), label: 'This year' };
+      return { from: new Date(Date.UTC(y, 0, 1)), to: new Date(Date.UTC(y + 1, 0, 1)), label: t('ai.period.year') };
   }
 }
 
@@ -316,10 +320,10 @@ export function budgetAlert(billedMicro: number, budgetCents: number, month: str
   return lastSent !== null && lastSent >= marker ? null : marker;
 }
 
-/** The line a budget warning sends, on the chat channels the alerts use. */
+/** The line a budget warning sends, on the chat channels the alerts use, in the language of the run. */
 export function budgetAlertText(billedMicro: number, budgetCents: number): string {
   const share = Math.round((billedMicro / (budgetCents * 10_000)) * 100);
-  return `AI spend: ${formatUsd(billedMicro)} billed this month, ${share} % of your ${formatUsd(budgetCents * 10_000)} monthly budget. Nothing is stopped — this is a warning. The AI usage page shows where it went.`;
+  return t('spend.budgetAlert', { billed: formatUsd(billedMicro), share, budget: formatUsd(budgetCents * 10_000) });
 }
 
 /**

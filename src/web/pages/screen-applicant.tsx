@@ -16,19 +16,23 @@ import {
   Table,
   Td,
   Tr,
+  inEnglish,
 } from '../ui';
 import type { FlashMessage } from '../flash';
 import { formatDate } from '../format';
 import { formatRange, parseRange } from '../../screening/dates';
 import { trajectoryLine, trajectoryOf } from '../../screening/trajectory';
 import { STANDOUT_SINCE } from '../../screening/prompts';
-import { CRITERION_KIND_LABELS, EVIDENCE_RUNG_LABELS, type Rubric } from '../../screening/rubric';
+import { criterionLabel, CRITERION_KIND_LABELS, EVIDENCE_RUNG_LABELS, type Rubric } from '../../screening/rubric';
 import type { ScreenReply } from '../../screening/prompts';
-import { capExplanation, GATE_BUCKET_LABELS, type ScoreRow, type ScreenBreakdown } from '../../screening/score';
-import { describeRedactions, leakKinds, type Redaction } from '../../screening/redact';
-import { DECISION_LABELS, GATE_MARK, MAX_ADJUSTMENT } from '../../screening/export';
-import { adjustedScore, ANSWER_TONE, RUNG_SHORT } from '../screen-view';
-import { DECISIONS } from '../../screening/store';
+import { answerBadge, answerWords, capExplanation, detailWords, GATE_BUCKET_LABELS, type ScoreRow, type ScreenBreakdown } from '../../screening/score';
+import { describeRedactions, leakKinds, leakLabel, type Redaction } from '../../screening/redact';
+import { GATE_MARK, MAX_ADJUSTMENT } from '../../screening/export';
+import { adjustedScore, ANSWER_TONE, confidenceLabel } from '../screen-view';
+import { DECISIONS, type Decision } from '../../screening/store';
+import type { MessageKey } from '../../i18n/catalog';
+import { t } from '../../i18n/t';
+import { tRich } from '../rich';
 
 /*
  * The scorecard (hr-screening-plan.md §4, "a scorecard, not a number"):
@@ -74,27 +78,34 @@ export interface ScreenApplicantProps {
   flash?: FlashMessage | null;
 }
 
+/** The person's decision as the select names it; the stored value is the key. */
+const DECISION_WORDS: Record<Decision, MessageKey> = {
+  interview: 'screening.decision.interview',
+  hold: 'screening.decision.hold',
+  declined: 'screening.decision.declined',
+};
+
 /** One criterion on the scorecard: what was asked, how the text answered, the quote, the points. */
 const CriterionAnswerRow: FC<{ r: ScoreRow }> = ({ r }) => {
-  const answerLabel = (RUNG_SHORT as Record<string, string>)[r.answer] ?? r.answer;
   const answerTitle = (EVIDENCE_RUNG_LABELS as Record<string, string>)[r.answer];
   const tone = r.mode === 'gate' && r.gate ? ANSWER_TONE[r.gate] : (ANSWER_TONE[r.answer] ?? 'neutral');
   return (
     <Tr>
       <Td class="align-top">
-        <div class="text-ink">{r.label}</div>
+        <div class="text-ink">{criterionLabel(r)}</div>
         <div class="text-meta text-ink-faint">
-          {CRITERION_KIND_LABELS[r.kind as keyof typeof CRITERION_KIND_LABELS] ?? r.kind} · {r.mode === 'gate' ? 'gate' : r.mode === 'note' ? 'note' : <Stars n={r.weight} />}
+          {CRITERION_KIND_LABELS[r.kind as keyof typeof CRITERION_KIND_LABELS] ?? r.kind} ·{' '}
+          {r.mode === 'gate' ? t('screening.applicant.modeGate') : r.mode === 'note' ? t('screening.applicant.modeNote') : <Stars n={r.weight} />}
         </div>
       </Td>
       <Td class="align-top">
         <span title={answerTitle}>
-          <Badge tone={tone ?? 'neutral'}>{r.mode === 'gate' ? `${GATE_MARK[r.gate ?? 'unknown']} ${r.gate ?? 'unknown'}` : answerLabel}</Badge>
+          <Badge tone={tone ?? 'neutral'}>{r.mode === 'gate' ? `${GATE_MARK[r.gate ?? 'unknown']} ${answerWords(r.gate ?? 'unknown')}` : answerBadge(r.answer)}</Badge>
         </span>
       </Td>
       <Td class="align-top text-ink-muted">
         {r.quote ? <q class="text-ink">{r.quote}</q> : null}
-        {r.detail && <div class={`text-meta ${r.quote ? 'mt-1' : ''} text-ink-faint`}>{r.detail}</div>}
+        {r.detail && <div class={`text-meta ${r.quote ? 'mt-1' : ''} text-ink-faint`}>{detailWords(r.detail)}</div>}
         {!r.quote && !r.detail && '—'}
       </Td>
       <Td class="whitespace-nowrap text-right align-top tabular-nums">{r.mode === 'scored' ? (r.max === 0 ? '—' : `${r.pts} / ${r.max}`) : ''}</Td>
@@ -107,10 +118,10 @@ export const ScreenApplicantPage: FC<ScreenApplicantProps> = ({ screening, appli
   const back = `/screen/${screening.id}`;
   const career = reply ? trajectoryOf(reply.roles, now) : null;
   return (
-    <Layout title={title} active="screen">
+    <Layout title={title} titleIsData active="screen">
       <PageHeader
         title={title}
-        back={{ href: back, label: screening.title }}
+        back={{ href: back, label: screening.title, labelIsData: true }}
         meta={
           breakdown && !stale ? (
             <span class="flex flex-wrap items-center gap-2">
@@ -120,59 +131,80 @@ export const ScreenApplicantPage: FC<ScreenApplicantProps> = ({ screening, appli
               <span class="text-entity text-ink">{adjustedScore(breakdown.score, applicant.adjustment)}</span>
               <span>
                 / 100
-                {applicant.adjustment !== 0 ? ` (computed ${breakdown.score}, your ${applicant.adjustment > 0 ? '+' : ''}${applicant.adjustment})` : ''} · confidence{' '}
-                {breakdown.confidence.band}
+                {applicant.adjustment !== 0
+                  ? ` ${t('screening.applicant.computed', { score: breakdown.score, adjustment: `${applicant.adjustment > 0 ? '+' : ''}${applicant.adjustment}` })}`
+                  : ''}{' '}
+                · {t('screening.applicant.confidence', { band: confidenceLabel(breakdown.confidence.band) })}
               </span>
             </span>
           ) : undefined
         }
         actions={
           <Button href={`${back}/applicants/${applicant.id}/file`} variant="secondary" size="sm">
-            Download the file
+            {t('screening.applicant.downloadFile')}
           </Button>
         }
       >
-        {applicant.file}
-        {applicant.email ? ` · ${applicant.email}` : ''}
-        {applicant.phone ? ` · ${applicant.phone}` : ''} — shown to you only; the model read "Applicant №{applicant.number}".
-        {scoredAt && ` Scored ${formatDate(scoredAt)}${model ? ` on ${model}` : ''}, rubric v${screening.rubricVersion}.`}
+        <span translate="no">{applicant.file}</span>
+        {applicant.email && (
+          <>
+            {' · '}
+            <span translate="no">{applicant.email}</span>
+          </>
+        )}
+        {applicant.phone && (
+          <>
+            {' · '}
+            <span translate="no">{applicant.phone}</span>
+          </>
+        )}{' '}
+        — {t('screening.applicant.shownToYou', { n: applicant.number })}
+        {scoredAt &&
+          ` ${
+            model
+              ? t('screening.applicant.scoredOn', { date: formatDate(scoredAt), model, version: screening.rubricVersion })
+              : t('screening.applicant.scored', { date: formatDate(scoredAt), version: screening.rubricVersion })
+          }`}
       </PageHeader>
       <Flash flash={flash} />
 
       {applicant.status === 'unreadable' && (
         <Card class="mb-4">
-          <Badge tone="warn">Could not be read</Badge>
-          <p class="mt-2 text-sm text-ink-muted">{applicant.note ?? 'The file gave no text to read.'}</p>
+          <Badge tone="warn">{t('screening.applicant.unreadable')}</Badge>
+          <p class="mt-2 text-sm text-ink-muted">{applicant.note ?? t('screening.applicant.noText')}</p>
         </Card>
       )}
       {/* TASKS E4 (Q6): the redaction promise is what the mode rests on, so a leak waits for a person. */}
       {applicant.status === 'held' && (
         <Card class="mb-4">
-          <Badge tone="warn">Held for a look</Badge>
+          <Badge tone="warn">{t('screening.applicant.held')}</Badge>
           <p class="mt-2 text-sm text-ink-muted">
-            After redaction the leak check still found {leakKinds(applicant.leaks).join(', ') || 'something identifying'}, so no
-            model has read this applicant. The redacted text below is exactly what one would read.
+            {t('screening.applicant.heldBody', { kinds: leakKinds(applicant.leaks).map(leakLabel).join(', ') || t('screening.applicant.somethingIdentifying') })}
           </p>
           <form method="post" action={`${back}/applicants/${applicant.id}/release`} class="mt-3 flex flex-wrap items-center gap-3">
-            <Button variant="secondary">Score it anyway</Button>
-            <Hint>Or tick it on the screening page and Delete.</Hint>
+            <Button variant="secondary">{t('screening.applicant.scoreAnyway')}</Button>
+            <Hint>{t('screening.applicant.orDelete')}</Hint>
           </form>
         </Card>
       )}
       {applicant.sameAs !== null && (
         <div class="mb-4 rounded-md border border-line bg-surface-overlay px-3.5 py-2.5 text-note leading-5 text-ink-muted" role="status">
-          Another document of{' '}
-          <a href={`${back}#results`} class="text-ink hover:underline">
-            applicant №{applicant.sameAs}
-          </a>{' '}
-          — same email, phone or near-identical text. Scored on its own; keep the version you want and tick the other
-          for Delete.
+          {tRich(
+            'screening.applicant.sameAs',
+            { n: applicant.sameAs },
+            {
+              link: (words) => (
+                <a href={`${back}#results`} class="text-ink hover:underline">
+                  {words}
+                </a>
+              ),
+            },
+          )}
         </div>
       )}
       {stale && reply && (
         <Notice tone="warn" role="status" class="mb-4">
-          This scorecard was written under an earlier rubric. The screening page's Score button reads the applicant
-          again with the current one; until then the number below is about a different yardstick.
+          {t('screening.applicant.stale')}
         </Notice>
       )}
 
@@ -181,34 +213,39 @@ export const ScreenApplicantPage: FC<ScreenApplicantProps> = ({ screening, appli
           <div class="space-y-4">
             <Card>
               <dl class="grid gap-2 text-sm sm:grid-cols-[6rem_1fr]">
-                <dt class="text-ink-faint">Who</dt>
-                <dd class="text-ink">{reply.summary.who || '—'}</dd>
-                <dt class="text-ink-faint">Did</dt>
-                <dd class="text-ink">{reply.summary.did || '—'}</dd>
-                <dt class="text-ink-faint">Verdict</dt>
-                <dd class="font-medium text-ink">{reply.summary.verdict || '—'}</dd>
+                <dt class="text-ink-faint">{t('screening.applicant.who')}</dt>
+                <dd class="text-ink" lang="en">
+                  {reply.summary.who || '—'}
+                </dd>
+                <dt class="text-ink-faint">{t('screening.applicant.did')}</dt>
+                <dd class="text-ink" lang="en">
+                  {reply.summary.did || '—'}
+                </dd>
+                <dt class="text-ink-faint">{t('screening.applicant.verdict')}</dt>
+                <dd class="font-medium text-ink" lang="en">
+                  {reply.summary.verdict || '—'}
+                </dd>
               </dl>
               {reply.injection && (
                 <Notice tone="danger" class="mt-3">
-                  The resume carried text addressed to an AI reader. It was ignored and the resume judged on its
-                  merits; see "Consistency" below.
+                  {t('screening.applicant.injection')}
                 </Notice>
               )}
             </Card>
 
             <Card>
-              <h2 class="text-entity text-ink">Stands out — what no criterion asked</h2>
+              <h2 class="text-entity text-ink">{t('screening.applicant.standout')}</h2>
               {reply.standout.length === 0 ? (
                 <Hint class="mt-1">
-                  {promptVersion !== null && promptVersion < STANDOUT_SINCE
-                    ? 'Scored before stand-out facts were read; Score again on the screening page to get them.'
-                    : 'Nothing beyond the criteria stood out in the text.'}
+                  {promptVersion !== null && promptVersion < STANDOUT_SINCE ? t('screening.applicant.standoutOld') : t('screening.applicant.standoutNone')}
                 </Hint>
               ) : (
                 <ul class="mt-2 space-y-1.5 text-sm">
                   {reply.standout.map((f) => (
                     <li>
-                      <span class="text-ink">{f.fact}</span>
+                      <span class="text-ink" lang="en">
+                        {f.fact}
+                      </span>
                       {f.quote && (
                         <>
                           {' — '}
@@ -219,12 +256,12 @@ export const ScreenApplicantPage: FC<ScreenApplicantProps> = ({ screening, appli
                   ))}
                 </ul>
               )}
-              <Hint class="mt-2">Read, never scored: a technology beyond the rubric, a number, a talk, a language. Each line is in the text.</Hint>
+              <Hint class="mt-2">{t('screening.applicant.standoutHint')}</Hint>
             </Card>
 
             <Card flush>
               <Table
-                columns={['Criterion', 'Answer', 'What the resume says', 'Points']}
+                columns={[t('screening.applicant.col.criterion'), t('screening.applicant.col.answer'), t('screening.applicant.col.says'), t('screening.applicant.col.points')]}
                 widths={['w-[24%]', 'w-[17%]', 'w-[47%]', 'w-[12%]']}
                 hideBelow={['', '', 'sm', '']}
                 thClasses={['', '', '', 'text-right']}
@@ -236,14 +273,10 @@ export const ScreenApplicantPage: FC<ScreenApplicantProps> = ({ screening, appli
             </Card>
 
             <Card>
-              <h2 class="text-entity text-ink">Roles as the text gives them</h2>
-              {career && career.roles > 0 && (
-                <p class="mt-1 text-note text-ink-muted">
-                  Career, read off the dates: {trajectoryLine(career)}. Employer count and tenure are facts to ask about, never points.
-                </p>
-              )}
+              <h2 class="text-entity text-ink">{t('screening.applicant.roles')}</h2>
+              {career && career.roles > 0 && <p class="mt-1 text-note text-ink-muted">{t('screening.applicant.career', { line: trajectoryLine(career) })}</p>}
               {reply.roles.length === 0 ? (
-                <Hint class="mt-1">No roles with dates the text carries — years, sectors and company types were left out of the score.</Hint>
+                <Hint class="mt-1">{t('screening.applicant.noRoles')}</Hint>
               ) : (
                 <ul class="mt-2 space-y-1.5 text-sm">
                   {reply.roles.map((r) => {
@@ -253,14 +286,17 @@ export const ScreenApplicantPage: FC<ScreenApplicantProps> = ({ screening, appli
                         <span class="font-medium">{r.position}</span>
                         {r.employer && <span>· {r.employer}</span>}
                         <span class="tabular-nums text-ink-faint">
-                          {range ? formatRange(range, now) : [r.start, r.end].filter(Boolean).join(' – ') || 'no dates'}
+                          {range ? formatRange(range, now) : [r.start, r.end].filter(Boolean).join(' – ') || t('screening.applicant.noDates')}
                         </span>
                         {(r.sector || r.companyType) && (
                           <span class="text-ink-faint">
                             · {[r.sector, r.companyType].filter(Boolean).join(', ')}
                           </span>
                         )}
-                        <span class="text-ink-faint">— {r.relevant ? r.why : `not counted: ${r.why}`}</span>
+                        <span class="text-ink-faint">
+                          {/* The model's reason is its own English; "not counted" is ours. */}
+                          — {r.relevant ? <span lang="en">{r.why}</span> : tRich('screening.applicant.notCountedWhy', { why: r.why }, { en: inEnglish })}
+                        </span>
                       </li>
                     );
                   })}
@@ -270,17 +306,17 @@ export const ScreenApplicantPage: FC<ScreenApplicantProps> = ({ screening, appli
 
             <Card>
               <div class="flex items-baseline justify-between gap-3">
-                <h2 class="text-entity text-ink">Questions for the interview</h2>
+                <h2 class="text-entity text-ink">{t('screening.applicant.questions')}</h2>
                 {reply.questions.length > 0 && (
                   <Button variant="ghost" size="sm" type="button" data-copy={reply.questions.map((q) => `- ${q}`).join('\n')}>
-                    Copy
+                    {t('common.copy')}
                   </Button>
                 )}
               </div>
               {reply.questions.length === 0 ? (
-                <Hint class="mt-1">None written.</Hint>
+                <Hint class="mt-1">{t('screening.applicant.noneWritten')}</Hint>
               ) : (
-                <ol class="mt-2 list-decimal space-y-1 pl-5 text-sm text-ink">
+                <ol class="mt-2 list-decimal space-y-1 pl-5 text-sm text-ink" lang="en">
                   {reply.questions.map((q) => (
                     <li>{q}</li>
                   ))}
@@ -290,8 +326,8 @@ export const ScreenApplicantPage: FC<ScreenApplicantProps> = ({ screening, appli
                 <div class="mt-4 grid gap-4 sm:grid-cols-2">
                   {reply.risks.length > 0 && (
                     <div>
-                      <h3 class="text-label text-ink">Facts to discuss</h3>
-                      <ul class="mt-1 list-disc space-y-1 pl-5 text-sm text-ink-muted">
+                      <h3 class="text-label text-ink">{t('screening.applicant.risks')}</h3>
+                      <ul class="mt-1 list-disc space-y-1 pl-5 text-sm text-ink-muted" lang="en">
                         {reply.risks.map((r) => (
                           <li>{r}</li>
                         ))}
@@ -300,8 +336,8 @@ export const ScreenApplicantPage: FC<ScreenApplicantProps> = ({ screening, appli
                   )}
                   {reply.consistency.length > 0 && (
                     <div>
-                      <h3 class="text-label text-ink">Consistency</h3>
-                      <ul class="mt-1 list-disc space-y-1 pl-5 text-sm text-ink-muted">
+                      <h3 class="text-label text-ink">{t('screening.applicant.consistency')}</h3>
+                      <ul class="mt-1 list-disc space-y-1 pl-5 text-sm text-ink-muted" lang="en">
                         {reply.consistency.map((r) => (
                           <li>{r}</li>
                         ))}
@@ -315,13 +351,13 @@ export const ScreenApplicantPage: FC<ScreenApplicantProps> = ({ screening, appli
 
           <div class="space-y-4">
             <Card>
-              <h2 id="score-made" class="text-entity text-ink">How the score was made</h2>
+              <h2 id="score-made" class="text-entity text-ink">{t('screening.applicant.howMade')}</h2>
               {/* TASKS U13: header cells with a scope, and the heading as the table's name. */}
               <table class="mt-2 w-full text-sm" aria-labelledby="score-made">
                 <thead class="sr-only">
                   <tr>
-                    <th scope="col">Criterion and answer</th>
-                    <th scope="col">Points</th>
+                    <th scope="col">{t('screening.applicant.criterionAndAnswer')}</th>
+                    <th scope="col">{t('screening.applicant.col.points')}</th>
                   </tr>
                 </thead>
                 <tbody class="divide-y divide-line">
@@ -330,10 +366,9 @@ export const ScreenApplicantPage: FC<ScreenApplicantProps> = ({ screening, appli
                     .map((r) => (
                       <tr class={r.max === 0 ? 'text-ink-faint' : ''}>
                         <th scope="row" class="py-1.5 pr-2 text-left align-top font-normal">
-                          <div class="text-ink">{r.label}</div>
+                          <div class="text-ink">{criterionLabel(r)}</div>
                           <div class="text-meta text-ink-faint">
-                            {r.answer}
-                            {r.max === 0 ? ' — not counted' : ''}
+                            {r.max === 0 ? t('screening.applicant.answerNotCounted', { answer: answerWords(r.answer) }) : answerWords(r.answer)}
                           </div>
                         </th>
                         <td class="whitespace-nowrap py-1.5 text-right align-top tabular-nums">{r.max === 0 ? '—' : `${r.pts} / ${r.max}`}</td>
@@ -341,7 +376,7 @@ export const ScreenApplicantPage: FC<ScreenApplicantProps> = ({ screening, appli
                     ))}
                   <tr class="font-medium text-ink">
                     <th scope="row" class="py-1.5 pr-2 text-left font-medium">
-                      Score{breakdown.cap !== null ? ' (capped)' : ''}
+                      {breakdown.cap !== null ? t('screening.applicant.scoreCapped') : t('screening.applicant.score')}
                     </th>
                     <td class="py-1.5 text-right tabular-nums">{breakdown.score}</td>
                   </tr>
@@ -349,59 +384,75 @@ export const ScreenApplicantPage: FC<ScreenApplicantProps> = ({ screening, appli
               </table>
               {capExplanation(breakdown) && <p class="mt-2 text-note text-warn">{capExplanation(breakdown)}</p>}
               <Hint class="mt-2">
-                Points are the answers × your stars, over the criteria the text could answer ({breakdown.weightTotal}{' '}
-                star{breakdown.weightTotal === 1 ? '' : 's'} counted). Confidence {breakdown.confidence.band}:{' '}
-                {breakdown.confidence.answered} of {breakdown.confidence.total} criteria answered
-                {breakdown.confidence.thin ? ', and the text is short' : ''}.
+                {t('screening.applicant.pointsHint', {
+                  stars: breakdown.weightTotal,
+                  band: confidenceLabel(breakdown.confidence.band),
+                  answered: breakdown.confidence.answered,
+                  total: breakdown.confidence.total,
+                  thin: breakdown.confidence.thin ? 'yes' : 'no',
+                })}
               </Hint>
             </Card>
 
             <Card>
-              <h2 class="text-entity text-ink">Your decision</h2>
+              <h2 class="text-entity text-ink">{t('screening.applicant.yourDecision')}</h2>
               <form method="post" action={`${back}/applicants/${applicant.id}/decision`} class="mt-2 flex items-center gap-2">
                 <input type="hidden" name="back" value={`${back}/applicants/${applicant.id}`} />
-                <Select name="decision" aria-label="Decision">
+                <Select name="decision" aria-label={t('screening.applicant.decision')}>
                   <option value="" selected={applicant.decision === null}>
-                    Not decided
+                    {t('screening.applicant.notDecided')}
                   </option>
                   {DECISIONS.map((d) => (
                     <option value={d} selected={applicant.decision === d}>
-                      {DECISION_LABELS[d]}
+                      {t(DECISION_WORDS[d])}
                     </option>
                   ))}
                 </Select>
-                <Button variant="secondary">Save</Button>
+                <Button variant="secondary">{t('common.save')}</Button>
               </form>
               <Hint class="mt-2">
-                {applicant.decidedAt ? `Set ${formatDate(applicant.decidedAt)}. ` : ''}The tool never sets this: a
-                bucket is a fact about the resume, a decision is yours.
+                {applicant.decidedAt ? `${t('screening.applicant.decidedAt', { date: formatDate(applicant.decidedAt) })} ` : ''}
+                {t('screening.applicant.decisionHint')}
               </Hint>
             </Card>
 
             <Card>
-              <h2 class="text-entity text-ink">Your adjustment</h2>
+              <h2 class="text-entity text-ink">{t('screening.applicant.yourAdjustment')}</h2>
               <form method="post" action={`${back}/applicants/${applicant.id}/adjust`} class="mt-2 space-y-2">
                 <input type="hidden" name="back" value={`${back}/applicants/${applicant.id}`} />
                 <div class="flex items-center gap-2">
-                  <Input type="number" name="points" min={-MAX_ADJUSTMENT} max={MAX_ADJUSTMENT} step="1" value={applicant.adjustment} class="w-24" aria-label="Points" />
-                  <span class="text-sm text-ink-muted">points, −{MAX_ADJUSTMENT} to +{MAX_ADJUSTMENT}</span>
+                  <Input
+                    type="number"
+                    name="points"
+                    min={-MAX_ADJUSTMENT}
+                    max={MAX_ADJUSTMENT}
+                    step="1"
+                    value={applicant.adjustment}
+                    class="w-24"
+                    aria-label={t('screening.applicant.points')}
+                  />
+                  <span class="text-sm text-ink-muted">{t('screening.applicant.pointsRange', { max: MAX_ADJUSTMENT })}</span>
                 </div>
-                <Input type="text" name="note" maxlength="200" value={applicant.adjustmentNote ?? ''} placeholder="Why — a referral, a fact the resume does not carry…" aria-label="Reason" />
-                <Button variant="secondary">Save</Button>
+                <Input
+                  type="text"
+                  name="note"
+                  maxlength="200"
+                  value={applicant.adjustmentNote ?? ''}
+                  placeholder={t('screening.applicant.reasonPlaceholder')}
+                  aria-label={t('screening.applicant.reason')}
+                />
+                <Button variant="secondary">{t('common.save')}</Button>
               </form>
-              <Hint class="mt-2">
-                Moves this applicant in the table and travels into the export with its reason. The computed score
-                stays visible beside it — your correction is a fact about the person, not a change to the rubric.
-              </Hint>
+              <Hint class="mt-2">{t('screening.applicant.adjustHint')}</Hint>
             </Card>
 
             <Card>
-              <h2 class="text-entity text-ink">What the model did not see</h2>
-              <p class="mt-1 text-sm text-ink-muted">Removed before the call: {describeRedactions(applicant.redactions)}.</p>
+              <h2 class="text-entity text-ink">{t('screening.applicant.unseen')}</h2>
+              <p class="mt-1 text-sm text-ink-muted">{t('screening.applicant.removedBefore', { list: describeRedactions(applicant.redactions) })}</p>
               <p data-ui="hint" class="mt-1 text-note text-ink-faint">
                 {applicant.leaks.length === 0
-                  ? 'Leak check after redaction: nothing identifying left.'
-                  : `Leak check found: ${applicant.leaks.join(', ')} — read the text below before trusting the mark.`}
+                  ? t('screening.applicant.leakNone')
+                  : t('screening.applicant.leakFound', { leaks: applicant.leaks.map(leakLabel).join(', ') })}
               </p>
             </Card>
           </div>
@@ -410,20 +461,20 @@ export const ScreenApplicantPage: FC<ScreenApplicantProps> = ({ screening, appli
 
       {!reply && applicant.status === 'ok' && (
         <Card class="mb-4">
-          <p class="text-sm text-ink-muted">Not scored yet — press Score on the screening page.</p>
+          <p class="text-sm text-ink-muted">{t('screening.applicant.notScored')}</p>
         </Card>
       )}
 
       {letters.length > 0 && (
         <Card class="mt-4">
-          <h2 class="text-entity text-ink">{letters.length === 1 ? 'Cover letter' : 'Cover letters'}</h2>
-          <Hint class="mt-1">Came with the resume. For you to read — never scored, never sent to a model.</Hint>
+          <h2 class="text-entity text-ink">{t('screening.applicant.letters', { n: letters.length })}</h2>
+          <Hint class="mt-1">{t('screening.applicant.lettersHint', { n: letters.length })}</Hint>
           {letters.map((l) => (
             <details class="mt-3">
               <summary class="cursor-pointer text-label text-ink">
                 {l.sourceFilename}{' '}
                 <a href={`${back}/applicants/${applicant.id}/letters/${l.id}/file`} class="ml-2 text-meta font-normal text-ink-muted hover:text-ink">
-                  Download
+                  {t('screening.applicant.download')}
                 </a>
               </summary>
               <pre class="mt-3 max-h-[32rem] overflow-auto whitespace-pre-wrap rounded-md bg-surface-overlay p-3 font-sans text-note leading-5 text-ink">{l.text}</pre>
@@ -436,20 +487,25 @@ export const ScreenApplicantPage: FC<ScreenApplicantProps> = ({ screening, appli
         <Card>
           <details>
             <summary class="cursor-pointer text-label text-ink">
-              {applicant.status === 'held' ? 'Text a model would read (redacted)' : 'Text the model read (redacted)'}
+              {applicant.status === 'held' ? t('screening.applicant.textWouldRead') : t('screening.applicant.textRead')}
             </summary>
             <pre class="mt-3 max-h-[32rem] overflow-auto whitespace-pre-wrap rounded-md bg-surface-overlay p-3 font-sans text-note leading-5 text-ink">{applicant.redactedText}</pre>
           </details>
         </Card>
         <Card>
           <details>
-            <summary class="cursor-pointer text-label text-ink">Full text (you only)</summary>
+            <summary class="cursor-pointer text-label text-ink">{t('screening.applicant.fullText')}</summary>
             <pre class="mt-3 max-h-[32rem] overflow-auto whitespace-pre-wrap rounded-md bg-surface-overlay p-3 font-sans text-note leading-5 text-ink">{applicant.text}</pre>
           </details>
         </Card>
       </div>
       <div class="mt-4">
-        <ConfirmAction action={`${back}/applicants/${applicant.id}/delete`} label="Remove this applicant" confirm="Remove this applicant with the file and every verdict?" class="inline-block" />
+        <ConfirmAction
+          action={`${back}/applicants/${applicant.id}/delete`}
+          label={t('screening.applicant.remove')}
+          confirm={t('screening.applicant.removeConfirm')}
+          class="inline-block"
+        />
       </div>
       <script type="module" dangerouslySetInnerHTML={{ __html: "import { wireCopy } from '/static/copy.mjs'; wireCopy(document);" }} />
     </Layout>

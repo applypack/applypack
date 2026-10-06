@@ -1,3 +1,4 @@
+import { t } from '../i18n/t';
 import type { AlertChannel } from '../notifier';
 import type { AlertMode } from '../user-schedule';
 import type { AlertJob } from '../types';
@@ -7,8 +8,10 @@ import type { AlertJob } from '../types';
  * as arguments and the Telegram calls happen in jobs/alert-delivery.ts.
  */
 
-/** The header a delivery carries, so a reader can tell it from the daily recap. */
-export const HELD_TITLE = 'While you were away';
+/** The header a delivery carries, so a reader can tell it from the daily recap — in the language of the run. */
+export function heldTitle(): string {
+  return t('held.title');
+}
 
 /**
  * The most matches one delivery lists in full, per chat. A night outside the

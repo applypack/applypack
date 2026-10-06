@@ -178,14 +178,14 @@ const WatchSchema = z.object({
 /** Interval / policy from the watchlist row's own selects. */
 watchlistRoute.post('/companies/:id/watch', async (c) => {
   const id = idParam(c.req.param('id'));
-  if (!Number.isFinite(id)) return c.text('Bad id', 400);
+  if (!Number.isFinite(id)) return c.text(t('http.badId'), 400);
   const form = await c.req.parseBody();
   const parsed = WatchSchema.safeParse({ checkEvery: form.checkEvery, alertPolicy: form.alertPolicy });
   if (!parsed.success) {
     return flashRedirect('/companies', 'err', t('watchlist.flash.watchInvalid', { issue: firstIssue(parsed.error.issues) }), refusedField(c.req.path, parsed.error.issues));
   }
   const company = await prisma.company.findUnique({ where: { id }, select: { name: true, checkEvery: true } });
-  if (!company) return c.text('Not found', 404);
+  if (!company) return c.text(t('http.notFound'), 404);
 
   await prisma.company.update({
     where: { id },
@@ -208,9 +208,9 @@ watchlistRoute.post('/companies/:id/watch', async (c) => {
  */
 watchlistRoute.post('/companies/:id/check-now', async (c) => {
   const id = idParam(c.req.param('id'));
-  if (!Number.isFinite(id)) return c.text('Bad id', 400);
+  if (!Number.isFinite(id)) return c.text(t('http.badId'), 400);
   const company = await prisma.company.findUnique({ where: { id }, select: { name: true, active: true, atsType: true } });
-  if (!company) return c.text('Not found', 404);
+  if (!company) return c.text(t('http.notFound'), 404);
   if (!company.active) {
     return flashRedirect('/companies', 'err', t('watchlist.flash.off', { name: company.name }));
   }
@@ -225,9 +225,9 @@ watchlistRoute.post('/companies/:id/check-now', async (c) => {
 /** Drop the star, keep the company: it stays a tracked source on the normal rules. */
 watchlistRoute.post('/companies/:id/unwatch', async (c) => {
   const id = idParam(c.req.param('id'));
-  if (!Number.isFinite(id)) return c.text('Bad id', 400);
+  if (!Number.isFinite(id)) return c.text(t('http.badId'), 400);
   const company = await prisma.company.findUnique({ where: { id }, select: { name: true } });
-  if (!company) return c.text('Not found', 404);
+  if (!company) return c.text(t('http.notFound'), 404);
   await prisma.company.update({
     where: { id },
     data: { watched: false, alertPolicy: 'matches', checkEvery: 'hour' },
@@ -242,12 +242,12 @@ watchlistRoute.post('/companies/:id/unwatch', async (c) => {
  */
 watchlistRoute.post('/companies/:id/paste', async (c) => {
   const id = idParam(c.req.param('id'));
-  if (!Number.isFinite(id)) return c.text('Bad id', 400);
+  if (!Number.isFinite(id)) return c.text(t('http.badId'), 400);
   const company = await prisma.company.findUnique({
     where: { id },
     select: { name: true, atsType: true, pastedLines: true, pastedAt: true },
   });
-  if (!company) return c.text('Not found', 404);
+  if (!company) return c.text(t('http.notFound'), 404);
   if (company.atsType !== AtsType.BROWSER_PAGE) {
     return flashRedirect('/companies', 'err', t('watchlist.flash.notBrowserPage', { name: company.name }));
   }

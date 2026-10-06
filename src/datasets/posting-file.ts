@@ -8,6 +8,7 @@
  * Tested in posting-file.test.ts.
  */
 
+import { t } from '../i18n/t';
 import type { WorkplaceCode } from '../location';
 import { docxToText } from '../resume/docx-text';
 import { clipText, hashShortId, storableText } from '../text-utils';
@@ -24,13 +25,21 @@ export type PostingRead =
   | { ok: true; text: string; address: string | null; addressIsOwn: boolean; facts: PageFacts | null; pageTitle: string | null }
   | { ok: false; why: string };
 
-/** What the per-file list says about a saved posting that gave no job. */
+/** What the per-file list says about a saved posting that gave no job: worded when read, in the language of the moment. */
 export const POSTING_NOTES = {
-  tooShort: `Less than ${MIN_POSTING_CHARS} characters of text: a note or an empty page, not a posting.`,
-  pdf: 'No text could be read from this PDF: a scanned image, a password, or a damaged file. Save the page as HTML, or print it to PDF with its text.',
-  docx: 'Not a readable .docx.',
-  needsModel: 'Waits until fetching is resumed: the page does not say its title and company, and reading them asks the AI engine.',
-} as const;
+  get tooShort(): string {
+    return t('datasets.posting.tooShort', { n: MIN_POSTING_CHARS });
+  },
+  get pdf(): string {
+    return t('datasets.posting.pdf');
+  },
+  get docx(): string {
+    return t('datasets.posting.docx');
+  },
+  get needsModel(): string {
+    return t('datasets.posting.needsModel');
+  },
+};
 
 const text = (raw: string): string => clipText(storableText(raw.replace(/\r\n?/g, '\n')).trim(), MAX_POSTING_TEXT_CHARS).trim();
 const plain = (body: string): Extract<PostingRead, { ok: true }> => ({ ok: true, text: text(body), address: null, addressIsOwn: false, facts: null, pageTitle: null });
@@ -125,6 +134,5 @@ function savedPostingId(read: Extract<PostingRead, { ok: true }>): string {
 
 /** The per-file list's line for a saved posting that became a job. */
 export function savedPostingNote(job: NormalizedJob): string {
-  const at = job.employer ? ` at ${job.employer}` : ', company not named';
-  return `Read as “${job.title}”${at}${job.url ? '' : '; the file gives no address to apply at'}.`;
+  return t('datasets.posting.readAs', { title: job.title, named: job.employer ? 'yes' : 'no', company: job.employer ?? '', noAddress: job.url ? 'no' : 'yes' });
 }

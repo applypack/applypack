@@ -3,7 +3,6 @@ import { postingFileKind } from '../datasets/folder-scan';
 import type { CronStats } from '../jobs/cron-run';
 import type { FolderSummary } from '../jobs/source-file-store';
 import type { FlashKind } from './flash';
-import { healthLabel } from './health-label';
 import { t } from '../i18n/t';
 
 /*
@@ -12,14 +11,12 @@ import { t } from '../i18n/t';
  * folder be read. Pure — tested in folder-words.test.ts.
  */
 
-const count = (n: number, one: string, many = `${one}s`): string => `${n.toLocaleString('en-US')} ${n === 1 ? one : many}`;
-
 /** "214 files · 3 new at the last check · 1 waiting" — what a folder's row says about its files. */
 export function folderLine(summary: FolderSummary | undefined): string {
-  if (!summary || summary.lastLookAt === null) return 'Not checked yet.';
-  const parts = [`${count(summary.files, 'file')} · ${summary.fresh} new at the last check`];
-  if (summary.waiting > 0) parts.push(`${summary.waiting} waiting`);
-  if (summary.failed > 0) parts.push(`${summary.failed} not read`);
+  if (!summary || summary.lastLookAt === null) return t('folders.line.notChecked');
+  const parts = [t('folders.line.files', { files: summary.files, fresh: summary.fresh })];
+  if (summary.waiting > 0) parts.push(t('folders.line.waiting', { n: summary.waiting }));
+  if (summary.failed > 0) parts.push(t('folders.line.failed', { n: summary.failed }));
   return parts.join(' · ');
 }
 
@@ -39,14 +36,15 @@ export interface FileLine {
 export function fileLine(file: { status: string; detail: string | null; jobCount: number; kind: string }, present: boolean): FileLine {
   // A saved posting is one job, and its note already says which (datasets/posting-file.ts:savedPostingNote).
   const posting = postingFileKind(`file.${file.kind}`) !== null;
-  const gone = present ? '' : ` The last check did not find it among the folder’s files${file.jobCount > 0 ? (posting ? '; its job stays' : '; its jobs stay') : ''}.`;
+  const gone = present ? null : t('folders.file.gone', { jobs: file.jobCount === 0 ? 'none' : posting ? 'posting' : 'rows' });
+  const say = (...sentences: (string | null)[]): string => sentences.filter((s) => s).join(' ');
   if (file.status === 'done') {
-    if (posting) return { label: 'Read', tone: 'ok', text: `${file.detail ?? 'Read as a posting.'}${gone}` };
-    return { label: 'Read', tone: 'ok', text: `${count(file.jobCount, 'row')} read as ${file.jobCount === 1 ? 'a job' : 'jobs'}.${file.detail ? ` ${file.detail}` : ''}${gone}` };
+    if (posting) return { label: t('folders.file.read'), tone: 'ok', text: say(file.detail ?? t('folders.file.readAsPosting'), gone) };
+    return { label: t('folders.file.read'), tone: 'ok', text: say(t('folders.file.rowsRead', { n: file.jobCount }), file.detail, gone) };
   }
-  if (file.status === 'waiting') return { label: 'Waiting', tone: 'neutral', text: `${file.detail ?? 'The next check reads it.'}${gone}` };
-  if (file.status === 'failed') return { label: 'Not read', tone: 'danger', text: `${file.detail ?? 'It could not be read.'}${gone}` };
-  return { label: 'Set aside', tone: 'warn', text: `${file.detail ?? (posting ? 'Not read as a posting.' : 'Not a file of rows.')}${gone}` };
+  if (file.status === 'waiting') return { label: t('folders.file.waiting'), tone: 'neutral', text: say(file.detail ?? t('folders.file.nextCheckReads'), gone) };
+  if (file.status === 'failed') return { label: t('folders.file.notRead'), tone: 'danger', text: say(file.detail ?? t('folders.file.couldNotRead'), gone) };
+  return { label: t('folders.file.setAside'), tone: 'warn', text: say(file.detail ?? t(posting ? 'folders.file.notAPosting' : 'folders.file.notRows'), gone) };
 }
 
 /**
@@ -56,13 +54,11 @@ export function fileLine(file: { status: string; detail: string | null; jobCount
  */
 export function explainFolderFault(fault: FolderFault, message: string, platform: NodeJS.Platform, server: boolean): string {
   if (fault === 'refused') {
-    if (server) return `${message} Check that the user ApplyPack runs as may read it; in Docker, mount the folder into both services read-only (docker-compose.yml).`;
-    if (platform === 'darwin') {
-      return `${message} macOS guards Desktop, Documents and Downloads: allow the program ApplyPack was started from under System Settings → Privacy & Security → Files and Folders, or use a folder directly in your home folder, such as ~/ApplyPack/inbox, which needs no permission.`;
-    }
-    return `${message} Check that the user ApplyPack runs as may read the folder.`;
+    if (server) return `${message} ${t('folders.fault.refusedServer')}`;
+    if (platform === 'darwin') return `${message} ${t('folders.fault.refusedMac')}`;
+    return `${message} ${t('folders.fault.refused')}`;
   }
-  if (fault === 'missing' && server) return `${message} In Docker the path is the one inside the container: the right-hand side of the mount.`;
+  if (fault === 'missing' && server) return `${message} ${t('folders.fault.missingServer')}`;
   return message;
 }
 
@@ -76,5 +72,5 @@ export function folderCheckLine(label: string, stats: CronStats): { kind: FlashK
   const source = Array.isArray(stats.bySource) ? stats.bySource[0] : undefined;
   if (!source || typeof stats.reason === 'string' || (typeof stats.fetched === 'number' && stats.fetched > 0)) return null;
   if (source.status === 'empty') return { kind: 'ok', text: t('runs.folderCheck.nothingNew', { label }) };
-  return { kind: 'err', text: t('runs.folderCheck.notRead', { label, status: healthLabel(source.status, 'FOLDER').toLowerCase() }) };
+  return { kind: 'err', text: t('folders.check.notRead', { label, status: source.status }) };
 }

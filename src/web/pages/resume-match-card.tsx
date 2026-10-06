@@ -8,6 +8,7 @@ import {
   FitBadge,
   Hint,
   HistoryChip,
+  inEnglish,
   Input,
   MarkIcon,
   SectionTitle,
@@ -34,10 +35,10 @@ import {
 import { freshFrame, freshFrameNotice } from '../../resume/keyword-frame';
 import { proposalOf, suggestionKey, suggestionSheet, type Proposal } from '../../resume/change-sheet';
 import { readMatchEvidence, readMatchMode, type MatchMode } from '../../resume/match-mode';
-import { verificationCautions, verificationHint, type VerificationForHint, type VerificationHint } from '../../resume/verification-hint';
+import { verificationCautionMessages, verificationHintMessage, type VerificationForHint, type VerificationHint } from '../../resume/verification-hint';
 import type { CountedKeyword } from '../../resume/keyword-matcher';
 import { STALE_MONTHS, usageLine, type TermUsage } from '../../resume/usage';
-import { effectiveRequirement, isIgnored, confirmable } from '../../resume/keyword-overrides';
+import { effectiveRequirement, isIgnored, confirmable, keywordNote } from '../../resume/keyword-overrides';
 import { REQUIREMENT_LEVELS, type RequirementLevel } from '../../resume/score';
 import { readBreakdown, type ScoreBreakdown } from '../../resume/score';
 import { noEditsLine, type Reach } from '../no-edits';
@@ -50,6 +51,12 @@ import { SummaryGuideBlock } from './summary-guide';
 import type { MessageKey } from '../../i18n/catalog';
 import { t } from '../../i18n/t';
 import { tRich } from '../rich';
+
+/** A keyword's note: ours in the reader's language, the model's in its own English. */
+const KeywordNote: FC<{ note: string }> = ({ note }) => {
+  const { text, ours } = keywordNote(note);
+  return <span lang={ours ? undefined : 'en'}>{text}</span>;
+};
 
 export interface ResumeMatchCardProps {
   jobId: number;
@@ -183,7 +190,7 @@ export const ResumeMatchCard: FC<ResumeMatchCardProps> = ({
             <span class="block text-label text-ink">{t('match.resume')}</span>
             <Select name="resumeId" class="mt-1.5 !w-auto max-w-full">
               {resumes.map((r) => (
-                <option value={r.id} selected={r.id === (suggestedResumeId ?? resumes[0]?.id)}>
+                <option value={r.id} selected={r.id === (suggestedResumeId ?? resumes[0]?.id)} translate="no">
                   {r.label}
                 </option>
               ))}
@@ -282,7 +289,11 @@ export const MainAdviceLine: FC<{ advice: Advice | null }> = ({ advice }) =>
   advice === null ? null : (
     <p class="text-note leading-6 text-ink">
       <span class="font-medium text-accent-strong">{t('score.advice.lead')}</span>{' '}
-      <span lang={advice.modelWritten ? 'en' : undefined}>{advice.text}</span>
+      {advice.message ? (
+        <span>{tRich(advice.message.key, advice.message.params, { en: inEnglish })}</span>
+      ) : (
+        <span lang={advice.modelWritten ? 'en' : undefined}>{advice.text}</span>
+      )}
     </p>
   );
 
@@ -368,8 +379,8 @@ const FactRow: FC<{ k: MatchKeyword; matchId: number; back: string }> = ({ k, ma
         {k.term}
       </span>
       {k.note && (
-        <span class="ml-2 text-meta text-ink-faint" lang="en">
-          {k.note}
+        <span class="ml-2 text-meta text-ink-faint">
+          <KeywordNote note={k.note} />
         </span>
       )}
       {k.elsewhere && (
@@ -486,8 +497,8 @@ const MatchReport: FC<{
             <span translate="no">{match.resume.name}</span>
           ) : (
             // TASKS R20: how strong the resume is on its own is one click away from how it fits.
-            <a href={`/resumes/${match.resume.id}#resume-strength`} class="hover:underline" title={t('match.strengthTitle')} translate="no">
-              {match.resume.name}
+            <a href={`/resumes/${match.resume.id}#resume-strength`} class="hover:underline" title={t('match.strengthTitle')}>
+              <span translate="no">{match.resume.name}</span>
             </a>
           )}{' '}
           {!match.resume.hidden && <span class="font-mono text-meta text-ink-faint">v{match.resumeVersion}</span>}
@@ -687,10 +698,10 @@ export const VerificationLine: FC<{ verification: VerificationForHint | null; cl
   if (!verification) {
     return <Hint class={className}>{tRich('match.verification.notChecked', {}, { link })}</Hint>;
   }
-  const hint = verificationHint(verification);
+  const hint = verificationHintMessage(verification);
   return (
     <p class={`${className} text-note leading-5 ${VERIFICATION_TONE[hint.tone]}`}>
-      {tRich('match.verification.line', { text: hint.text }, { link })}
+      {tRich('match.verification.line', {}, { hint: () => tRich(hint.key, hint.params, { en: inEnglish }), link })}
     </p>
   );
 };
@@ -709,9 +720,9 @@ export const MatchSignals: FC<{ match: MatchWithResume; verification?: Verificat
   // The verifier's findings ride along the model's cautions, labelled — a
   // finding about the posting is not a finding about the resume (#162 stage 1).
   // The model's cautions are its own English; the verifier's lines open with our label.
-  const cautions = [
-    ...match.cautions.map((text) => ({ text, modelWritten: true })),
-    ...(verification ? verificationCautions(verification) : []).map((text) => ({ text, modelWritten: false })),
+  const cautions: Child[] = [
+    ...match.cautions.map((text) => <span lang="en">{text}</span>),
+    ...(verification ? verificationCautionMessages(verification) : []).map((m) => tRich(m.key, m.params, { en: inEnglish })),
   ];
   return (
     <>
@@ -725,7 +736,7 @@ export const MatchSignals: FC<{ match: MatchWithResume; verification?: Verificat
                 <span class="mt-[3px] h-3.5 w-3.5 shrink-0 text-center text-meta leading-none text-ink-faint" aria-hidden="true">
                   ·
                 </span>
-                <span lang={c.modelWritten ? 'en' : undefined}>{c.text}</span>
+                <span>{c}</span>
               </li>
             ))}
           </ul>
@@ -1208,7 +1219,7 @@ const KeywordRow: FC<{ k: CountedKeyword & { usage?: TermUsage }; edit?: Keyword
       <span lang="en">{k.where ?? '—'}</span>
     </Td>
     <Td class="max-w-md text-meta text-ink-muted">
-      <span lang="en">{k.note ?? '—'}</span>
+      {k.note ? <KeywordNote note={k.note} /> : '—'}
     </Td>
   </Tr>
 );

@@ -9,9 +9,20 @@
  *
  * The plot carries its data: `data-points` is a JSON list of
  * { l: label, v: value, y: the point's height as a share of the plot from
- * the top }, `data-unit` the noun ("job"), `data-step` the words for one
- * point's span ("day", "3 days").
+ * the top }, `data-unit` what is counted ("job"), `data-step` one point's
+ * span ("day", "3 days" — the number of days is what is read). The card is
+ * worded here, in the page's language (i18n.mjs).
  */
+
+import { t } from './i18n.mjs';
+
+/** What a plot can count, by its `data-unit`. */
+const UNITS = { job: 'browser.chart.jobs' };
+
+/** The days one point spans: "day" is one, "3 days" three, a number itself. */
+function spanDays(step) {
+  return Number.parseInt(String(step), 10) || 1;
+}
 
 /** The point a horizontal position falls nearest to, the points spread edge to edge. */
 export function nearestIndex(x, width, count) {
@@ -22,16 +33,15 @@ export function nearestIndex(x, width, count) {
 /** What the card says about point `i`: its label, "42 jobs", and the move from the point before. */
 export function describePoint(points, i, unit, step) {
   const point = points[i];
-  const value = `${point.v.toLocaleString('en-US')} ${unit}${point.v === 1 ? '' : 's'}`;
+  const value = t(UNITS[unit] ?? UNITS.job, { n: point.v });
   if (i === 0) return { label: point.l, value, delta: '', direction: 'flat' };
   const diff = point.v - points[i - 1].v;
-  const before = `previous ${step}`;
-  if (diff === 0) return { label: point.l, value, delta: `same as the ${before}`, direction: 'flat' };
-  const sign = diff > 0 ? '+' : '−';
+  const days = spanDays(step);
+  if (diff === 0) return { label: point.l, value, delta: t('browser.chart.same', { step: days }), direction: 'flat' };
   return {
     label: point.l,
     value,
-    delta: `${sign}${Math.abs(diff).toLocaleString('en-US')} vs ${before}`,
+    delta: t('browser.chart.delta', { sign: diff > 0 ? '+' : '−', n: Math.abs(diff), step: days }),
     direction: diff > 0 ? 'up' : 'down',
   };
 }

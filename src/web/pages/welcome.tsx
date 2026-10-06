@@ -177,8 +177,9 @@ export const WelcomePage: FC<WelcomeProps> = (p) => (
           </p>
         </div>
         <div class="flex flex-wrap items-center gap-2">
-          {/* The language is the first choice of a first run (ADR 0061); later it lives in the menu and in Settings. */}
-          {p.current === 'ai' && <LanguageMenu variant="inline" />}
+          {/* The language is the first choice of a first run (ADR 0061), on whichever step the wizard opens — an
+              install with an engine already connected starts on step 2 (#358); later it lives in the menu and in Settings. */}
+          {!p.setupCompleted && <LanguageMenu variant="inline" />}
           {!p.setupCompleted && (
             <ActionForm action="/welcome/skip">
               <Button size="sm" variant="ghost" title={t('welcome.skip.title')}>

@@ -764,7 +764,7 @@ function sourceKeyRows(keys: SourceKeys): SourceKeyRow[] {
         const stored = keys[source]?.[field];
         return {
           field,
-          label: meta.fields[field] ?? field,
+          label: fieldLabel(source, field),
           envVar: envVarOf(source, field),
           origin,
           masked: origin === 'db' && stored ? maskToken(stored) : '',
@@ -780,7 +780,7 @@ function sourceKeyRows(keys: SourceKeys): SourceKeyRow[] {
  */
 const SOURCE_KEY_META: Record<
   KeyedSource,
-  { label: string; what: MessageKey; worthIt: MessageKey; cost: MessageKey; signupUrl: string; signupLabel: MessageKey; terms: MessageKey; termsUrl: string; fields: Record<string, string> }
+  { label: string; what: MessageKey; worthIt: MessageKey; cost: MessageKey; signupUrl: string; signupLabel: MessageKey; terms: MessageKey; termsUrl: string; fields: Record<string, MessageKey> }
 > = {
   ADZUNA: {
     label: 'Adzuna',
@@ -791,7 +791,7 @@ const SOURCE_KEY_META: Record<
     signupLabel: 'settingsRoute.source.adzuna.signup',
     terms: 'settingsRoute.source.adzuna.terms',
     termsUrl: 'https://developer.adzuna.com/docs/terms_of_service',
-    fields: { app_id: 'Application ID', app_key: 'Application key' },
+    fields: { app_id: 'settingsRoute.sourceKey.field.appId', app_key: 'settingsRoute.sourceKey.field.appKey' },
   },
   FRANCETRAVAIL: {
     label: 'France Travail',
@@ -802,9 +802,15 @@ const SOURCE_KEY_META: Record<
     signupLabel: 'settingsRoute.source.francetravail.signup',
     terms: 'settingsRoute.source.francetravail.terms',
     termsUrl: 'https://francetravail.io/produits-partages/documentation/conditions-dutilisation-api/licence-offres-emploi',
-    fields: { client_id: 'Client ID', client_secret: 'Client secret' },
+    fields: { client_id: 'settingsRoute.sourceKey.field.clientId', client_secret: 'settingsRoute.sourceKey.field.clientSecret' },
   },
 };
+
+/** A keyed source's field in words: "Application ID"; a field the table does not name keeps its own name. */
+function fieldLabel(source: KeyedSource, field: string): string {
+  const key = SOURCE_KEY_META[source].fields[field];
+  return key ? t(key) : field;
+}
 
 /**
  * Saves or removes one field of a keyed source's credential (ADR 0034). As
@@ -818,7 +824,7 @@ settingsRoute.post('/settings/sources/key', async (c) => {
   if (!isKeyedSource(source) || !isSourceKeyField(source, field)) {
     return flashRedirect('/settings?tab=sources', 'err', t('settingsRoute.sourceKey.unknown'));
   }
-  const label = `${SOURCE_KEY_META[source].label} ${SOURCE_KEY_META[source].fields[field] ?? field}`;
+  const label = t('settingsRoute.sourceKey.label', { source: SOURCE_KEY_META[source].label, field: fieldLabel(source, field) });
   const clearing = form.clear === '1';
   const key = typeof form.key === 'string' ? form.key.trim() : '';
   if (!clearing && key.length === 0) {
@@ -989,9 +995,12 @@ settingsRoute.post('/settings/pack', async (c) => {
     '/settings?tab=general#packs',
     'ok',
     pack.enabled
-      ? `Application packs on: a new posting with fit ${pack.minFit} or more, published in the last ${pack.maxAgeDays} days, gets one — ` +
-          `${pack.dailyLimit === 0 ? 'with no daily limit' : `${pack.dailyLimit} a day at most`}. Jobs already stored are not touched.`
-      : 'Application packs off: none is prepared on its own. A single job can still be prepared on its Application pack tab.',
+      ? t(pack.dailyLimit === 0 ? 'settingsRoute.pack.onNoLimit' : 'settingsRoute.pack.on', {
+          fit: pack.minFit,
+          days: pack.maxAgeDays,
+          limit: pack.dailyLimit,
+        })
+      : t('settingsRoute.pack.off'),
   );
 });
 
@@ -1122,21 +1131,21 @@ settingsRoute.post('/settings/targets', onceGuard(() => 'targets:add', () => '/s
 
 settingsRoute.post('/settings/targets/:id/toggle', async (c) => {
   const id = idParam(c.req.param('id'));
-  if (!Number.isFinite(id)) return c.text('Bad id', 400);
+  if (!Number.isFinite(id)) return c.text(t('http.badId'), 400);
   await toggleNotificationTarget(id);
   return flashRedirect('/settings?tab=notifications', 'ok', t('settingsRoute.targets.toggled'));
 });
 
 settingsRoute.post('/settings/targets/:id/delete', async (c) => {
   const id = idParam(c.req.param('id'));
-  if (!Number.isFinite(id)) return c.text('Bad id', 400);
+  if (!Number.isFinite(id)) return c.text(t('http.badId'), 400);
   await deleteNotificationTarget(id);
   return flashRedirect('/settings?tab=notifications', 'ok', t('settingsRoute.targets.deleted'));
 });
 
 settingsRoute.post('/settings/targets/:id/test', async (c) => {
   const id = idParam(c.req.param('id'));
-  if (!Number.isFinite(id)) return c.text('Bad id', 400);
+  if (!Number.isFinite(id)) return c.text(t('http.badId'), 400);
   const target = await prisma.notificationTarget.findUnique({ where: { id } });
   if (!target) return flashRedirect('/settings?tab=notifications', 'err', t('settingsRoute.targets.gone'));
   if (target.kind === 'DISCORD') {
@@ -1250,7 +1259,7 @@ settingsRoute.post('/settings/profiles/delete', async (c) => {
 
 settingsRoute.post('/settings/profiles/:id/save', async (c) => {
   const id = idParam(c.req.param('id'));
-  if (!Number.isFinite(id)) return c.text('Bad id', 400);
+  if (!Number.isFinite(id)) return c.text(t('http.badId'), 400);
   const before = await getProfile(id);
   if (!before) {
     return flashRedirect('/settings?tab=profile', 'err', t(SEARCH_GONE));
@@ -1398,7 +1407,7 @@ settingsRoute.post(
   onceGuard((c) => `fill:${c.req.param('id')}`, () => '/settings?tab=profile'),
   async (c) => {
   const id = idParam(c.req.param('id'));
-  if (!Number.isFinite(id)) return c.text('Bad id', 400);
+  if (!Number.isFinite(id)) return c.text(t('http.badId'), 400);
   const profile = await getProfile(id);
   if (!profile) return flashRedirect('/settings?tab=profile', 'err', t(SEARCH_GONE));
   const form = await c.req.parseBody();

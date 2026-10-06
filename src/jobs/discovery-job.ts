@@ -1,7 +1,7 @@
 import { CandidateStatus, AtsType } from '@prisma/client';
 import { prisma } from '../db';
 import { logger } from '../logger';
-import { probeAts } from '../ats-probe';
+import { isDeadToken, probeAts } from '../ats-probe';
 import { getSettings } from '../settings';
 import { sleep } from '../http';
 import type { CronStats } from './cron-run';
@@ -58,8 +58,9 @@ export async function runDiscoveryJob(): Promise<{ stats: CronStats }> {
         updated++;
       }
     } else {
-      // 404-ish errors → mark DEAD so they stop appearing in review.
-      if (result.error && /HTTP 4\d\d/.test(result.error)) {
+      // The vendor looked the token up and refused it (4xx) → DEAD, so it stops appearing in review.
+      // A rate limit (429) says nothing about the token; the status is read as a number, never off the words.
+      if (isDeadToken(result.status)) {
         await prisma.companyCandidate.update({
           where: { id: c.id },
           data: { status: CandidateStatus.DEAD },

@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { groupEventsByJob, stageTimeLine, type StageTimeEvent } from './stage-time';
+import { allStages, DEFAULT_WORK_STAGES, UNFILED_STAGE, wordedStage } from './stage-config';
 
 const NOW = new Date('2026-09-01T12:00:00Z');
 
@@ -133,4 +134,19 @@ test('no cards means an empty map, whatever the ledger holds', () => {
   assert.equal(groupEventsByJob([row(1, 'applied')], []).size, 0);
   assert.equal(groupEventsByJob([], []).size, 0);
   assert.equal(groupEventsByJob([], [1, 2]).size, 0);
+});
+
+test('a column ApplyPack names reads in English as its lowercased label always did', () => {
+  for (const s of [...allStages(DEFAULT_WORK_STAGES), UNFILED_STAGE]) {
+    assert.ok(wordedStage(s), s.key);
+    for (const days of [0, 5]) {
+      const events = [ev(s.key, days)];
+      assert.equal(
+        stageTimeLine(s.key, null, events, NOW, s.label, true)?.text,
+        stageTimeLine(s.key, null, events, NOW, s.label)?.text,
+        `${s.key} ${days}`,
+      );
+    }
+  }
+  assert.equal(wordedStage({ key: 'hr-call', label: 'HR Call' }), false);
 });

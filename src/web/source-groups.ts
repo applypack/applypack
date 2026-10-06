@@ -46,6 +46,15 @@ export function sourceFamily(atsType: string): SourceFamily {
   return 'aggregator';
 }
 
+/**
+ * Named by the catalog in the reader's language ("Feed", "Careers page",
+ * "Folder" — `source-names.ts:sourceLabel`) rather than by its vendor, whose
+ * name stays as written (`translate="no"`). MANUAL is the pasted jobs' kind.
+ */
+export function wordedSource(atsType: string): boolean {
+  return sourceFamily(atsType) === 'own' || atsType === 'MANUAL';
+}
+
 /** Needs no company row and publishes every posting it has — what the wizard's test search asks. */
 export function isAggregator(source: { atsType: string }): boolean {
   return sourceFamily(source.atsType) === 'aggregator';

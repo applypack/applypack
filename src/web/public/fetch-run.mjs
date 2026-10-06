@@ -5,43 +5,33 @@
  * Pure — tested from src/web/fetch-run.test.ts; target-run.mjs polls.
  */
 import { paced } from './target-run.mjs';
+import { formatDecimal, t } from './i18n.mjs';
 
+/** The store step's lines, as keys: worded when they show, in the page's language. */
 const STORE_LINES = {
-  unscored: [
-    'Filtering against the active profile…',
-    'Checking for duplicates and cross-listings…',
-    'Storing the new postings unscored…',
-  ],
-  scored: [
-    'Filtering against the active profile…',
-    'Checking for duplicates and cross-listings…',
-    'Scoring each new job with the AI — minutes for a big batch…',
-    'Sending alerts for the matches…',
-  ],
+  unscored: ['browser.fetch.filtering', 'browser.fetch.duplicates', 'browser.fetch.storingUnscored'],
+  scored: ['browser.fetch.filtering', 'browser.fetch.duplicates', 'browser.fetch.scoring', 'browser.fetch.alerting'],
 };
 
-function jobs(n) {
-  return `${n} job${n === 1 ? '' : 's'}`;
-}
-
 function took(ms) {
-  return ms < 1000 ? `${ms}ms` : `${(ms / 1000).toFixed(1)}s`;
+  return ms < 1000 ? t('browser.duration.ms', { n: ms }) : t('browser.duration.seconds', { n: formatDecimal(ms / 1000, 1) });
 }
 
 /** "14 of 71 sources · 312 jobs so far · RemoteOK: 120 jobs in 1.2s" */
 export function sourceLine(state) {
-  if (state.sourcesTotal == null) return 'Contacting the first source…';
+  if (state.sourcesTotal == null) return t('browser.fetch.contacting');
+  const head = t('browser.fetch.progress', { done: state.sourcesDone, total: state.sourcesTotal, jobs: state.jobsFetched });
   const last = state.lastSource;
-  const tail = last
-    ? ` · ${last.name}: ${last.failed ? 'failed' : last.count === 0 ? 'no jobs' : jobs(last.count)}${last.durationMs == null ? '' : ` in ${took(last.durationMs)}`}`
-    : '';
-  return `${state.sourcesDone} of ${state.sourcesTotal} sources · ${jobs(state.jobsFetched)} so far${tail}`;
+  if (!last) return head;
+  const said = { name: last.name, result: last.failed ? 'failed' : last.count === 0 ? 'none' : 'jobs', n: last.count };
+  const tail = last.durationMs == null ? t('browser.fetch.last', said) : t('browser.fetch.lastTimed', { ...said, took: took(last.durationMs) });
+  return `${head} · ${tail}`;
 }
 
 export function fetchActivity(step, state) {
   if (step === 'fetch') return sourceLine(state);
   if (step === 'store') {
-    return paced(state.classify ? STORE_LINES.scored : STORE_LINES.unscored, state.stageElapsedMs);
+    return t(paced(state.classify ? STORE_LINES.scored : STORE_LINES.unscored, state.stageElapsedMs));
   }
   return '';
 }

@@ -5,6 +5,8 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { config } from './config';
+import { currentLocale, type Locale } from './i18n/locale';
+import { t } from './i18n/t';
 import { logger } from './logger';
 import { prisma } from './db';
 import { getAiProviderById } from './ai-provider';
@@ -169,7 +171,8 @@ export interface AiProviderStatus {
 const PROBE_TIMEOUT_MS = 5_000;
 const PROBE_TTL_MS = 60_000;
 
-let probeCache: { at: number; statuses: Record<AiProviderId, AiProviderStatus> } | null = null;
+// Kept per language: the details are sentences, and a page in another language asks for its own.
+let probeCache: { at: number; locale: Locale; statuses: Record<AiProviderId, AiProviderStatus> } | null = null;
 
 /**
  * Which backends this host can actually run: key present for the APIs,
@@ -180,7 +183,7 @@ let probeCache: { at: number; statuses: Record<AiProviderId, AiProviderStatus> }
 export async function probeAiProviders(
   stored?: AiKeys,
 ): Promise<Record<AiProviderId, AiProviderStatus>> {
-  if (probeCache && Date.now() - probeCache.at < PROBE_TTL_MS) return probeCache.statuses;
+  if (probeCache && probeCache.locale === currentLocale() && Date.now() - probeCache.at < PROBE_TTL_MS) return probeCache.statuses;
   const [claude, gemini, agy, codex, keys, servers] = await Promise.all([
     probeCliBin(config.CLAUDE_CODE_BIN),
     probeCliBin(config.GEMINI_CLI_BIN),
@@ -194,34 +197,26 @@ export async function probeAiProviders(
   const statuses: Record<AiProviderId, AiProviderStatus> = {
     anthropic_api:
       from('anthropic_api') === 'none'
-        ? { ok: false, detail: 'paste an API key, or set ANTHROPIC_API_KEY in .env' }
-        : { ok: true, detail: `API key ${keyOrigin(from('anthropic_api'))}` },
+        ? { ok: false, detail: t('engine.probe.anthropicNoKey') }
+        : { ok: true, detail: t('engine.probe.apiKey', { origin: from('anthropic_api') }) },
     claude_code: withClaudeAuth(claude, from('claude_code')),
     gemini_cli: withGeminiAuth(gemini, from('gemini_cli')),
     agy_cli: agy,
     openai_api: isLocalUrl(openAi)
       ? await localServerStatus(openAi, resolveAiKey('openai_api', keys))
       : from('openai_api') === 'none'
-        ? {
-            ok: false,
-            detail: `paste an API key, or set OPENAI_API_KEY in .env (endpoint: ${baseUrlHost(openAi)})`,
-          }
-        : { ok: true, detail: `API key ${keyOrigin(from('openai_api'))} · ${baseUrlHost(openAi)}` },
+        ? { ok: false, detail: t('engine.probe.openaiNoKey', { host: baseUrlHost(openAi) }) }
+        : { ok: true, detail: t('engine.probe.apiKeyHost', { origin: from('openai_api'), host: baseUrlHost(openAi) }) },
     codex_cli: withCodexAuth(codex),
     local_api: await ollamaStatus(localAiBase(servers.localAiUrl)),
   };
-  probeCache = { at: Date.now(), statuses };
+  probeCache = { at: Date.now(), locale: currentLocale(), statuses };
   return statuses;
 }
 
 /** Invalidates the probe cache so a just-saved key shows up immediately. */
 export function forgetAiProbe(): void {
   probeCache = null;
-}
-
-/** Never the key itself — only where it came from. */
-function keyOrigin(source: AiKeySource): string {
-  return source === 'db' ? 'saved here' : 'from .env';
 }
 
 async function readAiKeys(): Promise<AiKeys> {
@@ -245,19 +240,18 @@ async function readAiKeys(): Promise<AiKeys> {
 async function localServerStatus(base: string, apiKey: string | undefined): Promise<AiProviderStatus> {
   const host = baseUrlHost(base);
   const listed = await listServerModels(base, apiKey, LOCAL_LIST_TIMEOUT_MS);
-  if ('reason' in listed) return { ok: false, detail: `local server · ${listed.reason}` };
-  if (listed.models.length === 0) return { ok: false, detail: `local server · ${host} answers, but lists no models — pull one first` };
-  const count = listed.models.length === 1 ? '1 model' : `${listed.models.length} models`;
-  return { ok: true, detail: `local server · ${host} · ${count} — no key needed` };
+  if ('reason' in listed) return { ok: false, detail: t('engine.probe.localServerReason', { reason: listed.reason }) };
+  if (listed.models.length === 0) return { ok: false, detail: t('engine.probe.localServerEmpty', { host }) };
+  return { ok: true, detail: t('engine.probe.localServer', { host, n: listed.models.length }) };
 }
 
 /** Ollama asked what it has pulled — on this machine by construction, so it costs a local request (ADR 0057). */
 async function ollamaStatus(root: string): Promise<AiProviderStatus> {
   const host = baseUrlHost(root);
   const listed = await listOllamaModels(root, LOCAL_LIST_TIMEOUT_MS);
-  if ('reason' in listed) return { ok: false, detail: `Ollama · ${listed.reason}` };
-  if (listed.models.length === 0) return { ok: false, detail: `Ollama · ${host} answers, but has no model yet — ollama pull one` };
-  return { ok: true, detail: `Ollama · ${host} · ${listed.models.length === 1 ? '1 model' : `${listed.models.length} models`} — free, on this machine` };
+  if ('reason' in listed) return { ok: false, detail: t('engine.probe.ollamaReason', { reason: listed.reason }) };
+  if (listed.models.length === 0) return { ok: false, detail: t('engine.probe.ollamaEmpty', { host }) };
+  return { ok: true, detail: t('engine.probe.ollama', { host, n: listed.models.length }) };
 }
 
 async function readServers(): Promise<EngineServers> {
@@ -289,8 +283,8 @@ async function probeCliBin(bin: string): Promise<AiProviderStatus> {
     // "not found" was the only sentence this had, whatever happened — a
     // permission bit, a hang, a non-zero exit all sent the user down the
     // wrong path (audit 2026-09-10, AI-4).
-    const failure = cliFailure(err, PROBE_TIMEOUT_MS);
-    return { ok: false, detail: failure.reason === 'not found on PATH' ? `${bin} not found on PATH` : `${bin}: ${failure.reason}` };
+    const notFound = (err as { code?: unknown } | null)?.code === 'ENOENT';
+    return { ok: false, detail: notFound ? t('engine.probe.notOnPath', { bin }) : `${bin}: ${cliFailure(err, PROBE_TIMEOUT_MS).reason}` };
   }
 }
 
@@ -301,11 +295,11 @@ async function probeCliBin(bin: string): Promise<AiProviderStatus> {
  */
 function withGeminiAuth(bin: AiProviderStatus, keySource: AiKeySource): AiProviderStatus {
   if (!bin.ok) return bin;
-  if (keySource === 'db') return { ok: true, detail: `${bin.detail} · API key saved here` };
+  if (keySource === 'db') return { ok: true, detail: t('engine.probe.cliKeySaved', { version: bin.detail }) };
   if (geminiAuthConfigured()) return bin;
   return {
     ok: false,
-    detail: `${bin.detail} installed — paste an API key, or log in once with \`gemini\` (mount ~/.gemini in Docker)`,
+    detail: t('engine.probe.geminiNoAuth', { version: bin.detail }),
   };
 }
 
@@ -334,7 +328,7 @@ function withCodexAuth(bin: AiProviderStatus): AiProviderStatus {
   if (!bin.ok || codexAuthConfigured()) return bin;
   return {
     ok: false,
-    detail: `${bin.detail} installed — run \`codex login\` once (mount ~/.codex in Docker)`,
+    detail: t('engine.probe.codexNoAuth', { version: bin.detail }),
   };
 }
 
@@ -351,11 +345,11 @@ function codexAuthConfigured(): boolean {
  */
 function withClaudeAuth(bin: AiProviderStatus, keySource: AiKeySource): AiProviderStatus {
   if (!bin.ok) return bin;
-  if (keySource === 'db') return { ok: true, detail: `${bin.detail} · token saved here` };
+  if (keySource === 'db') return { ok: true, detail: t('engine.probe.cliTokenSaved', { version: bin.detail }) };
   if (claudeAuthConfigured()) return bin;
   return {
     ok: false,
-    detail: `${bin.detail} installed, but not logged in — run \`claude\` once, or paste a \`claude setup-token\` token`,
+    detail: t('engine.probe.claudeNoAuth', { version: bin.detail }),
   };
 }
 

@@ -83,7 +83,7 @@ discoveryRoute.post('/discovery/hn-run', (c) => {
 
 discoveryRoute.post('/discovery/:id/promote', async (c) => {
   const id = idParam(c.req.param('id'));
-  if (!Number.isFinite(id)) return c.text('Bad id', 400);
+  if (!Number.isFinite(id)) return c.text(t('http.badId'), 400);
   try {
     await promoteCandidate(id);
   } catch (err) {
@@ -100,14 +100,14 @@ discoveryRoute.post('/discovery/:id/promote', async (c) => {
 
 discoveryRoute.post('/discovery/:id/ignore', async (c) => {
   const id = idParam(c.req.param('id'));
-  if (!Number.isFinite(id)) return c.text('Bad id', 400);
+  if (!Number.isFinite(id)) return c.text(t('http.badId'), 400);
   if (!(await ignoreCandidate(id))) return flashRedirect('/discovery', 'warn', t('discovery.flash.gone'));
   return flashRedirect('/discovery', 'ok', t('discovery.flash.ignored'));
 });
 
 discoveryRoute.post('/discovery/:id/delete', async (c) => {
   const id = idParam(c.req.param('id'));
-  if (!Number.isFinite(id)) return c.text('Bad id', 400);
+  if (!Number.isFinite(id)) return c.text(t('http.badId'), 400);
   if (!(await deleteCandidate(id))) return flashRedirect('/discovery', 'warn', t('discovery.flash.gone'));
   return flashRedirect('/discovery', 'ok', t('discovery.flash.deleted'));
 });

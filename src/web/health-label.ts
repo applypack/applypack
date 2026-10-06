@@ -4,8 +4,9 @@ import { t } from '../i18n/t';
 
 /*
  * A fetch status as a word in the reader's language (ADR 0061).
- * `source-health.ts:describeStatus` keeps the tone, and its own English label
- * for the alerts that name a quiet source; the dashboard says it from here.
+ * `source-health.ts:describeStatus` keeps the tone and an English reference
+ * label (the alerts word a status through `sourceHealth.item`); the dashboard
+ * says it from here.
  * Pure — tested in health-label.test.ts.
  */
 
@@ -36,4 +37,15 @@ export function healthLabel(status: string | null, atsType?: string): string {
   const folder = atsType === 'FOLDER' && status !== null && Object.hasOwn(FOLDER_HEALTH_LABEL, status) ? FOLDER_HEALTH_LABEL[status as FetchStatus] : undefined;
   if (folder) return t(folder);
   return t(status !== null && Object.hasOwn(HEALTH_LABEL, status) ? HEALTH_LABEL[status as FetchStatus] : 'sources.health.none');
+}
+
+/**
+ * The label inside a sentence, with the failure streak: "slug not found — 3
+ * ticks in a row". One message per status — a language declines the words
+ * there, so the label is never lowercased into the sentence.
+ */
+export function healthStreak(status: string | null, atsType: string | undefined, n: number): string {
+  const folder = atsType === 'FOLDER' && status !== null && Object.hasOwn(FOLDER_HEALTH_LABEL, status);
+  const known = status !== null && Object.hasOwn(HEALTH_LABEL, status);
+  return t('sources.health.streakSentence', { status: folder ? `folder_${status}` : known ? status : 'other', n });
 }

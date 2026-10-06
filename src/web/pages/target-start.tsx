@@ -99,7 +99,7 @@ export const TargetStartPage: FC<TargetStartProps> = ({ jobs, selectedJobId, res
                   </div>
                   <div class="grid gap-4 sm:grid-cols-2">
                     <Field label={t('target.start.postingUrl')} hint={t('target.start.postingUrlHint')}>
-                      <Input type="url" name="url" placeholder="https://…" />
+                      <Input type="url" name="url" placeholder="https://…" translate="no" />
                     </Field>
                     <Field label={t('common.location')}>
                       <Input type="text" name="location" maxlength="200" placeholder={t('target.sample.location')} />
@@ -122,7 +122,7 @@ export const TargetStartPage: FC<TargetStartProps> = ({ jobs, selectedJobId, res
                 {hasResumes ? (
                   <Select name="resumeId" aria-label={t('target.resume')}>
                     {resumes.map((r) => (
-                      <option value={r.id} selected={r.id === defaultResumeId}>
+                      <option value={r.id} selected={r.id === defaultResumeId} translate="no">
                         {r.label}
                       </option>
                     ))}

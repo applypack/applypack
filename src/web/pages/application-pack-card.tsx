@@ -3,7 +3,9 @@ import type { FC } from 'hono/jsx';
 import type { DiffOp } from '../../resume/line-diff';
 import type { PrepareStep } from '../../pack/gate';
 import type { PackRow } from '../../pack/store';
-import { HELD_WORDS, STEP_WORDS, STOP_WORDS, isPackStop, type PackEdits } from '../../pack/view';
+import { HELD_WORDS, STEP_WORDS, stopTitle, type PackEdits } from '../../pack/view';
+import { t } from '../../i18n/t';
+import { tRich } from '../rich';
 import { ActionForm, Badge, Button, Card, ConfirmAction, Hint, Notice, SectionTitle, When } from '../ui';
 import { safeHref } from '../format';
 import { jobHref } from '../job-tabs';
@@ -32,20 +34,16 @@ export interface ApplicationPackProps {
 const LABEL = 'text-meta font-medium uppercase tracking-wide text-ink-faint';
 const QUOTE = 'mt-0.5 whitespace-pre-wrap break-words border-l-2 pl-2 text-sm leading-6';
 
-const WHAT_IT_DOES =
-  'One press does what the other tabs do by hand: checks that the posting is still open, compares it with the resume your search hunts with, ' +
-  'researches the company on the web, applies the edits your policy allows and keeps the file. It stops early, and says why, when the posting is closed, ' +
-  'the resume cannot get close, or the company does not check out. A few minutes of AI; this page updates itself.';
-
 /** The pack in flight: the step it is on, and nothing to press. */
-const Preparing: FC<{ pack: PackRow }> = ({ pack }) => (
-  <Notice tone="ok" role="status">
-    {pack.status === 'queued'
-      ? 'Queued — the worker starts it within a minute.'
-      : `${STEP_WORDS[pack.step as PrepareStep] ?? 'Preparing'}…`}{' '}
-    This page refreshes itself; you can leave it.
-  </Notice>
-);
+const Preparing: FC<{ pack: PackRow }> = ({ pack }) => {
+  const step = STEP_WORDS[pack.step as PrepareStep];
+  return (
+    <Notice tone="ok" role="status">
+      {pack.status === 'queued' ? t('pack.card.queued') : t('pack.card.onStep', { step: step ? t(step) : t('pack.card.preparing') })}{' '}
+      {t('pack.card.refreshes')}
+    </Notice>
+  );
+};
 
 const Changes: FC<{ changes: DiffOp[] }> = ({ changes }) => (
   <ul class="divide-y divide-line">
@@ -53,13 +51,13 @@ const Changes: FC<{ changes: DiffOp[] }> = ({ changes }) => (
       <li class="py-3">
         {(op.op === 'change' || op.op === 'delete') && (
           <div>
-            <div class={LABEL}>{op.op === 'change' ? 'Was' : 'Taken out'}</div>
+            <div class={LABEL}>{op.op === 'change' ? t('pack.card.was') : t('pack.card.takenOut')}</div>
             <p class={`${QUOTE} border-line-strong text-ink-muted`}>{op.a.text}</p>
           </div>
         )}
         {(op.op === 'change' || op.op === 'insert') && (
           <div class={op.op === 'change' ? 'mt-2' : ''}>
-            <div class={LABEL}>{op.op === 'change' ? 'Now' : 'Put in'}</div>
+            <div class={LABEL}>{op.op === 'change' ? t('pack.card.now') : t('pack.card.putIn')}</div>
             <p class={`${QUOTE} border-accent/50 text-ink`}>{op.b.text}</p>
           </div>
         )}
@@ -73,16 +71,12 @@ export const ApplicationPackCard: FC<ApplicationPackProps> = ({ jobId, url, pack
   if (!pack) {
     return (
       <Card>
-        <SectionTitle>Application pack</SectionTitle>
-        <Hint>{WHAT_IT_DOES}</Hint>
-        <Hint class="mt-2">
-          {automatic
-            ? 'Packs are prepared on their own for new postings that clear your fit threshold. This one did not qualify, or was found before you switched them on.'
-            : 'Packs can also be prepared on their own for strong new matches — Settings → General → Application packs. Off until you switch it on.'}
-        </Hint>
+        <SectionTitle>{t('pack.card.title')}</SectionTitle>
+        <Hint>{t('pack.card.whatItDoes')}</Hint>
+        <Hint class="mt-2">{automatic ? t('pack.card.automaticOn') : t('pack.card.automaticOff')}</Hint>
         <ActionForm action={prepare} class="mt-3" once>
           <Button variant="violet" size="sm">
-            Prepare the pack
+            {t('pack.card.prepare')}
           </Button>
         </ActionForm>
       </Card>
@@ -93,9 +87,9 @@ export const ApplicationPackCard: FC<ApplicationPackProps> = ({ jobId, url, pack
   const again = !busy && !pack.sentAt && (
     <ConfirmAction
       action={prepare}
-      label={pack.status === 'ready' ? 'Prepare again' : 'Try again'}
-      confirm="This starts the pack over: the checks are repeated where their results are no longer current, and the resume is tailored again. The pack shown here is replaced."
-      yes="Prepare again"
+      label={pack.status === 'ready' ? t('pack.card.prepareAgain') : t('pack.card.tryAgain')}
+      confirm={t('pack.card.againConfirm')}
+      yes={t('pack.card.prepareAgain')}
       variant="secondary"
     />
   );
@@ -105,29 +99,32 @@ export const ApplicationPackCard: FC<ApplicationPackProps> = ({ jobId, url, pack
       <Card>
         <div class="flex flex-wrap items-start justify-between gap-3">
           <div class="min-w-0">
-            <SectionTitle>Application pack</SectionTitle>
+            <SectionTitle>{t('pack.card.title')}</SectionTitle>
             <div class="flex flex-wrap items-center gap-2">
               {pack.status === 'ready' && pack.scoreBefore !== null && (
                 <Badge tone="ok">
-                  match {pack.scoreBefore}
-                  {pack.scoreAfter !== null && pack.scoreAfter !== pack.scoreBefore ? ` → ${pack.scoreAfter}` : ''}
+                  {pack.scoreAfter !== null && pack.scoreAfter !== pack.scoreBefore
+                    ? t('pack.line.matchMoved', { before: pack.scoreBefore, after: pack.scoreAfter })
+                    : t('pack.line.match', { score: pack.scoreBefore })}
                 </Badge>
               )}
               {company && (
                 <>
-                  <Badge tone={VERDICT_TONE[company.verdict] ?? 'neutral'}>{company.verdict}</Badge>
-                  <Badge tone={company.recommendation === 'apply' ? 'ok' : 'neutral'}>{company.recommendation}</Badge>
+                  {/* The verdict is the verifier's own word, shown as written (verification-card.tsx). */}
+                  <Badge tone={VERDICT_TONE[company.verdict] ?? 'neutral'}>
+                    <span lang="en">{company.verdict}</span>
+                  </Badge>
+                  <Badge tone={company.recommendation === 'apply' ? 'ok' : 'neutral'}>
+                    {t('pack.card.recommendation', { recommendation: company.recommendation })}
+                  </Badge>
                 </>
               )}
-              {pack.sentAt && (
-                <Badge tone="ok">
-                  sent <When at={pack.sentAt} />
-                </Badge>
-              )}
+              {pack.sentAt && <Badge tone="ok">{tRich('pack.card.sent', {}, { when: () => <When at={pack.sentAt!} /> })}</Badge>}
               {pack.finishedAt && !busy && (
                 <span class="text-meta text-ink-faint">
-                  prepared <When at={pack.finishedAt} />
-                  {pack.resumeName ? ` · from ${pack.resumeName}` : ''}
+                  {pack.resumeName
+                    ? tRich('pack.card.preparedFrom', { resume: pack.resumeName }, { when: () => <When at={pack.finishedAt!} /> })
+                    : tRich('pack.card.prepared', {}, { when: () => <When at={pack.finishedAt!} /> })}
                 </span>
               )}
             </div>
@@ -136,17 +133,17 @@ export const ApplicationPackCard: FC<ApplicationPackProps> = ({ jobId, url, pack
             <div class="flex flex-wrap items-center gap-2">
               {files.docx && (
                 <Button href={`/jobs/${jobId}/pack/resume.docx`} size="sm">
-                  Download .docx
+                  {t('ui.downloadDocx')}
                 </Button>
               )}
               {files.pdf && (
                 <Button href={`/jobs/${jobId}/pack/resume.pdf`} variant="secondary" size="sm">
-                  Download .pdf
+                  {t('pack.card.downloadPdf')}
                 </Button>
               )}
               {safeHref(url) && (
                 <Button href={safeHref(url)!} variant="secondary" size="sm" target="_blank" rel="noopener noreferrer">
-                  Open posting
+                  {t('pack.card.openPosting')}
                 </Button>
               )}
             </div>
@@ -156,26 +153,19 @@ export const ApplicationPackCard: FC<ApplicationPackProps> = ({ jobId, url, pack
         <div class="mt-3 space-y-3">
           {busy && <Preparing pack={pack} />}
           {pack.status === 'failed' && (
-            <Notice tone="danger">
-              The pack could not be prepared: {pack.why ?? 'no reason was recorded'} Nothing of yours was changed; you can try again.
-            </Notice>
+            <Notice tone="danger">{t('pack.card.failed', { why: pack.why ?? t('pack.card.noReason') })}</Notice>
           )}
           {pack.status === 'stopped' && (
             <Notice tone="warn">
-              <strong class="font-medium">{isPackStop(pack.stop) ? STOP_WORDS[pack.stop] : 'Stopped'}.</strong> {pack.why}
+              <strong class="font-medium">{stopTitle(pack.stop)}</strong> {pack.why}
             </Notice>
           )}
           {pack.status === 'ready' && pack.why && <Notice tone="warn">{pack.why}</Notice>}
           {pack.status === 'ready' && edits.checks.length > 0 && (
-            <Notice tone="warn">
-              The edits did not pass a safety check ({edits.checks.join(', ')}), so none was kept: the file is your resume as it stood.
-            </Notice>
+            <Notice tone="warn">{t('pack.card.checksFailed', { checks: edits.checks.join(', ') })}</Notice>
           )}
           {pack.status === 'ready' && pack.document === 'clean' && (
-            <Hint>
-              The file is the same text re-set in the look read off your resume, because the resume is not a .docx the edits can be written into. Upload a
-              .docx on Resumes to keep your own file.
-            </Hint>
+            <Hint>{t('pack.card.cleanFile')}</Hint>
           )}
           {pack.status === 'ready' && !pack.sentAt && (
             <form method="post" action={`/jobs/${jobId}/status`} class="flex flex-wrap items-center gap-2">
@@ -183,29 +173,29 @@ export const ApplicationPackCard: FC<ApplicationPackProps> = ({ jobId, url, pack
               <input type="hidden" name="pack" value="1" />
               <input type="hidden" name="tab" value="pack" />
               <Button variant="secondary" size="sm">
-                I sent this file — mark applied
+                {t('pack.card.markSent')}
               </Button>
-              <Hint>Keeps this file as the record of what went out; it can be downloaded here at any time, and the pack no longer changes.</Hint>
+              <Hint>{t('pack.card.markSentHint')}</Hint>
             </form>
           )}
-          {pack.sentAt && <Hint>This is the file that went out. It stays here for as long as the job does.</Hint>}
+          {pack.sentAt && <Hint>{t('pack.card.sentHint')}</Hint>}
         </div>
 
         {(tailorHref || again || letter) && !busy && (
           <div class="mt-4 flex flex-wrap items-center gap-2">
             {tailorHref && pack.status === 'ready' && (
               <Button href={tailorHref} variant="secondary" size="sm">
-                Go on in the Tailor page →
+                {t('pack.card.goOnTailor')}
               </Button>
             )}
             {pack.matchId && pack.status !== 'ready' && (
               <Button href={jobHref(jobId, 'match', { match: pack.matchId })} variant="secondary" size="sm">
-                See the comparison →
+                {t('pack.card.seeComparison')}
               </Button>
             )}
             {letter && (
               <Button href={jobHref(jobId, 'letter')} variant="secondary" size="sm">
-                Read the cover letter →
+                {t('pack.card.readLetter')}
               </Button>
             )}
             {again}
@@ -215,12 +205,18 @@ export const ApplicationPackCard: FC<ApplicationPackProps> = ({ jobId, url, pack
 
       {company && (
         <Card>
-          <SectionTitle>The company</SectionTitle>
-          <p class="text-sm leading-6 text-ink">{company.summary}</p>
-          {company.snapshot && <p class="mt-2 text-sm leading-6 text-ink-muted">{company.snapshot}</p>}
+          <SectionTitle>{t('pack.card.company')}</SectionTitle>
+          <p class="text-sm leading-6 text-ink" lang="en">
+            {company.summary}
+          </p>
+          {company.snapshot && (
+            <p class="mt-2 text-sm leading-6 text-ink-muted" lang="en">
+              {company.snapshot}
+            </p>
+          )}
           <p class="mt-2 text-note">
             <a class="text-accent underline-offset-2 hover:underline" href={jobHref(jobId, 'verify')}>
-              The evidence, link by link →
+              {t('pack.card.evidence')}
             </a>
           </p>
         </Card>
@@ -228,19 +224,34 @@ export const ApplicationPackCard: FC<ApplicationPackProps> = ({ jobId, url, pack
 
       {pack.status === 'ready' && (asks.length > 0 || unbacked.length > 0) && (
         <Card>
-          <SectionTitle>What still stands between you and this posting</SectionTitle>
+          <SectionTitle>{t('pack.card.standsBetween')}</SectionTitle>
           {asks.length > 0 && (
             <p class="text-sm leading-6 text-ink">
-              <span class="font-medium">To ask you:</span> {asks.join(', ')}.{' '}
-              <a class="text-accent underline-offset-2 hover:underline" href={jobHref(jobId, 'match', pack.matchId ? { match: pack.matchId } : {})}>
-                Answer on the comparison
-              </a>{' '}
-              — a yes is written into the next pack.
+              {tRich(
+                'pack.card.asks',
+                { terms: asks.join(', ') },
+                {
+                  label: (words) => <span class="font-medium">{words}</span>,
+                  terms: (words) => <span translate="no">{words}</span>,
+                  link: (words) => (
+                    <a class="text-accent underline-offset-2 hover:underline" href={jobHref(jobId, 'match', pack.matchId ? { match: pack.matchId } : {})}>
+                      {words}
+                    </a>
+                  ),
+                },
+              )}
             </p>
           )}
           {unbacked.length > 0 && (
             <p class={`text-sm leading-6 text-ink-muted ${asks.length > 0 ? 'mt-2' : ''}`}>
-              <span class="font-medium text-ink">Nothing in your resume backs:</span> {unbacked.join(', ')}. These are never written in for you.
+              {tRich(
+                'pack.card.unbacked',
+                { terms: unbacked.join(', ') },
+                {
+                  label: (words) => <span class="font-medium text-ink">{words}</span>,
+                  terms: (words) => <span translate="no">{words}</span>,
+                },
+              )}
             </p>
           )}
         </Card>
@@ -248,34 +259,32 @@ export const ApplicationPackCard: FC<ApplicationPackProps> = ({ jobId, url, pack
 
       {pack.status === 'ready' && (
         <Card>
-          <SectionTitle>{changes.length === 0 ? 'Nothing was changed' : `What was changed (${changes.length} ${changes.length === 1 ? 'line' : 'lines'})`}</SectionTitle>
+          <SectionTitle>{changes.length === 0 ? t('pack.card.nothingChanged') : t('pack.card.changed', { n: changes.length })}</SectionTitle>
           {changes.length === 0 ? (
-            <Hint>The policy and the comparison left this resume as it was.</Hint>
+            <Hint>{t('pack.card.leftAsItWas')}</Hint>
           ) : (
             <Changes changes={changes} />
           )}
           {edits.unplaced.length > 0 && (
-            <Hint class="mt-2">
-              {edits.unplaced.length} {edits.unplaced.length === 1 ? 'edit' : 'edits'} could not be placed: the text it quoted is not in the resume as written.
-            </Hint>
+            <Hint class="mt-2">{t('pack.card.unplaced', { n: edits.unplaced.length })}</Hint>
           )}
         </Card>
       )}
 
       {pack.status === 'ready' && edits.held.length > 0 && (
         <Card>
-          <SectionTitle>Left for you ({edits.held.length})</SectionTitle>
+          <SectionTitle>{t('pack.card.leftForYou', { n: edits.held.length })}</SectionTitle>
           <ul class="space-y-1 text-sm leading-6 text-ink-muted">
             {edits.held.map((h) => (
               <li>
                 <span class="text-ink">
                   {h.section} · {h.where}
                 </span>{' '}
-                — {HELD_WORDS[h.reason]}
+                — {t(HELD_WORDS[h.reason])}
               </li>
             ))}
           </ul>
-          <Hint class="mt-2">Each is a card on the Tailor page, with its own Apply and Edit &amp; apply.</Hint>
+          <Hint class="mt-2">{t('pack.card.heldHint')}</Hint>
         </Card>
       )}
     </div>

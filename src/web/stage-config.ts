@@ -29,6 +29,11 @@ function named(key: string, label: MessageKey): StageDef {
   };
 }
 
+/** A stage ApplyPack names in the reader's language, not one the user named: data stays as typed, ours is translated. */
+export function wordedStage(stage: StageDef): boolean {
+  return typeof Object.getOwnPropertyDescriptor(stage, 'label')?.get === 'function';
+}
+
 const ENTRY_STAGE = named('applied', 'stages.applied');
 export const TERMINAL_STAGES: StageDef[] = [named('rejected', 'stages.rejected'), named('ghosted', 'stages.ghosted')];
 export const TERMINAL_KEYS = TERMINAL_STAGES.map((s) => s.key);

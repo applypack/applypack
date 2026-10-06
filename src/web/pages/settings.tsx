@@ -39,7 +39,7 @@ import { REAPPLY_CHOICES } from '../../employer';
 import { COVER_LETTER_MODES, PACK_LIMITS, POLICY_SECTIONS, type CoverLetterMode, type PackSettings } from '../../pack/settings';
 import type { FlashMessage } from '../flash';
 import type { LoginItemState } from '../login-item-io';
-import { describeCount, type SourceGroup } from '../source-groups';
+import { describeCount, wordedSource, type SourceGroup } from '../source-groups';
 import { dotClassFor, MAX_WORK_STAGES } from '../stage-config';
 import { formatPriorityRulesText, parsePriorityRules } from '../../priority-rules';
 import { COUNTRIES, REGIONS } from '../../countries';
@@ -267,18 +267,18 @@ function confirmScript(question: string): string {
  * between sections (the One-Surface-Per-Region Rule) — so a section brings no
  * card of its own, and neither do its controls.
  */
-const COVER_LETTER_LABEL: Record<CoverLetterMode, string> = {
-  never: 'Never',
-  asked: 'When the posting asks',
-  always: 'Always',
-};
+const COVER_LETTER_LABEL = {
+  never: 'settings.pack.letter.never',
+  asked: 'settings.pack.letter.asked',
+  always: 'settings.pack.letter.always',
+} as const satisfies Record<CoverLetterMode, MessageKey>;
 
-const POLICY_SECTION_LABEL: Record<(typeof POLICY_SECTIONS)[number], string> = {
-  title: 'Title line',
-  summary: 'Summary',
-  skills: 'Skills',
-  experience: 'Experience bullets',
-};
+const POLICY_SECTION_LABEL = {
+  title: 'settings.pack.section.title',
+  summary: 'settings.pack.section.summary',
+  skills: 'settings.pack.section.skills',
+  experience: 'settings.pack.section.experience',
+} as const satisfies Record<(typeof POLICY_SECTIONS)[number], MessageKey>;
 
 const Section: FC<PropsWithChildren<{ title: string; desc?: string | Child; more?: Child; id?: string }>> = ({
   title,
@@ -580,7 +580,7 @@ export const SettingsPage: FC<SettingsProps> = ({
                     aria-label={t('settings.resumeToFillTheProfile')}
                   >
                     {resumes.map((r) => (
-                      <option value={r.id} selected={fillResumeId !== undefined ? r.id === fillResumeId : r.isDefault}>
+                      <option value={r.id} selected={fillResumeId !== undefined ? r.id === fillResumeId : r.isDefault} translate="no">
                         {resumeOption(r, r.scannedAt !== null)}
                       </option>
                     ))}
@@ -840,71 +840,58 @@ export const SettingsPage: FC<SettingsProps> = ({
       {activeTab === 'general' && (
       <Section
         id="packs"
-        title="Application packs"
-        desc="For a strong new match the worker can do the evening's work by itself: check the posting is still open, compare it with your resume, research the company, tailor the resume lightly and keep the file. Off until you switch it on."
-        more={
-          <>
-            Only postings found after you switch this on are prepared, and only ones published recently — the jobs already stored are never walked.
-            Any single job can be prepared by hand on its Application pack tab, whatever these say. A pack stops early, and says why, when the posting is
-            closed, when it requires something your resume does not show, when no edit could bring the resume close, or when the company does not check
-            out. Nothing is ever submitted for you.
-          </>
-        }
+        title={t('settings.pack.title')}
+        desc={t('settings.pack.desc')}
+        more={t('settings.pack.more')}
       >
         <form method="post" action="/settings/pack" class="space-y-5">
           <Checkbox name="enabled" value="1" checked={pack.enabled}>
-            Prepare application packs on their own
+            {t('settings.pack.enabled')}
           </Checkbox>
-          <Hint>
-            Each pack is three to five AI calls, one of them web research — about three minutes. A posting that stops at the comparison costs two. What it
-            spent is under AI engine → Usage &amp; cost.
-          </Hint>
+          <Hint>{t('settings.pack.cost')}</Hint>
           <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <Field label="Fit at least" hint="The classifier's fit a new posting needs.">
+            <Field label={t('settings.pack.minFit')} hint={t('settings.pack.minFitHint')}>
               <Input type="number" name="minFit" min={PACK_LIMITS.minFit.min} max={PACK_LIMITS.minFit.max} value={String(pack.minFit)} />
             </Field>
-            <Field label="At most a day" hint="Packs started on their own in one day (UTC). 0 = no limit.">
+            <Field label={t('settings.pack.dailyLimit')} hint={t('settings.pack.dailyLimitHint')}>
               <Input type="number" name="dailyLimit" min={PACK_LIMITS.dailyLimit.min} max={PACK_LIMITS.dailyLimit.max} value={String(pack.dailyLimit)} />
             </Field>
-            <Field label="Published within, days" hint="An older posting is not prepared on its own.">
+            <Field label={t('settings.pack.maxAge')} hint={t('settings.pack.maxAgeHint')}>
               <Input type="number" name="maxAgeDays" min={PACK_LIMITS.maxAgeDays.min} max={PACK_LIMITS.maxAgeDays.max} value={String(pack.maxAgeDays)} />
             </Field>
-            <Field label="Cover letter" hint="Asked = the posting's own text mentions one; most ask only on the application form.">
+            <Field label={t('settings.pack.letter')} hint={t('settings.pack.letterHint')}>
               <Select name="coverLetter">
                 {COVER_LETTER_MODES.map((mode) => (
                   <option value={mode} selected={pack.coverLetter === mode}>
-                    {COVER_LETTER_LABEL[mode]}
+                    {t(COVER_LETTER_LABEL[mode])}
                   </option>
                 ))}
               </Select>
             </Field>
           </div>
           <div class="border-t border-line pt-5">
-            <h3 class="text-label text-ink">What an automatic edit may touch</h3>
-            <Hint class="mt-1">
-              Only wording the fact check let through is ever applied, a rewrite that would lose a number is left for you, and contact details are never
-              touched. Education and layout are never edited.
-            </Hint>
+            <h3 class="text-label text-ink">{t('settings.pack.policyTitle')}</h3>
+            <Hint class="mt-1">{t('settings.pack.policyHint')}</Hint>
             <div class="mt-3 flex flex-wrap gap-2">
               {POLICY_SECTIONS.map((section) => (
                 <PillCheckbox name="sections" value={section} checked={pack.policy.sections.includes(section)}>
-                  {POLICY_SECTION_LABEL[section]}
+                  {t(POLICY_SECTION_LABEL[section])}
                 </PillCheckbox>
               ))}
             </div>
             <div class="mt-4 flex flex-wrap items-end gap-x-6 gap-y-3">
-              <Field label="Experience bullets, at most" hint="The highest-priority ones are kept.">
+              <Field label={t('settings.pack.maxBullets')} hint={t('settings.pack.maxBulletsHint')}>
                 <Input type="number" name="maxBullets" min={PACK_LIMITS.maxBullets.min} max={PACK_LIMITS.maxBullets.max} value={String(pack.policy.maxBullets)} />
               </Field>
               <Checkbox name="keywords" value="1" checked={pack.policy.keywords}>
-                Write keywords my resume backs onto its skills lines
+                {t('settings.pack.keywords')}
               </Checkbox>
               <Checkbox name="removals" value="1" checked={pack.policy.removals}>
-                Allow lines to be removed
+                {t('settings.pack.removals')}
               </Checkbox>
             </div>
           </div>
-          <Button variant="secondary">Save</Button>
+          <Button variant="secondary">{t('common.save')}</Button>
         </form>
       </Section>
       )}
@@ -1064,7 +1051,7 @@ export const SettingsPage: FC<SettingsProps> = ({
             >
               {targets.map((target) => (
                 <Tr>
-                  {/* The user's own name for it, the vendor and the masked secret: data. */}
+                  {/* The user's own name for it and the vendor: data. The destination is worded around its masked secret (notify/targets.ts). */}
                   <Td class="font-medium text-ink">
                     <span translate="no">{target.name}</span>
                   </Td>
@@ -1073,9 +1060,7 @@ export const SettingsPage: FC<SettingsProps> = ({
                       <span translate="no">{KIND_LABEL[target.kind]}</span>
                     </Badge>
                   </Td>
-                  <Td class="font-mono text-meta text-ink-muted">
-                    <span translate="no">{target.destination}</span>
-                  </Td>
+                  <Td class="font-mono text-meta text-ink-muted">{target.destination}</Td>
                   <Td class="whitespace-nowrap text-note text-ink-faint">
                     <When at={target.lastUsed} />
                   </Td>
@@ -1187,7 +1172,8 @@ export const SettingsPage: FC<SettingsProps> = ({
               <div class="flex flex-wrap gap-1.5">
                 {g.pills.map((p) => (
                   <PillCheckbox name="enabled" value={p.atsType} checked={!disabledSources.includes(p.atsType)}>
-                    <span translate="no">{p.label}</span>
+                    {/* A vendor's or a board's name is data; a source of our own (a folder, a pasted posting) is worded. */}
+                    <span translate={wordedSource(p.atsType) ? undefined : 'no'}>{p.label}</span>
                     <span data-ui="hint" class="text-meta text-ink-faint">
                       {p.locked ? (
                         <a href="#source-keys" class="text-warn hover:underline">
@@ -1811,7 +1797,16 @@ const ModelPicker: FC<{
 }> = ({ name, value, fallback, options, freeText, list }) =>
   freeText ? (
     // A model id is typed and suggested here: data, whatever the page's language.
-    <Input type="text" name={name} value={value} placeholder={fallback || t('settings.modelId')} list={list} autocomplete="off" mono translate="no" />
+    <Input
+      type="text"
+      name={name}
+      value={value}
+      placeholder={fallback || t('settings.modelId')}
+      list={list}
+      autocomplete="off"
+      mono
+      translate={fallback ? 'no' : undefined}
+    />
   ) : (
     <Select name={name}>
       <option value="" selected={value === ''}>
@@ -1877,7 +1872,7 @@ const ProfileEditor: FC<{
             {t('settings.pickBySkillOverlap')}
           </option>
           {resumes.map((r) => (
-            <option value={r.id} selected={profile.resumeId === r.id}>
+            <option value={r.id} selected={profile.resumeId === r.id} translate="no">
               {resumeOption(r)}
             </option>
           ))}

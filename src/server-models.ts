@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import type { MessageKey } from './i18n/catalog';
+import { t } from './i18n/t';
 
 /*
  * The models a model server offers (TASKS S3): `GET {base}/models` on an
@@ -105,14 +107,14 @@ export async function listServerModels(
 ): Promise<{ models: string[] } | { reason: string }> {
   return listModels(`${base}/models`, base, apiKey ? { Authorization: `Bearer ${apiKey}` } : {}, parseModelList, timeoutMs, (status) =>
     // "http://127.0.0.1:11434" instead of ".../v1" is the usual slip; the address is saved as typed.
-    status === 404 && new URL(base).pathname === '/' ? ` — these servers answer under /v1: try ${base}/v1` : '',
+    status === 404 && new URL(base).pathname === '/' ? 'engine.models.httpTryV1' : 'engine.models.http',
   );
 }
 
 /** Asks Ollama at its root for the models it has pulled (ADR 0057). */
 export async function listOllamaModels(root: string, timeoutMs = LIST_TIMEOUT_MS): Promise<{ models: string[] } | { reason: string }> {
   return listModels(`${root}/api/tags`, root, {}, parseOllamaTags, timeoutMs, (status) =>
-    status === 404 ? ' — is this an Ollama server? LM Studio and the like go in the OpenAI-compatible engine' : '',
+    status === 404 ? 'engine.models.httpNotOllama' : 'engine.models.http',
   );
 }
 
@@ -122,20 +124,21 @@ async function listModels(
   headers: Record<string, string>,
   parse: (raw: unknown) => string[] | null,
   timeoutMs: number,
-  hint: (status: number) => string,
+  /** The sentence for a refusal: the status alone, or with the usual slip behind it named. */
+  refusal: (status: number) => MessageKey,
 ): Promise<{ models: string[] } | { reason: string }> {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
     const resp = await fetch(url, { headers, signal: ctrl.signal });
-    if (!resp.ok) return { reason: `${url} answered HTTP ${resp.status}${hint(resp.status)}` };
+    if (!resp.ok) return { reason: t(refusal(resp.status), { url, status: resp.status, base }) };
     const models = parse(await resp.json().catch(() => null));
-    if (models === null) return { reason: `${url} did not answer with a model list` };
+    if (models === null) return { reason: t('engine.models.notAList', { url }) };
     if (!known.has(base) && known.size >= MAX_KNOWN_SERVERS) known.clear();
     known.set(base, models);
     return { models };
   } catch {
-    return { reason: `nothing answered at ${base} — is the server running?` };
+    return { reason: t('engine.models.noAnswer', { base }) };
   } finally {
     clearTimeout(timer);
   }

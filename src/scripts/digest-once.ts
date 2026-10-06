@@ -2,8 +2,9 @@ import { logger } from '../logger';
 import { prisma } from '../db';
 import { runDigestJob } from '../jobs/digest-job';
 import { recordCronRun } from '../jobs/cron-run';
+import { inRunLocale } from '../run-locale';
 
-recordCronRun('digest', runDigestJob)
+inRunLocale(() => recordCronRun('digest', runDigestJob))
   .then(() => prisma.$disconnect())
   .then(() => process.exit(0))
   .catch((err) => {

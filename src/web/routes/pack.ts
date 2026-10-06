@@ -1,5 +1,6 @@
 import { Hono, type Context } from 'hono';
 import { prisma } from '../../db';
+import { t } from '../../i18n/t';
 import { getPack, getPackFile, packFiles, queuePack } from '../../pack/store';
 import { readPackEdits } from '../../pack/view';
 import { DOCX_MIME } from '../../resume/docx-write';
@@ -24,26 +25,22 @@ export const packRoute = new Hono();
 
 packRoute.post('/jobs/:id/pack', async (c) => {
   const id = idParam(c.req.param('id'));
-  if (!Number.isFinite(id)) return c.text('Bad id', 400);
-  if (!(await prisma.job.findUnique({ where: { id }, select: { id: true } }))) return c.text('Not found', 404);
+  if (!Number.isFinite(id)) return c.text(t('http.badId'), 400);
+  if (!(await prisma.job.findUnique({ where: { id }, select: { id: true } }))) return c.text(t('http.notFound'), 404);
   const outcome = await queuePack(id, 'manual');
   const tab = jobHref(id, 'pack');
   if (outcome === 'sent') {
-    return flashRedirect(tab, 'warn', 'This pack is the record of the file you sent, so it is not prepared again. Nothing was changed.');
+    return flashRedirect(tab, 'warn', t('pack.flash.sent'));
   }
-  return flashRedirect(
-    tab,
-    'ok',
-    outcome === 'busy' ? 'This pack is already being prepared.' : 'Queued. The worker starts it within a minute; this page refreshes itself.',
-  );
+  return flashRedirect(tab, 'ok', outcome === 'busy' ? t('pack.flash.busy') : t('pack.flash.queued'));
 });
 
 /** The file as the pack kept it — the same bytes on every download, whatever happened to the resume since. */
 async function sendPackFile(c: Context, kind: 'docx' | 'pdf'): Promise<Response> {
   const id = idParam(c.req.param('id'));
-  if (!Number.isFinite(id)) return c.text('Bad id', 400);
+  if (!Number.isFinite(id)) return c.text(t('http.badId'), 400);
   const file = await getPackFile(id, kind);
-  if (!file) return c.text('Not found', 404);
+  if (!file) return c.text(t('http.notFound'), 404);
   return new Response(new Uint8Array(file.bytes), {
     headers: {
       'Content-Type': kind === 'pdf' ? PDF_MIME : DOCX_MIME,

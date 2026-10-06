@@ -500,13 +500,13 @@ function packOrigin(value: unknown): PackOrigin {
 
 companiesRoute.post('/companies/:id/toggle-active', async (c) => {
   const id = idParam(c.req.param('id'));
-  if (!Number.isFinite(id)) return c.text('Bad id', 400);
+  if (!Number.isFinite(id)) return c.text(t('http.badId'), 400);
 
   const current = await prisma.company.findUnique({
     where: { id },
     select: { active: true, name: true, atsType: true },
   });
-  if (!current) return c.text('Not found', 404);
+  if (!current) return c.text(t('http.notFound'), 404);
   // TASKS N8: an active row would put a page nothing can read into every tick.
   if (!current.active && current.atsType === AtsType.BROWSER_PAGE) {
     return redirectWithFlash('err', t('watchlist.flash.browserOnly', { name: current.name }));
@@ -530,12 +530,12 @@ companiesRoute.post('/companies/:id/toggle-active', async (c) => {
  */
 companiesRoute.post('/companies/:id/reprobe', async (c) => {
   const id = idParam(c.req.param('id'));
-  if (!Number.isFinite(id)) return c.text('Bad id', 400);
+  if (!Number.isFinite(id)) return c.text(t('http.badId'), 400);
   const company = await prisma.company.findUnique({
     where: { id },
     select: { name: true, atsType: true, atsToken: true },
   });
-  if (!company) return c.text('Not found', 404);
+  if (!company) return c.text(t('http.notFound'), 404);
 
   const probe = await probeAts(company.atsType, company.atsToken, {
     keys: await getSourceKeys(),
@@ -562,12 +562,12 @@ companiesRoute.post('/companies/:id/reprobe', async (c) => {
 
 companiesRoute.post('/companies/:id/delete', async (c) => {
   const id = idParam(c.req.param('id'));
-  if (!Number.isFinite(id)) return c.text('Bad id', 400);
+  if (!Number.isFinite(id)) return c.text(t('http.badId'), 400);
   const current = await prisma.company.findUnique({
     where: { id },
     select: { name: true, atsType: true },
   });
-  if (!current) return c.text('Not found', 404);
+  if (!current) return c.text(t('http.notFound'), 404);
   await prisma.company.delete({ where: { id } });
   return redirectWithFlash(
     'ok',

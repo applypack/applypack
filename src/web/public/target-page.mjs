@@ -22,6 +22,7 @@ import { wireCopy, copyFrom, announce } from './copy.mjs';
 import { applyReplacement, insertAfterLine, removeSpan, insertIntoSkills, inverseEdit, undoEdit, withContext } from './text-edits.mjs';
 import { applyAll, applyAllSummary, addKeywords } from './apply-all.mjs';
 import { mountDocPane, fileNameFrom } from './doc-pane.mjs';
+import { t } from './i18n.mjs';
 
 // Full literal class names — the Tailwind CDN JIT only generates what it can
 // see verbatim in the document, composed strings would come out unstyled.
@@ -79,16 +80,21 @@ export function skillGaps(gaps, jobTitle) {
   return title === '' ? gaps : gaps.filter((r) => wordsOf(r.term) !== title);
 }
 
-/** Why an edit did not happen — every error the text operations can return. */
+/** Why an edit did not happen — every error the text operations can return, as the key that words it. */
 const REASON = {
-  'not-found': "Couldn't find this text in the editor, it may already be edited",
-  'no-replacement': 'This suggestion has no wording to apply — copy it and write your own',
-  protected: 'That line carries your email or phone — edit it by hand',
-  'no-term': 'Nothing to add',
-  'already-present': 'Already in your resume',
-  'no-skills-list': 'Your skills section is a column of labels, not a list — add it by hand',
-  'moved-on': 'The text moved on since you applied this — undo it by hand',
+  'not-found': 'browser.edit.notFound',
+  'no-replacement': 'browser.edit.noReplacement',
+  protected: 'browser.edit.protected',
+  'no-term': 'browser.edit.noTerm',
+  'already-present': 'browser.edit.alreadyPresent',
+  'no-skills-list': 'browser.edit.noSkillsList',
+  'moved-on': 'browser.edit.movedOn',
 };
+
+/** The sentence for a refused edit; `fallback` names an error no table row knows. */
+function reason(error, fallback = 'browser.edit.failed') {
+  return t(REASON[error] ?? fallback);
+}
 
 /** The key an added keyword is remembered under — cards own the plain keys. */
 const keywordKey = (term) => 'kw:' + term;
@@ -167,10 +173,10 @@ export function init(data) {
       'class',
       'transition-[stroke-dashoffset] duration-300 ' + RING_TONE[ringTone(score)],
     );
-    ringButton.setAttribute('aria-label', 'Match score ' + score + ' of 100 — what this number is');
+    ringButton.setAttribute('aria-label', t('browser.score.aria', { score }));
     // Announced only when the number moves — every keystroke repaints, few change it.
     if (scoreLive && announcedScore !== score) {
-      scoreLive.textContent = 'Match score ' + score + ' of 100';
+      scoreLive.textContent = t('browser.score.live', { score });
       announcedScore = score;
     }
   }
@@ -221,9 +227,9 @@ export function init(data) {
       const answer = !unproven
         ? null
         : r.note === data.deniedNote
-          ? 'you said you do not have it'
+          ? t('browser.chips.saidNo')
           : r.note === data.unsureNote
-            ? 'you said you are not sure'
+            ? t('browser.chips.saidUnsure')
             : null;
       const b = document.createElement('button');
       b.type = 'button';
@@ -233,8 +239,8 @@ export function init(data) {
       b.title = [
         wantsLabel(r),
         gapLabel(r, false),
-        r.count > 1 ? '×' + r.count + ' in the posting' : null,
-        answer ?? (unproven ? 'type it in where it is true, or click to say you have it' : r.where ? 'add in: ' + r.where : null),
+        r.count > 1 ? t('browser.keyword.inPosting', { n: r.count }) : null,
+        answer ?? (unproven ? t('browser.chips.typeOrConfirm') : r.where ? t('browser.chips.addIn', { where: r.where }) : null),
         answer ? null : r.note,
       ].filter(Boolean).join(' · ');
       // A dashed chip has no section to send you to — the resume never mentions
@@ -252,30 +258,35 @@ export function init(data) {
       const add = document.createElement('button');
       add.type = 'button';
       add.className = CHIP_BASE + ' ' + CHIP_ADD;
-      add.textContent = '+ add';
-      add.title = 'Add "' + r.term + '" to your skills line';
+      add.textContent = t('browser.chips.add');
+      add.title = t('browser.chips.addTitle', { term: r.term });
       add.addEventListener('click', () => {
         const before = editor.value;
         const result = insertIntoSkills(before, r.term, r.where);
-        if (result.error) { announce(REASON[result.error] ?? 'Could not add it'); return; }
+        if (result.error) { announce(reason(result.error, 'browser.edit.couldNotAdd')); return; }
         editor.value = result.text;
         remember(keywordKey(r.term), before, result);
         storeEdits();
         located = result.span;
         render();
         scrollEditorTo(result.span.start);
-        announce('Added ' + r.term + ' to your skills');
+        announce(t('browser.chips.added', { term: r.term }));
       });
       chips.appendChild(add);
     }
-    if (chips.children.length === 0) chips.innerHTML = '<span class="text-meta text-ink-faint">Every countable keyword is present.</span>';
+    if (chips.children.length === 0) {
+      const none = document.createElement('span');
+      none.className = 'text-meta text-ink-faint';
+      none.textContent = t('browser.chips.allPresent');
+      chips.appendChild(none);
+    }
 
     // Nothing marks the ring as stale: the sticky bar says it in full while
     // the text is dirty — the estimate, the delta and the button to re-run.
     const dirty = text !== data.resumeText;
     dirtyBar.hidden = !dirty;
     if (dirtyLive) {
-      const said = dirty ? 'Unsaved changes' : '';
+      const said = dirty ? t('browser.editor.unsaved') : '';
       if (dirtyLive.textContent !== said) dirtyLive.textContent = said;
     }
     for (const b of saveButtons) b.disabled = !dirty;
@@ -437,7 +448,7 @@ export function init(data) {
       if (box && done) box.hidden = true;
       const status = card.querySelector('[data-card-status]');
       if (status && !status.dataset.sticky) {
-        status.textContent = applied ? (applied.inserted === '' ? 'Removed' : 'Applied') : skipped ? 'Skipped' : '';
+        status.textContent = applied ? t(applied.inserted === '' ? 'browser.card.removed' : 'browser.card.applied') : skipped ? t('browser.card.skipped') : '';
       }
     }
   }
@@ -467,7 +478,7 @@ export function init(data) {
     const before = editor.value;
     const result = operation(before);
     if (result.error) {
-      say(card, REASON[result.error] ?? 'That edit could not be made', true);
+      say(card, reason(result.error), true);
       return false;
     }
     editor.value = result.text;
@@ -486,9 +497,9 @@ export function init(data) {
     if (!button || !card) return;
     const box = card.querySelector('[data-edit-box]');
     if (button.hasAttribute('data-apply')) {
-      runEdit(card, (t) => place(t, box, button.dataset.apply), 'Applied');
+      runEdit(card, (text) => place(text, box, button.dataset.apply), t('browser.card.applied'));
     } else if (button.hasAttribute('data-remove')) {
-      runEdit(card, (t) => removeSpan(t, button.dataset.remove), 'Removed');
+      runEdit(card, (text) => removeSpan(text, button.dataset.remove), t('browser.card.removed'));
     } else if (button.hasAttribute('data-edit-apply')) {
       if (box) box.hidden = false;
       box?.querySelector('[data-edit-text]')?.focus();
@@ -497,18 +508,18 @@ export function init(data) {
     } else if (button.hasAttribute('data-edit-save')) {
       // The box carries the target itself: a card whose wording the gate refused has no Apply button.
       const wording = box?.querySelector('[data-edit-text]')?.value ?? '';
-      if (runEdit(card, (t) => place(t, box, wording), 'Applied') && box) box.hidden = true;
+      if (runEdit(card, (text) => place(text, box, wording), t('browser.card.applied')) && box) box.hidden = true;
     } else if (button.hasAttribute('data-skip')) {
       if (!edits.skipped.includes(card.dataset.card)) edits.skipped.push(card.dataset.card);
       storeEdits();
       paintCards();
-      say(card, 'Skipped', false);
+      say(card, t('browser.card.skipped'), false);
     } else if (button.hasAttribute('data-undo')) {
       const key = card.dataset.card;
       const entry = edits.applied[key];
       if (entry) {
         const back = undoEdit(editor.value, entry);
-        if (back.error) { say(card, REASON[back.error], true); return; }
+        if (back.error) { say(card, reason(back.error), true); return; }
         editor.value = back.text;
         located = back.span;
       }
@@ -516,7 +527,7 @@ export function init(data) {
       edits.skipped = edits.skipped.filter((k) => k !== key);
       storeEdits();
       render();
-      say(card, 'Undone', false);
+      say(card, t('browser.card.undone'), false);
     }
   });
 
@@ -582,7 +593,7 @@ export function init(data) {
     // A card that could not be placed says why on itself, as its own Apply would.
     for (const f of result.failed) {
       const card = document.querySelector('[data-card="' + CSS.escape(f.key) + '"]');
-      if (card) say(card, REASON[f.error] ?? 'That edit could not be made', true);
+      if (card) say(card, reason(f.error), true);
     }
     const summary = applyAllSummary(result);
     setBatchStatus(summary);
@@ -626,7 +637,7 @@ export function init(data) {
     const ticked = bulkList.querySelectorAll('input:checked').length;
     for (const el of document.querySelectorAll('[data-kw-bulk-count]')) el.textContent = String(rows.length);
     bulkAdd.disabled = ticked === 0;
-    bulkAdd.textContent = ticked === 1 ? 'Add 1 keyword' : `Add ${ticked} keywords`;
+    bulkAdd.textContent = t('browser.bulk.add', { n: ticked });
   }
 
   function bulkRow(r) {
@@ -650,7 +661,7 @@ export function init(data) {
     term.textContent = r.term;
     const note = document.createElement('span');
     note.className = backed ? 'text-ink-faint' : 'text-warn';
-    note.textContent = ' · ' + wantsLabel(r) + (backed ? ' · backed' : ' · not backed yet');
+    note.textContent = ' · ' + wantsLabel(r) + ' · ' + t(backed ? 'browser.bulk.backed' : 'browser.bulk.notBacked');
     const words = document.createElement('span');
     words.append(term, note);
     label.append(box, words);
@@ -676,7 +687,7 @@ export function init(data) {
     keep(result.done);
     located = null;
     render();
-    const summary = applyAllSummary(result).replace(/^Applied /, 'Added ');
+    const summary = applyAllSummary(result, 'added');
     if (bulkStatus) bulkStatus.textContent = summary;
     announce(summary);
     if (resumeView === 'doc') docPane?.refresh();
@@ -698,9 +709,7 @@ export function init(data) {
     storeEdits();
     located = null;
     render();
-    const summary =
-      `Undid ${undone === 1 ? '1 edit' : undone + ' edits'}.` +
-      (stuck > 0 ? ` ${stuck === 1 ? '1 stays' : stuck + ' stay'}: the text there changed since — undo it by hand.` : '');
+    const summary = t('browser.undo.undid', { n: undone }) + (stuck > 0 ? ' ' + t('browser.undo.stuck', { n: stuck }) : '');
     setBatchStatus(summary);
     announce(summary);
   }
@@ -765,7 +774,7 @@ export function init(data) {
       });
       // The user's own .docx is printed as drawn: no renderer of ours re-sets it.
       if (res.status === 409) { docPane.print(data.documentName); return; }
-      if (!res.ok) throw new Error((await res.json().catch(() => null))?.error ?? `the server answered ${res.status}`);
+      if (!res.ok) throw new Error((await res.json().catch(() => null))?.error ?? t('browser.server.answered', { status: res.status }));
       const url = URL.createObjectURL(await res.blob());
       const a = document.createElement('a');
       a.href = url;
@@ -774,9 +783,9 @@ export function init(data) {
       a.click();
       a.remove();
       setTimeout(() => URL.revokeObjectURL(url), 60_000);
-      if (docStatus) docStatus.textContent = 'Downloaded ' + a.download + '.';
+      if (docStatus) docStatus.textContent = t('browser.download.done', { name: a.download });
     } catch (err) {
-      if (docStatus) docStatus.textContent = 'Could not make the file: ' + err.message;
+      if (docStatus) docStatus.textContent = t('browser.download.failed', { reason: err.message });
     } finally {
       button.disabled = false;
     }
@@ -792,14 +801,14 @@ export function init(data) {
     const card = button.closest('[data-card]');
     button.addEventListener('click', () => {
       if (resumeView === 'doc' && docPane?.locate(button.dataset.locate)) {
-        if (card) say(card, 'Outlined in the document', true);
+        if (card) say(card, t('browser.locate.outlined'), true);
         return;
       }
       const loc = locateQuote(editor.value, button.dataset.locate);
       if (!loc) {
         located = null;
         render();
-        if (card) say(card, REASON['not-found'], true);
+        if (card) say(card, reason('not-found'), true);
         return;
       }
       // The document could not outline it (a line it draws differently): the text can.
@@ -808,7 +817,7 @@ export function init(data) {
       render();
       const line = editor.value.slice(0, loc.start).split('\n').length;
       // The outline is not the only signal: the line number is readable and announced.
-      if (card) say(card, 'Line ' + line, true);
+      if (card) say(card, t('browser.locate.line', { n: line }), true);
       scrollEditorTo(loc.start);
       // Focus moves the caret, which on a phone opens the keyboard over the text.
       if (window.matchMedia('(min-width: 1024px)').matches) {
@@ -831,7 +840,7 @@ export function init(data) {
   if (expand) {
     expand.addEventListener('click', () => {
       const tall = panes.classList.toggle('editor-tall');
-      expand.textContent = tall ? 'shrink editor' : 'expand editor';
+      expand.textContent = t(tall ? 'browser.editor.shrink' : 'browser.editor.expand');
       expand.setAttribute('aria-expanded', String(tall));
     });
   }

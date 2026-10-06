@@ -21,6 +21,7 @@ import { WATCH_RETRY_MS } from './jobs/folder-watch-plan';
 import { getSettings } from './settings';
 import { stopCliChildren } from './ai-provider';
 import { HEARTBEAT_EVERY_MS } from './heartbeat';
+import { inRunLocale } from './run-locale';
 
 const SHUTDOWN_POLL_MS = 250;
 const SHUTDOWN_MAX_WAIT_MS = 60_000;
@@ -75,8 +76,8 @@ async function main(): Promise<void> {
 
   // Application packs (ADR 0063): a beat a minute, so a pack asked for in the
   // dashboard starts within one. A beat with nothing queued and no message
-  // owed is one lookup and writes no run row — which is every beat on an
-  // install that never switched packs on.
+  // owed is two lookups (the language, then the queue) and writes no run
+  // row — which is every beat on an install that never switched packs on.
   registerCron(
     '* * * * *',
     'pack',
@@ -116,11 +117,14 @@ async function checkFolder(companyId: number): Promise<'done' | 'busy'> {
   folderChecking = true;
   let overlap = false;
   try {
-    await recordCronRun('folder-watch', async () => {
-      const out = await runFetchJob({ manual: true, only: (c) => c.id === companyId });
-      overlap = out.stats.reason === 'overlap';
-      return out;
-    });
+    // Its matches are alerted as the tick's are: in the interface's language.
+    await inRunLocale(() =>
+      recordCronRun('folder-watch', async () => {
+        const out = await runFetchJob({ manual: true, only: (c) => c.id === companyId });
+        overlap = out.stats.reason === 'overlap';
+        return out;
+      }),
+    );
   } finally {
     folderChecking = false;
     inFlight--;
@@ -144,7 +148,7 @@ async function fetchTick(): Promise<void> {
     setTimeout(() => {
       if (shuttingDown) return;
       inFlight++;
-      void recordCronRun('fetch', runFetchJob)
+      void inRunLocale(() => recordCronRun('fetch', runFetchJob))
         .catch((err) => logger.warn({ err }, 'cron: the retried fetch failed'))
         .finally(() => inFlight--);
     }, WATCH_RETRY_MS).unref();
@@ -207,7 +211,9 @@ function registerCron(
       const started = Date.now();
       note({ name }, 'cron: tick start');
       try {
-        await fn();
+        // Every message a job sends is in the interface's language, read per
+        // beat so a change on Settings reaches the next one (ADR 0061, gotcha 9).
+        await inRunLocale(fn);
       } catch (err) {
         logger.error({ err, name }, 'cron: tick failed');
       } finally {

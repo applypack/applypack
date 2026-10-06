@@ -50,6 +50,7 @@ import { isBlankProfile } from '../../profile-guards';
 import { listActiveProfiles } from '../../profiles';
 import type { Profile } from '@prisma/client';
 import { getSettings } from '../../settings';
+import { t } from '../../i18n/t';
 import type { NormalizedJob } from '../../types';
 import { spendHint } from '../cost-hint';
 import { flashRedirect } from '../flash';
@@ -81,7 +82,7 @@ const text = (value: unknown): string => (typeof value === 'string' ? value.trim
 /** The folder a form names, as its real path — or the sentence that says why it cannot be a source. */
 async function resolveFolder(typed: string): Promise<{ root: string } | { error: string }> {
   const asked = folderPathFrom(typed, os.homedir());
-  if (asked === null) return { error: 'Type the folder’s full path, starting from the root of the disk or from ~ for your home folder.' };
+  if (asked === null) return { error: t('folders.flash.typePath') };
   try {
     const root = await realFolder(asked);
     const allowed = folderAllowed(root, await currentFolderRules(underLauncher(), config.APPLYPACK_INBOX_ROOTS));
@@ -262,7 +263,7 @@ async function previewPostings(
     const got = await readFolderFile(root, file.relPath, maxBytesOf(kind));
     const sample = { relPath: file.relPath, kind, title: null, company: null, address: null, asksModel: false };
     if (!got.ok) {
-      newest.push({ ...sample, why: got.why === 'too-large' ? tooLargeNote(kind) : 'It could not be read just now.' });
+      newest.push({ ...sample, why: got.why === 'too-large' ? tooLargeNote(kind) : t('folders.preview.couldNotRead') });
       continue;
     }
     const read = await readPostingFile(kind, got.bytes, now);
@@ -291,16 +292,16 @@ async function previewPostings(
 foldersRoute.post('/companies/folder/check', async (c) => {
   const form = await c.req.parseBody();
   const folder = await resolveFolder(text(form.path));
-  if ('error' in folder) return flashRedirect(BACK, 'err', `Nothing was added. ${folder.error}`);
+  if ('error' in folder) return flashRedirect(BACK, 'err', `${t('folders.flash.nothingAdded')} ${folder.error}`);
   const preview = await previewFolder(folder.root, form);
-  if ('error' in preview) return flashRedirect(BACK, 'err', `Nothing was added. ${preview.error}`);
+  if ('error' in preview) return flashRedirect(BACK, 'err', `${t('folders.flash.nothingAdded')} ${preview.error}`);
   return c.html(<FolderPreviewPage {...preview} />);
 });
 
 /** A local install only: an empty folder of ApplyPack's own in the home directory, then its check. */
 foldersRoute.post('/companies/folder/inbox', async (c) => {
   if (!underLauncher()) {
-    return flashRedirect(BACK, 'err', 'Nothing was created: on a server the folder is one you mount and name in APPLYPACK_INBOX_ROOTS.');
+    return flashRedirect(BACK, 'err', t('folders.flash.inboxServer'));
   }
   let inbox: string;
   try {
@@ -310,10 +311,10 @@ foldersRoute.post('/companies/folder/inbox', async (c) => {
     const code = (err as { code?: unknown } | null)?.code;
     if (typeof code !== 'string') throw err;
     logger.warn({ code }, 'web: inbox folder not created');
-    return flashRedirect(BACK, 'err', `Nothing was created: the system refused to make ~/ApplyPack/inbox (${code}). Make the folder yourself and type its path below.`);
+    return flashRedirect(BACK, 'err', t('folders.flash.inboxRefused', { code }));
   }
   const folder = await resolveFolder(inbox);
-  if ('error' in folder) return flashRedirect(BACK, 'err', `The folder ${inbox} is there, but it cannot be a source. ${folder.error}`);
+  if ('error' in folder) return flashRedirect(BACK, 'err', `${t('folders.flash.inboxNotSource', { path: inbox })} ${folder.error}`);
   const preview = await previewFolder(folder.root, { name: 'Inbox' });
   if ('error' in preview) return flashRedirect(BACK, 'err', preview.error);
   return c.html(<FolderPreviewPage {...preview} />);
@@ -323,9 +324,9 @@ foldersRoute.post('/companies/folder/inbox', async (c) => {
 foldersRoute.post('/companies/folder', async (c) => {
   const form = await c.req.parseBody();
   const folder = await resolveFolder(text(form.path));
-  if ('error' in folder) return flashRedirect(BACK, 'err', `Nothing was added. ${folder.error}`);
+  if ('error' in folder) return flashRedirect(BACK, 'err', `${t('folders.flash.nothingAdded')} ${folder.error}`);
   const preview = await previewFolder(folder.root, form);
-  if ('error' in preview) return flashRedirect(BACK, 'err', `Nothing was added. ${preview.error}`);
+  if ('error' in preview) return flashRedirect(BACK, 'err', `${t('folders.flash.nothingAdded')} ${preview.error}`);
   let config: SourceConfig;
   if (preview.holds === 'postings') {
     config = { holds: 'postings', mapping: null, include: preview.include, alerts: preview.alerts };
@@ -336,7 +337,7 @@ foldersRoute.post('/companies/folder', async (c) => {
       return c.html(
         <FolderPreviewPage
           {...preview}
-          flash={{ kind: 'err', text: 'Nothing was saved. Choose the column that holds the job title, and one that holds a link or an id; the files in the folder must give at least one job.' }}
+          flash={{ kind: 'err', text: t('folders.flash.notSaved') }}
         />,
       );
     }
@@ -357,18 +358,16 @@ foldersRoute.post('/companies/folder', async (c) => {
   return flashRedirect(
     `${BACK}#folders`,
     'ok',
-    preview.existing
-      ? `Saved “${preview.name}”. The next check reads its files this way.`
-      : `Added “${preview.name}”, switched off. Turn it on in the table below, and what is new in the folder is read.`,
+    t(preview.existing ? 'folders.flash.saved' : 'folders.flash.added', { name: preview.name }),
   );
 });
 
 /** The per-file list: what became of every file the folder's looks have seen. */
 foldersRoute.get('/companies/:id/files', async (c) => {
   const id = idParam(c.req.param('id'));
-  if (!Number.isFinite(id)) return c.text('Bad id', 400);
+  if (!Number.isFinite(id)) return c.text(t('http.badId'), 400);
   const company = await prisma.company.findFirst({ where: { id, atsType: AtsType.FOLDER }, select: { id: true, name: true, atsToken: true, active: true, sourceConfig: true } });
-  if (!company) return c.text('Not found', 404);
+  if (!company) return c.text(t('http.notFound'), 404);
   const [files, summaries] = await Promise.all([listSourceFiles(id), folderSummaries()]);
   // The job each file became, by the file the job names (Job.sourceFile): one query, the files shown.
   const jobs = await prisma.job.findMany({

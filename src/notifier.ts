@@ -3,23 +3,21 @@ import { getSettings, listActiveNotificationTargets, markTargetUsed } from './se
 import { prisma } from './db';
 import type { NotificationTarget } from '@prisma/client';
 import type { AlertJob } from './types';
-import {
-  formatPlaceLine,
-  formatSalary,
-  moreOnDashboard,
-  quietSourceItems,
-  type PageChangeNotice,
-  type QuietSourceAlert,
-} from './notify/lines';
+import { formatPlaceLine, formatSalary, quietSourceList, type PageChangeNotice, type QuietSourceAlert } from './notify/lines';
 import { deliverDiscord, escapeDiscord, formatDiscordAlert, formatDiscordDigest, formatDiscordPageChanges } from './notify/discord';
+import { tMarkup, type ChannelMarkup } from './notify/markup';
 import { packMessages } from './notify/pack';
+import type { MessageKey } from './i18n/catalog';
+import type { MessageParams } from './i18n/message';
+import { t } from './i18n/t';
 
 /*
  * Alerts, digests and notices go out through here to every active target,
  * each in its channel's own markup (ADR 0041): this file is the Telegram
  * channel — MarkdownV2, the 4096-char limit, the bot API — and the switch
  * that hands a Discord row to notify/discord.ts. The words both channels
- * share are in notify/lines.ts.
+ * share are in notify/lines.ts; every sentence is the catalog's, in the
+ * language the run was started in (ADR 0061 — index.ts sets it per tick).
  */
 
 export { formatPlaceLine, formatSalary } from './notify/lines';
@@ -28,6 +26,13 @@ export type { PageChangeNotice, QuietSourceAlert } from './notify/lines';
 const TELEGRAM_API = 'https://api.telegram.org';
 const TELEGRAM_TIMEOUT_MS = 10_000;
 const MAX_MESSAGE_LENGTH = 4096;
+
+/** MarkdownV2: every run of text escaped, catalog words included; `<b>` is bold. */
+const TELEGRAM: ChannelMarkup = { escape: escapeMarkdownV2, tags: { b: (inner) => `*${inner}*` } };
+
+function telegramText(key: MessageKey, params?: MessageParams): string {
+  return tMarkup(TELEGRAM, key, params);
+}
 
 /** What one broadcast says, in each channel's own markup (ADR 0041). */
 interface Outgoing {
@@ -86,8 +91,8 @@ export async function sendDigest(
   jobs: AlertJob[],
   targetId?: number | null,
   quiet: QuietSourceAlert[] = [],
-  /** What the header calls this batch — the daily recap, or a held delivery (TASKS §16). */
-  title = 'Daily digest',
+  /** What the header calls this batch — the daily recap, or a held delivery (TASKS §16, `held-alerts.ts:heldTitle`). */
+  title = t('digest.title'),
   /** Matches counted in the header but not listed — a long wait's backlog stays on the dashboard. */
   more = 0,
 ): Promise<Delivery> {
@@ -106,13 +111,13 @@ export function formatTelegramDigest(
 ): string[] {
   const healthLine = formatSourceHealthLine([...quiet]);
   if (jobs.length === 0) {
-    const empty = escapeMarkdownV2('No new matches since the last digest.');
+    const empty = telegramText('digest.empty');
     return [healthLine ? `${empty}\n\n${healthLine}` : empty];
   }
-  const total = jobs.length + more;
-  const header = `*${title} — ${total} match${total === 1 ? '' : 'es'}*${healthLine ? `\n${healthLine}` : ''}`;
+  const header = `*${telegramText('digest.header', { title, n: jobs.length + more })}*${healthLine ? `\n${healthLine}` : ''}`;
   const blocks = jobs.map(formatJobMessage);
-  if (more > 0) blocks.push(escapeMarkdownV2(moreOnDashboard(more)));
+  // The last line of a delivery that lists only the best of a long wait; the rest are still New on the dashboard.
+  if (more > 0) blocks.push(telegramText('digest.more', { n: more }));
   return packMessages(header, blocks, '\n\n———\n\n', MAX_MESSAGE_LENGTH);
 }
 
@@ -220,12 +225,13 @@ export function formatJobMessage(job: AlertJob): string {
   // knows which hunt fired without opening the link (ADR 0028). A watched
   // company's posting says what it is instead: it may be here because the
   // user asked for every posting, not because a search wanted it (ADR 0036).
+  const score = job.fitScore;
   const headline = job.watched
-    ? '★ New posting'
+    ? `★ ${telegramText('notify.alert.headerWatched', { score })}`
     : job.matchedProfile
-      ? escapeMarkdownV2(job.matchedProfile)
-      : 'New role match';
-  lines.push(`*${headline} — fit ${job.fitScore}/100*`);
+      ? telegramText('notify.alert.headerSearch', { search: job.matchedProfile, score })
+      : telegramText('notify.alert.header', { score });
+  lines.push(`*${headline}*`);
   lines.push(
     `*${escapeMarkdownV2(job.title)}* @ ${escapeMarkdownV2(job.companyName)}`,
   );
@@ -233,15 +239,13 @@ export function formatJobMessage(job: AlertJob): string {
     `📍 ${escapeMarkdownV2(formatPlaceLine(job))} \\| 💰 ${escapeMarkdownV2(formatSalary(job.salaryMin, job.salaryMax, job.salaryCurrency, job.salaryPeriod))}`,
   );
   if (job.techMatch.length > 0) {
-    lines.push(`✅ Tech: ${escapeMarkdownV2(job.techMatch.join(', '))}`);
+    lines.push(`✅ ${telegramText('notify.alert.tech', { list: job.techMatch.join(', ') })}`);
   }
   if (job.redFlags.length > 0) {
-    lines.push(`⚠️ Flags: ${escapeMarkdownV2(job.redFlags.join(', '))}`);
+    lines.push(`⚠️ ${telegramText('notify.alert.flags', { list: job.redFlags.join(', ') })}`);
   }
   if (job.crossListedAt) {
-    lines.push(
-      `🔁 Also listed at ${escapeMarkdownV2(job.crossListedAt)} — apply through one channel only`,
-    );
+    lines.push(`🔁 ${telegramText('notify.alert.alsoListed', { where: job.crossListedAt })}`);
   }
   if (job.profileScores) {
     lines.push(`🎯 ${escapeMarkdownV2(job.profileScores)}`);
@@ -252,7 +256,7 @@ export function formatJobMessage(job: AlertJob): string {
   if (job.attribution) {
     lines.push(escapeMarkdownV2(job.attribution));
   }
-  lines.push(`[Apply →](${escapeMarkdownV2Url(job.url)})`);
+  lines.push(`[${telegramText('notify.alert.apply')}](${escapeMarkdownV2Url(job.url)})`);
   return lines.join('\n');
 }
 
@@ -264,11 +268,7 @@ export function formatJobMessage(job: AlertJob): string {
  */
 export function formatSourceHealthLine(sources: QuietSourceAlert[]): string {
   if (sources.length === 0) return '';
-  const { named, hidden } = quietSourceItems(sources);
-  const items = named.map(escapeMarkdownV2);
-  if (hidden > 0) items.push(escapeMarkdownV2(`and ${hidden} more`));
-  const header = `⚠️ *${sources.length} quiet source${sources.length === 1 ? '' : 's'}*`;
-  return `${header} — ${items.join(', ')}`;
+  return `⚠️ ${telegramText('sourceHealth.line', { n: sources.length, sources: quietSourceList(sources) })}`;
 }
 
 /**
@@ -281,14 +281,11 @@ export function formatSourceHealthLine(sources: QuietSourceAlert[]): string {
  * to ignore it.
  */
 export function formatPageChangeMessage(pages: readonly PageChangeNotice[]): string {
-  const header =
-    pages.length === 1
-      ? '*★ A watched careers page changed*'
-      : `*★ ${pages.length} watched careers pages changed*`;
+  const header = `*★ ${telegramText('pageChange.header', { n: pages.length })}*`;
   const lines = pages.map(
     (p) => `• [${escapeMarkdownV2(p.companyName)}](${escapeMarkdownV2Url(p.url)})`,
   );
-  return [header, ...lines, escapeMarkdownV2('We cannot read this page for jobs — have a look.')].join('\n');
+  return [header, ...lines, telegramText('pageChange.footer')].join('\n');
 }
 
 export async function sendPageChangeAlert(pages: readonly PageChangeNotice[]): Promise<Delivery> {

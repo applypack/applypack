@@ -3,6 +3,8 @@ import type { FC } from 'hono/jsx';
 import { sampleValue, type Mapping, type MappingField } from '../../datasets/map';
 import { MAX_COLUMNS, type Row } from '../../datasets/rows';
 import type { NormalizedJob } from '../../types';
+import type { MessageKey } from '../../i18n/catalog';
+import { t } from '../../i18n/t';
 import { formatDateShort } from '../format';
 import { Disclosure, Field, Hint, Select } from '../ui';
 
@@ -14,23 +16,23 @@ import { Disclosure, Field, Hint, Select } from '../ui';
  */
 
 /** What a column can be, in the user's words. The first eight are what most files have; the rest fold. */
-const FIELD_LABEL: Record<MappingField, string> = {
-  title: 'Job title',
-  url: 'Link to the posting',
-  applyUrl: 'Link to apply',
-  employer: 'Company',
-  description: 'Description',
-  location: 'Location',
-  postedAt: 'Date posted',
-  id: 'Id of the row',
-  country: 'Country',
-  workplace: 'Remote, hybrid or on-site',
-  salary: 'Pay, as the row writes it',
-  salaryMin: 'Pay from',
-  salaryMax: 'Pay to',
-  salaryCurrency: 'Pay currency',
-  salaryPeriod: 'Pay period',
-  closed: 'Closed or expired',
+const FIELD_LABEL: Record<MappingField, MessageKey> = {
+  title: 'import.field.title',
+  url: 'import.field.url',
+  applyUrl: 'import.field.applyUrl',
+  employer: 'common.company',
+  description: 'import.field.description',
+  location: 'common.location',
+  postedAt: 'import.field.postedAt',
+  id: 'import.field.id',
+  country: 'import.field.country',
+  workplace: 'import.field.workplace',
+  salary: 'import.field.salary',
+  salaryMin: 'import.field.salaryMin',
+  salaryMax: 'import.field.salaryMax',
+  salaryCurrency: 'import.field.salaryCurrency',
+  salaryPeriod: 'import.field.salaryPeriod',
+  closed: 'import.field.closed',
 };
 const MAIN_FIELDS: MappingField[] = ['title', 'url', 'applyUrl', 'employer', 'description', 'location', 'postedAt', 'id'];
 const MORE_FIELDS: MappingField[] = ['country', 'workplace', 'salary', 'salaryMin', 'salaryMax', 'salaryCurrency', 'salaryPeriod', 'closed'];
@@ -49,12 +51,13 @@ const MappingSelect: FC<{ field: MappingField } & MappingFieldsProps> = ({ field
   const sample = column === null ? '' : sampleValue(rows, column);
   const hint =
     column === null
-      ? 'Not found in this file.'
-      : `${guessed.includes(field) ? 'Guessed from the values, so check it. ' : ''}${sample ? `For example: ${sample}` : 'Empty in the first rows.'}`;
+      ? t('import.field.notFound')
+      : [guessed.includes(field) ? t('import.field.guessed') : '', sample ? t('import.field.example', { sample }) : t('import.field.emptyFirstRows')].filter(Boolean).join(' ');
+  const label = t(FIELD_LABEL[field]);
   return (
-    <Field label={field === 'title' ? `${FIELD_LABEL[field]} (needed)` : FIELD_LABEL[field]} hint={hint}>
+    <Field label={field === 'title' ? t('import.field.needed', { label }) : label} hint={hint}>
       <Select name={field}>
-        <option value="">— not in this file —</option>
+        <option value="">{t('import.field.none')}</option>
         {columns.map((c) => (
           <option value={c} selected={c === column}>
             {c}
@@ -72,7 +75,7 @@ export const MappingFields: FC<MappingFieldsProps> = (props) => (
         <MappingSelect field={field} {...props} />
       ))}
     </div>
-    <Disclosure summary="Country, arrangement, pay and closed rows" count={MORE_FIELDS.filter((f) => props.mapping[f] !== null).length} class="mt-4">
+    <Disclosure summary={t('import.moreFields')} count={MORE_FIELDS.filter((f) => props.mapping[f] !== null).length} class="mt-4">
       <div class="mt-3 grid items-end gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {MORE_FIELDS.map((field) => (
           <MappingSelect field={field} {...props} />
@@ -85,8 +88,8 @@ export const MappingFields: FC<MappingFieldsProps> = (props) => (
 /** What stands beside the button that re-reads the mapping. */
 export const MappingNote: FC<{ columns: readonly string[] }> = ({ columns }) => (
   <Hint>
-    Columns about people are not offered: they are never read.
-    {columns.length >= MAX_COLUMNS ? ` Only the first ${MAX_COLUMNS} columns are offered.` : ''}
+    {t('import.peopleColumns')}
+    {columns.length >= MAX_COLUMNS ? ` ${t('import.firstColumnsOnly', { n: MAX_COLUMNS })}` : ''}
   </Hint>
 );
 
@@ -103,12 +106,12 @@ export const MappedRowsList: FC<{ jobs: readonly NormalizedJob[] }> = ({ jobs })
   <ul class="divide-y divide-line">
     {jobs.slice(0, 3).map((job) => (
       <li class="py-3 first:pt-0 last:pb-0">
-        <div class="text-label text-ink">{job.title}</div>
+        <div class="text-label text-ink" translate="no">{job.title}</div>
         <div class="text-note text-ink-muted">
-          {[job.employer ?? 'company not named', job.location || 'no location', formatDateShort(job.postedAt)].join(' · ')}
+          {[job.employer ?? t('import.row.noCompany'), job.location || t('import.row.noLocation'), formatDateShort(job.postedAt)].join(' · ')}
         </div>
-        <div class="break-all text-meta text-ink-faint">{job.url || 'no link'}</div>
-        <p class="mt-1 text-note text-ink-muted">{excerpt(job.description)}</p>
+        <div class="break-all text-meta text-ink-faint">{job.url || t('import.row.noLink')}</div>
+        <p class="mt-1 text-note text-ink-muted" translate="no">{excerpt(job.description)}</p>
       </li>
     ))}
   </ul>

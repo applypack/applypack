@@ -185,9 +185,8 @@ export function getRun(id: string): TargetRun | null {
   return runs.get(id) ?? null;
 }
 
-/** The engine came back with no letter (the fact gate's refusal has its own sentence). */
-export const LETTER_FAILED =
-  'The engine returned no letter, so nothing was saved and earlier letters are untouched. Test the engine on Settings → AI engine, then generate again; the web log has the detail.';
+/** The engine came back with no letter (the fact gate's refusal has its own sentence). A catalog key, worded where it is shown. */
+export const LETTER_FAILED = 'target.run.letterFailed' as const satisfies MessageKey;
 
 /** A failure nobody planned for: the chain threw. A catalog key, worded where it is stored or shown. */
 export const UNEXPECTED_FAILURE = 'target.run.unexpectedFailure' as const satisfies MessageKey;

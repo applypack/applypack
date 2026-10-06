@@ -40,6 +40,8 @@ import { VerificationCard, type VerificationCardProps } from './verification-car
 import { livenessCodeLabel } from '../../verification/liveness';
 import type { MessageKey } from '../../i18n/catalog';
 import { placeName, workplaceName } from '../../i18n/places';
+import { wordedStage, type StageDef } from '../stage-config';
+import type { AiBilling } from '../../ai-usage';
 import { t } from '../../i18n/t';
 import { tRich } from '../rich';
 import { ApplicationPackCard, type ApplicationPackProps } from './application-pack-card';
@@ -138,13 +140,13 @@ export interface JobDetailProps {
   profileScores: ProfileScore[];
   applicationTrackingEnabled: boolean;
   /** Configured funnel stages in order (ADR 0025). */
-  pipelineStages: { key: string; label: string }[];
+  pipelineStages: StageDef[];
   verification: VerificationCardProps['verification'];
   verificationCount: number;
   /** A verify run in flight for this job — the card points at its progress page instead of a second button (#161). */
   verificationRun: VerificationCardProps['run'];
   /** What the AI research usually costs here; null until there are three. */
-  verifyCostHint: string | null;
+  verifyCost: { micro: number; billing: AiBilling } | null;
   /** What the AI spent on this posting so far (ai-spend.ts:jobSpendText); null when nothing was recorded. */
   aiSpent: string | null;
   /** Who this posting's company is to the mute list (ADR 0056); null when nobody said who hires. */
@@ -182,7 +184,7 @@ export const JobDetailPage: FC<JobDetailProps> = ({
   verification,
   verificationCount,
   verificationRun,
-  verifyCostHint,
+  verifyCost,
   aiSpent,
   mute,
   resumeMatch,
@@ -195,6 +197,7 @@ export const JobDetailPage: FC<JobDetailProps> = ({
   // A pack in the queue or in flight is the one thing on this page that changes by itself.
   <Layout
     title={job.title}
+    titleIsData
     active="jobs"
     refresh={tab === 'pack' && (applicationPack.pack?.status === 'queued' || applicationPack.pack?.status === 'running') ? PACK_REFRESH_SECONDS : undefined}
   >
@@ -301,9 +304,9 @@ export const JobDetailPage: FC<JobDetailProps> = ({
                   <option value="" selected={!job.pipelineStage}>
                     {t('job.notInFunnel')}
                   </option>
-                  {/* A column's name: the user's own, or a default the stage list already worded. */}
+                  {/* A column's name: the user's own (data, never translated), or one the stage list words itself. */}
                   {pipelineStages.map((s) => (
-                    <option value={s.key} selected={job.pipelineStage === s.key} translate="no">
+                    <option value={s.key} selected={job.pipelineStage === s.key} translate={wordedStage(s) ? undefined : 'no'}>
                       {s.label}
                     </option>
                   ))}
@@ -357,7 +360,7 @@ export const JobDetailPage: FC<JobDetailProps> = ({
           verificationCount={verificationCount}
           run={verificationRun}
           url={job.url}
-          costHint={verifyCostHint}
+          cost={verifyCost}
         />
         )}
 
@@ -408,8 +411,8 @@ export const JobDetailPage: FC<JobDetailProps> = ({
               )}
             </div>
           )}
-          {/* The posting's own words: data, whatever language the page is in. */}
-          <div class="whitespace-pre-line break-words text-sm leading-6 text-ink-muted" translate="no">
+          {/* The posting's own words: data, whatever language the page is in; "empty" is ours. */}
+          <div class="whitespace-pre-line break-words text-sm leading-6 text-ink-muted" translate={job.description ? 'no' : undefined}>
             {job.description || t('job.empty')}
           </div>
         </Card>
@@ -638,7 +641,8 @@ const PlaceChips: FC<{ job: Pick<JobDetail, 'workplace' | 'countries' | 'regions
   const places = [...job.countries, ...job.regions];
   if (job.workplace === 'UNKNOWN' && places.length === 0) return null;
   return (
-    // Everything inside is already in the reader's language (the catalog, the country names); the tooltip is the posting's own string.
+    // The chips are in the reader's language already (the catalog, the country names); the tooltip is the posting's
+    // own string, so the list is marked as data whole — it only keeps a browser's translator off the posting's words.
     <ul class="mt-2 flex flex-wrap items-center gap-1.5" aria-label={t('job.whereThisJobIs')} title={job.location} translate="no">
       {job.workplace !== 'UNKNOWN' && (
         <li>

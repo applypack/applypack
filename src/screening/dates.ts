@@ -1,3 +1,6 @@
+import { formatDateTime } from '../i18n/format';
+import { t } from '../i18n/t';
+
 /*
  * Dates as resumes write them (TASKS §19.1: "dates are strings → a date
  * parser"), and the arithmetic the score reads off them: how many years
@@ -112,11 +115,11 @@ export function monthsSinceLatest(ranges: DateRange[], now: Date): number | null
   return Math.max(0, index({ year: now.getUTCFullYear(), month: now.getUTCMonth() + 1 }) - latest);
 }
 
-/** "Mar 2019 – Present" / "2020" — the range as the scorecard prints it. */
+/** "Mar 2019 – present" / "2020" — the range as the scorecard prints it, the month in the reader's language. */
 export function formatRange(r: DateRange, now: Date): string {
   const nowIdx = index({ year: now.getUTCFullYear(), month: now.getUTCMonth() + 1 });
-  const fmt = (d: ParsedDate) => (d.month ? `${MONTH_SHORT[d.month - 1]} ${d.year}` : String(d.year));
-  return `${fmt(r.from)} – ${index(r.to) >= nowIdx ? 'present' : fmt(r.to)}`;
+  const fmt = (d: ParsedDate) => (d.month ? formatDateTime(new Date(Date.UTC(d.year, d.month - 1, 1)), MONTH_YEAR) : String(d.year));
+  return `${fmt(r.from)} – ${index(r.to) >= nowIdx ? t('screening.date.present') : fmt(r.to)}`;
 }
 
-const MONTH_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const MONTH_YEAR: Intl.DateTimeFormatOptions = { month: 'short', year: 'numeric', timeZone: 'UTC' };

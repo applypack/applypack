@@ -63,11 +63,11 @@ export const RunSteps: FC<{
   </>
 );
 
-/** "4s" / "1m 16s" — the same shape target-run.mjs paints once it polls. */
+/** "4s" / "1m 16s" — the same messages target-run.mjs paints once it polls, so the first render reads as the rest. */
 function formatElapsed(ms: number | undefined): string {
   if (ms === undefined) return '';
   const s = Math.max(0, Math.round(ms / 1000));
-  return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${s % 60}s`;
+  return s < 60 ? t('browser.duration.seconds', { n: s }) : t('browser.duration.minutesSeconds', { m: Math.floor(s / 60), s: s % 60 });
 }
 
 /* Step visuals are CSS-driven off data-state so the poller only flips attributes. */

@@ -37,6 +37,8 @@ export function stageTimeLine(
   events: StageTimeEvent[],
   now: Date,
   label = stage,
+  /** The label is one ApplyPack names (`stage-config.ts:wordedStage`): its line is a message of its own, never a lowercased label. */
+  worded = false,
 ): StageTimeLine | null {
   const entered = events
     .filter((e) => e.toStage === stage && e.source !== 'backfill')
@@ -49,10 +51,13 @@ export function stageTimeLine(
   const terminal = TERMINAL_KEYS.includes(stage);
   const entryKnown = entered !== undefined || stage === 'applied';
 
+  // The user's own column name is data, lowercased inside the line as it always was.
   const name = label.toLowerCase();
   let text: string;
   if (!entered && stage !== 'applied') {
     text = days === 0 ? t('applications.line.appliedToday') : t('applications.line.appliedAgo', { days });
+  } else if (worded) {
+    text = days === 0 ? t('applications.line.namedToday', { stage }) : t('applications.line.namedAgo', { stage, days });
   } else if (stage === 'applied' || terminal) {
     text = days === 0 ? t('applications.line.stageToday', { stage: name }) : t('applications.line.stageAgo', { stage: name, days });
   } else {

@@ -18,6 +18,7 @@ import {
 } from '../datasets/folder-scan';
 import { readSourceConfig, type Mapping } from '../datasets/map';
 import { POSTING_NOTES, needsModel, readPostingFile, savedPostingJob, savedPostingNote, type ModelFacts } from '../datasets/posting-file';
+import { t } from '../i18n/t';
 import { extractPostingFacts } from '../jobs/posting-extract';
 import { logger } from '../logger';
 import type { NormalizedJob } from '../types';
@@ -166,7 +167,7 @@ async function lookAtPostings(
     const measured = { ...file, kind, size: got.size, mtimeMs: got.mtimeMs, sha256: got.sha256, jobCount: 0 };
     const twin = readAs.get(got.sha256);
     if (twin !== undefined && twin !== file.relPath) {
-      changes.push({ ...measured, status: 'skipped', detail: `The same content as ${twin}, which was read already.` });
+      changes.push({ ...measured, status: 'skipped', detail: t('datasets.file.sameContent', { file: twin }) });
       continue;
     }
     const read = await readPostingFile(kind, got.bytes, now);

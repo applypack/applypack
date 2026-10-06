@@ -157,12 +157,12 @@ function runCopy(steps: RunStep[]): { running: string; failed: string } {
 
 /**
  * The error a failed run shows. A chain that threw stored nothing, and the
- * letter routes store `LETTER_FAILED` as it is written, so both are worded
- * here, in the reader's language; any other error is the sentence its route wrote.
+ * letter routes store the key `LETTER_FAILED`, so both are worded here, in
+ * the reader's language; any other error is the sentence its route wrote.
  */
 function runError(error: string | undefined): string {
   if (error === undefined) return t(UNEXPECTED_FAILURE);
-  return error === LETTER_FAILED ? t('target.run.letterFailed') : error;
+  return error === LETTER_FAILED ? t(LETTER_FAILED) : error;
 }
 
 const RUN_BOOT = `

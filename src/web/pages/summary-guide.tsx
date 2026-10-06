@@ -2,9 +2,10 @@
 import type { FC } from 'hono/jsx';
 import type { CheckState, SummaryGuide } from '../../resume/summary-guide';
 import type { Tone } from '../format';
-import { Hint, TONE_TEXT } from '../ui';
+import { Hint, inEnglish, TONE_TEXT } from '../ui';
 import type { MessageKey } from '../../i18n/catalog';
 import { t } from '../../i18n/t';
+import { tRich } from '../rich';
 
 /** The mark a check carries, and the word a screen reader hears in its place ("In place:"), as a catalog key. */
 const MARK = {
@@ -33,11 +34,11 @@ export const SummaryGuideBlock: FC<{ guide: SummaryGuide }> = ({ guide }) => {
         </span>
       </div>
       {guide.reader && (
-        // Who reads first and what they scan for are the posting brief's own words.
+        // Who reads first and what they scan for are the posting brief's own words, in the English the model wrote.
         <Hint class="mt-0.5">
           {guide.scanFor.length > 0
-            ? t('summary.readerScans', { reader: guide.reader, list: guide.scanFor.join(' · ') })
-            : t('summary.reader', { reader: guide.reader })}
+            ? tRich('summary.readerScans', { reader: guide.reader, list: guide.scanFor.join(' · ') }, { en: inEnglish })
+            : tRich('summary.reader', { reader: guide.reader }, { en: inEnglish })}
         </Hint>
       )}
       <ul class="mt-2 space-y-1 text-meta">

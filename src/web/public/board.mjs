@@ -8,6 +8,8 @@
  * under node:test touches no DOM.
  */
 
+import { t } from './i18n.mjs';
+
 /** The request for one move, or null when there is nothing to do. */
 export function planMove(jobId, fromStage, toStage) {
   if (!jobId || !toStage || fromStage === toStage) return null;
@@ -47,7 +49,7 @@ function showMoveError(doc) {
   div.setAttribute('role', 'alert');
   div.className =
     'mb-4 rounded-lg border border-danger/30 bg-danger/5 px-4 py-2.5 text-sm text-danger';
-  div.textContent = 'Move failed — the stage was not changed. Try again.';
+  div.textContent = t('browser.board.moveFailed');
   doc.getElementById('main')?.firstElementChild?.prepend(div);
 }
 

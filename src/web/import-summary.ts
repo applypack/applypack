@@ -1,5 +1,6 @@
 import type { CronStats } from '../jobs/cron-run';
 import { filteredReasons, funnelCounts, reasonsText } from '../funnel';
+import { t } from '../i18n/t';
 import type { FlashKind } from './flash';
 
 /*
@@ -12,43 +13,28 @@ function num(stats: CronStats, key: string): number {
   return typeof v === 'number' ? v : 0;
 }
 
-const rows = (n: number): string => `${n.toLocaleString('en-US')} row${n === 1 ? '' : 's'}`;
+const say = (...sentences: (string | null)[]): string => sentences.filter((s) => s).join(' ');
 
 export function summarizeImport(stats: CronStats, fileName: string, source: string): { kind: FlashKind; text: string } {
-  if (stats.reason === 'overlap') {
-    return {
-      kind: 'warn',
-      text: 'Nothing was imported: a fetch is running (the hourly one, or Fetch now), and two at once would score the same postings twice. Its row on Runs shows when it is done; then press Import again.',
-    };
-  }
-  if (stats.reason === 'no-active-profile') {
-    return { kind: 'err', text: 'Nothing was imported: no search is running. Switch one on under Settings → Searches, then import again.' };
-  }
-  const fetched = num(stats, 'fetched');
-  if (stats.skippedBlankProfile === 1) {
-    return {
-      kind: 'warn',
-      text: `Nothing was stored from ${fileName}: every running search is empty, so nothing is scored. Give one a required stack or role types on Settings → Searches, then import again.`,
-    };
-  }
+  if (stats.reason === 'overlap') return { kind: 'warn', text: t('import.summary.overlap') };
+  if (stats.reason === 'no-active-profile') return { kind: 'err', text: t('import.summary.noSearch') };
+  if (stats.skippedBlankProfile === 1) return { kind: 'warn', text: t('import.summary.blank', { file: fileName }) };
   const stored = num(stats, 'persisted');
   const known = num(stats, 'duplicate');
   const why = reasonsText(filteredReasons(funnelCounts(stats)), 2);
-  const tail = `${known > 0 ? ` ${rows(known)} ${known === 1 ? 'was' : 'were'} already stored.` : ''}${why ? ` The filter set aside ${num(stats, 'filterRejected')}: ${why}.` : ''}`;
-  const head = `Imported ${fileName} into "${source}": ${rows(fetched)}, ${stored} new stored`;
+  const tail = [
+    known > 0 ? t('import.summary.known', { n: known }) : null,
+    why ? t('import.summary.filtered', { n: num(stats, 'filterRejected'), why }) : null,
+  ];
+  const head = { file: fileName, source, rows: num(stats, 'fetched'), stored };
   if (stats.classify === false) {
-    return {
-      kind: 'ok',
-      text: `${head} unscored — no AI spent while fetching is paused.${tail}${stored > 0 ? ' Score them later with Save & re-classify on Settings → Searches.' : ''}`,
-    };
+    return { kind: 'ok', text: say(t('import.summary.unscored', head), ...tail, stored > 0 ? t('fetchSummary.scoreLater') : null) };
   }
   if (stats.abortedMidRun === 1) {
-    return { kind: 'warn', text: `${head}; the rest was skipped when fetching was paused mid-run.${tail} Import the file again to add what is left.` };
+    return { kind: 'warn', text: say(t('import.summary.pausedMidRun', head), ...tail, t('import.summary.importRest')) };
   }
   const failed = num(stats, 'classifyFailed');
-  const scored = `${head}, ${num(stats, 'classified')} scored, ${num(stats, 'alerted')} alerted.${tail}`;
-  if (failed > 0) {
-    return { kind: 'warn', text: `${scored} ${rows(failed)} could not be scored — the AI engine failed — and ${failed === 1 ? 'was' : 'were'} not stored; import the file again to retry.` };
-  }
+  const scored = say(t('import.summary.scored', { ...head, scored: num(stats, 'classified'), alerted: num(stats, 'alerted') }), ...tail);
+  if (failed > 0) return { kind: 'warn', text: say(scored, t('import.summary.failed', { n: failed })) };
   return { kind: 'ok', text: scored };
 }

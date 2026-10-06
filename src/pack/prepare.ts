@@ -1,5 +1,6 @@
 import type { JobVerification, ResumeMatch } from '@prisma/client';
 import { prisma } from '../db';
+import { t } from '../i18n/t';
 import { logger } from '../logger';
 import { briefForPosting } from '../resume/brief';
 import { generateCoverLetter } from '../resume/cover-letter';
@@ -139,7 +140,7 @@ export async function preparePosting(posting: PackPosting, resume: PackResume, o
   const onError = (r: string): void => {
     reason = r;
   };
-  const because = (): string => reason || 'the engine gave no reason';
+  const because = (): string => reason || t('pack.why.noReason');
 
   const live = await timed('liveness', () =>
     runLivenessLadder({ url: posting.url, externalId: posting.externalId, atsType: posting.atsType, atsToken: posting.atsToken }),
@@ -158,7 +159,7 @@ export async function preparePosting(posting: PackPosting, resume: PackResume, o
   const row = out.match;
   const breakdown = row ? readBreakdown(row.breakdown) : null;
   if (!row || !breakdown) {
-    out.error = row ? 'The stored comparison carries no score breakdown.' : `The comparison failed: ${because()}`;
+    out.error = row ? t('pack.why.noBreakdown') : t('pack.why.compareFailed', { reason: because() });
     return out;
   }
   out.stop = compareStop({ breakdown, hard: readHardRequirements(row.hardRequirements), minCeiling: opts.minCeiling });

@@ -1,8 +1,10 @@
 import { z } from 'zod';
+import type { MessageKey } from '../i18n/catalog';
+import { t } from '../i18n/t';
 import { sectorMatches } from './sectors';
 import { monthsSinceLatest, parseRange, parseResumeDate, yearsCovered, type DateRange } from './dates';
 import { answerShape, type ImpactGrade, type OverallGrade, type ScreenAnswer, type ScreenReply, type ScreenRole } from './prompts';
-import { coreCriteria, CRITERION_MODES, EVIDENCE_RUNGS, SCREEN_LEVELS, type Criterion, type EvidenceRung, type Rubric } from './rubric';
+import { coreCriteria, CRITERION_MODES, EVIDENCE_RUNGS, SCREEN_LEVELS, wordedTable, type Criterion, type EvidenceRung, type Rubric } from './rubric';
 
 /*
  * The employer's score, version 2 (ADR 0050 over ADR 0047): the model
@@ -41,11 +43,12 @@ const SCREEN_SCORING = {
 } as const;
 
 export type GateBucket = 'pass' | 'ask' | 'fail';
-export const GATE_BUCKET_LABELS: Record<GateBucket, string> = {
-  pass: 'Priority to talk to',
-  ask: 'Ask first',
-  fail: 'Did not pass a gate',
-};
+/** Worded when read (rubric.ts:wordedTable); the export reads it under `withLocale('en')`. */
+export const GATE_BUCKET_LABELS = wordedTable<GateBucket>({
+  pass: 'screening.bucket.pass',
+  ask: 'screening.bucket.ask',
+  fail: 'screening.bucket.fail',
+});
 export type ConfidenceBand = 'high' | 'medium' | 'low';
 export type CapReason = 'core' | 'level' | 'impact';
 
@@ -372,16 +375,128 @@ function describeMonths(months: number): string {
 
 /** Plain-words reason for the cap — the table must never show a number it cannot explain. */
 export function capExplanation(bd: ScreenBreakdown): string | null {
+  const cap = bd.cap ?? '';
   switch (bd.capReason) {
     case 'core':
-      return `Capped at ${bd.cap}: none of the ${bd.coreTotal} core-stack skill${bd.coreTotal === 1 ? '' : 's'} is anywhere in the resume.`;
+      return t('screening.cap.core', { cap, n: bd.coreTotal });
     case 'level':
-      return `Capped at ${bd.cap}: the text reads two levels below the level the criterion asks for.`;
+      return t('screening.cap.level', { cap });
     case 'impact':
-      return `Capped at ${bd.cap}: the relevant roles list duties and technologies, never an outcome.`;
+      return t('screening.cap.impact', { cap });
     default:
       return null;
   }
+}
+
+/*
+ * A row's `answer` and `detail` are stored as scoreScreening wrote them, in
+ * English: they are data, and the export reads them as they are. A page words
+ * them on the way out — the shapes below are the ones written above, and
+ * anything else (the model's own note, a level) is shown as it was stored.
+ */
+
+const ANSWER_WORDS: Record<string, MessageKey> = {
+  absent: 'screening.answer.absent',
+  listed: 'screening.answer.listed',
+  project: 'screening.answer.project',
+  role: 'screening.answer.role',
+  production: 'screening.answer.production',
+  pass: 'screening.answer.pass',
+  partial: 'screening.answer.partial',
+  unknown: 'screening.answer.unknown',
+  fail: 'screening.answer.fail',
+  strong: 'screening.answer.strong',
+  ok: 'screening.answer.ok',
+  weak: 'screening.answer.weak',
+  exceptional: 'screening.answer.exceptional',
+  none: 'screening.answer.none',
+  'too little to say': 'screening.answer.tooLittle',
+  'no dated relevant role': 'screening.answer.noDatedRole',
+  'no sector read': 'screening.answer.noSector',
+  'no company type read': 'screening.answer.noCompanyType',
+};
+
+const RUNG_SHORT_WORDS: Record<EvidenceRung, MessageKey> = {
+  absent: 'screening.rungShort.absent',
+  listed: 'screening.rungShort.listed',
+  project: 'screening.rungShort.project',
+  role: 'screening.rungShort.role',
+  production: 'screening.rungShort.production',
+};
+
+const NUMBER = '(\\d+(?:\\.\\d+)?)';
+const YEARS_ANSWER = new RegExp(`^${NUMBER} years$`);
+const SHARE_ANSWER = /^(\d+)% of the years$/;
+
+/** A stored answer in the reader's language: "role", "pass", "strong", "9.8 years"; a level stays as written. */
+export function answerWords(answer: string): string {
+  if (Object.hasOwn(ANSWER_WORDS, answer)) return t(ANSWER_WORDS[answer]!);
+  const years = YEARS_ANSWER.exec(answer);
+  if (years) return t('screening.answer.years', { n: Number(years[1]) });
+  const share = SHARE_ANSWER.exec(answer);
+  if (share) return t('screening.answer.shareOfYears', { pct: Number(share[1]) });
+  return answer;
+}
+
+/** The badge's word: a rung in its short form ("skills list"), any other answer as `answerWords` gives it. */
+export function answerBadge(answer: string): string {
+  return Object.hasOwn(RUNG_SHORT_WORDS, answer) ? t(RUNG_SHORT_WORDS[answer as EvidenceRung]) : answerWords(answer);
+}
+
+const DETAIL_WORDS: Record<string, MessageKey> = {
+  'the resume does not say — ask': 'screening.detail.resumeSilent',
+  'the criterion names no level': 'screening.detail.noLevelAsked',
+  'too little to say — ask': 'screening.detail.tooLittle',
+  'an outcome line quoted': 'screening.detail.outcomeQuoted',
+  'no outcome line quoted': 'screening.detail.noOutcomeQuoted',
+  'ask which roles were this kind of work': 'screening.detail.askRoles',
+  'the text names no sectors — ask': 'screening.detail.noSectors',
+  'the text does not say what kind of companies — ask': 'screening.detail.noCompanyTypes',
+};
+
+const WHEN = '(this month|\\d+ months ago|\\d+ years ago)';
+const LEVEL = `(${SCREEN_LEVELS.join('|')})`;
+const DETAIL_STALE = new RegExp(`^last used ${WHEN} — past the (\\d+)-month window, half credit$`);
+const DETAIL_LAST_USED = /^last used (.+)$/s;
+const DETAIL_ASK = /^ask: (.+)$/s;
+const DETAIL_LEVEL = new RegExp(`^reads as ${LEVEL}; the criterion asks ${LEVEL}( or above| or below| \\(one rung either way\\)| exactly)$`);
+const DETAIL_YEARS = new RegExp(`^${NUMBER} relevant years?(?: of ${NUMBER} asked)?(?:, at most ${NUMBER})?; last ended ${WHEN}$`);
+const DETAIL_INDUSTRY = new RegExp(`^${NUMBER} years? in (.+?)(?: of ${NUMBER} asked)?$`, 's');
+const DETAIL_NO_ROLE_IN = /^no role in (.+)$/s;
+const DETAIL_COMPANY = /^(\d+) of (\d+) dated roles at (.+) companies$/s;
+const DETAIL_NO_ROLE_AT = /^no role at (.+) companies$/s;
+const TOLERANCE: Record<string, string> = { ' or above': 'atLeast', ' or below': 'atMost', ' (one rung either way)': 'one', ' exactly': 'exact' };
+
+/** "this month" / "3 months ago" / "2 years ago", as describeMonths wrote it. */
+function whenWords(when: string): string {
+  const n = Number(/\d+/.exec(when)?.[0]);
+  if (when.endsWith('months ago')) return t('screening.detail.monthsAgo', { n });
+  if (when.endsWith('years ago')) return t('screening.detail.yearsAgo', { n });
+  return t('screening.detail.thisMonth');
+}
+
+const optional = (n: string | undefined): string | number => (n === undefined ? 'none' : Number(n));
+
+/** A stored detail in the reader's language; the model's own words inside it stay as written. */
+export function detailWords(detail: string): string {
+  if (Object.hasOwn(DETAIL_WORDS, detail)) return t(DETAIL_WORDS[detail]!);
+  let m = DETAIL_STALE.exec(detail);
+  if (m) return t('screening.detail.stale', { when: whenWords(m[1]!), window: Number(m[2]) });
+  if ((m = DETAIL_LEVEL.exec(detail))) return t('screening.detail.level', { observed: m[1]!, wanted: m[2]!, tolerance: TOLERANCE[m[3]!] ?? 'exact' });
+  if ((m = DETAIL_YEARS.exec(detail))) {
+    return t('screening.detail.years', { years: Number(m[1]), min: optional(m[2]), max: optional(m[3]), when: whenWords(m[4]!) });
+  }
+  if ((m = DETAIL_COMPANY.exec(detail))) return t('screening.detail.companyType', { n: Number(m[1]), total: Number(m[2]), items: m[3]! });
+  if ((m = DETAIL_NO_ROLE_AT.exec(detail))) return t('screening.detail.noRoleAt', { items: m[1]! });
+  if ((m = DETAIL_INDUSTRY.exec(detail))) return t('screening.detail.industry', { years: Number(m[1]), items: m[2]!, min: optional(m[3]) });
+  if ((m = DETAIL_NO_ROLE_IN.exec(detail))) return t('screening.detail.noRoleIn', { items: m[1]! });
+  if ((m = DETAIL_LAST_USED.exec(detail))) return t('screening.detail.lastUsed', { date: m[1]! });
+  if ((m = DETAIL_ASK.exec(detail))) return t('screening.detail.ask', { question: m[1]! });
+  // The overall read: the model's reasons, its concerns marked by us.
+  return detail
+    .split('; ')
+    .map((part) => (part.startsWith('concern: ') ? t('screening.detail.concern', { text: part.slice('concern: '.length) }) : part))
+    .join('; ');
 }
 
 /** Bucket first, score inside it, confidence on ties, then the applicant number — the table's order. */

@@ -5,6 +5,7 @@ import { buildStructurePrompt, parseStructureResponse, RESUME_TIMEOUT_MS, STRUCT
 import type { JsonResume } from './json-resume';
 import { anchorStructure, structureIsUsable } from './structure-anchor';
 import { saveResumeStructure } from './store';
+import { t } from '../i18n/t';
 
 /**
  * The resume as a shape (ADR 0039), read by its own call and stored — asked
@@ -53,7 +54,7 @@ export async function structureResume(
     'resume: structure anchored',
   );
   if (!usable) {
-    onError?.('the model rewrote the resume instead of copying it — nothing usable to store');
+    onError?.(t('render.run.rewritten'));
     return null;
   }
   await saveResumeStructure(resume.id, report.structure);

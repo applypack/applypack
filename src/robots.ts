@@ -40,6 +40,7 @@
  */
 
 import { AI_PROVIDER_IDS, aiCrawlerTokens } from './ai-engine';
+import { t } from './i18n/t';
 
 /** Our own product token — the first word of DEFAULT_USER_AGENT. */
 export const OUR_TOKEN = 'applypack';
@@ -233,7 +234,7 @@ export function isAllowed(robots: Robots, path: string, tokens: readonly string[
   if (robots.signals['ai-input'] === false) {
     return {
       allowed: false,
-      reason: `This site publishes "Content-Signal: ai-input=no" — every posting here would be read by an AI, so that refusal covers us (ADR 0005).`,
+      reason: t('probe.robots.contentSignal'),
     };
   }
   const binding = robots.signals['ai-input'] === true ? [OUR_TOKEN] : tokens;
@@ -249,9 +250,7 @@ export function isAllowed(robots: Robots, path: string, tokens: readonly string[
         allowed: false,
         refusedBy: token,
         reason:
-          token === OUR_TOKEN
-            ? `This site's robots.txt asks crawlers not to fetch ${path}.`
-            : `This site's robots.txt tells ${token} not to fetch ${path} — every posting here would be read by an AI classifier, so that refusal covers us (ADR 0005).`,
+          token === OUR_TOKEN ? t('probe.robots.disallowed', { path }) : t('probe.robots.disallowedAi', { token, path }),
       };
     }
   }
@@ -274,7 +273,7 @@ export function robotsAllows(
   if (status < 200 || status >= 300) {
     return {
       allowed: false,
-      reason: `Could not read that site's robots.txt (HTTP ${status || 'no answer'}) — nothing is fetched until it says we may.`,
+      reason: status ? t('probe.robots.unreadable', { status }) : t('probe.robots.noAnswer'),
     };
   }
   return isAllowed(parseRobots(body), path, tokens);

@@ -12,6 +12,7 @@
  */
 
 import { diffLines } from './line-diff.mjs';
+import { t } from './i18n.mjs';
 
 /** Shortest key worth marking or matching: under this, "and" would light up half the page. */
 const MIN_KEY = 4;
@@ -287,7 +288,7 @@ function loadVendor() {
         const script = document.createElement('script');
         script.src = src;
         script.onload = resolve;
-        script.onerror = () => reject(new Error('could not load ' + src));
+        script.onerror = () => reject(new Error(t('browser.doc.loadFailed', { src })));
         document.head.appendChild(script);
       });
     }
@@ -324,7 +325,7 @@ export function mountDocPane({ pane, notice, resumeId, name, baseText, getText, 
     const mine = ++token;
     const text = getText();
     drawingText = text;
-    say('Drawing the document…');
+    say(t('browser.doc.drawing'));
     let data;
     try {
       const docx = await loadVendor();
@@ -333,14 +334,14 @@ export function mountDocPane({ pane, notice, resumeId, name, baseText, getText, 
         body: new URLSearchParams({ text, baseText, name, as: 'preview' }),
       });
       if (mine !== token) return;
-      if (!res.ok) throw new Error((await res.json().catch(() => null))?.error ?? `the server answered ${res.status}`);
+      if (!res.ok) throw new Error((await res.json().catch(() => null))?.error ?? t('browser.server.answered', { status: res.status }));
       data = await res.json();
       await docx.renderAsync(bytesOf(data.docx), stageBody, stageStyles, RENDER_OPTIONS);
       await new Promise((r) => setTimeout(r, TAB_SETTLE_MS));
     } catch (err) {
       if (mine === token) {
         drawingText = null;
-        say('Could not draw the document: ' + err.message + '. The plain text is intact.');
+        say(t('browser.doc.drawFailed', { reason: err.message }));
       }
       return;
     }
@@ -363,7 +364,7 @@ export function mountDocPane({ pane, notice, resumeId, name, baseText, getText, 
     measure();
     mark(text);
     fit();
-    say(data.kind === 'own' ? 'Your own file, with the edits in it.' : 'The clean version, in your typeface.');
+    say(t(data.kind === 'own' ? 'browser.doc.own' : 'browser.doc.clean'));
   }
 
   /** The sheet's page geometry, read off the section docx-preview drew (its padding is the file's margins). */
@@ -384,7 +385,7 @@ export function mountDocPane({ pane, notice, resumeId, name, baseText, getText, 
       const guide = document.createElement('div');
       guide.className = 'doc-page-guide';
       guide.style.top = y + 'px';
-      guide.textContent = '≈ page ' + (n + 2);
+      guide.textContent = t('browser.doc.pageGuide', { n: n + 2 });
       sheet.appendChild(guide);
     }
   }
@@ -435,12 +436,12 @@ export function mountDocPane({ pane, notice, resumeId, name, baseText, getText, 
     if (editing?.p === p) return;
     if (editing) commit();
     if (p.querySelector('math')) {
-      say('This line holds a formula — edit it in Plain text, where the formula is its own characters.');
+      say(t('browser.doc.formula'));
       return;
     }
     const occurrence = occurrenceOf(p);
     if (!locateParagraph(getText(), p.textContent, occurrence)) {
-      say('This line is drawn from more than one line of your text — edit it in Plain text.');
+      say(t('browser.doc.multiLine'));
       return;
     }
     // Escape puts back these very nodes: no round trip through the HTML parser.
@@ -456,7 +457,7 @@ export function mountDocPane({ pane, notice, resumeId, name, baseText, getText, 
       sel.removeAllRanges();
       sel.addRange(range);
     }
-    say('Editing this paragraph — Enter keeps it, Escape puts it back.');
+    say(t('browser.doc.editing'));
   }
 
   function end() {
@@ -479,11 +480,11 @@ export function mountDocPane({ pane, notice, resumeId, name, baseText, getText, 
     const at = locateParagraph(getText(), words, occurrence);
     if (!at) {
       p.replaceChildren(...saved.childNodes);
-      say('Your text changed while you were editing, so this paragraph could not be found again — nothing was changed.');
+      say(t('browser.doc.lost'));
       return;
     }
     setText(rewriteSpan(getText(), at, after));
-    say(after.trim() ? 'Changed. Undo with reset edits, or edit it again.' : 'Removed that line.');
+    say(t(after.trim() ? 'browser.doc.changed' : 'browser.doc.removed'));
     draw();
   }
 
@@ -491,7 +492,7 @@ export function mountDocPane({ pane, notice, resumeId, name, baseText, getText, 
     if (!editing) return;
     editing.p.replaceChildren(...editing.saved.childNodes);
     end();
-    say('Put back as it was.');
+    say(t('browser.doc.putBack'));
   }
 
   pane.addEventListener('click', (event) => {
@@ -547,7 +548,7 @@ export function mountDocPane({ pane, notice, resumeId, name, baseText, getText, 
    * the user's own .docx, which no renderer of ours re-draws.
    */
   function print(title) {
-    if (!page || !pane.querySelector('section.docx')) { say('The document is still being drawn — try again in a moment.'); return; }
+    if (!page || !pane.querySelector('section.docx')) { say(t('browser.doc.stillDrawing')); return; }
     for (const old of document.querySelectorAll('.doc-print-frame')) old.remove();
     const frame = document.createElement('iframe');
     frame.className = 'doc-print-frame';
