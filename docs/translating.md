@@ -129,6 +129,15 @@ replaces a row here first and the catalog second.
 | model | модель | Modell | modelo | modèle | मॉडल |
 | settings | налаштування | Einstellungen | configuración | paramètres | सेटिंग्स |
 | schedule | розклад | Zeitplan | horario | horaires | शेड्यूल |
+| pipeline (the fetching) | збір вакансій | Abruf | recopilación | collecte | संग्रह |
+| Fetch now | Зібрати зараз | Jetzt abrufen | Obtener ahora | Récupérer maintenant | अभी लाएँ |
+| gate (a requirement that must hold) | обов'язкова умова | Muss-Bedingung | requisito excluyente | condition éliminatoire | अनिवार्य शर्त |
+| fit threshold | поріг відповідності | Passungsschwelle | umbral de compatibilidad | seuil d'adéquation | फ़िट सीमा |
+| to score / scored / unscored | оцінити / оцінено / без оцінки | bewerten / bewertet / unbewertet | puntuar / puntuada / sin puntuar | noter / notée / non notée | स्कोर करना / स्कोर किया गया / बिना स्कोर |
+| dismissed | відхилено | verworfen | descartada | écartée | खारिज |
+| stage (a board column) | етап | Phase | etapa | étape | चरण |
+| comparison (resume with a posting) | порівняння | Vergleich | comparación | comparaison | तुलना |
+| search funnel | воронка пошуку | Suchtrichter | embudo de búsqueda | entonnoir de recherche | खोज फ़नल |
 | remote / hybrid / on-site | віддалено / гібридно / в офісі | Remote / Hybrid / vor Ort | remoto / híbrido / presencial | télétravail / hybride / sur site | रिमोट / हाइब्रिड / ऑन-साइट |
 
 The menu:
