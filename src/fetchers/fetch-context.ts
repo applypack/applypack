@@ -19,6 +19,8 @@ export interface FetchContext {
   manual?: boolean;
   /** When the tick runs — for sources polled on a cadence. */
   now?: Date;
+  /** False while fetching is paused: a source that needs a model to read a row leaves it for later (ADR 0062). Absent = true. */
+  scoring?: boolean;
 }
 
 export const EMPTY_CONTEXT: FetchContext = { countries: [], regions: [] };

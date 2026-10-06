@@ -4,6 +4,28 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.50.0] — 2026-10-06
+
+### Added
+- **A folder of postings you save.** Companies → Add sources → **A folder
+  on this computer** now takes a folder you save postings into: "Save page
+  as…" in the browser, a page printed to PDF, a `.docx`, a text or Markdown
+  file. Each file becomes one job, taken as a posting you pasted: scored,
+  never set aside by a search's filter, and kept as Saved when no search
+  wants it. A match alerts like any other and says which folder and file it
+  came from; the folder's **Alerts** can be set to "No alerts", which also
+  prepares no application pack for it.
+- Code reads what it can first: a page's own posting block (title, company,
+  place, date), its address, its main text. The AI engine is asked for the
+  title and company only when the file does not state them, never twice for
+  the same file, and never while fetching is paused. What a browser saves
+  beside a page (its `_files` folder) is passed over.
+- **Read within a minute with `npm start`.** The worker watches these
+  folders and reads a saved file a few seconds after it lands, outside your
+  search hours too. In Docker they are read at the hourly check.
+- The job page says which folder and file a job came from, and a folder's
+  **Files** page links each file to its job.
+
 ## [2.49.0] — 2026-10-06
 
 ### Added
@@ -4881,6 +4903,7 @@ commit history.
 | 2026-08-30 | AI engine chain, settings tabs, profile fill — **v0.2.0**; readable descriptions + full-width dashboard — **v0.2.1** |
 | 2026-08-31 | Liveness ladder — **v0.3.0**; fetchers wave 1 — **v0.4.0**; starter packs — **v0.5.0**; cross-source dedup — **v0.6.0**; source health — **v0.7.0**; cover letters + fact gate — **v0.8.0**; untrusted-content fences — **v0.9.0**; safe local defaults — **v0.10.0** |
 
+[2.50.0]: https://github.com/applypack/applypack/compare/v2.49.0...v2.50.0
 [2.49.0]: https://github.com/applypack/applypack/compare/v2.48.0...v2.49.0
 [2.48.0]: https://github.com/applypack/applypack/compare/v2.47.1...v2.48.0
 [2.47.1]: https://github.com/applypack/applypack/compare/v2.47.0...v2.47.1

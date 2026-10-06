@@ -181,7 +181,10 @@ companiesRoute.get('/companies', async (c) => {
   const summaries = companies.some((c) => c.atsType === AtsType.FOLDER) ? await folderSummaries() : new Map();
   const folders = companies
     .filter((c) => c.atsType === AtsType.FOLDER)
-    .map((c) => ({ id: c.id, name: c.name, path: c.atsToken, active: c.active, include: readSourceConfig(c.sourceConfig)?.include ?? null, summary: summaries.get(c.id) }));
+    .map((c) => {
+      const kept = readSourceConfig(c.sourceConfig);
+      return { id: c.id, name: c.name, path: c.atsToken, active: c.active, include: kept?.include ?? null, holds: kept?.holds ?? 'rows', summary: summaries.get(c.id) };
+    });
 
   const flash = parseFlashCookie(c.req.header('cookie'));
   return c.html(

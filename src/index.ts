@@ -15,7 +15,10 @@ import { recordCronRun, type CronStats } from './jobs/cron-run';
 import { spreadMinute } from './schedule';
 import { getInstanceId, getSchedule } from './settings';
 import { isDigestHour, isFirstDigestHour, type Schedule } from './user-schedule';
-import { announceReady, onLauncherStop } from './local/child';
+import { announceReady, onLauncherStop, underLauncher } from './local/child';
+import { startFolderWatch, type FolderWatch } from './jobs/folder-watch';
+import { WATCH_RETRY_MS } from './jobs/folder-watch-plan';
+import { getSettings } from './settings';
 import { stopCliChildren } from './ai-provider';
 import { HEARTBEAT_EVERY_MS } from './heartbeat';
 
@@ -24,6 +27,10 @@ const SHUTDOWN_MAX_WAIT_MS = 60_000;
 
 let inFlight = 0;
 let shuttingDown = false;
+/** Watches the folders of saved postings on a local install (ADR 0062); null on a server. */
+let folderWatch: FolderWatch | null = null;
+/** A folder check holds the fetch lock right now. */
+let folderChecking = false;
 /** This install's identity — read once in main(), before anything registers. */
 let instanceId = '';
 
@@ -43,7 +50,7 @@ async function main(): Promise<void> {
   // the same board in the same second (docs/scale-plan.md §2).
   instanceId = await getInstanceId();
 
-  registerCron('5 * * * *', 'fetch', () => recordCronRun('fetch', runFetchJob));
+  registerCron('5 * * * *', 'fetch', fetchTick);
   // Both daily summaries follow the one "digest time" the user picks
   // (TASKS §16.4), so the heartbeat is hourly and the hour decides. They read
   // that hour differently: the recap is a window and goes out at every digest
@@ -87,9 +94,61 @@ async function main(): Promise<void> {
   });
   onLauncherStop((reason) => void shutdown(reason));
 
+  // A posting saved into a folder is read within a minute, not at the next hour (ADR 0062).
+  // Only under the launcher: a change seen through a Docker bind mount is not reliable.
+  if (underLauncher()) folderWatch = startFolderWatch(checkFolder);
+
   logger.info({ tz: config.TZ }, 'applypack: cron registered, idle');
   if (config.HEARTBEAT_FILE) startHeartbeat(config.HEARTBEAT_FILE);
   announceReady();
+}
+
+/**
+ * One folder source looked at now, because something in it changed: the
+ * fetch scoped to that row, under the same lock as the tick. Never while
+ * fetching is paused — a saved posting waits for the pipeline as every source
+ * does — and outside the search hours too, since the user has just saved it.
+ * `busy` when another fetch held the lock: the watcher tries again later.
+ */
+async function checkFolder(companyId: number): Promise<'done' | 'busy'> {
+  if (shuttingDown || !(await getSettings()).fetchingEnabled) return 'done';
+  inFlight++;
+  folderChecking = true;
+  let overlap = false;
+  try {
+    await recordCronRun('folder-watch', async () => {
+      const out = await runFetchJob({ manual: true, only: (c) => c.id === companyId });
+      overlap = out.stats.reason === 'overlap';
+      return out;
+    });
+  } finally {
+    folderChecking = false;
+    inFlight--;
+  }
+  return overlap ? 'busy' : 'done';
+}
+
+/**
+ * The hourly tick. One that met a folder check holding the lock tries once
+ * more a minute later, so a saved posting never costs the hour its search.
+ */
+async function fetchTick(): Promise<void> {
+  const blockedByFolder = folderChecking;
+  let overlap = false;
+  await recordCronRun('fetch', async () => {
+    const out = await runFetchJob();
+    overlap = out.stats.reason === 'overlap';
+    return out;
+  });
+  if (overlap && (blockedByFolder || folderChecking)) {
+    setTimeout(() => {
+      if (shuttingDown) return;
+      inFlight++;
+      void recordCronRun('fetch', runFetchJob)
+        .catch((err) => logger.warn({ err }, 'cron: the retried fetch failed'))
+        .finally(() => inFlight--);
+    }, WATCH_RETRY_MS).unref();
+  }
 }
 
 /** The container healthcheck's evidence that this process still turns (heartbeat.ts). */
@@ -166,6 +225,7 @@ async function shutdown(signal: string): Promise<void> {
   shuttingDown = true;
   // No further pack starts, and the one in flight goes back in the queue.
   stopPackJob();
+  folderWatch?.stop();
   // The CLI calls go first: a job waited on here ends as soon as its call
   // does, and a child left behind would run on, orphaned, on the user's plan (H43).
   logger.info({ signal, inFlight, cliChildren: stopCliChildren() }, 'shutdown: waiting for in-flight jobs');

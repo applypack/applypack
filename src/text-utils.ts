@@ -354,3 +354,21 @@ export function clipWords(text: string, max: number): string {
   const kept = space > max * WORD_BOUNDARY_FLOOR ? cut.slice(0, space) : cut;
   return `${kept.replace(TRAILING_PUNCTUATION, '').replace(DANGLING_TAIL, '').replace(TRAILING_PUNCTUATION, '')}…`;
 }
+
+/** Control characters a posting never means: a NUL above all, which Postgres refuses in a text column. Tab and line breaks stay. */
+const CONTROL_RE = /[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g;
+
+/** Half of a surrogate pair on its own: not a character. */
+const LONE_SURROGATE_RE = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g;
+
+/** Text a database can hold: no control characters, no half of a surrogate pair. */
+export function storableText(text: string): string {
+  return text.replace(CONTROL_RE, '').replace(LONE_SURROGATE_RE, '');
+}
+
+/** A cap that does not leave half a character behind. */
+export function clipText(text: string, max: number): string {
+  if (text.length <= max) return text;
+  const last = text.charCodeAt(max - 1);
+  return text.slice(0, last >= 0xd800 && last <= 0xdbff ? max - 1 : max);
+}

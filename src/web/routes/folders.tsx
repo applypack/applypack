@@ -6,8 +6,24 @@ import { Hono } from 'hono';
 import { config } from '../../config';
 import { FolderError, currentFolderRules, listFolder, readFolderFile, realFolder } from '../../datasets/folder-io';
 import { folderAllowed, folderPathFrom } from '../../datasets/folder-path';
-import { MAX_ROWS_PER_LOOK, includeMatcher, judgeFile, planScan, rowFileKind, type ListedFile } from '../../datasets/folder-scan';
 import {
+  MAX_ROWS_PER_LOOK,
+  guessHolds,
+  includeMatcher,
+  judgeFile,
+  maxBytesOf,
+  pageResources,
+  planScan,
+  postingFileKind,
+  rowFileKind,
+  tooLargeNote,
+  type FolderHolds,
+  type LedgerEntry,
+  type ListedFile,
+  type PostingKind,
+} from '../../datasets/folder-scan';
+import {
+  FOLDER_ALERTS,
   MAPPING_FIELDS,
   MAX_INCLUDE_CHARS,
   MappingSchema,
@@ -16,10 +32,12 @@ import {
   mapRows,
   readSourceConfig,
   usableMapping,
+  type FolderAlerts,
   type Mapping,
   type MappingField,
   type SourceConfig,
 } from '../../datasets/map';
+import { needsModel, readPostingFile } from '../../datasets/posting-file';
 import { previewCounts } from '../../datasets/preview';
 import { decodeBody, findRows, type Row, type RowFormat } from '../../datasets/rows';
 import { prisma } from '../../db';
@@ -30,13 +48,14 @@ import { underLauncher } from '../../local/child';
 import { logger } from '../../logger';
 import { isBlankProfile } from '../../profile-guards';
 import { listActiveProfiles } from '../../profiles';
+import type { Profile } from '@prisma/client';
 import { getSettings } from '../../settings';
 import type { NormalizedJob } from '../../types';
 import { spendHint } from '../cost-hint';
 import { flashRedirect } from '../flash';
 import { explainFolderFault } from '../folder-words';
 import { createInbox } from '../inbox-folder';
-import { FolderFilesPage, FolderPreviewPage, type FolderPreviewProps } from '../pages/folder-source';
+import { FolderFilesPage, FolderPreviewPage, type PostingSample, type PostingsPreviewProps, type RowsPreviewProps } from '../pages/folder-source';
 import { idParam } from '../params';
 
 /*
@@ -92,9 +111,24 @@ function postedMapping(form: Record<string, unknown>, columns: readonly string[]
   return MAPPING_FIELDS.every((f) => parsed.data[f] === null || columns.includes(parsed.data[f])) ? parsed.data : null;
 }
 
-type Preview = Omit<FolderPreviewProps, 'flash'>;
+type Preview = Omit<RowsPreviewProps, 'flash'> | Omit<PostingsPreviewProps, 'flash'>;
+type RowsPreview = Omit<RowsPreviewProps, 'flash'>;
 
-/** What Check shows: the folder as it is now, the mapping, and what a first look would hand to the pipeline. */
+const isHolds = (value: unknown): value is FolderHolds => value === 'rows' || value === 'postings';
+const isAlerts = (value: unknown): value is FolderAlerts => FOLDER_ALERTS.some((a) => a === value);
+
+/** Running searches, how many can score, and whether scoring runs at all: what both previews say. */
+async function searchesNow(): Promise<{ scoring: boolean; active: Profile[]; roster: Profile[] }> {
+  const [settings, active] = await Promise.all([getSettings(), listActiveProfiles()]);
+  const scoring = settings.fetchingEnabled;
+  return { scoring, active, roster: scoring ? active.filter((p) => !isBlankProfile(p)) : active };
+}
+
+/**
+ * What Check shows: the folder as it is now, read as what it holds — the
+ * form's choice, else what the source holds, else what its files suggest —
+ * and what a first look would hand to the pipeline.
+ */
 async function previewFolder(root: string, form: Record<string, unknown>): Promise<Preview | { error: string }> {
   let listing: ListedFile[];
   try {
@@ -111,24 +145,48 @@ async function previewFolder(root: string, form: Record<string, unknown>): Promi
   // The form's own words win; a folder checked again from its row brings what the row holds.
   const include = (typeof form.include === 'string' ? text(form.include) : (kept?.include ?? '')).slice(0, MAX_INCLUDE_CHARS) || null;
   const name = (text(form.name) || existing?.name || path.basename(root)).slice(0, MAX_NAME_CHARS);
-
   const matches = includeMatcher(include);
+  const holds = isHolds(form.holds) ? form.holds : (kept?.holds ?? guessHolds(listing, matches));
+  const alerts = isAlerts(form.alerts) ? form.alerts : (kept?.alerts ?? 'matches');
+  const now = new Date();
+  const ledger = existing ? await loadLedger(existing.id) : [];
+  const base = { path: root, name, include, existing: existing ? { id: existing.id, active: existing.active } : null, alerts };
+  if (holds === 'postings') return previewPostings(root, listing, ledger, matches, now, base);
+  return previewRows(root, listing, ledger, matches, now, form, existing?.id ?? null, kept?.holds === 'rows' ? kept.mapping : null, base);
+}
+
+type PreviewBase = Pick<RowsPreviewProps, 'path' | 'name' | 'include' | 'existing' | 'alerts'>;
+
+/** A folder a tool writes into: its row files, the mapping, and the rows a first look would hand over. */
+async function previewRows(
+  root: string,
+  listing: ListedFile[],
+  ledger: LedgerEntry[],
+  matches: (relPath: string) => boolean,
+  now: Date,
+  form: Record<string, unknown>,
+  existingId: number | null,
+  keptMapping: Mapping | null,
+  base: PreviewBase,
+): Promise<RowsPreview> {
   const rowFiles = listing.filter((f) => rowFileKind(f.relPath) !== null && matches(f.relPath));
   const kinds: Partial<Record<RowFormat, number>> = {};
   for (const file of rowFiles) {
     const kind = rowFileKind(file.relPath)!;
     kinds[kind] = (kinds[kind] ?? 0) + 1;
   }
-  const now = new Date();
-  const ledger = existing ? await loadLedger(existing.id) : [];
   const plan = planScan(listing, ledger, now.getTime(), matches);
 
   const rows = await sampleRows(root, plan.read.length > 0 ? plan.read : rowFiles);
   // A folder's files need not all carry every column: the ones its mapping already names stay on offer,
   // so checking it again against three other files cannot lose them. They were offered once, so none is about a person.
-  const columns = [...new Set([...columnsOf(rows), ...(kept ? MAPPING_FIELDS.flatMap((f) => kept.mapping[f] ?? []) : [])])];
+  const columns = [...new Set([...columnsOf(rows), ...(keptMapping ? MAPPING_FIELDS.flatMap((f) => keptMapping[f] ?? []) : [])])];
   const posted = postedMapping(form, columns);
-  const detected = posted ? { mapping: posted, guessed: [] as MappingField[] } : kept ? { mapping: kept.mapping, guessed: [] as MappingField[] } : detectMapping(rows, now);
+  const detected = posted
+    ? { mapping: posted, guessed: [] as MappingField[] }
+    : keptMapping
+      ? { mapping: keptMapping, guessed: [] as MappingField[] }
+      : detectMapping(rows, now);
 
   // The first look, as the fetcher would take it (fetchers/folder.ts), with nothing staged and nothing stored.
   const readAs = new Map(ledger.filter((e) => e.status === 'done' && e.sha256 !== null).map((e) => [e.sha256!, e.relPath]));
@@ -137,7 +195,7 @@ async function previewFolder(root: string, form: Record<string, unknown>): Promi
   if (usableMapping(detected.mapping)) {
     for (const file of plan.read) {
       if (jobs.length >= MAX_ROWS_PER_LOOK) break;
-      const verdict = judgeFile(file, await readFolderFile(root, file.relPath), detected.mapping, existing?.id ?? 0, readAs);
+      const verdict = judgeFile(file, await readFolderFile(root, file.relPath), detected.mapping, existingId ?? 0, readAs);
       if (verdict.rows === 'misfit') misfits++;
       if (verdict.rows === 'fit') {
         readAs.set(verdict.change!.sha256!, file.relPath);
@@ -146,23 +204,18 @@ async function previewFolder(root: string, form: Record<string, unknown>): Promi
     }
   }
 
-  const [settings, active, employers, stored] = await Promise.all([
-    getSettings(),
-    listActiveProfiles(),
+  const [{ scoring, active, roster }, employers, stored] = await Promise.all([
+    searchesNow(),
     loadEmployerRules(now),
-    existing && jobs.length > 0
-      ? prisma.job.findMany({ where: { companyId: existing.id, externalId: { in: [...new Set(jobs.map((j) => j.externalId))] } }, select: { externalId: true } })
+    existingId !== null && jobs.length > 0
+      ? prisma.job.findMany({ where: { companyId: existingId, externalId: { in: [...new Set(jobs.map((j) => j.externalId))] } }, select: { externalId: true } })
       : [],
   ]);
-  const scoring = settings.fetchingEnabled;
-  const roster = scoring ? active.filter((p) => !isBlankProfile(p)) : active;
   const unique = [...new Map(jobs.map((j) => [j.externalId, j])).values()];
-  const counts = previewCounts(unique, roster, new Set(stored.map((s) => s.externalId)), (job) => employerGate(hiringKey(job.employer, name, true), employers) !== null);
+  const counts = previewCounts(unique, roster, new Set(stored.map((s) => s.externalId)), (job) => employerGate(hiringKey(job.employer, base.name, true), employers) !== null);
   return {
-    path: root,
-    name,
-    include,
-    existing: existing ? { id: existing.id, active: existing.active } : null,
+    ...base,
+    holds: 'rows',
     kinds,
     other: plan.other,
     newest: [...rowFiles].sort((a, b) => b.mtimeMs - a.mtimeMs).slice(0, NEWEST_SHOWN).map((f) => f.relPath),
@@ -177,6 +230,60 @@ async function previewFolder(root: string, form: Record<string, unknown>): Promi
     scoring,
     searches: { running: active.length, usable: roster.length },
     cost: scoring && counts.passing > 0 ? await spendHint('classifier') : '',
+  };
+}
+
+/**
+ * A folder the user saves postings into: its files, the newest five as code
+ * reads them with no model, and what the first look would cost. Nothing here
+ * asks a model: "read by the AI engine" is what the page says, not a call.
+ */
+async function previewPostings(
+  root: string,
+  listing: ListedFile[],
+  ledger: LedgerEntry[],
+  matches: (relPath: string) => boolean,
+  now: Date,
+  base: PreviewBase,
+): Promise<Omit<PostingsPreviewProps, 'flash'>> {
+  // As the look takes them (fetchers/folder.ts): what a browser saves beside a page is not a posting.
+  const resource = pageResources(listing);
+  const take = (relPath: string): boolean => matches(relPath) && !resource(relPath);
+  const files = listing.filter((f) => postingFileKind(f.relPath) !== null && take(f.relPath));
+  const kinds: Partial<Record<PostingKind, number>> = {};
+  for (const file of files) {
+    const kind = postingFileKind(file.relPath)!;
+    kinds[kind] = (kinds[kind] ?? 0) + 1;
+  }
+  const plan = planScan(listing, ledger, now.getTime(), take, postingFileKind);
+  const newest: PostingSample[] = [];
+  for (const file of [...files].sort((a, b) => b.mtimeMs - a.mtimeMs).slice(0, NEWEST_SHOWN)) {
+    const kind = postingFileKind(file.relPath)!;
+    const got = await readFolderFile(root, file.relPath, maxBytesOf(kind));
+    const sample = { relPath: file.relPath, kind, title: null, company: null, address: null, asksModel: false };
+    if (!got.ok) {
+      newest.push({ ...sample, why: got.why === 'too-large' ? tooLargeNote(kind) : 'It could not be read just now.' });
+      continue;
+    }
+    const read = await readPostingFile(kind, got.bytes, now);
+    newest.push(
+      read.ok
+        ? { ...sample, title: read.facts?.title ?? read.pageTitle, company: read.facts?.company ?? null, address: read.address, asksModel: needsModel(read), why: null }
+        : { ...sample, why: read.why },
+    );
+  }
+  const { scoring, active, roster } = await searchesNow();
+  const cost = scoring && plan.read.length > 0 ? await spendHint('classifier') : '';
+  return {
+    ...base,
+    holds: 'postings',
+    kinds,
+    other: plan.other,
+    newest,
+    plan: { read: plan.read.length, later: plan.later.length, waiting: plan.waiting.length, tooLarge: plan.tooLarge.length, unchanged: plan.unchanged },
+    scoring,
+    searches: { running: active.length, usable: roster.length },
+    cost,
   };
 }
 
@@ -219,17 +326,22 @@ foldersRoute.post('/companies/folder', async (c) => {
   if ('error' in folder) return flashRedirect(BACK, 'err', `Nothing was added. ${folder.error}`);
   const preview = await previewFolder(folder.root, form);
   if ('error' in preview) return flashRedirect(BACK, 'err', `Nothing was added. ${preview.error}`);
-  // The mapping must be the form's own: one this request's sample accepted, column by column.
-  const mapping = postedMapping(form, preview.columns);
-  if (!mapping || !usableMapping(mapping) || mapRows(preview.rows, mapping, 0, new Date()).jobs.length === 0) {
-    return c.html(
-      <FolderPreviewPage
-        {...preview}
-        flash={{ kind: 'err', text: 'Nothing was saved. Choose the column that holds the job title, and one that holds a link or an id; the files in the folder must give at least one job.' }}
-      />,
-    );
+  let config: SourceConfig;
+  if (preview.holds === 'postings') {
+    config = { holds: 'postings', mapping: null, include: preview.include, alerts: preview.alerts };
+  } else {
+    // The mapping must be the form's own: one this request's sample accepted, column by column.
+    const mapping = postedMapping(form, preview.columns);
+    if (!mapping || !usableMapping(mapping) || mapRows(preview.rows, mapping, 0, new Date()).jobs.length === 0) {
+      return c.html(
+        <FolderPreviewPage
+          {...preview}
+          flash={{ kind: 'err', text: 'Nothing was saved. Choose the column that holds the job title, and one that holds a link or an id; the files in the folder must give at least one job.' }}
+        />,
+      );
+    }
+    config = { holds: 'rows', mapping, include: preview.include, alerts: preview.alerts };
   }
-  const config: SourceConfig = { mapping, include: preview.include };
   const sourceConfig = config as Prisma.InputJsonValue;
   const saved = await prisma.company.upsert({
     where: { atsType_atsToken: { atsType: AtsType.FOLDER, atsToken: folder.root } },
@@ -238,14 +350,16 @@ foldersRoute.post('/companies/folder', async (c) => {
     select: { id: true },
   });
   // A new mapping may read what the old one could not: files that misfit wait for the next look.
-  if (preview.existing) await prisma.sourceFile.updateMany({ where: { companyId: saved.id, status: 'failed', sha256: { not: null } }, data: { status: 'waiting' } });
+  if (preview.existing && preview.holds === 'rows') {
+    await prisma.sourceFile.updateMany({ where: { companyId: saved.id, status: 'failed', sha256: { not: null } }, data: { status: 'waiting' } });
+  }
   logger.info({ companyId: saved.id, existing: preview.existing !== null }, 'web: folder source saved');
   return flashRedirect(
     `${BACK}#folders`,
     'ok',
     preview.existing
-      ? `Saved the mapping of “${preview.name}”. The next check reads its files with it.`
-      : `Added “${preview.name}”, switched off. Turn it on in the table below, and the hourly check reads what is new in the folder.`,
+      ? `Saved “${preview.name}”. The next check reads its files this way.`
+      : `Added “${preview.name}”, switched off. Turn it on in the table below, and what is new in the folder is read.`,
   );
 });
 
@@ -256,10 +370,18 @@ foldersRoute.get('/companies/:id/files', async (c) => {
   const company = await prisma.company.findFirst({ where: { id, atsType: AtsType.FOLDER }, select: { id: true, name: true, atsToken: true, active: true, sourceConfig: true } });
   if (!company) return c.text('Not found', 404);
   const [files, summaries] = await Promise.all([listSourceFiles(id), folderSummaries()]);
+  // The job each file became, by the file the job names (Job.sourceFile): one query, the files shown.
+  const jobs = await prisma.job.findMany({
+    where: { companyId: id, sourceFile: { in: files.map((f) => f.relPath) } },
+    select: { id: true, title: true, fitScore: true, status: true, sourceFile: true },
+    orderBy: { id: 'asc' },
+  });
+  const kept = readSourceConfig(company.sourceConfig);
   return c.html(
     <FolderFilesPage
-      folder={{ id, name: company.name, path: company.atsToken, active: company.active, include: readSourceConfig(company.sourceConfig)?.include ?? null, summary: summaries.get(id) }}
+      folder={{ id, name: company.name, path: company.atsToken, active: company.active, include: kept?.include ?? null, holds: kept?.holds ?? 'rows', summary: summaries.get(id) }}
       files={files}
+      jobs={jobs}
     />,
   );
 });

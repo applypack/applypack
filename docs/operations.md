@@ -12,6 +12,7 @@
 | Jobs | `/jobs` | Filterable, sortable list of everything fetched |
 | Paste a job | `/jobs/new` | Save a posting by hand (LinkedIn, email, referral); it gets classified like any other |
 | A folder of job files | `/companies` → Add sources → A folder on this computer | Name a folder a tool of yours writes exports into; each hourly check reads the new files in it, with the same preview, filter and scoring as an import. ApplyPack only reads the folder |
+| A folder of postings you save | `/companies` → Add sources → A folder on this computer → Postings I save | Save a page, a PDF or a `.docx` of a posting into it and it becomes one job, scored like a paste and never filtered out; with `npm start` within a minute. ApplyPack only reads the folder |
 | Import a file | `/jobs/import` | Bring jobs you already have as a file — JSON, JSON Lines, CSV or TSV. A preview shows how the columns were read and what an import would cost before anything is stored; the rows then go through the same filter and scoring as every job |
 | Job detail | `/jobs/:id` | Four tabs — the posting with the AI verdict, resume match, cover letter, "is it real?" — beside status actions, details and tracking |
 | Tailor resume | `/jobs/:id/target` | Posting ↔ resume side by side, live keyword score, edit in place |

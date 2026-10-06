@@ -1,4 +1,5 @@
 import type { FolderFault } from '../datasets/folder-io';
+import { postingFileKind } from '../datasets/folder-scan';
 import { describeStatus } from '../fetchers/source-health';
 import type { CronStats } from '../jobs/cron-run';
 import type { FolderSummary } from '../jobs/source-file-store';
@@ -34,14 +35,17 @@ export interface FileLine {
  * file the last look did not list: moved, deleted, or left out by a name
  * filter set since. Its jobs are the user's record and stay either way.
  */
-export function fileLine(file: { status: string; detail: string | null; jobCount: number }, present: boolean): FileLine {
-  const gone = present ? '' : ` The last check did not find it among the folder’s files${file.jobCount > 0 ? '; its jobs stay' : ''}.`;
+export function fileLine(file: { status: string; detail: string | null; jobCount: number; kind: string }, present: boolean): FileLine {
+  // A saved posting is one job, and its note already says which (datasets/posting-file.ts:savedPostingNote).
+  const posting = postingFileKind(`file.${file.kind}`) !== null;
+  const gone = present ? '' : ` The last check did not find it among the folder’s files${file.jobCount > 0 ? (posting ? '; its job stays' : '; its jobs stay') : ''}.`;
   if (file.status === 'done') {
+    if (posting) return { label: 'Read', tone: 'ok', text: `${file.detail ?? 'Read as a posting.'}${gone}` };
     return { label: 'Read', tone: 'ok', text: `${count(file.jobCount, 'row')} read as ${file.jobCount === 1 ? 'a job' : 'jobs'}.${file.detail ? ` ${file.detail}` : ''}${gone}` };
   }
   if (file.status === 'waiting') return { label: 'Waiting', tone: 'neutral', text: `${file.detail ?? 'The next check reads it.'}${gone}` };
   if (file.status === 'failed') return { label: 'Not read', tone: 'danger', text: `${file.detail ?? 'It could not be read.'}${gone}` };
-  return { label: 'Set aside', tone: 'warn', text: `${file.detail ?? 'Not a file of rows.'}${gone}` };
+  return { label: 'Set aside', tone: 'warn', text: `${file.detail ?? (posting ? 'Not read as a posting.' : 'Not a file of rows.')}${gone}` };
 }
 
 /**

@@ -140,9 +140,13 @@ Windows by a person yet — an API key is the sure one there.
 ## A folder of job files
 
 Companies → Add sources → **A folder on this computer** makes a folder a
-source: a tool of yours writes `.json`, `.jsonl`, `.csv` or `.tsv` files
-into it, and each hourly check reads the new ones. ApplyPack only reads the
-folder; it never writes, moves or deletes anything in it.
+source of one of two kinds. **Postings I save**: you save a posting into it
+— "Save page as…", a page printed to PDF, a `.docx`, text — and it becomes
+one job, scored like a pasted one; with `npm start` within a minute, in
+Docker at the hourly check. **Files a tool writes**: a tool of yours writes
+`.json`, `.jsonl`, `.csv` or `.tsv` files into it, and each hourly check
+reads the new ones. ApplyPack only reads the folder; it never writes, moves
+or deletes anything in it.
 
 - **With `npm start`** any folder inside your home folder works, except
   hidden ones and the system's own. The page can create `~/ApplyPack/inbox`

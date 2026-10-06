@@ -193,7 +193,8 @@ model SourceFile {
   mtime     DateTime
   // Of the bytes as read; NULL for a file that was never read.
   sha256    String?
-  // json | jsonl | csv | tsv, by the file's name.
+  // By the file's name: json | jsonl | csv | tsv for a tool's rows,
+  // html | txt | md | pdf | docx for a saved posting (folder-scan.ts:FileKind).
   kind      String
   // done | waiting | skipped | failed (datasets/folder-scan.ts:FileStatus).
   status    String
@@ -223,6 +224,9 @@ model Job {
   // re-apply window match on it.
   employer               String?
   employerKey            String?
+  // The file inside a folder source this job came from (ADR 0062), as the
+  // ledger names it; NULL for every other source.
+  sourceFile             String?
   title                  String
   url                    String
   location               String

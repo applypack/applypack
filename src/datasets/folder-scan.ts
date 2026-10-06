@@ -28,7 +28,7 @@ export interface LedgerEntry extends ListedFile {
 
 /** What a look learned about one file: the row the ledger keeps for it. */
 export interface FileChange extends ListedFile {
-  kind: RowFormat;
+  kind: FileKind;
   sha256: string | null;
   status: FileStatus;
   /** Why it waits, was skipped or failed — or a note on a read ("the first 2,000 of 3,500 rows"). */
@@ -55,6 +55,10 @@ export const MAX_ROWS_PER_LOOK = 5_000;
 /** A file changed more recently than this may still be written. */
 export const SETTLE_MS = 10_000;
 export const MAX_FILE_BYTES = MAX_BODY_MB * 1024 * 1024;
+/** A saved page or a text file: a posting is a few kilobytes, and a page drags its markup along. */
+const MAX_TEXT_FILE_BYTES = 2 * 1024 * 1024;
+/** A PDF or a .docx of a posting: its fonts and images weigh more than its words, and it is parsed on the event loop. */
+const MAX_DOCUMENT_BYTES = 5 * 1024 * 1024;
 
 const count = (n: number): string => n.toLocaleString('en-US');
 
@@ -62,11 +66,19 @@ const count = (n: number): string => n.toLocaleString('en-US');
 export const FILE_NOTES = {
   fresh: 'Changed a moment ago, so it may still be written. The next check reads it.',
   changing: 'It changed while it was read, so it is still being written. The next check reads it.',
-  tooLarge: `Larger than ${MAX_BODY_MB} MB, which is more than a file of rows is read at.`,
   refused: 'The system did not let ApplyPack read this file.',
   outside: 'A link, or a file outside the folder. Not read.',
   notRows: 'No rows in it: not a JSON array of objects, JSON Lines, CSV or TSV.',
 } as const;
+
+/** What a folder holds (ADR 0062): the files a tool writes, many rows a file, or postings the user saved, one a file. */
+export type FolderHolds = 'rows' | 'postings';
+
+/** A saved posting by its file's name: a web page, plain text, Markdown, a PDF or a Word document. */
+export type PostingKind = 'html' | 'txt' | 'md' | 'pdf' | 'docx';
+export type FileKind = RowFormat | PostingKind;
+
+const POSTING_KIND_BY_EXTENSION: Record<string, PostingKind> = { html: 'html', htm: 'html', txt: 'txt', md: 'md', markdown: 'md', pdf: 'pdf', docx: 'docx' };
 
 const KIND_BY_EXTENSION: Record<string, RowFormat> = { json: 'json', jsonl: 'jsonl', ndjson: 'jsonl', csv: 'csv', tsv: 'tsv' };
 
@@ -75,6 +87,80 @@ export function rowFileKind(relPath: string): RowFormat | null {
   const name = relPath.slice(relPath.lastIndexOf('/') + 1);
   const dot = name.lastIndexOf('.');
   return dot > 0 ? (KIND_BY_EXTENSION[name.slice(dot + 1).toLowerCase()] ?? null) : null;
+}
+
+function extensionOf(relPath: string): string | null {
+  const name = relPath.slice(relPath.lastIndexOf('/') + 1);
+  const dot = name.lastIndexOf('.');
+  return dot > 0 ? name.slice(dot + 1).toLowerCase() : null;
+}
+
+/** What a file is as a saved posting, by its name, or null when it is not one. */
+export function postingFileKind(relPath: string): PostingKind | null {
+  const extension = extensionOf(relPath);
+  return extension === null ? null : (POSTING_KIND_BY_EXTENSION[extension] ?? null);
+}
+
+/** Which files a folder's looks take: a tool's rows, or the postings saved into it. */
+export function kindsFor(holds: FolderHolds): (relPath: string) => FileKind | null {
+  return holds === 'postings' ? postingFileKind : rowFileKind;
+}
+
+/**
+ * What a folder most likely holds, read off its files' names: saved postings
+ * when there are more of those than files of rows. An empty folder is taken
+ * for one the user will save postings into — the habit people already have;
+ * a tool's folder fills with its own files before anyone checks it.
+ */
+export function guessHolds(listing: readonly ListedFile[], include: (relPath: string) => boolean = () => true): FolderHolds {
+  let rows = 0;
+  let postings = 0;
+  for (const file of listing) {
+    if (!include(file.relPath)) continue;
+    if (rowFileKind(file.relPath) !== null) rows++;
+    else if (postingFileKind(file.relPath) !== null) postings++;
+  }
+  return rows > postings ? 'rows' : 'postings';
+}
+
+/**
+ * The files a browser's "Webpage, Complete" save puts beside a page: a folder
+ * named after the page (`Job_files`, or localized, `Job-Dateien`) holding its
+ * images, scripts and framed documents. A framed `.html` in there is not a
+ * posting, so everything under such a folder is passed over.
+ */
+export function pageResources(listing: readonly ListedFile[]): (relPath: string) => boolean {
+  // The pages' names, by the folder they sit in.
+  const stems = new Map<string, string[]>();
+  for (const { relPath } of listing) {
+    if (!/\.html?$/i.test(relPath)) continue;
+    const cut = relPath.lastIndexOf('/');
+    const parent = cut === -1 ? '' : relPath.slice(0, cut);
+    stems.set(parent, [...(stems.get(parent) ?? []), relPath.slice(cut + 1).replace(/\.html?$/i, '')]);
+  }
+  return (relPath) => {
+    const parts = relPath.split('/');
+    for (let i = 0; i < parts.length - 1; i++) {
+      const dir = parts[i]!;
+      const beside = stems.get(parts.slice(0, i).join('/')) ?? [];
+      if (beside.some((stem) => dir.length > stem.length && dir.startsWith(stem) && /[_\- .]/.test(dir[stem.length]!))) return true;
+    }
+    return false;
+  };
+}
+
+/** The most a file of this kind is read at. */
+export function maxBytesOf(kind: FileKind): number {
+  if (kind === 'pdf' || kind === 'docx') return MAX_DOCUMENT_BYTES;
+  if (kind === 'html' || kind === 'txt' || kind === 'md') return MAX_TEXT_FILE_BYTES;
+  return MAX_FILE_BYTES;
+}
+
+/** Why a file of this kind was not read, in the per-file list's words. */
+export function tooLargeNote(kind: FileKind): string {
+  const mb = maxBytesOf(kind) / (1024 * 1024);
+  const what = kind === 'pdf' || kind === 'docx' ? 'a document' : kind === 'html' || kind === 'txt' || kind === 'md' ? 'a saved posting' : 'a file of rows';
+  return `Larger than ${mb} MB, which is more than ${what} is read at.`;
 }
 
 /**
@@ -166,20 +252,22 @@ export function planScan(
   ledger: readonly LedgerEntry[],
   now: number,
   include: (relPath: string) => boolean = () => true,
+  kindOf: (relPath: string) => FileKind | null = rowFileKind,
 ): ScanPlan {
   const known = new Map(ledger.map((entry) => [entry.relPath, entry]));
   const plan: ScanPlan = { read: [], waiting: [], later: [], tooLarge: [], unchanged: 0, other: 0 };
   const fresh: ListedFile[] = [];
   const again: ListedFile[] = [];
   for (const file of listing) {
-    if (rowFileKind(file.relPath) === null || !include(file.relPath)) {
+    const kind = kindOf(file.relPath);
+    if (kind === null || !include(file.relPath)) {
       plan.other++;
       continue;
     }
     const entry = known.get(file.relPath);
     const age = now - file.mtimeMs;
     if (entry && sameFile(entry, file) && settled(entry)) plan.unchanged++;
-    else if (file.size > MAX_FILE_BYTES) plan.tooLarge.push(file);
+    else if (file.size > maxBytesOf(kind)) plan.tooLarge.push(file);
     else if (age >= 0 && age < SETTLE_MS) plan.waiting.push(file);
     else (entry && sameFile(entry, file) ? again : fresh).push(file);
   }
@@ -191,8 +279,22 @@ export function planScan(
 }
 
 /** A file the plan could not read now, as the ledger row that says why. */
-export function unreadChange(file: ListedFile, why: 'fresh' | 'tooLarge'): FileChange {
-  return { ...file, kind: rowFileKind(file.relPath)!, sha256: null, status: why === 'fresh' ? 'waiting' : 'skipped', detail: FILE_NOTES[why], jobCount: 0 };
+export function unreadChange(file: ListedFile, why: 'fresh' | 'tooLarge', kindOf: (relPath: string) => FileKind | null = rowFileKind): FileChange {
+  const kind = kindOf(file.relPath)!;
+  return { ...file, kind, sha256: null, status: why === 'fresh' ? 'waiting' : 'skipped', detail: why === 'fresh' ? FILE_NOTES.fresh : tooLargeNote(kind), jobCount: 0 };
+}
+
+/**
+ * The ledger row for a file the reader could not hand over: null for one that
+ * vanished between the listing and the read. Shared by both kinds of folder.
+ */
+export function unreadVerdict(file: ListedFile, kind: FileKind, got: Exclude<FileRead, { ok: true }>): FileChange | null {
+  const note = (status: FileStatus, detail: string): FileChange => ({ ...file, kind, sha256: null, status, detail, jobCount: 0 });
+  if (got.why === 'gone') return null;
+  if (got.why === 'changing') return note('waiting', FILE_NOTES.changing);
+  if (got.why === 'refused') return note('failed', FILE_NOTES.refused);
+  if (got.why === 'unreadable') return note('failed', `The system could not read this file (${got.code}). It is tried again at the next check.`);
+  return note('skipped', got.why === 'too-large' ? tooLargeNote(kind) : FILE_NOTES.outside);
 }
 
 /**
@@ -231,13 +333,7 @@ export interface FileVerdict {
 export function judgeFile(file: ListedFile, got: FileRead, mapping: Mapping, companyId: number, readAs: ReadonlyMap<string, string>): FileVerdict {
   const kind = rowFileKind(file.relPath)!;
   const note = (status: FileStatus, detail: string | null, extra: Partial<FileChange> = {}): FileChange => ({ ...file, kind, sha256: null, status, detail, jobCount: 0, ...extra });
-  if (!got.ok) {
-    if (got.why === 'gone') return { change: null, jobs: [], rows: 'none' };
-    if (got.why === 'changing') return { change: note('waiting', FILE_NOTES.changing), jobs: [], rows: 'none' };
-    if (got.why === 'refused') return { change: note('failed', FILE_NOTES.refused), jobs: [], rows: 'none' };
-    if (got.why === 'unreadable') return { change: note('failed', `The system could not read this file (${got.code}). It is tried again at the next check.`), jobs: [], rows: 'none' };
-    return { change: note('skipped', got.why === 'too-large' ? FILE_NOTES.tooLarge : FILE_NOTES.outside), jobs: [], rows: 'none' };
-  }
+  if (!got.ok) return { change: unreadVerdict(file, kind, got), jobs: [], rows: 'none' };
   const measured = { size: got.size, mtimeMs: got.mtimeMs, sha256: got.sha256 };
   const twin = readAs.get(got.sha256);
   if (twin !== undefined && twin !== file.relPath) {

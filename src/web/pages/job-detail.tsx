@@ -42,6 +42,8 @@ import { LIVENESS_CODE_LABEL, type LivenessCode } from '../../verification/liven
 
 interface JobDetail {
   id: number;
+  /** ADR 0062: the file of a folder source the job came from. */
+  sourceFile: string | null;
   title: string;
   url: string;
   location: string;
@@ -260,6 +262,15 @@ export const JobDetailPage: FC<JobDetailProps> = ({
             {job.alertedAt && <FactRow label="Alerted">{formatDate(job.alertedAt)}</FactRow>}
             <AppliedWithRow job={job} />
             <FactRow label="Source">{job.company.atsType.replace('_', ' ')}</FactRow>
+            {job.sourceFile && (
+              <FactRow label="From">
+                <a href={`/companies/${job.company.id}/files`} class="text-accent hover:underline">
+                  {job.company.name}
+                </a>
+                {' / '}
+                <span class="break-all font-mono text-meta">{job.sourceFile}</span>
+              </FactRow>
+            )}
             {aiSpent && <FactRow label="AI spent">{aiSpent}</FactRow>}
             <FactRow label="External id">
               <span class="block truncate font-mono text-meta" title={job.externalId}>

@@ -11,16 +11,23 @@ test('folderLine: what a folder holds and what the last check found', () => {
 });
 
 test('fileLine: each state of a file as a badge and a sentence', () => {
-  assert.deepEqual(fileLine({ status: 'done', detail: null, jobCount: 37 }, true), { label: 'Read', tone: 'ok', text: '37 rows read as jobs.' });
-  assert.equal(fileLine({ status: 'done', detail: 'The first 2,000 of 2,005 rows.', jobCount: 1 }, true).text, '1 row read as a job. The first 2,000 of 2,005 rows.');
-  assert.deepEqual(fileLine({ status: 'waiting', detail: 'Changed a moment ago.', jobCount: 0 }, true), { label: 'Waiting', tone: 'neutral', text: 'Changed a moment ago.' });
-  assert.equal(fileLine({ status: 'failed', detail: null, jobCount: 0 }, true).label, 'Not read');
-  assert.equal(fileLine({ status: 'skipped', detail: 'No rows in it.', jobCount: 0 }, true).label, 'Set aside');
+  assert.deepEqual(fileLine({ status: 'done', detail: null, jobCount: 37, kind: 'json' }, true), { label: 'Read', tone: 'ok', text: '37 rows read as jobs.' });
+  assert.equal(fileLine({ status: 'done', detail: 'The first 2,000 of 2,005 rows.', jobCount: 1, kind: 'json' }, true).text, '1 row read as a job. The first 2,000 of 2,005 rows.');
+  assert.deepEqual(fileLine({ status: 'waiting', detail: 'Changed a moment ago.', jobCount: 0, kind: 'json' }, true), { label: 'Waiting', tone: 'neutral', text: 'Changed a moment ago.' });
+  assert.equal(fileLine({ status: 'failed', detail: null, jobCount: 0, kind: 'json' }, true).label, 'Not read');
+  assert.equal(fileLine({ status: 'skipped', detail: 'No rows in it.', jobCount: 0, kind: 'json' }, true).label, 'Set aside');
 });
 
 test('fileLine: a file the last check did not find keeps its line, and its jobs', () => {
-  assert.equal(fileLine({ status: 'done', detail: null, jobCount: 2 }, false).text, '2 rows read as jobs. The last check did not find it among the folder’s files; its jobs stay.');
-  assert.equal(fileLine({ status: 'skipped', detail: 'No rows in it.', jobCount: 0 }, false).text, 'No rows in it. The last check did not find it among the folder’s files.');
+  assert.equal(fileLine({ status: 'done', detail: null, jobCount: 2, kind: 'json' }, false).text, '2 rows read as jobs. The last check did not find it among the folder’s files; its jobs stay.');
+  assert.equal(fileLine({ status: 'skipped', detail: 'No rows in it.', jobCount: 0, kind: 'json' }, false).text, 'No rows in it. The last check did not find it among the folder’s files.');
+});
+
+test('fileLine: a saved posting is one job, said by its own note', () => {
+  const read = { status: 'done', detail: 'Read as “Backend Engineer” at Acme.', jobCount: 1, kind: 'pdf' };
+  assert.deepEqual(fileLine(read, true), { label: 'Read', tone: 'ok', text: 'Read as “Backend Engineer” at Acme.' });
+  assert.match(fileLine(read, false).text, /; its job stays\.$/);
+  assert.equal(fileLine({ status: 'skipped', detail: null, jobCount: 0, kind: 'html' }, true).text, 'Not read as a posting.');
 });
 
 test('explainFolderFault: a refused read says what the system wants, where it runs', () => {
